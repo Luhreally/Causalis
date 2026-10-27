@@ -8,7 +8,7 @@
 // others are drawn on a stream of their own, so the home world is untouched by them.
 // Positions at any time are analytic (Kepler's equation), never integrated.
 import { defineStream, dmath, type Ref, type Rng } from "../kernel/index.ts";
-import { AU_KM, orbitXY, type Prior, type Range } from "../rules/index.ts";
+import { AU_KM, KINDS, orbitXY, type Prior, type Range } from "../rules/index.ts";
 import type { Planet, Star } from "./bodies.ts";
 import { moonRef, planetRef } from "./kinds.ts";
 
@@ -279,11 +279,16 @@ export function makeSystem(rng: Rng, prior: Prior, star: Star, home: Planet): St
         gravity: home.gravity,
         escape: 11.19 * Math.sqrt(home.mass / home.radius),
         temperature: home.meanTemperature,
-        pressure: 1,
-        air: "breathable",
-        water: "seas",
+        // (A kind's own air, and where its water lies: Phase 56.)
+        pressure: home.kind ? KINDS[home.kind].body.pressure : 1,
+        air: home.kind ? KINDS[home.kind].body.air : "breathable",
+        water: home.kind ? KINDS[home.kind].body.water : "seas",
         radiation: 1,
-        because: ["the world the people arose on, its air made breathable by its life"],
+        because: [
+          home.kind
+            ? `the world the people arose on: ${KINDS[home.kind].name}, for ${KINDS[home.kind].why}`
+            : "the world the people arose on, its air made breathable by its life",
+        ],
       },
     },
   ];

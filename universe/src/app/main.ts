@@ -6573,7 +6573,7 @@ async function runPlanetPage(): Promise<void> {
       scale === "village" && plan ? squareNow(plan, t, village.shelteredNow() > 0) : null;
     time.weather(
       w.icon,
-      w.warmth,
+      w.celsius,
       [w.words, ...(square ? [square.words] : []), ...hand.told.map((x) => x.words)].join("; "),
       (square?.icon ?? "") +
         hand.told
@@ -7508,6 +7508,16 @@ async function runPlanetPage(): Promise<void> {
         void watchIt({ words: "🏘️ Their first village", seconds: 20 });
     });
   else if (params.has("watch")) void watchIt();
+  // The world's kind (Phase 56): its globe's seas, air and clouds, a land's sea, the sky over its
+  // ground, its warmth's legend.
+  client.onFrame((frame) => {
+    if (frame.view !== "globe") return;
+    const kind = (frame.meta as { kind?: string }).kind ?? "rocky";
+    globe.kind(kind);
+    region.kind(kind);
+    stage.worldKind(kind);
+    mapModes.kind = kind;
+  });
   client.onFrame((frame) => {
     if (frame.view === "globe") paintGlobe();
     else if (frame.view === "region") paintRegion();

@@ -15,8 +15,8 @@ import {
   type World,
 } from "../kernel/index.ts";
 import type { Feast } from "../bridge/index.ts";
-import { WATER, cellRef, livingIn, type Species } from "../gen/index.ts";
-import { G, GOODS, HOME_LIFE, OCC, article, roofPitch } from "../rules/index.ts";
+import { WATER, cellRef, livingIn, worldKindOf, type Species } from "../gen/index.ts";
+import { G, GOODS, HOME_LIFE, KIND_AGES, OCC, article, roofPitch } from "../rules/index.ts";
 import {
   actsOf,
   agentName,
@@ -79,6 +79,7 @@ import { hostKinds } from "./arms.ts";
 import { visitorsAt } from "./peoples.ts";
 import { flockBeast, makerAt, seatsOf, townStuff, workshopOf, type Maker } from "./chain.ts";
 import { peopleFigure } from "./folk.ts";
+import { planKind } from "./kinds.ts";
 import { LINE, ROSTER_YEARS, folkWork, townRoster, workOf, type Roster } from "./roster.ts";
 import { battleWords, townWarDead, warRests } from "./burials.ts";
 
@@ -149,12 +150,16 @@ export function landEra(world: World, cell: number): NonNullable<VillagePlan["er
   const ctx = populationContext(world),
     lore = loreOf(world),
     knows = (id: string) => !!lore.get(cell, id),
-    land = ctx.provinces.get(cell);
-  return knows("electricity") || knows("sea-electricity")
+    land = ctx.provinces.get(cell),
+    // (A kind's own ages, by its own principles: Phase 56.)
+    kind = worldKindOf(ctx.generated),
+    own = (era: "metal" | "industry" | "modern") =>
+      kind !== "rocky" && KIND_AGES[kind][era].by.some(knows);
+  return knows("electricity") || knows("sea-electricity") || own("modern")
     ? "modern"
-    : knows("steam-engine")
+    : knows("steam-engine") || own("industry")
       ? "industry"
-      : knows("metalworking") || !!marketsOf(world).get(cell)?.metalworking
+      : knows("metalworking") || !!marketsOf(world).get(cell)?.metalworking || own("metal")
         ? "metal"
         : land?.knowsCultivation || knows("cultivation")
           ? "farm"
@@ -1081,6 +1086,7 @@ export function villagePlan(
       population: village.population,
       market: village.market !== null,
       biome: r.biome[village.tile]!,
+      ...planKind(world),
       seed,
       homes,
       fields,

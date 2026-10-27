@@ -36,6 +36,13 @@ export const MATERIALS = [
   "body",
   /** Steel cut and fitted at a works finer than a file can (Phase 53 M219): a gun's bolt, a hull. */
   "machined",
+  /**
+   * The kinds' own (Phase 56): an ice world's bedrock ice, a carbon world's carbide grit bound in
+   * pitch, a sulfur world's grit bound with molten sulfur.
+   */
+  "ice",
+  "pitch grit",
+  "sulfur concrete",
 ] as const;
 export type Material = (typeof MATERIALS)[number];
 
@@ -71,6 +78,10 @@ export const MATERIAL: Readonly<Record<Material, MaterialProps>> = {
   kelp: { edge: 0, guard: 0.05, mass: 0.2, lasting: 0.2, cost: 0.03 },
   body: { edge: 0, guard: 0, mass: 0, lasting: 1, cost: 0 },
   machined: { edge: 1, guard: 0.85, mass: 0, lasting: 0.95, cost: 0.9 },
+  // (Ice as hard as rock in its world's cold; pitch and sulfur set hard and shed acid and water.)
+  ice: { edge: 0.3, guard: 0.15, mass: 0.8, lasting: 0.75, cost: 0.1 },
+  "pitch grit": { edge: 0, guard: 0, mass: 0.85, lasting: 0.85, cost: 0.25 },
+  "sulfur concrete": { edge: 0, guard: 0, mass: 0.9, lasting: 0.9, cost: 0.3 },
 };
 
 /**
@@ -824,6 +835,56 @@ export const REALIZATIONS: readonly Realization[] = [
     ["steel", "iron", "stone", "earth"],
     () => "run by electric motors, their power raised by the atom",
     () => ({ output: 0.85, cost: 0.3 }),
+  ),
+  // The kinds' own (Phase 56): walls of ice blocks set with water that freezes, of carbide grit
+  // bound in pitch, of sulfur concrete; and works driven by the kinds' engines, where nothing burns.
+  R(
+    "ice-walls",
+    "walls",
+    ["ice-working"],
+    ["ice"],
+    () => "blocks of ice",
+    () => ({ warmth: 0.55, cool: 0.9, lasting: 0.8, room: 0.65, cost: 0.12 }),
+  ),
+  R(
+    "pitch-walls",
+    "walls",
+    ["pitch-ware"],
+    ["pitch grit"],
+    () => "carbide grit bound in pitch",
+    () => ({ warmth: 0.6, cool: 0.6, lasting: 0.85, room: 0.7, cost: 0.25 }),
+  ),
+  R(
+    "sulfur-walls",
+    "walls",
+    ["sulfur-concrete"],
+    ["sulfur concrete"],
+    () => "sulfur concrete",
+    () => ({ warmth: 0.6, cool: 0.75, lasting: 0.9, room: 0.7, cost: 0.3 }),
+  ),
+  R(
+    "sun-engine",
+    "drive",
+    ["sun-engines"],
+    ["stone", "earth"],
+    () => "driven by engines the sun's heat drives, gathered in mirrors",
+    () => ({ output: 0.75, cost: 0.15 }),
+  ),
+  R(
+    "ground-heat",
+    "drive",
+    ["heat-engines"],
+    ["stone", "earth"],
+    () => "driven by engines run between the ground's heat and the cold",
+    () => ({ output: 0.75, cost: 0.15 }),
+  ),
+  R(
+    "acetylene-engine",
+    "drive",
+    ["cold-chemistry"],
+    ["stone", "earth"],
+    () => "driven by engines that join acetylene with hydrogen",
+    () => ({ output: 0.8, cost: 0.2 }),
   ),
 ];
 

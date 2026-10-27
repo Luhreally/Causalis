@@ -17,6 +17,8 @@ export class MapModes {
   private readonly note = el("div", "legend-note");
   private readonly picks = el("div", "legend-picks");
   private current: Lens;
+  /** Its world's kind (Phase 56): the warmth legend's degrees its liquid's, told in true ones. */
+  private world = "rocky";
   onLens: (lens: Lens) => void = () => {};
 
   constructor(lens: Lens) {
@@ -45,6 +47,13 @@ export class MapModes {
   set lens(l: Lens) {
     this.current = l;
     for (const [k, b] of this.buttons) b.classList.toggle("on", k === l);
+    this.drawLegend();
+  }
+
+  /** Its world's kind (Phase 56), for its legends. */
+  set kind(kind: string) {
+    if (kind === this.world) return;
+    this.world = kind;
     this.drawLegend();
   }
 
@@ -78,7 +87,7 @@ export class MapModes {
   }
 
   private drawLegend(): void {
-    const l = lensLegend(this.current),
+    const l = lensLegend(this.current, this.world),
       title = el("div", "legend-title", LENS_NAMES[this.current]);
     const parts: HTMLElement[] = [title];
     if (l.kind === "ramp") {

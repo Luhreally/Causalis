@@ -24,7 +24,13 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
-import { cellRef, civName, type Civilization, type GalaxyStar } from "../../gen/index.ts";
+import {
+  cellRef,
+  civName,
+  worldKindOf,
+  type Civilization,
+  type GalaxyStar,
+} from "../../gen/index.ts";
 import {
   CLADES,
   G,
@@ -778,7 +784,10 @@ function lessonsFor(ctx: PopulationContext, seat: number): Principle[] {
   const k = (id: string) => knows(ctx, seat, id);
   return PRINCIPLES.filter(
     (p) =>
-      p.rate > 0 && !k(p.id) && needsMet(p, k) && affordsPrinciple(p, ctx.medium, ctx.affords.fire),
+      p.rate > 0 &&
+      !k(p.id) &&
+      needsMet(p, k) &&
+      affordsPrinciple(p, ctx.medium, ctx.affords.fire, worldKindOf(ctx.generated)),
   );
 }
 

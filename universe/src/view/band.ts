@@ -367,7 +367,8 @@ export function newBand(
         ochre: craft.pigment ? 1 : 0,
         flakes: 14,
       },
-      lit: true,
+      // (Where nothing burns, no fire is ever made: Phase 56.)
+      lit: craft.fire !== "none",
       work: { x: 0, z: 0 },
       frame: { x: 0, z: 0, yaw: 0 },
       hidesOf: [],
@@ -719,7 +720,7 @@ export function stepBand(b: BandState, m: MeadowState): void {
   const folk: { x: number; z: number; hunting: boolean }[] = [];
   // (At a fresh camp the fire is made before anything: by the eldest, else the first of the grown.)
   const kindler =
-    b.going || b.lit
+    b.going || b.lit || b.craft.fire === "none"
       ? -1
       : ((b.people.find((q) => q.kin === "old") ?? b.people.find((q) => q.kin === "grown"))?.id ??
         -1);

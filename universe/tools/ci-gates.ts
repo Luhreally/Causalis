@@ -204,6 +204,10 @@ export const GATES: readonly { gate: number; args: readonly string[]; s: number 
   // it is fought and down onto its field once it is past). Its phone budgets run locally. (Its time
   // with the battle estimated from software GL.)
   { gate: 55, args: ["--ci"], s: 680 },
+  // Phase 56 (world kinds: the open worlds' kinds and each made by its dial; the title's dials; a
+  // carbon, a sulfur-volcano, an ice-and-ammonia and a methane world by day — globe, land, town, the
+  // matter guide's "This world", bronze shut where nothing burns, their own ages — and a rocky one).
+  { gate: 56, args: ["--ci"], s: 260 },
 ];
 
 const argv = process.argv.slice(2),

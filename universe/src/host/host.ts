@@ -17,6 +17,7 @@ import {
   type World,
 } from "../kernel/index.ts";
 import { spine, why, type Explanation } from "../causal/index.ts";
+import { keptRocky } from "../rules/index.ts";
 import {
   frameTransfer,
   type FrameArray,
@@ -57,6 +58,26 @@ export type Universe = {
   /** Whether life arises on a seed's world, and a people in time (the world itself not built). */
   readonly life?: (seed: Seed) => SeedLife;
 };
+
+/**
+ * A save loaded. A world saved before Phase 56 whose seed now makes another kind of world no longer
+ * regenerates the planet it saved: it is kept as it was made, its kind pinned rocky in its seed
+ * ("~carbon oxygen ~volatiles water"), which regenerates that very planet.
+ */
+export function loadKept(
+  doc: SaveDocument,
+  build: Universe["build"],
+  ruleset: string,
+): ReturnType<typeof loadWorld> {
+  try {
+    return loadWorld(doc, build, ruleset, { allowRulesetChange: true });
+  } catch (error) {
+    const kept = keptRocky(doc.seed),
+      moved = error instanceof Error && error.message.startsWith("this game regenerates");
+    if (!moved || kept === doc.seed) throw error;
+    return loadWorld({ ...doc, seed: kept }, build, ruleset, { allowRulesetChange: true });
+  }
+}
 
 export type HostOptions = {
   /** Milliseconds, for pacing only (performance.now in the worker, a fake in tests). */
@@ -368,7 +389,7 @@ export class SimHost {
   private load(universe: Universe, doc: SaveDocument): World {
     const probe = universe.build(seedFromText(doc.seed)),
       ruleset = rulesetId(probe, universe.version);
-    const loaded = loadWorld(doc, universe.build, ruleset, { allowRulesetChange: true });
+    const loaded = loadKept(doc, universe.build, ruleset);
     this.setWorld(universe, loaded.world, loaded.lineage);
     return loaded.world;
   }

@@ -22,6 +22,8 @@ export type Stone = Edge & {
   readonly colour: Rgb;
   /** Its substance's id (null: a rock, not one substance). */
   readonly subst: string | null;
+  /** How it is worked, where it is not knapped and hafted as flint is (Phase 56: ice edged by melting). */
+  readonly worked?: string;
 };
 
 /**
@@ -121,6 +123,12 @@ export type Ore = {
   readonly words: string;
   readonly smelt: string;
   readonly grade: number;
+  /**
+   * How it is worked where it is not smelted (Phase 56: a carbon world's native copper, hammered
+   * cold): what is done to it, and where and why; the principle that teaches it, where no reaction
+   * tells it (grinding is no reaction).
+   */
+  readonly worked?: { readonly how: string; readonly at: string; readonly by?: string };
 };
 
 export const ORES: Readonly<Record<string, Partial<Record<OreLie, Ore>>>> = {

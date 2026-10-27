@@ -8,7 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText, type World } from "../../src/kernel/index.ts";
 import { isProvinceWorld } from "../../src/gen/index.ts";
-import { PRINCIPLES, REACTIONS, SUBSTANCES } from "../../src/rules/index.ts";
+import { PRINCIPLES, REACTIONS, SUBSTANCES, kindAllows } from "../../src/rules/index.ts";
 import { designsOf, homePlanet, politiesOf, populationContext } from "../../src/sim/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import {
@@ -122,7 +122,9 @@ const CATEGORIES: Record<string, () => unknown> = {
     }),
   substances: () => SUBSTANCES.map((s) => page(`subst:${s.id}`)),
   reactions: () => REACTIONS.map((r) => page(`rxn:${r.id}`)),
-  principles: () => PRINCIPLES.map((p) => page(`prin:${p.id}`)),
+  // (Earth's own: the kinds' principles, Phase 56, are none of Earth's.)
+  principles: () =>
+    PRINCIPLES.filter((p) => kindAllows(p, "rocky")).map((p) => page(`prin:${p.id}`)),
   guide: () => page("world:matter"),
   camps: () =>
     lands(early, 10).flatMap((c) =>

@@ -36,6 +36,7 @@ import {
   HERD_GOODS,
   HOME_MADE,
   GLUT_YEARS,
+  KIND_ENGINES,
   MACHINE_GAIN,
   OCC,
   POWER,
@@ -208,8 +209,11 @@ function makeAndUse(
   const lore = loreOf(world),
     // Works with engines: how much of the crafts they do, and the machines their workers use.
     industry = Math.min(1.5, lore.effect(p.cell, "industry")),
-    // Machines are wanted by a people who know engines: steam's, or the tides'.
-    machines = !!lore.get(p.cell, "steam-engine") || !!lore.get(p.cell, "current-mills");
+    // Machines are wanted by a people who know engines: steam's, or the tides', or a kind's own.
+    machines =
+      !!lore.get(p.cell, "steam-engine") ||
+      !!lore.get(p.cell, "current-mills") ||
+      KIND_ENGINES.some((id) => !!lore.get(p.cell, id));
   const wants: [number, number, "toolCover" | "clothingCover" | "potteryCover" | "machineCover"][] =
     [
       [

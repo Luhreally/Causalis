@@ -8,8 +8,8 @@
 // spared death for twenty years). Each is a logged command whose event cites it;
 // what follows is the simulation's own.
 import { defineEventType, yearOfMoment, type Ref, type World } from "../../kernel/index.ts";
-import { BANDS, PRINCIPLES, needsMet } from "../../rules/index.ts";
-import { cradleTongue, tonguePersonName } from "../../gen/index.ts";
+import { BANDS, PRINCIPLES, kindAllows, kindBurns, needsMet } from "../../rules/index.ts";
+import { cradleTongue, tonguePersonName, worldKindOf } from "../../gen/index.ts";
 import { COLS } from "../population/model.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import type { Settlement } from "../population/stores.ts";
@@ -123,6 +123,8 @@ export function installLocalActs(world: World, ctx: () => PopulationContext): vo
       const { village: ref, lot } = args as FireArgs;
       if (lot !== undefined && (!Number.isInteger(lot) || lot < 0))
         return "lot must be one of the town's lots";
+      // (Where nothing in the air burns, no fire is lit, by any hand: Phase 56.)
+      if (!kindBurns(worldKindOf(ctx().generated))) return "nothing burns in its air";
       // (Any town whose homes stand burns, not a city only: Phase 42 M201.)
       return citiesOf(world).get(ref) || homesStand(world, ref)
         ? null
@@ -205,7 +207,11 @@ export function installLocalActs(world: World, ctx: () => PopulationContext): vo
         year = yearOfMoment(t),
         // What their land could come to know next.
         next = PRINCIPLES.find(
-          (p) => p.rate > 0 && !lore.get(w.cell, p.id) && needsMet(p, (n) => knows(c, w.cell, n)),
+          (p) =>
+            p.rate > 0 &&
+            kindAllows(p, worldKindOf(c.generated)) &&
+            !lore.get(w.cell, p.id) &&
+            needsMet(p, (n) => knows(c, w.cell, n)),
         );
       const event = world.events.emit({
         type: LOCAL_ACT_EVENTS.inspireOne.type,

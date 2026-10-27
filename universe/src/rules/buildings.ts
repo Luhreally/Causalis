@@ -94,7 +94,15 @@ export const CIVICS: readonly CivicDef[] = [
     place: "edge",
     years: 1,
   },
-  { kind: "smithy", name: "a smithy", needs: ["bronze"], people: 200, place: "edge", years: 1 },
+  // (A carbon world's smiths hammer its copper cold and grind its carbide iron: Phase 56.)
+  {
+    kind: "smithy",
+    name: "a smithy",
+    needs: ["bronze|carbide-blades"],
+    people: 200,
+    place: "edge",
+    years: 1,
+  },
   {
     kind: "market",
     name: "a market hall",
@@ -204,7 +212,8 @@ export const CIVICS: readonly CivicDef[] = [
   {
     kind: "factory",
     name: "a factory",
-    needs: ["factories"],
+    // (Or works driven by a kind's own engines, where nothing burns: Phase 56.)
+    needs: ["factories|sun-engines|heat-engines|cold-chemistry"],
     people: 1500,
     place: "edge",
     years: 3,
@@ -222,7 +231,7 @@ export const CIVICS: readonly CivicDef[] = [
   {
     kind: "power",
     name: "a power station",
-    needs: ["electricity|sea-electricity"],
+    needs: ["electricity|sea-electricity|graphite-dynamos|ground-dynamos|polymer-wire"],
     people: 8000,
     place: "edge",
     years: 4,
@@ -232,7 +241,7 @@ export const CIVICS: readonly CivicDef[] = [
   {
     kind: "offices",
     name: "offices",
-    needs: ["electricity|sea-electricity"],
+    needs: ["electricity|sea-electricity|graphite-dynamos|ground-dynamos|polymer-wire"],
     people: 15_000,
     city: true,
     place: "core",

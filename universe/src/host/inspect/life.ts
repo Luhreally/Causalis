@@ -16,6 +16,7 @@ import type { World } from "../../kernel/index.ts";
 import type { Block, Item, PageModel, Place, Row, Stat } from "../../bridge/index.ts";
 import { depositPage, platePage, speciesPage } from "../pages.ts";
 import { region } from "../planet.ts";
+import { warmthScale } from "../kinds.ts";
 import { count, eventsAbout, item, link, share, stat, yearNow } from "./words.ts";
 import {
   ORE_GRADE,
@@ -103,7 +104,8 @@ export function lineagePage(world: World, ref: string): PageModel {
     ...(s.seed !== null ? [stat("Seed", "a grass whose seed can be sown")] : []),
     stat(
       "Warmth it lives in",
-      `${s.tolerance ? `within ${s.tolerance} °C of what it came from` : "any"}`,
+      // (In true degrees, on a world whose climate is read in its liquid's: Phase 56.)
+      `${s.tolerance ? `within ${Math.round(s.tolerance * warmthScale(world))} °C of what it came from` : "any"}`,
     ),
     stat("Rain it lives in", `${Math.round(s.rain[0])}–${Math.round(s.rain[1])} mm a year`),
   ];
@@ -434,7 +436,7 @@ export function agePage(world: World, ref: string): PageModel {
     stats: [
       stat("Its kind", a.kind),
       stat("Sea level", `${Math.round(a.seaLevel)} m`),
-      stat("Warmth", `${a.warmth >= 0 ? "+" : ""}${a.warmth.toFixed(1)} °C`),
+      stat("Warmth", `${a.warmth >= 0 ? "+" : ""}${(a.warmth * warmthScale(world)).toFixed(1)} °C`),
       stat("Forests", a.forests ? "yes" : "none yet"),
     ],
     tabs: [

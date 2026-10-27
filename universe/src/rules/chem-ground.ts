@@ -2,6 +2,7 @@
 // clays. Earth's crust gets Earth's own tables, the same objects. Any other crust lays its changes
 // over Earth's rock in order: silica, then reduced, then carbon-rich.
 import type { Chemistry, SilicaClass } from "./chemistry.ts";
+import { KIND_PIGMENTS, KIND_ROCKS, KIND_SOILS } from "./kind-ground.ts";
 import { ROCKS, SOILS, type Rock } from "./matter.ts";
 import type { Rgb } from "./stuffs.ts";
 
@@ -253,11 +254,16 @@ function carbonPass(rock: Rock): Rock {
   return parts === rock.parts ? rock : { ...rock, parts, words: rock.words + CARBIDE_WORDS };
 }
 
-/** Earth's rock in one crust: the silica pass, then the reduced, then the carbon-rich. */
+/**
+ * Earth's rock in one crust: the silica pass, then the reduced, then the carbon-rich; then a kind's
+ * own form of it, where its kind has one (Phase 56).
+ */
 function crustRock(chem: Chemistry, earth: Rock): Rock {
   const silica = silicaPass(earth, chem.silica),
-    reduced = isReduced(chem) ? reducedPass(silica) : silica;
-  return chem.carbon === "carbon-rich" ? carbonPass(reduced) : reduced;
+    reduced = isReduced(chem) ? reducedPass(silica) : silica,
+    rock = chem.carbon === "carbon-rich" ? carbonPass(reduced) : reduced,
+    form = chem.kind ? KIND_ROCKS[chem.kind][earth.id] : undefined;
+  return form ? { ...rock, ...form } : rock;
 }
 
 /** A soil in a reduced crust: hematite as magnetite, and its new name where the table gives one. */
@@ -272,7 +278,8 @@ function reducedSoil(key: string, earth: Soil): Soil {
  * chemistryKey leaves out redox, so two chemistries that differ only in it would share a rock.
  */
 function crustKey(chem: Chemistry): string {
-  return `${chem.silica}/${isReduced(chem) ? "reduced" : "oxidised"}/${chem.carbon}`;
+  const crust = `${chem.silica}/${isReduced(chem) ? "reduced" : "oxidised"}/${chem.carbon}`;
+  return chem.kind ? `${chem.kind}:${crust}` : crust;
 }
 
 /** Each crust's rock, made once and kept by its key and its id. */
@@ -307,10 +314,14 @@ export function worldRocks(chem: Chemistry): readonly Rock[] {
   return rocks;
 }
 
-/** A soil in a crust: SOILS' own entry, unless the crust is reduced. */
+/** A soil in a crust: SOILS' own entry, unless the crust is reduced; a kind's own (Phase 56). */
 export function worldSoil(chem: Chemistry, key: string): Soil {
   const earth = SOILS[key];
   if (earth === undefined) throw new Error(`no soil ${key}`);
+  if (chem.kind) {
+    const own = KIND_SOILS[chem.kind];
+    return key === "sea" ? own.sea : key === "ice" ? (own.ice ?? earth) : own.land;
+  }
   if (!isReduced(chem)) return earth;
   let soil = soilMemo.get(key);
   if (soil === undefined) {
@@ -325,6 +336,9 @@ export function worldSoil(chem: Chemistry, key: string): Soil {
  * measures). A carbon-rich crust's shale and coal measures grind graphite.
  */
 export function pigmentOverride(chem: Chemistry, rock: string): Pigment | null {
+  // (A kind's own, where it grinds one of the rock: Phase 56.)
+  const own = chem.kind ? KIND_PIGMENTS[chem.kind][rock] : undefined;
+  if (own) return own;
   if (chem.carbon === "carbon-rich" && (rock === "shale" || rock === "coal-measures"))
     return GRAPHITE;
   if (!isReduced(chem)) return null;

@@ -25,6 +25,7 @@ import {
 import type { GenesisPlan } from "../bridge/index.ts";
 import { dawnSeaOf, dropOfWorld } from "./inspect/small.ts";
 import { figureBody, folkFacts } from "./folk.ts";
+import { spotBiome } from "./kinds.ts";
 
 /** The last world remade from acts laid on its dawn (a viewer asks again and again of one). */
 let remade: { readonly key: string; readonly g: ProvinceWorld } | null = null;
@@ -159,7 +160,8 @@ export function genesisPlan(pw: ProvinceWorld, seed: string): GenesisPlan {
           name: life.species[people.species]!.name,
           words: bodyWords(people.body),
           because: people.because,
-          cradle: `the ${BIOME_NAMES[g.climate.biome[people.cell]!] ?? "land"} at ${deg(g.grid.lat[people.cell]!, "N", "S")}, ${deg(g.grid.lon[people.cell]!, "E", "W")}`,
+          // (Its seas its liquid's: Phase 56.)
+          cradle: `the ${spotBiome(g, BIOME_NAMES[g.climate.biome[people.cell]!] ?? "land")} at ${deg(g.grid.lat[people.cell]!, "N", "S")}, ${deg(g.grid.lon[people.cell]!, "E", "W")}`,
           arose: life.species[people.species]!.arose,
           // (Drawn as they are on their world, from the lands they live in: the same look.)
           figure: figureBody(people.body, folkFacts(pw)),

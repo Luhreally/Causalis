@@ -37,6 +37,7 @@ import { dropBlock } from "./small.ts";
 import { landBondBlocks } from "./order.ts";
 import { landHealthBlocks } from "./sickness.ts";
 import { landCreditBlocks } from "./credit.ts";
+import { biomeWords } from "../kinds.ts";
 import {
   faithLink,
   landLink,
@@ -597,7 +598,8 @@ export function biomeOf(world: World, cell: number): string {
     spot = spotOfLand(world, cell);
   if (spot === null) return "land";
   const fine = isProvinceWorld(g) ? g.fine : g;
-  return BIOME_NAMES[fine.climate.biome[spot]!] ?? "land";
+  // (Its seas its liquid's: Phase 56.)
+  return biomeWords(world, BIOME_NAMES[fine.climate.biome[spot]!] ?? "land");
 }
 
 export { realmLink };

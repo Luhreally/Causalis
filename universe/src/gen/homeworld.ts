@@ -16,20 +16,22 @@ import {
 import {
   agesMade,
   dawnMade,
+  kindLives,
   livesMade,
   madePrior,
   peoplingMade,
   showingScale,
+  worldKind,
   type Prior,
 } from "../rules/index.ts";
-import { makePlanet, makeStar, type Planet, type Star } from "./bodies.ts";
+import { kindPlanet, makePlanet, makeStar, starAgeGyr, type Planet, type Star } from "./bodies.ts";
 import { makeSystem, type StarSystem } from "./system.ts";
 import { makeClimate, type Climate } from "./climate.ts";
 import { makeDeposits, type Deposit } from "./deposits.ts";
 import { ageRef } from "./kinds.ts";
 import { makeHydrology, type Hydrology } from "./hydrology.ts";
 import { AGES, makeDeepTime, type AgeKind, type DeepTime } from "./deeptime.ts";
-import { makeBiosphere, type Biosphere } from "./biosphere.ts";
+import { barrenBiosphere, makeBiosphere, type Biosphere } from "./biosphere.ts";
 import { BOUNDARY, makeTectonics, type Tectonics } from "./plates.ts";
 import { nativeIronLands, worldChemistry } from "./chemistry.ts";
 
@@ -76,7 +78,14 @@ export function generateHomeWorld(
     rng = new Rng(seed),
     grid = sphereGrid(frequency),
     star = makeStar(rng, made),
-    planet = makePlanet(rng, made, star),
+    // (Its kind, on a world of a drawn chemistry: by its own keyed draws, never the seed's stream,
+    // and its planet read through its liquid: Phase 56.)
+    kind =
+      (prior.chemistry ?? "drawn") === "solar"
+        ? "rocky"
+        : worldKind({ text: seed.text, mass: star.mass, ageGyr: starAgeGyr(star) }),
+    twin = makePlanet(rng, made, star),
+    planet = kind === "rocky" ? twin : kindPlanet(twin, kind, star),
     // The rest of the star's system, on its own stream (the home world is untouched by it).
     system = makeSystem(rng, made, star, planet),
     tectonics = makeTectonics(grid, rng, planet),
@@ -91,14 +100,17 @@ export function generateHomeWorld(
       tectonics,
       agesMade(seed.text, AGES) as ReadonlyMap<number, AgeKind>,
     ),
-    life = makeBiosphere(grid, rng, climate, water, tectonics.elevation, deep, {
-      prior: prior.name,
-      gravity: planet.gravity,
-      ocean: planet.oceanFraction,
-      dawn: dawnMade(seed.text),
-      lives: livesMade(seed.text, AGES),
-      cradle: peoplingMade(seed.text).cradle,
-    }),
+    // (Life takes hold in a kind's liquid only as often as its chemistry lets it: Phase 56.)
+    life = kindLives(seed.text, kind)
+      ? makeBiosphere(grid, rng, climate, water, tectonics.elevation, deep, {
+          prior: prior.name,
+          gravity: planet.gravity,
+          ocean: planet.oceanFraction,
+          dawn: dawnMade(seed.text),
+          lives: livesMade(seed.text, AGES),
+          cradle: peoplingMade(seed.text).cradle,
+        })
+      : barrenBiosphere(grid.count),
     deposits = makeDeposits(grid, rng, tectonics, climate, water, tectonics.elevation, deep);
   const h = new Hasher().string(prior.name).int(frequency).value(star).value(planet);
   for (const p of tectonics.plates) h.value(p);

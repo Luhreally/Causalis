@@ -156,6 +156,7 @@ import { worldGlobe } from "./worlds.ts";
 import { foreignGlobe, foreignSystem, galaxyPlan, starPage, starsNear } from "./galaxy.ts";
 import { peoplesSky, visitsNow } from "./peoples.ts";
 import { peopleFigure } from "./folk.ts";
+import { kindOn, lifelessWhy, seedKind, spotBiome, spotSwing, spotWarmth } from "./kinds.ts";
 
 const BOUNDARY_WORDS = ["none", "converging", "spreading", "sliding"];
 
@@ -173,6 +174,8 @@ function globeFrame(world: World) {
       plates: g.tectonics.plates.map((p) => ({ continental: p.continental })),
       depositKinds: DEPOSIT_KINDS,
       biomeNames: BIOME_NAMES,
+      // (Its kind, for the colours of its seas and land: Phase 56.)
+      kind: kindOn(g),
     },
     arrays: {
       elevation: Float32Array.from(g.tectonics.elevation),
@@ -214,6 +217,7 @@ function regionFrame(world: World, focus: string | null) {
       tileKm: r.tileKm,
       lat: (g.grid.lat[middle]! * 180) / Math.PI,
       lon: (g.grid.lon[middle]! * 180) / Math.PI,
+      kind: kindOn(g),
     },
     arrays: {
       elevation: Float32Array.from(r.elevation),
@@ -241,9 +245,10 @@ export function tile(world: World, center: number, t: number) {
     y: Math.floor(t / r.size),
     tileKm: r.tileKm,
     elevation: r.elevation[t]!,
-    temperature: r.temperature[t]!,
+    // (In true degrees, and its seas its liquid's: Phase 56.)
+    temperature: spotWarmth(g, r.temperature[t]!),
     precipitation: r.precipitation[t]!,
-    biome: BIOME_NAMES[r.biome[t]!],
+    biome: spotBiome(g, BIOME_NAMES[r.biome[t]!]!),
     water: WATER_WORDS[r.water[t]!],
     fertility: r.fertility[t]!,
     // Its ground (Phase 15 M124): the rock under it, the soil over it.
@@ -665,10 +670,10 @@ export function cell(pw: ProvinceWorld, c: number) {
     lat: (g.grid.lat[c]! * 180) / Math.PI,
     lon: (g.grid.lon[c]! * 180) / Math.PI,
     elevation: t.elevation[c]!,
-    temperature: g.climate.temperature[c]!,
-    seasonality: g.climate.seasonality[c]!,
+    temperature: spotWarmth(g, g.climate.temperature[c]!),
+    seasonality: spotSwing(g, g.climate.seasonality[c]!),
     precipitation: g.climate.precipitation[c]!,
-    biome: BIOME_NAMES[g.climate.biome[c]!],
+    biome: spotBiome(g, BIOME_NAMES[g.climate.biome[c]!]!),
     plate: { ref: plate.ref, index: plate.index, continental: plate.continental },
     boundary: t.toBoundary[c]! <= 3 ? BOUNDARY_WORDS[t.boundary[c]!] : "none",
     river: g.water.river[c] === 1,
@@ -726,16 +731,10 @@ export function seedLife(g: HomeWorld): SeedLife {
       gravity: Math.round(g.planet.gravity * 100) / 100,
       warmth: t,
       seas: Math.round(g.planet.oceanFraction * 100) / 100,
+      ...seedKind(g),
     },
-    words: peopled
-      ? ""
-      : living
-        ? "life arose on it, but no people rose from it"
-        : t < -15
-          ? `its seas froze over before life took hold (${t} °C on average)`
-          : t > 60
-            ? `too hot for life to take hold in its seas (${t} °C on average)`
-            : "no life took hold in its first seas",
+    // (Why none took hold, its seas its liquid's: Phase 56.)
+    words: peopled ? "" : living ? "life arose on it, but no people rose from it" : lifelessWhy(g),
   };
 }
 

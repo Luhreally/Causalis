@@ -18,6 +18,9 @@ import {
   FURNACES,
   GOODS,
   GOOD_MATTER,
+  KIND_AIR,
+  KIND_METALS,
+  KIND_SUBSTANCES,
   NOVEL_ELEMENTS,
   NOVEL_SUBSTANCES,
   PRINCIPLES,
@@ -32,6 +35,8 @@ import {
   findElement,
   findReaction,
   findSubstance,
+  kindAllows,
+  kindBurns,
   metalOf,
   molarMass,
   oresOn,
@@ -45,6 +50,7 @@ import {
   SUBSTANCE,
   usualStone,
   worldRocks,
+  worldSoil,
   type Chemistry,
   type Element,
   type MakeUp,
@@ -78,6 +84,7 @@ import { landLink, landTitle } from "./names.ts";
 import { airBlock } from "./ground.ts";
 import { elementPortrait, matterPortrait } from "../looks.ts";
 import { principleName } from "../../causal/index.ts";
+import { kindBlocks, kindOf, recipeName, shutWhy, workedWords } from "../kinds.ts";
 
 export const substRef = (id: string) => `subst:${id}`,
   rxnRef = (id: string) => `rxn:${id}`,
@@ -238,7 +245,17 @@ export function substancesOn(chem: Chemistry): readonly Substance[] {
   }
   for (const rock of worldRocks(chem)) for (const [id] of rock.parts) used.add(id);
   for (const stone of Object.values(stonesFor(chem))) if (stone.subst) used.add(stone.subst);
-  const list = [...SUBSTANCES, ...NOVEL_SUBSTANCES.filter((s) => used.has(s.id))];
+  // (A kind's own: its air and seas, its soils, and what its rocks and reactions hold — Phase 56.)
+  if (chem.kind) {
+    for (const id of KIND_AIR[chem.kind]) used.add(id);
+    for (const key of ["temperateForest", "ice", "sea"])
+      for (const [id] of worldSoil(chem, key).parts) used.add(id);
+  }
+  const list = [
+    ...SUBSTANCES,
+    ...NOVEL_SUBSTANCES.filter((s) => used.has(s.id)),
+    ...(chem.kind ? KIND_SUBSTANCES.filter((s) => used.has(s.id)) : []),
+  ];
   substanceMemo.set(key, list);
   return list;
 }
@@ -512,7 +529,8 @@ export function reactionPage(world: World, ref: string): PageModel {
             ? [link(principleName(teacher.id, world), prinRef(teacher.id))]
             : "known from the first",
         ),
-        ...(recipe ? [stat("Worked as", recipe.name)] : []),
+        // (As its world's kind works it: Phase 56.)
+        ...(recipe ? [stat("Worked as", recipeName(world, recipe))] : []),
       ],
     },
   ];
@@ -562,7 +580,13 @@ export function principlePage(world: World, ref: string): PageModel {
   const all = knowers(world, p.id),
     first = all.find((k) => k.year !== null),
     teaches = reactionsOn(chemOf(world)).filter((r) => r.principle === p.id),
-    opens = PRINCIPLES.filter((q) => q.needs.some((n) => n.split("|").includes(p.id))),
+    // (Only what this world's kind can know: another kind's roads are not shown — Phase 56.)
+    kind = kindOf(world),
+    here = (id: string) => kindAllows(PRINCIPLES.find((x) => x.id === id) ?? p, kind),
+    opens = PRINCIPLES.filter(
+      (q) => here(q.id) && q.needs.some((n) => n.split("|").includes(p.id)),
+    ),
+    shut = shutWhy(world, p),
     effects = Object.entries(p.effects).map(
       ([e, v]) => `${EFFECT_WORDS[e as (typeof EFFECTS)[number]]} (${v > 1 ? v : share(v)})`,
     ),
@@ -578,6 +602,7 @@ export function principlePage(world: World, ref: string): PageModel {
                 ...(i ? [", "] : []),
                 ...n
                   .split("|")
+                  .filter((x) => here(x) || !here(p.id))
                   .flatMap((x, j) => [
                     ...(j ? [" or "] : []),
                     link(principleName(x, world), prinRef(x)),
@@ -588,6 +613,7 @@ export function principlePage(world: World, ref: string): PageModel {
         stat("Found by", drivers.length ? drivers.join(", ") : "the older systems"),
         stat("It brings", effects.length ? effects.join("; ") : "what it makes possible"),
         ...(p.body?.fire ? [stat("Wants", "fire")] : []),
+        ...(shut ? [stat("On this world", `shut: ${shut}`)] : []),
       ],
     },
   ];
@@ -808,8 +834,10 @@ function oreItem(chem: Chemistry, kind: string, ore: Ore): Item {
       [
         link(cap(ore.name), ref),
         ` (${roleWord(chem, kind)}) — ${ore.words}; `,
-        link(smelt.name, rxnRef(ore.smelt)),
-        ` at ${count(reductionHeat(ore))} °C`,
+        // (An ore worked where nothing burns says how, and why: Phase 56.)
+        ...(ore.worked
+          ? workedWords(ore, ore.worked)
+          : [link(smelt.name, rxnRef(ore.smelt)), ` at ${count(reductionHeat(ore))} °C`]),
       ],
       ref,
     ),
@@ -833,10 +861,37 @@ function worldBlocks(world: World, chem: Chemistry): Block[] {
         ore && (lie !== "telluric" || nativeIron) ? [ore] : [],
       ),
     // Each stone once by its name (lydite is one stone whatever its rock).
-    stones: Stone[] = [];
+    stones: Stone[] = [],
+    // (Where nothing burns no bronze is alloyed and no fire wants a blast: Phase 56.)
+    fireless = !kindBurns(kindOf(world));
   for (const s of Object.values(stonesFor(chem)))
     if (!stones.some((x) => x.name === s.name)) stones.push(s);
+  // (A kind's metals: a carbon world's copper beaten cold and carbide iron, steel only once oxygen
+  // is made; an ice world's iron fallen from its sky, hammered on an ammonia world and only broken in
+  // a methane world's cold — Phase 56.)
+  const metals =
+    chem.kind === "ammonia"
+      ? [{ name: "iron fallen from the sky", subst: "iron", stuff: KIND_METALS["star iron"] }]
+      : chem.kind === "methane"
+        ? [
+            {
+              name: "iron fallen from the sky",
+              subst: "iron",
+              stuff: KIND_METALS["brittle star iron"],
+            },
+          ]
+        : chem.kind === "carbon"
+          ? [metalOf(chem, "copper"), metalOf(chem, "iron"), metalOf(chem, "steel")]
+          : [
+              metalOf(chem, "copper"),
+              metalOf(chem, "bronze"),
+              metalOf(chem, "iron"),
+              metalOf(chem, "steel"),
+              ...(table.iron?.bog ? [metalOf(chem, "bog iron")] : []),
+              ...(nativeIron ? [metalOf(chem, "iron", { lie: "telluric" })] : []),
+            ];
   const blocks: Block[] = [
+    ...kindBlocks(world),
     {
       type: "facts",
       title: "What this world is made of",
@@ -848,9 +903,15 @@ function worldBlocks(world: World, chem: Chemistry): Block[] {
         stat("Metals", `${signed(chem.feH)} against the Sun: ${CLASS_WORDS.metals[chem.metals]}`),
         stat("Carbon to oxygen", `${chem.cO.toFixed(2)}: ${CLASS_WORDS.carbon[chem.carbon]}`),
         stat("Magnesium to silicon", `${chem.mgSi.toFixed(2)}: ${CLASS_WORDS.silica[chem.silica]}`),
-        stat("Oxygen", `${(chem.o2 * 100).toFixed(1)}% of the air: ${CLASS_WORDS.air[chem.air]}`),
+        stat(
+          "Oxygen",
+          `${(chem.o2 * 100).toFixed(1)}% of the air: ${fireless ? "too little for anything to burn" : CLASS_WORDS.air[chem.air]}`,
+        ),
         stat("Its ground", CLASS_WORDS.redox[chem.redox]),
-        stat("Its hardener", roleWord(chem, "tin")),
+        stat(
+          "Its hardener",
+          fireless ? "none: nothing burns in its air to alloy bronze" : roleWord(chem, "tin"),
+        ),
       ],
     },
     airBlock(world),
@@ -896,14 +957,7 @@ function worldBlocks(world: World, chem: Chemistry): Block[] {
     {
       type: "list",
       title: "Its metals",
-      items: [
-        metalOf(chem, "copper"),
-        metalOf(chem, "bronze"),
-        metalOf(chem, "iron"),
-        metalOf(chem, "steel"),
-        ...(table.iron?.bog ? [metalOf(chem, "bog iron")] : []),
-        ...(nativeIron ? [metalOf(chem, "iron", { lie: "telluric" })] : []),
-      ].map((m) => {
+      items: metals.map((m) => {
         const ref = substRef(m.subst);
         return thumbed(
           item(
@@ -914,26 +968,33 @@ function worldBlocks(world: World, chem: Chemistry): Block[] {
         );
       }),
     },
-    {
-      type: "table",
-      title: "Its furnaces",
-      columns: ["Furnace", "Heat here", "Comes with"],
-      rows: FURNACES.map((f) => {
-        const heat = f.heat + AIR_OFFSET[chem.air];
-        return {
-          cells: [
-            [cap(f.name)],
-            [`${count(heat)} °C`],
-            f.by
-              ? [link(principleName(f.by, world), prinRef(f.by))]
-              : ["nothing: known from the first"],
-          ],
-          keys: [f.name, heat],
-        };
-      }),
-    },
+    // (Where nothing burns there is no furnace: Phase 56.)
+    fireless
+      ? {
+          type: "text",
+          title: "Its furnaces",
+          lines: [["None: nothing burns in its air, so no furnace can be built."]],
+        }
+      : {
+          type: "table",
+          title: "Its furnaces",
+          columns: ["Furnace", "Heat here", "Comes with"],
+          rows: FURNACES.map((f) => {
+            const heat = f.heat + AIR_OFFSET[chem.air];
+            return {
+              cells: [
+                [cap(f.name)],
+                [`${count(heat)} °C`],
+                f.by
+                  ? [link(principleName(f.by, world), prinRef(f.by))]
+                  : ["nothing: known from the first"],
+              ],
+              keys: [f.name, heat],
+            };
+          }),
+        },
   ];
-  if (AIR_OFFSET[chem.air] < 0)
+  if (AIR_OFFSET[chem.air] < 0 && !fireless)
     blocks.push({
       type: "text",
       lines: [
@@ -954,7 +1015,9 @@ function worldBlocks(world: World, chem: Chemistry): Block[] {
           item([link(cap(english), ref), ` — they call it ${called(id)}`], ref),
           ref ? id : null,
         );
-    const named: Item[] = [said(roleWord(chem, "tin"), chem.hardener, substRef(chem.hardener))],
+    const named: Item[] = fireless
+        ? []
+        : [said(roleWord(chem, "tin"), chem.hardener, substRef(chem.hardener))],
       surface = table.copper?.surface,
       bog = table.iron?.bog,
       stone = usualStone(chem);

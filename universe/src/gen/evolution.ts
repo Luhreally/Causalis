@@ -29,7 +29,7 @@ import {
   type Locomotion,
 } from "../rules/index.ts";
 import { AGES, AGE_MY, type AgeKind } from "./deeptime.ts";
-import { starAgeGyr } from "./bodies.ts";
+import { climateMean, starAgeGyr } from "./bodies.ts";
 import type { HomeWorld } from "./homeworld.ts";
 import type { Species } from "./biosphere.ts";
 import { cladeRef } from "./kinds.ts";
@@ -1154,7 +1154,7 @@ function growTree(g: HomeWorld): TreeOfLife {
     ),
     span = first - togetherAt,
     early = (share: number) => Math.round(first - share * span),
-    sea = g.planet.meanTemperature + 4;
+    sea = climateMean(g.planet) + 4;
 
   const dawnLine = (
     parent: number,
@@ -1355,7 +1355,7 @@ function growTree(g: HomeWorld): TreeOfLife {
 
   // Ashore, in the first age: plants first, then the swimmers' and the crawlers' kin.
   const [first0] = ageSpan(0),
-    landEnv = envOf(g.planet.meanTemperature + 2, 900, 0, 0.1);
+    landEnv = envOf(climateMean(g.planet) + 2, 900, 0, 0.1);
   const landPlants = add({
     parent: weed.id,
     kind: "plant",

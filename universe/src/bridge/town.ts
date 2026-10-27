@@ -96,6 +96,8 @@ export type TownPlan = {
   readonly year: number;
   /** What struck it these two years past, oldest first (Phase 42 M201; absent: nothing). */
   readonly struck?: readonly TownStrike[];
+  /** Its world's kind, where it is not rocky (Phase 56): its yards in its kind's colours. */
+  readonly kind?: string;
 };
 
 /** A small hash of whole numbers, for the plan's wanderings (not history's). */
@@ -729,6 +731,9 @@ export type CampCraft = {
     readonly name: string;
     readonly colour: readonly [number, number, number];
   } | null;
-  /** How they make fire: a bow drill, a stick spun in the hands, or a stone struck on pyrite. */
-  readonly fire: "bow drill" | "hand drill" | "strike-a-light";
+  /**
+   * How they make fire: a bow drill, a stick spun in the hands, or a stone struck on pyrite; none
+   * where nothing burns in the air (Phase 56).
+   */
+  readonly fire: "bow drill" | "hand drill" | "strike-a-light" | "none";
 };

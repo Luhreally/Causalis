@@ -14,6 +14,7 @@ import {
   townsOf,
 } from "../sim/index.ts";
 import type { TownDesign, TownPlan, TownStrike, TownWater } from "../bridge/index.ts";
+import { kindOf } from "./kinds.ts";
 
 /** How long what struck a town is told to its plan: its homes burn a day, and lie in ruin years. */
 const STRUCK_SHOWN = 2 * YEAR;
@@ -138,5 +139,7 @@ export function townPlan(
       const struck = strikesOn(world, ref, land?.ref ?? null);
       return struck.length ? { struck } : {};
     })(),
+    // (Its world's kind, for its yards' colours: Phase 56.)
+    ...(kindOf(world) === "rocky" ? {} : { kind: kindOf(world) }),
   };
 }

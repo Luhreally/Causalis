@@ -41,6 +41,7 @@ import {
 } from "../bridge/index.ts";
 import { HOME_LIFE } from "../rules/index.ts";
 import { houseLook, type HouseLook } from "./village.ts";
+import { biomeColor } from "./globe.ts";
 
 type Rgb = readonly [number, number, number];
 export type PartMesh = "box" | "gable" | "cone" | "cyl";
@@ -264,7 +265,8 @@ export function roofTop(scene: TownScene, p: number, t: number): number | null {
 export function townGround(scene: TownScene, out: TownParts): void {
   const { plan, lots } = scene,
     street: Rgb = plan.paved ? [0.66, 0.64, 0.6] : [0.6, 0.53, 0.4],
-    yard: Rgb = [0.5, 0.6, 0.34];
+    // (On a world of another kind, its grassland's colour: Phase 56.)
+    yard: Rgb = plan.kind ? biomeColor(8, plan.kind) : [0.5, 0.6, 0.34];
   // In metres, as everything here: the streets stand a hand above the land's ground and the
   // pasture under them, the yards a curb above the streets, so neither sinks out of sight.
   out.put(

@@ -1978,16 +1978,457 @@ export const NOVEL_REACTIONS: readonly Reaction[] = [
   },
 ];
 
-/** A substance by its id: Earth's first, then those of other chemistries. */
+// —— The kinds' matter (Phase 56) ————————————————————————————————————————————————————————
+
+/** A blend of so many grams of each formula, as the atoms of the hundred grams it makes. */
+const blend = (
+  parts: readonly (readonly [Readonly<Record<string, number>>, number])[],
+): Record<string, number> => {
+  const out: Record<string, number> = {};
+  for (const [f, grams] of parts) {
+    const moles = grams / molarMass(f);
+    for (const [e, n] of Object.entries(f)) out[e] = (out[e] ?? 0) + n * moles;
+  }
+  return out;
+};
+const SIC = { Si: 1, C: 1 },
+  QUARTZ = { Si: 1, O: 2 },
+  /** Pitch: about one carbon to one and a half hydrogen. */
+  BITUMEN = { C: 1, H: 1.5 },
+  /** Acid water: a tenth of sulfuric acid in water, by weight. */
+  ACID_WATER = blend([
+    [{ H: 2, S: 1, O: 4 }, 10],
+    [{ H: 2, O: 1 }, 90],
+  ]),
+  /** Sulfur concrete: a quarter sulfur, three quarters quartz grit, by weight. */
+  SULFUR_CONCRETE = blend([
+    [{ S: 1 }, 25],
+    [QUARTZ, 75],
+  ]),
+  /** Pitch and grit: carborundum grit with six hundredths of pitch, by weight. */
+  PITCH_GRIT = blend([
+    [BITUMEN, 6],
+    [SIC, 94],
+  ]),
+  /** What blowing carbide iron with oxygen burns out of it, a mole of it to steel (as carbon monoxide). */
+  BURNT_OUT = COHENITE_IRON.C - (STEEL.C * COHENITE_IRON.Fe) / STEEL.Fe;
+
+/**
+ * Substances of the kinds of world (Phase 56): their liquids and airs, their ices and tars, the
+ * stones and walls they are worked into — beside Earth's and Phase 54's (a world's own lists say
+ * which of them it has).
+ */
+export const KIND_SUBSTANCES: readonly Substance[] = [
+  // Ices and the cold worlds' liquids.
+  S(
+    "water-ice",
+    "ice",
+    "H₂O",
+    { H: 2, O: 1 },
+    "mineral",
+    "solid",
+    917,
+    0,
+    2,
+    [0.84, 0.92, 0.98],
+    "Water frozen, soft at its melting but harder the colder it is: about Mohs 6 at −78 °C, and as hard as granite at −180 °C.",
+  ),
+  S(
+    "ammonia",
+    "ammonia",
+    "NH₃",
+    { N: 1, H: 3 },
+    "gas",
+    "gas",
+    0.73,
+    -78,
+    null,
+    [0.92, 0.95, 0.98],
+    "A sharp-smelling gas of nitrogen and hydrogen, which water takes up so that the two stay liquid far below water's freezing.",
+  ),
+  S(
+    "ammonia-water",
+    "ammonia water",
+    "NH₃·2H₂O",
+    { N: 1, H: 7, O: 2 },
+    "water",
+    "liquid",
+    930,
+    -97,
+    null,
+    [0.72, 0.84, 0.9],
+    "Water a third of whose weight is ammonia: it freezes only at −97 °C, and fills the seas of an ice-and-ammonia world.",
+  ),
+  S(
+    "ammonia-hydrate",
+    "ammonia ice",
+    "NH₃·H₂O",
+    { N: 1, H: 5, O: 1 },
+    "mineral",
+    "solid",
+    960,
+    -79,
+    2,
+    [0.86, 0.9, 0.93],
+    "Ammonia and water frozen together: the pale beds an ammonia sea leaves where it freezes.",
+  ),
+  S(
+    "methane",
+    "methane",
+    "CH₄",
+    { C: 1, H: 4 },
+    "gas",
+    "gas",
+    0.68,
+    -182,
+    null,
+    [0.86, 0.88, 0.9],
+    "The simplest of the hydrocarbons, a gas on Earth, which on a world at −180 °C rains, runs in rivers and fills seas.",
+  ),
+  S(
+    "ethane",
+    "ethane",
+    "C₂H₆",
+    { C: 2, H: 6 },
+    "gas",
+    "gas",
+    1.28,
+    -183,
+    null,
+    [0.84, 0.86, 0.88],
+    "Methane's next of kin, made of it by sunlight high in a cold world's air: it gathers in the seas and does not dry away.",
+  ),
+  S(
+    "acetylene",
+    "acetylene",
+    "C₂H₂",
+    { C: 2, H: 2 },
+    "gas",
+    "gas",
+    1.1,
+    -81,
+    null,
+    [0.9, 0.9, 0.86],
+    "A gas sunlight makes of methane high in the air, which joined with hydrogen gives back methane and heat: a cold world's fuel.",
+  ),
+  S(
+    "hydrogen",
+    "hydrogen",
+    "H₂",
+    { H: 2 },
+    "gas",
+    "gas",
+    0.084,
+    -259,
+    null,
+    [0.95, 0.95, 1],
+    "The lightest gas, which sunlight splits from methane to drift in a cold world's air.",
+  ),
+  S(
+    "tholin",
+    "tholin",
+    "about (C₄H₄N₂)ₙ",
+    { C: 4, H: 4, N: 2 },
+    "mineral",
+    "solid",
+    1350,
+    null,
+    1.5,
+    [0.66, 0.4, 0.18],
+    "The orange-brown tar sunlight makes of methane and nitrogen high in a cold world's air, which falls as dust, drifts into dunes and can be worked into a tough polymer.",
+  ),
+  S(
+    "polyacetylene",
+    "conducting polymer",
+    "(C₂H₂)ₙ",
+    { C: 2, H: 2 },
+    "made",
+    "solid",
+    1200,
+    null,
+    1.5,
+    [0.3, 0.3, 0.36],
+    "Acetylene joined end to end into long chains and doped, which carries a current as a metal wire does (Shirakawa, MacDiarmid and Heeger, 1977).",
+  ),
+  // A carbon world's.
+  S(
+    "diamond",
+    "diamond",
+    "C",
+    { C: 1 },
+    "mineral",
+    "solid",
+    3510,
+    null,
+    10,
+    [0.9, 0.92, 0.95],
+    "Carbon pressed deep below a carbon world's crust into the hardest of all stones, whose grit grinds every other edge keen.",
+  ),
+  S(
+    "carbon-monoxide",
+    "carbon monoxide",
+    "CO",
+    { C: 1, O: 1 },
+    "gas",
+    "gas",
+    1.25,
+    -205,
+    null,
+    [0.82, 0.82, 0.84],
+    "Carbon holding one oxygen: on a carbon world nearly all its oxygen is held so, and none is left to burn with.",
+  ),
+  S(
+    "bitumen",
+    "pitch",
+    "about (CH₁.₅)ₙ",
+    BITUMEN,
+    "fuel",
+    "solid",
+    1050,
+    null,
+    1,
+    [0.08, 0.08, 0.08],
+    "The black tar of a carbon world's seeps, which softens in the sun and binds grit into walls.",
+  ),
+  S(
+    "pitch-grit",
+    "pitch and grit",
+    "SiC + (CH₁.₅)ₙ",
+    PITCH_GRIT,
+    "made",
+    "solid",
+    2450,
+    null,
+    3,
+    [0.2, 0.2, 0.21],
+    "Carborundum grit bound in six hundredths of pitch, worked warm in the sun: a carbon world's walls and roads.",
+  ),
+  // A sulfur world's.
+  S(
+    "acid-water",
+    "acid water",
+    "H₂SO₄ + H₂O",
+    ACID_WATER,
+    "water",
+    "liquid",
+    1066,
+    -5,
+    null,
+    [0.74, 0.84, 0.56],
+    "Water soured with a tenth of sulfuric acid: the seas of a sulfur-volcano world, which eat limestone and leave gypsum.",
+  ),
+  S(
+    "gypsum",
+    "gypsum",
+    "CaSO₄·2H₂O",
+    { Ca: 1, S: 1, O: 6, H: 4 },
+    "mineral",
+    "solid",
+    2320,
+    null,
+    2,
+    [0.94, 0.92, 0.88],
+    "Calcium sulfate with water in it: the white beds acid seas leave where they dry, too soft to take an edge.",
+  ),
+  S(
+    "sulfur-concrete",
+    "sulfur concrete",
+    "S + SiO₂",
+    SULFUR_CONCRETE,
+    "made",
+    "solid",
+    2450,
+    119,
+    3,
+    [0.82, 0.78, 0.48],
+    "Grit stirred into sulfur melted at 140 °C, which sets hard as it cools and which acid does not eat.",
+  ),
+];
+
+/** The kinds' reactions (Phase 56): what each kind does in place of what it cannot. */
+export const KIND_REACTIONS: readonly Reaction[] = [
+  {
+    id: "cold-hammer-copper",
+    name: "hammering native copper cold",
+    inputs: [["native-copper", 1]],
+    outputs: [["copper", 1]],
+    heat: null,
+    fuel: null,
+    principle: "cold-hammering",
+    recipe: "copper-smelting",
+    words:
+      "Native copper beaten into shape cold on an anvil stone and never heated, since nothing burns in a carbon world's air.",
+  },
+  {
+    id: "reduce-vitriol",
+    name: "reducing blue vitriol",
+    inputs: [
+      ["blue-vitriol", 1],
+      ["carbon", 1],
+    ],
+    outputs: [
+      ["copper", 1],
+      ["so2", 1],
+      ["co2", 1],
+    ],
+    heat: 650,
+    fuel: "carbon",
+    principle: "acid-leaching",
+    recipe: "copper-smelting",
+    words:
+      "Blue vitriol, left by acid springs running over copper ore, heated with charcoal in an open fire (some 650 °C, within reach of a fire in thin air): its sulfur and oxygen go up as smoke and a spongy copper is left, with no smelting furnace.",
+  },
+  {
+    id: "acetylene-hydrogen",
+    name: "joining acetylene with hydrogen",
+    inputs: [
+      ["acetylene", 1],
+      ["hydrogen", 3],
+    ],
+    outputs: [["methane", 2]],
+    heat: null,
+    fuel: null,
+    principle: "cold-chemistry",
+    recipe: null,
+    words:
+      "Acetylene and hydrogen from the air joined over grit of nickel-iron fallen from the sky (as Sabatier joined them over nickel) into methane, giving about 377 kJ for each mole of acetylene: the energy of a world with no oxygen (McKay & Smith 2005).",
+  },
+  {
+    id: "haze-tholin",
+    name: "the haze's tholin",
+    inputs: [
+      ["methane", 4],
+      ["nitrogen", 1],
+    ],
+    outputs: [
+      ["tholin", 1],
+      ["hydrogen", 6],
+    ],
+    heat: null,
+    fuel: null,
+    principle: null,
+    recipe: null,
+    words:
+      "Sunlight breaks methane and nitrogen apart high in the air, and they join again as tholin, the orange haze that falls as dust and drifts into dunes.",
+  },
+  {
+    id: "haze-acetylene",
+    name: "the haze's acetylene",
+    inputs: [["methane", 2]],
+    outputs: [
+      ["acetylene", 1],
+      ["hydrogen", 3],
+    ],
+    heat: null,
+    fuel: null,
+    principle: null,
+    recipe: null,
+    words:
+      "Sunlight high in the air takes hydrogen from methane, leaving acetylene to fall to the ground below.",
+  },
+  {
+    id: "freeze-ice",
+    name: "setting ice",
+    inputs: [["water", 1]],
+    outputs: [["water-ice", 1]],
+    heat: null,
+    fuel: null,
+    principle: "ice-working",
+    recipe: null,
+    words:
+      "Blocks of ice cut and set with water that freezes as it is poured, and blades split from the ice and edged by melting: in the cold, ice is as hard as stone.",
+  },
+  {
+    id: "polymerise-acetylene",
+    name: "drawing acetylene into a conducting polymer",
+    inputs: [["acetylene", 1]],
+    outputs: [["polyacetylene", 1]],
+    heat: null,
+    fuel: null,
+    principle: "polymer-wire",
+    recipe: null,
+    words:
+      "Acetylene joined end to end into long chains over a catalyst, drawn into fibres and doped: a wire that carries a current with no metal in it.",
+  },
+  {
+    id: "sulfur-concrete",
+    name: "pouring sulfur concrete",
+    inputs: [
+      ["sulphur", SULFUR_CONCRETE.S!],
+      ["quartz", SULFUR_CONCRETE.Si!],
+    ],
+    outputs: [["sulfur-concrete", 1]],
+    heat: 140,
+    fuel: "carbon",
+    principle: "sulfur-concrete",
+    recipe: null,
+    words:
+      "Sulfur melted at 140 °C, grit stirred into it and poured into forms: a wall that sets as it cools.",
+  },
+  {
+    id: "pitch-grit",
+    name: "binding grit in pitch",
+    inputs: [
+      ["bitumen", 6 / molarMass(BITUMEN)],
+      ["moissanite", 94 / molarMass(SIC)],
+    ],
+    outputs: [["pitch-grit", 1]],
+    heat: null,
+    fuel: null,
+    principle: "diamond-grit",
+    recipe: null,
+    words:
+      "Carborundum grit stirred into pitch softened in the sun, thinned with the world's own light oil: it sets into walls and roads.",
+  },
+  {
+    id: "made-oxygen",
+    name: "parting water by current",
+    inputs: [["water", 2]],
+    outputs: [
+      ["hydrogen", 2],
+      ["oxygen", 1],
+    ],
+    heat: null,
+    fuel: null,
+    principle: "made-oxygen",
+    recipe: null,
+    words:
+      "Water parted by a current into hydrogen and oxygen: on a carbon world the only oxygen to burn with is what is made so.",
+  },
+  {
+    id: "oxygen-steel",
+    name: "blowing carbide iron with made oxygen",
+    inputs: [
+      ["cohenite-iron", 1],
+      ["oxygen", BURNT_OUT / 2],
+    ],
+    outputs: [
+      ["steel", COHENITE_IRON.Fe / STEEL.Fe],
+      ["carbon-monoxide", BURNT_OUT],
+    ],
+    heat: 1550,
+    fuel: null,
+    principle: "made-oxygen",
+    recipe: null,
+    words:
+      "Carbide iron melted in an arc and blown with made oxygen, its carbon burning out as carbon monoxide: the first fire a carbon world makes leaves its iron tough.",
+  },
+];
+
+/** A substance by its id: Earth's first, then those of other chemistries, then the kinds' (Phase 56). */
 export function findSubstance(id: string): Substance | undefined {
   const i = SUBSTANCE[id];
-  return i === undefined ? NOVEL_SUBSTANCES.find((s) => s.id === id) : SUBSTANCES[i];
+  return i === undefined
+    ? (NOVEL_SUBSTANCES.find((s) => s.id === id) ?? KIND_SUBSTANCES.find((s) => s.id === id))
+    : SUBSTANCES[i];
 }
 
-/** A reaction by its id: Earth's first, then those of other chemistries. */
+/** A reaction by its id: Earth's first, then those of other chemistries, then the kinds' (Phase 56). */
 export function findReaction(id: string): Reaction | undefined {
   const i = REACTION[id];
-  return i === undefined ? NOVEL_REACTIONS.find((r) => r.id === id) : REACTIONS[i];
+  return i === undefined
+    ? (NOVEL_REACTIONS.find((r) => r.id === id) ?? KIND_REACTIONS.find((r) => r.id === id))
+    : REACTIONS[i];
 }
 
 /** An element by its symbol: Earth's first, then those of other chemistries. */
@@ -2548,6 +2989,10 @@ export const MATERIAL_MATTER: Readonly<Record<string, readonly (readonly [string
   ],
   // Parts machined at a works (Phase 53 M219): steel, cut to a fiftieth of a millimetre.
   machined: [["steel", 1]],
+  // The kinds' (Phase 56): bedrock ice, carbide grit in pitch, sulfur concrete.
+  ice: [["water-ice", 1]],
+  "pitch grit": [["pitch-grit", 1]],
+  "sulfur concrete": [["sulfur-concrete", 1]],
 };
 
 /** What a part of each role weighs: a house's walls, roof and frame; a warrior's arm and guard; a works' hall and drive. */

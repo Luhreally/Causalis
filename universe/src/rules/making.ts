@@ -5,7 +5,8 @@
 // thin or thick; each an act its seed's text carries ("amber 412 ~star red ~pull heavy"). What is
 // chosen is drawn within the choice, the rest falls as the seed has it: the same draws, so the
 // same world but as the hand made it. Within what a world never seen may be (the open prior's
-// ranges); a world like ours is as ever.
+// ranges); a world like ours is as ever. (Phase 56: and the carbon of the disk it formed in, and
+// the ices it gathered, which make its kind: rules/kinds.ts.)
 import { seedActs } from "../kernel/index.ts";
 import { EARTHLIKE, type Prior, type Range } from "./priors.ts";
 
@@ -21,6 +22,22 @@ export const MAKINGS = {
   seas: { little: [0.1, 0.3], wide: [0.82, 0.95] },
   /** How much its air warms it (kelvin). */
   air: { thin: [5, 18], thick: [55, 80] },
+  /**
+   * The carbon to oxygen of the disk it formed in (Phase 56): oxygen-rich as its star's own (its C/O
+   * as Phase 54 draws it), or richer in carbon than oxygen, a carbon world's (drawn here).
+   */
+  carbon: { oxygen: [0.2, 1.2], carbon: [1, 1.25] },
+  /**
+   * What it gathered past its star's snow line (Phase 56), each choice the band its liquid is liquid
+   * in (kelvin): water, as Earth; sulfur, a volcano world's acid water; ammonia with its water;
+   * methane and ethane.
+   */
+  volatiles: {
+    water: [273.15, 373.15],
+    sulfur: [273.15, 373.15],
+    ammonia: [176, 300],
+    methane: [90, 125],
+  },
 } as const satisfies Record<string, Record<string, Range>>;
 
 export type MakingSubject = keyof typeof MAKINGS;
@@ -54,7 +71,8 @@ function rangeOf(subject: MakingSubject, choice: string | undefined): Range | nu
 
 /**
  * A prior as a seed's makings narrow it: each chosen making's range in place of the prior's (the
- * Earth-like prior as it is: a world like ours is not remade).
+ * Earth-like prior as it is: a world like ours is not remade). The carbon and the volatiles are not
+ * the prior's: they make the world's kind (rules/kinds.ts).
  */
 export function madePrior(prior: Prior, text: string): Prior {
   if (prior.name === EARTHLIKE.name) return prior;
@@ -129,6 +147,24 @@ export const MAKING_WORDS: Readonly<
     choices: {
       thin: ["thin", "thin air", "💨"],
       thick: ["thick", "thick air, holding its warmth", "🌫️"],
+    },
+  },
+  carbon: {
+    icon: "💎",
+    name: "Its carbon",
+    choices: {
+      oxygen: ["oxygen-rich", "rock of oxygen, as the Sun's", "🪨"],
+      carbon: ["carbon-rich", "a disk richer in carbon than oxygen: a carbon world", "💎"],
+    },
+  },
+  volatiles: {
+    icon: "🧊",
+    name: "Its ices",
+    choices: {
+      water: ["water", "water, as Earth's", "💧"],
+      sulfur: ["sulfur", "sulfur from its volcanoes: a sulfur-volcano world", "🌋"],
+      ammonia: ["ammonia", "ammonia with its water: an ice-and-ammonia world", "🧊"],
+      methane: ["methane", "methane under a nitrogen air: a methane world", "🟠"],
     },
   },
 };

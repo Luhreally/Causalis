@@ -3,18 +3,30 @@
 // stone set and native iron, and whether the spread passes the six acceptance checks.
 // node tools/chem-survey.ts --iron before.json after.json — the iron delay between two diversity
 // runs (tools/diversity.ts 100 900 --out), before and after the heat gate of M222.
+// node tools/chem-survey.ts --kinds [count=500] [--from 0] [--ages years] [--per 3] [--only kind]
+// — the kinds survey (Phase 56): each open world's kind, the share of each, life and people in each,
+// the named seeds all rocky; with --ages, the ages the first few peopled worlds of each kind reach.
 import { readFileSync, writeFileSync } from "node:fs";
 import {
   generateHomeWorld,
+  makeStar,
   nativeIronLands,
   provinceWorld,
+  starAgeGyr,
   worldChemistry,
 } from "../src/gen/index.ts";
-import { seedFromText } from "../src/kernel/index.ts";
+import { Rng, YEAR, seedFromText } from "../src/kernel/index.ts";
+import { makePopulationWorld, populationContext } from "../src/sim/index.ts";
+import { landEra } from "../src/host/village.ts";
 import {
+  NOVEL_KINDS,
   OPEN,
   SOLAR,
+  WORLD_KINDS,
+  madePrior,
   stonesKey,
+  worldKind,
+  type WorldKind,
   type AirClass,
   type CarbonClass,
   type Hardener,
@@ -41,14 +53,15 @@ export type ChemRow = {
   nativeLands: number;
 };
 
-/** The first `count` peopled open worlds from "alien from" on, each read from what made it. */
+/** The first `count` peopled rocky open worlds from "alien from" on, each read from what made it. */
 export function surveyChemistry(count: number, from = 0): ChemRow[] {
   const rows: ChemRow[] = [];
   for (let i = from; rows.length < count; i++) {
     const seed = `alien ${i}`,
       g = generateHomeWorld(seedFromText(seed), OPEN);
-    // A lifeless world has no people to knap its stones or work its iron, so it is not surveyed.
-    if (!g.life.people) continue;
+    // A lifeless world has no people to knap its stones or work its iron, so it is not surveyed; nor
+    // is a world of another kind (Phase 56), whose chemistry is its kind's: the kinds survey's.
+    if (!g.life.people || g.planet.kind) continue;
     const chem = worldChemistry(g);
     rows.push({
       seed,
@@ -181,6 +194,116 @@ function median(xs: readonly number[]): number {
 
 const fmt = (x: number) => (Number.isNaN(x) ? "none" : x.toFixed(1));
 
+// —— The kinds (Phase 56) ——————————————————————————————————————————————————————————————
+
+/**
+ * The open seeds the tests and gates name, which must all stay rocky so that each reads the world it
+ * was written for (rules/kinds.ts, KIND_KEY).
+ */
+export const NAMED_SEEDS: readonly string[] = [
+  ...[0, 2, 3, 4, 5, 7, 9, 10, 12, 16, 19, 29, 41, 55, 65, 70, 99, 106, 182].map(
+    (i) => `alien ${i}`,
+  ),
+  "violet hollow",
+  "violet hollow ~star red",
+  "violet hollow ~star white",
+  "violet hollow ~pull heavy ~star red",
+  "amber",
+  "amber 9",
+  "amber 9 ~age 3 cool",
+  "amber 412",
+  "amber 414",
+  "alpha",
+  "beta",
+  "moss",
+  "tide",
+  "x",
+  "x 1",
+  "x ~star red",
+];
+
+/** A world's kind from its seed alone: its star made as its home world makes it, then its own draws. */
+export function kindOfSeed(text: string): WorldKind {
+  const star = makeStar(new Rng(seedFromText(text)), madePrior(OPEN, text));
+  return worldKind({ text, mass: star.mass, ageGyr: starAgeGyr(star) });
+}
+
+/** One open world's kind; for a world of another kind, whether life took hold and a people rose. */
+export type KindRow = {
+  seed: string;
+  kind: WorldKind;
+  living: boolean | null;
+  peopled: boolean | null;
+};
+
+/** The kinds of the open worlds "alien from" to "alien from+count−1" (a rocky one is not made). */
+export function surveyKinds(count: number, from = 0): KindRow[] {
+  const rows: KindRow[] = [];
+  for (let i = from; i < from + count; i++) {
+    const seed = `alien ${i}`,
+      kind = kindOfSeed(seed);
+    if (kind === "rocky") {
+      rows.push({ seed, kind, living: null, peopled: null });
+      continue;
+    }
+    const g = generateHomeWorld(seedFromText(seed), OPEN);
+    if ((g.planet.kind ?? "rocky") !== kind) throw new Error(`${seed}: its kind is not its seed's`);
+    rows.push({ seed, kind, living: g.life.species.length > 0, peopled: !!g.life.people });
+  }
+  return rows;
+}
+
+/** The kinds' shares, life and people, the seeds of each, and the named seeds' check. */
+export function kindLines(rows: readonly KindRow[]): { ok: boolean; lines: string[] } {
+  const n = rows.length,
+    lines = [`${n} open worlds from ${rows[0]?.seed ?? "none"}`],
+    problems: string[] = [];
+  for (const kind of WORLD_KINDS) {
+    const of = rows.filter((r) => r.kind === kind),
+      living = of.filter((r) => r.living).length,
+      peopled = of.filter((r) => r.peopled).length;
+    lines.push(
+      kind === "rocky"
+        ? `${kind.padEnd(8)} ${of.length} (${pc(of.length, n)})`
+        : `${kind.padEnd(8)} ${of.length} (${pc(of.length, n)}): life on ${living}, a people on ${peopled}; ${of.map((r) => r.seed.slice(6) + (r.peopled ? "*" : "")).join(" ")}`,
+    );
+  }
+  // Each kind comes about, and none crowds out the worlds like ours.
+  for (const kind of NOVEL_KINDS)
+    if (!rows.some((r) => r.kind === kind && r.peopled)) problems.push(`no peopled ${kind} world`);
+  const rocky = rows.filter((r) => r.kind === "rocky").length;
+  if (!atLeast(rocky, n, 70)) problems.push(`rocky worlds are ${pc(rocky, n)}, under 70%`);
+  const named = NAMED_SEEDS.filter((s) => kindOfSeed(s) !== "rocky");
+  lines.push(
+    named.length
+      ? `named seeds not rocky: ${named.join(", ")}`
+      : `the ${NAMED_SEEDS.length} named seeds all rocky`,
+  );
+  if (named.length) problems.push(`named seeds not rocky: ${named.join(", ")}`);
+  for (const p of problems) lines.push(`FAIL ${p}`);
+  return { ok: problems.length === 0, lines };
+}
+
+const ERAS = ["forage", "farm", "metal", "industry", "modern"] as const;
+
+/**
+ * The ages a world reaches in so many years: each age the year a land first stood in it, read every
+ * twenty-five years as the pages read a land's age (host/village.ts, landEra).
+ */
+export function agesReached(seed: string, years: number): { era: string; year: number }[] {
+  const world = makePopulationWorld(seedFromText(seed), { prior: OPEN, start: "spread" }),
+    first = new Map<string, number>();
+  for (let y = 25; y <= years; y += 25) {
+    world.runTo(y * YEAR);
+    for (const p of populationContext(world).provinces.all()) {
+      if (!p.total()) continue;
+      const era = landEra(world, p.cell);
+      for (const e of ERAS.slice(0, ERAS.indexOf(era) + 1)) if (!first.has(e)) first.set(e, y);
+    }
+  }
+  return ERAS.flatMap((era) => (first.has(era) ? [{ era, year: first.get(era)! }] : []));
+}
+
 /**
  * The iron delay M222 must buy. Per seed, the years to first iron after less before. The median of
  * the thin-air worlds' delays less the median of the solar-air worlds' is the heat gate's share, not
@@ -233,7 +356,29 @@ if (import.meta.main) {
       const at = args.indexOf(name);
       return at >= 0 ? args[at + 1] : undefined;
     };
-  if (args.includes("--iron")) {
+  if (args.includes("--kinds")) {
+    const takes = new Set(["--from", "--ages", "--per", "--only"]),
+      plain = args.filter((a, i) => !a.startsWith("--") && !takes.has(args[i - 1] ?? "")),
+      t0 = performance.now(),
+      rows = surveyKinds(Number(plain[0] ?? 500), Number(value("--from") ?? 0)),
+      result = kindLines(rows);
+    for (const line of result.lines) console.log(line);
+    const years = Number(value("--ages") ?? 0),
+      per = Number(value("--per") ?? 3),
+      only = value("--only");
+    if (years > 0)
+      for (const kind of NOVEL_KINDS) {
+        if (only && kind !== only) continue;
+        for (const r of rows.filter((x) => x.kind === kind && x.peopled).slice(0, per)) {
+          const ages = agesReached(r.seed, years);
+          console.log(
+            `${kind} ${r.seed}: ${ages.map((a) => `${a.era} ${a.year}`).join(", ")} (by year ${years})`,
+          );
+        }
+      }
+    console.log(`in ${((performance.now() - t0) / 1000).toFixed(0)} s`);
+    if (!result.ok) process.exitCode = 1;
+  } else if (args.includes("--iron")) {
     const at = args.indexOf("--iron"),
       read = (file: string | undefined): Survey[] => {
         if (!file) throw new Error("usage: --iron before.json after.json");

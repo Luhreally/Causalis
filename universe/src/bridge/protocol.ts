@@ -98,7 +98,8 @@ export type SeedLife = {
   readonly words: string;
   /**
    * The world it makes (Phase 35, for a new world's form): its star's class and warmth (kelvin),
-   * its pull (g), its mean warmth (°C), the share of it under sea.
+   * its pull (g), its mean warmth (°C), the share of it under sea; and its kind, where it is not a
+   * rocky world ("🟠 a methane world": Phase 56).
    */
   readonly world?: {
     readonly star: string;
@@ -106,6 +107,7 @@ export type SeedLife = {
     readonly gravity: number;
     readonly warmth: number;
     readonly seas: number;
+    readonly kind?: string;
   };
 };
 

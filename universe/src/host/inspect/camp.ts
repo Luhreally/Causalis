@@ -134,7 +134,7 @@ export function campPage(world: World, ref: string): PageModel {
     crafts: Line = [
       "They knap ",
       stone,
-      ` — ${c.stone.from} — into blades, scrapers and spear points; twist ${c.fibre} into cord; bind their points to shafts of ${c.wood} with ${c.binding}; scrape the hides of what they kill on frames, and sew them into cloaks with bone awls; grind ${c.pigment?.name ?? "colour"}; and make fire ${c.fire === "strike-a-light" ? `by striking ${c.stone.name} on pyrite` : `with a ${c.fire}`}.`,
+      ` — ${c.stone.from} — into blades, scrapers and spear points; twist ${c.fibre} into cord; bind their points to shafts of ${c.wood} with ${c.binding}; scrape the hides of what they kill on frames, and sew them into cloaks with bone awls; grind ${c.pigment?.name ?? "colour"}; and ${c.fire === "none" ? "make no fire: nothing burns in their air" : `make fire ${c.fire === "strike-a-light" ? `by striking ${c.stone.name} on pyrite` : `with a ${c.fire}`}`}.`,
     ],
     next: Line = p.farming
       ? [

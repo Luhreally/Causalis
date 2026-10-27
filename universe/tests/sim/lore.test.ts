@@ -41,11 +41,19 @@ test("a land comes to know a principle only after what it needs", () => {
     const when = new Map(lore.of(p.cell).map(([id, k]) => [id, k.year]));
     for (const [id, year] of when)
       for (const need of principle(id).needs) {
-        if (need === "cultivation" || need === "metalworking") {
-          assert.ok(knows(ctx, p.cell, need), `${id} in ${p.cell} needs ${need}`);
+        // (A need of alternatives, "a|b", is met by any one of them: Phase 56.)
+        const ways = need.split("|"),
+          roots = ways.filter((n) => n === "cultivation" || n === "metalworking");
+        if (roots.length === ways.length) {
+          assert.ok(
+            ways.some((n) => knows(ctx, p.cell, n)),
+            `${id} in ${p.cell} needs ${need}`,
+          );
           continue;
         }
-        assert.ok((when.get(need) ?? Infinity) <= year, `${id} in ${p.cell} came before ${need}`);
+        if (roots.some((n) => knows(ctx, p.cell, n))) continue;
+        const met = Math.min(...ways.map((n) => when.get(n) ?? Infinity));
+        assert.ok(met <= year, `${id} in ${p.cell} came before ${need}`);
         checked++;
       }
   }

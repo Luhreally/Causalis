@@ -4,12 +4,14 @@
 // ore and of metal), its water, and the air over the world. Pure functions of the generated
 // world, kept per world (the ground does not change).
 import {
+  KIND_GASES,
   MATERIAL_MATTER,
   ORE_GRADE,
   ROLE_KG,
   TONNES_A_UNIT,
   depositMineralsOn,
   findSubstance,
+  kindBurns,
   oreGradeOn,
   roleWord,
   worldRock,
@@ -216,18 +218,29 @@ export function airBlock(world: World): Block {
     // (The Sun's own air keeps its literal shares; a world's nitrogen makes up what its oxygen lacks.)
     nitrogen = chem.solar ? 0.7808 : 0.7808 + (0.2095 - chem.o2),
     oxygen = chem.solar ? 0.2095 : chem.o2,
-    parts: [string, number][] = [
-      ["nitrogen", nitrogen],
+    // (A kind's own gases, its nitrogen making up the rest, and none it has not; where nothing
+    // burns, nothing adds to its carbon dioxide, and a methane world's cold freezes it out of its
+    // air: Phase 56.)
+    own = chem.kind ? KIND_GASES[chem.kind] : [],
+    frozen = chem.kind === "methane",
+    gases: (readonly [string, number])[] = [
+      ["nitrogen", nitrogen - own.reduce((s, [, v]) => s + v, 0)],
       ["oxygen", oxygen],
       ["argon", 0.0093],
-      ["co2", ppm / 1e6],
+      ["co2", frozen ? 0 : ppm / 1e6],
+      ...own,
     ],
+    parts = chem.kind ? gases.filter(([, v]) => v > 0) : gases,
     whole = parts.reduce((s, [, v]) => s + v, 0);
   return makeUpBlock(
     parts.map(([id, v]) => [id, v / whole] as [string, number]),
     null,
     "The air (by volume)",
-    `Carbon dioxide: ${count(ppm)} parts in a million (280 before any fire of coal or oil).`,
+    frozen
+      ? "Carbon dioxide: none in its air: in its cold it lies frozen on the ground as frost."
+      : chem.kind && !kindBurns(chem.kind)
+        ? `Carbon dioxide: ${count(ppm)} parts in a million: nothing burns in its air to add to it.`
+        : `Carbon dioxide: ${count(ppm)} parts in a million (280 before any fire of coal or oil).`,
   );
 }
 

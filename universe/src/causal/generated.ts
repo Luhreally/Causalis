@@ -3,7 +3,7 @@
 // the planet's crust broke into; the planet orbits its star; the star is how this
 // universe began. Each is answered from the generated world itself, on the basis
 // "generated" — the last links of any chain that reaches down to geology.
-import { creatureWords, bodyWords } from "../rules/index.ts";
+import { KINDS, creatureWords, bodyWords, kindBiomeName, trueCelsius } from "../rules/index.ts";
 import { kindCodeOf, parseRef, type Ref, type World } from "../kernel/index.ts";
 import {
   AGE,
@@ -30,6 +30,7 @@ import {
   starAgeGyr,
   treeOfLife,
   worldChemistry,
+  worldKindOf,
   type HomeWorld,
   type SystemBody,
 } from "../gen/index.ts";
@@ -51,6 +52,16 @@ function deg(radians: number): string {
 
 function hasPlanet(world: World): boolean {
   return world.storeNames().includes("planet.home");
+}
+
+/**
+ * A spot's ground in words: its biome (its seas its liquid's), where, how high, its true warmth and
+ * its rain (Phase 56: a world's climate is read in its liquid's degrees).
+ */
+function groundWords(g: HomeWorld, c: number): string {
+  const e = g.tectonics.elevation[c]!,
+    kind = worldKindOf(g);
+  return `${kindBiomeName(kind, BIOME_NAMES[g.climate.biome[c]!]!)} at ${deg(g.grid.lat[c]!)}${g.grid.lat[c]! >= 0 ? "N" : "S"} ${deg(g.grid.lon[c]!)}${g.grid.lon[c]! >= 0 ? "E" : "W"}: ${Math.round(e)} m ${e >= 0 ? "above" : "below"} the sea, ${trueCelsius(kind, g.climate.temperature[c]!).toFixed(0)} °C, ${Math.round(g.climate.precipitation[c]!)} mm of rain a year`;
 }
 
 function generated(ref: Ref, claim: string, causes: Explanation["causes"]): Explanation {
@@ -88,9 +99,11 @@ registerExplainer(PLANET.code, (world, ref) => {
     const b = system.bodies.find((x) => x.ref === ref);
     return b ? otherBody(world, b) : null;
   }
+  // (A world of a kind says so: Phase 56.)
+  const world0 = p.kind ? KINDS[p.kind].name.replace(/^an? /, (a) => a.toUpperCase()) : "A world";
   return generated(
     ref,
-    `A world of ${p.mass.toFixed(2)} Earth masses (gravity ${p.gravity.toFixed(2)} g) ${p.orbitAu.toFixed(2)} AU from its star, a year of ${Math.round(p.yearDays)} days and a day of ${p.dayHours.toFixed(1)} hours, tilted ${p.tilt.toFixed(1)}°`,
+    `${world0} of ${p.mass.toFixed(2)} Earth masses (gravity ${p.gravity.toFixed(2)} g) ${p.orbitAu.toFixed(2)} AU from its star, a year of ${Math.round(p.yearDays)} days and a day of ${p.dayHours.toFixed(1)} hours, tilted ${p.tilt.toFixed(1)}°`,
     edges(world, [{ ref: star.ref as Ref, role: "enabler", weight: 1 }]),
   );
 });
@@ -299,12 +312,11 @@ registerExplainer(SPOT.code, (world, ref) => {
     g = pw.fine,
     c = parseRef(ref).b;
   if (c >= g.grid.count) return null;
-  const e = g.tectonics.elevation[c]!,
-    b = g.tectonics.boundary[c]!,
+  const b = g.tectonics.boundary[c]!,
     near = b !== BOUNDARY.none && g.tectonics.toBoundary[c]! <= 3;
   return generated(
     ref,
-    `${BIOME_NAMES[g.climate.biome[c]!]} at ${deg(g.grid.lat[c]!)}${g.grid.lat[c]! >= 0 ? "N" : "S"} ${deg(g.grid.lon[c]!)}${g.grid.lon[c]! >= 0 ? "E" : "W"}: ${Math.round(e)} m ${e >= 0 ? "above" : "below"} the sea, ${g.climate.temperature[c]!.toFixed(0)} °C, ${Math.round(g.climate.precipitation[c]!)} mm of rain a year${near ? `, near a ${BOUNDARY_WORDS[b]} plate boundary` : ""}`,
+    `${groundWords(pw, c)}${near ? `, near a ${BOUNDARY_WORDS[b]} plate boundary` : ""}`,
     edges(world, [
       { ref: g.tectonics.plates[g.tectonics.plate[c]!]!.ref as Ref, role: "enabler", weight: 0.7 },
       { ref: cellRef(0, pw.provinceOf[c]!), role: "constraint", weight: 0.3 },
@@ -317,8 +329,7 @@ registerExplainer(SURFACE_CELL.code, (world, ref) => {
   const g = homePlanet(world).generated,
     c = parseRef(ref).b;
   if (c >= g.grid.count) return null;
-  const e = g.tectonics.elevation[c]!,
-    b = g.tectonics.boundary[c]!,
+  const b = g.tectonics.boundary[c]!,
     near = b !== BOUNDARY.none && g.tectonics.toBoundary[c]! <= 3,
     // Where copper shows at the surface of a reduced world, it lies native, not as ore (Phase 54).
     copper = surfaceCopper(g, c)
@@ -328,7 +339,7 @@ registerExplainer(SURFACE_CELL.code, (world, ref) => {
       : "";
   return generated(
     ref,
-    `${BIOME_NAMES[g.climate.biome[c]!]} at ${deg(g.grid.lat[c]!)}${g.grid.lat[c]! >= 0 ? "N" : "S"} ${deg(g.grid.lon[c]!)}${g.grid.lon[c]! >= 0 ? "E" : "W"}: ${Math.round(e)} m ${e >= 0 ? "above" : "below"} the sea, ${g.climate.temperature[c]!.toFixed(0)} °C, ${Math.round(g.climate.precipitation[c]!)} mm of rain a year${near ? `, near a ${BOUNDARY_WORDS[b]} plate boundary` : ""}${copper}`,
+    `${groundWords(g, c)}${near ? `, near a ${BOUNDARY_WORDS[b]} plate boundary` : ""}${copper}`,
     edges(world, [
       { ref: g.tectonics.plates[g.tectonics.plate[c]!]!.ref as Ref, role: "enabler", weight: 1 },
     ]),
@@ -389,7 +400,7 @@ export function landWords(world: World, place: Ref | null): string {
   if (c >= g.grid.count) return "the land";
   const lat = g.grid.lat[c]!,
     lon = g.grid.lon[c]!;
-  return `the ${BIOME_NAMES[g.climate.biome[c]!]} at ${deg(lat)}${lat >= 0 ? "N" : "S"} ${deg(lon)}${lon >= 0 ? "E" : "W"}`;
+  return `the ${kindBiomeName(worldKindOf(g), BIOME_NAMES[g.climate.biome[c]!]!)} at ${deg(lat)}${lat >= 0 ? "N" : "S"} ${deg(lon)}${lon >= 0 ? "E" : "W"}`;
 }
 
 /** A star of the cluster in plain words, by its light: a red dwarf, a yellow star, a white dwarf. */

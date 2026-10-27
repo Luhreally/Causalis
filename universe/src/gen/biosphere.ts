@@ -137,6 +137,18 @@ export type Biosphere = {
   } | null;
 };
 
+/** A world where no life took hold (Phase 56: a kind's liquid its chemistry never quickened in). */
+export function barrenBiosphere(n: number): Biosphere {
+  return {
+    species: [],
+    present: new Uint32Array(SPECIES_WORDS * n),
+    herdBeast: new Int16Array(n).fill(-1),
+    seedGrass: new Int16Array(n).fill(-1),
+    diversity: new Uint8Array(n),
+    people: null,
+  };
+}
+
 /** The media a people can live in: land, the shore, and the shallow seas (M38). */
 export const LIVABLE: readonly Medium[] = ["land", "shore", "water"];
 

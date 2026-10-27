@@ -10,9 +10,10 @@ import {
   personName,
   tonguePersonName,
   worldChemistry,
+  worldKindOf,
   type Species,
 } from "../gen/index.ts";
-import { pigmentOverride } from "../rules/index.ts";
+import { kindBurns, pigmentOverride } from "../rules/index.ts";
 import {
   cultureOf,
   homePlanet,
@@ -86,8 +87,10 @@ export function campCraft(world: World, cell: number, tile: number): CampCraft {
       : (own ?? PIGMENTS[rock] ?? { name: "red ochre", colour: [0.62, 0.2, 0.12] }),
     // (Any chert struck on the pyrite of its shale: black lydite where nothing rusts, white
     // novaculite of a silica-rich shale, as Earth's grey — Phase 54.)
-    fire:
-      (from === "shale" || from === "coal-measures") && stone.subst === "chert"
+    // (None where nothing burns: Phase 56.)
+    fire: !kindBurns(worldKindOf(homePlanet(world).generated))
+      ? "none"
+      : (from === "shale" || from === "coal-measures") && stone.subst === "chert"
         ? "strike-a-light"
         : HAND_DRILL.has(biome)
           ? "hand drill"

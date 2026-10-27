@@ -62,6 +62,7 @@ import {
   bandPace,
   bandWords,
   biomeColor,
+  kindWater,
   cradleAct,
   dawnAct,
   deepSpeedLabel,
@@ -219,6 +220,10 @@ export async function runGenesis(o: {
   skyScene.build(system);
   skyScene.visible = false;
   globe.build(frequency, elevation);
+  // (Its kind's seas and air, and the sky over its ground: Phase 56.)
+  const kind = (frame.meta as { kind?: string }).kind ?? "rocky";
+  globe.kind(kind);
+  stage.worldKind(kind);
   globe.visible = false;
   const detail = 2;
   meadowScene.setDetail(detail);
@@ -958,7 +963,7 @@ export async function runGenesis(o: {
     star: {
       title: "A star, and its worlds",
       text: () =>
-        `${/^[AEFHILMNORSX]/.test(system.star.spectral) ? "An" : "A"} ${system.star.spectral} star${makingsOf(seed).star ? ", as your hand made it" : ""}, ${system.star.ageGyr.toFixed(1)} billion years old, ${system.star.luminosity.toFixed(2)} times the Sun's light. About it, ${system.bodies.filter((b) => b.around < 0).length} worlds: rock inside its frost line, ${system.frostLine.toFixed(1)} times as far as Earth from the Sun; ice and gas beyond. One of them held water, and would hold life.`,
+        `${/^[AEFHILMNORSX]/.test(system.star.spectral) ? "An" : "A"} ${system.star.spectral} star${makingsOf(seed).star ? ", as your hand made it" : ""}, ${system.star.ageGyr.toFixed(1)} billion years old, ${system.star.luminosity.toFixed(2)} times the Sun's light. About it, ${system.bodies.filter((b) => b.around < 0).length} worlds: rock inside its frost line, ${system.frostLine.toFixed(1)} times as far as Earth from the Sun; ice and gas beyond. One of them held ${kindWater(kind)?.liquid ?? "water"}, and would hold life.`,
       enter: () => {
         stage.backdrop("space");
         skyScene.visible = true;

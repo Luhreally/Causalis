@@ -31,6 +31,8 @@ export function chemistryInputs(g: HomeWorld): ChemistryInputs {
     ageGyr: starAgeGyr(g.star),
     zone: clamp01((g.planet.orbitAu - g.star.zoneInner) / (g.star.zoneOuter - g.star.zoneInner)),
     u: [u(1), u(2), u(3)],
+    // (Its kind, and a fourth draw of its ground for a carbon disk's C/O: Phase 56.)
+    ...(g.planet.kind ? { kind: g.planet.kind, disk: u(4) } : {}),
   };
 }
 

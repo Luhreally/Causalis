@@ -8,6 +8,7 @@ import { hashString } from "../kernel/index.ts";
 import {
   CARBON_STONES,
   FIELDSTONE,
+  KIND_STONES,
   REDUCED_STONES,
   SILICA_HIGH_STONES,
   SILICA_LOW_STONES,
@@ -92,6 +93,16 @@ const LOOK_ROWS: readonly LookRow[] = [
   ["saltpetre", "crystal", "acicular", "vitreous", 0.4],
   ["blue-vitriol", "crystal", "prismatic", "vitreous", 0.55],
   ["white-arsenic", "crystal", "octahedral", "vitreous", 0.35],
+  // The kinds' (Phase 56): ices, tars and their stones.
+  ["water-ice", "crystal", "hexagonal", "vitreous", 0.8],
+  ["ammonia-hydrate", "crystal", "granular", "vitreous", 0.55],
+  ["diamond", "crystal", "octahedral", "adamantine", 0.92],
+  ["bitumen", "lump", "massive", "greasy", 0],
+  ["tholin", "powder", "granular", "dull", 0],
+  ["gypsum", "crystal", "bladed", "pearly", 0.45],
+  ["pitch-grit", "lump", "granular", "greasy", 0],
+  ["sulfur-concrete", "lump", "massive", "resinous", 0],
+  ["polyacetylene", "sheet", null, "submetallic", 0],
   // Made, fuel and kitchen.
   ["glass", "glass", "conchoidal", "vitreous", 0.9],
   ["slag", "lump", "conchoidal", "vitreous", 0.05],
@@ -119,6 +130,9 @@ const LOOK_ROWS: readonly LookRow[] = [
   ["nitrocellulose", "fibre", "fibrous", "silky", 0],
   ["vitriol", "liquid", null, "greasy", 0.8],
   ["nitric-acid", "liquid", null, "vitreous", 0.8],
+  // The kinds' seas (Phase 56).
+  ["ammonia-water", "liquid", null, "vitreous", 0.95],
+  ["acid-water", "liquid", null, "vitreous", 0.85],
   // Gases (habit null, lustre dull).
   ["steam", "gas", null, "dull", 0.8],
   ["nitrogen", "gas", null, "dull", 0.9],
@@ -126,9 +140,19 @@ const LOOK_ROWS: readonly LookRow[] = [
   ["argon", "gas", null, "dull", 0.9],
   ["co2", "gas", null, "dull", 0.9],
   ["so2", "gas", null, "dull", 0.9],
+  // The kinds' (Phase 56).
+  ["ammonia", "gas", null, "dull", 0.9],
+  ["methane", "gas", null, "dull", 0.9],
+  ["ethane", "gas", null, "dull", 0.9],
+  ["acetylene", "gas", null, "dull", 0.9],
+  ["hydrogen", "gas", null, "dull", 0.9],
+  ["carbon-monoxide", "gas", null, "dull", 0.9],
 ];
 
-/** Every substance's look by its id (Earth's and the novel ones; a substance not here is `lookOf`'s). */
+/**
+ * Every substance's look by its id (Earth's, the novel ones' and the kinds' — Phase 56; a substance
+ * not here is `lookOf`'s).
+ */
 export const LOOKS: Readonly<Record<string, MatterLook>> = Object.fromEntries(
   LOOK_ROWS.map(([id, form, habit, lustre, clarity]): [string, MatterLook] => [
     id,
@@ -316,7 +340,10 @@ export function thingForm(name: string): string {
   return THING_FORM_WORDS.find(([, re]) => re.test(n))?.[0] ?? "thing";
 }
 
-/** The names of stones a people knap an edge to: flint and the rest, and every stone of the crusts' tables. */
+/**
+ * The names of stones a people knap an edge to: flint and the rest, and every stone of the crusts'
+ * tables (and the kinds' own: moissanite, diamond, ice — Phase 56).
+ */
 const STONE_NAMES: ReadonlySet<string> = new Set<string>([
   "flint",
   "chert",
@@ -328,6 +355,7 @@ const STONE_NAMES: ReadonlySet<string> = new Set<string>([
     (table) => Object.values(table).map((s) => s.name),
   ),
   FIELDSTONE.name,
+  ...Object.values(KIND_STONES).flatMap((table) => Object.values(table).map((s) => s.name)),
 ]);
 
 /** The materials a thing is carved from. */
@@ -354,12 +382,17 @@ export function madeHowOf(
   if (material === "machined" || (good === "machines" && stuff.includes("steel")))
     return "machined";
   if (good === "machines") return "cast";
-  if (good === "pottery") return "thrown";
+  // (A kind's vessels, where no clay is fired: a basket woven and pitched, ice cut hollow: Phase 56.)
+  if (good === "pottery")
+    return /basket/.test(stuff) ? "woven" : /\bice\b/.test(stuff) ? "carved" : "thrown";
   if (good === "clothing") return /leather|hide/.test(stuff) ? "sewn" : "woven";
   // A body's own claws, horns or shell are grown, whatever they are of.
   if (material === "body") return "grown";
   // Wood, bone, horn and shell are worked by cutting and scraping: a horn-bow, a shell's darts.
   if (CARVED.has(material ?? "") || /wood|bone|horn|shell/.test(stuff)) return "carved";
+  // (A carbon world's native copper is beaten cold, its carbide iron ground keen: Phase 56.)
+  if (/native copper/.test(stuff)) return "forged";
+  if (/carbide/.test(stuff)) return "machined";
   if (/bronze|copper|brass|cupronickel|arsenical/.test(stuff)) return "cast";
   // Iron, steel, nickel, and any metal not cast: forged.
   return "forged";

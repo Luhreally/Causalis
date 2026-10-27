@@ -5708,6 +5708,10 @@ const WALL: Readonly<Record<string, Rgb>> = {
   "reef-walls": [0.98, 0.6, 0.54],
   "shell-walls": [0.98, 0.95, 0.84],
   burrow: [0.62, 0.46, 0.3],
+  // (The kinds' walls: ice blocks, carbide grit in pitch, sulfur concrete — Phase 56.)
+  "ice-walls": [0.84, 0.92, 0.98],
+  "pitch-walls": [0.24, 0.22, 0.22],
+  "sulfur-walls": [0.9, 0.82, 0.42],
 };
 const ROOF: Readonly<Record<string, Rgb>> = {
   thatch: [0.86, 0.68, 0.3],

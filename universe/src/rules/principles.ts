@@ -6,6 +6,7 @@
 // whole. Two roots are known by the older systems: cultivation and metalworking.
 
 import type { Medium } from "./bodies.ts";
+import type { WorldKind } from "./kinds.ts";
 
 /** What a principle changes, as keyed amounts (added to a land's totals). */
 export const EFFECTS = [
@@ -78,6 +79,8 @@ export type BodyNeeds = {
   readonly fire?: boolean;
   /** Only a people of these media can use it (wheels and sails are for the land and shore; the vents for the sea). */
   readonly media?: readonly Medium[];
+  /** Only on worlds of these kinds (Phase 56: what a kind does in place of what it cannot; absent: any). */
+  readonly kinds?: readonly WorldKind[];
 };
 
 export type Principle = {
@@ -102,8 +105,19 @@ export function needsMet(
   return p.needs.every((n) => (n.includes("|") ? n.split("|").some(knows) : knows(n)));
 }
 
-/** Whether a body can come to know a principle at all. */
-export function affordsPrinciple(p: Principle, medium: Medium, fire: boolean): boolean {
+/** Whether a principle can be known on a world of this kind at all (Phase 56). */
+export function kindAllows(p: Principle, kind: WorldKind): boolean {
+  return !p.body?.kinds || p.body.kinds.includes(kind);
+}
+
+/** Whether a body can come to know a principle at all, on a world of its kind (a rocky one by default). */
+export function affordsPrinciple(
+  p: Principle,
+  medium: Medium,
+  fire: boolean,
+  kind: WorldKind = "rocky",
+): boolean {
+  if (!kindAllows(p, kind)) return false;
   if (p.body?.fire && !fire) return false;
   return !p.body?.media || p.body.media.includes(medium);
 }
@@ -176,7 +190,7 @@ const TREE: readonly Principle[] = [
   P(
     "heavy-plough",
     "the heavy plough",
-    ["plough", "iron"],
+    ["plough", "iron|carbide-blades|ice-working"],
     0.01,
     { farmers: 1 },
     { farmYield: 0.2 },
@@ -189,7 +203,14 @@ const TREE: readonly Principle[] = [
     { crafters: 1, farmers: 0.5 },
     { farmYield: 0.08, keeping: 0.1 },
   ),
-  P("beekeeping", "keeping bees", ["pottery-wheel"], 0.01, { farmers: 0.5 }, { forageYield: 0.05 }),
+  P(
+    "beekeeping",
+    "keeping bees",
+    ["pottery-wheel|pitch-ware|ice-ware"],
+    0.01,
+    { farmers: 0.5 },
+    { forageYield: 0.05 },
+  ),
   P("fishing", "boats for fishing", ["sailing"], 0.015, { coast: true }, { forageYield: 0.15 }),
   P("archery", "the bow", [], 0.01, {}, { forageYield: 0.05, arms: 1 }),
   // Stores and keeping.
@@ -204,7 +225,7 @@ const TREE: readonly Principle[] = [
   P(
     "granaries",
     "granaries",
-    ["pottery-wheel"],
+    ["pottery-wheel|pitch-ware|ice-ware"],
     0.015,
     { leaders: 0.5, famine: 1 },
     { storage: 6, keeping: 0.2 },
@@ -217,7 +238,14 @@ const TREE: readonly Principle[] = [
     { herders: 0.5, ore: "salt" },
     { keeping: 0.2 },
   ),
-  P("brewing", "brewing and wine", ["pottery-wheel"], 0.01, { farmers: 0.3 }, {}),
+  P(
+    "brewing",
+    "brewing and wine",
+    ["pottery-wheel|pitch-ware|ice-ware"],
+    0.01,
+    { farmers: 0.3 },
+    {},
+  ),
   // Crafts.
   P("loom", "the loom", ["cultivation"], 0.02, { crafters: 1 }, { clothing: 0.4 }),
   P("dyeing", "dyes", ["loom"], 0.01, { crafters: 1, traders: 0.5 }, {}),
@@ -246,13 +274,20 @@ const TREE: readonly Principle[] = [
     { crafters: 1 },
     { tools: 0.2, arms: 1, armour: 1 },
   ),
-  P("carpentry", "joinery", ["bronze"], 0.015, { crafters: 1 }, { building: 1 }),
+  P(
+    "carpentry",
+    "joinery",
+    ["bronze|carbide-blades|ice-working"],
+    0.015,
+    { crafters: 1 },
+    { building: 1 },
+  ),
   P("glass", "glass", ["pottery-wheel", "metalworking"], 0.006, { crafters: 1 }, {}),
   // Moving and trading.
   P(
     "wheel",
     "the wheel",
-    ["pottery-wheel", "draught"],
+    ["pottery-wheel|pitch-ware|ice-ware", "draught"],
     0.012,
     { crafters: 1, traders: 0.5 },
     { carrying: 0.3, haul: 0.1 },
@@ -294,7 +329,7 @@ const TREE: readonly Principle[] = [
   P(
     "currency",
     "coin",
-    ["writing", "metalworking"],
+    ["writing", "metalworking|ice-working"],
     0.01,
     { traders: 1, town: 1 },
     { carrying: 0.15 },
@@ -364,7 +399,7 @@ const TREE: readonly Principle[] = [
   P(
     "germs",
     "the seeds of sickness",
-    ["medicine", "glass", "writing"],
+    ["medicine", "glass|diamond-grit|ice-working", "writing"],
     0.004,
     { leaders: 0.5, crafters: 0.5, town: 1 },
     { health: 0.04 },
@@ -375,7 +410,7 @@ const TREE: readonly Principle[] = [
   P(
     "masonry",
     "building in stone",
-    ["bronze"],
+    ["bronze|carbide-blades|ice-working"],
     0.012,
     { crafters: 1, town: 1 },
     { building: 1, walls: 1 },
@@ -394,7 +429,7 @@ const TREE: readonly Principle[] = [
   P(
     "chariots",
     "the chariot",
-    ["wheel", "riding", "bronze"],
+    ["wheel", "riding", "bronze|carbide-blades|ice-working"],
     0.008,
     { leaders: 1, herders: 0.5 },
     { mounts: 1, arms: 1 },
@@ -402,7 +437,7 @@ const TREE: readonly Principle[] = [
   P(
     "standing-army",
     "a standing army",
-    ["bureaucracy", "bronze"],
+    ["bureaucracy", "bronze|carbide-blades|ice-working"],
     0.006,
     { leaders: 1 },
     { arms: 1 },
@@ -418,7 +453,7 @@ const TREE: readonly Principle[] = [
   P(
     "cavalry",
     "horsemen",
-    ["riding", "iron"],
+    ["riding", "iron|carbide-blades|ice-working"],
     0.006,
     { leaders: 1, herders: 1 },
     { mounts: 1, arms: 1 },
@@ -428,7 +463,7 @@ const TREE: readonly Principle[] = [
   P(
     "clockwork",
     "gears and clocks",
-    ["mathematics", "iron"],
+    ["mathematics", "iron|carbide-blades|ice-working"],
     0.006,
     { crafters: 1, traders: 0.3 },
     {},
@@ -452,7 +487,7 @@ const TREE: readonly Principle[] = [
   P(
     "railways",
     "railways",
-    ["steam-engine", "roads"],
+    ["steam-engine|sun-engines|heat-engines|cold-chemistry", "roads"],
     0.006,
     { traders: 1, leaders: 0.5 },
     { haul: 0.3, carrying: 0.3, reach: 1 },
@@ -460,7 +495,7 @@ const TREE: readonly Principle[] = [
   P(
     "steamships",
     "steamships",
-    ["steam-engine", "shipbuilding"],
+    ["steam-engine|sun-engines|heat-engines|cold-chemistry", "shipbuilding"],
     0.006,
     { traders: 1, coast: true },
     { ships: 1, carrying: 0.2 },
@@ -581,7 +616,7 @@ const TREE: readonly Principle[] = [
   P(
     "electronics",
     "valves and wires that reckon",
-    ["electricity|sea-electricity", "mathematics"],
+    ["electricity|sea-electricity|graphite-dynamos|ground-dynamos|polymer-wire", "mathematics"],
     0.0042,
     { crafters: 1, traders: 0.3 },
     { learning: 0.3 },
@@ -589,7 +624,7 @@ const TREE: readonly Principle[] = [
   P(
     "rocketry",
     "the rocket",
-    ["electricity|sea-electricity", "astronomy"],
+    ["electricity|sea-electricity|graphite-dynamos|ground-dynamos|polymer-wire", "astronomy"],
     0.0035,
     { crafters: 1, leaders: 0.3 },
     { arms: 1 },
@@ -621,7 +656,7 @@ const TREE: readonly Principle[] = [
   P(
     "stations",
     "halls in orbit",
-    ["life-support", "factories|sea-works"],
+    ["life-support", "factories|sea-works|sun-engines|heat-engines|cold-chemistry"],
     0.0028,
     { crafters: 1, leaders: 0.3 },
     {},
@@ -742,6 +777,183 @@ const TREE: readonly Principle[] = [
   ),
 ];
 
+// The kinds' own roads (Phase 56): what a world of each kind does in place of what it cannot. Where
+// nothing burns — a carbon world, an ice world — no kiln, furnace or engine that burns can be built;
+// its people come to vessels, blades, works and power another way, and Earth's later principles
+// open by either road ("a|b"). Each is open only on its kinds' worlds. Appended after the rest, so
+// every land's draws to find the others (keyed by a principle's place) stay what they were.
+const KIND_TREE: readonly Principle[] = [
+  // A carbon world: diamond and carbide, its native copper beaten cold, the sun's heat gathered in
+  // mirrors (no fuel burns), then dynamos, then oxygen made by current, which at last burns the
+  // carbon out of its iron.
+  P(
+    "diamond-grit",
+    "grinding with diamond grit",
+    [],
+    0.012,
+    { crafters: 1 },
+    { tools: 0.15 },
+    { kinds: ["carbon"] },
+  ),
+  P(
+    "pitch-ware",
+    "vessels sealed with pitch",
+    ["cultivation"],
+    0.02,
+    { crafters: 1 },
+    { pottery: 0.5 },
+    { kinds: ["carbon"] },
+  ),
+  P(
+    "cold-hammering",
+    "native copper hammered cold",
+    ["cultivation"],
+    0.015,
+    { crafters: 1, ore: "copper" },
+    { tools: 0.2 },
+    { kinds: ["carbon"] },
+  ),
+  P(
+    "carbide-blades",
+    "carbide iron ground keen",
+    ["cold-hammering", "diamond-grit"],
+    0.01,
+    { crafters: 1, ore: "iron" },
+    { tools: 0.5, arms: 1, armour: 1 },
+    { kinds: ["carbon"] },
+  ),
+  P(
+    "sun-engines",
+    "engines driven by the sun's heat",
+    ["mills", "carbide-blades", "mathematics"],
+    0.005,
+    { crafters: 1 },
+    { power: 1, industry: 0.7, renewable: 2 },
+    { kinds: ["carbon"] },
+  ),
+  P(
+    "graphite-dynamos",
+    "dynamos of copper and graphite",
+    ["sun-engines", "philosophy"],
+    0.004,
+    { crafters: 1, leaders: 0.5 },
+    { power: 1, industry: 0.5, renewable: 1 },
+    { kinds: ["carbon"] },
+  ),
+  P(
+    "made-oxygen",
+    "oxygen made by current",
+    ["graphite-dynamos", "mathematics"],
+    0.004,
+    { crafters: 1 },
+    { tools: 0.2, arms: 1, armour: 1 },
+    { kinds: ["carbon"] },
+  ),
+  // A sulfur-volcano world: copper from the blue vitriol its acid springs leave, reduced in an open
+  // fire with no furnace; walls of grit bound with molten sulfur.
+  P(
+    "acid-leaching",
+    "copper from blue vitriol",
+    ["cultivation"],
+    0.015,
+    { crafters: 1, ore: "copper" },
+    { tools: 0.1 },
+    { kinds: ["sulfur"] },
+  ),
+  P(
+    "sulfur-concrete",
+    "sulfur concrete",
+    ["masonry"],
+    0.01,
+    { crafters: 1, town: 1 },
+    { building: 1, walls: 1 },
+    { fire: true, kinds: ["sulfur"] },
+  ),
+  // An ice world: vessels, blades and walls of the ice that is its bedrock.
+  P(
+    "ice-ware",
+    "vessels cut from ice",
+    ["cultivation"],
+    0.02,
+    { crafters: 1 },
+    { pottery: 0.4 },
+    { kinds: ["ammonia", "methane"] },
+  ),
+  P(
+    "ice-working",
+    "ice cut and set",
+    ["cultivation"],
+    0.015,
+    { crafters: 1 },
+    { tools: 0.3, arms: 1 },
+    { kinds: ["ammonia", "methane"] },
+  ),
+  // An ammonia world: engines run between the ground's heat and the cold (no fire: a heat engine
+  // wants only warmth and cold, and metal to hold its working fluid: iron fallen from the sky, its
+  // last principle, below), then electricity of them, in dynamos wound with the same iron.
+  P(
+    "heat-engines",
+    "engines of the ground's heat",
+    ["mills", "ice-working", "star-iron", "mathematics"],
+    0.005,
+    { crafters: 1 },
+    { power: 1, industry: 0.7, renewable: 2 },
+    { kinds: ["ammonia"] },
+  ),
+  P(
+    "ground-dynamos",
+    "electricity from the ground's heat",
+    ["heat-engines", "star-iron", "philosophy"],
+    0.004,
+    { crafters: 1, leaders: 0.5 },
+    { power: 1, industry: 0.5, renewable: 1 },
+    { kinds: ["ammonia"] },
+  ),
+  // A methane world: the acetylene and hydrogen its haze makes in sunlight, joined again for their
+  // energy (McKay & Smith 2005) over a catalyst of nickel (Sabatier's), the nickel of iron fallen
+  // from the sky; then wires of polyacetylene, a polymer that carries current, in dynamos whose
+  // magnets are the same iron.
+  P(
+    "cold-chemistry",
+    "acetylene joined with hydrogen",
+    ["mills", "ice-working", "star-iron", "mathematics"],
+    0.005,
+    { crafters: 1 },
+    { power: 1, industry: 0.7, renewable: 2 },
+    { kinds: ["methane"] },
+  ),
+  P(
+    "polymer-wire",
+    "wires of polyacetylene",
+    ["cold-chemistry", "philosophy"],
+    0.004,
+    { crafters: 1, leaders: 0.5 },
+    { power: 1, industry: 0.5, renewable: 1 },
+    { kinds: ["methane"] },
+  ),
+  // An ice world's only metal: iron fallen from the sky, gathered where its ice strands it (as
+  // Antarctica's ice strands meteorites). An ammonia world's is hammered cold (as the Cape York iron
+  // was), its nickel keeping it tough in the cold: too little to edge a people's tools, enough for
+  // the hearts of their engines and the wire of their dynamos. In a methane world's cold it is as
+  // brittle as glass and is never hammered: broken to grit, its nickel is the catalyst its engines
+  // join acetylene and hydrogen on, and whole it is the magnet of a dynamo (as tetrataenite, the
+  // meteorites' own iron and nickel, is a magnet). Last, so that the kinds' others keep their places.
+  P(
+    "star-iron",
+    "iron fallen from the sky",
+    ["ice-working"],
+    0.01,
+    { crafters: 1 },
+    {},
+    { kinds: ["ammonia", "methane"] },
+  ),
+];
+
+/** The kinds' principles that bring metal to a land, as the vents' does a people of the water. */
+export const KIND_METAL_ROOTS: readonly string[] = ["cold-hammering", "acid-leaching"];
+/** The kinds' engines, whose works want machines as steam's do. */
+export const KIND_ENGINES: readonly string[] = ["sun-engines", "heat-engines", "cold-chemistry"];
+
 /**
  * What each of the land's principles asks of a body (Phase 4 M39): fire for kilns,
  * smelting and burning fuel; the land or the shore for what rolls, sails, is ridden,
@@ -789,7 +1001,7 @@ const ASKS: Readonly<Record<string, BodyNeeds>> = {
   aqueducts: { media: ["land", "shore"] },
 };
 
-export const PRINCIPLES: readonly Principle[] = TREE.map((p) =>
+export const PRINCIPLES: readonly Principle[] = [...TREE, ...KIND_TREE].map((p) =>
   ASKS[p.id] ? { ...p, body: ASKS[p.id] } : p,
 );
 

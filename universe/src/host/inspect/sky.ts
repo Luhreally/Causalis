@@ -17,6 +17,7 @@ import type { Item, PageModel, Place, Stat } from "../../bridge/index.ts";
 import { starByRef, starFacts, foreignGlobe } from "../galaxy.ts";
 import { civilizationOn, lifeOfBody, lifeOfWorld, sameStar } from "../elsewhere.ts";
 import { elsewhereBlocks } from "./small.ts";
+import { kindBlocks } from "../kinds.ts";
 import { foreignPlanets } from "../../gen/index.ts";
 import { claimOf, count, item, link, many, stat, yearNow } from "./words.ts";
 import { landLink, realmLink, spotOfLand } from "./names.ts";
@@ -326,6 +327,8 @@ export function bodyPage(world: World, ref: string): PageModel {
               ]
             : []),
           { type: "text", title: "Why it is like this", lines: b.because.map((w) => [w]) },
+          // (The home world's kind, where it is not rocky: Phase 56.)
+          ...(home ? kindBlocks(world) : []),
           ...(moons.length
             ? [
                 {

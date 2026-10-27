@@ -4,9 +4,12 @@
 // See README.md and docs/architecture §24, §27.
 export {
   OLDEST_STAR_GYR,
+  climateMean,
+  kindPlanet,
   makePlanet,
   makeStar,
   starAgeGyr,
+  worldKindOf,
   type Planet,
   type Star,
 } from "./bodies.ts";

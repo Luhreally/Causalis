@@ -4,7 +4,15 @@
 // its copper lies native or as glance and its iron as black ore. The Sun's own chemistry keeps Earth's
 // tables exactly: nothing new may appear on Earth.
 import { METALS, ORES, type Metal, type Ore, type OreLie } from "./stuffs.ts";
-import { NOVEL_REACTIONS, REACTIONS, findReaction, type Reaction } from "./matter.ts";
+import {
+  KIND_REACTIONS,
+  NOVEL_REACTIONS,
+  REACTIONS,
+  findReaction,
+  type Reaction,
+} from "./matter.ts";
+import { KIND_METALS, KIND_ORES, KIND_REACTION_IDS } from "./kind-ground.ts";
+import { KIND_PRINCIPLE_NAMES, kindBurns } from "./kinds.ts";
 import { chemistryKey, type AirClass, type Chemistry } from "./chemistry.ts";
 import { principle } from "./principles.ts";
 
@@ -285,9 +293,34 @@ export function oresOn(chem: Chemistry): Readonly<Record<string, Partial<Record<
   const key = chemistryKey(chem);
   const known = oreMemo.get(key);
   if (known !== undefined) return known;
-  const table: OreTable = { ...ORES, copper: copperOn(chem), tin: tinOn(chem), iron: ironOn(chem) };
+  const table: OreTable = kindOres(chem) ?? {
+    ...ORES,
+    copper: copperOn(chem),
+    tin: tinOn(chem),
+    iron: ironOn(chem),
+  };
   oreMemo.set(key, table);
   return table;
+}
+
+/**
+ * A kind's ores (Phase 56), where its kind has its own: a carbon world's native copper and carbide
+ * iron, and no hardener; a sulfur world's blue vitriol beside its crust's copper; an ice world none,
+ * every ore under its ice. Null for a rocky world.
+ */
+function kindOres(chem: Chemistry): OreTable | null {
+  if (chem.kind === "ammonia" || chem.kind === "methane")
+    return { ...ORES, copper: {}, tin: {}, iron: {} };
+  if (chem.kind === "carbon")
+    return { ...ORES, copper: KIND_ORES.carbon.copper!, tin: {}, iron: KIND_ORES.carbon.iron! };
+  if (chem.kind === "sulfur")
+    return {
+      ...ORES,
+      copper: { ...copperOn(chem), ...KIND_ORES.sulfur.copper },
+      tin: tinOn(chem),
+      iron: ironOn(chem),
+    };
+  return null;
 }
 
 /** The ore of one kind as it lies on a world, or undefined if the world has no such lie. */
@@ -347,9 +380,14 @@ export const METAL_PRINCIPLES: ReadonlyMap<string, Metal> = new Map<string, Meta
 /**
  * A principle's name on this world: a metal's principle is named as the world's chemistry names
  * that metal ("arsenical copper" for bronze on an arsenic world); the Sun's chemistry keeps the
- * names the principles have.
+ * names the principles have. A kind names some of Earth's its own way (Phase 56: "engine-driven
+ * ships" where nothing burns), and where nothing burns a metal's keeps Earth's name: none is
+ * smelted there, and its page says why.
  */
 export function principleNameOn(chem: Chemistry, id: string): string {
+  const own = chem.kind && KIND_PRINCIPLE_NAMES[chem.kind][id];
+  if (own) return own;
+  if (chem.kind && !kindBurns(chem.kind)) return principle(id).name;
   const metal = METAL_PRINCIPLES.get(id);
   return chem.solar || !metal ? principle(id).name : metalOf(chem, metal).name;
 }
@@ -364,6 +402,11 @@ export function metalOf(
   how: { readonly lie?: string | null; readonly arsenical?: boolean } = {},
 ): WorldMetal {
   const novel = !chem.solar;
+  // (A carbon world's copper is native copper beaten cold, its iron ground from carbide: Phase 56.)
+  if (chem.kind === "carbon" && role === "copper")
+    return { name: "native copper", subst: "copper", stuff: KIND_METALS["cold copper"] };
+  if (chem.kind === "carbon" && (role === "iron" || role === "bog iron"))
+    return { name: "carbide iron", subst: "cohenite-iron", stuff: KIND_METALS["carbide iron"] };
   if (role === "copper" || role === "steel")
     return { name: role, subst: role, stuff: METALS[role] };
   if (role === "bronze") {
@@ -407,6 +450,9 @@ export function roleWord(chem: Chemistry, kind: string): string {
 /** The minerals a deposit of this kind holds on this world; null where it is as Earth's. */
 export function depositMineralsOn(chem: Chemistry, kind: string): readonly string[] | null {
   if (chem.solar) return null;
+  // (A carbon world's copper lies native and its iron as carbide: Phase 56.)
+  if (chem.kind === "carbon" && (kind === "copper" || kind === "iron"))
+    return kind === "copper" ? ["native-copper"] : ["cohenite"];
   if (kind === "copper") return chem.redox === "reduced" ? COPPER_MINERALS : null;
   if (kind === "iron") return chem.redox === "reduced" ? IRON_MINERALS : null;
   if (kind === "tin") {
@@ -429,6 +475,9 @@ export function oreGradeOn(
 
 /** How a deposit of this kind is made on this world, where it differs from Earth's. */
 export function depositProcessOn(chem: Chemistry, kind: string): string | null {
+  // (An ice world's deposits lie in the rock under its ice crust: Phase 56.)
+  if (chem.kind === "ammonia" || chem.kind === "methane")
+    return "in the rock under its ice crust, beyond any digging";
   // Sutures carry both collision granites and obducted ophiolite, so the tin keeps its places.
   return !chem.solar && kind === "tin" && chem.hardener === "nickel"
     ? "serpentine slivers of an old suture"
@@ -452,10 +501,13 @@ export function reactionsOn(chem: Chemistry): readonly Reaction[] {
     used.add(ARSENICAL_ORE.smelt);
     used.add(ARSENICAL_ALLOY.reaction);
   }
-  const list: readonly Reaction[] = [
-    ...REACTIONS,
-    ...NOVEL_REACTIONS.filter((r) => used.has(r.id)),
-  ];
+  // (A kind's own after them: what it does in place of what it cannot, Phase 56.)
+  const own = chem.kind ? KIND_REACTION_IDS[chem.kind] : [],
+    list: readonly Reaction[] = [
+      ...REACTIONS,
+      ...NOVEL_REACTIONS.filter((r) => used.has(r.id)),
+      ...KIND_REACTIONS.filter((r) => own.includes(r.id)),
+    ];
   reactionMemo.set(key, list);
   return list;
 }

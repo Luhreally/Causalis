@@ -71,6 +71,11 @@ export type LandSky = {
   readonly sent: 1 | 0 | -1;
   /** The god's acts on it now, as the globe plays them. */
   readonly acts: readonly ActMark[];
+  /**
+   * Where its warmth and swing are its liquid's degrees, not Earth's (Phase 56: an ice world's), how
+   * they are told in true ones: °C = at0 + per × degrees.
+   */
+  readonly degrees?: { readonly at0: number; readonly per: number };
 };
 
 /** A land as the god's palette sees it: whose it is, its faith, its towns. */

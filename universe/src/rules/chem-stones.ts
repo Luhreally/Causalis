@@ -5,6 +5,7 @@
 // then reduced, then carbon-rich. Nine crusts in all, one table each.
 import { STONES, type Stone } from "./stuffs.ts";
 import type { Chemistry } from "./chemistry.ts";
+import { KIND_STONES } from "./kind-ground.ts";
 
 /**
  * Where a crust has no flint (no biogenic silica, so no chalk nodules to weather out): the hard cobble
@@ -165,7 +166,10 @@ export const CARBON_STONES: Readonly<Record<string, Stone>> = {
  * "solar/oxidised".
  */
 export function stonesKey(chem: Chemistry): string {
-  return `${chem.silica}/${chem.carbon === "carbon-rich" ? "carbon" : chem.redox}`;
+  const crust = `${chem.silica}/${chem.carbon === "carbon-rich" ? "carbon" : chem.redox}`;
+  // (Phase 56: a kind's own stones, whole; a sulfur world's over its crust's.)
+  if (!chem.kind) return crust;
+  return chem.kind === "sulfur" ? `sulfur:${crust}` : chem.kind;
 }
 
 /** Each crust's table, made once and kept by its key. */
@@ -178,6 +182,8 @@ const tables = new Map<string, Readonly<Record<string, Stone>>>();
  */
 export function stonesFor(chem: Chemistry): Readonly<Record<string, Stone>> {
   if (chem.solar) return STONES;
+  // (A carbon world's and an ice world's stones are their own, every rock's: Phase 56.)
+  if (chem.kind && chem.kind !== "sulfur") return KIND_STONES[chem.kind];
   const key = stonesKey(chem);
   if (key === "solar/oxidised") return STONES;
   let table = tables.get(key);
@@ -195,6 +201,7 @@ export function stonesFor(chem: Chemistry): Readonly<Record<string, Stone>> {
       ...silica,
       ...(reduced ? REDUCED_STONES : {}),
       ...(carbonRich ? CARBON_STONES : {}),
+      ...(chem.kind === "sulfur" ? KIND_STONES.sulfur : {}),
     };
     tables.set(key, table);
   }

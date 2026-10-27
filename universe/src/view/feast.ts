@@ -83,7 +83,7 @@ export function feastOn(plan: Pick<VillagePlan, "life" | "town">, day: number): 
 
 /** Whether the square is dressed for a feast at moment t, and whether its fire burns. */
 export function feastAt(
-  plan: Pick<VillagePlan, "life" | "town">,
+  plan: Pick<VillagePlan, "life" | "town" | "fireless">,
   t: number,
 ): { readonly feast: Feast; readonly dressed: boolean; readonly lit: boolean } | null {
   const day = Math.floor(t / DAY),
@@ -93,7 +93,8 @@ export function feastAt(
   return {
     feast,
     dressed: hour >= FEAST_HOURS.dressed && hour < FEAST_HOURS.over + 1,
-    lit: hour >= FEAST_HOURS.lit && hour < FEAST_HOURS.over + 1,
+    // (Where nothing burns no bonfire is lit: Phase 56.)
+    lit: !plan.fireless && hour >= FEAST_HOURS.lit && hour < FEAST_HOURS.over + 1,
   };
 }
 

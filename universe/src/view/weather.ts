@@ -18,8 +18,10 @@ export type Weather = {
   readonly haze: number;
   /** A lightning flash now (0 … 1). */
   readonly flash: number;
-  /** The air now (°C). */
+  /** The air now (°C; on a world of another liquid, its liquid's degrees: Phase 56). */
   readonly warmth: number;
+  /** The air now in true degrees, as it is told (°C). */
+  readonly celsius: number;
   /** The weather in a few words, and its sign. */
   readonly words: string;
   readonly icon: string;
@@ -169,7 +171,9 @@ export function weatherAt(land: LandSky, t: number, pace = 0, wall: number | nul
                             : day
                               ? ["☀️", "Clear"]
                               : ["🌙", "A clear night"];
-  return { rain, snow, cloud, haze, flash, warmth, words, icon };
+  // (Told in true degrees; its sky played in its liquid's: Phase 56.)
+  const celsius = land.degrees ? land.degrees.at0 + land.degrees.per * warmth : warmth;
+  return { rain, snow, cloud, haze, flash, warmth, celsius, words, icon };
 }
 
 /** Rain or snow this heavy sends those at their ease indoors. */

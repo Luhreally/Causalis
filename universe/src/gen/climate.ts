@@ -5,7 +5,7 @@
 // from warm seas, is carried downwind, and falls where air rises over mountains
 // or converges; the result is annual rain. Biomes follow from warmth and rain.
 import { dmath, type SphereGrid } from "../kernel/index.ts";
-import type { Planet } from "./bodies.ts";
+import { climateMean, type Planet } from "./bodies.ts";
 
 export const BIOME = {
   deepOcean: 0,
@@ -103,7 +103,8 @@ export function makeClimate(grid: SphereGrid, planet: Planet, elevation: Float32
     const s = dmath.sin(lat[c]!),
       shape = dmath.pow(s * s, gamma),
       far = Math.min(1, inland[c]! / 12);
-    let t = planet.meanTemperature + spread * (meanShape - shape);
+    // (In its liquid's degrees, on a world whose liquid is not water: Phase 56.)
+    let t = climateMean(planet) + spread * (meanShape - shape);
     if (!ocean(c)) t -= 6.5 * (elevation[c]! / 1000) + 3 * far * Math.abs(s);
     temperature[c] = t;
     seasonality[c] = swing * Math.abs(s) * (6 + 18 * far);

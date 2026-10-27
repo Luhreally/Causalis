@@ -20,7 +20,7 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
-import { BIOME, offworldSite, surfaceOre } from "../../gen/index.ts";
+import { BIOME, offworldSite, surfaceOre, worldKindOf } from "../../gen/index.ts";
 import {
   G,
   HOST_ROLES,
@@ -30,6 +30,7 @@ import {
   WORKS_ROLES,
   compose,
   designWords,
+  kindBurns,
   realization,
   type Doctrine,
   type Material,
@@ -179,6 +180,9 @@ function seaMaterials(ctx: PopulationContext, cell: number): Set<Material> {
     out = new Set<Material>(["shell", "stone", "earth"]);
   if (warm >= 18) out.add("coral");
   if (warm < 22) out.add("kelp");
+  // (An ice world's ice: floes on its ammonia sea, the floor of its methane sea — Phase 56.)
+  const kind = worldKindOf(ctx.generated);
+  if (kind === "ammonia" || kind === "methane") out.add("ice");
   return out;
 }
 
@@ -198,7 +202,12 @@ function landGives(ctx: PopulationContext, cell: number): Set<Material> {
     out.add("wood");
   if (rain >= 250 || wet) out.add("reed");
   if (g.tectonics.elevation[cell]! > 450) out.add("stone");
-  if (wet || rain >= 500) out.add("fired clay");
+  // (Where nothing burns no clay is fired; a kind's walls are of what its ground gives: Phase 56.)
+  const kind = worldKindOf(g);
+  if ((wet || rain >= 500) && kindBurns(kind)) out.add("fired clay");
+  if (kind === "ammonia" || kind === "methane") out.add("ice");
+  if (kind === "carbon") out.add("pitch grit");
+  if (kind === "sulfur") out.add("sulfur concrete");
   return out;
 }
 

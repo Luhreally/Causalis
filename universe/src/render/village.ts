@@ -17,6 +17,7 @@ import {
   SKIN,
   figurePaint,
   biomeColor,
+  kindWater,
   cropColor,
   FAIR_YEAR,
   cropTint,
@@ -466,7 +467,7 @@ export class VillageScene {
           grass,
         });
       };
-    const g = biomeColor(plan.biome),
+    const g = biomeColor(plan.biome, plan.kind),
       // (The ground runs out past its farthest fields and pasture, and the mills on their rim — a
       // great city's lie kilometres out — to the horizon's edge.)
       reach = Math.max(
@@ -493,7 +494,14 @@ export class VillageScene {
       true,
     );
     if (plan.water)
-      disc(LAKE_R * M, [0.2, 0.4, 0.6], plan.water.x * M, plan.water.z * M, 0.014, "water");
+      disc(
+        LAKE_R * M,
+        kindWater(plan.kind)?.lake ?? [0.2, 0.4, 0.6],
+        plan.water.x * M,
+        plan.water.z * M,
+        0.014,
+        "water",
+      );
     // The road out (through a city, both ways; paved stone once it is paved), and the square.
     const quarters = plan.districts,
       paved = !!quarters?.paved;
@@ -521,10 +529,11 @@ export class VillageScene {
     this.town.build(town, plan.ref, t, town ? this.townLamps : null);
     // (The furnace by the diggings and the smithy's rack, where its people smelt and smith: Phase
     // 51 M213.)
-    const furnace = plan.stuff?.ore ? furnaceOf(plan.works?.mine) : null,
+    // (None where nothing burns, and no kiln glows or anvil sparks there: Phase 56.)
+    const furnace = plan.stuff?.ore && !plan.fireless ? furnaceOf(plan.works?.mine) : null,
       smiths = plan.people.some((p) => p.trade?.kind === "smith");
     this.trades.build(
-      town ? this.town.motions(t) : [],
+      town ? this.town.motions(t).filter((m) => !plan.fireless || m.kind === "mill") : [],
       furnace
         ? { x: furnace.mouth.x, z: furnace.mouth.z, yaw: furnace.yaw, top: furnace.top }
         : null,
@@ -903,7 +912,7 @@ export class VillageScene {
         new pc.SphereGeometry({ radius: 0.5, latitudeBands: 3, longitudeBands: 6 }),
       ),
       pine = coneMesh(s, 0.5, 1, 6),
-      g2 = biomeColor(plan.biome),
+      g2 = biomeColor(plan.biome, plan.kind),
       leaf: Rgb = [g2[0] * 0.45 + 0.02, g2[1] * 0.55 + 0.22, g2[2] * 0.4 + 0.04],
       grow = (
         list: Tree[],
@@ -1138,6 +1147,13 @@ export class VillageScene {
             });
     // (A town's kilns, smithies, workshops and works smoke from their chimneys: Phase 41 M199.)
     if (town) this.stacks = this.town.chimneys(t);
+    // (Where nothing burns no hearth or stack smokes, and no lamp is lit before electric light:
+    // Phase 56.)
+    if (plan.fireless) {
+      this.hearths = [];
+      this.stacks = [];
+      if (plan.era !== "modern") this.windows = null;
+    }
     this.work.build(
       plan,
       s.quality,

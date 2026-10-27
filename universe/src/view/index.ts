@@ -22,6 +22,7 @@ export {
   STANDING_COLORS,
   WAR_COLORS,
   biomeColor,
+  kindWater,
   LENS_NAMES,
   BELIEF_COLORS,
   GOOD_CHOICES,

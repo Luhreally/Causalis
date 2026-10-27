@@ -15,6 +15,14 @@ export type DeviceTier = {
 
 export type Rgb = readonly [number, number, number];
 
+/** Each kind's clear air by day (Phase 56): the haze its far land fades into. */
+const KIND_HAZE: Readonly<Record<string, Rgb>> = {
+  carbon: [0.74, 0.68, 0.58],
+  sulfur: [0.92, 0.9, 0.7],
+  ammonia: [0.82, 0.88, 0.9],
+  methane: [0.95, 0.68, 0.4],
+};
+
 export class Stage {
   readonly app: pc.Application;
   readonly camera: pc.Entity;
@@ -48,6 +56,8 @@ export class Stage {
   };
   private readonly ambientNow = new pc.Color();
   private readonly fogNow = new pc.Color();
+  /** The clear day's air over the ground: Earth's blue, or its world's kind's (Phase 56). */
+  private air: Rgb = [0.78, 0.88, 1];
 
   constructor(canvas: HTMLCanvasElement, tier: DeviceTier, sky: Rgb) {
     this.app = new pc.Application(canvas, {
@@ -156,17 +166,28 @@ export class Stage {
       return;
     }
     this.sun.setEulerAngles(50, 35, 0);
-    fog.color = new pc.Color(0.78, 0.88, 1);
+    fog.color = new pc.Color(this.air[0], this.air[1], this.air[2]);
     fog.start = reach * 1.1;
     fog.end = reach * 3.2;
     this.clear = {
       sun: 1.25,
       ambient: [0.34, 0.38, 0.5],
-      fog: [0.78, 0.88, 1],
+      fog: this.air,
       start: fog.start,
       end: fog.end,
     };
     this.applyWeather();
+  }
+
+  /**
+   * Its world's kind (Phase 56): the page's sky over its ground (y2k.css) and the haze its far land
+   * fades into — an oil world's grey-brown, a sulfur world's pale yellow, an ice world's pale slate,
+   * a methane world's orange.
+   */
+  worldKind(kind: string): void {
+    if (kind === "rocky") delete document.body.dataset.world;
+    else document.body.dataset.world = kind;
+    this.air = KIND_HAZE[kind] ?? [0.78, 0.88, 1];
   }
 
   /**
@@ -251,8 +272,7 @@ export class Stage {
       0.38 - 0.24 * night,
       0.5 - 0.16 * night,
     );
-    const fog: Rgb =
-      phase === "night" ? [0.06, 0.08, 0.2] : warm ? [1, 0.66, 0.5] : [0.78, 0.88, 1];
+    const fog: Rgb = phase === "night" ? [0.06, 0.08, 0.2] : warm ? [1, 0.66, 0.5] : this.air;
     this.clear = {
       ...this.clear,
       sun: this.sun.light!.intensity,

@@ -61,11 +61,12 @@ const KINDS = [
 
 /**
  * Whether a world never seen must be one life arises on (asked for 2026-10-24: "it should give me
- * option to where the world supports life"): one in ten freezes over lifeless as its seed falls.
+ * option to where the world supports life"): one in four is lifeless as its seed falls (one in
+ * five before Phase 56, whose worlds of other kinds quicken less often).
  */
 const LIFE = [
   ["living", "🌱", "Where life arises", "its first cells, its beasts, and in time a people"],
-  ["any", "🎲", "As its seed falls", "any world at all: one in ten never knows life"],
+  ["any", "🎲", "As its seed falls", "any world at all: one in four never knows life"],
 ] as const;
 
 /**
@@ -104,10 +105,13 @@ export function unmadeSeed(seed: string): string {
   return MAKING_SUBJECTS.reduce((s, m) => seedWithoutAct(s, makingAct(m, "-")), seed);
 }
 
-/** The world a seed makes, in a line: "⭐ an M0V star, 3,435 K · 1.48 g · −16 °C · 85% sea". */
+/**
+ * The world a seed makes, in a line: "⭐ an M0V star, 3,435 K · 1.48 g · −16 °C · 85% sea", and its
+ * kind where it is not a rocky world (Phase 56: "· 🟠 a methane world").
+ */
 export function madeWorldWords(w: NonNullable<SeedLife["world"]>): string {
   const t = w.warmth < 0 ? `−${-w.warmth}` : `${w.warmth}`;
-  return `⭐ ${/^[AEFHILMNORSX]/.test(w.star) ? "an" : "a"} ${w.star} star, ${w.kelvin.toLocaleString("en")} K · ${w.gravity.toFixed(2)} g · ${t} °C · ${Math.round(w.seas * 100)}% sea`;
+  return `⭐ ${/^[AEFHILMNORSX]/.test(w.star) ? "an" : "a"} ${w.star} star, ${w.kelvin.toLocaleString("en")} K · ${w.gravity.toFixed(2)} g · ${t} °C · ${Math.round(w.seas * 100)}% sea${w.kind ? ` · ${w.kind}` : ""}`;
 }
 
 /** Where a new world begins. */

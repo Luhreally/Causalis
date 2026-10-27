@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { hashString } from "../../src/kernel/index.ts";
 import {
   ELEMENTS,
+  KIND_SUBSTANCES,
   NOVEL_ELEMENTS,
   NOVEL_SUBSTANCES,
   SUBSTANCES,
@@ -41,10 +42,13 @@ function made(over: Partial<Substance>): Substance {
   };
 }
 
-test("every substance of Earth's and of the novel chemistries has its row in LOOKS, and no other", () => {
-  for (const s of [...SUBSTANCES, ...NOVEL_SUBSTANCES])
+test("every substance of Earth's, of the novel chemistries and of the kinds has its row in LOOKS, and no other", () => {
+  for (const s of [...SUBSTANCES, ...NOVEL_SUBSTANCES, ...KIND_SUBSTANCES])
     assert.ok(LOOKS[s.id], `${s.id} has a look`);
-  assert.equal(Object.keys(LOOKS).length, SUBSTANCES.length + NOVEL_SUBSTANCES.length);
+  assert.equal(
+    Object.keys(LOOKS).length,
+    SUBSTANCES.length + NOVEL_SUBSTANCES.length + KIND_SUBSTANCES.length,
+  );
 });
 
 test("every element of Earth's and of the novel chemistries has its nature in ELEMENT_NATURE", () => {

@@ -31,6 +31,7 @@ import type { ActKindShown, ActMark, ActsMap, LandSky, PaletteLand } from "../br
 import { realmColor } from "./colors.ts";
 import { faithColor, languageColor } from "./planet.ts";
 import { landTitle } from "./inspect/names.ts";
+import { skyDegrees } from "./kinds.ts";
 
 /** How long an act done in a moment (a fire, a war set, a land turned) plays on after it. */
 export const ACT_SHOWN = 2 * YEAR;
@@ -298,6 +299,8 @@ export function landSky(world: World, cell: number): LandSky {
     year: prov && !offworldSite(g, cell) ? prov.rain / 1000 : 1,
     sent: (Math.sign(actsOf(world).at(cell, "rain", world.now)?.sign ?? 0) || 0) as 1 | 0 | -1,
     acts: actsMap(world).acts.filter((a) => a.cell === cell),
+    // (How its warmth is told, where its climate keeps its liquid's degrees: Phase 56.)
+    ...skyDegrees(world),
   };
 }
 

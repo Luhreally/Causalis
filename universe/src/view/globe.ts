@@ -4,7 +4,15 @@
 import type { FrameMessage } from "../bridge/index.ts";
 import type { SphereGrid } from "../kernel/index.ts";
 import type { Rgb } from "./sandbox.ts";
-import { GOODS, ROCKS } from "../rules/index.ts";
+import {
+  GOODS,
+  KIND_SEAS,
+  ROCKS,
+  WORLD_KINDS,
+  trueCelsius,
+  type NovelKind,
+  type WorldKind,
+} from "../rules/index.ts";
 
 export const LENSES = [
   "terrain",
@@ -152,6 +160,133 @@ const BIOME_COLORS: readonly Rgb[] = [
   [0.62, 0.58, 0.55],
 ];
 
+/**
+ * The kinds' colours (Phase 56), in BIOME's order as BIOME_COLORS: each its seas its liquid's —
+ * black oil, sour turquoise acid, slate ammonia water, dark amber methane — its ice and bare ground
+ * its bedrock's (graphite and carbide, sulfur flats and red lava, ice and grey rock flour, ice and
+ * tholin dunes), and what grows there as its light shows it (its own pigments are Phase 57's).
+ */
+const KIND_BIOMES: Readonly<Record<string, readonly Rgb[]>> = {
+  carbon: [
+    [0.02, 0.02, 0.03],
+    [0.05, 0.045, 0.05],
+    [0.13, 0.11, 0.1],
+    [0.56, 0.5, 0.38],
+    [0.72, 0.72, 0.74],
+    [0.36, 0.38, 0.36],
+    [0.1, 0.3, 0.28],
+    [0.4, 0.36, 0.32],
+    [0.46, 0.42, 0.28],
+    [0.16, 0.42, 0.34],
+    [0.08, 0.36, 0.32],
+    [0.36, 0.24, 0.16],
+    [0.5, 0.42, 0.22],
+    [0.32, 0.4, 0.2],
+    [0.06, 0.36, 0.24],
+    [0.5, 0.52, 0.56],
+  ],
+  sulfur: [
+    [0.04, 0.2, 0.2],
+    [0.08, 0.36, 0.32],
+    [0.28, 0.6, 0.46],
+    [0.86, 0.92, 0.84],
+    [0.95, 0.96, 0.92],
+    [0.62, 0.6, 0.42],
+    [0.2, 0.38, 0.18],
+    [0.74, 0.66, 0.4],
+    [0.82, 0.72, 0.3],
+    [0.36, 0.52, 0.16],
+    [0.2, 0.46, 0.22],
+    [0.94, 0.82, 0.22],
+    [0.86, 0.62, 0.24],
+    [0.58, 0.56, 0.14],
+    [0.18, 0.44, 0.14],
+    [0.6, 0.42, 0.3],
+  ],
+  ammonia: [
+    [0.1, 0.2, 0.3],
+    [0.18, 0.34, 0.44],
+    [0.36, 0.56, 0.64],
+    [0.86, 0.92, 0.96],
+    [0.94, 0.97, 1],
+    [0.7, 0.78, 0.82],
+    [0.2, 0.36, 0.42],
+    [0.6, 0.64, 0.68],
+    [0.56, 0.62, 0.56],
+    [0.26, 0.46, 0.5],
+    [0.16, 0.42, 0.46],
+    [0.76, 0.78, 0.8],
+    [0.6, 0.64, 0.6],
+    [0.4, 0.5, 0.46],
+    [0.12, 0.4, 0.4],
+    [0.82, 0.88, 0.94],
+  ],
+  methane: [
+    [0.12, 0.06, 0.03],
+    [0.22, 0.12, 0.05],
+    [0.38, 0.22, 0.1],
+    [0.62, 0.5, 0.4],
+    [0.86, 0.82, 0.76],
+    [0.6, 0.5, 0.4],
+    [0.38, 0.3, 0.12],
+    [0.62, 0.42, 0.24],
+    [0.72, 0.5, 0.24],
+    [0.46, 0.36, 0.14],
+    [0.34, 0.3, 0.12],
+    [0.82, 0.5, 0.2],
+    [0.76, 0.52, 0.22],
+    [0.52, 0.38, 0.14],
+    [0.3, 0.28, 0.1],
+    [0.8, 0.76, 0.7],
+  ],
+};
+
+/** A kind's waters (Phase 56): what they are, and their colours as a land shows them. */
+type KindWaters = {
+  readonly liquid: string;
+  readonly sea: Rgb;
+  readonly river: Rgb;
+  readonly lake: Rgb;
+};
+
+/** Each kind's waters: its liquid, its sea, its rivers, its lakes. */
+const KIND_WATERS: Readonly<Record<string, KindWaters>> = {
+  carbon: {
+    liquid: "oil",
+    sea: [0.05, 0.045, 0.05],
+    river: [0.14, 0.12, 0.1],
+    lake: [0.1, 0.09, 0.08],
+  },
+  sulfur: {
+    liquid: "acid water",
+    sea: [0.08, 0.36, 0.32],
+    river: [0.4, 0.66, 0.46],
+    lake: [0.45, 0.72, 0.42],
+  },
+  ammonia: {
+    liquid: "ammonia water",
+    sea: [0.18, 0.34, 0.44],
+    river: [0.4, 0.58, 0.66],
+    lake: [0.34, 0.52, 0.6],
+  },
+  methane: {
+    liquid: "liquid methane and ethane",
+    sea: [0.22, 0.12, 0.05],
+    river: [0.36, 0.2, 0.1],
+    lake: [0.3, 0.17, 0.08],
+  },
+};
+
+/** A world's waters (its liquid, sea, rivers and lakes) by its kind; null for a rocky world's own. */
+export function kindWater(kind: string | undefined): KindWaters | null {
+  return (kind && KIND_WATERS[kind]) || null;
+}
+
+/** A frame's world kind (Phase 56: a rocky world's frames say none). */
+export function frameKind(frame: FrameMessage): string {
+  return (frame.meta as { kind?: string }).kind ?? "rocky";
+}
+
 export const DEPOSIT_COLORS: readonly Rgb[] = [
   [0.85, 0.45, 0.2],
   [0.98, 0.82, 0.2],
@@ -187,6 +322,18 @@ const DEPTH: readonly Stop[] = [
   [-1000, [0.12, 0.3, 0.52]],
   [0, [0.25, 0.5, 0.68]],
 ];
+/** Each kind's sea by its depth: its deep, its open sea, its shallows (Phase 56). */
+const KIND_DEPTH: Readonly<Record<string, readonly Stop[]>> = Object.fromEntries(
+  Object.entries(KIND_BIOMES).map(([kind, c]): [string, readonly Stop[]] => [
+    kind,
+    [
+      [-9000, [c[0]![0] * 0.7, c[0]![1] * 0.7, c[0]![2] * 0.7]],
+      [-4000, c[0]!],
+      [-1000, c[1]!],
+      [0, c[2]!],
+    ],
+  ]),
+);
 const HEIGHT: readonly Stop[] = [
   [0, [0.3, 0.55, 0.3]],
   [500, [0.55, 0.65, 0.35]],
@@ -452,9 +599,15 @@ const DEEP: Readonly<
   debt: { stops: DEBT, at: (v) => v, shown: () => true },
 };
 
-/** A biome's colour on the land lens. */
-export function biomeColor(biome: number): Rgb {
-  return BIOME_COLORS[biome] ?? [0.5, 0.6, 0.35];
+/** A biome's colour on the land lens (on a world of another kind, its kind's: Phase 56). */
+export function biomeColor(biome: number, kind = "rocky"): Rgb {
+  return (KIND_BIOMES[kind] ?? BIOME_COLORS)[biome] ?? [0.5, 0.6, 0.35];
+}
+
+/** A warmth on a lens's ramp (degrees of its world's liquid) in true °C, in words. */
+function warmthWords(kind: string, degrees: number): string {
+  const k = WORLD_KINDS.find((x) => x === kind);
+  return `${Math.round(k ? trueCelsius(k as WorldKind, degrees) : degrees)}`;
 }
 
 /**
@@ -474,7 +627,12 @@ export function globeColors(
     elevation = a.elevation!,
     n = elevation.length,
     out = new Uint8Array(n * 4),
-    meta = frame.meta as { plates: { continental: boolean }[] };
+    meta = frame.meta as { plates: { continental: boolean }[] },
+    // (A world of another kind in its own colours: Phase 56.)
+    kind = frameKind(frame),
+    palette = KIND_BIOMES[kind] ?? BIOME_COLORS,
+    depth = KIND_DEPTH[kind] ?? DEPTH,
+    waters = kindWater(kind);
   for (let c = 0; c < n; c++) {
     const e = elevation[c]!,
       sea = e <= 0,
@@ -484,7 +642,7 @@ export function globeColors(
     let col: Rgb;
     switch (lens) {
       case "terrain":
-        col = BIOME_COLORS[biome] ?? [1, 0, 1];
+        col = palette[biome] ?? [1, 0, 1];
         if (!sea) {
           const lift = Math.min(1, e / 4000) * 0.25;
           col = [
@@ -492,13 +650,17 @@ export function globeColors(
             col[1] + (1 - col[1]) * lift,
             col[2] + (1 - col[2]) * lift,
           ];
-          if (a.lake![c]) col = [0.2, 0.42, 0.62];
-          else if (a.river![c])
-            col = [col[0] * 0.55 + 0.1, col[1] * 0.55 + 0.2, col[2] * 0.55 + 0.33];
-        } else if (biome !== 3) col = ramp(DEPTH, e);
+          if (a.lake![c]) col = waters?.lake ?? [0.2, 0.42, 0.62];
+          else if (a.river![c]) {
+            const r = waters?.river;
+            col = r
+              ? [col[0] * 0.5 + r[0] * 0.5, col[1] * 0.5 + r[1] * 0.5, col[2] * 0.5 + r[2] * 0.5]
+              : [col[0] * 0.55 + 0.1, col[1] * 0.55 + 0.2, col[2] * 0.55 + 0.33];
+          }
+        } else if (biome !== 3) col = ramp(depth, e);
         break;
       case "height":
-        col = sea ? ramp(DEPTH, e) : ramp(HEIGHT, e);
+        col = sea ? ramp(depth, e) : ramp(HEIGHT, e);
         break;
       case "temperature":
         col = ramp(WARMTH, a.temperature![c]!);
@@ -535,12 +697,12 @@ export function globeColors(
               : tongue;
           // The land's own shading under its colour: lighter as it rises and where little
           // grows, darker in its woods (M104).
-          const base = BIOME_COLORS[biome] ?? [0.5, 0.6, 0.35],
+          const base = palette[biome] ?? [0.5, 0.6, 0.35],
             light = (base[0] + base[1] + base[2]) / 3 + Math.min(1, e / 4000) * 0.25,
             k = Math.max(0.82, Math.min(1.08, 0.8 + 0.5 * (light - 0.3)));
           col = [flat[0] * k, flat[1] * k, flat[2] * k];
         } else {
-          const base = sea ? ramp(DEPTH, e) : BIOME_COLORS[biome]!,
+          const base = sea ? ramp(depth, e) : palette[biome]!,
             grey = (base[0] + base[1] + base[2]) / 3;
           col = sea
             ? [base[0] * 0.7, base[1] * 0.7, base[2] * 0.75]
@@ -572,7 +734,7 @@ export function globeColors(
               ? ramp(TRADE, Math.log10(1 + v))
               : ramp(lens === "people" ? PEOPLE : FOOD, v);
         else {
-          const base = sea ? ramp(DEPTH, e) : BIOME_COLORS[biome]!,
+          const base = sea ? ramp(depth, e) : palette[biome]!,
             grey = (base[0] + base[1] + base[2]) / 3;
           col = sea
             ? [base[0] * 0.7, base[1] * 0.7, base[2] * 0.75]
@@ -590,7 +752,7 @@ export function globeColors(
         const k = a.deposit![c]!;
         if (k !== 255) col = DEPOSIT_COLORS[k] ?? [1, 0, 1];
         else {
-          const base = sea ? ramp(DEPTH, e) : BIOME_COLORS[biome]!,
+          const base = sea ? ramp(depth, e) : palette[biome]!,
             grey = (base[0] + base[1] + base[2]) / 3;
           col = [grey * 0.6, grey * 0.6, grey * 0.65];
         }
@@ -685,7 +847,29 @@ function borders(
 }
 
 /** What a map mode's colours say, for its legend. */
-export function lensLegend(lens: Lens): Legend {
+/** A kind's ice on its land, named (Phase 56): a carbon world's is wax, a methane world's methane. */
+const KIND_ICE: Readonly<Record<string, string>> = {
+  carbon: "wax",
+  sulfur: "ice",
+  ammonia: "ice",
+  methane: "frozen methane",
+};
+
+/** The land lens's keys on a world of another kind: its own colours, its sea and ice its liquid's. */
+function kindLegend(kind: string): Legend {
+  return {
+    kind: "keys",
+    keys: [
+      [biomeColor(9, kind), "woods"],
+      [biomeColor(8, kind), "grassland"],
+      [biomeColor(11, kind), "desert"],
+      [biomeColor(4, kind), KIND_ICE[kind] ?? "ice"],
+      [biomeColor(1, kind), KIND_SEAS[kind as NovelKind].sea],
+    ],
+  };
+}
+
+export function lensLegend(lens: Lens, kind = "rocky"): Legend {
   const stops = (list: readonly Stop[]) => list.map(([, c]) => c);
   switch (lens) {
     case "people":
@@ -697,7 +881,13 @@ export function lensLegend(lens: Lens): Legend {
     case "height":
       return { kind: "ramp", stops: stops(HEIGHT), low: "lowland", high: "peaks" };
     case "temperature":
-      return { kind: "ramp", stops: stops(WARMTH), low: "-40 °C", high: "30 °C" };
+      // (A world of another kind's warmth is drawn in its liquid's degrees, told in true ones.)
+      return {
+        kind: "ramp",
+        stops: stops(WARMTH),
+        low: `${warmthWords(kind, -40)} °C`,
+        high: `${warmthWords(kind, 30)} °C`,
+      };
     case "rain":
       return { kind: "ramp", stops: stops(RAIN), low: "desert", high: "3 m a year" };
     case "life":
@@ -800,6 +990,8 @@ export function lensLegend(lens: Lens): Legend {
         ],
       };
     default:
+      // (A world of another kind: its own ground and seas, named for its liquid — Phase 56.)
+      if (KIND_BIOMES[kind]) return kindLegend(kind);
       return {
         kind: "keys",
         keys: [

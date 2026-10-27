@@ -8,7 +8,7 @@ import { nearestCell, sphereGrid, type SphereGrid } from "../kernel/index.ts";
 import { globeRadius } from "../view/index.ts";
 import { InstancedBatch, cylinderMesh, keptMesh } from "./batch.ts";
 import { billboard, glowMaterial, type GlowStops } from "./glow.ts";
-import { flatMaterial, type Stage } from "./stage.ts";
+import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 /** The rim of air: clear in the middle (the globe hides it), a blue ring at the edge, fading out. */
 const HALO: GlowStops = [
@@ -18,6 +18,61 @@ const HALO: GlowStops = [
   [0.84, "rgba(60,120,255,0.35)"],
   [1, "rgba(20,40,120,0)"],
 ];
+
+/**
+ * Each kind's globe (Phase 56): its sea's colour, its air's glow about the rim, its clouds — an oil
+ * world's dark gloss under grey-brown air, a sulfur world's sour sea and yellow haze, an ice world's
+ * slate sea and pale air, a methane world's amber sea under a thick orange haze. A rocky world's own.
+ */
+const KIND_GLOBES: Readonly<
+  Record<string, { readonly sea: Rgb; readonly halo: GlowStops; readonly clouds: Rgb }>
+> = {
+  rocky: { sea: [0.08, 0.28, 0.62], halo: HALO, clouds: [1, 1, 1] },
+  carbon: {
+    sea: [0.05, 0.045, 0.04],
+    halo: [
+      [0, "rgba(0,0,0,0)"],
+      [0.68, "rgba(0,0,0,0)"],
+      [0.757, "rgba(190,170,140,0.8)"],
+      [0.84, "rgba(120,100,80,0.35)"],
+      [1, "rgba(60,50,40,0)"],
+    ],
+    clouds: [0.66, 0.6, 0.52],
+  },
+  sulfur: {
+    sea: [0.1, 0.42, 0.34],
+    halo: [
+      [0, "rgba(0,0,0,0)"],
+      [0.68, "rgba(0,0,0,0)"],
+      [0.757, "rgba(240,225,120,0.85)"],
+      [0.84, "rgba(200,170,60,0.35)"],
+      [1, "rgba(120,90,20,0)"],
+    ],
+    clouds: [1, 0.95, 0.72],
+  },
+  ammonia: {
+    sea: [0.22, 0.38, 0.46],
+    halo: [
+      [0, "rgba(0,0,0,0)"],
+      [0.68, "rgba(0,0,0,0)"],
+      [0.757, "rgba(210,232,240,0.85)"],
+      [0.84, "rgba(150,185,205,0.35)"],
+      [1, "rgba(70,100,130,0)"],
+    ],
+    clouds: [0.95, 0.98, 1],
+  },
+  methane: {
+    sea: [0.26, 0.14, 0.05],
+    halo: [
+      [0, "rgba(0,0,0,0)"],
+      [0.66, "rgba(0,0,0,0)"],
+      [0.74, "rgba(255,170,70,0.95)"],
+      [0.84, "rgba(225,120,30,0.5)"],
+      [1, "rgba(140,60,10,0)"],
+    ],
+    clouds: [1, 0.74, 0.44],
+  },
+};
 
 /** The lights of halls seen from orbit (Phase 10 M95): a warm point, soft about it. */
 const LIGHTS: GlowStops = [
@@ -51,6 +106,9 @@ export class GlobeScene {
   private lightMaterial: pc.Material | null = null;
   private readonly lights: pc.Entity[] = [];
   private hallSites: { x: number; y: number; z: number }[] = [];
+  /** Its world's kind as drawn (Phase 56), and each kind's air glow, made when first wanted. */
+  private kindShown = "rocky";
+  private readonly glows = new Map<string, pc.Material>();
 
   constructor(stage: Stage) {
     this.stage = stage;
@@ -196,6 +254,22 @@ export class GlobeScene {
     this.sea.enabled = on && seas;
     this.halo.enabled = on && air;
     this.clouds.enabled = on && clouds;
+  }
+
+  /** Draw it as its world's kind (Phase 56): its sea, its air's glow and its clouds its kind's. */
+  kind(kind: string): void {
+    const look = KIND_GLOBES[kind] ?? KIND_GLOBES.rocky!;
+    if (kind === this.kindShown || !KIND_GLOBES[kind]) return;
+    this.kindShown = kind;
+    const sea = this.sea.render!.meshInstances[0]!.material as pc.StandardMaterial;
+    sea.diffuse = new pc.Color(look.sea[0], look.sea[1], look.sea[2]);
+    sea.update();
+    let glow = this.glows.get(kind);
+    if (!glow) this.glows.set(kind, (glow = glowMaterial(this.stage, look.halo)));
+    this.halo.render!.meshInstances[0]!.material = glow;
+    const clouds = this.clouds.render!.meshInstances[0]!.material as pc.StandardMaterial;
+    clouds.diffuse = new pc.Color(look.clouds[0], look.clouds[1], look.clouds[2]);
+    clouds.update();
   }
 
   /** Show the clouds or not (they are for the Land lens). */

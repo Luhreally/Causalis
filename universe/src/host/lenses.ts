@@ -17,7 +17,7 @@ import {
 } from "../sim/index.ts";
 import { principleName } from "../causal/index.ts";
 import { landEra } from "./village.ts";
-import { ERA_WORDS } from "./inspect/world.ts";
+import { eraWords } from "./inspect/world.ts";
 import { bare, claimOf, count, share } from "./inspect/words.ts";
 import { beliefOfLand, godSeen, seenWords } from "./inspect/peoples.ts";
 import { bondageReading, lawReading, orderReadings, standingReading } from "./inspect/order.ts";
@@ -262,7 +262,7 @@ export function lensReading(
       return {
         line: `Knowledge: ${count(known.size)} things known`,
         stats: [
-          { label: "Its age", value: ERA_WORDS[era] ?? era },
+          { label: "Its age", value: eraWords(world, era) },
           {
             label: "Newest",
             value: newest

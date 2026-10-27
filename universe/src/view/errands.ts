@@ -331,6 +331,8 @@ export function rackOf(store: Store): { x: number; z: number; yaw: number; stand
  * smiths forge its metal — its collier at the clamp in the woodlot.
  */
 export function burnsCharcoal(plan: VillagePlan): boolean {
+  // (Where nothing burns, none is: Phase 56.)
+  if (plan.fireless) return false;
   return (
     (!!plan.stuff?.ore && !!furnaceOf(plan.works?.mine)) ||
     (plan.metal !== undefined &&
@@ -1081,7 +1083,7 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
             ? "sow"
             : !winter
               ? "hoe"
-              : draw(15) < 0.4
+              : draw(15) < 0.4 && !plan.fireless
                 ? "firewood"
                 : draw(15) < 0.7
                   ? "mend"
@@ -1115,7 +1117,7 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
     });
   // One of its diggers at the furnace by the diggings, where its works smelt their own ore (Phase 51
   // M213): the one the day draws, on a working day not lean (none digging today, a crafter).
-  if (!lean && plan.stuff?.ore && furnaceOf(mine)) {
+  if (!lean && !plan.fireless && plan.stuff?.ore && furnaceOf(mine)) {
     const first = (from: readonly number[]) =>
       from.reduce((a, i) => (a < 0 || draws[i]!(43) < draws[a]!(43) ? i : a), -1);
     let smelter = first(kinds.flatMap((k, i) => (k === "mine" ? [i] : [])));

@@ -263,6 +263,13 @@ export type VillagePlan = {
   readonly hand: boolean;
   /** The biome the village stands in (gen's code), for the ground's colour. */
   readonly biome: number;
+  /**
+   * Its world's kind, where it is not rocky (Phase 56: "carbon", "sulfur", "ammonia", "methane"),
+   * for its ground's and its walls' colours; and whether nothing burns there (no hearth smokes, no
+   * bonfire is lit, no charcoal is burned, no lamp before electric light).
+   */
+  readonly kind?: string;
+  readonly fireless?: true;
   readonly seed: number;
   /** Positions in metres from the village's middle; `household` for the watched homes. */
   readonly homes: readonly { x: number; z: number; yaw: number; household: string | null }[];

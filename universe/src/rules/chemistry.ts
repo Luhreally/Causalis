@@ -5,6 +5,7 @@
 // carbide, poor or rich in metals, rich or poor in silica, its air thin or rich, whether its iron
 // rusts — and what hardens its copper. Earth is the Sun's own case: its tables, exactly (SOLAR).
 import { dmath } from "../kernel/index.ts";
+import { carbonRatio, type NovelKind } from "./kinds.ts";
 
 export type CarbonClass = "oxide" | "carbon-rich";
 export type MetalsClass = "poor" | "solar" | "rich";
@@ -31,6 +32,8 @@ export type Chemistry = Bulk & {
   readonly hardener: Hardener;
   /** Only the Sun's own (SOLAR): Earth's tables, exactly. */
   readonly solar: boolean;
+  /** Its kind, where it is not rocky (Phase 56): its own tables over Phase 54's (absent on a rocky world). */
+  readonly kind?: NovelKind;
 };
 
 /** What a world's chemistry is drawn from: its star's warmth and age, where its orbit lies, three draws in [-1, 1). */
@@ -40,6 +43,9 @@ export type ChemistryInputs = {
   /** Where in its star's habitable zone it orbits: 0 its inner edge, 1 its outer. */
   readonly zone: number;
   readonly u: readonly [number, number, number];
+  /** Its kind, where it is not rocky, and a draw in [-1, 1) of its disk (a carbon world's C/O): Phase 56. */
+  readonly kind?: NovelKind;
+  readonly disk?: number;
 };
 
 /** The Sun and the Earth: a star of 5,778 K, 4.6 billion years old; an orbit a ninth of the way out. */
@@ -113,10 +119,21 @@ export function classesOf(b: Bulk): Omit<Chemistry, keyof Bulk | "solar"> {
   return { carbon, metals, silica, air, redox, hardener: hardenerOf(silica, metals) };
 }
 
+/**
+ * A kind's bulk (Phase 56): a carbon world's C/O is its disk's, and what oxygen it has is bound up in
+ * carbon monoxide, almost none free; an ice world's air holds no oxygen at all. A sulfur world's is its
+ * star's own.
+ */
+export function kindBulk(b: Bulk, kind: NovelKind, disk: number): Bulk {
+  if (kind === "carbon") return { ...b, cO: carbonRatio(disk), o2: 0.0005 };
+  if (kind === "ammonia" || kind === "methane") return { ...b, o2: 0 };
+  return b;
+}
+
 /** A world's chemistry from its star and orbit (never the Sun's own tables: those are SOLAR's). */
 export function chemistryOf(i: ChemistryInputs): Chemistry {
-  const bulk = bulkOf(i);
-  return { ...bulk, ...classesOf(bulk), solar: false };
+  const bulk = i.kind ? kindBulk(bulkOf(i), i.kind, i.disk ?? 0) : bulkOf(i);
+  return { ...bulk, ...classesOf(bulk), solar: false, ...(i.kind ? { kind: i.kind } : {}) };
 }
 
 /** Whether a chemistry falls in the Sun's classes all over: oxide, and its metals, silica and air as the Sun's. */
@@ -124,9 +141,11 @@ export function isSolarClassed(c: Chemistry): boolean {
   return c.carbon === "oxide" && c.metals === "solar" && c.silica === "solar" && c.air === "solar";
 }
 
-/** A chemistry's classes as a key ("solar" for the Sun's own). */
+/** A chemistry's classes as a key ("solar" for the Sun's own; a kind's, its kind first). */
 export function chemistryKey(c: Chemistry): string {
-  return c.solar ? "solar" : `${c.carbon}/${c.metals}/${c.silica}/${c.air}`;
+  if (c.solar) return "solar";
+  const classes = `${c.carbon}/${c.metals}/${c.silica}/${c.air}`;
+  return c.kind ? `${c.kind}:${classes}` : classes;
 }
 
 /** Each class in words. */

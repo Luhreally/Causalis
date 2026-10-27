@@ -18,6 +18,7 @@ import {
   wildsOf,
 } from "../sim/index.ts";
 import { governmentWords, principleName, standingWords, why } from "../causal/index.ts";
+import { biomeWords, realWarmth, warmthScale } from "./kinds.ts";
 import { yearOfMoment, type Ref, type World } from "../kernel/index.ts";
 import type { DepositPage, PlatePage, RealmPage, SpeciesPage } from "../bridge/index.ts";
 
@@ -102,12 +103,13 @@ export function speciesPage(world: World, ref: string): SpeciesPage {
     wool: s.wool,
     herd: s.herd,
     seed: s.niche === "seed grass" ? s.seed : null,
-    warm: s.warm,
-    tolerance: s.tolerance,
+    // (In true degrees, and its seas its liquid's: Phase 56.)
+    warm: realWarmth(world, s.warm),
+    tolerance: s.tolerance * warmthScale(world),
     rain: [s.rainMin, s.rainMax],
     arose: { index: s.arose, ref: ageRef(0, s.arose), from: a?.from ?? 0, to: a?.to ?? 0 },
     died: s.died,
-    origin: { cell: origin, biome: BIOME_NAMES[g.climate.biome[origin]!] ?? "" },
+    origin: { cell: origin, biome: biomeWords(world, BIOME_NAMES[g.climate.biome[origin]!] ?? "") },
     lands,
     peopled,
     sown,

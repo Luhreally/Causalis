@@ -2,11 +2,12 @@
 // that rose to thought there (rules/species.ts `lifeHistoryOf`), kept per generated
 // world (a pure function of it, never saved).
 import type { World } from "../../kernel/index.ts";
-import type { HomeWorld } from "../../gen/index.ts";
+import { worldKindOf, type HomeWorld } from "../../gen/index.ts";
 import {
   CLADES,
   HUMANLIKE,
   affordancesOf,
+  kindBurns,
   lifeHistoryOf,
   type Affordances,
   type LifeHistory,
@@ -32,7 +33,9 @@ const AFFORDS = new Map<string, Affordances>();
 export function peopleAffords(g: HomeWorld): Affordances {
   let a = AFFORDS.get(g.digest);
   if (!a) {
-    a = affordancesOf(g.life.people?.body ?? CLADES.find((c) => c.id === "ape")!.body);
+    const body = affordancesOf(g.life.people?.body ?? CLADES.find((c) => c.id === "ape")!.body);
+    // (Fire wants an air to burn in: none where nothing burns, whatever the hands — Phase 56.)
+    a = kindBurns(worldKindOf(g)) ? body : { ...body, fire: false };
     if (AFFORDS.size > 64) AFFORDS.clear();
     AFFORDS.set(g.digest, a);
   }

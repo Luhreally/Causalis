@@ -15,6 +15,7 @@ import {
   SUBSTANCE,
   SUBSTANCES,
   elementShares,
+  findSubstance,
   imbalance,
   molarMass,
   reactionKg,
@@ -86,6 +87,7 @@ test("every material a design is made of is made of substances, whole (stone: th
     const parts = MATERIAL_MATTER[m];
     assert.ok(parts, `${m} has its matter`);
     assert.ok(Math.abs(parts.reduce((a, [, v]) => a + v, 0) - 1) < 1e-9, m);
-    for (const [id] of parts) assert.ok(SUBSTANCE[id] !== undefined, `${m}: ${id}`);
+    // (A kind's materials are of its own substances: Phase 56.)
+    for (const [id] of parts) assert.ok(findSubstance(id) !== undefined, `${m}: ${id}`);
   }
 });

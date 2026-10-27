@@ -29,7 +29,8 @@ import {
   warsOf,
   wildsOf,
 } from "../../sim/index.ts";
-import { PRINCIPLES } from "../../rules/index.ts";
+import { PRINCIPLES, kindAllows } from "../../rules/index.ts";
+import { kindAge, kindName, kindOf } from "../kinds.ts";
 import { principleName } from "../../causal/index.ts";
 import { parseRef, type Ref, type World } from "../../kernel/index.ts";
 import type { Block, Item, Line, PageModel, Row, Span, Stat, Tab } from "../../bridge/index.ts";
@@ -196,7 +197,10 @@ type Mark = { readonly year: number; readonly ref: Ref | null; readonly had?: bo
 function agesOf(world: World, known: Map<string, Knowing[]>, found: Map<string, Happening[]>) {
   const ctx = populationContext(world),
     g = homePlanet(world).generated,
-    markets = marketsOf(world);
+    markets = marketsOf(world),
+    // (A kind's own ages: brought by its own principles too, and named as its own — Phase 56.)
+    own = (era: string) => kindAge(world, era),
+    by = (era: string) => own(era)?.by ?? [];
   // Each land's first year of each mark: from its own events (found or learned there), what
   // it knows, else the event it holds the knowing by (carried by its settlers).
   const perLand = (
@@ -243,23 +247,23 @@ function agesOf(world: World, known: Map<string, Knowing[]>, found: Map<string, 
     },
     {
       id: "metal",
-      name: "metal",
-      icon: "⚒️",
+      name: own("metal")?.name ?? "metal",
+      icon: own("metal")?.icon ?? "⚒️",
       color: [0.62, 0.36, 0.2],
-      what: "Smelting metal",
+      what: own("metal") ? sentenceCase(own("metal")!.name) : "Smelting metal",
       mark: perLand(
         ["knowledge.metalworking", "knowledge.metalworking-spread"],
-        ["vent-working"],
+        ["vent-working", ...by("metal")],
         (c) => markets.get(c)?.metalworking,
       ),
     },
     {
       id: "industry",
-      name: "industry",
-      icon: "🏭",
+      name: own("industry")?.name ?? "industry",
+      icon: own("industry")?.icon ?? "🏭",
       color: [0.42, 0.42, 0.46],
-      what: "The engine",
-      mark: perLand([], ["steam-engine", "current-mills"]),
+      what: own("industry") ? sentenceCase(own("industry")!.name) : "The engine",
+      mark: perLand([], ["steam-engine", "current-mills", ...by("industry")]),
     },
     {
       id: "modern",
@@ -267,7 +271,7 @@ function agesOf(world: World, known: Map<string, Knowing[]>, found: Map<string, 
       icon: "⚡",
       color: [0.25, 0.5, 0.78],
       what: "Electricity",
-      mark: perLand([], ["electricity", "sea-electricity"]),
+      mark: perLand([], ["electricity", "sea-electricity", ...by("modern")]),
     },
   ];
   const origin = found.get("people.origin")?.[0] ?? null,
@@ -455,7 +459,8 @@ export function chroniclePage(world: World, tab?: string): PageModel {
     { now } = s,
     standing = s.realms.filter((r) => r.ended === null),
     peopleNow = s.ctx.provinces.all().reduce((n, p) => n + p.total(), 0),
-    principles = PRINCIPLES.length,
+    // (Of the principles its kind of world can know: Phase 56.)
+    principles = PRINCIPLES.filter((p) => kindAllows(p, kindOf(world))).length,
     foundAnywhere = PRINCIPLES.filter((p) => firstKnown(s, p.id)).length;
   const stats: Stat[] = [
     stat("Year", count(now)),
@@ -572,7 +577,7 @@ function storyBlocks(world: World, s: Survey): Block[] {
         : "",
     ];
   });
-  const next = nextAge(s);
+  const next = nextAge(world, s);
   if (next) lines.push([`The next age opens when ${next}.`]);
   // Its turning points: the first of every kind of thing history holds as great; and lately.
   const great = world.events.all().filter((e) => e.importance >= 6),
@@ -598,9 +603,11 @@ function storyBlocks(world: World, s: Survey): Block[] {
   ];
 }
 
-function nextAge(s: Survey): string | null {
+function nextAge(world: World, s: Survey): string | null {
   const reached = new Set(s.ages.flatMap((a) => a.ids));
-  for (const id of Object.keys(AGE_NEXT)) if (!reached.has(id)) return AGE_NEXT[id]!;
+  // (What opens a kind's own age: Phase 56.)
+  for (const id of Object.keys(AGE_NEXT))
+    if (!reached.has(id)) return kindAge(world, id)?.next ?? AGE_NEXT[id]!;
   return null;
 }
 
@@ -640,7 +647,7 @@ function ageBlocks(world: World, s: Survey): Block[] {
       ],
     };
   });
-  const next = nextAge(s),
+  const next = nextAge(world, s),
     early: Line[] = s.ages.flatMap((a) =>
       a.early
         ? [
@@ -820,7 +827,7 @@ function firstsOf(world: World, s: BaseSurvey): First[] {
     if (!list?.length) continue;
     const k = list[0]!;
     add(
-      `💡 ${sentenceCase(p.name)}`,
+      `💡 ${sentenceCase(kindName(world, p))}`,
       { year: k.year, land: k.land, ref: k.event },
       list[1]?.year ?? null,
       many(list.length, "land", "lands"),
@@ -1239,7 +1246,9 @@ function firstBlocks(world: World, s: Survey): Block[] {
       points: thin(points, 120),
     };
   });
-  const unfound = PRINCIPLES.filter((p) => !firstKnown(s, p.id)).length;
+  const kind = kindOf(world),
+    unfound = PRINCIPLES.filter((p) => kindAllows(p, kind) && !firstKnown(s, p.id)).length,
+    all = PRINCIPLES.filter((p) => kindAllows(p, kind)).length;
   return [
     ...(series.length
       ? [
@@ -1263,7 +1272,7 @@ function firstBlocks(world: World, s: Survey): Block[] {
             type: "text" as const,
             lines: [
               [
-                `Not yet found anywhere: ${many(unfound, "principle", "principles")} of ${count(PRINCIPLES.length)}.`,
+                `Not yet found anywhere: ${many(unfound, "principle", "principles")} of ${count(all)}.`,
               ],
             ],
           },
@@ -1771,6 +1780,11 @@ export const ERA_WORDS: Readonly<Record<string, string>> = {
   modern: "⚡ modern",
 };
 
+/** A land's age in a word and its sign, on this world: Earth's, or its kind's own (Phase 56). */
+export function eraWords(world: World, era: string): string {
+  return kindAge(world, era)?.words ?? ERA_WORDS[era] ?? era;
+}
+
 function realmLedger(
   world: World,
   standing: readonly Polity[],
@@ -1942,7 +1956,7 @@ function knowledgeLedger(
       ref: `${r.ref}#lore`,
       cells: [
         [link(r.town, r.ref)],
-        [ERA_WORDS[era] ?? era],
+        [eraWords(world, era)],
         [count(ids.size)],
         [share(found.size ? ids.size / found.size : 0)],
         newest

@@ -388,6 +388,24 @@ body[data-scale="ground"][data-sky="haze"][data-daylight="day"],
 body[data-scale="ground"][data-sky="haze"]:not([data-daylight]) {
   background: linear-gradient(180deg, #b39a6a 0%, #d6bf8c 40%, #ecd9ad 75%, #f5ead0 100%);
 }
+/* A world of another kind's sky by day (Phase 56): an oil world's brown-grey smog, a sulfur world's
+   blue paling to yellow haze, an ice world's pale slate, a methane world's orange haze. */
+body[data-world="carbon"][data-scale="ground"][data-daylight="day"],
+body[data-world="carbon"][data-scale="ground"]:not([data-daylight]) {
+  background: linear-gradient(180deg, #4a4238 0%, #7d7262 40%, #b3a690 75%, #d6ccb8 100%);
+}
+body[data-world="sulfur"][data-scale="ground"][data-daylight="day"],
+body[data-world="sulfur"][data-scale="ground"]:not([data-daylight]) {
+  background: linear-gradient(180deg, #5f86b8 0%, #9fb6c6 40%, #d9d39a 75%, #f2ecc4 100%);
+}
+body[data-world="ammonia"][data-scale="ground"][data-daylight="day"],
+body[data-world="ammonia"][data-scale="ground"]:not([data-daylight]) {
+  background: linear-gradient(180deg, #6d8796 0%, #9db3be 40%, #c9d7dd 75%, #e8eff2 100%);
+}
+body[data-world="methane"][data-scale="ground"][data-daylight="day"],
+body[data-world="methane"][data-scale="ground"]:not([data-daylight]) {
+  background: linear-gradient(180deg, #7a3d10 0%, #b4621e 38%, #e09a48 72%, #f2c584 100%);
+}
 
 /* A window's fold: beside the close box; folded, only the title bar is left. */
 .inspector .fold {

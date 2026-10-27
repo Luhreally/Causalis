@@ -80,6 +80,7 @@ import { soilOf } from "./inspect/ground.ts";
 import { rxnRef, substRef } from "./inspect/matter.ts";
 import { landLink, landTitle, realmLink, townLink } from "./inspect/names.ts";
 import { item, link, sentence } from "./inspect/words.ts";
+import { kindVessel, smithAt, workedBought, workedLine } from "./kinds.ts";
 
 type Rgb = readonly [number, number, number];
 
@@ -444,10 +445,14 @@ const SMELT_WORDS: Readonly<Record<string, string>> = {
   "smelt-magnetite": "Smelted to a bloom",
   "forge-telluric": "Forged from the lump at a red heat",
   "carbide-bloomery": "Smelted to a carbon-rich bloom",
+  // (A sulfur world's: Phase 56.)
+  "reduce-vitriol": "Reduced from its blue crust",
 };
 
 /** An ore smelted, in words: the reaction (its page), where, with what. */
 function smeltLine(world: World, ore: Ore, lie: OreLie, at: number): Line {
+  // (An ore worked where nothing burns says how, and why: Phase 56.)
+  if (ore.worked) return workedLine(ore, ore.worked);
   return [
     link(SMELT_WORDS[ore.smelt] ?? "Smelted", rxnRef(ore.smelt)),
     ` in ${SMELTED[lie]}, with charcoal of ${landWood(world, at)}`,
@@ -555,16 +560,19 @@ function traced(world: World, cell: number, kind: string): Line[] {
               : `a few days' walk from ${landTitle(world, smelted)}`,
           ) ?? [])
         : (() => {
-            // (Bought where no one can tell whose ore it was: smelted all the same.)
+            // (Bought where no one can tell whose ore it was: smelted all the same, or worked
+            // as its world works it where nothing burns — Phase 56.)
             const usual =
                 worldOre(chem, kind, "deposit") ?? Object.values(oresOn(chem)[kind] ?? {})[0],
-              smelted: Span[] = usual
-                ? [
-                    ", ",
-                    link("smelted", rxnRef(usual.smelt)),
-                    " from its ore in a land none can tell",
-                  ]
-                : [];
+              smelted: Span[] = usual?.worked
+                ? workedBought(usual, usual.worked)
+                : usual
+                  ? [
+                      ", ",
+                      link("smelted", rxnRef(usual.smelt)),
+                      " from its ore in a land none can tell",
+                    ]
+                  : [];
             return [
               roads.length > 1
                 ? [
@@ -655,7 +663,8 @@ export function toolMade(
           landLink(world, cell),
         ],
         [
-          "Knapped to an edge and hafted",
+          // (A kind's stone says how it is edged: Phase 56.)
+          stone.worked ?? "Knapped to an edge and hafted",
           ...(maker ? [" by ", ...makerWords(world, maker, "knapping stone")] : [" at home"]),
         ],
       ],
@@ -690,7 +699,7 @@ export function toolMade(
   chain.push([
     sentence(works ? w.stuff.works : w.stuff.hand),
     " at ",
-    smithy ? link(smithy.name, smithy.ref) : `a smith's hearth${t ? ` in ${t.name}` : ""}`,
+    smithy ? link(smithy.name, smithy.ref) : `${smithAt(world)}${t ? ` in ${t.name}` : ""}`,
     " by ",
     ...makerWords(world, maker, works ? "machines" : "anvil"),
   ]);
@@ -701,7 +710,7 @@ export function toolMade(
     quality,
     grade: gradeOf(quality),
     maker,
-    workshop: smithy ?? { name: `a smith's hearth${t ? ` in ${t.name}` : ""}`, ref: null },
+    workshop: smithy ?? { name: `${smithAt(world)}${t ? ` in ${t.name}` : ""}`, ref: null },
     chain,
   };
 }
@@ -1093,7 +1102,30 @@ export function potMade(
     water = ctx.generated.water.river[cell] ? "the river's banks" : "the lake's shore",
     edge: Edge = { keen: 0.25, tough: 0.45 },
     quality = qualityOf(edge, craftAt(world, cell, "pottery"), maker?.years ?? 6),
-    fired = link("fired", rxnRef("fire-clay"));
+    fired = link("fired", rxnRef("fire-clay")),
+    // (Where nothing burns no clay is fired: a vessel of its kind's own, and how: Phase 56.)
+    vessel = kindVessel(world);
+  if (vessel)
+    return {
+      stuff: vessel.ware,
+      edge,
+      colour: vessel.colour,
+      quality,
+      grade: gradeOf(quality),
+      maker,
+      workshop: { name: home ? "home" : `${vessel.yard}${t ? ` in ${t.name}` : ""}`, ref: null },
+      chain: [
+        [
+          link(sentence(vessel.of), substRef(vessel.subst)),
+          `, ${vessel.from} in `,
+          landLink(world, cell),
+        ],
+        [
+          vessel.how,
+          ...(maker ? [" by ", ...makerWords(world, maker, vessel.bench)] : [" at home"]),
+        ],
+      ],
+    };
   return {
     stuff: clay.ware,
     edge,
@@ -1319,7 +1351,7 @@ export function armsMade(
   chain.push([
     sentence(works ? w.stuff.works : w.stuff.hand),
     " at ",
-    smithy ? link(smithy.name, smithy.ref) : `a smith's hearth${t ? ` in ${t.name}` : ""}`,
+    smithy ? link(smithy.name, smithy.ref) : `${smithAt(world)}${t ? ` in ${t.name}` : ""}`,
     " by ",
     ...makerWords(world, maker, works ? "machines" : "anvil"),
   ]);
@@ -1330,7 +1362,7 @@ export function armsMade(
     quality,
     grade: gradeOf(quality),
     maker,
-    workshop: smithy ?? { name: `a smith's hearth${t ? ` in ${t.name}` : ""}`, ref: null },
+    workshop: smithy ?? { name: `${smithAt(world)}${t ? ` in ${t.name}` : ""}`, ref: null },
     chain,
   };
 }

@@ -9,7 +9,7 @@
 // plankton, and the ground was sinking so that what died was buried, carbon gathered:
 // that is where coal and oil lie now, and each seam remembers the age that laid it.
 import { defineStream, dmath, type Rng, type SphereGrid } from "../kernel/index.ts";
-import type { Planet } from "./bodies.ts";
+import { climateMean, type Planet } from "./bodies.ts";
 import { BOUNDARY, type Tectonics } from "./plates.ts";
 
 const DEEP = defineStream("gen.deeptime");
@@ -84,7 +84,7 @@ function zonal(planet: Planet, lat: number, warmth: number): number {
     gamma = 1.4,
     s = dmath.sin(lat),
     shape = dmath.pow(s * s, gamma);
-  return planet.meanTemperature + warmth + spread * (1 / (2 * gamma + 1) - shape);
+  return climateMean(planet) + warmth + spread * (1 / (2 * gamma + 1) - shape);
 }
 
 /** Rain by latitude: wet under the rising air of the tropics and the storm tracks, dry between. */

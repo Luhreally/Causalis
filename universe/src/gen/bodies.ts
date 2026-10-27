@@ -3,7 +3,15 @@
 // luminosity and lifetime, the habitable zone, Kepler's third law, surface
 // gravity from mass and radius, and the energy balance of the planet's surface.
 import { defineStream, dmath, type Rng } from "../kernel/index.ts";
-import type { Prior, Range } from "../rules/index.ts";
+import {
+  KINDS,
+  earthDegrees,
+  kelvinPerDegree,
+  type NovelKind,
+  type Prior,
+  type Range,
+  type WorldKind,
+} from "../rules/index.ts";
 import { planetRef, starRef } from "./kinds.ts";
 
 const BODIES = defineStream("gen.bodies");
@@ -99,7 +107,25 @@ export type Planet = {
   readonly oceanFraction: number;
   readonly plateCount: number;
   readonly continental: number;
+  /** Its kind, where it is not rocky (Phase 56: rules/kinds.ts). Absent on a rocky world. */
+  readonly kind?: NovelKind;
+  /**
+   * The warmth its climate is built on, where its liquid freezes and boils away from where water does
+   * (Phase 56): its mean in degrees of its liquid's band, as a rocky world's is in °C. Absent where
+   * the two are one.
+   */
+  readonly climate?: number;
 };
+
+/** A world's kind: its planet's, rocky where it says none (Phase 56). */
+export function worldKindOf(g: { readonly planet: Planet }): WorldKind {
+  return g.planet.kind ?? "rocky";
+}
+
+/** The warmth a world's climate is built on: its mean, read in its liquid's degrees (Phase 56). */
+export function climateMean(p: Planet): number {
+  return p.climate ?? p.meanTemperature;
+}
 
 export function makePlanet(rng: Rng, prior: Prior, star: Star): Planet {
   const p = prior.planet,
@@ -128,5 +154,35 @@ export function makePlanet(rng: Rng, prior: Prior, star: Star): Planet {
     oceanFraction: draw(rng, p.oceanFraction, 2, 6),
     plateCount: Math.round(draw(rng, p.plates, 2, 7)),
     continental: draw(rng, p.continental, 2, 8),
+  };
+}
+
+/**
+ * A planet of a kind (Phase 56): the planet its seed draws (its twin), read through its liquid. A
+ * kind whose liquid freezes and boils where water does keeps its twin's orbit and warmth. Where it
+ * does not (ammonia water, methane), its warmth stands between its liquid's freezing and boiling as
+ * its twin's stands between water's — so its climate, seas and ice are its liquid's — and is set
+ * where that warmth truly falls: its equilibrium and greenhouse scaled to its liquid's band, its
+ * orbit moved out to where its star's light gives that equilibrium (the energy balance read
+ * backwards), its year by Kepler's law. Either way it says its kind.
+ */
+export function kindPlanet(twin: Planet, kind: NovelKind, star: Star): Planet {
+  if (earthDegrees(kind)) return { ...twin, kind };
+  const k = kelvinPerDegree(kind),
+    grey = 278.6 * dmath.pow(1 - twin.albedo, 0.25),
+    equilibrium = grey * dmath.pow(twin.insolation, 0.25),
+    real = KINDS[kind].liquid.freezeK + k * (equilibrium - 273.15),
+    insolation = dmath.pow(real / grey, 4),
+    orbitAu = Math.sqrt(star.luminosity / insolation),
+    greenhouse = k * twin.greenhouse;
+  return {
+    ...twin,
+    orbitAu,
+    yearDays: 365.25 * Math.sqrt((orbitAu * orbitAu * orbitAu) / star.mass),
+    insolation,
+    greenhouse,
+    meanTemperature: real + greenhouse - 273.15,
+    kind,
+    climate: twin.meanTemperature,
   };
 }

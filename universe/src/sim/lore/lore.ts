@@ -23,9 +23,10 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
-import { cellRef, seamRef, surfaceOre, tongueLikeness } from "../../gen/index.ts";
+import { cellRef, seamRef, surfaceOre, tongueLikeness, worldKindOf } from "../../gen/index.ts";
 import {
   EFFECTS,
+  KIND_METAL_ROOTS,
   OCC,
   PRINCIPLES,
   PRINCIPLE_INDEX,
@@ -220,17 +221,19 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
     culture = cultureOf(world),
     markets = world.store<MarketStore>("economy.markets"),
     realms = politiesOf(world),
-    year = yearOfMoment(t);
+    year = yearOfMoment(t),
+    kind = worldKindOf(g);
   type Plan = { cell: number; p: Principle; found: boolean; factors: Factor[]; causes: CauseRef[] };
   const plans: Plan[] = [];
   for (const prov of ctx.provinces.all()) {
     if (!prov.total()) continue;
     const cell = prov.cell,
-      // Only what their body allows: no kilns without fire, no wheels in the water.
+      // Only what their body allows: no kilns without fire, no wheels in the water — and only
+      // what their world's kind allows (Phase 56).
       open = PRINCIPLES.filter(
         (p) =>
           p.rate > 0 &&
-          affordsPrinciple(p, ctx.medium, ctx.affords.fire) &&
+          affordsPrinciple(p, ctx.medium, ctx.affords.fire, kind) &&
           !store.get(cell, p.id) &&
           needsMet(p, (n) => knows(ctx, cell, n)),
       );
@@ -362,8 +365,10 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
       data: { principle: plan.p.id },
     });
     store.learn(plan.cell, plan.p.id, { year, event }, plan.p);
-    // Metal from the vents is a people of the water's metalworking.
-    if (plan.p.id === "vent-working") markets.of(plan.cell).metalworking ??= event;
+    // Metal from the vents is a people of the water's metalworking; a kind's own metal root is
+    // its land's (copper hammered cold, copper of blue vitriol: Phase 56).
+    if (plan.p.id === "vent-working" || KIND_METAL_ROOTS.includes(plan.p.id))
+      markets.of(plan.cell).metalworking ??= event;
   }
 }
 
