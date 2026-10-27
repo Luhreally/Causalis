@@ -1201,10 +1201,12 @@ body.paging .panel:not(.page-panel) .inspector {
   .page-window.wide {
     width: min(58rem, calc(100% - 16px));
   }
-  /* Below the scale's bar, however many lines it wraps to. */
+  /* Below the scale's bar, however many lines it wraps to, its foot 8px above the screen's (its
+     padding and its bevel, 2 × 12px and 2 × 2px, lie outside its max-height: without them its
+     last lines hung below the screen, out of reach of its scroll). */
   .page-panel .page-window {
     top: calc(var(--bar-bottom, 72px) + 8px);
-    max-height: calc(100% - var(--bar-bottom, 72px) - 16px - var(--safe-bottom));
+    max-height: calc(100% - var(--bar-bottom, 72px) - 16px - 28px - var(--safe-bottom));
   }
 }
 /* Several lines on one chart: a taller plot, faint quarters, a key of names and values. */
