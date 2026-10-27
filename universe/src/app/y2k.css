@@ -2439,6 +2439,13 @@ body.palette-off #hud > .palette-toggle {
   body.paging #hud > .palette-toggle {
     display: none;
   }
+  /* (And while a card is open over the map, unless an act is in hand: the card has the foot of the
+     screen, and the round button stood on the start of its last line.) */
+  body:not(.casting)
+    #hud:has(> .panel:not([hidden]) > .inspector:not([hidden], .page-window))
+    > :is(.palette, .palette-toggle) {
+    display: none;
+  }
 }
 /* An act in hand: the pointer is a crosshair over the map; the old hint stands aside. */
 body.casting canvas {

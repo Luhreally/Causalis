@@ -100,7 +100,7 @@ const FOLK_WORDS = [
   "A herder",
   "A crafter",
   "A trader",
-  "An elder",
+  "A leader",
 ];
 
 const u = (seed: number, n: number) => finish(mix(seed, n), 13) / 4294967296;
@@ -499,17 +499,17 @@ export function villagePlan(
       const i = drawnAt.size,
         age = now - h.born,
         child = age < grown,
-        occupation: number = child
-          ? OCC.dependent
-          : i < builders
-            ? OCC.crafter
-            : workOf(h.key, work),
+        // (Their own work, as their page tells it. The first drawn grown raise its buildings at a
+        // crafter's work whatever theirs is, and their card says so.)
+        own: number = child ? OCC.dependent : workOf(h.key, work),
+        building = !child && i < builders,
+        occupation = building ? OCC.crafter : own,
         last = h.fates.at(-1);
       drawnAt.set(h.ref, i);
       people.push({
         ref: h.ref,
         name: roster.nameOf(h),
-        role: `${(FOLK_WORDS[occupation] ?? "One").toLowerCase()} of ${v.name}`,
+        role: `${(FOLK_WORDS[own] ?? "One").toLowerCase()} of ${v.name}${building ? ", raising its buildings" : ""}`,
         home: homesFor[Math.floor(k / 4) % homesFor.length]!,
         age,
         occupation,

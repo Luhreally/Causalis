@@ -14,6 +14,7 @@ import {
 } from "../../src/host/burials.ts";
 import { strikesOn } from "../../src/host/town.ts";
 import { FOLK_PER, healerOf } from "../../src/host/village.ts";
+import { townsfolkPage } from "../../src/host/inspect/townsfolk.ts";
 import {
   WAR_BURIAL,
   parseTownsfolkRef,
@@ -303,6 +304,35 @@ test("folk are the holders of the town's lines, named, aged and fated as its ros
   }
   assert.ok(drawnAll > 100, `${drawnAll} folk`);
   assert.ok(veterans > 0, `${veterans} folk home from war`);
+});
+
+test("a folk's card names the work their page does; its builders raise its buildings at a crafter's work", () => {
+  let told = 0,
+    builders = 0,
+    others = 0;
+  for (const [ref, plan] of plans) {
+    const s = settlement(ref);
+    for (const p of plan.people) {
+      if (!p.folk || p.trade || p.healer) continue;
+      const page = townsfolkPage(world, p.ref),
+        work = page.stats.find((x) => x.label === "Work")?.value.join("");
+      assert.ok(work, `${p.ref} a page's work`);
+      const said = p.child ? `${work} of ${s.name}` : `a ${work} of ${s.name}`,
+        building = p.role?.endsWith(", raising its buildings") ?? false;
+      assert.equal(p.role, building ? `${said}, raising its buildings` : said, `${p.ref} card`);
+      if (building) {
+        builders++;
+        assert.equal(p.occupation, OCC.crafter, `${p.ref} a builder at a crafter's work`);
+        if (work !== "crafter") others++;
+      }
+      told++;
+    }
+  }
+  assert.ok(told > 100, `${told} told`);
+  assert.ok(
+    builders > 0 && others > 0,
+    `${builders} builders, ${others} not crafters by their line`,
+  );
 });
 
 test("no one dead is drawn: the fallen and the struck are gone from a later plan", () => {
