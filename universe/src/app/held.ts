@@ -12,6 +12,7 @@
 // and drawn from then on from its fight fought out (`held.fought`), its fallen lying until they are
 // borne in; a beast's flock without the one it lost. Leaving the town (or the battle laid again)
 // lets go; a body found held with none taken here is let go at once.
+import { softenBodies } from "./held-motion.ts";
 import type {
   FoughtNow,
   HeldBeastNow,
@@ -263,10 +264,14 @@ export function installHeld(d: HeldDeps): Held {
       ? Math.max(-AHEAD_MOST, Math.min(AHEAD_MOST, (o.clock - o.live.step) / STEPS_PER_SECOND))
       : 0;
   /** The body held as drawn now, on the town's ground (m), and which way it faces. */
+  let shownFor: On | null = null;
+  let shownBodies: readonly HeldBody[] = [];
+  const displayed = (o: On) =>
+    shownFor === o ? shownBodies : onward(o.live?.bodies ?? [], ahead(o));
   const drawnMe = (o: On): { x: number; z: number; yaw: number } | null => {
     const b = o.live?.bodies[0];
     if (!b) return null;
-    const [m] = onward([b], ahead(o));
+    const m = displayed(o).find((q) => q.id === b.id)!;
     if (o.kind === "beast") return { x: m!.x, z: m!.z, yaw: m!.yaw };
     const at = placedPoint(o.frame, m!.x, m!.z);
     return { x: at.x, z: at.z, yaw: m!.yaw + frameYaw(o.frame) };
@@ -400,7 +405,7 @@ export function installHeld(d: HeldDeps): Held {
     d.rig.enabled = false;
     layer.hold(now.bodies[0]!);
     layer.over = (out, n) => {
-      if (on === o && o.live) heldBeastsOver(out, n, onward(o.live.bodies, ahead(o)));
+      if (on === o && o.live) heldBeastsOver(out, n, displayed(o));
     };
     hud.carriesIcon = "🐾";
     showHud();
@@ -562,7 +567,7 @@ export function installHeld(d: HeldDeps): Held {
     return heldFightNow(
       o.field,
       o.base,
-      onward(live.bodies, ahead(o)),
+      displayed(o),
       live.tally?.broke ?? -1,
       live.tally?.brokeAt ?? -1,
       o.now.second + o.clock / STEPS_PER_SECOND,
@@ -677,6 +682,8 @@ export function installHeld(d: HeldDeps): Held {
     const plan = d.plan(),
       where = d.scale() === "village" && plan ? plan.ref : "";
     if (!on) {
+      shownFor = null;
+      shownBodies = [];
       // A body held with none taken here (a world loaded so): let go at once.
       if (where !== looked && !busy) {
         looked = where;
@@ -712,6 +719,12 @@ export function installHeld(d: HeldDeps): Held {
       if (o.bids.length === STEPS_PER_SECOND) void send(o);
     }
     if (sampled) void ask(o);
+    shownBodies = softenBodies(
+      shownFor === o ? shownBodies : [],
+      onward(o.live?.bodies ?? [], ahead(o)),
+      dt,
+    );
+    shownFor = o;
     // The eye behind the body as it is drawn.
     const me = drawnMe(o);
     if (me && plan) eye.update(me.x, me.z, villageSolids(plan), dt);

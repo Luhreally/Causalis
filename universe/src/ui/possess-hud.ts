@@ -83,6 +83,8 @@ export class PossessHud {
   private push = { x: 0, y: 0 };
   private readonly keys = new Set<string>();
   private shift = false;
+  private sprinting = false;
+  private readonly sprint = el("button", "possess-sprint", "🏃 Sprint");
   private pressed: number[] = [];
   private tapped = { t: -1e9, x: 0, y: 0 };
   private pinch = 0;
@@ -90,6 +92,7 @@ export class PossessHud {
   private readonly onBlur = () => {
     this.keys.clear();
     this.shift = false;
+    this.release();
   };
   private readonly onTurn = () => this.release();
   /** Let go, the eye turned (pixels), stood off (a factor: more than one, nearer), come behind, the clock's pace chosen. */
@@ -132,6 +135,13 @@ export class PossessHud {
       this.paces.append(b);
     }
     this.setPace(1);
+    this.sprint.setAttribute("aria-pressed", "false");
+    this.sprint.title = "Toggle sprint; Shift or the stick's outer rim also runs";
+    this.press(this.sprint, () => {
+      this.sprinting = !this.sprinting;
+      this.sprint.setAttribute("aria-pressed", String(this.sprinting));
+      this.sprint.textContent = this.sprinting ? "🏃 Sprint on" : "🏃 Sprint";
+    });
     for (let slot = 0; slot < 4; slot++) {
       const b = el("button", `possess-act possess-act-${slot}`);
       b.append(el("span", "possess-icon"), el("span", "possess-label"));
@@ -150,6 +160,7 @@ export class PossessHud {
       this.head,
       this.told,
       this.paces,
+      this.sprint,
       this.letGo,
       this.base,
       this.hint,
@@ -222,6 +233,9 @@ export class PossessHud {
 
   /** Every touch let go (the phone turned: laid out again from nothing held). */
   private release(): void {
+    this.sprinting = false;
+    this.sprint.setAttribute("aria-pressed", "false");
+    this.sprint.textContent = "🏃 Sprint";
     this.held.clear();
     this.push = { x: 0, y: 0 };
     this.base.hidden = true;
@@ -249,7 +263,11 @@ export class PossessHud {
       x /= l;
       y /= l;
     }
-    return { x, y, run: this.shift || Math.hypot(this.push.x, this.push.y) >= RUN_AT };
+    return {
+      x,
+      y,
+      run: this.sprinting || this.shift || Math.hypot(this.push.x, this.push.y) >= RUN_AT,
+    };
   }
 
   /** The acts pressed since last asked (their places), the first first. */

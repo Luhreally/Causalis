@@ -1099,6 +1099,8 @@ async function creature(hands: Hands, tag: string) {
         `[...document.querySelectorAll(".genesis-told p")].map((p) => p.textContent).join(" | ")`,
       );
   await page.goto(`${base}?universe=earth&seed=first%20light&genesis=1`);
+  keys.clear();
+  for (const key of ["KeyW", "KeyA", "KeyS", "KeyD", "ShiftLeft"]) await page.keyboard.up(key);
   await page.waitForSelector(".genesis h2", { timeout: 600_000 });
   for (let i = 0; i < 12 && (await gen()).stage !== "ages"; i++) {
     await page.locator(".genesis-row button:not(.link)").first().click();
@@ -1226,12 +1228,23 @@ async function creature(hands: Hands, tag: string) {
     n(`it did not eat (${w?.ate ?? 0} eaten, was ${ate0}; ${w?.energy ?? 0} fed, was ${e0})`),
   );
   // Steered off the way the eye looks.
+  const sprint = await centre(`${HUD} .possess-sprint`);
+  check(!!sprint, n("no Sprint control"));
+  if (sprint) await hands.tap(sprint.x, sprint.y);
+  check(
+    (await page.locator(`${HUD} .possess-sprint`).getAttribute("aria-pressed")) === "true",
+    n("Sprint did not engage"),
+  );
   const at0 = w ? { x: w.x, z: w.z } : null;
-  if (w) await hands.steer(w.yaw, w.yaw, false);
-  await page.waitForTimeout(slow(2000));
-  await hands.steer(null, 0, false);
-  w = await walked();
-  const went = w && at0 ? Math.hypot(w.x - at0.x, w.z - at0.z) : 0;
+  let went = 0;
+  // A swimmer can face the shore; try the other directions through the real controls.
+  for (let direction = 0; w && at0 && direction < 4 && went <= 1; direction++) {
+    await hands.steer(w.yaw + (direction * Math.PI) / 2, w.yaw, false);
+    await page.waitForTimeout(slow(2000));
+    await hands.steer(null, 0, false);
+    w = await walked();
+    went = w ? Math.hypot(w.x - at0.x, w.z - at0.z) : 0;
+  }
   say(n(`steered ${went.toFixed(1)} m; ${w?.cleared ?? 0} between the eye and it not drawn`));
   check(went > 1, n(`not steered by the stick (${went.toFixed(1)} m)`));
   await shot(`${tag}-creature-2`);

@@ -205,6 +205,24 @@ body.possessing #hud > *:not(.possess-hud) {
   border-color: var(--accent);
   box-shadow: 0 0 8px rgba(143, 176, 255, 0.7);
 }
+.possess-sprint {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 102px);
+  right: calc(env(safe-area-inset-right, 0px) + 8px);
+  width: 116px;
+  min-height: 44px;
+  border-radius: 8px;
+  background: rgba(8, 18, 44, 0.85);
+}
+.possess-sprint[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: #245d45;
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  .possess-sprint {
+    top: calc(env(safe-area-inset-top, 0px) + 58px);
+  }
+}
 .possess-stick {
   position: absolute;
   width: 104px;
