@@ -784,17 +784,24 @@ async function beast(hands: Hands, tag: string): Promise<void> {
       .sort((a, b) => Number(b.flock) - Number(a.flock))[0];
   check(!!pick, n(`no beast about the town to take (${all.length} laid)`));
   if (!pick) return;
+  const armed = await arm(hands);
+  check(!armed, n(armed ?? ""));
+  if (armed) return;
   await k(
     `globalThis.causalis.rig.flyTo({ target: { x: ${pick.x * 0.1}, y: 0, z: ${pick.z * 0.1} }, distance: 3, pitch: -35 })`,
   );
-  await page.waitForTimeout(slow(2500));
+  // Opening the palette reframes the scene, and a software renderer can take longer
+  // than a fixed delay to finish the flight. Aim at the beast only once both are done.
+  await page.waitForFunction(
+    () => !(globalThis as { causalis: { rig: { flying: boolean } } }).causalis.rig.flying,
+    undefined,
+    { timeout: slow(30_000) },
+  );
   const at = (await k<Laid[]>(`globalThis.causalis.held.beasts()`)).find(
     (b) => b.id === pick.id,
   )?.at;
   check(!!at, n(`the ${pick.kind} not on the screen`));
   if (!at) return;
-  const armed = await arm(hands);
-  check(!armed, n(armed ?? ""));
   await hands.tap(at.x, at.y);
   await comes(async () => !!(await held())?.live, slow(30_000));
   let s = await held();
