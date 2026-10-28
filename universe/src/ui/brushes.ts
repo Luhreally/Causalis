@@ -35,7 +35,7 @@ export class GodBrushes {
   private readonly apply = el("button", "brush-apply", "Apply stroke");
   private readonly history = el("div", "brush-history");
   private readonly cursor = el("div", "brush-cursor");
-  private timer: ReturnType<typeof setTimeout> | null = null;
+  private undoFrame = 0;
   private sequence = 0;
   private cells = new Set<number>();
   private pending: BrushStrokeArgs | null = null;
@@ -84,7 +84,7 @@ export class GodBrushes {
     const help = el(
       "p",
       "brush-help",
-      "These brushes change globe cells, including from a town. Gentle strokes wait 2 seconds for Undo. Harmful strokes need Apply. Esc puts the brush down.",
+      "These brushes change globe cells, including from a town. Undo cancels a gentle stroke before it applies. Harmful strokes need Apply. Esc puts the brush down.",
     );
     const actions = el("div", "brush-actions");
     actions.append(this.undo, this.apply);
@@ -204,8 +204,21 @@ export class GodBrushes {
           this.status.textContent = `${p.cells.length} cells. May kill up to ${p.atRisk} people and damage homes in ${p.towns} towns. Apply this stroke?`;
           this.apply.hidden = false;
         } else {
-          this.status.textContent = `${p.cells.length} cells · applying in 2 seconds. Undo to cancel.`;
-          this.timer = setTimeout(() => void this.commit(false), 2000);
+          this.status.textContent = `${p.cells.length} cells · applying shortly. Undo to cancel.`;
+          // Count responsive frames rather than wall time: a stalled renderer must not
+          // consume the entire Undo window before the next input can be delivered.
+          let elapsed = 0,
+            last = performance.now();
+          const tick = (now: number) => {
+            if (seq !== this.sequence || !this.pending) return;
+            elapsed += Math.max(0, Math.min(100, now - last));
+            last = now;
+            if (elapsed >= 2000) {
+              this.undoFrame = 0;
+              void this.commit(false);
+            } else this.undoFrame = requestAnimationFrame(tick);
+          };
+          this.undoFrame = requestAnimationFrame(tick);
         }
       })
       .catch((e: Error) => {
@@ -217,8 +230,8 @@ export class GodBrushes {
   }
   cancel(): void {
     ++this.sequence;
-    if (this.timer !== null) clearTimeout(this.timer);
-    this.timer = null;
+    cancelAnimationFrame(this.undoFrame);
+    this.undoFrame = 0;
     this.pending = null;
     this.cells.clear();
     this.drawing = false;
@@ -244,7 +257,7 @@ export class GodBrushes {
       this.busy = false;
       this.pending = null;
       this.cells.clear();
-      this.timer = null;
+      this.undoFrame = 0;
       this.hold(false);
     }
   }

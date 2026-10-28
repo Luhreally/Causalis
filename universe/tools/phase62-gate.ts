@@ -18,7 +18,11 @@ if (shots) mkdirSync(shots, { recursive: true });
 const server = await preview({ logLevel: "silent", preview: { port: 4262, strictPort: false } });
 try {
   for (const engine of [webkit, chromium]) {
-    const browser = await engine.launch();
+    const browser = await engine.launch(
+      engine === chromium && process.argv.includes("--soft")
+        ? { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] }
+        : {},
+    );
     try {
       const context = await browser.newContext({
         viewport: { width: 430, height: 932 },
@@ -56,6 +60,14 @@ try {
         await page.screenshot({ path: join(shots, `brushes-before-${engine.name()}.png`) });
       await page.touchscreen.tap(215, 466);
       await page.locator(".brush-undo:visible").waitFor();
+      // A slow phone can stall for longer than the nominal Undo delay. It must still
+      // get responsive frames in which the viewer can cancel, rather than auto-commit.
+      await page.evaluate(() => {
+        const until = performance.now() + 2200;
+        while (performance.now() < until) {
+          /* one long renderer task */
+        }
+      });
       await page.locator(".brush-undo").tap({ force: true });
       assert.equal((await state()).count, start.count);
       assert.deepEqual(

@@ -38,7 +38,8 @@ existing mine. Loading an older snapshot restores the original arrays exactly.
 
 A stroke has at most 64 sampled centers and 512 affected cells, with radius
 0–3 and strength 1–4. One pointer paints; a second cancels the uncommitted stroke
-and takes the camera. Gentle strokes wait two seconds for Undo, while strokes
+and takes the camera. Gentle strokes wait two seconds of responsive frames for Undo,
+so a long renderer task cannot consume the cancellation window, while strokes
 that threaten people or homes require Apply. Pointer cancellation, hiding the
 page, and leaving the tool cancel pending work. WebKit's completed-touch capture
 release is handled without discarding the stroke. Controls reserve their space
