@@ -2,6 +2,7 @@
 // The globe view's frame carries the planet's fields once — they do not change
 // until people change them — and the page colours them by whichever lens is on.
 import {
+  brushPreview,
   actsOf,
   agentName,
   airOf,
@@ -137,7 +138,9 @@ import {
 } from "./inspect/index.ts";
 import { MAP_QUERIES } from "./map.ts";
 import { POSSESS_QUERIES } from "./possess.ts";
+import { HELD_QUERIES } from "./held.ts";
 import { SEARCH_QUERIES } from "./search.ts";
+import { takenWordsOf, type NamesArg } from "./names.ts";
 import { realmColor } from "./colors.ts";
 import { hostKinds, realmArms } from "./arms.ts";
 import { landHeart, villagePlan } from "./village.ts";
@@ -171,8 +174,9 @@ function globeFrame(world: World) {
     deposit = new Int16Array(n).fill(-1);
   for (const d of g.deposits) deposit[d.cell] = DEPOSIT_KINDS.indexOf(d.kind);
   return {
-    key: g.digest,
+    key: homePlanet(world).surfaceKey,
     meta: {
+      surfaceKey: homePlanet(world).surfaceKey,
       frequency: g.grid.frequency,
       plates: g.tectonics.plates.map((p) => ({ continental: p.continental })),
       depositKinds: DEPOSIT_KINDS,
@@ -214,9 +218,10 @@ function regionFrame(world: World, focus: string | null) {
     deposit = new Uint8Array(r.size * r.size).fill(255);
   for (const d of r.deposits) deposit[d.tile] = DEPOSIT_KINDS.indexOf(g.deposits[d.deposit]!.kind);
   return {
-    key: r.ref,
+    key: `${r.ref}:${homePlanet(world).surfaceKey}`,
     meta: {
       ref: r.ref,
+      surfaceKey: `${r.ref}:${homePlanet(world).surfaceKey}`,
       center,
       size: r.size,
       tileKm: r.tileKm,
@@ -779,6 +784,27 @@ function planetUniverse(name: string, prior: Prior): Universe {
       region: (world, interest) => regionFrame(world, interest.focus),
     },
     queries: {
+      "brush.preview": (world, args) => {
+        const { cells, provinces, atRisk, towns, seeded } = brushPreview(
+          populationContext(world),
+          args,
+        );
+        return { cells, provinces, atRisk, towns, seeded };
+      },
+      "brush.state": (world) => {
+        const home = homePlanet(world),
+          g = home.generated;
+        return {
+          count: home.brushStrokes().length,
+          key: home.surfaceKey,
+          centres: [...g.centre],
+          ores: DEPOSIT_KINDS,
+          realms: politiesOf(world)
+            .living()
+            .map((r) => ({ ref: r.ref, name: realmName(r) })),
+          strokes: home.brushStrokes().slice(-16),
+        };
+      },
       "planet.summary": (world) => summary(homePlanet(world).generated.fine),
       /** The stars within the cluster's reach of home. */
       "galaxy.cluster": (world): ClusterPlan => {
@@ -1264,8 +1290,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
       },
       // What a man of a battle's roll bore there and who made it (Phase 55 M228): his card's words.
       "arms.borne": (world, args) => {
-        const a = args as { event: string; side: 0 | 1; who: string };
-        return armBorne(world, a.event, a.side === 1 ? 1 : 0, a.who);
+        const a = args as { event: string; side: 0 | 1; who: string; names?: NamesArg };
+        return armBorne(world, a.event, a.side === 1 ? 1 : 0, a.who, a.names);
       },
       // A war's course, to be watched unfolding on the globe (Phase 38 M193).
       "war.campaign": (world, args) => campaignOf(world, (args as { ref: string }).ref),
@@ -1278,21 +1304,29 @@ function planetUniverse(name: string, prior: Prior): Universe {
       ...PAGE_QUERIES,
       // Every thing's page, and where it is to be seen (Phase 10 M91). (Called through, not
       // spread: the pages read this module's builders, so they load after it.)
-      page: (world, args) => pageOf(world, (args as { ref: string }).ref),
+      page: (world, args) => {
+        // (As the people where one stands call things, where asked: Phase 58.)
+        const a = args as { ref: string; names?: NamesArg };
+        return pageOf(world, a.ref, a.names);
+      },
       // The political map's names, the diplomacy and war lenses, the top bar's numbers (M96).
       ...MAP_QUERIES,
       ...SEARCH_QUERIES,
       // One of a town's people possessed (Phase 60): the small world about him, stepped ahead.
       ...POSSESS_QUERIES,
+      // A soldier or a beast possessed, and a battle the god fought (Phase 61).
+      ...HELD_QUERIES,
       place: (world, args) => placeOf(world, (args as { ref: string }).ref),
       // A thing in a few words, for a tooltip (Phase 10 M93).
       tip: (world, args) => {
-        const a = args as { ref: string; lens?: string };
-        return tipOf(world, a.ref, a.lens);
+        const a = args as { ref: string; lens?: string; names?: NamesArg };
+        return tipOf(world, a.ref, a.lens, a.names);
       },
       // What stands now and asks to be looked at; what the top bar's numbers are made of (M96, M97).
       alerts: (world) => alertsOf(world),
       "world.breakdown": (world, args) => breakdownOf(world, (args as { what: Counted }).what),
+      // Every word one people took from another with a thing, and from whom (Phase 58).
+      "names.taken": (world) => takenWordsOf(world),
       // The world's stage, and its firsts the earliest first (Phase 31 M167, M168).
       "world.stage": (world) => stageOf(world),
       "world.firsts": (world) => worldFirstsNow(world),

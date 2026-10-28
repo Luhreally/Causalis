@@ -1,4 +1,5 @@
 // sim: the authoritative systems by domain: the home planet (generated, with its
+export { BRUSH_EVENT, brushPreview } from "./acts/brush.ts";
 // deviations) and the Phase 0 sandbox. May import: kernel, rules, gen. See README.md and docs/architecture/universe-architecture.md.
 export {
   BLESSING_EVENT,
@@ -673,3 +674,30 @@ export {
   type ReleaseArgs,
   type TakeArgs,
 } from "./hand/possess.ts";
+export {
+  type FightIdle,
+  type HandFought,
+  type HandStray,
+  type Held,
+  type HeldBeast,
+  type HeldSoldier,
+} from "./hand/hand.ts";
+export { installHeld, type HeldInput } from "./hand/held.ts";
+export {
+  FIGHT_EVENTS,
+  HAND_FIGHT,
+  battleBy,
+  fightSecondAt,
+  foughtOn,
+  handDay,
+  soldierAhead,
+  type SoldierArgs,
+} from "./hand/fight.ts";
+export {
+  HAND_WILD,
+  WILD_EVENTS,
+  WILD_KILL,
+  beastAhead,
+  wildCount,
+  type BeastArgs,
+} from "./hand/wild.ts";

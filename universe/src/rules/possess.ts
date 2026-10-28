@@ -10,9 +10,11 @@
 // is (a person's hands, legs and trade): Phase 61's soldier, beast and creature add their own.
 import { dmath } from "../kernel/index.ts";
 import {
+  BODY_PLACES,
   CUTS_OFF,
   MEMBERS,
   NINES,
+  anatomyOf,
   killShareOf,
   lastingOf,
   lostHow,
@@ -23,6 +25,7 @@ import {
   type BodyWound,
   type Member,
 } from "./anatomy.ts";
+import { affordancesOf, type BodyPlan, type Manipulator } from "./bodies.ts";
 import { G } from "./goods.ts";
 import { maimedShare, type Blow } from "./wounds.ts";
 
@@ -218,6 +221,64 @@ export const BARE_HANDS: InHand = {
   carry: "",
 };
 
+/** What each way of handling the world strikes with bare: claws cut, mandibles and tentacles crush, a trunk swings (Phase 61). */
+export const BARE_OF: Readonly<Record<Manipulator, InHand>> = {
+  hands: BARE_HANDS,
+  claws: { ...BARE_HANDS, blow: "edge", harm: 0.4, arm: 0.45 },
+  mandibles: { ...BARE_HANDS, blow: "crush", harm: 0.38, arm: 0.45 },
+  tentacles: { ...BARE_HANDS, blow: "crush", harm: 0.26, arm: 0.3 },
+  trunk: { ...BARE_HANDS, blow: "blunt", harm: 0.45, arm: 0.5 },
+};
+
+/**
+ * A people's body as the hand moves it (Phase 61: the peoples of other worlds by their own plans):
+ * its run against an upright ape's (as its walk is against one's: view/figure.ts paceOf), its
+ * strength (rules/bodies.ts affordancesOf), what its bare blows deal and how hard, and its members
+ * (rules/anatomy.ts: where a blow lands on it, and what it is called there).
+ */
+export type PersonFrame = {
+  readonly run: number;
+  readonly strength: number;
+  readonly bare: InHand;
+  readonly anatomy: Anatomy;
+};
+
+/** A people's frame (null: an upright ape with hands, moved as Phase 60 moves them). */
+export function personFrame(body: BodyPlan | null): PersonFrame | null {
+  if (!body || (body.clade === "ape" && body.manipulators === "hands")) return null;
+  const walk =
+    body.medium === "water"
+      ? 1.4
+      : body.skin === "feathers"
+        ? 2
+        : body.manipulators === "trunk"
+          ? 1
+          : body.skin === "shell"
+            ? 0.75
+            : body.skin === "scales"
+              ? 0.9
+              : 1.15;
+  return {
+    run: walk / 1.25,
+    strength: dmath.clamp(affordancesOf(body).strength, 0.5, 2),
+    bare: BARE_OF[body.manipulators] ?? BARE_HANDS,
+    anatomy: anatomyOf(body),
+  };
+}
+
+/** Where a blow lands on a body (weights in MEMBERS' order): the nines, laid on what bears a place it lacks (a hand's on its arm, else the body). */
+export function landsOn(a: Anatomy): number[] {
+  const has = new Set(a.members),
+    w = MEMBERS.map(() => 0);
+  for (const p of BODY_PLACES) {
+    const arm: Member | null = p === "hand-l" ? "arm-l" : p === "hand-r" ? "arm-r" : null,
+      on: Member = has.has(p) ? p : arm && has.has(arm) ? arm : "trunk",
+      k = MEMBERS.indexOf(on);
+    w[k] = (w[k] ?? 0) + NINES[p];
+  }
+  return w;
+}
+
 /** A body of the small world. */
 export type LocalBody = {
   /** The hand's person it is (Agent.id). */
@@ -299,6 +360,8 @@ export type LocalScene = {
   readonly form: string;
   /** The care for wounds his land knows (rules/wounds.ts woundCare): 0 … 1. */
   readonly care: number;
+  /** His people's body, where it is not an upright ape's with hands (Phase 61: personFrame). */
+  readonly frame?: PersonFrame;
 };
 
 /** The small world as it stands. */
@@ -648,17 +711,21 @@ export function nearestWorkPlace(
   return { place, far };
 }
 
-/** What a body has in hand: the thing made, the good taken, or bare hands. */
-export function inHand(l: LocalWorld, carry: number): InHand & { readonly form: string | null } {
+/** What a body has in hand: the thing made, the good taken, or bare hands (its people's: `bare`). */
+export function inHand(
+  l: LocalWorld,
+  carry: number,
+  bare: InHand = BARE_HANDS,
+): InHand & { readonly form: string | null } {
   if (carry < 0) {
     const form = l.made[-carry - 1]?.form ?? "";
-    return { ...(HAND_FORMS[form] ?? BARE_HANDS), form: form || null };
+    return { ...(HAND_FORMS[form] ?? bare), form: form || null };
   }
   if (carry > 0) {
     const h = GOOD_HELD[carry - 1];
-    return { ...(h ?? BARE_HANDS), form: null };
+    return { ...(h ?? bare), form: null };
   }
-  return { ...BARE_HANDS, form: null };
+  return { ...bare, form: null };
 }
 
 /** The good a carried thing is the town's as (-1: none). */
@@ -688,7 +755,9 @@ function strikeDown(
   draw: LocalDraw,
   s: number,
 ): void {
-  const weights = MEMBERS.map((m) => NINES[m as BodyPlace] ?? 0),
+  const weights = scene.frame
+      ? landsOn(scene.frame.anatomy)
+      : MEMBERS.map((m) => NINES[m as BodyPlace] ?? 0),
     place = memberOf(weights, draw(b.id, s, P.place)) as BodyPlace,
     dead = draw(b.id, s, P.kill) < killShareOf(place, held.blow) * held.arm,
     maimed =
@@ -874,7 +943,7 @@ function act(
     case HAND_ACT.strike: {
       const b = bodyBefore(l, a, HAND_REACH.strike);
       if (!b) return told(l, "no-one", s, -1, 1);
-      const held = inHand(l, a.carry);
+      const held = inHand(l, a.carry, scene.frame?.bare);
       a.doing = "strike";
       a.until = s + HAND_TAKES.strike;
       a.vx = a.vz = 0;
@@ -991,7 +1060,15 @@ function holdEnds(
   won.foe = won === a ? -1 : a.id;
   won.until = s + HAND_TAKES.fight;
   if (lost.strength <= 0)
-    strikeDown(scene, l, lost, won.id, { ...BARE_HANDS, form: null }, draw, s);
+    strikeDown(
+      scene,
+      l,
+      lost,
+      won.id,
+      { ...(scene.frame?.bare ?? BARE_HANDS), form: null },
+      draw,
+      s,
+    );
   if (!l.ended) told(l, lost === b ? "threw" : "thrown", s, b.id);
 }
 
@@ -1119,7 +1196,7 @@ function moveOther(
       // A blow back: bare-handed, or with what they hold.
       b.until = s + HAND_TAKES.fight;
       if (draw(b.id, s, P.hit) >= 0.65) return;
-      const held = inHand(l, b.carry);
+      const held = inHand(l, b.carry, scene.frame?.bare);
       foe.strength -=
         (held.harm * 0.55 + 0.05 * draw(b.id, s, P.harm)) *
         (b.nature & BODY_NATURE.brave ? 1.15 : 1) *
@@ -1167,7 +1244,7 @@ function moveHand(
   const mx = bid.mx / 31,
     mz = bid.mz / 31,
     m = dmath.sqrt(mx * mx + mz * mz),
-    pace = (bid.run ? RUN_PACE : a.pace * HAND_STRIDE) * Math.min(1, m),
+    pace = (bid.run ? RUN_PACE * (scene.frame?.run ?? 1) : a.pace * HAND_STRIDE) * Math.min(1, m),
     wx = m > 1e-6 ? (mx / m) * pace : 0,
     wz = m > 1e-6 ? (mz / m) * pace : 0;
   a.vx += (wx - a.vx) * 0.6;

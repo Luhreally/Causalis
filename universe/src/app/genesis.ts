@@ -19,7 +19,9 @@
 // its lineages on it, grazing, browsing, hunting, fleeing, bearing young and dying, its lineages
 // coming and going as the clock passes the ages. The god's hand may green it or parch it, hearten
 // its hunters or shelter the hunted; what fared best under the hand, against the land left alone,
-// is laid on the world as the age ends, and the ages after run the more to its kind.
+// is laid on the world as the age ends, and the ages after run the more to its kind. Or walk in one
+// of its beasts (Phase 61): steered by hand at its own walk and run, eating, springing, courting,
+// bolting and calling as its way of life allows; its life under the hand the land touched.
 //
 // The peopling (Phase 28): from the cradle the first people's bands go out over the globe land by
 // land, as the world is begun from, each land in the colour of the family of tongues it will speak,
@@ -29,6 +31,7 @@
 // them is watched near, on the last age's land among its beasts: camped about their fire, out to
 // gather and to hunt by day, asleep by night, walking on when the land about them is bare.
 import type { GalaxyPlan, GenesisPlan, HostClient, SystemPlan } from "../bridge/index.ts";
+import { installMeadowHeld } from "./meadow-held.ts";
 import { seedWithAct, seedWithoutAct } from "../kernel/index.ts";
 import {
   BandLayer,
@@ -443,6 +446,19 @@ export async function runGenesis(o: {
     touchMeadow(meadow, act);
     meadowTouched = true;
   };
+  /** One of the living world's beasts walked in by the god's hand (Phase 61), and whether one is to be touched for it. */
+  const walked = installMeadowHeld({
+    stage,
+    hud,
+    rig,
+    hold: (held) => (held ? clock.hold("possess") : clock.release("possess")),
+    meadow: () => (spans[shown]?.stage === "ages" && !lookAtWorld ? meadow : null),
+    touched: () => (meadowTouched = true),
+    tell,
+    sizeOf: (ref) => meadowScene.sizeOf(ref),
+    bodyOf: (lineage) => bodies[lineage] ?? null,
+  });
+  let walkArmed = false;
   /** An age left forward: what fared best in its living world under the hand, laid on the world. */
   const settleAge = () => {
     const m = meadow,
@@ -464,10 +480,11 @@ export async function runGenesis(o: {
   };
   const stepMeadows = (dt: number) => {
     if (!meadow || !meadowTwin) return;
-    // (Faster at the stage's faster speeds; still while the clock is.)
-    meadowOwed += dt * Math.max(0, clock.lit);
+    // (Faster at the stage's faster speeds; still while the clock is. A beast walked in: at its own pace.)
+    meadowOwed += dt * (walked.on ? walked.pace : Math.max(0, clock.lit));
     let n = 0;
     while (meadowOwed >= MEADOW_STEP && n < 12) {
+      walked.beforeStep();
       stepMeadow(meadow);
       stepMeadow(meadowTwin);
       meadowOwed -= MEADOW_STEP;
@@ -592,8 +609,32 @@ export async function runGenesis(o: {
             () => touchLife(a),
           );
         });
+    // (Walk in one of its beasts: the one followed, else the next touched.)
+    const walk = lookAtWorld
+      ? []
+      : [
+          actButton(
+            "🫳",
+            "Walk in one",
+            "Walk in one of this age's beasts: the one you follow, or the next you touch",
+            () => {
+              const m = meadow;
+              if (!m) return;
+              const id =
+                m.chosen !== null && m.beasts.some((b) => b.id === m.chosen) ? m.chosen : null;
+              if (id !== null) {
+                const why = walked.take(id);
+                if (why) tell(why);
+                return;
+              }
+              walkArmed = true;
+              tell("Touch one of its beasts: you will walk in it.");
+            },
+          ),
+        ];
     return [
       view,
+      ...walk,
       ...life,
       ...(Object.keys(AGE_ACT_WORDS) as AgeAct[]).map((a) => {
         const [icon, words] = AGE_ACT_WORDS[a];
@@ -1242,9 +1283,17 @@ export async function runGenesis(o: {
         }
       : spans[i]!.stage === "ages"
         ? (x, y) => {
-            // A beast tapped, followed with its line.
+            // A beast tapped, followed with its line; walked in, where Walk in one waits for it.
             if (!meadow || lookAtWorld) return;
-            followBeast(meadow, meadowScene.pick(meadow, x, y));
+            const id = meadowScene.pick(meadow, x, y);
+            if (walkArmed && id !== null) {
+              walkArmed = false;
+              const why = walked.take(id);
+              if (why) tell(why);
+              meadowCounted = -1;
+              return;
+            }
+            followBeast(meadow, id);
             meadowCounted = -1;
           }
         : spans[i]!.stage === "peopling"
@@ -1314,6 +1363,7 @@ export async function runGenesis(o: {
     if (clock.at !== shown) enter(clock.at);
     if (DROP_STAGES.has(spans[shown]!.stage)) stepDrops(dt);
     if (spans[shown]!.stage === "ages") stepMeadows(dt);
+    walked.update(dt);
     if (watchingBand()) stepBands(dt);
     STAGES[spans[shown]!.stage].update(clock.through);
     const w = `${deepWhen(clock.my)}${watchingBand() ? ` · a band, day ${(band?.day ?? 0) + 1}${clock.paused ? " · paused" : ""}` : clock.stopped ? " · paused" : ""}`;
@@ -1397,6 +1447,19 @@ export async function runGenesis(o: {
     }),
     /** Where a beast of the living world is on the screen (the look tools). */
     meadowSpot: (id: number) => (meadow ? meadowScene.onScreen(meadow, id) : null),
+    /** Where a beast of the living world stands (m) and how it feeds (the look tools; null: none such). */
+    meadowBeast: (id: number) => {
+      const b = meadow?.beasts.find((x) => x.id === id);
+      return meadow && b ? { x: b.x, z: b.z, feed: meadow.kinds[b.kind]!.feed } : null;
+    },
+    /** One of its beasts walked in by the hand (Phase 61): taken, let go, as it stands (null: none). */
+    walkIn: (id: number) => walked.take(id),
+    letGoBeast: () => walked.letGo(),
+    walked: () => {
+      const now = walked.state();
+      // (And how many beasts hid it this frame, not drawn.)
+      return now && { ...now, cleared: meadowScene.cleared };
+    },
     /** Where a cell of the drop is on the screen, the middlemost of those seen (the look tools). */
     dropSpot: () => {
       if (!drop) return null;

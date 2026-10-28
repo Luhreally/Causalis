@@ -17,6 +17,7 @@ import {
   type BeastNow,
   type BeastPart,
   type BirdNow,
+  type Built,
   type Fauna,
   type FishNow,
   type Pose,
@@ -28,6 +29,16 @@ const M = 0.1; // units per metre, as the village's
 /** The most parts of each tone a beast is drawn with: coat, dark features, horn. */
 const PER_BEAST = MOST_OF_TONE;
 const FLOATS = 8;
+
+/**
+ * Points along a beast's spine (drawn units ahead of its middle, and of its height up): its rump,
+ * middle and shoulders, and its head on its neck — with its feet first, for the one held (Phase 61).
+ */
+function spineOf(b: Built, feet: boolean): (readonly [number, number])[] {
+  const half = b.length * b.k * 0.45,
+    head = b.length * b.k * 0.5 + (b.neck * 0.7 + b.head * 0.5) * b.k;
+  return [...(feet ? [[0, 0.1] as const] : []), [-half, 0.7], [0, 0.6], [half, 0.8], [head, 1]];
+}
 
 /** A beast looked at: its lineage (ref and name), what it is doing, whether it is of the flocks, and which it is. */
 export type PickedBeast = {
@@ -72,6 +83,16 @@ export class FaunaLayer {
   /** The beast lit as looked at (Phase 10 M93b): a ring on the ground that goes with it. */
   private readonly ring: pc.Entity;
   private lit: number | null = null;
+  /**
+   * A beast the god's hand is in (Phase 61): lit by its id wherever it goes, and the beasts of its
+   * small world drawn where the host has them (view/wild.ts heldBeastsOver), over the layout's.
+   */
+  private heldId: number | null = null;
+  over: ((out: BeastNow[], n: number) => void) | null = null;
+  /** The eye in the layer's own units, and how many beasts stood between it and the one held (not drawn). */
+  private readonly inverse = new pc.Mat4();
+  private readonly eyeAt = new pc.Vec3();
+  private hidden = 0;
 
   constructor(stage: Stage, parent: pc.Entity) {
     this.stage = stage;
@@ -95,6 +116,17 @@ export class FaunaLayer {
   mark(index: number | null): void {
     this.lit = index;
     this.ring.enabled = false;
+  }
+
+  /** Light the beast the god's hand is in, by its id, wherever it goes (null: none). */
+  hold(id: number | null): void {
+    this.heldId = id;
+    this.ring.enabled = false;
+  }
+
+  /** The beasts as last laid out, for a taking (view/wild.ts beastTakeOf; null: none laid). */
+  laidNow(): { fauna: Fauna; beasts: readonly BeastNow[]; n: number } | null {
+    return this.fauna ? { fauna: this.fauna, beasts: this.beasts, n: this.beastCount } : null;
   }
 
   /** Light the first beast of a lineage about the village, if any stands there. */
@@ -190,6 +222,64 @@ export class FaunaLayer {
     return this.frustum.containsSphere(sphere) > 0;
   }
 
+  /**
+   * Whether a beast stands between the eye and the one the hand is in: a point along its spine (its
+   * rump, middle, shoulders and head) within half its height (and a third of the held one's) of a
+   * line from the eye to the held one's feet, middle, rump, shoulders or head, between them.
+   */
+  private between(me: BeastNow): (b: BeastNow) => boolean {
+    const species = this.fauna!.species,
+      mb = species[me.species]!.body,
+      eye = this.inverse
+        .copy(this.root.getWorldTransform())
+        .invert()
+        .transformPoint(this.stage.camera.getPosition(), this.eyeAt),
+      ex = eye.x,
+      ey = eye.y,
+      ez = eye.z,
+      high = mb.height * mb.k,
+      margin = high * 0.3,
+      lines: { dx: number; dy: number; dz: number; dd: number }[] = [],
+      // (Each kind's spine, worked out once a frame.)
+      spines = new Map<number, (readonly [number, number])[]>();
+    for (const [along, up] of spineOf(mb, true)) {
+      const dx = me.x * M + Math.sin(me.yaw) * along - ex,
+        dy = up * high - ey,
+        dz = me.z * M + Math.cos(me.yaw) * along - ez,
+        dd = dx * dx + dy * dy + dz * dz;
+      if (dd > 1e-9) lines.push({ dx, dy, dz, dd });
+    }
+    return (b) => {
+      if (b.dead) return false;
+      const bb = species[b.species]!.body,
+        bh = bb.height * bb.k,
+        r = bh * 0.5 + margin,
+        fx = Math.sin(b.yaw),
+        fz = Math.cos(b.yaw);
+      let spine = spines.get(b.species);
+      if (!spine) spines.set(b.species, (spine = spineOf(bb, false)));
+      for (const [along, up] of spine) {
+        const px = b.x * M + fx * along - ex,
+          py = up * bh - ey,
+          pz = b.z * M + fz * along - ez;
+        for (const l of lines) {
+          const u = (px * l.dx + py * l.dy + pz * l.dz) / l.dd;
+          if (u <= 0 || u >= 1) continue;
+          const qx = px - u * l.dx,
+            qy = py - u * l.dy,
+            qz = pz - u * l.dz;
+          if (qx * qx + qy * qy + qz * qz < r * r) return true;
+        }
+      }
+      return false;
+    };
+  }
+
+  /** How many beasts stood between the eye and the one held this frame, not drawn (the look tools). */
+  get cleared(): number {
+    return this.hidden;
+  }
+
   /** Put every creature where it is at screen time `s` (seconds). */
   update(s: number, t?: number): void {
     const fauna = this.fauna;
@@ -201,10 +291,20 @@ export class FaunaLayer {
     this.viewProjection.mul2(cam.camera!.projectionMatrix, this.view);
     this.frustum.setFromMat4(this.viewProjection);
     const n = beastsAt(fauna, s, this.beasts, t);
+    this.over?.(this.beasts, n);
+    // (The beast the hand is in seen: those of its herd between the eye and it not drawn — Phase 61.)
+    const held =
+        this.heldId === null ? -1 : this.beasts.slice(0, n).findIndex((b) => b.id === this.heldId),
+      between = held >= 0 ? this.between(this.beasts[held]!) : null;
+    this.hidden = 0;
     for (let i = 0; i < n; i++) {
       const b = this.beasts[i]!;
       // (Out of sight, not posed: most of a village's beasts are, looking into it.)
       if (!this.inSight(b.species, b.x, 0, b.z)) continue;
+      if (between && i !== held && between(b)) {
+        this.hidden++;
+        continue;
+      }
       this.draw(b.species, b.x, 0, b.z, b.yaw, b.dead ? 0.35 : 0, b.pose, b.size);
     }
     // The fliers, on their wings; the swimmers, leaping.
@@ -227,8 +327,12 @@ export class FaunaLayer {
     }
     for (const tones of this.tones) for (const g of tones) flush(g);
     // The lit beast's ring, under it and as wide as it is long.
-    const lit = this.lit === null ? undefined : this.beasts[this.lit];
-    this.ring.enabled = !!lit && this.lit! < n;
+    const at =
+        this.heldId !== null
+          ? this.beasts.slice(0, n).findIndex((b) => b.id === this.heldId)
+          : (this.lit ?? -1),
+      lit = at < 0 ? undefined : this.beasts[at];
+    this.ring.enabled = !!lit && at < n;
     if (lit && this.ring.enabled) {
       const b = fauna.species[lit.species]!.body,
         r = Math.max(0.12, b.length * b.k * 0.8);

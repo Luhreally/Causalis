@@ -2961,6 +2961,11 @@ export class VillageScene {
     return this.fauna.pick(x, y);
   }
 
+  /** The beasts about the village (Phase 61: one possessed taken from them as laid, its small world drawn over them). */
+  get faunaLayer(): FaunaLayer {
+    return this.fauna;
+  }
+
   mark(index: number | null): void {
     this.marked = index;
     if (index === null) this.marker.enabled = false;

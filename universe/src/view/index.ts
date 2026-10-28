@@ -694,13 +694,19 @@ export {
   cellMiddle,
   followedLife,
   followBeast,
+  holdMeadow,
+  letGoMeadow,
   meadowAge,
   meadowCellAt,
   meadowCounts,
+  meadowHeld,
   meadowLineages,
+  meadowOffers,
   meadowProspered,
   meadowProsperedWords,
+  meadowStrip,
   meadowWays,
+  membersWords,
   newMeadow,
   stepMeadow,
   touchMeadow,
@@ -708,6 +714,8 @@ export {
   type Carcass,
   type Feed,
   type MeadowAct,
+  type MeadowHand,
+  type MeadowHeldAct,
   type MeadowKind,
   type MeadowState,
   type Shrub,
@@ -931,4 +939,17 @@ export {
   type HandBid,
   type PosedHook,
 } from "./possess.ts";
+export {
+  HAND_FATE_WORDS,
+  fieldBid,
+  fightSecondOf,
+  fightStepOf,
+  foughtBorne,
+  foughtLying,
+  heldFightNow,
+  fightShare,
+  soldierTakeOf,
+} from "./fight.ts";
+export { WILD_GATHER, beastTakeOf, heldBeastsOver } from "./wild.ts";
+export { GORE_MOST, goreAt, gorePieces, looseMotion, type GorePiece } from "./gore.ts";
 export { placeOfMember, struckOf, toldBlows, warManOf, warSlot, type WarSlot } from "./body.ts";

@@ -9,8 +9,10 @@ export class Checkpoint {
     this.report = report;
   }
 
-  save(): Promise<boolean> {
-    if (this.pending) return this.pending;
+  save(fresh = false): Promise<boolean> {
+    // A committed edit needs a snapshot taken after the edit, even if an earlier autosave
+    // was already compressing. Ordinary visibility/timer requests still coalesce.
+    if (this.pending) return fresh ? this.pending.then(() => this.save()) : this.pending;
     this.pending = this.write();
     return this.pending;
   }

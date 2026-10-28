@@ -15,14 +15,22 @@
 import type { BattleSideNear } from "../bridge/index.ts";
 import {
   CUTS_OFF,
+  HURT,
   KILL,
   LETHAL,
   LIMB_KILL,
   MAIM,
   MAIMED_AT,
   NINES,
+  ORDNANCE_KILL,
+  SEVER,
   blowOf,
+  blowPlaceOf as pick,
+  hurtFigures,
+  killShare,
+  placeWeights,
   type Blow,
+  type Striker,
 } from "../rules/index.ts";
 import { armLook, isGun } from "./arms.ts";
 import {
@@ -56,37 +64,27 @@ import {
   type WoundNow,
 } from "./battle.ts";
 import { figureOf, partExtent, type Figure } from "./figure.ts";
+import { gorePieces, looseMotion, type GorePiece } from "./gore.ts";
 
 /** How much of the blood and the wounds is drawn (the viewer's setting): all, less, none. */
 export type Gore = "full" | "less" | "none";
 export const GORES: readonly Gore[] = ["full", "less", "none"];
 
-/** What struck: a hand's blow, an arrow or a dart (they stick), a bullet, a cannon's ball, a shell. */
-export type Striker = "hand" | "arrow" | "dart" | "bullet" | "ball" | "shell";
 /** How a wounded one who lives goes back: crawling, limping, propped on one who helps, slumped in the saddle. */
 export type BackWay = "crawl" | "limp" | "propped" | "slump";
 
 // The rule of nines, what kills on a limb and the head, what cuts off and where it maims: the
 // body's own, rules/anatomy.ts (Phase 55 M226), the same for a battle's blows and a town's wounded.
 export { CUTS_OFF, KILL, LIMB_KILL, MAIMED_AT, NINES };
-/** A cannon's ball and a bursting shell kill as no hand does: on the head, the trunk, a limb. */
-export const ORDNANCE_KILL = {
-  ball: { head: 0.95, trunk: 0.95, limb: 0.4 },
-  shell: { head: 0.95, trunk: 0.8, limb: 0.3 },
-} as const;
+// What struck and what it kills, where a blow lands, the parts cut off and the wounded drawn: the
+// blows track's own rule, rules/blows.ts since Phase 61 (the fight a soldier is possessed in deals
+// its blows by it).
+export { HURT, ORDNANCE_KILL, SEVER, hurtFigures, killShare, placeWeights, type Striker };
 /**
  * A cannon's shot: how long after its firing it strikes (s), the window it may strike in, and the
  * most of the other side's dead to missiles it takes (a ball's share; a shell's, smokeless powder).
  */
 export const BALL = { flight: 0.35, from: 0.1, to: 1.2, share: 0.25, shells: 0.35 } as const;
-/**
- * Of the dead, the share whose struck limb is cut off: by an axe or a sword, a cannon's ball, a
- * shell (at most .45, as the plan's anatomy severs); a head struck so, this share of that (an axe,
- * a sword, a ball). Of a side, at most `most` parts cut off, the dead's and the living's together.
- */
-export const SEVER = { edge: 0.12, ball: 0.45, shell: 0.45, head: 0.35, most: 24 } as const;
-/** The wounded who live drawn: at most this share of a side's figures that do not fall. */
-export const HURT = { most: 0.8 } as const;
 /** How long one wounded stays down on a knee before going back (s, after reeling). */
 export const KNEEL = { least: 1.2, most: 2.4 } as const;
 /**
@@ -112,25 +110,25 @@ export const BACK = {
  */
 export const BLEED = {
   grow: 5,
-  dry: 14,
-  crawlStep: 1,
-  crawlDrops: 8,
-  walkStep: 1.5,
-  walkDrops: 4,
+  dry: 22,
+  crawlStep: 0.7,
+  crawlDrops: 11,
+  walkStep: 1,
+  walkDrops: 6,
   most: 3040,
 } as const;
 /** The blood thrown from a fresh wound: for how long (s), how many drops by what struck. */
 export const SPRAY = {
-  long: 0.6,
-  hand: 7,
-  arrow: 3,
-  dart: 3,
-  bullet: 6,
-  ball: 10,
-  shell: 10,
+  long: 0.9,
+  hand: 12,
+  arrow: 5,
+  dart: 5,
+  bullet: 10,
+  ball: 18,
+  shell: 18,
   /** A stump's: spurting so many drops a beat for so long (s). */
-  stump: 4,
-  pulse: 4,
+  stump: 7,
+  pulse: 6,
 } as const;
 /** How the ranks close up behind one gone back: over how long (s), and who steps up. */
 const CLOSE = 1.6;
@@ -371,76 +369,11 @@ function blowBy(striker: Striker, arm: string | undefined): Blow {
   }
 }
 
-/** Of blows that land on a place, the share that kill. */
-export function killShare(place: BlowPlace, striker: Striker, blow: Blow): number {
-  if (striker === "ball" || striker === "shell") {
-    const k = ORDNANCE_KILL[striker];
-    return place === "head" ? k.head : place === "trunk" ? k.trunk : k.limb;
-  }
-  return place === "head"
-    ? Math.min(KILL.most, LETHAL[blow] * KILL.head)
-    : place === "trunk"
-      ? LETHAL[blow]
-      : LIMB_KILL[blow];
-}
-
-/**
- * The weights of where a blow lands, given its outcome (in BLOW_PLACES' order): the nines, times
- * the share that kills (the dead) or that does not (the wounded who live); a maimed one's, on the
- * limbs alone (an axe's or a sword's by MAIMED_AT).
- */
-export function placeWeights(
-  outcome: "dead" | "wounded" | "maimed",
-  striker: Striker,
-  blow: Blow,
-  cuts: boolean,
-): number[] {
-  return BLOW_PLACES.map((p) => {
-    if (outcome === "maimed") {
-      if (!isLimb(p)) return 0;
-      if (cuts)
-        return p.startsWith("hand")
-          ? MAIMED_AT.hand
-          : p.startsWith("arm")
-            ? MAIMED_AT.arm
-            : MAIMED_AT.leg;
-      return NINES[p];
-    }
-    const k = killShare(p, striker, blow);
-    return NINES[p] * (outcome === "dead" ? k : 1 - k);
-  });
-}
-
-/** A place drawn by its weight (`r` 0 … 1). */
-function pick(weights: readonly number[], r: number): BlowPlace {
-  const total = weights.reduce((a, b) => a + b, 0);
-  let at = r * total;
-  for (let i = 0; i < BLOW_PLACES.length; i++) {
-    at -= weights[i]!;
-    if (at < 0) return BLOW_PLACES[i]!;
-  }
-  return BLOW_PLACES[weights.findLastIndex((w) => w > 0)] ?? "trunk";
-}
-
 /** A wound's look, by what struck and how. */
 function markOf(striker: Striker, blow: Blow): Exclude<WoundMark, "stump"> {
   if (striker === "ball" || striker === "shell") return "smash";
   if (striker !== "hand") return "hole";
   return blow === "edge" ? "cut" : blow === "point" ? "stab" : "bruise";
-}
-
-/**
- * How many of a side's figures are drawn as its wounded who lived: so many for so many men, at most
- * HURT.most of those that may be (its figures that do not fall: the one rule, bridge/roll.ts
- * battleFigures, so the roll names each of them).
- */
-export function hurtFigures(wounded: number, eligible: number, per: number): number {
-  return wounded > 0
-    ? Math.max(
-        0,
-        Math.min(Math.floor(HURT.most * eligible), Math.round(wounded / Math.max(1, per))),
-      )
-    : 0;
 }
 
 /** The side's words, and the other's. */
@@ -910,6 +843,7 @@ export function blowsAt(
     wounds: WoundNow[] = [],
     stuck: StuckNow[] = [],
     limbs: LimbNow[] = [],
+    gibs: GorePiece[] = [],
     dust = base.dust.slice(),
     flashes = base.flashes.slice(),
     hurt: [number, number] = [0, 0];
@@ -997,6 +931,8 @@ export function blowsAt(
         });
       // The blood: under the fallen, or where the wounded knelt, along their way, where they sat.
       bleedOf(field, h, t, now, s, less, gore === "less", blood);
+      if (full && (lost || h.striker === "ball" || h.striker === "shell"))
+        gorePieces(h.id, h.x, h.z, since, h.striker === "ball" || h.striker === "shell", gibs);
     }
     // A ball's dirt thrown up where it struck; a shell's burst.
     if (h.striker === "ball" && since < 0.8)
@@ -1045,28 +981,25 @@ export function blowsAt(
       };
     }
   // (As much blood as is drawn: the parts cut off keep theirs.)
-  if (blood.length > BLEED.most - 2 * SEVER.most) blood.length = BLEED.most - 2 * SEVER.most;
+  const room = BLEED.most - (full ? b.loose.length : 0);
+  if (blood.length > room) blood.length = room;
   // The parts cut off: flying, then lying in their own blood.
   if (full)
     for (const l of b.loose) {
       const h = b.hits[l.hit]!;
       if (s < h.at) continue;
-      const f = Math.min(1, (s - h.at) / l.flight);
+      const age = s - h.at;
       limbs.push({
         id: h.id,
         side: h.side,
         lost: h.lost!,
-        x: h.x + (l.x - h.x) * f,
-        y: l.arc * 4 * f * (1 - f),
-        z: h.z + (l.z - h.z) * f,
-        yaw: l.yaw,
-        pitch: Math.PI / 2 + l.spin * (f - 1),
+        ...looseMotion(h.x, h.z, l.x, l.z, age, l.flight, l.arc, l.yaw, l.spin),
       });
-      if (f >= 1)
+      if (age >= l.flight)
         blood.push({
-          x: l.x,
-          z: l.z,
-          r: (0.22 + 0.12 * unit(h.id, 140)) * smooth((s - h.at - l.flight) / 3),
+          x: h.x + (l.x - h.x) * 1.18,
+          z: h.z + (l.z - h.z) * 1.18,
+          r: (0.32 + 0.18 * unit(h.id, 140)) * smooth((s - h.at - l.flight) / 3),
         });
     }
   return {
@@ -1079,6 +1012,7 @@ export function blowsAt(
     wounds,
     stuck,
     limbs,
+    gibs,
     hurt,
   };
 }

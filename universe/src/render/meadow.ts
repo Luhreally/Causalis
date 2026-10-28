@@ -3,7 +3,8 @@
 // eaten down; its woods in leaf or bare; its pool; the fallen where they lie — and its beasts, each
 // lineage drawn from its own body in its coat as the village draws its beasts, posed afresh every
 // frame from the meadow the view keeps: grazing heads down, walking, running, stalking low; fliers
-// up when they go, swimmers in the pool; a ring about the one followed.
+// up when they go, swimmers in the pool; a ring about the one followed (not about one walked in, the
+// eye behind it marking it: Phase 61).
 import * as pc from "playcanvas";
 import type { BeastPlan } from "../bridge/index.ts";
 import {
@@ -30,6 +31,119 @@ import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 /** Units a metre of the meadow, as the village's. */
 const M = 0.1;
 const FLOATS = 8;
+/** How high a flier is drawn above the ground as it goes (m; the eye behind one walked in rises with it). */
+export const FLIER_UP = 5;
+/** How high a beast is drawn above the ground (units): a flier as it goes, else none (its wings' beat aside). */
+function drawnUp(s: MeadowState, b: MeadowState["beasts"][number]): number {
+  return s.kinds[b.kind]!.flies && beastPose(s, b).gait > 0 ? FLIER_UP * M : 0;
+}
+
+/** A beast of the meadow and its lineage, as drawn. */
+type Kind = MeadowState["kinds"][number];
+type Beast = MeadowState["beasts"][number];
+/** How grown a beast is drawn (the young smaller, grown as they age). */
+const grownOf = (k: Kind, b: Beast) => 0.55 + 0.45 * Math.min(1, b.age / Math.max(1, k.grown));
+/** How high a beast is drawn as it holds itself now (units): a flier up as it goes, its wings beating; a swimmer at the pool's top. */
+const upOf = (k: Kind, b: Beast, gait: number) =>
+  k.flies && gait > 0 ? FLIER_UP * M + 0.08 * Math.sin(b.phase * 6) : k.feed === "swim" ? 0.01 : 0;
+/** How high a body's belly hangs (m, as the poser hangs it: a crawler low, a flier or a swimmer none). */
+const bellyOf = (b: Built) =>
+  b.plan.moves === "fly" || b.plan.moves === "swim" ? 0 : b.plan.legs >= 6 ? b.leg * 0.55 : b.leg;
+
+/** A beast's place and body as drawn (units): where it stands, which way it faces, how high, how grown. */
+export type Sighted = {
+  readonly x: number;
+  readonly z: number;
+  readonly heading: number;
+  readonly up: number;
+  readonly body: Built;
+  readonly grow: number;
+};
+/** Whether a beast as drawn (units, as `Sighted`) stands in the eye's sight of the one walked in. */
+export type InSight = (
+  x: number,
+  z: number,
+  heading: number,
+  up: number,
+  body: Built,
+  grow: number,
+) => boolean;
+
+// (What is left of a line, 0 … 1, as each of a body's slabs narrows it: the scratch of `crosses`.)
+let LO = 0,
+  HI = 1;
+/** The line's part within a slab of a body (its start `e`, its run `d` across it), narrowed from what was left. */
+function slab(e: number, d: number, min: number, max: number): boolean {
+  if (Math.abs(d) < 1e-12) return e >= min && e <= max;
+  const t0 = (min - e) / d,
+    t1 = (max - e) / d;
+  LO = Math.max(LO, Math.min(t0, t1));
+  HI = Math.min(HI, Math.max(t0, t1));
+  return LO <= HI;
+}
+
+/**
+ * Whether a beast hides the one walked in (Phase 61: it always seen, as a town's beasts are,
+ * render/fauna.ts; all in units): its drawn bounds — nose to rump, flank to flank, from where it is
+ * drawn to its back, and a third of the held one's height about — cross a line from the eye to the
+ * held one's feet, middle, head end or rump; or hold the eye, or all but (it would look out from
+ * inside a body).
+ */
+export function sightOf(
+  eye: { readonly x: number; readonly y: number; readonly z: number },
+  held: Sighted,
+): InSight {
+  const hb = held.body,
+    hu = hb.k * held.grow,
+    mid = held.up + (bellyOf(hb) + hb.height / 2) * hu,
+    fx = Math.sin(held.heading),
+    fz = Math.cos(held.heading),
+    front = (hb.length * 0.5 + hb.neck * 0.7 + hb.head * 0.5) * hu,
+    rump = hb.length * 0.45 * hu,
+    margin = hb.height * hu * 0.3,
+    // (Its feet, middle, head end and rump, from the eye.)
+    ends = [
+      [held.x, held.up + 0.005, held.z],
+      [held.x, mid, held.z],
+      [held.x + fx * front, mid, held.z + fz * front],
+      [held.x - fx * rump, mid, held.z - fz * rump],
+    ].map(([x, y, z]) => [x! - eye.x, y! - eye.y, z! - eye.z] as const);
+  return (x, z, heading, up, body, grow) => {
+    const u = body.k * grow,
+      sh = Math.sin(heading),
+      ch = Math.cos(heading),
+      ahead = (body.length * 0.5 + body.neck * 0.7 + body.head) * u + margin,
+      behind = (body.length * 0.5 + body.tail * 0.3) * u + margin,
+      side = body.width * 0.5 * u + margin,
+      low = up - margin,
+      high = up + (bellyOf(body) + body.height + body.head * 0.5) * u + margin,
+      pad = (high - low) * 0.25,
+      // (The eye in the beast's own frame: along it, across it.)
+      ax = eye.x - x,
+      az = eye.z - z,
+      ea = ax * sh + az * ch,
+      ec = ax * ch - az * sh;
+    if (
+      ea > -behind - pad &&
+      ea < ahead + pad &&
+      Math.abs(ec) < side + pad &&
+      eye.y > low - pad &&
+      eye.y < high + pad
+    )
+      return true;
+    for (const [dx, dy, dz] of ends) {
+      LO = 0;
+      HI = 1;
+      if (
+        slab(ea, dx * sh + dz * ch, -behind, ahead) &&
+        slab(ec, dx * ch - dz * sh, -side, side) &&
+        slab(eye.y, dy, low, high)
+      )
+        return true;
+    }
+    return false;
+  };
+}
 
 /** How tall a cell's grass is drawn (units), as long as it stands (0 … 1): what lies on it lies on this. */
 export function grassDrawn(g: number): number {
@@ -147,6 +261,10 @@ export class MeadowScene {
   private seasonSeen = "";
   private grownAt = 0;
   private detail = 2;
+  /** The eye in the meadow's own units, and how many beasts hid the one walked in this frame (not drawn). */
+  private readonly inverse = new pc.Mat4();
+  private readonly eyeAt = new pc.Vec3();
+  private hidden = 0;
 
   constructor(stage: Stage) {
     this.stage = stage;
@@ -245,22 +363,42 @@ export class MeadowScene {
     }
     for (const d of this.drawn.values()) for (const t of d.tones) t.n = 0;
     let lit: { x: number; z: number; r: number } | null = null;
+    // (The one walked in always seen: a beast between the eye and it, or about the eye, not drawn —
+    // Phase 61.)
+    const me = s.hand ? s.beasts.find((b) => b.id === s.hand!.id) : undefined,
+      mine = me && this.drawn.get(s.kinds[me.kind]!.ref),
+      sight =
+        me && mine
+          ? sightOf(
+              this.inverse
+                .copy(this.root.getWorldTransform())
+                .invert()
+                .transformPoint(this.stage.camera.getPosition(), this.eyeAt),
+              {
+                x: me.x * M,
+                z: me.z * M,
+                heading: me.heading,
+                up: upOf(s.kinds[me.kind]!, me, beastPose(s, me).gait),
+                body: mine.body,
+                grow: grownOf(s.kinds[me.kind]!, me),
+              },
+            )
+          : null;
+    this.hidden = 0;
     for (const b of s.beasts) {
       const k = s.kinds[b.kind]!,
         d = this.drawn.get(k.ref);
       if (!d) continue;
       const pose = beastPose(s, b),
-        n = posed(d.body, pose, this.parts),
-        // (The young smaller, grown as they age.)
-        grow = 0.55 + 0.45 * Math.min(1, b.age / Math.max(1, k.grown)),
+        grow = grownOf(k, b),
+        up = upOf(k, b, pose.gait);
+      if (sight && b !== me && sight(b.x * M, b.z * M, b.heading, up, d.body, grow)) {
+        this.hidden++;
+        continue;
+      }
+      const n = posed(d.body, pose, this.parts),
         c = Math.cos(b.heading),
-        sn = Math.sin(b.heading),
-        up =
-          k.flies && pose.gait > 0
-            ? 0.5 + 0.08 * Math.sin(b.phase * 6)
-            : k.feed === "swim"
-              ? 0.01
-              : 0;
+        sn = Math.sin(b.heading);
       for (let q = 0; q < n; q++) {
         const p = this.parts[q]!,
           t = d.tones[p.tone]!;
@@ -276,7 +414,8 @@ export class MeadowScene {
         a[o + 6] = b.heading + p.yaw;
         a[o + 7] = p.pitch;
       }
-      if (b.id === s.chosen) lit = { x: b.x * M, z: b.z * M, r: (k.length * M) / 2 + 0.08 };
+      if (b.id === s.chosen && s.hand?.id !== b.id)
+        lit = { x: b.x * M, z: b.z * M, r: (k.length * M) / 2 + 0.08 };
     }
     for (const d of this.drawn.values())
       for (const t of d.tones) {
@@ -408,7 +547,7 @@ export class MeadowScene {
       bd = reach * reach;
     for (const b of s.beasts) {
       const k = s.kinds[b.kind]!;
-      p.set(b.x * M, k.length * M * 0.25 + (k.flies && b.speed > 0 ? 0.5 : 0), b.z * M);
+      p.set(b.x * M, k.length * M * 0.25 + drawnUp(s, b), b.z * M);
       cam.worldToScreen(p, out);
       const d = (out.x - x) ** 2 + (out.y - y) ** 2;
       if (out.z > 0 && d < bd) {
@@ -425,9 +564,32 @@ export class MeadowScene {
     if (!b) return null;
     const k = s.kinds[b.kind]!,
       out = this.stage.camera.camera!.worldToScreen(
-        new pc.Vec3(b.x * M, k.length * M * 0.25, b.z * M),
+        new pc.Vec3(b.x * M, k.length * M * 0.25 + drawnUp(s, b), b.z * M),
       );
     return out.z > 0 ? { x: out.x, y: out.y } : null;
+  }
+
+  /**
+   * How large a lineage's beast is drawn, grown (m, as the eye behind one walked in reckons them:
+   * its height on its legs, half its length from nose to tail, or a flier's wings' half span,
+   * whichever is the most; Phase 61); null: not drawn.
+   */
+  sizeOf(ref: string): number | null {
+    const b = this.drawn.get(ref)?.body;
+    return b
+      ? (Math.max(
+          b.leg + b.height,
+          0.5 * (b.length + b.neck + b.head + b.tail),
+          b.plan.wings ? b.width / 2 + 1.4 * b.length : 0,
+        ) *
+          b.k) /
+          M
+      : null;
+  }
+
+  /** How many beasts hid the one walked in this frame, not drawn (the look tools). */
+  get cleared(): number {
+    return this.hidden;
   }
 
   /** Parts drawn of the beasts in all (the look tools). */

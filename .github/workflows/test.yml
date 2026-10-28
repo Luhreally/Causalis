@@ -108,18 +108,18 @@ jobs:
       fail-fast: false
       matrix:
         gates:
-          - 7 15 42 52
-          - 8 19 46 55
-          - 9 13 32 33 48
-          - 10 24 34 44
-          - 11 14 17 26 45
-          - 12 27 28 43 55b
-          - 18 25 29 30 50
-          - 20 38 40 53 56
-          - 21 31 51
-          - 35 39 41
-          - 36 49 60
-          - 37 47 54 57
+          - 7 18 32 37 46
+          - 8 24 34 61
+          - 9 20 26 30 36 38
+          - 10 21 53 54
+          - 11 29 31 55
+          - 12 14 19 33 55b
+          - 13 25 41 43 56
+          - 15 40 45 48 58
+          - 17 42 60
+          - 27 28 49 50 57
+          - 35 47 51 62
+          - 39 44 52
     defaults:
       run:
         working-directory: universe
@@ -167,6 +167,10 @@ jobs:
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
       - run: npm run stability-check
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
+      - run: npm run body-check
+      - run: npm run gore-check
         env:
           LIBGL_ALWAYS_SOFTWARE: 1
       # CI runners are about half as fast as the reference machine: 2× here is its 4×.

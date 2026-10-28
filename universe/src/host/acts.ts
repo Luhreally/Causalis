@@ -100,6 +100,35 @@ export function actsMap(world: World): ActsMap {
     });
   }
   // The craters meteors left, for ever.
+  for (const stroke of homePlanet(world).brushStrokes().slice(-32)) {
+    if (stroke.t > now || now >= stroke.t + ACT_SHOWN) continue;
+    const kinds: Record<string, ActKindShown> = {
+      raise: "quake",
+      lower: "quake",
+      water: "spring",
+      drain: "drought",
+      life: "bounty",
+      ore: "inspiration",
+      lightning: "lightning",
+      claim: "conversion",
+    };
+    // One marker per province keeps a long stroke cheap at every zoom level.
+    for (const cell of stroke.provinces.slice(0, 24)) {
+      const at = landAt(cell);
+      if (at)
+        out.push({
+          kind: kinds[stroke.kind] ?? "inspiration",
+          at,
+          to: null,
+          color: null,
+          left: 1 - (now - stroke.t) / ACT_SHOWN,
+          event: stroke.event,
+          cell,
+          town: null,
+          from: stroke.t,
+        });
+    }
+  }
   for (const c of actsOf(world).craters()) {
     const at = landAt(c.cell);
     if (at)

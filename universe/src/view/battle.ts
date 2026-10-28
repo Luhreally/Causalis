@@ -11,6 +11,7 @@
 // (so many figures for so many men). Pure: the same moment of a battle always looks the same.
 // Metres on the field, x from the attackers' side (−) to the defenders' (+), z across.
 import type { BattleNear } from "../bridge/index.ts";
+import { BLOW_PLACES, type BlowPlace } from "../rules/index.ts";
 import { armLook, isGun, type Stroke } from "./arms.ts";
 import { cellMiddle, type MeadowState } from "./meadow.ts";
 
@@ -92,20 +93,10 @@ export type Act =
   | "slump"
   | "help";
 
-/** Where a blow lands (Phase 55): the rule of nines' places, each arm's hand apart. */
-export type BlowPlace =
-  "head" | "trunk" | "arm-l" | "arm-r" | "hand-l" | "hand-r" | "leg-l" | "leg-r";
-/** The places, in order (each one's bit in the render's masks is 1 << its index). */
-export const BLOW_PLACES: readonly BlowPlace[] = [
-  "head",
-  "trunk",
-  "arm-l",
-  "arm-r",
-  "hand-l",
-  "hand-r",
-  "leg-l",
-  "leg-r",
-];
+// Where a blow lands (Phase 55): the rule of nines' places, each arm's hand apart, in order (each
+// one's bit in the render's masks is 1 << its index). Since Phase 61 rules/blows.ts's, where the
+// fight the hand takes a soldier into deals its blows by them.
+export { BLOW_PLACES, type BlowPlace };
 /**
  * The parts of a figure each place is made of (indices into its parts), and the part its wounds
  * are drawn on (−1: none): view/blows.ts's figureAnatomy.
@@ -378,6 +369,8 @@ export type TrooperNow = {
 };
 
 export type BattleNow = {
+  /** Fragments from severing blows and blasts (full gore only), in field metres. */
+  readonly gibs?: readonly import("./gore.ts").GorePiece[];
   readonly s: number;
   readonly troopers: readonly TrooperNow[];
   /** Arrows in flight: where, which way along (yaw) and up (pitch). */

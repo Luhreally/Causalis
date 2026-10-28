@@ -22,6 +22,7 @@ import {
   clothes,
   coatOf,
   figureOf,
+  figureAnatomy,
   figurePaint,
   hairOf,
   houseLook,
@@ -360,7 +361,7 @@ function toolOf(occupation: number, hand: V3): Solid[] {
  * hinge; a limb held as the wound holds it (in a sling, on a crutch, stiff); linen bound about a
  * wound; a patch, a sling, a crutch, a scar. No tool in a hand that is gone, held or on a crutch.
  */
-export function personSolids(p: Extract<Portrait, { kind: "person" }>): Solid[] {
+export function personSolids(p: Extract<Portrait, { kind: "person" }>, anatomy = false): Solid[] {
   const figure = figureOf(p.body, 3),
     group = p.child ? 3 : p.occupation === 6 ? 2 : p.occupation === 4 || p.occupation === 5 ? 1 : 0,
     wear = clothes(p.era, group),
@@ -369,7 +370,9 @@ export function personSolids(p: Extract<Portrait, { kind: "person" }>): Solid[] 
     scale = p.child ? 0.7 : 1,
     gear = p.look && looksHurt(p.look) ? woundGear(figure, p.look) : null,
     // (The arm that holds their tool, and whether it can.)
-    arm = figure.parts.findIndex((q) => q.role === "arm" && q.x > 0),
+    arm = p.equipment
+      ? figureAnatomy(figure).on["arm-r"]
+      : figure.parts.findIndex((q) => q.role === "arm" && q.x > 0),
     holds =
       arm >= 0 &&
       !p.child &&
@@ -409,19 +412,24 @@ export function personSolids(p: Extract<Portrait, { kind: "person" }>): Solid[] 
       sz: e[2] * scale,
       yaw: 0,
       pitch,
-      color: paint.folk
-        ? q.tone === 3
-          ? hair
-          : paint.tones[q.tone]
-        : q.tone === 2
-          ? SKIN
-          : q.tone === 3
-            ? hair
-            : q.tone === 4
-              ? EYES
-              : q.tone
-                ? wear.legs
-                : wear.body,
+      color:
+        anatomy && q.tone <= 1
+          ? paint.folk
+            ? paint.tones[2]
+            : SKIN
+          : paint.folk
+            ? q.tone === 3
+              ? hair
+              : paint.tones[q.tone]
+            : q.tone === 2
+              ? SKIN
+              : q.tone === 3
+                ? hair
+                : q.tone === 4
+                  ? EYES
+                  : q.tone
+                    ? wear.legs
+                    : wear.body,
     });
   });
   if (gear) {
@@ -458,13 +466,127 @@ export function personSolids(p: Extract<Portrait, { kind: "person" }>): Solid[] 
       });
   }
   const tool = arm >= 0 ? figure.parts[arm]! : undefined;
-  if (tool && holds) {
+  if (tool && holds && !anatomy && !p.equipment) {
     const hand: V3 = [
       tool.x * scale,
       (tool.y - tool.sy * 0.45) * scale,
       (tool.z + tool.sy * 0.25) * scale,
     ];
     solids.push(...toolOf(p.occupation, hand));
+  }
+  if (p.equipment && !anatomy) {
+    const kit = p.equipment,
+      a = figureAnatomy(figure),
+      torso = figure.parts[a.on.trunk],
+      head = figure.parts[a.on.head],
+      metal = kit.color,
+      box = (
+        x: number,
+        y: number,
+        z: number,
+        sx: number,
+        sy: number,
+        sz: number,
+        color: Rgb,
+        pitch = 0,
+      ) =>
+        solids.push({
+          x: x * scale,
+          y: y * scale,
+          z: z * scale,
+          sx: sx * scale,
+          sy: sy * scale,
+          sz: sz * scale,
+          color,
+          pitch,
+          yaw: 0,
+        });
+    if (torso && ["leather", "scale", "mail", "plate"].includes(kit.guard)) {
+      const e = partExtent(torso),
+        tone: Rgb = kit.guard === "leather" ? [0.4, 0.23, 0.12] : metal;
+      box(torso.x, torso.y, torso.z, e[0] * 1.15, e[1] * 1.05, e[2] * 1.2, tone);
+      // Individual rows of scales or mail, straps on hide, and seams on plate read at phone size.
+      for (let row = 0; row < (kit.guard === "plate" ? 2 : 6); row++) {
+        const y = torso.y + e[1] * (0.4 - row * (kit.guard === "plate" ? 0.55 : 0.15));
+        for (let col = 0; col < (kit.guard === "scale" || kit.guard === "mail" ? 5 : 1); col++) {
+          const x = torso.x + (col - 2) * e[0] * 0.19;
+          box(
+            kit.guard === "scale" || kit.guard === "mail" ? x : torso.x,
+            y,
+            torso.z + e[2] * 0.62,
+            e[0] * (kit.guard === "scale" || kit.guard === "mail" ? 0.17 : 0.95),
+            e[1] * 0.035,
+            0.015,
+            [tone[0] * 0.6, tone[1] * 0.6, tone[2] * 0.6],
+          );
+        }
+      }
+      if (kit.guard === "plate")
+        for (const q of figure.parts.filter((q) => q.role === "arm")) {
+          const e = partExtent(q),
+            k = figure.parts.indexOf(q);
+          if (gear && gear.keep[k]! <= 0.4) continue;
+          box(q.x, q.y + e[1] * 0.28, q.z, e[0] * 1.4, e[1] * 0.4, e[2] * 1.35, metal);
+        }
+    }
+    if (
+      head &&
+      !p.look?.lost.includes("head") &&
+      ["scale", "mail", "plate", "helmet"].includes(kit.guard)
+    ) {
+      const e = partExtent(head);
+      box(
+        head.x,
+        head.y + e[1] * 0.28,
+        head.z,
+        e[0] * (kit.guard === "helmet" ? 1.5 : 1.2),
+        e[1] * 0.55,
+        e[2] * 1.2,
+        metal,
+      );
+      if (kit.guard === "plate")
+        box(head.x, head.y, head.z + e[2] * 0.56, e[0] * 1.05, e[1] * 0.36, 0.045, metal);
+    }
+    const shieldArm = figure.parts[a.on["arm-l"]];
+    if (
+      kit.guard === "shield" &&
+      shieldArm &&
+      !p.look?.lost.some((m) => m === "arm-l" || m === "hand-l")
+    ) {
+      box(
+        shieldArm.x + 0.12,
+        shieldArm.y - 0.12,
+        shieldArm.z + 0.16,
+        0.42,
+        0.65,
+        0.07,
+        [0.38, 0.26, 0.14],
+      );
+      box(shieldArm.x + 0.12, shieldArm.y - 0.12, shieldArm.z + 0.205, 0.12, 0.12, 0.06, metal);
+    }
+    if (tool && holds && !["none", "fist", "claws", "teeth"].includes(kit.arm)) {
+      const x = tool.x,
+        y = tool.y - partExtent(tool)[1] * 0.3,
+        z = tool.z + 0.2;
+      if (kit.arm.includes("bow")) {
+        box(x, y, z, 0.045, 0.85, 0.04, [0.46, 0.3, 0.13], -0.15);
+        box(x, y, z + 0.1, 0.012, 0.8, 0.012, [0.8, 0.77, 0.63]);
+      } else if (["spear", "axe", "club", "sword"].includes(kit.arm)) {
+        box(x, y, z, 0.045, kit.arm === "spear" ? 1.35 : 0.7, 0.045, [0.42, 0.27, 0.13]);
+        box(
+          x,
+          y + (kit.arm === "spear" ? 0.68 : 0.37),
+          z,
+          kit.arm === "axe" ? 0.2 : 0.065,
+          kit.arm === "sword" ? 0.5 : 0.18,
+          0.05,
+          metal,
+        );
+      } else {
+        box(x, y, z, 0.075, 0.12, 0.75, [0.3, 0.23, 0.16], -0.35);
+        box(x, y + 0.02, z + 0.3, 0.04, 0.04, 0.7, metal, -0.35);
+      }
+    }
   }
   return solids;
 }

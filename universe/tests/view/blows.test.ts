@@ -275,7 +275,7 @@ test("every one who falls is struck, and history's wounded and maimed are drawn 
   assert.deepEqual(newBlows(BLADES()), b);
 });
 
-test("the blows of a battle are its own (recorded 2026-10-26 with rules/wounds.ts's LETHAL and MAIM then)", () => {
+test("the blows of a battle are its own (recorded with the fuller severing pass, 2026-10-27)", () => {
   const recorded =
     JSON.stringify(LETHAL) ===
       JSON.stringify({
@@ -288,10 +288,10 @@ test("the blows of a battle are its own (recorded 2026-10-26 with rules/wounds.t
       }) &&
     JSON.stringify(MAIM) ===
       JSON.stringify({ edge: 0.1, point: 0.06, blunt: 0.04, shot: 0.14, crush: 0.12, fire: 0.03 });
-  // (Tuned since: the places move; re-record from the failure's actual digest.)
+  // (The fuller severing pass changes the dead's loose parts; outcomes and wound totals stay pinned above.)
   if (!recorded) return;
-  assert.equal(digest(rounded(newBlows(BLADES()))), "8ff317f9");
-  assert.equal(digest(rounded(newBlows(GUNS()))), "aeb522cf");
+  assert.equal(digest(rounded(newBlows(BLADES()))), "5d0553c8");
+  assert.equal(digest(rounded(newBlows(GUNS()))), "58ba602f");
 });
 
 test("arrows stick where they strike; a cannon's ball and a shell knock men off their feet", () => {
@@ -385,11 +385,12 @@ test("a battle bled white shows no more blood than is drawn, each part cut off k
     end = blowsAt(f, b, battleAt(f, BATTLE_LENGTH), "full");
   assert.equal(f.per, 1);
   // (The wounded as the one rule has them, bridge/roll.ts battleFigures: four in five of those standing.)
-  assert.deepEqual([b.dead, b.hurt, b.loose.length], [[100, 120], [208, 192], 2 * SEVER.most]);
+  assert.deepEqual([b.dead, b.hurt, b.loose.length], [[100, 120], [208, 192], 78]);
+  assert.ok(b.loose.length <= 2 * SEVER.most);
   assert.equal(end.blood.length, BLEED.most);
   // (The last, under the parts cut off where they lie.)
   const under = end.blood.slice(BLEED.most - b.loose.length);
-  assert.ok(under.every((p, i) => p.x === b.loose[i]!.x && p.z === b.loose[i]!.z));
+  assert.ok(under.every((p, i) => p.x === end.limbs![i]!.x && p.z === end.limbs![i]!.z));
 });
 
 test("less shows smaller wounds and nothing cut off; none shows no blood at all, the wounded still going back", () => {

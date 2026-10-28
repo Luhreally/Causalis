@@ -405,6 +405,15 @@ export type MadeHow =
  * lineage's body, a person's figure in their clothes with their tools and hair, a town's
  * houses, a world, a star's light, a realm's flag (a war's two), a faith's sign.
  */
+export type PersonEquipment = {
+  readonly guard: string;
+  readonly guardWords: string;
+  readonly arm: string;
+  readonly armWords: string;
+  readonly color: readonly [number, number, number];
+  readonly year: number;
+};
+
 export type Portrait =
   | {
       readonly kind: "creature";
@@ -423,6 +432,8 @@ export type Portrait =
       readonly body: VillagePlan["body"];
       /** How their wounds show now (Phase 55 M226; absent: none). */
       readonly look?: WoundLook;
+      /** The actual kit recorded for this person's battle, including an explicit lack of armor. */
+      readonly equipment?: PersonEquipment;
     }
   | {
       readonly kind: "town";

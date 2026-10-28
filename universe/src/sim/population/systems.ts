@@ -166,7 +166,7 @@ export function hallsShare(ctx: PopulationContext, cell: number): number {
     const s = starSitesOf(ctx.world)?.get(cell);
     return s ? (s.arrived ? s.there : s.aboard) : 0;
   }
-  const key = `${ctx.generated.digest}:${cell}`;
+  const key = `${homePlanet(ctx.world).surfaceKey}:${cell}`;
   let share = HALLS.get(key);
   if (share === undefined) {
     const g = ctx.generated,
@@ -304,7 +304,7 @@ export function populationContext(world: World): PopulationContext {
 // Capacities and regions are pure functions of the generated world: kept, never saved.
 const CAPACITIES = new Map<string, Capacity>();
 export function provinceCapacity(ctx: PopulationContext, cell: number): Capacity {
-  const key = `${ctx.generated.digest}:${ctx.medium}:${cell}`;
+  const key = `${homePlanet(ctx.world).surfaceKey}:${ctx.medium}:${cell}`;
   let c = CAPACITIES.get(key);
   if (!c) {
     if (CAPACITIES.size > 50_000) CAPACITIES.clear();
@@ -315,7 +315,7 @@ export function provinceCapacity(ctx: PopulationContext, cell: number): Capacity
 const LIVABLE = new Map<string, boolean>();
 /** Whether the people can live in a place (a pure function of the generated world: kept, never saved). */
 export function livableFor(ctx: PopulationContext, cell: number): boolean {
-  const key = `${ctx.generated.digest}:${ctx.medium}:${cell}`;
+  const key = `${homePlanet(ctx.world).surfaceKey}:${ctx.medium}:${cell}`;
   let ok = LIVABLE.get(key);
   if (ok === undefined) {
     if (LIVABLE.size > 50_000) LIVABLE.clear();
@@ -336,11 +336,11 @@ export function provinceOfTile(ctx: PopulationContext, r: Region, tile: number):
 }
 /** Whether a province's region is refined already (regions are pure: refining early changes nothing). */
 export function regionReady(ctx: PopulationContext, cell: number): boolean {
-  return REGIONS.has(`${ctx.generated.digest}:${cell}`);
+  return REGIONS.has(`${homePlanet(ctx.world).surfaceKey}:${cell}`);
 }
 
 export function regionOf(ctx: PopulationContext, cell: number): Region {
-  const key = `${ctx.generated.digest}:${cell}`;
+  const key = `${homePlanet(ctx.world).surfaceKey}:${cell}`;
   let r = REGIONS.get(key);
   if (!r) {
     if (REGIONS.size >= 64) REGIONS.delete(REGIONS.keys().next().value!);
@@ -1352,7 +1352,7 @@ type SiteBlocks = {
 };
 const SITE_BLOCKS = new Map<string, SiteBlocks>();
 function siteBlocks(ctx: PopulationContext, cell: number): SiteBlocks {
-  const key = `${ctx.generated.digest}:${cell}`;
+  const key = `${homePlanet(ctx.world).surfaceKey}:${cell}`;
   let blocks = SITE_BLOCKS.get(key);
   // Halls on another world have no ground of villages to choose among.
   if (!blocks && offworldSite(ctx.generated, cell))
@@ -1402,7 +1402,7 @@ function siteOf(ctx: PopulationContext, v: Settlement): number {
 
 /** Whether a land's village sites are known already (they are pure: knowing them early changes nothing). */
 export function sitesReady(ctx: PopulationContext, cell: number): boolean {
-  return SITE_BLOCKS.has(`${ctx.generated.digest}:${cell}`);
+  return SITE_BLOCKS.has(`${homePlanet(ctx.world).surfaceKey}:${cell}`);
 }
 /** Work out a land's village sites ahead of need. */
 export function prepareSites(ctx: PopulationContext, cell: number): void {
@@ -1421,7 +1421,7 @@ function chooseSite(
   t: SimTime,
 ): { tile: number; score: number } | null {
   // A land whose region had no room for another village has none while its villages are the same.
-  const full = `${ctx.generated.digest}:${cell}:${taken.length}`;
+  const full = `${homePlanet(ctx.world).surfaceKey}:${cell}:${taken.length}`;
   if (FULL.has(full)) return null;
   const { tiles, scores, order } = siteBlocks(ctx, cell),
     size = REGION_SIZE;

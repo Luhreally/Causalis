@@ -345,7 +345,8 @@ const ACTS: Readonly<Record<string, PaletteAct>> = {
     choose: "tenet",
   },
   curse: { id: "curse", icon: "🌑", name: "Curse a realm", target: "realm", command: "act.curse" },
-  // The god's hand made flesh (Phase 60): one of the people of the town the hand rests on, walked in.
+  // The god's hand made flesh (Phase 60): one of the people of the town the hand rests on, walked in;
+  // one of the men of a battle fought before a town, a beast about it (Phase 61).
   possess: {
     id: "possess",
     icon: "🫳",
@@ -801,7 +802,8 @@ export class GodPalette {
       case "person":
         return town
           ? {
-              words: "touch one of its people: you will walk in their body",
+              words:
+                "touch one of its people, a man of a battle fought before it, or a beast: you will walk in their body",
               args: { town },
             }
           : { words: "go down into a town to touch one of its people", args: null };

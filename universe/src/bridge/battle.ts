@@ -84,4 +84,18 @@ export type BattleNear = {
   /** The world's people's figure (their look, Phase 34), and the land's ground as it is now. */
   readonly figure: NonNullable<GenesisPlan["people"]>["figure"] | null;
   readonly plan: MeadowPlan;
+  /**
+   * The god fought in it in a soldier's body (Phase 61; absent: history's alone): it is told as history
+   * had it before him and laid at the figures a side he was taken at, its figures drawn as his fight
+   * moved them (`held.fought`) — who he was, his figure, his side, the world's moment he was taken,
+   * and how the day went for his side.
+   */
+  readonly hand?: {
+    readonly name: string;
+    readonly figure: number;
+    readonly side: 0 | 1;
+    readonly most: number;
+    readonly from: number;
+    readonly won: boolean;
+  };
 };

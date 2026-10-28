@@ -223,6 +223,8 @@ export const GATES: readonly Gate[] = [
   // methane world's amber woods and its dawn fed by the haze; a lifeless world's bare ground; Earth
   // as it was, and bread at its mill).
   { gate: 57, args: ["--ci"], s: 480 },
+  // The culture's names for materials, switched and remembered at phone size.
+  { gate: 58, args: [], s: 90 },
   // Phase 60 (one of a town's people possessed, the god's hand made flesh: refused in plain words
   // where the hand does not rest; a smith of the greatest town taken from the palette, walked to his
   // forge by the keys and set to it until a plough share is made, his and the town's; a word to one
@@ -231,6 +233,17 @@ export const GATES: readonly Gate[] = [
   // stick and the acts, turned on its side; the save replayed from the seed to the same world.
   // WebKit's touch run and the phone's frames: locally).
   { gate: 60, args: ["--ci"], s: 900 },
+  // Phase 61 (the god's hand in any body: at a desk, a soldier of a battle of the year before laid
+  // before its land's heart town, taken from the palette as it is fought, his strip his arm and the
+  // battle's tally, brought to the foe and struck at until one falls, the fallen named; let go, the
+  // chronicle, the battle's record and his page telling it, the world going on from the hand's day;
+  // one of a town's flock grazed and run from its herd until it strays, lost to it; the same at a
+  // phone's size by touch, turned on its side; an age's living world, one of its beasts walked in,
+  // eaten, steered and let go; the save replayed from the seed to the same world. WebKit's touch run
+  // and the phone's frames: locally).
+  { gate: 61, args: ["--ci"], s: 700 },
+  // God brushes: touch painting, Undo, multi-touch cancellation, confirmation and save recovery.
+  { gate: 62, args: [], s: 120 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */

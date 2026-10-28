@@ -30,6 +30,7 @@ import {
   localWorld,
   copyLocal,
   moodAt,
+  personFrame,
   stepLocal,
   woundCare,
   type HandDeed,
@@ -38,12 +39,14 @@ import {
   type LocalDraw,
   type LocalScene,
   type LocalWorld,
+  type PersonFrame,
   type WorkPlace,
 } from "../../rules/index.ts";
 import { row } from "../population/model.ts";
 import { marketsOf, type PopulationContext } from "../population/systems.ts";
 import { loreOf } from "../lore/lore.ts";
 import { agentName } from "../acts/local.ts";
+import { installHeld } from "./held.ts";
 import {
   GONE_KEPT,
   bandOfAge,
@@ -178,7 +181,7 @@ export function agentById(w: Window, id: number): Agent | undefined {
   return list[lo]?.id === id ? list[lo] : list.find((a) => a.id === id);
 }
 
-/** A body of the small world for one of the hand's people: what they are like, as strong as their age and nature. */
+/** A body of the small world for one of the hand's people: what they are like, as strong as their age, nature and people's body (Phase 61). */
 export function bodyFor(
   a: Agent,
   at: BodyAt,
@@ -186,6 +189,7 @@ export function bodyFor(
   t: number,
   life: LifeHistory,
   hand = false,
+  frame?: PersonFrame,
 ): LocalBody {
   const year = yearOfMoment(t),
     age = year - a.birthYear,
@@ -208,7 +212,8 @@ export function bodyFor(
       (child ? 0.5 : old ? 0.7 : 1) *
       (has("hardy") ? 1.15 : 1) *
       (has("frail") ? 0.8 : 1) *
-      (sore ? 0.6 : 1);
+      (sore ? 0.6 : 1) *
+      (frame?.strength ?? 1);
   return localBody(a.id, at, nature, strength, ways, hand);
 }
 
@@ -251,7 +256,7 @@ function advance(
     for (const j of joins) {
       if (j.when !== k) continue;
       const a = agentById(w, j.id);
-      if (a && a.id !== p.agent) coming.push(bodyFor(a, j, j.ways, t, life));
+      if (a && a.id !== p.agent) coming.push(bodyFor(a, j, j.ways, t, life, false, p.scene.frame));
     }
     stepLocal(p.scene, l, bids[k]!, draw, coming);
   }
@@ -291,6 +296,7 @@ export function installPossession(world: World, ctx: () => PopulationContext): v
       const w = resting();
       if (!w) return "your hand rests on no town: lay it on one to take one of its people";
       if (w.possessed) return "your hand is in one of its people already: let them go first";
+      if (handOf(world).held) return "your hand is in a body already: let it go first";
       const a = args as Partial<TakeArgs> | null;
       if (!a || !Number.isInteger(a.agent)) return "agent must be one of the hand's people";
       if (!agentById(w, a.agent!)) return "no such person under your hand";
@@ -309,6 +315,8 @@ export function installPossession(world: World, ctx: () => PopulationContext): v
         v = c.settlements.get(w.village)!,
         me = agentById(w, a.agent)!,
         name = agentName(c, me, v),
+        // (A people of another world moves by its own body: Phase 61.)
+        frame = personFrame(c.generated.life.people?.body ?? null),
         scene: LocalScene = {
           x: a.at.x,
           z: a.at.z,
@@ -317,13 +325,14 @@ export function installPossession(world: World, ctx: () => PopulationContext): v
           trade: a.trade,
           form: a.form,
           care: careIn(world, w.cell, yearOfMoment(t)),
+          ...(frame ? { frame } : {}),
         },
-        bodies = [bodyFor(me, a.at, [], t, c.life, true)];
+        bodies = [bodyFor(me, a.at, [], t, c.life, true, scene.frame)];
       // (Those of the hand's people near him; one died since the page drew them is not.)
       for (const n of a.near) {
         const ag = agentById(w, n.id);
         if (ag && ag.id !== me.id && !bodies.some((b) => b.id === n.id))
-          bodies.push(bodyFor(ag, n, n.ways, t, c.life));
+          bodies.push(bodyFor(ag, n, n.ways, t, c.life, false, scene.frame));
       }
       const event = world.events.emit({
         type: POSSESS_EVENTS.possessed.type,
@@ -394,6 +403,9 @@ export function installPossession(world: World, ctx: () => PopulationContext): v
       letGo(world, ctx(), w, command.id, t);
     },
   });
+
+  // A soldier, a beast: the hand in a body not of its people (Phase 61).
+  installHeld(world, ctx);
 }
 
 /** Let go: what was done in the god's body written back, and told. */

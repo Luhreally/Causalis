@@ -71,6 +71,16 @@ const SEEN: Readonly<Record<string, { reading: Reading; epithet: string; words: 
     epithet: "the Walker Among Us",
     words: "the god walking among them in one of their own",
   },
+  "hand.fought": {
+    reading: "portent",
+    epithet: "the Warrior in the Ranks",
+    words: "the god fighting in one of their own",
+  },
+  "hand.ran": {
+    reading: "portent",
+    epithet: "the Beast-Walker",
+    words: "the god running as one of their beasts",
+  },
   "act.warm": { reading: "portent", epithet: "the Kindler", words: "the world warmed or cooled" },
 };
 
@@ -78,6 +88,8 @@ const SEEN: Readonly<Record<string, { reading: Reading; epithet: string; words: 
 const BY_HAND = new Set([
   "hand.laid",
   "hand.possessed",
+  "hand.fought",
+  "hand.ran",
   "belief.founded",
   "belief.converted",
   "language.arose",

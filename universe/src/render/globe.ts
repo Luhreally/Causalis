@@ -169,6 +169,13 @@ export class GlobeScene {
 
   /** Build the globe for a grid frequency and relief (once per planet). */
   build(frequency: number, elevation: Float32Array): void {
+    // Relief can now be repainted. Release the previous GPU buffers and material before
+    // allocating their replacements, especially on a phone with a small graphics budget.
+    const oldMaterial = this.entity?.render?.meshInstances[0]?.material;
+    this.entity?.destroy();
+    this.entity = null;
+    this.mesh?.destroy();
+    oldMaterial?.destroy();
     const grid = sphereGrid(frequency),
       n = grid.count,
       positions = new Float32Array(n * 3);
@@ -230,7 +237,6 @@ export class GlobeScene {
     material.specular = new pc.Color(0.06, 0.06, 0.08);
     material.gloss = 0.1;
     material.update();
-    this.entity?.destroy();
     this.entity = new pc.Entity("globe");
     this.entity.addComponent("render", { meshInstances: [new pc.MeshInstance(mesh, material)] });
     this.stage.root.addChild(this.entity);

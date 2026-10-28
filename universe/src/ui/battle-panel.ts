@@ -25,11 +25,15 @@ export type ManCard = {
   readonly arm: string | null;
   readonly maker: string | null;
   readonly armPage: string | null;
+  /** Its stuff as his people call it (Phase 58): "of black-edge-stone, as the Kurnic call moissanite" (none: told as it is). */
+  readonly called?: string | null;
 };
 
 /** What he bore and who made it, told: "Bore a chert-tipped spear, made by Ana Talinor, a knapper of Elmstead". */
 export function boreWords(m: ManCard): string | null {
-  return m.arm ? `Bore ${m.arm}${m.maker ? `, made by ${m.maker}` : ""}` : null;
+  return m.arm
+    ? `Bore ${m.arm}${m.called ? ` (${m.called})` : ""}${m.maker ? `, made by ${m.maker}` : ""}`
+    : null;
 }
 
 /** A speed as its button says it. */
@@ -184,7 +188,7 @@ export class BattlePanel {
 
   /** Which battle, its hosts, how many men a figure stands for. */
   show(near: BattleNear, per: number): void {
-    this.title.textContent = `⚔️ ${near.title} · year ${near.year}${near.civil ? ` · ${near.civil}` : ""}${near.tip ? " · arms decided it" : ""}`;
+    this.title.textContent = `⚔️ ${near.title} · year ${near.year}${near.civil ? ` · ${near.civil}` : ""}${near.tip ? " · arms decided it" : ""}${near.hand ? ` · the god fought in it as ${near.hand.name}` : ""}`;
     // (A beast's own claws are not made: no host design to trace them to.)
     this.traceable = [near.attacker.host !== null, near.defender.host !== null];
     ([near.attacker, near.defender] as const).forEach((s, i) => {

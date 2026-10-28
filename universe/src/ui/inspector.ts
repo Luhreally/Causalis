@@ -33,6 +33,7 @@ import { bodyView } from "./body.ts";
 import { drawThumb } from "./specimen.ts";
 import { lineupStrip, phyloChart } from "./phylo.ts";
 import { dropView } from "./drop.ts";
+import { namesThings, type NamesSwitch } from "./names.ts";
 
 /** How often an open page is read again while the world runs (ms). */
 const REFRESH_MS = 2000;
@@ -88,6 +89,9 @@ export class PageWindow {
   /** Under the live line, more of it as the scale shows it (a person's day, Phase 45 M207): emptied as a page is opened. */
   readonly liveMore = el("div", "page-live-more");
   private readonly actions = el("div", "page-actions");
+  /** The switch between things as the people here call them and as they are (Phase 58), and what it last said. */
+  private readonly namesBar = el("div", "page-names");
+  private namesSaid = "";
   private readonly stats = el("div", "stats");
   private readonly statDetail = el("div", "stat-detail");
   private readonly tabs = el("nav", "tabs");
@@ -116,6 +120,8 @@ export class PageWindow {
   hoverTips: HoverTips | null = null;
   /** Realms' arms, borne beside their names (Phase 11 M102). */
   arms: ArmsBook | null = null;
+  /** Whether things are told as the people where the eye stands call them, or as they are (Phase 58). */
+  names: NamesSwitch | null = null;
   /** Go to where a thing is to be seen. */
   onGoTo: (place: Place, ref: string) => void = () => {};
   /** Go down to a town's land and watch it grow (Phase 26 M154). */
@@ -168,7 +174,15 @@ export class PageWindow {
     // Under the title: its picture beside its words, its doings, its numbers.
     const head = el("div", "page-head"),
       words = el("div", "page-head-words");
-    words.append(this.crumbs, this.sub, this.live, this.liveMore, this.actions, this.stats);
+    words.append(
+      this.crumbs,
+      this.sub,
+      this.live,
+      this.liveMore,
+      this.actions,
+      this.namesBar,
+      this.stats,
+    );
     head.append(this.portrait, words);
     this.portrait.hidden = true;
     // The title bar: back and forward, the thing's icon and name, and the window's boxes.
@@ -242,7 +256,10 @@ export class PageWindow {
       this.name.textContent = "…";
       this.body.replaceChildren(el("p", "muted", "…"));
     }
-    const page = await this.client.query<PageModel>({ type: "page", args: { ref } });
+    const page = await this.client.query<PageModel>({
+      type: "page",
+      args: { ref, ...this.names?.args() },
+    });
     if (token !== this.token) return;
     this.readAt = performance.now();
     this.draw(page, fresh);
@@ -258,7 +275,10 @@ export class PageWindow {
     // (A page of the whole world is read again less often: it reads everything.)
     if (performance.now() - this.readAt < (this.page?.every ?? REFRESH_MS) - 100) return;
     const token = this.token,
-      page = await this.client.query<PageModel>({ type: "page", args: { ref } });
+      page = await this.client.query<PageModel>({
+        type: "page",
+        args: { ref, ...this.names?.args() },
+      });
     this.readAt = performance.now();
     if (token !== this.token || this.pressing || this.hoverTips?.showing || this.current !== ref)
       return;
@@ -299,6 +319,7 @@ export class PageWindow {
     this.crumbs.hidden = !page.crumbs?.length;
     this.drawPortrait(page);
     this.drawActions(page);
+    this.drawNames(page);
     this.drawStats(page);
     this.drawTabs(page);
     this.drawBody(page);
@@ -369,6 +390,30 @@ export class PageWindow {
   /** Draw the open page's actions again (the scene's changed: a person followed, or let go). */
   redrawActions(): void {
     if (this.page) this.drawActions(this.page);
+  }
+
+  /**
+   * The switch between things as the people where the eye stands call them and as they are (Phase
+   * 58), on a page that names things: the same button while it says the same, and the page read
+   * again the other way at a press (its tab and its place on the page kept).
+   */
+  private drawNames(page: PageModel): void {
+    const shown = !!this.names && namesThings(page.ref, this.seen),
+      said = shown ? this.names!.mode : "";
+    this.namesBar.hidden = !shown;
+    if (this.names) this.inspector.dataset.names = this.names.mode;
+    if (said === this.namesSaid) return;
+    this.namesSaid = said;
+    this.namesBar.replaceChildren(
+      ...(shown
+        ? [
+            this.names!.button(() => {
+              const ref = this.current;
+              if (ref) void this.show(ref, false);
+            }),
+          ]
+        : []),
+    );
   }
 
   private drawStats(page: PageModel): void {

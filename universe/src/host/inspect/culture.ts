@@ -38,6 +38,7 @@ import { market } from "../planet.ts";
 import { realmColor } from "../colors.ts";
 import { count, eventsAbout, item, link, many, sentence, stat, yearNow } from "./words.ts";
 import { faithLink, landLink, landTitle, languageLink, realmLink, spotOfLand } from "./names.ts";
+import { namesBlock } from "../names.ts";
 import { landPlace } from "./land.ts";
 import { peopleBlocks } from "./peoples.ts";
 import { realmPlace } from "./realm.ts";
@@ -226,7 +227,12 @@ export function languagePage(world: World, ref: string): PageModel {
     // Its people read (Phase 14 M119): the god as they name it, their ways, faiths, realms,
     // numbers; and its speech, to be heard (M117).
     { id: "people", name: "People", blocks: peopleBlocks(world, l) },
-    { id: "speech", name: "Speech", blocks: speechBlocks(l, parent) },
+    {
+      id: "speech",
+      name: "Speech",
+      // (And its names for its world's things, Phase 58.)
+      blocks: [...speechBlocks(l, parent), ...[namesBlock(world, l)].filter((b) => b !== null)],
+    },
     {
       id: "lands",
       name: "Lands",

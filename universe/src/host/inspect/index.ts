@@ -47,6 +47,7 @@ import { armPage, armsPage } from "./arm.ts";
 import { elementPage } from "./element.ts";
 import { levyManPage, townsfolkPage } from "./townsfolk.ts";
 import { seatPage, withKin } from "./kin.ts";
+import { namedPage, type NamesArg } from "../names.ts";
 
 /** The page a ref's kind is built by (the tab it asked for, if any). */
 function build(world: World, ref: string, tab: string | null): PageModel {
@@ -161,7 +162,7 @@ function build(world: World, ref: string, tab: string | null): PageModel {
  * A thing's page, by its ref (`#tab` opens a tab: `war:0:3#attacker`). A thing that no
  * longer stands (a realm fallen, a town gone) still answers: what is known of it.
  */
-export function pageOf(world: World, ref: string): PageModel {
+export function pageOf(world: World, ref: string, names?: NamesArg): PageModel {
   const { ref: base, tab } = splitPageRef(ref);
   let page: PageModel;
   try {
@@ -172,7 +173,10 @@ export function pageOf(world: World, ref: string): PageModel {
   }
   const crumbs = crumbsOf(world, base);
   if (crumbs.length) page = { ...page, crumbs };
-  return tab && !page.tab ? { ...page, tab } : page;
+  if (tab && !page.tab) page = { ...page, tab };
+  // (Told as the people where one stands call things, where it is asked so: Phase 58. Asked
+  // without, the page is as it was.)
+  return names?.as === "theirs" ? namedPage(world, page, names.at ?? null) : page;
 }
 
 /** A page without its empty lists and tables, nor the tabs left with nothing in them. */
@@ -206,8 +210,8 @@ export function placeOf(world: World, ref: string): Place | null {
  * A thing in a few words, for a tooltip (Phase 10 M93): its icon and name, the line under
  * its name and its first numbers — its page's, in plain words.
  */
-export function tipOf(world: World, ref: string, lens?: string): Tip {
-  const p = pageOf(world, ref),
+export function tipOf(world: World, ref: string, lens?: string, names?: NamesArg): Tip {
+  const p = pageOf(world, ref, names),
     plain = (l: Line) => l.map((s) => (typeof s === "string" ? s : s.text)).join(""),
     // (A concept is told by what it is, not by the kind of page it has.)
     what = p.kind === "concept" ? p.tabs[0]?.blocks.find((b) => b.type === "text") : undefined;

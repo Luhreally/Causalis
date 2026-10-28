@@ -1,0 +1,148 @@
+.brush-toggle {
+  position: fixed;
+  right: 10px;
+  top: 132px;
+  z-index: 45;
+  min-height: 42px;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+.brush-panel {
+  position: fixed;
+  z-index: 80;
+  right: 10px;
+  bottom: calc(94px + env(safe-area-inset-bottom));
+  width: min(410px, calc(100vw - 20px));
+  max-height: 60dvh;
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 14px;
+  border: 1px solid #76808b;
+  border-radius: 12px;
+  background: #202a32f5;
+  color: #f2efe6;
+  box-shadow: 0 6px 24px #0009;
+}
+.brush-panel[hidden],
+.brush-cursor[hidden],
+.brush-panel [hidden] {
+  display: none;
+}
+.brush-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: bold;
+  margin-bottom: 12px;
+}
+.brush-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.brush-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+.brush-controls select {
+  min-height: 40px;
+  max-width: 245px;
+  font-size: 16px;
+  color: #f2efe6;
+  background: #303e49;
+  border: 1px solid #77808a;
+  border-radius: 5px;
+}
+.brush-help {
+  font-size: 12px;
+  line-height: 1.5;
+  opacity: 0.85;
+  margin: 10px 0;
+}
+.brush-status {
+  min-height: 60px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.brush-actions {
+  display: flex;
+  gap: 10px;
+  margin: 8px 0;
+  min-height: 40px;
+}
+.brush-panel button {
+  min-height: 40px;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+.brush-apply {
+  background: #963e2d;
+  color: white;
+}
+.brush-history {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.brush-record {
+  text-align: left;
+  font-size: 12px;
+}
+.brush-cursor {
+  position: fixed;
+  z-index: 70;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #76c9eb33;
+  box-shadow: 0 0 0 1px #183245;
+}
+.brushes-open .palette {
+  visibility: hidden;
+}
+.body-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.body-controls button,
+.body-parts button {
+  min-height: 36px;
+  padding: 5px 9px;
+  border-radius: 5px;
+}
+.body-controls [aria-pressed="true"] {
+  background: #416d91;
+  color: white;
+  border-color: #a6cae9;
+}
+.body-equipment,
+.body-part-detail {
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 8px 0;
+}
+.body-turn {
+  width: 100%;
+  min-height: 40px;
+  margin: 2px 0;
+  touch-action: pan-x;
+}
+.body-parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.body-parts .hurt {
+  color: #ffd0c9;
+  border-color: #bf716d;
+}
+.body-view .body-figure {
+  height: 360px;
+  width: 100%;
+  box-sizing: border-box;
+}

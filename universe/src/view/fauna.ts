@@ -561,6 +561,12 @@ export type BeastNow = {
   herd: number;
   /** Its work (M78): 0 none, 1 carrying packs on the road, 2 drawing a cart. */
   task: 0 | 1 | 2;
+  /**
+   * Who it is (Phase 61: the god's hand takes it by this): its herd × 1000 + its place in the herd
+   * (the one the hunters brought down: + 999); a band's 900000 + band × 100 + its place; the road's
+   * 950000 + its place.
+   */
+  id: number;
 };
 
 /** How far off the hunt a band that lives after it waits (metres from the herd). */
@@ -624,6 +630,7 @@ export function beastsAt(fauna: Fauna, s: number, out: BeastNow[], at?: number):
         size: 1,
         dead: false,
         herd: -1,
+        id: 0,
       });
     o.task = 0;
     o.size = 1;
@@ -848,6 +855,7 @@ export function beastsAt(fauna: Fauna, s: number, out: BeastNow[], at?: number):
         if (!one.shown) return;
         const o = next();
         o.species = h.species;
+        o.id = i * 1000 + j;
         o.size = one.size;
         if (fl.driven && !m.running) {
           // Driven: strung out loosely behind its head, walking its way — its ranks staggered,
@@ -917,6 +925,7 @@ export function beastsAt(fauna: Fauna, s: number, out: BeastNow[], at?: number):
         z = m.z + m.fz + (a.z + (z2.z - a.z) * k) * tight,
         o = next();
       o.species = h.species;
+      o.id = i * 1000 + j;
       o.x = x;
       o.z = z;
       if (m.running) {
@@ -950,6 +959,7 @@ export function beastsAt(fauna: Fauna, s: number, out: BeastNow[], at?: number):
       o.pose.phase = 0;
       o.dead = true;
       o.herd = i;
+      o.id = i * 1000 + 999;
       n++;
     }
   });
@@ -963,6 +973,7 @@ export function beastsAt(fauna: Fauna, s: number, out: BeastNow[], at?: number):
         a = j * 2.399963 + unit(b.p.key, j, 9) * 6.283,
         r = j ? 6 + 2 * j : 0;
       o.species = b.p.species;
+      o.id = 900000 + i * 100 + j;
       o.x = b.x + r * Math.cos(a);
       o.z = b.z + r * Math.sin(a);
       keepOut(fauna.ground, o, sp.reach);
@@ -983,6 +994,7 @@ export function beastsAt(fauna: Fauna, s: number, out: BeastNow[], at?: number):
       const t = travellerAt(road.way, k, s, TRAFFIC_PACE[road.kind]),
         o = next();
       o.species = road.species;
+      o.id = 950000 + k;
       o.x = t.x + Math.sin(t.yaw) * lead;
       o.z = t.z + Math.cos(t.yaw) * lead;
       o.yaw = t.yaw;
