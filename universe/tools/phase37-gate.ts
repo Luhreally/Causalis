@@ -396,8 +396,13 @@ if (greatest) {
   const lying = w?.limbs ?? [];
   check(
     lying.length === w?.loose &&
-      lying.every((l) => l.y === 0 && (l.striker !== "hand" || (l.from >= 0.5 && l.from <= 1.5))),
-    `each part cut off lying where it fell (${lying
+      // The richer gore's bounce ends in an 18% slide beyond the original landing point.
+      lying.every(
+        (l) =>
+          l.y === 0 &&
+          (l.striker !== "hand" || (l.from >= 0.5 * 1.18 - 1e-6 && l.from <= 1.5 * 1.18 + 1e-6)),
+      ),
+    `each part cut off settled after its bounce and slide (${lying
       .slice(0, 4)
       .map((l) => `${l.lost} ${l.from.toFixed(2)} m`)
       .join(", ")})`,

@@ -1,9 +1,6 @@
 .brush-toggle {
-  position: fixed;
-  right: 10px;
-  top: 132px;
-  z-index: 45;
-  min-height: 42px;
+  position: static;
+  min-height: 34px;
   border-radius: 8px;
   padding: 8px 12px;
 }

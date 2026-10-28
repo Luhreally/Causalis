@@ -1700,7 +1700,8 @@ async function runPlanetPage(): Promise<void> {
   // The land's sky as last read, and the moment its season was last laid on its map (Phase 30:
   // the weather below keeps them).
   let landSky: LandSky | null = null,
-    seasonT = 0;
+    seasonT = 0,
+    regionSurfaceKey = "";
   const paintRegion = () => {
     const frame = client.latestFrame("region");
     if (!frame || scale !== "region") return;
@@ -1713,16 +1714,17 @@ async function runPlanetPage(): Promise<void> {
       lat: number;
       lon: number;
     };
-    if (region.key !== (meta.surfaceKey ?? meta.ref)) {
+    if (region.key !== meta.ref || regionSurfaceKey !== (meta.surfaceKey ?? meta.ref)) {
       const t0 = performance.now();
       region.build(
-        meta.surfaceKey ?? meta.ref,
+        meta.ref,
         meta.size,
         meta.tileKm,
         regionHeights(frame),
         frame.arrays.water as Uint8Array | undefined,
         frame.arrays.fertility as Uint8Array | undefined,
       );
+      regionSurfaceKey = meta.surfaceKey ?? meta.ref;
       // The phone's budgets are measured by these (npm run gate:7).
       performance.measure("region.build", { start: t0 });
       regionPanel.show(meta.center, meta.lat, meta.lon, meta.size * meta.tileKm);
@@ -2424,8 +2426,8 @@ async function runPlanetPage(): Promise<void> {
       regionWars.inPlace(null, null);
       return;
     }
-    if (!landWays || landWays.key !== region.key)
-      landWays = { key: region.key ?? "", ways: new LandWays(g) };
+    if (!landWays || landWays.key !== regionSurfaceKey)
+      landWays = { key: regionSurfaceKey, ways: new LandWays(g) };
     // (Of its peopled towns, as the host finds a town's heart: a ruin is fought past.)
     const town = heartTown(
         (landPlan?.towns ?? [])
@@ -3328,6 +3330,7 @@ async function runPlanetPage(): Promise<void> {
     (on) => (on ? time.hold("brush") : time.release("brush")),
   );
   rig.brush = brushes;
+  corner.append(brushes.button);
   brushes.onArmed = () => {
     palette.putDown();
     tooltip.hide();

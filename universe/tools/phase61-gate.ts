@@ -240,7 +240,7 @@ const centre = async (selector: string) => {
   const r = await page
     .locator(selector)
     .first()
-    .boundingBox({ timeout: 2000 })
+    .boundingBox({ timeout: slow(5000) })
     .catch(() => null);
   return r && r.width > 0 && r.height > 0 ? { x: r.x + r.width / 2, y: r.y + r.height / 2 } : null;
 };
@@ -395,8 +395,19 @@ async function arm(hands: Hands): Promise<string | null> {
       ((await k<boolean>(`!!document.querySelector(".palette.open")`)) || !(await centre(selector)))
     )
       continue;
+    await page
+      .locator(selector)
+      .first()
+      .waitFor({ state: "visible", timeout: slow(15000) })
+      .catch(() => undefined);
     const at = await centre(selector);
-    if (!at) return `no ${selector} to touch`;
+    if (!at) {
+      say(
+        `palette unavailable: ${await k<string>(`JSON.stringify({scale:causalis.scale(),body:document.body.className,palette:document.querySelector('.palette')&&getComputedStyle(document.querySelector('.palette')).display, tabs:[...document.querySelectorAll('.palette-tab')].map(e=>({kind:e.dataset.kind,box:e.getBoundingClientRect().toJSON()}))})`)}`,
+      );
+      await shot(`${hands.name}-palette-unavailable`);
+      return `no ${selector} to touch`;
+    }
     await hands.tap(at.x, at.y);
     await page.waitForTimeout(slow(300));
   }

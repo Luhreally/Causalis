@@ -48,6 +48,12 @@ After a committed stroke, a fresh checkpoint is queued behind any older save
 already in flight. Saving failure is reported instead of claiming success.
 Terrain rebuilds release their previous mesh/material allocations.
 
+The rendered region keeps its original identity for battle navigation; a separate
+surface key triggers terrain rebuilds and refreshes road caches. The brush button
+joins the existing toolbar so it cannot cover the war/director controls. CI installs
+WebKit for both new browser journeys and splits the complete unit suite into four
+shards, with the performance tests run once.
+
 ## Checks and limits
 
 - TypeScript and architecture lint.

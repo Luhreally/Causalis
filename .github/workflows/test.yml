@@ -23,7 +23,12 @@ jobs:
       - run: npm test
 
   universe:
+    name: universe (tests ${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     defaults:
       run:
         working-directory: universe
@@ -35,7 +40,11 @@ jobs:
           cache: npm
           cache-dependency-path: universe/package-lock.json
       - run: npm ci
-      - run: npm run check
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: node --test --test-concurrency=2 --test-shard=${{ matrix.shard }}/4 "tests/{*.test.ts,!(perf)/**/*.test.ts}"
+      - if: matrix.shard == 1
+        run: node --test --test-concurrency=1 "tests/perf/**/*.test.ts"
       - run: npm run build
 
   universe-history:
@@ -131,8 +140,8 @@ jobs:
           cache: npm
           cache-dependency-path: universe/package-lock.json
       - run: npm ci
-      # (Chromium for the gates; WebKit too for the Phase 7 gate's journey, at a phone's size.)
-      - run: npx playwright install --with-deps chromium ${{ contains(format(' {0} ', matrix.gates), ' 7 ') && 'webkit' || '' }}
+      # WebKit is also used by the names and brush journeys.
+      - run: npx playwright install --with-deps chromium ${{ (contains(format(' {0} ', matrix.gates), ' 7 ') || contains(format(' {0} ', matrix.gates), ' 58 ') || contains(format(' {0} ', matrix.gates), ' 62 ')) && 'webkit' || '' }}
       - run: npm run build
       - run: node tools/ci-gates.ts ${{ matrix.gates }}
         env:
