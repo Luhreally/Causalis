@@ -68,6 +68,10 @@ shards, with the performance tests run once.
   reload recovery, and Chromium graphics-context recovery checks.
 
 These are desktop browser-engine checks, not a physical iPhone 15 Plus test.
+The headless possession journey uses Balanced, matching phone Auto, and the game's
+half-pace control. It takes an engaged front-rank soldier, observes the body and foe
+together, and requires actual key/touch actions, a casualty, and unchanged save replay.
+Animal taps target visible canvas points rather than controls laid over the scene.
 Windows WebKit has a pre-existing blank-render issue in some detailed battle
 fixtures; its batch assertions alone are not proof of visible battle pixels.
 The body inspector uses a 2D canvas and its visible output is verified in both

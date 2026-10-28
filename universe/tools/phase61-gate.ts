@@ -5,7 +5,7 @@
 //   1. in node (not on CI): the oracle's histories as they were — a world where no soldier or beast is
 //      possessed keeps every hash;
 //   2. on the built app, the Earth seed at year 61, at a desk: a battle of year 60 laid before its
-//      land's heart town; at twenty past eight, one of its men still in the fight taken from the
+//      land's heart town; at ten to nine, one of its front-rank men in the melee taken from the
 //      palette with a click, his strip his arm and the battle's tally; brought to the foe and struck at
 //      by the keys until one falls, the tally moving as men fall and the fallen named; let go with
 //      Esc (or struck down): the chronicle telling the god fought as him, the battle's record as his
@@ -102,6 +102,7 @@ type Live = {
 };
 type HeldState = {
   kind: "soldier" | "beast";
+  pace: number;
   now: {
     name: string;
     town?: string;
@@ -419,7 +420,9 @@ const paletteWords = () => k<string>(`document.querySelector(".palette-words")?.
 // —— the world: the Earth seed at year 61, a battle of year 60 before its land's heart town ————————
 
 /** The world opened on the page at year 61, the clock held; a battle of year 60 laid before its land's heart town. */
-async function open(quality = "high"): Promise<{ event: string; town: string; turn: number }> {
+async function open(
+  quality = ci ? "balanced" : "high",
+): Promise<{ event: string; town: string; turn: number }> {
   await page.goto(`${base}?universe=earth&seed=first%20light&year=${OPENED}&hold=1`);
   await page.waitForFunction(
     () => ((globalThis as { causalis?: { drawn?: () => number } }).causalis?.drawn?.() ?? 0) > 0,
@@ -475,9 +478,9 @@ async function intoBattle(
   return null;
 }
 
-/** The battle at twenty past eight, the eye on it: one of its men standing in the fight on the screen. */
+/** The battle's melee, the eye on it: a front-rank man on the screen, already near a foe. */
 async function fighting(turn: number): Promise<Placed["onScreen"][number] | null> {
-  await advance(turn * YEAR + 8 * HOUR + 20 * 60);
+  await advance(turn * YEAR + 8 * HOUR + 50 * 60);
   await k(`globalThis.causalis.faceBattle()`);
   await page.waitForTimeout(slow(2500));
   const p = await placedNow();
@@ -495,12 +498,13 @@ async function fighting(turn: number): Promise<Placed["onScreen"][number] | null
         t.at.y < h - 240,
     );
   say(
-    `at 8:20 the battle is at its second ${Math.round(p.s)} (${p.stage}); ${standing.length} standing on the screen`,
+    `at 8:50 the battle is at its second ${Math.round(p.s)} (${p.stage}); ${standing.length} standing on the screen`,
   );
   // (The nearest the screen's middle: clear of the controls.)
   return (
     standing.sort(
       (a, b) =>
+        Number(b.act === "fight") - Number(a.act === "fight") ||
         Math.hypot(a.at!.x - w / 2, a.at!.y - h / 2) - Math.hypot(b.at!.x - w / 2, b.at!.y - h / 2),
     )[0] ?? null
   );
@@ -527,7 +531,7 @@ async function soldier(
 ): Promise<Fought | null> {
   const n = (s: string) => `${hands.name}: ${s}`;
   const man = await fighting(turn);
-  check(!!man, n("none of the battle's men standing on the screen at twenty past eight"));
+  check(!!man, n("none of the battle's men standing on the screen in the melee"));
   if (!man) return null;
   const armed = await arm(hands);
   check(!armed, n(armed ?? ""));
@@ -589,25 +593,35 @@ async function soldier(
     const on = await centre(`${HUD} .possess-pace[data-pace="1"]`);
     if (on) await hands.tap(on.x, on.y);
   }
+  // A remote software renderer can spend seconds delivering each input. Use the real
+  // half-pace control so those round trips cannot send the test charging past its foe.
+  const half = await centre(`${HUD} .possess-pace[data-pace="0.5"]`);
+  if (half) await hands.tap(half.x, half.y);
+  check(
+    await comes(async () => (await held())?.pace === 0.5, slow(3000)),
+    n("half pace not selected"),
+  );
   // Brought to the foe and struck at until one falls (by his hand, or he).
   let felled = false,
     strikes = 0,
     bodyWords = "";
   const until = Date.now() + slow(70_000);
   while (Date.now() < until) {
-    s = await held();
+    const observed = await k<{
+      state: HeldState | null;
+      foe: { id: number; x: number; z: number; far: number } | null;
+    }>(`({state:globalThis.causalis.held.state(),foe:globalThis.causalis.held.foe()})`);
+    s = observed.state;
     if (!s?.live || s.live.ended) break;
     const tally = s.live.tally!;
     if (tally.named.some((x) => x.god)) {
       felled = true;
       break;
     }
-    const foe = await k<{ id: number; x: number; z: number; far: number } | null>(
-      `globalThis.causalis.held.foe()`,
-    );
+    const foe = observed.foe;
     if (foe && s.me) {
       const aim = Math.atan2(foe.x - s.me.x, foe.z - s.me.z);
-      await hands.steer(foe.far > 1.4 ? aim : null, s.eye.yaw, foe.far > 4);
+      await hands.steer(foe.far > 1.7 ? aim : null, s.eye.yaw, false);
     }
     // (A blow where one is ready; else the blows coming at him turned.)
     if (s.live.offers[0]?.can) {
@@ -788,7 +802,7 @@ async function beast(hands: Hands, tag: string): Promise<void> {
   check(!armed, n(armed ?? ""));
   if (armed) return;
   await k(
-    `globalThis.causalis.rig.flyTo({ target: { x: ${pick.x * 0.1}, y: 0, z: ${pick.z * 0.1} }, distance: 3, pitch: -35 })`,
+    `globalThis.causalis.rig.flyTo({ target: { x: ${pick.x * 0.1}, y: 0, z: ${pick.z * 0.1} }, distance: 6, pitch: -35 })`,
   );
   // Opening the palette reframes the scene, and a software renderer can take longer
   // than a fixed delay to finish the flight. Aim at the beast only once both are done.
@@ -798,13 +812,26 @@ async function beast(hands: Hands, tag: string): Promise<void> {
     undefined,
     { timeout: slow(30_000) },
   );
-  const at = (await k<Laid[]>(`globalThis.causalis.held.beasts()`)).find(
-    (b) => b.id === pick.id,
-  )?.at;
-  check(!!at, n(`the ${pick.kind} not on the screen`));
-  if (!at) return;
-  await hands.tap(at.x, at.y);
-  await comes(async () => !!(await held())?.live, slow(30_000));
+  // Resample a visible animal before each real tap. Its screen point must hit the
+  // canvas: a tap on an overlaid palette tile can otherwise put Possess down instead.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const target = await k<Laid | null>(`(() => {
+      const beasts = globalThis.causalis.held.beasts().filter(b => !b.dead && b.id < 900000 && b.at
+        && document.elementFromPoint(b.at.x,b.at.y)?.id === 'world');
+      return beasts.sort((a,b) => Number(b.id === ${pick.id}) - Number(a.id === ${pick.id}) || Number(b.flock) - Number(a.flock))[0] ?? null;
+    })()`);
+    if (!target?.at) {
+      say(n(`no beast clear of the controls on attempt ${attempt + 1}`));
+      break;
+    }
+    if ((await k<string | null>(`globalThis.causalis.palette.holding()`)) !== "possess") {
+      const why = await arm(hands);
+      if (why) break;
+      continue;
+    }
+    await hands.tap(target.at.x, target.at.y);
+    if (await comes(async () => !!(await held())?.live, slow(3000))) break;
+  }
   let s = await held();
   check(s?.kind === "beast", n(`no beast taken from the palette: “${await paletteWords()}”`));
   if (!s?.live || s.kind !== "beast") return;
