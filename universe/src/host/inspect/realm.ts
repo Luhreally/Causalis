@@ -756,6 +756,16 @@ export function battlePage(world: World, ref: string): PageModel {
                   ]
                 : []),
               ...(w && b?.power ? [battleArms(world, w, b)] : []),
+              ...(b?.combat
+                ? [
+                    stat(
+                      "Why the fighting ended",
+                      b.combat.broken === -1
+                        ? "Neither line broke. The attackers disengaged in order; the defenders held the ground."
+                        : `${b.combat.broken === 0 ? "The attackers'" : "The defenders'"} line broke under casualties and pressure.`,
+                    ),
+                  ]
+                : []),
               ...(land >= 0 ? [stat("Where", [landLink(world, land)])] : []),
               ...(towns.length
                 ? [

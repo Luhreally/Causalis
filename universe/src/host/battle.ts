@@ -209,6 +209,7 @@ export function battleNear(world: World, ref: string): BattleNear | null {
     won: b.won,
     outcome,
     ...(b.tip ? { tip: true } : {}),
+    ...(b.combat ? { combat: b.combat } : {}),
     civil: war.civil ? CIVIL_SHORT[war.civil] : null,
     hills: g.tectonics.elevation[land]! > 600,
     river: !!g.water.river[land],

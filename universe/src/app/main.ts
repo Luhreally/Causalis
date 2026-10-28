@@ -188,6 +188,7 @@ import {
   foughtAt,
   type CampaignNow,
   MOMENTS,
+  routAt,
   battleAt,
   menAt,
   mostFor,
@@ -2197,7 +2198,8 @@ async function runPlanetPage(): Promise<void> {
     frameAt = 0,
     frameSlow = 1 / 60,
     /** The war about the town watched, as its year has it now (Phase 40 M204). */
-    townWar: TownWar | null = null;
+    townWar: TownWar | null = null,
+    preferredTownBattle: { event: string; town: string } | null = null;
   const slowedOnce = new Set<string>();
   stage.onUpdate(() => {
     globeWars.root.enabled = scale === "globe";
@@ -4548,7 +4550,12 @@ async function runPlanetPage(): Promise<void> {
         scale === "village" && plan ? (plan.spot ?? centres.get(plan.cell ?? -1)) : undefined,
       tw =
         plan && warsLive && spot !== undefined
-          ? townWarNow(warsLive, warsAt(now() / YEAR), { spot, heart: plan.life?.heart ?? true })
+          ? townWarNow(
+              warsLive,
+              warsAt(now() / YEAR),
+              { spot, heart: plan.life?.heart ?? true },
+              preferredTownBattle?.town === plan.ref ? preferredTownBattle.event : undefined,
+            )
           : null;
     if (tw === null && townWar === null) return;
     townWar = tw;
@@ -5880,7 +5887,8 @@ async function runPlanetPage(): Promise<void> {
     return w && b ? townFoughtBefore(w.ref, b.year + 1, b.spot) : Promise.resolve(null);
   };
   /** Into the town a battle is fought before, from wherever the eye is: the eye on the fight. */
-  const toTownFight = async (to: { cell: number; town: string }) => {
+  const toTownFight = async (to: { cell: number; town: string }, event?: string) => {
+    preferredTownBattle = event ? { event, town: to.town } : null;
     walk.saw("scale");
     pageWindow.close();
     warReturn = null;
@@ -5902,7 +5910,7 @@ async function runPlanetPage(): Promise<void> {
    */
   const watchBattleWhere = async (event: string, fromWar: WarLeft | null = null) => {
     const before = await battleTownNow(event);
-    if (before) await toTownFight(before);
+    if (before) await toTownFight(before, event);
     else await watchBattle(event, fromWar);
   };
   pageWindow.onBattle = (event) => void watchBattleWhere(event);
@@ -5963,16 +5971,19 @@ async function runPlanetPage(): Promise<void> {
     if (fight.followed >= 0) followTrooper(null);
   };
   /** How near the eye keeps as the battle goes, unless the viewer has set it: nearer as the lines meet. */
-  const battleDistance = (s: number) =>
-    s < MOMENTS.charge
+  const battleDistance = (s: number) => {
+    const rout = fight ? routAt(fight.field) : MOMENTS.rout,
+      after = Math.min(148, rout + 20);
+    return s < MOMENTS.charge
       ? 7.5
       : s < MOMENTS.melee
         ? 7.5 - 2.7 * ((s - MOMENTS.charge) / (MOMENTS.melee - MOMENTS.charge))
-        : s < MOMENTS.rout
+        : s < rout
           ? 4.8
-          : s < MOMENTS.after
-            ? 4.8 + 2.7 * ((s - MOMENTS.rout) / (MOMENTS.after - MOMENTS.rout))
+          : s < after
+            ? 4.8 + 2.7 * ((s - rout) / (after - rout))
             : 7.5;
+  };
   stage.onUpdate((dt) => {
     if (scale !== "battle" || !fight || !battleLayer || !meadowScene) return;
     const pace = BATTLE_SPEEDS[fight.speed] ?? 0;
@@ -6735,6 +6746,16 @@ async function runPlanetPage(): Promise<void> {
       year: i.year,
     });
     if (scale === "battle" && fight) return { at: "field", b: near(fight.info) };
+    if (scale === "village" && preferredTownBattle?.town === plan?.ref) {
+      for (const w of warsLive?.wars ?? []) {
+        const b = w.battles.find((b) => b.event === preferredTownBattle!.event);
+        if (b && battleStage(now(), b.year + 1))
+          return {
+            at: "town",
+            b: { war: w.ref, event: b.event, cell: plan!.cell ?? regionCell, year: b.year },
+          };
+      }
+    }
     if (scale === "village" && placed) return { at: "town", b: near(placed.info) };
     if (scale === "globe" && campaign) {
       const last = campaign.now.fought.at(-1);

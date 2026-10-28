@@ -33,6 +33,8 @@ import {
   fellColumns,
   fellOfColumns,
   unpackFell,
+  resolveCombat,
+  type CombatRecord,
   type FellColumns,
   type LandFell,
 } from "../../rules/index.ts";
@@ -48,7 +50,6 @@ import {
   type Take,
 } from "./fell.ts";
 import { FALL_PURPOSE, fighting, levyOf, type Levy, type Pool } from "./levy.ts";
-import { battleDead } from "./losses.ts";
 import { COLS, row } from "../population/model.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { marketGoodRef, type MarketStore } from "../economy/market.ts";
@@ -94,6 +95,8 @@ export type Battle = {
   readonly designs?: readonly [Ref | null, Ref | null];
   /** Whether its arms tipped it: with even arms, the same day would have gone the other way. */
   readonly tip?: boolean;
+  /** The exchanges that resolved this battle, shared with its field view. Absent in older saves. */
+  readonly combat?: CombatRecord;
   /** Of each side, the wounded who lived and of them the maimed (Phase 55 M224; absent in older saves). */
   readonly wounded?: readonly [number, number];
   readonly maimed?: readonly [number, number];
@@ -791,7 +794,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       // (Fire, Phase 53 M219: a host whose arms loose much digs in where it stands, unless armour
       // breaches its line; and the more there is in the air, the more both sides lie low and the
       // fewer fall. Both exactly 1 before the magazine.)
-      { entrench, disperse } = fireTerms(armsA, armsB),
+      { entrench } = fireTerms(armsA, armsB),
       defend =
         strengthOf(ctx, b) *
         1.5 *
@@ -800,15 +803,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         river *
         walls *
         (chestB ? CREDIT.chest : 1) *
-        entrench,
-      odds = attack / Math.max(1, attack + defend),
-      draw = world.rng.real(FIGHT, key, t, 0),
-      won = draw < odds,
-      // (Its arms tipped it where, the same day with even arms, it would have gone the other way.)
-      evenA = attack / armsA.power,
-      evenB = defend / (armsB.power * entrench),
-      tip = won !== draw < evenA / Math.max(1, evenA + evenB),
-      tipped = tip ? designsOf(world).of((won ? a : b).ref)?.event : undefined;
+        entrench;
     // The fallen (Phase 55 M224b): every land of each realm on its home world sends men by its
     // fighting men (D2); of those who close with the foe a share is struck down by the foe's arms
     // against their guard, more when beaten, fewer the farther and thicker the fire, and of the
@@ -821,13 +816,25 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       ],
       termsA = hostTerms(ctx, a, armsA),
       termsB = hostTerms(ctx, b, armsB),
-      [deadA, deadB] = battleDead(
-        { fielded: fielded[0], terms: termsA },
-        { fielded: fielded[1], terms: termsB },
-        won,
-        disperse,
+      draws = (round: number, side: number) => world.rng.real(FIGHT, key, t, 100 + round, side),
+      combatSides = [
+        { ...termsA, fielded: fielded[0], power: attack },
+        { ...termsB, fielded: fielded[1], power: defend },
+      ] as const,
+      resolved = resolveCombat(combatSides, bodySize(ctx), draws),
+      won = resolved.won,
+      // The same exchanges with equal equipment: only the material advantage is removed.
+      even = resolveCombat(
+        [
+          { ...combatSides[0], power: attack / Math.max(0.01, armsA.power) },
+          { ...combatSides[1], power: defend / Math.max(0.01, armsB.power * entrench) },
+        ],
         bodySize(ctx),
+        draws,
       ),
+      tip = won !== even.won,
+      tipped = tip ? designsOf(world).of((won ? a : b).ref)?.event : undefined,
+      [deadA, deadB] = resolved.dead,
       takesA = fallAll(ctx, levyA, deadA, t, key * 2),
       takesB = fallAll(ctx, levyB, deadB, t, key * 2 + 1),
       fa = takesA.reduce((n, x) => n + x[2], 0),
@@ -862,6 +869,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       armed: [Math.round(armsA.armed * 1000) / 1000, Math.round(armsB.armed * 1000) / 1000],
       designs: [armsA.design, armsB.design],
       tip,
+      combat: resolved.combat,
       ...record,
     };
     w.battles.push(fought);
@@ -899,7 +907,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       years = year - w.declared,
       prizeWon = a.members.includes(w.prize);
     // A beaten attacker often gives up; a won prize, a weary people or long years end it too.
-    const repulsed = !won && world.rng.real(FIGHT, key, t, 6) < 0.5;
+    const repulsed = resolved.combat.broken === 0 && world.rng.real(FIGHT, key, t, 6) < 0.5;
     if (
       prizeWon ||
       repulsed ||

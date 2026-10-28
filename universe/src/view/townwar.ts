@@ -248,7 +248,12 @@ function atTown(h: HostNow, n: WarNow, w: War, place: TownPlace): TownHost | nul
  * the map that reach it, the one most pressing there (a battle before it over a muster in it; the
  * first of the map where two press alike). Null: none reaches it.
  */
-export function townWarNow(map: WarsMap, y: number, place: TownPlace): TownWar | null {
+export function townWarNow(
+  map: WarsMap,
+  y: number,
+  place: TownPlace,
+  preferredBattle?: string,
+): TownWar | null {
   let best: TownWar | null = null,
     bestScore = -1;
   for (const w of map.wars) {
@@ -273,7 +278,14 @@ export function townWarNow(map: WarsMap, y: number, place: TownPlace): TownWar |
         ? n.fought
         : null;
     if (!hosts.length && !fought) continue;
-    const score = Math.max(0, ...hosts.map((h) => PRESSING[h.doing])) + (fought ? 0.5 : 0);
+    const chosen =
+        preferredBattle !== undefined &&
+        n.fought?.battle.event === preferredBattle &&
+        !!battleStage(y * YEAR, n.turn),
+      score =
+        Math.max(0, ...hosts.map((h) => PRESSING[h.doing])) +
+        (fought ? 0.5 : 0) +
+        (chosen ? 1e6 : 0);
     if (score <= bestScore) continue;
     bestScore = score;
     const c = place.heart && n.closing?.spot === place.spot ? n.closing : null,

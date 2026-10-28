@@ -13,6 +13,7 @@ import {
   POSSESS_HZ,
   WILD_TOLD,
   fightOffers,
+  fightHeart,
   herdMiddle,
   strayed,
   wildOffers,
@@ -349,6 +350,7 @@ function tallyOf(
         ...realm(k),
         standing: Math.max(0, Math.round(h.per * (s.figures - fell))),
         fallen: Math.round(h.per * fell),
+        morale: Math.max(0, Math.min(1, fightHeart(h.scene, f)[k])),
       };
     },
     named: HeldFallen[] = f.deeds.slice(-4).map((d) => ({

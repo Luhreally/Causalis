@@ -336,8 +336,9 @@ export class PossessHud {
     const n = (v: number) => v.toLocaleString("en-US");
     t.sides.forEach((side, k) => {
       const e = this.sides[k as 0 | 1];
-      put(e, `${side.short} ${n(side.standing)}`);
-      titled(e, `${side.realm}: ${n(side.standing)} standing, ${n(side.fallen)} fallen`);
+      const morale = side.morale === undefined ? "" : ` · morale ${Math.round(side.morale * 100)}%`;
+      put(e, `${side.short} ${n(side.standing)}${morale}`);
+      titled(e, `${side.realm}: ${n(side.standing)} standing, ${n(side.fallen)} fallen${morale}`);
       e.classList.toggle("mine", t.mine === k);
       e.classList.toggle("broken", t.broke === k);
     });

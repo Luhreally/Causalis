@@ -30,18 +30,20 @@ import type { VillagePlan } from "../../src/bridge/index.ts";
  * The digests taken before Phase 54, by what they cover. Re-recorded with Phase 55 M224b: Earth's
  * history moved with its deaths from its first battle on (every land of a realm sends men, and the
  * fallen are those the foe's arms strike down), and so did its towns, realms and pages.
+ * Re-recorded for cohesion combat (earth-7): the surviving lands, realms, crafts and
+ * discoveries change with the new campaigns. The matter guide and early camps stay identical.
  */
 const BEFORE: Record<string, string> = {
-  tools: "bedd4f7b:19234",
-  stuff: "cd80fa66:13968",
-  ground: "69c1307c:42764",
-  deposits: "1c91efb:97886",
-  arms: "96a0be5c:15859",
-  designs: "88c227cc:27876",
-  workshops: "48410817:53807",
-  substances: "9fd7b207:130570",
-  reactions: "f2b93e4b:68458",
-  principles: "8770ae1:167930",
+  tools: "2c1adabe:18122",
+  stuff: "c51b8bd7:13597",
+  ground: "3560ff77:41085",
+  deposits: "8de53f6c:97894",
+  arms: "263ebe22:16140",
+  designs: "9b8c185b:27642",
+  workshops: "6a49114e:204764",
+  substances: "83f9f11f:130568",
+  reactions: "da7ebe2:68449",
+  principles: "d15669b0:168556",
   guide: "ced49326:17137",
   camps: "cfc0a711:332618",
 };

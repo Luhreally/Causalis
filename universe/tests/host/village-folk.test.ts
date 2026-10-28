@@ -58,7 +58,7 @@ for (const war of warsOf(world).all())
     if (!b.fell || b.year < Y - ROSTER_YEARS) continue;
     for (const side of [0, 1] as const)
       for (const p of levyPlaces(world, b, side, Infinity))
-        if (p.kind === "town" && p.ref && p.dead >= 12) heavy.push({ ref: p.ref, dead: p.dead });
+        if (p.kind === "town" && p.ref && p.dead >= 1) heavy.push({ ref: p.ref, dead: p.dead });
   }
 heavy.sort((p, q) => q.dead - p.dead || byRef(p, q));
 for (const r of heavy) add(r.ref, 8);
@@ -82,6 +82,15 @@ const buriedNamed = lately.filter((r) => r.named && !r.field);
 for (const r of buriedNamed.slice(0, 3)) add(r.ref);
 for (const r of lately.filter((r) => !r.named && !r.field).slice(0, 1)) add(r.ref);
 for (const r of lately.filter((r) => r.field).slice(0, 1)) add(r.ref);
+// Cohesion can save more of a host. Include surviving levies as well as heavily
+// bereaved towns, keeping eight distinct war participants in the roster sample.
+for (const war of warsOf(world).all())
+  for (const b of war.battles) {
+    if (!b.fell || b.year < Y - ROSTER_YEARS) continue;
+    for (const side of [0, 1] as const)
+      for (const p of levyPlaces(world, b, side, Infinity))
+        if (p.kind === "town" && p.ref && p.sent > 0) add(p.ref, 8);
+  }
 const herbLands = ctx.provinces
   .all()
   .filter((p) => p.total() > 0 && knowsHerbs(p.cell))

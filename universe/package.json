@@ -18,6 +18,7 @@
     "app-check": "node tools/app-check.ts",
     "stability-check": "node tools/stability-check.ts",
     "gore-check": "node tools/gore-check.ts",
+    "warfare-check": "node tools/warfare-check.ts",
     "body-check": "node tools/body-check.ts",
     "slice": "node tools/slice.ts",
     "gate:2": "node tools/phase2-gate.ts 500",

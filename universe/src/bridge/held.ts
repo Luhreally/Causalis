@@ -123,6 +123,7 @@ export type HeldSide = {
   readonly short: string;
   readonly standing: number;
   readonly fallen: number;
+  readonly morale?: number;
 };
 /** One struck down in a soldier's fight, named: by whom, dead or wounded out of it, by the god's hand. */
 export type HeldFallen = {

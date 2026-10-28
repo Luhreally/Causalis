@@ -27,6 +27,10 @@ import { CREDIT_CONCEPTS } from "../../src/host/inspect/credit-concepts.ts";
 // lending, a house risen there, and the realm's next land lent grain against a famine.
 const world = EARTH.build(seedFromText("first light"));
 world.runTo(125 * YEAR);
+// This fixture creates one house and one loan deliberately. A changed campaign may
+// already have banks; their unrelated loans are outside this page scenario.
+creditOf(world)!.houses.length = 0;
+creditOf(world)!.loans.length = 0;
 const ask = <T>(type: string, args: unknown = {}) => EARTH.queries[type]!(world, args) as T;
 const ctx = populationContext(world),
   people = (p: Polity) => p.members.reduce((n, c) => n + (ctx.provinces.get(c)?.total() ?? 0), 0),
@@ -94,8 +98,9 @@ test("a house of lending's page: what it holds, is owed, lent, earned and lost; 
   );
   assert.ok(owed && owed.type === "list" && owed.items.length === 1);
   assert.equal(owed.items[0]!.why, loan.event);
-  // (No loan of it ended yet: no tab of them.)
-  assert.ok(!tabOf(p, "loans"));
+  // Some of the other lands may have repaid loans during the fixture's credit years.
+  const ended = creditOf(world)!.loans.some((l) => l.house === house.ref && l.ended !== null);
+  assert.equal(!!tabOf(p, "loans"), ended, "completed loans have their tab exactly when present");
   assert.match(JSON.stringify(p.subtitle), /A house of lending in /);
 });
 

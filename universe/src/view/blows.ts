@@ -35,6 +35,7 @@ import {
 import { armLook, isGun } from "./arms.ts";
 import {
   BLOW_PLACES,
+  combatWoundTime,
   CRAWL,
   FALL_LONG,
   FIELD,
@@ -612,6 +613,10 @@ export function newBlows(field: BattleField, told: BlowTold | null = null): Blow
         arrow: false,
       });
     events.sort((p, q) => p.at - q.at || Number(q.arrow) - Number(p.arrow));
+    if (field.near.combat)
+      events.forEach((e, j) => {
+        e.at = combatWoundTime(field.near, side, (j + 0.5) / events.length) ?? e.at;
+      });
     // Who: at the line for a blow (the front of their file then), anyone for a shaft.
     const taken = new Set<number>(),
       picks: { t: Trooper; at: number; arrow: boolean }[] = [];

@@ -142,6 +142,8 @@ export type FightSide = {
 
 /** The field the hand took a soldier on. */
 export type FightScene = {
+  /** Current fights have no historical winner bonus or timed attacker rout. Absent in old held saves. */
+  readonly cohesion?: true;
   readonly sides: readonly [FightSide, FightSide];
   /** The battle's second he was taken at, and its last. */
   readonly from: number;
@@ -302,6 +304,16 @@ export function fightMights(
   out[victor] = m;
   out[beaten] = Math.max(0.25, 1 / m);
   return out;
+}
+
+/** Per-soldier strength from equipment and ground, without knowing the eventual winner. */
+export function combatMights(
+  power: readonly [number, number],
+  men: readonly [number, number],
+): [number, number] {
+  const per = power.map((p, k) => Math.max(0.01, p) / Math.max(1, men[k]!)),
+    ratio = dmath.clamp(dmath.sqrt(per[0]! / per[1]!), 0.5, 2);
+  return [ratio, 1 / ratio];
 }
 
 /**
@@ -846,7 +858,7 @@ function breaks(scene: FightScene, f: FightWorld): void {
     short = [0, 1].map((k) => breakingPoint(scene.sides[k]!) - heart[k]!);
   let side: -1 | 0 | 1 = -1;
   if (short[0]! > 0 || short[1]! > 0) side = short[0]! >= short[1]! ? 0 : 1;
-  else if (fightSecond(scene, f) >= FIGHT_DRAW_OFF) side = 0;
+  else if (!scene.cohesion && fightSecond(scene, f) >= FIGHT_DRAW_OFF) side = 0;
   if (side < 0) return;
   f.broke = side;
   f.brokeAt = f.step;

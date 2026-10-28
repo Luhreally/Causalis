@@ -35,6 +35,72 @@ export const MOMENTS = {
   after: 130,
 } as const;
 
+/** New battles break on their recorded cohesion clock; older histories retain their original course. */
+export function routAt(value: BattleField | BattleNear): number {
+  const near = "near" in value ? value.near : value;
+  return near.combat ? (near.combat.rout ?? BATTLE_LENGTH + 40) : MOMENTS.rout;
+}
+function afterAt(value: BattleField | BattleNear): number {
+  const near = "near" in value ? value.near : value;
+  if (!near.combat) return MOMENTS.after;
+  return near.combat?.broken === -1 ? BATTLE_LENGTH : Math.min(148, routAt(value) + 20);
+}
+
+/** The same recorded cohesion and pressure the campaign used, interpolated for the viewer. */
+export function combatAt(
+  near: BattleNear,
+  s: number,
+): {
+  morale: readonly [number, number];
+  pressure: number;
+  wounded: readonly [number, number];
+} | null {
+  const frames = near.combat?.frames;
+  if (!frames?.length) return null;
+  let k = 0;
+  while (k < frames.length - 1 && frames[k + 1]!.at < s) k++;
+  const a = frames[k]!,
+    b = frames[Math.min(k + 1, frames.length - 1)]!,
+    f = Math.max(0, Math.min(1, (s - a.at) / Math.max(0.001, b.at - a.at))),
+    before =
+      frames.filter((t) => near.combat!.rout === null || t.at <= near.combat!.rout).at(-1) ??
+      frames.at(-1)!,
+    wounded = ([0, 1] as const).map((side) =>
+      Math.round(
+        (side === 0 ? (near.attacker.wounded ?? 0) : (near.defender.wounded ?? 0)) *
+          Math.min(
+            1,
+            (a.dead[side] + (b.dead[side] - a.dead[side]) * f) / Math.max(1, before.dead[side]),
+          ),
+      ),
+    );
+  return {
+    wounded: [wounded[0]!, wounded[1]!],
+    morale: [
+      a.morale[0] + (b.morale[0] - a.morale[0]) * f,
+      a.morale[1] + (b.morale[1] - a.morale[1]) * f,
+    ],
+    pressure: a.pressure + (b.pressure - a.pressure) * f,
+  };
+}
+
+/** A surviving casualty's place on the recorded exchanges, before any rout pursuit. */
+export function combatWoundTime(near: BattleNear, side: 0 | 1, fraction: number): number | null {
+  const record = near.combat;
+  if (!record) return null;
+  const frames = record.frames.filter((f) => record.rout === null || f.at <= record.rout),
+    target = (frames.at(-1)?.dead[side] ?? 0) * fraction;
+  let k = 1;
+  while (k < frames.length - 1 && frames[k]!.dead[side] < target) k++;
+  const b = frames[k] ?? frames[0],
+    a = frames[Math.max(0, k - 1)];
+  if (!a || !b) return MOMENTS.melee;
+  return (
+    a.at +
+    (b.at - a.at) * clamp01((target - a.dead[side]) / Math.max(1, b.dead[side] - a.dead[side]))
+  );
+}
+
 /**
  * A wing's wheel about the other host's flank (where one host's front reaches far past the
  * other's): from when to when, and how far it turns (radians, short of a right angle).
@@ -556,7 +622,7 @@ export function newBattle(near: BattleNear, most: number, placed = false): Battl
     // (The defenders in open order dig a trench where they stand, in the open (Phase 53 M220): it
     // holds, so the lines do not drive.)
     trench = hosts[1].open && !walls ? { x: meet + 1, w: 0.7, depth: 1.25 } : undefined,
-    drive = ground.wall || trench ? 0 : near.won ? 5 : -5;
+    drive = ground.wall || trench || near.combat?.broken === -1 ? 0 : near.won ? 5 : -5;
   // Each one in their rank and file.
   const troopers: Trooper[] = [];
   for (const side of [0, 1] as const) {
@@ -617,7 +683,7 @@ export function newBattle(near: BattleNear, most: number, placed = false): Battl
       ladders.push({
         z: out * (gate + 3 + ((far - gate - 3) * (k + 0.5)) / each + (unit(key, 300 + i) - 0.5)),
         up: MOMENTS.melee + 0.5 + 2.5 * unit(key, 310 + i),
-        down: near.outcome === "held" ? MOMENTS.rout - 4 + 3 * unit(key, 320 + i) : null,
+        down: near.outcome === "held" ? routAt(near) - 4 + 3 * unit(key, 320 + i) : null,
         climber: -1,
       });
     }
@@ -661,7 +727,7 @@ export function newBattle(near: BattleNear, most: number, placed = false): Battl
         knocked: wrecked.has(i)
           ? MOMENTS.arrows +
             6 +
-            (MOMENTS.rout + 4 - MOMENTS.arrows - 6) * unit(key + 5200 + side, i)
+            (routAt(near) + 4 - MOMENTS.arrows - 6) * unit(key + 5200 + side, i)
           : null,
         u: unit(key + 5300 + side, i),
       });
@@ -801,8 +867,10 @@ function momentsOf(
     out.push({ at: MOMENTS.gate, words: blown ? "The gate is blown in" : "The gate is broken" });
   if (firstKnock !== null)
     out.push({ at: firstKnock, words: "An armoured car is knocked out, burning" });
+  if (near.combat?.broken === -1)
+    out.push({ at: 130, words: "Neither line has broken. Both hosts disengage in good order" });
   out.push({
-    at: MOMENTS.rout,
+    at: routAt(near),
     words:
       near.outcome === "held"
         ? near.walls
@@ -815,17 +883,19 @@ function momentsOf(
             : `${cap(d)} break and run`,
   });
   out.push({
-    at: MOMENTS.after,
+    at: afterAt(near),
     words:
-      near.outcome === "held"
-        ? `The field is ${d}'s`
-        : near.outcome === "siege"
-          ? `${cap(a)} make camp about ${town}: the siege is laid`
-          : near.outcome === "stormed"
-            ? `${cap(town)} is taken: it burns`
-            : near.outcome === "taken"
-              ? `The field is ${a}'s, and ${near.land} with it`
-              : `The field is ${a}'s`,
+      near.combat?.broken === -1
+        ? "Neither line breaks. The attackers disengage in order; the defenders hold the ground"
+        : near.outcome === "held"
+          ? `The field is ${d}'s`
+          : near.outcome === "siege"
+            ? `${cap(a)} make camp about ${town}: the siege is laid`
+            : near.outcome === "stormed"
+              ? `${cap(town)} is taken: it burns`
+              : near.outcome === "taken"
+                ? `The field is ${a}'s, and ${near.land} with it`
+                : `The field is ${a}'s`,
   });
   return out.sort((p, q) => p.at - q.at);
 }
@@ -859,7 +929,7 @@ function fates(field: BattleField, key: number): void {
   // The beaten run: the rear ranks first.
   for (const t of bySide[beaten]!) {
     const h = hosts[beaten]!;
-    t.flees = MOMENTS.rout + 3 * (1 - t.rank / Math.max(1, h.ranks - 1 || 1)) * 0.6 + 3 * t.u;
+    t.flees = routAt(field) + 3 * (1 - t.rank / Math.max(1, h.ranks - 1 || 1)) * 0.6 + 3 * t.u;
   }
   // How each side's dead fall: to the arrows where the other side looses, to the blows along the
   // line, and (the beaten) in the rout.
@@ -891,7 +961,7 @@ function fates(field: BattleField, key: number): void {
           at:
             MOMENTS.arrows +
             2 +
-            (MOMENTS.rout - MOMENTS.arrows - 8) * Math.pow((k + 0.5) / s.arrow, 1.15),
+            (routAt(field) - MOMENTS.arrows - 8) * Math.pow((k + 0.5) / s.arrow, 1.15),
           side,
           by: "arrow",
         });
@@ -907,7 +977,7 @@ function fates(field: BattleField, key: number): void {
     for (let k = 0; k < s.blow; k++) {
       const f = (k + 0.5) / Math.max(1, s.blow);
       deaths.push({
-        at: MOMENTS.melee + 1.5 + (MOMENTS.rout - MOMENTS.melee - 3) * Math.pow(f, 0.85),
+        at: MOMENTS.melee + 1.5 + (routAt(field) - MOMENTS.melee - 3) * Math.pow(f, 0.85),
         side,
         by: "blow",
       });
@@ -915,10 +985,41 @@ function fates(field: BattleField, key: number): void {
     // The rout's dead, as the victors catch them.
     for (let k = 0; k < s.rout; k++)
       deaths.push({
-        at: MOMENTS.rout + 4 + 15 * ((k + rnd()) / Math.max(1, s.rout)),
+        at: routAt(field) + 4 + 15 * ((k + rnd()) / Math.max(1, s.rout)),
         side,
         by: "rout",
       });
+  }
+  if (field.near.combat) {
+    deaths.length = 0;
+    const record = field.near.combat,
+      frames = record.frames;
+    for (const side of [0, 1] as const) {
+      const count = hosts[side].falls,
+        total = frames.at(-1)?.dead[side] ?? 0;
+      let at = 1;
+      for (let k = 0; k < count; k++) {
+        const target = ((k + 0.5) * total) / Math.max(1, count);
+        while (at < frames.length - 1 && frames[at]!.dead[side] < target) at++;
+        const end = frames[at] ?? frames[0]!,
+          start = frames[Math.max(0, at - 1)]!,
+          fraction = Math.max(
+            0,
+            Math.min(
+              1,
+              (target - start.dead[side]) / Math.max(1, end.dead[side] - start.dead[side]),
+            ),
+          ),
+          time = start.at + (end.at - start.at) * fraction,
+          by =
+            record.rout !== null && time > record.rout
+              ? "rout"
+              : time < MOMENTS.melee || (hosts[1 - side]!.missiles && rnd() < 0.3)
+                ? "arrow"
+                : "blow";
+        deaths.push({ at: time, side, by });
+      }
+    }
   }
   deaths.sort((p, q) => p.at - q.at || p.side - q.side);
   // Whose files are at the line: those across from the other host's.
@@ -956,7 +1057,16 @@ function fates(field: BattleField, key: number): void {
       );
       victim = living.length ? living[Math.floor(rnd() * living.length)] : undefined;
     }
-    if (victim) kill(victim, death.at, death.by);
+    if (!victim && death.by === "rout")
+      victim = alive[death.side]!.flat()
+        .filter((t) => t.flees !== null)
+        .sort((a, b) => a.flees! - b.flees!)[0];
+    if (victim)
+      kill(
+        victim,
+        death.by === "rout" ? Math.max(death.at, (victim.flees ?? death.at) + 0.6) : death.at,
+        death.by,
+      );
   }
   // The arrows themselves: each volley from the living archers at the other host — those that
   // strike, at whom they struck; the rest into the ground about them.
@@ -970,7 +1080,10 @@ function fates(field: BattleField, key: number): void {
     }
     const target = (shooters === 0 ? 1 : 0) as 0 | 1,
       struck = troopers.filter((t) => t.side === target && t.by === "arrow");
-    for (let v = 0; v < 9; v++) {
+    const volleys = field.near.combat
+      ? Math.max(9, Math.ceil((Math.min(130, routAt(field)) - 18) / 3.2))
+      : 9;
+    for (let v = 0; v < volleys; v++) {
       const lands = MOMENTS.arrows + 2 + v * 3.2,
         archers = troopers.filter(
           (t) => t.side === shooters && (t.falls === null || t.falls > lands - 1.6),
@@ -1012,7 +1125,7 @@ function fates(field: BattleField, key: number): void {
   // The victors' front goes after the beaten; at a seat stormed, those before the gate go in.
   const wall = ground.wall;
   for (const t of bySide[victor]!) {
-    const living = t.falls === null || t.falls > MOMENTS.rout;
+    const living = t.falls === null || t.falls > routAt(field);
     if (!living) continue;
     if (wall && field.near.outcome === "stormed" && victor === 0)
       t.gate = Math.abs(t.z) < wall.gate + 3 && t.rank < 6;
@@ -1047,7 +1160,7 @@ function continuousFire(field: BattleField, shooters: 0 | 1, key: number): Arrow
     living = (s: number) => own.filter((t) => t.falls === null || t.falls > s),
     perSecond: number[] = [];
   let rounds = 0;
-  for (let s = MOMENTS.arrows; s <= MOMENTS.rout - 2; s++) {
+  for (let s = MOMENTS.arrows; s <= routAt(field) - 2; s++) {
     const n = Math.min(SHOTS.most, Math.ceil(living(s).length / 4));
     perSecond.push(n);
     rounds += n * burst;
@@ -1103,7 +1216,10 @@ function continuousFire(field: BattleField, shooters: 0 | 1, key: number): Arrow
 
 /** The line's front, where the lines meet now (x). */
 function meetAt(field: BattleField, s: number): number {
-  return field.meet + field.drive * smooth((s - MOMENTS.melee) / (MOMENTS.rout - MOMENTS.melee));
+  const combat = combatAt(field.near, Math.min(s, routAt(field)));
+  if (combat && !field.ground.wall && !field.ground.trench)
+    return field.meet + combat.pressure * 9 * smooth((s - MOMENTS.melee) / 12);
+  return field.meet + field.drive * smooth((s - MOMENTS.melee) / (routAt(field) - MOMENTS.melee));
 }
 
 /** How far a file has closed up by `s`: one rank for each who fell before them in it. */
@@ -1319,6 +1435,12 @@ function placed(
   when: number,
 ): { x: number; z: number; yaw: number; run: boolean; fled: number } {
   const facing = t.side === 0 ? Math.PI / 2 : -Math.PI / 2;
+  if (field.near.combat?.broken === -1 && when >= 130) {
+    const p = inOrder(field, t, 130),
+      back = t.side === 0 ? -1 : 1,
+      distance = field.ground.wall && t.side === 1 ? 0 : Math.min(10, (when - 130) * 0.5);
+    return { x: p.x + back * distance, z: p.z, yaw: (back * Math.PI) / 2, run: false, fled: 0 };
+  }
   // On a ladder, or over the walls from it.
   const climb = climbing(field, t, when);
   if (climb && (t.flees === null || when < t.flees))
@@ -1341,12 +1463,12 @@ function placed(
     };
   }
   // After them: the victors' front, for a while; at a seat stormed, through the gate.
-  if (t.pursues && when >= MOMENTS.rout + 1) {
-    const p = inOrder(field, t, MOMENTS.rout + 1),
+  if (t.pursues && when >= routAt(field) + 1) {
+    const p = inOrder(field, t, routAt(field) + 1),
       wall = field.ground.wall;
     if (wall && t.gate) {
       // Into the gate, then up into the town.
-      const at = when - (MOMENTS.rout + 1),
+      const at = when - (routAt(field) + 1),
         door = {
           x: wall.x + 2,
           z: Math.max(-wall.gate + 0.8, Math.min(wall.gate - 0.8, t.z * 0.4)),
@@ -1373,7 +1495,7 @@ function placed(
       };
     }
     const way = field.beaten === 0 ? -1 : 1,
-      chase = Math.min(7, when - (MOMENTS.rout + 1)),
+      chase = Math.min(7, when - (routAt(field) + 1)),
       pace = (field.hosts[t.side]!.mounted ? 7.5 : 4.6) * (0.85 + 0.3 * t.u),
       // (Before a town in its own scene, no further than where the beaten stood: the town is its own.)
       stop = wall
@@ -1385,9 +1507,9 @@ function placed(
     return { x, z: p.z, yaw: facing, run: chase < 7 && x !== stop, fled: 0 };
   }
   // At a siege laid, the attackers draw back from the walls to their camp.
-  if (field.near.outcome === "siege" && t.side === 0 && when >= MOMENTS.after) {
-    const p = inOrder(field, t, MOMENTS.after),
-      back = 10 * smooth((when - MOMENTS.after) / 8);
+  if (field.near.outcome === "siege" && t.side === 0 && when >= afterAt(field)) {
+    const p = inOrder(field, t, afterAt(field)),
+      back = 10 * smooth((when - afterAt(field)) / 8);
     return { x: p.x - back, z: p.z, yaw: facing, run: false, fled: 0 };
   }
   const p = inOrder(field, t, when);
@@ -1532,11 +1654,12 @@ function trooperNowAt(field: BattleField, t: Trooper, s: number): TrooperNow {
       fell: undefined,
     };
   let act: Act;
-  if (t.flees !== null && s >= t.flees) act = "flee";
+  if (field.near.combat?.broken === -1 && s >= 130) act = "stand";
+  else if (t.flees !== null && s >= t.flees) act = "flee";
   else if (p.run) act = "run";
   // (A machine gun's team fires from its place, from its rush to the rout.)
-  else if (t.gun && s >= MOMENTS.advance && s < MOMENTS.rout) act = "prone";
-  else if (s >= MOMENTS.after && t.side !== field.beaten)
+  else if (t.gun && s >= MOMENTS.advance && s < routAt(field)) act = "prone";
+  else if (s >= afterAt(field) && t.side !== field.beaten)
     act = unit(t.id, Math.floor(s / 3)) < 0.55 ? "cheer" : "stand";
   else if (s >= MOMENTS.melee) {
     // At the line: the front strikes, those behind press on.
@@ -1614,7 +1737,7 @@ function climbing(
     atTop = atFoot + 2.6,
     top = long - 0.55,
     stormed = field.near.outcome === "stormed",
-    back = stormed ? null : (l.down ?? MOMENTS.rout + 1) - 2.6,
+    back = stormed ? null : (l.down ?? routAt(field) + 1) - 2.6,
     on = (along: number) => ({
       x: foot + Math.cos(lean) * along,
       y: Math.sin(lean) * along,
@@ -1636,7 +1759,7 @@ function climbing(
       x: at.x + (w.x - at.x) * f,
       y: at.y + (w.high - 1.1 - at.y) * f,
       z: l.z,
-      act: s >= MOMENTS.after ? "cheer" : "stand",
+      act: s >= afterAt(field) ? "cheer" : "stand",
     };
   }
   if (s < back) return { ...on(top), act: "fight" };
@@ -1737,11 +1860,11 @@ function carWay(field: BattleField, v: Vehicle, s: number): { x: number; z: numb
       pace = clamp01((s - MOMENTS.advance) / (MOMENTS.charge + 4 - MOMENTS.advance));
     let x = start + (hold - start) * pace,
       z = v.z;
-    if (s >= MOMENTS.rout) {
+    if (s >= routAt(field)) {
       // (The victors drive on across the open; the beaten back off, still facing the foe.)
       if (field.beaten === 1) {
-        if (!wall) x += 12 * clamp01((s - MOMENTS.rout) / 10);
-      } else x -= 20 * clamp01((s - MOMENTS.rout) / 12);
+        if (!wall) x += 12 * clamp01((s - routAt(field)) / 10);
+      } else x -= 20 * clamp01((s - routAt(field)) / 12);
     }
     // (At a seat stormed, the two cars nearest the gate drive in through it, toward its middle.)
     if (wall && field.near.outcome === "stormed" && gateCars(field).includes(v.id)) {
@@ -1754,11 +1877,11 @@ function carWay(field: BattleField, v: Vehicle, s: number): { x: number; z: numb
   // The defenders' cars hold their trench's line, or their walls, firing; beaten, they turn about
   // and drive off the field's far edge.
   const hold = trench ? trench.x + 10 : wall ? wall.x + 6 : field.meet + 10;
-  if (field.beaten === 1 && s >= MOMENTS.rout)
+  if (field.beaten === 1 && s >= routAt(field))
     return {
-      x: hold + (FIELD.x + 14 - hold) * clamp01((s - MOMENTS.rout - 2) / 12),
+      x: hold + (FIELD.x + 14 - hold) * clamp01((s - routAt(field) - 2) / 12),
       z: v.z,
-      yaw: -Math.PI / 2 + Math.PI * smooth((s - MOMENTS.rout) / 2),
+      yaw: -Math.PI / 2 + Math.PI * smooth((s - routAt(field)) / 2),
     };
   return { x: hold, z: v.z, yaw: -Math.PI / 2 };
 }
@@ -1782,7 +1905,7 @@ function vehicleNow(
     way = carWay(field, v, stopAt),
     turret = since === null ? 0.35 * Math.sin(s * 0.4 + v.u * 6) : (v.u - 0.5) * 0.8,
     first = MOMENTS.arrows + v.u * 1.6,
-    fired = Math.min(stopAt, MOMENTS.rout);
+    fired = Math.min(stopAt, routAt(field));
   // (The last round fired by then: the latest burst begun, as far along as it has got.)
   let last = -Infinity;
   if (fired >= first) {
@@ -2042,7 +2165,7 @@ export function battleAt(field: BattleField, s: number): BattleNow {
     ladders,
     gate: stormed ? smooth((t - MOMENTS.gate) / 3) : 0,
     burning: stormed ? smooth((t - MOMENTS.gate - 6) / 14) : 0,
-    camp: field.near.outcome === "siege" ? smooth((t - MOMENTS.after - 4) / 10) : 0,
+    camp: field.near.outcome === "siege" ? smooth((t - afterAt(field) - 4) / 10) : 0,
     words: moment?.words ?? "",
     ...(field.vehicles ? { vehicles: cars, fumes, flames } : {}),
   };
@@ -2097,11 +2220,11 @@ export function shotBy(other: BattleNear["attacker"], id: number): string {
  * line's own words.
  */
 function laterWords(field: BattleField, t: Trooper, s: number): string | null {
-  if (t.gun && s >= MOMENTS.advance && s < MOMENTS.rout)
+  if (t.gun && s >= MOMENTS.advance && s < routAt(field))
     return runningAt(field, t, s) ? "rushing forward" : "at their machine gun, firing";
   if (t.side === 0 && field.hosts[0]!.open && s >= MOMENTS.advance && s < MOMENTS.melee)
     return runningAt(field, t, s) ? "rushing forward" : "down in the grass, firing";
-  if (field.ground.trench && t.side === 1 && s >= MOMENTS.arrows && s < MOMENTS.rout) {
+  if (field.ground.trench && t.side === 1 && s >= MOMENTS.arrows && s < routAt(field)) {
     const trenched = inTrench(field, t, s);
     if (s < MOMENTS.melee)
       return trenched ? "in the trench, firing" : "lying behind the trench, waiting";
@@ -2161,7 +2284,7 @@ export function trooperWords(field: BattleField, id: number, s: number): string 
               ? (CLIMB_WORDS[climb.act] ?? "on a ladder")
               : t.gate && s >= MOMENTS.gate
                 ? "through the broken gate"
-                : t.pursues && s >= MOMENTS.rout && s < MOMENTS.after
+                : t.pursues && s >= routAt(field) && s < afterAt(field)
                   ? "after the beaten"
                   : later !== null
                     ? later
@@ -2171,15 +2294,17 @@ export function trooperWords(field: BattleField, id: number, s: number): string 
                         ? t.side === 0
                           ? "coming on"
                           : "holding the line"
-                        : s < MOMENTS.rout
-                          ? wing && s > WHEEL.from
-                            ? s < WHEEL.to
-                              ? "wheeling about their flank"
-                              : "falling on their flank"
-                            : "in the press"
-                          : won
-                            ? "standing on the field, its victor"
-                            : "standing still";
+                        : field.near.combat?.broken === -1 && s >= 130
+                          ? "disengaging in good order, their line unbroken"
+                          : s < routAt(field)
+                            ? wing && s > WHEEL.from
+                              ? s < WHEEL.to
+                                ? "wheeling about their flank"
+                                : "falling on their flank"
+                              : "in the press"
+                            : won
+                              ? "standing on the field, its victor"
+                              : "standing still";
   return `${trooperWho(field, id)}: ${fate}.`;
 }
 

@@ -216,10 +216,11 @@ test("a soldier is taken only while his battle is fought, once, one body at a ti
     return "";
   };
   assert.match(why(world, "possess.soldier", argsOf(b, lines(2))), /that battle has not begun/);
-  world.runTo((b.year + 1) * YEAR + 8 * 3600 + FIGHT_LAST * 60 + 60);
+  const decided = b.combat ? (b.combat.rout ?? 130) : FIGHT_LAST;
+  world.runTo((b.year + 1) * YEAR + 8 * 3600 + decided * 60 + 60);
   assert.match(
     why(world, "possess.soldier", argsOf(b, lines(2))),
-    /that battle is decided: the beaten are put to flight/,
+    /that battle is decided: its hosts have broken or disengaged/,
   );
   const { world: w2, event: e2 } = comeTo(sizeable);
   const b2 = battleBy(w2, e2)!.b;

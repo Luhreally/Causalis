@@ -8,6 +8,21 @@ import type { Arms } from "./arms.ts";
 import type { GenesisPlan, MeadowPlan } from "./genesis.ts";
 import type { HostKinds } from "./wars.ts";
 
+/** The authoritative exchanges, kept small enough for the phone's field viewer. */
+export type BattleCombat = {
+  readonly model: 2;
+  readonly broken: -1 | 0 | 1;
+  readonly reason: "morale" | "overrun" | "stalemate";
+  readonly rout: number | null;
+  readonly power: readonly [number, number];
+  readonly frames: readonly {
+    readonly at: number;
+    readonly dead: readonly [number, number];
+    readonly morale: readonly [number, number];
+    readonly pressure: number;
+  }[];
+};
+
 /** One of a battle's two hosts. */
 export type BattleSideNear = {
   /** Its realm (a fallen one still has its name). */
@@ -73,6 +88,7 @@ export type BattleNear = {
   readonly outcome: BattleOutcome;
   /** Whether arms decided it: with even arms the day would have gone the other way (M217). */
   readonly tip?: boolean;
+  readonly combat?: BattleCombat;
   /** A rising (a civil war's battle): what it was fought over (null: a war between realms). */
   readonly civil: string | null;
   /** The ground: hills the defenders hold, a river between, a seat's walls (0 none, 1 a palisade, 2 stone). */

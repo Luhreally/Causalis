@@ -312,6 +312,9 @@ if (greatest) {
     }),
     made = (name: string, a: object, d: object) => ({
       ...real,
+      // These are fabricated renderer fixtures with different armies and casualty totals.
+      // They do not inherit the unrelated real battle's authoritative combat transcript.
+      combat: undefined,
       event: `${real.event}:${name}`,
       attacker: a,
       defender: d,

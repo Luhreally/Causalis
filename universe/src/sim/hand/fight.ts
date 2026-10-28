@@ -30,7 +30,6 @@ import {
   FIGHT_MOST,
   FIGHT_OUT_MOST,
   FIGHT_PACKED,
-  FIGHT_TILT,
   LOOSES,
   MALE,
   POSSESS_HZ,
@@ -38,8 +37,7 @@ import {
   bidsOf,
   copyFight,
   fightDecided,
-  fightLeaning,
-  fightMights,
+  combatMights,
   fightOut,
   fightSide,
   fightWorld,
@@ -137,7 +135,8 @@ function soldierProblem(world: World, args: unknown): string | null {
   if (store.foughtOf(a.battle)) return "the god has fought in that battle already";
   const s = fightSecondAt(b.year, world.now + 1);
   if (s < 0) return "that battle has not begun";
-  if (s >= FIGHT_LAST) return "that battle is decided: the beaten are put to flight";
+  const last = b.combat ? (b.combat.rout ?? 130) : FIGHT_LAST;
+  if (s >= last) return "that battle is decided: its hosts have broken or disengaged";
   if (!Number.isInteger(a.most) || a.most! < 1 || a.most! > 400)
     return "most is the figures a side was drawn as";
   if (!finite(a.per, 1e7) || !Number.isInteger(a.per) || a.per! < 1)
@@ -241,22 +240,23 @@ export function installFight(world: World, ctx: () => PopulationContext): void {
         a = command.args as SoldierArgs,
         { war: w, b } = battleBy(world, a.battle)!,
         realms = politiesOf(world),
-        victor: 0 | 1 = b.won ? 0 : 1,
         terms = ([0, 1] as const).map((k) => {
           const p = realms.get(k === 0 ? w.attacker : w.defender)!;
           return hostTerms(c, p, armsOf(c, p));
         }),
         // (A people of another world fights at its own paces: Phase 61's alien bodies.)
         frame = personFrame(c.generated.life.people?.body ?? null),
-        sceneAt = (tilt: number): FightScene => {
-          const mights = fightMights(
-              victor,
-              [a.figures[0] - a.before[0], a.figures[1] - a.before[1]],
-              tilt,
-            ),
+        sceneAt = (): FightScene => {
+          const men = b.fielded ?? a.figures,
+            power = b.combat?.power ?? [
+              men[0] * (b.power?.[0] ?? 1),
+              men[1] * (b.power?.[1] ?? 1) * 1.5 * (b.seat ? 2 : 1),
+            ],
+            mights = combatMights(power, men),
             side = (k: 0 | 1) =>
               fightSide(terms[k]!, a.looses[k], a.mounted[k], mights[k], a.figures[k], a.before[k]);
           return {
+            cohesion: true,
             sides: [side(0), side(1)],
             from: Math.max(0, fightSecondAt(b.year, t)),
             length: FIGHT_DAY.length,
@@ -265,10 +265,11 @@ export function installFight(world: World, ctx: () => PopulationContext): void {
             ...(frame ? { pace: frame.run } : {}),
           };
         },
-        start = fightWorld(unpackFight(a.bodies, sceneAt(FIGHT_TILT))),
-        // (The same fight with no hand in it, by the same draws: history's day as the fight has it,
-        // the day leant the more where, left alone, it went the other way.)
-        { scene, idle } = fightLeaning(sceneAt, start, victor, drawsOf(world, { from: t }));
+        scene = sceneAt(),
+        start = fightWorld(unpackFight(a.bodies, scene)),
+        idle = copyFight(start);
+      // The counterfactual uses the same forces and draws, once; it is never rerun to force a winner.
+      fightOut(scene, idle, drawsOf(world, { from: t }), FIGHT_OUT_MOST);
       const decided = fightDecided(idle),
         event = world.events.emit({
           type: FIGHT_EVENTS.soldier.type,

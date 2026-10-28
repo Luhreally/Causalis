@@ -2,6 +2,8 @@
 // principles, body-plan primitives and the rest as later milestones need them.
 // May import: kernel. See README.md and docs/architecture §34.
 export { BRUSH_KINDS, BRUSH_LIMIT, brushCells, type BrushKind, type BrushArgs } from "./brush.ts";
+export { resolveCombat, type CombatSide, type CombatFrame, type CombatRecord } from "./combat.ts";
+export { combatMights } from "./fight.ts";
 export {
   ENGINE_GAIN,
   FOODS,

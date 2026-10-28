@@ -93,6 +93,8 @@ export type WarsMap = {
       readonly spot: number;
       readonly year: number;
       readonly won: boolean;
+      /** Actual cohesion break, in battle seconds; null means an orderly disengagement. */
+      readonly rout?: number | null;
       readonly fallen: number;
       /** Its wounded who lived, both sides together (Phase 55; absent in older saves). */
       readonly wounded?: number;

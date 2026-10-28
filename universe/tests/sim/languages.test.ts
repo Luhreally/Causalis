@@ -149,7 +149,11 @@ test("ships open roads across the sea, and peoples of different families meet th
 test("realms go to war across the sea, with ships to carry the host", () => {
   const across = warsOf(world)
     .all()
-    .map((w) => world.decisions.get(world.events.get(w.event)!.causes[0]!.ref as Ref)!)
+    .flatMap((w) => {
+      // Civil risings and compacted older declarations need not retain a decision.
+      const d = world.decisions.get(world.events.get(w.event)!.causes[0]!.ref as Ref);
+      return d ? [d] : [];
+    })
     .filter((d) => d.factors.some((f) => f.name === "ships to carry the host"));
   assert.ok(across.length >= 3, `${across.length} wars across the sea`);
   for (const d of across.slice(0, 5)) {

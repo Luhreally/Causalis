@@ -753,7 +753,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
   return {
     name,
     // (A world of its own chemistry's history changed with Phase 54 M222: its own ores, heats and arms.)
-    version: name === "alien" ? "alien-7" : `${name}-6`,
+    version: name === "alien" ? "alien-8" : `${name}-7`,
     defaultView: "globe",
     // A farming land with no village yet will found one soon: work out its village sites early.
     idle: (world) => {
@@ -1081,6 +1081,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
                     spot: spot(b.land),
                     year: b.year,
                     won: b.won,
+                    ...(b.combat ? { rout: b.combat.rout } : {}),
                     fallen: b.fallen[0] + b.fallen[1],
                     ...(b.wounded ? { wounded: b.wounded[0] + b.wounded[1] } : {}),
                     event: b.event,

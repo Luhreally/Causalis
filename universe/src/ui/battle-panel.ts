@@ -6,7 +6,7 @@
 // under it. The one followed named (Phase 55 M227–M228): who he was, where from, how he came out of
 // it, what he bore and who made it.
 import type { BattleNear } from "../bridge/index.ts";
-import { BATTLE_LENGTH, BATTLE_SPEEDS, MOMENTS } from "../view/index.ts";
+import { BATTLE_LENGTH, BATTLE_SPEEDS, MOMENTS, combatAt } from "../view/index.ts";
 import { el } from "./why.ts";
 
 /** One who fought, named (Phase 55 M227–M228), as his card tells him. */
@@ -46,6 +46,7 @@ type SideCard = {
   /** The men who rose with it, where more fell than its host had (hidden: none). */
   readonly risen: HTMLElement;
   readonly tally: HTMLElement;
+  readonly morale: HTMLElement;
   /** Its wounded who lived, and of them the maimed: hidden until the battle is over (or none). */
   readonly hurt: HTMLElement;
   readonly bar: HTMLElement;
@@ -79,6 +80,7 @@ export class BattlePanel {
   /** Whether each side has a host design to trace its weapon to (a beast's own claws have none). */
   private traceable: readonly [boolean, boolean] = [false, false];
   private shown = "";
+  private near: BattleNear | null = null;
   onBack: () => void = () => {};
   onPage: () => void = () => {};
   onAgain: () => void = () => {};
@@ -116,17 +118,19 @@ export class BattlePanel {
         kit = el("span", "battle-side-kit"),
         risen = el("span", "battle-side-kit battle-side-risen"),
         tally = el("span", "battle-side-tally"),
+        morale = el("span", "battle-side-morale"),
         hurt = el("span", "battle-side-kit battle-side-hurt"),
         track = el("span", "battle-side-track"),
         bar = el("span", "battle-side-bar");
       track.append(bar);
-      box.append(name, kit, risen, tally, hurt, track);
+      box.append(name, kit, risen, tally, morale, hurt, track);
       const c: SideCard = {
         box,
         name,
         kit,
         risen,
         tally,
+        morale,
         hurt,
         bar,
         ref: "",
@@ -188,6 +192,7 @@ export class BattlePanel {
 
   /** Which battle, its hosts, how many men a figure stands for. */
   show(near: BattleNear, per: number): void {
+    this.near = near;
     this.title.textContent = `⚔️ ${near.title} · year ${near.year}${near.civil ? ` · ${near.civil}` : ""}${near.tip ? " · arms decided it" : ""}${near.hand ? ` · the god fought in it as ${near.hand.name}` : ""}`;
     // (A beast's own claws are not made: no host design to trace them to.)
     this.traceable = [near.attacker.host !== null, near.defender.host !== null];
@@ -285,7 +290,7 @@ export class BattlePanel {
     speed: number,
   ): void {
     // (Whether the battle is over is in the key too, so its wounded are told the moment it is.)
-    const over = s >= MOMENTS.after,
+    const over = s >= (this.near?.combat ? BATTLE_LENGTH : MOMENTS.after),
       key = `${Math.round(s * 4)}|${standing}|${fallen}|${words}|${speed}|${over}`;
     if (key === this.shown) return;
     this.shown = key;
@@ -293,11 +298,22 @@ export class BattlePanel {
     this.course.setAttribute("aria-valuenow", `${Math.round(s)}`);
     if (this.told.textContent !== words) this.told.textContent = words;
     this.sides.forEach((c, i) => {
-      const text = `${standing[i]!.toLocaleString("en-US")} stand · ${fallen[i]!.toLocaleString("en-US")} fallen`;
+      const combat = this.near && !this.near.hand && combatAt(this.near, s),
+        record = this.near?.combat;
+      c.morale.hidden = !combat;
+      if (combat && record) {
+        const broken = record.broken === i && record.rout !== null && s >= record.rout,
+          text = `Morale ${Math.round(combat.morale[i]! * 100)}% · ${broken ? "line broken" : record.broken === -1 && s >= 130 ? "disengaging in order" : "line holding"}`;
+        if (c.morale.textContent !== text) c.morale.textContent = text;
+      }
+      const wounded = combat ? combat.wounded[i]! : 0,
+        fit = Math.max(0, standing[i]! - wounded),
+        text = `${fit.toLocaleString("en-US")} ${combat ? "fighting" : "stand"} · ${fallen[i]!.toLocaleString("en-US")} fallen`;
       if (c.tally.textContent !== text) c.tally.textContent = text;
-      c.bar.style.width = `${Math.max(0, Math.min(1, standing[i]! / c.fielded)) * 100}%`;
+      c.bar.style.width = `${Math.max(0, Math.min(1, fit / c.fielded)) * 100}%`;
       // (The wounded are told when the battle is over, and only where there were any.)
-      c.hurt.hidden = !(c.wounded > 0 && over);
+      if (combat) c.hurt.textContent = `${wounded.toLocaleString("en-US")} wounded`;
+      c.hurt.hidden = !(combat ? wounded > 0 : c.wounded > 0 && over);
     });
     this.buttons.forEach((b, i) => b.classList.toggle("on", i === speed));
   }

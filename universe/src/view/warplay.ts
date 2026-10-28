@@ -242,6 +242,31 @@ export function warNow(w: War, y: number, mapYear: number): WarNow | null {
       engaged,
       k: engaged ? (f - FOUGHT.from) / (FOUGHT.to - FOUGHT.from) : 1,
     };
+    const second = ((f - FOUGHT.from) * 365 * 86400) / BATTLE_DAY.second;
+    if (prev.rout !== undefined && prev.rout !== null && second >= prev.rout) {
+      if (prev.won) {
+        attacker = {
+          ...attacker!,
+          doing: "holding",
+          words: "holding the field as the defenders break",
+        };
+        defender = { ...defender!, doing: "routed", words: "morale broken; in flight" };
+      } else {
+        attacker = { ...attacker!, doing: "routed", words: "morale broken; in flight" };
+        defender = {
+          ...defender!,
+          doing: "holding",
+          words: "holding the field as the attackers break",
+        };
+      }
+    } else if (prev.rout === null && second >= 130) {
+      attacker = {
+        ...attacker!,
+        doing: "withdrawing",
+        words: "disengaging in good order; its line unbroken",
+      };
+      defender = { ...defender!, doing: "holding", words: "holding the ground; its line unbroken" };
+    }
   } else if (prev && prev.spot >= 0 && g < T.after) {
     // The battle the year began with, at its end.
     const P = prev.spot,

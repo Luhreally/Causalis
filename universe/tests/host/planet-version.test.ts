@@ -1,11 +1,10 @@
-// The rules each universe's saves are kept by (Phase 54 M222): a world of its own chemistry's
-// history changed — its own showings, the heat its furnaces reach, arms of its own stuff — so its
-// saves are of a new ruleset; Earth's history did not, and its saves stand.
+// Cohesion combat changes future history on both kinds of worlds. Older checkpoints
+// retain their past and continue under the new rules (tests/sim/combat.test.ts).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ALIEN, EARTH } from "../../src/host/planet.ts";
 
-test("Earth's saves stand; a world of its own chemistry's are of its new rules", () => {
-  assert.equal(EARTH.version, "earth-6");
-  assert.equal(ALIEN.version, "alien-7");
+test("cohesion combat continues existing histories under a new ruleset on Earth and alien worlds", () => {
+  assert.equal(EARTH.version, "earth-7");
+  assert.equal(ALIEN.version, "alien-8");
 });

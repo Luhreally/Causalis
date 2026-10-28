@@ -47,7 +47,7 @@ import { townLink } from "./names.ts";
 import { item, link, many, stat } from "./words.ts";
 import { bodyMatter } from "../biochem.ts";
 import { equipmentOf } from "./arm.ts";
-import { foughtBody } from "../held.ts";
+import { foughtBody, foughtFate } from "../held.ts";
 
 /** A seat's trade's sign on its page. */
 const TRADE_ICON: Readonly<Record<string, string>> = {
@@ -326,6 +326,8 @@ export function withKin(world: World, ref: string, page: PageModel): PageModel {
   let read = bodyOf(world, ref);
   if (!read) return page;
   const fought = foughtBody(world, ref);
+  const handFate = fought && foughtFate(world, fought.battle, ref),
+    needsHand = handFate && !JSON.stringify(page.tabs).includes(handFate.words);
   if (fought)
     read = {
       ...read,
@@ -354,6 +356,7 @@ export function withKin(world: World, ref: string, page: PageModel): PageModel {
       rows: [
         ...(card.family ? [stat("Family", card.family)] : []),
         ...(card.body ? [stat("Body", card.body)] : []),
+        ...(needsHand ? [stat("By your hand", handFate.words, { why: handFate.event })] : []),
       ],
     },
     tabs: Tab[] = page.tabs.map((t) =>

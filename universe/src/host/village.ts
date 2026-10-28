@@ -980,17 +980,38 @@ export function villagePlan(
       ),
       at = (a: number, r: number) => ({ x: r * Math.cos(a), z: r * Math.sin(a) }),
       dig = edge + 70,
+      clear = (p: { x: number; z: number }, a: number) =>
+        offRoad(a) > 0.45 &&
+        Math.hypot(p.x - pastureAt * Math.cos(pastureWay), p.z - pastureAt * Math.sin(pastureWay)) >
+          pastureR + 15 &&
+        fields.every(
+          (f) => Math.abs(p.x - f.x) > f.w / 2 + 20 || Math.abs(p.z - f.z) > f.d / 2 + 20,
+        ),
+      initial = at(ways[0]!, dig),
+      // Angular preference alone can put a mine in the edge of a broad field fan.
+      // Keep existing clear placements; otherwise search actual field/pasture bounds.
+      mineAt = clear(initial, ways[0]!)
+        ? initial
+        : ([dig, outer + 60, Math.max(outer, pastureAt + pastureR) + 80]
+            .flatMap((r) =>
+              Array.from({ length: 32 }, (_, k) => {
+                const a = ways[0]! + (k * Math.PI) / 16;
+                return { p: at(a, r), a };
+              }),
+            )
+            .find(({ p, a }) => clear(p, a))?.p ??
+          at(roadWay + Math.PI / 2, Math.max(outer, pastureAt + pastureR) + 80)),
       mine = m?.mine
-        ? { ...at(ways[0]!, dig), kind: engines ? "shaft" : "pit", what: "coal", ref: m.mine }
+        ? { ...mineAt, kind: engines ? "shaft" : "pit", what: "coal", ref: m.mine }
         : (made?.[G.copper] ?? 0) + (made?.[G.tin] ?? 0) + (made?.[G.iron] ?? 0) > 0
           ? {
-              ...at(ways[0]!, dig),
+              ...mineAt,
               kind: engines ? "shaft" : "pit",
               what: "ore",
               ref: m?.metalworking ?? null,
             }
           : houseOf(cell).walls === "stone"
-            ? { ...at(ways[0]!, dig), kind: "quarry", what: "stone", ref: houseOf(cell).design }
+            ? { ...mineAt, kind: "quarry", what: "stone", ref: houseOf(cell).design }
             : null;
     return {
       mine: mine as NonNullable<VillagePlan["works"]>["mine"],

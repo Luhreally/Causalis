@@ -657,6 +657,15 @@ body[data-scale="micro"] {
   font-size: 0.85rem;
   font-variant-numeric: tabular-nums;
 }
+.battle-side-morale {
+  display: block;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+.battle-side-morale[hidden] {
+  display: none;
+}
 .battle-side-track {
   display: block;
   width: 100%;

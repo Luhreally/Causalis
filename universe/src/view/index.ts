@@ -285,6 +285,8 @@ export {
   FIELD,
   MOMENTS,
   battleAt,
+  combatAt,
+  routAt,
   battleGroundAt,
   menAt,
   mostFor,

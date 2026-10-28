@@ -52,6 +52,16 @@ const mapOf = (w: War, year = 300): WarsMap => ({ year, garrisons: [], wars: [w]
 /** A moment of a turn's first day (the world's years): the battle at the turn is fought from eight (D4). */
 const morning = (turn: number, hours: number) => turn + (hours * 3600) / (365 * 86_400);
 
+test("watching a chosen battle pins it when two wars share the same town", () => {
+  const first = war(),
+    second = war({ ref: "war:0:8", battles: [{ ...first.battles[0]!, event: "evt:0:10" }] }),
+    map: WarsMap = { year: 300, garrisons: [], wars: [first, second] },
+    place = { spot: P, heart: true },
+    time = morning(300, 8.5);
+  assert.equal(townWarNow(map, time, place)!.placed!.event, "evt:0:9");
+  assert.equal(townWarNow(map, time, place, "evt:0:10")!.placed!.event, "evt:0:10");
+});
+
 const town: VillagePlan = {
   ref: "town:0:5",
   name: "Fieldham",
