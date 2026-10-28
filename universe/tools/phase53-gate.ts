@@ -136,6 +136,7 @@ type Side = {
   armed?: number;
 };
 type Near = {
+  combat?: unknown;
   event: string;
   title: string;
   attacker: Side;
@@ -232,6 +233,8 @@ const real = await k<Near>(
   ),
   near: Near = {
     ...real,
+    // A renderer fixture with invented weapons and losses has no campaign transcript.
+    combat: undefined,
     attacker: {
       ...real.attacker,
       fielded: 6000,
