@@ -1771,6 +1771,7 @@ async function runPlanetPage(): Promise<void> {
   /** A spot come down onto, or a battle come back from (M203): its field faced once its land's
    *  towns are known. */
   let arriveField: { spot?: number; event?: string; cell: number; until: number } | null = null;
+  let landBattleFocus: { event: string; cell: number } | null = null;
   /** Turn to the most peopled province; closer, for the lenses that show the people. */
   async function faceThePeople(closer: boolean): Promise<void> {
     const map = await client.query<PeopleEntry[]>({ type: "people.map" });
@@ -4080,9 +4081,10 @@ async function runPlanetPage(): Promise<void> {
       // is fought, into the town it is fought before, facing it (Phase 55; asked for 2026-10-27: "i
       // meant open world warfare on town view not land view").
       const aimed = rig.aimed,
-        picked = regionWars.pick(aim.x, aim.y, 160, true),
+        focused = landBattleFocus?.cell === regionCell ? landBattleFocus.event : undefined,
+        picked = regionWars.pick(aim.x, aim.y, 160, true, focused),
         near = picked || !aimed ? null : regionWars.battleNear(aimed.x, aimed.z, BATTLE_NEAR_KM),
-        field = regionWars.pick(aim.x, aim.y, 90, true);
+        field = regionWars.pick(aim.x, aim.y, 90, true, focused);
       // (A battle fought now — from the night before it, its hosts drawn up by their fires, until
       // the beaten fly — before any past marked with it: its land's last was fought on the same field.)
       for (const f of regionWars.now?.fights ?? []) {
@@ -6767,7 +6769,17 @@ async function runPlanetPage(): Promise<void> {
           }
         : null;
     }
-    if (scale === "region" && regionWars.now && warsLive)
+    if (scale === "region" && regionWars.now && warsLive) {
+      const focus = landBattleFocus;
+      if (focus?.cell === regionCell)
+        for (const w of warsLive.wars) {
+          const b = w.battles.find((b) => b.event === focus.event);
+          if (b)
+            return {
+              at: "land",
+              b: { war: w.ref, event: b.event, cell: regionCell, year: b.year },
+            };
+        }
       for (const f of regionWars.now.fights) {
         if (f.stage === "drawn") continue;
         const turn = Number(f.key.split(":").at(-1)),
@@ -6775,6 +6787,7 @@ async function runPlanetPage(): Promise<void> {
         if (b)
           return { at: "land", b: { war: f.ref, event: b.event, cell: regionCell, year: b.year } };
       }
+    }
     return null;
   };
   stage.onUpdate(() => {
@@ -6806,10 +6819,11 @@ async function runPlanetPage(): Promise<void> {
       return;
     }
     if (to === "globe") {
-      await watchWar(b.war);
+      await watchWar(b.war, { ref: b.war, year: b.year + 1, speed: 0, fields: false });
       return;
     }
     if (to === "land") {
+      landBattleFocus = { event: b.event, cell: b.cell };
       await fadeOver(() =>
         ready("the land", () => {
           leaveScale();
@@ -6822,14 +6836,7 @@ async function runPlanetPage(): Promise<void> {
     // Before its town: the town its land's battles are fought before, at the world's moment.
     const heart = await client.query<string | null>({ type: "land.heart", args: { cell: b.cell } });
     if (!heart) return;
-    await fadeOver(() =>
-      ready("the village", async () => {
-        leaveScale();
-        regionCell = b.cell;
-        await toVillage(heart);
-      }),
-    );
-    faceFightBy = performance.now() + 8000;
+    await toTownFight({ cell: b.cell, town: heart }, b.event);
   };
   warViews.onView = (to) => void switchView(to);
   exposed.warViews = () => warViews.state;

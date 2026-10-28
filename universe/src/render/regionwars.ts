@@ -50,6 +50,7 @@ type Mark = {
   ref: string;
   name: string;
   battle: boolean;
+  age?: number;
   realm?: string;
   fields?: number;
   /** A host's doing's sign before its counter, and the realm it fights (M203). */
@@ -394,7 +395,14 @@ export class RegionWars {
         size: (0.35 + 0.5 * b.size) * fresh,
         pulse: 0.75 + 0.25 * Math.sin(s * 5 + n * 1.7),
       });
-      marks.push({ x: at.x, z: at.z, ref: b.event, name: `⚔️ ${b.name}`, battle: true });
+      marks.push({
+        x: at.x,
+        z: at.z,
+        ref: b.event,
+        name: `⚔️ ${b.name}`,
+        battle: true,
+        age: b.age,
+      });
     });
     // The fights the year ends in, as they are fought: a flare over the line, pulsing the harder
     // the nearer the turn; the line's figures are the hosts'.
@@ -936,12 +944,13 @@ export class RegionWars {
   }
 
   /** The host, battle, camp or garrison nearest a screen point, within `reach` (a finger's), its ref; or null. */
-  pick(x: number, y: number, reach = 28, battles = false): string | null {
+  pick(x: number, y: number, reach = 28, battles = false, preferred?: string): string | null {
     const cam = this.stage.camera.camera!,
       at = new pc.Vec3(),
       out = new pc.Vec3();
     let best: string | null = null,
-      bestD = reach;
+      bestD = reach,
+      bestAge = Infinity;
     for (const m of this.marks) {
       // (A battle zoomed into: a camp or a garrison nearer the pointer is not it.)
       if (battles && !m.battle) continue;
@@ -951,9 +960,15 @@ export class RegionWars {
         cam.worldToScreen(at, out);
         if (out.z <= 0) continue;
         const d = Math.hypot(out.x - x, out.y - y);
-        if (d < bestD) {
+        // Several years' battles can occupy exactly the same field. Keep the battle just
+        // watched; otherwise the newest mark wins a tie, rather than the first old archive.
+        const tied = best !== null && Math.abs(d - bestD) < 0.5,
+          priority = m.ref === preferred ? -Infinity : (m.age ?? Infinity),
+          bestPriority = best === preferred ? -Infinity : bestAge;
+        if (d < reach && (tied ? priority < bestPriority : d < bestD)) {
           bestD = d;
           best = m.ref;
+          bestAge = m.age ?? Infinity;
         }
       }
     }

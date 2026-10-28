@@ -43,6 +43,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { preview } from "vite";
 import { chromium } from "playwright";
+import type { BattleNear } from "../src/bridge/index.ts";
 
 const ci = process.argv.includes("--ci"),
   soft = process.argv.includes("--soft"),
@@ -409,6 +410,8 @@ if (!woundsOnly) {
   check(!!found, "no battle laid before its land's heart the morning of the turn");
   if (!found) await fail();
   const { event, town: heart } = found!;
+  const battle = await ask<BattleNear>("battle.near", { event }),
+    rout = battle.combat ? battle.combat.rout : 108;
   let p = (await placedNow())!;
   say(
     `${p.title} (${event}), before ${heart}: ${p.stage} at ${(((await now()) % DAY) / HOUR) | 0} h; ${p.figures.join(" and ")} figures, ${p.per} men each; ${p.named} named`,
@@ -629,11 +632,14 @@ if (!woundsOnly) {
   );
   check(p.marks.wounds > 0, "no wounds drawn on the struck");
   await shot("b4-struck");
-  await atTurn(turn, 8 + 116 / 60);
+  await atTurn(turn, 8 + (rout === null ? 144 : Math.min(148, rout + 8)) / 60);
   p = (await placedNow())!;
   const flying = p.onScreen.filter((t) => t.act === "flee").length;
-  say(`the rout at ${p.s.toFixed(0)} s: ${flying} flying`);
-  check(flying > 0, "none of the beaten seen flying");
+  say(`the ${rout === null ? "disengagement" : "rout"} at ${p.s.toFixed(0)} s: ${flying} flying`);
+  check(
+    rout === null ? flying === 0 : flying > 0,
+    rout === null ? "an unbroken host seen flying" : "none of the beaten seen flying",
+  );
   await shot("b6-rout");
 
   // B4. After it: its fallen lying where they fell; a fallen man's card, his page, his arm's.
