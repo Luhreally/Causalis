@@ -20,6 +20,7 @@ look:{...NO_LOOK,lost:['arm-l'],bound:['arm-l']},equipment:{guard:'plate',guardW
 document.querySelector('main').append(bodyView({type:'body',person,members:APE_FRAME.members.map(member=>({member,words:APE_FRAME.words[member].replace('~','his'),state:member==='arm-l'?'lost':member==='leg-r'?'struck':'whole'}))}));
 </script>`;
 const server = await createServer({
+  base: "/",
   logLevel: "silent",
   server: { port: 4263, strictPort: false },
   plugins: [

@@ -29,6 +29,7 @@ stage.onUpdate(()=>{layer.update(now);document.querySelector('#status').textCont
 let modeName='full';globalThis.goreFixture={set(mode){modeName=mode;set(mode);},read(){return {limbs:now.limbs.length,gibs:now.gibs?.length??0,blood:now.blood.length,wounds:now.wounds.length,marks:layer.marks()};}};
 </script></body></html>`;
 const server = await createServer({
+  base: "/",
   root: fileURLToPath(new URL("..", import.meta.url)),
   logLevel: "error",
   server: { port: 4189, strictPort: false },
