@@ -15,6 +15,9 @@
 import * as pc from "playcanvas";
 import {
   BLEED,
+  armorPanels,
+  armorColor,
+  armorDepth,
   FIELD,
   SEVER,
   STRIDES,
@@ -441,6 +444,8 @@ export class BattleLayer {
     shields: InstancedBatch;
     flags: InstancedBatch;
     stripes: InstancedBatch;
+    armor: InstancedBatch;
+    helmet: InstancedBatch;
   }[] = [];
   private rig: Rig | null = null;
   private readonly shafts: InstancedBatch;
@@ -653,11 +658,13 @@ export class BattleLayer {
       return {
         // (Room past the figures for the parts cut off them, lying apart: Phase 55.)
         parts: (f?.parts ?? []).map(
-          (p) =>
+          (p, i) =>
             new InstancedBatch(
               this.stage,
               this.shapes[p.shape],
-              tones[p.tone]!,
+              this.rig!.masks[i]! & placeBit("trunk") && armorPanels(s.host?.guard ?? "").length
+                ? armorColor(s.host!.guard, s.kit)
+                : tones[p.tone]!,
               MOST + SEVER.most,
               this.root,
             ),
@@ -665,6 +672,20 @@ export class BattleLayer {
         shields: new InstancedBatch(this.stage, this.box, shieldOf(s.kit, c), MOST, this.root),
         flags: new InstancedBatch(this.stage, this.box, c, 32, this.root),
         stripes: new InstancedBatch(this.stage, this.box, metal as Rgb, 32, this.root),
+        armor: new InstancedBatch(
+          this.stage,
+          this.box,
+          armorColor(s.host?.guard ?? "", s.kit),
+          MOST * 6,
+          this.root,
+        ),
+        helmet: new InstancedBatch(
+          this.stage,
+          this.cone,
+          armorColor(s.host?.guard ?? "", s.kit),
+          MOST,
+          this.root,
+        ),
       };
     });
     this.tents.recolor(darker(field.near.attacker.color as Rgb, 0.9));
@@ -885,6 +906,8 @@ export class BattleLayer {
       s.shields.destroy();
       s.flags.destroy();
       s.stripes.destroy();
+      s.armor.destroy();
+      s.helmet.destroy();
     }
     this.sides = [];
     this.hill?.destroy();
@@ -1084,6 +1107,34 @@ export class BattleLayer {
         });
       });
       // Shields on their off arms, where their host bore them.
+      const panels = armorPanels(
+          field.near[side === 0 ? "attacker" : "defender"].host?.guard ?? "",
+        ),
+        chestIndex = figureAnatomy(f).on.trunk,
+        chest = f.parts[chestIndex],
+        ext = chest ? partExtent(chest) : [0, 0, 0];
+      s.armor.set(chest ? n * panels.length : 0, (j, out) => {
+        const person = Math.floor(j / panels.length),
+          t = list[person]!,
+          q = panels[j % panels.length]!,
+          kk = E.kk[person]!,
+          lean = E.lean[person]!,
+          x = chest!.x + q.x * ext[0]!,
+          y = chest!.y + q.y * ext[1]!,
+          z = chest!.z + q.z * ext[2]!,
+          py = y * Math.cos(lean) - z * Math.sin(lean),
+          pz = y * Math.sin(lean) + z * Math.cos(lean),
+          c = E.c[person]!,
+          sn = E.s[person]!;
+        out[0] = t.x * M + (x * c + pz * sn) * kk;
+        out[1] = E.up[person]! + py * kk;
+        out[2] = t.z * M + (-x * sn + pz * c) * kk;
+        out[3] = ext[0]! * q.w * kk;
+        out[4] = ext[1]! * q.h * kk;
+        out[5] = ext[2]! * q.d * kk;
+        out[6] = t.yaw;
+        out[7] = lean;
+      });
       const shielded = field.near[side === 0 ? "attacker" : "defender"].host?.guard === "shield";
       // (Not on an arm cut off; let fall beside one down on a knee or sitting: Phase 55.)
       const bearers = shielded
@@ -1313,8 +1364,11 @@ export class BattleLayer {
       const g = field.near[t.side === 0 ? "attacker" : "defender"].host?.guard;
       return t.size > 0.01 && t.lost !== "head" && (g === "mail" || g === "plate" || g === "scale");
     });
-    this.helmets.set(helmed.length, (j, out) => helmet(helmed[j]!, out, 1, 1));
-    this.helmets.recolor(field.near.attacker.host?.guard === "scale" ? BRONZE : IRON);
+    this.helmets.set(0, () => {});
+    for (const side of [0, 1] as const) {
+      const men = helmed.filter((t) => t.side === side);
+      this.sides[side]!.helmet.set(men.length, (j, out) => helmet(men[j]!, out, 1, 1));
+    }
     const steel = now.troopers.filter((t) => {
       const g = field.near[t.side === 0 ? "attacker" : "defender"].host?.guard;
       return t.size > 0.01 && t.lost !== "head" && g === "helmet";
@@ -1773,7 +1827,18 @@ export class BattleLayer {
         e = rig.ext[pi]!,
         lp = limbAt(part, t, stroke),
         pitch = lp + lean,
-        face = w.face * (e[2] / 2 + MARK.proud),
+        face =
+          w.face *
+          (e[2] *
+            (w.place === "trunk"
+              ? armorDepth(
+                  field.near[t.side === 0 ? "attacker" : "defender"].host?.guard ?? "",
+                  w.u,
+                  w.v,
+                  w.face,
+                )
+              : 0.5) +
+            MARK.proud),
         // (The blood about it, run a little down the part, kept to its face.)
         bx = Math.min(w.bleed * m, e[0] * 1.05 * kk),
         by = Math.min(w.bleed * m * 1.15, e[1] * 1.05 * kk);
@@ -2047,6 +2112,18 @@ export class BattleLayer {
 
   /** How many figures' parts, and the cars' parts, are drawn (the look tools). */
   count(): number {
-    return this.shown + this.vehicles.count();
+    return (
+      this.shown +
+      this.vehicles.count() +
+      this.sides.reduce((n, s) => n + s.armor.size + s.helmet.size, 0)
+    );
+  }
+
+  /** Rendered armor shells and helmets, by side (also used to check the real instanced batches). */
+  armorCount(): { shells: number[]; helmets: number[] } {
+    return {
+      shells: this.sides.map((s) => s.armor.size),
+      helmets: this.sides.map((s) => s.helmet.size),
+    };
   }
 }

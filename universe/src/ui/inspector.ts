@@ -508,6 +508,7 @@ export class PageWindow {
         b.onclick = () => {
           if (this.tab === t.id || !this.page) return;
           this.tab = t.id;
+          if (t.id === "body" && innerWidth <= 640) this.inspector.classList.add("tall");
           this.drawTabs(this.page);
           this.drawBody(this.page);
           this.inspector.scrollTop = 0;
@@ -523,6 +524,7 @@ export class PageWindow {
    * drawn anew; a tool or a why for the same thing is always kept.
    */
   private drawBody(page: PageModel): void {
+    this.inspector.classList.toggle("body-open", this.tab === "body");
     const tab = page.tabs.find((t) => t.id === this.tab) ?? page.tabs[0],
       kept = new Map<string, { same: string; element: HTMLElement }>();
     this.body.replaceChildren(

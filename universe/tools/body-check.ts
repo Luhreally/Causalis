@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createServer } from "vite";
 import { chromium, webkit } from "playwright";
 
@@ -20,6 +21,7 @@ look:{...NO_LOOK,lost:['arm-l'],bound:['arm-l']},equipment:{guard:'plate',guardW
 document.querySelector('main').append(bodyView({type:'body',person,members:APE_FRAME.members.map(member=>({member,words:APE_FRAME.words[member].replace('~','his'),state:member==='arm-l'?'lost':member==='leg-r'?'struck':'whole'}))}));
 </script>`;
 const server = await createServer({
+  root: fileURLToPath(new URL("..", import.meta.url)),
   base: "/",
   logLevel: "silent",
   server: { port: 4263, strictPort: false },
@@ -56,13 +58,17 @@ try {
         canvas.evaluate((c: HTMLCanvasElement) => {
           const data = c.getContext("2d")!.getImageData(0, 0, c.width, c.height).data;
           let hash = 0,
-            ink = 0;
+            ink = 0,
+            red = 0;
           for (let i = 0; i < data.length; i += 4) {
             hash = (Math.imul(hash, 31) + data[i]! + data[i + 1]!) >>> 0;
             if (data[i + 3]) ink++;
+            if (data[i]! > 35 && data[i]! > data[i + 1]! * 1.8 && data[i]! > data[i + 2]! * 1.4)
+              red++;
           }
-          return { hash, ink };
+          return { hash, ink, red };
         });
+      await page.getByRole("button", { name: "Equipment", exact: true }).tap();
       const armored = await pixels();
       assert.ok(armored.ink > 10000);
       assert.match(
@@ -77,6 +83,34 @@ try {
       await page.getByRole("button", { name: "Body & wounds", exact: true }).tap();
       const bare = await pixels();
       assert.notEqual(bare.hash, armored.hash);
+      if (shots)
+        await page.screenshot({
+          path: join(shots, `body-flesh-${engine.name()}.png`),
+          fullPage: true,
+        });
+      await page.evaluate(() => localStorage.setItem("causalis.gore", "none"));
+      await page.getByRole("button", { name: "Body & wounds", exact: true }).tap();
+      assert.ok(
+        bare.red > (await pixels()).red + 100,
+        "Full has substantial wound pixels, not only labels",
+      );
+      await page.evaluate(() => localStorage.setItem("causalis.gore", "full"));
+      await page.getByRole("button", { name: "Organs", exact: true }).tap();
+      const organs = await pixels();
+      assert.notEqual(organs.hash, bare.hash);
+      if (shots)
+        await page.screenshot({
+          path: join(shots, `body-organs-${engine.name()}.png`),
+          fullPage: true,
+        });
+      await page.getByRole("button", { name: "Skeleton", exact: true }).tap();
+      assert.notEqual((await pixels()).hash, organs.hash);
+      if (shots)
+        await page.screenshot({
+          path: join(shots, `body-skeleton-${engine.name()}.png`),
+          fullPage: true,
+        });
+      await page.getByRole("button", { name: "Body & wounds", exact: true }).tap();
       await page.getByRole("button", { name: "Enlarge", exact: true }).tap();
       assert.equal(await canvas.evaluate((c: HTMLCanvasElement) => c.height), 1080);
       await page.locator(".body-turn").fill("90");

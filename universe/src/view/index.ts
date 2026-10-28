@@ -953,3 +953,4 @@ export {
 export { WILD_GATHER, beastTakeOf, heldBeastsOver } from "./wild.ts";
 export { GORE_MOST, goreAt, gorePieces, looseMotion, type GorePiece } from "./gore.ts";
 export { placeOfMember, struckOf, toldBlows, warManOf, warSlot, type WarSlot } from "./body.ts";
+export { armorPanels, armorColor, armorDepth } from "./armor.ts";

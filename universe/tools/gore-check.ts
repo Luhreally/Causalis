@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createHash } from "node:crypto";
 import { createServer } from "vite";
 import { chromium, webkit } from "playwright";
 declare const goreFixture: { set(mode: string): void };
@@ -26,7 +27,7 @@ const layer=new BattleLayer(stage,stage.root);layer.setup(field,figureOf(null,2)
 const rig=new OrbitRig(stage,document.querySelector('canvas'),{distance:3.4,minDistance:.8,maxDistance:30,pitch:-55,drift:0,onTap:()=>{}});rig.target.set(hit.x*.1,.2,hit.z*.1);
 let now;const set=mode=>{now=blowsAt(field,blows,battleAt(field,s),mode);};set('full');
 stage.onUpdate(()=>{layer.update(now);document.querySelector('#status').textContent='Gore: '+modeName+' · '+now.limbs.length+' severed parts · '+(now.gibs?.length??0)+' fragments';});
-let modeName='full';globalThis.goreFixture={set(mode){modeName=mode;set(mode);},read(){return {limbs:now.limbs.length,gibs:now.gibs?.length??0,blood:now.blood.length,wounds:now.wounds.length,marks:layer.marks()};}};
+let modeName='full';globalThis.goreFixture={set(mode){modeName=mode;set(mode);},read(){return {limbs:now.limbs.length,gibs:now.gibs?.length??0,blood:now.blood.length,wounds:now.wounds.length,marks:layer.marks(),armor:layer.armorCount()};},gear(a,b){field.near.attacker.host.guard=a;field.near.defender.host.guard=b;field.near.attacker.kit=a==='scale'?'bronze scale armor':'iron '+a;field.near.defender.kit='leather armor';layer.setup(field,figureOf(null,2),null,[.28,.4,.15]);}};
 </script></body></html>`;
 const server = await createServer({
   base: "/",
@@ -65,9 +66,13 @@ try {
       const errors: string[] = [];
       page.on("pageerror", (e) => errors.push(e.message));
       await page.goto(base + "__gore");
-      await page.waitForFunction("globalThis.goreFixture?.read().marks.ends>0", undefined, {
-        timeout: 60000,
-      });
+      await page
+        .waitForFunction("globalThis.goreFixture?.read().marks.ends>0", undefined, {
+          timeout: 60000,
+        })
+        .catch((e) => {
+          throw new Error(`${engine.name()}: ${errors.join("; ")} ${e.message}`);
+        });
       const full = (await page.evaluate("goreFixture.read()")) as { limbs: number; gibs: number };
       assert.ok(full.limbs > 0 && full.gibs > 0);
       if (shotsAt) await page.screenshot({ path: join(shotsAt, `gore-full-${engine.name()}.png`) });
@@ -91,6 +96,40 @@ try {
         if (shotsAt)
           await page.screenshot({ path: join(shotsAt, `gore-${mode}-${engine.name()}.png`) });
       }
+      await page.evaluate("goreFixture.gear('scale','leather')");
+      await page.waitForFunction("goreFixture.read().armor.shells.every(n=>n>0)");
+      const armored = createHash("sha256")
+        .update(
+          await page.screenshot(
+            shotsAt ? { path: join(shotsAt, `field-armor-${engine.name()}.png`) } : {},
+          ),
+        )
+        .digest("hex");
+      const kit = (await page.evaluate("goreFixture.read().armor")) as {
+        shells: number[];
+        helmets: number[];
+      };
+      assert.ok(
+        kit.helmets[0]! > 0 && kit.helmets[1] === 0,
+        "helmets follow each side’s actual guard",
+      );
+      await page.evaluate("goreFixture.gear('plate','mail')");
+      await page.waitForFunction(
+        "goreFixture.read().armor.shells.every(n=>n>0) && goreFixture.read().armor.helmets.every(n=>n>0)",
+      );
+      if (shotsAt)
+        await page.screenshot({ path: join(shotsAt, `field-plate-mail-${engine.name()}.png`) });
+      await page.evaluate("goreFixture.gear('none','shield')");
+      await page.waitForFunction("goreFixture.read().armor.shells.every(n=>n===0)");
+      const bare = createHash("sha256")
+        .update(
+          await page.screenshot(
+            shotsAt ? { path: join(shotsAt, `field-unarmored-${engine.name()}.png`) } : {},
+          ),
+        )
+        .digest("hex");
+      if (engine === chromium)
+        assert.notEqual(armored, bare, "armor changes actual battlefield pixels");
       assert.deepEqual(errors, []);
       console.log(
         `${engine.name()}: severing and fragment batches obey their limits and the Less/None controls`,

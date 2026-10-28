@@ -134,7 +134,9 @@ export function woundGear(figure: Figure, look: WoundLook): WoundGear {
   // Gone: an arm's or a leg's first part a stump, the rest of its chain with it; a hand (where the
   // figure draws none, its arm the shorter); an eye.
   for (const m of look.lost) {
-    if (m === "eye-l" || m === "eye-r") {
+    if (m === "head") {
+      for (const i of a.parts.head) keep[i] = 0;
+    } else if (m === "eye-l" || m === "eye-r") {
       const e = eyeOf(m === "eye-l");
       if (e >= 0) keep[e] = 0;
     } else if (m === "hand-l" || m === "hand-r") {
@@ -142,7 +144,7 @@ export function woundGear(figure: Figure, look: WoundLook): WoundGear {
         arm = armOf(m === "hand-l" ? "l" : "r")[0];
       if (hand.length) for (const i of hand) keep[i] = 0;
       else if (arm !== undefined) keep[arm] = Math.min(keep[arm]!, HANDLESS_KEEP);
-    } else if (m !== "head" && m !== "trunk")
+    } else if (m !== "trunk")
       a.parts[m].forEach((i, k) => {
         keep[i] = k === 0 ? Math.min(keep[i]!, STUMP_KEEP) : 0;
         swing[i] = WOUND_HOLD.stump;

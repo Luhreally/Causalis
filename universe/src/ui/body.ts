@@ -8,6 +8,7 @@ import type { Block, KinCard, MemberState, WoundMember } from "../bridge/index.t
 import { figureAnatomy, figureOf, partExtent, woundGear } from "../view/index.ts";
 import { drawSolids, personSolids, surface, type V3 } from "./portrait.ts";
 import { el } from "./why.ts";
+import { internalSolids, injurySolids } from "./anatomy.ts";
 
 type BodyBlock = Extract<Block, { type: "body" }>;
 
@@ -46,7 +47,9 @@ function memberPoint(b: BodyBlock, m: WoundMember): V3 | null {
       if (!q) return null;
       const e = partExtent(q),
         keep = b.person.look ? woundGear(figure, b.person.look).keep[i]! : 1,
-        cut = b.members.find((x) => x.member === m)?.state === "lost",
+        cut =
+          b.members.find((x) => x.member === m)?.state === "lost" ||
+          b.person.look?.lost.includes(m),
         y = cut ? q.y + e[1] * (m === "head" ? -0.5 : 0.5 - keep) : q.y;
       return [q.x * k, y * k, (q.z + e[2] * 0.5) * k];
     };
@@ -75,13 +78,24 @@ export function drawBody(
   b: BodyBlock,
   w: number,
   h: number,
-  options: { turn?: number; anatomy?: boolean; gore?: string } = {},
+  options: {
+    turn?: number;
+    anatomy?: boolean;
+    gore?: string;
+    internal?: "organs" | "skeleton";
+    labels?: boolean;
+  } = {},
 ): void {
   const ctx = surface(canvas, w, h),
     art = { x: w * 0.15, y: 16, w: w * 0.7, h: h - 42 },
     at = drawSolids(
       ctx,
-      personSolids(b.person, options.anatomy),
+      [
+        ...(options.internal
+          ? internalSolids(b, options.internal === "skeleton")
+          : personSolids(b.person, options.anatomy)),
+        ...(options.gore !== "none" ? injurySolids(b, options.gore !== "less") : []),
+      ],
       { turn: options.turn ?? 0.3, tilt: 0.1 },
       art,
     ),
@@ -132,6 +146,7 @@ export function drawBody(
         }
       }
     }
+  if (!options.labels) return;
   ctx.font = "11px Verdana, Tahoma, sans-serif";
   ctx.textBaseline = "middle";
   sides.forEach((list, s) => {
@@ -196,6 +211,9 @@ export function bodyView(b: BodyBlock): HTMLElement {
     controls = el("div", "body-controls"),
     equipped = el("button", "body-equipped", "Equipment"),
     anatomy = el("button", "body-anatomy", "Body & wounds"),
+    organs = el("button", "body-organs", "Organs"),
+    skeleton = el("button", "body-skeleton", "Skeleton"),
+    labels = el("button", "body-labels", "Labels"),
     enlarge = el("button", "body-enlarge", "Enlarge"),
     turn = el("input", "body-turn"),
     equipment = el("div", "body-equipment"),
@@ -204,7 +222,9 @@ export function bodyView(b: BodyBlock): HTMLElement {
       "body-part-detail",
       "Turn the figure to inspect it. Select a body part below for its condition.",
     );
-  let bare = false,
+  let bare = true,
+    internal: "organs" | "skeleton" | undefined,
+    annotated = false,
     large = false;
   const gore = () => {
     try {
@@ -217,14 +237,19 @@ export function bodyView(b: BodyBlock): HTMLElement {
     if (!box.isConnected) return;
     const h = large ? 540 : 360;
     canvas.style.height = `${h}px`;
-    box.dataset["mode"] = bare ? "body" : "equipment";
-    equipped.setAttribute("aria-pressed", String(!bare));
-    anatomy.setAttribute("aria-pressed", String(bare));
+    box.dataset["mode"] = internal ?? (bare ? "body" : "equipment");
+    equipped.setAttribute("aria-pressed", String(!bare && !internal));
+    anatomy.setAttribute("aria-pressed", String(bare && !internal));
+    organs.setAttribute("aria-pressed", String(internal === "organs"));
+    skeleton.setAttribute("aria-pressed", String(internal === "skeleton"));
+    labels.setAttribute("aria-pressed", String(annotated));
     enlarge.textContent = large ? "Fit" : "Enlarge";
     drawBody(canvas, b, Math.max(200, Math.min(640, (box.clientWidth || 322) - 2)), h, {
       turn: (Number(turn.value) * Math.PI) / 180,
       anatomy: bare,
       gore: gore(),
+      internal,
+      labels: annotated,
     });
   };
   turn.type = "range";
@@ -235,10 +260,12 @@ export function bodyView(b: BodyBlock): HTMLElement {
   turn.setAttribute("aria-label", "Turn body");
   turn.oninput = draw;
   equipped.onclick = () => {
+    internal = undefined;
     bare = false;
     draw();
   };
   anatomy.onclick = () => {
+    internal = undefined;
     bare = true;
     draw();
   };
@@ -246,7 +273,19 @@ export function bodyView(b: BodyBlock): HTMLElement {
     large = !large;
     draw();
   };
-  controls.append(equipped, anatomy, enlarge);
+  organs.onclick = () => {
+    internal = "organs";
+    draw();
+  };
+  skeleton.onclick = () => {
+    internal = "skeleton";
+    draw();
+  };
+  labels.onclick = () => {
+    annotated = !annotated;
+    draw();
+  };
+  controls.append(equipped, anatomy, organs, skeleton, labels, enlarge);
   equipment.textContent = b.person.equipment
     ? `Armor: ${b.person.equipment.guardWords}. Weapon: ${b.person.equipment.armWords}. Recorded at the battle of year ${b.person.equipment.year}.`
     : "Armor: none recorded. Civilian clothes shown.";
@@ -260,6 +299,7 @@ export function bodyView(b: BodyBlock): HTMLElement {
     button.onclick = () => {
       detail.textContent = `${m.words}: ${WORD[m.state]}.`;
       bare = true;
+      annotated = true;
       draw();
     };
     parts.append(button);
@@ -269,7 +309,14 @@ export function bodyView(b: BodyBlock): HTMLElement {
     "aria-label",
     `A body: ${b.members.map((m) => `${m.words} ${WORD[m.state]}`).join(", ")}`,
   );
-  box.append(controls, equipment, canvas, turn, detail, parts);
+  const key = el(
+    "p",
+    "body-anatomy-key",
+    b.person.body?.folk
+      ? "Organs and support structures are a schematic of this body plan. Member injuries are recorded; individual organ injuries are not simulated."
+      : "Organs: brain, lungs, heart, liver and intestines. Skeleton: skull, spine, ribs, pelvis and limb bones. Internal placement is schematic; wounds shown on body parts come from the character's records.",
+  );
+  box.append(controls, equipment, canvas, turn, detail, parts, key);
   box.dataset["members"] = b.members.map((m) => `${m.member}:${m.state}`).join(" ");
   requestAnimationFrame(draw);
   return box;

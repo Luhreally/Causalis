@@ -108,7 +108,7 @@
 }
 .body-controls button,
 .body-parts button {
-  min-height: 36px;
+  min-height: 44px;
   padding: 5px 9px;
   border-radius: 5px;
 }
@@ -125,7 +125,7 @@
 }
 .body-turn {
   width: 100%;
-  min-height: 40px;
+  min-height: 44px;
   margin: 2px 0;
   touch-action: pan-x;
 }
@@ -142,4 +142,14 @@
   height: 360px;
   width: 100%;
   box-sizing: border-box;
+}
+.body-anatomy-key {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #bac9df;
+}
+@media (max-width: 640px) {
+  .page-window.body-open .page-head {
+    display: none;
+  }
 }

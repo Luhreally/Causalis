@@ -15,6 +15,7 @@ import * as pc from "playcanvas";
 import type { HostKinds, WarsMap } from "../bridge/index.ts";
 import {
   DOING_ICON,
+  armorColor,
   counterWords,
   isGun,
   landBattle,
@@ -63,7 +64,12 @@ type Mark = {
  * How one is carried to war, what they strike with, and whether they bear a shield. An armoured
  * host's men go on foot; its cars come among them.
  */
-type Kit = { ride: "foot" | "horse" | "chariot" | "armoured"; arm: string; shield: boolean };
+type Kit = {
+  ride: "foot" | "horse" | "chariot" | "armoured";
+  arm: string;
+  shield: boolean;
+  guard: string;
+};
 
 /** A figure: where it stands, which way it faces (yaw), how tall it is drawn (0 … 1: grown in), its kit. */
 type Figure = {
@@ -94,6 +100,7 @@ function kitOf(host: HostKinds | null | undefined): Kit {
             : "foot",
     arm: host?.arm ?? "spear",
     shield: host?.guard === "shield",
+    guard: host?.guard ?? "",
   };
 }
 
@@ -115,6 +122,7 @@ export class RegionWars {
   private flags: InstancedBatch[] = [];
   private tents: InstancedBatch[] = [];
   private readonly heads: InstancedBatch;
+  private readonly armor: { guard: string; batch: InstancedBatch }[];
   private readonly poles: InstancedBatch;
   private readonly blades: InstancedBatch;
   private readonly flares: InstancedBatch;
@@ -202,6 +210,10 @@ export class RegionWars {
     const make = (color: readonly [number, number, number], n: number) =>
       new InstancedBatch(stage, this.box, color, n, this.root);
     this.heads = make(SKIN, MOST * 2);
+    this.armor = ["leather", "mail", "scale", "plate", "helmet"].map((guard) => ({
+      guard,
+      batch: make(armorColor(guard, ""), MOST_GEAR * 2),
+    }));
     this.poles = make([0.42, 0.3, 0.18], 160);
     this.blades = make([0.86, 0.88, 0.92], 64);
     this.flares = make([1, 0.78, 0.26], 32);
@@ -579,6 +591,26 @@ export class RegionWars {
       out[3] = out[4] = out[5] = r;
       out[6] = f.yaw;
     });
+    // Coarse shells keep the host's actual guard visible at the regional level too.
+    for (const { guard, batch } of this.armor) {
+      const mine = shown.filter((f) => f.kit.guard === guard).slice(0, MOST_GEAR),
+        pieces = guard === "leather" || guard === "helmet" ? 1 : 2;
+      batch.set(mine.length * pieces, (i, out) => {
+        const f = mine[Math.floor(i / pieces)]!,
+          h = tall(f),
+          helmet = guard === "helmet" || i % pieces === 1,
+          up = helmet ? h + 0.22 * f.size : h * 0.68,
+          p = f.fallen ? beside(f, 0, up - h / 2) : f;
+        out[0] = p.x;
+        out[1] = ground(f) + (f.fallen ? 0.16 : seatOf(f) * f.size + up);
+        out[2] = p.z;
+        out[3] = (helmet ? 0.34 : 0.47) * f.size;
+        out[4] = helmet ? 0.19 * f.size : 0.68 * h;
+        out[5] = (helmet ? 0.34 : 0.35) * f.size;
+        out[6] = f.yaw;
+        out[7] = f.fallen ? Math.PI / 2 : 0;
+      });
+    }
     // (The fallen have lost their mounts and let fall their arms.)
     const standing = shown.filter((f) => !f.fallen);
     // Horses under the riders, and before the chariots; the chariots' carts behind them.

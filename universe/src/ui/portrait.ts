@@ -40,7 +40,7 @@ export type V3 = [number, number, number];
 type CreatureBody = Parameters<typeof buildBody>[0];
 
 /** A solid: its middle, its size, turned about its up axis after tipped about its own x. */
-type Solid = {
+export type Solid = {
   x: number;
   y: number;
   z: number;
@@ -392,7 +392,7 @@ export function personSolids(p: Extract<Portrait, { kind: "person" }>, anatomy =
       // about its middle, as ever.)
       pitch: number = !Number.isNaN(held)
         ? held
-        : q.role === "arm" && q.x > 0 && !p.child && holds
+        : !anatomy && q.role === "arm" && q.x > 0 && !p.child && holds
           ? -0.5
           : 0,
       lift = keep < 1 ? ((1 - keep) * e[1]) / 2 : 0,

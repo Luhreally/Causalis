@@ -38,6 +38,10 @@ import {
   bobOf,
   FIGURE_CAPSULE,
   figureOf,
+  figureAnatomy,
+  armorPanels,
+  armorColor,
+  type FigurePart,
   keepApart,
   partExtent,
   present,
@@ -209,6 +213,8 @@ export class VillageScene {
   private warScene: TownWarScene | null = null;
   private armed = "";
   private soldierBatches: InstancedBatch[] = [];
+  private soldierArmor: InstancedBatch[] = [];
+  private soldierArmorParts: FigurePart[][] = [];
   private meshes: Record<PartShape, pc.Mesh> | null = null;
   /** The besiegers' tents and fires, a town burning (M204). */
   private readonly warLayer: TownWarLayer;
@@ -1082,6 +1088,8 @@ export class VillageScene {
     this.armed = "";
     this.soldierBatches = [];
     this.soldiers = [];
+    this.soldierArmor = [];
+    this.soldierArmorParts = [];
     this.arm(this.townWar?.sides ?? null);
     // Homes built more finely (M79): windows lit at night, chimneys, porches, fences.
     this.windows = town ? this.townLamps : null;
@@ -1642,10 +1650,16 @@ export class VillageScene {
       if (this.soldierLimbs.length !== 2 * this.soldiersEach * parts.length)
         this.soldierLimbs = new Float32Array(2 * this.soldiersEach * parts.length).fill(Number.NaN);
       /** A part of a soldier's figure now (lying on their back, if fallen). */
-      const soldierPart = (out: number[], k: number, pi: number, side: number) => {
+      const soldierPart = (
+        out: number[],
+        k: number,
+        pi: number,
+        side: number,
+        shell?: FigurePart,
+      ) => {
         const q = troops[side * this.soldiersEach + k]!,
           size = this.figure.scale * q.size,
-          part = parts[pi]!,
+          part = shell ?? parts[pi]!,
           c = Math.cos(q.yaw),
           sn = Math.sin(q.yaw),
           walking = q.doing === "advance" || q.doing === "fall back",
@@ -1667,10 +1681,10 @@ export class VillageScene {
           // (Eased, as the villagers' are: from the march to the fight is a turn of the arm.)
           slot = ((side * this.soldiersEach + k) * parts.length + pi) | 0,
           was = this.soldierLimbs[slot]!,
-          pitch = Number.isNaN(was) ? aim : was + (aim - was) * ease,
+          pitch = shell ? 0 : Number.isNaN(was) ? aim : was + (aim - was) * ease,
           hinge = part.pivot ?? 0,
           px = part.x;
-        this.soldierLimbs[slot] = pitch;
+        if (!shell) this.soldierLimbs[slot] = pitch;
         let py = part.y + hinge - hinge * Math.cos(pitch),
           pz = part.z - hinge * Math.sin(pitch),
           pp = pitch;
@@ -1695,6 +1709,12 @@ export class VillageScene {
           batch.set(this.soldiersEach, (k, out) => soldierPart(out, k, pi, side)),
         ),
       );
+      this.soldierArmor.forEach((batch, side) => {
+        const shells = this.soldierArmorParts[side]!;
+        batch.set(this.soldiersEach * shells.length, (i, out) =>
+          soldierPart(out, Math.floor(i / shells.length), 0, side, shells[i % shells.length]),
+        );
+      });
       // Their spears: held upright on the march, thrust in the fight, dropped by the fallen (a
       // musket or a rifle shouldered on the march, levelled to fire in the fight).
       const armed = (arms: readonly string[]) =>
@@ -1838,6 +1858,54 @@ export class VillageScene {
         return b;
       };
     this.soldiersEach = battle ? 2 * (SOLDIERS[s.quality.detail] ?? 10) : 0;
+    const anatomy = figureAnatomy(this.figure),
+      chest = this.figure.parts[anatomy.on.trunk],
+      head = this.figure.parts[anatomy.on.head];
+    this.soldierArmorParts = sides
+      ? sides.map((side) => {
+          const guard = side.host?.guard ?? "",
+            pieces: FigurePart[] = [];
+          if (chest) {
+            const e = partExtent(chest);
+            for (const p of armorPanels(guard))
+              pieces.push({
+                shape: "box",
+                tone: 0,
+                x: chest.x + p.x * e[0],
+                y: chest.y + p.y * e[1],
+                z: chest.z + p.z * e[2],
+                sx: p.w * e[0],
+                sy: p.h * e[1],
+                sz: p.d * e[2],
+              });
+          }
+          if (head && ["helmet", "mail", "scale", "plate"].includes(guard)) {
+            const e = partExtent(head);
+            pieces.push({
+              shape: "box",
+              tone: 0,
+              x: head.x,
+              y: head.y + e[1] * 0.27,
+              z: head.z,
+              sx: e[0] * 1.13,
+              sy: e[1] * 0.62,
+              sz: e[2] * 1.13,
+            });
+          }
+          return pieces;
+        })
+      : [];
+    this.soldierArmor = sides
+      ? sides.map((side, i) =>
+          kept(
+            s,
+            meshes.box,
+            armorColor(side.host?.guard ?? "", ""),
+            Math.max(1, this.soldiersEach * this.soldierArmorParts[i]!.length),
+            this.root,
+          ),
+        )
+      : [];
 
     this.soldiers = battle
       ? [battle.attacker.color, battle.defender.color].map((c) => {
