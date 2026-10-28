@@ -480,6 +480,8 @@ export function personSolids(p: Extract<Portrait, { kind: "person" }>, anatomy =
       torso = figure.parts[a.on.trunk],
       head = figure.parts[a.on.head],
       metal = kit.color,
+      // Figure units are about 0.55 per adult, rather than metres.
+      unit = figure.scale * 0.32,
       box = (
         x: number,
         y: number,
@@ -554,37 +556,57 @@ export function personSolids(p: Extract<Portrait, { kind: "person" }>, anatomy =
       !p.look?.lost.some((m) => m === "arm-l" || m === "hand-l")
     ) {
       box(
-        shieldArm.x + 0.12,
-        shieldArm.y - 0.12,
-        shieldArm.z + 0.16,
-        0.42,
-        0.65,
-        0.07,
+        shieldArm.x + 0.12 * unit,
+        shieldArm.y - 0.12 * unit,
+        shieldArm.z + 0.16 * unit,
+        0.42 * unit,
+        0.65 * unit,
+        0.07 * unit,
         [0.38, 0.26, 0.14],
       );
-      box(shieldArm.x + 0.12, shieldArm.y - 0.12, shieldArm.z + 0.205, 0.12, 0.12, 0.06, metal);
+      box(
+        shieldArm.x + 0.12 * unit,
+        shieldArm.y - 0.12 * unit,
+        shieldArm.z + 0.205 * unit,
+        0.12 * unit,
+        0.12 * unit,
+        0.06 * unit,
+        metal,
+      );
     }
     if (tool && holds && !["none", "fist", "claws", "teeth"].includes(kit.arm)) {
-      const x = tool.x,
-        y = tool.y - partExtent(tool)[1] * 0.3,
-        z = tool.z + 0.2;
+      const x = tool.x + (tool.x < 0 ? -1 : 1) * 0.1 * unit,
+        y = tool.y - partExtent(tool)[1] * 0.48,
+        z = tool.z + 0.16 * unit;
       if (kit.arm.includes("bow")) {
-        box(x, y, z, 0.045, 0.85, 0.04, [0.46, 0.3, 0.13], -0.15);
-        box(x, y, z + 0.1, 0.012, 0.8, 0.012, [0.8, 0.77, 0.63]);
+        box(x, y, z, 0.045 * unit, 0.85 * unit, 0.04 * unit, [0.46, 0.3, 0.13], -0.15);
+        box(x, y, z + 0.1 * unit, 0.012 * unit, 0.8 * unit, 0.012 * unit, [0.8, 0.77, 0.63]);
+      } else if (kit.arm === "sword") {
+        box(x, y, z, 0.045 * unit, 0.18 * unit, 0.045 * unit, [0.42, 0.27, 0.13]);
+        box(x, y + 0.09 * unit, z, 0.2 * unit, 0.035 * unit, 0.055 * unit, metal);
+        box(x, y + 0.43 * unit, z, 0.06 * unit, 0.65 * unit, 0.025 * unit, metal);
       } else if (["spear", "axe", "club", "sword"].includes(kit.arm)) {
-        box(x, y, z, 0.045, kit.arm === "spear" ? 1.35 : 0.7, 0.045, [0.42, 0.27, 0.13]);
         box(
           x,
-          y + (kit.arm === "spear" ? 0.68 : 0.37),
+          y,
           z,
-          kit.arm === "axe" ? 0.2 : 0.065,
-          kit.arm === "sword" ? 0.5 : 0.18,
-          0.05,
+          0.045 * unit,
+          (kit.arm === "spear" ? 1.35 : 0.7) * unit,
+          0.045 * unit,
+          [0.42, 0.27, 0.13],
+        );
+        box(
+          x,
+          y + (kit.arm === "spear" ? 0.68 : 0.37) * unit,
+          z,
+          (kit.arm === "axe" ? 0.2 : 0.065) * unit,
+          0.18 * unit,
+          0.05 * unit,
           metal,
         );
       } else {
-        box(x, y, z, 0.075, 0.12, 0.75, [0.3, 0.23, 0.16], -0.35);
-        box(x, y + 0.02, z + 0.3, 0.04, 0.04, 0.7, metal, -0.35);
+        box(x, y, z, 0.075 * unit, 0.12 * unit, 0.75 * unit, [0.3, 0.23, 0.16], -0.35);
+        box(x, y + 0.02 * unit, z + 0.3 * unit, 0.04 * unit, 0.04 * unit, 0.7 * unit, metal, -0.35);
       }
     }
   }
