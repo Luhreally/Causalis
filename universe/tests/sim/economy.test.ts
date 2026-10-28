@@ -6,6 +6,7 @@ import {
   ECONOMY_EVENTS,
   GOOD_COUNT,
   LEDGER,
+  MarketStore,
   POPULATION_EVENTS,
   VILLAGE_SIZE,
   makePopulationWorld,
@@ -80,6 +81,30 @@ test("what one market sends another receives, and what migrants carry out they c
     traded += out!.reduce((a, b) => a + b, 0);
   }
   assert.ok(traded > 1000, `${traded} units traded`);
+});
+
+test("last year's flows of some lands are those a walk of every flow finds, in its order", () => {
+  const flows = markets.flows,
+    cells = [...new Set(flows.flatMap((f) => [f.from, f.to]))].sort((a, b) => a - b);
+  assert.ok(cells.length >= 3, `${cells.length} lands traded`);
+  const walk = (lands: readonly number[]) =>
+    flows.filter((f) => lands.includes(f.from) || lands.includes(f.to));
+  for (const cell of cells) assert.deepEqual(markets.flowsOf([cell]), walk([cell]));
+  // (Lands taken together, as a realm's are: a flow between two of them told once.)
+  for (let i = 0; i + 2 < cells.length; i += 2) {
+    const lands = [cells[i + 2]!, cells[i]!, cells[i + 1]!];
+    assert.deepEqual(markets.flowsOf(lands), walk(lands));
+  }
+  assert.deepEqual(markets.flowsOf([]), []);
+  // (A year's trade set anew, or added to, is read anew.)
+  const store = new MarketStore(),
+    flow = (from: number, to: number) => ({ from, to, good: 0, count: 1 });
+  store.flows = [flow(1, 2), flow(3, 4)];
+  assert.deepEqual(store.flowsOf([2, 3]), [flow(1, 2), flow(3, 4)]);
+  store.flows.push(flow(2, 5));
+  assert.deepEqual(store.flowsOf([2]), [flow(1, 2), flow(2, 5)]);
+  store.flows = [flow(5, 6)];
+  assert.deepEqual(store.flowsOf([2, 5]), [flow(5, 6)]);
 });
 
 test("prices stay near what goods are usually worth", () => {

@@ -32,6 +32,8 @@ const ONSETS = [
 const VOWELS = ["a", "e", "i", "o", "u", "ae", "ai", "ea", "ou", "y"];
 const CODAS = ["", "", "n", "r", "l", "s", "th", "m", "nd", "rn", "st", "v", "ck"];
 const ENDINGS = ["", "", "", "ey", "on", "ath", "wick", "ford", "mere", "holt", "ar", "is", "en"];
+/** The syllable parts tongues choose from, whole (Phase 58: a word's sounds as a tongue says them). */
+export const SYLLABLE_PARTS = { onsets: ONSETS, vowels: VOWELS, codas: CODAS } as const;
 
 function pick<T>(list: readonly T[], h: number): T {
   return list[h % list.length]!;

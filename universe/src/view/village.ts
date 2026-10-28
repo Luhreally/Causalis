@@ -4543,9 +4543,74 @@ export function momentOf(
   downpour: { readonly from: number; readonly to: number; readonly all?: boolean } | null = null,
   fine = true,
 ): Moment {
+  const day = Math.floor(t / DAY);
+  return momentIn(plan, index, t, day, legsOf(plan, index, day, fine), downpour, null);
+}
+
+/**
+ * Where each one drawn of a town is at sim time t, as momentOf has each (Phase 60 T1: asked of every
+ * one of them every frame): each one's day's legs kept by their place for the day drawn, and each
+ * one's place kept out of the walls afresh only where it is not where it was last kept out from.
+ */
+export function momentsOf(
+  plan: VillagePlan,
+  t: number,
+  downpour: { readonly from: number; readonly to: number; readonly all?: boolean } | null = null,
+  fine = true,
+): Moment[] {
   const day = Math.floor(t / DAY),
-    s = t - day * DAY,
-    legs = legsOf(plan, index, day, fine);
+    n = plan.people.length;
+  let today = TODAY.get(plan);
+  if (!today || today.day !== day || today.fine !== fine) {
+    today = {
+      day,
+      fine,
+      legs: new Array<Leg[] | undefined>(n),
+      from: new Float64Array(2 * n).fill(Number.NaN),
+      to: new Float64Array(2 * n),
+    };
+    TODAY.set(plan, today);
+  }
+  const out = new Array<Moment>(n);
+  for (let i = 0; i < n; i++)
+    out[i] = momentIn(
+      plan,
+      i,
+      t,
+      day,
+      (today.legs[i] ??= legsOf(plan, i, day, fine)),
+      downpour,
+      today,
+    );
+  return out;
+}
+
+/**
+ * Each one's day's legs for the day drawn, by their place among those drawn; and where each was
+ * last kept out of the walls from, and to (x, z each).
+ */
+type Today = {
+  readonly day: number;
+  readonly fine: boolean;
+  readonly legs: (Leg[] | undefined)[];
+  readonly from: Float64Array;
+  readonly to: Float64Array;
+};
+const TODAY = new WeakMap<VillagePlan, Today>();
+/** The same number, bit for bit (nought and less than nought told apart). */
+const same = (a: number, b: number) => a === b && (a !== 0 || Object.is(a, b));
+
+/** Where one drawn is at t, on their day's legs (`today`: where each was last kept out of the walls). */
+function momentIn(
+  plan: VillagePlan,
+  index: number,
+  t: number,
+  day: number,
+  legs: readonly Leg[],
+  downpour: { readonly from: number; readonly to: number; readonly all?: boolean } | null,
+  today: Today | null,
+): Moment {
+  const s = t - day * DAY;
   const leg = legAt(legs, s);
   let x = leg.at.x,
     z = leg.at.z,
@@ -4605,11 +4670,23 @@ export function momentOf(
     const site = plan.life?.site;
     if (leg.task === "build" && site) yaw = Math.atan2(site.x - x, site.z - z);
   }
-  // Round the homes, the water and the rising walls, never through them.
-  const where = { x, z };
-  keepOut(groundFor(plan), where, PERSON_REACH);
-  x = where.x;
-  z = where.z;
+  // Round the homes, the water and the rising walls, never through them. (Where one stands where
+  // they were last kept out from, kept out as they were: the ground is the plan's, the same.)
+  if (today && same(today.from[2 * index]!, x) && same(today.from[2 * index + 1]!, z)) {
+    x = today.to[2 * index]!;
+    z = today.to[2 * index + 1]!;
+  } else {
+    const where = { x, z };
+    keepOut(groundFor(plan), where, PERSON_REACH);
+    if (today) {
+      today.from[2 * index] = x;
+      today.from[2 * index + 1] = z;
+      today.to[2 * index] = where.x;
+      today.to[2 * index + 1] = where.z;
+    }
+    x = where.x;
+    z = where.z;
+  }
   // Hunger rises between meals — sooner in a lean year — and tiredness through the waking day.
   const fed = lastMeal(legs, s),
     woke = legs[0]!.to,
@@ -5405,7 +5482,7 @@ function doorstep(ground: Ground, home: Point, way: number, out: number): Point 
 }
 
 /** How far a person keeps off a wall (metres: half a figure's breadth as drawn, and a step). */
-const PERSON_REACH = 1.2;
+export const PERSON_REACH = 1.2;
 
 // A village's solid ground for its people: its homes, its water, and its rising walls.
 const GROUNDS = new WeakMap<VillagePlan, Ground>();
@@ -5433,12 +5510,19 @@ export function villageSolids(plan: VillagePlan): Ground {
 /** Half a body's breadth: two people's middles come no nearer than twice it (metres). */
 export const BODY_R = 0.35;
 
+/** No one in a cell: what a cell no one stands in holds. */
+const NO_ONE: readonly number[] = [];
+
 /**
  * Keep the people in sight out of one another, in place (M90): where two would stand nearer
  * than a body's breadth, each steps half the way apart — out of the way of what stands fixed
  * (`fixed`: a battle's soldiers) the whole way — and none steps into a wall. Each step is
  * taken at once, so a knot of three or four standing on one spot settles in a few passes;
- * the same moments always settle the same way.
+ * the same moments always settle the same way. (Its cells are made once and kept between its
+ * passes, those who moved moved in them, each cell's people in their order; and after the first
+ * pass only those who stepped, or about whom one after them stepped, are looked about again —
+ * the rest would find no one to step from. The same pairs, found in the same order, as every
+ * one looked about in cells made again for each pass: tests/view/keep-apart.test.ts.)
  */
 export function keepApart(
   plan: VillagePlan,
@@ -5454,23 +5538,47 @@ export function keepApart(
     if (!m.hidden) live.push(i);
   });
   if (live.length + fixed.length < 2) return;
-  // (Found by the cell of the ground each stands in, a body's breadth across.)
-  const cellOf = (x: number, z: number) =>
-    (Math.floor(x / gap) + 32768) * 65536 + (Math.floor(z / gap) + 32768);
+  // (Found by the cell of the ground each stands in, a body's breadth across: within eleven
+  // kilometres of the middle keyed by a small whole number, quicker to look up; past it, as before,
+  // above them all.)
+  const keyOf = (cx: number, cz: number) =>
+    cx > -16_384 && cx < 16_384 && cz > -16_384 && cz < 16_384
+      ? (cx + 16_384) * 32_768 + (cz + 16_384)
+      : 2 ** 30 + (cx + 32_768) * 65_536 + (cz + 32_768);
   const pinned = new Map<number, number[]>();
   fixed.forEach((f, k) => {
-    const key = cellOf(f.x, f.z),
+    const key = keyOf(Math.floor(f.x / gap), Math.floor(f.z / gap)),
       list = pinned.get(key);
     if (list) list.push(k);
     else pinned.set(key, [k]);
   });
-  const moved = new Uint8Array(moments.length);
-  /** Step person `i` by (dx, dz). */
-  const step = (i: number, dx: number, dz: number) => {
-    const m = moments[i]!;
-    m.x += dx;
-    m.z += dz;
-    moved[i] = 1;
+  const n = moments.length,
+    moved = new Uint8Array(n),
+    // (Each one's cell as the cells have them; and whether their turn is wanted again.)
+    cellX = new Float64Array(n),
+    cellZ = new Float64Array(n),
+    due = new Uint8Array(n),
+    cells = new Map<number, number[]>();
+  for (const i of live) {
+    const m = moments[i]!,
+      cx = Math.floor(m.x / gap),
+      cz = Math.floor(m.z / gap),
+      key = keyOf(cx, cz),
+      list = cells.get(key);
+    cellX[i] = cx;
+    cellZ[i] = cz;
+    due[i] = 1;
+    if (list) list.push(i);
+    else cells.set(key, [i]);
+  }
+  /** Those about x's cell whose turns fall after `from` and before x's: wanted again. */
+  const stir = (x: number, from: number) => {
+    for (let ox = -1; ox <= 1; ox++)
+      for (let oz = -1; oz <= 1; oz++) {
+        const list = cells.get(keyOf(cellX[x]! + ox, cellZ[x]! + oz)) ?? NO_ONE;
+        for (let k = 0; k < list.length && list[k]! < x; k++)
+          if (list[k]! > from) due[list[k]!] = 1;
+      }
   };
   /**
    * The way from a to b, unit long; for two on one spot, a way keyed by the pair, so a knot
@@ -5479,54 +5587,80 @@ export function keepApart(
   const wayOf = (ax: number, az: number, d: number, key: number): [number, number] =>
     d < 1e-6 ? [Math.cos(key * 2.399963), Math.sin(key * 2.399963)] : [ax / d, az / d];
   for (let pass = 0; pass < 20; pass++) {
-    const cells = new Map<number, number[]>();
-    for (const i of live) {
-      const m = moments[i]!,
-        key = cellOf(m.x, m.z),
-        list = cells.get(key);
-      if (list) list.push(i);
-      else cells.set(key, [i]);
-    }
     let any = false;
     for (const i of live) {
+      if (!due[i]) continue;
+      due[i] = 0;
       const m = moments[i]!,
         cx = Math.floor(m.x / gap),
         cz = Math.floor(m.z / gap);
       for (let ox = -1; ox <= 1; ox++)
         for (let oz = -1; oz <= 1; oz++) {
-          const key = (cx + ox + 32768) * 65536 + (cz + oz + 32768);
+          const key = keyOf(cx + ox, cz + oz),
+            list = cells.get(key) ?? NO_ONE;
           // Another person: each steps half the way (each pair once, the lower first).
-          for (const j of cells.get(key) ?? []) {
+          for (let q = 0; q < list.length; q++) {
+            const j = list[q]!;
             if (j <= i) continue;
             const o = moments[j]!,
               ax = o.x - m.x,
               az = o.z - m.z,
               d = Math.hypot(ax, az);
             if (d >= gap) continue;
-            const half = (want - d) / 2,
+            const each = (want - d) / 2,
               [ux, uz] = wayOf(ax, az, d, i * 31 + j);
-            step(i, -ux * half, -uz * half);
-            step(j, ux * half, uz * half);
+            m.x -= ux * each;
+            m.z -= uz * each;
+            o.x += ux * each;
+            o.z += uz * each;
+            // (j looks again at its turn, and those whose turns fall between about it.)
+            if (!moved[j]) stir(j, i);
+            moved[i] = moved[j] = due[j] = 1;
             any = true;
           }
           // What stands fixed: the whole way out of it.
-          for (const k of pinned.get(key) ?? []) {
-            const f = fixed[k]!,
-              ax = m.x - f.x,
-              az = m.z - f.z,
-              d = Math.hypot(ax, az);
-            if (d >= gap) continue;
-            const [ux, uz] = wayOf(ax, az, d, i * 31 + k + 7);
-            step(i, ux * (want - d), uz * (want - d));
-            any = true;
-          }
+          if (pinned.size)
+            for (const k of pinned.get(key) ?? NO_ONE) {
+              const f = fixed[k]!,
+                ax = m.x - f.x,
+                az = m.z - f.z,
+                d = Math.hypot(ax, az);
+              if (d >= gap) continue;
+              const [ux, uz] = wayOf(ax, az, d, i * 31 + k + 7);
+              m.x += ux * (want - d);
+              m.z += uz * (want - d);
+              moved[i] = 1;
+              any = true;
+            }
         }
     }
-    for (const i of live)
-      if (moved[i]) {
-        moved[i] = 0;
-        keepOut(ground, moments[i]!, PERSON_REACH);
+    for (const i of live) {
+      if (!moved[i]) continue;
+      moved[i] = 0;
+      const m = moments[i]!;
+      keepOut(ground, m, PERSON_REACH);
+      // (Into another cell: out of the one it stood in, into the new one in its order.)
+      const cx = Math.floor(m.x / gap),
+        cz = Math.floor(m.z / gap),
+        key = keyOf(cx, cz),
+        was = keyOf(cellX[i]!, cellZ[i]!);
+      if (key !== was) {
+        const from = cells.get(was)!;
+        from.splice(from.indexOf(i), 1);
+        cellX[i] = cx;
+        cellZ[i] = cz;
+        const list = cells.get(key);
+        if (!list) cells.set(key, [i]);
+        else {
+          let k = list.length;
+          while (k > 0 && list[k - 1]! > i) k--;
+          list.splice(k, 0, i);
+        }
       }
+      // (They look again, and those before them about where they now stand.)
+      due[i] = 1;
+      stir(i, -1);
+    }
     if (!any) return;
   }
 }

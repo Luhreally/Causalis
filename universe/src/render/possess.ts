@@ -17,6 +17,14 @@ const LOOK_AT = 0.8;
 /** How near and how far the eye stands off (the body's heights); how far it looks down, and up (radians). */
 export const EYE_NEAREST = 0.45,
   EYE_FARTHEST = 6;
+/**
+ * How the eye first stands behind a soldier (Phase 61): looking down (radians) over the heads of the
+ * ranks behind him, a rank's depth apart — at a townsman's -0.32 the line from the eye to him passes
+ * their heads — so many of his heights off; and behind a beast, over its herd's backs and farther
+ * off, a beast being longer than it is tall.
+ */
+export const SOLDIER_EYE = { pitch: -0.55, distance: 2.6 } as const,
+  BEAST_EYE = { pitch: -0.5, distance: 3.6 } as const;
 const DOWNMOST = -1.25,
   UPMOST = 0.12;
 /** Below this the eye keeps out of the walls and the roofs (m: the village's free roam's). */
@@ -80,8 +88,11 @@ export class PossessEye {
     this.shown = null;
   }
 
-  /** The stage's camera behind a body at (x, z) (m), `dt` seconds on, out of the walls and roofs. */
-  update(x: number, z: number, ground: Ground | null, dt: number): void {
+  /**
+   * The stage's camera behind a body at (x, z) (m), `dt` seconds on, out of the walls and roofs;
+   * `lift`: how high above the ground the body is drawn (m: a flier as it flies).
+   */
+  update(x: number, z: number, ground: Ground | null, dt: number, lift = 0): void {
     const cam = this.stage.camera,
       lens = cam.camera!;
     if (this.fov === null) this.fov = lens.fov;
@@ -97,7 +108,7 @@ export class PossessEye {
     };
     const { yaw } = this.shown,
       h = this.height,
-      look = LOOK_AT * h,
+      look = LOOK_AT * h + lift,
       distance = this.shown.distance * h,
       fx = Math.sin(yaw),
       fz = Math.cos(yaw),

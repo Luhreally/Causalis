@@ -24,6 +24,7 @@ export const DEPOSIT_KINDS = ["copper", "gold", "tin", "iron", "coal", "oil", "s
 export type DepositKind = (typeof DEPOSIT_KINDS)[number];
 
 export type Process =
+  | "the god's hand"
   | "arc magmatism"
   | "orogenic veins"
   | "collision granites"

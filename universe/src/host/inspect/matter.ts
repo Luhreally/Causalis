@@ -61,7 +61,7 @@ import {
   type Stone,
   type Substance,
 } from "../../rules/index.ts";
-import { hashString, yearOfMoment, type World } from "../../kernel/index.ts";
+import { yearOfMoment, type World } from "../../kernel/index.ts";
 import {
   homePlanet,
   loreOf,
@@ -70,16 +70,10 @@ import {
   whyNot,
   type MarketStore,
 } from "../../sim/index.ts";
-import {
-  cradleTongue,
-  isProvinceWorld,
-  nativeIronLands,
-  starAgeGyr,
-  tongueName,
-  worldChemistry,
-} from "../../gen/index.ts";
+import { isProvinceWorld, nativeIronLands, starAgeGyr, worldChemistry } from "../../gen/index.ts";
 import type { Block, Item, Line, PageModel, Tab } from "../../bridge/index.ts";
 import { count, item, link, share, stat, yearNow } from "./words.ts";
+import { ownWordsItems } from "../names.ts";
 import { landLink, landTitle } from "./names.ts";
 import { airBlock } from "./ground.ts";
 import { elementPortrait, matterPortrait } from "../looks.ts";
@@ -1029,27 +1023,29 @@ function worldBlocks(world: World, chem: Chemistry): Block[] {
       ],
     });
   if (g.life.people) {
-    // The people's own words: the same tongue names each thing, whatever it is called here.
-    const t = cradleTongue(populationContext(world).culture),
-      called = (id: string) =>
-        tongueName({ ...t, seed: t.seed ^ 0x6d61 }, hashString("called " + id) >>> 0).toLowerCase(),
-      said = (english: string, id: string, ref: string | null): Item =>
-        thumbed(
-          item([link(cap(english), ref), ` — they call it ${called(id)}`], ref),
-          ref ? id : null,
-        );
-    const named: Item[] = fireless
+    // The people's own words (Phase 58): what its most spoken people call each, made of their
+    // tongue's own roots, and what the word says (host/names.ts).
+    const things: { english: string; id: string; ref: string | null }[] = fireless
         ? []
-        : [said(roleWord(chem, "tin"), chem.hardener, substRef(chem.hardener))],
+        : [{ english: roleWord(chem, "tin"), id: chem.hardener, ref: substRef(chem.hardener) }],
       surface = table.copper?.surface,
       bog = table.iron?.bog,
       stone = usualStone(chem);
-    if (surface) named.push(said(surface.name, surface.mineral, substRef(surface.mineral)));
-    if (bog) named.push(said(bog.name, bog.mineral, substRef(bog.mineral)));
-    named.push(
-      said(stone.name, stone.subst ?? stone.name, stone.subst ? substRef(stone.subst) : null),
-    );
-    blocks.push({ type: "list", title: "In their own words", items: named });
+    if (surface)
+      things.push({ english: surface.name, id: surface.mineral, ref: substRef(surface.mineral) });
+    if (bog) things.push({ english: bog.name, id: bog.mineral, ref: substRef(bog.mineral) });
+    things.push({
+      english: stone.name,
+      id: stone.subst ?? `rock:${stone.name}`,
+      ref: stone.subst ? substRef(stone.subst) : null,
+    });
+    blocks.push({
+      type: "list",
+      title: "In their own words",
+      items: ownWordsItems(world, things).map((x, i) =>
+        thumbed(x, things[i]!.ref ? things[i]!.id : null),
+      ),
+    });
   }
   return blocks;
 }

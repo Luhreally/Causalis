@@ -202,7 +202,12 @@ test("alien 16's words: the people call the hardener, the surface copper, the bo
   const p = pageOf(alien, "world:matter#world"),
     said = listed(p, "world", "In their own words");
   assert.equal(said.length, 4);
-  assert.ok(said.every((i) => /^[A-Z][^—]* — they call it [a-z]+$/.test(words(i.line))));
+  assert.ok(
+    said.every((i) =>
+      /^[A-Z][^—]* — the [A-Z][a-z]+ call it [a-z]+, “[a-z]+(?:-[a-z]+)*”$/.test(words(i.line)),
+    ),
+  );
+  assert.match(words(said[0]!.line), /“poison-metal”$/);
   assert.equal(said[0]!.ref, "subst:arsenic");
 });
 

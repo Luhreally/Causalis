@@ -6,6 +6,7 @@
 
 /** What plays where an act falls. */
 export type ActKindShown =
+  | "lightning"
   | "rain"
   | "drought"
   | "bounty"

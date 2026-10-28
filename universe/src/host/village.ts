@@ -906,7 +906,7 @@ export function villagePlan(
    * as many as the game kept — its flocks and how many of the village keep them, and
    * whether its hunters raid them.
    */
-  function faunaOf(cell: number, population: number): NonNullable<VillagePlan["fauna"]> {
+  function faunaOf(cell: number, population: number, ref: Ref): NonNullable<VillagePlan["fauna"]> {
     const g = ctx.generated,
       w = wildsOf(ctx, cell),
       land = ctx.provinces.get(cell),
@@ -937,7 +937,11 @@ export function villagePlan(
         })),
       pop = land?.total() ?? 0,
       herders = land && pop > 0 ? land.occupation(OCC.herder) / pop : 0,
-      beast = land?.herding && herders > 0 ? flockBeast(world, cell, land.herding) : null;
+      beast = land?.herding && herders > 0 ? flockBeast(world, cell, land.herding) : null,
+      // (Its beasts lost by the god's hand this year past: Phase 61.)
+      gone = handOf(world)
+        .straysOf(ref, world.now)
+        .map((s) => s.member);
     return {
       wild,
       flock: beast
@@ -948,6 +952,7 @@ export function villagePlan(
             wool: beast.wool,
             herders: Math.max(1, Math.round(population * herders)),
             body: beast.body,
+            ...(gone.length ? { gone } : {}),
           }
         : null,
       raided: !!w.flocksTaken,
@@ -1112,7 +1117,7 @@ export function villagePlan(
           ? null
           : { x: WATER_OUT * Math.cos(waterWay), z: WATER_OUT * Math.sin(waterWay) },
       house: houseOf(village.cell),
-      fauna: faunaOf(village.cell, village.population),
+      fauna: faunaOf(village.cell, village.population, village.ref),
       era: eraOf(village.cell),
       // (The metal its smiths forge, M217: its tools may still be mostly stone.)
       metal: forgedMetal(ctx, village.cell),

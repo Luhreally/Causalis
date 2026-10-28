@@ -60,6 +60,7 @@ export class Stage {
   private air: Rgb = [0.78, 0.88, 1];
 
   constructor(canvas: HTMLCanvasElement, tier: DeviceTier, sky: Rgb) {
+    this.quality = tier.name === "phone" ? QUALITIES.balanced : QUALITIES.high;
     this.app = new pc.Application(canvas, {
       graphicsDeviceOptions: {
         antialias: tier.antialias,
@@ -69,7 +70,11 @@ export class Stage {
       },
     });
     this.device = this.app.graphicsDevice;
-    this.device.maxPixelRatio = Math.min(globalThis.devicePixelRatio || 1, tier.maxPixelRatio);
+    this.device.maxPixelRatio = Math.min(
+      globalThis.devicePixelRatio || 1,
+      tier.maxPixelRatio,
+      this.quality.pixelRatio,
+    );
     this.app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);
     this.app.setCanvasResolution(pc.RESOLUTION_AUTO);
     globalThis.addEventListener("resize", this.onResize);

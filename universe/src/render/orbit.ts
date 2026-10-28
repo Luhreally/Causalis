@@ -53,7 +53,15 @@ export class OrbitRig {
   /** Each pointer down: where it was and began, and whether it turns (else it takes hold of the ground). */
   private readonly pointers = new Map<
     number,
-    { x: number; y: number; startX: number; startY: number; turn: boolean }
+    {
+      x: number;
+      y: number;
+      startX: number;
+      startY: number;
+      turn: boolean;
+      tap: boolean;
+      paint: boolean;
+    }
   >();
   private pinch = 0;
   /** Two fingers' angle and middle height, last seen (a twist turns; moved up or down together, a tilt). */
@@ -64,6 +72,13 @@ export class OrbitRig {
   private velocity: Steer = STILL;
   /** Whether the keys steer it (a page may keep them for itself). */
   keys = true;
+  /** An optional one-pointer tool. A second finger cancels its stroke and takes the camera. */
+  brush: {
+    start(x: number, y: number): boolean;
+    move(x: number, y: number): void;
+    end(): void;
+    cancel(): void;
+  } | null = null;
   /** Told when the viewer moves the view on (a person followed is let go). */
   onLetGo: (() => void) | null = null;
   /** True once the viewer has zoomed by hand; fitting then leaves the distance alone. */
@@ -150,13 +165,30 @@ export class OrbitRig {
         e.altKey ||
         e.ctrlKey ||
         this.follow !== null;
+      const rect = element.getBoundingClientRect(),
+        paint =
+          this.pointers.size === 0 &&
+          e.button === 0 &&
+          !e.altKey &&
+          !e.ctrlKey &&
+          (this.brush?.start(e.clientX - rect.left, e.clientY - rect.top) ?? false);
       this.pointers.set(e.pointerId, {
         x: e.clientX,
         y: e.clientY,
         startX: e.clientX,
         startY: e.clientY,
         turn,
+        tap: true,
+        paint,
       });
+      // A pinch or twist never becomes a tap when the last finger comes up.
+      if (this.pointers.size > 1) {
+        if ([...this.pointers.values()].some((p) => p.paint)) this.brush?.cancel();
+        for (const p of this.pointers.values()) {
+          p.tap = false;
+          p.paint = false;
+        }
+      }
       this.pinch = this.spread();
       this.twist = this.fingers();
       this.idle = 0;
@@ -175,6 +207,12 @@ export class OrbitRig {
         dy = e.clientY - p.y;
       p.x = e.clientX;
       p.y = e.clientY;
+      if (p.paint) {
+        const rect = element.getBoundingClientRect();
+        this.brush?.move(p.x - rect.left, p.y - rect.top);
+        return;
+      }
+      if (Math.hypot(p.x - p.startX, p.y - p.startY) >= 6) p.tap = false;
       if (this.pointers.size === 1) {
         if (p.turn) this.turnBy(dx, dy);
         else this.grab(fromX, fromY, e.clientX, e.clientY);
@@ -208,8 +246,11 @@ export class OrbitRig {
     const up = (e: PointerEvent) => {
       const p = this.pointers.get(e.pointerId);
       this.pointers.delete(e.pointerId);
+      if (p?.paint) this.brush?.end();
       if (
         p &&
+        !p.paint &&
+        p.tap &&
         this.pointers.size === 0 &&
         Math.hypot(e.clientX - p.startX, e.clientY - p.startY) < 6
       ) {
@@ -221,7 +262,21 @@ export class OrbitRig {
     };
     on<PointerEvent>("pointerup", up);
     on<PointerEvent>("pointercancel", (e) => {
+      if (this.pointers.get(e.pointerId)?.paint) this.brush?.cancel();
       this.pointers.delete(e.pointerId);
+      this.pinch = this.spread();
+      this.twist = this.fingers();
+    });
+    on<PointerEvent>("lostpointercapture", (e) => {
+      if (this.pointers.get(e.pointerId)?.paint) {
+        // WebKit can release a completed touch's capture before delivering its pointerup
+        // to the canvas. Preserve that completed stroke; a capture lost while still pressed
+        // is a cancellation, as is an explicit pointercancel.
+        if (e.buttons === 0) this.brush?.end();
+        else this.brush?.cancel();
+      }
+      this.pointers.delete(e.pointerId);
+      this.pinch = this.spread();
       this.twist = this.fingers();
     });
     on<WheelEvent>("wheel", (e) => {

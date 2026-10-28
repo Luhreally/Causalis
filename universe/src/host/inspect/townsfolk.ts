@@ -14,6 +14,7 @@ import { LINE, folkWork, townRoster, workOf, type Fate } from "../roster.ts";
 import { resolveLevyMan } from "../roll.ts";
 import { holderWounds } from "../wounds.ts";
 import { armsBlock } from "./arm.ts";
+import { foughtFate } from "../held.ts";
 import { item, link, sentence, stat, yearNow } from "./words.ts";
 import { landLink, realmLink, townLink } from "./names.ts";
 import { lookOf, woundBlock } from "./wounds.ts";
@@ -152,13 +153,16 @@ export function townsfolkPage(world: World, ref: string): PageModel {
 export function levyManPage(world: World, ref: string): PageModel {
   const man = resolveLevyMan(world, ref);
   if (!man) throw new Error(`no one of a battle's levy is ${ref}`);
+  // (In a battle the god fought, as his fight left this man: Phase 61.)
+  const hand = foughtFate(world, man.event, ref),
+    fate = hand?.fate ?? man.fate;
   const from = man.place,
     // (What he bore there, from the ground to his hand: Phase 55 M228.)
     arms = armsBlock(world, man.event, man.side, ref);
   return {
     ref,
     kind: "person",
-    icon: man.fate === "fell" ? "🪦" : "🧑",
+    icon: fate === "fell" ? "🪦" : "🧑",
     title: man.name,
     subtitle: [
       `${man.age}, of `,
@@ -180,7 +184,7 @@ export function levyManPage(world: World, ref: string): PageModel {
               stat(
                 "Fate",
                 [
-                  WAR_WORDS[man.fate],
+                  WAR_WORDS[fate],
                   link(battleWords(world, man.land), man.event),
                   ` in year ${man.year}`,
                 ],
@@ -193,6 +197,7 @@ export function levyManPage(world: World, ref: string): PageModel {
                   : [from?.name ?? "a place the record does not tell"],
               ),
               stat("Host", [realmLink(world, man.realm)]),
+              ...(hand ? [stat("By your hand", [hand.words], { why: hand.event })] : []),
             ],
           },
           ...(arms ? [arms] : []),

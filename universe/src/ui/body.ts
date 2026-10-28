@@ -5,7 +5,7 @@
 // whole marked where it is and named beside it: struck, abed, healing, healed, scarred, lame, lost,
 // the blow that killed. Their left is the picture's right, as one facing you.
 import type { Block, KinCard, MemberState, WoundMember } from "../bridge/index.ts";
-import { figureAnatomy, figureOf, partExtent } from "../view/index.ts";
+import { figureAnatomy, figureOf, partExtent, woundGear } from "../view/index.ts";
 import { drawSolids, personSolids, surface, type V3 } from "./portrait.ts";
 import { el } from "./why.ts";
 
@@ -43,7 +43,12 @@ function memberPoint(b: BodyBlock, m: WoundMember): V3 | null {
     k = b.person.child ? 0.7 : 1,
     at = (i: number): V3 | null => {
       const q = figure.parts[i];
-      return q ? [q.x * k, q.y * k, q.z * k] : null;
+      if (!q) return null;
+      const e = partExtent(q),
+        keep = b.person.look ? woundGear(figure, b.person.look).keep[i]! : 1,
+        cut = b.members.find((x) => x.member === m)?.state === "lost",
+        y = cut ? q.y + e[1] * (m === "head" ? -0.5 : 0.5 - keep) : q.y;
+      return [q.x * k, y * k, (q.z + e[2] * 0.5) * k];
     };
   if (m === "eye-l" || m === "eye-r") {
     const h = figure.parts[a.on.head];
@@ -65,10 +70,21 @@ function memberPoint(b: BodyBlock, m: WoundMember): V3 | null {
  * where it is (dashed where the member is gone), its name and state beside it, its left on the
  * picture's right.
  */
-export function drawBody(canvas: HTMLCanvasElement, b: BodyBlock, w: number, h: number): void {
+export function drawBody(
+  canvas: HTMLCanvasElement,
+  b: BodyBlock,
+  w: number,
+  h: number,
+  options: { turn?: number; anatomy?: boolean; gore?: string } = {},
+): void {
   const ctx = surface(canvas, w, h),
-    art = { x: w * 0.3, y: 12, w: w * 0.4, h: h - 30 },
-    at = drawSolids(ctx, personSolids(b.person), { turn: 0, tilt: 0.1 }, art),
+    art = { x: w * 0.15, y: 16, w: w * 0.7, h: h - 42 },
+    at = drawSolids(
+      ctx,
+      personSolids(b.person, options.anatomy),
+      { turn: options.turn ?? 0.3, tilt: 0.1 },
+      art,
+    ),
     marks = b.members
       .filter((m) => MARK[m.state])
       .map((m) => {
@@ -83,6 +99,39 @@ export function drawBody(canvas: HTMLCanvasElement, b: BodyBlock, w: number, h: 
         marks.filter((y) => y.m.member.endsWith("-l")).length <=
           marks.filter((y) => y.m.member.endsWith("-r")).length),
     sides = [marks.filter((x) => !rightSide(x)), marks.filter(rightSide)];
+  // Fresh damage has a visible wound surface, and a lost member has a dark stump with
+  // exposed bone. Healed scars and bindings keep their own look rather than bleeding forever.
+  if (options.gore !== "none")
+    for (const { m, p } of marks) {
+      if (!["lost", "struck", "killed", "abed", "healing", "scarred"].includes(m.state)) continue;
+      const fresh = ["struck", "killed", "abed"].includes(m.state),
+        lost = m.state === "lost",
+        size = lost ? 8 : fresh ? 6 : 3;
+      ctx.fillStyle = fresh || lost ? "#741b27" : "#b37975";
+      ctx.beginPath();
+      for (let i = 0; i < 10; i++) {
+        const a = (i / 10) * Math.PI * 2,
+          r = size * (i % 2 ? 0.65 : 1);
+        const x = p[0] + Math.cos(a) * r,
+          y = p[1] + Math.sin(a) * r;
+        if (i) ctx.lineTo(x, y);
+        else ctx.moveTo(x, y);
+      }
+      ctx.closePath();
+      ctx.fill();
+      if (options.gore !== "less" && (fresh || lost)) {
+        ctx.strokeStyle = "#bd2635";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(p[0], p[1] + 3);
+        ctx.lineTo(p[0] + 1, p[1] + (lost ? 20 : 12));
+        ctx.stroke();
+        if (lost) {
+          ctx.fillStyle = "#e9d9bd";
+          ctx.fillRect(p[0] - 2, p[1] - 1, 4, 3);
+        }
+      }
+    }
   ctx.font = "11px Verdana, Tahoma, sans-serif";
   ctx.textBaseline = "middle";
   sides.forEach((list, s) => {
@@ -143,16 +192,86 @@ export function drawBody(canvas: HTMLCanvasElement, b: BodyBlock, w: number, h: 
 /** A body block's view: its canvas, drawn once it has its width (its border inside the block's). */
 export function bodyView(b: BodyBlock): HTMLElement {
   const box = el("div", "body-view"),
-    canvas = el("canvas", "body-figure");
+    canvas = el("canvas", "body-figure"),
+    controls = el("div", "body-controls"),
+    equipped = el("button", "body-equipped", "Equipment"),
+    anatomy = el("button", "body-anatomy", "Body & wounds"),
+    enlarge = el("button", "body-enlarge", "Enlarge"),
+    turn = el("input", "body-turn"),
+    equipment = el("div", "body-equipment"),
+    detail = el(
+      "div",
+      "body-part-detail",
+      "Turn the figure to inspect it. Select a body part below for its condition.",
+    );
+  let bare = false,
+    large = false;
+  const gore = () => {
+    try {
+      return localStorage.getItem("causalis.gore") ?? "full";
+    } catch {
+      return "full";
+    }
+  };
+  const draw = () => {
+    if (!box.isConnected) return;
+    const h = large ? 540 : 360;
+    canvas.style.height = `${h}px`;
+    box.dataset["mode"] = bare ? "body" : "equipment";
+    equipped.setAttribute("aria-pressed", String(!bare));
+    anatomy.setAttribute("aria-pressed", String(bare));
+    enlarge.textContent = large ? "Fit" : "Enlarge";
+    drawBody(canvas, b, Math.max(200, Math.min(640, (box.clientWidth || 322) - 2)), h, {
+      turn: (Number(turn.value) * Math.PI) / 180,
+      anatomy: bare,
+      gore: gore(),
+    });
+  };
+  turn.type = "range";
+  turn.min = "-180";
+  turn.max = "180";
+  turn.step = "5";
+  turn.value = "15";
+  turn.setAttribute("aria-label", "Turn body");
+  turn.oninput = draw;
+  equipped.onclick = () => {
+    bare = false;
+    draw();
+  };
+  anatomy.onclick = () => {
+    bare = true;
+    draw();
+  };
+  enlarge.onclick = () => {
+    large = !large;
+    draw();
+  };
+  controls.append(equipped, anatomy, enlarge);
+  equipment.textContent = b.person.equipment
+    ? `Armor: ${b.person.equipment.guardWords}. Weapon: ${b.person.equipment.armWords}. Recorded at the battle of year ${b.person.equipment.year}.`
+    : "Armor: none recorded. Civilian clothes shown.";
+  const parts = el("div", "body-parts");
+  for (const m of b.members) {
+    const button = el(
+      "button",
+      `body-part${m.state !== "whole" ? " hurt" : ""}`,
+      m.words.replace(/^(his|her|their) /, ""),
+    );
+    button.onclick = () => {
+      detail.textContent = `${m.words}: ${WORD[m.state]}.`;
+      bare = true;
+      draw();
+    };
+    parts.append(button);
+  }
+  detail.setAttribute("role", "status");
   canvas.setAttribute(
     "aria-label",
     `A body: ${b.members.map((m) => `${m.words} ${WORD[m.state]}`).join(", ")}`,
   );
-  box.append(canvas);
+  box.append(controls, equipment, canvas, turn, detail, parts);
   box.dataset["members"] = b.members.map((m) => `${m.member}:${m.state}`).join(" ");
-  requestAnimationFrame(() =>
-    drawBody(canvas, b, Math.max(280, Math.min(520, (box.clientWidth || 322) - 2)), 260),
-  );
+  requestAnimationFrame(draw);
   return box;
 }
 

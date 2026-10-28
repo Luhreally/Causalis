@@ -236,6 +236,8 @@ export function flockMember(
   j: number,
   t: number,
 ): { readonly shown: boolean; readonly size: number } {
+  // (Lost to it by the god's hand: run off, or killed by him in a beast's body — Phase 61.)
+  if (plan.fauna?.flock?.gone?.includes(j)) return { shown: false, size: 0 };
   if (j % CULL_EVERY !== CULL_EVERY - 1) return { shown: true, size: 1 };
   const seed = hashText(`flock ${plan.ref}`),
     f = yearDay(Math.floor(t / DAY)) / 365 + (t % DAY) / DAY / 365,

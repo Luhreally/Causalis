@@ -69,6 +69,14 @@ const MOST = 380;
  * the blows' small marks on it.
  */
 const LOD = { metres: 160, bulk: 0.1 } as const;
+/**
+ * The soldier the god's hand is in seen (Phase 61): the lines from the eye to his feet, his middle
+ * and his head (of his height), how near one of them (of his height) one standing between is not
+ * drawn, tried at their middles and heads; and, the eye being near him with most of the field out
+ * of its sight, how far past its edges (of his height: a low sun's shadow's length and more) those
+ * out of it are still posed.
+ */
+const SEEN = { to: [0.1, 0.55, 0.95], clear: 0.4, ups: [0.55, 0.95], reach: 3.5 } as const;
 /** The rungs of a ladder. */
 const RUNGS = 6;
 /** The pieces the defenders' trench is cut into along the field. */
@@ -123,7 +131,7 @@ const WET: Rgb = [0.55, 0.02, 0.03],
  */
 const MARK = { proud: 0.003, thick: 0.004, cap: 0.012, core: 0.6 } as const;
 const SHAFT = { long: 0.55, dart: 0.3, thick: 0.02, sunk: 0.06, fletch: 0.12, vane: 0.06 } as const;
-const DROPS = { long: 0.6, beat: 0.8 } as const;
+const DROPS = { long: 0.9, beat: 0.7 } as const;
 
 const darker = (c: Rgb, k: number): Rgb => [c[0] * k, c[1] * k, c[2] * k];
 
@@ -414,6 +422,15 @@ function posedPoint(
 export class BattleLayer {
   readonly root = new pc.Entity("battle");
   private readonly stage: Stage;
+  /** The soldier the god's hand is in (Phase 61): a disc on the ground under him, as one of a town's possessed is marked. */
+  private readonly heldDisc: pc.Entity;
+  private held: number | null = null;
+  /**
+   * Of those, how many stood between the eye and him this frame, not drawn, and how many were out
+   * of its sight, not posed.
+   */
+  private hidden = 0;
+  private unseen = 0;
   private readonly shapes: Record<PartShape, pc.Mesh>;
   private readonly box: pc.Mesh;
   private readonly cone: pc.Mesh;
@@ -481,6 +498,11 @@ export class BattleLayer {
   private far = new Uint8Array(0);
   private readonly inverse = new pc.Mat4();
   private readonly eyeAt = new pc.Vec3();
+  /** The eye's sight in the field's own units, and a figure's reach in it, with a soldier held (Phase 61). */
+  private readonly sight = new pc.Mat4();
+  private readonly sightView = new pc.Mat4();
+  private readonly frustum = new pc.Frustum();
+  private readonly sphere = new pc.BoundingSphere();
   /**
    * Phase 55's blows: the blood about each wound (wet, dried), the wounds themselves, the stumps'
    * raw ends and their bones, the shafts stuck in the struck and their fletching; each laid out
@@ -497,8 +519,8 @@ export class BattleLayer {
     wet: new Laid(MOST * 3),
     dry: new Laid(MOST * 3),
     core: new Laid(MOST * 3),
-    flesh: new Laid(SEVER.most * 4),
-    bone: new Laid(SEVER.most * 4),
+    flesh: new Laid(SEVER.most * 4 + 192),
+    bone: new Laid(SEVER.most * 4 + 192),
     shafts: new Laid(MOST * 2),
     fletches: new Laid(MOST * 2),
     spray: new Laid(900),
@@ -522,6 +544,14 @@ export class BattleLayer {
 
   constructor(stage: Stage, parent: pc.Entity) {
     this.stage = stage;
+    this.heldDisc = new pc.Entity("held-soldier");
+    this.heldDisc.addComponent("render", {
+      meshInstances: [
+        new pc.MeshInstance(cylinderMesh(stage, 0.085, 0.01, 16), flatMaterial([1, 1, 1], 0.85)),
+      ],
+    });
+    this.heldDisc.enabled = false;
+    this.root.addChild(this.heldDisc);
     this.box = keptMesh(boxMesh(stage));
     this.cone = keptMesh(coneMesh(stage, 0.5, 1, 8));
     this.cyl = keptMesh(cylinderMesh(stage, 0.5, 1, 8));
@@ -841,8 +871,15 @@ export class BattleLayer {
     return e;
   }
 
+  /** Mark the soldier the god's hand is in (his figure; null: none). */
+  mark(id: number | null): void {
+    this.held = id;
+    if (id === null) this.heldDisc.enabled = false;
+  }
+
   /** The field let go. */
   clear(): void {
+    this.heldDisc.enabled = false;
     for (const s of this.sides) {
       for (const b of s.parts) b.destroy();
       s.shields.destroy();
@@ -855,6 +892,78 @@ export class BattleLayer {
     this.field = null;
   }
 
+  /**
+   * The battle as the eye behind the soldier the hand is in sees it (Phase 61): those standing
+   * between the eye and him not drawn, so he is seen however close his ranks stand about him; and
+   * those out of its sight not posed — the eye stands near him, and most of the field is out of it.
+   */
+  private heldView(now: BattleNow, me: TrooperNow, tall: number): BattleNow {
+    const eye = this.eye(),
+      cam = this.stage.camera,
+      ex = eye.x,
+      ey = eye.y,
+      ez = eye.z,
+      r2 = (SEEN.clear * tall) ** 2,
+      sphere = this.sphere,
+      frustum = this.frustum;
+    // (The eye's sight in the field's units, through its root: laid before a town.)
+    this.sightView.copy(cam.getWorldTransform()).invert();
+    this.sight
+      .mul2(cam.camera!.projectionMatrix, this.sightView)
+      .mul(this.root.getWorldTransform());
+    frustum.setFromMat4(this.sight);
+    const lines: { dx: number; dy: number; dz: number; dd: number }[] = [];
+    for (const at of SEEN.to) {
+      const dx = me.x * M - ex,
+        dy = me.y * M + at * tall * me.size - ey,
+        dz = me.z * M - ez,
+        dd = dx * dx + dy * dy + dz * dz;
+      if (dd > 1e-9) lines.push({ dx, dy, dz, dd });
+    }
+    let hid = 0,
+      out = 0;
+    const troopers = now.troopers.filter((t) => {
+      if (t.id === me.id || t.size <= 0.01) return true;
+      sphere.center.set(t.x * M, t.y * M + 0.5 * tall * t.size, t.z * M);
+      sphere.radius = SEEN.reach * tall * Math.max(1, t.size);
+      if (frustum.containsSphere(sphere) === 0) {
+        out++;
+        return false;
+      }
+      if (t.act === "fall") return true;
+      const px = t.x * M - ex,
+        pz = t.z * M - ez;
+      for (const up of SEEN.ups) {
+        const py = t.y * M + up * tall * t.size - ey;
+        for (const l of lines) {
+          const u = (px * l.dx + py * l.dy + pz * l.dz) / l.dd;
+          if (u <= 0 || u >= 1) continue;
+          const qx = px - u * l.dx,
+            qy = py - u * l.dy,
+            qz = pz - u * l.dz;
+          if (qx * qx + qy * qy + qz * qz < r2) {
+            hid++;
+            return false;
+          }
+        }
+      }
+      return true;
+    });
+    this.hidden = hid;
+    this.unseen = out;
+    return hid + out ? { ...now, troopers } : now;
+  }
+
+  /** How many stood between the eye and the soldier held, not drawn (the look tools). */
+  get cleared(): number {
+    return this.hidden;
+  }
+
+  /** How many were out of the eye's sight, not posed, with a soldier held (the look tools). */
+  get unposed(): number {
+    return this.unseen;
+  }
+
   /** The battle at its moment. */
   update(now: BattleNow): void {
     const field = this.field,
@@ -864,6 +973,16 @@ export class BattleLayer {
       return;
     }
     this.root.enabled = true;
+    this.hidden = 0;
+    this.unseen = 0;
+    if (this.held !== null) {
+      const me = now.troopers.find((x) => x.id === this.held);
+      this.heldDisc.enabled = !!me && me.size > 0.01;
+      if (me) {
+        this.heldDisc.setLocalPosition(me.x * M, me.y * M + 0.004, me.z * M);
+        if (me.size > 0.01) now = this.heldView(now, me, rig.high * SOLDIER * rig.f.scale);
+      }
+    }
     const f = rig.f,
       k = SOLDIER * f.scale,
       // (A true metre of the figure: it stands 1.75 of them.)
@@ -1692,6 +1811,20 @@ export class BattleLayer {
         way.z = w.face;
         this.drops(w.id, w.spray, w.age, way, pitch, t.yaw);
       }
+    }
+    // Small fragments from the same severing blow, drawn in the existing flesh and bone batches.
+    for (const p of now.gibs ?? []) {
+      const r = p.r * M;
+      (p.bone ? L.bone : L.flesh).push(
+        p.x * M,
+        (battleGroundAt(field.ground, p.x, p.z) + p.y) * M + r / 2,
+        p.z * M,
+        r,
+        r * 0.7,
+        r * 1.4,
+        p.yaw,
+        p.pitch,
+      );
     }
     // The shafts stuck in them: out of them back along their flight, fletched at the end.
     for (const st of now.stuck ?? []) {

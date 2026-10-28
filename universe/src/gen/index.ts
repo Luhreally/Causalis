@@ -49,6 +49,7 @@ export { chemistryInputs, nativeIronLands, worldChemistry, worldGroundStone } fr
 export { civLife, handDraw, lifeInputs, worldLife } from "./life.ts";
 export {
   MAX_SPECIES,
+  SPECIES_WORDS,
   NICHES,
   livingIn,
   lives,
@@ -113,6 +114,21 @@ export {
   tongueSounds,
   type Tongue,
 } from "./names.ts";
+export {
+  RECHOSEN,
+  REPLACED,
+  fittedWord,
+  marksChosen,
+  marksTried,
+  rootsOf,
+  speechOf,
+  wordOf,
+  type Lineage,
+  type Root,
+  type Said,
+  type SaidRoot,
+  type Speech,
+} from "./words.ts";
 export {
   HALL_AREA,
   PROVINCE_FREQUENCY,

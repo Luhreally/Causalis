@@ -8,6 +8,7 @@ import { BIOME } from "../gen/index.ts";
 import {
   RISEN_KEPT,
   WAR_EVENTS,
+  handOf,
   homePlanet,
   hostFor,
   loreOf,
@@ -151,8 +152,11 @@ export function nearCounts(b: War["battles"][number]): {
 export function battleNear(world: World, ref: string): BattleNear | null {
   const e = world.events.get(ref as Ref);
   if (!e || e.type !== WAR_EVENTS.battle.type) return null;
+  // (A battle the god fought is told as history had it before him, and laid as it was when he
+  // was taken: Phase 61.)
   const war = warsOf(world).get(e.subjects[0]!),
-    b = war?.battles.find((x) => x.event === ref);
+    fought = handOf(world).foughtOf(ref),
+    b = fought?.was ?? war?.battles.find((x) => x.event === ref);
   if (!war || !b) return null;
   const ctx = populationContext(world),
     g = homePlanet(world).generated,
@@ -230,5 +234,17 @@ export function battleNear(world: World, ref: string): BattleNear | null {
       // (Its life's colours: Phase 57.)
       ...worldLook(world),
     },
+    ...(fought
+      ? {
+          hand: {
+            name: fought.name,
+            figure: fought.figure,
+            side: fought.side,
+            most: fought.most,
+            from: fought.from,
+            won: (war.battles.find((x) => x.event === ref)?.won ?? b.won) === (fought.side === 0),
+          },
+        }
+      : {}),
   };
 }

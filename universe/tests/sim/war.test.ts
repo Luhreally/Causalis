@@ -6,6 +6,7 @@ import {
   POLITY_EVENTS,
   WAR_EVENTS,
   WEARY_YEARS,
+  WarStore,
   diplomacyOf,
   makePopulationWorld,
   politiesOf,
@@ -176,6 +177,45 @@ test("a realm fresh from war is slow to go to war again, and says so", () => {
     assert.equal(world.events.get(weary.source!.ref as Ref)?.type, WAR_EVENTS.peace.type);
   }
   assert.ok(cited >= 1, "some war was declared by a realm not long at peace");
+});
+
+test("a realm's wars, held by realm, are those a walk of every war finds, saved and loaded alike", () => {
+  const walk = (realm: Ref) => wars.filter((w) => w.attacker === realm || w.defender === realm),
+    open = (a: Ref, b: Ref) =>
+      wars.find(
+        (w) =>
+          w.ended === null &&
+          ((w.attacker === a && w.defender === b) || (w.attacker === b && w.defender === a)),
+      ),
+    realms = [...new Set(wars.flatMap((w) => [w.attacker, w.defender]))];
+  assert.ok(realms.length >= 4, `${realms.length} realms at war`);
+  const loaded = new WarStore();
+  loaded.load(JSON.parse(JSON.stringify(warsOf(world).save())));
+  for (const store of [warsOf(world), loaded]) {
+    const own = new Map(store.all().map((w) => [w.ref, w]));
+    for (const realm of realms) {
+      assert.deepEqual(
+        store.of(realm).map((w) => w.ref),
+        walk(realm).map((w) => w.ref),
+      );
+      assert.deepEqual(
+        store.fighting(realm).map((w) => w.ref),
+        walk(realm)
+          .filter((w) => w.ended === null)
+          .map((w) => w.ref),
+      );
+      // (The store's own wars, not copies: what is read is what is changed.)
+      for (const w of store.of(realm)) assert.equal(w, own.get(w.ref));
+    }
+    for (const w of wars)
+      for (const [a, b] of [
+        [w.attacker, w.defender],
+        [w.defender, w.attacker],
+        [w.attacker, w.attacker],
+      ] as const)
+        assert.equal(store.between(a, b)?.ref, open(a, b)?.ref);
+  }
+  assert.deepEqual(warsOf(world).of("pol:0:999999" as Ref), []);
 });
 
 test("a devout realm under the sacred law holds a rival faith at its border an affront", () => {

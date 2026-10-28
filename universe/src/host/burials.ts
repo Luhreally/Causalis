@@ -5,7 +5,7 @@
 // save, with no record of its men, buries no one by war.
 import { DAY, type Ref, type World } from "../kernel/index.ts";
 import { unpackTowns } from "../rules/index.ts";
-import { populationContext, warsOf, type Battle, type War } from "../sim/index.ts";
+import { handOf, populationContext, warsOf, type Battle, type War } from "../sim/index.ts";
 import { WAR_BURIAL, type WarRest } from "../bridge/index.ts";
 import { landTitle } from "./inspect/names.ts";
 
@@ -47,7 +47,10 @@ function indexOf(world: World): Index {
 /** A battle by its event (null: none). */
 export function battleOf(world: World, event: string): Fought | null {
   const e = indexOf(world).at.get(event);
-  return e ? { war: e[0], b: e[0].battles[e[1]]! } : null;
+  if (!e) return null;
+  // (A battle the god fought in a soldier's body is named as history had it before him: its roll
+  // as it was laid when he was taken, its men's fates by history but where his fight says — Phase 61.)
+  return { war: e[0], b: handOf(world).foughtOf(event)?.was ?? e[0].battles[e[1]]! };
 }
 
 /** The battles of a year (fought at its turn), in their wars' order. */

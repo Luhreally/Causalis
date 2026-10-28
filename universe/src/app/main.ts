@@ -4,6 +4,8 @@
 // instancing benchmark instead.
 import "./styles.css";
 import "./y2k.css";
+import "./brushes.css";
+import { Checkpoint } from "./checkpoint.ts";
 import { HostClient, inlinePair, workerPort } from "../bridge/index.ts";
 import {
   FreeRig,
@@ -64,10 +66,12 @@ import {
   SearchBox,
   Tooltip,
   PageWindow,
+  NamesSwitch,
   Alerts,
   ArmsBook,
   EventWindows,
   GodPalette,
+  GodBrushes,
   type TownPlace,
   WAY_CHOICES,
   isGreat,
@@ -244,6 +248,7 @@ import {
   woundLines,
   type DayLine,
   FATE_WORDS,
+  HAND_FATE_WORDS,
   battleCapAt,
   battleCapWords,
   battleSlowings,
@@ -278,6 +283,7 @@ function rim(s: NameShape, d: number): { x: number; y: number; z: number } {
   return { x: s.x * c + s.ax * n, y: s.y * c + s.ay * n, z: s.z * c + s.az * n };
 }
 import { deviceTier } from "./tier.ts";
+import { installHeld, type HeldField } from "./held.ts";
 import { installPossession } from "./possess.ts";
 // (Anyone's family and body on their card, a war's soldiers named from its roll: Phase 55 wave 5.)
 import { kinLines } from "../ui/index.ts";
@@ -1306,7 +1312,7 @@ async function runPlanetPage(): Promise<void> {
   await client.start(universe, seed);
   // ?load=name takes up a save; ?year=N starts the world N years on (it runs there
   // first; history is the same).
-  const loaded = loadName ? await client.load(loadName).catch(() => null) : null;
+  const loaded = loadName ? await client.load(loadName) : null;
   if (!loaded && startYear > 0) await client.advance(startYear * YEAR);
   client.setInterest({ view: "globe", focus: null });
   // One clock for every scale, its speeds the scale's own (asked for 2026-10-24): the date
@@ -1399,6 +1405,14 @@ async function runPlanetPage(): Promise<void> {
   const hoverTips = new HoverTips(hud, client);
   hoverTips.onOpen = (ref) => void pageWindow.open(ref);
   pageWindow.hoverTips = planetPanel.hoverTips = hoverTips;
+  // Their own names (Phase 58): the pages tell things as the people where the eye stands call them,
+  // or as they are, as the viewer last chose on such a world (Earth's open as they are).
+  const names = new NamesSwitch(
+    universe,
+    location.search,
+    !!(navigator as { webdriver?: boolean }).webdriver,
+  );
+  pageWindow.names = hoverTips.names = names;
   // Realms' arms (Phase 11 M102): asked once each, borne beside their names everywhere.
   const armsBook = new ArmsBook(client);
   pageWindow.arms = hoverTips.arms = labels.arms = armsBook;
@@ -1571,6 +1585,7 @@ async function runPlanetPage(): Promise<void> {
    * quality has stepped down past High (M197: a phone of today builds them as a desktop does).
    */
   const fieldDetail = (): 1 | 2 => (stage.quality.detail >= 2 ? 2 : 1);
+  const autoCeiling: QualityName = tier.name === "phone" ? "balanced" : "ultra";
   let choice = readChoice(),
     auto: AutoQuality | null = null,
     fps = 0,
@@ -1582,10 +1597,10 @@ async function runPlanetPage(): Promise<void> {
     } catch {
       // Nothing to keep it in: it holds for this visit.
     }
-    // (Auto begins at the finest on any device, a phone too, M197: it steps down if the frames
-    // do not keep up, and back up once they do.)
-    const start: QualityName = c === "auto" ? "ultra" : c;
-    auto = c === "auto" ? new AutoQuality(start, "ultra") : null;
+    // A phone's automatic budget stays at Balanced or below. Frame rate alone cannot tell
+    // whether a finer setting is about to exhaust Safari's graphics memory.
+    const start: QualityName = c === "auto" ? (tier.name === "phone" ? "balanced" : "ultra") : c;
+    auto = c === "auto" ? new AutoQuality(start, autoCeiling) : null;
     stage.setQuality(QUALITIES[start]);
   };
   setChoice(choice);
@@ -1641,14 +1656,19 @@ async function runPlanetPage(): Promise<void> {
 
   /** The globe's colours as its lens paints them (the land's "as the map" shows them, M95). */
   let globeLensColors: Uint8Array | null = null;
+  let globeSurfaceKey = "";
   const paintGlobe = () => {
     const frame = client.latestFrame("globe");
     if (!frame) return;
-    if (!globe.built)
+    const surfaceKey = (frame.meta as { surfaceKey?: string }).surfaceKey ?? "";
+    if (!globe.built || globeSurfaceKey !== surfaceKey) {
       globe.build(
         (frame.meta as { frequency: number }).frequency,
         frame.arrays.elevation as Float32Array,
       );
+      globeSurfaceKey = surfaceKey;
+      globe.visible = scale === "globe";
+    }
     const colors = globeColors(
       frame,
       lens,
@@ -1686,16 +1706,17 @@ async function runPlanetPage(): Promise<void> {
     if (!frame || scale !== "region") return;
     const meta = frame.meta as {
       ref: string;
+      surfaceKey?: string;
       center: number;
       size: number;
       tileKm: number;
       lat: number;
       lon: number;
     };
-    if (region.key !== meta.ref) {
+    if (region.key !== (meta.surfaceKey ?? meta.ref)) {
       const t0 = performance.now();
       region.build(
-        meta.ref,
+        meta.surfaceKey ?? meta.ref,
         meta.size,
         meta.tileKm,
         regionHeights(frame),
@@ -3196,11 +3217,17 @@ async function runPlanetPage(): Promise<void> {
     walk.saw("scale");
     void toSystem();
   };
-  // Keeping the world: a save of one's own, and one kept every five minutes of watching.
+  // Keeping the world: a save of one's own, and a checkpoint every minute and on leaving.
   const saveName = `${universe}:${seed}`;
+  const rememberSave = (name: string) => {
+    const url = new URL(location.href);
+    url.searchParams.set("load", name);
+    history.replaceState(history.state, "", url);
+  };
   planetPanel.onSave = async () => {
     try {
       const { bytes } = await client.save(saveName);
+      rememberSave(saveName);
       return `saved (${(bytes / 1e6).toFixed(1)} MB)`;
     } catch (error) {
       return `not saved: ${(error as Error).message}`;
@@ -3218,6 +3245,7 @@ async function runPlanetPage(): Promise<void> {
     }
     try {
       const got = await client.load(save.name);
+      rememberSave(save.name);
       paintGlobe();
       return `back at year ${Math.floor(got.t / YEAR)}${got.fellBack ? " (from the save before; the latest did not read)" : ""}`;
     } catch (error) {
@@ -3227,7 +3255,7 @@ async function runPlanetPage(): Promise<void> {
   planetPanel.onDeleteSave = async (save) => {
     try {
       await client.deleteSave(save.name);
-      return `“${save.seed}”, year ${Math.floor(save.t / YEAR)}, deleted${save.name === `${saveName}:auto` ? " (this world keeps itself again in five minutes)" : ""}`;
+      return `“${save.seed}”, year ${Math.floor(save.t / YEAR)}, deleted${save.name === `${saveName}:auto` ? " (this world keeps itself again in a minute)" : ""}`;
     } catch (error) {
       return `not deleted: ${(error as Error).message}`;
     }
@@ -3261,7 +3289,93 @@ async function runPlanetPage(): Promise<void> {
       return `not opened: ${(error as Error).message}`;
     }
   };
-  setInterval(() => void client.save(`${saveName}:auto`).catch(() => {}), 5 * 60_000);
+  const saveWarning = document.createElement("div");
+  saveWarning.className = "save-warning";
+  saveWarning.setAttribute("role", "status");
+  saveWarning.hidden = true;
+  hud.append(saveWarning);
+  const checkpoint = new Checkpoint(
+    () => client.save(`${saveName}:auto`),
+    (error) => {
+      saveWarning.hidden = error === null;
+      if (error !== null) {
+        saveWarning.textContent =
+          "Progress could not be saved in this browser. Open Saves and keep a copy as a file.";
+        return;
+      }
+      // A reload (including Safari recovering a discarded tab) takes up the committed save,
+      // rather than making the seed's first year again. Only name it once it has been written.
+      rememberSave(`${saveName}:auto`);
+    },
+  );
+  void firstPicture.then(() => checkpoint.save());
+  const brushes = new GodBrushes(
+    hud,
+    client,
+    (x, y) => {
+      if (scale === "globe") return globe.pick(x, y);
+      if (scale === "village") return plan?.spot ?? null;
+      if (scale === "camp") return brushes.state?.centres[regionCell] ?? null;
+      if (scale === "region") {
+        const tile = region.pick(x, y),
+          frame = client.latestFrame("region");
+        return tile === null
+          ? null
+          : ((frame?.arrays.parent as Int32Array | undefined)?.[tile] ?? null);
+      }
+      return null;
+    },
+    (on) => (on ? time.hold("brush") : time.release("brush")),
+  );
+  rig.brush = brushes;
+  brushes.onArmed = () => {
+    palette.putDown();
+    tooltip.hide();
+  };
+  brushes.onOpen = (ref) => void pageWindow.open(ref);
+  brushes.onCast = async () => {
+    if (!(await checkpoint.save(true)))
+      throw new Error("Stroke recorded, but saving failed. Open Saves and export your world.");
+    if (scale === "village" && plan) await loadPlan(plan.ref);
+    paintGlobe();
+    paintRegion();
+    await client.query<ActsMap>({ type: "acts.map" }).then(showActs);
+  };
+  stage.onUpdate(() => {
+    const usable = ["globe", "region", "camp", "village"].includes(scale) && rig.enabled;
+    brushes.button.hidden = !usable;
+    if (!usable && brushes.armed) brushes.close();
+  });
+  setInterval(() => {
+    if (!document.hidden) void checkpoint.save();
+  }, 60_000);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      time.hold("background");
+      void checkpoint.save();
+    } else time.release("background");
+  });
+  addEventListener("pagehide", () => {
+    time.hold("page hidden");
+    void checkpoint.save();
+  });
+  addEventListener("pageshow", () => {
+    time.release("page hidden");
+    if (!document.hidden) time.release("background");
+  });
+  if (document.hidden) time.hold("background");
+  // PlayCanvas restores its GPU resources itself. Keep the world while that happens and
+  // let the clock go on only once the picture can return; never reload the page to recover.
+  canvas.addEventListener("webglcontextlost", (event) => {
+    event.preventDefault();
+    time.hold("graphics");
+    void checkpoint.save();
+  });
+  canvas.addEventListener("webglcontextrestored", () => {
+    stage.setQuality(QUALITIES.low);
+    if (choice === "auto") auto = new AutoQuality("low", autoCeiling);
+    time.release("graphics");
+  });
   // Back to the title screen: the world kept on its own first, so Continue takes it up.
   planetPanel.onMenu = async () => {
     try {
@@ -4440,6 +4554,9 @@ async function runPlanetPage(): Promise<void> {
   });
   villagePanel.onWar = (ref) => void pageWindow.open(ref);
   villagePanel.onPage = (ref) => void pageWindow.open(ref);
+  // (Where the eye stands, whose names the pages tell: the town's land, or the land shown.)
+  names.standing = () =>
+    scale === "village" ? (plan?.cell ?? null) : scale === "region" ? regionCell : null;
   // The battle at the turn fought before the town watched (Phase 55 M227, D1, D4, asked for
   // 2026-10-25: "the battles should be fought on the land, by the townsfolk, where you can see
   // them"): history fights it at the turn; the morning after, on the field before the town its
@@ -4452,6 +4569,8 @@ async function runPlanetPage(): Promise<void> {
       key: string;
       turn: number;
       detail: number;
+      /** The figures a side it was laid at (a battle the god fought: those he was taken at, Phase 61). */
+      most: number;
       info: BattleNear;
       field: BattleField;
       blows: Blows;
@@ -4485,19 +4604,27 @@ async function runPlanetPage(): Promise<void> {
     village.battleAt(null);
     time.release("battle-roll");
   };
-  /** The battle before the town laid on its field: its words and its roll asked for together. */
+  /**
+   * The battle before the town laid on its field: its words, then its roll at as many figures a side
+   * as the setting draws — or, where the god fought in it (Phase 61), as many as he was taken at.
+   */
   const layBattle = async (town: VillagePlan, event: string, turn: number, key: string) => {
     const detail = stage.quality.detail,
-      most = placedMost(detail),
-      [info, roll, members] = await Promise.all([
-        client.query<BattleNear | null>({ type: "battle.near", args: { event } }),
-        client.query<BattleRoll | null>({ type: "battle.roll", args: { event, most } }),
-        // (Where history struck each man of it: his figure struck there, Phase 55 wave 5.)
-        client.query<Record<string, StruckMember>>({
-          type: "battle.members",
-          args: { event, most },
-        }),
-      ]).catch(() => [null, null, null] as const);
+      near = await client
+        .query<BattleNear | null>({ type: "battle.near", args: { event } })
+        .catch(() => null),
+      most = near?.hand?.most ?? placedMost(detail),
+      [info, roll, members] = near
+        ? await Promise.all([
+            near,
+            client.query<BattleRoll | null>({ type: "battle.roll", args: { event, most } }),
+            // (Where history struck each man of it: his figure struck there, Phase 55 wave 5.)
+            client.query<Record<string, StruckMember>>({
+              type: "battle.members",
+              args: { event, most },
+            }),
+          ]).catch(() => [null, null, null] as const)
+        : ([null, null, null] as const);
     // (Moved on meanwhile: to another town, or the battle let go.)
     if (placedAsked !== key || plan?.ref !== town.ref) return;
     if (!info || !roll) {
@@ -4521,6 +4648,7 @@ async function runPlanetPage(): Promise<void> {
       key,
       turn,
       detail,
+      most,
       info,
       field,
       blows,
@@ -4546,8 +4674,10 @@ async function runPlanetPage(): Promise<void> {
       return;
     }
     const key = `${plan.ref}|${p.event}`;
-    // (Laid again at a setting's detail as the setting moves: so many figures as it draws.)
-    if (placed && placed.detail !== stage.quality.detail) unplace();
+    // (Laid again at a setting's detail as the setting moves: so many figures as it draws; not
+    // while one of its men is possessed, Phase 61.)
+    if (placed && placed.detail !== stage.quality.detail && !handHeld.holds(placed.info.event))
+      unplace();
     if (placedAsked !== key) {
       unplace();
       placedAsked = key;
@@ -4564,8 +4694,11 @@ async function runPlanetPage(): Promise<void> {
       return;
     }
     // The battle at its moment; once over, its fallen where they lie, borne in from noon two days on.
-    let shown: BattleNow | null = null;
-    if (at === "morning" || at === "battle")
+    // (One of its men possessed, or the god fought in it: as his fight has it, Phase 61.)
+    let shown: BattleNow | null = handHeld.battleShown(P, seen);
+    if (shown) {
+      // (As the hand has it.)
+    } else if (at === "morning" || at === "battle")
       shown = blowsAt(P.field, P.blows, battleAt(P.field, battleSecond(seen, P.turn)), gore);
     else if (at === "after" || at === "borne") {
       P.end ??= fallenNow(
@@ -4623,12 +4756,15 @@ async function runPlanetPage(): Promise<void> {
     e: RollEntry,
     fate: string,
   ): Promise<ManCard> => {
-    const key = `${event}|${side}|${e.ref}`;
+    const key = `${event}|${side}|${e.ref}|${names.mode}`;
     let asked = borneAsked.get(key);
     if (!asked) {
       if (borneAsked.size > 2000) borneAsked.clear();
       asked = client
-        .query<ArmBorne | null>({ type: "arms.borne", args: { event, side, who: e.ref } })
+        .query<ArmBorne | null>({
+          type: "arms.borne",
+          args: { event, side, who: e.ref, ...names.args() },
+        })
         .catch(() => null);
       borneAsked.set(key, asked);
     }
@@ -4643,6 +4779,7 @@ async function runPlanetPage(): Promise<void> {
       arm: borne?.words ?? null,
       maker: borne?.maker ?? null,
       armPage: borne?.page ?? null,
+      called: borne?.called ?? null,
     };
   };
   /** One who fought before the town tapped: his card (null: none of the roll is his). */
@@ -4652,24 +4789,28 @@ async function runPlanetPage(): Promise<void> {
       t = P?.field.troopers[id];
     if (!P || !e || !t) return null;
     selectPerson(null);
-    const s = Math.min(BATTLE_LENGTH, battleSecond(now(), P.turn)),
+    // (A battle the god fought: as his fight left him, Phase 61.)
+    const hand = handHeld.fateOf(P, id),
+      s = Math.min(BATTLE_LENGTH, battleSecond(now(), P.turn)),
       m = await cardOf(
         P.info.event,
         P.roll,
         t.side,
         e,
-        FATE_WORDS[figureFate(P.field, P.blows, id)],
+        FATE_WORDS[hand ?? figureFate(P.field, P.blows, id)],
       );
     if (placed !== P) return null;
     villagePanel.showSoldier(
       m,
       (t.side === 0 ? P.info.attacker : P.info.defender).name,
-      blowWords(P.field, P.blows, id, s) ?? trooperWords(P.field, id, s),
+      hand
+        ? HAND_FATE_WORDS[hand]
+        : (blowWords(P.field, P.blows, id, s) ?? trooperWords(P.field, id, s)),
     );
     // His family, and his body as the battle so far leaves him while it is fought (Phase 55 wave 5).
     await kinOnCard(
       e.ref,
-      s < BATTLE_LENGTH
+      s < BATTLE_LENGTH && !hand
         ? {
             event: P.info.event,
             struck: struckOf(P.field, P.blows, id, s, P.members[e.ref]?.member),
@@ -5018,7 +5159,7 @@ async function runPlanetPage(): Promise<void> {
   // One of a town's people possessed (Phase 60; asked for 2026-10-27: "add in functionality to
   // possess anything like worldbox/worldfall mod ... make sure it works right in mobile"): the god's
   // hand made flesh, walked and set to work by hand, from the palette or a person's card.
-  installPossession({
+  const person = installPossession({
     stage,
     canvas,
     hud,
@@ -5030,6 +5171,29 @@ async function runPlanetPage(): Promise<void> {
     pages: pageWindow,
     plan: () => (scale === "village" ? plan : null),
     scale: () => scale,
+    reload: loadPlan,
+    toOrbit: () => setRoam("orbit"),
+  });
+  // One of the men of the battle fought before the town, or a beast about it, possessed (Phase 61):
+  // the god fights as him and the day goes as the hand fights it; runs as the beast, and what it
+  // does stays done.
+  const handHeld = installHeld({
+    gore: () => gore,
+    stage,
+    canvas,
+    hud,
+    client,
+    time,
+    rig,
+    village,
+    palette,
+    person,
+    plan: () => (scale === "village" ? plan : null),
+    scale: () => scale,
+    placed: () => (scale === "village" ? placed : null),
+    drawnAt: (s) =>
+      placed ? blowsAt(placed.field, placed.blows, battleAt(placed.field, s), "full") : null,
+    relay: () => unplace(),
     reload: loadPlan,
     toOrbit: () => setRoam("orbit"),
   });
@@ -5436,7 +5600,19 @@ async function runPlanetPage(): Promise<void> {
       /** The one followed (-1: the hosts), and when they were told last. */
       followed: number;
       toldAt: number;
+      /** A battle the god fought (Phase 61): the field his fight is drawn over, and whether it is now. */
+      held: HeldField | null;
+      hand: boolean;
     } | null = null;
+  /**
+   * The close field now: as history fought it — or, in a battle the god fought in a soldier's body
+   * (Phase 61), from the second he was taken as his fight went.
+   */
+  const fieldNow = (f: NonNullable<typeof fight>): BattleNow => {
+    const drawn = f.held ? handHeld.fieldShown(f.held, f.s) : null;
+    f.hand = drawn !== null;
+    return drawn ?? blowsAt(f.field, f.blows, battleAt(f.field, f.s), gore);
+  };
   /** Where the eye keeps: on the line where they fight, else midway between the two hosts as they go. */
   const battleMiddle = () => {
     if (!fight) return null;
@@ -5480,7 +5656,7 @@ async function runPlanetPage(): Promise<void> {
       f.roll,
       f.field.troopers[id]!.side,
       e,
-      FATE_WORDS[figureFate(f.field, f.blows, id)],
+      FATE_WORDS[(f.held && handHeld.fateOf(f.held, id)) || figureFate(f.field, f.blows, id)],
     ).then((m) => {
       if (fight === f && f.followed === id) battlePanel.named(m);
     });
@@ -5532,7 +5708,7 @@ async function runPlanetPage(): Promise<void> {
   // (Given its words, a battle is watched from them; else they are asked of the host.)
   const toBattle = async (event: string, given?: BattleNear): Promise<void> => {
     // (Each figure a man of the battle's roll, Phase 55 M227: asked for with its words.)
-    const [info, roll, members] = await Promise.all([
+    const [info, roll0, members0] = await Promise.all([
       given ?? client.query<BattleNear | null>({ type: "battle.near", args: { event } }),
       client
         .query<BattleRoll | null>({
@@ -5549,6 +5725,23 @@ async function runPlanetPage(): Promise<void> {
         .catch(() => null),
     ]);
     if (!info) return;
+    // (A battle the god fought: laid at the figures a side he was taken at, its roll with it, so his
+    // fight's bodies are its figures — Phase 61.)
+    const most = info.hand?.most ?? mostFor(fieldDetail()),
+      [roll, members] =
+        most === mostFor(fieldDetail())
+          ? [roll0, members0]
+          : await Promise.all([
+              client
+                .query<BattleRoll | null>({ type: "battle.roll", args: { event, most } })
+                .catch(() => null),
+              client
+                .query<Record<string, StruckMember>>({
+                  type: "battle.members",
+                  args: { event, most },
+                })
+                .catch(() => null),
+            ]);
     leaveScale();
     scale = "battle";
     const detail = fieldDetail();
@@ -5568,7 +5761,7 @@ async function runPlanetPage(): Promise<void> {
     client.setInterest({ view: "region", focus: `cell:0:${info.cell}` });
     meadowScene.reset();
     const meadow = newMeadow(info.plan, 0, info.plan.seed, true),
-      field = newBattle(info, mostFor(detail));
+      field = newBattle(info, most);
     // (The field cleared for the hosts, trodden where they go and worn where the fallen lie.)
     fieldMeadow(field, meadow);
     battleLayer.setup(
@@ -5594,6 +5787,16 @@ async function runPlanetPage(): Promise<void> {
       roll,
       followed: -1,
       toldAt: -Infinity,
+      held: info.hand
+        ? {
+            key: `field|${event}|${most}`,
+            most,
+            info,
+            field,
+            drawn: (s) => blowsAt(field, blows, battleAt(field, s), "full"),
+          }
+        : null,
+      hand: false,
     };
     battlePanel.named(null);
     if (bandLayer) bandLayer.root.enabled = false;
@@ -5641,7 +5844,7 @@ async function runPlanetPage(): Promise<void> {
     if (scale !== "battle") warReturn = null;
     else if (fromWar?.fields && fight) {
       fight.s = MOMENTS.charge - 4;
-      fight.now = blowsAt(fight.field, fight.blows, battleAt(fight.field, fight.s), gore);
+      fight.now = fieldNow(fight);
       battleSpeed(Math.max(1, Math.min(BATTLE_SPEEDS.length - 1, fromWar.speed + 1)));
     }
   };
@@ -5733,7 +5936,7 @@ async function runPlanetPage(): Promise<void> {
   battlePanel.onScrub = (s) => {
     if (!fight) return;
     fight.s = Math.max(0, Math.min(BATTLE_LENGTH, s));
-    fight.now = blowsAt(fight.field, fight.blows, battleAt(fight.field, fight.s), gore);
+    fight.now = fieldNow(fight);
   };
   battlePanel.onSide = (ref) => void pageWindow.open(ref);
   // Their weapon traced: the page of what they fought with, from the ground to their hand.
@@ -5783,7 +5986,7 @@ async function runPlanetPage(): Promise<void> {
         return;
       }
     }
-    fight.now = blowsAt(fight.field, fight.blows, battleAt(fight.field, fight.s), gore);
+    fight.now = fieldNow(fight);
     meadowScene.update(fight.meadow, []);
     battleLayer.update(fight.now);
     // A battle fought by day: from the morning into the afternoon as it goes.
@@ -5815,9 +6018,12 @@ async function runPlanetPage(): Promise<void> {
     const wall = performance.now();
     if (fight.followed >= 0 && wall - fight.toldAt >= 250) {
       fight.toldAt = wall;
+      const hand = fight.hand && fight.held ? handHeld.fateOf(fight.held, fight.followed) : null;
       battlePanel.follow(
-        blowWords(fight.field, fight.blows, fight.followed, fight.s) ??
-          trooperWords(fight.field, fight.followed, fight.s),
+        hand
+          ? HAND_FATE_WORDS[hand]
+          : (blowWords(fight.field, fight.blows, fight.followed, fight.s) ??
+              trooperWords(fight.field, fight.followed, fight.s)),
         fight.now.troopers[fight.followed]?.side ?? null,
       );
     } else if (fight.followed < 0 && fight.toldAt !== -Infinity) {
@@ -5847,6 +6053,7 @@ async function runPlanetPage(): Promise<void> {
     fight && battleLayer
       ? {
           event: fight.info.event,
+          hand: fight.hand,
           title: fight.info.title,
           outcome: fight.info.outcome,
           s: fight.s,
@@ -5888,7 +6095,7 @@ async function runPlanetPage(): Promise<void> {
   exposed.battleAt = (s: number, speed?: number) => {
     if (!fight) return;
     fight.s = Math.max(0, Math.min(BATTLE_LENGTH, s));
-    fight.now = blowsAt(fight.field, fight.blows, battleAt(fight.field, fight.s), gore);
+    fight.now = fieldNow(fight);
     if (speed !== undefined) battleSpeed(speed);
   };
   // The blood and the wounds shown (Phase 55): a setting, kept in this browser.
@@ -5900,7 +6107,7 @@ async function runPlanetPage(): Promise<void> {
     } catch {
       // Nowhere to remember it: for this visit only.
     }
-    if (fight) fight.now = blowsAt(fight.field, fight.blows, battleAt(fight.field, fight.s), gore);
+    if (fight) fight.now = fieldNow(fight);
     // (The battle before the town, drawn again as it ended, in the blood now shown.)
     if (placed) placed.end = null;
   };
@@ -7813,6 +8020,9 @@ main().catch((error: Error) => {
   text.textContent = webgl
     ? "This browser cannot draw in 3D (WebGL is turned off or missing), so the universe cannot be shown here."
     : `Something went wrong while starting: ${error.message}`;
-  box.append(title, text);
+  const back = document.createElement("a");
+  back.href = location.pathname;
+  back.textContent = "Back to saved worlds";
+  box.append(title, text, back);
   app.append(box);
 });

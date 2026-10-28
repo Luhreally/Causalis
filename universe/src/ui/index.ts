@@ -1,6 +1,7 @@
 // ui: the observatory — panels that read through queries and subscriptions and act
 // only through commands, in plain words. May import: kernel, bridge, view.
 // See README.md and docs/architecture §31.
+export { GodBrushes } from "./brushes.ts";
 export { SandboxPanel } from "./panel.ts";
 export { LabelLayer, type Label } from "./labels.ts";
 export { PlanetPanel, type ChipKind, type PeopleEntry, type WorldStats } from "./planet-panel.ts";
@@ -22,6 +23,7 @@ export { TimeBar } from "./timebar.ts";
 export { Tidings, type Tiding } from "./tidings.ts";
 export { GuidedWalk, type WalkCue } from "./walk.ts";
 export { PageWindow } from "./inspector.ts";
+export { NamesSwitch, namesMode, namesThings, type NamesArgs, type NamesMode } from "./names.ts";
 export { MapLabels, type MapName } from "./maplabels.ts";
 export { MapModes } from "./mapmodes.ts";
 export { FreeControls, type FreeMode } from "./free.ts";

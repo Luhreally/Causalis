@@ -16,6 +16,7 @@ import {
   type Block,
   type Line,
   type PageModel,
+  type Portrait,
   type Stat,
 } from "../../bridge/index.ts";
 import { hostDesign } from "../arms.ts";
@@ -25,6 +26,7 @@ import { resolveLevyMan } from "../roll.ts";
 import { townRoster } from "../roster.ts";
 import { landTitle, realmLink } from "./names.ts";
 import { count, item, link, sentence, stat, yearNow } from "./words.ts";
+import { borneWords, sayIn, type NamesArg } from "../names.ts";
 
 /** The arms that are set on a wooden haft, shaft or stock (a club or a bow is the wood itself). */
 const HAFTED: ReadonlySet<string> = new Set([
@@ -53,7 +55,12 @@ function armOf(
   world: World,
   event: string,
   side: number,
-): { readonly b: Battle; readonly realm: string; readonly arm: Part } | null {
+): {
+  readonly b: Battle;
+  readonly realm: string;
+  readonly arm: Part;
+  readonly parts: readonly Part[];
+} | null {
   const war = warsOf(world)
       .all()
       .find((w) => w.battles.some((b) => b.event === event)),
@@ -65,7 +72,48 @@ function armOf(
       hostDesign(world, realm, { year: b.year, design: b.designs?.[side] })?.parts ??
       (r && r.ended === null ? hostFor(populationContext(world), r).parts : undefined),
     arm = host?.find((x) => x.role === "arm");
-  return arm ? { b, realm, arm } : null;
+  return arm ? { b, realm, arm, parts: host ?? [] } : null;
+}
+
+/** The kit this named person actually took to their last recorded battle. */
+export function equipmentOf(
+  world: World,
+  who: string,
+): Extract<Portrait, { kind: "person" }>["equipment"] {
+  const levy = who.startsWith("lv:") ? resolveLevyMan(world, who) : null,
+    folk = parseTownsfolkRef(who),
+    roster = folk ? townRoster(world, folk.town) : null,
+    holder =
+      folk && roster
+        ? folk.n === null
+          ? roster.holder(folk.line)
+          : roster.holderOf(folk.line, folk.n)
+        : null,
+    met = who.startsWith("prsn:") ? observer(world).person(who as Ref) : null,
+    fate =
+      levy ??
+      holder?.fates.find((f) => f.fate === "fell") ??
+      holder?.fates.at(-1) ??
+      met?.wars?.at(-1);
+  if (!fate) return undefined;
+  const kit = armOf(world, fate.event, fate.side);
+  if (!kit) return undefined;
+  const guard = kit.parts.find((p) => p.role === "guard"),
+    material = guard?.material,
+    color =
+      material === "bronze"
+        ? ([0.68, 0.46, 0.19] as const)
+        : material === "hide"
+          ? ([0.4, 0.23, 0.12] as const)
+          : ([0.62, 0.67, 0.72] as const);
+  return {
+    guard: guard?.id ?? "none",
+    guardWords: guard ? hostPartWords(world, kit.realm, guard) : "No armor",
+    arm: kit.arm.id,
+    armWords: hostPartWords(world, kit.realm, kit.arm),
+    color,
+    year: kit.b.year,
+  };
 }
 
 /** One of an arm's kind, said of the one who bore it: "chert-tipped spears", "a chert-tipped spear". */
@@ -96,20 +144,31 @@ export function armsRef(event: string, side: 0 | 1, who: string): string {
 }
 
 /** What one man bore in a battle and who made it (his seat's maker of his own: Phase 55 M228; null: no such battle or arm). */
-export function armBorne(world: World, event: string, side: 0 | 1, who: string): ArmBorne | null {
+export function armBorne(
+  world: World,
+  event: string,
+  side: 0 | 1,
+  who: string,
+  names?: NamesArg,
+): ArmBorne | null {
   const a = armOf(world, event, side);
   if (!a) return null;
   const made = armsMade(world, a.realm, a.arm, a.b.year, who),
     m = made?.maker,
     town = m?.town ? populationContext(world).settlements.get(m.town as Ref) : undefined;
+  // (As the people of the land it was made in call its stuff, where asked: Phase 58.)
+  const words = oneArm(hostPartWords(world, a.realm, a.arm)),
+    land = town?.cell ?? politiesOf(world).get(a.realm as Ref)?.seat ?? null,
+    called = names?.as === "theirs" ? borneWords(world, words, land) : null;
   return {
-    words: oneArm(hostPartWords(world, a.realm, a.arm)),
+    words: called ? sayIn(world, words, land) : words,
     maker: m
       ? `${m.name}, ${/^[aeiou]/i.test(m.trade) ? "an" : "a"} ${m.trade}${town ? ` of ${town.name}` : ""}`
       : null,
     at: made?.workshop.name ?? null,
     grade: made?.grade ?? null,
     page: armsRef(event, side, who),
+    ...(called ? { called } : {}),
   };
 }
 

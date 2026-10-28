@@ -1,6 +1,7 @@
 // bridge: the protocol between the page and the simulation host — message types,
 // the client, the worker port and the in-thread pair. May import: kernel.
 // See README.md and docs/architecture/universe-architecture.md §30.
+export type { BrushKind, BrushStrokeArgs, BrushPreview, BrushState } from "./brush.ts";
 export { HostClient, type CommandReceipt } from "./client.ts";
 export {
   frameTransfer,
@@ -194,3 +195,17 @@ export type {
   PossessStrip,
   PossessTakeArgs,
 } from "./possess.ts";
+export type {
+  BeastTakeArgs,
+  FoughtNow,
+  HeldBeastNow,
+  HeldBody,
+  HeldFallen,
+  HeldLive,
+  HeldNow,
+  HeldSide,
+  HeldSoldierNow,
+  HeldTally,
+  Looses,
+  SoldierTakeArgs,
+} from "./held.ts";

@@ -408,6 +408,8 @@ export type VillagePlan = {
       readonly wool: boolean;
       readonly herders: number;
       readonly body?: BeastPlan | null;
+      /** Its beasts lost to it by the god's hand this year past (their places in it: Phase 61; absent: none). */
+      readonly gone?: readonly number[];
     } | null;
     readonly raided: boolean;
   };

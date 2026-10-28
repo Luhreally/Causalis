@@ -8,8 +8,10 @@
 // ate as it goes, bears young when well fed, and dies hungry, old or taken. As the ages pass its
 // lineages come and go: those that died out at an age's end fall, those newly arisen walk in.
 // The god's hand may green the land or parch it, hearten the hunters or shelter the hunted; what
-// prospered under it, against the same land left alone beside it, bends the ages after it. Pure.
-import type { MeadowPlan } from "../bridge/index.ts";
+// prospered under it, against the same land left alone beside it, bends the ages after it. And it
+// may walk in one of its beasts (Phase 61): steered by the stick at its lineage's own walk and run,
+// eating, springing on prey, courting, bolting and calling its own as its way of life allows. Pure.
+import type { BeastPlan, MeadowPlan } from "../bridge/index.ts";
 import type { LifeWay } from "../rules/index.ts";
 
 /** The stretch of land, metres across and deep (the beasts drawn on it as the village draws them). */
@@ -142,6 +144,50 @@ export type Fate = {
   readonly at: number;
 };
 
+/** What the god's hand may do in a beast of the meadow (Phase 61). */
+export type MeadowHeldAct = "eat" | "spring" | "court" | "bolt" | "call";
+/** The four acts of a beast held, in their places, by its way of feeding: what it lives by first. */
+const HELD_ACTS: Readonly<Record<Feed, readonly MeadowHeldAct[]>> = {
+  graze: ["eat", "bolt", "court", "call"],
+  peck: ["eat", "bolt", "court", "call"],
+  browse: ["eat", "bolt", "court", "call"],
+  great: ["eat", "court", "call", "bolt"],
+  hunt: ["spring", "eat", "court", "bolt"],
+  small: ["spring", "eat", "court", "bolt"],
+  scavenge: ["eat", "bolt", "court", "call"],
+  swim: ["eat", "bolt", "court", "call"],
+};
+/** How long an act of eating goes on (s), a bolt lasts, and how far a call is heard and a mate sought (m). */
+const EATS = 4,
+  BOLTS = 2.5,
+  CALLED = 45,
+  MATE = 14;
+
+/**
+ * A beast of the meadow the god's hand is in (Phase 61): which, and its kind's name (it is told by
+ * it when let go, though taken or dead); the stick (its push along the meadow's x and z, each
+ * -1 … 1) and whether at a run; the act pressed and not yet done; how long it
+ * eats on and bolts on (s); what the last act came to; what it has done under the hand; how its life
+ * ended ("": it lives), and by what.
+ */
+export type MeadowHand = {
+  readonly id: number;
+  readonly name: string;
+  mx: number;
+  mz: number;
+  run: boolean;
+  act: MeadowHeldAct | null;
+  eat: number;
+  bolt: number;
+  told: { words: string; t: number; good: boolean } | null;
+  ate: number;
+  killed: number;
+  young: number;
+  called: number;
+  ended: "" | "taken" | "starved" | "old";
+  by: string | null;
+};
+
 export type MeadowState = {
   readonly age: number;
   /** The age's kind and whether its land is wooded: its look and its growth. */
@@ -178,6 +224,8 @@ export type MeadowState = {
   folk?: { x: number; z: number; hunting: boolean }[];
   /** The band's fire, where it is camped: the beasts keep from it. */
   fire?: { x: number; z: number } | null;
+  /** The beast the god's hand is in (Phase 61; absent: none). */
+  hand?: MeadowHand | null;
 };
 
 /** A small fast seeded source of numbers in [0, 1). */
@@ -549,7 +597,9 @@ export function stepMeadow(s: MeadowState): void {
     b.full = Math.max(0, b.full - dt);
     let want = b.heading,
       pace = 0;
-    if (b.doing === "coming") {
+    const hand = s.hand && s.hand.id === b.id && !s.hand.ended ? s.hand : null;
+    if (hand) ({ want, pace } = handStep(s, b, k, hand, dt, dead, counted));
+    else if (b.doing === "coming") {
       // Walking in from the edge until it is in the meadow.
       want = Math.atan2(-b.x, -b.z);
       pace = k.walk;
@@ -623,6 +673,10 @@ export function stepMeadow(s: MeadowState): void {
             b.chase = 0;
             b.target = -1;
             if (q.marked && q.id === s.chosen) s.fate = { how: "taken", by: k.name, at: s.t };
+            if (s.hand && q.id === s.hand.id) {
+              s.hand.ended = "taken";
+              s.hand.by = k.name;
+            }
           }
         } else if (b.think <= 0) {
           b.think = 2 + 3 * r();
@@ -771,7 +825,7 @@ export function stepMeadow(s: MeadowState): void {
       }
     }
     // Go, kept to the meadow and out of the pool (a swimmer in it).
-    b.heading = turn(b.heading, want, 3.2 * dt * (pace > k.walk * 1.5 ? 1.6 : 1));
+    b.heading = turn(b.heading, want, (hand ? 7 : 3.2) * dt * (pace > k.walk * 1.5 ? 1.6 : 1));
     b.speed = pace;
     b.x += Math.sin(b.heading) * pace * dt;
     b.z += Math.cos(b.heading) * pace * dt;
@@ -832,6 +886,7 @@ export function stepMeadow(s: MeadowState): void {
     if (b.energy <= 0 || b.age > k.life * (0.9 + 0.4 * ((b.id * 0.618) % 1))) {
       dead.add(b.id);
       if (b.id === s.chosen) s.fate = { how: b.energy <= 0 ? "starved" : "old", by: null, at: s.t };
+      if (s.hand && b.id === s.hand.id) s.hand.ended = b.energy <= 0 ? "starved" : "old";
       if (k.feed !== "swim")
         s.carcasses.push({ x: b.x, z: b.z, meat: 0.7, size: k.length, kind: b.kind });
     }
@@ -931,6 +986,447 @@ function grazeOr(s: MeadowState, b: Beast, k: MeadowKind, dt: number): void {
     return;
   }
   if (b.doing !== "walking") b.doing = g > 0.2 ? "grazing" : "walking";
+}
+
+/** What a beast held could eat where it stands (null: nothing): the grass, a shrub, a kill, the pool. */
+function foodAt(
+  s: MeadowState,
+  b: Beast,
+  k: MeadowKind,
+):
+  | { kind: "grass"; cell: number }
+  | { kind: "leaf"; shrub: Shrub }
+  | { kind: "kill"; carcass: Carcass }
+  | { kind: "pool" }
+  | null {
+  if (k.feed === "swim") return s.pond && s.pond.food > 0.1 ? { kind: "pool" } : null;
+  if (k.feed === "hunt" || k.feed === "small" || k.feed === "scavenge") {
+    let best: Carcass | null = null,
+      bd = Infinity;
+    for (const c of s.carcasses) {
+      const d = Math.hypot(c.x - b.x, c.z - b.z) - c.size * 0.6 - k.length * 0.5;
+      if (d < 1.5 && d < bd && c.meat > 0.02) {
+        bd = d;
+        best = c;
+      }
+    }
+    return best ? { kind: "kill", carcass: best } : null;
+  }
+  if (k.feed === "browse" || k.feed === "great") {
+    let best: Shrub | null = null,
+      bd = Infinity;
+    for (const sh of s.shrubs) {
+      const d = Math.hypot(sh.x - b.x, sh.z - b.z) - sh.r - k.length * 0.5;
+      if (d < 1.5 && d < bd && sh.leaf > 0.1) {
+        bd = d;
+        best = sh;
+      }
+    }
+    if (best) return { kind: "leaf", shrub: best };
+    if (k.feed === "browse") return null;
+  }
+  const cell = cellAt(b.x, b.z);
+  return s.grass[cell]! > 0.08 ? { kind: "grass", cell } : null;
+}
+
+/** The nearest a hunter held may spring on (null: none within its spring). */
+function springOn(
+  s: MeadowState,
+  b: Beast,
+  k: MeadowKind,
+  dead: ReadonlySet<number>,
+): Beast | null {
+  let best: Beast | null = null,
+    bd = Infinity;
+  for (const o of s.beasts) {
+    const ok = s.kinds[o.kind]!;
+    if (o === b || dead.has(o.id) || o.doing === "coming" || !prey(k, ok)) continue;
+    const d = Math.hypot(o.x - b.x, o.z - b.z) - (k.length + ok.length) * 0.5;
+    if (d < 4 && d < bd) {
+      bd = d;
+      best = o;
+    }
+  }
+  return best;
+}
+
+/** Why a beast held cannot bear young now (null: it can). */
+function courtNot(
+  s: MeadowState,
+  b: Beast,
+  k: MeadowKind,
+  counted: readonly number[],
+): string | null {
+  if (k.gone) return "Its kind is dying out: no more are born to it";
+  if (b.age <= k.grown) return "Not grown yet";
+  if (b.energy <= FEEDS[k.feed].breed * 0.85) return "Too hungry to bear young: eat first";
+  if (counted[b.kind]! >= k.most || s.beasts.length >= MOST)
+    return "Its kind is as many as the land holds";
+  const mate = s.beasts.some(
+    (o) =>
+      o !== b &&
+      o.kind === b.kind &&
+      o.age > k.grown &&
+      o.doing !== "coming" &&
+      Math.hypot(o.x - b.x, o.z - b.z) < MATE,
+  );
+  return mate ? null : "None of its kind near to court";
+}
+
+/** Of its own kind within its call (not it). */
+function ownNear(s: MeadowState, b: Beast): Beast[] {
+  return s.beasts.filter(
+    (o) =>
+      o !== b &&
+      o.kind === b.kind &&
+      o.doing !== "coming" &&
+      Math.hypot(o.x - b.x, o.z - b.z) < CALLED,
+  );
+}
+
+/**
+ * A step of a beast the god's hand is in: the act pressed done (if it can be), its way and pace from
+ * the stick at its own walk and run (a bolt its whole run, a flier's the faster), eating on where it
+ * stands while it is still. Returns the way it would go and its pace.
+ */
+function handStep(
+  s: MeadowState,
+  b: Beast,
+  k: MeadowKind,
+  h: MeadowHand,
+  dt: number,
+  dead: Set<number>,
+  counted: number[],
+): { want: number; pace: number } {
+  h.bolt = Math.max(0, h.bolt - dt);
+  h.eat = Math.max(0, h.eat - dt);
+  const act = h.act,
+    told = (words: string, good = true) => (h.told = { words, t: s.t, good });
+  h.act = null;
+  b.target = -1;
+  b.chase = 0;
+  if (act === "eat") {
+    const food = foodAt(s, b, k);
+    if (!food)
+      told(
+        k.feed === "hunt" || k.feed === "small" || k.feed === "scavenge"
+          ? "No kill near to eat at"
+          : k.feed === "browse"
+            ? "No leaf within reach"
+            : k.feed === "swim"
+              ? "Nothing in the pool to eat"
+              : "No grass here: walk to greener",
+        false,
+      );
+    else {
+      h.eat = EATS;
+      b.meals++;
+      told(
+        food.kind === "kill"
+          ? "It eats at the kill"
+          : food.kind === "leaf"
+            ? "It browses"
+            : "It eats",
+      );
+    }
+  } else if (act === "spring") {
+    const q = k.feed === "hunt" || k.feed === "small" ? springOn(s, b, k, dead) : null;
+    if (!q) {
+      h.bolt = 0.6;
+      told("None near enough to take: stalk closer", false);
+    } else {
+      const p = s.kinds[q.kind]!;
+      dead.add(q.id);
+      s.taken++;
+      s.carcasses.push({ x: q.x, z: q.z, meat: 1, size: p.length, kind: q.kind });
+      b.energy = Math.min(1, b.energy + 0.65);
+      b.meals++;
+      h.killed++;
+      if (q.marked && q.id === s.chosen) s.fate = { how: "taken", by: k.name, at: s.t };
+      told(`It brought down ${/^[aeiou]/i.test(p.name) ? "an" : "a"} ${p.name}`);
+    }
+  } else if (act === "court") {
+    const why = courtNot(s, b, k, counted);
+    if (why) told(why, false);
+    else {
+      b.energy -= FEEDS[k.feed].breed * 0.45;
+      b.young++;
+      h.young++;
+      counted[b.kind]!++;
+      const young = born(
+        s,
+        b.kind,
+        b,
+        b.x - Math.sin(b.heading) * k.length,
+        b.z - Math.cos(b.heading) * k.length,
+      );
+      young.heading = b.heading;
+      s.beasts.push(young);
+      s.born++;
+      told("It courts one of its kind: a young one is born to it");
+    }
+  } else if (act === "bolt") {
+    h.bolt = BOLTS;
+    b.fled++;
+    told("It bolts");
+  } else if (act === "call") {
+    const own = ownNear(s, b);
+    for (const o of own) {
+      o.heading = Math.atan2(b.x - o.x, b.z - o.z);
+      o.think = 4;
+      if (o.doing === "grazing" || o.doing === "resting" || o.doing === "browsing")
+        o.doing = "walking";
+    }
+    h.called += own.length;
+    told(
+      own.length ? `It calls: ${own.length} of its own come` : "None of its kind near to hear it",
+      own.length > 0,
+    );
+  }
+  const push = Math.min(1, Math.hypot(h.mx, h.mz));
+  let want = push > 0.05 ? Math.atan2(h.mx, h.mz) : b.heading;
+  const pace =
+    h.bolt > 0
+      ? k.run * (k.flies ? 1.4 : 1.1)
+      : push * (h.run ? k.run : k.walk) * (push > 0.05 ? 1 : 0);
+  // (A swimmer kept to its pool.)
+  const p = s.pond;
+  if (k.feed === "swim" && p && Math.hypot(b.x - p.x, b.z - p.z) > p.r - 2)
+    want = Math.atan2(p.x - b.x, p.z - b.z);
+  if (pace > 0.05) h.eat = 0;
+  if (h.eat > 0) {
+    const food = foodAt(s, b, k);
+    if (!food) {
+      h.eat = 0;
+      told("Nothing left to eat here", false);
+    } else if (food.kind === "grass") {
+      const g = s.grass[food.cell]!;
+      b.energy = Math.min(1, b.energy + 0.075 * rich(s) * g * dt);
+      s.grass[food.cell] = Math.max(
+        0,
+        g - 0.05 * (k.length / 4) * (k.feed === "peck" ? 0.3 : 1) * dt,
+      );
+      b.doing = "grazing";
+    } else if (food.kind === "leaf") {
+      b.energy = Math.min(1, b.energy + 0.08 * rich(s) * food.shrub.leaf * dt);
+      food.shrub.leaf = Math.max(0, food.shrub.leaf - 0.02 * (k.length / 4) * dt);
+      b.doing = "browsing";
+    } else if (food.kind === "kill") {
+      b.energy = Math.min(1, b.energy + 0.12 * dt);
+      food.carcass.meat -= 0.03 * dt;
+      b.doing = "eating";
+    } else {
+      b.energy = Math.min(1, b.energy + 0.03 * s.pond!.food * dt);
+      s.pond!.food = Math.max(0, s.pond!.food - 0.0015 * dt);
+      b.doing = "swimming";
+    }
+    h.ate += dt;
+  } else
+    b.doing =
+      k.feed === "swim"
+        ? "swimming"
+        : pace > k.walk * 1.5
+          ? k.feed === "hunt" || k.feed === "small"
+            ? "chasing"
+            : "fleeing"
+          : pace > 0.05
+            ? "walking"
+            : "resting";
+  return { want, pace };
+}
+
+/** The god's hand taken into a beast of the meadow (Phase 61; null: none such to be had): it and its line followed. */
+export function holdMeadow(s: MeadowState, id: number): MeadowHand | null {
+  const b = s.beasts.find((x) => x.id === id);
+  if (!b || b.doing === "coming") return null;
+  followBeast(s, id);
+  s.hand = {
+    id,
+    name: s.kinds[b.kind]!.name,
+    mx: 0,
+    mz: 0,
+    run: false,
+    act: null,
+    eat: 0,
+    bolt: 0,
+    told: null,
+    ate: 0,
+    killed: 0,
+    young: 0,
+    called: 0,
+    ended: "",
+    by: null,
+  };
+  return s.hand;
+}
+
+/** The beast the hand is in, and its kind (null: none, or gone). */
+export function meadowHeld(s: MeadowState): { b: Beast; k: MeadowKind; h: MeadowHand } | null {
+  const h = s.hand;
+  if (!h) return null;
+  const b = s.beasts.find((x) => x.id === h.id);
+  return b ? { b, k: s.kinds[b.kind]!, h } : null;
+}
+
+/** The four acts of the beast held, in their places: each as its button says it, whether it can be done now, and why not. */
+export function meadowOffers(
+  s: MeadowState,
+): { act: MeadowHeldAct; icon: string; label: string; can: boolean; words: string }[] {
+  const held = meadowHeld(s);
+  if (!held) return [];
+  const { b, k } = held,
+    counted = counts(s);
+  return HELD_ACTS[k.feed].map((act) => {
+    if (act === "eat") {
+      const food = foodAt(s, b, k),
+        [icon, label] =
+          k.feed === "hunt" || k.feed === "small" || k.feed === "scavenge"
+            ? ["🍖", "Eat"]
+            : k.feed === "browse" || (k.feed === "great" && food?.kind === "leaf")
+              ? ["🌳", "Browse"]
+              : k.feed === "peck"
+                ? ["🌾", "Peck"]
+                : k.feed === "swim"
+                  ? ["🫧", "Feed"]
+                  : ["🌿", "Graze"];
+      return {
+        act,
+        icon,
+        label,
+        can: !!food,
+        words: food
+          ? food.kind === "kill"
+            ? "Eat at the kill"
+            : food.kind === "leaf"
+              ? "Browse the leaf at hand"
+              : food.kind === "pool"
+                ? "Feed in the pool"
+                : "Eat where it stands"
+          : k.feed === "hunt" || k.feed === "small" || k.feed === "scavenge"
+            ? "No kill near to eat at"
+            : k.feed === "browse"
+              ? "No leaf within reach"
+              : "No grass here: walk to greener",
+      };
+    }
+    if (act === "spring") {
+      const q = springOn(s, b, k, new Set());
+      return {
+        act,
+        icon: "🐾",
+        label: "Spring",
+        can: !!q,
+        words: q
+          ? `Spring on the ${s.kinds[q.kind]!.name}`
+          : "None near enough to take: stalk closer",
+      };
+    }
+    if (act === "court") {
+      const why = courtNot(s, b, k, counted);
+      return {
+        act,
+        icon: "💞",
+        label: "Court",
+        can: !why,
+        words: why ?? "Court one of its kind near",
+      };
+    }
+    if (act === "call") {
+      const n = ownNear(s, b).length;
+      return {
+        act,
+        icon: "📣",
+        label: "Call",
+        can: n > 0,
+        words: n ? `Call its own about it (${n} near)` : "None of its kind near to hear it",
+      };
+    }
+    return {
+      act,
+      icon: k.flies ? "🪽" : "💨",
+      label: k.flies ? "Fly" : "Bolt",
+      can: true,
+      words: k.flies ? "Take to the air and away" : "Bolt: its whole run, a while",
+    };
+  });
+}
+
+/** Who the beast held is, for the strip: its lineage, its way, how fed, what it lives by, what it has done. */
+export function meadowStrip(
+  s: MeadowState,
+  plan: BeastPlan | null = null,
+): { name: string; what: string; strength: number; carries: string; body: string } | null {
+  const held = meadowHeld(s);
+  if (!held) return null;
+  const { b, k, h } = held,
+    grown = b.age > k.grown,
+    // (Its body plan's members, where its lineage's plan is known: Phase 61.)
+    members = plan ? membersWords(plan) : "";
+  return {
+    name: `${grown ? "A" : "A young"} ${k.name}`,
+    what: `${k.niche} of age ${s.age + 1}${b.generation ? `, of the ${ordinal(b.generation + 1)} generation` : ""} · walks ${k.walk.toFixed(1)}, runs ${k.run.toFixed(1)} m/s`,
+    strength: Math.max(0, Math.min(1, b.energy)),
+    carries: `${members ? `${members} · ` : ""}${k.size < 10 ? k.size.toFixed(1) : Math.round(k.size)} kg${k.flies ? " · flies" : ""}`,
+    body:
+      [
+        h.killed ? `${h.killed} brought down` : "",
+        h.young ? `${h.young} young borne` : "",
+        h.ate >= 1 ? `ate ${Math.round(h.ate)} s` : "",
+      ]
+        .filter(Boolean)
+        .join(" · ") || (b.energy < 0.3 ? "Hungry" : "Whole"),
+  };
+}
+
+/** What a beast grows (rules/creatures.ts's features), and how many, in words. */
+const GROWS: Readonly<Record<string, string>> = {
+    hump: "a hump",
+    mane: "a mane",
+    crest: "a crest",
+    beak: "a beak",
+  },
+  COVERED: Readonly<Record<string, string>> = { shell: "a shell", slick: "slick skin" },
+  COUNTED = ["", "one", "two", "three", "four", "five", "six", "seven", "eight"];
+
+/**
+ * A body plan's members in words (Phase 61): its legs, fins and wings, a long neck or tail, what it
+ * grows and its covering — "four legs, a long tail, horns, fur"; an alien world's beasts by their own.
+ */
+export function membersWords(p: BeastPlan): string {
+  const n = (k: number, what: string) =>
+    k > 0 ? `${COUNTED[k] ?? k} ${what}${k === 1 ? "" : "s"}` : "";
+  return [
+    n(p.legs, "leg"),
+    n(p.fins, "fin"),
+    n(p.wings, "wing"),
+    p.neck >= 0.6 ? "a long neck" : "",
+    p.tail >= 0.6 ? "a long tail" : "",
+    ...p.features.map((f) => GROWS[f] ?? f),
+    COVERED[p.covering] ?? p.covering,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+/** The hand let go of the meadow's beast: what it did under the hand, in words. */
+export function letGoMeadow(s: MeadowState): string {
+  const h = s.hand;
+  if (!h) return "";
+  s.hand = null;
+  const did = [
+    h.killed ? `brought down ${h.killed}` : "",
+    h.young ? `bore ${h.young} young` : "",
+    h.ate >= 1 ? "ate" : "",
+    h.called ? `called ${h.called} of its own to it` : "",
+    h.ended === "taken"
+      ? `was taken by ${h.by ? `a ${h.by}` : "a hunter"}`
+      : h.ended === "starved"
+        ? "starved"
+        : h.ended === "old"
+          ? "died old"
+          : "",
+  ].filter(Boolean);
+  return `You let go of the ${h.name}${did.length ? `: under your hand it ${did.length > 1 ? `${did.slice(0, -1).join(", ")} and ${did.at(-1)}` : did[0]}` : ""}.`;
 }
 
 /** The god's hand on the meadow: its land greened or parched, its hunters heartened or the hunted sheltered. */

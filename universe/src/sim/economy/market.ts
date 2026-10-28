@@ -303,6 +303,15 @@ export class MarketStore implements StateStore {
   private readonly partners = new Map<number, number[]>();
   /** Last year's trade, in canonical order. */
   flows: TradeFlow[] = [];
+  /**
+   * The same flows by each land they leave or reach, as their places in `flows` (a cache, never
+   * saved: made again whenever the year's trade is set anew, or added to).
+   */
+  private flowsByLand: {
+    readonly flows: readonly TradeFlow[];
+    readonly length: number;
+    readonly at: Map<number, number[]>;
+  } | null = null;
 
   get(cell: number): Market | undefined {
     return this.map.get(cell);
@@ -321,6 +330,25 @@ export class MarketStore implements StateStore {
 
   route(a: number, b: number): Ref | undefined {
     return this.routes.get(a < b ? `${a}:${b}` : `${b}:${a}`);
+  }
+
+  /** Last year's flows out of or into any of these lands, each once, in canonical order. */
+  flowsOf(cells: readonly number[]): TradeFlow[] {
+    let index = this.flowsByLand;
+    if (index?.flows !== this.flows || index.length !== this.flows.length) {
+      const at = new Map<number, number[]>();
+      this.flows.forEach((f, i) => {
+        for (const cell of f.from === f.to ? [f.from] : [f.from, f.to]) {
+          const list = at.get(cell);
+          if (list) list.push(i);
+          else at.set(cell, [i]);
+        }
+      });
+      this.flowsByLand = index = { flows: this.flows, length: this.flows.length, at };
+    }
+    const seen = new Set<number>();
+    for (const cell of cells) for (const i of index.at.get(cell) ?? []) seen.add(i);
+    return [...seen].sort((a, b) => a - b).map((i) => this.flows[i]!);
   }
 
   openRoute(a: number, b: number, event: Ref, bySea = false): void {

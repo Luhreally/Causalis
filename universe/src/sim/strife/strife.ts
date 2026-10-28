@@ -305,7 +305,7 @@ function battlesOf(
     lastWon: Ref | null = null,
     lastYear = -Infinity,
     wonYear = -Infinity;
-  for (const w of warsOf(world).all()) {
+  for (const w of warsOf(world).of(p.ref)) {
     const side = w.attacker === p.ref ? 0 : w.defender === p.ref ? 1 : -1;
     if (side < 0) continue;
     for (const b of w.battles) {

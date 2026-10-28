@@ -33,6 +33,7 @@ import { bodyView } from "./body.ts";
 import { drawThumb } from "./specimen.ts";
 import { lineupStrip, phyloChart } from "./phylo.ts";
 import { dropView } from "./drop.ts";
+import { namesThings, type NamesSwitch } from "./names.ts";
 
 /** How often an open page is read again while the world runs (ms). */
 const REFRESH_MS = 2000;
@@ -88,6 +89,9 @@ export class PageWindow {
   /** Under the live line, more of it as the scale shows it (a person's day, Phase 45 M207): emptied as a page is opened. */
   readonly liveMore = el("div", "page-live-more");
   private readonly actions = el("div", "page-actions");
+  /** The switch between things as the people here call them and as they are (Phase 58), and what it last said. */
+  private readonly namesBar = el("div", "page-names");
+  private namesSaid = "";
   private readonly stats = el("div", "stats");
   private readonly statDetail = el("div", "stat-detail");
   private readonly tabs = el("nav", "tabs");
@@ -98,6 +102,11 @@ export class PageWindow {
   private tab = "";
   private token = 0;
   private seen = "";
+  /** The page's scene actions as last asked for, and what its buttons last said. */
+  private acts: { label: string; title: string; on: boolean; run: () => void }[] = [];
+  private actsSaid = "";
+  /** What the tabs last said (which is open, and each one's words). */
+  private tabsSaid = "";
   private opened = new Set<string>();
   private openStat: string | null = null;
   /** The blocks drawn, by their tab and place, with what each said (to keep what is unchanged). */
@@ -111,6 +120,8 @@ export class PageWindow {
   hoverTips: HoverTips | null = null;
   /** Realms' arms, borne beside their names (Phase 11 M102). */
   arms: ArmsBook | null = null;
+  /** Whether things are told as the people where the eye stands call them, or as they are (Phase 58). */
+  names: NamesSwitch | null = null;
   /** Go to where a thing is to be seen. */
   onGoTo: (place: Place, ref: string) => void = () => {};
   /** Go down to a town's land and watch it grow (Phase 26 M154). */
@@ -163,7 +174,15 @@ export class PageWindow {
     // Under the title: its picture beside its words, its doings, its numbers.
     const head = el("div", "page-head"),
       words = el("div", "page-head-words");
-    words.append(this.crumbs, this.sub, this.live, this.liveMore, this.actions, this.stats);
+    words.append(
+      this.crumbs,
+      this.sub,
+      this.live,
+      this.liveMore,
+      this.actions,
+      this.namesBar,
+      this.stats,
+    );
     head.append(this.portrait, words);
     this.portrait.hidden = true;
     // The title bar: back and forward, the thing's icon and name, and the window's boxes.
@@ -237,7 +256,10 @@ export class PageWindow {
       this.name.textContent = "…";
       this.body.replaceChildren(el("p", "muted", "…"));
     }
-    const page = await this.client.query<PageModel>({ type: "page", args: { ref } });
+    const page = await this.client.query<PageModel>({
+      type: "page",
+      args: { ref, ...this.names?.args() },
+    });
     if (token !== this.token) return;
     this.readAt = performance.now();
     this.draw(page, fresh);
@@ -253,7 +275,10 @@ export class PageWindow {
     // (A page of the whole world is read again less often: it reads everything.)
     if (performance.now() - this.readAt < (this.page?.every ?? REFRESH_MS) - 100) return;
     const token = this.token,
-      page = await this.client.query<PageModel>({ type: "page", args: { ref } });
+      page = await this.client.query<PageModel>({
+        type: "page",
+        args: { ref, ...this.names?.args() },
+      });
     this.readAt = performance.now();
     if (token !== this.token || this.pressing || this.hoverTips?.showing || this.current !== ref)
       return;
@@ -294,6 +319,7 @@ export class PageWindow {
     this.crumbs.hidden = !page.crumbs?.length;
     this.drawPortrait(page);
     this.drawActions(page);
+    this.drawNames(page);
     this.drawStats(page);
     this.drawTabs(page);
     this.drawBody(page);
@@ -325,31 +351,69 @@ export class PageWindow {
   }
 
   private drawActions(page: PageModel): void {
+    const acts = this.sceneActions(page),
+      what = page.followable && this.tidings ? (FOLLOW_WORDS[page.kind] ?? "this") : null,
+      said = JSON.stringify([
+        !!page.place,
+        what && page.ref,
+        what,
+        acts.map((a) => [a.label, a.title, a.on]),
+      ]);
+    this.acts = acts;
+    // (A page is drawn again every few seconds as the world runs: its buttons stay the same ones
+    // while they say the same, so that none is taken from under the finger pressing it.)
+    if (said === this.actsSaid) return;
+    this.actsSaid = said;
     const parts: HTMLElement[] = [];
     if (page.place) {
       const go = el("button", "go-to", "⌖ Go to");
       go.title = "Go to where it is to be seen";
-      go.onclick = () => this.onGoTo(page.place!, page.ref);
+      go.onclick = () => {
+        if (this.page?.place) this.onGoTo(this.page.place, this.page.ref);
+      };
       parts.push(go);
     }
-    if (page.followable && this.tidings)
-      parts.push(this.tidings.follow(page.ref, FOLLOW_WORDS[page.kind] ?? "this"));
-    for (const a of this.sceneActions(page)) {
+    if (what) parts.push(this.tidings!.follow(page.ref, what));
+    acts.forEach((a, i) => {
       const b = el("button", a.on ? "scene-act on" : "scene-act", a.label);
       b.title = a.title;
       b.setAttribute("aria-pressed", String(a.on));
       b.onclick = () => {
-        a.run();
-        this.drawActions(page);
+        this.acts[i]?.run();
+        if (this.page) this.drawActions(this.page);
       };
       parts.push(b);
-    }
+    });
     this.actions.replaceChildren(...parts);
   }
 
   /** Draw the open page's actions again (the scene's changed: a person followed, or let go). */
   redrawActions(): void {
     if (this.page) this.drawActions(this.page);
+  }
+
+  /**
+   * The switch between things as the people where the eye stands call them and as they are (Phase
+   * 58), on a page that names things: the same button while it says the same, and the page read
+   * again the other way at a press (its tab and its place on the page kept).
+   */
+  private drawNames(page: PageModel): void {
+    const shown = !!this.names && namesThings(page.ref, this.seen),
+      said = shown ? this.names!.mode : "";
+    this.namesBar.hidden = !shown;
+    if (this.names) this.inspector.dataset.names = this.names.mode;
+    if (said === this.namesSaid) return;
+    this.namesSaid = said;
+    this.namesBar.replaceChildren(
+      ...(shown
+        ? [
+            this.names!.button(() => {
+              const ref = this.current;
+              if (ref) void this.show(ref, false);
+            }),
+          ]
+        : []),
+    );
   }
 
   private drawStats(page: PageModel): void {
@@ -433,20 +497,24 @@ export class PageWindow {
   }
 
   private drawTabs(page: PageModel): void {
+    this.tabs.hidden = page.tabs.length < 2;
+    // (Kept while they say the same, as the actions are.)
+    const said = JSON.stringify([this.tab, page.tabs.map((t) => [t.id, t.name])]);
+    if (said === this.tabsSaid) return;
+    this.tabsSaid = said;
     this.tabs.replaceChildren(
       ...page.tabs.map((t) => {
         const b = el("button", t.id === this.tab ? "tab on" : "tab", t.name);
         b.onclick = () => {
-          if (this.tab === t.id) return;
+          if (this.tab === t.id || !this.page) return;
           this.tab = t.id;
-          this.drawTabs(page);
-          this.drawBody(page);
+          this.drawTabs(this.page);
+          this.drawBody(this.page);
           this.inspector.scrollTop = 0;
         };
         return b;
       }),
     );
-    this.tabs.hidden = page.tabs.length < 2;
   }
 
   /**

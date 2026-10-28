@@ -3,6 +3,7 @@
 import { yearOfMoment, type Ref } from "../kernel/index.ts";
 import { cellRef } from "../gen/index.ts";
 import {
+  BRUSH_EVENT,
   ACT_EVENTS,
   DISASTER_EVENTS,
   HAND_EVENTS,
@@ -27,6 +28,25 @@ import {
 import { landWords } from "./generated.ts";
 import { principleName } from "./lore.ts";
 import { registerCommandWords, registerEventWords } from "./why.ts";
+
+const BRUSH_DEEDS: Record<string, string> = {
+  raise: "raised the ground",
+  lower: "lowered the ground",
+  water: "filled the land with water",
+  drain: "drained the ground",
+  life: "spread living lineages",
+  ore: "seeded ore",
+  lightning: "struck with lightning",
+  claim: "claimed the land for a realm",
+};
+registerEventWords(BRUSH_EVENT.type, (_, e) => {
+  const d = e.data as { kind: string; cells: number; dead: number };
+  return `By your hand: you ${BRUSH_DEEDS[d.kind] ?? d.kind} across ${d.cells} spots; ${d.dead} died, year ${yearOfMoment(e.t)}`;
+});
+registerCommandWords("act.brush", (_, c) => {
+  const d = c.args as { kind: string };
+  return `Your brush: you ${BRUSH_DEEDS[d.kind] ?? d.kind}, year ${yearOfMoment(c.t)}`;
+});
 
 const DEEDS: Readonly<Record<ActKind, readonly [string, string]>> = {
   rain: ["withheld the rain over", "sent rain over"],

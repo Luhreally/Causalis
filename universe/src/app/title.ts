@@ -139,7 +139,7 @@ const HOW = [
   "Steer as in a builder's game: W A S D to go, Q E to turn, R F to tilt, + − or the wheel to zoom, Shift to hurry; drag to move the land, right-drag to turn it. Space pauses, 1 2 3 set the speed. On a phone: drag, pinch, and twist two fingers.",
   "Your hand — rain, harvest, plague, quakes, settlers, wars and peace, a people's ways, a tongue, a faith — is always a choice, and always in the chronicle.",
   "Lay your hand on a village and everyone there is someone: their traits, their families, their children.",
-  "The world keeps itself every five minutes; “Continue” takes up the world last kept.",
+  "The world keeps itself every minute and when you switch away; “Continue” takes up the world last kept.",
 ];
 
 function el<K extends keyof HTMLElementTagNameMap>(

@@ -34,6 +34,7 @@ export { FOLK, folkRef } from "./population.ts";
 import "./economy.ts";
 import "./acts.ts";
 import "./possess.ts";
+import "./held.ts";
 export { WAYS, WAY_WORDS, kept, waysRef, waysWords } from "./culture.ts";
 export { governmentWords } from "./polity.ts";
 import "./belief.ts";

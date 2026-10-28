@@ -49,6 +49,21 @@ export function weightedIndex(weights: readonly number[], u: number): number {
   return last;
 }
 
+/** The order of largest remainders: the greater remainder first, then the lower tie key, then the lower index. */
+const byRemainder = (
+  x: { i: number; rem: number; tie: number },
+  y: { i: number; rem: number; tie: number },
+) =>
+  x.rem !== y.rem
+    ? x.rem > y.rem
+      ? -1
+      : 1
+    : x.tie !== y.tie
+      ? x.tie < y.tie
+        ? -1
+        : 1
+      : x.i - y.i;
+
 /**
  * Split an integer total into integer parts proportional to weights, summing
  * exactly to the total (largest remainder). Ties in the remainders go to the
@@ -77,19 +92,73 @@ export function apportion(
     given += whole;
     if (w > 0) order.push({ i, rem: exact - whole, tie: tieKeys?.[i] ?? i });
   }
-  order.sort((x, y) =>
-    x.rem !== y.rem
-      ? x.rem > y.rem
-        ? -1
-        : 1
-      : x.tie !== y.tie
-        ? x.tie < y.tie
-          ? -1
-          : 1
-        : x.i - y.i,
-  );
+  if (given >= total) return parts;
+  // (Among many, the left over go to those over the threshold of the greatest remainders,
+  // found by sorting the remainders alone, and to the first of those at it: the same parts.)
+  if (
+    order.length > 16 &&
+    total - given < order.length &&
+    overThreshold(order, total - given, parts)
+  )
+    return parts;
+  order.sort(byRemainder);
   for (let r = 0; given < total; r = (r + 1) % order.length, given++) parts[order[r]!.i]!++;
   return parts;
+}
+
+/**
+ * One more to each of the `left` first of `order` by byRemainder (fewer than all), without
+ * sorting it: every one whose remainder is over the left-th greatest (found by selection), and
+ * of those at it the first by tie key and index. False, nothing given, where a remainder or tie
+ * key is not a number byRemainder can order (NaN).
+ */
+function overThreshold(
+  order: readonly { i: number; rem: number; tie: number }[],
+  left: number,
+  parts: number[],
+): boolean {
+  const m = order.length,
+    rems = new Float64Array(m);
+  for (let j = 0; j < m; j++) {
+    const o = order[j]!;
+    if (o.rem !== o.rem || o.tie !== o.tie) return false;
+    rems[j] = o.rem;
+  }
+  const threshold = nthSmallest(rems, m - left),
+    at: { i: number; rem: number; tie: number }[] = [];
+  let over = 0;
+  for (const o of order)
+    if (o.rem > threshold) {
+      parts[o.i]!++;
+      over++;
+    } else if (o.rem === threshold) at.push(o);
+  at.sort(byRemainder);
+  for (let r = 0; r < left - over; r++) parts[at[r]!.i]!++;
+  return true;
+}
+
+/** The value at place `nth` of `a` sorted ascending (no NaN in it), by selection: `a` is reordered. */
+function nthSmallest(a: Float64Array, nth: number): number {
+  let lo = 0,
+    hi = a.length - 1;
+  while (lo < hi) {
+    const pivot = a[(lo + hi) >>> 1]!;
+    let i = lo,
+      j = hi;
+    while (i <= j) {
+      while (a[i]! < pivot) i++;
+      while (a[j]! > pivot) j--;
+      if (i <= j) {
+        const t = a[i]!;
+        a[i++] = a[j]!;
+        a[j--] = t;
+      }
+    }
+    if (nth <= j) hi = j;
+    else if (nth >= i) lo = i;
+    else return a[nth]!;
+  }
+  return a[nth]!;
 }
 
 /**

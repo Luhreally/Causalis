@@ -114,6 +114,11 @@ export const PUSHES: Readonly<Record<string, readonly (readonly [WayTrait, numbe
   "act.inspire": [["piety", 0.05]],
   "hand.laid": [["piety", 0.1]],
   "hand.possessed": [["piety", 0.08]],
+  "hand.fought": [
+    ["piety", 0.06],
+    ["valour", 0.04],
+  ],
+  "hand.ran": [["piety", 0.03]],
   "act.shrine": [["piety", 0.08]],
   "act.fire": [["piety", 0.06]],
   "act.spring": [["piety", 0.04]],

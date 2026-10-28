@@ -1812,6 +1812,30 @@ body.roaming .hint {
   background: linear-gradient(180deg, #d9fff5 0%, #6ff0cf 46%, #29cfa6 54%, #8bf5dc 100%);
 }
 
+/* Their own names (Phase 58): the switch between things as the people here call them and as they
+   are, amber while it tells them their way. */
+.page-names {
+  display: flex;
+  margin: -2px 0 8px;
+}
+.page-names[hidden] {
+  display: none;
+}
+.names-switch {
+  min-height: 30px;
+  padding: 2px 10px;
+}
+.names-switch.on {
+  color: #2a1600;
+  border-color: #a8701a;
+  background: linear-gradient(180deg, #fff3d6 0%, #ffd27a 46%, #f0b142 54%, #ffe2a2 100%);
+}
+/* (A name in a people's own words runs long: it breaks rather than run off a phone.) */
+.page-body .entry,
+.makeup-row {
+  overflow-wrap: break-word;
+}
+
 /* A number's concept (Phase 10 M97): an ⓘ beside its label, opening the book of concepts. */
 .concept-link {
   margin-left: 4px;

@@ -11,7 +11,7 @@ export { GlobeTowns, type GlobeTown } from "./towns.ts";
 export { FreeRig } from "./free.ts";
 export { MicroScene } from "./micro.ts";
 export { ParadeScene } from "./parade.ts";
-export { MeadowScene, groundOfLook } from "./meadow.ts";
+export { FLIER_UP, MeadowScene, groundOfLook } from "./meadow.ts";
 export { BattleLayer } from "./battle.ts";
 export { BandLayer } from "./band.ts";
 export { WeatherLayer } from "./weather.ts";
@@ -32,4 +32,11 @@ export { ClusterScene } from "./cluster.ts";
 export { GalaxyScene, galaxyMaterial } from "./galaxy.ts";
 export { VILLAGE_METRE, VillageScene } from "./village.ts";
 export { Stage, flatMaterial, type DeviceTier, type Rgb } from "./stage.ts";
-export { EYE_FARTHEST, EYE_NEAREST, PossessEye, lieDown } from "./possess.ts";
+export {
+  BEAST_EYE,
+  EYE_FARTHEST,
+  EYE_NEAREST,
+  PossessEye,
+  SOLDIER_EYE,
+  lieDown,
+} from "./possess.ts";

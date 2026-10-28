@@ -208,6 +208,13 @@ function bitsOf(a: PlacedAct, s: number, scale: number, out: ActBit[]): void {
     r = (i: number) => hash(a.key, i),
     spread = 0.045;
   switch (a.kind) {
+    case "lightning": {
+      if (frac(s * 0.8 + r(0)) > 0.2) return;
+      for (let i = 0; i < 7; i++)
+        bit("white", at((i % 2 ? 1 : -1) * 0.004, 0, 0.012 + i * 0.014), 0.003, 0.019, 0.003);
+      bit("glint", at(0, 0, 0.003), 0.035, 0.003, 0.035);
+      return;
+    }
     case "rain":
     case "drought": {
       if (a.kind === "rain") {

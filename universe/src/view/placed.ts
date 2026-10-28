@@ -245,6 +245,7 @@ export function borneNow(field: BattleField, now: BattleNow, share: number): Bat
     ...now,
     troopers: now.troopers.map((t) => (borne.has(t.id) ? { ...t, size: 0 } : t)),
     ...(now.limbs ? { limbs: now.limbs.filter((l) => !borne.has(l.id)) } : {}),
+    ...(now.gibs ? { gibs: now.gibs.filter((p) => !borne.has(p.id)) } : {}),
     ...(now.wounds ? { wounds: now.wounds.filter((w) => !borne.has(w.id)) } : {}),
     ...(now.stuck ? { stuck: now.stuck.filter((w) => !borne.has(w.id)) } : {}),
   };
@@ -272,5 +273,6 @@ export function fallenNow(field: BattleField, now: BattleNow): BattleNow {
     ...(now.wounds ? { wounds: now.wounds.filter((w) => lying.has(w.id)) } : {}),
     ...(now.stuck ? { stuck: now.stuck.filter((w) => lying.has(w.id)) } : {}),
     ...(now.limbs ? { limbs: now.limbs.filter((l) => lying.has(l.id)) } : {}),
+    ...(now.gibs ? { gibs: now.gibs.filter((p) => lying.has(p.id)) } : {}),
   };
 }

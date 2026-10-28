@@ -36,6 +36,7 @@ export type ActsNear = {
 
 /** A moment's act is seen near for this long of the world's time, or so many of the viewer's seconds at the pace, the longer. */
 const SEEN: Partial<Record<ActKindShown, { world: number; real: number }>> = {
+  lightning: { world: DAY, real: 3 },
   quake: { world: DAY, real: 5 },
   meteor: { world: DAY, real: 7 },
   fire: { world: 8 * DAY, real: 9 },
@@ -52,6 +53,7 @@ const SEEN: Partial<Record<ActKindShown, { world: number; real: number }>> = {
 
 /** Each act's sign and words, as the palette shows it. */
 const TOLD: Partial<Record<ActKindShown, readonly [string, string]>> = {
+  lightning: ["⚡", "lightning struck"],
   bounty: ["🌽", "the harvest blessed"],
   blight: ["🥀", "a blight on the fields"],
   plague: ["☠️", "a plague"],
@@ -120,7 +122,8 @@ export function actsNear(sky: LandSky, t: number, pace: number): ActsNear {
         strength = m.strength * Math.min(1, k * 1.5);
       if (!was || was.strength < strength) motes.set(m.kind, { ...m, strength });
     }
-    if (a.kind === "inspiration") pillar = Math.max(pillar, Math.min(1, k * 1.4));
+    if (a.kind === "inspiration" || a.kind === "lightning")
+      pillar = Math.max(pillar, Math.min(1, k * 1.4));
     if (a.kind === "fire" && a.town) fires.push({ town: a.town, strength: Math.min(1, k * 1.3) });
     if (a.kind === "quake") shake = Math.max(shake, k ** 1.5);
     if (a.kind === "meteor") {

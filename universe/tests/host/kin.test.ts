@@ -324,6 +324,30 @@ test("a line holder's page: their family's and body's lines, a Family tab and a 
   assert.equal(planWords(frame), "a head, a chest, two arms, two hands, two legs and two eyes");
 });
 
+test("a soldier's body inspection carries his recorded armor and weapon and opens on the large figure", () => {
+  const battle = warsOf(world)
+    .all()
+    .flatMap((w) => w.battles)
+    .find((b) => b.year < Y)!;
+  assert.ok(battle);
+  const roll = battleRoll(world, battle.event, 360)!,
+    man = [...roll.attacker.stood, ...roll.attacker.hurt, ...roll.attacker.fell][0]!;
+  assert.ok(man);
+  const page = pageOf(world, man.ref),
+    body = page.tabs.find((t) => t.id === "body")!;
+  assert.equal(body.blocks[0]!.type, "body");
+  const portrait = page.portrait;
+  assert.ok(portrait?.kind === "person" && portrait.equipment);
+  assert.equal(portrait.equipment.year, battle.year);
+  assert.ok(portrait.equipment.guardWords && portrait.equipment.armWords);
+  assert.ok(body.blocks.some((b) => b.type === "facts" && b.rows.some((r) => r.label === "Armor")));
+  assert.equal(
+    JSON.stringify(world.domainHashes()),
+    before,
+    "looking at armor cannot change history",
+  );
+});
+
 test("an alien people's plan is their own", () => {
   const alien = ALIEN.build(seedFromText("alien 9")),
     frame = bodyFrameOf(alien),

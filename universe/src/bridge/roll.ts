@@ -81,6 +81,8 @@ export type ArmBorne = {
   readonly grade: string | null;
   /** Its page: `arms:<battle>:<side>:<his page>`. */
   readonly page: string;
+  /** Its stuff as the people who made it call it, where asked (Phase 58): "of black-edge-stone, as the Kurnic call moissanite". */
+  readonly called?: string;
 };
 /** A place a side's men came from, with its figures: fallen, wounded who lived, the rest. */
 export type RollPlace = LevyPlace & { readonly figures: readonly [number, number, number] };

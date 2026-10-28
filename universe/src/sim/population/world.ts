@@ -48,6 +48,7 @@ import { installPeopleActs } from "../acts/peoples.ts";
 import { installDisasters } from "../acts/disasters.ts";
 import { installWaysActs } from "../acts/ways.ts";
 import { installNatureActs } from "../acts/natures.ts";
+import { installBrushes } from "../acts/brush.ts";
 import { installOrderActs } from "../order/acts.ts";
 import { installHealth, installHealthActs } from "../health/health.ts";
 import { installSummon } from "../space/summon.ts";
@@ -328,6 +329,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installDisasters(world, () => populationContext(world));
   installWaysActs(world, () => populationContext(world));
   installNatureActs(world, () => populationContext(world));
+  installBrushes(world, () => populationContext(world));
   installOrderActs(world, () => populationContext(world));
   installHealthActs(world, () => populationContext(world));
   installCreditActs(world, () => populationContext(world));

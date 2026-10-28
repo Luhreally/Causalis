@@ -9,7 +9,9 @@
 // gestures (no pinch-zoom, pull-to-refresh, selection or callout), all within the safe areas and
 // laid out again as the phone turns. On a desk: W A S D or the arrows, Shift to run, Space, E, F
 // and R the four acts, Esc to let go, a drag of the mouse to look and its wheel to stand off.
-import type { PossessLive } from "../bridge/index.ts";
+// A soldier or a beast possessed (Phase 61) the same, with what he bears and the battle's tally
+// under the strip: each side's men standing and fallen, the last struck down named.
+import type { HeldTally, PossessLive } from "../bridge/index.ts";
 import { el } from "./why.ts";
 
 /** How far the stick reaches from where the thumb came down (CSS px); pushed this far out of it, a run. */
@@ -50,6 +52,8 @@ type Held =
 
 export class PossessHud {
   readonly element = el("div", "possess-hud");
+  /** The strip and (a soldier's) the battle's tally under it, at the top left: what is told comes under them. */
+  private readonly head = el("div", "possess-head");
   private readonly strip = el("div", "possess-strip");
   private readonly who = el("strong", "possess-name");
   private readonly what = el("span", "possess-what");
@@ -59,6 +63,14 @@ export class PossessHud {
   /** His body in a line: the slot the Body model (Phase 55 wave 5) draws into. */
   readonly body = el("span", "possess-body");
   private readonly told = el("div", "possess-told");
+  /** The battle's tally while a soldier is held (Phase 61): each side's men, the last struck down. */
+  private readonly tally = el("div", "possess-tally");
+  private readonly sides = [el("span", "possess-side"), el("span", "possess-side")] as const;
+  private readonly balance = el("span", "possess-balance");
+  private readonly share = el("span", "possess-share");
+  private readonly fallen = el("div", "possess-fallen");
+  /** What the strip's carrying is shown with (a soldier's arm, a beast's ways). */
+  carriesIcon = "🎒";
   private readonly hint = el("div", "possess-hint");
   private readonly letGo = el("button", "possess-letgo", "✋ Let go");
   private readonly paces = el("div", "possess-paces");
@@ -93,6 +105,15 @@ export class PossessHud {
     const line = el("div", "possess-line");
     line.append(this.what, this.left, this.carries, this.body);
     this.strip.append(this.who, line);
+    this.balance.append(this.share);
+    const sides = el("div", "possess-sides");
+    sides.append(this.sides[0], this.balance, this.sides[1]);
+    this.tally.append(sides, this.fallen);
+    this.tally.hidden = true;
+    this.head.append(this.strip, this.tally);
+    // (What is told comes under the head however tall its lines make it: a long arm's maker wraps.)
+    if (typeof ResizeObserver !== "undefined")
+      new ResizeObserver(() => this.fitHead()).observe(this.head);
     this.base.append(this.knob);
     this.base.hidden = true;
     this.letGo.title = "Let go of them (Esc)";
@@ -126,7 +147,7 @@ export class PossessHud {
     this.press(this.letGo, () => this.onLetGo());
     this.element.append(
       this.bubbles,
-      this.strip,
+      this.head,
       this.told,
       this.paces,
       this.letGo,
@@ -195,6 +216,8 @@ export class PossessHud {
     this.pressed = [];
     this.bubbles.replaceChildren();
     this.told.textContent = "";
+    this.setTally(null);
+    this.carriesIcon = "🎒";
   }
 
   /** Every touch let go (the phone turned: laid out again from nothing held). */
@@ -237,7 +260,7 @@ export class PossessHud {
   }
 
   /** What the small world is now: the strip, the four acts, what the last came to. */
-  set(live: PossessLive): void {
+  set(live: Pick<PossessLive, "strip" | "offers" | "told">): void {
     const s = live.strip,
       strength = `${Math.round(s.strength * 100)}%`;
     put(this.who, s.name);
@@ -245,7 +268,10 @@ export class PossessHud {
     if (this.strength.style.width !== strength) this.strength.style.width = strength;
     titled(this.left, `Strength left: ${strength}`);
     this.left.classList.toggle("low", s.strength < 0.35);
-    put(this.carries, s.carries === "empty-handed" ? "🤲 empty-handed" : `🎒 ${s.carries}`);
+    put(
+      this.carries,
+      s.carries === "empty-handed" ? "🤲 empty-handed" : `${this.carriesIcon} ${s.carries}`,
+    );
     put(this.body, `🫀 ${s.body}`);
     live.offers.forEach((o, i) => {
       const b = this.acts[i];
@@ -264,9 +290,50 @@ export class PossessHud {
       this.told.textContent = t.words;
       this.told.classList.toggle("bad", !t.good);
       this.told.classList.remove("fresh");
+      this.fitHead();
       void this.told.offsetWidth;
       this.told.classList.add("fresh");
     }
+  }
+
+  /**
+   * What is told laid under the head as tall as it stands now: as it changes, and as a line is told
+   * (laid out then anyway), so the first is under it too. Put away, the last height is kept.
+   */
+  private fitHead(): void {
+    const px = Math.round(this.head.getBoundingClientRect().height);
+    if (px <= 0) return;
+    if (this.element.style.getPropertyValue("--possess-head") !== `${px}px`)
+      this.element.style.setProperty("--possess-head", `${px}px`);
+  }
+
+  /**
+   * A soldier's battle as it stands (null: none, put away): each side's realm and men standing (his
+   * own lit), how the standing lie between them, the fallen of each and the last struck down named.
+   */
+  setTally(t: HeldTally | null): void {
+    this.element.classList.toggle("tallied", !!t);
+    if (this.tally.hidden !== !t) this.tally.hidden = !t;
+    if (!t) return;
+    const n = (v: number) => v.toLocaleString("en-US");
+    t.sides.forEach((side, k) => {
+      const e = this.sides[k as 0 | 1];
+      put(e, `${side.short} ${n(side.standing)}`);
+      titled(e, `${side.realm}: ${n(side.standing)} standing, ${n(side.fallen)} fallen`);
+      e.classList.toggle("mine", t.mine === k);
+      e.classList.toggle("broken", t.broke === k);
+    });
+    const all = t.sides[0].standing + t.sides[1].standing,
+      width = `${Math.round((all > 0 ? t.sides[0].standing / all : 0.5) * 100)}%`;
+    if (this.share.style.width !== width) this.share.style.width = width;
+    const last = t.named.at(-1),
+      fell = `⚔️ ${n(t.sides[0].fallen)} · ${n(t.sides[1].fallen)} fallen`;
+    put(
+      this.fallen,
+      last
+        ? `${fell} — ${last.by} struck down ${last.name}${last.dead ? ", dead" : ""}${last.god ? " (by your hand)" : ""}`
+        : fell,
+    );
   }
 
   /** A line told at the top (a taking, a letting go, why one cannot be taken). */
@@ -274,6 +341,7 @@ export class PossessHud {
     this.told.textContent = words;
     this.told.classList.toggle("bad", !good);
     this.told.classList.remove("fresh");
+    this.fitHead();
     void this.told.offsetWidth;
     this.told.classList.add("fresh");
   }

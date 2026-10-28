@@ -24,16 +24,23 @@ import {
   SEXES,
   bandOf,
   bandWidth,
+  copyFight,
   copyLocal,
+  copyWild,
   type Blow,
   type BodyPlace,
+  type FightScene,
+  type FightWorld,
   type LifeHistory,
   type LocalScene,
   type LocalWorld,
+  type WildScene,
+  type WildWorld,
 } from "../../rules/index.ts";
 import { lifeOf } from "../population/life.ts";
 import { COLS, ROWS, row } from "../population/model.ts";
 import type { PopulationStore, SettlementStore } from "../population/stores.ts";
+import type { Battle } from "../war/war.ts";
 
 export const HAND_EVENTS = {
   laid: defineEventType("hand.laid", 5),
@@ -98,6 +105,112 @@ export type Possession = {
   local: LocalWorld;
   inputs: { readonly at: number; readonly steps: string }[];
 };
+
+/**
+ * A soldier of a battle fought before a town held by the god's hand (Phase 61): the take and its
+ * event, the moment taken, the battle and its war, who he is as the roll names him, the figures a
+ * side the field was laid at and the men a figure stands for; the fight about him as it stands, the
+ * roll's ref of each of its bodies, and the bids that moved it (sim/hand/fight.ts); and the fight
+ * fought out from the taking with no hand in it — history's own day as the fight has it, what the
+ * hand's day is measured against when he is let go.
+ */
+export type HeldSoldier = {
+  readonly kind: "soldier";
+  readonly command: Ref;
+  readonly event: Ref;
+  readonly from: number;
+  readonly battle: Ref;
+  readonly war: Ref;
+  readonly name: string;
+  readonly town: string;
+  readonly ref: string;
+  readonly side: 0 | 1;
+  readonly figure: number;
+  readonly most: number;
+  readonly per: number;
+  readonly scene: FightScene;
+  readonly refs: readonly string[];
+  readonly names: readonly string[];
+  fight: FightWorld;
+  inputs: { readonly at: number; readonly steps: string }[];
+  /** The fight with no hand in it: the side beaten (-1: neither broke), each side's bodies dead and wounded out. */
+  readonly idle: FightIdle;
+};
+/** A fight fought out with no hand in it (rules/fight.ts fightDecided). */
+export type FightIdle = {
+  readonly beaten: -1 | 0 | 1;
+  readonly dead: readonly [number, number];
+  readonly down: readonly [number, number];
+};
+
+/**
+ * A beast held by the god's hand (Phase 61): the take and its event, the moment taken, the town it
+ * was drawn about and its land, what it is called and its kind's ref; whose flock each body of the
+ * small world is of (its member of the town's flock; -1: the wild's), the small world as it stands,
+ * and the bids that moved it (sim/hand/wild.ts).
+ */
+export type HeldBeast = {
+  readonly kind: "beast";
+  readonly command: Ref;
+  readonly event: Ref;
+  readonly from: number;
+  readonly village: Ref;
+  readonly cell: number;
+  readonly name: string;
+  readonly species: string;
+  /** The kinds of the small world (their lineages' refs), by the scene's order. */
+  readonly kinds: readonly string[];
+  readonly scene: WildScene;
+  readonly members: readonly number[];
+  wild: WildWorld;
+  inputs: { readonly at: number; readonly steps: string }[];
+};
+
+/** A body the god's hand is in that is not one of the hand's people (Phase 61). */
+export type Held = HeldSoldier | HeldBeast;
+
+/**
+ * A battle the god fought in a soldier's body (Phase 61): the battle, its war and the hand's event
+ * telling it; who he was and where he stood; the field it was fought on (its figures a side, its men
+ * a figure, its terms, the roll's ref of each body); the fight as the hand left it, fought out from
+ * there by the same draws to the end (the host draws it); and the battle as history had it before.
+ */
+export type HandFought = {
+  readonly battle: Ref;
+  readonly war: Ref;
+  readonly event: Ref;
+  readonly name: string;
+  readonly town: string;
+  readonly ref: string;
+  readonly side: 0 | 1;
+  readonly figure: number;
+  readonly most: number;
+  readonly per: number;
+  /** The world's moment the hand took him, and let go. */
+  readonly from: number;
+  readonly to: number;
+  readonly scene: FightScene;
+  readonly refs: readonly string[];
+  readonly names: readonly string[];
+  readonly left: FightWorld;
+  readonly was: Battle;
+};
+
+/** One of a town's flock lost to it by the god's hand (Phase 61): run off from its herd, or killed by him in a beast's body. */
+export type HandStray = {
+  readonly village: Ref;
+  readonly member: number;
+  readonly at: number;
+  readonly how: "strayed" | "killed";
+  readonly event: Ref;
+};
+
+/** A body held, copied to step in place (a load's own, apart from the state it was read from). */
+function copyHeld(h: Held): Held {
+  return h.kind === "soldier"
+    ? { ...h, fight: copyFight(h.fight), inputs: [...h.inputs] }
+    : { ...h, wild: copyWild(h.wild), inputs: [...h.inputs] };
+}
 
 /** One of a town's people the hand is laid from: who the god meant to touch. */
 export type LaidFrom = {
@@ -324,6 +437,21 @@ export function bandOfAge(age: number, life: LifeHistory): number {
 export class HandStore implements StateStore {
   readonly name = "hand.window";
   resting: Window | null = null;
+  /** A body the hand is in that is not one of its people's: a soldier, a beast (Phase 61). */
+  held: Held | null = null;
+  /** The battles the god fought in a soldier's body, and his flocks' beasts lost by his hand (Phase 61). */
+  fought: HandFought[] = [];
+  strays: HandStray[] = [];
+
+  /** The battle the god fought, by its event (undefined: history's alone). */
+  foughtOf(battle: string): HandFought | undefined {
+    return this.fought.find((f) => f.battle === battle);
+  }
+
+  /** A town's flock's beasts lost by the god's hand, the last year to `t`. */
+  straysOf(village: string, t: number): HandStray[] {
+    return this.strays.filter((s) => s.village === village && s.at <= t && t - s.at < YEAR);
+  }
 
   /** The window over a province, if the hand rests there. */
   over(cell: number): Window | null {
@@ -343,21 +471,40 @@ export class HandStore implements StateStore {
   }
 
   pinned(): Ref[] {
-    // The window, and the deeds of those the god touched while it rests.
-    return this.resting
-      ? [this.resting.event, ...(this.resting.notables ?? []).map((n) => n.deed)]
-      : [];
+    // The window, and the deeds of those the god touched while it rests; a body held, the
+    // battles he fought and his flocks' beasts lost (Phase 61).
+    return [
+      ...(this.resting
+        ? [this.resting.event, ...(this.resting.notables ?? []).map((n) => n.deed)]
+        : []),
+      ...(this.held ? [this.held.event] : []),
+      ...this.fought.map((f) => f.event),
+      ...this.strays.map((s) => s.event),
+    ];
   }
 
   hashInto(h: Hasher): void {
     h.value(this.resting);
+    // (Phase 61's, only once any is kept: a world the hand never held a body in keeps its hash.)
+    if (this.held) h.value(this.held);
+    if (this.fought.length) h.value(this.fought);
+    if (this.strays.length) h.value(this.strays);
   }
 
   save(): unknown {
-    return { resting: this.resting };
+    return {
+      resting: this.resting,
+      ...(this.held ? { held: this.held } : {}),
+      ...(this.fought.length ? { fought: this.fought } : {}),
+      ...(this.strays.length ? { strays: this.strays } : {}),
+    };
   }
 
   load(state: unknown): void {
+    const s = state as { held?: Held | null; fought?: HandFought[]; strays?: HandStray[] };
+    this.held = s.held ? copyHeld(s.held) : null;
+    this.fought = [...(s.fought ?? [])];
+    this.strays = [...(s.strays ?? [])];
     const w = (state as { resting: Window | null }).resting;
     this.resting = w
       ? {

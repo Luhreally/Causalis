@@ -5,6 +5,7 @@
 import type { Breakdown, HostClient, Line, Tip } from "../bridge/index.ts";
 import { el } from "./why.ts";
 import type { ArmsBook } from "./arms.ts";
+import type { NamesSwitch } from "./names.ts";
 
 /** How long the pointer rests before a tip opens, and how long one lingers once left (ms). */
 const REST_MS = 260,
@@ -28,6 +29,8 @@ export class HoverTips {
   onOpen: (ref: string) => void = () => {};
   /** Realms' arms, borne beside their names and on their cards (Phase 11 M102). */
   arms: ArmsBook | null = null;
+  /** Whether things are told as the people where the eye stands call them (Phase 58). */
+  names: NamesSwitch | null = null;
 
   /** The moves that have armed a tip already (the innermost thing a move is over arms its own). */
   private readonly armed = new WeakSet<Event>();
@@ -101,17 +104,20 @@ export class HoverTips {
 
   /** A thing in a few words: its icon and name, the line under it, its first numbers. */
   async tipOf(ref: string): Promise<Node[] | null> {
-    let kept = this.known.get(ref);
+    // (A tip told as they call things is kept apart from the same thing's told as it is.)
+    const args = { ref, ...this.names?.args() },
+      key = args.names ? `theirs|${ref}` : ref;
+    let kept = this.known.get(key);
     if (!kept || performance.now() - kept.at > KEEP_MS) {
       try {
         kept = {
-          tip: await this.client.query<Tip>({ type: "tip", args: { ref } }),
+          tip: await this.client.query<Tip>({ type: "tip", args }),
           at: performance.now(),
         };
       } catch {
         return null;
       }
-      this.known.set(ref, kept);
+      this.known.set(key, kept);
       if (this.known.size > 200) this.known.delete(this.known.keys().next().value!);
     }
     const card = tipCard(kept.tip, "Click to open its page");

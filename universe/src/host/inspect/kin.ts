@@ -29,6 +29,7 @@ import {
   type Stat,
   type Tab,
   type Wound,
+  type StruckNow,
 } from "../../bridge/index.ts";
 import {
   bodyOf,
@@ -45,6 +46,8 @@ import { landEra, peopleBody } from "../village.ts";
 import { townLink } from "./names.ts";
 import { item, link, many, stat } from "./words.ts";
 import { bodyMatter } from "../biochem.ts";
+import { equipmentOf } from "./arm.ts";
+import { foughtBody } from "../held.ts";
 
 /** A seat's trade's sign on its page. */
 const TRADE_ICON: Readonly<Record<string, string>> = {
@@ -223,8 +226,10 @@ export function bodyTab(
   person: Extract<Portrait, { kind: "person" }>,
   t: number,
   matter: readonly Stat[] = [],
+  struck: readonly StruckNow[] = [],
 ): Tab {
-  const b = bodyAt(read.frame, read.wounds, t, read.death),
+  const b = bodyAt(read.frame, read.wounds, t, read.death, struck),
+    look = woundLookAt(read.wounds, t),
     able = ableWords(b, read.sex),
     dealt = read.wounds
       .map((w, i) => ({ w, i }))
@@ -232,22 +237,37 @@ export function bodyTab(
       .sort((x, y) => y.w.at - x.w.at || x.i - y.i),
     blocks: Block[] = [
       {
-        type: "facts",
-        rows: [
-          stat("Now", bodyLine(b, read.wounds, t, read.sex)),
-          ...(able ? [stat("Able", able)] : []),
-          stat("Body", cap(planWords(read.frame))),
-          ...matter,
-        ],
-      },
-      {
         type: "body",
-        person: { ...person, look: woundLookAt(read.wounds, t) },
+        person: {
+          ...person,
+          look: {
+            ...look,
+            lost: [
+              ...new Set([...look.lost, ...struck.filter((s) => s.lost).map((s) => s.member)]),
+            ],
+          },
+        },
         members: b.members.map((m) => ({
           member: m.member,
           words: m.words.replace("~", whose(read.sex)),
           state: m.state,
         })),
+      },
+      {
+        type: "facts",
+        rows: [
+          stat("Now", bodyLine(b, read.wounds, t, read.sex)),
+          ...(able ? [stat("Able", able)] : []),
+          stat("Body", cap(planWords(read.frame))),
+          stat("Armor", person.equipment?.guardWords ?? "No armor recorded"),
+          ...(person.equipment
+            ? [
+                stat("Weapon", person.equipment.armWords),
+                stat("Equipment recorded", `battle of year ${person.equipment.year}`),
+              ]
+            : []),
+          ...matter,
+        ],
       },
       {
         type: "list",
@@ -303,8 +323,15 @@ const KIN_PAGES = /^(folk:town:|lv:|seat:|heal:|prsn:|agent:)/;
  */
 export function withKin(world: World, ref: string, page: PageModel): PageModel {
   if (!KIN_PAGES.test(ref) || (page.kind !== "person" && page.kind !== "agent")) return page;
-  const read = bodyOf(world, ref);
+  let read = bodyOf(world, ref);
   if (!read) return page;
+  const fought = foughtBody(world, ref);
+  if (fought)
+    read = {
+      ...read,
+      wounds: read.wounds.filter((w) => w.event !== fought.battle),
+      death: read.death?.event === fought.battle ? null : read.death,
+    };
   const card = kinCard(world, ref),
     family = page.tabs.some((t) => t.id === "family") ? null : familyOf(world, ref),
     cellOf =
@@ -313,13 +340,14 @@ export function withKin(world: World, ref: string, page: PageModel): PageModel {
         : page.place?.scale === "village"
           ? (populationContext(world).settlements.get(page.place.town as Ref)?.cell ?? -1)
           : -1,
-    person = personOf(world, page, ref, cellOf),
+    person = { ...personOf(world, page, ref, cellOf), equipment: equipmentOf(world, ref) },
     body = bodyTab(
       read,
       person,
       toldAt(read, world.now),
       // (Its bones, or a people in a shell its shell, and its blood, by its world's life: Phase 57.)
       bodyMatter(world, person.body?.skin),
+      fought?.struck,
     ),
     lines: Block = {
       type: "facts",
@@ -335,7 +363,7 @@ export function withKin(world: World, ref: string, page: PageModel): PageModel {
   if (family) tabs.splice(after, 0, familyTab(family));
   const kin = tabs.findIndex((t) => t.id === "family");
   tabs.splice(kin >= 0 ? kin + 1 : after, 0, body);
-  return { ...page, tabs };
+  return { ...page, portrait: person, tabs };
 }
 
 /** A maker's page, by the seat they hold (`seat:<town>:<trade>:<seat>`): who holds it, how long, their town. */
