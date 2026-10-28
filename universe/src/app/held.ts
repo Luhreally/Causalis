@@ -267,11 +267,11 @@ export function installHeld(d: HeldDeps): Held {
   let shownFor: On | null = null;
   let shownBodies: readonly HeldBody[] = [];
   const displayed = (o: On) =>
-    shownFor === o ? shownBodies : onward(o.live?.bodies ?? [], ahead(o));
+    shownFor === o && shownBodies.length ? shownBodies : onward(o.live?.bodies ?? [], ahead(o));
   const drawnMe = (o: On): { x: number; z: number; yaw: number } | null => {
     const b = o.live?.bodies[0];
     if (!b) return null;
-    const m = displayed(o).find((q) => q.id === b.id)!;
+    const m = displayed(o).find((q) => q.id === b.id) ?? onward([b], ahead(o))[0]!;
     if (o.kind === "beast") return { x: m!.x, z: m!.z, yaw: m!.yaw };
     const at = placedPoint(o.frame, m!.x, m!.z);
     return { x: at.x, z: at.z, yaw: m!.yaw + frameYaw(o.frame) };
