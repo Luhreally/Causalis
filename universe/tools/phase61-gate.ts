@@ -793,7 +793,8 @@ async function beast(hands: Hands, tag: string): Promise<void> {
   // Opening the palette reframes the scene, and a software renderer can take longer
   // than a fixed delay to finish the flight. Aim at the beast only once both are done.
   await page.waitForFunction(
-    () => !(globalThis as { causalis: { rig: { flying: boolean } } }).causalis.rig.flying,
+    () =>
+      !(globalThis as unknown as { causalis: { rig: { flying: boolean } } }).causalis.rig.flying,
     undefined,
     { timeout: slow(30_000) },
   );
