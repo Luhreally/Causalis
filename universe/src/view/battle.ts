@@ -1216,9 +1216,24 @@ function continuousFire(field: BattleField, shooters: 0 | 1, key: number): Arrow
 
 /** The line's front, where the lines meet now (x). */
 function meetAt(field: BattleField, s: number): number {
-  const combat = combatAt(field.near, Math.min(s, routAt(field)));
-  if (combat && !field.ground.wall && !field.ground.trench)
-    return field.meet + combat.pressure * 9 * smooth((s - MOMENTS.melee) / 12);
+  const frames = field.near.combat?.frames;
+  if (frames?.length && !field.ground.wall && !field.ground.trench) {
+    // This runs for every body and projectile transform. Read pressure without
+    // allocating the full morale/casualty UI model or scanning all exchanges.
+    const time = Math.min(s, routAt(field));
+    let lo = 0,
+      hi = frames.length - 1;
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      if (frames[mid]!.at <= time) lo = mid;
+      else hi = mid - 1;
+    }
+    const a = frames[lo]!,
+      b = frames[Math.min(lo + 1, frames.length - 1)]!,
+      f = clamp01((time - a.at) / Math.max(0.001, b.at - a.at)),
+      pressure = a.pressure + (b.pressure - a.pressure) * f;
+    return field.meet + pressure * 9 * smooth((s - MOMENTS.melee) / 12);
+  }
   return field.meet + field.drive * smooth((s - MOMENTS.melee) / (routAt(field) - MOMENTS.melee));
 }
 
