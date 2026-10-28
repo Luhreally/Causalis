@@ -164,11 +164,18 @@ export function injurySolids(b: Body, full = true): Solid[] {
     const i = a.on[m.member === "eye-l" || m.member === "eye-r" ? "head" : m.member],
       p = f.parts[i];
     if (!p) continue;
+    const eye = m.member === "eye-l" || m.member === "eye-r";
+    if (eye && gear?.keep[i] === 0) continue;
     const e = partExtent(p),
       lost = m.state === "lost" || gear?.keep[i] === 0,
       fresh = ["struck", "killed", "abed"].includes(m.state),
       keep = gear?.keep[i] ?? 1;
-    const y = lost ? p.y + e[1] * (m.member === "head" ? -0.5 : 0.5 - keep) : p.y,
+    const x = p.x + (eye ? (m.member === "eye-l" ? 1 : -1) * e[0] * 0.23 : 0),
+      y = eye
+        ? p.y + e[1] * 0.03
+        : lost
+          ? p.y + e[1] * (m.member === "head" ? -0.5 : 0.5 - keep)
+          : p.y,
       z = p.z + e[2] * 0.53;
     const put = (
       dx: number,
@@ -180,7 +187,7 @@ export function injurySolids(b: Body, full = true): Solid[] {
       color: Solid["color"],
     ) =>
       out.push({
-        x: (p.x + dx) * k,
+        x: (x + dx) * k,
         y: (y + dy) * k,
         z: (z + dz) * k,
         sx: sx * k,
@@ -190,8 +197,8 @@ export function injurySolids(b: Body, full = true): Solid[] {
         pitch: 0,
         color,
       });
-    const width = e[0] * (lost ? 0.95 : fresh ? 0.66 : 0.36),
-      height = e[1] * (lost ? 0.14 : fresh ? 0.32 : 0.07);
+    const width = e[0] * (eye ? 0.23 : lost ? 0.95 : fresh ? 0.66 : 0.36),
+      height = e[1] * (eye ? 0.18 : lost ? 0.14 : fresh ? 0.32 : 0.07);
     put(0, 0, 0, width, height, 0.009, fresh || lost ? blood.core : [0.62, 0.34, 0.31]);
     if (fresh || lost) {
       for (let n = 0; n < 5; n++)

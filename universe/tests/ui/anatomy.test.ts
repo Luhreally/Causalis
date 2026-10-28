@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { internalSolids, injurySolids } from "../../src/ui/anatomy.ts";
 import { APE_FRAME, NO_LOOK, type Block } from "../../src/bridge/index.ts";
+import { figureOf, figureAnatomy, partExtent } from "../../src/view/index.ts";
 type Body = Extract<Block, { type: "body" }>;
 const body: Body = {
   type: "body",
@@ -47,4 +48,23 @@ test("missing heads remove the skull and brain, and wounds gain actual flesh/bon
   assert.ok(top(internalSolids(injured, false)) < top(internalSolids(body, false)) - 0.04);
   assert.ok(injurySolids(injured).length > injurySolids(injured, false).length);
   assert.equal(body.members.find((m) => m.member === "head")!.state, "whole");
+});
+
+test("a lost eye's wound stays in its socket, and disappears with a severed head", () => {
+  const injured: Body = {
+    ...body,
+    person: { ...body.person, look: { ...NO_LOOK, lost: ["eye-l"] } },
+    members: body.members.map((m) => (m.member === "eye-l" ? { ...m, state: "lost" } : m)),
+  };
+  const f = figureOf(null, 3),
+    head = f.parts[figureAnatomy(f).on.head]!,
+    e = partExtent(head),
+    socket = injurySolids(injured)[0]!;
+  assert.ok(socket.x > head.x && Math.abs(socket.y - head.y) < e[1] * 0.1);
+  assert.ok(socket.sx < e[0] / 3);
+  const severed: Body = {
+    ...injured,
+    person: { ...injured.person, look: { ...NO_LOOK, lost: ["head", "eye-l"] } },
+  };
+  assert.deepEqual(injurySolids(severed), []);
 });
