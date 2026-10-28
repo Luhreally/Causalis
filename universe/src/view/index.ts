@@ -71,6 +71,7 @@ export {
   houseLook,
   keepApart,
   momentOf,
+  momentsOf,
   dayTold,
   legsTold,
   workTold,

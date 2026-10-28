@@ -1,13 +1,12 @@
 // The device tier (docs/architecture §37–38): presentation only, never the simulation. A
-// phone of today (an iPhone 15 Plus; asked for 2026-10-25: "dont limit the game anymore") draws
-// as much as a desktop — as many pixels, smoothed edges, as many in a crowd; only its screen's
-// size and its touch set it apart. (The quality, Auto unless chosen, still steps a device down
-// that cannot keep its frames.)
+// phone can draw the same world and crowds as a desktop. Multisample smoothing is off on
+// phones: its extra colour and depth buffers cost memory, and WebKit can fail to resolve
+// them, leaving a blank scene. The quality, Auto unless chosen, sets the rest of its budgets.
 import type { DeviceTier } from "../render/index.ts";
 
 /**
- * ?tier=phone or ?tier=desktop overrides the guess (testing); ?aa=0 draws with no smoothing of
- * edges (a picture read pixel by pixel).
+ * ?tier=phone or ?tier=desktop overrides the guess (testing); ?aa=0 or ?aa=1 overrides
+ * multisample smoothing (a picture read pixel by pixel, or a device checked with it on).
  */
 export function deviceTier(): DeviceTier {
   const coarse = globalThis.matchMedia?.("(pointer: coarse)").matches ?? false,
@@ -19,7 +18,7 @@ export function deviceTier(): DeviceTier {
   return {
     name: phone ? "phone" : "desktop",
     maxPixelRatio: 3,
-    antialias: params.get("aa") !== "0",
+    antialias: params.get("aa") === "1" || (!phone && params.get("aa") !== "0"),
     crowdCap: 80,
   };
 }

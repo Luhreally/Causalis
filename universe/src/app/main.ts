@@ -4,6 +4,7 @@
 // instancing benchmark instead.
 import "./styles.css";
 import "./y2k.css";
+import { Checkpoint } from "./checkpoint.ts";
 import { HostClient, inlinePair, workerPort } from "../bridge/index.ts";
 import {
   FreeRig,
@@ -1306,7 +1307,7 @@ async function runPlanetPage(): Promise<void> {
   await client.start(universe, seed);
   // ?load=name takes up a save; ?year=N starts the world N years on (it runs there
   // first; history is the same).
-  const loaded = loadName ? await client.load(loadName).catch(() => null) : null;
+  const loaded = loadName ? await client.load(loadName) : null;
   if (!loaded && startYear > 0) await client.advance(startYear * YEAR);
   client.setInterest({ view: "globe", focus: null });
   // One clock for every scale, its speeds the scale's own (asked for 2026-10-24): the date
@@ -1571,6 +1572,7 @@ async function runPlanetPage(): Promise<void> {
    * quality has stepped down past High (M197: a phone of today builds them as a desktop does).
    */
   const fieldDetail = (): 1 | 2 => (stage.quality.detail >= 2 ? 2 : 1);
+  const autoCeiling: QualityName = tier.name === "phone" ? "balanced" : "ultra";
   let choice = readChoice(),
     auto: AutoQuality | null = null,
     fps = 0,
@@ -1582,10 +1584,10 @@ async function runPlanetPage(): Promise<void> {
     } catch {
       // Nothing to keep it in: it holds for this visit.
     }
-    // (Auto begins at the finest on any device, a phone too, M197: it steps down if the frames
-    // do not keep up, and back up once they do.)
-    const start: QualityName = c === "auto" ? "ultra" : c;
-    auto = c === "auto" ? new AutoQuality(start, "ultra") : null;
+    // A phone's automatic budget stays at Balanced or below. Frame rate alone cannot tell
+    // whether a finer setting is about to exhaust Safari's graphics memory.
+    const start: QualityName = c === "auto" ? (tier.name === "phone" ? "balanced" : "ultra") : c;
+    auto = c === "auto" ? new AutoQuality(start, autoCeiling) : null;
     stage.setQuality(QUALITIES[start]);
   };
   setChoice(choice);
@@ -3196,11 +3198,17 @@ async function runPlanetPage(): Promise<void> {
     walk.saw("scale");
     void toSystem();
   };
-  // Keeping the world: a save of one's own, and one kept every five minutes of watching.
+  // Keeping the world: a save of one's own, and a checkpoint every minute and on leaving.
   const saveName = `${universe}:${seed}`;
+  const rememberSave = (name: string) => {
+    const url = new URL(location.href);
+    url.searchParams.set("load", name);
+    history.replaceState(history.state, "", url);
+  };
   planetPanel.onSave = async () => {
     try {
       const { bytes } = await client.save(saveName);
+      rememberSave(saveName);
       return `saved (${(bytes / 1e6).toFixed(1)} MB)`;
     } catch (error) {
       return `not saved: ${(error as Error).message}`;
@@ -3218,6 +3226,7 @@ async function runPlanetPage(): Promise<void> {
     }
     try {
       const got = await client.load(save.name);
+      rememberSave(save.name);
       paintGlobe();
       return `back at year ${Math.floor(got.t / YEAR)}${got.fellBack ? " (from the save before; the latest did not read)" : ""}`;
     } catch (error) {
@@ -3227,7 +3236,7 @@ async function runPlanetPage(): Promise<void> {
   planetPanel.onDeleteSave = async (save) => {
     try {
       await client.deleteSave(save.name);
-      return `“${save.seed}”, year ${Math.floor(save.t / YEAR)}, deleted${save.name === `${saveName}:auto` ? " (this world keeps itself again in five minutes)" : ""}`;
+      return `“${save.seed}”, year ${Math.floor(save.t / YEAR)}, deleted${save.name === `${saveName}:auto` ? " (this world keeps itself again in a minute)" : ""}`;
     } catch (error) {
       return `not deleted: ${(error as Error).message}`;
     }
@@ -3261,7 +3270,56 @@ async function runPlanetPage(): Promise<void> {
       return `not opened: ${(error as Error).message}`;
     }
   };
-  setInterval(() => void client.save(`${saveName}:auto`).catch(() => {}), 5 * 60_000);
+  const saveWarning = document.createElement("div");
+  saveWarning.className = "save-warning";
+  saveWarning.setAttribute("role", "status");
+  saveWarning.hidden = true;
+  hud.append(saveWarning);
+  const checkpoint = new Checkpoint(
+    () => client.save(`${saveName}:auto`),
+    (error) => {
+      saveWarning.hidden = error === null;
+      if (error !== null) {
+        saveWarning.textContent =
+          "Progress could not be saved in this browser. Open Saves and keep a copy as a file.";
+        return;
+      }
+      // A reload (including Safari recovering a discarded tab) takes up the committed save,
+      // rather than making the seed's first year again. Only name it once it has been written.
+      rememberSave(`${saveName}:auto`);
+    },
+  );
+  void firstPicture.then(() => checkpoint.save());
+  setInterval(() => {
+    if (!document.hidden) void checkpoint.save();
+  }, 60_000);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      time.hold("background");
+      void checkpoint.save();
+    } else time.release("background");
+  });
+  addEventListener("pagehide", () => {
+    time.hold("page hidden");
+    void checkpoint.save();
+  });
+  addEventListener("pageshow", () => {
+    time.release("page hidden");
+    if (!document.hidden) time.release("background");
+  });
+  if (document.hidden) time.hold("background");
+  // PlayCanvas restores its GPU resources itself. Keep the world while that happens and
+  // let the clock go on only once the picture can return; never reload the page to recover.
+  canvas.addEventListener("webglcontextlost", (event) => {
+    event.preventDefault();
+    time.hold("graphics");
+    void checkpoint.save();
+  });
+  canvas.addEventListener("webglcontextrestored", () => {
+    stage.setQuality(QUALITIES.low);
+    if (choice === "auto") auto = new AutoQuality("low", autoCeiling);
+    time.release("graphics");
+  });
   // Back to the title screen: the world kept on its own first, so Continue takes it up.
   planetPanel.onMenu = async () => {
     try {
@@ -7813,6 +7871,9 @@ main().catch((error: Error) => {
   text.textContent = webgl
     ? "This browser cannot draw in 3D (WebGL is turned off or missing), so the universe cannot be shown here."
     : `Something went wrong while starting: ${error.message}`;
-  box.append(title, text);
+  const back = document.createElement("a");
+  back.href = location.pathname;
+  back.textContent = "Back to saved worlds";
+  box.append(title, text, back);
   app.append(box);
 });

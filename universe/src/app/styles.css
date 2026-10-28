@@ -87,6 +87,18 @@ canvas {
 #hud > * {
   pointer-events: auto;
 }
+.save-warning {
+  position: absolute;
+  z-index: 100;
+  bottom: calc(12px + var(--safe-bottom));
+  left: 12px;
+  right: 12px;
+  padding: 12px;
+  border: 1px solid var(--act);
+  border-radius: 8px;
+  background: var(--panel-solid);
+  color: var(--ink);
+}
 button {
   font: inherit;
   color: var(--ink);

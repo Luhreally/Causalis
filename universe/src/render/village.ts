@@ -38,7 +38,6 @@ import {
   bobOf,
   FIGURE_CAPSULE,
   figureOf,
-  hairOf,
   keepApart,
   partExtent,
   present,
@@ -50,8 +49,7 @@ import {
   lifeTint,
   houseLook,
   limbPitch,
-  momentOf,
-  personGroup,
+  momentsOf,
   prepareDay,
   sayOf,
   storesNow,
@@ -109,7 +107,6 @@ import {
   looksHurt,
   woundBob,
   woundGear,
-  woundPitch,
   type LitterNow,
   type WoundGear,
   type BattleField,
@@ -140,10 +137,10 @@ import { FoundryLayer, type FoundryAt } from "./foundry.ts";
 import { FloorLayer, type FloorAt } from "./floor.ts";
 import { BlazeLayer } from "./blaze.ts";
 import { GraveyardLayer } from "./graveyard.ts";
-import { WoundsLayer, bandageOn, propAt, stumpAlong, type WornPiece } from "./wounds.ts";
+import { WoundsLayer, bandageOn, propAt, type WornPiece } from "./wounds.ts";
 import { LittersLayer, litterApart, litterHeld } from "./litters.ts";
+import { FolkPoses, nearReach, redrawn } from "./folk.ts";
 import type { PosedHook } from "../view/index.ts";
-import { lieDown } from "./possess.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 const M = 0.1; // units per metre
@@ -443,7 +440,7 @@ export class VillageScene {
     // (A new village's people are drawn afresh; the same village's, carried on.)
     if (this.presenceOf !== plan.ref) {
       this.presence.clear();
-      this.limbs.clear();
+      this.folk.forget();
       this.presenceClock = null;
       this.presenceOf = plan.ref;
     }
@@ -1047,28 +1044,37 @@ export class VillageScene {
       cone: coneMesh(s, 0.5, 1, 8),
     };
     // Each part a batch per group, dressed as the land's era dresses them (a people in their own
-    // look in their hide, their clothes over it: Phase 34).
+    // look in their hide, their clothes over it: Phase 34). (The parts of one shape and one colour
+    // share a batch: a draw for them all, not one a part — render/folk.ts.)
+    const figured = this.figure.parts,
+      alike = figured.map((part) =>
+        figured.findIndex((p) => p.shape === part.shape && p.tone === part.tone),
+      ),
+      each = (pi: number) =>
+        Math.max(1, plan.people.length * alike.filter((a) => a === alike[pi]).length);
     this.people = GROUP_COLORS.map((_, gi) => {
-      const paint = figurePaint(plan.body, plan.era, gi);
-      return this.figure.parts.map((part) =>
+      const paint = figurePaint(plan.body, plan.era, gi),
+        made: InstancedBatch[] = [];
+      return figured.map((part, pi) =>
         part.tone === 3
           ? null
-          : this.batch(
+          : (made[alike[pi]!] ??= this.batch(
               s,
               meshes[part.shape],
               paint.tones[part.tone],
-              Math.max(1, plan.people.length),
+              each(pi),
               this.root,
-            ),
+            )),
       );
     });
     // Hair (a people's markings), each person's own colour (a batch a colour, whatever their group).
-    const hairs = figurePaint(plan.body, plan.era, 0).hairs;
-    this.hair = this.figure.parts.map((part) =>
+    const hairs = figurePaint(plan.body, plan.era, 0).hairs,
+      haired: InstancedBatch[][] = [];
+    this.hair = figured.map((part, pi) =>
       part.tone === 3
-        ? hairs.map((c) =>
-            this.batch(s, meshes[part.shape], c, Math.max(1, plan.people.length), this.root),
-          )
+        ? (haired[alike[pi]!] ??= hairs.map((c) =>
+            this.batch(s, meshes[part.shape], c, each(pi), this.root),
+          ))
         : null,
     );
     // The soldiers of a war about the town (M87, M204), armed afresh for it.
@@ -1186,8 +1192,8 @@ export class VillageScene {
   /** Each person's drawn size now (0 gone … 1 whole), and their stride's own clock. */
   private sizes: number[] = [];
   private strides: number[] = [];
-  /** Each person's limbs as last drawn (a pitch a part, by their ref): eased toward each new pose. */
-  private readonly limbs = new Map<string, Float32Array>();
+  /** Each person's figure as last posed, their limbs eased toward each new pose (render/folk.ts). */
+  private readonly folk = new FolkPoses();
   /** Each soldier's limbs as last drawn (a pitch a part, by their place in the ranks). */
   private soldierLimbs = new Float32Array(0);
 
@@ -1365,7 +1371,7 @@ export class VillageScene {
       troops = scene?.soldiers ?? [];
     this.warScene = scene;
     this.warLayer.update(scene, screen, this.campNow);
-    const targets = plan.people.map((_, i) => momentOf(plan, i, t, downpour, fine));
+    const targets = momentsOf(plan, t, downpour, fine);
     // Those come out to watch a battle fought before the town (Phase 55 M227): at its edge, facing it.
     for (const w of this.watchers) {
       const m = targets[w.index];
@@ -1465,6 +1471,8 @@ export class VillageScene {
       dt,
       villageSolids(plan),
     );
+    // (Those the small world moves, posed every frame: render/folk.ts.)
+    const unposed = this.posed ? drawn.slice() : null;
     this.posed?.pose(drawn, this.presence);
     this.moments = drawn.map((d) => d.moment);
     // The town's trades at their buildings (Phase 41 M199): who tends each kiln now (or throws
@@ -1558,75 +1566,32 @@ export class VillageScene {
     }
     this.sizes = drawn.map((d) => d.size);
     this.strides = drawn.map((d) => d.stride);
-    // Each limb eased toward its pose now: a stride begun or ended, a task taken up, is a
-    // turn of the arm, not a jump of it.
+    // Each one's figure posed part by part and drawn in their group's batches and their hair's
+    // (render/folk.ts): each limb eased toward its pose now, a stride begun or ended, a task taken
+    // up, a turn of the arm, not a jump of it; those small on the screen posed every other frame.
     const ease = dt > 0 ? 1 - Math.exp(-Math.min(0.1, dt) / 0.08) : 1,
-      pitches = plan.people.map((p, i) => {
-        const m = this.moments[i]!;
-        let drawnPitch = this.limbs.get(p.ref);
-        if (!drawnPitch || drawnPitch.length !== parts.length) {
-          drawnPitch = new Float32Array(parts.length).fill(Number.NaN);
-          this.limbs.set(p.ref, drawnPitch);
-        }
-        if (m.hidden) return drawnPitch;
-        const walking = m.activity === ACTIVITY.walking;
-        parts.forEach((part, pi) => {
-          const posed = limbPitch(part, m.task, walking, walking ? this.strides[i]! : clock, i),
-            gear = this.gearNow[i],
-            aim = gear ? woundPitch(gear, pi, posed) : posed,
-            was = drawnPitch[pi]!;
-          drawnPitch[pi] = Number.isNaN(was) ? aim : was + (aim - was) * ease;
-        });
-        return drawnPitch;
-      });
+      cam = this.stage.camera,
+      at = cam.getPosition();
     /** A part of person i's figure, where it is now. */
-    const place = (out: number[], p: VillagePlan["people"][number], i: number, pi: number) => {
-      const part = parts[pi]!,
-        m = this.moments[i]!,
-        size = (p.child ? 0.7 : 1) * this.figure.scale * (this.sizes[i] ?? 1),
-        c = Math.cos(m.yaw),
-        sn = Math.sin(m.yaw),
-        // A limb swings about its hinge: in the stride, or in the work at hand.
-        pitch = pitches[i]![pi]!,
-        // (A wound's: a member gone, a stump kept from its hinge, a limp's dip: Phase 55 M226.)
-        gear = this.gearNow[i] ?? null,
-        keep = gear ? gear.keep[pi]! : 1,
-        lift = keep < 1 ? stumpAlong(partExtent(part)[1], keep) : 0,
-        hinge = (part.pivot ?? 0) - lift,
-        dy = hinge - hinge * Math.cos(pitch),
-        dz = -hinge * Math.sin(pitch),
-        px = part.x,
-        pz = part.z + dz,
-        limp = gear && m.activity === ACTIVITY.walking ? woundBob(gear, this.strides[i]!, i) : 0;
-      // The part's place about the figure's middle, turned to the way it faces.
-      out[0] = m.x * M + (px * c + pz * sn) * size;
-      out[1] = (part.y + lift + dy + bobOf(m.task, clock, i) + limp) * size;
-      out[2] = m.z * M + (-px * sn + pz * c) * size;
-      out[3] = keep > 0 ? part.sx * size : 0;
-      out[4] = part.sy * size * keep;
-      out[5] = keep > 0 ? part.sz * size : 0;
-      out[6] = m.yaw;
-      out[7] = pitch;
-      if (this.posed?.downed.has(i)) lieDown(out, part, m.x, m.z, m.yaw, size, pitch);
-    };
-    this.people.forEach((batches, gi) => {
-      const members = plan.people
-        .map((p, i) => ({ p, i }))
-        .filter(({ p, i }) => personGroup(p) === gi && !this.moments[i]!.hidden);
-      batches.forEach((batch, pi) =>
-        batch?.set(members.length, (k, out) => place(out, members[k]!.p, members[k]!.i, pi)),
-      );
-    });
-    // Hair, by each person's own colour.
-    this.hair.forEach((colours, pi) => {
-      if (!colours) return;
-      const span = plan.body?.span ?? 70;
-      colours.forEach((batch, hi) => {
-        const wearers = plan.people
-          .map((p, i) => ({ p, i }))
-          .filter(({ p, i }) => !this.moments[i]!.hidden && hairOf(p.ref, p.age, span) === hi);
-        batch.set(wearers.length, (k, out) => place(out, wearers[k]!.p, wearers[k]!.i, pi));
-      });
+    const place = this.folk.pose({
+      plan,
+      figure: this.figure,
+      moments: this.moments,
+      sizes: this.sizes,
+      strides: this.strides,
+      gear: this.gearNow,
+      clock,
+      dt,
+      downed: this.posed?.downed ?? null,
+      kept: unposed ? redrawn(unposed, drawn) : null,
+      people: this.people,
+      hair: this.hair,
+      eye: { x: at.x / M, y: at.y / M, z: at.z / M },
+      near: nearReach(
+        this.figure,
+        cam.camera!.fov,
+        this.stage.app.graphicsDevice.clientRect.height,
+      ),
     });
     // Their wounds worn (Phase 55 M226): linen bound about the parts as they are posed now, and
     // what they wear for them — a patch, a sling, a crutch, a scar — the nearest the eye first.
@@ -1645,7 +1610,7 @@ export class VillageScene {
           (m.activity === ACTIVITY.walking ? woundBob(g, this.strides[i]!, i) : 0);
       for (const k of g.keep) if (k > 0 && k < 1) stumps++;
       for (const b of g.bound) {
-        place(placed, p, i, b.part);
+        place(placed, i, b.part);
         const e = partExtent(parts[b.part]!);
         pieces.push({
           kind: "bandage",

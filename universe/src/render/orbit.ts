@@ -53,7 +53,7 @@ export class OrbitRig {
   /** Each pointer down: where it was and began, and whether it turns (else it takes hold of the ground). */
   private readonly pointers = new Map<
     number,
-    { x: number; y: number; startX: number; startY: number; turn: boolean }
+    { x: number; y: number; startX: number; startY: number; turn: boolean; tap: boolean }
   >();
   private pinch = 0;
   /** Two fingers' angle and middle height, last seen (a twist turns; moved up or down together, a tilt). */
@@ -156,7 +156,10 @@ export class OrbitRig {
         startX: e.clientX,
         startY: e.clientY,
         turn,
+        tap: true,
       });
+      // A pinch or twist never becomes a tap when the last finger comes up.
+      if (this.pointers.size > 1) for (const p of this.pointers.values()) p.tap = false;
       this.pinch = this.spread();
       this.twist = this.fingers();
       this.idle = 0;
@@ -175,6 +178,7 @@ export class OrbitRig {
         dy = e.clientY - p.y;
       p.x = e.clientX;
       p.y = e.clientY;
+      if (Math.hypot(p.x - p.startX, p.y - p.startY) >= 6) p.tap = false;
       if (this.pointers.size === 1) {
         if (p.turn) this.turnBy(dx, dy);
         else this.grab(fromX, fromY, e.clientX, e.clientY);
@@ -210,6 +214,7 @@ export class OrbitRig {
       this.pointers.delete(e.pointerId);
       if (
         p &&
+        p.tap &&
         this.pointers.size === 0 &&
         Math.hypot(e.clientX - p.startX, e.clientY - p.startY) < 6
       ) {
@@ -222,6 +227,12 @@ export class OrbitRig {
     on<PointerEvent>("pointerup", up);
     on<PointerEvent>("pointercancel", (e) => {
       this.pointers.delete(e.pointerId);
+      this.pinch = this.spread();
+      this.twist = this.fingers();
+    });
+    on<PointerEvent>("lostpointercapture", (e) => {
+      this.pointers.delete(e.pointerId);
+      this.pinch = this.spread();
       this.twist = this.fingers();
     });
     on<WheelEvent>("wheel", (e) => {

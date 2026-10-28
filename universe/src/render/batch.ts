@@ -94,6 +94,19 @@ export class InstancedBatch {
   }
 
   /**
+   * Replace the instances by their matrices written straight into the batch (`write(m)` writes the
+   * first `count` of them, sixteen numbers each, as set() lays them out): for a town's people,
+   * posed part by part and kept from frame to frame (render/folk.ts).
+   */
+  setMatrices(count: number, write: (m: Float32Array) => void): void {
+    const n = Math.min(count, this.capacity);
+    write(this.matrices);
+    this.count = n;
+    this.upload(n);
+    this.instance.instancingCount = n;
+  }
+
+  /**
    * Send the first `n` instances to the GPU, and only those: a batch is sized for the most it
    * may hold, and most frames it holds far fewer (a village's beasts out of sight, a herd at
    * rest), so sending the whole of it every frame sent mostly nothing.

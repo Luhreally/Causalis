@@ -1133,7 +1133,7 @@ export class PlanetPanel {
       el(
         "p",
         "muted",
-        "Saves are kept in this browser, and the world keeps one on its own every five minutes. A copy as a file keeps it anywhere.",
+        "Saves are kept in this browser, and the world keeps one on its own every minute and when you switch away. A copy as a file keeps it anywhere.",
       ),
     );
     const said = el("p", "muted"),

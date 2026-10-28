@@ -42,6 +42,9 @@ export class IndexedDbByteStore implements ByteStore {
       open.onsuccess = () => resolve(open.result);
       open.onerror = () => reject(open.error);
     });
+    // Opening may fail before the first save or listing asks for the database. Keep that
+    // rejection handled; each request still receives it and can tell the viewer.
+    void this.db.catch(() => {});
   }
   private async request<T>(
     mode: IDBTransactionMode,
@@ -51,8 +54,11 @@ export class IndexedDbByteStore implements ByteStore {
     return new Promise((resolve, reject) => {
       const tx = db.transaction("bytes", mode),
         req = run(tx.objectStore("bytes"));
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
+      // A successful request is not a committed transaction (quota or eviction can abort
+      // it afterwards). Do not acknowledge a save until its transaction has completed.
+      tx.oncomplete = () => resolve(req.result);
+      tx.onabort = () => reject(tx.error ?? new SaveError("the save transaction was interrupted"));
+      tx.onerror = () => reject(tx.error ?? req.error);
     });
   }
   async get(key: string): Promise<Uint8Array | undefined> {
