@@ -6746,9 +6746,10 @@ async function runPlanetPage(): Promise<void> {
       year: i.year,
     });
     if (scale === "battle" && fight) return { at: "field", b: near(fight.info) };
-    if (scale === "village" && preferredTownBattle?.town === plan?.ref) {
+    const preferred = preferredTownBattle;
+    if (scale === "village" && preferred && preferred.town === plan?.ref) {
       for (const w of warsLive?.wars ?? []) {
-        const b = w.battles.find((b) => b.event === preferredTownBattle!.event);
+        const b = w.battles.find((b) => b.event === preferred.event);
         if (b && battleStage(now(), b.year + 1))
           return {
             at: "town",
