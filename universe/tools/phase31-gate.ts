@@ -99,6 +99,9 @@ const begin = async (p: Page) => {
     undefined,
     { timeout: 900000 },
   );
+  // Finish the seed's time-zero agenda before taking the director's baseline. A discovery
+  // recorded at year zero must not race the watch-button click on a fast initial render.
+  await k(`globalThis.causalis.client.advance(1)`, p);
 };
 
 await begin(page);
