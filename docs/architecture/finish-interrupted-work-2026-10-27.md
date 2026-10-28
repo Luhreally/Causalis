@@ -70,7 +70,9 @@ shards, with the performance tests run once.
 These are desktop browser-engine checks, not a physical iPhone 15 Plus test.
 The headless possession journey uses Balanced, matching phone Auto, and the game's
 half-pace control. It takes an engaged front-rank soldier, observes the body and foe
-together, and requires actual key/touch actions, a casualty, and unchanged save replay.
+together, and requires actual key/touch actions, a landed blow, a named casualty, and
+unchanged save replay. Hit feedback is observed each rendered frame rather than only
+after slow automation round trips; the random wound need not personally kill its target.
 Animal taps target visible canvas points rather than controls laid over the scene.
 Windows WebKit has a pre-existing blank-render issue in some detailed battle
 fixtures; its batch assertions alone are not proof of visible battle pixels.

@@ -601,8 +601,22 @@ async function soldier(
     await comes(async () => (await held())?.pace === 0.5, slow(3000)),
     n("half pace not selected"),
   );
-  // Brought to the foe and struck at until one falls (by his hand, or he).
+  // Observe rendered hit feedback locally: slow protocol round trips can otherwise miss
+  // the brief message. A landed blow plus a named casualty proves combat without making
+  // this input test depend on whether the random wound happened to disable its target.
+  await k(`(() => {
+    const probe = { landed: false };
+    globalThis.__heldCombatProbe = probe;
+    const poll = () => {
+      const live = globalThis.causalis.held.state()?.live;
+      if (!live) return;
+      if (live.told?.good && live.told.words.startsWith(${JSON.stringify(him.name + " struck ")})) probe.landed = true;
+      if (!probe.landed) requestAnimationFrame(poll);
+    };
+    requestAnimationFrame(poll);
+  })()`);
   let felled = false,
+    landed = false,
     strikes = 0,
     bodyWords = "";
   const until = Date.now() + slow(70_000);
@@ -610,14 +624,16 @@ async function soldier(
     const observed = await k<{
       state: HeldState | null;
       foe: { id: number; x: number; z: number; far: number } | null;
-    }>(`({state:globalThis.causalis.held.state(),foe:globalThis.causalis.held.foe()})`);
+      landed: boolean;
+    }>(
+      `({state:globalThis.causalis.held.state(),foe:globalThis.causalis.held.foe(),landed:!!globalThis.__heldCombatProbe?.landed})`,
+    );
     s = observed.state;
+    landed ||= observed.landed;
     if (!s?.live || s.live.ended) break;
     const tally = s.live.tally!;
-    if (tally.named.some((x) => x.god)) {
-      felled = true;
-      break;
-    }
+    felled ||= tally.named.some((x) => x.god);
+    if ((felled || landed) && tally.sides[0]!.fallen + tally.sides[1]!.fallen > fallen0) break;
     const foe = observed.foe;
     if (foe && s.me) {
       const aim = Math.atan2(foe.x - s.me.x, foe.z - s.me.z);
@@ -642,10 +658,11 @@ async function soldier(
       `${strikes} blows struck; ${felled ? "one fell by his hand" : last?.ended ? `it ended for him: ${last.ended}` : "none fell by his hand"}; the fallen ${fallen0} → ${fallen1}; named: ${(tally?.named ?? []).map((x) => `${x.by} struck down ${x.name}${x.god ? " (by the hand)" : ""}`).join("; ")}; “${last?.told?.words ?? ""}”; his body: ${bodyWords} (${took()})`,
     ),
   );
-  // (One falls: by his hand, or he.)
+  // A real blow must land (or the held soldier fall); the separate casualty and named
+  // tally assertions below still require the battle's disabling blows to be visible.
   check(
-    felled || last?.ended === "dead" || last?.ended === "down",
-    n(`none fell by his hand in ${strikes} blows, nor he (${last?.ended})`),
+    felled || landed || last?.ended === "dead" || last?.ended === "down",
+    n(`no blow landed in ${strikes} inputs, nor did he fall (${last?.ended})`),
   );
   check(fallen1 > fallen0, n(`the tally's fallen did not move (${fallen0} → ${fallen1})`));
   check((tally?.named.length ?? 0) > 0, n("none of the fallen named"));
