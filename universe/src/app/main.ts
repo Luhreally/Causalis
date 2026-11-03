@@ -964,6 +964,7 @@ type Exposed = {
     fresh: number;
     mounds: number;
     open: number;
+    openGraves: { x: number; z: number }[];
     heaps: number;
     biers: number;
     borne: number;

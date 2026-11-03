@@ -67,6 +67,7 @@ type Yard = {
   fresh: number;
   mounds: number;
   open: number;
+  openGraves: { x: number; z: number }[];
   heaps: number;
   biers: number;
   borne: number;
@@ -262,7 +263,8 @@ if (f) {
   y = await yard();
   say(`filled in: ${before} → ${y?.graves} graves, ${y?.open} open, ${y?.fresh} fresh mounds`);
   check((y?.graves ?? 0) === before + f.dead, "the grave not counted once filled in");
-  check((y?.open ?? 1) === 0, "the grave left open");
+  // Other funerals may have their own graves open on the same day.
+  check(!!y && !y.openGraves.some((g) => near(g, f.grave, 0.5)), "the grave left open");
   await face(f.grave.x, f.grave.z, 4);
   await shot("6-filled");
 }

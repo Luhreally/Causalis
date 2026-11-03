@@ -64,6 +64,14 @@ test("a lost arm is a stump, its hand gone", () => {
   assert.equal(g.swing[3], WOUND_HOLD.stump);
 });
 
+test("a stump is counted once to a limb, a lost hand's too", () => {
+  assert.equal(woundGear(fig, look({ lost: ["arm-l", "hand-l"] })).stumps, 1);
+  assert.equal(woundGear(fig, look({ lost: ["hand-r"] })).stumps, 1);
+  assert.equal(woundGear(fig, look({ lost: ["hand-r", "leg-l"] })).stumps, 2);
+  assert.equal(woundGear(fig, look({ lost: ["eye-l"], patch: "l" })).stumps, 0);
+  assert.equal(woundGear(fig, NO_LOOK).stumps, 0);
+});
+
 test("a lost eye is patched", () => {
   const g = woundGear(fig, look({ lost: ["eye-l"], patch: "l" }));
   assert.ok(leftEye >= 0);

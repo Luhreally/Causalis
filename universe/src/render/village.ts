@@ -1616,7 +1616,7 @@ export class VillageScene {
         bob =
           bobOf(m.task, clock, i) +
           (m.activity === ACTIVITY.walking ? woundBob(g, this.strides[i]!, i) : 0);
-      for (const k of g.keep) if (k > 0 && k < 1) stumps++;
+      stumps += g.stumps;
       for (const b of g.bound) {
         place(placed, i, b.part);
         const e = partExtent(parts[b.part]!);
@@ -2439,6 +2439,7 @@ export class VillageScene {
     fresh: number;
     mounds: number;
     open: number;
+    openGraves: { x: number; z: number }[];
     heaps: number;
     biers: number;
     borne: number;
@@ -2463,6 +2464,7 @@ export class VillageScene {
       freshFrom: gravesBefore(plan),
       perYear: plan.rest?.perYear ?? 0,
       ...this.graveyard.shown,
+      openGraves: b.open.map(({ x, z }) => ({ x, z })),
       bier: b.biers[0] ? { x: b.biers[0].x, z: b.biers[0].z, borne: b.biers[0].borne } : null,
       funerals: funeralsAhead(plan, this.lastT, days),
     };

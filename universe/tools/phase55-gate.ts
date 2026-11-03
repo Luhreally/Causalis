@@ -797,11 +797,13 @@ say(`the world at year ${Math.floor(t0 / YEAR)}, day ${ofDay(t0 % YEAR)}`);
 // The town: of those whose levy comes home wounded, the first whose plan as drawn has one borne
 // home on a litter and its healer, and no hospital (so the healer goes the round); one with an old
 // wound marking them for good, where there is such a town.
-const rows = await ask<Row[]>("village.wounded", { most: 40 });
+const rows = await ask<Row[]>("village.wounded", { most: 60 });
 say(`${rows.length} towns whose levy comes home wounded this year`);
 check(rows.length > 0, "no town's levy comes home wounded at the turn of year 365");
 let town: { row: Row; plan: Plan; borne: number; healer: number; marked: number } | null = null;
-for (const row of rows.filter((r) => r.healer && !r.hospital && r.borne > 0).slice(0, 12)) {
+for (const row of rows
+  .filter((r) => r.healer && !r.hospital && r.borne > 0)
+  .sort((a, b) => b.maimed - a.maimed)) {
   const plan = await ask<Plan>("village.plan", {
       ref: row.ref,
       families: QUALITY.families,
@@ -1012,12 +1014,63 @@ if (up) {
 }
 
 // 5. Marked for good: one with a crutch, a stump or a patch, by day.
+// These are independent histories: a town receiving a litter need not also have an amputee.
+// Keep both checks, visiting another actual town's survivor where necessary.
+let markPlan = plan,
+  markIndex: number | null = null;
+const markTime = await now();
+if (town!.marked < 0) {
+  for (const row of rows.filter((r) => r.ref !== plan.ref).sort((a, b) => b.maimed - a.maimed)) {
+    const candidate = await ask<Plan>("village.plan", {
+      ref: row.ref,
+      families: QUALITY.families,
+      folk: QUALITY.folk,
+    });
+    if (
+      !candidate.people.some((p) =>
+        (p.wounds ?? []).some(
+          (w) =>
+            ["crutch", "stump", "patch"].includes(w.lasting ?? "") &&
+            w.up <= markTime &&
+            w.home <= markTime,
+        ),
+      )
+    )
+      continue;
+    await k(`globalThis.causalis.goTo(${JSON.stringify(candidate.ref)})`);
+    await comes(
+      async () =>
+        (await k<number>(`globalThis.causalis.watching?.() ?? 0`)) === candidate.people.length,
+      slow(30000),
+    );
+    // A lasting wound is also recorded while its owner is indoors or away with the levy.
+    // Watch one who is actually outside, now or on the next morning's round.
+    for (let look = 0; look < 2 && markIndex === null; look++) {
+      if (look) await advance((ofDay(await now()) + 1) * DAY + 10.5 * HOUR);
+      s = await shown();
+      const outside = new Set((await people()).map((p) => p.index)),
+        visible = s?.lasting.find(
+          (p) =>
+            outside.has(p.index) && p.marks.some((m) => ["crutch", "stump", "patch"].includes(m)),
+        );
+      if (visible) markIndex = visible.index;
+    }
+    if (markIndex === null) continue;
+    markPlan = candidate;
+    say(`the lasting wound in ${markPlan.name}`);
+    break;
+  }
+}
 const markedFor = (l: Shown["lasting"]) =>
-  l.find((q) => q.marks.some((m) => m === "crutch" || m === "stump" || m === "patch"));
+  l.find(
+    (q) =>
+      (markIndex === null || q.index === markIndex) &&
+      q.marks.some((m) => m === "crutch" || m === "stump" || m === "patch"),
+  );
 let marked = markedFor(s?.lasting ?? []);
 if (!marked) {
   // (None yet: on to the morning after the first maimed is up again.)
-  const first = plan.people
+  const first = markPlan.people
     .flatMap((p, i) =>
       (p.wounds ?? [])
         .filter((w) => w.lasting === "crutch" || w.lasting === "stump" || w.lasting === "patch")
@@ -1027,14 +1080,14 @@ if (!marked) {
   if (first) await advance((ofDay(Math.max(first.up, await now())) + 1) * DAY + 10.5 * HOUR);
   s = await shown();
   marked = markedFor(s?.lasting ?? []);
-} else {
+} else if (markIndex === null) {
   await advance((ofDay(await now()) + 1) * DAY + 10.5 * HOUR);
   s = await shown();
   marked = markedFor(s?.lasting ?? []);
 }
 say(
   marked
-    ? `marked for good: ${plan.people[marked.index]!.name} (${marked.marks.join(", ")}); drawn ${s?.drawn.crutch ?? 0} crutches, ${s?.drawn.stumps ?? 0} stumps, ${s?.drawn.patch ?? 0} patches, ${s?.drawn.scar ?? 0} scars`
+    ? `marked for good: ${markPlan.people[marked.index]!.name} (${marked.marks.join(", ")}); drawn ${s?.drawn.crutch ?? 0} crutches, ${s?.drawn.stumps ?? 0} stumps, ${s?.drawn.patch ?? 0} patches, ${s?.drawn.scar ?? 0} scars`
     : "no one marked for good",
 );
 check(!!marked, "no one marked for good in the town");
@@ -1084,6 +1137,14 @@ if (marked) {
 }
 
 // 7. The town's wounded, and its healer's page.
+if (markPlan.ref !== plan.ref) {
+  await putAway();
+  await k(`globalThis.causalis.goTo(${JSON.stringify(plan.ref)})`);
+  await comes(
+    async () => (await k<number>(`globalThis.causalis.watching?.() ?? 0`)) === plan.people.length,
+    slow(30000),
+  );
+}
 await opened(`${plan.ref}#wounded`);
 const healing = Number((await factOn("Healing now")) ?? 0),
   forGood = Number((await factOn("Marked for good")) ?? 0),

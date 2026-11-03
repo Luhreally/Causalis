@@ -818,28 +818,56 @@ async function beast(hands: Hands, tag: string): Promise<void> {
   const armed = await arm(hands);
   check(!armed, n(armed ?? ""));
   if (armed) return;
-  await k(
-    `globalThis.causalis.rig.flyTo({ target: { x: ${pick.x * 0.1}, y: 0, z: ${pick.z * 0.1} }, distance: 6, pitch: -35 })`,
-  );
   // Opening the palette reframes the scene, and a software renderer can take longer
   // than a fixed delay to finish the flight. Aim at the beast only once both are done.
-  await page.waitForFunction(
-    () =>
-      !(globalThis as unknown as { causalis: { rig: { flying: boolean } } }).causalis.rig.flying,
-    undefined,
-    { timeout: slow(30_000) },
-  );
+  const lookAt = async (b: { x: number; z: number }): Promise<void> => {
+    await k(
+      `globalThis.causalis.rig.flyTo({ target: { x: ${b.x * 0.1}, y: 0, z: ${b.z * 0.1} }, distance: 6, pitch: -35 })`,
+    );
+    await page.waitForFunction(
+      () =>
+        !(globalThis as unknown as { causalis: { rig: { flying: boolean } } }).causalis.rig.flying,
+      undefined,
+      { timeout: slow(30_000) },
+    );
+  };
+  await lookAt(pick);
   // Resample a visible animal before each real tap. Its screen point must hit the
   // canvas: a tap on an overlaid palette tile can otherwise put Possess down instead.
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const target = await k<Laid | null>(`(() => {
-      const beasts = globalThis.causalis.held.beasts().filter(b => !b.dead && b.id < 900000 && b.at
-        && document.elementFromPoint(b.at.x,b.at.y)?.id === 'world');
-      return beasts.sort((a,b) => Number(b.id === ${pick.id}) - Number(a.id === ${pick.id}) || Number(b.flock) - Number(a.flock))[0] ?? null;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const seen = await k<{
+      target: Laid | null;
+      about: number;
+      ahead: number;
+      over: string[];
+      eye: unknown;
+    }>(`(() => {
+      const all = globalThis.causalis.held.beasts().filter(b => !b.dead && b.id < 900000),
+        over = b => {
+          const e = document.elementFromPoint(b.at.x, b.at.y);
+          return e ? e.id || String(e.className) || e.tagName : 'off the screen';
+        },
+        ahead = all.filter(b => b.at),
+        clear = ahead.filter(b => over(b) === 'world');
+      return {
+        target: clear.sort((a,b) => Number(b.id === ${pick.id}) - Number(a.id === ${pick.id}) || Number(b.flock) - Number(a.flock))[0] ?? null,
+        about: all.length,
+        ahead: ahead.length,
+        over: [...new Set(ahead.map(over))].slice(0, 6),
+        eye: globalThis.causalis.rig.view,
+      };
     })()`);
+    const target = seen.target;
     if (!target?.at) {
-      say(n(`no beast clear of the controls on attempt ${attempt + 1}`));
-      break;
+      say(
+        n(
+          `no beast clear of the controls on attempt ${attempt + 1}: ${seen.about} about, ${seen.ahead} ahead of the eye, under ${seen.over.join(", ") || "nothing"}; the eye ${JSON.stringify(seen.eye)}`,
+        ),
+      );
+      // (The eye may have been moved since, and the beast has walked on: look again, where it stands now.)
+      const now = await k<Laid[]>(`globalThis.causalis.held.beasts()`);
+      await lookAt(now.find((b) => b.id === pick.id) ?? pick);
+      continue;
     }
     if ((await k<string | null>(`globalThis.causalis.palette.holding()`)) !== "possess") {
       const why = await arm(hands);

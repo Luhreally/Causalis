@@ -83,6 +83,8 @@ export type WoundGear = {
   readonly props: readonly WoundProp[];
   readonly bound: readonly WoundBound[];
   readonly limp: number;
+  /** How many limbs end short: an arm or a hand gone, a leg gone (one to a limb, whichever of its parts are lost). */
+  readonly stumps: number;
 };
 
 /** Their look now (none once gone). */
@@ -249,7 +251,18 @@ export function woundGear(figure: Figure, look: WoundLook): WoundGear {
       ),
     );
   }
-  return { keep, hold, swing, props, bound, limp: look.limp || look.crutch ? LIMP_DIP : 0 };
+  return {
+    keep,
+    hold,
+    swing,
+    props,
+    bound,
+    limp: look.limp || look.crutch ? LIMP_DIP : 0,
+    // (A hand gone takes off a whole part where the figure draws one: `keep` alone would not tell it.)
+    stumps: new Set(
+      look.lost.filter((m) => /^(arm|hand|leg)-/.test(m)).map((m) => m.replace("hand", "arm")),
+    ).size,
+  };
 }
 
 /** A limb's pitch as a wound has it: held, or its pose's swing the less. */
