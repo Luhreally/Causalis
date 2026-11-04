@@ -26,6 +26,7 @@ import {
   type Port,
   type Query,
   type SeedLife,
+  type SeedReading,
   type ToHost,
   type ToMain,
 } from "../bridge/index.ts";
@@ -57,6 +58,12 @@ export type Universe = {
   readonly defaultView: string;
   /** Whether life arises on a seed's world, and a people in time (the world itself not built). */
   readonly life?: (seed: Seed) => SeedLife;
+  /** What a seed's world allows of each age, read from what it holds (the world itself not built). */
+  readonly reading?: (seed: Seed) => SeedReading;
+  /** Whether a seed is worth reading for an age: a glance at a coarse world of it, far cheaper. */
+  readonly glance?: (seed: Seed, target: string) => boolean;
+  /** The rules its worlds run by, read from a small world built for that alone. */
+  readonly ruleset?: () => string;
 };
 
 /**
@@ -351,6 +358,23 @@ export class SimHost {
             m.id,
             universe.life?.(seedFromText(m.seed)) ?? { living: true, peopled: true, words: "" },
           );
+          return;
+        }
+        case "reading": {
+          const universe = this.universes[m.universe];
+          if (!universe?.reading) throw new Error(`no reading of universe ${m.universe}`);
+          this.reply(m.id, universe.reading(seedFromText(m.seed)));
+          return;
+        }
+        case "glance": {
+          const universe = this.universes[m.universe];
+          this.reply(m.id, universe?.glance?.(seedFromText(m.seed), m.target) ?? true);
+          return;
+        }
+        case "ruleset": {
+          const universe = this.universes[m.universe];
+          if (!universe?.ruleset) throw new Error(`no rules of universe ${m.universe}`);
+          this.reply(m.id, universe.ruleset());
           return;
         }
         case "import": {

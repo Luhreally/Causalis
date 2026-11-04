@@ -44,9 +44,16 @@ function costOf(from: number, to: number): number {
   return ms;
 }
 
-/** About how many minutes a world takes to reach a year on the phone floor (from one it stands at). */
-export function phoneMinutesTo(year: number, from = 0): number {
-  return (costOf(from, year) * PHONE) / 60_000;
+/** The lands of the worlds the shape was measured on, about: a year's work goes by a world's lands (Phase 65). */
+const SHAPE_LANDS = 550;
+
+/**
+ * About how many minutes a world takes to reach a year on the phone floor (from one it stands at); and
+ * where its lands are known, for those lands: 26 worlds of 6 to 1,374 lands, run to year 3,000, took
+ * 1.3 to 2.7 s a land.
+ */
+export function phoneMinutesTo(year: number, from = 0, lands = SHAPE_LANDS): number {
+  return ((costOf(from, year) * PHONE) / 60_000) * (lands / SHAPE_LANDS);
 }
 
 /** "about 4 minutes", "under a minute" (or nothing yet, while there is too little to go by). */
@@ -69,16 +76,27 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return e;
 }
 
-/** The worlds this deploy baked ahead (none where it baked none). */
-export async function bakedWorlds(): Promise<readonly Baked[]> {
+/** What this deploy baked ahead, and whether the worlds it ran still stand as the catalogue recorded them. */
+type BakedManifest = { readonly worlds: readonly Baked[]; readonly catalogueMoved?: string };
+
+async function bakedManifest(): Promise<BakedManifest | null> {
   try {
     // (Not a manifest of an earlier deploy held in a cache; a page's fallback will not read as one.)
     const reply = await fetch("baked/manifest.json", { cache: "no-cache" });
-    if (!reply.ok) return [];
-    return ((await reply.json()) as { worlds: readonly Baked[] }).worlds;
+    return reply.ok ? ((await reply.json()) as BakedManifest) : null;
   } catch {
-    return [];
+    return null;
   }
+}
+
+/** The worlds this deploy baked ahead (none where it baked none). */
+export async function bakedWorlds(): Promise<readonly Baked[]> {
+  return (await bakedManifest())?.worlds ?? [];
+}
+
+/** Whether this deploy found a world no longer running as the catalogue's record of it says (tools/bake.ts). */
+export async function catalogueMoved(): Promise<boolean> {
+  return !!(await bakedManifest())?.catalogueMoved;
 }
 
 /** The nearest world baked ahead at or before a year, if a deploy made one for this seed and these rules. */

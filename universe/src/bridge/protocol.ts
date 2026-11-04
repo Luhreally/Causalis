@@ -42,6 +42,23 @@ export type ToHost =
   | { readonly kind: "deleteSave"; readonly id: number; readonly name: string }
   /** Whether life arises on a seed's world, and people in time (no world need be running). */
   | { readonly kind: "life"; readonly id: number; readonly universe: string; readonly seed: string }
+  /** What a seed's world allows, read from what it holds (no world need be running: Phase 65). */
+  | {
+      readonly kind: "reading";
+      readonly id: number;
+      readonly universe: string;
+      readonly seed: string;
+    }
+  /** Whether a seed is worth reading for an age: a glance, far cheaper than reading it. */
+  | {
+      readonly kind: "glance";
+      readonly id: number;
+      readonly universe: string;
+      readonly seed: string;
+      readonly target: string;
+    }
+  /** The rules a universe's worlds now run by, for a catalogue run under them or under others. */
+  | { readonly kind: "ruleset"; readonly id: number; readonly universe: string }
   | { readonly kind: "import"; readonly id: number; readonly bytes: Uint8Array }
   /** Run the world to a time at once (tests, tools and the skip). */
   | { readonly kind: "advance"; readonly id: number; readonly to: number }
@@ -125,6 +142,49 @@ export type SeedLife = {
     readonly seas: number;
     readonly kind?: string;
   };
+};
+
+/** What a seed's world allows of an age, read from what it holds (Phase 65: "Can it?"). */
+export type SeedAge = {
+  readonly id: string;
+  readonly icon: string;
+  /** The age, as this world's means would name it. */
+  readonly name: string;
+  readonly allowed: boolean;
+  /** Why it is open, or what shuts it. */
+  readonly why: string;
+  /** What would slow it, where it is open. */
+  readonly hard?: string;
+};
+
+/** What a seed's matter could later do: a function asked of it, met or not (Phase 65). */
+export type SeedFunction = {
+  readonly id: string;
+  readonly icon: string;
+  readonly name: string;
+  readonly later: boolean;
+  readonly met: boolean;
+  readonly why: string;
+};
+
+/** "Can it?": a seed's world read with no history run: what it holds, and the ages that allows. */
+export type SeedReading = {
+  readonly universe: string;
+  readonly seed: string;
+  readonly living: boolean;
+  readonly peopled: boolean;
+  /** Why not, where it is not peopled. */
+  readonly words: string;
+  readonly world?: SeedLife["world"];
+  /** How many lands its first people reach. */
+  readonly lands: number;
+  readonly medium: string;
+  readonly fire: boolean;
+  readonly kind: string;
+  readonly ages: readonly SeedAge[];
+  /** The furthest age it allows (null: none). */
+  readonly furthest: string | null;
+  readonly functions: readonly SeedFunction[];
 };
 
 /** A save as the saves page lists it: which world, how far on, how big, under how many rulesets. */

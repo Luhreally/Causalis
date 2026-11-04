@@ -3,6 +3,7 @@
 // (what kind, its seed, where it begins), the worlds kept in this browser (and a kept file
 // opened), the sandbox, how to play. Every choice is an address: the page goes there.
 import type { HostClient, SaveMeta, SeedLife } from "../bridge/index.ts";
+import { pickerForm } from "./picker.ts";
 import { seedWithAct, seedWithoutAct } from "../kernel/index.ts";
 import { bakedWorlds, phoneMinutesTo, type Baked } from "../ui/index.ts";
 import {
@@ -52,6 +53,11 @@ export function randomSeed(): string {
   const u = new Uint32Array(2);
   crypto.getRandomValues(u);
   return `${SEED_WORDS[u[0]! % SEED_WORDS.length]} ${u[1]! % 1000}`;
+}
+
+/** The i-th seed the picker reads, the same each time: the words in turn, the numbers well apart. */
+export function seedInTurn(i: number): string {
+  return `${SEED_WORDS[i % SEED_WORDS.length]} ${(17 + i * 37) % 1000}`;
 }
 
 /** What kind of world each universe makes, as the menu names it. */
@@ -267,6 +273,12 @@ export function showTitle(options: TitleOptions): void {
       );
     list.append(
       choice("✨", "New world", "what kind, its seed, where it begins", () => newWorld()),
+      choice(
+        "🎯",
+        "A world that gets there",
+        "choose an age, and get the seeds that reach it",
+        () => picker(),
+      ),
     );
     if (saves?.length)
       list.append(
@@ -290,6 +302,20 @@ export function showTitle(options: TitleOptions): void {
     body.replaceChildren(list);
     lead.hidden = false;
     if (options.first && !saves?.length) body.append(howList());
+  };
+
+  // Choose the age first: seeds that reached it in a run, and seeds that plausibly could (Phase 65).
+  const picker = () => {
+    body.replaceChildren(
+      pickerForm({
+        host,
+        go,
+        back: back(menu),
+        kinds: KINDS,
+        seedAt: seedInTurn,
+      }),
+    );
+    lead.hidden = true;
   };
 
   // A new world: its kind, its seed, where it begins.

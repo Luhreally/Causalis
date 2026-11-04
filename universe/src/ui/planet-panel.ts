@@ -21,8 +21,8 @@ const YEAR = 365 * DAY;
 
 /** Since when the world has been at its stage, in words (" since year 27"; the bands: nothing). */
 function stageSince(s: WorldStage): string {
-  const year = s.stages.find((x) => x.id === s.id)?.year;
-  return year ? ` since year ${year.toLocaleString("en-US")}` : "";
+  if (s.fell) return `, fallen from ${s.fell.name}`;
+  return s.since ? ` since year ${s.since.toLocaleString("en-US")}` : "";
 }
 
 type Summary = {
@@ -653,8 +653,8 @@ export class PlanetPanel {
     return this.chip(
       "stage",
       s.icon,
-      s.name,
-      `The world's stage: ${s.name}${stageSince(s)}`,
+      s.fell ? `↓ ${s.name}` : s.name,
+      `The world's age: ${s.name}${stageSince(s)}. Tap for why.`,
       "stage",
     );
   }

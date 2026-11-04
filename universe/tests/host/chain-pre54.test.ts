@@ -51,10 +51,14 @@ const BEFORE: Record<string, string> = {
 /**
  * What the digest reads of a page: its words. The pictures (`portrait`, `thumb`) are new in Phase 54
  * M223, and so are the links to elements (`elem:`) and the element rows' refs: each names words the
- * page already had, so a link reads as its text and an element's ref is left out.
+ * page already had, so a link reads as its text and an element's ref is left out. What a substance
+ * can do (Phase 65) is two new blocks on its page: every other word of the page stays.
  */
+const NEW_BLOCKS: ReadonlySet<unknown> = new Set(["What it can do", "What it would do here"]);
 const WORDS = (key: string, value: unknown): unknown => {
   if (key === "portrait" || key === "thumb") return undefined;
+  if (Array.isArray(value))
+    return value.filter((x) => !NEW_BLOCKS.has((x as { title?: unknown } | null)?.title));
   if (key === "ref" && typeof value === "string" && value.startsWith("elem:")) return undefined;
   // (A link is a span, {text, ref}: only a span reads as its text; an element's row keeps its cells.)
   if (value && typeof value === "object" && !Array.isArray(value)) {

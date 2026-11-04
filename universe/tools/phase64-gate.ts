@@ -268,7 +268,7 @@ try {
     caption[s.stage] = s.words;
     if (s.growth >= 0) grown.add(s.growth);
     chromeHidden &&= await k<boolean>(
-      `[...document.querySelectorAll("#hud > *:not(.colony-film):not(.swap):not(.readying)")].every((e) => getComputedStyle(e).display === "none")`,
+      `!document.body.classList.contains("filming") || [...document.querySelectorAll("#hud > *:not(.colony-film):not(.swap):not(.readying)")].every((e) => getComputedStyle(e).display === "none")`,
     );
     if (s.stage === "descent")
       groundBlack ||= await k<boolean>(

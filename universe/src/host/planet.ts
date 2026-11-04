@@ -75,6 +75,7 @@ import {
   tongueLikeness,
   tongueName,
   generateHomeWorld,
+  provinceWorld,
   type HomeWorld,
   type Region,
   type Tongue,
@@ -91,8 +92,11 @@ import {
   hashString,
   mix,
   parseRef,
+  rulesetId,
+  seedFromText,
   yearOfMoment,
   type Ref,
+  type Seed,
   type World,
 } from "../kernel/index.ts";
 import {
@@ -122,6 +126,7 @@ import type {
 
 /** The most garrisons the globe shows at the seats of realms at peace (Phase 12 M110). */
 const GARRISONS = 48;
+import { glanceSeed, readSeed } from "./can.ts";
 import type { Universe } from "./host.ts";
 import { OBSERVE_QUERIES } from "./observe.ts";
 import { PAGE_QUERIES } from "./pages.ts";
@@ -788,11 +793,27 @@ export function seedLife(g: HomeWorld): SeedLife {
   };
 }
 
+const RULES_FREQUENCY = 4;
+
 function planetUniverse(name: string, prior: Prior): Universe {
+  // (A world of its own chemistry's history changed with Phase 54 M222: its own ores, heats and arms.)
+  const version = name === "alien" ? "alien-8" : `${name}-7`,
+    make = (seed: Seed, frequency?: number) => {
+      // The chronicle opens after a generated prehistory: bands across the land.
+      const world = makePopulationWorld(seed, {
+        prior,
+        start: "spread",
+        ...(frequency ? { frequency } : {}),
+      });
+      observer(world);
+      // (Its colonies' towns as the eye reads them: Phase 64, nothing history holds.)
+      installColonyTowns(world);
+      return world;
+    };
+  let rules: string | null = null;
   return {
     name,
-    // (A world of its own chemistry's history changed with Phase 54 M222: its own ores, heats and arms.)
-    version: name === "alien" ? "alien-8" : `${name}-7`,
+    version,
     defaultView: "globe",
     // A farming land with no village yet will found one soon: work out its village sites early.
     idle: (world) => {
@@ -812,14 +833,15 @@ function planetUniverse(name: string, prior: Prior): Universe {
     // Whether life arises on a seed's world (asked 2026-10-24: a world never seen "where the world
     // supports life"; one in ten freezes over lifeless): its home world made, and nothing more.
     life: (seed) => seedLife(generateHomeWorld(seed, prior)),
-    build: (seed) => {
-      // The chronicle opens after a generated prehistory: bands across the land.
-      const world = makePopulationWorld(seed, { prior, start: "spread" });
-      observer(world);
-      // (Its colonies' towns as the eye reads them: Phase 64, nothing history holds.)
-      installColonyTowns(world);
-      return world;
+    // What a seed's world allows of each age (Phase 65: "Can it?"): its home world made, and nothing run.
+    reading: (seed) => {
+      const fine = generateHomeWorld(seed, prior);
+      return readSeed(fine, provinceWorld(fine), seed, name, seedLife(fine));
     },
+    glance: (seed, target) => glanceSeed(seed, prior, target),
+    // (The same whatever the seed or the size: a few lands' world tells it for a fraction of the work.)
+    ruleset: () => (rules ??= rulesetId(make(seedFromText("rules"), RULES_FREQUENCY), version)),
+    build: (seed) => make(seed),
     frames: {
       globe: (world) => globeFrame(world),
       region: (world, interest) => regionFrame(world, interest.focus),

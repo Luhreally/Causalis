@@ -1496,7 +1496,7 @@ async function runPlanetPage(): Promise<void> {
       return;
     }
     const at: Record<string, string> = {
-      stage: "world:chronicle#firsts",
+      stage: "world:means",
       people: "world:chronicle#story",
       towns: "world:ledger#towns",
       realms: "world:ledger#realms",

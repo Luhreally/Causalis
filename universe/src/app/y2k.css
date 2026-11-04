@@ -233,6 +233,7 @@ button:active {
 }
 /* A choice made (a new world's kind, where it begins, a making laid): lit sea-green. */
 .title-window .choice.on,
+.title-window .pick-age.on,
 .title-window .making-dial.on,
 .begin {
   color: #032b24;
@@ -906,6 +907,7 @@ body.paging .panel:not(.page-panel) .inspector {
  */
 .bar .clock {
   flex: 0 1 auto;
+  box-sizing: border-box;
   padding: 3px 10px;
   font-family: "Lucida Console", "Courier New", monospace;
   font-size: 0.86rem;

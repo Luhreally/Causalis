@@ -1,0 +1,1032 @@
+{
+  "rulesets": { "alien": "68531b94770b8b85", "earth": "d27abf4c39d3faa3" },
+  "versions": { "alien": "alien-8", "earth": "earth-7" },
+  "lastYear": 3000,
+  "cost": { "cpuSeconds": 41623, "wallSeconds": 6700, "jobs": 10 },
+  "agreement": {
+    "villages": {
+      "allowed": 34,
+      "reached": 34,
+      "clear": 34,
+      "clearReached": 34,
+      "shutReached": 0,
+      "shut": 0
+    },
+    "realms": {
+      "allowed": 34,
+      "reached": 34,
+      "clear": 34,
+      "clearReached": 34,
+      "shutReached": 0,
+      "shut": 0
+    },
+    "cities": {
+      "allowed": 34,
+      "reached": 34,
+      "clear": 34,
+      "clearReached": 34,
+      "shutReached": 0,
+      "shut": 0
+    },
+    "writing": {
+      "allowed": 34,
+      "reached": 34,
+      "clear": 34,
+      "clearReached": 34,
+      "shutReached": 0,
+      "shut": 0
+    },
+    "iron": {
+      "allowed": 34,
+      "reached": 34,
+      "clear": 34,
+      "clearReached": 34,
+      "shutReached": 0,
+      "shut": 0
+    },
+    "engines": {
+      "allowed": 27,
+      "reached": 26,
+      "clear": 23,
+      "clearReached": 23,
+      "shutReached": 0,
+      "shut": 7
+    },
+    "electricity": {
+      "allowed": 27,
+      "reached": 25,
+      "clear": 23,
+      "clearReached": 23,
+      "shutReached": 0,
+      "shut": 7
+    },
+    "orbit": {
+      "allowed": 27,
+      "reached": 25,
+      "clear": 23,
+      "clearReached": 23,
+      "shutReached": 0,
+      "shut": 7
+    },
+    "worlds": {
+      "allowed": 27,
+      "reached": 12,
+      "clear": 17,
+      "clearReached": 12,
+      "shutReached": 0,
+      "shut": 7
+    },
+    "stars": {
+      "allowed": 27,
+      "reached": 8,
+      "clear": 17,
+      "clearReached": 8,
+      "shutReached": 0,
+      "shut": 7
+    }
+  },
+  "agreementOf": {
+    "alien": {
+      "villages": {
+        "allowed": 25,
+        "reached": 25,
+        "clear": 25,
+        "clearReached": 25,
+        "shutReached": 0,
+        "shut": 0
+      },
+      "realms": {
+        "allowed": 25,
+        "reached": 25,
+        "clear": 25,
+        "clearReached": 25,
+        "shutReached": 0,
+        "shut": 0
+      },
+      "cities": {
+        "allowed": 25,
+        "reached": 25,
+        "clear": 25,
+        "clearReached": 25,
+        "shutReached": 0,
+        "shut": 0
+      },
+      "writing": {
+        "allowed": 25,
+        "reached": 25,
+        "clear": 25,
+        "clearReached": 25,
+        "shutReached": 0,
+        "shut": 0
+      },
+      "iron": {
+        "allowed": 25,
+        "reached": 25,
+        "clear": 25,
+        "clearReached": 25,
+        "shutReached": 0,
+        "shut": 0
+      },
+      "engines": {
+        "allowed": 19,
+        "reached": 18,
+        "clear": 15,
+        "clearReached": 15,
+        "shutReached": 0,
+        "shut": 6
+      },
+      "electricity": {
+        "allowed": 19,
+        "reached": 17,
+        "clear": 15,
+        "clearReached": 15,
+        "shutReached": 0,
+        "shut": 6
+      },
+      "orbit": {
+        "allowed": 19,
+        "reached": 17,
+        "clear": 15,
+        "clearReached": 15,
+        "shutReached": 0,
+        "shut": 6
+      },
+      "worlds": {
+        "allowed": 19,
+        "reached": 4,
+        "clear": 9,
+        "clearReached": 4,
+        "shutReached": 0,
+        "shut": 6
+      },
+      "stars": {
+        "allowed": 19,
+        "reached": 2,
+        "clear": 9,
+        "clearReached": 2,
+        "shutReached": 0,
+        "shut": 6
+      }
+    },
+    "earth": {
+      "villages": {
+        "allowed": 9,
+        "reached": 9,
+        "clear": 9,
+        "clearReached": 9,
+        "shutReached": 0,
+        "shut": 0
+      },
+      "realms": {
+        "allowed": 9,
+        "reached": 9,
+        "clear": 9,
+        "clearReached": 9,
+        "shutReached": 0,
+        "shut": 0
+      },
+      "cities": {
+        "allowed": 9,
+        "reached": 9,
+        "clear": 9,
+        "clearReached": 9,
+        "shutReached": 0,
+        "shut": 0
+      },
+      "writing": {
+        "allowed": 9,
+        "reached": 9,
+        "clear": 9,
+        "clearReached": 9,
+        "shutReached": 0,
+        "shut": 0
+      },
+      "iron": {
+        "allowed": 9,
+        "reached": 9,
+        "clear": 9,
+        "clearReached": 9,
+        "shutReached": 0,
+        "shut": 0
+      },
+      "engines": {
+        "allowed": 8,
+        "reached": 8,
+        "clear": 8,
+        "clearReached": 8,
+        "shutReached": 0,
+        "shut": 1
+      },
+      "electricity": {
+        "allowed": 8,
+        "reached": 8,
+        "clear": 8,
+        "clearReached": 8,
+        "shutReached": 0,
+        "shut": 1
+      },
+      "orbit": {
+        "allowed": 8,
+        "reached": 8,
+        "clear": 8,
+        "clearReached": 8,
+        "shutReached": 0,
+        "shut": 1
+      },
+      "worlds": {
+        "allowed": 8,
+        "reached": 8,
+        "clear": 8,
+        "clearReached": 8,
+        "shutReached": 0,
+        "shut": 1
+      },
+      "stars": {
+        "allowed": 8,
+        "reached": 6,
+        "clear": 8,
+        "clearReached": 6,
+        "shutReached": 0,
+        "shut": 1
+      }
+    }
+  },
+  "seeds": [
+    {
+      "universe": "alien",
+      "seed": "alien 41",
+      "kind": "rocky",
+      "medium": "water",
+      "lands": 608,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 20, "name": "Villages" },
+        "realms": { "year": 20, "name": "Realms" },
+        "cities": { "year": 20, "name": "Cities" },
+        "writing": { "year": 90, "name": "Writing" },
+        "iron": { "year": 290, "name": "Parted metals" },
+        "engines": { "year": 500, "name": "Tide mills" },
+        "electricity": { "year": 520, "name": "Sea electricity" },
+        "orbit": { "year": 720, "name": "Orbit" },
+        "worlds": { "year": 920, "name": "Other worlds" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "worlds", "name": "Other worlds" },
+      "check": "bef9f5e7",
+      "marks": { "500": "552108eb", "1500": "2a0eb9f9", "3000": "7217e372" },
+      "s": 1304
+    },
+    {
+      "universe": "alien",
+      "seed": "cinder 570",
+      "kind": "rocky",
+      "medium": "land",
+      "lands": 620,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 20, "name": "Villages" },
+        "realms": { "year": 20, "name": "Realms" },
+        "cities": { "year": 20, "name": "Cities" },
+        "writing": { "year": 140, "name": "Writing" },
+        "iron": { "year": 510, "name": "Iron" },
+        "engines": { "year": 960, "name": "Coal and steam" },
+        "electricity": { "year": 1020, "name": "Electricity" },
+        "orbit": { "year": 1170, "name": "Orbit" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "orbit", "name": "Orbit" },
+      "check": "fa4376eb",
+      "marks": { "500": "fee4a3e5", "1500": "dc71e08f", "3000": "b31a396f" },
+      "s": 1583
+    },
+    {
+      "universe": "alien",
+      "seed": "cinder 671",
+      "kind": "ammonia",
+      "medium": "land",
+      "lands": 247,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 20, "name": "Villages" },
+        "realms": { "year": 30, "name": "Realms" },
+        "cities": { "year": 60, "name": "Cities" },
+        "writing": { "year": 60, "name": "Writing" },
+        "iron": { "year": 60, "name": "Worked ice" },
+        "engines": { "year": 540, "name": "The ground's heat" },
+        "electricity": { "year": 640, "name": "Ground dynamos" },
+        "orbit": { "year": 1280, "name": "Orbit" }
+      },
+      "falls": [{ "year": 2100, "from": "orbit", "to": "electricity", "back": 2130 }],
+      "end": { "year": 3000, "id": "orbit", "name": "Orbit" },
+      "check": "57e5478a",
+      "marks": { "500": "ab4cf101", "1500": "7ebd8098", "3000": "8f6069ee" },
+      "s": 393
+    },
+    {
+      "universe": "alien",
+      "seed": "cinder 792",
+      "kind": "sulfur",
+      "medium": "land",
+      "lands": 814,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 20, "name": "Villages" },
+        "realms": { "year": 30, "name": "Realms" },
+        "cities": { "year": 40, "name": "Cities" },
+        "writing": { "year": 80, "name": "Writing" },
+        "iron": { "year": 100, "name": "Iron" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "iron", "name": "Steel" },
+      "check": "561dc732",
+      "marks": { "500": "c14694cc", "1500": "c3996dc5", "3000": "d8f74b2" },
+      "s": 1772
+    },
+    {
+      "universe": "alien",
+      "seed": "ember 211",
+      "kind": "rocky",
+      "medium": "land",
+      "lands": 2081,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 20, "name": "Villages" },
+        "realms": { "year": 30, "name": "Realms" },
+        "cities": { "year": 80, "name": "Cities" },
+        "writing": { "year": 80, "name": "Writing" },
+        "iron": { "year": 290, "name": "Iron" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "iron", "name": "Steel" },
+      "check": "e12b02c4",
+      "marks": { "500": "603ce951", "1500": "ef5a8c89", "3000": "8c1bf1c1" },
+      "s": 4252
+    },
+    {
+      "universe": "alien",
+      "seed": "ember 582",
+      "kind": "carbon",
+      "medium": "land",
+      "lands": 1027,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 20, "name": "Villages" },
+        "realms": { "year": 30, "name": "Realms" },
+        "cities": { "year": 30, "name": "Cities" },
+        "writing": { "year": 90, "name": "Writing" },
+        "iron": { "year": 90, "name": "Diamond and copper" },
+        "engines": { "year": 590, "name": "Sun engines" },
+        "electricity": { "year": 700, "name": "Graphite dynamos" },
+        "orbit": { "year": 1300, "name": "Orbit" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "orbit", "name": "Orbit" },
+      "check": "c3ff54c7",
+      "marks": { "500": "b5f02d84", "1500": "9623a2af", "3000": "1e4a3522" },
+      "s": 2371
+    },
+    {
+      "universe": "alien",
+      "seed": "gale 710",
+      "kind": "carbon",
+      "medium": "land",
+      "lands": 1584,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 20, "name": "Villages" },
+        "realms": { "year": 30, "name": "Realms" },
+        "cities": { "year": 50, "name": "Cities" },
+        "writing": { "year": 50, "name": "Writing" },
+        "iron": { "year": 50, "name": "Diamond and copper" },
+        "engines": { "year": 620, "name": "Sun engines" },
+        "electricity": { "year": 670, "name": "Graphite dynamos" },
+        "orbit": { "year": 1100, "name": "Orbit" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "orbit", "name": "Orbit" },
+      "check": "7dcdab4d",
+      "marks": { "500": "c158fb1e", "1500": "96209b78", "3000": "6de330dc" },
+      "s": 3057
+    },
+    {
+      "universe": "alien",
+      "seed": "harrow 259",
+      "kind": "sulfur",
+      "medium": "land",
+      "lands": 1148,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 20, "name": "Villages" },
+        "realms": { "year": 20, "name": "Realms" },
+        "cities": { "year": 20, "name": "Cities" },
+        "writing": { "year": 110, "name": "Writing" },
+        "iron": { "year": 110, "name": "Iron" },
+        "engines": { "year": 720, "name": "Coal and steam" },
+        "electricity": { "year": 870, "name": "Electricity" },
+        "orbit": { "year": 1050, "name": "Orbit" },
+        "worlds": { "year": 1160, "name": "Other worlds" },
+        "stars": { "year": 1270, "name": "Other stars" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "stars", "name": "Other stars" },
+      "check": "ae5e5502",
+      "marks": { "500": "a766bce", "1500": "326d9ec0", "3000": "6b3c5106" },
+      "s": 2783
+    },
+    {
+      "universe": "alien",
+      "seed": "harrow 348",
+      "kind": "rocky",
+      "medium": "land",
+      "lands": 62,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 20, "name": "Villages" },
+        "realms": { "year": 40, "name": "Realms" },
+        "cities": { "year": 80, "name": "Cities" },
+        "writing": { "year": 180, "name": "Writing" },
+        "iron": { "year": 430, "name": "Iron" },
+        "engines": { "year": 800, "name": "Coal and steam" },
+        "electricity": { "year": 1050, "name": "Electricity" },
+        "orbit": { "year": 1460, "name": "Orbit" },
+        "worlds": { "year": 1870, "name": "Other worlds" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "worlds", "name": "Other worlds" },
+      "check": "80396fba",
+      "marks": { "500": "b84d1679", "1500": "b4691e3c", "3000": "aca0f5d8" },
+      "s": 91
+    },
+    {
+      "universe": "alien",
+      "seed": "kestrel 557",
+      "kind": "rocky",
+      "medium": "water",
+      "lands": 12,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 150, "name": "Villages" },
+        "realms": { "year": 150, "name": "Realms" },
+        "cities": { "year": 150, "name": "Cities" },
+        "writing": { "year": 310, "name": "Writing" },
+        "iron": { "year": 410, "name": "Parted metals" },
+        "engines": { "year": 1090, "name": "Tide mills" },
+        "electricity": { "year": 1100, "name": "Sea electricity" },
+        "orbit": { "year": 1490, "name": "Orbit" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "orbit", "name": "Orbit" },
+      "check": "d533dbb1",
+      "marks": { "500": "68f8fa02", "1500": "ca6870ea", "3000": "e1b53873" },
+      "s": 19
+    },
+    {
+      "universe": "alien",
+      "seed": "lumen 285",
+      "kind": "rocky",
+      "medium": "land",
+      "lands": 17,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 20, "name": "Villages" },
+        "realms": { "year": 30, "name": "Realms" },
+        "cities": { "year": 30, "name": "Cities" },
+        "writing": { "year": 610, "name": "Writing" },
+        "iron": { "year": 610, "name": "Iron" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "iron", "name": "Steel" },
+      "check": "24d2fd12",
+      "marks": { "500": "7facce02", "1500": "55acda8e", "3000": "1c1a1995" },
+      "s": 29
+    },
+    {
+      "universe": "alien",
+      "seed": "lumen 433",
+      "kind": "carbon",
+      "medium": "land",
+      "lands": 1374,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 20, "name": "Villages" },
+        "realms": { "year": 20, "name": "Realms" },
+        "cities": { "year": 40, "name": "Cities" },
+        "writing": { "year": 50, "name": "Writing" },
+        "iron": { "year": 50, "name": "Diamond and copper" },
+        "engines": { "year": 550, "name": "Sun engines" },
+        "electricity": { "year": 590, "name": "Graphite dynamos" },
+        "orbit": { "year": 1090, "name": "Orbit" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "orbit", "name": "Orbit" },
+      "check": "24d7cfdc",
+      "marks": { "500": "8a219a33", "1500": "60eb1e79", "3000": "7c645fdf" },
+      "s": 2520
+    },
+    {
+      "universe": "alien",
+      "seed": "lumen 705",
+      "kind": "rocky",
+      "medium": "shore",
+      "lands": 973,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 20, "name": "Villages" },
+        "realms": { "year": 20, "name": "Realms" },
+        "cities": { "year": 20, "name": "Cities" },
+        "writing": { "year": 210, "name": "Writing" },
+        "iron": { "year": 460, "name": "Iron" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "iron", "name": "Steel" },
+      "check": "731e82fe",
+      "marks": { "500": "95c1e766", "1500": "711be267", "3000": "c3bc54f8" },
+      "s": 1488
+    },
+    {
+      "universe": "alien",
+      "seed": "marrow 145",
+      "kind": "ammonia",
+      "medium": "land",
+      "lands": 6,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 240, "name": "Villages" },
+        "realms": { "year": 240, "name": "Realms" },
+        "cities": { "year": 270, "name": "Cities" },
+        "writing": { "year": 310, "name": "Writing" },
+        "iron": { "year": 310, "name": "Worked ice" },
+        "engines": { "year": 2920, "name": "The ground's heat" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "engines", "name": "The ground's heat" },
+      "check": "48de5dfb",
+      "marks": { "500": "1a7aa4b8", "1500": "553671e3", "3000": "188d8bbc" },
+      "s": 8
+    },
+    {
+      "universe": "alien",
+      "seed": "marrow 266",
+      "kind": "sulfur",
+      "medium": "shore",
+      "lands": 1054,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 20, "name": "Villages" },
+        "realms": { "year": 30, "name": "Realms" },
+        "cities": { "year": 30, "name": "Cities" },
+        "writing": { "year": 150, "name": "Writing" },
+        "iron": { "year": 410, "name": "Iron" },
+        "engines": { "year": 970, "name": "Coal and steam" },
+        "electricity": { "year": 1170, "name": "Electricity" },
+        "orbit": { "year": 1510, "name": "Orbit" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "orbit", "name": "Orbit" },
+      "check": "fb12de94",
+      "marks": { "500": "a43d31d1", "1500": "d8b4e01b", "3000": "dbda4537" },
+      "s": 1870
+    },
+    {
+      "universe": "alien",
+      "seed": "north 292",
+      "kind": "methane",
+      "medium": "land",
+      "lands": 728,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 60, "name": "Villages" },
+        "realms": { "year": 60, "name": "Realms" },
+        "cities": { "year": 80, "name": "Cities" },
+        "writing": { "year": 80, "name": "Writing" },
+        "iron": { "year": 80, "name": "Worked ice" },
+        "engines": { "year": 570, "name": "Cold chemistry" },
+        "electricity": { "year": 660, "name": "Polymer wire" },
+        "orbit": { "year": 1500, "name": "Orbit" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "orbit", "name": "Orbit" },
+      "check": "25e92002",
+      "marks": { "500": "db334de0", "1500": "218aeabf", "3000": "9e424168" },
+      "s": 1171
+    },
+    {
+      "universe": "alien",
+      "seed": "north 495",
+      "kind": "rocky",
+      "medium": "water",
+      "lands": 26,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 30, "name": "Villages" },
+        "realms": { "year": 50, "name": "Realms" },
+        "cities": { "year": 90, "name": "Cities" },
+        "writing": { "year": 340, "name": "Writing" },
+        "iron": { "year": 530, "name": "Parted metals" },
+        "engines": { "year": 1500, "name": "Tide mills" },
+        "electricity": { "year": 1680, "name": "Sea electricity" },
+        "orbit": { "year": 1980, "name": "Orbit" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "orbit", "name": "Orbit" },
+      "check": "6d0587a0",
+      "marks": { "500": "dff080dd", "1500": "6c352b80", "3000": "421823cf" },
+      "s": 38
+    },
+    {
+      "universe": "alien",
+      "seed": "osier 692",
+      "kind": "rocky",
+      "medium": "land",
+      "lands": 490,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 20, "name": "Villages" },
+        "realms": { "year": 30, "name": "Realms" },
+        "cities": { "year": 80, "name": "Cities" },
+        "writing": { "year": 140, "name": "Writing" },
+        "iron": { "year": 540, "name": "Iron" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "iron", "name": "Steel" },
+      "check": "5f6e6177",
+      "marks": { "500": "cdcdedef", "1500": "9e81d93b", "3000": "6bff1a62" },
+      "s": 961
+    },
+    {
+      "universe": "alien",
+      "seed": "osier 855",
+      "kind": "ammonia",
+      "medium": "land",
+      "lands": 12,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 50, "name": "Villages" },
+        "realms": { "year": 70, "name": "Realms" },
+        "cities": { "year": 400, "name": "Cities" },
+        "writing": { "year": 400, "name": "Writing" },
+        "iron": { "year": 1370, "name": "Worked ice" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "iron", "name": "Worked ice" },
+      "check": "63642a9e",
+      "marks": { "500": "74cdb708", "1500": "d728d5e3", "3000": "4df12895" },
+      "s": 19
+    },
+    {
+      "universe": "alien",
+      "seed": "quill 742",
+      "kind": "rocky",
+      "medium": "land",
+      "lands": 69,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 30, "name": "Villages" },
+        "realms": { "year": 40, "name": "Realms" },
+        "cities": { "year": 80, "name": "Cities" },
+        "writing": { "year": 130, "name": "Writing" },
+        "iron": { "year": 780, "name": "Iron" },
+        "engines": { "year": 940, "name": "Coal and steam" },
+        "electricity": { "year": 1050, "name": "Electricity" },
+        "orbit": { "year": 1290, "name": "Orbit" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "orbit", "name": "Orbit" },
+      "check": "5276e702",
+      "marks": { "500": "7837ecae", "1500": "cded680d", "3000": "fdeaa06c" },
+      "s": 130
+    },
+    {
+      "universe": "alien",
+      "seed": "sorrel 199",
+      "kind": "rocky",
+      "medium": "land",
+      "lands": 2606,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 20, "name": "Villages" },
+        "realms": { "year": 50, "name": "Realms" },
+        "cities": { "year": 160, "name": "Cities" },
+        "writing": { "year": 160, "name": "Writing" },
+        "iron": { "year": 260, "name": "Iron" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "iron", "name": "Steel" },
+      "check": "2133d7dd",
+      "marks": { "500": "e4894331", "1500": "cfac51af", "3000": "8880c3bc" },
+      "s": 4385
+    },
+    {
+      "universe": "alien",
+      "seed": "thistle 643",
+      "kind": "rocky",
+      "medium": "shore",
+      "lands": 479,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 20, "name": "Villages" },
+        "realms": { "year": 20, "name": "Realms" },
+        "cities": { "year": 20, "name": "Cities" },
+        "writing": { "year": 180, "name": "Writing" },
+        "iron": { "year": 180, "name": "Iron" },
+        "engines": { "year": 960, "name": "Engines" },
+        "electricity": { "year": 960, "name": "Electricity" },
+        "orbit": { "year": 1450, "name": "Orbit" },
+        "worlds": { "year": 1740, "name": "Other worlds" },
+        "stars": { "year": 1900, "name": "Other stars" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "stars", "name": "Other stars" },
+      "check": "bc525088",
+      "marks": { "500": "4d54d0c6", "1500": "8431ed77", "3000": "4eb56cf0" },
+      "s": 800
+    },
+    {
+      "universe": "alien",
+      "seed": "vale 471",
+      "kind": "methane",
+      "medium": "land",
+      "lands": 1030,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 20, "name": "Villages" },
+        "realms": { "year": 20, "name": "Realms" },
+        "cities": { "year": 20, "name": "Cities" },
+        "writing": { "year": 50, "name": "Writing" },
+        "iron": { "year": 50, "name": "Worked ice" },
+        "engines": { "year": 490, "name": "Cold chemistry" },
+        "electricity": { "year": 620, "name": "Polymer wire" },
+        "orbit": { "year": 1860, "name": "Orbit" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "orbit", "name": "Orbit" },
+      "check": "3c9d6bb4",
+      "marks": { "500": "adcfdfb5", "1500": "8ba09a0", "3000": "f4f16c74" },
+      "s": 1688
+    },
+    {
+      "universe": "alien",
+      "seed": "vale 496",
+      "kind": "rocky",
+      "medium": "water",
+      "lands": 82,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 40, "name": "Villages" },
+        "realms": { "year": 40, "name": "Realms" },
+        "cities": { "year": 40, "name": "Cities" },
+        "writing": { "year": 140, "name": "Writing" },
+        "iron": { "year": 170, "name": "Parted metals" },
+        "engines": { "year": 680, "name": "Tide mills" },
+        "electricity": { "year": 990, "name": "Sea electricity" },
+        "orbit": { "year": 1180, "name": "Orbit" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "orbit", "name": "Orbit" },
+      "check": "6559771b",
+      "marks": { "500": "b5224fe4", "1500": "23738aec", "3000": "86e474ed" },
+      "s": 134
+    },
+    {
+      "universe": "alien",
+      "seed": "wren 113",
+      "kind": "rocky",
+      "medium": "land",
+      "lands": 318,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 20, "name": "Villages" },
+        "realms": { "year": 60, "name": "Realms" },
+        "cities": { "year": 200, "name": "Cities" },
+        "writing": { "year": 200, "name": "Writing" },
+        "iron": { "year": 840, "name": "Iron" },
+        "engines": { "year": 1120, "name": "Coal and steam" },
+        "electricity": { "year": 1210, "name": "Electricity" },
+        "orbit": { "year": 1410, "name": "Orbit" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "orbit", "name": "Orbit" },
+      "check": "432ad18e",
+      "marks": { "500": "18f12e9", "1500": "6c5602e8", "3000": "99cad677" },
+      "s": 539
+    },
+    {
+      "universe": "earth",
+      "seed": "amber 101",
+      "kind": "rocky",
+      "medium": "land",
+      "lands": 485,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 20, "name": "Villages" },
+        "realms": { "year": 30, "name": "Realms" },
+        "cities": { "year": 50, "name": "Cities" },
+        "writing": { "year": 170, "name": "Writing" },
+        "iron": { "year": 170, "name": "Iron" },
+        "engines": { "year": 560, "name": "Coal and steam" },
+        "electricity": { "year": 680, "name": "Electricity" },
+        "orbit": { "year": 930, "name": "Orbit" },
+        "worlds": { "year": 1140, "name": "Other worlds" },
+        "stars": { "year": 1380, "name": "Other stars" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "stars", "name": "Other stars" },
+      "check": "3c4d73f",
+      "marks": { "500": "cda1a22f", "1500": "937cc581", "3000": "bec0302d" },
+      "s": 851
+    },
+    {
+      "universe": "earth",
+      "seed": "ember 260",
+      "kind": "rocky",
+      "medium": "land",
+      "lands": 202,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 20, "name": "Villages" },
+        "realms": { "year": 30, "name": "Realms" },
+        "cities": { "year": 50, "name": "Cities" },
+        "writing": { "year": 80, "name": "Writing" },
+        "iron": { "year": 350, "name": "Iron" },
+        "engines": { "year": 750, "name": "Coal and steam" },
+        "electricity": { "year": 910, "name": "Electricity" },
+        "orbit": { "year": 1270, "name": "Orbit" },
+        "worlds": { "year": 1390, "name": "Other worlds" },
+        "stars": { "year": 1510, "name": "Other stars" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "stars", "name": "Other stars" },
+      "check": "a56e92c3",
+      "marks": { "500": "88fdd36e", "1500": "6fd3cbf1", "3000": "50251436" },
+      "s": 547
+    },
+    {
+      "universe": "earth",
+      "seed": "first light",
+      "kind": "rocky",
+      "medium": "land",
+      "lands": 549,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 20, "name": "Villages" },
+        "realms": { "year": 20, "name": "Realms" },
+        "cities": { "year": 30, "name": "Cities" },
+        "writing": { "year": 80, "name": "Writing" },
+        "iron": { "year": 270, "name": "Iron" },
+        "engines": { "year": 570, "name": "Coal and steam" },
+        "electricity": { "year": 700, "name": "Electricity" },
+        "orbit": { "year": 970, "name": "Orbit" },
+        "worlds": { "year": 1150, "name": "Other worlds" },
+        "stars": { "year": 1860, "name": "Other stars" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "stars", "name": "Other stars" },
+      "check": "4f4fc1bd",
+      "marks": { "500": "fb244154", "1500": "de3a799b", "3000": "f96207cc" },
+      "s": 976
+    },
+    {
+      "universe": "earth",
+      "seed": "harrow 313",
+      "kind": "rocky",
+      "medium": "land",
+      "lands": 945,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 20, "name": "Villages" },
+        "realms": { "year": 30, "name": "Realms" },
+        "cities": { "year": 50, "name": "Cities" },
+        "writing": { "year": 80, "name": "Writing" },
+        "iron": { "year": 80, "name": "Iron" },
+        "engines": { "year": 740, "name": "Coal and steam" },
+        "electricity": { "year": 790, "name": "Electricity" },
+        "orbit": { "year": 1060, "name": "Orbit" },
+        "worlds": { "year": 1220, "name": "Other worlds" },
+        "stars": { "year": 1350, "name": "Other stars" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "stars", "name": "Other stars" },
+      "check": "d5be6964",
+      "marks": { "500": "74265417", "1500": "2ef5ac3e", "3000": "ff3ec740" },
+      "s": 1849
+    },
+    {
+      "universe": "earth",
+      "seed": "kestrel 154",
+      "kind": "rocky",
+      "medium": "land",
+      "lands": 93,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 30, "name": "Villages" },
+        "realms": { "year": 30, "name": "Realms" },
+        "cities": { "year": 70, "name": "Cities" },
+        "writing": { "year": 180, "name": "Writing" },
+        "iron": { "year": 230, "name": "Iron" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "iron", "name": "Steel" },
+      "check": "17091cb2",
+      "marks": { "500": "bd0aa5a8", "1500": "6ed83fa4", "3000": "579a4a26" },
+      "s": 166
+    },
+    {
+      "universe": "earth",
+      "seed": "lumen 366",
+      "kind": "rocky",
+      "medium": "land",
+      "lands": 379,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 20, "name": "Villages" },
+        "realms": { "year": 30, "name": "Realms" },
+        "cities": { "year": 40, "name": "Cities" },
+        "writing": { "year": 140, "name": "Writing" },
+        "iron": { "year": 140, "name": "Iron" },
+        "engines": { "year": 630, "name": "Coal and steam" },
+        "electricity": { "year": 760, "name": "Electricity" },
+        "orbit": { "year": 860, "name": "Orbit" },
+        "worlds": { "year": 1360, "name": "Other worlds" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "worlds", "name": "Other worlds" },
+      "check": "e0e11fee",
+      "marks": { "500": "934245ea", "1500": "d90dcabf", "3000": "4d3edec0" },
+      "s": 935
+    },
+    {
+      "universe": "earth",
+      "seed": "quill 419",
+      "kind": "rocky",
+      "medium": "land",
+      "lands": 544,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 20, "name": "Villages" },
+        "realms": { "year": 30, "name": "Realms" },
+        "cities": { "year": 50, "name": "Cities" },
+        "writing": { "year": 100, "name": "Writing" },
+        "iron": { "year": 250, "name": "Iron" },
+        "engines": { "year": 690, "name": "Coal and steam" },
+        "electricity": { "year": 780, "name": "Electricity" },
+        "orbit": { "year": 980, "name": "Orbit" },
+        "worlds": { "year": 1180, "name": "Other worlds" },
+        "stars": { "year": 2300, "name": "Other stars" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "stars", "name": "Other stars" },
+      "check": "23f0d333",
+      "marks": { "500": "f57d2a63", "1500": "fd356abc", "3000": "2746bb2b" },
+      "s": 1217
+    },
+    {
+      "universe": "earth",
+      "seed": "sorrel 472",
+      "kind": "rocky",
+      "medium": "land",
+      "lands": 534,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 20, "name": "Villages" },
+        "realms": { "year": 30, "name": "Realms" },
+        "cities": { "year": 40, "name": "Cities" },
+        "writing": { "year": 100, "name": "Writing" },
+        "iron": { "year": 150, "name": "Iron" },
+        "engines": { "year": 720, "name": "Coal and steam" },
+        "electricity": { "year": 870, "name": "Electricity" },
+        "orbit": { "year": 1100, "name": "Orbit" },
+        "worlds": { "year": 1230, "name": "Other worlds" },
+        "stars": { "year": 1350, "name": "Other stars" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "stars", "name": "Other stars" },
+      "check": "4f27a532",
+      "marks": { "500": "3006d417", "1500": "e308b91", "3000": "c81a9b84" },
+      "s": 1145
+    },
+    {
+      "universe": "earth",
+      "seed": "tide 207",
+      "kind": "rocky",
+      "medium": "land",
+      "lands": 269,
+      "ages": {
+        "bands": { "year": 0, "name": "Bands" },
+        "villages": { "year": 20, "name": "Villages" },
+        "realms": { "year": 30, "name": "Realms" },
+        "cities": { "year": 60, "name": "Cities" },
+        "writing": { "year": 100, "name": "Writing" },
+        "iron": { "year": 490, "name": "Iron" },
+        "engines": { "year": 780, "name": "Coal and steam" },
+        "electricity": { "year": 800, "name": "Electricity" },
+        "orbit": { "year": 1030, "name": "Orbit" },
+        "worlds": { "year": 1510, "name": "Other worlds" }
+      },
+      "falls": [],
+      "end": { "year": 3000, "id": "worlds", "name": "Other worlds" },
+      "check": "eff3e183",
+      "marks": { "500": "fe569864", "1500": "a1925106", "3000": "c9dc0529" },
+      "s": 532
+    }
+  ]
+}

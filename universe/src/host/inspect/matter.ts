@@ -60,6 +60,8 @@ import {
   type Recipe,
   type Stone,
   type Substance,
+  propertiesOf,
+  readFunctions,
 } from "../../rules/index.ts";
 import { yearOfMoment, type World } from "../../kernel/index.ts";
 import {
@@ -73,6 +75,7 @@ import {
 import { isProvinceWorld, nativeIronLands, starAgeGyr, worldChemistry } from "../../gen/index.ts";
 import type { Block, Item, Line, PageModel, Tab } from "../../bridge/index.ts";
 import { count, item, link, share, stat, yearNow } from "./words.ts";
+import { matterWorldOf } from "../reading.ts";
 import { ownWordsItems } from "../names.ts";
 import { landLink, landTitle } from "./names.ts";
 import { airBlock } from "./ground.ts";
@@ -433,12 +436,38 @@ export function substancePage(world: World, ref: string): PageModel {
       stat("Density", `${count(s.density)} kg/m³`),
       ...(s.melts !== null ? [stat("Melts at", `${count(s.melts)} °C`)] : []),
       ...(s.hardness !== null ? [stat("Hardness", `${s.hardness} (Mohs)`)] : []),
+    ],
+    // What later steps ask of it (Phase 65): how strong, how well it carries a current, how wide its gap.
+    can = propertiesOf(id),
+    abilities = [
+      ...(can?.strength !== undefined ? [stat("Strength", `${count(can.strength)} MPa`)] : []),
+      ...(can?.conductivity !== undefined
+        ? [stat("Carries current", `${can.conductivity} MS/m`)]
+        : []),
+      ...(can?.bandGap !== undefined ? [stat("Band gap", `${can.bandGap} eV`)] : []),
+      ...(can?.superconductsK !== undefined
+        ? [stat("Lossless below", `${can.superconductsK} K`)]
+        : []),
+      ...(can?.sublimes !== undefined ? [stat("Stands to", `${count(can.sublimes)} °C`)] : []),
     ];
   const blocks: Block[] = [
     { type: "text", lines: [[s.words]] },
     elementsBlock(elementShares(s), null),
     { type: "facts", title: "How it is", rows: properties },
+    ...(abilities.length
+      ? [{ type: "facts" as const, title: "What it can do", rows: abilities }]
+      : []),
   ];
+  // (What it does for this world's functions: Phase 65.)
+  const meets = readFunctions(matterWorldOf(world)).filter((f) => f.subst === id);
+  if (meets.length)
+    blocks.push({
+      type: "list",
+      title: "What it would do here",
+      items: meets.map((f) =>
+        item(`${f.icon} ${f.name}${f.later ? " (an age past ours)" : ""}: ${f.why}`),
+      ),
+    });
   // (What it is in its world's life, where that is not Earth's: Phase 57.)
   const life = lifeUseBlock(world, id);
   if (life) blocks.push(life);

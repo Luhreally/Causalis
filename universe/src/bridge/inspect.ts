@@ -521,6 +521,8 @@ export type Portrait =
     };
 
 export type PageKind =
+  | "means"
+  | "measure"
   | "land"
   | "spot"
   | "town"
@@ -657,9 +659,14 @@ export type Answer = {
  * last in that order, and each with the year it was first reached and where (null: not yet).
  */
 export type WorldStage = {
+  /** Its age now, read from what its peoples can do (Phase 65), named after its own means. */
   readonly id: string;
   readonly icon: string;
   readonly name: string;
+  /** Since when, where that can be told (null: not since its first; a world that has fallen). */
+  readonly since?: number | null;
+  /** The furthest it has come, where it has fallen from it. */
+  readonly fell?: { readonly id: string; readonly name: string; readonly year: number };
   readonly stages: readonly {
     readonly id: string;
     readonly icon: string;

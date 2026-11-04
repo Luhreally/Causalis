@@ -2,6 +2,7 @@
 // ref, and the few names that are not refs (a far star, another star's world, one under
 // the god's hand) — to its page, and its place for "go to it". Pure reads of the world as
 // it stands (the observer ledger aside, which history never reads): asking never moves it.
+import { meansPage, measurePage } from "./means.ts";
 import { parseRef, type World } from "../../kernel/index.ts";
 import {
   splitPageRef,
@@ -56,6 +57,9 @@ function build(world: World, ref: string, tab: string | null): PageModel {
   if (ref === "world:log") return logPage(world, tab ?? undefined);
   if (ref === "world:stats") return statsPage(world, tab ?? undefined);
   if (ref === "world:matter") return matterGuidePage(world, tab ?? undefined);
+  // What a world can do, measured, and the age that makes it (Phase 65).
+  if (ref === "world:means") return meansPage(world, tab ?? undefined);
+  if (ref.startsWith("means:")) return measurePage(world, ref);
   // The tree of life (Phase 17 M129), and a line of it no living lineage is.
   if (ref === "world:tree") return treePage(world, tab ?? undefined);
   if (ref.startsWith("clade:")) return cladePage(world, ref);

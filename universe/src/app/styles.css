@@ -1402,3 +1402,132 @@ body[data-scale="micro"] {
   position: static;
   margin: 0;
 }
+
+/* The seed picker (Phase 65): "reached" and "plausibly" kept visibly apart. */
+.pick-ages {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.pick-age {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 0.95rem;
+}
+.pick-age.on {
+  font-weight: 700;
+}
+/* (Earth-like or never seen, side by side: what they mean is said on the New world page.) */
+.pick-kinds {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.title-window .pick-kinds .choice {
+  min-height: 44px;
+  padding: 8px 10px;
+}
+.title-window .pick-kinds .choice small {
+  display: none;
+}
+.pick-age-icon {
+  flex: none;
+  width: 1.5em;
+  text-align: center;
+}
+.pick-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  align-items: baseline;
+  padding: 10px 12px;
+  margin: 6px 0;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.22);
+}
+.pick-run {
+  border-left: 4px solid #6fd08c;
+}
+.pick-read-row {
+  border-left: 4px dashed #d9b45b;
+}
+.pick-row small {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.pick-seed {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.pick-tag {
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+p.pick-tag {
+  white-space: normal;
+  margin: 8px 0 4px;
+  font-weight: 600;
+}
+.pick-tag-run {
+  color: #6fd08c;
+}
+.pick-tag-maybe {
+  color: #d9b45b;
+}
+.pick-tag-shut {
+  color: #e58a7b;
+}
+.pick-more {
+  grid-column: 1 / -1;
+  margin-top: 8px;
+  cursor: default;
+}
+.pick-more p,
+.pick-own-said p {
+  margin: 4px 0;
+  font-size: 0.85rem;
+}
+.pick-ages-line {
+  line-height: 1.5;
+}
+.pick-later {
+  margin: 10px 0 2px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.pick-age-line {
+  margin: 4px 0;
+  font-size: 0.85rem;
+}
+.pick-age-line b {
+  font-weight: 600;
+}
+.pick-age-line span {
+  color: var(--muted);
+}
+.pick-age-line.shut b {
+  color: #e58a7b;
+}
+.pick-age-line.allowed b {
+  color: #d9b45b;
+}
+.pick-open {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 8px;
+}
+.pick-further {
+  min-height: 44px;
+}
+.pick-read {
+  width: auto;
+  padding: 0 14px;
+}
+.pick-status {
+  min-height: 1.4em;
+}

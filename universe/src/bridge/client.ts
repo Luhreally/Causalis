@@ -8,6 +8,7 @@ import type {
   Query,
   SaveMeta,
   SeedLife,
+  SeedReading,
   Status,
   ToHost,
   ToMain,
@@ -120,6 +121,18 @@ export class HostClient {
   /** Whether life arises on a seed's world (its living things), and a people in time. */
   lifeOf(universe: string, seed: string): Promise<SeedLife> {
     return this.request((id) => ({ kind: "life", id, universe, seed }));
+  }
+  /** What a seed's world allows of each age, read from what it holds, with no history run. */
+  readingOf(universe: string, seed: string): Promise<SeedReading> {
+    return this.request((id) => ({ kind: "reading", id, universe, seed }));
+  }
+  /** Whether a seed is worth reading for an age: a glance, far cheaper than reading it. */
+  glanceOf(universe: string, seed: string, target: string): Promise<boolean> {
+    return this.request((id) => ({ kind: "glance", id, universe, seed, target }));
+  }
+  /** The rules a universe's worlds now run by. */
+  rulesetOf(universe: string): Promise<string> {
+    return this.request((id) => ({ kind: "ruleset", id, universe }));
   }
   exportSave(): Promise<Uint8Array> {
     return this.request((id) => ({ kind: "export", id }));

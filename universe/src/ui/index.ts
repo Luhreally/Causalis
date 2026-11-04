@@ -3,6 +3,13 @@
 // See README.md and docs/architecture §31.
 export { GodBrushes } from "./brushes.ts";
 export { bakedWorlds, jumpToYear, phoneMinutesTo, type Baked } from "./jump.ts";
+export {
+  catalogueFor,
+  runWords,
+  type Agreement,
+  type CatalogueSeed,
+  type UniverseCatalogue,
+} from "./catalogue.ts";
 export { SandboxPanel } from "./panel.ts";
 export { LabelLayer, type Label } from "./labels.ts";
 export { PlanetPanel, type ChipKind, type PeopleEntry, type WorldStats } from "./planet-panel.ts";

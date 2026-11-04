@@ -43,8 +43,24 @@ export const NOVEL_ELEMENTS: readonly Element[] = [
 /** Elements neither Earth's tables nor the novel ones needed: those a world's life holds (Phase 57). */
 export const LIFE_ELEMENTS: readonly Element[] = [{ symbol: "V", name: "vanadium", mass: 50.942 }];
 
+/**
+ * Elements neither they nor the kinds' tables needed: what later steps ask for (Phase 65:
+ * rules/properties.ts), beside the rest so every list of those stays what it was.
+ */
+export const LATER_ELEMENTS: readonly Element[] = [
+  { symbol: "B", name: "boron", mass: 10.81 },
+  { symbol: "Ti", name: "titanium", mass: 47.867 },
+  { symbol: "Ga", name: "gallium", mass: 69.723 },
+  { symbol: "Ge", name: "germanium", mass: 72.63 },
+  { symbol: "Nb", name: "niobium", mass: 92.906 },
+  { symbol: "W", name: "tungsten", mass: 183.84 },
+];
+
 const MASS: Readonly<Record<string, number>> = Object.fromEntries(
-  [...ELEMENTS, ...NOVEL_ELEMENTS, ...LIFE_ELEMENTS].map((e) => [e.symbol, e.mass]),
+  [...ELEMENTS, ...NOVEL_ELEMENTS, ...LIFE_ELEMENTS, ...LATER_ELEMENTS].map((e) => [
+    e.symbol,
+    e.mass,
+  ]),
 );
 
 /** What kind of matter a substance is (for the words and the colour of its bars). */
@@ -2787,16 +2803,23 @@ export const LIFE_SUBSTANCES: readonly Substance[] = [
   ),
 ];
 
+/** What later steps ask for (Phase 65): rules/properties.ts names them, and hands them here. */
+let laterSubstances: readonly Substance[] = [];
+export function knowLaterSubstances(list: readonly Substance[]): void {
+  laterSubstances = list;
+}
+
 /**
  * A substance by its id: Earth's first, then those of other chemistries, then the kinds' (Phase 56),
- * then life's (Phase 57).
+ * then life's (Phase 57), then what later steps ask for (Phase 65).
  */
 export function findSubstance(id: string): Substance | undefined {
   const i = SUBSTANCE[id];
   return i === undefined
     ? (NOVEL_SUBSTANCES.find((s) => s.id === id) ??
         KIND_SUBSTANCES.find((s) => s.id === id) ??
-        LIFE_SUBSTANCES.find((s) => s.id === id))
+        LIFE_SUBSTANCES.find((s) => s.id === id) ??
+        laterSubstances.find((s) => s.id === id))
     : SUBSTANCES[i];
 }
 
@@ -2813,7 +2836,8 @@ export function findElement(symbol: string): Element | undefined {
   return (
     ELEMENTS.find((e) => e.symbol === symbol) ??
     NOVEL_ELEMENTS.find((e) => e.symbol === symbol) ??
-    LIFE_ELEMENTS.find((e) => e.symbol === symbol)
+    LIFE_ELEMENTS.find((e) => e.symbol === symbol) ??
+    LATER_ELEMENTS.find((e) => e.symbol === symbol)
   );
 }
 

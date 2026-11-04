@@ -252,6 +252,10 @@ export const GATES: readonly Gate[] = [
   // the town it grew into, at a phone's size, the world's clock held and history untouched; down to that
   // ground through the scales; its people tapped and one possessed. It bakes its own world to year 1300.
   { gate: 64, args: ["--ci"], s: 900 },
+  // The Phase 65 gate: a world chosen by the age it reaches on the title, those run in full kept apart
+  // from those only read; a seed typed in read; a catalogue of other rules passed over; a result opened
+  // at its year; the chip's age, why it stands there, what it lacks, each measure a page.
+  { gate: 65, args: ["--ci"], s: 260 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */
