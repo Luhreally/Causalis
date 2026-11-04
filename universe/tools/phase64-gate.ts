@@ -380,6 +380,20 @@ try {
     "a colony's sky over a town of the home world",
   );
   await shot("12b-home-town-after-a-colony");
+  // (A large home town, drawn without a graphics card, can take a frame long enough to outlast a tap's
+  // wait. Told, so that a freeze would be seen as one.)
+  const frameMs = await page.evaluate(
+    () =>
+      new Promise<number>((done) => {
+        const start = performance.now();
+        let left = 5;
+        const next = () =>
+          --left ? requestAnimationFrame(next) : done((performance.now() - start) / 4);
+        requestAnimationFrame(() => requestAnimationFrame(next));
+      }),
+  );
+  say(`  a frame in the home town after a colony: ${Math.round(frameMs)} ms`);
+  page.setDefaultTimeout(slow(60000));
   await page.tap(".colonies-button");
   await page.waitForSelector(".colony-row");
   await page.tap(`.colony-watch[data-cell="${moon.cell}"]`);
