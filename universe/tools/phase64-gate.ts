@@ -96,12 +96,15 @@ const server = await preview({
   });
 const context = await browser.newContext({
     viewport: { width: 430, height: 932 },
-    deviceScaleFactor: 3,
+    // (Three times the pixels each way is nine times the drawing: without a graphics card, as on CI,
+    // frames then outlast a tap's wait.)
+    deviceScaleFactor: ci || soft ? 1 : 3,
     hasTouch: true,
     isMobile: true,
   }),
   page = await context.newPage(),
   errors: string[] = [];
+page.setDefaultTimeout(slow(60000));
 page.on("pageerror", (e) => errors.push(`${e.message}\n${e.stack ?? ""}`));
 page.on("console", (m) => {
   if (m.type() === "error") errors.push(m.text());
@@ -393,7 +396,6 @@ try {
       }),
   );
   say(`  a frame in the home town after a colony: ${Math.round(frameMs)} ms`);
-  page.setDefaultTimeout(slow(60000));
   await page.tap(".colonies-button");
   await page.waitForSelector(".colony-row");
   await page.tap(`.colony-watch[data-cell="${moon.cell}"]`);
