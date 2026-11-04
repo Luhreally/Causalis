@@ -380,7 +380,7 @@ export function paletteLand(world: World, cell: number): PaletteLand | null {
         ? { ref: l.ref, name: l.name, color: languageColor(l.family, l.index) }
         : null;
     })(),
-    towns: [...ctx.settlements.inProvince(cell)]
+    towns: [...ctx.settlements.seenIn(cell)]
       .filter((t) => t.population > 0)
       .sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1))
       .map((t) => ({

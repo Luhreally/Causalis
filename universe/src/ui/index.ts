@@ -34,6 +34,7 @@ export { SearchBox } from "./search.ts";
 export { Outliner } from "./outliner.ts";
 export { Tooltip } from "./tooltip.ts";
 export { HoverTips, breakdownCard, tipCard } from "./hovertip.ts";
+export { Colonies } from "./colonies.ts";
 export { Alerts, LogButton } from "./alerts.ts";
 export { ArmsBook, drawArms, paintArms } from "./arms.ts";
 export { EventWindows, isGreat, type EventMode } from "./events.ts";

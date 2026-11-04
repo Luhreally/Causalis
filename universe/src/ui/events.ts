@@ -72,6 +72,8 @@ export class EventWindows {
   onOpen: (ref: string) => void = () => {};
   /** A battle, watched fought on its field (Phase 37 M187); null: not offered. */
   onBattle: ((event: string) => void) | null = null;
+  /** A landing watched, by its event (Phase 64). */
+  onLanding: ((event: string) => void) | null = null;
 
   /** How great happenings are told when the viewer has not chosen: in windows, or as cards. */
   private readonly fallback: EventMode;
@@ -231,6 +233,14 @@ export class EventWindows {
       watch.onclick = () => {
         this.letBe();
         this.onBattle?.(t.ref);
+      };
+      buttons.append(watch);
+    }
+    if ((t.type === "space.colony" || t.type === "space.arrival") && this.onLanding) {
+      const watch = el("button", "event-go", "🚀 Watch the landing");
+      watch.onclick = () => {
+        this.letBe();
+        this.onLanding?.(t.ref);
       };
       buttons.append(watch);
     }

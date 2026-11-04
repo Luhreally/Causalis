@@ -85,7 +85,12 @@ export function installLocalActs(world: World, ctx: () => PopulationContext): vo
   const village = (args: unknown): string | null => {
     const ref = (args as Partial<PlaceArgs> | null)?.village;
     if (typeof ref !== "string") return "village must be a village's ref";
-    return ctx().settlements.get(ref as Ref) ? null : `no village ${ref}`;
+    if (ctx().settlements.held(ref as Ref)) return null;
+    // (A colony's town is read from its land's ledger, and kept nowhere: what was done to it would
+    // not stay done. Its people can be touched, under the hand; its land can be struck.)
+    return ctx().settlements.get(ref as Ref)
+      ? "this reaches no sealed halls: lay your hand on its people, or strike its land"
+      : `no village ${ref}`;
   };
   const agent = (args: unknown): string | null => {
     const id = (args as Partial<PersonArgs> | null)?.agent,

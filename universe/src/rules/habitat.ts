@@ -4,7 +4,7 @@
 // must build and keep up: sealed halls, pressure hulls, heaters, buried vaults, flooded
 // vaults for a people of the water. Each lack is a yearly upkeep in machines for every
 // settler; a body whose upkeep is past bearing is not settled at all.
-import { dmath } from "../kernel/index.ts";
+import { dmath, sphereGrid } from "../kernel/index.ts";
 import type { BodyPlan } from "./bodies.ts";
 import { affordancesOf } from "./bodies.ts";
 
@@ -114,4 +114,70 @@ export function habitability(g: Ground, body: BodyPlan | null, homeGravity: numb
     upkeep,
     because: needs.filter((n) => n.upkeep > 0).map((n) => n.words),
   };
+}
+
+/**
+ * Where a body's colony sites stand on its face (Phase 10 M95; here since Phase 64, for the ground
+ * to be gone down to as well as seen from orbit). The simulation keeps a site's halls and people,
+ * not their place on the body, so each site is placed on the ground (not sea: cover 1) nearest one
+ * of three directions spread about the body, a little north of its equator: the same each time.
+ */
+export function hallCells(frequency: number, cover: Uint8Array, sites = 3): number[] {
+  const grid = sphereGrid(frequency),
+    p = grid.positions,
+    out: number[] = [];
+  for (let k = 0; k < sites; k++) {
+    const theta = 0.7 + (k * 2 * Math.PI) / sites,
+      phi = 0.25,
+      dx = dmath.cos(theta) * dmath.cos(phi),
+      dy = dmath.sin(phi),
+      dz = dmath.sin(theta) * dmath.cos(phi);
+    let ground = -1,
+      groundDot = -Infinity,
+      any = 0,
+      anyDot = -Infinity;
+    for (let c = 0; c < grid.count; c++) {
+      const d = p[c * 3]! * dx + p[c * 3 + 1]! * dy + p[c * 3 + 2]! * dz;
+      if (d > anyDot) {
+        anyDot = d;
+        any = c;
+      }
+      // (Sea is 1; ground and ice bear halls.)
+      if (cover[c] !== 1 && d > groundDot) {
+        groundDot = d;
+        ground = c;
+      }
+    }
+    out.push(ground >= 0 ? ground : any);
+  }
+  return out;
+}
+
+/**
+ * A world's ground by its warmth, its air and its tint (of the world seen whole, and of the land its
+ * halls stand on): baked yellow under a crushing air, scorched grey-brown where the star beats on
+ * bare rock, the greys of a moon's dust, rust and ochre on a cold world with a breath of air, frosted
+ * grey beyond.
+ */
+export function rockOf(
+  kind: string,
+  air: string,
+  tint: number,
+  t: number,
+): readonly [number, number, number] {
+  const mix = (
+      a: readonly [number, number, number],
+      b: readonly [number, number, number],
+      k: number,
+    ): readonly [number, number, number] => [
+      a[0] + (b[0] - a[0]) * k,
+      a[1] + (b[1] - a[1]) * k,
+      a[2] + (b[2] - a[2]) * k,
+    ],
+    thin = air === "none" || air === "trace";
+  if (air === "crushing" && t > 150) return mix([0.86, 0.64, 0.28], [0.92, 0.76, 0.42], tint);
+  if (thin && t > 60) return mix([0.36, 0.32, 0.29], [0.48, 0.42, 0.36], tint);
+  if (kind === "moon") return mix([0.44, 0.43, 0.42], [0.58, 0.55, 0.5], tint);
+  if (t > -120) return mix([0.66, 0.3, 0.16], [0.72, 0.52, 0.32], tint);
+  return mix([0.5, 0.48, 0.47], [0.6, 0.52, 0.46], tint);
 }

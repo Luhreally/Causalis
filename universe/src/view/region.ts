@@ -1,6 +1,7 @@
 // How a region looks, as data: tile colours for a lens and heights for the
 // terrain mesh. Pure, like every view builder.
-import type { FrameMessage, LandSky } from "../bridge/index.ts";
+import type { ColonyLook, FrameMessage, LandSky } from "../bridge/index.ts";
+import { rockOf } from "../rules/index.ts";
 import { biomeColor, frameKind, frameLook, kindWater } from "./globe.ts";
 import type { Rgb } from "./sandbox.ts";
 import { seasonAt, seasonGround, seasonWater, type GroundSeason } from "./weather.ts";
@@ -68,7 +69,11 @@ export function regionColors(frame: FrameMessage, lens: RegionLens): Uint8Array 
   const kind = frameKind(frame),
     waters = kindWater(kind),
     // (What grows there its life's own colour: Phase 57.)
-    look = frameLook(frame);
+    look = frameLook(frame),
+    // (A land of another body: its rock as the world is painted seen whole, Phase 64.)
+    colony = (frame.meta as { colony?: ColonyLook | null }).colony ?? null,
+    warm = a.warm as Float32Array | undefined,
+    rise = hi > lo ? hi - lo : 1;
   for (let t = 0; t < n; t++) {
     const water = a.water![t]!;
     let c: Rgb;
@@ -76,7 +81,15 @@ export function regionColors(frame: FrameMessage, lens: RegionLens): Uint8Array 
     else if (water === 2) c = waters?.river ?? [0.14, 0.5, 0.88];
     else if (water === 3) c = waters?.lake ?? [0.1, 0.44, 0.8];
     // (The map's lens without the map's colours to hand: the land as it is.)
-    else if (lens === "land" || lens === "world") c = biomeColor(a.biome![t]!, kind, look);
+    else if (colony && lens !== "height" && lens !== "soil") {
+      if (a.biome![t] === 4) c = [0.84, 0.89, 0.95];
+      else {
+        // (Lighter on the heights, darker in its hollows, and a little of each by the facet.)
+        const rock = rockOf(colony.kind, colony.air, colony.tint, warm?.[t] ?? colony.temperature),
+          k = 0.78 + 0.36 * ((e[t]! - lo) / rise) + 0.1 * Math.sin(t * 12.9898);
+        c = [rock[0] * k, rock[1] * k, rock[2] * k];
+      }
+    } else if (lens === "land" || lens === "world") c = biomeColor(a.biome![t]!, kind, look);
     else if (lens === "height") {
       const k = hi > lo ? (e[t]! - lo) / (hi - lo) : 0;
       c = [0.25 + 0.6 * k, 0.45 + 0.35 * k, 0.25 + 0.55 * k];

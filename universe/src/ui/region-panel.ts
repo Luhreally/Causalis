@@ -55,6 +55,11 @@ export class RegionPanel {
   private view = 0;
   private village: { ref: string; cell: number; name: string } | null = null;
   onBack: () => void = () => {};
+  private readonly backButton = el("button", "speed", "‹ The world");
+  /** Where the bar's back button leads, in words. */
+  set backTo(words: string) {
+    this.backButton.textContent = `‹ ${words}`;
+  }
   /** Watch a village through the microscope. */
   onWatch: (ref: string) => void = () => {};
   onLens: (lens: RegionLens) => void = () => {};
@@ -72,7 +77,7 @@ export class RegionPanel {
       this.whyTitle.scrollIntoView({ block: "start", behavior: "smooth" });
     };
     const bar = el("header", "bar"),
-      back = el("button", "speed", "‹ The world");
+      back = this.backButton;
     back.onclick = () => this.onBack();
     bar.append(back, this.where, this.timeSlot);
     const lenses = el("div", "speeds");

@@ -1,0 +1,213 @@
+/* A landing watched (Phase 64): the game's chrome put away and a film's own over the whole screen, a
+   year in the bar's lit figures at the top, what is happening in a caption low down where a thumb
+   does not rest, and a way out. Inside the phone's safe areas, in the era's glossy look. */
+body.filming #hud > *:not(.colony-film):not(.swap):not(.readying) {
+  display: none !important;
+}
+.colony-film {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  font-size: 15px;
+}
+.colony-film[hidden] {
+  display: none !important;
+}
+.film-year {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  left: calc(env(safe-area-inset-left, 0px) + 12px);
+  padding: 5px 12px;
+  border: 1px solid rgba(160, 190, 255, 0.5);
+  border-radius: 4px;
+  background: linear-gradient(180deg, #0a1a10, #06120a);
+  color: #b8f06a;
+  font-family: "Courier New", ui-monospace, monospace;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-shadow: 0 0 6px rgba(160, 240, 90, 0.6);
+}
+.film-skip {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 10px);
+  right: calc(env(safe-area-inset-right, 0px) + 12px);
+  min-width: 72px;
+  min-height: 40px;
+  padding: 6px 14px;
+  border: 1px solid #5d78b8;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f4f7ff 0%, #c9d6f2 48%, #a9bbe4 52%, #d8e3fb 100%);
+  color: #16264e;
+  font-size: 15px;
+  pointer-events: auto;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+.film-words {
+  position: absolute;
+  left: calc(env(safe-area-inset-left, 0px) + 12px);
+  right: calc(env(safe-area-inset-right, 0px) + 12px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 28px);
+  padding: 10px 14px;
+  border: 1px solid rgba(160, 190, 255, 0.45);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(36, 58, 118, 0.86), rgba(14, 24, 58, 0.9));
+  color: #f2f6ff;
+  line-height: 1.35;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+.film-words:empty {
+  display: none;
+}
+@media (min-width: 700px) {
+  .film-words {
+    left: 50%;
+    right: auto;
+    width: 560px;
+    transform: translateX(-50%);
+  }
+}
+
+/* The worlds settled: the list of them, a tap apart, and news of one newly come. */
+.colonies-button {
+  position: relative;
+}
+.colonies-button[hidden] {
+  display: none !important;
+}
+.colonies-count {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  min-width: 16px;
+  padding: 0 3px;
+  border-radius: 8px;
+  background: #d9542b;
+  color: #fff;
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+}
+.colonies-button.new {
+  box-shadow: 0 0 0 3px rgba(255, 190, 80, 0.85);
+}
+.colony-sheet {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+  max-height: min(56vh, 520px);
+  overflow-y: auto;
+  z-index: 28;
+  padding: 10px 12px 12px;
+  border: 1px solid rgba(160, 190, 255, 0.5);
+  border-radius: 10px;
+  background: var(--panel-solid);
+  color: #f2f6ff;
+  pointer-events: auto;
+}
+.colony-sheet[hidden] {
+  display: none !important;
+}
+@media (min-width: 700px) {
+  .colony-sheet {
+    left: auto;
+    right: 12px;
+    width: 420px;
+    /* (Over the hand's bar along the screen's foot.) */
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 84px);
+  }
+}
+.colony-sheet-title {
+  flex: 1;
+}
+.colony-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-weight: 700;
+}
+.colony-sheet-head button {
+  min-width: 40px;
+  min-height: 36px;
+  pointer-events: auto;
+}
+.colony-row {
+  padding: 8px 0;
+  border-top: 1px solid rgba(160, 190, 255, 0.25);
+}
+.colony-row-name {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #ffd98a;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.colony-row-facts {
+  margin: 2px 0 6px;
+  color: #c9d6f2;
+  font-size: 13px;
+}
+.colony-row-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.colony-row-acts button {
+  min-height: 40px;
+  padding: 6px 12px;
+  border: 1px solid #5d78b8;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f4f7ff 0%, #c9d6f2 48%, #a9bbe4 52%, #d8e3fb 100%);
+  color: #16264e;
+  font-size: 14px;
+  cursor: pointer;
+}
+.colony-news {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 84px);
+  z-index: 27;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 200, 110, 0.7);
+  border-radius: 10px;
+  background: var(--panel-solid);
+  color: #f2f6ff;
+  font-size: 14px;
+  pointer-events: auto;
+}
+.colony-news[hidden] {
+  display: none !important;
+}
+.colony-news span {
+  flex: 1;
+}
+.colony-news button {
+  min-height: 40px;
+  padding: 6px 12px;
+  border: 1px solid #5d78b8;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f4f7ff 0%, #c9d6f2 48%, #a9bbe4 52%, #d8e3fb 100%);
+  color: #16264e;
+  white-space: nowrap;
+  cursor: pointer;
+}
+@media (min-width: 700px) {
+  .colony-news {
+    left: auto;
+    right: 12px;
+    width: 420px;
+  }
+}

@@ -42,6 +42,8 @@ export class Tidings {
   onBattle: ((event: string) => void) | null = null;
   /** A war watched unfolding, by its peace's event (Phase 38 M193). */
   onWar: ((event: string) => void) | null = null;
+  /** A landing watched, by its event (Phase 64). */
+  onLanding: ((event: string) => void) | null = null;
 
   constructor(root: HTMLElement, client: HostClient) {
     this.client = client;
@@ -148,6 +150,15 @@ export class Tidings {
       watch.onclick = () => {
         card.remove();
         this.onWar?.(t.ref);
+      };
+      head.append(from, watch, close);
+    } else if ((t.type === "space.colony" || t.type === "space.arrival") && this.onLanding) {
+      // (A landing: played again, from its crossing to the town it grew into, Phase 64.)
+      const watch = el("button", "tiding-watch", "🚀 Watch");
+      watch.title = "Its ship's crossing, its landing on that ground, and its halls growing";
+      watch.onclick = () => {
+        card.remove();
+        this.onLanding?.(t.ref);
       };
       head.append(from, watch, close);
     } else head.append(from, close);

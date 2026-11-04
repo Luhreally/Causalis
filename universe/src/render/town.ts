@@ -27,6 +27,7 @@ import {
   type TownThing,
 } from "../view/index.ts";
 import { InstancedBatch, boxMesh, coneMesh, cylinderMesh, gableMesh, keptMesh } from "./batch.ts";
+import { domeMesh } from "./colony.ts";
 import type { Rgb, Stage } from "./stage.ts";
 
 const M = 0.1;
@@ -128,6 +129,7 @@ export class TownLayer {
   constructor(stage: Stage, parent: pc.Entity) {
     parent.addChild(this.root);
     const meshes: Record<PartMesh, pc.Mesh> = {
+      dome: keptMesh(domeMesh(stage)),
       box: keptMesh(boxMesh(stage)),
       gable: keptMesh(gableMesh(stage)),
       cone: keptMesh(coneMesh(stage, 0.5, 1, 8)),
@@ -210,7 +212,7 @@ export class TownLayer {
 
   /** Where its buildings smoke at moment t (Phase 41 M199): their chimneys' tops (metres). */
   chimneys(t: number): { x: number; y: number; z: number }[] {
-    return this.scene ? civicChimneys(this.scene, t) : [];
+    return this.scene && !this.scene.plan.sealed ? civicChimneys(this.scene, t) : [];
   }
 
   /** Its mills, kilns and smithies standing at moment t, for their work drawn moving (Phase 41 M199). */

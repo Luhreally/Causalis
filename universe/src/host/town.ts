@@ -3,7 +3,8 @@
 // stand in (the design of each run, the oldest in their own), how long each level takes to
 // raise, and whether its streets are paved. Looked at, never lived.
 import { YEAR, hashString, yearOfMoment, type Ref, type World } from "../kernel/index.ts";
-import { HOME_MONTHS, roofPitch, strikeHurt } from "../rules/index.ts";
+import { COVER } from "../gen/index.ts";
+import { HOME_MONTHS, rockOf, roofPitch, strikeHurt } from "../rules/index.ts";
 import {
   DISASTER_EVENTS,
   LOCAL_ACT_EVENTS,
@@ -11,11 +12,14 @@ import {
   designsOf,
   houseFor,
   populationContext,
+  siteGround,
   townsOf,
+  type Fabric,
 } from "../sim/index.ts";
 import type { TownDesign, TownPlan, TownStrike, TownWater } from "../bridge/index.ts";
 import { kindOf } from "./kinds.ts";
 import { worldLook } from "./biochem.ts";
+import { colonyTownCell } from "./colony.ts";
 
 /** How long what struck a town is told to its plan: its homes burn a day, and lie in ruin years. */
 const STRUCK_SHOWN = 2 * YEAR;
@@ -79,8 +83,10 @@ export function townPlan(
   axis: number,
   most = Infinity,
   water: TownWater | null = null,
+  /** Its fabric, if it is read of another than the one that stands now (a colony as it stood: Phase 64). */
+  fabric?: Fabric,
 ): TownPlan | null {
-  const f = townsOf(world).get(ref);
+  const f = fabric ?? townsOf(world).get(ref);
   if (!f) return null;
   const lots = Math.min(f.next, most);
   const ctx = populationContext(world),
@@ -132,7 +138,7 @@ export function townPlan(
         : null,
     months: HOME_MONTHS,
     designs,
-    paved: !!citiesOf(world).get(ref)?.paved,
+    paved: !!citiesOf(world).get(ref)?.paved || colonyTownCell(ref) !== null,
     water,
     year: Math.min(year, yearOfMoment(world.now)),
     // (What struck it lately: Phase 42 M201.)
@@ -140,9 +146,27 @@ export function townPlan(
       const struck = strikesOn(world, ref, land?.ref ?? null);
       return struck.length ? { struck } : {};
     })(),
-    // (Its world's kind, for its yards' colours: Phase 56.)
-    ...(kindOf(world) === "rocky" ? {} : { kind: kindOf(world) }),
-    // (Its life's colours, for its yards' grass: Phase 57.)
-    ...worldLook(world),
+    // (A colony's: its halls, on its own world's ground, Phase 64; no home world's colours.)
+    ...(() => {
+      const ground = colonyTownCell(ref) === null ? null : siteGround(world, cell);
+      return ground
+        ? {
+            sealed: {
+              rock: rockOf(
+                ground.body.kind,
+                ground.body.air,
+                ground.world.tint,
+                ground.world.temperature[ground.hall] ?? 0,
+              ),
+              icy: ground.world.cover[ground.hall] === COVER.ice,
+            },
+          }
+        : {
+            // (Its world's kind, for its yards' colours: Phase 56.)
+            ...(kindOf(world) === "rocky" ? {} : { kind: kindOf(world) }),
+            // (Its life's colours, for its yards' grass: Phase 57.)
+            ...worldLook(world),
+          };
+    })(),
   };
 }

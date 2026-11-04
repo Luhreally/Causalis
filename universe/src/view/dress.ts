@@ -49,6 +49,31 @@ export function clothes(era: VillagePlan["era"], group: number): { body: Rgb; le
 export const EYES: Rgb = [0.07, 0.06, 0.06];
 
 /**
+ * What those of a colony wear out of doors where its air cannot be breathed (Phase 64): a pressure suit
+ * with a band of their group's colour, its helmet and its gold visor over whatever they are; the air they
+ * can breathe, what they wear at home.
+ */
+export function dressedOn(
+  body: FigureBody | null,
+  era: VillagePlan["era"],
+  group: number,
+  colony: VillagePlan["colony"],
+): ReturnType<typeof figurePaint> {
+  const paint = figurePaint(body, era, group);
+  if (!colony || colony.air === "breathable") return paint;
+  const bright = GROUP_COLORS[group]!,
+    suit: Rgb = [0.78 + bright[0] * 0.2, 0.78 + bright[1] * 0.2, 0.78 + bright[2] * 0.2],
+    legs: Rgb = [0.72, 0.73, 0.76],
+    visor: Rgb = [0.86, 0.62, 0.22],
+    helmet: Rgb = [0.94, 0.94, 0.92];
+  return {
+    tones: [suit, legs, helmet, helmet, visor, bright],
+    hairs: [helmet],
+    folk: paint.folk,
+  };
+}
+
+/**
  * The colour of each of a figure's tones (0 … 5) for one of its people's groups (Phase 34): the
  * upright apes in their land's clothes, their bare skin, their eyes; a people in their own look in
  * their hide, its darker limbs and lighter face, their markings and their eyes, and their clothes

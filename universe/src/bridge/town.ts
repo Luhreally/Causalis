@@ -7,6 +7,7 @@
 // walls, its roof) or standing at its level in the design it was raised in, the ruin of one
 // fallen or burnt; its other buildings rising, standing, fallen; its walls. Shared by the host
 // (its people's homes, where its fields begin) and the view (what is drawn).
+import type { ColonyLook } from "./colony.ts";
 import { MONTH, YEAR, mix } from "../kernel/index.ts";
 import type { GenesisPlan, MeadowPlan } from "./genesis.ts";
 
@@ -100,6 +101,11 @@ export type TownPlan = {
   readonly kind?: string;
   /** Its world's life's colours, where they are not Earth's green (Phase 57): its yards' grass. */
   readonly lifeLook?: string;
+  /**
+   * Its halls on another body (Phase 64): each home a sealed pod or tower, its streets covered ways,
+   * its ground that world's (`rock`, `ice`: what its yards and streets are laid on).
+   */
+  readonly sealed?: { readonly rock: readonly [number, number, number]; readonly icy: boolean };
 };
 
 /** A small hash of whole numbers, for the plan's wanderings (not history's). */
@@ -680,6 +686,8 @@ export type LandPlan = {
   readonly roads: readonly LandRoad[];
   readonly lanes: readonly LandLane[];
   readonly camps: readonly LandCamp[];
+  /** Its world's sky and ground, where it is a land of another body (Phase 64). */
+  readonly colony?: ColonyLook;
 };
 
 /**

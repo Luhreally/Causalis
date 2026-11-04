@@ -367,6 +367,24 @@ export const CONCEPTS: Readonly<Record<string, Concept>> = {
     see: [{ text: "The race to the sky", ref: "world:ledger#sky" }],
     related: ["flight", "star-sickness", "war"],
   },
+  colonies: {
+    icon: "🚀",
+    title: "Landings and colonies",
+    what: [
+      "A realm that has learned the road to the other worlds, and has machines enough to spare, sends a ship of 500 settlers to the world that suits it best. The ship's way among the worlds is the one its pull and its fuel allow: it leaves when the two worlds stand right for it, and it comes down on its own engines, through what air there is.",
+      "Where the air cannot be breathed, its people live in sealed halls: their air made and kept, their water made inside, their crops grown under glass, what they brought their only beasts. They go out suited. Each world asks its own: a moon with no air must hold its pressure against the empty sky; one far from its star must heat its halls against the cold.",
+      "Its town grows as its people do, year on year: the first pods about the pad, then rings of domes, then towers, as its land's ledger counts them. Its ground, its sky and its light are that world's own: the rock it stands on, the colour of what air it has, its star as small as it stands from there, and the world it circles hung over its horizon.",
+    ],
+    drives: [
+      "What the realm knows and has to spare; what the world's air, cold, pull and light ask of its halls; how many are born there and how many come.",
+    ],
+    leads: [
+      "A people on other ground, as many-sided as any: every one of them someone under your hand, to be read and walked among.",
+      "Its realm's reach among the worlds; in time, ships to the stars.",
+    ],
+    see: [{ text: "The race to the sky", ref: "world:ledger#sky" }],
+    related: ["flight", "contact"],
+  },
   ages: {
     icon: "📜",
     title: "The ages",
@@ -442,7 +460,7 @@ export const CONCEPT_OF: Readonly<Record<string, string>> = {
   "Driven out of": "web",
   Rain: "climate",
   Warmth: "climate",
-  Halls: "flight",
+  Halls: "colonies",
   "Sent out": "flight",
   Sailed: "flight",
   Fleet: "flight",

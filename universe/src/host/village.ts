@@ -239,7 +239,7 @@ export function landHeart(world: World, cell: number): Ref | null {
   return (
     heartTown(
       populationContext(world)
-        .settlements.inProvince(cell)
+        .settlements.seenIn(cell)
         .filter((s) => s.population > 0)
         .map((s) => ({
           ref: s.ref,
@@ -627,7 +627,7 @@ export function villagePlan(
     if (all <= 0 || !markets.flows.length) return undefined;
     const share = Math.min(1, population / all),
       named = (c: number) => {
-        const towns = ctx.settlements.inProvince(c).filter((x) => x.population > 0),
+        const towns = ctx.settlements.seenIn(c).filter((x) => x.population > 0),
           best =
             towns.find((x) => x.market !== null) ??
             [...towns].sort((a, b) => b.population - a.population)[0];

@@ -1,6 +1,7 @@
 // The microscope's plan of a village, as the host sends it (docs/architecture §9,
 // watch mode): what the view needs to draw a village's day. Positions are metres
 // from the village's middle.
+import type { ColonyLook } from "./colony.ts";
 import type { HostKinds } from "./wars.ts";
 import type { TownPlan } from "./town.ts";
 import type { Away, Wound } from "./wounds.ts";
@@ -272,6 +273,8 @@ export type VillagePlan = {
   readonly fireless?: true;
   /** Its world's life's colours, where they are not Earth's green (Phase 57): its trees, crops and grass. */
   readonly lifeLook?: string;
+  /** Its world's sky and ground, where it stands on another body (Phase 64): sealed halls. */
+  readonly colony?: ColonyLook;
   readonly seed: number;
   /** Positions in metres from the village's middle; `household` for the watched homes. */
   readonly homes: readonly { x: number; z: number; yaw: number; household: string | null }[];

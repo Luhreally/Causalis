@@ -34,7 +34,7 @@ function measures(world: World, r: Polity) {
   return {
     people: r.members.reduce((n, c) => n + (ctx.provinces.get(c)?.total() ?? 0), 0),
     lands: r.members.length,
-    towns: r.members.reduce((n, c) => n + ctx.settlements.inProvince(c).length, 0),
+    towns: r.members.reduce((n, c) => n + ctx.settlements.seenIn(c).length, 0),
     fields: r.ended === null ? fieldedOf(ctx, r) : 0,
     wars: fought.length,
     won: fought.reduce(

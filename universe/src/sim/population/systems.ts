@@ -89,6 +89,7 @@ import {
 } from "../../rules/index.ts";
 import { homePlanet } from "../planet/store.ts";
 import { lightSteps, starSitesOf } from "../space/stars.ts";
+import { siteRegion } from "../space/ground.ts";
 import { starHazard } from "../acts/great.ts";
 import { capacity, COLS, livable, Province, row, ROWS, type Capacity } from "./model.ts";
 import {
@@ -340,6 +341,9 @@ export function regionReady(ctx: PopulationContext, cell: number): boolean {
 }
 
 export function regionOf(ctx: PopulationContext, cell: number): Region {
+  // (A land of another body: its own world's ground, Phase 64.)
+  const there = offworldSite(ctx.generated, cell) ? siteRegion(ctx.world, cell) : null;
+  if (there) return there;
   const key = `${homePlanet(ctx.world).surfaceKey}:${cell}`;
   let r = REGIONS.get(key);
   if (!r) {

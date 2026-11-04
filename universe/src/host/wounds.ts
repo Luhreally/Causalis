@@ -604,7 +604,7 @@ export function woundedTowns(world: World, most = 20): WoundedTown[] {
     for (const side of [0, 1] as const)
       for (const land of b.fell?.[side] ?? []) {
         if (land[4] === undefined) continue;
-        const towns = ctx.settlements.inProvince(land[0]);
+        const towns = ctx.settlements.seenIn(land[0]);
         unpackTowns(land[4]).forEach((t, k) => {
           const s = towns[k];
           if (s && t[2] > 0) hurt.set(s.ref, (hurt.get(s.ref) ?? 0) + t[2]);

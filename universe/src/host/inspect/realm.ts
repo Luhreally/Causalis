@@ -79,7 +79,7 @@ export function realmPageModel(world: World, ref: string): PageModel {
     peopleOf = (c: number) => ctx.provinces.get(c)?.total() ?? 0,
     people = r.members.reduce((s, c) => s + peopleOf(c), 0),
     offworld = r.members.filter((c) => offworldSite(g, c)).length,
-    seatTown = ctx.settlements.inProvince(r.seat).find((t) => t.name === r.town),
+    seatTown = ctx.settlements.seenIn(r.seat).find((t) => t.name === r.town),
     fighting = warsOf(world).fighting(r.ref),
     host = designsOf(world).of(r.ref);
   const stats: Stat[] = [
@@ -678,7 +678,7 @@ export function battlePage(world: World, ref: string): PageModel {
     land = e.place ? Number(e.place.split(":")[2]) : (b?.land ?? -1),
     year = yearAt(e.t),
     now = yearNow(world),
-    towns = land >= 0 ? populationContext(world).settlements.inProvince(land) : [],
+    towns = land >= 0 ? populationContext(world).settlements.seenIn(land) : [],
     // (Where its men came from, the fallen by place: Phase 55 M224.)
     fallen: Block[] = b && w && b.fell ? fallenBlocks(world, w, b) : [];
   // A battle of this year or last is seen fought in its land's first town; older ones in its land.

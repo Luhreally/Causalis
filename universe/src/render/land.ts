@@ -42,6 +42,7 @@ import {
 import { InstancedBatch, boxMesh, coneMesh, cylinderMesh, gableMesh, keptMesh } from "./batch.ts";
 import { LandTraffic, type BusyWay, type CarrierKind, type RoadWay } from "./landtraffic.ts";
 import { LandCamps } from "./landcamps.ts";
+import { domeMesh } from "./colony.ts";
 import type { Rgb, Stage } from "./stage.ts";
 
 /** How far over the ground a town's ground stands (region units), and how deep its slabs go into it. */
@@ -213,6 +214,7 @@ export class LandLayer {
       gable: keptMesh(gableMesh(stage)),
       cone: keptMesh(coneMesh(stage, 0.5, 1, 8)),
       cyl: keptMesh(cylinderMesh(stage, 0.5, 1, 10)),
+      dome: keptMesh(domeMesh(stage)),
     };
     this.settled = new GroundBatches(stage, this.root, this.meshes);
     this.rising = new GroundBatches(stage, this.root, this.meshes);

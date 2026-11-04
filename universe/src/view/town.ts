@@ -45,7 +45,7 @@ import { biomeColor } from "./globe.ts";
 import { lifeTint } from "./biochem.ts";
 
 type Rgb = readonly [number, number, number];
-export type PartMesh = "box" | "gable" | "cone" | "cyl";
+export type PartMesh = "box" | "gable" | "cone" | "cyl" | "dome";
 
 /** A window's glass: lit from within from dusk to dawn (the renderer's lamplight). */
 export const LAMP: Rgb = [0.14, 0.18, 0.24];
@@ -65,6 +65,14 @@ export class TownParts {
     if (!g) this.groups.set("lamp", (g = { mesh: "box", color: LAMP, data: [], lamp: true }));
     g.data.push(x, y, z, sx, sy, sz, yaw);
   }
+  /** A ring of ports about a round hall, lit as windows are (Phase 64). */
+  lampRound(x: number, y: number, z: number, wide: number, high: number): void {
+    let g = this.groups.get("lampRound");
+    if (!g) this.groups.set("lampRound", (g = { mesh: "cyl", color: LAMP, data: [], lamp: true }));
+    g.data.push(x, y, z, wide, high, wide, 0);
+  }
+  /** What every colour put is seen as, for a while (a sealed town's buildings, Phase 64). */
+  tone: ((c: Rgb) => Rgb) | null = null;
   put(
     mesh: PartMesh,
     color: Rgb,
@@ -76,6 +84,7 @@ export class TownParts {
     sz: number,
     yaw: number,
   ): void {
+    if (this.tone) color = this.tone(color);
     const key = `${mesh}|${color[0].toFixed(3)}|${color[1].toFixed(3)}|${color[2].toFixed(3)}`;
     let g = this.groups.get(key);
     if (!g) this.groups.set(key, (g = { mesh, color, data: [] }));
@@ -184,12 +193,13 @@ export function townScene(plan: TownPlan, t: number, previous?: TownLots): TownS
         : townLots(plan.family, plan.seed, plan.axis, plan.lots, plan.water),
     states = lotStates(plan),
     held = blocksHeld(plan, states),
-    looks = plan.designs.map((d: TownDesign) =>
-      houseLook(
+    looks = plan.designs.map((d: TownDesign) => {
+      const look = houseLook(
         { walls: d.walls, roof: d.roof, form: d.form, pitch: d.pitch, design: null },
         plan.lifeLook,
-      ),
-    ),
+      );
+      return plan.sealed ? { ...look, sealed: true } : look;
+    }),
     active: number[] = [],
     settled: number[] = [],
     struck: number[] = [],
@@ -265,10 +275,49 @@ export function roofTop(scene: TownScene, p: number, t: number): number | null {
   return L.h + (level === 2 ? 3.2 : level === 5 ? 10 : 2.8);
 }
 
+/**
+ * The ground of a sealed town (Phase 64): its first hall, a great dome on the square its pods ring; its
+ * blocks' plates of rock levelled and swept, a covered way down each with the pressure kept in it.
+ */
+function sealedGround(scene: TownScene, out: TownParts): void {
+  const { plan, lots } = scene,
+    rock = plan.sealed!.rock,
+    plate: Rgb = [rock[0] * 0.7 + 0.12, rock[1] * 0.7 + 0.12, rock[2] * 0.7 + 0.12],
+    deck: Rgb = [0.42, 0.43, 0.46],
+    way: Rgb = [0.78, 0.8, 0.8],
+    glass: Rgb = [0.5, 0.68, 0.8];
+  out.put("cyl", deck, 0, 0.2, 0, SQUARE * 2.1, 0.36, SQUARE * 2.1, 0);
+  const blocks = Math.ceil(plan.lots / BLOCK_LOTS);
+  for (let b = 0; b < blocks; b++) {
+    const x = lots.blocks.x[b]!,
+      z = lots.blocks.z[b]!,
+      yaw = lots.blocks.yaw[b]!;
+    out.put("box", deck, x, 0.18, z, BLOCK_W + STREET, 0.24, BLOCK_D + STREET, yaw);
+    out.put("box", plate, x, 0.3, z, BLOCK_W - 0.6, 0.4, BLOCK_D - 0.6, yaw);
+    // (A covered way along its street's one side, with a glass ridge.)
+    const [wx, wz] = at(x, z, yaw, 0, -BLOCK_D / 2 - STREET * 0.28);
+    out.put("box", way, wx, 1.1, wz, BLOCK_W + STREET, 1.8, 1.7, yaw);
+    out.put("box", glass, wx, 2.1, wz, BLOCK_W + STREET, 0.3, 0.9, yaw);
+  }
+  // The first hall, on its square: a great dome and its airlocks, its glass lit from within.
+  const r = SQUARE * 1.15;
+  out.put("cyl", SEAL, 0, 0.7, 0, r * 2.14, 0.6, r * 2.14, 0);
+  out.put("dome", HULL, 0, 1 + r * 0.6, 0, r * 2, r * 1.2, r * 2, 0);
+  out.put("dome", DOME, 0, 1 + r * 1.2 - 0.9, 0, r * 0.9, 2.4, r * 0.9, 0);
+  for (let k = 0; k < 4; k++) {
+    const a = plan.axis + (k * Math.PI) / 2,
+      c = Math.cos(a),
+      s = Math.sin(a);
+    out.put("box", way, c * (r + 1.2), 1.4, s * (r + 1.2), 3.4, 2.4, 3.4, -a);
+    out.lamp(c * (r + 0.15), 3.6, s * (r + 0.15), 2.2, 0.7, 2.2, -a);
+  }
+}
+
 /** The ground of a town: its square, and each block's street about it and its yards. */
 export function townGround(scene: TownScene, out: TownParts): void {
-  const { plan, lots } = scene,
-    street: Rgb = plan.paved ? [0.66, 0.64, 0.6] : [0.6, 0.53, 0.4],
+  const { plan, lots } = scene;
+  if (plan.sealed) return sealedGround(scene, out);
+  const street: Rgb = plan.paved ? [0.66, 0.64, 0.6] : [0.6, 0.53, 0.4],
     // (On a world of another kind, its grassland's colour: Phase 56; its life's: Phase 57.)
     yard: Rgb = lifeTint(plan.kind ? biomeColor(8, plan.kind) : [0.5, 0.6, 0.34], plan.lifeLook);
   // In metres, as everything here: the streets stand a hand above the land's ground and the
@@ -405,6 +454,89 @@ function sprawl(scene: TownScene, out: TownParts): void {
   }
 }
 
+/** A sealed hall's colours (Phase 64): its hull, tinted by its design; its glass; its dark seals. */
+const HULL: Rgb = [0.9, 0.91, 0.9],
+  DOME: Rgb = [0.56, 0.78, 0.9],
+  SEAL: Rgb = [0.36, 0.38, 0.42];
+
+/** A building's colours under a sealed town's roofs: its brick and timber plated, a hint of them kept. */
+const sealedTone = (c: Rgb): Rgb => [c[0] * 0.34 + 0.54, c[1] * 0.34 + 0.55, c[2] * 0.34 + 0.56];
+
+/**
+ * A home of sealed halls (Phase 64): at a hut's and a house's level a pod, a low dome on its ring with
+ * a lock to the covered way; above it, round halls of three and five storeys under glass; then towers
+ * of ten and twenty-four storeys, their tops domed: a town kept against an empty sky.
+ */
+function sealedHome(
+  out: TownParts,
+  look: HouseLook,
+  level: number,
+  x: number,
+  z: number,
+  yaw: number,
+  grow: number,
+  roof: number,
+): void {
+  const hull: Rgb = [
+      HULL[0] + (look.wall[0] - HULL[0]) * 0.1,
+      HULL[1] + (look.wall[1] - HULL[1]) * 0.1,
+      HULL[2] + (look.wall[2] - HULL[2]) * 0.1,
+    ],
+    // (Its design's colour, stronger, as a band about its top: whose work it is, seen from afar.)
+    band: Rgb = [
+      Math.min(1, look.wall[0] * 1.25 + 0.05),
+      Math.min(1, look.wall[1] * 0.9 + 0.05),
+      Math.min(1, look.wall[2] * 0.8 + 0.08),
+    ],
+    L = LEVELS[Math.max(0, Math.min(5, level))]!;
+  if (level <= 1) {
+    const w = level === 0 ? 5.6 : 7.4,
+      h = (level === 0 ? 3.1 : 4.1) * grow;
+    if (h <= 0.05) return;
+    out.put("cyl", SEAL, x, 0.72, z, w + 0.5, 0.44, w + 0.5, yaw);
+    out.put("dome", hull, x, 0.8 + h / 2, z, w, h, w, yaw);
+    if (grow >= 1) {
+      // Its skylight, its lock, its lit port.
+      out.put("dome", DOME, x, 0.8 + h - 0.22, z, w * 0.34, 0.6, w * 0.34, yaw);
+      const [lx, lz] = at(x, z, yaw, 0, -w / 2 - 0.15);
+      out.put("box", SEAL, lx, 1.2, lz, 1.5, 1.7, 1.2, yaw);
+      const [wx, wz] = at(x, z, yaw, w * 0.3, -w * 0.33);
+      out.lamp(wx, 1.9, wz, 0.9, 0.6, 0.5, yaw);
+    }
+    return;
+  }
+  // (The taller the slimmer: its footing the wider, a fat drum of three storeys, a needle of twenty-four.)
+  const r =
+      Math.min(LOT_W - 0.5, L.w + 0.6) *
+      (level === 2 ? 1 : level === 3 ? 0.92 : level === 4 ? 0.84 : 0.76),
+    h = L.h * grow;
+  if (h <= 0.05) return;
+  out.put("cyl", SEAL, x, 0.72, z, r + 0.5, 0.44, r + 0.5, yaw);
+  out.put("cyl", hull, x, 0.8 + h / 2, z, r, h, r, yaw);
+  const bands = Math.min(5, Math.max(1, Math.floor((L.storeys * grow) / (level >= 4 ? 5 : 2))));
+  for (let k = 0; k < bands; k++) {
+    const y = 0.8 + ((k + 0.5) / (bands + 0.6)) * h;
+    if (grow >= 1) out.lampRound(x, y, z, r * 1.012, 0.55);
+    else out.put("cyl", SEAL, x, y, z, r * 1.012, 0.55, r * 1.012, yaw);
+  }
+  if (roof <= 0) return;
+  out.put("cyl", band, x, 0.8 + h * 0.97, z, r * 1.02, Math.min(1.2, h * 0.06), r * 1.02, yaw);
+  out.put("cyl", SEAL, x, 0.8 + h + 0.15, z, r * 1.04, 0.3, r * 1.04, yaw);
+  const cap = level >= 4 ? r * 0.55 : r * 0.42;
+  out.put(
+    "dome",
+    DOME,
+    x,
+    0.8 + h + 0.3 + (cap * roof) / 2,
+    z,
+    r * 0.92,
+    cap * roof,
+    r * 0.92,
+    yaw,
+  );
+  if (level === 5) out.put("box", FRAME, x, 0.8 + h + cap + 4, z, 0.4, 8, 0.4, 0);
+}
+
 /** A home standing whole: walls and roof at its level, in its design (the tall ones in brick, concrete, glass). */
 function home(
   out: TownParts,
@@ -416,6 +548,8 @@ function home(
   grow = 1,
   roof = 1,
 ): void {
+  // (Halls on another body: Phase 64.)
+  if (look.sealed) return sealedHome(out, look, level, x, z, yaw, grow, roof);
   const L = LEVELS[Math.max(0, Math.min(5, level))]!,
     h = L.h * (level <= 1 ? look.height : 1) * grow;
   if (h <= 0.01) return;
@@ -862,7 +996,7 @@ function civicShape(
       put("cyl", WHITE, 0, 5, 0, 6, 10, 6);
       put("cone", [0.5, 0.36, 0.24], 0, 11, 0, 6.6, 2.4, 6.6);
       // (Its sails: still here, or turning where a mill standing is drawn near: civicMotions.)
-      if (still || grow < 1) {
+      if ((still || grow < 1) && !out.tone) {
         put("box", TIMBER, 0, 9, d * 0.24, 16, 0.8, 0.3, 0.6);
         put("box", TIMBER, 0, 9, d * 0.24, 16, 0.8, 0.3, -0.6 + Math.PI / 2);
       }
@@ -1010,6 +1144,8 @@ export function civicMotions(scene: TownScene, t: number): CivicMotion[] {
   const out: CivicMotion[] = [];
   for (const { kind, f } of standing(scene, t)) {
     if (kind !== "mill" && kind !== "kiln" && kind !== "smithy") continue;
+    // (No sails turn in a sealed town: Phase 64.)
+    if (kind === "mill" && scene.plan.sealed) continue;
     const [dx, dz] = at(f.x, f.z, f.yaw, 0, -(f.d / 2 + 1.9)),
       door = { x: dx, z: dz },
       // (A mill's hub before its tower, on the street side; a kiln's mouth at its foot.)
@@ -1052,6 +1188,12 @@ const CIVIC_HIGH: Readonly<Record<string, number>> = {
  * `still`: a mill's sails drawn with it (else turning, drawn by itself: civicMotions).
  */
 export function townCivics(scene: TownScene, t: number, out: TownParts, still = true): void {
+  out.tone = scene.plan.sealed ? sealedTone : null;
+  civicsPut(scene, t, out, still);
+  out.tone = null;
+}
+
+function civicsPut(scene: TownScene, t: number, out: TownParts, still: boolean): void {
   const { plan, lots, states } = scene;
   for (const c of plan.civics) {
     if (c.at + c.lots > lots.x.length) continue;

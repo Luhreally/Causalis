@@ -1,7 +1,7 @@
 // The pages of history (Phase 10 M91): an event — what happened, when and where, who it
 // was about, why it happened and what it led to — a decision with its reasons, and an act
 // of the god's. A forgotten event still has its page: what the explainer keeps of it.
-import { WAR_EVENTS } from "../../sim/index.ts";
+import { WAR_EVENTS, siteGround } from "../../sim/index.ts";
 import { why } from "../../causal/index.ts";
 import { isRef, parseRef, type Ref, type World } from "../../kernel/index.ts";
 import type { Block, PageModel, Place } from "../../bridge/index.ts";
@@ -150,6 +150,12 @@ export function eventPage(world: World, ref: string): PageModel {
     },
     { type: "why", title: "Why it happened", ref },
   ];
+  // (A colony's founding, a ship's coming in: its landing, played again. Phase 64.)
+  if ((type === "space.colony" || type === "space.arrival") && e?.place) {
+    const cell = parseRef(e.place).b;
+    if (siteGround(world, cell))
+      blocks.splice(2, 0, { type: "tool", tool: "watch.landing", args: { cell } });
+  }
   const led = eventsCiting(world, ref);
   if (led.length) blocks.push({ type: "list", title: "What it led to", items: led });
   return {

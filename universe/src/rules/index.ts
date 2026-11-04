@@ -170,7 +170,15 @@ export {
   type Launcher,
   type Propulsion,
 } from "./launch.ts";
-export { MOST_UPKEEP, habitability, type Ground, type Habitability, type Need } from "./habitat.ts";
+export {
+  MOST_UPKEEP,
+  habitability,
+  hallCells,
+  rockOf,
+  type Ground,
+  type Habitability,
+  type Need,
+} from "./habitat.ts";
 export {
   LIGHT_KMS,
   STAR_DRIVES,

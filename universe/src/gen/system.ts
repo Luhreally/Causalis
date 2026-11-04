@@ -419,6 +419,38 @@ export type ForeignPlanet = Pick<
   readonly a: number;
 };
 
+/** Another star's world as a body of its system is told (made whole by gen/worlds.ts's otherWorld). */
+export function foreignBody(
+  star: { readonly ref: string; readonly mass: number },
+  p: ForeignPlanet,
+  index: number,
+): SystemBody {
+  return {
+    ref: `${star.ref}/${index}` as SystemBody["ref"],
+    index,
+    designation: String.fromCharCode(98 + index),
+    kind: p.kind,
+    orbit: {
+      around: star.ref as SystemBody["orbit"]["around"],
+      a: p.a,
+      e: 0,
+      periapsis: 0,
+      phase: 0,
+      periodDays: 365.25 * dmath.sqrt((p.a * p.a * p.a) / star.mass),
+    },
+    mass: p.mass,
+    radius: p.radius,
+    gravity: p.gravity,
+    escape: p.escape,
+    temperature: p.temperature,
+    pressure: p.pressure,
+    air: p.air,
+    water: p.water,
+    radiation: p.radiation,
+    because: [],
+  };
+}
+
 /**
  * Another star's planets, drawn when first needed on a stream keyed by the star (the
  * sector and the star's place in it): spaced outward from the middle of its habitable

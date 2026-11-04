@@ -21,6 +21,7 @@ import {
   starSitesOf,
   tameNow,
   wildsOf,
+  siteGround,
 } from "../../sim/index.ts";
 import { folkRef, waysRef } from "../../causal/index.ts";
 import { parseRef, type Ref, type World } from "../../kernel/index.ts";
@@ -62,9 +63,16 @@ const OCCUPATION_WORDS: Readonly<Record<string, string>> = {
 };
 
 /** Where a land is to be seen: its own land (region) scale; a colony's body; a ship's star. */
+/** Whether anyone has come to a land. */
+const ctxHasPeople = (world: World, cell: number) =>
+  populationContext(world).provinces.get(cell)?.settledYear != null;
+
 export function landPlace(world: World, cell: number): Place | null {
   const g = homePlanet(world).generated,
     site = offworldSite(g, cell);
+  // (A colony's: down to its ground, once there is someone on it.)
+  if (site && siteGround(world, cell) && ctxHasPeople(world, cell))
+    return { scale: "region", cell };
   if (site && site.body >= 0) return { scale: "system", body: site.body };
   if (site) {
     const ship = starSitesOf(world)?.get(cell);
@@ -76,13 +84,14 @@ export function landPlace(world: World, cell: number): Place | null {
 /** A land's page (tab: the tab it opens on). */
 export function landPage(world: World, cell: number, tab?: string): PageModel {
   const g = homePlanet(world).generated;
-  if (!Number.isInteger(cell) || cell < 0 || cell >= g.grid.count)
+  // (A land of another body stands past the home world's own.)
+  if (!Number.isInteger(cell) || cell < 0 || (cell >= g.grid.count && !offworldSite(g, cell)))
     throw new Error(`no land ${cell}`);
   const ref = cellRef(0, cell),
     site = offworldSite(g, cell),
     p = province(world, cell),
     ctx = populationContext(world),
-    towns = ctx.settlements.inProvince(cell),
+    towns = ctx.settlements.seenIn(cell),
     year = yearNow(world),
     spot = spotOfLand(world, cell),
     place = spot === null ? null : spotFacts(g as never, spot);
@@ -176,6 +185,9 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
     if (p) blocks.push({ type: "why", title: "How they came to be here", ref: folkRef(cell) });
     else if (spot !== null)
       blocks.push({ type: "why", title: "What it is", ref: spotRef(0, spot) });
+    // (A colony's coming, played again: Phase 64.)
+    if (site && siteGround(world, cell) && ctxHasPeople(world, cell))
+      blocks.push({ type: "tool", tool: "watch.landing", args: { cell } });
     blocks.push({ type: "tool", tool: "acts.land", args: { cell } });
     tabs.push({ id: "overview", name: "Overview", blocks });
   }

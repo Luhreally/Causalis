@@ -417,7 +417,7 @@ export function rosterCost(world: World, town: string, year: number): number {
     ctx = c.ctx,
     s = ctx.settlements.get(town as Ref);
   if (!s) return 0;
-  const idx = ctx.settlements.inProvince(s.cell).findIndex((x) => x.ref === s.ref),
+  const idx = ctx.settlements.seenIn(s.cell).findIndex((x) => x.ref === s.ref),
     first = c.year - ROSTER_YEARS,
     y = Math.floor(year),
     lines = Math.ceil(Math.max(0, s.population) / LINE);
@@ -894,7 +894,7 @@ function foldRoster(
     cell = s?.cell ?? -1,
     population = s?.population ?? 0,
     // (A town is found in its land's tallies by its place in the land's founding order.)
-    idx = s ? ctx.settlements.inProvince(cell).findIndex((x) => x.ref === s.ref) : -1,
+    idx = s ? ctx.settlements.seenIn(cell).findIndex((x) => x.ref === s.ref) : -1,
     first = c.year - ROSTER_YEARS,
     pre = prefixOf(`folk ${town} `),
     keyOf = keysOf(pre),

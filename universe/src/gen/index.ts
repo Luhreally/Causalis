@@ -14,6 +14,7 @@ export {
   type Star,
 } from "./bodies.ts";
 export {
+  foreignBody,
   foreignPlanets,
   makeSystem,
   positionAt,

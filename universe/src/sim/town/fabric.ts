@@ -225,8 +225,11 @@ export class TownStore implements StateStore {
   private a = 0x2545f491 | 0;
   private b = 0x6a09e667 | 0;
 
+  /** The fabric of a colony's town, as the eye reads it (Phase 64: see SettlementStore.seen). */
+  seen: ((town: Ref) => Fabric | undefined) | null = null;
+
   get(town: Ref): Fabric | undefined {
-    return this.map.get(town);
+    return this.map.get(town) ?? this.seen?.(town);
   }
   /** A settlement's fabric (as get, by the settlement). */
   of(s: Settlement): Fabric | undefined {
@@ -587,10 +590,11 @@ export class TownBuilder {
   private readonly store: TownStore;
   /** Whether what a land knows meets each building's needs, by the land's own test of it (see meets). */
   private readonly met = new Map<(id: string) => boolean, boolean[]>();
-  constructor(ctx: PopulationContext, year: number) {
+  /** (`store`: another store than the world's, for a fabric the eye reckons apart from history's: Phase 64.) */
+  constructor(ctx: PopulationContext, year: number, store: TownStore = townsOf(ctx.world)) {
     this.ctx = ctx;
     this.year = year;
-    this.store = townsOf(ctx.world);
+    this.store = store;
   }
 
   /**

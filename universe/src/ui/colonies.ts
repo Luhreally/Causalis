@@ -1,0 +1,169 @@
+// The worlds settled (Phase 64): a button in the corner's row once there are any, a sheet of them newest
+// first, each a tap from its landing watched and from going down to its ground; and news of one newly
+// come, whichever scale the eye is at, for as long as it takes to read. A ship still sailing is listed
+// too, with when it comes. Nothing is asked that history does not hold already (host/colony.ts).
+import type { ColonyEntry, HostClient } from "../bridge/index.ts";
+import { el } from "./why.ts";
+
+const POLL_MS = 4000,
+  /** How long news of a landing stays, and how long its button glows. */
+  NEWS_MS = 16000;
+
+/** Where a colony stands, in words: a world of the home star's by its name, another star's as that. */
+const whereOf = (c: ColonyEntry) =>
+  c.star ? "a world of another star" : (c.body ?? "another world");
+
+export class Colonies {
+  /** Told aloud, or only listed (quiet under a gate that has not asked to see it, as event windows are). */
+  toldAloud = true;
+  /** The corner's button (hidden while no one has gone anywhere). */
+  readonly button = el("button", "colonies-button");
+  private readonly count = el("span", "colonies-count");
+  private readonly sheet = el("div", "colony-sheet");
+  private readonly rows = el("div", "colony-rows");
+  private readonly news = el("div", "colony-news");
+  private list: readonly ColonyEntry[] = [];
+  private known: Set<number> | null = null;
+  private newsTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Watch its landing played again. */
+  onLanding: (cell: number) => void = () => {};
+  /** Down to its ground. */
+  onDown: (cell: number) => void = () => {};
+  /** A thing's page (a ship's voyage; a colony's land). */
+  onPage: (ref: string) => void = () => {};
+  /** Asked before a list is shown: whether anything else is on the screen's bottom edge to put away. */
+  onShown: () => void = () => {};
+
+  constructor(hud: HTMLElement, client: HostClient) {
+    this.button.append(el("span", undefined, "🚀"), this.count);
+    this.button.title = "The worlds settled: watch a landing, or go down to their ground";
+    this.button.setAttribute("aria-label", "The worlds settled");
+    this.button.hidden = true;
+    this.button.onclick = () => {
+      this.button.classList.remove("new");
+      this.show(!this.shown);
+    };
+    const head = el("div", "colony-sheet-head"),
+      why = el("button", "speed", "?"),
+      close = el("button", "speed", "✕");
+    why.title = "What a landing is, and why its halls are as they are";
+    why.setAttribute("aria-label", "What a colony is");
+    why.onclick = () => this.onPage("concept:colonies");
+    close.setAttribute("aria-label", "Close the worlds settled");
+    close.onclick = () => this.show(false);
+    head.append(el("span", "colony-sheet-title", "🚀 The worlds settled"), why, close);
+    this.sheet.append(head, this.rows);
+    this.sheet.hidden = true;
+    this.news.hidden = true;
+    hud.append(this.sheet, this.news);
+    client.subscribe<ColonyEntry[]>({ type: "colony.list" }, POLL_MS, (list) => {
+      if (Array.isArray(list)) this.set(list);
+    });
+  }
+
+  /** The list open or shut. */
+  show(on: boolean): void {
+    this.sheet.hidden = !on;
+    if (on) {
+      this.onShown();
+      this.draw();
+    }
+  }
+
+  get shown(): boolean {
+    return !this.sheet.hidden;
+  }
+
+  /** The newest: the first shown and the first offered. */
+  get newest(): ColonyEntry | null {
+    return this.list.find((c) => c.town !== null) ?? null;
+  }
+
+  private set(list: readonly ColonyEntry[]): void {
+    this.list = list;
+    const landed = list.filter((c) => !c.sailing);
+    this.button.hidden = list.length === 0;
+    this.count.textContent = String(landed.length || list.length);
+    // News of what was not here at the last look; and when a world opens with worlds settled already,
+    // of how many, and the newest, a tap away.
+    if (this.known) {
+      const come = landed.find((c) => !this.known!.has(c.cell) && c.town);
+      if (come)
+        this.tell(
+          come,
+          `🚀 Year ${come.founded}: a landing on ${whereOf(come)}. ${come.name ?? "Its halls"} is founded.`,
+        );
+    } else if (landed[0]?.town)
+      this.tell(
+        landed[0],
+        `🚀 ${landed.length} ${landed.length === 1 ? "world" : "worlds"} settled. The newest: ${landed[0].name ?? "halls"} on ${whereOf(landed[0])}, year ${landed[0].founded}.`,
+      );
+    this.known = new Set(landed.map((c) => c.cell));
+    if (!this.sheet.hidden) this.draw();
+  }
+
+  /** A word on the same card, nothing to tap. */
+  say(words: string): void {
+    this.news.replaceChildren(el("span", undefined, words));
+    this.news.hidden = false;
+    if (this.newsTimer) clearTimeout(this.newsTimer);
+    this.newsTimer = setTimeout(() => {
+      this.news.hidden = true;
+    }, NEWS_MS);
+  }
+
+  /** News of a landing, with the way to it. */
+  private tell(c: ColonyEntry, words: string): void {
+    if (!this.toldAloud) return;
+    const watch = el("button", undefined, "▶ Watch it");
+    watch.onclick = () => {
+      this.news.hidden = true;
+      this.onLanding(c.cell);
+    };
+    this.news.replaceChildren(el("span", undefined, words), watch);
+    this.news.hidden = false;
+    this.button.classList.add("new");
+    if (this.newsTimer) clearTimeout(this.newsTimer);
+    this.newsTimer = setTimeout(() => {
+      this.news.hidden = true;
+      this.button.classList.remove("new");
+    }, NEWS_MS);
+  }
+
+  private draw(): void {
+    this.rows.replaceChildren(
+      ...this.list.map((c) => {
+        const row = el("div", "colony-row"),
+          name = el(
+            "button",
+            "colony-row-name",
+            c.sailing ? `⛴️ A ship under way` : `🏛️ ${c.name ?? "Its halls"} on ${whereOf(c)}`,
+          ),
+          acts = el("div", "colony-row-acts");
+        name.onclick = () => {
+          this.onPage(c.sailing && c.event ? c.event : `cell:0:${c.cell}`);
+        };
+        const facts = c.sailing
+          ? `Sailed year ${c.sailed ?? "?"}, comes in year ${c.arrives ?? "?"}${c.founder ? `; sent by ${c.founder}` : ""}`
+          : `${c.people.toLocaleString("en")} people; since year ${c.founded}${c.founder ? `; sent by ${c.founder}` : ""}`;
+        row.append(name, el("div", "colony-row-facts", facts));
+        if (!c.sailing && c.town) {
+          const watch = el("button", "colony-watch", "▶ Watch the landing"),
+            down = el("button", "colony-down", "⬇ Go down");
+          watch.dataset.cell = down.dataset.cell = String(c.cell);
+          watch.onclick = () => {
+            this.show(false);
+            this.onLanding(c.cell);
+          };
+          down.onclick = () => {
+            this.show(false);
+            this.onDown(c.cell);
+          };
+          acts.append(watch, down);
+          row.append(acts);
+        }
+        return row;
+      }),
+    );
+  }
+}

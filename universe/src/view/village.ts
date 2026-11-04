@@ -5816,6 +5816,8 @@ type Rgb = readonly [number, number, number];
 
 /** How a house looks, from its design: wall and roof colours, its shape, and its roof's rise. */
 export type HouseLook = {
+  /** Halls on another body (Phase 64): drawn sealed, whatever it is built of. */
+  readonly sealed?: boolean;
   readonly wall: Rgb;
   readonly roof: Rgb;
   /** Round huts and tents are drawn round; the rest four-square. */

@@ -98,7 +98,7 @@ export function label(world: World, ref: Ref): string | null {
       ctx = populationContext(world);
     if (!ctx.provinces.get(cell)) return null;
     const town = ctx.settlements
-      .inProvince(cell)
+      .seenIn(cell)
       .sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1))[0];
     return town ? `the land of ${town.name}` : landWords(world, ref);
   }
@@ -158,7 +158,7 @@ function newsOf(world: World, ref: Ref): (e: HistoryEvent) => boolean {
   const kind = kindCodeOf(ref),
     settled =
       kind === SURFACE_CELL.code &&
-      populationContext(world).settlements.inProvince(parseRef(ref).b).length > SETTLED_LAND;
+      populationContext(world).settlements.seenIn(parseRef(ref).b).length > SETTLED_LAND;
   return (e) =>
     kind === SURFACE_CELL.code
       ? e.place === ref &&

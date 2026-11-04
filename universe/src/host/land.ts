@@ -11,7 +11,7 @@
 // And its bands' camps (Phase 28 M159): those of its people who forage or herd, in no village,
 // ranging about its good sites and camped this season near one. Looked at, never lived.
 import { YEAR, mix, yearOfMoment, type World } from "../kernel/index.ts";
-import { WATER, isProvinceWorld } from "../gen/index.ts";
+import { WATER, isProvinceWorld, offworldSite } from "../gen/index.ts";
 import { OCC, OCCUPATIONS } from "../rules/index.ts";
 import {
   citiesOf,
@@ -33,6 +33,7 @@ import type {
 } from "../bridge/index.ts";
 import { townPlan } from "./town.ts";
 import { landEra, townSite } from "./village.ts";
+import { colonyLook } from "./colony.ts";
 
 /** Lots a land draws of each of its towns at the least (a village's every lot). */
 const LEAST_LOTS = 240;
@@ -71,7 +72,7 @@ function planKey(plan: TownPlan | null): number {
 function settledIn(world: World, cell: number) {
   const fabrics = townsOf(world);
   return populationContext(world)
-    .settlements.inProvince(cell)
+    .settlements.seenIn(cell)
     .filter((s) => s.population > 0 || fabrics.get(s.ref));
 }
 
@@ -80,7 +81,8 @@ export function landPlan(world: World, cell: number, budget = 8000): LandPlan {
   const cities = citiesOf(world),
     settled = settledIn(world, cell),
     era = landEra(world, cell),
-    fields = era !== "forage",
+    // (Farmed under its roofs, on another body: no open fields.)
+    fields = era !== "forage" && !offworldSite(populationContext(world).generated, cell),
     plans = new Map<string, TownPlan | null>();
   let left = Math.max(0, budget);
   for (const s of [...settled].sort(
@@ -113,6 +115,11 @@ export function landPlan(world: World, cell: number, budget = 8000): LandPlan {
       key: planKey(plan),
     };
   });
+  // (A land of another body: its one town, on bare ground; its sky and ground its own: Phase 64.)
+  const colony = offworldSite(populationContext(world).generated, cell)
+    ? colonyLook(world, cell)
+    : null;
+  if (colony) return { t: world.now, era, towns, roads: [], lanes: [], camps: [], colony };
   return {
     t: world.now,
     era,
@@ -142,7 +149,7 @@ export function landCamps(
   if (!p || ctx.medium === "water") return [];
   let grown = 0;
   for (let o = 0; o < OCCUPATIONS.length; o++) if (o !== OCC.dependent) grown += p.occupation(o);
-  const peopled = ctx.settlements.inProvince(cell).some((s) => s.population > 0),
+  const peopled = ctx.settlements.seenIn(cell).some((s) => s.population > 0),
     herders = peopled ? 0 : p.occupation(OCC.herder),
     roamers = peopled ? p.occupation(OCC.forager) : grown,
     people = grown > 0 ? Math.round((p.total() * roamers) / grown) : 0;
@@ -290,7 +297,7 @@ function landRoads(world: World, cell: number, towns: readonly LandTown[]): Land
     let from = towns[0]!;
     for (const t of towns) if (d2(t.tile, end) < d2(from.tile, end)) from = t;
     const great = ctx.settlements
-        .inProvince(nb)
+        .seenIn(nb)
         .sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1))[0],
       opened = world.events.get(route);
     out.push(
@@ -382,7 +389,7 @@ function landLanes(world: World, cell: number, towns: readonly LandTown[]): Land
       len = Math.hypot(east, north);
     if (len < 1e-9) continue;
     const great = ctx.settlements
-        .inProvince(nb)
+        .seenIn(nb)
         .sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1))[0],
       opened = world.events.get(route);
     out.push({

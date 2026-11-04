@@ -4,6 +4,7 @@
 // ratio, antialiasing); it never touches the simulation.
 import * as pc from "playcanvas";
 import { QUALITIES, type Quality } from "./quality.ts";
+import type { ColonySky } from "../view/index.ts";
 
 export type DeviceTier = {
   readonly name: "phone" | "desktop";
@@ -152,6 +153,8 @@ export class Stage {
   }
 
   backdrop(kind: "space" | "ground", reach = 100, shadows = false): void {
+    // (Out in space no colony's sky is over anything.)
+    if (kind === "space") this.colonySky(null);
     this.shadowsWanted = kind === "ground" && shadows;
     this.shadowReach = Math.max(30, reach * 1.6);
     this.applyShadows();
@@ -181,7 +184,63 @@ export class Stage {
       start: fog.start,
       end: fog.end,
     };
+    this.fogReach = { start: fog.start, end: fog.end };
+    this.colonyLight();
     this.applyWeather();
+  }
+
+  /** Whether the star is up by the hour on the ground, and the way toward it (a colony's disc stands there). */
+  private starUp = true;
+  get starWay(): pc.Vec3 | null {
+    return this.starUp ? this.sun.up : null;
+  }
+
+  /** The sky over a colony (Phase 64), null where it is a land of the home world's. */
+  private colonyOver: ColonySky | null = null;
+  private fogReach = { start: 0, end: 0 };
+  /** The air before a colony's own came over it. */
+  private homeAir: Rgb | null = null;
+
+  /**
+   * A colony's sky (Phase 64): the page's backdrop in its own colours (black and starred over no air),
+   * its haze, how far off it starts, its star's colour and strength. Null: back to the home world's.
+   */
+  colonySky(sky: ColonySky | null): void {
+    const b = document.body;
+    if (!sky) {
+      if (!this.colonyOver) return;
+      this.colonyOver = null;
+      delete b.dataset.colony;
+      if (this.homeAir) this.air = this.homeAir;
+      this.homeAir = null;
+      return;
+    }
+    this.homeAir ??= this.air;
+    this.colonyOver = sky;
+    b.dataset.colony = sky.airless ? "black" : "air";
+    sky.stops.forEach((c, i) => b.style.setProperty(`--colony-sky-${i}`, c));
+    this.air = sky.haze ?? [0.02, 0.02, 0.05];
+    this.colonyLight();
+  }
+
+  /** A colony's light and air laid on the clear day's (see `clear`). */
+  private colonyLight(): void {
+    const sky = this.colonyOver;
+    if (!sky || this.sunFollows) return;
+    const fog = this.app.scene.fog,
+      start = this.fogReach.start * sky.clearness,
+      end = this.fogReach.end * sky.clearness;
+    this.clear = {
+      sun: 1.25 * sky.strength,
+      ambient: sky.fill,
+      fog: this.air,
+      start: sky.haze ? start : 1e5,
+      end: sky.haze ? end : 2e5,
+    };
+    fog.start = this.clear.start;
+    fog.end = this.clear.end;
+    this.sun.light!.color = new pc.Color(sky.sun[0], sky.sun[1], sky.sun[2]);
+    this.sun.light!.intensity = this.clear.sun;
   }
 
   /**
@@ -284,6 +343,27 @@ export class Stage {
       ambient: [0.34 - 0.24 * night, 0.38 - 0.24 * night, 0.5 - 0.16 * night],
       fog,
     };
+    // A colony's star and air (Phase 64): its hue, its strength; no blue dusk where it has no air;
+    // its star climbing truly (low at its dawn, its shadows long), and its night seen by its floodlights.
+    const sky = this.colonyOver;
+    this.starUp = phase !== "night";
+    if (sky) {
+      const dark = phase === "night",
+        k = dark ? 0.32 : 1;
+      this.sun.setEulerAngles(72 - 52 * up, 90 - 180 * ((day - 0.25) / 0.5), 0);
+      this.sun.light!.color = dark
+        ? new pc.Color(0.55, 0.62, 0.9)
+        : new pc.Color(sky.sun[0], sky.sun[1], sky.sun[2]);
+      this.sun.light!.intensity = (dark ? 0.3 : 0.35 + 0.95 * Math.min(1, up * 1.6)) * sky.strength;
+      this.clear = {
+        ...this.clear,
+        sun: this.sun.light!.intensity,
+        ambient: dark
+          ? [Math.max(0.2, sky.fill[0]), Math.max(0.2, sky.fill[1]), Math.max(0.25, sky.fill[2])]
+          : [sky.fill[0], sky.fill[1], sky.fill[2]],
+        fog: dark ? [0.03, 0.03, 0.07] : this.air,
+      };
+    }
     this.applyWeather();
   }
 

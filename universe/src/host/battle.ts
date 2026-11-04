@@ -195,7 +195,7 @@ export function battleNear(world: World, ref: string): BattleNear | null {
     land = b.land,
     seat = b.seat ?? false,
     outcome = battleOutcome(world, b),
-    town = seat ? (ctx.settlements.inProvince(land)[0]?.name ?? null) : null,
+    town = seat ? (ctx.settlements.seenIn(land)[0]?.name ?? null) : null,
     wilds = wildsOf(ctx, land);
   return {
     event: ref,

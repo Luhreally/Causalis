@@ -31,7 +31,7 @@ export function landTitle(world: World, cell: number, mid = false): string {
       return mid ? words : sentence(words);
     };
   if (offworldSite(g, cell)) return where();
-  const first = populationContext(world).settlements.inProvince(cell)[0];
+  const first = populationContext(world).settlements.seenIn(cell)[0];
   return first ? `${first.name}'s land` : where();
 }
 

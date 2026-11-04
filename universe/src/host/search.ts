@@ -5,6 +5,7 @@
 // them, then one with a word that does, then one that holds them), the greater before the
 // less. Pure reads of the world as it stands.
 import { offworldSite } from "../gen/index.ts";
+import { colonyList } from "./colony.ts";
 import {
   beliefOf,
   citiesOf,
@@ -84,10 +85,19 @@ export function search(world: World, asked: string, most = 24): Found[] {
       };
     });
   }
+  // (A colony's town, by name: Phase 64.)
+  for (const c of colonyList(world))
+    if (c.town && c.name && c.people > 0)
+      offer(c.name, c.people, () => ({
+        ref: c.town!,
+        icon: "🏛️",
+        title: c.name!,
+        subtitle: `${many(c.people, "person", "people")}, on ${c.body ?? "another world"}`,
+      }));
   // A land by its first town's name ("Sairis's land"), where that is not also the town's.
   for (const p of ctx.provinces.all()) {
     if (offworldSite(g, p.cell) || !p.total()) continue;
-    const first = ctx.settlements.inProvince(p.cell)[0];
+    const first = ctx.settlements.seenIn(p.cell)[0];
     if (!first) continue;
     offer(`${first.name}'s land`, p.total() / 10, () => ({
       ref: `cell:0:${p.cell}`,

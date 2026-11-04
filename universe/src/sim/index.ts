@@ -533,6 +533,7 @@ export {
   type Program,
 } from "./space/space.ts";
 export { StarSiteStore, lightSteps, starSitesOf, type StarSite } from "./space/stars.ts";
+export { siteGround, siteRegion, type SiteGround } from "./space/ground.ts";
 export {
   ABOARD,
   STARSHIP_MACHINES,

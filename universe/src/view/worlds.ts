@@ -4,6 +4,7 @@
 // and darker in its craters' floors; a giant's clouds in bands — warm ones in creams and
 // browns, cold ones in blues — and its storm. A pure function of what the host sends.
 import { sphereGrid } from "../kernel/index.ts";
+import { rockOf } from "../rules/index.ts";
 import type { WorldGlobe } from "../bridge/index.ts";
 
 type Rgb = readonly [number, number, number];
@@ -14,18 +15,9 @@ const mix = (a: Rgb, b: Rgb, k: number): Rgb => [
   a[2] + (b[2] - a[2]) * k,
 ];
 
-/**
- * A world's ground by its warmth, its air and its tint: baked yellow under a crushing air,
- * scorched grey-brown where the star beats on bare rock, the greys of a moon's dust, rust
- * and ochre on a cold world with a breath of air, frosted grey beyond.
- */
+/** A world's ground by its warmth, its air and its tint (rules/habitat.ts). */
 export function groundOf(w: Pick<WorldGlobe, "kind" | "air" | "tint">, t: number): Rgb {
-  const thin = w.air === "none" || w.air === "trace";
-  if (w.air === "crushing" && t > 150) return mix([0.86, 0.64, 0.28], [0.92, 0.76, 0.42], w.tint);
-  if (thin && t > 60) return mix([0.36, 0.32, 0.29], [0.48, 0.42, 0.36], w.tint);
-  if (w.kind === "moon") return mix([0.44, 0.43, 0.42], [0.58, 0.55, 0.5], w.tint);
-  if (t > -120) return mix([0.66, 0.3, 0.16], [0.72, 0.52, 0.32], w.tint);
-  return mix([0.5, 0.48, 0.47], [0.6, 0.52, 0.46], w.tint);
+  return rockOf(w.kind, w.air, w.tint, t);
 }
 
 /** A giant's bands: warm giants in creams and browns, cold ones in blues. */

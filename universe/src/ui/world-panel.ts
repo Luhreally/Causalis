@@ -21,6 +21,9 @@ export class WorldPanel {
   private readonly more = el("div");
   private readonly back = el("button", "speed", "‹ The sky");
   onBack: () => void = () => {};
+  /** A colony on it: its landing played again; down to its ground (Phase 64). */
+  onLanding: (cell: number) => void = () => {};
+  onDown: (cell: number) => void = () => {};
 
   constructor(root: HTMLElement) {
     const bar = el("header", "bar"),
@@ -63,10 +66,9 @@ export class WorldPanel {
       ...(halls.length
         ? [
             el("h3", undefined, "Its halls"),
-            ...halls.map((c) =>
-              el(
-                "div",
-                "fact",
+            ...halls.flatMap((c) =>
+              this.hall(
+                c.cell,
                 `${c.people.toLocaleString("en")} people, since ${c.founded}${c.realm ? ` — of ${c.realm}` : " — their own"}`,
               ),
             ),
@@ -75,6 +77,22 @@ export class WorldPanel {
       el("h3", undefined, "Why is it like this?"),
       ...b.because.map((w) => el("div", "fact", w)),
     );
+  }
+
+  /** One of its halls: how many, since when, and a tap from its landing and its ground (Phase 64). */
+  private hall(cell: number, words: string): HTMLElement[] {
+    const acts = el("div", "colony-row-acts"),
+      watch = el("button", "colony-watch", "▶ Watch the landing"),
+      down = el("button", "colony-down", "⬇ Go down");
+    watch.onclick = () => this.onLanding(cell);
+    down.onclick = () => this.onDown(cell);
+    acts.append(watch, down);
+    return [el("div", "fact", words), acts];
+  }
+
+  /** Its halls, where another star's world has any: told before the rest. */
+  foreignHalls(cell: number, words: string): void {
+    this.more.prepend(el("h3", undefined, "Its halls"), ...this.hall(cell, words));
   }
 
   /** Where the bar's back button leads, in words. */

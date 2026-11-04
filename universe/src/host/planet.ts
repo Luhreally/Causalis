@@ -37,6 +37,7 @@ import {
   rainShift,
   realmName,
   regionOf,
+  siteGround,
   relationRef,
   sitesReady,
   smokeIn,
@@ -138,6 +139,15 @@ import {
 } from "./inspect/index.ts";
 import { MAP_QUERIES } from "./map.ts";
 import { POSSESS_QUERIES } from "./possess.ts";
+import { townPlan } from "./town.ts";
+import {
+  COLONY_QUERIES,
+  colonyGrowth,
+  colonyMoments,
+  colonyLook,
+  installColonyTowns,
+  sealedPlan,
+} from "./colony.ts";
 import { HELD_QUERIES } from "./held.ts";
 import { SEARCH_QUERIES } from "./search.ts";
 import { takenWordsOf, type NamesArg } from "./names.ts";
@@ -204,7 +214,11 @@ function globeFrame(world: World) {
 /** A province's region: the same one its villages are sited on (a pure function of the world). */
 export function region(world: World, province: number): Region {
   const g = homePlanet(world).generated;
-  if (!Number.isInteger(province) || province < 0 || province >= g.grid.count)
+  if (
+    !Number.isInteger(province) ||
+    province < 0 ||
+    (province >= g.grid.count && !siteGround(world, province))
+  )
     throw new Error(`no province ${province}`);
   return regionOf(populationContext(world), province);
 }
@@ -214,9 +228,33 @@ function regionFrame(world: World, focus: string | null) {
     g = pw.fine,
     center = focus ? parseRef(focus as Ref).b : 0,
     r = region(world, center),
+    ground = siteGround(world, center),
     middle = pw.centre[center]!,
     deposit = new Uint8Array(r.size * r.size).fill(255);
   for (const d of r.deposits) deposit[d.tile] = DEPOSIT_KINDS.indexOf(g.deposits[d.deposit]!.kind);
+  // A land of another body (Phase 64): its own world's ground, and how warm each tile of it is.
+  if (ground)
+    return {
+      key: `${r.ref}:${homePlanet(world).surfaceKey}`,
+      meta: {
+        ref: r.ref,
+        surfaceKey: `${r.ref}:${homePlanet(world).surfaceKey}`,
+        center,
+        size: r.size,
+        tileKm: r.tileKm,
+        lat: (ground.world.grid.lat[ground.hall]! * 180) / Math.PI,
+        lon: (ground.world.grid.lon[ground.hall]! * 180) / Math.PI,
+        colony: colonyLook(world, center),
+      },
+      arrays: {
+        elevation: Float32Array.from(r.elevation),
+        biome: Uint8Array.from(r.biome),
+        water: Uint8Array.from(r.water),
+        fertility: new Uint8Array(r.size * r.size),
+        deposit,
+        warm: Float32Array.from(r.temperature),
+      } as Record<string, Float32Array | Uint8Array | Int32Array>,
+    };
   return {
     key: `${r.ref}:${homePlanet(world).surfaceKey}`,
     meta: {
@@ -262,9 +300,10 @@ export function tile(world: World, center: number, t: number) {
     biome: spotBiome(g, BIOME_NAMES[r.biome[t]!]!),
     water: WATER_WORDS[r.water[t]!],
     fertility: r.fertility[t]!,
-    // Its ground (Phase 15 M124): the rock under it, the soil over it.
-    ground: spotGround(world, r.parent[t]!, r.biome[t]!),
-    parent: spotRef(0, r.parent[t]!),
+    // Its ground (Phase 15 M124): the rock under it, the soil over it. (A colony's has no spot of the
+    // home world's under it: Phase 64.)
+    ground: siteGround(world, center) ? null : spotGround(world, r.parent[t]!, r.biome[t]!),
+    parent: siteGround(world, center) ? null : spotRef(0, r.parent[t]!),
     deposit: deposit
       ? {
           ref: deposit.ref,
@@ -294,7 +333,7 @@ export function province(world: World, cell: number) {
     settledYear: p.settledYear,
     arrival: p.arrival,
     cultivation: p.cultivation,
-    villages: ctx.settlements.inProvince(cell).length,
+    villages: ctx.settlements.seenIn(cell).length,
     folk: folkRef(cell),
     ways: waysOf(world, cell),
     realm: realmOf(world, cell),
@@ -408,7 +447,7 @@ export function market(world: World, cell: number) {
   if (!m || !p) return null;
   const last = m.years.at(-1),
     line = (l: number, g: number) => last?.ledger[l]![g] ?? 0,
-    town = ctx.settlements.inProvince(cell).find((s) => s.market);
+    town = ctx.settlements.seenIn(cell).find((s) => s.market);
   return {
     cell,
     year: last?.year ?? null,
@@ -763,7 +802,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
           .find(
             (p) =>
               p.knowsCultivation &&
-              !ctx.settlements.inProvince(p.cell).length &&
+              !ctx.settlements.seenIn(p.cell).length &&
               !sitesReady(ctx, p.cell),
           );
       if (!next) return false;
@@ -777,6 +816,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
       // The chronicle opens after a generated prehistory: bands across the land.
       const world = makePopulationWorld(seed, { prior, start: "spread" });
       observer(world);
+      // (Its colonies' towns as the eye reads them: Phase 64, nothing history holds.)
+      installColonyTowns(world);
       return world;
     },
     frames: {
@@ -1172,11 +1213,15 @@ function planetUniverse(name: string, prior: Prior): Universe {
         // year: Phase 55 M226 — read from the record, the world untouched.)
         return withWounds(
           world,
-          villagePlan(
+          // (A colony's: its own world's sky and ground, Phase 64.)
+          sealedPlan(
             world,
-            a.ref as Ref,
-            a.families ? Math.max(1, Math.min(16, Math.round(a.families))) : undefined,
-            a.folk ? Math.max(0, Math.min(480, Math.round(a.folk))) : 0,
+            villagePlan(
+              world,
+              a.ref as Ref,
+              a.families ? Math.max(1, Math.min(16, Math.round(a.families))) : undefined,
+              a.folk ? Math.max(0, Math.min(480, Math.round(a.folk))) : 0,
+            ),
           ),
         );
       },
@@ -1262,7 +1307,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
       province: (world, args) => province(world, (args as { cell: number }).cell),
       settlements: (world, args) =>
         populationContext(world)
-          .settlements.inProvince((args as { cell: number }).cell)
+          .settlements.seenIn((args as { cell: number }).cell)
           .map((s) => ({
             ref: s.ref,
             name: s.name,
@@ -1315,6 +1360,14 @@ function planetUniverse(name: string, prior: Prior): Universe {
       ...SEARCH_QUERIES,
       // One of a town's people possessed (Phase 60): the small world about him, stepped ahead.
       ...POSSESS_QUERIES,
+      ...COLONY_QUERIES,
+      /** A colony's town at a few years of its growth, as it stood: for a film of it. */
+      "colony.growth": (world, args) => {
+        const a = args as { cell: number; frames: number; axis: number; most: number };
+        return colonyGrowth(world, a.cell, colonyMoments(world, a.cell, a.frames), (ref, fabric) =>
+          townPlan(world, ref, a.axis, a.most, null, fabric),
+        );
+      },
       // A soldier or a beast possessed, and a battle the god fought (Phase 61).
       ...HELD_QUERIES,
       place: (world, args) => placeOf(world, (args as { ref: string }).ref),

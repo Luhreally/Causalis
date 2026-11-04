@@ -97,6 +97,15 @@ export class SettlementStore implements StateStore {
   private readonly byRef = new Map<string, Settlement>();
   /** What never changes of each settlement (where and when it was founded, and why), folded in as it was. */
   private founding = "";
+  /**
+   * The towns of halls on other worlds, as the eye reads them (Phase 64): made by the host from what
+   * history holds of a land there, for those who look. Never walked, hashed or saved; only the
+   * views' reads (`get`, `seenIn`) find them, and `all` and `inProvince`, the world's own, do not.
+   */
+  seen: {
+    town(ref: Ref): Settlement | undefined;
+    inLand(cell: number): Settlement | undefined;
+  } | null = null;
 
   add(s: Settlement): Settlement {
     this.list.push(s);
@@ -135,7 +144,20 @@ export class SettlementStore implements StateStore {
   }
 
   get(ref: Ref): Settlement | undefined {
+    return this.byRef.get(ref) ?? this.seen?.town(ref);
+  }
+
+  /** A town history keeps (`get` also finds one only read from a colony's land: `seen`). */
+  held(ref: Ref): Settlement | undefined {
     return this.byRef.get(ref);
+  }
+
+  /** A province's towns as the eye reads them: `inProvince`'s, or the town of a colony's halls. */
+  seenIn(cell: number): Settlement[] {
+    const lived = this.byCell.get(cell);
+    if (lived) return [...lived];
+    const shown = this.seen?.inLand(cell);
+    return shown ? [shown] : [];
   }
 
   hashInto(h: Hasher): void {

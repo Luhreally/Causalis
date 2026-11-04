@@ -15,6 +15,8 @@ export type ToolContext = {
   readonly open: (ref: string) => void;
   /** Go down to a town's land and watch it grow (Phase 26 M154). */
   readonly watch?: (cell: number, town: string) => void;
+  /** A colony's landing played again (Phase 64). */
+  readonly landing?: (cell: number) => void;
   /** Go down among a band of a land's camp (Phase 29 M160). */
   readonly near?: (cell: number, camp: number) => void;
   /** Watch a battle fought (Phase 37 M186). */
@@ -182,6 +184,15 @@ export function drawTool(
       b.title =
         "Down to its land with the clock at a year a second: its homes raised, rebuilt higher and fallen, its buildings begun, the carts on its roads.";
       b.onclick = () => ctx.watch!(args.cell as number, args.town as string);
+      into.append(b);
+      return;
+    }
+    case "watch.landing": {
+      if (!ctx.landing) return;
+      const b = el("button", "act", "🚀 Watch the landing");
+      b.title =
+        "Its ship's crossing, its coming down on its engines on this very ground, the first halls set up, and the years going by as they grow into what stands there now: played again on a clock of its own, the world's held.";
+      b.onclick = () => ctx.landing!(args.cell as number);
       into.append(b);
       return;
     }

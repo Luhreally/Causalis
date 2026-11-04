@@ -18,7 +18,7 @@ import {
   factoryPieces,
   figureOf,
   furnaceOf,
-  figurePaint,
+  dressedOn,
   heapCounts,
   itemParts,
   partExtent,
@@ -215,7 +215,7 @@ export class WorkLayer {
     this.items.clear();
     this.plan = plan;
     const figure = figureOf(plan.body),
-      paint = figurePaint(plan.body, plan.era, 0),
+      paint = dressedOn(plan.body, plan.era, 0, plan.colony),
       high = Math.max(...figure.parts.map((p) => p.y + partExtent(p)[1] / 2));
     this.lift = high / 0.55;
     const works = plan.works,
@@ -300,7 +300,7 @@ export class WorkLayer {
     }
     // Smoke: some hearths (more as the setting allows), and every works' chimney.
     this.smoke = null;
-    if (q.motion) {
+    if (q.motion && !plan.colony) {
       const most = [0, 6, 12, 20][q.detail] ?? 6,
         sources: { x: number; y: number; z: number; dark: number }[] = hearths
           .slice(0, most)

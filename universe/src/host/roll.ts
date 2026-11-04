@@ -365,7 +365,7 @@ export function rollOf(world: World, war: War, b: Battle, most: number = ROLL_DE
           whole.get(w.cell) ??
           (w.town === null
             ? country.get(w.cell)
-            : towns.get(ctx.settlements.inProvince(w.cell)[w.town]?.ref ?? ""));
+            : towns.get(ctx.settlements.seenIn(w.cell)[w.town]?.ref ?? ""));
         if (at === undefined) continue;
         const list = metHere.get(at);
         if (list) list.push([person, w]);

@@ -3,6 +3,7 @@
 // household met, a person met (their life, family, moves, memories and character), a
 // memory, and one of the people under the god's hand.
 import { cellRef } from "../../gen/index.ts";
+import { colonyTownCell } from "../colony.ts";
 import {
   agentName,
   handOf,
@@ -167,9 +168,15 @@ export function townPage(world: World, ref: string): PageModel {
       });
     blocks.push(
       // Down to its land to watch it grow, the clock a year a second (Phase 26 M154).
+      // (A colony's coming, played again: Phase 64.)
+      ...(colonyTownCell(s.ref) !== null
+        ? [{ type: "tool" as const, tool: "watch.landing", args: { cell: s.cell } }]
+        : []),
       { type: "tool", tool: "watch.grow", args: { cell: s.cell, town: s.ref } },
       { type: "why", title: "How it came to be", ref: s.event },
-      { type: "tool", tool: "acts.place", args: { town: s.ref } },
+      ...(colonyTownCell(s.ref) === null
+        ? [{ type: "tool" as const, tool: "acts.place", args: { town: s.ref } }]
+        : []),
     );
     tabs.push({ id: "overview", name: "Overview", blocks });
   }

@@ -372,6 +372,37 @@ body[data-scale="ground"][data-daylight="night"] {
     149px 149px,
     100% 100%;
 }
+/* A colony's sky (Phase 64): black and starred at noon where it has no air to speak of; else its
+   own, by what air it has, and starred by night. */
+body[data-colony="black"][data-scale="ground"] {
+  background-color: #01020a !important;
+  background-image:
+    radial-gradient(1.3px 1.3px at 18% 22%, #ffffff 60%, transparent 100%),
+    radial-gradient(1px 1px at 72% 12%, #cfe4ff 60%, transparent 100%),
+    radial-gradient(1px 1px at 44% 34%, #ffffff 60%, transparent 100%),
+    radial-gradient(1.4px 1.4px at 88% 44%, #fff6d8 60%, transparent 100%),
+    radial-gradient(1px 1px at 8% 58%, #b8d4ff 60%, transparent 100%),
+    linear-gradient(180deg, #01020a 0%, #03040f 70%, #0a0a16 100%) !important;
+  background-size:
+    173px 173px,
+    211px 211px,
+    149px 149px,
+    257px 257px,
+    191px 191px,
+    100% 100% !important;
+}
+body[data-colony="air"][data-scale="ground"] {
+  background: linear-gradient(
+    180deg,
+    var(--colony-sky-0) 0%,
+    var(--colony-sky-1) 38%,
+    var(--colony-sky-2) 72%,
+    var(--colony-sky-3) 100%
+  ) !important;
+}
+body[data-colony="air"][data-scale="ground"][data-daylight="night"] {
+  background: linear-gradient(180deg, #02030c 0%, #070814 65%, #12121e 100%) !important;
+}
 /* The weather over the ground (Phase 30 M162): a grey sky under cloud, and by day a pale gold
    one in a dry haze; a night under cloud without its stars. */
 body[data-scale="ground"][data-sky="grey"] {

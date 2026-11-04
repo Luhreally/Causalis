@@ -1807,7 +1807,7 @@ function realmLedger(
       (a, b2) => people.get(b2.ref)! - people.get(a.ref)! || (a.ref < b2.ref ? -1 : 1),
     );
   const rows: Row[] = byPeople.map((r) => {
-    const towns = r.members.reduce((n, c) => n + ctx.settlements.inProvince(c).length, 0),
+    const towns = r.members.reduce((n, c) => n + ctx.settlements.seenIn(c).length, 0),
       faith = b.of(r.seat).faith,
       tongue = langs.of(r.seat),
       atWar = wars.fighting(r.ref).filter((w) => w.ended === null).length,

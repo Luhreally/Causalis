@@ -534,6 +534,29 @@ export {
   type WarViewed,
 } from "./warviews.ts";
 export { hallCells, hallDomes } from "./halls.ts";
+export {
+  FILM,
+  colonyHash,
+  colonyHour,
+  landingToShow,
+  filmShots,
+  filmWords,
+  settlerAt,
+  colonyHeight,
+  colonyRock,
+  colonyRough,
+  colonySky,
+  crossingShare,
+  descentAt,
+  firstPods,
+  growthAt,
+  landerParts,
+  starHue,
+  transferAt,
+  type FilmStage,
+  type ColonySky,
+  type LanderPart,
+} from "./colony.ts";
 
 export {
   HAIRS,
@@ -656,7 +679,7 @@ export {
   starWords,
   type GalaxyPoints,
 } from "./galaxy.ts";
-export { EYES, GROUP_COLORS, SKIN, clothes, figurePaint } from "./dress.ts";
+export { EYES, GROUP_COLORS, SKIN, clothes, dressedOn, figurePaint } from "./dress.ts";
 export { MARK_SHADES, folkLook, hsl, type FolkLook, type Stance } from "./folk.ts";
 export { nameShape, namesThatFit, withinName, type LaidName, type NameShape } from "./mapnames.ts";
 export {

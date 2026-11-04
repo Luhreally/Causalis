@@ -6,12 +6,12 @@ import { Rng, type World } from "../kernel/index.ts";
 import {
   SECTOR_LY,
   WORLD_FREQUENCY,
+  foreignBody,
   foreignPlanets,
   makeGalaxy,
   otherWorld,
   sectorStars,
   type GalaxyStar,
-  type SystemBody,
 } from "../gen/index.ts";
 import { civilizationsNear, contactsOf, homePlanet } from "../sim/index.ts";
 import { civilizationOn, lifeOfWorld } from "./elsewhere.ts";
@@ -184,30 +184,7 @@ export function foreignGlobe(world: World, ref: string, index: number): WorldGlo
   const s = starByRef(world, ref),
     p = foreignPlanets(new Rng(world.seed), s)[index];
   if (!p) throw new Error(`no world ${index} of ${ref}`);
-  const body: SystemBody = {
-      ref: `${ref}/${index}` as SystemBody["ref"],
-      index,
-      designation: String.fromCharCode(98 + index),
-      kind: p.kind,
-      orbit: {
-        around: s.ref,
-        a: p.a,
-        e: 0,
-        periapsis: 0,
-        phase: 0,
-        periodDays: 365.25 * Math.sqrt((p.a * p.a * p.a) / s.mass),
-      },
-      mass: p.mass,
-      radius: p.radius,
-      gravity: p.gravity,
-      escape: p.escape,
-      temperature: p.temperature,
-      pressure: p.pressure,
-      air: p.air,
-      water: p.water,
-      radiation: p.radiation,
-      because: [],
-    },
+  const body = foreignBody(s, p, index),
     w = otherWorld(body, s, p.a, g.digest),
     life = lifeOfWorld(world, s, index),
     made: WorldGlobe = {

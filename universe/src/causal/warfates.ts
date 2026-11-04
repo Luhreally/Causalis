@@ -239,7 +239,7 @@ function ofFightingAge(ctx: PopulationContext, age: number): boolean {
 /** His town's index among a land's settlements (null: he lives in none of them). */
 function townIndex(ctx: PopulationContext, cell: number, village: Ref | null): number | null {
   if (!village) return null;
-  const k = ctx.settlements.inProvince(cell).findIndex((s) => s.ref === village);
+  const k = ctx.settlements.seenIn(cell).findIndex((s) => s.ref === village);
   return k < 0 ? null : k;
 }
 

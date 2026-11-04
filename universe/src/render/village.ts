@@ -6,7 +6,14 @@
 // fought before it in its own scene (Phase 55 M227): its field laid along its road (render/battle.ts),
 // its people indoors while it is fought but for those come out to its edge to watch.
 import * as pc from "playcanvas";
-import { LAKE_R, woundStage, type TradeGood, type VillagePlan } from "../bridge/index.ts";
+import {
+  LAKE_R,
+  townLots,
+  townReach,
+  woundStage,
+  type TradeGood,
+  type VillagePlan,
+} from "../bridge/index.ts";
 import {
   ACTIVITY,
   ARM_LOOKS,
@@ -15,7 +22,7 @@ import {
   EYES,
   GROUP_COLORS,
   SKIN,
-  figurePaint,
+  dressedOn,
   biomeColor,
   kindWater,
   cropColor,
@@ -130,6 +137,7 @@ import {
 import { FaunaLayer, type PickedBeast } from "./fauna.ts";
 import { VisitorsLayer } from "./visitors.ts";
 import { WorkLayer, type Carrier } from "./work.ts";
+import { ColonyLayer } from "./colony.ts";
 import { TownLayer } from "./town.ts";
 import { CountryLayer } from "./country.ts";
 import { FeastLayer } from "./feast.ts";
@@ -277,6 +285,8 @@ export class VillageScene {
   private readonly work: WorkLayer;
   /** A town built lot by lot (Phase 23), drawn from its fabric in place of its homes and quarters. */
   private readonly town: TownLayer;
+  /** A colony's own ground and sky (Phase 64), in place of its land's. */
+  readonly colony: ColonyLayer;
   /** Its countryside (Phase 32): the fields' bounds, orchards, barns, mills, tractors, the pasture's fence. */
   private readonly country: CountryLayer;
   /** Its square on feast days and market days (Phase 33): bunting, tables, the bonfire; the stalls. */
@@ -348,11 +358,39 @@ export class VillageScene {
     this.graveyard = new GraveyardLayer(stage, this.root);
     this.worn = new WoundsLayer(stage, this.root);
     this.litters = new LittersLayer(stage, this.root);
+    this.colony = new ColonyLayer(stage, stage.root);
     this.root.enabled = false;
   }
 
   set visible(on: boolean) {
     this.root.enabled = on;
+    this.colony.visible = on && !!this.plan?.colony;
+  }
+
+  /**
+   * A colony's ground and sky alone, its town put away (Phase 64): what a landing is watched on,
+   * before there is a town there.
+   */
+  groundOnly(): void {
+    this.root.enabled = false;
+    this.colony.visible = !!this.plan?.colony;
+  }
+
+  /** A colony's town as it stood at a year of a film of its growth, on its ground; null: gone. */
+  private asItStood: TownLayer | null = null;
+  growth(town: VillagePlan["town"], ref: string, t: number): void {
+    if (!town) {
+      if (this.asItStood) this.asItStood.visible = false;
+      return;
+    }
+    this.asItStood ??= new TownLayer(this.stage, this.colony.root);
+    this.townLamps ??= windowMaterial();
+    glowWindows(this.townLamps, 0.7);
+    this.asItStood.build(town, `grown ${ref}`, t, this.townLamps);
+  }
+  /** It rising, on to moment t. */
+  growthAt(t: number): void {
+    this.asItStood?.update(t);
   }
 
   /** Every batch the village is built of, so a rebuild frees their buffers too. */
@@ -486,24 +524,45 @@ export class VillageScene {
         Math.hypot(plan.pasture.x, plan.pasture.z) + plan.pasture.r,
       );
     this.reach = reach;
-    disc(
-      Math.min(390, Math.max(140, (reach + 300) * M)),
-      [g[0] * 0.95 + 0.03, g[1] * 0.95 + 0.05, g[2] * 0.9],
-      0,
-      0,
-      0,
-      "ground",
-      true,
-    );
-    disc(
-      plan.pasture.r * M,
-      [g[0] * 0.8 + 0.12, g[1] * 0.85 + 0.14, g[2] * 0.7 + 0.05],
-      plan.pasture.x * M,
-      plan.pasture.z * M,
-      0.012,
-      "ground",
-      true,
-    );
+    // (A colony's ground is its own world's: Phase 64.)
+    this.colony.visible = !!plan.colony && this.root.enabled;
+    if (plan.colony && plan.town) {
+      // (Level as far as its glasshouses stand, its hills beyond them.)
+      this.colony.build(
+        plan.colony,
+        plan.seed,
+        Math.max(
+          30,
+          Math.min(300, reach * M),
+          townReach(
+            townLots(plan.town.family, plan.town.seed, plan.town.axis, plan.town.whole, null),
+          ) *
+            M *
+            1.12,
+        ),
+      );
+    } else if (plan.colony) this.colony.build(plan.colony, plan.seed, 30);
+    if (plan.colony) this.colony.glasshouses(plan.fields, plan.pasture);
+    if (!plan.colony) {
+      disc(
+        Math.min(390, Math.max(140, (reach + 300) * M)),
+        [g[0] * 0.95 + 0.03, g[1] * 0.95 + 0.05, g[2] * 0.9],
+        0,
+        0,
+        0,
+        "ground",
+        true,
+      );
+      disc(
+        plan.pasture.r * M,
+        [g[0] * 0.8 + 0.12, g[1] * 0.85 + 0.14, g[2] * 0.7 + 0.05],
+        plan.pasture.x * M,
+        plan.pasture.z * M,
+        0.012,
+        "ground",
+        true,
+      );
+    }
     if (plan.water)
       disc(
         LAKE_R * M,
@@ -524,7 +583,7 @@ export class VillageScene {
       this.root,
     );
     const len = Math.hypot(plan.road.x, plan.road.z) * M;
-    road.set(1, (_, out) => {
+    road.set(plan.colony ? 0 : 1, (_, out) => {
       out[0] = quarters ? 0 : (plan.road.x * M) / 2;
       out[1] = 0.015;
       out[2] = quarters ? 0 : (plan.road.z * M) / 2;
@@ -579,7 +638,7 @@ export class VillageScene {
     this.graveyard.build(graveyardFor(plan), plan.lifeLook);
     // A town's well in the middle of its square, where its bucket lines draw (Phase 42 M201): a
     // ring of stone about its water, two posts and a little roof over it.
-    if (town) {
+    if (town && !plan.colony) {
       const stone = this.batch(s, cylinderMesh(s, 0.5, 1, 12), [0.6, 0.58, 0.54], 1, this.root),
         well = this.batch(s, cylinderMesh(s, 0.5, 1, 12), [0.2, 0.36, 0.5], 1, this.root),
         posts = this.batch(s, boxMesh(s), [0.42, 0.3, 0.18], 2, this.root),
@@ -914,7 +973,7 @@ export class VillageScene {
     }
     // Trees about the village, as its land grows them: dark cones of pine, round crowns,
     // palms, low scrub — facets in a handful of batches.
-    const trees = treesOf(plan, s.quality.villageTrees),
+    const trees = plan.colony ? [] : treesOf(plan, s.quality.villageTrees),
       drawnAt = new Map(trees.map((t, k) => [t, k])),
       byKind = (k: Tree["kind"]) => trees.filter((t) => t.kind === k),
       trunk = cylinderMesh(s, 0.5, 1, 5),
@@ -1059,7 +1118,7 @@ export class VillageScene {
       each = (pi: number) =>
         Math.max(1, plan.people.length * alike.filter((a) => a === alike[pi]).length);
     this.people = GROUP_COLORS.map((_, gi) => {
-      const paint = figurePaint(plan.body, plan.era, gi),
+      const paint = dressedOn(plan.body, plan.era, gi, plan.colony),
         made: InstancedBatch[] = [];
       return figured.map((part, pi) =>
         part.tone === 3
@@ -1074,7 +1133,7 @@ export class VillageScene {
       );
     });
     // Hair (a people's markings), each person's own colour (a batch a colour, whatever their group).
-    const hairs = figurePaint(plan.body, plan.era, 0).hairs,
+    const hairs = dressedOn(plan.body, plan.era, 0, plan.colony).hairs,
       haired: InstancedBatch[][] = [];
     this.hair = figured.map((part, pi) =>
       part.tone === 3
@@ -1342,7 +1401,7 @@ export class VillageScene {
             ? snowed(grassTint(cropTint("fallow", t, year), year))
             : snowed(soilTint(year));
     for (const c of this.crops) {
-      const color = earth(c.crop),
+      const color: Rgb = this.plan?.colony ? [0.28, 0.6, 0.26] : earth(c.crop),
         key = color.map((x) => x.toFixed(3)).join();
       if (key === c.shown) continue;
       c.shown = key;
@@ -1356,7 +1415,10 @@ export class VillageScene {
     this.yearNow = year;
     // Lamplight in the windows from dusk to dawn (set only as it changes).
     if (this.windows) {
-      const glow = Math.round(lamplight((t % 86_400) / 3600) * 20) / 20;
+      // (A sealed hall's ports are never quite dark.)
+      const glow =
+        Math.round(Math.max(this.plan?.colony ? 0.35 : 0, lamplight((t % 86_400) / 3600)) * 20) /
+        20;
       if (glow !== this.lit) {
         this.lit = glow;
         glowWindows(this.windows, glow);
@@ -1911,7 +1973,7 @@ export class VillageScene {
       ? [battle.attacker.color, battle.defender.color].map((c) => {
           const body: Rgb = [c[0], c[1], c[2]],
             legs: Rgb = [c[0] * 0.5, c[1] * 0.5, c[2] * 0.5],
-            paint = figurePaint(plan.body, plan.era, 0);
+            paint = dressedOn(plan.body, plan.era, 0, plan.colony);
           // (A people in their own look fight in their hide, their realm's colour over it.)
           return this.figure.parts.map((part) =>
             kept(

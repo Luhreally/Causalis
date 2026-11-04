@@ -365,6 +365,17 @@ export class GlobeScene {
     });
   }
 
+  /** The way to a cell of it from its middle (a unit direction). */
+  wayOf(cell: number): { x: number; y: number; z: number } {
+    const p = this.positions;
+    if (!p) return { x: 0, y: 0, z: 1 };
+    const x = p[cell * 3]!,
+      y = p[cell * 3 + 1]!,
+      z = p[cell * 3 + 2]!,
+      l = Math.hypot(x, y, z) || 1;
+    return { x: x / l, y: y / l, z: z / l };
+  }
+
   /** Where each site's halls stand (unit directions), for their names and a finger's pick. */
   get hallsAt(): readonly { x: number; y: number; z: number }[] {
     return this.hallSites;

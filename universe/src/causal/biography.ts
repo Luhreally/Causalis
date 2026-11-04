@@ -195,7 +195,7 @@ export function deepen(world: World, person: Person): Person {
           y === yearOfMoment(e.t)
         ) {
           // The first village of their province is part of their story too.
-          if (ctx.settlements.inProvince(cell)[0]?.event === e.id) add(y, "founded", e.id);
+          if (ctx.settlements.seenIn(cell)[0]?.event === e.id) add(y, "founded", e.id);
         }
       }
     }
@@ -224,7 +224,7 @@ export function deepen(world: World, person: Person): Person {
     // Crafts and trade are learned at the market town, if there was one by then;
     // else a craft follows the metal worked there, and trade the first road out.
     const town = ctx.settlements
-        .inProvince(homeAt)
+        .seenIn(homeAt)
         .find(
           (s) => s.market && yearOfMoment(world.events.get(s.market)?.t ?? Infinity) <= grownAt,
         ),

@@ -52,7 +52,7 @@ function lineagePlace(world: World, index: number, origin: number): Place | null
   for (let c = 0; c < n; c++) {
     if (!lives(g.life, c, index)) continue;
     const p = ctx.provinces.get(c);
-    if (!p || !ctx.settlements.inProvince(c).length) continue;
+    if (!p || !ctx.settlements.seenIn(c).length) continue;
     if (wildsOf(ctx, c).lost.includes(index)) continue;
     const people = p.total();
     if (people > most) {
@@ -60,7 +60,7 @@ function lineagePlace(world: World, index: number, origin: number): Place | null
       best = c;
     }
   }
-  if (best >= 0) return { scale: "village", town: ctx.settlements.inProvince(best)[0]!.ref };
+  if (best >= 0) return { scale: "village", town: ctx.settlements.seenIn(best)[0]!.ref };
   return origin >= 0 && origin < n ? { scale: "region", cell: origin } : null;
 }
 

@@ -66,7 +66,7 @@ export function townTally(
   if (!s || !b.fell) return null;
   const land = b.fell[side].find((l) => l[0] === s.cell);
   if (!land || land[4] === undefined) return null;
-  const k = ctx.settlements.inProvince(s.cell).findIndex((t) => t.ref === s.ref),
+  const k = ctx.settlements.seenIn(s.cell).findIndex((t) => t.ref === s.ref),
     t = k < 0 ? undefined : unpackTowns(land[4])[k];
   return t ? [t[0], t[1], t[2]] : [0, 0, 0];
 }

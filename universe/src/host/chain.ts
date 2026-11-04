@@ -312,7 +312,7 @@ export function makingTown(
   world: World,
   cell: number,
 ): { readonly ref: string; readonly name: string; readonly population: number } | null {
-  const towns = populationContext(world).settlements.inProvince(cell);
+  const towns = populationContext(world).settlements.seenIn(cell);
   if (!towns.length) return null;
   return (
     towns.find((s) => s.market) ?? towns.reduce((a, b) => (b.population > a.population ? b : a))

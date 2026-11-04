@@ -1,0 +1,101 @@
+// A colony as the view reads it (Phase 64): the sky and ground its town stands under, how its ship
+// came there, and the list of them all. Plain data: what is drawn from it is the view's.
+import type { TownPlan } from "./town.ts";
+
+/** What a colony's world is like where its halls stand. */
+export type ColonyLook = {
+  /** The body it stands on: its name, its page's ref, what it is, its air and its water. */
+  readonly body: string;
+  readonly bodyRef: string;
+  readonly kind: string;
+  readonly air: string;
+  readonly water: string;
+  /** Its air's pressure (atmospheres), its pull (g), the warmth of the ground there (°C). */
+  readonly pressure: number;
+  readonly gravity: number;
+  readonly temperature: number;
+  /** Which of its kind's colours its rock takes (0 … 1), as the world is painted seen whole. */
+  readonly tint: number;
+  /** Where on its world its halls stand: a cell of that world's own grid. */
+  readonly hall: number;
+  /** Whether ice lies where the halls stand. */
+  readonly icy: boolean;
+  /** The star's heat (K), how wide its disc stands in the sky (degrees), its light there (Earth's: 1). */
+  readonly star: { readonly temperature: number; readonly disc: number; readonly light: number };
+  /** What else hangs in its sky: a moon's planet, or a planet's moon (how wide, in degrees). */
+  readonly over: {
+    readonly designation: string;
+    readonly kind: string;
+    readonly degrees: number;
+    readonly tint: number;
+  } | null;
+  /** How long a day is there (hours): a moon's is its month, turned one face to its planet. */
+  readonly day: number;
+  /** The year its first settlers came, the event of their coming, how many they were. */
+  readonly founded: number;
+  readonly event: string | null;
+  readonly settlers: number;
+  /** What its halls must keep against, in words (rules/habitat.ts). */
+  readonly keeps: readonly string[];
+};
+
+/** How a colony's ship came there, as history tells it. */
+export type ColonyVoyage = {
+  /** Within the star's system, a transfer flight; or between the stars, a voyage. */
+  readonly kind: "system" | "star";
+  /** The star sailed for, and which of its worlds (a voyage's). */
+  readonly star: string | null;
+  readonly planet: number | null;
+  /** The body flown to, in the system's plan (a transfer's). */
+  readonly body: number | null;
+  /** Light-years (a voyage's). */
+  readonly distance: number;
+  /** The year it left and the year it arrived, and whether it has. */
+  readonly departed: number;
+  readonly arrives: number;
+  readonly arrived: boolean;
+  /** How long the crossing takes (days), and the speed asked of it (km/s; a transfer's). */
+  readonly days: number;
+  readonly speed: number | null;
+  /** The drive it sailed by (a voyage's). */
+  readonly drive: string | null;
+  /** Why it went: the event of its founding or sailing. */
+  readonly event: string | null;
+};
+
+/** One colony, or one ship still sailing, in the list of them. */
+export type ColonyEntry = {
+  /** Its land. */
+  readonly cell: number;
+  /** Its town and its name (null: a ship still sailing). */
+  readonly town: string | null;
+  readonly name: string | null;
+  /** The body it stands on (null: still sailing), its index in the system, and its kind. */
+  readonly body: string | null;
+  readonly bodyIndex: number;
+  readonly kind: string | null;
+  /** Another star's, its ref and which of its worlds. */
+  readonly star: string | null;
+  readonly planet: number | null;
+  readonly people: number;
+  /** The year it was founded (a ship's: the year it comes). */
+  readonly founded: number;
+  /** A ship's years of sailing and arriving (null: flown within the system). */
+  readonly sailed: number | null;
+  readonly arrives: number | null;
+  readonly sailing: boolean;
+  readonly event: string | null;
+  /** Who rules it now, and who sent it. */
+  readonly realm: string | null;
+  readonly founder: string | null;
+  /** How wide what hangs in its sky stands, in degrees (0: nothing does; a ship still sailing). */
+  readonly sky: number;
+};
+
+/** A colony's town at a few years of its growth, drawn as it stood then (for a film of it). */
+export type ColonyGrowth = readonly {
+  readonly year: number;
+  readonly people: number;
+  readonly homes: number;
+  readonly town: TownPlan;
+}[];

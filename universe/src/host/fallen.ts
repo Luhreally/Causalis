@@ -36,7 +36,7 @@ export function levyPlaces(
     const part = { cell: r.cell, sent: r.sent, dead: r.dead, hurt: r.hurt };
     if (r.town !== null) {
       // (A town is found by its place in its land's founding order, which only grows.)
-      const t = ctx.settlements.inProvince(r.cell)[r.town];
+      const t = ctx.settlements.seenIn(r.cell)[r.town];
       return { kind: "town", ref: t?.ref ?? null, name: t?.name ?? "a town now gone", ...part };
     }
     const land = landTitle(world, r.cell, true);

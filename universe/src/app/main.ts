@@ -22,6 +22,7 @@ import {
   ClusterScene,
   VILLAGE_METRE,
   GalaxyScene,
+  colonyMaterials,
   galaxyMaterial,
   skyMaterials,
   VillageScene,
@@ -68,6 +69,7 @@ import {
   PageWindow,
   NamesSwitch,
   Alerts,
+  Colonies,
   ArmsBook,
   EventWindows,
   GodPalette,
@@ -117,12 +119,18 @@ import type {
   ArmBorne,
   BattleRoll,
   RollEntry,
+  ColonyEntry,
+  ColonyLook,
+  ColonyVoyage,
 } from "../bridge/index.ts";
 import { nearestCell, sphereGrid, yearOfMoment } from "../kernel/index.ts";
 
 import {
   GOOD_CHOICES,
   LAW_CHOICES,
+  colonyHour,
+  landingToShow,
+  colonySky,
   newDirector,
   nextTake,
   untold,
@@ -287,6 +295,7 @@ function rim(s: NameShape, d: number): { x: number; y: number; z: number } {
 import { deviceTier } from "./tier.ts";
 import { installHeld, type HeldField } from "./held.ts";
 import { installPossession } from "./possess.ts";
+import { installColonyFilm, type ColonyFilm } from "./colony-film.ts";
 // (Anyone's family and body on their card, a war's soldiers named from its roll: Phase 55 wave 5.)
 import { kinLines } from "../ui/index.ts";
 import { seatRef, type KinCard, type StruckMember, type StruckNow } from "../bridge/index.ts";
@@ -777,9 +786,15 @@ type Exposed = {
   tapGalaxy?: (x: number, y: number) => void;
   /** Down to a world of the system (by its index), and which world is seen now (-1 none). */
   visit?: (index: number) => void;
+  /** Down to a colony's land (Phase 64). */
   visiting?: () => number;
   /** How many halls stand on the world seen whole (M95: halls from orbit). */
   hallsShown?: () => number;
+  colonyFilm?: ColonyFilm;
+  planNow?: () => VillagePlan | null;
+  closePage?: () => void;
+  watched?: () => number | null;
+  reloadPlan?: () => Promise<void>;
   /** Whether a great happening's window is open (M100). */
   eventOpen?: () => boolean;
   /** The god's palette (Phase 12 M106): the act in hand, an act taken up or put down, a tap. */
@@ -1290,6 +1305,7 @@ async function runPlanetPage(): Promise<void> {
       ...skyMaterials(stage),
       ...weather.materials(),
       ...handNear.materials(),
+      ...colonyMaterials(stage),
       { material: galaxyMaterial() },
     ],
     true,
@@ -3065,11 +3081,16 @@ async function runPlanetPage(): Promise<void> {
   // the labels and the host's interest all move together.
   const toRegion = (cell: number) => {
     scale = "region";
+    // (A land of another body shows its own ground, no lens of the home world's.)
+    const offworld = isColonyLand(cell);
     // The globe's lens, seen in the land too (M95): its terrain, the land's own; else the map's.
-    regionLens = lens === "terrain" ? "land" : "world";
+    regionLens = lens === "terrain" || offworld ? "land" : "world";
     regionPanel.markLens(regionLens);
-    regionPanel.mapLens(lens === "terrain" ? null : LENS_NAMES[lens]);
+    regionPanel.mapLens(lens === "terrain" || offworld ? null : LENS_NAMES[lens]);
     stage.backdrop("ground", regionFit());
+    if (offworld) void colonySkyOver(cell);
+    else stage.colonySky(null);
+    regionPanel.backTo = offworld ? "Its world" : "The world";
     regionCell = cell;
     globe.visible = false;
     region.visible = true;
@@ -3108,10 +3129,22 @@ async function runPlanetPage(): Promise<void> {
         const wall = performance.now();
         for (const [ref, text] of landTidings(landPlan, plan))
           townNews.set(ref, { text, until: wall + TIDING_MS });
+        const firstOfIt = landPlan === null;
         landPlan = plan;
         const t0 = performance.now();
         region.setTowns(plan, plan.t);
         performance.measure("region.towns", { start: t0 });
+        // (A colony's land is its town, in a land of nothing else: the eye goes to it.)
+        if (offworld && firstOfIt && plan.towns[0]) {
+          const at = region.land.townAt(plan.towns[0].ref),
+            ground = region.groundAt(plan.towns[0].tile);
+          if (at) {
+            rig.halt();
+            rig.target.set(at.x, ground?.y ?? 0, at.z);
+            rig.userZoomed = true;
+            rig.distance = Math.max(14, at.r * 7);
+          }
+        }
         // (Its wars' battles fought before its greatest town, its sieges laid about it: M203.)
         showLandWars();
       },
@@ -3353,7 +3386,8 @@ async function runPlanetPage(): Promise<void> {
     await client.query<ActsMap>({ type: "acts.map" }).then(showActs);
   };
   stage.onUpdate(() => {
-    const usable = ["globe", "region", "camp", "village"].includes(scale) && rig.enabled;
+    const usable =
+      ["globe", "region", "camp", "village"].includes(scale) && rig.enabled && !onColony();
     brushes.button.hidden = !usable;
     if (!usable && brushes.armed) brushes.close();
   });
@@ -3461,6 +3495,154 @@ async function runPlanetPage(): Promise<void> {
   const worldPanel = new WorldPanel(hud);
   let seen: WorldGlobe | null = null,
     seenAt = -1;
+  /** Whether a land is of another body (lands past the home world's own are its offworld sites). */
+  const isColonyLand = (cell: number) => cell >= landsOfHome();
+  /** How many lands the home world has of its own, as its globe was first sent. */
+  const landsOfHome = () => {
+    const frame = client.latestFrame("globe"),
+      p = frame?.arrays.province as Int32Array | undefined;
+    if (!p) return Infinity;
+    if (homeLands === 0) for (const c of p) homeLands = Math.max(homeLands, c + 1);
+    return homeLands;
+  };
+  let homeLands = 0;
+  /** A colony's town, by its ref (they are numbered apart: host/colony.ts). */
+  const colonyRef = (ref: string) => ref.startsWith("town:1:");
+  /** Whether the scale shown stands on a colony's ground. */
+  const onColony = () =>
+    (scale === "region" && isColonyLand(regionCell)) ||
+    (scale === "village" && !!plan && colonyRef(plan.ref));
+  /** A land's sky over it, once it is known. */
+  const colonySkyOver = async (cell: number) => {
+    const c = await client.query<{ look: ColonyLook | null; voyage: ColonyVoyage | null }>({
+      type: "colony.look",
+      args: { cell },
+    });
+    if (c.look && scale === "region" && regionCell === cell) stage.colonySky(colonySky(c.look));
+  };
+  /** The sky's clock while a crossing is filmed (Phase 64); null: the world's. */
+  let skyFilmed: number | null = null;
+  /** A colony's landing watched (Phase 64). */
+  let colonyFilm: ColonyFilm | null = null;
+  /** Every scale put away, for a film or a list to go on from. */
+  const allAway = () => {
+    leaveScale();
+    stopVillages?.();
+    stopVillages = null;
+    villages = [];
+    landPlan = null;
+    labels.clear();
+    bubbles.clear();
+    globe.visible = false;
+    planetPanel.visible = false;
+    region.visible = false;
+    regionPanel.visible = false;
+    village.visible = false;
+    villagePanel.visible = false;
+    plan = null;
+    worldScene.visible = false;
+    worldPanel.visible = false;
+    seen = null;
+    skyScene.visible = false;
+    systemPanel.visible = false;
+    starScene.visible = false;
+    clusterPanel.visible = false;
+    galaxyScene.visible = false;
+    galaxyPanel.visible = false;
+  };
+  /** Down to a colony's town, from anywhere. */
+  const toColonyTown = async (cell: number, ref: string) => {
+    allAway();
+    regionCell = cell;
+    await toVillage(ref);
+  };
+  /** A colony's world seen whole, from anywhere. */
+  const toWorldOfColony = async (c: ColonyEntry) => {
+    allAway();
+    regionCell = -1;
+    stage.backdrop("space");
+    if (c.star !== null && c.planet !== null) {
+      const page = await client.query<StarPage>({ type: "galaxy.star", args: { ref: c.star } });
+      skyStar = page;
+      await toForeignWorld(page, c.planet, "star");
+      await showForeignHalls(c);
+      return;
+    }
+    systemPlan ??= await client.query<SystemPlan>({ type: "planet.system" });
+    watchSky();
+    sky = await client.query<SkyState>({ type: "space.state" });
+    skyStar = null;
+    worldFrom = "system";
+    worldPanel.backTo = "The sky";
+    await toWorld(c.bodyIndex);
+  };
+  /** Down to a colony's land, from anywhere. */
+  const toColonyLand = (cell: number) => {
+    allAway();
+    return toRegion(cell);
+  };
+  /** Out to a colony's world seen whole, its halls turned to. */
+  const toColonyWorld = async (cell: number) => {
+    const list = await client.query<ColonyEntry[]>({ type: "colony.list" }),
+      c = list.find((x) => x.cell === cell);
+    if (!c) return;
+    stopVillages?.();
+    stopVillages = null;
+    villages = [];
+    landPlan = null;
+    region.visible = false;
+    regionPanel.visible = false;
+    labels.clear();
+    bubbles.clear();
+    regionCell = -1;
+    client.setInterest({ view: "globe", focus: null });
+    stage.backdrop("space");
+    if (c.star !== null && c.planet !== null) {
+      const page = await client.query<StarPage>({ type: "galaxy.star", args: { ref: c.star } });
+      skyStar = page;
+      await toForeignWorld(page, c.planet, "star");
+      await showForeignHalls(c);
+      return;
+    }
+    systemPlan ??= await client.query<SystemPlan>({ type: "planet.system" });
+    watchSky();
+    sky = await client.query<SkyState>({ type: "space.state" });
+    skyStar = null;
+    worldFrom = "system";
+    worldPanel.backTo = "The sky";
+    await toWorld(c.bodyIndex);
+  };
+  /** Halls on a world of another star's (Phase 64): its colony's, from the list of them. */
+  const showForeignHalls = async (c: ColonyEntry) => {
+    const { look } = await client.query<{ look: ColonyLook | null }>({
+      type: "colony.look",
+      args: { cell: c.cell },
+    });
+    if (!look) return;
+    worldScene.setHalls([{ cell: look.hall, domes: hallDomes(c.people) }]);
+    hallsShown = [
+      {
+        ref: `cell:0:${c.cell}`,
+        label: `🏛️ The halls of ${c.founder ?? c.realm ?? "a fallen realm"}`,
+        people: c.people,
+        cell: c.cell,
+      },
+    ];
+    const hall = worldScene.hallsAt[0];
+    if (hall) {
+      rig.halt();
+      rig.yaw = (Math.atan2(hall.x, hall.z) * 180) / Math.PI;
+      rig.pitch = (-Math.asin(hall.y) * 180) / Math.PI;
+    }
+    worldPanel.foreignHalls(
+      c.cell,
+      `${c.people.toLocaleString("en")} people, since ${c.founded}${c.realm ? ` — of ${c.realm}` : " — their own"}`,
+    );
+  };
+  exposed.planNow = () => plan;
+  exposed.closePage = () => pageWindow.close();
+  exposed.watched = () => watched;
+  exposed.reloadPlan = () => (plan ? loadPlan(plan.ref) : Promise.resolve());
   const toWorld = async (index: number) => {
     if (!systemPlan) return;
     const body = systemPlan.bodies[index]!,
@@ -3487,7 +3669,7 @@ async function runPlanetPage(): Promise<void> {
   };
   // Halls from orbit (M95): a body of the home star's seen whole shows the halls set down on
   // it, where the view places each site, its domes as many as its people, its lights aglow.
-  let hallsShown: { ref: string; label: string; people: number }[] = [],
+  let hallsShown: { ref: string; label: string; people: number; cell: number }[] = [],
     hallsNamed = false;
   const showHalls = (index: number, w: WorldGlobe) => {
     const here = (sky?.colonies ?? []).filter((c) => c.body === index),
@@ -3499,7 +3681,22 @@ async function runPlanetPage(): Promise<void> {
       ref: `cell:0:${c.cell}`,
       label: `🏛️ The halls of ${c.founder ?? c.realm ?? "a fallen realm"}`,
       people: c.people,
+      cell: c.cell,
     }));
+  };
+  /** The land of the halls drawn nearest a point of the screen, of those facing the eye; or the only ones. */
+  const hallsNearest = (x: number, y: number): number | null => {
+    if (scale !== "world" || !hallsShown.length) return null;
+    let best: number | null = null,
+      bestD = Infinity;
+    worldScene.screenOf(worldScene.hallsAt, 1.02).forEach((at, i) => {
+      const d = Math.hypot(at.x - x, at.y - y);
+      if (at.facing > 0 && d < bestD && hallsShown[i]) {
+        bestD = d;
+        best = hallsShown[i]!.cell;
+      }
+    });
+    return best ?? hallsShown[0]!.cell;
   };
   exposed.hallsShown = () => (scale === "world" ? hallsShown.length : 0);
   /** The halls drawn nearest a point of the screen, within a finger's reach; or null. */
@@ -3942,6 +4139,9 @@ async function runPlanetPage(): Promise<void> {
         if (at) rig.target.set(at.x, at.y, at.z);
         rig.userZoomed = true;
         rig.distance = 18;
+      } else if (scale === "region" && onColony()) {
+        // (A colony's land: out to its world seen whole, its halls turned to.)
+        await fadeOver(() => toColonyWorld(regionCell));
       } else if (scale === "region") {
         // Facing the spot the land's map was looked at, not only its middle.
         // (This land's map only: another's, not yet replaced, would face somewhere else.)
@@ -4171,7 +4371,11 @@ async function runPlanetPage(): Promise<void> {
       await fadeOver(() => ready("the village", () => toVillage(ref)));
       if (war?.startsWith("ev:")) faceBattle();
     } else if (scale === "world") {
-      // (A world seen whole goes in no further: a world of people is its globe, the home one.)
+      // (Down to the land about its halls, if it has any under or near the pointer, Phase 64;
+      // a world with none goes in no further.)
+      const aim = rig.pointer ?? { x: innerWidth / 2, y: innerHeight / 2 },
+        cell = hallsNearest(aim.x, aim.y);
+      if (cell !== null) await fadeOver(() => ready("the land", () => toColonyLand(cell), true));
       return;
     }
   };
@@ -4475,14 +4679,18 @@ async function runPlanetPage(): Promise<void> {
   });
   stage.onUpdate(() => {
     if (scale !== "system" || !skyPlan) return;
-    const t = now(),
+    const t = skyFilmed ?? now(),
       spots = systemSpec(skyPlan, t),
       screen = performance.now() / 1000;
     skyScene.update(spots);
-    // (Another star's has none of ours about it.)
-    skyScene.marks(skyMarks(skyStar ? { programs: [], colonies: [] } : sky, spots, screen));
+    // (Another star's has none of ours about it; nor has a crossing played again the marks of this
+    // year's flights about the worlds of its own.)
+    const filmed = skyFilmed !== null;
+    skyScene.marks(
+      skyMarks(skyStar || filmed ? { programs: [], colonies: [] } : sky, spots, screen),
+    );
     // The peoples of other stars about it (M136): their worlds, craft and ships, named.
-    const peoples = skyStar ? starPeoples : sky.peoples;
+    const peoples = filmed ? undefined : skyStar ? starPeoples : sky.peoples;
     skyScene.peoples(
       peopleSystemMarks(peoples, skyStar?.ref ?? peoples?.home ?? "", spots, t / YEAR, screen),
     );
@@ -4949,6 +5157,8 @@ async function runPlanetPage(): Promise<void> {
   const toVillage = async (ref: string) => {
     scale = "village";
     stage.backdrop("ground", 40, true);
+    // (A town of a colony's halls under its own sky: Phase 64.)
+    if (!colonyRef(ref)) stage.colonySky(null);
     labels.clear();
     bubbles.clear();
     // Whichever way it came (a region, or straight from the globe), only the village shows.
@@ -4972,7 +5182,8 @@ async function runPlanetPage(): Promise<void> {
       maxDistance: Math.max(140, far * 1.6),
       pitch: -38,
       minPitch: -85,
-      maxPitch: -8,
+      // (On a colony's ground the eye may rest low enough to see its sky over its skyline.)
+      maxPitch: colonyRef(ref) ? -2 : -8,
       drift: drift(0.8),
       target: [0, 0, 0],
     });
@@ -4981,7 +5192,22 @@ async function runPlanetPage(): Promise<void> {
     if (facing !== null) rig.yaw = facing;
     // (And its haze starts as far off.)
     if (reach > 0 || plan?.districts) stage.backdrop("ground", Math.max(110, far * 2.2), true);
+    if (plan?.colony) {
+      stage.colonySky(colonySky(plan.colony));
+      colonyFrom = now();
+      stage.daylight(colonyHour(plan.colony, 0));
+      // (Its skyline against its sky, what hangs there behind it; or its star's light from the side.)
+      const way = village.colony.hanging ?? stage.starWay;
+      rig.halt();
+      rig.pitch = -3;
+      rig.distance = Math.max(24, far * 0.82);
+      rig.target.set(0, Math.min(14, far * 0.09), 0);
+      if (way)
+        rig.yaw = (Math.atan2(-way.x, -way.z) * 180) / Math.PI + (village.colony.hanging ? 0 : 50);
+    }
   };
+  /** The moment the eye came down to a colony's town: its sun's morning. */
+  let colonyFrom = 0;
   // A tap in the village: someone, else a beast (its lineage and what it is doing), else no one.
   const tapVillage = (x: number, y: number) => {
     // One borne home on a litter (Phase 55 wave 5): their card, as anyone's.
@@ -6895,13 +7121,16 @@ async function runPlanetPage(): Promise<void> {
       : null;
   };
   const weatherCell = () =>
-    scale === "camp"
-      ? (near?.info.cell ?? -1)
-      : scale === "region"
-        ? regionCell
-        : scale === "village"
-          ? (plan?.cell ?? regionCell)
-          : -1;
+    // (No weather is told of a colony's ground: its halls are sealed: Phase 64.)
+    onColony()
+      ? -1
+      : scale === "camp"
+        ? (near?.info.cell ?? -1)
+        : scale === "region"
+          ? regionCell
+          : scale === "village"
+            ? (plan?.cell ?? regionCell)
+            : -1;
   const castWas = palette.onCast;
   palette.onCast = (receipt) => {
     castWas(receipt);
@@ -7052,11 +7281,17 @@ async function runPlanetPage(): Promise<void> {
   };
   stage.onUpdate(() => {
     if (scale !== "village" || !plan) return;
+    // (While its landing is filmed, there is no town yet.)
+    if (colonyFilm?.townAway) return;
     const t = now(),
       // A town watched growing (days, months, years a second): its people at their morning's
       // work and its sky by day, not a day's round flashing by in every frame.
       seen = time.lapse ? Math.floor(t / DAY) * DAY + 10 * 3600 : t;
-    stage.daylight((seen % DAY) / DAY);
+    stage.daylight(
+      plan.colony
+        ? colonyHour(plan.colony, time.lapse ? 0 : seen - colonyFrom)
+        : (seen % DAY) / DAY,
+    );
     // Those at their ease go in out of a downpour (Phase 30), and come out when it is over; and all
     // of the town while a battle is fought before it, but for those come out to watch (Phase 55 M227).
     const sky = landSky?.cell === weatherCell() ? landSky : null,
@@ -7534,7 +7769,10 @@ async function runPlanetPage(): Promise<void> {
     if (place) await goTo(place);
   };
 
-  regionPanel.onBack = () => toGlobe();
+  regionPanel.onBack = () => {
+    if (onColony()) void fadeOver(() => toColonyWorld(regionCell));
+    else toGlobe();
+  };
   regionPanel.onClose = () => region.mark(null);
   exposed.select = (n: number) => (scale === "globe" ? selectCell(n) : selectTile(n));
   exposed.descend = (cell: number) => toRegion(cell);
@@ -7770,6 +8008,91 @@ async function runPlanetPage(): Promise<void> {
   // free roam) takes the eye back. Begun from the genesis (?watch), it watches from the first
   // village on.
   const directorControls = new DirectorControls(corner, hud);
+  // A colony's landing watched (Phase 64), and the list of the worlds settled that leads to it.
+  colonyFilm = installColonyFilm({
+    stage,
+    hud,
+    client,
+    time,
+    rig,
+    village,
+    world: worldScene,
+    sky: skyScene,
+    now,
+    toSystem: async () => {
+      allAway();
+      regionCell = -1;
+      await toSystem();
+      return systemPlan!;
+    },
+    toStars: async () => {
+      allAway();
+      regionCell = -1;
+      await toCluster();
+      return clusterPlan!;
+    },
+    toWorld: toWorldOfColony,
+    toTown: toColonyTown,
+    cut: (what, work) => fadeOver(() => ready(what, work, true)),
+    skyAt: (t) => {
+      skyFilmed = t;
+    },
+    plan: () => (scale === "village" ? plan : null),
+    toOrbit: () => {
+      setRoam("orbit");
+      // (A war or an age of wars being watched is left for it.)
+      endWar();
+      endWarAge();
+    },
+  });
+  const colonies = new Colonies(hud, client);
+  colonies.toldAloud = !navigator.webdriver || params.has("landings");
+  corner.prepend(colonies.button);
+  colonies.onLanding = (cell) => void colonyFilm!.play(cell);
+  colonies.onPage = (ref) => {
+    colonies.show(false);
+    void pageWindow.open(ref);
+  };
+  colonies.onDown = (cell) =>
+    void fadeOver(() => ready("its ground", () => toColonyLand(cell), true));
+  colonies.onShown = () => pageWindow.close();
+  worldPanel.onLanding = (cell) => void colonyFilm!.play(cell);
+  worldPanel.onDown = colonies.onDown;
+  pageWindow.onLanding = (cell) => {
+    pageWindow.close();
+    void colonyFilm!.play(cell);
+  };
+  /** The landing an event tells of, if there is one to play. */
+  const landingOfEvent = async (event: string) =>
+    (await client.query<ColonyEntry[]>({ type: "colony.list" }).catch(() => [])).find(
+      (c) => c.event === event && c.town,
+    ) ?? null;
+  const watchLanding = async (event: string) => {
+    const c = await landingOfEvent(event);
+    if (c) await colonyFilm!.play(c.cell);
+    else {
+      const place = await client.query<Place | null>({ type: "place", args: { ref: event } });
+      if (place) await goTo(place);
+    }
+  };
+  tidings.onLanding = (event) => void watchLanding(event);
+  events.onLanding = (event) => void watchLanding(event);
+  // Begun at a landing (?landing, the title's shortest way to one): played once the world stands, the
+  // one that shows the most; then the eye is on that ground, and told what it may do there.
+  const firstLanding = async () => {
+    const list = (await client.query<ColonyEntry[]>({ type: "colony.list" })).filter((c) => c.town),
+      best = landingToShow(list, Math.floor(now() / YEAR));
+    if (!best) {
+      colonies.say("🚀 No ship has come down on another world yet here: it is still to come.");
+      return;
+    }
+    if (await colonyFilm!.play(best.cell))
+      colonies.say(
+        `🏛️ ${best.name ?? "Its halls"}: tap anyone to read them. 🚀 lists the other worlds.`,
+      );
+  };
+  if (params.has("landing") && !loaded) void firstLanding();
+  exposed.colonyFilm = colonyFilm;
   // (Beside it, the world's wars of the last hundred years watched unfolding: M194.)
   const warsButton = el("button", "director-button wars-button", "⚔️");
   warsButton.title =
@@ -7794,6 +8117,12 @@ async function runPlanetPage(): Promise<void> {
     const s = next.shot;
     switch (s.kind) {
       case "first": {
+        // (The first landing on another world: played from its crossing, not only flown to.)
+        const landing = s.first.ref ? await landingOfEvent(s.first.ref) : null;
+        if (landing) {
+          await colonyFilm!.play(landing.cell);
+          return;
+        }
         const place = s.first.ref
             ? await client
                 .query<Place | null>({ type: "place", args: { ref: s.first.ref } })

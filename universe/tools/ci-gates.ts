@@ -248,6 +248,10 @@ export const GATES: readonly Gate[] = [
   // tells how far it has come and how long is left; the very world a world run there at once comes
   // to; stopped, whole where it stands; back to the title from it).
   { gate: 63, args: ["--ci"], s: 150 },
+  // The Phase 64 gate: a far year chosen on the title, a landing found and watched from its crossing to
+  // the town it grew into, at a phone's size, the world's clock held and history untouched; down to that
+  // ground through the scales; its people tapped and one possessed. It bakes its own world to year 1300.
+  { gate: 64, args: ["--ci"], s: 900 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */

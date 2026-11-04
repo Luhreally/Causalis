@@ -19,6 +19,8 @@ import {
   orderOf,
   politiesOf,
   populationContext,
+  spaceOf,
+  starSitesOf,
   warsOf,
 } from "../../sim/index.ts";
 import type {
@@ -36,6 +38,7 @@ import { faithLink, landLink, languageLink, nameOf, realmLink, townLink } from "
 import { worldFirsts } from "./world.ts";
 import { sicknessLink } from "./sickness.ts";
 import { houseLink } from "./credit.ts";
+import { colonyTownRef } from "../colony.ts";
 import { stageBreakdown } from "./stage.ts";
 
 /** A land is going hungry below this much of its need met, in thousandths (as the top bar counts). */
@@ -294,6 +297,31 @@ export function alertsOf(world: World): Alert[] {
           });
     }
   }
+  // Landings lately (Phase 64): a colony founded, a ship come in; each opens onto its event, whose
+  // page plays it again.
+  const landing: AlertItem[] = [];
+  const landed = (cell: number, year: number, event: Ref, body: unknown) => {
+    if (year < now - FIRST_YEARS) return;
+    const town = ctx.settlements.get(colonyTownRef(cell))?.name;
+    landing.push({
+      line: [
+        `${town ?? "Halls"} on ${typeof body === "string" ? body : "another world"}, year ${count(year)}`,
+      ],
+      ref: event,
+      key: `landing:${cell}`,
+    });
+  };
+  for (const p of spaceOf(world).all())
+    for (const c of p.colonies)
+      landed(
+        c.cell,
+        c.year,
+        c.event,
+        (world.events.get(c.event)?.data as { body?: unknown })?.body,
+      );
+  for (const [cell, s] of starSitesOf(world)?.all() ?? [])
+    if (s.arrived) landed(cell, s.arrives, s.arrived, "a world of another star");
+  landing.reverse();
   // Firsts: what the world did first lately, the newest first.
   const first: AlertItem[] = firstsNow(world)
     .filter((f) => f.year >= now - FIRST_YEARS)
@@ -316,6 +344,7 @@ export function alertsOf(world: World): Alert[] {
     { id: "strife", icon: "🗡️", title: "Strife", tone: "war", items: strife },
     { id: "fallen", icon: "🏳️", title: "A realm fallen", tone: "loss", items: fallen },
     { id: "death", icon: "🕯️", title: "A life ended", tone: "loss", items: death },
+    { id: "landing", icon: "🚀", title: "Lately landed", tone: "news", items: landing },
     { id: "first", icon: "🌟", title: "A first in the world", tone: "news", items: first },
   ];
   return alerts.filter((a) => a.items.length);

@@ -137,7 +137,33 @@ const BEGINNINGS = [
     "When strangers come down",
     "three centuries on, a people of another star called down among the most peopled land — and you there to see them",
   ],
+  [
+    "landing",
+    "🚀",
+    "When ships come down on other worlds",
+    "Earth, “first light”, the year 1,500: nine worlds settled. A ship's crossing and its landing played for you, then you on that ground among its people (a world run ahead: moments to load)",
+  ],
 ] as const;
+
+/**
+ * When the first ships came down on other worlds, on the worlds a deploy runs ahead (Phase 64, measured
+ * 2026-11-04: Earth's "first light" a first colony in 1141, a first world of another star's reached in
+ * 1866; "alien 41" a first colony in 914).
+ */
+const LANDINGS: Readonly<Record<string, { first: number; star: number | null }>> = {
+  "earth first light": { first: 1141, star: 1866 },
+  "alien alien 41": { first: 914, star: null },
+};
+function landingWords(kind: string, seed: string, year: number): string {
+  const known = LANDINGS[`${kind} ${seed}`];
+  if (!known)
+    return "Ships come down on other worlds from about year 900 to 1,200 on the worlds run so far; once they have, 🚀 lists them.";
+  if (year < known.first) return `The first landing on another world comes in year ${known.first}.`;
+  return `By then ships have come down on other worlds: 🚀 lists them, each landing to watch${known.star !== null && year < known.star ? ` (another star's world first in year ${known.star})` : ""}.`;
+}
+
+/** The year the title's way to a landing begins at (a year a deploy runs ahead: Phase 64). */
+const LANDING_YEAR = 1500;
 
 /** The farthest year a world may be begun at. */
 const MOST_YEAR = 6000;
@@ -149,6 +175,7 @@ const HOW = [
   "Steer as in a builder's game: W A S D to go, Q E to turn, R F to tilt, + − or the wheel to zoom, Shift to hurry; drag to move the land, right-drag to turn it. Space pauses, 1 2 3 set the speed. On a phone: drag, pinch, and twist two fingers.",
   "Your hand — rain, harvest, plague, quakes, settlers, wars and peace, a people's ways, a tongue, a faith — is always a choice, and always in the chronicle.",
   "Lay your hand on a village and everyone there is someone: their traits, their families, their children.",
+  "Once ships have gone out, 🚀 lists the worlds settled: watch a landing, from the crossing to the town it grew into, or go down to that ground and walk among its people.",
   "The world keeps itself every minute and when you switch away; “Continue” takes up the world last kept.",
 ];
 
@@ -314,6 +341,8 @@ export function showTitle(options: TitleOptions): void {
           ? `${far}under a minute on a phone.`
           : `${far}some ${Math.round(minutes)} minute${Math.round(minutes) === 1 ? "" : "s"} on a phone.`;
       yearNote.textContent = yearNote.textContent[0]!.toUpperCase() + yearNote.textContent.slice(1);
+      // (When there are landings to watch: Phase 64.)
+      yearNote.textContent += ` ${landingWords(kind, seed.value.trim(), year)}`;
       const offered = ahead.find((b) => b.universe === kind && b.seed !== seed.value.trim());
       yearAhead.hidden = !offered || here.length > 0;
       if (offered) yearAhead.textContent = `Use “${offered.seed}”, run ahead to far years`;
@@ -429,6 +458,13 @@ export function showTitle(options: TitleOptions): void {
         begin = id;
         pick(beginnings, id);
         yearRow.hidden = id !== "year";
+        // (The world a deploy ran ahead, so it is there in moments: the seed can be changed after.)
+        if (id === "landing") {
+          kind = "earth";
+          pick(kinds, kind);
+          seed.value = "first light";
+          void tell();
+        }
         sayYear();
       });
       b.dataset.id = id;
@@ -472,7 +508,9 @@ export function showTitle(options: TitleOptions): void {
               ? `${at}&year=${yearChosen()}`
               : begin === "contact"
                 ? `${at}&year=300&contact=1`
-                : at,
+                : begin === "landing"
+                  ? `${at}&year=${LANDING_YEAR}&landing=1`
+                  : at,
       );
     };
     start.onclick = () => void begun();

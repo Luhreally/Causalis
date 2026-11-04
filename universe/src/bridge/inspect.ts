@@ -625,7 +625,16 @@ export type Tip = {
  */
 export type Alert = {
   readonly id:
-    "war" | "hunger" | "order" | "sickness" | "credit" | "strife" | "death" | "fallen" | "first";
+    | "war"
+    | "hunger"
+    | "order"
+    | "sickness"
+    | "credit"
+    | "strife"
+    | "death"
+    | "fallen"
+    | "landing"
+    | "first";
   readonly icon: string;
   readonly title: string;
   /** How it is lit: war red, want amber, loss grey, news cyan. */

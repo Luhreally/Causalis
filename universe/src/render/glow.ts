@@ -41,13 +41,15 @@ export function glowMaterial(stage: Stage, stops: GlowStops): pc.StandardMateria
 
 /**
  * A glow of `radius` about a point of `parent`, turned to the camera every frame (while it
- * is enabled). Returns its entity, to place, scale or hide.
+ * is enabled). Returns its entity, to place, scale or hide. `always`: drawn at every setting (a
+ * star's disc is the star itself; a ship's flame is how it is seen), not only where glows are.
  */
 export function billboard(
   stage: Stage,
   material: pc.Material,
   radius: number,
   parent: pc.Entity,
+  always = false,
 ): pc.Entity {
   const e = new pc.Entity("glow"),
     mi = new pc.MeshInstance(
@@ -59,13 +61,15 @@ export function billboard(
     );
   e.addComponent("render", { meshInstances: [mi] });
   parent.addChild(e);
-  stage.onUpdate(() => {
+  const off = stage.onUpdate(() => {
     if (!e.enabled) return;
     // (Drawn only where the setting allows glows.)
-    mi.visible = stage.quality.glows;
+    mi.visible = always || stage.quality.glows;
     // The disc's face (its +y) turned to the camera.
     e.lookAt(stage.camera.getPosition());
     e.rotateLocal(-90, 0, 0);
   });
+  // (Gone with its entity: a colony's ground is built afresh for each world seen.)
+  e.once("destroy", off);
   return e;
 }

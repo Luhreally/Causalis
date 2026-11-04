@@ -41,6 +41,7 @@ export {
   type FolkFacts,
 } from "./village.ts";
 export type { WorldGlobe } from "./worlds.ts";
+export type { ColonyEntry, ColonyGrowth, ColonyLook, ColonyVoyage } from "./colony.ts";
 export {
   BLOCK_D,
   BLOCK_LOTS,
