@@ -799,6 +799,9 @@ async function closeField(f: Fought) {
 /** One of the town's beasts (its flock's, else the wild's) taken by these hands: grazed, run off until it strays; let go. */
 async function beast(hands: Hands, tag: string): Promise<void> {
   const n = (s: string) => `${hands.name}: ${s}`;
+  // (The town's beasts stand while one is aimed at: they walk on the screen's clock, and a machine
+  // drawing without a graphics card moves them out of a phone's narrow frame between look and tap.)
+  await k(`globalThis.causalis.holdFauna(performance.now() / 1000)`);
   type Laid = {
     index: number;
     id: number;
@@ -877,6 +880,7 @@ async function beast(hands: Hands, tag: string): Promise<void> {
     await hands.tap(target.at.x, target.at.y);
     if (await comes(async () => !!(await held())?.live, slow(3000))) break;
   }
+  await k(`globalThis.causalis.holdFauna(null)`);
   let s = await held();
   check(s?.kind === "beast", n(`no beast taken from the palette: “${await paletteWords()}”`));
   if (!s?.live || s.kind !== "beast") return;

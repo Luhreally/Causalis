@@ -212,7 +212,8 @@ console.log("the Phase 9 gate");
       top = [...map].sort((a: any, b: any) => b.people - a.people)[0];
     k.faceSpot(top.centre, 1.5);
   });
-  await page.waitForTimeout(800);
+  // (The eye eases there; a zoom on the way would go into whichever land it is passing.)
+  await page.waitForTimeout(3000);
   const ladder: [string, "in" | "out", string][] = [
     ["the land", "in", "region"],
     ["the village", "in", "village"],

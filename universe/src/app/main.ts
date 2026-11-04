@@ -4036,6 +4036,12 @@ async function runPlanetPage(): Promise<void> {
       rig.userZoomed = true;
       rig.distance = 10;
     } else if (scale === "globe") {
+      // (Zoomed before the lands' first reading has come: asked for now, not a zoom that does nothing.)
+      if (density.size === 0) {
+        const entries = await client.query<PeopleEntry[]>({ type: "people.map" });
+        centres = new Map(entries.map((e) => [e.cell, e.centre]));
+        density = new Map(entries.map((e) => [e.cell, e.density]));
+      }
       // Down into the land under the pointer (else the middle of the screen; the sea has
       // none), that spot of it in the middle.
       const frame = client.latestFrame("globe"),
