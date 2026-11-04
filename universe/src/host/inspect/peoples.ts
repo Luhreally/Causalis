@@ -108,7 +108,7 @@ let seenKept: {
 
 /** What each land has seen of the god's hand: each kind of act, how many times. */
 export function godSeen(world: World): Map<number, Map<string, number>> {
-  const events = world.events.all().length;
+  const events = world.events.count;
   if (
     seenKept &&
     seenKept.world === world &&

@@ -8,6 +8,7 @@ export {
   type FrameArray,
   type FrameMessage,
   type Interest,
+  type JumpProgress,
   type Port,
   type Query,
   type SaveMeta,

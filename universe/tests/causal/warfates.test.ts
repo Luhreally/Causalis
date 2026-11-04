@@ -248,7 +248,18 @@ test("old saves send no one: battles with no record of their men give no fronts"
       })),
     oldWorld = {
       storeNames: () => ["war.wars"],
-      store: () => ({ all: () => old }),
+      store: () => ({
+        all: () => old,
+        battlesIn: (from: number, to: number) =>
+          old.flatMap((war) =>
+            war.battles.filter((b) => b.year >= from && b.year < to).map((b) => ({ war, b })),
+          ),
+        battleBy: (event: string) => {
+          for (const war of old)
+            for (const b of war.battles) if (b.event === event) return { war, b };
+          return null;
+        },
+      }),
     } as unknown as World;
   assert.ok(warFronts(world, Y - WAR_PAST_YEARS, Y).byYear.size > 0);
   assert.equal(warFronts(oldWorld, 0, Y + 1).byYear.size, 0);

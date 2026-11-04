@@ -83,7 +83,11 @@ export type SkySurvey = {
   readonly pace: number;
   readonly slowest: number;
   readonly p99: number;
+  /** A year's mean cost in each five hundred years (ms): the shape a jump goes by (ui/jump.ts). */
+  readonly yearMs: readonly number[];
   readonly save: number;
+  /** The largest stores of the save, gzipped alone. */
+  readonly stores: readonly (readonly [string, number])[];
   readonly lands: number;
   readonly ms: number;
 };
@@ -113,9 +117,9 @@ export function skySurvey(seed: string, years: number): SkySurvey {
     const a = performance.now();
     world.runTo(y * YEAR);
     times.push(performance.now() - a);
-    const events = world.events.all();
-    for (let i = events.length - 1; i >= 0 && events[i]!.t > (y - 1) * YEAR; i--) {
-      const e = events[i]!;
+    const events = world.events;
+    for (let i = events.count - 1; i >= 0 && events.at(i).t > (y - 1) * YEAR; i--) {
+      const e = events.at(i);
       if (
         orbitalFlight === null &&
         e.type === "lore.found" &&
@@ -137,8 +141,8 @@ export function skySurvey(seed: string, years: number): SkySurvey {
         before = owner.get(p.cell);
       if (before !== undefined && before !== null && now !== before && !leftYear.has(p.cell)) {
         leftYear.set(p.cell, y);
-        for (let i = events.length - 1; i >= 0 && events[i]!.t > (y - 1) * YEAR; i--) {
-          const e = events[i]!;
+        for (let i = events.count - 1; i >= 0 && events.at(i).t > (y - 1) * YEAR; i--) {
+          const e = events.at(i);
           if (
             (e.type === "polity.seceded" || e.type === "polity.split") &&
             e.subjects.includes(before as Ref) &&
@@ -199,7 +203,12 @@ export function skySurvey(seed: string, years: number): SkySurvey {
     };
   });
   const sorted = [...times].sort((a, b) => a - b),
-    save = gzipSync(JSON.stringify(saveWorld(world, rulesetId(world, "sky")))).length;
+    doc = saveWorld(world, rulesetId(world, "sky")),
+    save = gzipSync(JSON.stringify(doc)).length,
+    stores = Object.entries(doc.stores)
+      .map(([name, chunk]) => [name, gzipSync(JSON.stringify(chunk)).length] as const)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8);
   return {
     seed,
     years,
@@ -242,7 +251,12 @@ export function skySurvey(seed: string, years: number): SkySurvey {
     pace: Math.round(60_000 / Math.max(1, meanRecent)),
     slowest: Math.round(sorted.at(-1) ?? 0),
     p99: Math.round(sorted[Math.floor(sorted.length * 0.99)] ?? 0),
+    yearMs: Array.from({ length: Math.ceil(times.length / 500) }, (_, k) => {
+      const span = times.slice(k * 500, (k + 1) * 500);
+      return Math.round(span.reduce((a, b) => a + b, 0) / span.length);
+    }),
     save,
+    stores,
     lands: ctx.provinces.all().length,
     ms: Math.round(performance.now() - t0),
   };

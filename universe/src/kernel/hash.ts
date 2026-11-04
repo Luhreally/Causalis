@@ -50,6 +50,49 @@ export function hashString(text: string, seed = 0): number {
   return finish(h, words + 1);
 }
 
+/** An object's keys as they came, sorted, and the words string() absorbs for each. */
+type KeyShape = {
+  readonly came: readonly string[];
+  readonly sorted: readonly string[];
+  readonly words: readonly Int32Array[];
+};
+
+/** Shapes seen, by first key. (A state is a few shapes over and over; a shape asked for twice is free.) */
+const SHAPES = new Map<string, KeyShape[]>();
+/** How many shapes to know under one first key, and how many first keys (past those, objects used as maps). */
+const SHAPES_PER_KEY = 32,
+  FIRST_KEYS = 4096;
+
+function spelt(text: string): Int32Array {
+  const n = (text.length + 1) >> 1,
+    out = new Int32Array(n + 1);
+  for (let i = 0; i < text.length; i += 2)
+    out[i >> 1] = text.charCodeAt(i) | ((i + 1 < text.length ? text.charCodeAt(i + 1) : 0) << 16);
+  out[n] = text.length;
+  return out;
+}
+
+function shapeOf(came: string[]): KeyShape {
+  const first = came.length ? came[0]! : "";
+  let known = SHAPES.get(first);
+  if (known)
+    next: for (let s = 0; s < known.length; s++) {
+      const shape = known[s]!,
+        keys = shape.came;
+      if (keys.length !== came.length) continue;
+      for (let k = 1; k < keys.length; k++) if (keys[k] !== came[k]) continue next;
+      return shape;
+    }
+  else {
+    if (SHAPES.size >= FIRST_KEYS) SHAPES.clear();
+    SHAPES.set(first, (known = []));
+  }
+  const sorted = [...came].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
+    shape: KeyShape = { came, sorted, words: sorted.map(spelt) };
+  if (known.length < SHAPES_PER_KEY) known.push(shape);
+  return shape;
+}
+
 /**
  * An incremental 64-bit fingerprint: two independent lanes of the same absorber.
  * Used for state hashes and hash-derived references, where 32 bits would collide.
@@ -100,9 +143,16 @@ export class Hasher {
           for (const item of v) this.value(item);
           return this;
         }
-        const keys = Object.keys(v).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+        const shape = shapeOf(Object.keys(v)),
+          keys = shape.sorted,
+          words = shape.words;
         this.word(5).int(keys.length);
-        for (const k of keys) this.string(k).value((v as Record<string, unknown>)[k]);
+        for (let k = 0; k < keys.length; k++) {
+          // (As string() would absorb the key.)
+          const spelt = words[k]!;
+          for (let w = 0; w < spelt.length; w++) this.word(spelt[w]!);
+          this.value((v as Record<string, unknown>)[keys[k]!]);
+        }
         return this;
       }
       default:

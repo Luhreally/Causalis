@@ -25,7 +25,7 @@ const STRUCK_SHOWN = 2 * YEAR;
  * ground shaken or fire fallen from the sky on its land (`land`: its province's ref).
  */
 export function strikesOn(world: World, ref: Ref, land: Ref | null): TownStrike[] {
-  const events = world.events.all(),
+  const events = world.events,
     since = world.now - STRUCK_SHOWN,
     out: TownStrike[] = [],
     // (A quake's or a fallen fire's dead are its land's: the town's share of them, by its people.)
@@ -33,8 +33,8 @@ export function strikesOn(world: World, ref: Ref, land: Ref | null): TownStrike[
     v = ctx.settlements.get(ref),
     all = v ? (ctx.provinces.get(v.cell)?.total() ?? 0) : 0,
     share = v && all > 0 ? Math.min(1, v.population / all) : 0;
-  for (let i = events.length - 1; i >= 0 && events[i]!.t > since; i--) {
-    const e = events[i]!,
+  for (let i = events.count - 1; i >= 0 && events.at(i).t > since; i--) {
+    const e = events.at(i),
       kind =
         e.type === LOCAL_ACT_EVENTS.fire.type && e.subjects[0] === ref
           ? "fire"

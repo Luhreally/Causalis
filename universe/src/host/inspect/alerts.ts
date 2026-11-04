@@ -53,7 +53,7 @@ type AlertItem = Alert["items"][number];
  */
 const firstsKept = new WeakMap<World, { key: string; firsts: ReturnType<typeof worldFirsts> }>();
 export function firstsNow(world: World): ReturnType<typeof worldFirsts> {
-  const key = `${yearNow(world)}:${world.events.all().length}`,
+  const key = `${yearNow(world)}:${world.events.count}`,
     kept = firstsKept.get(world);
   if (kept?.key === key) return kept.firsts;
   const firsts = worldFirsts(world);
@@ -127,7 +127,7 @@ export function alertsOf(world: World): Alert[] {
   }
   // At war: each war once, of the realms asked after.
   const war: AlertItem[] = warsOf(world)
-    .all()
+    .hot()
     .filter((w) => w.ended === null && (atWar.has(w.attacker) || atWar.has(w.defender)))
     .map((w) => ({
       line: [
@@ -182,9 +182,9 @@ export function alertsOf(world: World): Alert[] {
       });
   }
   {
-    const all = world.events.all();
-    for (let i = all.length - 1; i >= 0 && order.length < 12; i--) {
-      const e = all[i]!;
+    const all = world.events;
+    for (let i = all.count - 1; i >= 0 && order.length < 12; i--) {
+      const e = all.at(i);
       if (e.t < (now - 5) * YEAR) break;
       const against = e.subjects[0];
       if (e.type !== "order.revolt" || !e.place || !against || !atWar.has(against)) continue;
@@ -501,7 +501,7 @@ export function breakdownOf(world: World, what: Counted): Breakdown {
     }
     case "wars": {
       const fought = warsOf(world)
-        .all()
+        .hot()
         .filter((w) => w.ended === null);
       return {
         title: "The wars being fought",

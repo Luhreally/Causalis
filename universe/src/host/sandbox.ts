@@ -50,7 +50,7 @@ export const SANDBOX: Universe = {
       return {
         t: world.now,
         people: pop.counts.total(),
-        events: world.events.all().length,
+        events: world.events.count,
         floods: world.events.all().filter((e) => e.type === FLOOD_EVENT.type).length,
         commands: world.commands.all().length,
       };

@@ -231,10 +231,10 @@ export function beliefYear(ctx: PopulationContext, t: SimTime): void {
 
   // 1. Omens: what struck a people this year may found a faith.
   const start = Math.max(0, t - YEAR),
-    events = world.events.all(),
+    events = world.events,
     founded = new Set<number>();
-  for (let i = events.length - 1; i >= 0 && events[i]!.t > start; i--) {
-    const e = events[i]!,
+  for (let i = events.count - 1; i >= 0 && events.at(i).t > start; i--) {
+    const e = events.at(i),
       omen = omenOf(e.type, e.data);
     if (!omen || !e.place) continue;
     const cell = Number(e.place.split(":")[2]),

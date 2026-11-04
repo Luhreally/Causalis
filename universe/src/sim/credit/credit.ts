@@ -165,6 +165,8 @@ export type House = {
 
 export class CreditStore implements StateStore {
   readonly name = "credit.houses";
+  /** Saved packed by column (kernel/pack.ts). */
+  readonly packed = true;
   houses: House[] = [];
   loans: Loan[] = [];
   count = 0;

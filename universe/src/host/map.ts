@@ -82,7 +82,7 @@ export function warLens(world: World) {
     g = homePlanet(world).generated,
     year = Math.floor(world.now / YEAR),
     at = new Map<number, WarStanding>();
-  for (const w of warsOf(world).all()) {
+  for (const w of warsOf(world).hot()) {
     if (w.ended !== null) continue;
     for (const [ref, side] of [
       [w.attacker, "attacker"],
@@ -93,9 +93,9 @@ export function warLens(world: World) {
     at.set(w.prize, "prize");
   }
   // What war took lately (these two years).
-  const events = world.events.all();
-  for (let i = events.length - 1; i >= 0; i--) {
-    const e = events[i]!;
+  const events = world.events;
+  for (let i = events.count - 1; i >= 0; i--) {
+    const e = events.at(i);
     if (Math.floor(e.t / YEAR) < year - 2) break;
     if (e.type === WAR_EVENTS.taken.type && e.place) at.set(Number(e.place.split(":")[2]), "taken");
   }
@@ -128,7 +128,7 @@ export function takenLands(world: World): [number, readonly [number, number, num
     }
   }
   const fought = new Map<string, number>();
-  for (const w of warsOf(world).all())
+  for (const w of warsOf(world).hot())
     if (w.ended === null)
       for (const key of [`${w.attacker}|${w.defender}`, `${w.defender}|${w.attacker}`])
         fought.set(key, Math.min(fought.get(key) ?? Infinity, w.declared));
@@ -178,7 +178,7 @@ export function worldStats(world: World) {
     cities,
     realms: realms.length,
     wars: warsOf(world)
-      .all()
+      .hot()
       .filter((w) => w.ended === null).length,
     faiths: faiths.size,
     tongues: tongues.size,

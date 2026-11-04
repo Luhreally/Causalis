@@ -81,31 +81,30 @@ function eventNumber(event: Ref): number {
 export function warFronts(world: World, from: number, to: number): Fronts {
   const byYear = new Map<number, Map<number, Front[]>>();
   if (from < to && world.storeNames().includes("war.wars"))
-    for (const w of warsOf(world).all())
-      for (const b of w.battles) {
-        if (!b.fell || b.year < from || b.year >= to) continue;
-        const n = eventNumber(b.event);
-        let cells = byYear.get(b.year);
-        if (!cells) byYear.set(b.year, (cells = new Map()));
-        for (const side of [0, 1] as const) {
-          const wounded = b.wounded?.[side] ?? 0,
-            maimed = wounded > 0 ? (b.maimed?.[side] ?? 0) / wounded : 0;
-          for (const fell of b.fell[side]) {
-            let list = cells.get(fell[0]);
-            if (!list) cells.set(fell[0], (list = []));
-            list.push({
-              event: b.event,
-              war: w.ref,
-              n,
-              year: b.year,
-              side,
-              land: b.land,
-              fell,
-              maimed,
-            });
-          }
+    for (const { war, b } of warsOf(world).battlesIn(from, to)) {
+      if (!b.fell) continue;
+      const n = eventNumber(b.event);
+      let cells = byYear.get(b.year);
+      if (!cells) byYear.set(b.year, (cells = new Map()));
+      for (const side of [0, 1] as const) {
+        const wounded = b.wounded?.[side] ?? 0,
+          maimed = wounded > 0 ? (b.maimed?.[side] ?? 0) / wounded : 0;
+        for (const fell of b.fell[side]) {
+          let list = cells.get(fell[0]);
+          if (!list) cells.set(fell[0], (list = []));
+          list.push({
+            event: b.event,
+            war: war.ref,
+            n,
+            year: b.year,
+            side,
+            land: b.land,
+            fell,
+            maimed,
+          });
         }
       }
+    }
   for (const cells of byYear.values())
     for (const list of cells.values()) list.sort((p, q) => p.n - q.n || p.side - q.side);
   return { byYear, men: new Map() };
@@ -150,18 +149,15 @@ export function warClaimLimit(world: World, key: string): number {
   const event = `ev:${a}:${n}`,
     side = s === "1" ? 1 : 0,
     cell = Number(c);
-  for (const w of warsOf(world).all())
-    for (const b of w.battles) {
-      if (b.event !== event) continue;
-      const land = b.fell?.[side].find((l) => l[0] === cell);
-      if (!land) return 0;
-      const { tally } =
-        p === "l" || land[4] === undefined
-          ? placeOf([land[0], land[1], land[2], land[3]], null)
-          : placeOf(land, p === "c" ? null : Number(p));
-      return kind === "l" ? tally[0] : kind === "w" ? tally[1] : tally[2];
-    }
-  return 0;
+  const b = warsOf(world).battleBy(event)?.b;
+  if (!b) return 0;
+  const land = b.fell?.[side].find((l) => l[0] === cell);
+  if (!land) return 0;
+  const { tally } =
+    p === "l" || land[4] === undefined
+      ? placeOf([land[0], land[1], land[2], land[3]], null)
+      : placeOf(land, p === "c" ? null : Number(p));
+  return kind === "l" ? tally[0] : kind === "w" ? tally[1] : tally[2];
 }
 
 /** A land's people in a past year, from its yearly ledger line (the last year at or before it). */

@@ -61,10 +61,9 @@ function armOf(
   readonly arm: Part;
   readonly parts: readonly Part[];
 } | null {
-  const war = warsOf(world)
-      .all()
-      .find((w) => w.battles.some((b) => b.event === event)),
-    b = war?.battles.find((x) => x.event === event);
+  const found = warsOf(world).battleBy(event),
+    war = found?.war,
+    b = found?.b;
   if (!war || !b || (side !== 0 && side !== 1)) return null;
   const realm = side === 0 ? war.attacker : war.defender,
     r = politiesOf(world).get(realm),

@@ -95,7 +95,10 @@ export async function encodeSave(doc: SaveDocument): Promise<Uint8Array> {
 export async function decodeSave(bytes: Uint8Array): Promise<SaveDocument> {
   let text: string;
   try {
-    text = new TextDecoder().decode(await pipe(bytes, new DecompressionStream("gzip")));
+    // (Text already, if a server that read a file's name took the gzip off on its way: "{".)
+    text = new TextDecoder().decode(
+      bytes[0] === 123 ? bytes : await pipe(bytes, new DecompressionStream("gzip")),
+    );
   } catch (error) {
     throw new SaveError(`the save's bytes do not decompress (${(error as Error).message})`);
   }

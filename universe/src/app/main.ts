@@ -83,6 +83,7 @@ import {
   installTimeKeys,
   type TimeKeys,
   TimeBar,
+  jumpToYear,
   typing,
   el,
   DirectorControls,
@@ -385,6 +386,8 @@ const signs = params.get("signs") !== "0";
 
 type Exposed = {
   client?: HostClient;
+  /** The year a world begun at a far year took up from (a world baked ahead's; 0: its beginning). */
+  jumpedFrom?: number;
   mode?: string;
   seed?: string;
   universe?: string;
@@ -1311,11 +1314,12 @@ async function runPlanetPage(): Promise<void> {
     skyBuilt = "",
     skyStar: StarPage | null = null;
   Object.assign(exposed, { client, mode, seed, universe, drawn: () => painted, stage });
-  await client.start(universe, seed);
+  const { ruleset } = await client.start(universe, seed);
   // ?load=name takes up a save; ?year=N starts the world N years on (it runs there
-  // first; history is the same).
+  // first, behind a screen that says how far it has come; history is the same).
   const loaded = loadName ? await client.load(loadName) : null;
-  if (!loaded && startYear > 0) await client.advance(startYear * YEAR);
+  if (!loaded && startYear > 0)
+    exposed.jumpedFrom = await jumpToYear(client, startYear, hud, { universe, seed, ruleset });
   client.setInterest({ view: "globe", focus: null });
   // One clock for every scale, its speeds the scale's own (asked for 2026-10-24): the date
   // drawn each frame, as the scales draw the world.

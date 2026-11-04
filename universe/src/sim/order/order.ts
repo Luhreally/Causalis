@@ -175,9 +175,19 @@ export type RealmOrder = {
 
 export class OrderStore implements StateStore {
   readonly name = "order.bonds";
+  /** Saved packed by column (kernel/pack.ts). */
+  readonly packed = true;
   realms = new Map<string, RealmOrder>();
   lands = new Map<number, LandBonds>();
+  /** Those whose law has outlawed bondage: a few, of all the realms that ever were. */
+  freed: RealmOrder[] = [];
 
+  /** A realm's law outlaws bondage. */
+  outlaw(o: RealmOrder, year: number, event: Ref): void {
+    if (o.abolished === null) this.freed.push(o);
+    o.abolished = year;
+    o.abolition = event;
+  }
   of(realm: Ref): RealmOrder | undefined {
     return this.realms.get(realm);
   }
@@ -229,6 +239,7 @@ export class OrderStore implements StateStore {
       ]),
     );
     this.lands = new Map(s.lands.map((l) => [l.cell, { ...l, shares: [...l.shares] }]));
+    this.freed = [...this.realms.values()].filter((o) => o.abolished !== null);
   }
 }
 
@@ -376,7 +387,7 @@ export function legitimacyFactors(ctx: PopulationContext, p: Polity): Factor[] {
     cap = capacityOf(ctx, p).value;
   let won = 0,
     lost = 0;
-  for (const w of warsOf(world).of(p.ref)) {
+  for (const w of warsOf(world).hotOf(p.ref)) {
     const side = w.attacker === p.ref ? 0 : w.defender === p.ref ? 1 : -1;
     if (side < 0) continue;
     for (const b of w.battles) if (b.year >= year - 5) b.won === (side === 0) ? won++ : lost++;
@@ -1006,8 +1017,7 @@ export function rise(
     const raised = town ? raiseRealm(ctx, town, [c], freed, t, p.ref) : null;
     if (raised) {
       const ro = realmOrder(store, raised, ways);
-      ro.abolished = year;
-      ro.abolition = freed;
+      store.outlaw(ro, year, freed);
       remember(ro, { what: "freedom", year, cell: c, event: freed });
     }
     return;
@@ -1063,8 +1073,7 @@ export function abolish(
     }
     l.cause = event;
   }
-  o.abolished = year;
-  o.abolition = event;
+  store.outlaw(o, year, event);
   remember(o, { what: "abolition", year, cell: p.seat, event });
   return freed;
 }
@@ -1090,8 +1099,8 @@ function weighAbolition(
       1,
       risings.reduce((s, m) => s + m.weight, 0),
     ),
-    free = [...store.realms.values()]
-      .filter((x) => x.abolished !== null && politiesOf(world).get(x.realm)?.ended === null)
+    free = store.freed
+      .filter((x) => politiesOf(world).get(x.realm)?.ended === null)
       .sort((a, b) => a.abolished! - b.abolished! || (a.realm < b.realm ? -1 : 1)),
     neighbours = Math.min(1, free.length / 3),
     open = trait(seat, WAY.openness),
@@ -1170,8 +1179,7 @@ function weighAbolition(
 function freedElsewhere(world: World, store: OrderStore, o: RealmOrder): number {
   const realms = politiesOf(world);
   let n = 0;
-  for (const x of store.realms.values())
-    if (x !== o && x.abolished !== null && realms.get(x.realm)?.ended === null) n++;
+  for (const x of store.freed) if (x !== o && realms.get(x.realm)?.ended === null) n++;
   return n;
 }
 
@@ -1295,7 +1303,7 @@ export function orderYear(ctx: PopulationContext, t: SimTime): void {
     realmOrder(store, p, culture.get(p.seat), beliefOf(world).of(p.seat).faith !== null);
 
   // 1. Captives from the lands taken this year.
-  for (const w of warsOf(world).all()) {
+  for (const w of warsOf(world).hot()) {
     if (w.ended !== null && w.ended < year) continue;
     for (const b of w.battles) {
       if (b.year !== year || !b.won) continue;

@@ -785,7 +785,7 @@ export function villagePlan(
       heart = !heartOf || heartOf === ref;
     // A battle fought in its land this year or last, as history fought it (before its heart).
     let battle: VillageLife["battle"] = null;
-    for (const w of heart ? warsOf(world).all() : []) {
+    for (const w of heart ? warsOf(world).hot() : []) {
       const b = w.battles.findLast((x) => x.land === cell && x.year >= now - 1),
         a = realms.get(w.attacker),
         d = realms.get(w.defender);
@@ -826,7 +826,7 @@ export function villagePlan(
           ref: null,
         });
     if (realm) {
-      for (const w of warsOf(world).all()) {
+      for (const w of warsOf(world).hotOf(realm.ref)) {
         if (!w.peace || (w.attacker !== realm.ref && w.defender !== realm.ref)) continue;
         const e = world.events.get(w.peace);
         if (!e || e.t < world.now - YEAR) continue;
@@ -838,9 +838,9 @@ export function villagePlan(
           ref: e.id,
         });
       }
-      const events = world.events.all();
-      for (let i = events.length - 1; i >= 0; i--) {
-        const e = events[i]!;
+      const events = world.events;
+      for (let i = events.count - 1; i >= 0; i--) {
+        const e = events.at(i);
         if (e.t < world.now - YEAR) break;
         if (e.type === "polity.succession" && e.subjects[0] === realm.ref) {
           keep({

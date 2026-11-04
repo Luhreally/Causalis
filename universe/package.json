@@ -80,6 +80,7 @@
     "gate:60": "node tools/phase60-gate.ts",
     "gate:61": "node tools/phase61-gate.ts",
     "gate:62": "node tools/phase62-gate.ts",
+    "gate:63": "node tools/phase63-gate.ts",
     "chem-survey": "node tools/chem-survey.ts",
     "diversity": "node tools/diversity.ts 100 900"
   },

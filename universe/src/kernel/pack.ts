@@ -7,6 +7,16 @@
 // of its kind), its objects of each shape as a column for each key, and its arrays as their
 // lengths and their items. Unpacked, it is the list JSON would have given back, value for value
 // and key for key: nothing is rounded, reordered or dropped.
+//
+// A long column's letters are laid out by their place in their numbers: every first letter, then
+// the second letters of those that have one, and so on. First letters are all but noise and later
+// ones nearly alike, and apart gzip folds the later ones the smaller (some 4% of a late save).
+//
+// Numbers that are not whole are kept as whole numbers where they are exact decimals of a few
+// places, else by their bits: the top sixteen (sign, exponent and a little more, which repeat)
+// apart from the low forty-eight (which do not). A list packed with Words (kernel/cold.ts's blocks
+// share one) keeps its plain strings and its keys by their number in it.
+import { fromWords, highWord, lowWord } from "./bits.ts";
 
 /** A list packed by packList. Which fields are present says how its values were kept. */
 export type Packed = {
@@ -27,9 +37,52 @@ export type Packed = {
   readonly a?: string;
   readonly t?: readonly Packed[];
   readonly e?: Packed;
-  /** The rest, as they are (numbers not whole or too large, true and false, null). */
+  /** The rest, as they are (numbers not finite, true and false, null; in older saves, all numbers not whole). */
   readonly r?: readonly unknown[];
+  /** The numbers not whole. */
+  readonly f?: FloatColumn;
 };
+
+/**
+ * Numbers not whole: exact decimals as whole numbers, each times 10^e (`e`); else each one's top
+ * sixteen bits as whole numbers and its low forty-eight as eight letters (`l`). Either way the
+ * whole numbers are varints (`i`) or each less the one before (`d`).
+ */
+type FloatColumn = {
+  readonly e?: number;
+  readonly i?: string;
+  readonly d?: string;
+  readonly l?: string;
+};
+
+/** Strings kept once for many packed lists, by number: lists packed with them are read with them. */
+export class Words {
+  readonly list: string[];
+  private readonly at = new Map<string, number>();
+
+  constructor(list: readonly string[] = []) {
+    this.list = [...list];
+    for (let j = 0; j < this.list.length; j++) this.at.set(this.list[j]!, j);
+  }
+
+  /** The number of a word, given one if it has none. */
+  idOf(word: string): number {
+    let id = this.at.get(word);
+    if (id === undefined) {
+      id = this.list.length;
+      this.at.set(word, id);
+      this.list.push(word);
+    }
+    return id;
+  }
+
+  /** The word of a number. */
+  wordOf(id: number): string {
+    const word = this.list[id];
+    if (word === undefined) throw new Error("a packed list names a word it does not hold");
+    return word;
+  }
+}
 
 /**
  * A column's strings, each once, in the order first met: references (`kind:a:b`, as the minter
@@ -43,8 +96,9 @@ type StringTable = {
   readonly h?: string;
   /** Each reference's number less the last of its kind's (signed varints). */
   readonly b?: string;
-  /** The entries that are not references. */
+  /** The entries that are not references: as they are, or by their numbers in the list's Words (`g`). */
   readonly w?: readonly string[];
+  readonly g?: string;
   /** Each value's place in the table. */
   readonly x: Packed;
 };
@@ -53,14 +107,21 @@ const INT = 0,
   STR = 1,
   OBJ = 2,
   ARR = 3,
-  RAW = 4;
+  RAW = 4,
+  FLOAT = 5;
 
 /** Whole numbers kept as varints are at most this large either way (their differences stay safe). */
 const MAX_INT = 2 ** 50;
 const TWO32 = 4294967296;
 /** Arrays no longer than this are kept by place (each place a column), longer ones item by item. */
 const TUPLE = 16;
+/** Numbers not whole are kept as exact decimals of at most this many places. */
+const MOST_PLACES = 6;
 
+/** A column of this many letters or more is laid out by place, where its numbers run past one letter. */
+const LAID_OUT = 64;
+/** What a column laid out by place starts with (no number's letter: older saves never wrote it). */
+const BY_PLACE = 126;
 /** Varints in text: the first 32 letters end a number, the next 32 carry on (five bits each, lowest first). */
 const DIGITS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 const CODES = new Uint8Array(64).map((_, i) => DIGITS.charCodeAt(i));
@@ -106,14 +167,79 @@ class Varints {
   }
 
   text(): string {
+    const codes = this.laidOut() ?? this.codes,
+      n = codes === this.codes ? this.n : codes.length;
     let out = "";
-    for (let at = 0; at < this.n; at += 4096)
+    for (let at = 0; at < n; at += 4096)
       out += String.fromCharCode.apply(
         null,
-        this.codes.subarray(at, Math.min(this.n, at + 4096)) as unknown as number[],
+        codes.subarray(at, Math.min(n, at + 4096)) as unknown as number[],
       );
     return out;
   }
+
+  /** The letters by their place in their numbers (none where it would change nothing, or gain nothing). */
+  private laidOut(): Uint8Array | null {
+    if (this.n < LAID_OUT) return null;
+    const count = new Int32Array(16);
+    let place = 0;
+    for (let i = 0; i < this.n; i++) {
+      count[place]!++;
+      place = VALUE_OF[this.codes[i]!]! >= 32 ? place + 1 : 0;
+    }
+    if (count[1] === 0) return null;
+    let at = 1;
+    for (let p = 0; p < count.length; p++) {
+      const here = count[p]!;
+      count[p] = at;
+      at += here;
+    }
+    const out = new Uint8Array(at);
+    out[0] = BY_PLACE;
+    place = 0;
+    for (let i = 0; i < this.n; i++) {
+      const c = this.codes[i]!;
+      out[count[place]!++] = c;
+      place = VALUE_OF[c]! >= 32 ? place + 1 : 0;
+    }
+    return out;
+  }
+}
+
+/** The numbers in a text laid out by place, the way zig or none left them. */
+function readLaidOut(text: string, count: number): number[] {
+  const out = new Array<number>(count),
+    // (The numbers that carry on past the letters read so far.)
+    open = new Int32Array(count),
+    letter = (at: number): number => {
+      const c = text.charCodeAt(at),
+        v = c < 128 ? VALUE_OF[c]! : -1;
+      if (!(v >= 0)) throw new Error("a packed column has a stray letter among its numbers");
+      return v;
+    };
+  let at = 1,
+    m = 0;
+  for (let j = 0; j < count; j++) {
+    const v = letter(at++);
+    if (v >= 32) {
+      out[j] = v - 32;
+      open[m++] = j;
+    } else out[j] = v;
+  }
+  for (let scale = 32; m > 0; scale *= 32) {
+    let kept = 0;
+    for (let q = 0; q < m; q++) {
+      const j = open[q]!,
+        v = letter(at++);
+      if (v >= 32) {
+        out[j] = out[j]! + (v - 32) * scale;
+        open[kept++] = j;
+      } else out[j] = out[j]! + v * scale;
+    }
+    m = kept;
+  }
+  if (at !== text.length) throw new Error("a packed column's letters do not add up");
+  return out;
 }
 
 /** The numbers in a text of varints (signed: zigzagged, as zig wrote them). */
@@ -123,6 +249,15 @@ function readVarints(text: string, signed: boolean): number[] {
   for (let i = 0; i < text.length; i++) {
     const c = text.charCodeAt(i);
     if ((c >= 65 && c <= 90) || (c >= 97 && c <= 102)) count++;
+  }
+  if (text.charCodeAt(0) === BY_PLACE) {
+    const laid = readLaidOut(text, count);
+    if (signed)
+      for (let j = 0; j < count; j++) {
+        const value = laid[j]!;
+        laid[j] = value % 2 === 0 ? value / 2 : -(value + 1) / 2;
+      }
+    return laid;
   }
   const out = new Array<number>(count);
   let value = 0,
@@ -199,7 +334,7 @@ function unpackInts(p: Packed): number[] {
 /** A reference: `kind:a:b`, its parts written without leading zeros. */
 const REF = /^([a-z]{2,5}):(0|[1-9][0-9]{0,9}):(0|[1-9][0-9]{0,9})$/;
 
-function packStrings(values: readonly string[]): StringTable {
+function packStrings(values: readonly string[], words?: Words): StringTable {
   const at = new Map<string, number>(),
     places: number[] = new Array<number>(values.length),
     entries: string[] = [];
@@ -240,26 +375,42 @@ function packStrings(values: readonly string[]): StringTable {
     last[k] = number;
   }
   packInts(places, x);
-  if (!kinds.length) return { w, x: x as Packed };
+  const plain = (t: Record<string, unknown>): void => {
+    if (!words) {
+      t.w = w;
+      return;
+    }
+    const ids = new Varints(w.length * 3);
+    for (const entry of w) ids.push(words.idOf(entry));
+    t.g = ids.text();
+  };
+  if (!kinds.length) {
+    const t: Record<string, unknown> = { x };
+    plain(t);
+    return t as StringTable;
+  }
   const t: Record<string, unknown> = { f: kinds, b: steps.text(), x };
   if (kinds.length > 1 || w.length) {
     const h = new Varints(marks.length);
     for (const k of marks) h.push(k < 0 ? kinds.length : k);
     t.h = h.text();
   }
-  if (w.length) t.w = w;
+  if (w.length) plain(t);
   return t as StringTable;
 }
 
-function unpackStrings(t: StringTable): string[] {
+function unpackStrings(t: StringTable, words?: Words): string[] {
+  const rest: readonly string[] =
+    t.g !== undefined
+      ? readVarints(t.g, false).map((id) => wordsOf(words).wordOf(id))
+      : (t.w ?? []);
   let entries: readonly string[];
-  if (!t.f) entries = t.w ?? [];
+  if (!t.f) entries = rest;
   else {
     const kinds = t.f,
       steps = readVarints(t.b ?? "", true),
       marks = t.h !== undefined ? readVarints(t.h, false) : null,
       last = kinds.map(() => 0),
-      rest = t.w ?? [],
       made: string[] = [];
     let s = 0,
       r = 0;
@@ -274,7 +425,7 @@ function unpackStrings(t: StringTable): string[] {
     }
     entries = made;
   }
-  const places = unpackList(t.x) as number[],
+  const places = unpackList(t.x, words) as number[],
     out = new Array<string>(places.length);
   for (let j = 0; j < places.length; j++) {
     const v = entries[places[j]!];
@@ -284,11 +435,108 @@ function unpackStrings(t: StringTable): string[] {
   return out;
 }
 
+function wordsOf(words: Words | undefined): Words {
+  if (!words) throw new Error("a packed list names words it was not given");
+  return words;
+}
+
+/** How many places a whole number is shifted to make each of these numbers whole, or -1. */
+function decimalPlaces(values: readonly number[]): number {
+  let e = 1,
+    scale = 10;
+  for (let j = 0; j < values.length; j++) {
+    const v = values[j]!;
+    while (e <= MOST_PLACES && Math.round(v * scale) / scale !== v) {
+      e++;
+      scale *= 10;
+    }
+    if (e > MOST_PLACES || Math.abs(v * scale) > MAX_INT) return -1;
+  }
+  return e;
+}
+
+/** Ten to each power of places a column may have (MOST_PLACES at most). */
+export const TENS = [1, 10, 100, 1000, 10_000, 100_000, 1_000_000];
+
+/** Numbers not whole: see FloatColumn. */
+function packFloats(values: readonly number[]): FloatColumn {
+  const e = decimalPlaces(values),
+    out: Record<string, unknown> = {};
+  if (e > 0) {
+    const scale = TENS[e]!;
+    out.e = e;
+    packInts(
+      values.map((v) => Math.round(v * scale)),
+      out,
+    );
+    return out as FloatColumn;
+  }
+  const tops = new Array<number>(values.length),
+    low = new Uint8Array(values.length * 8);
+  for (let j = 0; j < values.length; j++) {
+    const v = values[j]!,
+      hi = highWord(v),
+      lo = lowWord(v),
+      // (Forty-eight bits: the high word's lower sixteen, then the low word, six bits to a letter.)
+      a = hi & 0xffff;
+    tops[j] = hi >>> 16;
+    const at = j * 8;
+    low[at] = CODES[a >>> 10]!;
+    low[at + 1] = CODES[(a >>> 4) & 63]!;
+    low[at + 2] = CODES[((a & 15) << 2) | (lo >>> 30)]!;
+    low[at + 3] = CODES[(lo >>> 24) & 63]!;
+    low[at + 4] = CODES[(lo >>> 18) & 63]!;
+    low[at + 5] = CODES[(lo >>> 12) & 63]!;
+    low[at + 6] = CODES[(lo >>> 6) & 63]!;
+    low[at + 7] = CODES[lo & 63]!;
+  }
+  packInts(tops, out);
+  let text = "";
+  for (let at = 0; at < low.length; at += 4096)
+    text += String.fromCharCode.apply(
+      null,
+      low.subarray(at, Math.min(low.length, at + 4096)) as unknown as number[],
+    );
+  out.l = text;
+  return out as FloatColumn;
+}
+
+function unpackFloats(f: FloatColumn): number[] {
+  const ints = unpackInts(f as Packed);
+  if (f.e !== undefined) {
+    const scale = TENS[f.e]!;
+    for (let j = 0; j < ints.length; j++) ints[j] = ints[j]! / scale;
+    return ints;
+  }
+  const text = f.l ?? "";
+  if (text.length !== ints.length * 8) throw new Error("a packed column's numbers do not add up");
+  const letter = (at: number): number => {
+    const c = text.charCodeAt(at),
+      v = c < 128 ? VALUE_OF[c]! : -1;
+    if (v < 0) throw new Error("a packed column has a stray letter among its numbers");
+    return v;
+  };
+  for (let j = 0; j < ints.length; j++) {
+    const at = j * 8,
+      a = (letter(at) << 10) | (letter(at + 1) << 4) | (letter(at + 2) >>> 2),
+      lo =
+        (((letter(at + 2) & 3) * 1073741824) >>> 0) +
+        ((letter(at + 3) << 24) |
+          (letter(at + 4) << 18) |
+          (letter(at + 5) << 12) |
+          (letter(at + 6) << 6) |
+          letter(at + 7));
+    ints[j] = fromWords(ints[j]! * 65536 + a, lo);
+  }
+  return ints;
+}
+
 /**
  * A list of JSON values packed by column (see Packed): unpackList gives back the list that
- * JSON.parse(JSON.stringify(values)) would.
+ * JSON.parse(JSON.stringify(values)) would. With `words` its plain strings and its keys are kept
+ * by their numbers there, and it is read with them.
  */
-export function packList(values: readonly unknown[]): Packed {
+export function packList(values: readonly unknown[], words?: Words): Packed {
   const n = values.length,
     out: Record<string, unknown> = { n },
     kinds = new Uint8Array(n),
@@ -298,7 +546,9 @@ export function packList(values: readonly unknown[]): Packed {
   for (let j = 0; j < n; j++) {
     const v = values[j];
     let k = RAW;
-    if (typeof v === "number") k = Number.isSafeInteger(v) && Math.abs(v) <= MAX_INT ? INT : RAW;
+    if (typeof v === "number")
+      k =
+        Number.isSafeInteger(v) && Math.abs(v) <= MAX_INT ? INT : Number.isFinite(v) ? FLOAT : RAW;
     else if (typeof v === "string") k = STR;
     else if (typeof v === "object" && v !== null)
       if (Array.isArray(v)) k = ARR;
@@ -322,10 +572,11 @@ export function packList(values: readonly unknown[]): Packed {
     out.k = marks.text();
   }
   if (seen & (1 << INT)) packInts(of<number>(INT), out);
-  if (seen & (1 << STR)) out.s = packStrings(of<string>(STR));
-  if (seen & (1 << OBJ)) packObjects(of<Record<string, unknown>>(OBJ), shapes, out);
-  if (seen & (1 << ARR)) packArrays(of<unknown[]>(ARR), out);
+  if (seen & (1 << STR)) out.s = packStrings(of<string>(STR), words);
+  if (seen & (1 << OBJ)) packObjects(of<Record<string, unknown>>(OBJ), shapes, out, words);
+  if (seen & (1 << ARR)) packArrays(of<unknown[]>(ARR), out, words);
   if (seen & (1 << RAW)) out.r = of<unknown>(RAW);
+  if (seen & (1 << FLOAT)) out.f = packFloats(of<number>(FLOAT));
   return out as Packed;
 }
 
@@ -334,6 +585,7 @@ function packObjects(
   objects: readonly Record<string, unknown>[],
   keysOf: readonly string[][],
   out: Record<string, unknown>,
+  words?: Words,
 ): void {
   const shapes: string[][] = [],
     shapeAt = new Map<string, number>(),
@@ -358,9 +610,10 @@ function packObjects(
     for (let q = 0; q < keys.length; q++) cols[q]!.push(v[keys[q]!]);
     marks.push(s);
   }
-  out.o = shapes;
+  // (By their numbers in the words given: each list of a block need not spell its keys.)
+  out.o = words ? shapes.map((keys) => keys.map((key) => words.idOf(key))) : shapes;
   if (shapes.length > 1) out.g = marks.text();
-  out.c = columns.map((cols) => cols.map(packList));
+  out.c = columns.map((cols) => cols.map((col) => packList(col, words)));
 }
 
 function sameKeys(a: readonly string[], b: readonly string[]): boolean {
@@ -373,7 +626,11 @@ function sameKeys(a: readonly string[], b: readonly string[]): boolean {
  * Arrays as their lengths and their items: short ones a column for each place (the first items of
  * all, then the second …), as pairs and rows of counts are read; long ones as one list.
  */
-function packArrays(arrays: readonly unknown[][], out: Record<string, unknown>): void {
+function packArrays(
+  arrays: readonly unknown[][],
+  out: Record<string, unknown>,
+  words?: Words,
+): void {
   const lengths = new Varints(arrays.length);
   let most = 0,
     total = 0;
@@ -388,16 +645,16 @@ function packArrays(arrays: readonly unknown[][], out: Record<string, unknown>):
     const items = new Array<unknown>(total);
     let at = 0;
     for (const a of arrays) for (let j = 0; j < a.length; j++) items[at++] = a[j];
-    out.e = packList(items);
+    out.e = packList(items, words);
     return;
   }
   const places: unknown[][] = Array.from({ length: most }, () => []);
   for (const a of arrays) for (let j = 0; j < a.length; j++) places[j]!.push(a[j]);
-  out.t = places.map(packList);
+  out.t = places.map((place) => packList(place, words));
 }
 
-/** The values packList packed. */
-export function unpackList(p: Packed): unknown[] {
+/** The values packList packed (with the words they were packed with, if any). */
+export function unpackList(p: Packed, words?: Words): unknown[] {
   const n = p.n,
     kinds = p.k !== undefined ? readVarints(p.k, false) : null,
     only = kinds
@@ -410,9 +667,11 @@ export function unpackList(p: Packed): unknown[] {
             ? OBJ
             : p.a !== undefined
               ? ARR
-              : RAW;
+              : p.f
+                ? FLOAT
+                : RAW;
   if (kinds && kinds.length !== n) throw new Error("a packed column's kinds are not its values'");
-  const counts = [0, 0, 0, 0, 0];
+  const counts = [0, 0, 0, 0, 0, 0];
   if (kinds) for (const k of kinds) counts[k]!++;
   else if (n) counts[only] = n;
   const from = (k: number): unknown[] => {
@@ -421,19 +680,21 @@ export function unpackList(p: Packed): unknown[] {
       k === INT
         ? unpackInts(p)
         : k === STR
-          ? unpackStrings(p.s!)
+          ? unpackStrings(p.s!, words)
           : k === OBJ
-            ? unpackObjects(p, counts[k])
+            ? unpackObjects(p, counts[k], words)
             : k === ARR
-              ? unpackArrays(p)
-              : [...(p.r ?? [])];
+              ? unpackArrays(p, words)
+              : k === FLOAT
+                ? unpackFloats(p.f!)
+                : [...(p.r ?? [])];
     if (got.length !== counts[k]) throw new Error("a packed column's values do not add up");
     return got;
   };
   if (!kinds) return from(only);
-  const lists = [0, 1, 2, 3, 4].map(from),
+  const lists = [0, 1, 2, 3, 4, 5].map(from),
     out = new Array<unknown>(n),
-    next = [0, 0, 0, 0, 0];
+    next = [0, 0, 0, 0, 0, 0];
   for (let j = 0; j < n; j++) {
     const k = kinds[j]!;
     out[j] = lists[k]![next[k]!++];
@@ -441,9 +702,11 @@ export function unpackList(p: Packed): unknown[] {
   return out;
 }
 
-function unpackObjects(p: Packed, count: number): Record<string, unknown>[] {
-  const shapes = p.o!,
-    columns = p.c!.map((cols) => cols.map(unpackList)),
+function unpackObjects(p: Packed, count: number, words?: Words): Record<string, unknown>[] {
+  const shapes = (p.o! as readonly (readonly (string | number)[])[]).map((keys) =>
+      keys.map((key) => (typeof key === "number" ? wordsOf(words).wordOf(key) : key)),
+    ),
+    columns = p.c!.map((cols) => cols.map((col) => unpackList(col, words))),
     marks = p.g !== undefined ? readVarints(p.g, false) : null,
     next = shapes.map(() => 0),
     out = new Array<Record<string, unknown>>(count);
@@ -470,11 +733,11 @@ function unpackObjects(p: Packed, count: number): Record<string, unknown>[] {
   return out;
 }
 
-function unpackArrays(p: Packed): unknown[][] {
+function unpackArrays(p: Packed, words?: Words): unknown[][] {
   const lengths = readVarints(p.a!, false),
     out = new Array<unknown[]>(lengths.length);
   if (p.e) {
-    const all = unpackList(p.e);
+    const all = unpackList(p.e, words);
     let at = 0;
     for (let j = 0; j < lengths.length; j++) {
       const n = lengths[j]!;
@@ -483,7 +746,7 @@ function unpackArrays(p: Packed): unknown[][] {
     }
     return out;
   }
-  const places = (p.t ?? []).map(unpackList),
+  const places = (p.t ?? []).map((place) => unpackList(place, words)),
     next = places.map(() => 0);
   for (let j = 0; j < lengths.length; j++) {
     const n = lengths[j]!,

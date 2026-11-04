@@ -92,6 +92,8 @@ export type Wilds = {
 
 export class EcologyStore implements StateStore {
   readonly name = "ecology.lands";
+  /** Saved packed by column (kernel/pack.ts). */
+  readonly packed = true;
   private readonly map = new Map<number, Wilds>();
 
   get(cell: number): Wilds | undefined {

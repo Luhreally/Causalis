@@ -133,6 +133,8 @@ const SPEECH = defineStream("culture.speech");
 
 export class CultureStore implements StateStore {
   readonly name = "culture.ways";
+  /** Saved packed by column (kernel/pack.ts). */
+  readonly packed = true;
   private readonly map = new Map<number, Ways>();
 
   get(cell: number): Ways | undefined {
@@ -258,9 +260,9 @@ export function cultureYear(ctx: PopulationContext, t: SimTime): void {
   }
   // This year's events push the ways of the land they happened in.
   const start = Math.max(0, t - YEAR);
-  const events = world.events.all();
-  for (let i = events.length - 1; i >= 0 && events[i]!.t > start; i--) {
-    const e = events[i]!,
+  const events = world.events;
+  for (let i = events.count - 1; i >= 0 && events.at(i).t > start; i--) {
+    const e = events.at(i),
       pushes = PUSHES[e.type];
     if (!pushes || !e.place) continue;
     const cell = Number(e.place.split(":")[2]),

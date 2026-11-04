@@ -111,6 +111,8 @@ const RULE = defineStream("polity.rule");
 
 export class PolityStore implements StateStore {
   readonly name = "polity.states";
+  /** Saved packed by column (kernel/pack.ts). */
+  readonly packed = true;
   private list: Polity[] = [];
   /** The same realms by ref. */
   private readonly byRef = new Map<string, Polity>();

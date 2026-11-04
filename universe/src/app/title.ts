@@ -4,6 +4,7 @@
 // opened), the sandbox, how to play. Every choice is an address: the page goes there.
 import type { HostClient, SaveMeta, SeedLife } from "../bridge/index.ts";
 import { seedWithAct, seedWithoutAct } from "../kernel/index.ts";
+import { bakedWorlds, phoneMinutesTo, type Baked } from "../ui/index.ts";
 import {
   MAKINGS,
   MAKING_SUBJECTS,
@@ -125,12 +126,21 @@ const BEGINNINGS = [
   ["farmers", "🏕️", "At its first farmers", "year 0: the first villages"],
   ["later", "🏛️", "Three centuries on", "realms and wars under way (it takes a moment to reach)"],
   [
+    "year",
+    "⏳",
+    "At a year of your choosing",
+    "the world runs there first, its years counted as they pass; stop it when you like",
+  ],
+  [
     "contact",
     "🛸",
     "When strangers come down",
     "three centuries on, a people of another star called down among the most peopled land — and you there to see them",
   ],
 ] as const;
+
+/** The farthest year a world may be begun at. */
+const MOST_YEAR = 6000;
 
 const HOW = [
   "The world runs on its own. Watch it, and tap any place, person or event to ask “why?” — every answer opens onto its causes.",
@@ -269,6 +279,11 @@ export function showTitle(options: TitleOptions): void {
       seed = el("input", "seed-input"),
       roll = el("button", "seed-roll", "🎲"),
       seedNote = el("p", "muted seed-life"),
+      // The year chosen (Phase 63), and how long the world takes to get there.
+      yearRow = el("div", "year-row"),
+      yearInput = el("input", "year-input"),
+      yearNote = el("p", "muted year-note"),
+      yearAhead = el("button", "link year-ahead"),
       // Its making (Phase 35 M180): a world never seen made by the hand before it forms — its
       // star, its pull, its orbit, its seas, its air — each an act laid in its seed's text, the
       // rest as the seed falls; and the world it makes, told.
@@ -277,6 +292,45 @@ export function showTitle(options: TitleOptions): void {
       madeNote = el("p", "muted seed-made"),
       start = el("button", "begin", "Begin ▶");
     seed.value = randomSeed();
+    yearInput.type = "number";
+    yearInput.min = "1";
+    yearInput.max = String(MOST_YEAR);
+    yearInput.step = "100";
+    yearInput.value = "1500";
+    yearInput.setAttribute("aria-label", "The year to begin at");
+    const yearChosen = () =>
+      Math.max(1, Math.min(MOST_YEAR, Math.round(Number(yearInput.value) || 1)));
+    // Worlds a deploy ran ahead: far years of those are fetched in seconds, and the seed to choose
+    // is offered (any other seed runs there from its beginning).
+    let ahead: readonly Baked[] = [];
+    const sayYear = () => {
+      const year = yearChosen(),
+        here = ahead.filter((b) => b.universe === kind && b.seed === seed.value.trim()),
+        from = here.reduce((most, b) => (b.year <= year && b.year > most ? b.year : most), 0),
+        minutes = phoneMinutesTo(year, from),
+        far = from ? `Run ahead to year ${from.toLocaleString("en")}: ` : "";
+      yearNote.textContent =
+        minutes < 1
+          ? `${far}under a minute on a phone.`
+          : `${far}some ${Math.round(minutes)} minute${Math.round(minutes) === 1 ? "" : "s"} on a phone.`;
+      yearNote.textContent = yearNote.textContent[0]!.toUpperCase() + yearNote.textContent.slice(1);
+      const offered = ahead.find((b) => b.universe === kind && b.seed !== seed.value.trim());
+      yearAhead.hidden = !offered || here.length > 0;
+      if (offered) yearAhead.textContent = `Use “${offered.seed}”, run ahead to far years`;
+      yearAhead.onclick = () => {
+        if (!offered) return;
+        seed.value = offered.seed;
+        void tell();
+      };
+    };
+    yearInput.oninput = sayYear;
+    sayYear();
+    void bakedWorlds().then((worlds) => {
+      ahead = worlds;
+      sayYear();
+    });
+    yearRow.append(el("span", undefined, "Year"), yearInput, yearNote, yearAhead);
+    yearRow.hidden = true;
     seed.maxLength = 60;
     seed.spellcheck = false;
     seed.setAttribute("aria-label", "The world's seed");
@@ -356,6 +410,7 @@ export function showTitle(options: TitleOptions): void {
         kind = id;
         pick(kinds, id);
         void tell();
+        sayYear();
       });
       b.dataset.id = id;
       kinds.append(b);
@@ -373,6 +428,8 @@ export function showTitle(options: TitleOptions): void {
       const b = choice(icon, words, note, () => {
         begin = id;
         pick(beginnings, id);
+        yearRow.hidden = id !== "year";
+        sayYear();
       });
       b.dataset.id = id;
       beginnings.append(b);
@@ -411,9 +468,11 @@ export function showTitle(options: TitleOptions): void {
           ? `${at}&genesis=1`
           : begin === "later"
             ? `${at}&year=300`
-            : begin === "contact"
-              ? `${at}&year=300&contact=1`
-              : at,
+            : begin === "year"
+              ? `${at}&year=${yearChosen()}`
+              : begin === "contact"
+                ? `${at}&year=300&contact=1`
+                : at,
       );
     };
     start.onclick = () => void begun();
@@ -435,6 +494,7 @@ export function showTitle(options: TitleOptions): void {
       el("p", "muted", "The same seed makes the same world, every time: keep it to share it."),
       el("h3", undefined, "Where it begins"),
       beginnings,
+      yearRow,
       el("div", "title-actions"),
     );
     form.lastElementChild!.append(back(menu), start);

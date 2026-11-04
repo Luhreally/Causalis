@@ -190,6 +190,7 @@ test("a realm's wars, held by realm, are those a walk of every war finds, saved 
     realms = [...new Set(wars.flatMap((w) => [w.attacker, w.defender]))];
   assert.ok(realms.length >= 4, `${realms.length} realms at war`);
   const loaded = new WarStore();
+  loaded.drawn(warsOf(world).draws);
   loaded.load(JSON.parse(JSON.stringify(warsOf(world).save())));
   for (const store of [warsOf(world), loaded]) {
     const own = new Map(store.all().map((w) => [w.ref, w]));

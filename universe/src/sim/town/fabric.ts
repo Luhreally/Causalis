@@ -1148,7 +1148,7 @@ export function townYear(ctx: PopulationContext, t: SimTime): void {
   // year, whose greatest town is sacked.
   const fought = new Set<number>(),
     sacked = new Map<number, number>();
-  for (const w of warsOf(world).all())
+  for (const w of warsOf(world).hot())
     for (let i = w.battles.length - 1; i >= 0; i--) {
       const b = w.battles[i]!;
       if (b.year < year - 30) break;

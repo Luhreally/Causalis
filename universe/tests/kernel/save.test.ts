@@ -9,10 +9,12 @@ import {
   defineMigration,
   loadWorld,
   rulesetId,
+  SAVE_FORMAT,
   saveWorld,
   seedFromText,
   verifyByReplay,
   Hasher,
+  type DecisionRecord,
   type SaveDocument,
   type Seed,
   type StateStore,
@@ -170,7 +172,7 @@ test("a store of long lists is saved packed by column, and loads back as it was"
     ruleset = rulesetId(live, VERSION),
     doc = roundTrip(saveWorld(live, ruleset)),
     chunk = doc.stores["history.events"]!;
-  assert.equal(doc.format, 2);
+  assert.equal(doc.format, SAVE_FORMAT);
   assert.equal(chunk.packed, true);
   assert.equal(
     doc.stores["commands.log"]!.packed,
@@ -181,7 +183,18 @@ test("a store of long lists is saved packed by column, and loads back as it was"
   const { world } = loadWorld(doc, build, ruleset);
   assert.deepEqual(world.domainHashes(), live.domainHashes());
   assert.deepEqual(world.events.all(), live.events.all());
-  assert.deepEqual(world.decisions.all(), live.decisions.all());
+  // (A decision as "why" tells it, all that is read of one and all that a save keeps.)
+  const told = (d: DecisionRecord) => ({
+    ...d,
+    score: d.score.toFixed(2),
+    factors: d.factors.map((f) => ({
+      name: f.name,
+      told: f.contribution.toFixed(2),
+      source: f.source,
+    })),
+  });
+  assert.deepEqual(world.decisions.all().map(told), live.decisions.all().map(told));
+  assert.equal(world.decisions.count, live.decisions.count);
 });
 
 test("a save from before packing loads, and runs on as the world it came from", () => {
@@ -197,7 +210,10 @@ test("a save from before packing loads, and runs on as the world it came from", 
     world.checkpoints().map((c) => c.chain),
     live.checkpoints().map((c) => c.chain),
   );
-  assert.throws(() => loadWorld({ ...old, format: 3 }, build, ruleset), /save format 3/);
+  assert.throws(
+    () => loadWorld({ ...old, format: SAVE_FORMAT + 1 }, build, ruleset),
+    /save format 4/,
+  );
 });
 
 test("a packed store damaged is refused by its hash", () => {

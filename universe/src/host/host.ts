@@ -141,15 +141,20 @@ const BUILTIN_QUERIES: Record<string, QueryHandler> = {
     })),
   "events.recent": (world, args) => {
     const n = Math.min((args as { n?: number } | undefined)?.n ?? 20, 200),
-      all = world.events.all();
-    return all.slice(-n).map((e) => ({
-      id: e.id,
-      t: e.t,
-      type: e.type,
-      importance: e.importance,
-      place: e.place,
-      causes: e.causes.map((c) => c.ref),
-    }));
+      all = world.events,
+      out = [];
+    for (let i = Math.max(0, all.count - n); i < all.count; i++) {
+      const e = all.at(i);
+      out.push({
+        id: e.id,
+        t: e.t,
+        type: e.type,
+        importance: e.importance,
+        place: e.place,
+        causes: e.causes.map((c) => c.ref),
+      });
+    }
+    return out;
   },
   checkpoints: (world) => world.checkpoints().map((c) => ({ t: c.t, chain: c.chain })),
   hashes: (world) => world.domainHashes(),
@@ -159,6 +164,11 @@ const BUILTIN_QUERIES: Record<string, QueryHandler> = {
 const ASKING_MS = 1500;
 /** Queries the page sends on a timer (news of what is followed), not in answer to the viewer. */
 const POLLS: ReadonlySet<string> = new Set(["observe.tidings", "observe.watches"]);
+
+/** How long a turn of the host's loop works on a jump (ms): nothing else is waiting on it. */
+const JUMP_SLICE_MS = 100;
+/** The most of one that counts as work (ms): past that the page was frozen (a phone locked). */
+const JUMP_SLICE_MOST_MS = 5000;
 
 export class SimHost {
   private readonly port: Port<ToHost, ToMain>;
@@ -170,6 +180,14 @@ export class SimHost {
   private interest: Interest | null = null;
   private speed = 0;
   private simTarget = 0;
+  /** A jump under way (see the protocol's "jump"). */
+  private jumping: {
+    readonly id: number;
+    readonly to: number;
+    readonly steps: Generator<void, void, void>;
+    ms: number;
+    told: number;
+  } | null = null;
   private steps: Generator<void, void, void> | null = null;
   private stepsTarget = -1;
   private readonly inbox: ToHost[] = [];
@@ -205,7 +223,9 @@ export class SimHost {
 
   /** True when nothing is waiting and the world is paused or caught up: the loop may sleep. */
   get idle(): boolean {
-    return this.inbox.length === 0 && !this.busy && (this.speed === 0 || !this.world);
+    return (
+      this.inbox.length === 0 && !this.busy && !this.jumping && (this.speed === 0 || !this.world)
+    );
   }
 
   /** The world the host runs (tests and tools only; the page never sees it). */
@@ -233,6 +253,9 @@ export class SimHost {
     // A new kind of universe starts on its own view; a loaded save keeps the one on screen.
     if (!this.interest || this.universe?.name !== universe.name)
       this.interest = { view: universe.defaultView, focus: null };
+    // (A jump under way ends with the world it was running.)
+    if (this.jumping) this.reply(this.jumping.id, { t: this.world?.now ?? 0, stopped: true });
+    this.jumping = null;
     this.universe = universe;
     this.world = world;
     this.lineage = lineage;
@@ -245,8 +268,39 @@ export class SimHost {
 
   /** Finish the moment in progress, if any (queries, commands and saves need a whole moment). */
   private finishMoment(): void {
-    if (!this.world || !this.steps) return;
-    while (this.world.scheduler.midMoment) if (this.steps.next().done) break;
+    const steps = this.jumping?.steps ?? this.steps;
+    if (!this.world || !steps) return;
+    while (this.world.scheduler.midMoment) if (steps.next().done) break;
+  }
+
+  /** A slice of a jump: as much as the slice holds, told now and then. */
+  private stepJump(start: number): void {
+    const jump = this.jumping!,
+      clock = this.options.clock,
+      deadline = start + JUMP_SLICE_MS;
+    let arrived = false;
+    while (clock() < deadline)
+      if (jump.steps.next().done) {
+        arrived = true;
+        break;
+      }
+    const now = clock();
+    jump.ms += Math.min(now - start, JUMP_SLICE_MOST_MS);
+    if (arrived) return this.endJump(false);
+    if (now - jump.told < this.options.statusEveryMs) return;
+    jump.told = now;
+    this.port.post({ kind: "jumping", t: this.world!.now, to: jump.to, ms: jump.ms });
+  }
+
+  /** A jump arrives, or stops where it stands (at the end of the moment it is in). */
+  private endJump(stopped: boolean): void {
+    this.finishMoment();
+    const jump = this.jumping!;
+    this.jumping = null;
+    this.simTarget = this.world!.now;
+    // A jump is not the clock's pace: measure the pace afresh from here.
+    this.achievedWindow = [];
+    this.reply(jump.id, { t: this.world!.now, stopped });
   }
 
   private dropSteps(): void {
@@ -347,6 +401,25 @@ export class SimHost {
           this.reply(m.id, { t: world.now });
           return;
         }
+        case "jump": {
+          this.dropSteps();
+          if (this.jumping) throw new Error("the world is on its way already");
+          if (m.to <= world.now) {
+            this.reply(m.id, { t: world.now, stopped: false });
+            return;
+          }
+          this.jumping = {
+            id: m.id,
+            to: m.to,
+            steps: world.advance(m.to),
+            ms: 0,
+            told: -Infinity,
+          };
+          return;
+        }
+        case "jumpStop":
+          if (this.jumping) this.endJump(true);
+          return;
         case "save": {
           if (!this.options.storage) throw new Error("this host has no storage");
           this.dropSteps();
@@ -476,6 +549,11 @@ export class SimHost {
       while (this.inbox.length) await this.handle(this.inbox.shift()!);
       const world = this.world;
       if (!world) return;
+      if (this.jumping) {
+        this.stepJump(start);
+        this.stepMs = clock() - start;
+        return;
+      }
       // A view just asked for (a new scale, a new place) is drawn before the world steps on:
       // its first frame waits for nothing.
       if (this.lastFrame === -Infinity && this.interest) this.sendFrame(clock());

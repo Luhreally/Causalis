@@ -137,6 +137,38 @@ test("random values of every kind come back as JSON gives them", () => {
     );
 });
 
+test("a long column is laid out by place, and older saves' columns are read as they were written", () => {
+  const random = (k: number) => (((k * 2654435761) >>> 0) % 4000) - 2000,
+    values = Array.from({ length: 3000 }, (_, k) => random(k) * (k % 50 === 0 ? 1_000_000_007 : 1)),
+    packed = packList(values),
+    text = (packed.i ?? packed.d)!;
+  assert.equal(text[0], "~");
+  assert.deepEqual(unpackList(packed), values);
+  // As older saves wrote them: a number's letters side by side.
+  const DIGITS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+  let old = "";
+  for (const v of values) {
+    let u = v < 0 ? -2 * v - 1 : 2 * v;
+    while (u >= 32) {
+      old += DIGITS[32 + (u % 32)];
+      u = Math.floor(u / 32);
+    }
+    old += DIGITS[u];
+  }
+  assert.deepEqual(unpackList({ n: values.length, i: old }), values);
+  // Short, or of numbers of one letter each, the two are the same.
+  const short = [1, 2, 300],
+    ones = Array.from({ length: 200 }, (_, k) => k % 7);
+  assert.ok(!(packList(short).i ?? packList(short).d)!.startsWith("~"));
+  assert.ok(!(packList(ones).i ?? packList(ones).d)!.startsWith("~"));
+  assert.deepEqual(unpackList(packList(short)), short);
+  assert.deepEqual(unpackList(packList(ones)), ones);
+  // Letters short, over or astray: refused.
+  const field = packed.i !== undefined ? "i" : "d";
+  for (const damaged of [text.slice(0, -1), `${text}A`, `${text.slice(0, 40)}!${text.slice(41)}`])
+    assert.throws(() => unpackList({ ...packed, [field]: damaged }));
+});
+
 test("a damaged packing is refused, not read wrong", () => {
   const p = JSON.parse(JSON.stringify(packList([1, 2, 3, "a", "b"]))) as Record<string, unknown>;
   assert.throws(() => unpackList({ ...p, n: 6 } as Packed), /kinds are not its values'/);

@@ -244,6 +244,10 @@ export const GATES: readonly Gate[] = [
   { gate: 61, args: ["--ci"], s: 700 },
   // God brushes: touch painting, Undo, multi-touch cancellation, confirmation and save recovery.
   { gate: 62, args: [], s: 120 },
+  // Phase 63 (a far year chosen on the title screen at a phone's size, run to behind a screen that
+  // tells how far it has come and how long is left; the very world a world run there at once comes
+  // to; stopped, whole where it stands; back to the title from it).
+  { gate: 63, args: ["--ci"], s: 150 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */

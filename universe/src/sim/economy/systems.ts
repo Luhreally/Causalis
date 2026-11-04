@@ -610,7 +610,7 @@ function trade(
   // Lands of realms at war with each other trade no more: the war lays an embargo.
   const realms = politiesOf(ctx.world),
     open = warsOf(ctx.world)
-      .all()
+      .hot()
       .filter((w) => w.ended === null),
     between = (a: number, b: number) => {
       const ra = realms.of(a)?.ref,

@@ -3,18 +3,11 @@
 // checkpoint hash chain, and the three logs every world keeps: history events,
 // decision records and commands. It knows no domain: planets, peoples and wars
 // live in the stores that sim registers here.
-import { TWO32, hi32, lo32 } from "./bits.ts";
+import { hi32, lo32 } from "./bits.ts";
+import { COLD_ROWS, PinnedCodes, codeOf, refOfCode } from "./cold.ts";
 import { CommandLog, type Command, type CommandSpec } from "./command.ts";
 import { Hasher } from "./hash.ts";
-import {
-  DECISION,
-  DecisionLog,
-  EVENT,
-  EventLog,
-  type DecisionRecord,
-  type HistoryEvent,
-  type RetentionOptions,
-} from "./history.ts";
+import { DECISION, DecisionLog, EVENT, EventLog, type RetentionOptions } from "./history.ts";
 import { Minter, compareRefs, makeRef, type Kind, type Ref } from "./ref.ts";
 import { Rng, type Seed } from "./rng.ts";
 import { Scheduler, type AgendaHandler, type SystemSpec } from "./schedule.ts";
@@ -54,9 +47,16 @@ export type WorldOptions = {
   readonly checkpointEvery?: number;
   /** How long ordinary events are kept, and the importance of the chronicle. */
   readonly retention?: RetentionOptions;
+  /** How many rows a cold block of history holds (tests make them few, so that they fill). */
+  readonly coldRows?: number;
 };
 
 const COMMAND_AGENDA = "kernel.command";
+/** How many of the first checkpoints, and of the last, keep their domains' hashes. */
+const DOMAINS_FIRST = 320,
+  DOMAINS_LAST = 64;
+/** How old a kept event or decision is before it goes cold (kernel/cold.ts). */
+const COLD_AFTER = 50 * YEAR;
 
 export class World {
   readonly seed: Seed;
@@ -68,7 +68,12 @@ export class World {
   readonly commands: CommandLog;
   /** How long ordinary history is kept, and the importance of the chronicle. */
   retention: RetentionOptions;
-  private readonly pinners: (() => Iterable<Ref>)[] = [];
+  /** How many rows a cold block of history holds. */
+  private readonly coldRows: number;
+  /** The last reckoning's time, where what it left of each log to go cold has not gone yet. */
+  private eventsToFreeze: number | null = null;
+  private decisionsToFreeze: number | null = null;
+  private readonly pinners: (() => Iterable<Ref | PinnedCodes>)[] = [];
   private readonly stores = new Map<string, StateStore>();
   private readonly chain: Checkpoint[] = [];
   /**
@@ -108,10 +113,12 @@ export class World {
       every: options.checkpointEvery ?? YEAR,
       run: (t) => {
         this.checkpoint(t);
+        this.keepHouse(t);
       },
     });
     const clock = () => this.scheduler.now;
     this.retention = options.retention ?? { window: 20 * YEAR, chronicle: 4 };
+    this.coldRows = options.coldRows ?? COLD_ROWS;
     this.events = this.register(new EventLog(this.minter, clock));
     this.decisions = this.register(new DecisionLog(this.minter, clock));
     this.commands = this.register(new CommandLog(this.minter));
@@ -174,7 +181,7 @@ export class World {
    * Another store declares history it holds on to (a biography, the observer ledger). It is
    * asked while history is reckoned, and should only read.
    */
-  addPinner(pins: () => Iterable<Ref>): void {
+  addPinner(pins: () => Iterable<Ref | PinnedCodes>): void {
     this.pinners.push(pins);
   }
 
@@ -187,9 +194,64 @@ export class World {
    * or one long chain of ordinary causes would keep all of history.
    */
   compactHistory(now: number): { events: number; decisions: number } {
-    if (this.index && !this.index.sync(this.events.all(), this.decisions.all(), this.minter))
+    this.freezeSettled();
+    if (this.index && !this.index.sync(this.events, this.decisions, this.minter))
       this.reckonByText();
-    return this.index ? this.compactIndexed(now, this.index) : this.compactByText(now);
+    const forgotten = this.index ? this.compactIndexed(now, this.index) : this.compactByText(now);
+    if (this.index) this.eventsToFreeze = this.decisionsToFreeze = now;
+    return forgotten;
+  }
+
+  /**
+   * A world just loaded brings the reckoning's index up to its logs now, behind the loading, not in
+   * its first reckoning (it reads the causes of all its cold history once).
+   */
+  settleIndex(): void {
+    if (this.index && !this.index.sync(this.events, this.decisions, this.minter))
+      this.reckonByText();
+  }
+
+  /**
+   * What the reckoning before left kept this long goes cold (kernel/cold.ts). None of it is history.
+   */
+  private freezeSettled(): void {
+    this.freezeEvents();
+    this.freezeDecisions();
+  }
+
+  /** Whether there were any to look to. */
+  private freezeEvents(): boolean {
+    const now = this.eventsToFreeze;
+    if (now === null) return false;
+    this.eventsToFreeze = null;
+    this.events.freeze(
+      Math.min(now - (this.retention.window + 10 * YEAR), now - COLD_AFTER),
+      this.coldRows,
+    );
+    return true;
+  }
+
+  /** (Sooner than events: nothing a year does asks after a decision.) */
+  private freezeDecisions(): boolean {
+    const now = this.decisionsToFreeze;
+    if (now === null) return false;
+    this.decisionsToFreeze = null;
+    this.decisions.freeze(now - (this.retention.window + 10 * YEAR), this.coldRows);
+    return true;
+  }
+
+  /**
+   * The history logs' housekeeping, none of it history, one thing a year: what a reckoning left of
+   * each log goes cold, then blocks with rows forgotten are written again, each log's in turn (see
+   * kernel/cold.ts). Not in a reckoning's own year, nor the next, when wars may go cold: no year
+   * carries more than one of these.
+   */
+  private keepHouse(t: number): void {
+    if (!this.index) return;
+    const year = Math.floor(t / YEAR) % 10;
+    if (year < 2 || this.freezeEvents() || this.freezeDecisions()) return;
+    if (year % 2) this.events.tidy(1, this.coldRows);
+    else this.decisions.tidy(1, this.coldRows);
   }
 
   /**
@@ -221,7 +283,7 @@ export class World {
     // is young: marked once for the whole reckoning (nothing changes while it runs). The
     // chronicle's new members, in the log's order, are walked into `forever` — any one kept
     // shallowly and since raised among them, walked afresh from itself.
-    const joined = ix.mark(this.events.all(), r);
+    const joined = ix.mark(this.events, r);
     ix.walk(IN_F, joined, joined.length);
     this.pinners.forEach((pins, p) => ix.walkPinned(p, pins()));
     if (this.retention.tombstones !== undefined) {
@@ -333,7 +395,16 @@ export class World {
       if (e.importance >= needs(e.t) && !forever.has(e.id)) joined.push(e.id);
     walk(joined, forever);
     // ...and what the other stores hold on to, for as long as they do.
-    for (const pins of this.pinners) walk(pins(), kept);
+    // (Pins may come as codes: see kernel/cold.ts PinnedCodes.)
+    for (const pins of this.pinners)
+      walk(
+        (function* () {
+          for (const ref of pins())
+            if (ref instanceof PinnedCodes) for (const code of ref.codes) yield refOfCode(code);
+            else yield ref;
+        })(),
+        kept,
+      );
     const young = (t: number) => now - t < this.retention.window;
     // Tombstones of what was forgotten long ago go too (the summaries keep the count).
     if (this.retention.tombstones !== undefined) {
@@ -415,7 +486,20 @@ export class World {
     for (const [d, hex] of domains) h.string(d).string(hex);
     const cp: Checkpoint = { t, domains, chain: h.hex() };
     this.chain.push(cp);
+    this.letDomainsGo();
     return cp;
+  }
+
+  /**
+   * An old checkpoint keeps its link in the chain and lets its domains' hashes go, once they are
+   * too old to tell two runs apart by (all a world needs of them is the chain). The first few
+   * centuries' stay: they are what the worlds of the oracle's fixtures answer for.
+   */
+  private letDomainsGo(): void {
+    const old = this.chain.length - 1 - DOMAINS_LAST;
+    if (old < DOMAINS_FIRST) return;
+    const c = this.chain[old]!;
+    if (c.domains.length) this.chain[old] = { t: c.t, domains: [], chain: c.chain };
   }
 
   checkpoints(): readonly Checkpoint[] {
@@ -425,7 +509,14 @@ export class World {
   /** Put back a saved checkpoint chain (loading only). */
   restoreCheckpoints(chain: readonly Checkpoint[]): void {
     this.chain.length = 0;
-    for (const c of chain) this.chain.push({ ...c });
+    const n = chain.length;
+    chain.forEach((c, k) =>
+      this.chain.push(
+        k >= DOMAINS_FIRST && k < n - 1 - DOMAINS_LAST && c.domains.length
+          ? { t: c.t, domains: [], chain: c.chain }
+          : { ...c },
+      ),
+    );
   }
 
   /** Advance the world to a time (all at once). */
@@ -457,9 +548,6 @@ const LIVE = 1, // in its log now
   OLD = 32, // a decision past the first step of aging, this reckoning
   YOUNG = 64; // younger than the window, this reckoning
 
-/** The largest serial a cause can be resolved to (codes are ± serials in an Int32Array). */
-const MAX_SERIAL = 0x7fffffff;
-
 /** What a reckoning asks of each age, fixed while it runs. */
 type Reckoning = {
   readonly now: number;
@@ -490,57 +578,6 @@ function isYoung(r: Reckoning, t: number): boolean {
   return r.now - t < r.window;
 }
 
-const EV_PREFIX = [...`${EVENT.code}:`].map((c) => c.charCodeAt(0)),
-  DEC_PREFIX = [...`${DECISION.code}:`].map((c) => c.charCodeAt(0));
-
-function prefixed(ref: string, prefix: readonly number[]): number {
-  if (ref.length <= prefix.length) return -1;
-  for (let k = 0; k < prefix.length; k++) if (ref.charCodeAt(k) !== prefix[k]) return -1;
-  return prefix.length;
-}
-
-/** Whether ref[start, end) is a number as the minter writes one: digits, no leading zero. */
-function plainDigits(ref: string, start: number, end: number): boolean {
-  const n = end - start;
-  return n >= 1 && n <= 10 && (n === 1 || ref.charCodeAt(start) !== 48);
-}
-
-/**
- * What a reference is to the index: +N for event N, −N for decision N, 0 for anything
- * else. Only the text the minter writes ("ev:0:N") is an event's: a ref with a leading
- * zero, or of another kind, is no event or decision, as no lookup by text would find one.
- */
-function codeOf(ref: unknown): number {
-  if (typeof ref !== "string") return 0;
-  let i = prefixed(ref, EV_PREFIX),
-    sign = 1;
-  if (i < 0) {
-    i = prefixed(ref, DEC_PREFIX);
-    sign = -1;
-    if (i < 0) return 0;
-  }
-  const n = ref.length;
-  let a = 0,
-    start = i;
-  for (; i < n; i++) {
-    const c = ref.charCodeAt(i);
-    if (c === 58) break;
-    if (c < 48 || c > 57) return 0;
-    a = a * 10 + (c - 48);
-  }
-  if (i >= n || !plainDigits(ref, start, i) || a >= TWO32) return 0;
-  let b = 0;
-  start = ++i;
-  for (; i < n; i++) {
-    const c = ref.charCodeAt(i);
-    if (c < 48 || c > 57) return 0;
-    b = b * 10 + (c - 48);
-  }
-  if (!plainDigits(ref, start, i) || b >= TWO32) return 0;
-  const serial = a * TWO32 + b;
-  return serial >= 1 && serial <= MAX_SERIAL ? sign * serial : 0;
-}
-
 /** One log's mirror: marks and resolved causes by serial, and the log's order by position. */
 class Lane {
   readonly kind: Kind;
@@ -552,8 +589,8 @@ class Lane {
   ser = new Int32Array(1024);
   t = new Float64Array(1024);
   n = 0;
-  /** The log's array this follows (the log makes a new one when it forgets or loads), or null. */
-  arr: readonly unknown[] | null = null;
+  /** The log's generation this follows (it moves on when the log is replaced whole). */
+  generation = -1;
 
   constructor(kind: Kind) {
     this.kind = kind;
@@ -587,6 +624,9 @@ class Lane {
   }
 }
 
+/** What walkPinned remembers in the place of a pin that came as its code. */
+const BY_CODE = Symbol("by code");
+
 class HistoryIndex {
   readonly ev = new Lane(EVENT);
   readonly dec = new Lane(DECISION);
@@ -608,35 +648,40 @@ class HistoryIndex {
 
   /**
    * Bring the index up to the logs: what they appended since, or everything afresh if a
-   * log replaced its array. False if it cannot mirror them exactly — an id not as the
+   * log was replaced whole. False if it cannot mirror them exactly — an id not as the
    * minter writes it, one out of the order the minter hands them out, a time that is not a
    * number, causes or factors not as the logs write them.
    */
-  sync(
-    events: readonly HistoryEvent[],
-    decisions: readonly DecisionRecord[],
-    minter: Minter,
-  ): boolean {
+  sync(events: EventLog, decisions: DecisionLog, minter: Minter): boolean {
     const E = this.ev,
       D = this.dec;
-    if (events !== E.arr || decisions !== D.arr || events.length < E.n || decisions.length < D.n) {
+    if (
+      events.generation !== E.generation ||
+      decisions.generation !== D.generation ||
+      events.count < E.n ||
+      decisions.count < D.n
+    ) {
       // Afresh: nothing is live until the logs say so; what is kept for ever stays (it is
       // the reckoning's own, as World.forever is).
       for (const lane of [E, D]) {
         const flags = lane.flags;
         for (let s = 0; s < flags.length; s++) flags[s]! &= IN_F | SHALLOW;
         lane.n = 0;
-        lane.arr = null;
       }
       this.poolLen = 0;
       this.poolLive = 0;
+      E.generation = events.generation;
+      D.generation = decisions.generation;
     } else if (this.poolLen > 2 * this.poolLive + 4096) this.repack();
     const lastEvent = minter.count(EVENT),
       lastDecision = minter.count(DECISION);
+    if (!this.enterCold(events, decisions, lastEvent, lastDecision)) return false;
     // (A log loaded from damaged data, with causes or factors not as the log writes them, is
     // left to the reckoning by text, to fail, or not, as it always did.)
-    for (let i = E.n; i < events.length; i++) {
-      const e = events[i]!,
+    const coldE = events.coldCount,
+      coldD = decisions.coldCount;
+    for (let i = E.n; i < events.count; i++) {
+      const e = events.hotAt(i - coldE),
         causes = e.causes;
       if (!Array.isArray(causes) || !this.enter(E, i, codeOf(e.id), e.t, lastEvent)) return false;
       if (!this.resolve(E, i, causes.length)) return false;
@@ -645,8 +690,8 @@ class HistoryIndex {
         this.pool[this.poolLen++] = codeOf(c.ref);
       }
     }
-    for (let i = D.n; i < decisions.length; i++) {
-      const d = decisions[i]!,
+    for (let i = D.n; i < decisions.count; i++) {
+      const d = decisions.hotAt(i - coldD),
         factors = d.factors;
       if (!Array.isArray(factors) || !this.enter(D, i, -codeOf(d.id), d.t, lastDecision))
         return false;
@@ -661,8 +706,57 @@ class HistoryIndex {
       if (!this.resolve(D, i, cited.length)) return false;
       for (const ref of cited) this.pool[this.poolLen++] = codeOf(ref);
     }
-    E.arr = events;
-    D.arr = decisions;
+    return true;
+  }
+
+  /**
+   * The rows gone cold that the index does not hold yet (those of a save just loaded: rows go
+   * cold only after they have entered), each with its causes read from its block.
+   */
+  private enterCold(
+    events: EventLog,
+    decisions: DecisionLog,
+    lastEvent: number,
+    lastDecision: number,
+  ): boolean {
+    const E = this.ev,
+      D = this.dec,
+      ce = events.cold,
+      cd = decisions.cold;
+    if (E.n < ce.n) {
+      for (let i = E.n; i < ce.n; i++) {
+        const mine = ce.kids(i);
+        if (!this.enter(E, i, ce.serial[i]!, ce.t[i]!, lastEvent)) return false;
+        if (!this.resolve(E, i, mine.length)) return false;
+        for (let k = 0; k < mine.length; k++) this.pool[this.poolLen++] = mine[k]!;
+      }
+    }
+    if (D.n < cd.n) {
+      let b = -1,
+        kids: readonly (readonly number[])[] = [];
+      const codes: number[] = [],
+        texts: string[] = [];
+      for (let i = D.n; i < cd.n; i++) {
+        if (cd.block[i] !== b) {
+          b = cd.block[i]!;
+          kids = cd.kidsOf(b);
+        }
+        const mine = kids[cd.local[i]!]!;
+        if (!this.enter(D, i, cd.serial[i]!, cd.t[i]!, lastDecision)) return false;
+        if (!this.resolve(D, i, mine.length)) return false;
+        // (In DecisionLog.cited's order: by their text. Refs that are neither event nor decision
+        // are no part of the walk, and are not kept here.)
+        codes.length = 0;
+        texts.length = 0;
+        for (let k = 0; k < mine.length; k++) {
+          codes.push(k);
+          texts.push(refOfCode(mine[k]!));
+        }
+        if (mine.length > 1)
+          codes.sort((x, y) => (texts[x]! < texts[y]! ? -1 : texts[x]! > texts[y]! ? 1 : 0));
+        for (let k = 0; k < mine.length; k++) this.pool[this.poolLen++] = mine[codes[k]!]!;
+      }
+    }
     return true;
   }
 
@@ -725,7 +819,7 @@ class HistoryIndex {
    * order — an event kept shallowly that now stands in it leaves `forever`, to be walked
    * afresh from itself.
    */
-  mark(events: readonly HistoryEvent[], r: Reckoning): number[] {
+  mark(events: EventLog, r: Reckoning): number[] {
     const joined: number[] = [],
       E = this.ev,
       D = this.dec;
@@ -735,7 +829,7 @@ class HistoryIndex {
     for (let i = 0; i < E.n; i++) {
       const s = ser[i]!,
         t = time[i]!,
-        importance = events[i]!.importance,
+        importance = events.importanceAt(i),
         need = needOf(r, t);
       let f = flags[s]! & (LIVE | IN_F | SHALLOW);
       if (importance >= need) {
@@ -836,6 +930,11 @@ class HistoryIndex {
 
   /** Mark KEPT all that store p's pins reach (as walk does), reading each pin's code once. */
   walkPinned(p: number, pins: Iterable<unknown>): void {
+    const grown = (held: Int32Array, least: number) => {
+      const more = new Int32Array(Math.max(held.length * 2, least));
+      more.set(held);
+      return more;
+    };
     const last = this.pinned[p],
       before = last?.refs ?? [],
       known = last?.codes,
@@ -847,6 +946,17 @@ class HistoryIndex {
       misses = 0,
       budget = m;
     for (const ref of pins) {
+      if (ref instanceof PinnedCodes) {
+        // (Numbers already, and never let go: taken as they are.)
+        const run = ref.codes;
+        if (n + run.length > codes.length) codes = grown(codes, n + run.length);
+        for (let k = 0; k < run.length; k++) {
+          refs.push(BY_CODE);
+          codes[n++] = run[k]!;
+          if (j < m && before[j] === BY_CODE) j++;
+        }
+        continue;
+      }
       let code: number;
       if (j < m && before[j] === ref) {
         code = known![j++]!;
@@ -870,11 +980,7 @@ class HistoryIndex {
           }
         }
       }
-      if (n === codes.length) {
-        const grown = new Int32Array(n * 2);
-        grown.set(codes);
-        codes = grown;
-      }
+      if (n === codes.length) codes = grown(codes, n + 1);
       refs.push(ref);
       codes[n++] = code;
     }
@@ -886,29 +992,24 @@ class HistoryIndex {
 
   /**
    * Forget through the log everything neither kept for ever, nor reached, nor young (the
-   * marks of this reckoning), and follow the log's new array.
+   * marks of this reckoning).
    */
-  sweep<T extends { readonly id: Ref; readonly t: number }>(
-    log: { all(): readonly T[]; sweep(keep: (x: T) => boolean): number },
-    lane: Lane,
-    r: Reckoning,
-  ): number {
-    const arr = lane.arr,
-      n = lane.n,
+  sweep(log: EventLog | DecisionLog, lane: Lane, r: Reckoning): number {
+    const n = lane.n,
+      cold = log.coldCount,
       ser = lane.ser,
       time = lane.t,
       flags = lane.flags,
       kidN = lane.kidN;
-    let at = 0,
-      w = 0,
+    let w = 0,
       odd = false;
-    const forgotten = log.sweep((x) => {
-      const i = at++;
-      if (i >= n || arr![i] !== x) {
-        // (Never: the log sweeps its array in order, and nothing is added while a
-        // reckoning runs. Were it so, keep exactly what the text would, and start afresh.)
+    const forgotten = log.sweepAt((i) => {
+      if (i >= n) {
+        // (Never: nothing is added while a reckoning runs. Were it so, keep exactly what the
+        // text would, and start afresh.)
         odd = true;
-        const c = codeOf(x.id),
+        const x = log.hotAt(i - cold),
+          c = codeOf(x.id),
           marks = c > 0 ? this.ev.flags : this.dec.flags,
           s = c > 0 ? c : -c;
         return (s > 0 && s < marks.length && (marks[s]! & (IN_F | KEPT)) !== 0) || isYoung(r, x.t);
@@ -924,9 +1025,8 @@ class HistoryIndex {
       this.poolLive -= kidN[s]!;
       return false;
     });
-    const now = log.all();
     lane.n = w;
-    lane.arr = odd || at !== n || now.length !== w ? null : now;
+    if (odd) lane.generation = -1;
     return forgotten;
   }
 }

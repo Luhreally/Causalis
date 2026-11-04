@@ -203,6 +203,8 @@ const COUP = defineStream("strife.coup");
 
 export class StrifeStore implements StateStore {
   readonly name = "strife.realms";
+  /** Saved packed by column (kernel/pack.ts). */
+  readonly packed = true;
   realms = new Map<string, RealmStrife>();
   coups: Coup[] = [];
   restorations: Restoration[] = [];
@@ -305,7 +307,7 @@ function battlesOf(
     lastWon: Ref | null = null,
     lastYear = -Infinity,
     wonYear = -Infinity;
-  for (const w of warsOf(world).of(p.ref)) {
+  for (const w of warsOf(world).hotOf(p.ref)) {
     const side = w.attacker === p.ref ? 0 : w.defender === p.ref ? 1 : -1;
     if (side < 0) continue;
     for (const b of w.battles) {

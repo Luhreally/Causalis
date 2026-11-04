@@ -68,6 +68,8 @@ const pairKey = (a: Ref, b: Ref) => (a < b ? `${a}|${b}` : `${b}|${a}`);
 
 export class DiplomacyStore implements StateStore {
   readonly name = "diplomacy.relations";
+  /** Saved packed by column (kernel/pack.ts). */
+  readonly packed = true;
   private readonly relations = new Map<string, Relation>();
   private readonly memories = new Map<string, Memory[]>();
 
@@ -175,9 +177,9 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
 
   // Lands taken: a land that left one realm and joined another this year is remembered by the one it left.
   const start = Math.max(0, t - YEAR),
-    events = world.events.all();
-  for (let i = events.length - 1; i >= 0 && events[i]!.t > start; i--) {
-    const e = events[i]!;
+    events = world.events;
+  for (let i = events.count - 1; i >= 0 && events.at(i).t > start; i--) {
+    const e = events.at(i);
     if (e.type !== POLITY_EVENTS.joined.type) continue;
     const from = (e.data as { from?: Ref | null } | null)?.from,
       to = e.subjects[0];

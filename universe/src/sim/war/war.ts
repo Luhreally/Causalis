@@ -19,6 +19,7 @@ import {
   type CauseRef,
   type Factor,
   Hasher,
+  PinnedCodes,
   type Ref,
   type SimTime,
   type StateStore,
@@ -41,12 +42,27 @@ import {
 import { designsOf } from "../design/design.ts";
 import { ArmsStore, armsOf } from "./arms.ts";
 import {
+  COLD_BATTLES,
+  ColdWar,
+  ColdWars,
+  fellAgainstLast,
+  fellFromLast,
+  foughtAgain,
+  givesItsExchanges,
+  strengthsThatGiveIt,
+  termsOf,
+  type BattleDraw,
+  type KeptStrength,
+  type Terms,
+} from "./coldwars.ts";
+import {
   FELL_TOWN_YEARS,
   battleRecord,
   bodySize,
   fieldOf,
   hostTerms,
   type Bore,
+  type HostTerms,
   type Take,
 } from "./fell.ts";
 import { FALL_PURPOSE, fighting, levyOf, type Levy, type Pool } from "./levy.ts";
@@ -132,6 +148,10 @@ const DECLARE = defineStream("war.declare");
 /** Years after a peace before a realm is as ready for war as it was. */
 export const WEARY_YEARS = 30;
 const FIGHT = defineStream("war.fight");
+/** How many years between looking for wars to put away. */
+const FREEZE_EVERY = 10;
+/** How many of a save's warm battles to prove in a year, so that going cold costs no year after a load. */
+const PROVED_A_YEAR = 400;
 
 /** A battle without its tallies by land and town (itself, where it has none). */
 function omitFell(b: Battle): Battle {
@@ -156,6 +176,8 @@ function bare(w: War): War {
 type KeptBattle = Omit<Battle, "fell"> & {
   readonly fellColumns?: readonly [FellColumns, FellColumns];
   readonly fellPacked?: readonly [readonly number[], readonly number[]];
+  /** The strengths its exchanges were fought at, in their place (see WarStore.keepWarm). */
+  readonly strengths?: readonly [number, number];
 };
 
 /**
@@ -225,7 +247,27 @@ export class WarStore implements StateStore {
   readonly name = "war.wars";
   /** Saved packed by column (kernel/pack.ts). */
   readonly packed = true;
+  /** How many battles fill a block (tests make it few, so that blocks fill). */
+  coldBattles = COLD_BATTLES;
+  /** All wars, in the order they were declared. */
   private list: War[] = [];
+  /** Those not gone cold, in the same order: all that a year reads (see hot). */
+  private warm: War[] = [];
+  /** The wars gone cold (sim/war/coldwars.ts). */
+  private readonly cold = new ColdWars();
+  /** Each side's terms for the battles still warm: what their exchanges will be proved by. */
+  private readonly terms = new Map<string, readonly [Terms, Terms]>();
+  /** The battles proved to give their exchanges again (a cache: proved again if asked). */
+  private readonly proved = new Set<string>();
+  /**
+   * What a battle's exchanges are kept at when it goes cold: a cache, made as a battle is fought
+   * (proved at the last if it is not here: a save just loaded).
+   */
+  private readonly proofs = new Map<string, readonly [KeptStrength, KeptStrength]>();
+  /** A save's warm battles not yet proved, the oldest last: a few a year (proveSome). */
+  private toProve: { readonly w: War; readonly b: Battle }[] = [];
+  /** The body the world's people fight in, as those terms were read against it. */
+  private size = 0;
   /** The same wars by ref. */
   private readonly byRef = new Map<string, War>();
   /**
@@ -233,20 +275,86 @@ export class WarStore implements StateStore {
    * declared (a cache, never saved: what reads one realm's wars need not walk every war fought).
    */
   private readonly byRealm = new Map<string, War[]>();
+  /** Those not gone cold, likewise. */
+  private readonly warmByRealm = new Map<string, War[]>();
   /** Wars that ended are folded into a digest once, at the end of their year, and not hashed again. */
   private digest = "";
   private readonly sealed = new Set<string>();
   /** Each battle's tallies by land and town, folded in once, as it is fought (Phase 55 M224). */
   private fellDigest = "";
+
+  /** How a battle's draws are had again (given when the world installs its wars). */
+  drawn(draw: BattleDraw): void {
+    this.cold.draw = draw;
+  }
+
+  /** The same, for a store loaded beside this one. */
+  get draws(): BattleDraw {
+    return this.cold.draw!;
+  }
+
   /**
-   * The leading wars whose towns are all let go (not saved: after a load, forgetting again from
-   * the first war is a no-op).
+   * What a battle's two hosts fought with, as its exchanges read it: kept while it is warm. Proved
+   * now that they give it again, while it is one more exchange among a year's (see proofs).
    */
-  private forgotten = 0;
+  noteTerms(w: War, b: Battle, a: HostTerms, c: HostTerms, size: number): void {
+    const terms = [termsOf(a), termsOf(c)] as const,
+      draw = this.cold.draw;
+    this.terms.set(b.event, terms);
+    this.size = size;
+    if (!draw || !b.combat) return;
+    const kept = strengthsThatGiveIt(w, b, terms, size, draw);
+    if (kept) this.proofs.set(b.event, kept);
+  }
+
+  /** A few more of a save's warm battles proved (see proofs). */
+  proveSome(most: number): void {
+    const draw = this.cold.draw;
+    if (!draw) return;
+    while (most-- > 0 && this.toProve.length) {
+      const { w, b } = this.toProve.pop()!,
+        terms = this.terms.get(b.event),
+        kept = terms && strengthsThatGiveIt(w, b, terms, this.size, draw);
+      if (kept) this.proofs.set(b.event, kept);
+    }
+  }
+
+  /**
+   * A battle still warm as a save keeps it: its tallies by column (keep), and its exchanges not at
+   * all where the rules give them again from its strengths, once that is proved.
+   */
+  private keepWarm(w: War, b: Battle): Battle | KeptBattle {
+    const kept = keep(b),
+      terms = this.terms.get(b.event);
+    if (!b.combat || !terms) return kept;
+    if (!this.proved.has(b.event)) {
+      if (!givesItsExchanges(w, b, terms, this.size, this.cold.draw!)) return kept;
+      this.proved.add(b.event);
+    }
+    const { combat, ...rest } = kept;
+    return { ...rest, strengths: combat!.power };
+  }
+
+  /** A battle still warm as a save kept it. */
+  private unkeepWarm(w: War, kept: Battle | KeptBattle): Battle {
+    const b = unkeep(kept);
+    if (!("strengths" in b)) return b;
+    const { strengths, ...rest } = b as Battle & { strengths: readonly [number, number] },
+      made = foughtAgain(
+        w,
+        rest,
+        strengths,
+        this.terms.get(rest.event)!,
+        this.size,
+        this.cold.draw!,
+      );
+    this.proved.add(rest.event);
+    return { ...rest, combat: made! };
+  }
 
   /** Fold the wars that have ended into the digest (in ref order): they will not change again. */
   seal(): void {
-    const ended = this.list
+    const ended = this.warm
       .filter((w) => w.ended !== null && !this.sealed.has(w.ref))
       .sort((a, b) => (a.ref < b.ref ? -1 : 1));
     if (!ended.length) return;
@@ -269,8 +377,7 @@ export class WarStore implements StateStore {
    * (their lands' are kept for good). Nothing hashed changes: the tallies were folded in as fought.
    */
   forgetTowns(before: number): void {
-    for (let i = this.forgotten; i < this.list.length; i++) {
-      const w = this.list[i]!;
+    for (const w of this.warm) {
       if (!this.sealed.has(w.ref)) continue;
       for (let k = 0; k < w.battles.length; k++) {
         const b = w.battles[k]!;
@@ -278,31 +385,138 @@ export class WarStore implements StateStore {
           w.battles[k] = { ...b, fell: [strip(b.fell[0]), strip(b.fell[1])] };
       }
     }
-    // (The leading wars ended and fought out before then are done with.)
-    while (this.forgotten < this.list.length) {
-      const w = this.list[this.forgotten]!;
-      if (!this.sealed.has(w.ref) || (w.battles.at(-1)?.year ?? -Infinity) >= before) break;
-      this.forgotten++;
+  }
+
+  /**
+   * The wars that have been over since before `before`, all their battles too, go cold, a block's
+   * worth at a time (the rest wait for more). Nothing a year does reads them after: see hot. `size`
+   * is the body the world's people fight in.
+   */
+  freeze(before: number, size: number): void {
+    const ready: War[] = [];
+    let battles = 0;
+    for (const w of this.warm) {
+      if (!this.goneBy(w, before)) continue;
+      ready.push(w);
+      battles += w.battles.length;
+    }
+    if (battles < this.coldBattles) return;
+    // Where each stands among all wars (the warm keep the order of all).
+    const at = new Map<War, number>();
+    let next = 0;
+    for (const w of ready) {
+      while (this.list[next] !== w) next++;
+      at.set(w, next);
+    }
+    let from = 0;
+    const gone = new Set<War>();
+    while (battles >= this.coldBattles) {
+      const block: { war: War; at: number }[] = [];
+      let held = 0;
+      while (held < this.coldBattles && from < ready.length) {
+        const w = ready[from++]!;
+        block.push({ war: w, at: at.get(w)! });
+        held += w.battles.length;
+      }
+      battles -= held;
+      const cold = this.cold.freeze(block, (event) => this.terms.get(event), size, this.proofs);
+      for (let k = 0; k < block.length; k++) {
+        const w = block[k]!.war;
+        this.becomeCold(w, cold[k]!);
+        gone.add(w);
+      }
+    }
+    this.warm = this.warm.filter((w) => !gone.has(w));
+    for (const [realm, wars] of this.warmByRealm) {
+      const left = wars.filter((w) => !gone.has(w));
+      if (left.length) this.warmByRealm.set(realm, left);
+      else this.warmByRealm.delete(realm);
+    }
+  }
+
+  /** Whether a war is past all a year reads, and may go into a block. */
+  private goneBy(w: War, before: number): boolean {
+    return (
+      w.ended !== null &&
+      w.ended < before &&
+      this.sealed.has(w.ref) &&
+      (w.battles.at(-1)?.year ?? -Infinity) < before &&
+      ColdWars.fits(w)
+    );
+  }
+
+  /** What knew a war as it was knows it cold. */
+  private becomeCold(w: War, cold: ColdWar): void {
+    this.list[cold.at] = cold;
+    this.byRef.set(w.ref, cold);
+    for (const realm of w.attacker === w.defender ? [w.attacker] : [w.attacker, w.defender]) {
+      const wars = this.byRealm.get(realm)!;
+      wars[wars.indexOf(w)] = cold;
+    }
+    this.sealed.delete(w.ref);
+    for (const b of w.battles) {
+      this.proofs.delete(b.event);
+      this.terms.delete(b.event);
+      this.proved.delete(b.event);
     }
   }
 
   add(w: War): void {
     this.list.push(w);
+    this.warm.push(w);
     this.byRef.set(w.ref, w);
-    this.index(w);
+    this.index(w, this.byRealm);
+    this.index(w, this.warmByRealm);
   }
 
   /** A war under each realm that fights it (once, should a realm be on both sides). */
-  private index(w: War): void {
+  private index(w: War, by: Map<string, War[]>): void {
     for (const realm of w.attacker === w.defender ? [w.attacker] : [w.attacker, w.defender]) {
-      const wars = this.byRealm.get(realm);
+      const wars = by.get(realm);
       if (wars) wars.push(w);
-      else this.byRealm.set(realm, [w]);
+      else by.set(realm, [w]);
     }
   }
 
+  /** Every war ever fought, in the order they were declared: for pages. */
   all(): readonly War[] {
     return this.list;
+  }
+
+  /**
+   * The wars not gone cold, in the order they were declared: all that any year has to read.
+   * A cold war has been over more than FELL_TOWN_YEARS, and so have its battles: its peace has
+   * stopped weighing on its realms, and nothing asks after a battle that old.
+   */
+  hot(): readonly War[] {
+    return this.warm;
+  }
+
+  /** A realm's wars not gone cold, attacker or defender, in the order they were declared. */
+  hotOf(realm: Ref): readonly War[] {
+    return this.warmByRealm.get(realm) ?? [];
+  }
+
+  /** The battles fought in the years [from, to), in the order of their wars, each war's as fought. */
+  battlesIn(from: number, to: number): { war: War; b: Battle }[] {
+    const out: { war: War; b: Battle }[] = [],
+      cold = this.cold.warsIn(from, to);
+    for (const w of cold.size ? this.list : this.warm) {
+      if (w instanceof ColdWar && !cold.has(w)) continue;
+      for (const b of w.battles) if (b.year >= from && b.year < to) out.push({ war: w, b });
+    }
+    return out;
+  }
+
+  /** A battle by its event: its war, where it stands in it (null: none such). */
+  battleBy(event: string): { war: War; k: number; b: Battle } | null {
+    const wars = this.warm;
+    for (let i = wars.length - 1; i >= 0; i--) {
+      const w = wars[i]!;
+      for (let k = w.battles.length - 1; k >= 0; k--)
+        if (w.battles[k]!.event === event) return { war: w, k, b: w.battles[k]! };
+    }
+    return this.cold.battleBy(event);
   }
 
   get(ref: Ref): War | undefined {
@@ -316,23 +530,30 @@ export class WarStore implements StateStore {
 
   /** The wars a realm is fighting now. */
   fighting(realm: Ref): War[] {
-    return this.of(realm).filter(
+    return this.hotOf(realm).filter(
       (w) => w.ended === null && (w.attacker === realm || w.defender === realm),
     );
   }
 
   between(a: Ref, b: Ref): War | undefined {
     // (Among a's wars, in the order they were declared: the first of all wars that matches.)
-    return this.of(a).find(
+    return this.hotOf(a).find(
       (w) =>
         w.ended === null &&
         ((w.attacker === a && w.defender === b) || (w.attacker === b && w.defender === a)),
     );
   }
 
-  pinned(): Ref[] {
-    const refs: Ref[] = [];
+  pinned(): (Ref | PinnedCodes)[] {
+    const refs: (Ref | PinnedCodes)[] = [];
+    let run: number[] | null = null;
     for (const w of this.list) {
+      if (w instanceof ColdWar) {
+        if (!run) refs.push(new PinnedCodes((run = [])));
+        w.pins(run);
+        continue;
+      }
+      run = null;
       refs.push(w.event);
       if (w.peace) refs.push(w.peace);
       for (const b of w.battles) refs.push(b.event);
@@ -345,37 +566,68 @@ export class WarStore implements StateStore {
     // (A battle's town tallies are hashed once, as it is fought: the yearly hash does not grow
     // with them, and letting them go changes nothing hashed.)
     if (this.fellDigest) h.string(this.fellDigest);
-    h.value(this.list.filter((w) => !this.sealed.has(w.ref)).map(bare));
+    h.value(this.warm.filter((w) => !this.sealed.has(w.ref)).map(bare));
   }
 
   save(): unknown {
     return {
       // (A battle's tallies by land and town are kept packed: what the rules give again is left out.)
-      wars: this.list.map((w) => ({ ...w, battles: w.battles.map(keep) })),
+      wars: fellAgainstLast(
+        this.warm.map((w) => ({ ...w, battles: w.battles.map((b) => this.keepWarm(w, b)) })),
+      ),
+      against: true,
       digest: this.digest,
       sealed: [...this.sealed].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
       fellDigest: this.fellDigest,
+      ...(this.terms.size ? { terms: [...this.terms], size: this.size } : {}),
+      ...(this.cold.blocks.length ? { cold: this.cold.save() } : {}),
     };
   }
 
   load(state: unknown): void {
-    this.list = (state as { wars: War[] }).wars.map((w) => ({
+    // (A save from before Phase 63 keeps every war warm, and they go cold as they may.)
+    const t = state as {
+        digest?: string;
+        sealed?: string[];
+        fellDigest?: string;
+        terms?: [string, [Terms, Terms]][];
+        size?: number;
+        cold?: unknown;
+        against?: boolean;
+      },
+      cold = this.cold.load(t.cold ?? { blocks: [], words: [] }),
+      wars = (state as { wars: War[] }).wars;
+    this.size = t.size ?? 0;
+    this.terms.clear();
+    this.proved.clear();
+    this.proofs.clear();
+    for (const [event, terms] of t.terms ?? []) this.terms.set(event, terms);
+    this.warm = (t.against ? fellFromLast<Battle, War>(wars) : wars).map((w) => ({
       ...w,
-      battles: w.battles.map(unkeep),
+      battles: w.battles.map((b) => this.unkeepWarm(w, b)),
       fallen: [...w.fallen] as [number, number],
     }));
+    this.toProve = this.warm.flatMap((w) => w.battles.map((b) => ({ w, b }))).reverse();
+    // Each cold war where it stood, and the warm in order about them.
+    this.list = new Array<War>(this.warm.length + cold.length);
+    for (const w of cold) this.list[w.at] = w;
+    let next = 0;
+    for (const w of this.warm) {
+      while (this.list[next]) next++;
+      this.list[next] = w;
+    }
     this.byRef.clear();
     this.byRealm.clear();
+    this.warmByRealm.clear();
     for (const w of this.list) {
       this.byRef.set(w.ref, w);
-      this.index(w);
+      this.index(w, this.byRealm);
     }
-    const t = state as { digest?: string; sealed?: string[]; fellDigest?: string };
+    for (const w of this.warm) this.index(w, this.warmByRealm);
     this.digest = t.digest ?? "";
     this.sealed.clear();
     for (const r of t.sealed ?? []) this.sealed.add(r);
     this.fellDigest = t.fellDigest ?? "";
-    this.forgotten = 0;
   }
 }
 
@@ -580,7 +832,8 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
   // A realm fresh from war is slow to go to war again: its fallen are still mourned.
   const lastPeace = new Map<string, War>(),
     fighting = new Set<string>();
-  for (const w of wars.all()) {
+  // (A peace past FELL_TOWN_YEARS weighs no more, so the cold wars need no reading: see hot.)
+  for (const w of wars.hot()) {
     if (w.ended === null) fighting.add(pairKey(w.attacker, w.defender));
     else if (w.peace)
       for (const side of [w.attacker, w.defender])
@@ -736,7 +989,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
   }
 
   // 2. A battle in each war: for the land the attacker wants, held by the defender.
-  for (const w of wars.all()) {
+  for (const w of wars.hot()) {
     if (w.ended !== null || w.declared === year) continue;
     const a = realms.get(w.attacker)!,
       b = realms.get(w.defender)!;
@@ -874,6 +1127,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     };
     w.battles.push(fought);
     wars.noteFell(fought);
+    wars.noteTerms(w, fought, termsA, termsB, bodySize(ctx));
     // A seat is not taken in a day: the first victory there lays a siege, the second takes it.
     const besieged = seat && won && !w.battles.slice(0, -1).some((x) => x.land === land && x.won);
     if (won && !besieged) {
@@ -964,11 +1218,15 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
   wars.seal();
   // (Their battles' town tallies are kept FELL_TOWN_YEARS, their lands' for good.)
   wars.forgetTowns(year - FELL_TOWN_YEARS);
+  // (And those long over go out of the way, a little at a time: see coldwars.ts.)
+  wars.proveSome(PROVED_A_YEAR);
+  if (year % FREEZE_EVERY === 0) wars.freeze(year - FELL_TOWN_YEARS, bodySize(ctx));
 }
 
 /** Teach a peopled world its wars. */
 export function installWar(world: World, ctx: () => PopulationContext): WarStore {
   const store = world.register(new WarStore());
+  store.drawn((key, t, round, side) => world.rng.real(FIGHT, key, t, 100 + round, side));
   world.register(new ArmsStore());
   world.addPinner(() => store.pinned());
   world.system({ key: "185.war.year", every: YEAR, run: (t) => warYear(ctx(), t) });

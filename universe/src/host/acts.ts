@@ -2,7 +2,7 @@
 // the globe for its play — rain over a land, fire on a town, a pall of plague, a thread of gold
 // between two realms made friends — and a land as the god's palette sees it before an act is
 // cast on it. Pure reads of the world as it stands.
-import { YEAR, type Ref, type World } from "../kernel/index.ts";
+import { YEAR, type HistoryEvent, type Ref, type World } from "../kernel/index.ts";
 import { isProvinceWorld, offworldSite, regionPoint } from "../gen/index.ts";
 import {
   ACT_EVENTS,
@@ -145,11 +145,11 @@ export function actsMap(world: World): ActsMap {
       });
   }
   // What was done in a moment lately: on a town, between two realms, on a land.
-  const events = world.events.all(),
+  const events = world.events,
     since = now - ACT_SHOWN,
-    byAct = (e: (typeof events)[number]) => e.causes[0]?.role === "agent";
-  for (let i = events.length - 1; i >= 0 && events[i]!.t > since; i--) {
-    const e = events[i]!,
+    byAct = (e: HistoryEvent) => e.causes[0]?.role === "agent";
+  for (let i = events.count - 1; i >= 0 && events.at(i).t > since; i--) {
+    const e = events.at(i),
       left = 1 - (now - e.t) / ACT_SHOWN;
     let mark: Omit<ActMark, "left" | "event" | "from"> | null = null;
     switch (e.type) {

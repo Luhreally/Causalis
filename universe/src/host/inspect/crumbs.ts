@@ -117,9 +117,7 @@ export function crumbsOf(world: World, ref: string): Line {
       }
       case "ev": {
         // A battle: the war it was fought in.
-        const w = warsOf(world)
-          .all()
-          .find((x) => x.battles.some((b) => b.event === ref));
+        const w = warsOf(world).battleBy(ref)?.war;
         if (w) {
           const a = realms.get(w.attacker),
             d = realms.get(w.defender);
@@ -130,11 +128,7 @@ export function crumbsOf(world: World, ref: string): Line {
       // One of a battle's levy (Phase 55 M225): the war it was fought in, then the battle.
       case "lv": {
         const man = parseLevyManRef(ref),
-          w = man
-            ? warsOf(world)
-                .all()
-                .find((x) => x.battles.some((b) => b.event === man.event))
-            : undefined;
+          w = man ? warsOf(world).battleBy(man.event)?.war : undefined;
         if (man && w) {
           const a = realms.get(w.attacker),
             d = realms.get(w.defender);

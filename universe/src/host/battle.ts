@@ -81,16 +81,16 @@ export function sideColors(a: Rgb, d: Rgb): [Rgb, Rgb] {
 
 /** What history did at a moment, from the first thing done then (events are kept in time's order). */
 function atMoment(world: World, t: number) {
-  const all = world.events.all();
+  const all = world.events;
   let lo = 0,
-    hi = all.length;
+    hi = all.count;
   while (lo < hi) {
     const mid = (lo + hi) >> 1;
-    if (all[mid]!.t < t) lo = mid + 1;
+    if (all.at(mid).t < t) lo = mid + 1;
     else hi = mid;
   }
   const out = [];
-  for (let i = lo; i < all.length && all[i]!.t === t; i++) out.push(all[i]!);
+  for (let i = lo; i < all.count && all.at(i).t === t; i++) out.push(all.at(i));
   return out;
 }
 

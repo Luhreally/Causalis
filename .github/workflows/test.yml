@@ -105,6 +105,26 @@ jobs:
       # npm run gate:5.
       - run: npm run gate:5 -- --ci
 
+  # Deep time: the Phase 6 gate without its clocks, the Earth seed and the costliest open world known
+  # side by side, each to year 3100 (some half an hour on a runner): a ship among the stars, a colony
+  # gone its own way, contact, a war between the stars, and the save within bound for its lands.
+  # Saves are the same on every machine, so a store that starts to grow fails here; the time budgets
+  # hold locally: npm run gate:6.
+  universe-deep:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: universe
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: universe/package-lock.json
+      - run: npm ci
+      - run: npm run gate:6 -- --ci
+
   # The journey: every browser gate on the built app, shared out over twelve runners side by side.
   # tools/ci-gates.ts holds what each gate walks, its CI arguments and its time on a runner; the
   # shards below are its `--plan 12`. A gate that fails runs once more (a runner's software GL and
@@ -117,18 +137,18 @@ jobs:
       fail-fast: false
       matrix:
         gates:
-          - 7 18 32 37 46
-          - 8 24 34 61
-          - 9 20 26 30 36 38
-          - 10 21 53 54
-          - 11 29 31 55
-          - 12 14 19 33 55b
-          - 13 25 41 43 56
-          - 15 40 45 48 58
-          - 17 42 60
-          - 27 28 49 50 57
-          - 35 47 51 62
-          - 39 44 52
+          - 7 17 18 46 49
+          - 8 27 35 39
+          - 9 20 26 38 53
+          - 10 19 21 54
+          - 11 52 55 63
+          - 12 14 33 36 55b 58
+          - 13 25 29 56 62
+          - 15 24 40 45 48
+          - 28 31 44 50 57
+          - 30 32 42 60
+          - 34 41 43 61
+          - 37 47 51
     defaults:
       run:
         working-directory: universe

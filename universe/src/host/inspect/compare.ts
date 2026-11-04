@@ -91,7 +91,7 @@ export function comparePage(world: World, ref: string): PageModel {
     ] as const,
     // How they stand to each other: at war, or their regard.
     between = warsOf(world)
-      .all()
+      .hot()
       .filter(
         (w) =>
           w.ended === null &&

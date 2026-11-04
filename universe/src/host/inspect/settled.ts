@@ -116,7 +116,7 @@ export function townPage(world: World, ref: string): PageModel {
       }),
     );
   }
-  for (const w of warsOf(world).all()) {
+  for (const w of warsOf(world).hot()) {
     const b = w.battles.findLast((x) => x.land === s.cell && x.year >= year - 1);
     if (b)
       now.push(

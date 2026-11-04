@@ -103,13 +103,7 @@ const text = (v: unknown, most: number, empty = true): boolean =>
 
 /** A battle by its event: its war, where it stands in it (null: none such). */
 export function battleBy(world: World, event: string): { war: War; k: number; b: Battle } | null {
-  const wars = warsOf(world).all();
-  for (let i = wars.length - 1; i >= 0; i--) {
-    const w = wars[i]!;
-    for (let k = w.battles.length - 1; k >= 0; k--)
-      if (w.battles[k]!.event === event) return { war: w, k, b: w.battles[k]! };
-  }
-  return null;
+  return warsOf(world).battleBy(event);
 }
 
 /**

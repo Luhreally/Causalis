@@ -1230,7 +1230,8 @@ body[data-scale="micro"] {
   display: flex;
   gap: 8px;
 }
-.seed-input {
+.seed-input,
+.year-input {
   flex: 1;
   min-width: 0;
   padding: 8px 10px;
@@ -1261,6 +1262,74 @@ body[data-scale="micro"] {
 }
 .title-back {
   margin-top: 10px;
+}
+/* The year chosen on the title screen, and the screen the world runs there behind (Phase 63). */
+.year-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+.year-row[hidden] {
+  display: none;
+}
+.year-input {
+  flex: none;
+  width: 6.5em;
+}
+.year-note {
+  flex-basis: 100%;
+  margin: 0;
+}
+.jump-screen {
+  position: absolute;
+  z-index: 200;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: var(--bg);
+}
+.jump-card {
+  width: min(460px, 100%);
+  padding: 18px;
+  background: var(--panel-solid);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+}
+.jump-head {
+  margin: 0 0 12px;
+  font-size: 1.15rem;
+}
+.jump-bar {
+  height: 14px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 7px;
+}
+.jump-fill {
+  width: 0;
+  height: 100%;
+  background: var(--accent);
+  transition: width 240ms linear;
+}
+.jump-done {
+  margin: 10px 0 2px;
+  font-variant-numeric: tabular-nums;
+}
+.jump-left {
+  margin: 0 0 14px;
+}
+.jump-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.jump-buttons button {
+  flex: 1 1 140px;
+  min-height: 42px;
 }
 .title-how {
   margin: 10px 0 0;

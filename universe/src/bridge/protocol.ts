@@ -44,7 +44,14 @@ export type ToHost =
   | { readonly kind: "life"; readonly id: number; readonly universe: string; readonly seed: string }
   | { readonly kind: "import"; readonly id: number; readonly bytes: Uint8Array }
   /** Run the world to a time at once (tests, tools and the skip). */
-  | { readonly kind: "advance"; readonly id: number; readonly to: number };
+  | { readonly kind: "advance"; readonly id: number; readonly to: number }
+  /**
+   * Run the world to a time a little each turn, telling how far it has come ("jumping"), answered
+   * when it arrives or is stopped: for a far year, behind a screen that says so (Phase 63).
+   */
+  | { readonly kind: "jump"; readonly id: number; readonly to: number }
+  /** Stop a jump where it stands (the world is whole there, and may be taken up from there). */
+  | { readonly kind: "jumpStop" };
 
 export type FrameMessage = {
   readonly kind: "frame";
@@ -68,12 +75,21 @@ export type Status = {
   readonly stepMs: number;
 };
 
+/** How far a jump has come: the world's time, where it is bound, the work so far (ms). */
+export type JumpProgress = {
+  readonly kind: "jumping";
+  readonly t: number;
+  readonly to: number;
+  readonly ms: number;
+};
+
 export type ToMain =
   | FrameMessage
   | { readonly kind: "reply"; readonly id: number; readonly ok: true; readonly value: unknown }
   | { readonly kind: "reply"; readonly id: number; readonly ok: false; readonly error: string }
   | { readonly kind: "update"; readonly id: number; readonly t: number; readonly value: unknown }
   | Status
+  | JumpProgress
   | { readonly kind: "notice"; readonly text: string; readonly ref: string | null };
 
 /** One end of a message channel: a worker, the worker's own scope, or an in-thread pair. */

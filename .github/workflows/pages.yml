@@ -18,8 +18,31 @@ jobs:
   test:
     uses: ./.github/workflows/test.yml
 
+  # Far years of the Earth seed, run ahead for this deploy's own rules (Phase 63): the title's "at a
+  # year of your choosing" takes them up in seconds. Side by side with the tests, for its time (some
+  # twenty minutes on a runner). Only ever in the deploy, never in the repository.
+  bake:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: universe
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: universe/package-lock.json
+      - run: npm ci
+      - run: node tools/bake.ts --out baked --years 1500,3000
+      - uses: actions/upload-artifact@v4
+        with:
+          name: baked
+          path: universe/baked
+          retention-days: 1
+
   deploy:
-    needs: test
+    needs: [test, bake]
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -36,6 +59,10 @@ jobs:
         working-directory: universe
       - run: npm run build
         working-directory: universe
+      - uses: actions/download-artifact@v4
+        with:
+          name: baked
+          path: universe/dist/baked
       - run: cp -r universe/dist dist/client/universe
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

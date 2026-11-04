@@ -51,6 +51,8 @@ export type City = {
 
 export class CityStore implements StateStore {
   readonly name = "city.quarters";
+  /** Saved packed by column (kernel/pack.ts). */
+  readonly packed = true;
   private readonly map = new Map<string, City>();
 
   get(town: Ref): City | undefined {

@@ -20,6 +20,13 @@ test("a save compresses and decodes to the same document", async () => {
   const json = JSON.stringify(doc).length;
   assert.ok(bytes.length < json / 2, `gzip ${bytes.length} of ${json}`);
   assert.deepEqual(await decodeSave(bytes), JSON.parse(JSON.stringify(doc)));
+  // (And as text, as a server may hand on a file named for its gzip with the gzip taken off.)
+  assert.deepEqual(
+    await decodeSave(new TextEncoder().encode(JSON.stringify(doc))),
+    JSON.parse(JSON.stringify(doc)),
+  );
+  await assert.rejects(decodeSave(new TextEncoder().encode("{ not a save")), /not a save document/);
+  await assert.rejects(decodeSave(bytes.subarray(0, bytes.length >> 1)), /do not decompress/);
 });
 
 test("slots alternate, and a damaged latest save falls back to the one before", async () => {

@@ -116,7 +116,8 @@ export {
   type SaveDocument,
   type StoreChunk,
 } from "./save.ts";
-export { packList, unpackList, type Packed } from "./pack.ts";
+export { COLD_ROWS, PinnedCodes, Recent, codeOf, refOfCode } from "./cold.ts";
+export { Words, packList, unpackList, type Packed } from "./pack.ts";
 export { MinHeap } from "./heap.ts";
 export { fbm3, noise3 } from "./noise.ts";
 export { forNeighbours, nearestCell, sphereGrid, type SphereGrid } from "./sphere.ts";

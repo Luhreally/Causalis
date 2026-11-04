@@ -1737,7 +1737,7 @@ export function ledgerPage(world: World, tab?: string): PageModel {
         "At war",
         count(
           warsOf(world)
-            .all()
+            .hot()
             .filter((w) => w.ended === null).length,
         ),
       ),

@@ -1002,7 +1002,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
             };
           };
         const wars = warsOf(world)
-          .all()
+          .hot()
           .filter(
             (w) =>
               (w.ended === null || w.ended >= year - 1) &&

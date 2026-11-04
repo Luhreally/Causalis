@@ -9,6 +9,8 @@ export const SETTLEMENT = defineKind("town", "settlement", "minted");
 
 export class PopulationStore implements StateStore {
   readonly name = "population.provinces";
+  /** Saved packed by column (kernel/pack.ts). */
+  readonly packed = true;
   private readonly map = new Map<number, Province>();
   /** The provinces in cell order, kept until one is added. */
   private sorted: Province[] | null = null;
@@ -206,6 +208,44 @@ export function livingMemory(life: LifeHistory): number {
 const SUMMARY_YEARS = 100,
   SUMMARY_DECADES = 1000;
 
+/** A land's deaths (each year's bands in turn), each band's years in turn. */
+function byBand(deaths: readonly number[]): number[] {
+  const out = new Array<number>(deaths.length);
+  let at = 0;
+  for (let b = 0; b < BANDS; b++)
+    for (let i = b; i < deaths.length; i += BANDS) out[at++] = deaths[i]!;
+  return out;
+}
+
+/** What byBand wrote. */
+function byYear(kept: readonly number[]): number[] {
+  const out = new Array<number>(kept.length);
+  let at = 0;
+  for (let b = 0; b < BANDS; b++) for (let i = b; i < kept.length; i += BANDS) out[i] = kept[at++]!;
+  return out;
+}
+
+function peopleOf(s: Pick<YearSummary, "byOccupation">): number {
+  let n = 0;
+  for (const v of s.byOccupation) n += v;
+  return n;
+}
+
+/** A year's line as a save keeps it. */
+function withoutPeople(s: YearSummary): unknown {
+  if (!s.byOccupation.length || peopleOf(s) !== s.population) return s;
+  const { population: _, ...rest } = s;
+  return rest;
+}
+
+/** What withoutPeople kept. */
+function withPeople(kept: YearSummary): YearSummary {
+  if (kept.population !== undefined) return { ...kept };
+  // (In the order a year's line is written.)
+  const { year, population: _, ...rest } = kept;
+  return { year, population: peopleOf(kept), ...rest };
+}
+
 export class HistoryStore implements StateStore {
   readonly name = "population.history";
   /** Saved packed by column (kernel/pack.ts): the ledgers are long rows of counts. */
@@ -372,9 +412,12 @@ export class HistoryStore implements StateStore {
       [...m.entries()].sort((a, b) => a[0] - b[0]).map(([k, v]) => [k, v] as [number, unknown]);
     return {
       births: obj(this.births),
-      deaths: obj(this.deaths),
+      // (A band's deaths side by side, year on year, not a year's bands: they fold the smaller.)
+      deaths: obj(new Map([...this.deaths].map(([k, v]) => [k, byBand(v)]))),
+      byBand: true,
       flows: this.flowList,
-      years: obj(this.years),
+      // (A year's people, where they are its trades added up, are not written.)
+      years: obj(new Map([...this.years].map(([k, v]) => [k, v.map(withoutPeople)]))),
       digest: this.digest,
       sealedYear: this.sealedYear,
       sealedFlows: this.sealedFlows,
@@ -394,6 +437,7 @@ export class HistoryStore implements StateStore {
       sealedFlows: number;
       firstYear?: number;
       flowBase?: number;
+      byBand?: boolean;
     };
     this.digest = s.digest;
     this.sealedYear = s.sealedYear;
@@ -404,12 +448,8 @@ export class HistoryStore implements StateStore {
     this.deaths.clear();
     this.years.clear();
     for (const [k, v] of s.births) this.births.set(k, [...v]);
-    for (const [k, v] of s.deaths) this.deaths.set(k, [...v]);
-    for (const [k, v] of s.years)
-      this.years.set(
-        k,
-        v.map((y) => ({ ...y })),
-      );
+    for (const [k, v] of s.deaths) this.deaths.set(k, s.byBand ? byYear(v) : [...v]);
+    for (const [k, v] of s.years) this.years.set(k, v.map(withPeople));
     this.flowList = s.flows.map((f) => ({ ...f }));
   }
 }

@@ -28,6 +28,7 @@ import {
   townShares,
   warsOf,
 } from "../../src/sim/index.ts";
+import { fellFromLast } from "../../src/sim/war/coldwars.ts";
 
 const world = makePopulationWorld(seedFromText("first light"), { start: "spread" });
 world.runTo(100 * YEAR);
@@ -155,6 +156,7 @@ test("what a side bore is its design's arm", () => {
 test("the store: a loaded copy hashes the same, forgetting is idempotent and changes nothing hashed", () => {
   const saved = JSON.stringify(store.save()),
     copy = new WarStore();
+  copy.drawn(store.draws);
   copy.load(JSON.parse(saved));
   assert.equal(hashOf(copy), hashOf(store));
   // (Kept by column, no battle's tallies written whole, the lands' dead left out where the side's
@@ -171,7 +173,13 @@ test("the store: a loaded copy hashes the same, forgetting is idempotent and cha
     store.all().map((w) => w.battles),
   );
   // A save from before the columns keeps them packed (packFell), and reads back the same.
-  const packed = JSON.parse(saved) as { wars: { battles: Record<string, unknown>[] }[] };
+  const packed = JSON.parse(saved) as {
+    against?: boolean;
+    wars: { battles: Record<string, unknown>[] }[];
+  };
+  // (Each side whole: a save from then wrote none against its realm's last.)
+  packed.wars = fellFromLast(packed.wars as never) as never;
+  delete packed.against;
   for (const w of packed.wars)
     for (const b of w.battles) {
       if (!b.fellColumns) continue;
@@ -182,6 +190,7 @@ test("the store: a loaded copy hashes the same, forgetting is idempotent and cha
       b.fellPacked = sides.map((side, s) => packFell(fellOfColumns(side, fallen[s]!, wounded[s]!)));
     }
   const before = new WarStore();
+  before.drawn(store.draws);
   before.load(packed);
   assert.deepEqual(
     before.all().map((w) => w.battles),
@@ -211,6 +220,7 @@ test("the store: a loaded copy hashes the same, forgetting is idempotent and cha
       delete b.fell;
       delete b.fellPacked;
       delete b.fellColumns;
+      delete b.strengths;
     }
   const was = new WarStore();
   was.load(older);

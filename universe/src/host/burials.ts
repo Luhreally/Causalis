@@ -16,46 +16,18 @@ export type Burial = "here" | "home" | "field";
 /** Those of a battle's fallen known by name. */
 export type Named = WarRest["named"];
 
-type Index = {
-  readonly count: number;
-  readonly at: Map<string, readonly [War, number]>;
-  readonly byYear: Map<number, (readonly [War, number])[]>;
-};
-const INDEX = new WeakMap<World, Index>();
-
-/** Every battle by its event and by its year: rebuilt when one is fought (each read fresh from its war, whose towns may since have been let go). */
-function indexOf(world: World): Index {
-  const wars = warsOf(world).all();
-  let count = 0;
-  for (const w of wars) count += w.battles.length;
-  const known = INDEX.get(world);
-  if (known && known.count === count) return known;
-  const at = new Map<string, readonly [War, number]>(),
-    byYear = new Map<number, (readonly [War, number])[]>();
-  for (const w of wars)
-    w.battles.forEach((b, k) => {
-      at.set(b.event, [w, k]);
-      const list = byYear.get(b.year);
-      if (list) list.push([w, k]);
-      else byYear.set(b.year, [[w, k]]);
-    });
-  const built: Index = { count, at, byYear };
-  INDEX.set(world, built);
-  return built;
-}
-
 /** A battle by its event (null: none). */
 export function battleOf(world: World, event: string): Fought | null {
-  const e = indexOf(world).at.get(event);
+  const e = warsOf(world).battleBy(event);
   if (!e) return null;
   // (A battle the god fought in a soldier's body is named as history had it before him: its roll
   // as it was laid when he was taken, its men's fates by history but where his fight says — Phase 61.)
-  return { war: e[0], b: handOf(world).foughtOf(event)?.was ?? e[0].battles[e[1]]! };
+  return { war: e.war, b: handOf(world).foughtOf(event)?.was ?? e.b };
 }
 
 /** The battles of a year (fought at its turn), in their wars' order. */
 export function battlesOfYear(world: World, year: number): Fought[] {
-  return (indexOf(world).byYear.get(year) ?? []).map(([war, k]) => ({ war, b: war.battles[k]! }));
+  return warsOf(world).battlesIn(year, year + 1);
 }
 
 /** "the battle at Pounholt's land". */

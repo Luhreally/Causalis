@@ -19,8 +19,8 @@ import type { AgendaItem } from "./schedule.ts";
 import type { Checkpoint, World } from "./world.ts";
 
 /** 2: a store may be kept packed by column (a save of format 1 keeps every store as it is). */
-export const SAVE_FORMAT = 2;
-const FORMATS: readonly number[] = [1, 2];
+export const SAVE_FORMAT = 3;
+const FORMATS: readonly number[] = [1, 2, 3];
 
 export type StoreChunk = {
   readonly schema: number;
@@ -198,6 +198,7 @@ export function loadWorld(
         `loading did not reproduce the saved world (domains ${differ.join(", ")})`,
       );
   }
+  world.settleIndex();
   const lineage = changed ? [...doc.lineage, { ruleset, from: doc.t }] : doc.lineage;
   return { world, lineage };
 }

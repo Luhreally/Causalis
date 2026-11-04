@@ -6,6 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  Hasher,
   DAY,
   YEAR,
   World,
@@ -17,6 +18,7 @@ import {
   seedFromText,
   type CauseRef,
   type CauseRole,
+  type DecisionRecord,
   type Factor,
   type Ref,
   type RetentionOptions,
@@ -209,11 +211,18 @@ type Pair = { a: Twin; b: Twin; what: string; from: [number, number]; seen: numb
 function alike(p: Pair): void {
   const { a, b, what, from } = p;
   for (const log of ["events", "decisions"] as const) {
-    const x = a.world[log].save() as { digest: string },
-      y = b.world[log].save() as { digest: string };
     // The digest folds in every forgetting, in order; the rest makes a failure readable.
-    if (x.digest !== y.digest || a.world[log].all().length !== b.world[log].all().length)
-      assert.deepEqual(x, y, `${what}: the ${log} kept and forgotten`);
+    const fingerprint = (tw: Twin) => {
+      const h = new Hasher();
+      tw.world[log].hashInto(h);
+      return h.hex();
+    };
+    if (fingerprint(a) !== fingerprint(b) || a.world[log].count !== b.world[log].count)
+      assert.deepEqual(
+        a.world[log].save(),
+        b.world[log].save(),
+        `${what}: the ${log} kept and forgotten`,
+      );
   }
   if (a.results.length === p.seen) return;
   p.seen = a.results.length;
@@ -251,6 +260,8 @@ type Options = {
   /** The year an event is rewritten as the logs never write one (see `upset`), and how. */
   readonly upsetAt?: number;
   readonly upsetHow?: "id" | "time";
+  /** How many rows a block of history gone cold holds (kernel/cold.ts; few, so that they fill). */
+  readonly coldRows?: number;
 };
 
 class History {
@@ -310,7 +321,10 @@ class History {
   }
 
   build(seed: Seed): World {
-    return new World(seed, { retention: this.retention });
+    return new World(seed, {
+      retention: this.retention,
+      ...(this.opts.coldRows ? { coldRows: this.opts.coldRows } : {}),
+    });
   }
 
   /** A ref to cite or pin: mostly something real, young or old, live or long forgotten. */
@@ -727,6 +741,84 @@ test("the reckoning keeps what the old reckoning kept, through random histories"
   // (A decision passes on fading only when cited by an event older than itself, which no
   // world can make: see the wild histories.)
   assert.equal(s.fadedDecisions, 0);
+});
+
+/**
+ * What a decision reads back as once cold: as "why" tells it (its sums to two places, kept whole
+ * where those would not tell the same) and its factors' values let go a little. Compared so.
+ */
+function toldAs(d: DecisionRecord): unknown {
+  return {
+    id: d.id,
+    t: d.t,
+    rule: d.rule,
+    subject: d.subject,
+    outcome: d.outcome,
+    score: d.score.toFixed(2),
+    threshold: d.threshold,
+    factors: d.factors.map((f) => [
+      f.name,
+      `${f.contribution >= 0 ? "+" : ""}${f.contribution.toFixed(2)}`,
+      f.source,
+    ]),
+  };
+}
+
+test("history gone cold is reckoned as the old reckoning reckons it, and reads back as it was", () => {
+  const took = counting();
+  let cold = 0,
+    coldDecisions = 0;
+  for (let n = 1; n <= 5; n++) {
+    const h = new History(n, {
+      wild: false,
+      years: 300 + (n % 5) * 40,
+      saveAt: 150 + (n % 7) * 20,
+      coldRows: 4 + (n % 3) * 30,
+    });
+    h.run();
+    const [own, ref, own2] = h.twins as [Twin, Twin, Twin];
+    assert.equal(own.world.historyCaches().byText, false, "reckoned over the index");
+    cold += own.world.events.coldCount;
+    coldDecisions += own.world.decisions.coldCount;
+    for (const tw of [own, own2]) {
+      assert.deepEqual(
+        JSON.parse(JSON.stringify(tw.world.events.all())),
+        JSON.parse(JSON.stringify(ref.world.events.all())),
+        `${h.name}: every event as it was`,
+      );
+      assert.deepEqual(
+        tw.world.decisions.all().map(toldAs),
+        ref.world.decisions.all().map(toldAs),
+        `${h.name}: every decision as it is told`,
+      );
+      assert.deepEqual(tw.world.events.summaries(), ref.world.events.summaries());
+      // One by one, by its ref and by its place, as it reads through the log.
+      const all = tw.world.events.all();
+      for (let k = 0; k < all.length; k += 7) {
+        const e = all[k]!;
+        assert.equal(tw.world.events.at(k).id, e.id);
+        assert.deepEqual(
+          JSON.parse(JSON.stringify(tw.world.events.get(e.id))),
+          JSON.parse(JSON.stringify(ref.world.events.get(e.id))),
+        );
+        assert.equal(tw.world.events.get(e.id)!.type, ref.world.events.get(e.id)!.type);
+        assert.equal(tw.world.events.get(e.id)!.importance, ref.world.events.get(e.id)!.importance);
+      }
+    }
+  }
+  assert.ok(cold > 5 * 200, `${cold} events cold`);
+  assert.ok(coldDecisions > 5 * 50, `${coldDecisions} decisions cold`);
+  assert.ok(took().rewalked >= 1, "hindsight reached what had gone cold");
+});
+
+test("and when history has gone cold in wild ones too", () => {
+  for (let n = 1; n <= 5; n++)
+    new History(n, {
+      wild: true,
+      years: 240 + (n % 4) * 50,
+      saveAt: 120 + (n % 5) * 20,
+      coldRows: 4 + (n % 3) * 30,
+    }).run();
 });
 
 test("and through wild ones: odd refs, refs ahead, junk pinned, retention changed, logs reloaded", () => {

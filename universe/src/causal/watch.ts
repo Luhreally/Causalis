@@ -138,12 +138,12 @@ export function setWatch(world: World, ref: Ref, on: boolean): boolean {
 }
 
 /** The first event after moment `t` (events are kept in the order they happened). */
-function firstAfter(events: readonly HistoryEvent[], t: number): number {
+function firstAfter(events: World["events"], t: number): number {
   let lo = 0,
-    hi = events.length;
+    hi = events.count;
   while (lo < hi) {
     const mid = (lo + hi) >> 1;
-    if (events[mid]!.t > t) hi = mid;
+    if (events.at(mid).t > t) hi = mid;
     else lo = mid + 1;
   }
   return lo;
@@ -170,7 +170,7 @@ function newsOf(world: World, ref: Ref): (e: HistoryEvent) => boolean {
 /** What has happened to everything followed since it was last told, and mark it told. */
 export function tidings(world: World): Tiding[] {
   const ledger = observer(world),
-    events = world.events.all(),
+    events = world.events,
     told = new Set<string>(),
     out: Tiding[] = [];
   for (const w of ledger.allWatches()) {
@@ -190,8 +190,10 @@ export function tidings(world: World): Tiding[] {
     }
     const news = newsOf(world, w.ref);
     const hits: HistoryEvent[] = [];
-    for (let i = firstAfter(events, w.seen); i < events.length; i++)
-      if (news(events[i]!) && !told.has(events[i]!.id)) hits.push(events[i]!);
+    for (let i = firstAfter(events, w.seen); i < events.count; i++) {
+      const e = events.at(i);
+      if (news(e) && !told.has(e.id)) hits.push(e);
+    }
     for (const e of hits
       .sort((a, b) => b.importance - a.importance || b.t - a.t)
       .slice(0, MOST)
@@ -307,7 +309,7 @@ const LOG_MOST = 400;
  * is whole after a load, and holds what history still keeps.
  */
 export function newsLog(world: World, most = LOG_MOST): Tiding[] {
-  const events = world.events.all(),
+  const events = world.events,
     now = Math.floor(world.now / YEAR),
     told = new Set<string>(),
     hits: { watch: Ref; label: string; e: HistoryEvent }[] = [],
@@ -324,8 +326,8 @@ export function newsLog(world: World, most = LOG_MOST): Tiding[] {
       continue;
     }
     const news = newsOf(world, w.ref);
-    for (let i = firstAfter(events, w.since); i < events.length; i++) {
-      const e = events[i]!;
+    for (let i = firstAfter(events, w.since); i < events.count; i++) {
+      const e = events.at(i);
       // (What two things followed share is logged once.)
       if (!news(e) || told.has(e.id)) continue;
       told.add(e.id);

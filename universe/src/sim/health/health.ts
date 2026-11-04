@@ -189,6 +189,8 @@ export type Went = {
 
 export class HealthStore implements StateStore {
   readonly name = "health.sickness";
+  /** Saved packed by column (kernel/pack.ts). */
+  readonly packed = true;
   sicknesses: Sickness[] = [];
   lands = new Map<number, LandHealth>();
   /** The year the last sickness rose (null: none yet). */
@@ -543,7 +545,7 @@ function waysOf(ctx: PopulationContext, year: number): Ways {
       return { a, b, via: markets.bySea(a, b) ? ("sea" as const) : ("road" as const), opened };
     }),
     battles: warsOf(ctx.world)
-      .all()
+      .hot()
       .flatMap((w) =>
         w.battles
           .filter((b) => b.year === year || b.year === year - 1)

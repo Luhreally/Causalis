@@ -3,6 +3,7 @@
 import type {
   FrameMessage,
   Interest,
+  JumpProgress,
   Port,
   Query,
   SaveMeta,
@@ -25,6 +26,7 @@ export class HostClient {
   private readonly frameListeners = new Set<(frame: FrameMessage) => void>();
   private readonly statusListeners = new Set<(status: Status) => void>();
   private readonly noticeListeners = new Set<(text: string, ref: string | null) => void>();
+  private jumpListener: ((progress: JumpProgress) => void) | null = null;
   private readonly frames = new Map<string, FrameMessage>();
   status: Status | null = null;
 
@@ -57,6 +59,9 @@ export class HostClient {
       case "notice":
         for (const l of this.noticeListeners) l(m.text, m.ref);
         return;
+      case "jumping":
+        this.jumpListener?.(m);
+        return;
     }
   }
 
@@ -79,6 +84,24 @@ export class HostClient {
   }
   advance(to: number): Promise<{ t: number }> {
     return this.request((id) => ({ kind: "advance", id, to }));
+  }
+  /**
+   * Run the world to a far time a little at a time, told how far it has come as it goes. Answered
+   * when it arrives, or where it stands when stopped (stopJump).
+   */
+  async jump(
+    to: number,
+    progress?: (progress: JumpProgress) => void,
+  ): Promise<{ t: number; stopped: boolean }> {
+    this.jumpListener = progress ?? null;
+    try {
+      return await this.request((id) => ({ kind: "jump", id, to }));
+    } finally {
+      this.jumpListener = null;
+    }
+  }
+  stopJump(): void {
+    this.port.post({ kind: "jumpStop" });
   }
   save(name: string): Promise<{ bytes: number }> {
     return this.request((id) => ({ kind: "save", id, name }));

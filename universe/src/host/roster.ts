@@ -238,7 +238,8 @@ const WINDOWS = new WeakMap<World, WindowIndex>();
  * have been let go.
  */
 function windowOf(world: World): WindowIndex {
-  const wars = warsOf(world).all();
+  // (Only the wars not gone cold: those have let their towns go long since.)
+  const wars = warsOf(world).hot();
   let count = 0;
   for (const w of wars) count += w.battles.length;
   const known = WINDOWS.get(world);
