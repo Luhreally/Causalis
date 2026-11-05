@@ -45,6 +45,12 @@ markets, diplomacy and lost knowledge are built inside Phases 71–72, not twice
 - **Star wars moved up (2026-11-04).** Fleets and invasions come straight after Phase 66, not after
   trade. History already holds wars between the stars (`sim/space/starwar.ts`), so showing them need
   not change history. The politics behind them stays in Star nations.
+- **Machine armies against primitive natives is a named scene (2026-11-04).** Asked for: "wars of like
+  the people going to other planets and fighting the primitive aliens there with machines". A fleet
+  arrives, machine armies land, and the natives fight with what they have, on their own ground, seen
+  in the town or camp view, where anyone can be tapped and possessed. History records it, and each
+  side's real means and numbers decide it, so the natives can win. Phase 69 makes the natives; Phase 70
+  makes the war.
 
 ## The rule
 
@@ -64,8 +70,8 @@ firearms.ts are the models.
 | 66 Ages past ours | Fusion, star-scale energy, machine minds, made bodies, beam arms, terraforming, city-covered worlds, where physics and the world allow | New town looks and battles; picker gains the ages | L |
 | 67 Star wars seen | Fleets and invasions drawn from the wars between the stars that history already records; no change to history | Fleets fighting in orbit; invasions landing in the town view | M |
 | 68 Laws of the universe | The dial, lanes between stars, shields; invented matter (Phase 59) | A ship leaving for the lane; the first jump | M |
-| 69 Peoples who really arose | Histories from their own worlds; some never leave, some leave ruins; contact by what they can say, breathe, eat and catch | Strangers met on their ground and ours | L |
-| 70 Exploration and exploitation | Maps of what each has seen, probes, prospecting, mines, outposts, penal colonies, bonded natives, resistance, independence | Survey ships; a mining colony and its rising | L |
+| 69 Peoples who really arose | Histories from their own worlds at their own pace, so some are still primitive when others reach them; their own ground, with towns and camps you can go down to; some never leave, some leave ruins; contact by what they can say, breathe, eat and catch | Strangers met on their ground and ours | L |
+| 70 Exploration and exploitation | Maps of what each has seen, probes, prospecting, wars of conquest on native worlds, mines, outposts, penal colonies, bonded natives, resistance, independence | Survey ships; machine armies landing on a world of primitive natives and fighting them on their own ground; a mining colony and its rising | L |
 | 71 Trade among stars | Goods from real shortages and freight costs; ports, merchant houses, credit, piracy, smuggling, blockades | Busy spaceports of many peoples; a lane raided | L |
 | 72 Star nations | Federations, empires, vassals, civil wars, dark ages | The fleets of Phase 67 fighting for real empires; a realm falling apart | L |
 | 73 Your hand in it | Galaxy lenses, the director filming firsts, a pilot possessed, god's acts at star scale | All of it, from the title screen | M |
