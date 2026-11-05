@@ -12,7 +12,8 @@
 // anyway, so it is held to its record there, and one small alien world with it: if either has moved, the
 // manifest says so and the title passes the catalogue over rather than promise what no longer happens.
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
@@ -37,7 +38,7 @@ const argv = process.argv.slice(2),
   // flame, with worlds remade. Phase 66.)
   beyond = { seed: "alien 41", year: Number(value("--beyond", "2000")) },
   // (And the world the title's way into those ages opens: Phase 66.)
-  past = PAST_WORLD;
+  past = { ...PAST_WORLD, year: Number(value("--past", `${PAST_WORLD.year}`)) };
 
 type Marked = {
   readonly universe: string;
@@ -60,22 +61,61 @@ const holdToRecord = (world: World, universe: string, text: string, year: number
 };
 
 mkdirSync(out, { recursive: true });
-const t0 = performance.now(),
-  world = EARTH.build(seedFromText(seed)),
-  ruleset = rulesetId(world, EARTH.version),
-  worlds: Baked[] = [];
-for (const year of years) {
-  world.runTo(year * YEAR);
-  holdToRecord(world, EARTH.name, seed, year);
-  const bytes = gzipSync(JSON.stringify(saveWorld(world, ruleset, { universe: EARTH.name }))),
-    file = `${EARTH.name}-${year}-${createHash("sha256").update(bytes).digest("hex").slice(0, 12)}.save`;
-  writeFileSync(join(out, file), bytes);
-  worlds.push({ universe: EARTH.name, seed, year, file, bytes: bytes.length, ruleset });
-  console.log(
-    `  year ${year}: ${(bytes.length / 1e6).toFixed(1)} MB, ${Math.round((performance.now() - t0) / 1000)} s on`,
+// Each world in a process of its own, for a runner's four cores: some twenty minutes, not forty.
+const PARTS = ["seed", "past", "beyond", "alien"],
+  part = value("--part", "");
+if (!part) {
+  await Promise.all(
+    PARTS.map(
+      (p) =>
+        new Promise<void>((done, failed) =>
+          spawn(process.execPath, [process.argv[1]!, ...argv, "--part", p], {
+            stdio: "inherit",
+          }).on("exit", (code) =>
+            code === 0 ? done() : failed(new Error(`the bake's ${p} ended ${code}`)),
+          ),
+        ),
+    ),
   );
+  const parts = PARTS.map((p) => {
+      const file = join(out, `.part-${p}.json`),
+        got = JSON.parse(readFileSync(file, "utf8")) as { worlds: Baked[]; moved: string };
+      rmSync(file);
+      return got;
+    }),
+    moved = parts.find((x) => x.moved)?.moved ?? "";
+  if (moved)
+    console.log(
+      `THE CATALOGUE IS STALE: ${moved} no longer stands as recorded, so this deploy passes it over. Run the seed list again.`,
+    );
+  else console.log("  the catalogue's worlds still run as recorded");
+  writeFileSync(
+    join(out, "manifest.json"),
+    JSON.stringify({
+      worlds: parts.flatMap((x) => x.worlds),
+      ...(moved ? { catalogueMoved: moved } : {}),
+    }),
+  );
+  process.exit(0);
 }
-{
+const t0 = performance.now(),
+  worlds: Baked[] = [];
+if (part === "seed") {
+  const world = EARTH.build(seedFromText(seed)),
+    ruleset = rulesetId(world, EARTH.version);
+  for (const year of years) {
+    world.runTo(year * YEAR);
+    holdToRecord(world, EARTH.name, seed, year);
+    const bytes = gzipSync(JSON.stringify(saveWorld(world, ruleset, { universe: EARTH.name }))),
+      file = `${EARTH.name}-${year}-${createHash("sha256").update(bytes).digest("hex").slice(0, 12)}.save`;
+    writeFileSync(join(out, file), bytes);
+    worlds.push({ universe: EARTH.name, seed, year, file, bytes: bytes.length, ruleset });
+    console.log(
+      `  year ${year}: ${(bytes.length / 1e6).toFixed(1)} MB, ${Math.round((performance.now() - t0) / 1000)} s on`,
+    );
+  }
+}
+if (part === "past") {
   const other = EARTH.build(seedFromText(past.seed)),
     its = rulesetId(other, EARTH.version);
   other.runTo(past.year * YEAR);
@@ -95,7 +135,7 @@ for (const year of years) {
     `  ${past.seed}, year ${past.year}: ${(bytes.length / 1e6).toFixed(1)} MB, ${Math.round((performance.now() - t0) / 1000)} s on`,
   );
 }
-if (beyond.year > 0) {
+if (part === "beyond" && beyond.year > 0) {
   const other = ALIEN.build(seedFromText(beyond.seed)),
     its = rulesetId(other, ALIEN.version);
   other.runTo(beyond.year * YEAR);
@@ -119,7 +159,7 @@ if (beyond.year > 0) {
 const alien = marked
   .filter((s) => s.universe === ALIEN.name && s.ages.orbit && s.marks)
   .sort((a, b) => a.lands - b.lands)[0];
-if (alien) {
+if (part === "alien" && alien) {
   const other = ALIEN.build(seedFromText(alien.seed));
   for (const year of Object.keys(alien.marks!)
     .map(Number)
@@ -131,12 +171,4 @@ if (alien) {
     `  ${alien.seed} held to its record: ${Math.round((performance.now() - t0) / 1000)} s on`,
   );
 }
-if (catalogueMoved)
-  console.log(
-    `THE CATALOGUE IS STALE: ${catalogueMoved} no longer stands as recorded, so this deploy passes it over. Run tools/catalogue-run.ts again.`,
-  );
-else console.log("  the catalogue's worlds still run as recorded");
-writeFileSync(
-  join(out, "manifest.json"),
-  JSON.stringify({ worlds, ...(catalogueMoved ? { catalogueMoved } : {}) }),
-);
+writeFileSync(join(out, `.part-${part}.json`), JSON.stringify({ worlds, moved: catalogueMoved }));
