@@ -33,6 +33,7 @@ import type { BeliefStore } from "../belief/belief.ts";
 import type { LoreStore } from "../lore/lore.ts";
 import { interestsOf, pressure } from "./interests.ts";
 import { revolutionHolds } from "../strife/strife.ts";
+import { courtClaimant, courtFollows } from "../court/court.ts";
 
 export const POLITY = defineKind("pol", "realm", "minted");
 
@@ -662,7 +663,9 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
       crisis =
         !!steps &&
         world.rng.real(RULE, p.seat, t, 21) <
-          (p.succession === 0 ? 0.08 : 0.03) + 0.25 * unrest + 0.02 * Math.max(0, far - 2);
+          (p.succession === 0 ? 0.08 : 0.03) + 0.25 * unrest + 0.02 * Math.max(0, far - 2),
+      // (Whoever the court names takes the seat, unless a claim made at this hour carries it: Lives L5.)
+      next = courtFollows(ctx, p, t);
     const event = world.events.emit({
       type: POLITY_EVENTS.succession.type,
       subjects: [p.ref],
@@ -671,22 +674,30 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
       // succession stands on the realm, not on the one before, so a long line of ordinary
       // reigns is not kept whole for ever.
       causes: [{ ref: p.event, role: "enabler", weight: 1 }],
-      data: { name: realmName(p), old: old.name, age },
+      data: {
+        name: realmName(p),
+        old: old.name,
+        age,
+        ...(next ? { to: next.name, how: next.how, fig: next.fig } : {}),
+      },
     });
-    p.ruler = crown(
-      world,
-      ways,
-      p.seat,
-      t,
-      event,
-      p.succession === 0 ? old.name.split(" ").slice(1).join(" ") : null,
-    );
+    p.ruler = next
+      ? { name: next.name, sex: next.sex, born: next.born, since: year, event }
+      : crown(
+          world,
+          ways,
+          p.seat,
+          t,
+          event,
+          p.succession === 0 ? old.name.split(" ").slice(1).join(" ") : null,
+        );
     if (crisis && edge.length && edge.length < p.members.length) {
-      // The lands farthest from the seat break away together, and their grievance is why.
+      // The lands farthest from the seat break away together, and their grievance is why; the one who wanted the seat leads them.
       const aggrieved = [...edge].sort(
           (x, y) => store.discontent(y).level - store.discontent(x).level || x - y,
         )[0]!,
-        grievance = store.discontent(aggrieved).cause;
+        grievance = store.discontent(aggrieved).cause,
+        claimant = courtClaimant(world, p, next?.fig);
       const split = world.events.emit({
         type: POLITY_EVENTS.split.type,
         subjects: [p.ref],
@@ -695,7 +706,11 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
           { ref: event, role: "trigger", weight: 0.6 },
           ...(grievance ? [{ ref: grievance, role: "pressure" as const, weight: 0.4 }] : []),
         ],
-        data: { name: realmName(p), lands: edge.length },
+        data: {
+          name: realmName(p),
+          lands: edge.length,
+          ...(claimant ? { by: claimant.name, fig: claimant.fig } : {}),
+        },
       });
       for (const c of edge) store.leave(p, c);
       // Where a market town lies among them, they raise their own realm there under a
@@ -703,7 +718,14 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
       const town = edge
         .flatMap((c) => ctx.settlements.inProvince(c).filter((s) => s.market))
         .sort((x, y) => y.population - x.population || (x.ref < y.ref ? -1 : 1))[0];
-      if (town) raiseRealm(ctx, town, edge, split, t, p.ref);
+      const raised = town ? raiseRealm(ctx, town, edge, split, t, p.ref) : null;
+      if (raised && claimant)
+        raised.ruler = {
+          ...raised.ruler,
+          name: claimant.name,
+          sex: claimant.sex,
+          born: claimant.born,
+        };
     }
   }
 

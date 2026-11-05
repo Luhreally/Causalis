@@ -10,6 +10,7 @@ import {
   LAW_POSITIONS,
   LEADERSHIP,
   SUCCESSION,
+  courtOf,
   decreeProblem,
   diplomacyOf,
   fieldedOf,
@@ -43,6 +44,7 @@ import type {
   ReignWar,
   ReignWars,
 } from "../bridge/index.ts";
+import { dramaOf } from "./court.ts";
 import { familyOf, type Family } from "./kin.ts";
 import { seatTownOf } from "./leaders.ts";
 import { wealthBook } from "./wealth.ts";
@@ -181,7 +183,13 @@ function fallOf(world: World, r: Polity | undefined, ruler: string): ReignFall |
     heir: {
       name: r.ruler.name,
       age: year - r.ruler.born,
-      tie: r.succession === 0 ? "of the same house" : `come to it ${SUCCESSION[r.succession]}`,
+      // (Who took it took it; only one who followed came to it by the realm's own rule: Lives L5.)
+      tie:
+        e?.type !== "polity.succession" || (data as { how?: string } | null)?.how === "claim"
+          ? "who took the seat"
+          : r.succession === 0
+            ? "of the same house"
+            : `come to it ${SUCCESSION[r.succession]}`,
     },
   };
 }
@@ -209,6 +217,8 @@ export function reignNow(world: World, realm: unknown, ruler: unknown): ReignNow
     near = [...rows].sort((a, b) => b.people - a.people || (a.ref < b.ref ? -1 : 1)).slice(0, 3),
     family = fell ? null : familyAt(world, r),
     spouse = family?.spouse && family.spouse.died === null ? family.spouse : null,
+    court = courtOf(world)?.of(r.ref),
+    named = court?.figures.find((f) => f.id === court.heir),
     heir = [...(family?.children ?? [])]
       .filter((k) => k.died === null)
       .sort((a, b) => a.born - b.born)[0],
@@ -251,8 +261,9 @@ export function reignNow(world: World, realm: unknown, ruler: unknown): ReignNow
       .fighting(r.ref)
       .filter((w) => w.ended === null)
       .map((w) => warLine(world, r, w)),
-    heir:
-      r.succession !== 0
+    heir: named
+      ? `${named.name}, ${year - named.born}, ${court?.heirBy === "voices" ? "whom the voices lean to" : court?.heirBy === "word" ? "named by your word" : "your heir"}`
+      : r.succession !== 0
         ? `Rule passes ${SUCCESSION[r.succession]}`
         : heir
           ? `${heir.name}, ${year - heir.born}, your eldest`
@@ -260,6 +271,7 @@ export function reignNow(world: World, realm: unknown, ruler: unknown): ReignNow
     spouse: spouse ? `${spouse.name}, ${year - spouse.born}` : null,
     told,
     fell,
+    drama: fell ? null : dramaOf(world, r),
   };
   MEMO.set(world, { key, now });
   return now;

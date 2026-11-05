@@ -33,6 +33,25 @@ export type ReignNeighbour = {
   readonly color: readonly [number, number, number];
 };
 
+/** What stops the clock of a ruler played by the god's hand (Lives L5): a plot against them, an heir dead. */
+export type ReignDrama = {
+  /** It is asked once: the event it stands on. */
+  readonly key: string;
+  readonly kind: "plot" | "heir";
+  readonly title: string;
+  readonly words: string;
+  /** The page of the one it is about, and its why. */
+  readonly who: string | null;
+  readonly event: string;
+  readonly choices: readonly {
+    /** "seize", "buy", "name:<figure>"; "let" sends nothing. */
+    readonly id: string;
+    readonly label: string;
+    readonly can: boolean;
+    readonly words: string;
+  }[];
+};
+
 export type ReignNow = {
   readonly realm: string;
   readonly realmName: string;
@@ -67,6 +86,8 @@ export type ReignNow = {
   /** The newest things told of the realm. */
   readonly told: readonly { readonly year: number; readonly words: string; readonly ref: string }[];
   readonly fell: ReignFall | null;
+  /** What must be answered now, if anything (Lives L5). */
+  readonly drama: ReignDrama | null;
 };
 
 /** One way a law could be set: what, and what it would cost (or why not). */

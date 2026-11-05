@@ -51,6 +51,7 @@ import { elementPage } from "./element.ts";
 import { levyManPage, townsfolkPage } from "./townsfolk.ts";
 import { seatPage, withKin } from "./kin.ts";
 import { rulerPage, withLeaderPage } from "./leaders.ts";
+import { courtPage } from "./court.ts";
 import { namedPage, type NamesArg } from "../names.ts";
 
 /** The page a ref's kind is built by (the tab it asked for, if any). */
@@ -106,6 +107,8 @@ function build(world: World, ref: string, tab: string | null): PageModel {
   if (ref.startsWith("seat:")) return seatPage(world, ref);
   // A realm's ruler (Lives L1).
   if (ref.startsWith("rule:")) return rulerPage(world, ref);
+  // One of a realm's court (Lives L5).
+  if (ref.startsWith("court:")) return courtPage(world, ref);
   const code = ref.slice(0, ref.indexOf(":")),
     t = tab ?? undefined;
   switch (code) {

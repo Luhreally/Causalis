@@ -67,12 +67,16 @@ registerEventWords(
   (world, e) => `${cap(landWords(world, e.place))} broke away from ${realm(e.data)}, ${year(e.t)}`,
 );
 registerEventWords(POLITY_EVENTS.succession.type, (_, e) => {
-  const old = text(e.data, "old");
-  return `${old ? `${old} died, and ` : ""}rule of ${realm(e.data)} passed on, ${year(e.t)}`;
+  const old = text(e.data, "old"),
+    to = text(e.data, "to");
+  return to
+    ? `${old ? `${old} died, and ` : ""}${to} took the seat of ${realm(e.data)}, ${year(e.t)}`
+    : `${old ? `${old} died, and ` : ""}rule of ${realm(e.data)} passed on, ${year(e.t)}`;
 });
 registerEventWords(POLITY_EVENTS.split.type, (_, e) => {
-  const lands = (e.data as Data)?.lands;
-  return `${cap(realm(e.data))} broke apart at a death: ${typeof lands === "number" ? count(lands) : "its far"} ${lands === 1 ? "land went its" : "lands went their"} own way, ${year(e.t)}`;
+  const lands = (e.data as Data)?.lands,
+    by = text(e.data, "by");
+  return `${cap(realm(e.data))} broke apart at a death: ${typeof lands === "number" ? count(lands) : "its far"} ${lands === 1 ? "land went its" : "lands went their"} own way${by ? ` under ${by}, who wanted the seat` : ""}, ${year(e.t)}`;
 });
 registerEventWords(POLITY_EVENTS.reformed.type, (_, e) => {
   const to = text(e.data, "to");

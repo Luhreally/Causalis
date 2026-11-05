@@ -244,6 +244,7 @@ export type {
 export type { LifeCard, LifeChoice, LifeKin, LifeNow, LifeOfferNow, LifeWindow } from "./life.ts";
 export type {
   ReignDecreeOption,
+  ReignDrama,
   ReignDecrees,
   ReignFall,
   ReignFoe,

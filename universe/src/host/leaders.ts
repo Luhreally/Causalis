@@ -23,6 +23,7 @@ import {
   type VillagePlan,
 } from "../bridge/index.ts";
 import { seatHolder } from "./kin.ts";
+import { courtLeaders } from "./court.ts";
 import { asRef, bare, claimOf, yearNow } from "./inspect/words.ts";
 import type { QueryHandler } from "./host.ts";
 
@@ -153,7 +154,8 @@ export function leadersOfTown(world: World, town: string): Leader[] {
   if (!s) return [];
   const out: Leader[] = [],
     r = politiesOf(world).of(s.cell);
-  if (r && r.ended === null && seatTownOf(world, r)?.ref === town) out.push(rulerLeader(world, r));
+  if (r && r.ended === null && seatTownOf(world, r)?.ref === town)
+    out.push(rulerLeader(world, r), ...courtLeaders(world, r));
   const h = creditOf(world)?.houseIn(town),
     l = h ? lenderLeader(world, h) : null;
   if (l) out.push(l);

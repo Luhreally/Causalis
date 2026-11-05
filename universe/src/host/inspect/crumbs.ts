@@ -49,6 +49,11 @@ export function crumbsOf(world: World, ref: string): Line {
         if (r) add(r.town, r.ref);
         break;
       }
+      case "court": {
+        const r = realms.get(ref.slice("court:".length, ref.lastIndexOf(":")) as Ref);
+        if (r) add(r.town, r.ref);
+        break;
+      }
       case "cell":
       case "regn":
       case "ways":

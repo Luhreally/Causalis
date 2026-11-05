@@ -23,6 +23,7 @@ import {
 import { bandOf, type LifeHistory } from "../rules/index.ts";
 import {
   agentName,
+  courtOf,
   cultureOf,
   handOf,
   orderOf,
@@ -744,16 +745,50 @@ function rulerFamily(world: World, ref: string): Family | null {
     p.ruler.name.split(" ").slice(1).join(" "),
     `Named as ruler of ${p.town}: history keeps the ruler's name and their coming to rule, not their kin, so their kin here are given by the keyed rule a town's people's are given by — the same each time, but none of them kept.`,
   );
+  // (The child history names as heir is their child, and their brother or sister at court their own: Lives L5.)
+  const court = courtOf(world)?.of(p.ref),
+    bloodKin = (word: "child" | "sibling"): Kin | null => {
+      const f = court?.figures.find((x) => x.tie === word);
+      return f
+        ? {
+            tie: tieWord(f.sex === 0 ? 0 : 1, word),
+            name: f.name,
+            ref: `court:${p.ref}:${f.id}`,
+            sex: f.sex === 0 ? 0 : 1,
+            born: f.born,
+            died: null,
+            how: null,
+            event: null,
+            note: court?.heir === f.id ? "the heir" : null,
+          }
+        : null;
+    },
+    heirKin = bloodKin("child"),
+    sibKin = bloodKin("sibling"),
+    /** The keyed kin with the eldest living one given over to the one history names. */
+    named = (list: readonly Kin[], k: Kin | null): Kin[] => {
+      if (!k) return [...list];
+      const at = list.findIndex((x) => x.died === null);
+      return at < 0 ? [k, ...list] : list.map((x, i) => (i === at ? k : x));
+    },
+    held: Family = court
+      ? {
+          ...family,
+          // (Where history names no child of theirs, none is told: the family's first must agree with its heir.)
+          children: named(heirKin ? family.children : [], heirKin),
+          siblings: named(family.siblings, sibKin),
+        }
+      : family;
   // (A marriage of state made by the god's hand is kept: Lives L4.)
   const matches = orderOf(world)?.of(p.ref)?.matches ?? [];
-  if (!matches.length) return family;
+  if (!matches.length) return held;
   const own = matches.find((m) => m.who === p.ruler.name),
     other = (ref: Ref) => {
       const r = politiesOf(world).get(ref);
       return r ? realmName(r) : "a realm now gone";
     };
   return {
-    ...family,
+    ...held,
     spouse: own
       ? {
           tie: tieWord(own.toSex === 0 ? 0 : 1, "spouse"),
@@ -766,8 +801,8 @@ function rulerFamily(world: World, ref: string): Family | null {
           event: own.event,
           note: `of ${other(own.with)}, by a marriage of state`,
         }
-      : family.spouse,
-    children: family.children.map((k) => {
+      : held.spouse,
+    children: held.children.map((k) => {
       const m = matches.find((x) => x.who === k.name);
       return m ? { ...k, event: m.event, note: `wed to ${m.to} of ${other(m.with)}` } : k;
     }),
@@ -788,8 +823,35 @@ export function familyOf(world: World, ref: string): Family | null {
   }
   if (ref.startsWith("heal:")) return seatFamily(world, ref.slice("heal:".length), "healer", 0);
   if (ref.startsWith("rule:")) return rulerFamily(world, ref);
+  if (ref.startsWith("court:")) return courtFamily(world, ref);
   const seat = parseSeatRef(ref);
   return seat ? seatFamily(world, seat.town, seat.trade, seat.seat) : null;
+}
+
+/** One of a court's family (Lives L5), by the keyed rule: history keeps who they are, not their kin. */
+function courtFamily(world: World, ref: string): Family | null {
+  const at = ref.lastIndexOf(":"),
+    p = politiesOf(world).get(ref.slice("court:".length, at) as Ref),
+    id = Number(ref.slice(at + 1)),
+    court = p ? courtOf(world)?.of(p.ref) : undefined,
+    f = court?.figures.find((x) => x.id === id) ?? court?.gone.find((x) => x.id === id);
+  if (!p || !f) return null;
+  const self: Node = {
+    key: hashString(`court ${ref}`) >>> 0,
+    ref,
+    name: f.name,
+    sex: f.sex === 0 ? 0 : 1,
+    born: f.born,
+    died: null,
+    how: null,
+    event: null,
+  };
+  return keyedFamily(
+    readingOf(world, p.seat),
+    self,
+    f.name.split(" ").slice(1).join(" "),
+    `Named at the court of ${p.town}: history keeps their name and what they did, not their kin, so their kin here are given by the keyed rule a town's people's are given by, the same each time, but none of them kept.`,
+  );
 }
 
 // —— The family in a line ——————————————————————————————————————————————————————————————
@@ -1015,6 +1077,13 @@ export function bodyOf(world: World, ref: string): BodyRead | null {
   if (ref.startsWith("rule:")) {
     const p = politiesOf(world).get(ref.slice("rule:".length) as Ref);
     return p ? { frame, wounds: [], death: null, sex: p.ruler.sex === 0 ? 0 : 1 } : null;
+  }
+  if (ref.startsWith("court:")) {
+    const at = ref.lastIndexOf(":"),
+      id = Number(ref.slice(at + 1)),
+      c = courtOf(world)?.of(ref.slice("court:".length, at) as Ref),
+      f = c?.figures.find((x) => x.id === id) ?? c?.gone.find((x) => x.id === id);
+    return f ? { frame, wounds: [], death: null, sex: f.sex === 0 ? 0 : 1 } : null;
   }
   const seat = ref.startsWith("heal:")
     ? { town: ref.slice("heal:".length), trade: "healer", seat: 0 }

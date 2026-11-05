@@ -12,6 +12,7 @@ import {
   citiesOf,
   creditOf,
   strifeOf,
+  courtOf,
   debtBurden,
   healthOf,
   homePlanet,
@@ -278,6 +279,13 @@ export function alertsOf(world: World): Alert[] {
   const strife: AlertItem[] = [];
   {
     const store = strifeOf(world);
+    // (What has passed at a court lately, of the realms asked after: Lives L5.)
+    for (const realm of atWar)
+      for (const ev of courtOf(world)?.of(realm as Ref)?.told ?? []) {
+        const e = world.events.get(ev);
+        if (e && e.importance >= 4 && yearAt(e.t) >= now - 2 && strife.length < 12)
+          strife.push({ line: [claimOf(world, e.id)], ref: e.id, key: `court:${e.id}` });
+      }
     if (store) {
       for (const x of [...store.coups, ...store.restorations, ...store.revolutions])
         if (x.year >= now - 2 && atWar.has(x.realm) && strife.length < 12)

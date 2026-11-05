@@ -33,6 +33,7 @@ import { storesSummed } from "./stores.ts";
 import { realmOrderBlocks } from "./order.ts";
 import { realmCreditBlocks, warChestRows } from "./credit.ts";
 import { leaderBlocks } from "./leaders.ts";
+import { courtBlocks } from "./court.ts";
 import { wealthStats } from "../wealth.ts";
 import { civilWarRows, realmStrifeBlocks } from "./strife.ts";
 import { civilizationsNear } from "../../sim/index.ts";
@@ -167,6 +168,8 @@ export function realmPageModel(world: World, ref: string): PageModel {
   });
   // Who holds power in it (Lives L1).
   tabs.push({ id: "leaders", name: "Leaders", blocks: leaderBlocks(world, r) });
+  // Who stands near its seat, and wants it (Lives L5).
+  tabs.push({ id: "court", name: "Court", blocks: courtBlocks(world, r) });
   // Its lands, most peopled first.
   {
     const rows: Row[] = [...r.members]

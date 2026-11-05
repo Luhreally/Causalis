@@ -4,6 +4,7 @@
 // still be pressed: the world says why in words. Every control a finger's size. Nothing here decides.
 import type {
   ReignDecrees,
+  ReignDrama,
   ReignFall,
   ReignMatch,
   ReignMatches,
@@ -51,7 +52,7 @@ export class ReignHud {
   private readonly host = chip("host", "Their host");
   private readonly order = chip("order", "Their standing and their lands' grievance");
   private readonly warsChip = chip("wars", "Their wars");
-  private readonly heir = chip("heir", "Their family");
+  private readonly heir = chip("heir", "Their court: heir and rivals");
   private readonly wealth = chip("wealth", "Worth a head, and its place");
   private readonly bars = el("button", "reign-bars");
   private readonly told = el("div", "life-told reign-told");
@@ -73,6 +74,8 @@ export class ReignHud {
   onPeace: (foe: string) => void = () => {};
   onWed: (m: ReignMatch) => void = () => {};
   onHeir: () => void = () => {};
+  /** A plot or an heir's death answered (Lives L5): "let" sends nothing. */
+  onDrama: (d: ReignDrama, choice: string) => void = () => {};
 
   constructor(parent: HTMLElement) {
     this.element.hidden = true;
@@ -100,7 +103,7 @@ export class ReignHud {
     page(this.wealth, (l) => `${l.realm}#wealth`);
     page(this.host, (l) => l.realm);
     page(this.order, (l) => l.realm);
-    page(this.heir, (l) => l.rulerRef);
+    page(this.heir, (l) => `${l.realm}#court`);
     this.warsChip.onclick = () => this.onSheet("wars");
     this.bars.onclick = () => {
       const l = this.last,
@@ -118,6 +121,13 @@ export class ReignHud {
       b.onclick = () => this.onSheet(kind);
       this.tray.append(b);
     }
+    const court = el("button", "life-offer reign-act");
+    court.dataset.act = "court";
+    court.append(el("span", "life-icon", "🏛️"), el("span", "life-label", "Court"));
+    court.onclick = () => {
+      if (this.last) this.onPage(`${this.last.realm}#court`);
+    };
+    this.tray.append(court);
     const realm = el("button", "life-offer reign-act");
     realm.dataset.act = "realm";
     realm.append(el("span", "life-icon", "📖"), el("span", "life-label", "The realm"));
@@ -352,6 +362,44 @@ export class ReignHud {
       body.push(box);
     }
     this.open_("💍 A marriage of state", ...body);
+  }
+
+  /** What must be answered: the clock is held until it is. A choice refused says why, and stays. */
+  drama(d: ReignDrama): void {
+    this.sheet.hidden = true;
+    const acts = el("div", "life-choices"),
+      said = el("p", "reign-said");
+    for (const c of d.choices) {
+      const b = el("button", `life-choice reign-drama${c.can ? "" : " refused"}`, c.label);
+      b.dataset.choice = c.id.split(":")[0]!;
+      b.dataset.can = c.can ? "1" : "0";
+      b.onclick = () => {
+        if (!c.can) {
+          put(said, c.words);
+          return;
+        }
+        this.win.hidden = true;
+        this.onDrama(d, c.id);
+      };
+      acts.append(b, el("div", "reign-optwords", c.words));
+    }
+    const who = d.who;
+    if (who) {
+      const page = el("button", "life-choice reign-dramapage", "📄 Who they are");
+      page.onclick = () => this.onPage(who);
+      acts.append(page);
+    }
+    const why = el("button", "life-choice reign-dramawhy", "📄 Why");
+    why.onclick = () => this.onPage(d.event);
+    acts.append(why);
+    this.win.replaceChildren(
+      el("div", "life-wintitle", `${d.kind === "plot" ? "🗡️" : "🪦"} ${d.title}`),
+      el("p", "life-winwords", d.words),
+      said,
+      acts,
+    );
+    this.win.hidden = false;
+    this.win.scrollTop = 0;
   }
 
   private drawFall(f: ReignFall | null): void {

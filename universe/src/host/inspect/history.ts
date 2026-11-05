@@ -14,6 +14,7 @@ import { battlePage } from "./realm.ts";
 const HEADINGS: Readonly<Record<string, readonly [string, string]>> = {
   war: ["War", "⚔️"],
   polity: ["Realm", "👑"],
+  court: ["Court", "🗡️"],
   belief: ["Faith", "✨"],
   population: ["People", "🧑"],
   economy: ["Trade", "📦"],
@@ -72,6 +73,14 @@ const TITLES: Readonly<Record<string, string>> = {
   "act.mandate": "A sign from the heavens",
   "act.decree": "A law decreed",
   "reign.wed": "A marriage of state",
+  "court.heir": "An heir named",
+  "court.heirdied": "An heir dead",
+  "court.regency": "A regency",
+  "court.claim": "A claim to the seat",
+  "court.plot": "A move on the seat",
+  "court.seized": "A seat taken",
+  "court.found": "A plot found",
+  "court.bought": "A plotter bought off",
   "health.rose": "A new sickness",
   "health.outbreak": "A sickness came",
   "health.went": "A sickness went to the stars",
@@ -136,6 +145,20 @@ export function eventPage(world: World, ref: string): PageModel {
                 "Who",
                 e.subjects.flatMap((s, i) => [...(i ? [", "] : []), refLink(world, s)]),
               ),
+            ]
+          : []),
+        ...(e && typeof (e.data as { fig?: unknown } | null)?.fig === "number" && e.subjects[0]
+          ? [
+              stat("One of the court", [
+                link(
+                  ((e.data as { who?: string; general?: string; to?: string; by?: string }).who ??
+                    (e.data as { general?: string }).general ??
+                    (e.data as { to?: string }).to ??
+                    (e.data as { by?: string }).by ??
+                    "Their page") as string,
+                  `court:${e.subjects[0]}:${(e.data as { fig: number }).fig}`,
+                ),
+              ]),
             ]
           : []),
         ...(e ? [stat("It mattered", "★".repeat(Math.max(1, Math.min(8, e.importance))))] : []),

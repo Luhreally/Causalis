@@ -2,12 +2,15 @@
 // made by host/leaders.ts and host/wealth.ts from what history holds; nothing here is kept.
 import { hashString } from "../kernel/index.ts";
 
-export type LeaderKind = "ruler" | "general" | "lender";
+export type LeaderKind = "ruler" | "general" | "lender" | "heir" | "rival" | "voice";
 
 export const LEADER_ICON: Readonly<Record<LeaderKind, string>> = {
   ruler: "👑",
   general: "⚔️",
   lender: "🏦",
+  heir: "🌱",
+  rival: "🗡️",
+  voice: "🗣️",
 };
 
 /** Who the god's hand is laid from, to find them among a town's people (hand.lay's `as`). */
@@ -30,6 +33,8 @@ export type Leader = {
   readonly did: string;
   /** The event that says why (null: none). */
   readonly why: string | null;
+  /** One of a court: what they want and why, in a line (Lives L5). */
+  readonly wants?: string;
   /** The town they live in, and its name (null: history keeps none). */
   readonly town: string | null;
   readonly townName: string | null;

@@ -50,7 +50,9 @@ export function installReign(d: ReignDeps): ReignFlow {
     /** The newest thing told of the realm, once read. */
     toldLast: string | null = null,
     /** The sheet up, to read again when something is done. */
-    sheet: "decrees" | "wars" | "matches" | null = null;
+    sheet: "decrees" | "wars" | "matches" | null = null,
+    /** What has been put to them already (Lives L5): asked once. */
+    asked: string | null = null;
 
   const clockNow = (): number => d.client.status?.t ?? 0;
 
@@ -71,6 +73,11 @@ export function installReign(d: ReignDeps): ReignFlow {
       }
       now = l;
       hud.set(l, clockNow(), pace);
+      // A plot against them, an heir dead: the clock stops, and they answer.
+      if (l.drama && l.drama.key !== asked && !l.fell) {
+        asked = l.drama.key;
+        hud.drama(l.drama);
+      }
     } finally {
       asking = false;
     }
@@ -87,6 +94,7 @@ export function installReign(d: ReignDeps): ReignFlow {
     if (d.possession.on) await d.possession.letGo();
     on = { realm, ruler: l.name };
     toldLast = null;
+    asked = null;
     was ??= d.time.speed;
     pace = "slow";
     sent = 0;
@@ -141,6 +149,21 @@ export function installReign(d: ReignDeps): ReignFlow {
     }
   };
 
+  hud.onDrama = (drama, choice) => {
+    if (!on || choice === "let") {
+      if (on) hud.say("You let it be. The realm decides it.");
+      return;
+    }
+    void (choice.startsWith("name:")
+      ? d.client.command("court.name", { realm: on.realm, ruler: on.ruler, fig: Number(choice.slice(5)) })
+      : d.client.command("court.answer", { realm: on.realm, ruler: on.ruler, answer: choice })
+    )
+      .then(() => {
+        hud.say(drama.kind === "plot" ? "Your word has gone out: the plot goes no further." : "Your word has gone out: they will follow you.");
+        return refresh();
+      })
+      .catch((error: Error) => hud.say(refused(error)));
+  };
   hud.onSheet = (kind) => void open(kind);
   hud.onDecree = (law, to) => void act("reign.decree", { law, to }, "Your word has gone out.");
   hud.onWar = (against, prize) =>

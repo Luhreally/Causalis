@@ -47,6 +47,9 @@ const ALWAYS: ReadonlySet<string> = new Set([
   "order.crisis",
   // A new sickness risen (Phase 20 M140).
   "health.rose",
+  // A seat taken, a plot found (Lives L5).
+  "court.seized",
+  "court.found",
 ]);
 
 /** Whether a tiding is great enough for a window. */

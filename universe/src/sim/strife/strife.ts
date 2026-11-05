@@ -71,6 +71,7 @@ import {
 } from "../order/order.ts";
 import { LAW_OF } from "../order/laws.ts";
 import { grieve, strike } from "../acts/disasters.ts";
+import { armyDone, armyMoves, armyVoice } from "../court/court.ts";
 
 export const STRIFE_EVENTS = {
   /** A general seizes the seat. */
@@ -296,7 +297,7 @@ export function armyOf(
 }
 
 /** A realm's battles won and lost these five years, its last defeat and its last victory. */
-function battlesOf(
+export function battlesOf(
   world: World,
   p: Polity,
   year: number,
@@ -454,14 +455,20 @@ export function seize(ctx: PopulationContext, p: Polity, causes: CauseRef[], t: 
     o = orderOf(world)?.of(p.ref),
     year = yearOfMoment(t),
     was = realmName(p),
-    // (Named before the event that crowns them, so the event can say who.)
-    general = newRuler(world, p, t, p.event, 1).name,
+    // (Named before the event that crowns them, so the event can say who: the one who holds the army's voice at court, if any does.)
+    man = armyVoice(world, p),
+    general = man?.name ?? newRuler(world, p, t, p.event, 1).name,
     event = world.events.emit({
       type: STRIFE_EVENTS.coup.type,
       subjects: [p.ref],
       place: ctx.provinces.get(p.seat)?.ref ?? null,
       causes,
-      data: { realm: was, general, from: LEADERSHIP[p.leadership] },
+      data: {
+        realm: was,
+        general,
+        from: LEADERSHIP[p.leadership],
+        ...(man ? { fig: man.fig } : {}),
+      },
     });
   // (A coup among generals keeps the rule the first of them overthrew; the new general's own men
   // hold every post for a while.)
@@ -469,12 +476,15 @@ export function seize(ctx: PopulationContext, p: Polity, causes: CauseRef[], t: 
   s.purged = year + STRIFE.grip;
   p.leadership = GENERAL;
   p.succession = 1;
-  p.ruler = { ...newRuler(world, p, t, event, 1), event };
+  p.ruler = man
+    ? { name: man.name, sex: man.sex, born: man.born, since: year, event }
+    : { ...newRuler(world, p, t, event, 1), event };
   if (o) {
     o.corruption *= 0.6;
     o.crisis = null;
   }
   store.coups.push({ realm: p.ref, year, event, won: true, was, general });
+  armyDone(world, p, event, true);
   return event;
 }
 
@@ -490,17 +500,19 @@ export function foil(
     store = strifeOf(world)!,
     o = orderOf(world)?.of(p.ref),
     year = yearOfMoment(t),
-    general = newRuler(world, p, t, p.event, 3).name,
+    man = armyVoice(world, p),
+    general = man?.name ?? newRuler(world, p, t, p.event, 3).name,
     event = world.events.emit({
       type: STRIFE_EVENTS.foiled.type,
       subjects: [p.ref],
       place: ctx.provinces.get(p.seat)?.ref ?? null,
       causes,
-      data: { realm: realmName(p), general },
+      data: { realm: realmName(p), general, ...(man ? { fig: man.fig } : {}) },
     });
   store.ensure(p.ref).purged = year + STRIFE.purged;
   if (o) o.legitimacy = clamp(0.02, 0.98, o.legitimacy + 0.03);
   store.coups.push({ realm: p.ref, year, event, won: false, was: realmName(p), general });
+  armyDone(world, p, event, false);
   // (The foiled general may flee to the far lands, raise them and march on the seat: M146.)
   if (world.rng.real(COUP, parseRef(p.ref).b >>> 0, t, 5) < STRIFE.flees + 0.5 * weight)
     breakAway(ctx, p, farLands(ctx, p), event, "general", t, general);
@@ -1167,6 +1179,8 @@ export function strifeYear(ctx: PopulationContext, t: SimTime): void {
         threshold: STRIFE.line,
         factors: danger.factors,
       });
+    // (Under the name of the one who holds the army's voice at court, a year's warning first: Lives L5.)
+    if (armyMoves(ctx, p, decision, coupOdds(danger), won, t)) continue;
     if (won) seize(ctx, p, [{ ref: decision, role: "trigger", weight: 1 }], t);
     else foil(ctx, p, [{ ref: decision, role: "trigger", weight: 1 }], t, danger.weight);
   }

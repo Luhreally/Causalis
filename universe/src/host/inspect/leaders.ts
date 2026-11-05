@@ -31,6 +31,8 @@ export function rulerStat(realm: Polity): Stat {
       link(realm.ruler.name, `rule:${realm.ref}`),
       " · ",
       link("its leaders", `${realm.ref}#leaders`),
+      " · ",
+      link("its court", `${realm.ref}#court`),
     ],
     { why: realm.ruler.event },
   );
@@ -45,7 +47,7 @@ export function leaderBlocks(world: World, r: Polity): Block[] {
       type: "text",
       lines: [
         [
-          `Who holds power in ${list.realmName}, as history keeps them. It names no heirs, councils or governors, and in time it forgets who founded a realm.`,
+          `Who holds power in ${list.realmName}, as history keeps them. Those who stand near its seat are on its Court tab, and in time history forgets who founded a realm.`,
         ],
       ],
     },

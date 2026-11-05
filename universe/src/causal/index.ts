@@ -36,6 +36,7 @@ import "./acts.ts";
 import "./possess.ts";
 import "./life.ts";
 import "./reign.ts";
+import "./court.ts";
 import "./held.ts";
 export { WAYS, WAY_WORDS, kept, waysRef, waysWords } from "./culture.ts";
 export { governmentWords } from "./polity.ts";

@@ -267,6 +267,23 @@ export {
 } from "./order/order.ts";
 export { ORDER_ACTS, STIR_SHARE, installOrderActs, mostHeld } from "./order/acts.ts";
 export {
+  COURT_EVENTS,
+  answerProblem,
+  byBlood,
+  courtOf,
+  courtYear,
+  dangerOf,
+  installCourts,
+  nameProblem,
+  rivalMoves,
+  type Court,
+  type CourtFigure,
+  type CourtSeat,
+  type CourtStore,
+  type GoneFigure,
+  type Plot,
+} from "./court/court.ts";
+export {
   REIGN_EVENTS,
   decreeProblem,
   installReign,

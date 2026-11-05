@@ -21,7 +21,7 @@ export const LIVES_CONCEPTS: Readonly<Record<string, Concept>> = {
     icon: "👑",
     title: "Who holds power",
     what: [
-      "History names a realm's ruler: when they came to rule, how old they are, and what happened in their reign. It names the generals who reached for its seat, and the houses that lend in its lands. It names no heirs, councils or governors, and in time it forgets who founded a realm.",
+      "History names a realm's ruler: when they came to rule, how old they are, and what happened in their reign. It names the generals who reached for its seat, the houses that lend in its lands, and those who stand at its court: an heir, the voices of the groups its orders hear, and any rival. It names no governors, and in time it forgets who founded a realm.",
       "It does not keep where anyone lives. A ruler's home is chosen from their name among the homes nearest their seat town's square: the same one each time, and the choice changes nothing. A house of lending's head is named as a town's makers are: history keeps the house, and the name is given by the same rule each time.",
       "Possessing one of them lays the god's hand on their town, so that they are among its people one by one. What you do in their body is history's. Of a great town your hand holds a ward of 50,000 one by one, and the rest of the town goes on about it, counted as a land's people are.",
     ],
@@ -30,7 +30,21 @@ export const LIVES_CONCEPTS: Readonly<Record<string, Concept>> = {
     ],
     leads: ["A body to walk in, and a realm to rule: 👑 Rule as them."],
     see: [{ text: "Every coup and restoration", ref: "world:ledger#strife" }],
-    related: ["credit", "reign"],
+    related: ["credit", "reign", "court"],
+  },
+  court: {
+    icon: "🗡️",
+    title: "Courts, heirs and plots",
+    what: [
+      "A realm's court is a handful of real people. Where its orders say rule passes by birth, and its people keep houses at all, the eldest of the house is heir and takes the seat, unless something stops them. Elsewhere whoever the voices lean to when the seat falls empty takes it. A people who count kin under fifteen in a hundred keep no houses: no one among them is heir by blood.",
+      "Who has a voice is read from who holds sway: the army, the court, the temple, the traders. Where a ruler rules alone one voice is heard; where they hold the seat by others' leave, or share rule, up to four.",
+      "A rival is someone grown who wants the seat. Every reason they have is a number history already holds: their group's sway, how few hold the rule rightful, a seat held by others' leave, a child on the seat or heir to it, battles lost, a law the powerful are against, a wrong done to them, a people who prize valour, against a people who keep to custom and an old rule. When those come over the line, the rival may move. A move takes a year to come to its end. The army's own coups go this way, under the name of the one who holds its voice.",
+      "A plot found costs the plotter their place, and perhaps their life; they may flee to the far lands and raise them, and that civil war's first cause is that person. When you rule, a plot against you stops the clock: you can seize them, buy them off, or let it come. Nobody needs to play: without you the realm decides by the same numbers.",
+    ],
+    drives: ["A rule doubted, a child on the seat, battles lost, a death, a seat held by leave."],
+    leads: ["Who rules next; coups; civil wars that begin with one person."],
+    see: [{ text: "Every coup and restoration", ref: "world:ledger#strife" }],
+    related: ["leaders", "reign"],
   },
   reign: {
     icon: "📜",

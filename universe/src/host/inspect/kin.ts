@@ -317,7 +317,7 @@ function personOf(
 }
 
 /** The pages a family and a body are told on: the town's people, the levy, the seats, the people met, the hand's. */
-const KIN_PAGES = /^(folk:town:|lv:|seat:|heal:|prsn:|agent:|rule:)/;
+const KIN_PAGES = /^(folk:town:|lv:|seat:|heal:|prsn:|agent:|rule:|court:)/;
 
 /**
  * A page with its family and body (Phase 55 wave 5): the card's two lines first in its overview,

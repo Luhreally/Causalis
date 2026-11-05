@@ -65,10 +65,22 @@ A ruler is taken by 👑 Rule as them on a realm's Leaders tab or a ruler's page
 
 Limits, stated: the eldest child shown is the keyed family's, and whoever history crowns may be another. The numbers are first guesses, all in `rules/reign.ts`. Heirs, rivals, plots, councils and running on their own are L5.
 
+### L5, first slice, as built (2026-11-05)
+
+A realm is no longer a ruler and a line of events. It has a court: a handful of real people per standing realm, kept in `court.states`, each with a page, a home in the seat's town and a body to take. A Court tab stands beside Leaders.
+
+- **An heir who is in history.** Whoever the court holds as heir takes the seat, unless a claim made at that hour carries it, and what stopped them is told. The child on a ruler's family page is now the one history names. Whether a seat passes by blood or by voices comes from the orders and from how the people count kin: under 0.15 they keep no houses, and no one is heir by blood.
+- **Voices.** Those who hold sway (`the army`, `the court`, `the temple`, `traders`) have one person each at court: one voice where rule is held alone, up to four by the share a ruler must carry. What each wants is what their group presses for hardest.
+- **A rival** is someone grown who wants the seat, for reasons that are numbers history already holds: their group's sway, how few hold the rule rightful, a seat by leave, a child on the seat or as heir, no heir, battles lost, a law the powerful are against, a wrong done to them, valour against custom, the rule's age.
+- **A plot takes a year**: `court.plot` when they move, `court.seized` or `court.found` a year on, drawn when it moved. The army's coups go the same way under the name of its voice, weighed exactly as before. One found, or a claimant beaten, may flee and raise the far lands, and that civil war's first cause is a person. A child on the seat means a regency.
+- **Stepping in.** Ruling, a plot against you or an heir's death stops the clock with a window. `court.answer` seizes or buys off, `court.name` names an heir, and "Let it come" sends nothing, so the realm decides it exactly as it would with no one there.
+
+Coups, civil wars, realms ended and successions all held within what a century's chance gives, on six worlds. Limits, stated: marriages of state still move regard and give no claim, and the kin words wait with them; a voice does nothing of their own but plot; the numbers are first guesses, all in `rules/court.ts`.
+
 ## What is known, and what is not
 
-- Realm pages show rulers: a name, since when, and the event that made them. They show no heirs, councils
-  or politicians, so L1 starts with rulers and the others come with L5.
+- Realm pages show rulers: a name, since when, and the event that made them. Their Court tabs show heirs,
+  rivals and the voices of those who hold sway (L5).
 - History records no home for a ruler. L1 derives one in the seat town from the ruler's identity, the same
   home every time, and their page says so.
 - A hand on a town of more than 50,000 holds a ward of 50,000 one by one and counts the rest as a land's

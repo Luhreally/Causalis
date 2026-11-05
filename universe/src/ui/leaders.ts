@@ -24,7 +24,9 @@ export function drawLeaderCard(
     if (why) did.onclick = () => ctx.open(why);
     const where =
       l.town && l.townName ? `Lives in ${l.townName}` : "History keeps no home for them.";
-    card.append(name, el("div", "leader-title", l.title), did, el("div", "leader-where", where));
+    card.append(name, el("div", "leader-title", l.title), did);
+    if (l.wants) card.append(el("div", "leader-wants", l.wants));
+    card.append(el("div", "leader-where", where));
   }
   const home = ctx.home;
   if (l.town && home) {
