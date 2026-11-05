@@ -12,6 +12,7 @@ import {
 } from "../../src/bridge/index.ts";
 import {
   MOST_STREAKS,
+  blazeNow,
   globeArcsNow,
   landRaidsNow,
   raidEye,
@@ -154,4 +155,37 @@ test("on the land: its way comes in from where it left, and no machine", () => {
   assert.ok(r.arc!.high > 14);
   assert.ok(r.words.includes("Gel"));
   assert.ok(list.some((x) => !x.arc && x.flyers.length >= 0));
+});
+
+test("a fall whose homes all lie past the streets drawn comes down and burns out there, in the sprawl", () => {
+  const k = fall(),
+    ring = { r0: 240, r1: 1000 },
+    sc = scene(k, () => false);
+  timeRaids(sc.plan, sc.lots, sc.states, 0, ring);
+  const first = raidRun(k).from,
+    flash = raidNow(sc, first + 1).bursts;
+  assert.ok(flash.length > 0, "no flash where it fell");
+  assert.ok(Math.hypot(flash[0]!.x, flash[0]!.z) > ring.r0, "its flash is among the streets drawn");
+  assert.equal(blazeNow(sc, first - 60).fires.length, 0, "alight before it fell");
+  const later = blazeNow(sc, raidRun(k).to + 600);
+  assert.ok(later.fires.length > 0, "nothing burns after it");
+  assert.ok(later.smoke.length > 0, "no smoke after it");
+  for (const f of later.fires)
+    assert.ok(Math.hypot(f.x, f.z) > ring.r0 - 90, "a fire among the streets drawn");
+});
+
+test("a fall that burned no homes burns nothing out past the streets drawn", () => {
+  const k = { ...fall(), homes: 0 } as TownStrike,
+    sc = scene(k, () => false);
+  timeRaids(sc.plan, sc.lots, sc.states, 0, { r0: 240, r1: 1000 });
+  assert.equal(blazeNow(sc, raidRun(k).to + 600).fires.length, 0);
+});
+
+test("a fall is kept off the water in the sprawl", () => {
+  const k = fall(),
+    sc = scene(k, () => false);
+  (sc.plan as unknown as { water: unknown }).water = { x: 700, z: 0, r: 300 };
+  timeRaids(sc.plan, sc.lots, sc.states, 0, { r0: 240, r1: 1000 });
+  for (const f of blazeNow(sc, raidRun(k).to + 600).fires)
+    assert.ok(Math.hypot(f.x - 700, f.z) > 300, "a fire on the water");
 });

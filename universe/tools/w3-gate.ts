@@ -377,7 +377,8 @@ async function watch(f: Forged, tag: string): Promise<void> {
     `${tag}: the eye on the sky`,
     async () =>
       k<boolean>(
-        `Math.abs(globalThis.causalis.rig.pitch + 8) < 1 && !globalThis.causalis.rig.flying`,
+        // (Low over the roofs; or, over a city of spires, from above their tops.)
+        `(Math.abs(globalThis.causalis.rig.pitch + 8) < 1 || Math.abs(globalThis.causalis.rig.pitch + 24) < 1) && !globalThis.causalis.rig.flying`,
       ),
     slow(30000),
   );
