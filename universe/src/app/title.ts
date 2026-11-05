@@ -5,7 +5,7 @@
 import type { HostClient, SaveMeta, SeedLife } from "../bridge/index.ts";
 import { pickerForm } from "./picker.ts";
 import { seedWithAct, seedWithoutAct } from "../kernel/index.ts";
-import { bakedWorlds, phoneMinutesTo, type Baked } from "../ui/index.ts";
+import { PAST_WORLD, bakedWorlds, phoneMinutesTo, type Baked } from "../ui/index.ts";
 import {
   MAKINGS,
   MAKING_SUBJECTS,
@@ -121,6 +121,9 @@ export function madeWorldWords(w: NonNullable<SeedLife["world"]>): string {
   return `⭐ ${/^[AEFHILMNORSX]/.test(w.star) ? "an" : "a"} ${w.star} star, ${w.kelvin.toLocaleString("en")} K · ${w.gravity.toFixed(2)} g · ${t} °C · ${Math.round(w.seas * 100)}% sea${w.kind ? ` · ${w.kind}` : ""}`;
 }
 
+/** The year and seed of the title's way to the ages past ours (a world a deploy runs ahead: Phase 66). */
+const { seed: PAST_SEED, year: PAST_YEAR } = PAST_WORLD;
+
 /** Where a new world begins. */
 const BEGINNINGS = [
   [
@@ -147,18 +150,24 @@ const BEGINNINGS = [
     "landing",
     "🚀",
     "When ships come down on other worlds",
-    "Earth, “first light”, the year 1,500: nine worlds settled. A ship's crossing and its landing played for you, then you on that ground among its people (a world run ahead: moments to load)",
+    "Earth, “first light”, the year 1,500: twenty worlds settled. A ship's crossing and its landing played for you, then you on that ground among its people (a world run ahead: moments to load)",
+  ],
+  [
+    "past",
+    "🌃",
+    "Ages past ours",
+    `Earth, “${PAST_SEED}”, the year ${PAST_YEAR.toLocaleString("en")}: its star gathered, its land built over from shore to shore, machines in its streets, beams in its wars. You begin in its greatest town.`,
   ],
 ] as const;
 
 /**
  * When the first ships came down on other worlds, on the worlds a deploy runs ahead (Phase 64, measured
- * 2026-11-04: Earth's "first light" a first colony in 1141, a first world of another star's reached in
- * 1866; "alien 41" a first colony in 914).
+ * again 2026-11-04 under Phase 66: Earth's "first light" a first colony in 1141, a first world of another
+ * star's reached in 1308; "alien 41" a first colony in 914, another star's in 1217).
  */
 const LANDINGS: Readonly<Record<string, { first: number; star: number | null }>> = {
-  "earth first light": { first: 1141, star: 1866 },
-  "alien alien 41": { first: 914, star: null },
+  "earth first light": { first: 1141, star: 1308 },
+  "alien alien 41": { first: 914, star: 1217 },
 };
 function landingWords(kind: string, seed: string, year: number): string {
   const known = LANDINGS[`${kind} ${seed}`];
@@ -182,6 +191,7 @@ const HOW = [
   "Your hand — rain, harvest, plague, quakes, settlers, wars and peace, a people's ways, a tongue, a faith — is always a choice, and always in the chronicle.",
   "Lay your hand on a village and everyone there is someone: their traits, their families, their children.",
   "Once ships have gone out, 🚀 lists the worlds settled: watch a landing, from the crossing to the town it grew into, or go down to that ground and walk among its people.",
+  "A world that gets far enough goes past our ages, where its matter lets it: 🌃 on the menu opens one there; the chip by the date says what it has come to, and tapping it what it can do.",
   "The world keeps itself every minute and when you switch away; “Continue” takes up the world last kept.",
 ];
 
@@ -280,6 +290,31 @@ export function showTitle(options: TitleOptions): void {
         () => picker(),
       ),
     );
+    // (The ages past ours, a tap away, what it takes said first: Phase 66.)
+    const past = choice(
+      "🌃",
+      "Ages past ours",
+      "a world built over, its star gathered, another remade",
+      () => go(`?universe=earth&seed=${encodeURIComponent(PAST_SEED)}&year=${PAST_YEAR}&past=1`),
+    );
+    past.classList.add("past-choice");
+    list.append(past);
+    void bakedWorlds().then((worlds) => {
+      const has = worlds.find(
+          (b) => b.universe === "earth" && b.seed === PAST_SEED && b.year <= PAST_YEAR,
+        ),
+        from = worlds
+          .filter((b) => b.universe === "earth" && b.seed === PAST_SEED && b.year <= PAST_YEAR)
+          .reduce((most, b) => Math.max(most, b.year), 0),
+        small = past.querySelector("small");
+      if (!small) return;
+      const minutes = phoneMinutesTo(PAST_YEAR, from);
+      small.textContent = `a world built over, its star gathered, another remade, Earth “${PAST_SEED}” in the year ${PAST_YEAR.toLocaleString("en")}: ${
+        has && from === PAST_YEAR
+          ? "fetched, under a minute on a phone"
+          : `some ${Math.max(1, Math.round(minutes))} minutes on a phone to run there`
+      }`;
+    });
     if (saves?.length)
       list.append(
         choice(
@@ -485,10 +520,10 @@ export function showTitle(options: TitleOptions): void {
         pick(beginnings, id);
         yearRow.hidden = id !== "year";
         // (The world a deploy ran ahead, so it is there in moments: the seed can be changed after.)
-        if (id === "landing") {
+        if (id === "landing" || id === "past") {
           kind = "earth";
           pick(kinds, kind);
-          seed.value = "first light";
+          seed.value = id === "past" ? PAST_SEED : "first light";
           void tell();
         }
         sayYear();
@@ -536,7 +571,9 @@ export function showTitle(options: TitleOptions): void {
                 ? `${at}&year=300&contact=1`
                 : begin === "landing"
                   ? `${at}&year=${LANDING_YEAR}&landing=1`
-                  : at,
+                  : begin === "past"
+                    ? `${at}&year=${PAST_YEAR}&past=1`
+                    : at,
       );
     };
     start.onclick = () => void begun();

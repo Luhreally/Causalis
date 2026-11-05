@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import { YEAR, seedFromText, type World } from "../../src/kernel/index.ts";
 import { isProvinceWorld } from "../../src/gen/index.ts";
 import { PRINCIPLES, REACTIONS, SUBSTANCES, kindAllows } from "../../src/rules/index.ts";
+import { LATE_TREE } from "../../src/rules/principles.ts";
 import { designsOf, homePlanet, politiesOf, populationContext } from "../../src/sim/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import {
@@ -32,6 +33,9 @@ import type { VillagePlan } from "../../src/bridge/index.ts";
  * fallen are those the foe's arms strike down), and so did its towns, realms and pages.
  * Re-recorded for cohesion combat (earth-7): the surviving lands, realms, crafts and
  * discoveries change with the new campaigns. The matter guide and early camps stay identical.
+ * Principles re-recorded for Phase 66: seven of them (electronics, guidance, stations, habitats, the
+ * nuclear and fusion drives, the long sleep) now name what they open the way to past our ages; the
+ * rest read as they did.
  */
 const BEFORE: Record<string, string> = {
   tools: "2c1adabe:18122",
@@ -43,7 +47,7 @@ const BEFORE: Record<string, string> = {
   workshops: "6a49114e:204764",
   substances: "83f9f11f:130568",
   reactions: "da7ebe2:68449",
-  principles: "d15669b0:168556",
+  principles: "d814cdd6:169670",
   guide: "ced49326:17137",
   camps: "cfc0a711:332618",
 };
@@ -128,9 +132,11 @@ const CATEGORIES: Record<string, () => unknown> = {
     }),
   substances: () => SUBSTANCES.map((s) => page(`subst:${s.id}`)),
   reactions: () => REACTIONS.map((r) => page(`rxn:${r.id}`)),
-  // (Earth's own: the kinds' principles, Phase 56, are none of Earth's.)
+  // (Earth's own: the kinds' principles, Phase 56, are none of Earth's; those past our ages, Phase 66, came after.)
   principles: () =>
-    PRINCIPLES.filter((p) => kindAllows(p, "rocky")).map((p) => page(`prin:${p.id}`)),
+    PRINCIPLES.filter((p) => kindAllows(p, "rocky") && !LATE_TREE.some((l) => l.id === p.id)).map(
+      (p) => page(`prin:${p.id}`),
+    ),
   guide: () => page("world:matter"),
   camps: () =>
     lands(early, 10).flatMap((c) =>

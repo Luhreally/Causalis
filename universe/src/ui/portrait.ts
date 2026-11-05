@@ -15,6 +15,7 @@ import { drawSpecimen } from "./specimen.ts";
 import {
   BANDAGE_WIDE,
   EYES,
+  MACHINE_TONES,
   HAIRS,
   SKIN,
   WOUND_COLORS,
@@ -412,8 +413,9 @@ export function personSolids(p: Extract<Portrait, { kind: "person" }>, anatomy =
       sz: e[2] * scale,
       yaw: 0,
       pitch,
-      color:
-        anatomy && q.tone <= 1
+      color: p.machine
+        ? MACHINE_TONES[q.tone]!
+        : anatomy && q.tone <= 1
           ? paint.folk
             ? paint.tones[2]
             : SKIN

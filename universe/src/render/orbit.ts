@@ -13,6 +13,7 @@ import {
   STILL,
   asked,
   ease,
+  eyeAmongSpires,
   flightAt,
   globeDrag,
   grabbed,
@@ -43,6 +44,9 @@ export type OrbitOptions = {
 
 /** A point of the scene. */
 type Point = { readonly x: number; readonly y: number; readonly z: number };
+
+/** How near the camera sees, as the stage sets it: all but where the rig cuts what stands in its way. */
+const NEAR = 0.1;
 
 export class OrbitRig {
   yaw = 30;
@@ -115,6 +119,8 @@ export class OrbitRig {
   private looking: pc.Vec3 | null = null;
   /** How far from its middle the target may slide on a flat scene (x and z), if bounded. */
   bounds: { readonly x: number; readonly z: number; readonly reach: number } | null = null;
+  /** Whether it looks into a town of spires: it comes in over them, what stands in its way cut (Phase 66). */
+  spires = false;
   /** Whether it has the camera (free roam takes it, Phase 10 M98: then it neither moves nor listens). */
   enabled = true;
   /** Something kept in the middle as it moves (a person followed, M94); null: nothing. */
@@ -526,10 +532,16 @@ export class OrbitRig {
     };
   }
 
+  private nearAt(stage: Stage, near: number): void {
+    const camera = stage.camera.camera!;
+    if (camera.nearClip !== near) camera.nearClip = near;
+  }
+
   private update(stage: Stage, dt: number): void {
     // (Its camera taken, a flight under way ends: it would fly on from where it was, later.)
     if (!this.enabled) {
       this.flight = null;
+      this.nearAt(stage, NEAR);
       return;
     }
     this.idle += dt;
@@ -577,9 +589,11 @@ export class OrbitRig {
     // (A push past the edge let go of eases off.)
     this.beyond *= Math.exp(-dt * 1.5);
     if (this.idle > 4 && this.pointers.size === 0) this.yaw += dt * (this.options.drift ?? 2.5);
-    const yaw = (this.yaw * Math.PI) / 180,
-      pitch = (this.pitch * Math.PI) / 180,
+    const among = this.spires ? eyeAmongSpires(this.distance, this.pitch) : null,
+      yaw = (this.yaw * Math.PI) / 180,
+      pitch = ((among?.pitch ?? this.pitch) * Math.PI) / 180,
       d = this.distance;
+    this.nearAt(stage, among?.near ?? NEAR);
     stage.camera.setPosition(
       this.target.x + d * Math.cos(pitch) * Math.sin(yaw),
       this.target.y - d * Math.sin(pitch),

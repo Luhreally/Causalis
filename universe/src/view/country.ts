@@ -257,7 +257,8 @@ export function countryOf(plan: VillagePlan, detail = 1): Country {
       pen: { rails: [], posts: [], trough: null, rack: null, fold: null },
     };
   // (Under a colony's glass, no bounds or mills or barns: Phase 64.)
-  if (!manner || plan.colony) return none;
+  // (Nor on ground built over from edge to edge: Phase 66.)
+  if (!manner || plan.colony || plan.past?.covered) return none;
   const engines = era === "industry" || era === "modern",
     modern = era === "modern",
     { orchard, crop } = cropsOf(plan);

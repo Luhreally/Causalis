@@ -432,6 +432,8 @@ export type Portrait =
       readonly body: VillagePlan["body"];
       /** How their wounds show now (Phase 55 M226; absent: none). */
       readonly look?: WoundLook;
+      /** Of made limbs (Phase 66): their portrait a shell, as they are seen in their town. */
+      readonly machine?: true;
       /** The actual kit recorded for this person's battle, including an explicit lack of armor. */
       readonly equipment?: PersonEquipment;
     }
@@ -667,6 +669,8 @@ export type WorldStage = {
   readonly since?: number | null;
   /** The furthest it has come, where it has fallen from it. */
   readonly fell?: { readonly id: string; readonly name: string; readonly year: number };
+  /** How broad its star's mirrors stand (km²; Phase 66; absent: none), for the sky over its ground. */
+  readonly mirrors?: number;
   readonly stages: readonly {
     readonly id: string;
     readonly icon: string;

@@ -27,7 +27,7 @@ export const BLESSING = 20;
 import { cultureOf } from "../culture/culture.ts";
 import { citiesOf, USE } from "../city/city.ts";
 import { homesStand, razeTown } from "../town/fabric.ts";
-import { knows, loreOf } from "../lore/lore.ts";
+import { knows, loreOf, matterAllows } from "../lore/lore.ts";
 
 export const LOCAL_ACT_EVENTS = {
   shrine: defineEventType("act.shrine", 5),
@@ -216,7 +216,8 @@ export function installLocalActs(world: World, ctx: () => PopulationContext): vo
             p.rate > 0 &&
             kindAllows(p, worldKindOf(c.generated)) &&
             !lore.get(w.cell, p.id) &&
-            needsMet(p, (n) => knows(c, w.cell, n)),
+            needsMet(p, (n) => knows(c, w.cell, n)) &&
+            matterAllows(c.generated, p),
         );
       const event = world.events.emit({
         type: LOCAL_ACT_EVENTS.inspireOne.type,

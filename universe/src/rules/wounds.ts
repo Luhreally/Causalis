@@ -34,6 +34,8 @@ export const BLOW_OF: Readonly<Record<string, Blow>> = {
   repeater: "shot",
   autoloader: "shot",
   automatic: "shot",
+  "beam-rifle": "fire",
+  "beam-lance": "fire",
   claws: "edge",
   mandibles: "crush",
   tusks: "crush",

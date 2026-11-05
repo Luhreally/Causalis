@@ -8,10 +8,11 @@
 //
 // The world's age itself is read from what its peoples can do now (Phase 65: rules/ages.ts), named after
 // its own means, and it can fall. The firsts stay what they were: the chronicle of when each was first
-// reached, which a world that has fallen does not lose.
+// reached, which a world that has fallen does not lose. Past "Other stars" (Phase 66), each is what history
+// itself did first: a flame held, a mind of crystal, a host arming with beams, a world remade.
 import { YEAR, type World } from "../../kernel/index.ts";
 import { KIND_AGES, MEASURES, PRINCIPLES, PRINCIPLE_INDEX, kindBurns } from "../../rules/index.ts";
-import { populationContext } from "../../sim/index.ts";
+import { lateOf, populationContext } from "../../sim/index.ts";
 import type { Breakdown, Line, WorldFirst, WorldStage } from "../../bridge/index.ts";
 import { kindName, kindOf } from "../kinds.ts";
 import { worldReadingOf } from "../reading.ts";
@@ -37,6 +38,13 @@ export const WORLD_STAGES: readonly {
   { id: "orbit", icon: "🛰️", name: "Orbit", first: "🛰️ A satellite" },
   { id: "worlds", icon: "🪐", name: "Other worlds", first: "🪐 A colony" },
   { id: "stars", icon: "🌠", name: "Other stars", first: "✨ A ship to the stars" },
+  { id: "fusion", icon: "🔆", name: "Fusion", first: "💡 A fusion flame held in a bottle" },
+  { id: "minds", icon: "🧠", name: "Machine minds", first: "💡 Minds of crystal" },
+  { id: "beams", icon: "🔦", name: "Beam arms", first: "🔦 A host bearing beams" },
+  { id: "bodies", icon: "🧬", name: "Made bodies", first: "💡 Bodies written and grown" },
+  { id: "remade", icon: "🌱", name: "Remade worlds", first: "🌱 A world remade" },
+  { id: "covered", icon: "🌃", name: "Covered world", first: "🌃 A world covered" },
+  { id: "gathered", icon: "☀️", name: "Gathered star", first: "☀️ A star gathered" },
 ];
 
 /** A world's age falls for good only when it has stood below a first this many years. */
@@ -129,6 +137,7 @@ export function stageOf(world: World): WorldStage {
     };
   });
   const { reading } = worldReadingOf(world),
+    mirrors = lateOf(world)?.mirrors,
     at = stages.findIndex((s) => s.id === reading.age.id),
     year = Math.floor(world.now / YEAR),
     // The furthest its chronicle ever came, long enough ago that it has had its chance to stand there.
@@ -145,6 +154,7 @@ export function stageOf(world: World): WorldStage {
     name: reading.name,
     since: fell ? null : (named?.year ?? stages[at]?.year ?? null),
     ...(fell ? { fell: { id: fell.id, name: fell.name, year: fell.year! } } : {}),
+    ...(mirrors ? { mirrors: mirrors.km2 } : {}),
     stages,
   };
 }

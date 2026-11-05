@@ -54,7 +54,7 @@ import {
   type WoundTended,
 } from "../bridge/index.ts";
 import { battleOf, battleWords, battlesOfYear, burialOf, type Burial } from "./burials.ts";
-import { LINE, ROSTER_YEARS, townRoster, type Holder, type Roster } from "./roster.ts";
+import { ROSTER_YEARS, linesOf, townRoster, type Holder, type Roster } from "./roster.ts";
 import { strikesOn } from "./town.ts";
 import type { LevyMan } from "./roll.ts";
 import { healerOf } from "./village.ts";
@@ -88,6 +88,8 @@ const ONE_OF: Readonly<Record<string, string>> = {
   repeater: "a rifle bullet",
   autoloader: "a bullet",
   automatic: "machine-gun fire",
+  "beam-rifle": "a beam",
+  "beam-lance": "a beam of blue-green light",
   claws: "a claw",
   mandibles: "a mandible",
   tusks: "a tusk",
@@ -332,7 +334,7 @@ function thisYear(world: World, town: Town, roster: Roster): ThisYear {
   const gone = new Map<number, number>(),
     hurt = new Map<number, Strike[]>(),
     land = populationContext(world).provinces.get(town.cell)?.ref ?? null,
-    count = Math.ceil(town.population / LINE),
+    count = linesOf(town.population),
     struck = strikesOn(world, town.ref as Ref, land)
       .filter((k) => yearOfMoment(k.at) >= roster.year && (k.dead ?? 0) > 0)
       .sort((a, b) => a.at - b.at || (a.event < b.event ? -1 : a.event > b.event ? 1 : 0));
@@ -362,7 +364,7 @@ function strikeAt(world: World, event: string, year: number): number {
 
 /** A line holder's wounds, the first dealt first. */
 function holderWoundsOf(r: Reader, roster: Roster, h: Holder, now: ThisYear): Wound[] {
-  const household = hasHousehold(roster, h.line, Math.ceil(r.town.population / LINE)),
+  const household = hasHousehold(roster, h.line, linesOf(r.town.population)),
     out: Wound[] = [];
   for (const f of h.fates)
     if (f.fate === "hurt" || f.fate === "maimed") {
@@ -557,7 +559,7 @@ export function townWounded(world: World, town: string): Wounded[] {
   const roster = townRoster(world, t.ref),
     r = readerOf(world, t),
     now = thisYear(world, t, roster),
-    lines = Math.ceil(t.population / LINE),
+    lines = linesOf(t.population),
     out: { w: Wounded; healing: boolean; marked: boolean }[] = [];
   for (let k = 0; k < lines && out.length < WOUNDED_MOST; k++) {
     const h = roster.holder(k);
@@ -618,7 +620,7 @@ export function woundedTowns(world: World, most = 20): WoundedTown[] {
       roster = townRoster(world, ref, year),
       r = readerOf(world, t),
       now = thisYear(world, t, roster),
-      lines = Math.ceil(t.population / LINE);
+      lines = linesOf(t.population);
     let wounded = 0,
       borne = 0,
       maimed = 0,

@@ -6,7 +6,7 @@
 // the season; roads trodden, paved and railed; and what goes along them and out on the sea
 // (Phase 26 M153, render/landtraffic.ts).
 import * as pc from "playcanvas";
-import { YEAR } from "../kernel/index.ts";
+import { YEAR, hashString } from "../kernel/index.ts";
 import type { LandPlan } from "../bridge/index.ts";
 import {
   CROPS,
@@ -14,6 +14,7 @@ import {
   LAND_FLAT,
   LAND_UP,
   TownParts,
+  builtOverParts,
   civicsActive,
   cropAt,
   groundAt,
@@ -53,6 +54,9 @@ const FLAT_UP = 0.004;
 /** How often what rises is put again: sim moments apart at the least, and real milliseconds. */
 const RISE_EVERY = 6 * 3600;
 const RISE_WAIT = 250;
+
+/** How high what stands (m) is drawn on the land: as it is to a block's height, far less past that. */
+const landHigh = (m: number) => (m <= 60 ? m : 60 + (m - 60) * 0.2);
 
 /** One town of the land, as drawn. */
 type Drawn = {
@@ -115,8 +119,11 @@ class GroundBatches {
             out[q + 1] = up - SLAB / 2;
             out[q + 4] = SLAB;
           } else {
-            out[q + 1] = ground + d[o + 1]! * LAND_UP;
-            out[q + 4] = d[o + 4]! * LAND_UP;
+            // (Towers kept from being needles at the land's height: Phase 66.)
+            const foot = landHigh(d[o + 1]! - d[o + 4]! / 2),
+              head = landHigh(top);
+            out[q + 1] = ground + ((foot + head) / 2) * LAND_UP;
+            out[q + 4] = (head - foot) * LAND_UP;
           }
           m++;
         }
@@ -196,6 +203,8 @@ export class LandLayer {
   private towns = new Map<string, Drawn>();
   private fields: { field: LandField; crop: number }[] = [];
   private plan: LandPlan | null = null;
+  /** What a land built over shows past its towns' own fabric (Phase 66). */
+  private built: TownParts | null = null;
   /** Each road's line on the land (by its ends), worked out once. */
   private lines = new Map<string, { x: number; z: number }[]>();
   private roadsKey = "";
@@ -249,6 +258,8 @@ export class LandLayer {
 
   /** The towns drawn and where (region units), for the trees to be cleared from them. */
   clearings(): { x: number; z: number; r: number }[] {
+    // (No wood stands on a land built over.)
+    if (this.plan?.covered) return [{ x: 0, z: 0, r: 1e6 }];
     const out: { x: number; z: number; r: number }[] = [];
     for (const d of this.towns.values()) out.push({ x: d.x, z: d.z, r: d.reach + 0.15 });
     for (const f of this.fields) out.push({ x: f.field.x, z: f.field.z, r: f.field.w / 2 });
@@ -302,9 +313,23 @@ export class LandLayer {
         this.towns.delete(ref);
         changed = true;
       }
+    // (Built over from edge to edge, past where any town's own fabric reaches: Phase 66.)
+    if (!!plan.covered !== !!this.built) {
+      changed = true;
+      this.built = plan.covered ? new TownParts() : null;
+      if (this.built)
+        builtOverParts(
+          hashString(`${plan.towns[0]?.ref ?? ""} built over`),
+          (g.size * g.tileKm) / 2 / LAND_ACROSS,
+          this.built,
+        );
+    }
     if (changed) {
       this.settled.show(
-        [...this.towns.values()].map((d) => ({ parts: d.settled, x: d.x, z: d.z })),
+        [
+          ...[...this.towns.values()].map((d) => ({ parts: d.settled, x: d.x, z: d.z })),
+          ...(this.built ? [{ parts: this.built, x: 0, z: 0 }] : []),
+        ],
         g,
       );
       // Fields about each town, the greatest's first, none on another's ground or fields.

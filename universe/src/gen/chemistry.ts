@@ -10,12 +10,15 @@ import {
   SOLAR,
   chemistryOf,
   keenestIn,
+  readFunctions,
   stonesFor,
   type Chemistry,
   type ChemistryInputs,
+  type FunctionReading,
+  type MatterWorld,
   type Stone,
 } from "../rules/index.ts";
-import { starAgeGyr } from "./bodies.ts";
+import { starAgeGyr, worldKindOf } from "./bodies.ts";
 import { SOUGHT, groundOf, groundStone, landBedrock } from "./bedrock.ts";
 import type { HomeWorld } from "./homeworld.ts";
 import { isProvinceWorld } from "./provinces.ts";
@@ -39,6 +42,32 @@ export function chemistryInputs(g: HomeWorld): ChemistryInputs {
 const KEPT = new Map<string, Chemistry>();
 
 /** A world's chemistry: the Sun's own on an Earth-like world, else drawn from its star and orbit (kept by its ground). */
+/** What a generated world's matter is asked of, for its functions (rules/properties.ts). */
+export function matterOf(g: HomeWorld): MatterWorld {
+  const bodies = g.system.bodies;
+  return {
+    chem: worldChemistry(g),
+    kind: worldKindOf(g),
+    celsius: g.planet.meanTemperature,
+    gravity: g.planet.gravity,
+    rockBodies: bodies.filter((b) => b.kind === "rocky" || b.kind === "moon").length,
+    giants: bodies.filter((b) => b.kind === "giant" || b.kind === "ice giant").length,
+    starLeftGyr: g.star.lifetimeGyr - starAgeGyr(g.star),
+    peopled: !!g.life.people,
+  };
+}
+
+const FUNCTIONS = new Map<string, readonly FunctionReading[]>();
+/** What a generated world's matter can and cannot do: a pure function of it, kept (Phase 66). */
+export function functionsOf(g: HomeWorld): readonly FunctionReading[] {
+  let f = FUNCTIONS.get(g.digest);
+  if (!f) {
+    if (FUNCTIONS.size > 64) FUNCTIONS.clear();
+    FUNCTIONS.set(g.digest, (f = readFunctions(matterOf(g))));
+  }
+  return f;
+}
+
 export function worldChemistry(g: HomeWorld): Chemistry {
   if ((PRIORS[g.prior]?.chemistry ?? "drawn") === "solar") return SOLAR;
   const kept = KEPT.get(g.ground);

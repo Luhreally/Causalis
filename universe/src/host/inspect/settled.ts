@@ -34,6 +34,7 @@ import { townRoster } from "../roster.ts";
 import { metWounds } from "../wounds.ts";
 import { lookOf, woundBlock, woundedTab } from "./wounds.ts";
 import { armsBlock } from "./arm.ts";
+import { landPast } from "../past.ts";
 import { hashString } from "../../kernel/index.ts";
 import { realmColor } from "../colors.ts";
 import {
@@ -95,6 +96,19 @@ export function townPage(world: World, ref: string): PageModel {
   // How it lives now: fed, at war, its grievance, a battle fought in its land lately.
   const now: Stat[] = [];
   if (p) now.push(stat("Fed", share(p.fed / 1000), { why: p.folk }));
+  // (Past our ages: Phase 66.)
+  const past = landPast(world, s.cell);
+  if (past?.machines)
+    now.push(
+      stat("Of made limbs", share(past.machines), { why: "prin:machine-minds" }),
+      ...(past.fliers
+        ? [
+            stat("In its sky", `${count(past.fliers)} craft seen at once`, {
+              why: "prin:fusion-power",
+            }),
+          ]
+        : []),
+    );
   if (realm) {
     const fighting = warsOf(world)
       .fighting(realm.ref)

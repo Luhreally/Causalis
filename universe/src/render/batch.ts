@@ -43,6 +43,13 @@ export class InstancedBatch {
     m.update();
   }
 
+  /** What it glows as, drawn in a material of its own light. */
+  glow(color: Rgb): void {
+    const m = this.instance.material as pc.StandardMaterial;
+    m.emissive.set(color[0], color[1], color[2]);
+    m.update();
+  }
+
   /**
    * Replace the instances: `place(i, out)` writes instance i's translation, scale and
    * turn into out ([x, y, z, sx, sy, sz, yaw, pitch]; the pitch tips it about its own

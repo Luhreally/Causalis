@@ -11,7 +11,7 @@ import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { seedFromText } from "../src/kernel/index.ts";
 import { generateHomeWorld, provinceWorld, worldKindOf } from "../src/gen/index.ts";
-import { AGE_LADDER, EARTHLIKE, OPEN, readWorld } from "../src/rules/index.ts";
+import { AGE_LADDER, EARTHLIKE, OPEN, ageReached, readWorld } from "../src/rules/index.ts";
 import { ALIEN, EARTH } from "../src/host/planet.ts";
 import {
   RAW_PRINCIPLES,
@@ -118,8 +118,10 @@ for (const file of files) {
       reading = readWorld(lands, facts, w),
       at = order(reading.age.id);
     last = { year: raw.y, id: reading.age.id, name: reading.name };
-    // Every rung up to where it stands is passed, even if it leapt them within a decade.
+    // Every rung up to where it stands is passed, even if it leapt them within a decade (past "Other
+    // stars", only those whose own asks stand: see ageReached).
     for (let i = 0; i <= at; i++) {
+      if (!ageReached(i, at, reading.figures)) continue;
       const id = AGE_LADDER[i]!.id;
       ages[id] ??= { year: raw.y, name: i === at ? reading.name : AGE_LADDER[i]!.name };
     }

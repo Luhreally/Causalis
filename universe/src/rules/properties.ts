@@ -6,9 +6,9 @@
 // carry current without loss. And a step asks for a function, not a principle: "carry a current" is
 // met by whatever a world's own crust holds that conducts; "switch a current" by whatever holds a gap
 // a current can be made to jump. Each world's crust is its own (rules/crust.ts), so one world's way to
-// a function is not another's, and some worlds' matter does not meet it at all. Measured reading only:
-// nothing here moves history. Ages past ours are Phase 66's: their functions are only listed here, as
-// what a world could or could not later meet. Pure tables and functions.
+// a function is not another's, and some worlds' matter does not meet it at all. What is asked only by
+// ages past ours (Phase 66: rules/principles.ts, its last) is met here or never found. Pure tables and
+// functions.
 import { crustMultiplier, crustOf } from "./crust.ts";
 import type { Chemistry } from "./chemistry.ts";
 import { KINDS, type WorldKind } from "./kinds.ts";
@@ -73,6 +73,7 @@ export const PROPERTIES: Readonly<Record<string, Properties>> = {
   tungsten: { strength: 1000, conductivity: 18 },
   "niobium-tin": { conductivity: 5, superconductsK: 18 },
   "magnesium-diboride": { conductivity: 3, superconductsK: 39 },
+  "carbon-weave": { strength: 5000, conductivity: 0.07, sublimes: 3650 },
 };
 
 const later = (
@@ -213,6 +214,18 @@ export const LATER_SUBSTANCES: readonly Substance[] = [
     [0.25, 0.25, 0.28],
     "A cheap black salt-like solid that carries current without loss below 39 kelvin.",
   ),
+  later(
+    "carbon-weave",
+    "woven carbon",
+    "C",
+    { C: 1 },
+    "made",
+    1800,
+    null,
+    null,
+    [0.12, 0.12, 0.14],
+    "Carbon drawn into threads finer than a hair and woven: stronger than any metal for its weight, and what a tower of many kilometres is hung from.",
+  ),
 ];
 
 knowLaterSubstances(LATER_SUBSTANCES);
@@ -284,6 +297,18 @@ type Stuff = {
   readonly words?: (w: MatterWorld) => string;
 };
 
+/** Whether a world's matter meets all a principle asks of it, and what shuts it if not. */
+export function matterShuts(
+  p: { readonly asks?: readonly string[] },
+  functions: readonly FunctionReading[],
+): FunctionReading | null {
+  for (const id of p.asks ?? []) {
+    const f = functions.find((x) => x.id === id);
+    if (f && !f.met) return f;
+  }
+  return null;
+}
+
 /** What a function's asking comes to on a world. */
 export type FunctionReading = {
   readonly id: string;
@@ -292,7 +317,7 @@ export type FunctionReading = {
   readonly name: string;
   /** What it asks, in physics. */
   readonly asks: string;
-  /** Asked only by ages past ours: Phase 66's. */
+  /** Asked only by ages past ours. */
   readonly later: boolean;
   readonly met: boolean;
   /** What meets it, in a few words with its figures (null: nothing here). */
@@ -429,6 +454,12 @@ const MAGNETS: readonly Stuff[] = [
   { subst: "magnesium-diboride", needs: { Mg: 5000, B: 10 }, rock: true },
 ];
 
+const FIBRES: readonly Stuff[] = [
+  { subst: "carbon-weave", needs: { C: 100 } },
+  // (Where its crust is ice, or tar: carbon from its haze or its own black rock.)
+  { subst: "carbon-weave", needs: {}, kinds: ["carbon", "methane"] },
+];
+
 const num = (x: number, digits = 2) => {
   const k = digits >= 2 ? 100 : 10;
   return `${Math.round(x * k) / k}`;
@@ -442,9 +473,9 @@ function towerKm(s: string, gravity: number): number {
 }
 
 /**
- * What a world's matter can and cannot do, function by function. Two are asked by steps a people
- * can come to now (a current carried, a current switched); the rest only by ages past ours: Phase 66
- * asks them, this says what it will find.
+ * What a world's matter can and cannot do, function by function. Two are asked by steps of every age
+ * since electricity (a current carried, a current switched); the rest only by ages past ours, and a
+ * principle that asks one is never found where it is not met.
  */
 export function readFunctions(w: MatterWorld): FunctionReading[] {
   const carry = byStuffs(
@@ -510,6 +541,18 @@ export function readFunctions(w: MatterWorld): FunctionReading[] {
       w,
       (s) => `lossless below ${PROPERTIES[s.subst]!.superconductsK} K`,
     ),
+    fibre = byStuffs(
+      {
+        id: "draw-a-fibre",
+        icon: "🧵",
+        name: "draw a fibre",
+        asks: "carbon by the tonne, drawn into threads in a furnace past 2,500 °C",
+        later: true,
+      },
+      FIBRES,
+      w,
+      (s) => `${thousands(PROPERTIES[s.subst]!.strength!)} MPa`,
+    ),
     // (A cold world keeps its magnets cold for less: its cold does part of the work.)
     frozen = w.celsius < -150;
   const lastGyr = w.starLeftGyr,
@@ -533,6 +576,7 @@ export function readFunctions(w: MatterWorld): FunctionReading[] {
     carry,
     swap,
     mind,
+    fibre,
     wall,
     frozen && magnet.met
       ? { ...magnet, why: `${magnet.why} Its own cold keeps them nearly cold enough for free.` }

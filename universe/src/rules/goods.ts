@@ -197,6 +197,15 @@ export const RECIPES: readonly Recipe[] = [
     output: [G.tools, 18],
     needs: { knowledge: "steel" },
   },
+  // Machines made by machines (Phase 66): where a mind of crystal tends the works, a world that never
+  // burned can make what it could only be given. Appended, so every other keeps its place.
+  {
+    id: "mind-machines",
+    name: "machines made by machines",
+    inputs: [[G.tools, 2]],
+    output: [G.machines, 3],
+    needs: { knowledge: "machine-minds" },
+  },
 ];
 
 /** What tools are headed with, worst to best: stone, then the metals in the order they come. */

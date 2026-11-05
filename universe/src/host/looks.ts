@@ -326,6 +326,8 @@ const THING_FORMS: readonly string[] = [
   "plough share",
   "spearhead",
   "horn-bow",
+  "beam-lance",
+  "beam-rifle",
   "autoloader",
   "automatic",
   "repeater",

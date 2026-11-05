@@ -16,6 +16,7 @@ import * as pc from "playcanvas";
 import {
   BLEED,
   armorPanels,
+  fieldTowers,
   armorColor,
   armorDepth,
   FIELD,
@@ -62,6 +63,15 @@ import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 import { VehicleLayer } from "./vehicles.ts";
 
 const M = 0.1;
+/** What a beam is drawn in (Phase 66): its own light, as bright by day as by night. */
+function boltMaterial(): pc.StandardMaterial {
+  const m = new pc.StandardMaterial();
+  m.useLighting = false;
+  m.diffuse = new pc.Color(0, 0, 0);
+  m.emissive = new pc.Color(1, 0.32, 0.26);
+  m.update();
+  return m;
+}
 /** How large one who fought is drawn, against a band's figure (theirs drawn 3.2 times life). */
 const SOLDIER = 0.5;
 /** The most of one side's figures the batches hold. */
@@ -98,6 +108,8 @@ const GUN_SCALE = 0.7,
   HEAD = LEG * Math.sin(TILT),
   // (One leg ahead, two back to either side.)
   LEG_ANGLES = [0, 2.1, -2.1] as const;
+/** The most towers about a field on ground built over (Phase 66). */
+const FIELD_TOWERS = 90;
 const WOOD: Rgb = [0.46, 0.33, 0.19],
   IRON: Rgb = [0.7, 0.71, 0.74],
   BRONZE: Rgb = [0.72, 0.52, 0.26],
@@ -514,6 +526,14 @@ export class BattleLayer {
    * ahead into its kept buffer, then drawn; the drops thrown from fresh wounds (into the spray).
    */
   private readonly woundWet: InstancedBatch;
+  /** Beams in the air, each side's (Phase 66). */
+  private readonly bolts: InstancedBatch[];
+  /** What bears them: its dark body, its end alight in its side's colour. */
+  private readonly beamBodies: InstancedBatch;
+  private readonly beamEnds: InstancedBatch[];
+  /** The towers about a field on ground built over, and their lit floors. */
+  private readonly towers: InstancedBatch;
+  private readonly towerLights: InstancedBatch;
   private readonly woundDry: InstancedBatch;
   private readonly woundCore: InstancedBatch;
   private readonly flesh: InstancedBatch;
@@ -610,6 +630,12 @@ export class BattleLayer {
     flare.emissive = new pc.Color(1, 0.86, 0.4);
     flare.update();
     this.flash = batch(this.cone, [1, 0.86, 0.4], 240, flare);
+    // (Burning light, Phase 66: each side's its own colour, made once a battle is set up.)
+    this.bolts = [0, 1].map(() => batch(this.box, [1, 0.32, 0.26], 200, boltMaterial()));
+    this.beamBodies = batch(this.box, [0.09, 0.1, 0.13], MOST * 2);
+    this.beamEnds = [0, 1].map(() => batch(this.box, [1, 0.32, 0.26], MOST, boltMaterial()));
+    this.towers = batch(this.box, [0.4, 0.46, 0.54], FIELD_TOWERS + 1);
+    this.towerLights = batch(this.box, [1, 0.82, 0.5], FIELD_TOWERS * 3, boltMaterial());
     this.barrels = batch(
       this.cyl,
       [0.2, 0.2, 0.22],
@@ -648,12 +674,22 @@ export class BattleLayer {
     this.field = field;
     this.rig = f ? rigOf(f) : null;
     const paint = figurePaint(body, "metal", 0);
-    this.sides = ([field.near.attacker, field.near.defender] as const).map((s) => {
+    this.sides = ([field.near.attacker, field.near.defender] as const).map((s, side) => {
       const c = s.color as Rgb,
         // (Their cloth in their side's colour: an upright ape's tunic, or what a people wears over its hide.)
-        tones: Rgb[] = paint.folk
-          ? [...paint.tones.slice(0, 5), c]
-          : [c, darker(c, 0.55), paint.tones[2], paint.tones[3], paint.tones[4], c],
+        tones: Rgb[] = field.hosts[side]!.machine
+          ? // (Soldiers of made limbs: chrome and dark joints, a band of their colour, eyes alight.)
+            [
+              [0.42 + c[0] * 0.3, 0.44 + c[1] * 0.3, 0.48 + c[2] * 0.3],
+              [0.16, 0.17, 0.2],
+              [0.7, 0.72, 0.76],
+              [0.7, 0.72, 0.76],
+              [0.3, 0.92, 1],
+              c,
+            ]
+          : paint.folk
+            ? [...paint.tones.slice(0, 5), c]
+            : [c, darker(c, 0.55), paint.tones[2], paint.tones[3], paint.tones[4], c],
         metal = s.arms?.field[1] ?? [0.92, 0.93, 0.96];
       return {
         // (Room past the figures for the parts cut off them, lying apart: Phase 55.)
@@ -689,6 +725,41 @@ export class BattleLayer {
       };
     });
     this.tents.recolor(darker(field.near.attacker.color as Rgb, 0.9));
+    for (const side of [0, 1] as const) {
+      const beam = armLook((side === 0 ? field.near.attacker : field.near.defender).host?.arm).beam;
+      if (beam) {
+        this.bolts[side]!.glow(beam as Rgb);
+        this.beamEnds[side]!.glow(beam as Rgb);
+      }
+    }
+    // (Towers about ground built over; none, on any other.)
+    const towers = fieldTowers(field, FIELD_TOWERS);
+    this.towers.set(towers.length && towers.length + 1, (j, out) => {
+      const o = towers[j];
+      // (First, what they stand on: the street going on past the field's edge, just under it.)
+      if (!o) {
+        out[0] = out[2] = 0;
+        out[1] = -0.07;
+        out[3] = out[5] = 120;
+        out[4] = 0.1;
+        return;
+      }
+      out[0] = o.x * M;
+      out[1] = (o.h / 2) * M;
+      out[2] = o.z * M;
+      out[3] = o.w * M;
+      out[4] = o.h * M;
+      out[5] = o.d * M;
+    });
+    this.towerLights.set(towers.length * 3, (j, out) => {
+      const o = towers[Math.floor(j / 3)]!;
+      out[0] = o.x * M;
+      out[1] = o.h * (0.3 + 0.22 * (j % 3)) * M;
+      out[2] = o.z * M;
+      out[3] = o.w * 1.01 * M;
+      out[4] = 1.4 * M;
+      out[5] = o.d * 1.01 * M;
+    });
     // (Its blood the colour of what carries its people's breath: Phase 57.)
     const tones = bloodTones(body?.folk?.blood);
     this.blood.recolor(tones.pool);
@@ -1226,7 +1297,9 @@ export class BattleLayer {
     });
     // What they fight with: a shaft (a spear's, an axe's haft, a bow) and a blade (a spear's head,
     // a sword, an axe's head) in their right hand; on the ground beside them, fallen.
-    const armed: { t: TrooperNow; arm: string }[] = [];
+    const armed: { t: TrooperNow; arm: string }[] = [],
+      // (Those who bear burning light: a dark body with no wood in it, its end alight. Phase 66.)
+      beamed: { t: TrooperNow; arm: string }[] = [];
     for (const t of now.troopers) {
       // (A machine gun's team holds its gun, not a rifle; the rest of such a host bear the self-loading one.)
       if (t.size <= 0.01 || t.bearer || t.gun) continue;
@@ -1237,7 +1310,8 @@ export class BattleLayer {
       // (Nothing held in a hand cut off, nor a bow in a left one: Phase 55.)
       const bow = arm === "bow" || arm === "horn-bow";
       if (t.lost === (bow ? "arm-l" : "arm-r") || t.lost === (bow ? "hand-l" : "hand-r")) continue;
-      armed.push({ t, arm });
+      if (armLook(arm).beam) beamed.push({ t, arm });
+      else armed.push({ t, arm });
     }
     const hold = (t: TrooperNow, arm: string) => {
       const part = arm === "bow" || arm === "horn-bow" ? (rig.off ?? rig.hand) : rig.hand,
@@ -1316,6 +1390,37 @@ export class BattleLayer {
       out[6] = h.yaw;
       out[7] = h.pitch;
     });
+    this.beamBodies.set(beamed.length, (j, out) => {
+      const { t, arm } = beamed[j]!,
+        h = hold(t, arm);
+      out[0] = h.x;
+      out[1] = h.y;
+      out[2] = h.z;
+      out[3] = 0.036 * k;
+      out[4] = 0.052 * k;
+      out[5] = h.long * k;
+      out[6] = h.yaw;
+      out[7] = h.pitch;
+    });
+    for (const side of [0, 1] as const) {
+      const here = beamed.filter((b) => b.t.side === side);
+      this.beamEnds[side]!.set(here.length, (j, out) => {
+        const { t, arm } = here[j]!,
+          h = hold(t, arm),
+          dir = { up: -Math.sin(h.pitch), ahead: Math.cos(h.pitch) },
+          c = Math.cos(h.yaw),
+          sn = Math.sin(h.yaw),
+          tip = h.long * 0.54;
+        out[0] = h.x + sn * dir.ahead * tip * k;
+        out[1] = h.y + dir.up * tip * k;
+        out[2] = h.z + c * dir.ahead * tip * k;
+        out[3] = 0.044 * k;
+        out[4] = 0.044 * k;
+        out[5] = 0.08 * k;
+        out[6] = h.yaw;
+        out[7] = h.pitch;
+      });
+    }
     this.blades.set(armed.length, (j, out) => {
       const { t, arm } = armed[j]!,
         h = hold(t, arm),
@@ -1362,7 +1467,11 @@ export class BattleLayer {
     };
     const helmed = now.troopers.filter((t) => {
       const g = field.near[t.side === 0 ? "attacker" : "defender"].host?.guard;
-      return t.size > 0.01 && t.lost !== "head" && (g === "mail" || g === "plate" || g === "scale");
+      return (
+        t.size > 0.01 &&
+        t.lost !== "head" &&
+        (g === "mail" || g === "plate" || g === "scale" || g === "driven-plate")
+      );
     });
     this.helmets.set(0, () => {});
     for (const side of [0, 1] as const) {
@@ -1504,6 +1613,20 @@ export class BattleLayer {
       out[6] = j * 0.7 + d.r;
       out[7] = j * 0.3;
     });
+    for (const side of [0, 1] as const) {
+      const bolts = (now.bolts ?? []).filter((b) => b.side === side),
+        batch = this.bolts[side]!;
+      batch.set(Math.min(batch.capacity, bolts.length), (j, out) => {
+        const b = bolts[j]!;
+        out[0] = b.x * M;
+        out[1] = b.y * M;
+        out[2] = b.z * M;
+        out[3] = 0.022 * b.k + 0.006;
+        out[4] = 0.022 * b.k + 0.006;
+        out[5] = b.long * M;
+        out[6] = b.yaw;
+      });
+    }
     this.flash.set(Math.min(this.flash.capacity, now.flashes.length), (j, out) => {
       const f = now.flashes[j]!;
       out[0] = f.x * M;
@@ -1844,16 +1967,18 @@ export class BattleLayer {
         by = Math.min(w.bleed * m * 1.15, e[1] * 1.05 * kk);
       posedAt(part, lp, lean, w.u * e[0], w.v * e[1] - (0.12 * by) / kk, face, at);
       place(t, kk);
-      (w.wet ? L.wet : L.dry).push(
-        world.x,
-        world.y,
-        world.z,
-        bx,
-        by,
-        MARK.thick * kk,
-        t.yaw,
-        pitch,
-      );
+      // (Scorched, not bled: no stain about it, only the dark of the burn. Phase 66.)
+      if (!w.scorch)
+        (w.wet ? L.wet : L.dry).push(
+          world.x,
+          world.y,
+          world.z,
+          bx,
+          by,
+          MARK.thick * kk,
+          t.yaw,
+          pitch,
+        );
       // The wound itself, dark on it: a cut across, a stab, a hole, a smashed wound.
       const s = w.size * m,
         ax = w.mark === "cut" ? 1 : w.mark === "stab" ? 0.6 : w.mark === "hole" ? 0.8 : 1,

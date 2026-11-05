@@ -50,6 +50,8 @@ export class SystemPanel {
   onStars: () => void = () => {};
   /** Down to a world of the system, to see it whole (M81). */
   onVisit: (index: number) => void = () => {};
+  /** A page, by its ref (Phase 66: its star's mirrors). */
+  onPage: (ref: string) => void = () => {};
 
   constructor(root: HTMLElement, client: HostClient) {
     this.why = new WhyTree(client);
@@ -135,6 +137,21 @@ export class SystemPanel {
               ["Make it flare (3 years)", "act.flare", { star: s.ref, sign: -1, years: 3 }],
               ["Calm it (3 years)", "act.flare", { star: s.ref, sign: 1, years: 3 }],
             ])),
+        ...(sky.mirrors
+          ? [
+              el("h3", undefined, "Its mirrors"),
+              (() => {
+                const m = sky.mirrors,
+                  line = el(
+                    "button",
+                    "line",
+                    `🪞 ${Math.round(m.km2).toLocaleString("en")} km² about it, gathering ${m.times >= 1 ? `${m.times >= 10 ? Math.round(m.times).toLocaleString("en") : m.times.toFixed(1)} times what falls on its whole world` : `${Math.round(m.times * 100)}% of what falls on its whole world`}`,
+                  );
+                line.onclick = () => this.onPage("world:means#works");
+                return line;
+              })(),
+            ]
+          : []),
         ...(flying.length
           ? [
               el("h3", undefined, "In the sky"),

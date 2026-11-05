@@ -16,10 +16,10 @@ import {
   townsOf,
   type Fabric,
 } from "../sim/index.ts";
-import type { TownDesign, TownPlan, TownStrike, TownWater } from "../bridge/index.ts";
+import type { TownCivic, TownDesign, TownPlan, TownStrike, TownWater } from "../bridge/index.ts";
 import { kindOf } from "./kinds.ts";
 import { worldLook } from "./biochem.ts";
-import { colonyTownCell } from "./colony.ts";
+import { colonyRemade, colonyTownCell } from "./colony.ts";
 
 /** How long what struck a town is told to its plan: its homes burn a day, and lie in ruin years. */
 const STRUCK_SHOWN = 2 * YEAR;
@@ -77,6 +77,34 @@ export function strikesOn(world: World, ref: Ref, land: Ref | null): TownStrike[
  * `most` lots from its square (a great city's far lots are its sprawl, seen from afar), laid about
  * its `water`.
  */
+/**
+ * The works past our ages of a town greater than what is drawn of it (Phase 66): they rose at its edge as it
+ * spread, far past the lots the eye is given, and a town that runs on them should be seen to. Drawn spread along
+ * the rim of what is drawn, clear of what stands there; each keeps the lot it truly stands on, for its page.
+ */
+export function rimWorks(f: Fabric, lots: number): TownCivic[] {
+  // (Numbered among all that ever rose out there, fallen too, and a fixed stride apart: one rising or falling
+  // moves none of the others.)
+  const far = f.civics.filter(
+    (c) => (c.kind === "fusion" || c.kind === "vats") && c.at + c.lots > lots,
+  );
+  if (!far.length) return [];
+  const taken = f.civics
+      .filter((c) => c.at + c.lots <= lots)
+      .map((c) => [c.at, c.at + c.lots] as [number, number]),
+    stride = Math.max(1, Math.floor(lots * 0.015)),
+    out: TownCivic[] = [];
+  far.forEach((c, i) => {
+    if (c.fell !== null) return;
+    let at = Math.floor((lots - 1 - (i % 20) * stride - c.lots) / c.lots) * c.lots;
+    while (at >= 0 && taken.some(([a, b]) => a < at + c.lots && at < b)) at -= c.lots;
+    if (at < 0) return;
+    taken.push([at, at + c.lots]);
+    out.push({ ...c, at, truly: c.at });
+  });
+  return out;
+}
+
 export function townPlan(
   world: World,
   ref: Ref,
@@ -131,7 +159,10 @@ export function townPlan(
     runs: f.changes
       .filter((c) => c[1] < lots)
       .map((c) => [...c.slice(0, 2), Math.min(c[2], lots), ...c.slice(3)]),
-    civics: f.civics.filter((c) => c.at + c.lots <= lots).map((c) => ({ ...c })),
+    civics: [
+      ...f.civics.filter((c) => c.at + c.lots <= lots).map((c) => ({ ...c })),
+      ...rimWorks(f, lots),
+    ],
     walls:
       f.walls && f.walls.reach <= lots
         ? { start: f.walls.start, end: f.walls.end, reach: f.walls.reach }
@@ -149,6 +180,8 @@ export function townPlan(
     // (A colony's: its halls, on its own world's ground, Phase 64; no home world's colours.)
     ...(() => {
       const ground = colonyTownCell(ref) === null ? null : siteGround(world, cell);
+      // (On a world fully remade its people are out from under their halls: Phase 66.)
+      if (ground && colonyRemade(world, cell) >= 1) return {};
       return ground
         ? {
             sealed: {

@@ -56,6 +56,8 @@ export type TownCivic = {
   readonly start: number;
   readonly end: number;
   readonly fell: number | null;
+  /** The lot it truly stands on, where that lies past what is drawn and `at` is where it is drawn (Phase 66). */
+  readonly truly?: number;
 };
 
 /** How a design builds a home: its walls, its roof and its shape (realization ids), its roof's pitch. */
@@ -688,6 +690,8 @@ export type LandPlan = {
   readonly camps: readonly LandCamp[];
   /** Its world's sky and ground, where it is a land of another body (Phase 64). */
   readonly colony?: ColonyLook;
+  /** Built over from edge to edge (Phase 66): street and roof from shore to shore. */
+  readonly covered?: true;
 };
 
 /**

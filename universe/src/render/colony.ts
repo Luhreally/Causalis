@@ -221,6 +221,13 @@ function skyBall(stage: Stage, color: (x: number, y: number, z: number) => Rgb):
 
 /** What a giant or a rock in the sky is painted: a giant's bands; a rock's greys; a keyed storm. */
 function bodyColor(kind: string, tint: number): (x: number, y: number, z: number) => Rgb {
+  // (The world they came from, hanging over the one they came to: its seas, its lands, its cloud.)
+  if (kind === "home")
+    return (x, y, z) => {
+      const land = Math.sin(x * 5 + tint * 9) * Math.cos(z * 4 + y * 3),
+        cloud = Math.sin(y * 13 + x * 3 + tint * 5);
+      return cloud > 0.82 ? [0.92, 0.94, 0.96] : land > 0.3 ? [0.38, 0.5, 0.3] : [0.16, 0.36, 0.68];
+    };
   if (kind === "giant" || kind === "ice giant") {
     const warm: readonly Rgb[] = [
         [0.88, 0.8, 0.64],
@@ -394,7 +401,7 @@ export class ColonyLayer {
 
   /** Its ground and sky, from its world's look; `flat` units about its middle are level for its halls. */
   build(look: ColonyLook, seed: number, flat: number): void {
-    const key = `${look.bodyRef} ${seed} ${Math.round(flat / 8)}`;
+    const key = `${look.bodyRef} ${seed} ${Math.round(flat / 8)} ${Math.round((look.remade ?? 0) * 20)}`;
     if (this.key === key) return;
     this.key = key;
     for (const b of this.batches) b.destroy();

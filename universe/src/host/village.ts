@@ -80,8 +80,17 @@ import { visitorsAt } from "./peoples.ts";
 import { flockBeast, makerAt, seatsOf, townStuff, workshopOf, type Maker } from "./chain.ts";
 import { peopleFigure } from "./folk.ts";
 import { planKind } from "./kinds.ts";
+import { isMachineFolk, landPast } from "./past.ts";
 import { worldLook } from "./biochem.ts";
-import { LINE, ROSTER_YEARS, folkWork, townRoster, workOf, type Roster } from "./roster.ts";
+import {
+  LINE,
+  ROSTER_YEARS,
+  folkWork,
+  linesOf,
+  townRoster,
+  workOf,
+  type Roster,
+} from "./roster.ts";
 import { battleWords, townWarDead, warRests } from "./burials.ts";
 
 /** Families the microscope watches in a village: a presentation budget, not a rule. */
@@ -282,7 +291,9 @@ export function villagePlan(
     }
   }
   const seed = hashString(`village ${ref}`),
-    now = Math.floor(world.now / (365 * 86400));
+    now = Math.floor(world.now / (365 * 86400)),
+    // (How far past our ages its land has come: Phase 66.)
+    past = landPast(world, v.cell);
 
   // Which way the good ground lies: fields go toward it, flocks away from it.
   const r = regionOf(ctx, v.cell),
@@ -382,7 +393,10 @@ export function villagePlan(
     // Fields begin beyond the homes (beyond a city's quarters).
     edge =
       fabric && lots && town
-        ? Math.min(2600, townReach(lots) * Math.sqrt(town.whole / Math.max(1, town.lots))) + 30
+        ? Math.min(
+            past?.spires ? 5200 : 2600,
+            townReach(lots) * Math.sqrt(town.whole / Math.max(1, town.lots)),
+          ) + 30
         : city
           ? (BLOCKS * BLOCK_M) / 2 + 60
           : 16 + 8.5 * Math.sqrt(count) + 30,
@@ -495,7 +509,7 @@ export function villagePlan(
     const roster = townRoster(world, ref, now),
       work = folkWork(world, v.cell),
       grown = lifeOf(world).adulthood,
-      lines = Math.ceil(v.population / LINE),
+      lines = linesOf(v.population),
       builders = Math.min(Math.round(more * 0.4), 2 * risingAt(town, world.now)),
       taken = new Set(people.map((p) => p.home)),
       free = homes.map((_, i) => i).filter((i) => !taken.has(i)),
@@ -513,12 +527,15 @@ export function villagePlan(
         own: number = child ? OCC.dependent : workOf(h.key, work),
         building = !child && i < builders,
         occupation = building ? OCC.crafter : own,
-        last = h.fates.at(-1);
+        last = h.fates.at(-1),
+        // (Of made limbs, a mind of crystal in a body its works made: Phase 66. No child is.)
+        machine = !child && isMachineFolk(past, h.ref);
       drawnAt.set(h.ref, i);
       people.push({
         ref: h.ref,
         name: roster.nameOf(h),
-        role: `${(FOLK_WORDS[own] ?? "One").toLowerCase()} of ${v.name}${building ? ", raising its buildings" : ""}`,
+        role: `${past?.covered && own === OCC.farmer ? "vat-tender" : (FOLK_WORDS[own] ?? "One").toLowerCase()} of ${v.name}${machine ? ", of made limbs" : ""}${building ? ", raising its buildings" : ""}`,
+        ...(machine ? { machine: true as const } : {}),
         home: homesFor[Math.floor(k / 4) % homesFor.length]!,
         age,
         occupation,
@@ -1138,7 +1155,11 @@ export function villagePlan(
           ? null
           : { x: WATER_OUT * Math.cos(waterWay), z: WATER_OUT * Math.sin(waterWay) },
       house: houseOf(village.cell),
-      fauna: faunaOf(village.cell, village.population, village.ref),
+      // (No beast is left on ground built over from edge to edge.)
+      ...(past?.covered ? {} : { fauna: faunaOf(village.cell, village.population, village.ref) }),
+      ...(past
+        ? { past: { machines: past.machines, fliers: past.fliers, covered: past.covered } }
+        : {}),
       era: eraOf(village.cell),
       // (The metal its smiths forge, M217: its tools may still be mostly stone.)
       metal: forgedMetal(ctx, village.cell),

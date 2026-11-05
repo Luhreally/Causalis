@@ -5,7 +5,7 @@
 // hanging huge over its horizon; its rock in the colours the world is painted seen whole, its ice, the
 // hills about its halls. And the ship that brought them: its crossing, its descent, and the first halls
 // set up, as functions of a film's clock. Pure: what is drawn, for the renderer to draw.
-import { rockOf } from "../rules/index.ts";
+import { remadeWorld, remakingAt, rockOf } from "../rules/index.ts";
 import type { ColonyLook, ColonyVoyage } from "../bridge/index.ts";
 
 type Rgb = readonly [number, number, number];
@@ -129,7 +129,9 @@ export function colonyRock(look: ColonyLook): {
   readonly ice: Rgb;
   readonly apron: Rgb;
 } {
-  const rock = rockOf(look.kind, look.air, look.tint, look.temperature);
+  // (Green coming over it as it is remade: Phase 66.)
+  const bare = rockOf(look.kind, look.air, look.tint, look.temperature),
+    rock = look.remade ? mix(bare, [0.3, 0.48, 0.2], look.remade * 0.86) : bare;
   return {
     rock,
     dark: mix(rock, [0.06, 0.06, 0.08], 0.32),
@@ -221,6 +223,15 @@ export function filmShots(years: number): readonly { stage: FilmStage; seconds: 
 }
 
 const number = (n: number) => Math.round(n).toLocaleString("en");
+
+export { remakingAt };
+
+/** A world told of in a landing's film, as it stood at a share of its remaking (Phase 66). */
+export function remadeLook(look: ColonyLook, share: number): ColonyLook {
+  return look.remaking
+    ? { ...look, ...remadeWorld(look.remaking.base, share), remade: share }
+    : look;
+}
 
 /** A world's air, in a few words. */
 function airWords(look: ColonyLook): string {

@@ -5,14 +5,16 @@
 // mastered life, how far it reaches. A world's age is read from its foremost land's figures, named after
 // its own means (steel and steam, or worked ice and the ground's heat), and it falls as well as rises:
 // a land that has lost its fuel, its machines or its last halls no longer has what they gave it. A reading
-// only: nothing in history reads this. Pure tables and functions.
+// only: nothing in history reads this. Past "Other stars" (Phase 66), each age is read the same way: from
+// what a world's peoples came to by the road its own matter allows (rules/principles.ts, its last), named
+// after what met it there. Pure tables and functions.
 import type { Medium } from "./bodies.ts";
 import { heatOf, metalOf, type WorldMetal } from "./chem-ores.ts";
 import type { Chemistry } from "./chemistry.ts";
 import { POWER } from "./goods.ts";
 import { KINDS, type WorldKind } from "./kinds.ts";
 import { PRINCIPLES, affordsPrinciple, needsMet, principle } from "./principles.ts";
-import { PROPERTIES } from "./properties.ts";
+import { PROPERTIES, matterShuts, type FunctionReading } from "./properties.ts";
 
 /** The six measures. */
 export type MeasureId = "energy" | "materials" | "precision" | "computing" | "life" | "reach";
@@ -40,8 +42,8 @@ export const MEASURES: Readonly<
   energy: {
     icon: "⚡",
     name: "Power a head",
-    what: "The kilowatts behind each person: their own strength (a tenth of a kilowatt), their beasts and mills, and what their works' engines drive.",
-    read: "Read from what the land's works burned or were given free last year: when the fuel runs out, this falls.",
+    what: "The kilowatts behind each person: their own strength (a tenth of a kilowatt), their beasts and mills, what their works' engines drive, a fusion flame held in a bottle, and the star's own light gathered in mirrors.",
+    read: "Read from what the land's works burned or were given free last year, and what its mirrors gather now: when the fuel runs out or the mirrors drift, this falls.",
   },
   materials: {
     icon: "⚒️",
@@ -52,19 +54,19 @@ export const MEASURES: Readonly<
   precision: {
     icon: "📏",
     name: "Precision",
-    what: "The finest fit a people can make, in millimetres: a knapped edge is a millimetre out, a file's work a tenth, a machine's a fiftieth, a gyroscope's two thousandths.",
+    what: "The finest fit a people can make, in millimetres: a knapped edge is a millimetre out, a file's work a tenth, a machine's a fiftieth, a gyroscope's two thousandths, a mind's crystal drawn by light a fifty-thousandth.",
     read: "Read from the crafts the land knows.",
   },
   computing: {
     icon: "🧮",
     name: "Reckoning",
-    what: "The sums each person has at hand, a second: a clerk with a tally does one in ten seconds; a valve machine thousands.",
+    what: "The sums each person has at hand, a second: a clerk with a tally does one in ten seconds; a valve machine thousands; a mind of crystal ten thousand million.",
     read: "Read from what the land knows, and past valves from how many machines it holds a head: when the machines go, so do the sums.",
   },
   life: {
     icon: "🧬",
     name: "Mastery of life",
-    what: "How far a people commands what keeps it alive: gathering, sowing, fields that yield more, medicine, vaccines, air and water made in closed halls, sleep across the years.",
+    what: "How far a people commands what keeps it alive: gathering, sowing, fields that yield more, medicine, vaccines, air and water made in closed halls, sleep across the years, bodies written and grown, food with no field behind it.",
     read: "Read from what the land knows and how much its fields yield over the wild and its deaths are spared.",
   },
   reach: {
@@ -104,6 +106,15 @@ export type WorldFacts = {
   readonly starLy: number;
   /** Whether a ship of theirs has come down under another star. */
   readonly arrived: boolean;
+  /** Realms whose hosts bear arms of burning light. */
+  readonly beams?: number;
+  /** Other worlds made fit to walk on. */
+  readonly remade?: number;
+  /** The share of its peopled lands built on from edge to edge. */
+  readonly cover?: number;
+  /** The power its mirrors gather (kW), and how many times what falls on its whole world that is. */
+  readonly mirrorKw?: number;
+  readonly gathered?: number;
 };
 
 /** What the reading goes by on this world: its chemistry and kind, its people's medium, and fire. */
@@ -114,6 +125,14 @@ export type AgeWorld = {
   readonly fire: boolean;
   /** Home radii. */
   readonly radius: number;
+  /** What its matter can and cannot do (rules/properties.ts), where it has been read. */
+  readonly functions?: readonly FunctionReading[];
+  /** Its star's class, for what its gathered light is named. */
+  readonly spectral?: string;
+  /** Its true warmth (°C), for what a cold world does for less. */
+  readonly celsius?: number;
+  /** Why its people's bodies cannot bear arms of light, where they cannot (Phase 66). */
+  readonly noGrip?: string;
 };
 
 /** A land counts toward its world's reading only with this share of the world's people (or a band's). */
@@ -121,6 +140,12 @@ export const LEAST_SHARE = 1 / 2000;
 export const LEAST_PEOPLE = 25;
 
 const anyKnown = (f: LandFacts, ids: readonly string[]) => ids.some((id) => f.knows(id));
+
+/**
+ * How many times what its fuel gave, a land's works have where they run on a held flame (Phase 66): with no
+ * coal to dig or sky to choke, a people draws on all it can use, as it never could from fire.
+ */
+export const FLAME_GAIN = 10;
 
 // —— Power ———————————————————————————————————————————————————————————————————————————————————————
 
@@ -130,12 +155,13 @@ export function energyOf(f: LandFacts): number {
     POWER.muscle +
     (f.knows("draught") ? POWER.beasts : 0) +
     (f.knows("mills") ? POWER.mills : 0) +
-    (f.driven * POWER.perFuel) / Math.max(1, f.people)
+    (f.driven * POWER.perFuel * (f.knows("fusion-power") ? FLAME_GAIN : 1)) / Math.max(1, f.people)
   );
 }
 
 /** What drives a land's works, foremost first: the road each world's peoples come by. */
 const ENGINES: readonly { id: string; age: string; words: string }[] = [
+  { id: "fusion-power", age: "Fusion", words: "a fusion flame held in a bottle" },
   { id: "engines", age: "Oil and steam", words: "engines burning oil, and steam" },
   { id: "steam-engine", age: "Coal and steam", words: "steam, on coal" },
   { id: "vent-heat", age: "The vents' heat", words: "the heat of the sea floor's vents" },
@@ -240,6 +266,7 @@ const STUFFS: readonly StuffStep[] = [
     subst: () => "steel",
     strength: 1200,
   },
+  { by: ["drawn-carbon"], name: () => "woven carbon", subst: () => "carbon-weave" },
 ];
 
 const strengthOf = (s: StuffStep, chem: Chemistry): number =>
@@ -323,6 +350,7 @@ const FITS: readonly {
   },
   { by: ["electronics"], mm: 0.01, words: "drawn fine for valves and wires" },
   { by: ["guidance"], mm: 0.002, words: "lapped for gyroscopes" },
+  { by: ["machine-minds"], mm: 0.00002, words: "drawn by light, for minds of crystal" },
 ];
 
 /** The finest fit a land can make (mm). */
@@ -356,6 +384,7 @@ const SUMS: readonly {
   },
   { by: ["electronics"], sums: 5000, words: "valves that reckon" },
   { by: ["guidance"], sums: 100000, words: "machines that steer themselves" },
+  { by: ["machine-minds"], sums: 1e10, words: "minds of crystal" },
 ];
 
 /** The sums a head a land has at hand, a second. */
@@ -390,6 +419,8 @@ export const LIFE_STEPS: readonly {
   { by: ["germs", "vaccines"], words: "the seeds of sickness known and warded" },
   { by: ["life-support"], words: "air and water made in closed halls" },
   { by: ["long-sleep"], words: "sleep across the years" },
+  { by: ["made-bodies"], words: "bodies written and grown" },
+  { by: ["vat-food"], words: "food grown with no field behind it" },
 ];
 
 /** A land's step of mastery of life (its index in LIFE_STEPS), and the principle that brought it. */
@@ -476,6 +507,12 @@ export type Figures = Readonly<Record<MeasureId, number>> & {
   readonly town: number;
   readonly towns: number;
   readonly fire: number;
+  /** The kW a head from a held flame in its foremost land that has one. */
+  readonly flame: number;
+  readonly beams: number;
+  readonly remade: number;
+  readonly cover: number;
+  readonly gathered: number;
 };
 
 /** What an age asks: a figure at or past a mark, in words. */
@@ -627,6 +664,91 @@ export const AGE_LADDER: readonly AgeDef[] = [
       },
     ],
   },
+  // Ages past ours (Phase 66): each what history itself has come to, by a road its world's matter allows.
+  {
+    id: "fusion",
+    icon: "🔆",
+    name: "Fusion",
+    asks: [
+      {
+        on: "flame",
+        at: 20,
+        words: "twenty kilowatts behind each person, from a flame held in a bottle",
+        road: ["fusion-power"],
+      },
+    ],
+  },
+  {
+    id: "minds",
+    icon: "🧠",
+    name: "Machine minds",
+    asks: [
+      {
+        on: "computing",
+        at: 1e8,
+        words: "a hundred million sums a second a head: minds of crystal",
+        road: ["machine-minds"],
+      },
+    ],
+  },
+  {
+    id: "beams",
+    icon: "🔦",
+    name: "Beam arms",
+    asks: [
+      {
+        on: "beams",
+        at: 1,
+        words: "a realm's host bearing arms of burning light",
+        road: ["beam-arms"],
+      },
+    ],
+  },
+  {
+    id: "bodies",
+    icon: "🧬",
+    name: "Made bodies",
+    asks: [{ on: "life", at: 7, words: "bodies written and grown", road: ["made-bodies"] }],
+  },
+  {
+    id: "remade",
+    icon: "🌱",
+    name: "Remade worlds",
+    asks: [
+      {
+        on: "remade",
+        at: 1,
+        words: "another world made fit to walk on under its own sky",
+        road: ["world-making"],
+      },
+    ],
+  },
+  {
+    id: "covered",
+    icon: "🌃",
+    name: "Covered world",
+    asks: [
+      {
+        on: "cover",
+        at: 0.5,
+        words: "half its lands built on from edge to edge",
+        road: ["world-city"],
+      },
+    ],
+  },
+  {
+    id: "gathered",
+    icon: "☀️",
+    name: "Gathered star",
+    asks: [
+      {
+        on: "gathered",
+        at: 1,
+        words: "more of its star's light gathered than falls on its whole world",
+        road: ["star-mirrors"],
+      },
+    ],
+  },
 ];
 
 /** A world's reading: its figures, each measure, and the age they make. */
@@ -672,6 +794,130 @@ export function ageOf(figures: Figures): AgeDef {
   return AGE_LADDER[0]!;
 }
 
+/**
+ * The ages past ours are roads a world may never take, not steps it must climb: one that never held a flame
+ * has not been through the age of fusion on its way to minds of crystal. So one is reached only where its
+ * own asks have stood; those up to "Other stars" are passed on the way up (Phase 66).
+ */
+export function ageReached(i: number, standsAt: number, figures: Figures): boolean {
+  if (i > standsAt) return false;
+  const age = AGE_LADDER[i]!;
+  return (
+    i <= AGE_LADDER.findIndex((a) => a.id === "stars") || age.asks.every((a) => askMet(a, figures))
+  );
+}
+
+/** What met a function on a world, where it has been read. */
+const metBy = (w: AgeWorld, id: string): FunctionReading | undefined =>
+  w.functions?.find((f) => f.id === id && f.met);
+
+const STAR_WORDS: Readonly<Record<string, string>> = {
+  M: "Gathered red star",
+  K: "Gathered orange star",
+  G: "Gathered star",
+  F: "Gathered white star",
+  A: "Gathered white star",
+};
+
+/** What a world's people call an age past ours: for what met what it asked (undefined: its plain name). */
+function lateName(id: string, w: AgeWorld): { name: string; named: string } | undefined {
+  switch (id) {
+    case "fusion": {
+      const wall = metBy(w, "wall-a-flame")?.subst,
+        magnet = metBy(w, "hold-a-flame")?.subst;
+      if (w.celsius !== undefined && w.celsius < -150)
+        return {
+          name: "Cold-held fusion",
+          named: "named for the cold that does half its magnets' work",
+        };
+      if (w.medium === "water")
+        return {
+          name: "Sea-fed fusion",
+          named: "named for the water its flame's light atoms are parted from",
+        };
+      if (wall === "moissanite")
+        return {
+          name: "Carbide-walled fusion",
+          named: "named for the walls its flame stands within, its world's own carbide",
+        };
+      if (wall === "graphite")
+        return {
+          name: "Graphite-walled fusion",
+          named: "named for the walls its flame stands within, where no tungsten lies",
+        };
+      if (magnet === "magnesium-diboride")
+        return {
+          name: "Salt-magnet fusion",
+          named: "named for what holds its flame: magnets of a black salt, where no niobium lies",
+        };
+      return undefined;
+    }
+    case "minds": {
+      const stuff = metBy(w, "think-in-crystal")?.subst;
+      if (stuff === "gallium-arsenide")
+        return {
+          name: "Gallium minds",
+          named: "named for the crystal it thinks in, where silicon is scarce",
+        };
+      if (stuff === "germanium")
+        return {
+          name: "Germanium minds",
+          named: "named for the crystal it thinks in, where silicon is scarce",
+        };
+      return stuff === "silicon"
+        ? { name: "Silicon minds", named: "named for the crystal it thinks in" }
+        : undefined;
+    }
+    case "beams": {
+      if (w.medium === "water")
+        return { name: "Blue-green beams", named: "named for the one light that water lets pass" };
+      const by = metBy(w, "beam-a-light")?.by ?? "";
+      if (by.startsWith("ruby"))
+        return { name: "Ruby beams", named: "named for the crystal it lases in" };
+      if (by.startsWith("carbon"))
+        return {
+          name: "Gas beams",
+          named: "named for the gas it lases in, where no ruby can be had",
+        };
+      return undefined;
+    }
+    case "bodies":
+      return w.kind === "rocky"
+        ? undefined
+        : {
+            name: `Bodies of ${KINDS[w.kind].liquid.name}`,
+            named: `named for what its people's own bodies are written in: ${KINDS[w.kind].liquid.name}`,
+          };
+    case "remade":
+      return w.medium === "water"
+        ? {
+            name: "Flooded worlds",
+            named: "named for what a people of the water makes of a world: seas",
+          }
+        : undefined;
+    case "covered":
+      if (w.medium === "water")
+        return {
+          name: "Reef-city world",
+          named: "named for the towers its people raise over its sea floors",
+        };
+      if (w.kind === "ammonia" || w.kind === "methane")
+        return {
+          name: "Ice-tower world",
+          named: "named for what its towers stand on and are walled with",
+        };
+      return undefined;
+    case "gathered": {
+      const name = w.spectral ? STAR_WORDS[w.spectral] : undefined;
+      return name && name !== "Gathered star"
+        ? { name, named: "named for the star whose light it has gathered" }
+        : undefined;
+    }
+    default:
+      return undefined;
+  }
+}
+
 /** The age's name on this world: its own means, read from its foremost land. */
 function ownName(
   age: AgeDef,
@@ -694,7 +940,8 @@ function ownName(
     }
     case "engines": {
       const by = energyLand ? powerBy(energyLand) : null;
-      if (!by?.age) return plain;
+      // (A flame is its own age's: engines as they were before it.)
+      if (!by?.age || by.by === "fusion-power") return plain;
       return {
         name: by.age,
         icon: age.icon,
@@ -716,8 +963,10 @@ function ownName(
         namedBy: null,
       };
     }
-    default:
-      return plain;
+    default: {
+      const own = lateName(age.id, w);
+      return own ? { ...plain, ...own } : plain;
+    }
   }
 }
 
@@ -751,7 +1000,7 @@ export function meansOfAge(
     };
     return own[w.kind] ?? (w.medium === "water" ? "Sea electricity" : undefined);
   }
-  return undefined;
+  return lateName(id, w)?.name;
 }
 
 /** A world's reading from its peopled lands and what it holds as a whole. */
@@ -762,6 +1011,8 @@ export function readWorld(
 ): WorldReading {
   let total = 0;
   for (const f of lands) total += f.people;
+  // (What its mirrors gather is the whole world's, among all its people.)
+  const gatheredHead = (facts.mirrorKw ?? 0) / Math.max(1, total);
   const least = Math.max(LEAST_PEOPLE, total * LEAST_SHARE),
     counted = lands.filter((f) => f.people >= least),
     among = counted.length ? counted : lands;
@@ -785,8 +1036,10 @@ export function readWorld(
     lifeLand: LandFacts | null = null,
     fire = 0,
     sea = 0;
+  let flame = 0;
   for (const f of among) {
-    const e = energyOf(f);
+    if (f.knows("fusion-power")) flame = Math.max(flame, energyOf(f));
+    const e = energyOf(f) + gatheredHead;
     if (e > energy || (e === energy && energyLand && f.people > energyLand.people)) {
       energy = e;
       energyLand = f;
@@ -852,13 +1105,23 @@ export function readWorld(
     town: facts.biggestTown,
     towns: facts.towns,
     fire,
+    flame,
+    beams: facts.beams ?? 0,
+    remade: facts.remade ?? 0,
+    cover: facts.cover ?? 0,
+    gathered: facts.gathered ?? 0,
   };
-  const power = energyLand ? powerBy(energyLand) : { words: "", by: null };
+  const power =
+    gatheredHead > energy / 2
+      ? { words: "its star's light, gathered in mirrors", by: "star-mirrors" }
+      : energyLand
+        ? powerBy(energyLand)
+        : { words: "", by: null };
   const measures: MeasureReading[] = [
     {
       id: "energy",
       value: energy,
-      words: `${numberWords(energy)} kW`,
+      words: powerWords(energy),
       by: power.words || "their own strength",
       principle: power.by,
       subst: null,
@@ -971,14 +1234,46 @@ export type Lack = {
   readonly next: readonly string[];
   /** Its people know the way already: it is more than knowing that it wants. */
   readonly known: boolean;
+  /** What its world's matter says of that way, where it never will be found here (Phase 66). */
+  readonly shut?: string;
 };
+
+/**
+ * Why a principle will never be found on a world, walking back through what it needs: what its matter
+ * asks and cannot give (null: nothing of its matter stands in the way).
+ */
+export function shutOf(id: string, w: AgeWorld, seen = new Set<string>()): string | null {
+  if (id === "beam-arms" && w.noGrip) return w.noGrip;
+  if (!w.functions || seen.has(id)) return null;
+  seen.add(id);
+  const p = PRINCIPLES.find((x) => x.id === id);
+  if (!p) return null;
+  const f = matterShuts(p, w.functions);
+  if (f) return `to ${f.name}: ${f.why}`;
+  for (const need of p.needs) {
+    const options = need.split("|"),
+      shut = options.map((o) => shutOf(o, w, seen));
+    if (shut.every((s) => s !== null)) return shut[0]!;
+  }
+  return null;
+}
+
+/** A power a head in the fewest words: kilowatts, and past them what a gathered star gives. */
+function powerWords(kw: number): string {
+  if (kw < 10_000) return `${numberWords(kw)} kW`;
+  if (kw < 10_000_000) return `${numberWords(kw / 1000)} MW`;
+  if (kw < 10_000_000_000) return `${numberWords(kw / 1_000_000)} GW`;
+  return `${numberWords(kw / 1_000_000_000)} TW`;
+}
 
 /** A figure's reading in words, for what an age asks and what it lacks. */
 export function hasWords(on: keyof Figures, figures: Figures): string {
   const x = figures[on];
   switch (on) {
     case "energy":
-      return `${numberWords(x)} kW a head`;
+      return `${powerWords(x)} a head`;
+    case "flame":
+      return x > 0 ? `${powerWords(x)} a head from its flame` : "no flame held";
     case "materials":
       return `${numberWords(x)} MPa`;
     case "precision":
@@ -997,6 +1292,16 @@ export function hasWords(on: keyof Figures, figures: Figures): string {
       return x > 0 ? `a realm spanning ${numberWords(x)} km` : "no realm yet";
     case "edge":
       return `${numberWords(figures.materials)} MPa at its best`;
+    case "beams":
+      return x > 0 ? `${numberWords(x)} realms' hosts bearing them` : "no host bearing them";
+    case "remade":
+      return x > 0 ? `${numberWords(x)} worlds remade` : "no world remade yet";
+    case "cover":
+      return `${Math.round(x * 100)} in a hundred of its lands`;
+    case "gathered":
+      return x > 0
+        ? `${x >= 1 ? numberWords(x) : Math.round(x * 1000) / 1000} times what falls on its world`
+        : "no mirrors yet";
     default:
       return `${numberWords(x)}`;
   }
@@ -1014,13 +1319,15 @@ export function lacksForNext(
   const lacks: Lack[] = [];
   for (const ask of age.asks) {
     if (askMet(ask, reading.figures)) continue;
-    const road = ask.road ? roadOn(ask.road, w, knows) : null;
+    const road = ask.road ? roadOn(ask.road, w, knows) : null,
+      shut = road ? shutOf(road, w) : null;
     lacks.push({
       words: ask.words,
       has: hasWords(ask.on, reading.figures),
       road,
       next: road ? nextOnRoad(road, knows, w) : [],
       known: !!road && knows(road),
+      ...(shut ? { shut } : {}),
     });
   }
   return { age, lacks };
@@ -1050,7 +1357,7 @@ export function measureSteps(
   const opens = (ids: readonly string[]) =>
       ids.some((x) => {
         const p = PRINCIPLES.find((q) => q.id === x);
-        return !p || affordsPrinciple(p, w.medium, w.fire, w.kind);
+        return !p || (affordsPrinciple(p, w.medium, w.fire, w.kind) && !shutOf(x, w));
       }),
     step = (
       words: string,
@@ -1071,8 +1378,19 @@ export function measureSteps(
         step("their own strength", `${POWER.muscle} kW`, []),
         step("beasts that pull", `+${POWER.beasts} kW`, ["draught"]),
         step("mills of wind and water", `+${POWER.mills} kW`, ["mills"]),
-        ...ENGINES.map((e) =>
-          step(e.words, `+${POWER.perFuel} kW for each unit a head driven`, [e.id]),
+        ...[...ENGINES]
+          .reverse()
+          .map((e) =>
+            step(
+              e.words,
+              `+${POWER.perFuel * (e.id === "fusion-power" ? FLAME_GAIN : 1)} kW for each unit a head driven`,
+              [e.id],
+            ),
+          ),
+        step(
+          "its star's light, gathered in mirrors",
+          "as much as its mirrors gather, among all its people",
+          ["star-mirrors"],
         ),
       ];
     case "materials":

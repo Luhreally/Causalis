@@ -142,6 +142,8 @@ import {
   groundColors,
   cellAt,
   cellCenter,
+  builtOverCells,
+  builtOverTiles,
   globeColors,
   regionColors,
   regionFromGlobe,
@@ -299,7 +301,14 @@ import { installColonyFilm, type ColonyFilm } from "./colony-film.ts";
 // (Anyone's family and body on their card, a war's soldiers named from its roll: Phase 55 wave 5.)
 import { kinLines } from "../ui/index.ts";
 import { seatRef, type KinCard, type StruckMember, type StruckNow } from "../bridge/index.ts";
-import { struckOf, toldBlows, warManOf, warSlot } from "../view/index.ts";
+import {
+  hasSpires,
+  mirrorStrength,
+  struckOf,
+  toldBlows,
+  warManOf,
+  warSlot,
+} from "../view/index.ts";
 
 const DAY = 86_400;
 /** What the hand's people do, in words. */
@@ -443,6 +452,10 @@ type Exposed = {
       at: { x: number; y: number } | null;
     }[];
     world: boolean;
+    /** Beams in the air, pools of blood, puffs of smoke now (Phase 66). */
+    bolts: number;
+    blood: number;
+    smoke: number;
     /** The armoured cars, those knocked out, those prone, the machine guns' teams, a trench, the weapon button. */
     cars: number;
     wrecks: number;
@@ -744,6 +757,7 @@ type Exposed = {
   /** Out to the home star's system; how many of its bodies are shown. */
   sky?: () => void;
   skyBodies?: () => number;
+  skyMirrors?: () => number | null;
   /** Out to the stars around; how many are shown. */
   stars?: () => void;
   starCount?: () => number;
@@ -1676,6 +1690,22 @@ async function runPlanetPage(): Promise<void> {
     setTimeout(() => warm.remove(), 4000);
   }
 
+  /** The lands of the world built over from edge to edge (Phase 66), as last asked. */
+  let builtLands: ReadonlySet<number> = new Set<number>(),
+    builtAsked = -1;
+  const askBuilt = async () => {
+    const year = Math.floor(now() / YEAR);
+    if (Math.abs(year - builtAsked) < 5) return;
+    builtAsked = year;
+    const cells = await client.query<number[]>({ type: "past.lands" }).catch(() => [] as number[]);
+    if (cells.length === builtLands.size && cells.every((c) => builtLands.has(c))) return;
+    builtLands = new Set(cells);
+    mapModes.builtOver = cells.length > 0;
+    paintGlobe();
+  };
+  stage.onUpdate(() => {
+    if (scale === "globe") void askBuilt();
+  });
   /** The globe's colours as its lens paints them (the land's "as the map" shows them, M95). */
   let globeLensColors: Uint8Array | null = null;
   let globeSurfaceKey = "";
@@ -1713,6 +1743,8 @@ async function runPlanetPage(): Promise<void> {
       // (Lands taken by force, still resenting it, in shadow: M104.)
       lens === "realms" || lens === "war" ? takenLands : undefined,
     );
+    // (Lands built over, grey and lit from edge to edge, as the land's own colours: Phase 66.)
+    if (lens === "terrain" && builtLands.size) builtOverCells(colors, frame, builtLands);
     globe.paint(litLands.size ? litColors(colors, frame, litLands) : colors);
     globeLensColors = colors;
     // Clouds over the land as it is; none over what a lens paints.
@@ -1780,10 +1812,13 @@ async function runPlanetPage(): Promise<void> {
           ? regionFromGlobe(frame, parent, globeLensColors)
           : regionColors(frame, regionLens);
     // (The land as the season leaves it: snow on its hills, ice on its lakes; M164.)
-    region.paint(
+    const seasoned =
       regionLens === "land" && landSky?.cell === regionCell
         ? seasonTiles(colors, frame, landSky, seasonT)
-        : colors,
+        : colors;
+    // (A land built over: streets and roofs from shore to shore. Phase 66.)
+    region.paint(
+      regionLens === "land" && landPlan?.covered ? builtOverTiles(seasoned, frame) : seasoned,
     );
     painted = colors.length / 4;
   };
@@ -1961,6 +1996,11 @@ async function runPlanetPage(): Promise<void> {
   client.subscribe<WorldStage>({ type: "world.stage" }, 3000, (st) => {
     time.beside(planetPanel.stage(st));
     stageNow = st;
+    // (Its star's mirrors in the sky over its ground: Phase 66.)
+    if (st.mirrors) {
+      document.body.dataset.mirrors = "1";
+      document.body.style.setProperty("--mirrors", mirrorStrength(st.mirrors).toFixed(3));
+    } else delete document.body.dataset.mirrors;
   });
   // Realms' names written across their lands on the political map, and a star at each seat.
   const mapNames = new MapLabels(hud);
@@ -3131,6 +3171,7 @@ async function runPlanetPage(): Promise<void> {
           townNews.set(ref, { text, until: wall + TIDING_MS });
         const firstOfIt = landPlan === null;
         landPlan = plan;
+        if (plan.covered) paintRegion();
         const t0 = performance.now();
         region.setTowns(plan, plan.t);
         performance.measure("region.towns", { start: t0 });
@@ -3478,6 +3519,7 @@ async function runPlanetPage(): Promise<void> {
     });
   };
   systemPanel.onStars = () => void toCluster();
+  systemPanel.onPage = (ref) => pageWindow.open(ref);
   clusterPanel.onSelect = (i) => starScene.mark(i, clusterPlan);
   clusterPanel.onBack = () => {
     starScene.visible = false;
@@ -4647,6 +4689,7 @@ async function runPlanetPage(): Promise<void> {
   };
   exposed.sky = () => void toSystem();
   exposed.skyBodies = () => (scale === "system" && skyPlan ? skyPlan.bodies.length : 0);
+  exposed.skyMirrors = () => (scale === "system" ? skyScene.mirrorsShown : null);
   exposed.systemPeople = () => (scale === "system" ? skyScene.peopleShown : null);
   /** Whose system the sky shows: the home star's (null), or another's ref. */
   exposed.skyOf = () => (scale === "system" ? (skyStar?.ref ?? null) : null);
@@ -4689,6 +4732,7 @@ async function runPlanetPage(): Promise<void> {
     skyScene.marks(
       skyMarks(skyStar || filmed ? { programs: [], colonies: [] } : sky, spots, screen),
     );
+    skyScene.mirrors(skyStar || filmed ? 0 : (sky.mirrors?.km2 ?? 0));
     // The peoples of other stars about it (M136): their worlds, craft and ships, named.
     const peoples = filmed ? undefined : skyStar ? starPeoples : sky.peoples;
     skyScene.peoples(
@@ -4739,6 +4783,11 @@ async function runPlanetPage(): Promise<void> {
   stage.onUpdate(() => {
     if (scale === "region") region.land.update(now(), time.speed > 0);
   });
+  /** Whether the town is of spires, the eye then kept out of their walls (Phase 66). */
+  let spires = false;
+  stage.onUpdate(() => {
+    rig.spires = spires && scale === "village";
+  });
   const loadPlan = async (ref: string) => {
     // Asked once a year: the year is marked before the answer comes.
     planYear = Math.floor(clock.t / YEAR);
@@ -4749,6 +4798,7 @@ async function runPlanetPage(): Promise<void> {
       type: "village.plan",
       args: { ref, families: stage.quality.families, folk: stage.quality.crowdCap },
     });
+    spires = !!plan.town && hasSpires(plan.town);
     performance.measure("village.plan", { start: q0 });
     const t0 = performance.now();
     village.build(plan, now());
@@ -6057,7 +6107,7 @@ async function runPlanetPage(): Promise<void> {
     // (The world waits while its battle is watched.)
     time.hold("battle");
     rig.configure({
-      distance: 7.5,
+      distance: 7.5 * battleWider(),
       minDistance: 1.2,
       maxDistance: 24,
       pitch: -20,
@@ -6210,18 +6260,27 @@ async function runPlanetPage(): Promise<void> {
     if (fight.followed >= 0) followTrooper(null);
   };
   /** How near the eye keeps as the battle goes, unless the viewer has set it: nearer as the lines meet. */
+  /**
+   * On a tall screen the field is seen from further off, or the two hosts drawn up to shoot at one another are
+   * never in the picture together (an upright phone holds under half the breadth a wide one does).
+   */
+  const battleWider = () => Math.min(1.7, Math.max(1, 0.8 / aspect()));
   const battleDistance = (s: number) => {
     const rout = fight ? routAt(fight.field) : MOMENTS.rout,
-      after = Math.min(148, rout + 20);
+      after = Math.min(148, rout + 20),
+      wider = battleWider(),
+      far = 7.5 * wider,
+      // (Hand to hand less so: the lines have closed, and it is the men that are watched.)
+      close = 4.8 * (1 + (wider - 1) / 2);
     return s < MOMENTS.charge
-      ? 7.5
+      ? far
       : s < MOMENTS.melee
-        ? 7.5 - 2.7 * ((s - MOMENTS.charge) / (MOMENTS.melee - MOMENTS.charge))
+        ? far + (close - far) * ((s - MOMENTS.charge) / (MOMENTS.melee - MOMENTS.charge))
         : s < rout
-          ? 4.8
+          ? close
           : s < after
-            ? 4.8 + 2.7 * ((s - rout) / (after - rout))
-            : 7.5;
+            ? close + (far - close) * ((s - rout) / (after - rout))
+            : far;
   };
   stage.onUpdate((dt) => {
     if (scale !== "battle" || !fight || !battleLayer || !meadowScene) return;
@@ -6317,6 +6376,9 @@ async function runPlanetPage(): Promise<void> {
           fallen: [...fight.now.fallen],
           men: menAt(fight.field, fight.now),
           words: fight.now.words,
+          bolts: fight.now.bolts?.length ?? 0,
+          blood: fight.now.blood.length,
+          smoke: fight.now.smoke.length,
           arrows: fight.now.flying.length,
           parts: battleLayer.count(),
           followed:
@@ -8092,6 +8154,32 @@ async function runPlanetPage(): Promise<void> {
       );
   };
   if (params.has("landing") && !loaded) void firstLanding();
+  // Begun at the ages past ours (?past, the title's way to them: Phase 66): in its greatest town, towards
+  // evening, when its floors are lit and its streets still seen; then told what it may do there.
+  const firstPast = async () => {
+    const [top, worlds] = await Promise.all([
+      client.query<{ ref: string; name: string; people: number } | null>({ type: "past.town" }),
+      client.query<ColonyEntry[]>({ type: "colony.list" }).catch(() => [] as ColonyEntry[]),
+    ]);
+    if (!top) return;
+    // (Its clock held while the town is raised: years go by on the world's own speed otherwise.)
+    client.setSpeed(0);
+    await exposed.goTo?.(top.ref);
+    // (Low and far out, its towers against its sky, its ground under the eye's aim to come down to.)
+    rig.flyTo({ target: { x: 0, y: 0.6, z: 0 }, distance: 272, pitch: -8 });
+    const remade = new Set(worlds.filter((c) => (c.remade ?? 0) >= 1).map((c) => c.body)).size;
+    colonies.say(
+      `🌃 ${top.name}, ${top.people.toLocaleString("en")} people. Tap the chip for what this world can do; ⚔️ for its wars; zoom out for its land and its world${remade ? `; 🚀 for the ${remade === 1 ? "world" : `${remade} worlds`} it has remade, and the film of how` : ""}.`,
+    );
+    // (Said once: the first tap anywhere is the eye's own, and the words stand in its way.)
+    document.addEventListener("pointerdown", () => colonies.hush(), { once: true, capture: true });
+    if (params.has("hold")) return;
+    // (Dusk, and slowly: the last of the light behind them, their windows coming on within the minute.)
+    const dusk = Math.floor(now() / DAY) * DAY + 18 * 3600;
+    if (dusk > now()) await client.advance(Math.round(dusk));
+    client.setSpeed(60);
+  };
+  if (params.has("past") && !loaded) void firstPast();
   exposed.colonyFilm = colonyFilm;
   // (Beside it, the world's wars of the last hundred years watched unfolding: M194.)
   const warsButton = el("button", "director-button wars-button", "⚔️");

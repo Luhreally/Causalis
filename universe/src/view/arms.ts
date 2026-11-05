@@ -41,6 +41,8 @@ export type ArmLook = {
   readonly team?: number;
   /** What the rest of a team gun's host bear (absent: the same). */
   readonly rest?: string;
+  /** Burning light, not shot (Phase 66): a straight bolt of this colour, no smoke, no ball. */
+  readonly beam?: readonly [number, number, number];
 };
 
 /**
@@ -262,6 +264,36 @@ export const ARM_LOOKS: Readonly<Record<string, ArmLook>> = {
     ladders: false,
     team: 6,
     rest: "autoloader",
+  },
+  "beam-rifle": {
+    stroke: "strike",
+    looses: "shot",
+    loosed: 0.85,
+    fighter: "a beam-rifleman",
+    shotWords: "a beam",
+    long: 0.56,
+    burst: 1,
+    smoke: 0,
+    bayonet: false,
+    order: "open",
+    fire: "continuous",
+    ladders: false,
+    beam: [1, 0.32, 0.26],
+  },
+  "beam-lance": {
+    stroke: "strike",
+    looses: "shot",
+    loosed: 0.75,
+    fighter: "a beam-lancer",
+    shotWords: "a beam of blue-green light",
+    long: 0.72,
+    burst: 1,
+    smoke: 0,
+    bayonet: false,
+    order: "open",
+    fire: "continuous",
+    ladders: false,
+    beam: [0.3, 1, 0.82],
   },
 };
 

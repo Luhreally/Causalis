@@ -22,6 +22,7 @@ import { kindBlocks } from "../kinds.ts";
 import { foreignPlanets } from "../../gen/index.ts";
 import { claimOf, count, item, link, many, stat, yearNow } from "./words.ts";
 import { landLink, realmLink, spotOfLand } from "./names.ts";
+import { colonyRemade } from "../colony.ts";
 
 /** A star in plain words, by its light. */
 function starWords(s: { spectral: string; remnant?: boolean }): string {
@@ -295,6 +296,19 @@ export function bodyPage(world: World, ref: string): PageModel {
       stat("Water", b.water),
       ...(life ? [stat("Life", LIFE_WORDS[life.level])] : []),
       ...(halls.length ? [stat("Halls", count(halls.length))] : []),
+      // (Being remade: Phase 66.)
+      ...(() => {
+        const share = Math.max(0, ...halls.map((p) => colonyRemade(world, p.cell)));
+        return share > 0
+          ? [
+              stat(
+                "Remade",
+                share >= 1 ? "its air breathed open now" : `${Math.round(share * 100)}% of the way`,
+                { why: "prin:world-making" },
+              ),
+            ]
+          : [];
+      })(),
     ],
     tabs: [
       {

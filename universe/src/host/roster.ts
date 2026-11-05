@@ -41,6 +41,14 @@ import { townsfolkRef } from "../bridge/index.ts";
 
 /** People a line stands for: one of every LINE of a town's people is kept by name. */
 export const LINE = 12;
+/**
+ * The most lines a town's people are kept by (Phase 66), so that a town of sixty million on a world built
+ * over is read in what a town of a million and a half is: its first so many lines stand for the rest.
+ */
+export const MOST_LINES = 120_000;
+/** The lines a town of so many is kept by. */
+export const linesOf = (people: number): number =>
+  Math.min(MOST_LINES, Math.ceil(Math.max(0, people) / LINE));
 /** A natural holder's years at a line, upright apes (× the people's span / 70). */
 export const TERM = 30;
 /** A fallen holder's line stands empty 1 … EMPTY_MOST years. */
@@ -420,7 +428,7 @@ export function rosterCost(world: World, town: string, year: number): number {
   const idx = ctx.settlements.seenIn(s.cell).findIndex((x) => x.ref === s.ref),
     first = c.year - ROSTER_YEARS,
     y = Math.floor(year),
-    lines = Math.ceil(Math.max(0, s.population) / LINE);
+    lines = linesOf(s.population);
   let sent = 0,
     battles = 0;
   for (const [war, k, side, j, at] of (c.window ??= windowOf(world)).byCell.get(s.cell) ?? []) {
@@ -941,7 +949,7 @@ function foldRoster(
         t: (b.year + 1) * YEAR,
         event: b.event,
         seq: steps.length,
-        count: Math.min(SLOT - 1, Math.ceil(people / LINE)),
+        count: Math.min(SLOT - 1, linesOf(people)),
         war,
         b,
         side,
@@ -977,7 +985,7 @@ function foldRoster(
             t: e.t,
             event: e.event,
             seq: steps.length,
-            count: Math.ceil(population / LINE),
+            count: linesOf(population),
             strike: e,
             dead,
           });

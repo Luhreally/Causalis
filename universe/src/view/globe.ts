@@ -664,6 +664,35 @@ function warmthWords(kind: string, degrees: number): string {
  * that show the people: for "people", people per 100 km²; for "food", what food
  * costs against its usual worth.
  */
+/**
+ * Lands built over from edge to edge, laid over the land's colours (Phase 66): the greys of its roofs, a
+ * light in one spot in three. Keyed by spot, so a world's face holds still.
+ */
+export function builtOverCells(
+  colors: Uint8Array,
+  frame: FrameMessage,
+  built: ReadonlySet<number>,
+): void {
+  const a = frame.arrays,
+    elevation = a.elevation!,
+    province = a.province;
+  for (let c = 0; c < elevation.length; c++) {
+    if (elevation[c]! <= 0 || a.lake?.[c] || !built.has(province ? province[c]! : c)) continue;
+    const u = Math.imul(c + 1, 2654435761) >>> 24,
+      q = c * 4;
+    if (u < 40) {
+      colors[q] = 250;
+      colors[q + 1] = 216;
+      colors[q + 2] = 140;
+    } else {
+      const grey = 96 + (u & 63);
+      colors[q] = grey;
+      colors[q + 1] = grey;
+      colors[q + 2] = grey + 8;
+    }
+  }
+}
+
 export function globeColors(
   frame: FrameMessage,
   lens: Lens,

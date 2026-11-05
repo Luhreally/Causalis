@@ -44,7 +44,7 @@ import {
 } from "../../rules/index.ts";
 import { WAY, cultureOf, pushWays } from "../culture/culture.ts";
 import { politiesOf, type Polity } from "../polity/polity.ts";
-import { LORE_EVENTS, knows, loreOf } from "../lore/lore.ts";
+import { LORE_EVENTS, knows, loreOf, matterAllows } from "../lore/lore.ts";
 import { marketsOf, type PopulationContext } from "../population/systems.ts";
 import { grieve, raze, strike } from "../acts/disasters.ts";
 import { civilizationsNear } from "./contact.ts";
@@ -787,7 +787,8 @@ function lessonsFor(ctx: PopulationContext, seat: number): Principle[] {
       p.rate > 0 &&
       !k(p.id) &&
       needsMet(p, k) &&
-      affordsPrinciple(p, ctx.medium, ctx.affords.fire, worldKindOf(ctx.generated)),
+      affordsPrinciple(p, ctx.medium, ctx.affords.fire, worldKindOf(ctx.generated)) &&
+      matterAllows(ctx.generated, p),
   );
 }
 

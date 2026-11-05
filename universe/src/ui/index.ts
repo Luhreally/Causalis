@@ -2,7 +2,7 @@
 // only through commands, in plain words. May import: kernel, bridge, view.
 // See README.md and docs/architecture §31.
 export { GodBrushes } from "./brushes.ts";
-export { bakedWorlds, jumpToYear, phoneMinutesTo, type Baked } from "./jump.ts";
+export { PAST_WORLD, bakedWorlds, jumpToYear, phoneMinutesTo, type Baked } from "./jump.ts";
 export {
   catalogueFor,
   runWords,

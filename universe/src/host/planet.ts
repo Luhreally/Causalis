@@ -175,6 +175,7 @@ import { groundMap, spotGround } from "./inspect/ground.ts";
 import { worldGlobe } from "./worlds.ts";
 import { foreignGlobe, foreignSystem, galaxyPlan, starPage, starsNear } from "./galaxy.ts";
 import { peoplesSky, visitsNow } from "./peoples.ts";
+import { mirrorsOfSky } from "./past.ts";
 import { peopleFigure } from "./folk.ts";
 import { kindOn, lifelessWhy, seedKind, spotBiome, spotSwing, spotWarmth } from "./kinds.ts";
 import { lookMeta } from "./biochem.ts";
@@ -796,8 +797,9 @@ export function seedLife(g: HomeWorld): SeedLife {
 const RULES_FREQUENCY = 4;
 
 function planetUniverse(name: string, prior: Prior): Universe {
-  // (A world of its own chemistry's history changed with Phase 54 M222: its own ores, heats and arms.)
-  const version = name === "alien" ? "alien-8" : `${name}-7`,
+  // (A world of its own chemistry's history changed with Phase 54 M222: its own ores, heats and arms.
+  // Every world's changed with Phase 66, past its first years: ages past ours.)
+  const version = name === "alien" ? "alien-9" : `${name}-8`,
     make = (seed: Seed, frequency?: number) => {
       // The chronicle opens after a generated prehistory: bands across the land.
       const world = makePopulationWorld(seed, {
@@ -970,6 +972,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
             voyage: s.voyage,
           })),
           peoples: peoplesSky(world),
+          ...mirrorsOfSky(world),
         };
       },
       /** The home star's system: the star, and every planet and moon with its orbit and ground. */

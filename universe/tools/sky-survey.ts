@@ -92,7 +92,7 @@ export type SkySurvey = {
   readonly ms: number;
 };
 
-export function skySurvey(seed: string, years: number): SkySurvey {
+export async function skySurvey(seed: string, years: number): Promise<SkySurvey> {
   const t0 = performance.now(),
     earth = seed === "earth",
     world = (earth ? EARTH : ALIEN).build(seedFromText(earth ? "first light" : seed)),
@@ -117,6 +117,10 @@ export function skySurvey(seed: string, years: number): SkySurvey {
     const a = performance.now();
     world.runTo(y * YEAR);
     times.push(performance.now() - a);
+    // (The event loop turned between years, as the host's own loop turns it between slices of one. In a tight
+    // loop the collector's marking has no turn to finish in, and ends in pauses of up to 155 ms where here they
+    // come to 18, measured on alien 41 to year 3,100: on whichever year they fell, a clock no phone would read.)
+    await new Promise((turned) => setImmediate(turned));
     const events = world.events;
     for (let i = events.count - 1; i >= 0 && events.at(i).t > (y - 1) * YEAR; i--) {
       const e = events.at(i);
@@ -264,6 +268,6 @@ export function skySurvey(seed: string, years: number): SkySurvey {
 
 if (import.meta.main) {
   const [seed = "earth", years = "1400"] = process.argv.slice(2);
-  process.stdout.write(JSON.stringify(skySurvey(seed, Number(years))));
+  process.stdout.write(JSON.stringify(await skySurvey(seed, Number(years))));
   void SPACE_EVENTS;
 }

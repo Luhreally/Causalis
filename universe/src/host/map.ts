@@ -20,6 +20,7 @@ import {
 } from "../sim/index.ts";
 import { YEAR, type Ref, type World } from "../kernel/index.ts";
 import { realmColor } from "./colors.ts";
+import { pastLands, pastTown } from "./past.ts";
 
 /** Every realm of the home world: its name, colour, its lands' middles (spots) and its seat's. */
 export function realmsMap(world: World) {
@@ -229,4 +230,6 @@ export const MAP_QUERIES = {
   "war.lens": (world: World) => warLens(world),
   "world.stats": (world: World) => worldStats(world),
   "towns.map": (world: World) => townsMap(world),
+  "past.lands": (world: World) => pastLands(world),
+  "past.town": (world: World) => pastTown(world),
 };

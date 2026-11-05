@@ -13,6 +13,7 @@ import type { VillagePlan } from "../bridge/index.ts";
 import {
   ACTIVITY,
   bobOf,
+  dressedOn,
   hairOf,
   limbPitch,
   partExtent,
@@ -88,6 +89,9 @@ export function redrawn<T>(was: readonly T[], now: readonly T[]): Set<number> {
   for (let i = 0; i < now.length; i++) if (now[i] !== was[i]) out.add(i);
   return out;
 }
+
+/** How many hair colours a plan's people have of their own. */
+const hairsOf = (plan: VillagePlan) => dressedOn(plan.body, plan.era, 0, plan.colony).hairs.length;
 
 /** Each batch once with the parts it draws: each group's, and each hair colour's (and which colour). */
 type Shared = {
@@ -165,7 +169,10 @@ export class FolkPoses {
     this.figure = figure;
     this.pitches = plan.people.map((p) => this.limbsOf(p.ref, parts));
     this.groups = Uint8Array.from(plan.people, (p) => personGroup(p));
-    this.hairs = Uint8Array.from(plan.people, (p) => hairOf(p.ref, p.age, span));
+    // (Those of made limbs: the plain colour past the people's own hairs. Phase 66.)
+    this.hairs = Uint8Array.from(plan.people, (p) =>
+      p.machine ? hairsOf(plan) : hairOf(p.ref, p.age, span),
+    );
     this.grown = Float64Array.from(plan.people, (p) => (p.child ? 0.7 : 1) * figure.scale);
     this.posed = new Float32Array(n * parts * 16);
     this.atX = new Float64Array(n);

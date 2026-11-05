@@ -78,6 +78,44 @@ export const FIREARMS: readonly Firearm[] = [
   },
 ];
 
+/**
+ * Arms of burning light (Phase 66): each by what it does as a gun is (aimed shots a minute, how far it
+ * burns true), and what each shot takes. Light goes straight and does not fall, so in air its reach is
+ * how far a beam holds its focus; water takes all but its blue-green within tens of metres. It carries
+ * no ball, no powder and no brass: only a cell, and a crystal cut to lase.
+ */
+export type Beam = {
+  readonly id: string;
+  readonly principle: string;
+  readonly rate: number;
+  readonly range: number;
+  /** What a shot takes from its cell (kJ). */
+  readonly shotKj: number;
+  readonly words: string;
+};
+export const BEAMS: readonly Beam[] = [
+  {
+    id: "beam-rifle",
+    principle: "beam-arms",
+    rate: 120,
+    range: 2000,
+    shotKj: 30,
+    words: "a beam that holds its focus two kilometres through air",
+  },
+  {
+    id: "beam-lance",
+    principle: "beam-arms",
+    rate: 60,
+    range: 120,
+    shotKj: 60,
+    words:
+      "a blue-green beam, all of light that water lets pass, that burns true for a hundred metres",
+  },
+];
+export function beam(id: string): Beam | undefined {
+  return BEAMS.find((b) => b.id === id);
+}
+
 /** The rounds-by-metres a rifle looses in a minute: firepower 0 at this, the musket's below it. */
 const RIFLE_REACH = 2400;
 

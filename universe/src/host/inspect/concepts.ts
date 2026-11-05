@@ -400,6 +400,33 @@ export const CONCEPTS: Readonly<Record<string, Concept>> = {
     ],
     related: ["lore", "flight"],
   },
+  past: {
+    icon: "🌃",
+    title: "Ages past ours",
+    what: [
+      "Past the stars a people may come to hold a flame of light atoms in a bottle, to make minds of crystal, to bear beams, to write and grow new bodies, to remake another world's air, to build over its own from shore to shore, and at last to gather much of what its star gives.",
+      "None of it has a date, and none of it comes by the calendar. Each asks something of what a world holds (a wall that stands a flame, a crystal that switches at scale, a fibre that holds a tower) and of what its people already know. A world that lacks the stuff says so, and may come to the same age by another road, or never.",
+      "Its age is read from what it can do, and named by how it does it where that differs: a people of the water may never hold a flame, and still gather its star.",
+    ],
+    drives: [
+      "A world's matter: what its rock, its seas and its star hold.",
+      "Its peoples' knowledge, spreading land to land as any other.",
+      "Machines to spare: every great work is paid for out of a realm's machines.",
+    ],
+    leads: [
+      "Towers past any others' height and craft in the air over them; a land built over, its fields gone to vat halls and its beasts gone with them.",
+      "Wars fought in burning light by soldiers of made limbs, who do not bleed.",
+      "Colonies out from under their halls on worlds remade, breathing the air they made.",
+      "Mirrors about its star, seen from the sky of its world as a band of glints across the evening.",
+    ],
+    see: [
+      { text: "What it can do", ref: "world:means" },
+      { text: "The ages compared", ref: "world:chronicle#ages" },
+      { text: "A fusion flame", ref: "prin:fusion-power" },
+      { text: "Towers from shore to shore", ref: "prin:world-city" },
+    ],
+    related: ["ages", "lore", "colonies", "matter"],
+  },
   // Bonds and freedoms (Phase 19 M138).
   ...ORDER_CONCEPTS,
   ...HEALTH_CONCEPTS,

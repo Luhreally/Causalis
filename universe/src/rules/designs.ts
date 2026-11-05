@@ -10,7 +10,7 @@
 
 import { dmath } from "../kernel/index.ts";
 import { affordancesOf, type BodyPlan } from "./bodies.ts";
-import { firearm, firepowerOf, rangeAxisOf } from "./firearms.ts";
+import { beam, firearm, firepowerOf, rangeAxisOf } from "./firearms.ts";
 
 export const MATERIALS = [
   "wood",
@@ -43,6 +43,8 @@ export const MATERIALS = [
   "ice",
   "pitch grit",
   "sulfur concrete",
+  /** Crystal, cells and made limbs, turned out at a works its minds tend (Phase 66): a beam arm, a machine soldier. */
+  "crystal",
 ] as const;
 export type Material = (typeof MATERIALS)[number];
 
@@ -82,6 +84,7 @@ export const MATERIAL: Readonly<Record<Material, MaterialProps>> = {
   ice: { edge: 0.3, guard: 0.15, mass: 0.8, lasting: 0.75, cost: 0.1 },
   "pitch grit": { edge: 0, guard: 0, mass: 0.85, lasting: 0.85, cost: 0.25 },
   "sulfur concrete": { edge: 0, guard: 0, mass: 0.9, lasting: 0.9, cost: 0.3 },
+  crystal: { edge: 1, guard: 0.9, mass: 0, lasting: 0.95, cost: 1 },
 };
 
 /**
@@ -175,6 +178,12 @@ const digs = (b: BodyPlan) =>
   // Axes and swords want hands (or arms) deft enough to wield them; a spear, a grip.
   wields = (b: BodyPlan) => affordancesOf(b).dexterity >= 0.6,
   grips = (b: BodyPlan) => affordancesOf(b).dexterity >= 0.5;
+
+/** A beam arm's performance from its physics (rules/firearms.ts). */
+function beamArm(id: string, cost: number): Performance {
+  const f = beam(id)!;
+  return { shock: 0.95, reach: 0.45, range: rangeAxisOf(f), firepower: firepowerOf(f), cost };
+}
 
 /** A machined gun's performance from its physics (rules/firearms.ts): its range and firepower. */
 function gun(id: string, cost: number): Performance {
@@ -886,6 +895,52 @@ export const REALIZATIONS: readonly Realization[] = [
     () => "driven by engines that join acetylene with hydrogen",
     () => ({ output: 0.8, cost: 0.2 }),
   ),
+  // Ages past ours (Phase 66): works run on a flame held in a bottle; arms of burning light, a people of
+  // the water's beam the blue-green that water lets pass; plate driven by what it wears, soldiers of made
+  // limbs among the living. Last, so that every other keeps its place.
+  R(
+    "fusion-flame",
+    "drive",
+    ["fusion-power"],
+    ["steel", "iron", "stone", "earth", "ice", "coral", "shell"],
+    () => "run on a fusion flame held in a bottle",
+    () => ({ output: 1.1, cost: 0.25 }),
+  ),
+  R(
+    "beam-rifle",
+    "arm",
+    ["beam-arms"],
+    ["crystal"],
+    () => "beam rifles",
+    () => beamArm("beam-rifle", 0.7),
+    (b) => b.medium !== "water",
+    wields,
+  ),
+  R(
+    "beam-lance",
+    "arm",
+    ["beam-arms"],
+    ["crystal"],
+    () => "beam lances",
+    () => beamArm("beam-lance", 0.6),
+    (b) => b.medium === "water",
+  ),
+  R(
+    "driven-plate",
+    "guard",
+    ["machine-soldiers"],
+    ["crystal"],
+    () => "driven plate",
+    () => ({ protection: 1.1, mobility: 0.1, cost: 0.6 }),
+  ),
+  R(
+    "machine-host",
+    "mount",
+    ["machine-soldiers"],
+    ["crystal"],
+    () => "with machine soldiers among them",
+    () => ({ mobility: 1, shock: 0.4, protection: 0.3, firepower: 1.5, breach: 1.5, cost: 0.7 }),
+  ),
 ];
 
 /** Drives only sealed lands (halls on another world, ships between the stars) may build. */
@@ -897,6 +952,30 @@ export const OPEN_AIR_DRIVES: readonly string[] = ["wheel-and-sail"];
 export type Doctrine = Partial<Record<Axis, number>>;
 
 export type Part = { readonly role: Role; readonly id: string; readonly material: Material };
+
+/** Whether a host's arms are of burning light (Phase 66). */
+/**
+ * Why a body cannot bear arms of light, where it cannot: a rifle of them asks the grip a rifle does, and only
+ * those of the water have a lance (null: it can). What a people grew it fights on with (Phase 66).
+ */
+export function noBeamGrip(b: BodyPlan): string | null {
+  const bears = ["beam-rifle", "beam-lance"].some((id) => {
+    const r = realization(id);
+    return (!r.fits || r.fits(b)) && (!r.asks || r.asks(b));
+  });
+  return bears
+    ? null
+    : `A beam rifle wants a grip its people's ${b.manipulators === "trunk" ? "trunks" : b.manipulators} do not have: their hosts fight on with what they grew.`;
+}
+
+export function hasBeams(parts: readonly { readonly id: string }[]): boolean {
+  return parts.some((p) => beam(p.id) !== undefined);
+}
+
+/** Whether a host marches on made limbs (Phase 66). */
+export function hasMachineHost(parts: readonly { readonly id: string }[]): boolean {
+  return parts.some((p) => p.id === "machine-host");
+}
 
 /** The value of a performance under a doctrine (cost counts against). */
 export function worth(does: Performance, doctrine: Doctrine): number {

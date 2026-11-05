@@ -138,6 +138,8 @@ test("the guns, in the order the village lists them: musket and rifle first", ()
     "repeater",
     "autoloader",
     "automatic",
+    "beam-rifle",
+    "beam-lance",
   ]);
 });
 

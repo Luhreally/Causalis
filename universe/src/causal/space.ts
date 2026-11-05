@@ -7,6 +7,7 @@ import { PROPULSION, STAR_DRIVES } from "../rules/index.ts";
 import {
   CONTACT_EVENTS,
   GREAT_ACT_EVENTS,
+  LATE_EVENTS,
   PEOPLES_EVENTS,
   SPACE_EVENTS,
   STARWAR_EVENTS,
@@ -45,6 +46,29 @@ registerEventWords(VOYAGE_EVENTS.sailed.type, (_world, e) => {
 registerEventWords(VOYAGE_EVENTS.arrived.type, (_world, e) => {
   const d = (e.data ?? {}) as { distance?: number; people?: number };
   return `A ship came to its star ${d.distance?.toFixed(1) ?? "?"} light-years from home, and its ${d.people ?? ""} people went down into halls on a world there, year ${yearOfMoment(e.t)}`;
+});
+
+registerEventWords(LATE_EVENTS.mirrors.type, (_world, e) => {
+  const d = (e.data ?? {}) as { realm?: string; km2?: number };
+  return `The realm of ${d.realm ?? "a people"} set the first ${d.km2 ?? ""} km² of mirrors about its star, each works to build the next out of its system's small bodies, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(
+  LATE_EVENTS.gathered.type,
+  (_world, e) =>
+    `The mirrors about the star came to gather more of its light than falls on the whole of the world, year ${yearOfMoment(e.t)}`,
+);
+registerEventWords(LATE_EVENTS.remaking.type, (world, e) => {
+  const d = (e.data ?? {}) as { realm?: string };
+  return `The realm of ${d.realm ?? "a people"} began to remake ${landWords(world, e.place)}'s world, turning comets from their courses and drawing air from its giants, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(
+  LATE_EVENTS.remade.type,
+  (world, e) =>
+    `The world of ${landWords(world, e.place)} was remade: its people walked out of their halls under its own new sky, year ${yearOfMoment(e.t)}`,
+);
+registerEventWords(LATE_EVENTS.covered.type, (_world, e) => {
+  const d = (e.data ?? {}) as { built?: number; lands?: number };
+  return `${d.built ?? "Half"} of the world's ${d.lands ?? ""} peopled lands came to be built on from edge to edge, more towers than fields, year ${yearOfMoment(e.t)}`;
 });
 
 registerEventWords(CONTACT_EVENTS.heard.type, (_world, e) => {

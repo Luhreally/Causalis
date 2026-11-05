@@ -373,6 +373,46 @@ body[data-scale="ground"][data-daylight="night"] {
     149px 149px,
     100% 100%;
 }
+/* Its star's mirrors seen from its ground (Phase 66): a band of glints across the sky, on the page's sky behind
+   the world, broader and brighter as they grow; a pale thread by day, bright once the sun is down. */
+body[data-mirrors][data-scale="ground"]:not([data-colony]) {
+  isolation: isolate;
+}
+body[data-mirrors][data-scale="ground"]:not([data-colony])::before {
+  content: "";
+  position: fixed;
+  left: -40%;
+  right: -40%;
+  top: 22%;
+  height: calc(3% + 6% * var(--mirrors, 0));
+  transform: rotate(-22deg);
+  z-index: -1;
+  pointer-events: none;
+  opacity: calc(0.25 + 0.75 * var(--mirrors, 0));
+  background-image:
+    radial-gradient(1.3px 1.3px at 30% 40%, #fff6d0 60%, transparent 100%),
+    radial-gradient(1px 1px at 70% 70%, #ffe9a8 60%, transparent 100%),
+    radial-gradient(1.6px 1.6px at 50% 20%, #ffffff 60%, transparent 100%),
+    linear-gradient(
+      180deg,
+      transparent 0%,
+      rgba(255, 228, 160, 0.28) 45%,
+      rgba(255, 228, 160, 0.28) 55%,
+      transparent 100%
+    );
+  background-size:
+    13px 17px,
+    23px 11px,
+    41px 29px,
+    100% 100%;
+}
+body[data-mirrors][data-scale="ground"][data-daylight="day"]:not([data-colony])::before,
+body[data-mirrors][data-scale="ground"]:not([data-daylight]):not([data-colony])::before {
+  opacity: calc(0.1 + 0.25 * var(--mirrors, 0));
+}
+body[data-mirrors][data-sky="grey"][data-scale="ground"]::before {
+  display: none;
+}
 /* A colony's sky (Phase 64): black and starred at noon where it has no air to speak of; else its
    own, by what air it has, and starred by night. */
 body[data-colony="black"][data-scale="ground"] {

@@ -92,6 +92,11 @@ export type Principle = {
   readonly drivers: Drivers;
   readonly effects: Partial<Record<Effect, number>>;
   readonly body?: BodyNeeds;
+  /**
+   * What it asks of its world's matter (Phase 66): functions (rules/properties.ts) that world's crust,
+   * bodies and star must meet, whatever its people know. Unmet, it is never found there.
+   */
+  readonly asks?: readonly string[];
 };
 
 /**
@@ -949,6 +954,120 @@ const KIND_TREE: readonly Principle[] = [
   ),
 ];
 
+// Ages past ours (Phase 66, asked for 2026-11-03: "the ages past the ages humans experienced can still
+// emerge ... with logic there for it to emerge if present for that world"). Each asks a function of its
+// world's matter (rules/properties.ts) as well as what its people know: a flame held only where a crust
+// holds what carries a current without loss, a mind of crystal only where one can be had by the tonne.
+// Appended last, so that every land's draws to find the others stay what they were, and each opens only
+// once the sky's road has been walked: until then no history can tell they are here. (Where a road has
+// another way round, "a|b": a world with no flame to hold may yet gather its star's light.)
+export const LATE_TREE: readonly Principle[] = [
+  {
+    ...P(
+      "fusion-power",
+      "a fusion flame held in a bottle",
+      ["fusion-drive", "electronics"],
+      0.0009,
+      { crafters: 1, leaders: 0.3 },
+      { power: 1, industry: 0.3, renewable: 2 },
+    ),
+    asks: ["wall-a-flame", "hold-a-flame"],
+  },
+  {
+    ...P(
+      "machine-minds",
+      "minds of crystal",
+      ["guidance", "nuclear-drive"],
+      0.0005,
+      { crafters: 1, traders: 0.3 },
+      { learning: 0.5, industry: 0.2 },
+    ),
+    asks: ["think-in-crystal"],
+  },
+  {
+    ...P(
+      "drawn-carbon",
+      "carbon drawn and woven",
+      ["machine-minds"],
+      0.0006,
+      { crafters: 1 },
+      { tools: 0.2, building: 1 },
+    ),
+    asks: ["draw-a-fibre"],
+  },
+  {
+    ...P(
+      "beam-arms",
+      "arms of burning light",
+      ["guidance", "nuclear-drive", "fusion-power|machine-minds"],
+      0.0004,
+      { crafters: 1, leaders: 1 },
+      { arms: 1 },
+    ),
+    asks: ["beam-a-light"],
+  },
+  {
+    ...P(
+      "made-bodies",
+      "bodies written and grown",
+      ["machine-minds", "long-sleep"],
+      0.00025,
+      { crafters: 0.5, leaders: 0.5, town: 0.5 },
+      { health: 0.08 },
+    ),
+    asks: ["write-a-body"],
+  },
+  P(
+    "machine-soldiers",
+    "soldiers of made limbs",
+    ["machine-minds", "beam-arms"],
+    0.0004,
+    { crafters: 1, leaders: 1 },
+    { arms: 1 },
+  ),
+  {
+    ...P(
+      "star-mirrors",
+      "mirrors gathered about the star",
+      ["machine-minds", "fusion-drive", "stations"],
+      0.0002,
+      { crafters: 1, leaders: 0.5 },
+      {},
+    ),
+    asks: ["gather-a-star"],
+  },
+  P(
+    "vat-food",
+    "food grown in vats",
+    ["made-bodies", "fusion-power|star-mirrors"],
+    0.0003,
+    { crafters: 1, famine: 1, town: 0.5 },
+    { storage: 3, keeping: 0.1 },
+  ),
+  {
+    ...P(
+      "world-making",
+      "a world's air and water remade",
+      ["habitats", "machine-minds", "fusion-power|star-mirrors"],
+      0.00025,
+      { crafters: 1, leaders: 0.5 },
+      {},
+    ),
+    asks: ["remake-a-world"],
+  },
+  {
+    ...P(
+      "world-city",
+      "towers from shore to shore",
+      ["vat-food", "drawn-carbon"],
+      0.0002,
+      { crafters: 1, leaders: 0.3, town: 1 },
+      { building: 1 },
+    ),
+    asks: ["roof-a-world"],
+  },
+];
+
 /** The kinds' principles that bring metal to a land, as the vents' does a people of the water. */
 export const KIND_METAL_ROOTS: readonly string[] = ["cold-hammering", "acid-leaching"];
 /** The kinds' engines, whose works want machines as steam's do. */
@@ -1001,7 +1120,7 @@ const ASKS: Readonly<Record<string, BodyNeeds>> = {
   aqueducts: { media: ["land", "shore"] },
 };
 
-export const PRINCIPLES: readonly Principle[] = [...TREE, ...KIND_TREE].map((p) =>
+export const PRINCIPLES: readonly Principle[] = [...TREE, ...KIND_TREE, ...LATE_TREE].map((p) =>
   ASKS[p.id] ? { ...p, body: ASKS[p.id] } : p,
 );
 

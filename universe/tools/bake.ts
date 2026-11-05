@@ -20,7 +20,7 @@ import { YEAR, rulesetId, saveWorld, seedFromText } from "../src/kernel/index.ts
 import { ALIEN, EARTH } from "../src/host/planet.ts";
 import { rawReading, readingMark } from "../src/host/reading.ts";
 import type { World } from "../src/kernel/index.ts";
-import type { Baked } from "../src/ui/jump.ts";
+import { PAST_WORLD, type Baked } from "../src/ui/jump.ts";
 
 const argv = process.argv.slice(2),
   value = (flag: string, otherwise: string) => {
@@ -28,11 +28,16 @@ const argv = process.argv.slice(2),
     return at >= 0 ? argv[at + 1]! : otherwise;
   },
   out = value("--out", fileURLToPath(new URL("../dist/baked", import.meta.url))),
-  years = value("--years", "1500,3000")
+  years = value("--years", "1500,2000,3000")
     .split(",")
     .map(Number)
     .sort((a, b) => a - b),
-  seed = "first light";
+  seed = "first light",
+  // (A world past our ages by another road, for the picker: a people of the water, who never hold a
+  // flame, with worlds remade. Phase 66.)
+  beyond = { seed: "alien 41", year: Number(value("--beyond", "2000")) },
+  // (And the world the title's way into those ages opens: Phase 66.)
+  past = PAST_WORLD;
 
 type Marked = {
   readonly universe: string;
@@ -68,6 +73,46 @@ for (const year of years) {
   worlds.push({ universe: EARTH.name, seed, year, file, bytes: bytes.length, ruleset });
   console.log(
     `  year ${year}: ${(bytes.length / 1e6).toFixed(1)} MB, ${Math.round((performance.now() - t0) / 1000)} s on`,
+  );
+}
+{
+  const other = EARTH.build(seedFromText(past.seed)),
+    its = rulesetId(other, EARTH.version);
+  other.runTo(past.year * YEAR);
+  holdToRecord(other, EARTH.name, past.seed, past.year);
+  const bytes = gzipSync(JSON.stringify(saveWorld(other, its, { universe: EARTH.name }))),
+    file = `${EARTH.name}-${past.year}-${createHash("sha256").update(bytes).digest("hex").slice(0, 12)}.save`;
+  writeFileSync(join(out, file), bytes);
+  worlds.push({
+    universe: EARTH.name,
+    seed: past.seed,
+    year: past.year,
+    file,
+    bytes: bytes.length,
+    ruleset: its,
+  });
+  console.log(
+    `  ${past.seed}, year ${past.year}: ${(bytes.length / 1e6).toFixed(1)} MB, ${Math.round((performance.now() - t0) / 1000)} s on`,
+  );
+}
+if (beyond.year > 0) {
+  const other = ALIEN.build(seedFromText(beyond.seed)),
+    its = rulesetId(other, ALIEN.version);
+  other.runTo(beyond.year * YEAR);
+  holdToRecord(other, ALIEN.name, beyond.seed, beyond.year);
+  const bytes = gzipSync(JSON.stringify(saveWorld(other, its, { universe: ALIEN.name }))),
+    file = `${ALIEN.name}-${beyond.year}-${createHash("sha256").update(bytes).digest("hex").slice(0, 12)}.save`;
+  writeFileSync(join(out, file), bytes);
+  worlds.push({
+    universe: ALIEN.name,
+    seed: beyond.seed,
+    year: beyond.year,
+    file,
+    bytes: bytes.length,
+    ruleset: its,
+  });
+  console.log(
+    `  ${beyond.seed}, year ${beyond.year}: ${(bytes.length / 1e6).toFixed(1)} MB, ${Math.round((performance.now() - t0) / 1000)} s on`,
   );
 }
 // The smallest alien world that came to orbit: alien history, as far as it goes, in a minute or two.

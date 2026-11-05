@@ -214,6 +214,18 @@ const LOOKS: Readonly<Record<string, Look>> = {
     leaf: [0.42, 0.46, 0.24],
     bark: [0.44, 0.34, 0.22],
   },
+  // Street and square, on ground built over (Phase 66).
+  paved: {
+    dirt: [0.44, 0.45, 0.48],
+    grass: [
+      [0.44, 0.45, 0.48],
+      [0.4, 0.41, 0.44],
+      [0.38, 0.39, 0.42],
+      [0.36, 0.37, 0.4],
+    ],
+    leaf: [0.3, 0.4, 0.3],
+    bark: [0.28, 0.28, 0.3],
+  },
   impact: {
     dirt: [0.34, 0.31, 0.28],
     grass: [

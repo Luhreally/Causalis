@@ -31,6 +31,7 @@ import { clearAt, clearOf, keepOut, route, villageGround, type Ground } from "./
 import { streetDoor } from "./streets.ts";
 import { FEAST_HOURS, MARKET_HOURS, feastOn, feastPlace, marketDay, marketScene } from "./feast.ts";
 import { FLAMES_S, strikeSpan } from "./town.ts";
+import { GROUP_COLORS } from "./dress.ts";
 import {
   FUNERAL,
   funeralsOf,
@@ -5806,6 +5807,8 @@ export function sayOf(
 
 /** People by what they do: those who work the land, the makers and carriers, the leaders, the young. */
 export function personGroup(p: VillagePlan["people"][number]): number {
+  // (Those of made limbs: a group of their own, past the four. Phase 66.)
+  if (p.machine) return GROUP_COLORS.length;
   if (p.child) return 3;
   if (p.occupation === OCC.leader) return 2;
   if (p.occupation === OCC.crafter || p.occupation === OCC.trader) return 1;

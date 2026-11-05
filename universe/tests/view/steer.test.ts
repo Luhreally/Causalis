@@ -5,6 +5,7 @@ import {
   STILL,
   asked,
   ease,
+  eyeAmongSpires,
   globeDrag,
   grabbed,
   steerKey,
@@ -132,4 +133,31 @@ test("the ground taken hold of comes under the pointer again; a globe held neare
   );
   assert.equal(held.x, 30, "no further than its land");
   assert.ok(globeDrag(1.3) < globeDrag(3) && globeDrag(3) <= 0.3 && globeDrag(1.001) > 0);
+});
+
+test("an eye in a town of spires comes in over them, and what stands in its way is cut, the ground still whole", () => {
+  // (Far out, as it is asked, and nothing cut: the town's first sight.)
+  assert.deepEqual(eyeAmongSpires(272, -8), { pitch: -8, near: 0.1 });
+  // (It tilts down as it nears, only ever down.)
+  let last = 8;
+  for (const d of [110, 90, 70, 50, 35]) {
+    const down = -eyeAmongSpires(d, -8).pitch;
+    assert.ok(down >= last, `at ${d}: ${down} after ${last}`);
+    last = down;
+  }
+  assert.equal(last, 60);
+  assert.equal(eyeAmongSpires(40, -75).pitch, -75);
+  // (Down among the folk, it looks as it is asked.)
+  assert.equal(eyeAmongSpires(6, -20).pitch, -20);
+  const half = (22.5 * Math.PI) / 180;
+  for (const d of [100, 60, 40, 25, 12, 6, 3])
+    for (const asked of [-8, -28, -60, -85]) {
+      const { pitch, near } = eyeAmongSpires(d, asked),
+        a = (-pitch * Math.PI) / 180,
+        // How far along its line of sight it meets the ground at the foot of the screen.
+        foot = (d * Math.sin(a) * Math.cos(half)) / Math.sin(a + half);
+      assert.ok(near < foot, `the ground cut at ${d}, ${asked}: ${near} of ${foot}`);
+      assert.ok(near < d, `what it looks at cut at ${d}, ${asked}`);
+      if (d <= 100) assert.ok(near > 0.5, `nothing cut at ${d}, ${asked}`);
+    }
 });

@@ -23,7 +23,15 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
-import { cellRef, seamRef, surfaceOre, tongueLikeness, worldKindOf } from "../../gen/index.ts";
+import {
+  cellRef,
+  functionsOf,
+  seamRef,
+  surfaceOre,
+  tongueLikeness,
+  worldKindOf,
+  type HomeWorld,
+} from "../../gen/index.ts";
 import {
   EFFECTS,
   KIND_METAL_ROOTS,
@@ -32,6 +40,7 @@ import {
   PRINCIPLE_INDEX,
   SMELTING,
   affordsPrinciple,
+  matterShuts,
   needsMet,
   type Effect,
   type Principle,
@@ -216,6 +225,14 @@ export function oreDriver(
   };
 }
 
+/**
+ * Whether a world's matter allows a principle (Phase 66): what it asks of that matter is met, or it is
+ * never found there, however much its people know. (Asked last, of those with all else in place.)
+ */
+export function matterAllows(g: HomeWorld, p: Principle): boolean {
+  return !p.asks || !matterShuts(p, functionsOf(g));
+}
+
 /** The lore's year: each land may find one principle and learn one from a neighbour. */
 export function loreYear(ctx: PopulationContext, t: SimTime): void {
   const { world, generated: g } = ctx,
@@ -237,7 +254,8 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
           p.rate > 0 &&
           affordsPrinciple(p, ctx.medium, ctx.affords.fire, kind) &&
           !store.get(cell, p.id) &&
-          needsMet(p, (n) => knows(ctx, cell, n)),
+          needsMet(p, (n) => knows(ctx, cell, n)) &&
+          matterAllows(g, p),
       );
     if (!open.length) continue;
     // Finding: the first principle whose drivers carry it, in the tree's order.

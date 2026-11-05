@@ -58,5 +58,6 @@ export function crossingYears(ly: number, d: StarDrive): number {
 
 /** The longest crossing a people will send its own on: a sleeping crew, or generations. */
 export function longestCrossing(knows: (id: string) => boolean): number {
-  return knows("long-sleep") ? 300 : 120;
+  // (A body written to last, Phase 66: a crew that wakes as it set out.)
+  return knows("made-bodies") ? 1000 : knows("long-sleep") ? 300 : 120;
 }

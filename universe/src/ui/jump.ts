@@ -7,6 +7,16 @@ import { YEAR } from "../kernel/index.ts";
 import type { HostClient } from "../bridge/index.ts";
 
 /** A world run ahead, as the deploy's manifest lists it (baked/manifest.json). */
+
+/**
+ * The world the title's way into the ages past ours opens (Phase 66, measured 2026-11-04 among the worlds
+ * of the catalogue): Earth's "tide 207", whose peoples have every age past ours by this year, the Moon
+ * remade among them, in the smallest save that does (6.4 MB against 11.3 for "first light", which never
+ * remakes a world). A flame held in 1280, minds of crystal in 1150, beams in 1220, made bodies in 1360,
+ * built over in 1810, its star gathered in 1840, a world remade in 1960.
+ */
+export const PAST_WORLD = { universe: "earth", seed: "tide 207", year: 2000 } as const;
+
 export type Baked = {
   readonly universe: string;
   readonly seed: string;
@@ -21,11 +31,11 @@ type BakedFor = Pick<Baked, "universe" | "seed" | "ruleset">;
 
 /**
  * About how long a year takes, by how far on it is: this machine's milliseconds at every 500th year
- * (tools/sky-survey.ts, its yearMs: Earth's and two aliens' together, to year 6,000). Only the shape
- * counts once a jump is under way: a world's own pace so far scales it. Past the last it is taken to
- * hold.
+ * (tools/sky-survey.ts, its yearMs: Earth's and two aliens' together; to year 3,100 again for Phase 66, whose
+ * ages cost more than those before them, and held on from there). Only the shape counts once a jump is under
+ * way: a world's own pace so far scales it. Past the last it is taken to hold.
  */
-const YEAR_MS = [60, 175, 187, 200, 207, 217, 222, 225, 228, 230, 232, 236, 245];
+const YEAR_MS = [60, 170, 205, 232, 257, 267, 262, 262, 264, 266, 268, 270, 272];
 /** The phone floor (an iPhone 15 Plus) runs at two thirds of this machine's pace (tools/phase6-gate.ts). */
 const PHONE = 1.5;
 

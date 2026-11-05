@@ -5,7 +5,15 @@
 // town is large enough for it, at the town's heart or at its edge as it stands then.
 
 /** The levels a home is raised at. */
-export const HOME_LEVELS = ["hut", "house", "townhouse", "tenement", "block", "high-rise"] as const;
+export const HOME_LEVELS = [
+  "hut",
+  "house",
+  "townhouse",
+  "tenement",
+  "block",
+  "high-rise",
+  "spire",
+] as const;
 export const LEVEL = {
   hut: 0,
   house: 1,
@@ -13,19 +21,21 @@ export const LEVEL = {
   tenement: 3,
   block: 4,
   highRise: 5,
+  /** A tower of a hundred storeys and more, hung from woven carbon (Phase 66). */
+  spire: 6,
 } as const;
 /** How many a home of each level holds. */
-export const HOLDS: readonly number[] = [5, 6, 16, 48, 160, 600];
+export const HOLDS: readonly number[] = [5, 6, 16, 48, 160, 600, 6000];
 /** Months to raise a home of each level. */
-export const HOME_MONTHS: readonly number[] = [1, 3, 8, 14, 24, 36];
+export const HOME_MONTHS: readonly number[] = [1, 3, 8, 14, 24, 36, 48];
 /**
  * Years a home of each level stands before it is worn and rebuilt in its place: a hut a dozen, a
  * timber house fifty, a townhouse of stone a hundred and twenty, the tall ones of the machine
  * age less than a century.
  */
-export const HOME_LIFE: readonly number[] = [12, 50, 120, 80, 70, 60];
+export const HOME_LIFE: readonly number[] = [12, 50, 120, 80, 70, 60, 150];
 /** Storeys of a home of each level. */
-export const HOME_STOREYS: readonly number[] = [1, 1, 3, 5, 10, 24];
+export const HOME_STOREYS: readonly number[] = [1, 1, 3, 5, 10, 24, 120];
 
 export type CivicKind =
   | "shrine"
@@ -46,7 +56,10 @@ export type CivicKind =
   | "factory"
   | "station"
   | "power"
-  | "offices";
+  | "offices"
+  | "fusion"
+  | "minds"
+  | "vats";
 
 export type CivicDef = {
   readonly kind: CivicKind;
@@ -249,6 +262,38 @@ export const CIVICS: readonly CivicDef[] = [
     per: 20_000,
     most: 40,
   },
+  // Ages past ours (Phase 66): last, so that every other keeps its place.
+  {
+    kind: "fusion",
+    name: "a fusion works",
+    needs: ["fusion-power"],
+    people: 30_000,
+    place: "edge",
+    years: 6,
+    per: 1_000_000,
+    most: 6,
+  },
+  {
+    kind: "minds",
+    name: "a house of minds",
+    needs: ["machine-minds"],
+    people: 40_000,
+    city: true,
+    place: "core",
+    years: 4,
+    per: 1_000_000,
+    most: 6,
+  },
+  {
+    kind: "vats",
+    name: "food vats",
+    needs: ["vat-food"],
+    people: 50_000,
+    place: "edge",
+    years: 3,
+    per: 500_000,
+    most: 12,
+  },
 ];
 
 export const CIVIC_INDEX: ReadonlyMap<CivicKind, number> = new Map(
@@ -286,6 +331,9 @@ export const CIVIC_FOR: Readonly<Record<CivicKind, string>> = {
   station: "where the railway stops",
   power: "where the town's electricity is made",
   offices: "where the town's business is done",
+  fusion: "where a flame of light atoms is held in a bottle of magnets, and the town drawn from it",
+  minds: "where the town's minds of crystal reckon, and its machines are told what to do",
+  vats: "where the town's food is grown, in tanks of warm broth",
 };
 
 /** Each building's sign. */
@@ -309,4 +357,7 @@ export const CIVIC_ICON: Readonly<Record<CivicKind, string>> = {
   station: "🚉",
   power: "⚡",
   offices: "🏢",
+  fusion: "🔆",
+  minds: "🧠",
+  vats: "🧫",
 };

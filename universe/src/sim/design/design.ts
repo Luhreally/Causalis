@@ -292,6 +292,23 @@ export function machinedFor(ctx: PopulationContext, p: Polity): Ref | null {
 }
 
 /**
+ * Where a realm's beam arms and machine soldiers would come from (Phase 66): a member land with works
+ * whose machines are held there, else machines brought down a road. Null: nothing it can reach turns
+ * them out.
+ */
+export function crystalFor(ctx: PopulationContext, p: Polity): Ref | null {
+  const markets = ctx.world.store<MarketStore>("economy.markets"),
+    lands = [...p.members].sort((a, b) => a - b);
+  for (const c of lands) {
+    const m = markets.get(c);
+    if (m && m.stock[G.machines]! > 0 && knows(ctx, c, "machine-minds"))
+      return m.works ?? ctx.provinces.get(c)?.ref ?? null;
+  }
+  const flow = markets.flows.find((f) => f.good === G.machines && lands.includes(f.to));
+  return flow ? (markets.route(flow.from, flow.to) ?? null) : null;
+}
+
+/**
  * Where a realm's engines would get their oil (Phase 53 M219): a member land that holds oil, drawn
  * there (citing its first well) or brought in (citing the road). Null: none.
  */
@@ -353,6 +370,11 @@ export function hostFor(
     oil = machined && seatKnows("armoured-vehicles") ? fuelFor(ctx, p) : null;
   if (machined) sources.machined = machined;
   if (oil) sources.oil = oil;
+  // (Beam arms and machine soldiers, Phase 66: what its works turn out.)
+  if (seatKnows("beam-arms") || seatKnows("machine-soldiers")) {
+    const crystal = crystalFor(ctx, p);
+    if (crystal) sources.crystal = crystal;
+  }
   for (const m of Object.keys(sources) as Material[]) at.add(m);
   const doctrine: Doctrine = {
     shock: 0.6 + valour,

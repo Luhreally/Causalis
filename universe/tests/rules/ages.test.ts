@@ -216,7 +216,7 @@ test("what a world lacks for the next age: what's asked, what it has, what it co
     EARTH,
   )!;
   assert.equal(steam.lacks[0]!.known, true);
-  // The last age lacks nothing further.
+  // Past its stars it is told what comes next.
   const stars = readWorld(
     [
       land([...TO_ORBIT, "life-support", "habitats", "fusion-drive"], {
@@ -227,10 +227,8 @@ test("what a world lacks for the next age: what's asked, what it has, what it co
     { ...WORLD, sat: 2, colonyKm: 8e7, starLy: 4.2 },
     EARTH,
   );
-  assert.equal(
-    lacksForNext(stars, () => true, EARTH),
-    null,
-  );
+  // (Past the stars lie the ages past ours: the next is a flame held, and what stands between.)
+  assert.equal(lacksForNext(stars, () => true, EARTH)?.age.id, "fusion");
 });
 
 test("each road an age asks for is a principle, and a people of any kind has a road up to orbit", () => {

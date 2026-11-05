@@ -7,7 +7,10 @@ import { cellRef, lives, offworldSite } from "../../gen/index.ts";
 import {
   beliefOf,
   citiesOf,
+  coverOf,
   DEITIES,
+  designsOf,
+  lateOf,
   creditOf,
   strifeOf,
   healthOf,
@@ -29,7 +32,7 @@ import {
   warsOf,
   wildsOf,
 } from "../../sim/index.ts";
-import { PRINCIPLES, kindAllows } from "../../rules/index.ts";
+import { PRINCIPLES, hasBeams, kindAllows } from "../../rules/index.ts";
 import { kindAge, kindName, kindOf } from "../kinds.ts";
 import { principleName } from "../../causal/index.ts";
 import { parseRef, type Ref, type World } from "../../kernel/index.ts";
@@ -1206,6 +1209,59 @@ function firstsOf(world: World, s: BaseSurvey): First[] {
         many(heard.length, "time", "times"),
         heard.length,
       );
+    // Ages past ours (Phase 66): the first host arming with beams, the mirrors, a world remade, a world covered.
+    const hosts = designsOf(world)
+      .list()
+      .filter((d) => d.kind === "host" && hasBeams(d.parts))
+      .sort((a, b) => a.since - b.since);
+    if (hosts[0])
+      add(
+        "🔦 A host bearing beams",
+        {
+          year: hosts[0].since,
+          land: landOfPlace(world.events.get(hosts[0].event)?.place),
+          ref: hosts[0].event,
+        },
+        hosts.find((d) => d.owner !== hosts[0]!.owner)?.since ?? null,
+        many(new Set(hosts.map((d) => d.owner)).size, "realm's host", "realms' hosts"),
+        new Set(hosts.map((d) => d.owner)).size,
+      );
+    const late = lateOf(world);
+    if (late?.mirrors) {
+      const km2 = Math.round(late.mirrors.km2);
+      add("🪞 Mirrors about the star", at(late.mirrors.begun), null, `${count(km2)} km²`, km2);
+      add("☀️ A star gathered", at(late.mirrors.gathered), null, `${count(km2)} km²`, km2);
+    }
+    const remakings = late?.all() ?? [],
+      done = remakings.filter((r) => r.done).sort((a, b) => a.last - b.last);
+    if (remakings[0]) {
+      const begun = [...remakings].sort((a, b) => a.year - b.year);
+      add(
+        "🌍 A world's remaking begun",
+        at(begun[0]!.begun),
+        begun[1]?.year ?? null,
+        many(begun.length, "world", "worlds"),
+        begun.length,
+      );
+    }
+    if (done[0])
+      add(
+        "🌱 A world remade",
+        at(done[0].done),
+        done[1]?.last ?? null,
+        many(done.length, "world", "worlds"),
+        done.length,
+      );
+    if (late?.covered) {
+      const { built, lands } = coverOf(ctx);
+      add(
+        "🌃 A world covered",
+        at(late.covered),
+        null,
+        `${count(built)} of ${count(lands)} lands`,
+        built,
+      );
+    }
   }
   return firsts.sort((a, b) => a.first.year - b.first.year);
 }

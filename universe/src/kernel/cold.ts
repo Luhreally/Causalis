@@ -158,34 +158,49 @@ function fullSubjects(kept: readonly unknown[]): readonly (readonly Ref[])[] {
 
 /**
  * A group's causes that are events or decisions, as kept: a row whose are those of the last with the
- * same first subject (the war each of its battles was fought in) keeps a 0.
+ * same first subject (the war each of its battles was fought in), or with none, of the same place (a
+ * famine in the same land), keeps a 0; and of a list where some are the same, each of those a 0 (no
+ * cause's code is ever 0).
  */
 function keptKids(
   list: readonly (readonly number[])[],
   subjects: readonly (readonly string[])[],
+  places: readonly number[],
 ): unknown[] {
-  const last = new Map<string, readonly number[]>();
+  const last = new Map<string | number, readonly number[]>();
   return list.map((codes, k) => {
-    const first = subjects[k]![0];
-    if (first === undefined || !codes.length) return codes;
-    const was = last.get(first);
-    if (was && sameList(was, codes)) return 0;
-    last.set(first, codes);
-    return codes;
+    if (!codes.length) return codes;
+    const key = subjects[k]![0] ?? places[k]!,
+      was = last.get(key);
+    last.set(key, codes);
+    if (!was) return codes;
+    if (sameList(was, codes)) return 0;
+    let same = false;
+    const out = codes.map((c, i) => {
+      if (was[i] !== c) return c;
+      same = true;
+      return 0;
+    });
+    return same ? out : codes;
   });
 }
 
 function fullKids(
   kept: readonly unknown[],
   subjects: readonly (readonly string[])[],
+  places: () => readonly number[],
 ): readonly (readonly number[])[] {
-  const last = new Map<string, readonly number[]>();
+  const last = new Map<string | number, readonly number[]>(),
+    keyOf = (k: number) => subjects[k]![0] ?? places()[k]!;
   return kept.map((row, k) => {
-    const first = subjects[k]![0];
-    if (row === 0) return last.get(first!)!;
+    if (row === 0) return last.get(keyOf(k))!;
     const codes = row as readonly number[];
-    if (first !== undefined && codes.length) last.set(first, codes);
-    return codes;
+    if (!codes.length) return codes;
+    const key = keyOf(k),
+      was = last.get(key),
+      full = codes.includes(0) ? codes.map((c, i) => (c === 0 ? was![i]! : c)) : codes;
+    last.set(key, full);
+    return full;
   });
 }
 
@@ -449,6 +464,7 @@ export class ColdEvents {
   private kidsIn = new Recent<Groups<readonly number[]>>();
   private causesOf = new Recent<Groups<readonly KeptCause[]>>();
   private dataOf = new Recent<readonly (readonly unknown[])[]>();
+  private placesOf = new Recent<readonly (readonly number[])[]>();
 
   private room(n: number): void {
     if (n <= this.serial.length) return;
@@ -497,7 +513,13 @@ export class ColdEvents {
     const words = this.words,
       groups = new Map<
         string,
-        { subjects: unknown[]; kids: number[][]; causes: KeptCause[][]; data: unknown[] }
+        {
+          subjects: unknown[];
+          kids: number[][];
+          causes: KeptCause[][];
+          data: unknown[];
+          places: number[];
+        }
       >(),
       s = new Array<number>(rows.length),
       t = new Array<number>(rows.length),
@@ -512,7 +534,9 @@ export class ColdEvents {
       i[k] = e.importance;
       p[k] = e.place === null ? -1 : words.idOf(e.place);
       let g = groups.get(e.type);
-      if (!g) groups.set(e.type, (g = { subjects: [], kids: [], causes: [], data: [] }));
+      if (!g)
+        groups.set(e.type, (g = { subjects: [], kids: [], causes: [], data: [], places: [] }));
+      g.places.push(p[k]!);
       g.subjects.push(e.subjects);
       g.data.push(e.data);
       const kids: number[] = [],
@@ -538,7 +562,7 @@ export class ColdEvents {
     return {
       head: text({ s, t, y, i, p }, words),
       kids: textOfLists(
-        all.map((g) => keptKids(g.kids, g.subjects as readonly (readonly string[])[])),
+        all.map((g) => keptKids(g.kids, g.subjects as readonly (readonly string[])[], g.places)),
         words,
       ),
       causes: textOfLists(
@@ -587,6 +611,20 @@ export class ColdEvents {
     );
   }
 
+  /** The places of a group of a block's rows, forgotten or not (its causes are kept against them). */
+  private placesIn(b: number, group: number): readonly number[] {
+    return this.placesOf.get(b, () => {
+      const h = read<EventHead>(this.blocks[b]!.head, this.words),
+        grouped = new GroupPlaces(),
+        out: number[][] = [];
+      for (let k = 0; k < h.y.length; k++) {
+        grouped.next(h.y[k]!);
+        (out[grouped.group] ??= []).push(h.p[k]!);
+      }
+      return out;
+    })[group]!;
+  }
+
   /** A row's causes that are events or decisions, by code. */
   kids(row: number): readonly number[] {
     const b = this.block[row]!;
@@ -595,7 +633,7 @@ export class ColdEvents {
         b,
         () =>
           new Groups<readonly number[]>(this.blocks[b]!.kids, this.words, (kept, group) =>
-            fullKids(kept, this.subjectsIn(b).of(group)),
+            fullKids(kept, this.subjectsIn(b).of(group), () => this.placesIn(b, group)),
           ),
       )
       .of(this.group[row]!)[this.within[row]!]!;
@@ -710,6 +748,7 @@ export class ColdEvents {
         this.kidsIn.forget(k);
         this.causesOf.forget(k);
         this.dataOf.forget(k);
+        this.placesOf.forget(k);
       }
       done++;
     }
@@ -771,6 +810,7 @@ export class ColdEvents {
     this.kidsIn.clear();
     this.causesOf.clear();
     this.dataOf.clear();
+    this.placesOf.clear();
     this.n = 0;
     for (const [head, kids, causes, subjects, data, dead] of s.blocks) {
       const h = read<EventHead>(head, this.words),

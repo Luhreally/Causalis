@@ -94,6 +94,11 @@ export type SkyState = {
   }[];
   /** The peoples of other stars (Phase 18 M133–M134): what each holds, its ships, whom it met. */
   readonly peoples?: PeoplesSky;
+  /**
+   * Its star's mirrors (Phase 66; absent: none): their breadth (km²), what they gather (kW), and how many
+   * times what falls on its whole world that is.
+   */
+  readonly mirrors?: { readonly km2: number; readonly kw: number; readonly times: number };
 };
 
 /** How the peoples of other stars stand among them, for the cluster's view (Phase 18 M134). */

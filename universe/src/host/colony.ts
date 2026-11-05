@@ -15,7 +15,14 @@ import {
   type World,
 } from "../kernel/index.ts";
 import { COVER, WATER, isProvinceWorld, offworldSite, placeName } from "../gen/index.ts";
-import { HOLDS, habitability, routeTo, type Bodylike } from "../rules/index.ts";
+import {
+  HOLDS,
+  habitability,
+  remadeWorld,
+  remakingAt,
+  routeTo,
+  type Bodylike,
+} from "../rules/index.ts";
 import {
   COLONISTS,
   SETTLEMENT,
@@ -28,10 +35,12 @@ import {
   homePlanet,
   housingOf,
   knows,
+  lateOf,
   loreOf,
   politiesOf,
   populationContext,
   realmName,
+  remakeKey,
   siteGround,
   siteRegion,
   spaceOf,
@@ -299,25 +308,50 @@ function overOf(ground: SiteGround): ColonyLook["over"] {
       : null;
 }
 
-/** A colony's sky and ground, from its world's own numbers. */
-function lookOf(world: World, cell: number, ground: SiteGround): ColonyLook {
+/** How far the world a colony stands on has been remade (Phase 66; 0: not at all, or not a colony). */
+export function colonyRemade(world: World, cell: number): number {
+  const site = offworldSite(homePlanet(world).generated, cell);
+  return site ? (lateOf(world)?.share(remakeKey(site.body, cell)) ?? 0) : 0;
+}
+
+/**
+ * A colony's sky and ground, from its world's own numbers: as they are now, or (`landing`) as its first
+ * ship found them.
+ */
+function lookOf(world: World, cell: number, ground: SiteGround, landing = false): ColonyLook {
   const g = homePlanet(world).generated,
     body = ground.body,
     k = beginning(world, cell),
     event = k ? world.events.get(k.event) : undefined,
     w = ground.world,
-    settlers = (event?.data as { settlers?: unknown } | null)?.settlers;
+    settlers = (event?.data as { settlers?: unknown } | null)?.settlers,
+    was = w.temperature[ground.hall] ?? body.temperature,
+    site = offworldSite(g, cell),
+    remaking = site ? lateOf(world)?.get(remakeKey(site.body, cell)) : undefined,
+    went = remaking ? { from: remaking.year, to: remaking.last, share: remaking.share } : null,
+    // (Its first ship found it as it stood that year: unmade, or some way along if they came late to it.)
+    share = landing ? (went ? remakingAt(went, k?.year ?? 0) : 0) : colonyRemade(world, cell),
+    base = {
+      air: body.air,
+      water: body.water,
+      pressure: body.pressure,
+      temperature: was,
+      icy: w.cover[ground.hall] === COVER.ice,
+    },
+    now = remadeWorld(base, share);
   return {
     body: body.designation,
     bodyRef: body.ref,
     kind: body.kind,
-    air: body.air,
-    water: body.water,
-    pressure: body.pressure,
+    air: now.air,
+    water: now.water,
+    pressure: now.pressure,
     gravity: body.gravity,
-    temperature: w.temperature[ground.hall] ?? body.temperature,
+    temperature: now.temperature,
     tint: w.tint,
-    icy: w.cover[ground.hall] === COVER.ice,
+    icy: now.icy,
+    ...(share > 0 ? { remade: share } : {}),
+    ...(landing && went ? { remaking: { ...went, base } } : {}),
     hall: ground.hall,
     star: {
       temperature: ground.star.temperature,
@@ -330,14 +364,17 @@ function lookOf(world: World, cell: number, ground: SiteGround): ColonyLook {
     founded: k?.year ?? 0,
     event: k?.event ?? null,
     settlers: typeof settlers === "number" ? settlers : COLONISTS,
-    keeps: habitability(body, g.life.people?.body ?? null, g.system.bodies[0]!.gravity).because,
+    keeps:
+      share >= 1
+        ? []
+        : habitability(body, g.life.people?.body ?? null, g.system.bodies[0]!.gravity).because,
   };
 }
 
 /** A colony's look (null: a land of the home world, or a ship still sailing). */
-export function colonyLook(world: World, cell: number): ColonyLook | null {
+export function colonyLook(world: World, cell: number, landing = false): ColonyLook | null {
   const ground = siteGround(world, cell);
-  return ground ? lookOf(world, cell, ground) : null;
+  return ground ? lookOf(world, cell, ground, landing) : null;
 }
 
 /**
@@ -503,6 +540,7 @@ export function colonyList(world: World): ColonyEntry[] {
       realm: ruler ? realmName(ruler) : null,
       founder: founder ? realmName(founder) : null,
       sky: ground ? (overOf(ground)?.degrees ?? 0) : 0,
+      remade: colonyRemade(world, cell),
     });
   }
   return out.sort((a, b) => b.founded - a.founded || a.cell - b.cell);
@@ -532,7 +570,8 @@ export const COLONY_QUERIES: Readonly<Record<string, QueryHandler>> = {
   "colony.list": (world) => colonyList(world),
   /** A colony's sky and ground, and how its ship came there. */
   "colony.look": (world, args) => {
-    const cell = (args as { cell: number }).cell;
-    return { look: colonyLook(world, cell), voyage: colonyVoyage(world, cell) };
+    // (A landing's film shows the world its first ship found, not what its people made of it.)
+    const { cell, landing } = args as { cell: number; landing?: boolean };
+    return { look: colonyLook(world, cell, !!landing), voyage: colonyVoyage(world, cell) };
   },
 };

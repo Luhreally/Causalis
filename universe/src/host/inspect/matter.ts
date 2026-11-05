@@ -607,6 +607,17 @@ function driverWords(p: Principle): string[] {
   return out;
 }
 
+/** What a principle asks of a world's matter, each with what meets it there, or why nothing does. */
+function asked(world: World, asks: readonly string[]): Line {
+  const all = readFunctions(matterWorldOf(world));
+  return asks.flatMap((id, i) => {
+    const f = all.find((x) => x.id === id);
+    if (!f) return [];
+    const words = `${f.met ? "✓" : "✗"} ${f.icon} ${f.name}: ${f.why}`;
+    return [...(i ? [" "] : []), f.subst ? link(words, substRef(f.subst)) : words];
+  });
+}
+
 /** A principle's page (`prin:<id>`). */
 export function principlePage(world: World, ref: string): PageModel {
   const id = ref.slice(ref.indexOf(":") + 1),
@@ -648,6 +659,7 @@ export function principlePage(world: World, ref: string): PageModel {
         stat("Found by", drivers.length ? drivers.join(", ") : "the older systems"),
         stat("It brings", effects.length ? effects.join("; ") : "what it makes possible"),
         ...(p.body?.fire ? [stat("Wants", "fire")] : []),
+        ...(p.asks?.length ? [stat("Asks of its world's matter", [...asked(world, p.asks)])] : []),
         ...(shut ? [stat("On this world", `shut: ${shut}`)] : []),
       ],
     },

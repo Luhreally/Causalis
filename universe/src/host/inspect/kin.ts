@@ -43,6 +43,7 @@ import {
   type Kin,
 } from "../kin.ts";
 import { landEra, peopleBody } from "../village.ts";
+import { isMachineFolk, landPast } from "../past.ts";
 import { townLink } from "./names.ts";
 import { item, link, many, stat } from "./words.ts";
 import { bodyMatter } from "../biochem.ts";
@@ -342,7 +343,14 @@ export function withKin(world: World, ref: string, page: PageModel): PageModel {
         : page.place?.scale === "village"
           ? (populationContext(world).settlements.get(page.place.town as Ref)?.cell ?? -1)
           : -1,
-    person = { ...personOf(world, page, ref, cellOf), equipment: equipmentOf(world, ref) },
+    drawn = personOf(world, page, ref, cellOf),
+    // (Of made limbs: Phase 66. As their town draws them.)
+    made = !drawn.child && cellOf >= 0 && isMachineFolk(landPast(world, cellOf), ref),
+    person = {
+      ...drawn,
+      equipment: equipmentOf(world, ref),
+      ...(made ? { machine: true as const } : {}),
+    },
     body = bodyTab(
       read,
       person,

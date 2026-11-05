@@ -377,6 +377,11 @@ function markOf(striker: Striker, blow: Blow): Exclude<WoundMark, "stump"> {
   return blow === "edge" ? "cut" : blow === "point" ? "stab" : "bruise";
 }
 
+/** Whether the host a side faces bears burning light (Phase 66). */
+function beamsAt(field: BattleField, side: 0 | 1): boolean {
+  return !!armLook((side === 0 ? field.near.defender : field.near.attacker).host?.arm).beam;
+}
+
 /** The side's words, and the other's. */
 function sidesOf(field: BattleField, side: 0 | 1): { own: BattleSideNear; foe: BattleSideNear } {
   return side === 0
@@ -859,7 +864,10 @@ export function blowsAt(
     const t = field.troopers[h.id]!,
       was = troopers[h.id]!,
       since = s - h.at,
-      lost = full ? h.lost : null;
+      lost = full ? h.lost : null,
+      // (Burning light closes what it opens; made limbs have no blood to lose: Phase 66.)
+      made = !!field.hosts[t.side]?.machine,
+      dry = made || (h.striker === "bullet" && beamsAt(field, t.side));
     if (h.back) {
       hurt[h.side]++;
       troopers[h.id] = livingNow(field, h, t, was, s, lost);
@@ -891,12 +899,22 @@ export function blowsAt(
           mark: h.mark,
           size: h.size * less,
           bleed: h.size * less * (full ? 1.2 + (h.back ? 0.6 : 1.2) * grow : 1.2),
-          wet: full && since < BLEED.dry,
+          wet: !dry && full && since < BLEED.dry,
           age: since,
-          spray: full && since < SPRAY.long ? SPRAY[h.striker] : 0,
+          spray: !dry && full && since < SPRAY.long ? SPRAY[h.striker] : 0,
+          ...(dry ? { scorch: true as const } : {}),
         });
+      // (Where it struck what bleeds not, or burned: a spark, and gone.)
+      if (dry && since < 0.2) flashes.push({ x: h.x, y: 1.1, z: h.z, yaw: h.x });
       // (A bullet through one who lies on their face: its way out on their back.)
-      if (h.striker === "bullet" && !h.back && h.face === 1 && now.act === "fall" && !now.back)
+      if (
+        !dry &&
+        h.striker === "bullet" &&
+        !h.back &&
+        h.face === 1 &&
+        now.act === "fall" &&
+        !now.back
+      )
         wounds.push({
           id: h.id,
           place: h.place,
@@ -920,9 +938,10 @@ export function blowsAt(
           mark: "stump",
           size: 0.1,
           bleed: 0.1 * (1.2 + 0.8 * grow),
-          wet: since < BLEED.dry,
+          wet: !dry && since < BLEED.dry,
           age: since,
-          spray: since < SPRAY.pulse ? SPRAY.stump : 0,
+          spray: !dry && since < SPRAY.pulse ? SPRAY.stump : 0,
+          ...(dry ? { scorch: true as const } : {}),
         });
       if (h.shaft)
         stuck.push({
@@ -935,8 +954,8 @@ export function blowsAt(
           dart: h.striker === "dart",
         });
       // The blood: under the fallen, or where the wounded knelt, along their way, where they sat.
-      bleedOf(field, h, t, now, s, less, gore === "less", blood);
-      if (full && (lost || h.striker === "ball" || h.striker === "shell"))
+      if (!dry) bleedOf(field, h, t, now, s, less, gore === "less", blood);
+      if (!made && full && (lost || h.striker === "ball" || h.striker === "shell"))
         gorePieces(h.id, h.x, h.z, since, h.striker === "ball" || h.striker === "shell", gibs);
     }
     // A ball's dirt thrown up where it struck; a shell's burst.
@@ -1000,7 +1019,7 @@ export function blowsAt(
         lost: h.lost!,
         ...looseMotion(h.x, h.z, l.x, l.z, age, l.flight, l.arc, l.yaw, l.spin),
       });
-      if (age >= l.flight)
+      if (age >= l.flight && !field.hosts[field.troopers[h.id]!.side]?.machine)
         blood.push({
           x: h.x + (l.x - h.x) * 1.18,
           z: h.z + (l.z - h.z) * 1.18,

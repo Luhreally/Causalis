@@ -30,6 +30,7 @@ import { cell as spotFacts, market, province, provinceHistory } from "../planet.
 import { realmColor } from "../colors.ts";
 import { count, eventsAbout, item, link, many, part, share, stat, yearNow } from "./words.ts";
 import { richWords } from "./life.ts";
+import { landPast } from "../past.ts";
 import { prinRef } from "./matter.ts";
 import { landStoresBlocks } from "./stores.ts";
 import { threadBlock } from "./thread.ts";
@@ -120,6 +121,10 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
   }
   stats.push(stat("Towns", count(towns.length)));
   if (realm) stats.push(stat("Realm", [link(realmName(realm), realm.ref)]));
+  // (Past our ages: Phase 66.)
+  const past = landPast(world, cell);
+  if (past?.covered)
+    stats.push(stat("Ground", "built over from shore to shore", { why: "prin:world-city" }));
 
   const tabs: Tab[] = [];
   // Overview.

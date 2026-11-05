@@ -532,6 +532,16 @@ export {
   spaceYear,
   type Program,
 } from "./space/space.ts";
+export {
+  GREAT_WORK_SHARE,
+  LATE_EVENTS,
+  MIRROR_MACHINES,
+  REMAKE_MACHINES,
+  coverOf,
+  remakeGround,
+  rockEarths,
+} from "./space/late.ts";
+export { LateStore, lateOf, remakeKey, type Mirrors, type Remaking } from "./space/late-store.ts";
 export { StarSiteStore, lightSteps, starSitesOf, type StarSite } from "./space/stars.ts";
 export { siteGround, siteRegion, type SiteGround } from "./space/ground.ts";
 export {

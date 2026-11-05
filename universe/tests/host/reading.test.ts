@@ -69,7 +69,7 @@ test("a world's page of what it can do: why it stands here, what it lacks, each 
   world.runTo(200 * YEAR);
   const page = pageOf(world, "world:means"),
     tabs = page.tabs.map((t) => t.id);
-  assert.deepEqual(tabs, ["why", "measures", "road", "matter"]);
+  assert.deepEqual(tabs, ["why", "measures", "road", "matter", "works"]);
   assert.equal(page.stats.length, 6);
   const why = page.tabs[0]!.blocks,
     titles = why.map((b) => ("title" in b ? b.title : ""));
@@ -99,7 +99,8 @@ test("the stage is the measured age, its firsts stay the chronicle's", () => {
     s.stages.some((x) => x.id === "stars"),
     "the stars are a stage",
   );
-  assert.equal(s.stages.at(-1)!.first, "✨ A ship to the stars");
+  assert.equal(s.stages.find((x) => x.id === "stars")!.first, "✨ A ship to the stars");
+  assert.equal(s.stages.at(-1)!.first, "☀️ A star gathered");
   assert.equal(s.fell, undefined);
   // A people of the water's stages are its own.
   assert.equal(s.stages.find((x) => x.id === "iron")!.name, "Parted metals");
@@ -110,7 +111,7 @@ test("a seed read: what it allows, with no history run", () => {
   const t0 = performance.now(),
     earth = EARTH.reading!(seedOf("first light")),
     ms = performance.now() - t0;
-  assert.equal(earth.furthest, "stars", JSON.stringify(earth.ages.filter((a) => !a.allowed)));
+  assert.equal(earth.furthest, "gathered", JSON.stringify(earth.ages.filter((a) => !a.allowed)));
   assert.ok(earth.ages.every((a) => a.allowed && a.why));
   assert.ok(ms < 20000, `${ms} ms`);
   // An Earth-like world whose people's lands have no coal: its road stops at steam, and it says so.

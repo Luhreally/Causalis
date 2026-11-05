@@ -11,16 +11,20 @@ import {
   townLots,
   townReach,
   woundStage,
+  type ColonyLook,
   type TradeGood,
   type VillagePlan,
 } from "../bridge/index.ts";
 import {
   ACTIVITY,
   ARM_LOOKS,
+  armLook,
   isGun,
   HAIRS,
   EYES,
   GROUP_COLORS,
+  MACHINE_TONES,
+  fliersOf,
   SKIN,
   dressedOn,
   biomeColor,
@@ -134,6 +138,7 @@ import {
   cylinderMesh,
   gableMesh,
 } from "./batch.ts";
+import { FlierLayer } from "./fliers.ts";
 import { FaunaLayer, type PickedBeast } from "./fauna.ts";
 import { VisitorsLayer } from "./visitors.ts";
 import { WorkLayer, type Carrier } from "./work.ts";
@@ -173,6 +178,18 @@ const SOLDIERS = [10, 18, 28, 44];
 /** A host's arms that fire (Phase 37 M188): carried as a spear is, levelled to fire. */
 const GUNS: readonly string[] = Object.keys(ARM_LOOKS).filter(isGun);
 const YEAR = 365 * 86_400;
+/** How many beams a side has in the air over a town at once (Phase 66). */
+const BOLTS_A_SIDE = 16;
+
+/** A material of its own light: a beam's. */
+function litMaterial(color: Rgb): pc.StandardMaterial {
+  const m = new pc.StandardMaterial();
+  m.useLighting = false;
+  m.diffuse = new pc.Color(0, 0, 0);
+  m.emissive = new pc.Color(color[0], color[1], color[2]);
+  m.update();
+  return m;
+}
 
 /** A city's quarters by use: open, houses, crowded houses, markets, workshops, the temple. */
 const QUARTER_COLORS: readonly Rgb[] = [
@@ -221,6 +238,8 @@ export class VillageScene {
   private warScene: TownWarScene | null = null;
   private armed = "";
   private soldierBatches: InstancedBatch[] = [];
+  /** Each side's beams in the air, where it bears them (Phase 66). */
+  private townBolts: (InstancedBatch | null)[] = [];
   private soldierArmor: InstancedBatch[] = [];
   private soldierArmorParts: FigurePart[][] = [];
   private meshes: Record<PartShape, pc.Mesh> | null = null;
@@ -279,6 +298,7 @@ export class VillageScene {
   private marked: number | null = null;
   /** What lives about the village: its herds, hunters, flocks, birds and fish (M77). */
   private readonly fauna: FaunaLayer;
+  private readonly fliers: FlierLayer;
   /** Visitors from another star (Phase 18 M134): their ship and their people. */
   private readonly visitors: VisitorsLayer;
   /** Its work you can see: what its people carry, its mine and works, its road, its smoke (M78). */
@@ -344,6 +364,7 @@ export class VillageScene {
     this.marker.enabled = false;
     this.root.addChild(this.marker);
     this.fauna = new FaunaLayer(stage, this.root);
+    this.fliers = new FlierLayer(stage, this.root);
     this.work = new WorkLayer(stage, this.root);
     this.visitors = new VisitorsLayer(stage, this.root);
     this.town = new TownLayer(stage, this.root);
@@ -374,6 +395,17 @@ export class VillageScene {
   groundOnly(): void {
     this.root.enabled = false;
     this.colony.visible = !!this.plan?.colony;
+  }
+
+  /** How far about a colony's middle its ground lies level. */
+  private colonyFlat = 30;
+  /** A colony's ground as its world stood at a moment of a landing's film (Phase 66): its plan's own, to go back. */
+  colonyAs(look: ColonyLook): void {
+    const plan = this.plan;
+    if (!plan?.colony) return;
+    this.colony.build(look, plan.seed, this.colonyFlat);
+    const open = (look.remade ?? 0) >= 1;
+    this.colony.glasshouses(open ? [] : plan.fields, open ? null : plan.pasture);
   }
 
   /** A colony's town as it stood at a year of a film of its growth, on its ground; null: gone. */
@@ -528,22 +560,29 @@ export class VillageScene {
     this.colony.visible = !!plan.colony && this.root.enabled;
     if (plan.colony && plan.town) {
       // (Level as far as its glasshouses stand, its hills beyond them.)
-      this.colony.build(
-        plan.colony,
-        plan.seed,
-        Math.max(
-          30,
-          Math.min(300, reach * M),
-          townReach(
-            townLots(plan.town.family, plan.town.seed, plan.town.axis, plan.town.whole, null),
-          ) *
-            M *
-            1.12,
-        ),
+      this.colonyFlat = Math.max(
+        30,
+        Math.min(300, reach * M),
+        townReach(
+          townLots(plan.town.family, plan.town.seed, plan.town.axis, plan.town.whole, null),
+        ) *
+          M *
+          1.12,
       );
-    } else if (plan.colony) this.colony.build(plan.colony, plan.seed, 30);
-    if (plan.colony) this.colony.glasshouses(plan.fields, plan.pasture);
-    if (!plan.colony) {
+      this.colony.build(plan.colony, plan.seed, this.colonyFlat);
+    } else if (plan.colony) {
+      this.colonyFlat = 30;
+      this.colony.build(plan.colony, plan.seed, 30);
+    }
+    // (None, once its fields lie open under its own air: Phase 66.)
+    if (plan.colony) {
+      const open = (plan.colony.remade ?? 0) >= 1;
+      this.colony.glasshouses(open ? [] : plan.fields, open ? null : plan.pasture);
+    }
+    if (plan.past?.covered)
+      // (Built over from edge to edge: its ground, street and roof to the haze. Phase 66.)
+      disc(900, [0.27, 0.28, 0.31], 0, 0, 0, "ground", false);
+    else if (!plan.colony) {
       disc(
         Math.min(390, Math.max(140, (reach + 300) * M)),
         [g[0] * 0.95 + 0.03, g[1] * 0.95 + 0.05, g[2] * 0.9],
@@ -837,7 +876,7 @@ export class VillageScene {
     this.feast.build(plan);
     const crop = this.country.crop;
     this.crops = (["grain", "greens", "fallow"] as const).flatMap((kind) => {
-      const sown = plan.fields.filter((_, k) => crop[k] === kind);
+      const sown = plan.past?.covered ? [] : plan.fields.filter((_, k) => crop[k] === kind);
       if (!sown.length) return [];
       const batch = this.batch(s, boxMesh(s), cropColor(kind, t), sown.length, this.root);
       batch.set(sown.length, (i, out) => {
@@ -973,7 +1012,36 @@ export class VillageScene {
     }
     // Trees about the village, as its land grows them: dark cones of pine, round crowns,
     // palms, low scrub — facets in a handful of batches.
-    const trees = plan.colony ? [] : treesOf(plan, s.quality.villageTrees),
+    // (Where the land built over has its fields: halls of vats, those who tend them inside. Phase 66.)
+    if (plan.past?.covered) {
+      const halls = plan.fields,
+        walls = this.batch(s, box, [0.52, 0.6, 0.58], halls.length, this.root),
+        glass = this.batch(s, box, [0.5, 0.82, 0.74], halls.length, this.root);
+      walls.set(halls.length, (i, out) => {
+        const f = halls[i]!;
+        out[0] = f.x * M;
+        out[1] = 0.45;
+        out[2] = f.z * M;
+        out[3] = f.w * M;
+        out[4] = 0.9;
+        out[5] = f.d * M;
+        out[6] = f.yaw;
+      });
+      glass.set(halls.length, (i, out) => {
+        const f = halls[i]!;
+        out[0] = f.x * M;
+        out[1] = 0.96;
+        out[2] = f.z * M;
+        out[3] = f.w * M * 0.82;
+        out[4] = 0.12;
+        out[5] = f.d * M * 0.82;
+        out[6] = f.yaw;
+      });
+    }
+    const trees =
+        (plan.colony && (plan.colony.remade ?? 0) < 0.8) || plan.past?.covered
+          ? []
+          : treesOf(plan, s.quality.villageTrees),
       drawnAt = new Map(trees.map((t, k) => [t, k])),
       byKind = (k: Tree["kind"]) => trees.filter((t) => t.kind === k),
       trunk = cylinderMesh(s, 0.5, 1, 5),
@@ -1132,8 +1200,29 @@ export class VillageScene {
             )),
       );
     });
+    // (Those of made limbs, in a group of their own, whoever they are: Phase 66.)
+    const machines = plan.people.some((p) => p.machine);
+    if (machines) {
+      const made: InstancedBatch[] = [];
+      this.people.push(
+        figured.map((part, pi) =>
+          part.tone === 3
+            ? null
+            : (made[alike[pi]!] ??= this.batch(
+                s,
+                meshes[part.shape],
+                MACHINE_TONES[part.tone]!,
+                each(pi),
+                this.root,
+              )),
+        ),
+      );
+    }
     // Hair (a people's markings), each person's own colour (a batch a colour, whatever their group).
-    const hairs = dressedOn(plan.body, plan.era, 0, plan.colony).hairs,
+    const hairs = [
+        ...dressedOn(plan.body, plan.era, 0, plan.colony).hairs,
+        ...(machines ? [MACHINE_TONES[3]!] : []),
+      ],
       haired: InstancedBatch[][] = [];
     this.hair = figured.map((part, pi) =>
       part.tone === 3
@@ -1195,6 +1284,7 @@ export class VillageScene {
     this.moments = [];
     // Beasts about it, as many as the setting draws; birds and fish where small motions are drawn.
     this.fauna.build(plan, s.quality.wildlife, s.quality.detail, s.quality.motion);
+    this.fliers.build(fliersOf(plan));
     this.visitors.build(plan, s.quality.detail);
     // Its work: what its people carry, its mine and works, its road's traffic, its smoke
     // (the watched homes' hearths first).
@@ -1427,6 +1517,7 @@ export class VillageScene {
     // (The beasts move by the screen's clock: a look, at any speed the world runs.)
     const screen = this.heldFauna ?? performance.now() / 1000;
     this.fauna.update(screen, t);
+    this.fliers.update(screen);
     this.country.update(t, screen, sown, year);
     this.feast.update(t, screen);
     this.visitors.update(screen);
@@ -1808,6 +1899,30 @@ export class VillageScene {
         out[6] = q.yaw;
         out[7] = fallen ? -Math.PI / 2 : thrust;
       });
+      // Burning light: from each who fights, now and again, a straight line out at the foe, there and gone.
+      this.townBolts.forEach((batch, side) => {
+        if (!batch) return;
+        const firing: { x: number; z: number; yaw: number; k: number }[] = [];
+        for (let i = side * this.soldiersEach; i < (side + 1) * this.soldiersEach; i++) {
+          const q = troops[i];
+          if (!q || q.doing !== "fight" || firing.length >= BOLTS_A_SIDE) continue;
+          const beat = clock * 1.3 + i * 0.37,
+            k = beat - Math.floor(beat);
+          if (k < 0.14) firing.push({ x: q.x, z: q.z, yaw: q.yaw, k: 1 - k / 0.14 });
+        }
+        batch.set(firing.length, (n, out) => {
+          const b = firing[n]!,
+            long = 34,
+            size = this.figure.scale;
+          out[0] = (b.x + Math.sin(b.yaw) * (long / 2 + 1)) * M;
+          out[1] = 0.62 * size;
+          out[2] = (b.z + Math.cos(b.yaw) * (long / 2 + 1)) * M;
+          out[3] = 0.018 * b.k + 0.006;
+          out[4] = 0.018 * b.k + 0.006;
+          out[5] = long * M;
+          out[6] = b.yaw;
+        });
+      });
       // Swords and axes: at the hip on the march, swung in the fight, dropped by the fallen.
       const swordsmen = armed(["sword", "axe"]);
       this.blades?.set(swordsmen.length, (n, out) => {
@@ -1941,7 +2056,7 @@ export class VillageScene {
                 sz: p.d * e[2],
               });
           }
-          if (head && ["helmet", "mail", "scale", "plate"].includes(guard)) {
+          if (head && ["helmet", "mail", "scale", "plate", "driven-plate"].includes(guard)) {
             const e = partExtent(head);
             pieces.push({
               shape: "box",
@@ -1970,28 +2085,34 @@ export class VillageScene {
       : [];
 
     this.soldiers = battle
-      ? [battle.attacker.color, battle.defender.color].map((c) => {
+      ? [battle.attacker, battle.defender].map(({ color: c, host }) => {
           const body: Rgb = [c[0], c[1], c[2]],
             legs: Rgb = [c[0] * 0.5, c[1] * 0.5, c[2] * 0.5],
             paint = dressedOn(plan.body, plan.era, 0, plan.colony);
-          // (A people in their own look fight in their hide, their realm's colour over it.)
+          // (A people in their own look fight in their hide, their realm's colour over it; soldiers of
+          // made limbs in their shells: Phase 66.)
+          const made = host?.mount === "machine-host";
           return this.figure.parts.map((part) =>
             kept(
               s,
               meshes[part.shape],
-              paint.folk
-                ? part.tone === 5
-                  ? body
-                  : paint.tones[part.tone]
-                : part.tone === 2
-                  ? SKIN
-                  : part.tone === 4
-                    ? EYES
-                    : part.tone === 3
-                      ? HAIRS[1]!
-                      : part.tone
-                        ? legs
-                        : body,
+              made
+                ? part.tone === 5 || part.tone === 0
+                  ? ([0.42 + body[0] * 0.3, 0.44 + body[1] * 0.3, 0.48 + body[2] * 0.3] as Rgb)
+                  : MACHINE_TONES[part.tone]!
+                : paint.folk
+                  ? part.tone === 5
+                    ? body
+                    : paint.tones[part.tone]
+                  : part.tone === 2
+                    ? SKIN
+                    : part.tone === 4
+                      ? EYES
+                      : part.tone === 3
+                        ? HAIRS[1]!
+                        : part.tone
+                          ? legs
+                          : body,
               this.soldiersEach,
               this.root,
             ),
@@ -2005,9 +2126,22 @@ export class VillageScene {
         }))
       : [];
     const bears = (arms: readonly string[]) => this.kits.some((k) => arms.includes(k.arm));
+    // (Burning light: bodies with no wood in them; a beam of its own colour for each side that has it.)
+    const lights = this.kits.map((k) => armLook(k.arm).beam ?? null);
     this.spears = bears(["spear", ...GUNS])
-      ? kept(s, meshes.box, [0.52, 0.38, 0.24], this.soldiersEach * 2, this.root)
+      ? kept(
+          s,
+          meshes.box,
+          lights.every(Boolean) ? [0.09, 0.1, 0.13] : [0.52, 0.38, 0.24],
+          this.soldiersEach * 2,
+          this.root,
+        )
       : null;
+    this.townBolts = lights.map((light) =>
+      light
+        ? kept(s, meshes.box, light as Rgb, BOLTS_A_SIDE, this.root, litMaterial(light as Rgb))
+        : null,
+    );
     this.blades = bears(["sword", "axe"])
       ? kept(s, meshes.box, [0.8, 0.82, 0.86], this.soldiersEach * 2, this.root)
       : null;

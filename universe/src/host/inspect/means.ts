@@ -4,28 +4,35 @@
 import type { World } from "../../kernel/index.ts";
 import {
   AGE_LADDER,
+  COVER_PEOPLE_KM2,
   MEASURES,
   MEASURE_IDS,
+  MIRROR_DOUBLING,
+  VAT_PEOPLE_KM2,
   energyOf,
   fitOf,
   hasWords,
   lifeOf,
   LIFE_STEPS,
   measureSteps,
+  mirrorKw,
+  mostMirrorsKm2,
   readFunctions,
+  remadeGround,
   stuffOf,
   sumsOf,
+  worldDiscKm2,
   type Ask,
   type Figures,
   type FunctionReading,
   type LandFacts,
   type MeasureId,
 } from "../../rules/index.ts";
-import { populationContext } from "../../sim/index.ts";
+import { coverOf, lateOf, populationContext, remakeGround, rockEarths } from "../../sim/index.ts";
 import type { Block, Item, Line, PageModel, Row, Stat } from "../../bridge/index.ts";
 import { ageWorldOf, lacksNow, matterWorldOf, worldReadingOf } from "../reading.ts";
 import { principleName } from "../../causal/index.ts";
-import { landLink } from "./names.ts";
+import { landLink, realmLink } from "./names.ts";
 import { stageOf } from "./stage.ts";
 import { count, item, link, stat, yearNow } from "./words.ts";
 
@@ -50,7 +57,100 @@ function functionItem(f: FunctionReading): Item {
   );
 }
 
-/** The world's matter, as a page's blocks: what it can do now, and what ages past ours would ask. */
+/**
+ * A world's great works past our ages (Phase 66), as they stand: its mirrors, its worlds being remade, how
+ * far its lands are built on. Each with what it asks, and what it is made of on this world.
+ */
+function greatWorks(world: World): Block[] {
+  const ctx = populationContext(world),
+    g = ctx.generated,
+    late = lateOf(world),
+    { built, lands } = coverOf(ctx),
+    disc = worldDiscKm2(g.planet.radius),
+    most = mostMirrorsKm2(rockEarths(g), g.system.bodies[0]!.orbit.a),
+    blocks: Block[] = [];
+  const m = late?.mirrors;
+  blocks.push({
+    type: "text",
+    title: "🪞 Mirrors about its star",
+    lines: m
+      ? [
+          [
+            `Begun in year ${count(m.year)}, by `,
+            realmLink(world, m.realm),
+            `. They stand at ${count(Math.round(m.km2))} km², doubling every ${MIRROR_DOUBLING} years while a realm with a station tends them: `,
+            m.km2 >= disc
+              ? `more than falls on its whole world, whose disc is ${count(Math.round(disc))} km². `
+              : `its whole world's disc is ${count(Math.round(disc))} km². `,
+          ],
+          [
+            `They gather ${kwWords(mirrorKw(m.km2, g.star.luminosity, g.system.bodies[0]!.orbit.a))} of its star's light. A kilogram of foil to the square metre, out of the ${Math.round(rockEarths(g) * 1000) / 1000} home-world masses of rock in its system's small bodies, is ${count(Math.round(most))} km² at most.${m.km2 >= disc ? " It is spent out there among them, where the cold can carry its heat away: brought down, that much would boil its seas." : ""}`,
+          ],
+        ]
+      : [
+          [
+            `None yet. A works of mirrors asks a realm with a station that knows `,
+            prinLink(world, "star-mirrors"),
+            ", and machines to build the first of them. Each then builds the next, out of its system's small bodies.",
+          ],
+        ],
+  });
+  const all = late?.all() ?? [];
+  blocks.push(
+    all.length
+      ? {
+          type: "table",
+          title: "🌍 Worlds being remade",
+          columns: ["World", "Begun", "So far"],
+          rows: all.map((r): Row => {
+            const ground = remakeGround(world, g, r.cell),
+              now = ground ? remadeGround(ground, r.share) : null;
+            return {
+              ref: `cell:0:${r.cell}`,
+              cells: [
+                [landLink(world, r.cell, true)],
+                [`year ${count(r.year)}`],
+                [
+                  r.done
+                    ? `remade: walked on under its own sky`
+                    : `${Math.round(r.share * 100)} in a hundred${now ? `: ${Math.round(now.pressure * 100) / 100} bar, ${Math.round(now.temperature)} °C` : ""}`,
+                ],
+              ],
+            };
+          }),
+        }
+      : {
+          type: "text",
+          title: "🌍 Worlds being remade",
+          lines: [
+            [
+              "None yet. A remaking asks a realm with a station and halls on a body whose pull can hold an air, and that knows ",
+              prinLink(world, "world-making"),
+              ".",
+            ],
+          ],
+        },
+  );
+  blocks.push({
+    type: "text",
+    title: "🌃 Its lands built on",
+    lines: [
+      [
+        `${count(built)} of its ${count(lands)} peopled lands hold ${COVER_PEOPLE_KM2} people or more to the square kilometre: more towers than fields. Half of them is a world covered, and that asks `,
+        prinLink(world, "world-city"),
+        `, as no field feeds so many, and only vats do: ${VAT_PEOPLE_KM2} people to the square kilometre at most.`,
+      ],
+    ],
+  });
+  return blocks;
+}
+
+const kwWords = (kw: number) =>
+  kw >= 1e15
+    ? `${Math.round(kw / 1e12).toLocaleString("en")} terawatts`
+    : `${count(Math.round(kw / 1e6))} gigawatts`;
+
+/** The world's matter, as a page's blocks: what it can do now, and what ages past ours ask of it. */
 export function functionBlocks(world: World): Block[] {
   const all = readFunctions(matterWorldOf(world));
   return [
@@ -61,14 +161,14 @@ export function functionBlocks(world: World): Block[] {
     },
     {
       type: "list",
-      title: "What ages past ours would ask of it",
+      title: "What ages past ours ask of it",
       items: all.filter((f) => f.later).map(functionItem),
     },
     {
       type: "text",
       lines: [
         [
-          "No people has come to those last yet. They are told here so a world's matter can be read for what it would and would not allow.",
+          "Each of those is a way its people may come to or never will: what its world's matter cannot do, no people of it will ever find. Tap one for what meets it here.",
         ],
       ],
     },
@@ -131,6 +231,8 @@ export function meansPage(world: World, tab?: string): PageModel {
         if (lack.known) {
           line.push(" It knows ", prinLink(world, lack.road!), ".");
           if (lack.wanting) line.push(` ${lack.wanting}`);
+        } else if (lack.shut) {
+          line.push(` Its people never will: ${lack.shut}`);
         } else if (lack.road) {
           const next = lack.next.filter((id) => id !== lack.road);
           line.push(" The way here is ", prinLink(world, lack.road));
@@ -151,7 +253,7 @@ export function meansPage(world: World, tab?: string): PageModel {
       type: "text",
       lines: [
         [
-          "It has come as far as the ages yet told go. What lies past them, its matter may or may not allow: see Its matter.",
+          "It has come as far as any age yet told. Nothing a people of this universe has done lies past it.",
         ],
       ],
     });
@@ -226,6 +328,7 @@ export function meansPage(world: World, tab?: string): PageModel {
       { id: "measures", name: "Measures", blocks: measures },
       { id: "road", name: "The road", blocks: road },
       { id: "matter", name: "Its matter", blocks: functionBlocks(world) },
+      { id: "works", name: "Great works", blocks: greatWorks(world) },
     ],
     ...(tab ? { tab } : {}),
     followable: false,

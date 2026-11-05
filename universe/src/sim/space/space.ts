@@ -298,6 +298,7 @@ export function spaceYear(ctx: PopulationContext, t: SimTime): void {
     if (!store.first[next]) store.first[next] = event;
   }
   colonyYear(ctx, t);
+  lateYear(ctx, t);
 }
 
 /** A body a realm could settle: its site, the cost of setting its settlers down, the halls' upkeep. */
@@ -555,6 +556,8 @@ export function installSpace(world: World, ctx: () => PopulationContext): SpaceS
   installContact(world, ctx);
   installStarWars(world, ctx);
   installPeoples(world, ctx);
+  const late = world.register(new LateStore());
+  world.addPinner(() => late.pinned());
   return store;
 }
 
@@ -562,3 +565,5 @@ import { installVoyages } from "./voyages.ts";
 import { installContact } from "./contact.ts";
 import { installStarWars } from "./starwar.ts";
 import { installPeoples } from "./peoples.ts";
+import { lateYear } from "./late.ts";
+import { LateStore } from "./late-store.ts";

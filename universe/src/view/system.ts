@@ -93,6 +93,43 @@ export function orbitRings(plan: SystemPlan, points = 96): Float32Array[] {
     });
 }
 
+/**
+ * A star's mirrors as they are drawn (Phase 66), each glint standing for a great many: at its world's distance,
+ * a thread of them when they are few, a broad band past counting when they stand broader than the world's whole
+ * disc, and thicker out of the plane as they crowd. Pure: the same breadth is the same band. Four numbers a
+ * glint: where it stands (x, y, z), its turn.
+ */
+export function mirrorBand(km2: number): Float32Array {
+  if (km2 <= 0) return new Float32Array(0);
+  const k = mirrorStrength(km2),
+    n = Math.round(24 + MOST_GLINTS * k * k),
+    wide = 0.05 + 0.3 * k,
+    thick = 0.04 + 0.5 * k,
+    out = new Float32Array(n * 4);
+  for (let i = 0; i < n; i++) {
+    // (Spread by the golden turn, each by its own place: no two together, and none moved by the next.)
+    const a = i * 2.399963,
+      r = HOME_DISTANCE * (1 + wide * (((i * 0.61803) % 1) * 2 - 1)),
+      y = thick * (((i * 0.75488) % 1) * 2 - 1);
+    out[i * 4] = r * Math.cos(a);
+    out[i * 4 + 1] = y;
+    out[i * 4 + 2] = r * Math.sin(a);
+    out[i * 4 + 3] = a;
+  }
+  return out;
+}
+
+/** The most glints a star's band is drawn with, past the few it begins with. */
+export const MOST_GLINTS = 1800;
+
+/**
+ * How far along a star's mirrors have come, 0 … 1, by the powers of ten of their breadth: from the first
+ * hundred square kilometres to many times what falls on a world. What is seen goes by this, not by the km².
+ */
+export function mirrorStrength(km2: number): number {
+  return km2 <= 100 ? 0 : Math.min(1, (Math.log10(km2) - 2) / 8);
+}
+
 /** A body's facts in words. */
 export function bodyFacts(b: SystemPlanBody, star: SystemPlan["star"]): string[] {
   const around = b.around < 0 ? `the star (${star.spectral})` : "its planet";

@@ -19,6 +19,7 @@ export class MapModes {
   private current: Lens;
   /** Its world's kind (Phase 56): the warmth legend's degrees its liquid's, told in true ones. */
   private world = "rocky";
+  private built = false;
   /** Its world's life's colours (Phase 57): the land legend's woods in its own words. */
   private look: string | undefined = undefined;
   onLens: (lens: Lens) => void = () => {};
@@ -66,6 +67,13 @@ export class MapModes {
     this.drawLegend();
   }
 
+  /** Whether any land is built over (Phase 66), for its land legend. */
+  set builtOver(on: boolean) {
+    if (on === this.built) return;
+    this.built = on;
+    this.drawLegend();
+  }
+
   /** The choices a mode offers (the ways lens: which way), each an icon; picking one tells `pick`. */
   choose(
     options: readonly (readonly [string, string, string])[] | null,
@@ -107,7 +115,9 @@ export class MapModes {
       parts.push(bar, ends);
     } else {
       const keys = el("div", "legend-keys");
-      for (const [color, words] of l.keys) {
+      for (const [color, words] of this.built && this.current === "terrain"
+        ? [...l.keys, [[0.55, 0.55, 0.58], "built over"] as const]
+        : l.keys) {
         const k = el("span", "legend-key"),
           dot = el("span", "swatch");
         dot.style.background = css(color);

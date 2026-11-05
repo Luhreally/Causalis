@@ -23,6 +23,10 @@ const READ_AT_A_GO = 16;
 const GLANCE_AT_A_GO = 120;
 
 const AGES = AGE_LADDER.filter((a) => a.id !== "bands");
+/** The ages past ours open in a world's greatest town, where they are seen (Phase 66). */
+const PAST_OURS: ReadonlySet<string> = new Set(
+  AGE_LADDER.slice(AGE_LADDER.findIndex((a) => a.id === "stars") + 1).map((a) => a.id),
+);
 
 const MEDIUM_WORDS: Readonly<Record<string, string>> = {
   land: "a people of the land",
@@ -112,7 +116,9 @@ export function pickerForm(o: PickerOptions): HTMLElement {
   const opener = (seed: string, year: number, words: string) => {
     const b = el("button", "begin pick-open", words);
     b.onclick = () =>
-      o.go(`?universe=${kind}&seed=${encodeURIComponent(seed)}&year=${Math.max(1, year)}`);
+      o.go(
+        `?universe=${kind}&seed=${encodeURIComponent(seed)}&year=${Math.max(1, year)}${PAST_OURS.has(target) ? "&past=1" : ""}`,
+      );
     return b;
   };
 
@@ -136,10 +142,24 @@ export function pickerForm(o: PickerOptions): HTMLElement {
   /** A world run in full, as a row: the year it reached the age, how long to get there. */
   const runRow = (s: CatalogueSeed): HTMLElement => {
     const age = s.ages[target]!,
-      t = timeTo(s.seed, age.year, s.lands),
+      // (An age past ours stays once come to: a year run ahead past it shows it too, and opens in moments.)
+      ahead = PAST_OURS.has(target)
+        ? baked
+            .filter((b) => b.universe === kind && b.seed === s.seed && b.year >= age.year)
+            .reduce<number | null>((low, b) => (low === null || b.year < low ? b.year : low), null)
+        : null,
+      opens = ahead ?? age.year,
+      t =
+        ahead !== null
+          ? {
+              words: `fetched, under a minute on a phone, and seen as it stands in year ${yearWords(ahead)}`,
+              minutes: 0,
+              from: ahead,
+            }
+          : timeTo(s.seed, age.year, s.lands),
       row = el("div", "pick-row pick-run");
     row.dataset.seed = s.seed;
-    row.dataset.year = String(age.year);
+    row.dataset.year = String(opens);
     row.append(
       el("span", "pick-seed", s.seed),
       el("span", "pick-tag pick-tag-run", `Reached in year ${yearWords(age.year)}`),
@@ -182,8 +202,12 @@ export function pickerForm(o: PickerOptions): HTMLElement {
           ),
         );
       more.append(
-        opener(s.seed, age.year, `Open at year ${yearWords(age.year)} ▶`),
-        el("p", "muted pick-time", `It runs there behind a screen: ${t.words}.`),
+        opener(s.seed, opens, `Open at year ${yearWords(opens)} ▶`),
+        el(
+          "p",
+          "muted pick-time",
+          ahead !== null ? `${said(t.words)}.` : `It runs there behind a screen: ${t.words}.`,
+        ),
       );
       return more;
     });

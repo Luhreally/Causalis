@@ -97,6 +97,8 @@ export type BattleNear = {
   readonly walls: 0 | 1 | 2;
   /** The town behind the walls, at a seat (null: none). */
   readonly town: string | null;
+  /** Fought on a land built over from edge to edge (Phase 66): streets underfoot, towers about it. */
+  readonly covered?: true;
   /** The world's people's figure (their look, Phase 34), and the land's ground as it is now. */
   readonly figure: NonNullable<GenesisPlan["people"]>["figure"] | null;
   readonly plan: MeadowPlan;

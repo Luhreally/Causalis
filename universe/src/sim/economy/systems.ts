@@ -213,7 +213,8 @@ function makeAndUse(
     machines =
       !!lore.get(p.cell, "steam-engine") ||
       !!lore.get(p.cell, "current-mills") ||
-      KIND_ENGINES.some((id) => !!lore.get(p.cell, id));
+      KIND_ENGINES.some((id) => !!lore.get(p.cell, id)) ||
+      !!lore.get(p.cell, "machine-minds");
   const wants: [number, number, "toolCover" | "clothingCover" | "potteryCover" | "machineCover"][] =
     [
       [
@@ -528,11 +529,17 @@ export function powerOf(ctx: PopulationContext, cell: number): number {
   const lore = loreOf(ctx.world),
     m = marketsOf(ctx.world).get(cell),
     people = Math.max(1, ctx.provinces.get(cell)?.total() ?? 0);
+  // (A held flame burns no fuel, and a people it keeps grows no poorer: Phase 66.)
+  const held = lore.get(cell, "fusion-power")
+    ? (ctx.provinces.get(cell)?.occupation(OCC.crafter) ?? 0) *
+      Math.min(1.5, lore.effect(cell, "industry")) *
+      WANTS.fuelPerCrafter
+    : 0;
   return (
     POWER.muscle +
     (lore.get(cell, "draught") ? POWER.beasts : 0) +
     (lore.get(cell, "mills") ? POWER.mills : 0) +
-    ((m?.burned ?? 0) * POWER.perFuel) / people
+    (Math.max(m?.burned ?? 0, held) * POWER.perFuel) / people
   );
 }
 

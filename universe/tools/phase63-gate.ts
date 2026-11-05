@@ -67,7 +67,13 @@ const until = async (what: string, ok: () => Promise<boolean>, ms = slow(60000))
   problems.push(`${what} did not come`);
   return false;
 };
-const yearOn = async () => Number((await page.getAttribute(".jump-screen", "data-year")) ?? -1);
+// (The screen may have gone between seeing it and asking this: then no year, not a long wait for a screen gone.)
+const yearOn = async () =>
+  Number(
+    (await page
+      .getAttribute(".jump-screen", "data-year", { timeout: slow(2000) })
+      .catch(() => null)) ?? -1,
+  );
 const worldNow = () => k<{ t: number }>(`globalThis.causalis.client.query({ type: "now" })`);
 const drawn = () =>
   until(

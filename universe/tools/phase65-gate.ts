@@ -110,8 +110,9 @@ try {
   await fits(".picker .pick-age, .picker .pick-row, .picker h3", "the picker's rows");
   const ages = await page.$$eval(".pick-age", (b) => b.map((x) => x.textContent ?? ""));
   check(
-    ages.length === 10 && ages.some((a) => a.includes("Other stars")),
-    `ten ages to choose among, got ${ages.length}`,
+    // (Ten, and the seven past ours of Phase 66.)
+    ages.length === 17 && ages.some((a) => a.includes("Other stars")),
+    `seventeen ages to choose among, got ${ages.length}`,
   );
   const short = await page.$$eval(".pick-age, .picker .choice", (b) =>
     Math.min(...b.map((x) => x.getBoundingClientRect().height)),

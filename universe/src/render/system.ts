@@ -6,12 +6,15 @@
 import * as pc from "playcanvas";
 import type { SystemPlan } from "../bridge/index.ts";
 import {
+  MOST_GLINTS,
   STAR_SIZE,
+  mirrorBand,
   orbitRings,
   type PeopleSystemMarks,
   type SkyMarks,
   type SystemSpot,
 } from "../view/index.ts";
+import { InstancedBatch, boxMesh } from "./batch.ts";
 import { billboard, glowMaterial } from "./glow.ts";
 import { flatMaterial, type Stage } from "./stage.ts";
 
@@ -33,6 +36,11 @@ export class SystemScene {
   private readonly peopleShips: pc.Entity[] = [];
   private peopleMarks: PeopleSystemMarks | null = null;
   private readonly tints = new Map<string, pc.StandardMaterial>();
+  /** Its star's mirrors (Phase 66): a band of glints, turning; how many are drawn. */
+  private mirrorRoot: pc.Entity | null = null;
+  private glints: InstancedBatch | null = null;
+  private glintsAt = -1;
+  mirrorsShown = 0;
 
   constructor(stage: Stage) {
     this.stage = stage;
@@ -62,6 +70,7 @@ export class SystemScene {
 
   /** Build the star, a sphere for every body and the planets' rings. */
   build(plan: SystemPlan): void {
+    this.glints?.destroy();
     for (const e of [...this.root.children]) if (e !== this.marker) e.destroy();
     this.colonyRings.length = 0;
     this.satellites.length = 0;
@@ -71,6 +80,10 @@ export class SystemScene {
     this.peopleShips.length = 0;
     this.peopleMarks = null;
     this.bodies = [];
+    this.mirrorRoot = null;
+    this.glints = null;
+    this.glintsAt = -1;
+    this.mirrorsShown = 0;
     const sphere = pc.Mesh.fromGeometry(
       this.stage.device,
       new pc.SphereGeometry({ radius: 1, latitudeBands: 16, longitudeBands: 24 }),
@@ -157,6 +170,39 @@ export class SystemScene {
 
   set visible(on: boolean) {
     this.root.enabled = on;
+  }
+
+  /** Its star's mirrors at so many km² (0: none); drawn again only as their number grows. */
+  mirrors(km2: number): void {
+    const band = mirrorBand(km2),
+      n = band.length / 4;
+    if (n !== this.glintsAt) {
+      this.glintsAt = n;
+      this.mirrorsShown = n;
+      if (!this.mirrorRoot) {
+        this.mirrorRoot = new pc.Entity("mirrors");
+        this.root.addChild(this.mirrorRoot);
+      }
+      this.glints ??= new InstancedBatch(
+        this.stage,
+        boxMesh(this.stage),
+        [1, 0.9, 0.62],
+        24 + MOST_GLINTS + 1,
+        this.mirrorRoot,
+        glow([1, 0.9, 0.62]),
+      );
+      this.glints.set(n, (i, out) => {
+        out[0] = band[i * 4]!;
+        out[1] = band[i * 4 + 1]!;
+        out[2] = band[i * 4 + 2]!;
+        out[3] = 0.16;
+        out[4] = 0.016;
+        out[5] = 0.1;
+        out[6] = band[i * 4 + 3]!;
+      });
+    }
+    // (They go round the star, too slowly to tell one from the next.)
+    this.mirrorRoot?.setLocalEulerAngles(0, (performance.now() / 1000) * 1.1, 0);
   }
 
   /** The body nearest a screen point (within a finger's width), or null. */

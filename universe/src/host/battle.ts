@@ -3,7 +3,7 @@
 // fought with), who won and what came of it (the field, a siege laid, a land taken, a seat
 // stormed), and the ground it was fought on: the land as it is now, its hills, its river, the
 // seat's walls and the town behind them. Looked at, never lived.
-import type { Ref, World } from "../kernel/index.ts";
+import { YEAR, type Ref, type World } from "../kernel/index.ts";
 import { BIOME } from "../gen/index.ts";
 import {
   RISEN_KEPT,
@@ -11,6 +11,7 @@ import {
   handOf,
   homePlanet,
   hostFor,
+  lateOf,
   loreOf,
   politiesOf,
   populationContext,
@@ -20,6 +21,7 @@ import {
   type War,
 } from "../sim/index.ts";
 import { hostWords } from "./chain.ts";
+import { landPast } from "./past.ts";
 import type { BattleNear, BattleOutcome, BattleSideNear } from "../bridge/index.ts";
 import { hostDesign, kindsOf, realmArms } from "./arms.ts";
 import { realmColor } from "./colors.ts";
@@ -149,6 +151,13 @@ export function nearCounts(b: War["battles"][number]): {
   return { won: b.won, attacker: side(0), defender: side(1) };
 }
 
+/** Whether a battle of a year was fought on ground built over: once its world had been, and its land still is. */
+function fieldBuiltOver(world: World, cell: number, year: number): boolean {
+  const first = lateOf(world)?.covered,
+    at = first ? world.events.get(first) : null;
+  return !!at && year >= at.t / YEAR && !!landPast(world, cell)?.covered;
+}
+
 export function battleNear(world: World, ref: string): BattleNear | null {
   const e = world.events.get(ref as Ref);
   if (!e || e.type !== WAR_EVENTS.battle.type) return null;
@@ -215,6 +224,7 @@ export function battleNear(world: World, ref: string): BattleNear | null {
     river: !!g.water.river[land],
     // (A seat stands behind its palisade, or its stone walls where its people build them.)
     walls: seat ? (lore.effect(land, "walls") > 0 && lore.get(land, "masonry") ? 2 : 1) : 0,
+    ...(fieldBuiltOver(world, land, b.year) ? { covered: true as const } : {}),
     town,
     figure: peopleFigure(g),
     plan: {

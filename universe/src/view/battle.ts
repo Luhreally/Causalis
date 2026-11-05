@@ -202,6 +202,8 @@ export type WoundNow = {
   readonly bleed: number;
   /** Fresh (wet), and how long since struck (s). */
   readonly wet: boolean;
+  /** Scorched, not bled (Phase 66): burning light closes what it opens, and made limbs hold no blood. */
+  readonly scorch?: true;
   readonly age: number;
   /** The drops of blood thrown from it now (0: none). */
   readonly spray: number;
@@ -249,6 +251,8 @@ export type HostDrawn = {
   readonly open?: true;
   /** How many armoured cars go with it (absent: none). */
   readonly vehicles?: number;
+  /** Soldiers of made limbs (Phase 66): drawn in chrome, and they spark where another bleeds. */
+  readonly machine?: true;
 };
 
 /** An armoured car brought to the field (Phase 53 M220): where across it goes, and its fate. */
@@ -450,6 +454,16 @@ export type BattleNow = {
   /** Powder smoke where guns have fired, drifting off; a muzzle's flash as one fires (m). */
   readonly smoke: readonly { x: number; y: number; z: number; r: number }[];
   readonly flashes: readonly { x: number; y: number; z: number; yaw: number }[];
+  /** Beams in the air now (Phase 66; absent: none): each a straight line of light, its side's (m). */
+  readonly bolts?: readonly {
+    readonly side: 0 | 1;
+    readonly x: number;
+    readonly z: number;
+    readonly y: number;
+    readonly yaw: number;
+    readonly long: number;
+    readonly k: number;
+  }[];
   /** The cannon where they stand, each thrown back as it fires (recoil 1, easing to 0). */
   readonly cannon: readonly { x: number; z: number; yaw: number; recoil: number }[];
   /** Dust thrown up where they run and fight. */
@@ -613,6 +627,7 @@ export function newBattle(near: BattleNear, most: number, placed = false): Battl
       ...(s.host?.mount === "armoured"
         ? { vehicles: Math.min(16, Math.max(1, Math.round(n / 12))) }
         : {}),
+      ...(s.host?.mount === "machine-host" ? { machine: true as const } : {}),
     };
   };
   const hosts = [drawnOf(a, 0), drawnOf(d, 1)] as const;
@@ -767,7 +782,8 @@ function cannonOf(near: BattleNear, key: number): Cannon[] {
   const out: Cannon[] = [];
   for (const side of [0, 1] as const) {
     const s = side === 0 ? near.attacker : near.defender;
-    if (!s.cannon) continue;
+    // (A host of burning light brings no powder.)
+    if (!s.cannon || armLook(s.host?.arm).beam) continue;
     const n = Math.max(2, Math.min(6, Math.round(Math.sqrt(s.fielded) / 6))),
       walls = near.walls > 0,
       until = side === 0 && walls && near.outcome === "stormed" ? MOMENTS.gate : MOMENTS.melee - 2;
@@ -1846,6 +1862,9 @@ export function crawledTo(
   };
 }
 
+/** How long a beam stays on the eye (seconds): a tenth of a second is what it would be seen as. */
+const BOLT_S = 0.16;
+
 /** The smoke a side's arm leaves when it fires (0 none … 1 black powder's white bank). */
 function smokeOf(near: BattleNear, side: 0 | 1): number {
   return armLook((side === 0 ? near.attacker : near.defender).host?.arm).smoke;
@@ -1963,7 +1982,8 @@ export function battleAt(field: BattleField, s: number): BattleNow {
   const flying: BattleNow["flying"][number][] = [],
     spent: BattleNow["spent"][number][] = [];
   const smoke: BattleNow["smoke"][number][] = [],
-    flashes: BattleNow["flashes"][number][] = [];
+    flashes: BattleNow["flashes"][number][] = [],
+    bolts: NonNullable<BattleNow["bolts"]>[number][] = [];
   for (const a of field.arrows) {
     const f = (t - a.at) / a.flight;
     if (f < 0) continue;
@@ -1976,6 +1996,22 @@ export function battleAt(field: BattleField, s: number): BattleNow {
         far = Math.hypot(dx, dz) || 1,
         ux = dx / far,
         uz = dz / far;
+      // (Burning light goes at once and leaves no smoke: a straight line, there and gone. Phase 66.)
+      if (armLook((a.side === 0 ? field.near.attacker : field.near.defender).host?.arm).beam) {
+        if (age < BOLT_S)
+          bolts.push({
+            side: a.side,
+            x: (a.from.x + a.to.x) / 2,
+            y: 1.32,
+            z: (a.from.z + a.to.z) / 2,
+            yaw: Math.atan2(dx, dz),
+            long: far,
+            k: 1 - age / BOLT_S,
+          });
+        // (Where it strikes: a spark.)
+        if (age < 0.09) flashes.push({ x: a.to.x, y: 1.2, z: a.to.z, yaw: Math.atan2(dx, dz) });
+        continue;
+      }
       if (age < 0.09)
         flashes.push({
           x: a.from.x + ux * 1.1,
@@ -2173,6 +2209,7 @@ export function battleAt(field: BattleField, s: number): BattleNow {
     spray,
     smoke,
     flashes,
+    ...(bolts.length ? { bolts } : {}),
     cannon,
     dust,
     standing,
@@ -2194,6 +2231,13 @@ export function battleAt(field: BattleField, s: number): BattleNow {
 export function fieldMeadow(field: BattleField, meadow: MeadowState): void {
   const g = field.ground;
   meadow.pond = null;
+  // (Ground built over from edge to edge: street, and nothing grows on it.)
+  if (field.near.covered) {
+    meadow.kindOfAge = "paved";
+    meadow.shrubs.length = 0;
+    meadow.grass.fill(0);
+    return;
+  }
   meadow.shrubs.splice(
     0,
     meadow.shrubs.length,
@@ -2211,6 +2255,38 @@ export function fieldMeadow(field: BattleField, meadow: MeadowState): void {
             ? 0.22 + 0.2 * u
             : 0.55 + 0.4 * u;
   }
+}
+
+/**
+ * The towers about a battle on ground built over (Phase 66): where each stands (m) and how big, none on
+ * the ground the hosts need, for as long as the field stands. A look, from the battle's own key.
+ */
+export function fieldTowers(
+  field: BattleField,
+  most: number,
+): { x: number; z: number; w: number; d: number; h: number }[] {
+  if (!field.near.covered) return [];
+  const key = hashText(field.near.event),
+    out: { x: number; z: number; w: number; d: number; h: number }[] = [];
+  for (let i = 0; out.length < most && i < most * 3; i++) {
+    const u = unit(key, i * 5 + 1),
+      across = (unit(key, i * 5 + 2) - 0.5) * 2,
+      far = unit(key, i * 5 + 3),
+      // (Along the field's far side, behind each host in rows going off, and well behind the eye.)
+      flank = u < 0.62,
+      behind = u > 0.9,
+      x = flank || behind ? across * 190 : Math.sign(across) * (96 + 70 * far),
+      z = behind ? 230 + 70 * far : flank ? -(62 + 110 * far) : -30 - 170 * unit(key, i * 5 + 4),
+      v = unit(key, i * 5 + 5);
+    out.push({
+      x,
+      z,
+      w: 10 + 12 * far,
+      d: 10 + 12 * v,
+      h: 40 + 240 * v * v * v + 70 * far,
+    });
+  }
+  return out;
 }
 
 /** Where the hosts tread the grass short (metres either way): over it, the blood is seen. */

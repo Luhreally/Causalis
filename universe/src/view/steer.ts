@@ -194,3 +194,24 @@ export function grabbed(target: Point, from: Point, to: Point, bounds: Bounds | 
 export function globeDrag(distance: number): number {
   return Math.min(0.3, Math.max(0.012, 0.09 * (distance - 1)));
 }
+
+/**
+ * The eye in a town of spires (Phase 66). Towers of 400 m stand in the way of an eye that comes down among them,
+ * and a wall filling the screen shows nothing. So it comes in over them, tilting down as it nears (from 110 out
+ * to 35, and by then 60 degrees down, or more if it is asked), until it is down among the folk under 14, where it
+ * looks as it is asked again. And what stands between it and what it looks at is cut away: the near plane is
+ * held just short of where the ground meets the foot of the screen, so that no gap opens there. Far out, nothing
+ * is cut. Degrees, and the eye's own tilt stays as it was asked: drawn back, it is that again.
+ */
+export function eyeAmongSpires(distance: number, pitch: number): { pitch: number; near: number } {
+  const smooth = (x: number) => {
+      const t = Math.max(0, Math.min(1, x));
+      return t * t * (3 - 2 * t);
+    },
+    steep = 60 * smooth((110 - distance) / 75) * (1 - smooth((14 - distance) / 8)),
+    down = Math.max(-pitch, steep),
+    a = (down * Math.PI) / 180,
+    half = (22.5 * Math.PI) / 180,
+    foot = (distance * Math.sin(a) * Math.cos(half)) / Math.sin(a + half);
+  return { pitch: -down, near: Math.max(0.1, 0.85 * foot * smooth((130 - distance) / 40)) };
+}

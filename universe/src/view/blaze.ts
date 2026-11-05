@@ -44,7 +44,7 @@ export type BlazeNow = {
 const NONE: BlazeNow = { fires: [], smoke: [], dust: [], shake: 0 };
 
 /** How big a home's fire is, by its level: a hut's to a tower's. */
-const SIZE = [0.7, 1, 1.5, 2.1, 2.8, 3.4];
+const SIZE = [0.7, 1, 1.5, 2.1, 2.8, 3.4, 4.2];
 /** How long flames take to rise to their fiercest, and to die down at the end (seconds). */
 const RISE_S = 600,
   DIE_S = 3000;
@@ -71,7 +71,7 @@ export function blazeNow(scene: TownScene | null, t: number): BlazeNow {
       x: lots.x[p]!,
       z: lots.z[p]!,
       yaw: lots.yaw[p]!,
-      size: SIZE[Math.max(0, Math.min(5, states.level[p]!))]!,
+      size: SIZE[Math.max(0, Math.min(SIZE.length - 1, states.level[p]!))]!,
       ...homeSize(scene, p),
       // (A home thrown down burns low, in its rubble.)
       ...(thrownDown(scene, p) ? { high: RUBBLE_HIGH } : {}),

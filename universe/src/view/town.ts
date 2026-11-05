@@ -10,8 +10,9 @@
 // buildings each in a shape of its own, rising, standing, fallen; its walls
 // raised course by course, a tower at every few lengths and a gate where its road runs out —
 // pulled down where the town has grown over them; a great city's sprawl past the lots drawn, its
-// avenues kept clear. Pure: what is drawn at a moment, in parts (metres from the square's middle), for the renderer
-// to put in its batches.
+// avenues kept clear. Past our ages (Phase 66): spires of woven carbon, works with no stack, vats, and a
+// sprawl of towers to the haze where its people have built over their fields. Pure: what is drawn at a
+// moment, in parts (metres from the square's middle), for the renderer to put in its batches.
 import {
   BLOCK_D,
   BLOCK_LOTS,
@@ -38,6 +39,7 @@ import {
   type TownLots,
   type TownPlan,
   type WallLength,
+  type VillagePlan,
 } from "../bridge/index.ts";
 import { HOME_LIFE } from "../rules/index.ts";
 import { houseLook, type HouseLook } from "./village.ts";
@@ -111,13 +113,16 @@ const LEVELS: readonly { w: number; d: number; h: number; storeys: number }[] = 
   { w: 8.8, d: 12, h: 15, storeys: 5 },
   { w: 8.8, d: 12.4, h: 30, storeys: 10 },
   { w: 7.8, d: 11, h: 72, storeys: 24 },
+  { w: 8.6, d: 12.2, h: 300, storeys: 120 },
 ];
+/** The tallest level drawn. */
+const TOP_LEVEL = LEVELS.length - 1;
 /**
  * How high a home of a town stands to its roof's top, and how broad it is (metres; Phase 42
  * M201): a hut or a house as its look draws it, its roof as steep as its rain wants.
  */
 export function homeSize(scene: TownScene, p: number): { high: number; wide: number } {
-  const level = Math.max(0, Math.min(5, scene.states.level[p]!)),
+  const level = Math.max(0, Math.min(TOP_LEVEL, scene.states.level[p]!)),
     L = LEVELS[level]!;
   if (level > 1) return { high: L.h + (level === 2 ? 3.2 : 0.5), wide: L.w };
   const look = scene.looks[scene.states.design[p]!] ?? scene.looks[0]!,
@@ -263,9 +268,11 @@ export function roofTop(scene: TownScene, p: number, t: number): number | null {
   const { states, looks } = scene;
   if (states.what[p] !== LOT.home || progress(states.began[p]!, states.takes[p]!, t) < 1)
     return null;
-  const level = Math.max(0, Math.min(5, states.level[p]!)),
-    L = LEVELS[level]!,
-    look = looks[homeWear(scene, p, t).look] ?? looks[0];
+  const level = Math.max(0, Math.min(TOP_LEVEL, states.level[p]!)),
+    L = LEVELS[level]!;
+  // (No hearth's smoke from a needle.)
+  if (level >= TOP_LEVEL) return null;
+  const look = looks[homeWear(scene, p, t).look] ?? looks[0];
   if (!look) return null;
   if (level <= 1) {
     const [, d] = lowFoot(L, look),
@@ -374,7 +381,8 @@ export function avenueWay(plan: TownPlan, k: number): number {
 export function sprawlOf(plan: TownPlan, lots: TownLots): { r0: number; r1: number } | null {
   if (plan.whole <= plan.lots || plan.lots === 0 || !plan.designs.length) return null;
   const r0 = townReach(lots, plan.lots),
-    r1 = Math.min(2600, r0 * Math.sqrt(plan.whole / plan.lots));
+    // (Built up as spires are, it holds as many on far less: yet it has spread far past any other.)
+    r1 = Math.min(hasSpires(plan) ? 5200 : 2600, r0 * Math.sqrt(plan.whole / plan.lots));
   return r1 > r0 + 20 ? { r0, r1 } : null;
 }
 
@@ -392,7 +400,8 @@ function sprawl(scene: TownScene, out: TownParts): void {
     water = plan.water,
     wet = (x: number, z: number, margin: number) =>
       !!water && Math.hypot(x - water.x, z - water.z) < water.r + margin,
-    trodden: Rgb = plan.paved ? [0.56, 0.55, 0.5] : [0.55, 0.5, 0.4];
+    towers = hasSpires(plan),
+    trodden: Rgb = towers ? [0.34, 0.35, 0.38] : plan.paved ? [0.56, 0.55, 0.5] : [0.55, 0.5, 0.4];
   // Its trodden ground, in bands of patches about it (none on the water).
   const bands = 6,
     round = 72;
@@ -449,9 +458,132 @@ function sprawl(scene: TownScene, out: TownParts): void {
       off = ((((a - plan.axis) % sector) + sector) % sector) * r;
     // (Off its avenues, and out of its water.)
     if (Math.min(off, sector * r - off) < AVENUE_HALF + w / 2 + 1 || wet(x, z, w / 2 + 4)) continue;
+    if (towers) {
+      // Towers and more towers, tallest toward its heart, their floors lit, into the haze.
+      const near = 1 - (r - r0) / (r1 - r0),
+        high = 34 + 40 * scatter(plan.seed, i, 5) + 170 * near * near * scatter(plan.seed, i, 6),
+        glass = SPIRE_GLASS[i % SPIRE_GLASS.length]!;
+      out.put("box", glass, x, high / 2, z, Math.min(w, 18), high, Math.min(d * 2, 18), yaw);
+      for (const up of [0.46, 0.8])
+        out.lamp(x, high * up, z, Math.min(w, 18) * 1.01, 1.8, Math.min(d * 2, 18) * 1.01, yaw);
+      continue;
+    }
     out.put("box", look.wall, x, h / 2, z, w, h, d, yaw);
     out.put("gable", look.roof, x, h + 1.1, z, w * 1.04, 2.2, d * 1.1, yaw);
   }
+}
+
+/**
+ * A land built over, as its land's map draws what its towns' own fabric does not reach (Phase 66): low
+ * roofs in great blocks and towers among them, a set number, thick on the ground wherever the ground is dry.
+ * `half` is how far the land goes from its middle (m). From its land's key, the same each time it is seen.
+ */
+export function builtOverParts(key: number, half: number, out: TownParts): void {
+  const across = (k: number) => (scatter(key, k, 30) * 2 - 1) * half,
+    down = (k: number) => (scatter(key, k, 31) * 2 - 1) * half;
+  for (let i = 0; i < BUILT_ROOFS; i++) {
+    const u = scatter(key, i, 32),
+      w = 340 + 520 * u,
+      d = 340 + 520 * scatter(key, i, 33),
+      h = 22 + 44 * scatter(key, i, 34);
+    out.put(
+      "box",
+      BUILT_GREYS[i % BUILT_GREYS.length]!,
+      across(i),
+      h / 2,
+      down(i),
+      w,
+      h,
+      d,
+      u * 0.2,
+    );
+  }
+  for (let i = 0; i < BUILT_TOWERS; i++) {
+    const k = i + BUILT_ROOFS,
+      v = scatter(key, k, 35),
+      w = 90 + 110 * scatter(key, k, 36),
+      h = 90 + 460 * v * v * v;
+    out.put(
+      "box",
+      SPIRE_GLASS[i % SPIRE_GLASS.length]!,
+      across(k),
+      h / 2,
+      down(k),
+      w,
+      h,
+      w * (0.8 + 0.5 * scatter(key, k, 37)),
+      v * 1.2,
+    );
+  }
+}
+
+/** How much of a land built over the land's map draws, past its towns' own fabric. */
+const BUILT_ROOFS = 3600,
+  BUILT_TOWERS = 2400,
+  BUILT_GREYS: readonly Rgb[] = [
+    [0.5, 0.5, 0.52],
+    [0.42, 0.43, 0.46],
+    [0.58, 0.56, 0.54],
+  ];
+
+/**
+ * A craft flying a town's sky (Phase 66): its lane about the town or along an avenue, how high it flies,
+ * how fast. A look, seen by the screen's clock, as the beasts are: nothing it does is history.
+ */
+export type Flier = {
+  /** Ring (r: how far out) or avenue (way: its heading, from r out to `to` and back). */
+  readonly way: number | null;
+  readonly r: number;
+  readonly to: number;
+  readonly high: number;
+  /** Metres a second. */
+  readonly pace: number;
+  /** Where along its lane it was at the clock's beginning (0 … 1). */
+  readonly from: number;
+};
+
+/** A town's fliers, from its plan (none: none in its sky). */
+export function fliersOf(plan: VillagePlan): readonly Flier[] {
+  const town = plan.town,
+    n = plan.past?.fliers ?? 0;
+  if (!town || n <= 0 || town.sealed) return [];
+  const seed = town.seed,
+    reach = Math.max(120, Math.min(900, 18 * Math.sqrt(town.lots))),
+    out: Flier[] = [];
+  for (let i = 0; i < n; i++) {
+    const r = 60 + scatter(seed, i, 20) * reach,
+      // (A world built over keeps its lanes among its towers and over them.)
+      high = plan.past?.covered
+        ? 70 + 96 * Math.floor(scatter(seed, i, 21) * 6)
+        : 42 + 36 * Math.floor(scatter(seed, i, 21) * 5),
+      pace = 34 + 40 * scatter(seed, i, 22),
+      from = scatter(seed, i, 23);
+    out.push(
+      i % 3 === 0
+        ? { way: avenueWay(town, i % AVENUES), r: 30, to: reach * 1.5, high, pace, from }
+        : { way: null, r, to: r, high, pace, from },
+    );
+  }
+  return out;
+}
+
+/** Where a flier is by the screen's clock: its place and heading (metres from the town's middle). */
+export function flierAt(f: Flier, clock: number): { x: number; y: number; z: number; yaw: number } {
+  if (f.way === null) {
+    const a = f.from * 2 * Math.PI + (clock * f.pace) / f.r;
+    return { x: f.r * Math.cos(a), y: f.high, z: f.r * Math.sin(a), yaw: -a };
+  }
+  // (Out along its avenue and back.)
+  const span = f.to - f.r,
+    k = (f.from * 2 * span + clock * f.pace) % (2 * span),
+    out = k <= span,
+    d = f.r + (out ? k : 2 * span - k);
+  return {
+    x: d * Math.cos(f.way),
+    y: f.high,
+    z: d * Math.sin(f.way),
+    yaw: Math.PI / 2 - f.way + (out ? 0 : Math.PI),
+  };
 }
 
 /** A sealed hall's colours (Phase 64): its hull, tinted by its design; its glass; its dark seals. */
@@ -488,7 +620,7 @@ function sealedHome(
       Math.min(1, look.wall[1] * 0.9 + 0.05),
       Math.min(1, look.wall[2] * 0.8 + 0.08),
     ],
-    L = LEVELS[Math.max(0, Math.min(5, level))]!;
+    L = LEVELS[Math.max(0, Math.min(TOP_LEVEL, level))]!;
   if (level <= 1) {
     const w = level === 0 ? 5.6 : 7.4,
       h = (level === 0 ? 3.1 : 4.1) * grow;
@@ -508,8 +640,9 @@ function sealedHome(
   // (The taller the slimmer: its footing the wider, a fat drum of three storeys, a needle of twenty-four.)
   const r =
       Math.min(LOT_W - 0.5, L.w + 0.6) *
-      (level === 2 ? 1 : level === 3 ? 0.92 : level === 4 ? 0.84 : 0.76),
-    h = L.h * grow;
+      (level === 2 ? 1 : level === 3 ? 0.92 : level === 4 ? 0.84 : level === 5 ? 0.76 : 0.7),
+    // (Woven carbon past the first towers: as high again as its neighbour, or half as high.)
+    h = L.h * grow * (level > 5 ? spireShare(x, z) : 1);
   if (h <= 0.05) return;
   out.put("cyl", SEAL, x, 0.72, z, r + 0.5, 0.44, r + 0.5, yaw);
   out.put("cyl", hull, x, 0.8 + h / 2, z, r, h, r, yaw);
@@ -534,7 +667,88 @@ function sealedHome(
     r * 0.92,
     yaw,
   );
-  if (level === 5) out.put("box", FRAME, x, 0.8 + h + cap + 4, z, 0.4, 8, 0.4, 0);
+  if (level >= 5) out.put("box", FRAME, x, 0.8 + h + cap + 4, z, 0.4, 8, 0.4, 0);
+}
+
+/** A spire's share of its level's height, by where it stands: no two neighbours the same. */
+function spireShare(x: number, z: number): number {
+  const v = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453,
+    u = v - Math.floor(v),
+    // (A skyline, not a wood: the most of them far under the tallest, and those at its heart.)
+    heart = Math.max(0, 1 - Math.hypot(x, z) / 700);
+  return 0.2 + (0.4 + 0.75 * heart) * u * u * (0.5 + 1.1 * u);
+}
+
+/** What a spire is dressed in (Phase 66): four glasses, its frames, its plinth of shops, a lit needle. */
+const SPIRE_GLASS: readonly Rgb[] = [
+    [0.4, 0.58, 0.74],
+    [0.62, 0.56, 0.64],
+    [0.32, 0.56, 0.58],
+    [0.82, 0.86, 0.9],
+  ],
+  CARBON: Rgb = [0.16, 0.17, 0.2],
+  PLINTH: Rgb = [0.36, 0.37, 0.4],
+  NEEDLE: Rgb = [0.92, 0.3, 0.22];
+
+/**
+ * A spire: a plinth of shops, three shafts stepped in, each with its lit floors and a dark ring of woven
+ * carbon where it steps, a needle at its top. Its land's design shows only in its plinth's colour: at
+ * this height nothing is built but of what can stand there.
+ */
+function spire(
+  out: TownParts,
+  look: HouseLook,
+  x: number,
+  z: number,
+  yaw: number,
+  grow: number,
+  roof: number,
+): void {
+  const L = LEVELS[TOP_LEVEL]!,
+    share = spireShare(x, z),
+    high = L.h * share,
+    h = high * grow;
+  if (h <= 0.05) return;
+  const glass = SPIRE_GLASS[Math.floor(share * 53) % SPIRE_GLASS.length]!,
+    plinth = Math.min(14, h);
+  out.put(
+    "box",
+    [
+      PLINTH[0] * 0.8 + look.wall[0] * 0.2,
+      PLINTH[1] * 0.8 + look.wall[1] * 0.2,
+      PLINTH[2] * 0.8 + look.wall[2] * 0.2,
+    ],
+    x,
+    plinth / 2,
+    z,
+    L.w,
+    plinth,
+    L.d,
+    yaw,
+  );
+  // (Three shafts: to a half, to four-fifths, to its top; each narrower.)
+  let from = plinth;
+  [
+    [0.5, 0.88, 3],
+    [0.8, 0.66, 2],
+    [1, 0.42, 1],
+  ].forEach(([to, wide, bands]) => {
+    const top = Math.min(h, high * to!);
+    if (top <= from) return;
+    const span = top - from,
+      w = L.w * wide!,
+      d = L.d * wide!;
+    out.put("box", glass, x, from + span / 2, z, w, span, d, yaw);
+    if (grow >= 1)
+      for (let k = 0; k < bands!; k++)
+        out.lamp(x, from + ((k + 0.6) / bands!) * span, z, w * 1.008, 1.8, d * 1.008, yaw);
+    out.put("box", CARBON, x, top + 0.4, z, w * 1.05, 0.9, d * 1.05, yaw);
+    from = top;
+  });
+  if (roof >= 1) {
+    out.put("box", FRAME, x, high + 9, z, 0.6, 18, 0.6, 0);
+    out.put("box", NEEDLE, x, high + 18.5, z, 1, 1, 1, 0);
+  }
 }
 
 /** A home standing whole: walls and roof at its level, in its design (the tall ones in brick, concrete, glass). */
@@ -550,7 +764,8 @@ function home(
 ): void {
   // (Halls on another body: Phase 64.)
   if (look.sealed) return sealedHome(out, look, level, x, z, yaw, grow, roof);
-  const L = LEVELS[Math.max(0, Math.min(5, level))]!,
+  if (level >= TOP_LEVEL) return spire(out, look, x, z, yaw, grow, roof);
+  const L = LEVELS[Math.max(0, Math.min(TOP_LEVEL, level))]!,
     h = L.h * (level <= 1 ? look.height : 1) * grow;
   if (h <= 0.01) return;
   if (level <= 1) {
@@ -646,9 +861,9 @@ function rising(
   yaw: number,
   p: number,
 ): void {
-  const L = LEVELS[Math.max(0, Math.min(5, level))]!,
+  const L = LEVELS[Math.max(0, Math.min(TOP_LEVEL, level))]!,
     [w, d] = level <= 1 ? lowFoot(L, look) : [L.w, L.d],
-    h = L.h * (level <= 1 ? look.height : 1),
+    h = L.h * (level <= 1 ? look.height : 1) * (level >= TOP_LEVEL ? spireShare(x, z) : 1),
     corners = [
       [w / 2 + 0.5, d / 2 + 0.5],
       [-w / 2 - 0.5, d / 2 + 0.5],
@@ -684,7 +899,7 @@ function rising(
   }
   for (const v of [d / 2 + 0.5, -d / 2 - 0.5]) {
     const [bx, bz] = at(x, z, yaw, 0, v);
-    for (let y = 3; y < top; y += level >= 3 ? 6 : 3)
+    for (let y = 3; y < top; y += level >= TOP_LEVEL ? 30 : level >= 3 ? 6 : 3)
       out.put("box", TIMBER, bx, y, bz, w + 1.2, 0.15, 0.5, yaw);
   }
   // A crane over the tall ones: its mast beside them, its jib over them.
@@ -695,6 +910,11 @@ function rising(
     const [jx, jz] = at(x, z, yaw, w / 2 - 6, 0);
     out.put("box", CRANE, jx, mast, jz, 22, 0.8, 0.8, yaw);
   }
+}
+
+/** Whether a town has come to raise spires: what its sprawl is then made of. */
+export function hasSpires(plan: TownPlan): boolean {
+  return plan.runs.some((r) => r[0]! <= 1 && r[5]! >= TOP_LEVEL);
 }
 
 /** A home's ruin: let fall, it stands roofless and crumbles; burnt, black stubs that sink. */
@@ -1071,6 +1291,60 @@ function civicShape(
       put("box", GLASS, 0, 30, 0, w * 0.9, 60, d * 0.8);
       put("box", FRAME, 0, 61, 0, w * 0.6, 2, d * 0.5);
       break;
+    case "fusion": {
+      // A flame held in a bottle: a drum of magnets in coils under a pale dome, its yard of
+      // switchgear. No stack and no smoke: what it burns leaves nothing to carry away.
+      const r = Math.min(w, d) * 0.72;
+      put("box", CONCRETE, 0, 0.6, 0, w * 0.96, 1.2, d * 0.96);
+      put("cyl", [0.58, 0.62, 0.68], 0, 8, 0, r, 15, r);
+      for (let k = 0; k < 4; k++)
+        put("cyl", [0.2, 0.42, 0.62], 0, 3 + k * 3.6, 0, r * 1.07, 1.3, r * 1.07);
+      put("dome", [0.82, 0.86, 0.88], 0, 15.5 + r * 0.16, 0, r, r * 0.32, r);
+      put("box", TAR, w * 0.38, 2.5, d * 0.34, w * 0.14, 5, d * 0.18);
+      put("box", TAR, -w * 0.38, 2.5, d * 0.34, w * 0.14, 5, d * 0.18);
+      for (const u of [-w * 0.44, w * 0.44]) put("box", FRAME, u, 11, -d * 0.4, 0.7, 22, 0.7);
+      if (grow >= 1)
+        out.lampRound(at(x, z, yaw, 0, 0)[0], 11, at(x, z, yaw, 0, 0)[1], r * 1.015, 1.1);
+      break;
+    }
+    case "minds": {
+      // A mind of crystal: a windowless black block in its cold, fins along its flanks to shed what
+      // it thinks with, a thin lit seam up each corner of it.
+      const high = 40;
+      put("box", [0.1, 0.11, 0.14], 0, high / 2, 0, w * 0.72, high, d * 0.72);
+      for (let k = 0; k < 5; k++) {
+        const v = ((k + 0.5) / 5 - 0.5) * d * 0.68;
+        put("box", [0.5, 0.54, 0.6], w * 0.42, high * 0.45, v, w * 0.1, high * 0.9, 0.5);
+        put("box", [0.5, 0.54, 0.6], -w * 0.42, high * 0.45, v, w * 0.1, high * 0.9, 0.5);
+      }
+      put("box", FRAME, 0, high + 0.5, 0, w * 0.5, 1, d * 0.5);
+      if (grow >= 1)
+        for (const su of [-1, 1])
+          for (const sv of [-1, 1]) {
+            const [lx, lz] = at(x, z, yaw, (su * w * 0.72) / 2, (sv * d * 0.72) / 2);
+            out.lamp(lx, high / 2, lz, 0.5, high * 0.96, 0.5, yaw);
+          }
+      break;
+    }
+    case "vats": {
+      // Food with no field behind it: rows of tall green tanks, capped and piped, tended from a low hall.
+      const green: Rgb = [0.3, 0.62, 0.36];
+      put("box", CONCRETE, 0, 0.4, 0, w * 0.96, 0.8, d * 0.96);
+      put("box", WHITE, -w * 0.36, 3, 0, w * 0.2, 6, d * 0.84);
+      for (let i = 0; i < 3; i++)
+        for (let j = 0; j < 4; j++) {
+          const u = ((i + 0.5) / 3 - 0.2) * w * 0.68,
+            v = ((j + 0.5) / 4 - 0.5) * d * 0.84,
+            tank = Math.min(w, d) * 0.15;
+          put("cyl", green, u, 7, v, tank, 14, tank);
+          put("cyl", FRAME, u, 14.5, v, tank * 1.1, 1, tank * 1.1);
+          if (grow >= 1 && j % 2 === i % 2) {
+            const [lx, lz] = at(x, z, yaw, u, v);
+            out.lampRound(lx, 9, lz, tank * 1.02, 4);
+          }
+        }
+      break;
+    }
   }
 }
 
@@ -1181,6 +1455,9 @@ const CIVIC_HIGH: Readonly<Record<string, number>> = {
   station: 18,
   power: 44,
   offices: 62,
+  fusion: 24,
+  minds: 42,
+  vats: 16,
 };
 
 /**
@@ -1293,7 +1570,7 @@ export function townThingAt(scene: TownScene, x: number, z: number, t: number): 
     const m = civicMoments(c);
     if (t < m.began || (m.fell !== null && t >= m.fell + 60 * YEAR_S)) continue;
     if (inside(footprint(lots, c.at, c.lots), x, z, 1))
-      return { kind: "civic", at: c.at, start: c.start };
+      return { kind: "civic", at: c.truly ?? c.at, start: c.start };
   }
   const w = plan.walls;
   if (w && scene.walls && t >= (w.start + 1) * YEAR_S)

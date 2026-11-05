@@ -23,12 +23,14 @@ import {
   PRINCIPLES,
   affordsPrinciple,
   arsenicalFallback,
+  cannotRemake,
   crossingYears,
   delivered,
   habitability,
   heatOf,
   launcherFor,
   longestCrossing,
+  matterShuts,
   meansOfAge,
   needsMet,
   principleNameOn,
@@ -164,6 +166,7 @@ function openTo(l: Lands, sows: boolean): Set<string> {
     for (const p of PRINCIPLES) {
       if (known.has(p.id) || p.rate <= 0) continue;
       if (!affordsPrinciple(p, medium, fire, kind) || !needsMet(p, knows)) continue;
+      if (matterShuts(p, l.w.functions ?? [])) continue;
       if (!driverOpen(l, p, knows)) continue;
       known.add(p.id);
       changed = true;
@@ -191,6 +194,9 @@ function shutBecause(
     if (p.body?.fire && !fire) return `${name(id)} wants fire, which its people cannot keep`;
     return `${name(id)} is not for a people of the ${medium}`;
   }
+  // (What it asks of its world's matter, and that matter cannot give: Phase 66.)
+  const f = matterShuts(p, l.w.functions ?? []);
+  if (f) return `${name(id)} asks a people to ${f.name}: ${f.why}`;
   for (const need of p.needs) {
     const options = need.split("|");
     if (options.some((o) => known.has(o))) continue;
@@ -245,7 +251,10 @@ function flightOf(g: ProvinceWorld, seed: Seed, known: ReadonlySet<string>) {
   }));
   let livable = 0,
     carried = 0,
-    nearest: string | null = null;
+    nearest: string | null = null,
+    // (The first of them a world's remaking could work on: Phase 66; else why not.)
+    remade: string | null = null,
+    unmade: string | null = null;
   for (const site of g.offworld.sites) {
     if (site.site > 0 || site.body < 0) continue;
     const b = bodies[site.body]!;
@@ -254,6 +263,9 @@ function flightOf(g: ProvinceWorld, seed: Seed, known: ReadonlySet<string>) {
     if (delivered(knows, speed, routeTo(list, site.body, g.star.mass).speed)) {
       carried++;
       nearest ??= b.designation;
+      const cannot = cannotRemake(b);
+      if (!cannot) remade ??= b.designation;
+      else unmade ??= `${b.designation}: ${cannot}`;
     }
   }
   // Other stars, nearest first: the first its people's crossing could reach with a world to live on.
@@ -272,13 +284,26 @@ function flightOf(g: ProvinceWorld, seed: Seed, known: ReadonlySet<string>) {
         break;
       }
     }
-  return { speed, lift, livable, carried, nearest, drive, target };
+  return { speed, lift, livable, carried, nearest, remade, unmade, drive, target };
 }
 
 const round = (x: number, k = 10) => Math.round(x * k) / k;
 
 /** The ages past what a people may come to anywhere: from here on, a world must hold what they want. */
-const PAST_METAL = new Set(["engines", "electricity", "orbit", "worlds", "stars"]);
+const PAST_METAL = new Set([
+  "engines",
+  "electricity",
+  "orbit",
+  "worlds",
+  "stars",
+  "fusion",
+  "minds",
+  "beams",
+  "bodies",
+  "remade",
+  "covered",
+  "gathered",
+]);
 /** How fine a world a glance makes: some forty times less work than the whole. */
 const GLANCE_FREQUENCY = 8;
 
@@ -452,6 +477,26 @@ export function readSeed(
       `A world they could live on ${round(flight.target.star.distance)} light-years off, ${Math.round(flight.target.years)} years' crossing by ${flight.drive.words}.`,
       noMachines || few,
     );
+  // Ages past ours (Phase 66): each a road a people may walk, its matter having met what it asks.
+  const hard = noMachines || few;
+  road("fusion", ["fusion-power"], () => `${told("wall-a-flame")} ${told("hold-a-flame")}`, hard);
+  road("minds", ["machine-minds"], () => told("think-in-crystal"), hard);
+  if (w.noGrip) no("beams", w.noGrip);
+  else road("beams", ["beam-arms"], () => told("beam-a-light"), hard);
+  road("bodies", ["made-bodies"], () => told("write-a-body"), hard);
+  if (!knows("world-making")) no("remade", shutOf(["world-making"], known, l));
+  else if (!halls) no("remade", "It would need halls beyond its world first.");
+  else if (!flight.remade)
+    no(
+      "remade",
+      flight.unmade ??
+        (flight.target
+          ? "It would have to carry its halls under another star first."
+          : "No body its people could reach and live on."),
+    );
+  else yes("remade", `${flight.remade} could be remade. ${told("remake-a-world")}`, hard);
+  road("covered", ["world-city"], () => told("roof-a-world"), hard);
+  road("gathered", ["star-mirrors"], () => told("gather-a-star"), hard);
   const allowed = ages.filter((a) => a.allowed);
   return {
     universe,

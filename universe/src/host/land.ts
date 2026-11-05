@@ -34,6 +34,7 @@ import type {
 import { townPlan } from "./town.ts";
 import { landEra, townSite } from "./village.ts";
 import { colonyLook } from "./colony.ts";
+import { landPast } from "./past.ts";
 
 /** Lots a land draws of each of its towns at the least (a village's every lot). */
 const LEAST_LOTS = 240;
@@ -81,8 +82,11 @@ export function landPlan(world: World, cell: number, budget = 8000): LandPlan {
   const cities = citiesOf(world),
     settled = settledIn(world, cell),
     era = landEra(world, cell),
+    // (Built over from edge to edge: no fields, nor bands, are left on it. Phase 66.)
+    covered = !!landPast(world, cell)?.covered,
     // (Farmed under its roofs, on another body: no open fields.)
-    fields = era !== "forage" && !offworldSite(populationContext(world).generated, cell),
+    fields =
+      era !== "forage" && !covered && !offworldSite(populationContext(world).generated, cell),
     plans = new Map<string, TownPlan | null>();
   let left = Math.max(0, budget);
   for (const s of [...settled].sort(
@@ -126,7 +130,8 @@ export function landPlan(world: World, cell: number, budget = 8000): LandPlan {
     towns,
     roads: landRoads(world, cell, towns),
     lanes: landLanes(world, cell, towns),
-    camps: landCamps(world, cell, towns),
+    camps: covered ? [] : landCamps(world, cell, towns),
+    ...(covered ? { covered: true as const } : {}),
   };
 }
 

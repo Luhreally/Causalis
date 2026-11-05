@@ -37,7 +37,15 @@ import {
   type Wound,
 } from "../bridge/index.ts";
 import { battleWords } from "./burials.ts";
-import { LINE, PER_TERM, houseName, townRoster, type Holder, type Roster } from "./roster.ts";
+import {
+  LINE,
+  PER_TERM,
+  houseName,
+  linesOf as linesOfTown,
+  townRoster,
+  type Holder,
+  type Roster,
+} from "./roster.ts";
 import { battleRoll, resolveLevyMan, type LevyMan } from "./roll.ts";
 import { makerAt, makerKeyAt } from "./chain.ts";
 import { healerOf } from "./village.ts";
@@ -578,7 +586,7 @@ function linesOf(world: World, town: string): Lines | null {
     townName: s.name,
     roster,
     lines: Math.max(
-      Math.ceil(s.population / LINE),
+      linesOfTown(s.population),
       ...roster.battles.map((b) => b.lines),
       ...roster.strikes.map((x) => x.lines),
     ),

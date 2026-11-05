@@ -81,6 +81,7 @@ import {
   PRODUCTIVITY,
   SEXES,
   TOOL_GAIN,
+  VAT_PEOPLE_KM2,
   habitability,
   routeTo,
   type Affordances,
@@ -89,6 +90,7 @@ import {
 } from "../../rules/index.ts";
 import { homePlanet } from "../planet/store.ts";
 import { lightSteps, starSitesOf } from "../space/stars.ts";
+import { lateOf, remakeKey } from "../space/late-store.ts";
 import { siteRegion } from "../space/ground.ts";
 import { starHazard } from "../acts/great.ts";
 import { capacity, COLS, livable, Province, row, ROWS, type Capacity } from "./model.ts";
@@ -162,10 +164,12 @@ const HALLS = new Map<string, number>();
 export function hallsShare(ctx: PopulationContext, cell: number): number {
   const site = offworldSite(ctx.generated, cell);
   if (!site) return 0;
+  // (As far as its world has been remade, its halls keep less out: Phase 66.)
+  const remade = 1 - (lateOf(ctx.world)?.share(remakeKey(site.body, cell)) ?? 0);
   // A ship's land: its share aboard while it sails, on the world it came to after.
   if (site.body < 0) {
     const s = starSitesOf(ctx.world)?.get(cell);
-    return s ? (s.arrived ? s.there : s.aboard) : 0;
+    return s ? (s.arrived ? s.there * remade : s.aboard) : 0;
   }
   const key = `${homePlanet(ctx.world).surfaceKey}:${cell}`;
   let share = HALLS.get(key);
@@ -175,8 +179,17 @@ export function hallsShare(ctx: PopulationContext, cell: number): number {
       need = habitability(body, g.life.people?.body ?? null, g.system.bodies[0]!.gravity).upkeep;
     HALLS.set(key, (share = Math.min(0.9, need / (need + 6))));
   }
-  return share;
+  return share * remade;
 }
+
+/** Lands of another body are farmed under roofs: as its world is remade, its fields come to lie open. */
+function openFields(ctx: PopulationContext, cell: number): number {
+  const site = offworldSite(ctx.generated, cell);
+  if (!site) return 1;
+  return 1 + (OPEN_FIELDS - 1) * (lateOf(ctx.world)?.share(remakeKey(site.body, cell)) ?? 0);
+}
+/** How many times what a hall's floor feeds, a remade world's open fields feed. */
+const OPEN_FIELDS = 12;
 
 /**
  * How far apart two lands on different bodies are to rule and to hear from, in steps as a
@@ -379,7 +392,8 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
   const { world } = ctx,
     month = periodIndex(t, MONTH),
     markets = marketsOf(world),
-    acts = actsOf(world);
+    acts = actsOf(world),
+    offworldFrom = isProvinceWorld(ctx.generated) ? ctx.generated.offworld.base : Infinity;
   for (const p of ctx.provinces.all()) {
     // A blessed harvest is richer, a blighted one poorer.
     const act = acts.at(p.cell, "harvest", t),
@@ -400,11 +414,22 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
       // What the land's people know: better fields, flocks and hunting, stores that keep.
       lore = loreOf(world),
       // Hot fields yield less as the world warms; cold ones a little more.
-      fields = (1 + lore.effect(p.cell, "farmYield")) * heatYield(ctx, p.cell),
+      fields =
+        (1 + lore.effect(p.cell, "farmYield")) *
+        heatYield(ctx, p.cell) *
+        (p.cell >= offworldFrom ? openFields(ctx, p.cell) : 1),
       flocks = 1 + lore.effect(p.cell, "herdYield"),
       wilds = 1 + lore.effect(p.cell, "forageYield"),
       keeping = Math.min(0.8, lore.effect(p.cell, "keeping")),
-      stored = lore.effect(p.cell, "storage");
+      stored = lore.effect(p.cell, "storage"),
+      // Food grown in vats (Phase 66), whatever its ground, tended by machines more than hands.
+      vats = lore.get(p.cell, "vat-food")
+        ? saturate(
+            c.areaKm2 * VAT_PEOPLE_KM2,
+            p.occupation(OCC.farmer),
+            PRODUCTIVITY[OCC.farmer]! * tools * gathers,
+          )
+        : 0;
     // Yearly food in person-years is this month's food in person-months.
     const harvest: [number, number][] = [
       [
@@ -423,10 +448,11 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
               p.occupation(OCC.farmer),
               PRODUCTIVITY[OCC.farmer]! * tools * gathers,
             ) *
-            rain *
-            fields *
-            alive.soil *
-            (1 - grainLost(alive))
+              rain *
+              fields *
+              alive.soil *
+              (1 - grainLost(alive)) +
+            vats
           : 0,
       ],
       [
@@ -689,9 +715,20 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
  * and beyond — fewer children born, as fewer die and each costs more to raise.
  */
 export function transition(ctx: PopulationContext, cell: number): number {
-  const power = powerOf(ctx, cell);
-  return 1 - TRANSITION * Math.min(1, Math.max(0, (power - 0.25) / 2));
+  const power = powerOf(ctx, cell),
+    keeps = 1 - TRANSITION * Math.min(1, Math.max(0, (power - 0.25) / 2)),
+    lore = loreOf(ctx.world);
+  // Past our ages (Phase 66): nothing here runs short any more, and what a people then does is its choice.
+  if (lore.get(cell, "made-bodies")) return Math.max(keeps, WRITTEN_KEEPS);
+  return lore.get(cell, "fusion-power") ? Math.max(keeps, FLAME_KEEPS) : keeps;
 }
+/**
+ * What a people with a held flame keeps of its fertility: a little more than replaces it. Fuel no longer
+ * thins it out; nothing yet makes more of it than it would have of its own.
+ */
+const FLAME_KEEPS = 0.72;
+/** What a people that writes and grows its children keeps: each one wanted is made, whatever it can bear. */
+const WRITTEN_KEEPS = 0.95;
 // At the full transition a people about replace themselves: some five children a woman
 // fall to three and a half, as industry's lower deaths let two in three of them grow up.
 const TRANSITION = 0.6;

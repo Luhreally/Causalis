@@ -195,7 +195,8 @@ test("the kinds' principles come after Earth's, open only on their kinds, and ne
     first = PRINCIPLES.indexOf(own[0]!);
   assert.equal(own.length, 16);
   assert.ok(
-    PRINCIPLES.slice(first).every((p) => p.body?.kinds),
+    // (Those past our ages, Phase 66, came after them, and open on every kind.)
+    PRINCIPLES.slice(first, first + own.length).every((p) => p.body?.kinds),
     "appended after the rest",
   );
   for (const p of PRINCIPLES) {

@@ -31,11 +31,14 @@ import {
   LY_SCALE,
   bodySize,
   colonyHour,
+  colonySky,
   crossingShare,
   descentAt,
   filmShots,
   filmWords,
   growthAt,
+  remadeLook,
+  remakingAt,
   systemSpec,
   transferAt,
   type FilmStage,
@@ -83,7 +86,15 @@ export type ColonyFilm = {
   readonly townAway: boolean;
   readonly playing: boolean;
   /** The look tools: what it is showing. */
-  state(): { stage: FilmStage | null; k: number; year: number; words: string; growth: number };
+  state(): {
+    stage: FilmStage | null;
+    k: number;
+    year: number;
+    words: string;
+    growth: number;
+    /** How far its world's remaking is drawn (below 0: its world as it stands). */
+    remade: number;
+  };
 };
 
 /** One shot: how it starts, what it shows at each moment. */
@@ -125,8 +136,19 @@ export function installColonyFilm(d: ColonyFilmDeps): ColonyFilm {
     wall = 0,
     skipped = false,
     year = 0,
-    growthShown = -1;
+    growthShown = -1,
+    /** How far its world's remaking is drawn, in twentieths (-1: its world as it stands now). */
+    remadeShown = -1;
 
+  /** Its world's ground and sky as they stood at a share of its remaking (Phase 66). */
+  const showRemade = (look: ColonyLook, share: number) => {
+    const step = Math.round(share * 20);
+    if (step === remadeShown) return;
+    remadeShown = step;
+    const as = remadeLook(look, step / 20);
+    village.colonyAs(as);
+    stage.colonySky(colonySky(as));
+  };
   const say = (y: number, text: string) => {
     year = y;
     yearBox.textContent = `YEAR ${Math.floor(y)}`;
@@ -322,6 +344,8 @@ export function installColonyFilm(d: ColonyFilmDeps): ColonyFilm {
         await d.toTown(entry.cell, ref);
         townAway = true;
         village.groundOnly();
+        // (The world its first ship found, not what its people have made of it since.)
+        if (look.remaking) showRemade(look, look.remade ?? 0);
         village.colony.landed();
         stage.daylight(colonyHour(look, 0));
         // What the town's first view is, for the film to end at.
@@ -418,11 +442,21 @@ export function installColonyFilm(d: ColonyFilmDeps): ColonyFilm {
             if (i >= 1) village.colony.campGone();
           }
           if (Math.floor(w * 6) !== Math.floor((w - dt) * 6)) village.growthAt(at * YEAR);
-          const g = growth[Math.max(0, growthShown)];
+          // (Its world remade about them, over the years it went on: its air, its warmth, its green.)
+          const share = look.remaking ? remakingAt(look.remaking, at) : 0;
+          if (look.remaking) showRemade(look, share);
+          const g = growth[Math.max(0, growthShown)],
+            as = share > 0 ? remadeLook(look, share) : null;
           if (g && k > 0.12)
             say(
               at,
-              `${g.people.toLocaleString("en")} people; ${g.homes.toLocaleString("en")} halls and homes.`,
+              `${g.people.toLocaleString("en")} people; ${g.homes.toLocaleString("en")} halls and homes.${
+                !as
+                  ? ""
+                  : share >= 1
+                    ? " Its world remade: its air breathed open."
+                    : ` Its world being remade: ${as.pressure.toFixed(2)} bar, ${Math.round(as.temperature)} °C.`
+              }`,
             );
           else say(at, text("growth"));
         }
@@ -453,6 +487,13 @@ export function installColonyFilm(d: ColonyFilmDeps): ColonyFilm {
     ship!.visible = false;
     d.skyAt(null);
     village.growth(undefined, "", 0);
+    // (Its world as it stands now.)
+    const stands = d.plan()?.colony;
+    if (remadeShown >= 0 && stands) {
+      village.colonyAs(stands);
+      stage.colonySky(colonySky(stands));
+    }
+    remadeShown = -1;
     village.colony.landed();
     townAway = false;
     shot = null;
@@ -485,6 +526,7 @@ export function installColonyFilm(d: ColonyFilmDeps): ColonyFilm {
       year,
       words: words.textContent ?? "",
       growth: growthShown,
+      remade: remadeShown / 20,
     }),
     skip() {
       if (!playing) return;
@@ -501,7 +543,7 @@ export function installColonyFilm(d: ColonyFilmDeps): ColonyFilm {
           client.query<ColonyEntry[]>({ type: "colony.list" }),
           client.query<{ look: ColonyLook | null; voyage: ColonyVoyage | null }>({
             type: "colony.look",
-            args: { cell },
+            args: { cell, landing: true },
           }),
         ]),
         entry = list.find((c) => c.cell === cell);

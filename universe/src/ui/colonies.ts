@@ -112,6 +112,11 @@ export class Colonies {
     }, NEWS_MS);
   }
 
+  /** What was being said, said no longer. */
+  hush(): void {
+    this.news.hidden = true;
+  }
+
   /** News of a landing, with the way to it. */
   private tell(c: ColonyEntry, words: string): void {
     if (!this.toldAloud) return;
@@ -131,39 +136,49 @@ export class Colonies {
   }
 
   private draw(): void {
+    // (A world remade, or being remade, first among them: the rest as history has them. Phase 66.)
+    const rank = (c: ColonyEntry) => (c.remade >= 1 ? 2 : c.remade > 0 ? 1 : 0);
     this.rows.replaceChildren(
-      ...this.list.map((c) => {
-        const row = el("div", "colony-row"),
-          name = el(
-            "button",
-            "colony-row-name",
-            c.sailing ? `⛴️ A ship under way` : `🏛️ ${c.name ?? "Its halls"} on ${whereOf(c)}`,
-          ),
-          acts = el("div", "colony-row-acts");
-        name.onclick = () => {
-          this.onPage(c.sailing && c.event ? c.event : `cell:0:${c.cell}`);
-        };
-        const facts = c.sailing
-          ? `Sailed year ${c.sailed ?? "?"}, comes in year ${c.arrives ?? "?"}${c.founder ? `; sent by ${c.founder}` : ""}`
-          : `${c.people.toLocaleString("en")} people; since year ${c.founded}${c.founder ? `; sent by ${c.founder}` : ""}`;
-        row.append(name, el("div", "colony-row-facts", facts));
-        if (!c.sailing && c.town) {
-          const watch = el("button", "colony-watch", "▶ Watch the landing"),
-            down = el("button", "colony-down", "⬇ Go down");
-          watch.dataset.cell = down.dataset.cell = String(c.cell);
-          watch.onclick = () => {
-            this.show(false);
-            this.onLanding(c.cell);
+      ...[...this.list]
+        .sort((a, b) => rank(b) - rank(a))
+        .map((c) => {
+          const row = el("div", "colony-row"),
+            name = el(
+              "button",
+              "colony-row-name",
+              c.sailing ? `⛴️ A ship under way` : `🏛️ ${c.name ?? "Its halls"} on ${whereOf(c)}`,
+            ),
+            acts = el("div", "colony-row-acts");
+          name.onclick = () => {
+            this.onPage(c.sailing && c.event ? c.event : `cell:0:${c.cell}`);
           };
-          down.onclick = () => {
-            this.show(false);
-            this.onDown(c.cell);
-          };
-          acts.append(watch, down);
-          row.append(acts);
-        }
-        return row;
-      }),
+          const facts = c.sailing
+            ? `Sailed year ${c.sailed ?? "?"}, comes in year ${c.arrives ?? "?"}${c.founder ? `; sent by ${c.founder}` : ""}`
+            : `${c.people.toLocaleString("en")} people; since year ${c.founded}${c.founder ? `; sent by ${c.founder}` : ""}${
+                c.remade >= 1
+                  ? "; its world remade, its air breathed open"
+                  : c.remade > 0
+                    ? `; its world ${Math.round(c.remade * 100)}% remade`
+                    : ""
+              }`;
+          row.append(name, el("div", "colony-row-facts", facts));
+          if (!c.sailing && c.town) {
+            const watch = el("button", "colony-watch", "▶ Watch the landing"),
+              down = el("button", "colony-down", "⬇ Go down");
+            watch.dataset.cell = down.dataset.cell = String(c.cell);
+            watch.onclick = () => {
+              this.show(false);
+              this.onLanding(c.cell);
+            };
+            down.onclick = () => {
+              this.show(false);
+              this.onDown(c.cell);
+            };
+            acts.append(watch, down);
+            row.append(acts);
+          }
+          return row;
+        }),
     );
   }
 }

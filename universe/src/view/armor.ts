@@ -25,7 +25,7 @@ const HIDE = [
 ];
 /** Normalized armor shells over the torso; no armor is invented for shield-only or unarmored hosts. */
 export function armorPanels(guard: string): readonly ArmorPanel[] {
-  return guard === "plate"
+  return guard === "plate" || guard === "driven-plate"
     ? PLATE
     : guard === "scale" || guard === "mail"
       ? LINKS
@@ -35,6 +35,8 @@ export function armorPanels(guard: string): readonly ArmorPanel[] {
 }
 export function armorColor(guard: string, kit: string): readonly [number, number, number] {
   if (guard === "leather") return [0.36, 0.19, 0.09];
+  // (Plate driven by a field of its own making: carbon dark, a sheen of blue.)
+  if (guard === "driven-plate") return [0.2, 0.25, 0.34];
   if (/bronze|copper/i.test(kit) || (guard === "scale" && !/iron|steel/i.test(kit)))
     return [0.72, 0.49, 0.23];
   return guard === "mail" ? [0.43, 0.48, 0.54] : [0.65, 0.71, 0.78];

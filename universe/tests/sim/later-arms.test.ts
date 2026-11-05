@@ -6,6 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText, type Ref, type World } from "../../src/kernel/index.ts";
 import { cellRef } from "../../src/gen/index.ts";
+import { LATE_TREE } from "../../src/rules/principles.ts";
 import {
   FIREARMS,
   G,
@@ -36,7 +37,9 @@ import {
 
 /** The principles of the later arms. */
 const LATER = ["repeating-fire", "self-loading", "automatic-fire", "armoured-vehicles"];
-const all = () => true,
+/** (Those past our ages, Phase 66, stand beyond these and have their own tests.) */
+const PAST_OURS = LATE_TREE.map((p) => p.id);
+const all = (id: string) => !PAST_OURS.includes(id),
   ids = (parts: readonly Part[]) => parts.map((p) => p.id).join(" "),
   part = (role: Part["role"], id: string, material: Part["material"]): Part => ({
     role,
@@ -78,7 +81,9 @@ test("a host's power is exactly as it was for every kit before the magazine", ()
     );
   };
   const before = REALIZATIONS.filter(
-      (r) => HOST_ROLES.some((x) => x === r.role) && !r.needs.some((n) => LATER.includes(n)),
+      (r) =>
+        HOST_ROLES.some((x) => x === r.role) &&
+        !r.needs.some((n) => LATER.includes(n) || PAST_OURS.includes(n)),
     ),
     of = (role: string) => before.filter((r) => r.role === role);
   let n = 0;
@@ -123,7 +128,7 @@ test("later arms are machined, an armoured car runs on oil, and a helmet is worn
     "rifle helmet cavalry",
   );
   // (Each in its turn: knowing the one before, never the next.)
-  const knowing = (n: number) => (id: string) => !LATER.slice(n).includes(id);
+  const knowing = (n: number) => (id: string) => all(id) && !LATER.slice(n).includes(id);
   assert.equal(ids(compose(HOST_ROLES, knowing(0), all, doctrine)).split(" ")[0], "rifle");
   assert.equal(ids(compose(HOST_ROLES, knowing(1), all, doctrine)).split(" ")[0], "repeater");
   assert.equal(ids(compose(HOST_ROLES, knowing(2), all, doctrine)).split(" ")[0], "autoloader");

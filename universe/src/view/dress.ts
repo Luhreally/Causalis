@@ -49,6 +49,19 @@ export function clothes(era: VillagePlan["era"], group: number): { body: Rgb; le
 export const EYES: Rgb = [0.07, 0.06, 0.06];
 
 /**
+ * What one of made limbs is drawn in (Phase 66), for each of a figure's tones, whoever made them: a pale
+ * shell, dark limbs, bright joints, eyes alight.
+ */
+export const MACHINE_TONES: readonly [Rgb, Rgb, Rgb, Rgb, Rgb, Rgb] = [
+  [0.74, 0.76, 0.8],
+  [0.34, 0.36, 0.4],
+  [0.82, 0.84, 0.88],
+  [0.62, 0.64, 0.68],
+  [0.3, 0.92, 1],
+  [0.2, 0.62, 0.8],
+];
+
+/**
  * What those of a colony wear out of doors where its air cannot be breathed (Phase 64): a pressure suit
  * with a band of their group's colour, its helmet and its gold visor over whatever they are; the air they
  * can breathe, what they wear at home.

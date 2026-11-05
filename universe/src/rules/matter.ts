@@ -3408,6 +3408,12 @@ export const MATERIAL_MATTER: Readonly<Record<string, readonly (readonly [string
   ],
   // Parts machined at a works (Phase 53 M219): steel, cut to a fiftieth of a millimetre.
   machined: [["steel", 1]],
+  // Beam arms and made limbs (Phase 66): a crystal that lases or reckons, in a frame of fine steel.
+  crystal: [
+    ["steel", 0.7],
+    ["corundum", 0.1],
+    ["silicon", 0.2],
+  ],
   // The kinds' (Phase 56): bedrock ice, carbide grit in pitch, sulfur concrete.
   ice: [["water-ice", 1]],
   "pitch grit": [["pitch-grit", 1]],

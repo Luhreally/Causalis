@@ -256,6 +256,11 @@ export const GATES: readonly Gate[] = [
   // from those only read; a seed typed in read; a catalogue of other rules passed over; a result opened
   // at its year; the chip's age, why it stands there, what it lacks, each measure a page.
   { gate: 65, args: ["--ci"], s: 260 },
+  // The Phase 66 gate: the ages past ours: the title's way there and the wait said first; the picker's new
+  // ages; a far world's chip, what it can do, its great works; its land built over, its globe, its towers,
+  // its fliers, its made folk; a battle in beams; a colony on a world remade, its remaking played in the
+  // film of its landing, and one still sealed.
+  { gate: 66, args: ["--ci"], s: 420 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */

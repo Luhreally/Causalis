@@ -4,7 +4,13 @@
 // clay is fired, and where its smiths work; its warmth in true degrees, where its climate is read
 // in its liquid's; why no life took hold on it.
 import type { World } from "../kernel/index.ts";
-import { climateMean, worldKindOf, type HomeWorld, type Planet } from "../gen/index.ts";
+import {
+  climateMean,
+  functionsOf,
+  worldKindOf,
+  type HomeWorld,
+  type Planet,
+} from "../gen/index.ts";
 import {
   KINDS,
   KIND_AGES,
@@ -19,6 +25,7 @@ import {
   kindBurns,
   kindBiomeName,
   kelvinPerDegree,
+  matterShuts,
   principle,
   trueCelsius,
   type KindAge,
@@ -27,7 +34,7 @@ import {
   type Recipe,
   type WorldKind,
 } from "../rules/index.ts";
-import { homePlanet } from "../sim/index.ts";
+import { homePlanet, populationContext } from "../sim/index.ts";
 import type { Block, Line, Span } from "../bridge/index.ts";
 import { item, link, sentence, stat } from "./inspect/words.ts";
 
@@ -174,7 +181,9 @@ export function shutWhy(world: World, p: Principle): string | null {
     p.id === "metalworking" && !KIND_METAL_ROOTS.some((id) => kindAllows(principle(id), kind));
   if ((p.body?.fire || metalless) && !kindBurns(kind))
     return `nothing burns in its air, so ${unfired(p.id)}. ${KINDS[kind].fire}`;
-  return null;
+  // (What it asks of its world's matter, Phase 66, and that matter cannot give.)
+  const f = matterShuts(p, functionsOf(populationContext(world).generated));
+  return f ? `it asks a people to ${f.name}. ${f.why}` : null;
 }
 
 /** A principle's name as its world's kind names it ("steamships": "engine-driven ships"), or its own. */

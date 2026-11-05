@@ -10,7 +10,7 @@ import { OCC } from "../../rules/index.ts";
 import { lifeOf, populationContext } from "../../sim/index.ts";
 import { landEra, peopleBody } from "../village.ts";
 import { battleWords, burialWords } from "../burials.ts";
-import { LINE, folkWork, townRoster, workOf, type Fate } from "../roster.ts";
+import { folkWork, linesOf, townRoster, workOf, type Fate } from "../roster.ts";
 import { resolveLevyMan } from "../roll.ts";
 import { holderWounds } from "../wounds.ts";
 import { armsBlock } from "./arm.ts";
@@ -18,6 +18,7 @@ import { foughtFate } from "../held.ts";
 import { item, link, sentence, stat, yearNow } from "./words.ts";
 import { landLink, realmLink, townLink } from "./names.ts";
 import { lookOf, woundBlock } from "./wounds.ts";
+import { isMachineFolk, landPast } from "../past.ts";
 
 /** How a man came home from a battle he went to, said before its name (as the veterans' page does). */
 const WAR_WORDS: Readonly<Record<Fate, string>> = {
@@ -36,7 +37,7 @@ export function townsfolkPage(world: World, ref: string): PageModel {
   const roster = townRoster(world, s.ref),
     // (The most lines the town had in the roster's years, or has now: one past them is no one's.)
     had = Math.max(
-      Math.ceil(s.population / LINE),
+      linesOf(s.population),
       ...roster.battles.map((b) => b.lines),
       ...roster.strikes.map((x) => x.lines),
     ),
@@ -67,6 +68,18 @@ export function townsfolkPage(world: World, ref: string): PageModel {
     ]),
     stat("Who", `a ${h.sex ? "man" : "woman"} of ${s.name}, one of its many`),
   ];
+  // (Of made limbs, Phase 66: and why its land can make them.)
+  if (holds && !child && isMachineFolk(landPast(world, s.cell), h.ref))
+    rows.push(
+      stat(
+        "Made",
+        [
+          "A mind of crystal in limbs its town's works made: ",
+          link("what it took", "prin:machine-minds"),
+        ],
+        { why: "prin:machine-minds" },
+      ),
+    );
   if (fell)
     rows.push(
       stat(

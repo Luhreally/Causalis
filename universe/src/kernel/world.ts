@@ -29,6 +29,11 @@ export interface StateStore {
    * long lists of records, which load back as JSON would give them.
    */
   readonly packed?: boolean;
+  /**
+   * Whether it holds nothing yet: a store a later phase added, which until it holds anything is hashed
+   * as if it were not there, so that it moves nothing of a history it has had no part in (Phase 66).
+   */
+  dormant?(): boolean;
   hashInto(h: Hasher): void;
   save(): unknown;
   load(state: unknown): void;
@@ -454,12 +459,13 @@ export class World {
   domainHashes(): [string, string][] {
     const byDomain = new Map<string, Hasher>();
     for (const name of this.storeNames()) {
-      if (this.stores.get(name)!.observational) continue;
+      const store = this.stores.get(name)!;
+      if (store.observational || store.dormant?.()) continue;
       const domain = name.split(".")[0]!;
       let h = byDomain.get(domain);
       if (!h) byDomain.set(domain, (h = new Hasher()));
       h.string(name);
-      this.stores.get(name)!.hashInto(h);
+      store.hashInto(h);
     }
     const kernel = new Hasher().int(this.now);
     for (const [code, n] of this.minter.state()) kernel.string(code).int(n);

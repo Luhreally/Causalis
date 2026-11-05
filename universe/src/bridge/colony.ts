@@ -37,6 +37,28 @@ export type ColonyLook = {
   readonly settlers: number;
   /** What its halls must keep against, in words (rules/habitat.ts). */
   readonly keeps: readonly string[];
+  /**
+   * How far its world has been remade (Phase 66; absent: not at all): 1, its air and warmth a home's now,
+   * its people out from under their halls. Its air, pressure and warmth above are as they are now.
+   */
+  readonly remade?: number;
+  /**
+   * For a landing's film (Phase 66; absent: its world has never been remade): how its remaking went, from the year
+   * it was begun to the last it went on, how far it came, and the world it began from. The film plays it over the
+   * years its town grows.
+   */
+  readonly remaking?: {
+    readonly from: number;
+    readonly to: number;
+    readonly share: number;
+    readonly base: {
+      readonly air: string;
+      readonly water: string;
+      readonly pressure: number;
+      readonly temperature: number;
+      readonly icy: boolean;
+    };
+  };
 };
 
 /** How a colony's ship came there, as history tells it. */
@@ -90,6 +112,8 @@ export type ColonyEntry = {
   readonly founder: string | null;
   /** How wide what hangs in its sky stands, in degrees (0: nothing does; a ship still sailing). */
   readonly sky: number;
+  /** How far its world has been remade (Phase 66; 0: not at all). */
+  readonly remade: number;
 };
 
 /** A colony's town at a few years of its growth, drawn as it stood then (for a film of it). */

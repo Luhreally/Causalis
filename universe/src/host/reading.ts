@@ -2,8 +2,9 @@
 // is measured from (rules/ages.ts), without touching the world. Asking never moves history.
 import { YEAR, type World } from "../kernel/index.ts";
 import {
+  functionsOf,
+  matterOf,
   offworldSite,
-  starAgeGyr,
   worldChemistry,
   worldKindOf,
   type HomeWorld,
@@ -15,11 +16,19 @@ import {
   OCC,
   PRINCIPLE_INDEX,
   PRINCIPLES,
+  COVER_PEOPLE_KM2,
+  FLAME_GAIN,
+  MIRROR_DOUBLING,
   WANTS,
   affordancesOf,
+  energyOf,
+  hasBeams,
+  noBeamGrip,
   kindBurns,
   lacksForNext,
+  mirrorKw,
   readWorld,
+  worldDiscKm2,
   type AgeWorld,
   type Lack,
   type LandFacts,
@@ -29,10 +38,16 @@ import {
 } from "../rules/index.ts";
 import {
   citiesOf,
+  coverOf,
+  designsOf,
+  lateOf,
   loreOf,
   marketsOf,
   COLONY_SHARE,
+  GREAT_WORK_SHARE,
   MACHINES_PER_COST,
+  MIRROR_MACHINES,
+  REMAKE_MACHINES,
   PROGRAM_SHARE,
   SATELLITE_TONNES,
   STATION_TONNES,
@@ -79,6 +94,12 @@ export type RawWorld = {
   readonly sat: number;
   readonly crew: number;
   readonly station: number;
+  /** Ages past ours (Phase 66): realms bearing beams, worlds remade, lands built on, of those peopled; mirrors (km²). */
+  readonly beams?: number;
+  readonly remade?: number;
+  readonly built?: number;
+  readonly lands?: number;
+  readonly mirrors?: number;
 };
 
 /** A world's raw reading at a moment: its year, what it holds as a whole, its peopled lands in rows. */
@@ -138,7 +159,8 @@ export function rawReading(world: World): RawReading {
     );
   }
   const realms = politiesOf(world).living(),
-    space = spaceOf(world);
+    space = spaceOf(world),
+    past = pastOurs(world);
   let sat = 0,
     crew = 0,
     station = 0;
@@ -159,8 +181,44 @@ export function rawReading(world: World): RawReading {
       sat,
       crew,
       station,
+      beams: past.beams,
+      remade: past.remade,
+      built: past.built,
+      lands: past.lands,
+      mirrors: past.mirrors,
     },
     l,
+  };
+}
+
+/** What a world has come to past our ages, as a record or a reading holds it (Phase 66). */
+function pastOurs(world: World): {
+  beams: number;
+  remade: number;
+  built: number;
+  lands: number;
+  mirrors: number;
+} {
+  const late = lateOf(world),
+    designs = designsOf(world),
+    { built, lands } = coverOf(populationContext(world));
+  let beams = 0;
+  for (const r of politiesOf(world).living()) if (hasBeams(designs.of(r.ref)?.parts ?? [])) beams++;
+  return {
+    beams,
+    remade: late ? late.all().filter((r) => r.done).length : 0,
+    built,
+    lands,
+    mirrors: late?.mirrors?.km2 ?? 0,
+  };
+}
+
+/** What a world's mirrors gather, and how many times what falls on its whole world that is. */
+function gatheredOf(g: HomeWorld, km2: number): { mirrorKw: number; gathered: number } {
+  if (km2 <= 0) return { mirrorKw: 0, gathered: 0 };
+  return {
+    mirrorKw: mirrorKw(km2, g.star.luminosity, g.system.bodies[0]!.orbit.a),
+    gathered: km2 / worldDiscKm2(g.planet.radius),
   };
 }
 
@@ -184,30 +242,25 @@ export function rawLore(world: World): number[][] {
 /** What the ages go by on a generated world: its chemistry and kind, its people's body, its girth. */
 export function ageWorldOf(g: HomeWorld): AgeWorld {
   const body = g.life.people?.body ?? CLADES.find((c) => c.id === "ape")!.body,
-    kind = worldKindOf(g);
+    kind = worldKindOf(g),
+    noGrip = noBeamGrip(body);
   return {
     chem: worldChemistry(g),
     kind,
     medium: body.medium,
     fire: kindBurns(kind) && affordancesOf(body).fire,
     radius: g.planet.radius,
+    // (Read when its functions are first asked: a world's reading of its first ages never needs them.)
+    get functions() {
+      return functionsOf(g);
+    },
+    spectral: g.star.spectral,
+    celsius: g.planet.meanTemperature,
+    ...(noGrip ? { noGrip } : {}),
   };
 }
 
-/** What a generated world's matter is asked of, for its functions. */
-export function matterOf(g: HomeWorld): MatterWorld {
-  const bodies = g.system.bodies;
-  return {
-    chem: worldChemistry(g),
-    kind: worldKindOf(g),
-    celsius: g.planet.meanTemperature,
-    gravity: g.planet.gravity,
-    rockBodies: bodies.filter((b) => b.kind === "rocky" || b.kind === "moon").length,
-    giants: bodies.filter((b) => b.kind === "giant" || b.kind === "ice giant").length,
-    starLeftGyr: g.star.lifetimeGyr - starAgeGyr(g.star),
-    peopled: !!g.life.people,
-  };
-}
+export { matterOf };
 
 /** What a world's matter is asked of, for its functions. */
 export function matterWorldOf(world: World): MatterWorld {
@@ -266,7 +319,19 @@ export function factsOfRaw(
             : knew(cell, id),
     });
   }
-  return { lands, facts: { ...raw.w, colonyKm, starLy, arrived } };
+  return {
+    lands,
+    facts: {
+      ...raw.w,
+      colonyKm,
+      starLy,
+      arrived,
+      beams: raw.w.beams ?? 0,
+      remade: raw.w.remade ?? 0,
+      cover: raw.w.lands ? (raw.w.built ?? 0) / raw.w.lands : 0,
+      ...gatheredOf(g, raw.w.mirrors ?? 0),
+    },
+  };
 }
 
 const READ = new WeakMap<World, { at: number; reading: WorldReading; lands: LandFacts[] }>();
@@ -317,7 +382,8 @@ function factsNow(world: World): { lands: LandFacts[]; facts: WorldFacts } {
     });
   }
   const realms = politiesOf(world).living(),
-    space = spaceOf(world);
+    space = spaceOf(world),
+    past = pastOurs(world);
   let sat = 0,
     crew = 0,
     station = 0;
@@ -340,6 +406,10 @@ function factsNow(world: World): { lands: LandFacts[]; facts: WorldFacts } {
       colonyKm,
       starLy,
       arrived,
+      beams: past.beams,
+      remade: past.remade,
+      cover: past.lands ? past.built / past.lands : 0,
+      ...gatheredOf(g, past.mirrors),
     },
   };
 }
@@ -368,6 +438,17 @@ function wantingFor(world: World, age: string): string | null {
     many = (n: number) => `${Math.round(n)}`.replace(/\B(?=(\d{3})+(?!\d))/g, ","),
     realms = politiesOf(world).living(),
     stationed = realms.filter((r) => space.of(r.ref)?.station);
+  // Past our ages (Phase 66): what stands between knowing how and doing it, where a station is not it.
+  if (age === "fusion")
+    return `Its flame gives only as much as it has works to drive: ${FLAME_GAIN} times what its fuel did, for each of its crafters' engines. Its foremost land stands at ${Math.round(Math.max(...worldReadingOf(world).lands.map(energyOf)))} kW a head.`;
+  if (age === "minds")
+    return "Its minds are in its machines: past a tenth of a machine a head, a land's sums rise with them.";
+  if (age === "beams")
+    return `No realm has armed its host with them yet. A beam arm is made of its machines: a realm takes them up when its smiths hold the machines to make them, and they are better than what it has.`;
+  if (age === "covered") {
+    const { built, lands: peopled } = coverOf(ctx);
+    return `${many(built)} of its ${many(peopled)} peopled lands hold ${COVER_PEOPLE_KM2} people to the square kilometre, and half of them makes a world covered.`;
+  }
   if (age === "orbit") {
     const able = realms.filter((r) => launcherOfRealm(ctx, r));
     if (!able.length) return "No realm that knows how has an engine that will lift off its ground.";
@@ -399,6 +480,21 @@ function wantingFor(world: World, age: string): string | null {
   }
   if (age === "stars")
     return `A ship to the stars asks a realm with a station to hold ${many(STARSHIP_MACHINES / COLONY_SHARE)} machines; the richest holds ${many(richest(stationed))}.`;
+  // Past our ages (Phase 66): what stands between knowing and doing, in machines and years.
+  if (age === "gathered") {
+    const m = lateOf(world)?.mirrors;
+    if (m)
+      return `Its mirrors stand at ${many(m.km2)} km², doubling every ${MIRROR_DOUBLING} years while a realm with a station tends them, and it takes ${many(worldDiscKm2(populationContext(world).generated.planet.radius))} km² to gather what falls on its whole world.`;
+    return `A first works of mirrors asks a realm with a station to hold ${many(MIRROR_MACHINES / GREAT_WORK_SHARE)} machines; the richest holds ${many(richest(stationed))}.`;
+  }
+  if (age === "remade") {
+    const going = lateOf(world)
+      ?.all()
+      .filter((r) => !r.done);
+    if (going?.length)
+      return `${going.length} world${going.length === 1 ? " is" : "s are"} being remade, the furthest ${Math.round(Math.max(...going.map((r) => r.share)) * 100)} in a hundred of the way.`;
+    return `A world's remaking asks a realm with halls on it to hold ${many(REMAKE_MACHINES / GREAT_WORK_SHARE)} machines; the richest with a station holds ${many(richest(stationed))}.`;
+  }
   return null;
 }
 

@@ -1072,6 +1072,36 @@ export function machinedArmsMade(
           ],
     );
   }
+  if (part.id === "beam-rifle" || part.id === "beam-lance")
+    chain.push(
+      [
+        "Its crystal grown and cut at ",
+        works,
+        part.id === "beam-lance" ? ", a long rod for a beam that carries" : "",
+      ],
+      [
+        "Its light pumped from a cell and held true by ",
+        link("what it took to bear beams", "prin:beam-arms"),
+      ],
+    );
+  if (part.id === "driven-plate")
+    chain.push([
+      "Its plate of ",
+      link("drawn carbon", "prin:drawn-carbon"),
+      ", laid and driven at ",
+      works,
+      ", stiffening where it is struck",
+    ]);
+  if (part.id === "machine-host")
+    chain.push(
+      [
+        "Its soldiers' limbs turned and their minds of ",
+        link("crystal", "prin:machine-minds"),
+        " grown at ",
+        works,
+      ],
+      ["Told to fight by those who ", link("think in crystal", "prin:machine-soldiers")],
+    );
   if (part.id === "armoured") {
     // (The oil drawn in a member land's well, else brought down a road, else kept in store.)
     const oil = fuelFor(ctx, p),
@@ -1358,7 +1388,9 @@ export function armsMade(
       ],
     };
   }
-  if (part.material === "machined") return machinedArmsMade(world, realm, part, year, who);
+  // (A host of burning light and made limbs, grown and drawn at the works: Phase 66.)
+  if (part.material === "machined" || part.material === "crystal")
+    return machinedArmsMade(world, realm, part, year, who);
   if (!(part.material in METALS)) return null;
   // Each metal it is worked from, as its seat's smiths have it: their land's ore within reach,
   // else down the roads from the land that smelted it.
@@ -1484,7 +1516,7 @@ function armsForged(
       machinedHere = works !== null && machinedFor(ctx, p) === works;
     if (!seated && !machinedHere) continue;
     for (const part of designsOf(world).of(p.ref)?.parts ?? []) {
-      const machined = part.material === "machined",
+      const machined = part.material === "machined" || part.material === "crystal",
         made = (machined ? machinedHere : seated && part.material in METALS)
           ? armsMade(world, p.ref, part, year)
           : null;

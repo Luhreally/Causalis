@@ -338,6 +338,8 @@ export type VillagePlan = {
     folk?: boolean;
     /** What one of the town's many is, said: "a crafter of Sairis" (Phase 50 M212). */
     role?: string;
+    /** One of the town's many of made limbs (Phase 66): drawn in chrome; their page says why. */
+    machine?: true;
     /**
      * One of the town's makers, kept at their trade day on day (Phase 50 M212): a smith at the
      * forge, a potter at the kilns, a weaver at the workshops — the seat they hold, named as the
@@ -367,6 +369,15 @@ export type VillagePlan = {
     /** When a strike of this year killed them (world seconds; Phase 55 M226): not seen from then. */
     gone?: number;
   }[];
+  /**
+   * How far past our ages its land has come (Phase 66; absent: not at all): the share of its folk of made
+   * limbs, how many craft fly its sky, and whether its land is built on from edge to edge.
+   */
+  readonly past?: {
+    readonly machines: number;
+    readonly fliers: number;
+    readonly covered: boolean;
+  };
   /** What it holds in store and how that flows (Phase 39 M198). Absent: a village's usual. */
   readonly stores?: TownStores;
   /** What its land traded last year, at its share (Phase 48 M210). Absent: none. */

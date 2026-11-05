@@ -45,7 +45,9 @@ const WOOD = [0.5, 0.36, 0.22] as const;
 /** The bench an arm's maker works at: the knapping stone, the anvil, or the machines of a works. */
 function benchOf(arm: Part, made: Made): string {
   if (arm.material === "stone") return "knapping stone";
-  return arm.material === "machined" || made.workshop.name.startsWith("the factory")
+  return arm.material === "machined" ||
+    arm.material === "crystal" ||
+    made.workshop.name.startsWith("the factory")
     ? "machines"
     : "anvil";
 }
