@@ -645,7 +645,7 @@ export function lifeOffers(l: Life, f: LifeFacts, o: LifeOfferFacts): LifeOffer[
     add(
       "work",
       f.occupation === OCC.leader
-        ? `Hold court: hear the town out. Pays ${wage.toFixed(1)} coin a day; what a ruler can decree comes later.`
+        ? `Hold court: hear the town out. Pays ${wage.toFixed(1)} coin a day. What a ruler can decree is under 👑 Rule.`
         : `A day's work pays ${wage.toFixed(1)} coin here now${workHours(l.settled, l.settled + 4 * HOUR) < 2 ? ", and past the day's hours what you make is the town's" : ""}.`,
       { icon: wIcon!, label: wLabel! },
     );

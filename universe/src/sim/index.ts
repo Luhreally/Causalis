@@ -267,6 +267,28 @@ export {
 } from "./order/order.ts";
 export { ORDER_ACTS, STIR_SHARE, installOrderActs, mostHeld } from "./order/acts.ts";
 export {
+  REIGN_EVENTS,
+  decreeProblem,
+  installReign,
+  lawVoices,
+  peaceProblem,
+  rulerProblem,
+  stationOf,
+  tieBetween,
+  titheVoices,
+  warProblem,
+  warVoices,
+  wedProblem,
+  type DecreeArgs,
+  type HousePerson,
+  type PeaceArgs,
+  type RulerArgs,
+  type Station,
+  type Voices,
+  type WarArgs,
+  type WedArgs,
+} from "./order/reign.ts";
+export {
   HEALTH_ACTS,
   HEALTH_EVENTS,
   HealthStore,

@@ -103,11 +103,11 @@ const LAW_NAMES: Readonly<Record<Law, string>> = {
   justice: "justice",
 };
 registerEventWords(LAW_EVENTS.changed.type, (_, e) => {
-  const d = e.data as { law?: Law; from?: number; to?: number } | null,
+  const d = e.data as { law?: Law; from?: number; to?: number; by?: string } | null,
     law = d?.law ?? "land",
     from = LAW_POSITIONS[law][d?.from ?? 0],
     to = LAW_POSITIONS[law][d?.to ?? 0];
-  return `${cap(realm(e.data))} changed its law of ${LAW_NAMES[law]}: from ${from} to ${to}, ${year(e.t)}`;
+  return `${d?.by ? `By your hand, at the word of ${d.by}, ${realm(e.data)}` : cap(realm(e.data))} changed its law of ${LAW_NAMES[law]}: from ${from} to ${to}, ${year(e.t)}`;
 });
 
 // The god's hand on bonds and freedoms (M138).

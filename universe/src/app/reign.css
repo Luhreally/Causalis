@@ -1,0 +1,173 @@
+/* A ruler ruled by the god's hand (Lives L4): the bar above and the tray below take only their own touches; the world
+   goes on in the middle; every control a finger's size; within the phone's safe areas. */
+body.ruling #hud > *:not(.reign-hud):not(.page-window):not(.panel.page-panel) {
+  display: none !important;
+}
+#hud > .reign-hud {
+  position: absolute;
+  inset: 0;
+  z-index: 26;
+  pointer-events: none;
+  font-size: 14px;
+  color: #fff;
+}
+.reign-hud[hidden],
+.reign-sheet[hidden],
+.reign-window[hidden],
+.reign-bars[hidden] {
+  display: none !important;
+}
+.reign-strip,
+.reign-tray,
+.reign-told,
+.reign-sheet,
+.reign-window,
+.reign-hud button {
+  pointer-events: auto;
+}
+.reign-hud .reign-letgo {
+  flex: 0 0 auto;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+.reign-hud .reign-pace.on {
+  color: #ffd98a;
+  outline: 1px solid rgba(255, 217, 138, 0.6);
+}
+.reign-glance {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  margin-top: 3px;
+}
+.reign-chip {
+  min-width: 0;
+  min-height: 44px;
+  padding: 2px 6px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 6px;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.15;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.09);
+}
+.reign-chip.low {
+  background: rgba(255, 90, 80, 0.28);
+}
+.reign-bars {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 3px;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 6px;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.reign-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  line-height: 13px;
+}
+.reign-barname {
+  flex: 0 0 76px;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reign-bartrack {
+  flex: 1 1 auto;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+.reign-fill {
+  display: block;
+  height: 100%;
+  background: #9db8e8;
+}
+.reign-bar.me .reign-fill {
+  background: #ffd98a;
+}
+.reign-bar.me .reign-barname {
+  color: #ffd98a;
+  font-weight: 700;
+}
+.reign-barworth {
+  flex: 0 0 38px;
+  text-align: right;
+}
+.reign-tray .reign-act {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.reign-sheet,
+.reign-window {
+  max-height: calc(100vh - 330px);
+  background: rgba(10, 20, 40, 0.97);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+.reign-hud.under-page .reign-sheet,
+.reign-hud.under-page .reign-window,
+.reign-hud.under-page .reign-tray,
+.reign-hud.under-page .reign-told {
+  visibility: hidden;
+}
+.reign-law {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(160, 190, 255, 0.25);
+}
+.reign-lawtitle {
+  color: #ffd98a;
+  font-weight: 700;
+}
+.reign-lawnow,
+.reign-optwords {
+  margin: 2px 0 4px;
+  font-size: 12px;
+  opacity: 0.88;
+}
+.reign-hud .reign-opt,
+.reign-hud .reign-peace,
+.reign-hud .reign-declare,
+.reign-hud .reign-wed,
+.reign-hud .reign-foename,
+.reign-hud .reign-warpage,
+.reign-hud .reign-battle,
+.reign-hud .reign-close,
+.reign-hud .reign-heir,
+.reign-hud .reign-end {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 3px;
+  text-align: left;
+}
+.reign-hud .refused {
+  opacity: 0.62;
+  border-style: dashed;
+}
+.reign-said {
+  margin: 6px 0 2px;
+  color: #ffd98a;
+  font-weight: 700;
+}
+.reign-said:empty {
+  display: none;
+}
+.leader-rule {
+  min-height: 44px;
+}

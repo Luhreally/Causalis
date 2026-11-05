@@ -21,7 +21,15 @@ import {
   type Tongue,
 } from "../gen/index.ts";
 import { bandOf, type LifeHistory } from "../rules/index.ts";
-import { agentName, cultureOf, handOf, politiesOf, populationContext } from "../sim/index.ts";
+import {
+  agentName,
+  cultureOf,
+  handOf,
+  orderOf,
+  politiesOf,
+  populationContext,
+  realmName,
+} from "../sim/index.ts";
 import { observer, type Person } from "../causal/index.ts";
 import {
   bodyAt,
@@ -730,12 +738,40 @@ function rulerFamily(world: World, ref: string): Family | null {
     how: null,
     event: null,
   };
-  return keyedFamily(
+  const family = keyedFamily(
     readingOf(world, p.seat),
     self,
     p.ruler.name.split(" ").slice(1).join(" "),
     `Named as ruler of ${p.town}: history keeps the ruler's name and their coming to rule, not their kin, so their kin here are given by the keyed rule a town's people's are given by — the same each time, but none of them kept.`,
   );
+  // (A marriage of state made by the god's hand is kept: Lives L4.)
+  const matches = orderOf(world)?.of(p.ref)?.matches ?? [];
+  if (!matches.length) return family;
+  const own = matches.find((m) => m.who === p.ruler.name),
+    other = (ref: Ref) => {
+      const r = politiesOf(world).get(ref);
+      return r ? realmName(r) : "a realm now gone";
+    };
+  return {
+    ...family,
+    spouse: own
+      ? {
+          tie: tieWord(own.toSex === 0 ? 0 : 1, "spouse"),
+          name: own.to,
+          ref: null,
+          sex: own.toSex === 0 ? 0 : 1,
+          born: own.toBorn,
+          died: null,
+          how: null,
+          event: own.event,
+          note: `of ${other(own.with)}, by a marriage of state`,
+        }
+      : family.spouse,
+    children: family.children.map((k) => {
+      const m = matches.find((x) => x.who === k.name);
+      return m ? { ...k, event: m.event, note: `wed to ${m.to} of ${other(m.with)}` } : k;
+    }),
+  };
 }
 
 /** The family of anyone of a town with a page that has none of its own: a line holder, a levy man, a seat's holder (null: none, or a person met or the hand's, whose household tells theirs). */

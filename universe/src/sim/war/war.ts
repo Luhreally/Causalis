@@ -1270,7 +1270,10 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       if (w.civil) settleCivil(ctx, w, false, false, t);
       continue;
     }
-    const land = frontier(ctx, a, b)[0];
+    // (A ruler's aim, Lives L4: the land named is fought for while it can be reached.)
+    const front = frontier(ctx, a, b),
+      aimed = (world.events.get(w.event)?.data as { aimed?: boolean } | null)?.aimed === true,
+      land = aimed && front.includes(w.prize) ? w.prize : front[0];
     if (land === undefined) {
       // No land left between them to fight over: the war ends, and history says so.
       w.ended = year;

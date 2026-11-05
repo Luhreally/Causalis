@@ -8,7 +8,11 @@ export function drawLeaderCard(
   into: HTMLElement,
   l: Leader,
   short: boolean,
-  ctx: { open: (ref: string) => void; home?: (l: Leader) => void },
+  ctx: {
+    open: (ref: string) => void;
+    home?: (l: Leader) => void;
+    rule?: (l: Leader) => void;
+  },
 ): void {
   const card = el("div", "leader-card");
   card.dataset.ref = l.ref;
@@ -27,6 +31,13 @@ export function drawLeaderCard(
     const go = el("button", "act leader-go", "🏠 Go to their home");
     go.onclick = () => home(l);
     card.append(go);
+  }
+  // (One who rules now can be ruled as: nothing is recorded until something is done, Lives L4.)
+  const rule = ctx.rule;
+  if (rule && l.ref.startsWith("rule:") && l.title.startsWith("Ruler")) {
+    const b = el("button", "act leader-rule", "👑 Rule as them");
+    b.onclick = () => rule(l);
+    card.append(b);
   }
   into.append(card);
 }
@@ -64,6 +75,7 @@ export function drawWealthCompare(
  */
 export class LeaderChip {
   onPossess: () => void = () => {};
+  onRule: ((l: Leader) => void) | null = null;
   onPage: (ref: string) => void = () => {};
   onClose: () => void = () => {};
   private readonly box: HTMLDivElement;
@@ -92,6 +104,11 @@ export class LeaderChip {
       possess.addEventListener("click", () => this.onPossess());
       this.possess = possess;
       acts.append(possess);
+    }
+    if (this.onRule && l.ref.startsWith("rule:") && !l.cannot) {
+      const rule = el("button", "leader-rule", "👑 Rule");
+      rule.addEventListener("click", () => this.onRule?.(l));
+      acts.append(rule);
     }
     const page = el("button", "leader-page", "📄 Their page");
     page.addEventListener("click", () => this.onPage(l.ref));

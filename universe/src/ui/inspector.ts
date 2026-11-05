@@ -146,6 +146,7 @@ export class PageWindow {
   onPossess: ((agent: number) => Promise<string | null>) | null = null;
   /** To a key figure's home (Lives L1). */
   onLeaderHome: ((leader: Leader) => void) | null = null;
+  onLeaderRule: ((leader: Leader) => void) | null = null;
   /** Told as each page opens (the scales mark what it is). */
   onOpen: (page: PageModel) => void = () => {};
   onClose: () => void = () => {};
@@ -887,6 +888,7 @@ export class PageWindow {
           ...(this.onTouched ? { touched: this.onTouched } : {}),
           ...(this.onPossess ? { possess: this.onPossess } : {}),
           ...(this.onLeaderHome ? { leaderHome: this.onLeaderHome } : {}),
+          ...(this.onLeaderRule ? { leaderRule: this.onLeaderRule } : {}),
         });
         break;
     }

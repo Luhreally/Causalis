@@ -232,6 +232,20 @@ export type {
 } from "./possess.ts";
 export type { LifeCard, LifeChoice, LifeKin, LifeNow, LifeOfferNow, LifeWindow } from "./life.ts";
 export type {
+  ReignDecreeOption,
+  ReignDecrees,
+  ReignFall,
+  ReignFoe,
+  ReignLaw,
+  ReignMatch,
+  ReignMatches,
+  ReignNeighbour,
+  ReignNow,
+  ReignPerson,
+  ReignWar,
+  ReignWars,
+} from "./reign.ts";
+export type {
   BeastTakeArgs,
   FoughtNow,
   HeldBeastNow,

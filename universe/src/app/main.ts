@@ -315,6 +315,7 @@ import { installHeld, type HeldField } from "./held.ts";
 import { installPossession } from "./possess.ts";
 import { installLeaders } from "./leaders.ts";
 import { installLife } from "./life.ts";
+import { installReign } from "./reign.ts";
 import { installColonyFilm, type ColonyFilm } from "./colony-film.ts";
 import { installFleetFilm, type FleetFilm } from "./fleet-film.ts";
 // (Anyone's family and body on their card, a war's soldiers named from its roll: Phase 55 wave 5.)
@@ -5605,6 +5606,9 @@ async function runPlanetPage(): Promise<void> {
   let colonyFrom = 0;
   // A tap in the village: someone, else a beast (its lineage and what it is doing), else no one.
   let lifeTap: ((x: number, y: number) => boolean) | null = null;
+  /** Whether a ruler is being ruled (Lives L4): the town is seen by day then, as one watched growing is. */
+  let ruling: () => boolean = () => false,
+    ruleLeave: () => void = () => {};
   const tapVillage = (x: number, y: number) => {
     // (The sheet of lives up: one tapped goes on it, Lives L3.)
     if (lifeTap?.(x, y)) return;
@@ -7710,7 +7714,7 @@ async function runPlanetPage(): Promise<void> {
         ? raidPlaying.t
         : fleetFilm?.townHeld
           ? Math.floor(t / DAY) * DAY + fleetFilm.hour * DAY
-          : time.lapse
+          : time.lapse || ruling()
             ? Math.floor(t / DAY) * DAY + 10 * 3600
             : t;
     stage.daylight(
@@ -8157,7 +8161,28 @@ async function runPlanetPage(): Promise<void> {
   villagePanel.onLive = () => void lifeFlow.liveHere();
   regionPanel.onLive = (ref) =>
     void goTo({ scale: "village", town: ref }).then(() => lifeFlow.liveHere());
-  person.onLive = (agent) => void lifeFlow.liveAgent(agent);
+  // (A ruler's body lived on from: the bar of rule goes; 👑 Rule on the life's tray brings it back.)
+  person.onLive = (agent) => {
+    ruleLeave();
+    void lifeFlow.liveAgent(agent);
+  };
+  // A ruler ruled by the god's hand (Lives L4): decrees, war and peace, marriages, from the leaders tab, a chip at their
+  // home, or a life lived as them.
+  const reign = installReign({
+    stage,
+    hud,
+    client,
+    time,
+    pages: pageWindow,
+    possession: person,
+    leaders,
+  });
+  const ruleLeader = (l: { ref: string }) => void reign.take(l.ref.slice("rule:".length));
+  pageWindow.onLeaderRule = ruleLeader;
+  leaders.onRule = ruleLeader;
+  lifeFlow.onRule = (realm) => void reign.take(realm);
+  ruling = () => reign.on;
+  ruleLeave = () => reign.leave();
   // Watch a town grow (Phase 26 M154): down to its land, the eye on it, the clock a year a second.
   const watchGrow = async (cell: number, town: string) => {
     if (!(scale === "region" && regionCell === cell)) await goTo({ scale: "region", cell });

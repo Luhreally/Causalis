@@ -30,6 +30,8 @@ export type LeadersDeps = {
   readonly toOrbit: () => void;
 };
 export type Leaders = {
+  /** The chip's 👑 Rule pressed (Lives L4). */
+  onRule: ((l: Leader) => void) | null;
   home(l: Leader): Promise<void>;
   possess(): Promise<string | null>;
   clear(): void;
@@ -198,5 +200,15 @@ export function installLeaders(d: LeadersDeps): Leaders {
     },
   });
 
-  return { home, possess, clear };
+  return {
+    home,
+    possess,
+    clear,
+    get onRule() {
+      return chip.onRule;
+    },
+    set onRule(f: ((l: Leader) => void) | null) {
+      chip.onRule = f;
+    },
+  };
 }

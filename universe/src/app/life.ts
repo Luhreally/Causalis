@@ -30,6 +30,8 @@ export type LifeFlow = {
   /** A tap in the town: taken while the sheet of lives is up. */
   tapped(x: number, y: number): boolean;
   readonly on: boolean;
+  /** 👑 Rule pressed in a life lived as a realm's ruler: the life let go, and this told (Lives L4). */
+  onRule: (realm: string) => void;
 };
 
 const DAY = 86_400,
@@ -226,7 +228,7 @@ export function installLife(d: LifeDeps): LifeFlow {
         await refresh();
       })
       .catch((e: Error) => hud.say(e.message));
-  hud.onLetGo = () =>
+  const letGo = (then?: () => void) =>
     void d.client
       .command("life.end", {})
       .then(async () => {
@@ -234,8 +236,12 @@ export function installLife(d: LifeDeps): LifeFlow {
         leave(plan ? `Your hand still rests on ${plan.name}.` : "");
         now = null;
         if (plan) await d.reload(plan.ref);
+        then?.();
       })
       .catch((e: Error) => hud.say(e.message));
+  hud.onLetGo = () => letGo();
+  let onRule: (realm: string) => void = () => {};
+  hud.onRule = (realm) => letGo(() => onRule(realm));
   hud.onPage = (ref) => void d.pages.open(ref);
   hud.onPace = (p) => {
     pace = p;
@@ -376,6 +382,12 @@ export function installLife(d: LifeDeps): LifeFlow {
     tapped,
     get on() {
       return hud.open;
+    },
+    get onRule() {
+      return onRule;
+    },
+    set onRule(f: (realm: string) => void) {
+      onRule = f;
     },
   };
 }

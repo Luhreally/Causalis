@@ -124,12 +124,51 @@ export function lawOf(o: RealmOrder, law: Law): { position: number; words: strin
  * How far a realm's laws are what its powerful want (-1 … 1): over its laws, each group's want
  * of the law it keeps, by the group's sway.
  */
-function approvalOf(laws: readonly number[], sway: ReadonlyMap<Group, number>): number {
+export function approvalOf(laws: readonly number[], sway: ReadonlyMap<Group, number>): number {
   let sum = 0;
   LAWS.forEach((law, k) => {
     for (const [g, s] of sway) sum += s * WANTS[law][g][laws[k]!]!;
   });
   return Math.max(-1, Math.min(1, sum / LAWS.length));
+}
+
+/** Each group's sway as a law is weighed: the court's the less as its rule is doubted. */
+export function swayOnLaws(
+  ctx: PopulationContext,
+  p: Polity,
+  o: RealmOrder,
+  t: SimTime,
+): Map<Group, number> {
+  const doubted = o.legitimacy < 0.45 ? (0.45 - o.legitimacy) / 0.45 : 0;
+  return new Map<Group, number>(
+    interestsOf(ctx, p, t).map((i) => [
+      i.group,
+      i.sway * (i.group === "the court" ? 1 - 0.5 * doubted : 1),
+    ]),
+  );
+}
+
+/** Who is for a step of a law and who against, by their sway and how much they want it (Lives L4). */
+export function stepVoices(
+  sway: ReadonlyMap<Group, number>,
+  law: Law,
+  from: number,
+  to: number,
+): {
+  readonly forIt: number;
+  readonly against: number;
+  readonly groups: readonly { readonly group: Group; readonly by: number }[];
+} {
+  let forIt = 0,
+    against = 0;
+  const groups: { group: Group; by: number }[] = [];
+  for (const [group, s] of sway) {
+    const by = s * (WANTS[law][group][to]! - WANTS[law][group][from]!);
+    if (by > 0) forIt += by;
+    else against -= by;
+    groups.push({ group, by });
+  }
+  return { forIt, against, groups };
 }
 
 /** Every ten years (each realm in its own year of ten), a realm weighs its laws. */

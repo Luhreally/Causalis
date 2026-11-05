@@ -237,7 +237,9 @@ export function lifeNow(world: World): LifeNow | null {
     market = marketsOf(world).get(w.cell),
     wantWords = (id: WantId) => LIFE_WANTS[id].words,
     wantAt = l.want ? wantNow(l.want, l, f, rival) : null;
+  const realm = politiesOf(world).of(v.cell);
   return {
+    rules: realm && realm.ended === null && realm.ruler.name === first(l.name) ? realm.ref : null,
     agent: l.agent,
     ref: `agent:${l.agent}`,
     name: first(l.name),

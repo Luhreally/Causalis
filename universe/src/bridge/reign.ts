@@ -1,0 +1,137 @@
+// A ruler ruled by the god's hand (Lives L4), as the page reads it. Plain data, made by host/reign.ts from what
+// history holds; nothing here is kept.
+
+export type ReignWar = {
+  readonly ref: string;
+  readonly foe: string;
+  readonly foeName: string;
+  /** "You went to war for ...", in words. */
+  readonly words: string;
+  readonly since: number;
+  /** The fallen: yours and theirs. */
+  readonly fallen: readonly [number, number];
+  readonly battles: number;
+  /** The last battle: its page, and a line. */
+  readonly last: { readonly ref: string; readonly words: string } | null;
+};
+
+/** How the ruler's rule ended, and who is offered. */
+export type ReignFall = {
+  readonly how: "died" | "overthrown" | "realm";
+  readonly title: string;
+  readonly words: string;
+  readonly event: string | null;
+  /** Who holds the seat now (null: it stands no more). */
+  readonly heir: { readonly name: string; readonly age: number; readonly tie: string } | null;
+};
+
+export type ReignNeighbour = {
+  readonly ref: string;
+  readonly short: string;
+  readonly head: number;
+  readonly people: number;
+  readonly color: readonly [number, number, number];
+};
+
+export type ReignNow = {
+  readonly realm: string;
+  readonly realmName: string;
+  readonly ruler: string;
+  readonly rulerRef: string;
+  readonly age: number;
+  readonly since: number;
+  /** "chief of Sairis", "head of the assembly of Braeol". */
+  readonly title: string;
+  readonly town: string | null;
+  /** What their station comes to, in a sentence: what they can do and how they are answered. */
+  readonly station: string;
+  readonly carry: number;
+  readonly people: number;
+  readonly lands: number;
+  readonly beyond: number;
+  readonly host: number;
+  readonly legitimacy: number;
+  /** The mean grievance of its lands (0 … 1), by their people. */
+  readonly unrest: number;
+  readonly tithe: number;
+  /** Worth a head, its place among the realms, and those it meets, itself among them. */
+  readonly head: number;
+  readonly rank: number;
+  readonly of: number;
+  readonly neighbours: readonly ReignNeighbour[];
+  readonly wars: readonly ReignWar[];
+  /** The one who would come after, in words (eldest child by birth; else how rule passes). */
+  readonly heir: string;
+  /** Their spouse, in words (null: no one). */
+  readonly spouse: string | null;
+  /** The newest things told of the realm. */
+  readonly told: readonly { readonly year: number; readonly words: string; readonly ref: string }[];
+  readonly fell: ReignFall | null;
+};
+
+/** One way a law could be set: what, and what it would cost (or why not). */
+export type ReignDecreeOption = {
+  readonly to: number;
+  readonly label: string;
+  readonly can: boolean;
+  /** If it can be done: its cost, in words. If not: why, in the same words the world refuses it with. */
+  readonly words: string;
+};
+export type ReignLaw = {
+  readonly law: string;
+  readonly title: string;
+  readonly now: string;
+  readonly options: readonly ReignDecreeOption[];
+};
+export type ReignDecrees = {
+  /** Their standing, and how they are answered, in a line. */
+  readonly words: string;
+  readonly laws: readonly ReignLaw[];
+};
+
+/** A neighbour in reach of war: what fighting them would be. */
+export type ReignFoe = {
+  readonly ref: string;
+  readonly name: string;
+  readonly host: number;
+  readonly opinion: number;
+  /** "Rivals", "at peace", "sworn to you by a pact". */
+  readonly regard: string;
+  readonly can: boolean;
+  /** Its cost in words, or why not. */
+  readonly words: string;
+  /** Lands to fight for, the richest first. */
+  readonly aims: readonly { readonly cell: number; readonly name: string }[];
+};
+export type ReignWars = {
+  readonly words: string;
+  readonly host: number;
+  readonly wars: readonly (ReignWar & { readonly can: boolean; readonly peace: string })[];
+  /** Wars over in the last few years: how each came out, in words. */
+  readonly lately: readonly (ReignWar & { readonly came: string })[];
+  readonly foes: readonly ReignFoe[];
+};
+
+export type ReignPerson = {
+  readonly name: string;
+  readonly sex: number;
+  readonly born: number;
+  readonly tie: string;
+};
+/** A match to be had with another house. */
+export type ReignMatch = {
+  readonly to: string;
+  readonly toName: string;
+  readonly who: ReignPerson;
+  readonly partner: ReignPerson;
+  readonly can: boolean;
+  /** What it moves, in words, or why not. */
+  readonly words: string;
+  /** What the two realms think of each other now, and would. */
+  readonly opinion: number;
+  readonly after: number;
+};
+export type ReignMatches = {
+  readonly words: string;
+  readonly matches: readonly ReignMatch[];
+};

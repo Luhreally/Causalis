@@ -39,7 +39,10 @@ const CIVIL: Readonly<Record<string, string>> = {
   freed: "to take back the freed",
 };
 registerEventWords(WAR_EVENTS.declared.type, (world, e) => {
-  const civil = (e.data as { civil?: string } | null)?.civil;
+  const civil = (e.data as { civil?: string } | null)?.civil,
+    by = (e.data as { by?: string } | null)?.by;
+  if (by)
+    return `By your hand, at the word of ${by}, ${text(e.data, "a")} went to war with ${text(e.data, "b")} for ${landWords(world, e.place)}, ${year(e.t)}`;
   return civil
     ? `${cap(text(e.data, "a"))} rose against ${text(e.data, "b")} ${CIVIL[civil] ?? "in a civil war"}, marching on ${landWords(world, e.place)}, ${year(e.t)}`
     : `${cap(text(e.data, "a"))} went to war with ${text(e.data, "b")} for ${landWords(world, e.place)}, ${year(e.t)}`;
@@ -72,8 +75,8 @@ registerEventWords(WAR_EVENTS.strike.type, (_, e) => {
   return `Machines of ${text(e.data, "a")} struck ${d?.name ?? "a town"} of ${text(e.data, "b")} from the air; ${count(d?.dead ?? 0)} died and ${count(d?.homes ?? 0)} home${d?.homes === 1 ? "" : "s"} came down, ${year(e.t)}`;
 });
 registerEventWords(WAR_EVENTS.peace.type, (_, e) => {
-  const d = e.data as { years?: number; won?: boolean } | null;
-  return `Peace between ${text(e.data, "a")} and ${text(e.data, "b")} after ${count(d?.years ?? 0)} year${d?.years === 1 ? "" : "s"}${d?.won ? ", the land they fought for won" : ""}, ${year(e.t)}`;
+  const d = e.data as { years?: number; won?: boolean; by?: string } | null;
+  return `${d?.by ? `By your hand, at the asking of ${d.by}: peace` : "Peace"} between ${text(e.data, "a")} and ${text(e.data, "b")} after ${count(d?.years ?? 0)} year${d?.years === 1 ? "" : "s"}${d?.won ? ", the land they fought for won" : ""}, ${year(e.t)}`;
 });
 registerDecisionWords("war.declare", (world, d) => {
   const realm = politiesOf(world).get(d.subject);

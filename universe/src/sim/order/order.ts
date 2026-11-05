@@ -171,6 +171,21 @@ export type RealmOrder = {
   lawEvents: (Ref | null)[];
   /** How far its laws are what its powerful want (-1 … 1), as last weighed. */
   approval: number;
+  /** Marriages of state its house made by the god's hand (Lives L4); absent if none. */
+  matches?: StateMatch[];
+};
+
+/** A marriage of state, as one of the two realms keeps it: who of theirs, to whom of the other's, and when. */
+export type StateMatch = {
+  readonly with: Ref;
+  readonly who: string;
+  readonly whoSex: number;
+  readonly whoBorn: number;
+  readonly to: string;
+  readonly toSex: number;
+  readonly toBorn: number;
+  readonly year: number;
+  readonly event: Ref;
 };
 
 export class OrderStore implements StateStore {
@@ -211,6 +226,7 @@ export class OrderStore implements StateStore {
       for (const e of o.lawEvents) if (e) out.push(e);
       for (const m of o.movements) out.push(m.event);
       for (const m of o.memory) out.push(m.event);
+      for (const m of o.matches ?? []) out.push(m.event);
     }
     return out;
   }

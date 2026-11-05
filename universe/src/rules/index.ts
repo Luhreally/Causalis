@@ -917,3 +917,12 @@ export {
   type Flyer,
 } from "./reach.ts";
 export type { PartHere } from "./designs.ts";
+export {
+  REIGN,
+  carried,
+  decreeCost,
+  mustCarry,
+  peaceRefused,
+  tieOf,
+  warCost,
+} from "./reign.ts";

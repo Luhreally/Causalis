@@ -42,7 +42,7 @@ export {
   type Lit,
 } from "./globe.ts";
 export { WEALTH_CHOICES, figureEye, wealthNote, wealthShades, wealthSpread } from "./leaders.ts";
-export { LivedBody, livedSpeed, spotOf } from "./lived.ts";
+export { LivedBody, livedSpeed, ruledSpeed, spotOf } from "./lived.ts";
 export { BLOOD_TONES, LIFE_WORDS, bloodTones, lifeTint, type BloodTones } from "./biochem.ts";
 export {
   ACT_PARTS,
