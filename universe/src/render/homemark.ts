@@ -1,4 +1,4 @@
-// The home mark (Lives L1): a gold column with a ring at its foot, standing on the home where
+// The home mark (Lives L1): a gold column with a hoop at its foot, standing on the home where
 // the god's hand is laid in a village. Hidden until set; screen() says where its top stands.
 import * as pc from "playcanvas";
 import { cylinderMesh } from "./batch.ts";
@@ -30,8 +30,13 @@ export class HomeMark {
     ring.emissive = new pc.Color(1, 0.72, 0.2);
     ring.depthTest = false;
     ring.update();
+    // (A hoop, not a disc: it is drawn over everything, and the one it marks stands inside it.)
+    const hoop = pc.Mesh.fromGeometry(
+      stage.device,
+      new pc.TorusGeometry({ ringRadius: 0.48, tubeRadius: 0.02, segments: 32, sides: 6 }),
+    );
     this.ring.addComponent("render", {
-      meshInstances: [new pc.MeshInstance(cylinderMesh(stage, 0.5, 1, 24), ring)],
+      meshInstances: [new pc.MeshInstance(hoop, ring)],
     });
     this.root.enabled = false;
   }
@@ -43,7 +48,7 @@ export class HomeMark {
     this.column.setLocalPosition(0, (top * M) / 2, 0);
     this.column.setLocalScale(0.1, top * M, 0.1);
     this.ring.setLocalPosition(0, 0.03, 0);
-    this.ring.setLocalScale(1.8, 0.02, 1.8);
+    this.ring.setLocalScale(1.8, 0.2, 1.8);
     this.top = new pc.Vec3(x * M, top * M, z * M);
   }
 
