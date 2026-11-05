@@ -1,4 +1,4 @@
-# Ages past ours, and everything a galaxy brings (Phases 63–72)
+# Ages past ours, and everything a galaxy brings (Phases 63–73)
 
 Asked for 2026-11-03: "get down to first principles of many things so the alien worlds happen and ...
 the ages past the ages humans experienced can still emerge ... down to star wars level eras etc, with
@@ -11,7 +11,7 @@ i wanna see"; "im fine with some loading screen, i prefer not if the performance
 good enough".
 
 This comes before the brush follow-up and the rest of the Classic list. Classic's war aims, coin and
-markets, diplomacy and lost knowledge are built inside Phases 70–71, not twice.
+markets, diplomacy and lost knowledge are built inside Phases 71–72, not twice.
 
 ## Where it stood (2026-11-03, commit 79682c6; one run each of tools/sky-survey.ts)
 
@@ -42,6 +42,9 @@ markets, diplomacy and lost knowledge are built inside Phases 70–71, not twice
   universe. Energy shields share the dial; psychic powers stay out unless asked for.
 - **Star Wars is the level, not the content:** no borrowed names, ships or characters.
 - **Seen first.** A phase is not done until what it adds can be watched, on the phone, in a scene.
+- **Star wars moved up (2026-11-04).** Fleets and invasions come straight after Phase 66, not after
+  trade. History already holds wars between the stars (`sim/space/starwar.ts`), so showing them need
+  not change history. The politics behind them stays in Star nations.
 
 ## The rule
 
@@ -59,12 +62,13 @@ firearms.ts are the models.
 | 64 Landing and colonies | With today's ships: the crossing, the descent, the first halls on alien ground growing into a town; go down to that ground (globe, land, town), tap and possess its people | A ship landing and a colony growing | L |
 | 65 What a world can do | Matter's real properties, the measures, ages read from them; **seed picker v1** | Why a world is where it is; pick a seed by target age | L |
 | 66 Ages past ours | Fusion, star-scale energy, machine minds, made bodies, beam arms, terraforming, city-covered worlds, where physics and the world allow | New town looks and battles; picker gains the ages | L |
-| 67 Laws of the universe | The dial, lanes between stars, shields; invented matter (Phase 59) | A ship leaving for the lane; the first jump | M |
-| 68 Peoples who really arose | Histories from their own worlds; some never leave, some leave ruins; contact by what they can say, breathe, eat and catch | Strangers met on their ground and ours | L |
-| 69 Exploration and exploitation | Maps of what each has seen, probes, prospecting, mines, outposts, penal colonies, bonded natives, resistance, independence | Survey ships; a mining colony and its rising | L |
-| 70 Trade among stars | Goods from real shortages and freight costs; ports, merchant houses, credit, piracy, smuggling, blockades | Busy spaceports of many peoples; a lane raided | L |
-| 71 Star nations | Federations, empires, vassals, civil wars, fleets, dark ages | Fleets fighting in orbit; invasions landing in the town view | L |
-| 72 Your hand in it | Galaxy lenses, the director filming firsts, a pilot possessed, god's acts at star scale | All of it, from the title screen | M |
+| 67 Star wars seen | Fleets and invasions drawn from the wars between the stars that history already records; no change to history | Fleets fighting in orbit; invasions landing in the town view | M |
+| 68 Laws of the universe | The dial, lanes between stars, shields; invented matter (Phase 59) | A ship leaving for the lane; the first jump | M |
+| 69 Peoples who really arose | Histories from their own worlds; some never leave, some leave ruins; contact by what they can say, breathe, eat and catch | Strangers met on their ground and ours | L |
+| 70 Exploration and exploitation | Maps of what each has seen, probes, prospecting, mines, outposts, penal colonies, bonded natives, resistance, independence | Survey ships; a mining colony and its rising | L |
+| 71 Trade among stars | Goods from real shortages and freight costs; ports, merchant houses, credit, piracy, smuggling, blockades | Busy spaceports of many peoples; a lane raided | L |
+| 72 Star nations | Federations, empires, vassals, civil wars, dark ages | The fleets of Phase 67 fighting for real empires; a realm falling apart | L |
+| 73 Your hand in it | Galaxy lenses, the director filming firsts, a pilot possessed, god's acts at star scale | All of it, from the title screen | M |
 
 ## The seed picker
 
