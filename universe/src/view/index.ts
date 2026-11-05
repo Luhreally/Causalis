@@ -676,6 +676,24 @@ export {
   type InvasionSite,
   type InvasionStage,
 } from "./invasion.ts";
+export {
+  drawnOf,
+  landfallAt,
+  landfallEye,
+  landfallMost,
+  landfallScript,
+  landfallStage,
+  landfallWords,
+  type LandfallBolt,
+  type LandfallEye,
+  type LandfallFigure,
+  type LandfallGround,
+  type LandfallLander,
+  type LandfallNow,
+  type LandfallScript,
+  type LandfallStage,
+  type LandfallTimes,
+} from "./landfall.ts";
 
 export {
   HAIRS,

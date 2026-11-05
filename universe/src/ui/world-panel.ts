@@ -26,6 +26,7 @@ export class WorldPanel {
   /** Down to its own people; their first meeting watched (Phase 69). */
   onFolk: (star: string, index: number) => void = () => {};
   onMeeting: (star: string, index: number) => void = () => {};
+  onLandfall: (star: string, index: number) => void = () => {};
   onDown: (cell: number) => void = () => {};
 
   constructor(root: HTMLElement) {
@@ -93,6 +94,11 @@ export class WorldPanel {
       const watch = el("button", "colony-watch folk-meeting", "▶ The first meeting");
       watch.onclick = () => this.onMeeting(f.star, index);
       acts.append(watch);
+    }
+    if (f.fought) {
+      const fight = el("button", "colony-watch folk-landfall", "⚔ Watch them come");
+      fight.onclick = () => this.onLandfall(f.star, index);
+      acts.append(fight);
     }
     acts.append(down);
     return [

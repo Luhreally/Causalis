@@ -225,6 +225,8 @@ export type StarPage = ClusterStar & {
       readonly name: string;
       readonly stage: string;
       readonly came: number | null;
+      /** Whether anyone came down on them to a fight (Phase 70). */
+      readonly fought?: boolean;
     };
   }[];
 };

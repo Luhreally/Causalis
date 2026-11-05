@@ -16,6 +16,7 @@ import {
 import {
   STAGE_WORDS,
   arrivalsAt,
+  hasLandfall,
   civilizationsNear,
   contactsOf,
   folkOf,
@@ -131,6 +132,7 @@ export function starPage(world: World, ref: string): StarPage {
                 name: f.name,
                 stage: STAGE_WORDS[folkStage(f, year)],
                 came: arrivalsAt(world, f)[0]?.year ?? null,
+                fought: hasLandfall(world, f),
               },
             }
           : {}),

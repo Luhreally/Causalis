@@ -297,6 +297,8 @@ export const GATES: readonly Gate[] = [
   { gate: 76, args: ["--ci"], s: 420 },
   // Gate 77, peoples who really arose (tools/p69-gate.ts): a people at its own stage, on its own ground, a first meeting played and told.
   { gate: 77, args: ["--ci"], s: 240 },
+  // Gate 78, a landing on a world of natives (tools/p70-gate.ts): ships over it, machines down on their camp, the fight both sides' numbers make of it, told; a young world given one on CI.
+  { gate: 78, args: ["--ci"], s: 240 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */

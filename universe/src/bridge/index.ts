@@ -82,6 +82,8 @@ export type {
   FolkContact,
   FolkList,
   FolkNear,
+  LandfallPlan,
+  LandfallRow,
 } from "./colony.ts";
 export {
   BLOCK_D,

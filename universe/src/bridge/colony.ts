@@ -85,6 +85,89 @@ export type FolkNear = {
   readonly at?: number;
 };
 
+/** A landing on a people's world (Phase 70): both sides' numbers, the fight they make, and how it is told. */
+export type LandfallPlan = {
+  readonly id: string;
+  readonly star: string;
+  readonly index: number;
+  readonly n: number;
+  readonly year: number;
+  readonly nowYear: number;
+  readonly kind: "home" | "people";
+  readonly who: string;
+  readonly whoRef: string;
+  readonly sentBy: string | null;
+  readonly color: readonly [number, number, number];
+  readonly figure: NonNullable<VillagePlan["body"]>;
+  readonly natives: string;
+  readonly nativesRef: string;
+  readonly stage: string;
+  readonly stageWords: string;
+  /** Whether it is fought at a camp (else a town). */
+  readonly camp: boolean;
+  readonly nativeFigure: NonNullable<VillagePlan["body"]>;
+  /** Their world's pull. */
+  readonly gravity: number;
+  readonly ships: number;
+  readonly flesh: number;
+  readonly made: number;
+  readonly years: number;
+  readonly distance: number;
+  /** Those who came: arm, guard, mount, as a host's parts are named. */
+  readonly arm: string;
+  readonly armWords: string;
+  readonly guard: string;
+  readonly mount: string;
+  /** Those who met them: their arm; what they hold in words; whether a figure holds a shaft. */
+  readonly nativeArm: string;
+  readonly nativeArmWords: string;
+  readonly nativeHolds: boolean;
+  /** How many of them there are in all. */
+  readonly people: number;
+  readonly won: boolean;
+  readonly how: "broke crossing" | "broke at the hand" | "overrun" | "held";
+  readonly fielded: readonly [number, number];
+  readonly dead: readonly [number, number];
+  readonly crossed: number;
+  readonly killedShare: number;
+  readonly comerKilledShare: number;
+  readonly brokeShare: number;
+  readonly off: number;
+  readonly nativeOff: number;
+  readonly fire: readonly [
+    { readonly rate: number; readonly range: number },
+    { readonly rate: number; readonly range: number },
+  ];
+  readonly frames: readonly {
+    readonly at: number;
+    readonly dead: readonly [number, number];
+    readonly morale: readonly [number, number];
+    readonly pressure: number;
+  }[];
+  readonly rout: number | null;
+  /** Whether anything burns in that world's air. */
+  readonly burns: boolean;
+  readonly terms: readonly string[];
+  readonly landers: string;
+  readonly cameWords: string;
+  readonly metWords: string;
+  readonly howWords: string;
+  readonly costWords: string;
+  readonly holds: "comers" | "natives";
+  readonly holdsWords: string;
+  readonly endWords: string;
+  /** Whether those who came are on that world still. */
+  readonly stay: boolean;
+};
+/** A landing on a people, in a line. */
+export type LandfallRow = {
+  readonly n: number;
+  readonly year: number;
+  readonly who: string;
+  readonly won: boolean;
+  readonly holds: string;
+};
+
 /** Who came to a people first, and what a meeting of the two can be, read off their numbers. */
 export type FolkContact = {
   readonly year: number;

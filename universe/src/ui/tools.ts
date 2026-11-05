@@ -27,6 +27,8 @@ export type ToolContext = {
   /** Down to a people on its own world; their first meeting (Phase 69). */
   readonly folk?: (star: string, index: number) => void;
   readonly meeting?: (star: string, index: number) => void;
+  /** A landing on them, watched (Phase 70). */
+  readonly folkLandfall?: (star: string, index: number, n: number) => void;
   /** Watch a battle fought (Phase 37 M186). */
   readonly battle?: (event: string) => void;
   /** Watch a war unfold on the globe (Phase 38 M193). */
@@ -256,6 +258,16 @@ export function drawTool(
       b.title =
         "The ship history sent, over their world and down beside them, and what the two can say, breathe, eat and catch.";
       b.onclick = () => ctx.meeting!(args.star as string, args.index as number);
+      into.append(b);
+      return;
+    }
+    case "watch.landfall": {
+      if (!ctx.folkLandfall) return;
+      const b = el("button", "act", (args.label as string | undefined) ?? "⚔ Watch them come");
+      b.title =
+        "Ships over their world, those who came coming down on their own ground, the fight both sides' numbers make of it, and how it ended.";
+      b.onclick = () =>
+        ctx.folkLandfall!(args.star as string, args.index as number, (args.n as number) ?? 0);
       into.append(b);
       return;
     }

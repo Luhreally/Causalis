@@ -321,6 +321,7 @@ import { installLife } from "./life.ts";
 import { installReign } from "./reign.ts";
 import { installColonyFilm, type ColonyFilm } from "./colony-film.ts";
 import { installContactFilm, type ContactFilm } from "./contact-film.ts";
+import { installLandfallFilm, type LandfallFilm } from "./landfall-film.ts";
 import { VisitorsLayer } from "../render/index.ts";
 import { installFleetFilm, type FleetFilm } from "./fleet-film.ts";
 // (Anyone's family and body on their card, a war's soldiers named from its roll: Phase 55 wave 5.)
@@ -832,6 +833,7 @@ type Exposed = {
   hallsShown?: () => number;
   colonyFilm?: ColonyFilm;
   contactFilm?: ContactFilm;
+  landfallFilm?: LandfallFilm;
   toFolk?: (star: string, index: number, at?: number) => Promise<FolkNear | null>;
   fleetFilm?: FleetFilm;
   /** A page opened by its ref (the look tools). */
@@ -3796,6 +3798,14 @@ async function runPlanetPage(): Promise<void> {
   pageWindow.onMeeting = playMeeting;
   /** A first meeting watched (Phase 69). */
   let contactFilm: ContactFilm | null = null;
+  /** A landing on a world of natives watched (Phase 70). */
+  let landfallFilm: LandfallFilm | null = null;
+  const playLandfall = (star: string, index: number, n = 0) => {
+    pageWindow.close();
+    void landfallFilm?.play(star, index, n);
+  };
+  worldPanel.onLandfall = playLandfall;
+  pageWindow.onFolkLandfall = playLandfall;
   /** A colony's world seen whole, from anywhere. */
   const toWorldOfColony = async (c: ColonyEntry) => {
     allAway();
@@ -5071,8 +5081,8 @@ async function runPlanetPage(): Promise<void> {
   // its men mustering and marching out; before its land's heart, the hosts drawn up and fighting,
   // the siege, the storm — drawn as its land plays it, and told on a line under its bar.
   stage.onUpdate(() => {
-    // (A raid being played again holds the town's war: Phase 67.)
-    if (fleetFilm?.townHeld) return;
+    // (A raid being played again holds the town's war: Phase 67. So does a landing, Phase 70.)
+    if (fleetFilm?.townHeld || landfallFilm?.townHeld) return;
     // (The look tools hold a war made up, to see how a host stands: W1.)
     if (heldTownWar) {
       townWar = scale === "village" ? heldTownWar : null;
@@ -6183,7 +6193,7 @@ async function runPlanetPage(): Promise<void> {
     const hour = ((t % DAY) / DAY) * 24,
       off = Math.abs(bandHour(near.band) - hour);
     // (While a first meeting is filmed, its own hour: Phase 69.)
-    if (Math.min(off, 24 - off) > 0.5 && !contactFilm?.playing) {
+    if (Math.min(off, 24 - off) > 0.5 && !contactFilm?.playing && !landfallFilm?.playing) {
       near.band.clock = (hour / 24) * BAND_DAY;
       // (Set on past midnight, a new day of theirs, as the world's: they are counted together.)
       near.band.day = Math.max(near.band.day, Math.floor(t / DAY) - near.day0);
@@ -6192,7 +6202,12 @@ async function runPlanetPage(): Promise<void> {
       if (/ fire .* at the new camp\.$/.test(line)) near.kindled = line;
     near.band.news.length = 0;
     meadowScene.update(near.meadow, near.bodies);
-    bandLayer.update(near.band, near.time, near.meadow);
+    // (While a landing is fought at their camp, those who live there are what the film draws: Phase 70.)
+    bandLayer.update(
+      landfallFilm?.holdsGround ? { ...near.band, people: [] } : near.band,
+      near.time,
+      near.meadow,
+    );
     campComers?.update(performance.now() / 1000);
     stage.daylight(bandHour(near.band) / 24);
     // Their names over them, once the eye is near enough to tell one from another; the one
@@ -7825,6 +7840,8 @@ async function runPlanetPage(): Promise<void> {
         ? raidPlaying.t
         : fleetFilm?.townHeld
           ? Math.floor(t / DAY) * DAY + fleetFilm.hour * DAY
+          : landfallFilm?.townHeld
+            ? Math.floor(t / DAY) * DAY + landfallFilm.hour * DAY
           : time.lapse || ruling()
             ? Math.floor(t / DAY) * DAY + 10 * 3600
             : t;
@@ -7840,7 +7857,9 @@ async function runPlanetPage(): Promise<void> {
     village.update(
       seen,
       // (All indoors while raiders are in the streets, Phase 67, or machines are over the town, W2.)
-      fleetFilm?.townHeld || (scale === "village" && raidOver(plan?.town, seen))
+      fleetFilm?.townHeld ||
+        landfallFilm?.townHeld ||
+        (scale === "village" && raidOver(plan?.town, seen))
         ? { from: seen - 3600, to: seen + 3600, all: true }
         : kept && seen >= kept.from && seen < kept.to
           ? { ...kept, all: true }
@@ -8759,6 +8778,27 @@ async function runPlanetPage(): Promise<void> {
     },
   });
   exposed.contactFilm = contactFilm;
+  landfallFilm = installLandfallFilm({
+    stage,
+    hud,
+    client,
+    time,
+    rig,
+    world: worldScene,
+    village,
+    toWorld: toFolkWorld,
+    toGround: toFolk,
+    camp: () => (near ? { x: near.band.camp.x, z: near.band.camp.z } : null),
+    plan: () => plan,
+    scale: () => scale,
+    cut: (what, work) => fadeOver(() => ready(what, work, true)),
+    toOrbit: () => {
+      setRoam("orbit");
+      endWar();
+      endWarAge();
+    },
+  });
+  exposed.landfallFilm = landfallFilm;
   // A fight among the stars watched (Phase 67, asked for 2026-11-03: "i wanna see the star wars and
   // landing in planets and colonization and all that stuff"), and the list of them under the ⚔️.
   fleetFilm = installFleetFilm({

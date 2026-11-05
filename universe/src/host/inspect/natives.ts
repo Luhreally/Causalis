@@ -15,6 +15,7 @@ import type { World } from "../../kernel/index.ts";
 import type { Block, FolkList, PageModel, Stat } from "../../bridge/index.ts";
 import { clusterOf } from "../../sim/index.ts";
 import { figureBody } from "../folk.ts";
+import { LANDFALL_NOTE, landfallBlocks, landfallPlans } from "../landfall.ts";
 import { folkContact, folkFactsOf, folkList, folkOneRef } from "../natives.ts";
 import { item, link, many, sentence, stat, yearNow } from "./words.ts";
 
@@ -65,7 +66,26 @@ export function folkBlocks(world: World, f: Folk): Block[] {
           },
         ]
       : []),
+    ...watchLandfall(world, f),
   ];
+}
+
+/** The way to watch a landing on them, where one happened (its words are on the Met tab). */
+function watchLandfall(world: World, f: Folk): Block[] {
+  const p = landfallPlans(world, f)[0];
+  return p
+    ? [
+        {
+          type: "text",
+          lines: [[`In year ${p.year}, ${p.who} came down on them. ${p.holdsWords}`]],
+        },
+        {
+          type: "tool",
+          tool: "watch.landfall",
+          args: { star: p.star, index: p.index, n: p.n, label: "⚔ Watch them come" },
+        },
+      ]
+    : [];
 }
 
 /** What a meeting of the first who came and a people can be. */
@@ -105,6 +125,10 @@ function meetingBlocks(world: World, f: Folk): Block[] {
         stat(`Catch: ${yes(r.sickness.can)}`, sentence(r.sickness.words)),
       ],
     },
+    ...landfallBlocks(world, f),
+    ...(landfallPlans(world, f).length
+      ? [{ type: "text" as const, lines: [[LANDFALL_NOTE]] }]
+      : []),
   ];
 }
 
@@ -200,6 +224,24 @@ export function peoplesPage(world: World): PageModel {
           ...(met.length
             ? [{ type: "list" as const, title: "A ship has come to them", items: met.map(line) }]
             : []),
+          ...met.flatMap((m): Block[] => {
+            const f = folkByRef(world, m.ref),
+              p = f ? landfallPlans(world, f)[0] : undefined;
+            return p
+              ? [
+                  {
+                    type: "tool",
+                    tool: "watch.landfall",
+                    args: {
+                      star: p.star,
+                      index: p.index,
+                      n: p.n,
+                      label: `⚔ Watch them come: the ${p.natives}, year ${p.year}`,
+                    },
+                  },
+                ]
+              : [];
+          }),
           ...order.flatMap((s) => {
             const here = all.filter((f) => f.stage === s && f.came === null);
             return here.length

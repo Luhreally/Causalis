@@ -3,6 +3,17 @@
 // May import: kernel. See README.md and docs/architecture §34.
 export { BRUSH_KINDS, BRUSH_LIMIT, brushCells, type BrushKind, type BrushArgs } from "./brush.ts";
 export { resolveCombat, type CombatSide, type CombatFrame, type CombatRecord } from "./combat.ts";
+export {
+  landfallFight,
+  nativeHost,
+  shipForce,
+  standOff,
+  type ComerNumbers,
+  type LandfallDraws,
+  type LandfallFight,
+  type LandfallTerm,
+  type NativeNumbers,
+} from "./landfall.ts";
 export { combatMights } from "./fight.ts";
 export {
   ENGINE_GAIN,

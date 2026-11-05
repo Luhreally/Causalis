@@ -630,7 +630,7 @@ export const folkOneRef = (f: Folk, i: number) => `folkone:${f.ref}:${i}`;
 // —— Who came ———————————————————————————————————————————————————————————————————————————
 
 /** The people who came, as a meeting reads them. */
-function comer(
+export function comer(
   world: World,
   a: Arrival,
 ): { party: Party; figure: Visitor["body"] | null; name: string } {

@@ -567,6 +567,7 @@ export {
 export { LateStore, lateOf, remakeKey, type Mirrors, type Remaking } from "./space/late-store.ts";
 export { StarSiteStore, lightSteps, starSitesOf, type StarSite } from "./space/stars.ts";
 export { folkGround, siteGround, siteRegion, type SiteGround } from "./space/ground.ts";
+export { hasLandfall, landfallsOf, type Landfall } from "./space/landfall.ts";
 export {
   ABOARD,
   STARSHIP_MACHINES,

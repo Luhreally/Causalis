@@ -170,6 +170,7 @@ import { withWounds, woundedTowns } from "./wounds.ts";
 import { landPlan } from "./land.ts";
 import { campNear } from "./camp.ts";
 import { NATIVES_QUERIES, folkOfTown, folkTownPlan } from "./natives.ts";
+import { LANDFALL_QUERIES } from "./landfall.ts";
 import { battleNear, battleOutcome } from "./battle.ts";
 import { battleRoll } from "./roll.ts";
 import { armBorne } from "./inspect/arm.ts";
@@ -1445,6 +1446,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
       ...REIGN_QUERIES,
       ...COLONY_QUERIES,
       ...NATIVES_QUERIES,
+      ...LANDFALL_QUERIES,
       // The fights among the stars as the record has them (Phase 67).
       ...STARFIGHT_QUERIES,
       // A realm's key figures and every realm's wealth (Lives L1, L2).
