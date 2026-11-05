@@ -3,6 +3,7 @@
 // flames rising, at their fiercest, dying down; their smoke, and the thinner smoke of the
 // smouldering after; the dust over homes a quake shook down; the ground shaking. Pure: the same
 // scene at the same moment burns the same.
+import { LOT, progress } from "../bridge/index.ts";
 import {
   DUST_S,
   FLAMES_S,
@@ -86,4 +87,49 @@ export function blazeNow(scene: TownScene | null, t: number): BlazeNow {
     } else if (since < DUST_S) dust.push({ ...at, k: 1 - since / DUST_S });
   }
   return { fires, smoke, dust, shake };
+}
+
+/** A home a film may set alight: all a fire on it needs but how fierce it is. */
+export type Burnable = Omit<Alight, "k">;
+
+/** How high up a home a film's fire is seen (metres): a spire burns from its lower floors, where the eye over the streets can see it. */
+const FILM_FIRE_HIGH = 50;
+
+/**
+ * The homes standing at moment t nearest a way through the town (metres from its middle), nearest
+ * first, for a film's burning. Pure.
+ */
+export function homesAlong(
+  scene: TownScene,
+  t: number,
+  way: readonly { readonly x: number; readonly z: number }[],
+  most: number,
+): Burnable[] {
+  const { states, lots, plan } = scene,
+    found: { d: number; home: Burnable }[] = [];
+  for (let p = 0; p < plan.lots; p++) {
+    if (states.what[p] !== LOT.home || progress(states.began[p]!, states.takes[p]!, t) < 1)
+      continue;
+    const x = lots.x[p]!,
+      z = lots.z[p]!,
+      size = homeSize(scene, p);
+    let d = Infinity;
+    for (const q of way) d = Math.min(d, Math.hypot(x - q.x, z - q.z));
+    found.push({
+      d,
+      home: {
+        lot: p,
+        x,
+        z,
+        yaw: lots.yaw[p]!,
+        size: SIZE[Math.max(0, Math.min(SIZE.length - 1, states.level[p]!))]!,
+        high: Math.min(FILM_FIRE_HIGH, size.high),
+        wide: size.wide,
+      },
+    });
+  }
+  return found
+    .sort((a, b) => a.d - b.d)
+    .slice(0, most)
+    .map((h) => h.home);
 }

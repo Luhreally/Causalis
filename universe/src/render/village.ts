@@ -86,6 +86,7 @@ import {
   TOWN_WELL,
   wonderSpot,
   type BlazeNow,
+  type Burnable,
   type Felling,
   type Figure,
   type GroundSeason,
@@ -237,6 +238,8 @@ export class VillageScene {
   private townWar: TownWar | null = null;
   /** The soldiers about the town told from outside (Phase 67: a raid played again), not by its war's year. */
   warSceneOverride: (() => TownWarScene | null) | null = null;
+  /** A film's own fires over the town, in place of what struck it (Phase 67): null to leave it to the town. */
+  blazeOverride: (() => BlazeNow | null) | null = null;
   private warScene: TownWarScene | null = null;
   private armed = "";
   private soldierBatches: InstancedBatch[] = [];
@@ -1384,9 +1387,18 @@ export class VillageScene {
   }
 
   /** Where on the screen a point of the town is (metres from its middle; the look tools), or null behind the eye. */
-  screenOf(x: number, z: number): { x: number; y: number } | null {
-    const s = this.stage.camera.camera!.worldToScreen(new pc.Vec3(x * M, 0, z * M));
+  screenOf(x: number, z: number, high = 0): { x: number; y: number } | null {
+    const s = this.stage.camera.camera!.worldToScreen(new pc.Vec3(x * M, high * M, z * M));
     return s.z > 0 ? { x: s.x, y: s.y } : null;
+  }
+
+  /** The homes standing at moment t nearest a way through the town, for a film's burning. */
+  homesAlong(
+    t: number,
+    way: readonly { readonly x: number; readonly z: number }[],
+    most: number,
+  ): Burnable[] {
+    return this.town.homesAlong(t, way, most);
   }
 
   /** Where on the screen one of the town's buildings, one of its homes and its walls are, at moment t (the look tools). */
@@ -1581,8 +1593,9 @@ export class VillageScene {
     // What struck the town (Phase 42 M201): its homes alight, their smoke rolling up, the dust of
     // those shaken down — the nearest the eye drawn; and while a quake shakes it, the ground
     // under it all.
-    if (plan.town?.struck?.length || this.blazed) {
-      const b = this.town.blaze(t),
+    const filmed = this.blazeOverride?.() ?? null;
+    if (filmed || plan.town?.struck?.length || this.blazed) {
+      const b = filmed ?? this.town.blaze(t),
         eye = this.stage.camera.getPosition(),
         // (Where the eye looks, on the ground: what is drawn of it, the nearest there.)
         ahead = this.stage.camera.forward,

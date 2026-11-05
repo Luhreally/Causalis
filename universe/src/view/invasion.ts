@@ -5,6 +5,7 @@
 // geometry, in metres as the village's plan uses them: no DOM, no playcanvas.
 import type { FightRgb, StarFightPlan, VillagePlan } from "../bridge/index.ts";
 import { armLook, isGun } from "./arms.ts";
+import type { Alight, BlazeNow, Burnable } from "./blaze.ts";
 import { keepOut, route, villageGround } from "./ground.ts";
 import { figureOf } from "./figure.ts";
 import { drillGround } from "./village.ts";
@@ -61,7 +62,10 @@ export type InvasionScript = {
   readonly ranged: boolean; // whether the guard fires at all
   readonly room: number; // how much room a raider's body takes, against an upright ape's
   readonly seed: number;
+  /** Homes on the ground that burn low (a village's: the town war's own flames). */
   readonly fires: readonly { readonly x: number; readonly z: number; readonly ignite: number }[];
+  /** The town's own homes that burn, from their roofs. */
+  readonly alight: readonly (Burnable & { readonly ignite: number })[];
 };
 export type InvasionNow = {
   readonly t: number;
@@ -70,6 +74,8 @@ export type InvasionNow = {
   readonly landers: readonly LanderNow[];
   readonly bolts: readonly BoltNow[];
   readonly scene: TownWarScene;
+  /** The town's homes alight now, as a strike on it would be drawn. */
+  readonly blaze: BlazeNow;
 };
 export type InvasionEye = {
   readonly e: { x: number; y: number; z: number };
@@ -273,20 +279,27 @@ export function invasionScript(
   site: InvasionSite,
   each: number,
   raiders: number,
+  burnable: readonly Burnable[] = [],
 ): InvasionScript {
   const landing = plan.landing;
   if (!landing) throw new Error(`invasionScript: ${plan.id} came down on no town`);
   const seed = hashText(plan.id);
   const host = landing.defenders.host;
   const ranged = isGun(host?.arm) || !!armLook(host?.arm).beam;
-  const count = site.homes.length
-    ? Math.min(site.homes.length, 16, Math.max(4, Math.ceil(landing.razed * site.homes.length)))
-    : 0;
-  const fires = site.homes
-    .slice(0, count)
-    .map((h, i) => ({ x: h.x, z: h.z, ignite: 18 + unit(seed, 500 + i) * 18 }));
+  // (Caught between the streets filling and the raiders going back, so the eye that follows them sees it.)
+  const ignite = (i: number) => 16 + unit(seed, 500 + i) * 14;
+  // A town drawn from its fabric burns from its roofs, more of it as more of its land was razed. A
+  // village's homes are the plan's own, burning low.
+  const alight = burnable
+    .slice(0, landing.razed > 0 ? Math.round(4 + 12 * Math.min(1, landing.razed * 4)) : 0)
+    .map((h, i) => ({ ...h, ignite: ignite(i) }));
+  const count =
+    !burnable.length && site.homes.length
+      ? Math.min(site.homes.length, 16, Math.max(4, Math.ceil(landing.razed * site.homes.length)))
+      : 0;
+  const fires = site.homes.slice(0, count).map((h, i) => ({ x: h.x, z: h.z, ignite: ignite(i) }));
   const room = figureOf(landing.raiders.body).scale;
-  return { id: plan.id, site, each, raiders, ranged, room, seed, fires };
+  return { id: plan.id, site, each, raiders, ranged, room, seed, fires, alight };
 }
 
 /** Lander j at time t: over its pad, how high it is, how much it burns, its ramp, its turn. */
@@ -471,7 +484,18 @@ export function invasionAt(script: InvasionScript, t: number, keep: Keep = noop)
     camp: [],
     middles: [middleOf(liveRaiders), middleOf(liveGuard)],
   };
-  return { t: tt, stage, raiders: raiderNows, landers, bolts, scene };
+  const burning: Alight[] = script.alight
+    .filter((h) => h.ignite <= tt)
+    .map(({ ignite, ...h }) => ({ ...h, k: Math.max(0.05, smooth((tt - ignite) / 3)) }));
+  return {
+    t: tt,
+    stage,
+    raiders: raiderNows,
+    landers,
+    bolts,
+    scene,
+    blaze: { fires: burning, smoke: burning, dust: [], shake: 0 },
+  };
 }
 
 /**

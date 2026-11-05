@@ -135,6 +135,8 @@ type FilmSample = {
   landers: { high: number }[];
   raiders: { i: number; x: number; z: number; size: number }[];
   fires: number;
+  /** How many of the fires stand on the screen now. */
+  firesSeen: number;
 };
 
 /** The camera's near plane while the film plays: nearer than the rig's, so the close ships are not cut. */
@@ -299,6 +301,7 @@ export function installFleetFilm(d: FleetFilmDeps): FleetFilm {
   const clearTown = (): void => {
     invasion.clear();
     village.warSceneOverride = null;
+    village.blazeOverride = null;
     village.war(null);
     holdingTown = false;
     inv = null;
@@ -325,6 +328,7 @@ export function installFleetFilm(d: FleetFilmDeps): FleetFilm {
     fleet.clear();
     invasion.clear();
     village.warSceneOverride = null;
+    village.blazeOverride = null;
     village.war(null);
     holdingTown = false;
     const cam = stage.camera.camera;
@@ -445,10 +449,18 @@ export function installFleetFilm(d: FleetFilmDeps): FleetFilm {
       words: "",
     };
     village.war(townWar);
-    inv = invasionScript(p0, site, village.warEach, raidersAt(stage.quality.detail));
+    inv = invasionScript(
+      p0,
+      site,
+      village.warEach,
+      raidersAt(stage.quality.detail),
+      // (Along the way the eye follows, so what burns is seen burning.)
+      village.homesAlong(d.client.status?.t ?? 0, site.routes[0] ?? [], 16),
+    );
     invasion.build(p0, stage.quality.detail);
     holdingTown = true;
     village.warSceneOverride = () => townNow?.scene ?? null;
+    village.blazeOverride = () => townNow?.blaze ?? null;
     act = "town";
     t = 0;
     draw();
@@ -675,6 +687,7 @@ export function installFleetFilm(d: FleetFilmDeps): FleetFilm {
         landers: [],
         raiders: [],
         fires: 0,
+        firesSeen: 0,
       };
       if (act === "orbit" && script) {
         const now = fleetAt(script, t);
@@ -686,7 +699,16 @@ export function installFleetFilm(d: FleetFilmDeps): FleetFilm {
         const now = invasionAt(inv, t, keep);
         out.landers = now.landers.map((l) => ({ high: l.high }));
         out.raiders = now.raiders.map((r) => ({ i: r.i, x: r.x, z: r.z, size: r.size }));
-        out.fires = now.scene.fires.length;
+        const fires = [
+          ...now.scene.fires.map((f) => ({ x: f.x, z: f.z, high: 0 })),
+          ...now.blaze.fires,
+        ];
+        out.fires = fires.length;
+        const room = stage.app.graphicsDevice.clientRect;
+        out.firesSeen = fires.filter((f) => {
+          const on = village.screenOf(f.x, f.z, f.high);
+          return !!on && on.x >= 0 && on.x <= room.width && on.y >= 0 && on.y <= room.height;
+        }).length;
       }
       return out;
     },

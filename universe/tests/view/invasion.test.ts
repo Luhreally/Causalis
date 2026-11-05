@@ -143,6 +143,28 @@ test("the homes burn: none before they catch, four to sixteen after", () => {
   assert.ok(n >= 4 && n <= 16);
 });
 
+test("a town's own homes burn from their roofs, as they catch, when the land was razed", () => {
+  const homes = Array.from({ length: 20 }, (_, i) => ({
+    lot: i,
+    x: 30,
+    z: 20 + i * 6,
+    yaw: 0,
+    size: 2,
+    high: 30,
+    wide: 9,
+  }));
+  const burning = invasionScript(plan, site, 12, 24, homes);
+  assert.equal(burning.fires.length, 0, "not also on the ground");
+  assert.equal(invasionAt(burning, 10).blaze.fires.length, 0);
+  const late = invasionAt(burning, 40).blaze;
+  assert.ok(late.fires.length >= 4 && late.fires.length <= 16, `${late.fires.length} alight`);
+  assert.equal(late.smoke.length, late.fires.length);
+  assert.ok(late.fires.every((f) => f.high === 30 && f.k > 0.9));
+  // (None if the record has none razed.)
+  const none = { ...plan, landing: { ...plan.landing!, razed: 0 } };
+  assert.equal(invasionAt(invasionScript(none, site, 12, 24, homes), 40).blaze.fires.length, 0);
+});
+
 test("the caption names the raiders, the town and the dead, and then the end", () => {
   assert.ok(invasionWords(plan, 1).includes("come down on Shisten"));
   assert.ok(invasionWords(plan, 30).includes("3,939,222"));

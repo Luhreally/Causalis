@@ -162,7 +162,7 @@ export {
   type StoreSpots,
   type TownDay,
 } from "./errands.ts";
-export { blazeNow, type Alight, type BlazeNow } from "./blaze.ts";
+export { blazeNow, homesAlong, type Alight, type BlazeNow, type Burnable } from "./blaze.ts";
 export {
   FUNERAL,
   KEPT_YEARS,

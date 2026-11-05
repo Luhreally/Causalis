@@ -11,7 +11,9 @@ i wanna see"; "im fine with some loading screen, i prefer not if the performance
 good enough".
 
 From Phase 67 on these phases alternate with lives-plan.md (leaders, wealth, living as anyone, courts,
-the rest of OG). This comes before the brush follow-up. Classic's war aims, coin and
+the rest of OG). Steps F1 to F3 of first-principles-plan.md (what a world can do, read from its physics and
+not from a list of Earth's inventions) come before Phases 69 and 70, because the natives in those scenes
+fight with what it gives them. This comes before the brush follow-up. Classic's war aims, coin and
 markets, diplomacy and lost knowledge are built inside Phases 71–72, not twice.
 
 ## Where it stood (2026-11-03, commit 79682c6; one run each of tools/sky-survey.ts)

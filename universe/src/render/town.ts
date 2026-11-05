@@ -7,6 +7,7 @@ import { LOT, civicMoments, footprint, progress, type TownPlan } from "../bridge
 import {
   TownParts,
   blazeNow,
+  homesAlong,
   civicChimneys,
   civicMotions,
   civicsActive,
@@ -25,6 +26,7 @@ import {
   type PartMesh,
   type TownScene,
   type TownThing,
+  type Burnable,
 } from "../view/index.ts";
 import { InstancedBatch, boxMesh, coneMesh, cylinderMesh, gableMesh, keptMesh } from "./batch.ts";
 import { domeMesh } from "./colony.ts";
@@ -274,6 +276,15 @@ export class TownLayer {
       if (s.states.what[p] === LOT.home && progress(s.states.began[p]!, s.states.takes[p]!, t) >= 1)
         out.push({ lot: p, x: s.lots.x[p]!, z: s.lots.z[p]! });
     return out;
+  }
+
+  /** The homes standing at moment t nearest a way through the town, for a film's burning (none: no fabric). */
+  homesAlong(
+    t: number,
+    way: readonly { readonly x: number; readonly z: number }[],
+    most: number,
+  ): Burnable[] {
+    return this.scene ? homesAlong(this.scene, t, way, most) : [];
   }
 
   /** The lot of its plan nearest a point (metres from the middle), within a lot and a half (-1: none). */

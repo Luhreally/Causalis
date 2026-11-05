@@ -187,6 +187,7 @@ type FilmSample = {
   landers: { high: number }[];
   raiders: { size: number }[];
   fires: number;
+  firesSeen: number;
 };
 /** The budgets of what is drawn (fleetFilm.shown()), as the layers report them. */
 type Shown = { ships: number; drawCalls: number; triangles: number };
@@ -372,6 +373,8 @@ try {
   check(!!ship, "no ship on the screen at 12 s");
   if (ship) await page.touchscreen.tap(ship.x, ship.y);
   await until("a ship's page", async () => ((await openPage()) ?? "").startsWith("ship:"));
+  // (Its window opens at once, its words a moment after.)
+  await until("a ship's page's words", async () => (await text(".page-title")) !== "…");
   await shot("07-ship-page");
   const shipTitle = await text(".page-title"),
     shipWords = await text(".page-window");
@@ -432,7 +435,11 @@ try {
       check((tw?.soldiers ?? 0) >= 4, `${tw?.soldiers ?? 0} soldiers of the town's guard at 20 s`);
     }
     if (t === 30) {
-      if (landing.razed > 0) check(smp.fires >= 1, `${smp.fires} fires at 30 s, where homes burn`);
+      if (landing.razed > 0) {
+        check(smp.fires >= 1, `${smp.fires} fires at 30 s, where homes burn`);
+        say(`at 30 s: ${smp.fires} homes alight, ${smp.firesSeen} of them on the screen`);
+        check(smp.firesSeen >= 2, `${smp.firesSeen} fires on the screen at 30 s, where homes burn`);
+      }
       check((tw?.fallen ?? 0) >= 1, `${tw?.fallen ?? 0} fallen at 30 s`);
       check(
         s.words.includes(landing.dead.toLocaleString("en")),
