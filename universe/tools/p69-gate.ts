@@ -532,10 +532,13 @@ async function ruins() {
   const n = await k<number>(`globalThis.causalis.planNow()?.people.length ?? -1`);
   check(n === 0, `${n} folk in a world of ruins`);
   // (Lots that stand as ruins now, as the view reads them, against homes that stand with anyone's windows lit.)
-  const fell = await k<{ fallen: number; homes: number; lots: number }>(
-    `(() => { const s = globalThis.causalis.townLots?.(); return s ?? { fallen: -1, homes: -1, lots: 0 }; })()`,
+  const fell = await k<{ fallen: number; homes: number; lots: number; civics: number }>(
+    `(() => { const s = globalThis.causalis.townLots?.(); return s ?? { fallen: -1, homes: -1, lots: 0, civics: -1 }; })()`,
   );
-  say(`ruins: ${fell.fallen} lots fallen, ${fell.homes} homes standing, of ${fell.lots}`);
+  say(
+    `ruins: ${fell.fallen} lots fallen, ${fell.homes} homes and ${fell.civics} other buildings standing, of ${fell.lots}`,
+  );
+  check(fell.civics === 0, `${fell.civics} buildings stand whole in a world of ruins`);
   check(fell.fallen > 0, "a world of ruins has no fallen lots");
   check(fell.homes === 0, `${fell.homes} homes stand whole in a world of ruins`);
   await k(`globalThis.causalis.open(${JSON.stringify(gone.ref)})`);

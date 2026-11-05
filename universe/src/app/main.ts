@@ -840,7 +840,7 @@ type Exposed = {
   pageWindowOpen?: (ref: string) => void;
   planNow?: () => VillagePlan | null;
   /** What the lots of the town drawn are now (the look tools): fallen, homes standing whole, all. */
-  townLots?: () => { fallen: number; homes: number; lots: number } | null;
+  townLots?: () => { fallen: number; homes: number; lots: number; civics: number } | null;
   closePage?: () => void;
   watched?: () => number | null;
   reloadPlan?: () => Promise<void>;
@@ -3901,7 +3901,12 @@ async function runPlanetPage(): Promise<void> {
       if (s.what[p] === LOT.fallen || s.what[p] === LOT.razed) fallen++;
       else if (s.what[p] === LOT.home && progress(s.began[p]!, s.takes[p]!, at) >= 1) homes++;
     }
-    return { fallen, homes, lots: t.lots };
+    return {
+      fallen,
+      homes,
+      lots: t.lots,
+      civics: t.civics.filter((c) => c.fell === null || c.fell === undefined).length,
+    };
   };
   exposed.closePage = () => pageWindow.close();
   exposed.watched = () => watched;
