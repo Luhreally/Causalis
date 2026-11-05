@@ -93,6 +93,19 @@ export class Stage {
       farClip: 400,
     });
     this.app.root.addChild(this.camera);
+    // A screen point's z, told as how far in front of the eye it stands. As it comes it is clip space, and
+    // with the near plane pulled far out (the eye among spires cuts what stands in its way so, Phase 66) it
+    // reads as behind for all within twice that plane: taps and labels there would find nothing.
+    const eye = this.camera,
+      lens = eye.camera!,
+      toScreen = lens.worldToScreen.bind(lens);
+    lens.worldToScreen = (at: pc.Vec3, out?: pc.Vec3): pc.Vec3 => {
+      const s = toScreen(at, out),
+        e = eye.getPosition(),
+        f = eye.forward;
+      s.z = (at.x - e.x) * f.x + (at.y - e.y) * f.y + (at.z - e.z) * f.z;
+      return s;
+    };
 
     const sun = (this.sun = new pc.Entity("sun"));
     sun.addComponent("light", {
