@@ -146,7 +146,8 @@ test("in the modern age the works' machinists make parts at the presses and lath
   assert.ok(towns.length > 0, "a town with works in the modern age at 1050");
   let days = 0,
     pages = 0;
-  for (const plan of towns.slice(0, 2)) {
+  for (const plan of towns.slice(0, 8)) {
+    if (days >= 2) break;
     const ground = villageSolids(plan);
     for (let d = 0; d < 4; d++) {
       const day = 1050 * 365 + 120 + d,

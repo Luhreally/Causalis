@@ -88,10 +88,12 @@ test("each man's arm is made at his seat by a maker of his own, the same each ti
 
 test("a man's arm has its page: his, from the ground to his hand, borne by him in the battle", () => {
   let seen = 0;
-  for (const { b, roll } of recent.slice(0, 3))
+  for (const { b, roll } of recent)
     for (const side of [0, 1] as const) {
       const man = (side === 0 ? roll.attacker : roll.defender).fell[0];
       if (!man) continue;
+      // (A realm with no arms of its own yet has none to tell: seas now teach far-off lands to fight before they forge.)
+      if (!ask<ArmBorne | null>("arms.borne", { event: b.event, side, who: man.ref })) continue;
       const p = page(armsRef(b.event, side, man.ref));
       assert.equal(p.kind, "thing");
       assert.ok(p.title.startsWith(`${man.name}'s `) && !/'s an? /.test(p.title), p.title);
@@ -105,7 +107,15 @@ test("a man's arm has its page: his, from the ground to his hand, borne by him i
     }
   assert.ok(seen >= 2);
   // The host's arm page is as it was: the realm's, carried in the battle.
-  const { b } = recent[0]!,
+  const { b } = recent.find(
+      ({ b, roll }) =>
+        roll.attacker.fell[0] &&
+        ask<ArmBorne | null>("arms.borne", {
+          event: b.event,
+          side: 0,
+          who: roll.attacker.fell[0].ref,
+        }),
+    )!,
     host = page(`arm:${b.event}:0:0`);
   assert.match(host.title, / in the battle at /);
   assert.ok(
@@ -116,12 +126,13 @@ test("a man's arm has its page: his, from the ground to his hand, borne by him i
 test("a fallen man's page tells where he fell, and what he bore there from the ground to his hand", () => {
   let holder = 0,
     levy = 0;
-  for (const { roll } of recent)
-    for (const s of [roll.attacker, roll.defender])
+  for (const { b, roll } of recent)
+    for (const [side, s] of [roll.attacker, roll.defender].entries())
       for (const man of s.fell.slice(0, 6)) {
         const p = page(man.ref),
           facts = blocksOf(p).find((x) => x.type === "facts");
         if (p.ref.startsWith("unknown")) continue;
+        if (!ask<ArmBorne | null>("arms.borne", { event: b.event, side, who: man.ref })) continue;
         assert.ok(
           facts &&
             facts.type === "facts" &&

@@ -99,7 +99,37 @@ Still to do: a soldier possessed in such a battle still walks to the hand's figh
 Giving up is not drawn, since history keeps no prisoners. Squads have no banks or shell holes to bound between on the close
 field. Shells knock nothing down and history does not hear them: W2 and W3.
 
+## W2, as built (2026-11-05)
+
+`rules/reach.ts` is the four numbers, pure: what flying asks of a world's pull and air, what its engine gives, what a load flattens, how
+far it misses. Titan's numbers ask 1.9 W/kg, Earth's 80, Mars's 207. Two rows sit at the very end of the tree, so nothing moves until the first
+find. `sim/war/air.ts` strikes the towns that hurt most within reach of the front, with no draw.
+
+- **A town bombed (seen):** by day, one tight stream of machines across the town, drawn larger than life (at their true size they were one pixel), its
+  loads falling and hits walking along under it; the eye goes low and ahead of them by itself; folk indoors; then its lots burn as any fire's. A gate reads the
+  pixels, because it once counted machines for hours while none was drawn: `render/village.ts` `build()` destroys every child of its root not on a hand-kept list.
+- **Ash:** a home burned from the air lies in ash three years, neither home nor open (`CHANGE.burned`, no new store: a save reads it back from its runs), then rises while
+  its people want it. Without this a great town's heart stayed a hole for ever, and each raid chewed further out past what is drawn.
+- **Where loads land:** hits about a point thin as e^(-r²/2σ²) and a plan's lots go as r², so a lot's number thins as an exponential: four sticks, no draw. A guided load lands near the aim, an eye-aimed one scattered.
+- **The dead:** counted to the last one (`deathsIn`). A share over a land's ledgers, floored cell by cell, was killing no one in small strikes.
+
+### Knowledge crosses the sea
+
+Asked why they still line up medievally, a look at a real year 2000 found more than the order: on Earth, 54 of 139 realms still carried stone-tipped spears, a whole continent of 172 lands with 21 trade routes to a world of beam rifles. Nothing crossed the sea but goods. The principles' lore, sowing and smelting were all taught over land borders only. Now they are taught along sea routes as well, and what ships carry is shown as well as told: tongues matter less, and the further behind a land is, the more readily it copies (at most a principle a year, as any land).
+
+**Measured, Earth, `first light`, from the start under these rules** (one run, with others alongside): first flyer year 817, first load 866. At year 900, 6 lands under 30 principles (223 by this point before the roots crossed), 25 under 60. At 1500 none under 30, and 91 of 93 realms on beam rifles. At 2000, 599 lands, 53.9 billion people, all 164 realms on beam rifles. Its last ten years: 1,131 raids on 281 towns, 334 million dead, against 1,134,804 dead in 381 raids in the ten years to 1500. Strike rows are 2.1% of a 13.9 MB save at 2000. A year costs 0.41 s on average from 1000 to 2000. Before: 54 of 139 realms still on stone-tipped spears at 2000. `vale 471` never flies, since nothing burns in its air: 1,082 lands, 356 billion people, 335 realms on automatic arms at 2000.
+
+**Watching one.** At a year a second a raid is over between two frames, and only a few towns are struck a year. So a town lately bombed brings the clock down for the morning of its next two turns, and a strike's page, its town's page and its tiding offer it played again in its town with the world's clock held (`watch.raid`, `raidFilm`). A raid on a town it has already flattened drops its loads on the ruins under its stream (`strays`). In a city of spires they come over above its tops and the eye looks down from there.
+
+### W1c: a battle by fire, as watched
+
+A real year 2000 battle showed why they still looked medieval after W1 and W1b. **A wall stood on the field of any seat, a modern city's too**: `near.walls` is true of any seat with the lore, whatever the town has become. Fought by fire, no wall is on the field now, and the defenders come out to their trench. **Six figures against 240**: one figure stood for 82,945 men and the other side had hardly any, so the smaller host is drawn at no fewer than a quarter of the most drawn (`perOf`). **Blocks in straight files**, read as columns: each block now stands off the grid by its own draw and every other row a block's breadth along; cars keep no row. **From straight behind, a man lying down looks like a man standing with a pole**, which is what the eye along the line of fire showed: it now sits forty degrees off. **No fire to be seen**: more shots drawn in a battle by fire and thicker lines. Before the rifle's order, none of this moves: the digest of battles before the magazine holds.
+
+Still to do: a soldier possessed in a battle by fire still walks to the hand's fight (`sim/hand/fight.ts`, history's). Overseas conquest stays rare, since a war needs a rivalry and rivalries are mostly between neighbours: W3's reach changes what a war is for, so look again there. A raid costs its side no fuel or machines yet.
+
 ## Order
+
+**W4 is parked.** Its planner was stopped by a safety check on 2026-11-05 while writing the spec, before any code. It is not to be retried or reworded around that check: the owner decides what happens next. W5 is not started either, for the same reason: it goes near the same line, and the owner's call comes first.
 
 W1 now: it is drawing only and answers "why do they line up". W2 to W5 are one history batch with one seed list, Earth
 included, so they alternate with L4 rather than each moving Earth's id. W6 comes with Phases 69–70.

@@ -192,7 +192,14 @@ test("`burns` rows are never open at any number, by any body", () => {
     ["rocky", "sulfur"],
   );
   const burns = PRINCIPLES.filter((p) => p.body?.burns).map((p) => p.id);
-  assert.deepEqual(burns, ["coal-mining", "steam-engine", "oil-drilling", "engines"]);
+  assert.deepEqual(burns, [
+    "coal-mining",
+    "steam-engine",
+    "oil-drilling",
+    "engines",
+    "powered-wings",
+    "dropped-loads",
+  ]);
   for (const id of burns)
     for (const n of [0, 300, 1200, 5000])
       assert.equal(affordsPrinciple(byId(id), "land", n), false, `${id} at ${n}`);

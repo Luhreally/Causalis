@@ -61,6 +61,7 @@ test("Earth stays on its first road: every stand-in shut, with words true of it"
   assert.deepEqual(met, [
     "bloom-an-iron",
     "fire-a-vessel",
+    "fly-under-power",
     "harden-copper",
     "melt-a-glass",
     "ride-a-beast",

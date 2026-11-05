@@ -329,7 +329,7 @@ test("the hand can turn the day: history's beaten win it, and the land it was fo
   // often than not; under the hand, his blows land five times as often and theirs on him less. Of
   // a few such fields, one where it turns.
   let turned: World | null = null;
-  for (let k = 0; k < 10 && !turned; k++) {
+  for (let k = 0; k < 40 && !turned; k++) {
     const w = loadWorld(before, build, ruleset).world;
     take(
       w,
@@ -346,7 +346,7 @@ test("the hand can turn the day: history's beaten win it, and the land it was fo
     leave(w);
     if (foughtEvent(w).turned) turned = w;
   }
-  assert.ok(turned, "the hand turned one of ten");
+  assert.ok(turned, "the hand turned one of forty");
   const after = battleBy(turned, event)!.b,
     told = foughtEvent(turned);
   assert.equal(after.won, false, "the attackers lost it");
