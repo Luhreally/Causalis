@@ -1108,8 +1108,19 @@ type Walked = {
   /** How many beasts hid it this frame, not drawn. */
   cleared: number;
 };
-/** An age's living world in the beginning: one of its beasts walked in from its acts, eaten, steered, let go. */
-async function creature(hands: Hands, tag: string) {
+/** How far a hunter sees, emboldened at most (view/meadow.ts: 48 m, by 1.3). */
+const HUNTER_SIGHT = 62;
+/**
+ * An age's living world in the beginning: one of its beasts walked in from its acts, eaten, steered,
+ * let go. The world opens the same each time, so a body taken would be taken again: after a taking
+ * (`tries` above 0) a swimmer comes first, which no hunter takes, and none of `avoid` is walked in again.
+ */
+async function creature(
+  hands: Hands,
+  tag: string,
+  tries = 0,
+  avoid: readonly number[] = [],
+): Promise<void> {
   const n = (x: string) => `${hands.name}: ${x}`,
     gen = () =>
       k<{
@@ -1150,15 +1161,23 @@ async function creature(hands: Hands, tag: string) {
   const walk = page.locator('.genesis-acts button:has-text("Walk in one")').first();
   check((await walk.count()) > 0, n("no Walk in one among the ages' acts"));
   // (The clock held so the beasts stand; the eye over the first that feeds where it stands — a
-  // grazer, a browser, a pecker — where the age has one, else over the first.)
+  // grazer, a browser, a pecker — with no hunter in sight of it, else a swimmer, else whichever stands
+  // furthest from one, else over the first. After a taking, a swimmer first.)
   await page.locator(".genesis-bar .speed >> nth=0").click();
   const over =
     (await k<{ x: number; z: number } | null>(`(() => {
+      const all = [], avoid = ${JSON.stringify(avoid)};
       for (let id = 0; id < 4000; id++) {
         const b = globalThis.causalis.meadowBeast(id);
-        if (b && b.feed !== "hunt" && b.feed !== "small" && b.feed !== "scavenge") return b;
+        if (b) all.push({ ...b, id });
       }
-      return null;
+      const stalkers = all.filter((b) => b.feed === "hunt" || b.feed === "small"),
+        clear = (b) => Math.min(Infinity, ...stalkers.map((h) => Math.hypot(h.x - b.x, h.z - b.z))),
+        eaters = all.filter((b) => b.feed !== "hunt" && b.feed !== "small" && b.feed !== "scavenge" && !avoid.includes(b.id)),
+        wet = eaters.find((b) => b.feed === "swim"),
+        dry = eaters.filter((b) => b.feed !== "swim"),
+        safe = dry.find((b) => clear(b) >= ${HUNTER_SIGHT});
+      return (${tries > 0} ? wet ?? safe : safe ?? wet) ?? dry.sort((a, b) => clear(b) - clear(a))[0] ?? null;
     })()`)) ?? m.first;
   await k(
     `(() => { const r = globalThis.causalis.rig; r.target.set(${over.x * 0.1}, 0.2, ${over.z * 0.1}); r.distance = 6; })()`,
@@ -1166,33 +1185,42 @@ async function creature(hands: Hands, tag: string) {
   await page.waitForTimeout(slow(1500));
   /**
    * Those standing over the land itself, not under the beginning's panel: those that feed where they
-   * stand first (grazers, browsers, peckers), then hunters, each nearest the screen's middle first.
+   * stand first (grazers, browsers, peckers), then hunters. Among them, after a taking, swimmers first;
+   * then those no hunter sees, nearest the screen's middle first, then the rest, furthest from a hunter first.
    */
   const spots = (tried: readonly number[]) =>
     k<{ id: number; x: number; y: number }[]>(`(() => {
-      const out = [], tried = ${JSON.stringify(tried)};
+      const out = [], tried = ${JSON.stringify(tried)}, stalkers = [];
+      for (let id = 0; id < 4000; id++) {
+        const b = globalThis.causalis.meadowBeast(id);
+        if (b && (b.feed === "hunt" || b.feed === "small")) stalkers.push(b);
+      }
       for (let id = 0; id < 4000; id++) {
         const s = globalThis.causalis.meadowSpot(id);
         if (!s || tried.includes(id)) continue;
         if (s.x < 24 || s.x > innerWidth - 24 || s.y < 120 || s.y > innerHeight - 24) continue;
         const e = document.elementFromPoint(s.x, s.y);
-        const feed = globalThis.causalis.meadowBeast(id)?.feed,
-          hunts = feed === "hunt" || feed === "small" || feed === "scavenge" ? 1 : 0;
+        const b = globalThis.causalis.meadowBeast(id),
+          feed = b?.feed,
+          hunts = feed === "hunt" || feed === "small" || feed === "scavenge" ? 1 : 0,
+          wet = ${tries > 0} && feed === "swim" ? 0 : 1,
+          clear = !b || feed === "swim" ? Infinity : Math.min(Infinity, ...stalkers.map((h) => Math.hypot(h.x - b.x, h.z - b.z))),
+          stalked = clear < ${HUNTER_SIGHT} ? 1 : 0;
         if (e && e.tagName === "CANVAS")
-          out.push({ id, x: s.x, y: s.y, hunts, d: Math.hypot(s.x - innerWidth / 2, s.y - innerHeight / 3) });
+          out.push({ id, x: s.x, y: s.y, hunts, wet, stalked, clear, d: Math.hypot(s.x - innerWidth / 2, s.y - innerHeight / 3) });
       }
-      out.sort((a, b) => a.hunts - b.hunts || a.d - b.d || a.id - b.id);
+      out.sort((a, b) => a.hunts - b.hunts || a.wet - b.wet || a.stalked - b.stalked || (a.stalked ? b.clear - a.clear : a.d - b.d) || a.id - b.id);
       return out;
     })()`);
   // One walked in, as a viewer walks in one they see: a touch to follow it, then the act — and
   // where it cannot eat where it stands (a hunter with no kill near, a grazer off the grass), let go
   // and the next walked in, up to six.
   const EATS = /^(Eat|Graze|Browse|Peck|Feed)$/,
-    tried: number[] = [],
+    tried: number[] = [...avoid],
     passed: string[] = [];
   let w: Walked | null = null;
   for (let i = 0; i < 6; i++) {
-    const spot = (await spots(tried))[0];
+    const spot = (await spots(tried))[0] ?? (i === 0 ? (await spots([]))[0] : undefined);
     check(!!spot || i > 0, n("no beast on the screen clear of the beginning's panel"));
     if (!spot) break;
     tried.push(spot.id);
@@ -1259,14 +1287,23 @@ async function creature(hands: Hands, tag: string) {
     !!w && (w.ate > ate0 || w.energy > e0),
     n(`it did not eat (${w?.ate ?? 0} eaten, was ${ate0}; ${w?.energy ?? 0} fed, was ${e0})`),
   );
+  // (What walks among hunters may be taken while it is walked: another is walked in, and the rest asked of it.)
+  const again = async (when: string) => {
+    say(n(`it was taken ${when}: “${(await toldNow()).split(" | ").at(-1)}”; another walked in`));
+    await page.waitForTimeout(slow(600));
+    await creature(hands, tag, tries + 1, tried);
+  };
   // Steered off the way the eye looks.
   const sprint = await centre(`${HUD} .possess-sprint`);
+  if (!sprint && tries < 3 && !(await walked())) return again("as it ate");
   check(!!sprint, n("no Sprint control"));
   if (sprint) await hands.tap(sprint.x, sprint.y);
-  check(
-    (await page.locator(`${HUD} .possess-sprint`).getAttribute("aria-pressed")) === "true",
-    n("Sprint did not engage"),
-  );
+  const engaged = await page
+    .locator(`${HUD} .possess-sprint`)
+    .getAttribute("aria-pressed", { timeout: slow(2000) })
+    .catch(() => null);
+  if (engaged === null && tries < 3 && !(await walked())) return again("as it ran");
+  check(engaged === "true", n("Sprint did not engage"));
   const at0 = w ? { x: w.x, z: w.z } : null;
   let went = 0;
   // A swimmer can face the shore; try the other directions through the real controls.
@@ -1277,6 +1314,7 @@ async function creature(hands: Hands, tag: string) {
     w = await walked();
     went = w ? Math.hypot(w.x - at0.x, w.z - at0.z) : 0;
   }
+  if (!w && tries < 3) return again("as it went");
   say(n(`steered ${went.toFixed(1)} m; ${w?.cleared ?? 0} between the eye and it not drawn`));
   check(went > 1, n(`not steered by the stick (${went.toFixed(1)} m)`));
   await shot(`${tag}-creature-2`);
