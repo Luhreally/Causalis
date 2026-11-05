@@ -95,12 +95,18 @@ export function landfallPlan(world: World, f: Folk, l: Landfall): LandfallPlan {
       made > 0
         ? `${many(made)} made soldiers and ${many(flesh)} of their own, with ${carry}`
         : `${many(flesh)} of their own, with ${carry}`,
-    came = `${ships} of ${who.name}${realm ? `, sent by ${realmName(realm)},` : ""} after ${many(l.years)} years on the way. They put down ${host}.`,
+    came = `${ships} of ${who.name}${realm ? `, sent by ${realmName(realm)},` : ""} came after ${many(l.years)} years on the way. They put down ${host}.`,
     men = fight.fielded[1],
     met = `Some ${many(men)} of the ${f.name} came against them, of ${many(l.natives.people)} in all, with ${arms.join("; ") || "nothing made"}.`,
-    fled = Math.max(0, men - fight.crossed - Math.max(0, fight.dead[1] - fight.crossed * fight.killedShare)),
+    fled = Math.max(
+      0,
+      men - fight.crossed - Math.max(0, fight.dead[1] - fight.crossed * fight.killedShare),
+    ),
     dead = fight.dead,
-    costC = dead[0] > 0 ? `${some(dead[0], "of those who came fell", "of those who came fell")}` : "none of those who came fell",
+    costC =
+      dead[0] > 0
+        ? `${some(dead[0], "of those who came fell", "of those who came fell")}`
+        : "none of those who came fell",
     costN = `${some(dead[1], `of the ${f.name} died`, `of the ${f.name} died`)}${fight.won ? `, and ${some(Math.round(fled), "fled", "fled")}` : ""}`,
     cost = `It cost them this: ${costC}; ${costN}.`,
     left = leaves(who.name, f.name, l, burns, place),
@@ -161,7 +167,7 @@ export function landfallPlan(world: World, f: Folk, l: Landfall): LandfallPlan {
     rout: fight.rout,
     burns,
     terms: fight.terms.map((t) => t.words),
-    landers: l.ships === 1 ? "A ship of theirs" : `${many(l.ships)} ships of theirs`,
+    landers: l.ships === 1 ? "A ship of theirs comes" : `${many(l.ships)} ships of theirs come`,
     cameWords: came,
     metWords: met,
     howWords: how,

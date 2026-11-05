@@ -1,9 +1,10 @@
 // node tools/phase55-gate.ts [--ci] [--soft] [--shots dir] [--battle-only | --wounds-only]
-// [--no-budgets] — the Phase 55 gate, on the built app, the Earth seed at the turn of year 365.
+// [--no-budgets] — the Phase 55 gate, on the built app, the Earth seed at the turn of year 370
+// (a year of great battles with its wounded carried home; which year that is moves with history).
 // Its battle part (M227, M228, M230; asked for 2026-10-25: "the battles should be fought on the
 // land, by the townsfolk, where you can see them"; 2026-10-26: "...it should be more graphic, and
 // realistic where ever they are getting damaged"), first, the clock going one way:
-//   B1. a battle of year 364 laid before its land's heart town the morning of the turn: the hosts'
+//   B1. a battle of year 369 laid before its land's heart town the morning of the turn: the hosts'
 //       fires behind their lines before dawn; drawn up, as many figures to a side as the setting
 //       draws, each a named man of the battle's roll, as many falling and wounded as battleFigures;
 //       zoomed onto its mark on its land (asked for 2026-10-27: "i meant open world warfare on town
@@ -276,7 +277,7 @@ const tap = async (i: number) => {
 };
 const ofDay = (t: number) => Math.floor(t / DAY);
 
-await page.goto(`${base}?universe=earth&seed=${encodeURIComponent("first light")}&year=365&hold=1`);
+await page.goto(`${base}?universe=earth&seed=${encodeURIComponent("first light")}&year=370&hold=1`);
 await page.waitForFunction(
   () => ((globalThis as any).causalis?.drawn?.() as number) > 0,
   undefined,
@@ -326,6 +327,18 @@ type Placed = {
 /** The most figures a side is drawn as at each setting (view/placed.ts PLACED_MOST). */
 const PLACED_MOST = { low: 60, balanced: 120, high: 240, ultra: 360 } as const;
 const placedNow = () => k<Placed | null>(`globalThis.causalis.placedBattle?.() ?? null`),
+  /** The battle before the town as it is now, once it is there: a plan read again takes it away a moment. */
+  placedSoon = async (): Promise<Placed> => {
+    for (let i = 0; i < 300; i++) {
+      const p = await placedNow();
+      if (p) return p;
+      await page.waitForTimeout(100);
+    }
+    const at = await k<string>(
+      `JSON.stringify({ scale: globalThis.causalis.scale(), ref: globalThis.causalis.planNow?.()?.ref ?? null, t: globalThis.causalis.client.status?.t ?? 0 })`,
+    );
+    throw new Error(`the battle before the town went away: ${at}`);
+  },
   scaleNow = () => k<string>(`globalThis.causalis.scale()`),
   views = () => k<{ at: string | null; open: string[] }>(`globalThis.causalis.warViews()`),
   view = (v: string) => k<string>(`globalThis.causalis.warView(${JSON.stringify(v)})`),
@@ -412,7 +425,7 @@ if (!woundsOnly) {
   const { event, town: heart } = found!;
   const battle = await ask<BattleNear>("battle.near", { event }),
     rout = battle.combat ? battle.combat.rout : 108;
-  let p = (await placedNow())!;
+  let p = await placedSoon();
   say(
     `${p.title} (${event}), before ${heart}: ${p.stage} at ${(((await now()) % DAY) / HOUR) | 0} h; ${p.figures.join(" and ")} figures, ${p.per} men each; ${p.named} named`,
   );
@@ -464,7 +477,7 @@ if (!woundsOnly) {
 
   // B2. Indoors from seven, but for some come out to watch; the clock slowed for it.
   await atTurn(turn, 7.6);
-  p = (await placedNow())!;
+  p = await placedSoon();
   say(`at 7:36: ${p.sheltered} indoors, ${p.watchers} come out to watch; ${p.drawn} drawn up`);
   check(p.sheltered > 0, "the town not indoors for the battle before it");
   check(p.watchers > 0 && p.watchers <= 24, `${p.watchers} watching at the town's edge`);
@@ -474,7 +487,7 @@ if (!woundsOnly) {
   await shot("b2-drawn-up");
   check(await press(/^1 month/i), "no month-a-second speed in the town's bar");
   const slowed = await comes(async () => (await placedNow())?.clock.speed === 60, slow(30000));
-  p = (await placedNow())!;
+  p = await placedSoon();
   say(`slowed: ${slowed} — "${p.told}"`);
   check(slowed, `the clock not slowed to a minute a second for the battle (${p.clock.speed})`);
   check(
@@ -612,7 +625,7 @@ if (!woundsOnly) {
   await atTurn(turn, 9);
   await k(`globalThis.causalis.faceBattle()`);
   await page.waitForTimeout(slow(2000));
-  p = (await placedNow())!;
+  p = await placedSoon();
   const seen = (q: Placed) => q.onScreen.filter((t) => t.at),
     fighting = seen(p).filter((t) => t.act === "fight").length;
   say(`the clash at ${p.s.toFixed(0)} s: ${seen(p).length} on the screen, ${fighting} fighting`);
@@ -624,7 +637,7 @@ if (!woundsOnly) {
   );
   await shot("b3-clash");
   await atTurn(turn, 8 + 85 / 60);
-  p = (await placedNow())!;
+  p = await placedSoon();
   const struck = p.onScreen.filter((t) => t.hit),
     crawling = struck.filter((t) => t.crawl || t.act === "crawl" || t.act === "helped").length;
   say(
@@ -633,7 +646,7 @@ if (!woundsOnly) {
   check(p.marks.wounds > 0, "no wounds drawn on the struck");
   await shot("b4-struck");
   await atTurn(turn, 8 + (rout === null ? 144 : Math.min(148, rout + 8)) / 60);
-  p = (await placedNow())!;
+  p = await placedSoon();
   const flying = p.onScreen.filter((t) => t.act === "flee").length;
   say(`the ${rout === null ? "disengagement" : "rout"} at ${p.s.toFixed(0)} s: ${flying} flying`);
   check(
@@ -644,7 +657,7 @@ if (!woundsOnly) {
 
   // B4. After it: its fallen lying where they fell; a fallen man's card, his page, his arm's.
   await atTurn(turn, 12);
-  p = (await placedNow())!;
+  p = await placedSoon();
   const fell = p.falls[0]! + p.falls[1]!;
   say(`after: ${p.stage}; ${p.lying} lying of ${fell} fallen, ${p.drawn} drawn`);
   check(p.stage === "after", `not over by noon (${p.stage})`);
@@ -743,7 +756,7 @@ if (!woundsOnly) {
 
   // B6. Borne in from noon two days on; none left by their funeral at two; none of the town's fallen in its next plan.
   await atTurn(turn, 2 * 24 + 12.75);
-  p = (await placedNow())!;
+  p = await placedSoon();
   say(`borne in: ${p.stage}; ${p.lying} of ${fell} still lying`);
   check(
     p.stage === "borne" && p.lying > 0 && p.lying < fell,
@@ -799,7 +812,7 @@ say(`the world at year ${Math.floor(t0 / YEAR)}, day ${ofDay(t0 % YEAR)}`);
 // wound marking them for good, where there is such a town.
 const rows = await ask<Row[]>("village.wounded", { most: 60 });
 say(`${rows.length} towns whose levy comes home wounded this year`);
-check(rows.length > 0, "no town's levy comes home wounded at the turn of year 365");
+check(rows.length > 0, "no town's levy comes home wounded at this turn of the year");
 let town: { row: Row; plan: Plan; borne: number; healer: number; marked: number } | null = null;
 for (const row of rows
   .filter((r) => r.healer && !r.hospital && r.borne > 0)

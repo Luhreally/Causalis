@@ -19,7 +19,32 @@ import {
   populationContext,
   spaceOf,
 } from "../src/sim/index.ts";
-import { spine } from "../src/causal/index.ts";
+import { spine, why } from "../src/causal/index.ts";
+
+/** What a why comes down to: something made at the universe's making, a world, a star, a people of another star. */
+const WORLDLY = /^(plnt|star|civ|moon|cell|spec|depo|age):/;
+/**
+ * The nearest of those down every cause of a thing, within so many steps (null: none). The spine follows
+ * the heaviest cause alone, so a realm's valour over a people heard of leaves it in the realm's own history.
+ */
+function nearestWorldly(world: Parameters<typeof why>[0], ref: Ref, steps = 8): string[] | null {
+  const seen = new Set<string>();
+  let front: { node: ReturnType<typeof why>; path: string[] }[] = [
+    { node: why(world, ref), path: [] },
+  ];
+  for (let i = 0; i <= steps && front.length; i++) {
+    const next: typeof front = [];
+    for (const { node, path } of front) {
+      if (!node || seen.has(node.ref)) continue;
+      seen.add(node.ref);
+      const down = [...path, node.ref as string];
+      if (WORLDLY.test(node.ref)) return down;
+      for (const edge of node.causes) next.push({ node: edge.next(), path: down });
+    }
+    front = next;
+  }
+  return null;
+}
 
 export type SkySurvey = {
   readonly seed: string;
@@ -193,6 +218,7 @@ export async function skySurvey(seed: string, years: number): Promise<SkySurvey>
     wars = starWarsOf(world).all(),
     firstWar = wars[0],
     walk = firstWar ? spine(world, firstWar.event, 16).map((x) => x.ref as string) : [],
+    worldly = firstWar ? nearestWorldly(world, firstWar.event) : null,
     recent = times.slice(-200),
     meanRecent = recent.reduce((a, b) => a + b, 0) / Math.max(1, recent.length);
   const starColonies = sites.map(([cell, st]) => {
@@ -246,9 +272,9 @@ export async function skySurvey(seed: string, years: number): Promise<SkySurvey>
         ? {
             year: firstWar.declared,
             won: firstWar.won,
-            walk,
-            // Down its why to something made at the universe's making: a world, a star, a people of another star.
-            reachesWorld: walk.some((r) => /^(plnt|star|civ|moon|cell|spec|depo|age):/.test(r)),
+            walk: worldly ?? walk,
+            // Down its why, by any of its causes, to something made at the universe's making.
+            reachesWorld: worldly !== null,
           }
         : null,
     },

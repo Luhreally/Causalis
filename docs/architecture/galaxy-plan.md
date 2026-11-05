@@ -99,6 +99,32 @@ firearms.ts are the models.
 
 **Levers.** Possession does not reach a people here: it needs a land under the hand and a people has no cell. The land step between globe and ground; water peoples as risen peoples; stragglers in ruins and second risings; a tiding when a ship reaches a people (it needs Phase 70's event).
 
+## Phase 70, first slice, as built (2026-11-05)
+
+**Nothing moves history.** A landing is a pure reading of a real arrival (`arrivalsAt`): `rules/landfall.ts` over what history holds of those who came and Phase 69's reading of those who met them, with draws keyed to the arrival. No store, event or command. What history does hold stays true and is told: a colony's halls stand whatever became of those who went out from them, so a landing the natives win says they went back to what they came down in. To make it history later: record the fight as an event with its causes, spend the comers' machines, take the natives' dead off a stored count. That costs a seed list.
+
+**Why one term goes ahead of the fight.** The war formula sets like against like. Its `advantage` is bounded and `hostPower` is a log, so beam rifles on stone spears came out about 5.5 to 1 a head, where magazine rifles did about 500 to 1 a head in history. So a host with no stand-off must first cross its foe's fire: rate, time under fire, a hit share, what the ground hides, over how much a body takes. Past 39% struck (`combat.ts`'s own break) they turn, and are under fire as long again going back.
+
+**Who comes.** A home ship carries 500, half of whom can fight (est.). Made soldiers only where the realm's host design has them, and only what the crossing's keep leaves: 22 years gives about 2,900, 200 years none. A people's ships are its raid's own strength. No horse or car crosses.
+
+**Who meets them.** Their arm from `folkArms`; a quarter of those within a season's walk, 0.5 of a people in camps down to 0.05 in cities (est.), times a keyed draw of where it came down. Bodies count by their strength, as a host's do in war.
+
+**What can turn it, all from numbers.** Cannot breathe there (flesh at 0.6, of the water at 0.4; made soldiers none); a heavier pull than home (flesh only); bodies past 60 kg take more fire; towns hide those who come on; few across a long way; a sickness crosses only where a life of the same liquid meets bare faces.
+
+**Measured** on the 31 saves at year 3000: 22 real landings. Camps: comers 18, natives 1. Villages: comers 3, natives 0. Towns, cities and works: none met, since arrivals come early and these peoples rise late. The natives' one win is `earth sorrel 472`, the Mythix (1,906 kg, 0.39 g, tusks) against 3 ships of a people of the water sealed at 0.4 with a 48 m stand-off. Each of those forces against the same people at every step, 12 draws each, comers' share of wins: camps 96%, villages 82%, towns 39%, cities 14%, works 0.4%. A read is about 12 ms, only when a page or film asks. A frame of the film is 0.6 to 1.9 ms of script and batches, 31 to 48 draw calls, 50,000 to 80,000 triangles, on this PC; not measured on an iPhone 15 Plus.
+
+**Seen.** From a people's page, their world's panel and `world:peoples`: ⚔ Watch them come. Ships over their world; landers coming down on their ground; those who came out and apart by `hostOrder`; the natives massed and coming on, since a people who never faced a gun has no drill for it; shots and stones, falls by the fight's own frames; flight, the place burning and the victors going over the ground, or those who came going back aboard and lifting off seen from among those who held; a card that starts with who holds the ground. Seeds: `earth amber 101` (Kugrouai, camps, comers win), `earth sorrel 472` (Mythix, natives win), `alien 41` (Grythur, a village burned).
+
+**Found by watching it, each now checked by gate 78:**
+- 56 natives closed on 18 places and made one slab. A mass is now pressed toward those who came by no more than the room between them.
+- A short fight's end eye stood right over the pads, so the ships rose into it and the screen was hull. Turned back, the eye stands off among those who held and tilts up with them.
+- "Who holds the ground" was last in a card that had to scroll, and the caption showed through it. It comes first, and the caption goes.
+- A flame seen from above in one colour is a sticker on the ground, and capsules for smoke read as pillars. A camp now burns with the town's own fire.
+- A low body lying down read as one standing. The fallen are flat, on a dark patch.
+- The pixels check on order failed for giants, who stand far apart in pixels and shoulder to shoulder. It now counts in bodies apart, past a squad's own.
+
+**Levers.** Larger fleets and earlier arrivals, to bring the towns' row into real history. Tapping or possessing a figure in the film. A landing does not yet change the camp drawn after it: pages say what it left. Mines, penal colonies, bonded natives, risings and independence are later slices.
+
 ## The seed picker
 
 Choose Earth-like or alien, then a target age, and get seeds that plausibly reach it.

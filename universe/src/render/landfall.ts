@@ -21,13 +21,24 @@ import {
   type PartShape,
   type ShipGeometry,
 } from "../view/index.ts";
+import { BlazeLayer } from "./blaze.ts";
 import { InstancedBatch, boxMesh, capsuleMesh, coneMesh, cylinderMesh, keptMesh } from "./batch.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 const M = 0.1;
 const WHITE: Rgb = [1, 1, 1];
 const UP = { x: 0, y: 1, z: 0 };
-const NOTHING = { landers: 0, comers: 0, natives: 0, fallen: 0, bolts: 0, stones: 0, fires: 0, drawCalls: 0, triangles: 0 };
+const NOTHING = {
+  landers: 0,
+  comers: 0,
+  natives: 0,
+  fallen: 0,
+  bolts: 0,
+  stones: 0,
+  fires: 0,
+  drawCalls: 0,
+  triangles: 0,
+};
 type Lane = { readonly batch: InstancedBatch; readonly cap: number; readonly tris: number };
 type Tone = Figure["parts"][number]["tone"];
 type Host = { readonly figure: Figure; readonly lanes: readonly Lane[]; readonly scale: number };
@@ -42,8 +53,7 @@ type Parts = {
   readonly spears: Lane | null;
   readonly bolts: readonly [Lane, Lane];
   readonly stones: Lane;
-  readonly fires: Lane;
-  readonly smoke: Lane;
+  readonly stains: Lane;
 };
 
 const SHAPE_MESH: Record<PartShape, (stage: Stage) => pc.Mesh> = {
@@ -98,6 +108,8 @@ export class LandfallLayer {
   private meshes = new Set<pc.Mesh>();
   private materials = new Set<pc.Material>();
   private last = { ...NOTHING };
+  /** A camp alight, as a town burns; built once, with the first film that burns anything. */
+  private blaze: BlazeLayer | null = null;
 
   constructor(stage: Stage) {
     this.stage = stage;
@@ -214,15 +226,21 @@ export class LandfallLayer {
       made: plan.made > 0 ? this.host(figureOf(null, detail), capC, toneM, 0.25) : null,
       natives: this.host(figureOf(plan.nativeFigure, detail), capN, toneN, 0.16),
       guns: this.lane(boxMesh(stage), flatMaterial([0.16, 0.16, 0.2]), capC),
-      spears: plan.nativeHolds ? this.lane(boxMesh(stage), flatMaterial([0.55, 0.42, 0.26]), capN) : null,
+      spears: plan.nativeHolds
+        ? this.lane(boxMesh(stage), flatMaterial([0.55, 0.42, 0.26]), capN)
+        : null,
       bolts: [
         this.lane(boxMesh(stage), lightMaterial(arm as Rgb), 28),
         this.lane(boxMesh(stage), lightMaterial(armN as Rgb), 12),
       ],
       stones: this.lane(boxMesh(stage), flatMaterial([0.42, 0.4, 0.38]), 14),
-      fires: this.lane(meshOf(stage, flameGeometry()), lightMaterial([1, 0.55, 0.15]), 12),
-      smoke: this.lane(capsuleMesh(stage, 0.11, 0.55), flatMaterial([0.13, 0.12, 0.12]), 24),
+      stains: this.lane(
+        cylinderMesh(stage, 0.5, 1, 10),
+        flatMaterial([0.05, 0.04, 0.05], 0.45),
+        capC + capN,
+      ),
     };
+    if (plan.won && plan.burns) this.blaze ??= new BlazeLayer(stage, this.root);
     this.root.enabled = true;
   }
 
@@ -239,7 +257,8 @@ export class LandfallLayer {
         k = Math.min(n, lane.cap);
       lane.batch.set(k, (q, out) => {
         const f = list[q]!,
-          walking = f.doing === "out" || f.doing === "run" || f.doing === "flee" || f.doing === "back",
+          walking =
+            f.doing === "out" || f.doing === "run" || f.doing === "flee" || f.doing === "back",
           pace = f.doing === "run" || f.doing === "flee" ? 4 : 2.2,
           pitch = limbPitch(part, null, walking || f.doing === "strike", clock * pace + f.i, f.i),
           hinge = part.pivot ?? 0,
@@ -250,7 +269,8 @@ export class LandfallLayer {
           s = host.scale;
         if (f.doing === "fallen") {
           out[0] = f.x * M + (part.x * c + py * sn) * s;
-          out[1] = 0.04 + part.z * s;
+          // (Flat to the ground, whatever its body: a low body lying reads as one standing otherwise.)
+          out[1] = 0.04 + part.z * s * 0.4;
           out[2] = f.z * M + (-part.x * sn + py * c) * s;
           out[7] = Math.PI / 2;
         } else {
@@ -261,7 +281,7 @@ export class LandfallLayer {
         }
         out[3] = part.sx * s * f.size;
         out[4] = part.sy * s * f.size;
-        out[5] = part.sz * s * f.size;
+        out[5] = part.sz * s * f.size * (f.doing === "fallen" ? 0.4 : 1);
         out[6] = f.yaw;
       });
       count(lane, k);
@@ -283,7 +303,17 @@ export class LandfallLayer {
     P.landers.batch.setMatrices(nl, (m) => {
       for (let j = 0; j < nl; j++) {
         const l = ls[j]!;
-        poseMatrix(m, j * 16, TOWN_FRAME, { x: l.x * M, y: l.high * M + 1.1, z: l.z * M }, UP, l.yaw, 2.2, 2.2, 2.2);
+        poseMatrix(
+          m,
+          j * 16,
+          TOWN_FRAME,
+          { x: l.x * M, y: l.high * M + 1.1, z: l.z * M },
+          UP,
+          l.yaw,
+          2.2,
+          2.2,
+          2.2,
+        );
       }
     });
     count(P.landers, nl);
@@ -292,7 +322,17 @@ export class LandfallLayer {
     P.flames.batch.setMatrices(nf, (m) => {
       for (let j = 0; j < nf; j++) {
         const l = burning[j]!;
-        poseMatrix(m, j * 16, TOWN_FRAME, { x: l.x * M, y: l.high * M + 0.05, z: l.z * M }, UP, l.yaw, 0.9, 0.9, 1.6 * l.burn);
+        poseMatrix(
+          m,
+          j * 16,
+          TOWN_FRAME,
+          { x: l.x * M, y: l.high * M + 0.05, z: l.z * M },
+          UP,
+          l.yaw,
+          0.9,
+          0.9,
+          1.6 * l.burn,
+        );
       }
     });
     count(P.flames, nf);
@@ -318,6 +358,23 @@ export class LandfallLayer {
     this.writeHost(P.flesh, flesh, clock, count);
     if (P.made) this.writeHost(P.made, made, clock, count);
     this.writeHost(P.natives, shownN, clock, count);
+    // Where they lie, dark on the ground.
+    const lying = [
+        ...shownC.filter((c) => c.doing === "fallen").map((f) => ({ f, s: P.flesh.scale })),
+        ...shownN.filter((n) => n.doing === "fallen").map((f) => ({ f, s: P.natives.scale })),
+      ],
+      nl2 = Math.min(lying.length, P.stains.cap);
+    P.stains.batch.set(nl2, (q, out) => {
+      const { f, s } = lying[q]!;
+      out[0] = f.x * M;
+      out[1] = 0.015;
+      out[2] = f.z * M;
+      out[3] = out[5] = 0.62 * s;
+      out[4] = 0.01;
+      out[6] = 0;
+      out[7] = 0;
+    });
+    count(P.stains, nl2);
     // What they carry.
     const armed = shownC.filter((c) => c.doing !== "fallen"),
       ng = Math.min(armed.length, P.guns.cap);
@@ -395,31 +452,24 @@ export class LandfallLayer {
       out[7] = q * 0.7;
     });
     count(P.stones, ns);
-    // What burns on a camp's ground.
-    const nb = Math.min(now.fires.length, P.fires.cap);
-    P.fires.batch.setMatrices(nb, (m) => {
-      for (let j = 0; j < nb; j++) {
-        const f = now.fires[j]!,
-          k = f.size * (0.92 + 0.08 * Math.sin(clock * 9 + j * 2));
-        poseMatrix(m, j * 16, TOWN_FRAME, { x: f.x * M, y: 0.05, z: f.z * M }, UP, j, 0.5 * k, 0.5 * k, 0.85 * k);
-      }
-    });
-    count(P.fires, nb);
-    const smokes = Math.min(nb * 2, P.smoke.cap);
-    P.smoke.batch.set(smokes, (q, out) => {
-      const f = now.fires[q % Math.max(1, nb)]!,
-        rise = (clock * 0.22 + q * 0.37) % 1;
-      out[0] = f.x * M + 0.2 * Math.sin(q + clock * 0.3);
-      out[1] = 0.7 + rise * 3.2;
-      out[2] = f.z * M + 0.2 * Math.cos(q * 1.7);
-      const w = (0.35 + rise * 0.8) * f.size;
-      out[3] = w;
-      out[4] = w;
-      out[5] = w;
-      out[6] = q;
-      out[7] = 0;
-    });
-    count(P.smoke, smokes);
+    // What burns on a camp's ground, as a town burns: tongues, a hot core, sparks, the smoke rolling off.
+    const nb = now.fires.length,
+      alight = now.fires.map((f, j) => ({
+        lot: -1,
+        x: f.x,
+        z: f.z,
+        yaw: j * 2.399963,
+        k: f.size,
+        size: 0.7,
+        high: 5,
+        wide: 5,
+      }));
+    this.blaze?.update(
+      { fires: alight, smoke: alight, dust: [], shake: 0 },
+      clock,
+      this.stage.quality.motion,
+      null,
+    );
     this.last = {
       landers: nl,
       comers: shownC.length,

@@ -7847,9 +7847,9 @@ async function runPlanetPage(): Promise<void> {
           ? Math.floor(t / DAY) * DAY + fleetFilm.hour * DAY
           : landfallFilm?.townHeld
             ? Math.floor(t / DAY) * DAY + landfallFilm.hour * DAY
-          : time.lapse || ruling()
-            ? Math.floor(t / DAY) * DAY + 10 * 3600
-            : t;
+            : time.lapse || ruling()
+              ? Math.floor(t / DAY) * DAY + 10 * 3600
+              : t;
     stage.daylight(
       plan.colony
         ? colonyHour(plan.colony, time.lapse ? 0 : seen - colonyFrom)
