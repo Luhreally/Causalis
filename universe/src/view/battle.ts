@@ -136,6 +136,8 @@ const RUSH = { bounds: 5, cycle: 6, long: 2.2, apart: 3, shift: 0.6, gun: 0.4 } 
  * are (s), the most shots a side fires in a second, and the most rounds it looses in all.
  */
 const SHOTS = { flight: 0.15, burst: 0.09, most: 12, rounds: 700 } as const;
+/** Fought by fire, the fire is the battle: so many more of a side's shots drawn (W1c). */
+const FIRE_SHOTS = { most: 30, rounds: 2400 } as const;
 
 /**
  * A battle by fire (W1b), in field metres: the most the hosts stand apart and the least, where their ground's
@@ -155,6 +157,7 @@ const FIRE = {
   bounds: 3,
   rush: 0.28,
   car: 8,
+  carScatter: 14,
   shell: 0.35,
   burst: 2.4,
 } as const;
@@ -411,6 +414,8 @@ export type BattleField = {
   readonly near: BattleNear;
   /** How many men a figure stands for. */
   readonly per: number;
+  /** What a figure of each side stands for, where they differ (fought by fire the smaller host's stand for fewer: W1c). */
+  readonly perOf?: readonly [number, number];
   readonly hosts: readonly [HostDrawn, HostDrawn];
   readonly troopers: readonly Trooper[];
   /** Each side's files, each front first (who steps up as the front falls). */
@@ -628,8 +633,14 @@ export function battleGroundAt(g: BattleGround, x: number, z: number): number {
  * how, who runs, who gives chase — as history's numbers have it. `placed`: fought before a town in
  * its own scene (Phase 55 M227), on the town's ground.
  */
-export function newBattle(near: BattleNear, most: number, placed = false): BattleField {
-  const key = hashText(near.event),
+export function newBattle(told: BattleNear, most: number, placed = false): BattleField {
+  // (Fought by fire, no wall holds anything: fire would have it down, and to stand on one is only to be seen. A seat
+  // is fought for on the open ground before it, whatever it raised in its time. W1c.)
+  const near =
+      told.walls > 0 && fireOrder(told.attacker.host, told.defender.host, true)
+        ? { ...told, walls: 0 as const }
+        : told,
+    key = hashText(near.event),
     a = near.attacker,
     d = near.defender,
     per = Math.max(1, Math.ceil(Math.max(a.fielded, d.fielded, 1) / most)),
@@ -637,6 +648,13 @@ export function newBattle(near: BattleNear, most: number, placed = false): Battl
     walls = near.walls > 0,
     // (Past the rifle, how each host's order would have it fought. W1b.)
     fireBy = fireOrder(a.host, d.host, walls),
+    // (Fought by fire, the smaller host is drawn at no fewer than a quarter of the most drawn, each of its figures standing
+    // for fewer men: six figures in a trench is nothing to watch. A close fight keeps one worth for both: which way the press goes
+    // is what is seen there. W1c.)
+    least = fireBy ? Math.ceil(most / 4) : 0,
+    worth = (fielded: number) =>
+      fielded / per >= least ? per : Math.max(1, Math.ceil(fielded / Math.max(1, least))),
+    perOf: readonly [number, number] = [worth(a.fielded), worth(d.fielded)],
     scale = placed ? PLACED_SCALE : 1,
     ground: BattleGround = {
       // (Before a town the ground is the town's own, flat: no ridge or river of the field's.)
@@ -648,7 +666,7 @@ export function newBattle(near: BattleNear, most: number, placed = false): Battl
     };
   // Each host as the field draws it.
   const drawnOf = (s: typeof a, side: 0 | 1): HostDrawn => {
-    const n = Math.max(1, Math.round(s.fielded / per)),
+    const n = Math.max(1, Math.round(s.fielded / perOf[side])),
       look = armLook(s.host?.arm),
       // (Behind its walls a seat's defenders stand them on foot, their horses within.)
       mount = side === 1 && walls ? undefined : s.host?.mount,
@@ -673,7 +691,10 @@ export function newBattle(near: BattleNear, most: number, placed = false): Battl
         open && placed ? hostOrder(s.host, (side === 0 ? d : a).host).spacing / PLACED_SCALE : null,
       // (As many fall as fell of its men: the victors keep some standing, the beaten a few.)
       most = side === beaten ? Math.ceil(n * 0.92) : n - 1,
-      falls = Math.max(s.fallen > 0 && n > 1 ? 1 : 0, Math.min(most, Math.round(s.fallen / per)));
+      falls = Math.max(
+        s.fallen > 0 && n > 1 ? 1 : 0,
+        Math.min(most, Math.round(s.fallen / perOf[side])),
+      );
     return {
       n,
       files,
@@ -767,11 +788,13 @@ export function newBattle(near: BattleNear, most: number, placed = false): Battl
         u = unit(key + side * 7919, i),
         gun = team && rank < 2 && file % 3 === 1,
         block = Math.floor(file / 2) * 37 + Math.floor(rank / 2),
-        // (A block's own place: it stands off the grid by its own draw.)
+        // (A block's own place: it stands off the grid by its own draw, every other row a block's breadth along,
+        // so no squad stands behind another's fire and no line of them runs down the field.)
         blockZ = squads
           ? across +
             ((file % 2 ? -0.5 : 0.5) * (gap - within) +
-              (unit(key + 6100 + side, block) - 0.5) * gap * 0.7)
+              (unit(key + 6100 + side, block) - 0.5) * gap * 1.7 +
+              (Math.floor(rank / 2) % 2 ? gap : 0))
           : across,
         blockBack = squads
           ? rank * gapOf(h).rank +
@@ -868,7 +891,8 @@ export function newBattle(near: BattleNear, most: number, placed = false): Battl
         side,
         z:
           (i - (count - 1) / 2) * Math.min(10, (2 * FIELD.z - 10) / count) +
-          (unit(key + 5100 + side, i) - 0.5) * 2,
+          // (Fought by fire no two cars keep a line: W1c.)
+          (unit(key + 5100 + side, i) - 0.5) * (fire ? 9 : 2),
         // (Knocked out at a keyed time, from the arrows' sixth second to the rout's fourth.)
         knocked: wrecked.has(i)
           ? MOMENTS.arrows +
@@ -881,6 +905,7 @@ export function newBattle(near: BattleNear, most: number, placed = false): Battl
   const field: BattleField = {
     near,
     per,
+    ...(perOf[0] !== per || perOf[1] !== per ? { perOf } : {}),
     hosts,
     troopers,
     files: [0, 1].map((side) =>
@@ -1090,7 +1115,14 @@ function momentsOf(
     );
   }
   if (near.outcome === "stormed")
-    out.push({ at: MOMENTS.gate, words: blown ? "The gate is blown in" : "The gate is broken" });
+    out.push({
+      at: MOMENTS.gate,
+      words: !near.walls
+        ? `${cap(a)} break into ${town}`
+        : blown
+          ? "The gate is blown in"
+          : "The gate is broken",
+    });
   if (firstKnock !== null)
     out.push({ at: firstKnock, words: "An armoured car is knocked out, burning" });
   if (near.combat?.broken === -1)
@@ -1105,7 +1137,9 @@ function momentsOf(
             ? `${cap(a)} break and fall back under fire`
             : `${cap(a)} break and run`
         : near.outcome === "siege"
-          ? `${cap(d)} fall back behind their walls`
+          ? near.walls
+            ? `${cap(d)} fall back behind their walls`
+            : `${cap(d)} fall back into ${town}`
           : near.outcome === "stormed"
             ? `${cap(a)} pour into ${town}`
             : byFire
@@ -1433,11 +1467,11 @@ function continuousFire(field: BattleField, shooters: 0 | 1, key: number): Arrow
     perSecond: number[] = [];
   let rounds = 0;
   for (let s = MOMENTS.arrows; s <= routAt(field) - 2; s++) {
-    const n = Math.min(SHOTS.most, Math.ceil(living(s).length / 4));
+    const n = Math.min(field.fire ? FIRE_SHOTS.most : SHOTS.most, Math.ceil(living(s).length / 4));
     perSecond.push(n);
     rounds += n * burst;
   }
-  const scale = Math.min(1, SHOTS.rounds / Math.max(1, rounds)),
+  const scale = Math.min(1, (field.fire ? FIRE_SHOTS.rounds : SHOTS.rounds) / Math.max(1, rounds)),
     out: Arrow[] = [];
   perSecond.forEach((n, i) => {
     const s = MOMENTS.arrows + i,
@@ -2277,7 +2311,9 @@ export function crawledTo(
 }
 
 /** How long a beam stays on the eye (seconds): a tenth of a second is what it would be seen as. */
-const BOLT_S = 0.16;
+const BOLT_S = 0.16,
+  // (Fought by fire, a little longer: the fire is what is watched. W1c.)
+  FIRE_BOLT_S = 0.3;
 /** How long a round's streak is, seen crossing the ground in a battle by fire (m), and how long it takes (s: slowed for the eye). */
 const TRACER = 7,
   STREAK_S = 0.32;
@@ -2309,7 +2345,11 @@ function carWay(field: BattleField, v: Vehicle, s: number): { x: number; z: numb
     // (Fought by fire, no further than a little before its own forward edge, as they stand in the town. W1b.)
     const fire = field.fire,
       start = fire ? fire.start : -24,
-      hold = fire?.stands[0] ? fire.line[0] + FIRE.car : wall ? wall.x - 6 : field.meet - 6,
+      hold = fire?.stands[0]
+        ? fire.line[0] + FIRE.car + (v.u - 0.5) * FIRE.carScatter
+        : wall
+          ? wall.x - 6
+          : field.meet - 6,
       pace = clamp01((s - MOMENTS.advance) / (MOMENTS.charge + 4 - MOMENTS.advance));
     let x = start + (hold - start) * pace,
       z = v.z;
@@ -2332,7 +2372,7 @@ function carWay(field: BattleField, v: Vehicle, s: number): { x: number; z: numb
   // and drive off the field's far edge.
   const hold =
     field.fire?.stands[1] && !wall
-      ? field.fire.line[1] - FIRE.car
+      ? field.fire.line[1] - FIRE.car + (v.u - 0.5) * FIRE.carScatter
       : trench
         ? trench.x + 10
         : wall
@@ -2442,7 +2482,8 @@ export function battleAt(field: BattleField, s: number): BattleNow {
         });
       }
       if (armLook((a.side === 0 ? field.near.attacker : field.near.defender).host?.arm).beam) {
-        if (age < BOLT_S)
+        const boltFor = field.fire ? FIRE_BOLT_S : BOLT_S;
+        if (age < boltFor)
           bolts.push({
             side: a.side,
             x: (a.from.x + a.to.x) / 2,
@@ -2450,7 +2491,7 @@ export function battleAt(field: BattleField, s: number): BattleNow {
             z: (a.from.z + a.to.z) / 2,
             yaw: Math.atan2(dx, dz),
             long: far,
-            k: 1 - age / BOLT_S,
+            k: 1 - age / boltFor,
           });
         // (Where it strikes: a spark.)
         if (age < 0.09) flashes.push({ x: a.to.x, y: 1.2, z: a.to.z, yaw: Math.atan2(dx, dz) });
@@ -2914,7 +2955,8 @@ export function trooperWho(field: BattleField, id: number): string {
         ? "in a squad forward"
         : "in a squad behind"
       : `in the ${rank} rank`,
-    each = field.per > 1 ? ` (a figure for ${field.per.toLocaleString("en-US")} men)` : "";
+    worth = field.perOf?.[t.side] ?? field.per,
+    each = worth > 1 ? ` (a figure for ${worth.toLocaleString("en-US")} men)` : "";
   return `👁 ${who[0]!.toUpperCase()}${who.slice(1)} of ${side.name}, ${place}${each}`;
 }
 

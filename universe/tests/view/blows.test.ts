@@ -291,8 +291,9 @@ test("the blows of a battle are its own (recorded with the fuller severing pass,
   // (The fuller severing pass changes the dead's loose parts; outcomes and wound totals stay pinned above.)
   if (!recorded) return;
   assert.equal(digest(rounded(newBlows(BLADES()))), "5d0553c8");
-  // (GUNS is machine guns against repeaters: past the rifle, so fought by fire since W1b. BLADES is unmoved.)
-  assert.equal(digest(rounded(newBlows(GUNS()))), "181a5f83");
+  // (GUNS is machine guns against repeaters: past the rifle, so fought by fire since W1b, its squads out of true since W1c.
+  // BLADES is unmoved.)
+  assert.equal(digest(rounded(newBlows(GUNS()))), "44d20019");
 });
 
 test("arrows stick where they strike; a cannon's ball and a shell knock men off their feet", () => {
