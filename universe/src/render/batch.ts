@@ -222,6 +222,14 @@ export function coneMesh(stage: Stage, radius: number, height: number, sides: nu
   );
 }
 
+/** A ball of few faces. */
+export function ballMesh(stage: Stage, radius: number, bands = 6): pc.Mesh {
+  return pc.Mesh.fromGeometry(
+    stage.device,
+    new pc.SphereGeometry({ radius, latitudeBands: bands, longitudeBands: bands * 2 }),
+  );
+}
+
 export function cylinderMesh(stage: Stage, radius: number, height: number, sides = 24): pc.Mesh {
   return pc.Mesh.fromGeometry(
     stage.device,

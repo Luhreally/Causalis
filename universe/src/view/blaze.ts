@@ -15,6 +15,7 @@ import {
   thrownDown,
   type TownScene,
 } from "./town.ts";
+import { farBurnsOf } from "./raid.ts";
 
 /**
  * A home struck, as it is now: where (metres from the middle), how fierce (0…1), how big a fire
@@ -52,8 +53,13 @@ const RISE_S = 600,
 
 /** What of a town is alight, smoking and in dust at moment t (none: nothing struck it). */
 export function blazeNow(scene: TownScene | null, t: number): BlazeNow {
-  const span = scene ? strikeSpan(scene) : null;
-  if (!scene || !span || t < span.from - SHAKE_S || t > span.until + FLAMES_S + SMOULDER_S)
+  const span = scene ? strikeSpan(scene) : null,
+    // (What burned past the streets drawn, out in a great city's sprawl.)
+    far = scene?.plan.struck?.some((k) => farBurnsOf(k).length > 0) ?? false;
+  if (
+    !scene ||
+    (!far && (!span || t < span.from - SHAKE_S || t > span.until + FLAMES_S + SMOULDER_S))
+  )
     return NONE;
   const { states, lots, plan } = scene,
     fires: Alight[] = [],
@@ -86,6 +92,27 @@ export function blazeNow(scene: TownScene | null, t: number): BlazeNow {
         smoke.push({ ...at, k: 0.45 * (1 - (since - FLAMES_S) / SMOULDER_S) });
     } else if (since < DUST_S) dust.push({ ...at, k: 1 - since / DUST_S });
   }
+  if (far)
+    for (const strike of plan.struck ?? [])
+      for (const b of farBurnsOf(strike)) {
+        const since = t - b.at;
+        if (since < 0) continue;
+        const at = {
+          lot: -1,
+          x: b.x,
+          z: b.z,
+          yaw: b.yaw,
+          size: SIZE[4]!,
+          high: b.high,
+          wide: b.wide,
+        };
+        if (since < FLAMES_S) {
+          const k = Math.max(0.05, Math.min(1, since / RISE_S, (FLAMES_S - since) / DIE_S));
+          fires.push({ ...at, k });
+          smoke.push({ ...at, k });
+        } else if (since < FLAMES_S + SMOULDER_S)
+          smoke.push({ ...at, k: 0.45 * (1 - (since - FLAMES_S) / SMOULDER_S) });
+      }
   return { fires, smoke, dust, shake };
 }
 
