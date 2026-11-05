@@ -1109,7 +1109,7 @@ type Walked = {
   cleared: number;
 };
 /** An age's living world in the beginning: one of its beasts walked in from its acts, eaten, steered, let go. */
-async function creature(hands: Hands, tag: string) {
+async function creature(hands: Hands, tag: string, tries = 0): Promise<void> {
   const n = (x: string) => `${hands.name}: ${x}`,
     gen = () =>
       k<{
@@ -1259,14 +1259,23 @@ async function creature(hands: Hands, tag: string) {
     !!w && (w.ate > ate0 || w.energy > e0),
     n(`it did not eat (${w?.ate ?? 0} eaten, was ${ate0}; ${w?.energy ?? 0} fed, was ${e0})`),
   );
+  // (What walks among hunters may be taken while it is walked: another is walked in, and the rest asked of it.)
+  const again = async (when: string) => {
+    say(n(`it was taken ${when}: “${(await toldNow()).split(" | ").at(-1)}”; another walked in`));
+    await page.waitForTimeout(slow(600));
+    await creature(hands, tag, tries + 1);
+  };
   // Steered off the way the eye looks.
   const sprint = await centre(`${HUD} .possess-sprint`);
+  if (!sprint && tries < 3 && !(await walked())) return again("as it ate");
   check(!!sprint, n("no Sprint control"));
   if (sprint) await hands.tap(sprint.x, sprint.y);
-  check(
-    (await page.locator(`${HUD} .possess-sprint`).getAttribute("aria-pressed")) === "true",
-    n("Sprint did not engage"),
-  );
+  const engaged = await page
+    .locator(`${HUD} .possess-sprint`)
+    .getAttribute("aria-pressed", { timeout: slow(2000) })
+    .catch(() => null);
+  if (engaged === null && tries < 3 && !(await walked())) return again("as it ran");
+  check(engaged === "true", n("Sprint did not engage"));
   const at0 = w ? { x: w.x, z: w.z } : null;
   let went = 0;
   // A swimmer can face the shore; try the other directions through the real controls.
@@ -1277,6 +1286,7 @@ async function creature(hands: Hands, tag: string) {
     w = await walked();
     went = w ? Math.hypot(w.x - at0.x, w.z - at0.z) : 0;
   }
+  if (!w && tries < 3) return again("as it went");
   say(n(`steered ${went.toFixed(1)} m; ${w?.cleared ?? 0} between the eye and it not drawn`));
   check(went > 1, n(`not steered by the stick (${went.toFixed(1)} m)`));
   await shot(`${tag}-creature-2`);
