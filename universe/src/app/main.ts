@@ -5300,7 +5300,13 @@ async function runPlanetPage(): Promise<void> {
   });
   // A raid played again in its town (W2): that morning, from its first machine to its fires at their height, the world's
   // clock held. At a year a second one is over between two frames, and it falls on three towns a year.
-  let raidPlaying: { t: number; calm: number; to: number; speed: number; words: HTMLElement } | null = null;
+  let raidPlaying: {
+    t: number;
+    calm: number;
+    to: number;
+    speed: number;
+    words: HTMLElement;
+  } | null = null;
   const endRaidFilm = () => {
     if (!raidPlaying) return;
     raidPlaying.words.remove();
