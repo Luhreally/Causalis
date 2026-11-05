@@ -161,7 +161,8 @@ export function townPlan(
     ].sort((a, b) => a - b),
     designs: TownDesign[] = sinces.map((since) => {
       // (A town read of no land of this world, a people's of another: whoever reads it says how they house themselves.)
-      const parts = realized.find((d) => d.since === since)?.parts ?? (land ? houseFor(ctx, cell) : []),
+      const parts =
+          realized.find((d) => d.since === since)?.parts ?? (land ? houseFor(ctx, cell) : []),
         part = (role: string) => parts.find((p) => p.role === role)?.id ?? "",
         roof = part("roof");
       return {
