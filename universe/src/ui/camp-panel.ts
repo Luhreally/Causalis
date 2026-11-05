@@ -13,6 +13,10 @@ export class CampPanel {
   /** What the band keeps (Phase 49 M211): its spears, blades, cord, hides, cloaks, colour. */
   private readonly kept = el("span", "camp-kit");
   private readonly back = el("button", "speed", "‹ The land");
+  /** Where the bar's back button leads, in words. */
+  set backTo(words: string) {
+    this.back.textContent = `‹ ${words}`;
+  }
   private readonly page = el("button", "speed", "⛺ The camp");
   onBack: () => void = () => {};
   /** The camp's page. */
@@ -21,6 +25,7 @@ export class CampPanel {
   constructor(root: HTMLElement) {
     const bar = el("header", "bar");
     this.back.onclick = () => this.onBack();
+    this.back.classList.add("camp-back");
     this.page.onclick = () => this.onPage();
     this.page.title = "The camp's page: who they are, how they live, how far they range";
     this.doing.title = steerWords("flat");

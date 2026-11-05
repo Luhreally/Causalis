@@ -73,6 +73,7 @@ export class VillagePanel {
   private readonly warLine = el("button", "town-war");
   /** Live here (Lives L3): the way into anyone's life in this town. */
   private readonly liveLine = el("button", "town-live", "🏠 Live here");
+  private readonly backLine = el("button", "speed", "‹ The land");
   private warRef: string | null = null;
   private folkOpen = false;
   private cardKey = "";
@@ -95,7 +96,7 @@ export class VillagePanel {
     this.people.onPerson = (ref) => void this.showPerson(ref);
     this.people.onWhy = (ref) => void this.why.show(ref, this.whyBox);
     const bar = el("header", "bar"),
-      back = el("button", "speed", "‹ The land");
+      back = this.backLine;
     back.onclick = () => this.onBack();
     this.storesLine.hidden = true;
     this.storesLine.title = "The town's stores and its work today";
@@ -131,6 +132,12 @@ export class VillagePanel {
 
   set visible(on: boolean) {
     this.element.hidden = !on;
+  }
+
+  /** A people's town on another world (Phase 69): back goes to their world, and it holds no life to take up. */
+  set foreign(on: boolean) {
+    this.backLine.textContent = on ? "‹ Their world" : "‹ The land";
+    this.liveLine.style.display = on ? "none" : "";
   }
 
   /** A town watched: its name; `fresh`, a town come to (else the same read again as the years turn). */

@@ -5,6 +5,7 @@
 import { CLADES } from "../../rules/index.ts";
 import {
   civilizationsNear,
+  folkByRef,
   homePlanet,
   peopleNature,
   peoplesOf,
@@ -16,6 +17,7 @@ import type { Item, PageModel, Stat } from "../../bridge/index.ts";
 import { PEOPLE_COLORS, metName } from "../peoples.ts";
 import { figureBody, starFolk } from "../folk.ts";
 import { claimOf, item, link, many, stat, yearNow } from "./words.ts";
+import { folkBlocks, nativePage } from "./natives.ts";
 import { starSicknessBlocks } from "./sickness.ts";
 import { starLifeBlock } from "../biochem.ts";
 
@@ -62,7 +64,12 @@ export function civilizationPage(world: World, ref: string): PageModel {
   const civs = civilizationsNear(world),
     i = civs.findIndex((x) => x.ref === ref),
     c = civs[i];
-  if (!c) throw new Error(`no people ${ref}`);
+  if (!c) {
+    // (A people history does not follow, risen on its own world: Phase 69.)
+    const risen = folkByRef(world, ref);
+    if (risen) return nativePage(world, risen);
+    throw new Error(`no people ${ref}`);
+  }
   const clade = CLADES.find((x) => x.id === c.clade)?.body,
     words = peopleWords(world, c),
     store = peoplesOf(world),
@@ -179,6 +186,10 @@ export function civilizationPage(world: World, ref: string): PageModel {
               stat("Their star", [link("their star", c.star)]),
             ],
           },
+          ...(() => {
+            const f = folkByRef(world, c.ref);
+            return f ? folkBlocks(world, f) : [];
+          })(),
           { type: "facts", title: "Their nature", rows: natureRows },
           starLifeBlock(world, c),
           { type: "list", title: "On the home world", items: told(landings) },

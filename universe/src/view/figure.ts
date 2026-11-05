@@ -150,6 +150,32 @@ function upright(detail = 0): FigurePart[] {
 }
 
 /** How a people looks, from its body — the upright apes built more finely at a finer `detail` (0 … 3). */
+/** How far out from its middle a figure reaches, at its own scale's 1. */
+function reachOf(f: Figure): number {
+  let reach = 0;
+  for (const p of f.parts) reach = Math.max(reach, Math.hypot(p.x, p.z) + Math.max(p.sx, p.sz) / 2);
+  return reach;
+}
+
+/** How far an upright ape reaches; the most a camp's figure may reach, drawn; and the most a camp's rings can spread on its ground. */
+const UPRIGHT_REACH = 0.13,
+  CAMP_REACH = 0.52,
+  CAMP_SPREAD = 4;
+
+/**
+ * A figure as a band's camp draws it: figures are drawn ten times larger than the ground they stand on, so a great body
+ * is drawn no broader than a camp holds, rather than through its neighbours and over its own tents.
+ */
+export function campFigure(f: Figure): Figure {
+  const reach = reachOf(f);
+  return reach * f.scale <= CAMP_REACH ? f : { ...f, scale: CAMP_REACH / reach };
+}
+
+/** How far apart about their fire a camp's figures are set, against an upright ape's room (1). */
+export function campRoom(f: Figure): number {
+  return Math.min(CAMP_SPREAD, Math.max(1, f.scale, (reachOf(f) * f.scale) / UPRIGHT_REACH));
+}
+
 export function figureOf(b: FigureBody | null, detail = 0): Figure {
   // Scale by the cube root of weight against an upright ape's (clamped for the eye).
   const scale = Math.min(2.4, Math.max(0.6, Math.cbrt((b?.size ?? 60) / 60)));

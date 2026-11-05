@@ -753,6 +753,13 @@ export type CampNear = {
   readonly hour: number;
   /** What they make their things of, and how (Phase 49 M211): from the ground the camp stands on. */
   readonly craft: CampCraft;
+  /** A camp of a people of another world (Phase 69): whose, on which world, under what sky. */
+  readonly native?: {
+    readonly ref: string;
+    readonly star: string;
+    readonly index: number;
+    readonly look: import("./colony.ts").ColonyLook;
+  };
 };
 
 /**

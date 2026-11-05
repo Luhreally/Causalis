@@ -2,6 +2,7 @@
 // cluster or of the galaxy far out, another star's world, and the people that rose on one.
 import { CLADES, makingWords, makingsOf } from "../../rules/index.ts";
 import {
+  folkOf,
   civilizationsNear,
   homePlanet,
   peoplesOf,
@@ -15,6 +16,7 @@ import { Rng, hashString, type World } from "../../kernel/index.ts";
 import { realmColor } from "../colors.ts";
 import type { Item, PageModel, Place, Stat } from "../../bridge/index.ts";
 import { starByRef, starFacts, foreignGlobe } from "../galaxy.ts";
+import { folkBlocks } from "./natives.ts";
 import { civilizationOn, lifeOfBody, lifeOfWorld, sameStar } from "../elsewhere.ts";
 import { elsewhereBlocks } from "./small.ts";
 import { worldLook } from "../biochem.ts";
@@ -401,7 +403,8 @@ export function foreignWorldPage(world: World, ref: string): PageModel {
     s = starByRef(world, star),
     civ = civilizationOn(world, s, index),
     life = lifeOfWorld(world, s, index),
-    p = foreignPlanets(new Rng(world.seed), s)[index]!;
+    p = foreignPlanets(new Rng(world.seed), s)[index]!,
+    risen = folkOf(world, s, index);
   return {
     ref,
     kind: "world",
@@ -437,6 +440,7 @@ export function foreignWorldPage(world: World, ref: string): PageModel {
               stat("Warmth", `${Math.round(p.temperature)} °C`),
               stat("Pull", `${p.gravity.toFixed(2)} g`),
               stat("Life", `${LIFE_WORDS[life.level]}: ${life.because}`),
+              ...(risen && !civ ? [stat("People", [link(`The ${risen.name}`, risen.ref)])] : []),
               ...(w.people && civ
                 ? [
                     stat("People", [link(w.people.name, civ.ref)]),
@@ -445,6 +449,8 @@ export function foreignWorldPage(world: World, ref: string): PageModel {
                 : []),
             ],
           },
+          // (Its own people, at their own stage: Phase 69.)
+          ...(risen ? folkBlocks(world, risen) : []),
         ],
       },
       // What lives there (Phase 18 M132): its bodies sketched, a drop of its water.

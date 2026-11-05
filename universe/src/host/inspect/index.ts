@@ -20,6 +20,7 @@ import { designPage, faithPage, goodPage, languagePage } from "./culture.ts";
 import { agePage, depositPageModel, lineagePage, platePageModel } from "./life.ts";
 import { bodyPage, foreignWorldPage, starPageModel } from "./sky.ts";
 import { civilizationPage } from "./starfolk.ts";
+import { folkOnePage, peoplesPage } from "./natives.ts";
 import { actPage, decisionPage, eventPage, unknownPage } from "./history.ts";
 import { chroniclePage, ledgerPage } from "./world.ts";
 import { statsPage } from "./stats.ts";
@@ -57,6 +58,7 @@ function build(world: World, ref: string, tab: string | null): PageModel {
   if (ref === "world:chronicle") return chroniclePage(world, tab ?? undefined);
   if (ref === "world:ledger") return ledgerPage(world, tab ?? undefined);
   if (ref === "world:log") return logPage(world, tab ?? undefined);
+  if (ref === "world:peoples") return peoplesPage(world);
   if (ref === "world:stats") return statsPage(world, tab ?? undefined);
   if (ref === "world:matter") return matterGuidePage(world, tab ?? undefined);
   // What a world can do, measured, and the age that makes it (Phase 65).
@@ -85,6 +87,8 @@ function build(world: World, ref: string, tab: string | null): PageModel {
   // A ship of a fleet drawn, its fate carried in its ref (Phase 67).
   if (ref.startsWith("ship:")) return shipPage(world, ref);
   if (ref.startsWith("gstar:")) return starPageModel(world, ref);
+  // One of a people's town (Phase 69).
+  if (ref.startsWith("folkone:")) return folkOnePage(world, ref);
   if (ref.includes("/")) return foreignWorldPage(world, ref);
   if (ref.startsWith("agent:")) return agentPage(world, ref);
   // A town's lots, its other buildings, its walls (Phase 25 M151).

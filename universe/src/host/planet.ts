@@ -168,6 +168,7 @@ import { landHeart, villagePlan } from "./village.ts";
 import { withWounds, woundedTowns } from "./wounds.ts";
 import { landPlan } from "./land.ts";
 import { campNear } from "./camp.ts";
+import { NATIVES_QUERIES, folkOfTown, folkTownPlan } from "./natives.ts";
 import { battleNear, battleOutcome } from "./battle.ts";
 import { battleRoll } from "./roll.ts";
 import { armBorne } from "./inspect/arm.ts";
@@ -1271,6 +1272,16 @@ function planetUniverse(name: string, prior: Prior): Universe {
       },
       "village.plan": (world, args) => {
         const a = args as { ref: string; families?: number; folk?: number; figures?: boolean };
+        // (A town of a people of another world, read off it: Phase 69.)
+        const folkHere = folkOfTown(world, a.ref);
+        if (folkHere)
+          return folkTownPlan(
+            world,
+            folkHere,
+            a.families ? Math.max(1, Math.min(16, Math.round(a.families))) : 8,
+            a.folk ? Math.max(0, Math.min(480, Math.round(a.folk))) : 0,
+            (args as { at?: number }).at,
+          );
         // (Their wounds laid over them, their days away with the levy, those a strike killed this
         // year: Phase 55 M226 — read from the record, the world untouched.)
         const drawn = withWounds(
@@ -1431,6 +1442,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
       ...POSSESS_QUERIES,
       ...LIFE_QUERIES,
       ...COLONY_QUERIES,
+      ...NATIVES_QUERIES,
       // The fights among the stars as the record has them (Phase 67).
       ...STARFIGHT_QUERIES,
       // A realm's key figures and every realm's wealth (Lives L1, L2).

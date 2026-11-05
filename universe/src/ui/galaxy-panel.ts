@@ -157,7 +157,7 @@ export class GalaxyPanel {
         const line = el(
           "button",
           "line",
-          `Go to ${String.fromCharCode(98 + i)} — ${w.a.toFixed(2)} AU: ${KIND(w.kind)}, ${w.gravity.toFixed(2)} g, ${Math.round(w.temperature)} °C${w.water === "seas" ? ", seas" : w.water === "ice" ? ", ice" : ""} ›`,
+          `Go to ${String.fromCharCode(98 + i)} — ${w.a.toFixed(2)} AU: ${KIND(w.kind)}, ${w.gravity.toFixed(2)} g, ${Math.round(w.temperature)} °C${w.water === "seas" ? ", seas" : w.water === "ice" ? ", ice" : ""}${w.folk ? `; the ${w.folk.name}, ${w.folk.stage}` : ""} ›`,
         );
         line.onclick = () => this.onVisit(page, i);
         return line;

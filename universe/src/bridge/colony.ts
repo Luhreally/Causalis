@@ -1,6 +1,7 @@
 // A colony as the view reads it (Phase 64): the sky and ground its town stands under, how its ship
 // came there, and the list of them all. Plain data: what is drawn from it is the view's.
-import type { TownPlan } from "./town.ts";
+import type { CampNear, TownPlan } from "./town.ts";
+import type { VillagePlan } from "./village.ts";
 
 /** What a colony's world is like where its halls stand. */
 export type ColonyLook = {
@@ -60,6 +61,66 @@ export type ColonyLook = {
     };
   };
 };
+
+/** A people on its own ground (Phase 69): how far it has come, and what the eye goes down to. */
+export type FolkNear = {
+  readonly ref: string;
+  readonly name: string;
+  readonly star: string;
+  readonly index: number;
+  readonly year: number;
+  readonly stage: string;
+  readonly stageWords: string;
+  /** Its sky and ground. */
+  readonly look: ColonyLook;
+  /** Its camp, where it has no town; its town's ref, where it has (ruins: what stood). */
+  readonly camp: CampNear | null;
+  readonly town: string | null;
+  /** Who came first, and how the two can meet (null: no one has come). */
+  readonly contact: FolkContact | null;
+  /** What their hands carry now. */
+  readonly arms: readonly string[];
+  readonly title: string;
+  /** The year read at, where it is not now: a meeting filmed as it was found. */
+  readonly at?: number;
+};
+
+/** Who came to a people first, and what a meeting of the two can be, read off their numbers. */
+export type FolkContact = {
+  readonly year: number;
+  readonly kind: "home" | "people";
+  readonly who: string;
+  /** The realm that sent a home ship. */
+  readonly sentBy: string | null;
+  /** A home ship's colony (its land). */
+  readonly cell: number | null;
+  readonly event: string | null;
+  readonly foundStage: string;
+  readonly found: string;
+  readonly since: number;
+  readonly reading: {
+    readonly speak: FolkCan;
+    readonly airThere: FolkCan;
+    readonly airHome: FolkCan;
+    readonly foodThere: FolkCan;
+    readonly foodHome: FolkCan;
+    readonly sickness: FolkCan;
+  };
+  readonly color: readonly [number, number, number];
+  readonly figure?: NonNullable<VillagePlan["body"]>;
+};
+export type FolkCan = { readonly can: boolean; readonly words: string };
+
+/** Every people about the stars within reach, and how far each has come. */
+export type FolkList = readonly {
+  readonly ref: string;
+  readonly name: string;
+  readonly star: string;
+  readonly index: number;
+  readonly stage: string;
+  readonly followed: boolean;
+  readonly came: number | null;
+}[];
 
 /** How a colony's ship came there, as history tells it. */
 export type ColonyVoyage = {

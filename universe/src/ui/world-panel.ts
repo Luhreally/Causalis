@@ -23,6 +23,9 @@ export class WorldPanel {
   onBack: () => void = () => {};
   /** A colony on it: its landing played again; down to its ground (Phase 64). */
   onLanding: (cell: number) => void = () => {};
+  /** Down to its own people; their first meeting watched (Phase 69). */
+  onFolk: (star: string, index: number) => void = () => {};
+  onMeeting: (star: string, index: number) => void = () => {};
   onDown: (cell: number) => void = () => {};
 
   constructor(root: HTMLElement) {
@@ -77,6 +80,30 @@ export class WorldPanel {
       el("h3", undefined, "Why is it like this?"),
       ...b.because.map((w) => el("div", "fact", w)),
     );
+  }
+
+  /** Its own people, where it has them: how far they have come, the way down, the first who came (Phase 69). */
+  private folkRows(star: StarPage, index: number): HTMLElement[] {
+    const f = star.worlds[index]?.folk;
+    if (!f) return [];
+    const acts = el("div", "colony-row-acts"),
+      down = el("button", "colony-down folk-down", "⬇ Go down to them");
+    down.onclick = () => this.onFolk(f.star, index);
+    if (f.came !== null) {
+      const watch = el("button", "colony-watch folk-meeting", "▶ The first meeting");
+      watch.onclick = () => this.onMeeting(f.star, index);
+      acts.append(watch);
+    }
+    acts.append(down);
+    return [
+      el("h3", undefined, "Its own people"),
+      el(
+        "div",
+        "fact",
+        `The ${f.name}: ${f.stage}. ${f.came !== null ? `A ship first came to them in year ${f.came}.` : "No ship has come to them."}`,
+      ),
+      acts,
+    ];
   }
 
   /** One of its halls: how many, since when, and a tap from its landing and its ground (Phase 64). */
@@ -137,6 +164,7 @@ export class WorldPanel {
           ? `${done} in year ${y} of our chronicle`
           : `${what} in year ${y} of our chronicle`;
     this.more.replaceChildren(
+      ...this.folkRows(star, index),
       ...(world.living
         ? [
             el("h3", undefined, "Life"),

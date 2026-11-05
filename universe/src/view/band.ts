@@ -584,9 +584,9 @@ function craftSpot(
       face: f,
     };
   }
-  // (About the work ground, each at their own place on a ring about it.)
+  // (About the work ground, each at their own place on rings about it: drawn large, a band's giants would stand in one another.)
   const a = p.seat * 5 + p.id * 0.9,
-    r = 1.7 * b.spread;
+    r = (1.7 + (p.id % 3) * 1.1) * b.spread;
   return { x: b.work.x + Math.sin(a) * r, z: b.work.z + Math.cos(a) * r, face: b.work };
 }
 

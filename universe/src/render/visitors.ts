@@ -153,11 +153,12 @@ export class VisitorsLayer {
         hover = raid ? 4.6 * size + 3.3 : landed ? 0.58 * size : 2.1 * size,
         ship = this.saucer(v.color, size, landed, raid);
       ship.setLocalPosition(x * M, hover, z * M);
+      ship.enabled = !v.shipless;
       this.root.addChild(ship);
       // A faint beam to the ground as they come down (and as the omen was seen); lights
       // chasing about the ground where they set down, or came down.
       let beam: pc.Entity | null = null;
-      if (v.why === "landing" || v.why === "omen") {
+      if ((v.why === "landing" || v.why === "omen") && !v.shipless) {
         beam = new pc.Entity("visitor beam");
         beam.addComponent("render", {
           meshInstances: [new pc.MeshInstance(this.cone, lightMaterial(v.color, 0.07))],
@@ -168,9 +169,10 @@ export class VisitorsLayer {
         beam.setLocalScale(size * 0.9, hover, size * 0.9);
         this.root.addChild(beam);
       }
-      const lights = raid
-        ? null
-        : new InstancedBatch(this.stage, this.dome, v.color, LIGHTS, this.root, glowing(v.color));
+      const lights =
+        raid || v.shipless
+          ? null
+          : new InstancedBatch(this.stage, this.dome, v.color, LIGHTS, this.root, glowing(v.color));
       // Their people, in their own colours a little aglow (as things from the stars are).
       const figure = figureOf(v.body, detail),
         [r, g, b] = v.color,
@@ -205,6 +207,14 @@ export class VisitorsLayer {
             : [];
       this.groups.push({ v, ship, beam, lights, figure, batches, x, z, hover, size });
     });
+  }
+
+  /** Where the first of them came down (scene units; null: none). */
+  spot(): { readonly x: number; readonly z: number } | null {
+    const g = this.groups[0];
+    if (!g) return null;
+    const o = this.root.getLocalPosition();
+    return { x: o.x + g.x * M, z: o.z + g.z * M };
   }
 
   /** A saucer: a disc hull, a dome, a ring of lights in its people's colour; legs if set down. */

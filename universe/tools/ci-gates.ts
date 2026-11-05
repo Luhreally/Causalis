@@ -292,6 +292,8 @@ export const GATES: readonly Gate[] = [
   // Gate 75, rockets (tools/w3-gate.ts): a town far from any front struck out of a clear sky, a streak, a flash, lots burning; arcs on
   // its land and on the globe, each looked for in the pixels; its works stopped; its pages.
   { gate: 75, args: ["--ci"], s: 420 },
+  // Gate 77, peoples who really arose (tools/p69-gate.ts): a people at its own stage, on its own ground, a first meeting played and told.
+  { gate: 77, args: ["--ci"], s: 240 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */

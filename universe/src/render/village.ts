@@ -14,6 +14,7 @@ import {
   type ColonyLook,
   type TradeGood,
   type VillagePlan,
+  type Visitor,
 } from "../bridge/index.ts";
 import {
   ACTIVITY,
@@ -3287,6 +3288,15 @@ export class VillageScene {
   /** Each group's name over its ship, where it is on the screen. */
   visitorsOnScreen(): ReturnType<VisitorsLayer["onScreen"]> {
     return this.visitors.onScreen();
+  }
+  /** Those who came to a people's town, a film's while (Phase 69): laid about it, or gone. */
+  comers(v: Visitor | null): void {
+    const plan = this.plan;
+    if (plan) this.visitors.build({ ...plan, visitors: v ? [v] : [] }, this.stage.quality.detail);
+  }
+  /** Where they came down (scene units). */
+  comersSpot(): { readonly x: number; readonly z: number } | null {
+    return this.visitors.spot();
   }
   /** The eye's yaw that faces the visitors across the village, or null with none. */
   visitorsFacing(): number | null {

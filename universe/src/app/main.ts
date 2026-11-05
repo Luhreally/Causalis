@@ -6,7 +6,7 @@ import "./styles.css";
 import "./y2k.css";
 import "./brushes.css";
 import { Checkpoint } from "./checkpoint.ts";
-import { HostClient, inlinePair, workerPort } from "../bridge/index.ts";
+import { HostClient, LOT, inlinePair, lotStates, progress, workerPort } from "../bridge/index.ts";
 import {
   FreeRig,
   GlobeActs,
@@ -101,6 +101,7 @@ import type {
   BeastPlan,
   CampCraft,
   CampNear,
+  FolkNear,
   BattleNear,
   Campaign,
   WarAge,
@@ -177,6 +178,8 @@ import {
   bandKitWords,
   bandPersonWords,
   bandWords,
+  campFigure,
+  campRoom,
   figureOf,
   figurePaint,
   folkLook,
@@ -316,6 +319,8 @@ import { installPossession } from "./possess.ts";
 import { installLeaders } from "./leaders.ts";
 import { installLife } from "./life.ts";
 import { installColonyFilm, type ColonyFilm } from "./colony-film.ts";
+import { installContactFilm, type ContactFilm } from "./contact-film.ts";
+import { VisitorsLayer } from "../render/index.ts";
 import { installFleetFilm, type FleetFilm } from "./fleet-film.ts";
 // (Anyone's family and body on their card, a war's soldiers named from its roll: Phase 55 wave 5.)
 import { kinLines } from "../ui/index.ts";
@@ -825,10 +830,14 @@ type Exposed = {
   /** How many halls stand on the world seen whole (M95: halls from orbit). */
   hallsShown?: () => number;
   colonyFilm?: ColonyFilm;
+  contactFilm?: ContactFilm;
+  toFolk?: (star: string, index: number, at?: number) => Promise<FolkNear | null>;
   fleetFilm?: FleetFilm;
   /** A page opened by its ref (the look tools). */
   pageWindowOpen?: (ref: string) => void;
   planNow?: () => VillagePlan | null;
+  /** What the lots of the town drawn are now (the look tools): fallen, homes standing whole, all. */
+  townLots?: () => { fallen: number; homes: number; lots: number } | null;
   closePage?: () => void;
   watched?: () => number | null;
   reloadPlan?: () => Promise<void>;
@@ -3691,11 +3700,12 @@ async function runPlanetPage(): Promise<void> {
   };
   let homeLands = 0;
   /** A colony's town, by its ref (they are numbered apart: host/colony.ts). */
-  const colonyRef = (ref: string) => ref.startsWith("town:1:");
+  const colonyRef = (ref: string) => ref.startsWith("town:1:") || Number(ref.split(":")[1]) >= 1000;
   /** Whether the scale shown stands on a colony's ground. */
   const onColony = () =>
     (scale === "region" && isColonyLand(regionCell)) ||
-    (scale === "village" && !!plan && colonyRef(plan.ref));
+    (scale === "village" && !!plan && colonyRef(plan.ref)) ||
+    (scale === "camp" && !!near?.info.native);
   /** A land's sky over it, once it is known. */
   const colonySkyOver = async (cell: number) => {
     const c = await client.query<{ look: ColonyLook | null; voyage: ColonyVoyage | null }>({
@@ -3742,6 +3752,49 @@ async function runPlanetPage(): Promise<void> {
     regionCell = cell;
     await toVillage(ref);
   };
+  /** A people's own world seen whole, from anywhere (Phase 69). */
+  const toFolkWorld = async (star: string, index: number) => {
+    allAway();
+    regionCell = -1;
+    folkFilmedAt = null;
+    stage.colonySky(null);
+    client.setInterest({ view: "globe", focus: null });
+    stage.backdrop("space");
+    const page = await client.query<StarPage>({ type: "galaxy.star", args: { ref: star } });
+    skyStar = page;
+    await toForeignWorld(page, index, "star");
+  };
+  /** Down to a people on its own world: its camp, or its town (ruins: what stood); read at a year, or now. */
+  const toFolk = async (star: string, index: number, at?: number) => {
+    const info = await client.query<FolkNear | null>({
+      type: "folk.near",
+      args: { star, index, ...(at !== undefined ? { at } : {}) },
+    });
+    if (!info) return null;
+    allAway();
+    regionCell = -1;
+    folkFilmedAt = at ?? null;
+    if (info.camp) await toCamp(-1, 0, info.camp);
+    else await toVillage(info.town!);
+    return info;
+  };
+  exposed.toFolk = toFolk;
+  /** Those who came, on a people's ground, a film's while. */
+  let campComers: VisitorsLayer | null = null;
+  const goDownToFolk = (star: string, index: number) => {
+    pageWindow.close();
+    void fadeOver(() => ready("their ground", () => toFolk(star, index).then(() => {}), true));
+  };
+  worldPanel.onFolk = goDownToFolk;
+  pageWindow.onFolk = goDownToFolk;
+  const playMeeting = (star: string, index: number) => {
+    pageWindow.close();
+    void contactFilm?.play(star, index);
+  };
+  worldPanel.onMeeting = playMeeting;
+  pageWindow.onMeeting = playMeeting;
+  /** A first meeting watched (Phase 69). */
+  let contactFilm: ContactFilm | null = null;
   /** A colony's world seen whole, from anywhere. */
   const toWorldOfColony = async (c: ColonyEntry) => {
     allAway();
@@ -3826,6 +3879,19 @@ async function runPlanetPage(): Promise<void> {
     );
   };
   exposed.planNow = () => plan;
+  exposed.townLots = () => {
+    const t = plan?.town;
+    if (!t) return null;
+    const s = lotStates(t),
+      at = now();
+    let fallen = 0,
+      homes = 0;
+    for (let p = 0; p < t.lots; p++) {
+      if (s.what[p] === LOT.fallen || s.what[p] === LOT.razed) fallen++;
+      else if (s.what[p] === LOT.home && progress(s.began[p]!, s.takes[p]!, at) >= 1) homes++;
+    }
+    return { fallen, homes, lots: t.lots };
+  };
   exposed.closePage = () => pageWindow.close();
   exposed.watched = () => watched;
   exposed.reloadPlan = () => (plan ? loadPlan(plan.ref) : Promise.resolve());
@@ -4120,6 +4186,7 @@ async function runPlanetPage(): Promise<void> {
     void toCluster();
   };
   clusterPanel.onGalaxy = () => void toGalaxy();
+  clusterPanel.onPeoples = () => void pageWindow.open("world:peoples");
   clusterPanel.onVisit = (star, i) => void toForeignWorld(star, i, "cluster");
   // One zoom (M88): pushing on past a scale's nearest or farthest view goes through to the
   // next — out from a village to its land, the world, its sky, the stars about it and the
@@ -4965,6 +5032,8 @@ async function runPlanetPage(): Promise<void> {
   stage.onUpdate(() => {
     rig.spires = spires && scale === "village";
   });
+  /** The year a people's town is read at while a meeting is filmed (Phase 69; null: now). */
+  let folkFilmedAt: number | null = null;
   const loadPlan = async (ref: string) => {
     // Asked once a year: the year is marked before the answer comes.
     planYear = Math.floor(clock.t / YEAR);
@@ -4973,7 +5042,13 @@ async function runPlanetPage(): Promise<void> {
     const q0 = performance.now();
     plan = await client.query<VillagePlan>({
       type: "village.plan",
-      args: { ref, families: stage.quality.families, folk: stage.quality.crowdCap, figures: true },
+      args: {
+        ref,
+        families: stage.quality.families,
+        folk: stage.quality.crowdCap,
+        figures: true,
+        ...(folkFilmedAt !== null ? { at: folkFilmedAt } : {}),
+      },
     });
     spires = !!plan.town && hasSpires(plan.town);
     performance.measure("village.plan", { start: q0 });
@@ -4981,6 +5056,7 @@ async function runPlanetPage(): Promise<void> {
     village.build(plan, now());
     performance.measure("village.build", { start: t0 });
     villagePanel.show(plan.name, fresh);
+    villagePanel.foreign = !!plan.native;
     storesTold = null;
     villagePanel.hand = plan.hand;
     villagePanel.works = {
@@ -5766,15 +5842,18 @@ async function runPlanetPage(): Promise<void> {
           ? `${p.role ?? p.trade.kind}, ${p.trade.years} years at the ${p.trade.kind === "smith" ? "anvil" : p.trade.kind === "potter" ? "wheel" : "loom"}`
           : (p.role ?? null),
         village.workToday(i),
-        // (Inspired or blessed where they are met, Phase 54: the hand laid on the town from them.)
-        {
-          town: plan.ref,
-          name: p.name,
-          age: p.age,
-          occupation: p.occupation,
-          ...(p.sex !== undefined ? { sex: p.sex } : {}),
-          done: (agent) => void touched(agent),
-        },
+        // (Inspired or blessed where they are met, Phase 54: the hand laid on the town from them. A
+        // people of another world's has no land under the hand: Phase 69.)
+        plan.native
+          ? undefined
+          : {
+              town: plan.ref,
+              name: p.name,
+              age: p.age,
+              occupation: p.occupation,
+              ...(p.sex !== undefined ? { sex: p.sex } : {}),
+              done: (agent) => void touched(agent),
+            },
         // (The healer's page is their seat's: Phase 55 M229; a maker's, theirs: wave 5.)
         p.healer
           ? `heal:${plan.ref}`
@@ -5785,6 +5864,7 @@ async function runPlanetPage(): Promise<void> {
         woundLines(p, now()),
       );
       // (Their family and body: Phase 55 wave 5.)
+      if (plan.native) return;
       void kinOnCard(
         p.healer
           ? `heal:${plan.ref}`
@@ -5903,8 +5983,9 @@ async function runPlanetPage(): Promise<void> {
       mz = b.going ? z / n : (b.camp.z * 2 + z / n) / 3;
     return { x: mx * 0.1, y: 0.2, z: mz * 0.1 };
   };
-  const toCamp = async (cell: number, id: number) => {
-    const info = await client.query<CampNear | null>({ type: "camp.near", args: { cell, id } });
+  const toCamp = async (cell: number, id: number, given?: CampNear) => {
+    const info =
+      given ?? (await client.query<CampNear | null>({ type: "camp.near", args: { cell, id } }));
     if (!info) return;
     leaveScale();
     scale = "camp";
@@ -5921,7 +6002,10 @@ async function runPlanetPage(): Promise<void> {
     region.visible = false;
     regionPanel.visible = false;
     regionCell = cell;
-    client.setInterest({ view: "region", focus: `cell:0:${cell}` });
+    // (A people of another world has no land of ours under it: Phase 69.)
+    client.setInterest(
+      info.native ? { view: "globe", focus: null } : { view: "region", focus: `cell:0:${cell}` },
+    );
     meadowScene.reset();
     // (A land of now: green, its woods standing.)
     const meadow = newMeadow(info.plan, 0, info.plan.seed, true);
@@ -5929,7 +6013,8 @@ async function runPlanetPage(): Promise<void> {
     for (const k of meadow.kinds) if (info.flocks.includes(k.lineage)) k.tame = true;
     // (As far apart about their fire as their figures are drawn large; their things made of the
     // ground their camp stands on, Phase 49 M211.)
-    const drawn = figureOf(info.figure, detail),
+    const drawn = campFigure(figureOf(info.figure, detail)),
+      room = campRoom(drawn),
       band = newBand(
         meadow,
         info.size,
@@ -5937,7 +6022,7 @@ async function runPlanetPage(): Promise<void> {
         info.plan.seed,
         info.hour,
         info.names,
-        drawn.scale,
+        room,
         info.craft,
       );
     bandLayer!.people(drawn, info.figure);
@@ -5957,13 +6042,19 @@ async function runPlanetPage(): Promise<void> {
     meadowScene.visible = true;
     bandLayer!.root.enabled = true;
     stage.backdrop("ground", 40);
-    campPanel.show(`${campWords(info.camp)} · ${info.land}`);
+    if (info.native) stage.colonySky(colonySky(info.native.look));
+    campPanel.backTo = info.native ? "Their world" : "The land";
+    campPanel.show(
+      info.native ? `The ${info.people} · ${info.land}` : `${campWords(info.camp)} · ${info.land}`,
+    );
     campPanel.visible = true;
     time.at("camp", campPanel.timeSlot);
+    // (A great people's camp is seen from as much further off as they stand taller: Phase 69.)
+    const campFar = Math.max(7, 3.4 * room);
     rig.configure({
-      distance: 7,
+      distance: campFar,
       minDistance: 2,
-      maxDistance: 30,
+      maxDistance: Math.max(30, campFar * 1.6),
       pitch: -26,
       minPitch: -85,
       maxPitch: -8,
@@ -5984,6 +6075,11 @@ async function runPlanetPage(): Promise<void> {
   const leaveCamp = async () => {
     const was = near?.info;
     if (!was) return;
+    if (was.native) {
+      const { star, index } = was.native;
+      await fadeOver(() => ready("that world", () => toFolkWorld(star, index)));
+      return;
+    }
     await fadeOver(() =>
       ready("the land", () => {
         leaveScale();
@@ -5997,7 +6093,8 @@ async function runPlanetPage(): Promise<void> {
   };
   campPanel.onBack = () => void leaveCamp();
   campPanel.onPage = () => {
-    if (near) void pageWindow.open(`camp:${near.info.cell}:${near.info.camp.id}`);
+    if (near)
+      void pageWindow.open(near.info.native?.ref ?? `camp:${near.info.cell}:${near.info.camp.id}`);
   };
   /** The one of the band nearest a point of the screen, within a finger's reach (their id). */
   const bandPersonAt = (x: number, y: number): number | null => {
@@ -6020,7 +6117,9 @@ async function runPlanetPage(): Promise<void> {
     const beast = meadowScene.pick(near.meadow, x, y),
       kind = beast === null ? undefined : near.meadow.beasts.find((b) => b.id === beast)?.kind;
     if (kind !== undefined) return near.meadow.kinds[kind]?.ref ?? null;
-    return bandPersonAt(x, y) === null ? null : `camp:${near.info.cell}:${near.info.camp.id}`;
+    return bandPersonAt(x, y) === null
+      ? null
+      : (near.info.native?.ref ?? `camp:${near.info.cell}:${near.info.camp.id}`);
   };
   /** The eye kept on one of the band as they go about their day (Phase 29 M161), or on the band (null). */
   const followPerson = (id: number | null) => {
@@ -6047,7 +6146,9 @@ async function runPlanetPage(): Promise<void> {
     const who = bandPersonAt(x, y);
     if (who !== null) {
       if (who === near.followed)
-        void pageWindow.open(`camp:${near.info.cell}:${near.info.camp.id}`);
+        void pageWindow.open(
+          near.info.native?.ref ?? `camp:${near.info.cell}:${near.info.camp.id}`,
+        );
       else followPerson(who);
       return;
     }
@@ -6077,7 +6178,8 @@ async function runPlanetPage(): Promise<void> {
     // would leave their day behind it).
     const hour = ((t % DAY) / DAY) * 24,
       off = Math.abs(bandHour(near.band) - hour);
-    if (Math.min(off, 24 - off) > 0.5) {
+    // (While a first meeting is filmed, its own hour: Phase 69.)
+    if (Math.min(off, 24 - off) > 0.5 && !contactFilm?.playing) {
       near.band.clock = (hour / 24) * BAND_DAY;
       // (Set on past midnight, a new day of theirs, as the world's: they are counted together.)
       near.band.day = Math.max(near.band.day, Math.floor(t / DAY) - near.day0);
@@ -6087,6 +6189,7 @@ async function runPlanetPage(): Promise<void> {
     near.band.news.length = 0;
     meadowScene.update(near.meadow, near.bodies);
     bandLayer.update(near.band, near.time, near.meadow);
+    campComers?.update(performance.now() / 1000);
     stage.daylight(bandHour(near.band) / 24);
     // Their names over them, once the eye is near enough to tell one from another; the one
     // followed, from any way off.
@@ -7700,9 +7803,11 @@ async function runPlanetPage(): Promise<void> {
       : null;
   villagePanel.onClose = () => selectPerson(null);
   villagePanel.onBack = () => {
+    const native = plan?.native;
     village.visible = false;
     villagePanel.visible = false;
     plan = null;
+    if (native) return void toFolkWorld(native.star, native.index);
     toRegion(regionCell);
   };
   stage.onUpdate(() => {
@@ -7741,7 +7846,8 @@ async function runPlanetPage(): Promise<void> {
       !time.lapse,
     );
     // The town's stores and its work today (Phase 39 M198), as they are told.
-    const told = village.storesShown();
+    // (No stores are told of a people's town on another world: history keeps none.)
+    const told = plan?.native ? null : village.storesShown();
     if (told !== storesTold) villagePanel.storesNow((storesTold = told));
     if (watched !== null) {
       villagePanel.moment(
@@ -8590,6 +8696,43 @@ async function runPlanetPage(): Promise<void> {
   };
   if (params.has("past") && !loaded) void firstPast();
   exposed.colonyFilm = colonyFilm;
+  contactFilm = installContactFilm({
+    stage,
+    hud,
+    client,
+    time,
+    rig,
+    world: worldScene,
+    toWorld: toFolkWorld,
+    toGround: toFolk,
+    comers: (v) => {
+      if (scale === "camp" && near && meadowScene) {
+        campComers ??= new VisitorsLayer(stage, meadowScene.root);
+        campComers.root.setLocalPosition(near.band.camp.x * 0.1, 0, near.band.camp.z * 0.1);
+        campComers.build(
+          {
+            visitors: v ? [v] : [],
+            homes: [],
+            fields: [],
+            districts: null,
+          } as unknown as VillagePlan,
+          stage.quality.detail,
+        );
+      } else if (scale === "village") village.comers(v);
+    },
+    comersSpot: () =>
+      scale === "camp"
+        ? (campComers?.spot() ??
+          (near ? { x: near.band.camp.x * 0.1 + 6, z: near.band.camp.z * 0.1 } : null))
+        : village.comersSpot(),
+    cut: (what, work) => fadeOver(() => ready(what, work, true)),
+    toOrbit: () => {
+      setRoam("orbit");
+      endWar();
+      endWarAge();
+    },
+  });
+  exposed.contactFilm = contactFilm;
   // A fight among the stars watched (Phase 67, asked for 2026-11-03: "i wanna see the star wars and
   // landing in planets and colonization and all that stuff"), and the list of them under the ⚔️.
   fleetFilm = installFleetFilm({

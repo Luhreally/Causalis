@@ -27,6 +27,8 @@ export class ClusterPanel {
   onSelect: (index: number | null) => void = () => {};
   /** Out to the whole galaxy (M80), and down to a star's world, seen whole (M81). */
   onGalaxy: () => void = () => {};
+  /** Every people about these stars, how far each has come (Phase 69). */
+  onPeoples: () => void = () => {};
   onVisit: (star: StarPage, index: number) => void = () => {};
 
   constructor(root: HTMLElement, client: HostClient) {
@@ -82,11 +84,14 @@ export class ClusterPanel {
 
   /** The peoples of other stars (Phase 18 M134): each in its colour, what it holds, whom it met and how. */
   private peoplesList(plan: ClusterPlan): HTMLElement[] {
+    const all = el("button", "line people-all", "👥 Every people about these stars");
+    all.onclick = () => this.onPeoples();
     const p = this.sky.peoples;
-    if (!p) return [];
+    if (!p) return [all];
     const risen = p.civs.filter((c) => c.holds.length || p.meetings.some((m) => m.civ === c.ref));
-    if (!risen.length) return [];
+    if (!risen.length) return [all];
     return [
+      all,
       el("h3", undefined, "Peoples among the stars"),
       ...risen.map((c) => {
         const met = p.meetings.filter((m) => m.civ === c.ref || m.other === c.ref),
@@ -257,7 +262,7 @@ export class ClusterPanel {
         const line = el(
           "button",
           "line",
-          `Go to ${String.fromCharCode(98 + i)} — ${w.a.toFixed(2)} AU: ${w.kind === "rocky" ? "a world of rock" : w.kind === "giant" ? "a gas giant" : "an ice giant"}, ${w.gravity.toFixed(2)} g, ${Math.round(w.temperature)} °C, ${w.air === "none" ? "airless" : `${w.air} air`}${w.water === "seas" ? ", seas" : w.water === "ice" ? ", ice" : ""} ›`,
+          `Go to ${String.fromCharCode(98 + i)} — ${w.a.toFixed(2)} AU: ${w.kind === "rocky" ? "a world of rock" : w.kind === "giant" ? "a gas giant" : "an ice giant"}, ${w.gravity.toFixed(2)} g, ${Math.round(w.temperature)} °C, ${w.air === "none" ? "airless" : `${w.air} air`}${w.water === "seas" ? ", seas" : w.water === "ice" ? ", ice" : ""}${w.folk ? `; the ${w.folk.name}, ${w.folk.stage}` : ""} ›`,
         );
         line.onclick = () => this.onVisit(page, i);
         return line;

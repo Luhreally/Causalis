@@ -134,6 +134,9 @@ export class PageWindow {
   onRaid: ((event: string) => void) | null = null;
   /** Down among a band of a land's camp (Phase 29 M160). */
   onNear: ((cell: number, camp: number) => void) | null = null;
+  /** Down to a people on its own world; their first meeting (Phase 69). */
+  onFolk: ((star: string, index: number) => void) | null = null;
+  onMeeting: ((star: string, index: number) => void) | null = null;
   /** A battle watched fought (Phase 37 M186). */
   onBattle: ((event: string) => void) | null = null;
   /** A war watched unfolding on the globe (Phase 38 M193). */
@@ -881,6 +884,8 @@ export class PageWindow {
           ...(this.onStarFight ? { starFight: this.onStarFight } : {}),
           ...(this.onRaid ? { raid: this.onRaid } : {}),
           ...(this.onNear ? { near: this.onNear } : {}),
+          ...(this.onFolk ? { folk: this.onFolk } : {}),
+          ...(this.onMeeting ? { meeting: this.onMeeting } : {}),
           ...(this.onBattle ? { battle: this.onBattle } : {}),
           ...(this.onWar ? { war: this.onWar } : {}),
           ...(this.onWars ? { wars: this.onWars } : {}),

@@ -748,6 +748,8 @@ export {
 } from "./creature.ts";
 export {
   FIGURE_CAPSULE,
+  campFigure,
+  campRoom,
   figureOf,
   paceOf,
   partExtent,

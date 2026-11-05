@@ -17,6 +17,7 @@ import {
   otherWorld,
   refineRegion,
   regionRef,
+  type GalaxyStar,
   type HomeWorld,
   type OtherWorld,
   type ProvinceWorld,
@@ -150,6 +151,25 @@ export function siteGround(world: World, cell: number): SiteGround | null {
       site.site % 3,
     );
   }
+  GROUNDS.set(key, made);
+  return made;
+}
+
+/** The ground of a star's world where no one has come, for its own people to stand on (Phase 69). */
+export function folkGround(world: World, star: GalaxyStar, index: number): SiteGround | null {
+  const g = homePlanet(world).generated,
+    key = `${g.digest} folk ${star.sector}:${star.k} ${index}`,
+    known = GROUNDS.get(key);
+  if (known) return known;
+  const p = foreignPlanets(new Rng(world.seed), star)[index];
+  if (!p) return null;
+  const body = foreignBody(star, p, index),
+    made = groundOf(
+      key,
+      { body, star: light(star), au: p.a, parent: null, moons: [] },
+      () => otherWorld(body, star, p.a, g.digest),
+      0,
+    );
   GROUNDS.set(key, made);
   return made;
 }

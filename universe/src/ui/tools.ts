@@ -24,6 +24,9 @@ export type ToolContext = {
   readonly raid?: (event: string) => void;
   /** Go down among a band of a land's camp (Phase 29 M160). */
   readonly near?: (cell: number, camp: number) => void;
+  /** Down to a people on its own world; their first meeting (Phase 69). */
+  readonly folk?: (star: string, index: number) => void;
+  readonly meeting?: (star: string, index: number) => void;
   /** Watch a battle fought (Phase 37 M186). */
   readonly battle?: (event: string) => void;
   /** Watch a war unfold on the globe (Phase 38 M193). */
@@ -233,6 +236,24 @@ export function drawTool(
         ? "Down to the town they fell on, that afternoon: their streaks, what they hit, its fires, played again"
         : "Down to the town it fell on, that morning: its machines, its loads, its fires, played again";
       b.onclick = () => ctx.raid!(args.event as string);
+      into.append(b);
+      return;
+    }
+    case "watch.folk": {
+      if (!ctx.folk) return;
+      const b = el("button", "act", (args.label as string | undefined) ?? "⬇ Go down to them");
+      b.title =
+        "Down to their own ground: their camp or town, as they are now, under their own sky.";
+      b.onclick = () => ctx.folk!(args.star as string, args.index as number);
+      into.append(b);
+      return;
+    }
+    case "watch.meeting": {
+      if (!ctx.meeting) return;
+      const b = el("button", "act", "▶ Watch the first meeting");
+      b.title =
+        "The ship history sent, over their world and down beside them, and what the two can say, breathe, eat and catch.";
+      b.onclick = () => ctx.meeting!(args.star as string, args.index as number);
       into.append(b);
       return;
     }

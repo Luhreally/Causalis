@@ -1,0 +1,57 @@
+/* The first meeting's card (Phase 69): on a phone, across the foot of the screen, its own rows scrolling. */
+.contact-card {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 14px;
+  max-height: 46vh;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: rgba(10, 12, 20, 0.92);
+  border: 1px solid rgba(190, 205, 235, 0.5);
+  color: #eef2fa;
+  font-size: 13px;
+  line-height: 1.32;
+  pointer-events: auto;
+}
+.contact-card[hidden] {
+  display: none;
+}
+.contact-card h3 {
+  margin: 0;
+  font-size: 14px;
+}
+.contact-rows {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-height: 0;
+}
+.contact-row b {
+  display: block;
+  font-size: 12px;
+  color: #ffd98a;
+}
+.contact-row.no b {
+  color: #ff9f8a;
+}
+.contact-go {
+  align-self: flex-end;
+  min-height: 40px;
+  padding: 0 16px;
+  background: #33507e;
+  color: #fff;
+  border: 1px solid #8ea8d6;
+  font-size: 14px;
+}
+@media (min-width: 720px) {
+  .contact-card {
+    left: 50%;
+    right: auto;
+    width: 560px;
+    transform: translateX(-50%);
+  }
+}

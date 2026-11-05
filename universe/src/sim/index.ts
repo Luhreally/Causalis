@@ -544,7 +544,7 @@ export {
 } from "./space/late.ts";
 export { LateStore, lateOf, remakeKey, type Mirrors, type Remaking } from "./space/late-store.ts";
 export { StarSiteStore, lightSteps, starSitesOf, type StarSite } from "./space/stars.ts";
-export { siteGround, siteRegion, type SiteGround } from "./space/ground.ts";
+export { folkGround, siteGround, siteRegion, type SiteGround } from "./space/ground.ts";
 export {
   ABOARD,
   STARSHIP_MACHINES,
@@ -625,6 +625,28 @@ export {
   type GreatAct,
 } from "./acts/great.ts";
 export { SUMMON_EVENTS, calledPeople, installSummon } from "./space/summon.ts";
+export {
+  STAGE_WORDS,
+  arrivalsAt,
+  contactBetween,
+  folkArms,
+  folkByRef,
+  folkOf,
+  folkPeak,
+  folkPeople,
+  folkPlacePeople,
+  folkStage,
+  folksNear,
+  hasTown,
+  homeParty,
+  partyOf,
+  pastLadder,
+  type Arrival,
+  type ContactReading,
+  type Folk,
+  type FolkStage,
+  type Party,
+} from "./space/natives.ts";
 export {
   CREDIT,
   CREDIT_ACTS,

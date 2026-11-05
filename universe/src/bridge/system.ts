@@ -218,5 +218,13 @@ export type StarPage = ClusterStar & {
     readonly pressure: number;
     readonly air: string;
     readonly water: string;
+    /** Its own people, and how far they have come (Phase 69; absent: none rose there). */
+    readonly folk?: {
+      readonly ref: string;
+      readonly star: string;
+      readonly name: string;
+      readonly stage: string;
+      readonly came: number | null;
+    };
   }[];
 };

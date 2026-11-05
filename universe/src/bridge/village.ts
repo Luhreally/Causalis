@@ -457,6 +457,13 @@ export type VillagePlan = {
    * few of them among the people in their own bodies, in their own colour.
    */
   readonly visitors?: readonly Visitor[];
+  /** A town of a people of another world (Phase 69): whose, on which world, how far they have come. */
+  readonly native?: {
+    readonly ref: string;
+    readonly star: string;
+    readonly index: number;
+    readonly stage: string;
+  };
   /** Their body, as the figure needs it (null: upright apes, as ever). */
   readonly body: {
     readonly clade: string;
@@ -526,4 +533,6 @@ export type Visitor = {
   /** How they came, and how the land met them ("wonder", "fear", "trade", "war"), if they met. */
   readonly theirs: string | null;
   readonly ours: string | null;
+  /** Their people about, and no saucer: a film brings their own ship down (Phase 69). */
+  readonly shipless?: true;
 };

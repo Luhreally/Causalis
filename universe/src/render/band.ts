@@ -316,13 +316,15 @@ export class BandLayer {
       hour = bandHour(b),
       night = hour >= 19.5 || hour < 6.5 ? 1 : hour >= 18 || hour < 7.5 ? 0.5 : 0;
     this.shelters.set(b.shelters.length, (j, out) => {
-      const h = b.shelters[j]!;
+      // (A big body's are made to its measure.)
+      const h = b.shelters[j]!,
+        big = Math.max(1, fig.f.scale * 0.8);
       out[0] = h.x * M;
-      out[1] = 0.4;
+      out[1] = 0.4 * big;
       out[2] = h.z * M;
-      out[3] = 0.76;
-      out[4] = 0.8;
-      out[5] = 0.76;
+      out[3] = 0.76 * big;
+      out[4] = 0.8 * big;
+      out[5] = 0.76 * big;
       out[6] = h.yaw;
     });
     this.logs.set(pitched ? 3 : 0, (j, out) => {

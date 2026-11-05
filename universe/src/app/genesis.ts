@@ -75,6 +75,8 @@ import {
   familiesReached,
   familyColor,
   familyWords,
+  campFigure,
+  campRoom,
   figureOf,
   follow,
   followBeast,
@@ -794,7 +796,7 @@ export async function runGenesis(o: {
     if (!plan.people) return;
     bandLand = newMeadow(plan, Math.max(0, plan.ages.length - 1), seed);
     const age = plan.acts.peopling.age,
-      drawn = figureOf(plan.people.figure, detail);
+      drawn = campFigure(figureOf(plan.people.figure, detail));
     band = newBand(
       bandLand,
       age === "kind" ? 18 : age === "hard" ? 10 : 14,
@@ -802,7 +804,7 @@ export async function runGenesis(o: {
       seed,
       undefined,
       undefined,
-      drawn.scale,
+      campRoom(drawn),
     );
     bandLayer.people(drawn, plan.people.figure);
   };

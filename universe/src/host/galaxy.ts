@@ -13,7 +13,15 @@ import {
   sectorStars,
   type GalaxyStar,
 } from "../gen/index.ts";
-import { civilizationsNear, contactsOf, homePlanet } from "../sim/index.ts";
+import {
+  STAGE_WORDS,
+  arrivalsAt,
+  civilizationsNear,
+  contactsOf,
+  folkOf,
+  folkStage,
+  homePlanet,
+} from "../sim/index.ts";
 import { civilizationOn, lifeOfWorld } from "./elsewhere.ts";
 import { CLADES } from "../rules/index.ts";
 import type { ClusterStar, GalaxyPlan, StarPage, SystemPlan, WorldGlobe } from "../bridge/index.ts";
@@ -103,16 +111,31 @@ export function starPage(world: World, ref: string): StarPage {
     rng = new Rng(world.seed);
   return {
     ...starFacts(s, rng),
-    worlds: foreignPlanets(rng, s).map((p) => ({
-      kind: p.kind,
-      a: p.a,
-      mass: p.mass,
-      gravity: p.gravity,
-      temperature: p.temperature,
-      pressure: p.pressure,
-      air: p.air,
-      water: p.water,
-    })),
+    worlds: foreignPlanets(rng, s).map((p) => {
+      const f = folkOf(world, s, p.index),
+        year = Math.floor(world.now / (365 * 86400));
+      return {
+        kind: p.kind,
+        a: p.a,
+        mass: p.mass,
+        gravity: p.gravity,
+        temperature: p.temperature,
+        pressure: p.pressure,
+        air: p.air,
+        water: p.water,
+        ...(f
+          ? {
+              folk: {
+                ref: f.ref,
+                star: f.star,
+                name: f.name,
+                stage: STAGE_WORDS[folkStage(f, year)],
+                came: arrivalsAt(world, f)[0]?.year ?? null,
+              },
+            }
+          : {}),
+      };
+    }),
   };
 }
 
