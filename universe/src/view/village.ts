@@ -1437,10 +1437,10 @@ function fightsOn(plan: VillagePlan, day: number): ReadonlyMap<number, readonly 
               : kind === "raid"
                 ? "the raid's dead"
                 : kind
-                ? "the fire's dead"
-                : surname
-                  ? `the ${surname} household's dead`
-                  : "a neighbour's dead",
+                  ? "the fire's dead"
+                  : surname
+                    ? `the ${surname} household's dead`
+                    : "a neighbour's dead",
       faith = plan.life?.faith ?? null,
       graves = Array.from({ length: f.biers }, (_, b) => plotAt(yard, f.plot + b)),
       // A point by a frame turned `face`: `along` it, `across` it.

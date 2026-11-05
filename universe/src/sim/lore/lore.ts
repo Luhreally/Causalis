@@ -355,7 +355,8 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
     const borders = g.grid.offsets[cell + 1]! - g.grid.offsets[cell]!,
       sea = markets.seaPartners(cell),
       // How many principles another knows that this land does not.
-      lacks = (n: number) => PRINCIPLES.reduce((c, p) => (store.get(n, p.id) && !store.get(cell, p.id) ? c + 1 : c), 0);
+      lacks = (n: number) =>
+        PRINCIPLES.reduce((c, p) => (store.get(n, p.id) && !store.get(cell, p.id) ? c + 1 : c), 0);
     for (let k = 0; k < borders + sea.length; k++) {
       const n = k < borders ? g.grid.neighbours[g.grid.offsets[cell]! + k]! : sea[k - borders]!;
       if (!ctx.provinces.get(n)?.total()) continue;

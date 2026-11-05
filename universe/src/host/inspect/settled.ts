@@ -24,7 +24,7 @@ import {
   type Person,
   type WarFate,
 } from "../../causal/index.ts";
-import { yearOfMoment, type Ref, type World } from "../../kernel/index.ts";
+import { YEAR, yearOfMoment, type Ref, type World } from "../../kernel/index.ts";
 import { FEMALE } from "../../rules/index.ts";
 import type { Block, Item, PageModel, Stat, Tab } from "../../bridge/index.ts";
 import { province, settlementFacts } from "../planet.ts";
@@ -205,6 +205,16 @@ export function townPage(world: World, ref: string): PageModel {
       },
     ];
     if (now.length) blocks.push({ type: "facts", title: "Now", rows: now });
+    // (Its last raid, while what it burned still lies there: played again. W2.)
+    const lastRaid = warsOf(world)
+      .allStrikes()
+      .findLast((k) => k.town === ref);
+    if (lastRaid && world.now - (world.events.get(lastRaid.event)?.t ?? 0) <= 2 * YEAR)
+      blocks.push({
+        type: "tool",
+        tool: "watch.raid",
+        args: { event: lastRaid.event, rocket: lastRaid.kind === "rocket" },
+      });
     if (s.city)
       blocks.push({
         type: "facts",

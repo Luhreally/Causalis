@@ -275,7 +275,9 @@ import {
   battleCapWords,
   battleSlowings,
   globeArcsNow,
+  RAID_FIRES,
   raidEye,
+  raidFilm,
   raidOver,
   raidSlowings,
   battleSecond,
@@ -1016,6 +1018,9 @@ type Exposed = {
   /** The god's wonders in a town seen near as drawn (M201): each, where it stands (metres). */
   wonders?: () => { kind: string; x: number; z: number }[];
   raidersOnScreen?: () => { x: number; y: number }[];
+  watchRaid?: (event: string) => Promise<boolean>;
+  raidFilming?: () => number | null;
+  stopRaidFilm?: () => void;
   blaze?: () => {
     fires: number;
     smoke: number;
@@ -5290,6 +5295,52 @@ async function runPlanetPage(): Promise<void> {
     raidFaced = k.event;
     rig.flyTo(raidEye(k), 1.2);
   });
+  // A raid played again in its town (W2): that morning, from its first machine to its fires at their height, the world's
+  // clock held. At a year a second one is over between two frames, and it falls on three towns a year.
+  let raidPlaying: { t: number; calm: number; to: number; speed: number; words: HTMLElement } | null = null;
+  const endRaidFilm = () => {
+    if (!raidPlaying) return;
+    raidPlaying.words.remove();
+    raidPlaying = null;
+    time.release("raid film");
+  };
+  const watchRaid = async (event: string): Promise<boolean> => {
+    const where = await client.query<{ town: string } | null>({
+      type: "raid.where",
+      args: { event },
+    });
+    if (!where) return false;
+    endRaidFilm();
+    // (Nothing over what is to be seen.)
+    pageWindow.close();
+    if (scale !== "village" || plan?.ref !== where.town) await toVillage(where.town);
+    const k = plan?.town?.struck?.find((x) => x.event === event && x.raid);
+    if (!k) return false;
+    const film = raidFilm(k),
+      words = document.createElement("button");
+    words.className = "film-words raid-film";
+    words.textContent = `${
+      k.raid!.rocket
+        ? `🚀 ${plan!.name}, the rockets thrown by ${k.raid!.by}`
+        : `✈ ${plan!.name}, the raid by ${k.raid!.by}`
+    }: played again. Tap to stop.`;
+    words.onclick = endRaidFilm;
+    hud.append(words);
+    raidPlaying = { t: film.from, calm: film.calm, to: film.to, speed: film.speed, words };
+    time.hold("raid film");
+    raidFaced = event;
+    rig.flyTo(raidEye(k), 1);
+    return true;
+  };
+  stage.onUpdate((dt) => {
+    if (!raidPlaying) return;
+    if (scale !== "village") return endRaidFilm();
+    raidPlaying.t += dt * (raidPlaying.t < raidPlaying.calm ? raidPlaying.speed : RAID_FIRES);
+    if (raidPlaying.t >= raidPlaying.to) endRaidFilm();
+  });
+  exposed.watchRaid = watchRaid;
+  exposed.raidFilming = () => raidPlaying?.t ?? null;
+  exposed.stopRaidFilm = endRaidFilm;
   /**
    * The eye brought onto the battle before the town once it is drawn there, where the town is gone
    * into for it (until then: wall-clock ms; 0: not) — its field once laid; the night before it, its
@@ -7652,11 +7703,13 @@ async function runPlanetPage(): Promise<void> {
     const t = now(),
       // A town watched growing (days, months, years a second): its people at their morning's
       // work and its sky by day, not a day's round flashing by in every frame.
-      seen = fleetFilm?.townHeld
-        ? Math.floor(t / DAY) * DAY + fleetFilm.hour * DAY
-        : time.lapse
-          ? Math.floor(t / DAY) * DAY + 10 * 3600
-          : t;
+      seen = raidPlaying
+        ? raidPlaying.t
+        : fleetFilm?.townHeld
+          ? Math.floor(t / DAY) * DAY + fleetFilm.hour * DAY
+          : time.lapse
+            ? Math.floor(t / DAY) * DAY + 10 * 3600
+            : t;
     stage.daylight(
       plan.colony
         ? colonyHour(plan.colony, time.lapse ? 0 : seen - colonyFrom)
@@ -8588,6 +8641,8 @@ async function runPlanetPage(): Promise<void> {
     void fleetFilm!.play(id);
   };
   tidings.onStarFight = (id) => void fleetFilm!.play(id);
+  pageWindow.onRaid = (event) => void watchRaid(event);
+  tidings.onRaid = (event) => void watchRaid(event);
   // Begun at the wars among the stars (?starwar, the title's way to them): the one best to watch, played
   // once the world stands; then the eye is where it ended.
   const firstStarWar = async () => {

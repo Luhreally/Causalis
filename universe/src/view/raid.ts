@@ -28,10 +28,18 @@ export const MOST_RAIDERS = 12,
 export const RAID_SPEED = 3;
 /** How many fly abreast. */
 const ABREAST = 3;
-/** A raid as its town's scene reads it: which way it flies, and the hits under its stream, those first to catch first; rockets, each one's fall. */
+/** The most lots read for where a raid's loads fall on what it does not burn, and the most of those kept. */
+const STRAY_READ = 2048,
+  STRAY_KEPT = 160;
+/**
+ * A raid as its town's scene reads it: which way it flies; the hits under its stream, those first to catch first; where its
+ * loads land on what it does not burn, first first (a town flattened last year has nothing it can burn in all that is drawn: what
+ * this raid brought down lies further out, and its machines would cross the ruins with nothing falling from them); rockets, each one's fall.
+ */
 type RaidWay = {
   readonly heading: number;
   readonly under: readonly number[];
+  readonly strays: readonly { readonly p: number; readonly at: number }[];
   readonly falls?: readonly RocketFall[];
 };
 /** One rocket's fall on a town (W3): when, and where. */
@@ -50,7 +58,7 @@ export const MOST_STREAKS = 8,
 const CATCH_S = 0.35;
 const WAYS = new WeakMap<TownStrike, RaidWay>();
 const wayOf = (k: TownStrike): RaidWay =>
-  WAYS.get(k) ?? { heading: unit(hashText(k.event), 1) * 2 * Math.PI, under: [] };
+  WAYS.get(k) ?? { heading: unit(hashText(k.event), 1) * 2 * Math.PI, under: [], strays: [] };
 
 /** When a row of a raid's machines is over the town's heart. */
 const rowOver = (k: TownStrike, row: number, rows: number): number => {
@@ -81,7 +89,7 @@ export function timeRaids(plan: TownPlan, lots: TownLots, states: LotStates): vo
     const mine = own.get(i) ?? [],
       key = hashText(k.event);
     if (k.raid.rocket) {
-      timeRocket(k, key, mine, lots, states);
+      timeRocket(k, key, mine, plan.lots, lots, states);
       return;
     }
     const first = mine.slice(0, Math.ceil(mine.length / 4));
@@ -111,7 +119,30 @@ export function timeRaids(plan: TownPlan, lots: TownLots, states: LotStates): vo
       if (Math.abs(aside) < wide) under.push(p);
     }
     under.sort((a, b) => states.began[a]! - states.began[b]! || a - b);
-    WAYS.set(k, { heading, under });
+    const strays: { p: number; at: number }[] = [];
+    if (under.length < MOST_BURSTS) {
+      const stride = Math.max(1, Math.ceil(plan.lots / STRAY_READ));
+      for (let p = 0; p < plan.lots; p += stride) {
+        const along = lots.x[p]! * ux + lots.z[p]! * uz,
+          aside = lots.x[p]! * uz - lots.z[p]! * ux;
+        if (Math.abs(aside) >= wide || Math.abs(along) >= RAID_FAR || states.struck[p] === i)
+          continue;
+        strays.push({
+          p,
+          at:
+            rowOver(k, Math.floor(unit(key, p) * rows), rows) +
+            along / speed +
+            unit(key, p + 1) * 2,
+        });
+      }
+      strays.sort((a, b) => a.at - b.at || a.p - b.p);
+      if (strays.length > STRAY_KEPT) {
+        const every = strays.length / STRAY_KEPT;
+        for (let j = 0; j < STRAY_KEPT; j++) strays[j] = strays[Math.floor(j * every)]!;
+        strays.length = STRAY_KEPT;
+      }
+    }
+    WAYS.set(k, { heading, under, strays });
   });
 }
 
@@ -123,11 +154,28 @@ function timeRocket(
   k: TownStrike,
   key: number,
   mine: readonly number[],
+  drawn: number,
   lots: TownLots,
   states: LotStates,
 ): void {
   const heading = unit(key, 1) * 2 * Math.PI,
     runs: number[][] = [];
+  // (A town flattened last year has nothing it can burn in all that is drawn: they still come down here, on the ruins.)
+  if (!mine.length) {
+    const n = Math.min(4, Math.max(1, k.raid?.flyers ?? 1)),
+      span = raidRun(k),
+      each = n > 1 ? (span.to - span.from) / (n - 1) : 0,
+      strays: { p: number; at: number }[] = [],
+      falls: RocketFall[] = [];
+    for (let r = 0; r < n; r++) {
+      const p = Math.floor(unit(key, 50 + r) * drawn),
+        at = span.from + r * each;
+      strays.push({ p, at });
+      falls.push({ at, x: lots.x[p]!, z: lots.z[p]! });
+    }
+    WAYS.set(k, { heading, under: [], strays, falls });
+    return;
+  }
   for (const p of [...mine].sort((a, b) => a - b)) {
     const last = runs.at(-1);
     if (last && p === last.at(-1)! + 1) last.push(p);
@@ -154,6 +202,7 @@ function timeRocket(
   WAYS.set(k, {
     heading,
     under: [...mine].sort((a, b) => states.began[a]! - states.began[b]! || a - b),
+    strays: [],
     falls,
   });
 }
@@ -260,23 +309,64 @@ export function raidSpan(k: TownStrike): { readonly from: number; readonly to: n
   return { from: run.from - far, to: run.to + far };
 }
 
-/** How the clock is slowed for each raid on a town, in time order. */
+/** How fast the morning of the next turn goes in a town lately bombed, while it is read whether they come again (world seconds a second). */
+export const RAID_WATCH = 4 * 3600;
+
+/**
+ * How the clock is slowed for each raid on a town, in time order; and, in a town lately bombed, for the morning of
+ * each turn to come while its last raid is kept: a raid falls at a turn and is drawn ten hours on, and at a year a second
+ * ten hours are less than a frame, so the clock comes down for them or the town's plan never tells it in time.
+ */
 export function raidSlowings(plan: TownPlan): Slowing[] {
-  const out: Slowing[] = [];
-  for (const k of plan.struck ?? []) {
-    if (!k.raid) continue;
+  const out: Slowing[] = [],
+    year = 365 * 86_400,
+    raids = (plan.struck ?? []).filter((k) => k.raid);
+  for (const k of raids) {
     const s = raidSpan(k);
     out.push({
       key: `raid:${k.event}`,
-      turn: Math.floor(k.at / (365 * 86_400)),
+      turn: Math.floor(k.at / year),
       cap: "raid",
-      speed: k.raid.rocket ? ROCKET_SPEED : RAID_SPEED,
+      speed: k.raid?.rocket ? ROCKET_SPEED : RAID_SPEED,
       from: s.from,
       to: s.to,
     });
   }
-  return out;
+  const last = raids.reduce((n, k) => Math.max(n, k.at), 0);
+  if (last > 0)
+    for (let i = 1; i <= 2; i++) {
+      const at = last + i * year,
+        s = raidSpan({ ...raids[0]!, at });
+      out.push({
+        key: `raid-watch:${at}`,
+        turn: Math.floor(at / year),
+        cap: "raid",
+        speed: RAID_WATCH,
+        from: at,
+        to: s.from,
+      });
+    }
+  return out.sort((a, b) => a.from - b.from);
 }
+
+/** The town's machines and fires played again (seconds of the world): from the first machine to the fires at their height, and how fast at each. */
+export function raidFilm(k: TownStrike): {
+  readonly from: number;
+  readonly to: number;
+  readonly calm: number;
+  readonly speed: number;
+} {
+  const s = raidSpan(k),
+    run = raidRun(k);
+  return {
+    from: s.from,
+    calm: run.to + 25,
+    to: run.to + 600,
+    speed: k.raid?.rocket ? ROCKET_SPEED : RAID_SPEED,
+  };
+}
+/** How fast the fires go once the machines have gone, in a raid played again (world seconds a second). */
+export const RAID_FIRES = 30;
 
 /** A strike from the air as a land's view draws it: its machines coming in and the town burning under them. */
 export type LandRaidNow = {
@@ -504,6 +594,27 @@ export function raidNow(scene: TownScene | null, t: number): RaidNow {
   const falling: { x: number; y: number; z: number }[] = [],
     bursts: { x: number; z: number; k: number }[] = [],
     { struck, states, lots } = scene,
+    // A load on its way down to a lot, or just landed on it.
+    load = (k: TownStrike, p: number, since: number) => {
+      if (since < 0) {
+        // (A rocket's is its streak, not a load falling from a machine.)
+        if (k.raid!.rocket || falling.length >= MOST_FALLING) return;
+        const heading = wayOf(k).heading,
+          left = -since / FALL_S;
+        // (Falling as it was flown: on along the machine's way, faster and faster down.)
+        falling.push({
+          x: lots.x[p]! - Math.sin(heading) * k.raid!.speed * -since,
+          y: RAID_HIGH * (1 - (1 - left) * (1 - left)),
+          z: lots.z[p]! - Math.cos(heading) * k.raid!.speed * -since,
+        });
+      } else if (bursts.length < MOST_BURSTS)
+        bursts.push({
+          x: lots.x[p]!,
+          z: lots.z[p]!,
+          k: since / BURST_S,
+          ...(k.raid!.rocket ? { size: 4 } : {}),
+        });
+    },
     // Those falling or bursting of a list of lots in the order they caught, a stride through it to what can be drawn.
     within = (hits: readonly number[]) => {
       let lo = 0,
@@ -521,31 +632,20 @@ export function raidNow(scene: TownScene | null, t: number): RaidNow {
           since = t - states.began[p]!;
         if (since < -FALL_S) break;
         const k = list[states.struck[p]!];
-        if (!k?.raid) continue;
-        if (since < 0) {
-          // (A rocket's is its streak, not a load falling from a machine.)
-          if (k.raid.rocket) continue;
-          if (falling.length >= MOST_FALLING) continue;
-          const heading = wayOf(k).heading,
-            left = -since / FALL_S;
-          // (Falling as it was flown: on along the machine's way, faster and faster down.)
-          falling.push({
-            x: lots.x[p]! - Math.sin(heading) * k.raid.speed * -since,
-            y: RAID_HIGH * (1 - (1 - left) * (1 - left)),
-            z: lots.z[p]! - Math.cos(heading) * k.raid.speed * -since,
-          });
-        } else if (bursts.length < MOST_BURSTS)
-          bursts.push({
-            x: lots.x[p]!,
-            z: lots.z[p]!,
-            k: since / BURST_S,
-            ...(k.raid.rocket ? { size: 4 } : {}),
-          });
+        if (k?.raid) load(k, p, since);
       }
     };
   // (Those under the machines drawn first: the rest of a great raid is what is not drawn of it.)
   for (const k of list) if (k.raid) within(wayOf(k).under);
   if (falling.length < MOST_FALLING || bursts.length < MOST_BURSTS) within(struck);
+  for (const k of list) {
+    if (!k.raid || t < raidSpan(k).from || t > raidSpan(k).to + BURST_S) continue;
+    for (const s of wayOf(k).strays) {
+      const since = t - s.at;
+      if (since < -FALL_S) break;
+      if (since <= BURST_S) load(k, s.p, since);
+    }
+  }
   return flyers?.length || streaks.length || falling.length || bursts.length
     ? { flyers: flyers ?? [], streaks, falling, bursts, by }
     : NONE;

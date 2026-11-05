@@ -907,10 +907,13 @@ export function metalYear(ctx: PopulationContext, t: SimTime): void {
         continue;
       }
     }
-    // From a neighbour who knows it, along a road that carries goods.
-    const g = ctx.generated;
-    for (let k = g.grid.offsets[p.cell]!; k < g.grid.offsets[p.cell + 1]!; k++) {
-      const n = g.grid.neighbours[k]!,
+    // From a neighbour who knows it, along a road that carries goods: over land, or across the sea
+    // from those its ships trade with (War past the line, W2).
+    const g = ctx.generated,
+      borders = g.grid.offsets[p.cell + 1]! - g.grid.offsets[p.cell]!,
+      sea = markets.seaPartners(p.cell);
+    for (let k = 0; k < borders + sea.length; k++) {
+      const n = k < borders ? g.grid.neighbours[g.grid.offsets[p.cell]! + k]! : sea[k - borders]!,
         other = markets.get(n);
       if (!other?.metalworking || !markets.route(p.cell, n)) continue;
       if (world.rng.chance(0.08, METAL, key, t, SPREADING, n)) {

@@ -131,6 +131,7 @@ export class PageWindow {
   onLanding: ((cell: number) => void) | null = null;
   /** A fight among the stars played again (Phase 67). */
   onStarFight: ((id: string) => void) | null = null;
+  onRaid: ((event: string) => void) | null = null;
   /** Down among a band of a land's camp (Phase 29 M160). */
   onNear: ((cell: number, camp: number) => void) | null = null;
   /** A battle watched fought (Phase 37 M186). */
@@ -878,6 +879,7 @@ export class PageWindow {
           ...(this.onWatch ? { watch: this.onWatch } : {}),
           ...(this.onLanding ? { landing: this.onLanding } : {}),
           ...(this.onStarFight ? { starFight: this.onStarFight } : {}),
+          ...(this.onRaid ? { raid: this.onRaid } : {}),
           ...(this.onNear ? { near: this.onNear } : {}),
           ...(this.onBattle ? { battle: this.onBattle } : {}),
           ...(this.onWar ? { war: this.onWar } : {}),

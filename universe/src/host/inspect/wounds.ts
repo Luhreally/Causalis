@@ -135,7 +135,7 @@ export function woundedTab(world: World, town: Ref): Tab | null {
     type: "text",
     lines: [
       [
-        "Its people kept by their line: the wounds they came home with from its battles, or took in a fire or a quake, are kept with them, not every hurt of every day.",
+        "Its people kept by their line: the wounds they came home with from its battles, or took in a fire, a quake or a raid, are kept with them, not every hurt of every day.",
       ],
     ],
   });
