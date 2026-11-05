@@ -20,6 +20,8 @@ export type ToolContext = {
   readonly landing?: (cell: number) => void;
   /** A fight among the stars played again (Phase 67). */
   readonly starFight?: (id: string) => void;
+  /** A strike from the air played again in its town (W2). */
+  readonly raid?: (event: string) => void;
   /** Go down among a band of a land's camp (Phase 29 M160). */
   readonly near?: (cell: number, camp: number) => void;
   /** Watch a battle fought (Phase 37 M186). */
@@ -220,6 +222,14 @@ export function drawTool(
       b.title =
         "The fleets over that world and, where the record carries it down, the landers on the town: played again on a clock of its own, the world's held. Hold it still, draw it back and forth, tap any ship.";
       b.onclick = () => ctx.starFight!(args.id as string);
+      into.append(b);
+      return;
+    }
+    case "watch.raid": {
+      if (!ctx.raid) return;
+      const b = el("button", "act", "✈ Watch the raid");
+      b.title = "Down to the town it fell on, that morning: its machines, its loads, its fires, played again";
+      b.onclick = () => ctx.raid!(args.event as string);
       into.append(b);
       return;
     }

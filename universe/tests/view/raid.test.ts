@@ -7,10 +7,12 @@ import {
   MOST_FALLING,
   MOST_RAIDERS,
   raidEye,
+  raidFilm,
   raidNow,
   raidOver,
   raidRun,
   raidSlowings,
+  raidSpan,
   timeRaids,
   type TownScene,
 } from "../../src/view/index.ts";
@@ -135,4 +137,50 @@ test("a town's clock slows for its raid", () => {
     [slow] = raidSlowings(plan);
   assert.equal(slow?.cap, "raid");
   assert.ok(slow!.from < raidRun(k).from && slow!.to > raidRun(k).to);
+});
+
+test("a raid on a town in ruins, all it burned out beyond what is drawn: its loads still fall on what lies under its stream", () => {
+  const n = 600,
+    x = new Float32Array(n),
+    z = new Float32Array(n);
+  for (let p = 0; p < n; p++) {
+    x[p] = ((p % 25) - 12) * 12;
+    z[p] = (Math.floor(p / 25) - 12) * 12;
+  }
+  const k = raid({ homes: 18000 }),
+    plan = { lots: n, struck: [k] } as unknown as TownPlan,
+    states = { began: new Float64Array(n), struck: new Int16Array(n).fill(-1) } as unknown as LotStates;
+  timeRaids(plan, { x, z } as unknown as TownLots, states);
+  const scene = { plan, struck: [], states, lots: { x, z } } as unknown as TownScene,
+    run = raidRun(k),
+    middle = raidNow(scene, (run.from + run.to) / 2);
+  assert.ok(middle.falling.length + middle.bursts.length > 0, "nothing falls from them");
+  assert.deepEqual(raidNow(scene, raidSpan(k).from - 20).bursts, []);
+  assert.deepEqual(raidNow(scene, (run.from + run.to) / 2), middle, "the same moment, the same");
+  assert.equal(raidNow(scene, raidSpan(k).to + 60).by, null);
+});
+
+test("a town lately bombed slows the clock for the morning of the next two turns, in time for the plan to tell of a raid", () => {
+  const year = 365 * 86_400,
+    k = raid({ at: 700 * year }),
+    plan = { struck: [k] } as unknown as TownPlan,
+    all = raidSlowings(plan);
+  assert.equal(all.length, 3);
+  assert.deepEqual(
+    all.map((s) => s.from),
+    [...all.map((s) => s.from)].sort((a, b) => a - b),
+  );
+  for (const [i, s] of all.slice(1).entries()) {
+    assert.equal(s.from, 700 * year + (i + 1) * year);
+    assert.ok(s.to > s.from && s.to < s.from + SPREAD.raidFrom, "over before any machine could be there");
+    assert.ok(s.speed <= (s.to - s.from) / 2, "two seconds at least, for the plan to load");
+  }
+  assert.equal(raidSlowings({ struck: [] } as unknown as TownPlan).length, 0);
+});
+
+test("a raid played again runs from its first machine to its fires, the machines gone in between", () => {
+  const k = raid({ at: 700 * 365 * 86_400 }),
+    film = raidFilm(k);
+  assert.ok(film.from < raidRun(k).from);
+  assert.ok(film.calm > raidRun(k).to && film.calm < film.to);
 });

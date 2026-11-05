@@ -46,6 +46,8 @@ export class Tidings {
   onLanding: ((event: string) => void) | null = null;
   /** A fight among the stars watched, by its event (Phase 67). */
   onStarFight: ((event: string) => void) | null = null;
+  /** A strike from the air played again in its town (W2). */
+  onRaid: ((event: string) => void) | null = null;
 
   constructor(root: HTMLElement, client: HostClient) {
     this.client = client;
@@ -161,6 +163,14 @@ export class Tidings {
       watch.onclick = () => {
         card.remove();
         this.onLanding?.(t.ref);
+      };
+      head.append(from, watch, close);
+    } else if (t.type === "war.strike" && this.onRaid) {
+      const watch = el("button", "tiding-watch", "✈ Watch");
+      watch.title = "Down to the town it fell on, that morning: its machines, its loads, its fires";
+      watch.onclick = () => {
+        card.remove();
+        this.onRaid?.(t.ref);
       };
       head.append(from, watch, close);
     } else if ((t.type === "starwar.battle" || t.type === "peoples.raid") && this.onStarFight) {

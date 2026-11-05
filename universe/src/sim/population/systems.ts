@@ -1149,6 +1149,11 @@ export function knowledgeYear(ctx: PopulationContext, t: SimTime): void {
       const n = ctx.provinces.get(g.grid.neighbours[k]!);
       if (n?.knowsCultivation && n.cultivation) teachers.push(n);
     }
+    // (And across the sea, from those its ships trade with: War past the line, W2.)
+    for (const c of marketsOf(world).seaPartners(p.cell)) {
+      const n = ctx.provinces.get(c);
+      if (n?.knowsCultivation && n.cultivation) teachers.push(n);
+    }
     if (teachers.length) {
       if (world.rng.chance(Math.min(0.6, 0.12 * teachers.length), KNOW, key, t, 1))
         learned.push({ p, from: teachers[0]!, chance: 0, crowd: 0, soil: 0 });

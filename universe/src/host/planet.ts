@@ -48,6 +48,7 @@ import {
   USES,
   warsOf,
   wildsOf,
+  WAR_EVENTS,
 } from "../sim/index.ts";
 import {
   FOODS,
@@ -1382,6 +1383,11 @@ function planetUniverse(name: string, prior: Prior): Universe {
       },
       // A battle seen near (Phase 37 M183): its hosts, its ground, what came of it.
       "battle.near": (world, args) => battleNear(world, (args as { event: string }).event),
+      // Where a strike from the air fell (W2).
+      "raid.where": (world, args) => {
+        const e = world.events.get((args as { event: string }).event as Ref);
+        return e && e.type === WAR_EVENTS.strike.type ? { town: e.subjects[0]! } : null;
+      },
       // Who fought a battle, figure by figure (Phase 55 M225): its line holders and the people met
       // first, then the rest of its levy named for the roll.
       "battle.roll": (world, args) => {

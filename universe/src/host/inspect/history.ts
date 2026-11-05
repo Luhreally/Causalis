@@ -3,7 +3,7 @@
 // of the god's. A forgotten event still has its page: what the explainer keeps of it.
 import { WAR_EVENTS, siteGround } from "../../sim/index.ts";
 import { why } from "../../causal/index.ts";
-import { isRef, parseRef, type Ref, type World } from "../../kernel/index.ts";
+import { isRef, parseRef, YEAR, type Ref, type World } from "../../kernel/index.ts";
 import type { Block, PageModel, Place } from "../../bridge/index.ts";
 import { eventsCiting, link, sentence, stat, yearAt, yearNow } from "./words.ts";
 import { refLink } from "./names.ts";
@@ -150,6 +150,9 @@ export function eventPage(world: World, ref: string): PageModel {
     },
     { type: "why", title: "Why it happened", ref },
   ];
+  // (A strike from the air, while what it burned still lies there: played again in its town. W2.)
+  if (e?.type === WAR_EVENTS.strike.type && world.now - e.t <= 2 * YEAR)
+    blocks.splice(2, 0, { type: "tool", tool: "watch.raid", args: { event: ref } });
   // (A fight among the stars: played again. Phase 67.)
   if (type === "starwar.battle" || type === "peoples.raid")
     blocks.splice(2, 0, {

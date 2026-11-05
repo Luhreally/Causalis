@@ -150,8 +150,13 @@ function worldWithStrike(universe: "earth" | "alien", seed: string, year: number
   for (let k = 0; k < (file ? 60 : 4) && !(strike && strike.homes >= 40); k++) {
     const had = wars.allStrikes().length;
     world.runTo(world.now + YEAR);
-    const all = wars.allStrikes();
-    strike = [...all.slice(had)].sort((p, q) => q.homes - p.homes)[0];
+    const all = wars.allStrikes(),
+      // (What the town has burned before lies in ash in all that is drawn: a town not struck lately burns where it can be seen.)
+      lately = new Set(all.slice(0, had).filter((s) => world.now / YEAR - s.year < 5).map((s) => s.town));
+    strike = all
+      .slice(had)
+      .filter((s) => !lately.has(s.town))
+      .sort((p, q) => q.homes - p.homes)[0];
   }
   if (!strike) throw new Error(`no strike came on ${seed}`);
   const event = world.events.get(strike.event)!,
@@ -203,6 +208,7 @@ const context = await browser.newContext({
   page = await context.newPage(),
   errors: string[] = [];
 page.setDefaultTimeout(slow(60000));
+page.on("crash", () => problems.push("the page crashed"));
 page.on("pageerror", (e) => errors.push(`${e.message}\n${e.stack ?? ""}`));
 page.on("console", (m) => {
   if (m.type() === "error") errors.push(m.text());
@@ -380,6 +386,24 @@ async function watch(f: Forged, tag: string): Promise<void> {
   check(/The machine here/.test(prin), `${tag}: the machine's page reads no numbers`);
   await shot(`${tag}-6-machine-page`);
   await closePage();
+  // Played again from the town's page: that morning, the world's clock held, its machines over the town and to be seen.
+  const told = JSON.stringify(await ask<unknown>("page", { ref: strike.town }));
+  check(told.includes('"watch.raid"'), `${tag}: the town's page offers no way to watch its raid`);
+  const clock = await k<number>("globalThis.causalis.client.status.t");
+  check(await k<boolean>(`globalThis.causalis.watchRaid(${JSON.stringify(strike.event)})`), `${tag}: the raid could not be played again`);
+  await until(`${tag}: the raid's machines played again`, async () => (await k<{ raid: { flyers: number } } | null>("globalThis.causalis.blaze()"))?.raid.flyers! > 0, slow(30000));
+  await settle(3000);
+  const again = await k<{ raid: { flyers: number; falling: number; bursts: number } } | null>("globalThis.causalis.blaze()");
+  say(`${tag}: played again ${JSON.stringify(again?.raid)}`);
+  check((await machinesSeen()).seen > 0 || (again?.raid.falling ?? 0) + (again?.raid.bursts ?? 0) > 0, `${tag}: nothing of the raid to be seen played again`);
+  await until(`${tag}: the raid's loads played again`, async () => {
+    const r = (await k<{ raid: { falling: number; bursts: number } } | null>("globalThis.causalis.blaze()"))?.raid;
+    return (r?.falling ?? 0) + (r?.bursts ?? 0) > 0;
+  }, slow(45000));
+  await shot(`${tag}-6b-played-again`);
+  check((await k<number>("globalThis.causalis.client.status.t")) === clock, `${tag}: the world's clock ran on while it was played again`);
+  await k("globalThis.causalis.stopRaidFilm()");
+  check((await k<number | null>("globalThis.causalis.raidFilming()")) === null, `${tag}: the raid went on playing when stopped`);
   // The land.
   await open(`cell:0:${strike.cell}`);
   await k(`globalThis.causalis.goTo(${JSON.stringify(`cell:0:${strike.cell}`)})`);
