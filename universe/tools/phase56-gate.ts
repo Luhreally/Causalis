@@ -11,7 +11,7 @@
 //   3. each kind's world on the built app, held where it was opened, by day: its globe and a land in
 //      its kind's colours under its own sky; its greatest town told its kind, and where nothing
 //      burns no kiln aglow and no sparks, its warmth in true degrees; its matter guide's "This
-//      world" tab telling what it is and what burns; bronze shut where nothing burns ("no furnace
+//      world" tab telling what it is, what burns and its means of heat; bronze shut there for want of a hardener (not "no furnace
 //      can be built"); its own ages on the stage chip;
 //   4. Earth and a Phase 54 world as they were: rocky, no kind of their own on their sky;
 //   5. the title and each page at a phone's width.
@@ -425,21 +425,21 @@ for (const [n, w] of WORLDS.entries()) {
   check(burns === facts.fire, `${w.seed}'s matter guide tells what burns as “${burns}”`);
   if (fireless)
     check(
-      furnaces === "None: nothing burns in its air, so no furnace can be built.",
+      /means/i.test(furnaces ?? "") && /mirror|current|ground|acetylene/i.test(furnaces ?? ""),
       `${w.seed}'s furnaces told as “${furnaces}”`,
     );
   await shot(`${step}-matter`);
   const over = await onPhone(`${step}-matter-phone`);
   check(over <= 2, `${w.seed}'s "This world" tab wider than a phone (${over} px over)`);
-  // Bronze: shut where nothing burns, and says why.
+  // Bronze: heat is no bar any more (F2), so where it is shut there, it is for what is out of reach.
   const bronzeTitle = await opened("prin:bronze"),
     shut = await factOn("On this world");
   say(`    “${bronzeTitle}”: ${shut ?? "open to its people"}`);
   if (fireless) {
     check(bronzeTitle === "Bronze", `bronze titled “${bronzeTitle}” where nothing burns`);
     check(
-      /^shut: nothing burns in its air, so no furnace can be built\./.test(shut ?? ""),
-      `bronze on ${w.seed} not shut for want of fire: “${shut}”`,
+      /^shut: it asks a people to harden copper\./.test(shut ?? ""),
+      `bronze on ${w.seed} not shut for want of a hardener: “${shut}”`,
     );
   } else check(shut === null, `bronze shut on ${w.seed}, where fire burns: “${shut}”`);
   await shot(`${step}-bronze`);
