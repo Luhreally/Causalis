@@ -494,7 +494,7 @@ function strikes(
         ? Math.min(SPREAD.fire, SPREAD.fireAll / Math.max(1, lots.length))
         : k.kind === "raid"
           ? SPREAD.raidAll / Math.max(1, lots.length)
-        : (k.kind === "meteor" ? SPREAD.meteorAll : SPREAD.quakeAll) / Math.max(1, lots.length);
+          : (k.kind === "meteor" ? SPREAD.meteorAll : SPREAD.quakeAll) / Math.max(1, lots.length);
     lots.forEach((p, j) => {
       struck[p] = i;
       const burnt = k.kind !== "quake" || hash(p, Math.round(k.at), 7) < SPREAD.quakeBurns;

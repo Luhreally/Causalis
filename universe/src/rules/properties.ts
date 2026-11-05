@@ -925,7 +925,9 @@ function flyUnderPower(n: MeansWorld): FunctionReading {
     asks: "an engine a machine can carry that gives more than flying asks here",
     later: false,
     met: !!lifts,
-    by: lifts ? `${lifts.name}: ${watts(ask)} W a kilogram asked, ${watts(givesWkg(lifts, n))} to its weight` : null,
+    by: lifts
+      ? `${lifts.name}: ${watts(ask)} W a kilogram asked, ${watts(givesWkg(lifts, n))} to its weight`
+      : null,
     subst: null,
     why: machine
       ? `Flying asks ${watts(ask)} W for each kilogram of machine here (estimate), and ${lifts!.name} gives ${watts(givesWkg(lifts!, n))} to its own weight. A machine of ${Math.round(machine.kg / 100) / 10} t, wings ${Math.round(machine.spanM)} m across, goes ${Math.round(machine.speed * 3.6)} km/h and ${Math.round(machine.reachKm)} km out and back.`

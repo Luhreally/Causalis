@@ -14,7 +14,10 @@ import {
 } from "../../src/sim/town/fabric.ts";
 
 /** A town of `lots` homes at the first level, a store and a builder for the year. */
-function town(lots: number, year = 100): { f: Fabric; store: TownStore; at: (y: number) => TownBuilder } {
+function town(
+  lots: number,
+  year = 100,
+): { f: Fabric; store: TownStore; at: (y: number) => TownBuilder } {
   const store = new TownStore(),
     f = {
       town: "town:0:7",
@@ -117,7 +120,10 @@ test("where its people are gone its burned lots go back to open ground", () => {
   at(100 + ASH_YEARS).rise(f, 0, 1, 1, 3);
   assert.equal(ashes(f), 0);
   assert.equal(f.homes[1], 3600);
-  assert.equal(f.open.reduce((n, r) => n + r[1] - r[0], 0), 400);
+  assert.equal(
+    f.open.reduce((n, r) => n + r[1] - r[0], 0),
+    400,
+  );
   assert.ok(!store.ashen.has(f));
   const read = readAgain(f);
   assert.deepEqual(read.homes, f.homes);
@@ -129,7 +135,14 @@ test("a building gone up on burned lots keeps them when the rest rise", () => {
   at(100).burn(f, 0.1, 500);
   const run = f.changes.find((c) => c[0] === CHANGE.burned)!,
     site = run[1];
-  f.civics.push({ kind: "market", at: site, lots: 1, start: 101, end: 105, fell: null } as Fabric["civics"][number]);
+  f.civics.push({
+    kind: "market",
+    at: site,
+    lots: 1,
+    start: 101,
+    end: 105,
+    fell: null,
+  } as Fabric["civics"][number]);
   at(100 + ASH_YEARS).rise(f, housingOf(f) * 2, 1, 1, 3);
   assert.equal(f.homes[1], 3999);
   const read = readAgain(f);

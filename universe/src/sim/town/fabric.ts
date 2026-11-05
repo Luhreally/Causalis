@@ -1066,7 +1066,13 @@ export class TownBuilder {
   }
 
   /** A share of a town's homes razed: its heart first, or its edge for a town sacked. */
-  raze(f: Fabric, share: number, edge: boolean, near?: number, kind: number = CHANGE.razed): number {
+  raze(
+    f: Fabric,
+    share: number,
+    edge: boolean,
+    near?: number,
+    kind: number = CHANGE.razed,
+  ): number {
     // (Run by run where it may be: a great town sacked has a hundred thousand lots.)
     const runs = near === undefined ? standingRuns(f) : null;
     if (runs) {
@@ -1227,7 +1233,11 @@ export class TownBuilder {
   }
 
   /** Stretches of homes brought down, each stretch of lots side by side one change: open again, unless in ash. */
-  private layDown(f: Fabric, down: readonly (readonly [number, number, number])[], kind: number): void {
+  private layDown(
+    f: Fabric,
+    down: readonly (readonly [number, number, number])[],
+    kind: number,
+  ): void {
     let run = -1,
       at = -1;
     const done = () => {

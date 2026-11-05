@@ -2,7 +2,13 @@
 // it, first of all those under the machines drawn; by day; the eye low and ahead of them.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { SPREAD, type LotStates, type TownLots, type TownPlan, type TownStrike } from "../../src/bridge/index.ts";
+import {
+  SPREAD,
+  type LotStates,
+  type TownLots,
+  type TownPlan,
+  type TownStrike,
+} from "../../src/bridge/index.ts";
 import {
   MOST_FALLING,
   MOST_RAIDERS,
@@ -70,7 +76,10 @@ test("its machines fly in a stream, the most drawn at once kept to", () => {
   // Abreast no wider than a tight formation, whatever the lots burned lie: they are a few of the many.
   const heading = now.flyers[0]!.yaw,
     aside = now.flyers.map((f) => f.x * Math.cos(heading) - f.z * Math.sin(heading));
-  assert.ok(Math.max(...aside.map(Math.abs)) < k.raid!.span * 4, `${Math.max(...aside.map(Math.abs))} m aside`);
+  assert.ok(
+    Math.max(...aside.map(Math.abs)) < k.raid!.span * 4,
+    `${Math.max(...aside.map(Math.abs))} m aside`,
+  );
 });
 
 test("a hit lands when a row is over it, by how far along the machines' way it lies", () => {
@@ -85,7 +94,10 @@ test("a hit lands when a row is over it, by how far along the machines' way it l
   for (let p = 0; p < 2000; p += 37) {
     // (Over some row's moment, and a little after it for the load's own scatter.)
     const off = late(p);
-    assert.ok(off >= -0.01 && off <= run.to - run.from + 2.01, `lot ${p} is ${off} s after the first row`);
+    assert.ok(
+      off >= -0.01 && off <= run.to - run.from + 2.01,
+      `lot ${p} is ${off} s after the first row`,
+    );
   }
 });
 
@@ -149,7 +161,10 @@ test("a raid on a town in ruins, all it burned out beyond what is drawn: its loa
   }
   const k = raid({ homes: 18000 }),
     plan = { lots: n, struck: [k] } as unknown as TownPlan,
-    states = { began: new Float64Array(n), struck: new Int16Array(n).fill(-1) } as unknown as LotStates;
+    states = {
+      began: new Float64Array(n),
+      struck: new Int16Array(n).fill(-1),
+    } as unknown as LotStates;
   timeRaids(plan, { x, z } as unknown as TownLots, states);
   const scene = { plan, struck: [], states, lots: { x, z } } as unknown as TownScene,
     run = raidRun(k),
@@ -172,7 +187,10 @@ test("a town lately bombed slows the clock for the morning of the next two turns
   );
   for (const [i, s] of all.slice(1).entries()) {
     assert.equal(s.from, 700 * year + (i + 1) * year);
-    assert.ok(s.to > s.from && s.to < s.from + SPREAD.raidFrom, "over before any machine could be there");
+    assert.ok(
+      s.to > s.from && s.to < s.from + SPREAD.raidFrom,
+      "over before any machine could be there",
+    );
     assert.ok(s.speed <= (s.to - s.from) / 2, "two seconds at least, for the plan to load");
   }
   assert.equal(raidSlowings({ struck: [] } as unknown as TownPlan).length, 0);

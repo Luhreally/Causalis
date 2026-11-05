@@ -57,7 +57,14 @@ export class RaidLayer {
       this.root,
       glow,
     );
-    this.dust = new InstancedBatch(stage, box, DIRT, MOST_BURSTS, this.root, flatMaterial(DIRT, 0.7));
+    this.dust = new InstancedBatch(
+      stage,
+      box,
+      DIRT,
+      MOST_BURSTS,
+      this.root,
+      flatMaterial(DIRT, 0.7),
+    );
   }
 
   update(now: RaidNow): void {

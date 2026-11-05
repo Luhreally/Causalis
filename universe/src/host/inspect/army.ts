@@ -259,20 +259,23 @@ export function courseBlocks(world: World, w: War): Block[] {
   const wars = warsOf(world),
     tally = wars.tallyOfStrikes(w.ref);
   if (tally) {
-    const name = (i: 0 | 1) => (i === 0 ? (a?.town ?? "the attacker") : (d?.town ?? "the defender")),
+    const name = (i: 0 | 1) =>
+        i === 0 ? (a?.town ?? "the attacker") : (d?.town ?? "the defender"),
       kept = wars.allStrikes().filter((s) => s.war === w.ref);
     blocks.push({
       type: "list",
       title: `Struck from the air: ${count(tally[0])} town${tally[0] === 1 ? "" : "s"}, ${count(tally[1] + tally[2])} dead, ${count(tally[3])} homes down`,
-      items: kept.slice(-40).map((s) =>
-        item(
-          [
-            link(strikeTownName(world, s.town), s.town),
-            `, by ${name(s.side)}, year ${s.year}: ${count(s.flyers)} machines, ${count(s.dead)} dead, ${count(s.homes)} homes`,
-          ],
-          s.event,
+      items: kept
+        .slice(-40)
+        .map((s) =>
+          item(
+            [
+              link(strikeTownName(world, s.town), s.town),
+              `, by ${name(s.side)}, year ${s.year}: ${count(s.flyers)} machines, ${count(s.dead)} dead, ${count(s.homes)} homes`,
+            ],
+            s.event,
+          ),
         ),
-      ),
     });
   }
   return blocks;

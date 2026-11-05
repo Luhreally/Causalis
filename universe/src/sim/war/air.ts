@@ -42,11 +42,7 @@ function fueled(ctx: PopulationContext, p: Polity, fuel: "coal" | "oil"): boolea
 }
 
 /** What a realm flies this year (null: nothing: it does not know how, or has no works or fuel to fly on). */
-export function fleetOf(
-  ctx: PopulationContext,
-  p: Polity,
-  fielded: () => number,
-): Fleet | null {
+export function fleetOf(ctx: PopulationContext, p: Polity, fielded: () => number): Fleet | null {
   const lore = loreOf(ctx.world);
   if (!lore.get(p.seat, "powered-wings")) return null;
   const world = meansNumbers(ctx.generated),
@@ -70,7 +66,12 @@ function foodIn(ctx: PopulationContext, cell: number): number {
 }
 
 /** A town a side might strike. */
-type Target = { readonly ref: Ref; readonly name: string; readonly cell: number; readonly hurt: number };
+type Target = {
+  readonly ref: Ref;
+  readonly name: string;
+  readonly cell: number;
+  readonly hurt: number;
+};
 
 /**
  * The towns in reach of a front that would hurt a foe most, the worst first: by its people, double where its
@@ -105,7 +106,10 @@ export function targetsOf(
       if (best.length === MOST_STRIKES && hurt <= best.at(-1)!.hurt) continue;
       if (!towns.get(v.ref)?.homes.some((n) => n > 0)) continue;
       let at = best.length;
-      while (at > 0 && (best[at - 1]!.hurt < hurt || (best[at - 1]!.hurt === hurt && best[at - 1]!.ref > v.ref)))
+      while (
+        at > 0 &&
+        (best[at - 1]!.hurt < hurt || (best[at - 1]!.hurt === hurt && best[at - 1]!.ref > v.ref))
+      )
         at--;
       best.splice(at, 0, { ref: v.ref, name: v.name, cell: c, hurt });
       if (best.length > MOST_STRIKES) best.pop();

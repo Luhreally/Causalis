@@ -82,8 +82,7 @@ type Sky = Pick<MeansWorld, "airBar" | "kelvin" | "pull">;
 /** What flying asks here, to the kilogram of machine (W). Titan's numbers give about 1.8, a man's own arms' reach; Mars's about 150. */
 export const askWkg = (w: Sky): number => EARTH_ASK * flightPower(w);
 /** What an engine gives to its weight here: it breathes its air, so under Earth's weight it gives the less, and over it no more. */
-export const givesWkg = (e: CarriedEngine, w: Sky): number =>
-  e.wkg * Math.min(1, airWeight(w));
+export const givesWkg = (e: CarriedEngine, w: Sky): number => e.wkg * Math.min(1, airWeight(w));
 /** What of a machine's weight is left to carry, once its frame, fuel and the engine that lifts it are paid for. */
 export const loadShare = (e: CarriedEngine, w: Sky): number =>
   1 - FRAME_SHARE - FUEL_SHARE - askWkg(w) / givesWkg(e, w);

@@ -32,7 +32,15 @@ const [STEAM, OIL] = CARRIED_ENGINES as readonly [
   (typeof CARRIED_ENGINES)[number],
 ];
 const world = (gravity: number, kind: "rocky" | "methane" = "rocky", celsius = 15): MeansWorld =>
-  meansWorldOf({ chem: SOLAR, kind, celsius, gravity, medium: "land", bodyFire: true, insolation: 1 });
+  meansWorldOf({
+    chem: SOLAR,
+    kind,
+    celsius,
+    gravity,
+    medium: "land",
+    bodyFire: true,
+    insolation: 1,
+  });
 
 test("the ground made deadly grows as energy to the 2/3 power, and a drop of ordinary charge flattens a lot", () => {
   assert.ok(Math.abs(lotsPerDrop(4.2) - 1) < 1e-9);
@@ -99,10 +107,24 @@ test("what steers: by the eye most of a load misses a small town, steadied littl
 });
 
 test("a strike never takes more than its share, and none where nothing is dropped", () => {
-  const huge = strikeOf({ flyers: 2000, loadKg: 5000, mjPerKg: 4.2, miss: 30, lots: 100, people: 1000 });
+  const huge = strikeOf({
+    flyers: 2000,
+    loadKg: 5000,
+    mjPerKg: 4.2,
+    miss: 30,
+    lots: 100,
+    people: 1000,
+  });
   assert.equal(huge.share, 0.5);
   assert.equal(huge.dead, 50);
-  const none = strikeOf({ flyers: 0, loadKg: 950, mjPerKg: 4.2, miss: 300, lots: 100, people: 1000 });
+  const none = strikeOf({
+    flyers: 0,
+    loadKg: 950,
+    mjPerKg: 4.2,
+    miss: 300,
+    lots: 100,
+    people: 1000,
+  });
   assert.equal(none.share, 0);
   assert.equal(none.dead, 0);
 });

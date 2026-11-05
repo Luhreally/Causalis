@@ -111,7 +111,12 @@ export type WarStrike = {
 /** How long a strike is kept by its town (years): after that, only in its war's tally. */
 export const STRIKE_YEARS = 200;
 /** What strikes came to in a war: how many, and the dead on the attacker's side and on the defender's, the homes down. */
-export type StrikeTally = readonly [strikes: number, onAttacker: number, onDefender: number, homes: number];
+export type StrikeTally = readonly [
+  strikes: number,
+  onAttacker: number,
+  onDefender: number,
+  homes: number,
+];
 
 export type Battle = {
   readonly year: number;

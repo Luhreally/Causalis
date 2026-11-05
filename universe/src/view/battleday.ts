@@ -196,7 +196,9 @@ export function slowAhead(
 /** How the clock's slowing for a battle at a turn is told: "Slowed to a minute a second for the battle at the turn of year 364". */
 export function battleCapWords(cap: BattleCap, speed: number, turn: number): string {
   if (cap === "raid")
-    return speed > 60 ? "Slowed as the year turns: machines may come" : "Slowed for the raid over the town";
+    return speed > 60
+      ? "Slowed as the year turns: machines may come"
+      : "Slowed for the raid over the town";
   const pace =
       speed <= MINUTE
         ? "a minute"

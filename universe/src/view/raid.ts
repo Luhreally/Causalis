@@ -106,10 +106,14 @@ export function timeRaids(plan: TownPlan, lots: TownLots, states: LotStates): vo
       for (let p = 0; p < plan.lots; p += stride) {
         const along = lots.x[p]! * ux + lots.z[p]! * uz,
           aside = lots.x[p]! * uz - lots.z[p]! * ux;
-        if (Math.abs(aside) >= wide || Math.abs(along) >= RAID_FAR || states.struck[p] === i) continue;
+        if (Math.abs(aside) >= wide || Math.abs(along) >= RAID_FAR || states.struck[p] === i)
+          continue;
         strays.push({
           p,
-          at: rowOver(k, Math.floor(unit(key, p) * rows), rows) + along / speed + unit(key, p + 1) * 2,
+          at:
+            rowOver(k, Math.floor(unit(key, p) * rows), rows) +
+            along / speed +
+            unit(key, p + 1) * 2,
         });
       }
       strays.sort((a, b) => a.at - b.at || a.p - b.p);
@@ -236,7 +240,11 @@ export function raidSlowings(plan: TownPlan): Slowing[] {
 }
 
 /** The town's machines and fires played again (seconds of the world): from the first machine to the fires at their height, and how fast at each. */
-export function raidFilm(k: TownStrike): { readonly from: number; readonly to: number; readonly calm: number } {
+export function raidFilm(k: TownStrike): {
+  readonly from: number;
+  readonly to: number;
+  readonly calm: number;
+} {
   const s = raidSpan(k),
     run = raidRun(k);
   return { from: s.from, calm: run.to + 25, to: run.to + 600 };
@@ -289,7 +297,11 @@ export function landRaidsNow(
         for (let j = 0; j < Math.min(LAND_FLYERS, Math.max(1, k.flyers)); j++) {
           const on = (run - 0.5) * 2 * LAND_OFF - j * 5,
             aside = (j - 1) * 4;
-          flyers.push({ x: at.x + ux * on + uz * aside, z: at.z + uz * on - ux * aside, yaw: heading });
+          flyers.push({
+            x: at.x + ux * on + uz * aside,
+            z: at.z + uz * on - ux * aside,
+            yaw: heading,
+          });
         }
       out.push({
         key: `raid:${k.event}`,

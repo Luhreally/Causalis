@@ -228,7 +228,8 @@ export function drawTool(
     case "watch.raid": {
       if (!ctx.raid) return;
       const b = el("button", "act", "✈ Watch the raid");
-      b.title = "Down to the town it fell on, that morning: its machines, its loads, its fires, played again";
+      b.title =
+        "Down to the town it fell on, that morning: its machines, its loads, its fires, played again";
       b.onclick = () => ctx.raid!(args.event as string);
       into.append(b);
       return;

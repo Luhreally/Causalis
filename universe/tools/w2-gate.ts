@@ -13,7 +13,14 @@ import { fileURLToPath } from "node:url";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { preview } from "vite";
 import { chromium } from "playwright";
-import { YEAR, loadWorld, rulesetId, saveWorld, seedFromText, type World } from "../src/kernel/index.ts";
+import {
+  YEAR,
+  loadWorld,
+  rulesetId,
+  saveWorld,
+  seedFromText,
+  type World,
+} from "../src/kernel/index.ts";
 import { meansNumbers, worldChemistry } from "../src/gen/index.ts";
 import { SPREAD } from "../src/bridge/index.ts";
 import { ALIEN, EARTH } from "../src/host/planet.ts";
@@ -67,7 +74,9 @@ console.log("gate 74, wings");
 const sky = (airBar: number, kelvin: number, pull: number) => ({ airBar, kelvin, pull });
 const titan = askWkg(sky(1.45, 94, 0.138)),
   mars = askWkg(sky(0.006, 210, 0.38));
-say(`flying asks ${titan.toFixed(1)} W/kg on Titan's numbers, ${mars.toFixed(0)} on Mars's, 80 on Earth's`);
+say(
+  `flying asks ${titan.toFixed(1)} W/kg on Titan's numbers, ${mars.toFixed(0)} on Mars's, 80 on Earth's`,
+);
 check(titan < 5, `Titan's numbers ask ${titan} W/kg: a man's arms should do`);
 check(mars > 100, `Mars's numbers ask ${mars} W/kg`);
 
@@ -82,14 +91,23 @@ type Forged = {
 };
 
 /** A far save as it is, its next strikes run to; else a world of a few centuries with two neighbouring realms given the air. */
-function worldWithStrike(universe: "earth" | "alien", seed: string, year: number, file?: string): Forged {
+function worldWithStrike(
+  universe: "earth" | "alien",
+  seed: string,
+  year: number,
+  file?: string,
+): Forged {
   const u = universe === "earth" ? EARTH : ALIEN,
     started = performance.now();
   let world: World;
   if (file) {
-    const doc = JSON.parse(gunzipSync(readFileSync(file)).toString("utf8")) as Parameters<typeof loadWorld>[0],
+    const doc = JSON.parse(gunzipSync(readFileSync(file)).toString("utf8")) as Parameters<
+        typeof loadWorld
+      >[0],
       probe = u.build(seedFromText(doc.seed));
-    world = loadWorld(doc, (s) => u.build(s), rulesetId(probe, u.version), { allowRulesetChange: true }).world;
+    world = loadWorld(doc, (s) => u.build(s), rulesetId(probe, u.version), {
+      allowRulesetChange: true,
+    }).world;
   } else {
     world = u.build(seedFromText(seed));
     world.runTo(year * YEAR);
@@ -122,7 +140,14 @@ function worldWithStrike(universe: "earth" | "alien", seed: string, year: number
         data: { a: "", b: "" },
       });
     for (const p of [a, b]) {
-      for (const id of ["steam-engine", "factories", "engines", "gunpowder", "powered-wings", "dropped-loads"])
+      for (const id of [
+        "steam-engine",
+        "factories",
+        "engines",
+        "gunpowder",
+        "powered-wings",
+        "dropped-loads",
+      ])
         if (!lore.get(p.seat, id))
           lore.learn(p.seat, id, { year: now(), event: told }, principle(id) as Principle);
       const m = markets.of(p.seat);
@@ -152,7 +177,12 @@ function worldWithStrike(universe: "earth" | "alien", seed: string, year: number
     world.runTo(world.now + YEAR);
     const all = wars.allStrikes(),
       // (What the town has burned before lies in ash in all that is drawn: a town not struck lately burns where it can be seen.)
-      lately = new Set(all.slice(0, had).filter((s) => world.now / YEAR - s.year < 5).map((s) => s.town));
+      lately = new Set(
+        all
+          .slice(0, had)
+          .filter((s) => world.now / YEAR - s.year < 5)
+          .map((s) => s.town),
+      );
     strike = all
       .slice(had)
       .filter((s) => !lately.has(s.town))
@@ -171,12 +201,17 @@ function worldWithStrike(universe: "earth" | "alien", seed: string, year: number
     );
   }
   check(event.type === WAR_EVENTS.strike.type, "the strike's event is not a war.strike");
-  check(event.causes.some((c) => c.ref === wars.get(strike.war)!.event), "the strike does not cite its war");
+  check(
+    event.causes.some((c) => c.ref === wars.get(strike.war)!.event),
+    "the strike does not cite its war",
+  );
   check(event.subjects[0] === strike.town, "the strike's event does not name its town first");
   say(
     `${seed}: year ${strike.year}, ${strike.flyers} machines on ${strike.town}: ${strike.dead} dead, ${strike.homes} homes, ${strike.stores} food; made in ${((performance.now() - started) / 1000).toFixed(0)} s`,
   );
-  const bytes = gzipSync(JSON.stringify(saveWorld(world, rulesetId(world, u.version), { universe: u.name })));
+  const bytes = gzipSync(
+    JSON.stringify(saveWorld(world, rulesetId(world, u.version), { universe: u.name })),
+  );
   return { bytes, universe, seed, strike, by: data.a, t: world.now, span: data.span };
 }
 
@@ -185,10 +220,14 @@ function worldWithStrike(universe: "earth" | "alien", seed: string, year: number
   const north = ALIEN.build(seedFromText("north 292")),
     numbers = meansNumbers(populationContext(north).generated);
   check(!canBurn(numbers), "north 292 burns");
-  check(liftingEngine(numbers) === null, "on a world where nothing burns an engine lifted a machine");
-  const line = rowReadings({ chem: worldChemistry(populationContext(north).generated), means: numbers }).find(
-    (r) => r.id === "fly-under-power",
+  check(
+    liftingEngine(numbers) === null,
+    "on a world where nothing burns an engine lifted a machine",
   );
+  const line = rowReadings({
+    chem: worldChemistry(populationContext(north).generated),
+    means: numbers,
+  }).find((r) => r.id === "fly-under-power");
   check(!!line && !line.met && /nothing burns/.test(line.why), `north 292's page: ${line?.why}`);
   say(`north 292: “${line?.why}”`);
 }
@@ -253,25 +292,31 @@ const closePage = () =>
  */
 async function machinesSeen(): Promise<{ seen: number; of: number }> {
   const at = await k<{ x: number; y: number }[]>("globalThis.causalis.raidersOnScreen()"),
-    bar = await k<number>(`document.querySelector("#hud .panel, .village-panel")?.getBoundingClientRect().bottom ?? 240`),
+    bar = await k<number>(
+      `document.querySelector("#hud .panel, .village-panel")?.getBoundingClientRect().bottom ?? 240`,
+    ),
     open = at.filter((p) => p.x > 24 && p.x < 330 && p.y > bar + 20 && p.y < 900);
   if (!open.length) return { seen: 0, of: 0 };
   const png = (await page.screenshot()).toString("base64");
   const seen = await page.evaluate(
     async ([data, spots]) => {
-      const bitmap = await createImageBitmap(await (await fetch(`data:image/png;base64,${data as string}`)).blob()),
+      const bitmap = await createImageBitmap(
+          await (await fetch(`data:image/png;base64,${data as string}`)).blob(),
+        ),
         c = new OffscreenCanvas(bitmap.width, bitmap.height),
         x = c.getContext("2d")!,
         k = bitmap.width / innerWidth;
       x.drawImage(bitmap, 0, 0);
-      const lum = (d: Uint8ClampedArray, i: number) => d[i]! * 0.3 + d[i + 1]! * 0.59 + d[i + 2]! * 0.11;
+      const lum = (d: Uint8ClampedArray, i: number) =>
+        d[i]! * 0.3 + d[i + 1]! * 0.59 + d[i + 2]! * 0.11;
       let n = 0;
       for (const p of spots as { x: number; y: number }[]) {
         const r = Math.round(16 * k),
           w = 2 * r,
           d = x.getImageData(Math.round(p.x * k) - r, Math.round(p.y * k) - r, w, w).data;
         // (Against the corners of the box.)
-        const ref = (lum(d, 0) + lum(d, (w - 1) * 4) + lum(d, (w * (w - 1)) * 4) + lum(d, (w * w - 1) * 4)) / 4;
+        const ref =
+          (lum(d, 0) + lum(d, (w - 1) * 4) + lum(d, w * (w - 1) * 4) + lum(d, (w * w - 1) * 4)) / 4;
         let most = 0;
         for (let i = 0; i < d.length; i += 4) most = Math.max(most, Math.abs(lum(d, i) - ref));
         if (most > 30) n++;
@@ -302,7 +347,16 @@ async function takeUp(f: Forged): Promise<void> {
   await page.evaluate(
     async ([data, keep]) => {
       const bytes = Uint8Array.from(atob(data as string), (c) => c.charCodeAt(0));
-      const c = (globalThis as unknown as { causalis: { client: { importSave(b: Uint8Array): Promise<unknown>; save(n: string): Promise<unknown> } } }).causalis.client;
+      const c = (
+        globalThis as unknown as {
+          causalis: {
+            client: {
+              importSave(b: Uint8Array): Promise<unknown>;
+              save(n: string): Promise<unknown>;
+            };
+          };
+        }
+      ).causalis.client;
       await c.importSave(bytes);
       await c.save(keep as string);
     },
@@ -330,36 +384,66 @@ async function watch(f: Forged, tag: string): Promise<void> {
     slow(120000),
   );
   await settle(1500);
-  const struck = await k<{ kind: string; at: number; homes: number; dead?: number; raid?: { by: string; flyers: number; span: number } }[]>(
+  const struck = await k<
+    {
+      kind: string;
+      at: number;
+      homes: number;
+      dead?: number;
+      raid?: { by: string; flyers: number; span: number };
+    }[]
+  >(
     `(globalThis.causalis.planNow()?.town?.struck ?? []).filter((s) => s.event === ${JSON.stringify(strike.event)})`,
   );
-  check(struck.length === 1 && struck[0]!.kind === "raid", `${tag}: the town's plan does not tell the raid`);
+  check(
+    struck.length === 1 && struck[0]!.kind === "raid",
+    `${tag}: the town's plan does not tell the raid`,
+  );
   check(!!struck[0]?.raid?.by, `${tag}: the raid does not say whose`);
   const at = struck[0]?.at ?? f.t,
     from = at + SPREAD.raidFrom;
   // The eye goes to it by itself as the machines come.
   await advanceTo(from - 20);
-  await until(`${tag}: the eye on the raid`, async () => k<boolean>(`Math.abs(globalThis.causalis.rig.pitch + 8) < 1 && !globalThis.causalis.rig.flying`), slow(30000));
+  await until(
+    `${tag}: the eye on the raid`,
+    async () =>
+      k<boolean>(
+        `Math.abs(globalThis.causalis.rig.pitch + 8) < 1 && !globalThis.causalis.rig.flying`,
+      ),
+    slow(30000),
+  );
   await shot(`${tag}-0-coming`);
   await advanceTo(from + 4);
   await settle(1200);
-  const during = await k<{ raid: { flyers: number; falling: number; bursts: number; by: string | null }; alight: number; fires: number } | null>(
-    "globalThis.causalis.blaze()",
-  );
+  const during = await k<{
+    raid: { flyers: number; falling: number; bursts: number; by: string | null };
+    alight: number;
+    fires: number;
+  } | null>("globalThis.causalis.blaze()");
   say(`${tag}: over the town ${JSON.stringify(during?.raid)}, alight ${during?.alight}`);
   check((during?.raid.flyers ?? 0) > 0, `${tag}: no machine over the town`);
   const sky = await machinesSeen();
   say(`${tag}: ${sky.seen} of ${sky.of} machines where the screen shows sky can be told from it`);
-  check(sky.of > 0 && sky.seen >= Math.ceil(sky.of / 2), `${tag}: ${sky.seen} of ${sky.of} machines can be seen on the screen`);
-  check(during?.raid.by === f.by, `${tag}: the machines are said to be ${during?.raid.by}'s, not ${f.by}'s`);
+  check(
+    sky.of > 0 && sky.seen >= Math.ceil(sky.of / 2),
+    `${tag}: ${sky.seen} of ${sky.of} machines can be seen on the screen`,
+  );
+  check(
+    during?.raid.by === f.by,
+    `${tag}: the machines are said to be ${during?.raid.by}'s, not ${f.by}'s`,
+  );
   await shot(`${tag}-1-raid-run`);
   await advanceTo(from + 24);
   await settle(1200);
-  const hits = await k<{ raid: { flyers: number; falling: number; bursts: number }; alight: number } | null>(
-    "globalThis.causalis.blaze()",
-  );
+  const hits = await k<{
+    raid: { flyers: number; falling: number; bursts: number };
+    alight: number;
+  } | null>("globalThis.causalis.blaze()");
   say(`${tag}: half way ${JSON.stringify(hits?.raid)}, alight ${hits?.alight}`);
-  check((hits?.raid.falling ?? 0) + (hits?.raid.bursts ?? 0) > 0, `${tag}: no load falling or landing at the run's height`);
+  check(
+    (hits?.raid.falling ?? 0) + (hits?.raid.bursts ?? 0) > 0,
+    `${tag}: no load falling or landing at the run's height`,
+  );
   await shot(`${tag}-2-load-falling`);
   await advanceTo(from + 1500);
   await settle(1500);
@@ -390,26 +474,58 @@ async function watch(f: Forged, tag: string): Promise<void> {
   const told = JSON.stringify(await ask<unknown>("page", { ref: strike.town }));
   check(told.includes('"watch.raid"'), `${tag}: the town's page offers no way to watch its raid`);
   const clock = await k<number>("globalThis.causalis.client.status.t");
-  check(await k<boolean>(`globalThis.causalis.watchRaid(${JSON.stringify(strike.event)})`), `${tag}: the raid could not be played again`);
-  await until(`${tag}: the raid's machines played again`, async () => (await k<{ raid: { flyers: number } } | null>("globalThis.causalis.blaze()"))?.raid.flyers! > 0, slow(30000));
+  check(
+    await k<boolean>(`globalThis.causalis.watchRaid(${JSON.stringify(strike.event)})`),
+    `${tag}: the raid could not be played again`,
+  );
+  await until(
+    `${tag}: the raid's machines played again`,
+    async () =>
+      (await k<{ raid: { flyers: number } } | null>("globalThis.causalis.blaze()"))?.raid.flyers! >
+      0,
+    slow(30000),
+  );
   await settle(3000);
-  const again = await k<{ raid: { flyers: number; falling: number; bursts: number } } | null>("globalThis.causalis.blaze()");
+  const again = await k<{ raid: { flyers: number; falling: number; bursts: number } } | null>(
+    "globalThis.causalis.blaze()",
+  );
   say(`${tag}: played again ${JSON.stringify(again?.raid)}`);
-  check((await machinesSeen()).seen > 0 || (again?.raid.falling ?? 0) + (again?.raid.bursts ?? 0) > 0, `${tag}: nothing of the raid to be seen played again`);
-  await until(`${tag}: the raid's loads played again`, async () => {
-    const r = (await k<{ raid: { falling: number; bursts: number } } | null>("globalThis.causalis.blaze()"))?.raid;
-    return (r?.falling ?? 0) + (r?.bursts ?? 0) > 0;
-  }, slow(45000));
+  check(
+    (await machinesSeen()).seen > 0 || (again?.raid.falling ?? 0) + (again?.raid.bursts ?? 0) > 0,
+    `${tag}: nothing of the raid to be seen played again`,
+  );
+  await until(
+    `${tag}: the raid's loads played again`,
+    async () => {
+      const r = (
+        await k<{ raid: { falling: number; bursts: number } } | null>("globalThis.causalis.blaze()")
+      )?.raid;
+      return (r?.falling ?? 0) + (r?.bursts ?? 0) > 0;
+    },
+    slow(45000),
+  );
   await shot(`${tag}-6b-played-again`);
-  check((await k<number>("globalThis.causalis.client.status.t")) === clock, `${tag}: the world's clock ran on while it was played again`);
+  check(
+    (await k<number>("globalThis.causalis.client.status.t")) === clock,
+    `${tag}: the world's clock ran on while it was played again`,
+  );
   await k("globalThis.causalis.stopRaidFilm()");
-  check((await k<number | null>("globalThis.causalis.raidFilming()")) === null, `${tag}: the raid went on playing when stopped`);
+  check(
+    (await k<number | null>("globalThis.causalis.raidFilming()")) === null,
+    `${tag}: the raid went on playing when stopped`,
+  );
   // The land.
   await open(`cell:0:${strike.cell}`);
   await k(`globalThis.causalis.goTo(${JSON.stringify(`cell:0:${strike.cell}`)})`);
-  await until(`${tag}: the land`, async () => k<boolean>(`globalThis.causalis.scale() === "region"`), slow(120000));
+  await until(
+    `${tag}: the land`,
+    async () => k<boolean>(`globalThis.causalis.scale() === "region"`),
+    slow(120000),
+  );
   await settle(1500);
-  await k(`document.querySelectorAll(".page-window .close, .page-close").forEach((e) => e.click())`);
+  await k(
+    `document.querySelectorAll(".page-window .close, .page-close").forEach((e) => e.click())`,
+  );
   const land = await k<{ raids: number; flyers: number; words: readonly string[] } | null>(
     "globalThis.causalis.landRaids?.() ?? null",
   );

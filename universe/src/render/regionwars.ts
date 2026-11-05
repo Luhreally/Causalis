@@ -936,7 +936,11 @@ export class RegionWars {
   }
 
   /** The strikes from the air on its towns now (the look tools). */
-  raidsShown(): { readonly raids: number; readonly flyers: number; readonly words: readonly string[] } {
+  raidsShown(): {
+    readonly raids: number;
+    readonly flyers: number;
+    readonly words: readonly string[];
+  } {
     return { ...this.raids.shown, words: this.raidsNow.map((r) => r.words) };
   }
 

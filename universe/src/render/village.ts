@@ -2336,7 +2336,9 @@ export class VillageScene {
    */
   /** Where a raid's machines are now, in the village's units (W2's look tools). */
   raidersShown(): { x: number; y: number; z: number }[] {
-    return this.town.raid(this.lastT).flyers.map((f) => ({ x: f.x * 0.1, y: f.y * 0.1, z: f.z * 0.1 }));
+    return this.town
+      .raid(this.lastT)
+      .flyers.map((f) => ({ x: f.x * 0.1, y: f.y * 0.1, z: f.z * 0.1 }));
   }
 
   blazeShown(): {
