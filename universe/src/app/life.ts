@@ -377,7 +377,9 @@ export function installLife(d: LifeDeps): LifeFlow {
     liveHere,
     liveAgent: async (agent) => {
       if (d.possession.on) await d.possession.letGo();
-      return begin(agent);
+      const why = await begin(agent);
+      if (why) hud.toast(why);
+      return why;
     },
     tapped,
     get on() {

@@ -8170,6 +8170,7 @@ async function runPlanetPage(): Promise<void> {
   // (A ruler's body lived on from: the bar of rule goes; 👑 Rule on the life's tray brings it back.)
   person.onLive = (agent) => {
     ruleLeave();
+    leaders.keepHand();
     void lifeFlow.liveAgent(agent);
   };
   // A ruler ruled by the god's hand (Lives L4): decrees, war and peace, marriages, from the leaders tab, a chip at their

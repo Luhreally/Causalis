@@ -35,6 +35,8 @@ export type Leaders = {
   home(l: Leader): Promise<void>;
   possess(): Promise<string | null>;
   clear(): void;
+  /** A life taken up in the body walked in: the hand this flow laid stays for it, and no longer lifts on the way out. */
+  keepHand(): void;
 };
 
 export function installLeaders(d: LeadersDeps): Leaders {
@@ -204,6 +206,9 @@ export function installLeaders(d: LeadersDeps): Leaders {
     home,
     possess,
     clear,
+    keepHand: () => {
+      laid = null;
+    },
     get onRule() {
       return chip.onRule;
     },
