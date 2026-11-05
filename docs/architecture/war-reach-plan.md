@@ -56,6 +56,8 @@ The same four numbers keep going, with physics never broken and nothing on a lis
 - **A rock turned.** The speed change a rock needs against what a drive can give.
 - **Machines that make machines.** The making chain with minds at the bench: they double until the ore runs out or
   someone stops them.
+- **Made hands.** A made soldier has whatever hand it was made with, so a people who cannot grip a stock still arm
+  theirs (`noBeamGrip` is the body's limit, not the machine's).
 - **Minds at war.** Past `machine-minds`, the sides can be run by minds and fought by machines, with people watching.
 - **What it would take to unmake a world.** The world's binding energy from its mass and radius, a number a page can
   set beside what a people commands.
@@ -70,6 +72,32 @@ The same four numbers keep going, with physics never broken and nothing on a lis
 | **W4 No one aboard** | Link, then mind. Swarms over a town. Possess one (Phase 60): fly it. | Yes |
 | **W5 The greatest fire** | The densest store a world has, a great works that costs a realm years, a leader who decides. The flash, the lots gone, fallout on the weather's wind, soot and cold years, the harvest and the famine. Realms that both hold it stop fighting each other directly. Treaties, tests, the god's hand to give or take it. Worlds without the ore never get it, and a page says why. | Yes |
 | **W6 Past imagination** | The list above, each by its numbers, carried by ships to other worlds, including the machines against natives already planned for Phase 69. | Yes |
+
+## W1 and W1b, as built (2026-11-05)
+
+`view/order.ts` is one function of numbers: the ground to a soldier is the foe's rounds-by-metres over what a body bears,
+no wider than command reaches. `BEAR` is fitted on one figure, the magazine rifle at Dupuy's 2,500 m². The automatic then
+comes out at 36,000 m² with nothing more fitted, between his 27,500 and 50,000. The line holds while `firepowerOf` is 0,
+so muskets and rifles keep it, a decision and not a fit. A digest holds spears, swords, bows, muskets and rifles.
+
+- **In the town:** past the rifle, squads staggered in depth, in bounds, in cover, with team guns and cars. From the
+  self-loading rifle on, a siege has no tents about the walls: guns stand off and shells land in the lots.
+- **The battle (W1b):** `fireOrder` says who stands off and who closes. Hosts that can answer fire stop at their stand-off,
+  go to ground and fire; a side that breaks falls back under fire and the victors come on over the ground. A host with
+  nothing to stand off with (spears against guns) comes on and closes, and most fall on the way.
+
+| Battle | Dead by the hand, before | after | Closest, before | after |
+|---|---|---|---|---|
+| automatic v autoloader, field | 30% | 0% | 4 m | 61 m |
+| repeater v repeater, held | 34% | 0% | 4 m | 90 m |
+| spear v autoloader, held | 37% | 9% | they met | 4 m, those who arrive |
+
+Falls stay history's in number, side and second; only who struck changes. A man's page now reads "killed by a shot to his
+head" where a shot did it.
+
+Still to do: a soldier possessed in such a battle still walks to the hand's fight (`sim/hand/fight.ts`, history's, so W2's).
+Giving up is not drawn, since history keeps no prisoners. Squads have no banks or shell holes to bound between on the close
+field. Shells knock nothing down and history does not hear them: W2 and W3.
 
 ## Order
 

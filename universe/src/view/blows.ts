@@ -43,6 +43,8 @@ import {
   STAGGER,
   bloodAt,
   closedUp,
+  firedFrom,
+  firedOn,
   crawledTo,
   crawlsFor,
   gapOf,
@@ -422,7 +424,10 @@ export function newBlows(field: BattleField, told: BlowTold | null = null): Blow
     if (t.falls !== null)
       strikers.set(
         t.id,
-        t.by === "arrow" ? missileOf(sidesOf(field, t.side).foe.host?.arm) : "hand",
+        // (Those shot down as they fall back, in a battle by fire, are struck from afar too. W1b.)
+        t.by === "arrow" || (t.by === "rout" && firedOn(field, t.side))
+          ? missileOf(sidesOf(field, t.side).foe.host?.arm)
+          : "hand",
       );
   // Of the shot that struck down the other side, those a cannon's ball (or shell) took: for each
   // firing in turn, the one struck down nearest its ball's flight after it, within its window.
@@ -594,18 +599,20 @@ export function newBlows(field: BattleField, told: BlowTold | null = null): Blow
     const dead = field.troopers.filter((t) => t.side === side && t.falls !== null),
       nA = dead.filter((t) => t.by === "arrow").length,
       nB = dead.filter((t) => t.by === "blow").length,
-      wA = nA + nB > 0 ? Math.round((n * nA) / (nA + nB)) : 0,
+      // (In a battle by fire with no one close enough, all to what the other side looses.)
+      wA = nA + nB > 0 ? Math.round((n * nA) / (nA + nB)) : firedOn(field, side) ? n : 0,
       wB = n - wA,
       continuous = armLook(arm).fire === "continuous",
       events: { at: number; arrow: boolean }[] = [];
     for (let k = 0; k < wA; k++)
       events.push({
-        at: continuous
-          ? MOMENTS.arrows +
-            2 +
-            (MOMENTS.rout - MOMENTS.arrows - 8) * Math.pow((k + 0.5) / wA, 1.15) +
-            0.37
-          : MOMENTS.arrows + 2 + (k % 9) * 3.2 + 0.15 * Math.floor(k / 9) + 0.07,
+        at:
+          continuous || field.fire
+            ? MOMENTS.arrows +
+              2 +
+              (MOMENTS.rout - MOMENTS.arrows - 8) * Math.pow((k + 0.5) / wA, 1.15) +
+              0.37
+            : MOMENTS.arrows + 2 + (k % 9) * 3.2 + 0.15 * Math.floor(k / 9) + 0.07,
         arrow: true,
       });
     for (let k = 0; k < wB; k++)
@@ -1372,11 +1379,18 @@ export function blowWords(field: BattleField, b: Blows, id: number, s: number): 
         return `${who}: struck in ${where} by ${what}${off}, dragging themselves back toward their lines.`;
       if (h.striker === "ball" || h.striker === "shell")
         return `${who}: knocked off their feet by ${what}${off}.`;
+      // (In a battle by fire, how far off it came from: as far as the foe's forward edge then. W1b.)
+      const from =
+        field.fire && h.striker !== "hand"
+          ? `, from ${firedFrom(field, h.side, h.x, h.at)} m off`
+          : "";
       if (t.by === "rout")
-        return `${who}: cut down as they ran, struck in ${where} by ${what}${off}.`;
+        return h.striker === "hand"
+          ? `${who}: cut down as they ran, struck in ${where} by ${what}${off}.`
+          : `${who}: shot down as they fell back, ${what} in ${where}${off}${from}.`;
       return h.striker === "hand"
         ? `${who}: fell in the press, struck in ${where} by ${what}${off}.`
-        : `${who}: fell, ${what} in ${where}${off}.`;
+        : `${who}: fell, ${what} in ${where}${off}${from}.`;
     }
     const back = h.back,
       wound = `wounded in ${where} by ${what}${off}`;

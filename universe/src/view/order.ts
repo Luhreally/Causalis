@@ -147,6 +147,38 @@ export function hostOrder(
   });
 }
 
+/** How a battle past the rifle is fought (W1b): who stands off and fires, who has nothing to answer with and closes, and how far apart (m). */
+export type FireOrder = {
+  /** Whether each side stands off and fights by fire (false: it comes on and closes to the hand). */
+  readonly stands: readonly [boolean, boolean];
+  /** How far from the foe the fight is joined: the lesser reach of those who stand off, for the other must come within it to answer (m). */
+  readonly off: number;
+};
+
+/**
+ * How a battle goes, from its two hosts' orders (null: as it always went, the hosts closing to the hand).
+ * Two lines close. Past the line a host with a stand-off keeps it; one with none charges, whichever side it is.
+ * At a seat's walls a host that must raise ladders to come at them closes, as one with nothing on the walls to
+ * answer it has no need to stand off: there the moment makes it so. Numbers only; pure.
+ */
+export function fireOrder(
+  attacker: { readonly arm: string; readonly mount: string } | null | undefined,
+  defender: { readonly arm: string; readonly mount: string } | null | undefined,
+  walls: boolean,
+): FireOrder | null {
+  const a = hostOrder(attacker, defender),
+    d = hostOrder(defender, attacker);
+  if (a.line && d.line) return null;
+  const offA = a.line ? 0 : a.standOff,
+    offD = d.line ? 0 : d.standOff;
+  if (walls && (offA === 0 || offD === 0 || armLook(attacker?.arm).ladders)) return null;
+  if (offA === 0 && offD === 0) return null;
+  return {
+    stands: [offA > 0, offD > 0],
+    off: offA > 0 && offD > 0 ? Math.min(offA, offD) : Math.max(offA, offD),
+  };
+}
+
 /** One of a host in its order on the ground, in metres from its forward edge's middle. */
 export type OrderPlace = {
   /** Which squad. */

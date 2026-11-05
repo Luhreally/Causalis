@@ -264,7 +264,11 @@ export function deathWords(d: DeathBlow, sex?: number): string {
     at = `${d.from === "battle" ? "at" : "in"} ${d.where} in ${d.year}`,
     by = d.arm ? `, from ${d.arm}` : "";
   return d.from === "battle"
-    ? `killed by a blow to ${part} ${at}${by}`
+    ? d.blow === "shot"
+      ? `killed by a shot to ${part} ${at}${by}`
+      : d.blow === "fire"
+        ? `killed by a burn to ${part} ${at}${by}`
+        : `killed by a blow to ${part} ${at}${by}`
     : `killed ${at}, ${d.blow === "fire" ? "burned" : "crushed"} about ${part}`;
 }
 
