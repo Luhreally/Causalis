@@ -148,6 +148,7 @@ type Entry = {
   kind: string | null;
   people: number;
   founded: number;
+  arrives: number | null;
   sailing: boolean;
   event: string | null;
 };
@@ -645,7 +646,13 @@ try {
   }
 
   // 7. The next landing, come to on the clock: the news of it, and the way to it.
-  await k(`globalThis.causalis.client.advance(${(moon.founded >= 1310 ? AT + 40 : 1311) * YEAR})`);
+  // (When is history's: a ship on its way says, and a ship flown within the system comes sooner.)
+  const coming = (await ask<Entry[]>("colony.list")).flatMap((c) =>
+    c.sailing && c.arrives !== null && c.arrives > AT ? [c.arrives] : [],
+  );
+  await k(
+    `globalThis.causalis.client.advance(${Math.min(AT + 40, ...coming.map((y) => y + 1)) * YEAR})`,
+  );
   const newsCame = await until(
     "the next landing's news",
     async () =>
