@@ -40,10 +40,17 @@ type RaidWay = {
   readonly heading: number;
   readonly under: readonly number[];
   readonly strays: readonly { readonly p: number; readonly at: number }[];
+  /** How high they come over (m): over the tallest of what stands there, in a city of spires. */
+  readonly high: number;
 };
 const WAYS = new WeakMap<TownStrike, RaidWay>();
 const wayOf = (k: TownStrike): RaidWay =>
-  WAYS.get(k) ?? { heading: unit(hashText(k.event), 1) * 2 * Math.PI, under: [], strays: [] };
+  WAYS.get(k) ?? {
+    heading: unit(hashText(k.event), 1) * 2 * Math.PI,
+    under: [],
+    strays: [],
+    high: RAID_HIGH,
+  };
 
 /** When a row of a raid's machines is over the town's heart. */
 const rowOver = (k: TownStrike, row: number, rows: number): number => {
@@ -58,7 +65,7 @@ const rowsOf = (k: TownStrike): number =>
  * first of what it burns; and each lot caught when a row's moment comes over it, not as the lots are numbered, so
  * hits walk along under the machines. Read once, as a town's scene is made.
  */
-export function timeRaids(plan: TownPlan, lots: TownLots, states: LotStates): void {
+export function timeRaids(plan: TownPlan, lots: TownLots, states: LotStates, rise = 0): void {
   const list = plan.struck;
   if (!list?.some((k) => k.raid)) return;
   const own = new Map<number, number[]>();
@@ -123,7 +130,7 @@ export function timeRaids(plan: TownPlan, lots: TownLots, states: LotStates): vo
         strays.length = STRAY_KEPT;
       }
     }
-    WAYS.set(k, { heading, under, strays });
+    WAYS.set(k, { heading, under, strays, high: Math.max(RAID_HIGH, rise + 40) });
   });
 }
 
@@ -147,11 +154,13 @@ export function raidEye(k: TownStrike): {
   readonly pitch: number;
   readonly distance: number;
 } {
+  // (Over a city of spires, from above their tops: from low down there would be nothing to see but walls.)
+  const over = wayOf(k).high > RAID_HIGH;
   return {
     target: { x: 0, y: 2, z: 0 },
     yaw: (wayOf(k).heading * 180) / Math.PI - 16,
-    pitch: -8,
-    distance: 62,
+    pitch: over ? -24 : -8,
+    distance: over ? 105 : 62,
   };
 }
 
@@ -343,7 +352,7 @@ export function raidNow(scene: TownScene | null, t: number): RaidNow {
       const aside = ((j % ABREAST) - 1) * each + (unit(key, 40 + j) - 0.5) * k.raid.span;
       flyers.push({
         x: ux * along + uz * aside,
-        y: RAID_HIGH + (unit(key, 70 + j) - 0.5) * 30,
+        y: wayOf(k).high + (unit(key, 70 + j) - 0.5) * 30,
         z: uz * along - ux * aside,
         yaw: heading,
         span: k.raid.span,
@@ -363,7 +372,7 @@ export function raidNow(scene: TownScene | null, t: number): RaidNow {
         // (Falling as it was flown: on along the machine's way, faster and faster down.)
         falling.push({
           x: lots.x[p]! - Math.sin(heading) * k.raid!.speed * -since,
-          y: RAID_HIGH * (1 - (1 - left) * (1 - left)),
+          y: wayOf(k).high * (1 - (1 - left) * (1 - left)),
           z: lots.z[p]! - Math.cos(heading) * k.raid!.speed * -since,
         });
       } else if (bursts.length < MOST_BURSTS)

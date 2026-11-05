@@ -221,7 +221,7 @@ export function townScene(plan: TownPlan, t: number, previous?: TownLots): TownS
       settled,
     };
   // (A raid's lots caught as its machines pass over them: W2.)
-  timeRaids(plan, lots, states);
+  timeRaids(plan, lots, states, homesRiseTo(plan));
   for (let p = 0; p < plan.lots; p++) if (states.struck[p]! >= 0) struck.push(p);
   struck.sort((a, b) => states.began[a]! - states.began[b]!);
   // Active: rising, or to be rebuilt as it wears before the year is out; or struck, till it has
