@@ -82,7 +82,11 @@ const FROZEN: readonly (readonly [id: string, needs: readonly string[], body?: B
   ],
   ["standing-army", ["bureaucracy", "bronze|carbide-blades|ice-working|set-edges"]],
   ["siege-craft", ["masonry", "wheel"]],
-  ["cavalry", ["riding", "iron|carbide-blades|ice-working|set-edges"], { media: ["land", "shore"] }],
+  [
+    "cavalry",
+    ["riding", "iron|carbide-blades|ice-working|set-edges"],
+    { media: ["land", "shore"] },
+  ],
   ["coal-mining", ["iron"], { burns: true, media: ["land", "shore"] }],
   ["clockwork", ["mathematics", "iron|carbide-blades|diamond-grit|ice-working|set-edges"]],
   ["steam-engine", ["coal-mining", "steel", "clockwork"], { burns: true }],

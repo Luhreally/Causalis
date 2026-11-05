@@ -64,7 +64,9 @@ const lore = loreOf(alien),
   iron = firstOf("iron"),
   sun = firstOf("sun-engines"),
   bronze = firstOf("bronze");
-say(`${SEED} to year ${AT}: long blades ${edges}, iron ${iron}, sun engines ${sun}, bronze ${bronze}`);
+say(
+  `${SEED} to year ${AT}: long blades ${edges}, iron ${iron}, sun engines ${sun}, bronze ${bronze}`,
+);
 check(edges !== null, "no land of alien 132 has long blades by year 750");
 check(iron !== null, "no land of alien 132 has iron by year 750");
 check(bronze === null, `alien 132 knows bronze in ${bronze}`);
@@ -74,7 +76,9 @@ check(sun !== null, "no land of alien 132 has sun engines by year 750");
 const thin = homePlanet(ALIEN.build(seedFromText(THIN))).generated,
   hardens = functionsOf(thin).find((f) => f.id === "harden-copper")!,
   earth = meansOfWorld(homePlanet(EARTH.build(seedFromText("first light"))).generated);
-say(`${THIN}: hardens copper ${hardens.met}: “${hardens.why}”; Earth's first road ${earth.firstRoad}`);
+say(
+  `${THIN}: hardens copper ${hardens.met}: “${hardens.why}”; Earth's first road ${earth.firstRoad}`,
+);
 check(!hardens.met && /of the Sun's metals/.test(hardens.why), `${THIN} hardens copper`);
 check(earth.firstRoad && !earth.edgeRoad && earth.rides, "Earth has left its first road");
 
@@ -174,7 +178,10 @@ check(/flakes/.test(fact(irons, "Needs first")), "iron's page does not name flak
 
 const engines = await pageWhen("prin:sun-engines", (p) => p.words.includes("Needs first"));
 say(`“${engines.title}”: found by “${fact(engines, "Found by")}”`);
-check(/no coal lies within reach/.test(fact(engines, "Found by")), "sun engines say nothing of coal");
+check(
+  /no coal lies within reach/.test(fact(engines, "Found by")),
+  "sun engines say nothing of coal",
+);
 check(/✓/.test(fact(engines, "Asks of its world's matter")), "sun engines' asks show no tick");
 
 check(same(await hashes(), hashed), "the world's hash changed while its pages were read");
