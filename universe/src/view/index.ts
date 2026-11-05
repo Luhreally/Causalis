@@ -204,6 +204,7 @@ export {
   civicsActive,
   homeWear,
   homeSize,
+  homesRiseTo,
   lotNear,
   roofTop,
   strikeSpan,

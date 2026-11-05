@@ -20,12 +20,15 @@ export class HomeMark {
     this.root.addChild(this.ring);
     const column = flatMaterial([1, 0.8, 0.25], 0.55);
     column.emissive = new pc.Color(1, 0.72, 0.2);
+    // (Seen through whatever stands before it: among spires a home is known by its mark or not at all.)
+    column.depthTest = false;
     column.update();
     this.column.addComponent("render", {
       meshInstances: [new pc.MeshInstance(cylinderMesh(stage, 0.5, 1, 8), column)],
     });
     const ring = flatMaterial([1, 0.8, 0.25], 0.85);
     ring.emissive = new pc.Color(1, 0.72, 0.2);
+    ring.depthTest = false;
     ring.update();
     this.ring.addComponent("render", {
       meshInstances: [new pc.MeshInstance(cylinderMesh(stage, 0.5, 1, 24), ring)],

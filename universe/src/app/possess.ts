@@ -32,6 +32,7 @@ import {
   agentOf,
   bidOf,
   drawnHeight,
+  homesRiseTo,
   joinsAt,
   lettersOf,
   takeOf,
@@ -210,6 +211,7 @@ export function installPossession(d: PossessionDeps): Possession {
     hud.setPace(1);
     hud.say(`You walk among them as ${now.name}`);
     eye.height = drawnHeight(plan);
+    eye.roofs = plan.town ? homesRiseTo(plan.town) : 0;
     eye.behind(args.at.yaw, true);
     void ask(o);
   };

@@ -233,6 +233,14 @@ export function pathPoint(
 }
 
 /** The landing site of a raid on a village: its pads, their ways through the streets, the guard's rally, the homes that may burn. */
+const apart = (a: Flat, b: Flat) => Math.hypot(a.x - b.x, a.z - b.z);
+/** Of `all`, what stands nearest `at`. */
+function nearestTo<T extends Flat>(all: readonly T[], at: Flat): T | null {
+  let best: T | null = null;
+  for (const x of all) if (!best || apart(x, at) < apart(best, at)) best = x;
+  return best;
+}
+
 export function invasionSite(plan: VillagePlan, fightId: string): InvasionSite {
   const ground = villageGround(plan);
   const h = hashText(fightId);
@@ -244,21 +252,22 @@ export function invasionSite(plan: VillagePlan, fightId: string): InvasionSite {
   const routes = pads.map((pad, j) => {
     const goal = { x: 0, z: 0 };
     if (Math.hypot(pad.x, pad.z) <= 60) {
-      const a = unit(h, j) * 6.283;
-      goal.x = Math.cos(a) * 110;
-      goal.z = Math.sin(a) * 110;
+      // (Come down in the town's middle, they make for its nearest homes, if any stand in their reach.)
+      const a = unit(h, j) * 6.283,
+        home = nearestTo(plan.homes, pad);
+      goal.x = home && apart(home, pad) <= ADVANCE_M + 60 ? home.x : Math.cos(a) * 110;
+      goal.z = home && apart(home, pad) <= ADVANCE_M + 60 ? home.z : Math.sin(a) * 110;
     }
     keepOut(ground, goal, 2);
     return trimPath(route(ground, pad, goal, 1.2), ADVANCE_M);
   });
   const rally = drillGround(plan);
   const p0 = pads[0]!;
+  // (Those nearest where they come down: a great town's others are out of the film's sight.)
   const homes = plan.homes
-    .map((hm, index) => ({ hm, index }))
-    .filter(({ hm }) => Math.hypot(hm.x - p0.x, hm.z - p0.z) <= 200)
-    .sort((a, b) => unit(h, 100 + a.index) - unit(h, 100 + b.index))
-    .slice(0, 64)
-    .map(({ hm }) => ({ x: hm.x, z: hm.z }));
+    .map((hm) => ({ x: hm.x, z: hm.z }))
+    .sort((a, b) => apart(a, p0) - apart(b, p0))
+    .slice(0, 64);
   return { pads, routes, rally: { x: rally.x, z: rally.z }, homes };
 }
 
@@ -307,11 +316,15 @@ export function invasionScript(
   const alight = burnable
     .slice(0, landing.razed > 0 ? Math.round(6 + 10 * Math.min(1, landing.razed * 4)) : 0)
     .map((h, i) => ({ ...h, ignite: ignite(i) }));
+  // (Those nearest where the eye looks by then, as with a town's roofs, so what burns is seen burning.)
+  const way = burningWay(site);
+  const fromWay = (h: Flat) => Math.min(...way.map((q) => Math.hypot(h.x - q.x, h.z - q.z)));
+  const nearest = burnable.length ? [] : [...site.homes].sort((a, b) => fromWay(a) - fromWay(b));
   const count =
-    !burnable.length && site.homes.length
-      ? Math.min(site.homes.length, 16, Math.max(4, Math.ceil(landing.razed * site.homes.length)))
+    landing.razed > 0
+      ? Math.min(nearest.length, 16, Math.max(6, Math.ceil(landing.razed * nearest.length)))
       : 0;
-  const fires = site.homes.slice(0, count).map((h, i) => ({ x: h.x, z: h.z, ignite: ignite(i) }));
+  const fires = nearest.slice(0, count).map((h, i) => ({ x: h.x, z: h.z, ignite: ignite(i) }));
   const room = figureOf(landing.raiders.body).scale;
   return { id: plan.id, site, each, raiders, ranged, room, seed, fires, alight };
 }

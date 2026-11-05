@@ -912,6 +912,13 @@ function rising(
   }
 }
 
+/** How high a town's homes stand at their tallest (metres; a spire by as much again as its level's third). */
+export function homesRiseTo(plan: TownPlan): number {
+  let top = 0;
+  for (const r of plan.runs) if (r[0]! <= 1) top = Math.max(top, r[5]!);
+  return LEVELS[Math.min(top, TOP_LEVEL)]!.h * (top >= TOP_LEVEL ? 1.4 : 1);
+}
+
 /** Whether a town has come to raise spires: what its sprawl is then made of. */
 export function hasSpires(plan: TownPlan): boolean {
   return plan.runs.some((r) => r[0]! <= 1 && r[5]! >= TOP_LEVEL);

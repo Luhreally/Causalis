@@ -145,6 +145,10 @@ export class LeaderChip {
 }
 
 /** The pin over a figure's home on the screen: their name, tapped to see the card. */
+/** How near the screen's side a pin's middle comes, and how near its top its foot (CSS px: under the world's bar). */
+const PIN_SIDE = 90,
+  PIN_TOP = 240;
+
 export class HomePin {
   onTap: () => void = () => {};
   private readonly pin: HTMLButtonElement;
@@ -157,7 +161,10 @@ export class HomePin {
     hud.append(this.pin);
   }
 
-  /** Shown at `at` (CSS pixels, its foot on the point) with `name`; null hides it. */
+  /**
+   * Shown at `at` (CSS pixels, its foot on the point) with `name`; null hides it. A column whose top
+   * stands past the screen, as among spires, has its pin on the column where it comes into sight.
+   */
   place(at: { x: number; y: number } | null, name: string): void {
     if (at === null) {
       this.pin.hidden = true;
@@ -168,6 +175,8 @@ export class HomePin {
       this.pin.textContent = `🏠 ${name}`;
       this.named = name;
     }
-    this.pin.style.transform = `translate(${at.x}px, ${at.y}px) translate(-50%, -100%)`;
+    const x = Math.max(PIN_SIDE, Math.min(innerWidth - PIN_SIDE, at.x)),
+      y = Math.max(PIN_TOP, Math.min(innerHeight, at.y));
+    this.pin.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
   }
 }

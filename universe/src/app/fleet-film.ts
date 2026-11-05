@@ -138,6 +138,8 @@ type FilmSample = {
   fires: number;
   /** How many of the fires stand on the screen now. */
   firesSeen: number;
+  /** Each fire's ground, height and place on the screen (null: behind the eye), for a gate to say. */
+  fireSpots: (readonly (number | null)[])[];
 };
 
 /** The camera's near plane while the film plays: nearer than the rig's, so the close ships are not cut. */
@@ -689,6 +691,7 @@ export function installFleetFilm(d: FleetFilmDeps): FleetFilm {
         raiders: [],
         fires: 0,
         firesSeen: 0,
+        fireSpots: [],
       };
       if (act === "orbit" && script) {
         const now = fleetAt(script, t);
@@ -708,6 +711,7 @@ export function installFleetFilm(d: FleetFilmDeps): FleetFilm {
         const room = stage.app.graphicsDevice.clientRect;
         out.firesSeen = fires.filter((f) => {
           const on = village.screenOf(f.x, f.z, f.high);
+          out.fireSpots.push([f.x, f.z, f.high, on?.x ?? null, on?.y ?? null]);
           return !!on && on.x >= 0 && on.x <= room.width && on.y >= 0 && on.y <= room.height;
         }).length;
       }

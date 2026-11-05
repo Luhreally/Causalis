@@ -2458,17 +2458,17 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
   };
   // (A key figure stands before their door, where the eye and the hand find them: Lives L1. Their day is L3's.)
   if (p.figure) {
-    // (Facing their door, so an eye behind them, taking them, stands in the street and not in their home.)
+    // (An eye behind them, taking them, has room: in a town they look along their street toward its heart; a
+    // street may be narrower than the eye's arm. In a village, at their door, with the open ground behind them.)
     const theirs = plan.homes[p.home];
-    stay(
-      0,
-      DAY,
-      at,
-      ACTIVITY.home,
-      null,
-      null,
-      theirs ? Math.atan2(theirs.x - at.x, theirs.z - at.z) : null,
-    );
+    let face: number | null = theirs ? Math.atan2(theirs.x - at.x, theirs.z - at.z) : null;
+    if (theirs && plan.town) {
+      const fx = Math.cos(theirs.yaw),
+        fz = -Math.sin(theirs.yaw),
+        inward = fx * at.x + fz * at.z < 0 ? 1 : -1;
+      face = Math.atan2(inward * fx, inward * fz);
+    }
+    stay(0, DAY, at, ACTIVITY.home, null, null, face);
     return legs;
   }
   // A walk goes round the homes, the water and the rising walls, turning beside each (straight

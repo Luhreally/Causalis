@@ -27,8 +27,12 @@ export const SOLDIER_EYE = { pitch: -0.55, distance: 2.6 } as const,
   BEAST_EYE = { pitch: -0.5, distance: 3.6 } as const;
 const DOWNMOST = -1.25,
   UPMOST = 0.12;
-/** Below this the eye keeps out of the walls and the roofs (m: the village's free roam's). */
+/** Below this the eye keeps out of the walls and the roofs (m: the village's free roam's; a city's stand higher). */
 const ROOFS = 9;
+/** The near plane the eye keeps otherwise (the stage's: in its units). */
+const EYE_NEAR = 0.1;
+/** How much short of the top of his head the eye's cut stops (m). */
+const HEAD_ROOM = 0.8;
 /** How far down the eye looks, rising over the roofs, where the walls hem the body in (radians). */
 const HEMMED = [-0.85, -1.2];
 /** How far the eye keeps off a wall (m). */
@@ -41,6 +45,10 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v
 const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 
 export class PossessEye {
+  /** How high its town's homes stand at their tallest (m): an eye does not rise over a city's as over a village's. */
+  roofs = 0;
+  /** How far what stands in its way is cut away, from nothing to all of it: eased, so nothing leaps. */
+  private cutting = 0;
   /** The way the eye looks (radians, as a body's yaw), its pitch (down: less than nothing), how far it stands off (the body's heights). */
   yaw = 0;
   pitch = -0.32;
@@ -118,13 +126,13 @@ export class PossessEye {
      * How far the arm from the body back to the eye reaches at a pitch before a wall or a roof
      * stands on it (a great town has hundreds of homes: only those about each point are asked).
      */
-    const arm = (pitch: number): number => {
+    const arm = (pitch: number, roofs = ROOFS): number => {
       if (!ground) return distance;
       const cp = Math.cos(pitch),
         sp = Math.sin(pitch);
       for (let a = first; a <= distance; a += step)
         if (
-          look - sp * a < ROOFS &&
+          look - sp * a < roofs &&
           !clearAt(ground, { x: x - fx * cp * a, z: z - fz * cp * a }, OFF_WALLS)
         )
           return Math.max(first, a - step);
@@ -132,8 +140,16 @@ export class PossessEye {
     };
     // Hemmed in (a lane, a wall behind him): risen over the roofs, looking down, as far as it stands
     // off farther so.
+    // (A city's walls stand higher than any eye: over them it cannot go. Hemmed in there it stands off as far as
+    // it would, steeply, and what stands between it and the body is cut away, below.)
+    const city = this.roofs > ROOFS;
     let pitch = this.shown.pitch,
-      reach = arm(pitch);
+      reach = arm(pitch, Math.max(ROOFS, this.roofs));
+    const hemmed = city && reach < distance * 0.75;
+    if (hemmed) {
+      pitch = Math.min(pitch, HEMMED[HEMMED.length - 1]!);
+      reach = distance;
+    }
     for (const over of HEMMED) {
       if (reach >= distance * 0.75 || pitch <= over) break;
       const r = arm(over);
@@ -161,6 +177,21 @@ export class PossessEye {
     this.stood = at;
     cam.setPosition(at.x * M, at.y * M, at.z * M);
     cam.lookAt(new pc.Vec3(x * M, look * M, z * M));
+    // Hemmed in, in a city, what stands between the eye and the body is cut away, as the rig does among spires:
+    // the near plane held short of where the ground meets the foot of the screen, so no gap opens there, and
+    // short of the body's head.
+    this.cutting += ((hemmed ? 1 : 0) - this.cutting) * e;
+    if (city) {
+      const far = Math.max(0.01, Math.hypot(at.x - x, at.y - look, at.z - z)),
+        // (How far down it looks, and half what it sees up and down.)
+        down = Math.asin(Math.max(0, Math.min(1, (at.y - look) / far))),
+        half = (fov * Math.PI) / 360,
+        // (How deep along its gaze the ground comes in at the screen's foot, and the top of his head.)
+        foot = (at.y / Math.sin(down + half)) * Math.cos(half),
+        head = far + (look - h) * Math.sin(down) - HEAD_ROOM,
+        near = Math.max(EYE_NEAR, Math.min(0.97 * foot, head) * M);
+      lens.nearClip = EYE_NEAR + (near - EYE_NEAR) * this.cutting;
+    }
   }
 
   /** Where a point of the town (m) is on the screen (CSS pixels; null: behind the eye). */

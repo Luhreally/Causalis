@@ -44,7 +44,10 @@ const argv = process.argv.slice(2),
   shotsAt = argv.indexOf("--shots"),
   shots = shotsAt >= 0 ? argv[shotsAt + 1] : undefined,
   bakedAt = argv.indexOf("--baked"),
-  bakedFile = bakedAt >= 0 ? argv[bakedAt + 1] : undefined;
+  bakedFile = bakedAt >= 0 ? argv[bakedAt + 1] : undefined,
+  // (A save of another year than the catalogue's: one this gate's own run left behind.)
+  yearAt = argv.indexOf("--year"),
+  bakedYear = yearAt >= 0 ? Number(argv[yearAt + 1]) : undefined;
 if (shots) mkdirSync(shots, { recursive: true });
 const slow = (ms: number) => (ci || soft ? ms * 4 : ms);
 
@@ -75,7 +78,7 @@ let AT = 0,
   ruleset = rulesetId(world, EARTH.version);
   if (bakedFile) {
     bytes = readFileSync(bakedFile);
-    AT = BAKED_YEAR;
+    AT = bakedYear ?? BAKED_YEAR;
   } else {
     for (let y = 1380; y <= 1900; y += 20) {
       world.runTo(y * YEAR);
@@ -188,6 +191,7 @@ type FilmSample = {
   raiders: { size: number }[];
   fires: number;
   firesSeen: number;
+  fireSpots: (readonly (number | null)[])[];
 };
 /** The budgets of what is drawn (fleetFilm.shown()), as the layers report them. */
 type Shown = { ships: number; drawCalls: number; triangles: number };
@@ -438,6 +442,9 @@ try {
       if (landing.razed > 0) {
         check(smp.fires >= 1, `${smp.fires} fires at 30 s, where homes burn`);
         say(`at 30 s: ${smp.fires} homes alight, ${smp.firesSeen} of them on the screen`);
+        say(
+          `  x, z, high, on the screen: ${smp.fireSpots.map((f) => f.map((n) => (n === null ? "-" : Math.round(n))).join(",")).join(" ")}`,
+        );
         check(smp.firesSeen >= 2, `${smp.firesSeen} fires on the screen at 30 s, where homes burn`);
       }
       check((tw?.fallen ?? 0) >= 1, `${tw?.fallen ?? 0} fallen at 30 s`);
