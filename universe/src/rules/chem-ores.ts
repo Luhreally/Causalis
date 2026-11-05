@@ -12,7 +12,6 @@ import {
   type Reaction,
 } from "./matter.ts";
 import { KIND_METALS, KIND_ORES, KIND_REACTION_IDS } from "./kind-ground.ts";
-import { KIND_PRINCIPLE_NAMES, kindBurns } from "./kinds.ts";
 import { chemistryKey, type AirClass, type Chemistry } from "./chemistry.ts";
 import { principle } from "./principles.ts";
 
@@ -377,17 +376,27 @@ export const METAL_PRINCIPLES: ReadonlyMap<string, Metal> = new Map<string, Meta
   ["iron", "iron"],
 ]);
 
+/** A step's name where nothing burns (under 1% free oxygen): what it comes to without a furnace. */
+export function burnlessName(chem: Chemistry, id: string): string | null {
+  if (chem.o2 >= 0.01) return null;
+  if (id === "steamships") return "engine-driven ships";
+  if (id === "metalworking")
+    return Object.values(oresOn(chem).copper ?? {}).some((o) => o?.worked)
+      ? "working native copper cold"
+      : "iron fallen from the sky, forged hot";
+  return null;
+}
+
 /**
  * A principle's name on this world: a metal's principle is named as the world's chemistry names
  * that metal ("arsenical copper" for bronze on an arsenic world); the Sun's chemistry keeps the
- * names the principles have. A kind names some of Earth's its own way (Phase 56: "engine-driven
- * ships" where nothing burns), and where nothing burns a metal's keeps Earth's name: none is
- * smelted there, and its page says why.
+ * names the principles have. Where nothing burns, a step may be named its own way (burnlessName),
+ * and a metal keeps Earth's name: none is smelted there, and its page says why.
  */
 export function principleNameOn(chem: Chemistry, id: string): string {
-  const own = chem.kind && KIND_PRINCIPLE_NAMES[chem.kind][id];
+  const own = burnlessName(chem, id);
   if (own) return own;
-  if (chem.kind && !kindBurns(chem.kind)) return principle(id).name;
+  if (chem.o2 < 0.01) return principle(id).name;
   const metal = METAL_PRINCIPLES.get(id);
   return chem.solar || !metal ? principle(id).name : metalOf(chem, metal).name;
 }

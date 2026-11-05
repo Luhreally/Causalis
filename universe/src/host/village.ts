@@ -15,8 +15,8 @@ import {
   type World,
 } from "../kernel/index.ts";
 import type { Feast } from "../bridge/index.ts";
-import { WATER, cellRef, livingIn, worldKindOf, type Species } from "../gen/index.ts";
-import { G, GOODS, HOME_LIFE, KIND_AGES, OCC, article, roofPitch } from "../rules/index.ts";
+import { WATER, cellRef, livingIn, type Species } from "../gen/index.ts";
+import { AGE_ROWS, G, GOODS, HOME_LIFE, OCC, article, roofPitch } from "../rules/index.ts";
 import {
   actsOf,
   agentName,
@@ -163,10 +163,8 @@ export function landEra(world: World, cell: number): NonNullable<VillagePlan["er
     lore = loreOf(world),
     knows = (id: string) => !!lore.get(cell, id),
     land = ctx.provinces.get(cell),
-    // (A kind's own ages, by its own principles: Phase 56.)
-    kind = worldKindOf(ctx.generated),
-    own = (era: "metal" | "industry" | "modern") =>
-      kind !== "rocky" && KIND_AGES[kind][era].by.some(knows);
+    // (The rows that bring each age, where its world's matter gives them: F3.)
+    own = (era: "metal" | "industry" | "modern") => AGE_ROWS[era].some(knows);
   return knows("electricity") || knows("sea-electricity") || own("modern")
     ? "modern"
     : knows("steam-engine") || own("industry")
@@ -1138,7 +1136,7 @@ export function villagePlan(
       population: village.population,
       market: village.market !== null,
       biome: r.biome[village.tile]!,
-      ...planKind(world),
+      ...planKind(world, village.cell),
       // (Its life's colours: its trees, crops and grass — Phase 57.)
       ...worldLook(world),
       seed,

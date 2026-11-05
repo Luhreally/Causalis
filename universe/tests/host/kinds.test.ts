@@ -61,9 +61,12 @@ test("a carbon world's field guide says what it is and why, and that no furnace 
   assert.equal(row("Its seas"), "Oil, liquid from 0 °C to 100 °C under its air");
   assert.equal(row("What burns"), KINDS.carbon.fire);
   assert.match(row("Its bedrock"), /^Carbide and graphite/);
-  assert.deepEqual(block(p, "text", "Its furnaces").lines.map(words), [
-    "None: nothing burns in its air, so no furnace can be built.",
-  ]);
+  // (Its furnaces are the means of heat its own matter gives, not a fire's: mirrors among them.)
+  const furnaces = block(p, "table", "Its furnaces").rows.map((r) => words(r.cells[0]!));
+  assert.ok(
+    furnaces.some((f) => /^Mirrors\b/.test(f)),
+    furnaces.join(" | "),
+  );
   const metals = block(p, "list", "Its metals").items.map((i) => words(i.line));
   assert.ok(
     metals.some((m) => /carbide iron/i.test(m)),
@@ -86,24 +89,22 @@ test("a carbon world's field guide says what it is and why, and that no furnace 
   );
 });
 
-test("a principle that wants fire is shut where nothing burns, and says why", () => {
+test("a principle is shut where its matter or its heat cannot give it, and says why", () => {
   assert.match(
     facts(pageOf(carbon, "prin:bronze")).get("On this world")!,
-    /^shut: nothing burns in its air, so no furnace can be built\. Fuel is everywhere/,
+    /^shut: it asks a people to harden copper/,
   );
-  assert.match(
-    facts(pageOf(carbon, "prin:pottery-wheel")).get("On this world")!,
-    /no kiln can be fired/,
-  );
+  // (Its pitch and grit fire a pot at their heat, so the wheel is open here.)
+  assert.equal(facts(pageOf(carbon, "prin:pottery-wheel")).get("On this world"), undefined);
   assert.equal(facts(pageOf(carbon, "prin:cold-hammering")).get("On this world"), undefined);
   // (Its copper is worked cold: the root of metal is open on it, by its own name.)
   const root = pageOf(carbon, "prin:metalworking");
   assert.equal(root.title, "Working native copper cold");
   assert.equal(facts(root).get("On this world"), undefined);
-  // Another kind's road is not this world's.
+  // Ice is no carbon world's to work as stone.
   assert.match(
     facts(pageOf(carbon, "prin:ice-working")).get("On this world")!,
-    /^shut: known only on an ice-and-ammonia world or a methane world/,
+    /^shut: it asks a people to work ice as stone/,
   );
 });
 
@@ -187,20 +188,28 @@ test("an ice world's land is told in true degrees, and its seas by their liquid"
   assert.ok(gases.includes("methane") && !gases.includes("carbon dioxide"), `${gases}`);
   assert.ok(!gases.includes("oxygen"));
   assert.match(air.note!, /frozen on the ground as frost/);
-  // No metal is smelted on it: bronze keeps Earth's name, shut; so is the root of metal, its ice
-  // holding no ore to work cold.
+  // No metal is smelted on it: bronze keeps Earth's name, shut for want of a hardener. The root of
+  // metal is open, on the iron that falls from its sky.
   const bronze = pageOf(methane, "prin:bronze");
   assert.equal(bronze.title, "Bronze");
-  assert.match(facts(bronze).get("On this world")!, /^shut: nothing burns in its air/);
-  assert.match(
-    facts(pageOf(methane, "prin:metalworking")).get("On this world")!,
-    /^shut: nothing burns in its air, so no furnace can be built, and no ore lies in its ice/,
+  assert.match(facts(bronze).get("On this world")!, /^shut: it asks a people to harden copper/);
+  const root = pageOf(methane, "prin:metalworking");
+  assert.equal(root.title, "Iron fallen from the sky, forged hot");
+  assert.equal(facts(root).get("On this world"), undefined);
+  // Its metal fell from its sky: broken to grit in its cold, or forged hot in a smith's hearth.
+  const metals = block(pageOf(methane, "world:matter#world"), "list", "Its metals").items.map((i) =>
+    words(i.line),
   );
-  // Its one metal fell from its sky, and in its cold breaks as glass does.
-  const metals = block(pageOf(methane, "world:matter#world"), "list", "Its metals");
-  assert.deepEqual(
-    metals.items.map((i) => words(i.line)),
-    ["Iron fallen from the sky — keen 0.6, tough 0.1"],
+  assert.equal(metals.length, 2, metals.join(" | "));
+  assert.match(metals[0]!, /^Iron fallen from the sky — keen 0\.6, tough 0\.1$/);
+  assert.match(metals[1]!, /^Iron fallen from the sky, forged hot — keen /);
+  // Its furnaces: a hearth of joined acetylene, which its haze makes, is among the means it has.
+  const furnaces = block(pageOf(methane, "world:matter#world"), "table", "Its furnaces").rows.map(
+    (r) => words(r.cells[0]!),
+  );
+  assert.ok(
+    furnaces.some((f) => /^Joined acetylene\b/.test(f)),
+    furnaces.join(" | "),
   );
 });
 

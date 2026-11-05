@@ -36,7 +36,7 @@ import {
   HERD_GOODS,
   HOME_MADE,
   GLUT_YEARS,
-  KIND_ENGINES,
+  OWN_ENGINES,
   MACHINE_GAIN,
   OCC,
   POWER,
@@ -117,6 +117,7 @@ function canMake(ctx: PopulationContext, p: Province, m: Market, r: Recipe): boo
 export function whyNot(ctx: PopulationContext, cell: number, m: Market, r: Recipe): string | null {
   const know = r.needs?.knowledge;
   if (know === "metalworking" && !m.metalworking) return "they do not know how to smelt copper";
+  if (r.needs?.fuelless && ctx.affords.fire) return "its works burn fuel";
   if (know && know !== "metalworking" && !loreOf(ctx.world).get(cell, know))
     return `they do not know ${principleNameOn(worldChemistry(ctx.generated), know)}`;
   if (r.needs?.ore && !oreWorkable(ctx, cell, r.needs.ore)) {
@@ -213,7 +214,7 @@ function makeAndUse(
     machines =
       !!lore.get(p.cell, "steam-engine") ||
       !!lore.get(p.cell, "current-mills") ||
-      KIND_ENGINES.some((id) => !!lore.get(p.cell, id)) ||
+      OWN_ENGINES.some((id) => !!lore.get(p.cell, id)) ||
       !!lore.get(p.cell, "machine-minds");
   const wants: [number, number, "toolCover" | "clothingCover" | "potteryCover" | "machineCover"][] =
     [

@@ -1,8 +1,8 @@
 // Phase 56: the kinds of world. A dial makes the kind it says; a seed falls as one by keyed draws of
 // its own, as often as its star makes likely; a world kept rocky stays rocky. Warmth is read through
 // a kind's liquid and back. Each kind's tables name what exists, and nothing a kind does breaks
-// physics: its reactions balance, its substances are of real elements, and where nothing burns no
-// principle that wants fire can be known.
+// physics: its reactions balance, its substances are of real elements, and `burns` rows are never
+// open at any number.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { seedActs } from "../../src/kernel/index.ts";
@@ -12,13 +12,10 @@ import {
   KIND_AGES,
   KIND_AIR,
   KIND_GASES,
-  KIND_ENGINES,
   KIND_METALS,
-  KIND_METAL_ROOTS,
   KIND_ODDS,
   KIND_ORES,
   KIND_PIGMENTS,
-  KIND_PRINCIPLE_NAMES,
   KIND_REACTIONS,
   KIND_REACTION_IDS,
   KIND_ROCKS,
@@ -39,7 +36,6 @@ import {
   imbalance,
   kelvinPerDegree,
   keptRocky,
-  kindAllows,
   kindBiomeName,
   kindBurns,
   kindLives,
@@ -54,6 +50,25 @@ import {
 const sun = (text: string): KindInputs => ({ text, mass: 1, ageGyr: 4.6 });
 const ids = new Set(PRINCIPLES.map((p) => p.id));
 const byId = (id: string) => PRINCIPLES.find((p) => p.id === id)!;
+/** KIND_TREE in order: the sixteen rows Phase 56 appended, at their base indexes 95 to 110. */
+const KIND_IDS = [
+  "diamond-grit",
+  "pitch-ware",
+  "cold-hammering",
+  "carbide-blades",
+  "sun-engines",
+  "graphite-dynamos",
+  "made-oxygen",
+  "acid-leaching",
+  "sulfur-concrete",
+  "ice-ware",
+  "ice-working",
+  "heat-engines",
+  "ground-dynamos",
+  "cold-chemistry",
+  "polymer-wire",
+  "star-iron",
+];
 
 test("each dial makes the kind it says, over any seed; a made input outranks a drawn one", () => {
   for (const name of ["violet hollow", "alien 20", "amber 412", "x"]) {
@@ -171,49 +186,29 @@ test("a kind's seas are its liquid's; its land's names are Earth's", () => {
     assert.equal(kindBiomeName("rocky", name), name);
 });
 
-test("where nothing burns, no principle that wants fire can be known, by any body", () => {
+test("`burns` rows are never open at any number, by any body", () => {
   assert.deepEqual(
     WORLD_KINDS.filter((k) => kindBurns(k)),
     ["rocky", "sulfur"],
   );
-  for (const kind of WORLD_KINDS) {
-    const fire = kindBurns(kind);
-    for (const p of PRINCIPLES)
-      if (p.body?.fire && !fire)
-        assert.equal(affordsPrinciple(p, "land", fire, kind), false, `${p.id} on ${kind}`);
-  }
-  // A kind's own engines and metal roots want no fire where nothing burns.
-  for (const id of [...KIND_ENGINES, ...KIND_METAL_ROOTS]) {
-    const p = byId(id);
-    for (const kind of p.body!.kinds!)
-      assert.ok(kindBurns(kind) || !p.body!.fire, `${id} wants fire on ${kind}`);
-  }
+  const burns = PRINCIPLES.filter((p) => p.body?.burns).map((p) => p.id);
+  assert.deepEqual(burns, ["coal-mining", "steam-engine", "oil-drilling", "engines"]);
+  for (const id of burns)
+    for (const n of [0, 300, 1200, 5000])
+      assert.equal(affordsPrinciple(byId(id), "land", n), false, `${id} at ${n}`);
 });
 
-test("the kinds' principles come after Earth's, open only on their kinds, and need what exists", () => {
-  const own = PRINCIPLES.filter((p) => p.body?.kinds),
-    first = PRINCIPLES.indexOf(own[0]!);
-  assert.equal(own.length, 16);
-  assert.ok(
-    // (Those past our ages, Phase 66, came after them, and open on every kind.)
-    PRINCIPLES.slice(first, first + own.length).every((p) => p.body?.kinds),
-    "appended after the rest",
-  );
-  for (const p of PRINCIPLES) {
+test("KIND_TREE's 16 ids keep their indexes, each has `asks`, and every need's id exists", () => {
+  KIND_IDS.forEach((id, i) => {
+    assert.equal(
+      PRINCIPLES.findIndex((p) => p.id === id),
+      95 + i,
+      id,
+    );
+    assert.ok(byId(id).asks?.length, `${id} asks`);
+  });
+  for (const p of PRINCIPLES)
     for (const n of p.needs) for (const x of n.split("|")) assert.ok(ids.has(x), `${p.id}: ${x}`);
-    assert.equal(kindAllows(p, "rocky"), !p.body?.kinds, p.id);
-  }
-  for (const p of own) {
-    for (const kind of p.body!.kinds!)
-      assert.ok((NOVEL_KINDS as readonly string[]).includes(kind), p.id);
-    // Each of its needs can be met on one of its kinds: its own, or Earth's.
-    for (const n of p.needs)
-      assert.ok(
-        n.split("|").some((x) => p.body!.kinds!.some((k) => kindAllows(byId(x), k))),
-        `${p.id}: ${n}`,
-      );
-  }
-  for (const id of [...KIND_ENGINES, ...KIND_METAL_ROOTS]) assert.ok(byId(id)?.body?.kinds, id);
 });
 
 test("where nothing burns, current is carried by what the world has: copper, star iron, a polymer", () => {
@@ -221,12 +216,15 @@ test("where nothing burns, current is carried by what the world has: copper, sta
   // engines; an ammonia world's iron fallen from the sky; a methane world's wires of polyacetylene
   // about magnets of that iron, too brittle in its cold to hammer, whose nickel, broken to grit, is
   // also what its engines join acetylene and hydrogen on.)
-  assert.ok(byId("graphite-dynamos").needs.includes("sun-engines"));
-  assert.ok(byId("sun-engines").needs.includes("carbide-blades"));
+  assert.ok(byId("graphite-dynamos").needs[0]!.includes("sun-engines"));
+  assert.ok(byId("sun-engines").needs[1]!.includes("carbide-blades"));
   assert.ok(byId("carbide-blades").needs.includes("cold-hammering"));
-  assert.ok(byId("ground-dynamos").needs.includes("star-iron"));
-  assert.ok(byId("heat-engines").needs.includes("star-iron"), "an engine's heart of star iron");
-  assert.deepEqual(byId("star-iron").body?.kinds, ["ammonia", "methane"]);
+  assert.ok(byId("ground-dynamos").needs.some((n) => n.includes("star-iron")));
+  assert.ok(
+    byId("heat-engines").needs.some((n) => n.includes("star-iron")),
+    "an engine's heart of star iron",
+  );
+  assert.deepEqual(byId("star-iron").asks, ["work-fallen-iron"]);
   assert.ok(byId("cold-chemistry").needs.includes("star-iron"), "the nickel acetylene joins on");
   assert.ok(KIND_METALS["star iron"].tough >= KIND_METALS["cold copper"].tough);
   assert.ok(KIND_METALS["brittle star iron"].tough < KIND_METALS["star iron"].tough / 2);
@@ -234,15 +232,10 @@ test("where nothing burns, current is carried by what the world has: copper, sta
     assert.ok(KIND_AGES[kind].modern.next.length > 0, kind);
 });
 
-test("each kind's ages are brought by its own principles, and their names name principles", () => {
+test("each kind's ages are brought by principles that exist", () => {
   for (const kind of NOVEL_KINDS) {
     for (const era of ["metal", "industry", "modern"] as const)
-      for (const id of KIND_AGES[kind][era].by) {
-        assert.ok(ids.has(id), `${kind} ${era}: ${id}`);
-        assert.ok(kindAllows(byId(id), kind), `${id} is open on ${kind}`);
-        assert.ok(kindBurns(kind) || !byId(id).body?.fire, `${id} wants no fire on ${kind}`);
-      }
-    for (const id of Object.keys(KIND_PRINCIPLE_NAMES[kind])) assert.ok(ids.has(id), id);
+      for (const id of KIND_AGES[kind][era].by) assert.ok(ids.has(id), `${kind} ${era}: ${id}`);
   }
   // A world where nothing burns climbs to every age by a road of its own.
   for (const kind of NOVEL_KINDS.filter((k) => !kindBurns(k)))

@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { YEAR, seedFromText, type World } from "../../src/kernel/index.ts";
 import { ALIEN } from "../../src/host/planet.ts";
 import { worldKindOf } from "../../src/gen/index.ts";
-import { PRINCIPLES, kindAllows } from "../../src/rules/index.ts";
+import { PRINCIPLES } from "../../src/rules/index.ts";
 import { knows, landMaterials, loreOf, populationContext } from "../../src/sim/index.ts";
 
 const byId = new Map(PRINCIPLES.map((p) => [p.id, p]));
@@ -45,8 +45,7 @@ test("a carbon world: no fire by any hand; diamond, pitch and copper beaten cold
   );
   for (const id of known) {
     const p = byId.get(id)!;
-    assert.ok(!p.body?.fire, `${id} wants fire`);
-    assert.ok(kindAllows(p, "carbon"), `${id} is another kind's`);
+    assert.ok(!p.body?.burns, `${id} burns`);
   }
   for (const c of lands.slice(0, 20)) {
     const m = landMaterials(ctx, c);
@@ -70,9 +69,15 @@ test("an ice world: vessels and blades of ice, walls of ice, and nothing burned"
       assert.ok(known.has(id), `${seed}: ${id} is known by ${years} years`);
     for (const id of known) {
       const p = byId.get(id)!;
-      assert.ok(!p.body?.fire, `${seed}: ${id} wants fire`);
-      assert.ok(kindAllows(p, kind), `${seed}: ${id} is another kind's`);
+      assert.ok(!p.body?.burns, `${seed}: ${id} burns`);
     }
+    // alien 1429 by year 400: joined-hearth (a means of heat the world reads) may be known or not;
+    // if it is, still nothing burns.
+    if (seed === "alien 1429")
+      assert.ok(
+        !known.has("joined-hearth") || !ctx.affords.fire,
+        `${seed}: joined-hearth lit a fire`,
+      );
     for (const c of lands.slice(0, 20)) {
       const m = landMaterials(ctx, c);
       assert.ok(m.has("ice") && !m.has("fired clay"), `${seed} ${c}: ${[...m].join(", ")}`);
@@ -86,7 +91,6 @@ test("a sulfur world burns: kilns and smelting, copper of blue vitriol, sulfur c
   assert.equal(ctx.affords.fire, true);
   assert.ok(lands.some((c) => knows(ctx, c, "metalworking")));
   for (const id of ["pottery-wheel", "acid-leaching"]) assert.ok(known.has(id), id);
-  for (const id of known) assert.ok(kindAllows(byId.get(id)!, "sulfur"), id);
   assert.ok(landMaterials(ctx, lands[0]!).has("sulfur concrete"));
   assert.ok(world.submit("act.fire", { village: firstTown(world) }));
 });

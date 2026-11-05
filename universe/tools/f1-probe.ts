@@ -8,13 +8,7 @@ import { YEAR, seedFromText } from "../src/kernel/index.ts";
 import { ALIEN } from "../src/host/planet.ts";
 import { hostDesign } from "../src/host/arms.ts";
 import { kindOf } from "../src/host/kinds.ts";
-import {
-  KIND_ENGINES,
-  KIND_METAL_ROOTS,
-  KIND_PRINCIPLE_NAMES,
-  KINDS,
-  PRINCIPLES,
-} from "../src/rules/index.ts";
+import { KINDS, METAL_ROOTS, OWN_ENGINES, PRINCIPLES } from "../src/rules/index.ts";
 import { loreOf, politiesOf, populationContext, warsOf } from "../src/sim/index.ts";
 
 const seed = process.argv[2] ?? "wren 455",
@@ -34,13 +28,7 @@ const seed = process.argv[2] ?? "wren 455",
     "automatic-fire",
     ...PRINCIPLES.map((p) => p.id).filter((id) => id.includes("beam")),
   ],
-  own = [
-    ...new Set([
-      ...(kind === "rocky" ? [] : Object.keys(KIND_PRINCIPLE_NAMES[kind])),
-      ...KIND_METAL_ROOTS,
-      ...KIND_ENGINES,
-    ]),
-  ];
+  own = [...new Set([...METAL_ROOTS, ...OWN_ENGINES])];
 
 console.log(
   `${seed}: ${facts.icon} ${facts.name} (${kind}); ${facts.burns ? "fire burns in its air" : "nothing burns in its air"}`,

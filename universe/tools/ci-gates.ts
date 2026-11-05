@@ -269,6 +269,9 @@ export const GATES: readonly Gate[] = [
   // Gate F1: arms by what they do. A small methane world's battle of guns of its own stuff, its flashes
   // counted on the screen itself; the arm's page and why not metal; the principle's page saying the way here.
   { gate: 69, args: ["--ci"], s: 300 },
+  // Gate F2, F3: heat, not fire. A small methane world's hearth of joined acetylene: found, its town's fires lit
+  // where a town before it had none, its pots and its furnace table saying each means' heat. Runs "wren 455".
+  { gate: 69, part: "b", args: ["--ci"], s: 300 },
   // Gate 68, Lives L1 and L2 (tools/lives-gate.ts): a realm's leaders, a ruler's home in the town view,
   // possessed and let go, history untouched till then; the wealth lens, its ranking, two side by side.
   { gate: 68, args: ["--ci"], s: 300 },

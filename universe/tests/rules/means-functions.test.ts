@@ -23,6 +23,7 @@ const EARTH: MeansWorld = meansWorldOf({
   gravity: 1,
   medium: "land",
   bodyFire: true,
+  insolation: 1,
 });
 
 /** A world as the functions read it: its means from its numbers, the rest as Earth's. */
@@ -39,7 +40,7 @@ function worldOf(
     giants: 4,
     starLeftGyr: 5,
     peopled: true,
-    means: meansWorldOf({ chem: SOLAR, kind, ...numbers }),
+    means: meansWorldOf({ chem: SOLAR, kind, ...numbers, insolation: 1 }),
   };
 }
 
@@ -57,6 +58,7 @@ test("a world's numbers are read from its kind's own tables, and Earth's are the
     gravity: 1.134,
     medium: "land",
     bodyFire: false,
+    insolation: 1,
   });
   assert.equal(methane.kelvin, -182 + 273.15);
   assert.equal(methane.freeOxygen, false);
@@ -103,7 +105,7 @@ test("a land people with no fire in its body cannot make the gas fast on rocky g
 
 test("on methane: solid acetylene by hand, ice for the edge, hand-fibre then drawn polymer for the barrels", () => {
   const numbers = { celsius: -182, gravity: 1.134, medium: "land", bodyFire: false } as const;
-  const m = meansOf(meansWorldOf({ chem: SOLAR, kind: "methane", ...numbers }));
+  const m = meansOf(meansWorldOf({ chem: SOLAR, kind: "methane", ...numbers, insolation: 1 }));
   assert.equal(m.handCharge?.id, "solid-acetylene");
   assert.equal(m.edge?.id, "ice");
   assert.equal(m.handBarrel.id, "hand-fibre");
@@ -122,6 +124,7 @@ test("on ammonia: hydrazine by hand, and azide made with current at works", () =
       gravity: 1,
       medium: "land",
       bodyFire: false,
+      insolation: 1,
     }),
   );
   assert.equal(m.handCharge?.id, "hydrazine");
@@ -137,6 +140,7 @@ test("on carbon: cyanide by hand, moissanite for the edge, copper wire for the b
       gravity: 1,
       medium: "land",
       bodyFire: true,
+      insolation: 1,
     }),
   );
   assert.equal(m.handCharge?.id, "hydrogen-cyanide");
@@ -159,6 +163,8 @@ test("a made-up world at 150 K with ammonia and no methane in its air picks hydr
     seaKgM3: 1000,
     seaIsWater: false,
     ppm: () => 0,
+    sunWm2: 100,
+    rockHolds: [],
   };
   const m = meansOf(made);
   assert.equal(m.handCharge?.id, "hydrazine");

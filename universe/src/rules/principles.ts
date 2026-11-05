@@ -6,7 +6,6 @@
 // whole. Two roots are known by the older systems: cultivation and metalworking.
 
 import type { Medium } from "./bodies.ts";
-import type { WorldKind } from "./kinds.ts";
 
 /** What a principle changes, as keyed amounts (added to a land's totals). */
 export const EFFECTS = [
@@ -75,12 +74,12 @@ export type Drivers = {
 
 /** What a body must be able to do for a principle to be open to its people (Phase 4 M39). */
 export type BodyNeeds = {
-  /** It wants fire: kilns, smelting, burning fuel. */
-  readonly fire?: boolean;
+  /** The heat it wants (°C): whatever on this world reaches it (F2). */
+  readonly heat?: number;
+  /** It burns a fuel in air, and has no other way. */
+  readonly burns?: boolean;
   /** Only a people of these media can use it (wheels and sails are for the land and shore; the vents for the sea). */
   readonly media?: readonly Medium[];
-  /** Only on worlds of these kinds (Phase 56: what a kind does in place of what it cannot; absent: any). */
-  readonly kinds?: readonly WorldKind[];
 };
 
 export type Principle = {
@@ -110,20 +109,17 @@ export function needsMet(
   return p.needs.every((n) => (n.includes("|") ? n.split("|").some(knows) : knows(n)));
 }
 
-/** Whether a principle can be known on a world of this kind at all (Phase 56). */
-export function kindAllows(p: Principle, kind: WorldKind): boolean {
-  return !p.body?.kinds || p.body.kinds.includes(kind);
-}
-
-/** Whether a body can come to know a principle at all, on a world of its kind (a rocky one by default). */
+/** Whether a body can come to know a principle, at the heat its land can reach: true no limit, false none, or °C. */
 export function affordsPrinciple(
   p: Principle,
   medium: Medium,
-  fire: boolean,
-  kind: WorldKind = "rocky",
+  reach: number | boolean,
+  wants?: Readonly<Record<string, number>>,
 ): boolean {
-  if (!kindAllows(p, kind)) return false;
-  if (p.body?.fire && !fire) return false;
+  const heat = p.body?.heat === undefined ? undefined : (wants?.[p.id] ?? p.body.heat);
+  if (heat !== undefined && !(reach === true || (typeof reach === "number" && reach >= heat)))
+    return false;
+  if (p.body?.burns && reach !== true) return false;
   return !p.body?.media || p.body.media.includes(medium);
 }
 
@@ -142,7 +138,9 @@ const P = (
  * when PRINCIPLES is built.
  */
 export const FUNCTIONS: Readonly<Record<string, readonly string[]>> = {
-  "@tough-stuff": ["iron", "carbide-blades", "diamond-grit", "ice-working"],
+  "@tough-stuff": ["iron", "carbide-blades", "diamond-grit", "ice-working", "set-edges"],
+  "@engine": ["steam-engine", "sun-engines", "heat-engines", "cold-chemistry"],
+  "@polished": ["bronze", "cold-hammering", "star-iron"],
   "@works": ["factories", "sea-works", "sun-engines", "heat-engines", "cold-chemistry"],
   "@current": [
     "electricity",
@@ -295,7 +293,7 @@ const TREE: readonly Principle[] = [
   P(
     "steel",
     "steel",
-    ["iron", "mathematics"],
+    ["iron|made-oxygen", "mathematics"],
     0.005,
     { crafters: 1 },
     { tools: 0.2, arms: 1, armour: 1 },
@@ -308,7 +306,14 @@ const TREE: readonly Principle[] = [
     { crafters: 1 },
     { building: 1 },
   ),
-  P("glass", "glass", ["pottery-wheel", "metalworking"], 0.006, { crafters: 1 }, {}),
+  P(
+    "glass",
+    "glass",
+    ["pottery-wheel|ice-ware|pitch-ware", "metalworking"],
+    0.006,
+    { crafters: 1 },
+    {},
+  ),
   // Moving and trading.
   P(
     "wheel",
@@ -505,7 +510,7 @@ const TREE: readonly Principle[] = [
   P(
     "factories",
     "the factory",
-    ["steam-engine", "banking"],
+    ["@engine", "banking"],
     0.006,
     { crafters: 1, traders: 0.5, town: 1 },
     { industry: 0.7 },
@@ -806,21 +811,14 @@ const TREE: readonly Principle[] = [
 // The kinds' own roads (Phase 56): what a world of each kind does in place of what it cannot. Where
 // nothing burns — a carbon world, an ice world — no kiln, furnace or engine that burns can be built;
 // its people come to vessels, blades, works and power another way, and Earth's later principles
-// open by either road ("a|b"). Each is open only on its kinds' worlds. Appended after the rest, so
-// every land's draws to find the others (keyed by a principle's place) stay what they were.
+// open by either road ("a|b"). Each asks its world's matter (ROW_ASKS), not its kind (F3).
+// Appended after the rest, so every land's draws to find the others (keyed by a principle's
+// place) stay what they were.
 const KIND_TREE: readonly Principle[] = [
   // A carbon world: diamond and carbide, its native copper beaten cold, the sun's heat gathered in
   // mirrors (no fuel burns), then dynamos, then oxygen made by current, which at last burns the
   // carbon out of its iron.
-  P(
-    "diamond-grit",
-    "grinding with diamond grit",
-    [],
-    0.012,
-    { crafters: 1 },
-    { tools: 0.15 },
-    { kinds: ["carbon"] },
-  ),
+  P("diamond-grit", "grinding with diamond grit", [], 0.012, { crafters: 1 }, { tools: 0.15 }),
   P(
     "pitch-ware",
     "vessels sealed with pitch",
@@ -828,7 +826,6 @@ const KIND_TREE: readonly Principle[] = [
     0.02,
     { crafters: 1 },
     { pottery: 0.5 },
-    { kinds: ["carbon"] },
   ),
   P(
     "cold-hammering",
@@ -837,7 +834,6 @@ const KIND_TREE: readonly Principle[] = [
     0.015,
     { crafters: 1, ore: "copper" },
     { tools: 0.2 },
-    { kinds: ["carbon"] },
   ),
   P(
     "carbide-blades",
@@ -846,34 +842,30 @@ const KIND_TREE: readonly Principle[] = [
     0.01,
     { crafters: 1, ore: "iron" },
     { tools: 0.5, arms: 1, armour: 1 },
-    { kinds: ["carbon"] },
   ),
   P(
     "sun-engines",
     "engines driven by the sun's heat",
-    ["mills", "carbide-blades", "mathematics"],
+    ["mills", "@tough-stuff", "mathematics"],
     0.005,
     { crafters: 1 },
-    { power: 1, industry: 0.7, renewable: 2 },
-    { kinds: ["carbon"] },
+    { power: 1, industry: 0.3, renewable: 2 },
   ),
   P(
     "graphite-dynamos",
     "dynamos of copper and graphite",
-    ["sun-engines", "philosophy"],
+    ["sun-engines|heat-engines|cold-chemistry", "philosophy"],
     0.004,
     { crafters: 1, leaders: 0.5 },
     { power: 1, industry: 0.5, renewable: 1 },
-    { kinds: ["carbon"] },
   ),
   P(
     "made-oxygen",
     "oxygen made by current",
-    ["graphite-dynamos", "mathematics"],
+    ["@current", "mathematics"],
     0.004,
     { crafters: 1 },
     { tools: 0.2, arms: 1, armour: 1 },
-    { kinds: ["carbon"] },
   ),
   // A sulfur-volcano world: copper from the blue vitriol its acid springs leave, reduced in an open
   // fire with no furnace; walls of grit bound with molten sulfur.
@@ -884,7 +876,6 @@ const KIND_TREE: readonly Principle[] = [
     0.015,
     { crafters: 1, ore: "copper" },
     { tools: 0.1 },
-    { kinds: ["sulfur"] },
   ),
   P(
     "sulfur-concrete",
@@ -893,18 +884,10 @@ const KIND_TREE: readonly Principle[] = [
     0.01,
     { crafters: 1, town: 1 },
     { building: 1, walls: 1 },
-    { fire: true, kinds: ["sulfur"] },
+    { heat: 140 },
   ),
   // An ice world: vessels, blades and walls of the ice that is its bedrock.
-  P(
-    "ice-ware",
-    "vessels cut from ice",
-    ["cultivation"],
-    0.02,
-    { crafters: 1 },
-    { pottery: 0.4 },
-    { kinds: ["ammonia", "methane"] },
-  ),
+  P("ice-ware", "vessels cut from ice", ["cultivation"], 0.02, { crafters: 1 }, { pottery: 0.4 }),
   P(
     "ice-working",
     "ice cut and set",
@@ -912,7 +895,6 @@ const KIND_TREE: readonly Principle[] = [
     0.015,
     { crafters: 1 },
     { tools: 0.3, arms: 1 },
-    { kinds: ["ammonia", "methane"] },
   ),
   // An ammonia world: engines run between the ground's heat and the cold (no fire: a heat engine
   // wants only warmth and cold, and metal to hold its working fluid: iron fallen from the sky, its
@@ -920,20 +902,18 @@ const KIND_TREE: readonly Principle[] = [
   P(
     "heat-engines",
     "engines of the ground's heat",
-    ["mills", "ice-working", "star-iron", "mathematics"],
+    ["mills", "@tough-stuff", "star-iron|cold-hammering|metalworking", "mathematics"],
     0.005,
     { crafters: 1 },
-    { power: 1, industry: 0.7, renewable: 2 },
-    { kinds: ["ammonia"] },
+    { power: 1, industry: 0.3, renewable: 2 },
   ),
   P(
     "ground-dynamos",
     "electricity from the ground's heat",
-    ["heat-engines", "star-iron", "philosophy"],
+    ["heat-engines", "star-iron|cold-hammering|metalworking", "philosophy"],
     0.004,
     { crafters: 1, leaders: 0.5 },
     { power: 1, industry: 0.5, renewable: 1 },
-    { kinds: ["ammonia"] },
   ),
   // A methane world: the acetylene and hydrogen its haze makes in sunlight, joined again for their
   // energy (McKay & Smith 2005) over a catalyst of nickel (Sabatier's), the nickel of iron fallen
@@ -945,17 +925,15 @@ const KIND_TREE: readonly Principle[] = [
     ["mills", "ice-working", "star-iron", "mathematics"],
     0.005,
     { crafters: 1 },
-    { power: 1, industry: 0.7, renewable: 2 },
-    { kinds: ["methane"] },
+    { power: 1, industry: 0.3, renewable: 2 },
   ),
   P(
     "polymer-wire",
     "wires of polyacetylene",
-    ["cold-chemistry", "philosophy"],
+    ["sun-engines|heat-engines|cold-chemistry", "philosophy"],
     0.004,
     { crafters: 1, leaders: 0.5 },
     { power: 1, industry: 0.5, renewable: 1 },
-    { kinds: ["methane"] },
   ),
   // An ice world's only metal: iron fallen from the sky, gathered where its ice strands it (as
   // Antarctica's ice strands meteorites). An ammonia world's is hammered cold (as the Cape York iron
@@ -964,15 +942,7 @@ const KIND_TREE: readonly Principle[] = [
   // brittle as glass and is never hammered: broken to grit, its nickel is the catalyst its engines
   // join acetylene and hydrogen on, and whole it is the magnet of a dynamo (as tetrataenite, the
   // meteorites' own iron and nickel, is a magnet). Last, so that the kinds' others keep their places.
-  P(
-    "star-iron",
-    "iron fallen from the sky",
-    ["ice-working"],
-    0.01,
-    { crafters: 1 },
-    {},
-    { kinds: ["ammonia", "methane"] },
-  ),
+  P("star-iron", "iron fallen from the sky", ["ice-working"], 0.01, { crafters: 1 }, {}),
 ];
 
 // Ages past ours (Phase 66, asked for 2026-11-03: "the ages past the ages humans experienced can still
@@ -1089,35 +1059,38 @@ export const LATE_TREE: readonly Principle[] = [
   },
 ];
 
-/** The kinds' principles that bring metal to a land, as the vents' does a people of the water. */
-export const KIND_METAL_ROOTS: readonly string[] = ["cold-hammering", "acid-leaching"];
-/** The kinds' engines, whose works want machines as steam's do. */
-export const KIND_ENGINES: readonly string[] = ["sun-engines", "heat-engines", "cold-chemistry"];
+/** The principles that bring metal to a land, as the vents' does a people of the water (F3: by function, not kind). */
+export const METAL_ROOTS: readonly string[] = [
+  "vent-working",
+  "cold-hammering",
+  "acid-leaching",
+  "forged-star-iron",
+];
+/** The engines that are not steam's, whose works want machines as steam's do (F3: by function, not kind). */
+export const OWN_ENGINES: readonly string[] = ["sun-engines", "heat-engines", "cold-chemistry"];
 
 /**
- * What each of the land's principles asks of a body (Phase 4 M39): fire for kilns,
- * smelting and burning fuel; the land or the shore for what rolls, sails, is ridden,
+ * What each of the land's principles asks of a body (Phase 4 M39): the heat of kilns and
+ * smelting (F2), a burning for fuel; the land or the shore for what rolls, sails, is ridden,
  * ploughed, paved or hunted with the bow.
  */
 const ASKS: Readonly<Record<string, BodyNeeds>> = {
-  "pottery-wheel": { fire: true },
+  "pottery-wheel": { heat: 800 },
   gunpowder: { media: ["land", "shore"] },
   firearms: { media: ["land", "shore"] },
   rifling: { media: ["land", "shore"] },
   "repeating-fire": { media: ["land", "shore"] },
   "self-loading": { media: ["land", "shore"] },
   "automatic-fire": { media: ["land", "shore"] },
-  "armoured-vehicles": { fire: true, media: ["land", "shore"] },
-  bronze: { fire: true },
-  iron: { fire: true },
-  steel: { fire: true },
-  glass: { fire: true },
-  "coal-mining": { fire: true, media: ["land", "shore"] },
-  "steam-engine": { fire: true },
-  "oil-drilling": { fire: true },
-  engines: { fire: true },
-  factories: { fire: true },
-  electricity: { fire: true },
+  "armoured-vehicles": { media: ["land", "shore"] },
+  bronze: { heat: 950 },
+  iron: { heat: 1200 },
+  steel: { heat: 1100 },
+  glass: { heat: 1100 },
+  "coal-mining": { burns: true, media: ["land", "shore"] },
+  "steam-engine": { burns: true },
+  "oil-drilling": { burns: true },
+  engines: { burns: true },
   dairying: { media: ["land", "shore"] },
   tanning: { media: ["land", "shore"] },
   draught: { media: ["land", "shore"] },
@@ -1149,7 +1122,7 @@ export const MEANS_TREE: readonly Principle[] = [
     ...P(
       "set-edges",
       "long blades set with hard flakes",
-      ["ice-working|carbide-blades|diamond-grit|shell-craft", "loom"],
+      ["ice-working|carbide-blades|diamond-grit|shell-craft|writing", "loom"],
       0.012,
       { crafters: 1 },
       { tools: 0.1, arms: 1 },
@@ -1189,24 +1162,117 @@ export const MEANS_TREE: readonly Principle[] = [
     { media: ["water"] },
   ),
 ];
-// The rows that make gas fast ask their world for it (make-gas-fast), not for a fire in the body (F1).
-const MAKES_GAS: ReadonlySet<string> = new Set([
-  "gunpowder",
-  "firearms",
-  "rifling",
-  "repeating-fire",
-  "self-loading",
-  "automatic-fire",
-]);
+/** What each row asks of its world's matter (rules/properties.ts): F1's, and those that were one kind's (F3). */
+const ROW_ASKS: Readonly<Record<string, readonly string[]>> = {
+  gunpowder: ["make-gas-fast"],
+  firearms: ["make-gas-fast"],
+  rifling: ["make-gas-fast"],
+  "repeating-fire": ["make-gas-fast"],
+  "self-loading": ["make-gas-fast"],
+  "automatic-fire": ["make-gas-fast"],
+  "pottery-wheel": ["fire-a-vessel"],
+  glass: ["melt-a-glass"],
+  bronze: ["harden-copper"],
+  iron: ["bloom-an-iron"],
+  "diamond-grit": ["grind-with-grit"],
+  "pitch-ware": ["seal-with-pitch"],
+  "cold-hammering": ["hammer-native-copper"],
+  "carbide-blades": ["work-carbide-iron"],
+  "sun-engines": ["heat-by-mirror"],
+  "graphite-dynamos": ["wind-dynamo"],
+  "made-oxygen": ["work-carbide-iron"],
+  "acid-leaching": ["leach-with-acid"],
+  "sulfur-concrete": ["bind-with-sulfur"],
+  "ice-ware": ["work-cold-ice"],
+  "ice-working": ["work-cold-ice"],
+  "star-iron": ["work-fallen-iron"],
+  "heat-engines": ["engine-from-ground"],
+  "ground-dynamos": ["engine-from-ground"],
+  "cold-chemistry": ["join-gases"],
+  "polymer-wire": ["draw-polymer"],
+};
+/** The means of heat (F2), and what only some worlds' numbers open (F3). After all others, so every land's draws stay. */
+export const HEAT_TREE: readonly Principle[] = [
+  {
+    ...P(
+      "ground-furnace",
+      "hearths over the ground's heat",
+      ["masonry"],
+      0.01,
+      { crafters: 1, hills: true },
+      {},
+    ),
+    asks: ["heat-from-ground"],
+  },
+  {
+    ...P(
+      "sun-furnace",
+      "mirrors that gather the sun's heat",
+      ["mathematics", "@polished"],
+      0.008,
+      { crafters: 1 },
+      {},
+    ),
+    asks: ["heat-by-mirror"],
+  },
+  {
+    ...P(
+      "joined-hearth",
+      "a hearth of joined acetylene",
+      ["star-iron"],
+      0.012,
+      { crafters: 1 },
+      {},
+    ),
+    asks: ["join-gases"],
+  },
+  {
+    ...P(
+      "forged-star-iron",
+      "iron fallen from the sky, forged hot",
+      ["star-iron"],
+      0.01,
+      { crafters: 1 },
+      { tools: 0.1 },
+      { heat: 1000 },
+    ),
+    asks: ["work-fallen-iron"],
+  },
+  {
+    ...P(
+      "wings",
+      "wings of fibre and cane",
+      ["loom", "mathematics"],
+      0.006,
+      { crafters: 1, leaders: 0.5 },
+      { haul: 0.1, reach: 1 },
+      { media: ["land", "shore"] },
+    ),
+    asks: ["fly-on-wings"],
+  },
+  {
+    ...P(
+      "tall-frames",
+      "towers of light frames",
+      ["arches"],
+      0.008,
+      { crafters: 1, town: 1 },
+      { building: 1 },
+    ),
+    asks: ["build-high"],
+  },
+];
+
 export const PRINCIPLES: readonly Principle[] = [
   ...TREE,
   ...KIND_TREE,
   ...LATE_TREE,
   ...MEANS_TREE,
+  ...HEAT_TREE,
 ].map((p) => {
   const q = ASKS[p.id] ? { ...p, body: ASKS[p.id] } : p,
     r = q.needs.some((n) => n.includes("@")) ? { ...q, needs: q.needs.map(expand) } : q;
-  return MAKES_GAS.has(r.id) ? { ...r, asks: ["make-gas-fast"] } : r;
+  return ROW_ASKS[r.id] ? { ...r, asks: ROW_ASKS[r.id]! } : r;
 });
 
 export const PRINCIPLE_INDEX: ReadonlyMap<string, number> = new Map(

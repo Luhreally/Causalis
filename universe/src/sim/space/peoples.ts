@@ -27,7 +27,7 @@ import {
 import {
   cellRef,
   civName,
-  worldKindOf,
+  meansOfWorld,
   type Civilization,
   type GalaxyStar,
 } from "../../gen/index.ts";
@@ -38,6 +38,7 @@ import {
   affordsPrinciple,
   habitability,
   needsMet,
+  reachIn,
   starDriveFor,
   type BodyPlan,
   type Principle,
@@ -781,13 +782,15 @@ export function leaning(
 
 /** The principles a people of the stars could teach a realm's seat: what it lacks and is ready for. */
 function lessonsFor(ctx: PopulationContext, seat: number): Principle[] {
-  const k = (id: string) => knows(ctx, seat, id);
+  const k = (id: string) => knows(ctx, seat, id),
+    means = meansOfWorld(ctx.generated),
+    reach = reachIn(means, k);
   return PRINCIPLES.filter(
     (p) =>
       p.rate > 0 &&
       !k(p.id) &&
       needsMet(p, k) &&
-      affordsPrinciple(p, ctx.medium, ctx.affords.fire, worldKindOf(ctx.generated)) &&
+      affordsPrinciple(p, ctx.medium, reach, means.wants) &&
       matterAllows(ctx.generated, p),
   );
 }

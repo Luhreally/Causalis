@@ -192,8 +192,8 @@ function seaMaterials(ctx: PopulationContext, cell: number): Set<Material> {
   if (warm >= 18) out.add("coral");
   if (warm < 22) out.add("kelp");
   // (An ice world's ice: floes on its ammonia sea, the floor of its methane sea — Phase 56.)
-  const kind = worldKindOf(ctx.generated);
-  if (kind === "ammonia" || kind === "methane") out.add("ice");
+  const n = meansNumbers(ctx.generated);
+  if (n.groundHolds.includes("water-ice") && n.kelvin < 233) out.add("ice");
   return out;
 }
 
@@ -216,9 +216,10 @@ function landGives(ctx: PopulationContext, cell: number): Set<Material> {
   // (Where nothing burns no clay is fired; a kind's walls are of what its ground gives: Phase 56.)
   const kind = worldKindOf(g);
   if ((wet || rain >= 500) && kindBurns(kind)) out.add("fired clay");
-  if (kind === "ammonia" || kind === "methane") out.add("ice");
-  if (kind === "carbon") out.add("pitch grit");
-  if (kind === "sulfur") out.add("sulfur concrete");
+  const n = meansNumbers(g);
+  if (n.groundHolds.includes("water-ice") && n.kelvin < 233) out.add("ice");
+  if (n.rockHolds.includes("bitumen")) out.add("pitch grit");
+  if (n.airHolds.length > 0 && n.rockHolds.includes("sulphur")) out.add("sulfur concrete");
   return out;
 }
 
@@ -399,9 +400,9 @@ export function hostFor(
     const crystal = crystalFor(ctx, p);
     if (crystal) sources.crystal = crystal;
   }
-  // (What a world's means make, F1: where no furnace can be, flakes and fibre at hand, its works' machines for the rest.)
+  // (What a world's means make, F1–F2: where no furnace can be, or no bronze, iron or steel is found off Earth's road, flakes and fibre at hand, its works' machines for the rest.)
   const means = meansOfWorld(ctx.generated);
-  if (!means.earthRoad) {
+  if (!means.earthRoad || (!means.held && !sources.bronze && !sources.iron && !sources.steel)) {
     at.add("set edge");
     at.add("wound");
     if (seatKnows("repeating-fire") || seatKnows("sound-lances") || seatKnows("self-loading")) {
@@ -430,7 +431,7 @@ export function hostFor(
       undefined,
       designsOf(ctx.world).of(p.ref)?.parts,
       HOST_KEEP,
-      means.earthRoad
+      means.earthRoad && means.held
         ? undefined
         : (id, m) => hereOf(id, m, meansNumbers(ctx.generated), firearm(id)),
     ),

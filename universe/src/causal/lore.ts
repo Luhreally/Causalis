@@ -4,7 +4,6 @@
 import { type World, yearOfMoment } from "../kernel/index.ts";
 import { meansOfWorld, worldChemistry } from "../gen/index.ts";
 import {
-  KIND_PRINCIPLE_NAMES,
   METAL_PRINCIPLES,
   PRINCIPLE_INDEX,
   PRINCIPLES,
@@ -15,10 +14,8 @@ import { LORE_EVENTS, homePlanet } from "../sim/index.ts";
 import { landWords } from "./generated.ts";
 import { registerDecisionWords, registerEventWords } from "./why.ts";
 
-/** Earth's principles some kind names its own way (Phase 56). */
-const KIND_NAMED: ReadonlySet<string> = new Set(
-  Object.values(KIND_PRINCIPLE_NAMES).flatMap((names) => Object.keys(names)),
-);
+/** Earth's principles named their own way where nothing burns (Phase 56, F3). */
+const KIND_NAMED: ReadonlySet<string> = new Set(["metalworking", "steamships"]);
 
 /**
  * A principle's name by id: "the potter's wheel". Given the world, a metal's principle is named as

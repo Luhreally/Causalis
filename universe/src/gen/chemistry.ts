@@ -66,6 +66,7 @@ export function matterOf(g: HomeWorld): MatterWorld {
       gravity: g.planet.gravity,
       medium: g.life.people?.body.medium ?? "land",
       bodyFire: g.life.people ? affordancesOf(g.life.people.body).fire : true,
+      insolation: g.planet.insolation,
     }),
   };
 }

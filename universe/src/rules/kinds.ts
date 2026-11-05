@@ -47,6 +47,11 @@ export type KindFacts = {
   readonly liquid: Liquid;
   /** What makes a world of this kind. */
   readonly why: string;
+  /**
+   * Its ground is an ice crust with no rock underfoot: the ground's heat there runs engines and fires
+   * nothing.
+   */
+  readonly iceCrust?: true;
   readonly bedrock: string;
   readonly air: string;
   /** Whether anything burns in its air: an oxidant to burn with. */
@@ -143,6 +148,7 @@ export const KINDS: Readonly<Record<WorldKind, KindFacts>> = {
     // (Water with about a third of ammonia freezes only at −97 °C, the eutectic.)
     liquid: { subst: "ammonia-water", name: "ammonia water", freezeK: 176, boilK: 300 },
     why: "it gathered ammonia with its water past the snow line, and goes round its star far out, where ammonia water stays liquid",
+    iceCrust: true,
     bedrock: "water ice, as hard as rock in its cold (at −78 °C ice is about Mohs 6)",
     air: "nitrogen with ammonia",
     burns: false,
@@ -164,6 +170,7 @@ export const KINDS: Readonly<Record<WorldKind, KindFacts>> = {
     icon: "🟠",
     liquid: { subst: "methane", name: "liquid methane and ethane", freezeK: 90, boilK: 125 },
     why: "it is cold and far out, past the snow line, under a thick nitrogen air: its methane rains into seas, and sunlight makes an orange haze of it (as on Titan)",
+    iceCrust: true,
     bedrock: "water ice as hard as granite at −180 °C, with dunes of tholin",
     air: "thick nitrogen with methane, under an orange haze of tholins",
     burns: false,
@@ -335,17 +342,6 @@ export function kelvinPerDegree(kind: WorldKind): number {
   return earthDegrees(kind) ? 1 : scale(KINDS[kind].liquid);
 }
 
-/**
- * Earth's principles a kind names as its own (Phase 56): a carbon world's copper is worked cold, and
- * where nothing burns a ship is driven by engines of the kind's own, not by steam.
- */
-export const KIND_PRINCIPLE_NAMES: Readonly<Record<NovelKind, Readonly<Record<string, string>>>> = {
-  carbon: { metalworking: "working native copper cold", steamships: "engine-driven ships" },
-  sulfur: {},
-  ammonia: { steamships: "engine-driven ships" },
-  methane: { steamships: "engine-driven ships" },
-};
-
 // —— Its seas and its ages, in words ———————————————————————————————————————————————————
 
 /** The words for a kind's seas and its frozen sea, in place of "ocean" and "sea ice". */
@@ -383,6 +379,13 @@ export type KindAge = {
   readonly next: string;
 };
 
+/** The rows that bring each age where they are known (F3: asked of matter, whichever kind). */
+export const AGE_ROWS = {
+  metal: ["cold-hammering", "carbide-blades", "acid-leaching", "ice-working", "forged-star-iron"],
+  industry: ["sun-engines", "heat-engines", "cold-chemistry"],
+  modern: ["graphite-dynamos", "ground-dynamos", "polymer-wire"],
+} as const;
+
 /**
  * A kind's own ages: the principles that bring each of the three that follow farming (any one of
  * them), and the age told. A sulfur world's are Earth's, and its vitriol's copper besides; a kind
@@ -393,21 +396,21 @@ export const KIND_AGES: Readonly<
 > = {
   carbon: {
     metal: {
-      by: ["cold-hammering", "carbide-blades"],
+      by: AGE_ROWS.metal,
       icon: "💎",
       name: "diamond and copper",
       words: "💎 diamond and copper",
       next: "a people who farm first hammer native copper cold",
     },
     industry: {
-      by: ["sun-engines"],
+      by: AGE_ROWS.industry,
       icon: "☀️",
       name: "sun engines",
       words: "☀️ sun engines",
       next: "a people first builds an engine the sun's heat drives",
     },
     modern: {
-      by: ["graphite-dynamos"],
+      by: AGE_ROWS.modern,
       icon: "⚡",
       name: "electricity",
       words: "⚡ modern",
@@ -416,21 +419,21 @@ export const KIND_AGES: Readonly<
   },
   sulfur: {
     metal: {
-      by: ["acid-leaching"],
+      by: AGE_ROWS.metal,
       icon: "⚒️",
       name: "metal",
       words: "⚒️ metal",
       next: "a people who farm first smelt metal, or win copper from blue vitriol",
     },
     industry: {
-      by: [],
+      by: AGE_ROWS.industry,
       icon: "🏭",
       name: "industry",
       words: "🏭 industry",
       next: "a people first builds a steam engine",
     },
     modern: {
-      by: [],
+      by: AGE_ROWS.modern,
       icon: "⚡",
       name: "electricity",
       words: "⚡ modern",
@@ -439,21 +442,21 @@ export const KIND_AGES: Readonly<
   },
   ammonia: {
     metal: {
-      by: ["ice-working"],
+      by: AGE_ROWS.metal,
       icon: "🧊",
       name: "worked ice",
       words: "🧊 worked ice",
       next: "a people who farm first cut and set ice",
     },
     industry: {
-      by: ["heat-engines"],
+      by: AGE_ROWS.industry,
       icon: "♨️",
       name: "the ground's heat",
       words: "♨️ the ground's heat",
       next: "a people first builds an engine run between the ground's heat and the cold, its heart of iron fallen from the sky",
     },
     modern: {
-      by: ["ground-dynamos"],
+      by: AGE_ROWS.modern,
       icon: "⚡",
       name: "electricity",
       words: "⚡ modern",
@@ -462,21 +465,21 @@ export const KIND_AGES: Readonly<
   },
   methane: {
     metal: {
-      by: ["ice-working"],
+      by: AGE_ROWS.metal,
       icon: "🧊",
       name: "worked ice",
       words: "🧊 worked ice",
       next: "a people who farm first cut and set ice",
     },
     industry: {
-      by: ["cold-chemistry"],
+      by: AGE_ROWS.industry,
       icon: "🧪",
       name: "cold chemistry",
       words: "🧪 cold chemistry",
       next: "a people first joins acetylene with hydrogen for power, over the nickel of iron fallen from the sky",
     },
     modern: {
-      by: ["polymer-wire"],
+      by: AGE_ROWS.modern,
       icon: "⚡",
       name: "electricity",
       words: "⚡ modern",

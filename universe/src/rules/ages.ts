@@ -13,6 +13,7 @@ import { heatOf, metalOf, type WorldMetal } from "./chem-ores.ts";
 import type { Chemistry } from "./chemistry.ts";
 import { POWER } from "./goods.ts";
 import { KINDS, type WorldKind } from "./kinds.ts";
+import { reachIn, type Means } from "./means.ts";
 import { PRINCIPLES, affordsPrinciple, needsMet, principle } from "./principles.ts";
 import { PROPERTIES, matterShuts, type FunctionReading } from "./properties.ts";
 
@@ -133,7 +134,13 @@ export type AgeWorld = {
   readonly celsius?: number;
   /** Why its people's bodies cannot bear arms of light, where they cannot (Phase 66). */
   readonly noGrip?: string;
+  /** What its world's numbers make of heat (rules/means.ts), where it has been read. */
+  readonly means?: Means;
 };
+
+/** The heat a land can reach on this world. */
+const reachOn = (w: AgeWorld, knows: (id: string) => boolean) =>
+  w.means ? reachIn(w.means, knows) : w.fire;
 
 /** A land counts toward its world's reading only with this share of the world's people (or a band's). */
 export const LEAST_SHARE = 1 / 2000;
@@ -230,6 +237,11 @@ const STUFFS: readonly StuffStep[] = [
     strength: 400,
   },
   {
+    by: ["forged-star-iron"],
+    name: () => "iron fallen from the sky, forged hot",
+    subst: () => "iron",
+  },
+  {
     by: ["carbide-blades"],
     name: () => "carbide iron",
     subst: () => "cohenite-iron",
@@ -302,7 +314,9 @@ function edgeOf(f: LandFacts): StuffStep | null {
 
 /** The hottest fire a land can hold in its world's air (°C; 0 where its people have none). */
 export function fireOf(f: LandFacts, w: AgeWorld): number {
-  return w.fire ? heatOf(w.chem, (id) => f.knows(id)) : 0;
+  if (w.fire) return heatOf(w.chem, (id) => f.knows(id));
+  const r = reachOn(w, (id) => f.knows(id));
+  return typeof r === "number" ? r : 0;
 }
 
 // —— Precision and reckoning ——————————————————————————————————————————————————————————————————————
@@ -1192,7 +1206,9 @@ export function roadOn(
   w: AgeWorld,
   knows: (id: string) => boolean = () => false,
 ): string | null {
-  const open = road.filter((id) => affordsPrinciple(principle(id), w.medium, w.fire, w.kind));
+  const open = road.filter((id) =>
+    affordsPrinciple(principle(id), w.medium, reachOn(w, knows), w.means?.wants),
+  );
   return open.find(knows) ?? open[0] ?? null;
 }
 
@@ -1218,7 +1234,7 @@ export function nextOnRoad(
     if (options.some(knows)) continue;
     const open = options.find((o) => {
       const q = PRINCIPLES.find((x) => x.id === o);
-      return !q || affordsPrinciple(q, w.medium, w.fire, w.kind);
+      return !q || affordsPrinciple(q, w.medium, reachOn(w, knows), w.means?.wants);
     });
     if (open) for (const n of nextOnRoad(open, knows, w, seen)) if (!out.includes(n)) out.push(n);
   }
@@ -1357,7 +1373,9 @@ export function measureSteps(
   const opens = (ids: readonly string[]) =>
       ids.some((x) => {
         const p = PRINCIPLES.find((q) => q.id === x);
-        return !p || (affordsPrinciple(p, w.medium, w.fire, w.kind) && !shutOf(x, w));
+        return (
+          !p || (affordsPrinciple(p, w.medium, reachOn(w, knows), w.means?.wants) && !shutOf(x, w))
+        );
       }),
     step = (
       words: string,

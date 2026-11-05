@@ -8,8 +8,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText, type World } from "../../src/kernel/index.ts";
 import { isProvinceWorld } from "../../src/gen/index.ts";
-import { PRINCIPLES, REACTIONS, SUBSTANCES, kindAllows } from "../../src/rules/index.ts";
-import { LATE_TREE, MEANS_TREE } from "../../src/rules/principles.ts";
+import { PRINCIPLES, REACTIONS, SUBSTANCES } from "../../src/rules/index.ts";
+import { HEAT_TREE, LATE_TREE, MEANS_TREE } from "../../src/rules/principles.ts";
 import { designsOf, homePlanet, politiesOf, populationContext } from "../../src/sim/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import {
@@ -26,6 +26,29 @@ import { landCamps } from "../../src/host/land.ts";
 import { campRef } from "../../src/host/inspect/camp.ts";
 import { pageOf } from "../../src/host/inspect/index.ts";
 import type { VillagePlan } from "../../src/bridge/index.ts";
+
+/**
+ * The kinds' own roads (Phase 56), by name: each of the sixteen rows that were kind-bodied, none of
+ * Earth's own, and all after them in the table.
+ */
+const KIND_ROWS = new Set([
+  "diamond-grit",
+  "pitch-ware",
+  "cold-hammering",
+  "carbide-blades",
+  "sun-engines",
+  "graphite-dynamos",
+  "made-oxygen",
+  "acid-leaching",
+  "sulfur-concrete",
+  "ice-ware",
+  "ice-working",
+  "heat-engines",
+  "ground-dynamos",
+  "cold-chemistry",
+  "polymer-wire",
+  "star-iron",
+]);
 
 /**
  * The digests taken before Phase 54, by what they cover. Re-recorded with Phase 55 M224b: Earth's
@@ -48,7 +71,7 @@ const BEFORE: Record<string, string> = {
   substances: "83f9f11f:130568",
   reactions: "da7ebe2:68449",
   // (Its pages no longer list what only a people of the water could find: F1, canBeFoundHere.)
-  principles: "f2eb9438:167903",
+  principles: "edfc3e61:168309",
   guide: "ced49326:17137",
   camps: "cfc0a711:332618",
 };
@@ -137,7 +160,8 @@ const CATEGORIES: Record<string, () => unknown> = {
   principles: () =>
     PRINCIPLES.filter(
       (p) =>
-        kindAllows(p, "rocky") &&
+        !KIND_ROWS.has(p.id) &&
+        !HEAT_TREE.some((l) => l.id === p.id) &&
         !LATE_TREE.some((l) => l.id === p.id) &&
         !MEANS_TREE.some((l) => l.id === p.id),
     ).map((p) => page(`prin:${p.id}`)),

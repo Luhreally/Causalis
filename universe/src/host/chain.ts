@@ -733,7 +733,7 @@ export function toolMade(
   chain.push([
     sentence(works ? w.stuff.works : w.stuff.hand),
     " at ",
-    smithy ? link(smithy.name, smithy.ref) : `${smithAt(world)}${t ? ` in ${t.name}` : ""}`,
+    smithy ? link(smithy.name, smithy.ref) : `${smithAt(world, cell)}${t ? ` in ${t.name}` : ""}`,
     " by ",
     ...makerWords(world, maker, works ? "machines" : "anvil"),
   ]);
@@ -744,7 +744,7 @@ export function toolMade(
     quality,
     grade: gradeOf(quality),
     maker,
-    workshop: smithy ?? { name: `${smithAt(world)}${t ? ` in ${t.name}` : ""}`, ref: null },
+    workshop: smithy ?? { name: `${smithAt(world, cell)}${t ? ` in ${t.name}` : ""}`, ref: null },
     chain,
   };
 }
@@ -1169,7 +1169,7 @@ export function potMade(
     quality = qualityOf(edge, craftAt(world, cell, "pottery"), maker?.years ?? 6),
     fired = link("fired", rxnRef("fire-clay")),
     // (Where nothing burns no clay is fired: a vessel of its kind's own, and how: Phase 56.)
-    vessel = kindVessel(world);
+    vessel = kindVessel(world, cell);
   if (vessel)
     return {
       stuff: vessel.ware,
@@ -1580,7 +1580,7 @@ export function armsMade(
   chain.push([
     sentence(works ? w.stuff.works : w.stuff.hand),
     " at ",
-    smithy ? link(smithy.name, smithy.ref) : `${smithAt(world)}${t ? ` in ${t.name}` : ""}`,
+    smithy ? link(smithy.name, smithy.ref) : `${smithAt(world, seat)}${t ? ` in ${t.name}` : ""}`,
     " by ",
     ...makerWords(world, maker, works ? "machines" : "anvil"),
   ]);
@@ -1591,7 +1591,7 @@ export function armsMade(
     quality,
     grade: gradeOf(quality),
     maker,
-    workshop: smithy ?? { name: `${smithAt(world)}${t ? ` in ${t.name}` : ""}`, ref: null },
+    workshop: smithy ?? { name: `${smithAt(world, seat)}${t ? ` in ${t.name}` : ""}`, ref: null },
     chain,
   };
 }

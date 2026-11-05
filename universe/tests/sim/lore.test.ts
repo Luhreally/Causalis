@@ -13,20 +13,28 @@ import {
 } from "../../src/sim/index.ts";
 import { why } from "../../src/causal/index.ts";
 
-test("the tree of principles is whole: every need exists, and nothing needs itself", () => {
-  const visiting = new Set<string>(),
-    done = new Set<string>();
-  const visit = (id: string) => {
-    assert.ok(PRINCIPLE_INDEX.has(id), `${id} exists`);
-    assert.ok(!visiting.has(id), `${id} does not need itself`);
-    if (done.has(id)) return;
-    visiting.add(id);
-    // A need "a|b" is met by either: each must exist.
-    for (const n of principle(id).needs) for (const alt of n.split("|")) visit(alt);
-    visiting.delete(id);
-    done.add(id);
-  };
-  for (const p of PRINCIPLES) visit(p.id);
+test("the tree of principles is whole: every need exists, and each step has a way in from nothing", () => {
+  for (const p of PRINCIPLES)
+    for (const n of p.needs)
+      for (const alt of n.split("|")) {
+        assert.ok(PRINCIPLE_INDEX.has(alt), `${alt} exists`);
+        assert.notEqual(alt, p.id, `${p.id} does not need itself`);
+      }
+  // (A need "a|b" is met by either, so a road may loop back past a step, as steel by oxygen made by current
+  // does, so long as another way in stands outside the loop: from nothing, every step is reached.)
+  const known = new Set<string>();
+  for (let moved = true; moved;) {
+    moved = false;
+    for (const p of PRINCIPLES)
+      if (!known.has(p.id) && p.needs.every((n) => n.split("|").some((alt) => known.has(alt)))) {
+        known.add(p.id);
+        moved = true;
+      }
+  }
+  assert.deepEqual(
+    PRINCIPLES.filter((p) => !known.has(p.id)).map((p) => p.id),
+    [],
+  );
   assert.ok(PRINCIPLES.length >= 50);
 });
 

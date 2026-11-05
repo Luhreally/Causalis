@@ -5,6 +5,7 @@
 import { dmath } from "../kernel/index.ts";
 import type { Medium } from "./bodies.ts";
 import { machined, type Firearm } from "./firearms.ts";
+import { FUNCTIONS } from "./principles.ts";
 
 export type MeansWorld = {
   readonly kelvin: number;
@@ -19,6 +20,10 @@ export type MeansWorld = {
   readonly seaKgM3: number;
   readonly seaIsWater: boolean;
   readonly ppm: (element: string) => number;
+  /** Starlight at the top of its air (W/m²). */
+  readonly sunWm2: number;
+  /** Every substance its rocks and soils hold. */
+  readonly rockHolds: readonly string[];
 };
 
 export type EdgeStuff = {
@@ -425,11 +430,30 @@ export type Means = {
   readonly worksBarrel: Barrel;
   /** Why no metal here, in a sentence. */
   readonly noMetal: string;
+  /** Whether a fuel burns here for a body that can keep a fire: the old furnaces, and no limit in the gate. */
+  readonly burns: boolean;
+  /** A world whose air holds nothing but Earth's: every reading here stays shut (F4 deletes this one line). */
+  readonly held: boolean;
+  /** Its means of heat, with what each reaches here. */
+  readonly heats: readonly HeatWay[];
+  /** The heat a step wants here, where its stuff is not Earth's. */
+  readonly wants: Readonly<Record<string, number>>;
+  readonly vessel: FiredStuff | null;
+  readonly glass: FiredStuff | null;
 };
 export function meansOf(w: MeansWorld): Means {
   const earthRoad = w.freeOxygen && w.medium !== "water";
   return {
     earthRoad,
+    burns: w.freeOxygen && w.bodyFire,
+    held: w.airHolds.length === 0,
+    heats: heatWays(w),
+    wants: {
+      ...(vesselOf(w) ? { "pottery-wheel": vesselOf(w)!.heat } : {}),
+      ...(glassOf(w) ? { glass: glassOf(w)!.heat } : {}),
+    },
+    vessel: vesselOf(w),
+    glass: glassOf(w),
     edge: edgeFor(w),
     handCharge: chargeFor(w, false),
     worksCharge: chargeFor(w, true),
@@ -479,5 +503,188 @@ export function meansName(id: string, m: Means): string | null {
   if (id === "gunpowder") return `charges of ${c}`;
   if (id === "firearms") return `the gun of ${b}, charged with ${c}`;
   if (id === "rifling") return `the rifled barrel of ${b}`;
+  if (id === "pottery-wheel" && m.vessel && m.vessel.id !== "clay")
+    return `vessels of ${m.vessel.name} fired hard`;
+  if (id === "glass" && m.glass && m.glass.id !== "lime") return `glass of ${m.glass.name}`;
+  if (id === "factories") return "works its own engines drive";
+  if (id === "electricity") return "current from its own engines";
   return null;
 }
+
+// —— Heat, not fire (F2): each means reaches its own temperature, read from the world's numbers ————————
+const SIGMA = 5.67e-8;
+/** What a hearth holds of its flame, in kelvin: charcoal's flame about 2200 K, a blown hearth about 1470 K (est). */
+const HEARTH_SHARE = 0.67;
+/** The direct beam its air lets through: about 1000 of 1361 W/m² clear; a haze scatters nearly all (est). */
+const beamOf = (w: MeansWorld) => (w.rockHolds.includes("tholin") ? 0.01 : 0.75);
+/** A mirror's spot (°C): light in, at half lost (est), against what it radiates. C 2000 gives 1787 °C at Earth's sun (Lavoisier's lens melted platinum, 1768 °C); C 20000 gives 3390 °C (Odeillo, 3500 °C). */
+export const mirrorHeat = (w: MeansWorld, c: number) =>
+  w.medium === "water"
+    ? 0
+    : Math.round(dmath.pow((c * w.sunWm2 * beamOf(w) * 0.5) / SIGMA, 0.25) - 273.15);
+/** Acetylene joined with hydrogen, F1's flame at a hearth's share. Solid below 192 K, so it can be kept. */
+export const joinedHeat = (w: MeansWorld) =>
+  w.airHolds.includes("methane") && w.kelvin < 192 ? Math.round(2900 * HEARTH_SHARE - 273.15) : 0;
+/** Lava about 1100-1200 °C (USGS), a hearth over it 1000 (est); an ice crust's vents 90 (Enceladus: Hsu 2015); a sea floor's 464 (Koschinsky 2008). */
+export const groundHeat = (w: MeansWorld) => (w.medium === "water" ? 464 : w.rock ? 1000 : 90);
+
+export type HeatWay = {
+  readonly id: "ground" | "mirror" | "great-mirror" | "joined" | "arc";
+  readonly name: string;
+  readonly heat: number;
+  /** What brings it: each list wants one of its ids known. */
+  readonly by: readonly (readonly string[])[];
+  readonly why: string;
+  readonly est: boolean;
+};
+export function heatWays(w: MeansWorld): readonly HeatWay[] {
+  const land = w.medium !== "water";
+  return [
+    {
+      id: "ground",
+      name: land ? "the ground's heat" : "a vent's heat",
+      heat: groundHeat(w),
+      by: !land ? [["vent-working"]] : w.rock ? [["ground-furnace"]] : [],
+      est: true,
+      why: !land
+        ? "the hottest of the sea floor's vents"
+        : w.rock
+          ? "a hearth built over its lava"
+          : "what rises under its ice: it runs an engine, and fires nothing",
+    },
+    {
+      id: "mirror",
+      name: "mirrors",
+      heat: mirrorHeat(w, 2000),
+      by: [["sun-furnace"]],
+      est: true,
+      why: `${Math.round(w.sunWm2)} W/m² of starlight${beamOf(w) < 0.1 ? ", nearly all scattered by its haze, and scattered light cannot be focused" : ""}`,
+    },
+    {
+      id: "great-mirror",
+      name: "great mirrors",
+      heat: mirrorHeat(w, 20000),
+      by: [["sun-furnace"], FUNCTIONS["@works"]!],
+      est: true,
+      why: "a hillside of them, made at its works",
+    },
+    {
+      id: "joined",
+      name: "joined acetylene",
+      heat: joinedHeat(w),
+      by: [["joined-hearth"]],
+      est: true,
+      why: joinedHeat(w)
+        ? "the acetylene of its haze, solid in its cold, joined with hydrogen over nickel (McKay & Smith 2005)"
+        : "no acetylene can be kept here",
+    },
+    {
+      id: "arc",
+      name: "the electric arc",
+      heat: land ? 3000 : 0,
+      by: [FUNCTIONS["@current"]!],
+      est: false,
+      why: land ? "a current across carbon" : "under water an arc spends itself on the water",
+    },
+  ];
+}
+/** The hottest a land can get: true for a world that burns (the old road), false for one held to it, else in °C. */
+export function reachIn(m: Means, knows: (id: string) => boolean): number | boolean {
+  if (m.burns) return true;
+  if (m.held) return false;
+  let best = 0;
+  for (const h of m.heats) if (h.heat > best && h.by.every((any) => any.some(knows))) best = h.heat;
+  return best;
+}
+/** The hottest any means could get here, known or not. */
+export const hottest = (m: Means) => m.heats.reduce((a, h) => (h.heat > a.heat ? h : a));
+
+export type FiredStuff = {
+  readonly id: string;
+  readonly name: string;
+  readonly subst: string;
+  readonly heat: number;
+  readonly ok: (w: MeansWorld) => boolean;
+  readonly from: string;
+  readonly how: string;
+  readonly colour: readonly [number, number, number];
+  readonly est: boolean;
+};
+const holds = (w: MeansWorld, ...s: readonly string[]) => s.some((x) => w.rockHolds.includes(x));
+export const VESSEL_STUFFS: readonly FiredStuff[] = [
+  {
+    id: "clay",
+    name: "clay",
+    subst: "fired-clay",
+    heat: 800,
+    ok: (w) => holds(w, "kaolinite", "clay"),
+    from: "dug where its rock has weathered",
+    how: "Shaped of wet clay and fired hard",
+    colour: [0.62, 0.36, 0.24],
+    est: false,
+  },
+  // (Carbon-bonded firebrick is real; this heat is est.)
+  {
+    id: "pitch",
+    name: "pitch and grit",
+    subst: "bitumen",
+    heat: 800,
+    ok: (w) => holds(w, "bitumen"),
+    from: "gathered where its oil seeps",
+    how: "Grit bound in pitch, and the pitch coked hard round it",
+    colour: [0.12, 0.11, 0.1],
+    est: true,
+  },
+  // (Tholin chars to a carbon-nitride near 700 °C: est.)
+  {
+    id: "tholin",
+    name: "tholin",
+    subst: "tholin",
+    heat: 700,
+    ok: (w) => holds(w, "tholin"),
+    from: "dug from its dunes",
+    how: "Shaped of tholin sand wet with its seas, and charred hard over the flame",
+    colour: [0.2, 0.13, 0.09],
+    est: true,
+  },
+];
+export const GLASS_STUFFS: readonly FiredStuff[] = [
+  {
+    id: "lime",
+    name: "quartz and lime",
+    subst: "glass",
+    heat: 1100,
+    ok: (w) => holds(w, "quartz") && holds(w, "calcite"),
+    from: "its sands",
+    how: "Melted with lime to ease it",
+    colour: [0.8, 0.88, 0.9],
+    est: false,
+  },
+  {
+    id: "quartz",
+    name: "fused quartz",
+    subst: "glass",
+    heat: 1713,
+    ok: (w) => holds(w, "quartz"),
+    from: "sifted from its rock",
+    how: "Melted alone, at quartz's own heat",
+    colour: [0.88, 0.92, 0.95],
+    est: false,
+  },
+  // (Olivine melts 1500-1890 °C; stones are what falls as well as iron: est.)
+  {
+    id: "fallen",
+    name: "fallen stones",
+    subst: "glass",
+    heat: 1600,
+    ok: (w) => !w.rock,
+    from: "the stones that fall from its sky",
+    how: "Melted down, dark and green",
+    colour: [0.25, 0.4, 0.3],
+    est: true,
+  },
+];
+export const vesselOf = (w: MeansWorld) => VESSEL_STUFFS.find((s) => s.ok(w)) ?? null;
+export const glassOf = (w: MeansWorld) => GLASS_STUFFS.find((s) => s.ok(w)) ?? null;
+/** Power to fly against Earth's: g^1.5 / rho^0.5. */
+export const flightPower = (w: MeansWorld) => dmath.pow(w.pull, 1.5) / dmath.pow(airWeight(w), 0.5);

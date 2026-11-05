@@ -1,6 +1,6 @@
-// F1 (the first-principles plan): arms read by what they do. The first 121 principles keep their ids,
-// indexes and needs as they stood at base, so what a rocky land with fire can come to know is what it was:
-// the new expansions open only the kinds' rows and the water's, which such a land never knows.
+// F1 (the first-principles plan): arms read by what they do. The first 121 principles keep their ids and
+// indexes; their needs and bodies are frozen as they stand after F1 and T2 (F2, F3). What a land with fire
+// can come to know is what it was at base: the closures below, read on Earth's matter.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -13,8 +13,15 @@ import {
   type BodyNeeds,
   type Principle,
 } from "../../src/rules/principles.ts";
+import { SOLAR } from "../../src/rules/chemistry.ts";
+import {
+  matterShuts,
+  meansWorldOf,
+  readFunctions,
+  type MatterWorld,
+} from "../../src/rules/properties.ts";
 
-/** The first 121 principles at base, before F1: id, needs as written, body as it stood (printed from the base code). */
+/** The first 121 principles as they stand after F1 and T2: id, needs as expanded, body (base: git 01a282f). */
 const FROZEN: readonly (readonly [id: string, needs: readonly string[], body?: BodyNeeds])[] = [
   ["cultivation", []],
   ["metalworking", []],
@@ -31,18 +38,18 @@ const FROZEN: readonly (readonly [id: string, needs: readonly string[], body?: B
   ["beekeeping", ["pottery-wheel|pitch-ware|ice-ware"]],
   ["fishing", ["sailing"], { media: ["land", "shore"] }],
   ["archery", [], { media: ["land", "shore"] }],
-  ["pottery-wheel", ["cultivation"], { fire: true }],
+  ["pottery-wheel", ["cultivation"], { heat: 800 }],
   ["granaries", ["pottery-wheel|pitch-ware|ice-ware"]],
   ["salting", ["cultivation"]],
   ["brewing", ["pottery-wheel|pitch-ware|ice-ware"]],
   ["loom", ["cultivation"]],
   ["dyeing", ["loom"]],
   ["tanning", [], { media: ["land", "shore"] }],
-  ["bronze", ["metalworking"], { fire: true }],
-  ["iron", ["bronze"], { fire: true }],
-  ["steel", ["iron", "mathematics"], { fire: true }],
+  ["bronze", ["metalworking"], { heat: 950 }],
+  ["iron", ["bronze"], { heat: 1200 }],
+  ["steel", ["iron|made-oxygen", "mathematics"], { heat: 1100 }],
   ["carpentry", ["bronze|carbide-blades|ice-working"]],
-  ["glass", ["pottery-wheel", "metalworking"], { fire: true }],
+  ["glass", ["pottery-wheel|ice-ware|pitch-ware", "metalworking"], { heat: 1100 }],
   ["wheel", ["pottery-wheel|pitch-ware|ice-ware", "draught"], { media: ["land", "shore"] }],
   ["cart", ["wheel"], { media: ["land", "shore"] }],
   ["riding", ["draught"], { media: ["land", "shore"] }],
@@ -76,10 +83,10 @@ const FROZEN: readonly (readonly [id: string, needs: readonly string[], body?: B
   ["standing-army", ["bureaucracy", "bronze|carbide-blades|ice-working"]],
   ["siege-craft", ["masonry", "wheel"]],
   ["cavalry", ["riding", "iron|carbide-blades|ice-working"], { media: ["land", "shore"] }],
-  ["coal-mining", ["iron"], { fire: true, media: ["land", "shore"] }],
-  ["clockwork", ["mathematics", "iron|carbide-blades|ice-working"]],
-  ["steam-engine", ["coal-mining", "steel", "clockwork"], { fire: true }],
-  ["factories", ["steam-engine", "banking"], { fire: true }],
+  ["coal-mining", ["iron"], { burns: true, media: ["land", "shore"] }],
+  ["clockwork", ["mathematics", "iron|carbide-blades|diamond-grit|ice-working|set-edges"]],
+  ["steam-engine", ["coal-mining", "steel", "clockwork"], { burns: true }],
+  ["factories", ["steam-engine|sun-engines|heat-engines|cold-chemistry", "banking"]],
   [
     "railways",
     ["steam-engine|sun-engines|heat-engines|cold-chemistry", "roads"],
@@ -90,9 +97,9 @@ const FROZEN: readonly (readonly [id: string, needs: readonly string[], body?: B
     ["steam-engine|sun-engines|heat-engines|cold-chemistry", "shipbuilding"],
     { media: ["land", "shore"] },
   ],
-  ["electricity", ["factories", "philosophy"], { fire: true }],
-  ["oil-drilling", ["steam-engine"], { fire: true }],
-  ["engines", ["oil-drilling", "factories"], { fire: true }],
+  ["electricity", ["factories", "philosophy"]],
+  ["oil-drilling", ["steam-engine"], { burns: true }],
+  ["engines", ["oil-drilling", "factories"], { burns: true }],
   ["vent-working", [], { media: ["water"] }],
   ["shell-craft", ["cultivation"], { media: ["water"] }],
   ["current-reading", ["calendar"], { media: ["water"] }],
@@ -122,29 +129,55 @@ const FROZEN: readonly (readonly [id: string, needs: readonly string[], body?: B
   ["long-sleep", ["life-support", "medicine"]],
   ["beamed-sails", ["fusion-drive", "electronics"]],
   ["antimatter-drive", ["fusion-drive", "mathematics"]],
-  ["gunpowder", ["medicine", "iron"], { fire: true, media: ["land", "shore"] }],
-  ["firearms", ["gunpowder", "clockwork"], { fire: true, media: ["land", "shore"] }],
-  ["rifling", ["firearms", "factories"], { fire: true, media: ["land", "shore"] }],
-  ["repeating-fire", ["rifling"], { fire: true, media: ["land", "shore"] }],
-  ["self-loading", ["repeating-fire", "electricity"], { fire: true, media: ["land", "shore"] }],
-  ["automatic-fire", ["self-loading"], { fire: true, media: ["land", "shore"] }],
-  ["armoured-vehicles", ["automatic-fire", "engines"], { fire: true, media: ["land", "shore"] }],
-  ["diamond-grit", [], { kinds: ["carbon"] }],
-  ["pitch-ware", ["cultivation"], { kinds: ["carbon"] }],
-  ["cold-hammering", ["cultivation"], { kinds: ["carbon"] }],
-  ["carbide-blades", ["cold-hammering", "diamond-grit"], { kinds: ["carbon"] }],
-  ["sun-engines", ["mills", "carbide-blades", "mathematics"], { kinds: ["carbon"] }],
-  ["graphite-dynamos", ["sun-engines", "philosophy"], { kinds: ["carbon"] }],
-  ["made-oxygen", ["graphite-dynamos", "mathematics"], { kinds: ["carbon"] }],
-  ["acid-leaching", ["cultivation"], { kinds: ["sulfur"] }],
-  ["sulfur-concrete", ["masonry"], { fire: true, kinds: ["sulfur"] }],
-  ["ice-ware", ["cultivation"], { kinds: ["ammonia", "methane"] }],
-  ["ice-working", ["cultivation"], { kinds: ["ammonia", "methane"] }],
-  ["heat-engines", ["mills", "ice-working", "star-iron", "mathematics"], { kinds: ["ammonia"] }],
-  ["ground-dynamos", ["heat-engines", "star-iron", "philosophy"], { kinds: ["ammonia"] }],
-  ["cold-chemistry", ["mills", "ice-working", "star-iron", "mathematics"], { kinds: ["methane"] }],
-  ["polymer-wire", ["cold-chemistry", "philosophy"], { kinds: ["methane"] }],
-  ["star-iron", ["ice-working"], { kinds: ["ammonia", "methane"] }],
+  [
+    "gunpowder",
+    ["medicine", "iron|carbide-blades|diamond-grit|ice-working|set-edges"],
+    { media: ["land", "shore"] },
+  ],
+  ["firearms", ["gunpowder", "clockwork"], { media: ["land", "shore"] }],
+  [
+    "rifling",
+    ["firearms", "factories|sea-works|sun-engines|heat-engines|cold-chemistry"],
+    { media: ["land", "shore"] },
+  ],
+  ["repeating-fire", ["rifling"], { media: ["land", "shore"] }],
+  [
+    "self-loading",
+    ["repeating-fire", "electricity|sea-electricity|graphite-dynamos|ground-dynamos|polymer-wire"],
+    { media: ["land", "shore"] },
+  ],
+  ["automatic-fire", ["self-loading"], { media: ["land", "shore"] }],
+  ["armoured-vehicles", ["automatic-fire", "engines"], { media: ["land", "shore"] }],
+  ["diamond-grit", []],
+  ["pitch-ware", ["cultivation"]],
+  ["cold-hammering", ["cultivation"]],
+  ["carbide-blades", ["cold-hammering", "diamond-grit"]],
+  [
+    "sun-engines",
+    ["mills", "iron|carbide-blades|diamond-grit|ice-working|set-edges", "mathematics"],
+  ],
+  ["graphite-dynamos", ["sun-engines|heat-engines|cold-chemistry", "philosophy"]],
+  [
+    "made-oxygen",
+    ["electricity|sea-electricity|graphite-dynamos|ground-dynamos|polymer-wire", "mathematics"],
+  ],
+  ["acid-leaching", ["cultivation"]],
+  ["sulfur-concrete", ["masonry"], { heat: 140 }],
+  ["ice-ware", ["cultivation"]],
+  ["ice-working", ["cultivation"]],
+  [
+    "heat-engines",
+    [
+      "mills",
+      "iron|carbide-blades|diamond-grit|ice-working|set-edges",
+      "star-iron|cold-hammering|metalworking",
+      "mathematics",
+    ],
+  ],
+  ["ground-dynamos", ["heat-engines", "star-iron|cold-hammering|metalworking", "philosophy"]],
+  ["cold-chemistry", ["mills", "ice-working", "star-iron", "mathematics"]],
+  ["polymer-wire", ["sun-engines|heat-engines|cold-chemistry", "philosophy"]],
+  ["star-iron", ["ice-working"]],
   ["fusion-power", ["fusion-drive", "electronics"]],
   ["machine-minds", ["guidance", "nuclear-drive"]],
   ["drawn-carbon", ["machine-minds"]],
@@ -157,8 +190,8 @@ const FROZEN: readonly (readonly [id: string, needs: readonly string[], body?: B
   ["world-city", ["vat-food", "drawn-carbon"]],
 ];
 
-/** Whether a rocky land with fire can open a principle at all, by its body and its world. */
-const openHere = (p: Principle) => affordsPrinciple(p, "land", true, "rocky");
+/** Whether a land with fire can open a principle at all, by its body (what its matter shuts is not read here). */
+const openHere = (p: Principle) => affordsPrinciple(p, "land", true);
 
 const knowing =
   (...ids: string[]) =>
@@ -187,7 +220,211 @@ function knownFrom(
   return known;
 }
 
-test("the first 121 principles keep their ids and indexes; the arms come after them", () => {
+/** Rocky Earth (the properties test's fixture): what its matter reads, which shuts or opens a row. */
+const EARTH: MatterWorld = {
+  chem: SOLAR,
+  kind: "rocky",
+  celsius: 15,
+  gravity: 1,
+  rockBodies: 8,
+  giants: 4,
+  starLeftGyr: 5,
+  peopled: true,
+  means: meansWorldOf({
+    chem: SOLAR,
+    kind: "rocky",
+    celsius: 15,
+    gravity: 1,
+    medium: "land",
+    bodyFire: true,
+    insolation: 1,
+  }),
+};
+const EARTH_READINGS = readFunctions(EARTH);
+
+/** What a land can come to know on Earth's matter: each row open on that medium at that reach, unshut, and its needs met. */
+const onEarth = (medium: "land" | "water", reach: boolean | number) =>
+  knownFrom(
+    PRINCIPLES.map((p) => ({
+      id: p.id,
+      needs: p.needs,
+      open: affordsPrinciple(p, medium, reach) && !matterShuts(p, EARTH_READINGS),
+    })),
+  );
+
+/** What rocky Earth comes to with fire, at base (before F2): 95 principles. */
+const EARTH_FIRE: readonly string[] = [
+  "antimatter-drive",
+  "aqueducts",
+  "archery",
+  "arches",
+  "armoured-vehicles",
+  "astronomy",
+  "automatic-fire",
+  "banking",
+  "beam-arms",
+  "beamed-sails",
+  "beekeeping",
+  "brewing",
+  "bridges",
+  "bronze",
+  "bureaucracy",
+  "calendar",
+  "carpentry",
+  "cart",
+  "cavalry",
+  "chariots",
+  "clockwork",
+  "coal-mining",
+  "cultivation",
+  "currency",
+  "dairying",
+  "draught",
+  "drawn-carbon",
+  "dyeing",
+  "electricity",
+  "electronics",
+  "engines",
+  "factories",
+  "firearms",
+  "fishing",
+  "fortification",
+  "fusion-drive",
+  "fusion-power",
+  "germs",
+  "glass",
+  "granaries",
+  "guidance",
+  "gunpowder",
+  "habitats",
+  "heavy-plough",
+  "herbalism",
+  "iron",
+  "irrigation",
+  "law-codes",
+  "life-support",
+  "long-sleep",
+  "loom",
+  "machine-minds",
+  "machine-soldiers",
+  "made-bodies",
+  "manuring",
+  "masonry",
+  "mathematics",
+  "medicine",
+  "metalworking",
+  "mills",
+  "nuclear-drive",
+  "oil-drilling",
+  "orbital-flight",
+  "philosophy",
+  "plough",
+  "pottery-wheel",
+  "quarantine",
+  "railways",
+  "repeating-fire",
+  "riding",
+  "rifling",
+  "roads",
+  "rocketry",
+  "rotation",
+  "sailing",
+  "salting",
+  "sanitation",
+  "self-loading",
+  "shipbuilding",
+  "siege-craft",
+  "standing-army",
+  "star-mirrors",
+  "stations",
+  "steam-engine",
+  "steamships",
+  "steel",
+  "tanning",
+  "terracing",
+  "transfer-flight",
+  "vaccines",
+  "vat-food",
+  "wheel",
+  "world-city",
+  "world-making",
+  "writing",
+];
+/** The same for a water people with no fire, at base: 51 principles. */
+const EARTH_WATER: readonly string[] = [
+  "antimatter-drive",
+  "astronomy",
+  "banking",
+  "beam-arms",
+  "beamed-sails",
+  "bureaucracy",
+  "calendar",
+  "cultivation",
+  "currency",
+  "current-mills",
+  "current-reading",
+  "drawn-carbon",
+  "dyeing",
+  "electrochemistry",
+  "electronics",
+  "fusion-drive",
+  "fusion-power",
+  "gas-darts",
+  "guidance",
+  "habitats",
+  "herbalism",
+  "law-codes",
+  "life-support",
+  "long-sleep",
+  "loom",
+  "machine-minds",
+  "machine-soldiers",
+  "made-bodies",
+  "mathematics",
+  "medicine",
+  "metalworking",
+  "nuclear-drive",
+  "orbital-flight",
+  "philosophy",
+  "reef-building",
+  "refined-metals",
+  "rocketry",
+  "salting",
+  "sea-electricity",
+  "sea-works",
+  "shell-craft",
+  "sound-lances",
+  "star-mirrors",
+  "stations",
+  "transfer-flight",
+  "vat-food",
+  "vent-heat",
+  "vent-working",
+  "world-city",
+  "world-making",
+  "writing",
+];
+
+/** The rows that were fire: true at base, and the media each was for. */
+const WAS_FIRE: readonly (readonly [id: string, media?: readonly string[]])[] = [
+  ["pottery-wheel"],
+  ["bronze"],
+  ["iron"],
+  ["steel"],
+  ["glass"],
+  ["coal-mining", ["land", "shore"]],
+  ["steam-engine"],
+  ["factories"],
+  ["electricity"],
+  ["oil-drilling"],
+  ["engines"],
+  ["armoured-vehicles", ["land", "shore"]],
+  ["sulfur-concrete"],
+];
+/** Of those, the three that lost their fire to a need (F2): they open at reach false where their media is. */
+const LOST_FIRE: readonly string[] = ["factories", "electricity", "armoured-vehicles"];
+
+test("the first 121 principles keep their ids and indexes; the arms, then the means of heat, come after them", () => {
   assert.equal(FROZEN.length, 121);
   FROZEN.forEach(([id], i) => {
     assert.equal(PRINCIPLES[i]?.id, id, `index ${i}`);
@@ -195,7 +432,18 @@ test("the first 121 principles keep their ids and indexes; the arms come after t
   });
   assert.deepEqual(
     PRINCIPLES.slice(121).map((p) => p.id),
-    ["set-edges", "bound-plates", "gas-darts", "sound-lances"],
+    [
+      "set-edges",
+      "bound-plates",
+      "gas-darts",
+      "sound-lances",
+      "ground-furnace",
+      "sun-furnace",
+      "joined-hearth",
+      "forged-star-iron",
+      "wings",
+      "tall-frames",
+    ],
   );
 });
 
@@ -204,12 +452,14 @@ test("the functions expand to the lists the rows wrote, and no need is left a fu
   assert.equal(FUNCTIONS["@current"]!.join("|"), principle("electronics").needs[0]);
   assert.equal(principle("rifling").needs[1], principle("stations").needs[1]);
   assert.equal(principle("self-loading").needs[1], principle("electronics").needs[0]);
+  assert.equal(principle("factories").needs[0], FUNCTIONS["@engine"]!.join("|"));
+  assert.equal(principle("sun-furnace").needs[1], FUNCTIONS["@polished"]!.join("|"));
   assert.equal(principle("gunpowder").needs[1], FUNCTIONS["@tough-stuff"]!.join("|"));
   assert.equal(principle("clockwork").needs[1], FUNCTIONS["@tough-stuff"]!.join("|"));
   for (const p of PRINCIPLES) for (const n of p.needs) assert.ok(!n.includes("@"), `${p.id}: ${n}`);
 });
 
-test("on a rocky land with fire, each of the first 121 is open, and its needs met, as at base", () => {
+test("on a land with fire, each of the first 121 is open, and its needs met, as the frozen list has them", () => {
   // Knowledge sets: none, every principle such a land can open, and 300 seeded halves and thirds of those.
   const every = PRINCIPLES.filter(openHere).map((p) => p.id);
   const sets = [new Set<string>(), new Set(every)];
@@ -233,22 +483,37 @@ test("on a rocky land with fire, each of the first 121 is open, and its needs me
   }
 });
 
-test("what a rocky land with fire can come to know is what it was at base", () => {
-  const base = FROZEN.map(([id, needs, body]) => ({
-    id,
-    needs,
-    open: openHere({ ...principle(id), needs, body }),
-  }));
-  const now = PRINCIPLES.map((p) => ({ id: p.id, needs: p.needs, open: openHere(p) }));
-  const frozen = new Set(FROZEN.map(([id]) => id));
-  const was = knownFrom(base),
-    is = knownFrom(now);
-  assert.ok(was.has("electricity") && was.has("gunpowder"), "the base reaches the powder");
-  assert.deepEqual([...is].filter((id) => frozen.has(id)).sort(), [...was].sort());
-  assert.deepEqual(
-    [...is].filter((id) => !frozen.has(id)),
-    [],
-  );
+test("on rocky Earth, a land with fire comes to know the same 95 principles it did at base", () => {
+  const is = onEarth("land", true);
+  assert.deepEqual([...is].sort(), EARTH_FIRE);
+  assert.ok(is.has("electricity") && is.has("gunpowder"), "the base reaches the powder");
+});
+
+test("on Earth's matter with no fire, a water people comes to know the same 51 it did at base", () => {
+  assert.deepEqual([...onEarth("water", false)].sort(), EARTH_WATER);
+});
+
+test("the rows that were fire open at reach true as at base; at reach false only the three that lost their fire", () => {
+  for (const [id, media] of WAS_FIRE) {
+    for (const m of ["land", "shore", "water"] as const) {
+      const onMedium = !media || media.includes(m);
+      assert.equal(
+        affordsPrinciple(principle(id), m, true),
+        onMedium,
+        id + " on " + m + " at reach true",
+      );
+      assert.equal(
+        affordsPrinciple(principle(id), m, false),
+        LOST_FIRE.includes(id) && onMedium,
+        id + " on " + m + " at reach false",
+      );
+    }
+  }
+  // A heat opens where the land reaches it: pots at 800 °C; a bronze at 950 °C, or 900 °C where its wants say so.
+  assert.equal(affordsPrinciple(principle("pottery-wheel"), "land", 799), false);
+  assert.equal(affordsPrinciple(principle("pottery-wheel"), "land", 800), true);
+  assert.equal(affordsPrinciple(principle("bronze"), "land", 900), false);
+  assert.equal(affordsPrinciple(principle("bronze"), "land", 900, { bronze: 900 }), true);
 });
 
 test("the expansions open the kinds' roads that the old rows left shut", () => {
@@ -262,7 +527,7 @@ test("the expansions open the kinds' roads that the old rows left shut", () => {
   );
 });
 
-test("the powder rows ask a gas made fast, not a fire in the body; the armoured car keeps fire", () => {
+test("the powder rows ask a gas made fast, not a fire in the body; the armoured car asks no fire", () => {
   for (const id of [
     "gunpowder",
     "firearms",
@@ -274,8 +539,8 @@ test("the powder rows ask a gas made fast, not a fire in the body; the armoured 
     assert.deepEqual(principle(id).body, { media: ["land", "shore"] }, id);
     assert.deepEqual(principle(id).asks, ["make-gas-fast"], id);
   }
-  assert.equal(affordsPrinciple(principle("gunpowder"), "land", false, "rocky"), true);
-  assert.deepEqual(principle("armoured-vehicles").body, { fire: true, media: ["land", "shore"] });
+  assert.equal(affordsPrinciple(principle("gunpowder"), "land", false), true);
+  assert.deepEqual(principle("armoured-vehicles").body, { media: ["land", "shore"] });
   assert.equal(principle("armoured-vehicles").asks, undefined);
 });
 
@@ -283,7 +548,7 @@ test("the means rows: edges and plates ask for their edge; the water's darts nee
   assert.deepEqual(principle("set-edges").asks, ["edge-without-metal"]);
   assert.deepEqual(principle("bound-plates").asks, ["edge-without-metal"]);
   assert.deepEqual(principle("gas-darts").asks, ["make-gas-fast"]);
-  assert.equal(affordsPrinciple(principle("gas-darts"), "water", false, "rocky"), true);
-  assert.equal(affordsPrinciple(principle("gas-darts"), "land", true, "rocky"), false);
-  assert.equal(affordsPrinciple(principle("sound-lances"), "land", true, "carbon"), false);
+  assert.equal(affordsPrinciple(principle("gas-darts"), "water", false), true);
+  assert.equal(affordsPrinciple(principle("gas-darts"), "land", true), false);
+  assert.equal(affordsPrinciple(principle("sound-lances"), "land", true), false);
 });

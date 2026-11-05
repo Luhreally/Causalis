@@ -4,6 +4,7 @@ import { YEAR, type World } from "../kernel/index.ts";
 import {
   functionsOf,
   matterOf,
+  meansOfWorld,
   offworldSite,
   worldChemistry,
   worldKindOf,
@@ -249,6 +250,7 @@ export function ageWorldOf(g: HomeWorld): AgeWorld {
     kind,
     medium: body.medium,
     fire: kindBurns(kind) && affordancesOf(body).fire,
+    means: meansOfWorld(g),
     radius: g.planet.radius,
     // (Read when its functions are first asked: a world's reading of its first ages never needs them.)
     get functions() {

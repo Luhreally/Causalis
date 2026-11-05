@@ -54,6 +54,30 @@ Not done by F1: armoured cars stay shut where nothing burns; bows are not shorte
 in battle looks as a sword does, and only its page shows the flakes; machines have no recipe on a world that burns
 nothing, so its top tier waits for F2 and F3.
 
+## F2 and F3, as built (2026-11-05)
+
+Fire is no longer asked for: each step asks for a temperature, and a world's means of heat are worked out from its
+numbers. Burning is one; the others are mirrors, the ground's heat, a hearth of joined acetylene and the electric
+arc. A row that was one kind's now asks a function of matter, so any world that meets it can find it, and a kind's
+name decides only words. Rocky worlds, Earth among them, are held to their old road until F4.
+
+| World, first year known | Hearth or furnace | Forged iron | Pots | Glass | Factory | Current | Steel |
+|---|---|---|---|---|---|---|---|
+| wren 455, methane | 659, joined acetylene, 1,670 °C | 693 | 756 | 955 | 1574 | 1583 | no |
+| north 155, carbon | 463, mirrors, 1,597 °C | no | 527 | 814 | 859 | 1231 | 1304 |
+| marrow 145, ammonia | 1829, mirrors, 829 °C | no | 1952 | no | no | no | no |
+| alien 84, sulfur | burns | no | 42 | 140 | no | no | 549 |
+
+By year 2000. One seed's year is one draw: a row earlier in the tree takes a land's one find of the year, so
+compare across seeds, never one pair. On wren 455 at night a town of a land with the hearth has 3,794 warm-lit
+pixels, and a town the year before with none has 0. Earth's eight history fixtures are unchanged, and kestrel
+557, a rocky world, is the same as under F1.
+
+Still shut, as the rules now say why: bronze and iron on methane, ammonia and carbon; steel on methane and
+ammonia; coal, steam, oil and armoured cars on all three. Next levers: engines of portable fuel and armoured cars
+where nothing burns, house walls of fired stuff, a town's height reading its pull (`tall-frames` is chronicle and
+page only), and age names that follow which engine a land has.
+
 ## The rule
 
 **A principle says what it does. The world says how.**
