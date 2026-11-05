@@ -846,12 +846,41 @@ function courtFamily(world: World, ref: string): Family | null {
     how: null,
     event: null,
   };
-  return keyedFamily(
+  const family = keyedFamily(
     readingOf(world, p.seat),
     self,
     f.name.split(" ").slice(1).join(" "),
     `Named at the court of ${p.town}: history keeps their name and what they did, not their kin, so their kin here are given by the keyed rule a town's people's are given by, the same each time, but none of them kept.`,
   );
+  // (The ruler they are a child, or a brother or sister, of is named, as the ruler's page names them.)
+  const tie = "tie" in f ? f.tie : null;
+  if (tie !== "child" && tie !== "sibling") return family;
+  const theirs = rulerFamily(world, `rule:${p.ref}`),
+    sex = p.ruler.sex === 0 ? 0 : 1,
+    ruler: Kin = {
+      tie: tieWord(sex, tie === "child" ? "parent" : "sibling"),
+      name: p.ruler.name,
+      ref: `rule:${p.ref}`,
+      sex,
+      born: p.ruler.born,
+      died: null,
+      how: null,
+      event: p.ruler.event,
+      note: "the ruler",
+    },
+    spouse = theirs?.spouse;
+  if (tie === "child")
+    return {
+      ...family,
+      parents: spouse
+        ? [ruler, { ...spouse, tie: tieWord(spouse.sex, "parent"), note: null }]
+        : [ruler],
+    };
+  return {
+    ...family,
+    parents: theirs?.parents ?? family.parents,
+    siblings: [ruler, ...family.siblings],
+  };
 }
 
 // —— The family in a line ——————————————————————————————————————————————————————————————

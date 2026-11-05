@@ -439,9 +439,10 @@ export function coupDanger(
 }
 
 /** A ruler for a realm at a moment, drawn apart from its successions (a coup, a restoration). */
-function newRuler(world: World, p: Polity, t: SimTime, event: Ref, salt: number) {
-  const ways = cultureOf(world).get(p.seat)!;
-  return crown(world, ways, p.seat + salt * 1_000_003, t, event, null);
+function newRuler(ctx: PopulationContext, p: Polity, t: SimTime, event: Ref, salt: number) {
+  const { world } = ctx,
+    ways = cultureOf(world).get(p.seat)!;
+  return crown(world, ways, p.seat + salt * 1_000_003, t, event, null, ctx.life.adulthood);
 }
 
 /**
@@ -457,7 +458,7 @@ export function seize(ctx: PopulationContext, p: Polity, causes: CauseRef[], t: 
     was = realmName(p),
     // (Named before the event that crowns them, so the event can say who: the one who holds the army's voice at court, if any does.)
     man = armyVoice(world, p),
-    general = man?.name ?? newRuler(world, p, t, p.event, 1).name,
+    general = man?.name ?? newRuler(ctx, p, t, p.event, 1).name,
     event = world.events.emit({
       type: STRIFE_EVENTS.coup.type,
       subjects: [p.ref],
@@ -478,7 +479,7 @@ export function seize(ctx: PopulationContext, p: Polity, causes: CauseRef[], t: 
   p.succession = 1;
   p.ruler = man
     ? { name: man.name, sex: man.sex, born: man.born, since: year, event }
-    : { ...newRuler(world, p, t, event, 1), event };
+    : { ...newRuler(ctx, p, t, event, 1), event };
   if (o) {
     o.corruption *= 0.6;
     o.crisis = null;
@@ -501,7 +502,7 @@ export function foil(
     o = orderOf(world)?.of(p.ref),
     year = yearOfMoment(t),
     man = armyVoice(world, p),
-    general = man?.name ?? newRuler(world, p, t, p.event, 3).name,
+    general = man?.name ?? newRuler(ctx, p, t, p.event, 3).name,
     event = world.events.emit({
       type: STRIFE_EVENTS.foiled.type,
       subjects: [p.ref],
@@ -887,7 +888,7 @@ export function revolt(
     });
   p.leadership = 2;
   p.succession = 2;
-  p.ruler = { ...newRuler(world, p, t, event, 4), event };
+  p.ruler = { ...newRuler(ctx, p, t, event, 4), event };
   const s = store.ensure(p.ref);
   s.junta = null;
   if (o) {
@@ -981,7 +982,7 @@ export function restore(
   p.leadership = inst.leadership;
   p.succession = inst.succession;
   p.law = inst.law;
-  p.ruler = { ...newRuler(world, p, t, event, 2), event };
+  p.ruler = { ...newRuler(ctx, p, t, event, 2), event };
   s.junta = null;
   return event;
 }

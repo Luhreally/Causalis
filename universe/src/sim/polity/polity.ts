@@ -359,6 +359,8 @@ export function crown(
   t: number,
   event: Ref,
   heir: string | null,
+  /** When their people come of age: a ruler crowned is grown, however long that takes them. */
+  grown: number,
 ): Ruler {
   const u = (n: number) => world.rng.real(RULE, seq, t, n),
     sex = u(1) < 0.5 ? 0 : 1,
@@ -366,7 +368,7 @@ export function crown(
     family =
       heir ??
       tongueName({ ...ways.tongue, seed: ways.tongue.seed ^ 0x51f7 }, Math.floor(u(3) * 1e6)),
-    age = 25 + Math.floor(u(4) * 25),
+    age = Math.max(25, grown) + Math.floor(u(4) * 25),
     year = yearOfMoment(t);
   return { name: `${given} ${family}`, sex, born: year - age, since: year, event };
 }
@@ -439,7 +441,7 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
       event,
       members: [p.cell],
       ...inst,
-      ruler: crown(world, ways, p.cell, t, event, null),
+      ruler: crown(world, ways, p.cell, t, event, null, ctx.life.adulthood),
       tribute: 0.05,
       ended: null,
     });
@@ -690,6 +692,7 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
           t,
           event,
           p.succession === 0 ? old.name.split(" ").slice(1).join(" ") : null,
+          ctx.life.adulthood,
         );
     if (crisis && edge.length && edge.length < p.members.length) {
       // The lands farthest from the seat break away together, and their grievance is why; the one who wanted the seat leads them.
@@ -806,7 +809,7 @@ export function raiseRealm(
     event: formed,
     members: [],
     ...inst,
-    ruler: crown(world, seatWays, town.cell, t, formed, null),
+    ruler: crown(world, seatWays, town.cell, t, formed, null, ctx.life.adulthood),
     tribute: 0.05,
     ended: null,
     ...(from ? { from } : {}),

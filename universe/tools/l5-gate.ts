@@ -180,7 +180,13 @@ function forge(
     rest = usable.filter((p) => p !== lookP),
     diesP = withHeir.find((p) => p !== lookP) ?? rest[0]!,
     left = rest.filter((p) => p !== diesP),
-    [foundP, wonP, answerP, bereftP] = [left[0]!, left[1]!, left[2]!, left[3] ?? left[0]!],
+    [foundP, wonP, answerP] = [left[0]!, left[1]!, left[2]!],
+    bereftP =
+      withHeir.find(
+        (p) => p !== lookP && p !== diesP && p !== foundP && p !== wonP && p !== answerP,
+      ) ??
+      left[3] ??
+      foundP,
     move = (p: Polity, won: boolean) => {
       const c = of(p),
         f = fig(c, c.rival)!,
@@ -344,6 +350,18 @@ async function takeUp(f: Forged): Promise<void> {
   await k("globalThis.causalis.client.setSpeed(0)");
 }
 
+/** Who a realm's page shows, of its key figures and its court. */
+async function cardsOf(realm: string): Promise<{ name: string; kind: string; did: string }[]> {
+  const page = await ask<{
+    tabs: {
+      blocks: { tool?: string; args?: { leader?: { name: string; kind: string; did: string } } }[];
+    }[];
+  } | null>("page", { ref: realm });
+  return (page?.tabs ?? [])
+    .flatMap((t) => t.blocks)
+    .flatMap((b) => (b.tool === "leader.card" && b.args?.leader ? [b.args.leader] : []));
+}
+
 /** The Court tab, opened from the realm's own page by touch. */
 async function courtTab(s: Scene, tag: string): Promise<void> {
   await open(s.realm);
@@ -402,9 +420,9 @@ async function play(f: Forged, tag: string): Promise<void> {
   const theirs = await pageText();
   say(`${tag}: ${l.rival}: ${theirs.replace(/\s+/g, " ").slice(0, 400)}`);
   check(theirs.includes(l.rival), `${tag}: the rival's page does not name them`);
-  check(/Why they want it/.test(theirs), `${tag}: the rival's page says not why`);
+  check(/Why they want it/i.test(theirs), `${tag}: the rival's page says not why`);
   check(/in a hundred/.test(theirs), `${tag}: the rival's reasons have no number`);
-  check(/What they did/.test(theirs), `${tag}: the rival's page does not say what they did`);
+  check(/What they did/i.test(theirs), `${tag}: the rival's page does not say what they did`);
   await shot(`${tag}-2-rival`);
   await tapTab("Family");
   await until(`${tag}: their family`, async () => /family/i.test(await pageText()));
@@ -426,11 +444,19 @@ async function play(f: Forged, tag: string): Promise<void> {
   check(drawn, `${tag}: the rival is not among those drawn in their town`);
   await shot(`${tag}-3-home`);
   await tap(".leader-possess");
-  await until(`${tag}: their body taken`, () => k<boolean>("!!globalThis.causalis.possess.state()"), slow(180000));
+  await until(
+    `${tag}: their body taken`,
+    () => k<boolean>("!!globalThis.causalis.possess.state()"),
+    slow(180000),
+  );
   await settle(1000);
   await shot(`${tag}-3b-possessed`);
   await tap(".possess-letgo");
-  await until(`${tag}: let go`, () => k<boolean>("!globalThis.causalis.possess.state()"), slow(60000));
+  await until(
+    `${tag}: let go`,
+    () => k<boolean>("!globalThis.causalis.possess.state()"),
+    slow(60000),
+  );
   await until(`${tag}: the chip again`, () => seen(".leader-chip"));
   await tap(".leader-close");
 
@@ -440,31 +466,86 @@ async function play(f: Forged, tag: string): Promise<void> {
   await advanceTo(f.hashAt);
   await settle(500);
   const sameNoOne = JSON.stringify(await ask<unknown>("hashes")) === f.hashes;
-  say(`${tag}: a year with no one ruling, the worker against the fork: ${sameNoOne ? "the same hashes" : "different (the follow is the ledger's, and watched)"}`);
+  say(
+    `${tag}: a year with no one ruling, the worker against the fork: ${sameNoOne ? "the same hashes" : "different (the follow is the ledger's, and watched)"}`,
+  );
 
-  // The heir holds the seat.
-  await courtTab(f.dies, tag);
-  const after = await pageText();
-  if (f.dies.heir) {
-    check(
-      after.includes(f.dies.heir) && !after.includes(f.dies.ruler),
-      `${tag}: ${f.dies.heir} was to follow ${f.dies.ruler}: ${after.replace(/\s+/g, " ").slice(0, 300)}`,
-    );
-    check(!after.includes("Heir") || !new RegExp(`${f.dies.heir}\\s+Heir`).test(after), `${tag}: the one who follows is still heir`);
-    say(`${tag}: ${f.dies.ruler} died, and ${f.dies.heir} holds the seat of ${f.dies.town}`);
+  // The heir holds the seat. (Death takes its time: the oldest band's table is about one in six a year.)
+  const seatNow = async () => {
+    const cards = await cardsOf(f.dies.realm),
+      ruler = cards.find((x) => x.kind === "ruler");
+    return {
+      ruler: ruler?.name ?? "",
+      heir: cards.find((x) => x.kind === "heir")?.name ?? null,
+      ended: !ruler,
+      last: ruler?.did ?? "",
+    };
+  };
+  let was = await seatNow(),
+    y = 0;
+  while (was.ruler === f.dies.ruler && !was.ended && y++ < 40) {
+    await advanceTo(f.hashAt + y * YEAR);
+    const now = await seatNow();
+    if (now.ruler === f.dies.ruler) was = now;
+    else {
+      const named = was.heir,
+        last = now.last;
+      await courtTab(f.dies, tag);
+      const after = await pageText();
+      check(
+        after.includes(now.ruler),
+        `${tag}: ${now.ruler} holds the seat and the Court tab does not say so`,
+      );
+      check(
+        !after.includes(f.dies.ruler) || /What has passed/i.test(after),
+        `${tag}: ${f.dies.ruler} is dead and still on the Court tab`,
+      );
+      check(
+        !new RegExp(`${now.ruler}\\s+Heir`, "i").test(after),
+        `${tag}: the one who follows is still heir`,
+      );
+      if (named && now.ruler === named)
+        say(
+          `${tag}: ${f.dies.ruler} died after ${y} years, and ${named}, the heir named, holds the seat of ${f.dies.town}`,
+        );
+      else {
+        // (Not the heir: then history must say why.)
+        say(
+          `${tag}: ${f.dies.ruler} died after ${y} years; ${now.ruler} holds the seat, not ${named}: ${last}`,
+        );
+        check(
+          last.length > 0,
+          `${tag}: ${now.ruler} took the seat over ${named} and nothing says why`,
+        );
+      }
+      await shot(`${tag}-4-followed`);
+      was = now;
+      break;
+    }
   }
-  await shot(`${tag}-4-followed`);
+  check(
+    was.ruler !== f.dies.ruler || was.ended,
+    `${tag}: ${f.dies.ruler} outlived forty years of the oldest band's table`,
+  );
+  // (Back to the year the fork was made for: what follows was told by then.)
+  await takeUp(f);
+  await k(`globalThis.causalis.client.setSpeed(0)`);
+  await ask("observe.watch", { ref: f.found.realm, on: true });
+  await advanceTo(f.hashAt);
+  await settle(500);
 
   // A plot found: on its Court tab, with a why that walks to a person and a number.
   await courtTab(f.found, tag);
   const told = await pageText();
-  check(/What has passed at this court/.test(told), `${tag}: the court does not tell what passed`);
+  check(/What has passed at this court/i.test(told), `${tag}: the court does not tell what passed`);
   check(told.includes(f.found.rival), `${tag}: the plotter is not told`);
   check(/plot was found/.test(told), `${tag}: a plot found is not told: ${told.slice(0, 400)}`);
-  await k(`[...document.querySelectorAll(".page-window li, .page-window .item, .page-window button, .page-window a")].find((x) => /plot was found/.test(x.textContent))?.setAttribute("data-gate", "found")`);
+  await k(
+    `[...document.querySelectorAll(".page-window li, .page-window .item, .page-window button, .page-window a")].filter((x) => /plot was found/.test(x.textContent)).pop()?.setAttribute("data-gate", "found")`,
+  );
   await shot(`${tag}-5-found`);
   await tap(`[data-gate="found"]`);
-  await until(`${tag}: the plot's page`, async () => /Why it happened/.test(await pageText()));
+  await until(`${tag}: the plot's page`, async () => /Why it happened/i.test(await pageText()));
   await settle(400);
   // Down its why: the plot's move, and what moved them.
   const stepWhy = async () => {
@@ -492,17 +573,32 @@ async function play(f: Forged, tag: string): Promise<void> {
     chron.events.some((e) => /plot was found/.test(e.claim) && e.claim.includes(f.found.rival)),
     `${tag}: a plot found is not in the chronicle`,
   );
-  await until(`${tag}: the alert`, () => k<boolean>(`[...document.querySelectorAll(".alerts-row button")].length > 0`), slow(15000));
-  const alerts = await ask<{ id: string; items: { line: (string | { text: string })[] }[] }[]>("alerts");
+  await until(
+    `${tag}: the alert`,
+    () => k<boolean>(`[...document.querySelectorAll(".alerts-row button")].length > 0`),
+    slow(15000),
+  );
+  const alerts =
+    await ask<{ id: string; items: { line: (string | { text: string })[] }[] }[]>("alerts");
   const inAlerts = alerts.some((a) =>
-    a.items.some((i) => i.line.map((x) => (typeof x === "string" ? x : x.text)).join("").includes(f.found.rival)),
+    a.items.some((i) =>
+      i.line
+        .map((x) => (typeof x === "string" ? x : x.text))
+        .join("")
+        .includes(f.found.rival),
+    ),
   );
   check(inAlerts, `${tag}: the plot is not among the alerts of a realm followed`);
-  await k(`[...document.querySelectorAll(".alerts-row button")].find((b) => b.textContent.includes("🗡"))?.setAttribute("data-gate", "alert")`);
+  await k(
+    `[...document.querySelectorAll(".alerts-row button")].find((b) => b.textContent.includes("🗡"))?.setAttribute("data-gate", "alert")`,
+  );
   if (await seen(`[data-gate="alert"]`)) {
     await tap(`[data-gate="alert"]`);
     await settle(400);
-    check((await text(".alert-list")).includes(f.found.rival), `${tag}: the alert does not show the plotter on the screen`);
+    check(
+      (await text(".alert-list")).includes(f.found.rival),
+      `${tag}: the alert does not show the plotter on the screen`,
+    );
     await shot(`${tag}-5c-alert`);
     await tap(`[data-gate="alert"]`);
   } else check(false, `${tag}: no strife alert to press`);
@@ -515,7 +611,11 @@ async function rule(f: Forged, tag: string): Promise<void> {
   await takeUp(f);
   const a = f.answer;
   await takeRuler(a, `${tag} answering`);
-  await until(`${tag}: the window of a plot`, async () => /plot against you/i.test(await text(".reign-window")), slow(30000));
+  await until(
+    `${tag}: the window of a plot`,
+    async () => /plot against you/i.test(await text(".reign-window")),
+    slow(30000),
+  );
   const t0 = await clock();
   await settle(1500);
   check((await clock()) === t0, `${tag}: the clock ran on behind the window of a plot`);
@@ -538,8 +638,43 @@ async function rule(f: Forged, tag: string): Promise<void> {
   await settle(300);
   await shot(`${tag}-6b-seized`);
   const told = after.told.map((x) => x.words).join(" | ");
-  say(`${tag}: after: standing ${before.legitimacy.toFixed(3)} to ${after.legitimacy.toFixed(3)}; told: ${told.slice(0, 300)}`);
+  say(
+    `${tag}: after: standing ${before.legitimacy.toFixed(3)} to ${after.legitimacy.toFixed(3)}; told: ${told.slice(0, 300)}`,
+  );
   check(told.includes(a.rival), `${tag}: the realm's tidings do not name the plotter seized`);
+  await tap(".reign-letgo");
+  await until(`${tag}: let go`, async () => !(await seen(".reign-strip")));
+
+  // The same plot bought off: they stay at court, it costs less, and it is told.
+  await takeUp(f);
+  await takeRuler(a, `${tag} buying`);
+  await until(
+    `${tag}: the window of the plot to buy off`,
+    async () => /plot against you/i.test(await text(".reign-window")),
+    slow(30000),
+  );
+  const buy0 = (await reign())!;
+  await tap(`.reign-drama[data-choice="buy"]`);
+  await until(`${tag}: the plot bought off`, async () => !(await reign())?.drama, slow(30000));
+  await settle(400);
+  const buy1 = (await reign())!,
+    tale = buy1.told.map((x) => x.words).join(" | ");
+  say(
+    `${tag}: bought off: standing ${buy0.legitimacy.toFixed(3)} to ${buy1.legitimacy.toFixed(3)}; told: ${tale.slice(0, 200)}`,
+  );
+  check(buy1.legitimacy < buy0.legitimacy, `${tag}: buying off a plotter cost nothing`);
+  check(
+    buy0.legitimacy - buy1.legitimacy < before.legitimacy - after.legitimacy + 1e-6,
+    `${tag}: buying off cost more than seizing`,
+  );
+  check(tale.includes(a.rival), `${tag}: the realm's tidings do not name the plotter bought off`);
+  check(
+    (await cardsOf(a.realm)).some((x) => x.name === a.rival),
+    `${tag}: the one bought off is no longer at court`,
+  );
+  await shot(`${tag}-6c-bought`);
+  await tap(".reign-pace");
+  await settle(200);
   await tap(".reign-letgo");
   await until(`${tag}: let go`, async () => !(await seen(".reign-strip")));
 
@@ -547,7 +682,11 @@ async function rule(f: Forged, tag: string): Promise<void> {
   await takeUp(f);
   const b = f.won;
   await takeRuler(b, `${tag} letting`);
-  await until(`${tag}: the window of the plot let come`, async () => /plot against you/i.test(await text(".reign-window")), slow(30000));
+  await until(
+    `${tag}: the window of the plot let come`,
+    async () => /plot against you/i.test(await text(".reign-window")),
+    slow(30000),
+  );
   await tap(`.reign-drama[data-choice="let"]`);
   await until(`${tag}: the window gone`, async () => !(await seen(".reign-window .life-wintitle")));
   await tap(`.reign-pace`);
@@ -560,7 +699,10 @@ async function rule(f: Forged, tag: string): Promise<void> {
   await until(`${tag}: their fall`, async () => !!(await reign())?.fell, slow(30000));
   const fell = (await reign())?.fell;
   await until(`${tag}: the window of their fall`, () => seen(".reign-window .life-wintitle"));
-  check(!!fell && fell.words.includes(b.rival), `${tag}: the fall does not name the one who took the seat: ${fell?.words}`);
+  check(
+    !!fell && fell.words.includes(b.rival),
+    `${tag}: the fall does not name the one who took the seat: ${fell?.words}`,
+  );
   say(`${tag}: fall: ${fell?.title}: ${fell?.words}`);
   await settle(300);
   await shot(`${tag}-7-fall`);
@@ -574,22 +716,53 @@ async function rule(f: Forged, tag: string): Promise<void> {
     await takeRuler(c, `${tag} bereft`);
     await tap(`.reign-pace`);
     await settle(200);
-    await advanceTo(f.hashAt);
     const name = c.heir;
-    const came = await until(`${tag}: the window of an heir's death`, async () => (await text(".reign-window")).includes("has died"), slow(30000));
+    // (Death takes its time. Any other window on the way is let come: this ruler is here for the one thing.)
+    const died = async () => (await text(".reign-window")).includes("has died");
+    let came = false;
+    for (let y = 1; y <= 40 && !came; y++) {
+      await k(`globalThis.causalis.client.advance(${Math.round(f.hashAt + y * YEAR)})`);
+      const by = Date.now() + slow(30000);
+      while (Date.now() < by) {
+        came = await died();
+        if (came) break;
+        if (await seen(`.reign-drama[data-choice="let"]`)) {
+          await tap(`.reign-drama[data-choice="let"]`);
+          await settle(200);
+          if (await seen(".reign-pace")) await tap(".reign-pace");
+        }
+        if (
+          (await reign())?.fell ||
+          (await k<number>("globalThis.causalis.client.status.t")) >= f.hashAt + y * YEAR - 1
+        )
+          break;
+        await page.waitForTimeout(100);
+      }
+      if ((await reign())?.fell) break;
+    }
+    check(came || !!(await reign())?.fell, `${tag}: no window for an heir's death in forty years`);
+    if (!came) say(`${tag}: their reign ended before their heir died`);
     if (came) {
       const wb = await text(".reign-window");
       say(`${tag}: window: ${wb.replace(/\s+/g, " ")}`);
       check(wb.includes(name), `${tag}: the window does not name the heir who died`);
       await shot(`${tag}-8-heir-window`);
-      const can = await k<boolean>(`!!document.querySelector('.reign-drama[data-choice="name"][data-can="1"]')`);
+      const can = await k<boolean>(
+        `!!document.querySelector('.reign-drama[data-choice="name"][data-can="1"]')`,
+      );
       if (can) {
-        const picked = await k<string>(`document.querySelector('.reign-drama[data-choice="name"][data-can="1"]').textContent`);
+        const picked = await k<string>(
+          `document.querySelector('.reign-drama[data-choice="name"][data-can="1"]').textContent`,
+        );
         await tap(`.reign-drama[data-choice="name"][data-can="1"]`);
-        await until(`${tag}: the bar names the new heir`, async () => {
-          const r = await reign();
-          return !!r && picked.includes(r.heir.split(",")[0]!);
-        }, slow(30000));
+        await until(
+          `${tag}: the bar names the new heir`,
+          async () => {
+            const r = await reign();
+            return !!r && picked.includes(r.heir.split(",")[0]!);
+          },
+          slow(30000),
+        );
         await settle(300);
         await shot(`${tag}-8b-named`);
         say(`${tag}: named: ${(await reign())?.heir}`);

@@ -88,7 +88,10 @@ export function heirWhy(world: World, r: Polity, c: Court, f: CourtFigure): stri
   const year = yearOfMoment(world.now),
     age = year - f.born,
     grown = populationContext(world).life.adulthood,
-    young = age < grown ? ` ${cap(he(f.sex))} is ${age}: a regent would hold the seat till ${he(f.sex)} is ${grown}.` : "";
+    young =
+      age < grown
+        ? ` ${cap(he(f.sex))} is ${age}: a regent would hold the seat till ${he(f.sex)} is ${grown}.`
+        : "";
   if (c.heirBy === "word") return `Named by ${r.ruler.name}'s own word.${young}`;
   if (c.heirBy === "voices")
     return `Rule here passes by others' leave, and the voices lean to them: ${holds(f.seat)} ${pct(f.sway)} in a hundred of the realm's sway, the most at court.`;
@@ -127,10 +130,11 @@ export function reasonsOf(world: World, r: Polity, c: Court, f: CourtFigure): Co
         f.seat === "house"
           ? `of the ruler's own house, carrying ${pct(f.sway)} in a hundred of the realm's sway`
           : `${holds(f.seat)} ${pct(f.sway)} in a hundred of the realm's sway`,
-      weight: d.factors[0]!.contribution,
+      weight: COURT.wantWeight * d.weight,
       why: null,
     },
-    rest: CourtReason[] = d.factors.slice(1).flatMap((x) => {
+    // (Their own weight is told above, and is no reason of REASONS.)
+    rest: CourtReason[] = d.factors.flatMap((x) => {
       const say = REASONS[x.name];
       return say && x.contribution > 0.005
         ? [{ words: say(x.value), weight: x.contribution, why: x.source?.ref ?? null }]
@@ -148,7 +152,10 @@ function wantOf(world: World, r: Polity, f: CourtFigure): { words: string; why: 
       ?.demands.slice()
       .sort((a, b) => b.strength - a.strength)[0];
   return d
-    ? { words: `${cap(holds(f.seat)).replace(/ holds?$/, "")} want ${d.want}: ${d.name}.`, why: d.source }
+    ? {
+        words: `${cap(holds(f.seat)).replace(/ holds?$/, "")} want ${d.want}: ${d.name}.`,
+        why: d.source,
+      }
     : {
         words: `${cap(holds(f.seat))} ${pct(f.sway)} in a hundred of the realm's sway, and wants it kept.`,
         why: null,
