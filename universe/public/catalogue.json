@@ -2,45 +2,45 @@
   "rulesets": { "alien": "ddd2ac9ef268ddd5", "earth": "286e3407e530dee2" },
   "versions": { "alien": "alien-9", "earth": "earth-8" },
   "lastYear": 3000,
-  "cost": { "cpuSeconds": 39738, "wallSeconds": 5611, "jobs": 10 },
+  "cost": { "cpuSeconds": 30538, "wallSeconds": 3053, "jobs": 10 },
   "agreement": {
     "villages": {
-      "allowed": 34,
-      "reached": 34,
-      "clear": 34,
-      "clearReached": 34,
+      "allowed": 31,
+      "reached": 31,
+      "clear": 31,
+      "clearReached": 31,
       "shutReached": 0,
       "shut": 0
     },
     "realms": {
-      "allowed": 34,
-      "reached": 34,
-      "clear": 34,
-      "clearReached": 34,
+      "allowed": 31,
+      "reached": 31,
+      "clear": 31,
+      "clearReached": 31,
       "shutReached": 0,
       "shut": 0
     },
     "cities": {
-      "allowed": 34,
-      "reached": 34,
-      "clear": 34,
-      "clearReached": 34,
+      "allowed": 31,
+      "reached": 31,
+      "clear": 31,
+      "clearReached": 31,
       "shutReached": 0,
       "shut": 0
     },
     "writing": {
-      "allowed": 34,
-      "reached": 34,
-      "clear": 34,
-      "clearReached": 34,
+      "allowed": 31,
+      "reached": 31,
+      "clear": 31,
+      "clearReached": 31,
       "shutReached": 0,
       "shut": 0
     },
     "iron": {
-      "allowed": 34,
-      "reached": 34,
-      "clear": 34,
-      "clearReached": 34,
+      "allowed": 31,
+      "reached": 31,
+      "clear": 31,
+      "clearReached": 31,
       "shutReached": 0,
       "shut": 0
     },
@@ -50,7 +50,7 @@
       "clear": 23,
       "clearReached": 23,
       "shutReached": 0,
-      "shut": 7
+      "shut": 4
     },
     "electricity": {
       "allowed": 27,
@@ -58,7 +58,7 @@
       "clear": 23,
       "clearReached": 23,
       "shutReached": 0,
-      "shut": 7
+      "shut": 4
     },
     "orbit": {
       "allowed": 27,
@@ -66,7 +66,7 @@
       "clear": 23,
       "clearReached": 23,
       "shutReached": 0,
-      "shut": 7
+      "shut": 4
     },
     "worlds": {
       "allowed": 27,
@@ -74,7 +74,7 @@
       "clear": 17,
       "clearReached": 17,
       "shutReached": 0,
-      "shut": 7
+      "shut": 4
     },
     "stars": {
       "allowed": 27,
@@ -82,7 +82,7 @@
       "clear": 17,
       "clearReached": 17,
       "shutReached": 0,
-      "shut": 7
+      "shut": 4
     },
     "fusion": {
       "allowed": 18,
@@ -90,7 +90,7 @@
       "clear": 13,
       "clearReached": 13,
       "shutReached": 0,
-      "shut": 16
+      "shut": 13
     },
     "minds": {
       "allowed": 27,
@@ -98,7 +98,7 @@
       "clear": 17,
       "clearReached": 17,
       "shutReached": 0,
-      "shut": 7
+      "shut": 4
     },
     "beams": {
       "allowed": 19,
@@ -106,7 +106,7 @@
       "clear": 12,
       "clearReached": 12,
       "shutReached": 0,
-      "shut": 15
+      "shut": 12
     },
     "bodies": {
       "allowed": 27,
@@ -114,7 +114,7 @@
       "clear": 17,
       "clearReached": 17,
       "shutReached": 0,
-      "shut": 7
+      "shut": 4
     },
     "remade": {
       "allowed": 27,
@@ -122,7 +122,7 @@
       "clear": 17,
       "clearReached": 14,
       "shutReached": 0,
-      "shut": 7
+      "shut": 4
     },
     "covered": {
       "allowed": 27,
@@ -130,7 +130,7 @@
       "clear": 17,
       "clearReached": 15,
       "shutReached": 0,
-      "shut": 7
+      "shut": 4
     },
     "gathered": {
       "allowed": 25,
@@ -138,48 +138,48 @@
       "clear": 16,
       "clearReached": 16,
       "shutReached": 0,
-      "shut": 9
+      "shut": 6
     }
   },
   "agreementOf": {
     "alien": {
       "villages": {
-        "allowed": 25,
-        "reached": 25,
-        "clear": 25,
-        "clearReached": 25,
+        "allowed": 22,
+        "reached": 22,
+        "clear": 22,
+        "clearReached": 22,
         "shutReached": 0,
         "shut": 0
       },
       "realms": {
-        "allowed": 25,
-        "reached": 25,
-        "clear": 25,
-        "clearReached": 25,
+        "allowed": 22,
+        "reached": 22,
+        "clear": 22,
+        "clearReached": 22,
         "shutReached": 0,
         "shut": 0
       },
       "cities": {
-        "allowed": 25,
-        "reached": 25,
-        "clear": 25,
-        "clearReached": 25,
+        "allowed": 22,
+        "reached": 22,
+        "clear": 22,
+        "clearReached": 22,
         "shutReached": 0,
         "shut": 0
       },
       "writing": {
-        "allowed": 25,
-        "reached": 25,
-        "clear": 25,
-        "clearReached": 25,
+        "allowed": 22,
+        "reached": 22,
+        "clear": 22,
+        "clearReached": 22,
         "shutReached": 0,
         "shut": 0
       },
       "iron": {
-        "allowed": 25,
-        "reached": 25,
-        "clear": 25,
-        "clearReached": 25,
+        "allowed": 22,
+        "reached": 22,
+        "clear": 22,
+        "clearReached": 22,
         "shutReached": 0,
         "shut": 0
       },
@@ -189,7 +189,7 @@
         "clear": 15,
         "clearReached": 15,
         "shutReached": 0,
-        "shut": 6
+        "shut": 3
       },
       "electricity": {
         "allowed": 19,
@@ -197,7 +197,7 @@
         "clear": 15,
         "clearReached": 15,
         "shutReached": 0,
-        "shut": 6
+        "shut": 3
       },
       "orbit": {
         "allowed": 19,
@@ -205,7 +205,7 @@
         "clear": 15,
         "clearReached": 15,
         "shutReached": 0,
-        "shut": 6
+        "shut": 3
       },
       "worlds": {
         "allowed": 19,
@@ -213,7 +213,7 @@
         "clear": 9,
         "clearReached": 9,
         "shutReached": 0,
-        "shut": 6
+        "shut": 3
       },
       "stars": {
         "allowed": 19,
@@ -221,7 +221,7 @@
         "clear": 9,
         "clearReached": 9,
         "shutReached": 0,
-        "shut": 6
+        "shut": 3
       },
       "fusion": {
         "allowed": 10,
@@ -229,7 +229,7 @@
         "clear": 5,
         "clearReached": 5,
         "shutReached": 0,
-        "shut": 15
+        "shut": 12
       },
       "minds": {
         "allowed": 19,
@@ -237,7 +237,7 @@
         "clear": 9,
         "clearReached": 9,
         "shutReached": 0,
-        "shut": 6
+        "shut": 3
       },
       "beams": {
         "allowed": 11,
@@ -245,7 +245,7 @@
         "clear": 4,
         "clearReached": 4,
         "shutReached": 0,
-        "shut": 14
+        "shut": 11
       },
       "bodies": {
         "allowed": 19,
@@ -253,7 +253,7 @@
         "clear": 9,
         "clearReached": 9,
         "shutReached": 0,
-        "shut": 6
+        "shut": 3
       },
       "remade": {
         "allowed": 19,
@@ -261,7 +261,7 @@
         "clear": 9,
         "clearReached": 7,
         "shutReached": 0,
-        "shut": 6
+        "shut": 3
       },
       "covered": {
         "allowed": 19,
@@ -269,7 +269,7 @@
         "clear": 9,
         "clearReached": 7,
         "shutReached": 0,
-        "shut": 6
+        "shut": 3
       },
       "gathered": {
         "allowed": 17,
@@ -277,7 +277,7 @@
         "clear": 8,
         "clearReached": 8,
         "shutReached": 0,
-        "shut": 8
+        "shut": 5
       }
     },
     "earth": {
@@ -535,26 +535,6 @@
     },
     {
       "universe": "alien",
-      "seed": "ember 211",
-      "kind": "rocky",
-      "medium": "land",
-      "lands": 2081,
-      "ages": {
-        "bands": { "year": 0, "name": "Bands" },
-        "villages": { "year": 20, "name": "Villages" },
-        "realms": { "year": 30, "name": "Realms" },
-        "cities": { "year": 80, "name": "Cities" },
-        "writing": { "year": 80, "name": "Writing" },
-        "iron": { "year": 290, "name": "Iron" }
-      },
-      "falls": [],
-      "end": { "year": 3000, "id": "iron", "name": "Steel" },
-      "check": "e12b02c4",
-      "marks": { "500": "59c0cd26", "1500": "ab89562e", "3000": "17da95b" },
-      "s": 3869
-    },
-    {
-      "universe": "alien",
       "seed": "ember 582",
       "kind": "carbon",
       "medium": "land",
@@ -761,26 +741,6 @@
     },
     {
       "universe": "alien",
-      "seed": "lumen 705",
-      "kind": "rocky",
-      "medium": "shore",
-      "lands": 973,
-      "ages": {
-        "bands": { "year": 0, "name": "Bands" },
-        "villages": { "year": 20, "name": "Villages" },
-        "realms": { "year": 20, "name": "Realms" },
-        "cities": { "year": 20, "name": "Cities" },
-        "writing": { "year": 210, "name": "Writing" },
-        "iron": { "year": 460, "name": "Iron" }
-      },
-      "falls": [],
-      "end": { "year": 3000, "id": "iron", "name": "Steel" },
-      "check": "731e82fe",
-      "marks": { "500": "853decf", "1500": "5868cbd", "3000": "f38a7eb5" },
-      "s": 1371
-    },
-    {
-      "universe": "alien",
       "seed": "marrow 145",
       "kind": "ammonia",
       "medium": "land",
@@ -961,26 +921,6 @@
       "check": "5276e702",
       "marks": { "500": "ead30e07", "1500": "4af09387", "3000": "d21d1953" },
       "s": 164
-    },
-    {
-      "universe": "alien",
-      "seed": "sorrel 199",
-      "kind": "rocky",
-      "medium": "land",
-      "lands": 2606,
-      "ages": {
-        "bands": { "year": 0, "name": "Bands" },
-        "villages": { "year": 20, "name": "Villages" },
-        "realms": { "year": 50, "name": "Realms" },
-        "cities": { "year": 160, "name": "Cities" },
-        "writing": { "year": 160, "name": "Writing" },
-        "iron": { "year": 260, "name": "Iron" }
-      },
-      "falls": [],
-      "end": { "year": 3000, "id": "iron", "name": "Steel" },
-      "check": "2133d7dd",
-      "marks": { "500": "2d921d48", "1500": "28771a7c", "3000": "32545c09" },
-      "s": 3960
     },
     {
       "universe": "alien",
