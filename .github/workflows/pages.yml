@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
   pages: write
   id-token: write
@@ -34,8 +35,16 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: universe/package-lock.json
-      - run: npm ci
-      - run: node tools/bake.ts --out baked --years 1500,2000,3000
+      # (The same history makes the same worlds: kept, for as long as what makes them has not moved.)
+      - id: kept
+        uses: actions/cache@v4
+        with:
+          path: universe/baked
+          key: baked-${{ hashFiles('universe/src/sim/**', 'universe/src/rules/**', 'universe/src/kernel/**', 'universe/src/gen/**', 'universe/src/host/planet.ts', 'universe/src/host/kinds.ts', 'universe/src/host/past.ts', 'universe/tools/bake.ts', 'universe/public/catalogue.json', 'universe/package-lock.json') }}-1500-2000-3000
+      - if: steps.kept.outputs.cache-hit != 'true'
+        run: npm ci
+      - if: steps.kept.outputs.cache-hit != 'true'
+        run: node tools/bake.ts --out baked --years 1500,2000,3000
       - uses: actions/upload-artifact@v4
         with:
           name: baked

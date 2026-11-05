@@ -10,6 +10,34 @@ permissions:
   contents: read
 
 jobs:
+  # Whether history's code has moved since the last deploy that passed. Where it has not, the checks
+  # that only run history would say again what they said then, so they are passed over. Against the last
+  # success, not the last push: a failed push's changes still count until a deploy has passed with them.
+  moved:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      history: ${{ steps.diff.outputs.history }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          base=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow pages.yml --branch main --status success --limit 1 --json headSha --jq '.[0].headSha' || true)
+          paths="universe/src/sim universe/src/rules universe/src/kernel universe/src/gen universe/src/host/planet.ts universe/src/host/kinds.ts universe/package-lock.json universe/tools/sky-survey.ts universe/tools/engines.ts universe/tools/phase2-gate.ts universe/tools/phase3-gate.ts universe/tools/phase4-gate.ts universe/tools/phase5-gate.ts universe/tools/phase6-gate.ts"
+          if [ -n "$base" ] && git cat-file -e "$base^{commit}" && git diff --quiet "$base" HEAD -- $paths; then
+            echo "history=false" >> "$GITHUB_OUTPUT"
+            echo "history's code is as it was at $base: its checks are passed over"
+          else
+            echo "history=true" >> "$GITHUB_OUTPUT"
+            echo "history's code has moved since $base: its checks run"
+          fi
+
   test:
     runs-on: ubuntu-latest
     steps:
@@ -48,6 +76,8 @@ jobs:
       - run: npm run build
 
   universe-history:
+    needs: moved
+    if: needs.moved.outputs.history == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -68,6 +98,8 @@ jobs:
       - run: npm run gate:3
 
   universe-diversity:
+    needs: moved
+    if: needs.moved.outputs.history == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -87,6 +119,8 @@ jobs:
       - run: npm run gate:4 -- --ci
 
   universe-sky:
+    needs: moved
+    if: needs.moved.outputs.history == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -111,6 +145,8 @@ jobs:
   # Saves are the same on every machine, so a store that starts to grow fails here; the time budgets
   # hold locally: npm run gate:6.
   universe-deep:
+    needs: moved
+    if: needs.moved.outputs.history == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -125,9 +161,9 @@ jobs:
       - run: npm ci
       - run: npm run gate:6 -- --ci
 
-  # The journey: every browser gate on the built app, shared out over twelve runners side by side.
+  # The journey: every browser gate on the built app, shared out over fifteen runners side by side.
   # tools/ci-gates.ts holds what each gate walks, its CI arguments and its time on a runner; the
-  # shards below are its `--plan 12`. A gate that fails runs once more (a runner's software GL and
+  # shards below are its `--plan 15`. A gate that fails runs once more (a runner's software GL and
   # slower clock make the odd timing miss); one failing twice fails its shard. Every gate in a shard
   # runs, whatever failed before it.
   universe-journey:
@@ -137,18 +173,21 @@ jobs:
       fail-fast: false
       matrix:
         gates:
-          - 7 9 20 24 33
-          - 8 17 34 48 67
-          - 10 14 19 46 49
-          - 11 43 53 60
-          - 12 27 29 39
-          - 13 58 63 64
-          - 15 45 52 55b 66
-          - 18 21 26 41 57
-          - 25 28 36 40 42 62
-          - 30 44 50 55 56
-          - 31 38 51 54
-          - 32 35 37 47 61 65
+          - 7 18 31 42
+          - 8 36 60
+          - 9 11 26 33
+          - 10 15 30 49
+          - 12 25 45 65
+          - 13 37 53 55
+          - 14 29 46 55b
+          - 17 39 52
+          - 19 28 41 47 57
+          - 20 40 48 58 62
+          - 21 24 51
+          - 27 38 54 67
+          - 32 44 64
+          - 34 56 63 66
+          - 35 43 50 61
     defaults:
       run:
         working-directory: universe
@@ -176,6 +215,7 @@ jobs:
           retention-days: 7
 
   universe-engines:
+    needs: moved
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -188,9 +228,14 @@ jobs:
           cache: npm
           cache-dependency-path: universe/package-lock.json
       - run: npm ci
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('universe/package-lock.json') }}
       - run: npx playwright install --with-deps chromium webkit firefox
       - run: sudo apt-get install -y --no-install-recommends libgl1-mesa-dri libglx-mesa0 libegl-mesa0
-      - run: npm run engines
+      - if: needs.moved.outputs.history == 'true'
+        run: npm run engines
       - run: npm run build
       - run: npm run app-check
         env:
