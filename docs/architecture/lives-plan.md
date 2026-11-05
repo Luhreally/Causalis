@@ -53,6 +53,18 @@ eviction behind it. Singles are scarce because the hand pairs every woman at onc
 no one to court: the want is not offered then, and the Book says so. The numbers are first guesses from one market
 at year 300, and all sit in `rules/life.ts`, a table each. Decrees, wars and marriages of state are L4.
 
+### L4, as built (2026-11-05)
+
+A ruler is taken by 👑 Rule as them on a realm's Leaders tab or a ruler's page, 👑 Rule on the chip at their home, or 👑 Rule on the tray of a life lived as them. **Taking them records nothing**: the page alone knows whom it rules, so a world under a ruler who does nothing runs exactly as it would have. The eye goes to their home, and the town view stays. A bar above shows who, the month, people, worth a head and its place, the host, standing and grievance, wars, the heir, and bars of wealth against up to three realms they meet; every part goes to its page. A tray below has Decrees, War and peace, Marriage, The realm, and Walk (the L1 body, back to the bar on letting go). The months go by at a month in five seconds or a month a second, held whenever a sheet, a window or a page is open.
+
+- **Station is read off what the world says they hold.** By birth or by others' leave, and alone or sharing rule, set the share of the realm's voices they must carry (0, 25 or 50 in a hundred). Standing says how far they are heard (under 0.30 a word stops at the seat's door, under 0.20 no one marches). The seat's reach says how far they are obeyed (lands past it chafe at a word they did not want). Nothing written means custom is the law.
+- **Decrees** are the four laws, a step at a time, and the tithe, two parts in a hundred. They cost standing by the sway against them and are weighed again by the realm in its turn.
+- **War and peace** go through the same store and the same year as any war, for a land named on the frontier, which its battles then go for. A foe winning by two battles holds out against peace; a civil war cannot be asked to end.
+- **A marriage of state** moves one number, what the two realms think of each other (0.1 + 0.5 x the two peoples' mean kinship, halved if a seat is not held by birth, fading by half in thirty years). War and pacts read it. It is kept on both realms' orders, so the family page shows it. The people are the keyed family a ruler's page already shows. Two of one sex are not yet wed (L3's limit). A people with kinship under 0.15 keep no houses, and a house under -0.85 gives no one.
+- **The fall** says how (a death at an age, a coup's own words, a realm ended) and offers whoever holds the seat. Going on records nothing either.
+
+Limits, stated: the eldest child shown is the keyed family's, and whoever history crowns may be another. The numbers are first guesses, all in `rules/reign.ts`. Heirs, rivals, plots, councils and running on their own are L5.
+
 ## What is known, and what is not
 
 - Realm pages show rulers: a name, since when, and the event that made them. They show no heirs, councils

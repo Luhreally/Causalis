@@ -39,6 +39,7 @@ export type ToolContext = {
   readonly possess?: (agent: number) => Promise<string | null>;
   /** To a key figure's home in the town view (Lives L1). */
   readonly leaderHome?: (leader: Leader) => void;
+  readonly leaderRule?: (leader: Leader) => void;
 };
 
 /** One of a town's people the god may touch (Phase 54): who they are, and their town. */
@@ -210,6 +211,7 @@ export function drawTool(
       drawLeaderCard(into, args.leader as Leader, args.short === true, {
         open: ctx.open,
         ...(ctx.leaderHome ? { home: ctx.leaderHome } : {}),
+        ...(ctx.leaderRule ? { rule: ctx.leaderRule } : {}),
       });
       return;
     case "wealth.compare":

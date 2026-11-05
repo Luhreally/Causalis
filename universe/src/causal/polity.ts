@@ -84,10 +84,10 @@ registerEventWords(
 );
 
 registerEventWords(POLITY_EVENTS.tithe.type, (_, e) => {
-  const d = e.data as { from?: number; to?: number } | null,
+  const d = e.data as { from?: number; to?: number; by?: string } | null,
     from = d?.from ?? 0,
     to = d?.to ?? 0;
-  return `${cap(realm(e.data))} ${to > from ? "raised" : "eased"} its tithe from ${from} to ${to} parts in a hundred of the grain, ${year(e.t)}`;
+  return `${d?.by ? `By your hand, at the word of ${d.by}, ${realm(e.data)}` : cap(realm(e.data))} ${to > from ? "raised" : "eased"} its tithe from ${from} to ${to} parts in a hundred of the grain, ${year(e.t)}`;
 });
 
 registerDecisionWords("polity.form", (world, d) => {

@@ -67,6 +67,8 @@ export class LifeHud {
   onHeir: (agent: number) => void = () => {};
   onLetGo: () => void = () => {};
   onWalk: () => void = () => {};
+  /** 👑 Rule: the one lived is a realm's ruler (Lives L4). */
+  onRule: (realm: string) => void = () => {};
   private toldFor: ReturnType<typeof setTimeout> | null = null;
   onPage: (ref: string) => void = () => {};
   /** ❚❚, ▶, ▶▶: the clock held, or run. */
@@ -181,11 +183,15 @@ export class LifeHud {
   }
 
   private drawTray(l: LifeNow): void {
-    const key = l.offers.map((o) => `${o.what}|${o.target}|${o.label}|${o.can}`).join(",");
+    const key = `${l.rules ?? ""}${l.offers.map((o) => `${o.what}|${o.target}|${o.label}|${o.can}`).join(",")}`;
     if (key === this.trayKey) return;
     this.trayKey = key;
+    const realm = l.rules,
+      rule = realm ? el("button", "life-walk life-rule", "👑 Rule") : null;
+    if (rule && realm) rule.onclick = () => this.onRule(realm);
     this.tray.replaceChildren(
       this.walk,
+      ...(rule ? [rule] : []),
       ...l.offers.map((o) => {
         const b = el("button", "life-offer");
         b.append(el("span", "life-icon", o.icon), el("span", "life-label", o.label));

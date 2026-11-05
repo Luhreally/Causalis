@@ -28,9 +28,24 @@ export const LIVES_CONCEPTS: Readonly<Record<string, Concept>> = {
     drives: [
       "Rule passing at a death, a coup, a revolution; a house rising where lending is known.",
     ],
-    leads: ["A body to walk in. What a ruler can decree comes later."],
+    leads: ["A body to walk in, and a realm to rule: 👑 Rule as them."],
     see: [{ text: "Every coup and restoration", ref: "world:ledger#strife" }],
-    related: ["credit"],
+    related: ["credit", "reign"],
+  },
+  reign: {
+    icon: "📜",
+    title: "Ruling as someone",
+    what: [
+      "Taking a ruler records nothing: a world under a ruler who does nothing goes on exactly as it would have. Each thing done is your act, told in history with whose word it was. The months go by, and the clock is held while a choice is open.",
+      "What they can do comes from what they hold. A ruler by birth who rules alone is answered at once. One who holds the seat by others' leave, or shares rule with a council or an assembly, must carry a share of the realm's voices: its groups by their sway, for what each wants. Where nothing is written, custom is the law and no word changes it; under the sacred, the temple can stand in the way. When few hold the rule rightful, the word stops at the seat's door. Lands past the seat's reach chafe at a word they did not want.",
+      "A law moves a step at a time and a tithe two parts in a hundred, and the realm weighs them again in its turn. A war goes through the same door as any war, for a land on its frontier. A foe who is winning may hold out against peace. A marriage of state ties two houses: it moves what the two realms think of each other, fading as memories fade, which is what wars and pacts read. Peoples who count kin little keep no houses to join, and a seat not held by birth binds less.",
+    ],
+    drives: ["What a realm's order, laws, voices and neighbours are now."],
+    leads: [
+      "Its standing and its lands' grievance, its laws and tithe, its wars, and what it thinks of its neighbours.",
+    ],
+    see: [],
+    related: ["leaders", "wealth"],
   },
 };
 

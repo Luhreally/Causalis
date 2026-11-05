@@ -140,6 +140,11 @@ export function spotOf(
 }
 
 /** How fast the clock runs (sim seconds a real second) for what the one lived is at: walks are seen, nights go by. */
+/** A ruler's pace (Lives L4; world seconds a second): a month in five seconds, or a month a second. */
+export function ruledSpeed(fast: boolean): number {
+  return fast ? 30 * DAY : 6 * DAY;
+}
+
 export function livedSpeed(walking: boolean, asleep: boolean, fast: boolean): number {
   if (walking) return MINUTE;
   if (asleep) return 3 * HOUR;

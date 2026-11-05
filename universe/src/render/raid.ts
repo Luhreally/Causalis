@@ -4,7 +4,7 @@
 // floor, at most 12 machines of 4 parts, 24 loads, 24 bursts of 2 parts: 120 instances in 5 draws, and none
 // but while a raid is over the town.
 import * as pc from "playcanvas";
-import { InstancedBatch, boxMesh, coneMesh } from "./batch.ts";
+import { InstancedBatch, ballMesh, boxMesh, coneMesh } from "./batch.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 import {
   LAND_FLYERS,
@@ -40,6 +40,8 @@ export class RaidLayer {
   private readonly hulls: InstancedBatch;
   private readonly loads: InstancedBatch;
   private readonly flashes: InstancedBatch;
+  private readonly balls: InstancedBatch;
+  private readonly cores: InstancedBatch;
   private readonly dust: InstancedBatch;
   private readonly smokes: InstancedBatch;
   private readonly heads: InstancedBatch;
@@ -85,6 +87,9 @@ export class RaidLayer {
     bright.update();
     this.smokes = new InstancedBatch(stage, box, SMOKE, MOST_STREAKS, this.root, bright);
     this.heads = new InstancedBatch(stage, box, HEAD, MOST_STREAKS, this.root, lit);
+    const ball = ballMesh(stage, 0.5);
+    this.balls = new InstancedBatch(stage, ball, FLASH, MOST_STREAKS, this.root, glow);
+    this.cores = new InstancedBatch(stage, ball, HEAD, MOST_STREAKS, this.root, lit);
   }
 
   update(now: RaidNow): void {
@@ -155,17 +160,40 @@ export class RaidLayer {
       out[4] = 1;
       out[5] = 0.32;
     });
-    this.flashes.set(bursts.length, (i, out) => {
-      // (A rocket's stands over the roofs, and goes down slower: a load's is gone in a moment.)
-      const b = bursts[i]!,
-        size = b.size ?? 1,
-        rise = size > 1 ? 1 - b.k : (1 - b.k) * (1 - b.k);
+    // A load's flash is gone in a moment; a rocket's is a ball of fire that swells over the roofs, white at its heart.
+    const loads = bursts.filter((b) => !b.size || b.size <= 1),
+      falls = bursts.filter((b) => (b.size ?? 1) > 1).slice(0, MOST_STREAKS),
+      swell = (b: (typeof falls)[number]) =>
+        (b.size ?? 1) * 3.4 * Math.sqrt(b.k) * (1 - b.k * b.k * b.k) + 0.3;
+    this.flashes.set(loads.length, (i, out) => {
+      const b = loads[i]!,
+        rise = (1 - b.k) * (1 - b.k);
       out[0] = b.x * M;
       out[1] = 0.1;
       out[2] = b.z * M;
-      out[3] = (1.7 * rise + 0.2) * size;
-      out[4] = (4.6 * rise + 0.1) * size;
-      out[5] = (1.7 * rise + 0.2) * size;
+      out[3] = 1.7 * rise + 0.2;
+      out[4] = 4.6 * rise + 0.1;
+      out[5] = 1.7 * rise + 0.2;
+    });
+    this.balls.set(falls.length, (i, out) => {
+      const b = falls[i]!,
+        r = swell(b);
+      out[0] = b.x * M;
+      out[1] = r * 0.32;
+      out[2] = b.z * M;
+      out[3] = r;
+      out[4] = r * 0.82;
+      out[5] = r;
+    });
+    this.cores.set(falls.length, (i, out) => {
+      const b = falls[i]!,
+        r = swell(b) * 0.62 * (1 - b.k);
+      out[0] = b.x * M;
+      out[1] = swell(b) * 0.32;
+      out[2] = b.z * M;
+      out[3] = r;
+      out[4] = r * 0.82;
+      out[5] = r;
     });
     this.dust.set(bursts.length, (i, out) => {
       const b = bursts[i]!,

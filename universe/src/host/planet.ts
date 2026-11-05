@@ -147,6 +147,7 @@ import {
 import { MAP_QUERIES } from "./map.ts";
 import { POSSESS_QUERIES } from "./possess.ts";
 import { LIFE_QUERIES } from "./life.ts";
+import { REIGN_QUERIES } from "./reign.ts";
 import { townPlan } from "./town.ts";
 import {
   COLONY_QUERIES,
@@ -1441,6 +1442,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
       // One of a town's people possessed (Phase 60): the small world about him, stepped ahead.
       ...POSSESS_QUERIES,
       ...LIFE_QUERIES,
+      ...REIGN_QUERIES,
       ...COLONY_QUERIES,
       ...NATIVES_QUERIES,
       // The fights among the stars as the record has them (Phase 67).

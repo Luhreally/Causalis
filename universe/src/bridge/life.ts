@@ -44,6 +44,8 @@ export type LifeWindow = {
 
 /** What a life is as it stands, carried forward to the moment asked. */
 export type LifeNow = {
+  /** The realm they rule, if the one lived is its ruler (Lives L4). */
+  readonly rules?: string | null;
   readonly agent: number;
   readonly ref: string;
   readonly name: string;

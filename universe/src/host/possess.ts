@@ -303,7 +303,7 @@ function offerOf(
           busy ??
           (o.why === "no-trade"
             ? s.me?.occupation === OCC.leader
-              ? `No craft in ${hisOf(s.sex)} hands: ${heOf(s.sex)} rules. Live ${hisOf(s.sex)} day to hold court; what a ruler can decree comes later`
+              ? `No craft in ${hisOf(s.sex)} hands: ${heOf(s.sex)} rules. Live ${hisOf(s.sex)} day to hold court; to rule, let go and press 👑 Rule`
               : `No craft in ${hisOf(s.sex)} hands to work here: ${heOf(s.sex)} is ${s.what} — a smith works at a forge, a potter at a wheel, a weaver at a loom, a farmer in the fields`
             : o.why === "no-place"
               ? noPlaceWords(p, a, s)

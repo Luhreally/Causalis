@@ -41,11 +41,33 @@ type RaidWay = {
   readonly under: readonly number[];
   readonly strays: readonly { readonly p: number; readonly at: number }[];
   readonly falls?: readonly RocketFall[];
+  /** What it burned past the streets drawn, out in a great city's sprawl. */
+  readonly far?: readonly FarBurn[];
   /** How high they come over (m): over the tallest of what stands there, in a city of spires. */
   readonly high: number;
 };
-/** One rocket's fall on a town (W3): when, and where. */
-type RocketFall = { readonly at: number; readonly x: number; readonly z: number };
+/** One rocket's fall on a town (W3): when, and where (out: past the streets drawn, on no lot of the scene's). */
+type RocketFall = {
+  readonly at: number;
+  readonly x: number;
+  readonly z: number;
+  readonly out?: boolean;
+};
+/** A home alight past those a town's scene draws: when it caught, where, how high and how broad (metres). */
+export type FarBurn = {
+  readonly at: number;
+  readonly x: number;
+  readonly z: number;
+  readonly yaw: number;
+  readonly high: number;
+  readonly wide: number;
+};
+/** A great city's sprawl, as far as the scene draws it (metres from its middle). */
+type Ring = { readonly r0: number; readonly r1: number };
+/** How many homes are drawn alight for each place it came down past the streets drawn, how far about it (m), and how long one takes to catch from the last (s). */
+const FAR_HOMES = 9,
+  FAR_ABOUT = 70,
+  FAR_CATCH = 40;
 /** How steeply they come down (radians from level, est: Earth's first came down at some 65 degrees), how high they are drawn from (m). */
 const STREAK_DOWN = 1.13,
   STREAK_HIGH = 1600;
@@ -67,6 +89,36 @@ const wayOf = (k: TownStrike): RaidWay =>
     high: RAID_HIGH,
   };
 
+/** What a strike burned past the streets drawn (none: what it burned is drawn). */
+export const farBurnsOf = (k: TownStrike): readonly FarBurn[] => WAYS.get(k)?.far ?? [];
+
+/** Whether a place past the streets drawn is on dry ground, with room about it. */
+const dryOut = (plan: TownPlan, x: number, z: number): boolean =>
+  !plan.water || Math.hypot(x - plan.water.x, z - plan.water.z) > plan.water.r + FAR_ABOUT + 10;
+
+/** Homes alight about a place past the streets drawn: a keyed few, one catching after another. */
+function burnsAbout(
+  key: number,
+  salt: number,
+  x: number,
+  z: number,
+  at: number,
+  out: FarBurn[],
+): void {
+  for (let i = 0; i < FAR_HOMES; i++) {
+    const a = unit(key, salt + i * 3) * 2 * Math.PI,
+      r = i === 0 ? 0 : FAR_ABOUT * Math.sqrt(unit(key, salt + i * 3 + 1));
+    out.push({
+      at: at + i * FAR_CATCH,
+      x: x + r * Math.cos(a),
+      z: z + r * Math.sin(a),
+      yaw: a,
+      high: 8 + unit(key, salt + i * 3 + 2) * 16,
+      wide: 12,
+    });
+  }
+}
+
 /** When a row of a raid's machines is over the town's heart. */
 const rowOver = (k: TownStrike, row: number, rows: number): number => {
   const run = raidRun(k);
@@ -80,7 +132,13 @@ const rowsOf = (k: TownStrike): number =>
  * first of what it burns; and each lot caught when a row's moment comes over it, not as the lots are numbered, so
  * hits walk along under the machines. Read once, as a town's scene is made.
  */
-export function timeRaids(plan: TownPlan, lots: TownLots, states: LotStates, rise = 0): void {
+export function timeRaids(
+  plan: TownPlan,
+  lots: TownLots,
+  states: LotStates,
+  rise = 0,
+  ring: Ring | null = null,
+): void {
   const list = plan.struck;
   if (!list?.some((k) => k.raid)) return;
   const own = new Map<number, number[]>();
@@ -96,7 +154,7 @@ export function timeRaids(plan: TownPlan, lots: TownLots, states: LotStates, ris
     const mine = own.get(i) ?? [],
       key = hashText(k.event);
     if (k.raid.rocket) {
-      timeRocket(k, key, mine, plan.lots, lots, states, Math.max(RAID_HIGH, rise + 40));
+      timeRocket(k, key, mine, plan, lots, states, Math.max(RAID_HIGH, rise + 40), ring);
       return;
     }
     const first = mine.slice(0, Math.ceil(mine.length / 4));
@@ -149,7 +207,26 @@ export function timeRaids(plan: TownPlan, lots: TownLots, states: LotStates, ris
         strays.length = STRAY_KEPT;
       }
     }
-    WAYS.set(k, { heading, under, strays, high: Math.max(RAID_HIGH, rise + 40) });
+    // (All it burned lies past the streets drawn: it burns out there, on along its way.)
+    const far: FarBurn[] = [];
+    if (!mine.length && ring && k.homes !== 0)
+      for (let r = 0; r < Math.min(3, rows); r++) {
+        const out = Math.min(
+            RAID_FAR,
+            ring.r0 + (ring.r1 - ring.r0) * (0.04 + 0.3 * unit(key, 300 + r)),
+          ),
+          x = ux * out,
+          z = uz * out;
+        if (dryOut(plan, x, z))
+          burnsAbout(key, 320 + r * 30, x, z, rowOver(k, r, rows) + out / speed, far);
+      }
+    WAYS.set(k, {
+      heading,
+      under,
+      strays,
+      ...(far.length ? { far } : {}),
+      high: Math.max(RAID_HIGH, rise + 40),
+    });
   });
 }
 
@@ -161,27 +238,51 @@ function timeRocket(
   k: TownStrike,
   key: number,
   mine: readonly number[],
-  drawn: number,
+  plan: TownPlan,
   lots: TownLots,
   states: LotStates,
   high: number,
+  ring: Ring | null,
 ): void {
   const heading = unit(key, 1) * 2 * Math.PI,
     runs: number[][] = [];
-  // (A town flattened last year has nothing it can burn in all that is drawn: they still come down here, on the ruins.)
+  // (A town flattened last year has nothing it can burn in all that is drawn: they still come down here, on the ruins.
+  // In a great city, what it burned may all lie past the streets drawn: they come down and burn out there.)
   if (!mine.length) {
     const n = Math.min(4, Math.max(1, k.raid?.flyers ?? 1)),
       span = raidRun(k),
       each = n > 1 ? (span.to - span.from) / (n - 1) : 0,
       strays: { p: number; at: number }[] = [],
-      falls: RocketFall[] = [];
+      falls: RocketFall[] = [],
+      far: FarBurn[] = [];
     for (let r = 0; r < n; r++) {
-      const p = Math.floor(unit(key, 50 + r) * drawn),
-        at = span.from + r * each;
+      const at = span.from + r * each;
+      let out: { x: number; z: number } | null = null;
+      if (ring && k.homes !== 0)
+        for (let tries = 0; tries < 8 && !out; tries++) {
+          const a = unit(key, 60 + r * 20 + tries * 2) * 2 * Math.PI,
+            d = ring.r0 + (ring.r1 - ring.r0) * (0.04 + 0.3 * unit(key, 61 + r * 20 + tries * 2)),
+            x = d * Math.cos(a),
+            z = d * Math.sin(a);
+          if (dryOut(plan, x, z)) out = { x, z };
+        }
+      if (out) {
+        falls.push({ at, x: out.x, z: out.z, out: true });
+        burnsAbout(key, 200 + r * 30, out.x, out.z, at, far);
+        continue;
+      }
+      const p = Math.floor(unit(key, 50 + r) * plan.lots);
       strays.push({ p, at });
       falls.push({ at, x: lots.x[p]!, z: lots.z[p]! });
     }
-    WAYS.set(k, { heading, under: [], strays, falls, high });
+    WAYS.set(k, {
+      heading,
+      under: [],
+      strays,
+      falls,
+      ...(far.length ? { far } : {}),
+      high,
+    });
     return;
   }
   for (const p of [...mine].sort((a, b) => a - b)) {
@@ -603,7 +704,7 @@ export function raidNow(scene: TownScene | null, t: number): RaidNow {
     }
   }
   const falling: { x: number; y: number; z: number }[] = [],
-    bursts: { x: number; z: number; k: number }[] = [],
+    bursts: { x: number; z: number; k: number; size?: number }[] = [],
     { struck, states, lots } = scene,
     // A load on its way down to a lot, or just landed on it.
     load = (k: TownStrike, p: number, since: number) => {
@@ -655,6 +756,12 @@ export function raidNow(scene: TownScene | null, t: number): RaidNow {
       const since = t - s.at;
       if (since < -FALL_S) break;
       if (since <= BURST_S) load(k, s.p, since);
+    }
+    // (One that came down past the streets drawn: its flash out there.)
+    for (const f of wayOf(k).falls ?? []) {
+      const since = t - f.at;
+      if (f.out && since >= 0 && since <= BURST_S && bursts.length < MOST_BURSTS)
+        bursts.push({ x: f.x, z: f.z, k: since / BURST_S, size: 4 });
     }
   }
   return flyers?.length || streaks.length || falling.length || bursts.length

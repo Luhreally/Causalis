@@ -86,7 +86,7 @@ function cell(k: Kin, year: number, self = false) {
     name: [link(k.name, self ? null : k.ref)],
     note: self
       ? years
-      : `${k.tie}, ${years}${k.note && k.note.startsWith("born") ? `, ${k.note}` : ""}`,
+      : `${k.tie}, ${years}${k.note && /^(born|wed to)/.test(k.note) ? `, ${k.note}` : ""}`,
     woman: k.sex === 0,
     ...(self ? { self: true } : {}),
     ...(k.died !== null ? { dead: true } : {}),

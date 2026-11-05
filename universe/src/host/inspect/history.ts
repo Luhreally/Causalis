@@ -71,6 +71,7 @@ const TITLES: Readonly<Record<string, string>> = {
   "act.stir": "The bound stirred",
   "act.mandate": "A sign from the heavens",
   "act.decree": "A law decreed",
+  "reign.wed": "A marriage of state",
   "health.rose": "A new sickness",
   "health.outbreak": "A sickness came",
   "health.went": "A sickness went to the stars",
