@@ -253,7 +253,8 @@ body.living-walk #hud .possess-live {
 .possess-live {
   position: absolute;
   right: calc(env(safe-area-inset-right, 0px) + 8px);
-  top: calc(env(safe-area-inset-top, 0px) + 60px);
+  /* (Under the paces and the sprint, which stand above it on the right.) */
+  top: calc(env(safe-area-inset-top, 0px) + 152px);
   min-height: 44px;
 }
 #hud .town-live {

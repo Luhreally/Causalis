@@ -9,7 +9,7 @@
 //   4. the gun's page, from the ground up: solid acetylene, why not metal, the estimates, true to metres,
 //      and no black powder, iron or steel;
 //   5. the principles of firearms and set edges: titled in the world's words, asking what its matter gives
-//      with a tick, and not shut on this world; bronze still shut, for why nothing burns;
+//      with a tick, and not shut on this world; bronze still shut, and why;
 //   6. read directly, in node: Earth's guns at its air and pull give the table's ranges; vale 471's numbers
 //      give acetylene and ice, with no history run;
 //   7. the world's hash as it was, and no error in the page.
@@ -348,7 +348,8 @@ check(
   bronze.words.includes("On this world") && /shut:/.test(bronze.words),
   "bronze is not shut on this world",
 );
-check(/nothing burns/i.test(bronze.words), "bronze's page does not say why nothing burns");
+// (Since F3 it says what bronze asks of the world: a hardener within reach, or a furnace.)
+check(/harden copper|nothing burns/i.test(bronze.words), "bronze's page does not say why it is shut");
 await shot("bronze");
 
 // 7. The world as it was when read first; no error in the page.

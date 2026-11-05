@@ -203,24 +203,43 @@ await toAges(page);
   const after = (await state()).meadow!;
   say(`greened: grass ${before.grass.toFixed(2)} → ${after.grass.toFixed(2)}`);
   check(after.grass > before.grass + 0.1 && after.touched, "the land did not green under the hand");
-  // (Until a way fares better under the hand than on the land left alone, or the age ends.)
-  await until(
-    "a way faring better under the hand",
-    async () => {
-      const m = (await state()).meadow!;
-      return m.verdict !== null || m.age !== after.age;
-    },
-    slow(40000),
-  );
-  const ageWas = after.age,
-    laid = (await state()).seed;
-  await speed(4);
-  await until(
-    "the age's end",
-    async () => ((await state()).meadow?.age ?? ageWas) > ageWas,
-    slow(30000),
-  );
-  await speed(0);
+  // (Its beasts go by the frames a machine draws, so on a slow one an age can end with no way faring better, and
+  // then rightly nothing is laid: the hand tries again in the next age, greening again while none does.)
+  let ageWas = after.age;
+  const laid = (await state()).seed;
+  for (let tries = 0; tries < 4; tries++) {
+    let greened = Date.now();
+    await until(
+      "a way faring better under the hand",
+      async () => {
+        const m = (await state()).meadow!;
+        if (m.verdict === null && m.age === ageWas && Date.now() - greened > slow(3000)) {
+          greened = Date.now();
+          await page
+            .click(`.genesis-acts button:has-text("Green the land")`, { timeout: slow(1000) })
+            .catch(() => undefined);
+        }
+        return m.verdict !== null || m.age !== ageWas;
+      },
+      slow(40000),
+    );
+    const before = (await state()).seed;
+    await speed(4);
+    await until(
+      "the age's end",
+      async () => ((await state()).meadow?.age ?? ageWas) > ageWas,
+      slow(30000),
+    );
+    await speed(0);
+    const end = Date.now() + slow(8000);
+    while (Date.now() < end && (await state()).seed === before)
+      await page.waitForTimeout(100);
+    if ((await state()).seed !== laid) break;
+    // (None laid: the next age, acted on.)
+    ageWas = (await state()).meadow!.age;
+    await speed(1);
+    await page.click(`.genesis-acts button:has-text("Green the land")`);
+  }
   await until("the world remade", async () => (await state()).seed !== laid, slow(30000));
   const s = await state(),
     told = await page.$$eval(".genesis-told p", (x) => x.map((e) => e.textContent ?? "")),
