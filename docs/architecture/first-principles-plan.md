@@ -99,6 +99,29 @@ So the count differs from world to world, and so does the content, and nobody wr
 Rocky worlds answer with what Earth did, at Earth's numbers, so Earth's history and the seed list's Earth rows
 stay exact, and old saves load. What changes is what was shut.
 
+## F4, as built (2026-11-05)
+
+The hold on rocky worlds is gone: they read every row by their numbers, and a people turns aside only where its
+numbers shut the first way, land by land. Flakes on a spine where no copper lies within reach, where a star has under
+0.3 of the Sun's metals, or where limbs cannot grip a haft. Engines on mirrors or the ground's heat where no coal lies
+within reach. Riders only where a tame beast is three times their weight, and their host's words name that beast. The
+0.3 and the 3 are estimates. Earth reads by the same numbers and comes out the same: its eight history fixtures are
+unchanged, and it knows the same 95 principles. Earth's principle pages do move, in words only: riding gains a line for
+what it asks, and rows shut on Earth now say the true reason ("No diamond lies in its rock", not "Fire burns in its
+air"). That is why the chain digest changed.
+
+| Seed, first year known | Stand-in edge | Iron | Sun engines | Steam | Factory | Current | Orbit | Host at 1500 |
+|---|---|---|---|---|---|---|---|---|
+| alien 132, no copper near, before | no | no | no | no | no | no | no | stone spears |
+| alien 132, after | 299 | 372 | 536 | 1131 | 651 | 826 | 1034 | automatic arms |
+| alien 116, trunk, 1,180 kg, before | no | 660 | no | 1082 | 1115 | 1135 | 1351 | tusks, helmets |
+| alien 116, after, riding shut | no | 660 | 857 | 1082 | 892 | 970 | 1149 | tusks, armoured cars |
+| alien 163, hands and coal, before | no | 416 | no | 639 | 862 | 932 | 1472 | steel rifles |
+| alien 163, after | no | 416 | 738 | 639 | 844 | 930 | 1264 | steel rifles |
+
+One seed's year is one draw, so read across seeds. Next levers: a mount drawn as its own beast (a battle still draws a
+horse under a rider of any beast), beasts deciding draught, bodies deciding the pace of crafts, steam on wood.
+
 ## Steps
 
 Each step ships something you can watch on the phone. Each changes history, for the worlds it opens, so each

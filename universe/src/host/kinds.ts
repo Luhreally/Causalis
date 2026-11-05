@@ -184,7 +184,7 @@ export function canBeFoundHere(world: World, p: Principle): boolean {
   const ctx = populationContext(world),
     m = meansOfWorld(ctx.generated),
     // (The hottest any means could get here, known or not.)
-    reach = m.burns ? true : m.held ? false : hottest(m).heat;
+    reach = m.burns ? true : hottest(m).heat;
   return (
     affordsPrinciple(p, ctx.medium, reach, m.wants) && !matterShuts(p, functionsOf(ctx.generated))
   );
@@ -217,8 +217,10 @@ export function shutWhy(world: World, p: Principle): string | null {
     kind = kindOf(world),
     f = matterShuts(p, functionsOf(g));
   if (f) return `it asks a people to ${f.name}. ${f.why}`;
-  if (m.burns || m.held) return null;
+  if (m.burns) return null;
   if (p.body?.burns) {
+    // (Its air may burn, and its people live under water or cannot keep a fire: F4.)
+    if (meansNumbers(g).freeOxygen) return `its people can keep no fire, so ${unfired(p.id)}.`;
     const works = [doneHere(world), KINDS[kind].fire].filter(Boolean).join(" ");
     return `nothing burns in its air, so ${unfired(p.id)}. ${works}`;
   }

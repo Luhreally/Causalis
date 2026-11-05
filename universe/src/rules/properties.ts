@@ -9,6 +9,7 @@
 // a function is not another's, and some worlds' matter does not meet it at all. What is asked only by
 // ages past ours (Phase 66: rules/principles.ts, its last) is met here or never found. Pure tables and
 // functions.
+import { dmath } from "../kernel/index.ts";
 import { crustMultiplier, crustOf } from "./crust.ts";
 import type { Chemistry } from "./chemistry.ts";
 import { KIND_GASES, KIND_STONES } from "./kind-ground.ts";
@@ -309,6 +310,10 @@ export function meansWorldOf(a: {
   medium: "land" | "shore" | "water";
   bodyFire: boolean;
   insolation: number;
+  /** Its people and its beasts (F4); a made-up world left without them reads as Earth's. */
+  grips?: boolean;
+  bodyKg?: number;
+  beast?: { readonly name: string; readonly kg: number } | null;
 }): MeansWorld {
   const sea = KINDS[a.kind].liquid.subst;
   return {
@@ -328,6 +333,12 @@ export function meansWorldOf(a: {
     seaIsWater: sea === "water" || sea === "ammonia-water" || sea === "acid-water",
     ppm: (el) => crustPpm(a.chem, el),
     sunWm2: 1361 * a.insolation,
+    grips: a.grips ?? true,
+    bodyKg: a.bodyKg ?? 60,
+    beast: a.beast === undefined ? { name: "horse", kg: 500 } : a.beast,
+    metalShare: dmath.pow(10, a.chem.feH),
+    nickel: a.chem.hardener === "nickel",
+    firstRoad: a.chem.solar && KINDS[a.kind].burns,
     // (SOILS keys every biome's soil, and its ice's and sea's: it has no "land" key.)
     rockHolds: [
       ...new Set([
@@ -553,11 +564,18 @@ function makeGas(w: MatterWorld): FunctionReading {
 }
 
 /** Whether a world's means hold an edge without metal: flakes of a hard stuff set in a tough spine (F1). */
-function edgeWithoutMetal(w: MatterWorld): FunctionReading {
+export function edgeWithoutMetal(w: Pick<MatterWorld, "means">): FunctionReading {
   const m = meansOf(w.means),
     e = m.edge,
-    open = !m.earthRoad || !m.held,
-    met = open && e !== null;
+    met = m.edgeRoad,
+    // (Where it burns, what sends a people to it: nothing here is said that is not so of this world.)
+    turned = m.noMetal
+      ? m.noMetal
+      : !m.hardens
+        ? `Its star has ${Math.round(w.means.metalShare * 100)}% of the Sun's metals, too little for a vein to gather a hardener, so it has no bronze (an estimate).`
+        : !m.grips
+          ? "Its people's limbs cannot grip a haft, so a blade is strapped along the limb."
+          : "A land with no copper within reach has no bronze to wait for.";
   return {
     id: "edge-without-metal",
     icon: "🗡️",
@@ -567,11 +585,11 @@ function edgeWithoutMetal(w: MatterWorld): FunctionReading {
     met,
     by: met && e ? `${e.name} flakes` : null,
     subst: met && e && findSubstance(e.subst) ? e.subst : null,
-    why: !open
+    why: m.firstRoad
       ? "It has no need: its furnaces give it bronze and iron."
       : e
-        ? `${m.noMetal} So ${e.name}, ${e.words}.`
-        : `${m.noMetal} And nothing here holds an edge.`,
+        ? `${turned} So ${e.name}, ${e.words}.`
+        : `${turned} And nothing here holds an edge.`,
   };
 }
 
@@ -583,12 +601,11 @@ export function rowReadings(w: Pick<MatterWorld, "chem" | "means">): FunctionRea
   const n = w.means,
     m = meansOf(n),
     land = n.medium !== "water",
-    open = !m.held,
     noFuel = !n.freeOxygen,
-    rock = (s: string) => open && n.rockHolds.includes(s),
+    rock = (s: string) => n.rockHolds.includes(s),
     tin = Object.values(oresOn(w.chem).tin ?? {}).some(Boolean),
     native = Object.values(oresOn(w.chem).copper ?? {}).some((o) => o?.mineral === "native-copper"),
-    iceOk = open && n.groundHolds.includes("water-ice") && n.kelvin < 233,
+    iceOk = n.groundHolds.includes("water-ice") && n.kelvin < 233,
     groundDiff = groundHeat(n) - (n.kelvin - 273.15),
     fly = flightPower(n),
     r = (
@@ -611,29 +628,23 @@ export function rowReadings(w: Pick<MatterWorld, "chem" | "means">): FunctionRea
       by: met ? by : null,
       subst: met ? subst : null,
       why: met ? why : whyNot,
-      ...(m.held ? { quiet: true } : {}),
+      ...(m.firstRoad ? { quiet: true } : {}),
     }),
-    // (What keeps a world from a row its numbers would allow: it keeps the old road, or fire does this for it.)
+    // (What keeps a world from a row its numbers would allow: fire does this for it, or its road runs otherwise.)
     road = m.burns
       ? "Fire burns in its air, and its furnaces do this work."
       : "Its people's road runs by other means.",
     fired = n.freeOxygen ? "Fire burns in its air: it has no need of this." : road,
     /** Why a row of a world where nothing burns is not this one's. */
     shutBy = (own: string): string =>
-      !open
-        ? road
-        : !noFuel
-          ? fired
-          : !land
-            ? "Its people live in its seas: no hearth stands there."
-            : own;
+      !land ? "Its people live in its seas: no hearth stands there." : !noFuel ? fired : own;
   return [
     r(
       "heat-from-ground",
       "🌋",
       "draw heat from the ground",
       "lava within reach, where nothing burns",
-      open && noFuel && land && n.rock,
+      noFuel && land && n.rock,
       "lava, about 1000 °C",
       null,
       "A hearth over its lava reaches about 1000 °C (an estimate).",
@@ -646,20 +657,35 @@ export function rowReadings(w: Pick<MatterWorld, "chem" | "means">): FunctionRea
       "🪞",
       "gather its star's heat",
       "a direct beam a mirror can reach 300 °C with, where nothing burns",
-      open && noFuel && mirrorHeat(n, 2000) >= 300,
+      noFuel && mirrorHeat(n, 2000) >= 300,
       `${mirrorHeat(n, 2000)} °C`,
       null,
       `Mirrors reach ${mirrorHeat(n, 2000)} °C here, great mirrors ${mirrorHeat(n, 20000)} °C.`,
-      !open || !noFuel
+      !noFuel
         ? shutBy("")
         : `Mirrors reach only ${mirrorHeat(n, 2000)} °C here, great mirrors ${mirrorHeat(n, 20000)} °C: too little to work with.`,
+    ),
+    r(
+      "engine-by-mirror",
+      "☀️",
+      "run an engine on its star's heat",
+      "a direct beam a mirror can raise steam with, where nothing burns or no coal lies within reach",
+      !n.firstRoad && mirrorHeat(n, 2000) >= 300,
+      `${mirrorHeat(n, 2000)} °C`,
+      null,
+      `Mirrors reach ${mirrorHeat(n, 2000)} °C here, and raise steam ${n.freeOxygen ? "where a land has no coal within reach" : "where nothing burns"}.`,
+      n.firstRoad
+        ? "Its coal drives its engines: it has no need of this."
+        : !land
+          ? "Its people live in its seas: no mirror reaches them."
+          : `Mirrors reach only ${mirrorHeat(n, 2000)} °C here: too little to raise steam.`,
     ),
     r(
       "join-gases",
       "🔥",
       "join acetylene and hydrogen",
       "methane in its air, and a cold that keeps acetylene solid",
-      open && joinedHeat(n) > 0,
+      joinedHeat(n) > 0,
       `${joinedHeat(n)} °C`,
       "acetylene",
       `A hearth of it reaches about ${joinedHeat(n)} °C (an estimate).`,
@@ -670,7 +696,7 @@ export function rowReadings(w: Pick<MatterWorld, "chem" | "means">): FunctionRea
       "🏺",
       "fire a vessel",
       "a ground that sets hard in the heat",
-      m.burns || m.held || !!m.vessel,
+      m.burns || !!m.vessel,
       m.vessel?.name ?? null,
       m.vessel?.subst ?? null,
       m.vessel
@@ -682,7 +708,7 @@ export function rowReadings(w: Pick<MatterWorld, "chem" | "means">): FunctionRea
       "🔍",
       "melt a glass",
       "a stuff that melts clear",
-      m.burns || m.held || !!m.glass,
+      m.burns || !!m.glass,
       m.glass?.name ?? null,
       "glass",
       m.glass
@@ -693,19 +719,21 @@ export function rowReadings(w: Pick<MatterWorld, "chem" | "means">): FunctionRea
       "harden-copper",
       "🪙",
       "harden copper",
-      "a hardener within reach",
-      m.burns || m.held || tin,
+      "a hardener a vein can gather",
+      m.burns ? m.hardens : tin,
       null,
       null,
       tin ? "Its crust gives a hardener." : "Its furnaces take what its ores give.",
-      "No hardener lies where its people can reach it.",
+      m.burns
+        ? `Its star has ${Math.round(n.metalShare * 100)}% of the Sun's metals: no vein gathers tin or arsenic enough to harden copper (an estimate).`
+        : "No hardener lies where its people can reach it.",
     ),
     r(
       "bloom-an-iron",
       "⚒️",
       "bloom an iron ore",
       "an ore a furnace can free, and air to do it",
-      m.burns || m.held || n.freeOxygen,
+      m.burns || n.freeOxygen,
       null,
       null,
       "A furnace and its air free iron from its ore.",
@@ -722,7 +750,7 @@ export function rowReadings(w: Pick<MatterWorld, "chem" | "means">): FunctionRea
       "diamond grit",
       "diamond",
       "Diamond grit cuts anything its rock holds.",
-      open ? "No diamond lies in its rock." : road,
+      "No diamond lies in its rock.",
     ),
     r(
       "seal-with-pitch",
@@ -733,18 +761,18 @@ export function rowReadings(w: Pick<MatterWorld, "chem" | "means">): FunctionRea
       "pitch",
       "bitumen",
       "Pitch seeps from its ground.",
-      open ? "No pitch seeps from its ground." : road,
+      "No pitch seeps from its ground.",
     ),
     r(
       "hammer-native-copper",
       "🔨",
       "hammer copper cold",
-      "copper lying native",
-      open && native,
+      "copper lying native, where no furnace melts it",
+      native && !m.burns,
       "native copper",
       "native-copper",
       "Its copper lies unrusted, and can be beaten cold.",
-      open ? "No copper lies native here." : road,
+      m.burns ? fired : "No copper lies native here.",
     ),
     r(
       "work-carbide-iron",
@@ -755,18 +783,18 @@ export function rowReadings(w: Pick<MatterWorld, "chem" | "means">): FunctionRea
       "cohenite",
       "cohenite",
       "Lumps of iron carbide lie in its lavas.",
-      open ? "No iron carbide lies in its rock." : road,
+      "No iron carbide lies in its rock.",
     ),
     r(
       "leach-with-acid",
       "🧪",
       "leach copper with acid",
       "acid springs: sulfur dioxide in its air",
-      open && n.airHolds.includes("so2"),
+      n.airHolds.includes("so2"),
       "blue vitriol",
       "blue-vitriol",
       "Its acid springs leave blue vitriol over copper ore.",
-      open ? "It has no acid springs: no sulfur dioxide in its air." : road,
+      "It has no acid springs: no sulfur dioxide in its air.",
     ),
     r(
       "bind-with-sulfur",
@@ -777,7 +805,7 @@ export function rowReadings(w: Pick<MatterWorld, "chem" | "means">): FunctionRea
       "sulfur",
       "sulphur",
       "Sulfur melts at 115 °C, and sets grit like stone.",
-      open ? "No sulfur lies in its rock." : road,
+      "No sulfur lies in its rock.",
     ),
     r(
       "work-cold-ice",
@@ -788,18 +816,16 @@ export function rowReadings(w: Pick<MatterWorld, "chem" | "means">): FunctionRea
       "ice",
       "water-ice",
       `Ice is Mohs ${Math.round(2 + (273.15 - n.kelvin) * 0.051)} at this cold, capped at 6.5.`,
-      !open
-        ? road
-        : n.groundHolds.includes("water-ice")
-          ? "Ice is soft at this warmth: it wants −40 °C or colder."
-          : "No ice lies in its ground.",
+      n.groundHolds.includes("water-ice")
+        ? "Ice is soft at this warmth: it wants −40 °C or colder."
+        : "No ice lies in its ground.",
     ),
     r(
       "work-fallen-iron",
       "☄️",
       "gather what falls",
       "a crust of ice, that strands it (as Antarctica's does)",
-      open && !n.rock,
+      !n.rock,
       "iron fallen from the sky",
       "iron",
       "Its ice strands what falls from its sky.",
@@ -809,21 +835,23 @@ export function rowReadings(w: Pick<MatterWorld, "chem" | "means">): FunctionRea
       "engine-from-ground",
       "♨️",
       "run an engine on the ground's heat",
-      "100 degrees between its ground and its air, where nothing burns",
-      open && noFuel && land && groundDiff >= 100,
+      "100 degrees between its ground and its air, where nothing burns or no coal lies within reach",
+      !n.firstRoad && land && groundDiff >= 100,
       `${Math.round(groundDiff)} degrees`,
       null,
       `${Math.round(groundDiff)} degrees between its ground and its air: an engine at best turns ${Math.round((100 * groundDiff) / (groundHeat(n) + 273.15))}% of it to work (Carnot).`,
-      shutBy(
-        `Only ${Math.round(groundDiff)} degrees between its ground and its air: too little to drive an engine.`,
-      ),
+      n.firstRoad
+        ? "Its coal drives its engines: it has no need of this."
+        : !land
+          ? "Its people live in its seas: no hearth stands there."
+          : `Only ${Math.round(groundDiff)} degrees between its ground and its air: too little to drive an engine.`,
     ),
     r(
       "draw-polymer",
       "🧵",
       "draw a polymer wire",
       "methane in its air",
-      open && noFuel && land && n.airHolds.includes("methane"),
+      noFuel && land && n.airHolds.includes("methane"),
       "polyacetylene",
       "polyacetylene",
       "Acetylene of its air, chained and doped till it carries.",
@@ -834,7 +862,7 @@ export function rowReadings(w: Pick<MatterWorld, "chem" | "means">): FunctionRea
       "🧲",
       "wind a dynamo of copper and graphite",
       "graphite in its rock, where nothing burns",
-      open && noFuel && land && rock("graphite"),
+      noFuel && land && rock("graphite"),
       "copper and graphite",
       "graphite",
       "Copper for its coils, graphite for its brushes.",
@@ -845,7 +873,7 @@ export function rowReadings(w: Pick<MatterWorld, "chem" | "means">): FunctionRea
       "🪽",
       "fly on wings",
       "air thick enough and pull light enough: under 0.6 of the power Earth asks",
-      open && land && fly < 0.6,
+      land && fly < 0.6,
       `${Math.round(fly * 100)}% of Earth's power`,
       null,
       `Power to fly goes as pull^1.5 over air's weight^0.5: here ${Math.round(fly * 100)}% of Earth's.`,
@@ -856,11 +884,26 @@ export function rowReadings(w: Pick<MatterWorld, "chem" | "means">): FunctionRea
       "🏗️",
       "build high",
       "a pull of 0.75 g or less",
-      open && n.pull <= 0.75,
+      n.pull <= 0.75,
       `${Math.round(n.pull * 100) / 100} g`,
       null,
       `A wall weighs ${Math.round(n.pull * 100)}% of what it would on Earth.`,
       `A wall weighs ${Math.round(n.pull * 100)}% of what it would on Earth: no lighter frame stands taller.`,
+    ),
+    r(
+      "ride-a-beast",
+      "🐎",
+      "ride a beast",
+      "a tame beast three times its rider's weight",
+      m.rides,
+      n.beast ? `${n.beast.name}, ${Math.round(n.beast.kg)} kg` : null,
+      null,
+      n.firstRoad
+        ? "Its horses carry its riders."
+        : `The ${n.beast?.name}, ${Math.round(n.beast?.kg ?? 0)} kg, carries a rider of ${Math.round(n.bodyKg)} kg (a beast bears about a third of its weight: an estimate).`,
+      n.beast
+        ? `Its biggest tame beast, the ${n.beast.name}, is ${Math.round(n.beast.kg)} kg; a rider of ${Math.round(n.bodyKg)} kg wants ${Math.round(3 * n.bodyKg)} kg under them (an estimate).`
+        : "No beast of this world can be tamed: its people go on foot.",
     ),
   ];
 }

@@ -6,6 +6,7 @@
 // (Imports homeworld for its type only: homeworld's showings read this file.)
 import { finish, hashString, mix } from "../kernel/index.ts";
 import {
+  GRIP,
   PRIORS,
   SOLAR,
   affordancesOf,
@@ -49,7 +50,16 @@ const KEPT = new Map<string, Chemistry>();
 /** A world's chemistry: the Sun's own on an Earth-like world, else drawn from its star and orbit (kept by its ground). */
 /** What a generated world's matter is asked of, for its functions (rules/properties.ts). */
 export function matterOf(g: HomeWorld): MatterWorld {
-  const bodies = g.system.bodies;
+  const bodies = g.system.bodies,
+    people = g.life.people?.body,
+    // (Its biggest tame grazer living, the first of the biggest, by its name.)
+    beast = g.life.species.reduce<{ name: string; kg: number } | null>(
+      (best, s) =>
+        s.tame && s.died === null && s.niche === "grazer" && s.size > (best?.kg ?? 0)
+          ? { name: s.name, kg: s.size }
+          : best,
+      null,
+    );
   return {
     chem: worldChemistry(g),
     kind: worldKindOf(g),
@@ -67,6 +77,9 @@ export function matterOf(g: HomeWorld): MatterWorld {
       medium: g.life.people?.body.medium ?? "land",
       bodyFire: g.life.people ? affordancesOf(g.life.people.body).fire : true,
       insolation: g.planet.insolation,
+      grips: people ? affordancesOf(people).dexterity >= GRIP : true,
+      bodyKg: people?.size ?? 60,
+      beast,
     }),
   };
 }

@@ -37,6 +37,7 @@ import {
   readFunctions,
   reductionHeat,
   routeTo,
+  turnsAside,
   starDriveFor,
   toOrbit,
   worldOre,
@@ -148,6 +149,9 @@ function driverOpen(l: Lands, p: Principle, knows: (id: string) => boolean): boo
   if (d.river && !l.river) return false;
   if (d.coast && !l.coast) return false;
   if (d.hills && !l.hills) return false;
+  // (A stand-in, open where any land of theirs has none of what it stands in for: F4.)
+  if (l.w.means && !turnsAside(d, l.w.means, (o) => l.cells.every((c) => l.ore(o).has(c))))
+    return false;
   return !d.ore || oreOpen(l, d.ore, knows, p.id);
 }
 
@@ -333,7 +337,7 @@ export function glanceSeed(seed: Seed, prior: Prior, target: string): boolean {
   if (!PAST_METAL.has(target)) return true;
   const w = ageWorldOf(g);
   // (Only a people that burns on a world that burns goes by way of coal.)
-  if (!w.fire || w.medium === "water" || !w.means?.held) return true;
+  if (!w.fire || w.medium === "water" || !w.means?.firstRoad) return true;
   return (
     g.deposits.some((d) => d.kind === "coal") ||
     Array.from({ length: g.grid.count }).some((_, c) => surfaceOre(g, c, "coal"))
@@ -431,7 +435,15 @@ export function readSeed(
   road("writing", ["writing"], () => "Records follow from fields, towns and trade.");
   road(
     "iron",
-    ["iron", "electrochemistry", "cold-hammering", "carbide-blades", "ice-working", "steel"],
+    [
+      "iron",
+      "electrochemistry",
+      "cold-hammering",
+      "carbide-blades",
+      "ice-working",
+      "steel",
+      "set-edges",
+    ],
     (by) => `A stuff worked to hold an edge: ${by}.`,
   );
   const engines = [

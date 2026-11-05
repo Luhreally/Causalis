@@ -62,6 +62,7 @@ import {
   type OreLie,
   type Part,
   type Stone,
+  mountWords,
 } from "../rules/index.ts";
 import {
   cultureOf,
@@ -1330,9 +1331,9 @@ function bronzeWords(chem: Chemistry, words: string): string {
  */
 function meansWords(world: World, words: string): string {
   // (Earth's words carry none of these, so its arms pass as they are.)
-  if (!/set flakes|wound-barrel/.test(words)) return words;
+  if (!/set flakes|wound-barrel|on horseback|as horsemen/.test(words)) return words;
   const m = meansOfWorld(homePlanet(world).generated);
-  return words
+  return mountWords(words, m.mount)
     .replace(
       "long blades of set flakes",
       `long blades of ${m.edge?.name ?? "hard"} flakes set in fibre`,

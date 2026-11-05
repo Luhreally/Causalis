@@ -804,8 +804,9 @@ function planetUniverse(name: string, prior: Prior): Universe {
   // (A world of its own chemistry's history changed with Phase 54 M222: its own ores, heats and arms.
   // Every world's changed with Phase 66, past its first years: ages past ours. And with F1: arms by what
   // they do, so worlds with no furnace have blades and guns of their own stuff. And with F2 and F3: heat, not
-  // fire; no lists by kind.)
-  const version = name === "alien" ? "alien-11" : `${name}-8`,
+  // fire; no lists by kind. And with F4: rocky worlds read as any other, each turning aside where its numbers
+  // shut the first way.)
+  const version = name === "alien" ? "alien-12" : `${name}-8`,
     make = (seed: Seed, frequency?: number) => {
       // The chronicle opens after a generated prehistory: bands across the land.
       const world = makePopulationWorld(seed, {

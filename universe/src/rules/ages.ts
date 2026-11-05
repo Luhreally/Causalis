@@ -221,6 +221,13 @@ const STUFFS: readonly StuffStep[] = [
   { by: ["acid-leaching"], name: () => "copper of blue vitriol", subst: () => "copper" },
   { by: ["bronze"], ...metalStep("bronze") },
   {
+    by: ["set-edges"],
+    name: () => "hard flakes set in a spine",
+    subst: () => "flint",
+    edge: true,
+    age: "Set flakes",
+  },
+  {
     // (Cold-worked copper reaches some 350 MPa, as hard as iron's edge against rock of its world.)
     by: ["cold-hammering"],
     name: () => "native copper hammered cold",
@@ -548,7 +555,14 @@ export type AgeDef = {
   readonly asks: readonly Ask[];
 };
 
-const IRON_ROADS = ["iron", "electrochemistry", "cold-hammering", "carbide-blades", "ice-working"];
+const IRON_ROADS = [
+  "iron",
+  "electrochemistry",
+  "cold-hammering",
+  "carbide-blades",
+  "ice-working",
+  "set-edges",
+];
 const ENGINE_ROADS = [
   "steam-engine",
   "current-mills",
@@ -993,7 +1007,11 @@ export function meansOfAge(
   knows: (id: string) => boolean,
   w: AgeWorld,
 ): string | undefined {
-  if (id === "iron") return STUFFS.find((s) => s.edge && s.by.some(knows))?.age;
+  // (Flakes name an age only where iron will not come.)
+  if (id === "iron")
+    return STUFFS.find(
+      (s) => s.edge && s.by.some(knows) && !(s.by.includes("set-edges") && knows("iron")),
+    )?.age;
   if (id === "engines") {
     // (In the order a people comes to them: steam before oil, tide mills before the vents.)
     const first = [

@@ -24,6 +24,20 @@ export type MeansWorld = {
   readonly sunWm2: number;
   /** Every substance its rocks and soils hold. */
   readonly rockHolds: readonly string[];
+  /** Its people's limbs can grip a haft (F4). */
+  readonly grips: boolean;
+  /** Its people's weight, and its biggest tame grazer (F4). */
+  readonly bodyKg: number;
+  readonly beast: { readonly name: string; readonly kg: number } | null;
+  /** Its star's metals against the Sun's (10^[Fe/H]), and whether nickel, which no star's want of metals thins, hardens its copper (F4). */
+  readonly metalShare: number;
+  readonly nickel: boolean;
+  /**
+   * The Sun's own chemistry, on a world that burns: Earth's tables, exactly. No other number parts Earth
+   * from a rocky world of its classes, whose crust is Earth's ppm for ppm, and Earth's own Mesoamerica set
+   * flakes in a spine; history staying exact is why this is read. It stands for no kind.
+   */
+  readonly firstRoad: boolean;
 };
 
 export type EdgeStuff = {
@@ -298,6 +312,16 @@ export const BARRELS: readonly Barrel[] = [
     est: true,
   },
 ];
+/**
+ * The least share of the Sun's metals at which a vein gathers tin or arsenic enough to harden copper:
+ * below it, arsenic under 1.5 and tin under 0.7 parts a million (est: Earth's 4.8 and 2.1 at three tenths).
+ */
+export const VEIN_SHARE = 0.3;
+/** How many times a rider's weight a beast must be: a horse carries about a third of itself (est). */
+export const CARRIES = 3;
+/** The least dexterity that grips a haft: as rules/designs.ts `wields`. */
+export const GRIP = 0.6;
+
 /** Thick-walled tube (Lame): what a bore holds of its hoop strength, at twice the bore's width without. */
 const LAME = 0.6;
 
@@ -432,8 +456,16 @@ export type Means = {
   readonly noMetal: string;
   /** Whether a fuel burns here for a body that can keep a fire: the old furnaces, and no limit in the gate. */
   readonly burns: boolean;
-  /** A world whose air holds nothing but Earth's: every reading here stays shut (F4 deletes this one line). */
-  readonly held: boolean;
+  /** Earth's tables, exactly (MeansWorld.firstRoad). */
+  readonly firstRoad: boolean;
+  /** Whether flakes on a spine can be a people's way here. */
+  readonly edgeRoad: boolean;
+  /** Whether its crust lets a vein gather what hardens copper. */
+  readonly hardens: boolean;
+  readonly grips: boolean;
+  /** Whether a tame beast here can carry its people, and that beast's name where it is not Earth's horse. */
+  readonly rides: boolean;
+  readonly mount: string | null;
   /** Its means of heat, with what each reaches here. */
   readonly heats: readonly HeatWay[];
   /** The heat a step wants here, where its stuff is not Earth's. */
@@ -442,11 +474,17 @@ export type Means = {
   readonly glass: FiredStuff | null;
 };
 export function meansOf(w: MeansWorld): Means {
-  const earthRoad = w.freeOxygen && w.medium !== "water";
+  const earthRoad = w.freeOxygen && w.medium !== "water",
+    rides = w.firstRoad || (!!w.beast && w.beast.kg >= CARRIES * w.bodyKg);
   return {
     earthRoad,
     burns: w.freeOxygen && w.bodyFire,
-    held: w.airHolds.length === 0,
+    firstRoad: w.firstRoad,
+    edgeRoad: !w.firstRoad && edgeFor(w) !== null,
+    hardens: w.nickel || w.metalShare >= VEIN_SHARE,
+    grips: w.grips,
+    rides,
+    mount: rides && !w.firstRoad ? (w.beast?.name ?? null) : null,
     heats: heatWays(w),
     wants: {
       ...(vesselOf(w) ? { "pottery-wheel": vesselOf(w)!.heat } : {}),
@@ -493,8 +531,23 @@ export function hereOf(
   }
   return m === "wound works" ? {} : null;
 }
+/** A host's mount in the words of the beast that carries it here (null: Earth's horse, its own words). */
+export function mountWords(words: string, mount: string | null): string {
+  return mount
+    ? words
+        .replace("on horseback", `riding the ${mount}`)
+        .replace("as horsemen in ranks", `as riders of the ${mount} in ranks`)
+    : words;
+}
 /** The world's names for a principle on the way it is done here (null: its own name). */
 export function meansName(id: string, m: Means): string | null {
+  if (m.edgeRoad && id === "set-edges")
+    return `long blades of ${m.edge?.name ?? "hard"} flakes set in a spine`;
+  if (m.edgeRoad && id === "bound-plates")
+    return `plates of ${m.edge?.name ?? "hard stuff"} bound in fibre`;
+  if (m.mount && id === "riding") return `riding the ${m.mount}`;
+  if (m.mount && id === "cavalry") return `riders of the ${m.mount} in ranks`;
+  if (m.mount && id === "chariots") return `cars drawn by the ${m.mount}`;
   if (m.earthRoad) return null;
   const c = m.handCharge?.name ?? "a charge",
     b = m.handBarrel.name;
@@ -588,14 +641,30 @@ export function heatWays(w: MeansWorld): readonly HeatWay[] {
     },
   ];
 }
-/** The hottest a land can get: true for a world that burns (the old road), false for one held to it, else in °C. */
+/** The hottest a land can get: true for a world that burns (the old road), else in °C. */
 export function reachIn(m: Means, knows: (id: string) => boolean): number | boolean {
   if (m.burns) return true;
-  if (m.held) return false;
   let best = 0;
   for (const h of m.heats) if (h.heat > best && h.by.every((any) => any.some(knows))) best = h.heat;
   return best;
 }
+/**
+ * Whether a land of a world that burns turns to a row that stands in for what it lacks (F4). A people
+ * takes the other way only where the first fails: no metal where no hardener can gather, where its limbs
+ * cannot grip a haft, or where no copper lies within reach; no coal, an engine of another heat. Where
+ * nothing burns the row is that world's first way, and nothing is asked. `within`: an ore within this
+ * land's reach.
+ */
+export function turnsAside(
+  d: { readonly lacks?: "metal" | "coal" },
+  m: Pick<Means, "burns" | "hardens" | "grips">,
+  within: (ore: string) => boolean,
+): boolean {
+  if (!d.lacks || !m.burns) return true;
+  if (d.lacks === "metal") return !m.hardens || !m.grips || !within("copper");
+  return !within(d.lacks);
+}
+
 /** The hottest any means could get here, known or not. */
 export const hottest = (m: Means) => m.heats.reduce((a, h) => (h.heat > a.heat ? h : a));
 

@@ -600,7 +600,7 @@ export function reactionPage(world: World, ref: string): PageModel {
 }
 
 /** What drives a principle's finding, in words. */
-function driverWords(p: Principle): string[] {
+function driverWords(p: Principle, burns: boolean): string[] {
   const d = p.drivers,
     out: string[] = [];
   if (d.crafters) out.push("crafters");
@@ -614,6 +614,12 @@ function driverWords(p: Principle): string[] {
   if (d.coast) out.push("only by the sea");
   if (d.hills) out.push("only in the hills");
   if (d.ore) out.push(`only with ${d.ore} within reach`);
+  if (d.lacks && burns)
+    out.push(
+      d.lacks === "metal"
+        ? "only by a land with no metal to work, or a people who cannot grip a haft"
+        : `only where no ${d.lacks} lies within reach`,
+    );
   return out;
 }
 
@@ -657,7 +663,7 @@ export function principlePage(world: World, ref: string): PageModel {
     effects = Object.entries(p.effects).map(
       ([e, v]) => `${EFFECT_WORDS[e as (typeof EFFECTS)[number]]} (${v > 1 ? v : share(v)})`,
     ),
-    drivers = driverWords(p);
+    drivers = driverWords(p, means.burns);
   const blocks: Block[] = [
     {
       type: "facts",

@@ -43,6 +43,7 @@ import {
   matterShuts,
   needsMet,
   reachIn,
+  turnsAside,
   type Effect,
   type Principle,
 } from "../../rules/index.ts";
@@ -277,6 +278,8 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
       if (d.river && !g.water.river[cell]) continue;
       if (d.coast && !coast) continue;
       if (d.hills && g.tectonics.elevation[cell]! < 600) continue;
+      // (A stand-in for metal or coal, only by a land that wants it: F4.)
+      if (!turnsAside(d, means, (kind) => oreDriver(ctx, cell, kind) !== null)) continue;
       const ore = d.ore ? oreDriver(ctx, cell, d.ore, p.id) : null;
       if (d.ore && ore === null) continue;
       const terms: [string, number, number, CauseRef | null][] = [

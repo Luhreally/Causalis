@@ -34,6 +34,12 @@ function worldOf(over: Partial<MeansWorld>): MeansWorld {
     ppm: () => 0,
     sunWm2: 1361,
     rockHolds: [],
+    grips: true,
+    bodyKg: 60,
+    beast: { name: "horse", kg: 500 },
+    metalShare: 1,
+    nickel: false,
+    firstRoad: false,
     ...over,
   };
 }
@@ -49,6 +55,7 @@ test("Earth's numbers: reachIn is true, the four burning rows are met, every oth
     bodyFire: true,
     rock: true,
     rockHolds: ["quartz", "feldspar", "mica", "calcite", "kaolinite", "clay", "hematite"],
+    firstRoad: true,
   });
   assert.equal(
     reachIn(meansOf(earth), () => false),
@@ -59,20 +66,30 @@ test("Earth's numbers: reachIn is true, the four burning rows are met, every oth
     .filter((f) => f.met)
     .map((f) => f.id)
     .sort();
-  assert.deepEqual(met, ["bloom-an-iron", "fire-a-vessel", "harden-copper", "melt-a-glass"]);
+  assert.deepEqual(met, [
+    "bloom-an-iron",
+    "fire-a-vessel",
+    "harden-copper",
+    "melt-a-glass",
+    "ride-a-beast",
+  ]);
   for (const f of read.values()) assert.equal(f.quiet, true, f.id);
 });
 
-test("rocky land with no body for fire, and rocky water: reachIn is false, whatever is known", () => {
+test("rocky land with no body for fire, and rocky water: each reaches what its own means reach (F4)", () => {
   const rockyLand = worldOf({ freeOxygen: true, bodyFire: false, rock: true });
   const rockyWater = worldOf({ medium: "water", freeOxygen: false, bodyFire: false, rock: true });
   assert.equal(
     reachIn(meansOf(rockyLand), () => true),
-    false,
+    mirrorHeat(rockyLand, 20000),
+  );
+  assert.equal(
+    reachIn(meansOf(rockyWater), () => false),
+    0,
   );
   assert.equal(
     reachIn(meansOf(rockyWater), () => true),
-    false,
+    464,
   );
 });
 

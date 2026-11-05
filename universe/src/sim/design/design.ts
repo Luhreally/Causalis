@@ -400,9 +400,14 @@ export function hostFor(
     const crystal = crystalFor(ctx, p);
     if (crystal) sources.crystal = crystal;
   }
-  // (What a world's means make, F1–F2: where no furnace can be, or no bronze, iron or steel is found off Earth's road, flakes and fibre at hand, its works' machines for the rest.)
+  // (What a world's means make, F1–F4: where no furnace can be, or no bronze, iron or steel is found, or its people cannot grip a haft: flakes and fibre at hand, its works' machines for the rest.)
   const means = meansOfWorld(ctx.generated);
-  if (!means.earthRoad || (!means.held && !sources.bronze && !sources.iron && !sources.steel)) {
+  if (
+    !means.earthRoad ||
+    (means.edgeRoad &&
+      (seatKnows("set-edges") || seatKnows("firearms")) &&
+      (!means.grips || (!sources.bronze && !sources.iron && !sources.steel)))
+  ) {
     at.add("set edge");
     at.add("wound");
     if (seatKnows("repeating-fire") || seatKnows("sound-lances") || seatKnows("self-loading")) {
@@ -431,7 +436,7 @@ export function hostFor(
       undefined,
       designsOf(ctx.world).of(p.ref)?.parts,
       HOST_KEEP,
-      means.earthRoad && means.held
+      means.earthRoad && !means.edgeRoad
         ? undefined
         : (id, m) => hereOf(id, m, meansNumbers(ctx.generated), firearm(id)),
     ),

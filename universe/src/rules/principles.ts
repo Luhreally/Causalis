@@ -70,6 +70,8 @@ export type Drivers = {
   readonly hills?: boolean;
   /** Only with this ore within reach. */
   readonly ore?: string;
+  /** On a world that burns, only by a land that wants it: a stand-in for metal or for coal (F4: rules/means.ts, turnsAside). */
+  readonly lacks?: "metal" | "coal";
 };
 
 /** What a body must be able to do for a principle to be open to its people (Phase 4 M39). */
@@ -141,6 +143,7 @@ export const FUNCTIONS: Readonly<Record<string, readonly string[]>> = {
   "@tough-stuff": ["iron", "carbide-blades", "diamond-grit", "ice-working", "set-edges"],
   "@engine": ["steam-engine", "sun-engines", "heat-engines", "cold-chemistry"],
   "@polished": ["bronze", "cold-hammering", "star-iron"],
+  "@edge": ["bronze", "carbide-blades", "ice-working", "set-edges"],
   "@works": ["factories", "sea-works", "sun-engines", "heat-engines", "cold-chemistry"],
   "@current": [
     "electricity",
@@ -285,7 +288,7 @@ const TREE: readonly Principle[] = [
   P(
     "iron",
     "iron",
-    ["bronze"],
+    ["bronze|set-edges"],
     0.008,
     { crafters: 1, ore: "iron" },
     { tools: 0.5, farmYield: 0.05, arms: 1 },
@@ -301,7 +304,7 @@ const TREE: readonly Principle[] = [
   P(
     "carpentry",
     "joinery",
-    ["bronze|carbide-blades|ice-working"],
+    ["@edge"],
     0.015,
     { crafters: 1 },
     { building: 1 },
@@ -309,7 +312,7 @@ const TREE: readonly Principle[] = [
   P(
     "glass",
     "glass",
-    ["pottery-wheel|ice-ware|pitch-ware", "metalworking"],
+    ["pottery-wheel|ice-ware|pitch-ware", "metalworking|set-edges"],
     0.006,
     { crafters: 1 },
     {},
@@ -360,7 +363,7 @@ const TREE: readonly Principle[] = [
   P(
     "currency",
     "coin",
-    ["writing", "metalworking|ice-working"],
+    ["writing", "metalworking|ice-working|set-edges"],
     0.01,
     { traders: 1, town: 1 },
     { carrying: 0.15 },
@@ -441,7 +444,7 @@ const TREE: readonly Principle[] = [
   P(
     "masonry",
     "building in stone",
-    ["bronze|carbide-blades|ice-working"],
+    ["@edge"],
     0.012,
     { crafters: 1, town: 1 },
     { building: 1, walls: 1 },
@@ -460,7 +463,7 @@ const TREE: readonly Principle[] = [
   P(
     "chariots",
     "the chariot",
-    ["wheel", "riding", "bronze|carbide-blades|ice-working"],
+    ["wheel", "riding", "@edge"],
     0.008,
     { leaders: 1, herders: 0.5 },
     { mounts: 1, arms: 1 },
@@ -468,7 +471,7 @@ const TREE: readonly Principle[] = [
   P(
     "standing-army",
     "a standing army",
-    ["bureaucracy", "bronze|carbide-blades|ice-working"],
+    ["bureaucracy", "@edge"],
     0.006,
     { leaders: 1 },
     { arms: 1 },
@@ -484,7 +487,7 @@ const TREE: readonly Principle[] = [
   P(
     "cavalry",
     "horsemen",
-    ["riding", "iron|carbide-blades|ice-working"],
+    ["riding", "iron|carbide-blades|ice-working|set-edges"],
     0.006,
     { leaders: 1, herders: 1 },
     { mounts: 1, arms: 1 },
@@ -848,7 +851,7 @@ const KIND_TREE: readonly Principle[] = [
     "engines driven by the sun's heat",
     ["mills", "@tough-stuff", "mathematics"],
     0.005,
-    { crafters: 1 },
+    { crafters: 1, lacks: "coal" },
     { power: 1, industry: 0.3, renewable: 2 },
   ),
   P(
@@ -904,7 +907,7 @@ const KIND_TREE: readonly Principle[] = [
     "engines of the ground's heat",
     ["mills", "@tough-stuff", "star-iron|cold-hammering|metalworking", "mathematics"],
     0.005,
-    { crafters: 1 },
+    { crafters: 1, lacks: "coal" },
     { power: 1, industry: 0.3, renewable: 2 },
   ),
   P(
@@ -1124,7 +1127,7 @@ export const MEANS_TREE: readonly Principle[] = [
       "long blades set with hard flakes",
       ["ice-working|carbide-blades|diamond-grit|shell-craft|writing", "loom"],
       0.012,
-      { crafters: 1 },
+      { crafters: 1, lacks: "metal" },
       { tools: 0.1, arms: 1 },
     ),
     asks: ["edge-without-metal"],
@@ -1178,7 +1181,8 @@ const ROW_ASKS: Readonly<Record<string, readonly string[]>> = {
   "pitch-ware": ["seal-with-pitch"],
   "cold-hammering": ["hammer-native-copper"],
   "carbide-blades": ["work-carbide-iron"],
-  "sun-engines": ["heat-by-mirror"],
+  "sun-engines": ["engine-by-mirror"],
+  riding: ["ride-a-beast"],
   "graphite-dynamos": ["wind-dynamo"],
   "made-oxygen": ["work-carbide-iron"],
   "acid-leaching": ["leach-with-acid"],

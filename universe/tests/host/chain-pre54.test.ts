@@ -71,7 +71,7 @@ const BEFORE: Record<string, string> = {
   substances: "83f9f11f:130568",
   reactions: "da7ebe2:68449",
   // (Its pages no longer list what only a people of the water could find: F1, canBeFoundHere.)
-  principles: "edfc3e61:168309",
+  principles: "9cff44e6:168408",
   guide: "ced49326:17137",
   camps: "cfc0a711:332618",
 };

@@ -92,7 +92,7 @@ test("what a row says of a world fits whether it is met there", () => {
   assert.equal(fn(list, "grind-with-grit").met, false);
   assert.doesNotMatch(fn(list, "grind-with-grit").why, /cuts anything/);
   assert.equal(fn(list, "seal-with-pitch").met, false);
-  assert.match(fn(list, "seal-with-pitch").why, /Fire burns/);
+  assert.match(fn(list, "seal-with-pitch").why, /No pitch seeps/);
   assert.equal(fn(list, "fly-on-wings").met, false);
   assert.match(fn(list, "fly-on-wings").why, /too dear/);
 });

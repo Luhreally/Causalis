@@ -165,6 +165,12 @@ test("a made-up world at 150 K with ammonia and no methane in its air picks hydr
     ppm: () => 0,
     sunWm2: 100,
     rockHolds: [],
+    grips: true,
+    bodyKg: 60,
+    beast: { name: "horse", kg: 500 },
+    metalShare: 1,
+    nickel: false,
+    firstRoad: false,
   };
   const m = meansOf(made);
   assert.equal(m.handCharge?.id, "hydrazine");

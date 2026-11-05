@@ -279,6 +279,7 @@ export const GATES: readonly Gate[] = [
   // a block chosen and watched, the market, the Walk down to the hand and back; months let go by, what waits
   // answered; the book; let go, the hand still resting; history untouched until Live here was pressed.
   { gate: 70, args: ["--ci"], s: 300 },
+  { gate: 71, args: ["--ci"], s: 300 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */

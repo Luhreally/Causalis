@@ -144,11 +144,11 @@ const earthReach = reachIn(
   north = meansOfWorld(homePlanet(ALIEN.build(seedFromText("north 155"))).generated),
   northMirror = north.heats.find((h) => h.id === "mirror")?.heat;
 say(
-  `read in node: Earth's reach ${earthReach}; cinder 570, a rocky land, held ${rocky.held}; kestrel 557's reach ${kestrelReach}; north 155's mirrors ${northMirror} °C`,
+  `read in node: Earth's reach ${earthReach}; cinder 570, a rocky land, on Earth's first road ${rocky.firstRoad}; kestrel 557's reach ${kestrelReach}; north 155's mirrors ${northMirror} °C`,
 );
 check(earthReach === true, `Earth's reachIn is ${earthReach}, not true`);
-check(rocky.held === true, "a rocky land (cinder 570) is not held");
-check(kestrelReach === false, `kestrel 557's reachIn is ${kestrelReach}, not false`);
+check(rocky.firstRoad === false, "a rocky alien land (cinder 570) keeps Earth's first road");
+check(kestrelReach === 0, `kestrel 557's reachIn with nothing known is ${kestrelReach}, not 0`);
 check(
   northMirror !== undefined && northMirror >= 1500 && northMirror <= 1700,
   `north 155's mirrors are ${northMirror} °C, not between 1500 and 1700`,
