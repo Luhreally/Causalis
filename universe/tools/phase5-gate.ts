@@ -77,8 +77,9 @@ for (const r of results) {
 // 1. Earth reaches orbit in its band, on a why that names its pull and its engine.
 const earth = bySeed.get("earth")!;
 if (!earth.satellite) problems.push("the Earth seed never reached orbit");
-else if (earth.satellite.year < 950 || earth.satellite.year > 1150)
-  problems.push(`the Earth seed reached orbit in ${earth.satellite.year}, outside 950–1150`);
+// (Since W2, knowledge crosses the sea: the whole world learns together, and Earth reaches orbit some decades sooner.)
+else if (earth.satellite.year < 900 || earth.satellite.year > 1150)
+  problems.push(`the Earth seed reached orbit in ${earth.satellite.year}, outside 900–1150`);
 
 if (!ci) {
   // 2. A second body colonized, and a colony diverging by the ordinary rules.
