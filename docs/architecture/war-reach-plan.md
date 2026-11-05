@@ -37,9 +37,11 @@ the alien arms already are.
 
 **Order comes from fire too.** People stand apart until the ground the foe's fire makes deadly in a minute costs what
 they can bear, and no further than command reaches (voice about 100 m, then wire, then radio). Trevor Dupuy's figures
-are the check: the ground one soldier holds grew from about 10 m² in antiquity (3.2 m apart, which is the code's number)
-through about 250 m² in 1914–18 (16 m) and 2,750 m² in 1939–45 (52 m) to about 4,000 m² in 1973 (63 m). The same
-function, with spears, must give today's line.
+(*Understanding War*, 1986, p. 84) are the check, a whole force's ground with its rear: about 10 m² a soldier in antiquity
+(3.2 m apart, which is the code's number), 250 m² from 1650 to 1871 (16 m), some 2,500 m² in 1914–18 (50 m; his table, from
+memory), 27,500 m² in 1939–45 (166 m) and some 50,000 m² at the Cold War's end (224 m). The same function, with spears,
+must give today's line. (This plan first said 250, 2,750 and 4,000 from 1914 on, ten times low: those were his square
+kilometres for 100,000 men.)
 
 **Where the fight is comes from reach.** Past the range of the walls, the fight goes to what feeds the fight: within
 reach, what hurts them most for each strike. Works, power, rail, ports, then what the owner of the arm dares.

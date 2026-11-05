@@ -349,7 +349,10 @@ check(
   "bronze is not shut on this world",
 );
 // (Since F3 it says what bronze asks of the world: a hardener within reach, or a furnace.)
-check(/harden copper|nothing burns/i.test(bronze.words), "bronze's page does not say why it is shut");
+check(
+  /harden copper|nothing burns/i.test(bronze.words),
+  "bronze's page does not say why it is shut",
+);
 await shot("bronze");
 
 // 7. The world as it was when read first; no error in the page.

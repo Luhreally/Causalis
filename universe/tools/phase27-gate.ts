@@ -232,8 +232,7 @@ await toAges(page);
     );
     await speed(0);
     const end = Date.now() + slow(8000);
-    while (Date.now() < end && (await state()).seed === before)
-      await page.waitForTimeout(100);
+    while (Date.now() < end && (await state()).seed === before) await page.waitForTimeout(100);
     if ((await state()).seed !== laid) break;
     // (None laid: the next age, acted on.)
     ageWas = (await state()).meadow!.age;

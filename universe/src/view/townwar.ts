@@ -20,7 +20,17 @@ import {
   borneShare,
   type BattleStage,
 } from "./battleday.ts";
-import { keepOut, villageGround } from "./ground.ts";
+import { armLook } from "./arms.ts";
+import type { VehicleNow } from "./battle.ts";
+import { clearOf, keepOut, route, villageGround, type Ground, type Solid } from "./ground.ts";
+import {
+  drawnSquad,
+  hostOrder,
+  orderPlaces,
+  shellsWalls,
+  type HostOrder,
+  type OrderPlace,
+} from "./order.ts";
 import { drillGround } from "./village.ts";
 import { WAR_YEAR, warNow, type HostNow, type WarNow } from "./warplay.ts";
 import type { Soldier } from "./war.ts";
@@ -157,11 +167,20 @@ const smooth = (x: number) => {
   return c * c * (3 - 2 * c);
 };
 
+/** A doing's sign for a war whose attackers bear `arm`: past the ladders they lay no camp and raise none (W1). */
+export function townDoingIcon(doing: TownDoing, arm: string | undefined): string {
+  return shellsWalls(arm) && (doing === "besieging" || doing === "assaulting")
+    ? "💥"
+    : TOWN_DOING_ICON[doing];
+}
+
 /** A host of a war now, at a town: what it is at there (null: not there). */
 function atTown(h: HostNow, n: WarNow, w: War, place: TownPlace): TownHost | null {
   const S = place.spot,
     heart = place.heart,
     foe = (h.side === 0 ? w.defender : w.attacker).name,
+    // (Past the ladders no one stands on the walls or storms them: W1.)
+    shelled = shellsWalls(w.attacker.host?.arm),
     host = (
       doing: TownDoing,
       words: string,
@@ -199,7 +218,7 @@ function atTown(h: HostNow, n: WarNow, w: War, place: TownPlace): TownHost | nul
     case "engaged":
       if (!heart || h.front !== S) return null;
       return n.siege === S && h.side === 1
-        ? host("besieged", `fighting on the walls`)
+        ? host("besieged", shelled ? `fighting in its streets` : `fighting on the walls`)
         : host("engaged", `fighting before the town`);
     case "garrisoned":
       return heart && h.from === S ? host("guard", `holding the town`) : null;
@@ -226,14 +245,18 @@ function atTown(h: HostNow, n: WarNow, w: War, place: TownPlace): TownHost | nul
       return heart && h.from === S
         ? host(
             "besieging",
-            `besieging the town`,
+            shelled ? `shelling the town` : `besieging the town`,
             n.fought ? (n.after - WAR_YEAR.rout) / (WAR_YEAR.after - WAR_YEAR.rout) : 1,
           )
         : null;
     case "assaulting":
-      return heart && h.from === S ? host("assaulting", `storming the walls`) : null;
+      return heart && h.from === S
+        ? host("assaulting", shelled ? `storming the town by its streets` : `storming the walls`)
+        : null;
     case "besieged":
-      return heart && h.from === S ? host("besieged", `on the walls`) : null;
+      return heart && h.from === S
+        ? host("besieged", shelled ? `holding its streets under the shells` : `on the walls`)
+        : null;
     case "returning":
       if (h.to === S && (h.from === h.to || h.k > 1 - IN))
         return host("home", `come home from the war`, h.from === h.to ? 1 : (h.k - (1 - IN)) / IN);
@@ -353,7 +376,7 @@ export function townWarNow(
           : placed?.stage === "battle"
             ? `⚔️ ${told}, fought before the town`
             : top
-              ? `${TOWN_DOING_ICON[top.doing]} ${sideName(top.side)}: ${top.words}`
+              ? `${townDoingIcon(top.doing, w.attacker.host?.arm)} ${sideName(top.side)}: ${top.words}`
               : `⚔️ The field where ${sideName(0)} fought ${w.defender.name}`,
     };
   }
@@ -376,6 +399,14 @@ export type TownWarScene = {
   readonly camp: readonly { readonly x: number; readonly z: number }[];
   /** Where each side's host stands (the middle of those drawn), for its label; null: none there. */
   readonly middles: readonly [Flat | null, Flat | null];
+  /** Past the line (W1), a machine gun's team's gun on its tripod: where, which way, whether it fires. */
+  readonly teamGuns?: readonly (Flat & { readonly yaw: number; readonly firing: boolean })[];
+  /** Past the ladders (W1), the besiegers' guns standing off: where, and which way they lay. */
+  readonly battery?: readonly (Flat & { readonly yaw: number })[];
+  /** Where their shells are landing in the town's lots, a burst at a time by the screen's clock. */
+  readonly shells?: readonly Flat[];
+  /** An armoured host's cars (as the close field's: render/vehicles.ts), in the town's metres. */
+  readonly cars?: readonly VehicleNow[];
 };
 
 /** The besiegers' camp: how far past the homes; how many tents. */
@@ -433,6 +464,265 @@ function along(p: Path, d: number): { x: number; z: number; dx: number; dz: numb
   };
 }
 
+// —— Past the line (W1: view/order.ts) ————————————————————————————————————————————————
+
+/** The least the hosts stand apart past the line, as the line's own two stood (m). */
+const LEAST_APART = 64;
+/** How far from where it would stand a squad goes for what stands between it and the fire (m). */
+const COVER_REACH = 34,
+  /** How far behind it they stand (m). */
+  COVER_BEHIND = 2.2;
+/** How many bounds a fight is come on in, and how much of each is the rush. */
+const BOUNDS = 4,
+  RUSH = 0.42;
+/** How far past its homes the besiegers' guns stand (m), how many, how far apart, and the shells a look. */
+const BATTERY_OUT = 210,
+  BATTERY = 4,
+  BATTERY_APART = 24,
+  SHELLS = 10;
+/** How far ahead of its gunner a team's gun is set, and of its squad a car stands (m). */
+const GUN_SET = 7.5,
+  CAR_AHEAD = 16;
+
+/** Each host past the line, placed once for a war at a town and kept: its figures' places. */
+type Spread = {
+  readonly order: readonly [HostOrder, HostOrder];
+  readonly places: readonly [readonly OrderPlace[], readonly OrderPlace[]];
+  /** Drawn up before the town. */
+  readonly field: readonly [readonly Flat[], readonly Flat[]];
+  /** How far each side comes on over the fight, toward the other (m). */
+  readonly gain: readonly [number, number];
+  /** About its walls: the besiegers where they lie, the besieged in its yards and behind its walls. */
+  readonly about: readonly [readonly Flat[], readonly Flat[]];
+  /** The storm's way for a besieger's squad (found when first asked for), and each figure's place off its leader. */
+  readonly storm: (squad: number) => Path;
+  readonly off: readonly Flat[];
+  /** Its own guard at its edge (one in two of its host). */
+  readonly guard: readonly Flat[];
+  /** Whether its besiegers stand off and shell it, not raise ladders. */
+  readonly shelling: boolean;
+  readonly battery: readonly (Flat & { readonly yaw: number })[];
+  readonly shells: readonly Flat[];
+};
+
+const SPREADS = new WeakMap<VillagePlan, Map<string, Spread>>();
+
+/** What stands between a squad and the fire, near where it would stand: just behind it (null: nothing there). */
+function coverAt(ground: Ground, p: Flat, awayX: number, awayZ: number): Flat | null {
+  let best: Solid | null = null,
+    near = COVER_REACH;
+  const look = (s: Solid) => {
+    const d = clearOf(s, p);
+    if (d < near) {
+      near = d;
+      best = s;
+    }
+  };
+  for (const h of ground.homes) look(h);
+  for (const s of ground.town?.solids ?? []) look(s);
+  const s = best as Solid | null;
+  if (!s) return null;
+  const ax = s.ax ?? 1,
+    az = s.az ?? 0,
+    along = Math.abs(ax * awayX + az * awayZ),
+    athwart = Math.abs(-az * awayX + ax * awayZ),
+    extent = s.r + (s.half ?? 0) * along + (s.across ?? 0) * athwart + COVER_BEHIND;
+  return { x: s.x + awayX * extent, z: s.z + awayZ * extent };
+}
+
+/** The whole of a host's figures moved with their squad's leader to what covers it. */
+function takeCover(
+  ground: Ground,
+  order: HostOrder,
+  places: readonly OrderPlace[],
+  at: readonly Flat[],
+  away: (p: Flat) => Flat,
+): Flat[] {
+  if (!order.cover) return [...at];
+  const out: Flat[] = [];
+  let shift = { x: 0, z: 0 },
+    squad = -1;
+  places.forEach((place, i) => {
+    if (place.squad !== squad) {
+      squad = place.squad;
+      const p = at[i]!,
+        a = away(p),
+        c = coverAt(ground, p, a.x, a.z);
+      shift = c ? { x: c.x - p.x, z: c.z - p.z } : { x: 0, z: 0 };
+    }
+    out.push({ x: at[i]!.x + shift.x, z: at[i]!.z + shift.z });
+  });
+  return out;
+}
+
+function makeSpread(
+  plan: VillagePlan,
+  war: TownWar,
+  each: number,
+  order: readonly [HostOrder, HostOrder],
+): Spread {
+  const ground = villageGround(plan),
+    way = Math.atan2(plan.road.z, plan.road.x),
+    ux = Math.cos(way),
+    uz = Math.sin(way),
+    reach = ground.homesReach,
+    front = reach + FRONT,
+    key = hashText(war.ref),
+    at = (out: number, across: number): Flat => ({
+      x: ux * out - uz * across,
+      z: uz * out + ux * across,
+    }),
+    apart = Math.max(order[0].standOff, order[1].standOff, LEAST_APART),
+    // (The defenders' forward edge at the town's edge, or among its homes: no further in than half its reach.)
+    edge0 = front + apart * 0.6,
+    edge1 = Math.max(reach * 0.5, front - apart * 0.4),
+    teams = [armLook(war.sides[0].host?.arm).team, armLook(war.sides[1].host?.arm).team],
+    places = [
+      orderPlaces(order[0], each, teams[0], key + 1, 220),
+      orderPlaces(order[1], each, teams[1], key + 2, edge1 + reach * 0.45),
+    ] as const,
+    open = edge0 - edge1,
+    closes = [order[0].standOff === 0, order[1].standOff === 0],
+    gain: [number, number] = [
+      closes[0] ? (closes[1] ? open / 2 : open - 2) : closes[1] ? 0 : apart * 0.45,
+      closes[1] ? (closes[0] ? open / 2 : open - 2) : 0,
+    ],
+    field = [
+      takeCover(
+        ground,
+        order[0],
+        places[0],
+        places[0].map((q) => at(edge0 + q.depth, q.across)),
+        () => ({ x: ux, z: uz }),
+      ),
+      takeCover(
+        ground,
+        order[1],
+        places[1],
+        places[1].map((q) => at(edge1 - q.depth, q.across)),
+        () => ({ x: -ux, z: -uz }),
+      ),
+    ] as const,
+    camp = reach + CAMP_OUT,
+    wallOut = reach + 1.6,
+    wallIn = Math.max(4, reach - 2),
+    shelling = shellsWalls(war.sides[0].host?.arm),
+    drawn0 = drawnSquad(order[0].squad),
+    drawn1 = drawnSquad(order[1].squad),
+    squads0 = Math.max(1, Math.ceil(each / drawn0)),
+    squads1 = Math.max(1, Math.ceil(each / drawn1)),
+    // Each squad's leader's place: the besiegers on three sides of it, standing off; a closed ring where they
+    // raise ladders still, their squads a little out of true.
+    leader0 = Array.from({ length: squads0 }, (_, j): Flat => {
+      const a = shelling
+          ? way + ((j + 0.5) / squads0 - 0.5) * 1.55 * Math.PI + (unit(j, key + 31) - 0.5) * 0.18
+          : way + ((j + 0.5) / squads0) * 2 * Math.PI + (unit(key, 5) - 0.5) * 0.3,
+        r = shelling
+          ? reach + Math.max(CAMP_OUT, order[0].standOff * 0.7) * (0.85 + 0.3 * unit(j, key + 37))
+          : camp - 6 + (unit(j, key + 41) - 0.5) * 16;
+      return { x: Math.cos(a) * r, z: Math.sin(a) * r };
+    }),
+    leader1 = Array.from({ length: squads1 }, (_, j): Flat => {
+      const a = way + ((j + 0.5) / squads1) * 2 * Math.PI + (unit(j, key + 43) - 0.5) * 0.3,
+        r = wallIn * (0.5 + 0.5 * unit(j, key + 47));
+      return { x: Math.cos(a) * r, z: Math.sin(a) * r };
+    }),
+    // (Each one about their squad's leader, as they stand in their order.)
+    offOf = (i: number, drawn: number, side: 0 | 1): Flat => {
+      const w = Math.min(order[side].spacing, 7),
+        n = i % drawn,
+        rank = Math.ceil(n / 2);
+      return { x: (n % 2 ? -1 : 1) * rank * w, z: rank * w * 0.6 };
+    },
+    off = places[0].map((_, i) => offOf(i, drawn0, 0)),
+    about = [
+      places[0].map((q, i) => ({
+        x: leader0[q.squad]!.x + off[i]!.x,
+        z: leader0[q.squad]!.z + off[i]!.z,
+      })),
+      takeCover(
+        ground,
+        order[1],
+        places[1],
+        places[1].map((q, i) => {
+          const o = offOf(i, drawn1, 1);
+          return { x: leader1[q.squad]!.x + o.x, z: leader1[q.squad]!.z + o.z };
+        }),
+        (p) => {
+          const d = Math.max(1e-6, Math.hypot(p.x, p.z));
+          return { x: -p.x / d, z: -p.z / d };
+        },
+      ),
+    ] as const,
+    // The storm: squads by the streets to the town's middle, where they stand off and shell; to its walls where they raise ladders.
+    ways: Path[] = [],
+    storm = (j: number) => {
+      const kept = ways[j];
+      if (kept) return kept;
+      const l = leader0[j]!,
+        d = Math.max(1e-6, Math.hypot(l.x, l.z)),
+        r = shelling ? reach * (0.25 + 0.3 * unit(j, key + 53)) : wallOut,
+        to = { x: (l.x / d) * r, z: (l.z / d) * r },
+        walk = route(ground, l, to, 1.2);
+      return (ways[j] = pathOf(walk.length > 1 ? walk : [l, to]));
+    },
+    half = Math.ceil(each / 2),
+    guardPlaces = orderPlaces(order[1], half, teams[1], key + 3, Math.max(20, reach * 0.5)),
+    guard = takeCover(
+      ground,
+      order[1],
+      guardPlaces,
+      guardPlaces.map((q) => at(reach + 4 - q.depth, q.across)),
+      () => ({ x: -ux, z: -uz }),
+    ),
+    battery = shelling
+      ? Array.from({ length: BATTERY }, (_, g) => {
+          const p = at(reach + BATTERY_OUT + (g % 2) * 7, (g - (BATTERY - 1) / 2) * BATTERY_APART);
+          return { x: p.x, z: p.z, yaw: facing(-ux, -uz) };
+        })
+      : [],
+    homes = plan.homes,
+    shells = shelling
+      ? Array.from({ length: SHELLS }, (_, j) => {
+          const h = homes.length ? homes[Math.floor(unit(j, key + 59) * homes.length)]! : null;
+          return h
+            ? { x: h.x, z: h.z }
+            : at(reach * (unit(j, key + 61) - 0.3), (unit(j, key + 67) - 0.5) * reach * 1.2);
+        })
+      : [];
+  return { order, places, field, gain, about, storm, off, guard, shelling, battery, shells };
+}
+
+/** A war's hosts past the line, as they stand at a town (kept with its plan: reckoned once). */
+function spreadOf(
+  plan: VillagePlan,
+  war: TownWar,
+  each: number,
+  order: readonly [HostOrder, HostOrder],
+): Spread {
+  let kept = SPREADS.get(plan);
+  if (!kept) SPREADS.set(plan, (kept = new Map()));
+  const a = war.sides[0].host,
+    d = war.sides[1].host,
+    k = `${war.ref}|${each}|${a?.arm}|${a?.mount}|${d?.arm}|${d?.mount}`;
+  let s = kept.get(k);
+  if (!s) {
+    if (kept.size > 8) kept.clear();
+    s = makeSpread(plan, war, each, order);
+    kept.set(k, s);
+  }
+  return s;
+}
+
+/** How far on a squad has come at `e` of the fight, by bounds: the checkerboard's two halves in turn, and whether it rushes now. */
+function bounded(e: number, squad: number): { g: number; rush: boolean } {
+  const c = e * BOUNDS - (squad % 2) * 0.5;
+  if (c <= 0) return { g: 0, rush: false };
+  const whole = Math.floor(c),
+    f = c - whole;
+  return { g: Math.min(1, (whole + smooth(f / RUSH)) / BOUNDS), rush: f < RUSH && e < 1 };
+}
+
 /**
  * Who of a host fell (a keyed turn through it: as many as `count`, the same ones as it grows) —
  * at what point of the fight each falls (0 … 1).
@@ -478,7 +768,41 @@ export function townWarScene(
     sum = [
       { x: 0, z: 0, n: 0 },
       { x: 0, z: 0, n: 0 },
-    ];
+    ],
+    // Each host's order from the fire it stands against (W1). Before the magazine both are lines, and
+    // nothing past here reads further than this.
+    orders = [
+      hostOrder(war.sides[0].host, war.sides[1].host),
+      hostOrder(war.sides[1].host, war.sides[0].host),
+    ] as const,
+    apart = orders[0].line && orders[1].line ? null : spreadOf(plan, war, each, orders),
+    teamGuns: { x: number; z: number; yaw: number; firing: boolean }[] = [],
+    cars: VehicleNow[] = [];
+  /** Whether a side stands past the line. */
+  const spread = (side: number) => (apart && !apart.order[side]!.line ? apart : null);
+  /** Where one past the line stands at `e` of the fight before the town, and whether their squad rushes. */
+  const fieldNow = (i: number, side: 0 | 1, e: number) => {
+    const s = apart!,
+      p = s.field[side][i]!,
+      o = s.order[side],
+      squad = s.places[side][i]!.squad,
+      { g, rush } = o.bounds ? bounded(e, squad) : { g: clamp01(e), rush: e > 0 && e < 1 },
+      dir = side === 0 ? -1 : 1,
+      d = dir * g * s.gain[side];
+    return { x: p.x + ux * d, z: p.z + uz * d, rush: rush && s.gain[side] > 0, g };
+  };
+  /** Where a besieger past the line stands at `e` of the storm (by its squad's way), or one besieged. */
+  const wallsNow = (i: number, side: 0 | 1, e: number) => {
+    const s = apart!;
+    if (side === 1) return { ...s.about[1][i]!, rush: false, g: 0 };
+    const o = s.order[0],
+      squad = s.places[0][i]!.squad,
+      { g, rush } = o.bounds ? bounded(e, squad) : { g: clamp01(e), rush: e > 0 && e < 1 },
+      way = s.storm(squad),
+      p = along(way, g * way.length),
+      off = s.off[i]!;
+    return { x: p.x + off.x, z: p.z + off.z, rush, g };
+  };
   /** A soldier's place in two ranks across the road (`out` metres along it), facing `toward`. */
   const rankOf = (i: number, side: number) => {
     const file = (i >> 1) - (Math.ceil(each / 2) - 1) / 2,
@@ -602,7 +926,13 @@ export function townWarScene(
           ),
     /** Where each fought in the battle fought before it: at the line, or about its walls. */
     foughtAt = (i: number, side: number): Flat =>
-      fought?.walls ? ringAt(i, side === 0 ? wallOut : wallIn) : meetOf(i, side),
+      spread(side)
+        ? fought?.walls
+          ? wallsNow(i, side as 0 | 1, fallsAt(i, side))
+          : fieldNow(i, side as 0 | 1, fallsAt(i, side))
+        : fought?.walls
+          ? ringAt(i, side === 0 ? wallOut : wallIn)
+          : meetOf(i, side),
     /** Facing the foe there. */
     foughtFacing = (p: Flat, side: number) =>
       fought?.walls
@@ -654,12 +984,39 @@ export function townWarScene(
           );
           break;
         case "leaving": {
-          const from = h.field ? (j: number) => meetOf(j, side) : (j: number) => blockAt(j, muster),
+          const from = h.field
+              ? spread(side)
+                ? (j: number) => fieldNow(j, side, 1)
+                : (j: number) => meetOf(j, side)
+              : (j: number) => blockAt(j, muster),
             path = pathOf(h.field ? [at(front, 0), road] : [muster, at(reach + 30, 0), road]);
           column(i, side, path, k, from, null, 0);
           break;
         }
         case "coming": {
+          const sp = spread(side);
+          if (sp) {
+            // Past the line they come on across the open, squad by squad, not by the road in column.
+            const squads = sp.places[side][each - 1]!.squad + 1,
+              e = clamp01(k * 1.4 - (0.4 * sp.places[side][i]!.squad) / squads),
+              from = side === 0 ? road : at(front - 30, aside),
+              to = sp.field[side][i]!,
+              t = smooth(e);
+            if (e <= 0) hide(i, side);
+            else
+              push(
+                i,
+                side,
+                { x: from.x + (to.x - from.x) * t, z: from.z + (to.z - from.z) * t },
+                e < 1
+                  ? facing(to.x - from.x, to.z - from.z)
+                  : side === 0
+                    ? facing(-ux, -uz)
+                    : facing(ux, uz),
+                e < 1 ? "advance" : "stand",
+              );
+            break;
+          }
           const end = side === 0 ? attackLine : defendLine,
             to = side === 0 ? at(front + 34, 0) : at(front - 30, 0),
             path = pathOf(side === 0 ? [road, to] : [at(front - 30, aside), to]);
@@ -678,13 +1035,74 @@ export function townWarScene(
             break;
           }
           const j = i >> 1,
-            n = Math.ceil(each / 2);
+            n = Math.ceil(each / 2),
+            sg = spread(side);
+          if (sg) {
+            // (Past the line: squads behind what stands at its edge, their leaders up.)
+            const p = sg.guard[j]!;
+            push(
+              i,
+              side,
+              p,
+              facing(ux, uz),
+              j % drawnSquad(sg.order[side].squad) ? "prone" : "stand",
+            );
+            break;
+          }
           push(i, side, at(reach + 4, (j - (n - 1) / 2) * 2.4), facing(ux, uz), "stand");
           break;
         }
         case "drawn":
         case "engaged":
         case "holding": {
+          const sp = spread(side);
+          if (sp) {
+            const face = side === 0 ? facing(-ux, -uz) : facing(ux, uz),
+              place = sp.places[side][i]!,
+              leads = i % drawnSquad(sp.order[side].squad) === 0;
+            if (h.doing === "holding") {
+              const p = fought ? foughtAt(i, side) : fieldNow(i, side, 0);
+              push(i, side, p, fought ? foughtFacing(p, side) : face, leads ? "stand" : "prone");
+              break;
+            }
+            if (fight?.stage !== "engaged") {
+              // Drawn up: squads apart and down, their leaders up; those of its own gate come out first.
+              const out = h.out ? smooth((fight?.k ?? 1) / 0.35) : 1,
+                to = sp.field[side][i]!;
+              push(
+                i,
+                side,
+                { x: gate.x + (to.x - gate.x) * out, z: gate.z + (to.z - gate.z) * out },
+                face,
+                out < 1 ? "advance" : leads && !place.gun ? "stand" : "prone",
+              );
+              break;
+            }
+            // Engaged: nobody closes who can fire. Squads come on by bounds, the rest firing; those with
+            // nothing to fire with come on the same way and close at the end.
+            const e = fight.k,
+              now = fieldNow(i, side, e),
+              closes = sp.order[side].standOff === 0;
+            if (falls(i, side, each, during) && e > fallsAt(i, side))
+              push(i, side, foughtAt(i, side), face, "fallen");
+            else
+              push(
+                i,
+                side,
+                now,
+                face,
+                now.rush
+                  ? "advance"
+                  : closes
+                    ? now.g >= 1
+                      ? "fight"
+                      : "prone"
+                    : place.gun || i % 3 === 2
+                      ? "prone"
+                      : "fire",
+              );
+            break;
+          }
           const line = side === 0 ? attackLine(i) : defendLine(i),
             meet = meetOf(i, side),
             face = side === 0 ? facing(-ux, -uz) : facing(ux, uz);
@@ -715,7 +1133,9 @@ export function townWarScene(
           // (Scattering across the open ground either hand, away from the victors.)
           const from = foughtAt(i, side),
             to = h.inward
-              ? ringAt(i, wallIn)
+              ? spread(side)
+                ? apart!.about[1][i]!
+                : ringAt(i, wallIn)
               : at(
                   front - 20 - unit(i, key + 9) * 60,
                   (unit(i, key) < 0.5 ? -1 : 1) * (reach + ROAD_OUT),
@@ -752,6 +1172,48 @@ export function townWarScene(
         }
         case "besieging":
         case "assaulting": {
+          const sp = spread(side);
+          if (sp) {
+            // Past the line: down about it, their guns at it; then the storm, squads by its streets.
+            const storm = h.doing === "assaulting" && fight?.stage === "engaged" ? fight.k : 0,
+              rest = sp.about[0][i]!,
+              settle = h.doing === "besieging" ? smooth(k) : 1,
+              from = foughtAt(i, side),
+              now = wallsNow(i, 0, storm),
+              p =
+                h.doing === "besieging" && settle < 1
+                  ? {
+                      x: from.x + (rest.x - from.x) * settle,
+                      z: from.z + (rest.z - from.z) * settle,
+                    }
+                  : now,
+              place = sp.places[0][i]!,
+              leads = i % drawnSquad(sp.order[0].squad) === 0,
+              toward = facing(-p.x, -p.z);
+            if (
+              h.doing === "assaulting" &&
+              falls(i, side, each, during) &&
+              storm > fallsAt(i, side)
+            )
+              push(i, side, wallsNow(i, 0, fallsAt(i, side)), toward, "fallen");
+            else
+              push(
+                i,
+                side,
+                p,
+                toward,
+                now.rush
+                  ? "advance"
+                  : storm > 0
+                    ? place.gun || i % 3 === 2
+                      ? "prone"
+                      : "fire"
+                    : leads && !place.gun
+                      ? "stand"
+                      : "prone",
+              );
+            break;
+          }
           // Camped about it, by their tents; storming its walls as the year ends.
           const storm = h.doing === "assaulting" && fight?.stage === "engaged" ? fight.k : 0,
             close = smooth(storm / 0.3),
@@ -781,7 +1243,32 @@ export function townWarScene(
         case "besieged": {
           // On its walls, facing out; fighting there as they are stormed.
           const storm = fight?.stage === "engaged" ? fight.k : 0,
-            p = ringAt(i, wallIn);
+            sp = spread(side);
+          if (sp) {
+            // Past the line: in its yards and behind its walls, firing at the storm as it comes.
+            const q = sp.about[1][i]!,
+              place = sp.places[1][i]!,
+              leads = i % drawnSquad(sp.order[1].squad) === 0,
+              out = facing(q.x, q.z);
+            if (storm > 0 && falls(i, side, each, during) && storm > fallsAt(i, side))
+              push(i, side, q, out, "fallen");
+            else
+              push(
+                i,
+                side,
+                q,
+                out,
+                storm > 0
+                  ? place.gun || i % 3 === 2
+                    ? "prone"
+                    : "fire"
+                  : leads && !place.gun
+                    ? "stand"
+                    : "prone",
+              );
+            break;
+          }
+          const p = ringAt(i, wallIn);
           if (storm > 0 && falls(i, side, each, during) && storm > fallsAt(i, side))
             push(i, side, p, facing(p.x, p.z), "fallen", 1, false);
           else push(i, side, p, facing(p.x, p.z), storm > 0 ? "fight" : "stand", 1, false);
@@ -790,11 +1277,59 @@ export function townWarScene(
       }
     }
     for (let i = 0; i < each; i++) if (!soldiers[side * 2 * each + i]) hide(i, side);
+    // Past the line: a machine gun's team's guns where their gunners lie, and an armoured host's cars.
+    const sp = spread(side);
+    if (sp && h && !fighting) {
+      sp.places[side].forEach((place, i) => {
+        const q = soldiers[side * 2 * each + i]!;
+        if (place.gun && q.size > 0.5 && (q.doing === "prone" || q.doing === "fire"))
+          teamGuns.push({
+            x: q.x + Math.sin(q.yaw) * GUN_SET,
+            z: q.z + Math.cos(q.yaw) * GUN_SET,
+            yaw: q.yaw,
+            firing: fight?.stage === "engaged",
+          });
+      });
+      if (
+        war.sides[side].host?.mount === "armoured" &&
+        ["drawn", "engaged", "holding", "guard", "besieging", "assaulting"].includes(h.doing)
+      ) {
+        const many = Math.max(1, Math.min(4, Math.round(each / 6))),
+          e = fight?.stage === "engaged" ? fight.k : 0;
+        for (let c = 0; c < many; c++) {
+          // (Each with a squad of its host, ahead of it, by its way.)
+          const i = Math.floor(((c + 0.5) / many) * each),
+            q = soldiers[side * 2 * each + i],
+            yaw = q ? q.yaw : 0,
+            p = q && q.size > 0.5 ? q : foughtAt(i, side),
+            knocked = fight?.stage === "engaged" ? (c % 3 === 2 ? smooth((e - 0.6) / 0.1) : 0) : 0;
+          cars.push({
+            id: c + side * 8,
+            side,
+            x: p.x + Math.sin(yaw) * CAR_AHEAD,
+            y: 0,
+            z: p.z + Math.cos(yaw) * CAR_AHEAD,
+            yaw,
+            turret: fight?.stage === "engaged" ? 0.2 * Math.sin(c * 2.1 + e * 9) : 0,
+            recoil:
+              fight?.stage === "engaged" ? Math.max(0, Math.sin(e * 90 + c * 2) - 0.8) * 5 : 0,
+            knocked,
+            burning: knocked,
+          });
+        }
+      }
+    }
   }
   // The besiegers' tents about the town, and their camp's fires (none while the battle before it
   // is fought in place: its hosts and their fires are its own layer's then).
+  // (Past the ladders there is no such camp: its besiegers stand off, their guns further off, and shell it.)
+  const shelled =
+    !fighting &&
+    !!apart?.shelling &&
+    (war.siege || war.hosts.some((h) => h.doing === "besieging" || h.doing === "assaulting"));
   if (
     !fighting &&
+    !apart?.shelling &&
     (war.siege || war.hosts.some((h) => h.doing === "besieging" || h.doing === "assaulting"))
   )
     for (let j = 0; j < TENTS; j++) {
@@ -806,7 +1341,21 @@ export function townWarScene(
   if (war.eve && !inPlace && war.hosts.some((h) => h.doing === "drawn"))
     for (let k = 0; k < 6; k++) {
       const across = (k - 2.5) * 9;
+      // (Past the line, by a squad's place behind what it stands at: none in a row for the guns to read.)
+      if (apart) {
+        for (const side of [0, 1] as const) {
+          const p = apart.field[side][Math.floor(((k + 0.5) / 6) * each)]!;
+          nightFires.push({ x: p.x + (side ? -ux : ux) * 9, z: p.z + (side ? -uz : uz) * 9 });
+        }
+        continue;
+      }
       nightFires.push(at(front + 34 + 12, across), at(front - 30 - 8, across + 4));
+    }
+  // The town shelled: some of what the shells have landed on alight (a land's fire, as a town stormed burns).
+  if (shelled)
+    for (let j = 0; j < 5; j++) {
+      const p = apart!.shells[j];
+      if (p) fires.push({ x: p.x, z: p.z, size: 0.45 + 0.3 * unit(j, key + 71) });
     }
   // A town stormed burns: its houses nearest the road it was stormed from, and about its gate.
   if (war.burning > 0) {
@@ -824,5 +1373,12 @@ export function townWarScene(
   }
   const middle = (s: 0 | 1): Flat | null =>
     sum[s]!.n ? { x: sum[s]!.x / sum[s]!.n, z: sum[s]!.z / sum[s]!.n } : null;
-  return { soldiers, tents, fires, camp: nightFires, middles: [middle(0), middle(1)] };
+  const past: Partial<TownWarScene> = apart
+    ? {
+        teamGuns,
+        cars,
+        ...(shelled ? { battery: apart.battery, shells: apart.shells } : {}),
+      }
+    : {};
+  return { soldiers, tents, fires, camp: nightFires, middles: [middle(0), middle(1)], ...past };
 }

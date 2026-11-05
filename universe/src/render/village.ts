@@ -181,6 +181,8 @@ const GUNS: readonly string[] = Object.keys(ARM_LOOKS).filter(isGun);
 const YEAR = 365 * 86_400;
 /** How many beams a side has in the air over a town at once (Phase 66). */
 const BOLTS_A_SIDE = 16;
+/** A round's streak past the line (W1). */
+const TRACER: Rgb = [1, 0.82, 0.45];
 
 /** A material of its own light: a beam's. */
 function litMaterial(color: Rgb): pc.StandardMaterial {
@@ -1546,7 +1548,7 @@ export class VillageScene {
           : null,
       troops = scene?.soldiers ?? [];
     this.warScene = scene;
-    this.warLayer.update(scene, screen, this.campNow);
+    this.warLayer.update(scene, screen, this.campNow, this.figure.scale);
     const targets = momentsOf(plan, t, downpour, fine);
     // Those come out to watch a battle fought before the town (Phase 55 M227): at its edge, facing it.
     for (const w of this.watchers) {
@@ -1835,18 +1837,28 @@ export class VillageScene {
           aim =
             q.doing === "fallen"
               ? 0
-              : limbPitch(
-                  part,
-                  // (Standing in their ranks at rest; at the drill as they muster; in the fight, thrusting.)
-                  walking || q.doing === "stand"
-                    ? null
-                    : q.doing === "drill" || k % 2
-                      ? "drill"
-                      : "brawl",
-                  walking,
-                  clock * (walking ? 1.4 : 1),
-                  k + side * 31,
-                ),
+              : q.doing === "fire"
+                ? // (Up and firing: the arms levelled to the gun, the rest still.)
+                  part.role === "arm"
+                  ? -1.35
+                  : 0
+                : q.doing === "prone"
+                  ? // (Down: the arms out ahead of them to the gun.)
+                    part.role === "arm"
+                    ? -2.75
+                    : 0
+                  : limbPitch(
+                      part,
+                      // (Standing in their ranks at rest; at the drill as they muster; in the fight, thrusting.)
+                      walking || q.doing === "stand"
+                        ? null
+                        : q.doing === "drill" || k % 2
+                          ? "drill"
+                          : "brawl",
+                      walking,
+                      clock * (walking ? 1.4 : 1),
+                      k + side * 31,
+                    ),
           // (Eased, as the villagers' are: from the march to the fight is a turn of the arm.)
           slot = ((side * this.soldiersEach + k) * parts.length + pi) | 0,
           was = this.soldierLimbs[slot]!,
@@ -1863,6 +1875,12 @@ export class VillageScene {
           py = 0.06 + pz;
           pz = -up;
           pp = pitch - Math.PI / 2;
+        } else if (q.doing === "prone") {
+          // On their front, the head toward the foe: what stood up lies forward along the ground.
+          const up = py;
+          py = 0.06 - pz;
+          pz = up;
+          pp = pitch + Math.PI / 2;
         }
         out[0] = q.x * M + (px * c + pz * sn) * size;
         out[1] = py * size;
@@ -1897,17 +1915,20 @@ export class VillageScene {
           c = Math.cos(q.yaw),
           sn = Math.sin(q.yaw),
           fallen = q.doing === "fallen",
+          prone = q.doing === "prone",
           gun = GUNS.includes(this.kits[q.side]?.arm ?? ""),
           thrust =
-            q.doing === "fight"
+            q.doing === "fight" || q.doing === "fire"
               ? gun
                 ? -1.42
                 : -0.5 - 0.7 * Math.abs(Math.sin(clock * 2 * Math.PI * 0.8 + i * 1.7))
-              : -0.25,
+              : prone
+                ? -Math.PI / 2
+                : -0.25,
           across = 0.13,
-          ahead = fallen ? -0.35 : 0.05;
+          ahead = fallen ? -0.35 : prone ? 0.62 : 0.05;
         out[0] = q.x * M + (across * c + ahead * sn) * size;
-        out[1] = (fallen ? 0.03 : 0.36) * size;
+        out[1] = (fallen ? 0.03 : prone ? 0.07 : 0.36) * size;
         out[2] = q.z * M + (-across * sn + ahead * c) * size;
         out[3] = (gun ? 0.026 : 0.018) * size;
         out[4] = (gun ? 0.62 : 0.8) * size;
@@ -1921,7 +1942,8 @@ export class VillageScene {
         const firing: { x: number; z: number; yaw: number; k: number }[] = [];
         for (let i = side * this.soldiersEach; i < (side + 1) * this.soldiersEach; i++) {
           const q = troops[i];
-          if (!q || q.doing !== "fight" || firing.length >= BOLTS_A_SIDE) continue;
+          if (!q || (q.doing !== "fight" && q.doing !== "fire") || firing.length >= BOLTS_A_SIDE)
+            continue;
           const beat = clock * 1.3 + i * 0.37,
             k = beat - Math.floor(beat);
           if (k < 0.14) firing.push({ x: q.x, z: q.z, yaw: q.yaw, k: 1 - k / 0.14 });
@@ -1946,7 +1968,7 @@ export class VillageScene {
           size = this.figure.scale * q.size,
           c = Math.cos(q.yaw),
           sn = Math.sin(q.yaw),
-          fallen = q.doing === "fallen",
+          fallen = q.doing === "fallen" || q.doing === "prone",
           swing = q.doing === "fight" ? -1.2 * Math.abs(Math.sin(clock * 2.6 + i * 1.3)) : 0.2,
           axe = this.kits[q.side]!.arm === "axe",
           across = 0.14,
@@ -1967,7 +1989,7 @@ export class VillageScene {
           size = this.figure.scale * q.size,
           c = Math.cos(q.yaw),
           sn = Math.sin(q.yaw),
-          fallen = q.doing === "fallen",
+          fallen = q.doing === "fallen" || q.doing === "prone",
           across = -0.14,
           ahead = fallen ? -0.3 : q.doing === "fight" ? 0.2 : 0.06;
         out[0] = q.x * M + (across * c + ahead * sn) * size;
@@ -1987,7 +2009,7 @@ export class VillageScene {
             size = this.figure.scale * q.size,
             c = Math.cos(q.yaw),
             sn = Math.sin(q.yaw),
-            fallen = q.doing === "fallen",
+            fallen = q.doing === "fallen" || q.doing === "prone",
             across = fallen ? -0.25 : -0.15,
             ahead = fallen ? 0.1 : 0.1;
           out[0] = q.x * M + (across * c + ahead * sn) * size;
@@ -2153,11 +2175,13 @@ export class VillageScene {
           this.root,
         )
       : null;
-    this.townBolts = lights.map((light) =>
-      light
+    // (Past the line a gun's rounds are seen as burning light is: a streak out at the foe. W1.)
+    this.townBolts = this.kits.map((k, i) => {
+      const light = lights[i] ?? (isGun(k.arm) && armLook(k.arm).order === "open" ? TRACER : null);
+      return light
         ? kept(s, meshes.box, light as Rgb, BOLTS_A_SIDE, this.root, litMaterial(light as Rgb))
-        : null,
-    );
+        : null;
+    });
     this.blades = bears(["sword", "axe"])
       ? kept(s, meshes.box, [0.8, 0.82, 0.86], this.soldiersEach * 2, this.root)
       : null;
@@ -2911,6 +2935,7 @@ export class VillageScene {
   war(tw: TownWar | null): void {
     this.townWar = tw;
     this.arm(tw?.sides ?? null);
+    if (tw) this.warLayer.colors(tw.sides[0].color as Rgb, tw.sides[1].color as Rgb);
   }
 
   /** How many a side the war about the town is drawn as. */
