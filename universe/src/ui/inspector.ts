@@ -128,6 +128,8 @@ export class PageWindow {
   onWatch: ((cell: number, town: string) => void) | null = null;
   /** A colony's landing played again (Phase 64). */
   onLanding: ((cell: number) => void) | null = null;
+  /** A fight among the stars played again (Phase 67). */
+  onStarFight: ((id: string) => void) | null = null;
   /** Down among a band of a land's camp (Phase 29 M160). */
   onNear: ((cell: number, camp: number) => void) | null = null;
   /** A battle watched fought (Phase 37 M186). */
@@ -872,6 +874,7 @@ export class PageWindow {
           open: (ref) => void this.open(ref),
           ...(this.onWatch ? { watch: this.onWatch } : {}),
           ...(this.onLanding ? { landing: this.onLanding } : {}),
+          ...(this.onStarFight ? { starFight: this.onStarFight } : {}),
           ...(this.onNear ? { near: this.onNear } : {}),
           ...(this.onBattle ? { battle: this.onBattle } : {}),
           ...(this.onWar ? { war: this.onWar } : {}),

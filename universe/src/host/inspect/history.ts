@@ -150,6 +150,9 @@ export function eventPage(world: World, ref: string): PageModel {
     },
     { type: "why", title: "Why it happened", ref },
   ];
+  // (A fight among the stars: played again. Phase 67.)
+  if (type === "starwar.battle" || type === "peoples.raid")
+    blocks.splice(2, 0, { type: "tool", tool: "watch.starfight", args: { id: ref, label: "▶ Watch it" } });
   // (A colony's founding, a ship's coming in: its landing, played again. Phase 64.)
   if ((type === "space.colony" || type === "space.arrival") && e?.place) {
     const cell = parseRef(e.place).b;

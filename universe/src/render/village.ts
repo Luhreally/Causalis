@@ -235,6 +235,8 @@ export class VillageScene {
   private soldiersEach = 0;
   /** The war about the town now, as last drawn, and the sides its soldiers are armed for. */
   private townWar: TownWar | null = null;
+  /** The soldiers about the town told from outside (Phase 67: a raid played again), not by its war's year. */
+  warSceneOverride: (() => TownWarScene | null) | null = null;
   private warScene: TownWarScene | null = null;
   private armed = "";
   private soldierBatches: InstancedBatch[] = [];
@@ -1527,7 +1529,8 @@ export class VillageScene {
       // The war about the town (M204): its hosts where its year has them, its fallen where they fell.
       scene =
         this.townWar && this.soldiers.length
-          ? townWarScene(plan, this.townWar, this.soldiersEach / 2, this.placedFrame !== null)
+          ? (this.warSceneOverride?.() ??
+            townWarScene(plan, this.townWar, this.soldiersEach / 2, this.placedFrame !== null))
           : null,
       troops = scene?.soldiers ?? [];
     this.warScene = scene;
@@ -2897,6 +2900,10 @@ export class VillageScene {
     this.arm(tw?.sides ?? null);
   }
 
+  /** How many a side the war about the town is drawn as. */
+  get warEach(): number {
+    return this.soldiersEach / 2;
+  }
   /** The war about the town as last drawn (the look tools). */
   warNow(): {
     war: TownWar;

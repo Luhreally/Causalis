@@ -1,0 +1,110 @@
+/* The fleet film's chrome: the game's HUD is put away while it plays, and the film's own
+   controls sit over the fight in the same glossy style as film.css. */
+body.fleet-filming
+  #hud
+  > *:not(.fleet-film):not(.swap):not(.readying):not(.page-panel):not(.page-window) {
+  display: none !important;
+}
+body.paging .fleet-film {
+  display: none !important;
+}
+.fleet-film {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  font-size: 15px;
+}
+.fleet-film[hidden] {
+  display: none !important;
+}
+.fleet-film .film-words {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 74px);
+}
+.fleet-left {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 54px);
+  left: calc(env(safe-area-inset-left, 0px) + 12px);
+  padding: 3px 10px;
+  border-radius: 4px;
+  background: rgba(6, 18, 10, 0.8);
+  font-family: "Courier New", ui-monospace, monospace;
+  font-weight: 700;
+}
+.fleet-tally {
+  position: absolute;
+  left: calc(env(safe-area-inset-left, 0px) + 12px);
+  right: calc(env(safe-area-inset-right, 0px) + 12px);
+  top: calc(env(safe-area-inset-top, 0px) + 88px);
+  color: #c8d4f0;
+  font-size: 12px;
+  line-height: 1.25;
+  text-shadow: 0 1px 2px #000;
+}
+.fleet-bar {
+  position: absolute;
+  left: calc(env(safe-area-inset-left, 0px) + 12px);
+  right: calc(env(safe-area-inset-right, 0px) + 12px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  pointer-events: auto;
+}
+.fleet-pause,
+.fleet-speed {
+  min-width: 48px;
+  min-height: 48px;
+  border: 1px solid #5d78b8;
+  border-radius: 8px;
+  font-size: 16px;
+  color: #16264e;
+  background: linear-gradient(180deg, #f4f7ff 0%, #c9d6f2 48%, #a9bbe4 52%, #d8e3fb 100%);
+  touch-action: manipulation;
+}
+.fleet-course {
+  flex: 1;
+  height: 44px;
+  position: relative;
+  border: 1px solid rgba(160, 190, 255, 0.5);
+  border-radius: 6px;
+  background: rgba(14, 24, 58, 0.8);
+  touch-action: none;
+  cursor: pointer;
+  overflow: hidden;
+}
+.fleet-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  background: linear-gradient(180deg, #7ea6ff, #3a5fc0);
+}
+.fleet-acts {
+  position: absolute;
+  left: calc(env(safe-area-inset-left, 0px) + 12px);
+  top: calc(env(safe-area-inset-top, 0px) + 132px);
+  display: flex;
+  gap: 6px;
+  pointer-events: auto;
+}
+.fleet-acts[hidden] {
+  display: none !important;
+}
+.fleet-act {
+  min-height: 40px;
+  padding: 4px 10px;
+  border: 1px solid #5d78b8;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #f2f6ff;
+  background: rgba(36, 58, 118, 0.85);
+}
+.fleet-act.on {
+  background: linear-gradient(180deg, #7ea6ff, #3a5fc0);
+}
+#hud > .fleet-film {
+  pointer-events: none;
+}
+.fleet-film .film-skip {
+  pointer-events: auto;
+}

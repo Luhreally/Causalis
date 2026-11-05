@@ -385,6 +385,23 @@ export const CONCEPTS: Readonly<Record<string, Concept>> = {
     see: [{ text: "The race to the sky", ref: "world:ledger#sky" }],
     related: ["flight", "contact"],
   },
+  starwars: {
+    icon: "🌌",
+    title: "Wars among the stars",
+    what: [
+      "A realm with a star drive and machines to spare may go to war on a people it has heard, on news years old. Its fleet costs four million machines and sails for decades. On arrival it fights what that people have become while it sailed, and the record says whether it won. That is all the record says of that road: a win there takes nothing, and nothing on any ground changes hands.",
+      "A people of the stars who have met a realm and come to hate it may send a fleet the other way. Beaten off, it goes home. If it wins, its people come down on the realm's seat, kill and burn a tenth of the land's homes, and go. The realm stands.",
+      "The record keeps a fleet as a whole: its strength, what it cost, whether it won. The ships you watch, their names and which of them break are drawn from those numbers, always the same for the same fight, and watching changes nothing.",
+    ],
+    drives: [
+      "What each side knows when it sails: its drive, its beams or its missiles, whether machine minds fly its ships. How long a people has been at the stars. What a realm has in its sky.",
+    ],
+    leads: [
+      "A land's dead and its burned homes, and its grievance against its realm, where a raid comes down.",
+    ],
+    see: [{ text: "The race to the sky", ref: "world:ledger#sky" }],
+    related: ["contact", "colonies", "war"],
+  },
   ages: {
     icon: "📜",
     title: "The ages",

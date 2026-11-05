@@ -14,6 +14,7 @@ import {
 import type { QueryHandler } from "../host.ts";
 import { landOfRef, landPage, spotPage } from "./land.ts";
 import { agentPage, householdPage, memoryPage, personPage, townPage } from "./settled.ts";
+import { shipPage } from "../starfight.ts";
 import { battlePage, realmPageModel, relationPage, starWarPage, warPage } from "./realm.ts";
 import { designPage, faithPage, goodPage, languagePage } from "./culture.ts";
 import { agePage, depositPageModel, lineagePage, platePageModel } from "./life.ts";
@@ -80,6 +81,8 @@ function build(world: World, ref: string, tab: string | null): PageModel {
   if (ref.startsWith("arm:")) return armPage(world, ref);
   // The arm one man bore in a battle (Phase 55 M228): his own, made by his seat's maker then.
   if (ref.startsWith("arms:")) return armsPage(world, ref);
+  // A ship of a fleet drawn, its fate carried in its ref (Phase 67).
+  if (ref.startsWith("ship:")) return shipPage(world, ref);
   if (ref.startsWith("gstar:")) return starPageModel(world, ref);
   if (ref.includes("/")) return foreignWorldPage(world, ref);
   if (ref.startsWith("agent:")) return agentPage(world, ref);

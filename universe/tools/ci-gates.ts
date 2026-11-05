@@ -261,6 +261,11 @@ export const GATES: readonly Gate[] = [
   // its fliers, its made folk; a battle in beams; a colony on a world remade, its remaking played in the
   // film of its landing, and one still sealed.
   { gate: 66, args: ["--ci"], s: 420 },
+  // The Phase 67 gate: the wars among the stars watched: the title's row; a raid's fleets over its world,
+  // pause, scrub, a ship tapped; its landers on the town and the fight in the streets, a raider and a
+  // defender tapped; the town left live, history untouched; the list under the ⚔️, a war's page, the director.
+  // It runs "tide 207" until it holds a fought war and a won raid.
+  { gate: 67, args: ["--ci"], s: 600 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */

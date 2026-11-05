@@ -153,6 +153,7 @@ import {
   installColonyTowns,
   sealedPlan,
 } from "./colony.ts";
+import { STARFIGHT_QUERIES } from "./starfight.ts";
 import { HELD_QUERIES } from "./held.ts";
 import { SEARCH_QUERIES } from "./search.ts";
 import { takenWordsOf, type NamesArg } from "./names.ts";
@@ -1386,6 +1387,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
       // One of a town's people possessed (Phase 60): the small world about him, stepped ahead.
       ...POSSESS_QUERIES,
       ...COLONY_QUERIES,
+      // The fights among the stars as the record has them (Phase 67).
+      ...STARFIGHT_QUERIES,
       /** A colony's town at a few years of its growth, as it stood: for a film of it. */
       "colony.growth": (world, args) => {
         const a = args as { cell: number; frames: number; axis: number; most: number };

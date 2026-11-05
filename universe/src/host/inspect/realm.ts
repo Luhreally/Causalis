@@ -866,6 +866,15 @@ export function starWarPage(world: World, ref: string): PageModel {
               ...(w.ended ? [stat("Ended", [link(claimOf(world, w.ended), w.ended)])] : []),
             ],
           },
+          ...(w.won !== null
+            ? [
+                {
+                  type: "tool" as const,
+                  tool: "watch.starfight",
+                  args: { id: w.ref, label: "▶ Watch it" },
+                },
+              ]
+            : []),
           { type: "why", ref: w.event },
         ],
       },

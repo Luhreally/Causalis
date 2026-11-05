@@ -2,6 +2,19 @@
 // the client, the worker port and the in-thread pair. May import: kernel.
 // See README.md and docs/architecture/universe-architecture.md §30.
 export type { BrushKind, BrushStrokeArgs, BrushPreview, BrushState } from "./brush.ts";
+export type {
+  FightArm,
+  FightDrive,
+  FightPlace,
+  FightRgb,
+  FightRoad,
+  FightSide,
+  FightSky,
+  StarFightEntry,
+  StarFightList,
+  StarFightPlan,
+  StarLanding,
+} from "./starfight.ts";
 export { HostClient, type CommandReceipt } from "./client.ts";
 export {
   frameTransfer,

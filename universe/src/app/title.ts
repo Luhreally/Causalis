@@ -158,6 +158,12 @@ const BEGINNINGS = [
     "Ages past ours",
     `Earth, “${PAST_SEED}”, the year ${PAST_YEAR.toLocaleString("en")}: its star gathered, its land built over from shore to shore, machines in its streets, beams in its wars. You begin in its greatest town.`,
   ],
+  [
+    "starwar",
+    "🌌",
+    "Wars among the stars",
+    `Earth, “${PAST_SEED}”, the year ${PAST_YEAR.toLocaleString("en")}: fleets over a world, beams and wreckage, and a town its raiders came down on, all as history records them. Played for you, then you in that town.`,
+  ],
 ] as const;
 
 /**
@@ -298,6 +304,15 @@ export function showTitle(options: TitleOptions): void {
       () => go(`?universe=earth&seed=${encodeURIComponent(PAST_SEED)}&year=${PAST_YEAR}&past=1`),
     );
     past.classList.add("past-choice");
+    // (The wars among the stars, a tap away, played as soon as the world is there: Phase 67.)
+    const wars = choice(
+      "🌌",
+      "Wars among the stars",
+      `fleets over a world and a town raided, from Earth “${PAST_SEED}” in the year ${PAST_YEAR.toLocaleString("en")}`,
+      () => go(`?universe=earth&seed=${encodeURIComponent(PAST_SEED)}&year=${PAST_YEAR}&starwar=1`),
+    );
+    wars.classList.add("starwar-choice");
+    list.append(wars);
     list.append(past);
     void bakedWorlds().then((worlds) => {
       const has = worlds.find(
@@ -520,10 +535,10 @@ export function showTitle(options: TitleOptions): void {
         pick(beginnings, id);
         yearRow.hidden = id !== "year";
         // (The world a deploy ran ahead, so it is there in moments: the seed can be changed after.)
-        if (id === "landing" || id === "past") {
+        if (id === "landing" || id === "past" || id === "starwar") {
           kind = "earth";
           pick(kinds, kind);
-          seed.value = id === "past" ? PAST_SEED : "first light";
+          seed.value = id === "landing" ? "first light" : PAST_SEED;
           void tell();
         }
         sayYear();
@@ -573,7 +588,9 @@ export function showTitle(options: TitleOptions): void {
                   ? `${at}&year=${LANDING_YEAR}&landing=1`
                   : begin === "past"
                     ? `${at}&year=${PAST_YEAR}&past=1`
-                    : at,
+                    : begin === "starwar"
+                      ? `${at}&year=${PAST_YEAR}&starwar=1`
+                      : at,
       );
     };
     start.onclick = () => void begun();

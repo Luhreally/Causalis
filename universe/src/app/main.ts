@@ -23,6 +23,7 @@ import {
   VILLAGE_METRE,
   GalaxyScene,
   colonyMaterials,
+  fleetMaterials,
   galaxyMaterial,
   skyMaterials,
   VillageScene,
@@ -70,6 +71,7 @@ import {
   NamesSwitch,
   Alerts,
   Colonies,
+  StarWars,
   ArmsBook,
   EventWindows,
   GodPalette,
@@ -122,6 +124,7 @@ import type {
   ColonyEntry,
   ColonyLook,
   ColonyVoyage,
+  StarFightList,
 } from "../bridge/index.ts";
 import { nearestCell, sphereGrid, yearOfMoment } from "../kernel/index.ts";
 
@@ -133,6 +136,7 @@ import {
   colonySky,
   newDirector,
   nextTake,
+  starFightTake,
   untold,
   type Director,
   type Take,
@@ -298,6 +302,7 @@ import { deviceTier } from "./tier.ts";
 import { installHeld, type HeldField } from "./held.ts";
 import { installPossession } from "./possess.ts";
 import { installColonyFilm, type ColonyFilm } from "./colony-film.ts";
+import { installFleetFilm, type FleetFilm } from "./fleet-film.ts";
 // (Anyone's family and body on their card, a war's soldiers named from its roll: Phase 55 wave 5.)
 import { kinLines } from "../ui/index.ts";
 import { seatRef, type KinCard, type StruckMember, type StruckNow } from "../bridge/index.ts";
@@ -805,6 +810,9 @@ type Exposed = {
   /** How many halls stand on the world seen whole (M95: halls from orbit). */
   hallsShown?: () => number;
   colonyFilm?: ColonyFilm;
+  fleetFilm?: FleetFilm;
+  /** A page opened by its ref (the look tools). */
+  pageWindowOpen?: (ref: string) => void;
   planNow?: () => VillagePlan | null;
   closePage?: () => void;
   watched?: () => number | null;
@@ -1320,6 +1328,7 @@ async function runPlanetPage(): Promise<void> {
       ...weather.materials(),
       ...handNear.materials(),
       ...colonyMaterials(stage),
+      ...fleetMaterials(stage),
       { material: galaxyMaterial() },
     ],
     true,
@@ -3566,6 +3575,8 @@ async function runPlanetPage(): Promise<void> {
   let skyFilmed: number | null = null;
   /** A colony's landing watched (Phase 64). */
   let colonyFilm: ColonyFilm | null = null;
+  /** A fight among the stars watched (Phase 67). */
+  let fleetFilm: FleetFilm | null = null;
   /** Every scale put away, for a film or a list to go on from. */
   const allAway = () => {
     leaveScale();
@@ -4817,6 +4828,8 @@ async function runPlanetPage(): Promise<void> {
   // its men mustering and marching out; before its land's heart, the hosts drawn up and fighting,
   // the siege, the storm — drawn as its land plays it, and told on a line under its bar.
   stage.onUpdate(() => {
+    // (A raid being played again holds the town's war: Phase 67.)
+    if (fleetFilm?.townHeld) return;
     const spot =
         scale === "village" && plan ? (plan.spot ?? centres.get(plan.cell ?? -1)) : undefined,
       tw =
@@ -7348,7 +7361,11 @@ async function runPlanetPage(): Promise<void> {
     const t = now(),
       // A town watched growing (days, months, years a second): its people at their morning's
       // work and its sky by day, not a day's round flashing by in every frame.
-      seen = time.lapse ? Math.floor(t / DAY) * DAY + 10 * 3600 : t;
+      seen = fleetFilm?.townHeld
+        ? Math.floor(t / DAY) * DAY + fleetFilm.hour * DAY
+        : time.lapse
+          ? Math.floor(t / DAY) * DAY + 10 * 3600
+          : t;
     stage.daylight(
       plan.colony
         ? colonyHour(plan.colony, time.lapse ? 0 : seen - colonyFrom)
@@ -7360,11 +7377,14 @@ async function runPlanetPage(): Promise<void> {
       kept = placed ? battleShelter(placed.turn) : null;
     village.update(
       seen,
-      kept && seen >= kept.from && seen < kept.to
-        ? { ...kept, all: true }
-        : sky
-          ? downpourAt(sky, seen, time.pace)
-          : null,
+      // (All indoors while raiders are in the streets: Phase 67.)
+      fleetFilm?.townHeld
+        ? { from: seen - 3600, to: seen + 3600, all: true }
+        : kept && seen >= kept.from && seen < kept.to
+          ? { ...kept, all: true }
+          : sky
+            ? downpourAt(sky, seen, time.pace)
+            : null,
       !time.lapse,
     );
     // The town's stores and its work today (Phase 39 M198), as they are told.
@@ -8181,12 +8201,102 @@ async function runPlanetPage(): Promise<void> {
   };
   if (params.has("past") && !loaded) void firstPast();
   exposed.colonyFilm = colonyFilm;
+  // A fight among the stars watched (Phase 67, asked for 2026-11-03: "i wanna see the star wars and
+  // landing in planets and colonization and all that stuff"), and the list of them under the ⚔️.
+  fleetFilm = installFleetFilm({
+    stage,
+    hud,
+    canvas,
+    client,
+    time,
+    rig,
+    village,
+    toHomeWorld: async () => {
+      allAway();
+      regionCell = -1;
+      toGlobe();
+      return globe;
+    },
+    toForeignWorld: async (star, planet) => {
+      allAway();
+      regionCell = -1;
+      stage.backdrop("space");
+      const page = await client.query<StarPage>({ type: "galaxy.star", args: { ref: star } });
+      skyStar = page;
+      await toForeignWorld(page, planet, "star");
+    },
+    toDark: () => {
+      allAway();
+      regionCell = -1;
+      stage.backdrop("space");
+    },
+    toTown: toColonyTown,
+    cut: (what, work) => fadeOver(() => ready(what, work, true)),
+    plan: () => (scale === "village" ? plan : null),
+    toOrbit: () => {
+      setRoam("orbit");
+      endWar();
+      endWarAge();
+    },
+    openPage: (ref) => void pageWindow.open(ref),
+    pageOpen: () => !!pageWindow.current,
+    busy: () => !!colonyFilm?.playing,
+    overlays: (on) => {
+      globeWars.root.enabled = on;
+    },
+    say: (words) => colonies.say(words),
+    hush: () => colonies.hush(),
+  });
+  exposed.fleetFilm = fleetFilm;
+  exposed.pageWindowOpen = (ref) => void pageWindow.open(ref);
+  const starWars = new StarWars(hud);
+  starWars.onWatch = (id) => void fleetFilm!.play(id);
+  starWars.onPage = (ref) => {
+    starWars.show(false);
+    void pageWindow.open(ref);
+  };
+  starWars.onShown = () => pageWindow.close();
+  pageWindow.onStarFight = (id) => {
+    pageWindow.close();
+    void fleetFilm!.play(id);
+  };
+  tidings.onStarFight = (id) => void fleetFilm!.play(id);
+  // Begun at the wars among the stars (?starwar, the title's way to them): the one best to watch, played
+  // once the world stands; then the eye is where it ended.
+  const firstStarWar = async () => {
+    const fights = await client.query<StarFightList>({ type: "star.fights" });
+    if (!fights.best) {
+      colonies.say("🌌 No fleet has fought among the stars here yet: it is still to come.");
+      return;
+    }
+    // (Its clock held while the world is taken up: years go by on the world's own speed otherwise.)
+    client.setSpeed(0);
+    await fleetFilm!.play(fights.best);
+    if (params.has("hold")) return;
+    // (Then the town as it stands now, at dusk and slowly: its windows coming on, the eye the viewer's.)
+    const dusk = Math.floor(now() / DAY) * DAY + 18 * 3600;
+    if (dusk > now()) await client.advance(Math.round(dusk));
+    client.setSpeed(60);
+  };
+  if (params.has("starwar") && !loaded) void firstStarWar();
   // (Beside it, the world's wars of the last hundred years watched unfolding: M194.)
   const warsButton = el("button", "director-button wars-button", "⚔️");
   warsButton.title =
     "The world's wars: the bloodiest of the last hundred years played again at once, each host marching from battle to battle";
   warsButton.setAttribute("aria-label", "Watch the world's wars");
-  warsButton.onclick = () => void (warAge ? endWarAge() : watchWarAge());
+  // (Where wars have been fought among the stars, the ⚔️ lists them, the world's wars first: Phase 67.)
+  warsButton.onclick = () => {
+    if (warAge) return void endWarAge();
+    if (starWars.shown) return starWars.show(false);
+    void client
+      .query<StarFightList>({ type: "star.fights" })
+      .catch(() => null)
+      .then((fights) => {
+        if (fights?.total) starWars.show(true, fights);
+        else void watchWarAge();
+      });
+  };
+  starWars.onAge = () => void watchWarAge();
   directorControls.button.after(warsButton);
   let director: Director | null = null,
     take: Take | null = null,
@@ -8204,6 +8314,9 @@ async function runPlanetPage(): Promise<void> {
   const film = async (next: Take): Promise<void> => {
     const s = next.shot;
     switch (s.kind) {
+      case "starfight":
+        await fleetFilm!.play(s.id);
+        return;
       case "first": {
         // (The first landing on another world: played from its crossing, not only flown to.)
         const landing = s.first.ref ? await landingOfEvent(s.first.ref) : null;
@@ -8298,7 +8411,15 @@ async function runPlanetPage(): Promise<void> {
                 .map((b) => ({ event: b.event, year: b.year, fallen: b.fallen })),
             )
           : [],
-        next = nextTake(director, firsts, towns.slice(0, 12), peopled, battles);
+        fights = await client.query<StarFightList>({ type: "star.fights" }).catch(() => null),
+        star = fights ? starFightTake(director, fights, Math.floor(now() / YEAR)) : null,
+        next: Take = star
+          ? {
+              shot: { kind: "starfight", id: star.id, year: star.year },
+              seconds: 6,
+              words: star.words,
+            }
+          : nextTake(director, firsts, towns.slice(0, 12), peopled, battles);
       directorControls.tell(next.words);
       take = next;
       takeUntil = Infinity;

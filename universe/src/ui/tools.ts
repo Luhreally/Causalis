@@ -17,6 +17,8 @@ export type ToolContext = {
   readonly watch?: (cell: number, town: string) => void;
   /** A colony's landing played again (Phase 64). */
   readonly landing?: (cell: number) => void;
+  /** A fight among the stars played again (Phase 67). */
+  readonly starFight?: (id: string) => void;
   /** Go down among a band of a land's camp (Phase 29 M160). */
   readonly near?: (cell: number, camp: number) => void;
   /** Watch a battle fought (Phase 37 M186). */
@@ -193,6 +195,15 @@ export function drawTool(
       b.title =
         "Its ship's crossing, its coming down on its engines on this very ground, the first halls set up, and the years going by as they grow into what stands there now: played again on a clock of its own, the world's held.";
       b.onclick = () => ctx.landing!(args.cell as number);
+      into.append(b);
+      return;
+    }
+    case "watch.starfight": {
+      if (!ctx.starFight) return;
+      const b = el("button", "act", (args.label as string | undefined) ?? "▶ Watch it");
+      b.title =
+        "The fleets over that world and, where the record carries it down, the landers on the town: played again on a clock of its own, the world's held. Hold it still, draw it back and forth, tap any ship.";
+      b.onclick = () => ctx.starFight!(args.id as string);
       into.append(b);
       return;
     }

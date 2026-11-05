@@ -38,7 +38,9 @@ export type Shot =
       readonly event: string;
       readonly year: number;
       readonly fallen: number;
-    };
+    }
+  /** A fight among the stars played from the record (Phase 67). */
+  | { readonly kind: "starfight"; readonly id: string; readonly year: number };
 
 /** A battle of the world, as its wars' map tells it: its event, its year, how many fell in it. */
 export type BattleSeen = { readonly event: string; readonly year: number; readonly fallen: number };
@@ -50,7 +52,13 @@ export type Take = { readonly shot: Shot; readonly seconds: number; readonly wor
  * What the eye has told so far, how far round the world's life it has gone, and at which turn of
  * it it last went down onto a battle's field.
  */
-export type Director = { readonly told: Set<string>; round: number; battled: number };
+export type Director = {
+  readonly told: Set<string>;
+  round: number;
+  battled: number;
+  /** The turn of the round a fight among the stars was last filmed at (Phase 67). */
+  starred?: number;
+};
 
 /** How long each kind of shot is held. */
 const HOLD: Readonly<Record<Shot["kind"], number>> = {
@@ -62,6 +70,7 @@ const HOLD: Readonly<Record<Shot["kind"], number>> = {
   world: 16,
   // (From the charge to the field won, at twice its pace.)
   battle: 48,
+  starfight: 6,
 };
 
 /** How many must fall in a battle for the eye to go down to it; how many turns of the round between two. */

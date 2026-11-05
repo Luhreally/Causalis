@@ -13,6 +13,8 @@ export { MicroScene } from "./micro.ts";
 export { ParadeScene } from "./parade.ts";
 export { FLIER_UP, MeadowScene, groundOfLook } from "./meadow.ts";
 export { ColonyLayer, ShipMark, colonyMaterials, domeMesh } from "./colony.ts";
+export { FleetLayer, fleetMaterials } from "./fleet.ts";
+export { InvasionLayer } from "./invasion.ts";
 export { BattleLayer } from "./battle.ts";
 export { BandLayer } from "./band.ts";
 export { WeatherLayer } from "./weather.ts";
