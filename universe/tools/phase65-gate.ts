@@ -122,7 +122,7 @@ try {
   // 2. Earth-like, Other stars: those run say the year; those read say "Plausibly", and are kept apart.
   await page.tap(".pick-age[data-id='stars']");
   await until("the worlds that reached the stars", async () =>
-    (await text(".pick-reached")).includes("Reached in year"),
+    /Reached in (about )?year/.test(await text(".pick-reached")),
   );
   const runRows = await page.$$eval(".pick-run", (rows) =>
     rows.map((r) => ({
@@ -142,7 +142,7 @@ try {
       c?.ages.stars?.year === r.year,
       `${r.seed} says year ${r.year}, its run ${c?.ages.stars?.year}`,
     );
-    check(/Reached in year/.test(r.words), `${r.seed} does not say it was reached`);
+    check(/Reached in (about )?year/.test(r.words), `${r.seed} does not say it was reached`);
     check(/minute|hour/.test(r.words), `${r.seed} does not say how long it takes`);
   }
   say(`Earth-like, Other stars: ${runRows.map((r) => `${r.seed} ${r.year}`).join(", ")}`);
@@ -188,7 +188,7 @@ try {
   await page.tap(".picker .choice:has-text('Never seen')");
   await page.tap(".pick-age[data-id='engines']");
   await until("alien worlds that reached engines", async () =>
-    (await text(".pick-reached")).includes("Reached in year"),
+    /Reached in (about )?year/.test(await text(".pick-reached")),
   );
   const alienRows = await page.$$eval(".pick-run", (rows) => rows.map((r) => r.textContent ?? ""));
   check(
