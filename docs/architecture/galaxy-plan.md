@@ -10,7 +10,8 @@ colonization and all that stuff"; "i wanna be able to pick seeds that plausibly 
 i wanna see"; "im fine with some loading screen, i prefer not if the performance and optimization is
 good enough".
 
-This comes before the brush follow-up and the rest of the Classic list. Classic's war aims, coin and
+From Phase 67 on these phases alternate with lives-plan.md (leaders, wealth, living as anyone, courts,
+the rest of OG). This comes before the brush follow-up. Classic's war aims, coin and
 markets, diplomacy and lost knowledge are built inside Phases 71–72, not twice.
 
 ## Where it stood (2026-11-03, commit 79682c6; one run each of tools/sky-survey.ts)
