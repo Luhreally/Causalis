@@ -40,7 +40,12 @@ export type FightSide = {
 
 /** Where it was fought: a world of another star, or over a land of the home world. */
 export type FightPlace =
-  | { readonly kind: "foreign"; readonly star: string; readonly planet: number; readonly words: string }
+  | {
+      readonly kind: "foreign";
+      readonly star: string;
+      readonly planet: number;
+      readonly words: string;
+    }
   | { readonly kind: "home"; readonly cell: number; readonly spot: number; readonly words: string };
 
 /** A raid that came down: the only kind of star war the record carries to the ground. */
