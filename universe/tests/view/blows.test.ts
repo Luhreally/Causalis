@@ -291,7 +291,8 @@ test("the blows of a battle are its own (recorded with the fuller severing pass,
   // (The fuller severing pass changes the dead's loose parts; outcomes and wound totals stay pinned above.)
   if (!recorded) return;
   assert.equal(digest(rounded(newBlows(BLADES()))), "5d0553c8");
-  assert.equal(digest(rounded(newBlows(GUNS()))), "58ba602f");
+  // (GUNS is machine guns against repeaters: past the rifle, so fought by fire since W1b. BLADES is unmoved.)
+  assert.equal(digest(rounded(newBlows(GUNS()))), "181a5f83");
 });
 
 test("arrows stick where they strike; a cannon's ball and a shell knock men off their feet", () => {
@@ -307,7 +308,8 @@ test("arrows stick where they strike; a cannon's ball and a shell knock men off 
     b = newBlows(f),
     of = (side: 0 | 1, st: string) => count(b.hits, (h) => h.side === side && h.striker === st);
   // The machine guns' host fired shells (smokeless powder), the repeaters' cannon balls.
-  assert.deepEqual([of(0, "ball"), of(1, "shell")], [14, 21]);
+  // (Their guns fire until the day is decided since W1b, not until the lines meet.)
+  assert.deepEqual([of(0, "ball"), of(1, "shell")], [22, 24]);
   assert.deepEqual([of(0, "shell"), of(1, "ball")], [0, 0]);
   for (const h of b.hits.filter((x) => x.striker === "ball" || x.striker === "shell")) {
     assert.ok(!h.back, "the ordnance's hits are among the dead");

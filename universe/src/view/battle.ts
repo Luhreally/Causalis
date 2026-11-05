@@ -13,7 +13,7 @@
 import type { BattleNear } from "../bridge/index.ts";
 import { BLOW_PLACES, type BlowPlace } from "../rules/index.ts";
 import { armLook, isGun, type Stroke } from "./arms.ts";
-import { hostOrder } from "./order.ts";
+import { fireOrder, hostOrder, shellsWalls } from "./order.ts";
 import { cellMiddle, type MeadowState } from "./meadow.ts";
 
 export type { Stroke } from "./arms.ts";
@@ -136,6 +136,30 @@ const RUSH = { bounds: 5, cycle: 6, long: 2.2, apart: 3, shift: 0.6, gun: 0.4 } 
  * are (s), the most shots a side fires in a second, and the most rounds it looses in all.
  */
 const SHOTS = { flight: 0.15, burst: 0.09, most: 12, rounds: 700 } as const;
+
+/**
+ * A battle by fire (W1b), in field metres: the most the hosts stand apart and the least, where their ground's
+ * middle lies, how far the attackers come on in bounds before they go to ground (their depth, and the room
+ * behind them, set the most), how far on they get as the fight goes (the side that wins it, the side that does
+ * not), how many further bounds that takes and how much of each is the rush; how far before their own forward
+ * edge the cars stand; a shell's flight (s) and how long its burst hangs (s).
+ */
+const FIRE = {
+  most: 50,
+  least: 14,
+  middle: 4,
+  come: 18,
+  depth: 30,
+  won: 0.4,
+  lost: 0.1,
+  bounds: 3,
+  rush: 0.28,
+  car: 8,
+  shell: 0.35,
+  burst: 2.4,
+} as const;
+/** Of a host that closes under fire, the share of its dead that fall at the end, at the foe. */
+const CLOSED_SHARE = 0.12;
 
 /**
  * What one who fought is at ("prone": down in the grass between rushes, firing; Phase 53 M220).
@@ -315,6 +339,8 @@ export type Trooper = {
   gate: boolean;
   /** Their own draw (0 … 1): their step, their pace. */
   readonly u: number;
+  /** How far behind their host's forward edge they stand, in their squad (m; a battle by fire: W1b. Absent: by their rank). */
+  readonly off?: number;
   /** Of a machine gun's team, at its tripod (Phase 53 M220; absent: they bear their own arm). */
   gun?: true;
   /** Where they lie, once worked out (they lie where they fell). */
@@ -366,6 +392,21 @@ export type BattleGround = {
   readonly trench?: { readonly x: number; readonly w: number; readonly depth: number };
 };
 
+/** A battle fought by fire, past the rifle (W1b): what its hosts' orders make of it (view/order.ts fireOrder), on this field. */
+export type FireBattle = {
+  /** Which sides stand off and fire; the other, if either, comes on and closes. */
+  readonly stands: readonly [boolean, boolean];
+  /** How far apart their forward edges stand when the fight is joined (m), and how far that is on the ground it is seen on (true metres). */
+  readonly apart: number;
+  readonly metres: number;
+  /** Each host's forward edge when it is joined (x). */
+  readonly line: readonly [number, number];
+  /** The attackers' forward edge as they draw up (x). */
+  readonly start: number;
+  /** Where the shells land: when, and where (m). */
+  readonly bursts: readonly { readonly at: number; readonly x: number; readonly z: number }[];
+};
+
 export type BattleField = {
   readonly near: BattleNear;
   /** How many men a figure stands for. */
@@ -403,6 +444,8 @@ export type BattleField = {
   readonly wings: { readonly side: 0 | 1; readonly z: number } | null;
   /** The armoured cars of both sides (Phase 53 M220; absent: none). */
   readonly vehicles?: readonly Vehicle[];
+  /** Fought by fire, past the rifle (W1b; absent: the hosts close to the hand, as they always have). */
+  readonly fire?: FireBattle;
   /**
    * Fought before a town in its own scene (Phase 55 M227): on the town's flat ground, with no ridge or
    * river of its own; the beaten defenders fly to either flank, or in behind their walls, out of
@@ -592,6 +635,9 @@ export function newBattle(near: BattleNear, most: number, placed = false): Battl
     per = Math.max(1, Math.ceil(Math.max(a.fielded, d.fielded, 1) / most)),
     beaten: 0 | 1 = near.won ? 1 : 0,
     walls = near.walls > 0,
+    // (Past the rifle, how each host's order would have it fought. W1b.)
+    fireBy = fireOrder(a.host, d.host, walls),
+    scale = placed ? PLACED_SCALE : 1,
     ground: BattleGround = {
       // (Before a town the ground is the town's own, flat: no ridge or river of the field's.)
       hill: near.hills && !walls && !placed ? { x: 18, rx: 17, rz: 52, h: 3.6 } : null,
@@ -604,10 +650,13 @@ export function newBattle(near: BattleNear, most: number, placed = false): Battl
   const drawnOf = (s: typeof a, side: 0 | 1): HostDrawn => {
     const n = Math.max(1, Math.round(s.fielded / per)),
       look = armLook(s.host?.arm),
-      // (In open order a host fights on foot: the magazine's riders dismount to it.)
-      open = look.order === "open",
       // (Behind its walls a seat's defenders stand them on foot, their horses within.)
       mount = side === 1 && walls ? undefined : s.host?.mount,
+      rides = mount === "chariot" || mount === "horse" || mount === "cavalry",
+      // (In open order a host fights on foot: the magazine's riders dismount to it. Those on foot with
+      // nothing to answer fire with come on apart as well; those who ride still ride at it.)
+      open =
+        look.order === "open" || (!rides && !hostOrder(s.host, (side === 0 ? d : a).host).line),
       mounted: HostDrawn["mounted"] = open
         ? null
         : mount === "chariot"
@@ -654,20 +703,61 @@ export function newBattle(near: BattleNear, most: number, placed = false): Battl
     };
   };
   const hosts = [drawnOf(a, 0), drawnOf(d, 1)] as const;
+  // How far apart the hosts stand to fight, as far as the field has room behind them. (W1b.)
+  const fixedFront = ground.wall ? ground.wall.x : ground.river ? 9.4 : ground.hill ? 9 : null,
+    roomed = (front: number) => front + FIELD.x - FIRE.depth - FIRE.come,
+    apartBy = fireBy
+      ? Math.max(
+          FIRE.least,
+          Math.min(
+            fireBy.off / scale,
+            FIRE.most,
+            fixedFront === null ? FIRE.most : roomed(fixedFront),
+          ),
+        )
+      : 0;
   // Where the lines meet: at the defenders' front (before their walls, on their ridge's brow,
-  // past the river), and how far the victors drive the beaten before they break.
-  const meet = ground.wall ? ground.wall.x - 1.3 : ground.river ? 8.4 : ground.hill ? 8 : 6,
+  // past the river), and how far the victors drive the beaten before they break. (Fought by fire on
+  // open ground, the defenders' front so that the two hosts lie about the field's middle.)
+  const meet = ground.wall
+      ? ground.wall.x - 1.3
+      : ground.river
+        ? 8.4
+        : ground.hill
+          ? 8
+          : fireBy
+            ? FIRE.middle + apartBy / 2 - 1
+            : 6,
     // (The defenders in open order dig a trench where they stand, in the open (Phase 53 M220): it
-    // holds, so the lines do not drive.)
-    trench = hosts[1].open && !walls ? { x: meet + 1, w: 0.7, depth: 1.25 } : undefined,
-    drive = ground.wall || trench || near.combat?.broken === -1 ? 0 : near.won ? 5 : -5;
+    // holds, so the lines do not drive. Those with nothing to fire do not dig in: they charge.)
+    trench =
+      hosts[1].open && !walls && (!fireBy || fireBy.stands[1])
+        ? { x: meet + 1, w: 0.7, depth: 1.25 }
+        : undefined,
+    drive = ground.wall || trench || near.combat?.broken === -1 ? 0 : near.won ? 5 : -5,
+    fireFront = meet + 1,
+    fireLine0 = fireFront - apartBy,
+    fire: FireBattle | null = fireBy
+      ? {
+          stands: fireBy.stands,
+          apart: apartBy,
+          metres: apartBy * scale,
+          line: [fireLine0, fireFront],
+          start: fireLine0 - FIRE.come,
+          bursts: [],
+        }
+      : null;
   // Each one in their rank and file.
   const troopers: Trooper[] = [];
   for (const side of [0, 1] as const) {
     const h = hosts[side],
       gap = gapOf(h).file,
       // (A machine gun's team: the first two ranks, every third file, are its gunners.)
-      team = armLook((side === 0 ? a : d).host?.arm).team !== undefined;
+      team = armLook((side === 0 ? a : d).host?.arm).team !== undefined,
+      // (Fought by fire, those who stand off stand by squads: four to a block, drawn together, the
+      // blocks out of true.)
+      squads = !!fire && fire.stands[side],
+      within = Math.min(gap, 3.5 / scale + 0.6);
     for (let i = 0; i < h.n; i++) {
       const file = i % h.files,
         rank = Math.floor(i / h.files),
@@ -675,13 +765,29 @@ export function newBattle(near: BattleNear, most: number, placed = false): Battl
         inRank = rank === h.ranks - 1 ? h.n - rank * h.files : h.files,
         across = (file - (inRank - 1) / 2) * gap,
         u = unit(key + side * 7919, i),
-        gun = team && rank < 2 && file % 3 === 1;
+        gun = team && rank < 2 && file % 3 === 1,
+        block = Math.floor(file / 2) * 37 + Math.floor(rank / 2),
+        // (A block's own place: it stands off the grid by its own draw.)
+        blockZ = squads
+          ? across +
+            ((file % 2 ? -0.5 : 0.5) * (gap - within) +
+              (unit(key + 6100 + side, block) - 0.5) * gap * 0.7)
+          : across,
+        blockBack = squads
+          ? rank * gapOf(h).rank +
+            (side === 1 && trench && rank === 0
+              ? 0
+              : unit(key + 6200 + side, block) * gapOf(h).rank * 1.5)
+          : 0;
       troopers.push({
         id: troopers.length,
         side,
         file,
         rank,
-        z: Math.max(-FIELD.z + 3, Math.min(FIELD.z - 3, across + (u - 0.5) * gap * 0.3)),
+        z: Math.max(
+          -FIELD.z + 3,
+          Math.min(FIELD.z - 3, blockZ + (u - 0.5) * gap * (squads ? 0.12 : 0.3)),
+        ),
         // (Those in open order carry no banners.)
         bearer:
           !h.open && rank === 1 % h.ranks && (file === Math.floor(inRank / 2) || file % 14 === 7),
@@ -691,6 +797,7 @@ export function newBattle(near: BattleNear, most: number, placed = false): Battl
         pursues: false,
         gate: false,
         u,
+        ...(squads ? { off: blockBack } : {}),
         ...(gun ? { gun: true as const } : {}),
       });
     }
@@ -702,8 +809,9 @@ export function newBattle(near: BattleNear, most: number, placed = false): Battl
     ),
     wider: 0 | 1 = reach[0]! >= reach[1]! ? 0 : 1,
     narrow = reach[wider === 0 ? 1 : 0]!,
+    // (Fought by fire, no one wheels about a flank.)
     wings =
-      !ground.wall && !ground.river && reach[wider]! > narrow + 6
+      !fire && !ground.wall && !ground.river && reach[wider]! > narrow + 6
         ? { side: wider, z: narrow + 1.5 }
         : null;
   // At a seat's walls, the attackers' ladders along their front, either side of the gate: raised
@@ -781,19 +889,70 @@ export function newBattle(near: BattleNear, most: number, placed = false): Battl
       ),
     ),
     arrows: [],
-    cannon: cannonOf(near, key),
+    cannon: cannonOf(near, key, fire),
     ladders,
     beaten,
     ground: trench ? { ...ground, trench } : ground,
     meet,
     drive,
-    moments: momentsOf(near, wings, vehicles, trench !== undefined),
+    moments: momentsOf(near, wings, vehicles, trench !== undefined, fire),
     wings,
     ...(vehicles.length ? { vehicles } : {}),
+    ...(fire ? { fire } : {}),
     ...(placed ? { placed: true as const } : {}),
   };
   fates(field, key);
+  if (fire) (fire as { bursts: FireBattle["bursts"] }).bursts = burstsOf(field, key);
   return field;
+}
+
+/**
+ * Whether the shots that strike a side come from afar for as long as the fight goes (W1b): its foe stands off
+ * and fires, so those it runs from it shoots down, and nothing of it is struck by the hand unless it closes.
+ */
+export function firedOn(field: BattleField, side: 0 | 1): boolean {
+  return !!field.fire?.stands[side === 0 ? 1 : 0];
+}
+
+/** Where a battle's middle is: between its hosts where they fight by fire, else where the lines meet (x). */
+export function fieldMiddle(field: BattleField): number {
+  return field.fire ? (field.fire.line[0] + field.fire.line[1]) / 2 : field.meet;
+}
+
+/**
+ * Where each shell of a battle by fire lands: on one struck down from afar about then, else on the ground its
+ * target holds (a look: view/blows.ts tells its own few as a shell's).
+ */
+function burstsOf(field: BattleField, key: number): FireBattle["bursts"] {
+  const out: { at: number; x: number; z: number }[] = [],
+    taken = new Set<number>();
+  for (const [ci, c] of field.cannon.entries()) {
+    const foe = c.side === 0 ? 1 : 0,
+      line = field.fire!.line[foe],
+      way = foe === 0 ? -1 : 1;
+    for (const [j, f] of c.fires.entries()) {
+      const at = f + FIRE.shell;
+      let hit: Trooper | null = null;
+      for (const t of field.troopers) {
+        if (t.side !== foe || t.by !== "arrow" || taken.has(t.id)) continue;
+        if (Math.abs(t.falls! - at) < 0.8) {
+          hit = t;
+          break;
+        }
+      }
+      if (hit) {
+        taken.add(hit.id);
+        const p = placeAt(field, hit, hit.falls!);
+        out.push({ at: hit.falls!, x: p.x, z: p.z });
+      } else
+        out.push({
+          at,
+          x: line + way * (-4 + 30 * unit(key + 6300 + ci, j)),
+          z: (unit(key + 6400 + ci, j) - 0.5) * 2 * (FIELD.z - 6),
+        });
+    }
+  }
+  return out.sort((p, q) => p.at - q.at);
 }
 
 /**
@@ -801,7 +960,7 @@ export function newBattle(near: BattleNear, most: number, placed = false): Battl
  * on its flanks, firing as they come on and until the lines meet (at a seat, until its gate is
  * broken); the defenders' at their line (on their walls, at a seat), firing the while.
  */
-function cannonOf(near: BattleNear, key: number): Cannon[] {
+function cannonOf(near: BattleNear, key: number, fire: FireBattle | null): Cannon[] {
   const out: Cannon[] = [];
   for (const side of [0, 1] as const) {
     const s = side === 0 ? near.attacker : near.defender;
@@ -809,10 +968,24 @@ function cannonOf(near: BattleNear, key: number): Cannon[] {
     if (!s.cannon || armLook(s.host?.arm).beam) continue;
     const n = Math.max(2, Math.min(6, Math.round(Math.sqrt(s.fielded) / 6))),
       walls = near.walls > 0,
-      until = side === 0 && walls && near.outcome === "stormed" ? MOMENTS.gate : MOMENTS.melee - 2;
+      // (Fought by fire, they fire until it is decided, from behind their own host.)
+      until = fire
+        ? routAt(near) - 1
+        : side === 0 && walls && near.outcome === "stormed"
+          ? MOMENTS.gate
+          : MOMENTS.melee - 2;
     for (let i = 0; i < n; i++) {
       const across = (i - (n - 1) / 2) * 9 + (unit(key + side, i + 71) - 0.5) * 2,
-        x = side === 0 ? -40 - 3 * unit(key, i + 81) : walls ? 17 : 26 + 2 * unit(key, i + 91),
+        x =
+          fire && side === 0
+            ? Math.max(-FIELD.x + 2, fire.start - FIRE.depth) - 2 * unit(key, i + 81)
+            : side === 0
+              ? -40 - 3 * unit(key, i + 81)
+              : walls
+                ? 17
+                : fire
+                  ? fire.line[1] + FIRE.depth + 2 * unit(key, i + 91)
+                  : 26 + 2 * unit(key, i + 91),
         fires: number[] = [];
       for (let at = MOMENTS.advance + 4 + 3 * unit(key + side * 13, i); at < until;)
         fires.push((at += 3.5 + 2.5 * unit(key + i, Math.round(at * 10))));
@@ -838,6 +1011,7 @@ function momentsOf(
   wings: BattleField["wings"],
   vehicles: readonly Vehicle[],
   trench: boolean,
+  fire: FireBattle | null,
 ): { at: number; words: string }[] {
   const a = near.attacker.name,
     d = near.defender.name,
@@ -852,6 +1026,11 @@ function momentsOf(
     open = armLook(near.attacker.host?.arm).order === "open",
     // (An attacker that raises no ladders blows the gate: the self-loading rifle on.)
     blown = !armLook(near.attacker.host?.arm).ladders,
+    // (Both stand off and neither closes; or the defenders have nothing to answer with and charge. W1b.)
+    byFire = !!fire && fire.stands[0] && fire.stands[1],
+    charges = !!fire && !fire.stands[1],
+    shelled = shellsWalls(near.attacker.host?.arm),
+    victor = near.won ? a : d,
     firstKnock = vehicles.reduce<number | null>(
       (m, v) => (v.knocked !== null && (m === null || v.knocked < m) ? v.knocked : m),
       null,
@@ -880,19 +1059,27 @@ function momentsOf(
   out.push(
     {
       at: MOMENTS.charge,
-      words: near.walls
-        ? `${cap(a)} rush the walls`
-        : open
-          ? `${cap(a)} rise and rush the line`
-          : `${cap(a)} charge`,
+      words: byFire
+        ? `${cap(a)} go to ground ${fire!.metres.toFixed(0)} m off, and fire`
+        : charges
+          ? `${cap(d)} have nothing to answer with: they charge`
+          : near.walls
+            ? `${cap(a)} rush the walls`
+            : open
+              ? `${cap(a)} rise and rush the line`
+              : `${cap(a)} charge`,
     },
     {
       at: MOMENTS.melee,
-      words: near.walls
-        ? "They fight at the walls"
-        : trench
-          ? "They fight in the trench"
-          : "The lines meet",
+      words: byFire
+        ? "Neither host closes: it is fought out by fire, a bound at a time"
+        : charges
+          ? "Those who get there fight by the hand"
+          : near.walls
+            ? "They fight at the walls"
+            : trench
+              ? "They fight in the trench"
+              : "The lines meet",
     },
   );
   if (wings) {
@@ -914,13 +1101,19 @@ function momentsOf(
       near.outcome === "held"
         ? near.walls
           ? `${cap(a)} fall back from the walls`
-          : `${cap(a)} break and run`
+          : byFire
+            ? `${cap(a)} break and fall back under fire`
+            : `${cap(a)} break and run`
         : near.outcome === "siege"
           ? `${cap(d)} fall back behind their walls`
           : near.outcome === "stormed"
             ? `${cap(a)} pour into ${town}`
-            : `${cap(d)} break and run`,
+            : byFire
+              ? `${cap(d)} break and fall back under fire`
+              : `${cap(d)} break and run`,
   });
+  if (byFire && !near.walls && near.combat?.broken !== -1)
+    out.push({ at: routAt(near) + 3, words: `${cap(victor)} come on over the ground` });
   out.push({
     at: afterAt(near),
     words:
@@ -929,7 +1122,9 @@ function momentsOf(
         : near.outcome === "held"
           ? `The field is ${d}'s`
           : near.outcome === "siege"
-            ? `${cap(a)} make camp about ${town}: the siege is laid`
+            ? fire && shelled
+              ? `${cap(a)} dig in about ${town} and shell it: the siege is laid`
+              : `${cap(a)} make camp about ${town}: the siege is laid`
             : near.outcome === "stormed"
               ? `${cap(town)} is taken: it burns`
               : near.outcome === "taken"
@@ -975,11 +1170,23 @@ function fates(field: BattleField, key: number): void {
   const shares = (side: 0 | 1) => {
     const n = hosts[side]!.falls,
       other = side === 0 ? field.near.defender : field.near.attacker,
-      arrows = hosts[side === 0 ? 1 : 0]!.missiles
-        ? loosedShare(other.host?.arm)
-        : ground.wall && side === 0
-          ? 0.1
-          : 0,
+      fire = field.fire,
+      foe = side === 0 ? 1 : 0,
+      // (Fought by fire: all to what the other side looses. A host that closes under it loses most on
+      // the way, and few at the end; one it reaches is struck only then. W1b.)
+      arrows = fire
+        ? fire.stands[foe]
+          ? fire.stands[side]
+            ? 1
+            : 1 - CLOSED_SHARE
+          : hosts[foe]!.missiles
+            ? loosedShare(other.host?.arm)
+            : 0
+        : hosts[side === 0 ? 1 : 0]!.missiles
+          ? loosedShare(other.host?.arm)
+          : ground.wall && side === 0
+            ? 0.1
+            : 0,
       rout = side === beaten ? (ground.wall && beaten === 1 ? 0.15 : 0.32) : 0,
       // (Shot and rout never take more of the side than its falls.)
       byRout = Math.round(n * rout),
@@ -993,8 +1200,21 @@ function fates(field: BattleField, key: number): void {
     const s = shares(side),
       shooters = (side === 0 ? 1 : 0) as 0 | 1;
     // The arrows' dead, a share of each volley's; from the arms that fire without pause, spread
-    // over the fight instead.
-    if (fireOf(field.near, shooters) === "continuous") {
+    // over the fight instead (and, in a battle by fire, from any arm: up to when one that closes arrives).
+    if (field.fire) {
+      const until = field.fire.stands[side]
+        ? routAt(field) - 2
+        : Math.min(routAt(field) - 2, MOMENTS.melee);
+      for (let k = 0; k < s.arrow; k++)
+        deaths.push({
+          at:
+            MOMENTS.arrows +
+            2 +
+            Math.max(1, until - MOMENTS.arrows - 2) * Math.pow((k + 0.5) / s.arrow, 1.15),
+          side,
+          by: "arrow",
+        });
+    } else if (fireOf(field.near, shooters) === "continuous") {
       for (let k = 0; k < s.arrow; k++)
         deaths.push({
           at:
@@ -1050,12 +1270,21 @@ function fates(field: BattleField, key: number): void {
             ),
           ),
           time = start.at + (end.at - start.at) * fraction,
-          by =
+          fire = field.fire,
+          foe = side === 0 ? 1 : 0,
+          by: Death["by"] =
             record.rout !== null && time > record.rout
               ? "rout"
-              : time < MOMENTS.melee || (hosts[1 - side]!.missiles && rnd() < 0.3)
-                ? "arrow"
-                : "blow";
+              : fire
+                ? // (By fire: from afar, unless it is one that closes, or is closed on, once they meet.)
+                  fire.stands[foe] && (fire.stands[side] || time < MOMENTS.melee || rnd() < 0.5)
+                  ? "arrow"
+                  : !fire.stands[foe] && hosts[foe]!.missiles && time < MOMENTS.melee
+                    ? "arrow"
+                    : "blow"
+                : time < MOMENTS.melee || (hosts[1 - side]!.missiles && rnd() < 0.3)
+                  ? "arrow"
+                  : "blow";
         deaths.push({ at: time, side, by });
       }
     }
@@ -1119,9 +1348,10 @@ function fates(field: BattleField, key: number): void {
     }
     const target = (shooters === 0 ? 1 : 0) as 0 | 1,
       struck = troopers.filter((t) => t.side === target && t.by === "arrow");
-    const volleys = field.near.combat
-      ? Math.max(9, Math.ceil((Math.min(130, routAt(field)) - 18) / 3.2))
-      : 9;
+    const volleys =
+      field.near.combat || field.fire
+        ? Math.max(9, Math.ceil((Math.min(130, routAt(field)) - 18) / 3.2))
+        : 9;
     for (let v = 0; v < volleys; v++) {
       const lands = MOMENTS.arrows + 2 + v * 3.2,
         archers = troopers.filter(
@@ -1168,7 +1398,10 @@ function fates(field: BattleField, key: number): void {
     if (!living) continue;
     if (wall && field.near.outcome === "stormed" && victor === 0)
       t.gate = Math.abs(t.z) < wall.gate + 3 && t.rank < 6;
-    t.pursues = !wall ? t.rank < 2 || unit(key + 17, t.id) < 0.2 : t.gate;
+    // (Fought by fire, the whole of the victors come on over the ground.)
+    t.pursues = !wall
+      ? !!field.fire?.stands[victor] || t.rank < 2 || unit(key + 17, t.id) < 0.2
+      : t.gate;
   }
 }
 
@@ -1278,6 +1511,8 @@ function meetAt(field: BattleField, s: number): number {
 
 /** How far a file has closed up by `s`: one rank for each who fell before them in it. */
 export function closedUp(field: BattleField, t: Trooper, s: number): number {
+  // (Those who stand off have no one to step up to: each keeps their squad's place. W1b.)
+  if (field.fire?.stands[t.side]) return t.rank;
   let ahead = 0;
   for (const o of field.files[t.side]![t.file]!) {
     if (o === t) break;
@@ -1334,12 +1569,27 @@ function lineOrder(
   t: Trooper,
   s: number,
 ): { x: number; z: number; run: boolean } {
+  // (A battle by fire: those who stand off keep to their ground and come on by bounds; one who defends
+  // with nothing to answer with charges. W1b.)
+  const fire = field.fire;
+  if (fire?.stands[t.side]) return standingOff(field, fire, t, s);
   const h = field.hosts[t.side]!,
     gap = gapOf(h),
     rank = closedUp(field, t, s),
     wall = field.ground.wall,
     meet = meetAt(field, s),
     sway = Math.sin(s * 0.7 + t.u * 6) * 0.25;
+  if (fire && t.side === 1) {
+    const f = smooth((s - MOMENTS.charge) / (MOMENTS.melee - MOMENTS.charge)),
+      from = field.meet + 1,
+      // (To the attackers' forward edge, and there they strike at those it reaches.)
+      to = fire.line[0] + 2.2;
+    return {
+      x: from + (to - from) * f + rank * gap.rank,
+      z: t.z + (s >= MOMENTS.melee ? sway : 0),
+      run: s >= MOMENTS.charge && s < MOMENTS.melee,
+    };
+  }
   if (t.side === 1) {
     // The defenders stand where they are found: on the walls, on the ridge, past the river.
     const front = s < MOMENTS.melee ? field.meet + 1 : meet + 1;
@@ -1353,7 +1603,7 @@ function lineOrder(
   // (The attackers in open order come on in rushes: see openLine.)
   if (h.open) return openLine(field, t, s);
   // The attackers come on: walk, stand to loose where they bear bows, charge, and fight at the line.
-  const start = -32 - (h.mounted ? 6 : 0),
+  const start = (fire ? fire.start : -32) - (h.mounted ? 6 : 0),
     stop = field.meet - 16,
     loose = h.missiles ? field.meet - 30 : stop,
     walk =
@@ -1395,7 +1645,7 @@ function openLine(
 ): { x: number; z: number; run: boolean } {
   const gap = gapOf(field.hosts[0]!),
     rank = closedUp(field, t, s),
-    start = -32,
+    start = field.fire ? field.fire.start : -32,
     stop = field.meet - 22,
     sway = Math.sin(s * 0.7 + t.u * 6) * 0.25;
   if (t.gun) {
@@ -1420,6 +1670,116 @@ function openLine(
     z: t.z + (s >= MOMENTS.melee ? sway : 0),
     run: s < MOMENTS.charge ? rushingAt(t, s) : s < MOMENTS.melee,
   };
+}
+
+/** The squad one who stands off moves with: a block of the host, by turns with those about it. */
+function squadTurn(t: Trooper): number {
+  return (Math.floor(t.file / 2) + Math.floor(t.rank / 2)) % 2;
+}
+
+/**
+ * How far on a host that stands off has come, by bounds, once the fight is joined and it goes on (0 … 1: no
+ * more than it wins by), and whether its squad is rushing now: fire and movement, some down while others go.
+ */
+function fireBound(field: BattleField, turn: number, s: number): { g: number; rush: boolean } {
+  const span = Math.max(1, routAt(field) - MOMENTS.charge),
+    c = ((s - MOMENTS.charge) / span) * FIRE.bounds - turn * 0.5;
+  if (c <= 0) return { g: 0, rush: false };
+  const whole = Math.floor(c),
+    f = c - whole,
+    done = c >= FIRE.bounds;
+  return {
+    g: done ? 1 : (whole + smooth(f / FIRE.rush)) / FIRE.bounds,
+    rush: !done && f < FIRE.rush && s < routAt(field),
+  };
+}
+
+/** A host's forward edge at `s` in a battle by fire, its attackers' by bounds up the field (the group whose turn it is). */
+function fireFront(field: BattleField, side: 0 | 1, turn: number, s: number): number {
+  const f = field.fire!;
+  if (side === 1) return f.line[1];
+  if (!f.stands[0]) return lineFrontOf(field, s);
+  if (s < MOMENTS.charge) return f.start + (f.line[0] - f.start) * rushedTo(turn, s);
+  // (Holding where a foe that charges is coming to it; else on, as the day goes its way or not.)
+  const gain = f.stands[1] ? f.apart * (field.beaten === 1 ? FIRE.won : FIRE.lost) : 0;
+  return f.line[0] + gain * fireBound(field, turn, Math.min(s, routAt(field))).g;
+}
+
+/** Where a host that closes has got to (x), as openLine has it: for how far a bullet came. */
+function lineFrontOf(field: BattleField, s: number): number {
+  const f = field.fire!,
+    stop = field.meet - 22;
+  return s < MOMENTS.charge
+    ? f.start + (stop - f.start) * rushedTo(0, s)
+    : s < MOMENTS.melee
+      ? stop +
+        (field.meet - 1 - stop) * smooth((s - MOMENTS.charge) / (MOMENTS.melee - MOMENTS.charge))
+      : meetAt(field, s) - 1;
+}
+
+/**
+ * How far off the one who shot one down stood (true metres, on the ground it is seen on), to the nearest
+ * ten: their forward edge from where the struck one was at the time.
+ */
+export function firedFrom(field: BattleField, side: 0 | 1, x: number, at: number): number {
+  const foe = side === 0 ? 1 : 0,
+    edge = fireFront(field, foe, 0, at),
+    far = Math.abs(x - edge) * (field.placed ? PLACED_SCALE : 1);
+  return Math.max(10, Math.round(far / 10) * 10);
+}
+
+/**
+ * Where one who stands off is at `s` in a battle by fire (W1b). An attacker comes up the field in bounds, a
+ * squad at a time, and goes to ground at its stand-off; as the fight goes it comes on by further bounds, the
+ * rest firing, as far as the day goes its way. A team's gun makes one rush to its place and fires from there.
+ * A defender holds where it dug in, or its walls. No one here comes to the hand unless a foe comes to them.
+ */
+function standingOff(
+  field: BattleField,
+  fire: FireBattle,
+  t: Trooper,
+  s: number,
+): { x: number; z: number; run: boolean } {
+  const off = t.off ?? 0,
+    wall = field.ground.wall;
+  if (t.side === 1) {
+    if (wall) {
+      const rank = t.rank,
+        gap = gapOf(field.hosts[1]!);
+      return {
+        x: rank < 1 ? wall.x + 0.7 : wall.x + 2.6 + (rank - 1) * gap.rank,
+        z: t.z,
+        run: false,
+      };
+    }
+    return { x: fire.line[1] + off, z: t.z, run: false };
+  }
+  const turn = squadTurn(t);
+  if (t.gun) {
+    // (Its one rush, and then down behind its tripod.)
+    const at = s - MOMENTS.advance - (t.u - 0.5) * RUSH.shift,
+      front = fire.start + (fire.line[0] - fire.start) * 0.6 * smooth(at / RUSH.long);
+    return { x: front - off, z: t.z, run: at >= 0 && at < RUSH.long };
+  }
+  return {
+    x: fireFront(field, 0, turn, s) - off,
+    z: t.z,
+    run:
+      s < MOMENTS.charge
+        ? rushingFire(t, turn, s)
+        : fire.stands[1] && fireBound(field, turn, s).rush && s < routAt(field),
+  };
+}
+
+/** Whether one who stands off is on a rush as they come up the field (their squad's turn, shifted by their own draw). */
+function rushingFire(t: Trooper, turn: number, s: number): boolean {
+  const x = s - MOMENTS.advance - RUSH.apart * turn - (t.u - 0.5) * RUSH.shift;
+  return (
+    x >= 0 &&
+    x < RUSH.cycle * RUSH.bounds &&
+    s < MOMENTS.charge &&
+    x - RUSH.cycle * Math.floor(x / RUSH.cycle) < RUSH.long
+  );
 }
 
 /**
@@ -1545,6 +1905,27 @@ function placed(
         z: door.z + (t.u - 0.5) * on * 0.9,
         yaw: Math.PI / 2,
         run: on < 28,
+        fled: 0,
+      };
+    }
+    // (Fought by fire, the victors come on over the ground by bounds, as far as where the beaten stood.)
+    const fire = field.fire;
+    if (fire?.stands[t.side]) {
+      const dir = field.beaten === 0 ? -1 : 1,
+        turn = squadTurn(t),
+        from = fireFront(field, t.side, turn, routAt(field) + 1),
+        far = Math.abs(fire.line[field.beaten] - from) + 1,
+        span = Math.max(4, Math.min(16, afterAt(field) - routAt(field) - 2)),
+        c = ((when - routAt(field) - 1) / span) * FIRE.bounds - turn * 0.5,
+        whole = Math.floor(c),
+        k = c - whole,
+        done = c >= FIRE.bounds,
+        g = c <= 0 ? 0 : done ? 1 : (whole + smooth(k / 0.45)) / FIRE.bounds;
+      return {
+        x: p.x + dir * far * g,
+        z: p.z,
+        yaw: facing,
+        run: c > 0 && !done && k < 0.45,
         fled: 0,
       };
     }
@@ -1708,6 +2089,7 @@ function trooperNowAt(field: BattleField, t: Trooper, s: number): TrooperNow {
       fell: undefined,
     };
   let act: Act;
+  const stands = field.fire?.stands[t.side];
   if (field.near.combat?.broken === -1 && s >= 130) act = "stand";
   else if (t.flees !== null && s >= t.flees) act = "flee";
   else if (p.run) act = "run";
@@ -1715,7 +2097,16 @@ function trooperNowAt(field: BattleField, t: Trooper, s: number): TrooperNow {
   else if (t.gun && s >= MOMENTS.advance && s < routAt(field)) act = "prone";
   else if (s >= afterAt(field) && t.side !== field.beaten)
     act = unit(t.id, Math.floor(s / 3)) < 0.55 ? "cheer" : "stand";
-  else if (s >= MOMENTS.melee) {
+  // (Fought by fire, those who stand off are down and firing, on the walls or in the trench up to theirs;
+  // those a foe has reached strike at it, the rest fire on. W1b.)
+  else if (stands) {
+    if (s < MOMENTS.arrows && !(t.side === 0 && s >= MOMENTS.advance)) act = "stand";
+    else if (s >= MOMENTS.melee && !field.fire!.stands[t.side === 0 ? 1 : 0] && t.rank === 0)
+      act = "fight";
+    else if (ground.wall && t.side === 1) act = "loose";
+    else if (trenched) act = "loose";
+    else act = "prone";
+  } else if (s >= MOMENTS.melee) {
     // At the line: the front strikes, those behind press on.
     const rank = closedUp(field, t, s);
     act = rank < 0.6 || (h.mounted && rank < 1.6) ? "fight" : "brace";
@@ -1887,6 +2278,9 @@ export function crawledTo(
 
 /** How long a beam stays on the eye (seconds): a tenth of a second is what it would be seen as. */
 const BOLT_S = 0.16;
+/** How long a round's streak is, seen crossing the ground in a battle by fire (m), and how long it takes (s: slowed for the eye). */
+const TRACER = 7,
+  STREAK_S = 0.32;
 
 /** The smoke a side's arm leaves when it fires (0 none … 1 black powder's white bank). */
 function smokeOf(near: BattleNear, side: 0 | 1): number {
@@ -1912,15 +2306,18 @@ function carWay(field: BattleField, v: Vehicle, s: number): { x: number; z: numb
   if (v.side === 0) {
     // The attackers' cars come on at an even pace, from before the advance to where the lines meet
     // (or to the walls), and hold there firing.
-    const start = -24,
-      hold = wall ? wall.x - 6 : field.meet - 6,
+    // (Fought by fire, no further than a little before its own forward edge, as they stand in the town. W1b.)
+    const fire = field.fire,
+      start = fire ? fire.start : -24,
+      hold = fire?.stands[0] ? fire.line[0] + FIRE.car : wall ? wall.x - 6 : field.meet - 6,
       pace = clamp01((s - MOMENTS.advance) / (MOMENTS.charge + 4 - MOMENTS.advance));
     let x = start + (hold - start) * pace,
       z = v.z;
     if (s >= routAt(field)) {
       // (The victors drive on across the open; the beaten back off, still facing the foe.)
       if (field.beaten === 1) {
-        if (!wall) x += 12 * clamp01((s - routAt(field)) / 10);
+        if (!wall)
+          x += (fire?.stands[0] ? fire.apart * 0.8 : 12) * clamp01((s - routAt(field)) / 10);
       } else x -= 20 * clamp01((s - routAt(field)) / 12);
     }
     // (At a seat stormed, the two cars nearest the gate drive in through it, toward its middle.)
@@ -1933,7 +2330,14 @@ function carWay(field: BattleField, v: Vehicle, s: number): { x: number; z: numb
   }
   // The defenders' cars hold their trench's line, or their walls, firing; beaten, they turn about
   // and drive off the field's far edge.
-  const hold = trench ? trench.x + 10 : wall ? wall.x + 6 : field.meet + 10;
+  const hold =
+    field.fire?.stands[1] && !wall
+      ? field.fire.line[1] - FIRE.car
+      : trench
+        ? trench.x + 10
+        : wall
+          ? wall.x + 6
+          : field.meet + 10;
   if (field.beaten === 1 && s >= routAt(field))
     return {
       x: hold + (FIELD.x + 14 - hold) * clamp01((s - routAt(field) - 2) / 12),
@@ -2020,6 +2424,23 @@ export function battleAt(field: BattleField, s: number): BattleNow {
         ux = dx / far,
         uz = dz / far;
       // (Burning light goes at once and leaves no smoke: a straight line, there and gone. Phase 66.)
+      if (
+        field.fire &&
+        !armLook((a.side === 0 ? field.near.attacker : field.near.defender).host?.arm).beam &&
+        age < STREAK_S
+      ) {
+        // (Fought by fire, its way across the ground is seen: a short streak of its round. W1b.)
+        const k = age / STREAK_S;
+        bolts.push({
+          side: a.side,
+          x: a.from.x + dx * k,
+          y: 1.32,
+          z: a.from.z + dz * k,
+          yaw: Math.atan2(dx, dz),
+          long: Math.min(TRACER, far),
+          k: 0.9,
+        });
+      }
       if (armLook((a.side === 0 ? field.near.attacker : field.near.defender).host?.arm).beam) {
         if (age < BOLT_S)
           bolts.push({
@@ -2203,6 +2624,22 @@ export function battleAt(field: BattleField, s: number): BattleNow {
       }
     }
   }
+  // Where the shells land, in a battle by fire: the flash, the earth thrown up, the smoke hanging. (W1b.)
+  for (const b of field.fire?.bursts ?? []) {
+    const age = t - b.at;
+    if (age < 0 || age >= FIRE.burst) continue;
+    if (age < 0.14) flashes.push({ x: b.x, y: 1, z: b.z, yaw: 0 });
+    for (let k = 0; k < 3; k++) {
+      const ph = age / FIRE.burst,
+        a = unit(Math.round(b.at * 10), k) * 2 * Math.PI;
+      dust.push({
+        x: b.x + Math.cos(a) * (0.5 + 2.2 * ph),
+        y: 0.3 + 3.2 * Math.min(1, ph * 2.4) * (1 - 0.3 * k),
+        z: b.z + Math.sin(a) * (0.5 + 2.2 * ph),
+        r: (1 + 2.8 * ph) * (1 - 0.2 * k),
+      });
+    }
+  }
   // The ladders at a seat's walls: lying at their feet a moment, raised against them, and where
   // the walls held, thrown down off them.
   const w = field.ground.wall,
@@ -2240,7 +2677,11 @@ export function battleAt(field: BattleField, s: number): BattleNow {
     ladders,
     gate: stormed ? smooth((t - MOMENTS.gate) / 3) : 0,
     burning: stormed ? smooth((t - MOMENTS.gate - 6) / 14) : 0,
-    camp: field.near.outcome === "siege" ? smooth((t - afterAt(field) - 4) / 10) : 0,
+    // (Those who stand off and shell lay no tents: W1's rule.)
+    camp:
+      field.near.outcome === "siege" && !(field.fire && shellsWalls(field.near.attacker.host?.arm))
+        ? smooth((t - afterAt(field) - 4) / 10)
+        : 0,
     words: moment?.words ?? "",
     ...(field.vehicles ? { vehicles: cars, fumes, flames } : {}),
   };
@@ -2336,8 +2777,26 @@ export function shotBy(other: BattleNear["attacker"], id: number): string {
 function laterWords(field: BattleField, t: Trooper, s: number): string | null {
   if (t.gun && s >= MOMENTS.advance && s < routAt(field))
     return runningAt(field, t, s) ? "rushing forward" : "at their machine gun, firing";
+  // (Fought by fire: by bounds and down, firing, to the end. W1b.)
+  if (field.fire?.stands[t.side] && s < routAt(field)) {
+    if (s >= MOMENTS.melee && !field.fire.stands[t.side === 0 ? 1 : 0] && t.rank === 0)
+      return "fighting those who got to them";
+    if (t.side === 1) {
+      if (field.ground.wall) return s >= MOMENTS.arrows ? "on the walls, firing" : "on the walls";
+      if (s < MOMENTS.arrows) return "waiting in their squad";
+      return inTrench(field, t, s) ? "in the trench, firing" : "down behind the trench, firing";
+    }
+    if (s < MOMENTS.advance) return "waiting in their squad";
+    return runningAt(field, t, s)
+      ? "rushing forward to the next ground"
+      : "down in the grass, firing";
+  }
   if (t.side === 0 && field.hosts[0]!.open && s >= MOMENTS.advance && s < MOMENTS.melee)
-    return runningAt(field, t, s) ? "rushing forward" : "down in the grass, firing";
+    return runningAt(field, t, s)
+      ? "rushing forward"
+      : field.hosts[0]!.missiles
+        ? "down in the grass, firing"
+        : "down in the grass, under fire";
   if (field.ground.trench && t.side === 1 && s >= MOMENTS.arrows && s < routAt(field)) {
     const trenched = inTrench(field, t, s);
     if (s < MOMENTS.melee)
@@ -2390,16 +2849,22 @@ export function trooperWords(field: BattleField, id: number, s: number): string 
           ? t.by === "arrow"
             ? `fell to ${shotBy(t.side === 0 ? field.near.defender : field.near.attacker, t.id)}`
             : t.by === "rout"
-              ? "cut down as they ran"
+              ? firedOn(field, t.side)
+                ? "shot down as they fell back"
+                : "cut down as they ran"
               : "fell in the press"
           : t.flees !== null && s >= t.flees
-            ? "running from the field"
+            ? firedOn(field, t.side)
+              ? "falling back under fire"
+              : "running from the field"
             : climb
               ? (CLIMB_WORDS[climb.act] ?? "on a ladder")
               : t.gate && s >= MOMENTS.gate
                 ? "through the broken gate"
                 : t.pursues && s >= routAt(field) && s < afterAt(field)
-                  ? "after the beaten"
+                  ? field.fire?.stands[t.side]
+                    ? "coming on over the ground"
+                    : "after the beaten"
                   : later !== null
                     ? later
                     : s < MOMENTS.advance
@@ -2443,8 +2908,14 @@ export function trooperWho(field: BattleField, id: number): string {
               ? look.fighter
               : armLook(look.rest).fighter,
     rank = ORDINALS[t.rank] ?? `${t.rank + 1}th`,
+    // (Those who stand off stand by squads, not in ranks.)
+    place = field.fire?.stands[t.side]
+      ? t.rank < h.ranks / 2
+        ? "in a squad forward"
+        : "in a squad behind"
+      : `in the ${rank} rank`,
     each = field.per > 1 ? ` (a figure for ${field.per.toLocaleString("en-US")} men)` : "";
-  return `👁 ${who[0]!.toUpperCase()}${who.slice(1)} of ${side.name}, in the ${rank} rank${each}`;
+  return `👁 ${who[0]!.toUpperCase()}${who.slice(1)} of ${side.name}, ${place}${each}`;
 }
 
 /** The men standing and fallen of each side at `s`, as history counts them (so many for each figure). */

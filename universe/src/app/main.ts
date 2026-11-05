@@ -206,6 +206,7 @@ import {
   foughtAt,
   type CampaignNow,
   MOMENTS,
+  fieldMiddle,
   routAt,
   battleAt,
   menAt,
@@ -921,6 +922,32 @@ type Exposed = {
     fires: number;
   } | null;
   faceTown?: (x: number, z: number, distance?: number) => boolean;
+  /** Hold a battle made up before the town watched at one of its seconds, to see how it is fought (W1b; null: let go). */
+  holdBattle?: (near: BattleNear | null, s?: number) => void;
+  /** The battle held before the town as drawn now, its eye brought to it where asked (W1b's gate). */
+  heldBattle?: (face?: boolean) => {
+    s: number;
+    fire: BattleField["fire"] | null;
+    meet: number;
+    words: string;
+    flashes: number;
+    streaks: number;
+    cars: number;
+    standing: number[];
+    fallen: number[];
+    troopers: {
+      id: number;
+      side: number;
+      x: number;
+      z: number;
+      act: string;
+      size: number;
+      by: string | null;
+      falls: number | null;
+    }[];
+  } | null;
+  /** What one of the battle held before the town is told as, at its second. */
+  heldWords?: (id: number) => string | null;
   /** Hold a war made up about the town watched, to see how its hosts stand (W1; null: its year's again). */
   holdTownWar?: (tw: TownWar | null) => void;
   /** The town war's whole scene as drawn now (W1's gate reads its figures). */
@@ -4167,15 +4194,39 @@ async function runPlanetPage(): Promise<void> {
   });
   let through = false;
   /**
+   * A battle by fire on a tall screen: how far down the eye looks (degrees); the ground each unit of distance
+   * shows along the line of sight below the town's bar, its hosts' depth taken in by counting the gap 2.4 times;
+   * and how far past the fight's middle to aim, so its near host is not cut off by the screen's foot
+   * (a field of view of 45 degrees, the bar a quarter of the screen: 0.41 behind the aim, 0.33 ahead of it).
+   */
+  const FIRE_VIEW = { pitch: -45, ground: 0.75, below: -0.02 } as const;
+  /**
    * The eye on a battle fought before the town (Phase 55 M227): from its side, a little behind the
    * attackers' line — the two lines and where they meet, the town beyond — some hundred metres off,
    * so the clash is drawn in full (render/battle.ts LOD); on a narrow screen (a phone held upright)
    * drawn back till some fifty-five metres about the clash fill its width. (Its side nearer the
    * eye: the short turn.)
    */
-  const placedView = (frame: PlacedFrame, meet: number) => {
-    const m = placedPoint(frame, meet, 0),
-      here = (rig.yaw * Math.PI) / 180,
+  const placedView = (frame: PlacedFrame, meet: number, span = 0) => {
+    const m = placedPoint(frame, meet, 0);
+    // (Two hosts that stand apart to fight, on a tall screen: seen along their line of fire from over the
+    // attackers, both in the picture and neither a speck, the fight's middle in the middle of what the
+    // town's bar leaves of the screen. W1b.)
+    if (span > 0 && aspect() < 1) {
+      const distance = Math.min(30, Math.max(14, (span * 2.4 * VILLAGE_METRE) / FIRE_VIEW.ground)),
+        ahead = FIRE_VIEW.below * distance;
+      return {
+        target: {
+          x: (m.x + (frame.ux * ahead) / VILLAGE_METRE) * VILLAGE_METRE,
+          y: 0,
+          z: (m.z + (frame.uz * ahead) / VILLAGE_METRE) * VILLAGE_METRE,
+        },
+        yaw: (Math.atan2(-frame.ux, -frame.uz) * 180) / Math.PI,
+        pitch: FIRE_VIEW.pitch,
+        distance,
+      };
+    }
+    const here = (rig.yaw * Math.PI) / 180,
       side = -frame.uz * Math.sin(here) + frame.ux * Math.cos(here) >= 0 ? 1 : -1,
       back = (25 * Math.PI) / 180,
       dx = -side * frame.uz * Math.cos(back) - frame.ux * Math.sin(back),
@@ -4184,15 +4235,21 @@ async function runPlanetPage(): Promise<void> {
       target: { x: m.x * VILLAGE_METRE, y: 0, z: m.z * VILLAGE_METRE },
       yaw: (Math.atan2(dx, dz) * 180) / Math.PI,
       pitch: -28,
-      distance: Math.min(16, Math.max(10, 6.8 / aspect())),
+      distance: Math.max(
+        Math.min(16, Math.max(10, 6.8 / aspect())),
+        Math.min(30, (span * 1.35 * VILLAGE_METRE * Math.cos(back)) / (0.828 * aspect())),
+      ),
     };
   };
+  /** The view of a battle laid before a town: between its hosts where they stand apart to fight. */
+  const placedViewOf = (P: { readonly frame: PlacedFrame; readonly field: BattleField }) =>
+    placedView(P.frame, fieldMiddle(P.field), P.field.fire?.metres ?? 0);
   /** A village's view turned on its battle, the line where the hosts meet (M95). */
   const faceBattle = (): boolean => {
     // (Fought in place before it, Phase 55 M227: from its side.)
     const inPlace = scale === "village" && plan ? placed : null;
     if (inPlace) {
-      const v = placedView(inPlace.frame, inPlace.field.meet);
+      const v = placedViewOf(inPlace);
       rig.halt();
       rig.target.set(v.target.x, 0, v.target.z);
       rig.yaw = v.yaw;
@@ -5021,7 +5078,100 @@ async function runPlanetPage(): Promise<void> {
     };
     time.release("battle-roll");
   };
+  /** A battle made up by the look tools, held before the town at one of its seconds (W1b; null: none). */
+  let heldBattleS: number | null = null;
+  exposed.holdBattle = (near: BattleNear | null, s = 0) => {
+    if (!near) {
+      if (heldBattleS !== null) unplace();
+      heldBattleS = null;
+      return;
+    }
+    if (!plan) return;
+    const key = `held|${near.event}`;
+    if (placed?.key !== key) {
+      unplace();
+      const detail = stage.quality.detail,
+        most = placedMost(detail),
+        field = newBattle(near, most, true),
+        frame = fieldFrame(plan, field);
+      village.placeBattle({
+        field,
+        frame,
+        figure: near.figure ? figureOf(near.figure, detail) : null,
+        body: near.figure,
+      });
+      placed = {
+        key,
+        turn: 0,
+        detail,
+        most,
+        info: near,
+        field,
+        blows: newBlows(field),
+        roll: {} as BattleRoll,
+        names: field.troopers.map(() => null),
+        members: {},
+        frame,
+        camp: [],
+        end: null,
+        now: null,
+        watchers: [],
+        watchDay: -1,
+        faced: true,
+      };
+    }
+    heldBattleS = s;
+  };
+  /** The battle held before the town as drawn now, and the eye brought to it as the town's view brings it (W1b's gate). */
+  exposed.heldBattle = (face = false) => {
+    const P = placed;
+    if (!P || heldBattleS === null) return null;
+    if (face) {
+      const v = placedViewOf(P);
+      rig.halt();
+      rig.target.set(v.target.x, 0, v.target.z);
+      rig.yaw = v.yaw;
+      rig.pitch = v.pitch;
+      rig.distance = v.distance;
+      rig.userZoomed = true;
+    }
+    const n = P.now;
+    return {
+      s: heldBattleS,
+      fire: P.field.fire ?? null,
+      meet: P.field.meet,
+      words: n?.words ?? "",
+      flashes: n?.flashes.length ?? 0,
+      streaks: n?.bolts?.length ?? 0,
+      cars: n?.vehicles?.length ?? 0,
+      standing: n ? [...n.standing] : [0, 0],
+      fallen: n ? [...n.fallen] : [0, 0],
+      troopers: (n?.troopers ?? []).map((q) => ({
+        id: q.id,
+        side: q.side,
+        x: q.x,
+        z: q.z,
+        act: q.act,
+        size: q.size,
+        by: P.field.troopers[q.id]!.by,
+        falls: P.field.troopers[q.id]!.falls,
+      })),
+    };
+  };
+  exposed.heldWords = (id: number) => {
+    const P = placed;
+    return P && heldBattleS !== null
+      ? (blowWords(P.field, P.blows, id, heldBattleS) ?? trooperWords(P.field, id, heldBattleS))
+      : null;
+  };
   stage.onUpdate(() => {
+    // (A battle held by the look tools, at its second: W1b.)
+    if (heldBattleS !== null && placed && scale === "village") {
+      const shown = blowsAt(placed.field, placed.blows, battleAt(placed.field, heldBattleS), gore);
+      placed.now = shown;
+      village.battleAt(shown, [], []);
+      return;
+    }
     // (Its layer built on the eve, ahead of the morning.)
     if (scale === "village" && townWar?.eve) village.readyBattle();
     const p = scale === "village" && plan ? (townWar?.placed ?? null) : null;
@@ -5064,9 +5214,10 @@ async function runPlanetPage(): Promise<void> {
       shown = at === "borne" ? borneNow(P.field, P.end, borneShare(seen, P.turn)) : P.end;
     }
     P.now = shown;
-    // The town indoors through it, but for those come out to its edge to watch (told once a day).
+    // The town indoors through it, but for those come out to its edge to watch (told once a day; none
+    // stand out to watch a fight by fire: W1b).
     const kept = battleShelter(P.turn),
-      watching = seen >= kept.from && seen < kept.to,
+      watching = !P.field.fire && seen >= kept.from && seen < kept.to,
       day = Math.floor(seen / DAY);
     if (watching && P.watchDay !== day) {
       P.watchers = fieldWatchers(plan, P.frame, seen);
@@ -5078,7 +5229,7 @@ async function runPlanetPage(): Promise<void> {
     // The eye to where the lines meet as it begins (once; not where the viewer has it on someone).
     if (!P.faced && battleCapAt(seen, P.turn) === "battle" && watched === null) {
       P.faced = true;
-      rig.flyTo(placedView(P.frame, P.field.meet), 1.2);
+      rig.flyTo(placedViewOf(P), 1.2);
     }
   });
   /**
@@ -5096,7 +5247,7 @@ async function runPlanetPage(): Promise<void> {
     if (scale !== "village" || rig.steering) faceFightBy = 0;
     else if (P) {
       faceFightBy = 0;
-      rig.flyTo(placedView(P.frame, P.field.meet), 1.2);
+      rig.flyTo(placedViewOf(P), 1.2);
     } else if (performance.now() > faceFightBy || !(laying || drawing)) {
       faceFightBy = 0;
       faceBattle();
@@ -6194,7 +6345,8 @@ async function runPlanetPage(): Promise<void> {
       drift: 0,
       target: [-1, 0.15, 0],
     });
-    rig.yaw = 14;
+    // (Two hosts that stand apart to fight, on a tall screen: seen more along their line of fire. W1b.)
+    rig.yaw = field.fire && aspect() < 1 ? 52 : 14;
     rig.follow = battleMiddle;
   };
   /** A war watched unfolding left for one of its battles (M193): which, where it was, at what speed. */
@@ -6349,7 +6501,14 @@ async function runPlanetPage(): Promise<void> {
       wider = battleWider(),
       far = 7.5 * wider,
       // (Hand to hand less so: the lines have closed, and it is the men that are watched.)
-      close = 4.8 * (1 + (wider - 1) / 2);
+      close = 4.8 * (1 + (wider - 1) / 2),
+      fire = fight?.field.fire;
+    // (Fought by fire no one closes: both hosts kept in the picture to the end. W1b.)
+    if (fire?.stands[0] && fire.stands[1])
+      return Math.max(
+        far * 0.7,
+        Math.min(20, (fire.apart * 1.35 * 0.1 * (aspect() < 1 ? 0.8 : 0.95)) / (0.828 * aspect())),
+      );
     return s < MOMENTS.charge
       ? far
       : s < MOMENTS.melee
@@ -6472,6 +6631,7 @@ async function runPlanetPage(): Promise<void> {
               side: t.side,
               act: t.act,
               ...(t.gun ? { gun: true } : {}),
+              x: t.x,
               at: battleLayer!.onScreen(t),
             })),
           world: time.stopped,
@@ -6480,6 +6640,7 @@ async function runPlanetPage(): Promise<void> {
           prone: fight.now.troopers.filter((t) => t.act === "prone").length,
           guns: fight.now.troopers.filter((t) => t.gun).length,
           trench: !!fight.field.ground.trench,
+          fire: fight.field.fire ?? null,
           weapon: battlePanel.weaponShown,
           named: battlePanel.manNamed,
           rolled: fight.names.filter((e) => e !== null).length,
