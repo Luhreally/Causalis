@@ -4209,6 +4209,13 @@ async function runPlanetPage(): Promise<void> {
   });
   let through = false;
   /**
+   * A battle by fire on a tall screen: how far down the eye looks (degrees); the ground each unit of distance
+   * shows along the line of sight below the town's bar, its hosts' depth taken in by counting the gap 2.4 times;
+   * and how far past the fight's middle to aim, so its near host is not cut off by the screen's foot
+   * (a field of view of 45 degrees, the bar a quarter of the screen: 0.41 behind the aim, 0.33 ahead of it).
+   */
+  const FIRE_VIEW = { pitch: -45, ground: 0.75, below: -0.02 } as const;
+  /**
    * The eye on a battle fought before the town (Phase 55 M227): from its side, a little behind the
    * attackers' line — the two lines and where they meet, the town beyond — some hundred metres off,
    * so the clash is drawn in full (render/battle.ts LOD); on a narrow screen (a phone held upright)
@@ -4216,12 +4223,27 @@ async function runPlanetPage(): Promise<void> {
    * eye: the short turn.)
    */
   const placedView = (frame: PlacedFrame, meet: number, span = 0) => {
-    const m = placedPoint(frame, meet, 0),
-      here = (rig.yaw * Math.PI) / 180,
+    const m = placedPoint(frame, meet, 0);
+    // (Two hosts that stand apart to fight, on a tall screen: seen along their line of fire from over the
+    // attackers, both in the picture and neither a speck, the fight's middle in the middle of what the
+    // town's bar leaves of the screen. W1b.)
+    if (span > 0 && aspect() < 1) {
+      const distance = Math.min(30, Math.max(14, (span * 2.4 * VILLAGE_METRE) / FIRE_VIEW.ground)),
+        ahead = FIRE_VIEW.below * distance;
+      return {
+        target: {
+          x: (m.x + (frame.ux * ahead) / VILLAGE_METRE) * VILLAGE_METRE,
+          y: 0,
+          z: (m.z + (frame.uz * ahead) / VILLAGE_METRE) * VILLAGE_METRE,
+        },
+        yaw: (Math.atan2(-frame.ux, -frame.uz) * 180) / Math.PI,
+        pitch: FIRE_VIEW.pitch,
+        distance,
+      };
+    }
+    const here = (rig.yaw * Math.PI) / 180,
       side = -frame.uz * Math.sin(here) + frame.ux * Math.cos(here) >= 0 ? 1 : -1,
-      // (Two hosts that stand apart to fight, on a tall screen: seen more along their line of fire,
-      // so both are in the picture and neither is a speck. W1b.)
-      back = ((span > 0 && aspect() < 1 ? 58 : 25) * Math.PI) / 180,
+      back = (25 * Math.PI) / 180,
       dx = -side * frame.uz * Math.cos(back) - frame.ux * Math.sin(back),
       dz = side * frame.ux * Math.cos(back) - frame.uz * Math.sin(back);
     return {
@@ -5207,9 +5229,10 @@ async function runPlanetPage(): Promise<void> {
       shown = at === "borne" ? borneNow(P.field, P.end, borneShare(seen, P.turn)) : P.end;
     }
     P.now = shown;
-    // The town indoors through it, but for those come out to its edge to watch (told once a day).
+    // The town indoors through it, but for those come out to its edge to watch (told once a day; none
+    // stand out to watch a fight by fire: W1b).
     const kept = battleShelter(P.turn),
-      watching = seen >= kept.from && seen < kept.to,
+      watching = !P.field.fire && seen >= kept.from && seen < kept.to,
       day = Math.floor(seen / DAY);
     if (watching && P.watchDay !== day) {
       P.watchers = fieldWatchers(plan, P.frame, seen);

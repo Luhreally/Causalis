@@ -303,14 +303,7 @@ const TREE: readonly Principle[] = [
     { crafters: 1 },
     { tools: 0.2, arms: 1, armour: 1 },
   ),
-  P(
-    "carpentry",
-    "joinery",
-    ["@edge"],
-    0.015,
-    { crafters: 1 },
-    { building: 1 },
-  ),
+  P("carpentry", "joinery", ["@edge"], 0.015, { crafters: 1 }, { building: 1 }),
   P(
     "glass",
     "glass",

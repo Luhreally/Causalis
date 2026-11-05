@@ -1,8 +1,8 @@
 {
-  "rulesets": { "alien": "103f4a9f2b59c01a", "earth": "6f37d0557e6317c3" },
-  "versions": { "alien": "alien-11", "earth": "earth-8" },
+  "rulesets": { "alien": "6aa8f9bd44a738ec", "earth": "6f37d0557e6317c3" },
+  "versions": { "alien": "alien-12", "earth": "earth-8" },
   "lastYear": 3000,
-  "cost": { "cpuSeconds": 35205, "wallSeconds": 0, "jobs": 0 },
+  "cost": { "cpuSeconds": 36588, "wallSeconds": 0, "jobs": 0 },
   "agreement": {
     "villages": {
       "allowed": 31,
@@ -45,100 +45,100 @@
       "shut": 0
     },
     "engines": {
-      "allowed": 27,
-      "reached": 27,
-      "clear": 23,
-      "clearReached": 23,
+      "allowed": 30,
+      "reached": 30,
+      "clear": 25,
+      "clearReached": 25,
       "shutReached": 0,
-      "shut": 4
+      "shut": 1
     },
     "electricity": {
-      "allowed": 27,
-      "reached": 25,
-      "clear": 23,
-      "clearReached": 23,
+      "allowed": 30,
+      "reached": 28,
+      "clear": 25,
+      "clearReached": 25,
       "shutReached": 0,
-      "shut": 4
+      "shut": 1
     },
     "orbit": {
-      "allowed": 27,
-      "reached": 25,
-      "clear": 23,
-      "clearReached": 23,
+      "allowed": 30,
+      "reached": 28,
+      "clear": 25,
+      "clearReached": 25,
       "shutReached": 0,
-      "shut": 4
+      "shut": 1
     },
     "worlds": {
-      "allowed": 27,
-      "reached": 25,
-      "clear": 23,
-      "clearReached": 23,
+      "allowed": 30,
+      "reached": 27,
+      "clear": 25,
+      "clearReached": 25,
       "shutReached": 0,
-      "shut": 4
+      "shut": 1
     },
     "stars": {
-      "allowed": 27,
-      "reached": 25,
-      "clear": 23,
-      "clearReached": 23,
+      "allowed": 30,
+      "reached": 27,
+      "clear": 25,
+      "clearReached": 25,
       "shutReached": 0,
-      "shut": 4
+      "shut": 1
     },
     "fusion": {
-      "allowed": 18,
-      "reached": 17,
-      "clear": 17,
-      "clearReached": 17,
-      "shutReached": 0,
-      "shut": 13
-    },
-    "minds": {
-      "allowed": 27,
-      "reached": 25,
-      "clear": 23,
-      "clearReached": 23,
-      "shutReached": 0,
-      "shut": 4
-    },
-    "beams": {
-      "allowed": 19,
-      "reached": 18,
-      "clear": 16,
-      "clearReached": 16,
-      "shutReached": 0,
-      "shut": 12
-    },
-    "bodies": {
-      "allowed": 27,
-      "reached": 25,
-      "clear": 23,
-      "clearReached": 23,
-      "shutReached": 0,
-      "shut": 4
-    },
-    "remade": {
-      "allowed": 27,
+      "allowed": 20,
       "reached": 19,
-      "clear": 23,
+      "clear": 18,
       "clearReached": 18,
       "shutReached": 0,
-      "shut": 4
+      "shut": 11
+    },
+    "minds": {
+      "allowed": 30,
+      "reached": 27,
+      "clear": 25,
+      "clearReached": 25,
+      "shutReached": 0,
+      "shut": 1
+    },
+    "beams": {
+      "allowed": 22,
+      "reached": 20,
+      "clear": 18,
+      "clearReached": 18,
+      "shutReached": 0,
+      "shut": 9
+    },
+    "bodies": {
+      "allowed": 30,
+      "reached": 27,
+      "clear": 25,
+      "clearReached": 25,
+      "shutReached": 0,
+      "shut": 1
+    },
+    "remade": {
+      "allowed": 30,
+      "reached": 22,
+      "clear": 25,
+      "clearReached": 20,
+      "shutReached": 0,
+      "shut": 1
     },
     "covered": {
-      "allowed": 27,
-      "reached": 23,
-      "clear": 23,
-      "clearReached": 21,
+      "allowed": 30,
+      "reached": 25,
+      "clear": 25,
+      "clearReached": 23,
       "shutReached": 0,
-      "shut": 4
+      "shut": 1
     },
     "gathered": {
-      "allowed": 25,
-      "reached": 22,
-      "clear": 21,
-      "clearReached": 21,
+      "allowed": 28,
+      "reached": 25,
+      "clear": 23,
+      "clearReached": 23,
       "shutReached": 0,
-      "shut": 6
+      "shut": 3
     }
   },
   "agreementOf": {
@@ -184,100 +184,100 @@
         "shut": 0
       },
       "engines": {
-        "allowed": 19,
-        "reached": 19,
-        "clear": 15,
-        "clearReached": 15,
+        "allowed": 22,
+        "reached": 22,
+        "clear": 17,
+        "clearReached": 17,
         "shutReached": 0,
-        "shut": 3
+        "shut": 0
       },
       "electricity": {
-        "allowed": 19,
-        "reached": 17,
-        "clear": 15,
-        "clearReached": 15,
+        "allowed": 22,
+        "reached": 20,
+        "clear": 17,
+        "clearReached": 17,
         "shutReached": 0,
-        "shut": 3
+        "shut": 0
       },
       "orbit": {
-        "allowed": 19,
-        "reached": 17,
-        "clear": 15,
-        "clearReached": 15,
+        "allowed": 22,
+        "reached": 20,
+        "clear": 17,
+        "clearReached": 17,
         "shutReached": 0,
-        "shut": 3
+        "shut": 0
       },
       "worlds": {
-        "allowed": 19,
-        "reached": 17,
-        "clear": 15,
-        "clearReached": 15,
+        "allowed": 22,
+        "reached": 19,
+        "clear": 17,
+        "clearReached": 17,
         "shutReached": 0,
-        "shut": 3
+        "shut": 0
       },
       "stars": {
-        "allowed": 19,
-        "reached": 17,
-        "clear": 15,
-        "clearReached": 15,
+        "allowed": 22,
+        "reached": 19,
+        "clear": 17,
+        "clearReached": 17,
         "shutReached": 0,
-        "shut": 3
+        "shut": 0
       },
       "fusion": {
-        "allowed": 10,
-        "reached": 9,
-        "clear": 9,
-        "clearReached": 9,
+        "allowed": 12,
+        "reached": 11,
+        "clear": 10,
+        "clearReached": 10,
         "shutReached": 0,
-        "shut": 12
+        "shut": 10
       },
       "minds": {
-        "allowed": 19,
-        "reached": 17,
-        "clear": 15,
-        "clearReached": 15,
+        "allowed": 22,
+        "reached": 19,
+        "clear": 17,
+        "clearReached": 17,
         "shutReached": 0,
-        "shut": 3
+        "shut": 0
       },
       "beams": {
-        "allowed": 11,
-        "reached": 10,
-        "clear": 8,
-        "clearReached": 8,
+        "allowed": 14,
+        "reached": 12,
+        "clear": 10,
+        "clearReached": 10,
         "shutReached": 0,
-        "shut": 11
+        "shut": 8
       },
       "bodies": {
-        "allowed": 19,
+        "allowed": 22,
+        "reached": 19,
+        "clear": 17,
+        "clearReached": 17,
+        "shutReached": 0,
+        "shut": 0
+      },
+      "remade": {
+        "allowed": 22,
+        "reached": 15,
+        "clear": 17,
+        "clearReached": 13,
+        "shutReached": 0,
+        "shut": 0
+      },
+      "covered": {
+        "allowed": 22,
+        "reached": 17,
+        "clear": 17,
+        "clearReached": 15,
+        "shutReached": 0,
+        "shut": 0
+      },
+      "gathered": {
+        "allowed": 20,
         "reached": 17,
         "clear": 15,
         "clearReached": 15,
         "shutReached": 0,
-        "shut": 3
-      },
-      "remade": {
-        "allowed": 19,
-        "reached": 12,
-        "clear": 15,
-        "clearReached": 11,
-        "shutReached": 0,
-        "shut": 3
-      },
-      "covered": {
-        "allowed": 19,
-        "reached": 15,
-        "clear": 15,
-        "clearReached": 13,
-        "shutReached": 0,
-        "shut": 3
-      },
-      "gathered": {
-        "allowed": 17,
-        "reached": 14,
-        "clear": 13,
-        "clearReached": 13,
-        "shutReached": 0,
-        "shut": 5
+        "shut": 2
       }
     },
     "earth": {
@@ -431,25 +431,25 @@
         "villages": { "year": 20, "name": "Villages" },
         "realms": { "year": 20, "name": "Realms" },
         "cities": { "year": 20, "name": "Cities" },
-        "writing": { "year": 90, "name": "Writing" },
-        "iron": { "year": 290, "name": "Parted metals" },
+        "writing": { "year": 30, "name": "Writing" },
+        "iron": { "year": 30, "name": "Diamond and copper" },
         "engines": { "year": 500, "name": "Tide mills" },
         "electricity": { "year": 560, "name": "Sea electricity" },
         "orbit": { "year": 720, "name": "Orbit" },
-        "worlds": { "year": 920, "name": "Other worlds" },
-        "stars": { "year": 960, "name": "Other stars" },
-        "minds": { "year": 960, "name": "Silicon minds" },
-        "beams": { "year": 1040, "name": "Blue-green beams" },
-        "bodies": { "year": 1060, "name": "Made bodies" },
-        "covered": { "year": 1330, "name": "Reef-city world" },
-        "gathered": { "year": 1580, "name": "Gathered star" },
-        "remade": { "year": 1660, "name": "Remade worlds" }
+        "worlds": { "year": 1030, "name": "Other worlds" },
+        "stars": { "year": 1030, "name": "Other stars" },
+        "minds": { "year": 1030, "name": "Silicon minds" },
+        "bodies": { "year": 1130, "name": "Made bodies" },
+        "beams": { "year": 1170, "name": "Beam arms" },
+        "covered": { "year": 1500, "name": "Reef-city world" },
+        "gathered": { "year": 1740, "name": "Gathered star" },
+        "remade": { "year": 1790, "name": "Remade worlds" }
       },
       "falls": [],
       "end": { "year": 3000, "id": "gathered", "name": "Gathered star" },
       "check": "bef9f5e7",
-      "marks": { "500": "f32c3eb4", "1500": "e1d06853", "3000": "d3f94ab2" },
-      "s": 1663
+      "marks": { "500": "adec89fe", "1500": "6e089cb2", "3000": "5af253fc" },
+      "s": 1706
     },
     {
       "universe": "alien",
@@ -463,24 +463,24 @@
         "realms": { "year": 20, "name": "Realms" },
         "cities": { "year": 20, "name": "Cities" },
         "writing": { "year": 140, "name": "Writing" },
-        "iron": { "year": 510, "name": "Iron" },
-        "engines": { "year": 960, "name": "Coal and steam" },
-        "electricity": { "year": 1020, "name": "Electricity" },
-        "orbit": { "year": 1170, "name": "Orbit" },
-        "worlds": { "year": 1280, "name": "Other worlds" },
-        "stars": { "year": 1280, "name": "Other stars" },
-        "minds": { "year": 1280, "name": "Silicon minds" },
-        "beams": { "year": 1320, "name": "Ruby beams" },
-        "bodies": { "year": 1390, "name": "Made bodies" },
-        "covered": { "year": 1820, "name": "Covered world" },
-        "gathered": { "year": 1930, "name": "Gathered star" },
-        "remade": { "year": 2030, "name": "Remade worlds" }
+        "iron": { "year": 270, "name": "Set flakes" },
+        "engines": { "year": 570, "name": "The ground's heat" },
+        "electricity": { "year": 640, "name": "Electricity" },
+        "orbit": { "year": 880, "name": "Orbit" },
+        "worlds": { "year": 1020, "name": "Other worlds" },
+        "stars": { "year": 1020, "name": "Other stars" },
+        "minds": { "year": 1020, "name": "Silicon minds" },
+        "beams": { "year": 1130, "name": "Ruby beams" },
+        "bodies": { "year": 1200, "name": "Made bodies" },
+        "covered": { "year": 1500, "name": "Covered world" },
+        "gathered": { "year": 1560, "name": "Gathered star" },
+        "remade": { "year": 1750, "name": "Remade worlds" }
       },
       "falls": [],
       "end": { "year": 3000, "id": "gathered", "name": "Gathered star" },
       "check": "fa4376eb",
-      "marks": { "500": "788fbadb", "1500": "ec25b5f9", "3000": "6a4faff6" },
-      "s": 1686
+      "marks": { "500": "c2fbd23f", "1500": "b2682c0a", "3000": "d9890d7b" },
+      "s": 1727
     },
     {
       "universe": "alien",
@@ -495,23 +495,23 @@
         "cities": { "year": 60, "name": "Cities" },
         "writing": { "year": 60, "name": "Writing" },
         "iron": { "year": 60, "name": "Worked ice" },
-        "engines": { "year": 640, "name": "Sun engines" },
-        "electricity": { "year": 780, "name": "Ground dynamos" },
-        "orbit": { "year": 1070, "name": "Orbit" },
-        "worlds": { "year": 1210, "name": "Other worlds" },
-        "stars": { "year": 1210, "name": "Other stars" },
+        "engines": { "year": 540, "name": "The ground's heat" },
+        "electricity": { "year": 640, "name": "Ground dynamos" },
+        "orbit": { "year": 1040, "name": "Orbit" },
+        "worlds": { "year": 1110, "name": "Other worlds" },
+        "stars": { "year": 1200, "name": "Other stars" },
+        "fusion": { "year": 1200, "name": "Fusion" },
         "minds": { "year": 1210, "name": "Silicon minds" },
-        "beams": { "year": 1260, "name": "Ruby beams" },
-        "fusion": { "year": 1300, "name": "Fusion" },
-        "bodies": { "year": 1380, "name": "Bodies of ammonia water" },
-        "covered": { "year": 1750, "name": "Ice-tower world" },
-        "gathered": { "year": 1900, "name": "Gathered star" }
+        "beams": { "year": 1270, "name": "Ruby beams" },
+        "bodies": { "year": 1330, "name": "Bodies of ammonia water" },
+        "covered": { "year": 1700, "name": "Ice-tower world" },
+        "gathered": { "year": 1860, "name": "Gathered star" }
       },
       "falls": [],
       "end": { "year": 3000, "id": "gathered", "name": "Gathered star" },
       "check": "57e5478a",
-      "marks": { "500": "721ce74e", "1500": "8de74423", "3000": "2cdb2150" },
-      "s": 554
+      "marks": { "500": "af2b1744", "1500": "e2a780f2", "3000": "3bf42845" },
+      "s": 571
     },
     {
       "universe": "alien",
@@ -525,13 +525,24 @@
         "realms": { "year": 30, "name": "Realms" },
         "cities": { "year": 40, "name": "Cities" },
         "writing": { "year": 80, "name": "Writing" },
-        "iron": { "year": 100, "name": "Iron" }
+        "iron": { "year": 100, "name": "Iron" },
+        "engines": { "year": 480, "name": "The ground's heat" },
+        "electricity": { "year": 590, "name": "Electricity" },
+        "orbit": { "year": 1090, "name": "Orbit" },
+        "worlds": { "year": 1090, "name": "Other worlds" },
+        "stars": { "year": 1090, "name": "Other stars" },
+        "minds": { "year": 1090, "name": "Silicon minds" },
+        "fusion": { "year": 1160, "name": "Fusion" },
+        "bodies": { "year": 1170, "name": "Bodies of acid water" },
+        "beams": { "year": 1200, "name": "Beam arms" },
+        "covered": { "year": 1530, "name": "Covered world" },
+        "gathered": { "year": 1740, "name": "Gathered star" }
       },
       "falls": [],
-      "end": { "year": 3000, "id": "iron", "name": "Steel" },
+      "end": { "year": 3000, "id": "gathered", "name": "Gathered star" },
       "check": "561dc732",
-      "marks": { "500": "d7038795", "1500": "5d169702", "3000": "f458dd4c" },
-      "s": 2078
+      "marks": { "500": "fe0029c9", "1500": "7ee333f9", "3000": "61599052" },
+      "s": 2391
     },
     {
       "universe": "alien",
@@ -546,9 +557,9 @@
         "cities": { "year": 30, "name": "Cities" },
         "writing": { "year": 90, "name": "Writing" },
         "iron": { "year": 90, "name": "Diamond and copper" },
-        "engines": { "year": 590, "name": "Sun engines" },
-        "electricity": { "year": 710, "name": "Graphite dynamos" },
-        "orbit": { "year": 950, "name": "Orbit" },
+        "engines": { "year": 410, "name": "The ground's heat" },
+        "electricity": { "year": 620, "name": "Graphite dynamos" },
+        "orbit": { "year": 900, "name": "Orbit" },
         "worlds": { "year": 1030, "name": "Other worlds" },
         "stars": { "year": 1050, "name": "Other stars" },
         "minds": { "year": 1050, "name": "Silicon minds" },
@@ -556,14 +567,14 @@
         "beams": { "year": 1090, "name": "Ruby beams" },
         "bodies": { "year": 1170, "name": "Bodies of oil" },
         "gathered": { "year": 1600, "name": "Gathered star" },
-        "remade": { "year": 1690, "name": "Remade worlds" },
-        "covered": { "year": 1760, "name": "Covered world" }
+        "remade": { "year": 1670, "name": "Remade worlds" },
+        "covered": { "year": 1730, "name": "Covered world" }
       },
       "falls": [],
       "end": { "year": 3000, "id": "gathered", "name": "Gathered star" },
       "check": "c3ff54c7",
-      "marks": { "500": "14141ff4", "1500": "b30efc0", "3000": "db469b0" },
-      "s": 2717
+      "marks": { "500": "ab3045f5", "1500": "99ec4b42", "3000": "3a9075dd" },
+      "s": 2829
     },
     {
       "universe": "alien",
@@ -578,24 +589,24 @@
         "cities": { "year": 50, "name": "Cities" },
         "writing": { "year": 50, "name": "Writing" },
         "iron": { "year": 50, "name": "Diamond and copper" },
-        "engines": { "year": 600, "name": "The ground's heat" },
+        "engines": { "year": 600, "name": "Sun engines" },
         "electricity": { "year": 630, "name": "Graphite dynamos" },
-        "orbit": { "year": 950, "name": "Orbit" },
-        "worlds": { "year": 1160, "name": "Other worlds" },
-        "stars": { "year": 1200, "name": "Other stars" },
-        "minds": { "year": 1200, "name": "Silicon minds" },
-        "fusion": { "year": 1290, "name": "Fusion" },
-        "beams": { "year": 1320, "name": "Ruby beams" },
-        "bodies": { "year": 1420, "name": "Bodies of oil" },
-        "gathered": { "year": 1770, "name": "Gathered star" },
-        "remade": { "year": 1920, "name": "Remade worlds" },
-        "covered": { "year": 2000, "name": "Covered world" }
+        "orbit": { "year": 900, "name": "Orbit" },
+        "worlds": { "year": 1030, "name": "Other worlds" },
+        "stars": { "year": 1090, "name": "Other stars" },
+        "minds": { "year": 1090, "name": "Silicon minds" },
+        "fusion": { "year": 1130, "name": "Fusion" },
+        "beams": { "year": 1140, "name": "Ruby beams" },
+        "bodies": { "year": 1260, "name": "Bodies of oil" },
+        "gathered": { "year": 1730, "name": "Gathered star" },
+        "remade": { "year": 1740, "name": "Remade worlds" },
+        "covered": { "year": 1820, "name": "Covered world" }
       },
       "falls": [],
       "end": { "year": 3000, "id": "gathered", "name": "Gathered star" },
       "check": "7dcdab4d",
-      "marks": { "500": "8583d02f", "1500": "eab41f9", "3000": "a4cf50" },
-      "s": 3574
+      "marks": { "500": "4c65bc3", "1500": "8a8239e8", "3000": "3116a05f" },
+      "s": 3598
     },
     {
       "universe": "alien",
@@ -610,23 +621,23 @@
         "cities": { "year": 20, "name": "Cities" },
         "writing": { "year": 110, "name": "Writing" },
         "iron": { "year": 110, "name": "Iron" },
-        "engines": { "year": 720, "name": "Coal and steam" },
-        "electricity": { "year": 870, "name": "Electricity" },
-        "orbit": { "year": 1070, "name": "Orbit" },
-        "worlds": { "year": 1170, "name": "Other worlds" },
-        "stars": { "year": 1170, "name": "Other stars" },
-        "minds": { "year": 1170, "name": "Silicon minds" },
-        "bodies": { "year": 1240, "name": "Bodies of acid water" },
-        "fusion": { "year": 1270, "name": "Fusion" },
-        "covered": { "year": 1490, "name": "Covered world" },
-        "remade": { "year": 1840, "name": "Remade worlds" },
-        "gathered": { "year": 1850, "name": "Gathered star" }
+        "engines": { "year": 460, "name": "Sun engines" },
+        "electricity": { "year": 640, "name": "Electricity" },
+        "orbit": { "year": 1000, "name": "Orbit" },
+        "worlds": { "year": 1070, "name": "Other worlds" },
+        "stars": { "year": 1070, "name": "Other stars" },
+        "minds": { "year": 1070, "name": "Silicon minds" },
+        "fusion": { "year": 1130, "name": "Fusion" },
+        "bodies": { "year": 1150, "name": "Bodies of acid water" },
+        "covered": { "year": 1460, "name": "Covered world" },
+        "gathered": { "year": 1610, "name": "Gathered star" },
+        "remade": { "year": 1770, "name": "Remade worlds" }
       },
       "falls": [],
       "end": { "year": 3000, "id": "gathered", "name": "Gathered star" },
       "check": "ae5e5502",
-      "marks": { "500": "acc46af3", "1500": "7af251de", "3000": "a19589c8" },
-      "s": 2857
+      "marks": { "500": "5fe9a2d", "1500": "b3e7db4e", "3000": "e7e37153" },
+      "s": 3016
     },
     {
       "universe": "alien",
@@ -640,24 +651,25 @@
         "realms": { "year": 40, "name": "Realms" },
         "cities": { "year": 80, "name": "Cities" },
         "writing": { "year": 180, "name": "Writing" },
-        "iron": { "year": 430, "name": "Iron" },
-        "engines": { "year": 800, "name": "Coal and steam" },
-        "electricity": { "year": 1050, "name": "Electricity" },
-        "orbit": { "year": 1460, "name": "Orbit" },
-        "worlds": { "year": 1870, "name": "Other worlds" },
-        "stars": { "year": 1920, "name": "Other stars" },
-        "beams": { "year": 1920, "name": "Ruby beams" },
-        "fusion": { "year": 1940, "name": "Fusion" },
-        "minds": { "year": 2000, "name": "Machine minds" },
-        "bodies": { "year": 2000, "name": "Made bodies" },
-        "covered": { "year": 2470, "name": "Covered world" },
-        "gathered": { "year": 2620, "name": "Gathered star" }
+        "iron": { "year": 200, "name": "Set flakes" },
+        "engines": { "year": 710, "name": "The ground's heat" },
+        "electricity": { "year": 770, "name": "Electricity" },
+        "orbit": { "year": 1070, "name": "Orbit" },
+        "worlds": { "year": 1110, "name": "Other worlds" },
+        "stars": { "year": 1310, "name": "Other stars" },
+        "fusion": { "year": 1310, "name": "Fusion" },
+        "minds": { "year": 1380, "name": "Silicon minds" },
+        "beams": { "year": 1470, "name": "Ruby beams" },
+        "bodies": { "year": 1490, "name": "Made bodies" },
+        "covered": { "year": 1770, "name": "Covered world" },
+        "gathered": { "year": 1960, "name": "Gathered star" },
+        "remade": { "year": 2120, "name": "Remade worlds" }
       },
       "falls": [],
       "end": { "year": 3000, "id": "gathered", "name": "Gathered star" },
       "check": "80396fba",
-      "marks": { "500": "3ce69d39", "1500": "6a5558a3", "3000": "eb4aef47" },
-      "s": 127
+      "marks": { "500": "3fdfa5b5", "1500": "89311a8f", "3000": "c870572d" },
+      "s": 172
     },
     {
       "universe": "alien",
@@ -670,25 +682,25 @@
         "villages": { "year": 150, "name": "Villages" },
         "realms": { "year": 150, "name": "Realms" },
         "cities": { "year": 150, "name": "Cities" },
-        "writing": { "year": 310, "name": "Writing" },
-        "iron": { "year": 410, "name": "Parted metals" },
+        "writing": { "year": 260, "name": "Writing" },
+        "iron": { "year": 260, "name": "Diamond and copper" },
         "engines": { "year": 1090, "name": "Tide mills" },
         "electricity": { "year": 1100, "name": "Sea electricity" },
-        "orbit": { "year": 1620, "name": "Orbit" },
-        "worlds": { "year": 1780, "name": "Other worlds" },
-        "stars": { "year": 1780, "name": "Other stars" },
-        "minds": { "year": 1780, "name": "Silicon minds" },
-        "beams": { "year": 1830, "name": "Blue-green beams" },
-        "bodies": { "year": 1850, "name": "Made bodies" },
-        "covered": { "year": 2040, "name": "Reef-city world" },
-        "remade": { "year": 2460, "name": "Remade worlds" },
-        "gathered": { "year": 2470, "name": "Gathered star" }
+        "orbit": { "year": 1680, "name": "Orbit" },
+        "worlds": { "year": 1750, "name": "Other worlds" },
+        "stars": { "year": 1750, "name": "Other stars" },
+        "minds": { "year": 1750, "name": "Silicon minds" },
+        "beams": { "year": 1810, "name": "Blue-green beams" },
+        "bodies": { "year": 1830, "name": "Made bodies" },
+        "covered": { "year": 1980, "name": "Reef-city world" },
+        "remade": { "year": 2390, "name": "Remade worlds" },
+        "gathered": { "year": 2420, "name": "Gathered star" }
       },
       "falls": [],
       "end": { "year": 3000, "id": "gathered", "name": "Gathered star" },
       "check": "d533dbb1",
-      "marks": { "500": "603c9ce7", "1500": "b3d47c5c", "3000": "bf57396d" },
-      "s": 44
+      "marks": { "500": "7d1343c7", "1500": "94890221", "3000": "7610c131" },
+      "s": 51
     },
     {
       "universe": "alien",
@@ -702,13 +714,25 @@
         "realms": { "year": 30, "name": "Realms" },
         "cities": { "year": 30, "name": "Cities" },
         "writing": { "year": 610, "name": "Writing" },
-        "iron": { "year": 610, "name": "Iron" }
+        "iron": { "year": 610, "name": "Iron" },
+        "engines": { "year": 960, "name": "Sun engines" },
+        "electricity": { "year": 1660, "name": "Electricity" },
+        "orbit": { "year": 2110, "name": "Orbit" },
+        "worlds": { "year": 2110, "name": "Other worlds" },
+        "stars": { "year": 2110, "name": "Other stars" },
+        "fusion": { "year": 2110, "name": "Fusion" },
+        "minds": { "year": 2120, "name": "Silicon minds" },
+        "beams": { "year": 2150, "name": "Beam arms" },
+        "bodies": { "year": 2150, "name": "Made bodies" },
+        "covered": { "year": 2350, "name": "Covered world" },
+        "gathered": { "year": 2640, "name": "Gathered star" },
+        "remade": { "year": 2730, "name": "Remade worlds" }
       },
       "falls": [],
-      "end": { "year": 3000, "id": "iron", "name": "Steel" },
+      "end": { "year": 3000, "id": "gathered", "name": "Gathered star" },
       "check": "24d2fd12",
-      "marks": { "500": "f5bccf98", "1500": "58f229e4", "3000": "e8ce56ff" },
-      "s": 30
+      "marks": { "500": "f5bccf98", "1500": "3d56db25", "3000": "e87ea27d" },
+      "s": 50
     },
     {
       "universe": "alien",
@@ -723,21 +747,21 @@
         "cities": { "year": 40, "name": "Cities" },
         "writing": { "year": 50, "name": "Writing" },
         "iron": { "year": 50, "name": "Diamond and copper" },
-        "engines": { "year": 550, "name": "Sun engines" },
-        "electricity": { "year": 590, "name": "Graphite dynamos" },
+        "engines": { "year": 530, "name": "The ground's heat" },
+        "electricity": { "year": 670, "name": "Graphite dynamos" },
         "orbit": { "year": 930, "name": "Orbit" },
         "worlds": { "year": 1110, "name": "Other worlds" },
         "stars": { "year": 1110, "name": "Other stars" },
         "minds": { "year": 1110, "name": "Silicon minds" },
-        "fusion": { "year": 1210, "name": "Fusion" },
-        "bodies": { "year": 1320, "name": "Bodies of oil" },
+        "fusion": { "year": 1300, "name": "Fusion" },
+        "bodies": { "year": 1340, "name": "Bodies of oil" },
         "covered": { "year": 1680, "name": "Covered world" }
       },
       "falls": [],
       "end": { "year": 3000, "id": "covered", "name": "Covered world" },
       "check": "24d7cfdc",
-      "marks": { "500": "f6b32f97", "1500": "d4c340d1", "3000": "2e060e13" },
-      "s": 2987
+      "marks": { "500": "7da38d36", "1500": "836451f5", "3000": "f6245c6b" },
+      "s": 3111
     },
     {
       "universe": "alien",
@@ -758,7 +782,7 @@
       "end": { "year": 3000, "id": "engines", "name": "The ground's heat" },
       "check": "48de5dfb",
       "marks": { "500": "be8e391", "1500": "556f6962", "3000": "bd2d4563" },
-      "s": 9
+      "s": 8
     },
     {
       "universe": "alien",
@@ -772,23 +796,23 @@
         "realms": { "year": 30, "name": "Realms" },
         "cities": { "year": 30, "name": "Cities" },
         "writing": { "year": 150, "name": "Writing" },
-        "iron": { "year": 410, "name": "Iron" },
-        "engines": { "year": 990, "name": "Coal and steam" },
-        "electricity": { "year": 1120, "name": "Electricity" },
-        "orbit": { "year": 1400, "name": "Orbit" },
-        "worlds": { "year": 1590, "name": "Other worlds" },
-        "stars": { "year": 1590, "name": "Other stars" },
-        "minds": { "year": 1590, "name": "Silicon minds" },
-        "bodies": { "year": 1620, "name": "Bodies of acid water" },
-        "gathered": { "year": 2120, "name": "Gathered star" },
-        "remade": { "year": 2320, "name": "Remade worlds" },
-        "covered": { "year": 2380, "name": "Covered world" }
+        "iron": { "year": 330, "name": "Set flakes" },
+        "engines": { "year": 730, "name": "The ground's heat" },
+        "electricity": { "year": 770, "name": "Electricity" },
+        "orbit": { "year": 1270, "name": "Orbit" },
+        "worlds": { "year": 1480, "name": "Other worlds" },
+        "stars": { "year": 1520, "name": "Other stars" },
+        "minds": { "year": 1520, "name": "Silicon minds" },
+        "bodies": { "year": 1550, "name": "Bodies of acid water" },
+        "covered": { "year": 2000, "name": "Covered world" },
+        "gathered": { "year": 2110, "name": "Gathered star" },
+        "remade": { "year": 2180, "name": "Remade worlds" }
       },
       "falls": [],
       "end": { "year": 3000, "id": "gathered", "name": "Gathered star" },
       "check": "fb12de94",
-      "marks": { "500": "331af6b6", "1500": "f8012749", "3000": "75ee220a" },
-      "s": 2102
+      "marks": { "500": "89ddd605", "1500": "26b4d6ed", "3000": "bbaba95c" },
+      "s": 2039
     },
     {
       "universe": "alien",
@@ -805,21 +829,21 @@
         "iron": { "year": 80, "name": "Worked ice" },
         "engines": { "year": 600, "name": "The ground's heat" },
         "electricity": { "year": 760, "name": "Polymer wire" },
-        "orbit": { "year": 1030, "name": "Orbit" },
-        "worlds": { "year": 1200, "name": "Other worlds" },
-        "stars": { "year": 1200, "name": "Other stars" },
-        "minds": { "year": 1200, "name": "Silicon minds" },
-        "beams": { "year": 1290, "name": "Ruby beams" },
-        "bodies": { "year": 1530, "name": "Bodies of liquid methane and ethane" },
-        "gathered": { "year": 1950, "name": "Gathered star" },
-        "covered": { "year": 1990, "name": "Covered world" },
-        "remade": { "year": 2250, "name": "Remade worlds" }
+        "orbit": { "year": 1060, "name": "Orbit" },
+        "worlds": { "year": 1360, "name": "Other worlds" },
+        "stars": { "year": 1360, "name": "Other stars" },
+        "minds": { "year": 1360, "name": "Silicon minds" },
+        "bodies": { "year": 1400, "name": "Bodies of liquid methane and ethane" },
+        "beams": { "year": 1420, "name": "Beam arms" },
+        "covered": { "year": 1850, "name": "Ice-tower world" },
+        "remade": { "year": 2020, "name": "Remade worlds" },
+        "gathered": { "year": 2020, "name": "Gathered star" }
       },
       "falls": [],
       "end": { "year": 3000, "id": "gathered", "name": "Gathered star" },
       "check": "25e92002",
-      "marks": { "500": "b794f2de", "1500": "1f481e41", "3000": "b674c894" },
-      "s": 1594
+      "marks": { "500": "9fd4da74", "1500": "950966ac", "3000": "fc666818" },
+      "s": 1623
     },
     {
       "universe": "alien",
@@ -832,23 +856,17 @@
         "villages": { "year": 30, "name": "Villages" },
         "realms": { "year": 50, "name": "Realms" },
         "cities": { "year": 90, "name": "Cities" },
-        "writing": { "year": 340, "name": "Writing" },
-        "iron": { "year": 530, "name": "Parted metals" },
-        "engines": { "year": 1500, "name": "Tide mills" },
-        "electricity": { "year": 1680, "name": "Sea electricity" },
-        "orbit": { "year": 2000, "name": "Orbit" },
-        "worlds": { "year": 2160, "name": "Other worlds" },
-        "stars": { "year": 2160, "name": "Other stars" },
-        "minds": { "year": 2160, "name": "Silicon minds" },
-        "beams": { "year": 2200, "name": "Blue-green beams" },
-        "bodies": { "year": 2260, "name": "Made bodies" },
-        "covered": { "year": 2650, "name": "Reef-city world" }
+        "writing": { "year": 120, "name": "Writing" },
+        "iron": { "year": 120, "name": "Diamond and copper" },
+        "engines": { "year": 2300, "name": "Tide mills" },
+        "electricity": { "year": 2470, "name": "Sea electricity" },
+        "orbit": { "year": 2930, "name": "Orbit" }
       },
       "falls": [],
-      "end": { "year": 3000, "id": "covered", "name": "Reef-city world" },
+      "end": { "year": 3000, "id": "orbit", "name": "Orbit" },
       "check": "6d0587a0",
-      "marks": { "500": "be1ddba5", "1500": "67556696", "3000": "574de57" },
-      "s": 70
+      "marks": { "500": "81eeab1f", "1500": "a384570b", "3000": "50e4fe9c" },
+      "s": 47
     },
     {
       "universe": "alien",
@@ -862,13 +880,24 @@
         "realms": { "year": 30, "name": "Realms" },
         "cities": { "year": 80, "name": "Cities" },
         "writing": { "year": 140, "name": "Writing" },
-        "iron": { "year": 540, "name": "Iron" }
+        "iron": { "year": 190, "name": "Set flakes" },
+        "engines": { "year": 590, "name": "Sun engines" },
+        "electricity": { "year": 750, "name": "Electricity" },
+        "orbit": { "year": 1210, "name": "Orbit" },
+        "worlds": { "year": 1230, "name": "Other worlds" },
+        "stars": { "year": 1230, "name": "Other stars" },
+        "minds": { "year": 1230, "name": "Silicon minds" },
+        "beams": { "year": 1260, "name": "Ruby beams" },
+        "bodies": { "year": 1490, "name": "Made bodies" },
+        "gathered": { "year": 1830, "name": "Gathered star" },
+        "covered": { "year": 2010, "name": "Covered world" },
+        "remade": { "year": 2130, "name": "Remade worlds" }
       },
       "falls": [],
-      "end": { "year": 3000, "id": "iron", "name": "Steel" },
+      "end": { "year": 3000, "id": "gathered", "name": "Gathered star" },
       "check": "5f6e6177",
-      "marks": { "500": "fcd4789f", "1500": "d515daa2", "3000": "3e577e73" },
-      "s": 920
+      "marks": { "500": "2b08e81d", "1500": "ec985cca", "3000": "e68bedf0" },
+      "s": 1251
     },
     {
       "universe": "alien",
@@ -882,7 +911,7 @@
         "realms": { "year": 70, "name": "Realms" },
         "cities": { "year": 400, "name": "Cities" },
         "writing": { "year": 400, "name": "Writing" },
-        "iron": { "year": 1370, "name": "Worked ice" },
+        "iron": { "year": 1220, "name": "Set flakes" },
         "engines": { "year": 2300, "name": "Sun engines" }
       },
       "falls": [
@@ -891,8 +920,8 @@
       ],
       "end": { "year": 3000, "id": "engines", "name": "Sun engines" },
       "check": "63642a9e",
-      "marks": { "500": "91aa30ad", "1500": "59d9f144", "3000": "a2595ac7" },
-      "s": 25
+      "marks": { "500": "91aa30ad", "1500": "59d9f144", "3000": "cc29a18a" },
+      "s": 20
     },
     {
       "universe": "alien",
@@ -906,23 +935,23 @@
         "realms": { "year": 40, "name": "Realms" },
         "cities": { "year": 80, "name": "Cities" },
         "writing": { "year": 130, "name": "Writing" },
-        "iron": { "year": 780, "name": "Iron" },
-        "engines": { "year": 940, "name": "Coal and steam" },
+        "iron": { "year": 210, "name": "Set flakes" },
+        "engines": { "year": 770, "name": "Sun engines" },
         "electricity": { "year": 1050, "name": "Electricity" },
-        "orbit": { "year": 1290, "name": "Orbit" },
-        "worlds": { "year": 1670, "name": "Other worlds" },
-        "stars": { "year": 1670, "name": "Other stars" },
-        "minds": { "year": 1670, "name": "Silicon minds" },
-        "bodies": { "year": 1740, "name": "Made bodies" },
-        "covered": { "year": 2060, "name": "Covered world" },
-        "remade": { "year": 2180, "name": "Remade worlds" },
-        "gathered": { "year": 2190, "name": "Gathered star" }
+        "orbit": { "year": 1280, "name": "Orbit" },
+        "worlds": { "year": 1540, "name": "Other worlds" },
+        "stars": { "year": 1850, "name": "Other stars" },
+        "minds": { "year": 1850, "name": "Silicon minds" },
+        "bodies": { "year": 2000, "name": "Made bodies" },
+        "covered": { "year": 2280, "name": "Covered world" },
+        "gathered": { "year": 2580, "name": "Gathered star" },
+        "remade": { "year": 2650, "name": "Remade worlds" }
       },
       "falls": [],
       "end": { "year": 3000, "id": "gathered", "name": "Gathered star" },
       "check": "5276e702",
-      "marks": { "500": "ead30e07", "1500": "4af09387", "3000": "d21d1953" },
-      "s": 213
+      "marks": { "500": "3fb9183f", "1500": "495fa661", "3000": "a22644d9" },
+      "s": 220
     },
     {
       "universe": "alien",
@@ -937,23 +966,23 @@
         "cities": { "year": 20, "name": "Cities" },
         "writing": { "year": 180, "name": "Writing" },
         "iron": { "year": 180, "name": "Iron" },
-        "engines": { "year": 960, "name": "Engines" },
-        "electricity": { "year": 960, "name": "Electricity" },
-        "orbit": { "year": 1450, "name": "Orbit" },
-        "worlds": { "year": 1690, "name": "Other worlds" },
-        "stars": { "year": 1690, "name": "Other stars" },
-        "minds": { "year": 1690, "name": "Silicon minds" },
-        "fusion": { "year": 1900, "name": "Fusion" },
-        "bodies": { "year": 2090, "name": "Made bodies" },
-        "gathered": { "year": 2440, "name": "Gathered star" },
-        "covered": { "year": 2510, "name": "Covered world" },
-        "remade": { "year": 2620, "name": "Remade worlds" }
+        "engines": { "year": 760, "name": "The ground's heat" },
+        "electricity": { "year": 830, "name": "Electricity" },
+        "orbit": { "year": 1260, "name": "Orbit" },
+        "worlds": { "year": 1570, "name": "Other worlds" },
+        "stars": { "year": 1570, "name": "Other stars" },
+        "fusion": { "year": 1570, "name": "Fusion" },
+        "minds": { "year": 1580, "name": "Silicon minds" },
+        "bodies": { "year": 1630, "name": "Made bodies" },
+        "remade": { "year": 2140, "name": "Remade worlds" },
+        "gathered": { "year": 2150, "name": "Gathered star" },
+        "covered": { "year": 2280, "name": "Covered world" }
       },
       "falls": [],
       "end": { "year": 3000, "id": "gathered", "name": "Gathered star" },
       "check": "bc525088",
-      "marks": { "500": "5a61151b", "1500": "8a60a72f", "3000": "406e3f83" },
-      "s": 807
+      "marks": { "500": "b3606127", "1500": "580c1b2a", "3000": "cbfffee4" },
+      "s": 940
     },
     {
       "universe": "alien",
@@ -971,19 +1000,19 @@
         "engines": { "year": 500, "name": "Cold chemistry" },
         "electricity": { "year": 620, "name": "Polymer wire" },
         "orbit": { "year": 890, "name": "Orbit" },
-        "worlds": { "year": 1050, "name": "Other worlds" },
-        "stars": { "year": 1070, "name": "Other stars" },
-        "minds": { "year": 1120, "name": "Silicon minds" },
-        "bodies": { "year": 1230, "name": "Bodies of liquid methane and ethane" },
-        "covered": { "year": 1710, "name": "Ice-tower world" },
-        "gathered": { "year": 1740, "name": "Gathered star" },
-        "remade": { "year": 1750, "name": "Remade worlds" }
+        "worlds": { "year": 1010, "name": "Other worlds" },
+        "stars": { "year": 1020, "name": "Other stars" },
+        "minds": { "year": 1090, "name": "Silicon minds" },
+        "bodies": { "year": 1160, "name": "Bodies of liquid methane and ethane" },
+        "gathered": { "year": 1680, "name": "Gathered star" },
+        "covered": { "year": 1740, "name": "Covered world" },
+        "remade": { "year": 1840, "name": "Remade worlds" }
       },
       "falls": [],
       "end": { "year": 3000, "id": "gathered", "name": "Gathered star" },
       "check": "3c9d6bb4",
-      "marks": { "500": "6f8eb411", "1500": "d153ccd7", "3000": "834b1967" },
-      "s": 1879
+      "marks": { "500": "bbf31ace", "1500": "7e400271", "3000": "b311d509" },
+      "s": 1844
     },
     {
       "universe": "alien",
@@ -1000,20 +1029,20 @@
         "iron": { "year": 170, "name": "Parted metals" },
         "engines": { "year": 680, "name": "Tide mills" },
         "electricity": { "year": 990, "name": "Sea electricity" },
-        "orbit": { "year": 1200, "name": "Orbit" },
-        "worlds": { "year": 1360, "name": "Other worlds" },
-        "stars": { "year": 1360, "name": "Other stars" },
-        "fusion": { "year": 1360, "name": "Fusion" },
+        "orbit": { "year": 1300, "name": "Orbit" },
+        "worlds": { "year": 1350, "name": "Other worlds" },
+        "stars": { "year": 1350, "name": "Other stars" },
+        "fusion": { "year": 1350, "name": "Sea-fed fusion" },
         "minds": { "year": 1360, "name": "Silicon minds" },
-        "beams": { "year": 1420, "name": "Beam arms" },
-        "bodies": { "year": 1420, "name": "Made bodies" },
-        "gathered": { "year": 1990, "name": "Gathered star" }
+        "beams": { "year": 1390, "name": "Blue-green beams" },
+        "bodies": { "year": 1410, "name": "Made bodies" },
+        "gathered": { "year": 2000, "name": "Gathered star" }
       },
       "falls": [],
       "end": { "year": 3000, "id": "gathered", "name": "Gathered star" },
       "check": "6559771b",
-      "marks": { "500": "8b084b59", "1500": "cbe7473d", "3000": "9fd1be7" },
-      "s": 161
+      "marks": { "500": "6d03d733", "1500": "c1cfd5f3", "3000": "68789483" },
+      "s": 204
     },
     {
       "universe": "alien",
@@ -1027,22 +1056,22 @@
         "realms": { "year": 60, "name": "Realms" },
         "cities": { "year": 200, "name": "Cities" },
         "writing": { "year": 200, "name": "Writing" },
-        "iron": { "year": 840, "name": "Iron" },
-        "engines": { "year": 1120, "name": "Coal and steam" },
-        "electricity": { "year": 1210, "name": "Electricity" },
-        "orbit": { "year": 1410, "name": "Orbit" },
-        "worlds": { "year": 1620, "name": "Other worlds" },
-        "stars": { "year": 1620, "name": "Other stars" },
-        "fusion": { "year": 1620, "name": "Fusion" },
-        "minds": { "year": 1630, "name": "Silicon minds" },
-        "bodies": { "year": 1690, "name": "Made bodies" },
-        "remade": { "year": 2220, "name": "Remade worlds" }
+        "iron": { "year": 440, "name": "Set flakes" },
+        "engines": { "year": 830, "name": "Sun engines" },
+        "electricity": { "year": 940, "name": "Electricity" },
+        "orbit": { "year": 1130, "name": "Orbit" },
+        "worlds": { "year": 1320, "name": "Other worlds" },
+        "stars": { "year": 1320, "name": "Other stars" },
+        "fusion": { "year": 1320, "name": "Fusion" },
+        "minds": { "year": 1340, "name": "Silicon minds" },
+        "bodies": { "year": 1390, "name": "Made bodies" },
+        "remade": { "year": 2000, "name": "Remade worlds" }
       },
       "falls": [],
       "end": { "year": 3000, "id": "remade", "name": "Remade worlds" },
       "check": "432ad18e",
-      "marks": { "500": "d15c275f", "1500": "f4e18b64", "3000": "c0f825d8" },
-      "s": 586
+      "marks": { "500": "bc7b7c02", "1500": "8cffafce", "3000": "989208d1" },
+      "s": 648
     },
     {
       "universe": "earth",
