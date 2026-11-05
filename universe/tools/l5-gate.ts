@@ -158,7 +158,7 @@ function forge(
   const scene = (p: Polity): Scene => {
       const c = of(p),
         heir = fig(c, c.heir),
-        rival = fig(c, c.rival)!,
+        rival = fig(c, c.rival),
         voice = c.figures.find((f) => f.id !== c.heir && f.id !== c.rival);
       return {
         realm: p.ref,
@@ -166,8 +166,8 @@ function forge(
         ruler: p.ruler.name,
         heir: heir?.name ?? null,
         heirRef: heir ? `court:${p.ref}:${heir.id}` : null,
-        rival: rival.name,
-        rivalRef: `court:${p.ref}:${rival.id}`,
+        rival: rival?.name ?? "",
+        rivalRef: rival ? `court:${p.ref}:${rival.id}` : "",
         voiceRef: voice ? `court:${p.ref}:${voice.id}` : null,
       };
     },
@@ -181,7 +181,24 @@ function forge(
     diesP = withHeir.find((p) => p !== lookP) ?? rest[0]!,
     left = rest.filter((p) => p !== diesP),
     [foundP, wonP, answerP] = [left[0]!, left[1]!, left[2]!],
+    // (An heir's death has a window only where the heir is not the voices' choosing, and a name to give
+    // only where another is grown at court. It needs no rival, so any realm will do.)
     bereftP =
+      [...realms.living()].find((p) => {
+        const c = courts.of(p.ref);
+        return (
+          !!c &&
+          !!orders.of(p.ref) &&
+          !c.plot &&
+          ![lookP, diesP, foundP, wonP, answerP].includes(p) &&
+          c.heirBy !== "voices" &&
+          adult(fig(c, c.heir)) &&
+          c.figures.some((f) => f.id !== c.heir && adult(f)) &&
+          now - p.ruler.born >= grown &&
+          !!seatTownOf(world, p) &&
+          p.members.length >= 1
+        );
+      }) ??
       withHeir.find(
         (p) => p !== lookP && p !== diesP && p !== foundP && p !== wonP && p !== answerP,
       ) ??
@@ -210,6 +227,10 @@ function forge(
     const c = of(bereftP),
       f = fig(c, c.heir);
     if (f) (f as { born: number }).born = now - 3 * ctx.life.bands.at(-1)!;
+    // (The ruler young, held rightful and unplotted against: this one is here for the heir's death.)
+    bereftP.ruler = { ...bereftP.ruler, born: now - (grown + 5) };
+    orders.of(bereftP.ref)!.legitimacy = Math.max(orders.of(bereftP.ref)!.legitimacy, 0.6);
+    c.quiet = now + 60;
   }
   const bytes = gzipSync(
       JSON.stringify(saveWorld(world, rulesetId(world, u.version), { universe: u.name })),
@@ -264,7 +285,7 @@ const centre = (sel: string) =>
   k<{ x: number; y: number; under: boolean } | null>(`(() => {
     const e = document.querySelector(${JSON.stringify(sel)});
     if (!e) return null;
-    const r = e.getBoundingClientRect();
+    const r = e.getClientRects()[0] ?? e.getBoundingClientRect();
     if (!(r.width > 0 && r.height > 0)) return null;
     const x = r.left + r.width / 2, y = r.top + r.height / 2, top = document.elementFromPoint(x, y);
     return { x, y, under: !!top && !(e === top || e.contains(top)) };
@@ -415,7 +436,7 @@ async function play(f: Forged, tag: string): Promise<void> {
 
   // 2. The rival's page, by touch.
   await tap(`${rivalCard} .leader-name`);
-  await until(`${tag}: the rival's page`, async () => (await pageText()).includes("In this drama"));
+  await until(`${tag}: the rival's page`, async () => /In this drama/i.test(await pageText()));
   await settle(200);
   const theirs = await pageText();
   say(`${tag}: ${l.rival}: ${theirs.replace(/\s+/g, " ").slice(0, 400)}`);
@@ -496,9 +517,12 @@ async function play(f: Forged, tag: string): Promise<void> {
         after.includes(now.ruler),
         `${tag}: ${now.ruler} holds the seat and the Court tab does not say so`,
       );
+      const cards = await k<string[]>(
+        `[...document.querySelectorAll(".page-window .leader-name")].map((e) => e.textContent)`,
+      );
       check(
-        !after.includes(f.dies.ruler) || /What has passed/i.test(after),
-        `${tag}: ${f.dies.ruler} is dead and still on the Court tab`,
+        !cards.some((c) => c.includes(f.dies.ruler)) || /What has passed/i.test(after),
+        `${tag}: ${f.dies.ruler} is dead and still has a card on the Court tab`,
       );
       check(
         !new RegExp(`${now.ruler}\\s+Heir`, "i").test(after),
@@ -718,7 +742,8 @@ async function rule(f: Forged, tag: string): Promise<void> {
     await settle(200);
     const name = c.heir;
     // (Death takes its time. Any other window on the way is let come: this ruler is here for the one thing.)
-    const died = async () => (await text(".reign-window")).includes("has died");
+    // (Their own death's window says "has died" too: this one is the heir's.)
+    const died = async () => (await text(".reign-window")).includes(", your heir, died");
     let came = false;
     for (let y = 1; y <= 40 && !came; y++) {
       await k(`globalThis.causalis.client.advance(${Math.round(f.hashAt + y * YEAR)})`);
@@ -738,10 +763,16 @@ async function rule(f: Forged, tag: string): Promise<void> {
           break;
         await page.waitForTimeout(100);
       }
+      if (!came) {
+        await page.waitForTimeout(500);
+        came = await died();
+      }
       if ((await reign())?.fell) break;
     }
-    check(came || !!(await reign())?.fell, `${tag}: no window for an heir's death in forty years`);
-    if (!came) say(`${tag}: their reign ended before their heir died`);
+    check(
+      came,
+      `${tag}: no window for ${name}'s death in forty years (their reign ended: ${!!(await reign())?.fell})`,
+    );
     if (came) {
       const wb = await text(".reign-window");
       say(`${tag}: window: ${wb.replace(/\s+/g, " ")}`);
@@ -750,7 +781,9 @@ async function rule(f: Forged, tag: string): Promise<void> {
       const can = await k<boolean>(
         `!!document.querySelector('.reign-drama[data-choice="name"][data-can="1"]')`,
       );
+      check(can, `${tag}: an heir died and no one could be named: ${wb.replace(/\s+/g, " ")}`);
       if (can) {
+        const stood = (await reign())!.legitimacy;
         const picked = await k<string>(
           `document.querySelector('.reign-drama[data-choice="name"][data-can="1"]').textContent`,
         );
@@ -765,10 +798,13 @@ async function rule(f: Forged, tag: string): Promise<void> {
         );
         await settle(300);
         await shot(`${tag}-8b-named`);
-        say(`${tag}: named: ${(await reign())?.heir}`);
+        const named = (await reign())!;
+        check(named.legitimacy < stood, `${tag}: naming an heir cost nothing`);
+        say(
+          `${tag}: named: ${named.heir}; standing ${stood.toFixed(3)} to ${named.legitimacy.toFixed(3)}`,
+        );
       } else {
         await tap(`.reign-drama[data-choice="let"]`);
-        say(`${tag}: no one grown to name: let stand`);
       }
     }
     await tap(".reign-letgo");
