@@ -40,7 +40,8 @@ const slug = (name: string) => name.replace(/[^a-z0-9]+/gi, "_");
 if (child) {
   const [dir] = argv,
     [universe, ...rest] = child.split(":"),
-    seed = rest.join(":"),
+    // (Trimmed: a seed read from a Windows shell can bring a carriage return, and that is another world.)
+    seed = rest.join(":").trim(),
     u = universe === "alien" ? ALIEN : EARTH,
     file = join(dir!, `${universe}--${slug(seed)}.ndjson`),
     t0 = performance.now(),

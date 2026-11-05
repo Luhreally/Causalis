@@ -31,6 +31,28 @@ So playing someone changes history only when you act, and a world nobody plays k
 | L5 Courts and drama | Heirs, rivals, councils and politicians, plots, marriages, successions, running without you | Dramas that unfold on their own, each with a why; event windows you can step into | Slow: changes history for every world |
 | L6 The rest of OG | What is left of the ranked Classic list, folded into the steps above where it fits | Town and country detail, trade and coin, as each comes up | Mixed |
 
+## L3, as built (2026-11-05)
+
+A life is a possession with a second pace. Press 🏠 Live here in a town, or on a town in a land's panel, and the
+hand is laid and a sheet offers up to eight real people. The town view stays as it is, with the clock running their
+day at about two minutes a day, a strip of needs, purse, want and rival above, and a tray of choices below.
+
+- Their work is the view's own day, so any trade in any age works with no new placing. 🕹 Walk drops to the
+  joystick and ✋ Let go comes back up to the day.
+- ⏭ lets months go by on a habit, with the eye held over their home. A window stops the clock: a child, a want
+  done, a rival's move, what a child will become. It goes on when answered. At death you go on as an heir.
+- Coin is a person's bread for a day, and wages and prices read the real market. Buying moves the real market's
+  goods, so "no cloth to be had" is true when it says so.
+- Reading and looking move nothing. History moves when Live here is pressed: things made past the day's work,
+  goods bought, a marriage, a child taught. Worlds nobody plays keep their exact history, and the eight fixtures
+  are unchanged.
+
+Limits, stated: going off with the levy, changing a grown person's work, affairs and same-sex partners are cut for
+now (the hand's births need a mother and a father; L5 fixes the kin words first). Rent is 0.5 a day with no law or
+eviction behind it. Singles are scarce because the hand pairs every woman at once, so a lived single man may have
+no one to court: the want is not offered then, and the Book says so. The numbers are first guesses from one market
+at year 300, and all sit in `rules/life.ts`, a table each. Decrees, wars and marriages of state are L4.
+
 ## What is known, and what is not
 
 - Realm pages show rulers: a name, since when, and the event that made them. They show no heirs, councils

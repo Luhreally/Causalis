@@ -305,6 +305,7 @@ import { deviceTier } from "./tier.ts";
 import { installHeld, type HeldField } from "./held.ts";
 import { installPossession } from "./possess.ts";
 import { installLeaders } from "./leaders.ts";
+import { installLife } from "./life.ts";
 import { installColonyFilm, type ColonyFilm } from "./colony-film.ts";
 import { installFleetFilm, type FleetFilm } from "./fleet-film.ts";
 // (Anyone's family and body on their card, a war's soldiers named from its roll: Phase 55 wave 5.)
@@ -5316,7 +5317,10 @@ async function runPlanetPage(): Promise<void> {
   /** The moment the eye came down to a colony's town: its sun's morning. */
   let colonyFrom = 0;
   // A tap in the village: someone, else a beast (its lineage and what it is doing), else no one.
+  let lifeTap: ((x: number, y: number) => boolean) | null = null;
   const tapVillage = (x: number, y: number) => {
+    // (The sheet of lives up: one tapped goes on it, Lives L3.)
+    if (lifeTap?.(x, y)) return;
     // One borne home on a litter (Phase 55 wave 5): their card, as anyone's.
     const borne = plan ? village.pickLitter(x, y) : null;
     if (borne !== null) return selectPerson(borne);
@@ -7835,6 +7839,26 @@ async function runPlanetPage(): Promise<void> {
     toOrbit: () => setRoam("orbit"),
   });
   pageWindow.onLeaderHome = (l) => void leaders.home(l);
+  // A life lived by the god's hand (Lives L3): a possession with a day pace, from Live here or a body held.
+  const lifeFlow = installLife({
+    stage,
+    hud,
+    client,
+    time,
+    rig,
+    village,
+    pages: pageWindow,
+    possession: person,
+    plan: () => (scale === "village" ? plan : null),
+    scale: () => scale,
+    reload: loadPlan,
+    toOrbit: () => setRoam("orbit"),
+  });
+  lifeTap = lifeFlow.tapped;
+  villagePanel.onLive = () => void lifeFlow.liveHere();
+  regionPanel.onLive = (ref) =>
+    void goTo({ scale: "village", town: ref }).then(() => lifeFlow.liveHere());
+  person.onLive = (agent) => void lifeFlow.liveAgent(agent);
   // Watch a town grow (Phase 26 M154): down to its land, the eye on it, the clock a year a second.
   const watchGrow = async (cell: number, town: string) => {
     if (!(scale === "region" && regionCell === cell)) await goTo({ scale: "region", cell });

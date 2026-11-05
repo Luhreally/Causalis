@@ -73,6 +73,8 @@ export class PossessHud {
   carriesIcon = "🎒";
   private readonly hint = el("div", "possess-hint");
   private readonly letGo = el("button", "possess-letgo", "✋ Let go");
+  /** Live their day (Lives L3): from a body held to their life. */
+  private readonly liveDay = el("button", "possess-live", "🏠 Live their day");
   private readonly paces = el("div", "possess-paces");
   private readonly base = el("div", "possess-stick");
   private readonly knob = el("span", "possess-knob");
@@ -97,6 +99,7 @@ export class PossessHud {
   private readonly onTurn = () => this.release();
   /** Let go, the eye turned (pixels), stood off (a factor: more than one, nearer), come behind, the clock's pace chosen. */
   onLetGo: () => void = () => {};
+  onLive: () => void = () => {};
   onLook: (dx: number, dy: number) => void = () => {};
   onZoom: (factor: number) => void = () => {};
   onBehind: () => void = () => {};
@@ -155,6 +158,7 @@ export class PossessHud {
       this.actsBox.append(b);
     }
     this.press(this.letGo, () => this.onLetGo());
+    this.press(this.liveDay, () => this.onLive());
     this.element.append(
       this.bubbles,
       this.head,
@@ -162,6 +166,7 @@ export class PossessHud {
       this.paces,
       this.sprint,
       this.letGo,
+      this.liveDay,
       this.base,
       this.hint,
       this.actsBox,

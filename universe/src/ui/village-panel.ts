@@ -71,10 +71,13 @@ export class VillagePanel {
   private storesOpen = false;
   /** The war about the town (Phase 40 M204), a line under the stores: what its hosts are at. */
   private readonly warLine = el("button", "town-war");
+  /** Live here (Lives L3): the way into anyone's life in this town. */
+  private readonly liveLine = el("button", "town-live", "🏠 Live here");
   private warRef: string | null = null;
   private folkOpen = false;
   private cardKey = "";
   onBack: () => void = () => {};
+  onLive: () => void = () => {};
   onClose: () => void = () => {};
   /** The stores' card opened (what else is up is put away). */
   onStores: () => void = () => {};
@@ -101,7 +104,8 @@ export class VillagePanel {
     this.warLine.onclick = () => {
       if (this.warRef) this.onWar(this.warRef);
     };
-    bar.append(back, this.title, this.timeSlot, this.storesLine, this.warLine);
+    this.liveLine.onclick = () => this.onLive();
+    bar.append(back, this.title, this.timeSlot, this.liveLine, this.storesLine, this.warLine);
     const close = el("button", "close", "×");
     close.setAttribute("aria-label", "Close");
     close.onclick = () => {

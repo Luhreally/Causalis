@@ -259,12 +259,18 @@ export function placesNear(
  * are drawn at the moment the taking will take hold (`at`, world seconds: the next of the clock held),
  * their ways ahead, his trade, the town's solids and places about him.
  */
-export function takeOf(plan: VillagePlan, index: number, at: number): PossessTakeArgs | null {
+export function takeOf(
+  plan: VillagePlan,
+  index: number,
+  at: number,
+  /** Where they stand, where it is not where their own day has them (a life's block: Lives L3). */
+  stand?: Point,
+): PossessTakeArgs | null {
   const p = plan.people[index],
     id = p ? agentOf(p) : null;
   if (!p || id === null) return null;
   const ground = villageSolids(plan),
-    me = atOf(plan, index, at),
+    me = { ...atOf(plan, index, at), ...(stand ? { x: round(stand.x), z: round(stand.z) } : {}) },
     near: { id: number; j: number; a: ReturnType<typeof atOf>; d: number }[] = [];
   plan.people.forEach((q, j) => {
     const qid = agentOf(q);

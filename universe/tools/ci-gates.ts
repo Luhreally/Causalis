@@ -269,6 +269,10 @@ export const GATES: readonly Gate[] = [
   // Gate 68, Lives L1 and L2 (tools/lives-gate.ts): a realm's leaders, a ruler's home in the town view,
   // possessed and let go, history untouched till then; the wealth lens, its ranking, two side by side.
   { gate: 68, args: ["--ci"], s: 300 },
+  // Gate 70, Lives L3 (tools/l3-gate.ts): Live here at a phone's size, the sheet of lives, a life taken up;
+  // a block chosen and watched, the market, the Walk down to the hand and back; months let go by, what waits
+  // answered; the book; let go, the hand still resting; history untouched until Live here was pressed.
+  { gate: 70, args: ["--ci"], s: 300 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */

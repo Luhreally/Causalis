@@ -229,6 +229,7 @@ export type {
   PossessStrip,
   PossessTakeArgs,
 } from "./possess.ts";
+export type { LifeCard, LifeChoice, LifeKin, LifeNow, LifeOfferNow, LifeWindow } from "./life.ts";
 export type {
   BeastTakeArgs,
   FoughtNow,

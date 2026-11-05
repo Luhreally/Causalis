@@ -28,6 +28,8 @@ import {
   designsOf,
   grainLost,
   handOf,
+  householdOf,
+  livedAbout,
   heatYield,
   healthOf,
   homePlanet,
@@ -449,11 +451,19 @@ export function villagePlan(
     // again (Phase 60).
     const most = folk > 0 && folk < HAND_FOLK_AT_HIGH ? folk : DRAWN_UNDER_HAND,
       every = Math.max(1, Math.ceil(hand.agents.length / most)),
-      held = new Set(hand.possessed?.local.bodies.map((b) => b.id) ?? []);
+      held = new Set(hand.possessed?.local.bodies.map((b) => b.id) ?? []),
+      // (One lived, those about them always drawn, their house under one roof: Lives L3.)
+      house = hand.life
+        ? new Set(householdOf(hand, hand.life, now, lifeOf(world).adulthood))
+        : null;
+    if (hand.life) for (const id of livedAbout(hand.life)) held.add(id);
     hand.agents
       .filter((a, i) => i % every === 0 || a.name !== undefined || held.has(a.id))
       .forEach((a, k) => {
-        const home = Math.min(homes.length - 1, Math.floor(k / 5));
+        const home = Math.min(
+          homes.length - 1,
+          house?.has(a.id) ? hand.life!.home : Math.floor(k / 5),
+        );
         homes[home]!.household = `home:${home}`;
         people.push({
           ref: `agent:${a.id}`,

@@ -62,6 +62,8 @@ export class RegionPanel {
   }
   /** Watch a village through the microscope. */
   onWatch: (ref: string) => void = () => {};
+  /** Live here pressed for a town (Lives L3). */
+  onLive: (ref: string) => void = () => {};
   onLens: (lens: RegionLens) => void = () => {};
   onClose: () => void = () => {};
   /** News of what the observer follows, and the toggles that follow things. */
@@ -286,8 +288,10 @@ export class RegionPanel {
     into.replaceChildren(el("h3", undefined, "Your hand on this place"), tools, note, ...done);
   }
 
-  /** The god's hand on this village: lay it here, or lift it, each only when confirmed. */
+  /** The god's hand on this village: lay it here, or lift it, each only when confirmed; and the way into a life there. */
   private async showHand(into: HTMLElement, ref: string, name: string): Promise<void> {
+    const live = el("button", "tool region-live", "🏠 Live here");
+    live.onclick = () => this.onLive(ref);
     const hand = await this.client.query<{
       village: string;
       name: string;
@@ -318,6 +322,7 @@ export class RegionPanel {
           "fact act-line",
           `Your hand has rested here since year ${hand.since}: its ${hand.people} people live as themselves.`,
         ),
+        live,
         two(
           "Lift your hand",
           "Lift it — they go back to being counted",
@@ -328,10 +333,12 @@ export class RegionPanel {
       );
     else if (hand)
       into.replaceChildren(
+        live,
         el("p", "muted", `Your hand rests on ${hand.name}; lift it there to lay it here.`),
       );
     else
       into.replaceChildren(
+        live,
         two(
           "Lay your hand here",
           `Lay it on ${name} — confirm`,

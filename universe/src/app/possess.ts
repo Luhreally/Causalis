@@ -100,8 +100,12 @@ const HANDED_NEAREST = 4,
   HANDED_ASPECT = 1.6;
 
 export type Possession = {
-  /** One of those drawn taken (their index in the plan): why not (null: taken). */
-  take(index: number): Promise<string | null>;
+  /** One of those drawn taken (their index in the plan), standing where `stand` says if given: why not (null: taken). */
+  take(index: number, stand?: { x: number; z: number }): Promise<string | null>;
+  /** Where the last one let go stood (metres), so a life goes on from there. */
+  readonly lastAt: { x: number; z: number } | null;
+  /** Live their day pressed on the strip (Lives L3). */
+  onLive: (agent: number) => void;
   letGo(): Promise<void>;
   readonly on: boolean;
   /** Told when a possession has ended and the town is drawn again (Lives L1). */
@@ -114,6 +118,11 @@ export function installPossession(d: PossessionDeps): Possession {
     /** The acts pressed and not yet bid (one a step, in the order pressed). */
     presses: number[] = [];
   let ended: (town: string) => void = () => {};
+  let lastAt: { x: number; z: number } | null = null,
+    live: (agent: number) => void = () => {};
+  hud.onLive = () => {
+    if (on) live(on.now.agent);
+  };
   let on: On | null = null,
     busy = false,
     /** Where the page was last looked at for a body held unseen ("": not in a town). */
@@ -156,7 +165,7 @@ export function installPossession(d: PossessionDeps): Possession {
     return null;
   };
 
-  const take = async (index: number): Promise<string | null> => {
+  const take = async (index: number, stand?: { x: number; z: number }): Promise<string | null> => {
     const why = await whyNot(index);
     if (why) return why;
     const plan = d.plan()!;
@@ -166,7 +175,7 @@ export function installPossession(d: PossessionDeps): Possession {
       d.time.hold("possess");
       // As the town is drawn at the moment the taking takes hold: the next of the clock held.
       const { t } = await d.client.query<{ t: number }>({ type: "now" }),
-        args = takeOf(plan, index, t + 1);
+        args = takeOf(plan, index, t + 1, stand);
       if (!args)
         throw new Error(`${plan.people[index]!.name} is not one of those your hand rests on`);
       await d.client.command("possess.take", args);
@@ -332,6 +341,7 @@ export function installPossession(d: PossessionDeps): Possession {
     if (on !== o) return;
     on = null;
     const me = o.posed.drawnAt(o.now.agent);
+    lastAt = me ? { x: me.x, z: me.z } : null;
     d.village.posed = null;
     hud.hide();
     presses.length = 0;
@@ -551,6 +561,15 @@ export function installPossession(d: PossessionDeps): Possession {
   return {
     take,
     letGo,
+    get lastAt() {
+      return lastAt;
+    },
+    get onLive() {
+      return live;
+    },
+    set onLive(f: (agent: number) => void) {
+      live = f;
+    },
     get onEnded() {
       return ended;
     },

@@ -26,11 +26,13 @@ import {
   bandWidth,
   copyFight,
   copyLocal,
+  copyLife,
   copyWild,
   type Blow,
   type BodyPlace,
   type FightScene,
   type FightWorld,
+  type Life,
   type LifeHistory,
   type LocalScene,
   type LocalWorld,
@@ -74,6 +76,10 @@ export type Agent = {
   mood?: { readonly by: number; readonly at: number };
   /** Blows that struck them down by the god's hand in a body, and they lived (Phase 60): their wounds are told from these (host/wounds.ts handWound). */
   struck?: HandHit[];
+  /** Lived by the god's hand, or held free for one who is (Lives L3): the hand does not pair them. */
+  free?: true;
+  /** The work they were taught as a child (Lives L3: an OCC), taken up when grown. */
+  taught?: number;
 };
 
 /** A blow that struck one of the hand's people down in a possessed body's small world, and they lived: when, how, where it landed. */
@@ -337,9 +343,11 @@ export function traitWeight(a: Agent, what: "death" | "birth" | "care"): number 
 /** The work one coming of age takes up, weighed: their society's needs, pulled by what they are like. */
 export function workWeights(targets: readonly number[], a: Agent): readonly number[] {
   const pulls = (a.traits ?? []).flatMap((t) => TRAIT_WORK[t] ?? []);
-  if (!pulls.length) return targets;
+  if (!pulls.length && a.taught === undefined) return targets;
   const out = [...targets];
   for (const [o, k] of pulls) out[o] = out[o]! * k;
+  // (Taught as a child, Lives L3: drawn to it; one lived takes it for certain.)
+  if (a.taught !== undefined) out[a.taught] = Math.max(1, out[a.taught]!) * (a.free ? 1e9 : 6);
   return out;
 }
 
@@ -350,7 +358,7 @@ export function workWeights(targets: readonly number[], a: Agent): readonly numb
  */
 export function pairUp(agents: readonly Agent[], year: number, adulthood: number): void {
   const living = new Set(agents.map((a) => a.id)),
-    alone = (a: Agent) => a.partner === undefined || !living.has(a.partner),
+    alone = (a: Agent) => !a.free && (a.partner === undefined || !living.has(a.partner)),
     grown = agents.filter((a) => year - a.birthYear >= adulthood),
     women = grown
       .filter((a) => a.sex === FEMALE && alone(a))
@@ -419,6 +427,8 @@ export type Window = {
   gone?: Gone[];
   /** One of them possessed, while the god's hand is in their body (Phase 60). */
   possessed?: Possession;
+  /** One of them lived on by the god's hand, day on day (Lives L3: sim/hand/life.ts). */
+  life?: Life;
 };
 
 /** One of the hand's people who died while it rests: who they were, and when they died. */
@@ -533,6 +543,7 @@ export class HandStore implements StateStore {
                 },
               }
             : {}),
+          ...(w.life ? { life: copyLife(w.life) } : {}),
         }
       : null;
   }
@@ -659,7 +670,9 @@ export function installHand(world: World): HandStore {
         ? "your hand rests on no village"
         : store.resting.possessed
           ? "your hand is in one of its people: let them go first"
-          : null,
+          : store.resting.life
+            ? "you are living one of their lives: let it go first"
+            : null,
     apply: (command) => {
       const w = store.resting!;
       world.events.emit({

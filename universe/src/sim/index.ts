@@ -695,6 +695,19 @@ export {
 } from "./hand/hand.ts";
 export { installHeld, type HeldInput } from "./hand/held.ts";
 export {
+  HAND_LIFE,
+  LIFE_EVENTS,
+  heirsOf,
+  householdOf,
+  installLife,
+  kinOf,
+  lifeFacts,
+  lifeMonth,
+  livedAbout,
+  ratioIn,
+  rivalOf,
+} from "./hand/life.ts";
+export {
   FIGHT_EVENTS,
   HAND_FIGHT,
   battleBy,
