@@ -589,7 +589,7 @@ export function newBlows(field: BattleField, told: BlowTold | null = null): Blow
       wounded = own.wounded ?? 0,
       h = field.hosts[side]!,
       standing = field.troopers.filter((t) => t.side === side && t.falls === null),
-      n = hurtFigures(wounded, standing.length, field.per),
+      n = hurtFigures(wounded, standing.length, field.perOf?.[side] ?? field.per),
       // (Struck of those in the ranks, not a banner's bearer, a gun's team or one on a ladder;
       // where too few, of those too.)
       ranks = standing.filter((t) => !t.bearer && !t.gun && !climbers.has(t.id)),

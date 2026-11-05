@@ -1621,8 +1621,10 @@ export class BattleLayer {
         out[0] = b.x * M;
         out[1] = b.y * M;
         out[2] = b.z * M;
-        out[3] = 0.022 * b.k + 0.006;
-        out[4] = 0.022 * b.k + 0.006;
+        // (Fought by fire, a line across a hundred metres of field: thick enough to be seen on a phone. W1c.)
+        const wide = this.field?.fire ? 3 : 1;
+        out[3] = (0.022 * b.k + 0.006) * wide;
+        out[4] = (0.022 * b.k + 0.006) * wide;
         out[5] = b.long * M;
         out[6] = b.yaw;
       });

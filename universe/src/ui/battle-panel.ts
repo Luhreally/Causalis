@@ -191,7 +191,7 @@ export class BattlePanel {
   }
 
   /** Which battle, its hosts, how many men a figure stands for. */
-  show(near: BattleNear, per: number): void {
+  show(near: BattleNear, per: number, less = per): void {
     this.near = near;
     this.title.textContent = `⚔️ ${near.title} · year ${near.year}${near.civil ? ` · ${near.civil}` : ""}${near.tip ? " · arms decided it" : ""}${near.hand ? ` · the god fought in it as ${near.hand.name}` : ""}`;
     // (A beast's own claws are not made: no host design to trace them to.)
@@ -225,7 +225,9 @@ export class BattlePanel {
     });
     this.each.textContent =
       per > 1
-        ? `each figure stands for ${per.toLocaleString("en-US")} men`
+        ? less < per
+          ? `each figure stands for ${per.toLocaleString("en-US")} men (the smaller host's, ${less.toLocaleString("en-US")})`
+          : `each figure stands for ${per.toLocaleString("en-US")} men`
         : "a figure for every one";
     this.shown = "";
   }

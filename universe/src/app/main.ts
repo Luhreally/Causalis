@@ -4253,7 +4253,7 @@ async function runPlanetPage(): Promise<void> {
    * and how far past the fight's middle to aim, so its near host is not cut off by the screen's foot
    * (a field of view of 45 degrees, the bar a quarter of the screen: 0.41 behind the aim, 0.33 ahead of it).
    */
-  const FIRE_VIEW = { pitch: -45, ground: 0.75, below: -0.02 } as const;
+  const FIRE_VIEW = { pitch: -30, off: 40, most: 36, ground: 0.75, below: -0.02 } as const;
   /**
    * The eye on a battle fought before the town (Phase 55 M227): from its side, a little behind the
    * attackers' line — the two lines and where they meet, the town beyond — some hundred metres off,
@@ -4263,11 +4263,14 @@ async function runPlanetPage(): Promise<void> {
    */
   const placedView = (frame: PlacedFrame, meet: number, span = 0) => {
     const m = placedPoint(frame, meet, 0);
-    // (Two hosts that stand apart to fight, on a tall screen: seen along their line of fire from over the
-    // attackers, both in the picture and neither a speck, the fight's middle in the middle of what the
-    // town's bar leaves of the screen. W1b.)
+    // (Two hosts that stand apart to fight, on a tall screen: seen from over the attackers, both in the picture and
+    // neither a speck, the fight's middle in the middle of what the town's bar leaves of the screen (W1b); and off their
+    // line of fire, since from straight behind a man lying down looks like a man standing with a pole (W1c).)
     if (span > 0 && aspect() < 1) {
-      const distance = Math.min(30, Math.max(14, (span * 2.4 * VILLAGE_METRE) / FIRE_VIEW.ground)),
+      const distance = Math.min(
+          FIRE_VIEW.most,
+          Math.max(14, (span * 2.4 * VILLAGE_METRE) / FIRE_VIEW.ground),
+        ),
         ahead = FIRE_VIEW.below * distance;
       return {
         target: {
@@ -4275,7 +4278,7 @@ async function runPlanetPage(): Promise<void> {
           y: 0,
           z: (m.z + (frame.uz * ahead) / VILLAGE_METRE) * VILLAGE_METRE,
         },
-        yaw: (Math.atan2(-frame.ux, -frame.uz) * 180) / Math.PI,
+        yaw: (Math.atan2(-frame.ux, -frame.uz) * 180) / Math.PI + FIRE_VIEW.off,
         pitch: FIRE_VIEW.pitch,
         distance,
       };
@@ -6447,7 +6450,7 @@ async function runPlanetPage(): Promise<void> {
     meadowScene.visible = true;
     meadowScene.season(null);
     stage.backdrop("ground", 40);
-    battlePanel.show(info, field.per);
+    battlePanel.show(info, field.per, Math.min(...(field.perOf ?? [field.per])));
     battlePanel.visible = true;
     // (The world waits while its battle is watched.)
     time.hold("battle");

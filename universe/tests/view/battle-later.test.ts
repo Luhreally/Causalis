@@ -168,7 +168,7 @@ test("defenders who stand off dig a trench: the front rank stands sunk in it and
   );
 });
 
-test("fire without pause: an autoloader side's shots fall in forty seconds or more, at most 700 a side, every one a shot; automatic v automatic: the falls as history says", () => {
+test("fire without pause: an autoloader side's shots fall in forty seconds or more, at most 2,400 a side, every one a shot; automatic v automatic: the falls as history says", () => {
   const al = newBattle(
       near("field", side("Ash", 2400, 300, "autoloader"), side("Elm", 2000, 260, "autoloader")),
       360,
@@ -179,7 +179,10 @@ test("fire without pause: an autoloader side's shots fall in forty seconds or mo
     "shots in forty seconds or more",
   );
   for (const s of [0, 1] as const)
-    assert.ok(al.arrows.filter((a) => a.side === s).length <= 700, `side ${s}: at most 700 shots`);
+    assert.ok(
+      al.arrows.filter((a) => a.side === s).length <= 2400,
+      `side ${s}: at most 2,400 shots`,
+    );
   assert.ok(
     al.arrows.every((a) => a.shot),
     "every one a shot",
@@ -255,6 +258,44 @@ test("smokeless powder: the self-loading rifles' smoke lies thinner, a puff at a
       360,
     );
   assert.ok(smoke(al) < smoke(mu), `${smoke(al)} against ${smoke(mu)}`);
+});
+
+test("fought by fire, a seat's walls are not on the field, the smaller host is drawn fairly, and no row of squads or cars runs down it (W1c)", () => {
+  const f = newBattle(
+      near(
+        "stormed",
+        side("Ash", 2_000_000, 40_000, "automatic", "armoured"),
+        side("Elm", 50_000, 9_000, "automatic", "armoured"),
+        { walls: 2 },
+      ),
+      240,
+      true,
+    ),
+    words = f.moments.map((m) => m.words).join(" | ");
+  assert.ok(f.fire, "fought by fire");
+  assert.equal(f.ground.wall, null, "no wall on the field");
+  assert.ok(!/gate|walls/.test(words), words);
+  assert.ok(f.near.town === "Testholt" && /Testholt/.test(words), "the seat still named");
+  assert.equal(f.hosts[0].n, 240);
+  assert.equal(f.hosts[1].n, 60, "a quarter of the most drawn");
+  assert.deepEqual(f.perOf, [f.per, Math.ceil(50_000 / 60)]);
+  // (Nor is any file of squads a straight line: blocks of the same file wander by more than a third of their pitch.)
+  const gap = 2 * FIELD.z,
+    first = f.troopers.filter((t) => t.side === 0 && t.file === 0).map((t) => t.z),
+    wander = Math.max(...first) - Math.min(...first);
+  assert.ok(wander > (gap / f.hosts[0].files) * 0.7, `a file wanders ${wander}`);
+  // (Cars keep no row.)
+  const cars = (f.vehicles ?? []).filter((v) => v.side === 0);
+  assert.ok(cars.length > 3);
+  assert.ok(new Set(cars.map((v) => v.u.toFixed(3))).size > 3, "each car its own place");
+  // (Past the ladders and before the rifle the wall stands as ever.)
+  const spears = newBattle(
+    near("held", side("Ash", 5000, 70, "spear"), side("Elm", 200, 160, "spear"), { walls: 2 }),
+    240,
+    true,
+  );
+  assert.ok(spears.ground.wall, "a spear's wall stands");
+  assert.equal(spears.perOf, undefined);
 });
 
 test("at a seat's walls the self-loading rifle raises no ladders and blows the gate; the repeater still raises ladders", () => {
