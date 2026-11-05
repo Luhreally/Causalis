@@ -507,7 +507,20 @@ export {
   type WarNow,
 } from "./warplay.ts";
 export {
+  BEAR,
+  LINE_AREA,
+  MADE_BEAR,
+  commandOf,
+  armFire,
+  hostOrder,
+  orderFrom,
+  orderPlaces,
+  type ArmFire,
+  type HostOrder,
+} from "./order.ts";
+export {
   TOWN_DOING_ICON,
+  townDoingIcon,
   townWarNow,
   townWarScene,
   type TownDoing,

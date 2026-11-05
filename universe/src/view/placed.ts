@@ -6,7 +6,7 @@
 // town indoors while it is fought but for those come out to watch at its edge; the hosts' fires the
 // night before; the fallen borne in two days on. Pure: where the field lies, who each figure is.
 import { woundStage, type BattleRoll, type RollEntry, type VillagePlan } from "../bridge/index.ts";
-import { FIELD, placeAt, type BattleField, type BattleNow } from "./battle.ts";
+import { FIELD, PLACED_SCALE, placeAt, type BattleField, type BattleNow } from "./battle.ts";
 import { battleSpan } from "./battleday.ts";
 import type { Blows } from "./blows.ts";
 import { villageGround } from "./ground.ts";
@@ -18,8 +18,7 @@ const LOTS: Readonly<Record<FigureFate, 0 | 1 | 2 | 3>> = {
   wounded: 2,
   stood: 3,
 };
-/** How much larger than the close field's a battle fought in place is laid: its figures as large as the town's folk. */
-export const PLACED_SCALE = 2;
+export { PLACED_SCALE };
 /** The most figures a side of a battle fought in place is drawn as, by the setting's detail (a phone draws fewer). */
 export const PLACED_MOST = [60, 120, 240, 360] as const;
 /** How many of the town come out to its edge to watch the battle fought before it. */
