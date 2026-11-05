@@ -20,7 +20,14 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
-import { BIOME, offworldSite, surfaceOre, worldKindOf } from "../../gen/index.ts";
+import {
+  BIOME,
+  meansNumbers,
+  meansOfWorld,
+  offworldSite,
+  surfaceOre,
+  worldKindOf,
+} from "../../gen/index.ts";
 import {
   G,
   HOST_ROLES,
@@ -30,6 +37,8 @@ import {
   WORKS_ROLES,
   compose,
   designWords,
+  firearm,
+  hereOf,
   kindBurns,
   realization,
   type Doctrine,
@@ -183,8 +192,8 @@ function seaMaterials(ctx: PopulationContext, cell: number): Set<Material> {
   if (warm >= 18) out.add("coral");
   if (warm < 22) out.add("kelp");
   // (An ice world's ice: floes on its ammonia sea, the floor of its methane sea — Phase 56.)
-  const kind = worldKindOf(ctx.generated);
-  if (kind === "ammonia" || kind === "methane") out.add("ice");
+  const n = meansNumbers(ctx.generated);
+  if (n.groundHolds.includes("water-ice") && n.kelvin < 233) out.add("ice");
   return out;
 }
 
@@ -207,9 +216,10 @@ function landGives(ctx: PopulationContext, cell: number): Set<Material> {
   // (Where nothing burns no clay is fired; a kind's walls are of what its ground gives: Phase 56.)
   const kind = worldKindOf(g);
   if ((wet || rain >= 500) && kindBurns(kind)) out.add("fired clay");
-  if (kind === "ammonia" || kind === "methane") out.add("ice");
-  if (kind === "carbon") out.add("pitch grit");
-  if (kind === "sulfur") out.add("sulfur concrete");
+  const n = meansNumbers(g);
+  if (n.groundHolds.includes("water-ice") && n.kelvin < 233) out.add("ice");
+  if (n.rockHolds.includes("bitumen")) out.add("pitch grit");
+  if (n.airHolds.length > 0 && n.rockHolds.includes("sulphur")) out.add("sulfur concrete");
   return out;
 }
 
@@ -309,6 +319,21 @@ export function crystalFor(ctx: PopulationContext, p: Polity): Ref | null {
 }
 
 /**
+ * What a world's own machined arms come from (F1), where no steel can be: a member land with works
+ * whose machines are held there, else machines brought down a road. Null: none in its reach.
+ */
+export function woundWorksFor(ctx: PopulationContext, p: Polity): Ref | null {
+  const markets = ctx.world.store<MarketStore>("economy.markets"),
+    lands = [...p.members].sort((a, b) => a - b);
+  for (const c of lands) {
+    const m = markets.get(c);
+    if (m?.works && m.stock[G.machines]! > 0) return m.works;
+  }
+  const flow = markets.flows.find((f) => f.good === G.machines && lands.includes(f.to));
+  return flow ? (markets.route(flow.from, flow.to) ?? null) : null;
+}
+
+/**
  * Where a realm's engines would get their oil (Phase 53 M219): a member land that holds oil, drawn
  * there (citing its first well) or brought in (citing the road). Null: none.
  */
@@ -375,6 +400,16 @@ export function hostFor(
     const crystal = crystalFor(ctx, p);
     if (crystal) sources.crystal = crystal;
   }
+  // (What a world's means make, F1–F2: where no furnace can be, or no bronze, iron or steel is found off Earth's road, flakes and fibre at hand, its works' machines for the rest.)
+  const means = meansOfWorld(ctx.generated);
+  if (!means.earthRoad || (!means.held && !sources.bronze && !sources.iron && !sources.steel)) {
+    at.add("set edge");
+    at.add("wound");
+    if (seatKnows("repeating-fire") || seatKnows("sound-lances") || seatKnows("self-loading")) {
+      const w = woundWorksFor(ctx, p);
+      if (w) sources["wound works"] = w;
+    }
+  }
   for (const m of Object.keys(sources) as Material[]) at.add(m);
   const doctrine: Doctrine = {
     shock: 0.6 + valour,
@@ -396,6 +431,9 @@ export function hostFor(
       undefined,
       designsOf(ctx.world).of(p.ref)?.parts,
       HOST_KEEP,
+      means.earthRoad && means.held
+        ? undefined
+        : (id, m) => hereOf(id, m, meansNumbers(ctx.generated), firearm(id)),
     ),
     sources,
   };
@@ -447,7 +485,7 @@ const same = (a: readonly Part[], b: readonly Part[]) =>
 function principlesOf(ctx: PopulationContext, cell: number, parts: readonly Part[]): CauseRef[] {
   const refs = new Map<string, number>();
   for (const part of parts)
-    for (const id of realization(part.id).needs) {
+    for (const id of realization(part.id).needs.flatMap((n) => n.split("|"))) {
       const ref = knownBy(ctx, cell, id),
         e = ref ? ctx.world.events.get(ref) : undefined;
       if (ref && e) refs.set(ref, e.t);

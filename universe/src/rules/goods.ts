@@ -101,6 +101,8 @@ export type Recipe = {
     readonly ore?: string;
     readonly seam?: "coal" | "oil";
     readonly knowledge?: string;
+    /** Only where nothing burns: its works are driven without fuel. */
+    readonly fuelless?: boolean;
   };
   /** Only near rivers and lakes (clay), or anywhere. */
   readonly clay?: boolean;
@@ -205,6 +207,22 @@ export const RECIPES: readonly Recipe[] = [
     inputs: [[G.tools, 2]],
     output: [G.machines, 3],
     needs: { knowledge: "machine-minds" },
+  },
+  // (F2: works its own engines drive, where nothing burns. Appended, so every other keeps its place.)
+  {
+    id: "works-machines",
+    name: "machines made in works its own engines drive",
+    inputs: [[G.tools, 2]],
+    output: [G.machines, 3],
+    needs: { knowledge: "factories", fuelless: true },
+  },
+  // (Carbide iron freed of its carbon by oxygen made by current, the only way it ever is.)
+  {
+    id: "oxygen-iron",
+    name: "iron freed of its carbon by oxygen made by current",
+    inputs: [],
+    output: [G.iron, 4],
+    needs: { ore: "iron", knowledge: "made-oxygen" },
   },
 ];
 

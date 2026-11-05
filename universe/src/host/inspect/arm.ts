@@ -7,7 +7,15 @@
 // looking at an arm changes nothing.
 import { hashString, type Ref, type World } from "../../kernel/index.ts";
 import { firearm, type Part } from "../../rules/index.ts";
-import { hostFor, politiesOf, populationContext, warsOf, type Battle } from "../../sim/index.ts";
+import {
+  homePlanet,
+  hostFor,
+  politiesOf,
+  populationContext,
+  warsOf,
+  type Battle,
+} from "../../sim/index.ts";
+import { meansOfWorld } from "../../gen/index.ts";
 import { observer } from "../../causal/index.ts";
 import {
   parseLevyManRef,
@@ -41,12 +49,17 @@ const HAFTED: ReadonlySet<string> = new Set([
 ]);
 /** The colour of a wooden haft. */
 const WOOD = [0.5, 0.36, 0.22] as const;
+/** The materials a world's means give where no metal is (rules/means.ts, F1). */
+const MEANS_STUFF: ReadonlySet<string> = new Set(["set edge", "wound", "wound works"]);
 
 /** The bench an arm's maker works at: the knapping stone, the anvil, or the machines of a works. */
 function benchOf(arm: Part, made: Made): string {
+  if (arm.material === "set edge") return "knapping stone";
+  if (arm.material === "wound") return "winding bench";
   if (arm.material === "stone") return "knapping stone";
   return arm.material === "machined" ||
     arm.material === "crystal" ||
+    arm.material === "wound works" ||
     made.workshop.name.startsWith("the factory")
     ? "machines"
     : "anvil";
@@ -120,7 +133,7 @@ export function equipmentOf(
 /** One of an arm's kind, said of the one who bore it: "chert-tipped spears", "a chert-tipped spear". */
 export function oneArm(words: string): string {
   const one = words
-    .replace(/\b(spear|sword|club|bow|musket|rifle|gun)s\b/, "$1")
+    .replace(/\b(spear|sword|club|bow|musket|rifle|gun|blade)s\b/, "$1")
     .replace(/\baxes\b/, "axe");
   return one === words ? words : `${/^[aeiou]/i.test(one) ? "an" : "a"} ${one}`;
 }
@@ -212,6 +225,10 @@ function armModel(
   if (who !== null && name === null) throw new Error(`no arm ${ref}`);
   const made = armsMade(world, realm, arm, b.year, who ?? undefined),
     gun = firearm(arm.id),
+    // (Where a means-material is made, why there is no metal there: no furnace, no forge — F1.)
+    noMetal = MEANS_STUFF.has(arm.material)
+      ? meansOfWorld(homePlanet(world).generated).noMetal
+      : "",
     chain: Line[] = made
       ? [...made.chain]
       : [
@@ -230,11 +247,12 @@ function armModel(
             made.maker ? makerWords(world, made.maker, benchOf(arm, made)) : "at home",
           ),
           stat("Quality", `${made.grade} (${made.quality} of 100)`),
+          ...(noMetal ? [stat("Why not metal", noMetal)] : []),
           ...(gun
             ? [
                 stat(
                   "Fires",
-                  `${count(gun.rate)} aimed rounds a minute, true to ${count(gun.range)} m`,
+                  `${count(gun.rate)} aimed rounds a minute, true to ${count(arm.here?.range ?? gun.range)} m`,
                 ),
               ]
             : []),
@@ -245,7 +263,7 @@ function armModel(
     arm.material === "body"
       ? undefined
       : thingPortrait({
-          form: arm.id,
+          form: arm.material === "set edge" ? "set-blade" : arm.id,
           made: madeHowOf(made?.stuff ?? arm.material, "arms", arm.material),
           color: made?.colour ?? [0.55, 0.55, 0.58],
           haft: HAFTED.has(arm.id) ? WOOD : null,

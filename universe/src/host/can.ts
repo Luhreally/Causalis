@@ -18,8 +18,7 @@ import {
 } from "../gen/index.ts";
 import {
   AGE_LADDER,
-  KIND_METAL_ROOTS,
-  KINDS,
+  METAL_ROOTS,
   PRINCIPLES,
   affordsPrinciple,
   arsenicalFallback,
@@ -34,6 +33,7 @@ import {
   meansOfAge,
   needsMet,
   principleNameOn,
+  reachIn,
   readFunctions,
   reductionHeat,
   routeTo,
@@ -151,11 +151,18 @@ function driverOpen(l: Lands, p: Principle, knows: (id: string) => boolean): boo
   return !d.ore || oreOpen(l, d.ore, knows, p.id);
 }
 
+/**
+ * The hottest a land can get, where its world's means are read: true for a burning world, false for
+ * none, else in °C.
+ */
+const reachOf = (l: Lands, knows: (id: string) => boolean) =>
+  l.w.means ? reachIn(l.w.means, knows) : l.w.fire;
+
 /** What a people of these lands could come to know, given time: every principle open to them. */
 function openTo(l: Lands, sows: boolean): Set<string> {
   const known = new Set<string>(sows ? ["cultivation"] : []),
     knows = (id: string) => known.has(id),
-    { medium, fire, kind } = l.w;
+    { medium, fire } = l.w;
   // (What needs nothing but the older systems: fishing, herding and the rest are open to any.)
   for (let changed = true; changed;) {
     changed = false;
@@ -165,12 +172,13 @@ function openTo(l: Lands, sows: boolean): Set<string> {
     }
     for (const p of PRINCIPLES) {
       if (known.has(p.id) || p.rate <= 0) continue;
-      if (!affordsPrinciple(p, medium, fire, kind) || !needsMet(p, knows)) continue;
+      if (!affordsPrinciple(p, medium, reachOf(l, knows), l.w.means?.wants) || !needsMet(p, knows))
+        continue;
       if (matterShuts(p, l.w.functions ?? [])) continue;
       if (!driverOpen(l, p, knows)) continue;
       known.add(p.id);
       changed = true;
-      if (p.id === "vent-working" || KIND_METAL_ROOTS.includes(p.id)) known.add("metalworking");
+      if (METAL_ROOTS.includes(p.id)) known.add("metalworking");
     }
   }
   return known;
@@ -187,11 +195,17 @@ function shutBecause(
   const p = PRINCIPLES.find((x) => x.id === id),
     name = (n: string) => principleNameOn(l.w.chem, n);
   if (!p) return "";
-  const { medium, fire, kind } = l.w;
-  if (!affordsPrinciple(p, medium, fire, kind)) {
-    if (p.body?.kinds && !p.body.kinds.includes(kind))
-      return `${name(id)} is not a road open on ${KINDS[kind].name}`;
-    if (p.body?.fire && !fire) return `${name(id)} wants fire, which its people cannot keep`;
+  const { medium } = l.w,
+    reach = reachOf(l, (x) => known.has(x)),
+    wants = l.w.means?.wants;
+  if (!affordsPrinciple(p, medium, reach, wants)) {
+    // (Where nothing burns: the fuel it burns, or the heat it wants past what its means reach.)
+    if (p.body?.burns && reach !== true)
+      return `${name(id)} burns a fuel, and nothing burns for this people`;
+    if (p.body?.heat && affordsPrinciple(p, medium, true, wants)) {
+      const heat = wants?.[id] ?? p.body.heat;
+      return `${name(id)} wants ${heat} °C, past the hottest this people can reach`;
+    }
     return `${name(id)} is not for a people of the ${medium}`;
   }
   // (What it asks of its world's matter, and that matter cannot give: Phase 66.)
@@ -319,7 +333,7 @@ export function glanceSeed(seed: Seed, prior: Prior, target: string): boolean {
   if (!PAST_METAL.has(target)) return true;
   const w = ageWorldOf(g);
   // (Only a people that burns on a world that burns goes by way of coal.)
-  if (!w.fire || w.medium === "water" || w.kind !== "rocky") return true;
+  if (!w.fire || w.medium === "water" || !w.means?.held) return true;
   return (
     g.deposits.some((d) => d.kind === "coal") ||
     Array.from({ length: g.grid.count }).some((_, c) => surfaceOre(g, c, "coal"))
@@ -511,13 +525,15 @@ export function readSeed(
     kind: w.kind,
     ages,
     furthest: allowed.at(-1)?.id ?? null,
-    functions: matter.map((f) => ({
-      id: f.id,
-      icon: f.icon,
-      name: f.name,
-      later: f.later,
-      met: f.met,
-      why: f.why,
-    })),
+    functions: matter
+      .filter((f) => !f.quiet)
+      .map((f) => ({
+        id: f.id,
+        icon: f.icon,
+        name: f.name,
+        later: f.later,
+        met: f.met,
+        why: f.why,
+      })),
   };
 }

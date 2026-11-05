@@ -51,7 +51,7 @@ export const SEASONED = 15;
 const USUAL_CRAFT = 0.5;
 
 /** What a kit's parts are worked from: a metal, steel machined at a works (Phase 53 M219), or crystal and cells (Phase 66). */
-type Kit = Metal | "machined" | "crystal";
+type Kit = Metal | "machined" | "crystal" | "wound works";
 /** The machines worn out at the works for each kg of a part machined there (Phase 53 M219). */
 const MACHINE_WEAR = 0.05;
 /** An armoured car's weight a man of the host (kg): some thirty tonnes for every hundred and fifty. */
@@ -75,10 +75,12 @@ const KIT_GOODS: Readonly<Record<Kit, readonly (readonly [number, number])[]>> =
   ],
   // (Turned out by machines from what their works hold, whatever its world's metals are.)
   crystal: [[G.machines, 0.06]],
+  "wound works": [[G.machines, MACHINE_WEAR]],
 };
 
 const isKit = (m: string): m is Kit => m in KIT_GOODS,
-  isMetal = (m: string): m is Metal => isKit(m) && m !== "machined" && m !== "crystal";
+  isMetal = (m: string): m is Metal =>
+    isKit(m) && m !== "machined" && m !== "crystal" && m !== "wound works";
 
 /**
  * A host part's stuff as it was found and worked: its name, its edge. Null: no worked stuff. Of its

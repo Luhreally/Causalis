@@ -325,6 +325,9 @@ const THING_FORMS: readonly string[] = [
   "cooking pot",
   "plough share",
   "spearhead",
+  "set-blade",
+  "gas-dart",
+  "sound-lance",
   "horn-bow",
   "beam-lance",
   "beam-rifle",
@@ -413,6 +416,9 @@ export function madeHowOf(
   material?: string,
 ): MadeHow {
   if (material === "stone" || STONE_NAMES.has(stuff)) return "knapped";
+  // (What a world's means make, F1: a set edge is knapped; wound fibre and wound works are woven.)
+  if (material === "set edge") return "knapped";
+  if (material === "wound" || material === "wound works") return "woven";
   if (material === "machined" || (good === "machines" && stuff.includes("steel")))
     return "machined";
   if (good === "machines") return "cast";

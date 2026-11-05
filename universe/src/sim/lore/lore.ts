@@ -26,15 +26,15 @@ import {
 import {
   cellRef,
   functionsOf,
+  meansOfWorld,
   seamRef,
   surfaceOre,
   tongueLikeness,
-  worldKindOf,
   type HomeWorld,
 } from "../../gen/index.ts";
 import {
   EFFECTS,
-  KIND_METAL_ROOTS,
+  METAL_ROOTS,
   OCC,
   PRINCIPLES,
   PRINCIPLE_INDEX,
@@ -42,6 +42,7 @@ import {
   affordsPrinciple,
   matterShuts,
   needsMet,
+  reachIn,
   type Effect,
   type Principle,
 } from "../../rules/index.ts";
@@ -241,18 +242,19 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
     markets = world.store<MarketStore>("economy.markets"),
     realms = politiesOf(world),
     year = yearOfMoment(t),
-    kind = worldKindOf(g);
+    means = meansOfWorld(g);
   type Plan = { cell: number; p: Principle; found: boolean; factors: Factor[]; causes: CauseRef[] };
   const plans: Plan[] = [];
   for (const prov of ctx.provinces.all()) {
     if (!prov.total()) continue;
     const cell = prov.cell,
+      reach = reachIn(means, (n) => knows(ctx, cell, n)),
       // Only what their body allows: no kilns without fire, no wheels in the water — and only
-      // what their world's kind allows (Phase 56).
+      // what their world's heat and matter allow (Phase 56, F2).
       open = PRINCIPLES.filter(
         (p) =>
           p.rate > 0 &&
-          affordsPrinciple(p, ctx.medium, ctx.affords.fire, kind) &&
+          affordsPrinciple(p, ctx.medium, reach, means.wants) &&
           !store.get(cell, p.id) &&
           needsMet(p, (n) => knows(ctx, cell, n)) &&
           matterAllows(g, p),
@@ -387,8 +389,7 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
     store.learn(plan.cell, plan.p.id, { year, event }, plan.p);
     // Metal from the vents is a people of the water's metalworking; a kind's own metal root is
     // its land's (copper hammered cold, copper of blue vitriol: Phase 56).
-    if (plan.p.id === "vent-working" || KIND_METAL_ROOTS.includes(plan.p.id))
-      markets.of(plan.cell).metalworking ??= event;
+    if (METAL_ROOTS.includes(plan.p.id)) markets.of(plan.cell).metalworking ??= event;
   }
 }
 

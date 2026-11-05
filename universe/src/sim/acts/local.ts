@@ -8,8 +8,15 @@
 // spared death for twenty years). Each is a logged command whose event cites it;
 // what follows is the simulation's own.
 import { defineEventType, yearOfMoment, type Ref, type World } from "../../kernel/index.ts";
-import { BANDS, PRINCIPLES, kindAllows, kindBurns, needsMet } from "../../rules/index.ts";
-import { cradleTongue, tonguePersonName, worldKindOf } from "../../gen/index.ts";
+import {
+  BANDS,
+  PRINCIPLES,
+  affordsPrinciple,
+  kindBurns,
+  needsMet,
+  reachIn,
+} from "../../rules/index.ts";
+import { cradleTongue, meansOfWorld, tonguePersonName, worldKindOf } from "../../gen/index.ts";
 import { COLS } from "../population/model.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import type { Settlement } from "../population/stores.ts";
@@ -210,11 +217,13 @@ export function installLocalActs(world: World, ctx: () => PopulationContext): vo
         a = w.agents.find((x) => x.id === id)!,
         lore = loreOf(world),
         year = yearOfMoment(t),
+        means = meansOfWorld(c.generated),
+        reach = reachIn(means, (n) => knows(c, w.cell, n)),
         // What their land could come to know next.
         next = PRINCIPLES.find(
           (p) =>
             p.rate > 0 &&
-            kindAllows(p, worldKindOf(c.generated)) &&
+            affordsPrinciple(p, c.medium, reach, means.wants) &&
             !lore.get(w.cell, p.id) &&
             needsMet(p, (n) => knows(c, w.cell, n)) &&
             matterAllows(c.generated, p),

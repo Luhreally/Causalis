@@ -36,6 +36,9 @@ export const BLOW_OF: Readonly<Record<string, Blow>> = {
   automatic: "shot",
   "beam-rifle": "fire",
   "beam-lance": "fire",
+  // (Arms of a people of the water, F1: a long dart pierces; a lance of sound burns as a blow within.)
+  "gas-dart": "point",
+  "sound-lance": "fire",
   claws: "edge",
   mandibles: "crush",
   tusks: "crush",

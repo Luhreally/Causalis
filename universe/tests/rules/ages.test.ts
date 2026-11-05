@@ -253,7 +253,6 @@ test("each road an age asks for is a principle, and a people of any kind has a r
             PRINCIPLES.find((x) => x.id === p)!,
             medium,
             fire,
-            kind,
           ),
         ),
         `${kind} ${medium}: a road to ${id}`,

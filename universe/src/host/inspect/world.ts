@@ -32,8 +32,8 @@ import {
   warsOf,
   wildsOf,
 } from "../../sim/index.ts";
-import { PRINCIPLES, hasBeams, kindAllows } from "../../rules/index.ts";
-import { kindAge, kindName, kindOf } from "../kinds.ts";
+import { PRINCIPLES, hasBeams } from "../../rules/index.ts";
+import { canBeFoundHere, kindAge, kindName, kindOf } from "../kinds.ts";
 import { principleName } from "../../causal/index.ts";
 import { parseRef, type Ref, type World } from "../../kernel/index.ts";
 import type { Block, Item, Line, PageModel, Row, Span, Stat, Tab } from "../../bridge/index.ts";
@@ -464,7 +464,7 @@ export function chroniclePage(world: World, tab?: string): PageModel {
     standing = s.realms.filter((r) => r.ended === null),
     peopleNow = s.ctx.provinces.all().reduce((n, p) => n + p.total(), 0),
     // (Of the principles its kind of world can know: Phase 56.)
-    principles = PRINCIPLES.filter((p) => kindAllows(p, kindOf(world))).length,
+    principles = PRINCIPLES.filter((p) => canBeFoundHere(world, p)).length,
     foundAnywhere = PRINCIPLES.filter((p) => firstKnown(s, p.id)).length;
   const stats: Stat[] = [
     stat("Year", count(now)),
@@ -1304,8 +1304,8 @@ function firstBlocks(world: World, s: Survey): Block[] {
     };
   });
   const kind = kindOf(world),
-    unfound = PRINCIPLES.filter((p) => kindAllows(p, kind) && !firstKnown(s, p.id)).length,
-    all = PRINCIPLES.filter((p) => kindAllows(p, kind)).length;
+    unfound = PRINCIPLES.filter((p) => canBeFoundHere(world, p) && !firstKnown(s, p.id)).length,
+    all = PRINCIPLES.filter((p) => canBeFoundHere(world, p)).length;
   return [
     ...(series.length
       ? [

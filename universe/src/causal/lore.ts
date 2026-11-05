@@ -2,22 +2,20 @@
 // learned it from their neighbours; the finding cites who found it and what pressed
 // or allowed them, the learning the neighbour who knew it and the road between.
 import { type World, yearOfMoment } from "../kernel/index.ts";
-import { worldChemistry } from "../gen/index.ts";
+import { meansOfWorld, worldChemistry } from "../gen/index.ts";
 import {
-  KIND_PRINCIPLE_NAMES,
   METAL_PRINCIPLES,
   PRINCIPLE_INDEX,
   PRINCIPLES,
+  meansName,
   principleNameOn,
 } from "../rules/index.ts";
 import { LORE_EVENTS, homePlanet } from "../sim/index.ts";
 import { landWords } from "./generated.ts";
 import { registerDecisionWords, registerEventWords } from "./why.ts";
 
-/** Earth's principles some kind names its own way (Phase 56). */
-const KIND_NAMED: ReadonlySet<string> = new Set(
-  Object.values(KIND_PRINCIPLE_NAMES).flatMap((names) => Object.keys(names)),
-);
+/** Earth's principles named their own way where nothing burns (Phase 56, F3). */
+const KIND_NAMED: ReadonlySet<string> = new Set(["metalworking", "steamships"]);
 
 /**
  * A principle's name by id: "the potter's wheel". Given the world, a metal's principle is named as
@@ -28,6 +26,12 @@ const KIND_NAMED: ReadonlySet<string> = new Set(
 export function principleName(id: string | null, world?: World): string {
   const i = id === null ? undefined : PRINCIPLE_INDEX.get(id);
   if (i === undefined) return "something new";
+  // (How its world does it, F1: "long blades of ice flakes set in a spine".)
+  const own =
+    world && world.storeNames().includes("planet.home")
+      ? meansName(id!, meansOfWorld(homePlanet(world).generated))
+      : null;
+  if (own) return own;
   const named = METAL_PRINCIPLES.has(id!) || KIND_NAMED.has(id!);
   if (!world || !named || !world.storeNames().includes("planet.home")) return PRINCIPLES[i]!.name;
   return principleNameOn(worldChemistry(homePlanet(world).generated), id!);

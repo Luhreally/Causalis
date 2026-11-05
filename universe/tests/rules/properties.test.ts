@@ -11,6 +11,7 @@ import {
   elementShares,
   findElement,
   findSubstance,
+  meansWorldOf,
   molarMass,
   propertiesOf,
   readFunctions,
@@ -28,6 +29,15 @@ const EARTH: MatterWorld = {
   giants: 4,
   starLeftGyr: 5,
   peopled: true,
+  means: meansWorldOf({
+    chem: SOLAR,
+    kind: "rocky",
+    celsius: 15,
+    gravity: 1,
+    medium: "land",
+    bodyFire: true,
+    insolation: 1,
+  }),
 };
 
 const fn = (list: readonly FunctionReading[], id: string) => {
@@ -60,16 +70,31 @@ test("the figures are the handbook's, in their right order", () => {
 
 test("Earth's matter meets every function, each by the stuff that does it there", () => {
   const list = readFunctions(EARTH);
-  for (const f of list) assert.ok(f.met, `${f.id}: ${f.why}`);
+  // (All but one it has no need of: its furnaces give it bronze and iron. What a world that burns never asks is left out.)
+  for (const f of list)
+    if (f.id !== "edge-without-metal" && !f.quiet) assert.ok(f.met, `${f.id}: ${f.why}`);
+  assert.equal(fn(list, "edge-without-metal").met, false);
   assert.equal(fn(list, "carry-current").subst, "copper");
   assert.equal(fn(list, "switch-current").subst, "silicon");
   assert.equal(fn(list, "wall-a-flame").subst, "tungsten");
   assert.equal(fn(list, "hold-a-flame").subst, "niobium-tin");
-  // Two are asked of a people now; the rest are told only as what later ages would ask.
+  // Four are asked of a people now; the rest are told only as what later ages would ask.
   assert.deepEqual(
-    list.filter((f) => !f.later).map((f) => f.id),
-    ["carry-current", "switch-current"],
+    list.filter((f) => !f.later && !f.quiet).map((f) => f.id),
+    ["make-gas-fast", "edge-without-metal", "carry-current", "switch-current"],
   );
+});
+
+test("what a row says of a world fits whether it is met there", () => {
+  const list = readFunctions(EARTH);
+  assert.equal(fn(list, "bloom-an-iron").met, true);
+  assert.doesNotMatch(fn(list, "bloom-an-iron").why, /carbide/);
+  assert.equal(fn(list, "grind-with-grit").met, false);
+  assert.doesNotMatch(fn(list, "grind-with-grit").why, /cuts anything/);
+  assert.equal(fn(list, "seal-with-pitch").met, false);
+  assert.match(fn(list, "seal-with-pitch").why, /Fire burns/);
+  assert.equal(fn(list, "fly-on-wings").met, false);
+  assert.match(fn(list, "fly-on-wings").why, /too dear/);
 });
 
 test("a world poor in what a function wants does not meet it, and says what it lacks", () => {
@@ -95,6 +120,15 @@ test("a world of ice: its rock out of reach, the stuff of its own haze doing the
     celsius: -179,
     rockBodies: 0,
     gravity: 0.14,
+    means: meansWorldOf({
+      chem: SOLAR,
+      kind: "methane",
+      celsius: -179,
+      gravity: 0.14,
+      medium: "land",
+      bodyFire: false,
+      insolation: 0.01,
+    }),
   };
   const list = readFunctions(titan);
   const wire = fn(list, "carry-current");

@@ -7,6 +7,9 @@ import type { World } from "../kernel/index.ts";
 import {
   climateMean,
   functionsOf,
+  meansNumbers,
+  meansOfWorld,
+  worldChemistry,
   worldKindOf,
   type HomeWorld,
   type Planet,
@@ -15,18 +18,20 @@ import {
   KINDS,
   KIND_AGES,
   KIND_AIR,
-  KIND_METAL_ROOTS,
-  KIND_PRINCIPLE_NAMES,
   KIND_SEAS,
-  NOVEL_KINDS,
+  OWN_ENGINES,
+  affordsPrinciple,
+  burnlessName,
   earthDegrees,
+  meansName,
   findSubstance,
-  kindAllows,
+  hottest,
   kindBurns,
   kindBiomeName,
   kelvinPerDegree,
   matterShuts,
-  principle,
+  oresOn,
+  reachIn,
   trueCelsius,
   type KindAge,
   type Ore,
@@ -34,9 +39,10 @@ import {
   type Recipe,
   type WorldKind,
 } from "../rules/index.ts";
-import { homePlanet, populationContext } from "../sim/index.ts";
+import { homePlanet, loreOf, populationContext } from "../sim/index.ts";
+import { principleName } from "../causal/index.ts";
 import type { Block, Line, Span } from "../bridge/index.ts";
-import { item, link, sentence, stat } from "./inspect/words.ts";
+import { count, item, link, sentence, stat } from "./inspect/words.ts";
 
 type Rgb = readonly [number, number, number];
 
@@ -96,11 +102,17 @@ export function seedKind(g: HomeWorld): { kind?: string } {
   return kind === "rocky" ? {} : { kind: `${KINDS[kind].icon} ${KINDS[kind].name}` };
 }
 
-/** A town's plan's kind, for its colours and its fires (none for a rocky world). */
-export function planKind(world: World): { kind?: string; fireless?: true } {
+/**
+ * A town's plan's kind, for its colours and its fires (none for a rocky world). Where nothing
+ * burns, its hearths smoke only where its land has a heat of its own to work with (F2).
+ */
+export function planKind(world: World, cell?: number): { kind?: string; fireless?: true } {
   const kind = kindOf(world);
   if (kind === "rocky") return {};
-  return kindBurns(kind) ? { kind } : { kind, fireless: true };
+  if (kindBurns(kind)) return { kind };
+  const m = meansOfWorld(homePlanet(world).generated),
+    r = cell === undefined ? 0 : reachIn(m, (id) => !!loreOf(world).get(cell, id));
+  return typeof r === "number" && r >= 700 ? { kind } : { kind, fireless: true };
 }
 
 /** A warmth of its climate (degrees of its liquid's band) in true °C. */
@@ -150,9 +162,6 @@ function band(kind: WorldKind): string {
 function unfired(id: string): string {
   if (id === "metalworking")
     return "no furnace can be built, and no ore lies in its ice to work cold";
-  if (id === "pottery-wheel") return "no kiln can be fired";
-  if (id === "bronze" || id === "iron" || id === "steel" || id === "glass")
-    return "no furnace can be built";
   if (
     id === "gunpowder" ||
     id === "firearms" ||
@@ -167,29 +176,70 @@ function unfired(id: string): string {
 }
 
 /**
- * Why a principle cannot be known on this world, as far as its world goes (null: it can): it is
- * another kind's, or it wants fire where nothing burns.
+ * Whether a people of this world could ever find a principle, as lore asks: the hottest its land's
+ * means reach, its body's medium, and its matter can do what it asks. (Not whether what it needs
+ * first can be had.)
+ */
+export function canBeFoundHere(world: World, p: Principle): boolean {
+  const ctx = populationContext(world),
+    m = meansOfWorld(ctx.generated),
+    // (The hottest any means could get here, known or not.)
+    reach = m.burns ? true : m.held ? false : hottest(m).heat;
+  return (
+    affordsPrinciple(p, ctx.medium, reach, m.wants) && !matterShuts(p, functionsOf(ctx.generated))
+  );
+}
+
+/**
+ * Where nothing burns, what its works are driven by: the first engine of its own that a land has
+ * found (F2).
+ */
+function doneHere(world: World): string {
+  const id = OWN_ENGINES.find((x) => knownAnywhere(world, x));
+  return id ? `Its works are driven by ${principleName(id, world)}.` : "";
+}
+
+/** Whether any land of a world has found a principle, by its lore. */
+function knownAnywhere(world: World, id: string): boolean {
+  const lore = loreOf(world),
+    lands = populationContext(world).provinces.all();
+  return lands.some((p) => !!lore.get(p.cell, id));
+}
+
+/**
+ * Why a principle cannot be known on this world, as far as its world goes (null: it can): what its
+ * matter asks that it cannot give, the heat it wants that no means here reaches, or the fire it
+ * burns where nothing burns.
  */
 export function shutWhy(world: World, p: Principle): string | null {
-  const kind = kindOf(world);
-  if (!kindAllows(p, kind)) {
-    const on = NOVEL_KINDS.filter((k) => p.body?.kinds?.includes(k)).map((k) => KINDS[k].name);
-    return `known only on ${on.join(" or ")}: what such a world does in place of what it cannot`;
+  const g = homePlanet(world).generated,
+    m = meansOfWorld(g),
+    kind = kindOf(world),
+    f = matterShuts(p, functionsOf(g));
+  if (f) return `it asks a people to ${f.name}. ${f.why}`;
+  if (m.burns || m.held) return null;
+  if (p.body?.burns) {
+    const works = [doneHere(world), KINDS[kind].fire].filter(Boolean).join(" ");
+    return `nothing burns in its air, so ${unfired(p.id)}. ${works}`;
   }
-  // (The root of metal too, where its kind has no metal of its own to work: an ice world's.)
-  const metalless =
-    p.id === "metalworking" && !KIND_METAL_ROOTS.some((id) => kindAllows(principle(id), kind));
-  if ((p.body?.fire || metalless) && !kindBurns(kind))
-    return `nothing burns in its air, so ${unfired(p.id)}. ${KINDS[kind].fire}`;
-  // (What it asks of its world's matter, Phase 66, and that matter cannot give.)
-  const f = matterShuts(p, functionsOf(populationContext(world).generated));
-  return f ? `it asks a people to ${f.name}. ${f.why}` : null;
+  const want = m.wants[p.id] ?? p.body?.heat,
+    top = hottest(m);
+  if (want && top.heat < want)
+    return `it wants ${count(want)} °C, and the hottest any means reaches here is ${count(top.heat)} °C, by ${top.name}`;
+  return null;
 }
 
 /** A principle's name as its world's kind names it ("steamships": "engine-driven ships"), or its own. */
 export function kindName(world: World, p: Principle): string {
   const kind = kindOf(world);
-  return kind === "rocky" ? p.name : (KIND_PRINCIPLE_NAMES[kind][p.id] ?? p.name);
+  // (How its world does it, F1: "the gun of hand-wound fibre, charged with solid acetylene".)
+  const own = world.storeNames().includes("planet.home")
+    ? meansName(p.id, meansOfWorld(homePlanet(world).generated))
+    : null;
+  if (own) return own;
+  return kind === "rocky"
+    ? p.name
+    : (burnlessName(worldChemistry(homePlanet(world).generated), p.id) ?? p.name);
 }
 
 /** What tells how an ore is worked where it is not smelted: its reaction, or the principle that teaches it. */
@@ -212,19 +262,28 @@ export function workedBought(ore: Ore, worked: NonNullable<Ore["worked"]>): Span
   return [", ", link(worked.how, workedRef(ore, worked)), " in a land none can tell"];
 }
 
-/** The recipes a kind works its own way: a carbon world's copper is hammered cold, not smelted. */
-const KIND_RECIPE_NAMES: Partial<Record<WorldKind, Readonly<Record<string, string>>>> = {
-  carbon: { "copper-smelting": "native copper hammered cold" },
-};
-
-/** A recipe's name on this world: its kind's, where its kind works it its own way, or its own. */
+/**
+ * A recipe's name on this world: where native copper is worked cold, not smelted, the recipe is
+ * named so (F2).
+ */
 export function recipeName(world: World, r: Recipe): string {
-  return KIND_RECIPE_NAMES[kindOf(world)]?.[r.id] ?? r.name;
+  // (A toy world has no planet, and so no ores of its own.)
+  if (r.id !== "copper-smelting" || !world.storeNames().includes("planet.home")) return r.name;
+  const chem = worldChemistry(homePlanet(world).generated);
+  return Object.values(oresOn(chem).copper ?? {}).some((o) => o?.worked)
+    ? "native copper hammered cold"
+    : r.name;
 }
 
-/** Where a smith works on this world: at a hearth, or (where nothing burns) cold at an anvil stone. */
-export function smithAt(world: World): string {
-  return kindBurns(kindOf(world)) ? "a smith's hearth" : "a smith's anvil stone";
+/**
+ * Where a smith works on this world: at a hearth, or (where nothing burns) cold at an anvil stone,
+ * unless the heat its land reaches is a thousand degrees or more (F2).
+ */
+export function smithAt(world: World, cell?: number): string {
+  if (kindBurns(kindOf(world))) return "a smith's hearth";
+  const m = meansOfWorld(homePlanet(world).generated),
+    r = cell === undefined ? 0 : reachIn(m, (id) => !!loreOf(world).get(cell, id));
+  return typeof r === "number" && r >= 1000 ? "a smith's hearth" : "a smith's anvil stone";
 }
 
 /** A vessel of a kind's own, where no clay is fired: what it is, of what, how it is made. */
@@ -241,10 +300,30 @@ export type Vessel = {
   readonly colour: Rgb;
 };
 
-/** The vessels of a world where nothing burns (null where clay is fired). */
-export function kindVessel(world: World): Vessel | null {
-  const kind = kindOf(world);
-  if (kind === "carbon")
+/**
+ * The vessels of a world where nothing burns (null where clay is fired): a fired one of its means
+ * where its land knows the wheel, else one of what its rock, air or ground holds (F2).
+ */
+export function kindVessel(world: World, cell?: number): Vessel | null {
+  // (A toy world has no planet, and so no means of its own.)
+  if (!world.storeNames().includes("planet.home")) return null;
+  const g = homePlanet(world).generated,
+    means = meansOfWorld(g),
+    n = meansNumbers(g),
+    v = means.vessel;
+  if (means.burns) return null;
+  if (v && cell !== undefined && loreOf(world).get(cell, "pottery-wheel"))
+    return {
+      ware: `fired ${v.name} pot`,
+      of: v.name,
+      subst: v.subst,
+      from: v.from,
+      how: `${v.how}, at ${v.heat} °C`,
+      bench: "pot-firing",
+      yard: "a pot-firer's yard",
+      colour: v.colour,
+    };
+  if (n.rockHolds.includes("bitumen"))
     return {
       ware: "pitch-sealed basket",
       of: "pitch",
@@ -255,7 +334,7 @@ export function kindVessel(world: World): Vessel | null {
       yard: "a basket-weaver's yard",
       colour: [0.14, 0.11, 0.08],
     };
-  if (kind === "ammonia")
+  if (n.airHolds.includes("ammonia"))
     return {
       ware: "ice vessel",
       of: "ice",
@@ -266,7 +345,7 @@ export function kindVessel(world: World): Vessel | null {
       yard: "an ice-cutter's yard",
       colour: [0.8, 0.88, 0.95],
     };
-  if (kind === "methane")
+  if (n.groundHolds.includes("water-ice"))
     return {
       ware: "ice vessel",
       of: "ice",

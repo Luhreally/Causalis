@@ -83,7 +83,9 @@ test("a host's power is exactly as it was for every kit before the magazine", ()
   const before = REALIZATIONS.filter(
       (r) =>
         HOST_ROLES.some((x) => x === r.role) &&
-        !r.needs.some((n) => LATER.includes(n) || PAST_OURS.includes(n)),
+        !r.needs.some((n) => LATER.includes(n) || PAST_OURS.includes(n)) &&
+        // (A people of the water's, F1: no kit of the old law's.)
+        !r.needs.includes("sound-lances"),
     ),
     of = (role: string) => before.filter((r) => r.role === role);
   let n = 0;

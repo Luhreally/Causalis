@@ -28,6 +28,56 @@ still fighting with bows when it reached Orbit in year 1060. That is not physics
 - `fire: true` stands in for "a high temperature", and `kinds: [...]` stands in for "what this world's matter
   allows". Both are shortcuts, and everything past them is shut.
 
+## F1, as built (2026-11-05)
+
+Arms are now chosen by what they do. `rules/means.ts` reads a world's numbers (its cold, its air, its pull, what its
+ground and air hold) and picks what holds an edge, what makes a charge and what a barrel is wound of, each from
+candidates with real figures, and never by the name of a kind. A gun's reach comes from its charge, the air's weight
+and the pull. No arm ids or indexes moved; only three `needs` changed, by function (`@tough-stuff`, `@works`,
+`@current`), and clockwork's took the first of them. Earth's history and every oracle fixture are unchanged, and
+Earth's guns give the table's own ranges exactly. A world whose people have claws straps its arms along a limb.
+
+| World | Kind | Long blades | Plates | Muskets | Rifles | Automatic |
+|---|---|---|---|---|---|---|
+| wren 455 | methane | 698 | 786 | 1760 | 1833 | 2034 |
+| lumen 152 | methane | 135 | 486 | 1442 | 1509 | 1564 |
+| north 155 | carbon | 268 | 453 | 895 | 949 | 1282 |
+| quill 298 | carbon | 168 | 463 | 978 | 1285 | 1621 |
+| cinder 671 | ammonia | 129 | 432 | 785 | 886 | not by 1000 |
+| marrow 145 | ammonia, 6 lands | 1160 | 1556 | 1961 | not by 3000 | not by 3000 |
+| kestrel 557 | rocky, a people of the water | 1020 | 1147 | sound lances instead | | |
+
+(First known on any land. People at the last year held within a few percent on most of them; wren 455 ended 38%
+lower at 2700 with fewer realms, and north 155 far higher, by reaching other worlds sooner.)
+
+Not done by F1: armoured cars stay shut where nothing burns; bows are not shortened by thick air; a blade of flakes
+in battle looks as a sword does, and only its page shows the flakes; machines have no recipe on a world that burns
+nothing, so its top tier waits for F2 and F3.
+
+## F2 and F3, as built (2026-11-05)
+
+Fire is no longer asked for: each step asks for a temperature, and a world's means of heat are worked out from its
+numbers. Burning is one; the others are mirrors, the ground's heat, a hearth of joined acetylene and the electric
+arc. A row that was one kind's now asks a function of matter, so any world that meets it can find it, and a kind's
+name decides only words. Rocky worlds, Earth among them, are held to their old road until F4.
+
+| World, first year known | Hearth or furnace | Forged iron | Pots | Glass | Factory | Current | Steel |
+|---|---|---|---|---|---|---|---|
+| wren 455, methane | 659, joined acetylene, 1,670 °C | 693 | 756 | 955 | 1574 | 1583 | no |
+| north 155, carbon | 463, mirrors, 1,597 °C | no | 527 | 814 | 859 | 1231 | 1304 |
+| marrow 145, ammonia | 1829, mirrors, 829 °C | no | 1952 | no | no | no | no |
+| alien 84, sulfur | burns | no | 42 | 140 | no | no | 549 |
+
+By year 2000. One seed's year is one draw: a row earlier in the tree takes a land's one find of the year, so
+compare across seeds, never one pair. On wren 455 at night a town of a land with the hearth has 3,794 warm-lit
+pixels, and a town the year before with none has 0. Earth's eight history fixtures are unchanged, and kestrel
+557, a rocky world, is the same as under F1.
+
+Still shut, as the rules now say why: bronze and iron on methane, ammonia and carbon; steel on methane and
+ammonia; coal, steam, oil and armoured cars on all three. Next levers: engines of portable fuel and armoured cars
+where nothing burns, house walls of fired stuff, a town's height reading its pull (`tall-frames` is chronicle and
+page only), and age names that follow which engine a land has.
+
 ## The rule
 
 **A principle says what it does. The world says how.**

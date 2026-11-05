@@ -11,8 +11,22 @@
 // functions.
 import { crustMultiplier, crustOf } from "./crust.ts";
 import type { Chemistry } from "./chemistry.ts";
+import { KIND_GASES, KIND_STONES } from "./kind-ground.ts";
 import { KINDS, type WorldKind } from "./kinds.ts";
-import { findSubstance, knowLaterSubstances, type Substance } from "./matter.ts";
+import { SOILS, findSubstance, knowLaterSubstances, type Substance } from "./matter.ts";
+import {
+  flightPower,
+  glassOf,
+  groundHeat,
+  joinedHeat,
+  meansOf,
+  mirrorHeat,
+  vesselOf,
+  type MeansWorld,
+} from "./means.ts";
+import { stonesFor } from "./chem-stones.ts";
+import { worldRocks, worldSoil } from "./chem-ground.ts";
+import { oresOn } from "./chem-ores.ts";
 
 /** What a substance can do, beyond what it weighs and where it melts. */
 export type Properties = {
@@ -265,6 +279,8 @@ export type MatterWorld = {
   /** Billions of years its star has left. */
   readonly starLeftGyr: number;
   readonly peopled: boolean;
+  /** Its numbers as its means are read (rules/means.ts), by meansWorldOf. */
+  readonly means: MeansWorld;
 };
 
 /** Parts a million of an element in a world's crust (a later stuff's: Earth's, moved as its heavies are). */
@@ -279,7 +295,47 @@ export function crustPpm(chem: Chemistry, symbol: string): number {
 
 /** Whether a world's rock lies within reach: an ice world's lies under its ice, out of any mine's reach. */
 export function rockUnderfoot(kind: WorldKind): boolean {
-  return kind !== "ammonia" && kind !== "methane";
+  return !KINDS[kind].iceCrust;
+}
+
+/**
+ * A world's numbers as its means are read (rules/means.ts). The kind only looks up what the world holds.
+ */
+export function meansWorldOf(a: {
+  chem: Chemistry;
+  kind: WorldKind;
+  celsius: number;
+  gravity: number;
+  medium: "land" | "shore" | "water";
+  bodyFire: boolean;
+  insolation: number;
+}): MeansWorld {
+  const sea = KINDS[a.kind].liquid.subst;
+  return {
+    kelvin: a.celsius + 273.15,
+    airBar: KINDS[a.kind].body.pressure,
+    pull: a.gravity,
+    freeOxygen: KINDS[a.kind].burns,
+    medium: a.medium,
+    bodyFire: a.bodyFire,
+    rock: rockUnderfoot(a.kind),
+    groundHolds: Object.values(
+      a.kind === "rocky" || a.kind === "sulfur" ? stonesFor(a.chem) : KIND_STONES[a.kind],
+    ).flatMap((s) => (s.subst ? [s.subst] : [])),
+    airHolds: a.kind === "rocky" ? [] : KIND_GASES[a.kind].map(([s]) => s),
+    // (Liquid methane and ethane about 550 kg a cubic metre, Titan's seas: est; the matter table holds it as a gas.)
+    seaKgM3: sea === "methane" ? 550 : (findSubstance(sea)?.density ?? 1000),
+    seaIsWater: sea === "water" || sea === "ammonia-water" || sea === "acid-water",
+    ppm: (el) => crustPpm(a.chem, el),
+    sunWm2: 1361 * a.insolation,
+    // (SOILS keys every biome's soil, and its ice's and sea's: it has no "land" key.)
+    rockHolds: [
+      ...new Set([
+        ...worldRocks(a.chem).flatMap((r) => r.parts.map(([s]) => s)),
+        ...Object.keys(SOILS).flatMap((k) => worldSoil(a.chem, k).parts.map(([s]) => s)),
+      ]),
+    ],
+  };
 }
 
 /** A stuff that might meet a function, and what it takes. */
@@ -287,8 +343,9 @@ type Stuff = {
   readonly subst: string;
   /** Least parts a million of each element to make it in the amount asked. */
   readonly needs: Readonly<Record<string, number>>;
-  /** Only on these kinds' worlds (haze, carbide: what their air or bedrock is). */
-  readonly kinds?: readonly WorldKind[];
+  /** Only where its air holds this, or its rock this (haze, carbide: what its air or bedrock is). */
+  readonly air?: string;
+  readonly rockHolds?: string;
   /** Whether it is won from rock (no rock underfoot: only with bodies to mine). */
   readonly rock?: boolean;
   /** Whether what falls from the sky is enough (iron for wire, stones for a few valves). */
@@ -326,6 +383,7 @@ export type FunctionReading = {
   readonly subst: string | null;
   /** Why it is met or is not, in a sentence. */
   readonly why: string;
+  /** Of no interest on this world: a page leaves it out. */ readonly quiet?: boolean;
 };
 
 const thousands = (n: number) => `${Math.round(n)}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
@@ -339,7 +397,10 @@ const ppmWords = (ppm: number): string =>
 
 /** How a stuff stands on a world: whether it can be had, and what limits it. */
 function stuffStands(s: Stuff, w: MatterWorld): { ok: boolean; because: string; ppm: number } {
-  if (s.kinds && !s.kinds.includes(w.kind))
+  if (
+    (s.air && !w.means.airHolds.includes(s.air)) ||
+    (s.rockHolds && !w.means.rockHolds.includes(s.rockHolds))
+  )
     return { ok: false, because: `not on ${KINDS[w.kind].name}`, ppm: 0 };
   const needs = Object.entries(s.needs);
   let leastPpm = Infinity;
@@ -392,7 +453,7 @@ function byStuffs(
         why: `${name[0]!.toUpperCase()}${name.slice(1)} (${figure(s)}), from ${from}${said ? `: ${said}` : ""}.`,
       };
     }
-    if (!s.kinds) shut.push(`${nameOf(s.subst)}: ${stands.because}`);
+    if (!s.air && !s.rockHolds) shut.push(`${nameOf(s.subst)}: ${stands.because}`);
   }
   return {
     ...base,
@@ -409,7 +470,7 @@ const CONDUCTORS: readonly Stuff[] = [
   {
     subst: "polyacetylene",
     needs: {},
-    kinds: ["methane", "carbon"],
+    air: "methane",
     words: () => "a polymer of its haze, doped till it carries",
   },
   { subst: "iron", needs: {}, rock: true, fallen: true },
@@ -422,14 +483,14 @@ const SWITCHES: readonly Stuff[] = [
   {
     subst: "polyacetylene",
     needs: {},
-    kinds: ["methane", "carbon"],
+    air: "methane",
     words: (w) =>
       w.celsius < -100 ? "slow in its cold, where charges barely move" : "slow, and cheap",
   },
   {
     subst: "moissanite",
     needs: { Si: 1000 },
-    kinds: ["carbon"],
+    rockHolds: "moissanite",
     words: () => "a wide gap: it switches at a red heat",
   },
   { subst: "cuprite", needs: { Cu: 5 }, rock: true },
@@ -446,7 +507,7 @@ const MIND_STUFFS: readonly Stuff[] = [
 const WALLS: readonly Stuff[] = [
   { subst: "tungsten", needs: { W: 1 }, rock: true },
   { subst: "graphite", needs: { C: 300 }, rock: true },
-  { subst: "moissanite", needs: { Si: 1000, C: 1000 }, kinds: ["carbon"] },
+  { subst: "moissanite", needs: { Si: 1000, C: 1000 }, rockHolds: "moissanite" },
 ];
 
 const MAGNETS: readonly Stuff[] = [
@@ -457,7 +518,7 @@ const MAGNETS: readonly Stuff[] = [
 const FIBRES: readonly Stuff[] = [
   { subst: "carbon-weave", needs: { C: 100 } },
   // (Where its crust is ice, or tar: carbon from its haze or its own black rock.)
-  { subst: "carbon-weave", needs: {}, kinds: ["carbon", "methane"] },
+  { subst: "carbon-weave", needs: {}, air: "methane" },
 ];
 
 const num = (x: number, digits = 2) => {
@@ -470,6 +531,338 @@ function towerKm(s: string, gravity: number): number {
   const p = PROPERTIES[s],
     d = findSubstance(s)?.density ?? 7800;
   return ((p?.strength ?? 0) * 1e6) / (d * 9.81 * gravity) / 1000;
+}
+
+/** Whether a world's means make a charge that turns to hot gas in an instant: by hand, or at works (F1). */
+function makeGas(w: MatterWorld): FunctionReading {
+  const m = meansOf(w.means),
+    c = m.handCharge ?? m.worksCharge;
+  return {
+    id: "make-gas-fast",
+    icon: "💥",
+    name: "make gas fast behind a mass",
+    asks: "a stuff that turns to hot gas in an instant, and can be kept on this world",
+    later: false,
+    met: !!c,
+    by: c ? `${c.name}, ${c.mj} MJ/kg` : null,
+    subst: c?.id === "solid-acetylene" ? "acetylene" : null,
+    why: c
+      ? `${c.name[0]!.toUpperCase()}${c.name.slice(1)}, ${c.mj} MJ/kg: ${c.why}${c.est ? " (its flame an estimate)" : ""}.`
+      : "Nothing here can be kept that makes gas fast, and no fire to make powder with.",
+  };
+}
+
+/** Whether a world's means hold an edge without metal: flakes of a hard stuff set in a tough spine (F1). */
+function edgeWithoutMetal(w: MatterWorld): FunctionReading {
+  const m = meansOf(w.means),
+    e = m.edge,
+    open = !m.earthRoad || !m.held,
+    met = open && e !== null;
+  return {
+    id: "edge-without-metal",
+    icon: "🗡️",
+    name: "hold an edge without metal",
+    asks: "flakes of a hard stuff, set in a tough spine",
+    later: false,
+    met,
+    by: met && e ? `${e.name} flakes` : null,
+    subst: met && e && findSubstance(e.subst) ? e.subst : null,
+    why: !open
+      ? "It has no need: its furnaces give it bronze and iron."
+      : e
+        ? `${m.noMetal} So ${e.name}, ${e.words}.`
+        : `${m.noMetal} And nothing here holds an edge.`,
+  };
+}
+
+/**
+ * What the rows that were one kind's ask of matter (F3) read, by a world's numbers and its chemistry
+ * alone, never its kind's name. Exported so a test can read them of a made-up world.
+ */
+export function rowReadings(w: Pick<MatterWorld, "chem" | "means">): FunctionReading[] {
+  const n = w.means,
+    m = meansOf(n),
+    land = n.medium !== "water",
+    open = !m.held,
+    noFuel = !n.freeOxygen,
+    rock = (s: string) => open && n.rockHolds.includes(s),
+    tin = Object.values(oresOn(w.chem).tin ?? {}).some(Boolean),
+    native = Object.values(oresOn(w.chem).copper ?? {}).some((o) => o?.mineral === "native-copper"),
+    iceOk = open && n.groundHolds.includes("water-ice") && n.kelvin < 233,
+    groundDiff = groundHeat(n) - (n.kelvin - 273.15),
+    fly = flightPower(n),
+    r = (
+      id: string,
+      icon: string,
+      name: string,
+      asks: string,
+      met: boolean,
+      by: string | null,
+      subst: string | null,
+      why: string,
+      whyNot: string = why,
+    ): FunctionReading => ({
+      id,
+      icon,
+      name,
+      asks,
+      later: false,
+      met,
+      by: met ? by : null,
+      subst: met ? subst : null,
+      why: met ? why : whyNot,
+      ...(m.held ? { quiet: true } : {}),
+    }),
+    // (What keeps a world from a row its numbers would allow: it keeps the old road, or fire does this for it.)
+    road = m.burns
+      ? "Fire burns in its air, and its furnaces do this work."
+      : "Its people's road runs by other means.",
+    fired = n.freeOxygen ? "Fire burns in its air: it has no need of this." : road,
+    /** Why a row of a world where nothing burns is not this one's. */
+    shutBy = (own: string): string =>
+      !open
+        ? road
+        : !noFuel
+          ? fired
+          : !land
+            ? "Its people live in its seas: no hearth stands there."
+            : own;
+  return [
+    r(
+      "heat-from-ground",
+      "🌋",
+      "draw heat from the ground",
+      "lava within reach, where nothing burns",
+      open && noFuel && land && n.rock,
+      "lava, about 1000 °C",
+      null,
+      "A hearth over its lava reaches about 1000 °C (an estimate).",
+      shutBy(
+        `Its rock lies under its ice: what rises reaches ${groundHeat(n)} °C, enough for an engine, and it fires nothing.`,
+      ),
+    ),
+    r(
+      "heat-by-mirror",
+      "🪞",
+      "gather its star's heat",
+      "a direct beam a mirror can reach 300 °C with, where nothing burns",
+      open && noFuel && mirrorHeat(n, 2000) >= 300,
+      `${mirrorHeat(n, 2000)} °C`,
+      null,
+      `Mirrors reach ${mirrorHeat(n, 2000)} °C here, great mirrors ${mirrorHeat(n, 20000)} °C.`,
+      !open || !noFuel
+        ? shutBy("")
+        : `Mirrors reach only ${mirrorHeat(n, 2000)} °C here, great mirrors ${mirrorHeat(n, 20000)} °C: too little to work with.`,
+    ),
+    r(
+      "join-gases",
+      "🔥",
+      "join acetylene and hydrogen",
+      "methane in its air, and a cold that keeps acetylene solid",
+      open && joinedHeat(n) > 0,
+      `${joinedHeat(n)} °C`,
+      "acetylene",
+      `A hearth of it reaches about ${joinedHeat(n)} °C (an estimate).`,
+      joinedHeat(n) ? road : "No acetylene can be kept here.",
+    ),
+    r(
+      "fire-a-vessel",
+      "🏺",
+      "fire a vessel",
+      "a ground that sets hard in the heat",
+      m.burns || m.held || !!m.vessel,
+      m.vessel?.name ?? null,
+      m.vessel?.subst ?? null,
+      m.vessel
+        ? `${m.vessel.how}, at ${m.vessel.heat} °C${m.vessel.est ? " (an estimate)" : ""}.`
+        : "Nothing in its ground sets hard in the heat.",
+    ),
+    r(
+      "melt-a-glass",
+      "🔍",
+      "melt a glass",
+      "a stuff that melts clear",
+      m.burns || m.held || !!m.glass,
+      m.glass?.name ?? null,
+      "glass",
+      m.glass
+        ? `${m.glass.how}, at ${m.glass.heat} °C${m.glass.est ? " (an estimate)" : ""}.`
+        : "Nothing here melts clear.",
+    ),
+    r(
+      "harden-copper",
+      "🪙",
+      "harden copper",
+      "a hardener within reach",
+      m.burns || m.held || tin,
+      null,
+      null,
+      tin ? "Its crust gives a hardener." : "Its furnaces take what its ores give.",
+      "No hardener lies where its people can reach it.",
+    ),
+    r(
+      "bloom-an-iron",
+      "⚒️",
+      "bloom an iron ore",
+      "an ore a furnace can free, and air to do it",
+      m.burns || m.held || n.freeOxygen,
+      null,
+      null,
+      "A furnace and its air free iron from its ore.",
+      n.rock
+        ? "Its iron is carbide, and no bloom frees it: only oxygen made by current burns its carbon out."
+        : "Its rock lies under its ice, and only what falls from its sky can be had.",
+    ),
+    r(
+      "grind-with-grit",
+      "💎",
+      "grind with diamond",
+      "diamond in its rock",
+      rock("diamond"),
+      "diamond grit",
+      "diamond",
+      "Diamond grit cuts anything its rock holds.",
+      open ? "No diamond lies in its rock." : road,
+    ),
+    r(
+      "seal-with-pitch",
+      "🛢️",
+      "seal with pitch",
+      "pitch in its ground",
+      rock("bitumen"),
+      "pitch",
+      "bitumen",
+      "Pitch seeps from its ground.",
+      open ? "No pitch seeps from its ground." : road,
+    ),
+    r(
+      "hammer-native-copper",
+      "🔨",
+      "hammer copper cold",
+      "copper lying native",
+      open && native,
+      "native copper",
+      "native-copper",
+      "Its copper lies unrusted, and can be beaten cold.",
+      open ? "No copper lies native here." : road,
+    ),
+    r(
+      "work-carbide-iron",
+      "⛏️",
+      "work carbide iron",
+      "iron carbide in its rock",
+      rock("cohenite"),
+      "cohenite",
+      "cohenite",
+      "Lumps of iron carbide lie in its lavas.",
+      open ? "No iron carbide lies in its rock." : road,
+    ),
+    r(
+      "leach-with-acid",
+      "🧪",
+      "leach copper with acid",
+      "acid springs: sulfur dioxide in its air",
+      open && n.airHolds.includes("so2"),
+      "blue vitriol",
+      "blue-vitriol",
+      "Its acid springs leave blue vitriol over copper ore.",
+      open ? "It has no acid springs: no sulfur dioxide in its air." : road,
+    ),
+    r(
+      "bind-with-sulfur",
+      "🧱",
+      "bind grit with sulfur",
+      "sulfur in its rock",
+      rock("sulphur"),
+      "sulfur",
+      "sulphur",
+      "Sulfur melts at 115 °C, and sets grit like stone.",
+      open ? "No sulfur lies in its rock." : road,
+    ),
+    r(
+      "work-cold-ice",
+      "🧊",
+      "work ice as stone",
+      "ice in its ground, below −40 °C",
+      iceOk,
+      "ice",
+      "water-ice",
+      `Ice is Mohs ${Math.round(2 + (273.15 - n.kelvin) * 0.051)} at this cold, capped at 6.5.`,
+      !open
+        ? road
+        : n.groundHolds.includes("water-ice")
+          ? "Ice is soft at this warmth: it wants −40 °C or colder."
+          : "No ice lies in its ground.",
+    ),
+    r(
+      "work-fallen-iron",
+      "☄️",
+      "gather what falls",
+      "a crust of ice, that strands it (as Antarctica's does)",
+      open && !n.rock,
+      "iron fallen from the sky",
+      "iron",
+      "Its ice strands what falls from its sky.",
+      "Its rock lies open: what falls from its sky is lost among its stones.",
+    ),
+    r(
+      "engine-from-ground",
+      "♨️",
+      "run an engine on the ground's heat",
+      "100 degrees between its ground and its air, where nothing burns",
+      open && noFuel && land && groundDiff >= 100,
+      `${Math.round(groundDiff)} degrees`,
+      null,
+      `${Math.round(groundDiff)} degrees between its ground and its air: an engine at best turns ${Math.round((100 * groundDiff) / (groundHeat(n) + 273.15))}% of it to work (Carnot).`,
+      shutBy(
+        `Only ${Math.round(groundDiff)} degrees between its ground and its air: too little to drive an engine.`,
+      ),
+    ),
+    r(
+      "draw-polymer",
+      "🧵",
+      "draw a polymer wire",
+      "methane in its air",
+      open && noFuel && land && n.airHolds.includes("methane"),
+      "polyacetylene",
+      "polyacetylene",
+      "Acetylene of its air, chained and doped till it carries.",
+      shutBy("No methane in its air to draw it from."),
+    ),
+    r(
+      "wind-dynamo",
+      "🧲",
+      "wind a dynamo of copper and graphite",
+      "graphite in its rock, where nothing burns",
+      open && noFuel && land && rock("graphite"),
+      "copper and graphite",
+      "graphite",
+      "Copper for its coils, graphite for its brushes.",
+      shutBy("No graphite lies in its rock."),
+    ),
+    r(
+      "fly-on-wings",
+      "🪽",
+      "fly on wings",
+      "air thick enough and pull light enough: under 0.6 of the power Earth asks",
+      open && land && fly < 0.6,
+      `${Math.round(fly * 100)}% of Earth's power`,
+      null,
+      `Power to fly goes as pull^1.5 over air's weight^0.5: here ${Math.round(fly * 100)}% of Earth's.`,
+      `Power to fly goes as pull^1.5 over air's weight^0.5: here ${Math.round(fly * 100)}% of Earth's, too dear to fly on what it makes.`,
+    ),
+    r(
+      "build-high",
+      "🏗️",
+      "build high",
+      "a pull of 0.75 g or less",
+      open && n.pull <= 0.75,
+      `${Math.round(n.pull * 100) / 100} g`,
+      null,
+      `A wall weighs ${Math.round(n.pull * 100)}% of what it would on Earth.`,
+      `A wall weighs ${Math.round(n.pull * 100)}% of what it would on Earth: no lighter frame stands taller.`,
+    ),
+  ];
 }
 
 /**
@@ -560,19 +953,22 @@ export function readFunctions(w: MatterWorld): FunctionReading[] {
       ? "steel"
       : w.rockBodies > 0
         ? "steel"
-        : w.kind === "methane" || w.kind === "ammonia"
+        : !w.means.rock
           ? "water-ice"
           : "steel",
     tower = towerKm(towerStuff, w.gravity),
     laser =
       crustPpm(w.chem, "Cr") >= 20 && crustPpm(w.chem, "Al") >= 1000 && rockUnderfoot(w.kind)
         ? "ruby: corundum with a little chromium"
-        : w.chem.redox === "oxidised" || w.kind === "carbon"
+        : w.chem.redox === "oxidised" || w.means.airHolds.includes("carbon-monoxide")
           ? "carbon gases in a tube"
           : w.rockBodies > 0
             ? "ruby, from the rock of its moons and neighbours"
             : null;
   return [
+    makeGas(w),
+    edgeWithoutMetal(w),
+    ...rowReadings(w),
     carry,
     swap,
     mind,
