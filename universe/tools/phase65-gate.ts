@@ -5,7 +5,7 @@
 // at its year behind the jump's screen, how long it takes said before it starts, and the world stands
 // where the catalogue said. The stage chip by the date is its age, read from its measures and named for
 // its own means; tapped, it says why it stands there and what it lacks for the next, each measure a page.
-// A catalogue of other rules is passed over, and said to be. (That reading moves nothing of history is
+// A catalogue of other rules stays listed, and is said to be from an earlier version. (That reading moves nothing of history is
 // tests/host/reading.test.ts's to hold.)
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -237,7 +237,7 @@ try {
   await shot("3-a-seed-read");
   await fits(".pick-own p, .pick-own .seed-row", "a seed's reading");
 
-  // 5. A catalogue under other rules is passed over, and said to be.
+  // 5. A catalogue under other rules stays listed, and is said to be from an earlier version.
   await page.route("**/catalogue.json", async (route) => {
     const reply = JSON.stringify({ ...catalogue, rulesets: { earth: "other", alien: "other" } });
     await route.fulfill({ status: 200, contentType: "application/json", body: reply });
@@ -245,17 +245,21 @@ try {
   await page.goto(base);
   await page.waitForSelector(".title-menu .choice", { timeout: slow(60000) });
   await page.tap(".title-menu .choice:has-text('A world that gets there')");
-  await until("the catalogue passed over", async () =>
-    (await text(".pick-reached")).includes("passed over"),
+  await until("the catalogue said to be earlier", async () =>
+    (await text(".pick-reached")).includes("earlier version"),
   );
-  check((await page.$$(".pick-run")).length === 0, "a catalogue of other rules was listed");
+  check((await page.$$(".pick-run")).length > 0, "a catalogue of other rules was not listed");
+  check(
+    (await text(".pick-reached")).includes("Reached in about year"),
+    "an earlier version's years read as exact",
+  );
   await until(
-    "the reading, with no catalogue",
+    "the reading, beside it",
     async () => (await page.$$(".pick-read-row")).length > 0,
     slow(90000),
   );
   await page.unroute("**/catalogue.json");
-  say("a catalogue of other rules is passed over, and said to be");
+  say("a catalogue of other rules stays listed, close and not exact, and says so");
 
   // And one the bake found a world no longer keeping to, under the very same rules.
   await page.route("**/baked/manifest.json", async (route) => {
@@ -265,12 +269,15 @@ try {
   await page.goto(base);
   await page.waitForSelector(".title-menu .choice", { timeout: slow(60000) });
   await page.tap(".title-menu .choice:has-text('A world that gets there')");
-  await until("the catalogue no longer kept to, passed over", async () =>
-    (await text(".pick-reached")).includes("passed over"),
+  await until("the catalogue no longer kept to, said to be earlier", async () =>
+    (await text(".pick-reached")).includes("earlier version"),
   );
-  check((await page.$$(".pick-run")).length === 0, "a catalogue history has moved from was listed");
+  check(
+    (await page.$$(".pick-run")).length > 0,
+    "a catalogue history has moved from was not listed",
+  );
   await page.unroute("**/baked/manifest.json");
-  say("a catalogue whose worlds no longer keep to it is passed over too");
+  say("a catalogue whose worlds no longer keep to it is said to be earlier too");
 
   // 6. Picking a result opens the world at its year, the chip says what the catalogue said.
   const near = catalogue.seeds

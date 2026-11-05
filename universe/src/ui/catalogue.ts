@@ -1,8 +1,8 @@
 // "Does it?" (Phase 65): the seeds a catalogue ran in full, with the year each reached each age. History
-// is deterministic, so a year here is exact for the rules it was run under: a catalogue of other rules
-// is passed over, as a baked world is (ui/jump.ts), and so is one the deploy's bake found a world no
-// longer keeping to. tools/catalogue-run.ts ran them, tools/catalogue.ts read them, and the deploy only
-// carries the file.
+// is deterministic, so a year here is exact for the rules it was run under. A catalogue of other rules,
+// or one the deploy's bake found a world no longer keeping to, stays listed and is said to be from an
+// earlier version: its years are close, not exact, until the worlds are next run. tools/catalogue-run.ts
+// ran them, tools/catalogue.ts read them, and the deploy only carries the file.
 import type { HostClient } from "../bridge/index.ts";
 import { catalogueMoved } from "./jump.ts";
 
@@ -49,7 +49,7 @@ type CatalogueFile = {
 
 /** A universe's part of the catalogue, under the rules this build's worlds run by. */
 export type UniverseCatalogue = {
-  /** "ok"; "none": this deploy carries none; "other rules": one run under other rules, passed over. */
+  /** "ok"; "none": this deploy carries none; "other rules": run on an earlier version, so close, not exact. */
   readonly status: "ok" | "none" | "other rules";
   readonly seeds: readonly CatalogueSeed[];
   readonly lastYear: number;
@@ -66,7 +66,7 @@ function catalogueFile(): Promise<CatalogueFile | null> {
     .catch(() => null));
 }
 
-/** The worlds run in full of a universe, where they were run under the rules it now runs by. */
+/** The worlds run in full of a universe, and whether they were run under the rules it now runs by. */
 export async function catalogueFor(
   client: Pick<HostClient, "rulesetOf">,
   universe: string,
@@ -74,10 +74,10 @@ export async function catalogueFor(
   const none = { seeds: [], lastYear: 0, agreement: {} },
     got = await catalogueFile();
   if (!got?.seeds) return { status: "none", ...none };
-  if (got.rulesets[universe] !== (await client.rulesetOf(universe)) || (await catalogueMoved()))
-    return { status: "other rules", ...none };
+  const earlier =
+    got.rulesets[universe] !== (await client.rulesetOf(universe)) || (await catalogueMoved());
   return {
-    status: "ok",
+    status: earlier ? "other rules" : "ok",
     seeds: got.seeds.filter((s) => s.universe === universe),
     lastYear: got.lastYear,
     agreement: got.agreementOf[universe] ?? {},

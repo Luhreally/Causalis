@@ -162,7 +162,11 @@ export function pickerForm(o: PickerOptions): HTMLElement {
     row.dataset.year = String(opens);
     row.append(
       el("span", "pick-seed", s.seed),
-      el("span", "pick-tag pick-tag-run", `Reached in year ${yearWords(age.year)}`),
+      el(
+        "span",
+        "pick-tag pick-tag-run",
+        `Reached in ${catalogue?.status === "other rules" ? "about " : ""}year ${yearWords(age.year)}`,
+      ),
       el(
         "small",
         undefined,
@@ -346,16 +350,17 @@ export function pickerForm(o: PickerOptions): HTMLElement {
       run = (catalogue.seeds ?? [])
         .filter((s) => s.ages[target])
         .sort((a, b) => a.ages[target]!.year - b.ages[target]!.year);
-    reached.replaceChildren(el("h3", undefined, `Reached: run in full, every year of it`));
-    if (catalogue.status === "other rules")
-      reached.append(
-        el(
-          "p",
-          "muted",
-          "The worlds run in full were run under other rules, so they are passed over here: only what a reading can tell, below.",
-        ),
-      );
-    else if (catalogue.status === "none")
+    const earlier = catalogue.status === "other rules";
+    reached.replaceChildren(
+      el(
+        "h3",
+        undefined,
+        earlier
+          ? "Reached: run in full, on an earlier version"
+          : "Reached: run in full, every year of it",
+      ),
+    );
+    if (catalogue.status === "none")
       reached.append(el("p", "muted", "No worlds run in full came with this build."));
     else if (!run.length)
       reached.append(
@@ -370,7 +375,9 @@ export function pickerForm(o: PickerOptions): HTMLElement {
         el(
           "p",
           "muted",
-          `${run.length} of ${catalogue.seeds.length} worlds run to year ${yearWords(catalogue.lastYear)} came to ${name}. These do, every time, unless your hand changes them: the same seed makes the same history.`,
+          earlier
+            ? `${run.length} of ${catalogue.seeds.length} worlds came to ${name} when last run to year ${yearWords(catalogue.lastYear)}, on an earlier version of the rules. Read their years as close, not exact: a world may get there sooner, later, or not at all.`
+            : `${run.length} of ${catalogue.seeds.length} worlds run to year ${yearWords(catalogue.lastYear)} came to ${name}. These do, every time, unless your hand changes them: the same seed makes the same history.`,
         ),
         ...run.map(runRow),
       );
@@ -430,14 +437,16 @@ export function pickerForm(o: PickerOptions): HTMLElement {
     }
     said.push(el("p", "muted pick-time", `Read in ${ms} ms, with no history run.`));
     if (ran) {
-      const age = ran.ages[target];
+      const age = ran.ages[target],
+        earlier = catalogue?.status === "other rules",
+        how = earlier ? "run in full on an earlier version, so close, not exact" : "run in full";
       said.unshift(
         el(
           "p",
           `pick-tag ${age ? "pick-tag-run" : "pick-tag-shut"}`,
           age
-            ? `Reached ${age.name} in year ${yearWords(age.year)}: run in full`
-            : `Never came to ${targetName()} by year ${yearWords(ran.end.year)}: run in full`,
+            ? `Reached ${age.name} in ${earlier ? "about " : ""}year ${yearWords(age.year)}: ${how}`
+            : `Never came to ${targetName()} by year ${yearWords(ran.end.year)}: ${how}`,
         ),
       );
       if (age) said.push(opener(seed, age.year, `Open at year ${yearWords(age.year)} ▶`));
