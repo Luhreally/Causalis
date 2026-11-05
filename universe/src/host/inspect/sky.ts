@@ -27,7 +27,7 @@ import { landLink, realmLink, spotOfLand } from "./names.ts";
 import { colonyRemade } from "../colony.ts";
 
 /** A star in plain words, by its light. */
-function starWords(s: { spectral: string; remnant?: boolean }): string {
+export function starWords(s: { spectral: string; remnant?: boolean }): string {
   if (s.remnant) return "A white dwarf";
   switch (s.spectral[0]) {
     case "O":

@@ -29,6 +29,7 @@ import {
 } from "../sim/index.ts";
 import { homePlanet } from "../sim/index.ts";
 import { stat, yearNow } from "./inspect/words.ts";
+import { starWords } from "./inspect/sky.ts";
 
 const n = (x: number) => Math.round(x).toLocaleString("en");
 const plural = (k: number, one: string, many: string) => `${n(k)} ${k === 1 ? one : many}`;
@@ -135,7 +136,7 @@ export function jumpPlan(world: World): JumpPlan | null {
 }
 
 const starWordsOf = (s: GalaxyStar) =>
-  s.spectral === "white dwarf" ? "a white dwarf" : `a ${s.spectral} star`;
+  s.spectral === "white dwarf" ? "a white dwarf" : starWords(s).toLowerCase();
 
 /** The law's own page: what it says here, who found it, what it costs and what it has done. */
 export function lawPage(world: World): PageModel {

@@ -79,6 +79,20 @@ firearms.ts are the models.
 | 72 Star nations | Federations, empires, vassals, civil wars, dark ages | The fleets of Phase 67 fighting for real empires; a realm falling apart | L |
 | 73 Your hand in it | Galaxy lenses, the director filming firsts, a pilot possessed, god's acts at star scale | All of it, from the title screen | M |
 
+## Phase 68, first slice, as built (2026-11-05)
+
+**The law.** `rules/lanes.ts` `laneLaw`: the dial's act if there is one, else open for a world like ours, else a hash of the seed's name: open in two of three alien universes (66.45% of 2,000 seeds). It touches no stream and lives in the seed's text like every making, so the save holds it. **The finding** is a row of its own after every other row: it needs annihilation drives, machine minds, and fusion or star mirrors, and asks the function `open-a-lane` of the world's matter. So a world can have the law and be shut by its matter (`alien quill 742`: nothing there carries a current without loss), and a page says so. A people of the stars finds it at a keyed year, never before 1400, so early histories hold.
+
+**The lanes** are pure from stars' positions and masses: a tide of root(ma x mb) / d squared, at least 0.004, with no third star stronger with both: about 2,550 lanes among 2,000 stars. A lane is 2 to 8 times light's speed by its tide, a ship still crosses on its own drive from mouth to mouth, it burns 20 tonnes of annihilation fuel a light-year on a middling lane, and 0.2% to 10% of ships are thrown out part way (est.). A ship with no lane crosses as it always has. Word still goes at light's speed.
+
+**Who is met, and why that had to be added.** Every star site is taken by about year 1750, so earlier ships alone could never meet towns and cities that rise later. So a realm that knows the lanes sends a ship to a people whose fields or lit towns it can see, once for each stage (`sim/space/lane-visits.ts`). It takes no land and no one stays. Phase 70's landing reads these arrivals.
+
+**Measured on forks of `alien harrow 348`, 1500 to 3000, the dial shut against open.** First jump 1648, 16.4 light-years in 10 years where its drive took 50. Settler crossings 11 to 15 years against 42 to 60; 2 of 20 ships thrown. Arrivals at peoples: villages 5, towns 7, cities 6, works 4, against one at the stars. Landings the comers won: villages 5 of 5, towns 7 of 7, cities 2 of 6, works 0 of 4: **towns and cities are met in real history for the first time, and natives hold most cities and all works.** Wars between the stars 188 against 206: the law does not raise them, and a small change to the row's place moved that figure a lot, so it is not a finding. A mean year 104 ms against 96; save 1.91 MB against 1.90.
+
+**Seen.** 🌌 The stars draws every lane as a blue web and its panel says "🌀 A law of this universe"; the world's menu has "🌀 The law", and its page has "🌀 Watch the first jump": the ship leaving, the mouth opening, the flash, streaks of the sky, the far star. A tiding and the Director carry it. The alien title's making row has "🌀 Lanes: as it falls / open / shut". Where the law is shut, no web, no film, and a page says why no one ever jumps.
+
+**Levers.** Shields wait for a fight whose numbers they can change (a second law under this dial). Couriers and word by lane, a lane raided (Phase 71), a people's own first jump as a film, an age rung and picker row for the lanes, fleets through a lane in Phase 67's film, Earth's dial on the title. Not measured on an iPhone 15 Plus.
+
 ## Phase 69, first slice, as built (2026-11-05)
 
 **Nothing moves history.** A people of a world is a pure reading of it (`sim/space/natives.ts`), no store, no event, no command: the ruleset's id stands, old saves load, the oracle does not move. A contact is read off what history already holds, a home ship's arrival or a people's hold. Its card says plainly that history holds that they came and no more of what passed: Phase 70 decides what passes, and that is what will move history.
