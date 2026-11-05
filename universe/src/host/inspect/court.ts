@@ -5,7 +5,13 @@ import type { Ref, World } from "../../kernel/index.ts";
 import { FEMALE, OCC, mustCarry } from "../../rules/index.ts";
 import { courtOf, politiesOf, realmName, type Polity } from "../../sim/index.ts";
 import { governmentWords } from "../../causal/index.ts";
-import { LEADER_ICON, type Block, type Item, type PageModel, type Stat } from "../../bridge/index.ts";
+import {
+  LEADER_ICON,
+  type Block,
+  type Item,
+  type PageModel,
+  type Stat,
+} from "../../bridge/index.ts";
 import { realmColor } from "../colors.ts";
 import {
   courtFigure,
@@ -59,7 +65,9 @@ export function courtBlocks(world: World, r: Polity): Block[] {
       type: "text",
       lines: [
         ["🗡️ Afoot now: ", link(claimOf(world, c.plot.event), c.plot.event)],
-        [`It comes to its end within the year: ${pct(c.plot.odds)} in a hundred it takes the seat.`],
+        [
+          `It comes to its end within the year: ${pct(c.plot.odds)} in a hundred it takes the seat.`,
+        ],
       ],
     });
   blocks.push({ type: "tool", tool: "leader.card", args: { leader: rulerLeader(world, r) } });
@@ -71,7 +79,8 @@ export function courtBlocks(world: World, r: Polity): Block[] {
       lines: [["No one stands near the seat yet: a court fills as a seat changes hands."]],
     });
   const told = c ? toldItems(world, c.told) : [];
-  if (told.length) blocks.push({ type: "list", title: "What has passed at this court", items: told });
+  if (told.length)
+    blocks.push({ type: "list", title: "What has passed at this court", items: told });
   return blocks;
 }
 
@@ -107,9 +116,7 @@ export function courtPage(world: World, ref: string): PageModel {
             {
               type: "text",
               lines: [
-                [
-                  "History keeps what they did and no more: it is in the chronicle of their realm.",
-                ],
+                ["History keeps what they did and no more: it is in the chronicle of their realm."],
               ],
             },
           ],
@@ -138,10 +145,16 @@ export function courtPage(world: World, ref: string): PageModel {
         rows: [
           stat("Born", `year ${who.born}`),
           stat("Who", `a ${who.sex === FEMALE ? "woman" : "man"} of ${r.town}`),
-          ...(town ? [stat("Seat", [townLink(world, town.ref), ", ", landLink(world, r.seat, true)])] : []),
+          ...(town
+            ? [stat("Seat", [townLink(world, town.ref), ", ", landLink(world, r.seat, true)])]
+            : []),
           ...(f ? [stat("At court since", `year ${f.since}`)] : []),
           ...(gone?.event
-            ? [stat("How it ended", [link(claimOf(world, gone.event), gone.event)], { why: gone.event })]
+            ? [
+                stat("How it ended", [link(claimOf(world, gone.event), gone.event)], {
+                  why: gone.event,
+                }),
+              ]
             : []),
         ] as Stat[],
       },
@@ -165,12 +178,16 @@ export function courtPage(world: World, ref: string): PageModel {
       blocks.push({ type: "why", title: "Why they moved", ref: c.plot.event });
   }
   const told = c ? toldItems(world, c.told, at.id) : [];
-  blocks.push({ type: "list", title: "What they did", items: told });
-  if (!told.length) blocks.push({ type: "text", lines: [["Nothing yet that history tells."]] });
+  blocks.push(
+    told.length
+      ? { type: "list", title: "What they did", items: told }
+      : { type: "text", title: "What they did", lines: [["Nothing yet that history tells."]] },
+  );
   return {
     ref,
     kind: "person",
-    icon: f && c ? LEADER_ICON[f.id === c.heir ? "heir" : f.id === c.rival ? "rival" : "voice"] : "🕯️",
+    icon:
+      f && c ? LEADER_ICON[f.id === c.heir ? "heir" : f.id === c.rival ? "rival" : "voice"] : "🕯️",
     portrait: {
       kind: "person",
       ref,
