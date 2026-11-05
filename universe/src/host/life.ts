@@ -45,6 +45,14 @@ const first = (name: string) => name.replace(/ of .*$/, "");
 const WORK_WORD = ["child", "forager", "farmer", "herder", "crafter", "trader", "leader"];
 
 /** What someone is to the one lived, in a word. */
+/** What one still living is to one gone. */
+function goneWord(gone: number, a: Agent): string {
+  const she = a.sex === FEMALE;
+  if (a.mother === gone || a.father === gone) return she ? "daughter" : "son";
+  if (a.partner === gone) return she ? "wife" : "husband";
+  return she ? "kinswoman" : "kinsman";
+}
+
 function kinWord(me: Agent, a: Agent): string {
   const she = a.sex === FEMALE;
   if (a.id === me.partner) return she ? "wife" : "husband";
@@ -202,7 +210,7 @@ export function lifeNow(world: World): LifeNow | null {
         ref: `agent:${id}`,
         name: first(agentName(c, a, v)),
         age: year - a.birthYear,
-        is: is ?? (me ? kinWord(me, a) : "kin"),
+        is: is ?? (me ? kinWord(me, a) : goneWord(l.agent, a)),
         love: Math.round(loveOf(l.bonds, id) * 100) / 100,
         work: WORK_WORD[a.occupation] ?? "",
       };
@@ -235,7 +243,9 @@ export function lifeNow(world: World): LifeNow | null {
     name: first(l.name),
     town: w.village,
     townName: v.name,
-    what: `${f.age < adult ? "a child" : `a ${WORK_WORD[f.occupation] ?? "person"}`} of ${v.name}, ${f.age}`,
+    what: me
+      ? `${f.age < adult ? "a child" : `a ${WORK_WORD[f.occupation] ?? "person"}`} of ${v.name}, ${f.age}`
+      : `gone from ${v.name}`,
     home: l.home,
     generation: l.generation,
     day: Math.floor(t / 86_400),

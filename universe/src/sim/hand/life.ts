@@ -206,6 +206,9 @@ const wait = (l: Life, h: Happening) => {
   if (l.waiting.length > LIFE_MOST.waiting) l.waiting.splice(0, 1);
 };
 
+/** How a suitor told "not now" is kept among those asked (children are kept there by their ids). */
+const notNow = (id: number): number => -1 - id;
+
 /** Who they would measure themselves against: their own age and work first; never kin. */
 function rivalFor(
   w: Window,
@@ -591,6 +594,7 @@ export function installLife(world: World, ctx: () => PopulationContext): void {
       const w = resting()!,
         a = command.args as { agent: number; home: number };
       w.life = begin(world, ctx(), w, agentById(w, a.agent)!, a.home, t, command.id, null);
+      keepNames(ctx(), w, w.life);
     },
   });
 
@@ -717,7 +721,9 @@ export function installLife(world: World, ctx: () => PopulationContext): void {
         l.doing = { what: "face", from: t, to: blockEnd("face", t), target: l.rival };
       } else if (h.kind === "rival") {
         l.heart = Math.max(0, l.heart - 0.03);
-      } else if (h.kind === "suitor" && a.choice === 1 && agentById(w, h.who)) {
+      } else if (h.kind === "suitor" && a.choice !== 1) {
+        l.asked = [...l.asked, notNow(h.who)].slice(-LIFE_MOST.asked);
+      } else if (h.kind === "suitor" && agentById(w, h.who)) {
         l.doing = { what: "court", from: t, to: blockEnd("court", t), target: h.who };
       } else if (h.kind === "trade" && a.choice >= 0 && a.choice < 7) {
         const who = agentById(w, h.who);
@@ -753,6 +759,7 @@ export function installLife(world: World, ctx: () => PopulationContext): void {
         command.id,
       );
       w.life = begin(world, c, w, heir, was.home, t, command.id, was);
+      keepNames(c, w, w.life);
     },
   });
 
@@ -790,6 +797,16 @@ export function installLife(world: World, ctx: () => PopulationContext): void {
 const yearsOf = (l: Life, t: number) => yearOfMoment(t) - yearOfMoment(l.began);
 
 /** A month's close: their numbers carried forward; who is born and gone; what waits on the viewer. */
+/** Those a life knows keep the names it knows them by, whatever the tongue does about them. */
+function keepNames(c: PopulationContext, w: Window, l: Life): void {
+  const v = c.settlements.get(w.village);
+  if (!v) return;
+  for (const id of livedAbout(l)) {
+    const a = agentById(w, id);
+    if (a && !a.name) a.name = agentName(c, a, v);
+  }
+}
+
 export function lifeMonth(world: World, c: PopulationContext, t: number): void {
   const w = handOf(world).resting,
     l = w?.life;
@@ -802,6 +819,7 @@ export function lifeMonth(world: World, c: PopulationContext, t: number): void {
     say(l, t, "Your life here is over");
     return;
   }
+  keepNames(c, w, l);
   const year = yearOfMoment(t),
     adult = adultOf(c),
     kin = kinOf(w, me);
@@ -842,9 +860,10 @@ export function lifeMonth(world: World, c: PopulationContext, t: number): void {
     wait(l, { key: `rival:${t}`, kind: "rival", who: l.rival, at: t, more: what ? take : 0 });
   }
   // One free for them comes forward.
+  // (One told "not now" does not ask again: Court is still on the tray.)
   const grownFree = l.suitors.filter((id) => {
     const a = agentById(w, id);
-    return !!a && year - a.birthYear >= adult;
+    return !!a && year - a.birthYear >= adult && !l.asked.includes(notNow(id));
   });
   if (grownFree.length && world.rng.real(HAND_LIFE, l.agent, t, P.suitor) < SUITOR_COMES)
     wait(l, { key: `suitor:${grownFree[0]}`, kind: "suitor", who: grownFree[0]!, at: t, more: 0 });

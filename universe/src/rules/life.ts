@@ -160,9 +160,9 @@ export function dayWage(occupation: number, skill: number, tool: number, ratio: 
 /** A household's rent a day, where its home is not its own. */
 export const RENT_DAY = 0.5;
 /** What a home of one's own costs; a better tool and good clothes at usual prices (and the most tools). */
-export const HOME_COST = 400,
-  TOOL_COST = 120,
-  CLOTH_COST = 60,
+export const HOME_COST = 3000,
+  TOOL_COST = 300,
+  CLOTH_COST = 100,
   TOOLS_MOST = 3;
 
 /** Hours of the ordinary working day between two moments: 8 to 12 and 13 to 17. In one step, whatever the span. */
@@ -293,9 +293,9 @@ export const LIFE_WANTS: Readonly<
   fortune: {
     icon: "💰",
     label: "A fortune",
-    goal: 3000,
+    goal: 30000,
     grown: true,
-    words: "Three thousand coin in the purse.",
+    words: "Thirty thousand coin in the purse.",
   },
   best: {
     icon: "⚔️",
@@ -700,5 +700,5 @@ export function faceGoes(u: number, mine: number, theirs: number): boolean {
 }
 
 /** How often a month a rival moves against you, and a suitor comes forward. */
-export const RIVAL_MOVES = 0.08,
+export const RIVAL_MOVES = 0.04,
   SUITOR_COMES = 0.25;
