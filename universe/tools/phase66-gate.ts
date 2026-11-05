@@ -67,7 +67,7 @@ const root = fileURLToPath(new URL("..", import.meta.url)),
   chosen = argv.indexOf("--seed"),
   chosenYear = argv.indexOf("--year"),
   seed = bakedFile ? (chosen >= 0 ? argv[chosen + 1]! : PAST_WORLD.seed) : "kestrel 557",
-  AT = bakedFile ? (chosenYear >= 0 ? Number(argv[chosenYear + 1]) : PAST_WORLD.year) : 2400;
+  AT = bakedFile ? (chosenYear >= 0 ? Number(argv[chosenYear + 1]) : PAST_WORLD.year) : 2500;
 let direct: unknown = null,
   /** A battle of the world's history fought with beams (the map of wars keeps only the last century's). */
   beamBattle: BattleNear | null = null,

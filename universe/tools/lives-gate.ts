@@ -302,11 +302,20 @@ await until(
   () => k<boolean>("!!globalThis.causalis.possess.state()"),
   slow(120000),
 );
+// (The body drawn and the strip filled on the next word from the world, which a slow machine has not yet had.)
+await until(
+  "the strip to say this is a leader, their body drawn",
+  () =>
+    k<boolean>(`(() => {
+      const p = globalThis.causalis.possess, h = p.state();
+      return !!h && !!p.drawn(h.agent) && document.body.innerText.includes("leader of");
+    })()`),
+  slow(60000),
+);
 const body = await k<{
   name: string;
   at: { x: number; z: number } | null;
   possessing: boolean;
-  told: boolean;
 } | null>(`(() => {
   const p = globalThis.causalis.possess, h = p.state();
   if (!h) return null;
@@ -315,12 +324,10 @@ const body = await k<{
     name: h.name,
     at: me && { x: me.x, z: me.z },
     possessing: document.body.classList.contains("possessing"),
-    told: document.body.innerText.includes("leader of"),
   };
 })()`);
 check(body?.name === ruler.name, `the body taken is ${body?.name}, not ${ruler.name}`);
 check(!!body?.possessing, "the page does not say it is possessing");
-check(!!body?.told, "the strip does not say this is a leader");
 check(await seen(".possess-letgo"), "no way to let go");
 if (body?.at && s.home) {
   const far = Math.hypot(body.at.x - s.home.x, body.at.z - s.home.z);
