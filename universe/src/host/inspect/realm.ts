@@ -32,6 +32,8 @@ import { armyBlocks, courseBlocks } from "./army.ts";
 import { storesSummed } from "./stores.ts";
 import { realmOrderBlocks } from "./order.ts";
 import { realmCreditBlocks, warChestRows } from "./credit.ts";
+import { leaderBlocks } from "./leaders.ts";
+import { wealthStats } from "../wealth.ts";
 import { civilWarRows, realmStrifeBlocks } from "./strife.ts";
 import { civilizationsNear } from "../../sim/index.ts";
 import {
@@ -90,7 +92,8 @@ export function realmPageModel(world: World, ref: string): PageModel {
       ],
     }),
     stat("People", count(people), { why: r.ref }),
-    stat("Ruler", `${r.ruler.name}`, { why: r.ruler.event }),
+    stat("Ruler", [link(r.ruler.name, `rule:${r.ref}`)], { why: r.ruler.event }),
+    ...wealthStats(world, r.ref),
     stat("At war", fighting.length ? many(fighting.length, "war", "wars") : "at peace"),
     stat("Tithe", `${Math.round(r.tribute * 100)}%`, { why: r.tithed ?? r.event }),
   ];
@@ -110,7 +113,9 @@ export function realmPageModel(world: World, ref: string): PageModel {
           ),
           stat("Founded", `year ${r.founded}`, { why: r.event }),
           stat("Rule", governmentWords(r)),
-          stat("Ruler", `${r.ruler.name}, since year ${r.ruler.since}`, { why: r.ruler.event }),
+          stat("Ruler", [link(r.ruler.name, `rule:${r.ref}`), `, since year ${r.ruler.since}`], {
+            why: r.ruler.event,
+          }),
           stat("Tithe", `${Math.round(r.tribute * 100)}% of each land's grain to the seat`, {
             why: r.tithed ?? null,
           }),
@@ -160,6 +165,8 @@ export function realmPageModel(world: World, ref: string): PageModel {
       { type: "why", title: "How it came to be", ref: r.ref },
     ],
   });
+  // Who holds power in it (Lives L1).
+  tabs.push({ id: "leaders", name: "Leaders", blocks: leaderBlocks(world, r) });
   // Its lands, most peopled first.
   {
     const rows: Row[] = [...r.members]

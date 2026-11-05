@@ -41,6 +41,7 @@ export {
   type Lens,
   type Lit,
 } from "./globe.ts";
+export { WEALTH_CHOICES, figureEye, wealthNote, wealthShades, wealthSpread } from "./leaders.ts";
 export { BLOOD_TONES, LIFE_WORDS, bloodTones, lifeTint, type BloodTones } from "./biochem.ts";
 export {
   ACT_PARTS,
@@ -616,6 +617,7 @@ export {
   LANDERS,
   boltColors,
   invasionAt,
+  burningWay,
   invasionEye,
   invasionKeep,
   invasionScript,

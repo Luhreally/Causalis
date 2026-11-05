@@ -28,6 +28,7 @@ import { parseRef, type Ref, type World } from "../../kernel/index.ts";
 import type { Block, Item, Line, PageModel, Place, Row, Stat, Tab } from "../../bridge/index.ts";
 import { cell as spotFacts, market, province, provinceHistory } from "../planet.ts";
 import { realmColor } from "../colors.ts";
+import { rulerStat } from "./leaders.ts";
 import { count, eventsAbout, item, link, many, part, share, stat, yearNow } from "./words.ts";
 import { richWords } from "./life.ts";
 import { landPast } from "../past.ts";
@@ -120,7 +121,7 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
     if (m) stats.push(stat("Food put by", `${m.foodMonths.toFixed(1)} months`));
   }
   stats.push(stat("Towns", count(towns.length)));
-  if (realm) stats.push(stat("Realm", [link(realmName(realm), realm.ref)]));
+  if (realm) stats.push(stat("Realm", [link(realmName(realm), realm.ref)]), rulerStat(realm));
   // (Past our ages: Phase 66.)
   const past = landPast(world, cell);
   if (past?.covered)

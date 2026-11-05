@@ -395,6 +395,13 @@ export function pairUp(agents: readonly Agent[], year: number, adulthood: number
   }
 }
 
+/**
+ * The most of a town the god's hand holds one by one (Lives L1): of a greater town, a ward of this many, the
+ * rest of it counted as a land's people are. A person weighs about 250 bytes and a month under the hand costs
+ * about 1.5 s a million, so a town of tens of millions could not be held whole.
+ */
+export const HAND_HOLDS = 50_000;
+
 export type Window = {
   readonly command: Ref;
   readonly event: Ref;
@@ -404,6 +411,8 @@ export type Window = {
   agents: Agent[];
   /** The next agent's id: newborns take it. */
   next: number;
+  /** Those of its town beyond the ward held, counted and not known one by one (absent: it holds the whole town). */
+  readonly beyond?: number;
   /** Those the god touched, and the deed each is remembered for. */
   notables?: { readonly agent: number; readonly deed: Ref }[];
   /** Those who died while it rests (Phase 14 M118): who they were, for their families' trees. */
@@ -583,7 +592,8 @@ export function installHand(world: World): HandStore {
       // The village's people, drawn from the province's counts with the world's own draws.
       const counts: number[] = [];
       for (let r = 0; r < ROWS; r++) for (let o = 0; o < COLS; o++) counts.push(p.counts.get(r, o));
-      const n = Math.min(v.population, p.total()),
+      const whole = Math.min(v.population, p.total()),
+        n = Math.min(whole, HAND_HOLDS),
         taken = drawWithoutReplacement(n, counts, (i) => world.rng.real(COLLAPSE, v.cell, t, 0, i)),
         agents: Agent[] = [];
       taken.forEach((k, i) => {
@@ -638,6 +648,7 @@ export function installHand(world: World): HandStore {
         laid: t,
         agents,
         next: agents.length,
+        ...(whole > n ? { beyond: whole - n } : {}),
       };
     },
   });

@@ -20,6 +20,7 @@ import type {
   Portrait,
   Row,
   Stat,
+  Leader,
 } from "../bridge/index.ts";
 import { el, WhyTree } from "./why.ts";
 import { folder } from "./window.ts";
@@ -142,6 +143,8 @@ export class PageWindow {
   onTouched: ((agent: string) => void) | null = null;
   /** One under the hand possessed (Phase 60): why they cannot be (null: taken). */
   onPossess: ((agent: number) => Promise<string | null>) | null = null;
+  /** To a key figure's home (Lives L1). */
+  onLeaderHome: ((leader: Leader) => void) | null = null;
   /** Told as each page opens (the scales mark what it is). */
   onOpen: (page: PageModel) => void = () => {};
   onClose: () => void = () => {};
@@ -881,6 +884,7 @@ export class PageWindow {
           ...(this.onWars ? { wars: this.onWars } : {}),
           ...(this.onTouched ? { touched: this.onTouched } : {}),
           ...(this.onPossess ? { possess: this.onPossess } : {}),
+          ...(this.onLeaderHome ? { leaderHome: this.onLeaderHome } : {}),
         });
         break;
     }

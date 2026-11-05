@@ -15,6 +15,22 @@ export type {
   StarFightPlan,
   StarLanding,
 } from "./starfight.ts";
+export {
+  FEW_PEOPLE,
+  LEADER_ICON,
+  NEAREST_HOMES,
+  homeOfFigure,
+  worthWords,
+  type LaidAs,
+  type Leader,
+  type LeaderKind,
+  type LeaderList,
+  type PlanFigure,
+  type WealthBook,
+  type WealthLand,
+  type WealthMeasure,
+  type WealthRow,
+} from "./leaders.ts";
 export { HostClient, type CommandReceipt } from "./client.ts";
 export {
   frameTransfer,

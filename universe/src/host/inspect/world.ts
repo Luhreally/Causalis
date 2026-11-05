@@ -38,6 +38,7 @@ import { principleName } from "../../causal/index.ts";
 import { parseRef, type Ref, type World } from "../../kernel/index.ts";
 import type { Block, Item, Line, PageModel, Row, Span, Stat, Tab } from "../../bridge/index.ts";
 import { realmColor } from "../colors.ts";
+import { wealthBlocks } from "../wealth.ts";
 import { faithColor, languageColor } from "../planet.ts";
 import { landEra } from "../village.ts";
 import { bare, claimOf, count, item, link, many, share, stat, yearAt, yearNow } from "./words.ts";
@@ -1757,6 +1758,8 @@ export function ledgerPage(world: World, tab?: string): PageModel {
       name: "Realms",
       blocks: realmLedger(world, standing, realmPeople, realms),
     },
+    // Every realm's wealth (Lives L2).
+    { id: "wealth", name: "Wealth", blocks: wealthBlocks(world) },
     { id: "might", name: "Knowledge", blocks: knowledgeLedger(world, standing, realmPeople) },
     { id: "towns", name: "Towns", blocks: townLedger(world) },
     { id: "wars", name: "Wars", blocks: warLedger(world, now) },

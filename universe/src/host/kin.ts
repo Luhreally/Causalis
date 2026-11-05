@@ -21,7 +21,7 @@ import {
   type Tongue,
 } from "../gen/index.ts";
 import { bandOf, type LifeHistory } from "../rules/index.ts";
-import { agentName, cultureOf, handOf, populationContext } from "../sim/index.ts";
+import { agentName, cultureOf, handOf, politiesOf, populationContext } from "../sim/index.ts";
 import { observer, type Person } from "../causal/index.ts";
 import {
   bodyAt,
@@ -714,6 +714,28 @@ function seatFamily(world: World, town: string, trade: string, seat: number): Fa
   );
 }
 
+/** A ruler's family (Lives L1), by the keyed rule: history keeps their name, not their kin. */
+function rulerFamily(world: World, ref: string): Family | null {
+  const p = politiesOf(world).get(ref.slice("rule:".length) as Ref);
+  if (!p) return null;
+  const self: Node = {
+    key: hashString(`ruler ${p.ruler.event}`) >>> 0,
+    ref,
+    name: p.ruler.name,
+    sex: p.ruler.sex === 0 ? 0 : 1,
+    born: p.ruler.born,
+    died: null,
+    how: null,
+    event: null,
+  };
+  return keyedFamily(
+    readingOf(world, p.seat),
+    self,
+    p.ruler.name.split(" ").slice(1).join(" "),
+    `Named as ruler of ${p.town}: history keeps the ruler's name and their coming to rule, not their kin, so their kin here are given by the keyed rule a town's people's are given by — the same each time, but none of them kept.`,
+  );
+}
+
 /** The family of anyone of a town with a page that has none of its own: a line holder, a levy man, a seat's holder (null: none, or a person met or the hand's, whose household tells theirs). */
 export function familyOf(world: World, ref: string): Family | null {
   if (ref.startsWith("folk:town:")) {
@@ -727,6 +749,7 @@ export function familyOf(world: World, ref: string): Family | null {
     return man ? levyFamily(world, man) : null;
   }
   if (ref.startsWith("heal:")) return seatFamily(world, ref.slice("heal:".length), "healer", 0);
+  if (ref.startsWith("rule:")) return rulerFamily(world, ref);
   const seat = parseSeatRef(ref);
   return seat ? seatFamily(world, seat.town, seat.trade, seat.seat) : null;
 }
@@ -950,6 +973,10 @@ export function bodyOf(world: World, ref: string): BodyRead | null {
           sex: (a.sex === 0 ? 0 : 1) as 0 | 1,
         }
       : null;
+  }
+  if (ref.startsWith("rule:")) {
+    const p = politiesOf(world).get(ref.slice("rule:".length) as Ref);
+    return p ? { frame, wounds: [], death: null, sex: p.ruler.sex === 0 ? 0 : 1 } : null;
   }
   const seat = ref.startsWith("heal:")
     ? { town: ref.slice("heal:".length), trade: "healer", seat: 0 }

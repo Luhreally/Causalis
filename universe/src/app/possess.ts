@@ -103,6 +103,8 @@ export type Possession = {
   take(index: number): Promise<string | null>;
   letGo(): Promise<void>;
   readonly on: boolean;
+  /** Told when a possession has ended and the town is drawn again (Lives L1). */
+  onEnded: (town: string) => void;
 };
 
 export function installPossession(d: PossessionDeps): Possession {
@@ -110,6 +112,7 @@ export function installPossession(d: PossessionDeps): Possession {
     eye = new PossessEye(d.stage),
     /** The acts pressed and not yet bid (one a step, in the order pressed). */
     presses: number[] = [];
+  let ended: (town: string) => void = () => {};
   let on: On | null = null,
     busy = false,
     /** Where the page was last looked at for a body held unseen ("": not in a town). */
@@ -360,6 +363,7 @@ export function installPossession(d: PossessionDeps): Possession {
     }
     d.time.release("possess");
     if (d.scale() === "village" && d.plan()?.ref === o.now.town) await d.reload(o.now.town);
+    ended(o.now.town);
   };
 
   /** A step's bid: the stick as the eye looks, at a run or not, the act first pressed (one a step). */
@@ -545,6 +549,12 @@ export function installPossession(d: PossessionDeps): Possession {
   return {
     take,
     letGo,
+    get onEnded() {
+      return ended;
+    },
+    set onEnded(f: (town: string) => void) {
+      ended = f;
+    },
     get on() {
       return on !== null;
     },

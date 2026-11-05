@@ -15,6 +15,7 @@ export class MapModes {
   private readonly buttons = new Map<Lens, HTMLButtonElement>();
   private readonly legend = el("div", "legend");
   private readonly note = el("div", "legend-note");
+  private readonly act = el("button", "legend-action");
   private readonly picks = el("div", "legend-picks");
   private current: Lens;
   /** Its world's kind (Phase 56): the warmth legend's degrees its liquid's, told in true ones. */
@@ -39,6 +40,7 @@ export class MapModes {
       grid.append(b);
       this.buttons.set(l, b);
     }
+    this.act.hidden = true;
     this.element.append(grid, this.legend);
     this.lens = lens;
   }
@@ -97,6 +99,13 @@ export class MapModes {
     this.drawLegend();
   }
 
+  /** A button of the mode's own under its legend (null: none). */
+  action(label: string | null, run: () => void = () => {}): void {
+    this.act.hidden = label === null;
+    this.act.textContent = label ?? "";
+    this.act.onclick = run;
+  }
+
   /** A line of the mode's own: what it is of ("the league of Geaka"). */
   say(text: string | null): void {
     this.note.textContent = text ?? "";
@@ -126,7 +135,7 @@ export class MapModes {
       }
       parts.push(keys);
     }
-    parts.push(this.picks, this.note);
+    parts.push(this.picks, this.note, this.act);
     this.legend.replaceChildren(...parts);
   }
 }

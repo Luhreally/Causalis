@@ -2,6 +2,7 @@
 // watch mode): what the view needs to draw a village's day. Positions are metres
 // from the village's middle.
 import type { ColonyLook } from "./colony.ts";
+import type { PlanFigure } from "./leaders.ts";
 import type { HostKinds } from "./wars.ts";
 import type { TownPlan } from "./town.ts";
 import type { Away, Wound } from "./wounds.ts";
@@ -318,6 +319,8 @@ export type VillagePlan = {
    * where the hand set it (metres from its middle; null: where the hand did not say).
    */
   readonly wonders?: readonly Wonder[];
+  /** The key figures living in it (Lives L1; absent: none, or not asked for). */
+  readonly figures?: readonly PlanFigure[];
   /** Its dead and their burying (Phase 43 M205; absent: none told). */
   readonly rest?: VillageRest;
   readonly people: readonly {
@@ -366,6 +369,8 @@ export type VillagePlan = {
     wounds?: readonly Wound[];
     /** Their days away with the levy (Phase 55 M226): from the battle's turn till they came home with it. Absent: none. */
     away?: readonly Away[];
+    /** One of a realm's key figures (Lives L1): their page. They stand before their door all day. */
+    figure?: string;
     /** When a strike of this year killed them (world seconds; Phase 55 M226): not seen from then. */
     gone?: number;
   }[];

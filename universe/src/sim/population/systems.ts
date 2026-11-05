@@ -1589,7 +1589,7 @@ export function settleYear(ctx: PopulationContext, t: SimTime): void {
         held = hand ? villages.find((v) => v.ref === hand.village) : undefined,
         free = held ? villages.filter((v) => v !== held) : villages,
         market = free.find((v) => v.market),
-        inHand = held ? Math.min(settled, hand!.agents.length) : 0,
+        inHand = held ? Math.min(settled, hand!.agents.length + (hand!.beyond ?? 0)) : 0,
         inTown = market ? Math.min(townsfolk, settled - inHand) : 0;
       const share = free.length
         ? apportion(
@@ -1600,7 +1600,8 @@ export function settleYear(ctx: PopulationContext, t: SimTime): void {
           )
         : [];
       free.forEach((v, i) => (v.population = share[i]! + (v === market ? inTown : 0)));
-      if (held) held.population = hand!.agents.length;
+      // (Of a great town, the ward it holds and the rest of the town about it: its people still all there.)
+      if (held) held.population = hand!.beyond ? inHand : hand!.agents.length;
     }
   }
 }

@@ -24,6 +24,7 @@ import {
   type Agent,
 } from "../../src/sim/index.ts";
 import { FEMALE, OCC } from "../../src/rules/index.ts";
+import { HAND_HOLDS } from "../../src/sim/hand/hand.ts";
 import { cradleCell } from "../cradle.ts";
 
 const seed = seedFromText("first light"),
@@ -231,4 +232,37 @@ test("what a person is like draws them to their work, keeps their young, holds t
   world.runTo(240 * YEAR + 4);
   assert.equal(who.blessedUntil, 240 + BLESSING * PIOUS_BLESSING);
   assert.equal(other.blessedUntil, 240 + BLESSING);
+});
+
+test("a town too great to hold one by one is held by a ward of it, and the rest goes on about it", () => {
+  const world = build();
+  world.runTo(245 * YEAR);
+  const v = firstVillage(world),
+    p = populationContext(world).provinces.get(HOME)!,
+    // (A town swollen past what a hand holds, its province's counts with it.)
+    great = HAND_HOLDS + 20_000;
+  p.counts.set(1, 0, p.counts.get(1, 0) + great);
+  v.population = great;
+  const before = p.total();
+  world.submit("hand.lay", { village: v.ref });
+  world.runTo(245 * YEAR + 1);
+  const ward = handOf(world).resting!;
+  assert.equal(ward.agents.length, HAND_HOLDS, "a ward of it, one by one");
+  assert.equal(ward.beyond, 20_000, "the rest counted");
+  assert.equal(v.population, great, "the town is still the whole town");
+  assert.equal(p.total(), before, "no one made or lost by laying the hand");
+  world.runTo(246 * YEAR);
+  const held = handOf(world).resting!;
+  assert.ok(
+    v.population <= held.agents.length + held.beyond!,
+    "never more than the ward and the rest",
+  );
+  assert.ok(
+    v.population > HAND_HOLDS,
+    `a year on the town is still ${v.population}, past the ward`,
+  );
+  world.submit("hand.lift", {});
+  world.runTo(246 * YEAR + 1);
+  assert.equal(handOf(world).resting, null);
+  assert.ok(v.population > HAND_HOLDS, `lifted, the town is ${v.population}`);
 });

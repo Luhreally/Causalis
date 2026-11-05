@@ -44,6 +44,11 @@ export function crumbsOf(world: World, ref: string): Line {
   const code = ref.slice(0, ref.indexOf(":"));
   try {
     switch (code) {
+      case "rule": {
+        const r = realms.get(ref.slice("rule:".length) as Ref);
+        if (r) add(r.town, r.ref);
+        break;
+      }
       case "cell":
       case "regn":
       case "ways":

@@ -1,0 +1,148 @@
+/* Lives L1 and L2: a figure's card, the chip and pin at their home, the wealth lens's choices. */
+.leader-card {
+  padding: 8px 0;
+  border-top: 1px solid rgba(160, 190, 255, 0.25);
+}
+.leader-name,
+.leader-did {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  white-space: normal;
+  cursor: pointer;
+}
+.leader-name {
+  color: #ffd98a;
+  font-weight: 700;
+}
+div.leader-did {
+  min-height: 0;
+  cursor: default;
+}
+.leader-title,
+.leader-where {
+  margin: 2px 0;
+  font-size: 13px;
+  opacity: 0.85;
+}
+.leader-go,
+.wealth-compare button {
+  min-height: 44px;
+  margin-top: 6px;
+}
+.wealth-compare {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.wealth-compare select {
+  flex: 1 1 140px;
+  min-width: 0;
+  min-height: 44px;
+  font-size: 16px;
+}
+#hud > .leader-chip {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+  max-height: 44vh;
+  overflow-y: auto;
+  z-index: 28;
+  padding: 10px 12px 12px;
+  border: 1px solid rgba(255, 217, 138, 0.7);
+  border-radius: 10px;
+  background: rgba(10, 16, 34, 0.94);
+  color: #e8eefb;
+}
+#hud > .leader-chip[hidden] {
+  display: none;
+}
+body.paging #hud > .leader-chip,
+body.paging #hud > .home-pin {
+  display: none;
+}
+@media (min-width: 700px) {
+  #hud > .leader-chip {
+    left: auto;
+    right: 12px;
+    width: 420px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 84px);
+  }
+}
+.leader-chip-head {
+  font-weight: 700;
+  color: #ffd98a;
+}
+.leader-chip-title,
+.leader-chip-words {
+  margin: 4px 0;
+  font-size: 13px;
+}
+.leader-chip-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+.leader-chip-acts button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 1px solid #5d78b8;
+  border-radius: 6px;
+  background: #1c2a52;
+  color: #e8eefb;
+  font: inherit;
+}
+.leader-possess {
+  font-weight: 700;
+  background: #5a3d10 !important;
+  border-color: #ffd98a !important;
+}
+#hud > .home-pin {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 20;
+  min-width: 44px;
+  min-height: 44px;
+  max-width: 200px;
+  padding: 4px 8px;
+  overflow: hidden;
+  border: 1px solid #ffd98a;
+  border-radius: 8px;
+  background: rgba(10, 16, 34, 0.86);
+  color: #ffd98a;
+  font-size: 13px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+#hud > .home-pin[hidden] {
+  display: none;
+}
+.legend-picks .speed[data-choice="head"],
+.legend-picks .speed[data-choice="all"],
+.legend-picks .speed[data-choice="made"],
+.legend-picks .speed[data-choice="land"] {
+  min-width: 44px;
+  min-height: 44px;
+  font-size: 1.1rem;
+}
+/* (Over the bar's own rule for its buttons.) */
+.legend .legend-action {
+  min-height: 44px;
+  margin-top: 4px;
+  padding: 4px 10px;
+  font: inherit;
+}
+.legend .legend-action[hidden] {
+  display: none;
+}

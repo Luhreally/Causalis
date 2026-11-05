@@ -154,6 +154,8 @@ import {
   sealedPlan,
 } from "./colony.ts";
 import { STARFIGHT_QUERIES } from "./starfight.ts";
+import { LEADER_QUERIES, withFigures } from "./leaders.ts";
+import { WEALTH_QUERIES } from "./wealth.ts";
 import { HELD_QUERIES } from "./held.ts";
 import { SEARCH_QUERIES } from "./search.ts";
 import { takenWordsOf, type NamesArg } from "./names.ts";
@@ -1234,10 +1236,10 @@ function planetUniverse(name: string, prior: Prior): Universe {
         return chronicle(world, a.limit ?? 60, a.types);
       },
       "village.plan": (world, args) => {
-        const a = args as { ref: string; families?: number; folk?: number };
+        const a = args as { ref: string; families?: number; folk?: number; figures?: boolean };
         // (Their wounds laid over them, their days away with the levy, those a strike killed this
         // year: Phase 55 M226 — read from the record, the world untouched.)
-        return withWounds(
+        const drawn = withWounds(
           world,
           // (A colony's: its own world's sky and ground, Phase 64.)
           sealedPlan(
@@ -1250,6 +1252,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
             ),
           ),
         );
+        // (Its key figures, for the page that asks: Lives L1.)
+        return a.figures ? withFigures(world, drawn) : drawn;
       },
       /** The towns whose levy comes home wounded this year, the most borne first (Phase 55 M226; the look tools). */
       "village.wounded": (world, args) =>
@@ -1389,6 +1393,9 @@ function planetUniverse(name: string, prior: Prior): Universe {
       ...COLONY_QUERIES,
       // The fights among the stars as the record has them (Phase 67).
       ...STARFIGHT_QUERIES,
+      // A realm's key figures and every realm's wealth (Lives L1, L2).
+      ...LEADER_QUERIES,
+      ...WEALTH_QUERIES,
       /** A colony's town at a few years of its growth, as it stood: for a film of it. */
       "colony.growth": (world, args) => {
         const a = args as { cell: number; frames: number; axis: number; most: number };

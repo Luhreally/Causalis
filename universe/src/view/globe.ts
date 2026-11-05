@@ -469,12 +469,13 @@ const STRENGTH: readonly Stop[] = [
   [6.4, [0.22, 0.04, 0.34]],
 ];
 /** A land's stores a head, at their worth, on a log scale: poor (ten a head) to rich (hundreds). */
+/** A realm's wealth on the world's own spread (Lives L2, view/leaders.ts): 0 the poorest, 1 the richest. */
 const WEALTH: readonly Stop[] = [
-  [0.9, [0.46, 0.4, 0.34]],
-  [1.2, [0.66, 0.54, 0.3]],
-  [1.5, [0.9, 0.72, 0.22]],
-  [1.9, [1, 0.88, 0.42]],
-  [2.4, [1, 0.98, 0.8]],
+  [0, [0.3, 0.22, 0.2]],
+  [0.35, [0.62, 0.42, 0.22]],
+  [0.65, [0.92, 0.72, 0.22]],
+  [0.85, [1, 0.88, 0.42]],
+  [1, [1, 0.98, 0.8]],
 ];
 /** How many things a land knows (of some 85 to be found): the few to the learned. */
 const KNOWLEDGE: readonly Stop[] = [
@@ -632,7 +633,7 @@ const DEEP: Readonly<
 > = {
   unrest: { stops: UNREST, at: (v) => v, shown: () => true },
   strength: { stops: STRENGTH, at: (v) => Math.log10(1 + v), shown: (v) => v > 0 },
-  wealth: { stops: WEALTH, at: (v) => Math.log10(Math.max(1, v)), shown: () => true },
+  wealth: { stops: WEALTH, at: (v) => v, shown: (v) => v >= 0 },
   knowledge: { stops: KNOWLEDGE, at: (v) => v, shown: () => true },
   growth: { stops: GROWTH, at: (v) => v, shown: () => true },
   ways: { stops: WAYS_RAMP, at: (v) => v, shown: () => true },
@@ -880,7 +881,14 @@ export function litColors(
 const TAKEN = 0.68;
 
 /** The map modes whose lands are drawn with their borders. */
-const BORDERED: ReadonlySet<Lens> = new Set(["realms", "faiths", "tongues", "diplomacy", "war"]);
+const BORDERED: ReadonlySet<Lens> = new Set([
+  "realms",
+  "faiths",
+  "tongues",
+  "diplomacy",
+  "war",
+  "wealth",
+]);
 
 /**
  * A grand strategy map's borders: where a land meets another of a different colour (another
@@ -987,7 +995,7 @@ export function lensLegend(lens: Lens, kind = "rocky", look?: string): Legend {
     case "strength":
       return { kind: "ramp", stops: stops(STRENGTH), low: "a band", high: "a great host" };
     case "wealth":
-      return { kind: "ramp", stops: stops(WEALTH), low: "poor", high: "rich (in store a head)" };
+      return { kind: "ramp", stops: stops(WEALTH), low: "poor", high: "rich" };
     case "knowledge":
       return { kind: "ramp", stops: stops(KNOWLEDGE), low: "little known", high: "much" };
     case "growth":

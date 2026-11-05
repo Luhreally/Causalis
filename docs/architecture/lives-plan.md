@@ -35,8 +35,11 @@ So playing someone changes history only when you act, and a world nobody plays k
 
 - Realm pages show rulers: a name, since when, and the event that made them. They show no heirs, councils
   or politicians, so L1 starts with rulers and the others come with L5.
-- Whether history records where a ruler lives has not been checked. If it does not, L1 derives a home in
-  the seat town from the ruler's identity, the same home every time, and its page says so.
+- History records no home for a ruler. L1 derives one in the seat town from the ruler's identity, the same
+  home every time, and their page says so.
+- A hand on a town of more than 50,000 holds a ward of 50,000 one by one and counts the rest as a land's
+  people are (sim/hand/hand.ts, HAND_HOLDS), so any ruler of any town can be taken. A town of 58.66 million
+  takes 81 ms to lay and 698 ms a year.
 - Possession today gives a body a joystick and up to four actions (work, talk, strike). L3 and L4 extend
   those actions and add a person's day and a ruler's powers.
 

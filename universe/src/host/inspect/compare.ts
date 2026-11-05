@@ -19,6 +19,8 @@ import { standingWords } from "../../causal/index.ts";
 import type { Block, Item, Line, PageModel } from "../../bridge/index.ts";
 import { realmColor } from "../colors.ts";
 import { realmArms } from "../arms.ts";
+import { realmWealth } from "../wealth.ts";
+import { worthWords } from "../../bridge/index.ts";
 import { count, link, many, share, yearNow } from "./words.ts";
 import { realmLink } from "./names.ts";
 
@@ -83,7 +85,9 @@ export function comparePage(world: World, ref: string): PageModel {
       followable: false,
       year: now,
     };
-  const ma = measures(world, a),
+  const wa = realmWealth(world, a.ref),
+    wb = realmWealth(world, b.ref),
+    ma = measures(world, a),
     mb = measures(world, b),
     sides = [
       { name: [realmLink(world, a.ref)] as Line, color: realmColor(a.ref) },
@@ -131,6 +135,9 @@ export function comparePage(world: World, ref: string): PageModel {
         row("Fallen in war", ma.fallen, mb.fallen, count),
         row("Years standing", ma.years, mb.years, count),
         row("Tithe", ma.tithe, mb.tithe, share),
+        row("Wealth a head", wa?.head ?? 0, wb?.head ?? 0, worthWords),
+        row("Wealth in all", wa?.worth ?? 0, wb?.worth ?? 0, worthWords),
+        row("Made last year, a head", wa?.madeHead ?? 0, wb?.madeHead ?? 0, worthWords),
       ],
     },
     {

@@ -28,6 +28,7 @@ import {
   fleetTally,
   fleetWords,
   invasionAt,
+  burningWay,
   invasionEye,
   invasionKeep,
   invasionScript,
@@ -454,8 +455,8 @@ export function installFleetFilm(d: FleetFilmDeps): FleetFilm {
       site,
       village.warEach,
       raidersAt(stage.quality.detail),
-      // (Along the way the eye follows, so what burns is seen burning.)
-      village.homesAlong(d.client.status?.t ?? 0, site.routes[0] ?? [], 16),
+      // (Where the eye looks by then, so what burns is seen burning.)
+      village.homesAlong(d.client.status?.t ?? 0, burningWay(site), 16),
     );
     invasion.build(p0, stage.quality.detail);
     holdingTown = true;

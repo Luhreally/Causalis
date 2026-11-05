@@ -266,6 +266,9 @@ export const GATES: readonly Gate[] = [
   // defender tapped; the town left live, history untouched; the list under the ⚔️, a war's page, the director.
   // It runs "tide 207" until it holds a fought war and a won raid.
   { gate: 67, args: ["--ci"], s: 600 },
+  // Gate 68, Lives L1 and L2 (tools/lives-gate.ts): a realm's leaders, a ruler's home in the town view,
+  // possessed and let go, history untouched till then; the wealth lens, its ranking, two side by side.
+  { gate: 68, args: ["--ci"], s: 300 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */

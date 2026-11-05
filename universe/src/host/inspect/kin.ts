@@ -57,6 +57,7 @@ const TRADE_ICON: Readonly<Record<string, string>> = {
   weaver: "🧵",
   founder: "🔥",
   machinist: "⚙️",
+  lender: "🏦",
 };
 /** What a seat's maker works at, for their years at it. */
 const BENCH: Readonly<Record<string, string>> = {
@@ -65,6 +66,7 @@ const BENCH: Readonly<Record<string, string>> = {
   weaver: "loom",
   founder: "furnace",
   machinist: "machines",
+  lender: "counting table",
 };
 
 const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s);
@@ -315,7 +317,7 @@ function personOf(
 }
 
 /** The pages a family and a body are told on: the town's people, the levy, the seats, the people met, the hand's. */
-const KIN_PAGES = /^(folk:town:|lv:|seat:|heal:|prsn:|agent:)/;
+const KIN_PAGES = /^(folk:town:|lv:|seat:|heal:|prsn:|agent:|rule:)/;
 
 /**
  * A page with its family and body (Phase 55 wave 5): the card's two lines first in its overview,

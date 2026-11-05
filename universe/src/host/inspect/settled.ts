@@ -32,6 +32,7 @@ import { landEra, landHouse, peopleBody } from "../village.ts";
 import { battleWords, burialWords } from "../burials.ts";
 import { townRoster } from "../roster.ts";
 import { metWounds } from "../wounds.ts";
+import { rulerStat } from "./leaders.ts";
 import { lookOf, woundBlock, woundedTab } from "./wounds.ts";
 import { armsBlock } from "./arm.ts";
 import { landPast } from "../past.ts";
@@ -91,7 +92,7 @@ export function townPage(world: World, ref: string): PageModel {
     stat("Founded", `year ${s.founded}`, { why: s.event }),
     stat("Land", [landLink(world, s.cell)]),
   ];
-  if (realm) stats.push(stat("Realm", [link(realmName(realm), realm.ref)]));
+  if (realm) stats.push(stat("Realm", [link(realmName(realm), realm.ref)]), rulerStat(realm));
 
   // How it lives now: fed, at war, its grievance, a battle fought in its land lately.
   const now: Stat[] = [];

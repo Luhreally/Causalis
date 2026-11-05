@@ -137,6 +137,9 @@ import {
   newDirector,
   nextTake,
   starFightTake,
+  WEALTH_CHOICES,
+  wealthNote,
+  wealthShades,
   untold,
   type Director,
   type Take,
@@ -301,11 +304,13 @@ function rim(s: NameShape, d: number): { x: number; y: number; z: number } {
 import { deviceTier } from "./tier.ts";
 import { installHeld, type HeldField } from "./held.ts";
 import { installPossession } from "./possess.ts";
+import { installLeaders } from "./leaders.ts";
 import { installColonyFilm, type ColonyFilm } from "./colony-film.ts";
 import { installFleetFilm, type FleetFilm } from "./fleet-film.ts";
 // (Anyone's family and body on their card, a war's soldiers named from its roll: Phase 55 wave 5.)
 import { kinLines } from "../ui/index.ts";
 import { seatRef, type KinCard, type StruckMember, type StruckNow } from "../bridge/index.ts";
+import type { WealthBook, WealthMeasure } from "../bridge/index.ts";
 import {
   hasSpires,
   mirrorStrength,
@@ -1413,6 +1418,9 @@ async function runPlanetPage(): Promise<void> {
     goodShown = "grain",
     // (The law the laws lens shows: Phase 19 M139.)
     lawShown = "land",
+    // (What the wealth lens weighs, and every realm's wealth last read: Lives L2.)
+    wealthShown: WealthMeasure = "head",
+    wealthBook: WealthBook | null = null,
     beliefColors = new Map<number, readonly [number, number, number]>(),
     // Every land's chief rock (Phase 15 M124), asked once: the ground does not change.
     groundPaint = new Map<number, readonly [number, number, number]>(),
@@ -1734,7 +1742,7 @@ async function runPlanetPage(): Promise<void> {
       frame,
       lens,
       lens === "food" ? foodPrices : lens === "trade" ? trade : (deepValues.get(lens) ?? density),
-      lens === "realms"
+      lens === "realms" || lens === "wealth"
         ? realms
         : lens === "belief"
           ? beliefColors
@@ -1861,6 +1869,14 @@ async function runPlanetPage(): Promise<void> {
         paintGlobe();
       });
     if (l === "war") void readFronts();
+    // (The wealth lens: a realm's, by a measure chosen under its legend; its ranking a press away.)
+    mapModes.action(l === "wealth" ? "📊 The ranking" : null, () => {
+      void pageWindow.open("world:ledger#wealth");
+    });
+    if (l === "wealth") {
+      if (!deepValues.has("wealth")) deepValues.set("wealth", new Map());
+      readWealth();
+    }
     paintGlobe();
     if (PEOPLE_LENSES.includes(l)) void faceThePeople(true);
     // (The ways lens shows one way at a time, chosen under its legend: Phase 14 M119; the
@@ -1873,6 +1889,12 @@ async function runPlanetPage(): Promise<void> {
         paintGlobe();
       });
     // (The laws lens one law at a time: Phase 19 M139.)
+    else if (l === "wealth")
+      mapModes.choose(WEALTH_CHOICES, wealthShown, (id) => {
+        wealthShown = id as WealthMeasure;
+        tooltip.lens = `wealth:${id}`;
+        readWealth();
+      });
     else if (l === "laws")
       mapModes.choose(LAW_CHOICES, lawShown, (id) => {
         lawShown = id;
@@ -1888,14 +1910,36 @@ async function runPlanetPage(): Promise<void> {
         paintGlobe();
       });
     tooltip.lens =
-      l === "ways"
-        ? `ways:${waysTrait}`
-        : l === "goods"
-          ? `goods:${goodShown}`
-          : l === "laws"
-            ? `laws:${lawShown}`
-            : l;
+      l === "wealth"
+        ? `wealth:${wealthShown}`
+        : l === "ways"
+          ? `ways:${waysTrait}`
+          : l === "goods"
+            ? `goods:${goodShown}`
+            : l === "laws"
+              ? `laws:${lawShown}`
+              : l;
   };
+  /** Every realm's wealth read, and the lens's colours of it (Lives L2). */
+  function readWealth(): void {
+    void client.query<WealthBook>({ type: "wealth.book" }).then((book) => {
+      wealthBook = book;
+      deepValues.set("wealth", wealthShades(book, wealthShown));
+      if (lens !== "wealth") return;
+      mapModes.say(wealthNote(book, wealthShown));
+      paintGlobe();
+    });
+  }
+  // (`Exposed` is a closed type: these two are for gate 68 alone.)
+  Object.assign(exposed, {
+    wealthNow: () => ({
+      measure: wealthShown,
+      book: wealthBook,
+      shades: deepValues.get("wealth")?.size ?? 0,
+    }),
+    lensColorAt: (spot: number) =>
+      globeLensColors ? [...globeLensColors.slice(spot * 4, spot * 4 + 3)] : null,
+  });
   /** The chosen good in store a head, land by land. */
   function readGoods(): void {
     const i = Math.max(
@@ -2139,7 +2183,6 @@ async function runPlanetPage(): Promise<void> {
     for (const k of [
       "unrest",
       "strength",
-      "wealth",
       "knowledge",
       "growth",
       "bondage",
@@ -2152,6 +2195,7 @@ async function runPlanetPage(): Promise<void> {
     readWays();
     readGoods();
     readLaws();
+    if (lens === "wealth") readWealth();
     beliefColors = new Map(
       entries.flatMap((e) => {
         const c = beliefColor(e.belief[0], e.belief[1], e.belief[2]);
@@ -4807,7 +4851,7 @@ async function runPlanetPage(): Promise<void> {
     const q0 = performance.now();
     plan = await client.query<VillagePlan>({
       type: "village.plan",
-      args: { ref, families: stage.quality.families, folk: stage.quality.crowdCap },
+      args: { ref, families: stage.quality.families, folk: stage.quality.crowdCap, figures: true },
     });
     spires = !!plan.town && hasSpires(plan.town);
     performance.measure("village.plan", { start: q0 });
@@ -7775,6 +7819,22 @@ async function runPlanetPage(): Promise<void> {
     rig.flyTo({ distance: to }, 0.9);
   };
   pageWindow.onGoTo = (place) => void goTo(place);
+  // A realm's key figures, each with a home in the town view and a body to take (Lives L1).
+  const leaders = installLeaders({
+    stage,
+    hud,
+    client,
+    rig,
+    village,
+    pages: pageWindow,
+    possession: person,
+    plan: () => (scale === "village" ? plan : null),
+    scale: () => scale,
+    goTown: (town) => goTo({ scale: "village", town }),
+    reload: loadPlan,
+    toOrbit: () => setRoam("orbit"),
+  });
+  pageWindow.onLeaderHome = (l) => void leaders.home(l);
   // Watch a town grow (Phase 26 M154): down to its land, the eye on it, the clock a year a second.
   const watchGrow = async (cell: number, town: string) => {
     if (!(scale === "region" && regionCell === cell)) await goTo({ scale: "region", cell });

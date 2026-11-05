@@ -2456,6 +2456,21 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
     if (to > from)
       legs.push({ from, to, at: where, next: null, activity, carry, task, face, why, effect });
   };
+  // (A key figure stands before their door, where the eye and the hand find them: Lives L1. Their day is L3's.)
+  if (p.figure) {
+    // (Facing their door, so an eye behind them, taking them, stands in the street and not in their home.)
+    const theirs = plan.homes[p.home];
+    stay(
+      0,
+      DAY,
+      at,
+      ACTIVITY.home,
+      null,
+      null,
+      theirs ? Math.atan2(theirs.x - at.x, theirs.z - at.z) : null,
+    );
+    return legs;
+  }
   // A walk goes round the homes, the water and the rising walls, turning beside each (straight
   // across, in a town watched growing).
   const wayOf = (a: Point, b: Point): Point[] =>

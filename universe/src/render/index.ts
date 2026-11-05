@@ -2,6 +2,7 @@
 // scenes that draw view specs, and the instancing benchmark. May import: kernel,
 // bridge, view, and the playcanvas package. See README.md and docs/architecture §29.
 export { InstancedBatch, capsuleMesh, cylinderMesh } from "./batch.ts";
+export { HomeMark } from "./homemark.ts";
 export { runBench, type BenchResult } from "./bench.ts";
 export { GlobeScene } from "./globe.ts";
 export { GlobeWars } from "./wars.ts";

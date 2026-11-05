@@ -273,6 +273,20 @@ export function raidersAt(detail: number): number {
   return [24, 24, 36, 48][Math.max(0, Math.min(3, Math.round(detail) || 0))]!;
 }
 
+/**
+ * Where the eye looks while homes burn (metres): along the first raiders' way, a little ahead of them,
+ * through those seconds. Homes near it are seen burning; those where the raiders began are behind the eye by then.
+ */
+export function burningWay(site: InvasionSite): readonly Flat[] {
+  const path = site.routes[0] ?? [],
+    len = lengthOf(path),
+    out: Flat[] = [];
+  if (!path.length) return out;
+  for (let t = INV.meet + 6; t <= INV.back; t += 2)
+    out.push(pathPoint(path, Math.min(len, front(t) + 15)));
+  return out;
+}
+
 /** The script of one raid on one town: its seed, whether the guard fires, the homes that burn. */
 export function invasionScript(
   plan: StarFightPlan,
@@ -291,7 +305,7 @@ export function invasionScript(
   // A town drawn from its fabric burns from its roofs, more of it as more of its land was razed. A
   // village's homes are the plan's own, burning low.
   const alight = burnable
-    .slice(0, landing.razed > 0 ? Math.round(4 + 12 * Math.min(1, landing.razed * 4)) : 0)
+    .slice(0, landing.razed > 0 ? Math.round(6 + 10 * Math.min(1, landing.razed * 4)) : 0)
     .map((h, i) => ({ ...h, ignite: ignite(i) }));
   const count =
     !burnable.length && site.homes.length

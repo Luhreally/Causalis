@@ -176,7 +176,7 @@ export function installColonyTowns(world: World): void {
     // (Its people now: under the hand, those in it; else all its land's.)
     const land = populationContext(world).provinces.get(cell),
       hand = handOf(world).over(cell);
-    k.town.population = hand ? hand.agents.length : (land?.total() ?? 0);
+    k.town.population = hand ? hand.agents.length + (hand.beyond ?? 0) : (land?.total() ?? 0);
     k.town.market = k.town.population >= MARKET_PEOPLE ? k.town.event : null;
     return k;
   };

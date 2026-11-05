@@ -24,6 +24,7 @@ import { bondageReading, lawReading, orderReadings, standingReading } from "./in
 import { LAWS, type Law } from "../sim/index.ts";
 import { sicknessReading, sicknessValue } from "./inspect/sickness.ts";
 import { debtReading, debtValue } from "./inspect/credit.ts";
+import { wealthReading } from "./wealth.ts";
 
 /** The lenses read here, beside the people's own (people, food, trade). */
 export const DEEP_LENSES = [
@@ -242,6 +243,8 @@ export function lensReading(
       };
     }
     case "wealth": {
+      // (A realm's, as the lens's choice has it: Lives L2. A land's own, as ever.)
+      if (way && way !== "land") return wealthReading(world, cell, way);
       const m = marketsOf(world).get(cell),
         goods = m
           ? m.stock

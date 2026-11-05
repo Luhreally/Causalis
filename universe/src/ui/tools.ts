@@ -2,7 +2,8 @@
 // hand laid on a town and lifted, a family met, and the acts on one under the hand. A page
 // names its tools; they are drawn here, and each asks twice before it acts (what it will do,
 // then "confirm"), because what follows is history's.
-import type { HostClient } from "../bridge/index.ts";
+import type { HostClient, Leader } from "../bridge/index.ts";
+import { drawLeaderCard, drawWealthCompare } from "./leaders.ts";
 import { el } from "./why.ts";
 import { WAY_CHOICES } from "./palette.ts";
 import { HandView } from "./hand.ts";
@@ -31,6 +32,8 @@ export type ToolContext = {
   readonly touched?: (agent: string) => void;
   /** One under the hand possessed (Phase 60): why they cannot be (null: taken). */
   readonly possess?: (agent: number) => Promise<string | null>;
+  /** To a key figure's home in the town view (Lives L1). */
+  readonly leaderHome?: (leader: Leader) => void;
 };
 
 /** One of a town's people the god may touch (Phase 54): who they are, and their town. */
@@ -198,6 +201,19 @@ export function drawTool(
       into.append(b);
       return;
     }
+    case "leader.card":
+      drawLeaderCard(into, args.leader as Leader, args.short === true, {
+        open: ctx.open,
+        ...(ctx.leaderHome ? { home: ctx.leaderHome } : {}),
+      });
+      return;
+    case "wealth.compare":
+      drawWealthCompare(
+        into,
+        args as { realms: { ref: string; short: string }[]; a: string; b: string },
+        ctx.open,
+      );
+      return;
     case "watch.starfight": {
       if (!ctx.starFight) return;
       const b = el("button", "act", (args.label as string | undefined) ?? "▶ Watch it");

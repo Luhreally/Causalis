@@ -49,6 +49,7 @@ import { armPage, armsPage } from "./arm.ts";
 import { elementPage } from "./element.ts";
 import { levyManPage, townsfolkPage } from "./townsfolk.ts";
 import { seatPage, withKin } from "./kin.ts";
+import { rulerPage, withLeaderPage } from "./leaders.ts";
 import { namedPage, type NamesArg } from "../names.ts";
 
 /** The page a ref's kind is built by (the tab it asked for, if any). */
@@ -99,6 +100,8 @@ function build(world: World, ref: string, tab: string | null): PageModel {
   if (ref.startsWith("lv:")) return levyManPage(world, ref);
   // A maker named for their seat at a trade (Phase 55 wave 5).
   if (ref.startsWith("seat:")) return seatPage(world, ref);
+  // A realm's ruler (Lives L1).
+  if (ref.startsWith("rule:")) return rulerPage(world, ref);
   const code = ref.slice(0, ref.indexOf(":")),
     t = tab ?? undefined;
   switch (code) {
@@ -174,7 +177,9 @@ export function pageOf(world: World, ref: string, names?: NamesArg): PageModel {
   let page: PageModel;
   try {
     // (One of the town's people: their family and their body, Phase 55 wave 5.)
-    page = withConcepts(tidy(withKin(world, base, build(world, base, tab))));
+    page = withConcepts(
+      tidy(withKin(world, base, withLeaderPage(world, base, build(world, base, tab)))),
+    );
   } catch {
     return unknownPage(world, base, true);
   }
