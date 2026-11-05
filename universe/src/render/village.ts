@@ -1629,7 +1629,7 @@ export class VillageScene {
     if (plan.town?.struck?.some((k) => k.raid) || this.raided) {
       const r = this.town.raid(t);
       this.raidLayer.update(r);
-      this.raided = r.flyers.length + r.falling.length + r.bursts.length > 0;
+      this.raided = r.flyers.length + r.streaks.length + r.falling.length + r.bursts.length > 0;
     }
     // The woodlot (Phase 41 M200): a tree coming down at its feller's first blows' end, lying
     // as it is cut up, then its stump; saplings growing where trees were felled.
@@ -2336,7 +2336,24 @@ export class VillageScene {
    */
   /** Where a raid's machines are now, in the village's units (W2's look tools). */
   raidersShown(): { x: number; y: number; z: number }[] {
-    return this.town.raid(this.lastT).flyers.map((f) => ({ x: f.x * 0.1, y: f.y * 0.1, z: f.z * 0.1 }));
+    return this.town
+      .raid(this.lastT)
+      .flyers.map((f) => ({ x: f.x * 0.1, y: f.y * 0.1, z: f.z * 0.1 }));
+  }
+
+  /** Where rockets' streaks are now, the head and part way up, in the village's units (W3's look tools). */
+  streaksShown(): { x: number; y: number; z: number }[] {
+    return this.town.raid(this.lastT).streaks.flatMap((k) => {
+      const up = Math.min(k.length, 180),
+        c = Math.cos(k.slant);
+      return [
+        {
+          x: (k.x - Math.sin(k.yaw) * c * up) * 0.1,
+          y: (k.y + Math.sin(k.slant) * up) * 0.1,
+          z: (k.z - Math.cos(k.yaw) * c * up) * 0.1,
+        },
+      ];
+    });
   }
 
   blazeShown(): {
@@ -2344,7 +2361,7 @@ export class VillageScene {
     smoke: number;
     dust: number;
     /** A raid over it now (W2): what is drawn of it, and whose. */
-    raid: { flyers: number; falling: number; bursts: number; by: string | null };
+    raid: { flyers: number; falling: number; bursts: number; streaks: number; by: string | null };
     alight: number;
     shake: number;
     fight: Record<string, number>;

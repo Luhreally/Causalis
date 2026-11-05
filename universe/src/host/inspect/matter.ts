@@ -20,8 +20,15 @@ import {
   CARRIED_ENGINES,
   DROP_KG,
   GOOD_MATTER,
+  LEAST_THROW_KM,
   MISS_EYE,
   MISS_STEADIED,
+  MISS_STEERED,
+  MISS_THROWN,
+  ROCKET_LOAD_KG,
+  firstRocket,
+  lotsPerRocket,
+  rocketOn,
   flyerOn,
   liftingEngine,
   loadShare,
@@ -664,6 +671,37 @@ function flyerStats(world: World, id: string) {
   ];
 }
 
+/** What a rocket is on this world, on the page of what throws it (W3; all estimates): its numbers, or what shuts it. */
+function rocketStats(world: World, id: string) {
+  if (id !== "thrown-loads") return [];
+  const n = matterWorldOf(world).means,
+    charge = meansOfWorld(homePlanet(world).generated).worksCharge,
+    first = firstRocket(n, charge?.mj);
+  if (!charge || !first)
+    return [
+      stat(
+        "Why none here",
+        !charge
+          ? "No charge can be made here, so a rocket has nothing to throw out."
+          : `Its pull takes nearly all that ${charge.name} gives: a first one lands ${count(Math.round(rocketOn(n, charge.mj, 1).reachKm))} km away, and a gun carries ${count(LEAST_THROW_KM)}.`,
+      ),
+    ];
+  const carries = (r: { around: boolean; reachKm: number }) =>
+      r.around ? "anywhere on its world" : `${count(Math.round(r.reachKm))} km`,
+    two = rocketOn(n, charge.mj, 2),
+    three = rocketOn(n, charge.mj, 3);
+  return [
+    stat(
+      "The rocket here",
+      `${count(Math.round(first.kg / 100) * 100)} kg, ${count(ROCKET_LOAD_KG)} kg of it load, no one aboard. It lands ${carries(first)} away; in two stages, ${carries(two)}; in three, ${carries(three)} (estimates).`,
+    ),
+    stat(
+      "What it brings",
+      `Charged with ${charge.name}: ${Math.round(lotsPerRocket(charge.mj) * 10) / 10} lots flattened where it lands. Half land within ${Math.round(MISS_THROWN * 100)}% of the way flown, ${count(Math.round(first.reachKm * 1000 * MISS_THROWN))} m at its farthest, and most of those fall on the fields; steered, within ${Math.round(MISS_STEERED * 1000) / 10}%, ${count(Math.round(Math.max(MISS_STEADIED, first.reachKm * 1000 * MISS_STEERED)))} m (estimates).`,
+    ),
+  ];
+}
+
 /** A principle's page (`prin:<id>`). */
 /** How a world makes gas fast behind a mass and holds it (F1), where it is not Earth's way. */
 function theWayHere(m: Means): string {
@@ -727,6 +765,7 @@ export function principlePage(world: World, ref: string): PageModel {
           : []),
         ...(shut ? [stat("On this world", `shut: ${shut}`)] : []),
         ...flyerStats(world, p.id),
+        ...rocketStats(world, p.id),
       ],
     },
   ];

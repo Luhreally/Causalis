@@ -28,8 +28,26 @@ export const MOST_RAIDERS = 12,
 export const RAID_SPEED = 3;
 /** How many fly abreast. */
 const ABREAST = 3;
-/** A raid as its town's scene reads it: which way it flies, and the hits under its stream, those first to catch first. */
-type RaidWay = { readonly heading: number; readonly under: readonly number[] };
+/** A raid as its town's scene reads it: which way it flies, and the hits under its stream, those first to catch first; rockets, each one's fall. */
+type RaidWay = {
+  readonly heading: number;
+  readonly under: readonly number[];
+  readonly falls?: readonly RocketFall[];
+};
+/** One rocket's fall on a town (W3): when, and where. */
+type RocketFall = { readonly at: number; readonly x: number; readonly z: number };
+/** How steeply they come down (radians from level, est: Earth's first came down at some 65 degrees), how high they are drawn from (m). */
+const STREAK_DOWN = 1.13,
+  STREAK_HIGH = 1600;
+/** How long a streak hangs after it has fallen (world seconds), how long before its first fall the sky is watched (world seconds), and after its last. */
+export const STREAK_HANGS = 40,
+  ROCKET_BEFORE = 14,
+  ROCKET_AFTER = 30;
+/** The most rockets' falls drawn on a town, and how fast the clock runs through them: the world's own. */
+export const MOST_STREAKS = 8,
+  ROCKET_SPEED = 1;
+/** How far apart hits of one fall catch (world seconds). */
+const CATCH_S = 0.35;
 const WAYS = new WeakMap<TownStrike, RaidWay>();
 const wayOf = (k: TownStrike): RaidWay =>
   WAYS.get(k) ?? { heading: unit(hashText(k.event), 1) * 2 * Math.PI, under: [] };
@@ -61,8 +79,12 @@ export function timeRaids(plan: TownPlan, lots: TownLots, states: LotStates): vo
   list.forEach((k, i) => {
     if (!k.raid) return;
     const mine = own.get(i) ?? [],
-      key = hashText(k.event),
-      first = mine.slice(0, Math.ceil(mine.length / 4));
+      key = hashText(k.event);
+    if (k.raid.rocket) {
+      timeRocket(k, key, mine, lots, states);
+      return;
+    }
+    const first = mine.slice(0, Math.ceil(mine.length / 4));
     let cx = 0,
       cz = 0;
     for (const p of first) {
@@ -93,6 +115,49 @@ export function timeRaids(plan: TownPlan, lots: TownLots, states: LotStates): vo
   });
 }
 
+/**
+ * A fall of rockets laid over its town: the lots it burned in their runs along the streets, each run where one came
+ * down; the rockets one after another, and each one's lots caught together, out from its middle.
+ */
+function timeRocket(
+  k: TownStrike,
+  key: number,
+  mine: readonly number[],
+  lots: TownLots,
+  states: LotStates,
+): void {
+  const heading = unit(key, 1) * 2 * Math.PI,
+    runs: number[][] = [];
+  for (const p of [...mine].sort((a, b) => a - b)) {
+    const last = runs.at(-1);
+    if (last && p === last.at(-1)! + 1) last.push(p);
+    else runs.push([p]);
+  }
+  // (More runs than can be drawn: those nearest each other share a rocket.)
+  while (runs.length > MOST_STREAKS) {
+    const a = runs.pop()!;
+    runs[runs.length - 1]!.push(...a);
+  }
+  const run = raidRun(k),
+    gap = runs.length > 1 ? (run.to - run.from) / (runs.length - 1) : 0,
+    falls: RocketFall[] = [];
+  runs.forEach((list, r) => {
+    const at = run.from + r * gap,
+      mid = list[Math.floor(list.length / 2)]!;
+    falls.push({ at, x: lots.x[mid]!, z: lots.z[mid]! });
+    for (const p of list) {
+      const dx = lots.x[p]! - lots.x[mid]!,
+        dz = lots.z[p]! - lots.z[mid]!;
+      states.began[p] = at + Math.min(3, CATCH_S * (Math.abs(dx) + Math.abs(dz)) * 0.05);
+    }
+  });
+  WAYS.set(k, {
+    heading,
+    under: [...mine].sort((a, b) => states.began[a]! - states.began[b]! || a - b),
+    falls,
+  });
+}
+
 /** A raid over the town at moment t (the first of them, if any): from a little before its first machine to a little after its last. */
 export function raidOver(plan: TownPlan | null | undefined, t: number): TownStrike | null {
   for (const k of plan?.struck ?? []) {
@@ -113,6 +178,15 @@ export function raidEye(k: TownStrike): {
   readonly pitch: number;
   readonly distance: number;
 } {
+  // (Rockets: off to the side of where the first comes down, with the sky it comes from over it.)
+  const fall = wayOf(k).falls?.[0];
+  if (k.raid?.rocket)
+    return {
+      target: { x: (fall?.x ?? 0) * 0.1, y: 8, z: (fall?.z ?? 0) * 0.1 },
+      yaw: (wayOf(k).heading * 180) / Math.PI + 74,
+      pitch: -8,
+      distance: 96,
+    };
   return {
     target: { x: 0, y: 2, z: 0 },
     yaw: (wayOf(k).heading * 180) / Math.PI - 16,
@@ -130,16 +204,36 @@ export type RaidFlyer = {
   readonly span: number;
   readonly length: number;
 };
+/** A rocket's streak (W3): its head now and where the streak reaches up to (metres), and how far it has faded (0 … 1). */
+export type RocketStreak = {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly yaw: number;
+  /** How long it is (m), and down at what slant (radians). */
+  readonly length: number;
+  readonly slant: number;
+  readonly fade: number;
+  /** Whether it has yet to land: a bright head. */
+  readonly falling: boolean;
+};
 export type RaidNow = {
   readonly flyers: readonly RaidFlyer[];
+  /** Rockets' streaks (W3). */
+  readonly streaks: readonly RocketStreak[];
   /** Loads on their way down. */
   readonly falling: readonly { readonly x: number; readonly y: number; readonly z: number }[];
-  /** Hits just landed: how far through its burst (0 … 1). */
-  readonly bursts: readonly { readonly x: number; readonly z: number; readonly k: number }[];
+  /** Hits just landed: how far through its burst (0 … 1), and how much larger than a drop's. */
+  readonly bursts: readonly {
+    readonly x: number;
+    readonly z: number;
+    readonly k: number;
+    readonly size?: number;
+  }[];
   /** Whose machines they are (null: none over the town now). */
   readonly by: string | null;
 };
-const NONE: RaidNow = { flyers: [], falling: [], bursts: [], by: null };
+const NONE: RaidNow = { flyers: [], streaks: [], falling: [], bursts: [], by: null };
 
 const unit = (a: number, b: number) => {
   let h = (Math.imul(a ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul(b + 0x632be5ab, 0xc2b2ae35)) >>> 0;
@@ -154,14 +248,15 @@ const hashText = (text: string) => {
 
 /** When its load begins to fall and when the last of it lands (world seconds). */
 export function raidRun(k: TownStrike): { readonly from: number; readonly to: number } {
-  const from = k.at + SPREAD.raidFrom;
-  return { from, to: from + SPREAD.raidAll };
+  const from = k.at + (k.raid?.rocket ? SPREAD.rocketFrom : SPREAD.raidFrom);
+  return { from, to: from + (k.raid?.rocket ? SPREAD.rocketAll : SPREAD.raidAll) };
 }
 
 /** From when its first is drawn until its last is gone (world seconds). */
 export function raidSpan(k: TownStrike): { readonly from: number; readonly to: number } {
-  const run = raidRun(k),
-    far = RAID_FAR / Math.max(1, k.raid?.speed ?? 46);
+  const run = raidRun(k);
+  if (k.raid?.rocket) return { from: run.from - ROCKET_BEFORE, to: run.to + ROCKET_AFTER };
+  const far = RAID_FAR / Math.max(1, k.raid?.speed ?? 46);
   return { from: run.from - far, to: run.to + far };
 }
 
@@ -175,7 +270,7 @@ export function raidSlowings(plan: TownPlan): Slowing[] {
       key: `raid:${k.event}`,
       turn: Math.floor(k.at / (365 * 86_400)),
       cap: "raid",
-      speed: RAID_SPEED,
+      speed: k.raid.rocket ? ROCKET_SPEED : RAID_SPEED,
       from: s.from,
       to: s.to,
     });
@@ -195,6 +290,13 @@ export type LandRaidNow = {
   readonly flyers: readonly { readonly x: number; readonly z: number; readonly yaw: number }[];
   /** What a mark over it says. */
   readonly words: string;
+  /** Rockets' way over the land (W3): from where it comes in, how high it rises, how far its head has come (0 … 1). */
+  readonly arc?: {
+    readonly x: number;
+    readonly z: number;
+    readonly high: number;
+    readonly k: number;
+  };
 };
 /** How long of a year a land's view shows the machines coming in, and the town burning after (years; its own clock is too fast for a run). */
 const LAND_RUN = 0.08,
@@ -209,10 +311,19 @@ export function landRaidsNow(
   map: WarsMap | null,
   y: number,
   townAt: (ref: string) => { readonly x: number; readonly z: number; readonly r: number } | null,
+  /** Where a spot of the globe's lies from a place on this land's map: at it, or at the map's edge the way it lies. */
+  spotFrom?: (
+    spot: number,
+    at: { readonly x: number; readonly z: number },
+  ) => { readonly x: number; readonly z: number },
 ): readonly LandRaidNow[] {
-  const out: LandRaidNow[] = [];
+  const out: LandRaidNow[] = [],
+    // (A war with two fronts is on the map twice: its strikes once.)
+    told = new Set<string>();
   for (const w of map?.wars ?? [])
     for (const k of w.raids ?? []) {
+      if (told.has(k.event)) continue;
+      told.add(k.event);
       // (History reckons it at the turn that ends its year.)
       const since = y - (k.year + 1);
       if (since < 0 || since > LAND_BURN) continue;
@@ -223,12 +334,36 @@ export function landRaidsNow(
         ux = Math.sin(heading),
         uz = Math.cos(heading),
         run = since / LAND_RUN,
-        flyers = [];
+        flyers = [],
+        rocket = k.rocket;
+      if (rocket) {
+        const left = spotFrom?.(rocket.from, at) ?? {
+            x: at.x - ux * LAND_OFF * 2,
+            z: at.z - uz * LAND_OFF * 2,
+          },
+          far = Math.hypot(left.x - at.x, left.z - at.z);
+        out.push({
+          key: `raid:${k.event}`,
+          event: k.event,
+          x: at.x,
+          z: at.z,
+          r: at.r,
+          burn: run < 0.5 ? 0 : Math.max(0, 1 - since / LAND_BURN),
+          flyers: [],
+          words: `☄️ ${k.name}: ${k.dead.toLocaleString("en")} dead`,
+          arc: { x: left.x, z: left.z, high: Math.max(14, far * 0.22), k: Math.min(1, run * 2) },
+        });
+        continue;
+      }
       if (run < 1)
         for (let j = 0; j < Math.min(LAND_FLYERS, Math.max(1, k.flyers)); j++) {
           const on = (run - 0.5) * 2 * LAND_OFF - j * 5,
             aside = (j - 1) * 4;
-          flyers.push({ x: at.x + ux * on + uz * aside, z: at.z + uz * on - ux * aside, yaw: heading });
+          flyers.push({
+            x: at.x + ux * on + uz * aside,
+            z: at.z + uz * on - ux * aside,
+            yaw: heading,
+          });
         }
       out.push({
         key: `raid:${k.event}`,
@@ -244,16 +379,104 @@ export function landRaidsNow(
   return out.slice(0, MOST_LAND_RAIDS);
 }
 
+/** A rocket's way over the globe now (W3), in dots along it from where it left to where it fell. */
+export type GlobeArc = {
+  readonly key: string;
+  readonly dots: readonly {
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+    readonly head: boolean;
+  }[];
+  readonly from: readonly [number, number, number];
+  readonly to: readonly [number, number, number];
+};
+/** How long an arc stays on the globe (years; the globe's clock is fast), the most drawn, and how many dots to one. */
+const ARC_YEARS = 2.4;
+export const MOST_ARCS = 24,
+  ARC_DOTS = 18;
+/** The rockets' ways over the globe at `y` (the world's years): positions of a globe of radius 1, spot by spot. */
+export function globeArcsNow(
+  map: WarsMap | null,
+  y: number,
+  positions: ArrayLike<number>,
+): readonly GlobeArc[] {
+  const out: GlobeArc[] = [],
+    told = new Set<string>();
+  for (const w of map?.wars ?? [])
+    for (const k of w.raids ?? []) {
+      if (!k.rocket || out.length >= MOST_ARCS || told.has(k.event)) continue;
+      told.add(k.event);
+      const since = y - (k.year + 1);
+      if (since < -1 || since > ARC_YEARS) continue;
+      const p = (s: number) =>
+          [positions[3 * s]!, positions[3 * s + 1]!, positions[3 * s + 2]!] as const,
+        a = p(k.rocket.from),
+        b = p(k.rocket.to),
+        angle = Math.acos(Math.max(-1, Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2]))),
+        high = 0.018 + angle * 0.18,
+        // (Its head flies out over the year it was thrown in, and it stays as a line after.)
+        reach = Math.max(0, Math.min(1, (since + 1) / 0.8)),
+        dots: { x: number; y: number; z: number; head: boolean }[] = [];
+      for (let i = 0; i <= ARC_DOTS; i++) {
+        const u = i / ARC_DOTS;
+        if (u > reach) break;
+        const s = Math.sin(angle) || 1,
+          ka = angle > 1e-4 ? Math.sin((1 - u) * angle) / s : 1 - u,
+          kb = angle > 1e-4 ? Math.sin(u * angle) / s : u,
+          r = 1.012 + high * Math.sin(Math.PI * u);
+        dots.push({
+          x: (a[0] * ka + b[0] * kb) * r,
+          y: (a[1] * ka + b[1] * kb) * r,
+          z: (a[2] * ka + b[2] * kb) * r,
+          head: i === Math.floor(reach * ARC_DOTS),
+        });
+      }
+      if (dots.length) out.push({ key: k.event, dots, from: a, to: b });
+    }
+  return out;
+}
+
 /** What of a raid is over a town at moment t (none: nothing now). */
 export function raidNow(scene: TownScene | null, t: number): RaidNow {
   const list = scene?.plan.struck;
   if (!scene || !list?.length) return NONE;
   let flyers: RaidFlyer[] | null = null,
     by: string | null = null;
+  const streaks: RocketStreak[] = [];
   for (const k of list) {
     if (!k.raid) continue;
     const span = raidSpan(k);
     if (t < span.from || t > span.to) continue;
+    // (Rockets: no machine; whose they are, and each one's streak.)
+    if (k.raid.rocket) {
+      by = k.raid.by;
+      const way = wayOf(k),
+        ux = Math.sin(way.heading),
+        uz = Math.cos(way.heading),
+        cos = Math.cos(STREAK_DOWN),
+        sin = Math.sin(STREAK_DOWN),
+        fall = Math.max(200, k.raid.speed);
+      for (const f of way.falls ?? []) {
+        const since = t - f.at;
+        // (From when it can first be seen up there until its smoke is gone.)
+        if (since < -STREAK_HIGH / fall || since > STREAK_HANGS) continue;
+        const left = Math.max(0, -since * fall),
+          // The head on its way down; what it leaves reaches back up to where it was first seen.
+          length = STREAK_HIGH - left;
+        streaks.push({
+          x: f.x - ux * cos * left,
+          y: sin * left,
+          z: f.z - uz * cos * left,
+          yaw: way.heading,
+          length,
+          slant: STREAK_DOWN,
+          fade: since > 0 ? since / STREAK_HANGS : 0,
+          falling: since < 0,
+        });
+      }
+      continue;
+    }
     const key = hashText(k.event),
       heading = wayOf(k).heading,
       ux = Math.sin(heading),
@@ -300,6 +523,8 @@ export function raidNow(scene: TownScene | null, t: number): RaidNow {
         const k = list[states.struck[p]!];
         if (!k?.raid) continue;
         if (since < 0) {
+          // (A rocket's is its streak, not a load falling from a machine.)
+          if (k.raid.rocket) continue;
           if (falling.length >= MOST_FALLING) continue;
           const heading = wayOf(k).heading,
             left = -since / FALL_S;
@@ -310,13 +535,18 @@ export function raidNow(scene: TownScene | null, t: number): RaidNow {
             z: lots.z[p]! - Math.cos(heading) * k.raid.speed * -since,
           });
         } else if (bursts.length < MOST_BURSTS)
-          bursts.push({ x: lots.x[p]!, z: lots.z[p]!, k: since / BURST_S });
+          bursts.push({
+            x: lots.x[p]!,
+            z: lots.z[p]!,
+            k: since / BURST_S,
+            ...(k.raid.rocket ? { size: 4 } : {}),
+          });
       }
     };
   // (Those under the machines drawn first: the rest of a great raid is what is not drawn of it.)
   for (const k of list) if (k.raid) within(wayOf(k).under);
   if (falling.length < MOST_FALLING || bursts.length < MOST_BURSTS) within(struck);
-  return flyers?.length || falling.length || bursts.length
-    ? { flyers: flyers ?? [], falling, bursts, by }
+  return flyers?.length || streaks.length || falling.length || bursts.length
+    ? { flyers: flyers ?? [], streaks, falling, bursts, by }
     : NONE;
 }

@@ -133,9 +133,26 @@ export function townPage(world: World, ref: string): PageModel {
     );
   }
   // Struck from the air in its wars (W2): by whom, what it cost.
-  const raided = warsOf(world)
-    .allStrikes()
-    .filter((k) => k.town === ref);
+  const fell = warsOf(world)
+      .allStrikes()
+      .filter((k) => k.town === ref),
+    raided = fell.filter((k) => k.kind !== "rocket"),
+    rockets = fell.filter((k) => k.kind === "rocket");
+  // Rockets that fell on it (W3): whose, from how far, what they cost and what they did to its land's works.
+  if (rockets.length) {
+    const last = rockets.at(-1)!,
+      told = world.events.get(last.event)?.data as { a?: string; km?: number } | undefined,
+      dead = rockets.reduce((n, k) => n + k.dead, 0),
+      homes = rockets.reduce((n, k) => n + k.homes, 0),
+      lost = rockets.reduce((n, k) => n + (k.machines ?? 0), 0);
+    now.push(
+      stat(
+        "Rockets fell on it",
+        `${count(rockets.length)} time${rockets.length === 1 ? "" : "s"}, last in year ${last.year} by ${told?.a ?? "a foe"}, from ${count(told?.km ?? 0)} km away: ${count(dead)} dead, ${count(homes)} homes down${lost > 0 ? `, ${count(lost)} of its land's machines gone` : ""}`,
+        { why: last.event },
+      ),
+    );
+  }
   if (raided.length) {
     const last = raided.at(-1)!,
       lastBy = (world.events.get(last.event)?.data as { a?: string } | undefined)?.a ?? "a foe",

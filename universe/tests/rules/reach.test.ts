@@ -116,7 +116,7 @@ test("sight is exactly 1 with no flyers, and worth at most its share", () => {
 
 test("the rows come last, in need order, and ask their world's matter", () => {
   const ids = PRINCIPLES.map((p) => p.id);
-  assert.deepEqual(ids.slice(-2), ["powered-wings", "dropped-loads"]);
+  assert.deepEqual(ids.slice(-3), ["powered-wings", "dropped-loads", "thrown-loads"]);
   assert.deepEqual(principle("powered-wings").asks, ["fly-under-power"]);
   assert.ok(principle("dropped-loads").needs.includes("powered-wings"));
   assert.deepEqual(principle("powered-wings").effects, {});

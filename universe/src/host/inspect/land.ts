@@ -432,6 +432,7 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
         rows2: Stat[] = [];
       if (ind.works)
         rows2.push(stat("Works", [link(ind.works.words, ind.works.ref)], { why: ind.works.ref }));
+      if (ind.idle) rows2.push(stat("Works stopped", ind.idle));
       if (ind.power)
         rows2.push(stat("Power", `${(ind.power / 0.1).toFixed(1)}× what their own muscle drives`));
       if (ind.mine) rows2.push(stat("Mine", "they dig ore"));

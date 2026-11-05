@@ -13,6 +13,7 @@ import {
   GlobeScene,
   GlobeTowns,
   GlobeWars,
+  GlobeArcLayer,
   OrbitRig,
   RegionScene,
   RegionWars,
@@ -273,6 +274,7 @@ import {
   battleCapAt,
   battleCapWords,
   battleSlowings,
+  globeArcsNow,
   raidEye,
   raidOver,
   raidSlowings,
@@ -881,7 +883,13 @@ type Exposed = {
   battlesOnScreen?: () => { ref: string; x: number; y: number }[];
   /** A land's wars in place now (M203): each host's doing and place, the fights about the turn, the clock slowed for one. */
   /** Strikes from the air drawn over the land now (W2). */
-  landRaids?: () => { raids: number; flyers: number; words: readonly string[] };
+  landRaids?: () => { raids: number; flyers: number; arcs: number; words: readonly string[] };
+  /** Rockets' ways on the land's screen, on the globe's and over the town (W3's look tools). */
+  landArcsOnScreen?: () => { x: number; y: number }[];
+  globeArcsOnScreen?: () => { x: number; y: number }[];
+  /** The eye onto where a rocket's way over the land comes down (the look tools). */
+  faceLandArc?: () => boolean;
+  streaksOnScreen?: () => { x: number; y: number }[];
   warsInPlace?: () => {
     marks: {
       ref: string;
@@ -2250,6 +2258,7 @@ async function runPlanetPage(): Promise<void> {
   // The year's wars on the globe (M87): hosts marching toward what they want, ships where
   // their way crosses the sea, clashes where history fought.
   const globeWars = new GlobeWars(stage, stage.root);
+  const globeArcs = new GlobeArcLayer(stage, globeWars.root);
   let warsKey = "",
     warsNow: WarsMap | null = null,
     /** The year's wars as last read (kept while a war watched unfolding is drawn instead). */
@@ -2397,6 +2406,16 @@ async function runPlanetPage(): Promise<void> {
         rig.distance,
         campaign?.marching ?? warAge?.now.marching ?? liveMarching,
       );
+      // (Rockets' ways from where they left to where they fell: W3.)
+      if (frame)
+        globeArcs.update(
+          globeArcsNow(
+            warsLive,
+            yw,
+            sphereGrid((frame.meta as { frequency: number }).frequency).positions,
+          ),
+          rig.distance,
+        );
     }
     regionWars.visible = scale === "region";
     if (scale === "region") regionWars.update(performance.now() / 1000, yw);
@@ -2551,6 +2570,21 @@ async function runPlanetPage(): Promise<void> {
   exposed.armies = () => ({ globe: { ...globeWars.counts }, land: { ...regionWars.counts } });
   exposed.landMarks = () => regionWars.places();
   exposed.landRaids = () => regionWars.raidsShown();
+  const onScreen = (list: readonly { x: number; y: number; z: number }[]) =>
+    list.flatMap((f) => {
+      const s = stage.camera.camera!.worldToScreen(rig.target.clone().set(f.x, f.y, f.z));
+      return s.z > 0 ? [{ x: s.x, y: s.y }] : [];
+    });
+  exposed.landArcsOnScreen = () => (scale === "region" ? onScreen(regionWars.arcsAt()) : []);
+  exposed.faceLandArc = () => {
+    const a = scale === "region" ? regionWars.arcsAt().at(-1) : undefined;
+    if (!a) return false;
+    rig.halt();
+    rig.target.set(a.x, rig.target.y, a.z);
+    return true;
+  };
+  exposed.globeArcsOnScreen = () => (scale === "globe" ? onScreen(globeArcs.places) : []);
+  exposed.streaksOnScreen = () => (scale === "village" ? onScreen(village.streaksShown()) : []);
   // Where a spot of the globe is on the screen (for the look tools: to zoom at a thing).
   exposed.spotOnScreen = (spot: number) => {
     const frame = client.latestFrame("globe");

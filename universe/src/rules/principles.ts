@@ -1287,6 +1287,20 @@ export const HEAT_TREE: readonly Principle[] = [
     ),
     asks: ["fly-under-power", "make-gas-fast"],
   },
+  // Rockets that carry a load to a far town (War past the line, W3). Last again, so every land's draws stay at
+  // their places until the first is found. What shuts it is its world's numbers (throw-far: rules/reach.ts).
+  {
+    ...P(
+      "thrown-loads",
+      "loads a rocket carries to a far town",
+      ["rocketry", "gunpowder"],
+      0.006,
+      { crafters: 1, leaders: 0.5 },
+      {},
+      { media: ["land", "shore"] },
+    ),
+    asks: ["throw-far", "make-gas-fast"],
+  },
 ];
 
 export const PRINCIPLES: readonly Principle[] = [

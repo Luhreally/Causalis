@@ -170,6 +170,7 @@ test("a made-up world at 150 K with ammonia and no methane in its air picks hydr
     beast: { name: "horse", kg: 500 },
     metalShare: 1,
     nickel: false,
+    radius: 1,
     firstRoad: false,
   };
   const m = meansOf(made);

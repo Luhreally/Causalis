@@ -74,6 +74,7 @@ export function matterOf(g: HomeWorld): MatterWorld {
       kind: worldKindOf(g),
       celsius: g.planet.meanTemperature,
       gravity: g.planet.gravity,
+      radius: g.planet.radius,
       medium: g.life.people?.body.medium ?? "land",
       bodyFire: g.life.people ? affordancesOf(g.life.people.body).fire : true,
       insolation: g.planet.insolation,

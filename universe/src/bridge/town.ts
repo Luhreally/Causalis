@@ -59,6 +59,8 @@ export type TownRaid = {
   /** Tip to tip (m), and how fast (m/s): from its world's air and pull. */
   readonly span: number;
   readonly speed: number;
+  /** Rockets, not machines (W3): none to see but what comes down. */
+  readonly rocket?: boolean;
 };
 
 /** One of a town's buildings besides its homes, as its fabric keeps it. */
@@ -355,6 +357,9 @@ export const SPREAD = {
   // (By day, so that it can be seen; the whole stream over in under a minute.)
   raidFrom: 10 * 3600,
   raidAll: 45,
+  /** When a fall of rockets comes after its year's turn, in clear sky in the afternoon and apart from any raid, and how long it takes, the first to the last (W3; few and tight, one after another). */
+  rocketFrom: 14 * 3600,
+  rocketAll: 24,
 };
 
 /**
@@ -493,15 +498,15 @@ function strikes(
       k.kind === "fire"
         ? Math.min(SPREAD.fire, SPREAD.fireAll / Math.max(1, lots.length))
         : k.kind === "raid"
-          ? SPREAD.raidAll / Math.max(1, lots.length)
-        : (k.kind === "meteor" ? SPREAD.meteorAll : SPREAD.quakeAll) / Math.max(1, lots.length);
+          ? (k.raid?.rocket ? SPREAD.rocketAll : SPREAD.raidAll) / Math.max(1, lots.length)
+          : (k.kind === "meteor" ? SPREAD.meteorAll : SPREAD.quakeAll) / Math.max(1, lots.length);
     lots.forEach((p, j) => {
       struck[p] = i;
       const burnt = k.kind !== "quake" || hash(p, Math.round(k.at), 7) < SPREAD.quakeBurns;
       burns[p] = burnt ? 1 : 0;
       began[p] =
         k.at +
-        (k.kind === "raid" ? SPREAD.raidFrom : 0) +
+        (k.kind === "raid" ? (k.raid?.rocket ? SPREAD.rocketFrom : SPREAD.raidFrom) : 0) +
         (j + hash(p, Math.round(k.at), 3)) * step;
       // (What stood there: as the nearest home standing beside it.)
       level[p] = 1;

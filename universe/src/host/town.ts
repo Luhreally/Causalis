@@ -60,6 +60,7 @@ export function strikesOn(world: World, ref: Ref, land: Ref | null): TownStrike[
         flyers?: number;
         span?: number;
         speed?: number;
+        rocket?: boolean;
       } | null,
       lot = data?.lot,
       told = typeof data?.dead === "number" ? data.dead : 0,
@@ -85,6 +86,7 @@ export function strikesOn(world: World, ref: Ref, land: Ref | null): TownStrike[
               flyers: data?.flyers ?? 1,
               span: data?.span ?? 20,
               speed: data?.speed ?? 46,
+              ...(data?.rocket ? { rocket: true } : {}),
             },
           }
         : {}),

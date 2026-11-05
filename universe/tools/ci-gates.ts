@@ -289,6 +289,9 @@ export const GATES: readonly Gate[] = [
   // Gate 74, wings (tools/w2-gate.ts): machines from a world's numbers over a town and its land, a load falling, lots alight,
   // the pages saying what it cost; Earth and an alien world, what nothing burns on shut with its page saying why.
   { gate: 74, args: ["--ci"], s: 420 },
+  // Gate 75, rockets (tools/w3-gate.ts): a town far from any front struck out of a clear sky, a streak, a flash, lots burning; arcs on
+  // its land and on the globe, each looked for in the pixels; its works stopped; its pages.
+  { gate: 75, args: ["--ci"], s: 420 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */

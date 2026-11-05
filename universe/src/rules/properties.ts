@@ -28,7 +28,19 @@ import {
 import { stonesFor } from "./chem-stones.ts";
 import { worldRocks, worldSoil } from "./chem-ground.ts";
 import { oresOn } from "./chem-ores.ts";
-import { CARRIED_ENGINES, askWkg, canBurn, flyerOn, givesWkg, liftingEngine } from "./reach.ts";
+import {
+  CARRIED_ENGINES,
+  MISS_STEERED,
+  MISS_THROWN,
+  MOST_STAGES,
+  askWkg,
+  canBurn,
+  firstRocket,
+  flyerOn,
+  givesWkg,
+  liftingEngine,
+  rocketOn,
+} from "./reach.ts";
 
 /** What a substance can do, beyond what it weighs and where it melts. */
 export type Properties = {
@@ -315,12 +327,15 @@ export function meansWorldOf(a: {
   grips?: boolean;
   bodyKg?: number;
   beast?: { readonly name: string; readonly kg: number } | null;
+  /** Its radius against Earth's (W3); a made-up world left without one reads as Earth's. */
+  radius?: number;
 }): MeansWorld {
   const sea = KINDS[a.kind].liquid.subst;
   return {
     kelvin: a.celsius + 273.15,
     airBar: KINDS[a.kind].body.pressure,
     pull: a.gravity,
+    radius: a.radius ?? 1,
     freeOxygen: KINDS[a.kind].burns,
     medium: a.medium,
     bodyFire: a.bodyFire,
@@ -881,6 +896,7 @@ export function rowReadings(w: Pick<MatterWorld, "chem" | "means">): FunctionRea
       `Power to fly goes as pull^1.5 over air's weight^0.5: here ${Math.round(fly * 100)}% of Earth's, too dear to fly on what it makes.`,
     ),
     flyUnderPower(n),
+    throwFar(n),
     r(
       "build-high",
       "🏗️",
@@ -925,7 +941,9 @@ function flyUnderPower(n: MeansWorld): FunctionReading {
     asks: "an engine a machine can carry that gives more than flying asks here",
     later: false,
     met: !!lifts,
-    by: lifts ? `${lifts.name}: ${watts(ask)} W a kilogram asked, ${watts(givesWkg(lifts, n))} to its weight` : null,
+    by: lifts
+      ? `${lifts.name}: ${watts(ask)} W a kilogram asked, ${watts(givesWkg(lifts, n))} to its weight`
+      : null,
     subst: null,
     why: machine
       ? `Flying asks ${watts(ask)} W for each kilogram of machine here (estimate), and ${lifts!.name} gives ${watts(givesWkg(lifts!, n))} to its own weight. A machine of ${Math.round(machine.kg / 100) / 10} t, wings ${Math.round(machine.spanM)} m across, goes ${Math.round(machine.speed * 3.6)} km/h and ${Math.round(machine.reachKm)} km out and back.`
@@ -934,6 +952,34 @@ function flyUnderPower(n: MeansWorld): FunctionReading {
         : !canBurn(n)
           ? `Flying would ask only ${watts(ask)} W for each kilogram of machine here (estimate), but nothing burns in its air, so no engine here can be carried, and machines stay on the ground.`
           : `Flying asks ${watts(ask)} W for each kilogram of machine here (estimate), and the best engine it can make gives ${watts(givesWkg(best, n))} to its own weight: with its frame and fuel paid for, nothing is left to carry anyone.`,
+    ...(n.firstRoad ? { quiet: true } : {}),
+  };
+}
+
+/** Whether a rocket on this world's charge lands far enough to be worth making, and how far (W3: rules/reach.ts; the figures estimates). */
+function throwFar(n: MeansWorld): FunctionReading {
+  const charge = meansOf(n).worksCharge,
+    first = firstRocket(n, charge?.mj),
+    km = (x: number) => String(Math.round(x)),
+    tried = charge ? rocketOn(n, charge.mj, 1) : null,
+    most = charge ? rocketOn(n, charge.mj, MOST_STAGES) : null,
+    land = n.medium !== "water";
+  return {
+    id: "throw-far",
+    icon: "☄️",
+    name: "throw a load far",
+    asks: "a charge strong enough that a rocket lands past a gun's reach against this world's pull",
+    later: false,
+    met: land && !!first,
+    by: land && first ? `${charge!.name}: ${km(first.reachKm)} km` : null,
+    subst: null,
+    why: !land
+      ? "Its people live in its seas: nothing is thrown from there."
+      : !charge
+        ? "No charge can be made here, so no rocket has anything to throw out."
+        : first
+          ? `On ${charge.name} a first rocket lands ${first.around ? "anywhere on its world" : `${km(first.reachKm)} km away`} under a tonne (estimate), missing by ${Math.round(MISS_THROWN * 100)}% of the way; in ${MOST_STAGES} stages ${most!.around ? "anywhere on its world" : `${km(most!.reachKm)} km`}, and steered, by ${Math.round(MISS_STEERED * 1000) / 10}%.`
+          : `Its pull takes nearly all that ${charge.name} gives: a first rocket lands ${km(tried!.reachKm)} km away (estimate), no farther than a gun, so none is built.`,
     ...(n.firstRoad ? { quiet: true } : {}),
   };
 }

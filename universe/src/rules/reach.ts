@@ -82,8 +82,7 @@ type Sky = Pick<MeansWorld, "airBar" | "kelvin" | "pull">;
 /** What flying asks here, to the kilogram of machine (W). Titan's numbers give about 1.8, a man's own arms' reach; Mars's about 150. */
 export const askWkg = (w: Sky): number => EARTH_ASK * flightPower(w);
 /** What an engine gives to its weight here: it breathes its air, so under Earth's weight it gives the less, and over it no more. */
-export const givesWkg = (e: CarriedEngine, w: Sky): number =>
-  e.wkg * Math.min(1, airWeight(w));
+export const givesWkg = (e: CarriedEngine, w: Sky): number => e.wkg * Math.min(1, airWeight(w));
 /** What of a machine's weight is left to carry, once its frame, fuel and the engine that lifts it are paid for. */
 export const loadShare = (e: CarriedEngine, w: Sky): number =>
   1 - FRAME_SHARE - FUEL_SHARE - askWkg(w) / givesWkg(e, w);
@@ -196,4 +195,143 @@ export function strikeOf(input: {
     share,
     dead: Math.round(share * input.people * KILLS),
   };
+}
+
+// Rockets (War past the line, W3; "where are the missles..."): the same four numbers. How far one carries is
+// the rocket equation against the world's own pull and radius; what it brings is the same sum as a drop's; how
+// far it misses goes with how far it flies. Aboard: no one. All figures are estimates against the named anchors.
+
+/** Earth's radius (km). */
+const EARTH_KM = 6371;
+/** A world's size and pull, as a throw asks of them. */
+type Ground = Pick<MeansWorld, "pull" | "radius">;
+
+/** The way half round a world (km): the farthest anything can land. */
+export const aroundKm = (w: Pick<MeansWorld, "radius">): number => Math.PI * EARTH_KM * w.radius;
+/**
+ * The speed a thing must reach to land so far away by the least dear way, its world's curve counted (m/s):
+ * v² = g R · 2 sin(φ/2) / (1 + sin(φ/2)), φ the angle between (for a short way v² = g × range; half way round it asks just what orbit asks).
+ */
+export function speedToLand(w: Ground, km: number): number {
+  const R = EARTH_KM * w.radius,
+    half = Math.min(km, aroundKm(w)) / R / 2,
+    s = dmath.sin(half);
+  return dmath.sqrt(w.pull * PULL * R * 1000 * ((2 * s) / (1 + s)));
+}
+/** How far something at a speed lands (km): that sum turned about. At the speed of orbit or more, anywhere on its world. */
+export function landsAt(w: Ground, speed: number): number {
+  if (speed <= 0) return 0;
+  const R = EARTH_KM * w.radius,
+    x = (speed * speed) / (w.pull * PULL * R * 1000);
+  if (x >= 1) return aroundKm(w);
+  const s = x / (2 - x);
+  return 2 * dmath.atan2(s, dmath.sqrt(1 - s * s)) * R;
+}
+
+/** How much of a charge's energy goes into the speed of what is thrown out (est: gives 2 km/s on gun cotton, as Earth's first great rocket had). */
+const THROW_SHARE = 0.5;
+/** The speed of what a rocket throws out (m/s), by what a kilogram of its charge holds. */
+export const thrownOut = (mj: number): number => dmath.sqrt(2 * THROW_SHARE * mj * 1e6);
+/** What one carries (kg; est: Earth's first, a tonne). */
+export const ROCKET_LOAD_KG = 1000;
+/** What of a rocket is its load and what of each stage its frame, by how many stages it comes in (est: Earth's first, 8% and 26%; those in stages, lighter in the frame and less in the load). */
+const ROCKET_SHARES: readonly (readonly [load: number, frame: number])[] = [
+  [0.08, 0.26],
+  [0.05, 0.15],
+  [0.03, 0.15],
+];
+/** How long it climbs against the pull (s; est: a minute, as Earth's first), and what the air takes of its speed at Earth's weight (m/s). */
+const CLIMB_S = 60,
+  AIR_LOSS = 50;
+/** The fewest km worth a rocket: nearer than this, a gun does it (est: Earth's longest guns). */
+export const LEAST_THROW_KM = 50;
+/** The most stages known of: one, then two with machines to steer it, then three with what reaches orbit. */
+export const MOST_STAGES = ROCKET_SHARES.length;
+
+/** A rocket on a world: all of it from the numbers. */
+export type Rocket = {
+  readonly stages: number;
+  /** What it weighs ready to fly (kg), and carries. */
+  readonly kg: number;
+  readonly loadKg: number;
+  /** The speed of what it throws out, and its own when its charge is spent (m/s). */
+  readonly thrown: number;
+  readonly speed: number;
+  /** How far it lands (km), and whether that is anywhere on its world. */
+  readonly reachKm: number;
+  readonly around: boolean;
+};
+type RocketGround = Pick<MeansWorld, "pull" | "radius" | "airBar" | "kelvin">;
+/** The rocket a charge makes on a world, in so many stages: the rocket equation, less what its climb and its air take. */
+export function rocketOn(w: RocketGround, mj: number, stages: number): Rocket {
+  const n = Math.max(1, Math.min(MOST_STAGES, stages)),
+    [load, frame] = ROCKET_SHARES[n - 1]!,
+    each = dmath.pow(load, 1 / n),
+    thrown = thrownOut(mj),
+    gain = -n * thrown * dmath.log(each + (1 - each) * frame),
+    speed = Math.max(0, gain - CLIMB_S * w.pull * PULL - AIR_LOSS * dmath.sqrt(airWeight(w))),
+    reachKm = landsAt(w, speed);
+  return {
+    stages: n,
+    kg: ROCKET_LOAD_KG / load,
+    loadKg: ROCKET_LOAD_KG,
+    thrown,
+    speed,
+    reachKm,
+    around: reachKm >= aroundKm(w),
+  };
+}
+/** Whether a world's first rocket on this charge is worth making (null: too heavy a world, or too weak a charge for the sum). */
+export function firstRocket(w: RocketGround, mj: number | null | undefined): Rocket | null {
+  if (!mj) return null;
+  const r = rocketOn(w, mj, 1);
+  return r.reachKm >= LEAST_THROW_KM ? r : null;
+}
+/** How many stages a land's people can build, by what it knows. */
+export const stagesKnown = (knows: (id: string) => boolean): number =>
+  1 + (knows("guidance") ? 1 : 0) + (knows("guidance") && knows("orbital-flight") ? 1 : 0);
+
+/** How far from its aim a rocket lands, of how far it flew (est: half within it): thrown as a shell is, and steered (Earth's of 1962, some 400 m at 740 km). */
+export const MISS_THROWN = 0.03,
+  MISS_STEERED = 0.0005;
+/** How far from the aim it lands (m), for so far flown. */
+export const rocketMiss = (km: number, steered: boolean): number =>
+  Math.max(MISS_STEADIED, km * 1000 * (steered ? MISS_STEERED : MISS_THROWN));
+/** The lots a rocket flattens, all its load landing together: its energy to the 2/3 power, not each share's. */
+export const lotsPerRocket = (mjPerKg: number): number =>
+  deadlyGround(energyAt(ROCKET_LOAD_KG, mjPerKg)) / LOT_M2;
+
+/** How many of its fighting men go to a rocket a year, and what one takes of a realm's machines (est: Earth's first thousands, some 2,000 men under arms to each). */
+export const MEN_TO_A_ROCKET = 2000,
+  MACHINES_TO_A_ROCKET = 40;
+/** The most a realm throws in a year of a war, the most places it throws them at, and the least flattened that is told as a fall on a town (a lot: less is fields). */
+export const MOST_ROCKETS = 1000,
+  MOST_THROWN_AT = 3,
+  LEAST_FLATTENED = 0.5;
+/** How much more a town is worth to strike where it holds its land's works, and where its land's goods go through it, than what it holds of people (est). */
+export const WORKS_WORTH = 8,
+  WAYS_WORTH = 2;
+/** The lots of a town's that its works are as great as (est), and how long its works stand idle once struck hard (years, est: a works bombed on Earth took about as long). */
+export const WORKS_LOTS = 20,
+  WORKS_DOWN_YEARS = 3;
+
+/** What rockets thrown at a town do: pure, so a page and history reckon alike. */
+export function throwOf(input: {
+  readonly rockets: number;
+  readonly mjPerKg: number;
+  readonly miss: number;
+  readonly lots: number;
+  readonly people: number;
+}): {
+  readonly landed: number;
+  readonly flattened: number;
+  readonly share: number;
+  readonly dead: number;
+} {
+  const landed = input.rockets * hitShare(townRadius(input.lots), input.miss),
+    flattened = landed * lotsPerRocket(input.mjPerKg) * ON_HOMES;
+  if (flattened < LEAST_FLATTENED || input.lots <= 0)
+    return { landed, flattened: 0, share: 0, dead: 0 };
+  const share = Math.min(MOST_FLATTENED, flattened / input.lots);
+  return { landed, flattened, share, dead: Math.round(share * input.people * KILLS) };
 }

@@ -6,6 +6,7 @@ export { HomeMark } from "./homemark.ts";
 export { runBench, type BenchResult } from "./bench.ts";
 export { GlobeScene } from "./globe.ts";
 export { GlobeWars } from "./wars.ts";
+export { GlobeArcLayer } from "./arcs.ts";
 export { GlobeActs } from "./acts.ts";
 export { RegionWars } from "./regionwars.ts";
 export { GlobeTowns, type GlobeTown } from "./towns.ts";

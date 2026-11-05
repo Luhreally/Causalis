@@ -61,9 +61,11 @@ test("Earth stays on its first road: every stand-in shut, with words true of it"
   assert.deepEqual(met, [
     "bloom-an-iron",
     "fire-a-vessel",
+    "fly-under-power",
     "harden-copper",
     "melt-a-glass",
     "ride-a-beast",
+    "throw-far",
   ]);
   assert.match(row(SOLAR, EARTH, "engine-by-mirror").why, /coal drives its engines/);
   assert.match(row(SOLAR, EARTH, "engine-from-ground").why, /coal drives its engines/);
@@ -188,8 +190,8 @@ test("the tree: iron and building can follow flakes, and stand-ins ask for what 
   assert.equal(principle("set-edges").drivers.lacks, "metal");
   assert.equal(principle("sun-engines").drivers.lacks, "coal");
   assert.equal(principle("heat-engines").drivers.lacks, "coal");
-  // (No new rows but W2's, last: every land's draws stay at their places.)
-  assert.equal(PRINCIPLES.length, 133);
+  // (No new rows but W2's and W3's, last: every land's draws stay at their places.)
+  assert.equal(PRINCIPLES.length, 134);
 });
 
 test("a host rides the beast its world has, and Earth's on horseback", () => {

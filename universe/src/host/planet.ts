@@ -429,6 +429,11 @@ export function province(world: World, cell: number) {
         mine: m?.mine ?? null,
         well: m?.well ?? null,
         factory: m?.works ?? null,
+        // (Its works stopped by a rocket's fall: W3.)
+        idle:
+          m && m.idleUntil > yearOfMoment(world.now)
+            ? `Struck, and at a stand until year ${m.idleUntil}: it makes no machines, and nothing here runs by them.`
+            : null,
         // The smoke in their air, and how the warming has moved their rain.
         smoke: smokeIn(ctx, cell),
         smoked: airOf(world).smokeOf(cell),
@@ -1090,6 +1095,9 @@ function planetUniverse(name: string, prior: Prior): Universe {
             dead: s.dead,
             homes: s.homes,
             event: s.event,
+            ...(s.kind === "rocket" && s.from !== undefined
+              ? { rocket: { from: s.from, to: s.cell } }
+              : {}),
           });
           raidsByWar.set(s.war, list);
         }

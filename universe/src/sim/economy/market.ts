@@ -73,6 +73,8 @@ export class Market {
   powerCover = 0;
   /** Fuel its engines burned last year (units of coal and oil), for its power. */
   burned = 0;
+  /** The year its works can run again after a rocket's fall (W3; 0: they do). */
+  idleUntil = 0;
   /** Its first coal dug, first oil drawn and first machines made: the events. */
   mine: Ref | null = null;
   well: Ref | null = null;
@@ -214,6 +216,8 @@ export class Market {
       .int(this.series.length)
       .value(this.toolMetals)
       .value(this.forgedMetals);
+    // (Only while its works stand idle, W3: a market without it hashes as it did.)
+    if (this.idleUntil) h.int(this.idleUntil);
   }
 
   save(): unknown {
@@ -232,6 +236,7 @@ export class Market {
       mine: this.mine,
       well: this.well,
       works: this.works,
+      ...(this.idleUntil ? { idleUntil: this.idleUntil } : {}),
       wage: this.wage,
       tradeMargin: this.tradeMargin,
       metalworking: this.metalworking,
@@ -271,6 +276,7 @@ export class Market {
     m.mine = (s.mine as Ref | null | undefined) ?? null;
     m.well = (s.well as Ref | null | undefined) ?? null;
     m.works = (s.works as Ref | null | undefined) ?? null;
+    m.idleUntil = (s.idleUntil as number | undefined) ?? 0;
     m.tradeMargin = s.tradeMargin as number;
     m.metalworking = s.metalworking as Ref | null;
     m.reliefFor = s.reliefFor as Ref | null;

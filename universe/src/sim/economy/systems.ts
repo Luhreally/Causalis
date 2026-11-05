@@ -258,9 +258,12 @@ function makeAndUse(
 
   // What the land knows makes its crafters more skilled at what they make; engines fed
   // with fuel and machines to work with make them more so.
-  const powered =
-      (1 + (ENGINE_GAIN * industry * m.powerCover) / 1000) *
-      (1 + (MACHINE_GAIN * m.machineCover) / 1000),
+  // (While its works stand idle from a rocket's fall, W3, nothing they drive helps, and no machine is made.)
+  const idle = m.idleUntil > yearOfMoment(t),
+    powered = idle
+      ? 1
+      : (1 + (ENGINE_GAIN * industry * m.powerCover) / 1000) *
+        (1 + (MACHINE_GAIN * m.machineCover) / 1000),
     skill = (g: number) =>
       powered *
       (1 +
@@ -288,9 +291,11 @@ function makeAndUse(
           )
         : (last?.[1]?.[g] ?? 0) + (last?.[3]?.[g] ?? 0),
     room = (g: number) =>
-      FUELS.includes(g) || g === G.machines || g === G.tin || g === G.iron
-        ? GLUT_YEARS * (gone(g) + 1) - m.stock[g]!
-        : Infinity;
+      idle && g === G.machines
+        ? 0
+        : FUELS.includes(g) || g === G.machines || g === G.tin || g === G.iron
+          ? GLUT_YEARS * (gone(g) + 1) - m.stock[g]!
+          : Infinity;
   const crafters = p.occupation(OCC.crafter),
     open = RECIPES.map((r, i) => ({ r, i })).filter(
       ({ r }) => canMake(ctx, p, m, r) && room(r.output[0]) > 0,

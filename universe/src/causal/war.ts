@@ -60,7 +60,15 @@ registerEventWords(
     `${cap(landWords(world, e.place))} rose against ${text(e.data, "a")} and returned to ${text(e.data, "b")}, ${year(e.t)}`,
 );
 registerEventWords(WAR_EVENTS.strike.type, (_, e) => {
-  const d = e.data as { name?: string; dead?: number; homes?: number } | null;
+  const d = e.data as {
+    name?: string;
+    dead?: number;
+    homes?: number;
+    rocket?: boolean;
+    km?: number;
+  } | null;
+  if (d?.rocket)
+    return `Rockets of ${text(e.data, "a")} fell on ${d.name ?? "a town"} of ${text(e.data, "b")} from ${count(d.km ?? 0)} km away; ${count(d.dead ?? 0)} died and ${count(d.homes ?? 0)} home${d.homes === 1 ? "" : "s"} came down, ${year(e.t)}`;
   return `Machines of ${text(e.data, "a")} struck ${d?.name ?? "a town"} of ${text(e.data, "b")} from the air; ${count(d?.dead ?? 0)} died and ${count(d?.homes ?? 0)} home${d?.homes === 1 ? "" : "s"} came down, ${year(e.t)}`;
 });
 registerEventWords(WAR_EVENTS.peace.type, (_, e) => {

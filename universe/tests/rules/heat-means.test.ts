@@ -39,6 +39,7 @@ function worldOf(over: Partial<MeansWorld>): MeansWorld {
     beast: { name: "horse", kg: 500 },
     metalShare: 1,
     nickel: false,
+    radius: 1,
     firstRoad: false,
     ...over,
   };
@@ -69,9 +70,11 @@ test("Earth's numbers: reachIn is true, the four burning rows are met, every oth
   assert.deepEqual(met, [
     "bloom-an-iron",
     "fire-a-vessel",
+    "fly-under-power",
     "harden-copper",
     "melt-a-glass",
     "ride-a-beast",
+    "throw-far",
   ]);
   for (const f of read.values()) assert.equal(f.quiet, true, f.id);
 });

@@ -258,22 +258,49 @@ export function courseBlocks(world: World, w: War): Block[] {
   // Its strikes from the air (W2): what they came to, and each still kept.
   const wars = warsOf(world),
     tally = wars.tallyOfStrikes(w.ref);
-  if (tally) {
-    const name = (i: 0 | 1) => (i === 0 ? (a?.town ?? "the attacker") : (d?.town ?? "the defender")),
-      kept = wars.allStrikes().filter((s) => s.war === w.ref);
-    blocks.push({
-      type: "list",
-      title: `Struck from the air: ${count(tally[0])} town${tally[0] === 1 ? "" : "s"}, ${count(tally[1] + tally[2])} dead, ${count(tally[3])} homes down`,
-      items: kept.slice(-40).map((s) =>
-        item(
-          [
-            link(strikeTownName(world, s.town), s.town),
-            `, by ${name(s.side)}, year ${s.year}: ${count(s.flyers)} machines, ${count(s.dead)} dead, ${count(s.homes)} homes`,
-          ],
-          s.event,
-        ),
-      ),
-    });
+  const fired = wars.thrownIn(w.ref);
+  if (tally || fired) {
+    const name = (i: 0 | 1) =>
+        i === 0 ? (a?.town ?? "the attacker") : (d?.town ?? "the defender"),
+      struck = wars.allStrikes().filter((s) => s.war === w.ref),
+      kept = struck.filter((s) => s.kind !== "rocket"),
+      thrown = struck.filter((s) => s.kind === "rocket"),
+      raidDead = (tally?.[1] ?? 0) + (tally?.[2] ?? 0) - thrown.reduce((n, s) => n + s.dead, 0),
+      raidTowns = (tally?.[0] ?? 0) - thrown.length,
+      raidHomes = (tally?.[3] ?? 0) - thrown.reduce((n, s) => n + s.homes, 0);
+    // Rockets (W3), apart from the raids: how many were thrown and what became of them.
+    if (fired)
+      blocks.push({
+        type: "list",
+        title: `Rockets thrown: ${count(fired)}, falling on ${count(thrown.length)} town${thrown.length === 1 ? "" : "s"}, ${count(thrown.reduce((n, s) => n + s.dead, 0))} dead, ${count(thrown.reduce((n, s) => n + s.homes, 0))} homes down, ${count(thrown.filter((s) => s.idled).length)} works stopped`,
+        items: thrown
+          .slice(-40)
+          .map((s) =>
+            item(
+              [
+                link(strikeTownName(world, s.town), s.town),
+                `, by ${name(s.side)}, year ${s.year}: ${count(s.flyers)} thrown, ${count(Math.round(s.landed ?? 0))} landed, ${count(s.dead)} dead, ${count(s.homes)} homes${s.idled ? ", its works stopped" : ""}`,
+              ],
+              s.event,
+            ),
+          ),
+      });
+    if (raidTowns > 0)
+      blocks.push({
+        type: "list",
+        title: `Struck from the air: ${count(raidTowns)} town${raidTowns === 1 ? "" : "s"}, ${count(raidDead)} dead, ${count(raidHomes)} homes down`,
+        items: kept
+          .slice(-40)
+          .map((s) =>
+            item(
+              [
+                link(strikeTownName(world, s.town), s.town),
+                `, by ${name(s.side)}, year ${s.year}: ${count(s.flyers)} machines, ${count(s.dead)} dead, ${count(s.homes)} homes`,
+              ],
+              s.event,
+            ),
+          ),
+      });
   }
   return blocks;
 }

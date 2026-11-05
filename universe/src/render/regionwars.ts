@@ -316,7 +316,13 @@ export class RegionWars {
       wars = this.play?.map.wars ?? [];
     this.now = now;
     this.raidsNow = this.play?.play.townAt
-      ? landRaidsNow(this.play.map, y, this.play.play.townAt)
+      ? landRaidsNow(
+          this.play.map,
+          y,
+          this.play.play.townAt,
+          (spot, at) =>
+            this.play!.play.spots.here(spot) ?? this.play!.play.spots.edgeToward(spot, at),
+        )
       : [];
     this.raids.update(this.raidsNow, this.height, s);
     // Each war's hosts where its year has them: in column, drawn up, on the walls; over the sea in
@@ -936,8 +942,18 @@ export class RegionWars {
   }
 
   /** The strikes from the air on its towns now (the look tools). */
-  raidsShown(): { readonly raids: number; readonly flyers: number; readonly words: readonly string[] } {
+  raidsShown(): {
+    readonly raids: number;
+    readonly flyers: number;
+    readonly arcs: number;
+    readonly words: readonly string[];
+  } {
     return { ...this.raids.shown, words: this.raidsNow.map((r) => r.words) };
+  }
+
+  /** Where each rocket's way over a land is, at its head or its middle (the look tools). */
+  arcsAt(): readonly { x: number; y: number; z: number }[] {
+    return this.raids.arcAt;
   }
 
   /** Where each host, battle, camp and garrison stood at the last update (for the look tools). */

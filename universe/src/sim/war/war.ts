@@ -42,7 +42,17 @@ import {
 } from "../../rules/index.ts";
 import { designsOf } from "../design/design.ts";
 import { grieve } from "../acts/disasters.ts";
-import { fleetOf, strikeTown, targetsOf, type Fleet } from "./air.ts";
+import {
+  fleetOf,
+  payForRockets,
+  strikeTown,
+  targetsOf,
+  throwAt,
+  thrownAtOf,
+  throwerOf,
+  type Fleet,
+  type Thrower,
+} from "./air.ts";
 import { ArmsStore, armsOf } from "./arms.ts";
 import {
   COLD_BATTLES,
@@ -107,11 +117,24 @@ export type WarStrike = {
   readonly stores: number;
   readonly flyers: number;
   readonly event: Ref;
+  /** Rockets (W3; absent: machines): `flyers` then says how many were thrown at it. */
+  readonly kind?: "rocket";
+  /** Where they left from, and how many landed on the town. */
+  readonly from?: number;
+  readonly landed?: number;
+  /** The machines its land's works lost, and whether they stand idle after. */
+  readonly machines?: number;
+  readonly idled?: boolean;
 };
 /** How long a strike is kept by its town (years): after that, only in its war's tally. */
 export const STRIKE_YEARS = 200;
 /** What strikes came to in a war: how many, and the dead on the attacker's side and on the defender's, the homes down. */
-export type StrikeTally = readonly [strikes: number, onAttacker: number, onDefender: number, homes: number];
+export type StrikeTally = readonly [
+  strikes: number,
+  onAttacker: number,
+  onDefender: number,
+  homes: number,
+];
 
 export type Battle = {
   readonly year: number;
@@ -312,6 +335,8 @@ export class WarStore implements StateStore {
   private readonly strikeTally = new Map<string, StrikeTally>();
   /** Every strike folded in once, as it falls. */
   private strikeDigest = "";
+  /** How many rockets each war's sides have thrown in all, those that fell wide too (W3). */
+  private readonly thrownTally = new Map<string, number>();
 
   /** How a battle's draws are had again (given when the world installs its wars). */
   drawn(draw: BattleDraw): void {
@@ -413,6 +438,17 @@ export class WarStore implements StateStore {
       d + (s.side === 0 ? s.dead : 0),
       h + s.homes,
     ]);
+  }
+
+  /** Rockets a war's sides threw this year (W3): all of them, whatever became of them. */
+  noteThrown(war: Ref, rockets: number): void {
+    this.thrownTally.set(war, (this.thrownTally.get(war) ?? 0) + rockets);
+    this.strikeDigest = new Hasher().string(this.strikeDigest).string(war).int(rockets).hex();
+  }
+
+  /** How many rockets a war's sides have thrown (W3). */
+  thrownIn(war: Ref): number {
+    return this.thrownTally.get(war) ?? 0;
   }
 
   /** The strikes kept, in the order they fell (those of the last STRIKE_YEARS). */
@@ -648,6 +684,9 @@ export class WarStore implements StateStore {
             strikes: this.strikes,
             strikeTally: [...this.strikeTally].sort((a, b) => (a[0] < b[0] ? -1 : 1)),
             strikeDigest: this.strikeDigest,
+            ...(this.thrownTally.size
+              ? { thrown: [...this.thrownTally].sort((a, b) => (a[0] < b[0] ? -1 : 1)) }
+              : {}),
           }
         : {}),
     };
@@ -666,6 +705,7 @@ export class WarStore implements StateStore {
         strikes?: WarStrike[];
         strikeTally?: [string, StrikeTally][];
         strikeDigest?: string;
+        thrown?: [string, number][];
       },
       cold = this.cold.load(t.cold ?? { blocks: [], words: [] }),
       wars = (state as { wars: War[] }).wars;
@@ -705,6 +745,8 @@ export class WarStore implements StateStore {
     this.strikeTally.clear();
     for (const [war, tally] of t.strikeTally ?? []) this.strikeTally.set(war, tally);
     this.strikeDigest = t.strikeDigest ?? "";
+    this.thrownTally.clear();
+    for (const [war, n] of t.thrown ?? []) this.thrownTally.set(war, n);
   }
 }
 
@@ -959,6 +1001,95 @@ function raids(
   }
 }
 
+/**
+ * A side's rockets go over (W3): at as many towns of the foe's as lie in their reach and hurt it most, wherever
+ * the front is, shared among them. They leave from its land nearest the front. Each fall an event with the war
+ * as its cause, read by a town's roll and page as a raid is. No draws.
+ */
+function thrown(
+  ctx: PopulationContext,
+  w: War,
+  side: 0 | 1,
+  t2: Thrower,
+  foe: Polity,
+  by: Polity,
+  front: number,
+  t: SimTime,
+): void {
+  const { world, generated: g } = ctx,
+    p = g.grid.positions,
+    radiusKm = 6371 * g.planet.radius;
+  let from = by.seat,
+    near = Infinity;
+  for (const c of by.members) {
+    const dx = p[3 * c]! - p[3 * front]!,
+      dy = p[3 * c + 1]! - p[3 * front + 1]!,
+      dz = p[3 * c + 2]! - p[3 * front + 2]!,
+      d = dx * dx + dy * dy + dz * dz;
+    if (d < near || (d === near && c < from)) {
+      near = d;
+      from = c;
+    }
+  }
+  const targets = thrownAtOf(ctx, foe, from, t2, radiusKm);
+  if (!targets.length) return;
+  const wars = warsOf(world),
+    year = yearOfMoment(t),
+    each = Math.max(1, Math.floor(t2.rockets / targets.length));
+  payForRockets(ctx, by, t2.rockets);
+  wars.noteThrown(w.ref, each * targets.length);
+  for (const target of targets) {
+    const done = throwAt(ctx, target, t2, each, t);
+    if (done.homes <= 0 && done.dead <= 0) continue;
+    const event = world.events.emit({
+      type: WAR_EVENTS.strike.type,
+      subjects: [target.ref, w.ref, by.ref, foe.ref],
+      place: ctx.provinces.get(target.cell)!.ref,
+      causes: [{ ref: w.event, role: "trigger", weight: 1 }],
+      data: {
+        name: target.name,
+        a: realmName(by),
+        b: realmName(foe),
+        dead: done.dead,
+        homes: done.homes,
+        stores: done.stores,
+        flyers: each,
+        rocket: true,
+        from,
+        km: Math.round(target.km),
+        landed: Math.round(done.landed * 10) / 10,
+        machines: done.machines,
+        idled: done.idled,
+        speed: Math.round(t2.rocket.speed),
+      },
+    });
+    wars.noteStrike({
+      war: w.ref,
+      year,
+      side,
+      town: target.ref,
+      cell: target.cell,
+      dead: done.dead,
+      homes: done.homes,
+      stores: done.stores,
+      flyers: each,
+      event,
+      kind: "rocket",
+      from,
+      landed: Math.round(done.landed * 10) / 10,
+      machines: done.machines,
+      idled: done.idled,
+    });
+    if (done.dead > 0)
+      grieve(
+        world,
+        target.cell,
+        Math.min(0.05, (done.dead / Math.max(1, ctx.provinces.get(target.cell)!.total())) * 2),
+        event,
+      );
+  }
+}
+
 /** The year's wars: declarations, a battle in each war, rebellions, peace. */
 export function warYear(ctx: PopulationContext, t: SimTime): void {
   const { world, generated: g } = ctx,
@@ -1159,6 +1290,11 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       fleetB = fleetOf(ctx, b, () => fieldedOf(ctx, b));
     if (fleetA) raids(ctx, w, 0, fleetA, b, a, land, t);
     if (fleetB) raids(ctx, w, 1, fleetB, a, b, land, t);
+    // (And its rockets, W3: at what feeds the fight, not only at the front. None before the first is found.)
+    const throwA = throwerOf(ctx, a, () => fieldedOf(ctx, a)),
+      throwB = throwerOf(ctx, b, () => fieldedOf(ctx, b));
+    if (throwA) thrown(ctx, w, 0, throwA, b, a, land, t);
+    if (throwB) thrown(ctx, w, 1, throwB, a, b, land, t);
     const key = Number(w.ref.split(":")[2]),
       far = (() => {
         // Supply thins with distance from the seat.

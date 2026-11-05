@@ -11,6 +11,8 @@ export type MeansWorld = {
   readonly kelvin: number;
   readonly airBar: number;
   readonly pull: number;
+  /** Its radius against Earth's (W3: how far a thing thrown lands). */
+  readonly radius: number;
   readonly freeOxygen: boolean;
   readonly medium: Medium;
   readonly bodyFire: boolean;

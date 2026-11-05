@@ -1066,7 +1066,13 @@ export class TownBuilder {
   }
 
   /** A share of a town's homes razed: its heart first, or its edge for a town sacked. */
-  raze(f: Fabric, share: number, edge: boolean, near?: number, kind: number = CHANGE.razed): number {
+  raze(
+    f: Fabric,
+    share: number,
+    edge: boolean,
+    near?: number,
+    kind: number = CHANGE.razed,
+  ): number {
     // (Run by run where it may be: a great town sacked has a hundred thousand lots.)
     const runs = near === undefined ? standingRuns(f) : null;
     if (runs) {
@@ -1115,14 +1121,14 @@ export class TownBuilder {
    * lots to its mean. Each stick's lots run on from where it landed (no draw); what falls past its last home
    * hits nothing. Their lots lie in ash until rise. How many homes burned.
    */
-  burn(f: Fabric, share: number, about: number): number {
+  burn(f: Fabric, share: number, about: number, places: number = STICKS): number {
     const runs = standingRuns(f);
     if (!runs) return this.raze(f, share, false, undefined, CHANGE.burned);
     let all = 0;
     for (const [a, b] of runs) all += b - a;
     const n = Math.min(all, Math.ceil(all * share));
     if (n < 1) return 0;
-    const sticks = Math.min(STICKS, n),
+    const sticks = Math.max(1, Math.min(places, n)),
       reach = 1 - dmath.exp(-f.next / about),
       salt = homesOf(f),
       starts: number[] = [];
@@ -1227,7 +1233,11 @@ export class TownBuilder {
   }
 
   /** Stretches of homes brought down, each stretch of lots side by side one change: open again, unless in ash. */
-  private layDown(f: Fabric, down: readonly (readonly [number, number, number])[], kind: number): void {
+  private layDown(
+    f: Fabric,
+    down: readonly (readonly [number, number, number])[],
+    kind: number,
+  ): void {
     let run = -1,
       at = -1;
     const done = () => {
@@ -1573,9 +1583,11 @@ export function burnTown(
   share: number,
   t: SimTime,
   about: number,
+  /** In how many places (W3: a rocket's hits are few and tight); by default, a stream's. */
+  places?: number,
 ): number {
   const f = townsOf(ctx.world).get(town);
-  return f ? new TownBuilder(ctx, yearOfMoment(t)).burn(f, share, about) : 0;
+  return f ? new TownBuilder(ctx, yearOfMoment(t)).burn(f, share, about, places) : 0;
 }
 
 /** Whether any of a town's homes stand (or rise). */

@@ -285,6 +285,7 @@ const EARTH_FIRE: readonly string[] = [
   "dairying",
   "draught",
   "drawn-carbon",
+  "dropped-loads",
   "dyeing",
   "electricity",
   "electronics",
@@ -324,6 +325,7 @@ const EARTH_FIRE: readonly string[] = [
   "philosophy",
   "plough",
   "pottery-wheel",
+  "powered-wings",
   "quarantine",
   "railways",
   "repeating-fire",
@@ -346,6 +348,7 @@ const EARTH_FIRE: readonly string[] = [
   "steel",
   "tanning",
   "terracing",
+  "thrown-loads",
   "transfer-flight",
   "vaccines",
   "vat-food",
@@ -449,6 +452,7 @@ test("the first 121 principles keep their ids and indexes; the arms, then the me
       "tall-frames",
       "powered-wings",
       "dropped-loads",
+      "thrown-loads",
     ],
   );
 });
@@ -489,7 +493,7 @@ test("on a land with fire, each of the first 121 is open, and its needs met, as 
   }
 });
 
-test("on rocky Earth, a land with fire comes to know the same 95 principles it did at base", () => {
+test("on rocky Earth, a land with fire comes to know the same 95 principles it did at base, and W2's and W3's rows", () => {
   const is = onEarth("land", true);
   assert.deepEqual([...is].sort(), EARTH_FIRE);
   assert.ok(is.has("electricity") && is.has("gunpowder"), "the base reaches the powder");
