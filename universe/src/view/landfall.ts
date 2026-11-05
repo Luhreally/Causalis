@@ -103,6 +103,9 @@ export type LandfallScript = {
   readonly comers: readonly Comer[];
   readonly natives: readonly Native[];
   readonly pads: readonly Flat[];
+  /** How far apart the natives' mass stands (m), and each host's drawn body's width. */
+  readonly pitch: number;
+  readonly room: readonly [number, number];
   /** Whether each host's order is shoulder to shoulder, and how far apart each stands (m). */
   readonly order: readonly [{ line: boolean; spacing: number }, { line: boolean; spacing: number }];
 };
@@ -155,7 +158,7 @@ export function drawnOf(
 function handClock(plan: LandfallPlan, reach: number): (at: number) => number {
   const first = plan.frames[0]?.at ?? 16,
     last = Math.max(first + 1, plan.frames[plan.frames.length - 1]?.at ?? first + 1);
-  return (a) => reach + (clamp01((a - first) / (last - first)) * HAND_LONG);
+  return (a) => reach + clamp01((a - first) / (last - first)) * HAND_LONG;
 }
 /** How long the hand's fight runs on the screen (s). */
 const HAND_LONG = 16;
@@ -219,7 +222,13 @@ export function landfallScript(
     squeezeDeep = Math.min(1, (ground.most?.deep ?? Infinity) / deepest),
     landers = Math.max(1, Math.min(4, Math.ceil((plan.flesh + plan.made) / 500))),
     pads = Array.from({ length: landers }, (_, j) =>
-      at(front, way, across, deep + (ground.most ? 13 : 46), (j - (landers - 1) / 2) * (ground.most ? 24 : 62)),
+      at(
+        front,
+        way,
+        across,
+        deep + (ground.most ? 13 : 46),
+        (j - (landers - 1) / 2) * (ground.most ? 24 : 62),
+      ),
     ),
     // The times.
     land = 6,
@@ -234,11 +243,7 @@ export function landfallScript(
     brokeAt = broke ? Math.max(0.55, Math.min(0.9, plan.brokeShare)) : 1,
     reach = come + crossing * (broke ? brokeAt : 1),
     clock = handClock(plan, reach),
-    rout = broke
-      ? reach + 1.5
-      : plan.rout !== null
-        ? clock(plan.rout)
-        : reach + HAND_LONG,
+    rout = broke ? reach + 1.5 : plan.rout !== null ? clock(plan.rout) : reach + HAND_LONG,
     end = rout + (plan.won ? 11 : 12),
     times: LandfallTimes = { land, out, come, reach, rout, end },
     // Who falls when: the struck on the way first, by each one's keyed place in it; the rest by the fight's clock.
@@ -328,6 +333,8 @@ export function landfallScript(
     comers,
     natives,
     pads,
+    pitch,
+    room,
     order: [
       { line: orderC.line, spacing: orderC.spacing },
       { line: orderN.line, spacing: pitch },
@@ -387,6 +394,19 @@ export function landfallAt(s: LandfallScript, time: number): LandfallNow {
       plan.nativeOff > 0
         ? 0
         : Math.min(hand, hand * clamp01(((x - T.come) / Math.max(1, reachAll)) * n.pace));
+  /**
+   * At the hand: pressed toward one of those who came, no further than the room between them. Many more
+   * come on than stand there, and a mass that closed on their places would stand in itself.
+   */
+  const pressed = (n: LandfallScript["natives"][number], x: number, z: number, k: number) => {
+    const c = s.comers[n.i % s.comers.length]!,
+      dx = c.place.x - x,
+      dz = c.place.z - z,
+      l = Math.hypot(dx, dz) || 1,
+      by = Math.min(l, s.pitch * 0.8) * k;
+    return { x: x + (dx / l) * by, z: z + (dz / l) * by };
+  };
+  const atHand = (x: number) => smooth((x - T.reach) / 3);
   // Those who came: out of their ramps to their places; down, and firing; back, or on over the ground.
   const comers: LandfallFigure[] = s.comers.map((c) => {
     const emerge = T.land + 0.6 + (c.i % 12) * 0.2,
@@ -460,13 +480,18 @@ export function landfallAt(s: LandfallScript, time: number): LandfallNow {
         speed = (s.ground.most ? 9 : 22) * n.pace,
         back = (t - from) * speed,
         dd = fell ? at0 - Math.min(back, (n.fallAt - from) * speed) : at0 - back;
-      const x = n.start.x + way.x * dd,
-        z = n.start.z + way.z * dd;
-      if (fell) return { i: n.i, x, z, yaw: faceC, size: 1, doing: "fallen" as const };
+      // (Those who were at the hand fall back out of it.)
+      const q = pressed(
+        n,
+        n.start.x + way.x * dd,
+        n.start.z + way.z * dd,
+        plan.how === "broke crossing" ? 0 : fell ? atHand(n.fallAt) : 1 - smooth((t - from) / 1.2),
+      );
+      if (fell) return { i: n.i, x: q.x, z: q.z, yaw: faceC, size: 1, doing: "fallen" as const };
       return {
         i: n.i,
-        x,
-        z,
+        x: q.x,
+        z: q.z,
         yaw: faceC,
         size: t > from + (s.ground.most ? 6 : 9) ? 0 : 1,
         doing: "flee" as const,
@@ -474,28 +499,20 @@ export function landfallAt(s: LandfallScript, time: number): LandfallNow {
     }
     const x = n.start.x + way.x * d,
       z = n.start.z + way.z * d;
-    if (fell) return { i: n.i, x, z, yaw: faceN, size: 1, doing: "fallen" as const };
-    if (plan.nativeOff > 0)
-      return { i: n.i, x, z, yaw: faceN, size: 1, doing: "stand" as const };
+    if (fell) {
+      const q = pressed(n, x, z, plan.nativeOff > 0 ? 0 : atHand(n.fallAt));
+      return { i: n.i, x: q.x, z: q.z, yaw: faceN, size: 1, doing: "fallen" as const };
+    }
+    if (plan.nativeOff > 0) return { i: n.i, x, z, yaw: faceN, size: 1, doing: "stand" as const };
     if (t < T.reach) return { i: n.i, x, z, yaw: faceN, size: 1, doing: "run" as const };
     if (t < T.rout) {
-      // At the hand: in among the nearest of those who came.
-      const c = s.comers[n.i % s.comers.length]!,
-        k = smooth((t - T.reach) / 3),
-        tx = lerp(x, c.place.x - way.x * 3, k),
-        tz = lerp(z, c.place.z - way.z * 3, k);
-      return { i: n.i, x: tx, z: tz, yaw: faceN, size: 1, doing: "strike" as const };
+      // At the hand: in among those who came.
+      const q = pressed(n, x, z, atHand(t));
+      return { i: n.i, x: q.x, z: q.z, yaw: faceN, size: 1, doing: "strike" as const };
     }
     // They hold the ground, and stand on it.
-    const c = s.comers[n.i % s.comers.length]!;
-    return {
-      i: n.i,
-      x: c.place.x - way.x * 3,
-      z: c.place.z - way.z * 3,
-      yaw: faceN,
-      size: 1,
-      doing: "stand" as const,
-    };
+    const q = pressed(n, x, z, 1);
+    return { i: n.i, x: q.x, z: q.z, yaw: faceN, size: 1, doing: "stand" as const };
   });
   const up = natives.filter((n) => n.size > 0 && n.doing !== "fallen" && n.doing !== "flee");
   const fleeing = natives.filter((n) => n.doing === "flee");
@@ -604,6 +621,16 @@ export function landfallEye(s: LandfallScript, time: number): LandfallEye {
           at: { x: target.x, y: 3, z: target.z },
         };
       }
+      // Turned back: from among those who held, up at the ships going. (Over the ground it was fought
+      // on, a short fight's eye stands over where they come down, and they would rise into it.)
+      if (!s.plan.won) {
+        const going = Math.max(0, u - T.rout - 7),
+          from = at(pad, way, across, -220, 40);
+        return {
+          e: { x: from.x, y: 70, z: from.z },
+          at: { x: pad.x, y: 12 + 3 * going * going * 0.28, z: pad.z },
+        };
+      }
       // The end: over the ground it was fought on, the place behind.
       const base = at(middle, way, across, far * 0.46, -far * 0.14);
       return {
@@ -632,7 +659,7 @@ export function landfallWords(s: LandfallScript, t: number): string {
   const p = s.plan,
     T = s.times;
   if (t < T.land)
-    return `${p.landers} comes down on the ground of the ${p.natives}, who live here ${p.stageWords}.`;
+    return `${p.landers} down on the ground of the ${p.natives}, who live here ${p.stageWords}.`;
   if (t < T.come) return p.cameWords;
   if (t < T.reach)
     return p.nativeOff > 0

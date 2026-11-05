@@ -2,7 +2,15 @@
 // estimates), and that the same numbers always make the same fight, a camp and a city do not read the same, and either side can win.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { GRIP, landfallFight, nativeHost, shipForce, type ComerNumbers, type NativeNumbers, type Part } from "../../src/rules/index.ts";
+import {
+  GRIP,
+  landfallFight,
+  nativeHost,
+  shipForce,
+  type ComerNumbers,
+  type NativeNumbers,
+  type Part,
+} from "../../src/rules/index.ts";
 import { drawnOf } from "../../src/view/index.ts";
 
 const FOOT: Part = { role: "mount", id: "foot", material: "hide" },

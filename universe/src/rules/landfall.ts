@@ -161,7 +161,11 @@ export type LandfallDraws = {
   readonly round: (round: number, side: number) => number;
 };
 
-export type LandfallTerm = { readonly name: string; readonly value: number; readonly words: string };
+export type LandfallTerm = {
+  readonly name: string;
+  readonly value: number;
+  readonly words: string;
+};
 
 /** A landing, fought. */
 export type LandfallFight = {
@@ -266,7 +270,7 @@ export function landfallFight(
     terms.push({
       name: "bodies",
       value: tough,
-      words: `Bodies of ${Math.round(n.size).toLocaleString("en")} kg take ${tough.toFixed(1)} times what a body of sixty does.`,
+      words: `Bodies of ${String(Math.round(n.size)).replace(/\B(?=(\d{3})+$)/g, ",")} kg take ${tough.toFixed(1)} times what a body of sixty does.`,
     });
   const doesC = performanceOf(c.parts),
     doesN = performanceOf(n.parts),
@@ -284,8 +288,7 @@ export function landfallFight(
     arrive = Math.max(0, met - struck),
     sideN: CombatSide = {
       fielded: arrive,
-      power:
-        arrive * hostPower(n.parts) * n.strength * ON_THEIR_GROUND * (n.walls ? WALLED : 1),
+      power: arrive * hostPower(n.parts) * n.strength * ON_THEIR_GROUND * (n.walls ? WALLED : 1),
       shock: doesN.shock ?? 0,
       protection: doesN.protection ?? 0,
       fire: fireN.rate ? firepowerOf(fireN) : 0,

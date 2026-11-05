@@ -10,7 +10,9 @@ import { GRIP, affordancesOf, landfallFight, nativeHost } from "../src/rules/ind
 
 const [file, out] = process.argv.slice(2) as [string, string];
 const u = file.includes("earth--") ? EARTH : ALIEN;
-const doc = JSON.parse(gunzipSync(readFileSync(file)).toString("utf8")) as Parameters<typeof loadWorld>[0];
+const doc = JSON.parse(gunzipSync(readFileSync(file)).toString("utf8")) as Parameters<
+  typeof loadWorld
+>[0];
 const probe = u.build(seedFromText(doc.seed));
 const world = loadWorld(doc, (s) => u.build(s), rulesetId(probe, u.version), {
   allowRulesetChange: true,

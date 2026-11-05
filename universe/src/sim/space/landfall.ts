@@ -99,8 +99,7 @@ function comersOf(
     const site = starSitesOf(world)?.get(a.cell!);
     if (!site) return null;
     const realm = politiesOf(world).get(site.realm),
-      design =
-        designsOf(world).at(site.realm, site.departed) ?? designsOf(world).of(site.realm),
+      design = designsOf(world).at(site.realm, site.departed) ?? designsOf(world).of(site.realm),
       parts = shipParts(design?.parts ?? []),
       made = hasMachineHost(parts),
       drive = STAR_DRIVES.find((d) => d.id === site.drive) ?? STAR_DRIVES[0]!,
@@ -136,7 +135,10 @@ function comersOf(
     ships = Math.max(1, Math.round(strong * (0.5 + nature.bold))),
     from = starPoint(world, civ.star),
     to = starPoint(world, f.star),
-    distance = Math.hypot(from.x - to.x, from.y - to.y, from.z - to.z),
+    dx = from.x - to.x,
+    dy = from.y - to.y,
+    dz = from.z - to.z,
+    distance = Math.sqrt(dx * dx + dy * dy + dz * dz),
     speed = Math.max(0.05, speedOf(civ, a.year)),
     years = distance / speed,
     // (What Phase 67 draws them with: beams at 2.2, minds at 3.5.)
@@ -173,7 +175,9 @@ function comersOf(
       // (A people among the stars has what care it has: est.)
       care: Math.min(1, 0.4 + 0.15 * strong),
     },
-    stay: !!peoplesOf(world)?.holdsOf(civ.ref).some((h) => h.star === f.star),
+    stay: !!peoplesOf(world)
+      ?.holdsOf(civ.ref)
+      .some((h) => h.star === f.star),
   };
 }
 

@@ -111,7 +111,7 @@ export function installLandfallFilm(d: LandfallFilmDeps): LandfallFilm {
   words.className = "film-words";
   skipButton.className = "film-skip";
   skipButton.textContent = "Skip ›";
-  card.className = "contact-card";
+  card.className = "contact-card landfall-card";
   card.hidden = true;
   ui.append(yearBox, skipButton, words, card);
   d.hud.append(ui);
@@ -173,6 +173,8 @@ export function installLandfallFilm(d: LandfallFilmDeps): LandfallFilm {
     );
     stageNow = landfallStage(script, t);
     words.textContent = landfallWords(script, t);
+    // (The card says it all: nothing shows through it.)
+    words.style.visibility = card.hidden ? "" : "hidden";
     shotK = clamp01(t / script.times.end);
   };
   /** The card: who came, what they carried, what it cost each side, who holds the ground. */
@@ -191,15 +193,16 @@ export function installLandfallFilm(d: LandfallFilmDeps): LandfallFilm {
       rows = document.createElement("div"),
       foot = document.createElement("div"),
       go = document.createElement("button");
-    h.textContent = `${p.won ? `${p.who} took the ground` : `The ${p.natives} held their ground`}, year ${p.year}`;
+    const who = p.who.charAt(0).toUpperCase() + p.who.slice(1);
+    h.textContent = `${p.won ? `${who} took the ground` : `The ${p.natives} held their ground`}, year ${p.year}`;
     rows.className = "contact-rows";
     rows.append(
+      row("🏴 Who holds the ground", p.holdsWords),
       row("🚀 Who came", p.cameWords),
       row("🏕 Who met them", p.metWords),
       row("⚔ How it went", p.howWords),
       row("⚖ What it cost", p.costWords, false),
       ...(p.terms.length ? [row("🧮 What told", p.terms.join(" "))] : []),
-      row("🏴 Who holds the ground", p.holdsWords),
     );
     foot.className = "contact-foot";
     foot.textContent =
@@ -222,7 +225,10 @@ export function installLandfallFilm(d: LandfallFilmDeps): LandfallFilm {
         room = MEADOW_W / 2 - Math.abs(edge.x) * Math.sign(-w * edge.x || 1) - 26,
         huts = Array.from({ length: 7 }, (_, i) => {
           const b = (i / 7) * 2 * Math.PI + key;
-          return { x: c.x + Math.cos(b) * (7 + (i % 3) * 3), z: c.z + Math.sin(b) * (7 + (i % 3) * 3) };
+          return {
+            x: c.x + Math.cos(b) * (7 + (i % 3) * 3),
+            z: c.z + Math.sin(b) * (7 + (i % 3) * 3),
+          };
         });
       return {
         kind: "camp",
@@ -235,14 +241,18 @@ export function installLandfallFilm(d: LandfallFilmDeps): LandfallFilm {
     const town = d.plan()!,
       g = villageGround(town),
       gap = Math.max(40, p.off > 0 ? p.off : 30),
-      clear = (x: number, z: number) => (g.town ? g.town.clearAt({ x, z }, 9) : clearAt(g, { x, z }, 9));
+      clear = (x: number, z: number) =>
+        g.town ? g.town.clearAt({ x, z }, 9) : clearAt(g, { x, z }, 9);
     let best = { r: Infinity, a: 0 };
     for (let k = 0; k < 12; k++) {
       const a = (((key + k) % 12) / 12) * 2 * Math.PI,
         c = Math.cos(a),
         s = Math.sin(a);
       for (let r = 30; r < 3000 && r < best.r; r += 15)
-        if ([0, 0.5, 1, 1.4].every((m) => clear(c * (r + gap * m + 12), s * (r + gap * m + 12))) && clear(c * (r + gap + 90), s * (r + gap + 90))) {
+        if (
+          [0, 0.5, 1, 1.4].every((m) => clear(c * (r + gap * m + 12), s * (r + gap * m + 12))) &&
+          clear(c * (r + gap + 90), s * (r + gap + 90))
+        ) {
           best = { r, a };
           break;
         }
@@ -308,8 +318,25 @@ export function installLandfallFilm(d: LandfallFilmDeps): LandfallFilm {
         natives: [] as { x: number; y: number }[],
         fallen: [] as { x: number; y: number }[],
         landers: [] as { x: number; y: number }[],
+        /** How wide a body of each host stands on the screen, about its middle (pixels). */
+        bodies: [0, 0] as [number, number],
+        /** How tall each ship on the screen stands there (pixels). */
+        landerPx: [] as number[],
       };
       if (!now || !script) return out;
+      const S = script,
+        breadth = (
+          list: readonly { x: number; z: number; size: number; doing: string }[],
+          side: 0 | 1,
+        ) => {
+          const up = list.filter((f) => f.size > 0 && f.doing !== "fallen"),
+            f = up[Math.floor(up.length / 2)];
+          if (!f) return 0;
+          const a = layer.screen(f.x, f.z),
+            b = layer.screen(f.x + S.across.x * S.room[side], f.z + S.across.z * S.room[side]);
+          return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+        };
+      out.bodies = [breadth(now.comers, 0), breadth(now.natives, 1)];
       for (const c of now.comers) {
         if (c.size <= 0) continue;
         const q = layer.screen(c.x, c.z);
@@ -327,6 +354,10 @@ export function installLandfallFilm(d: LandfallFilmDeps): LandfallFilm {
       for (const l of now.landers) {
         const q = layer.screen(l.x, l.z, l.high + 11);
         if (q) out.landers.push(q);
+        const foot = layer.screen(l.x, l.z, l.high),
+          top = layer.screen(l.x, l.z, l.high + 22);
+        if (q && foot && top && q.x >= 0 && q.x <= innerWidth && q.y >= 0 && q.y <= innerHeight)
+          out.landerPx.push(Math.abs(foot.y - top.y));
       }
       return out;
     },
@@ -389,7 +420,7 @@ export function installLandfallFilm(d: LandfallFilmDeps): LandfallFilm {
           side = { x: site.z / l, y: 0, z: -site.x / l };
           while (ships.length < shown) ships.push(new ShipMark(stage));
           for (let i = 0; i < ships.length; i++) ships[i]!.visible = i < shown;
-          words.textContent = `${p.landers} comes over a world none of them has seen. The ${p.natives} live below, ${p.stageWords}, and know nothing of it.`;
+          words.textContent = `${p.landers} over a world none of them has seen. The ${p.natives} live below, ${p.stageWords}, and know nothing of it.`;
         });
         if (!skipped)
           await new Promise<void>((done) => {
@@ -417,7 +448,17 @@ export function installLandfallFilm(d: LandfallFilmDeps): LandfallFilm {
                     y: site.y * high * lag + i * 0.05,
                     z: site.z * high * lag + side.z * (across + i * 0.14),
                   };
-                m.at(q.x, q.y, q.z, site.x - q.x, site.y - q.y, site.z - q.z, lerp(0.05, 0.03, e), 1, dt);
+                m.at(
+                  q.x,
+                  q.y,
+                  q.z,
+                  site.x - q.x,
+                  site.y - q.y,
+                  site.z - q.z,
+                  lerp(0.05, 0.03, e),
+                  1,
+                  dt,
+                );
                 if (i === 0) shipAt = q;
               });
               view(

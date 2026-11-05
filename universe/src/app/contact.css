@@ -38,6 +38,15 @@
 .contact-row.no b {
   color: #ff9f8a;
 }
+/* A landing's card says more: the whole of it, with the ground still seen above. */
+.contact-card.landfall-card {
+  max-height: 64vh;
+  font-size: 12.5px;
+}
+.contact-foot {
+  font-size: 11px;
+  color: #aeb8cc;
+}
 .contact-go {
   align-self: flex-end;
   min-height: 40px;
