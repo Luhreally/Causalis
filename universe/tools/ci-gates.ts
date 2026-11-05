@@ -283,6 +283,9 @@ export const GATES: readonly Gate[] = [
   // Gate 72, order from fire (tools/w1-gate.ts): a modern host at a town at each doing, squads apart, down and
   // firing, team guns and cars; its siege guns standing off and shells in the lots; a sword host as it was.
   { gate: 72, args: ["--ci"], s: 180 },
+  // Gate 73, a battle by fire (tools/w1b-gate.ts): modern against modern held before a town and on its close field,
+  // apart from first to last with no one by the hand, the victors coming on; spears against guns closing, most falling on the way.
+  { gate: 73, args: ["--ci"], s: 240 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */

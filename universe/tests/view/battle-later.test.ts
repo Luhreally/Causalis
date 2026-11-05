@@ -65,7 +65,7 @@ function near(
   };
 }
 
-test("in open order the hosts stand apart on foot with no banners: files three metres apart, no deeper than thirty", () => {
+test("in open order the hosts stand apart on foot with no banners: squads about three metres a file, no deeper than thirty and their blocks' own room", () => {
   const f = newBattle(
       near("field", side("Ash", 2400, 300, "repeater"), side("Elm", 2000, 260, "repeater")),
       360,
@@ -84,14 +84,18 @@ test("in open order the hosts stand apart on foot with no banners: files three m
     f.troopers.every((t) => !t.bearer),
     "no banners",
   );
-  const gaps = files.slice(1).map((t, i) => t.z - files[i]!.z);
+  // (Drawn by squads, W1b: about three metres a file over the host's front, not shoulder to shoulder, not one line.)
+  const across = files.at(-1)!.z - files[0]!.z;
   assert.ok(
-    gaps.every((g) => g >= 2 && g <= 4),
-    `files about three metres apart (${Math.min(...gaps)} to ${Math.max(...gaps)})`,
+    Math.abs(across / (files.length - 1) - 3) < 0.5,
+    `files about three metres apart (${across / (files.length - 1)})`,
   );
   for (const side of [0, 1] as const) {
     const xs = now.troopers.filter((t) => t.side === side).map((t) => t.x);
-    assert.ok(Math.max(...xs) - Math.min(...xs) <= 30 + 1e-9, `side ${side} no deeper than 30 m`);
+    assert.ok(
+      Math.max(...xs) - Math.min(...xs) <= 30 + 1.5 * 4 + 1e-9,
+      `side ${side} no deeper than 30 m and a block's stagger`,
+    );
   }
   // (A repeater host on horses fights on foot; a spear host on horses still rides.)
   assert.equal(
@@ -129,9 +133,9 @@ test("attackers in open order come on in rushes: some running, the rest down in 
   );
 });
 
-test("defenders in open order dig a trench: the front rank stands sunk in it and fires, the rest lie behind", () => {
+test("defenders who stand off dig a trench: the front rank stands sunk in it and fires, the rest lie behind; those who charge it are fought in it", () => {
   const f = newBattle(
-    near("field", side("Ash", 2400, 300, "rifle"), side("Elm", 2000, 260, "autoloader")),
+    near("field", side("Ash", 2400, 300, "spear"), side("Elm", 2000, 260, "autoloader")),
     360,
   );
   assert.ok(f.ground.trench, "a trench dug");
@@ -208,7 +212,7 @@ test("a machine gun's team: gunners in the first two ranks, told as machine gunn
   assert.equal(battleAt(f, 30).troopers[alive.id]!.gun, true, "marked as a gun at 30 s");
   assert.match(
     trooperWords(f, alive.id, 30),
-    /^👁 A machine gunner of the realm of Ash, in the \w+ rank/,
+    /^👁 A machine gunner of the realm of Ash, in a squad forward/,
   );
   const rest = f.troopers.find(
     (t) => t.side === 0 && !t.gun && (t.falls === null || t.falls > 30),
