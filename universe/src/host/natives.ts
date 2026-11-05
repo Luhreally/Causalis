@@ -383,8 +383,8 @@ function townOf(world: World, f: Folk, year: number): Kept {
       population: 0,
       market: null,
     } as unknown as Settlement;
-  // (Let fall five years before the ten kept begin: roofless, its walls yet high, at every year of them.)
-  const gone = step - 5,
+  // (Let fall nine years before the ten kept begin: roofless, its walls yet high, at every year of them.)
+  const gone = step - 9,
     stands = f.fell === null || year < f.fell,
     end = stands ? year : Math.min(f.fell!, gone),
     // (The stage its own years would have it at; ruins, in the years as they are drawn.)
@@ -433,24 +433,14 @@ function townOf(world: World, f: Folk, year: number): Kept {
     if (y >= last) break;
   }
   if (!stands) {
-    // All of it let fall: its homes the year its people went, its other buildings as their years come.
+    // All of it let fall the year its people went, its homes and its other buildings. (This town is no one's to build in: only a view reads it.)
     town.population = 0;
     town.market = null;
     const down = new TownBuilder(ctx, last + 1, store);
     down.settle(fabric);
+    for (const c of fabric.civics) c.fell ??= last + 1;
     down.raze(fabric, 1, true, undefined, CHANGE.fell);
-    for (let y = last + 2; y <= last + 4; y++) {
-      const builder = new TownBuilder(ctx, y, store);
-      builder.settle(fabric);
-      builder.civics(
-        fabric,
-        town,
-        () => false,
-        false,
-        () => false,
-        () => false,
-      );
-    }
+    fabric.walls = null;
   }
   const kept = { town, fabric, store, to: year };
   if (TOWNS.size >= 6) TOWNS.delete(TOWNS.keys().next().value!);
