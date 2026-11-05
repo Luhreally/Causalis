@@ -13,6 +13,7 @@
 import type { BattleNear } from "../bridge/index.ts";
 import { BLOW_PLACES, type BlowPlace } from "../rules/index.ts";
 import { armLook, isGun, type Stroke } from "./arms.ts";
+import { hostOrder } from "./order.ts";
 import { cellMiddle, type MeadowState } from "./meadow.ts";
 
 export type { Stroke } from "./arms.ts";
@@ -23,6 +24,8 @@ export const BATTLE_LENGTH = 150;
 export const BATTLE_SPEEDS = [0, 0.5, 1, 2, 4] as const;
 /** The field's half-width (x) and half-depth (z), metres: the meadow it is fought on. */
 export const FIELD = { x: 70, z: 45 } as const;
+/** How much larger than the close field's a battle fought in place is laid: its figures as large as the town's folk. */
+export const PLACED_SCALE = 2;
 
 /** When each part of a battle begins (its seconds). */
 export const MOMENTS = {
@@ -249,6 +252,11 @@ export type HostDrawn = {
    * on in rushes and going to ground between them, firing as each will (absent: shoulder to shoulder).
    */
   readonly open?: true;
+  /**
+   * Its gaps when fought before a town (W1): as far apart as the fire it stands against would have it
+   * (view/order.ts), up to what the field has room for. Absent: open order's own.
+   */
+  readonly gaps?: { readonly file: number; readonly rank: number };
   /** How many armoured cars go with it (absent: none). */
   readonly vehicles?: number;
   /** Soldiers of made limbs (Phase 66): drawn in chrome, and they spark where another bleeds. */
@@ -556,6 +564,7 @@ function spacing(mounted: HostDrawn["mounted"]): { file: number; rank: number } 
  * than the depth allows.
  */
 export function gapOf(h: HostDrawn): { file: number; rank: number } {
+  if (h.gaps) return h.gaps;
   return h.open
     ? { file: OPEN.file, rank: Math.min(OPEN.rank, OPEN.depth / Math.max(1, h.ranks - 1)) }
     : spacing(h.mounted);
@@ -610,6 +619,9 @@ export function newBattle(near: BattleNear, most: number, placed = false): Battl
         ? Math.max(1, Math.min(n, OPEN.files, Math.round(Math.sqrt(n * 1.6))))
         : Math.max(1, Math.min(n, Math.round(Math.sqrt(n * (mounted ? 2.2 : 3.6))))),
       ranks = Math.ceil(n / files),
+      // (Fought before a town, past the rifle: order from the fire, as far as the field has room. W1.)
+      apart =
+        open && placed ? hostOrder(s.host, (side === 0 ? d : a).host).spacing / PLACED_SCALE : null,
       // (As many fall as fell of its men: the victors keep some standing, the beaten a few.)
       most = side === beaten ? Math.ceil(n * 0.92) : n - 1,
       falls = Math.max(s.fallen > 0 && n > 1 ? 1 : 0, Math.min(most, Math.round(s.fallen / per)));
@@ -623,6 +635,17 @@ export function newBattle(near: BattleNear, most: number, placed = false): Battl
       stroke: strokeOf(look.rest ?? s.host?.arm),
       falls,
       ...(open ? { open: true as const } : {}),
+      ...(apart !== null
+        ? {
+            gaps: {
+              file: Math.min(
+                Math.max(OPEN.file, apart),
+                (2 * FIELD.z - 6) / Math.max(1, files - 1),
+              ),
+              rank: Math.min(Math.max(OPEN.rank, apart), OPEN.depth / Math.max(1, ranks - 1)),
+            },
+          }
+        : {}),
       // (An armoured host brings its cars: one for so many of its figures, from one to sixteen.)
       ...(s.host?.mount === "armoured"
         ? { vehicles: Math.min(16, Math.max(1, Math.round(n / 12))) }

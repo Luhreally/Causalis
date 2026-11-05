@@ -234,9 +234,10 @@ import {
   landSpots,
   townWarNow,
   warNow,
-  TOWN_DOING_ICON,
+  townDoingIcon,
   TIME_LADDERS,
   type TownWar,
+  type TownWarScene,
   litColors,
   placeActs,
   warPaths,
@@ -920,6 +921,10 @@ type Exposed = {
     fires: number;
   } | null;
   faceTown?: (x: number, z: number, distance?: number) => boolean;
+  /** Hold a war made up about the town watched, to see how its hosts stand (W1; null: its year's again). */
+  holdTownWar?: (tw: TownWar | null) => void;
+  /** The town war's whole scene as drawn now (W1's gate reads its figures). */
+  townWarScene?: () => TownWarScene | null;
   /** The town's trades at their buildings as drawn (Phase 41 M199): its works, the sails' turn, kilns aglow, sparks. */
   trades?: () => {
     mills: number;
@@ -2315,6 +2320,8 @@ async function runPlanetPage(): Promise<void> {
     frameSlow = 1 / 60,
     /** The war about the town watched, as its year has it now (Phase 40 M204). */
     townWar: TownWar | null = null,
+    /** A war made up by the look tools, held about the town (W1; null: its year's). */
+    heldTownWar: TownWar | null = null,
     preferredTownBattle: { event: string; town: string } | null = null;
   const slowedOnce = new Set<string>();
   stage.onUpdate(() => {
@@ -4875,6 +4882,12 @@ async function runPlanetPage(): Promise<void> {
   stage.onUpdate(() => {
     // (A raid being played again holds the town's war: Phase 67.)
     if (fleetFilm?.townHeld) return;
+    // (The look tools hold a war made up, to see how a host stands: W1.)
+    if (heldTownWar) {
+      townWar = scale === "village" ? heldTownWar : null;
+      village.war(townWar);
+      return;
+    }
     const spot =
         scale === "village" && plan ? (plan.spot ?? centres.get(plan.cell ?? -1)) : undefined,
       tw =
@@ -4891,6 +4904,10 @@ async function runPlanetPage(): Promise<void> {
     village.war(tw);
     villagePanel.warNow(tw?.words ?? null, tw ? (tw.fought?.event ?? tw.ref) : null);
   });
+  exposed.holdTownWar = (tw: TownWar | null) => {
+    heldTownWar = tw;
+  };
+  exposed.townWarScene = () => (scale === "village" ? (village.warNow()?.scene ?? null) : null);
   villagePanel.onWar = (ref) => void pageWindow.open(ref);
   villagePanel.onPage = (ref) => void pageWindow.open(ref);
   // (Where the eye stands, whose names the pages tell: the town's land, or the land shown.)
@@ -7489,7 +7506,7 @@ async function runPlanetPage(): Promise<void> {
               ? [
                   {
                     key: `host:${war.ref}:${side}`,
-                    text: `${TOWN_DOING_ICON[h.doing]} ${who.name.charAt(0).toUpperCase()}${who.name.slice(1)}`,
+                    text: `${townDoingIcon(h.doing, war.sides[0].host?.arm)} ${who.name.charAt(0).toUpperCase()}${who.name.slice(1)}`,
                     at,
                     priority: 2e9,
                     badge: { realm: who.ref },

@@ -582,8 +582,11 @@ export type Soldier = {
   yaw: number;
   /** 0 the attackers, 1 the defenders. */
   side: 0 | 1;
-  /** On the move, fighting, fallen, falling back — or standing in their ranks, at the drill (M204). */
-  doing: "advance" | "fight" | "fallen" | "fall back" | "stand" | "drill";
+  /**
+   * On the move, fighting, fallen, falling back — or standing in their ranks, at the drill (M204); past
+   * the line (W1), up and firing where they stand, or down on the ground.
+   */
+  doing: "advance" | "fight" | "fallen" | "fall back" | "stand" | "drill" | "fire" | "prone";
   /** How much of them is drawn (0 … 1): the round begins and ends in a blink, not a jump. */
   readonly size: number;
 };
