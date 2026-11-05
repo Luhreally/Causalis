@@ -33,6 +33,7 @@ import {
   apportionCapped,
   fellColumns,
   fellOfColumns,
+  sightTerm,
   unpackFell,
   resolveCombat,
   type CombatRecord,
@@ -40,6 +41,8 @@ import {
   type LandFell,
 } from "../../rules/index.ts";
 import { designsOf } from "../design/design.ts";
+import { grieve } from "../acts/disasters.ts";
+import { fleetOf, strikeTown, targetsOf, type Fleet } from "./air.ts";
 import { ArmsStore, armsOf } from "./arms.ts";
 import {
   COLD_BATTLES,
@@ -86,7 +89,29 @@ export const WAR_EVENTS = {
   taken: defineEventType("war.taken", 5),
   rebellion: defineEventType("war.rebellion", 5),
   peace: defineEventType("war.peace", 5),
+  /** A town struck from the air (W2): its town first among its subjects, as a fire's is. */
+  strike: defineEventType("war.strike", 5),
 };
+
+/** A town struck from the air in a war (War past the line, W2): kept in the war store, and packed by column. */
+export type WarStrike = {
+  readonly war: Ref;
+  readonly year: number;
+  /** Who struck: 0 the attacker, 1 the defender. */
+  readonly side: 0 | 1;
+  readonly town: Ref;
+  readonly cell: number;
+  readonly dead: number;
+  readonly homes: number;
+  /** The food of its land that burned. */
+  readonly stores: number;
+  readonly flyers: number;
+  readonly event: Ref;
+};
+/** How long a strike is kept by its town (years): after that, only in its war's tally. */
+export const STRIKE_YEARS = 200;
+/** What strikes came to in a war: how many, and the dead on the attacker's side and on the defender's, the homes down. */
+export type StrikeTally = readonly [strikes: number, onAttacker: number, onDefender: number, homes: number];
 
 export type Battle = {
   readonly year: number;
@@ -282,6 +307,11 @@ export class WarStore implements StateStore {
   private readonly sealed = new Set<string>();
   /** Each battle's tallies by land and town, folded in once, as it is fought (Phase 55 M224). */
   private fellDigest = "";
+  /** The strikes from the air of the last STRIKE_YEARS, in the order they fell, and each war's tally of all its strikes (W2). */
+  private strikes: WarStrike[] = [];
+  private readonly strikeTally = new Map<string, StrikeTally>();
+  /** Every strike folded in once, as it falls. */
+  private strikeDigest = "";
 
   /** How a battle's draws are had again (given when the world installs its wars). */
   drawn(draw: BattleDraw): void {
@@ -370,6 +400,36 @@ export class WarStore implements StateStore {
   noteFell(b: Battle): void {
     if (b.fell)
       this.fellDigest = new Hasher().string(this.fellDigest).string(b.event).value(b.fell).hex();
+  }
+
+  /** A strike that fell (W2). */
+  noteStrike(s: WarStrike): void {
+    this.strikes.push(s);
+    this.strikeDigest = new Hasher().string(this.strikeDigest).value(s).hex();
+    const [n, a, d, h] = this.strikeTally.get(s.war) ?? [0, 0, 0, 0];
+    this.strikeTally.set(s.war, [
+      n + 1,
+      a + (s.side === 1 ? s.dead : 0),
+      d + (s.side === 0 ? s.dead : 0),
+      h + s.homes,
+    ]);
+  }
+
+  /** The strikes kept, in the order they fell (those of the last STRIKE_YEARS). */
+  allStrikes(): readonly WarStrike[] {
+    return this.strikes;
+  }
+
+  /** What a war's strikes came to (null: it struck no one). */
+  tallyOfStrikes(war: Ref): StrikeTally | null {
+    return this.strikeTally.get(war) ?? null;
+  }
+
+  /** Let go of strikes older than `before`: their wars' tallies keep what they came to. */
+  forgetStrikes(before: number): void {
+    let k = 0;
+    while (k < this.strikes.length && this.strikes[k]!.year < before) k++;
+    if (k) this.strikes = this.strikes.slice(k);
   }
 
   /**
@@ -558,6 +618,7 @@ export class WarStore implements StateStore {
       if (w.peace) refs.push(w.peace);
       for (const b of w.battles) refs.push(b.event);
     }
+    for (const s of this.strikes) refs.push(s.event);
     return refs;
   }
 
@@ -566,6 +627,7 @@ export class WarStore implements StateStore {
     // (A battle's town tallies are hashed once, as it is fought: the yearly hash does not grow
     // with them, and letting them go changes nothing hashed.)
     if (this.fellDigest) h.string(this.fellDigest);
+    if (this.strikeDigest) h.string(this.strikeDigest);
     h.value(this.warm.filter((w) => !this.sealed.has(w.ref)).map(bare));
   }
 
@@ -581,6 +643,13 @@ export class WarStore implements StateStore {
       fellDigest: this.fellDigest,
       ...(this.terms.size ? { terms: [...this.terms], size: this.size } : {}),
       ...(this.cold.blocks.length ? { cold: this.cold.save() } : {}),
+      ...(this.strikeDigest
+        ? {
+            strikes: this.strikes,
+            strikeTally: [...this.strikeTally].sort((a, b) => (a[0] < b[0] ? -1 : 1)),
+            strikeDigest: this.strikeDigest,
+          }
+        : {}),
     };
   }
 
@@ -594,6 +663,9 @@ export class WarStore implements StateStore {
         size?: number;
         cold?: unknown;
         against?: boolean;
+        strikes?: WarStrike[];
+        strikeTally?: [string, StrikeTally][];
+        strikeDigest?: string;
       },
       cold = this.cold.load(t.cold ?? { blocks: [], words: [] }),
       wars = (state as { wars: War[] }).wars;
@@ -628,6 +700,11 @@ export class WarStore implements StateStore {
     this.sealed.clear();
     for (const r of t.sealed ?? []) this.sealed.add(r);
     this.fellDigest = t.fellDigest ?? "";
+    // (A save from before W2 has none.)
+    this.strikes = t.strikes ?? [];
+    this.strikeTally.clear();
+    for (const [war, tally] of t.strikeTally ?? []) this.strikeTally.set(war, tally);
+    this.strikeDigest = t.strikeDigest ?? "";
   }
 }
 
@@ -817,6 +894,70 @@ function fallAll(
 }
 
 const pairKey = (a: Ref, b: Ref) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+
+/**
+ * A side's machines go over: as many towns of the foe's as lie in reach of the front and hurt it most,
+ * the machines shared among them (W2). Each strike an event with the war as its cause. No draws.
+ */
+function raids(
+  ctx: PopulationContext,
+  w: War,
+  side: 0 | 1,
+  fleet: Fleet,
+  foe: Polity,
+  by: Polity,
+  front: number,
+  t: SimTime,
+): void {
+  if (fleet.mj <= 0) return;
+  const { world, generated: g } = ctx,
+    chord = fleet.flyer.reachKm / (6371 * g.planet.radius),
+    targets = targetsOf(ctx, foe, front, chord);
+  if (!targets.length) return;
+  const each = Math.max(1, Math.floor(fleet.flyers / targets.length)),
+    wars = warsOf(world),
+    year = yearOfMoment(t);
+  for (const target of targets) {
+    const done = strikeTown(ctx, target, fleet, each, t);
+    if (done.homes <= 0 && done.dead <= 0) continue;
+    const event = world.events.emit({
+      type: WAR_EVENTS.strike.type,
+      subjects: [target.ref, w.ref, by.ref, foe.ref],
+      place: ctx.provinces.get(target.cell)!.ref,
+      causes: [{ ref: w.event, role: "trigger", weight: 1 }],
+      data: {
+        name: target.name,
+        a: realmName(by),
+        b: realmName(foe),
+        dead: done.dead,
+        homes: done.homes,
+        stores: done.stores,
+        flyers: each,
+        span: Math.round(fleet.flyer.spanM * 10) / 10,
+        speed: Math.round(fleet.flyer.speed),
+      },
+    });
+    wars.noteStrike({
+      war: w.ref,
+      year,
+      side,
+      town: target.ref,
+      cell: target.cell,
+      dead: done.dead,
+      homes: done.homes,
+      stores: done.stores,
+      flyers: each,
+      event,
+    });
+    if (done.dead > 0)
+      grieve(
+        world,
+        target.cell,
+        Math.min(0.05, (done.dead / Math.max(1, ctx.provinces.get(target.cell)!.total())) * 2),
+        event,
+      );
+  }
+}
 
 /** The year's wars: declarations, a battle in each war, rebellions, peace. */
 export function warYear(ctx: PopulationContext, t: SimTime): void {
@@ -1012,6 +1153,12 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       if (w.civil) settleCivil(ctx, w, false, false, t);
       continue;
     }
+    // (From the air, W2: what each side flies, and first its strikes, before the armies meet. Neither has
+    // any before the first machine is found: the terms below are then exactly 1.)
+    const fleetA = fleetOf(ctx, a, () => fieldedOf(ctx, a)),
+      fleetB = fleetOf(ctx, b, () => fieldedOf(ctx, b));
+    if (fleetA) raids(ctx, w, 0, fleetA, b, a, land, t);
+    if (fleetB) raids(ctx, w, 1, fleetB, a, b, land, t);
     const key = Number(w.ref.split(":")[2]),
       far = (() => {
         // Supply thins with distance from the seat.
@@ -1035,7 +1182,8 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         (hungry && !chestA ? 0.7 : 1) *
         (chestA ? CREDIT.chest : 1) *
         (1 + 0.3 * lore.effect(a.seat, "sieges")) *
-        (overseas(ctx, a, land) ? LANDING : 1),
+        (overseas(ctx, a, land) ? LANDING : 1) *
+        sightTerm(fleetA?.flyers ?? 0, fleetB?.flyers ?? 0),
       hills = g.tectonics.elevation[land]! > 600 ? 1.3 : 1,
       river = g.water.river[land] ? 1.1 : 1,
       walls = 1 + 0.25 * lore.effect(land, "walls"),
@@ -1056,7 +1204,8 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         river *
         walls *
         (chestB ? CREDIT.chest : 1) *
-        entrench;
+        entrench *
+        sightTerm(fleetB?.flyers ?? 0, fleetA?.flyers ?? 0);
     // The fallen (Phase 55 M224b): every land of each realm on its home world sends men by its
     // fighting men (D2); of those who close with the foe a share is struck down by the foe's arms
     // against their guard, more when beaten, fewer the farther and thicker the fire, and of the
@@ -1157,7 +1306,12 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     }
     // 3. Peace: weariness — the fallen against their people — or the prize won.
     const peopleA = a.members.reduce((s, c) => s + (ctx.provinces.get(c)?.total() ?? 0), 0),
-      weary = w.fallen[0] / Math.max(1, peopleA) + w.fallen[1] / Math.max(1, peopleA),
+      // (Those a strike killed weigh as those who fell: W2.)
+      struck = wars.tallyOfStrikes(w.ref),
+      weary =
+        w.fallen[0] / Math.max(1, peopleA) +
+        w.fallen[1] / Math.max(1, peopleA) +
+        (struck ? (struck[1] + struck[2]) / Math.max(1, peopleA) : 0),
       years = year - w.declared,
       prizeWon = a.members.includes(w.prize);
     // A beaten attacker often gives up; a won prize, a weary people or long years end it too.
@@ -1218,6 +1372,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
   wars.seal();
   // (Their battles' town tallies are kept FELL_TOWN_YEARS, their lands' for good.)
   wars.forgetTowns(year - FELL_TOWN_YEARS);
+  wars.forgetStrikes(year - STRIKE_YEARS);
   // (And those long over go out of the way, a little at a time: see coldwars.ts.)
   wars.proveSome(PROVED_A_YEAR);
   if (year % FREEZE_EVERY === 0) wars.freeze(year - FELL_TOWN_YEARS, bodySize(ctx));

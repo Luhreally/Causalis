@@ -45,7 +45,7 @@ export const BATTLE_DAY = {
 export type BattleStage = "eve" | "morning" | "battle" | "after" | "borne";
 
 /** What the clock is slowed for: the days toward the battle, the night before it, the battle, after it, its fallen borne in. */
-export type BattleCap = "toward" | "eve" | "battle" | "after" | "borne";
+export type BattleCap = "toward" | "eve" | "battle" | "after" | "borne" | "raid";
 
 /**
  * How fast the clock runs at most through each (world seconds a second): in a town, and on its land
@@ -59,6 +59,7 @@ export const BATTLE_CAPS: Readonly<
   battle: { town: MINUTE, land: 10 * MINUTE },
   after: { town: DAY, land: DAY },
   borne: { town: HOUR, land: null },
+  raid: { town: 6, land: null },
 };
 
 /** The turn whose battle a moment is about: the coming turn's from its eve, else the last one's. */
@@ -194,6 +195,7 @@ export function slowAhead(
 
 /** How the clock's slowing for a battle at a turn is told: "Slowed to a minute a second for the battle at the turn of year 364". */
 export function battleCapWords(cap: BattleCap, speed: number, turn: number): string {
+  if (cap === "raid") return "Slowed for the raid over the town";
   const pace =
       speed <= MINUTE
         ? "a minute"

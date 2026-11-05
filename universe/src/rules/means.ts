@@ -756,4 +756,5 @@ export const GLASS_STUFFS: readonly FiredStuff[] = [
 export const vesselOf = (w: MeansWorld) => VESSEL_STUFFS.find((s) => s.ok(w)) ?? null;
 export const glassOf = (w: MeansWorld) => GLASS_STUFFS.find((s) => s.ok(w)) ?? null;
 /** Power to fly against Earth's: g^1.5 / rho^0.5. */
-export const flightPower = (w: MeansWorld) => dmath.pow(w.pull, 1.5) / dmath.pow(airWeight(w), 0.5);
+export const flightPower = (w: Pick<MeansWorld, "airBar" | "kelvin" | "pull">) =>
+  dmath.pow(w.pull, 1.5) / dmath.pow(airWeight(w), 0.5);

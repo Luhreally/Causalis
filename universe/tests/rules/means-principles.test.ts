@@ -443,6 +443,8 @@ test("the first 121 principles keep their ids and indexes; the arms, then the me
       "forged-star-iron",
       "wings",
       "tall-frames",
+      "powered-wings",
+      "dropped-loads",
     ],
   );
 });

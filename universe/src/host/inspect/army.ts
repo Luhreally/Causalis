@@ -174,6 +174,11 @@ export function armyBlocks(world: World, r: Polity): Block[] {
   ];
 }
 
+/** A struck town's name, as its strike told it. */
+function strikeTownName(world: World, town: Ref): string {
+  return populationContext(world).settlements.get(town)?.name ?? "a town now gone";
+}
+
 /** A war's course: the fallen of each side year by year, the men each fields, the lands taken. */
 export function courseBlocks(world: World, w: War): Block[] {
   const realms = politiesOf(world),
@@ -250,5 +255,25 @@ export function courseBlocks(world: World, w: War): Block[] {
       ? { type: "list", title: "The lands taken in it", items: taken }
       : { type: "text", lines: [["No land has changed hands in it."]] },
   );
+  // Its strikes from the air (W2): what they came to, and each still kept.
+  const wars = warsOf(world),
+    tally = wars.tallyOfStrikes(w.ref);
+  if (tally) {
+    const name = (i: 0 | 1) => (i === 0 ? (a?.town ?? "the attacker") : (d?.town ?? "the defender")),
+      kept = wars.allStrikes().filter((s) => s.war === w.ref);
+    blocks.push({
+      type: "list",
+      title: `Struck from the air: ${count(tally[0])} town${tally[0] === 1 ? "" : "s"}, ${count(tally[1] + tally[2])} dead, ${count(tally[3])} homes down`,
+      items: kept.slice(-40).map((s) =>
+        item(
+          [
+            link(strikeTownName(world, s.town), s.town),
+            `, by ${name(s.side)}, year ${s.year}: ${count(s.flyers)} machines, ${count(s.dead)} dead, ${count(s.homes)} homes`,
+          ],
+          s.event,
+        ),
+      ),
+    });
+  }
   return blocks;
 }

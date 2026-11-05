@@ -26,6 +26,7 @@ import {
 import {
   cellRef,
   functionsOf,
+  meansNumbers,
   meansOfWorld,
   seamRef,
   surfaceOre,
@@ -40,6 +41,7 @@ import {
   PRINCIPLE_INDEX,
   SMELTING,
   affordsPrinciple,
+  liftingEngine,
   matterShuts,
   needsMet,
   reachIn,
@@ -70,6 +72,14 @@ const FIND = defineStream("lore.find");
 export const LORE_PACE = 0.02;
 /** How readily a land learns what a neighbour knows, in a year, before speech and roads. */
 export const LEARNING = 0.03;
+/**
+ * Across the sea, from those a land's ships trade with: what is carried is shown as well as told, so tongues matter
+ * less (at least this alike: traders always find words), and the more it lacks the more lies in front of it to copy:
+ * so much more readily for each principle it is behind. (Est: at most a principle a year, as any land, so sixty
+ * behind is a century or so: as fast as a people have ever caught up.)
+ */
+export const CARRIED_LIKE = 0.5,
+  CARRIED_BEHIND = 0.25;
 /**
  * Many hands: a land of ninety thousand at a craft finds it twice as readily as one of
  * fifty, one of near a million three times — each tenfold more adds only as much again.
@@ -243,7 +253,9 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
     markets = world.store<MarketStore>("economy.markets"),
     realms = politiesOf(world),
     year = yearOfMoment(t),
-    means = meansOfWorld(g);
+    means = meansOfWorld(g),
+    // (The least engine that lifts a machine here: W2's, what a row that flies asks of a land.)
+    lifts = liftingEngine(meansNumbers(g));
   type Plan = { cell: number; p: Principle; found: boolean; factors: Factor[]; causes: CauseRef[] };
   const plans: Plan[] = [];
   for (const prov of ctx.provinces.all()) {
@@ -258,6 +270,7 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
           affordsPrinciple(p, ctx.medium, reach, means.wants) &&
           !store.get(cell, p.id) &&
           needsMet(p, (n) => knows(ctx, cell, n)) &&
+          (!p.body?.lifts || (lifts !== null && knows(ctx, cell, lifts.id))) &&
           matterAllows(g, p),
       );
     if (!open.length) continue;
@@ -338,19 +351,27 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
     // Learning: the principle a neighbour knows that this land most readily takes up.
     const mine = culture.get(cell);
     let best: { p: Principle; from: number; chance: number } | null = null;
-    for (let k = g.grid.offsets[cell]!; k < g.grid.offsets[cell + 1]!; k++) {
-      const n = g.grid.neighbours[k]!;
+    // (By land, and across the sea from those its ships trade with: what is carried is told too.)
+    const borders = g.grid.offsets[cell + 1]! - g.grid.offsets[cell]!,
+      sea = markets.seaPartners(cell),
+      // How many principles another knows that this land does not.
+      lacks = (n: number) => PRINCIPLES.reduce((c, p) => (store.get(n, p.id) && !store.get(cell, p.id) ? c + 1 : c), 0);
+    for (let k = 0; k < borders + sea.length; k++) {
+      const n = k < borders ? g.grid.neighbours[g.grid.offsets[cell]! + k]! : sea[k - borders]!;
       if (!ctx.provinces.get(n)?.total()) continue;
       // Only a neighbour who knows something this land does not can teach it.
       if (!open.some((p) => store.get(n, p.id))) continue;
       const theirs = culture.get(n),
-        like = mine && theirs ? tongueLikeness(mine.tongue, theirs.tongue) : 0.5,
+        carried = k >= borders,
+        spoken = mine && theirs ? tongueLikeness(mine.tongue, theirs.tongue) : 0.5,
+        like = carried ? Math.max(CARRIED_LIKE, spoken) : spoken,
         road = markets.route(cell, n) ? 2 : 1,
         kin = realms.of(cell) && realms.of(cell) === realms.of(n) ? 1.5 : 1,
-        written = 1 + Math.max(store.effect(cell, "learning"), store.effect(n, "learning"));
+        written = 1 + Math.max(store.effect(cell, "learning"), store.effect(n, "learning")),
+        behind = carried ? 1 + CARRIED_BEHIND * lacks(n) : 1;
       for (const p of open) {
         if (!store.get(n, p.id)) continue;
-        const chance = LEARNING * like * like * road * kin * written;
+        const chance = LEARNING * like * like * road * kin * written * behind;
         if (!best || chance > best.chance || (chance === best.chance && n < best.from))
           best = { p, from: n, chance };
       }

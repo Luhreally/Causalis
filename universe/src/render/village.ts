@@ -154,6 +154,7 @@ import { CraftsLayer, type BoardsAt, type ClampAt, type LoomAt, type WheelAt } f
 import { FoundryLayer, type FoundryAt } from "./foundry.ts";
 import { FloorLayer, type FloorAt } from "./floor.ts";
 import { BlazeLayer } from "./blaze.ts";
+import { RaidLayer } from "./raid.ts";
 import { GraveyardLayer } from "./graveyard.ts";
 import { WoundsLayer, bandageOn, propAt, type WornPiece } from "./wounds.ts";
 import { LittersLayer, litterApart, litterHeld } from "./litters.ts";
@@ -328,6 +329,8 @@ export class VillageScene {
   private readonly floorLayer: FloorLayer;
   /** What struck it, as it plays out (Phase 42 M201): its homes alight, their smoke, the dust of the fallen. */
   private readonly blazeLayer: BlazeLayer;
+  private readonly raidLayer: RaidLayer;
+  private raided = false;
   private blazed: BlazeNow | null = null;
   /** Its graveyard and its burying (Phase 43 M205): its graves, those open today, the biers borne to them. */
   private readonly graveyard: GraveyardLayer;
@@ -383,6 +386,7 @@ export class VillageScene {
     this.foundryLayer = new FoundryLayer(stage, this.root);
     this.floorLayer = new FloorLayer(stage, this.root);
     this.blazeLayer = new BlazeLayer(stage, this.root);
+    this.raidLayer = new RaidLayer(stage, this.root);
     this.graveyard = new GraveyardLayer(stage, this.root);
     this.worn = new WoundsLayer(stage, this.root);
     this.litters = new LittersLayer(stage, this.root);
@@ -511,6 +515,7 @@ export class VillageScene {
         child !== this.foundryLayer.root &&
         child !== this.floorLayer.root &&
         child !== this.blazeLayer.root &&
+        child !== this.raidLayer.root &&
         child !== this.graveyard.root &&
         child !== this.worn.root &&
         child !== this.litters.root &&
@@ -1620,6 +1625,12 @@ export class VillageScene {
         this.shaken = false;
       }
     }
+    // A raid over the town (W2): its machines, its load falling, each hit's burst.
+    if (plan.town?.struck?.some((k) => k.raid) || this.raided) {
+      const r = this.town.raid(t);
+      this.raidLayer.update(r);
+      this.raided = r.flyers.length + r.falling.length + r.bursts.length > 0;
+    }
     // The woodlot (Phase 41 M200): a tree coming down at its feller's first blows' end, lying
     // as it is cut up, then its stump; saplings growing where trees were felled.
     if (this.forest.length) {
@@ -2323,10 +2334,17 @@ export class VillageScene {
    * What struck the town as last drawn (the look tools, Phase 42 M201): its homes alight, smoking,
    * in dust, drawn and in all; how the ground shakes; who is at its fires and rubble, by what.
    */
+  /** Where a raid's machines are now, in the village's units (W2's look tools). */
+  raidersShown(): { x: number; y: number; z: number }[] {
+    return this.town.raid(this.lastT).flyers.map((f) => ({ x: f.x * 0.1, y: f.y * 0.1, z: f.z * 0.1 }));
+  }
+
   blazeShown(): {
     fires: number;
     smoke: number;
     dust: number;
+    /** A raid over it now (W2): what is drawn of it, and whose. */
+    raid: { flyers: number; falling: number; bursts: number; by: string | null };
     alight: number;
     shake: number;
     fight: Record<string, number>;
@@ -2340,6 +2358,7 @@ export class VillageScene {
       spot = (f: { x: number; z: number } | undefined) => (f ? { x: f.x, z: f.z } : null);
     return {
       ...this.blazeLayer.shown,
+      raid: { ...this.raidLayer.shown, by: this.town.raid(this.lastT).by },
       alight: b.fires.length,
       shake: b.shake,
       fight: fightNow(plan, this.lastT),

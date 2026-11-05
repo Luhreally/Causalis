@@ -106,5 +106,19 @@ export type WarsMap = {
       /** Whether it was fought at the defender's seat, about its walls. */
       readonly seat?: boolean;
     }[];
+    /** Its strikes from the air of late (W2): the town, by which side, how many machines, what they cost. */
+    readonly raids?: readonly WarRaid[];
   }[];
+};
+
+/** A strike from the air, on the map of wars (W2). */
+export type WarRaid = {
+  readonly town: string;
+  readonly name: string;
+  readonly year: number;
+  readonly side: 0 | 1;
+  readonly flyers: number;
+  readonly dead: number;
+  readonly homes: number;
+  readonly event: string;
 };

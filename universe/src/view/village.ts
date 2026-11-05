@@ -1099,7 +1099,12 @@ function fightsOn(plan: VillagePlan, day: number): ReadonlyMap<number, readonly 
               z: T.z + ((water.z - T.z) / gap) * 7,
             }),
             face = Math.atan2(T.x - stand.x, T.z - stand.z),
-            what = k.kind === "meteor" ? "the fire fallen from the sky" : "the fire",
+            what =
+              k.kind === "meteor"
+                ? "the fire fallen from the sky"
+                : k.kind === "raid"
+                  ? "the fire the raid left"
+                  : "the fire",
             crew = nearest(T, able, LINE_MOST, from, until),
             way = route(ground, water, stand, PERSON_REACH),
             line = lengthOf(way) <= LINE_REACH && crew.length > THROWERS + 1;
@@ -1429,7 +1434,9 @@ function fightsOn(plan: VillagePlan, day: number): ReadonlyMap<number, readonly 
             ? "the quake's dead"
             : kind === "meteor"
               ? "the dead of the fire from the sky"
-              : kind
+              : kind === "raid"
+                ? "the raid's dead"
+                : kind
                 ? "the fire's dead"
                 : surname
                   ? `the ${surname} household's dead`

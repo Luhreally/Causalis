@@ -82,6 +82,8 @@ export type BodyNeeds = {
   readonly burns?: boolean;
   /** Only a people of these media can use it (wheels and sails are for the land and shore; the vents for the sea). */
   readonly media?: readonly Medium[];
+  /** It flies on an engine: only a land that knows one that lifts a machine on its world (W2: rules/reach.ts). */
+  readonly lifts?: boolean;
 };
 
 export type Principle = {
@@ -1264,6 +1266,33 @@ export const HEAT_TREE: readonly Principle[] = [
       { building: 1 },
     ),
     asks: ["build-high"],
+  },
+  // Wings an engine drives, then loads dropped from them (War past the line, W2). Last, so every land's
+  // draws stay at their places until the first is found. What it flies on is its world's and its land's
+  // (rules/reach.ts): the least engine that lifts a machine there.
+  {
+    ...P(
+      "powered-wings",
+      "wings an engine drives",
+      ["steam-engine", "factories"],
+      0.005,
+      { crafters: 1, leaders: 0.5 },
+      {},
+      { burns: true, media: ["land", "shore"], lifts: true },
+    ),
+    asks: ["fly-under-power"],
+  },
+  {
+    ...P(
+      "dropped-loads",
+      "loads dropped from wings",
+      ["powered-wings", "gunpowder"],
+      0.006,
+      { crafters: 1, leaders: 0.5 },
+      {},
+      { burns: true, media: ["land", "shore"] },
+    ),
+    asks: ["fly-under-power", "make-gas-fast"],
   },
 ];
 

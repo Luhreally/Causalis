@@ -17,7 +17,15 @@ import {
   ELEMENTS,
   FURNACES,
   GOODS,
+  CARRIED_ENGINES,
+  DROP_KG,
   GOOD_MATTER,
+  MISS_EYE,
+  MISS_STEADIED,
+  flyerOn,
+  liftingEngine,
+  loadShare,
+  lotsPerDrop,
   KIND_AIR,
   KIND_METALS,
   KIND_SUBSTANCES,
@@ -634,6 +642,28 @@ function asked(world: World, asks: readonly string[]): Line {
   });
 }
 
+/** What a machine is on this world, on the page of what makes it fly (W2; all estimates). */
+function flyerStats(world: World, id: string) {
+  if (id !== "powered-wings" && id !== "dropped-loads") return [];
+  const n = matterWorldOf(world).means,
+    best = liftingEngine(n) && CARRIED_ENGINES.findLast((e) => loadShare(e, n) >= 0.02),
+    charge = meansOfWorld(homePlanet(world).generated).worksCharge;
+  if (!best) return [];
+  const f = flyerOn(best, n);
+  return [
+    stat(
+      "The machine here",
+      `${count(Math.round(f.kg / 100) * 100)} kg on ${best.name}, wings ${count(Math.round(f.spanM))} m across, ${count(Math.round(f.speed * 3.6))} km/h, ${count(Math.round(f.reachKm))} km out and back, one aboard (estimates)`,
+    ),
+    stat(
+      "What it drops",
+      charge
+        ? `${count(Math.round(f.loadKg))} kg, charged with ${charge.name}: ${Math.round((f.loadKg / DROP_KG) * lotsPerDrop(charge.mj) * 10) / 10} lots flattened if all of it lands; half lands within ${count(MISS_EYE)} m by the eye, within ${count(MISS_STEADIED)} m steadied by a machine (estimates)`
+        : "Nothing: no charge can be made here",
+    ),
+  ];
+}
+
 /** A principle's page (`prin:<id>`). */
 /** How a world makes gas fast behind a mass and holds it (F1), where it is not Earth's way. */
 function theWayHere(m: Means): string {
@@ -696,6 +726,7 @@ export function principlePage(world: World, ref: string): PageModel {
           ? [stat("Asks of its world's matter", [...asked(world, p.asks)])]
           : []),
         ...(shut ? [stat("On this world", `shut: ${shut}`)] : []),
+        ...flyerStats(world, p.id),
       ],
     },
   ];

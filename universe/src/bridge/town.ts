@@ -37,15 +37,28 @@ export type TownWater = { readonly x: number; readonly z: number; readonly r: nu
  * it took the town from its heart); and how many of its homes it brought down (-1: not told).
  */
 export type TownStrike = {
-  readonly kind: "fire" | "quake" | "meteor";
+  readonly kind: "fire" | "quake" | "meteor" | "raid";
   readonly at: number;
   readonly lot: number;
   readonly homes: number;
   readonly event: string;
+  /** A strike from the air (W2): whose machines, how many, and what the numbers make of them. */
+  readonly raid?: TownRaid;
   /** How many of its people it killed (Phase 43 M205: buried two days after; absent: none told). */
   readonly dead?: number;
   /** Its wounded who lived (Phase 55: its dead by the strike's ratio, rules/wounds.ts). */
   readonly hurt?: number;
+};
+
+/** A strike from the air as a town saw it (W2). */
+export type TownRaid = {
+  /** Whose: its name. */
+  readonly by: string;
+  /** How many came. */
+  readonly flyers: number;
+  /** Tip to tip (m), and how fast (m/s): from its world's air and pull. */
+  readonly span: number;
+  readonly speed: number;
 };
 
 /** One of a town's buildings besides its homes, as its fabric keeps it. */
@@ -332,7 +345,17 @@ export type LotStates = {
  * sky over its homes in two minutes; a quake's homes falling within its forty seconds, one in four
  * catching fire from its hearths a few minutes after.
  */
-export const SPREAD = { fire: 45, fireAll: 5400, meteorAll: 120, quakeAll: 40, quakeBurns: 0.25 };
+export const SPREAD = {
+  fire: 45,
+  fireAll: 5400,
+  meteorAll: 120,
+  quakeAll: 40,
+  quakeBurns: 0.25,
+  /** A raid comes over at first light after the year's turn it was reckoned at, and how long its load takes to fall (seconds; view/raid.ts flies by them). */
+  // (By day, so that it can be seen; the whole stream over in under a minute.)
+  raidFrom: 10 * 3600,
+  raidAll: 45,
+};
 
 /**
  * The moment the change of lot p in a run began: a year's work done through the year after it
@@ -397,6 +420,9 @@ export function lotStates(plan: TownPlan): LotStates {
   return { what, level, design, began, takes, raised, struck, burns };
 }
 
+/** The year a strike's razing is reckoned in, as the fabric's: a moment at a year's turn (a raid's) is the year it ends. */
+const struckYear = (k: TownStrike) => Math.floor((k.at - 1) / YEAR);
+
 /**
  * Each home razed in a year something struck the town (Phase 42 M201) given to its strike, each
  * strike's in the order it spread through them: when each caught or fell, whether it burned, and
@@ -425,7 +451,7 @@ function strikes(
     for (let p = Math.max(0, lo); p < Math.min(hi, n); p++) {
       if (what[p] !== LOT.razed) continue;
       for (const k of list) {
-        const year = Math.floor(k.at / YEAR);
+        const year = struckYear(k);
         if (year < start || year > end) continue;
         let of = razed.get(year);
         if (!of) razed.set(year, (of = new Set()));
@@ -438,7 +464,7 @@ function strikes(
       Math.abs(a - Math.max(0, k.lot)) - Math.abs(b - Math.max(0, k.lot)) || a - b;
   for (const i of order) {
     const k = list[i]!,
-      left = razed.get(Math.floor(k.at / YEAR));
+      left = razed.get(struckYear(k));
     if (!left?.size || k.homes < 0) continue;
     const mine = [...left].sort(near(k)).slice(0, k.homes);
     for (const p of mine) left.delete(p);
@@ -450,7 +476,7 @@ function strikes(
       let best = -1,
         far = Infinity;
       list.forEach((k, i) => {
-        if (k.homes >= 0 || Math.floor(k.at / YEAR) !== year) return;
+        if (k.homes >= 0 || struckYear(k) !== year) return;
         const d = Math.abs(p - Math.max(0, k.lot));
         if (d < far) {
           far = d;
@@ -466,12 +492,17 @@ function strikes(
     const step =
       k.kind === "fire"
         ? Math.min(SPREAD.fire, SPREAD.fireAll / Math.max(1, lots.length))
+        : k.kind === "raid"
+          ? SPREAD.raidAll / Math.max(1, lots.length)
         : (k.kind === "meteor" ? SPREAD.meteorAll : SPREAD.quakeAll) / Math.max(1, lots.length);
     lots.forEach((p, j) => {
       struck[p] = i;
       const burnt = k.kind !== "quake" || hash(p, Math.round(k.at), 7) < SPREAD.quakeBurns;
       burns[p] = burnt ? 1 : 0;
-      began[p] = k.at + (j + hash(p, Math.round(k.at), 3)) * step;
+      began[p] =
+        k.at +
+        (k.kind === "raid" ? SPREAD.raidFrom : 0) +
+        (j + hash(p, Math.round(k.at), 3)) * step;
       // (What stood there: as the nearest home standing beside it.)
       level[p] = 1;
       for (let d = 1; d <= 16; d++) {

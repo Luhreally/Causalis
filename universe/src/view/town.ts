@@ -13,6 +13,7 @@
 // avenues kept clear. Past our ages (Phase 66): spires of woven carbon, works with no stack, vats, and a
 // sprawl of towers to the haze where its people have built over their fields. Pure: what is drawn at a
 // moment, in parts (metres from the square's middle), for the renderer to put in its batches.
+import { timeRaids } from "./raid.ts";
 import {
   BLOCK_D,
   BLOCK_LOTS,
@@ -219,6 +220,8 @@ export function townScene(plan: TownPlan, t: number, previous?: TownLots): TownS
       active,
       settled,
     };
+  // (A raid's lots caught as its machines pass over them: W2.)
+  timeRaids(plan, lots, states);
   for (let p = 0; p < plan.lots; p++) if (states.struck[p]! >= 0) struck.push(p);
   struck.sort((a, b) => states.began[a]! - states.began[b]!);
   // Active: rising, or to be rebuilt as it wears before the year is out; or struck, till it has

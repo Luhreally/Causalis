@@ -166,6 +166,24 @@ export {
 } from "./errands.ts";
 export { blazeNow, homesAlong, type Alight, type BlazeNow, type Burnable } from "./blaze.ts";
 export {
+  LAND_FLYERS,
+  MOST_BURSTS,
+  MOST_FALLING,
+  MOST_LAND_RAIDS,
+  MOST_RAIDERS,
+  landRaidsNow,
+  type LandRaidNow,
+  raidEye,
+  raidNow,
+  raidOver,
+  raidRun,
+  raidSlowings,
+  raidSpan,
+  timeRaids,
+  type RaidFlyer,
+  type RaidNow,
+} from "./raid.ts";
+export {
   FUNERAL,
   KEPT_YEARS,
   MOST_A_DAY,

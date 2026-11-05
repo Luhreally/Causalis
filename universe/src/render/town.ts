@@ -7,6 +7,8 @@ import { LOT, civicMoments, footprint, progress, type TownPlan } from "../bridge
 import {
   TownParts,
   blazeNow,
+  raidNow,
+  type RaidNow,
   homesAlong,
   civicChimneys,
   civicMotions,
@@ -210,6 +212,11 @@ export class TownLayer {
   /** What of it is alight, smoking and in dust at moment t, and how the ground shakes (Phase 42 M201). */
   blaze(t: number): BlazeNow {
     return blazeNow(this.visible ? this.scene : null, t);
+  }
+
+  /** What of a raid is over it at moment t (W2). */
+  raid(t: number): RaidNow {
+    return raidNow(this.visible ? this.scene : null, t);
   }
 
   /** Where its buildings smoke at moment t (Phase 41 M199): their chimneys' tops (metres). */

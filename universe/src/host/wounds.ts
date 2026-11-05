@@ -67,17 +67,19 @@ export const HOME_DAYS: Readonly<Record<Burial, number>> = { here: 0, home: 3, f
 /** The hour a column comes in from the road (h); the hour a battle is fought, its watched day's (Phase 40). */
 export const HOME_HOUR = 16;
 export const BATTLE_HOUR = 8;
-type StrikeKind = "fire" | "quake" | "meteor";
+type StrikeKind = "fire" | "quake" | "meteor" | "raid";
 /** What a strike's blow is: a fire's and a fire from the sky's a burn, a quake's a crushing. */
 export const STRIKE_BLOW: Readonly<Record<StrikeKind, Blow>> = {
   fire: "fire",
   quake: "crush",
   meteor: "fire",
+  raid: "crush",
 };
 const STRIKE_WHERE: Readonly<Record<StrikeKind, string>> = {
   fire: "the fire in",
   quake: "the quake at",
   meteor: "the fire from the sky on",
+  raid: "the raid on",
 };
 /** What wounds of an arm not told by its worked stuff: one of it. */
 const ONE_OF: Readonly<Record<string, string>> = {

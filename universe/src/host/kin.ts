@@ -376,7 +376,9 @@ function holderNode(t: Lines, h: Holder): Node {
     how: fell
       ? `fell at ${battleWords(t.world, fell.land)} in ${fell.year}`
       : struck
-        ? `died in the ${struck.kind === "meteor" ? "fire from the sky" : struck.kind} of ${struck.year}`
+        ? struck.kind === "raid"
+          ? `died in a raid of ${(t.world.events.get(struck.event as Ref)?.data as { a?: string } | undefined)?.a ?? "their foes"} in ${struck.year}`
+          : `died in the ${struck.kind === "meteor" ? "fire from the sky" : struck.kind} of ${struck.year}`
         : bedWords(t, { born: h.born, died }),
     event: fell?.event ?? struck?.event ?? null,
   };

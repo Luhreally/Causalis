@@ -273,6 +273,9 @@ import {
   battleCapAt,
   battleCapWords,
   battleSlowings,
+  raidEye,
+  raidOver,
+  raidSlowings,
   battleSecond,
   battleShelter,
   battleStage,
@@ -877,6 +880,8 @@ type Exposed = {
   /** Where a land's battles stand on the screen now, by the eye as it is (none off the land's map). */
   battlesOnScreen?: () => { ref: string; x: number; y: number }[];
   /** A land's wars in place now (M203): each host's doing and place, the fights about the turn, the clock slowed for one. */
+  /** Strikes from the air drawn over the land now (W2). */
+  landRaids?: () => { raids: number; flyers: number; words: readonly string[] };
   warsInPlace?: () => {
     marks: {
       ref: string;
@@ -1002,6 +1007,7 @@ type Exposed = {
   /** What struck the town watched as drawn (Phase 42 M201): its homes alight, smoking, in dust; the ground shaking; who is at its fires, by what. */
   /** The god's wonders in a town seen near as drawn (M201): each, where it stands (metres). */
   wonders?: () => { kind: string; x: number; z: number }[];
+  raidersOnScreen?: () => { x: number; y: number }[];
   blaze?: () => {
     fires: number;
     smoke: number;
@@ -2469,6 +2475,13 @@ async function runPlanetPage(): Promise<void> {
         ? (townWar.placed?.turn ??
           (townWar.fight ? Number(townWar.fight.key.split(":").at(-1)) : null))
         : null;
+    // (A raid over the town, W2: slowed so that it can be watched.)
+    const raids = scale === "village" && plan?.town ? raidSlowings(plan.town) : [];
+    if (raids.length && townTurn !== null && townWar)
+      return [...battleSlowings(`${townWar.ref}:${townTurn}`, "town"), ...raids].sort(
+        (a, b) => a.from - b.from,
+      );
+    if (raids.length) return raids;
     return townTurn !== null && townWar
       ? battleSlowings(`${townWar.ref}:${townTurn}`, "town")
       : scale === "region" && regionWars.now
@@ -2537,6 +2550,7 @@ async function runPlanetPage(): Promise<void> {
   // What the armies drawn are made of now (M110): on the globe and in a land.
   exposed.armies = () => ({ globe: { ...globeWars.counts }, land: { ...regionWars.counts } });
   exposed.landMarks = () => regionWars.places();
+  exposed.landRaids = () => regionWars.raidsShown();
   // Where a spot of the globe is on the screen (for the look tools: to zoom at a thing).
   exposed.spotOnScreen = (spot: number) => {
     const frame = client.latestFrame("globe");
@@ -2595,6 +2609,7 @@ async function runPlanetPage(): Promise<void> {
       ways: landWays.ways,
       town,
       sea: (x, z) => region.seaAt(x, z),
+      townAt: (ref) => region.land.townAt(ref),
     });
   };
   // The world's towns on the globe (M95): what is zoomed into is there before it, and named
@@ -5209,6 +5224,15 @@ async function runPlanetPage(): Promise<void> {
       rig.flyTo(placedViewOf(P), 1.2);
     }
   });
+  // The eye onto a raid as its machines come (once; not where the viewer has it on someone, or is steering it).
+  let raidFaced = "";
+  stage.onUpdate(() => {
+    if (scale !== "village" || watched !== null || rig.steering || !plan?.town?.struck) return;
+    const k = raidOver(plan.town, now());
+    if (!k || k.event === raidFaced) return;
+    raidFaced = k.event;
+    rig.flyTo(raidEye(k), 1.2);
+  });
   /**
    * The eye brought onto the battle before the town once it is drawn there, where the town is gone
    * into for it (until then: wall-clock ms; 0: not) — its field once laid; the night before it, its
@@ -5372,6 +5396,13 @@ async function runPlanetPage(): Promise<void> {
     if (scale === "village" && plan) void loadPlan(plan.ref);
   };
   exposed.blaze = () => (scale === "village" ? village.blazeShown() : null);
+  exposed.raidersOnScreen = () =>
+    scale === "village"
+      ? village.raidersShown().flatMap((f) => {
+          const s = stage.camera.camera!.worldToScreen(rig.target.clone().set(f.x, f.y, f.z));
+          return s.z > 0 ? [{ x: s.x, y: s.y }] : [];
+        })
+      : [];
   exposed.wonders = () => (scale === "village" ? village.wonders : []);
   exposed.townWar = () => {
     const w = scale === "village" ? village.warNow() : null;
@@ -7580,8 +7611,8 @@ async function runPlanetPage(): Promise<void> {
       kept = placed ? battleShelter(placed.turn) : null;
     village.update(
       seen,
-      // (All indoors while raiders are in the streets: Phase 67.)
-      fleetFilm?.townHeld
+      // (All indoors while raiders are in the streets, Phase 67, or machines are over the town, W2.)
+      fleetFilm?.townHeld || (scale === "village" && raidOver(plan?.town, seen))
         ? { from: seen - 3600, to: seen + 3600, all: true }
         : kept && seen >= kept.from && seen < kept.to
           ? { ...kept, all: true }

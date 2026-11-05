@@ -574,6 +574,8 @@ export type LandPlay = {
   } | null;
   readonly sea: (x: number, z: number) => boolean;
   readonly colorOf: (c: readonly [number, number, number]) => number;
+  /** Where a town of its stands (W2: its strikes from the air are drawn over it; null: not of this land). */
+  readonly townAt?: (ref: string) => { readonly x: number; readonly z: number; readonly r: number } | null;
 };
 
 /**

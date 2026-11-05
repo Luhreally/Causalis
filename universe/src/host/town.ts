@@ -6,7 +6,9 @@ import { YEAR, hashString, yearOfMoment, type Ref, type World } from "../kernel/
 import { COVER } from "../gen/index.ts";
 import { HOME_MONTHS, rockOf, roofPitch, strikeHurt } from "../rules/index.ts";
 import {
+  CHANGE,
   DISASTER_EVENTS,
+  WAR_EVENTS,
   LOCAL_ACT_EVENTS,
   citiesOf,
   designsOf,
@@ -46,16 +48,26 @@ export function strikesOn(world: World, ref: Ref, land: Ref | null): TownStrike[
             ? "quake"
             : land !== null && e.place === land && e.type === DISASTER_EVENTS.meteor.type
               ? "meteor"
-              : null;
+              : e.type === WAR_EVENTS.strike.type && e.subjects[0] === ref
+                ? "raid"
+                : null;
     if (!kind) continue;
-    const data = e.data as { lot?: unknown; homes?: unknown; dead?: unknown } | null,
+    const data = e.data as {
+        lot?: unknown;
+        homes?: unknown;
+        dead?: unknown;
+        a?: string;
+        flyers?: number;
+        span?: number;
+        speed?: number;
+      } | null,
       lot = data?.lot,
       told = typeof data?.dead === "number" ? data.dead : 0,
-      dead = kind === "fire" ? told : Math.round(told * share),
+      dead = kind === "fire" || kind === "raid" ? told : Math.round(told * share),
       // (A fire tells how many of its homes it brought down; a quake or fire from the sky, how
       // many of each town's.)
       homes =
-        kind === "fire"
+        kind === "fire" || kind === "raid"
           ? data?.homes
           : typeof data?.homes === "object" && data.homes !== null
             ? ((data.homes as Record<string, unknown>)[ref] ?? 0)
@@ -66,6 +78,16 @@ export function strikesOn(world: World, ref: Ref, land: Ref | null): TownStrike[
       lot: typeof lot === "number" ? lot : -1,
       homes: typeof homes === "number" ? homes : -1,
       event: e.id,
+      ...(kind === "raid"
+        ? {
+            raid: {
+              by: data?.a ?? "",
+              flyers: data?.flyers ?? 1,
+              span: data?.span ?? 20,
+              speed: data?.speed ?? 46,
+            },
+          }
+        : {}),
       ...(dead > 0 ? { dead, hurt: strikeHurt(kind, dead) } : {}),
     });
   }
@@ -158,7 +180,13 @@ export function townPlan(
     whole: f.next,
     runs: f.changes
       .filter((c) => c[1] < lots)
-      .map((c) => [...c.slice(0, 2), Math.min(c[2], lots), ...c.slice(3)]),
+      // (Lots in ash read as any razed lot does.)
+      .map((c) => [
+        c[0] === CHANGE.burned ? CHANGE.razed : c[0],
+        c[1],
+        Math.min(c[2], lots),
+        ...c.slice(3),
+      ]),
     civics: [
       ...f.civics.filter((c) => c.at + c.lots <= lots).map((c) => ({ ...c })),
       ...rimWorks(f, lots),

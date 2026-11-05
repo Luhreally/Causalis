@@ -122,6 +122,7 @@ import type {
   WarsMap,
   GenesisPlan,
   SeedLife,
+  WarRaid,
 } from "../bridge/index.ts";
 
 /** The most garrisons the globe shows at the seats of realms at peace (Phase 12 M110). */
@@ -805,8 +806,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
   // Every world's changed with Phase 66, past its first years: ages past ours. And with F1: arms by what
   // they do, so worlds with no furnace have blades and guns of their own stuff. And with F2 and F3: heat, not
   // fire; no lists by kind. And with F4: rocky worlds read as any other, each turning aside where its numbers
-  // shut the first way.)
-  const version = name === "alien" ? "alien-12" : `${name}-8`,
+  // shut the first way. And with W2: past its engines, wings, and war from the air.)
+  const version = name === "alien" ? "alien-13" : `${name}-9`,
     make = (seed: Seed, frequency?: number) => {
       // The chronicle opens after a generated prehistory: bands across the land.
       const world = makePopulationWorld(seed, {
@@ -1074,6 +1075,24 @@ function planetUniverse(name: string, prior: Prior): Universe {
               host: hostOf(ref),
             };
           };
+        // (Its strikes from the air of the last two years: W2.)
+        const raidsByWar = new Map<string, WarRaid[]>(),
+          struck = warsOf(world).allStrikes();
+        for (let k = struck.length - 1; k >= 0 && struck[k]!.year >= year - 2; k--) {
+          const s = struck[k]!,
+            list = raidsByWar.get(s.war) ?? [];
+          list.push({
+            town: s.town,
+            name: ctx.settlements.get(s.town)?.name ?? "a town",
+            year: s.year,
+            side: s.side,
+            flyers: s.flyers,
+            dead: s.dead,
+            homes: s.homes,
+            event: s.event,
+          });
+          raidsByWar.set(s.war, list);
+        }
         const wars = warsOf(world)
           .hot()
           .filter(
@@ -1161,6 +1180,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
                     outcome: battleOutcome(world, b),
                     seat: b.seat ?? false,
                   })),
+                ...(raidsByWar.has(w.ref) ? { raids: raidsByWar.get(w.ref)! } : {}),
               },
             ];
           });

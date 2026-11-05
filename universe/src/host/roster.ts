@@ -28,6 +28,7 @@ import {
 import { OCC, STRIKE_HURT, bandOf, type LandFell, type LifeHistory } from "../rules/index.ts";
 import {
   DISASTER_EVENTS,
+  WAR_EVENTS,
   LOCAL_ACT_EVENTS,
   cultureOf,
   fighting,
@@ -85,7 +86,7 @@ export type HolderFate = {
 /** What a fire sent on the town, or a quake or a fire from the sky on its land, did to a holder. */
 export type StrikeFate = {
   readonly event: string;
-  readonly kind: "fire" | "quake" | "meteor";
+  readonly kind: "fire" | "quake" | "meteor" | "raid";
   readonly year: number;
   readonly fate: "died" | "hurt";
 };
@@ -347,11 +348,13 @@ function strikesOf(world: World, c: Caches): StrikeIndex {
           ? "quake"
           : e.type === DISASTER_EVENTS.meteor.type
             ? "meteor"
-            : null;
+            : e.type === WAR_EVENTS.strike.type
+              ? "raid"
+              : null;
     if (!kind) continue;
     const told = (e.data as { dead?: unknown } | null)?.dead,
       s: Struck = { event: e.id, t: e.t, kind, told: typeof told === "number" ? told : 0 };
-    if (kind === "fire") {
+    if (kind === "fire" || kind === "raid") {
       if (e.subjects[0] !== undefined) add(fires, e.subjects[0], s);
     } else if (e.place !== null) add(lands, e.place, s);
   }

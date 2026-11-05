@@ -361,6 +361,7 @@ export {
   type Battle,
   type CivilKind,
   type War,
+  type WarStrike,
 } from "./war/war.ts";
 export {
   ARMS_TAKE,

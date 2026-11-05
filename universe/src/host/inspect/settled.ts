@@ -132,6 +132,23 @@ export function townPage(world: World, ref: string): PageModel {
       }),
     );
   }
+  // Struck from the air in its wars (W2): by whom, what it cost.
+  const raided = warsOf(world)
+    .allStrikes()
+    .filter((k) => k.town === ref);
+  if (raided.length) {
+    const last = raided.at(-1)!,
+      lastBy = (world.events.get(last.event)?.data as { a?: string } | undefined)?.a ?? "a foe",
+      dead = raided.reduce((n, k) => n + k.dead, 0),
+      homes = raided.reduce((n, k) => n + k.homes, 0);
+    now.push(
+      stat(
+        "Bombed",
+        `${count(raided.length)} time${raided.length === 1 ? "" : "s"}, last in year ${last.year} by ${lastBy}: ${count(dead)} dead, ${count(homes)} homes down`,
+        { why: last.event },
+      ),
+    );
+  }
   for (const w of warsOf(world).hot()) {
     const b = w.battles.findLast((x) => x.land === s.cell && x.year >= year - 1);
     if (b)

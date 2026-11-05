@@ -7,7 +7,7 @@
 // are told and drawn from these alone.
 
 /** What dealt it (Phase 60: a blow in a brawl the god's hand was in). */
-export type WoundFrom = "battle" | "fire" | "quake" | "meteor" | "hand";
+export type WoundFrom = "battle" | "fire" | "quake" | "meteor" | "raid" | "hand";
 /** The kind of blow (rules/wounds.ts Blow). */
 export type WoundBlow = "edge" | "point" | "blunt" | "shot" | "crush" | "fire";
 /** Where on them (rules/anatomy.ts Member); left is their own. */

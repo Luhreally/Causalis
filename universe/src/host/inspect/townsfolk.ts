@@ -95,7 +95,12 @@ export function townsfolkPage(world: World, ref: string): PageModel {
         "Fate",
         [
           "Died in ",
-          link(`the ${died.kind === "meteor" ? "fire from the sky" : died.kind}`, died.event),
+          link(
+            died.kind === "raid"
+              ? `a raid of ${(world.events.get(died.event as Ref)?.data as { a?: string } | undefined)?.a ?? "their foes"}`
+              : `the ${died.kind === "meteor" ? "fire from the sky" : died.kind}`,
+            died.event,
+          ),
           ` of year ${died.year}`,
         ],
         { why: died.event },

@@ -122,7 +122,7 @@ export const CARE_PRINCIPLES: readonly (readonly [principle: string, weight: num
 ];
 
 /** Wounded who live per death, by the kind of strike: fires, quakes, meteors and floods. */
-export const STRIKE_HURT = { fire: 2, quake: 3, meteor: 1.2, flood: 0.4 } as const;
+export const STRIKE_HURT = { fire: 2, quake: 3, meteor: 1.2, flood: 0.4, raid: 2 } as const;
 
 /** The care a host's wounded get: the sum of the weights of the principles known (0 to 1). */
 export function woundCare(known: (principle: string) => boolean): number {

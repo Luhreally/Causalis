@@ -6,6 +6,7 @@
 // (kept with the acts).
 import {
   YEAR,
+  apportion,
   defineEventType,
   yearOfMoment,
   type Ref,
@@ -61,8 +62,35 @@ export function strike(ctx: PopulationContext, cell: number, share: number, t: S
   return dead;
 }
 
+/** So many of a land's people dead, shared over its ledgers to the last one (no draw): how many. */
+export function deathsIn(ctx: PopulationContext, cell: number, dead: number, t: SimTime): number {
+  const p = ctx.provinces.get(cell);
+  if (!p) return 0;
+  const year = yearOfMoment(t),
+    held = handOf(ctx.world).composition(cell, year, ctx.life),
+    free: number[] = [];
+  let all = 0;
+  for (let r = 0; r < 2 * BANDS; r++)
+    for (let o = 0; o < COLS; o++) {
+      const n = Math.max(0, Math.floor(p.counts.get(r, o) - (held ? held[r * COLS + o]! : 0)));
+      free.push(n);
+      all += n;
+    }
+  const shares = apportion(Math.min(Math.max(0, Math.floor(dead)), all), free);
+  let fell = 0;
+  for (let r = 0; r < 2 * BANDS; r++)
+    for (let o = 0; o < COLS; o++) {
+      const n = shares[r * COLS + o]!;
+      if (n <= 0) continue;
+      p.counts.add(r, o, -n);
+      ctx.history.addDeaths(cell, year, r % BANDS, n);
+      fell += n;
+    }
+  return fell;
+}
+
 /** A share of each good a land holds spilled, burned or soaked: written as spoiled. */
-function spill(ctx: PopulationContext, cell: number, share: number): void {
+export function spill(ctx: PopulationContext, cell: number, share: number): void {
   const m = ctx.world.store<MarketStore>("economy.markets").get(cell);
   if (!m) return;
   for (let g = 0; g < GOODS.length; g++) m.move("spoiled", g, Math.floor(m.stock[g]! * share));

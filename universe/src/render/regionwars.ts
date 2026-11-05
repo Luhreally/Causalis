@@ -13,6 +13,7 @@
 // camped about a seat and storming it, going home; a land's battles' fallen lie on their fields.
 import * as pc from "playcanvas";
 import type { HostKinds, WarsMap } from "../bridge/index.ts";
+import { landRaidsNow, type LandRaidNow } from "../view/index.ts";
 import {
   DOING_ICON,
   armorColor,
@@ -25,6 +26,7 @@ import {
   type LandWars,
 } from "../view/index.ts";
 import { InstancedBatch, boxMesh, coneMesh, keptMesh } from "./batch.ts";
+import { LandRaidLayer } from "./raid.ts";
 import type { Rgb, Stage } from "./stage.ts";
 
 /** The most figures of one side drawn at once, the most ships of all sides, and the most of one kind of gear. */
@@ -196,6 +198,9 @@ export class RegionWars {
   private afloat = 0;
   /** The wars in place (M203): the map they are of, and what they are played on (its colours aside). */
   private play: { map: WarsMap; play: Omit<LandPlay, "colorOf"> } | null = null;
+  /** Strikes from the air on its towns (W2), and those now. */
+  private readonly raids: LandRaidLayer;
+  private raidsNow: readonly LandRaidNow[] = [];
   /** The wars in place at the last update (for the look tools and the clock). */
   now: LandPlayNow | null = null;
 
@@ -232,6 +237,7 @@ export class RegionWars {
     this.carWheels = make(DARK, MOST_CARS * 4);
     stage.root.addChild(this.root);
     this.root.enabled = false;
+    this.raids = new LandRaidLayer(stage, this.root);
   }
 
   set visible(on: boolean) {
@@ -309,6 +315,10 @@ export class RegionWars {
       now = this.play ? landInPlace(this.play.map, y, { ...this.play.play, colorOf }, s) : null,
       wars = this.play?.map.wars ?? [];
     this.now = now;
+    this.raidsNow = this.play?.play.townAt
+      ? landRaidsNow(this.play.map, y, this.play.play.townAt)
+      : [];
+    this.raids.update(this.raidsNow, this.height, s);
     // Each war's hosts where its year has them: in column, drawn up, on the walls; over the sea in
     // ships (one for every four of a column afloat).
     let afloat = 0;
@@ -888,6 +898,21 @@ export class RegionWars {
     const cam = this.stage.camera.camera!,
       at = new pc.Vec3(),
       out = new pc.Vec3();
+    const raids = this.raidsNow.map((r) => {
+      at.set(r.x, this.height(r.x, r.z) + 5, r.z);
+      cam.worldToScreen(at, out);
+      return {
+        key: r.key,
+        text: r.words,
+        at: out.z > 0 ? { x: out.x, y: out.y } : null,
+        priority: 2.2e9,
+      };
+    });
+    return raids.concat(this.marksLabelled(at, out, cam));
+  }
+
+  /** The labels of its hosts, battles, camps and garrisons. */
+  private marksLabelled(at: pc.Vec3, out: pc.Vec3, cam: pc.CameraComponent) {
     return this.marks.map((m) => {
       at.set(m.x, this.height(m.x, m.z) + 3, m.z);
       cam.worldToScreen(at, out);
@@ -908,6 +933,11 @@ export class RegionWars {
             priority: m.fight ? 2.5e9 : m.battle ? 2e9 : 1e9,
           };
     });
+  }
+
+  /** The strikes from the air on its towns now (the look tools). */
+  raidsShown(): { readonly raids: number; readonly flyers: number; readonly words: readonly string[] } {
+    return { ...this.raids.shown, words: this.raidsNow.map((r) => r.words) };
   }
 
   /** Where each host, battle, camp and garrison stood at the last update (for the look tools). */

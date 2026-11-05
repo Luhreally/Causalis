@@ -15,6 +15,7 @@
 import {
   YEAR,
   defineEventType,
+  dmath,
   type Hasher,
   hashString,
   mix,
@@ -69,6 +70,8 @@ export const CHANGE = {
   razed: 3,
   /** Homes pulled down to make room for one of the town's other buildings. */
   cleared: 4,
+  /** Homes burned from the air: their lots lie in ash, not to be built on, until their years are up (see rise). */
+  burned: 5,
 } as const;
 
 /** Whether a run is of homes standing (built, or rebuilt higher). */
@@ -162,6 +165,10 @@ export const CIVIC_LOTS: Readonly<Record<CivicKind, number>> = {
 export const SETTLED = 4;
 /** Years a ruin stands before it is weathered away (and a fallen building is let go). */
 export const RUIN_YEARS = 60;
+/** The years a lot burned from the air lies in ash before it rises again (est: a street is cleared and rebuilt in a few). Under SETTLED, so a burned run never joins another. */
+export const ASH_YEARS = 3;
+/** How many sticks of loads a raid's hits come in: each its own stretch of lots. */
+const STICKS = 4;
 /** A town weighs its other buildings and its walls one year in so many (each in its own). */
 export const CIVIC_EVERY = 3;
 
@@ -224,6 +231,8 @@ export class TownStore implements StateStore {
   private readonly bySettlement = new Map<Settlement, Fabric>();
   /** (Each town as its settling last went over it: a cache, let go on loading.) */
   readonly settled = new Map<Fabric, Settled>();
+  /** (Towns with lots in ash, for the year's walk over them: what their runs tell, read again on loading.) */
+  readonly ashen = new Set<Fabric>();
   /** Every change folded in as it is made, for the checkpoints: two lanes of the kernel's absorber. */
   private a = 0x2545f491 | 0;
   private b = 0x6a09e667 | 0;
@@ -282,10 +291,12 @@ export class TownStore implements StateStore {
     this.map.clear();
     this.bySettlement.clear();
     this.settled.clear();
+    this.ashen.clear();
     [this.a, this.b] = s.digest;
     for (const saved of s.fabrics ?? fromColumns(s.towns!)) {
       const f = unpack(saved);
       this.map.set(f.town, f);
+      if (f.changes.some((c) => c[0] === CHANGE.burned)) this.ashen.add(f);
     }
   }
 }
@@ -496,7 +507,8 @@ export function readStanding(f: Fabric): void {
   const next = f.next,
     clip = (x: number) => Math.max(0, Math.min(next, x)),
     cuts: number[] = [0, next];
-  for (const c of f.changes) if (isHome(c[0])) cuts.push(clip(c[1]), clip(c[2]));
+  for (const c of f.changes)
+    if (isHome(c[0]) || c[0] === CHANGE.burned) cuts.push(clip(c[1]), clip(c[2]));
   for (const c of f.civics) if (c.fell === null) cuts.push(clip(c.at), clip(c.at + c.lots));
   const xs = Int32Array.from(cuts.sort((a, b) => a - b));
   let places = 0;
@@ -537,6 +549,12 @@ export function readStanding(f: Fabric): void {
     if (c.fell !== null) continue;
     const to = spanAt(clip(c.at + c.lots));
     for (let i = spanAt(clip(c.at)); i < to; i++) under[i] = 1;
+  }
+  // (Lots in ash are neither homes nor open.)
+  for (const c of f.changes) {
+    if (c[0] !== CHANGE.burned) continue;
+    const to = spanAt(clip(c[2]));
+    for (let i = spanAt(clip(c[1])); i < to; i++) under[i] = 1;
   }
   for (let i = 0; i < spans; i++) {
     const from = xs[i]!,
@@ -1048,14 +1066,14 @@ export class TownBuilder {
   }
 
   /** A share of a town's homes razed: its heart first, or its edge for a town sacked. */
-  raze(f: Fabric, share: number, edge: boolean, near?: number): number {
+  raze(f: Fabric, share: number, edge: boolean, near?: number, kind: number = CHANGE.razed): number {
     // (Run by run where it may be: a great town sacked has a hundred thousand lots.)
     const runs = near === undefined ? standingRuns(f) : null;
     if (runs) {
       let all = 0;
       for (const [a, b] of runs) all += b - a;
       const n = Math.min(all, Math.ceil(all * share));
-      if (n >= 1) return this.razeRuns(f, runs, n, edge);
+      if (n >= 1) return this.razeRuns(f, runs, n, edge, kind);
       if (all === 0) return 0;
     }
     const levels = levelsOf(f, 0, f.next),
@@ -1077,8 +1095,8 @@ export class TownBuilder {
       at = -1;
     const done = () => {
       if (run < 0) return;
-      this.change(f, CHANGE.razed, run, at + 1, 0, 0);
-      this.release(f, run, at + 1);
+      this.change(f, kind, run, at + 1, 0, 0);
+      if (kind !== CHANGE.burned) this.release(f, run, at + 1);
       run = -1;
     };
     for (const p of down) {
@@ -1092,10 +1110,110 @@ export class TownBuilder {
   }
 
   /**
+   * A share of a town's homes burned from the air, about its heart, as far out as loads miss: hits about a
+   * point thin as e^(-r²/2σ²) and a plan's lots go as r², so a lot's number thins as an exponential, `about`
+   * lots to its mean. Each stick's lots run on from where it landed (no draw); what falls past its last home
+   * hits nothing. Their lots lie in ash until rise. How many homes burned.
+   */
+  burn(f: Fabric, share: number, about: number): number {
+    const runs = standingRuns(f);
+    if (!runs) return this.raze(f, share, false, undefined, CHANGE.burned);
+    let all = 0;
+    for (const [a, b] of runs) all += b - a;
+    const n = Math.min(all, Math.ceil(all * share));
+    if (n < 1) return 0;
+    const sticks = Math.min(STICKS, n),
+      reach = 1 - dmath.exp(-f.next / about),
+      salt = homesOf(f),
+      starts: number[] = [];
+    for (let i = 0; i < sticks; i++) {
+      const u = (hashString(`loads ${f.town} ${this.year} ${salt} ${i}`) >>> 0) / 2 ** 32;
+      starts.push(Math.floor(-about * dmath.log(1 - u * reach)));
+    }
+    starts.sort((a, b) => a - b);
+    const down: [number, number, number][] = [];
+    let r = 0,
+      p = 0,
+      burned = 0;
+    starts.forEach((q, i) => {
+      let left = Math.floor(n / sticks) + (i < n % sticks ? 1 : 0);
+      p = Math.max(p, q);
+      while (left > 0 && r < runs.length) {
+        const [a, b, level] = runs[r]!;
+        if (b <= p) {
+          r++;
+          continue;
+        }
+        const from = Math.max(a, p),
+          k = Math.min(left, b - from);
+        down.push([from, from + k, level]);
+        left -= k;
+        burned += k;
+        p = from + k;
+      }
+    });
+    this.layDown(f, down, CHANGE.burned);
+    if (burned > 0) this.store.ashen.add(f);
+    return burned;
+  }
+
+  /**
+   * Lots that have lain their years in ash: homes again while its people want them (its edge lets its own fall
+   * in time, if that leaves it too many), open ground if not.
+   */
+  rise(f: Fabric, people: number, top: number, edge: number, design: number): void {
+    const due = f.changes
+        .filter((c) => c[0] === CHANGE.burned && c[4] + ASH_YEARS <= this.year)
+        .map((c) => [c[1], c[2]] as const),
+      n = f.next;
+    let room = people / 0.6 - housingOf(f);
+    for (const [a, b] of due) {
+      this.cut(f, a, b);
+      // (A building may have gone up on them since.)
+      const under = civicMask(f, a, b);
+      let run = -1,
+        level = -1;
+      const done = (to: number) => {
+        if (run < 0) return;
+        if (level >= 0) this.change(f, CHANGE.built, run, to, level, design);
+        else {
+          this.change(f, CHANGE.razed, run, to, 0, 0);
+          this.release(f, run, to);
+        }
+        run = -1;
+      };
+      for (let p = a; p < b; p++) {
+        if (under[p - a]) {
+          done(p);
+          continue;
+        }
+        const to = room > 0 ? lotLevel(p, n, top, edge) : -1;
+        if (run >= 0 && to !== level) done(p);
+        if (run < 0) {
+          run = p;
+          level = to;
+        }
+        if (to >= 0) {
+          f.homes[to]!++;
+          room -= HOLDS[to]!;
+        }
+      }
+      done(b);
+    }
+    if (!f.changes.some((c) => c[0] === CHANGE.burned)) this.store.ashen.delete(f);
+  }
+
+  /**
    * Raze's `n` lots of the runs homes stand on, its edge's last or its heart's first, razed as it
    * razes them lot by lot: each stretch of lots side by side one change.
    */
-  private razeRuns(f: Fabric, runs: [number, number, number][], n: number, edge: boolean): number {
+  private razeRuns(
+    f: Fabric,
+    runs: [number, number, number][],
+    n: number,
+    edge: boolean,
+    kind: number,
+  ): number {
     const down: [number, number, number][] = [];
     for (let i = edge ? runs.length - 1 : 0, left = n; left > 0; i += edge ? -1 : 1) {
       const [a, b, level] = runs[i]!,
@@ -1104,12 +1222,18 @@ export class TownBuilder {
       left -= k;
     }
     if (edge) down.reverse();
+    this.layDown(f, down, kind);
+    return n;
+  }
+
+  /** Stretches of homes brought down, each stretch of lots side by side one change: open again, unless in ash. */
+  private layDown(f: Fabric, down: readonly (readonly [number, number, number])[], kind: number): void {
     let run = -1,
       at = -1;
     const done = () => {
       if (run < 0) return;
-      this.change(f, CHANGE.razed, run, at, 0, 0);
-      this.release(f, run, at);
+      this.change(f, kind, run, at, 0, 0);
+      if (kind !== CHANGE.burned) this.release(f, run, at);
       run = -1;
     };
     for (const [a, b, level] of down) {
@@ -1119,7 +1243,6 @@ export class TownBuilder {
       f.homes[level]! -= b - a;
     }
     done();
-    return n;
   }
 
   /** A building gone: fallen out of use or taken the place of, its lots open again. */
@@ -1358,6 +1481,10 @@ export function townYear(ctx: PopulationContext, t: SimTime): void {
       people = s.population,
       weighs = f.next === 0 || (year + f.phase) % CIVIC_EVERY === 0;
     builder.settle(f);
+    if (store.ashen.has(f)) {
+      const top = topLevel(k, people, city);
+      builder.rise(f, people, top, edgeLevel(top, city), designSince(ctx, cell));
+    }
     const fallen = sacked.get(cell);
     if (fallen && ctx.settlements.inProvince(cell).every((o) => o.population <= people))
       builder.raze(f, Math.min(0.12, 0.01 + fallen / Math.max(1, people) / 20), true);
@@ -1437,6 +1564,18 @@ export function razeTown(
 ): number {
   const f = townsOf(ctx.world).get(town);
   return f ? new TownBuilder(ctx, yearOfMoment(t)).raze(f, share, false, near) : 0;
+}
+
+/** A share of a town's homes burned from the air, `about` lots from its heart (see TownBuilder.burn): how many. */
+export function burnTown(
+  ctx: PopulationContext,
+  town: Ref,
+  share: number,
+  t: SimTime,
+  about: number,
+): number {
+  const f = townsOf(ctx.world).get(town);
+  return f ? new TownBuilder(ctx, yearOfMoment(t)).burn(f, share, about) : 0;
 }
 
 /** Whether any of a town's homes stand (or rise). */

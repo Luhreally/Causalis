@@ -51,6 +51,7 @@ const BUILT = 0,
   RAISED = 1,
   FELL = 2,
   RAZED = 3,
+  BURNED = 5,
   CLEARED = 4;
 
 /** A building's name without its article: "a hall of law" → "hall of law". */
@@ -191,8 +192,8 @@ export function lotPage(world: World, ref: string): PageModel {
       lines.push([
         `One of a row of ${many(run[2] - run[1], "lot", "lots")} built alike, lot by lot.`,
       ]);
-  } else if (run && (run[0] === FELL || run[0] === RAZED)) {
-    const burnt = run[0] === RAZED;
+  } else if (run && (run[0] === FELL || run[0] === RAZED || run[0] === BURNED)) {
+    const burnt = run[0] !== FELL;
     title = `A ruin of ${s.name}`;
     icon = burnt ? "🔥" : "🏚️";
     stats.push(
@@ -425,7 +426,7 @@ export function buildingsTab(world: World, town: Ref): Tab | null {
       (l) => l.n,
     ),
     ruins = f.changes
-      .filter((c) => c[0] === FELL || c[0] === RAZED)
+      .filter((c) => c[0] === FELL || c[0] === RAZED || c[0] === BURNED)
       .reduce((n, c) => n + (c[2] - c[1]), 0),
     rows: Stat[] = [
       stat("Homes", count(homesOf(f)), {

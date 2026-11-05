@@ -28,6 +28,7 @@ import {
 import { stonesFor } from "./chem-stones.ts";
 import { worldRocks, worldSoil } from "./chem-ground.ts";
 import { oresOn } from "./chem-ores.ts";
+import { CARRIED_ENGINES, askWkg, canBurn, flyerOn, givesWkg, liftingEngine } from "./reach.ts";
 
 /** What a substance can do, beyond what it weighs and where it melts. */
 export type Properties = {
@@ -879,6 +880,7 @@ export function rowReadings(w: Pick<MatterWorld, "chem" | "means">): FunctionRea
       `Power to fly goes as pull^1.5 over air's weight^0.5: here ${Math.round(fly * 100)}% of Earth's.`,
       `Power to fly goes as pull^1.5 over air's weight^0.5: here ${Math.round(fly * 100)}% of Earth's, too dear to fly on what it makes.`,
     ),
+    flyUnderPower(n),
     r(
       "build-high",
       "🏗️",
@@ -906,6 +908,34 @@ export function rowReadings(w: Pick<MatterWorld, "chem" | "means">): FunctionRea
         : "No beast of this world can be tamed: its people go on foot.",
     ),
   ];
+}
+
+/** Whether an engine a machine can carry lifts one here, and what the machine is (W2: rules/reach.ts; the figures estimates). */
+function flyUnderPower(n: MeansWorld): FunctionReading {
+  const ask = askWkg(n),
+    lifts = liftingEngine(n),
+    best = CARRIED_ENGINES.at(-1)!,
+    watts = (x: number) => (x < 10 ? Math.round(x * 10) / 10 : Math.round(x)),
+    land = n.medium !== "water",
+    machine = lifts ? flyerOn(lifts, n) : null;
+  return {
+    id: "fly-under-power",
+    icon: "🛩️",
+    name: "fly under power",
+    asks: "an engine a machine can carry that gives more than flying asks here",
+    later: false,
+    met: !!lifts,
+    by: lifts ? `${lifts.name}: ${watts(ask)} W a kilogram asked, ${watts(givesWkg(lifts, n))} to its weight` : null,
+    subst: null,
+    why: machine
+      ? `Flying asks ${watts(ask)} W for each kilogram of machine here (estimate), and ${lifts!.name} gives ${watts(givesWkg(lifts!, n))} to its own weight. A machine of ${Math.round(machine.kg / 100) / 10} t, wings ${Math.round(machine.spanM)} m across, goes ${Math.round(machine.speed * 3.6)} km/h and ${Math.round(machine.reachKm)} km out and back.`
+      : !land
+        ? "Its people live in its seas: no machine rises from there."
+        : !canBurn(n)
+          ? `Flying would ask only ${watts(ask)} W for each kilogram of machine here (estimate), but nothing burns in its air, so no engine here can be carried, and machines stay on the ground.`
+          : `Flying asks ${watts(ask)} W for each kilogram of machine here (estimate), and the best engine it can make gives ${watts(givesWkg(best, n))} to its own weight: with its frame and fuel paid for, nothing is left to carry anyone.`,
+    ...(n.firstRoad ? { quiet: true } : {}),
+  };
 }
 
 /**
