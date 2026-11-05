@@ -29,8 +29,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           base=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow pages.yml --branch main --status success --limit 1 --json headSha --jq '.[0].headSha' || true)
-          paths="universe/src/sim universe/src/rules universe/src/kernel universe/src/gen universe/src/host/planet.ts universe/src/host/kinds.ts universe/package-lock.json universe/tools/sky-survey.ts universe/tools/engines.ts universe/tools/phase2-gate.ts universe/tools/phase3-gate.ts universe/tools/phase4-gate.ts universe/tools/phase5-gate.ts universe/tools/phase6-gate.ts"
-          if [ -n "$base" ] && git cat-file -e "$base^{commit}" && git diff --quiet "$base" HEAD -- $paths; then
+          if [ -n "$base" ] && [ "$(node universe/tools/history-moved.mjs "$base")" = "false" ]; then
             echo "history=false" >> "$GITHUB_OUTPUT"
             echo "history's code is as it was at $base: its checks are passed over"
           else
