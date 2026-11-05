@@ -31,6 +31,7 @@ import {
   tameNow,
   warsOf,
   wildsOf,
+  lanesOf,
 } from "../../sim/index.ts";
 import { PRINCIPLES, hasBeams } from "../../rules/index.ts";
 import { canBeFoundHere, kindAge, kindName, kindOf } from "../kinds.ts";
@@ -1200,6 +1201,15 @@ function firstsOf(world: World, s: BaseSurvey): First[] {
         voyages[1]?.year ?? null,
         many(voyages.length, "ship", "ships"),
         voyages.length,
+      );
+    const jump = lanesOf(world)?.first;
+    if (jump)
+      add(
+        "🌀 A jump through a lane",
+        at(jump.event),
+        null,
+        many(jump.hops, "lane", "lanes"),
+        jump.hops,
       );
     const heard = ev("contact.heard");
     if (heard[0])

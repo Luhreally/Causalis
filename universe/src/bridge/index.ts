@@ -220,6 +220,7 @@ export {
 } from "./inspect.ts";
 export type {
   ClusterPlan,
+  JumpPlan,
   ClusterStar,
   PeoplesSky,
   SkyState,

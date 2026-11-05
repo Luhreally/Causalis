@@ -29,6 +29,8 @@ export class ClusterPanel {
   onGalaxy: () => void = () => {};
   /** Every people about these stars, how far each has come (Phase 69). */
   onPeoples: () => void = () => {};
+  /** The law of this universe (Phase 68). */
+  onLaw: () => void = () => {};
   onVisit: (star: StarPage, index: number) => void = () => {};
 
   constructor(root: HTMLElement, client: HostClient) {
@@ -158,7 +160,15 @@ export class ClusterPanel {
     this.inspector.hidden = false;
     if (index === null) {
       this.title.textContent = "The neighbouring stars";
-      this.facts.replaceChildren(...clusterWords(plan).map((w) => el("div", "fact", w)));
+      const law = el(
+        "button",
+        "line cluster-law",
+        plan.lanes?.length
+          ? `🌀 A law of this universe: lanes between the stars (${plan.lanes.length.toLocaleString("en")})`
+          : "🌀 A law of this universe: no lanes between the stars",
+      );
+      law.onclick = () => this.onLaw();
+      this.facts.replaceChildren(...clusterWords(plan).map((w) => el("div", "fact", w)), law);
       const ships = this.sky.ships ?? [];
       this.more.replaceChildren(
         ...(ships.length

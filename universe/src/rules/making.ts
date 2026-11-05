@@ -38,6 +38,8 @@ export const MAKINGS = {
     ammonia: [176, 300],
     methane: [90, 125],
   },
+  /** A law of the universe and no part of the world's matter (rules/lanes.ts): lanes between the stars, or none. */
+  lanes: { open: [1, 1], shut: [0, 0] },
 } as const satisfies Record<string, Record<string, Range>>;
 
 export type MakingSubject = keyof typeof MAKINGS;
@@ -165,6 +167,14 @@ export const MAKING_WORDS: Readonly<
       sulfur: ["sulfur", "sulfur from its volcanoes: a sulfur-volcano world", "🌋"],
       ammonia: ["ammonia", "ammonia with its water: an ice-and-ammonia world", "🧊"],
       methane: ["methane", "methane under a nitrogen air: a methane world", "🟠"],
+    },
+  },
+  lanes: {
+    icon: "🌀",
+    name: "Its lanes",
+    choices: {
+      open: ["open", "lanes between the stars, a law of this universe", "🌀"],
+      shut: ["shut", "no lanes between the stars, a law of this universe", "🚫"],
     },
   },
 };

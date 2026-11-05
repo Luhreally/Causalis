@@ -18,11 +18,9 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import {
-  clusterStars,
   cellRef,
   foreignPlanets,
   isProvinceWorld,
-  makeGalaxy,
   type ForeignPlanet,
   type GalaxyStar,
 } from "../../gen/index.ts";
@@ -30,8 +28,13 @@ import {
   crossingYears,
   cruise,
   habitability,
+  laneThrows,
   longestCrossing,
+  routeMachines,
+  routeYears,
   starDriveFor,
+  thrownYears,
+  type LaneRoute,
   type StarDrive,
 } from "../../rules/index.ts";
 import { politiesOf, type Polity } from "../polity/polity.ts";
@@ -47,7 +50,10 @@ import {
   spaceOf,
   spendMachines,
 } from "./space.ts";
-import { StarSiteStore, starSitesOf } from "./stars.ts";
+import { clusterOf, StarSiteStore, starSitesOf, type SiteLane } from "./stars.ts";
+import { LANE_EVENTS, LANE_ROW, laneDraw, laneLawOf, laneRoute, lanesOf } from "./lanes.ts";
+
+export { clusterOf };
 
 export const VOYAGE_EVENTS = {
   sailed: defineEventType("space.voyage", 6),
@@ -63,30 +69,47 @@ export const VOYAGE_GAP = 60;
 /** The share of its people's work a ship takes to keep them alive aboard. */
 export const ABOARD = 0.5;
 
-/** The stars within reach of home: a pure function of the world's seed, kept while it is the same. */
-const CLUSTERS = new Map<string, GalaxyStar[]>();
-export function clusterOf(world: World): GalaxyStar[] {
-  const key = world.seed.text;
-  let stars = CLUSTERS.get(key);
-  if (!stars) {
-    if (CLUSTERS.size > 8) CLUSTERS.clear();
-    const rng = new Rng(world.seed);
-    CLUSTERS.set(key, (stars = clusterStars(rng, makeGalaxy(rng))));
-  }
-  return stars;
-}
-
 /** A star's worlds, drawn from the world's seed. */
 export function worldsOf(world: World, star: GalaxyStar): ForeignPlanet[] {
   return foreignPlanets(new Rng(world.seed), star);
 }
 
-type Target = { star: GalaxyStar; planet: ForeignPlanet; years: number; upkeep: number };
+type Target = {
+  star: GalaxyStar;
+  planet: ForeignPlanet;
+  years: number;
+  upkeep: number;
+  /** The way by lanes it would go (Phase 68; absent: on its drive, straight across). */
+  route?: LaneRoute;
+};
+
+/** Every world a home people could live on, by star: the whole cluster's, once. */
+const LIVABLE = new Map<
+  string,
+  readonly { star: GalaxyStar; planet: ForeignPlanet; upkeep: number }[]
+>();
+function livableWorlds(ctx: PopulationContext) {
+  const key = ctx.world.seed.text;
+  let list = LIVABLE.get(key);
+  if (!list) {
+    if (LIVABLE.size > 4) LIVABLE.clear();
+    const g = ctx.generated,
+      out: { star: GalaxyStar; planet: ForeignPlanet; upkeep: number }[] = [];
+    for (const star of clusterOf(ctx.world))
+      for (const planet of worldsOf(ctx.world, star)) {
+        const h = habitability(planet, g.life.people?.body ?? null, g.system.bodies[0]!.gravity);
+        if (h.livable) out.push({ star, planet, upkeep: h.upkeep });
+      }
+    LIVABLE.set(key, (list = out));
+  }
+  return list;
+}
 
 /** The star a realm's ship would sail for now: the nearest in time with a world its people could live on. */
 export function voyageTarget(
   ctx: PopulationContext,
   p: Polity,
+  machines = Infinity,
 ): { drive: StarDrive; target: Target } | null {
   const k = (id: string) => knows(ctx, p.seat, id),
     drive = starDriveFor(k);
@@ -107,6 +130,19 @@ export function voyageTarget(
       if (!h.livable) continue;
       if (!best || years * (1 + h.upkeep / 10) < best.years * (1 + best.upkeep / 10))
         best = { star, planet, years, upkeep: h.upkeep };
+    }
+  }
+  // By the lanes (Phase 68): where the law holds and this people has found them, any star they run to, nearest in time.
+  if (laneLawOf(ctx.world).open && k(LANE_ROW)) {
+    const v = cruise(drive),
+      home = g.star.ref as string;
+    for (const w of livableWorlds(ctx)) {
+      if (taken.has(w.star.ref)) continue;
+      const route = laneRoute(ctx.world, home, w.star.ref);
+      if (!route || machines * COLONY_SHARE < STARSHIP_MACHINES + routeMachines(route)) continue;
+      const years = routeYears(route, v);
+      if (!best || years * (1 + w.upkeep / 10) < best.years * (1 + best.upkeep / 10))
+        best = { star: w.star, planet: w.planet, years, upkeep: w.upkeep, route };
     }
   }
   return best ? { drive, target: best } : null;
@@ -150,7 +186,7 @@ export function voyageYear(ctx: PopulationContext, t: SimTime): void {
       .filter((x): x is Province => x !== undefined && onHome(g, x.cell))
       .sort((a, b) => b.total() - a.total() || a.cell - b.cell)[0];
     if (!origin || origin.total() < COLONISTS * 5) continue;
-    const choice = voyageTarget(ctx, p);
+    const choice = voyageTarget(ctx, p, machines);
     if (!choice) continue;
     // A reason: a rival's ship already sailing, hunger at home, the rulers' will.
     const reasons: Factor[] = [],
@@ -208,16 +244,19 @@ function sail(
   const cell = g.offworld.base + free,
     lore = loreOf(world),
     driveKnown = lore.get(p.seat, drive.needs[0]!);
-  spendMachines(ctx, p, STARSHIP_MACHINES);
+  const route = target.route,
+    lane = route ? laneOfShip(ctx, route, drive, target.star.distance, cell, year) : null,
+    years = target.years + (lane?.thrown?.years ?? 0);
+  spendMachines(ctx, p, STARSHIP_MACHINES + (route ? routeMachines(route) : 0));
   const decision = world.decisions.record({
     rule: "space.voyage",
     subject: p.ref,
     outcome: {
       star: target.star.ref,
       planet: target.planet.index,
-      years: Math.round(target.years),
+      years: Math.round(years),
     },
-    score: target.years,
+    score: years,
     threshold: 0,
     factors: [
       {
@@ -227,7 +266,9 @@ function sail(
         source: { ref: target.star.ref, role: "enabler" as const, weight: 1 },
       },
       {
-        name: `${drive.words}: ${(cruise(drive) * 100).toFixed(1)} in a hundred of light's speed, ${Math.round(target.years)} years on the way`,
+        name: route
+          ? `${route.hops} lane${route.hops === 1 ? "" : "s"} between the stars, ${Math.round(route.ly)} light-years, ${Math.round(years)} years on the way; ${lane!.byDrive} by ${drive.words} alone`
+          : `${drive.words}: ${(cruise(drive) * 100).toFixed(1)} in a hundred of light's speed, ${Math.round(target.years)} years on the way`,
         value: cruise(drive),
         contribution: 0.8,
         source: driveKnown ? { ref: driveKnown.event, role: "enabler" as const, weight: 1 } : null,
@@ -254,8 +295,9 @@ function sail(
       realm: p.town,
       star: target.star.ref,
       distance: Math.round(target.star.distance * 10) / 10,
-      years: Math.round(target.years),
+      years: Math.round(years),
       drive: drive.id,
+      ...(route ? { lanes: route.hops, byDrive: lane!.byDrive } : {}),
       year,
     },
   });
@@ -271,12 +313,121 @@ function sail(
     distance: target.star.distance,
     drive: drive.id,
     departed: year,
-    arrives: year + Math.ceil(target.years),
+    arrives: year + Math.ceil(years),
     voyage: event,
     arrived: null,
     aboard: ABOARD,
     there: Math.min(0.9, there / (there + 6)),
+    ...(lane ? { lane } : {}),
   });
+  if (route)
+    noteFirstJump(ctx, p, {
+      what: "settlers",
+      cell,
+      star: target.star.ref,
+      planet: target.planet.index,
+      route,
+      drive,
+      distance: target.star.distance,
+      arrives: year + Math.ceil(years),
+      thrown: lane!.thrown,
+      cause: event,
+      year,
+    });
+}
+
+/** How a ship goes by a route: what each lane does to it, drawn as it sails. */
+function laneOfShip(
+  ctx: PopulationContext,
+  route: LaneRoute,
+  drive: StarDrive,
+  distance: number,
+  subject: number,
+  year: number,
+): SiteLane {
+  const v = cruise(drive);
+  let thrown: SiteLane["thrown"] = null;
+  for (let hop = 0; hop < route.hops && !thrown; hop++) {
+    const tide = route.tides[hop]!;
+    if (laneDraw(ctx.world, subject, year, 2 * hop) >= laneThrows(tide)) continue;
+    const share = laneDraw(ctx.world, subject, year, 2 * hop + 1),
+      ly = route.lengths[hop]!;
+    thrown = {
+      hop,
+      short: Math.round((1 - share) * ly * 10) / 10,
+      years: Math.ceil(thrownYears(ly, tide, share, v)),
+    };
+  }
+  return {
+    hops: route.hops,
+    ly: Math.round(route.ly * 10) / 10,
+    tonnes: Math.round(route.tonnes),
+    byDrive: Math.round(crossingYears(distance, drive)),
+    thrown,
+  };
+}
+
+/** The first ship of the home world to jump: told once. */
+export function noteFirstJump(
+  ctx: PopulationContext,
+  p: Polity,
+  j: {
+    readonly what: "settlers" | "envoys" | "fleet";
+    readonly cell: number | null;
+    readonly star: Ref;
+    readonly planet: number;
+    readonly route: LaneRoute;
+    readonly drive: StarDrive;
+    readonly distance: number;
+    readonly arrives: number;
+    readonly thrown: SiteLane["thrown"];
+    readonly cause: Ref;
+    readonly year: number;
+  },
+): void {
+  const { world } = ctx,
+    store = lanesOf(world);
+  if (!store || store.first) return;
+  const known = loreOf(world).get(p.seat, LANE_ROW),
+    byDrive = Math.round(crossingYears(j.distance, j.drive)),
+    machines = Math.round(routeMachines(j.route)),
+    event = world.events.emit({
+      type: LANE_EVENTS.first.type,
+      place: j.cell !== null ? cellRef(0, j.cell) : cellRef(0, p.seat),
+      subjects: [p.ref, j.star],
+      causes: [
+        { ref: j.cause, role: "trigger", weight: 1 },
+        ...(known ? [{ ref: known.event, role: "enabler" as const, weight: 0.8 }] : []),
+      ],
+      data: {
+        realm: p.town,
+        what: j.what,
+        hops: j.route.hops,
+        years: j.arrives - j.year,
+        byDrive,
+        distance: Math.round(j.distance * 10) / 10,
+        year: j.year,
+      },
+    });
+  store.first = {
+    event,
+    realm: p.ref,
+    name: p.town,
+    what: j.what,
+    cell: j.cell,
+    star: j.star,
+    planet: j.planet,
+    year: j.year,
+    arrives: j.arrives,
+    hops: j.route.hops,
+    ly: Math.round(j.route.ly * 10) / 10,
+    tonnes: Math.round(j.route.tonnes),
+    machines,
+    distance: Math.round(j.distance * 10) / 10,
+    byDrive,
+    drive: j.drive.id,
+    thrown: j.thrown,
+  };
 }
 
 export function installVoyages(world: World, ctx: () => PopulationContext): StarSiteStore {

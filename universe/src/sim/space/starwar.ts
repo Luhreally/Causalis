@@ -20,14 +20,22 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
-import { crossingYears, cruise, starDriveFor } from "../../rules/index.ts";
+import {
+  crossingYears,
+  cruise,
+  routeMachines,
+  routeYears,
+  starDriveFor,
+} from "../../rules/index.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
 import { politiesOf, type Polity } from "../polity/polity.ts";
 import { knows, loreOf } from "../lore/lore.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { civilizationsNear, contactsOf } from "./contact.ts";
 import { machinesOfRealm, spaceOf, spendMachines } from "./space.ts";
+import { LANE_ROW, laneLawOf, laneRoute } from "./lanes.ts";
 import { starSitesOf } from "./stars.ts";
+import { noteFirstJump } from "./voyages.ts";
 
 export const STARWAR = defineKind("swar", "war between the stars", "minted");
 
@@ -42,6 +50,8 @@ const FIGHT = defineStream("starwar.fight");
 
 /** Machines a fleet takes from its realm's lands. */
 export const FLEET_MACHINES = 4_000_000;
+/** Ships a fleet goes in, each burning a lane's fuel. */
+export const FLEET_HULLS = 3;
 /** The yearly chance a realm with a cause goes to war, before its valour. */
 export const STARWAR_PACE = 0.02;
 
@@ -102,6 +112,9 @@ export function starWarsOf(world: World): StarWarStore {
 /** A cause for war between the stars, and where the enemy lies. */
 type Cause = {
   enemy: Ref;
+  /** Where its fleet would go: the star, and the world there. */
+  star: Ref;
+  planet: number;
   distance: number;
   /** The enemy's strength when the fleet arrives. */
   defence: (year: number) => number;
@@ -123,6 +136,8 @@ function causes(ctx: PopulationContext, p: Polity, year: number): Cause[] {
     if (!holder || holder.ref === p.ref || holder.seat !== cell) continue;
     out.push({
       enemy: holder.ref,
+      star: site.star,
+      planet: site.planet,
       distance: site.distance,
       defence: () => (ctx.provinces.get(cell)?.total() ?? 0) / 500 + 1,
       factor: {
@@ -145,6 +160,8 @@ function causes(ctx: PopulationContext, p: Polity, year: number): Cause[] {
     if (!heard || civ.stars > year) continue;
     out.push({
       enemy: civ.ref,
+      star: civ.star,
+      planet: civ.planet,
       distance: civ.distance,
       // An older starfaring people is the stronger, and the more for its pace.
       defence: (y) => 1 + (civ.pace * Math.max(0, y - civ.stars)) / 150,
@@ -209,8 +226,19 @@ export function starWarYear(ctx: PopulationContext, t: SimTime): void {
     for (const cause of causes(ctx, p, year)) {
       if (store.open(p.ref, cause.enemy)) continue;
       if (!(world.rng.real(DECLARE, p.seat, t, 0) < STARWAR_PACE * (0.5 + valour))) continue;
-      spendMachines(ctx, p, FLEET_MACHINES);
-      const years = Math.ceil(crossingYears(cause.distance, drive)),
+      // By the lanes where the law holds and this realm has found them (Phase 68): each of its ships burns the way's fuel.
+      const route =
+          laneLawOf(world).open && knows(ctx, p.seat, LANE_ROW)
+            ? laneRoute(world, ctx.generated.star.ref as string, cause.star)
+            : null,
+        direct = Math.ceil(crossingYears(cause.distance, drive)),
+        byLane = route ? Math.ceil(routeYears(route, cruise(drive))) : Infinity;
+      spendMachines(
+        ctx,
+        p,
+        FLEET_MACHINES + (route && byLane < direct ? FLEET_HULLS * routeMachines(route) : 0),
+      );
+      const years = Math.min(direct, byLane),
         driveKnown = lore.get(p.seat, drive.needs[0]!),
         decision = world.decisions.record({
           rule: "starwar.declare",
@@ -227,7 +255,7 @@ export function starWarYear(ctx: PopulationContext, t: SimTime): void {
               source: { ref: prog.satellite, role: "enabler", weight: 1 },
             },
             {
-              name: `a fleet on ${drive.words}: ${Math.round(years)} years to arrive, on news ${Math.round(cause.distance)} years old`,
+              name: `a fleet ${byLane < direct ? `through ${route!.hops} lane${route!.hops === 1 ? "" : "s"}, on` : "on"} ${drive.words}: ${Math.round(years)} years to arrive, on news ${Math.round(cause.distance)} years old`,
               value: cruise(drive),
               contribution: 0.6,
               source: driveKnown ? { ref: driveKnown.event, role: "enabler", weight: 1 } : null,
@@ -262,6 +290,20 @@ export function starWarYear(ctx: PopulationContext, t: SimTime): void {
         won: null,
         ended: null,
       });
+      if (route && byLane < direct)
+        noteFirstJump(ctx, p, {
+          what: "fleet",
+          cell: null,
+          star: cause.star,
+          planet: cause.planet,
+          route,
+          drive,
+          distance: cause.distance,
+          arrives: year + years,
+          thrown: null,
+          cause: event,
+          year,
+        });
       // One declaration a year in all the world.
       return;
     }

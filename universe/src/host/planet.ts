@@ -49,6 +49,8 @@ import {
   warsOf,
   wildsOf,
   WAR_EVENTS,
+  laneLawOf,
+  laneMapOf,
 } from "../sim/index.ts";
 import {
   FOODS,
@@ -170,6 +172,7 @@ import { withWounds, woundedTowns } from "./wounds.ts";
 import { landPlan } from "./land.ts";
 import { campNear } from "./camp.ts";
 import { NATIVES_QUERIES, folkOfTown, folkTownPlan } from "./natives.ts";
+import { jumpPlan } from "./lanes.ts";
 import { LANDFALL_QUERIES } from "./landfall.ts";
 import { battleNear, battleOutcome } from "./battle.ts";
 import { battleRoll } from "./roll.ts";
@@ -892,8 +895,21 @@ function planetUniverse(name: string, prior: Prior): Universe {
       /** The stars within the cluster's reach of home. */
       "galaxy.cluster": (world): ClusterPlan => {
         const rng = new Rng(world.seed);
-        return { radius: CLUSTER_LY, stars: clusterOf(world).map((s) => clusterStar(s, rng)) };
+        return {
+          radius: CLUSTER_LY,
+          stars: clusterOf(world).map((s) => clusterStar(s, rng)),
+          // (Places in `stars`: the lanes' list has the home star first.)
+          ...(laneLawOf(world).open
+            ? {
+                lanes: laneMapOf(world).lanes.map(
+                  (l) => [l.a - 1, l.b - 1] as readonly [number, number],
+                ),
+              }
+            : {}),
+        };
       },
+      /** The first jump (Phase 68). */
+      "lanes.jump": (world) => jumpPlan(world),
       /** Any star of the galaxy (the cluster's or beyond), and its worlds. */
       "galaxy.star": (world, args): StarPage => starPage(world, (args as { ref: string }).ref),
       // Another star's own system, to look at as the home star's is (M95).

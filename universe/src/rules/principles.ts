@@ -100,6 +100,8 @@ export type Principle = {
    * bodies and star must meet, whatever its people know. Unmet, it is never found there.
    */
   readonly asks?: readonly string[];
+  /** A law of the universe it asks besides (Phase 68): shut, it is never found, whatever the world's matter. */
+  readonly law?: "lanes";
 };
 
 /**
@@ -1303,12 +1305,33 @@ export const HEAT_TREE: readonly Principle[] = [
   },
 ];
 
+/**
+ * A law of some universes (Phase 68, rules/lanes.ts): the tide between stars read so finely, by a mind that reckons as
+ * no hand can, that a ring wound without loss and fed by an annihilation can press a lane's mouth open. After every
+ * other row: a row's place keys its draws, so nothing before it moves.
+ */
+export const LAW_TREE: readonly Principle[] = [
+  {
+    ...P(
+      "lane-sounding",
+      "the lanes between the stars, sounded",
+      ["antimatter-drive", "machine-minds", "fusion-power|star-mirrors"],
+      0.0002,
+      { crafters: 1, leaders: 0.3 },
+      {},
+    ),
+    asks: ["open-a-lane"],
+    law: "lanes",
+  },
+];
+
 export const PRINCIPLES: readonly Principle[] = [
   ...TREE,
   ...KIND_TREE,
   ...LATE_TREE,
   ...MEANS_TREE,
   ...HEAT_TREE,
+  ...LAW_TREE,
 ].map((p) => {
   const q = ASKS[p.id] ? { ...p, body: ASKS[p.id] } : p,
     r = q.needs.some((n) => n.includes("@")) ? { ...q, needs: q.needs.map(expand) } : q;

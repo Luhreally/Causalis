@@ -57,6 +57,7 @@ import { marketGoodRef, type MarketStore } from "../economy/market.ts";
 import { oreWorkable } from "../economy/heat.ts";
 import { cultureOf } from "../culture/culture.ts";
 import { politiesOf } from "../polity/polity.ts";
+import { laneLawOf } from "../space/lanes.ts";
 
 export const LORE_EVENTS = {
   found: defineEventType("lore.found", 5),
@@ -245,6 +246,11 @@ export function matterAllows(g: HomeWorld, p: Principle): boolean {
   return !p.asks || !matterShuts(p, functionsOf(g));
 }
 
+/** Whether the laws of this universe allow a principle (Phase 68): shut, it comes to no one by any road. */
+export function lawAllows(world: World, p: Principle): boolean {
+  return p.law !== "lanes" || laneLawOf(world).open;
+}
+
 /** The lore's year: each land may find one principle and learn one from a neighbour. */
 export function loreYear(ctx: PopulationContext, t: SimTime): void {
   const { world, generated: g } = ctx,
@@ -271,7 +277,8 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
           !store.get(cell, p.id) &&
           needsMet(p, (n) => knows(ctx, cell, n)) &&
           (!p.body?.lifts || (lifts !== null && knows(ctx, cell, lifts.id))) &&
-          matterAllows(g, p),
+          matterAllows(g, p) &&
+          lawAllows(world, p),
       );
     if (!open.length) continue;
     // Finding: the first principle whose drivers carry it, in the tree's order.

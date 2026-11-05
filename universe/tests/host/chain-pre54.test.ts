@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { YEAR, seedFromText, type World } from "../../src/kernel/index.ts";
 import { isProvinceWorld } from "../../src/gen/index.ts";
 import { PRINCIPLES, REACTIONS, SUBSTANCES } from "../../src/rules/index.ts";
-import { HEAT_TREE, LATE_TREE, MEANS_TREE } from "../../src/rules/principles.ts";
+import { HEAT_TREE, LATE_TREE, LAW_TREE, MEANS_TREE } from "../../src/rules/principles.ts";
 import { designsOf, homePlanet, politiesOf, populationContext } from "../../src/sim/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import {
@@ -162,6 +162,7 @@ const CATEGORIES: Record<string, () => unknown> = {
       (p) =>
         !KIND_ROWS.has(p.id) &&
         !HEAT_TREE.some((l) => l.id === p.id) &&
+        !LAW_TREE.some((l) => l.id === p.id) &&
         !LATE_TREE.some((l) => l.id === p.id) &&
         !MEANS_TREE.some((l) => l.id === p.id),
     ).map((p) => page(`prin:${p.id}`)),

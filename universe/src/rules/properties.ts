@@ -1097,6 +1097,19 @@ export function readFunctions(w: MatterWorld): FunctionReading[] {
       ? { ...magnet, why: `${magnet.why} Its own cold keeps them nearly cold enough for free.` }
       : magnet,
     {
+      id: "open-a-lane",
+      icon: "🌀",
+      name: "open a lane",
+      asks: "a ring wound without loss, to press a lane's mouth open with an annihilation's light",
+      later: true,
+      met: magnet.met,
+      by: magnet.by,
+      subst: magnet.subst,
+      why: magnet.met
+        ? `A ring of it would hold, and it wants no other matter: ${magnet.why}`
+        : "Nothing here carries a current without loss, so no ring could hold a lane's mouth open.",
+    },
+    {
       id: "gather-a-star",
       icon: "☀️",
       name: "gather a star's light",

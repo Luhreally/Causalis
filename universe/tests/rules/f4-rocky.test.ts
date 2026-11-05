@@ -190,8 +190,8 @@ test("the tree: iron and building can follow flakes, and stand-ins ask for what 
   assert.equal(principle("set-edges").drivers.lacks, "metal");
   assert.equal(principle("sun-engines").drivers.lacks, "coal");
   assert.equal(principle("heat-engines").drivers.lacks, "coal");
-  // (No new rows but W2's and W3's, last: every land's draws stay at their places.)
-  assert.equal(PRINCIPLES.length, 134);
+  // (No new rows but W2's and W3's, and the lanes' (Phase 68), last: every land's draws stay at their places.)
+  assert.equal(PRINCIPLES.length, 135);
 });
 
 test("a host rides the beast its world has, and Earth's on horseback", () => {

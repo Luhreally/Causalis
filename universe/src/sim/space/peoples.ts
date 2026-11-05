@@ -39,16 +39,18 @@ import {
   habitability,
   needsMet,
   reachIn,
+  routeYears,
   starDriveFor,
   type BodyPlan,
   type Principle,
 } from "../../rules/index.ts";
 import { WAY, cultureOf, pushWays } from "../culture/culture.ts";
 import { politiesOf, type Polity } from "../polity/polity.ts";
-import { LORE_EVENTS, knows, loreOf, matterAllows } from "../lore/lore.ts";
+import { LORE_EVENTS, knows, lawAllows, loreOf, matterAllows } from "../lore/lore.ts";
 import { marketsOf, type PopulationContext } from "../population/systems.ts";
 import { grieve, raze, strike } from "../acts/disasters.ts";
 import { civilizationsNear } from "./contact.ts";
+import { laneLawOf, laneRoute, laneYearOf } from "./lanes.ts";
 import { clusterOf, worldsOf } from "./voyages.ts";
 import { machinesOfRealm, spaceOf } from "./space.ts";
 import { starSitesOf } from "./stars.ts";
@@ -430,8 +432,23 @@ function nearestHold(world: World, store: PeoplesStore, civ: Civilization, to: R
   return best;
 }
 
-const crossing = (world: World, from: Ref, to: Ref, speed: number) =>
-  Math.max(1, Math.ceil(apart(starPoint(world, from), starPoint(world, to)) / speed));
+/** Years a people's ship takes: straight across; or, once it has found the lanes (Phase 68), by them where that is sooner. */
+const crossing = (
+  world: World,
+  from: Ref,
+  to: Ref,
+  speed: number,
+  civ: Civilization,
+  year: number,
+) => {
+  const direct = Math.max(
+    1,
+    Math.ceil(apart(starPoint(world, from), starPoint(world, to)) / speed),
+  );
+  if (!laneLawOf(world).open || year < laneYearOf(world, civ)) return direct;
+  const route = laneRoute(world, from, to);
+  return route ? Math.min(direct, Math.max(1, Math.ceil(routeYears(route, speed)))) : direct;
+};
 
 /** The nearest star a people could live about that none holds or sails for, within reach of a hold. */
 function nextSpot(
@@ -791,7 +808,8 @@ function lessonsFor(ctx: PopulationContext, seat: number): Principle[] {
       !k(p.id) &&
       needsMet(p, k) &&
       affordsPrinciple(p, ctx.medium, reach, means.wants) &&
-      matterAllows(ctx.generated, p),
+      matterAllows(ctx.generated, p) &&
+      lawAllows(ctx.world, p),
   );
 }
 
@@ -918,7 +936,7 @@ function sendFleet(
 ): void {
   const world = ctx.world,
     from = nearestHold(world, store, civ, to),
-    years = crossing(world, from, to, speedOf(civ, year));
+    years = crossing(world, from, to, speedOf(civ, year), civ, year);
   m.lastRaid = year;
   if (years > LONGEST_CROSSING) return;
   const realm = politiesOf(world).get(foe),
@@ -1271,7 +1289,7 @@ export function peoplesYear(ctx: PopulationContext, t: SimTime): void {
             : 0;
     if (chance > 0 && world.rng.real(SAIL, key, year, 1) < chance) {
       const from = nearestHold(world, store, civ, home),
-        years = crossing(world, from, home, speed);
+        years = crossing(world, from, home, speed, civ, year);
       if (years <= LONGEST_CROSSING) {
         const event = world.events.emit({
           type: PEOPLES_EVENTS.sailed.type,
@@ -1308,7 +1326,7 @@ export function peoplesYear(ctx: PopulationContext, t: SimTime): void {
     if (spot && crowded) store.crowded = store.crowded.filter((c) => c !== civ.ref);
     if (!spot) continue;
     const from = nearestHold(world, store, civ, spot.ref),
-      years = crossing(world, from, spot.ref, speed);
+      years = crossing(world, from, spot.ref, speed, civ, year);
     if (years > LONGEST_CROSSING) continue;
     const event = world.events.emit({
       type: PEOPLES_EVENTS.sailed.type,

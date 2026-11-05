@@ -7,6 +7,7 @@ import { PROPULSION, STAR_DRIVES } from "../rules/index.ts";
 import {
   CONTACT_EVENTS,
   GREAT_ACT_EVENTS,
+  LANE_EVENTS,
   LATE_EVENTS,
   PEOPLES_EVENTS,
   SPACE_EVENTS,
@@ -39,9 +40,43 @@ registerEventWords(SPACE_EVENTS.colony.type, (_world, e) => {
 });
 
 registerEventWords(VOYAGE_EVENTS.sailed.type, (_world, e) => {
-  const d = (e.data ?? {}) as { realm?: string; distance?: number; years?: number; drive?: string };
+  const d = (e.data ?? {}) as {
+    realm?: string;
+    distance?: number;
+    years?: number;
+    drive?: string;
+    lanes?: number;
+    byDrive?: number;
+  };
   const drive = STAR_DRIVES.find((x) => x.id === d.drive)?.words ?? "a starship";
+  if (d.lanes)
+    return `The realm of ${d.realm ?? "a people"} sent a ship to a star ${d.distance ?? "?"} light-years away, through ${d.lanes} lane${d.lanes === 1 ? "" : "s"}: ${d.years ?? "many"} years on the way, where ${drive} alone would have taken ${d.byDrive ?? "?"}, year ${yearOfMoment(e.t)}`;
   return `The realm of ${d.realm ?? "a people"} sent a ship to a star ${d.distance ?? "?"} light-years away, on ${drive}: ${d.years ?? "many"} years on the way, its people living and dying aboard, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(LANE_EVENTS.first.type, (_world, e) => {
+  const d = (e.data ?? {}) as {
+    realm?: string;
+    hops?: number;
+    years?: number;
+    byDrive?: number;
+    distance?: number;
+  };
+  return `A ship of the realm of ${d.realm ?? "a people"} made the first jump, through ${d.hops ?? "?"} lane${d.hops === 1 ? "" : "s"} to a star ${d.distance ?? "?"} light-years away: ${d.years ?? "?"} years on the way, where its drive alone would have taken ${d.byDrive ?? "?"}, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(LANE_EVENTS.sent.type, (_world, e) => {
+  const d = (e.data ?? {}) as {
+    realm?: string;
+    folk?: string;
+    hops?: number;
+    years?: number;
+    byDrive?: number;
+    distance?: number;
+  };
+  return `The realm of ${d.realm ?? "a people"} sent a ship through ${d.hops ?? "?"} lane${d.hops === 1 ? "" : "s"} to the ${d.folk ?? "people"} it had seen ${d.distance ?? "?"} light-years away: ${d.years ?? "?"} years, where its drive alone would have taken ${d.byDrive ?? "?"}, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(LANE_EVENTS.came.type, (_world, e) => {
+  const d = (e.data ?? {}) as { realm?: string; seen?: string; sailed?: number };
+  return `A ship of the realm of ${d.realm ?? "a people"}, sent through the lanes in ${d.sailed ?? "?"}, came to a people it had seen living in ${d.seen ?? "their own places"}, year ${yearOfMoment(e.t)}`;
 });
 registerEventWords(VOYAGE_EVENTS.arrived.type, (_world, e) => {
   const d = (e.data ?? {}) as { distance?: number; people?: number };

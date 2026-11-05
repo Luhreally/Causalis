@@ -860,11 +860,13 @@ export class ShipMark {
     size: number,
     burn: number,
     dt: number,
+    /** How many times its length it is drawn out along its way (Phase 68: going into a lane). */
+    stretch = 1,
   ): void {
     this.root.setPosition(x, y, z);
     const l = Math.hypot(dx, dy, dz);
     if (l > 1e-9) this.root.lookAt(x + dx / l, y + dy / l, z + dz / l);
-    this.root.setLocalScale(size, size, size);
+    this.root.setLocalScale(size, size, size * stretch);
     const on = burn > 0.02;
     this.flame.enabled = on;
     this.glow.enabled = on;

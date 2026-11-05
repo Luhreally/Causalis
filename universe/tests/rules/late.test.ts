@@ -31,7 +31,7 @@ import {
   remadeWorld,
   remakingAt,
 } from "../../src/rules/late.ts";
-import { HEAT_TREE, LATE_TREE, MEANS_TREE } from "../../src/rules/principles.ts";
+import { HEAT_TREE, LATE_TREE, LAW_TREE, MEANS_TREE } from "../../src/rules/principles.ts";
 import { seedFromText } from "../../src/kernel/index.ts";
 import { functionsOf } from "../../src/gen/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
@@ -79,10 +79,11 @@ test("the steps past ours are added after all the others, so no earlier step mov
   const ids = PRINCIPLES.map((p) => p.id);
   assert.equal(new Set(ids).size, ids.length);
   // (After them only arms by what they do, F1, and heat by what reaches it, F2, which every land's earlier draws stand before too.)
-  const from = ids.length - LATE_TREE.length - MEANS_TREE.length - HEAT_TREE.length;
+  const from =
+    ids.length - LATE_TREE.length - MEANS_TREE.length - HEAT_TREE.length - LAW_TREE.length;
   assert.deepEqual(
     ids.slice(from),
-    [...LATE_TREE, ...MEANS_TREE, ...HEAT_TREE].map((p) => p.id),
+    [...LATE_TREE, ...MEANS_TREE, ...HEAT_TREE, ...LAW_TREE].map((p) => p.id),
   );
   for (const id of [
     "fusion-power",
