@@ -127,6 +127,11 @@ const over = async (x: number, z: number, distance: number, pitch: number) => {
     `globalThis.causalis.rig.flyTo({ target: { x: ${x * 0.1}, y: 0, z: ${z * 0.1} }, distance: ${distance}, pitch: ${pitch} })`,
   );
   await page.waitForTimeout(slow(2500));
+  // (Software GL flies by the frame, so the eye may still be on its way: a tap then falls on the ground.)
+  await page
+    .waitForFunction(`!globalThis.causalis.rig.flying`, undefined, { timeout: slow(30000) })
+    .catch(() => undefined);
+  await page.waitForTimeout(slow(300));
 };
 /** One drawn tapped where they stand on the screen (the eye brought over them first). */
 const tap = async (p: Person) => {
