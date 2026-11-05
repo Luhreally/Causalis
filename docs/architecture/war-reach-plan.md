@@ -127,6 +127,20 @@ A real year 2000 battle showed why they still looked medieval after W1 and W1b. 
 
 Still to do: a soldier possessed in a battle by fire still walks to the hand's fight (`sim/hand/fight.ts`, history's). Overseas conquest stays rare, since a war needs a rivalry and rivalries are mostly between neighbours: W3's reach changes what a war is for, so look again there. A raid costs its side no fuel or machines yet.
 
+## W3, as built (2026-11-05)
+
+A rocket is the same four numbers as W2's wing, on one row at the tree's very end (`thrown-loads`). `rules/reach.ts`: reach from the rocket equation on a round world with the world's own charge, against its pull and radius; a tonne's energy; a miss as a share of the way flown, far less once steered; no one aboard. On Earth's numbers 302 km, 2,877 km in three stages. Pull 2.6 shuts it; a small light world's first goes around. Twelve sampled peoples' worlds range from 121 km (`cinder 570`, pull 1.57) to right around (`gale 710`, pull 0.63); none is shut.
+
+**One departure from the brief, kept:** a world where nothing burns still throws if it has a charge. A rocket carries what it throws out, and those worlds already reach orbit on `rocketry`, so a page saying they could not would be false. So `vale 471` throws, 350 km on its first, though it never flies.
+
+**What a realm chooses (`thrownAtOf`):** each foe land's greatest town within reach of where they leave, worth more where its land has works (x8) or goods pass through it (x2), and by the share that would land on it. A fall goes through W2's burning and dead. **Works stop:** a land's stock of machines goes in proportion to the lots flattened, and its works stand idle three years (`Market.idleUntil`, one optional number, hashed and saved only when set).
+
+**Seen:** at 14:00, a streak out of a clear sky with no machine to be seen, a flash standing over the roofs, then the lots burning as in a raid; a line on the land and an arc on the globe from where it left; the pages say what fell, whose, from how far, what it cost. ✈ Watch plays it again at its own pace.
+
+**Measured, on forks of far saves** (not from the start, so first years are ceilings): a median way of about 1,000 km, the longest 3,471 km. Rockets are 0.09% to 2.74% of a war's dead: small, and away from the front. Most falls stop a works. Whether a side with them wins more was too few wars to say: attackers with them won 2 of 6, against about 11% where neither had them. A year on a far world cost 32% more on `vale 471` with other runs alongside: **not shown to be small; the first thing to measure next.** Save size did not move measurably.
+
+Levers: wasted rockets are counted, not drawn; nothing stops one yet; ports and rail read only as "goods go through"; no warning for a person possessed under a fall; a person's page says "raid" for a rocket's fall.
+
 ## Order
 
 **W4 is parked.** Its planner was stopped by a safety check on 2026-11-05 while writing the spec, before any code. It is not to be retried or reworded around that check: the owner decides what happens next. W5 is not started either, for the same reason: it goes near the same line, and the owner's call comes first.
