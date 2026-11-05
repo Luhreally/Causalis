@@ -49,6 +49,8 @@ export { SOUGHT, groundOf, groundStone, landBedrock, type Ground } from "./bedro
 export {
   chemistryInputs,
   functionsOf,
+  meansNumbers,
+  meansOfWorld,
   matterOf,
   nativeIronLands,
   worldChemistry,

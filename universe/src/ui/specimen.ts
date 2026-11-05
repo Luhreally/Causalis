@@ -1175,7 +1175,7 @@ function clubParts(c: ThingCtx): SpecimenPart[] {
 }
 
 /** Darts: three short shafts fanned, each with its point (of shell, of stone, of metal). */
-function dartsParts(c: ThingCtx): SpecimenPart[] {
+function fannedDartsParts(c: ThingCtx): SpecimenPart[] {
   const parts: SpecimenPart[] = [];
   for (let i = 0; i < 3; i++) {
     const a = (i - 1) * 0.22,
@@ -1194,6 +1194,26 @@ function dartsParts(c: ThingCtx): SpecimenPart[] {
     );
   }
   return parts;
+}
+
+/** A gas dart: a long thin shaft, pointed at its head, with four fins of its stuff at its tail. */
+function dartsParts(c: ThingCtx): SpecimenPart[] {
+  const fin = box(0.16, 0.2, 0.012);
+  return [
+    head(
+      c,
+      lathe(
+        [
+          [0.02, -0.6],
+          [0.022, -0.58],
+          [0.022, 0.5],
+          [0, 0.66],
+        ],
+        6,
+      ),
+    ),
+    head(c, join(move(fin, [0, -0.5, 0]), move(rotate(fin, Math.PI / 2, 0, 0), [0, -0.5, 0]))),
+  ];
 }
 
 function spearParts(c: ThingCtx): SpecimenPart[] {
@@ -1237,6 +1257,24 @@ function swordParts(c: ThingCtx): SpecimenPart[] {
     haft(c, move(prism(6, 0.025, 0.28), [0, -0.2, 0])),
     head(c, move(prism(6, 0.045, 0.07), [0, -0.37, 0])),
   ];
+}
+
+/**
+ * A set blade (F1): a spine of wood, with eight small flakes set along each edge in the stuff's
+ * colour. The flakes stand where a sword's edges are, so the blade tapers to its point as one does.
+ */
+function setBladeParts(c: ThingCtx): SpecimenPart[] {
+  const flakes: Mesh[] = [];
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 8; i++) {
+      const y = 0.08 + 0.13 * i,
+        half = y <= 0.9 ? 0.04 : (0.04 * (1.2 - y)) / 0.3;
+      flakes.push(
+        move(rotate(box(0.04, 0.075, 0.016), 0, 0, side * 0.25), [side * (half - 0.004), y, 0]),
+      );
+    }
+  }
+  return [haft(c, move(box(0.028, 1, 0.024), [0, 0.56, 0])), head(c, edge(c, join(...flakes)))];
 }
 
 /** A stave along a curve from its foot to its nock, its string drawn as a line between the nocks. */
@@ -1722,7 +1760,10 @@ type ThingBuilder = (c: ThingCtx) => SpecimenPart[];
 const THINGS: readonly (readonly [readonly string[], ThingBuilder])[] = [
   [["club"], clubParts],
   [["spear"], spearParts],
-  [["darts", "dart"], dartsParts],
+  [["darts", "dart"], fannedDartsParts],
+  [["set-blade", "set flakes", "long blade"], setBladeParts],
+  [["gas-dart"], dartsParts],
+  [["sound-lance"], beamLanceParts],
   [["sword"], swordParts],
   [["horn-bow"], hornBowParts],
   [["bow"], bowParts],

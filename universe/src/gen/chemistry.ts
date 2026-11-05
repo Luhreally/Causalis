@@ -8,14 +8,19 @@ import { finish, hashString, mix } from "../kernel/index.ts";
 import {
   PRIORS,
   SOLAR,
+  affordancesOf,
   chemistryOf,
   keenestIn,
+  meansOf,
+  meansWorldOf,
   readFunctions,
   stonesFor,
   type Chemistry,
   type ChemistryInputs,
   type FunctionReading,
   type MatterWorld,
+  type Means,
+  type MeansWorld,
   type Stone,
 } from "../rules/index.ts";
 import { starAgeGyr, worldKindOf } from "./bodies.ts";
@@ -54,8 +59,31 @@ export function matterOf(g: HomeWorld): MatterWorld {
     giants: bodies.filter((b) => b.kind === "giant" || b.kind === "ice giant").length,
     starLeftGyr: g.star.lifetimeGyr - starAgeGyr(g.star),
     peopled: !!g.life.people,
+    means: meansWorldOf({
+      chem: worldChemistry(g),
+      kind: worldKindOf(g),
+      celsius: g.planet.meanTemperature,
+      gravity: g.planet.gravity,
+      medium: g.life.people?.body.medium ?? "land",
+      bodyFire: g.life.people ? affordancesOf(g.life.people.body).fire : true,
+    }),
   };
 }
+
+const MEANS = new Map<string, { readonly numbers: MeansWorld; readonly means: Means }>();
+function meansKept(g: HomeWorld) {
+  let m = MEANS.get(g.digest);
+  if (!m) {
+    if (MEANS.size > 64) MEANS.clear();
+    const numbers = matterOf(g).means;
+    MEANS.set(g.digest, (m = { numbers, means: meansOf(numbers) }));
+  }
+  return m;
+}
+/** How a generated world does what its people want done (rules/means.ts, F1): kept. */
+export const meansOfWorld = (g: HomeWorld): Means => meansKept(g).means;
+/** A generated world's numbers, as its means are read from them: kept. */
+export const meansNumbers = (g: HomeWorld): MeansWorld => meansKept(g).numbers;
 
 const FUNCTIONS = new Map<string, readonly FunctionReading[]>();
 /** What a generated world's matter can and cannot do: a pure function of it, kept (Phase 66). */

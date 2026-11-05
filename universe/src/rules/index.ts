@@ -100,6 +100,7 @@ export {
   MATERIALS,
   REALIZATIONS,
   compose,
+  strapped,
   OPEN_AIR_DRIVES,
   SEALED_DRIVES,
   designWords,
@@ -768,4 +769,25 @@ export {
   type FunctionReading,
   type MatterWorld,
   type Properties,
+  meansWorldOf,
 } from "./properties.ts";
+export {
+  BARRELS,
+  CHARGES,
+  EDGE_STUFFS,
+  WATER_ARMS,
+  airWeight,
+  edgeFigure,
+  forceOf,
+  gunHere,
+  hereOf,
+  meansName,
+  meansOf,
+  type Barrel,
+  type Charge,
+  type EdgeStuff,
+  type GunHere,
+  type Means,
+  type MeansWorld,
+} from "./means.ts";
+export type { PartHere } from "./designs.ts";

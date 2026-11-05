@@ -20,7 +20,14 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
-import { BIOME, offworldSite, surfaceOre, worldKindOf } from "../../gen/index.ts";
+import {
+  BIOME,
+  meansNumbers,
+  meansOfWorld,
+  offworldSite,
+  surfaceOre,
+  worldKindOf,
+} from "../../gen/index.ts";
 import {
   G,
   HOST_ROLES,
@@ -30,6 +37,8 @@ import {
   WORKS_ROLES,
   compose,
   designWords,
+  firearm,
+  hereOf,
   kindBurns,
   realization,
   type Doctrine,
@@ -309,6 +318,21 @@ export function crystalFor(ctx: PopulationContext, p: Polity): Ref | null {
 }
 
 /**
+ * What a world's own machined arms come from (F1), where no steel can be: a member land with works
+ * whose machines are held there, else machines brought down a road. Null: none in its reach.
+ */
+export function woundWorksFor(ctx: PopulationContext, p: Polity): Ref | null {
+  const markets = ctx.world.store<MarketStore>("economy.markets"),
+    lands = [...p.members].sort((a, b) => a - b);
+  for (const c of lands) {
+    const m = markets.get(c);
+    if (m?.works && m.stock[G.machines]! > 0) return m.works;
+  }
+  const flow = markets.flows.find((f) => f.good === G.machines && lands.includes(f.to));
+  return flow ? (markets.route(flow.from, flow.to) ?? null) : null;
+}
+
+/**
  * Where a realm's engines would get their oil (Phase 53 M219): a member land that holds oil, drawn
  * there (citing its first well) or brought in (citing the road). Null: none.
  */
@@ -375,6 +399,16 @@ export function hostFor(
     const crystal = crystalFor(ctx, p);
     if (crystal) sources.crystal = crystal;
   }
+  // (What a world's means make, F1: where no furnace can be, flakes and fibre at hand, its works' machines for the rest.)
+  const means = meansOfWorld(ctx.generated);
+  if (!means.earthRoad) {
+    at.add("set edge");
+    at.add("wound");
+    if (seatKnows("repeating-fire") || seatKnows("sound-lances") || seatKnows("self-loading")) {
+      const w = woundWorksFor(ctx, p);
+      if (w) sources["wound works"] = w;
+    }
+  }
   for (const m of Object.keys(sources) as Material[]) at.add(m);
   const doctrine: Doctrine = {
     shock: 0.6 + valour,
@@ -396,6 +430,9 @@ export function hostFor(
       undefined,
       designsOf(ctx.world).of(p.ref)?.parts,
       HOST_KEEP,
+      means.earthRoad
+        ? undefined
+        : (id, m) => hereOf(id, m, meansNumbers(ctx.generated), firearm(id)),
     ),
     sources,
   };
@@ -447,7 +484,7 @@ const same = (a: readonly Part[], b: readonly Part[]) =>
 function principlesOf(ctx: PopulationContext, cell: number, parts: readonly Part[]): CauseRef[] {
   const refs = new Map<string, number>();
   for (const part of parts)
-    for (const id of realization(part.id).needs) {
+    for (const id of realization(part.id).needs.flatMap((n) => n.split("|"))) {
       const ref = knownBy(ctx, cell, id),
         e = ref ? ctx.world.events.get(ref) : undefined;
       if (ref && e) refs.set(ref, e.t);

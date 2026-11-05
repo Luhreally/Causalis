@@ -52,6 +52,7 @@ import {
   worldRocks,
   worldSoil,
   type Chemistry,
+  type Means,
   type Element,
   type MakeUp,
   type MatterKind,
@@ -72,7 +73,13 @@ import {
   whyNot,
   type MarketStore,
 } from "../../sim/index.ts";
-import { isProvinceWorld, nativeIronLands, starAgeGyr, worldChemistry } from "../../gen/index.ts";
+import {
+  isProvinceWorld,
+  meansOfWorld,
+  nativeIronLands,
+  starAgeGyr,
+  worldChemistry,
+} from "../../gen/index.ts";
 import type { Block, Item, Line, PageModel, Tab } from "../../bridge/index.ts";
 import { count, item, link, share, stat, yearNow } from "./words.ts";
 import { matterWorldOf } from "../reading.ts";
@@ -81,7 +88,7 @@ import { landLink, landTitle } from "./names.ts";
 import { airBlock } from "./ground.ts";
 import { elementPortrait, matterPortrait } from "../looks.ts";
 import { principleName } from "../../causal/index.ts";
-import { kindBlocks, kindOf, recipeName, shutWhy, workedWords } from "../kinds.ts";
+import { canBeFoundHere, kindBlocks, kindOf, recipeName, shutWhy, workedWords } from "../kinds.ts";
 import {
   lifeBlock,
   lifeUseBlock,
@@ -619,16 +626,27 @@ function asked(world: World, asks: readonly string[]): Line {
 }
 
 /** A principle's page (`prin:<id>`). */
+/** How a world makes gas fast behind a mass and holds it (F1), where it is not Earth's way. */
+function theWayHere(m: Means): string {
+  const hand = m.handCharge?.name ?? m.worksCharge?.name ?? "no charge",
+    works = m.worksCharge?.name ?? hand;
+  return `Charged with ${hand} in barrels of ${m.handBarrel.name}; at works with a current, with ${works} in barrels of ${m.worksBarrel.name}.`;
+}
+
 export function principlePage(world: World, ref: string): PageModel {
   const id = ref.slice(ref.indexOf(":") + 1),
     p = PRINCIPLES.find((x) => x.id === id);
   if (!p) throw new Error(`no principle ${ref}`);
   const all = knowers(world, p.id),
     first = all.find((k) => k.year !== null),
-    teaches = reactionsOn(chemOf(world)).filter((r) => r.principle === p.id),
+    means = meansOfWorld(homePlanet(world).generated),
+    gas = !!p.asks?.includes("make-gas-fast"),
+    // (No recipe for black powder on a world that has none: its own way is said below.)
+    teaches = reactionsOn(chemOf(world)).filter(
+      (r) => r.principle === p.id && (means.earthRoad || !gas),
+    ),
     // (Only what this world's kind can know: another kind's roads are not shown — Phase 56.)
-    kind = kindOf(world),
-    here = (id: string) => kindAllows(PRINCIPLES.find((x) => x.id === id) ?? p, kind),
+    here = (id: string) => canBeFoundHere(world, PRINCIPLES.find((x) => x.id === id) ?? p),
     opens = PRINCIPLES.filter(
       (q) => here(q.id) && q.needs.some((n) => n.split("|").includes(p.id)),
     ),
@@ -658,8 +676,11 @@ export function principlePage(world: World, ref: string): PageModel {
         ),
         stat("Found by", drivers.length ? drivers.join(", ") : "the older systems"),
         stat("It brings", effects.length ? effects.join("; ") : "what it makes possible"),
-        ...(p.body?.fire ? [stat("Wants", "fire")] : []),
-        ...(p.asks?.length ? [stat("Asks of its world's matter", [...asked(world, p.asks)])] : []),
+        ...(p.body?.fire || (gas && means.earthRoad) ? [stat("Wants", "fire")] : []),
+        ...(gas && !means.earthRoad ? [stat("The way here", theWayHere(means))] : []),
+        ...(p.asks?.length && !(gas && means.earthRoad)
+          ? [stat("Asks of its world's matter", [...asked(world, p.asks)])]
+          : []),
         ...(shut ? [stat("On this world", `shut: ${shut}`)] : []),
       ],
     },

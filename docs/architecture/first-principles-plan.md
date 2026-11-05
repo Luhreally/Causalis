@@ -28,6 +28,32 @@ still fighting with bows when it reached Orbit in year 1060. That is not physics
 - `fire: true` stands in for "a high temperature", and `kinds: [...]` stands in for "what this world's matter
   allows". Both are shortcuts, and everything past them is shut.
 
+## F1, as built (2026-11-05)
+
+Arms are now chosen by what they do. `rules/means.ts` reads a world's numbers (its cold, its air, its pull, what its
+ground and air hold) and picks what holds an edge, what makes a charge and what a barrel is wound of, each from
+candidates with real figures, and never by the name of a kind. A gun's reach comes from its charge, the air's weight
+and the pull. No arm ids or indexes moved; only three `needs` changed, by function (`@tough-stuff`, `@works`,
+`@current`), and clockwork's took the first of them. Earth's history and every oracle fixture are unchanged, and
+Earth's guns give the table's own ranges exactly. A world whose people have claws straps its arms along a limb.
+
+| World | Kind | Long blades | Plates | Muskets | Rifles | Automatic |
+|---|---|---|---|---|---|---|
+| wren 455 | methane | 698 | 786 | 1760 | 1833 | 2034 |
+| lumen 152 | methane | 135 | 486 | 1442 | 1509 | 1564 |
+| north 155 | carbon | 268 | 453 | 895 | 949 | 1282 |
+| quill 298 | carbon | 168 | 463 | 978 | 1285 | 1621 |
+| cinder 671 | ammonia | 129 | 432 | 785 | 886 | not by 1000 |
+| marrow 145 | ammonia, 6 lands | 1160 | 1556 | 1961 | not by 3000 | not by 3000 |
+| kestrel 557 | rocky, a people of the water | 1020 | 1147 | sound lances instead | | |
+
+(First known on any land. People at the last year held within a few percent on most of them; wren 455 ended 38%
+lower at 2700 with fewer realms, and north 155 far higher, by reaching other worlds sooner.)
+
+Not done by F1: armoured cars stay shut where nothing burns; bows are not shortened by thick air; a blade of flakes
+in battle looks as a sword does, and only its page shows the flakes; machines have no recipe on a world that burns
+nothing, so its top tier waits for F2 and F3.
+
 ## The rule
 
 **A principle says what it does. The world says how.**

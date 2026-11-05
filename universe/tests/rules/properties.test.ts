@@ -11,6 +11,7 @@ import {
   elementShares,
   findElement,
   findSubstance,
+  meansWorldOf,
   molarMass,
   propertiesOf,
   readFunctions,
@@ -28,6 +29,14 @@ const EARTH: MatterWorld = {
   giants: 4,
   starLeftGyr: 5,
   peopled: true,
+  means: meansWorldOf({
+    chem: SOLAR,
+    kind: "rocky",
+    celsius: 15,
+    gravity: 1,
+    medium: "land",
+    bodyFire: true,
+  }),
 };
 
 const fn = (list: readonly FunctionReading[], id: string) => {
@@ -60,15 +69,17 @@ test("the figures are the handbook's, in their right order", () => {
 
 test("Earth's matter meets every function, each by the stuff that does it there", () => {
   const list = readFunctions(EARTH);
-  for (const f of list) assert.ok(f.met, `${f.id}: ${f.why}`);
+  // (All but one it has no need of: its furnaces give it bronze and iron.)
+  for (const f of list) if (f.id !== "edge-without-metal") assert.ok(f.met, `${f.id}: ${f.why}`);
+  assert.equal(fn(list, "edge-without-metal").met, false);
   assert.equal(fn(list, "carry-current").subst, "copper");
   assert.equal(fn(list, "switch-current").subst, "silicon");
   assert.equal(fn(list, "wall-a-flame").subst, "tungsten");
   assert.equal(fn(list, "hold-a-flame").subst, "niobium-tin");
-  // Two are asked of a people now; the rest are told only as what later ages would ask.
+  // Four are asked of a people now; the rest are told only as what later ages would ask.
   assert.deepEqual(
     list.filter((f) => !f.later).map((f) => f.id),
-    ["carry-current", "switch-current"],
+    ["make-gas-fast", "edge-without-metal", "carry-current", "switch-current"],
   );
 });
 

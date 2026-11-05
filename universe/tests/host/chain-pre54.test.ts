@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { YEAR, seedFromText, type World } from "../../src/kernel/index.ts";
 import { isProvinceWorld } from "../../src/gen/index.ts";
 import { PRINCIPLES, REACTIONS, SUBSTANCES, kindAllows } from "../../src/rules/index.ts";
-import { LATE_TREE } from "../../src/rules/principles.ts";
+import { LATE_TREE, MEANS_TREE } from "../../src/rules/principles.ts";
 import { designsOf, homePlanet, politiesOf, populationContext } from "../../src/sim/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import {
@@ -47,7 +47,8 @@ const BEFORE: Record<string, string> = {
   workshops: "6a49114e:204764",
   substances: "83f9f11f:130568",
   reactions: "da7ebe2:68449",
-  principles: "d814cdd6:169670",
+  // (Its pages no longer list what only a people of the water could find: F1, canBeFoundHere.)
+  principles: "f2eb9438:167903",
   guide: "ced49326:17137",
   camps: "cfc0a711:332618",
 };
@@ -134,9 +135,12 @@ const CATEGORIES: Record<string, () => unknown> = {
   reactions: () => REACTIONS.map((r) => page(`rxn:${r.id}`)),
   // (Earth's own: the kinds' principles, Phase 56, are none of Earth's; those past our ages, Phase 66, came after.)
   principles: () =>
-    PRINCIPLES.filter((p) => kindAllows(p, "rocky") && !LATE_TREE.some((l) => l.id === p.id)).map(
-      (p) => page(`prin:${p.id}`),
-    ),
+    PRINCIPLES.filter(
+      (p) =>
+        kindAllows(p, "rocky") &&
+        !LATE_TREE.some((l) => l.id === p.id) &&
+        !MEANS_TREE.some((l) => l.id === p.id),
+    ).map((p) => page(`prin:${p.id}`)),
   guide: () => page("world:matter"),
   camps: () =>
     lands(early, 10).flatMap((c) =>

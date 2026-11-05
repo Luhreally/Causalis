@@ -3408,6 +3408,14 @@ export const MATERIAL_MATTER: Readonly<Record<string, readonly (readonly [string
   ],
   // Parts machined at a works (Phase 53 M219): steel, cut to a fiftieth of a millimetre.
   machined: [["steel", 1]],
+  // Arms of what a world has where no furnace can be (F1): flakes in a spine of wood; a barrel wound of fibre in a
+  // binder; the same drawn and wound at works. (Which flake, which fibre, its world says: rules/means.ts.)
+  "set edge": [
+    ["flint", 0.45],
+    ["cellulose", 0.55],
+  ],
+  wound: [["cellulose", 1]],
+  "wound works": [["cellulose", 1]],
   // Beam arms and made limbs (Phase 66): a crystal that lases or reckons, in a frame of fine steel.
   crystal: [
     ["steel", 0.7],

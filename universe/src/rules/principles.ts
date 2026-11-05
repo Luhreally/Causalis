@@ -137,6 +137,27 @@ const P = (
   body?: BodyNeeds,
 ): Principle => ({ id, name, needs, rate, drivers, effects, ...(body ? { body } : {}) });
 
+/**
+ * What a need names when it names a function, not an invention (F1; F3 grows from this): expanded
+ * when PRINCIPLES is built.
+ */
+export const FUNCTIONS: Readonly<Record<string, readonly string[]>> = {
+  "@tough-stuff": ["iron", "carbide-blades", "diamond-grit", "ice-working"],
+  "@works": ["factories", "sea-works", "sun-engines", "heat-engines", "cold-chemistry"],
+  "@current": [
+    "electricity",
+    "sea-electricity",
+    "graphite-dynamos",
+    "ground-dynamos",
+    "polymer-wire",
+  ],
+};
+const expand = (n: string) =>
+  n
+    .split("|")
+    .flatMap((x) => FUNCTIONS[x] ?? [x])
+    .join("|");
+
 const TREE: readonly Principle[] = [
   // The roots, known by the older systems.
   P("cultivation", "sowing and reaping", [], 0, {}, {}),
@@ -468,7 +489,7 @@ const TREE: readonly Principle[] = [
   P(
     "clockwork",
     "gears and clocks",
-    ["mathematics", "iron|carbide-blades|ice-working"],
+    ["mathematics", "@tough-stuff"],
     0.006,
     { crafters: 1, traders: 0.3 },
     {},
@@ -730,7 +751,7 @@ const TREE: readonly Principle[] = [
   P(
     "gunpowder",
     "black powder",
-    ["medicine", "iron"],
+    ["medicine", "@tough-stuff"],
     0.006,
     { crafters: 1, leaders: 0.5 },
     { sieges: 1 },
@@ -746,7 +767,7 @@ const TREE: readonly Principle[] = [
   P(
     "rifling",
     "the rifle",
-    ["firearms", "factories"],
+    ["firearms", "@works"],
     0.006,
     { crafters: 1, leaders: 0.5 },
     { arms: 1 },
@@ -759,7 +780,7 @@ const TREE: readonly Principle[] = [
   P(
     "self-loading",
     "the self-loading rifle",
-    ["repeating-fire", "electricity"],
+    ["repeating-fire", "@current"],
     0.005,
     { crafters: 1, leaders: 0.5 },
     {},
@@ -1080,12 +1101,12 @@ export const KIND_ENGINES: readonly string[] = ["sun-engines", "heat-engines", "
  */
 const ASKS: Readonly<Record<string, BodyNeeds>> = {
   "pottery-wheel": { fire: true },
-  gunpowder: { fire: true, media: ["land", "shore"] },
-  firearms: { fire: true, media: ["land", "shore"] },
-  rifling: { fire: true, media: ["land", "shore"] },
-  "repeating-fire": { fire: true, media: ["land", "shore"] },
-  "self-loading": { fire: true, media: ["land", "shore"] },
-  "automatic-fire": { fire: true, media: ["land", "shore"] },
+  gunpowder: { media: ["land", "shore"] },
+  firearms: { media: ["land", "shore"] },
+  rifling: { media: ["land", "shore"] },
+  "repeating-fire": { media: ["land", "shore"] },
+  "self-loading": { media: ["land", "shore"] },
+  "automatic-fire": { media: ["land", "shore"] },
   "armoured-vehicles": { fire: true, media: ["land", "shore"] },
   bronze: { fire: true },
   iron: { fire: true },
@@ -1120,9 +1141,73 @@ const ASKS: Readonly<Record<string, BodyNeeds>> = {
   aqueducts: { media: ["land", "shore"] },
 };
 
-export const PRINCIPLES: readonly Principle[] = [...TREE, ...KIND_TREE, ...LATE_TREE].map((p) =>
-  ASKS[p.id] ? { ...p, body: ASKS[p.id] } : p,
-);
+// Arms by what they do (F1): after all others, so every land's draws to find the others stay what they
+// were. Long blades of hard flakes set in a spine, and plates bound in fibre; then, for a people of the
+// water, darts driven by gas and lances of sound (water stops a ball within metres).
+export const MEANS_TREE: readonly Principle[] = [
+  {
+    ...P(
+      "set-edges",
+      "long blades set with hard flakes",
+      ["ice-working|carbide-blades|diamond-grit|shell-craft", "loom"],
+      0.012,
+      { crafters: 1 },
+      { tools: 0.1, arms: 1 },
+    ),
+    asks: ["edge-without-metal"],
+  },
+  {
+    ...P(
+      "bound-plates",
+      "plates bound in fibre",
+      ["set-edges"],
+      0.01,
+      { crafters: 1 },
+      { armour: 1 },
+    ),
+    asks: ["edge-without-metal"],
+  },
+  {
+    ...P(
+      "gas-darts",
+      "long darts driven by gas",
+      ["electrochemistry", "mathematics"],
+      0.006,
+      { crafters: 1, leaders: 0.5 },
+      { arms: 1 },
+      { media: ["water"] },
+    ),
+    asks: ["make-gas-fast"],
+  },
+  P(
+    "sound-lances",
+    "lances of sound",
+    ["gas-darts", "@current"],
+    0.005,
+    { crafters: 1, leaders: 0.5 },
+    { arms: 1 },
+    { media: ["water"] },
+  ),
+];
+// The rows that make gas fast ask their world for it (make-gas-fast), not for a fire in the body (F1).
+const MAKES_GAS: ReadonlySet<string> = new Set([
+  "gunpowder",
+  "firearms",
+  "rifling",
+  "repeating-fire",
+  "self-loading",
+  "automatic-fire",
+]);
+export const PRINCIPLES: readonly Principle[] = [
+  ...TREE,
+  ...KIND_TREE,
+  ...LATE_TREE,
+  ...MEANS_TREE,
+].map((p) => {
+  const q = ASKS[p.id] ? { ...p, body: ASKS[p.id] } : p,
+    r = q.needs.some((n) => n.includes("@")) ? { ...q, needs: q.needs.map(expand) } : q;
+  return MAKES_GAS.has(r.id) ? { ...r, asks: ["make-gas-fast"] } : r;
+});
 
 export const PRINCIPLE_INDEX: ReadonlyMap<string, number> = new Map(
   PRINCIPLES.map((p, i) => [p.id, i]),

@@ -11,6 +11,7 @@
 import { dmath } from "../kernel/index.ts";
 import { affordancesOf, type BodyPlan } from "./bodies.ts";
 import { beam, firearm, firepowerOf, rangeAxisOf } from "./firearms.ts";
+import { needsMet } from "./principles.ts";
 
 export const MATERIALS = [
   "wood",
@@ -45,6 +46,9 @@ export const MATERIALS = [
   "sulfur concrete",
   /** Crystal, cells and made limbs, turned out at a works its minds tend (Phase 66): a beam arm, a machine soldier. */
   "crystal",
+  "set edge",
+  "wound",
+  "wound works",
 ] as const;
 export type Material = (typeof MATERIALS)[number];
 
@@ -56,6 +60,8 @@ export type MaterialProps = {
   readonly mass: number;
   readonly lasting: number;
   readonly cost: number;
+  readonly range?: number;
+  readonly shock?: number;
 };
 
 export const MATERIAL: Readonly<Record<Material, MaterialProps>> = {
@@ -85,6 +91,10 @@ export const MATERIAL: Readonly<Record<Material, MaterialProps>> = {
   "pitch grit": { edge: 0, guard: 0, mass: 0.85, lasting: 0.85, cost: 0.25 },
   "sulfur concrete": { edge: 0, guard: 0, mass: 0.9, lasting: 0.9, cost: 0.3 },
   crystal: { edge: 1, guard: 0.9, mass: 0, lasting: 0.95, cost: 1 },
+  // (What a world's means make, F1: figures stamped on the part; these are only what a page falls back to.)
+  "set edge": { edge: 0.55, guard: 0.45, mass: 0, lasting: 0.5, cost: 0.25 },
+  wound: { edge: 0.8, guard: 0, mass: 0, lasting: 0.5, cost: 0.2 },
+  "wound works": { edge: 1, guard: 0.6, mass: 0, lasting: 0.7, cost: 0.5 },
 };
 
 /**
@@ -179,6 +189,28 @@ const digs = (b: BodyPlan) =>
   wields = (b: BodyPlan) => affordancesOf(b).dexterity >= 0.6,
   grips = (b: BodyPlan) => affordancesOf(b).dexterity >= 0.5;
 
+/** Materials only a world's means give. */
+export const MEANS_MATERIALS: ReadonlySet<Material> = new Set<Material>([
+  "set edge",
+  "wound",
+  "wound works",
+]);
+/** Bodies with no grip for a stock can bear what is strapped along a limb (a war elephant's tusk blades are the proof): F1. */
+export const strapped = (b: BodyPlan) => b.medium !== "water" && affordancesOf(b).dexterity >= 0.4;
+/** A wound gun, from its figures on its world. */
+function woundGun(id: string, earthShock: number, cost: number, x?: MaterialProps): Performance {
+  const f = firearm(id)!,
+    range = x?.range ?? f.range,
+    e = x?.shock ?? 1;
+  return {
+    shock: 0.3 + (earthShock - 0.3) * dmath.pow(e, 0.5),
+    reach: 0.45,
+    range: rangeAxisOf({ range }),
+    firepower: firepowerOf({ rate: f.rate, range }),
+    cost,
+  };
+}
+
 /** A beam arm's performance from its physics (rules/firearms.ts). */
 function beamArm(id: string, cost: number): Performance {
   const f = beam(id)!;
@@ -232,9 +264,9 @@ export const REALIZATIONS: readonly Realization[] = [
   R(
     "sword",
     "arm",
-    ["bronze"],
-    ["bronze", "iron", "steel"],
-    (m) => `${m} swords`,
+    ["bronze|set-edges"],
+    ["bronze", "iron", "steel", "set edge"],
+    (m) => (m === "set edge" ? "long blades of set flakes" : `${m} swords`),
     (m, x = MATERIAL[m]) => ({
       shock: 0.4 + 0.6 * x.edge,
       reach: 0.35,
@@ -265,14 +297,17 @@ export const REALIZATIONS: readonly Realization[] = [
     "musket",
     "arm",
     ["firearms"],
-    ["iron", "steel"],
-    () => "muskets",
-    (m, x = MATERIAL[m]) => ({
-      shock: 0.6 + 0.2 * x.edge,
-      reach: 0.45,
-      range: 0.85,
-      cost: 0.25 + 0.2 * x.cost,
-    }),
+    ["iron", "steel", "wound"],
+    (m) => (m === "wound" ? "wound-barrel muskets" : "muskets"),
+    (m, x = MATERIAL[m]) =>
+      m === "wound"
+        ? woundGun("musket", 0.76, 0.3, x)
+        : {
+            shock: 0.6 + 0.2 * x.edge,
+            reach: 0.45,
+            range: 0.85,
+            cost: 0.25 + 0.2 * x.cost,
+          },
     undefined,
     wields,
   ),
@@ -280,9 +315,12 @@ export const REALIZATIONS: readonly Realization[] = [
     "rifle",
     "arm",
     ["rifling"],
-    ["steel"],
-    () => "rifles",
-    () => ({ shock: 0.95, reach: 0.45, range: 1.15, cost: 0.4 }),
+    ["steel", "wound"],
+    (m) => (m === "wound" ? "wound-barrel rifles" : "rifles"),
+    (m, x) =>
+      m === "wound"
+        ? woundGun("rifle", 0.95, 0.4, x)
+        : { shock: 0.95, reach: 0.45, range: 1.15, cost: 0.4 },
     undefined,
     wields,
   ),
@@ -292,9 +330,9 @@ export const REALIZATIONS: readonly Realization[] = [
     "repeater",
     "arm",
     ["repeating-fire"],
-    ["machined"],
-    () => "repeating rifles",
-    () => gun("repeater", 0.5),
+    ["machined", "wound works"],
+    (m) => (m === "wound works" ? "wound-barrel repeating rifles" : "repeating rifles"),
+    (m, x) => (m === "wound works" ? woundGun("repeater", 0.95, 0.5, x) : gun("repeater", 0.5)),
     undefined,
     wields,
   ),
@@ -302,9 +340,9 @@ export const REALIZATIONS: readonly Realization[] = [
     "autoloader",
     "arm",
     ["self-loading"],
-    ["machined"],
-    () => "self-loading rifles",
-    () => gun("autoloader", 0.6),
+    ["machined", "wound works"],
+    (m) => (m === "wound works" ? "wound-barrel self-loading rifles" : "self-loading rifles"),
+    (m, x) => (m === "wound works" ? woundGun("autoloader", 0.95, 0.6, x) : gun("autoloader", 0.6)),
     undefined,
     wields,
   ),
@@ -312,9 +350,9 @@ export const REALIZATIONS: readonly Realization[] = [
     "automatic",
     "arm",
     ["automatic-fire"],
-    ["machined"],
-    () => "machine guns",
-    () => gun("automatic", 0.8),
+    ["machined", "wound works"],
+    (m) => (m === "wound works" ? "wound-barrel machine guns" : "machine guns"),
+    (m, x) => (m === "wound works" ? woundGun("automatic", 0.95, 0.8, x) : gun("automatic", 0.8)),
     undefined,
     wields,
   ),
@@ -427,9 +465,9 @@ export const REALIZATIONS: readonly Realization[] = [
   R(
     "scale",
     "guard",
-    ["bronze"],
-    ["bronze", "iron"],
-    (m) => `${m} scale`,
+    ["bronze|bound-plates"],
+    ["bronze", "iron", "set edge"],
+    (m) => (m === "set edge" ? "plates of set flakes" : `${m} scale`),
     (m, x = MATERIAL[m]) => ({ protection: 0.1 + 0.6 * x.guard, cost: 0.2 + 0.3 * x.cost }),
   ),
   R(
@@ -453,8 +491,8 @@ export const REALIZATIONS: readonly Realization[] = [
     "helmet",
     "guard",
     ["self-loading"],
-    ["steel"],
-    () => "steel helmets",
+    ["steel", "wound works"],
+    (m) => (m === "steel" ? "steel helmets" : "helmets of wound fibre"),
     () => ({ protection: 0.7, cost: 0.35 }),
   ),
   R(
@@ -941,6 +979,36 @@ export const REALIZATIONS: readonly Realization[] = [
     () => "with machine soldiers among them",
     () => ({ mobility: 1, shock: 0.4, protection: 0.3, firepower: 1.5, breach: 1.5, cost: 0.7 }),
   ),
+  // A people of the water's (F1): a long dart driven by gas in a tube (supercavitating darts are real); then sound, which carries in water.
+  R(
+    "gas-dart",
+    "arm",
+    ["gas-darts"],
+    ["wound"],
+    () => "long darts driven by gas",
+    (_m, x) => ({
+      shock: x?.shock ?? 0.6,
+      range: rangeAxisOf({ range: x?.range ?? 30 }),
+      reach: 0.3,
+      cost: 0.3,
+    }),
+    sea,
+  ),
+  R(
+    "sound-lance",
+    "arm",
+    ["sound-lances"],
+    ["wound works"],
+    () => "lances of sound",
+    (_m, x) => ({
+      shock: x?.shock ?? 0.8,
+      range: rangeAxisOf({ range: x?.range ?? 120 }),
+      reach: 0.3,
+      firepower: firepowerOf({ rate: 30, range: x?.range ?? 120 }),
+      cost: 0.55,
+    }),
+    sea,
+  ),
 ];
 
 /** Drives only sealed lands (halls on another world, ships between the stars) may build. */
@@ -951,7 +1019,18 @@ export const OPEN_AIR_DRIVES: readonly string[] = ["wheel-and-sail"];
 /** Weights over the performance axes: what a people want of what they build. */
 export type Doctrine = Partial<Record<Axis, number>>;
 
-export type Part = { readonly role: Role; readonly id: string; readonly material: Material };
+export type PartHere = {
+  readonly edge?: number;
+  readonly guard?: number;
+  readonly range?: number;
+  readonly shock?: number;
+};
+export type Part = {
+  readonly role: Role;
+  readonly id: string;
+  readonly material: Material;
+  readonly here?: PartHere;
+};
 
 /** Whether a host's arms are of burning light (Phase 66). */
 /**
@@ -1002,6 +1081,8 @@ export function compose(
   allow: (realization: string) => boolean = () => true,
   keep: readonly Part[] = [],
   margin = 0,
+  /** What a world's means give a means-material here (F1): its figures, stamped on the part; null where it is not to be had. */
+  here?: (id: string, m: Material) => PartHere | null,
 ): Part[] {
   const parts: Part[] = [];
   for (const role of roles) {
@@ -1009,18 +1090,26 @@ export function compose(
       kept: number | null = null;
     const had = keep.find((p) => p.role === role);
     for (const r of REALIZATIONS) {
-      if (r.role !== role || !allow(r.id) || !r.needs.every(knows)) continue;
+      if (r.role !== role || !allow(r.id) || !needsMet(r, knows)) continue;
       // A realization for particular bodies is for those alone; one that asks something
       // of a body is for the bodies that can.
       if (r.fits && !(body && r.fits(body))) continue;
-      if (r.asks && body && !r.asks(body)) continue;
+      const gripped = !r.asks || !body || r.asks(body);
       if (r.with && !r.with.every(has)) continue;
       for (const m of r.materials) {
         if (!has(m)) continue;
-        const value = worth(r.does(m), doctrine);
+        const local = MEANS_MATERIALS.has(m) ? (here?.(r.id, m) ?? null) : null;
+        if (MEANS_MATERIALS.has(m) && !local) continue;
+        if (!gripped && !(local && body && strapped(body))) continue;
+        const value = worth(r.does(m, local ? { ...MATERIAL[m], ...local } : undefined), doctrine);
         if (had && had.id === r.id && had.material === m) kept = value;
         if (!best || value > best.value + 1e-12)
-          best = { part: { role, id: r.id, material: m }, value };
+          best = {
+            part: local
+              ? { role, id: r.id, material: m, here: local }
+              : { role, id: r.id, material: m },
+            value,
+          };
       }
     }
     // (What it has, while it can still be made, gives way only to what is better by the margin.)
@@ -1041,7 +1130,12 @@ export function performanceOf(
 ): Record<string, number> {
   const out: Record<string, number> = {};
   for (const p of parts)
-    for (const [axis, x] of Object.entries(realization(p.id).does(p.material, props?.(p))))
+    for (const [axis, x] of Object.entries(
+      realization(p.id).does(
+        p.material,
+        props?.(p) ?? (p.here ? { ...MATERIAL[p.material], ...p.here } : undefined),
+      ),
+    ))
       out[axis] = (out[axis] ?? 0) + x;
   return out;
 }

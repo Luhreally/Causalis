@@ -7,6 +7,7 @@ import type { World } from "../kernel/index.ts";
 import {
   climateMean,
   functionsOf,
+  meansOfWorld,
   worldKindOf,
   type HomeWorld,
   type Planet,
@@ -19,7 +20,9 @@ import {
   KIND_PRINCIPLE_NAMES,
   KIND_SEAS,
   NOVEL_KINDS,
+  affordsPrinciple,
   earthDegrees,
+  meansName,
   findSubstance,
   kindAllows,
   kindBurns,
@@ -170,6 +173,18 @@ function unfired(id: string): string {
  * Why a principle cannot be known on this world, as far as its world goes (null: it can): it is
  * another kind's, or it wants fire where nothing burns.
  */
+/**
+ * Whether a people of this world could ever find a principle, as lore asks: its kind allows it, their body
+ * can, and its matter can do what it asks. (Not whether what it needs first can be had.)
+ */
+export function canBeFoundHere(world: World, p: Principle): boolean {
+  const ctx = populationContext(world);
+  return (
+    affordsPrinciple(p, ctx.medium, ctx.affords.fire, kindOf(world)) &&
+    !matterShuts(p, functionsOf(ctx.generated))
+  );
+}
+
 export function shutWhy(world: World, p: Principle): string | null {
   const kind = kindOf(world);
   if (!kindAllows(p, kind)) {
@@ -189,6 +204,11 @@ export function shutWhy(world: World, p: Principle): string | null {
 /** A principle's name as its world's kind names it ("steamships": "engine-driven ships"), or its own. */
 export function kindName(world: World, p: Principle): string {
   const kind = kindOf(world);
+  // (How its world does it, F1: "the gun of hand-wound fibre, charged with solid acetylene".)
+  const own = world.storeNames().includes("planet.home")
+    ? meansName(p.id, meansOfWorld(homePlanet(world).generated))
+    : null;
+  if (own) return own;
   return kind === "rocky" ? p.name : (KIND_PRINCIPLE_NAMES[kind][p.id] ?? p.name);
 }
 

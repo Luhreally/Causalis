@@ -90,6 +90,8 @@ const ONE_OF: Readonly<Record<string, string>> = {
   automatic: "machine-gun fire",
   "beam-rifle": "a beam",
   "beam-lance": "a beam of blue-green light",
+  "gas-dart": "a long dart",
+  "sound-lance": "a blow of sound",
   claws: "a claw",
   mandibles: "a mandible",
   tusks: "a tusk",

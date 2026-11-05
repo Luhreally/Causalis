@@ -14,6 +14,8 @@ import { finish, hashString, mix, type Ref, type World } from "../kernel/index.t
 import {
   BIOME,
   cradleTongue,
+  meansNumbers,
+  meansOfWorld,
   personName,
   tongueName,
   tonguePersonName,
@@ -23,13 +25,16 @@ import {
 } from "../gen/index.ts";
 import {
   ARSENICAL_ORE,
+  BARRELS,
   CLAYS_REDUCED,
   G,
   GOODS,
   METALS,
   OCC,
   SMELTING as SMELTS,
+  WATER_ARMS,
   WORKED,
+  airWeight,
   alloyOf,
   article,
   civic,
@@ -40,12 +45,15 @@ import {
   findSubstance,
   firearm,
   gradeOf,
+  gunHere,
   machined,
   metalOf,
   oresOn,
   partWords,
   qualityOf,
+  realization,
   roleWord,
+  strapped,
   worldOre,
   type Chemistry,
   type Edge,
@@ -79,7 +87,7 @@ import type { Block, Line, Span, TownStuff } from "../bridge/index.ts";
 import { soilOf } from "./inspect/ground.ts";
 import { rxnRef, substRef } from "./inspect/matter.ts";
 import { landLink, landTitle, realmLink, townLink } from "./inspect/names.ts";
-import { item, link, sentence } from "./inspect/words.ts";
+import { count, item, link, sentence } from "./inspect/words.ts";
 import { kindVessel, smithAt, workedBought, workedLine } from "./kinds.ts";
 import { clothLife, millBlock, ropeLines } from "./biochem.ts";
 
@@ -1317,12 +1325,36 @@ function bronzeWords(chem: Chemistry, words: string): string {
 }
 
 /**
+ * A means-material's words as its world makes it (F1): "long blades of ice flakes set in fibre",
+ * "solid acetylene muskets in hand-wound fibre".
+ */
+function meansWords(world: World, words: string): string {
+  // (Earth's words carry none of these, so its arms pass as they are.)
+  if (!/set flakes|wound-barrel/.test(words)) return words;
+  const m = meansOfWorld(homePlanet(world).generated);
+  return words
+    .replace(
+      "long blades of set flakes",
+      `long blades of ${m.edge?.name ?? "hard"} flakes set in fibre`,
+    )
+    .replace("plates of set flakes", `plates of ${m.edge?.name ?? "hard stuff"} bound in fibre`)
+    .replace(
+      /wound-barrel (repeating rifles|self-loading rifles|machine guns)/,
+      `$1 of ${m.worksBarrel.name}, charged with ${m.worksCharge?.name ?? m.handCharge?.name ?? "a charge"}`,
+    )
+    .replace(
+      /wound-barrel (muskets|rifles)/,
+      `$1 of ${m.handBarrel.name}, charged with ${m.handCharge?.name ?? "a charge"}`,
+    );
+}
+
+/**
  * A realm's host in words, its stone points of its seat's own land's stone: "obsidian-tipped
  * spears and hide shields, on foot".
  */
 export function hostWords(world: World, realm: string, parts: readonly Part[]): string {
   const chem = worldChemistry(homePlanet(world).generated),
-    words = bronzeWords(chem, designWords(parts)),
+    words = meansWords(world, bronzeWords(chem, designWords(parts))),
     p = politiesOf(world).get(realm as Ref);
   return p && parts.some((x) => x.material === "stone")
     ? armsWords(words, landStone(world, p.seat).stone.name)
@@ -1332,11 +1364,144 @@ export function hostWords(world: World, realm: string, parts: readonly Part[]): 
 /** One part of a realm's host in words, of its own land's stone: "obsidian-tipped spears". */
 export function hostPartWords(world: World, realm: string, part: Part): string {
   const chem = worldChemistry(homePlanet(world).generated),
-    words = bronzeWords(chem, partWords(part)),
+    words = meansWords(world, bronzeWords(chem, partWords(part))),
     p = politiesOf(world).get(realm as Ref);
   return p && part.material === "stone"
     ? armsWords(words, landStone(world, p.seat).stone.name)
     : words;
+}
+
+/** A thick-walled bore holds this share of its barrel's hoop strength (rules/means.ts: Lame's figure). */
+const BORE_SHARE = 0.6;
+/** Steel's barrel, which a means-barrel's bore is set against (rules/means.ts). */
+const STEEL_BARREL = BARRELS.find((b) => b.id === "steel")!;
+/** A drawn barrel's colour, undyed. */
+const DRAWN: Rgb = [0.7, 0.7, 0.66];
+/** Figures in plain words: to a tenth, to a hundredth; a barrel's bore in MPa. */
+const tenths = (x: number) => String(Math.round(x * 10) / 10),
+  hundredths = (x: number) => String(Math.round(x * 100) / 100),
+  bore = (b: { readonly hoop: number }) => Math.round(b.hoop * BORE_SHARE);
+
+/**
+ * A means-material's arm, made of what its world gives (F1): a set edge, its flakes set in a spine by
+ * a knapper of the seat (a plate, bound in fibre); a gun's barrel and charge, wound by a barrel-winder
+ * at home or by a machinist at the works; a dart or lance of a people of the water. Traced from the
+ * ground to the hand, its figures its world's own: what it is made of, how good it is, and why there
+ * is no metal here.
+ */
+function meansArmsMade(
+  world: World,
+  realm: string,
+  part: Part,
+  year: number,
+  key: string,
+): Made | null {
+  const home = homePlanet(world).generated,
+    p = politiesOf(world).get(realm as Ref);
+  if (!p) return null;
+  const seat = p.seat,
+    t = makingTown(world, seat),
+    craft = craftAt(world, seat, "tools"),
+    means = meansOfWorld(home),
+    numbers = meansNumbers(home),
+    // (Strapped along a limb where its body cannot wield it, as the design allows: rules/designs.ts.)
+    body = home.life.people?.body,
+    asks = realization(part.id).asks,
+    strappedOn = !!body && !!asks && !asks(body) && strapped(body);
+  if (part.material === "set edge") {
+    const e = means.edge;
+    if (!e) return null;
+    const maker = makerOf(world, seat, t, "knapper", key, year),
+      // (The two terms of rules/means.ts' edgeFigure: keenness by hardness, toughness by K1c.)
+      edge: Edge = { keen: Math.min(1, e.mohs(numbers.kelvin) / 7), tough: Math.min(1, e.k1c / 5) },
+      quality = qualityOf(edge, craft, maker.years);
+    return {
+      stuff: `${e.name} flakes`,
+      edge,
+      colour: substColour(e.subst),
+      quality,
+      grade: gradeOf(quality),
+      maker,
+      workshop: { name: "the knappers' ground", ref: null },
+      chain: [
+        [
+          "Flakes of ",
+          link(e.name, findSubstance(e.subst) ? substRef(e.subst) : null),
+          `, Mohs ${tenths(e.mohs(numbers.kelvin))} at ${Math.round(numbers.kelvin)} K`,
+        ],
+        [sentence(e.words)],
+        [
+          part.role === "guard"
+            ? "Bound in fibre by "
+            : `Set in a spine of ${landWood(world, seat)} and bound with fibre by `,
+          ...makerWords(world, maker, "knapping stone"),
+        ],
+        ...(means.noMetal ? [[means.noMetal]] : []),
+        ...(e.est
+          ? [["Some of these figures are estimates: no one has tested such an edge."]]
+          : []),
+        ...(strappedOn ? [["Strapped along the limb: their claws cannot hold a haft."]] : []),
+      ],
+    };
+  }
+  const works = part.material === "wound works",
+    gun = firearm(part.id),
+    g = gun ? gunHere(gun, numbers) : null,
+    water = part.id in WATER_ARMS ? WATER_ARMS[part.id as keyof typeof WATER_ARMS] : null,
+    // (A shot by a gun on this world, with its figures; a people of the water's dart or lance.)
+    shot = gun && g ? { gun, g } : null;
+  if (!shot && !water) return null;
+  const barrel = shot?.g.barrel ?? (works ? means.worksBarrel : means.handBarrel),
+    // (A gas dart is driven by the gas its world parts from water; a lance of sound has no charge.)
+    charge = shot
+      ? shot.g.charge
+      : part.id === "gas-dart"
+        ? (means.handCharge ?? means.worksCharge)
+        : null,
+    maker = makerOf(world, seat, t, works ? "machinist" : "barrel-winder", key, year),
+    shop = works ? workshopOf(world, t?.ref ?? null, ["factory"], year) : null,
+    // (A barrel takes no edge: its toughness is its hoop strength against steel's.)
+    edge: Edge = { keen: 0, tough: Math.min(1, barrel.hoop / STEEL_BARREL.hoop) },
+    quality = qualityOf(edge, craft + (works ? 0.3 : 0), maker.years),
+    chain: Line[] = [];
+  if (shot)
+    chain.push([
+      `Its barrel of ${barrel.name}, holding about ${bore(barrel)} MPa, where a steel one holds about ${bore(STEEL_BARREL)}`,
+    ]);
+  if (charge)
+    chain.push([
+      `Charged with ${charge.name}: ${tenths(charge.mj)} MJ/kg, about ${count(charge.mol * 22.4)} litres of gas a kilogram: ${charge.why}`,
+    ]);
+  if (shot)
+    chain.push([
+      `It carries true to ${count(shot.g.range)} m here, where Earth's air and pull would give ${count(shot.gun.range)} m: this air weighs ${tenths(airWeight(numbers))} times Earth's, and this world pulls ${hundredths(numbers.pull)} times Earth's`,
+    ]);
+  else if (water)
+    chain.push([
+      `It carries true to ${count((water.range * 1000) / numbers.seaKgM3)} m in this water, which weighs ${count(numbers.seaKgM3)} kg a cubic metre; fresh water, at 1,000, would give ${water.range} m`,
+    ]);
+  if (charge?.est || (shot && barrel.est))
+    chain.push([
+      shot
+        ? "Some of these figures are estimates: no one has fired such a gun."
+        : "Some of these figures are estimates: no one has fired such an arm.",
+    ]);
+  if (strappedOn)
+    chain.push(["Strapped along the limb and fired by a cord: their claws cannot hold a stock."]);
+  return {
+    stuff: barrel.name,
+    edge,
+    colour: works ? DRAWN : landCloth(world, seat).colour,
+    quality,
+    grade: gradeOf(quality),
+    maker,
+    workshop:
+      shop ??
+      (works
+        ? { name: `the works${t ? ` of ${t.name}` : ""}`, ref: null }
+        : { name: "the winders' shed", ref: null }),
+    chain,
+  };
 }
 
 /**
@@ -1388,6 +1553,8 @@ export function armsMade(
       ],
     };
   }
+  if (part.material === "set edge" || part.material === "wound" || part.material === "wound works")
+    return meansArmsMade(world, realm, part, year, key);
   // (A host of burning light and made limbs, grown and drawn at the works: Phase 66.)
   if (part.material === "machined" || part.material === "crystal")
     return machinedArmsMade(world, realm, part, year, who);

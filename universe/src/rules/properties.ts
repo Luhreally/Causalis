@@ -11,8 +11,11 @@
 // functions.
 import { crustMultiplier, crustOf } from "./crust.ts";
 import type { Chemistry } from "./chemistry.ts";
+import { KIND_GASES, KIND_STONES } from "./kind-ground.ts";
 import { KINDS, type WorldKind } from "./kinds.ts";
 import { findSubstance, knowLaterSubstances, type Substance } from "./matter.ts";
+import { meansOf, type MeansWorld } from "./means.ts";
+import { stonesFor } from "./chem-stones.ts";
 
 /** What a substance can do, beyond what it weighs and where it melts. */
 export type Properties = {
@@ -265,6 +268,8 @@ export type MatterWorld = {
   /** Billions of years its star has left. */
   readonly starLeftGyr: number;
   readonly peopled: boolean;
+  /** Its numbers as its means are read (rules/means.ts), by meansWorldOf. */
+  readonly means: MeansWorld;
 };
 
 /** Parts a million of an element in a world's crust (a later stuff's: Earth's, moved as its heavies are). */
@@ -280,6 +285,37 @@ export function crustPpm(chem: Chemistry, symbol: string): number {
 /** Whether a world's rock lies within reach: an ice world's lies under its ice, out of any mine's reach. */
 export function rockUnderfoot(kind: WorldKind): boolean {
   return kind !== "ammonia" && kind !== "methane";
+}
+
+/**
+ * A world's numbers as its means are read (rules/means.ts). The kind only looks up what the world holds.
+ */
+export function meansWorldOf(a: {
+  chem: Chemistry;
+  kind: WorldKind;
+  celsius: number;
+  gravity: number;
+  medium: "land" | "shore" | "water";
+  bodyFire: boolean;
+}): MeansWorld {
+  const sea = KINDS[a.kind].liquid.subst;
+  return {
+    kelvin: a.celsius + 273.15,
+    airBar: KINDS[a.kind].body.pressure,
+    pull: a.gravity,
+    freeOxygen: KINDS[a.kind].burns,
+    medium: a.medium,
+    bodyFire: a.bodyFire,
+    rock: rockUnderfoot(a.kind),
+    groundHolds: Object.values(
+      a.kind === "rocky" || a.kind === "sulfur" ? stonesFor(a.chem) : KIND_STONES[a.kind],
+    ).flatMap((s) => (s.subst ? [s.subst] : [])),
+    airHolds: a.kind === "rocky" ? [] : KIND_GASES[a.kind].map(([s]) => s),
+    // (Liquid methane and ethane about 550 kg a cubic metre, Titan's seas: est; the matter table holds it as a gas.)
+    seaKgM3: sea === "methane" ? 550 : (findSubstance(sea)?.density ?? 1000),
+    seaIsWater: sea === "water" || sea === "ammonia-water" || sea === "acid-water",
+    ppm: (el) => crustPpm(a.chem, el),
+  };
 }
 
 /** A stuff that might meet a function, and what it takes. */
@@ -472,6 +508,47 @@ function towerKm(s: string, gravity: number): number {
   return ((p?.strength ?? 0) * 1e6) / (d * 9.81 * gravity) / 1000;
 }
 
+/** Whether a world's means make a charge that turns to hot gas in an instant: by hand, or at works (F1). */
+function makeGas(w: MatterWorld): FunctionReading {
+  const m = meansOf(w.means),
+    c = m.handCharge ?? m.worksCharge;
+  return {
+    id: "make-gas-fast",
+    icon: "💥",
+    name: "make gas fast behind a mass",
+    asks: "a stuff that turns to hot gas in an instant, and can be kept on this world",
+    later: false,
+    met: !!c,
+    by: c ? `${c.name}, ${c.mj} MJ/kg` : null,
+    subst: c?.id === "solid-acetylene" ? "acetylene" : null,
+    why: c
+      ? `${c.name[0]!.toUpperCase()}${c.name.slice(1)}, ${c.mj} MJ/kg: ${c.why}${c.est ? " (its flame an estimate)" : ""}.`
+      : "Nothing here can be kept that makes gas fast, and no fire to make powder with.",
+  };
+}
+
+/** Whether a world's means hold an edge without metal: flakes of a hard stuff set in a tough spine (F1). */
+function edgeWithoutMetal(w: MatterWorld): FunctionReading {
+  const m = meansOf(w.means),
+    e = m.edge,
+    met = !m.earthRoad && e !== null;
+  return {
+    id: "edge-without-metal",
+    icon: "🗡️",
+    name: "hold an edge without metal",
+    asks: "flakes of a hard stuff, set in a tough spine",
+    later: false,
+    met,
+    by: met && e ? `${e.name} flakes` : null,
+    subst: met && e && findSubstance(e.subst) ? e.subst : null,
+    why: m.earthRoad
+      ? "It has no need: its furnaces give it bronze and iron."
+      : e
+        ? `${m.noMetal} So ${e.name}, ${e.words}.`
+        : `${m.noMetal} And nothing here holds an edge.`,
+  };
+}
+
 /**
  * What a world's matter can and cannot do, function by function. Two are asked by steps of every age
  * since electricity (a current carried, a current switched); the rest only by ages past ours, and a
@@ -573,6 +650,8 @@ export function readFunctions(w: MatterWorld): FunctionReading[] {
             ? "ruby, from the rock of its moons and neighbours"
             : null;
   return [
+    makeGas(w),
+    edgeWithoutMetal(w),
     carry,
     swap,
     mind,
