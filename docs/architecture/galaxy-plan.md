@@ -79,6 +79,26 @@ firearms.ts are the models.
 | 72 Star nations | Federations, empires, vassals, civil wars, dark ages | The fleets of Phase 67 fighting for real empires; a realm falling apart | L |
 | 73 Your hand in it | Galaxy lenses, the director filming firsts, a pilot possessed, god's acts at star scale | All of it, from the title screen | M |
 
+## Phase 69, first slice, as built (2026-11-05)
+
+**Nothing moves history.** A people of a world is a pure reading of it (`sim/space/natives.ts`), no store, no event, no command: the ruleset's id stands, old saves load, the oracle does not move. A contact is read off what history already holds, a home ship's arrival or a people's hold. Its card says plainly that history holds that they came and no more of what passed: Phase 70 decides what passes, and that is what will move history.
+
+**Who rises.** A world where `lifeElsewhere` says bodies have come ashore, and a mind has had time, a keyed 0.3 to 1.5 thousand million years after its first bodies. The cluster's followed civilizations keep their own years and read on the same ladder, so they are the ones far ahead.
+
+**Stage:** camps, villages, towns, cities, works, then signals, orbit, stars (followed only), or ruins. How far is read from when the climb began, how slow it goes (pull, warmth, social body, span, metals, a draw) and a ceiling from the world's numbers: no hand for fire, no growing season, a solitary body, no crops or beasts to lead (a 22% draw, est.); flesh-eaters and thin-social bodies stop at villages; heat under 1,000 C or too few metals stop at towns; a pull over 2.2 g or too little buried life stops at cities. A people at its first machines falls before signals, since anyone who spoke would be heard. Camps and villages leave no ruins.
+
+**Ground, look, carry.** `folkGround` is the ground a colony has; the look is Phase 34's `FolkFacts` from the world's numbers and the forebear its life sketched; arms come from `meansOf`: its keenest stone on a spear, a long blade of its edge stuff, a gun of its charge.
+
+**Contact**, `contactBetween(a, b)`, is pure and reads the same swapped: speak (hearing and air, or sight and signs), breathe (oxygen from light-eaters, pressure within 2.6 times either way, est.; same liquid), eat (`rules/biochem.eats`), catch (same liquid, as Phase 57's `sharesStarSickness`).
+
+**Seen:** from a people's page or their world's panel, ▶ The first meeting: the ship over their world, its coming down, a card of what each can do, then their ground. ⬇ Go down to them: their camp or town. `world:peoples`, from the cluster panel's 👥, lists them all, those a ship has come to first. Their town reads ‹ Their world, with no stores and no Live here. Ruins: all of it let fall, roofless, its walls yet high, no one in it.
+
+**Measured**, twenty seeds, 40,977 stars, 549 peoples (382 risen, 167 followed), before a rounding change and not again since. Risen, at year 3000: camps 294, villages 22, towns 15, cities 10, works 1, ruins 40. Followed at 2000: camps 4, villages 9, towns 6, cities 6, works 5, signals 8, orbit 16, stars 113. Real arrivals at 3000, for example: `alien 41` has the Yutsashani (camps, 1100) and the Grythur (villages, 1129); Earth `amber 101` has the Kugrouai (camps, 1426); Earth `ember 260` the Seiketh (camps when found, cities by 3000); `cinder 570` the Xulithi (ruins when found, 1233). Reading every people of a seed takes about 100 ms, once. Earth's `first light` has no ship come to a people by 3000.
+
+**Two defects found by looking, both worth remembering.** Bodies in a camp are drawn ten times larger than the ground they stand on, so a giant's band stood through one another and over their tents: `campFigure` clamps how broad a camp draws one, `campRoom` sets them as far apart as they are drawn. And a ruined town was dated decades ahead and let fall only its last lots, so it stood whole with its windows lit, past a check that asked for one fallen run: the gate now asks that no home or building stands whole.
+
+**Levers.** Possession does not reach a people here: it needs a land under the hand and a people has no cell. The land step between globe and ground; water peoples as risen peoples; stragglers in ruins and second risings; a tiding when a ship reaches a people (it needs Phase 70's event).
+
 ## The seed picker
 
 Choose Earth-like or alien, then a target age, and get seeds that plausibly reach it.
