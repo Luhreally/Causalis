@@ -12,7 +12,7 @@ import type { Item, Line, PageModel } from "../../src/bridge/index.ts";
 
 // Phase 55 M225: the men met go to war, and a town's War tab says where its men went. One world: the
 // first light, a hundred and twenty-five years on, the households met in the towns that sent the most
-// men, and the fifteen years after, in which the men met may fall.
+// men, and the thirty years after, in which the men met may fall.
 
 const world = EARTH.build(seedFromText("first light"));
 world.runTo(125 * YEAR);
@@ -59,7 +59,7 @@ const met = (() => {
 })();
 
 // Their wars go on: the years after they were met are followed, and their land's battles fought.
-world.runTo((Y + 15) * YEAR);
+world.runTo((Y + 30) * YEAR);
 settleAll(world);
 const before = JSON.stringify(world.domainHashes());
 

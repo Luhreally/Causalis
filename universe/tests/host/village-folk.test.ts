@@ -417,8 +417,8 @@ test("a year on: a fire's dead and the year's fallen are buried with their own",
 test("years on: one met who fell is named with his battle's fallen, not among the other dead", () => {
   // (More of the people of the towns that fight most are met, and followed year by year into the
   // battles at each year's turn, until one of them falls in a battle his town buries at home.)
-  for (const ref of towns.slice(0, 8))
-    for (let k = 0; k < 24; k++)
+  for (const ref of towns)
+    for (let k = 0; k < 40; k++)
       try {
         meetHousehold(world, settlement(ref).cell, ref as Ref);
       } catch {
@@ -426,7 +426,7 @@ test("years on: one met who fell is named with his battle's fallen, not among th
       }
   let found: string | null = null,
     year = Y + 1;
-  while (found === null && year < Y + 16) {
+  while (found === null && year < Y + 40) {
     year++;
     world.runTo(year * YEAR + 1);
     settleAll(world);

@@ -41,6 +41,8 @@ type RaidWay = {
   readonly under: readonly number[];
   readonly strays: readonly { readonly p: number; readonly at: number }[];
   readonly falls?: readonly RocketFall[];
+  /** How high they come over (m): over the tallest of what stands there, in a city of spires. */
+  readonly high: number;
 };
 /** One rocket's fall on a town (W3): when, and where. */
 type RocketFall = { readonly at: number; readonly x: number; readonly z: number };
@@ -58,7 +60,12 @@ export const MOST_STREAKS = 8,
 const CATCH_S = 0.35;
 const WAYS = new WeakMap<TownStrike, RaidWay>();
 const wayOf = (k: TownStrike): RaidWay =>
-  WAYS.get(k) ?? { heading: unit(hashText(k.event), 1) * 2 * Math.PI, under: [], strays: [] };
+  WAYS.get(k) ?? {
+    heading: unit(hashText(k.event), 1) * 2 * Math.PI,
+    under: [],
+    strays: [],
+    high: RAID_HIGH,
+  };
 
 /** When a row of a raid's machines is over the town's heart. */
 const rowOver = (k: TownStrike, row: number, rows: number): number => {
@@ -73,7 +80,7 @@ const rowsOf = (k: TownStrike): number =>
  * first of what it burns; and each lot caught when a row's moment comes over it, not as the lots are numbered, so
  * hits walk along under the machines. Read once, as a town's scene is made.
  */
-export function timeRaids(plan: TownPlan, lots: TownLots, states: LotStates): void {
+export function timeRaids(plan: TownPlan, lots: TownLots, states: LotStates, rise = 0): void {
   const list = plan.struck;
   if (!list?.some((k) => k.raid)) return;
   const own = new Map<number, number[]>();
@@ -89,7 +96,7 @@ export function timeRaids(plan: TownPlan, lots: TownLots, states: LotStates): vo
     const mine = own.get(i) ?? [],
       key = hashText(k.event);
     if (k.raid.rocket) {
-      timeRocket(k, key, mine, plan.lots, lots, states);
+      timeRocket(k, key, mine, plan.lots, lots, states, Math.max(RAID_HIGH, rise + 40));
       return;
     }
     const first = mine.slice(0, Math.ceil(mine.length / 4));
@@ -142,7 +149,7 @@ export function timeRaids(plan: TownPlan, lots: TownLots, states: LotStates): vo
         strays.length = STRAY_KEPT;
       }
     }
-    WAYS.set(k, { heading, under, strays });
+    WAYS.set(k, { heading, under, strays, high: Math.max(RAID_HIGH, rise + 40) });
   });
 }
 
@@ -157,6 +164,7 @@ function timeRocket(
   drawn: number,
   lots: TownLots,
   states: LotStates,
+  high: number,
 ): void {
   const heading = unit(key, 1) * 2 * Math.PI,
     runs: number[][] = [];
@@ -173,7 +181,7 @@ function timeRocket(
       strays.push({ p, at });
       falls.push({ at, x: lots.x[p]!, z: lots.z[p]! });
     }
-    WAYS.set(k, { heading, under: [], strays, falls });
+    WAYS.set(k, { heading, under: [], strays, falls, high });
     return;
   }
   for (const p of [...mine].sort((a, b) => a - b)) {
@@ -204,6 +212,7 @@ function timeRocket(
     under: [...mine].sort((a, b) => states.began[a]! - states.began[b]! || a - b),
     strays: [],
     falls,
+    high,
   });
 }
 
@@ -227,20 +236,22 @@ export function raidEye(k: TownStrike): {
   readonly pitch: number;
   readonly distance: number;
 } {
+  // (Over a city of spires, from above their tops: from low down there would be nothing to see but walls.)
+  const over = wayOf(k).high > RAID_HIGH;
   // (Rockets: off to the side of where the first comes down, with the sky it comes from over it.)
   const fall = wayOf(k).falls?.[0];
   if (k.raid?.rocket)
     return {
       target: { x: (fall?.x ?? 0) * 0.1, y: 8, z: (fall?.z ?? 0) * 0.1 },
       yaw: (wayOf(k).heading * 180) / Math.PI + 74,
-      pitch: -8,
-      distance: 96,
+      pitch: over ? -24 : -8,
+      distance: over ? 130 : 96,
     };
   return {
     target: { x: 0, y: 2, z: 0 },
     yaw: (wayOf(k).heading * 180) / Math.PI - 16,
-    pitch: -8,
-    distance: 62,
+    pitch: over ? -24 : -8,
+    distance: over ? 105 : 62,
   };
 }
 
@@ -583,7 +594,7 @@ export function raidNow(scene: TownScene | null, t: number): RaidNow {
       const aside = ((j % ABREAST) - 1) * each + (unit(key, 40 + j) - 0.5) * k.raid.span;
       flyers.push({
         x: ux * along + uz * aside,
-        y: RAID_HIGH + (unit(key, 70 + j) - 0.5) * 30,
+        y: wayOf(k).high + (unit(key, 70 + j) - 0.5) * 30,
         z: uz * along - ux * aside,
         yaw: heading,
         span: k.raid.span,
@@ -604,7 +615,7 @@ export function raidNow(scene: TownScene | null, t: number): RaidNow {
         // (Falling as it was flown: on along the machine's way, faster and faster down.)
         falling.push({
           x: lots.x[p]! - Math.sin(heading) * k.raid!.speed * -since,
-          y: RAID_HIGH * (1 - (1 - left) * (1 - left)),
+          y: wayOf(k).high * (1 - (1 - left) * (1 - left)),
           z: lots.z[p]! - Math.cos(heading) * k.raid!.speed * -since,
         });
       } else if (bursts.length < MOST_BURSTS)
