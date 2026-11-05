@@ -297,10 +297,15 @@ export function townWarNow(
       });
     // (Its fallen lie there once it is fought: the morning after the turn, D4.)
     const fought =
-      place.heart && n.fought && n.fought.battle.spot === place.spot && n.closing?.at !== n.turn
-        ? n.fought
-        : null;
-    if (!hosts.length && !fought) continue;
+        place.heart && n.fought && n.fought.battle.spot === place.spot && n.closing?.at !== n.turn
+          ? n.fought
+          : null,
+      // A battle being fought in place keeps the town to the end, whatever another war of its land
+      // is pressing, and past its rout: then its hosts, come from elsewhere, are at nothing of this town's.
+      inPlace =
+        place.heart && n.fought?.battle.spot === place.spot ? battleStage(y * YEAR, n.turn) : null,
+      fightingHere = !!inPlace && inPlace !== "eve";
+    if (!hosts.length && !fought && !fightingHere) continue;
     const chosen =
         preferredBattle !== undefined &&
         n.fought?.battle.event === preferredBattle &&
@@ -308,6 +313,7 @@ export function townWarNow(
       score =
         Math.max(0, ...hosts.map((h) => PRESSING[h.doing])) +
         (fought ? 0.5 : 0) +
+        (fightingHere ? 1000 : 0) +
         (chosen ? 1e6 : 0);
     if (score <= bestScore) continue;
     bestScore = score;

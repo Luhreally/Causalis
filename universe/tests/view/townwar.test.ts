@@ -52,6 +52,43 @@ const mapOf = (w: War, year = 300): WarsMap => ({ year, garrisons: [], wars: [w]
 /** A moment of a turn's first day (the world's years): the battle at the turn is fought from eight (D4). */
 const morning = (turn: number, hours: number) => turn + (hours * 3600) / (365 * 86_400);
 
+test("a battle before a town that is neither side's seat stays there past its rout", () => {
+  const rout = 90,
+    place = { spot: P, heart: true },
+    both = (won: boolean) =>
+      mapOf(
+        war({
+          battles: [
+            {
+              spot: P,
+              year: 299,
+              won,
+              fallen: 300,
+              event: "evt:0:9",
+              outcome: won ? "taken" : "held",
+              rout,
+            },
+          ],
+        }),
+      );
+  for (const won of [false, true])
+    for (const second of [60, rout + 1, rout + 11, rout + 40]) {
+      const tw = townWarNow(both(won), morning(300, 8 + second / 60), place);
+      assert.equal(tw?.placed?.event, "evt:0:9", `${won ? "won" : "held"}, at second ${second}`);
+      assert.equal(tw?.placed?.stage, "battle");
+      assert.match(tw!.words, /fought before the town/);
+    }
+  // (Another war's muster in the town does not take it from a battle in its rout.)
+  const other = war({ ref: "war:0:8", from: P, to: N, muster: P, battles: [] }),
+    map: WarsMap = { year: 300, garrisons: [], wars: [other, both(false).wars[0]!] };
+  assert.equal(townWarNow(map, morning(300, 8 + (rout + 1) / 60), place)?.placed?.event, "evt:0:9");
+  // (A town elsewhere does not see it.)
+  assert.equal(
+    townWarNow(both(false), morning(300, 8 + (rout + 1) / 60), { spot: N, heart: true }),
+    null,
+  );
+});
+
 test("watching a chosen battle pins it when two wars share the same town", () => {
   const first = war(),
     second = war({ ref: "war:0:8", battles: [{ ...first.battles[0]!, event: "evt:0:10" }] }),

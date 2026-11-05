@@ -136,22 +136,30 @@ await advance(day * DAY + 5.5 * HOUR);
 const towns = await k<{ ref: string; name: string; people: number }[]>(
   `globalThis.causalis.client.query({ type: "towns.map" })`,
 );
-const town = towns[0]!;
-await k(`globalThis.causalis.goTo(${JSON.stringify(town.ref)})`);
-const entered = await until(
-  `${town.name}'s stores`,
-  async () => (await stores()) !== null,
-  slow(120000),
-);
-await k(`globalThis.causalis.client.setSpeed(0)`);
-check(entered, "the town's stores are not told");
+// (The greatest town with something going up at this harvest: not every town builds every year.)
+let town = towns[0]!;
+for (const candidate of towns.slice(0, 8)) {
+  town = candidate;
+  await k(`globalThis.causalis.goTo(${JSON.stringify(town.ref)})`);
+  const entered = await until(
+    `${town.name}'s stores`,
+    async () =>
+      (await stores()) !== null &&
+      (await k<string | null>(`globalThis.causalis.planNow?.()?.ref ?? null`)) === town.ref,
+    slow(120000),
+  );
+  await k(`globalThis.causalis.client.setSpeed(0)`);
+  check(entered, "the town's stores are not told");
 
-// (A working day: on a day of rest, or a feast's, the work is put down.)
-for (let tries = 0; tries < 8; tries++) {
-  await advance(day * DAY + 6 * HOUR);
-  const s = await stores();
-  if (s && s.doing.some((d) => d.kind === "reap" && d.n >= 3)) break;
-  day++;
+  // (A working day: on a day of rest, or a feast's, the work is put down.)
+  for (let tries = 0; tries < 8; tries++) {
+    await advance(day * DAY + 6 * HOUR);
+    const s = await stores();
+    if (s && s.doing.some((d) => d.kind === "reap" && d.n >= 3)) break;
+    day++;
+  }
+  if ((await stores())?.sites.length) break;
+  say(`${town.name}: nothing going up at this harvest; the next`);
 }
 
 // 1. The town drawn with its many.
@@ -213,7 +221,7 @@ if (afternoon.sites.length) {
   check((doing.build ?? 0) >= 1, "no one building with buildings going up");
   check(seen.has("beam") || seen.has("stone"), "no beams or stone carried to the sites");
   check(tasks.has("build"), "no one seen building");
-} else problems.push("nothing going up in the greatest town at sixty years");
+} else problems.push("nothing going up in any of the greatest towns at sixty years");
 const heaps = afternoon.heaps;
 say(
   `heaped: ${heaps?.sacks ?? 0} sacks (${heaps?.granary.heap ? "in the open" : "within its granary"}), ${heaps?.logs ?? 0} logs, ${heaps?.stones ?? 0} stones, ore ${heaps?.ore ?? 0}`,
