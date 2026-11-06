@@ -321,6 +321,8 @@ export const GATES: readonly Gate[] = [
   // The Sound gate: every place its own air, by numbers off the real output and off renders; cues
   // on real presses; 🔊 by touch, remembered; no AudioContext, a hidden tab; the same history.
   { gate: 90, args: ["--ci"], s: 240 },
+  // Gate 96, the people bar and the history written out (tools/b1-gate.ts): the bar's words off the screen, a chip by touch to their page and their home; a pin kept and let go; never over a tool; aside in a life, a possession and a reign; the file by touch, read offline in a fresh browser; a world with no one yet; a young world on CI.
+  { gate: 96, args: ["--ci"], s: 280 },
   // Gate 92, a town's price board and what it is known for (tools/m1-gate.ts): every town tallied, what it is known for must differ; the board by touch, a line to its good's page, its chain, where it is cheap and dear; the square by touch at its real place; one reading with a person's page; the paths nobody watches; a young world on CI.
   { gate: 92, args: ["--ci"], s: 240 },
   // Gate 82, worlds filled (tools/p70b-gate.ts): a world at two shares, pressed from the 🚀 list by touch and read in the pixels; one that can never fill, and what its page says; a young world given both on CI.

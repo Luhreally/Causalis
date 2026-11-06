@@ -46,6 +46,7 @@ import { comparePage } from "./compare.ts";
 import { crumbsOf } from "./crumbs.ts";
 import { DEEP_LENSES, lensReading, type DeepLens } from "../lenses.ts";
 import { conceptPage, withConcepts } from "./concepts.ts";
+import { withBarBlock } from "./barread.ts";
 import { sicknessPage } from "./sickness.ts";
 import { housePage } from "./credit.ts";
 import { buildingPage, lotPage, wallsPage } from "./fabric.ts";
@@ -229,6 +230,8 @@ export function pageOf(
         ),
       ),
     );
+    // (How they are now, and the way on and off the people bar: B1.)
+    if (!brief) page = withBarBlock(world, base, page);
   } catch {
     return unknownPage(world, base, true);
   }

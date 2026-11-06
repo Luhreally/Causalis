@@ -126,6 +126,7 @@ import type {
   GenesisPlan,
   SeedLife,
   WarRaid,
+  WrittenAsk,
 } from "../bridge/index.ts";
 
 /** The most garrisons the globe shows at the seats of realms at peace (Phase 12 M110). */
@@ -168,6 +169,8 @@ import {
 import { STARFIGHT_QUERIES } from "./starfight.ts";
 import { HOME_QUERIES, homePlanReader, planDrawn } from "./home.ts";
 import { LEADER_QUERIES, withFigures } from "./leaders.ts";
+import { BAR_QUERIES } from "./bar.ts";
+import { writtenIndex, writtenRead } from "./inspect/written.ts";
 import { WEALTH_QUERIES } from "./wealth.ts";
 import { HELD_QUERIES } from "./held.ts";
 import { SEARCH_QUERIES } from "./search.ts";
@@ -1505,6 +1508,9 @@ function planetUniverse(name: string, prior: Prior): Universe {
       // A realm's key figures and every realm's wealth (Lives L1, L2).
       ...HOME_QUERIES,
       ...LEADER_QUERIES,
+      ...BAR_QUERIES,
+      "written.index": (world) => writtenIndex(world),
+      "written.read": (world, args) => writtenRead(world, args as WrittenAsk),
       ...WEALTH_QUERIES,
       /** A colony's town at a few years of its growth, as it stood: for a film of it. */
       "colony.growth": (world, args) => {

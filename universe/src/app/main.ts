@@ -5,12 +5,14 @@
 import "./styles.css";
 import "./y2k.css";
 import "./board.css";
+import "./bar.css";
 import "./brushes.css";
 import "./tour.css";
 import "./can.css";
 import "./years.css";
 import "./memory.css";
 import { SungNote } from "../ui/index.ts";
+import { PeopleBar, barPins, setWrittenHold } from "../ui/index.ts";
 import { Checkpoint } from "./checkpoint.ts";
 import { HostClient, LOT, inlinePair, lotStates, progress, workerPort } from "../bridge/index.ts";
 import {
@@ -1299,6 +1301,9 @@ type Exposed = {
   /** Open a thing's page (Phase 10 M92), and the page open now. */
   open?: (ref: string) => Promise<void>;
   pageOpen?: () => string | null;
+  /** The people bar and whom a viewer keeps on it (B1). */
+  peopleBar?: PeopleBar;
+  barPins?: typeof barPins;
   /** Go to where a thing is to be seen. */
   goTo?: (ref: string) => Promise<void>;
   scale?: () => string;
@@ -9234,6 +9239,38 @@ async function runPlanetPage(): Promise<void> {
       !!document.querySelector(".jump-screen"),
   );
   if (exposed.jumpedFrom !== undefined) runNote.jumped();
+  // The people bar (B1): who matters where the eye is, and how they are. The eye's place is read here at a low rate; who
+  // they are is the worker's. A mode with its own chrome hides it, and it isn't read then.
+  barPins.open(`${universe}:${seed}`);
+  let barAt: { cell: number | null; town: string | null } = { cell: null, town: null };
+  const peopleBar = new PeopleBar(
+    hud,
+    client,
+    () => {
+      if (
+        ["filming", "fleet-filming", "homing", "living", "possessing", "ruling"].some((c) =>
+          document.body.classList.contains(c),
+        )
+      )
+        return null;
+      if (scale === "village") barAt = { cell: plan?.cell ?? null, town: plan?.ref ?? null };
+      else if (scale === "region" || scale === "camp")
+        barAt = { cell: regionCell >= 0 ? regionCell : null, town: null };
+      else if (scale === "globe") {
+        // (The middle of what the bar and the foot leave of the screen; off the world's edge, where it last was.)
+        const at = paletteAt(innerWidth / 2, innerHeight * 0.6);
+        if (at.cell !== null) barAt = { cell: at.cell, town: at.town };
+      } else barAt = { cell: null, town: null };
+      return barAt;
+    },
+    () => [...followedRefs].filter((r) => /^(rule|court|prsn|agent|folk:town):/.test(r)),
+  );
+  peopleBar.onOpen = (ref) => void pageWindow.open(ref);
+  takeUp.push(() => peopleBar.fresh());
+  exposed.peopleBar = peopleBar;
+  exposed.barPins = barPins;
+  // (A file all of one year: the clock held while it is read.)
+  setWrittenHold((on) => (on ? time.hold("writing") : time.release("writing")));
   // Who sings at the feast (T1): a note that can be pressed, while the eye is free and the town is the thing seen.
   const sungNote = new SungNote(
     tidings.element,
