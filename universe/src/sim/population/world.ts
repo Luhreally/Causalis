@@ -61,6 +61,7 @@ import { installCourts } from "../court/court.ts";
 import { installDesigns } from "../design/design.ts";
 import { installEcology } from "../ecology/ecology.ts";
 import { installWoods } from "../ecology/woods.ts";
+import { installHerds } from "../ecology/herds.ts";
 import { installLodes } from "../economy/worked.ts";
 import { makePlanetWorld, homePlanet, type PlanetWorldOptions } from "../planet/store.ts";
 import { Province, capacity, livable, row } from "./model.ts";
@@ -337,6 +338,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installDisasters(world, () => populationContext(world));
   installWild(world, () => populationContext(world));
   installWoods(world, () => populationContext(world));
+  installHerds(world, () => populationContext(world));
   installLodes(world, () => populationContext(world));
   installWaysActs(world, () => populationContext(world));
   installNatureActs(world, () => populationContext(world));

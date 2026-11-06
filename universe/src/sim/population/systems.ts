@@ -62,6 +62,7 @@ import { powerOf } from "../economy/systems.ts";
 import { longRain } from "../climate/long.ts";
 import { lodesOf } from "../economy/lodes.ts";
 import { lodePush } from "../economy/worked.ts";
+import { herdLoss, pensLeft } from "../ecology/herds.ts";
 import {
   GONE_KEPT,
   HAND_VITAL,
@@ -432,6 +433,8 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
         darkFields(world, p.cell) *
         (p.cell >= offworldFrom ? openFields(ctx, p.cell) : 1),
       flocks = 1 + lore.effect(p.cell, "herdYield"),
+      // (What war has driven off of its herds and a beast at large takes: Z1. Exactly 0 where neither has.)
+      flocksLost = herdLoss(world, p.cell, t),
       wilds = 1 + lore.effect(p.cell, "forageYield"),
       keeping = Math.min(0.8, lore.effect(p.cell, "keeping")),
       stored = lore.effect(p.cell, "storage"),
@@ -464,7 +467,8 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
               rain *
               fields *
               alive.soil *
-              (1 - grainLost(alive)) +
+              (1 - grainLost(alive)) *
+              pensLeft(ctx, flocksLost) +
             vats
           : 0,
       ],
@@ -473,8 +477,9 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
         saturate(c.pasture, p.occupation(OCC.herder), PRODUCTIVITY[OCC.herder]! * tools * gathers) *
           (0.5 + 0.5 * rain) *
           flocks *
-          // (Less what the land's hunters take of the flocks.)
-          (1 - FLOCK_LOSS * alive.hunters),
+          // (Less what the land's hunters take of the flocks, and what war and a known beast have.)
+          (1 - FLOCK_LOSS * alive.hunters) *
+          (1 - flocksLost),
       ],
     ];
     for (const [g, x] of harvest)

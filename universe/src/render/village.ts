@@ -3552,6 +3552,11 @@ export class VillageScene {
     return this.fauna.drawn;
   }
 
+  /** Every beast in front of the eye, and where on the screen (the look tools). */
+  beastsOnScreen(): ReturnType<FaunaLayer["onScreen"]> {
+    return this.fauna.onScreen();
+  }
+
   /** The beast nearest a screen point, if no one is: its lineage and what it is doing. */
   pickBeast(x: number, y: number): PickedBeast | null {
     return this.fauna.pick(x, y);

@@ -787,6 +787,7 @@ export {
   doingOf,
   faunaOf,
   fishAt,
+  herdPassAt,
   type BeastNow,
   type BirdNow,
   type Coat,

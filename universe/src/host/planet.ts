@@ -195,6 +195,7 @@ import { TRAIT_LOOK } from "./inspect/folk.ts";
 import { actsMap, landSky, paletteLand } from "./acts.ts";
 import { fireShadow } from "./inspect/fire.ts";
 import { tilesUnderWoods, woodsMap } from "./inspect/woods.ts";
+import { landHerds } from "./inspect/herds.ts";
 import { FAR_QUERIES } from "./far.ts";
 import { groundMap, spotGround } from "./inspect/ground.ts";
 import { worldGlobe } from "./worlds.ts";
@@ -834,8 +835,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
   // fire; no lists by kind. And with F4: rocky worlds read as any other, each turning aside where its numbers
   // shut the first way. And with W2: past its engines, wings, and war from the air; what the tree's roots
   // know crosses the sea. And with W3: past its rocketry, loads thrown. And with E1: woods that move, long ages of rain,
-  // lodes that run out.)
-  const version = name === "alien" ? "alien-20" : `${name}-16`,
+  // lodes that run out. And with Z1: herds that go somewhere, beasts people know, herds taken in war, a tree that goes on.)
+  const version = name === "alien" ? "alien-21" : `${name}-17`,
     make = (seed: Seed, frequency?: number) => {
       // The chronicle opens after a generated prehistory: bands across the land.
       const world = makePopulationWorld(seed, {
@@ -1089,6 +1090,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
       /** A land's sky (Phase 30 M162): its climate, this year's rain, the god's acts on it. */
       "land.sky": (world, args) => landSky(world, (args as { cell: number }).cell),
       "woods.map": (world) => woodsMap(world),
+      // A land's creatures, as its map draws them (Z1): read, never told back.
+      "land.herds": (world, args) => landHerds(world, (args as { cell: number }).cell),
       // Every land's chief rock, for the Ground lens (Phase 15 M124).
       "ground.map": (world) => groundMap(world),
       "palette.land": (world, args) => paletteLand(world, (args as { cell: number }).cell),

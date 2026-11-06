@@ -91,6 +91,7 @@ import { loreOf } from "../lore/lore.ts";
 import { RIVALRY, diplomacyOf, relationRef } from "../diplomacy/diplomacy.ts";
 import { CREDIT, warChest } from "../credit/credit.ts";
 import { STRIFE, settleCivil } from "../strife/strife.ts";
+import { driveHerds } from "../ecology/herds.ts";
 import { GENERAL } from "../polity/polity.ts";
 import {
   bindPeace,
@@ -1383,6 +1384,8 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       throwB = throwerOf(ctx, b, () => fieldedOf(ctx, b));
     if (throwA) thrown(ctx, w, 0, throwA, b, a, land, t);
     if (throwB) thrown(ctx, w, 1, throwB, a, b, land, t);
+    // (A host on a land's ground drives off what it can: Z1.)
+    driveHerds(ctx, w.ref, w.event, a, b, land, t);
     const key = Number(w.ref.split(":")[2]),
       far = (() => {
         // Supply thins with distance from the seat.

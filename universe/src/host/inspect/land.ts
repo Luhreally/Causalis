@@ -4,6 +4,7 @@
 // and a region open onto the land they are part of.
 import { fireLandStats } from "./fire.ts";
 import { lodesBlock, woodsBlock, woodsTurnsBlock } from "./woods.ts";
+import { herdBlock } from "./herds.ts";
 import {
   BIOME_NAMES,
   cellRef,
@@ -348,6 +349,9 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
     // What its woods were, what they came to and what did it, whoever lives there (E1).
     for (const b of [woodsBlock(world, cell), woodsTurnsBlock(world, cell)])
       if (b) blocks.push(b);
+    // What goes on it, when, and what has become of them (Z1).
+    const herds = herdBlock(world, cell);
+    if (herds) blocks.push(herds);
     if (p) {
       const e = p.ecology,
         rows: Stat[] = [

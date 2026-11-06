@@ -154,6 +154,7 @@ export class FaunaLayer {
     const counts = fauna.species.map(() => 0);
     for (const h of fauna.herds) counts[h.species]! += h.members.length;
     for (const p of fauna.packs) counts[p.species]! += p.members;
+    if (fauna.prowler) counts[fauna.prowler.species]! += 1;
     if (fauna.road.species >= 0) counts[fauna.road.species]! += fauna.road.count;
     for (const b of fauna.birds) counts[b.species]!++;
     for (const f of fauna.fish) counts[f.species]!++;
@@ -374,6 +375,24 @@ export class FaunaLayer {
       }
       flush(g);
     }
+  }
+
+  /** Every beast in front of the eye: its name, its page, where on the screen and what it is doing (the look tools). */
+  onScreen(): { name: string; ref: string; x: number; y: number; doing: string }[] {
+    const fauna = this.fauna;
+    if (!fauna || !this.root.enabled) return [];
+    const cam = this.stage.camera.camera!,
+      at = new pc.Vec3(),
+      p = new pc.Vec3();
+    return this.beasts.slice(0, this.beastCount).flatMap((b) => {
+      const sp = fauna.species[b.species];
+      if (!sp) return [];
+      p.set(b.x * M, sp.body.leg * sp.body.k, b.z * M);
+      const s = cam.worldToScreen(p, at);
+      return s.z > 0
+        ? [{ name: sp.name, ref: sp.ref, x: s.x, y: s.y, doing: doingOf(sp, b.pose, b.task) }]
+        : [];
+    });
   }
 
   /** The beast nearest a screen point, within a finger's reach: its lineage, and what it is doing. */

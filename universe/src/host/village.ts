@@ -56,6 +56,7 @@ import { landWords, meetHousehold, observer, settleAll, type WarFate } from "../
 import { personThings } from "./inspect/things.ts";
 import { memorialsOf, townSongs } from "./inspect/memory.ts";
 import { courtIn, namedByCases } from "./inspect/justice.ts";
+import { fullName, herdPass, townWild } from "./inspect/herds.ts";
 import {
   LAKE_R,
   LOT,
@@ -1048,6 +1049,23 @@ export function villagePlan(
           }
         : null,
       raided: !!w.flocksTaken,
+      // (How its creatures go through in their season, and what is after its flock: Z1.)
+      pass: herdPass(world, cell),
+      ...((wild) =>
+        wild.hunter && (beast || wild.known)
+          ? {
+              after: {
+                ref: wild.known ? `beast:${wild.known.id}` : wild.hunter.ref,
+                name: wild.known ? fullName(wild.known) : wild.hunter.name,
+                kind: wild.hunter.name,
+                niche: wild.hunter.niche,
+                size: wild.hunter.size,
+                wool: wild.hunter.wool,
+                body: wild.hunter.body,
+                known: !!wild.known,
+              },
+            }
+          : {})(townWild(world, cell)),
     };
   }
 

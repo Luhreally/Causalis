@@ -53,6 +53,7 @@ import { buildingPage, lotPage, wallsPage } from "./fabric.ts";
 import { homePage, homeThingPage } from "./home.ts";
 import { withLiving } from "./living.ts";
 import { campPage } from "./camp.ts";
+import { beastPage, herdPage } from "./herds.ts";
 import { healerPage } from "./wounds.ts";
 import { armPage, armsPage } from "./arm.ts";
 import { elementPage } from "./element.ts";
@@ -137,6 +138,9 @@ function build(
   if (ref.startsWith("walls:")) return wallsPage(world, ref);
   // A band's camp on its land (Phase 28 M159).
   if (ref.startsWith("camp:")) return campPage(world, ref);
+  // A land's creatures, and a beast people know (Z1).
+  if (ref.startsWith("herd:")) return herdPage(world, ref);
+  if (ref.startsWith("beast:")) return beastPage(world, ref);
   // One of a town's many kept by their line, and one of a battle's levy (Phase 55 M225).
   if (ref.startsWith("folk:town:")) return townsfolkPage(world, ref);
   if (ref.startsWith("lv:")) return levyManPage(world, ref);

@@ -24,7 +24,8 @@ export type SongKind =
   | "faith"
   | "peace"
   | "leaving"
-  | "sky";
+  | "sky"
+  | "beast";
 
 /** What a song is made from. */
 export type SongFacts = {
@@ -126,6 +127,31 @@ type Bank = {
 // The holes: {town} {land} {us} {them} {who} {what} {dead} {homes} {years} {year} {stone} {beast} {god}, and what differs by a people's
 // world: {roof} {hearth} {fields} {road} {bread} {ground} {sky} {sang} {door}.
 const BANKS: Readonly<Record<SongKind, Bank>> = {
+  beast: {
+    titles: [
+      ["The Song of {what}", "{what} at {town}", "Who Went After {what}"],
+      ["{what}", "The Beast of {town}"],
+      ["What Came Down to the {fields}", "The Long Winter's Beast"],
+      ["The Beast", "What Walked the {ground}"],
+    ],
+    near: [
+      "We named it {what}, so we could say who took them.",
+      "{who} went out from {town} when no one else would go.",
+      "It came down to the {fields} of {town} in the year {year}.",
+      "You knew its track by morning, and by night you counted heads.",
+      "{who} came back up the {road} and the whole of {town} came out.",
+      "No {roof} in {town} slept easy while it walked the {ground}.",
+      "It took {beast} from us and we called it by a name.",
+    ],
+    far: [
+      "There was one of them, once, that people knew.",
+      "It had a name. You wouldn't want it said after dark.",
+      "They say it came down to the {fields} in a hard year.",
+      "Bar your {door}, my grandmother would say, and she meant that one.",
+      "No one living saw it. Everyone can tell you what it looked like.",
+    ],
+    cut: ["Here the {fields} were safe again", "{what} walked here"],
+  },
   battle: {
     titles: [
       ["The Field at {town}", "How {us} Held at {town}", "The Day at {town}", "{dead} at {town}"],

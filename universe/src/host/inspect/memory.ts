@@ -406,6 +406,21 @@ function readMemory(world: World, version: string): Reading {
         );
         break;
       }
+      case "beast.ended": {
+        // (A beast people knew: its song, and a stone where it took many. Z1.)
+        const fallen = num(d.fallen),
+          k = blank(e, "beast", 4 + log(1 + fallen) * 2, "stone"),
+          given = typeof d.given === "string" ? d.given : null;
+        Object.assign(k, {
+          what: given,
+          who: typeof d.killer === "string" ? d.killer : null,
+          dead: fallen,
+          years: num(d.years),
+          town: (e.subjects ?? []).find((s) => String(s).startsWith("town:")) ?? null,
+        });
+        single.push(k);
+        break;
+      }
       case "peoples.landed":
       case "peoples.raid":
       case "contact.met":
@@ -584,6 +599,7 @@ const STONE_WORTH: Readonly<Partial<Record<SongKind, number>>> = {
   strangers: 0,
   faith: 0,
   sky: 0,
+  beast: 4.5,
 };
 
 // —— Who they are, and what they have to hand ——————————————————————————————————————————————
@@ -749,6 +765,7 @@ const STONE_NAMES: Readonly<Record<SongKind, string>> = {
   peace: "stone of the peace",
   leaving: "stone of those who went",
   sky: "stone of the god's hand",
+  beast: "stone of the beast",
 };
 
 /** Colours by what it is made of. */

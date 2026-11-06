@@ -320,6 +320,8 @@ export const GATES: readonly Gate[] = [
   { gate: 97, args: ["--ci"], s: 240 },
   // Gate 99, a living ecology (tools/e1-gate.ts): woods that move for more than one reason, a lode at its eve, the Forest lens pressed by touch and the land's colour in the pixels, the same world before and after.
   { gate: 99, args: ["--ci"], s: 240 },
+  // Gate 100, wild lives (tools/z1-gate.ts): herds on a land's map by real touch, in the pixels, gone in their season; a beast known, its page and song; herds taken in war; the tree going on; an old save run on.
+  { gate: 100, args: ["--ci"], s: 240 },
   // Gate 93, memory in the town (tools/t1-gate.ts): stones and songs read off a world, the same twice; a stone in the pixels, pressed by touch; a feast's song; Songs and tales; a town with no past; a young world on CI.
   { gate: 93, args: ["--ci"], s: 200 },
   // Gate 95, crime and justice in the town (tools/j1-gate.ts): cases read off a world, the same twice; one real person's page, home and case agree; Law and order pressed by touch; a court in the pixels, sitting on its day, pressed by touch; a young world on CI.

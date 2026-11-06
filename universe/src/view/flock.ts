@@ -250,6 +250,102 @@ export function flockMember(
   };
 }
 
+/** How many times a grazing day something comes at the flock; when in its round it comes in, and when it is seen off; how long a herder takes to go out and stand (shares of a round). Z1. */
+const PROWL_ROUNDS = 3,
+  PROWL_FROM = 0.3,
+  PROWL_TO = 0.86,
+  PROWL_GOES = 0.06;
+
+/** Which round of its grazing hours what is after a flock is on, and how far through it (null: the flock is in, or nothing is after it). */
+function prowlRound(plan: VillagePlan, t: number): { round: number; phi: number } | null {
+  if (!plan.fauna?.after || !keepsFlock(plan)) return null;
+  const fl = flockAt(plan, t);
+  if (!fl || fl.state !== "grazing") return null;
+  const s = t % DAY,
+    from = FLOCK_OUT[1] * HOUR,
+    span = (FLOCK_IN[0] - FLOCK_OUT[1]) * HOUR;
+  if (s < from || s >= from + span) return null;
+  const at = ((s - from) / span) * PROWL_ROUNDS,
+    round = Math.floor(at);
+  return { round, phi: at - round };
+}
+
+/** What is after a flock, now: out at the edge of sight, coming in, seen off (Z1). A pure function of the town's plan and the moment. */
+export function prowlAt(
+  plan: VillagePlan,
+  t: number,
+): {
+  readonly x: number;
+  readonly z: number;
+  readonly yaw: number;
+  readonly gait: 0 | 1 | 2;
+  readonly head: number;
+  readonly crouch: number;
+} | null {
+  const r0 = prowlRound(plan, t),
+    fl = flockAt(plan, t);
+  if (r0 === null || !fl) return null;
+  const { round, phi } = r0,
+    day = Math.floor(t / DAY),
+    reach = 6 + 2.6 * Math.sqrt(flockMany(plan)),
+    a = unitOf(hashText(`prowl ${plan.ref}`), day, round) * 6.283,
+    far = reach + 90,
+    near = reach + 22,
+    r =
+      phi < PROWL_FROM
+        ? far
+        : phi < PROWL_TO
+          ? far + (near - far) * ((phi - PROWL_FROM) / (PROWL_TO - PROWL_FROM))
+          : near + (far + 60 - near) * ((phi - PROWL_TO) / (1 - PROWL_TO)),
+    ca = Math.cos(a),
+    sa = Math.sin(a);
+  return {
+    x: fl.x + ca * r,
+    z: fl.z + sa * r,
+    // (Facing the flock as it comes, away as it is seen off.)
+    yaw: phi < PROWL_TO ? Math.atan2(-ca, -sa) : Math.atan2(ca, sa),
+    gait: phi >= PROWL_TO ? 2 : phi >= PROWL_FROM ? 1 : 0,
+    head: phi < PROWL_FROM ? 0.6 : 0.2,
+    crouch: phi >= PROWL_FROM && phi < PROWL_TO ? 1 : 0,
+  };
+}
+
+/** The first of a flock's herders goes out between it and what is after it, and stands there till it is seen off (Z1). */
+function standing(
+  plan: VillagePlan,
+  t: number,
+  fl: FlockNow,
+  usual: Point & { readonly face: number; readonly why: string },
+): Point & { readonly face: number; readonly why: string } {
+  const r0 = prowlRound(plan, t),
+    after = plan.fauna?.after;
+  if (!r0 || !after) return usual;
+  const { phi } = r0,
+    w =
+      phi < PROWL_FROM || phi >= PROWL_TO + PROWL_GOES
+        ? 0
+        : phi < PROWL_FROM + PROWL_GOES
+          ? (phi - PROWL_FROM) / PROWL_GOES
+          : phi < PROWL_TO
+            ? 1
+            : 1 - (phi - PROWL_TO) / PROWL_GOES,
+    prowl = w > 0 ? prowlAt(plan, t) : null;
+  if (!prowl) return usual;
+  const toward = Math.atan2(prowl.z - fl.z, prowl.x - fl.x),
+    out = 6 + 2.6 * Math.sqrt(flockMany(plan)) + 8,
+    x = usual.x + (fl.x + Math.cos(toward) * out - usual.x) * w,
+    z = usual.z + (fl.z + Math.sin(toward) * out - usual.z) * w;
+  return {
+    x,
+    z,
+    face: w > 0.5 ? Math.atan2(prowl.x - x, prowl.z - z) : usual.face,
+    why:
+      w > 0.5
+        ? `Standing between the flock and ${after.known ? after.name : `the ${after.name}`}`
+        : usual.why,
+  };
+}
+
 /** What a herder is about, as the flock is. */
 const HERD_WHY: Record<FlockState, string> = {
   folded: "At the fold with the flock",
@@ -304,5 +400,6 @@ export function herderAt(
     x = fl.x + Math.cos(a) * r;
     z = fl.z + Math.sin(a) * r;
   }
-  return { x, z, face: Math.atan2(fl.x - x, fl.z - z), why };
+  const usual = { x, z, face: Math.atan2(fl.x - x, fl.z - z), why };
+  return seat === 0 ? standing(plan, t, fl, usual) : usual;
 }

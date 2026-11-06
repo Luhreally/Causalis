@@ -46,6 +46,8 @@ import {
 } from "../view/index.ts";
 import { InstancedBatch, boxMesh, coneMesh, cylinderMesh, gableMesh, keptMesh } from "./batch.ts";
 import { LandTraffic, type BusyWay, type CarrierKind, type RoadWay } from "./landtraffic.ts";
+import { LandHerdsLayer } from "./landherds.ts";
+import type { LandHerds } from "../bridge/index.ts";
 import { LandCamps } from "./landcamps.ts";
 import { domeMesh } from "./colony.ts";
 import type { Rgb, Stage } from "./stage.ts";
@@ -232,6 +234,8 @@ export class LandLayer {
   private readonly traffic: LandTraffic;
   /** Its bands' camps (Phase 28 M159). */
   readonly camps: LandCamps;
+  /** What goes on its ground that no one drives (Z1). */
+  readonly herds: LandHerdsLayer;
   /** The ways carriers go along: its roads and railways as drawn this year, its sea lanes (each lane's line worked out once). */
   private roadWays: RoadWay[] = [];
   private railWays: BusyWay[] = [];
@@ -267,6 +271,7 @@ export class LandLayer {
     this.rising = new GroundBatches(stage, this.root, this.meshes);
     this.traffic = new LandTraffic(stage, this.root, this.meshes);
     this.camps = new LandCamps(stage, this.root, this.meshes);
+    this.herds = new LandHerdsLayer(stage, this.root, this.meshes);
   }
 
   /** A new land: its ground, and nothing on it yet. */
@@ -280,6 +285,7 @@ export class LandLayer {
     this.laneWays = [];
     this.traffic.clear();
     this.camps.clear();
+    this.herds.clear();
     this.fields = [];
     this.plan = null;
     this.roadsKey = "";
@@ -292,6 +298,11 @@ export class LandLayer {
     }
     for (const b of this.fieldBatches) b.set(0, () => {});
     for (const b of Object.values(this.roadBatches)) b?.set(0, () => {});
+  }
+
+  /** A land's creatures as last asked, set on its ground (Z1). */
+  setHerds(plan: LandHerds): void {
+    if (this.ground) this.herds.set(plan, this.ground, this.clearings());
   }
 
   /** The towns drawn and where (region units), for the trees to be cleared from them. */
@@ -432,6 +443,7 @@ export class LandLayer {
     this.running = running;
     this.traffic.move(g, running);
     this.camps.update(running);
+    this.herds.update(g, this.clearings(), (t % YEAR) / YEAR, running);
     const wall = performance.now();
     if (Math.abs(t - this.drawnAt) >= RISE_EVERY && wall - this.drawnWall >= RISE_WAIT) {
       this.drawnAt = t;
@@ -631,6 +643,7 @@ export class LandLayer {
     this.rising.destroy();
     this.traffic.destroy();
     this.camps.destroy();
+    this.herds.destroy();
     for (const b of this.fieldBatches) b.destroy();
     for (const b of Object.values(this.roadBatches)) b?.destroy();
     this.root.destroy();

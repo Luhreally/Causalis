@@ -18,6 +18,7 @@ import { depositPage, platePage, speciesPage } from "../pages.ts";
 import { region } from "../planet.ts";
 import { warmthScale } from "../kinds.ts";
 import { count, eventsAbout, item, link, share, stat, yearNow } from "./words.ts";
+import { lineageBlock } from "./herds.ts";
 import {
   ORE_GRADE,
   TONNES_A_UNIT,
@@ -121,6 +122,9 @@ export function lineagePage(world: World, ref: string): PageModel {
     ...(s.raids ? [stat("Raids the flocks of", `${count(s.raids)} lands`)] : []),
   ];
   const web: Block[] = [];
+  // Where it raises its young, and what has become of it in history (Z1).
+  const inHistory = lineageBlock(world, sp.index);
+  if (inHistory) web.push(inHistory);
   if (s.hunts.length)
     web.push({
       type: "list",

@@ -16,9 +16,9 @@
 import { finish, hashString, mix } from "../kernel/index.ts";
 import type { VillagePlan } from "../bridge/index.ts";
 import { fieldPoint } from "./country.ts";
-import { flockAt, flockMember, foldReach } from "./flock.ts";
+import { flockAt, flockMember, foldReach, prowlAt } from "./flock.ts";
 import { gameAt, huntGround, huntOn } from "./hunt.ts";
-import { COAT_COLOURS, coatColour, coatWord, type CreatureBody } from "../rules/index.ts";
+import { COAT_COLOURS, HERD, coatColour, coatWord, passAt, type CreatureBody } from "../rules/index.ts";
 import { buildBody, strideOf, type Built, type Pose } from "./creature.ts";
 import { dryAt, keepOut, villageGround, type Ground } from "./ground.ts";
 import { treesOf } from "./village.ts";
@@ -79,6 +79,9 @@ export function defaultBody(niche: string, size: number, wool: boolean): Creatur
 const unit = (key: number, i: number, j: number) =>
   (finish(mix(mix(key, i), j), 23) >>> 0) / 4294967296;
 
+/** Where a land's creatures are on its map through the year: for what draws them (Z1). */
+export const herdPassAt = passAt;
+
 // —— The herds and their day ——————————————————————————————————————————————————————
 
 export type FaunaSpecies = {
@@ -100,6 +103,9 @@ type Herd = {
   readonly home: { x: number; z: number };
   /** A town's flock (Phase 46 M208): its town's plan, by which its day goes on the world's clock. */
   readonly flock?: VillagePlan;
+  /** The way it goes through in its season, and is gone (Z1), and how far from the town's middle it passes, on which side. */
+  readonly pass?: NonNullable<PlanFauna["pass"]>;
+  readonly passBy?: number;
   /** The game a town's hunters go after (Phase 47 M209): its town, by whose hunts it goes. */
   readonly game?: VillagePlan;
   /** Each member's place in the herd, metres from its middle, and its own clock. */
@@ -138,6 +144,13 @@ export const TRAFFIC_PACE: Readonly<Record<Traffic["kind"], number>> = {
 };
 
 export type Fauna = {
+  /** What stalks a town's flock against its herders, on the world's clock (Z1); how far out a beast at large walks when no flock is out to stalk. */
+  readonly prowler: {
+    readonly species: number;
+    readonly plan: VillagePlan;
+    readonly known: boolean;
+    readonly ring: number;
+  } | null;
   readonly species: readonly FaunaSpecies[];
   /** The ground's solid things: the water and the homes. */
   readonly ground: Ground;
@@ -189,10 +202,12 @@ export function faunaOf(plan: VillagePlan, cap: number, detail: number, ambient:
       size: number;
       wool: boolean;
       body?: unknown;
+      /** A beast known by its own name: the name its coat is read from (Z1). */
+      kind?: string;
     },
     flock: boolean,
   ) => {
-    const coat = coatOf(s.name, s.wool),
+    const coat = coatOf(s.kind ?? s.name, s.wool),
       plan = (s.body as CreatureBody | null | undefined) ?? defaultBody(s.niche, s.size, s.wool),
       body = buildBody(plan, detail, coat.pattern, hashString(s.ref));
     species.push({
@@ -285,6 +300,40 @@ export function faunaOf(plan: VillagePlan, cap: number, detail: number, ambient:
       lesser.length + walkingScavengers.length ? Math.max(1, Math.round(cap * 0.05)) : 0;
   let followLeft = followShare;
   budget -= smallShare + followShare;
+  // The line a land's creatures go past the town on (Z1): clear of its homes, its fields and its pasture, on whichever side has least in the way and no water.
+  const passLine = (way: readonly [number, number], turn: number): number => {
+    const px = -way[1],
+      pz = way[0],
+      inWay = [
+        ...plan.fields.map((fl) => ({ x: fl.x, z: fl.z, r: Math.max(fl.w, fl.d) / 2 })),
+        { x: plan.pasture.x, z: plan.pasture.z, r: plan.pasture.r },
+      ],
+      side = (s: 1 | -1) => {
+        let by = near + 40;
+        for (const o of inWay) {
+          const d = (o.x * px + o.z * pz) * s;
+          if (d > -o.r && d + o.r + 20 > by) by = d + o.r + 20;
+        }
+        by = Math.min(by, far + 150);
+        let wet = 0;
+        for (let k = -6; k <= 6; k++)
+          if (
+            !dryAt(
+              ground,
+              px * s * by + way[0] * k * (HERD.nearSpan / 6),
+              pz * s * by + way[1] * k * (HERD.nearSpan / 6),
+              20,
+            )
+          )
+            wet++;
+        return { by, cost: by + 60 * wet };
+      },
+      a = side(1),
+      b = side(-1),
+      // (A second herd beside the first, not on it.)
+      apart = 34 * (turn % 3);
+    return a.cost <= b.cost ? a.by + apart : -(b.by + apart);
+  };
   // The wild herds, by lineage: grazers in herds, browsers in small bands, great beasts few.
   const weight = (s: PlanFauna["wild"][number]) =>
     s.stock * (s.niche === "grazer" ? 1 : s.niche === "browser" ? 0.5 : 0.22);
@@ -318,6 +367,10 @@ export function faunaOf(plan: VillagePlan, cap: number, detail: number, ambient:
         species: sp,
         home: hunted ?? { x: r * Math.cos(a), z: r * Math.sin(a) },
         ...(hunted ? { game: plan } : {}),
+        // (Those that aren't the few a town's hunters go after come and go with the year.)
+        ...(!hunted && f.pass && !f.pass.still && s.niche !== "great beast"
+          ? { pass: f.pass, passBy: passLine(f.pass.way, h) }
+          : {}),
         members: membersOf(
           size,
           Math.max(6 + 3.5 * Math.sqrt(size) * (s.niche === "great beast" ? 2 : 1), room(sp, size)),
@@ -480,7 +533,12 @@ export function faunaOf(plan: VillagePlan, cap: number, detail: number, ambient:
       count: plan.era === "forage" ? Math.min(1, busy) : busy,
       way: { ref: plan.ref, to: plan.road },
     };
-  return { species, ground, herds, packs, road, birds, fish };
+  // What is after the flock (Z1): a beast at large by its own page, else the land's hunter.
+  const after = f.after && (f.after.known || (f.flock && f.flock.herders > 0)) ? f.after : null,
+    prowler = after
+      ? { species: speciesOf(after, false), plan, known: after.known, ring: near + 45 }
+      : null;
+  return { prowler, species, ground, herds, packs, road, birds, fish };
 
   /** How wide a herd of `n` must be for its beasts to stand apart (a body and a half each). */
   function room(sp: number, n: number): number {
@@ -657,8 +715,26 @@ export function beastsAt(fauna: Fauna, s: number, out: BeastNow[], at?: number):
       z: h.home.z + r * Math.sin(t * w * 0.8 + 2 * i),
     };
   };
+  // (Where the year has a land's creatures: on their way past, or gone. Z1.)
+  const yearShare = at === undefined ? 0 : ((at / 86_400) % 365) / 365,
+    through = fauna.herds.map((h) => (h.pass && at !== undefined ? passAt(h.pass, yearShare) : 0));
   const middles = fauna.herds.map((h, i) => {
-    const g = games[i];
+    const g = games[i],
+      k = through[i];
+    if (h.pass && h.passBy !== undefined && k !== null && k !== undefined && at !== undefined) {
+      const d = drift(i, s),
+        [ux, uz] = h.pass.way,
+        along = (h.home.x * ux + h.home.z * uz) * 0.35 + k * HERD.nearSpan;
+      return {
+        x: d.x - h.home.x - uz * h.passBy + ux * along,
+        z: d.z - h.home.z + ux * h.passBy + uz * along,
+        fx: 0,
+        fz: 0,
+        alert: 0,
+        running: false,
+        way: null,
+      };
+    }
     return {
       ...drift(i, s),
       fx: 0,
@@ -822,6 +898,8 @@ export function beastsAt(fauna: Fauna, s: number, out: BeastNow[], at?: number):
   }
   // The herds' beasts.
   fauna.herds.forEach((h, i) => {
+    // (Gone with the year: Z1.)
+    if (through[i] === null) return;
     const m = middles[i]!,
       sp = species(h),
       stride = strideOf(sp.body),
@@ -965,6 +1043,8 @@ export function beastsAt(fauna: Fauna, s: number, out: BeastNow[], at?: number):
   });
   // The hunters, a few paces apart, facing their way; the scavengers on their track.
   bands.forEach((b, i) => {
+    // (They follow what they eat: gone with it. Z1.)
+    if (through[b.p.herd] === null) return;
     const sp = fauna.species[b.p.species]!,
       toward = b.yaw;
     for (let j = 0; j < b.p.members; j++) {
@@ -1003,6 +1083,40 @@ export function beastsAt(fauna: Fauna, s: number, out: BeastNow[], at?: number):
       o.pose.crouch = 0;
       o.pose.phase = s * strideOf(sp.body) * 2 * Math.PI + k * 2.1;
       o.task = road.kind === "cart" ? 2 : 1;
+      n++;
+    }
+  }
+  // What is after the flock, against its herders; a beast at large about the town's edge when the flock is in, or where there is none (Z1).
+  if (fauna.prowler && at !== undefined) {
+    const after = fauna.prowler,
+      sp = fauna.species[after.species]!,
+      close = prowlAt(after.plan, at),
+      a = (at / 86_400) * 2 * Math.PI * 3,
+      now =
+        close ??
+        (after.known
+          ? {
+              x: Math.cos(a) * after.ring,
+              z: Math.sin(a) * after.ring,
+              yaw: Math.atan2(-Math.sin(a), Math.cos(a)),
+              gait: 1 as const,
+              head: 0.3,
+              crouch: 0,
+            }
+          : null);
+    if (now) {
+      const o = next();
+      o.species = after.species;
+      o.id = 950000;
+      o.x = now.x;
+      o.z = now.z;
+      o.yaw = now.yaw;
+      o.size = after.known ? 1.6 : 1;
+      o.pose.gait = now.gait;
+      o.pose.head = now.head;
+      o.pose.crouch = now.crouch;
+      o.pose.phase = s * strideOf(sp.body) * 2 * Math.PI;
+      keepOut(fauna.ground, o, sp.reach);
       n++;
     }
   }

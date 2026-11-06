@@ -38,6 +38,7 @@ import { lookOf, woundBlock, woundedTab } from "./wounds.ts";
 import { armsBlock } from "./arm.ts";
 import { fireTownStats } from "./fire.ts";
 import { lodesTownStats } from "./woods.ts";
+import { townBeastStats } from "./herds.ts";
 import { landPast } from "../past.ts";
 import { hashString } from "../../kernel/index.ts";
 import { realmColor } from "../colors.ts";
@@ -150,6 +151,7 @@ export function townPage(world: World, ref: string): PageModel {
   now.push(...fireTownStats(world, ref as Ref));
   // The mine it lived by, given out (E1).
   now.push(...lodesTownStats(world, s.cell, s.name));
+  now.push(...townBeastStats(world, s.ref));
   // Rockets that fell on it (W3): whose, from how far, what they cost and what they did to its land's works.
   if (rockets.length) {
     const last = rockets.at(-1)!,

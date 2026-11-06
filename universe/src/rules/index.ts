@@ -1182,3 +1182,24 @@ export {
   type GroveWords,
 } from "./grove.ts";
 export { LODE, LODE_DEPTH_WORDS, LODE_KINDS, lodeSize } from "./lodes.ts";
+export {
+  BEAST_KNOWN,
+  HERD,
+  HERD_RAID,
+  LINEAGE,
+  beastByName,
+  dwellingOf,
+  groundFit,
+  herdDrawn,
+  herdHolds,
+  herdStep,
+  herdWhyWords,
+  newKindOf,
+  passAt,
+  passWindows,
+  seasonWords,
+  yearWay,
+  youngWords,
+  type DwellingKind,
+  type HerdWhy,
+} from "./herds.ts";

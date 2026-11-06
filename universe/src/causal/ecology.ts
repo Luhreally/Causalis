@@ -5,8 +5,8 @@
 // gone with the kills — and why: the people who pressed the land, their fields, the land
 // itself.
 import { yearOfMoment, type Ref } from "../kernel/index.ts";
-import { ECOLOGY_EVENTS, LODE_EVENTS, WOODS_EVENTS } from "../sim/index.ts";
-import { groveWhyWords, type GroveWhy } from "../rules/index.ts";
+import { ECOLOGY_EVENTS, HERD_EVENTS, LODE_EVENTS, WOODS_EVENTS } from "../sim/index.ts";
+import { groveWhyWords, herdWhyWords, type GroveWhy, type HerdWhy } from "../rules/index.ts";
 import { landWords } from "./generated.ts";
 import { registerEventWords } from "./why.ts";
 
@@ -16,6 +16,66 @@ const num = (data: unknown, key: string) => {
 };
 const year = (t: number) => `year ${yearOfMoment(t)}`;
 
+registerEventWords(HERD_EVENTS.emptied.type, (world, e) => {
+  const d = e.data as { beast?: string; why?: HerdWhy; water?: boolean } | null;
+  return `The ${d?.beast ?? "herds"} stopped coming through ${landWords(world, e.place)}: ${herdWhyWords(d?.why ?? "green", !!d?.water)}, ${year(e.t)}`;
+});
+registerEventWords(HERD_EVENTS.grazed.type, (world, e) => {
+  const d = e.data as { beast?: string } | null;
+  return `The flocks of ${landWords(world, e.place)} grazed its pasture down, and the wild ${d?.beast ?? "herds"} had less to come for, ${year(e.t)}`;
+});
+registerEventWords(HERD_EVENTS.known.type, (world, e) => {
+  const d = e.data as { given?: string; by?: string; beast?: string; town?: string; flocks?: boolean; water?: boolean } | null,
+    took = d?.water
+      ? "took from their pens and their shoals"
+      : d?.flocks
+        ? "took from their flocks"
+        : "took those who went out to hunt";
+  return `The people of ${d?.town ?? landWords(world, e.place)} came to know one ${d?.beast ?? "beast"} that ${took}, and they called it ${d?.given ?? "by a name"}, ${d?.by ?? ""}, ${year(e.t)}`;
+});
+registerEventWords(HERD_EVENTS.took.type, (world, e) => {
+  const d = e.data as { given?: string; who?: string; town?: string } | null;
+  return `${d?.who ?? "One of them"} of ${d?.town ?? landWords(world, e.place)} went out against ${d?.given ?? "the beast"} and did not come home, ${year(e.t)}`;
+});
+registerEventWords(HERD_EVENTS.after.type, (world, e) => {
+  const d = e.data as { given?: string; who?: string; town?: string } | null;
+  return `${d?.who ?? "Someone"} of ${d?.town ?? landWords(world, e.place)} set out after ${d?.given ?? "the beast"}, ${year(e.t)}`;
+});
+registerEventWords(HERD_EVENTS.ended.type, (world, e) => {
+  const d = e.data as { given?: string; by?: string; how?: string; killer?: string | null; town?: string } | null,
+    name = `${d?.given ?? "The beast"}, ${d?.by ?? ""}`,
+    at = d?.town ?? landWords(world, e.place);
+  if (d?.how === "hunted")
+    return `${d?.killer ?? "Those who went after it"} brought down ${name}, as ${at} had long wanted, ${year(e.t)}`;
+  if (d?.how === "old") return `${name} was found dead of its years near ${at}, ${year(e.t)}`;
+  if (d?.how === "town") return `No one was left in ${at} to tell of ${name}, ${year(e.t)}`;
+  return `${name} was seen no more about ${at} after ${year(e.t)}`;
+});
+/** A number of head as a person would say it. */
+function headWords(n: number): string {
+  if (n >= 1e6) return `${Math.round(n / 1e5) / 10} million`;
+  const round = n >= 1e4 ? 1000 : n >= 1000 ? 100 : 10;
+  return String(Math.max(round, Math.round(n / round) * round)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+registerEventWords(HERD_EVENTS.driven.type, (world, e) => {
+  const d = e.data as { a?: string; b?: string; beast?: string | null; share?: number; head?: number; water?: boolean } | null,
+    head = d?.head && !d.water ? `some ${headWords(d.head)} head of ` : "",
+    what = d?.water ? "the shoals out of their pens" : `${d?.beast ?? "beasts"}`,
+    who = d?.a ?? "A host";
+  return `${who.charAt(0).toUpperCase()}${who.slice(1)} drove off ${head}${what} from ${landWords(world, e.place)}, ${d?.share ?? "many"} in a hundred of what ${d?.b ?? "its people"} kept there, and the land ate the less for it, ${year(e.t)}`;
+});
+registerEventWords(HERD_EVENTS.kindNew.type, (world, e) => {
+  const d = e.data as { name?: string; parent?: string; how?: string } | null;
+  return `Cut off on ${landWords(world, e.place)}, the ${d?.parent ?? "beasts"} there had grown ${d?.how ?? "apart"} and stood apart as a kind of their own, the ${d?.name ?? "new kind"}, ${year(e.t)}`;
+});
+registerEventWords(HERD_EVENTS.kindGone.type, (world, e) => {
+  const d = e.data as { beast?: string; why?: string } | null;
+  return `The last of the ${d?.beast ?? "kind"} was gone from ${landWords(world, e.place)} and from the world: ${d?.why === "hunted" ? "hunted from every land it had" : "its ground gone from every land it had"}, ${year(e.t)}`;
+});
+registerEventWords(HERD_EVENTS.tamed.type, (world, e) => {
+  const d = e.data as { beast?: string } | null;
+  return `The people of ${landWords(world, e.place)} made the ${d?.beast ?? "beast"} tame, the first anyone had, ${year(e.t)}`;
+});
 registerEventWords(WOODS_EVENTS.turn.type, (world, e) => {
   const d = e.data as { from?: number; to?: number; why?: GroveWhy; woods?: string } | null,
     woods = d?.woods ?? "woods",

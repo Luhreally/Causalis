@@ -141,6 +141,26 @@ export {
 } from "./ecology/woods.ts";
 export { longRain } from "./climate/long.ts";
 export {
+  HERD_EVENTS,
+  HerdStore,
+  driveHerds,
+  herdIndex,
+  herdLoss,
+  herdStock,
+  herdsOf,
+  herdsYear,
+  installHerds,
+  kindGone,
+  pensLeft,
+  type BeastEnd,
+  type Driven,
+  type GoneKind,
+  type HerdTally,
+  type KnownBeast,
+  type NewKind,
+  type TamedKind,
+} from "./ecology/herds.ts";
+export {
   bestMetal,
   metalRank,
   metalSource,

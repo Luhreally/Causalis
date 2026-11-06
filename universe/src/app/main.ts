@@ -365,7 +365,7 @@ import { sound } from "./sound.ts";
 import { airOf, airOfWorld } from "./sound-mix.ts";
 // (Anyone's family and body on their card, a war's soldiers named from its roll: Phase 55 wave 5.)
 import { kinLines } from "../ui/index.ts";
-import { seatRef, type KinCard, type StruckMember, type StruckNow, type WoodsMap } from "../bridge/index.ts";
+import { seatRef, type KinCard, type LandHerds, type StruckMember, type StruckNow, type WoodsMap } from "../bridge/index.ts";
 import type { WealthBook, WealthMeasure } from "../bridge/index.ts";
 import {
   hasSpires,
@@ -694,6 +694,15 @@ type Exposed = {
   };
   /** Down among a band of a land's camp (Phase 29 M160). */
   goNear?: (cell: number, camp: number) => Promise<void>;
+  /** What goes on a land's ground that no one drives, and where on the screen (Z1). */
+  landHerds?: () => {
+    beasts: number;
+    kinds: number;
+    dens: number;
+    beast: string | null;
+    spots: { x: number; y: number; z: number; ref: string }[];
+  } | null;
+  herdsOnScreen?: () => { x: number; y: number; ref: string }[];
   /** A world no people rose on: what the bar tells of it (null where people rose). */
   lifeless?: () => string | null;
   /** The world's stage as last read (Phase 31 M167). */
@@ -895,6 +904,8 @@ type Exposed = {
     z: number;
     doing: string;
   }[];
+  /** Every beast about the town in front of the eye, and where on the screen (Z1). */
+  beastsOnScreen?: () => { name: string; ref: string; x: number; y: number; doing: string }[];
   /** Hold the beasts' clock at a screen time (seconds), or run it again (null). */
   holdFauna?: (s: number | null) => void;
   /** Down to another star's world (its star's ref, its place outward). */
@@ -3020,8 +3031,13 @@ async function runPlanetPage(): Promise<void> {
   const tapRegion = (x: number, y: number) => {
     const war = regionWars.pick(x, y),
       // A band's camp (Phase 28 M159): its page.
-      camp = war ? null : campAt(x, y);
-    if (war) void pageWindow.open(war);
+      camp = war ? null : campAt(x, y),
+      // A creature of the land, its den, a beast at large (Z1): its page.
+      creature = war || camp !== null ? null : region.land.herds.pick(stage.camera.camera!, x, y);
+    if (creature) {
+      region.mark(null);
+      void pageWindow.open(creature);
+    } else if (war) void pageWindow.open(war);
     else if (camp !== null) {
       region.mark(null);
       void pageWindow.open(`camp:${regionCell}:${camp}`);
@@ -5534,8 +5550,22 @@ async function runPlanetPage(): Promise<void> {
     );
   };
   // The land's towns rising as its clock runs, its fields at the season, its roads at the year.
+  // A land's creatures (Z1): asked for as the land is looked at, and read again as its years go on.
+  let herdsAsked = { cell: -1, at: -Infinity };
   stage.onUpdate(() => {
     if (scale === "region") {
+      const wall = performance.now();
+      if (regionCell >= 0 && (regionCell !== herdsAsked.cell || wall - herdsAsked.at > 4000)) {
+        const asked = regionCell;
+        herdsAsked = { cell: asked, at: wall };
+        void client
+          .query<LandHerds>({ type: "land.herds", args: { cell: asked } })
+          .then((plan) => {
+            if (scale === "region" && regionCell === asked) region.land.setHerds(plan);
+          })
+          .catch(() => {});
+      }
+      region.land.herds.eye(rig.distance);
       region.land.update(now(), time.speed > 0);
       if (region.burnsNow(now(), time.pace, rig.distance, time.speed > 0)) paintRegion();
     }
@@ -8583,6 +8613,7 @@ async function runPlanetPage(): Promise<void> {
   exposed.visitorsOnScreen = () => (scale === "village" ? village.visitorsOnScreen() : []);
   exposed.tapVillage = tapVillage;
   exposed.faunaNow = () => (scale === "village" ? village.faunaNow() : []);
+  exposed.beastsOnScreen = () => (scale === "village" ? village.beastsOnScreen() : []);
   exposed.holdFauna = (s: number | null) => {
     village.heldFauna = s;
   };
@@ -9100,6 +9131,14 @@ async function runPlanetPage(): Promise<void> {
   exposed.landTrees = () => region.treesPlanted;
   exposed.landFront = () => region.fire.front();
   exposed.land = () => region.land.info();
+  exposed.landHerds = () => (scale === "region" ? region.land.herds.info() : null);
+  exposed.herdsOnScreen = () =>
+    scale === "region"
+      ? region.land.herds.info().spots.flatMap((p) => {
+          const s = stage.camera.camera!.worldToScreen(rig.target.clone().set(p.x, p.y, p.z));
+          return s.z > 0 ? [{ x: s.x, y: s.y, ref: p.ref }] : [];
+        })
+      : [];
   exposed.camps = () =>
     scale === "region" ? region.land.camps.info().map((c) => ({ ...c, cell: regionCell })) : [];
   exposed.landCarrier = (kind: string) => region.land.carrier(kind as CarrierKind);

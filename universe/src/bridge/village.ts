@@ -11,6 +11,8 @@ export const WATER_OUT = 700;
 export const LAKE_R = 220;
 
 /** A lineage's body plan as it crosses to the page (the rules' creature body, in plain values). */
+export type { HerdPass } from "./herds.ts";
+import type { HerdPass } from "./herds.ts";
 export type BeastPlan = {
   readonly symmetry: string;
   readonly segments: number;
@@ -499,6 +501,20 @@ export type VillagePlan = {
       readonly gone?: readonly number[];
     } | null;
     readonly raided: boolean;
+    /** How its creatures go through in their season (Z1; absent: they stay). */
+    readonly pass?: HerdPass;
+    /** What is after its flock, that its herders stand against (Z1; absent: nothing is): a beast at large goes by its own page. */
+    readonly after?: {
+      readonly ref: string;
+      readonly name: string;
+      /** Its kind's name, for its coat. */
+      readonly kind: string;
+      readonly niche: string;
+      readonly size: number;
+      readonly wool: boolean;
+      readonly body?: BeastPlan | null;
+      readonly known: boolean;
+    };
   };
   /**
    * The land's works about it (Phase 8 M78), each where it stands (metres from the middle):
