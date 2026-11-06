@@ -175,6 +175,11 @@ function sizeLine(r: HomeRead): Line {
   }
   if (all === 0) return ["No other home stands to set it against."];
   const name = HOME_LEVELS[r.level] ?? "home";
+  // (A ruin is not among them: it says what it was.)
+  if (r.state !== "stands")
+    return [
+      `It stood as a ${name}, with ${many(all, "home", "homes")} of those drawn still standing.`,
+    ];
   if (alike === all)
     return [
       all === 1
@@ -182,7 +187,9 @@ function sizeLine(r: HomeRead): Line {
         : `Every one of the ${count(all)} homes drawn is a ${name}.`,
     ];
   return [
-    `Larger than ${many(smaller, "home", "homes")} of the ${count(all)} drawn; `,
+    smaller === 0
+      ? `None of the ${count(all)} drawn is smaller; `
+      : `Larger than ${many(smaller, "home", "homes")} of the ${count(all)} drawn; `,
     alike === 1 ? `the only ${name}.` : `one of ${count(alike)} ${name}s.`,
   ];
 }
@@ -264,15 +271,27 @@ export function homePage(world: World, ref: string): PageModel {
             ? [`Theirs who live here: `, link(people[0]!.name, people[0]!.ref), "."]
             : [`The family who live here.`]
           : ["Not known: none of those the town's roll names lives here."],
+    // (One a realm's own: whose home this is, before anything else about it.)
+    seat = people.find((p) => p.figure),
+    seated = seat ? r.plan.figures?.find((x) => x.ref === seat.figure) : undefined,
+    standing = r.state === "stands",
     rows = [
+      ...(seat
+        ? [
+            stat("Home of", [
+              link((seated?.name ?? seat.name).replace(/ of .*$/, ""), seat.figure!),
+              ...(seated?.title ? [`, ${seated.title}`] : []),
+            ]),
+          ]
+        : []),
       stat(
-        "Stands",
+        standing ? "Stands" : "Stood",
         sentence(`a ${name}${storeys > 1 ? ` of ${many(storeys, "storey", "storeys")}` : ""}`),
       ),
       stat("Whose", whose),
       stat("They pay", pays),
       stat("Size", sizeLine(r)),
-      stat("Holds", many(HOLDS[r.level] ?? 5, "person", "people")),
+      stat(standing ? "Holds" : "Held", many(HOLDS[r.level] ?? 5, "person", "people")),
       stat("Age", age),
       stat("Before", before),
       stat("Town", r.plan.native ? r.plan.name : [townLink(world, r.plan.ref)]),
@@ -287,10 +306,10 @@ export function homePage(world: World, ref: string): PageModel {
         ? people.map((p) =>
             item(
               [
-                link(p.name.replace(/ of .*$/, ""), p.ref),
+                link(p.name.replace(/ of .*$/, ""), p.figure ?? p.ref),
                 `, ${p.age}${p.child ? ", a child" : p.role ? `, ${p.role}` : ""}`,
               ],
-              p.ref,
+              p.figure ?? p.ref,
             ),
           )
         : [item([r.state === "stands" ? "No one the town's roll names." : "No one."])],

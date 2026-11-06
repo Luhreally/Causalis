@@ -55,7 +55,7 @@ export class LifeHud {
   private readonly stop = el("button", "life-pace", "❚❚");
   private readonly pass = el("button", "life-pace", "⏭");
   private readonly walk = el("button", "life-walk", "🕹 Walk");
-  private readonly goIn = el("button", "life-pace life-goin", "🏠 Go in");
+  private readonly goIn = el("button", "life-walk life-goin", "🏠 Go in");
   /** 🏠 Go in: the home of the one lived, looked into (Lives L6). */
   onGoIn: () => void = () => {};
   private trayKey = "";
@@ -85,7 +85,7 @@ export class LifeHud {
       paces = el("div", "life-paces"),
       needs = el("div", "life-needs");
     top.append(this.who, this.what, this.letGo);
-    paces.append(this.time, this.stop, this.slow, this.quick, this.pass, this.bookBtn, this.goIn);
+    paces.append(this.time, this.stop, this.slow, this.quick, this.pass, this.bookBtn);
     needs.append(this.fed.box, this.rested.box, this.heart.box, this.purse);
     this.strip.append(top, paces, needs, this.want, this.rival);
     this.win.hidden = this.book.hidden = this.market.hidden = true;
@@ -195,6 +195,7 @@ export class LifeHud {
     if (rule && realm) rule.onclick = () => this.onRule(realm);
     this.tray.replaceChildren(
       this.walk,
+      this.goIn,
       ...(rule ? [rule] : []),
       ...l.offers.map((o) => {
         const b = el("button", "life-offer");

@@ -295,7 +295,10 @@ export function homeFacts(world: World, r: HomeRead): DwellingFacts {
     knows,
     coin,
     price,
-    wood: !bare && (forest ? forest.forest * forest.firstForest > 0.004 : true),
+    // (Trees standing here, or a market that deals in what is made of them: wood comes down the road.)
+    wood:
+      !bare &&
+      (!forest || forest.forest * forest.firstForest > 0.004 || (market?.stock[G.tools] ?? 0) > 0),
     cloth: !bare,
     vessel: era === "forage" ? null : (means.vessel?.name ?? null),
     metal: plan.native

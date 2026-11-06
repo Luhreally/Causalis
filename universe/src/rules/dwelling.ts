@@ -248,7 +248,7 @@ export const NEEDS: readonly DwellingNeed[] = [
         "works",
         "stove",
         { machines: 0.5 },
-        (f) => hands(f) && current(f) && (f.knows("electronics") || f.knows("oil-drilling")),
+        (f) => onLand(f) && current(f) && (f.knows("electronics") || f.knows("oil-drilling")),
       ),
       WAY(
         "iron-stove",
@@ -273,7 +273,15 @@ export const NEEDS: readonly DwellingNeed[] = [
         "stone",
         "hearth",
         {},
-        (f) => hands(f) && !f.burns && f.heat !== null,
+        (f) => onLand(f) && !f.burns && f.heat !== null,
+      ),
+      WAY(
+        "fire-pit",
+        "a fire pit in the floor",
+        "earth",
+        "pit",
+        {},
+        (f) => onLand(f) && f.burns && !f.grips,
       ),
       WAY(
         "vent-stone",
@@ -325,7 +333,7 @@ export const NEEDS: readonly DwellingNeed[] = [
         "works",
         "basin",
         { machines: 0.15 },
-        (f) => hands(f) && f.knows("sanitation") && f.knows("steam-engine"),
+        (f) => onLand(f) && f.knows("sanitation") && f.knows("steam-engine"),
       ),
       WAY(
         "jar",
@@ -355,7 +363,6 @@ export const NEEDS: readonly DwellingNeed[] = [
       ),
       WAY("table-bench", "a table and benches", "wood", "table", { tools: 0.5 }, joined),
       WAY("woven-mat", "a woven mat", "reed", "mat", { clothing: 0.05 }, onLand),
-      WAY("bare-floor", "the bare floor", "none", "mat", {}, () => false),
     ],
   },
   {
@@ -399,6 +406,8 @@ export const NEEDS: readonly DwellingNeed[] = [
         (f) => joined(f) && f.knows("carpentry"),
       ),
       WAY("chest", "a chest", "wood", "chest", { tools: 0.3 }, joined),
+      WAY("niche", "niches cut in the wall", "earth", "shelf", {}, onLand),
+      WAY("cache", "a cache under a stone", "stone", "chest", {}, inWater),
     ],
   },
   {
@@ -583,6 +592,15 @@ export const WORK_THINGS: Readonly<Record<string, DwellingWay>> = {
   potter: WAY("wheel", "a potter's wheel", "wood", "wheel", { tools: 0.5 }),
   smith: WAY("tongs", "tongs and a hammer", "metal", "tool", { tools: 0.2 }),
   trader: WAY("ledger", "a counting table", "wood", "bench", { tools: 0.4 }),
+};
+/** What a trade keeps at home where its people live in water: no hoe in a kelp bed. */
+export const WATER_WORK_THINGS: Readonly<Record<string, DwellingWay>> = {
+  farmer: WAY("kelp-knife", "a kelp knife on a cord", "shell", "tool", {}),
+  herder: WAY("shoal-staff", "a staff for turning a shoal", "shell", "tool", {}),
+  crafter: WAY("work-slab", "a slab to work on", "stone", "bench", { tools: 0.5 }),
+  trader: WAY("tally-slab", "a slab of tallies", "stone", "bench", { tools: 0.4 }),
+  weaver: WAY("kelp-frame", "a frame for plaiting kelp", "kelp", "loom", { tools: 0.9 }),
+  potter: WAY("shaping-stone", "a shaping stone", "stone", "wheel", { tools: 0.5 }),
 };
 /** What one who came home from war keeps on the wall. */
 export const WAR_THING: DwellingWay = WAY("arm", "the arm they carried home", "metal", "arm", {});
@@ -838,7 +856,7 @@ function layOut(
   const made: { rects: Rect[]; floor: number; first: number }[] = [];
   for (let k = 0; k < floors; k++) {
     const count = Math.ceil((n - start) / (floors - k)),
-      area = ROOM_AREA * (count > 1 ? count * 0.8 : 1 + f.people / 12),
+      area = ROOM_AREA * (count > 1 ? count * 0.8 : 1 + f.people / (f.noHouses ? 2.5 : 12)),
       w = Math.sqrt(area * 1.35),
       d = area / w,
       rects: Rect[] = [];
@@ -867,10 +885,9 @@ function layOut(
   };
 }
 
-/** Where things stand about a room: along its walls in turn, the far one first; what fills its middle apart. */
+/** Where things stand about a room: along the first of its walls with space for them, the far one first; what fills its middle apart. */
 class Walker {
-  private wall = 0;
-  private along = 0.15;
+  private readonly along = [0.15, 0.15, 0.15, 0.15];
   private readonly hw: number;
   private readonly hd: number;
   private readonly r: DwellingRoom;
@@ -882,12 +899,13 @@ class Walker {
   }
   /** A place along the walls for something so long and so deep (null: no room left). */
   next(w: number, d: number, wide = false): { x: number; z: number; yaw: number } | null {
-    for (; this.wall < 4; this.wall++, this.along = 0.15) {
-      const len = this.wall % 2 === 0 ? this.hw * 2 : this.hd * 2;
-      if (this.along + w > len - (this.wall === 2 && !wide ? 0.7 : 0)) continue;
-      const u = -len / 2 + this.along + w / 2;
-      this.along += w + 0.12;
-      switch (this.wall) {
+    for (let wall = 0; wall < 4; wall++) {
+      const len = wall % 2 === 0 ? this.hw * 2 : this.hd * 2,
+        along = this.along[wall]!;
+      if (along + w > len - (wall === 2 && !wide ? 0.7 : 0)) continue;
+      const u = -len / 2 + along + w / 2;
+      this.along[wall] = along + w + 0.12;
+      switch (wall) {
         case 0:
           return { x: this.r.x + u, z: this.r.z - this.hd + d / 2, yaw: 0 };
         case 1:
@@ -908,9 +926,9 @@ class Walker {
  * belongs in, or in its middle if that is what it is for.
  */
 export function furnish(f: DwellingFacts): Dwelling {
-  const scale = 1;
-  void scale;
-  const working = f.work.some(
+  // (A hall of those who keep no houses is as large as those who sleep there, known or not.)
+  const people = Math.max(1, f.noHouses ? Math.max(f.people, 6) : f.people),
+    working = f.work.some(
       (w) =>
         WORK_THINGS[w]?.shape === "loom" ||
         WORK_THINGS[w]?.shape === "bench" ||
@@ -922,7 +940,7 @@ export function furnish(f: DwellingFacts): Dwelling {
       working,
       NEEDS.find((x) => x.id === "wash")!.ways.some((w) => w.asks(f)),
     ),
-    { rooms, walls } = layOut(f, uses),
+    { rooms, walls } = layOut({ ...f, people }, uses),
     walkers = rooms.map((r) => new Walker(r)),
     things: DwellingThing[] = [];
   let left = f.coin,
@@ -1017,7 +1035,6 @@ export function furnish(f: DwellingFacts): Dwelling {
     return finish(rooms, walls, things, 0);
   }
 
-  const people = Math.max(1, f.noHouses ? Math.max(f.people, 6) : f.people);
   for (const need of NEEDS) {
     // (Each of those it asks of, the same way: not one in a bed and one on the floor.)
     const many = need.per === "person" ? people : need.per === "room" ? rooms.length : 1,
@@ -1038,7 +1055,7 @@ export function furnish(f: DwellingFacts): Dwelling {
   // What their work and their wars leave at home.
   const seen = new Set<string>();
   for (const w of f.work) {
-    const way = WORK_THINGS[w];
+    const way = (inWater(f) ? WATER_WORK_THINGS[w] : undefined) ?? WORK_THINGS[w];
     if (!way || seen.has(way.id)) continue;
     if ((way.stuff === "metal" && !f.grips) || (way.stuff === "wood" && !f.wood)) continue;
     if (!way.asks(f)) continue;
