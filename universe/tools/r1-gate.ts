@@ -71,7 +71,7 @@ function unlike(png: Buffer): number {
     R = ((top >> 8) & 15) * 16 + 8,
     G = ((top >> 4) & 15) * 16 + 8,
     B = (top & 15) * 16 + 8;
-  return pixels(png, (r, g, b) => Math.abs(r - R) + Math.abs(g - G) + Math.abs(b - B) > 70);
+  return pixels(png, (r, g, b) => Math.abs(r - R) + Math.abs(g - G) + Math.abs(b - B) > 45);
 }
 
 /** The pixels of a shot that pass a test (8-bit, whole RGB or RGBA, not interlaced). */
@@ -322,11 +322,19 @@ if (site && !problems.length) {
     say(`works: ${JSON.stringify(works)}; ${flag} of its flag's pixels from twelve units off`);
     check(flag >= 6, `a gang's flag not in the pixels from the land's nearest eye (${flag})`);
     check(works.hands >= 3, "a gang with no hands");
-    const gangs = await k<{ ref: string; x: number; y: number }[]>(
-        "globalThis.causalis.landGangs()",
-      ),
-      mine = gangs.find((g) => g.ref === site!.ref);
-    // (From where the eye is: the screen's own.)
+    // (From where the eye is, once it holds still: the screen's own.)
+    let mine: { ref: string; x: number; y: number } | undefined;
+    for (let i = 0; i < 40; i++) {
+      await k(
+        `new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => done(true))))`,
+      );
+      const now = (
+        await k<{ ref: string; x: number; y: number }[]>("globalThis.causalis.landGangs()")
+      ).find((g) => g.ref === site!.ref);
+      const still = !!now && !!mine && Math.hypot(now.x - mine.x, now.y - mine.y) < 0.5;
+      mine = now;
+      if (still) break;
+    }
     check(!!mine, "the gang isn't on the screen");
     if (mine) {
       const hit = await k<string>(
@@ -643,7 +651,7 @@ if (site && !problems.length) {
           }),
         );
       say(`in the pixels: ${seen} about their ${kind === "owner" ? "car" : "coach"}`);
-      check(seen >= 60, `what the ${kind} goes in isn't on the screen (${seen} pixels)`);
+      check(seen >= 120, `what the ${kind} goes in isn't on the screen (${seen} pixels)`);
       say(
         `riding: the ${kind} went ${moved.toFixed(1)} m in 20 s of the clock; words: ${strip.slice(0, 240).replace(/\n/g, " | ")} ${hidden}`,
       );

@@ -28,6 +28,8 @@ const TYRE: Rgb = [0.06, 0.06, 0.07],
   BUS: Rgb = [0.86, 0.48, 0.1],
   WINDOW: Rgb = [0.9, 0.84, 0.64],
   SLED: Rgb = [0.3, 0.62, 0.64],
+  /** A drift-line: pale, against a water people's roofs and their water. */
+  DRIFT: Rgb = [0.66, 0.92, 0.86],
   HAULER: Rgb = [0.5, 0.42, 0.3];
 
 /** Larger than life by this, as the town's figures are large: seen from the eye a town lets you have. */
@@ -128,7 +130,7 @@ export class TownTraffic {
       for (const i of rides.riders) if (aboardNow(plan, i, t, fine)) aboard++;
       const hour = (t % 86_400) / 3600,
         out = hour > 5 && hour < 23,
-        coach = about?.how === "hauler" ? HAULER : about?.how === "sled" ? SLED : BUS;
+        coach = about?.how === "hauler" ? HAULER : about?.how === "sled" ? DRIFT : BUS;
       const me = lived !== null && rides.riders.has(lived) ? moments[lived] : null;
       if (me && lived !== null && aboardNow(plan, lived, t, fine))
         this.coach(coach, me.x, lift, me.z, me.yaw, MOST_ABOARD, wheeled);

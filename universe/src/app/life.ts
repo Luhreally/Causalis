@@ -40,7 +40,9 @@ const DAY = 86_400,
   MONTH = 30 * DAY,
   /** The eye over one lived (world units): far enough to see them in their street, over its roofs. */
   EYE_NEAREST = 8,
-  EYE_PITCH = -50;
+  EYE_PITCH = -50,
+  /** In what they ride: from higher over it, or the blocks either side of a way would stand between. */
+  RIDE_PITCH = -78;
 
 export function installLife(d: LifeDeps): LifeFlow {
   const hud = new LifeHud(d.hud),
@@ -58,6 +60,7 @@ export function installLife(d: LifeDeps): LifeFlow {
     was: number | null = null,
     drawnFor: VillagePlan | null = null,
     sent = 0,
+    rode = false,
     /** Hand pace under way. */
     walking = false;
 
@@ -106,6 +109,7 @@ export function installLife(d: LifeDeps): LifeFlow {
     const index = plan.people.findIndex((p) => agentOf(p) === l.agent);
     if (index < 0) return;
     was ??= d.time.speed;
+    rode = false;
     body = new LivedBody(plan, index, d.possession.lastAt ?? undefined);
     d.village.posed = body;
     drawnFor = plan;
@@ -318,6 +322,11 @@ export function installLife(d: LifeDeps): LifeFlow {
       void refresh();
     }
     if (!hud.open || walking) return;
+    const inIt = !!body?.riding;
+    if (inIt !== rode) {
+      rode = inIt;
+      d.rig.flyTo({ pitch: inIt ? RIDE_PITCH : EYE_PITCH }, 0.9);
+    }
     // The clock: held by a window or a sheet, a month a second while time is let go by, else as they are at.
     if (until !== null && clockNow() >= until) {
       until = null;
