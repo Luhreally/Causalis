@@ -12,16 +12,17 @@
 }
 .years-chips {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  gap: 3px;
 }
+/* (Six across a phone: each its icon over its word.) */
 .page-window .years-chip {
-  flex: 1 1 auto;
-  min-width: 44px;
+  flex: 1 1 0;
+  min-width: 0;
   min-height: 44px;
-  padding: 0 3px;
-  font-size: 0.74rem;
-  white-space: nowrap;
+  padding: 0 1px;
+  font-size: 0.7rem;
+  line-height: 1.15;
+  white-space: pre-line;
 }
 .page-window .years-chip.on {
   background: var(--accent);
@@ -31,6 +32,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
+  padding-bottom: 4px;
 }
 .page-window .years-at {
   flex: 1 1 5em;

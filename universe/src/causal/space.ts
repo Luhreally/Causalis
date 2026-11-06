@@ -100,7 +100,10 @@ registerEventWords(TRADE_EVENTS.opened.type, (_world, e) => {
     lanes?: number;
     years?: number;
   };
-  return `${d.house ?? "A house"} of ${d.realm ?? "a people"} opened a run for ${d.good ?? "goods"}, ${d.ly ?? "?"} light-years${d.lanes ? ` by ${d.lanes} lane${d.lanes === 1 ? "" : "s"}` : ""}, ${d.years ?? "?"} years a crossing, year ${yearOfMoment(e.t)}`;
+  const far = d.ly
+    ? `${d.ly} light-year${d.ly === 1 ? "" : "s"}${d.lanes ? ` by ${d.lanes} lane${d.lanes === 1 ? "" : "s"}` : ""}`
+    : "among one star's own worlds";
+  return `${d.house ?? "A house"} of ${d.realm ?? "a people"} opened a run for ${d.good ?? "goods"}, ${far}, ${d.years === 1 ? "a year" : `${d.years ?? "?"} years`} a crossing, year ${yearOfMoment(e.t)}`;
 });
 registerEventWords(TRADE_EVENTS.came.type, (_world, e) => {
   const d = (e.data ?? {}) as { realm?: string; goods?: unknown };

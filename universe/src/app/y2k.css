@@ -305,6 +305,10 @@ button:active {
     padding: 4px 5px;
     font-size: 0.76rem;
   }
+  /* (The pause is one mark wide, and the one a thumb most wants.) */
+  .bar .speeds .speed:first-child {
+    min-width: 40px;
+  }
   /* (The world's numbers in columns: how many lines they take is set by how many they are, never
      by how wide their figures run as they count, so the bar keeps its height.) */
   .bar .world-stats {

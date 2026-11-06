@@ -64,8 +64,9 @@ export function drawYears(into: HTMLElement, ctx: ToolContext): void {
   input.setAttribute("aria-label", "A year to go to");
   onward.hidden = true;
   goRow.append(input, go, order);
-  bar.append(chips, goRow, says, onward);
-  box.append(bar, list);
+  // (What stays over the years as they go under it is the filter and what it says: a phone has little room to give.)
+  bar.append(chips, says, onward);
+  box.append(bar, goRow, list);
   into.append(box);
 
   let index: AnnalsIndex | null = null,
@@ -218,15 +219,14 @@ export function drawYears(into: HTMLElement, ctx: ToolContext): void {
     return b;
   };
   chips.append(
-    chipOf(-1, "All", "What a person would stop to read"),
-    ...ANNAL_KINDS.map((k, i) => chipOf(i, `${k.icon} ${k.name}`, k.words)),
+    chipOf(-1, "📜\nAll", "What a person would stop to read"),
+    ...ANNAL_KINDS.map((k, i) => chipOf(i, `${k.icon}\n${k.name}`, k.words)),
   );
 
-  /** The start of the list, just under where the page's bar stands. */
+  /** The bar at the top of the window, with the way to a year under it and then the years. */
   const toTop = () => {
-    const root = scroller(),
-      gap = list.getBoundingClientRect().top - root.getBoundingClientRect().top;
-    root.scrollTop += gap - bar.offsetHeight - 2;
+    const root = scroller();
+    root.scrollTop += box.getBoundingClientRect().top - root.getBoundingClientRect().top;
   };
 
   /** To a year, or the nearest with something told. */

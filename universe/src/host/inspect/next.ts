@@ -108,10 +108,7 @@ export function nextBlock(world: World): Block {
       const stop = whyShut(way, w, open)!,
         words = stopWords(stop, w),
         lands = asLandsStand(causeOf(stop, w));
-      shut.push([
-        lands ? "Not as its lands stand: " : "It never will: ",
-        lands ? low(words) : low(words),
-      ]);
+      shut.push([lands ? "Not as its lands stand: " : "It never will: ", low(words)]);
       continue;
     }
     const line: Span[] = [`Still to come: ${lack.words}. It has ${lack.has}.`];
