@@ -1509,7 +1509,7 @@ export class VillageScene {
   courtAt(x: number, y: number, t = this.courtT): string | null {
     const plan = this.plan;
     if (!plan?.court || !this.courtLayer.at(this.stage.camera.camera!, x, y)) return null;
-    return courtCaseAt(plan, t) ?? plan.ref;
+    return courtCaseAt(plan, t) ?? plan.envoy?.ref ?? plan.ref;
   }
   /** The court now, where it shows, and what sits (J1; the look tools). */
   courtNow(t = this.courtT) {

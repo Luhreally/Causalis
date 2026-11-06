@@ -1121,6 +1121,18 @@ export {
 } from "./dwelling.ts";
 export { REIGN, carried, decreeCost, mustCarry, peaceRefused, tieOf, warCost } from "./reign.ts";
 export {
+  COULD_NOT,
+  TIES,
+  callOdds,
+  claimEnd,
+  isFeared,
+  type CallStanding,
+  type CallWhy,
+  type ClaimEnd,
+  type TieBond,
+  type TieForm,
+} from "./ties.ts";
+export {
   TERMS,
   answerOf,
   dealOf,

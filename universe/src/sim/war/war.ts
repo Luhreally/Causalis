@@ -105,6 +105,17 @@ import {
   type PeaceTerms,
 } from "./bonds.ts";
 import type { AimKind } from "../../rules/index.ts";
+import { TIES } from "../../rules/index.ts";
+import {
+  allyFront,
+  answerCalls,
+  installTies,
+  leagueHold,
+  misreadOf,
+  tiesOf,
+  tiesYear,
+  warBreaksPact,
+} from "./ties.ts";
 
 export const WAR = defineKind("war", "war", "minted");
 
@@ -218,6 +229,8 @@ const AIM_FACTOR: Readonly<Record<AimKind, string | null>> = {
   holy: "a holy war on unbelievers",
   tribute: "the tribute they would have of them",
   free: "an oath they would throw off",
+  ally: "a friend's call",
+  claim: "a seat they claim by a marriage",
 };
 /** Years after a peace before a realm is as ready for war as it was. */
 export const WEARY_YEARS = 30;
@@ -1125,10 +1138,13 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     culture = cultureOf(world),
     lore = loreOf(world),
     bonds = bondsOf(world),
+    ties = tiesOf(world),
     year = yearOfMoment(t);
 
   // What peace left behind: what falls due and runs out, who stops paying, who rises (W7).
   bondsYear(ctx, t);
+  // What binds them: leagues, marriages, embassies (D1).
+  tiesYear(ctx, t);
 
   // 1. Declarations: rivals, and realms who covet a neighbour's stores in a famine.
   // A realm fresh from war is slow to go to war again: its fallen are still mourned.
@@ -1152,6 +1168,8 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     if (fighting.has(pairKey(r.a, r.b))) continue;
     // (A truce, a tribute or an oath holds the two from war while it runs: W7.)
     if (bonds.between(r.a, r.b)) continue;
+    // (Nor do those of one league make war on each other while the fear holds: D1.)
+    if (ties.sameLeague(r.a, r.b)) continue;
     const covets = r.terms.find((x) => /for their stores$/.test(x.name));
     // Without hatred or hunger there is no will to war, whatever else holds.
     if (!covets && -r.opinion - -RIVALRY <= 0) continue;
@@ -1166,7 +1184,10 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       [sa, sb] = [strength(a0), strength(b0)],
       attacker = hungry ?? (sa >= sb ? a0 : b0),
       defender = attacker === a0 ? b0 : a0,
-      ratio = (attacker === a0 ? sa : sb) / Math.max(1, attacker === a0 ? sb : sa);
+      ratio = (attacker === a0 ? sa : sb) / Math.max(1, attacker === a0 ? sb : sa),
+      // (What it believes of the other's host: truer with word kept between them. D1.)
+      misread = misreadOf(world, attacker.ref, defender.ref, year),
+      thought = ratio / misread;
     // (One who has sworn an oath declares no war of its own: W7.)
     if (bonds.oathOf(attacker.ref)) continue;
     const valour = culture.get(attacker.seat)?.traits[WAY.valour] ?? 0.5,
@@ -1174,8 +1195,10 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       last = lastPeace.get(attacker.ref),
       rested = last ? Math.min(1, (year - last.ended!) / WEARY_YEARS) : 1,
       base =
-        Math.min(0.5, (hatred * 0.12 + (covets ? 0.08 : 0)) * Math.min(2, ratio) * (0.5 + valour)) *
-        rested,
+        Math.min(
+          0.5,
+          (hatred * 0.12 + (covets ? 0.08 : 0)) * Math.min(2, thought) * (0.5 + valour),
+        ) * rested,
       draw = world.rng.real(DECLARE, Number(attacker.ref.split(":")[2]), t, 0);
     // Its people's voices at most double the chance: a draw beyond that cannot be met, and
     // the land it would want and the voices need not be reckoned.
@@ -1190,7 +1213,9 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       swayed = (1 - 0.7 * Math.min(1, 2 * peace.total)) * (1 + Math.min(1, 2 * holy.total)),
       // (What their answer would cost, W5: exactly 1 where the other holds no great fire.)
       answer = holdBack(ctx, attacker, defender, year),
-      chance = base * swayed * answer;
+      // (A league stands behind its members: D1.)
+      leagued = leagueHold(world, attacker.ref, defender.ref),
+      chance = base * swayed * answer * leagued;
     if (chance <= 0 || !(draw < chance)) continue;
     // What it is about, read off what drove it, and the land it goes for (W7).
     const chosen = chooseAim(
@@ -1268,6 +1293,20 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         contribution: answer - 1,
         source: null,
       });
+    if (leagued < 1)
+      factors.push({
+        name: "the league that stands behind them",
+        value: leagued,
+        contribution: leagued - 1,
+        source: null,
+      });
+    if (1 / misread >= TIES.misreadTold)
+      factors.push({
+        name: "a host they thought smaller than it was",
+        value: misread,
+        contribution: 1 / misread - 1,
+        source: null,
+      });
     // The land wanted is the one with the fullest stores.
     factors.push({
       name: "the stores of the land they want",
@@ -1331,7 +1370,12 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       ended: null,
       peace: null,
     });
+    // (A pact does not survive a war between the two who swore it: D1.)
+    warBreaksPact(ctx, r, attacker, defender, event, year);
   }
+
+  // Those bound to whoever was attacked are called, and answer (D1).
+  answerCalls(ctx, t);
 
   // 2. A battle in each war: for the land the attacker wants, held by the defender.
   for (const w of wars.hot()) {
@@ -1344,10 +1388,25 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       continue;
     }
     // (A ruler's aim, Lives L4: the land named is fought for while it can be reached.)
-    const front = frontier(ctx, a, b),
-      declared = world.events.get(w.event)?.data as { aimed?: boolean; aim?: AimKind } | null,
+    const declared = world.events.get(w.event)?.data as {
+        aimed?: boolean;
+        aim?: AimKind;
+        call?: Ref;
+        friendRef?: Ref;
+      } | null,
       aimed = declared?.aimed === true,
       aim = declared?.aim,
+      // (A host come at a friend's call fights until that war is over, and with no border of its own, where its friend does: D1.)
+      friend = aim === "ally" && declared?.friendRef ? realms.get(declared.friendRef) : undefined,
+      front =
+        aim === "ally"
+          ? friend &&
+            friend.ended === null &&
+            declared?.call &&
+            wars.get(declared.call)?.ended === null
+            ? allyFront(ctx, a, friend, b)
+            : []
+          : frontier(ctx, a, b),
       land = aimed && front.includes(w.prize) ? w.prize : front[0];
     if (land === undefined) {
       // No land left between them to fight over: the war ends, and history says so, with what it came to (W7).
@@ -1406,7 +1465,9 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         (hungry && !chestA ? 0.7 : 1) *
         (chestA ? CREDIT.chest : 1) *
         (1 + 0.3 * lore.effect(a.seat, "sieges")) *
-        (overseas(ctx, a, land) ? LANDING : 1) *
+        (aim !== "ally" && overseas(ctx, a, land) ? LANDING : 1) *
+        // (A realm in more than one war divides its host among them: D1.)
+        (1 / Math.max(1, wars.fighting(a.ref).length)) *
         sightTerm(fleetA?.flyers ?? 0, fleetB?.flyers ?? 0),
       hills = g.tectonics.elevation[land]! > 600 ? 1.3 : 1,
       river = g.water.river[land] ? 1.1 : 1,
@@ -1429,6 +1490,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         walls *
         (chestB ? CREDIT.chest : 1) *
         entrench *
+        (1 / Math.max(1, wars.fighting(b.ref).length)) *
         sightTerm(fleetB?.flyers ?? 0, fleetA?.flyers ?? 0);
     // The fallen (Phase 55 M224b): every land of each realm on its home world sends men by its
     // fighting men (D2); of those who close with the foe a share is struck down by the foe's arms
@@ -1635,6 +1697,7 @@ export function installWar(world: World, ctx: () => PopulationContext): WarStore
   store.drawn((key, t, round, side) => world.rng.real(FIGHT, key, t, 100 + round, side));
   world.register(new ArmsStore());
   installBonds(world);
+  installTies(world);
   installFire(world);
   installFar(world, ctx);
   world.addPinner(() => store.pinned());

@@ -503,7 +503,7 @@ export class LandLayer {
       .map((r) => `${r.from}-${r.to}-${roadLook(r, year)}-${r.traffic}`)
       .join("|")}|${plan.lanes
       .map((l) => (l.since <= year ? `${l.from}:${l.dx}:${l.dz}:${l.ships}` : ""))
-      .join("|")}`;
+      .join("|")}|${(plan.envoys ?? []).map((e) => e.ref).join("|")}`;
     if (key === this.roadsKey) return;
     this.roadsKey = key;
     this.roadWays = [];
@@ -559,6 +559,7 @@ export class LandLayer {
       this.laneWays,
       this.stage.quality.landTraffic,
       !!plan.undersea,
+      (plan.envoys ?? []).map((e) => e.color),
     );
     for (const look of ["track", "paved", "rails"] as const) {
       const list = pieces[look];

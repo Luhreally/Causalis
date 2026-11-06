@@ -21,6 +21,7 @@ import {
 import { fireShadow } from "./inspect/fire.ts";
 import { YEAR, type Ref, type World } from "../kernel/index.ts";
 import { realmColor } from "./colors.ts";
+import { blocsLens } from "./inspect/ties.ts";
 import { pastLands, pastTown } from "./past.ts";
 
 /** Every realm of the home world: its name, colour, its lands' middles (spots) and its seat's. */
@@ -230,6 +231,7 @@ export const MAP_QUERIES = {
   "diplomacy.map": (world: World, args: unknown) =>
     diplomacyMap(world, (args as { realm: string }).realm),
   "war.lens": (world: World) => warLens(world),
+  "blocs.lens": (world: World) => blocsLens(world),
   "world.stats": (world: World) => worldStats(world),
   "towns.map": (world: World) => townsMap(world),
   "past.lands": (world: World) => pastLands(world),

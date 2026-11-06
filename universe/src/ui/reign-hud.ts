@@ -7,6 +7,7 @@ import type {
   ReignDrama,
   ReignFall,
   ReignMatch,
+  ReignEnvoys,
   ReignMatches,
   ReignNow,
   ReignWars,
@@ -69,7 +70,8 @@ export class ReignHud {
   onPace: (pace: "stop" | "slow" | "quick") => void = () => {};
   onLetGo: () => void = () => {};
   onWalk: () => void = () => {};
-  onSheet: (kind: "decrees" | "wars" | "matches") => void = () => {};
+  onSheet: (kind: "decrees" | "wars" | "matches" | "envoys") => void = () => {};
+  onEnvoy: (to: string, errand: string, name: string) => void = () => {};
   onDecree: (law: string, to: number) => void = () => {};
   onWar: (against: string, prize: number) => void = () => {};
   onPeace: (foe: string, offer: string) => void = () => {};
@@ -116,6 +118,7 @@ export class ReignHud {
       ["📜", "Decrees", "decrees"],
       ["⚔️", "War, peace", "wars"],
       ["💍", "Marry", "matches"],
+      ["🕊️", "Envoy", "envoys"],
     ] as const) {
       const b = el("button", "life-offer reign-act");
       b.dataset.act = kind;
@@ -398,6 +401,30 @@ export class ReignHud {
       body.push(box);
     }
     this.open_("⚔️ War and peace", ...body);
+  }
+
+  envoys(d: ReignEnvoys): void {
+    const body: HTMLElement[] = [el("p", "life-winwords reign-envoywords", d.words)];
+    for (const r of d.realms) {
+      const box = el("div", "reign-law reign-envoy");
+      box.dataset.to = r.ref;
+      box.append(
+        el("div", "reign-lawtitle", `${r.name}: ${r.regard}`),
+        el("div", "reign-optwords", r.known),
+      );
+      for (const e of r.errands) {
+        const b = el("button", `life-choice reign-send${e.can ? "" : " refused"}`, e.label);
+        b.dataset.can = e.can ? "1" : "0";
+        b.dataset.errand = e.errand;
+        b.onclick = () => {
+          if (e.can) this.onEnvoy(r.ref, e.errand, r.name);
+          else this.say(e.words);
+        };
+        box.append(b, el("div", "reign-optwords", e.words));
+      }
+      body.push(box);
+    }
+    this.open_("🕊️ An envoy", ...body);
   }
 
   matches(d: ReignMatches): void {

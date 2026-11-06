@@ -15,8 +15,10 @@ import {
 } from "../../kernel/index.ts";
 import { cellRef } from "../../gen/index.ts";
 import {
+  G,
   REIGN,
   TERMS,
+  TIES,
   answerOf,
   carried,
   decreeCost,
@@ -53,7 +55,9 @@ import {
   spareOf,
   termsOfOffer,
 } from "../war/bonds.ts";
-import { DIPLOMACY_EVENTS, diplomacyOf, relationRef } from "../diplomacy/diplomacy.ts";
+import { DIPLOMACY_EVENTS, RIVALRY, diplomacyOf, relationRef } from "../diplomacy/diplomacy.ts";
+import { openEmbassy, sendEnvoy, tiesOf } from "../war/ties.ts";
+import type { MarketStore } from "../economy/market.ts";
 import { capacityOf, orderOf, realmOrder, type RealmOrder } from "./order.ts";
 import {
   LAWS,
@@ -281,6 +285,8 @@ export function warProblem(
     return bound.kind === "truce"
       ? `A truce holds you from them until year ${bound.until}.`
       : `${bound.from === r.ref ? "You pay them" : "They pay you"} tribute until year ${bound.until}: there is no war between you while it runs.`;
+  if (tiesOf(ctx.world).sameLeague(r.ref, foe.ref))
+    return "You stand in one league with them: none of you makes war on another while the fear holds.";
   const lands = frontier(ctx, r, foe);
   if (!lands.length) return "No land lies between you to fight for.";
   if (prize !== undefined && !lands.includes(prize as number))
@@ -455,6 +461,49 @@ export function wedProblem(
     return `A marriage ties your house to ${realmName(other)} already.`;
   if (mine.some((m) => m.who === who!.name)) return `${who!.name} is wed already.`;
   if (theirs.some((m) => m.who === partner!.name)) return `${partner!.name} is wed already.`;
+  return null;
+}
+
+/** What a ruler's envoy can be sent to ask. */
+export const ERRANDS = ["embassy", "pact", "gift"] as const;
+export type RulerErrand = (typeof ERRANDS)[number];
+export type EnvoyArgs = RulerArgs & { readonly to: Ref; readonly errand: RulerErrand };
+
+/** The grain a ruler's gift would carry. */
+export const giftOf = (ctx: PopulationContext, r: Polity): number =>
+  Math.min(spareOf(ctx, r), Math.floor(TERMS.tributeShare * grainMade(ctx, r)));
+
+/** Why an envoy can't go, or won't be heard, in the other ruler's voice (null: it can, and they will). */
+export function envoyProblem(
+  ctx: PopulationContext,
+  r: Polity,
+  other: Polity | null,
+  errand: unknown,
+): string | null {
+  if (!other) return "That realm has fallen.";
+  if (other === r) return "No envoy is needed to your own seat.";
+  if (!(ERRANDS as readonly unknown[]).includes(errand)) return "There is no such errand.";
+  const world = ctx.world,
+    regard = diplomacyOf(world).get(r.ref, other.ref),
+    ties = tiesOf(world);
+  if (!regard) return "No border or road lies between you: no one could reach them.";
+  if (warsOf(world).between(r.ref, other.ref))
+    return answers(other, "Send us no one while your host stands against ours.");
+  if (errand === "embassy") {
+    if (ties.embassyOf(r.ref, other.ref)) return "Your people are at their seat already.";
+    if (ties.embassiesOf(r.ref).length >= TIES.embassiesMost)
+      return `You keep ${TIES.embassiesMost} houses at others' seats already: there is no one left to send.`;
+    if (regard.opinion < RIVALRY)
+      return answers(other, "We keep no house here for those who wish us ill.");
+    return null;
+  }
+  if (errand === "pact") {
+    if (regard.pact) return "You are sworn to them already.";
+    if (regard.opinion < TIES.envoyPactAt)
+      return answers(other, "We do not know you well enough to swear to anything.");
+    return null;
+  }
+  if (giftOf(ctx, r) < 1) return "Your people eat all they make: you have nothing to send.";
   return null;
 }
 
@@ -776,6 +825,60 @@ export function installReign(world: World, ctx: () => PopulationContext): void {
         o = orderHere(r);
       riseUp(c, bondsOf(world).oathOf(r.ref)!, t, r.ruler.name, command.id);
       o.legitimacy = clamp(0.02, 0.98, o.legitimacy - warCost(true, true));
+    },
+  });
+
+  world.defineCommand({
+    type: "reign.envoy",
+    validate: (args) => {
+      const bad = rulerProblem(world, args);
+      if (bad) return bad;
+      const a = args as Partial<EnvoyArgs>;
+      return envoyProblem(ctx(), standing(world, a.realm)!, standing(world, a.to), a.errand);
+    },
+    apply: (command, t) => {
+      const a = command.args as EnvoyArgs,
+        c = ctx(),
+        r = standing(world, a.realm)!,
+        other = standing(world, a.to)!,
+        year = yearOfMoment(t),
+        diplomacy = diplomacyOf(world),
+        regard = diplomacy.get(r.ref, other.ref)!;
+      if (a.errand === "embassy") {
+        openEmbassy(c, r, other, command.id, t);
+        return;
+      }
+      if (a.errand === "pact") {
+        const envoy = sendEnvoy(c, r, other, "pact", command.id, "yes", t);
+        regard.pact = world.events.emit({
+          type: DIPLOMACY_EVENTS.pact.type,
+          subjects: [regard.a, regard.b],
+          place: placeOf(c, r),
+          causes: [
+            { ref: command.id, role: "agent", weight: 1 },
+            { ref: envoy.event, role: "trigger", weight: 1 },
+          ],
+          data: {
+            a: realmName(r),
+            b: realmName(other),
+            reason: "an envoy they heard",
+            by: r.ruler.name,
+          },
+        });
+        return;
+      }
+      const grain = giftOf(c, r),
+        envoy = sendEnvoy(c, r, other, "gift", command.id, "yes", t),
+        markets = world.store<MarketStore>("economy.markets"),
+        from = markets.get(r.seat),
+        into = markets.get(other.seat);
+      if (from && into) into.move("in", G.grain, from.move("out", G.grain, grain));
+      diplomacy.remember(r.ref, other.ref, {
+        name: "a gift they sent",
+        value: TIES.giftAt,
+        year,
+        source: envoy.event,
+      });
     },
   });
 

@@ -186,6 +186,11 @@ export type StateMatch = {
   readonly toBorn: number;
   readonly year: number;
   readonly event: Ref;
+  /** What it was, by what the two peoples are (D1; absent: a marriage). */
+  readonly form?: "wed" | "foster" | "brood" | "graft";
+  /** How `who` stood to their ruler ("self", "child"; absent: as the hand named them), and the ruler then. */
+  readonly tie?: string;
+  readonly of?: string;
 };
 
 export class OrderStore implements StateStore {

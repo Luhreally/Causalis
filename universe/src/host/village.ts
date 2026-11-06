@@ -55,6 +55,7 @@ import { landWords, meetHousehold, observer, settleAll, type WarFate } from "../
 import { personThings } from "./inspect/things.ts";
 import { memorialsOf, townSongs } from "./inspect/memory.ts";
 import { courtIn, namedByCases } from "./inspect/justice.ts";
+import { envoyAtCourt } from "./inspect/ties.ts";
 import {
   LAKE_R,
   LOT,
@@ -1255,6 +1256,8 @@ export function villagePlan(
       rest: restOf(village.cell, village.population, village.founded),
       ...memoryIn(world, ref),
       ...courtIn(world, ref),
+      // (One come from another seat, at its court: D1.)
+      ...envoyAtCourt(world, ref as Ref),
       people,
       ...(stores ? { stores } : {}),
       ...(trade ? { trade } : {}),

@@ -1915,7 +1915,9 @@ async function runPlanetPage(): Promise<void> {
                 ? standings
                 : lens === "war"
                   ? fronts
-                  : tongues,
+                  : lens === "blocs"
+                    ? blocColors
+                    : tongues,
       // (Borders between realms, faiths, tongues: a grand strategy map's.)
       sphereGrid((frame.meta as { frequency: number }).frequency),
       // (Lands taken by force, still resenting it, in shadow: M104.)
@@ -2033,10 +2035,19 @@ async function runPlanetPage(): Promise<void> {
         paintGlobe();
       });
     if (l === "war") void readFronts();
+    if (l === "blocs") void readBlocs();
     // (The wealth lens: a realm's, by a measure chosen under its legend; its ranking a press away.)
-    mapModes.action(l === "wealth" ? "📊 The ranking" : null, () => {
-      void pageWindow.open("world:ledger#wealth");
-    });
+    // (The blocs lens: its greatest a press away. D1.)
+    mapModes.action(
+      l === "wealth" ? "📊 The ranking" : l === "blocs" ? "🪢 The greatest bloc" : null,
+      () => {
+        if (l === "wealth") void pageWindow.open("world:ledger#wealth");
+        else
+          void client
+            .query<{ biggest: string | null }>({ type: "blocs.lens" })
+            .then((b) => (b.biggest ? pageWindow.open(b.biggest) : undefined));
+      },
+    );
     if (l === "wealth") {
       if (!deepValues.has("wealth")) deepValues.set("wealth", new Map());
       readWealth();
@@ -2152,6 +2163,7 @@ async function runPlanetPage(): Promise<void> {
   // most peopled; the war lens shows the wars' sides, what they fight for, what was taken.
   let standings = new Map<number, readonly [number, number, number]>(),
     fronts = new Map<number, readonly [number, number, number]>(),
+    blocColors = new Map<number, readonly [number, number, number]>(),
     takenLands = new Map<number, readonly [number, number, number]>(),
     focusRealm: string | null = null;
   const readStandings = async () => {
@@ -2198,8 +2210,20 @@ async function runPlanetPage(): Promise<void> {
     if (lens === "war") mapModes.say(w.lands.length ? null : "no war is being fought");
     if (lens === "war" || lens === "realms") paintGlobe();
   };
+  const readBlocs = async () => {
+    const b = await client.query<{
+      lands: [number, readonly [number, number, number]][];
+      note: string;
+    }>({ type: "blocs.lens" });
+    blocColors = new Map(b.lands);
+    if (lens === "blocs") {
+      mapModes.say(b.note);
+      paintGlobe();
+    }
+  };
   setInterval(() => {
     if (scale !== "globe") return;
+    if (lens === "blocs") void readBlocs();
     if (lens === "diplomacy") void readStandings();
     // (The realms' map too: the lands taken by force are in shadow on it.)
     if (lens === "war" || lens === "realms") void readFronts();
@@ -2246,7 +2270,7 @@ async function runPlanetPage(): Promise<void> {
       return [{ ref: r.ref, text: r.short.toUpperCase(), lands: r.spots.length, shape, seat }];
     });
   };
-  const NAMED: readonly Lens[] = ["realms", "diplomacy", "war"];
+  const NAMED: readonly Lens[] = ["realms", "diplomacy", "war", "blocs"];
   setInterval(() => {
     if (scale === "globe" && NAMED.includes(lens)) void readNames();
   }, 5000);

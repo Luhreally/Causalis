@@ -57,7 +57,7 @@ export const TERMS = {
 } as const;
 
 /** What a war is about. */
-export type AimKind = "land" | "stores" | "back" | "holy" | "tribute" | "free";
+export type AimKind = "land" | "stores" | "back" | "holy" | "tribute" | "free" | "ally" | "claim";
 
 /** What can bind after a peace. */
 export type BondKind = "tribute" | "vassal" | "truce";
@@ -114,6 +114,8 @@ export function dealOf(e: WarEnd): Deal {
   const margin = Math.abs(e.edge),
     strength = winner === 0 ? e.ratio : 1 / Math.max(1e-6, e.ratio),
     spent = e.spent[1 - winner]!;
+  // A host come for its friend asks nothing, and goes home under a truce (D1).
+  if (e.aim === "ally") return { ...none, bond: "truce", years: TERMS.truceYears };
   // A rising that won is free, and asks nothing more.
   if (e.aim === "free" && winner === 0) return none;
   // A beaten attacker goes home under a truce: it pays only one who has beaten it badly and can hold it to it.

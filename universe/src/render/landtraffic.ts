@@ -29,7 +29,44 @@ type Part = {
 /** A car of a carrier: how far behind the carrier's head it goes, and its parts. */
 type Car = { readonly back: number; readonly parts: readonly Part[] };
 
-export type CarrierKind = "cart" | "wagon" | "truck" | "steam-train" | "train" | "sail" | "steam";
+export type CarrierKind =
+  "cart" | "wagon" | "truck" | "steam-train" | "train" | "sail" | "steam" | "envoy";
+
+/** One on an errand, going along a road under their realm's colour (D1): a mount, a rider, a staff and a banner, large enough to be picked out. */
+const envoyCar = (banner: Rgb): Car => ({
+  back: 0,
+  parts: [
+    {
+      mesh: "box",
+      color: [0.3, 0.22, 0.16],
+      along: 0,
+      up: 0.012,
+      len: 0.05,
+      wide: 0.02,
+      tall: 0.024,
+    },
+    { mesh: "box", color: banner, along: 0, up: 0.034, len: 0.022, wide: 0.022, tall: 0.036 },
+    {
+      mesh: "box",
+      color: [0.9, 0.86, 0.72],
+      along: 0,
+      up: 0.068,
+      len: 0.016,
+      wide: 0.016,
+      tall: 0.016,
+    },
+    {
+      mesh: "box",
+      color: [0.2, 0.16, 0.12],
+      along: -0.016,
+      up: 0.03,
+      len: 0.005,
+      wide: 0.005,
+      tall: 0.11,
+    },
+    { mesh: "box", color: banner, along: -0.038, up: 0.104, len: 0.042, wide: 0.006, tall: 0.036 },
+  ],
+});
 
 const WOOD: Rgb = [0.5, 0.36, 0.22],
   OX: Rgb = [0.36, 0.26, 0.18],
@@ -60,6 +97,8 @@ const goodsWagon = (back: number, color: Rgb): Car => ({
 /** Each kind of carrier's cars (a cab's colour put in by its carrier's turn). */
 function cars(kind: CarrierKind, turn: number): readonly Car[] {
   switch (kind) {
+    case "envoy":
+      return [];
     case "cart":
       return [
         {
@@ -248,6 +287,7 @@ function cars(kind: CarrierKind, turn: number): readonly Car[] {
 
 /** How fast each kind goes (region units a real second), at a pace the eye can follow. */
 const PACE: Readonly<Record<CarrierKind, number>> = {
+  envoy: 0.1,
   cart: 0.08,
   wagon: 0.11,
   truck: 0.34,
@@ -317,6 +357,8 @@ export class LandTraffic {
     most: number,
     /** A people of the water's: what goes along its roads goes along the seabed. */
     undersea = false,
+    /** Those on an errand on its roads this year, each under their realm's colour (D1). */
+    envoys: readonly Rgb[] = [],
   ): void {
     this.undersea = undersea;
     const by = CARRIERS[era],
@@ -376,6 +418,22 @@ export class LandTraffic {
       if (!any) break;
     }
     this.carriers = [];
+    // (Whoever is on an errand goes first, on the longest road, whatever else is on it: D1.)
+    const road = [...roads].sort((a, b) => b.way.length - a.way.length)[0];
+    if (road)
+      envoys.forEach((banner, k) =>
+        this.carriers.push({
+          way: road.way,
+          kind: "envoy",
+          cars: [envoyCar(banner)],
+          slots: [],
+          start: ((k + 0.2) / envoys.length) * 2 * road.way.length,
+          pace: PACE.envoy,
+          aside: -0.03,
+          floats: false,
+          lift: ON_ROAD,
+        }),
+      );
     wants.forEach((w, k) => {
       const n = given[k]!;
       for (let c = 0; c < n; c++) {

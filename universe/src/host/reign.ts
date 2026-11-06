@@ -37,8 +37,18 @@ import {
   type Station,
   type War,
 } from "../sim/index.ts";
+import {
+  ERRANDS,
+  boundTo,
+  envoyProblem,
+  giftOf,
+  misreadOf,
+  tiesOf,
+  type RulerErrand,
+} from "../sim/index.ts";
 import { aimPhrase, grainSum, termsPhrase } from "../causal/index.ts";
 import type {
+  ReignEnvoys,
   ReignBond,
   ReignDecrees,
   ReignFall,
@@ -447,6 +457,19 @@ function reignDecrees(world: World, realm: unknown): ReignDecrees | null {
   };
 }
 
+/** Those a foe would call, if it were attacked, in words (D1). */
+function calledWords(world: World, foe: Polity): string {
+  const year = yearOfMoment(world.now),
+    realms = politiesOf(world),
+    names = boundTo(world, foe, year)
+      .flatMap((b) => {
+        const q = realms.get(b.realm);
+        return q && q.ended === null ? [q.town] : [];
+      })
+      .slice(0, 3);
+  return names.length ? ` They would call ${names.join(", ")}.` : "";
+}
+
 /** Whom they fight, and whom they could. */
 function reignWars(world: World, realm: unknown): ReignWars | null {
   const r = realmOf(world, realm);
@@ -500,7 +523,7 @@ function reignWars(world: World, realm: unknown): ReignWars | null {
             can: !bad,
             words:
               bad ??
-              `Your ${many(host)} against their ${many(theirs)}. Costs ${pct(warCost(!!regard?.pact, opinion < 0))} in a hundred of your standing${regard?.pact ? ", and breaks your pact" : ""}.${v.names.length && v.against > v.forIt ? ` ${v.names.join(" and ")} would rather not.` : ""}`,
+              `Your ${many(host)} against their ${many(theirs)}. Costs ${pct(warCost(!!regard?.pact, opinion < 0))} in a hundred of your standing${regard?.pact ? ", and breaks your pact" : ""}.${v.names.length && v.against > v.forIt ? ` ${v.names.join(" and ")} would rather not.` : ""}${calledWords(world, foe)}`,
             aims: lands.slice(0, 3).map((cell) => ({ cell, name: landTitle(world, cell, true) })),
           },
         ];
@@ -598,6 +621,67 @@ function reignMatches(world: World, realm: unknown): ReignMatches | null {
   };
 }
 
+/** Whom they could send to, and what for. */
+function reignEnvoys(world: World, realm: unknown): ReignEnvoys | null {
+  const r = realmOf(world, realm);
+  if (!r) return null;
+  const ctx = populationContext(world),
+    diplomacy = diplomacyOf(world),
+    realms = politiesOf(world),
+    ties = tiesOf(world),
+    met = diplomacy
+      .of(r.ref)
+      .flatMap((x) => {
+        const q = realms.get(x.a === r.ref ? x.b : x.a);
+        return q && q.ended === null ? [{ q, x }] : [];
+      })
+      .sort((a, b) => b.x.opinion - a.x.opinion || (a.q.ref < b.q.ref ? -1 : 1))
+      .slice(0, 8);
+  const year = yearOfMoment(world.now),
+    gift = giftOf(ctx, r);
+  return {
+    words: met.length
+      ? `Your envoys go by road to their seats. Word kept at a seat makes what you know of its host the truer; ${ties.embassiesOf(r.ref).length} of yours stand at others' seats now.`
+      : "No border or road lies between you and anyone: no one could reach them.",
+    realms: met.map(({ q, x }) => {
+      const factor = misreadOf(world, r.ref, q.ref, year),
+        truth = fieldedOf(ctx, q);
+      return {
+        ref: q.ref,
+        name: realmName(q),
+        regard: x.pact
+          ? "sworn to you by a pact"
+          : x.opinion < -0.4
+            ? "your rivals"
+            : x.opinion < 0
+              ? "wary of you"
+              : "at peace with you",
+        known: `You believe their host is about ${many(Math.round(truth * factor))}.${ties.embassyOf(r.ref, q.ref) ? " Your people there keep it true." : " No one of yours is there to say."}`,
+        errands: ERRANDS.map((errand: RulerErrand) => {
+          const bad = envoyProblem(ctx, r, q, errand);
+          return {
+            errand,
+            label:
+              errand === "embassy"
+                ? "📜 Keep a house at their seat"
+                : errand === "pact"
+                  ? "🤝 Ask a pact"
+                  : `🌾 Send a gift of ${grainSum(gift)} grain`,
+            can: !bad,
+            words:
+              bad ??
+              (errand === "embassy"
+                ? "They will take them in, and you will know their host the truer."
+                : errand === "pact"
+                  ? "They will swear. If either of you is attacked, the other will be called."
+                  : "They will think the better of you, fading as memories fade."),
+          };
+        }),
+      };
+    }),
+  };
+}
+
 /** What has been done by a ruler's word in a realm, oldest first: an event's type, its causes, whose word it was. */
 function reignDeeds(
   world: World,
@@ -625,6 +709,8 @@ export const REIGN_QUERIES: Readonly<Record<string, QueryHandler>> = {
   "reign.wars": (world, args) => reignWars(world, (args as RealmArgs).realm),
   /** Whom their house could wed. */
   "reign.matches": (world, args) => reignMatches(world, (args as RealmArgs).realm),
+  /** Whom they could send an envoy to (D1). */
+  "reign.envoys": (world, args) => reignEnvoys(world, (args as RealmArgs).realm),
   /** What has been done by a ruler's word in a realm. */
   "reign.deeds": (world, args) => reignDeeds(world, (args as RealmArgs).realm),
 };
