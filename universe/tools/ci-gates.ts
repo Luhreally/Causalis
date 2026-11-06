@@ -318,6 +318,8 @@ export const GATES: readonly Gate[] = [
   { gate: 91, args: ["--ci"], s: 240 },
   // Gate 93, memory in the town (tools/t1-gate.ts): stones and songs read off a world, the same twice; a stone in the pixels, pressed by touch; a feast's song; Songs and tales; a town with no past; a young world on CI.
   { gate: 93, args: ["--ci"], s: 200 },
+  // Gate 95, crime and justice in the town (tools/j1-gate.ts): cases read off a world, the same twice; one real person's page, home and case agree; Law and order pressed by touch; a court in the pixels, sitting on its day, pressed by touch; a young world on CI.
+  { gate: 95, args: ["--ci"], s: 200 },
   // The Sound gate: every place its own air, by numbers off the real output and off renders; cues
   // on real presses; 🔊 by touch, remembered; no AudioContext, a hidden tab; the same history.
   { gate: 90, args: ["--ci"], s: 240 },

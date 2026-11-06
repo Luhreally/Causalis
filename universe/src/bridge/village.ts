@@ -280,6 +280,39 @@ export type Memorial = {
   readonly dark: readonly [number, number, number];
 };
 
+/** Who judges in a town (J1): as its people's body, word and law have it. */
+export type CourtForm = "hive" | "reef" | "elders" | "kin" | "magistrate" | "bench";
+/** What came of a case (J1), as far as it is seen in the town. */
+export type CourtSentence =
+  | "free"
+  | "bribe"
+  | "fine"
+  | "shame"
+  | "stocks"
+  | "cell"
+  | "labour"
+  | "banish";
+/** A case as its town's day sees it (J1): its page, its day, who stands, what they did, what comes of it and for how long. */
+export type CourtSitting = {
+  readonly ref: string;
+  readonly day: number;
+  readonly accused: string;
+  readonly who: string;
+  readonly line: string;
+  readonly sentence: CourtSentence;
+  readonly days: number;
+};
+/** A town's court (J1): who judges, what it looks like, this year's sittings and last year's sentences still running. */
+export type TownCourt = {
+  readonly form: CourtForm;
+  readonly law: string;
+  readonly grips: boolean;
+  readonly far: boolean;
+  readonly colour: readonly [number, number, number];
+  readonly wood: readonly [number, number, number];
+  readonly sittings: readonly CourtSitting[];
+};
+
 /** A song a town knows (T1): its page, what it is called, its first line, what it is of. */
 export type TownSong = {
   readonly ref: string;
@@ -363,6 +396,8 @@ export type VillagePlan = {
   readonly memorials?: readonly Memorial[];
   /** What it sings at its feasts (T1; absent: nothing yet). */
   readonly songs?: readonly TownSong[];
+  /** Who judges there and whom they hear (J1; absent: no one lives there). */
+  readonly court?: TownCourt;
   readonly people: readonly {
     ref: string;
     name: string;

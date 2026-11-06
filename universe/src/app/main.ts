@@ -11,6 +11,8 @@ import "./can.css";
 import "./years.css";
 import "./memory.css";
 import { SungNote } from "../ui/index.ts";
+import { CourtNote } from "../ui/court-note.ts";
+import { courtSitting } from "../view/index.ts";
 import { Checkpoint } from "./checkpoint.ts";
 import { HostClient, LOT, inlinePair, lotStates, progress, workerPort } from "../bridge/index.ts";
 import {
@@ -837,6 +839,9 @@ type Exposed = {
     readonly drawn: ReturnType<VillageScene["stonesDrawn"]>;
   } | null;
   stonesShown?: (on: boolean) => void;
+  court?: () => ReturnType<VillageScene["courtNow"]>;
+  courtShown?: (on: boolean) => void;
+  courtNote?: () => HTMLElement;
   sungNote?: () => HTMLElement;
   /** The song at the feast now (T1). */
   sung?: () => ReturnType<VillageScene["sungNow"]>;
@@ -3005,7 +3010,12 @@ async function runPlanetPage(): Promise<void> {
       palette.armed &&
       (scale === "globe" || scale === "region" || scale === "camp" || scale === "village") &&
       // (A press on a thing a town raised reads it: the hand's act isn't cast on the ground beneath it. T1.)
-      !(scale === "village" && plan && !homeOpen() && village.stoneAt(x, y))
+      !(
+        scale === "village" &&
+        plan &&
+        !homeOpen() &&
+        (village.stoneAt(x, y) || village.courtAt(x, y, now()))
+      )
         ? tapPalette(x, y)
         : scale === "globe"
           ? tapGlobe(x, y)
@@ -3036,6 +3046,8 @@ async function runPlanetPage(): Promise<void> {
     // (What a town raised: its tip, T1.)
     const stone = plan ? village.stoneAt(x, y) : null;
     if (stone) return stone;
+    const tried = plan ? village.courtAt(x, y, now()) : null;
+    if (tried) return tried;
     const at = plan ? onPlane(x, y, 0) : null;
     if (!plan || !at) return null;
     const mx = at.x / VILLAGE_METRE,
@@ -6200,6 +6212,16 @@ async function runPlanetPage(): Promise<void> {
         void pageWindow.open(stone);
         return;
       }
+      // (Its court: pressed anywhere on it, while it sits whoever stands there, the rest of the time if no one does. J1.)
+      const tried =
+        courtSitting(plan, now()) || village.pick(x, y, 10) === null
+          ? village.courtAt(x, y, now())
+          : null;
+      if (tried) {
+        selectPerson(null);
+        void pageWindow.open(tried);
+        return;
+      }
     }
     // One borne home on a litter (Phase 55 wave 5): their card, as anyone's.
     const borne = plan ? village.pickLitter(x, y) : null;
@@ -8477,6 +8499,8 @@ async function runPlanetPage(): Promise<void> {
       ? { list: village.stonesOnScreen(), drawn: village.stonesDrawn() }
       : null;
   exposed.stonesShown = (on: boolean) => village.stonesShown(on);
+  exposed.court = () => (scale === "village" && plan ? village.courtNow(now()) : null);
+  exposed.courtShown = (on: boolean) => village.courtShown(on);
   exposed.sung = () => (scale === "village" && plan ? village.sungNow(now()) : null);
   exposed.country = () => (scale === "village" && plan ? village.countryNow() : null);
   exposed.feast = () =>
@@ -8665,6 +8689,15 @@ async function runPlanetPage(): Promise<void> {
    * city stands between.
    */
   const stoneView = (ref: string): OrbitView | null => {
+    // (A case's page looks across the square at its court: J1.)
+    const c = ref.startsWith("case:") ? village.courtNow(now())?.place : null;
+    if (c)
+      return {
+        target: { x: c.worldX * VILLAGE_METRE, y: 0.3, z: c.worldZ * VILLAGE_METRE },
+        yaw: (c.yaw * 180) / Math.PI,
+        pitch: -14,
+        distance: 3.2,
+      };
     const s = village.stonesOnScreen().find((x) => x.ref === ref);
     return s
       ? {
@@ -9249,6 +9282,22 @@ async function runPlanetPage(): Promise<void> {
       ),
   );
   exposed.sungNote = () => sungNote.element;
+  // The court sits (J1): who stands before it and for what, pressed for the case.
+  const courtNote = new CourtNote(
+    tidings.element,
+    (ref) => void pageWindow.open(ref),
+    () => {
+      if (scale !== "village" || !plan || pageWindow.visible || events.open || !!time.lapse) return null;
+      const s = courtSitting(plan, now());
+      return s && plan.court ? { ref: s.ref, title: plan.court.law, line: s.line } : null;
+    },
+    () =>
+      directorControls.watching ||
+      ["filming", "fleet-filming", "homing", "living", "possessing", "ruling", "paging"].some((c) =>
+        document.body.classList.contains(c),
+      ),
+  );
+  exposed.courtNote = () => courtNote.element;
   takeUp.push(() => runNote.fromNow());
   clusterPanel.under(directorControls.caption);
   // A colony's landing watched (Phase 64), and the list of the worlds settled that leads to it.

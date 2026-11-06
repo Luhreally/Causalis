@@ -60,6 +60,7 @@ import { seatPage, withKin } from "./kin.ts";
 import { rulerPage, withLeaderPage } from "./leaders.ts";
 import { courtPage } from "./court.ts";
 import { songPage, stonePage } from "./memory.ts";
+import { casePage } from "./justice.ts";
 import { namedPage, type NamesArg } from "../names.ts";
 import { lawPage } from "../lanes.ts";
 
@@ -119,6 +120,8 @@ function build(world: World, ref: string, tab: string | null): PageModel {
   // A stone a town raised, and a song a people sing (T1).
   if (ref.startsWith("stone:")) return stonePage(world, ref);
   if (ref.startsWith("song:")) return songPage(world, ref);
+  // A town's case before whoever judges there (J1).
+  if (ref.startsWith("case:")) return casePage(world, ref);
   // A home and what is in it (Lives L6).
   if (ref.startsWith("dwell:")) return homePage(world, ref);
   if (ref.startsWith("dwelt:")) return homeThingPage(world, ref);
