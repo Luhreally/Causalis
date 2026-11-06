@@ -1,7 +1,14 @@
 // Arms past the greatest fire (war-reach-plan.md W6): the numbers, each rung rarer, and a world unmade staying unmade.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { loadWorld, rulesetId, saveWorld, seedFromText, YEAR } from "../src/kernel/index.ts";
+import {
+  loadWorld,
+  makeRef,
+  rulesetId,
+  saveWorld,
+  seedFromText,
+  YEAR,
+} from "../src/kernel/index.ts";
 import { ALIEN } from "../src/host/planet.ts";
 import {
   FAR,
@@ -15,7 +22,18 @@ import {
   skyMj,
   unmakeMj,
 } from "../src/rules/index.ts";
-import { clusterOf, farOf, fireOf, worldsOf } from "../src/sim/index.ts";
+import {
+  STARWAR,
+  civilizationsEver,
+  civilizationsNear,
+  clusterOf,
+  contactsOf,
+  farOf,
+  fireOf,
+  politiesOf,
+  starWarsOf,
+  worldsOf,
+} from "../src/sim/index.ts";
 
 const earth = { pull: 1, radius: 1, airBar: 1 };
 
@@ -76,10 +94,49 @@ test("the god's hand unmakes a world: dormant before, and it stays through a sav
   assert.ok(fall);
   assert.equal(fall.rung, "world");
   assert.ok(!fireOf(world).dormant());
-  const doc = JSON.parse(JSON.stringify(saveWorld(world, rulesetId(world, u.version), { universe: u.name }))),
+  const doc = JSON.parse(
+      JSON.stringify(saveWorld(world, rulesetId(world, u.version), { universe: u.name })),
+    ),
     back = loadWorld(doc, (s) => u.build(s), rulesetId(world, u.version), {
       allowRulesetChange: true,
     }).world;
   assert.ok(fireOf(back).unmade(star.ref as string, planet));
   assert.equal(fireOf(back).state.far?.falls.length, 1);
+});
+
+test("a war aimed at a world unmade ends with it, and its people are gone but not forgotten", () => {
+  const world = ALIEN.build(seedFromText("lumen 285"));
+  world.runTo(320 * YEAR);
+  const y = Math.floor(world.now / YEAR),
+    holder = [...politiesOf(world).living()].sort(
+      (a, b) => b.members.length - a.members.length,
+    )[0]!,
+    civ = civilizationsNear(world).find((c) => c.stars <= y)!,
+    wars = starWarsOf(world),
+    ref = makeRef(STARWAR, 0, wars.all().length);
+  if (!contactsOf(world).of(civ.ref))
+    contactsOf(world).add({ civ: civ.ref, heard: holder.event, by: holder.ref, year: y });
+  wars.add({
+    ref,
+    realm: holder.ref,
+    enemy: civ.ref,
+    declared: y,
+    event: holder.event,
+    sailed: y,
+    arrives: y + 5,
+    strength: 0.5,
+    battle: null,
+    won: null,
+    ended: null,
+  });
+  world.submit("far.strike", { star: civ.star, planet: civ.planet, rung: "world" });
+  world.runTo(world.now + 1);
+  const fall = fireOf(world).unmade(civ.star as string, civ.planet)!;
+  assert.ok(fall);
+  assert.equal(wars.all().find((w) => w.ref === ref)!.ended, fall.event, "no aim left to sail for");
+  assert.ok(!civilizationsNear(world).some((c) => c.ref === civ.ref), "no more of them");
+  assert.ok(
+    civilizationsEver(world).some((c) => c.ref === civ.ref),
+    "but who they were is known",
+  );
 });

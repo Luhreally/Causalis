@@ -307,7 +307,7 @@ export const GATES: readonly Gate[] = [
   // Gate 80, the law of a universe and the first jump (tools/p68-gate.ts): shut, a page says why; open, a ship leaves, jumps and comes out, pressed by touch and read in the pixels.
   { gate: 80, args: ["--ci"], s: 200 },
   // Gate 83, arms past the greatest fire (tools/w6-gate.ts): a world no one can touch and its numbers; the god's hand by touch, its seams, its plates, what is left in every view through a save; a ruler's word and a sky burned; a young world given it.
-  { gate: 83, args: ["--ci"], s: 420 },
+  { gate: 83, args: ["--ci"], s: 480 },
   // Gate 79, courts and drama (tools/l5-gate.ts): a Court tab, a rival's page and home, an heir who follows, a plot found and its why, plots and an heir's death under a ruler, Earth and alien.
   { gate: 79, args: ["--ci"], s: 480 },
 ];

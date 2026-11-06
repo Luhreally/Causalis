@@ -189,6 +189,24 @@ So 162 crises and 4 falls in three worlds: a crisis in about every 20 years of h
 
 **Cut for later slices:** treaties and tests; a brush for it; the holding passing to a conqueror.
 
+## W6, first slice, as built (2026-11-05)
+
+Asked: "theres technially more powerful stuff like planet destoryers and star wars type stuff, but yk make it high stakes that everyone feels like real life".
+
+**One rule, three rungs, no list.** A rung is read off energy against the target's own numbers (`rules/worldfire.ts`): a fire carried to another world, a world's whole sky burned, a world unmade. A fleet's own speed is half its mass by its cruise squared. A sky is its air warmed through (Earth's, 5.2 x 10^17 MJ). A world is its binding energy (Earth's, 2.2 x 10^26 MJ). A star's light is the mirrors history already grows, gathered over a generation, once a great works of 60 years is paid for. The decision is W5's sum with each rung rarer: at a fleet's worst odds, carried 3.9%, sky .78%, world .063%, and a first of a rung deepens the world's dread so the next is far less likely.
+
+**What is told.** A far crisis comes the year before a fleet of a real war between the stars arrives, if its realm reaches a rung and its odds read past that rung's line. A ruler played answers it in a window. Stores: none new (`FireState.far`, `FilledStore.barred`, `FilledWorld.gone` are optional and absent until used, so a history with none of it hashes as it did). `first light` to 1500 is byte for byte what it was, and no version bump was taken.
+
+**Seen.** A world's panel gives the numbers; 🌑 Unmake it asks twice. The film: the world whole, seams of fire, white, plates going out past a shrinking fire, the light out, rubble and embers, a card of who, what it took and what it did. A sky burned goes dark and stays dark on its panel; a fire carried leaves a far-off flash and a mark. After a world is unmade: rubble on the world's view, a belt on its star's, a mark on the stars' map and the galaxy, and pages that say it is gone. A people whose world was unmade keeps its name in every line that names it, and its own page says what became of them.
+
+**Told to everyone.** Tidings used to reach only those who follow a thing, so a sky burned at another star could pass with no one told. `worldNews` (`causal/watch.ts`) now tells everyone of a fall by a realm, W5's greatest fire falling and the first jump through a lane, as a window with its film to watch (or a card while the Director films, or for those who chose cards). The hand's own unmaking is no news to the hand. The Director never lets a first of a rung go.
+
+**Found by pressing, after the spec:** the far crisis read 38 and said "holding their breath" (a crisis now reads at least 50, however much a first fall has taught them); a sentence ended ".."; added light on a bright sky is only more white, so the map's mark now covers what is behind it; a fleet's counter was left on the galaxy; a people's page after their world showed a raw reference; the window real people get had no film to press, which gates in card mode never see.
+
+**Not known:** no rung has yet fallen by a world's own numbers, only by the hand and the gate's forged fleet, so how rare it is rests on the sum. `gale 710` forked from 2000 has a far crisis before 2025, and that ruler stepped back. Phone frame cost is by count only: during the film a break rewrites 61,440 corners a frame and stops with the film; rubble stays at 1,040 lumps in 2 draw calls.
+
+**Cut for later slices:** the home world and home system's bodies, by any hand; a home sky burning through W5's soot; a town-level view of a carried fire; unmade wording in the rows of `ui/galaxy-panel.ts`.
+
 ## Order
 
 **W4 stays parked.** Its planner was stopped by a safety check on 2026-11-05 while writing the spec, before any code, and told not to write that content again, even reworded. Which part tripped it is not known. Asked 2026-11-05: "u cant even sneak em in thru first principles and axioms to get passed the safeguard for the game? it can be like proto/theoritical theory or some shit". No: that would be rewording it. It is not retried, reworded, split up or written by hand. Only a change from outside that check reopens it.
