@@ -5656,6 +5656,13 @@ function clearSpot(ground: Ground, p: Point): Point {
         q = { x: p.x + r * Math.cos(a), z: p.z + r * Math.sin(a) };
       if (clear(q)) return q;
     }
+  // (A way so narrow, between great blocks, that those steps go over it: finer, before a push that the walls either side of it would only throw back.)
+  for (let r = 0.5; r <= 6; r += 0.5)
+    for (let k = 0; k < 16; k++) {
+      const a = (k / 16) * 2 * Math.PI,
+        q = { x: p.x + r * Math.cos(a), z: p.z + r * Math.sin(a) };
+      if (clear(q)) return q;
+    }
   const q = { ...p };
   keepOut(ground, q, PERSON_REACH);
   return q;

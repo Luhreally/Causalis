@@ -146,6 +146,9 @@ export function ruledSpeed(fast: boolean): number {
   return fast ? 30 * DAY : 6 * DAY;
 }
 
+/** More of the clock than this between one frame and the next, and it was jumped, not run (seconds). */
+const JUMPED = 120;
+
 export function livedSpeed(walking: boolean, asleep: boolean, fast: boolean): number {
   if (walking) return MINUTE;
   if (asleep) return 3 * HOUR;
@@ -313,6 +316,14 @@ export class LivedBody implements PosedHook {
           carry: null,
           why: "At home",
         };
+      }
+      // (In what they ride, and the clock gone on: in it, where it has got to, not walking after it. A walk back from a thing of their own they finish first.)
+      if (
+        goesIn(this.plan, this.index, t, true) !== null &&
+        (!this.walk || t >= this.walk.to || t - this.strideAt > JUMPED)
+      ) {
+        this.walk = null;
+        return null;
       }
       if (!this.walk || t >= this.walk.to) {
         const far = this.here ? Math.hypot(this.here.x - m.x, this.here.z - m.z) : 0;

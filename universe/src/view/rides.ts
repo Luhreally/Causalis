@@ -25,6 +25,8 @@ export const LONG_WALK = 130;
 export const RIDES_IN_100 = 60;
 /** The most a line's vehicle shows aboard. */
 export const MOST_ABOARD = 12;
+/** `about.share` is of homes, and a car goes person by person: a home has more than one who goes to work, so about as many cars come of this much of it. */
+const ONE_FOR_A_HOME = 0.65;
 /** How far from the door's way a car stands, into the street (metres). */
 const KERB = 2.2;
 /** A car's reach, as the solids read it (metres). */
@@ -74,31 +76,31 @@ export function ridesOf(plan: VillagePlan): Rides {
     lines: BusLine[] = [];
   if (about && plan.town && (about.own || about.line)) {
     const ground = villageSolids(plan),
-      // (A household's goes with the one of them whose ref comes first, by who they are and not where the plan lists them: the plan is read again each year, and for a life begun, and it mustn't change hands then.)
-      ownerOf = new Map<number, number>();
-    if (about.own) {
+      atDoor = new Map<number, number>();
+    if (about.own)
       plan.people.forEach((p, i) => {
-        if (!plan.homes[p.home] || !goesToWork(plan, p)) return;
-        const had = ownerOf.get(p.home);
-        if (had === undefined || p.ref < plan.people[had]!.ref) ownerOf.set(p.home, i);
-      });
-      for (const [h, i] of ownerOf) {
-        const home = plan.homes[h]!,
-          key = home.household ?? String(h);
-        if (unit(`${plan.ref}|car|${key}`) >= about.share) continue;
+        const home = plan.homes[p.home];
+        if (!home || !goesToWork(plan, p)) return;
+        // (Read off the one person and no one else: the plan is read again each year, and for a life begun, with more of their kin in it or fewer, and no car may change hands for that.)
+        if (unit(`${plan.ref}|car|${p.ref}`) >= about.share * ONE_FOR_A_HOME) return;
+        const k = atDoor.get(p.home) ?? 0;
+        atDoor.set(p.home, k + 1);
+        // (A second at one door stands along the street from the first.)
         const out = streetDoor(home, 0, undefined),
           s = Math.sin(home.yaw),
           c = Math.cos(home.yaw),
-          door = parkNear(ground, { x: out.x - s * KERB, z: out.z - c * KERB });
+          door = parkNear(ground, {
+            x: out.x - s * KERB + c * k * PARKED_APART,
+            z: out.z - c * KERB - s * k * PARKED_APART,
+          });
         owners.set(i, {
           index: i,
-          home: h,
-          tone: Math.floor(unit(`${plan.ref}|tone|${key}`) * 6),
+          home: p.home,
+          tone: Math.floor(unit(`${plan.ref}|tone|${p.ref}`) * 6),
           door,
           doorYaw: home.yaw + Math.PI / 2,
         });
-      }
-    }
+      });
     if (about.line) {
       plan.people.forEach((p, i) => {
         if (!goesToWork(plan, p) || owners.has(i)) return;

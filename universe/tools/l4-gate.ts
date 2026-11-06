@@ -421,10 +421,11 @@ async function play(f: Forged, tag: string): Promise<void> {
     open = decrees.laws.flatMap((l) =>
       l.options.filter((o) => o.can).map((o) => ({ law: l.law, to: o.to, label: o.label })),
     );
-  // (Where the realm's voices must be carried they can stand against every step, and each says so in the world's own words.)
+  // (Where the realm's voices must be carried they can stand against every step, and each says so in the world's own words. Standing back, none is refused for standing.)
   if (!open.length) say(`${tag}: nothing to decree: ${decrees.laws[0]?.options[0]?.words}`);
   check(
-    open.length > 0 || decrees.laws.every((l) => l.options.every((o) => /voices/.test(o.words))),
+    open.length > 0 ||
+      decrees.laws.every((l) => l.options.every((o) => o.words && !/rightful/.test(o.words))),
     `${tag}: nothing can be decreed even with the standing back`,
   );
   const pick = open.find((o) => o.law !== "tithe") ?? open[0];

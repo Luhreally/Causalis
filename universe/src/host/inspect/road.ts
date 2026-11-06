@@ -305,7 +305,7 @@ export function busPage(world: World, ref: string): PageModel {
   return {
     ref,
     kind: "road",
-    icon: "🚌",
+    icon: about.how === "sled" ? "🌊" : about.how === "hauler" ? "🚛" : about.how === "line" ? "🚈" : "🚌",
     title: `The ${word} of ${s.name}, line ${count(lineNo)}`,
     subtitle: [`Through ${s.name}, by way of its square`],
     color: null,
