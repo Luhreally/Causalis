@@ -508,8 +508,9 @@ async function play(f: Forged, tag: string): Promise<void> {
         const said = await text(".reign-said");
         say(`${tag}: asked for peace: ${said || "they heard"}`);
         await shot(`${tag}-10-peace`);
-        if (await seen(".reign-close")) await tap(".reign-close");
       }
+      // (The war may be over by now, on its terms, its line still open.)
+      if (await seen(".reign-close")) await tap(".reign-close");
     } else if (await seen(".reign-close")) await tap(".reign-close");
   }
 
