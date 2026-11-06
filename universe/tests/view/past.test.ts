@@ -110,7 +110,7 @@ test("lands built over are painted on the world's face and leave the sea be", ()
   const n = 500,
     elevation = new Float32Array(n).map((_, c) => (c % 2 ? 100 : -100)),
     province = new Int32Array(n).map((_, c) => (c < 250 ? 7 : 8)),
-    frame = { arrays: { elevation, province } } as never,
+    frame = { arrays: { elevation, province }, meta: {} } as never,
     colors = new Uint8Array(n * 4).fill(10);
   builtOverCells(colors, frame, new Set([7]));
   let lit = 0;
