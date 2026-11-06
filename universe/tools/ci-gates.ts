@@ -352,17 +352,22 @@ for (const n of argv) {
       );
     console.log("::endgroup::");
     passed = run.status === 0;
-    console.log(
-      `gate ${n} ${passed ? "passes" : "fails"} in ${Math.round((performance.now() - t0) / 1000)} s`,
-    );
+    const seconds = Math.round((performance.now() - t0) / 1000);
+    console.log(`gate ${n} ${passed ? "passes" : "fails"} in ${seconds} s`);
+    // (One that failed this far past its time spent it waiting on things that never came: it is not a flake, and waiting for
+    // them all over again only holds the deploy back by as much. Gate 76's second try would have cost another 66 minutes.)
+    if (!passed && seconds > Math.max(300, g.s * 3)) {
+      console.log(`gate ${n} took too long to be worth trying again`);
+      break;
+    }
   }
   if (!passed) {
     failed.push(n);
-    console.log(`::error::gate ${n} failed twice`);
+    console.log(`::error::gate ${n} failed`);
   }
 }
 if (failed.length) {
-  console.log(`failed twice: gate ${failed.join(", gate ")}`);
+  console.log(`failed: gate ${failed.join(", gate ")}`);
   process.exit(1);
 }
 console.log("every gate passes");
