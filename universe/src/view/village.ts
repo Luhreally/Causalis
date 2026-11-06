@@ -4383,7 +4383,12 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
             : wall
               ? clearSpot(ground, wall)
               : clearSpot(ground, beside(yard, role.seat % 48, 2.2)),
-          carry = f.what === "faith" || f.what === "learning" ? null : f.what === "stores" ? "sack" : "stone",
+          carry =
+            f.what === "faith" || f.what === "learning"
+              ? null
+              : f.what === "stores"
+                ? "sack"
+                : "stone",
           place = at?.words ?? (wall ? "the walls" : yard.words);
         return [
           ...(carry
@@ -4970,7 +4975,7 @@ export function dayTold(plan: VillagePlan, index: number, day: number, fine = tr
   const stays: { from: number; to: number; words: string; times: number }[] = [];
   let walked: number | null = null;
   // (What they go in where the walk is long: R1. A person's day says so.)
-  const going = fine ? rideWord?.(plan, index) ?? null : null,
+  const going = fine ? (rideWord?.(plan, index) ?? null) : null,
     longs = going ? longWalks(plan, index, day, RIDE_LEAST) : [];
   for (const leg of legsOf(plan, index, day, fine)) {
     if (leg.activity === ACTIVITY.walking) {

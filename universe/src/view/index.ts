@@ -271,6 +271,7 @@ export {
   homeBox,
   townScene,
   townThingAt,
+  siteFlagAt,
   townWalls,
   type CivicMotion,
   type Flier,

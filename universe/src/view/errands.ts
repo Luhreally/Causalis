@@ -1281,7 +1281,13 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
     place: placeOf[i]!,
     seat: seatOf[i]!,
   }));
-  const town: TownDay = { sites, roles, lean, rest, ...(firstCount ? { firstAt: firstCount } : {}) };
+  const town: TownDay = {
+    sites,
+    roles,
+    lean,
+    rest,
+    ...(firstCount ? { firstAt: firstCount } : {}),
+  };
   if (days.size > 60) days.clear();
   days.set(day, town);
   return town;

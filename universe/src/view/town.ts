@@ -1750,6 +1750,15 @@ function civicsPut(scene: TownScene, t: number, out: TownParts, still: boolean):
   }
 }
 
+/** Where a site's flag stands, off its corner (metres). */
+export function siteFlagAt(f: { x: number; z: number; yaw: number; w: number; d: number }): {
+  x: number;
+  z: number;
+} {
+  const [x, z] = at(f.x, f.z, f.yaw, -f.w / 2 - 1, -f.d / 2 - 1);
+  return { x, z };
+}
+
 /** What stands by a site a town was asked for (H1): heaps of what it wants, going down as it goes up, and its flag, down while it stands idle. */
 function siteStuff(
   out: TownParts,
@@ -1770,7 +1779,7 @@ function siteStuff(
       high = (0.3 + 1.5 * left) * s;
     out.put("box", colour, x, high / 2, z, 2.4 * s, high, 2 * s, f.yaw);
   }
-  const [px, pz] = at(f.x, f.z, f.yaw, -f.w / 2 - 1, -f.d / 2 - 1),
+  const { x: px, z: pz } = siteFlagAt(f),
     pole = stopped ? 4 : 13;
   out.put("box", TIMBER, px, pole / 2, pz, 0.4, pole, 0.4, 0);
   // (Two ways, so that it shows from any side and from over the roofs.)

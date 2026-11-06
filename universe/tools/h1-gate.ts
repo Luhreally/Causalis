@@ -359,9 +359,12 @@ if (chosen) {
       20000,
     );
     await stood();
-    const spot = (await k<{ x: number; z: number; size: number } | null>(
-        `globalThis.causalis.askedSpot(${JSON.stringify(ref)})`,
-      ))!,
+    const spot = (await k<{
+        x: number;
+        z: number;
+        size: number;
+        flag?: { x: number; z: number };
+      } | null>(`globalThis.causalis.askedSpot(${JSON.stringify(ref)})`))!,
       where = async () =>
         k<{ x: number; y: number } | null>(`globalThis.causalis.townScreen(${spot.x}, ${spot.z})`),
       // (Far enough about it to hold its flag, at its corner: a great site stands wider on the screen than a small one.)
@@ -377,7 +380,23 @@ if (chosen) {
     await frames(8);
     const at0 = await where();
     check(!!at0, "the site isn't on the screen");
-    const box = boxOf(at0 ?? { x: 215, y: 500 }),
+    // (Where its flag flies: from its foot up a pole's height, a width either side: a people's own orange at the site is no flag.)
+    const flagBox = async (at: { x: number; y: number } | null): Promise<Rect> => {
+        const f = spot.flag
+          ? await k<{ x: number; y: number } | null>(
+              `globalThis.causalis.townScreen(${spot.flag.x}, ${spot.flag.z})`,
+            )
+          : null;
+        return f
+          ? {
+              x0: Math.round(f.x - 80),
+              y0: Math.max(240, Math.round(f.y - 170)),
+              x1: Math.round(f.x + 80),
+              y1: Math.min(860, Math.round(f.y + 10)),
+            }
+          : boxOf(at ?? at0 ?? { x: 215, y: 500 });
+      },
+      box = await flagBox(at0),
       png0 = await shot("3-site-begun"),
       f0 = read(png0, box, FLAG);
     say(`at ${JSON.stringify(at0)}: ${f0.count} of its flag's pixels from where the eye is`);
@@ -485,7 +504,7 @@ if (chosen) {
     await frames(10);
     const at1 = await where(),
       png1 = await shot("3c-site-later"),
-      f1 = read(png1, boxOf(at1 ?? at0 ?? { x: 215, y: 500 }), FLAG);
+      f1 = read(png1, await flagBox(at1), FLAG);
     let moved = 0;
     if (at1 && at0) {
       const a = read(png0, box, FLAG).rgb,
@@ -557,7 +576,7 @@ if (chosen) {
     await stood();
     const at2 = await where(),
       png2 = await shot("5-finished"),
-      f2 = read(png2, boxOf(at2 ?? at0 ?? { x: 215, y: 500 }), FLAG);
+      f2 = read(png2, await flagBox(at2), FLAG);
     say(`finished: ${f2.count} of its flag's pixels at the same eye, ${f0.count} when begun`);
     check(
       f2.count < Math.max(3, f0.count / 4),
@@ -632,7 +651,12 @@ if (chosen) {
           await frames(4);
           got = /asking/i.test(await windowWords());
         }
-        if (!got) await closeWindow().catch(() => {});
+        if (!got) {
+          say(
+            `a press on the stone, at ${onIt.x.toFixed(0)}, ${onIt.y.toFixed(0)}, brought: ${line(await windowWords(), 90)}; watching ${await k<number | null>("globalThis.causalis.watched()")}`,
+          );
+          await closeWindow().catch(() => {});
+        }
       }
       check(pressed, "no part of the stone can be got at on the screen");
       check(got, "the stone's page, pressed, did not come");

@@ -3,7 +3,14 @@
 // what rises through the year (homes climbing in their scaffolds, buildings, walls) in another,
 // put again as it climbs. One unit is ten metres, as in the village.
 import * as pc from "playcanvas";
-import { LOT, askedGrown, civicMoments, footprint, progress, type TownPlan } from "../bridge/index.ts";
+import {
+  LOT,
+  askedGrown,
+  civicMoments,
+  footprint,
+  progress,
+  type TownPlan,
+} from "../bridge/index.ts";
 import {
   TownParts,
   blazeNow,
@@ -13,6 +20,7 @@ import {
   civicChimneys,
   civicMotions,
   civicsActive,
+  siteFlagAt,
   homeBox,
   lotNear,
   roofTop,
@@ -252,17 +260,21 @@ export class TownLayer {
   }
 
   /** Where what the town was asked to raise stands (H1): a building, or the length its walls have come to. */
-  askedSpot(ref: string, t: number): { x: number; z: number; size: number } | null {
+  askedSpot(
+    ref: string,
+    t: number,
+  ): { x: number; z: number; size: number; flag?: { x: number; z: number } } | null {
     const s = this.scene;
     if (!s) return null;
     for (const c of s.plan.civics)
       if (c.asked?.ref === ref && c.at + c.lots <= s.lots.x.length) {
         const f = footprint(s.lots, c.at, c.lots);
-        return { x: f.x, z: f.z, size: Math.max(f.w, f.d) };
+        return { x: f.x, z: f.z, size: Math.max(f.w, f.d), flag: siteFlagAt(f) };
       }
     const w = s.plan.walls?.asked;
     if (w?.ref === ref && s.walls?.lengths.length) {
-      const l = s.walls.lengths[Math.floor(Math.min(0.999, askedGrown(w, t)) * s.walls.lengths.length)]!;
+      const l =
+        s.walls.lengths[Math.floor(Math.min(0.999, askedGrown(w, t)) * s.walls.lengths.length)]!;
       return { x: l.x, z: l.z, size: 24 };
     }
     return null;

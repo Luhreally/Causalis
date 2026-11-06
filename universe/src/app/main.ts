@@ -96,7 +96,6 @@ import {
   RunNote,
   type MapName,
   type PeopleEntry,
-
   type WorldStats,
   installTimeKeys,
   type TimeKeys,
@@ -367,7 +366,14 @@ import { sound } from "./sound.ts";
 import { airOf, airOfWorld } from "./sound-mix.ts";
 // (Anyone's family and body on their card, a war's soldiers named from its roll: Phase 55 wave 5.)
 import { kinLines } from "../ui/index.ts";
-import { seatRef, type KinCard, type LandHerds, type StruckMember, type StruckNow, type WoodsMap } from "../bridge/index.ts";
+import {
+  seatRef,
+  type KinCard,
+  type LandHerds,
+  type StruckMember,
+  type StruckNow,
+  type WoodsMap,
+} from "../bridge/index.ts";
 import type { WealthBook, WealthMeasure } from "../bridge/index.ts";
 import {
   LONG_WALK,
@@ -3213,7 +3219,9 @@ async function runPlanetPage(): Promise<void> {
         const hall = plan.town?.civics.find(
           (c) => (c.truly ?? c.at) === thing.at && c.start === thing.start,
         );
-        return hall?.kind === "market" && hall.fell === null && !(hall.asked && hall.asked.share < 1)
+        return hall?.kind === "market" &&
+          hall.fell === null &&
+          !(hall.asked && hall.asked.share < 1)
           ? `board:${plan.ref}`
           : `bldg:${plan.ref}:${thing.at}:${thing.start}`;
       }
@@ -6411,7 +6419,13 @@ async function runPlanetPage(): Promise<void> {
     // A car pressed: its owner. What goes a line: its page. A finger right on it gets it, whoever stands by it and whatever stands behind; only near it, if no
     // one stands nearer (R1).
     const ride = plan && !homeOpen() ? village.pickRide(x, y) : null;
-    if (ride && plan && (ride.direct || village.pick(x, y, 12) === null)) {
+    // (But a stone right under the finger, nearer the eye than it, stands in front of it.)
+    if (
+      ride &&
+      plan &&
+      !village.stoneOver(x, y, ride.depth) &&
+      (ride.direct || village.pick(x, y, 12) === null)
+    ) {
       if ("owner" in ride) return selectPerson(ride.owner);
       selectPerson(null);
       void pageWindow.open(`bus:${plan.ref}:${ride.line}`);
