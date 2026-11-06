@@ -77,6 +77,12 @@ export class EventWindows {
   onBattle: ((event: string) => void) | null = null;
   /** A landing watched, by its event (Phase 64). */
   onLanding: ((event: string) => void) | null = null;
+  /** What fell on a world of another star, its film (W6). */
+  onFar: ((event: string) => void) | null = null;
+  /** The first jump, its film (Phase 68). */
+  onJump: (() => void) | null = null;
+  /** The greatest fire's fall, down in its town (W5). */
+  onRaid: ((event: string) => void) | null = null;
 
   /** How great happenings are told when the viewer has not chosen: in windows, or as cards. */
   private readonly fallback: EventMode;
@@ -244,6 +250,30 @@ export class EventWindows {
       watch.onclick = () => {
         this.letBe();
         this.onLanding?.(t.ref);
+      };
+      buttons.append(watch);
+    }
+    if (t.type === "far.fell" && this.onFar) {
+      const watch = el("button", "event-go", "🌑 Watch what fell");
+      watch.onclick = () => {
+        this.letBe();
+        this.onFar?.(t.ref);
+      };
+      buttons.append(watch);
+    }
+    if (t.type === "lanes.first" && this.onJump) {
+      const watch = el("button", "event-go", "🌀 Watch the jump");
+      watch.onclick = () => {
+        this.letBe();
+        this.onJump?.();
+      };
+      buttons.append(watch);
+    }
+    if (t.type === "war.strike" && this.onRaid) {
+      const watch = el("button", "event-go", "▶ Watch it fall");
+      watch.onclick = () => {
+        this.letBe();
+        this.onRaid?.(t.ref);
       };
       buttons.append(watch);
     }

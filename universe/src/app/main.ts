@@ -1586,7 +1586,9 @@ async function runPlanetPage(): Promise<void> {
     if (place) await goTo(place);
   };
   tidings.onGreat = (t) => {
-    if (!isGreat(t) || events.mode === "card") return false;
+    // (While the Director films, the world's own news comes as a card, not a window over the film.)
+    if (!isGreat(t) || events.mode === "card" || (t.world && directorControls.watching))
+      return false;
     if (events.mode === "window") events.tell(t);
     return true;
   };
@@ -3500,6 +3502,7 @@ async function runPlanetPage(): Promise<void> {
     }
     try {
       const got = await client.load(save.name);
+      tidings.fromNow();
       rememberSave(save.name);
       paintGlobe();
       return `back at year ${Math.floor(got.t / YEAR)}${got.fellBack ? " (from the save before; the latest did not read)" : ""}`;
@@ -4283,6 +4286,8 @@ async function runPlanetPage(): Promise<void> {
   const toGalaxy = async () => {
     galaxyPlan ??= await client.query<GalaxyPlan>({ type: "galaxy.plan" });
     scale = "galaxy";
+    // (The names of the stars around: nothing here draws over them.)
+    labels.update([]);
     stage.backdrop("space");
     globe.visible = false;
     planetPanel.visible = false;
@@ -9057,6 +9062,7 @@ async function runPlanetPage(): Promise<void> {
     void jumpFilm.play();
   };
   tidings.onJump = () => void jumpFilm.play();
+  events.onJump = () => void jumpFilm.play();
   directorJump = () => jumpFilm.play(true);
   // What fell on a world of another star (W6): from its tiding, its page, its world's panel and the Director's firsts; the god's hand.
   const farStood = async (star: string, planet: number, stood: boolean) => {
@@ -9093,6 +9099,7 @@ async function runPlanetPage(): Promise<void> {
   exposed.worldRuined = () => worldScene.ruined;
   directorFar = (event) => farFilm.play(event, true);
   tidings.onFar = (event) => void farFilm.play(event);
+  events.onFar = (event) => void farFilm.play(event);
   pageWindow.onFar = (event) => {
     pageWindow.close();
     void farFilm.play(event);
@@ -9124,6 +9131,7 @@ async function runPlanetPage(): Promise<void> {
   tidings.onStarFight = (id) => void fleetFilm!.play(id);
   pageWindow.onRaid = (event) => void watchRaid(event);
   tidings.onRaid = (event) => void watchRaid(event);
+  events.onRaid = (event) => void watchRaid(event);
   // Begun at the wars among the stars (?starwar, the title's way to them): the one best to watch, played
   // once the world stands; then the eye is where it ended.
   const firstStarWar = async () => {

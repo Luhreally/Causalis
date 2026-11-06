@@ -14,8 +14,13 @@ export type Tiding = {
   /** What kind of thing happened and how much it mattered: the great are told in windows. */
   type: string;
   importance: number;
+  /** Told to everyone, whoever they follow (W6). */
+  world?: boolean;
 };
 type Followed = { ref: string; label: string };
+
+/** What may come both as the world's news and from what is followed: told once. */
+const TOLD_ONCE: ReadonlySet<string> = new Set(["far.fell", "lanes.first", "war.strike"]);
 
 /** How long a card of news stays unless it is opened, in ms; and how many are shown at once. */
 const LINGER_MS = 14000,
@@ -29,6 +34,9 @@ export class Tidings {
   private followed = new Map<string, string>();
   private readonly toggles = new Set<{ b: HTMLButtonElement; say: () => void }>();
   private asking = false;
+  /** How far the world's own news has been read (null: from now on). */
+  private since: number | null = null;
+  private readonly toldOnce = new Set<string>();
   /** Told what is followed, each time it changes (the outliner lists it). */
   onFollowed: (followed: readonly { ref: string; label: string }[]) => void = () => {};
   /** Told how much news has come (the message log counts it). */
@@ -67,6 +75,11 @@ export class Tidings {
   /** Learn afresh what is followed (after a world is loaded or begun). */
   async refresh(): Promise<void> {
     this.set(await this.client.query<Followed[]>({ type: "observe.watches" }));
+  }
+
+  /** A world taken up again in place: its past is not news. */
+  fromNow(): void {
+    this.since = null;
   }
 
   /** Stop following a thing (from the outliner). */
@@ -114,10 +127,25 @@ export class Tidings {
 
   /** Ask what has happened to what is followed since last told. */
   private async poll(): Promise<void> {
-    if (!this.followed.size || this.asking) return;
+    if (this.asking) return;
     this.asking = true;
     try {
-      const told = await this.client.query<Tiding[]>({ type: "observe.tidings" });
+      const all = await this.client.query<{ now: number; told: Tiding[] }>({
+          type: "observe.world",
+          args: { since: this.since },
+        }),
+        followed = this.followed.size
+          ? await this.client.query<Tiding[]>({ type: "observe.tidings" })
+          : [],
+        once = (t: Tiding) => {
+          if (!TOLD_ONCE.has(t.type)) return true;
+          if (this.toldOnce.has(t.ref)) return false;
+          this.toldOnce.add(t.ref);
+          return true;
+        },
+        told = [...all.told, ...followed].filter(once);
+      // (The clock put back, a checkpoint taken up: read on from there.)
+      this.since = all.now;
       for (const t of told) if (!this.onGreat(t)) this.add(t);
       if (told.length) this.onTold(told.length);
     } catch {

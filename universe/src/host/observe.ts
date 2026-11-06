@@ -18,6 +18,7 @@ import {
   settleAll,
   tidings,
   watches,
+  worldNews,
   type Household,
   type Person,
 } from "../causal/index.ts";
@@ -150,4 +151,9 @@ export const OBSERVE_QUERIES: Readonly<Record<string, QueryHandler>> = {
   "observe.watches": (world) => watches(world),
   /** What has happened to what is followed since last told. */
   "observe.tidings": (world) => tidings(world),
+  /** What everyone is told, since a moment the page keeps (none: from now). */
+  "observe.world": (world, args) => {
+    const since = (args as { since?: number | null } | undefined)?.since ?? null;
+    return { now: world.now, told: since === null ? [] : worldNews(world, since) };
+  },
 };

@@ -17,6 +17,7 @@ import {
   setWatch,
   tidings,
   watches,
+  worldNews,
 } from "../../src/causal/index.ts";
 import { cradleCell } from "../cradle.ts";
 
@@ -124,4 +125,46 @@ test("what is followed is kept in the save, and the ledger never touches history
     watches(loaded).map((w) => w.ref),
     [LAND],
   );
+});
+
+test("what falls across the stars is told with nothing followed, once, and never the hand's own", () => {
+  const w = build();
+  w.runTo(3 * YEAR);
+  const since = w.now;
+  assert.deepEqual(tidings(w), [], "nothing followed");
+  assert.deepEqual(worldNews(w, since), []);
+  w.runTo(4 * YEAR);
+  const fell = (god: boolean) =>
+      w.events.emit({
+        type: "far.fell",
+        subjects: ["star:0:1" as Ref],
+        place: null,
+        causes: [],
+        data: {
+          rung: "sky",
+          a: god ? "" : "a realm",
+          god,
+          ruler: "",
+          star: "star:0:1",
+          planet: 0,
+          dead: 9,
+          mj: 1,
+          need: 1,
+          first: true,
+          byLight: false,
+        },
+      }),
+    hand = fell(true),
+    told = fell(false);
+  const news = worldNews(w, since);
+  assert.deepEqual(
+    news.map((t) => t.ref),
+    [told],
+    "the hand's own is no news to the hand",
+  );
+  assert.notEqual(hand, told);
+  assert.equal(news[0]!.type, "far.fell");
+  assert.ok(news[0]!.importance >= 6, "great enough for a window");
+  assert.ok(news[0]!.claim.length > 0);
+  assert.deepEqual(worldNews(w, w.now), [], "read through it, it is not told again");
 });

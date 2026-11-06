@@ -132,11 +132,18 @@ export class ClusterScene {
 
   /** The stars with a world unmade, marked from then on (W6): a dark red ring and a smoulder about each. */
   scars(plan: ClusterPlan, stars: readonly number[]): void {
-    this.scarGlow ??= glowMaterial(this.stage, [
-      [0, "rgba(255,70,30,0.95)"],
-      [0.25, "rgba(220,30,16,0.5)"],
-      [1, "rgba(90,0,0,0)"],
-    ]);
+    // (A dark heart with a hot rim: among thousands of bright stars, only a thing that covers them can be seen.)
+    this.scarGlow ??= glowMaterial(
+      this.stage,
+      [
+        [0, "rgba(96,6,4,0.96)"],
+        [0.5, "rgba(150,14,8,0.96)"],
+        [0.62, "rgba(255,62,26,1)"],
+        [0.74, "rgba(200,22,10,0.8)"],
+        [1, "rgba(90,0,0,0)"],
+      ],
+      true,
+    );
     while (this.scarMarks.length < stars.length) {
       const e = billboard(this.stage, this.scarGlow, 1, this.root, true),
         ring = new pc.Entity("scar ring");

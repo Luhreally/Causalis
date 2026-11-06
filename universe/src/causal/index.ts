@@ -63,6 +63,7 @@ export {
   newsLog,
   setWatch,
   tidings,
+  worldNews,
   watches,
   type Tiding,
   type Watch,

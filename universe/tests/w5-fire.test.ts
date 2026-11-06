@@ -46,12 +46,15 @@ test("a clear sky takes exactly nothing from rain or fields", () => {
 });
 
 test("the shadow is a reading: none where no one holds it, near in a crisis", () => {
-  const quiet = { holders: 0, atOdds: 3, wars: 3, worst: 1, crises: 1, dread: 0 };
+  const quiet = { holders: 0, atOdds: 3, wars: 3, worst: 1, crises: 0, dread: 0 };
   assert.equal(shadowOf(quiet), 0);
   const calm = shadowOf({ holders: 2, atOdds: 0, wars: 0, worst: 0, crises: 0, dread: 0 }),
     brink = shadowOf({ holders: 2, atOdds: 1, wars: 1, worst: 0.8, crises: 1, dread: 0 });
   assert.ok(calm < 45);
   assert.ok(brink > 60);
+  // (A crisis across the stars with no works held, in a world a first fall has frightened: still a crisis.)
+  assert.ok(shadowOf({ holders: 0, atOdds: 0, wars: 0, worst: 0, crises: 1, dread: 1 }) >= 45);
+  assert.ok(shadowOf({ holders: 1, atOdds: 0, wars: 0, worst: 0, crises: 0, dread: 3 }) >= 0);
 });
 
 test("it is not the top of any ladder: a world's binding energy lies far past it", () => {

@@ -170,7 +170,11 @@ const BUILTIN_QUERIES: Record<string, QueryHandler> = {
 /** How long after the page asks for anything the host's background work waits, ms. */
 const ASKING_MS = 1500;
 /** Queries the page sends on a timer (news of what is followed), not in answer to the viewer. */
-const POLLS: ReadonlySet<string> = new Set(["observe.tidings", "observe.watches"]);
+const POLLS: ReadonlySet<string> = new Set([
+  "observe.tidings",
+  "observe.watches",
+  "observe.world",
+]);
 
 /** How long a turn of the host's loop works on a jump (ms): nothing else is waiting on it. */
 const JUMP_SLICE_MS = 100;

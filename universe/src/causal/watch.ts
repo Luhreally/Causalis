@@ -69,6 +69,8 @@ const NEWS = 4;
 const SETTLED_LAND = 3;
 /** At most this many tidings of one thing at a time: the weightiest. */
 const MOST = 4;
+/** What the world's own news counts for, at least: great enough for a window. */
+const WORLD_NEWS = 7;
 
 /** Whether a ref names something that can be followed. */
 export function canWatch(world: World, ref: Ref): boolean {
@@ -212,6 +214,34 @@ export function tidings(world: World): Tiding[] {
       });
     }
     w.seen = world.now;
+  }
+  return out;
+}
+
+/**
+ * What no one has to follow anything to be told: the greatest fire fallen, a sky burned or a world unmade across the stars,
+ * the first ship through a lane. Read from a moment the page keeps (`tidings`' watches are the world's, these are no one's),
+ * so a look changes nothing. The hand's own unmaking is no news to the hand.
+ */
+export function worldNews(world: World, since: number): Tiding[] {
+  const events = world.events,
+    out: Tiding[] = [];
+  for (let i = firstAfter(events, since); i < events.count; i++) {
+    const e = events.at(i),
+      d = e.data as { great?: boolean; god?: boolean } | null,
+      far = e.type === "far.fell" && !d?.god,
+      jump = e.type === "lanes.first";
+    if (!far && !jump && !(e.type === "war.strike" && d?.great)) continue;
+    out.push({
+      watch: (e.subjects[0] ?? "") as Ref,
+      label: far ? "Across the stars" : jump ? "Among the stars" : "The whole world",
+      ref: e.id,
+      year: yearOfMoment(e.t),
+      claim: why(world, e.id).claim,
+      type: e.type,
+      importance: Math.max(e.importance, WORLD_NEWS),
+      world: true,
+    });
   }
   return out;
 }

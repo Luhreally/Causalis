@@ -7,8 +7,11 @@ import type { Stage } from "./stage.ts";
 /** A gradient's stops, from the middle (0) to the edge (1), as CSS colours. */
 export type GlowStops = readonly (readonly [number, string])[];
 
-/** An unlit, additive material painted with a radial gradient. */
-export function glowMaterial(stage: Stage, stops: GlowStops): pc.StandardMaterial {
+/**
+ * An unlit material painted with a radial gradient: added to what lies behind it, or, `over`, covering it (a mark that must
+ * read against a sky already bright), and drawn in front of whatever else is there.
+ */
+export function glowMaterial(stage: Stage, stops: GlowStops, over = false): pc.StandardMaterial {
   const size = 256,
     canvas = document.createElement("canvas");
   canvas.width = canvas.height = size;
@@ -32,8 +35,9 @@ export function glowMaterial(stage: Stage, stops: GlowStops): pc.StandardMateria
   m.emissiveMap = texture;
   m.opacityMap = texture;
   m.opacityMapChannel = "a";
-  m.blendType = pc.BLEND_ADDITIVEALPHA;
+  m.blendType = over ? pc.BLEND_NORMAL : pc.BLEND_ADDITIVEALPHA;
   m.depthWrite = false;
+  if (over) m.depthTest = false;
   m.cull = pc.CULLFACE_NONE;
   m.update();
   return m;

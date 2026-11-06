@@ -395,16 +395,8 @@ async function run(f: Forged): Promise<void> {
   check(await seen(".far-gone"), "its panel does not say it is gone");
   check(!(await seen(".far-unmake")), "its panel still offers to unmake it");
   await shot("9-world-after");
-  // Its tiding, pressed: the film again, from what the world was told.
-  if (await until("its tiding", () => seen(".tiding-watch.far-watch"), slow(12000))) {
-    await shot("9b-tiding");
-    await page.locator(".tiding-watch.far-watch").first().tap();
-    await until("the film from its tiding", async () => (await filmState()).stage === "whole", slow(30000));
-    await k("globalThis.causalis.farFilm.skip()");
-    await until("its end again", async () => !(await k<boolean>("globalThis.causalis.farFilm.playing")), slow(30000));
-    await settle(1500);
-    check(await k<boolean>("globalThis.causalis.worldRuined()"), "after the film again it stands whole");
-  }
+  // (The hand's own unmaking is no news to the hand.)
+  check(!(await seen(".tiding-watch.far-watch")), "the hand is told what it has just done");
   // Its star: rubble where it went round.
   await page.getByRole("button", { name: /Its star/ }).first().tap();
   await settle(1800);
@@ -500,6 +492,15 @@ async function run(f: Forged): Promise<void> {
   await settle(800);
   const skies = (await ask<{ event: string; rung: string; by: string | null; dead: number; decision: string | null }[]>("far.falls")).filter((x) => x.rung === "sky");
   check(skies.length === 1 && skies[0]!.by === f.holder && !!skies[0]!.decision, "the word did not bring a sky down by history's own year");
+  // Told to everyone, with nothing followed; its tiding pressed, its film.
+  if (await until("its tiding", () => seen(".tiding-watch.far-watch"), slow(12000))) {
+    await shot("14c-tiding");
+    await page.locator(".tiding-watch.far-watch").first().tap();
+    await until("the film from its tiding", async () => (await filmState()).stage === "whole", slow(30000));
+    await k("globalThis.causalis.farFilm.skip()");
+    await until("its end again", async () => !(await k<boolean>("globalThis.causalis.farFilm.playing")), slow(30000));
+    await settle(1500);
+  }
   const warPage = await pageWords(f.war);
   check(/What fell/.test(warPage), "the war's page does not tell it");
   const realmPage = await pageWords(f.holder);

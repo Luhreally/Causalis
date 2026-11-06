@@ -185,6 +185,9 @@ export const rainUnder = (soot: number): number => 1 - FIRE.rainAt * Math.min(1,
 export const fieldsUnder = (soot: number): number => 1 - FIRE.fieldsAt * Math.min(1, soot);
 export const sootOfBurned = (people: number): number => people * FIRE.sootPerSoul;
 
+/** The least a year of crisis reads. */
+const SHADOW_IN_CRISIS = 50;
+
 /**
  * How near the world stands (0 … 100): a reading of who holds it, who is at odds, how a war between them is going. Nothing
  * is kept for it. No one holding: nothing.
@@ -199,16 +202,14 @@ export function shadowOf(i: {
   readonly dread: number;
 }): number {
   if (i.holders <= 0 && i.crises <= 0) return 0;
-  return Math.round(
-    Math.min(
-      100,
-      8 +
-        4 * Math.min(5, i.holders) +
-        8 * Math.min(4, i.atOdds) +
-        4 * Math.min(3, i.wars) +
-        25 * i.worst +
-        (i.crises > 0 ? 40 : 0) -
-        10 * i.dread,
-    ),
-  );
+  const read =
+    8 +
+    4 * Math.min(5, i.holders) +
+    8 * Math.min(4, i.atOdds) +
+    4 * Math.min(3, i.wars) +
+    25 * i.worst +
+    (i.crises > 0 ? 40 : 0) -
+    10 * i.dread;
+  // (A year the whole world holds its breath reads as one, however much a first fall has taught them.)
+  return Math.round(Math.max(i.crises > 0 ? SHADOW_IN_CRISIS : 0, Math.min(100, read)));
 }
