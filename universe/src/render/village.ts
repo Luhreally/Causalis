@@ -131,6 +131,7 @@ import {
   type FigureBody,
   type PlacedFrame,
   type Watcher,
+  PORT_ROOM,
 } from "../view/index.ts";
 import {
   InstancedBatch,
@@ -417,7 +418,8 @@ export class VillageScene {
   colonyAs(look: ColonyLook): void {
     const plan = this.plan;
     if (!plan?.colony) return;
-    this.colony.build(look, plan.seed, this.colonyFlat);
+    this.colony.build(look, plan.seed, this.colonyFlat + (look.port ? PORT_ROOM : 0));
+    this.colony.port(look.port ?? null, plan.seed, this.colonyFlat);
     const open = (look.remade ?? 0) >= 1;
     this.colony.glasshouses(open ? [] : plan.fields, open ? null : plan.pasture);
   }
@@ -584,10 +586,17 @@ export class VillageScene {
           M *
           1.12,
       );
-      this.colony.build(plan.colony, plan.seed, this.colonyFlat);
+      // (Its port, Phase 71: level ground beyond the town for it.)
+      this.colony.build(
+        plan.colony,
+        plan.seed,
+        this.colonyFlat + (plan.colony.port ? PORT_ROOM : 0),
+      );
+      this.colony.port(plan.colony.port ?? null, plan.seed, this.colonyFlat);
     } else if (plan.colony) {
       this.colonyFlat = 30;
-      this.colony.build(plan.colony, plan.seed, 30);
+      this.colony.build(plan.colony, plan.seed, 30 + (plan.colony.port ? PORT_ROOM : 0));
+      this.colony.port(plan.colony.port ?? null, plan.seed, 30);
     }
     // (None, once its fields lie open under its own air: Phase 66.)
     if (plan.colony) {

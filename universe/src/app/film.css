@@ -227,3 +227,27 @@ body.filming #hud > *:not(.colony-film):not(.swap):not(.readying) {
     width: 420px;
   }
 }
+
+/* A port's chip (Phase 71): who calls here, a tap from its run's page. */
+.port-chip {
+  position: absolute;
+  left: 72px;
+  right: 12px;
+  bottom: 18px;
+  z-index: 3;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 200, 90, 0.7);
+  border-radius: 6px;
+  background: rgba(12, 16, 28, 0.86);
+  color: #ffe9b8;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  pointer-events: auto;
+}
+.port-chip:hover,
+.port-chip:active {
+  background: rgba(30, 36, 56, 0.92);
+  background-image: none;
+  color: #ffe9b8;
+}

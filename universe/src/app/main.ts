@@ -124,6 +124,7 @@ import type {
   BattleRoll,
   RollEntry,
   ColonyEntry,
+  PortPlan,
   FillPlan,
   ColonyLook,
   ColonyVoyage,
@@ -667,6 +668,16 @@ type Exposed = {
   /** The world's stage as last read (Phase 31 M167). */
   worldStage?: () => WorldStage | null;
   /** The eye that watches by itself (Phase 31 M168): whether it watches, its caption, its take. */
+  /** The port the eye is at (Phase 71). */
+  portNow?: () => {
+    at: { x: number; z: number };
+    standing: number;
+    flying: number;
+    far: number;
+    near: number;
+    cell: number | null;
+    chip: string | null;
+  } | null;
   director?: () => {
     watching: boolean;
     told: string;
@@ -8868,6 +8879,45 @@ async function runPlanetPage(): Promise<void> {
   colonies.onDown = (cell) =>
     void fadeOver(() => ready("its ground", () => toColonyLand(cell), true));
   colonies.onShown = () => pageWindow.close();
+  // Down to a colony's port (Phase 71): its town, the eye over its pads, and a chip that says whose they are.
+  const portChip = el("button", "port-chip");
+  portChip.hidden = true;
+  hud.append(portChip);
+  let portCell: number | null = null;
+  const toPort = async (cell: number) => {
+    const list = await client.query<ColonyEntry[]>({ type: "colony.list" }),
+      c = list.find((x) => x.cell === cell);
+    if (!c?.town) return;
+    const town = c.town;
+    await fadeOver(() => ready("its port", () => toColonyTown(cell, town), true));
+    const port = await client.query<PortPlan | null>({ type: "trade.port", args: { cell } });
+    portCell = cell;
+    await new Promise((r) => setTimeout(r, 300));
+    const at = village.colony.portNow?.at;
+    if (at) rig.flyTo({ target: { x: at.x, y: 2, z: at.z }, distance: 128, pitch: -30 }, 1.2);
+    if (port) {
+      portChip.textContent = `🛰️ ${port.head}`;
+      portChip.dataset.run = port.run;
+      portChip.hidden = false;
+    }
+  };
+  portChip.onclick = () => {
+    if (portChip.dataset.run) void pageWindow.open(portChip.dataset.run);
+  };
+  stage.onUpdate(() => {
+    if (!portChip.hidden && (scale !== "village" || filming)) portChip.hidden = true;
+    // (A page read here stands over the port: the chip gives way to it, and lies over none of its words.)
+    portChip.style.visibility = pageWindow.current ? "hidden" : "";
+  });
+  colonies.onPort = (cell) => void toPort(cell);
+  exposed.portNow = () =>
+    scale === "village" && village.colony.portNow
+      ? {
+          ...village.colony.portNow,
+          cell: portCell,
+          chip: portChip.hidden ? null : portChip.textContent,
+        }
+      : null;
   worldPanel.onLanding = (cell) => void colonyFilm!.play(cell);
   worldPanel.onDown = colonies.onDown;
   pageWindow.onLanding = (cell) => {

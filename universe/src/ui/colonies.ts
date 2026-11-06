@@ -31,6 +31,8 @@ export class Colonies {
   onLanding: (cell: number) => void = () => {};
   /** Down to its ground. */
   onDown: (cell: number) => void = () => {};
+  /** Down to its port. */
+  onPort: (cell: number) => void = () => {};
   /** A thing's page (a ship's voyage; a colony's land). */
   onPage: (ref: string) => void = () => {};
   /** Out to its world seen whole, its settled ground lit. */
@@ -52,16 +54,26 @@ export class Colonies {
     const head = el("div", "colony-sheet-head"),
       why = el("button", "speed", "?"),
       every = el("button", "speed colony-filled-all", "🌆"),
+      trade = el("button", "speed colony-trade-all", "🛰️"),
       close = el("button", "speed", "✕");
     every.title = "Every world settled: how far each is filled, and why no further";
     every.setAttribute("aria-label", "Every world settled");
     every.onclick = () => this.onPage("world:filled");
+    trade.title = "Trade among the stars: what crosses, who runs it, and why";
+    trade.setAttribute("aria-label", "Trade among the stars");
+    trade.onclick = () => this.onPage("world:trade");
     why.title = "What a landing is, and why its halls are as they are";
     why.setAttribute("aria-label", "What a colony is");
     why.onclick = () => this.onPage("concept:colonies");
     close.setAttribute("aria-label", "Close the worlds settled");
     close.onclick = () => this.show(false);
-    head.append(el("span", "colony-sheet-title", "🚀 The worlds settled"), every, why, close);
+    head.append(
+      el("span", "colony-sheet-title", "🚀 The worlds settled"),
+      trade,
+      every,
+      why,
+      close,
+    );
     this.sheet.append(head, this.rows);
     this.sheet.hidden = true;
     this.news.hidden = true;
@@ -250,6 +262,15 @@ export class Colonies {
               this.onDown(c.cell);
             };
             acts.append(watch, whole, down);
+            if (c.port) {
+              const port = el("button", "colony-down colony-port", "🛰️ Its port");
+              port.dataset.cell = String(c.cell);
+              port.onclick = () => {
+                this.show(false);
+                this.onPort(c.cell);
+              };
+              acts.append(port);
+            }
             row.append(acts);
           }
           return row;

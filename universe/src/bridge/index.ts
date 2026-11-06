@@ -86,6 +86,7 @@ export type {
   LandfallPlan,
   LandfallRow,
 } from "./colony.ts";
+export type { PortCaller, PortPlan } from "./colony.ts";
 export {
   BLOCK_D,
   BLOCK_LOTS,

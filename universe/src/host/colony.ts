@@ -64,6 +64,7 @@ import type {
 } from "../bridge/index.ts";
 import type { QueryHandler } from "./host.ts";
 import { settledOf } from "./filling.ts";
+import { portPlanOf } from "./trade.ts";
 
 /** A town of a colony's halls: its land's cell, in the kind of a town and a number none is minted with. */
 export const colonyTownRef = (cell: number): Ref => makeRef(SETTLEMENT, 1, cell);
@@ -555,6 +556,7 @@ export function colonyList(world: World): ColonyEntry[] {
       founder: founder ? realmName(founder) : null,
       sky: ground ? (overOf(ground)?.degrees ?? 0) : 0,
       remade: colonyRemade(world, cell),
+      ...(!sailing && portPlanOf(world, cell) ? { port: true } : {}),
       ...settledOf(world, ship?.star ?? null, ship?.planet ?? -1, site.body),
       ...goneOf(world, ship?.star, ship?.planet),
     });
@@ -570,9 +572,10 @@ export function sealedPlan(world: World, plan: VillagePlan): VillagePlan {
   const cell = colonyTownCell(plan.ref),
     look = cell === null ? null : colonyLook(world, cell);
   if (!look) return plan;
+  const port = cell === null ? null : portPlanOf(world, cell);
   return {
     ...plan,
-    colony: look,
+    colony: port ? { ...look, port } : look,
     fauna: { wild: [], flock: null, raided: false },
     people: plan.people.map((p) =>
       p.tool ? { ...p, tool: p.tool.replace(STONE_AGE, "$1steel ") } : p,

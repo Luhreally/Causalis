@@ -5,7 +5,7 @@
 // settlers' ship, coming down on its flame in a storm of dust, setting them on the ground with a
 // first camp of pods round it. One unit is ten metres, as in the town.
 import * as pc from "playcanvas";
-import type { ColonyLook } from "../bridge/index.ts";
+import type { ColonyLook, PortPlan } from "../bridge/index.ts";
 import {
   colonyHash,
   colonyHeight,
@@ -18,6 +18,7 @@ import {
   type LanderPart,
 } from "../view/index.ts";
 import { InstancedBatch, boxMesh, coneMesh, cylinderMesh, keptMesh } from "./batch.ts";
+import { PortLayer } from "./port.ts";
 import { billboard, glowMaterial } from "./glow.ts";
 import type { Stage } from "./stage.ts";
 
@@ -381,6 +382,8 @@ export class ColonyLayer {
   /** Where in the sky what hangs there stands (a direction), kept with the eye. */
   private overWay = new pc.Vec3(0, 1, 0);
   private key = "";
+  /** Its port (Phase 71), made when there first is one. */
+  private portLayer: PortLayer | null = null;
 
   constructor(stage: Stage, parent: pc.Entity) {
     this.stage = stage;
@@ -558,6 +561,24 @@ export class ColonyLayer {
     if (!this.lander) this.lander = new Lander(s, this.root, this.meshes);
     this.lander.rockColour = tones.light;
     this.lander.visible = false;
+  }
+
+  /** Its port, or none (Phase 71): beyond a town level to `flat` units. */
+  port(plan: PortPlan | null, seed: number, flat: number): void {
+    if (plan) this.portLayer ??= new PortLayer(this.stage, this.root);
+    this.portLayer?.build(plan, seed, flat);
+  }
+
+  /** Where its port stands (units from the town's middle), and what it shows now. */
+  get portNow(): {
+    readonly at: { readonly x: number; readonly z: number };
+    readonly standing: number;
+    readonly flying: number;
+    readonly far: number;
+    readonly near: number;
+  } | null {
+    const at = this.portLayer?.where;
+    return at ? { at, ...this.portLayer!.shown } : null;
   }
 
   /** The bodies in its sky kept far off as the eye moves. */

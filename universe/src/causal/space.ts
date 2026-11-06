@@ -14,6 +14,7 @@ import {
   SPACE_EVENTS,
   STARWAR_EVENTS,
   SUMMON_EVENTS,
+  TRADE_EVENTS,
   VOYAGE_EVENTS,
 } from "../sim/index.ts";
 import { landWords } from "./generated.ts";
@@ -84,6 +85,57 @@ registerEventWords(VOYAGE_EVENTS.arrived.type, (_world, e) => {
   return `A ship came to its star ${d.distance?.toFixed(1) ?? "?"} light-years from home, and its ${d.people ?? ""} people went down into halls on a world there, year ${yearOfMoment(e.t)}`;
 });
 
+const cargoWords = (goods: unknown): string =>
+  ((goods ?? []) as [string, number][])
+    .slice(0, 2)
+    .map(([g, n]) => `${count(n)} ${g}`)
+    .join(" and ") || "goods";
+registerEventWords(TRADE_EVENTS.opened.type, (_world, e) => {
+  const d = (e.data ?? {}) as {
+    realm?: string;
+    house?: string;
+    good?: string;
+    ly?: number;
+    lanes?: number;
+    years?: number;
+  };
+  return `${d.house ?? "A house"} of ${d.realm ?? "a people"} opened a run for ${d.good ?? "goods"}, ${d.ly ?? "?"} light-years${d.lanes ? ` by ${d.lanes} lane${d.lanes === 1 ? "" : "s"}` : ""}, ${d.years ?? "?"} years a crossing, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(TRADE_EVENTS.came.type, (_world, e) => {
+  const d = (e.data ?? {}) as { realm?: string; goods?: unknown };
+  return `The first ship of a run from ${d.realm ?? "a people"} came in with ${cargoWords(d.goods)}, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(TRADE_EVENTS.first.type, (_world, e) => {
+  const d = (e.data ?? {}) as { realm?: string; goods?: unknown; between?: boolean; ly?: number };
+  return d.between
+    ? `For the first time ships of another people came to trade: ${d.realm ?? "strangers"} landed ${cargoWords(d.goods)} at halls of ours, year ${yearOfMoment(e.t)}`
+    : `For the first time goods crossed between worlds for gain: ${cargoWords(d.goods)} from ${d.realm ?? "a people"}, ${d.ly ?? "?"} light-years, year ${yearOfMoment(e.t)}`;
+});
+const raidWords = (_world: unknown, e: { t: number; data: unknown }): string => {
+  const d = (e.data ?? {}) as { realm?: string; by?: string; goods?: unknown; lanes?: number };
+  return `${d.by ?? "Raiders"} took a hold of ${d.realm ?? "a people"}'s ${d.lanes ? "on the lane" : "in the dark"}: ${cargoWords(d.goods)} lost, year ${yearOfMoment(e.t)}`;
+};
+registerEventWords(TRADE_EVENTS.raided.type, raidWords as never);
+registerEventWords(
+  TRADE_EVENTS.firstRaid.type,
+  ((world: unknown, e: { t: number; data: unknown }) =>
+    `The first time a hold was taken between the worlds. ${raidWords(world, e)}`) as never,
+);
+registerEventWords(TRADE_EVENTS.closed.type, (_world, e) => {
+  const d = (e.data ?? {}) as { realm?: string; why?: string; ships?: number };
+  const why: Record<string, string> = {
+    gone: "the world it ran to is gone",
+    war: "war between its two ends",
+    empty: "no one left to send to",
+    fallen: "no one holds the land it sent from",
+    unpaid: "what it carried no longer pays for the crossing",
+  };
+  return `A run of ${d.realm ?? "a people"} ended after ${d.ships ?? 0} ships: ${why[d.why ?? ""] ?? "it stopped"}, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(TRADE_EVENTS.rich.type, (_world, e) => {
+  const d = (e.data ?? {}) as { house?: string; worth?: number };
+  return `${d.house ?? "A house"} grew great on the run it keeps, ${count(d.worth ?? 0)} in grain cleared by it, year ${yearOfMoment(e.t)}`;
+});
 registerEventWords(FILLED_EVENTS.sailed.type, (_world, e) => {
   const d = (e.data ?? {}) as { realm?: string; distance?: number; years?: number };
   return `The realm of ${d.realm ?? "a people"} sent a ship to a star ${d.distance ?? "?"} light-years away, every nearer world being taken: ${d.years ?? "many"} years on the way, year ${yearOfMoment(e.t)}`;

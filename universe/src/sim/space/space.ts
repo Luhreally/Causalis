@@ -558,6 +558,7 @@ export function installSpace(world: World, ctx: () => PopulationContext): SpaceS
   installStarWars(world, ctx);
   installLanes(world, ctx);
   installPeoples(world, ctx);
+  installTrade(world, ctx);
   const late = world.register(new LateStore());
   world.addPinner(() => late.pinned());
   return store;
@@ -569,5 +570,6 @@ import { installContact } from "./contact.ts";
 import { installStarWars } from "./starwar.ts";
 import { installLanes } from "./lane-visits.ts";
 import { installPeoples } from "./peoples.ts";
+import { installTrade } from "./trade.ts";
 import { lateYear } from "./late.ts";
 import { LateStore } from "./late-store.ts";

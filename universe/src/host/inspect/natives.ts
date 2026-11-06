@@ -13,6 +13,7 @@ import {
 } from "../../sim/index.ts";
 import type { World } from "../../kernel/index.ts";
 import { fillingBlocks } from "../filling.ts";
+import { folkTradeBlocks } from "../trade.ts";
 import type { Block, FolkList, PageModel, Stat } from "../../bridge/index.ts";
 import { clusterOf } from "../../sim/index.ts";
 import { figureBody } from "../folk.ts";
@@ -30,6 +31,9 @@ const bodyOfFolk = (f: Folk): BodyPlan =>
 
 /** Where a people stands now, in a block or two, and the ways down to them (for its page and its world's). */
 export function folkBlocks(world: World, f: Folk): Block[] {
+  return [...folkBlocksOf(world, f), ...folkTradeBlocks(world, f)];
+}
+function folkBlocksOf(world: World, f: Folk): Block[] {
   const year = yearNow(world),
     stage = folkStage(f, year),
     peak = folkPeak(f, year),
@@ -222,6 +226,11 @@ export function peoplesPage(world: World): PageModel {
         id: "all",
         name: "All of them",
         blocks: [
+          {
+            type: "list",
+            title: "Trade among the stars",
+            items: [item("What crosses, who runs it, and why", "world:trade")],
+          },
           ...fillingBlocks(world),
           ...(met.length
             ? [{ type: "list" as const, title: "A ship has come to them", items: met.map(line) }]

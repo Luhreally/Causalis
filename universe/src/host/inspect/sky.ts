@@ -27,6 +27,7 @@ import { claimOf, count, item, link, many, stat, yearNow } from "./words.ts";
 import { landLink, realmLink, spotOfLand } from "./names.ts";
 import { colonyRemade } from "../colony.ts";
 import { fillBlocks } from "../filling.ts";
+import { tradeWorldBlocks } from "../trade.ts";
 
 /** A star in plain words, by its light. */
 export function starWords(s: { spectral: string; remnant?: boolean }): string {
@@ -320,6 +321,7 @@ export function bodyPage(world: World, ref: string): PageModel {
         name: "Overview",
         blocks: [
           ...(home ? [] : fillBlocks(world, { star: null, planet: -1, body: index })),
+          ...(home ? [] : tradeWorldBlocks(world, null, -1, index)),
           {
             type: "facts",
             rows: [
@@ -454,6 +456,7 @@ export function foreignWorldPage(world: World, ref: string): PageModel {
           ...farWorldBlocks(world, star, index),
           // (How far comers have filled it: Worlds filled.)
           ...fillBlocks(world, { star: s.ref, planet: index, body: -1 }),
+          ...tradeWorldBlocks(world, s.ref, index, -1),
           {
             type: "facts",
             rows: [

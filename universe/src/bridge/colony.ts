@@ -43,6 +43,8 @@ export type ColonyLook = {
    * its people out from under their halls. Its air, pressure and warmth above are as they are now.
    */
   readonly remade?: number;
+  /** Its port, where any run has come to it (Phase 71; absent: none has). */
+  readonly port?: PortPlan;
   /**
    * For a landing's film (Phase 66; absent: its world has never been remade): how its remaking went, from the year
    * it was begun to the last it went on, how far it came, and the world it began from. The film plays it over the
@@ -231,6 +233,8 @@ export type ColonyVoyage = {
 
 /** One colony, or one ship still sailing, in the list of them. */
 export type ColonyEntry = {
+  /** Whether a run has ever come to it (Phase 71; absent: none). */
+  readonly port?: boolean;
   /** Its world unmade (W6; absent: it stands): no one is there now. */
   readonly gone?: { readonly year: number; readonly by: string | null; readonly event: string };
   /** Its land. */
@@ -307,3 +311,34 @@ export type ColonyGrowth = readonly {
   readonly homes: number;
   readonly town: TownPlan;
 }[];
+
+/** One who calls at a port (Phase 71). */
+export type PortCaller = {
+  readonly ref: string;
+  readonly who: string;
+  readonly color: readonly [number, number, number];
+  /** A people of the stars, not a realm of the home people's. */
+  readonly far: boolean;
+  /** Years between its ships. */
+  readonly every: number;
+  readonly lanes: number;
+  readonly goods: readonly string[];
+};
+
+/** A colony's port as the eye reads it, from what history holds (Phase 71). */
+export type PortPlan = {
+  readonly cell: number;
+  readonly callers: readonly PortCaller[];
+  readonly pads: number;
+  readonly sheds: number;
+  /** Boxes in its yard, by all that has come in. */
+  readonly stacks: number;
+  /** Ships a decade. */
+  readonly busy: number;
+  /** All its runs have ended: its pads stand cold. */
+  readonly quiet: boolean;
+  readonly raided: { readonly year: number; readonly by: string } | null;
+  readonly head: string;
+  /** The run to open first. */
+  readonly run: string;
+};

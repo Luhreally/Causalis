@@ -232,11 +232,12 @@ export function worldNews(world: World, since: number): Tiding[] {
     const e = events.at(i),
       d = e.data as { great?: boolean; god?: boolean } | null,
       far = e.type === "far.fell" && !d?.god,
-      jump = e.type === "lanes.first";
-    if (!far && !jump && !(e.type === "war.strike" && d?.great)) continue;
+      jump = e.type === "lanes.first",
+      goods = e.type === "trade.first" || e.type === "trade.first-raid";
+    if (!far && !jump && !goods && !(e.type === "war.strike" && d?.great)) continue;
     out.push({
       watch: (e.subjects[0] ?? "") as Ref,
-      label: far ? "Across the stars" : jump ? "Among the stars" : "The whole world",
+      label: far ? "Across the stars" : jump || goods ? "Among the stars" : "The whole world",
       ref: e.id,
       year: yearOfMoment(e.t),
       claim: why(world, e.id).claim,

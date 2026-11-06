@@ -302,6 +302,8 @@ export const GATES: readonly Gate[] = [
   { gate: 77, args: ["--ci"], s: 240 },
   // Gate 78, a landing on a world of natives (tools/p70-gate.ts): ships over it, machines down on their camp, the fight both sides' numbers make of it, told; a young world given one on CI.
   { gate: 78, args: ["--ci"], s: 240 },
+  // Gate 84, trade among the stars (tools/p71-gate.ts): a colony's port pressed from the 🚀 list by touch, busy beside quiet in the pixels, its run's page; the paths nobody watches; a young world given them on CI.
+  { gate: 84, args: ["--ci"], s: 240 },
   // Gate 82, worlds filled (tools/p70b-gate.ts): a world at two shares, pressed from the 🚀 list by touch and read in the pixels; one that can never fill, and what its page says; a young world given both on CI.
   { gate: 82, args: ["--ci"], s: 240 },
   // Gate 80, the law of a universe and the first jump (tools/p68-gate.ts): shut, a page says why; open, a ship leaves, jumps and comes out, pressed by touch and read in the pixels.

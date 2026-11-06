@@ -601,6 +601,15 @@ export {
 export { hallCells, hallDomes } from "./halls.ts";
 export { filledCells, filledColors, settleOrder } from "./filling.ts";
 export {
+  PORT_ROOM,
+  portCartAt,
+  craftAt,
+  portLayout,
+  type CraftNow,
+  type PortBox,
+  type PortLayout,
+} from "./port.ts";
+export {
   FILM,
   colonyHash,
   colonyHour,

@@ -610,6 +610,15 @@ export {
   peopleOn,
   readingOf,
 } from "./space/filled.ts";
+export { TradeStore, tradeOf, type Convoy, type StarRun } from "./space/trade-store.ts";
+export {
+  MOST_RUNS,
+  RICH_GRAIN,
+  RUN,
+  TRADE_EVENTS,
+  installTrade,
+  tradeWhyNot,
+} from "./space/trade.ts";
 export { FilledStore, bodyKey, filledOf, starKey, type FilledWorld } from "./space/filled-store.ts";
 export { StarSiteStore, lightSteps, starSitesOf, type StarSite } from "./space/stars.ts";
 export { folkGround, siteGround, siteRegion, type SiteGround } from "./space/ground.ts";

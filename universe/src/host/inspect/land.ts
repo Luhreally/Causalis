@@ -37,6 +37,7 @@ import { prinRef } from "./matter.ts";
 import { landStoresBlocks } from "./stores.ts";
 import { threadBlock } from "./thread.ts";
 import { groundBlocks } from "./ground.ts";
+import { tradeBlocks } from "../trade.ts";
 import { dropBlock } from "./small.ts";
 import { landBondBlocks } from "./order.ts";
 import { landHealthBlocks } from "./sickness.ts";
@@ -198,6 +199,8 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
     if (site && siteGround(world, cell) && ctxHasPeople(world, cell))
       blocks.push({ type: "tool", tool: "watch.landing", args: { cell } });
     blocks.push({ type: "tool", tool: "acts.land", args: { cell } });
+    // What comes here from other worlds, or why nothing does (Phase 71).
+    blocks.push(...tradeBlocks(world, cell));
     tabs.push({ id: "overview", name: "Overview", blocks });
   }
   // Its people: their work, ways, speech and faith, and their years.
