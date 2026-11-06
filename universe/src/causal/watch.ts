@@ -57,6 +57,8 @@ export type Tiding = {
    */
   readonly type: string;
   readonly importance: number;
+  /** Told to everyone, whoever they follow (W6). */
+  readonly world?: boolean;
 };
 
 /** How much a life's turns matter, told: its end the most. */
