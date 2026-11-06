@@ -165,7 +165,7 @@ function newsOf(world: World, ref: Ref): (e: HistoryEvent) => boolean {
         (e.importance >= NEWS || e.type === "belief.converted" || e.type === "polity.succession") &&
         !(settled && e.type === "settlement.founded")
       : e.subjects.includes(ref) &&
-          (kind === SETTLEMENT.code || e.importance >= NEWS || e.type === "polity.succession");
+        (kind === SETTLEMENT.code || e.importance >= NEWS || e.type === "polity.succession");
 }
 
 /** What has happened to everything followed since it was last told, and mark it told. */

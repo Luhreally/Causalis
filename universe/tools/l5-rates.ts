@@ -90,7 +90,11 @@ for (const e of world.events.all())
   }
 console.log(
   JSON.stringify({
-    life: { bands: ctxNow.life.bands, mortality: ctxNow.life.mortality, adulthood: ctxNow.life.adulthood },
+    life: {
+      bands: ctxNow.life.bands,
+      mortality: ctxNow.life.mortality,
+      adulthood: ctxNow.life.adulthood,
+    },
     meanAge: Math.round(ages.reduce((a, b) => a + b, 0) / Math.max(1, ages.length)),
     hows,
     q: [q(0.1), q(0.5), q(0.9), q(1)],

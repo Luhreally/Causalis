@@ -566,7 +566,8 @@ export function installFleetFilm(d: FleetFilmDeps): FleetFilm {
     (e) => {
       if (!playing) return;
       e.stopImmediatePropagation();
-      press = { x: e.clientX, y: e.clientY, at: performance.now() };
+      // (The touch's own time: a slow frame holds its handler back, and the finger has not stayed.)
+      press = { x: e.clientX, y: e.clientY, at: e.timeStamp };
     },
     true,
   );
@@ -581,7 +582,7 @@ export function installFleetFilm(d: FleetFilmDeps): FleetFilm {
         was &&
         !cutting &&
         Math.hypot(e.clientX - was.x, e.clientY - was.y) < 12 &&
-        performance.now() - was.at < 450
+        e.timeStamp - was.at < 1200
       )
         tap(e.clientX, e.clientY);
     },
