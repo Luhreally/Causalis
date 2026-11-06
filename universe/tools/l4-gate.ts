@@ -169,10 +169,7 @@ function forge(
   const realm =
     fitting.find(
       (p) =>
-        p !== old &&
-        p.ended === null &&
-        p.ruler.name === names.get(p.ref) &&
-        !troubled.has(p.ref),
+        p !== old && p.ended === null && p.ruler.name === names.get(p.ref) && !troubled.has(p.ref),
     ) ?? fitting.find((p) => p !== old && p.ended === null && p.ruler.name === names.get(p.ref));
   if (!realm) throw new Error(`no ruler lives through three years on ${seed}`);
   const st = stationOf(ctx, realm);
