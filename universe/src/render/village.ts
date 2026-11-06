@@ -169,6 +169,8 @@ import { BlazeLayer } from "./blaze.ts";
 import { RaidLayer } from "./raid.ts";
 import { GraveyardLayer } from "./graveyard.ts";
 import { MemorialLayer } from "./memorial.ts";
+import { CourtLayer } from "./court.ts";
+import { courtCaseAt, courtSitting } from "../view/index.ts";
 import { WoundsLayer, bandageOn, propAt, type WornPiece } from "./wounds.ts";
 import { LittersLayer, litterApart, litterHeld } from "./litters.ts";
 import { FolkPoses, nearReach, redrawn } from "./folk.ts";
@@ -352,6 +354,9 @@ export class VillageScene {
   private readonly graveyard: GraveyardLayer;
   /** What it raised to what happened in it, and the song at its feast (T1). */
   private readonly memorialLayer: MemorialLayer;
+  private readonly courtLayer: CourtLayer;
+  /** The moment last drawn (a possession's clock isn't the world's: J1). */
+  private courtT = 0;
   /** Who sings at its feast now: their place among those drawn (-1: no one), and the day it was chosen for. */
   private singer = -1;
   private singerDay = -1;
@@ -414,6 +419,7 @@ export class VillageScene {
     this.raidLayer = new RaidLayer(stage, this.root);
     this.graveyard = new GraveyardLayer(stage, this.root);
     this.memorialLayer = new MemorialLayer(stage, this.root);
+    this.courtLayer = new CourtLayer(stage, this.root);
     this.worn = new WoundsLayer(stage, this.root);
     this.litters = new LittersLayer(stage, this.root);
     this.moneyLayer = new TownMoneyLayer(stage, this.root);
@@ -546,6 +552,7 @@ export class VillageScene {
         child !== this.raidLayer.root &&
         child !== this.graveyard.root &&
         child !== this.memorialLayer.root &&
+        child !== this.courtLayer.root &&
         child !== this.worn.root &&
         child !== this.litters.root &&
         child !== this.moneyLayer.root &&
@@ -726,6 +733,7 @@ export class VillageScene {
     this.graveyard.build(graveyardFor(plan), plan.lifeLook);
     // What it raised to what happened in it, on its square's rim (T1).
     this.memorialLayer.build(plan);
+    this.courtLayer.build(plan);
     this.singer = this.singerDay = -1;
     // A town's well in the middle of its square, where its bucket lines draw (Phase 42 M201): a
     // ring of stone about its water, two posts and a little roof over it.
@@ -1471,9 +1479,7 @@ export class VillageScene {
   }
 
   /** The song at the feast now and who sings it (T1; null: none), where it shows on the screen. */
-  sungNow(
-    t: number,
-  ): {
+  sungNow(t: number): {
     readonly ref: string;
     readonly title: string;
     readonly line: string;
@@ -1497,6 +1503,48 @@ export class VillageScene {
       x: p.x,
       y: p.z > 0 ? p.y : -1,
     };
+  }
+
+  /** The case its court opens from a point of the screen (J1; null: nothing of the court there; its town: no case yet). */
+  courtAt(x: number, y: number, t = this.courtT): string | null {
+    const plan = this.plan;
+    if (!plan?.court || !this.courtLayer.at(this.stage.camera.camera!, x, y)) return null;
+    return courtCaseAt(plan, t) ?? plan.ref;
+  }
+  /** The court now, where it shows, and what sits (J1; the look tools). */
+  courtNow(t = this.courtT) {
+    const plan = this.plan;
+    if (!plan?.court) return null;
+    const sit = courtSitting(plan, t),
+      i = sit ? plan.people.findIndex((p) => p.ref === sit.accused) : -1,
+      m = i >= 0 ? this.momentAt(i) : null;
+    return {
+      stands: m ? { x: m.x, z: m.z, activity: m.activity, hidden: m.hidden } : null,
+      form: plan.court.form,
+      law: plan.court.law,
+      sittings: plan.court.sittings.length,
+      sitting: sit,
+      held: plan.court.sittings
+        .filter((s) => {
+          const day = Math.floor(t / 86400);
+          return (
+            (s.sentence === "stocks" || s.sentence === "cell") &&
+            day > s.day &&
+            day < s.day + s.days
+          );
+        })
+        .map((s) => {
+          const k = plan.people.findIndex((p) => p.ref === s.accused),
+            n = k >= 0 ? this.momentAt(k) : null;
+          return { who: s.who, sentence: s.sentence, x: n?.x ?? null, z: n?.z ?? null };
+        }),
+      parts: this.courtLayer.parts,
+      batches: this.courtLayer.batchesUsed,
+      place: this.courtLayer.onScreen(this.stage.camera.camera!),
+    };
+  }
+  courtShown(on: boolean): void {
+    this.courtLayer.shown(on);
   }
 
   /** The thing raised at a point of the screen (T1; null: none), and how a person presses it. */
@@ -1895,6 +1943,8 @@ export class VillageScene {
     this.floorLayer.update(screen, this.stage.quality.motion, this.craftsKept.floor);
     // The song at its feast (T1): notes rising over whoever sings it.
     this.singNow(plan, t, screen);
+    this.courtLayer.update(plan, t);
+    this.courtT = t;
     // Its dead and their burying (Phase 43 M205): the graves open today, their earth heaped
     // beside them; the dead on their biers, on their bearers' shoulders where they are drawn.
     this.mourning = false;

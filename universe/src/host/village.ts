@@ -54,6 +54,7 @@ import {
 import { landWords, meetHousehold, observer, settleAll, type WarFate } from "../causal/index.ts";
 import { personThings } from "./inspect/things.ts";
 import { memorialsOf, townSongs } from "./inspect/memory.ts";
+import { courtIn, namedByCases } from "./inspect/justice.ts";
 import {
   LAKE_R,
   LOT,
@@ -459,6 +460,8 @@ export function villagePlan(
     // again (Phase 60).
     const most = folk > 0 && folk < HAND_FOLK_AT_HIGH ? folk : DRAWN_UNDER_HAND,
       every = Math.max(1, Math.ceil(hand.agents.length / most)),
+      // (Whom a case names, always among them: J1.)
+      named = new Set(namedByCases(world, ref, now).named.map((p) => p.ref)),
       held = new Set(hand.possessed?.local.bodies.map((b) => b.id) ?? []),
       // (One lived, those about them always drawn, their house under one roof: Lives L3.)
       house = hand.life
@@ -466,7 +469,10 @@ export function villagePlan(
         : null;
     if (hand.life) for (const id of livedAbout(hand.life)) held.add(id);
     hand.agents
-      .filter((a, i) => i % every === 0 || a.name !== undefined || held.has(a.id))
+      .filter(
+        (a, i) =>
+          i % every === 0 || a.name !== undefined || held.has(a.id) || named.has(`agent:${a.id}`),
+      )
       .forEach((a, k) => {
         const home = Math.min(
           homes.length - 1,
@@ -517,7 +523,10 @@ export function villagePlan(
   // one drawn for every twelve of it, up to what the eye is given — each at the work its land
   // does (builders as many as what it raises at once wants), living in the homes the watched do
   // not. Not met, and never history's: nothing they do flows back.
-  const more = Math.min(folk, Math.max(0, Math.ceil(v.population / FOLK_PER) - people.length));
+  const more = Math.min(folk, Math.max(0, Math.ceil(v.population / FOLK_PER) - people.length)),
+    // (Those a case of this year or last names keep their own names, and those it sent away aren't drawn. J1.)
+    cases = folk > 0 ? namedByCases(world, ref, now) : null,
+    inCase = new Set(cases?.named.map((p) => p.ref));
   if (more > 0) {
     // Each the holder of one of its lines (Phase 55 M225): one of every twelve of its people kept
     // by its roster, named in its land's tongue with a family's name to every four lines (four to a
@@ -536,7 +545,7 @@ export function villagePlan(
       drawnAt = new Map<string, number>();
     for (let k = 0; k < lines && drawnAt.size < more; k++) {
       const h = roster.holder(k);
-      if (h === null) continue;
+      if (h === null || cases?.away.has(h.ref)) continue;
       const i = drawnAt.size,
         age = now - h.born,
         child = age < grown,
@@ -571,6 +580,7 @@ export function villagePlan(
           p.folk &&
           p.occupation === OCC.crafter &&
           !p.child &&
+          !inCase.has(p.ref) &&
           (drawnAt.get(p.ref) ?? 0) >= builders,
       ),
       // (Its founders at the foundry by its land's works, in the age of engines, and its machinists
@@ -605,7 +615,10 @@ export function villagePlan(
     // no trade and raising nothing holds its healer's seat, named as the seat's holder is.
     const healer = healerOf(world, v, now),
       one = healer
-        ? people.findIndex((p) => p.folk && !p.child && !p.trade && p.occupation !== OCC.crafter)
+        ? people.findIndex(
+            (p) =>
+              p.folk && !p.child && !p.trade && p.occupation !== OCC.crafter && !inCase.has(p.ref),
+          )
         : -1;
     if (healer && one >= 0) {
       const p = people[one]!;
@@ -616,6 +629,32 @@ export function villagePlan(
         healer: { years: healer.years },
         age: Math.max(p.age, grown + healer.years),
       };
+    }
+  }
+  // Whoever a case names, however few its town draws (J1): one tried is someone you can go and find.
+  if (cases && homes.length) {
+    const here = new Set(people.map((p) => p.ref)),
+      roster = townRoster(world, ref, now),
+      work = folkWork(world, v.cell),
+      grown = lifeOf(world).adulthood;
+    for (const n of cases.named) {
+      if (here.has(n.ref)) continue;
+      const m = /:(\d+):(\d+)$/.exec(n.ref),
+        h = m ? roster.holderOf(Number(m[1]), Number(m[2])) : null;
+      if (!h || roster.holder(h.line)?.n !== h.n) continue;
+      const age = now - h.born,
+        own = age < grown ? OCC.dependent : workOf(h.key, work);
+      people.push({
+        ref: h.ref,
+        name: roster.nameOf(h),
+        role: `${(FOLK_WORDS[own] ?? "One").toLowerCase()} of ${v.name}`,
+        home: Math.floor(h.line / 4) % homes.length,
+        age,
+        occupation: own,
+        child: age < grown,
+        sex: h.sex,
+        folk: true,
+      });
     }
   }
   return planOf(people);
@@ -1209,6 +1248,7 @@ export function villagePlan(
       ...wondersOfIn(world, village.shrine ?? null, village.spring ?? null),
       rest: restOf(village.cell, village.population, village.founded),
       ...memoryIn(world, ref),
+      ...courtIn(world, ref),
       people,
       ...(stores ? { stores } : {}),
       ...(trade ? { trade } : {}),

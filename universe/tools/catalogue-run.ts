@@ -100,7 +100,7 @@ const next = () => {
       p = spawn(
         process.execPath,
         [
-          "--max-old-space-size=3200",
+          "--max-old-space-size=4600",
           tool,
           dir!,
           "--child",
