@@ -228,7 +228,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 32d Figures & camera | Smooth motion, camera glide, labels | **in** | `view/presence.ts`, `render/orbit.ts`, `ui/labels.ts` |
 | 33 Camera & input | Views, zoom, orbit, keys, pointer | **in** | `render/orbit.ts`, `view/steer.ts`, `ui/keys.ts`, free roam (`render/free.ts`) |
 | 34 Interface & inspector | Tile, organism and settlement inspectors; chronicle; stats | **in** | `ui/inspector.ts` (Phase 10) |
-| 35 Audio | Ambience, clicks, cues for what happens | **missing** | There is no sound |
+| 35 Audio | Ambience, clicks, cues for what happens | **partial** | Every place has its own air, made in the browser, and what happens has its cue, with 🔊 in the corner (`app/sound.ts`, `app/sound-mix.ts`, gate 90). Missing: surf by a coastal town, a burning town's crackle, a possessed person's footsteps, a volume slider, music |
 | 36 Menus | Title screen, new world, saves, settings, help | **in** | `app/title.ts` |
 | 38 Field guide | Readable chemistry: formulas, reactions, a topic guide | **in** | The concept book (`host/inspect/concepts.ts`); matter pages (`host/inspect/matter.ts`, Phase 15) |
 | 44 Mobile runtime | Touch-first panels, phone performance | **in** | `app/tier.ts`; the touch camera; the free-roam stick (`ui/free.ts`) |
@@ -303,10 +303,25 @@ Ranked by how much each would add to the game's depth and to what you see, leani
 19. **Town directives.** Classic 34a. The god sets a town's priority or policy and asks it to build. **M**
 20. **Time with a goal.** Classic 79, 129, 159, 160. What the next stage still needs, in plain words; a digest of years run fast; a push aimed at that stage. **S**
 21. **Reading the people and the years.** Classic 49, 55, 66. A bar of the lives that matter now, year-by-year annals with digests, and the whole history written out as a file. **S**
-22. **Sound.** Classic 35. Ambience by place and scale, and cues for great events. **M**
+22. **Sound.** Classic 35. Ambience by place and scale, and cues for great events: first slice built (2026-11-06). Next: surf by a coastal town, a burning town, footsteps, a world's own birds. **M**
 23. **A second people.** Classic 40. Another lineage rising to thought on the same world. **L**
 
 Not ranked, on purpose: minds and character drama (30b, 62, 78, 42b, 53, 75, 76, 77). The user wants depth in systems and the UI, not a focus on characters, and these also cut against Universe's counts-first design. They stay in the tables above.
+
+## Sound, first slice, as built (2026-11-06)
+
+The game had no sound. Now every place has its own, made in the browser from noise and oscillators with no file to load: the title, a town by day and by night, in rain, on a market day, at a feast and at war; open land, a shore; a water people's town heard through the water; a colony's halls; the globe from high up; the stars around, the galaxy; a ground battle. Moving between them crossfades. What happens has its cue: a button, a page, a great event's bell, a world's first, thunder, a ship's beams and missiles and its breaking up, a jump and coming out of it, a landing, and the greatest fire, which takes the air away and leaves a hush. 🔊 sits in the corner's tools, 44 by 44, and stays reachable where a mode puts them away. It starts at the first touch, softly, and what a person chose is remembered.
+
+- **It hears, it never touches.** `app/sound.ts` (graph, button, context) and `app/sound-mix.ts` (pure: a place and what is about it in, levels and rates out). No state, no events, no version bump; the fixtures don't move and the hashes are the same before and after. Its randomness is its own.
+- **Told, not asked.** The page reads what a person sees four times a second, only while someone is listening, and `sound.tell` does nothing unless it changed. A film's place and hour are the film's. The one query is once a page, for the world's air, and only once someone is listening. A flash is read as it is drawn, since it's over before the next reading.
+- **Bounded.** 50 standing nodes and at most 26 voices of three nodes each, under a bound of 130. A layer at nothing is unplugged. With 🔊 off or the tab hidden the context is suspended and its timer stopped; off before the first touch, there is no context at all. No WebAudio: no button, no error, and the game runs the same.
+- **Measured for what a phone can give.** A phone's speaker gives little under 320 Hz, so loudness is read over it too: wind has no sub-bass to press on the limiter, and the land, which read -42 dB there, now reads -38.
+
+Measures, on the final code (gate 90): every place from -16 to -30 dBFS, -46 for the hush after the greatest fire, peak at most 0.72, none clipping; each pair of nine places unlike by at least 8.3 against a noise floor of 2.2 for the same place from other randomness. Fifty ships at the worst the rules allow: -10 dBFS, peak 0.81, 10 voices, 76 nodes. Rendering runs at least 24 times as fast as it plays. Building the loops: at most 16 ms in any one slice after a touch. Frames in a town at the vsync cap with it on and off, 16.6 ms each, which shows no cost and could hide a small one.
+
+Limits, stated: **no measure says whether it sounds good**, and the WAV files gate 90 writes with `--shots` exist for a person to judge. No real iPhone has run it. The silent switch relies on `navigator.audioSession.type = "ambient"` and wasn't thrown. Playwright's WebKit on Windows has no WebAudio, so the game there is the no-sound path, and Safari's own audio is unmeasured. A hidden tab was forged. A world's first and thunder are checked as rendered cues, and haven't been caught firing live in a gate.
+
+Cut for later: surf by a coastal town, a burning town's crackle, a possessed person's footsteps, a world's own pitch for its birds, a volume slider, a camp's own sound (a camp reads as land), 🔊 on the sandbox and bench pages.
 
 ## The work-down order (2026-10-25)
 

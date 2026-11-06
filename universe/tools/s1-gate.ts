@@ -289,7 +289,7 @@ async function press(selector: string, on: Page = page): Promise<boolean> {
   return true;
 }
 /** 🔊 where a person finds it: on the screen, a thumb's size, and over nothing else that takes a touch. */
-async function buttonWell(where: string, on: Page = page): Promise<void> {
+async function buttonWell(where: string, on: Page = page, under = false): Promise<void> {
   const b = await k<{
     w: number;
     h: number;
@@ -329,12 +329,14 @@ async function buttonWell(where: string, on: Page = page): Promise<void> {
     b.x >= 0 && b.x + b.w <= 430 && b.y >= 0 && b.y + b.h <= 932,
     `${where}: 🔊 off the screen`,
   );
+  // (`under`: a sheet that covers the corner's tools covers it too, for as long as a person is choosing.)
+  if (under) return;
   check(b.top, `${where}: something lies over 🔊`);
   check(b.over.length === 0, `${where}: 🔊 stands over ${b.over.join(", ")}`);
 }
-/** A far-off place on the screen a touch does nothing at: the world's own dark, or the bar's blank. */
+/** A far-off place on the screen a touch does nothing at: the world's own dark, in the very corner. (A touch on the world opens what it lands on, and a page stands over the corner's tools.) */
 const touchAnywhere = async () => {
-  await page.touchscreen.tap(60, 640);
+  await page.touchscreen.tap(4, 4);
   await page.waitForTimeout(slow(350));
 };
 /** The clock let go for a moment, for what runs only as the world runs. */
@@ -874,9 +876,19 @@ if (saveFile) {
       check(s2.played.event === off.played.event, "a great event sounded with 🔊 off");
       check(s2.ctx === "suspended", `🔊 off through a great event, and the context is ${s2.ctx}`);
       say("🔊 off, then a great event: its window, and no sound");
-    } else say("no second great event came in the time");
-    await press(".sound-button").catch(() => false);
-    await k(`globalThis.causalis.client.setSpeed(0)`);
+      await k(`globalThis.causalis.client.setSpeed(0)`);
+      await press(".event-window .event-be");
+      await until(
+        "the second window let be",
+        () => k<boolean>(`!globalThis.causalis.eventOpen?.()`),
+        slow(10000),
+      );
+    } else {
+      say("no second great event came in the time");
+      await k(`globalThis.causalis.client.setSpeed(0)`);
+    }
+    await press(".sound-button");
+    await until("back on, after the windows", async () => (await state()).ctx === "running");
   } else say("no great event came in the time allowed: its window's cue was not pressed here");
   await k(`localStorage.removeItem("causalis.events")`);
 }
@@ -929,7 +941,7 @@ if (saveFile) {
     await press(".town-live");
     if (await enter("the sheet of lives", () => seen(".life-picker .life-card"), slow(60000))) {
       await page.waitForTimeout(slow(300));
-      await buttonWell("over the sheet of lives");
+      await buttonWell("under the sheet of lives", page, true);
       await shot("11-lives");
       await press(".life-picker .life-live");
       if (await enter("a life's strip", () => seen(".life-strip"), slow(90000))) {
@@ -1058,8 +1070,8 @@ if (waterFile) {
   check(d > Math.max(liveFloor * 2, 2), `a water people's town is near a dry one: ${d.toFixed(2)}`);
   // (Its highs are gone through the water: 5 to 10 kHz next to nothing, at the speaker.)
   const b = real["water town"]!.bands;
-  say(`water town, 5 to 10 kHz at the speaker: ${b[7]!.toFixed(0)} dB`);
-  check(b[7]! < -65, `the water takes no highs off a town: ${b[7]!.toFixed(0)} dB`);
+  say(`water town, 5 to 10 kHz at the speaker: ${b[7]?.toFixed(0)} dB`);
+  check(b[7] !== undefined && b[7] < -65, `the water takes no highs off a town: ${b[7]} dB`);
 }
 const st9 = await state();
 check(st9.errors.length === 0, `errors in the graph: ${st9.errors.join("; ")}`);

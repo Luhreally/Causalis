@@ -186,8 +186,8 @@ export function mixOf(a: Air): Mix {
       }
       break;
     case "land":
-      m.wind = 0.36;
-      m.windHz = 900;
+      m.wind = 0.72;
+      m.windHz = 1100;
       m.high = 0.03;
       m.birds = 0.5 * day;
       m.crickets = 0.55 * night;
@@ -266,7 +266,7 @@ export function mixOf(a: Air): Mix {
     m.windHz *= 1 + 0.7 * hard;
     m.high += 0.06 * hard;
     // (Thin air carries little: all of it fainter, and the highs first.)
-    const carries = 1 - 0.6 * thin;
+    const carries = 1 - 0.5 * thin;
     m.wind *= carries;
     m.windHz *= 1 - 0.55 * thin;
     m.high *= carries;
@@ -325,6 +325,8 @@ export function mixOf(a: Air): Mix {
     m.bells *= left;
     m.clashes *= left;
     m.shots *= left;
+    // (A little wind stays: all but silent, and never as if the sound had broken.)
+    m.wind = Math.max(m.wind, 0.2 * hush);
     m.windHz *= 1 - 0.35 * hush;
   }
   // Paused: the air stays, a little back, and nothing happens in it.

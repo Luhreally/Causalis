@@ -404,9 +404,11 @@ class Graph {
       shimmer: layer(this.dry),
       rumble: layer(this.dry),
     };
-    // Wind: brown noise, its edge and its strength each moved slowly by a gust (7 nodes).
+    // Wind: brown noise, its edge and its strength each moved slowly by a gust (8 nodes). What lies under
+    // the high-pass is what a phone's speaker can't give, and would only press on the limiter.
     this.windLp = filter("lowpass", 500);
-    loop(this.loops.brown).connect(this.windLp).connect(this.gains.wind.gain);
+    const windHp = filter("highpass", 150);
+    loop(this.loops.brown).connect(windHp).connect(this.windLp).connect(this.gains.wind.gain);
     const gust = osc("sine", 0.13 + 0.05 * r()),
       gustHz = gainOf(180),
       gustGain = gainOf(0.2);
@@ -1243,6 +1245,15 @@ export class Sound {
       into: HTMLElement = by ? document.body : this.corner!;
     b.classList.toggle("free", by);
     if (b.parentElement !== into) into.append(b);
+    // (Clear of the strip a life or a reign keeps along the top, which is as long as what it has to say.)
+    let below = 0;
+    if (by)
+      for (const s of document.querySelectorAll<HTMLElement>(".life-strip, .reign-strip")) {
+        const r = s.getBoundingClientRect();
+        if (r.height > 0) below = Math.max(below, r.bottom);
+      }
+    const top = below > 0 ? `${Math.round(below + 8)}px` : "";
+    if (b.style.top !== top) b.style.top = top;
   }
 
   private drawButton(): void {

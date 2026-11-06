@@ -8073,6 +8073,9 @@ async function runPlanetPage(): Promise<void> {
     landSeason = { key: "", at: -Infinity },
     weatherSeconds = 0,
     weatherNow: Weather | null = null,
+    /** Whether a storm's thunder can be heard from where a person is, and the last flash (Sound, first slice). */
+    thunderHere = false,
+    flashWas = 0,
     handNow: ActsNear | null = null,
     seasonNow: GroundSeason | null = null;
   /** The land's middle where the eye is (an inspiration's light, a stone's fall): a band's fire, a land's middle, a town's square. */
@@ -8158,6 +8161,9 @@ async function runPlanetPage(): Promise<void> {
       w = weatherAt(sky, t, time.pace, running ? performance.now() / 1000 : null),
       eye = stage.camera.getPosition().clone();
     weatherNow = w;
+    // (A flash is over in a moment, so its thunder is read here, as it is drawn.)
+    if (w.flash > 0.3 && flashWas <= 0.3 && thunderHere) sound.cue("thunder");
+    flashWas = w.flash;
     weather.update(w, rig.target, eye, rig.distance, weatherSeconds, 1100);
     // The season on the ground (M164): snow lying, the leaves turned or fallen, ice on still water.
     const ground = seasonAt(sky, t);
@@ -10003,7 +10009,6 @@ async function runPlanetPage(): Promise<void> {
   // while someone is listening, and told only as it changes (app/sound.ts). Nothing goes back.
   const heard = airOf("globe");
   let heardAt = 0,
-    flashWas = 0,
     worldAirAsked = false;
   /** How much of the land shown is sea (a sample of its tiles; no list made, nothing kept). */
   const seaOfLand = () => {
@@ -10095,10 +10100,8 @@ async function runPlanetPage(): Promise<void> {
     );
     heard.held = time.paused && !film && !raidPlaying;
     sound.tell(heard);
-    // (A storm's flash, its thunder.)
-    const flash = inSpace ? 0 : (weatherNow?.flash ?? 0);
-    if (flash > 0.3 && flashWas <= 0.3) sound.cue("thunder");
-    flashWas = flash;
+    thunderHere =
+      !inSpace && (heard.place === "town" || heard.place === "land" || heard.place === "shore");
   });
   // The world's kind (Phase 56): its globe's seas, air and clouds, a land's sea, the sky over its
   // ground, its warmth's legend.
