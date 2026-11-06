@@ -179,7 +179,11 @@ export class EventWindows {
       whyBox = el("div", "why event-why");
     words.append(
       el("p", "event-claim", bare(t.claim)),
-      el("p", "event-when", `Year ${t.year} · ${t.world ? t.label.toLowerCase() : `news of ${t.label}`}`),
+      el(
+        "p",
+        "event-when",
+        `Year ${t.year} · ${t.world ? t.label.toLowerCase() : `news of ${t.label}`}`,
+      ),
       el("h3", undefined, "Why it came to pass"),
       whyBox,
     );
