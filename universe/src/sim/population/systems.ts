@@ -778,7 +778,7 @@ export function weatherYear(ctx: PopulationContext, t: SimTime): void {
       const causes: CauseRef[] = [];
       if (act && act.sign < 0) causes.push({ ref: act.event, role: "agent", weight: 0.8 });
       // A land the warming has dried has its droughts the oftener.
-      const drier = moved < 1 ? airOf(world).shiftOf(p.cell) : null;
+      const drier = rainShift(ctx, p.cell) < 1 ? airOf(world).shiftOf(p.cell) : null;
       if (drier) causes.push({ ref: drier, role: "pressure", weight: 0.3 });
       // (A dry year under the dark: the fire behind it.)
       const dark = darkCause(world);

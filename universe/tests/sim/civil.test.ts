@@ -251,6 +251,8 @@ test("a revolution: a rule in crisis and a people pressing for a voice rise at i
     store = strifeOf(w)!,
     o = orderOf(w)!.of(p.ref)!,
     voice = { cause: "voice" as const, strength: 0.9, since: 60, event: p.event };
+  // (A commonwealth already has what they would rise for.)
+  if (p.leadership === 2) p.leadership = 0;
   o.movements.push(voice);
   o.crisis = p.event;
   o.legitimacy = 0.05;
@@ -262,13 +264,15 @@ test("a revolution: a rule in crisis and a people pressing for a voice rise at i
   );
   // (Its army cowed, so that no coup is weighed first.)
   store.ensure(p.ref).purged = 10_000;
-  for (let k = 1; k < 400 && !store.revolutions.length; k++) {
+  // (Its own: another realm's people may rise meanwhile.)
+  const itsOwn = () => store.revolutions.find((x) => x.realm === p.ref);
+  for (let k = 1; k < 400 && !itsOwn(); k++) {
     o.crisis = p.event;
     o.legitimacy = 0.05;
     voice.strength = 0.9;
     strifeYear(ctx, at(k * YEAR));
   }
-  const r = store.revolutions[0]!;
+  const r = itsOwn()!;
   assert.ok(r, "its people rose");
   assert.equal(r.cause, "voice");
   const d = w.decisions.get(w.events.get(r.event)!.causes[0]!.ref)!;

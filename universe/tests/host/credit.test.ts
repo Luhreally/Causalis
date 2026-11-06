@@ -96,8 +96,8 @@ test("a house of lending's page: what it holds, is owed, lent, earned and lost; 
   const owed = overview.blocks.find(
     (b) => b.type === "list" && b.title === "What is owed it, the most first",
   );
-  assert.ok(owed && owed.type === "list" && owed.items.length === 1);
-  assert.equal(owed.items[0]!.why, loan.event);
+  // (Other lands in want may have come to it as well: this one among them.)
+  assert.ok(owed && owed.type === "list" && owed.items.some((i) => i.why === loan.event));
   // Some of the other lands may have repaid loans during the fixture's credit years.
   const ended = creditOf(world)!.loans.some((l) => l.house === house.ref && l.ended !== null);
   assert.equal(!!tabOf(p, "loans"), ended, "completed loans have their tab exactly when present");

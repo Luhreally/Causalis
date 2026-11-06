@@ -194,7 +194,10 @@ test("the ground shaken: a share of a land's people dead, its stores spilled, it
     grief = politiesOf(w).discontent(land.cell).level;
   const act = w.submit("act.quake", { cell: land.cell });
   w.runTo(AT + 1);
-  const e = w.events.all().find((x) => x.type === DISASTER_EVENTS.quake.type)!;
+  // (The god's: the ground shakes by itself too, N1.)
+  const e = w.events
+    .all()
+    .find((x) => x.type === DISASTER_EVENTS.quake.type && x.causes[0]?.ref === act.id)!;
   assert.equal(e.causes[0]!.ref, act.id, "the quake cites the act");
   const dead = (e.data as { dead: number }).dead;
   assert.ok(

@@ -54,6 +54,7 @@ test("a blessed harvest's gold rises off the land, a blight's dust and a plague'
     fires: [],
     shake: 0,
     strike: null,
+    streak: null,
     told: [],
   });
 });

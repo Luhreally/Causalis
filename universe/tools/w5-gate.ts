@@ -209,12 +209,15 @@ function forgeBrink(
   // (The holder a realm of some size beside a far greater one: a great attacker's people are not soon weary, so its war lasts its year.)
   let pair: [Polity, Polity] | null = null;
   for (const foe of living) {
-    for (const a of living)
-      if (a !== foe && a.members.length >= 3 && frontier(ctx, foe, a).length) {
-        pair = [a, foe];
-        break;
-      }
-    if (pair) break;
+    const beside = living.filter(
+        (a) => a !== foe && a.members.length >= 3 && frontier(ctx, foe, a).length,
+      ),
+      // (Where realms have come to be much of a size, the greatest neighbour is no far greater one: half its size or less, if it has one.)
+      a = beside.find((x) => x.members.length * 2 <= foe.members.length) ?? beside[0];
+    if (a) {
+      pair = [a, foe];
+      break;
+    }
   }
   if (!pair)
     for (const foe of living) {
