@@ -694,6 +694,15 @@ export const NATION_QUERIES: Readonly<Record<string, QueryHandler>> = {
         .filter((h) => h.dark) ?? [];
     return rows.sort((a, b) => a.dark!.since - b.dark!.since)[0]?.key ?? null;
   },
+  /** A world no one holds, not in the dark, with people on it: for a gate. */
+  "nation.free": (world) => {
+    const filled = filledOf(world);
+    return (
+      nationsOf(world)
+        ?.all()
+        .find((h) => !h.holder && !h.dark && filled?.get(h.key)?.gone === undefined)?.key ?? null
+    );
+  },
   "nation.none": (world) =>
     politiesOf(world)
       .living()
