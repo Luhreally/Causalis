@@ -140,11 +140,7 @@ test("the rows come last, in need order, and ask their world's matter", () => {
   const ids = PRINCIPLES.map((p) => p.id);
   // (Only a later age's rows come after them: what was found before is found as it was.)
   const first = ids.indexOf("powered-wings");
-  assert.deepEqual(ids.slice(first, first + 3), [
-    "powered-wings",
-    "dropped-loads",
-    "thrown-loads",
-  ]);
+  assert.deepEqual(ids.slice(first, first + 3), ["powered-wings", "dropped-loads", "thrown-loads"]);
   assert.ok(first >= ids.length - 6, "they stand at the table's end");
   assert.deepEqual(principle("powered-wings").asks, ["fly-under-power"]);
   assert.ok(principle("dropped-loads").needs.includes("powered-wings"));

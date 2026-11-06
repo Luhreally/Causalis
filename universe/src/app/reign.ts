@@ -154,12 +154,21 @@ export function installReign(d: ReignDeps): ReignFlow {
       if (on) hud.say("You let it be. The realm decides it.");
       return;
     }
-    void (choice.startsWith("name:")
-      ? d.client.command("court.name", { realm: on.realm, ruler: on.ruler, fig: Number(choice.slice(5)) })
-      : d.client.command("court.answer", { realm: on.realm, ruler: on.ruler, answer: choice })
+    void (
+      choice.startsWith("name:")
+        ? d.client.command("court.name", {
+            realm: on.realm,
+            ruler: on.ruler,
+            fig: Number(choice.slice(5)),
+          })
+        : d.client.command("court.answer", { realm: on.realm, ruler: on.ruler, answer: choice })
     )
       .then(() => {
-        hud.say(drama.kind === "plot" ? "Your word has gone out: the plot goes no further." : "Your word has gone out: they will follow you.");
+        hud.say(
+          drama.kind === "plot"
+            ? "Your word has gone out: the plot goes no further."
+            : "Your word has gone out: they will follow you.",
+        );
         return refresh();
       })
       .catch((error: Error) => hud.say(refused(error)));

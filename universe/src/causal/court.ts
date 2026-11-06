@@ -19,7 +19,11 @@ type Data = {
   by?: string;
 } | null;
 const voice = (d: Data) =>
-  d?.seat && d.seat !== "house" ? `, the voice of ${d.seat},` : d?.seat === "house" ? ", of the ruler's house," : "";
+  d?.seat && d.seat !== "house"
+    ? `, the voice of ${d.seat},`
+    : d?.seat === "house"
+      ? ", of the ruler's house,"
+      : "";
 
 registerEventWords(COURT_EVENTS.heir.type, (_, e) => {
   const d = e.data as Data;

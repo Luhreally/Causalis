@@ -78,7 +78,10 @@ export function voicesHeard(carry: number): number {
 
 /** The chance a plot carries the seat: a rival's weight and a rule doubted, against a people who keep to custom. */
 export function plotOdds(weight: number, doubt: number, tradition: number): number {
-  return Math.max(0.12, Math.min(0.72, 0.25 + 0.3 * weight + 0.4 * doubt - 0.3 * (tradition - 0.5)));
+  return Math.max(
+    0.12,
+    Math.min(0.72, 0.25 + 0.3 * weight + 0.4 * doubt - 0.3 * (tradition - 0.5)),
+  );
 }
 
 /** A plotter's yearly chance of moving, at a score. */

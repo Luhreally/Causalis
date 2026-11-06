@@ -428,9 +428,7 @@ export function dangerOf(
     old = Math.min(1, Math.max(0, year - p.founded) / 200),
     lawAt = o.lawEvents.find((e) => e !== null) ?? null,
     who =
-      f.seat === "house"
-        ? `${f.name}, of the ruler's house`
-        : `${f.name}, the voice of ${f.seat}`;
+      f.seat === "house" ? `${f.name}, of the ruler's house` : `${f.name}, the voice of ${f.seat}`;
   const factors: Factor[] = [
     {
       name: who,
@@ -619,9 +617,7 @@ export function courtFollows(
       }
     }
   }
-  return next
-    ? { name: next.name, sex: next.sex, born: next.born, how, fig: next.id }
-    : null;
+  return next ? { name: next.name, sex: next.sex, born: next.born, how, fig: next.id } : null;
 }
 
 /** One of a court who raises lands at a death: they leave it, and rule what broke away. */
@@ -985,7 +981,8 @@ export function installCourts(world: World, ctx: () => PopulationContext): Court
           data: { realm: realmName(r), fig: f.id, who: f.name, by: r.ruler.name },
         });
       told(court, event);
-      if (o && court.heirBy !== "word") o.legitimacy = clamp(0.02, 0.98, o.legitimacy - COURT.nameCost);
+      if (o && court.heirBy !== "word")
+        o.legitimacy = clamp(0.02, 0.98, o.legitimacy - COURT.nameCost);
       court.heir = f.id;
       court.heirBy = "word";
       if (court.rival === f.id) court.rival = null;
