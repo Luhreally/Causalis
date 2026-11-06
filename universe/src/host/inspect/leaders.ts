@@ -65,12 +65,15 @@ export function rulerPage(world: World, ref: string): PageModel {
     town = seatTownOf(world, r),
     body = peopleBody(world),
     spot = spotOfLand(world, r.seat),
-    since = r.ruler.since * YEAR;
+    since = r.ruler.since * YEAR,
+    // (A reign ended with its realm: the years after are none of it, and on a far world they are most of the log.)
+    until = r.ended === null ? Infinity : (r.ended + 1) * YEAR;
   // The events of their reign, newest first, most twelve (the year they came to rule has its own line).
   const all = world.events.all(),
     reign: Item[] = [];
   for (let i = all.length - 1; i >= 0 && reign.length < 12 && all[i]!.t >= since; i--) {
     const e = all[i]!;
+    if (e.t > until) continue;
     if (e.id === r.ruler.event || e.importance < 3 || !e.subjects.includes(r.ref)) continue;
     const y = yearAt(e.t);
     reign.push(item([`Year ${y}: `, link(claimOf(world, e.id), e.id)], e.id, y));

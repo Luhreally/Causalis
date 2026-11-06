@@ -14,6 +14,7 @@ import {
 } from "../bridge/index.ts";
 import { YEAR } from "../kernel/index.ts";
 import type { ToolContext } from "./tools.ts";
+import { drawWritten } from "./written.ts";
 import { el } from "./why.ts";
 
 /** How many years a piece holds, about how tall a year is at first, and how far from the eye a piece is drawn. */
@@ -55,6 +56,7 @@ export function drawYears(into: HTMLElement, ctx: ToolContext): void {
     order = el("button", "years-order"),
     says = el("p", "muted years-says"),
     onward = el("button", "years-onward"),
+    written = el("div", "years-written"),
     list = el("div", "years-list"),
     words = new Map<number, AnnalYear>();
   input.type = "number";
@@ -66,8 +68,10 @@ export function drawYears(into: HTMLElement, ctx: ToolContext): void {
   goRow.append(input, go, order);
   // (What stays over the years as they go under it is the filter and what it says: a phone has little room to give.)
   bar.append(chips, says, onward);
-  box.append(bar, goRow, list);
+  box.append(bar, goRow, written, list);
   into.append(box);
+  // (The whole of it written out as a file a person can keep: B1.)
+  drawWritten(written, ctx.client);
 
   let index: AnnalsIndex | null = null,
     kind = -1,

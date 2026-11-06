@@ -5,6 +5,7 @@ import { POSSESS_QUERIES } from "../../src/host/possess.ts";
 import { chronicle } from "../../src/host/planet.ts";
 import { withWounds } from "../../src/host/wounds.ts";
 import { villagePlan } from "../../src/host/village.ts";
+import { namedByCases } from "../../src/host/inspect/justice.ts";
 import {
   woundWords,
   type PossessLive,
@@ -240,7 +241,10 @@ test("the town under the hand draws as many of its people as the setting does, a
   const drawn = (folk: number) => villagePlan(world, town.ref, 10, folk).people.map((p) => p.ref);
   // (Below High as many as the setting draws of a crowd, and those of them named; from High up,
   // or none asked, the hand's 400.)
-  const named = handOf(world).resting!.agents.filter((a) => a.name !== undefined).length;
+  const named =
+    handOf(world).resting!.agents.filter((a) => a.name !== undefined).length +
+    // (And whoever a case of this year or last names, however few are drawn: J1.)
+    namedByCases(world, town.ref, Math.floor(world.now / YEAR)).named.length;
   assert.equal(drawn(220).length, drawn(0).length);
   assert.equal(drawn(360).length, drawn(0).length);
   for (const folk of [48, 120])

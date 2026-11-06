@@ -543,7 +543,9 @@ export class PageWindow {
           if (t.id === "body" && innerWidth <= 640) this.inspector.classList.add("tall");
           this.drawTabs(this.page);
           this.drawBody(this.page);
-          this.inspector.scrollTop = 0;
+          // (On a phone a page's facts fill the screen above its tabs: the row stays in sight, with what it opened under it.)
+          this.inspector.scrollTop +=
+            this.tabs.getBoundingClientRect().top - this.inspector.getBoundingClientRect().top;
         };
         return b;
       }),

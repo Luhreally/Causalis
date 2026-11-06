@@ -5,12 +5,15 @@
 import "./styles.css";
 import "./y2k.css";
 import "./board.css";
+import "./bar.css";
 import "./brushes.css";
 import "./tour.css";
 import "./can.css";
 import "./years.css";
 import "./memory.css";
-import { SungNote } from "../ui/index.ts";
+import { CourtNote, SungNote } from "../ui/index.ts";
+import { courtSitting } from "../view/index.ts";
+import { PeopleBar, barPins, setWrittenHold } from "../ui/index.ts";
 import { Checkpoint } from "./checkpoint.ts";
 import { HostClient, LOT, inlinePair, lotStates, progress, workerPort } from "../bridge/index.ts";
 import {
@@ -840,6 +843,9 @@ type Exposed = {
     readonly drawn: ReturnType<VillageScene["stonesDrawn"]>;
   } | null;
   stonesShown?: (on: boolean) => void;
+  court?: () => ReturnType<VillageScene["courtNow"]>;
+  courtShown?: (on: boolean) => void;
+  courtNote?: () => HTMLElement;
   sungNote?: () => HTMLElement;
   /** The song at the feast now (T1). */
   sung?: () => ReturnType<VillageScene["sungNow"]>;
@@ -1302,6 +1308,9 @@ type Exposed = {
   /** Open a thing's page (Phase 10 M92), and the page open now. */
   open?: (ref: string) => Promise<void>;
   pageOpen?: () => string | null;
+  /** The people bar and whom a viewer keeps on it (B1). */
+  peopleBar?: PeopleBar;
+  barPins?: typeof barPins;
   /** Go to where a thing is to be seen. */
   goTo?: (ref: string) => Promise<void>;
   scale?: () => string;
@@ -3006,10 +3015,9 @@ async function runPlanetPage(): Promise<void> {
     maxPitch: 80,
     drift: drift(),
     onTap: (x, y) =>
+      // (An act in hand falls where the finger comes down, on a stone or a court as on anyone: to read one, put it down.)
       palette.armed &&
-      (scale === "globe" || scale === "region" || scale === "camp" || scale === "village") &&
-      // (A press on a thing a town raised reads it: the hand's act isn't cast on the ground beneath it. T1.)
-      !(scale === "village" && plan && !homeOpen() && village.stoneAt(x, y))
+      (scale === "globe" || scale === "region" || scale === "camp" || scale === "village")
         ? tapPalette(x, y)
         : scale === "globe"
           ? tapGlobe(x, y)
@@ -3040,6 +3048,8 @@ async function runPlanetPage(): Promise<void> {
     // (What a town raised: its tip, T1.)
     const stone = plan ? village.stoneAt(x, y) : null;
     if (stone) return stone;
+    const tried = plan ? village.courtAt(x, y, now()) : null;
+    if (tried) return tried;
     const at = plan ? onPlane(x, y, 0) : null;
     if (!plan || !at) return null;
     const mx = at.x / VILLAGE_METRE,
@@ -6210,6 +6220,16 @@ async function runPlanetPage(): Promise<void> {
         void pageWindow.open(stone);
         return;
       }
+      // (Its court: pressed anywhere on it, while it sits whoever stands there, the rest of the time if no one does. J1.)
+      const tried =
+        courtSitting(plan, now()) || village.pick(x, y, 10) === null
+          ? village.courtAt(x, y, now())
+          : null;
+      if (tried) {
+        selectPerson(null);
+        void pageWindow.open(tried);
+        return;
+      }
     }
     // One borne home on a litter (Phase 55 wave 5): their card, as anyone's.
     const borne = plan ? village.pickLitter(x, y) : null;
@@ -8505,6 +8525,8 @@ async function runPlanetPage(): Promise<void> {
       ? { list: village.stonesOnScreen(), drawn: village.stonesDrawn() }
       : null;
   exposed.stonesShown = (on: boolean) => village.stonesShown(on);
+  exposed.court = () => (scale === "village" && plan ? village.courtNow(now()) : null);
+  exposed.courtShown = (on: boolean) => village.courtShown(on);
   exposed.sung = () => (scale === "village" && plan ? village.sungNow(now()) : null);
   exposed.country = () => (scale === "village" && plan ? village.countryNow() : null);
   exposed.feast = () =>
@@ -8693,6 +8715,19 @@ async function runPlanetPage(): Promise<void> {
    * city stands between.
    */
   const stoneView = (ref: string): OrbitView | null => {
+    // (A case's page looks across the square at its court: J1.)
+    const c = ref.startsWith("case:") ? village.courtNow(now())?.place : null;
+    if (c)
+      return {
+        target: { x: c.worldX * VILLAGE_METRE, y: 0.3, z: c.worldZ * VILLAGE_METRE },
+        // (From the side of the square, as the well stands in its middle, and no further than the square's own ground.)
+        yaw: (c.yaw * 180) / Math.PI + 40,
+        pitch: -18,
+        distance: Math.min(
+          3.2,
+          Math.max(1.6, Math.hypot(c.worldX, c.worldZ) * VILLAGE_METRE * 2.4),
+        ),
+      };
     const s = village.stonesOnScreen().find((x) => x.ref === ref);
     return s
       ? {
@@ -9265,6 +9300,40 @@ async function runPlanetPage(): Promise<void> {
       !!document.querySelector(".jump-screen"),
   );
   if (exposed.jumpedFrom !== undefined) runNote.jumped();
+  // The people bar (B1): who matters where the eye is, and how they are. The eye's place is read here at a low rate; who
+  // they are is the worker's. A mode with its own chrome hides it, and it isn't read then.
+  barPins.open(`${universe}:${seed}`);
+  let barAt: { cell: number | null; town: string | null } = { cell: null, town: null };
+  const peopleBar = new PeopleBar(
+    hud,
+    client,
+    () => {
+      if (
+        ["filming", "fleet-filming", "homing", "living", "possessing", "ruling"].some((c) =>
+          document.body.classList.contains(c),
+        )
+      )
+        return null;
+      // (On a phone the foot of the stars' map is its legend's, and of the galaxy its own.)
+      if ((scale === "cluster" || scale === "galaxy") && innerWidth <= 640) return null;
+      if (scale === "village") barAt = { cell: plan?.cell ?? null, town: plan?.ref ?? null };
+      else if (scale === "region" || scale === "camp")
+        barAt = { cell: regionCell >= 0 ? regionCell : null, town: null };
+      else if (scale === "globe") {
+        // (The middle of what the bar and the foot leave of the screen; off the world's edge, where it last was.)
+        const at = paletteAt(innerWidth / 2, innerHeight * 0.6);
+        if (at.cell !== null) barAt = { cell: at.cell, town: at.town };
+      } else barAt = { cell: null, town: null };
+      return barAt;
+    },
+    () => [...followedRefs].filter((r) => /^(rule|court|prsn|agent|folk:town):/.test(r)),
+  );
+  peopleBar.onOpen = (ref) => void pageWindow.open(ref);
+  takeUp.push(() => peopleBar.fresh());
+  exposed.peopleBar = peopleBar;
+  exposed.barPins = barPins;
+  // (A file all of one year: the clock held while it is read.)
+  setWrittenHold((on) => (on ? time.hold("writing") : time.release("writing")));
   // Who sings at the feast (T1): a note that can be pressed, while the eye is free and the town is the thing seen.
   const sungNote = new SungNote(
     tidings.element,
@@ -9280,6 +9349,31 @@ async function runPlanetPage(): Promise<void> {
       ),
   );
   exposed.sungNote = () => sungNote.element;
+  // The court sits (J1): who stands before it and for what, pressed for the case.
+  const courtNote = new CourtNote(
+    tidings.element,
+    (ref) => void pageWindow.open(ref),
+    () => {
+      if (scale !== "village" || !plan || pageWindow.visible || events.open || !!time.lapse)
+        return null;
+      const s = courtSitting(plan, now());
+      // (A hive's turning and a reef's meeting don't sit.)
+      const f = plan.court?.form;
+      return s && plan.court
+        ? {
+            ref: s.ref,
+            title: `${plan.court.law} ${f === "hive" || f === "reef" ? "is today" : "sits"}`,
+            line: s.line,
+          }
+        : null;
+    },
+    () =>
+      directorControls.watching ||
+      ["filming", "fleet-filming", "homing", "living", "possessing", "ruling", "paging"].some((c) =>
+        document.body.classList.contains(c),
+      ),
+  );
+  exposed.courtNote = () => courtNote.element;
   takeUp.push(() => runNote.fromNow());
   clusterPanel.under(directorControls.caption);
   // A colony's landing watched (Phase 64), and the list of the worlds settled that leads to it.

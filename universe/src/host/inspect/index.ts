@@ -46,6 +46,7 @@ import { comparePage } from "./compare.ts";
 import { crumbsOf } from "./crumbs.ts";
 import { DEEP_LENSES, lensReading, type DeepLens } from "../lenses.ts";
 import { conceptPage, withConcepts } from "./concepts.ts";
+import { withBarBlock } from "./barread.ts";
 import { sicknessPage } from "./sickness.ts";
 import { housePage } from "./credit.ts";
 import { buildingPage, lotPage, wallsPage } from "./fabric.ts";
@@ -60,11 +61,17 @@ import { seatPage, withKin } from "./kin.ts";
 import { rulerPage, withLeaderPage } from "./leaders.ts";
 import { courtPage } from "./court.ts";
 import { songPage, stonePage } from "./memory.ts";
+import { casePage } from "./justice.ts";
 import { namedPage, type NamesArg } from "../names.ts";
 import { lawPage } from "../lanes.ts";
 
 /** The page a ref's kind is built by (the tab it asked for, if any). */
-function build(world: World, ref: string, tab: string | null): PageModel {
+function build(
+  world: World,
+  ref: string,
+  tab: string | null,
+  only?: ReadonlySet<string>,
+): PageModel {
   if (ref === "world:chronicle") return chroniclePage(world, tab ?? undefined);
   if (ref === "world:ledger") return ledgerPage(world, tab ?? undefined);
   if (ref === "world:log") return logPage(world, tab ?? undefined);
@@ -119,6 +126,8 @@ function build(world: World, ref: string, tab: string | null): PageModel {
   // A stone a town raised, and a song a people sing (T1).
   if (ref.startsWith("stone:")) return stonePage(world, ref);
   if (ref.startsWith("song:")) return songPage(world, ref);
+  // A town's case before whoever judges there (J1).
+  if (ref.startsWith("case:")) return casePage(world, ref);
   // A home and what is in it (Lives L6).
   if (ref.startsWith("dwell:")) return homePage(world, ref);
   if (ref.startsWith("dwelt:")) return homeThingPage(world, ref);
@@ -158,11 +167,11 @@ function build(world: World, ref: string, tab: string | null): PageModel {
     case "memo":
       return memoryPage(world, ref);
     case "pol":
-      return realmPageModel(world, ref);
+      return realmPageModel(world, ref, only);
     case "rel":
       return relationPage(world, ref);
     case "war":
-      return warPage(world, ref, t);
+      return warPage(world, ref, t, only);
     case "swar":
       return starWarPage(world, ref);
     case "faith":
@@ -213,6 +222,8 @@ export function pageOf(
   names?: NamesArg,
   /** Asked only for its name, its place or its first numbers: where someone lives is not read for that. */
   brief = false,
+  /** Only these tabs read, where a page's kind can leave the others out (a whole history is written from thousands of pages). */
+  only?: ReadonlySet<string>,
 ): PageModel {
   const { ref: base, tab } = splitPageRef(ref);
   let page: PageModel;
@@ -224,11 +235,13 @@ export function pageOf(
           world,
           base,
           brief
-            ? withLeaderPage(world, base, build(world, base, tab))
+            ? withLeaderPage(world, base, build(world, base, tab, only))
             : withLiving(world, base, withLeaderPage(world, base, build(world, base, tab))),
         ),
       ),
     );
+    // (How they are now, and the way on and off the people bar: B1.)
+    if (!brief) page = withBarBlock(world, base, page);
   } catch {
     return unknownPage(world, base, true);
   }
