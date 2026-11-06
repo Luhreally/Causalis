@@ -152,8 +152,7 @@ export class MemorialLayer {
     const foot = new pc.Vec3(),
       head = new pc.Vec3(),
       there = new pc.Vec3(),
-      side = new pc.Vec3(),
-      right = cam.entity.right;
+      side = new pc.Vec3();
     for (const p of this.placed) {
       const seen = seenOf(cam, p, foot, head);
       if (foot.z <= 0 || head.z <= 0) continue;
@@ -171,15 +170,23 @@ export class MemorialLayer {
         if (up === there.y > aim) a = mid;
         else b = mid;
       }
+      // (Its two ends along its front, as it faces: if one is behind the eye, as far along as lies before it.)
       const h = ((a + b) / 2) * M,
-        out = p.wide * 0.8 * M;
+        ux = Math.cos(p.yaw) * p.across * M,
+        uz = -Math.sin(p.yaw) * p.across * M;
       cam.worldToScreen(new pc.Vec3(p.x * M, h, p.z * M), there);
-      cam.worldToScreen(
-        new pc.Vec3(p.x * M + right.x * out, h + right.y * out, p.z * M + right.z * out),
-        side,
-      );
-      const half = Math.max(10, Math.hypot(side.x - there.x, side.y - there.y)) + reach,
-        cx = there.x,
+      const axis = there.x,
+        depth = there.z,
+        end = (sign: number, out: pc.Vec3): void => {
+          cam.worldToScreen(new pc.Vec3(p.x * M + sign * ux, h, p.z * M + sign * uz), out);
+          if (out.z > 0 || depth <= 0) return;
+          const f = (0.9 * depth) / (depth - out.z);
+          cam.worldToScreen(new pc.Vec3(p.x * M + sign * ux * f, h, p.z * M + sign * uz * f), out);
+        };
+      end(1, there);
+      end(-1, side);
+      const half = Math.max(10, Math.abs(there.x - side.x) / 2) + reach,
+        cx = Math.max(10, Math.abs(there.x - side.x) / 2) > 10 ? (there.x + side.x) / 2 : axis,
         cy = aim,
         d = Math.abs(x - cx);
       if (d > half) continue;
