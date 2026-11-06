@@ -14,14 +14,14 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | Farming, crafts & industry | 10 | 7 | 0 | 1 |
 | Trade, wealth & markets | 2 | 6 | 0 | 1 |
 | Politics, diplomacy & law | 3 | 5 | 0 | 0 |
-| War | 5 | 6 | 0 | 0 |
+| War | 6 | 5 | 0 | 0 |
 | Faith, culture, language & lore | 1 | 3 | 0 | 0 |
 | History, legends & records | 7 | 2 | 0 | 0 |
 | God's acts & player tools | 3 | 1 | 2 | 3 |
 | Observation UI & lenses | 16 | 1 | 1 | 2 |
 | Space | 3 | 0 | 0 | 1 |
 | Engine, performance & saves | 1 | 0 | 0 | 19 |
-| **All 185 sections** | **72** | **60** | **11** | **42** |
+| **All 185 sections** | **73** | **59** | **11** | **42** |
 
 ## World & ground
 
@@ -158,7 +158,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | Classic | What it did | Universe | Where / what's missing |
 |---|---|---|---|
 | 26 Culture & factions | Ethos, polities, territory | **in** | Ways (`sim/culture/culture.ts`); realms and their lands (`sim/polity/polity.ts`) |
-| 56 Diplomacy | Envoys, tribute, vassals, marriages, claims | **partial** | A pretender's claim can start a civil war (`sim/strife/strife.ts`). Missing: envoys, tribute and vassals between realms, marriages |
+| 56 Diplomacy | Envoys, tribute, vassals, marriages, claims | **partial** | Tribute and vassals between realms (`sim/war/bonds.ts`, W7); a marriage between ruling houses at a ruler's word (`sim/order/reign.ts`, L5); a pretender's claim can start a civil war (`sim/strife/strife.ts`). Missing: envoys, marriages made by the world's own rulers |
 | 64 Politics | Unrest, rebellion, secession, coups, civil war | **in** | Grievance and secession (`sim/polity/polity.ts`); coups, civil wars and revolutions (`sim/strife/strife.ts`, Phase 22) |
 | 67 Polity traits | Named traits earned by deeds (Warlike, Merchants…) | **partial** | Eight ways, pushed by events and settable by the god (`sim/culture/culture.ts`, `sim/acts/natures.ts`). Missing: named tags |
 | 73 Calamities | Disasters raise unrest and topple Voices | **partial** | The god's disasters leave dead and grievance (`sim/acts/disasters.ts`). Missing: natural calamities, and a ruler blamed for one |
@@ -178,7 +178,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 42e Refuges & gear | Shelter in buildings, campaign gates, a functional profile for each piece of primitive gear | **partial** | Walls raised as war nears (`sim/town/fabric.ts`); arms by realm design, each part's material with its edge, guard, mass, lasting and cost, worked to a quality by its seat's stuff and craft (`rules/designs.ts`, `sim/war/arms.ts`, Phase 52). Missing: taking shelter, gear for each person |
 | 72 Naval warfare | Sea battles and blockades | **partial** | Hosts land from the sea (`sim/war/war.ts`). Missing: sea battles, blockades |
 | 74 War-weariness | Weary realms end their wars | **in** | `sim/war/war.ts` |
-| 97 War aims & peace | Aims steer the march; every peace has terms | **partial** | The land a realm wants and the stores it covets (`sim/war/war.ts`). Missing: peace terms such as tribute or bending the knee |
+| 97 War aims & peace | Aims steer the march; every peace has terms | **in** | Aims read off what drove a war and steering it (`sim/war/war.ts`); land, tribute, an oath or a truce (`sim/war/bonds.ts`, `rules/terms.ts`); a ruler's offers (`sim/order/reign.ts`), W7 |
 | 142 Warfare view | A warfare lens, formations, a war tab | **in** | The war lens (`view/globe.ts`); the war panel (`ui/war-panel.ts`, Phase 38); war in place (`view/warplay.ts`, Phase 40) |
 | 143 War strategy | Rally and interception | **partial** | The rally is drawn (`view/warplay.ts`). Missing: the rally and interception decided in the sim |
 
@@ -189,7 +189,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 48 Languages | Each world has a tongue; dialects split by sound change | **in** | `sim/culture/languages.ts` |
 | 50 Belief | The god named; favour, rites, a Speaker, myths, schisms | **partial** | Faiths founded on signs, spreading and splitting (`sim/belief/belief.ts`); the god named by what each people saw (`host/inspect/peoples.ts`). Missing: rites with offerings, prophecy, myths |
 | 58 Festivals & arts | Feasts, songs, tales, dances, murals | **partial** | Feasts with dancing, and market days (`view/feast.ts`, Phase 33); songs and tales made from a people's own history, sung at its feasts and wearing with age (`host/inspect/verse.ts`, T1). Missing: murals |
-| 71 Faith | Sects, zeal, holy wars | **partial** | Faiths and schisms; rival faiths sour regard; the temple's sway toward war (`sim/polity/interests.ts`). Missing: sect zeal, and wars named holy |
+| 71 Faith | Sects, zeal, holy wars | **partial** | Faiths and schisms; rival faiths sour regard; the temple's sway toward war (`sim/polity/interests.ts`); wars fought as holy, naming the two faiths (`sim/war/war.ts`, W7). Missing: sect zeal |
 
 ## History, legends & records
 
@@ -290,9 +290,9 @@ Ranked by how much each would add to the game's depth and to what you see, leani
 6. **Households in their homes.** Classic 121, 144, 145, 148. Each household's house, owned or rented, with wages paid and rent owed, eviction and people sleeping rough, plus a homes lens and the address on a person's page. **L**
 7. **Crime and justice in the town.** Classic 52, 78, 99, 154. Cases from what a town went through, courts that sit, cells, fines and sending away, each seen and given a page: built (2026-11-06). Next: being robbed or stealing when hungry as offers in a life, a decree seen in the cases, a crime lens. **M**
 8. **The world acting on its own.** Classic 17, 46, 73. Natural quakes, eruptions and falling stars, wildfire that spreads and lightning that starts it, all seen where they strike and shaking a town's order and its ruler; paths worn by feet. **M**
-9. **Wars with aims and terms.** Classic 97, 72, 71. Aims that steer the march; peace terms such as tribute, bending the knee and recognition; sea battles and blockades; wars named holy. **M**
+9. **Wars with aims and terms.** Classic 97, 72, 71. Aims that steer the march, peace with terms and wars named holy: built (2026-11-06). Next: sea battles and blockades, recognition. **M**
 10. **Coin, markets and personal standing.** Classic 89, 101, 145, 63. A price board and a specialty for each town, and who in a town is poor or rich: built (2026-11-06). Next: treasuries, coin that buys grain for the hungry, finery for the well-off, a war tithe. **L**
-11. **Diplomacy with more moves.** Classic 56, 90, 100, 69. Envoys between seats, tribute and vassals, marriages between ruling families, embassies, open markets, alliances in defence, leagues and coalitions, and a blocs lens. **L**
+11. **Diplomacy with more moves.** Classic 56, 90, 100, 69. Tribute and vassals are built (2026-11-06). Next: envoys between seats, marriages the world's own rulers make, embassies, open markets, alliances in defence, leagues and coalitions, and a blocs lens. **L**
 12. **A living ecology through history.** Classic 19, 42, 113, 119. Forests that seed outward and wither in drought, ores that run out, more kinds of tree turning with the seasons, crags. **L**
 13. **The god's hand on the ground.** Classic 31. Raise and lower land, add water, seed plants, beasts, people or ore, strike lightning anywhere, claim land for a realm: WorldBox's own brushes. **L**
 14. **Wild lives.** Classic 52, 42d, 21, 23. Herds that follow the warmth, dens, courtship, beasts of legend; herders guarding flocks and herds stolen in war; lineages still changing during history. **M**
@@ -422,6 +422,21 @@ Measures, on the final code: `harrow 348` at 3000, 117 peopled lands: at most 4 
 Limits, stated: no real iPhone has pressed the share button, and it hasn't been pressed in any run, since a share sheet needs a real device. The people on a chip go by the world's own spelling, not a people's own tongue (a viewer's "as they say it" reaches pages only). Star realms' rulers aren't on the bar unless they also rule a land of the home world. A person past those a town draws has no address to go to, as elsewhere.
 
 Cut for later: a people's own names on the bar and in the file; the bar during a life or a reign, showing who matters to that person; a town's, a faith's or a tongue's entry in the file.
+
+## Wars with aims, peace with terms, as built (2026-11-06)
+
+A war used to be about a land and end in a line. Now what a war is about is read off what drove it: hunger, a tribute unpaid, a land lost, a temple's press, a court's press on a much weaker realm, else a land. It's kept on the war's declaration, so a save grows by no column and an old save's wars simply have none. The aim steers: a host goes for the land it came for by name, a hungry host carries off grain and leaves the land, a holy war names the two faiths.
+
+A peace now comes to something, by how the war went and how far each side is spent: land ceded, a tribute, an oath, a truce with a date. Whatever binds is kept in one small store, `sim/war/bonds.ts`, and runs out by the world's clock with a line in the log. A vassal keeps its lands and its ruler, pays what it can be asked, declares no war of its own and rises when it is strong enough. No one bound holds anyone bound, so a chain is at most one. A ruler can offer and demand on the War and peace sheet (`reign.peace`, `reign.rise`), and a refusal comes in the other ruler's voice.
+
+- **A tribute really moves,** from the payer's lands to the other's seat, out of what each land holds above three months of its food, as a tithe does. Three short years and it has stopped paying, which is remembered and is a reason for the next war.
+- **Where people eat all they make, no one asks.** Harvest and eating fall in the same month, so at far ages a market's food at a year's turn is often nothing: on `gale 710` at 2000, 12 of 701 realms could pay 1% of what they make. The first form asked anyway, and 179 of 180 tributes there ended in "stopped paying". Now a tribute needs grain to spare, an oath from one with none pays nothing and says so, and a ruler's offer is refused in those words.
+
+Tally of 60 years each from a save at 2000. `gale 710`: 650 wars, 608 truces, 18 realms that fell, 4 oaths, 1 tribute, none unpaid, worst bond under 2% of what its payer makes, chain 1. `amber 101`: 192 wars, 146 truces, 12 oaths, 10 tributes, 3 lands ceded, 1 unpaid. `first light` before the spare rule: 209 wars, the same shape.
+
+Found by pressing: a peace with no land left between the two said nothing of its terms, and so did one where a side fell and one by the greatest fire; each now says what it came to. The seventh button on the tray broke "Marriage" in two: it reads "Marry". 🔊 lay over the ends of a sheet's lines on the phone and now gives way.
+
+Levers, with what's measured: **far worlds are 96% truces** (608 of 633 on `gale 710`), and attackers win about one battle in ten by design (`defend = strength × 1.5`), so "was beaten back, and swore a truce" is the commonest line of a far age. Tithes move nothing at far ages either, for the same reason as tribute. A peace made by the god's hand has no terms. Cut for later: a blocs lens, wars named by the world, a Years filter for terms ending, claimants across realms, an overlord defending its vassal, a ruler withholding tribute by word, a water people's word for grain in terms and credit lines.
 
 ## The work-down order (2026-10-25)
 

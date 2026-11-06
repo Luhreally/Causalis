@@ -39,14 +39,14 @@ const towns = (() => {
     .map(([ref]) => ctx.settlements.get(ref as Ref)!);
 })();
 
-/** Households met in those towns, in order, until 120 grown men are met or 200 households. */
+/** Households met in those towns, in order, until 300 grown men are met or 500 households (enough that some fall, as wars end sooner on terms). */
 const met = (() => {
   const people: Person[] = [];
   let households = 0;
   const grownMen = () =>
     people.filter((p) => p.sex === MALE && Y - p.birthYear >= life.adulthood).length;
   for (const v of towns)
-    while (households < 200 && grownMen() < 120) {
+    while (households < 500 && grownMen() < 300) {
       try {
         people.push(...meetHousehold(world, v.cell, v.ref).members.map((r) => ledger.person(r)!));
       } catch {
