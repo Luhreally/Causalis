@@ -1146,15 +1146,18 @@ export function stonePage(world: World, ref: string): PageModel {
       lines: [[link(song.title, songRef(d)), `, ${song.form}: ${song.line}`]],
     },
   ];
-  return page(
-    world,
-    ref,
-    ICONS[f.form],
-    `The ${STONE_NAMES[d.kind]} of ${town.name}`,
-    [`${f.stuff}, year ${d.year}, in `, townLink(world, town.ref)],
-    [stat("Year", String(d.year)), stat("Town", [townLink(world, town.ref)])],
-    blocks,
-  );
+  return {
+    ...page(
+      world,
+      ref,
+      ICONS[f.form],
+      `The ${STONE_NAMES[d.kind]} of ${town.name}`,
+      [`${f.stuff}, year ${d.year}, in `, townLink(world, town.ref)],
+      [stat("Year", String(d.year)), stat("Town", [townLink(world, town.ref)])],
+      blocks,
+    ),
+    place: { scale: "village", town: town.ref, stone: ref },
+  };
 }
 
 /** A song's page: its words, what it tells of, what has changed in the telling, who made it and where it is sung. */

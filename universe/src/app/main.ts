@@ -331,6 +331,7 @@ import {
   slowAhead,
   slowingBegun,
   type Slowing,
+  type OrbitView,
 } from "../view/index.ts";
 
 /** A point along a name's line: `d` radians from its centre, on the unit sphere. */
@@ -8659,6 +8660,21 @@ async function runPlanetPage(): Promise<void> {
       pitch: (-Math.asin(p[spot * 3 + 1]!) * 180) / Math.PI,
     };
   };
+  /**
+   * Where to look at what a town raised (T1): from over its square toward it, low, so no tower of a
+   * city stands between.
+   */
+  const stoneView = (ref: string): OrbitView | null => {
+    const s = village.stonesOnScreen().find((x) => x.ref === ref);
+    return s
+      ? {
+          target: { x: s.worldX * VILLAGE_METRE, y: 0.4, z: s.worldZ * VILLAGE_METRE },
+          yaw: (Math.atan2(-s.worldX, -s.worldZ) * 180) / Math.PI,
+          pitch: -16,
+          distance: 3.2,
+        }
+      : null;
+  };
   const goTo = async (place: Place) => {
     walk.saw("scale");
     // Where it is already in the scene shown: a flight there, not a fade (M94).
@@ -8677,6 +8693,13 @@ async function runPlanetPage(): Promise<void> {
       return;
     }
     if (scale === "village" && place.scale === "village" && place.town === plan?.ref) {
+      if (place.stone) {
+        // (The eye held on someone, as in a life or a possession: read from where they stand.)
+        const view = rig.follow || !rig.enabled ? null : stoneView(place.stone);
+        pageWindow.close();
+        if (view) rig.flyTo(view);
+        return;
+      }
       const who = place.person,
         i = who ? plan.people.findIndex((p) => p.ref === who) : -1,
         m = i >= 0 ? village.momentAt(i) : null;
@@ -8736,6 +8759,14 @@ async function runPlanetPage(): Promise<void> {
               }
               keep(who);
             }
+          }
+          const stone = place.stone ? stoneView(place.stone) : null;
+          if (stone) {
+            pageWindow.close();
+            rig.target.set(stone.target.x, stone.target.y, stone.target.z);
+            rig.yaw = stone.yaw;
+            rig.pitch = stone.pitch;
+            rig.distance = stone.distance;
           }
           swoop();
           return;

@@ -393,6 +393,33 @@ async function pressStone(label: string, want: RegExp): Promise<string> {
   return text;
 }
 
+/** From its page, ⌖ Go to: the page gone, the eye at it, and the stone truly in the picture, whatever stands about it. */
+async function goToStone(label: string, ref: string): Promise<void> {
+  await k(`globalThis.causalis.open(${JSON.stringify(ref)})`);
+  await until(`${label}: its page`, async () => (await pageNow()) === ref);
+  await page.waitForTimeout(slow(300));
+  await press(".page-window .go-to");
+  await until(`${label}: its page gone`, async () => (await pageNow()) === null, slow(60000));
+  const town = /^stone:(town:\d+:\d+):/.exec(ref)?.[1] ?? "";
+  await until(
+    `${label}: its town`,
+    () =>
+      k<boolean>(
+        `globalThis.causalis.scale() === "village" && globalThis.causalis.planNow()?.ref === ${JSON.stringify(town)}`,
+      ),
+    slow(60000),
+  );
+  await page.waitForTimeout(slow(1600));
+  const withIt = await shot(`${label}-go-to`);
+  await k("globalThis.causalis.stonesShown(false)");
+  await page.waitForTimeout(slow(300));
+  const without = await shot(`${label}-go-to-without`);
+  await k("globalThis.causalis.stonesShown(true)");
+  const seen = await unlike(withIt, without);
+  say(`${label}: from its page, ${(seen * 100).toFixed(1)}% of the picture is the stone`);
+  check(seen > 0.006, `${label}: its page's Go to does not show it: ${(seen * 100).toFixed(2)}%`);
+}
+
 // The worlds.
 const far = !!saveFile;
 const made = saveFile ? fromFile(saveFile, universeArg) : youngWorld();
@@ -438,6 +465,7 @@ if (most) {
   // Pressed by touch at its real place; not the ground beneath it.
   const text = await pressStone("2-stone", /Raised|Left standing|No one raised|year/);
   say(`a stone's page: ${text.replace(/\s+/g, " ").slice(0, 200)}`);
+  await goToStone("2-stone", got!.list[0]!.ref);
   // 4. Songs and tales on its town's page, pressed by touch.
   await k(`globalThis.causalis.open(${JSON.stringify(most)})`);
   await until("the town's page", async () => (await pageNow()) === most);
@@ -536,6 +564,9 @@ if (none) {
   await k(`globalThis.causalis.open(${JSON.stringify(none)})`);
   await until("its page", async () => (await pageNow()) === none);
   await closePage();
+  // (From another town, a stone's page brings the eye to it there.)
+  const elsewhere = most ? memorialsOf(made.world, most)[0]?.ref : undefined;
+  if (elsewhere) await goToStone("5-from-afar", elsewhere);
 }
 
 // A stone of a realm that is gone: its page says so.
@@ -648,9 +679,9 @@ if (most && far) {
     return null;
   };
   /** Walked on the keys toward a point until near it, stepping aside where a wall stops the body. */
-  const walkNear = async (x: number, z: number, near: number) => {
+  const walkNear = async (x: number, z: number, near: number, ms = 90000) => {
     const down = new Set<string>(),
-      end = Date.now() + slow(90000);
+      end = Date.now() + slow(ms);
     let best = Infinity,
       bestAt = Date.now(),
       side = 1,
@@ -775,6 +806,9 @@ if (most && far) {
         await press(".page-window h2 .close");
         check((await pageNow()) === null, "possessed: the page's close did not close it");
         check(!!(await me()), "reading a stone ended the possession");
+        // (Walked straight at it, the body does not pass through what stands there.)
+        const into = await walkNear(close.worldX, close.worldZ, 0.15, 7000);
+        check(!into, "possessed: walked through the stone");
       }
     }
     await k(`globalThis.causalis.possess?.letGo?.()`);
@@ -806,6 +840,8 @@ for (const [file, label, want] of [
   await shot(`6-${label}-town`);
   const t = await pressStone(`6-${label}`, want);
   say(`${label}: ${t.replace(/\s+/g, " ").slice(0, 220)}`);
+  // (Where towers hide it from above: its page's Go to looks across the square at it.)
+  if (got?.list[0]) await goToStone(`6-${label}`, got.list[0].ref);
 }
 
 const real = errors.filter(
