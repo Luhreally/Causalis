@@ -9074,6 +9074,7 @@ async function runPlanetPage(): Promise<void> {
   // free roam) takes the eye back. Begun from the genesis (?watch), it watches from the first
   // village on.
   const directorControls = new DirectorControls(corner, hud);
+  clusterPanel.under(directorControls.caption);
   // A colony's landing watched (Phase 64), and the list of the worlds settled that leads to it.
   colonyFilm = installColonyFilm({
     stage,

@@ -72,6 +72,7 @@ export class ClusterPanel {
     );
     root.append(this.element);
     this.visible = false;
+    this.lensWatch.observe(bar);
   }
 
   set visible(on: boolean) {
@@ -79,10 +80,22 @@ export class ClusterPanel {
     if (on) this.placeLenses();
   }
 
-  /** The lenses just under the panel's bar, however high its words have wrapped it. */
+  /** What comes to stand under the panel's bar now and then: the lenses stand under that, and move when it comes or goes. */
+  under(other: HTMLElement): void {
+    this.overLenses.push(other);
+    this.lensWatch.observe(other);
+  }
+  private readonly overLenses: HTMLElement[] = [];
+  private readonly lensWatch = new ResizeObserver(() => this.placeLenses());
+
+  /** The lenses just under the panel's bar, however high its words have wrapped it, and under what stands below that. */
   private placeLenses(): void {
-    const bottom = this.element.querySelector("header.bar")?.getBoundingClientRect().bottom ?? 0,
-      top = `${Math.round(bottom) + 4}px`;
+    let bottom = this.element.querySelector("header.bar")?.getBoundingClientRect().bottom ?? 0;
+    for (const e of this.overLenses) {
+      const r = e.getBoundingClientRect();
+      if (r.height > 0) bottom = Math.max(bottom, r.bottom);
+    }
+    const top = `${Math.round(bottom) + 4}px`;
     if (this.lenses.element.style.top !== top) this.lenses.element.style.top = top;
   }
 

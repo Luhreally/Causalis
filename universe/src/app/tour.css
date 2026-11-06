@@ -81,7 +81,7 @@
 }
 
 /* The way into all of it, and the wars beside it: a thumb's size. */
-.director-button {
+.free-buttons .director-button {
   min-width: 44px;
   min-height: 44px;
 }
