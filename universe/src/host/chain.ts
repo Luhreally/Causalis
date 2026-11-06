@@ -637,7 +637,12 @@ function traced(world: World, cell: number, kind: string): Line[] {
  * How one of a land's goods came to its market, from the ground (Markets, first slice: a board's line leads here): its metal's roads back to the
  * smelter, or the chain of the last such thing its town's makers made. Foods and fuels have no making beyond their recipe (none here).
  */
-export function goodChain(world: World, cell: number, goodId: string, year: number): readonly Line[] {
+export function goodChain(
+  world: World,
+  cell: number,
+  goodId: string,
+  year: number,
+): readonly Line[] {
   const town = makingTown(world, cell)?.ref ?? null;
   switch (goodId) {
     case "copper":

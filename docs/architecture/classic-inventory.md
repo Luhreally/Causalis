@@ -148,7 +148,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 59 Wayfinding | Travellers on civil errands find a road | **n/a** | Path-finding for Classic's walkers |
 | 63 Wealth | What a person owns, their standing, inequality, envy | **partial** | The wealth in a land's stores (`host/lenses.ts`); a realm's caste (`sim/order/order.ts`). Missing: personal riches and standing, and envy |
 | 88 Roads & wheels | Roads and rails laid stone by stone; carts, trucks, trains | **partial** | Roads trodden, then paved, then railed as the era turns (`view/land.ts`, `host/land.ts`); carriers in the economy. Missing: roads built from stone and metal over the years |
-| 89 Markets & coin | Price boards, specialties, treasuries; coin buys grain and hands | **partial** | Prices that follow scarcity (`sim/economy/market.ts`); currency is known as a principle. Missing: coin, treasuries, price boards, specialties |
+| 89 Markets & coin | Price boards, specialties, treasuries; coin buys grain and hands | **partial** | Prices that follow scarcity (`sim/economy/market.ts`). A town's board, what each town is known for, and where a good is dear and where cheap (`host/inspect/board.ts`, gate 92). Missing: treasuries, coin that moves from hand to hand |
 | 100 Blocs & loans | An alliance-blocs lens; loans between treasuries | **partial** | Houses of lending, war loans, defaults and jubilees (`sim/credit/credit.ts`, Phase 21). Missing: a blocs lens |
 | 101 Finery & tithe | The well-off want worked goods; a heavy tithe in war | **partial** | A grain tithe sent to the seat (`sim/polity/polity.ts`). Missing: demand for finery, a war tithe |
 | 145 Wages | Hands paid for the time they work; rent follows the pay | **partial** | A year of each kind of work is valued, and people move toward the work that pays (`sim/economy/systems.ts`). A person's page reads what a day's work brings, what it buys, their rent and what is left (L6, second slice). Missing: wages and rent moved through history |
@@ -291,7 +291,7 @@ Ranked by how much each would add to the game's depth and to what you see, leani
 7. **Crime and justice in the town.** Classic 52, 78, 99, 154. Theft from the stores and robbery by the hungry; offences that become cases; courts that sit, cells, fines and banishment, each one seen and given a page. **M**
 8. **The world acting on its own.** Classic 17, 46, 73. Natural quakes, eruptions and falling stars, wildfire that spreads and lightning that starts it, all seen where they strike and shaking a town's order and its ruler; paths worn by feet. **M**
 9. **Wars with aims and terms.** Classic 97, 72, 71. Aims that steer the march; peace terms such as tribute, bending the knee and recognition; sea battles and blockades; wars named holy. **M**
-10. **Coin, markets and personal standing.** Classic 89, 101, 145, 63. Coin and treasuries, a price board and a specialty for each town, coin that buys grain for the hungry, finery for the well-off, a war tithe, and who in a town is poor or rich. **L**
+10. **Coin, markets and personal standing.** Classic 89, 101, 145, 63. A price board and a specialty for each town, and who in a town is poor or rich: built (2026-11-06). Next: treasuries, coin that buys grain for the hungry, finery for the well-off, a war tithe. **L**
 11. **Diplomacy with more moves.** Classic 56, 90, 100, 69. Envoys between seats, tribute and vassals, marriages between ruling families, embassies, open markets, alliances in defence, leagues and coalitions, and a blocs lens. **L**
 12. **A living ecology through history.** Classic 19, 42, 113, 119. Forests that seed outward and wither in drought, ores that run out, more kinds of tree turning with the seasons, crags. **L**
 13. **The god's hand on the ground.** Classic 31. Raise and lower land, add water, seed plants, beasts, people or ore, strike lightning anywhere, claim land for a realm: WorldBox's own brushes. **L**
@@ -340,6 +340,25 @@ Measures, on a loaded machine (a seed list at five jobs). `harrow 348` at 3000, 
 Limits, stated: the note's count "52 realms fell" in 240 years reads large, and is the world's own. A filter's lesser things can't be expanded. The first reading on a busy world stalls the worker for up to 2.3 s, once per reading, the world standing meanwhile; the note's own reading comes with the run over. While a far world runs at speed the bar's date leads the host by up to a second's worth of years, so it steps back when stopped: that's older than this work. No line "It never will" was seen on a screen on these worlds at their stages; it's read by rule against F5 on four worlds. Safari itself wasn't run.
 
 Cut for later: writing the history out as a file (row 66), the people bar (row 49), a note kept to read again.
+
+## Markets, first slice, as built (2026-11-06)
+
+The simulation has had markets for a long time, one per land, with a stock, a price and a year's trade for each good. A person could barely see them. Now **🏷️** on a town's bar, or a press on its square, brings up a wooden board hanging in the town: what's for sale this year, what each costs in a unit a person asks for (a loaf, a fleece, a pot, a bar, a machine), whether that's dear or cheap against the usual, and whether it's rising or falling. Its head says **what the town is known for**. **Where it is dear** says what a merchant would carry: "Tin is cheapest at Gryrnar, at 119 coin a bar. At Humoney it costs 9 times that, 1,062 coin. It cannot be had at Bohaendholt or Emon or 4 more." Every line opens that good's page, and from there the chain that made it, from the ground up.
+
+- **It only reads.** All of it is `host/inspect/board.ts`: no state, no events, no version bump, the fixtures unmoved, hashes the same before and after.
+- **One reading.** `goodCoin` is the only place a price becomes coin, and the board's loaf is `breadCoin`, the loaf a person's page reckons by. The gate reads the same number off both.
+- **A market is a land's, a name is a town's.** At a far age a land holds up to 48 towns, so the price is the land's and what differs is what each is known for, from the land's books and the town's own tile: water beside it, ground above it, soil against its land's other towns, deposits within a walk, what stands there. Each thing is shared out so no more than a sixth of a land's towns say it first: before that, a land of 48 towns had 33 known for "the machines of its works".
+- **Coin only where it's known.** A people with no currency reads in what they eat: "a hide buys 16 days' gathering".
+
+Tally, every town of six saves, 76,000 towns: no town known for nothing, no board under three lines, the commonest sentence between 5.9% and 12.7% of a world's towns, the worst realm's first thing at most 38% of its towns in far worlds (58% at year 30, when there's little to tell apart). Numbers on a board run from 0.5 to about 1,100 coin on every save. A board costs 1 to 6 ms on a town of 62 million, at most about 50 ms the first time a land's region is read, and nothing until opened.
+
+Found by pressing: the Book stood over any page it opened, a tall sheet lay under a life's strips with its close, and a chrome rule of possession hid every page. **A life's and a reign's tray lay over a page's last lines**: it now gives way while a page is open.
+
+What the board shows of the sim: **far prices are pinned.** `reprice` clamps a price between 0.33 and 3.03 of its worth, so at a far age clothing and wool sit at 3.03 on almost every market and tools at 0.33, with 781 thousand million in store at one land. The board is honest about it, and a far world's board reads much the same from town to town. That's a rule to look at after the seed list, not something a page should hide.
+
+Limits, stated: the market hall's own press isn't exercised by touch, since no hook gives a hall's screen place; the square's and 🏷️'s are. Possession has no button that opens a page, so a board can't be reached there. No no-grip world's board was opened on the screen; `vale 471` was tallied and reads its own things.
+
+Cut for later: a map lens of a good's price, treasuries, finery in rich homes linked to the board, a war's effect past a good's five years of books, a signboard drawn in the square.
 
 ## The work-down order (2026-10-25)
 

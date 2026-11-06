@@ -143,6 +143,10 @@ body.living #hud > *:not(.life-hud):not(.page-window):not(.panel.page-panel):not
 .life-told:empty {
   display: none;
 }
+/* (A page stands over a life's world and holds its day: the tray would lie over the page's last lines. Same for a reign's.) */
+body.paging .life-tray {
+  display: none;
+}
 .life-tray {
   position: absolute;
   left: 0;

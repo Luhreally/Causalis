@@ -71,7 +71,8 @@
 }
 .price-board button.board-row {
   display: grid;
-  grid-template-columns: 26px minmax(88px, 1fr) minmax(62px, max-content) minmax(72px, 27%);
+  /* (A barter's price takes two lines before a town's name takes two.) */
+  grid-template-columns: 26px minmax(88px, 1fr) minmax(62px, 0.7fr) minmax(72px, 27%);
   align-items: center;
   gap: 2px 6px;
   width: 100%;

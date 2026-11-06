@@ -299,6 +299,21 @@ async function pressEl(find: string, what: string): Promise<boolean> {
   await page.waitForTimeout(slow(300));
   return true;
 }
+/** A tab of the page by touch at its real place (tabs keep the size they have across the game). */
+async function tapTab(label: string): Promise<boolean> {
+  const at = await k<{ x: number; y: number; top: boolean } | null>(`(() => {
+    const e = [...document.querySelectorAll(".page-window .tabs .tab")].find((b) => b.textContent.includes(${JSON.stringify(label)}));
+    if (!e) return null;
+    e.scrollIntoView({ block: "nearest" });
+    const r = e.getBoundingClientRect(), x = r.x + r.width / 2, y = r.y + r.height / 2, at = document.elementFromPoint(x, y);
+    return { x, y, top: !!at && (at === e || e.contains(at)) };
+  })()`);
+  if (!at) return false;
+  check(at.top, `the tab ${label} lies under something`);
+  await page.touchscreen.tap(at.x, at.y);
+  await page.waitForTimeout(slow(500));
+  return true;
+}
 const bySelector = (selector: string) =>
   `() => { for (const e of document.querySelectorAll(${JSON.stringify(selector)})) { const r = e.getBoundingClientRect(); if (r.width > 0 && r.height > 0) return e; } return null; }`;
 const byWords = (selector: string, words: string) =>
@@ -471,6 +486,19 @@ async function walk(world: World, f: Forged, name: string, young: boolean): Prom
     }
   }
 
+  // The board's second tab, by touch: what a merchant would carry; and back to the board.
+  if (await tapTab("Where it is dear")) {
+    const carry = await pageText();
+    readWell(carry, `${name}'s tab of where it is dear`);
+    say(`${name}, the tab: ${carry.replace(/\s+/g, " ").slice(0, 260)}`);
+    check(
+      /cheapest|about the same|only at|No one/.test(carry),
+      `${name}: the tab does not say where: ${carry.slice(0, 200)}`,
+    );
+    await shot(`${name}-carry`);
+    check(await tapTab("The board"), `${name}: no way back to the board`);
+  } else problems.push(`${name}: no tab of where it is dear`);
+
   // 4. A line pressed by touch; a good's page says the board's price; its chain; where it is cheap and dear.
   const line = (
     b?.rows.find((r) => /^(Tools|Pottery|Clothing)/.test(r.name)) ?? b?.rows[0]
@@ -508,6 +536,13 @@ async function walk(world: World, f: Forged, name: string, young: boolean): Prom
       !/\b(tools|hides|machines) (is|costs)\b/i.test(dear),
       `${name}: a plural said as one: ${dear.slice(0, 200)}`,
     );
+    // (The whole world's list, by touch, where the realm has its own.)
+    if (await tapTab("The whole world")) {
+      const wide = await pageText();
+      readWell(wide, `${name}'s list of the whole world`);
+      check(/the world over/i.test(wide), `${name}: the world's list: ${wide.slice(0, 200)}`);
+      say(`${name}, the world over: ${wide.replace(/\s+/g, " ").slice(0, 200)}`);
+    }
     const list = await boardSeen();
     if (list?.rows.length) {
       for (const r of list.rows)
@@ -672,6 +707,12 @@ async function walk(world: World, f: Forged, name: string, young: boolean): Prom
         await until("the board in a life", async () => (await pageIs()).startsWith("board:"));
         await page.waitForTimeout(slow(500));
         check(await pageSeen(), `${name}: the board is not to be seen in a life`);
+        check(
+          await k<boolean>(
+            `(() => { const t = document.querySelector(".life-tray"); return !t || t.getBoundingClientRect().height === 0; })()`,
+          ),
+          `${name}: a life's tray stands over the page's last lines`,
+        );
         check(
           await k<boolean>(`document.querySelector(".life-book").hidden`),
           `${name}: the Book stands over a page it opened`,
