@@ -9,19 +9,19 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 |---|---|---|---|---|
 | World & ground | 2 | 9 | 0 | 1 |
 | Life & creatures | 3 | 5 | 0 | 0 |
-| People & minds | 3 | 7 | 7 | 3 |
+| People & minds | 3 | 8 | 6 | 3 |
 | Households, towns & building | 13 | 7 | 2 | 11 |
 | Farming, crafts & industry | 10 | 7 | 0 | 1 |
 | Trade, wealth & markets | 2 | 6 | 0 | 1 |
-| Politics, diplomacy & law | 2 | 6 | 0 | 0 |
+| Politics, diplomacy & law | 3 | 5 | 0 | 0 |
 | War | 5 | 6 | 0 | 0 |
 | Faith, culture, language & lore | 1 | 3 | 0 | 0 |
-| History, legends & records | 6 | 2 | 1 | 0 |
+| History, legends & records | 7 | 2 | 0 | 0 |
 | God's acts & player tools | 3 | 1 | 2 | 3 |
-| Observation UI & lenses | 15 | 2 | 1 | 2 |
+| Observation UI & lenses | 16 | 1 | 1 | 2 |
 | Space | 3 | 0 | 0 | 1 |
 | Engine, performance & saves | 1 | 0 | 0 | 19 |
-| **All 185 sections** | **69** | **61** | **13** | **42** |
+| **All 185 sections** | **72** | **60** | **11** | **42** |
 
 ## World & ground
 
@@ -67,7 +67,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 75 Temptation | Courtship that becomes partnership; affairs | **missing** | — |
 | 76 Mating | Coupling by choice: partner first, then a lover, never kin | **partial** | Under the hand, children are born to couples the sim pairs (`sim/hand/hand.ts`). Missing: choosing a partner, lovers, affairs |
 | 77 Heartlines | Lines between lovers on the map; children of secret affairs | **missing** | — |
-| 78 Instinct | Inherited instincts; hunger drives eating carrion and the dead, and robbery | **missing** | — |
+| 78 Instinct | Inherited instincts; hunger drives eating carrion and the dead, and robbery | **partial** | A land's hunger brings robbery, in a town's cases (`host/inspect/justice.ts`, J1). Missing: inherited instincts, eating carrion and the dead |
 | 94 Figures | Poses for work (kneel, carry, sit, fight); dress by standing and era | **in** | Work motions (`view/motion.ts`); dress by era and group (`view/dress.ts`), though not by wealth |
 | 102 Presence | Taller figures, tools in hand, hair, torches at night | **partial** | Tools carried and held (`view/work.ts`); hair and faces (`view/detail.ts`). Missing: torches carried at night |
 | 111 Steady feet & cars | Walkers that don't jitter; motor freight on the roads | **in** | Smooth walkers (`view/presence.ts`); carts, trucks and trains as busy as trade (`render/landtraffic.ts`, Phase 26) |
@@ -88,7 +88,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 32e Architecture render | Palettes, footprints, roofs, function marks, sites going up | **in** | Homes in their designs, rising inside scaffolds (`view/town.ts`, `render/town.ts`) |
 | 32f Interiors | Cutaway homes: furniture, and who is inside | **partial** | Any home opens in cutaway with what its people need, can get and can pay for, and those who are in it (Lives L6, `rules/dwelling.ts`). Missing: workshops |
 | 32g Town render | Work at its faces; the place itself | **in** | `render/work.ts`; trades at their buildings (`render/trades.ts`, Phase 41) |
-| 52 Living society | Monuments, caravans that walk, wildlife lives, petty crime and captives | **partial** | Traders on the road (`view/trade.ts`, Phase 48); captives (`sim/order/order.ts`); stones raised to what a town went through, each with its page (`host/inspect/memory.ts`, `render/memorial.ts`, T1). Missing: dens and beasts of legend, theft and exile |
+| 52 Living society | Monuments, caravans that walk, wildlife lives, petty crime and captives | **partial** | Traders on the road (`view/trade.ts`, Phase 48); captives (`sim/order/order.ts`); stones raised to what a town went through, each with its page (`host/inspect/memory.ts`, `render/memorial.ts`, T1). theft and exile, as a town's cases (`host/inspect/justice.ts`, J1). Missing: dens and beasts of legend |
 | 68 Expansion | Settlers found new camps; caps scale with the map | **in** | Bands spread and towns are founded (`sim/population/systems.ts`); the god can send settlers (`sim/acts/peoples.ts`) |
 | 82 Granary | Farms scale with mouths, rations stretch, relief comes, the hungry move, births slow | **in** | Stores, fertility that follows how well fed, relief by trade, moves away from hunger (`sim/population/systems.ts`, `sim/economy/systems.ts`) |
 | 83 Aftermath | Ruins resettled, refugees walk to friends, thinned towns colonised | **partial** | People leave hungry or war-torn lands (`sim/population/systems.ts`). Missing: ruins resettled, colonists sent to thinned towns |
@@ -164,7 +164,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 73 Calamities | Disasters raise unrest and topple Voices | **partial** | The god's disasters leave dead and grievance (`sim/acts/disasters.ts`). Missing: natural calamities, and a ruler blamed for one |
 | 90 Statecraft | Opinion with reasons, pacts, open markets, embassies, coalitions, the wire | **partial** | Regard built from named terms, pacts sworn and broken (`sim/diplomacy/diplomacy.ts`), trade embargoes. Missing: open markets, embassies, alliances in defence, coalitions |
 | 99 Civil society | Children learn crafts, circles speak up, the law gets a code | **partial** | Interest groups press their realm (`sim/polity/interests.ts`); laws (`sim/order/laws.ts`). Missing: children taught their parents' craft |
-| 154 Justice | Offences become cases; courts, cells, sentences | **partial** | A justice law, and convicts bound to labour (`sim/order/`). Missing: cases, courts, trials |
+| 154 Justice | Offences become cases; courts, cells, sentences | **in** | A justice law, and convicts bound to labour (`sim/order/`); a town's cases, each from a cause (`host/inspect/justice.ts`); a court that sits and sentences carried out where they're seen (`view/court.ts`, `render/court.ts`), J1 |
 
 ## War
 
@@ -199,7 +199,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 29 History | Significance, chronicles, statistics | **in** | `host/inspect/world.ts`, `host/inspect/stats.ts` |
 | 47 Legends | A linked encyclopedia of the world's history | **in** | Pages for everything (`host/inspect/`, Phase 10) |
 | 55 Years | Year-by-year annals, filtered, with a digest for each year | **in** | The Years, a tab of the Chronicle: every year with something told, filtered by kind, each name a link, a year to go to (`host/inspect/annals.ts`, `ui/years.ts`, gate 91) |
-| 66 Legends export | The whole history written out as HTML and text | **missing** | Only the save exports as a file |
+| 66 Legends export | The whole history written out as HTML and text | **in** | One press on The Years writes it (`host/inspect/written.ts`, `ui/written.ts`, `ui/written-file.ts`): realms and their rulers, wars and how they ended, those who mattered, the great deeds by year, links inside it, what it leaves out said at its head; HTML and plain words, kept by a link or the phone's share sheet |
 | 69 Eras | Ages, leagues, wonders, the ship that leaves | **partial** | Stages (`host/inspect/stage.ts`) and flight to the stars (`sim/space/`). Missing: leagues of allied realms, wonders |
 | 81 Records | Archives keep the crafts a fallen town knew | **partial** | Knowledge spreads, faster once writing is known (`sim/lore/lore.ts`). Missing: crafts lost with a fallen town, and archives that keep them |
 | 164 Polities compared | Living realms side by side, sortable | **in** | `host/inspect/compare.ts`; the realms' ledger (`host/inspect/world.ts`) |
@@ -233,7 +233,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 38 Field guide | Readable chemistry: formulas, reactions, a topic guide | **in** | The concept book (`host/inspect/concepts.ts`); matter pages (`host/inspect/matter.ts`, Phase 15) |
 | 44 Mobile runtime | Touch-first panels, phone performance | **in** | `app/tier.ts`; the touch camera; the free-roam stick (`ui/free.ts`) |
 | 45 Player experience | First expedition, journal, pinned lives, impact of acts | **in** | The guided walk (`ui/walk.ts`); follows (`ui/outliner.ts`); the message log (`ui/alerts.ts`); acts traced through why |
-| 49 Observatory | People bar, linked alerts, map modes | **partial** | Alerts and map modes (`ui/alerts.ts`, `ui/mapmodes.ts`). Missing: a bar of the lives that matter now, with mood, activity and health |
+| 49 Observatory | People bar, linked alerts, map modes | **in** | Alerts and map modes (`ui/alerts.ts`, `ui/mapmodes.ts`); the people bar (`host/bar.ts`, `host/inspect/barread.ts`, `ui/people-bar.ts`): who matters where the eye is, why, and how they are, each a true reading |
 | 123 World signatures | Climate, culture and lineage shape cars, buildings, canopies | **in** | Designs by land and body (`sim/design/design.ts`); each people's look made of their world (`host/folk.ts`, `view/folk.ts`, Phase 34) |
 | 139 Follow a life | The camera keeps a life in the middle | **in** | `followPerson` in `app/main.ts`; the camera eases after them (`render/orbit.ts`) |
 | 140 Map lenses | Twenty-six lenses in groups, with edges drawn | **in** | `view/globe.ts`, `host/lenses.ts` (Phase 12) |
@@ -288,7 +288,7 @@ Ranked by how much each would add to the game's depth and to what you see, leani
 4. **New matter on every world, kept track of as it moves.** Classic 06, 02, 07, 13, 38. Each world gets its own laws and an invented chemistry (matter families, compounds, reactions), so alien makings are new but still coherent, and substances move through ground, bodies and stores where you can inspect them at each step. Today every world shares Earth's elements, and the sim moves goods. **L**
 5. **Primitive gear and the tribal village.** Classic 112, 42e, 30c. Beyond Phase 49's camp crafts: primitive arms and armour that each work differently (reach-spears, slings, bone and shell coats), storage pits, drying racks, pit kilns, palisades, spirit posts, dugouts. **M**
 6. **Households in their homes.** Classic 121, 144, 145, 148. Each household's house, owned or rented, with wages paid and rent owed, eviction and people sleeping rough, plus a homes lens and the address on a person's page. **L**
-7. **Crime and justice in the town.** Classic 52, 78, 99, 154. Theft from the stores and robbery by the hungry; offences that become cases; courts that sit, cells, fines and banishment, each one seen and given a page. **M**
+7. **Crime and justice in the town.** Classic 52, 78, 99, 154. Cases from what a town went through, courts that sit, cells, fines and sending away, each seen and given a page: built (2026-11-06). Next: being robbed or stealing when hungry as offers in a life, a decree seen in the cases, a crime lens. **M**
 8. **The world acting on its own.** Classic 17, 46, 73. Natural quakes, eruptions and falling stars, wildfire that spreads and lightning that starts it, all seen where they strike and shaking a town's order and its ruler; paths worn by feet. **M**
 9. **Wars with aims and terms.** Classic 97, 72, 71. Aims that steer the march; peace terms such as tribute, bending the knee and recognition; sea battles and blockades; wars named holy. **M**
 10. **Coin, markets and personal standing.** Classic 89, 101, 145, 63. A price board and a specialty for each town, and who in a town is poor or rich: built (2026-11-06). Next: treasuries, coin that buys grain for the hungry, finery for the well-off, a war tithe. **L**
@@ -302,7 +302,7 @@ Ranked by how much each would add to the game's depth and to what you see, leani
 18. **Knowledge that can be lost.** Classic 81, 106. Crafts lost when a town falls and kept by archives; rare crafts opened only by having seen a quake or a falling star. **S**
 19. **Town directives.** Classic 34a. The god sets a town's priority or policy and asks it to build. **M**
 20. **Time with a goal.** Classic 79, 129, 159, 160. What the next stage still needs and a digest of years run fast: built (2026-11-06). Next: a push aimed at that stage. **S**
-21. **Reading the people and the years.** Classic 49, 55, 66. Year-by-year annals with digests: built (2026-11-06). Next: a bar of the lives that matter now, and the whole history written out as a file. **S**
+21. **Reading the people and the years.** Classic 49, 55, 66. Year-by-year annals with digests, a bar of the lives that matter now, and the whole history written out as a file: built (2026-11-06). Next: a people's own names on the bar and in the file; a bar in a life or a reign; a town's and a faith's entry in the file. **S**
 22. **Sound.** Classic 35. Ambience by place and scale, and cues for great events: first slice built (2026-11-06). Next: surf by a coastal town, a burning town, footsteps, a world's own birds. **M**
 23. **A second people.** Classic 40. Another lineage rising to thought on the same world. **L**
 
@@ -383,6 +383,45 @@ Limits, stated: a tap isn't stopped by a building standing in front of a stone, 
 
 Cut for later: murals, rites, a Speaker's sayings, a person going to the stone on the day, a song's own tongue-word titles.
 
+
+## Crime and justice, as built (2026-11-06)
+
+A town now has people brought before whoever judges there, for something that happened that year, for a reason you can follow. A case is a reading, like a home or a person's day: drawn by a stream from its town, year and number, off what the record holds of the year before (a land's food, its market's book, the battles and raids before then, the law as it stood). No state, no events, no bump: the same town and year tell the same cases each time, and hashes are the same before and after.
+
+- **A person is a person.** Those named are the town's own people, the same ones its homes and lists name, and a plan always draws whoever a case of this year or last names. The gate presses a real accused's name and home from their case and reads the same name and age on all three. One who has since died keeps their case, and its page says so. A case can't kill anyone: the roster holds its dead by what history did, so the worst a court does is send a person away for two years.
+- **A case comes from a cause,** each weighed and each linked where the record has it: a land's hunger, a lean year against that land's own usual, food going dear, what a poor home earns against what it owes, rent where the land's law has it, money in a town or little on the road, a battle in the land, a raid on the town, a levy called, grievance, a rising, a seat seized, one faith, the bound.
+- **The law is who they are.** A hive tries no one: the rest turn from one of their own, and its offences are its own (taking another's share, not moving with the rest). A water people meets at a reef post and has no cell. No written word, or no realm: old ones in a ring. Custom: heads of families, a blood-price, stocks. A magistrate: fines, stocks, a cell, the realm's works where it binds its condemned, and a corrupt realm's let-off. One law for all: a bench, the only one who can find a person not guilty. A people who can't grip carve no bench and fly no flag: a low heap of stones, a pen, a pit.
+- **Seen.** A court stands on the rim of the square and in the way of whoever walks into it. On its day the town's own people play it: the oldest judge, the one brought stands at the rail, up to 36 come to watch, a note says who stands and for what. Afterwards the sentence runs in the same day's legs: a fine paid at the bench, the stocks, the cell, labour, or walked out along the road. Pressed, by touch at its real place, in a life or a possession too, it opens the case. A town's page has **Law and order**: who judges, the law, how it stands beside its land's other towns, who is held now, this year's and last year's cases. A person's page has **Before the law**.
+
+Tally, sampling about 60 towns of each world: `harrow 348` at 3000, 318 cases, 5 a town at the middle and 12 at most, stocks 38%, fine 30%, cell 28%, bread 21%. `first light` at 2000, 290 cases, 5 and 10, fine 41%, cell 25%, stall 29%. `harrow 259` (a hive) at 2000, 301 cases, 5 and 9, labour 51%, turned from 46%, scented out 3%. No town with none over five years, no town with only one kind of case, no bad word on any page.
+
+Found by reading a whole world: "It was a lean year" fit almost every far town, since a far land's leanest month is short every year; a lean year is now one worse than that land's own last ten, and what's true every year says so. `fed` is what a land ate at its leanest, not what it grew, and the words were wrong. A hive was tried for rent and for robbing a market stall. A vale 471 people under a magistrate were drawn a carved bench.
+
+Found by pressing: on any page, a tab pressed on a phone sent the page back to its top, so the tab that was asked for lay a screen below. A tab's row now stays in sight, with what it opened under it, on every page in the game.
+
+Limits, stated: frame cost with a court against without isn't measured (23 parts in 4 batches at most, a budget gate runs on CI). Desktop size and Safari weren't run. A colony's halls and a far people's towns have no court. Where a town has five stones its court can stand within 2 m of one (one town of 60).
+
+Cut for later: being robbed or stealing when hungry as offers on a life's tray; a decree seen in the cases that follow; a crime lens; a page of who's held across a realm; a colony's own court; hanging; a button that waits for the court (a town's sittings are days apart).
+
+## The people bar and the history written out, as built (2026-11-06)
+
+A slim row at the foot of the screen says who matters where the eye is, why, and how they are, and every word of it is read off the world. The ruler of the land you're over; one moving against them or wanting their seat; their heir; the ruler they're at war with; the last to take a seat by force anywhere. Where no realm stands, an elder of the town there. Those a person keeps with 📌 and those they follow come first. A chip opens the same page, with the same face and name, and that page says the same reading in full. And one press on The Years writes the world's whole history out as one file a person can keep and read with no network.
+
+- **Mood is a reading, or it says so.** History keeps no mood for a ruler: it keeps their standing, so a ruler's chip shows ⚖️ and how many in a hundred hold their rule rightful. One at court shows what they want. One of the town's people with no mood kept says none, and their page says why. A body is its page's Body line, its age against what that people lives, and a sickness in its land.
+- **It reads, it never touches.** No state, no events, no bump; the gate compares hashes. A pin is a viewer's, one list to a world. It asks the worker every 0.8 s at most whether the place has settled, and reads only when the place has held for 1.4 s or the year has moved.
+- **It gives way.** A page, a star's card, a leader's chip, a possession, a life, a reign and a film each have the foot of the screen to themselves. On a phone at the stars' map and the galaxy, where a legend lives at the foot, it stands aside and comes back on the way down.
+- **One who left a seat says so.** A pinned ruler who no longer rules reads "No longer rules Sairis", and a press goes to how it passed.
+- **The file is the world's own pages,** cut: no second writer. A realm is its page's facts, rulers and wars; a war its facts; a person theirs; a year what The Years tells with no filter. Links work inside the file, nothing reaches outside it, and what was left out is said at its head. A press saves it; where the browser can hand a file to the share sheet, a second press does that (a share must come straight from a finger, so it can't follow the long read).
+
+Found by measuring: the file took about six minutes on `first light` at 2000 and eleven on `vale 471` at 2000, in node, because a page builds all of its tabs: a realm's other dozen were 89% of what its page cost, and a history tab walked the whole log per realm. A page can now be asked for only the tabs a caller will read, which only the file does. A fallen ruler's "In their reign" and a realm's rulers stopped walking the years after they ended, which every such page gains. Same words in the file, about 64 s and 59 s, then the caps (800 realms, 800 wars, 600 people, each the greatest first) brought the worst world to about 45 s and 4.3 MB on `gale 710` at 2000, and 14 s and 3.0 MB on `first light` at 2000, in node under load.
+
+Found by looking: 1.7 chips show on a phone and the rest are a swipe, which the gate now does with a real finger. On a phone at the stars' map the bar lay over the legend and a chip's name, hence standing aside there. Readings were 10 px: now 11, on a chip 12 px wider, with × a finger's width to press through a larger target than it shows.
+
+Measures, on the final code: `harrow 348` at 3000, 117 peopled lands: at most 4 on the bar and 2.5 on average, nowhere with none, its commonest sentence 9% of them, a read 11 ms on average and 156 ms at worst; the file in about a second in a phone-sized browser, 1.47 MB, the page never held up. `first light` at 2000, 599 lands: at most 3, a read 3.6 ms on average and 1.3 s for the first under load; 9,955 links in the file and none leading nowhere. Over 12 years at three seats, the bar changed in 22% to 39% of seat-years, each a real change of who rules or who wants it. Hashes the same; WebKit read the file (1,061,281 characters).
+
+Limits, stated: no real iPhone has pressed the share button, and it hasn't been pressed in any run, since a share sheet needs a real device. The people on a chip go by the world's own spelling, not a people's own tongue (a viewer's "as they say it" reaches pages only). Star realms' rulers aren't on the bar unless they also rule a land of the home world. A person past those a town draws has no address to go to, as elsewhere.
+
+Cut for later: a people's own names on the bar and in the file; the bar during a life or a reign, showing who matters to that person; a town's, a faith's or a tongue's entry in the file.
 
 ## The work-down order (2026-10-25)
 

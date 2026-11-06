@@ -126,6 +126,7 @@ import type {
   GenesisPlan,
   SeedLife,
   WarRaid,
+  WrittenAsk,
 } from "../bridge/index.ts";
 
 /** The most garrisons the globe shows at the seats of realms at peace (Phase 12 M110). */
@@ -168,11 +169,13 @@ import {
 import { STARFIGHT_QUERIES } from "./starfight.ts";
 import { HOME_QUERIES, homePlanReader, planDrawn } from "./home.ts";
 import { LEADER_QUERIES, withFigures } from "./leaders.ts";
+import { BAR_QUERIES } from "./bar.ts";
+import { writtenIndex, writtenRead } from "./inspect/written.ts";
 import { WEALTH_QUERIES } from "./wealth.ts";
 import { HELD_QUERIES } from "./held.ts";
 import { SEARCH_QUERIES } from "./search.ts";
 import { takenWordsOf, type NamesArg } from "./names.ts";
-import { realmColor } from "./colors.ts";
+import { realmColor, faithColor, languageColor } from "./colors.ts";
 import { hostKinds, realmArms } from "./arms.ts";
 import { landHeart, villagePlan } from "./village.ts";
 import { withWounds, woundedTowns } from "./wounds.ts";
@@ -587,11 +590,6 @@ export function faithOf(world: World, cell: number) {
     : null;
 }
 
-/** A faith as a colour, keyed by its ref (the old beliefs are left uncoloured). */
-export function faithColor(ref: string): [number, number, number] {
-  return realmColor(`${ref}:faith`);
-}
-
 /** The realm a land belongs to, as the inspector shows it. */
 export function realmOf(world: World, cell: number) {
   const realms = politiesOf(world),
@@ -686,20 +684,6 @@ export function waysOf(world: World, cell: number) {
         }
       : null,
   };
-}
-
-/** A language as a colour: its family's hue, each language of the family a shade of it. */
-export function languageColor(family: number, index: number): [number, number, number] {
-  const hue = (family * 0.61803398875 + 0.13) % 1,
-    v = finish(mix(0x1a96, index), 3) / 4294967296,
-    light = 0.4 + 0.24 * v,
-    sat = 0.5 + 0.35 * ((v * 7) % 1);
-  const a = sat * Math.min(light, 1 - light),
-    f = (n: number) => {
-      const k = (n + hue * 12) % 12;
-      return light - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
-    };
-  return [f(0), f(8), f(4)];
 }
 
 /** A tongue as a colour: alike tongues, alike colours (each sound pulls the hue its own way). */
@@ -1505,6 +1489,9 @@ function planetUniverse(name: string, prior: Prior): Universe {
       // A realm's key figures and every realm's wealth (Lives L1, L2).
       ...HOME_QUERIES,
       ...LEADER_QUERIES,
+      ...BAR_QUERIES,
+      "written.index": (world) => writtenIndex(world),
+      "written.read": (world, args) => writtenRead(world, args as WrittenAsk),
       ...WEALTH_QUERIES,
       /** A colony's town at a few years of its growth, as it stood: for a film of it. */
       "colony.growth": (world, args) => {

@@ -29,6 +29,7 @@ import { OCC, article } from "../rules/index.ts";
 import { paceOf } from "./figure.ts";
 import { clearAt, clearOf, keepOut, route, villageGround, type Ground } from "./ground.ts";
 import { memorialsPlaced } from "./memorial.ts";
+import { COURT_HOURS, courtRole, courtSolids, type CourtRole } from "./court.ts";
 import { streetDoor } from "./streets.ts";
 import { FEAST_HOURS, MARKET_HOURS, feastOn, feastPlace, marketDay, marketScene } from "./feast.ts";
 import { FLAMES_S, strikeSpan } from "./town.ts";
@@ -765,13 +766,16 @@ export const TOWN_WELL: Point = { x: 0, z: 0 };
 
 /** Where one of the god's wonders stands in a town (metres): where the hand set it, else by its square. */
 export function wonderSpot(plan: VillagePlan, w: Wonder): Point {
-  const p =
-    w.x !== null && w.z !== null
-      ? { x: w.x, z: w.z }
-      : w.kind === "spring"
-        ? { x: -15, z: 11 }
-        : { x: 13, z: -13 };
-  return clearSpot(groundFor(plan), p);
+  return clearSpot(groundFor(plan), wonderAsked(w));
+}
+
+/** Where a wonder was set, before what stands there moves it aside. */
+export function wonderAsked(w: Wonder): Point {
+  return w.x !== null && w.z !== null
+    ? { x: w.x, z: w.z }
+    : w.kind === "spring"
+      ? { x: -15, z: 11 }
+      : { x: 13, z: -13 };
 }
 
 /** How long after a home catches the alarm is raised (seconds), and how long a fire is fought at most. */
@@ -2622,6 +2626,9 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
   // Their wounds and the levy (Phase 55 M226): away with it, home from it, abed, up and bound,
   // gone; or a day the care of the wounded takes (M229: the healer's round, one kept home to tend
   // one of theirs abed).
+  // The court's day (J1): one brought, one judging, one watching; one in the stocks or a cell, at labour, or sent away.
+  const court = fine ? courtRole(plan, index, day) : null;
+  if (court) return courtDay(court);
   const hurt = woundDay(plan, index, day);
   if (hurt.kind !== "whole" && hurt.kind !== "cut") return hurtDay(hurt);
   const cared = fine && hurt.kind === "whole" ? careOn(plan, day).scripts.get(index) : undefined;
@@ -2996,6 +3003,83 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
    * A day the care of the wounded takes (Phase 55 M229): the healer's round door to door and salves
    * made at home; or one kept home to tend one of theirs abed — up, each call in its turn, home.
    */
+  function courtDay(c: CourtRole): Leg[] {
+    told.words = c.why.toLowerCase();
+    if (c.kind === "gone") {
+      stay(0, DAY, at, ACTIVITY.gone, null, null, null, c.why);
+      return legs;
+    }
+    if (c.kind === "held") {
+      stay(0, DAY, c.at, ACTIVITY.gathering, null, null, c.face, c.why);
+      return legs;
+    }
+    stay(0, rise, at, ACTIVITY.asleep);
+    stay(rise, rise + 0.75 * HOUR, at, ACTIVITY.eating, null, null, null, "Breakfast at home");
+    const up = rise + 0.75 * HOUR;
+    if (c.kind === "labour") {
+      const out = go(up, at, c.at, null, c.why),
+        stop = Math.max(out, 18 * HOUR);
+      stay(out, stop, c.at, ACTIVITY.working, "sack", null, null, c.why);
+      homeEvening(go(stop, c.at, at, null, "Home from the court's labour"), "Supper at home");
+      return legs;
+    }
+    const start = Math.max(
+      up,
+      (c.kind === "watch" ? COURT_HOURS.gather : COURT_HOURS.gather) * HOUR,
+    );
+    stay(up, start, at, ACTIVITY.home);
+    // (Those who judge stand behind what stands in the way of everyone else.)
+    const spot = c.kind === "judge" ? c.at : clearSpot(ground, c.at),
+      there = go(start, at, spot, null, c.why),
+      over = Math.max(there, COURT_HOURS.close * HOUR);
+    stay(
+      there,
+      over,
+      spot,
+      ACTIVITY.gathering,
+      null,
+      c.kind === "watch" ? "talk" : null,
+      c.face,
+      c.why,
+    );
+    if (c.kind === "accused" && c.thenAt) {
+      const then = c.thenAt;
+      if (c.then === "banish") {
+        const gone = go(over, spot, then, null, "Walked out of town, sent away");
+        stay(gone, Math.max(DAY, gone + 1), then, ACTIVITY.gone, null, null, null, "Sent away");
+        return legs;
+      }
+      if (c.then === "fine") {
+        const paid = go(over, spot, then, null, "To the bench, to pay"),
+          left = paid + 0.6 * HOUR;
+        stay(paid, left, then, ACTIVITY.working, null, null, c.thenFace, "Paying at the bench");
+        homeEvening(go(left, then, at, null, "Home from the court"), "Supper at home");
+        return legs;
+      }
+      if (c.then === "labour") {
+        const out = go(over, spot, then, null, "Set to labour, by the court"),
+          stop = Math.max(out, 18 * HOUR);
+        stay(out, stop, then, ACTIVITY.working, "sack", null, null, "Set to labour, by the court");
+        homeEvening(go(stop, then, at, null, "Home from the court's labour"), "Supper at home");
+        return legs;
+      }
+      const put = go(over, spot, then, null, c.then === "stocks" ? "To the stocks" : "To the cell");
+      stay(
+        put,
+        Math.max(DAY, put + 1),
+        then,
+        ACTIVITY.gathering,
+        null,
+        null,
+        c.thenFace,
+        c.then === "stocks" ? "In the stocks" : "Locked in the town's cell",
+      );
+      return legs;
+    }
+    homeEvening(go(over, spot, at, null, "Home from the court"), "Supper at home");
+    return legs;
+  }
+
   function careDay(visits: readonly CareVisit[]): Leg[] {
     told.words = p.healer ? "tending the wounded" : "at home, tending one of theirs abed";
     stay(0, rise, at, ACTIVITY.asleep);
@@ -5531,6 +5615,9 @@ function groundFor(plan: VillagePlan): Ground {
         ...g,
         homesReach: Math.max(g.homesReach, Math.hypot(site.x, site.z) + 5.5),
       };
+    // (A town's court, as its stones: those who judge are the ones who go in. J1.)
+    const bench = courtSolids(plan);
+    if (bench.length) g = { ...g, homes: [...g.homes, ...bench] };
     // (What a town raised stands in the way as a wall does: people go round it, and so does one walked. T1.)
     const stones = memorialsPlaced(plan);
     if (stones.length)

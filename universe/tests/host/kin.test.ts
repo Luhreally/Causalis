@@ -319,8 +319,9 @@ test("a line holder's page: their family's and body's lines, a Family tab and a 
     body.members.map((m) => m.member),
     frame.members,
   );
-  const overview = page.tabs.find((t) => t.id === "overview")!.blocks[0]!;
-  assert.ok(overview.type === "facts" && overview.rows.some((r) => r.label === "Family"));
+  // (How they are now comes first on a page: B1. Their lines come right after.)
+  const overview = page.tabs.find((t) => t.id === "overview")!.blocks;
+  assert.ok(overview.some((b) => b.type === "facts" && b.rows.some((r) => r.label === "Family")));
   assert.equal(planWords(frame), "a head, a chest, two arms, two hands, two legs and two eyes");
 });
 
