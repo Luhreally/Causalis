@@ -109,7 +109,7 @@ registerEventWords(TRADE_EVENTS.first.type, (_world, e) => {
   const d = (e.data ?? {}) as { realm?: string; goods?: unknown; between?: boolean; ly?: number };
   return d.between
     ? `For the first time ships of another people came to trade: ${d.realm ?? "strangers"} landed ${cargoWords(d.goods)} at halls of ours, year ${yearOfMoment(e.t)}`
-    : `For the first time goods crossed between worlds for gain: ${cargoWords(d.goods)} from ${d.realm ?? "a people"}, ${d.ly ?? "?"} light-years, year ${yearOfMoment(e.t)}`;
+    : `For the first time goods crossed between worlds for gain: ${cargoWords(d.goods)} from ${d.realm ?? "a people"}, ${d.ly ? `${d.ly} light-years` : "among one star's own worlds"}, year ${yearOfMoment(e.t)}`;
 });
 const raidWords = (_world: unknown, e: { t: number; data: unknown }): string => {
   const d = (e.data ?? {}) as { realm?: string; by?: string; goods?: unknown; lanes?: number };

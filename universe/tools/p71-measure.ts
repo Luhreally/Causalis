@@ -20,11 +20,11 @@ const world = loadWorld(doc, (s) => u.build(s), rulesetId(probe, u.version), {
 }).world;
 const started = performance.now(),
   from = Math.floor(world.now / YEAR);
-let worst = 0;
+let worstYear = 0;
 for (let y = from + 1; y <= to; y++) {
   const a = performance.now();
   world.runTo(y * YEAR);
-  worst = Math.max(worst, performance.now() - a);
+  worstYear = Math.max(worstYear, performance.now() - a);
 }
 const ms = performance.now() - started,
   ctx = populationContext(world),
@@ -48,7 +48,7 @@ console.log(
     from,
     to,
     meanYearMs: Math.round(ms / Math.max(1, to - from)),
-    worstMs: Math.round(worst),
+    worstMs: Math.round(worstYear),
     sites: sites.length,
     siteLandPeople: people,
     filled: filledOf(world)?.all().length,
@@ -74,6 +74,13 @@ for (const r of show)
         ",",
       )} | before p${r.before.pottery} m${r.before.machines} people ${r.before.people} now p${markets.get(r.to)?.potteryCover} m${markets.get(r.to)?.machineCover} people ${ctx.provinces.get(r.to)?.total()}`,
   );
+const kept = store?.all() ?? [],
+  ships = kept.reduce((n, r) => n + r.ships, 0),
+  taken = kept.reduce((n, r) => n + r.raided, 0),
+  worst = [...kept].sort((a, b) => b.raided - a.raided)[0];
+console.log(
+  `holds in ${ships}, taken ${taken}; most taken of one run: ${worst ? `${worst.raided}, with ${worst.ships} in, ${worst.closedWhy ?? "still running"}, reckoning on losing ${Math.round(worst.risk * 100)}%` : "none"}`,
+);
 const why = new Map<string, number>();
 for (const r of store?.all() ?? [])
   why.set(r.closedWhy ?? "open", (why.get(r.closedWhy ?? "open") ?? 0) + 1);

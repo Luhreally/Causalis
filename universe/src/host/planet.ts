@@ -826,7 +826,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
   // fire; no lists by kind. And with F4: rocky worlds read as any other, each turning aside where its numbers
   // shut the first way. And with W2: past its engines, wings, and war from the air; what the tree's roots
   // know crosses the sea. And with W3: past its rocketry, loads thrown.)
-  const version = name === "alien" ? "alien-15" : `${name}-11`,
+  const version = name === "alien" ? "alien-16" : `${name}-12`,
     make = (seed: Seed, frequency?: number) => {
       // The chronicle opens after a generated prehistory: bands across the land.
       const world = makePopulationWorld(seed, {

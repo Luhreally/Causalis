@@ -92,9 +92,11 @@ export const RAID_YEAR = 0.012;
 export const SHORT_RAID_YEAR = 0.02;
 /** A lane's mouth is where a ship can be waited for; the dark is not: a way with none is found this much of the time (est.). */
 const DARK_FOUND = 0.25;
-/** What a raid adds to what those who send a run reckon on losing, and how much of that they forget a year. */
-const RAID_FEAR = 0.25;
-const FEAR_FADES = 0.97;
+/**
+ * What those who send a run reckon on losing is what they have lost lately: each hold taken or come in moves it this far
+ * toward all or nothing, so a lane that bleeds stops paying (est.).
+ */
+const HOLD_TEACHES = 0.25;
 /** A short land is one whose price stands at this many times its usual worth (est.). */
 const SHORT_AT = 2.5;
 /** What a house's run has cleared, in grain, for it to be counted great. */
@@ -310,6 +312,7 @@ function comeIn(
   }
   r.ships++;
   r.lastIn = year;
+  r.risk *= 1 - HOLD_TEACHES;
   r.house.worth += worth;
   if (r.civ) {
     // (A people of the stars takes payment: what this land has most of, at what it fetches here.)
@@ -396,7 +399,7 @@ function taken(
   r.raided++;
   r.raider = by.name;
   r.lastRaidYear = year;
-  r.risk = Math.min(0.9, r.risk + RAID_FEAR);
+  r.risk += (1 - r.risk) * HOLD_TEACHES;
   const causes: CauseRef[] = [{ ref: r.opened, role: "enabler", weight: 0.4 }];
   if (by.cause) causes.push({ ref: by.cause, role: "trigger", weight: 1 });
   const data = {
@@ -544,7 +547,6 @@ function runYear(
     realms = politiesOf(world),
     holder = realms.of(r.to)?.ref,
     fall = farOf(world) ? fireOf(world).unmade(r.toStar, r.planet) : null;
-  r.risk = r.risk * FEAR_FADES;
   if (fall) return closeRun(world, r, "gone", year, fall.event as Ref);
   if (!land?.total() || !to) return closeRun(world, r, "empty", year, null);
   const carrier = r.civ ? r.civ : (realms.of(r.from)?.ref ?? null);
