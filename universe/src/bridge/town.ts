@@ -779,7 +779,12 @@ export type RoadWorks = {
   /** Laid afresh over what was there, not new. */
   readonly again: boolean;
   /** The years it stood idle, and why. */
-  readonly stops: readonly { readonly from: number; readonly to: number; readonly why: string; readonly ref: string | null }[];
+  readonly stops: readonly {
+    readonly from: number;
+    readonly to: number;
+    readonly why: string;
+    readonly ref: string | null;
+  }[];
   /** How many hands. */
   readonly hands: number;
   /** Past the age of engines: fewer hands, and machines. */

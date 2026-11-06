@@ -22,7 +22,10 @@ const BAD = /undefined|NaN|\[object|\bnull\b|\b(ev|pol|town|war|cell|herd|beast)
 /** All a page says, as text. */
 const read = (world: World, ref: string): string => {
   const page = pageOf(world, ref);
-  assert.ok(!/Not one anyone can find|No one can say/.test(JSON.stringify(page)), `${ref} is a page of nothing`);
+  assert.ok(
+    !/Not one anyone can find|No one can say/.test(JSON.stringify(page)),
+    `${ref} is a page of nothing`,
+  );
   // (What a person reads: not the page's refs, its drawing or its place, which are not words.)
   const text = JSON.stringify(page, (k, v) =>
     k === "ref" ||
@@ -184,7 +187,9 @@ test("a hive's world: its creatures read as the rest do, its beast and a drive's
   assert.ok(read_ > 0, "no land of a hive's world holds creatures");
   for (const e of world.events
     .all()
-    .filter((x) => /^(beast\.|war\.herds|life\.(kind|tamed)|ecology\.(herds|overgrazed))/.test(x.type))
+    .filter((x) =>
+      /^(beast\.|war\.herds|life\.(kind|tamed)|ecology\.(herds|overgrazed))/.test(x.type),
+    )
     .slice(-40)) {
     const said = String(why(world, e.id).claim);
     assert.ok(!BAD.test(said), said);

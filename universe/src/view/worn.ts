@@ -329,4 +329,3 @@ function readWorn(scene: TownScene, most: number): Worn {
   pieces.sort((p, q) => q.wear - p.wear || p.x - q.x || p.z - q.z);
   return { pieces: pieces.slice(0, most), ways, worn, homes };
 }
-

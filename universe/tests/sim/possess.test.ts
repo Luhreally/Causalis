@@ -178,8 +178,9 @@ test("one struck down by the god in another's body dies out of the counts, or li
       ]);
     }
     if (
-      handOf(world)
-        .resting!.possessed?.local.deeds.some((d) => d.kind === "struck" && d.agent === victim.id)
+      handOf(world).resting!.possessed?.local.deeds.some(
+        (d) => d.kind === "struck" && d.agent === victim.id,
+      )
     )
       last = { world, victim };
   }

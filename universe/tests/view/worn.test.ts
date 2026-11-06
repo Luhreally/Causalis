@@ -93,4 +93,3 @@ test("tracks join camps and hamlets once each, none past a day's walk, none alon
   const keys = new Set(list.map(([a, b]) => (a < b ? `${a}-${b}` : `${b}-${a}`)));
   assert.equal(keys.size, list.length);
 });
-

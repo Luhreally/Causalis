@@ -173,7 +173,9 @@ export function actsMap(world: World): ActsMap {
             at,
             to: null,
             color: null,
-            ...((e.data as { natural?: boolean } | null)?.natural ? { natural: true as const } : {}),
+            ...((e.data as { natural?: boolean } | null)?.natural
+              ? { natural: true as const }
+              : {}),
           };
         break;
       }
@@ -218,7 +220,9 @@ export function actsMap(world: World): ActsMap {
             at,
             to: null,
             color: null,
-            ...((e.data as { natural?: boolean } | null)?.natural ? { natural: true as const } : {}),
+            ...((e.data as { natural?: boolean } | null)?.natural
+              ? { natural: true as const }
+              : {}),
           };
         break;
       }

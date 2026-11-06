@@ -1127,17 +1127,17 @@ export function villagePlan(
             spent: true,
           }
         : m?.mine
-        ? { ...mineAt, kind: engines ? "shaft" : "pit", what: "coal", ref: m.mine }
-        : (made?.[G.copper] ?? 0) + (made?.[G.tin] ?? 0) + (made?.[G.iron] ?? 0) > 0
-          ? {
-              ...mineAt,
-              kind: engines ? "shaft" : "pit",
-              what: "ore",
-              ref: m?.metalworking ?? null,
-            }
-          : houseOf(cell).walls === "stone"
-            ? { ...mineAt, kind: "quarry", what: "stone", ref: houseOf(cell).design }
-            : null;
+          ? { ...mineAt, kind: engines ? "shaft" : "pit", what: "coal", ref: m.mine }
+          : (made?.[G.copper] ?? 0) + (made?.[G.tin] ?? 0) + (made?.[G.iron] ?? 0) > 0
+            ? {
+                ...mineAt,
+                kind: engines ? "shaft" : "pit",
+                what: "ore",
+                ref: m?.metalworking ?? null,
+              }
+            : houseOf(cell).walls === "stone"
+              ? { ...mineAt, kind: "quarry", what: "stone", ref: houseOf(cell).design }
+              : null;
     return {
       mine: mine as NonNullable<VillagePlan["works"]>["mine"],
       well: m?.well ? { ...at(ways[1]!, edge + 140), ref: m.well } : null,

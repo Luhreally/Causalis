@@ -34,4 +34,3 @@ export function CARRIER_WORDS(era: LandEra, about: GetAbout, rails: boolean): st
       return `trucks and cars${train}`;
   }
 }
-

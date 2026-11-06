@@ -126,7 +126,14 @@ export {
   type Workable,
 } from "./economy/heat.ts";
 export { LodeStore, lodesOf, type Lode, type LodeTally } from "./economy/lodes.ts";
-export { LODE_EVENTS, digMeans, digOre, installLodes, lodePush, lodesYear } from "./economy/worked.ts";
+export {
+  LODE_EVENTS,
+  digMeans,
+  digOre,
+  installLodes,
+  lodePush,
+  lodesYear,
+} from "./economy/worked.ts";
 export {
   WOODS_EVENTS,
   WoodsStore,
