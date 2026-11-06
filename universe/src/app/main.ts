@@ -8760,9 +8760,10 @@ async function runPlanetPage(): Promise<void> {
               keep(who);
             }
           }
+          // (One the world has since displaced from its town's five: the town is still what was asked for.)
+          if (place.stone) pageWindow.close();
           const stone = place.stone ? stoneView(place.stone) : null;
           if (stone) {
-            pageWindow.close();
             rig.target.set(stone.target.x, stone.target.y, stone.target.z);
             rig.yaw = stone.yaw;
             rig.pitch = stone.pitch;

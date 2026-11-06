@@ -394,7 +394,7 @@ async function pressStone(label: string, want: RegExp): Promise<string> {
 }
 
 /** From its page, ⌖ Go to: the page gone, the eye at it, and the stone truly in the picture, whatever stands about it. */
-async function goToStone(label: string, ref: string): Promise<void> {
+async function goToStone(label: string, ref: string, drawn = true): Promise<void> {
   await k(`globalThis.causalis.open(${JSON.stringify(ref)})`);
   await until(`${label}: its page`, async () => (await pageNow()) === ref);
   await page.waitForTimeout(slow(300));
@@ -410,6 +410,13 @@ async function goToStone(label: string, ref: string): Promise<void> {
     slow(60000),
   );
   await page.waitForTimeout(slow(1600));
+  // (One the world has since displaced from the town's five stands nowhere: the town is what it can show.)
+  if (!drawn || !(await stones())?.list.some((s) => s.ref === ref)) {
+    check(!drawn, `${label}: the stone asked for is not drawn in its town`);
+    await shot(`${label}-go-to`);
+    say(`${label}: a stone no longer drawn: its Go to came to its town and closed its page`);
+    return;
+  }
   const withIt = await shot(`${label}-go-to`);
   await k("globalThis.causalis.stonesShown(false)");
   await page.waitForTimeout(slow(300));
@@ -424,6 +431,7 @@ async function goToStone(label: string, ref: string): Promise<void> {
 const far = !!saveFile;
 const made = saveFile ? fromFile(saveFile, universeArg) : youngWorld();
 const { most, none } = read(made, far);
+let standing: string[] = [];
 await loadSave(made);
 const hashesBefore = await ask<unknown>("hashes");
 
@@ -432,8 +440,12 @@ if (most) {
   // 2. In the pixels, from the height a person looks: the town with its stones and without.
   const got = await stones();
   check(
-    !!got && got.drawn.placed === got.list.length && got.list.length > 0,
-    "the town's stones are not drawn",
+    !!got &&
+      got.drawn.placed === got.list.length &&
+      got.list.length > 0 &&
+      got.list.length ===
+        (await k<number>("globalThis.causalis.planNow()?.memorials?.length ?? -1")),
+    `the town's stones are not all drawn: ${got?.drawn.placed} of ${await k<number>("globalThis.causalis.planNow()?.memorials?.length ?? -1")}`,
   );
   check((got?.drawn.parts ?? 0) <= 45, `${got?.drawn.parts} parts in one town`);
   say(
@@ -465,6 +477,7 @@ if (most) {
   // Pressed by touch at its real place; not the ground beneath it.
   const text = await pressStone("2-stone", /Raised|Left standing|No one raised|year/);
   say(`a stone's page: ${text.replace(/\s+/g, " ").slice(0, 200)}`);
+  standing = got!.list.map((s) => s.ref);
   await goToStone("2-stone", got!.list[0]!.ref);
   // 4. Songs and tales on its town's page, pressed by touch.
   await k(`globalThis.causalis.open(${JSON.stringify(most)})`);
@@ -564,9 +577,16 @@ if (none) {
   await k(`globalThis.causalis.open(${JSON.stringify(none)})`);
   await until("its page", async () => (await pageNow()) === none);
   await closePage();
-  // (From another town, a stone's page brings the eye to it there.)
-  const elsewhere = most ? memorialsOf(made.world, most)[0]?.ref : undefined;
-  if (elsewhere) await goToStone("5-from-afar", elsewhere);
+  // (From another town, a stone's page brings the eye to it there: one that stands now, by what the town drew. And one the node's copy of the world, a little
+  // behind the browser's, lists and the town no longer draws, if there is one: its page is still a way there.)
+  if (standing[0]) await goToStone("5-from-afar", standing[0]);
+  const worn = most
+    ? memorialsOf(made.world, most).find((m) => !standing.includes(m.ref))?.ref
+    : undefined;
+  if (worn) {
+    await goDown(none);
+    await goToStone("5-worn", worn, false);
+  }
 }
 
 // A stone of a realm that is gone: its page says so.
@@ -618,7 +638,22 @@ if (most && far) {
     await shot("5-living");
     check(can.length > 0, "in a life: no stone a finger can reach");
     if (can.length) {
-      await page.touchscreen.tap(can[0]!.px, can[0]!.py);
+      // (Someone may stand before a stone, and a press on them opens theirs, as it should: try the next, then another moment.)
+      let pressed = false;
+      for (let tries = 0; tries < 12 && !pressed; tries++) {
+        const list = await reachable();
+        for (const s of list.length ? list : can) {
+          await page.touchscreen.tap(s.px, s.py);
+          await page.waitForTimeout(slow(900));
+          const opened = String((await pageNow()) ?? "");
+          if (opened.startsWith("stone:")) {
+            pressed = true;
+            break;
+          }
+          if (opened) await closePage();
+        }
+        if (!pressed) await page.waitForTimeout(slow(1500));
+      }
       await until("a stone's page, in a life", async () =>
         String((await pageNow()) ?? "").startsWith("stone:"),
       );
@@ -705,8 +740,7 @@ if (most && far) {
         sideUntil = Date.now() + 1500;
         bestAt = Date.now();
       }
-      const rel =
-          Math.atan2(dx, dz) + (Date.now() < sideUntil ? (side * Math.PI) / 2 : 0) - m.yaw,
+      const rel = Math.atan2(dx, dz) + (Date.now() < sideUntil ? (side * Math.PI) / 2 : 0) - m.yaw,
         ahead = Math.cos(rel),
         right = -Math.sin(rel),
         want = new Set<string>();
@@ -769,10 +803,11 @@ if (most && far) {
       if (off > 45) {
         await page.touchscreen.tap(seen.px, seen.py);
         await page.waitForTimeout(slow(350));
-        check((await pageNow()) === null, "possessed: a stone far off opened without walking to it");
-        const told = await k<string>(
-          `document.querySelector(".possess-told")?.textContent ?? ""`,
+        check(
+          (await pageNow()) === null,
+          "possessed: a stone far off opened without walking to it",
         );
+        const told = await k<string>(`document.querySelector(".possess-told")?.textContent ?? ""`);
         check(/walk nearer/.test(told), `possessed: a stone far off, told "${told}"`);
       }
       const there = await walkNear(seen.worldX, seen.worldZ, 14);
