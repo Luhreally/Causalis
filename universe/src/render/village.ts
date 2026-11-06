@@ -1557,6 +1557,15 @@ export class VillageScene {
   stoneOver(x: number, y: number, depth: number): boolean {
     return this.memorialLayer.over(this.stage.camera.camera!, x, y, depth);
   }
+  /**
+   * The thing raised under the finger, unless someone stands right there in front of it (T1). Feet bunch up towards the far ground, so
+   * many stand within a finger of a tall stone's body from behind it, and they aren't in its way.
+   */
+  stoneUnder(x: number, y: number): string | null {
+    const cam = this.stage.camera.camera!,
+      p = this.memorialLayer.at(cam, x, y);
+    return p && this.pick(x, y, 10, this.memorialLayer.depth(cam, p)) === null ? p.m.ref : null;
+  }
   /** The thing raised at a point of the screen (T1; null: none), and how a person presses it. */
   stoneAt(x: number, y: number): string | null {
     return this.memorialLayer.at(this.stage.camera.camera!, x, y)?.m.ref ?? null;
@@ -3364,7 +3373,7 @@ export class VillageScene {
     return this.rides.info(this.stage.camera.camera!);
   }
 
-  pick(x: number, y: number, reach = 28): number | null {
+  pick(x: number, y: number, reach = 28, nearer = Infinity): number | null {
     const cam = this.stage.camera.camera!,
       at = new pc.Vec3();
     let best: number | null = null,
@@ -3373,7 +3382,7 @@ export class VillageScene {
       if (m.hidden) return;
       const p = cam.worldToScreen(new pc.Vec3(m.x * M, 0.2, m.z * M), at),
         d = (p.x - x) * (p.x - x) + (p.y - y) * (p.y - y);
-      if (p.z > 0 && d < bestD) {
+      if (p.z > 0 && p.z < nearer && d < bestD) {
         bestD = d;
         best = i;
       }

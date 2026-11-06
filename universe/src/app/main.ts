@@ -6419,12 +6419,13 @@ async function runPlanetPage(): Promise<void> {
     // A car pressed: its owner. What goes a line: its page. A finger right on it gets it, whoever stands by it and whatever stands behind; only near it, if no
     // one stands nearer (R1).
     const ride = plan && !homeOpen() ? village.pickRide(x, y) : null;
-    // (But a stone right under the finger, nearer the eye than it, stands in front of it.)
+    // (But a stone right under the finger stands in front of one only near it, and of one right on it that is farther from the eye. And one only near
+    // it takes the press on open ground alone: so many stand about a city's streets that a finger on a building would seldom get the building.)
     if (
       ride &&
       plan &&
-      !village.stoneOver(x, y, ride.depth) &&
-      (ride.direct || village.pick(x, y, 12) === null)
+      !village.stoneOver(x, y, ride.direct ? ride.depth : Infinity) &&
+      (ride.direct || (village.pick(x, y, 12) === null && villageThingAt(x, y) === null))
     ) {
       if ("owner" in ride) return selectPerson(ride.owner);
       selectPerson(null);
@@ -6439,7 +6440,7 @@ async function runPlanetPage(): Promise<void> {
         void pageWindow.open(sung.ref);
         return;
       }
-      const stone = village.pick(x, y, 10) === null ? village.stoneAt(x, y) : null;
+      const stone = village.stoneUnder(x, y);
       if (stone) {
         selectPerson(null);
         void pageWindow.open(stone);
@@ -6601,6 +6602,17 @@ async function runPlanetPage(): Promise<void> {
     const p = plan.people[i]!;
     // (One of the town's many drawn for its crowd, Phase 39 M198: their card, and their line's page, Phase 55 M225.)
     if (p.folk) {
+      // (Living, ruling or held, the screen has no place for a card: that page, which it has.)
+      if (document.body.matches(".living, .ruling, .possessing")) {
+        void pageWindow.open(
+          p.healer
+            ? `heal:${plan.ref}`
+            : p.trade
+              ? seatRef(plan.ref, p.trade.kind, p.trade.seat)
+              : p.ref,
+        );
+        return;
+      }
       pageWindow.close();
       villagePanel.showFolk(
         p.name,

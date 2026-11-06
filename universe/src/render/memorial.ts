@@ -20,6 +20,27 @@ const NOTES = 3,
   NOTE_S = 2.4;
 const NOTE: Rgb = [1, 0.86, 0.3];
 
+/**
+ * Lays a thing raised on the screen, its foot and as high up it as can be seen; gives how high that is, metres. A tall one stood close under
+ * goes up past the top of the screen, or over the eye, where it has no place on the screen that means anything.
+ */
+function seenOf(cam: pc.CameraComponent, p: PlacedMemorial, foot: pc.Vec3, head: pc.Vec3): number {
+  cam.worldToScreen(new pc.Vec3(p.x * M, 0, p.z * M), foot);
+  cam.worldToScreen(new pc.Vec3(p.x * M, p.high * M, p.z * M), head);
+  if (foot.z <= 0 || (head.z > 0 && head.y >= 0)) return p.high;
+  // (Depth goes straight along a thing, so where it would pass the eye is known; a little short of that, then halve to the screen's top.)
+  let lo = 0,
+    hi = head.z > 0 ? p.high : (0.9 * p.high * foot.z) / (foot.z - head.z);
+  for (let i = 0; i < 12; i++) {
+    const mid = (lo + hi) / 2;
+    cam.worldToScreen(new pc.Vec3(p.x * M, mid * M, p.z * M), head);
+    if (head.y < 0) hi = mid;
+    else lo = mid;
+  }
+  cam.worldToScreen(new pc.Vec3(p.x * M, lo * M, p.z * M), head);
+  return lo;
+}
+
 export class MemorialLayer {
   readonly root = new pc.Entity("memorials");
   private readonly stage: Stage;
@@ -121,7 +142,7 @@ export class MemorialLayer {
 
   /**
    * The thing raised at a point of the screen (null: none), a finger's reach about it: the nearest, by its standing shape on the
-   * screen from foot to head and its breadth there. Only what lies in front of the eye.
+   * screen from foot to head and its breadth there. Only what lies in front of the eye: of a tall one stood close under, as much as can be seen.
    */
   at(cam: pc.CameraComponent, x: number, y: number, reach = 16): PlacedMemorial | null {
     let best: PlacedMemorial | null = null,
@@ -131,12 +152,11 @@ export class MemorialLayer {
     const foot = new pc.Vec3(),
       head = new pc.Vec3();
     for (const p of this.placed) {
-      cam.worldToScreen(new pc.Vec3(p.x * M, 0, p.z * M), foot);
-      cam.worldToScreen(new pc.Vec3(p.x * M, p.high * M, p.z * M), head);
+      const seen = seenOf(cam, p, foot, head);
       if (foot.z <= 0 || head.z <= 0) continue;
       // (How far a metre is on the screen, there: from its height.)
       const high = Math.max(8, Math.hypot(foot.x - head.x, foot.y - head.y)),
-        half = Math.max(10, (high / Math.max(1, p.high)) * p.wide * 0.8) + reach,
+        half = Math.max(10, (high / Math.max(1, seen)) * p.wide * 0.8) + reach,
         along = Math.max(0, Math.min(1, (y - foot.y) / (head.y - foot.y || 1))),
         cx = foot.x + (head.x - foot.x) * along,
         cy = foot.y + (head.y - foot.y) * along,
@@ -161,9 +181,15 @@ export class MemorialLayer {
   over(cam: pc.CameraComponent, x: number, y: number, depth: number): boolean {
     const p = this.at(cam, x, y, 0);
     if (!p) return false;
+    const d = this.depth(cam, p);
+    return d > 0 && d < depth;
+  }
+
+  /** How far from the eye a thing raised stands, as `worldToScreen` says it. */
+  depth(cam: pc.CameraComponent, p: PlacedMemorial): number {
     const foot = new pc.Vec3();
     cam.worldToScreen(new pc.Vec3(p.x * M, 0, p.z * M), foot);
-    return foot.z > 0 && foot.z < depth;
+    return foot.z;
   }
 
   /** Where each thing raised stands on the screen (the look tools). */
@@ -182,8 +208,7 @@ export class MemorialLayer {
     const a = new pc.Vec3(),
       b = new pc.Vec3();
     return this.placed.map((p) => {
-      cam.worldToScreen(new pc.Vec3(p.x * M, 0, p.z * M), a);
-      cam.worldToScreen(new pc.Vec3(p.x * M, p.high * M, p.z * M), b);
+      seenOf(cam, p, a, b);
       return {
         ref: p.m.ref,
         form: p.m.form,
