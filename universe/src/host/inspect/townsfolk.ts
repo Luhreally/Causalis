@@ -108,7 +108,10 @@ export function townsfolkPage(world: World, ref: string): PageModel {
     );
   if (!fell && !died && !holds) rows.push(stat("Now", "no longer among the town's people"));
 
-  const blocks: Block[] = [{ type: "facts", rows }];
+  const blocks: Block[] = [
+    ...(holds ? [{ type: "tool" as const, tool: "home.look", args: { town: s.ref, person: h.ref } }] : []),
+    { type: "facts", rows },
+  ];
   if (h.fates.length)
     blocks.push({
       type: "list",

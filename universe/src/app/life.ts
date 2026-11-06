@@ -32,6 +32,8 @@ export type LifeFlow = {
   readonly on: boolean;
   /** 👑 Rule pressed in a life lived as a realm's ruler: the life let go, and this told (Lives L4). */
   onRule: (realm: string) => void;
+  /** 🏠 Go in pressed: the home of the one lived, by their town and their ref (Lives L6). */
+  onGoIn: (town: string, person: string) => void;
 };
 
 const DAY = 86_400,
@@ -243,6 +245,12 @@ export function installLife(d: LifeDeps): LifeFlow {
   let onRule: (realm: string) => void = () => {};
   hud.onRule = (realm) => letGo(() => onRule(realm));
   hud.onPage = (ref) => void d.pages.open(ref);
+  let onGoIn: (town: string, person: string) => void = () => {};
+  hud.onGoIn = () => {
+    const plan = d.plan(),
+      p = plan && now ? plan.people.find((q) => agentOf(q) === now!.agent) : null;
+    if (plan && p) onGoIn(plan.ref, p.ref);
+  };
   hud.onPace = (p) => {
     pace = p;
     until = null;
@@ -390,6 +398,12 @@ export function installLife(d: LifeDeps): LifeFlow {
     },
     set onRule(f: (realm: string) => void) {
       onRule = f;
+    },
+    get onGoIn() {
+      return onGoIn;
+    },
+    set onGoIn(f: (town: string, person: string) => void) {
+      onGoIn = f;
     },
   };
 }

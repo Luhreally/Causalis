@@ -1,0 +1,107 @@
+/* A home looked into (Lives L6): the town's chrome put away, what it is along the top where no thumb rests, who is out, and two ways on along the bottom. Inside the phone's safe areas. */
+body.homing #hud > *:not(.home-hud):not(.swap):not(.readying):not(.page-panel) {
+  display: none !important;
+}
+.home-hud {
+  position: absolute;
+  inset: 0;
+  z-index: 38;
+  pointer-events: none;
+  font-size: 14px;
+  color: #16264e;
+}
+.home-hud[hidden] {
+  display: none !important;
+}
+.home-cap {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  left: calc(env(safe-area-inset-left, 0px) + 8px);
+  right: calc(env(safe-area-inset-right, 0px) + 8px);
+  padding: 6px 10px;
+  border: 1px solid #5d78b8;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f4f7ff 0%, #d8e3fb 100%);
+}
+.home-cap strong {
+  display: block;
+  font-size: 15px;
+}
+.home-out {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 66px);
+  left: calc(env(safe-area-inset-left, 0px) + 8px);
+  right: calc(env(safe-area-inset-right, 0px) + 8px);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 104px;
+  overflow: hidden;
+}
+.home-out button {
+  min-height: 44px;
+  max-width: 100%;
+  padding: 2px 8px;
+  border: 1px solid #5d78b8;
+  border-radius: 8px;
+  background: rgba(244, 247, 255, 0.92);
+  color: #16264e;
+  font-size: 12px;
+  text-align: left;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+.home-who,
+.home-acts {
+  position: absolute;
+  left: calc(env(safe-area-inset-left, 0px) + 8px);
+  right: calc(env(safe-area-inset-right, 0px) + 8px);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  pointer-events: auto;
+}
+.home-acts {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+}
+.home-who {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 66px);
+  padding: 8px;
+  border: 1px solid #5d78b8;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f4f7ff 0%, #d8e3fb 100%);
+}
+.home-who[hidden] {
+  display: none !important;
+}
+.home-who p {
+  flex: 1 0 100%;
+  margin: 0;
+}
+.home-hud button.home-act {
+  flex: 1 1 0;
+  min-width: 96px;
+  min-height: 48px;
+  padding: 6px 10px;
+  border: 1px solid #5d78b8;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f4f7ff 0%, #c9d6f2 48%, #a9bbe4 52%, #d8e3fb 100%);
+  color: #16264e;
+  font-size: 15px;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+button.home-look {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  margin: 4px 0 8px;
+  border: 1px solid #5d78b8;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f4f7ff 0%, #c9d6f2 48%, #a9bbe4 52%, #d8e3fb 100%);
+  color: #16264e;
+  font-size: 16px;
+  font-weight: 700;
+  touch-action: manipulation;
+  cursor: pointer;
+}

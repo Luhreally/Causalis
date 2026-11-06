@@ -248,7 +248,10 @@ export function lotPage(world: World, ref: string): PageModel {
     n ? [many(n, HOME_LEVELS[level]!, `${HOME_LEVELS[level]!}s`)] : [],
   );
   if (others) said.push(many(others, "lot of a building", "lots of a building"));
+  const hasHome = run && !standing && run[0] !== CLEARED;
   const blocks: Block[] = [
+    // (Its home looked into, standing or fallen: Lives L6.)
+    ...(hasHome ? [{ type: "tool" as const, tool: "home.look", args: { town: s.ref, n: p } }] : []),
     {
       type: "facts",
       rows: [

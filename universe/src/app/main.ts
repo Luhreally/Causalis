@@ -328,6 +328,7 @@ function rim(s: NameShape, d: number): { x: number; y: number; z: number } {
 import { deviceTier } from "./tier.ts";
 import { installHeld, type HeldField } from "./held.ts";
 import { installPossession } from "./possess.ts";
+import { installHome, type HomeAsk } from "./home.ts";
 import { installLeaders } from "./leaders.ts";
 import { installLife } from "./life.ts";
 import { installReign } from "./reign.ts";
@@ -5970,11 +5971,15 @@ async function runPlanetPage(): Promise<void> {
   let colonyFrom = 0;
   // A tap in the village: someone, else a beast (its lineage and what it is doing), else no one.
   let lifeTap: ((x: number, y: number) => boolean) | null = null;
+  // (A home open: a tap is for what is in it. Lives L6.)
+  let homeTap: ((x: number, y: number) => boolean) | null = null,
+    homeOpen: () => boolean = () => false;
   /** Whether a ruler is being ruled (Lives L4): the town is seen by day then, as one watched growing is. */
   let ruling: () => boolean = () => false,
     ruleLeave: () => void = () => {};
   const tapVillage = (x: number, y: number) => {
     // (The sheet of lives up: one tapped goes on it, Lives L3.)
+    if (homeTap?.(x, y)) return;
     if (lifeTap?.(x, y)) return;
     // One borne home on a litter (Phase 55 wave 5): their card, as anyone's.
     const borne = plan ? village.pickLitter(x, y) : null;
@@ -8122,7 +8127,10 @@ async function runPlanetPage(): Promise<void> {
     stage.daylight(
       plan.colony
         ? colonyHour(plan.colony, time.lapse ? 0 : seen - colonyFrom)
-        : (seen % DAY) / DAY,
+        : // (A home looked into is seen by day, whatever the hour its people keep: Lives L6.)
+          homeOpen()
+          ? 0.45
+          : (seen % DAY) / DAY,
     );
     // Those at their ease go in out of a downpour (Phase 30), and come out when it is over; and all
     // of the town while a battle is fought before it, but for those come out to watch (Phase 55 M227).
@@ -8563,6 +8571,27 @@ async function runPlanetPage(): Promise<void> {
     toOrbit: () => setRoam("orbit"),
   });
   lifeTap = lifeFlow.tapped;
+  // A home looked into (Lives L6): from a page, a lot tapped, the strip of a life.
+  const homeFlow = installHome({
+    stage,
+    hud,
+    client,
+    time,
+    rig,
+    village,
+    pages: pageWindow,
+    possession: person,
+    plan: () => (scale === "village" ? plan : null),
+    scale: () => scale,
+    goTown: (town) => goTo({ scale: "village", town }),
+    reload: loadPlan,
+    now,
+    live: (agent) => lifeFlow.liveAgent(agent),
+  });
+  homeTap = homeFlow.tapped;
+  homeOpen = () => homeFlow.on;
+  pageWindow.onHomeLook = (ask: HomeAsk) => void homeFlow.open(ask);
+  lifeFlow.onGoIn = (town, who) => void homeFlow.open({ town, person: who });
   villagePanel.onLive = () => void lifeFlow.liveHere();
   regionPanel.onLive = (ref) =>
     void goTo({ scale: "village", town: ref }).then(() => lifeFlow.liveHere());

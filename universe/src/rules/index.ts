@@ -1057,6 +1057,34 @@ export {
   type Rung,
 } from "./worldfire.ts";
 export type { PartHere } from "./designs.ts";
+export {
+  COIN_A_UNIT,
+  FAMILY_SIZE,
+  HEART_SHARE,
+  LEVEL_ROOMS,
+  NEEDS,
+  POOREST,
+  ROOM_UNIT,
+  SHAPE_SIZE,
+  coinOf,
+  furnish,
+  isRound,
+  roomsOf,
+  roomUses,
+  standingWords,
+  usualPrice,
+  wayCoin,
+  type Dwelling,
+  type DwellingFacts,
+  type DwellingNeed,
+  type DwellingRoom,
+  type DwellingShape,
+  type DwellingStuff,
+  type DwellingThing,
+  type DwellingWall,
+  type DwellingWay,
+  type RoomUse,
+} from "./dwelling.ts";
 export { REIGN, carried, decreeCost, mustCarry, peaceRefused, tieOf, warCost } from "./reign.ts";
 export {
   COURT,

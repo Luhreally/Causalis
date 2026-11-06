@@ -163,6 +163,7 @@ import {
   sealedPlan,
 } from "./colony.ts";
 import { STARFIGHT_QUERIES } from "./starfight.ts";
+import { HOME_QUERIES, homePlanReader, planDrawn } from "./home.ts";
 import { LEADER_QUERIES, withFigures } from "./leaders.ts";
 import { WEALTH_QUERIES } from "./wealth.ts";
 import { HELD_QUERIES } from "./held.ts";
@@ -237,6 +238,16 @@ function globeFrame(world: World) {
 }
 
 /** A province's region: the same one its villages are sited on (a pure function of the world). */
+// (A home's page opened from afar reads its town as the view would: Lives L6.)
+homePlanReader((world, town) => {
+  const folkHere = folkOfTown(world, town);
+  if (folkHere) return planDrawn(world, folkTownPlan(world, folkHere, 8, 120));
+  return planDrawn(
+    world,
+    withFigures(world, withWounds(world, sealedPlan(world, villagePlan(world, town as Ref, undefined, 120)))),
+  );
+});
+
 export function region(world: World, province: number): Region {
   const g = homePlanet(world).generated;
   if (
@@ -1303,12 +1314,15 @@ function planetUniverse(name: string, prior: Prior): Universe {
         // (A town of a people of another world, read off it: Phase 69.)
         const folkHere = folkOfTown(world, a.ref);
         if (folkHere)
-          return folkTownPlan(
+          return planDrawn(
             world,
-            folkHere,
-            a.families ? Math.max(1, Math.min(16, Math.round(a.families))) : 8,
-            a.folk ? Math.max(0, Math.min(480, Math.round(a.folk))) : 0,
-            (args as { at?: number }).at,
+            folkTownPlan(
+              world,
+              folkHere,
+              a.families ? Math.max(1, Math.min(16, Math.round(a.families))) : 8,
+              a.folk ? Math.max(0, Math.min(480, Math.round(a.folk))) : 0,
+              (args as { at?: number }).at,
+            ),
           );
         // (Their wounds laid over them, their days away with the levy, those a strike killed this
         // year: Phase 55 M226 — read from the record, the world untouched.)
@@ -1326,7 +1340,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
           ),
         );
         // (Its key figures, for the page that asks: Lives L1.)
-        return a.figures ? withFigures(world, drawn) : drawn;
+        return planDrawn(world, a.figures ? withFigures(world, drawn) : drawn);
       },
       /** The towns whose levy comes home wounded this year, the most borne first (Phase 55 M226; the look tools). */
       "village.wounded": (world, args) =>
@@ -1481,6 +1495,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
       // The fights among the stars as the record has them (Phase 67).
       ...STARFIGHT_QUERIES,
       // A realm's key figures and every realm's wealth (Lives L1, L2).
+      ...HOME_QUERIES,
       ...LEADER_QUERIES,
       ...WEALTH_QUERIES,
       /** A colony's town at a few years of its growth, as it stood: for a film of it. */

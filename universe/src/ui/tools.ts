@@ -48,6 +48,13 @@ export type ToolContext = {
   /** To a key figure's home in the town view (Lives L1). */
   readonly leaderHome?: (leader: Leader) => void;
   readonly leaderRule?: (leader: Leader) => void;
+  /** A home looked into (Lives L6). */
+  readonly homeLook?: (ask: {
+    readonly town: string;
+    readonly n?: number;
+    readonly person?: string;
+    readonly household?: string;
+  }) => void;
 };
 
 /** One of a town's people the god may touch (Phase 54): who they are, and their town. */
@@ -222,6 +229,16 @@ export function drawTool(
         ...(ctx.leaderRule ? { rule: ctx.leaderRule } : {}),
       });
       return;
+    case "home.look": {
+      const look = ctx.homeLook;
+      if (!look) return;
+      const b = document.createElement("button");
+      b.className = "home-look";
+      b.textContent = "🏠 Look in";
+      b.onclick = () => look(args as Parameters<typeof look>[0]);
+      into.append(b);
+      return;
+    }
     case "wealth.compare":
       drawWealthCompare(
         into,

@@ -29,6 +29,7 @@ import type { Tidings } from "./tidings.ts";
 import type { HoverTips } from "./hovertip.ts";
 import type { ArmsBook } from "./arms.ts";
 import { drawTool } from "./tools.ts";
+import type { ToolContext } from "./tools.ts";
 import { drawAnatomy, drawPortrait, moves } from "./portrait.ts";
 import { bodyView } from "./body.ts";
 import { drawThumb } from "./specimen.ts";
@@ -157,6 +158,8 @@ export class PageWindow {
   /** To a key figure's home (Lives L1). */
   onLeaderHome: ((leader: Leader) => void) | null = null;
   onLeaderRule: ((leader: Leader) => void) | null = null;
+  /** A home looked into (Lives L6). */
+  onHomeLook: NonNullable<ToolContext["homeLook"]> | null = null;
   /** Told as each page opens (the scales mark what it is). */
   onOpen: (page: PageModel) => void = () => {};
   onClose: () => void = () => {};
@@ -905,6 +908,7 @@ export class PageWindow {
           ...(this.onPossess ? { possess: this.onPossess } : {}),
           ...(this.onLeaderHome ? { leaderHome: this.onLeaderHome } : {}),
           ...(this.onLeaderRule ? { leaderRule: this.onLeaderRule } : {}),
+          ...(this.onHomeLook ? { homeLook: this.onHomeLook } : {}),
         });
         break;
     }

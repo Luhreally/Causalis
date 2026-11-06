@@ -291,6 +291,15 @@ export {
   type LandGround,
   type Way,
 } from "./land.ts";
+export {
+  HomeParts,
+  homeDrawn,
+  homeFolk,
+  type HomeDrawn,
+  type HomeFolk,
+  type HomeMesh,
+  type HomeSpot,
+} from "./home.ts";
 export { SEATED, STRIDES, bobOf, limbPitch, seatedSink } from "./motion.ts";
 export {
   BANDAGE_WIDE,

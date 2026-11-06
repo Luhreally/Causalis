@@ -399,6 +399,9 @@ export function householdPage(world: World, ref: string): PageModel {
               item([link(`${m.name} ${m.surname}`, m.ref), ` — ${personBrief(world, m)}`], m.ref),
             ),
           },
+          ...(h.village
+            ? [{ type: "tool" as const, tool: "home.look", args: { town: h.village, household: h.ref } }]
+            : []),
           { type: "why", ref: h.ref },
         ],
       },

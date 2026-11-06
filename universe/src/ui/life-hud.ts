@@ -55,6 +55,9 @@ export class LifeHud {
   private readonly stop = el("button", "life-pace", "❚❚");
   private readonly pass = el("button", "life-pace", "⏭");
   private readonly walk = el("button", "life-walk", "🕹 Walk");
+  private readonly goIn = el("button", "life-pace life-goin", "🏠 Go in");
+  /** 🏠 Go in: the home of the one lived, looked into (Lives L6). */
+  onGoIn: () => void = () => {};
   private trayKey = "";
   private winKey = "";
   private marketKey = "";
@@ -82,7 +85,7 @@ export class LifeHud {
       paces = el("div", "life-paces"),
       needs = el("div", "life-needs");
     top.append(this.who, this.what, this.letGo);
-    paces.append(this.time, this.stop, this.slow, this.quick, this.pass, this.bookBtn);
+    paces.append(this.time, this.stop, this.slow, this.quick, this.pass, this.bookBtn, this.goIn);
     needs.append(this.fed.box, this.rested.box, this.heart.box, this.purse);
     this.strip.append(top, paces, needs, this.want, this.rival);
     this.win.hidden = this.book.hidden = this.market.hidden = true;
@@ -99,6 +102,7 @@ export class LifeHud {
     this.quick.onclick = () => this.onPace("quick");
     this.pass.onclick = () => this.showPass();
     this.bookBtn.onclick = () => this.showBook();
+    this.goIn.onclick = () => this.onGoIn();
     this.element.append(this.strip, this.told, this.market, this.tray, this.win, this.book);
     parent.append(this.element);
   }

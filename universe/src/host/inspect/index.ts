@@ -47,6 +47,7 @@ import { conceptPage, withConcepts } from "./concepts.ts";
 import { sicknessPage } from "./sickness.ts";
 import { housePage } from "./credit.ts";
 import { buildingPage, lotPage, wallsPage } from "./fabric.ts";
+import { homePage, homeThingPage } from "./home.ts";
 import { campPage } from "./camp.ts";
 import { healerPage } from "./wounds.ts";
 import { armPage, armsPage } from "./arm.ts";
@@ -105,6 +106,9 @@ function build(world: World, ref: string, tab: string | null): PageModel {
   if (ref.startsWith("agent:")) return agentPage(world, ref);
   // A town's lots, its other buildings, its walls (Phase 25 M151).
   if (ref.startsWith("lot:")) return lotPage(world, ref);
+  // A home and what is in it (Lives L6).
+  if (ref.startsWith("dwell:")) return homePage(world, ref);
+  if (ref.startsWith("dwelt:")) return homeThingPage(world, ref);
   if (ref.startsWith("bldg:")) return buildingPage(world, ref);
   // A town's healer (Phase 55 M229).
   if (ref.startsWith("heal:")) return healerPage(world, ref);
