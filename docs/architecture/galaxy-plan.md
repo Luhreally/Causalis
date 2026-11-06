@@ -75,9 +75,27 @@ firearms.ts are the models.
 | 68 Laws of the universe | The dial, lanes between stars, shields; invented matter (Phase 59) | A ship leaving for the lane; the first jump | M |
 | 69 Peoples who really arose | Histories from their own worlds at their own pace, so some are still primitive when others reach them; their own ground, with towns and camps you can go down to; some never leave, some leave ruins; contact by what they can say, breathe, eat and catch | Strangers met on their ground and ours | L |
 | 70 Exploration and exploitation | Maps of what each has seen, probes, prospecting, wars of conquest on native worlds, mines, outposts, penal colonies, bonded natives, resistance, independence | Survey ships; machine armies landing on a world of primitive natives and fighting them on their own ground; a mining colony and its rising | L |
+| 70b Worlds filled | A colony spreads over its world instead of stopping at one patch; more than 36 colonies in a whole history | A world's lights spreading over the years; towns of one colony world to go down to | Not designed |
 | 71 Trade among stars | Goods from real shortages and freight costs; ports, merchant houses, credit, piracy, smuggling, blockades | Busy spaceports of many peoples; a lane raided | L |
 | 72 Star nations | Federations, empires, vassals, civil wars, dark ages | The fleets of Phase 67 fighting for real empires; a realm falling apart | L |
 | 73 Your hand in it | Galaxy lenses, the director filming firsts, a pilot possessed, god's acts at star scale | All of it, from the title screen | M |
+
+## Worlds filled: asked, not built (2026-11-05)
+
+"do they ever fully colonize the whole planet or just set up their one hall and its done?"
+
+**They do not, read from the code.** History keeps a colony as one land of 2,000 km² (`HALL_AREA`): one ship to a star (`voyageTarget` skips a star already taken), so one patch on one world, for ever. There are 36 such sites in a whole history (`STAR_SITES`), and 3 on each body of the home system (`SITES_PER_BODY`). "A world covered" counts only the home planet's lands (`coverOf`), so no colony can come to it. A colony does grow: its town is reckoned from its people, up to some 2 million in towers.
+
+| Far saves at year 3000 | `earth tide 207` | `alien harrow 348` (lanes open) |
+|---|---|---|
+| Home world | 269 lands, 27.6 billion | 62 lands, 7.7 billion |
+| Sites at other stars | all 36, 47.7 million | all 36, 70.6 million |
+| The greatest | 1.8 million | 2.3 million |
+| The last to be founded | 1661 | 1766 |
+
+So every site is taken by about 1750, and nothing new is settled among the stars for the last 1,200 years of history. That is the larger gap: the galaxy stops growing.
+
+**Direction, not yet designed.** Real lands are what make far years dear, so a world filling should not be 4,000 new provinces. A first thought: a number for how much of a colony world is settled, grown by its people, how livable it is and what they know, with its towns read from that, and the sites freed from a fixed count. To be tested against a year's cost and the save's bound. It comes after W5.
 
 ## Phase 68, first slice, as built (2026-11-05)
 

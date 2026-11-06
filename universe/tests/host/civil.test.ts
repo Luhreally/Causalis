@@ -49,6 +49,13 @@ test("the god's hand on a realm's far lands: a pretender's tool names where it w
 });
 
 test("a civil war: titled a rising, its kind and end on its page; the realm's page, the ledger and the chronicle tell it", () => {
+  // (Its court may have parted it already: a plotter who fled.)
+  const civilWars = () =>
+      Number(
+        rowsOf(tabOf(page(realm.ref), "strife").blocks).find((r) => r.label === "Civil wars")
+          ?.value ?? 0,
+      ),
+    before = civilWars();
   const cause = world.events.emit({
       type: STRIFE_ACTS.pretender.type,
       subjects: [realm.ref],
@@ -73,9 +80,8 @@ test("a civil war: titled a rising, its kind and end on its page; the realm's pa
   assert.match(String(end.value), /the rising put down|the realm left parted/);
   assert.equal(end.why, c.settled);
 
-  const strife = tabOf(page(realm.ref), "strife"),
-    civil = rowsOf(strife.blocks).find((r) => r.label === "Civil wars")!;
-  assert.equal(String(civil.value), "1");
+  const strife = tabOf(page(realm.ref), "strife");
+  assert.equal(civilWars(), before + 1);
   const list = strife.blocks.find(
     (b) => b.type === "list" && b.title === "Its civil wars, the newest first",
   );
