@@ -54,3 +54,4 @@ export { PossessHud } from "./possess-hud.ts";
 export { LifeHud, LifePicker } from "./life-hud.ts";
 export { ReignHud } from "./reign-hud.ts";
 export { bodyView, drawBody, kinLines } from "./body.ts";
+export { SungNote } from "./sung.ts";

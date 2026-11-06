@@ -10,7 +10,7 @@ import "./tour.css";
 import "./can.css";
 import "./years.css";
 import "./memory.css";
-import { SungNote } from "../ui/sung.ts";
+import { SungNote } from "../ui/index.ts";
 import { Checkpoint } from "./checkpoint.ts";
 import { HostClient, LOT, inlinePair, lotStates, progress, workerPort } from "../bridge/index.ts";
 import {
