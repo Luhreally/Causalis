@@ -114,15 +114,18 @@ function livableWorlds(ctx: PopulationContext) {
  */
 const FROM_ITS_OWN = 5;
 
-const STAR_BY_REF = new WeakMap<readonly GalaxyStar[], Map<string, GalaxyStar>>();
+const STAR_BY_REF = new Map<string, Map<string, GalaxyStar>>();
 
 /** The stars of the worlds a realm holds. */
 function heldStars(world: World, realm: Ref): GalaxyStar[] {
   const store = nationsOf(world);
   if (!store || store.dormant()) return [];
-  const stars = clusterOf(world);
-  let by = STAR_BY_REF.get(stars);
-  if (!by) STAR_BY_REF.set(stars, (by = new Map(stars.map((s) => [s.ref as string, s]))));
+  const key = world.seed.text;
+  let by = STAR_BY_REF.get(key);
+  if (!by) {
+    if (STAR_BY_REF.size > 4) STAR_BY_REF.clear();
+    STAR_BY_REF.set(key, (by = new Map(clusterOf(world).map((s) => [s.ref as string, s]))));
+  }
   const out: GalaxyStar[] = [];
   for (const h of store.all()) {
     if (h.holder !== realm) continue;

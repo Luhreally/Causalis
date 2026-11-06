@@ -3694,7 +3694,7 @@ async function runPlanetPage(): Promise<void> {
     reach: number,
   ) => {
     const of = new Map(plan.stars.map((s, i) => [s.ref, i])),
-      size = reach * LY_SCALE * 0.05;
+      size = reach * LY_SCALE * 0.036;
     starScene.nations(
       plan,
       marks.flatMap((m) => {
@@ -3703,6 +3703,8 @@ async function runPlanetPage(): Promise<void> {
       }),
     );
   };
+  /** How many of the greatest realms are marked plainly (the hues host/nations.ts gives). */
+  const NATIONS_MARKED = 10;
   const drawNations = (m: NationMap) => {
     nationNow = m;
     clusterPanel.nations(m);
@@ -3714,7 +3716,8 @@ async function runPlanetPage(): Promise<void> {
         return {
           star: s.star,
           color: n ? n.color : s.dark ? DARK_MARK : FREE_MARK,
-          scale: n ? (s.seat ? 1.5 : 1) : s.dark ? 0.9 : 0.55,
+          // (The greatest plain, those who hold little small beneath them; a world of no one, least.)
+          scale: n ? (s.seat ? 1.5 : s.nation < NATIONS_MARKED ? 1 : 0.55) : s.dark ? 0.7 : 0.4,
         };
       }),
       heldReach(

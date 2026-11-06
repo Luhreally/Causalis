@@ -449,7 +449,8 @@ say(
 );
 check(map.nations.length >= 2, "fewer than two realms among the stars");
 const top = map.nations[0]!,
-  least = map.nations.at(-1)!,
+  // (The least of those marked plainly: those past them are faint and small, and their colour no sure measure.)
+  least = map.nations[Math.min(9, map.nations.length - 1)]!,
   seen = await png(),
   aShare = await colorShare(seen, top.color),
   bShare = await colorShare(seen, least.color);
@@ -457,7 +458,7 @@ say(
   `${top.name}, ${top.worlds} worlds: ${(aShare * 100).toFixed(2)}% of the map; ${least.name}, ${least.worlds}: ${(bShare * 100).toFixed(2)}%`,
 );
 check(aShare > 0.002, `the greatest realm's colour is ${(aShare * 100).toFixed(2)}% of the map`);
-if (top.worlds >= least.worlds * 3 && Math.abs(hueOf(top.color) - hueOf(least.color)) > 40)
+if (top.worlds >= least.worlds * 2.5 && Math.abs(hueOf(top.color) - hueOf(least.color)) > 40)
   check(aShare > bShare * 1.5, "the greatest realm covers no more of the map than a small one");
 function hueOf(c: readonly number[]): number {
   const [r, g, b] = c as [number, number, number],

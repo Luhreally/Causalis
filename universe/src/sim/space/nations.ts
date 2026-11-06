@@ -356,7 +356,8 @@ function goDark(
     r = readingOf(ctx, w),
     people = peopleOn(ctx, w),
     poor = poorGround(world, h.star, h.planet);
-  if (!r || h.dark || !needsMaking(r) || makesItsOwn(people, poor)) return;
+  // (A world with a land of its own has that land's market and ledger to answer to: what it has, it has by them.)
+  if (!r || h.dark || h.cell !== null || !needsMaking(r) || makesItsOwn(people, poor)) return;
   const first = !store.first.dark,
     event = world.events.emit({
       type: first ? NATION_EVENTS.firstDark.type : NATION_EVENTS.dark.type,

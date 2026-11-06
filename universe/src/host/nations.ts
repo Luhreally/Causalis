@@ -29,7 +29,7 @@ import type {
   NationSight,
   PageModel,
 } from "../bridge/index.ts";
-import { realmColor } from "./colors.ts";
+import { hueColor, realmColor, realmHue } from "./colors.ts";
 import { peopleWords as bigWords } from "./filling.ts";
 import type { QueryHandler } from "./host.ts";
 import { count, item, link, many, stat, yearNow } from "./inspect/words.ts";
@@ -72,6 +72,26 @@ function worldWords(world: World, h: Holding): string {
   return `a world of ${bigWords(people)}, ${(w?.distance ?? 0).toFixed(1)} light-years from home`;
 }
 
+/** Hues the eye tells apart at a glance on a phone (turns): red, orange, yellow, green, teal, sky, blue, violet, magenta, pink. */
+const MAP_HUES = [0, 0.08, 0.145, 0.31, 0.46, 0.54, 0.625, 0.735, 0.83, 0.93];
+
+/**
+ * The colours of the realms on the map, greatest first: each of the greatest the hue nearest its own that no greater realm wears, so
+ * that two can be told apart where they meet (a hash's hues fall close: three of `harrow 348`'s seven greatest were one green); the
+ * rest their own hue, faint, so the great stand out.
+ */
+function mapColors(refs: readonly string[]): [number, number, number][] {
+  const free = [...MAP_HUES];
+  return refs.map((ref) => {
+    const own = realmHue(ref);
+    if (!free.length) return hueColor(own, 0.5, 0.13);
+    const turn = (h: number) => Math.min(Math.abs(h - own), 1 - Math.abs(h - own));
+    let best = 0;
+    for (let i = 1; i < free.length; i++) if (turn(free[i]!) < turn(free[best]!)) best = i;
+    return hueColor(free.splice(best, 1)[0]!);
+  });
+}
+
 /** The map of who holds what. */
 export function nationMap(world: World): NationMap {
   const store = nationsOf(world),
@@ -85,19 +105,21 @@ export function nationMap(world: World): NationMap {
       if (list) list.push(h);
       else by.set(h.holder, [h]);
     }
-  const nations: NationRow[] = store
+  const ranked = store
       .allNations()
       .filter((n) => by.has(n.ref))
-      .map((n) => ({
-        ref: n.ref,
-        name: n.name,
-        color: realmColor(n.ref),
-        worlds: by.get(n.ref)!.length,
-        people: peopleOfRows(world, by.get(n.ref)!),
-        greatest: n.greatest,
-        word: wordOf(by.get(n.ref)!),
-      }))
-      .sort((a, b) => b.worlds - a.worlds || (a.ref < b.ref ? -1 : 1)),
+      .map((n) => ({ n, worlds: by.get(n.ref)!.length }))
+      .sort((a, b) => b.worlds - a.worlds || (a.n.ref < b.n.ref ? -1 : 1)),
+    colors = mapColors(ranked.map((x) => x.n.ref)),
+    nations: NationRow[] = ranked.map(({ n, worlds }, i) => ({
+      ref: n.ref,
+      name: n.name,
+      color: colors[i]!,
+      worlds,
+      people: peopleOfRows(world, by.get(n.ref)!),
+      greatest: n.greatest,
+      word: wordOf(by.get(n.ref)!),
+    })),
     at = new Map(nations.map((n, i) => [n.ref, i])),
     fallen = store
       .allNations()
