@@ -33,6 +33,7 @@ import {
   type Court,
   type CourtFigure,
   type Polity,
+  warsOf,
 } from "../src/sim/index.ts";
 import { seatTownOf } from "../src/host/leaders.ts";
 import { COURT } from "../src/rules/index.ts";
@@ -183,22 +184,30 @@ function forge(
     [foundP, wonP, answerP] = [left[0]!, left[1]!, left[2]!],
     // (An heir's death has a window only where the heir is not the voices' choosing, and a name to give
     // only where another is grown at court. It needs no rival, so any realm will do.)
+    // (At peace and the greatest there is: a land alone at war can fall before an old heir dies.)
     bereftP =
-      [...realms.living()].find((p) => {
-        const c = courts.of(p.ref);
-        return (
-          !!c &&
-          !!orders.of(p.ref) &&
-          !c.plot &&
-          ![lookP, diesP, foundP, wonP, answerP].includes(p) &&
-          c.heirBy !== "voices" &&
-          adult(fig(c, c.heir)) &&
-          c.figures.some((f) => f.id !== c.heir && adult(f)) &&
-          now - p.ruler.born >= grown &&
-          !!seatTownOf(world, p) &&
-          p.members.length >= 1
-        );
-      }) ??
+      [...realms.living()]
+        .filter((p) => {
+          const c = courts.of(p.ref);
+          return (
+            !!c &&
+            !!orders.of(p.ref) &&
+            !c.plot &&
+            ![lookP, diesP, foundP, wonP, answerP].includes(p) &&
+            c.heirBy !== "voices" &&
+            adult(fig(c, c.heir)) &&
+            c.figures.some((f) => f.id !== c.heir && adult(f)) &&
+            now - p.ruler.born >= grown &&
+            !!seatTownOf(world, p) &&
+            p.members.length >= 1
+          );
+        })
+        .sort(
+          (a, b) =>
+            warsOf(world).fighting(a.ref).length - warsOf(world).fighting(b.ref).length ||
+            b.members.length - a.members.length ||
+            (a.ref < b.ref ? -1 : 1),
+        )[0] ??
       withHeir.find(
         (p) => p !== lookP && p !== diesP && p !== foundP && p !== wonP && p !== answerP,
       ) ??
