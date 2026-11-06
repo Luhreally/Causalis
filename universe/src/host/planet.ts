@@ -244,7 +244,10 @@ homePlanReader((world, town) => {
   if (folkHere) return planDrawn(world, folkTownPlan(world, folkHere, 8, 120));
   return planDrawn(
     world,
-    withFigures(world, withWounds(world, sealedPlan(world, villagePlan(world, town as Ref, undefined, 120)))),
+    withFigures(
+      world,
+      withWounds(world, sealedPlan(world, villagePlan(world, town as Ref, undefined, 120))),
+    ),
   );
 });
 
