@@ -515,6 +515,15 @@ if (most) {
       await shot("3-feast-song");
       await closePage();
     }
+    // By day, as most will see it; every shot above is the town's midnight or its evening's rain.
+    await k(`globalThis.causalis.client.advance(${(f.day + 1) * 86400 + 12 * 3600})`);
+    await page.waitForTimeout(slow(900));
+    const near = await stones();
+    if (near?.list.length) {
+      await lookAt(near.list[0]!);
+      await page.waitForTimeout(slow(1000));
+      await shot("1-stone-day");
+    }
   }
 } else if (far) problems.push("a far world with no town with a stone");
 
@@ -553,47 +562,227 @@ if (none) {
   } else if (far) say("no stone of a realm gone on this world");
 }
 
-// During a possession and a life: a stone pressed, its page on the screen.
+// During a life and a possession: a stone pressed, as a person's finger would, its page on the screen.
 if (most && far) {
   await goDown(most);
+  const shownAt = (sel: string) =>
+    k<boolean>(
+      `(() => { const e = document.querySelector(${JSON.stringify(sel)}); return !!e && e.getBoundingClientRect().height > 0; })()`,
+    );
+  await press(".town-live");
+  await until("the sheet of lives", () => shownAt(".life-picker .life-card"), slow(60000));
+  await press(".life-picker .life-live");
+  const lived = await until("the strip of a life", () => shownAt(".life-strip"), slow(120000));
+  if (lived) {
+    await page.waitForTimeout(slow(1400));
+    // (The eye held on the one lived: a finger pinches it back until a stone is in sight.)
+    let can = await reachable();
+    for (const distance of [24, 48, 90]) {
+      if (can.length) break;
+      await k(`globalThis.causalis.rig.flyTo({ distance: ${distance}, pitch: -40 }, 0.2)`);
+      await page.waitForTimeout(slow(700));
+      can = await reachable();
+    }
+    say(`in a life: ${can.length} stones a finger can reach`);
+    await shot("5-living");
+    check(can.length > 0, "in a life: no stone a finger can reach");
+    if (can.length) {
+      await page.touchscreen.tap(can[0]!.px, can[0]!.py);
+      await until("a stone's page, in a life", async () =>
+        String((await pageNow()) ?? "").startsWith("stone:"),
+      );
+      await page.waitForTimeout(slow(350));
+      const t = await pageText();
+      check(/Stands in/.test(t), `a stone's page, in a life: "${t.slice(0, 120)}"`);
+      await shot("5-living-page");
+      await closePage();
+      check(await shownAt(".life-strip"), "reading a stone ended the life");
+    }
+    await press(".life-letgo");
+    await until("the life let go", async () => !(await shownAt(".life-strip")), slow(60000));
+  }
+
+  // A possession: a stone far off says to walk nearer; near, it opens, and the body stands on.
+  type Me = { agent: number; x: number; z: number; yaw: number };
+  const me = () =>
+    k<Me | null>(`(() => {
+      const p = globalThis.causalis.possess, s = p?.state(), m = s && p.drawn(s.agent);
+      return m ? { agent: s.agent, x: m.x, z: m.z, yaw: s.eye.yaw } : null;
+    })()`);
+  /** The stones where a finger could come down on one: on the screen and off the possession's controls. */
+  const inSight = () =>
+    k<(StoneShown & { px: number; py: number })[]>(`(() => {
+      const got = globalThis.causalis.stones?.();
+      if (!got) return [];
+      const out = [];
+      for (const s of got.list) {
+        if (!s.front) continue;
+        for (const u of [0.5, 0.25, 0.75, 0.1]) {
+          const px = s.footX, py = s.footY + (s.headY - s.footY) * u;
+          if (px < 12 || px > innerWidth - 12 || py < 12 || py > innerHeight - 12) continue;
+          const e = document.elementFromPoint(px, py);
+          if (e && e.classList.contains("possess-hud")) {
+            out.push({ ...s, px, py });
+            break;
+          }
+        }
+      }
+      return out;
+    })()`);
+  /** The eye turned by a finger's drag across the right of the screen until one is in sight (the same stone, if asked). */
+  const fingers = await context.newCDPSession(page);
+  const turnTo = async (ref?: string) => {
+    const at = (x: number) => [{ x, y: 470, id: 2, radiusX: 6, radiusY: 6, force: 1 }];
+    for (let i = 0; i < 32; i++) {
+      const can = (await inSight()).filter((s) => !ref || s.ref === ref);
+      if (can.length) return can[0]!;
+      await fingers.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: at(370) });
+      for (let j = 1; j <= 5; j++)
+        await fingers.send("Input.dispatchTouchEvent", {
+          type: "touchMove",
+          touchPoints: at(370 - j * 12),
+        });
+      await fingers.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      await page.waitForTimeout(slow(200));
+    }
+    return null;
+  };
+  /** Walked on the keys toward a point until near it, stepping aside where a wall stops the body. */
+  const walkNear = async (x: number, z: number, near: number) => {
+    const down = new Set<string>(),
+      end = Date.now() + slow(90000);
+    let best = Infinity,
+      bestAt = Date.now(),
+      side = 1,
+      sideUntil = 0,
+      there = false;
+    while (Date.now() < end) {
+      const m = await me();
+      if (!m) break;
+      const dx = x - m.x,
+        dz = z - m.z,
+        d = Math.hypot(dx, dz);
+      if (d <= near) {
+        there = true;
+        break;
+      }
+      if (d < best - 0.5) {
+        best = d;
+        bestAt = Date.now();
+      } else if (Date.now() - bestAt > 2500 && Date.now() > sideUntil) {
+        side = -side;
+        sideUntil = Date.now() + 1500;
+        bestAt = Date.now();
+      }
+      const rel =
+          Math.atan2(dx, dz) + (Date.now() < sideUntil ? (side * Math.PI) / 2 : 0) - m.yaw,
+        ahead = Math.cos(rel),
+        right = -Math.sin(rel),
+        want = new Set<string>();
+      if (ahead > 0.38) want.add("KeyW");
+      if (ahead < -0.38) want.add("KeyS");
+      if (right > 0.38) want.add("KeyD");
+      if (right < -0.38) want.add("KeyA");
+      if (d > 8) want.add("ShiftLeft");
+      for (const key of [...down])
+        if (!want.has(key)) {
+          await page.keyboard.up(key);
+          down.delete(key);
+        }
+      for (const key of want)
+        if (!down.has(key)) {
+          await page.keyboard.down(key);
+          down.add(key);
+        }
+      await page.waitForTimeout(100);
+    }
+    for (const key of down) await page.keyboard.up(key);
+    return there;
+  };
+
   const sheetFor = await k<number>(
-    `(() => { const p = globalThis.causalis.planNow(); return p?.people?.findIndex((x) => !x.child) ?? -1; })()`,
+    `(() => { const p = globalThis.causalis.planNow(); return p?.people?.findIndex((x) => !x.child && x.ref.startsWith("agent:")) ?? -1; })()`,
   );
-  if (sheetFor >= 0) {
-    const got = await stones();
-    const why = await k<string | null>(`globalThis.causalis.possess?.take?.(${sheetFor}) ?? null`);
-    if (why) say(`no possession here: ${why}`);
-    const took =
-      !why &&
-      (await until(
-        "a possession",
-        () => k<boolean>(`document.body.classList.contains("possessing")`),
-        slow(60000),
-      ));
-    if (took) {
-      await page.waitForTimeout(slow(900));
-      const can = await reachable();
-      say(`possessed; ${can.length} of ${got?.list.length} stones a finger can reach`);
-      await shot("5-possessed");
-      if (can.length) {
-        const s = can[0]!;
-        await page.touchscreen.tap(s.px, s.py);
+  const take = () => k<string | null>(`globalThis.causalis.possess?.take?.(${sheetFor}) ?? null`);
+  let why = await take();
+  if (why) {
+    // (No life's hand on it: laid, as a person lays it from the town's page.)
+    await k(`globalThis.causalis.client.command("hand.lay", { village: ${JSON.stringify(most)} })`);
+    const t = await k<number>("globalThis.causalis.client.status?.t ?? 0");
+    await k(`globalThis.causalis.client.advance(${t + 3600})`);
+    await until(
+      "the hand laid",
+      async () => !!(await k<unknown>(`globalThis.causalis.client.query({ type: "hand" })`)),
+      slow(30000),
+    );
+    why = await take();
+  }
+  check(sheetFor >= 0, "no one of the town to possess");
+  check(!why, `no possession: ${why}`);
+  const took =
+    !why &&
+    (await until(
+      "a possession",
+      () => k<boolean>(`document.body.classList.contains("possessing")`),
+      slow(60000),
+    ));
+  if (took) {
+    await page.waitForTimeout(slow(900));
+    const seen = await turnTo();
+    check(!!seen, "possessed: no stone comes in sight, turning all the way round");
+    await shot("5-possessed");
+    if (seen) {
+      const m = await me(),
+        off = m ? Math.hypot(seen.worldX - m.x, seen.worldZ - m.z) : 0;
+      say(`possessed; a stone ${off.toFixed(0)} m off`);
+      if (off > 45) {
+        await page.touchscreen.tap(seen.px, seen.py);
+        await page.waitForTimeout(slow(350));
+        check((await pageNow()) === null, "possessed: a stone far off opened without walking to it");
+        const told = await k<string>(
+          `document.querySelector(".possess-told")?.textContent ?? ""`,
+        );
+        check(/walk nearer/.test(told), `possessed: a stone far off, told "${told}"`);
+      }
+      const there = await walkNear(seen.worldX, seen.worldZ, 14);
+      check(there, "possessed: could not walk to the stone");
+      await page.waitForTimeout(slow(600));
+      const close = await turnTo(seen.ref);
+      check(!!close, "possessed: the stone is not in sight from beside it");
+      if (close) {
+        await page.touchscreen.tap(close.px, close.py);
         await until("a stone's page, possessed", async () =>
           String((await pageNow()) ?? "").startsWith("stone:"),
         );
-        await page.waitForTimeout(slow(300));
+        await page.waitForTimeout(slow(350));
         const t = await pageText();
-        check(t.length > 40, `a stone's page is not on the screen, possessed: "${t.slice(0, 80)}"`);
+        check(/Stands in/.test(t), `a stone's page, possessed: "${t.slice(0, 120)}"`);
+        // (A real finger reaches all of it, and nothing of the controls lies over it.)
+        const over = await k<string[]>(`(() => {
+          const w = document.querySelector(".page-window");
+          if (!w) return ["no page"];
+          const r = w.getBoundingClientRect(), out = [];
+          for (let i = 0; i < 6; i++)
+            for (let j = 0; j < 8; j++) {
+              const x = r.x + ((i + 0.5) * r.width) / 6, y = r.y + ((j + 0.5) * r.height) / 8,
+                e = document.elementFromPoint(x, y);
+              if (!e || !w.contains(e)) out.push(e ? e.className || e.tagName : "nothing");
+            }
+          return out;
+        })()`);
+        check(!over.length, `possessed: over a stone's page: ${over.slice(0, 4).join(", ")}`);
         await shot("5-possessed-page");
-        await closePage();
+        await press(".page-window h2 .close");
+        check((await pageNow()) === null, "possessed: the page's close did not close it");
+        check(!!(await me()), "reading a stone ended the possession");
       }
-      await k(`globalThis.causalis.possess?.letGo?.()`);
-      await until(
-        "let go",
-        () => k<boolean>(`!document.body.classList.contains("possessing")`),
-        slow(30000),
-      );
     }
+    await k(`globalThis.causalis.possess?.letGo?.()`);
+    await until(
+      "let go",
+      () => k<boolean>(`!document.body.classList.contains("possessing")`),
+      slow(30000),
+    );
   }
 }
 
