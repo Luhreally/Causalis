@@ -109,6 +109,8 @@ import type {
   LandPlan,
   LandSky,
   SkyState,
+  NationMap,
+  NationSight,
   PeoplesSky,
   SystemPlan,
   VillagePlan,
@@ -334,6 +336,7 @@ import { installContactFilm, type ContactFilm } from "./contact-film.ts";
 import { installLandfallFilm, type LandfallFilm } from "./landfall-film.ts";
 import { VisitorsLayer } from "../render/index.ts";
 import { installFleetFilm, type FleetFilm } from "./fleet-film.ts";
+import { installNationFilm, type FilmMark, type NationFilm } from "./nation-film.ts";
 import { installFarFilm, type FarFilm } from "./far-film.ts";
 import { installJumpFilm, type JumpFilm } from "./jump-film.ts";
 // (Anyone's family and body on their card, a war's soldiers named from its roll: Phase 55 wave 5.)
@@ -861,6 +864,10 @@ type Exposed = {
   landfallFilm?: LandfallFilm;
   toFolk?: (star: string, index: number, at?: number) => Promise<FolkNear | null>;
   fleetFilm?: FleetFilm;
+  /** Realms among the stars (Phase 72): a realm's coming apart watched, the stars drawn held. */
+  nationFilm?: NationFilm;
+  nationsShown?: () => number | null;
+  nationMap?: () => NationMap | null;
   jumpFilm?: JumpFilm;
   farFilm?: FarFilm;
   /** Another star's world seen whole, from anywhere (W6's gate and the pages). */
@@ -3667,6 +3674,59 @@ async function runPlanetPage(): Promise<void> {
   };
   // Out to the stars around, and back to the star's system.
   const clusterPanel = new ClusterPanel(hud, client);
+  // Who holds the stars (Phase 72): read now and then while they are looked at, or a film's marks in their place.
+  let nationNow: NationMap | null = null,
+    nationAsked = 0,
+    nationFilming = false;
+  /** Those drawn in the colour of no one: its own people's, and one in the dark, whose star is put out. */
+  const FREE_MARK = [0.62, 0.62, 0.68] as const,
+    DARK_MARK = [0.09, 0.07, 0.09] as const;
+  /** How large a disc reads on the phone, given how far the stars shown lie. */
+  const heldReach = (plan: ClusterPlan, stars: readonly string[]): number => {
+    let far = 0;
+    const of = new Map(plan.stars.map((s) => [s.ref, s.distance]));
+    for (const s of stars) far = Math.max(far, of.get(s) ?? 0);
+    return Math.max(14, Math.min(plan.radius, far * 1.12));
+  };
+  const drawHeld = (
+    plan: ClusterPlan,
+    marks: readonly { star: string; color: readonly [number, number, number]; scale: number }[],
+    reach: number,
+  ) => {
+    const of = new Map(plan.stars.map((s, i) => [s.ref, i])),
+      size = reach * LY_SCALE * 0.05;
+    starScene.nations(
+      plan,
+      marks.flatMap((m) => {
+        const index = of.get(m.star);
+        return index === undefined ? [] : [{ index, color: m.color, size: size * m.scale }];
+      }),
+    );
+  };
+  const drawNations = (m: NationMap) => {
+    nationNow = m;
+    clusterPanel.nations(m);
+    if (!clusterPlan || nationFilming) return;
+    drawHeld(
+      clusterPlan,
+      m.stars.map((s) => {
+        const n = m.nations[s.nation];
+        return {
+          star: s.star,
+          color: n ? n.color : s.dark ? DARK_MARK : FREE_MARK,
+          scale: n ? (s.seat ? 1.5 : 1) : s.dark ? 0.9 : 0.55,
+        };
+      }),
+      heldReach(
+        clusterPlan,
+        m.stars.map((s) => s.star),
+      ),
+    );
+  };
+  const askNations = async () => {
+    nationAsked = performance.now();
+    drawNations(await client.query<NationMap>({ type: "nation.map" }));
+  };
   const selectStar = (i: number | null) => {
     starScene.mark(i, clusterPlan);
     const s = i === null ? undefined : clusterPlan?.stars[i];
@@ -3696,6 +3756,7 @@ async function runPlanetPage(): Promise<void> {
       clusterPlan,
       (await client.query<{ stars: number[] }>({ type: "far.scars" })).stars,
     );
+    await askNations();
     clusterPanel.show(clusterPlan);
     // (Come here other than by the home star's system: the sky watched from here too.)
     if (!stopSky) watchSky();
@@ -3704,7 +3765,17 @@ async function runPlanetPage(): Promise<void> {
     clusterPanel.visible = true;
     time.at("cluster", clusterPanel.timeSlot);
     rig.configure({
-      distance: (clusterPlan.radius * 0.3 * 2.8) / Math.min(1, aspect()),
+      // (As far out as anyone holds a world, once anyone does: what is held is what there is to read.)
+      distance:
+        ((nationNow?.stars.length
+          ? heldReach(
+              clusterPlan,
+              nationNow.stars.map((s) => s.star),
+            )
+          : clusterPlan.radius) *
+          0.3 *
+          2.8) /
+        Math.min(1, aspect()),
       minDistance: 1,
       maxDistance: 200,
       pitch: -30,
@@ -3765,6 +3836,7 @@ async function runPlanetPage(): Promise<void> {
   let colonyFilm: ColonyFilm | null = null;
   /** A fight among the stars watched (Phase 67). */
   let fleetFilm: FleetFilm | null = null;
+  let directorNation: ((event: string) => Promise<void>) | null = null;
   let directorJump: (() => Promise<boolean>) | null = null;
   let directorFar: ((event: string) => Promise<boolean>) | null = null;
   /** Every scale put away, for a film or a list to go on from. */
@@ -5120,6 +5192,7 @@ async function runPlanetPage(): Promise<void> {
   let fleetsNamed = false;
   stage.onUpdate(() => {
     if (scale !== "cluster" || !clusterPlan) return;
+    if (!nationFilming && performance.now() - nationAsked > 2000) void askNations();
     starScene.voyages(voyageMarks(clusterPlan, sky, now() / YEAR));
     // The peoples of other stars among them (Phase 18 M134), and how they met where they met.
     starScene.peoples(peopleMarks(clusterPlan, sky, now() / YEAR));
@@ -9086,6 +9159,78 @@ async function runPlanetPage(): Promise<void> {
     hush: () => colonies.hush(),
   });
   exposed.fleetFilm = fleetFilm;
+  const nationFilm = installNationFilm({
+    stage,
+    hud,
+    client,
+    time,
+    toStars: async () => {
+      pageWindow.close();
+      allAway();
+      regionCell = -1;
+      await toCluster();
+      clusterPanel.inspector.hidden = true;
+    },
+    show: (marks: readonly FilmMark[]) => {
+      if (!clusterPlan) return;
+      nationFilming = true;
+      drawHeld(
+        clusterPlan,
+        marks.map((m) => ({
+          star: m.star,
+          color:
+            m.flash > 0
+              ? ([1, 0.92 - 0.5 * (1 - m.flash), 0.7 - 0.6 * (1 - m.flash)] as const)
+              : m.dark
+                ? DARK_MARK
+                : m.color,
+          scale: m.flash > 0 ? 1 + 1.5 * m.flash : m.dark ? 0.9 : 1,
+        })),
+        heldReach(
+          clusterPlan,
+          marks.map((m) => m.star),
+        ),
+      );
+    },
+    done: () => {
+      nationFilming = false;
+      void askNations();
+    },
+    openPage: (ref) => void pageWindow.open(ref),
+    watchFleet: (id) => void fleetFilm!.play(id),
+    busy: () =>
+      !!colonyFilm?.playing ||
+      !!fleetFilm?.playing ||
+      !!contactFilm?.playing ||
+      !!landfallFilm?.playing,
+  });
+  exposed.nationFilm = nationFilm;
+  exposed.nationsShown = () => (scale === "cluster" ? starScene.nationsShown : null);
+  exposed.nationMap = () => nationNow;
+  clusterPanel.onNation = (ref) => void pageWindow.open(ref);
+  pageWindow.onNationFall = (ref) => {
+    pageWindow.close();
+    void nationFilm.play(ref);
+  };
+  // Great news of a realm among the stars: its coming apart, or the stars as they stand, or the world in the dark.
+  const seeNationEvent = async (event: string, auto = false) => {
+    const s = await client.query<NationSight>({ type: "nation.sight", args: { event } });
+    if (
+      /dark/.test(
+        (await client.query<{ title: string }>({ type: "page", args: { ref: event } })).title,
+      )
+    ) {
+      if (s.key) await pageWindow.open(s.key);
+      return;
+    }
+    if (s.nation && (await nationFilm.play(s.nation, auto))) return;
+    allAway();
+    regionCell = -1;
+    await toCluster();
+  };
+  events.onNation = (event) => void seeNationEvent(event);
+  tidings.onNation = (event) => void seeNationEvent(event);
+  directorNation = (event) => seeNationEvent(event, true);
   // The first jump watched (Phase 68), from its tiding, the law's page and the Director's firsts.
   const jumpFilm = installJumpFilm({
     stage,
@@ -9259,6 +9404,11 @@ async function runPlanetPage(): Promise<void> {
         // (What fell on a world of another star: played from it whole, W6.)
         if (/^(🌑|🌫️|☄️)/u.test(s.first.what) && s.first.ref && directorFar) {
           await directorFar(s.first.ref);
+          return;
+        }
+        // (A realm among the stars at its height, coming apart or fallen: on the map of who holds them, Phase 72.)
+        if (/^(👑|💔|🏚️)/u.test(s.first.what) && s.first.ref && directorNation) {
+          await directorNation(s.first.ref);
           return;
         }
         // (A world filled: out to it, lit across its face.)

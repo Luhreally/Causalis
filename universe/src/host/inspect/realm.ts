@@ -12,6 +12,7 @@ import {
   homePlanet,
   languagesOf,
   loreOf,
+  nationsOf,
   politiesOf,
   populationContext,
   realmName,
@@ -38,6 +39,7 @@ import { leaderBlocks } from "./leaders.ts";
 import { courtBlocks } from "./court.ts";
 import { wealthStats } from "../wealth.ts";
 import { civilWarRows, realmStrifeBlocks } from "./strife.ts";
+import { nationRealmBlocks } from "../nations.ts";
 import { civilizationsNear } from "../../sim/index.ts";
 import {
   claimOf,
@@ -106,6 +108,8 @@ export function realmPageModel(world: World, ref: string): PageModel {
     id: "overview",
     name: "Overview",
     blocks: [
+      // (What it holds among the stars: Phase 72.)
+      ...nationRealmBlocks(world, r.ref),
       {
         type: "facts",
         rows: [
@@ -847,7 +851,11 @@ export function starWarPage(world: World, ref: string): PageModel {
   if (!w) throw new Error(`no war among the stars ${ref}`);
   const civ = civilizationsNear(world).find((c) => c.ref === w.enemy),
     year = yearNow(world);
-  const enemy = civ ? link(`the people of another star`, civ.ref) : realmLink(world, w.enemy);
+  const enemy = civ
+    ? link(`the people of another star`, civ.ref)
+    : w.at && !politiesOf(world).get(w.enemy as Ref)
+      ? link(nationsOf(world)?.nation(w.enemy)?.name ?? "a world of its own people", w.at.key)
+      : realmLink(world, w.enemy);
   return {
     ref: w.ref,
     kind: "starwar",

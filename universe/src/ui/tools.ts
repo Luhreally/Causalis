@@ -20,6 +20,8 @@ export type ToolContext = {
   readonly landing?: (cell: number) => void;
   /** A fight among the stars played again (Phase 67). */
   readonly starFight?: (id: string) => void;
+  /** A realm among the stars coming apart, watched (Phase 72). */
+  readonly nationFall?: (ref: string) => void;
   /** A strike from the air played again in its town (W2). */
   readonly raid?: (event: string) => void;
   /** Go down among a band of a land's camp (Phase 29 M160). */
@@ -227,6 +229,19 @@ export function drawTool(
         ctx.open,
       );
       return;
+    case "watch.nation": {
+      if (!ctx.nationFall) return;
+      const b = el(
+        "button",
+        "act nation-watch",
+        (args.label as string | undefined) ?? "▶ Watch it",
+      );
+      b.title =
+        "Its worlds on the map of the stars at its greatest, and each one's going, year by year";
+      b.onclick = () => ctx.nationFall!(args.id as string);
+      into.append(b);
+      return;
+    }
     case "watch.starfight": {
       if (!ctx.starFight) return;
       const b = el("button", "act", (args.label as string | undefined) ?? "▶ Watch it");

@@ -217,6 +217,25 @@ export {
   type FillReading,
 } from "./filling.ts";
 export {
+  DARK_FLOOR,
+  DARK_YEARS,
+  GREAT_WORLDS,
+  HOLD_GENERATIONS,
+  MANY_WORLDS,
+  WORKS_PEOPLE,
+  answerYears,
+  breakChance,
+  darkLimit,
+  holdYears,
+  makesItsOwn,
+  needsMaking,
+  owesOf,
+  strainOf,
+  worldDefence,
+  type Strain,
+  type StrainInputs,
+} from "./nations.ts";
+export {
   COVERED_SHARE,
   COVER_PEOPLE_KM2,
   FIRST_MIRRORS_KM2,

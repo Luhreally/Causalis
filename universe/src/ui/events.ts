@@ -79,6 +79,8 @@ export class EventWindows {
   onLanding: ((event: string) => void) | null = null;
   /** What fell on a world of another star, its film (W6). */
   onFar: ((event: string) => void) | null = null;
+  /** Great news of a realm among the stars seen, by its event (Phase 72). */
+  onNation: ((event: string) => void) | null = null;
   /** The first jump, its film (Phase 68). */
   onJump: (() => void) | null = null;
   /** The greatest fire's fall, down in its town (W5). */
@@ -254,6 +256,22 @@ export class EventWindows {
       watch.onclick = () => {
         this.letBe();
         this.onLanding?.(t.ref);
+      };
+      buttons.append(watch);
+    }
+    if (t.type.startsWith("nation.") && this.onNation) {
+      const watch = el(
+        "button",
+        "event-go event-nation",
+        t.type === "nation.first-dark"
+          ? "🌘 See that world"
+          : t.type === "nation.greatest"
+            ? "👑 See it on the stars"
+            : "▶ Watch it come apart",
+      );
+      watch.onclick = () => {
+        this.letBe();
+        this.onNation?.(t.ref);
       };
       buttons.append(watch);
     }

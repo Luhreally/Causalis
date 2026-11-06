@@ -233,11 +233,20 @@ export function worldNews(world: World, since: number): Tiding[] {
       d = e.data as { great?: boolean; god?: boolean } | null,
       far = e.type === "far.fell" && !d?.god,
       jump = e.type === "lanes.first",
-      goods = e.type === "trade.first" || e.type === "trade.first-raid";
-    if (!far && !jump && !goods && !(e.type === "war.strike" && d?.great)) continue;
+      goods = e.type === "trade.first" || e.type === "trade.first-raid",
+      nation =
+        e.type === "nation.greatest" ||
+        e.type === "nation.first-left" ||
+        e.type === "nation.fell" ||
+        e.type === "nation.first-dark";
+    if (!far && !jump && !goods && !nation && !(e.type === "war.strike" && d?.great)) continue;
     out.push({
       watch: (e.subjects[0] ?? "") as Ref,
-      label: far ? "Across the stars" : jump || goods ? "Among the stars" : "The whole world",
+      label: far
+        ? "Across the stars"
+        : jump || goods || nation
+          ? "Among the stars"
+          : "The whole world",
       ref: e.id,
       year: yearOfMoment(e.t),
       claim: why(world, e.id).claim,

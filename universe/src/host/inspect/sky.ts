@@ -28,6 +28,7 @@ import { landLink, realmLink, spotOfLand } from "./names.ts";
 import { colonyRemade } from "../colony.ts";
 import { fillBlocks } from "../filling.ts";
 import { tradeWorldBlocks } from "../trade.ts";
+import { nationWorldBlocks } from "../nations.ts";
 
 /** A star in plain words, by its light. */
 export function starWords(s: { spectral: string; remnant?: boolean }): string {
@@ -454,6 +455,8 @@ export function foreignWorldPage(world: World, ref: string): PageModel {
         blocks: [
           // (What fell on it, what it would take: W6.)
           ...farWorldBlocks(world, star, index),
+          // (Who holds it, and what it has lost: Phase 72.)
+          ...nationWorldBlocks(world, `${s.ref}/${index}`),
           // (How far comers have filled it: Worlds filled.)
           ...fillBlocks(world, { star: s.ref, planet: index, body: -1 }),
           ...tradeWorldBlocks(world, s.ref, index, -1),

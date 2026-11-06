@@ -1,7 +1,7 @@
 // The observatory over the cluster (Phase 6 M56): the stars within reach of home — how
 // many of each kind, the nearest — and a page for each star: its kind, distance, light
 // and age, and its worlds.
-import type { ClusterPlan, HostClient, SkyState, StarPage } from "../bridge/index.ts";
+import type { ClusterPlan, HostClient, NationMap, SkyState, StarPage } from "../bridge/index.ts";
 import { REACTION_ICONS, clusterWords, starWords } from "../view/index.ts";
 import { WhyTree, el } from "./why.ts";
 import { folder } from "./window.ts";
@@ -29,6 +29,10 @@ export class ClusterPanel {
   onGalaxy: () => void = () => {};
   /** Every people about these stars, how far each has come (Phase 69). */
   onPeoples: () => void = () => {};
+  /** Who holds the stars, and one realm among them (Phase 72). */
+  onNation: (ref: string) => void = () => {};
+  private readonly legend = el("div", "nation-legend");
+  private map: NationMap | null = null;
   /** The law of this universe (Phase 68). */
   onLaw: () => void = () => {};
   onVisit: (star: StarPage, index: number) => void = () => {};
@@ -55,8 +59,10 @@ export class ClusterPanel {
       this.facts,
       this.more,
     );
+    this.legend.hidden = true;
     this.element.append(
       bar,
+      this.legend,
       this.inspector,
       el("p", "hint", `Tap a star to look at it. ${steerWords("space")}`),
     );
@@ -82,6 +88,66 @@ export class ClusterPanel {
       JSON.stringify([this.sky.ships ?? [], peopleDigest(this.sky)]);
     this.sky = sky;
     if (changed && !this.inspector.hidden) void this.select(this.shown);
+  }
+
+  /** Who holds the stars: the greatest realms' colours on the map, named. */
+  nations(map: NationMap): void {
+    const changed =
+      JSON.stringify(map.nations.map((n) => [n.ref, n.worlds])) !==
+      JSON.stringify(this.map?.nations.map((n) => [n.ref, n.worlds]) ?? null);
+    this.map = map;
+    if (!changed) return;
+    const top = map.nations.slice(0, 4);
+    this.legend.hidden = !top.length;
+    this.legend.replaceChildren(
+      ...top.map((n) => {
+        const chip = el("button", "nation-chip"),
+          swatch = el("span", "nation-chip-swatch");
+        chip.dataset.ref = n.ref;
+        swatch.style.background = `rgb(${n.color.map((x) => Math.round(255 * x)).join(",")})`;
+        chip.append(swatch, el("span", undefined, `${n.name} ${n.worlds}`));
+        chip.onclick = () => this.onNation(nationPageRef(n.ref));
+        return chip;
+      }),
+    );
+    if (!this.inspector.hidden && this.shown === null) void this.select(null);
+  }
+
+  /** Who holds the stars: the map's words. */
+  private nationsList(): HTMLElement[] {
+    const map = this.map;
+    if (!map?.stars.length) return [];
+    const all = el(
+      "button",
+      "line nation-all",
+      `👑 Who holds the stars: ${map.nations.length === 1 ? "1 realm" : `${map.nations.length} realms`}, ${map.stars.length === 1 ? "1 world" : `${map.stars.length} worlds`}`,
+    );
+    all.onclick = () => this.onNation("world:nations");
+    return [all];
+  }
+
+  /** Who holds a star. */
+  private holderHere(star: string): HTMLElement[] {
+    const map = this.map;
+    return (map?.stars ?? [])
+      .filter((s) => s.star === star)
+      .slice(0, 2)
+      .map((s) => {
+        const n = map!.nations[s.nation],
+          line = el(
+            "button",
+            "line nation-holder",
+            n
+              ? `👑 Held by ${n.name}: ${n.word}, ${n.worlds === 1 ? "1 world" : `${n.worlds} worlds`}`
+              : s.dark
+                ? "🌘 In the dark: no realm holds it, and it cannot make what it needs"
+                : "No realm holds it: its own people's",
+          );
+        line.onclick = () => {
+          if (n) this.onNation(nationPageRef(n.ref));
+        };
+        return line;
+      });
   }
 
   /** The peoples of other stars (Phase 18 M134): each in its colour, what it holds, whom it met and how. */
@@ -189,6 +255,7 @@ export class ClusterPanel {
               }),
             ]
           : []),
+        ...this.nationsList(),
         ...this.peoplesList(plan),
         el("h3", undefined, "The nearest"),
         ...plan.stars.slice(0, 12).map((s, i) => {
@@ -252,6 +319,7 @@ export class ClusterPanel {
     const here = (this.sky.ships ?? []).filter((v) => v.star === s.ref),
       whyBox = el("div", "why");
     this.more.replaceChildren(
+      ...this.holderHere(s.ref),
       ...this.heldHere(s.ref),
       ...here.flatMap((v) => [
         el("h3", undefined, v.arrived ? "Halls of home's people here" : "A ship bound here"),
@@ -283,6 +351,9 @@ export class ClusterPanel {
     if (here[0]) void this.why.show(here[0].voyage, whyBox);
   }
 }
+
+/** A realm's page among the stars: a realm of the home world has a page of its own besides. */
+const nationPageRef = (ref: string): string => (ref.startsWith("snat:") ? ref : `nation:${ref}`);
 
 /** What of the peoples among the stars the panel shows: redrawn when it changes. */
 function peopleDigest(sky: SkyState): unknown {

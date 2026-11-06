@@ -47,6 +47,14 @@ export class ClusterScene {
   private bursts: { e: pc.Entity; age: number; size: number }[] = [];
   private lineArrays: { positions: number[]; colors: number[] } = { positions: [], colors: [] };
   private readonly tints = new Map<string, pc.StandardMaterial>();
+  /** Who holds the stars (Phase 72): a disc that covers what is behind it, one batch for each colour, turned to the eye every frame. */
+  private holdBase: pc.StandardMaterial | null = null;
+  private readonly holdBatches = new Map<
+    string,
+    { batch: InstancedBatch; stars: { x: number; y: number; z: number; size: number }[] }
+  >();
+  /** How many stars are drawn held, by this (a gate reads it). */
+  nationsShown = 0;
   /** Each people's reach: a soft glow in its colour about each star it holds (camera-facing). */
   private readonly territory = new Map<
     string,
@@ -98,6 +106,20 @@ export class ClusterScene {
     stage.onUpdate(() => {
       if (!this.root.enabled || !this.glows.length) return;
       cam.copy(stage.camera.getPosition());
+      for (const t of this.holdBatches.values())
+        t.batch.set(t.stars.length, (i, out) => {
+          const s = t.stars[i]!,
+            dx = cam.x - s.x,
+            dy = cam.y - s.y,
+            dz = cam.z - s.z,
+            len = Math.hypot(dx, dy, dz) || 1;
+          out[0] = s.x;
+          out[1] = s.y;
+          out[2] = s.z;
+          out[3] = out[4] = out[5] = s.size;
+          out[6] = Math.atan2(dx, dz);
+          out[7] = Math.acos(Math.max(-1, Math.min(1, dy / len)));
+        });
       for (const t of this.territory.values())
         t.batch.set(t.stars.length, (i, out) => {
           const s = t.stars[i]!,
@@ -166,6 +188,79 @@ export class ClusterScene {
       m.ring.setLocalPosition(x, y, z);
       m.ring.setLocalScale(r * 0.9, r * 0.9, r * 0.9);
     });
+  }
+
+  /**
+   * Who holds which star: `size` in scene units. Each colour its own batch (a colour keeps its batch, made once, for as long as
+   * this scene lasts). Colours no one holds now draw nothing.
+   */
+  nations(
+    plan: ClusterPlan,
+    marks: readonly {
+      readonly index: number;
+      readonly color: readonly [number, number, number];
+      readonly size: number;
+    }[],
+  ): void {
+    this.holdBase ??= glowMaterial(
+      this.stage,
+      [
+        [0, "rgba(255,255,255,1)"],
+        [0.6, "rgba(255,255,255,0.95)"],
+        [0.8, "rgba(255,255,255,0.4)"],
+        [1, "rgba(255,255,255,0)"],
+      ],
+      true,
+    );
+    const by = new Map<
+      string,
+      {
+        color: readonly [number, number, number];
+        stars: { x: number; y: number; z: number; size: number }[];
+      }
+    >();
+    let shown = 0;
+    for (const m of marks) {
+      const s = plan.stars[m.index];
+      if (!s) continue;
+      const key = m.color.map((c) => c.toFixed(3)).join(",");
+      let g = by.get(key);
+      if (!g) by.set(key, (g = { color: m.color, stars: [] }));
+      g.stars.push({ x: s.x * LY_SCALE, y: s.z * LY_SCALE, z: s.y * LY_SCALE, size: m.size });
+      shown++;
+    }
+    this.nationsShown = shown;
+    for (const [key, t] of this.holdBatches) {
+      if (by.has(key)) continue;
+      t.stars = [];
+      t.batch.set(0, () => {});
+    }
+    for (const [key, g] of by) {
+      let t = this.holdBatches.get(key);
+      if (t && t.batch.capacity < g.stars.length) {
+        t.batch.destroy();
+        this.holdBatches.delete(key);
+        t = undefined;
+      }
+      if (!t) {
+        const material = this.holdBase.clone() as pc.StandardMaterial;
+        material.emissive = new pc.Color(g.color[0], g.color[1], g.color[2]);
+        material.update();
+        t = {
+          batch: new InstancedBatch(
+            this.stage,
+            this.disc,
+            g.color,
+            Math.max(32, g.stars.length * 2),
+            this.root,
+            material,
+          ),
+          stars: [],
+        };
+        this.holdBatches.set(key, t);
+      }
+      t.stars = g.stars;
+    }
   }
 
   build(plan: ClusterPlan): void {

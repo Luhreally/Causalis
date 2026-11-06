@@ -12,6 +12,7 @@ import {
   civilizationsNear,
   holdWorld,
   homePlanet,
+  nationsOf,
   loreOf,
   peopleStrength,
   peopleWords,
@@ -224,9 +225,67 @@ function peopleSide(world: World, civ: Civilization, year: number, strength: num
   };
 }
 
+/** Those who hold a world of another star against a fleet of a realm (Phase 72): a realm's own, or a realm of worlds, or its own people. */
+function worldSide(world: World, w: StarWar, year: number, strength: number): FightSide {
+  const R = politiesOf(world).get(w.enemy as Ref);
+  if (R) return realmSide(world, w.enemy, year, strength, false);
+  const body = peopleBody(world),
+    medium = body?.medium ?? "land",
+    store = nationsOf(world),
+    n = store?.nation(w.enemy),
+    h = store?.get(w.at!.key),
+    drive = h?.own?.drive ?? null;
+  return {
+    ref: w.enemy,
+    kind: "realm",
+    name: n?.name ?? "its own people",
+    words: n ? `a realm of worlds, ruled from out here` : "a world gone its own way",
+    color: realmColor(w.enemy),
+    strength,
+    machines: null,
+    gravity: homePlanet(world).generated.planet.gravity,
+    medium,
+    clade: body?.clade ?? null,
+    drive: (drive ?? "none") as FightDrive,
+    arm: "missile",
+    beamArm: null,
+    minds: false,
+    sky: drive ? "fleet" : "platforms",
+  };
+}
+
+/** A war for a world, fought: the fleet over that world. */
+function worldWarPlan(world: World, w: StarWar, nowYear: number): StarFightPlan | null {
+  const ev = w.battle ? world.events.get(w.battle) : undefined;
+  const d = ev?.data as FightData | null | undefined;
+  if (!w.battle || !ev || !d || !w.at) return null;
+  return {
+    id: w.ref,
+    road: "starwar",
+    year: d.year,
+    sailed: w.sailed,
+    attacker: realmSide(world, w.realm, w.sailed, d.strength, true),
+    defender: worldSide(world, w, d.year, d.defence),
+    won: w.won === true,
+    place: {
+      kind: "foreign",
+      star: w.at.star,
+      planet: w.at.planet,
+      words: "over a world among the stars that went its own way",
+    },
+    event: w.battle,
+    war: w.ref,
+    claim: safeWhy(world, w.battle),
+    why: safeWhy(world, w.event),
+    landing: null,
+    nowYear,
+  };
+}
+
 /** A war between the stars, fought: its plan, or null where the record cannot give one. */
 function warPlan(world: World, w: StarWar, nowYear: number): StarFightPlan | null {
   if (!w.battle) return null;
+  if (w.at) return worldWarPlan(world, w, nowYear);
   const ev = world.events.get(w.battle);
   const d = ev?.data as FightData | null | undefined;
   const civ = civilizationsNear(world).find((c) => c.ref === w.enemy);

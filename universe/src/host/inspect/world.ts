@@ -22,6 +22,7 @@ import {
   LAW_OF,
   marketsOf,
   orderOf,
+  nationsOf,
   politiesOf,
   type Law,
   type Polity,
@@ -1265,6 +1266,15 @@ function firstsOf(world: World, s: BaseSurvey): First[] {
         many(jump.hops, "lane", "lanes"),
         jump.hops,
       );
+    // A realm among the stars (Phase 72): at its greatest, coming apart, fallen; and the first world in the dark.
+    const nationFirst = nationsOf(world)?.first;
+    for (const [what, ref] of [
+      ["👑 A great realm among the stars", nationFirst?.greatest],
+      ["💔 A world broken away from a realm of many", nationFirst?.left],
+      ["🌘 A dark age among the stars", nationFirst?.dark],
+      ["🏚️ A realm among the stars fallen", nationFirst?.fell],
+    ] as const)
+      if (ref) add(what, at(ref), null, "", 1);
     const heard = ev("contact.heard");
     if (heard[0])
       add(

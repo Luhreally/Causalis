@@ -36,6 +36,7 @@ import { machinesOfRealm, spaceOf, spendMachines } from "./space.ts";
 import { LANE_ROW, laneLawOf, laneRoute } from "./lanes.ts";
 import { starSitesOf } from "./stars.ts";
 import { noteFirstJump } from "./voyages.ts";
+import { causeOfFleet, fleetLost, nationCauses } from "./nations.ts";
 
 export const STARWAR = defineKind("swar", "war between the stars", "minted");
 
@@ -69,6 +70,8 @@ export type StarWar = {
   battle: Ref | null;
   won: boolean | null;
   ended: Ref | null;
+  /** The world it is fought for, where it is fought for a world (Phase 72; absent: another people, or a colony's seat). */
+  readonly at?: { readonly key: string; readonly star: Ref; readonly planet: number };
 };
 
 export class StarWarStore implements StateStore {
@@ -120,7 +123,9 @@ export type Cause = {
   defence: (year: number) => number;
   factor: Factor;
   /** Take the prize, if the fleet wins. */
-  take?: () => void;
+  take?: (battle: Ref) => void;
+  /** The world it is for, among the worlds held (Phase 72). */
+  key?: string;
 };
 
 /** The causes a realm has for war between the stars. */
@@ -153,6 +158,8 @@ export function causes(ctx: PopulationContext, p: Polity, year: number): Cause[]
       },
     });
   }
+  // A world among the stars it sent, or could answer for sooner than whoever holds it (Phase 72).
+  out.push(...nationCauses(ctx, p, year));
   // Another people, heard, and sailing the stars too.
   const contacts = contactsOf(world);
   for (const civ of civilizationsNear(world)) {
@@ -188,7 +195,11 @@ export function starWarYear(ctx: PopulationContext, t: SimTime): void {
     if (w.ended || year < w.arrives) continue;
     const realm = politiesOf(world).get(w.realm),
       p = realm && !realm.ended ? realm : null,
-      cause = p ? causes(ctx, p, year).find((c) => c.enemy === w.enemy) : undefined,
+      cause = !p
+        ? undefined
+        : w.at
+          ? causeOfFleet(ctx, p, w.at.key, w.enemy, year)
+          : causes(ctx, p, year).find((c) => c.enemy === w.enemy),
       defence = cause ? cause.defence(year) : 1,
       odds = w.strength / (w.strength + defence),
       won = world.rng.real(FIGHT, 0, t, 0, store.all().indexOf(w)) < odds;
@@ -205,7 +216,8 @@ export function starWarYear(ctx: PopulationContext, t: SimTime): void {
         year,
       },
     });
-    if (won) cause?.take?.();
+    if (won) cause?.take?.(w.battle);
+    else if (w.at) fleetLost(world, w.realm, year);
     w.ended = world.events.emit({
       type: STARWAR_EVENTS.peace.type,
       subjects: [w.realm, w.enemy],
@@ -223,9 +235,10 @@ export function starWarYear(ctx: PopulationContext, t: SimTime): void {
     const valour = culture.get(p.seat)?.traits[WAY.valour] ?? 0.5,
       machines = machinesOfRealm(ctx, p);
     if (machines < 2 * FLEET_MACHINES) continue;
+    // (The one draw a realm has in a year: what is weighed only if it would go at all.)
+    if (!(world.rng.real(DECLARE, p.seat, t, 0) < STARWAR_PACE * (0.5 + valour))) continue;
     for (const cause of causes(ctx, p, year)) {
       if (store.open(p.ref, cause.enemy)) continue;
-      if (!(world.rng.real(DECLARE, p.seat, t, 0) < STARWAR_PACE * (0.5 + valour))) continue;
       // By the lanes where the law holds and this realm has found them (Phase 68): each of its ships burns the way's fuel.
       const route =
           laneLawOf(world).open && knows(ctx, p.seat, LANE_ROW)
@@ -289,6 +302,7 @@ export function starWarYear(ctx: PopulationContext, t: SimTime): void {
         battle: null,
         won: null,
         ended: null,
+        ...(cause.key ? { at: { key: cause.key, star: cause.star, planet: cause.planet } } : {}),
       });
       if (route && byLane < direct)
         noteFirstJump(ctx, p, {

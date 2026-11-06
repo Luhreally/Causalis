@@ -20,7 +20,15 @@ export type Tiding = {
 type Followed = { ref: string; label: string };
 
 /** What may come both as the world's news and from what is followed: told once. */
-const TOLD_ONCE: ReadonlySet<string> = new Set(["far.fell", "lanes.first", "war.strike"]);
+const TOLD_ONCE: ReadonlySet<string> = new Set([
+  "far.fell",
+  "lanes.first",
+  "war.strike",
+  "nation.greatest",
+  "nation.first-left",
+  "nation.fell",
+  "nation.first-dark",
+]);
 
 /** How long a card of news stays unless it is opened, in ms; and how many are shown at once. */
 const LINGER_MS = 14000,
@@ -62,6 +70,8 @@ export class Tidings {
   onJump: (() => void) | null = null;
   /** What fell on a world of another star (W6): its film. */
   onFar: ((event: string) => void) | null = null;
+  /** Great news of a realm among the stars seen (Phase 72), by its event. */
+  onNation: ((event: string) => void) | null = null;
 
   constructor(root: HTMLElement, client: HostClient) {
     this.client = client;
@@ -208,6 +218,14 @@ export class Tidings {
         this.onFilled?.(t.ref);
       };
       head.append(from, see, close);
+    } else if (t.type.startsWith("nation.") && t.world && this.onNation) {
+      const watch = el("button", "tiding-watch", "👑 See it");
+      watch.title = "Who holds the stars, and that realm or world";
+      watch.onclick = () => {
+        card.remove();
+        this.onNation?.(t.ref);
+      };
+      head.append(from, watch, close);
     } else if (t.type === "far.fell" && this.onFar) {
       const watch = el("button", "tiding-watch far-watch", "🌑 Watch");
       watch.title = "That world, whole, and what fell on it";

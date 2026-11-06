@@ -304,6 +304,8 @@ export const GATES: readonly Gate[] = [
   { gate: 78, args: ["--ci"], s: 240 },
   // Gate 84, trade among the stars (tools/p71-gate.ts): a colony's port pressed from the 🚀 list by touch, busy beside quiet in the pixels, its run's page; the paths nobody watches; a young world given them on CI.
   { gate: 84, args: ["--ci"], s: 240 },
+  // Gate 85, realms among the stars (tools/p72-gate.ts): who holds the stars in the pixels, a realm's page and its coming apart pressed by touch; the paths nobody watches; a young world given them on CI.
+  { gate: 85, args: ["--ci"], s: 240 },
   // Gate 82, worlds filled (tools/p70b-gate.ts): a world at two shares, pressed from the 🚀 list by touch and read in the pixels; one that can never fill, and what its page says; a young world given both on CI.
   { gate: 82, args: ["--ci"], s: 240 },
   // Gate 80, the law of a universe and the first jump (tools/p68-gate.ts): shut, a page says why; open, a ship leaves, jumps and comes out, pressed by touch and read in the pixels.

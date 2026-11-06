@@ -14,6 +14,7 @@ import {
   SPACE_EVENTS,
   STARWAR_EVENTS,
   SUMMON_EVENTS,
+  NATION_EVENTS,
   TRADE_EVENTS,
   VOYAGE_EVENTS,
 } from "../sim/index.ts";
@@ -136,6 +137,55 @@ registerEventWords(TRADE_EVENTS.rich.type, (_world, e) => {
   const d = (e.data ?? {}) as { house?: string; worth?: number };
   return `${d.house ?? "A house"} grew great on the run it keeps, ${count(d.worth ?? 0)} in grain cleared by it, year ${yearOfMoment(e.t)}`;
 });
+const nationWorld = (d: { people?: number; ly?: number }): string =>
+  `a world of ${count(d.people ?? 0)} people${d.ly ? `, ${d.ly} light-years out` : ""}`;
+const leftWords = (_world: unknown, e: { t: number; data: unknown }): string => {
+  const d = (e.data ?? {}) as {
+    realm?: string;
+    people?: number;
+    ly?: number;
+    answer?: number | null;
+    worlds?: number;
+  };
+  return `${nationWorld(d)[0]!.toUpperCase()}${nationWorld(d).slice(1)} went its own way from ${d.realm ?? "the realm that held it"}${d.answer ? `: a word and a fleet took ${d.answer} years` : ": no word or fleet could come"}. It holds ${d.worlds ?? 0} now, year ${yearOfMoment(e.t)}`;
+};
+registerEventWords(NATION_EVENTS.left.type, leftWords as never);
+registerEventWords(
+  NATION_EVENTS.firstLeft.type,
+  ((world: unknown, e: { t: number; data: unknown }) =>
+    `For the first time a world broke away from a realm of many among the stars. ${leftWords(world, e)}`) as never,
+);
+registerEventWords(NATION_EVENTS.joined.type, (_world, e) => {
+  const d = (e.data ?? {}) as { realm?: string; people?: number; answer?: number };
+  return `${nationWorld(d)[0]!.toUpperCase()}${nationWorld(d).slice(1)} chose to join ${d.realm ?? "a realm"}, ${d.answer ?? "?"} years' word and fleet away, for what it could not make itself, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(NATION_EVENTS.taken.type, (_world, e) => {
+  const d = (e.data ?? {}) as {
+    realm?: string;
+    from?: string | null;
+    back?: boolean;
+    people?: number;
+  };
+  return `A fleet of ${d.realm ?? "a realm"} ${d.back ? "took back" : "took"} ${nationWorld(d)}${d.from ? ` from ${d.from}` : ""}, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(NATION_EVENTS.greatest.type, (_world, e) => {
+  const d = (e.data ?? {}) as { realm?: string; worlds?: number };
+  return `${d.realm ?? "A realm"} came to hold ${d.worlds ?? "many"} worlds of other stars, more than any realm before it, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(NATION_EVENTS.fell.type, (_world, e) => {
+  const d = (e.data ?? {}) as { realm?: string; greatest?: number; atYear?: number; left?: number };
+  return `The realm of ${d.realm ?? "a people"} among the stars has fallen: of the ${d.greatest ?? "many"} worlds it held in ${d.atYear ?? "its greatest year"}, ${d.left ? "one is left" : "none is left"}, year ${yearOfMoment(e.t)}`;
+});
+const darkWords = (_world: unknown, e: { t: number; data: unknown }): string => {
+  const d = (e.data ?? {}) as { realm?: string; people?: number; poor?: boolean };
+  return `A world of ${count(d.people ?? 0)} people first settled by ${d.realm ?? "another realm"}, cut off, cannot make what keeps its roofs up: ${d.poor ? "its ground has too little metal" : "it has too few hands for the whole chain"}, year ${yearOfMoment(e.t)}`;
+};
+registerEventWords(NATION_EVENTS.dark.type, darkWords as never);
+registerEventWords(
+  NATION_EVENTS.firstDark.type,
+  ((world: unknown, e: { t: number; data: unknown }) =>
+    `A dark age, the first among the stars. ${darkWords(world, e)}`) as never,
+);
 registerEventWords(FILLED_EVENTS.sailed.type, (_world, e) => {
   const d = (e.data ?? {}) as { realm?: string; distance?: number; years?: number };
   return `The realm of ${d.realm ?? "a people"} sent a ship to a star ${d.distance ?? "?"} light-years away, every nearer world being taken: ${d.years ?? "many"} years on the way, year ${yearOfMoment(e.t)}`;

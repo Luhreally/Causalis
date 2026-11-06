@@ -612,6 +612,27 @@ export {
 } from "./space/filled.ts";
 export { TradeStore, tradeOf, type Convoy, type StarRun } from "./space/trade-store.ts";
 export {
+  NATION,
+  NationStore,
+  heldAmongStars,
+  nationsOf,
+  worldNation,
+  type Holding,
+  type StarNation,
+} from "./space/nation-store.ts";
+export {
+  NATION_EVENTS,
+  READ_EVERY,
+  answerFrom,
+  installNations,
+  nationCauses,
+  nationYear,
+  poorGround,
+  seatOf,
+  strainNow,
+  type Seat,
+} from "./space/nations.ts";
+export {
   MOST_RUNS,
   RICH_GRAIN,
   RUN,

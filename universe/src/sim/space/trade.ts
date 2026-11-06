@@ -54,6 +54,7 @@ import { peopleWords, peoplesOf } from "./peoples.ts";
 import { machinesOfRealm, spaceOf, spendMachines } from "./space.ts";
 import { starSitesOf } from "./stars.ts";
 import { starWarsOf, type StarWar } from "./starwar.ts";
+import { nationsOf, worldNation } from "./nation-store.ts";
 import { TradeStore, tradeOf, type Convoy, type StarRun } from "./trade-store.ts";
 
 export const RUN = defineKind("run", "a run between the stars", "minted");
@@ -269,6 +270,12 @@ function homeWar(world: World, a: Ref, b: Ref) {
         w.ended === null &&
         ((w.attacker === a && w.defender === b) || (w.attacker === b && w.defender === a)),
     );
+}
+
+/** Who a world of another star answers to, where no realm of the home world holds its land (Phase 72): a far realm, or its own people. */
+function heldRef(world: World, cell: number): Ref | undefined {
+  const h = nationsOf(world)?.ofCell(cell);
+  return h ? (h.holder ?? worldNation(h.index)) : undefined;
 }
 
 /** A run comes to its end, with why; what is under way comes to nothing, if it had nowhere to come to. */
@@ -545,7 +552,7 @@ function runYear(
     land = ctx.provinces.get(r.to),
     to = markets.get(r.to),
     realms = politiesOf(world),
-    holder = realms.of(r.to)?.ref,
+    holder = realms.of(r.to)?.ref ?? heldRef(world, r.to),
     fall = farOf(world) ? fireOf(world).unmade(r.toStar, r.planet) : null;
   if (fall) return closeRun(world, r, "gone", year, fall.event as Ref);
   if (!land?.total() || !to) return closeRun(world, r, "empty", year, null);
@@ -637,6 +644,11 @@ function opening(
     const budget = to.people * PAY_HEAD * OPEN_EVERY;
     for (const s of sellers.values()) {
       if (s.cell === to.cell || running.has(`${s.cell}>${to.cell}`)) continue;
+      // (No one sends to those it is fighting for that very world: Phase 72.)
+      if (!to.holder) {
+        const own = heldRef(world, to.cell);
+        if (own && warBetween(wars, s.realm.ref, own)) continue;
+      }
       if (to.holder && s.realm.ref !== to.holder.ref) {
         if (
           warBetween(wars, s.realm.ref, to.holder.ref) ||

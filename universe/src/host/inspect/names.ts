@@ -5,6 +5,7 @@ import {
   beliefOf,
   homePlanet,
   languagesOf,
+  nationsOf,
   politiesOf,
   populationContext,
   realmName,
@@ -56,7 +57,10 @@ export function spotOfLand(world: World, cell: number): number | null {
 /** A realm as a link (a fallen one in words). */
 export function realmLink(world: World, ref: string | null | undefined): Span {
   const r = ref ? politiesOf(world).get(ref as Ref) : undefined;
-  return r ? link(realmName(r), r.ref) : "a realm now gone";
+  if (r) return link(realmName(r), r.ref);
+  // (A realm among the stars with no land: Phase 72.)
+  const n = ref ? nationsOf(world)?.nation(ref) : undefined;
+  return n ? link(n.name, n.ref) : "a realm now gone";
 }
 
 /** A town as a link. */

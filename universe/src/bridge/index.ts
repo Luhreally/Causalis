@@ -3,6 +3,15 @@
 // See README.md and docs/architecture/universe-architecture.md §30.
 export type { BrushKind, BrushStrokeArgs, BrushPreview, BrushState } from "./brush.ts";
 export type {
+  NationFall,
+  NationFallWorld,
+  NationMap,
+  NationRgb,
+  NationRow,
+  NationSight,
+  NationStar,
+} from "./nations.ts";
+export type {
   FightArm,
   FightDrive,
   FightPlace,

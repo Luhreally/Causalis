@@ -17,6 +17,7 @@ import {
   BANDS,
   crossingYears,
   cruise,
+  darkLimit,
   fillDone,
   fillNext,
   fillReading,
@@ -35,6 +36,7 @@ import { COLS, ROWS, type Province } from "../population/model.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { COLONISTS, spaceOf, spendMachines } from "./space.ts";
 import { FilledStore, bodyKey, filledOf, starKey, type FilledWorld } from "./filled-store.ts";
+import { nationsOf } from "./nation-store.ts";
 import { lateOf, remakeKey } from "./late-store.ts";
 import { landfallsOf } from "./landfall.ts";
 import { folkOf } from "./natives.ts";
@@ -110,7 +112,9 @@ export function readingOf(ctx: PopulationContext, w: FilledWorld): FillReading |
   if (!ground) return null;
   const g = ctx.generated,
     home = g.system.bodies[0]!,
-    who = knowerOf(ctx, w);
+    who = knowerOf(ctx, w),
+    // (Cut off from what it never learned to make, its vats and towers stand idle: Phase 72.)
+    dark = !!nationsOf(ctx.world)?.get(w.key)?.dark;
   const r = fillReading(
     ground,
     g.life.people?.body ?? null,
@@ -118,8 +122,8 @@ export function readingOf(ctx: PopulationContext, w: FilledWorld): FillReading |
     home.air,
     remadeOf(ctx, w),
     {
-      vats: !!loreOf(ctx.world).get(who, "vat-food"),
-      towers: !!loreOf(ctx.world).get(who, "world-city"),
+      vats: !dark && !!loreOf(ctx.world).get(who, "vat-food"),
+      towers: !dark && !!loreOf(ctx.world).get(who, "world-city"),
     },
   );
   return w.held ? heldReading(r) : r;
@@ -226,7 +230,18 @@ function worldYear(ctx: PopulationContext, store: FilledStore, w: FilledWorld, y
   const lands = landPeople(ctx, w),
     now = w.people + lands,
     sender = politiesOf(world).get(w.realm),
-    comers = sender && sender.ended === null ? w.comers : 0;
+    held = nationsOf(world)?.get(w.key);
+  // (Cut off from what it never learned to make, its roofs fail, and those it can keep are all it keeps: Phase 72.)
+  if (held?.dark) {
+    w.people = Math.max(
+      0,
+      Math.min(w.people, Math.round(darkLimit(held.dark.before, year - held.dark.since) - lands)),
+    );
+    return;
+  }
+  // (Those who follow go on coming only while their world is still their sender's.)
+  const comers =
+    sender && sender.ended === null && (!held || held.holder === w.realm) ? w.comers : 0;
   // (Where its lands alone hold more than the world can, nothing is lost: it only stops growing.)
   w.people = Math.max(w.people, Math.round(fillNext(now, r, comers) - lands));
   if (w.filled || !fillDone(w.people + lands, r)) return;

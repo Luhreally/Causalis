@@ -84,7 +84,7 @@ const BATTLE_EVERY = 3;
 export const BEHIND = 3;
 /** Firsts the whole world turns to, however far behind the Director has fallen. */
 const NEVER_LET_GO =
-  /greatest fire|jump through a lane|world filled|fire carried|sky burned|world unmade/;
+  /greatest fire|jump through a lane|world filled|fire carried|sky burned|world unmade|great realm|broken away|realm among the stars fallen/;
 
 /** A director begun now: the firsts already in the world are history, not news. */
 export function newDirector(firsts: readonly WorldFirst[]): Director {

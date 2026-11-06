@@ -153,6 +153,7 @@ import { REIGN_QUERIES } from "./reign.ts";
 import { townPlan } from "./town.ts";
 import { FILLING_QUERIES } from "./filling.ts";
 import { TRADE_QUERIES } from "./trade.ts";
+import { NATION_QUERIES } from "./nations.ts";
 import {
   COLONY_QUERIES,
   colonyGrowth,
@@ -1474,6 +1475,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
       ...COLONY_QUERIES,
       ...FILLING_QUERIES,
       ...TRADE_QUERIES,
+      ...NATION_QUERIES,
       ...NATIVES_QUERIES,
       ...LANDFALL_QUERIES,
       // The fights among the stars as the record has them (Phase 67).

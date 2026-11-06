@@ -34,6 +34,7 @@ import type { LoreStore } from "../lore/lore.ts";
 import { interestsOf, pressure } from "./interests.ts";
 import { revolutionHolds } from "../strife/strife.ts";
 import { courtClaimant, courtFollows } from "../court/court.ts";
+import { heldAmongStars } from "../space/nation-store.ts";
 
 export const POLITY = defineKind("pol", "realm", "minted");
 
@@ -575,7 +576,8 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
       // How far the seat can rule from: three steps, and further with writing, clerks and roads.
       rules = 3 + loreOf(world).effect(p.seat, "reach");
     for (const c of p.members) {
-      if (c === p.seat) continue;
+      // (A world of another star is held or not by the rule of the stars: Phase 72.)
+      if (c === p.seat || heldAmongStars(world, c)) continue;
       const prov = ctx.provinces.get(c),
         m = markets.get(c),
         ways = culture.get(c);
@@ -614,7 +616,7 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
   // 4. Lands whose discontent runs high secede.
   for (const p of store.living()) {
     for (const c of [...p.members]) {
-      if (c === p.seat) continue;
+      if (c === p.seat || heldAmongStars(world, c)) continue;
       const d = store.discontent(c);
       if (d.level < 0.9 || !(world.rng.real(JOIN, c, t, 7) < 0.15 * (d.level - 0.8))) continue;
       const prov = ctx.provinces.get(c)!;
@@ -656,9 +658,11 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
     // they are (rule by birth, fought over by kin, breaks more often).
     const ways = culture.get(p.seat)!,
       old = p.ruler,
-      steps = p.members.length > 3 ? reach(ctx, p) : null,
-      far = steps ? Math.max(...p.members.map((c) => steps.get(c) ?? 0)) : 0,
-      edge = steps ? p.members.filter((c) => (steps.get(c) ?? far) >= Math.max(1, far)) : [],
+      // (Its lands here: a world of another star goes by the rule of the stars.)
+      near = p.members.filter((c) => !heldAmongStars(world, c)),
+      steps = near.length > 3 ? reach(ctx, p) : null,
+      far = steps ? Math.max(...near.map((c) => steps.get(c) ?? 0)) : 0,
+      edge = steps ? near.filter((c) => (steps.get(c) ?? far) >= Math.max(1, far)) : [],
       unrest = edge.length
         ? edge.reduce((s, c) => s + store.discontent(c).level, 0) / edge.length
         : 0,
@@ -694,7 +698,7 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
           p.succession === 0 ? old.name.split(" ").slice(1).join(" ") : null,
           ctx.life.adulthood,
         );
-    if (crisis && edge.length && edge.length < p.members.length) {
+    if (crisis && edge.length && edge.length < near.length) {
       // The lands farthest from the seat break away together, and their grievance is why; the one who wanted the seat leads them.
       const aggrieved = [...edge].sort(
           (x, y) => store.discontent(y).level - store.discontent(x).level || x - y,
