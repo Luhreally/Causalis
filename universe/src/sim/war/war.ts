@@ -126,8 +126,11 @@ export const WAR_EVENTS = {
   taken: defineEventType("war.taken", 5),
   rebellion: defineEventType("war.rebellion", 5),
   peace: defineEventType("war.peace", 5),
-  /** A town struck from the air (W2): its town first among its subjects, as a fire's is. */
-  strike: defineEventType("war.strike", 5),
+  /**
+   * A town struck from the air (W2): its town first among its subjects, as a fire's is. Kept as long as a battle: a far world
+   * flies tens of thousands, and each stood twelve centuries in every save. Its war's tally keeps what they came to; the greatest fire says 7.
+   */
+  strike: defineEventType("war.strike", 4),
 };
 
 /** A town struck from the air in a war (War past the line, W2): kept in the war store, and packed by column. */
