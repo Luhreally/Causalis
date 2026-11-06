@@ -10,8 +10,7 @@ import "./tour.css";
 import "./can.css";
 import "./years.css";
 import "./memory.css";
-import { SungNote } from "../ui/index.ts";
-import { CourtNote } from "../ui/court-note.ts";
+import { CourtNote, SungNote } from "../ui/index.ts";
 import { courtSitting } from "../view/index.ts";
 import { Checkpoint } from "./checkpoint.ts";
 import { HostClient, LOT, inlinePair, lotStates, progress, workerPort } from "../bridge/index.ts";
@@ -8695,8 +8694,9 @@ async function runPlanetPage(): Promise<void> {
       return {
         target: { x: c.worldX * VILLAGE_METRE, y: 0.3, z: c.worldZ * VILLAGE_METRE },
         yaw: (c.yaw * 180) / Math.PI,
-        pitch: -14,
-        distance: 3.2,
+        pitch: -16,
+        // (Nearer than the square's middle: its well and whatever stands by it stay behind the eye.)
+        distance: Math.min(3.2, Math.max(1.6, Math.hypot(c.worldX, c.worldZ) * VILLAGE_METRE * 0.8)),
       };
     const s = village.stonesOnScreen().find((x) => x.ref === ref);
     return s

@@ -246,6 +246,9 @@ function factsOf(world: World, s: Settlement, year: number): Facts {
     ledger = ctx.history.yearsOf(cell),
     rec = ledger.findLast((y) => y.year <= year - 1),
     fed = rec ? rec.fed / 1000 : 1,
+    // (Its leanest month, over the ten years before: at a far age a land may never eat all it needs, and a lean year is one worse than that.)
+    before = ledger.filter((y) => y.year < year - 1 && y.year >= year - 11),
+    usualFed = before.length ? before.reduce((n, y) => n + y.fed, 0) / before.length / 1000 : 1,
     food = who.water ? "food" : past?.covered ? "vat-bread" : "bread",
     storeWord = who.water
       ? "the town's food store"
@@ -278,16 +281,26 @@ function factsOf(world: World, s: Settlement, year: number): Facts {
       weight: 2.4,
       offences: ["stores", "bread"],
     });
-  } else if (fed < 0.97) {
-    hungry = Math.min(1, (0.97 - fed) * 6);
+  } else if (fed < 0.97 && fed < usualFed - 0.03) {
+    hungry = Math.min(1, (Math.min(0.97, usualFed) - fed) * 6);
     causes.push({
       line: [
         `It was a lean year. `,
         landLink(world, cell, true),
-        ` grew ${pct(fed)} in a hundred of what it needed to eat.`,
+        ` ate ${pct(fed)} in a hundred of what it needed, at its leanest.`,
       ],
       weight: 0.4 + 2 * hungry,
       offences: ["stores", "bread"],
+    });
+  } else if (fed < 0.97) {
+    // (Not a lean year: only what this land is, every year before the harvest.)
+    causes.push({
+      line: [
+        landLink(world, cell, true),
+        ` runs short every year before the harvest: at its leanest it ate ${pct(fed)} in a hundred of what it needed.`,
+      ],
+      weight: 0.45,
+      offences: ["bread", "stall"],
     });
   }
   if (plague) {
@@ -321,7 +334,7 @@ function factsOf(world: World, s: Settlement, year: number): Facts {
   // Short: what a poor home earns against what it must pay. Rent where the land's law has it.
   const made = landMadeHead(world, cell),
     wage = (DAY_WAGE[OCC.farmer] ?? 3) * priceTerm(grain / GOODS[G.grain]!.value),
-    lets = land >= 0 && land < 2,
+    lets = !who.hive && land >= 0 && land < 2,
     poorDay = reckonDay({
       wages: wage,
       bread,
@@ -418,9 +431,9 @@ function factsOf(world: World, s: Settlement, year: number): Facts {
         war = Math.max(war, 0.5);
         causes.push({
           line: [
-            "Their realm was at war: ",
-            link("the war", w.ref),
-            ", and the levy called again.",
+            "The levy was called for ",
+            link("their realm's war", w.ref),
+            ".",
           ],
           weight: 0.7,
           offences: ["desert"],
@@ -684,6 +697,34 @@ function deedOf(f: Facts, o: Offence, w: Party | null, h: number): Line {
   const them: Span = w ? link(w.name, w.ref) : "a neighbour",
     pick = <T>(l: readonly T[]): T => l[Math.floor(u(h, 11) * l.length)]!,
     food = f.food;
+  // (A hive keeps no stalls and pays no rent: what one of them can do is take more than their share, or not move with the rest.)
+  if (f.form === "hive")
+    switch (o) {
+      case "stores":
+        return [pick(["took more than their share from ", "kept back what they carried to "]), f.store];
+      case "bread":
+        return ["ate the share of ", them];
+      case "rent":
+        return ["kept back what they owed the store, and ", them, " went short"];
+      case "stall":
+        return ["took from the cells that ", them, " tends"];
+      case "house":
+        return ["took what ", them, " had laid by"];
+      case "road":
+        return ["took what ", them, " was carrying on the road"];
+      case "loot":
+        return ["took what could be carried from the burnt cells, among them the cell of ", them];
+      case "desert":
+        return ["left the muster and came home"];
+      case "brawl":
+        return ["turned on ", them, ", one of their own"];
+      case "speech":
+        return ["would not move when the rest of the town moved"];
+      case "faith":
+        return ["kept to a way of their own, apart from the rest"];
+      case "flight":
+        return ["left the cell they were bound to"];
+    }
   switch (o) {
     case "stores":
       return [
@@ -1150,6 +1191,21 @@ const OFFENCE_NAMES: Readonly<Record<Offence, string>> = {
   flight: "Leaving a bond",
 };
 
+/** A hive's own names for what one of them did. */
+const HIVE_NAMES: Readonly<Partial<Record<Offence, string>>> = {
+  stores: "Taking more than a share",
+  bread: "Taking another's share",
+  rent: "Keeping back a share",
+  stall: "Taking from the cells",
+  house: "Taking what was laid by",
+  road: "Taking what was carried",
+  speech: "Not moving with the rest",
+  faith: "Keeping apart",
+  desert: "Leaving the muster",
+};
+const offenceName = (c: Case): string =>
+  (c.form === "hive" ? HIVE_NAMES[c.offence] : undefined) ?? OFFENCE_NAMES[c.offence];
+
 /** A party now: alive and here, or what's become of them. */
 function nowWords(world: World, c: Case, p: Party): string | null {
   if (p.ref.startsWith("agent:")) {
@@ -1406,7 +1462,7 @@ export function casePage(world: World, ref: string): PageModel {
     ref,
     kind: "event",
     icon: "⚖️",
-    title: `${OFFENCE_NAMES[c.offence]}: ${c.accused.name}`,
+    title: `${offenceName(c)}: ${c.accused.name}`,
     subtitle: [`${words.title} of `, townLink(world, c.town), `, year ${c.year}`],
     color: null,
     place: { scale: "village", town: c.town, stone: ref },
@@ -1429,7 +1485,7 @@ export function lawBlock(world: World, town: string, ref: string): Block | null 
         items.push(
           item(
             [
-              link(`Year ${c.year}: ${OFFENCE_NAMES[c.offence].toLowerCase()}`, c.ref),
+              link(`Year ${c.year}: ${offenceName(c).toLowerCase()}`, c.ref),
               `. ${firstName(c.accused)} ${c.came}.`,
             ],
             c.ref,

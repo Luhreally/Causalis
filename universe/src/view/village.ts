@@ -29,7 +29,7 @@ import { OCC, article } from "../rules/index.ts";
 import { paceOf } from "./figure.ts";
 import { clearAt, clearOf, keepOut, route, villageGround, type Ground } from "./ground.ts";
 import { memorialsPlaced } from "./memorial.ts";
-import { COURT_HOURS, courtRole, type CourtRole } from "./court.ts";
+import { COURT_HOURS, courtRole, courtSolids, type CourtRole } from "./court.ts";
 import { streetDoor } from "./streets.ts";
 import { FEAST_HOURS, MARKET_HOURS, feastOn, feastPlace, marketDay, marketScene } from "./feast.ts";
 import { FLAMES_S, strikeSpan } from "./town.ts";
@@ -3022,7 +3022,8 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
     }
     const start = Math.max(up, (c.kind === "watch" ? COURT_HOURS.gather : COURT_HOURS.gather) * HOUR);
     stay(up, start, at, ACTIVITY.home);
-    const spot = clearSpot(ground, c.at),
+    // (Those who judge stand behind what stands in the way of everyone else.)
+    const spot = c.kind === "judge" ? c.at : clearSpot(ground, c.at),
       there = go(start, at, spot, null, c.why),
       over = Math.max(there, COURT_HOURS.close * HOUR);
     stay(there, over, spot, ACTIVITY.gathering, null, c.kind === "watch" ? "talk" : null, c.face, c.why);
@@ -5590,6 +5591,9 @@ function groundFor(plan: VillagePlan): Ground {
         ...g,
         homesReach: Math.max(g.homesReach, Math.hypot(site.x, site.z) + 5.5),
       };
+    // (A town's court, as its stones: those who judge are the ones who go in. J1.)
+    const bench = courtSolids(plan);
+    if (bench.length) g = { ...g, homes: [...g.homes, ...bench] };
     // (What a town raised stands in the way as a wall does: people go round it, and so does one walked. T1.)
     const stones = memorialsPlaced(plan);
     if (stones.length)

@@ -1526,6 +1526,16 @@ export class VillageScene {
       law: plan.court.law,
       sittings: plan.court.sittings.length,
       sitting: sit,
+      held: plan.court.sittings
+        .filter((s) => {
+          const day = Math.floor(t / 86400);
+          return (s.sentence === "stocks" || s.sentence === "cell") && day > s.day && day < s.day + s.days;
+        })
+        .map((s) => {
+          const k = plan.people.findIndex((p) => p.ref === s.accused),
+            n = k >= 0 ? this.momentAt(k) : null;
+          return { who: s.who, sentence: s.sentence, x: n?.x ?? null, z: n?.z ?? null };
+        }),
       parts: this.courtLayer.parts,
       batches: this.courtLayer.batchesUsed,
       place: this.courtLayer.onScreen(this.stage.camera.camera!),

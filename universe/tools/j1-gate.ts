@@ -1,4 +1,4 @@
-// node tools/j1-gate.ts [--ci] [--soft] [--shots dir] [--save file.save --universe earth|alien] [--water file.save] [--nogrip file.save]: gate 95, crime and justice in the town (J1), at a
+// node tools/j1-gate.ts [--ci] [--soft] [--shots dir] [--save file.save --universe earth|alien] [--water file.save] [--nogrip file.save] [--hive file.save]: gate 95, crime and justice in the town (J1), at a
 // phone's size, by real touch. On far saves, else (as on CI) a young world run a few decades:
 //   1. the reading, off the save: the same world, the same cases; hashes the same; no bad word on a case's page or a tab; not every town, not almost none; no one thing all of it;
 //   2. a real person of a real case: their page, their home and the case say the same; drawn in their town;
@@ -34,7 +34,8 @@ const argv = process.argv.slice(2),
   saveFile = arg("--save"),
   universeArg = (arg("--universe") ?? "alien") as "earth" | "alien",
   waterFile = arg("--water"),
-  nogripFile = arg("--nogrip");
+  nogripFile = arg("--nogrip"),
+  hiveFile = arg("--hive");
 if (shots) mkdirSync(shots, { recursive: true });
 const slow = (ms: number) => (ci || soft ? ms * 4 : ms);
 const GPU = [
@@ -378,6 +379,7 @@ type CourtShown = {
     days: number;
   } | null;
   stands: { x: number; z: number; activity: number; hidden: boolean } | null;
+  held: { who: string; sentence: string; x: number | null; z: number | null }[];
   parts: number;
   batches: number;
   place: {
@@ -455,6 +457,170 @@ async function samePerson(f: Forged, c: Case) {
   await closePage();
 }
 
+/** A possession: the court pressed by a finger, near; far off it says to walk nearer; a page over the controls; and the body stopped by the bench. */
+async function possessed(town: string) {
+  type Me = { x: number; z: number; yaw: number };
+  const me = () =>
+    k<Me | null>(`(() => {
+      const p = globalThis.causalis.possess, s = p?.state(), m = s && p.drawn(s.agent);
+      return m ? { x: m.x, z: m.z, yaw: s.eye.yaw } : null;
+    })()`);
+  const inSight = () =>
+    k<{ px: number; py: number; worldX: number; worldZ: number } | null>(`(() => {
+      const c = globalThis.causalis.court?.()?.place;
+      if (!c || !c.front) return null;
+      for (const u of [0.5, 0.25, 0.75, 0.1]) {
+        const px = c.footX, py = c.footY + (c.headY - c.footY) * u;
+        if (px < 12 || px > innerWidth - 12 || py < 12 || py > innerHeight - 12) continue;
+        const e = document.elementFromPoint(px, py);
+        if (e && e.classList.contains("possess-hud")) return { px, py, worldX: c.worldX, worldZ: c.worldZ };
+      }
+      return null;
+    })()`);
+  const fingers = await context.newCDPSession(page);
+  const turnTo = async () => {
+    const at = (x: number) => [{ x, y: 470, id: 2, radiusX: 6, radiusY: 6, force: 1 }];
+    for (let i = 0; i < 32; i++) {
+      const can = await inSight();
+      if (can) return can;
+      await fingers.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: at(370) });
+      for (let j = 1; j <= 5; j++)
+        await fingers.send("Input.dispatchTouchEvent", {
+          type: "touchMove",
+          touchPoints: at(370 - j * 12),
+        });
+      await fingers.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      await page.waitForTimeout(slow(200));
+    }
+    return null;
+  };
+  const walkNear = async (x: number, z: number, near: number, ms = 90000) => {
+    const down = new Set<string>(),
+      end = Date.now() + slow(ms);
+    let best = Infinity,
+      bestAt = Date.now(),
+      side = 1,
+      sideUntil = 0,
+      there = false;
+    while (Date.now() < end) {
+      const m = await me();
+      if (!m) break;
+      const dx = x - m.x,
+        dz = z - m.z,
+        d = Math.hypot(dx, dz);
+      if (d <= near) {
+        there = true;
+        break;
+      }
+      if (d < best - 0.5) {
+        best = d;
+        bestAt = Date.now();
+      } else if (Date.now() - bestAt > 2500 && Date.now() > sideUntil) {
+        side = -side;
+        sideUntil = Date.now() + 1500;
+        bestAt = Date.now();
+      }
+      const rel = Math.atan2(dx, dz) + (Date.now() < sideUntil ? (side * Math.PI) / 2 : 0) - m.yaw,
+        ahead = Math.cos(rel),
+        right = -Math.sin(rel),
+        want = new Set<string>();
+      if (ahead > 0.38) want.add("KeyW");
+      if (ahead < -0.38) want.add("KeyS");
+      if (right > 0.38) want.add("KeyD");
+      if (right < -0.38) want.add("KeyA");
+      if (d > 8) want.add("ShiftLeft");
+      for (const key of [...down])
+        if (!want.has(key)) {
+          await page.keyboard.up(key);
+          down.delete(key);
+        }
+      for (const key of want)
+        if (!down.has(key)) {
+          await page.keyboard.down(key);
+          down.add(key);
+        }
+      await page.waitForTimeout(100);
+    }
+    for (const key of down) await page.keyboard.up(key);
+    return there;
+  };
+  const whom = await k<number>(
+    `(() => { const p = globalThis.causalis.planNow(); return p?.people?.findIndex((x) => !x.child && x.ref.startsWith("agent:")) ?? -1; })()`,
+  );
+  const take = () => k<string | null>(`globalThis.causalis.possess?.take?.(${whom}) ?? null`);
+  let why = await take();
+  if (why) {
+    await k(`globalThis.causalis.client.command("hand.lay", { village: ${JSON.stringify(town)} })`);
+    const t = await k<number>("globalThis.causalis.client.status?.t ?? 0");
+    await k(`globalThis.causalis.client.advance(${t + 3600})`);
+    await until(
+      "the hand laid",
+      async () => !!(await k<unknown>(`globalThis.causalis.client.query({ type: "hand" })`)),
+      slow(30000),
+    );
+    why = await take();
+  }
+  check(!why, `no possession: ${why}`);
+  const took =
+    !why &&
+    (await until(
+      "a possession",
+      () => k<boolean>(`document.body.classList.contains("possessing")`),
+      slow(60000),
+    ));
+  if (!took) return;
+  await page.waitForTimeout(slow(900));
+  const seen = await turnTo();
+  check(!!seen, "possessed: the court doesn't come in sight, turning all the way round");
+  await shot("5-possessed");
+  if (seen) {
+    const m = await me(),
+      off = m ? Math.hypot(seen.worldX - m.x, seen.worldZ - m.z) : 0;
+    say(`possessed; the court ${off.toFixed(0)} m off`);
+    if (off > 45) {
+      await page.touchscreen.tap(seen.px, seen.py);
+      await page.waitForTimeout(slow(350));
+      check((await pageNow()) === null, "possessed: a court far off opened without walking to it");
+      const told = await k<string>(`document.querySelector(".possess-told")?.textContent ?? ""`);
+      check(/walk nearer/.test(told), `possessed: a court far off, told "${told}"`);
+    }
+    const there = await walkNear(seen.worldX, seen.worldZ, 16);
+    check(there, "possessed: could not walk to the court");
+    await page.waitForTimeout(slow(600));
+    const close = await turnTo();
+    check(!!close, "possessed: the court is not in sight from beside it");
+    if (close) {
+      await page.touchscreen.tap(close.px, close.py);
+      await until("a page from the court, possessed", async () => {
+        const o = String((await pageNow()) ?? "");
+        return o.startsWith("case:") || o === town;
+      });
+      await page.waitForTimeout(slow(350));
+      const t = await pageText();
+      say(`possessed, pressed: ${t.replace(/\s+/g, " ").slice(0, 160)}`);
+      check(!BAD.test(t), `possessed: a bad word: ${t.slice(0, 200)}`);
+      await shot("5-possessed-page");
+      await press(".page-window h2 .close");
+      check((await pageNow()) === null, "possessed: the page's close did not close it");
+      check(!!(await me()), "reading a case ended the possession");
+      // (The bench stands in the way of a body walked straight at it.)
+      const bench = await k<{ x: number; z: number } | null>(
+        `(() => { const c = globalThis.causalis.court?.()?.place; if (!c) return null; const s = globalThis.causalis.court?.()?.form; return s === "elders" || s === "reef" ? null : { x: c.worldX - Math.sin(c.yaw) * 6, z: c.worldZ - Math.cos(c.yaw) * 6 }; })()`,
+      );
+      if (bench) {
+        const into = await walkNear(bench.x, bench.z, 0.6, 7000);
+        check(!into, "possessed: walked through the bench");
+      }
+    }
+  }
+  await k(`globalThis.causalis.possess?.letGo?.()`);
+  await until(
+    "let go",
+    () => k<boolean>(`!document.body.classList.contains("possessing")`),
+    slow(30000),
+  );
+}
+
 // The worlds.
 const far = !!saveFile;
 const made = saveFile ? fromFile(saveFile, universeArg) : youngWorld();
@@ -504,6 +670,17 @@ if (r.town) {
   check(/who judges/i.test(tab), `the Law and order tab: ${tab.slice(0, 240)}`);
   check(!BAD.test(tab), `a bad word on the Law and order tab: ${tab.slice(0, 300)}`);
   say(`the tab: ${tab.replace(/\s+/g, " ").slice(0, 300)}`);
+  // (Its row in sight and what it opened under it, on the phone: not the page's top, a screen away from it.)
+  const tabAtNow = await k<{ top: number; below: number } | null>(`(() => {
+    const w = document.querySelector(".page-window"), t = w?.querySelector(".tabs");
+    if (!w || !t) return null;
+    const a = w.getBoundingClientRect(), b = t.getBoundingClientRect();
+    return { top: b.top - a.top, below: a.bottom - b.bottom };
+  })()`);
+  check(
+    !!tabAtNow && tabAtNow.top >= -2 && tabAtNow.below > 150,
+    `a tab pressed lies off the page: ${JSON.stringify(tabAtNow)}`,
+  );
   await shot("3-law-tab");
   await press(`.page-window a.ref-link[href^="#case:"]`);
   await until("a case's page from the tab", async () =>
@@ -583,6 +760,24 @@ if (r.town) {
       return p[0] ? { ref: p[0].ref, sentence: p[0].sentence } : null;
     })()`);
     say(`after: ${n?.sentence}`);
+    // A sentence seen: one in the stocks or a cell, the day after they were heard, standing where they are held.
+    const heldCase = planned.find(
+      (s) => s.day > next.day && (s.sentence === "stocks" || s.sentence === "cell"),
+    );
+    if (heldCase) {
+      await toHour(heldCase.day + 1, 11);
+      const h = (await court())?.held.find((x) => x.who === heldCase.who),
+        at = (await court())?.place;
+      say(`held: ${heldCase.who}, ${heldCase.sentence}, at ${h?.x?.toFixed(1)}, ${h?.z?.toFixed(1)}`);
+      check(!!h && h.x !== null, `${heldCase.who} is not held in the town the day after`);
+      if (h && h.x !== null && h.z !== null && at) {
+        const off = Math.hypot(h.x - at.worldX, h.z - at.worldZ);
+        check(off < 40, `${heldCase.who} is held ${off.toFixed(0)} m from the court`);
+        await lookAtCourt(at);
+        await page.waitForTimeout(slow(1400));
+        await shot("4-court-held");
+      }
+    } else say("no one sentenced to the stocks or a cell later this year");
     // ⌖ Go to from its page: the eye at the court.
     await k(`globalThis.causalis.open(${JSON.stringify(next.ref)})`);
     await until("its page", async () => (await pageNow()) === next.ref);
@@ -614,14 +809,19 @@ if (r.town) {
       await shot("5-living");
       check(!!can, "in a life: no point of the court a finger can reach");
       if (can) {
-        await page.touchscreen.tap(can.x, can.y);
-        await page.waitForTimeout(slow(900));
-        const opened = String((await pageNow()) ?? "");
+        let opened = "";
+        for (let tries = 0; tries < 10 && !opened.startsWith("case:"); tries++) {
+          const at = (await reachable()) ?? can;
+          await page.touchscreen.tap(at.x, at.y);
+          await page.waitForTimeout(slow(900));
+          opened = String((await pageNow()) ?? "");
+          if (!opened.startsWith("case:")) {
+            if (opened) await closePage();
+            await page.waitForTimeout(slow(1200));
+          }
+        }
         say(`in a life, pressed: ${opened}`);
-        check(
-          opened.startsWith("case:") || opened === r.town || opened.length > 0,
-          "in a life: pressing the court opens nothing",
-        );
+        check(opened.startsWith("case:"), `in a life: the court opens "${opened}"`);
         await shot("5-living-page");
         await closePage();
         check(await shownAt(".life-strip"), "reading a case ended the life");
@@ -629,6 +829,7 @@ if (r.town) {
       await press(".life-letgo");
       await until("the life let go", async () => !(await shownAt(".life-strip")), slow(60000));
     }
+    await possessed(r.town);
   }
 } else if (far) problems.push("a far world with no town with a case");
 
@@ -636,6 +837,7 @@ if (r.town) {
 for (const [file, label, want] of [
   [waterFile, "water", /reef|current/i],
   [nogripFile, "nogrip", /old ones|pit|penned|ring/i],
+  [hiveFile, "hive", /hive tries no one/i],
 ] as const) {
   if (!file) continue;
   const f = fromFile(file, "alien"),
@@ -647,6 +849,25 @@ for (const [file, label, want] of [
   await loadSave(f);
   await goDown(o.town);
   await page.waitForTimeout(slow(600));
+  // (By day, on its next sitting: each of these has only been seen at midnight.)
+  {
+    const sits = await k<{ day: number; line: string; sentence: string }[]>(
+        "globalThis.causalis.planNow()?.court?.sittings ?? []",
+      ),
+      nowT = await k<number>("globalThis.causalis.client.status?.t ?? 0"),
+      coming = sits.find((s) => s.day > Math.floor(nowT / 86400) + 1);
+    if (coming) {
+      await k(`globalThis.causalis.client.advance(${coming.day * 86400 + 11 * 3600})`);
+      await page.waitForTimeout(slow(1400));
+      say(`${label}: sitting on ${coming.day}: ${coming.line} (${coming.sentence})`);
+      check(!BAD.test(coming.line), `${label}: a bad word in a sitting: ${coming.line}`);
+      if (label === "hive")
+        check(
+          !/rent|stall|market|square/i.test(coming.line),
+          `a hive's offence is the common table's: ${coming.line}`,
+        );
+    }
+  }
   const got = await court();
   say(`${label}: ${o.town}: ${got?.law}, ${got?.form}, ${got?.parts} parts`);
   if (got?.place) {

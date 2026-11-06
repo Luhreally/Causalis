@@ -90,7 +90,7 @@ export class CourtLayer {
       this.batches.push(b);
     }
     // (Only those who raise a bench raise a flag: it has a pole to fly from there.)
-    if (court.form === "magistrate" || court.form === "bench" || court.form === "kin") {
+    if (court.grips && (court.form === "magistrate" || court.form === "bench" || court.form === "kin")) {
       this.flag = new InstancedBatch(this.stage, this.meshes.box, FLAG, 1, this.root);
       this.flag.set(0, () => {});
     }

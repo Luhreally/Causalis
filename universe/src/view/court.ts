@@ -160,6 +160,12 @@ export function courtParts(plan: VillagePlan): readonly MemorialPart[] {
       }
       break;
     default: {
+      // (A people who cannot grip carve no bench: a low heap of the land's stone for those who judge, and a line of stones where the one brought stands.)
+      if (!c.grips) {
+        parts.push(cone("main", 0, 0.7, -0.6, 15, 1.4, 9));
+        for (let i = 0; i < 5; i++) parts.push(cone("main", -4 + i * 2, 0.7, DOCK_V, 1.5, 1.4, 1.5));
+        break;
+      }
       // (A bench on a low floor, a board behind it, and a rail before it; a pole for its flag.)
       parts.push(
         box("main", 0, 0.45, 0, 13, 0.9, 6),
@@ -209,6 +215,47 @@ export function courtParts(plan: VillagePlan): readonly MemorialPart[] {
     }
   }
   return parts;
+}
+
+/** What of a court stands in the way, as a home's wall does: people go round it, and so does one walked. A low ring or a pen's stones don't. */
+export function courtSolids(plan: VillagePlan): {
+  x: number;
+  z: number;
+  r: number;
+  ax: number;
+  az: number;
+  half: number;
+}[] {
+  const p = courtPlaced(plan),
+    c = plan.court;
+  if (!p || !c) return [];
+  const along = (u: number, v: number, r: number, half: number) => {
+    const at = courtSpot(p, u, v);
+    return {
+      x: at.x,
+      z: at.z,
+      r: r * p.scale,
+      ax: Math.cos(p.yaw),
+      az: -Math.sin(p.yaw),
+      half: half * p.scale,
+    };
+  };
+  switch (c.form) {
+    case "hive":
+      return [along(0, 0, 5.5, 0)];
+    case "reef":
+      return [along(STOCKS.u, STOCKS.v, 1.4, 0)];
+    case "elders":
+      return [];
+    default: {
+      const out = [along(0, -0.2, 3, 3.5)];
+      if (c.grips) {
+        out.push(along(STOCKS.u, STOCKS.v, 1, 1.8));
+        if (c.form !== "kin") out.push(along(CELL.u, CELL.v, 3.7, 0));
+      }
+      return out;
+    }
+  }
 }
 
 /** A part at its place in a town (metres), as a thing raised. */
