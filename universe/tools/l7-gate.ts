@@ -259,8 +259,19 @@ const openPage = async (ref: string, name: string): Promise<string> => {
   await shot(name);
   const text = await pageText();
   readWell(text, name);
+  // (Its words can be read off a page that is hidden: `innerText` runs them together then. Someone must be able to see it.)
+  check(
+    await k<boolean>(`(() => {
+      const r = document.querySelector(".page-window")?.getBoundingClientRect();
+      return !!r && r.height > 40;
+    })()`),
+    `${name}: the page is not to be seen`,
+  );
   return text;
 };
+/** The clock on a life's strip, as it reads. */
+const hudTime = () =>
+  k<string>(`document.querySelector(".life-hud .life-time")?.textContent ?? ""`);
 /** A page that says where someone lives, by what it must say. */
 const saysLiving = (text: string, where: string) => {
   check(/Their home/i.test(text), `${where} says not where they live: ${text.slice(0, 400)}`);
@@ -769,6 +780,34 @@ check(before === after, "the lens or a person's page moved a hash");
       );
       check(!!life, "no life is being lived");
       if (life) {
+        // (By touch, as anyone has it: the family button, then their page.)
+        await press(".life-bookbtn");
+        await until("their Book", () => k<boolean>(`!document.querySelector(".life-book").hidden`));
+        await shot("lived-book");
+        const theirPage = await k<{ x: number; y: number } | null>(`(() => {
+          for (const b of document.querySelectorAll(".life-book .life-choice"))
+            if (/their page/i.test(b.textContent)) {
+              const r = b.getBoundingClientRect();
+              return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+            }
+          return null;
+        })()`);
+        check(!!theirPage, "no way to their page from their Book");
+        if (theirPage) await page.touchscreen.tap(theirPage.x, theirPage.y);
+        await until("their page", () =>
+          k<boolean>(`String(globalThis.causalis.pageOpen() ?? "").startsWith("agent:")`),
+        );
+        await page.waitForTimeout(slow(500));
+        await shot("lived-page-touched");
+        const stopped = await k<{ stopped: boolean }>("globalThis.causalis.clock()");
+        check(stopped.stopped, "their day went on behind their page");
+        const held0 = await hudTime();
+        await page.waitForTimeout(slow(900));
+        const held1 = await hudTime();
+        say(`their day, while their page is read: ${held0} then ${held1}`);
+        check(held1 === held0, `their day went on behind their page: ${held0} then ${held1}`);
+        await k("document.querySelector('.life-book').hidden = true");
+        await closePage();
         const text = await openPage(`agent:${life.agent}`, "lived-page");
         saysLiving(text, "the page of one lived as");
         // (What it says they pay, and the sum under it, are one number.)
@@ -776,7 +815,7 @@ check(before === after, "the lens or a person's page moved a hash");
           !/To live there\s*Nothing/i.test(text) || !/, and [\d.,]+ of rent/.test(text),
           `one lived as pays nothing and pays rent: ${text.slice(text.search(/To live there/i), text.search(/To live there/i) + 300)}`,
         );
-        const purse = /In the purse\s*([\d,]+) coin/i.exec(text);
+        const purse = /In the purse\s+([\d,]+) coin/i.exec(text);
         check(
           !!purse,
           `one lived as has no purse on their page: ${text.slice(Math.max(0, text.search(/Their home/i) - 80), text.search(/Their home/i) + 900)}`,

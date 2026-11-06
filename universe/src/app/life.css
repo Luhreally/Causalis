@@ -1,6 +1,6 @@
 /* A life lived by the god's hand (Lives L3): the town stays the town, the strip above and the tray below take
    only their own touches; every control a finger's size; within the phone's safe areas. */
-body.living #hud > *:not(.life-hud):not(.page-window):not(.home-hud) {
+body.living #hud > *:not(.life-hud):not(.page-window):not(.panel.page-panel):not(.home-hud) {
   display: none !important;
 }
 #hud > .life-hud {
