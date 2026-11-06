@@ -1,0 +1,232 @@
+/* The age of the stars (Phase 73): a small bar of lenses over the stars around, with what the colours are; a moment's line over any film,
+   with a way to stop there; the ride aboard a ship. Tap targets at least 44 CSS px, inside the phone's safe areas. */
+.star-lenses {
+  position: absolute;
+  left: calc(env(safe-area-inset-left, 0px) + 8px);
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: fit-content;
+  max-width: 276px;
+  pointer-events: none;
+}
+.star-lens-bar {
+  display: flex;
+  gap: 2px;
+  pointer-events: auto;
+}
+.star-lens {
+  width: 46px;
+  min-width: 44px;
+  height: 46px;
+  min-height: 44px;
+  padding: 0;
+  border: 1px solid rgba(160, 190, 255, 0.45);
+  border-radius: 6px;
+  background: rgba(4, 8, 16, 0.78);
+  background-image: none;
+  color: #e4eaff;
+  font-size: 21px;
+  line-height: 1;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+.star-lens.on {
+  border-color: #ffd98a;
+  background: rgba(120, 84, 20, 0.92);
+  background-image: none;
+  box-shadow: 0 0 0 2px rgba(255, 217, 138, 0.8);
+}
+.star-lens-legend {
+  padding: 5px 8px;
+  border-radius: 4px;
+  background: rgba(4, 8, 16, 0.8);
+  color: #e4eaff;
+  font-size: 12.5px;
+  line-height: 1.3;
+}
+.star-lens-legend[hidden] {
+  display: none !important;
+}
+.star-lens-title {
+  font-weight: 700;
+  color: #ffd98a;
+}
+.star-lens-key {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 2px;
+}
+.star-lens-dot {
+  flex: none;
+  width: 11px;
+  height: 11px;
+  margin-top: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 50%;
+}
+.star-lens-note {
+  margin-top: 2px;
+  color: #c9d6f2;
+}
+.star-lens-note[hidden] {
+  display: none !important;
+}
+/* (Over a page's words they would only be in the way.) */
+#hud:has(.page-window:not([hidden])) .star-lens-legend {
+  display: none !important;
+}
+
+/* The way into all of it, and the wars beside it: a thumb's size. */
+.director-button {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* A moment of the age: what it is, and what can be done from it, under the film's year. */
+#hud > .tour-line {
+  position: absolute;
+  z-index: 41;
+  top: calc(env(safe-area-inset-top, 0px) + 56px);
+  left: calc(env(safe-area-inset-left, 0px) + 12px);
+  right: calc(env(safe-area-inset-right, 0px) + 12px);
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 217, 138, 0.55);
+  border-radius: 6px;
+  background: rgba(6, 10, 22, 0.86);
+  color: #f2f6ff;
+  font-size: 14px;
+  line-height: 1.3;
+  pointer-events: auto;
+}
+#hud > .tour-line[hidden] {
+  display: none !important;
+}
+#hud:has(.page-window:not([hidden])) > .tour-line {
+  display: none !important;
+}
+body.fleet-filming #hud > .tour-line {
+  top: calc(env(safe-area-inset-top, 0px) + 92px);
+}
+/* (Its Next goes for the film's Skip; its own words for the tally's.) */
+body.touring .film-skip,
+body.touring .fleet-tally {
+  display: none !important;
+}
+.tour-count {
+  margin-right: 6px;
+  color: #ffd98a;
+  font-size: 12px;
+  font-weight: 700;
+}
+.tour-acts {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.tour-acts button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 4px 12px;
+  border: 1px solid #5d78b8;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f4f7ff 0%, #c9d6f2 48%, #a9bbe4 52%, #d8e3fb 100%);
+  color: #16264e;
+  font-size: 14px;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+.tour-acts button[hidden] {
+  display: none !important;
+}
+.tour-acts .tour-next {
+  margin-left: auto;
+}
+
+/* Aboard a ship of a fight: one thumb. A drag anywhere turns the eye about her; every button is at the foot of the screen. */
+.fleet-ride-hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 150px);
+  transform: translateX(-50%);
+  padding: 5px 12px;
+  border: 1px solid rgba(255, 217, 138, 0.7);
+  border-radius: 14px;
+  background: rgba(6, 10, 22, 0.82);
+  color: #ffe9b8;
+  font-size: 14px;
+  white-space: nowrap;
+}
+.fleet-ride-hint[hidden] {
+  display: none !important;
+}
+.ride-hud {
+  position: absolute;
+  left: calc(env(safe-area-inset-left, 0px) + 12px);
+  right: calc(env(safe-area-inset-right, 0px) + 12px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 66px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+}
+.ride-hud[hidden] {
+  display: none !important;
+}
+.ride-note {
+  padding: 5px 10px;
+  border-radius: 4px;
+  background: rgba(4, 8, 16, 0.78);
+  color: #d9e4ff;
+  font-size: 12.5px;
+  line-height: 1.3;
+}
+.ride-acts {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  pointer-events: auto;
+}
+.ride-who {
+  flex: 1;
+  min-width: 0;
+  min-height: 56px;
+  padding: 4px 10px;
+  border: 1px solid rgba(255, 217, 138, 0.7);
+  border-radius: 8px;
+  background: rgba(6, 10, 22, 0.9);
+  background-image: none;
+  color: #ffe9b8;
+  font-size: 14px;
+  line-height: 1.25;
+  text-align: left;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+.ride-who small {
+  display: block;
+  color: #c9d6f2;
+  font-size: 12px;
+}
+.ride-round {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: 1px solid #5d78b8;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #f4f7ff 0%, #c9d6f2 48%, #a9bbe4 52%, #d8e3fb 100%);
+  color: #16264e;
+  font-size: 12px;
+  line-height: 1.1;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+.fleet-film.riding .film-words,
+.fleet-film.riding .fleet-tally {
+  display: none !important;
+}
+

@@ -23,6 +23,11 @@ export class ClusterScene {
   private readonly ringMesh: pc.Mesh;
   /** The lanes between the stars (Phase 68): one mesh of lines, built once a plan, its only cost a draw call. */
   private laneLines: pc.Entity | null = null;
+  private lanePlain: pc.StandardMaterial | null = null;
+  /** How the lanes stand under the lens on (Phase 73): as ever, lit up, or put away so that what the lens says can be read. */
+  private laneLook: "plain" | "lit" | "off" = "plain";
+  /** The lens's lines, drawn each frame while it has any. */
+  private lensArrays: { positions: number[]; colors: number[] } = { positions: [], colors: [] };
   private readonly ships: pc.Entity[] = [];
   private readonly rings: pc.Entity[] = [];
   private readonly fleets: pc.Entity[] = [];
@@ -97,6 +102,8 @@ export class ClusterScene {
       // The peoples' lines among the stars, drawn each frame; their bursts pulsing.
       if (this.lineArrays.positions.length)
         stage.app.drawLineArrays(this.lineArrays.positions, this.lineArrays.colors, true);
+      if (this.lensArrays.positions.length)
+        stage.app.drawLineArrays(this.lensArrays.positions, this.lensArrays.colors, false);
       for (const b of this.bursts) {
         const k = (clock * 0.8 + b.age * 0.37) % 1,
           r = b.size * (0.6 + 0.9 * k);
@@ -263,6 +270,49 @@ export class ClusterScene {
     }
   }
 
+  /** How the lanes stand under the lens on (Phase 73). */
+  lanes(look: "plain" | "lit" | "off"): void {
+    this.laneLook = look;
+    const e = this.laneLines;
+    if (!e) return;
+    e.enabled = look !== "off";
+    const m = this.lanePlain;
+    if (!m) return;
+    const c = look === "lit" ? [0.42, 0.86, 1] : [0.2, 0.5, 0.85];
+    m.emissive = new pc.Color(c[0]!, c[1]!, c[2]!);
+    m.update();
+  }
+
+  /** The lens's lines among the stars: each from one star to another (null: home), three strokes to a line so a phone can read it. */
+  lensLines(
+    plan: ClusterPlan,
+    lines: readonly {
+      readonly a: string | null;
+      readonly b: string | null;
+      readonly color: readonly [number, number, number];
+    }[],
+  ): void {
+    const at = new Map(plan.stars.map((s) => [s.ref, s])),
+      place = (ref: string | null): [number, number, number] | null => {
+        if (ref === null) return [0, 0, 0];
+        const s = at.get(ref);
+        return s ? [s.x * LY_SCALE, s.z * LY_SCALE, s.y * LY_SCALE] : null;
+      },
+      positions: number[] = [],
+      colors: number[] = [],
+      width = plan.radius * LY_SCALE * 0.0022;
+    for (const l of lines) {
+      const a = place(l.a),
+        b = place(l.b);
+      if (!a || !b) continue;
+      for (const k of [-1, 0, 1]) {
+        positions.push(a[0], a[1] + k * width, a[2], b[0], b[1] + k * width, b[2]);
+        colors.push(...l.color, 1, ...l.color, 1);
+      }
+    }
+    this.lensArrays = { positions, colors };
+  }
+
   build(plan: ClusterPlan): void {
     for (const b of this.batches) b.destroy();
     for (const g of this.glows) g.batch.destroy();
@@ -320,11 +370,13 @@ export class ClusterScene {
       mesh.setPositions(pts);
       mesh.update(pc.PRIMITIVE_LINES);
       const e = new pc.Entity("lanes");
+      this.lanePlain = glow([0.2, 0.5, 0.85]);
       e.addComponent("render", {
-        meshInstances: [new pc.MeshInstance(mesh, glow([0.2, 0.5, 0.85]))],
+        meshInstances: [new pc.MeshInstance(mesh, this.lanePlain)],
       });
       this.root.addChild(e);
       this.laneLines = e;
+      this.lanes(this.laneLook);
     }
     // Home: the brightest mark, at the middle.
     const home = new InstancedBatch(

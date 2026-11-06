@@ -6,6 +6,7 @@ import { REACTION_ICONS, clusterWords, starWords } from "../view/index.ts";
 import { WhyTree, el } from "./why.ts";
 import { folder } from "./window.ts";
 import { steerWords } from "./keys.ts";
+import { StarLenses } from "./star-lenses.ts";
 
 export class ClusterPanel {
   readonly element = el("div", "panel");
@@ -33,6 +34,8 @@ export class ClusterPanel {
   onNation: (ref: string) => void = () => {};
   private readonly legend = el("div", "nation-legend");
   private map: NationMap | null = null;
+  /** The lenses of the stars around (Phase 73). */
+  readonly lenses = new StarLenses();
   /** The law of this universe (Phase 68). */
   onLaw: () => void = () => {};
   onVisit: (star: StarPage, index: number) => void = () => {};
@@ -62,6 +65,7 @@ export class ClusterPanel {
     this.legend.hidden = true;
     this.element.append(
       bar,
+      this.lenses.element,
       this.legend,
       this.inspector,
       el("p", "hint", `Tap a star to look at it. ${steerWords("space")}`),
@@ -72,6 +76,14 @@ export class ClusterPanel {
 
   set visible(on: boolean) {
     this.element.hidden = !on;
+    if (on) this.placeLenses();
+  }
+
+  /** The lenses just under the panel's bar, however high its words have wrapped it. */
+  private placeLenses(): void {
+    const bottom = this.element.querySelector("header.bar")?.getBoundingClientRect().bottom ?? 0,
+      top = `${Math.round(bottom) + 4}px`;
+    if (this.lenses.element.style.top !== top) this.lenses.element.style.top = top;
   }
 
   show(plan: ClusterPlan): void {
@@ -90,15 +102,23 @@ export class ClusterPanel {
     if (changed && !this.inspector.hidden) void this.select(this.shown);
   }
 
+  /** The chips of the greatest realms: the Who holds lens's own, shown under it alone. */
+  set chips(on: boolean) {
+    this.chipsOn = on;
+    this.legend.hidden = !on || !this.map?.nations.length;
+  }
+  private chipsOn = true;
+
   /** Who holds the stars: the greatest realms' colours on the map, named. */
   nations(map: NationMap): void {
     const changed =
       JSON.stringify(map.nations.map((n) => [n.ref, n.worlds])) !==
       JSON.stringify(this.map?.nations.map((n) => [n.ref, n.worlds]) ?? null);
     this.map = map;
+    this.placeLenses();
     if (!changed) return;
     const top = map.nations.slice(0, 4);
-    this.legend.hidden = !top.length;
+    this.legend.hidden = !top.length || !this.chipsOn;
     this.legend.replaceChildren(
       ...top.map((n) => {
         const chip = el("button", "nation-chip"),

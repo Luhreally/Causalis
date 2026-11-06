@@ -3,7 +3,7 @@
 // came of it). Read only: it takes what history holds and writes nothing, draws no random
 // number, and never enters the record. The ships, their places and their fates are the view's
 // own, hashed from the fight's id.
-import { yearOfMoment, type Ref, type World } from "../kernel/index.ts";
+import { hashString, yearOfMoment, type Ref, type World } from "../kernel/index.ts";
 import { offworldSite, type Civilization } from "../gen/index.ts";
 import { CLADES, starDriveFor } from "../rules/index.ts";
 import { why } from "../causal/index.ts";
@@ -23,10 +23,14 @@ import {
   spaceOf,
   speedOf,
   starWarsOf,
+  folkByRef,
+  lifeOf,
   type Raid,
   type StarWar,
 } from "../sim/index.ts";
 import { figureBody, starFolk } from "./folk.ts";
+import { folkOneRef } from "./natives.ts";
+import { linesOf, townRoster } from "./roster.ts";
 import { PEOPLE_COLORS } from "./peoples.ts";
 import { realmColor } from "./colors.ts";
 import { hostKinds } from "./arms.ts";
@@ -34,6 +38,7 @@ import { peopleBody } from "./village.ts";
 import { link, stat } from "./inspect/words.ts";
 import type { QueryHandler } from "./host.ts";
 import type {
+  ShipCrew,
   FightArm,
   FightDrive,
   FightPlace,
@@ -490,6 +495,63 @@ export function starFights(world: World): StarFightList {
   };
 }
 
+/** How many lines of a town to try for a person grown, before saying no one is named. */
+const CREW_TRIES = 24;
+
+/**
+ * Who rides in a ship of a fight (Phase 73). History keeps a fleet as a whole and names no one aboard, so this reads a person history does
+ * hold: one of the town the fleet sailed from, who held their line in the year it sailed and was grown, keyed to the ship, so it is the same
+ * person every time, with their own page. Null: this side's people are held by name nowhere. A roster is a read, and looking moves nothing.
+ */
+export function crewOf(world: World, id: string, side: 0 | 1, index: number): ShipCrew | null {
+  const plan = starFightPlan(world, id);
+  if (!plan) return null;
+  const who = side === 0 ? plan.attacker : plan.defender,
+    realm = politiesOf(world).get(who.ref as Ref),
+    key = hashString(`crew ${id} ${side} ${index}`);
+  if (!realm) {
+    const folk = folkByRef(world, who.ref);
+    return folk
+      ? { name: `One of the ${folk.name}`, ref: folkOneRef(folk, key % 1000), words: "" }
+      : null;
+  }
+  const town = populationContext(world)
+    .settlements.inProvince(realm.seat)
+    .filter((s) => s.population > 0)
+    .sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1))[0];
+  const lines = town ? linesOf(town.population) : 0;
+  if (!town || !lines) return null;
+  const then = townRoster(world, town.ref, plan.sailed),
+    now = townRoster(world, town.ref),
+    grown = lifeOf(world).adulthood;
+  for (let i = 0; i < CREW_TRIES; i++) {
+    const h = then.holder((key + i * 7919) % lines);
+    if (!h || plan.sailed - h.born < grown) continue;
+    // (Their page reads the roster of now: one it does not know is no one to send a reader to.)
+    const paged = now.holderOf(h.line, h.n);
+    if (paged)
+      return {
+        name: now.nameOf(paged),
+        ref: paged.ref,
+        words: `of ${town.name}, ${plan.sailed - h.born} when it sailed`,
+      };
+  }
+  return null;
+}
+
+/** A ship's page: who is aboard, and that history does not say so. */
+function aboardRows(world: World, id: string, side: 0 | 1, index: number) {
+  const c = crewOf(world, id, side, index);
+  return c
+    ? [
+        stat("Aboard", [
+          link(c.name, c.ref),
+          `${c.words ? `, ${c.words}` : ""}. History does not name who sailed: this is one it keeps of those they sailed from`,
+        ]),
+      ]
+    : [];
+}
+
 /** The page of one ship in a fight: its fleet's people, its arm, its drive, and how it fared. */
 export function shipPage(world: World, ref: string): PageModel {
   const parts = parseShipRef(ref);
@@ -532,6 +594,7 @@ export function shipPage(world: World, ref: string): PageModel {
           {
             type: "facts",
             rows: [
+              ...aboardRows(world, id, parts.side, parts.index),
               stat("The fight", [link(plan.claim, plan.event)]),
               ...(plan.war ? [stat("The war", [link("A war among the stars", plan.war)])] : []),
             ],
@@ -549,4 +612,9 @@ export function shipPage(world: World, ref: string): PageModel {
 export const STARFIGHT_QUERIES: Readonly<Record<string, QueryHandler>> = {
   "star.fights": (world) => starFights(world),
   "star.fight": (world, args) => starFightPlan(world, (args as { id: string }).id),
+  /** Who rides in a ship of a fight. */
+  "star.crew": (world, args) => {
+    const a = args as { id: string; side: 0 | 1; index: number };
+    return crewOf(world, a.id, a.side === 1 ? 1 : 0, a.index);
+  },
 };

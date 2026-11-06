@@ -7,7 +7,7 @@
 // town growing on its land, a day in its streets, the whole world turning — and now and then a
 // great battle lately fought, down on its field (Phase 37 M187). Pure: what to watch next, for how
 // long, and how it is told; the page flies there.
-import type { WorldFirst } from "../bridge/index.ts";
+import type { StarLens, TourStop, WorldFirst } from "../bridge/index.ts";
 
 /** A town of the world, as the towns' map tells it. */
 export type TownSeen = {
@@ -40,7 +40,11 @@ export type Shot =
       readonly fallen: number;
     }
   /** A fight among the stars played from the record (Phase 67). */
-  | { readonly kind: "starfight"; readonly id: string; readonly year: number };
+  | { readonly kind: "starfight"; readonly id: string; readonly year: number }
+  /** The stars around, under a lens (Phase 73). */
+  | { readonly kind: "stars"; readonly lens: StarLens | null }
+  /** One moment of the age of the stars, as it happened here (Phase 73). */
+  | { readonly kind: "stop"; readonly stop: TourStop; readonly n: number; readonly of: number };
 
 /** A battle of the world, as its wars' map tells it: its event, its year, how many fell in it. */
 export type BattleSeen = { readonly event: string; readonly year: number; readonly fallen: number };
@@ -58,6 +62,11 @@ export type Director = {
   battled: number;
   /** The turn of the round a fight among the stars was last filmed at (Phase 67). */
   starred?: number;
+  /** The age of the stars still to be shown, in order, and how far through it the eye has come (Phase 73). */
+  tour?: readonly TourStop[];
+  tourAt?: number;
+  /** The stars have just been shown, before the next moment. */
+  tourLooked?: boolean;
 };
 
 /** How long each kind of shot is held. */
@@ -71,6 +80,8 @@ const HOLD: Readonly<Record<Shot["kind"], number>> = {
   // (From the charge to the field won, at twice its pace.)
   battle: 48,
   starfight: 6,
+  stars: 14,
+  stop: 0,
 };
 
 /** How many must fall in a battle for the eye to go down to it; how many turns of the round between two. */
@@ -85,6 +96,51 @@ export const BEHIND = 3;
 /** Firsts the whole world turns to, however far behind the Director has fallen. */
 const NEVER_LET_GO =
   /greatest fire|jump through a lane|world filled|fire carried|sky burned|world unmade|great realm|broken away|realm among the stars fallen/;
+
+/** How long the stars are shown between two moments of the age, seconds; and when they open it. */
+export const BETWEEN_STOPS = 4,
+  OPENS_TOUR = 6;
+
+/** What a lens is called in a caption. */
+const LENS_WORDS: Readonly<Record<StarLens, string>> = {
+  holds: "who holds them",
+  peoples: "the peoples among them",
+  lanes: "their lanes and ships",
+  trade: "the trade between them",
+  war: "their wars and fires",
+};
+/** The stars around, in words. */
+export const starsWords = (lens: StarLens | null): string =>
+  lens ? `🌌 The stars around: ${LENS_WORDS[lens]}` : "🌌 The stars around";
+
+/**
+ * The next take of the age of the stars, or null where it has been shown or there was none: the stars, then a moment, then the stars. The
+ * moments are history already: `newDirector` calls them told, and this is how they are shown all the same.
+ */
+export function tourTake(d: Director): Take | null {
+  const stops = d.tour,
+    at = d.tourAt ?? 0;
+  if (!stops || at >= stops.length) return null;
+  const stop = stops[at]!;
+  if (!d.tourLooked) {
+    d.tourLooked = true;
+    return {
+      shot: { kind: "stars", lens: stop.lens },
+      seconds: at === 0 ? OPENS_TOUR : BETWEEN_STOPS,
+      words:
+        at === 0
+          ? `🌌 The age of the stars here: ${stops.length === 1 ? "1 moment" : `${stops.length} moments`}`
+          : starsWords(stop.lens),
+    };
+  }
+  d.tourLooked = false;
+  d.tourAt = at + 1;
+  return {
+    shot: { kind: "stop", stop, n: at + 1, of: stops.length },
+    seconds: HOLD.stop,
+    words: stop.words,
+  };
+}
 
 /** A director begun now: the firsts already in the world are history, not news. */
 export function newDirector(firsts: readonly WorldFirst[]): Director {
@@ -125,6 +181,7 @@ export function nextTake(
   towns: readonly TownSeen[],
   peopled: readonly { readonly cell: number; readonly people: number }[],
   battles: readonly BattleSeen[] = [],
+  starLenses: readonly StarLens[] = [],
 ): Take {
   const waiting = untold(d, firsts);
   // (Fallen behind the world — more waiting than can be shown in their time — the lesser are let
@@ -149,6 +206,17 @@ export function nextTake(
     };
   }
   const round = d.round++;
+  // (A world that has come to the stars: its round is among them, a lens at a time, and now and then the whole of home. Not a village nobody asked for.)
+  if (starLenses.length) {
+    const lens = starLenses[round % (starLenses.length + 1)];
+    return lens
+      ? { shot: { kind: "stars", lens }, seconds: HOLD.stars, words: starsWords(lens) }
+      : {
+          shot: { kind: "world" },
+          seconds: HOLD.world,
+          words: "🌍 The whole world turning, a year a second",
+        };
+  }
   if (!towns.length) {
     const land = [...peopled].sort((a, b) => b.people - a.people || a.cell - b.cell)[0];
     if (!land) return { shot: { kind: "world" }, seconds: HOLD.world, words: "🌍 The world" };

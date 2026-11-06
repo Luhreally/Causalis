@@ -3,6 +3,18 @@
 // See README.md and docs/architecture/universe-architecture.md §30.
 export type { BrushKind, BrushStrokeArgs, BrushPreview, BrushState } from "./brush.ts";
 export type {
+  ShipCrew,
+  StarLens,
+  StarLensKey,
+  StarLensLine,
+  StarLensMap,
+  StarLensMark,
+  StarLensRgb,
+  StarTour,
+  TourFilm,
+  TourStop,
+} from "./tour.ts";
+export type {
   NationFall,
   NationFallWorld,
   NationMap,

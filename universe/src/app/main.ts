@@ -5,6 +5,7 @@
 import "./styles.css";
 import "./y2k.css";
 import "./brushes.css";
+import "./tour.css";
 import { Checkpoint } from "./checkpoint.ts";
 import { HostClient, LOT, inlinePair, lotStates, progress, workerPort } from "../bridge/index.ts";
 import {
@@ -110,6 +111,10 @@ import type {
   LandSky,
   SkyState,
   NationMap,
+  StarLens,
+  StarLensMap,
+  StarTour,
+  TourStop,
   NationSight,
   PeoplesSky,
   SystemPlan,
@@ -144,6 +149,8 @@ import {
   newDirector,
   nextTake,
   starFightTake,
+  starsWords,
+  tourTake,
   WEALTH_CHOICES,
   wealthNote,
   wealthShades,
@@ -687,7 +694,20 @@ type Exposed = {
     told: string;
     take: { kind: string; words: string } | null;
     filming: boolean;
+    /** The age of the stars being shown (Phase 73): how far through, of how many; the moment's key. */
+    touring: boolean;
+    tourAt: number;
+    tourOf: number;
+    stop: string | null;
   };
+  /** The lens on the stars around (Phase 73), what it draws, and what it says. */
+  starLens?: () => {
+    lens: string | null;
+    marks: number;
+    lines: number;
+    note: string | null;
+  } | null;
+  raidOn?: () => boolean;
   watchIt?: (on: boolean) => Promise<void>;
   /**
    * The look of the people seen near (Phase 34), at a camp or in a town: how they stand, their
@@ -3710,8 +3730,9 @@ async function runPlanetPage(): Promise<void> {
   const NO_ONE_PLAIN = 60;
   const drawNations = (m: NationMap) => {
     nationNow = m;
+    nationRead = performance.now();
     clusterPanel.nations(m);
-    if (!clusterPlan || nationFilming) return;
+    if (!clusterPlan || nationFilming || clusterPanel.lenses.lens !== "holds") return;
     const noOne = m.stars.filter((s) => !m.nations[s.nation]).length,
       fewer = Math.min(1, Math.sqrt(NO_ONE_PLAIN / Math.max(1, noOne)));
     drawHeld(
@@ -3736,11 +3757,86 @@ async function runPlanetPage(): Promise<void> {
         m.stars.map((s) => s.star),
       ),
     );
+    // (The greatest are named by the chips below; the rest here.)
+    const free = m.stars.filter((s) => !m.nations[s.nation] && !s.dark).length,
+      dark = m.stars.filter((s) => !m.nations[s.nation] && s.dark).length,
+      held = m.stars.length - free - dark;
+    clusterPanel.lenses.say(
+      [
+        ...(free
+          ? [{ color: FREE_MARK, words: `${free === 1 ? "1 world" : `${free} worlds`} of no realm` }]
+          : []),
+        ...(dark
+          ? [{ color: DARK_MARK, words: `${dark === 1 ? "1 world" : `${dark} worlds`} in the dark` }]
+          : []),
+      ],
+      held
+        ? `${held === 1 ? "1 world" : `${held} worlds`} held by ${m.nations.length === 1 ? "1 realm" : `${m.nations.length} realms`}; a larger mark, its seat.`
+        : m.stars.length
+          ? null
+          : "No realm holds a world of another star yet.",
+    );
+    lensCounts = { marks: m.stars.length, lines: 0, note: null };
+  };
+  // The lenses of the stars around (Phase 73): one on at a time, read as the map of who holds them is, every two seconds while the stars are looked at, and with none on nothing is.
+  let lensCounts: { marks: number; lines: number; note: string | null } | null = null,
+    /** A star a moment of the age points at, marked out over the lens. */
+    lensFocus: string | null = null,
+    /** The eye to go as far out as the lens has something to show, at its next reading. */
+    lensFit = false,
+    nationRead = 0;
+  /** How far out the eye stands to see stars this far off. */
+  const starsDistance = (reach: number) => (reach * 0.3 * 2.8) / Math.min(1, aspect());
+  const drawLens = (m: StarLensMap) => {
+    if (!clusterPlan || nationFilming || clusterPanel.lenses.lens !== m.lens) return;
+    const marks = [
+        ...m.marks,
+        ...(lensFocus ? [{ star: lensFocus, color: [1, 0.1, 0.06] as const, scale: 2.6 }] : []),
+      ],
+      reach = heldReach(
+        clusterPlan,
+        marks.map((x) => x.star),
+      );
+    drawHeld(clusterPlan, marks, reach);
+    starScene.lensLines(clusterPlan, m.lines);
+    clusterPanel.lenses.say(m.keys, m.note);
+    lensCounts = { marks: m.marks.length, lines: m.lines.length, note: m.note };
+    if (lensFit) {
+      lensFit = false;
+      rig.flyTo({ distance: starsDistance(reach) }, 0.9);
+    }
   };
   const askNations = async () => {
     nationAsked = performance.now();
-    drawNations(await client.query<NationMap>({ type: "nation.map" }));
+    const lens = clusterPanel.lenses.lens;
+    if (lens === "holds" || !nationNow || performance.now() - nationRead > 10000)
+      drawNations(await client.query<NationMap>({ type: "nation.map" }));
+    if (lens && lens !== "holds")
+      drawLens(await client.query<StarLensMap>({ type: "star.lens", args: { lens } }));
   };
+  /** A lens on, or none: what the map has been drawing of the last put away. */
+  const setLens = (lens: StarLens | null) => {
+    clusterPanel.lenses.lens = lens;
+    clusterPanel.chips = lens === "holds";
+    starScene.lanes(lens === "lanes" ? "lit" : !lens || lens === "holds" ? "plain" : "off");
+    if (clusterPlan) {
+      starScene.lensLines(clusterPlan, []);
+      if (lens !== "holds") starScene.nations(clusterPlan, []);
+    }
+    lensCounts = null;
+    lensFit = !!lens && lens !== "holds";
+    if (scale === "cluster") void askNations();
+  };
+  clusterPanel.lenses.onLens = (lens) => setLens(lens);
+  exposed.starLens = () =>
+    scale === "cluster" && clusterPlan
+      ? {
+          lens: clusterPanel.lenses.lens,
+          marks: lensCounts?.marks ?? 0,
+          lines: lensCounts?.lines ?? 0,
+          note: lensCounts?.note ?? null,
+        }
+      : null;
   const selectStar = (i: number | null) => {
     starScene.mark(i, clusterPlan);
     const s = i === null ? undefined : clusterPlan?.stars[i];
@@ -5203,13 +5299,31 @@ async function runPlanetPage(): Promise<void> {
   exposed.systemPeople = () => (scale === "system" ? skyScene.peopleShown : null);
   /** Whose system the sky shows: the home star's (null), or another's ref. */
   exposed.skyOf = () => (scale === "system" ? (skyStar?.ref ?? null) : null);
-  let fleetsNamed = false;
+  let fleetsNamed = false,
+    peoplesAway = false;
+  const NO_PEOPLES = {
+    holds: [],
+    own: [],
+    ships: [],
+    fleets: [],
+    lines: [],
+    reactions: [],
+    raids: [],
+    landings: [],
+  };
   stage.onUpdate(() => {
     if (scale !== "cluster" || !clusterPlan) return;
     if (!nationFilming && performance.now() - nationAsked > 2000) void askNations();
     starScene.voyages(voyageMarks(clusterPlan, sky, now() / YEAR));
-    // The peoples of other stars among them (Phase 18 M134), and how they met where they met.
-    starScene.peoples(peopleMarks(clusterPlan, sky, now() / YEAR));
+    // The peoples of other stars among them (Phase 18 M134), and how they met where they met; put away under a lens with something else to say (Phase 73).
+    const lensOn = clusterPanel.lenses.lens;
+    if (lensOn === "trade" || lensOn === "war" || lensOn === "lanes") {
+      if (!peoplesAway) starScene.peoples(NO_PEOPLES);
+      peoplesAway = true;
+    } else {
+      peoplesAway = false;
+      starScene.peoples(peopleMarks(clusterPlan, sky, now() / YEAR));
+    }
     const met: Label[] = starScene.reactionsOnScreen().map((r) => ({
       key: `met:${r.ref}`,
       text: r.text,
@@ -5693,6 +5807,7 @@ async function runPlanetPage(): Promise<void> {
     if (raidPlaying.t >= raidPlaying.to) endRaidFilm();
   });
   exposed.watchRaid = watchRaid;
+  exposed.raidOn = () => !!raidPlaying;
   // The greatest fire's light over the whole screen (W5): white, for a moment, then the world comes back from it; a brown dusk under the cloud after.
   const greatLight = document.createElement("div");
   greatLight.className = "great-light";
@@ -9216,6 +9331,8 @@ async function runPlanetPage(): Promise<void> {
       pageWindow.close();
       allAway();
       regionCell = -1;
+      // (Its map is who holds them, whatever lens was on.)
+      setLens("holds");
       await toCluster();
       clusterPanel.inspector.hidden = true;
     },
@@ -9427,7 +9544,16 @@ async function runPlanetPage(): Promise<void> {
   let director: Director | null = null,
     take: Take | null = null,
     takeUntil = 0,
-    filming = false;
+    filming = false,
+    /** Showing the age of the stars: the clock held, since it is what has been (Phase 73). */
+    touring = false,
+    /** The lenses worth a look, for the eye's round among the stars; none: this world has not come to them. */
+    roundLenses: readonly StarLens[] = [],
+    /** The moment shown, and what the viewer has asked of it. */
+    stopNow: TourStop | null = null,
+    stopAsked: "next" | "page" | null = null,
+    /** Asked to stop here: its page, once the film is over. */
+    stopPage: string | null = null;
   /** Into the whole world from wherever the eye is. */
   const toWholeWorld = async () => {
     if (scale === "globe") return;
@@ -9436,10 +9562,157 @@ async function runPlanetPage(): Promise<void> {
       toGlobe();
     });
   };
+  /** The stars around under a lens, from wherever the eye is. */
+  const toStarsShot = async (lens: StarLens | null) => {
+    pageWindow.close();
+    if (scale !== "cluster") {
+      setLens(lens);
+      await fadeOver(() =>
+        ready(
+          "the stars",
+          async () => {
+            allAway();
+            regionCell = -1;
+            await toCluster();
+          },
+          true,
+        ),
+      );
+    } else setLens(lens);
+    clusterPanel.inspector.hidden = true;
+    selectStarNone();
+  };
+  const selectStarNone = () => {
+    starScene.mark(null, clusterPlan);
+  };
+  /** Whichever film is playing, told to skip. */
+  const skipFilms = () => {
+    if (jumpFilm.playing) jumpFilm.skip();
+    if (colonyFilm!.playing) colonyFilm!.skip();
+    if (contactFilm!.playing) contactFilm!.skip();
+    if (landfallFilm!.playing) landfallFilm!.skip();
+    if (fleetFilm!.playing) fleetFilm!.skip();
+    if (nationFilm.playing) nationFilm.skip();
+    if (farFilm.playing) farFilm.skip();
+  };
+  const anyFilm = () =>
+    jumpFilm.playing ||
+    !!colonyFilm?.playing ||
+    !!contactFilm?.playing ||
+    !!landfallFilm?.playing ||
+    !!fleetFilm?.playing ||
+    nationFilm.playing ||
+    farFilm.playing;
+  /** A moment seen with no film of its own: held so long, or until asked on; time the viewer stops, or spends on a page, does not count. */
+  const holdStop = async (seconds: number, over: () => boolean = () => false) => {
+    let left = seconds * 1000,
+      last = performance.now();
+    while (left > 0 && !stopAsked && directorControls.watching && !over()) {
+      await new Promise((r) => setTimeout(r, 120));
+      const t = performance.now();
+      if (!time.paused && !pageWindow.current) left -= t - last;
+      last = t;
+    }
+  };
+  /** A moment of the age: its film played or its place shown, with its line over it. */
+  const filmStop = async (stop: TourStop, n: number, of: number): Promise<void> => {
+    const f = stop.film;
+    stopNow = stop;
+    stopAsked = null;
+    directorControls.showStop({ words: stop.words, n, of, page: !!stop.page });
+    // (A film's closing card waits for a press where a person watches; the eye moves on when it has been read.)
+    let cardAt = 0;
+    const closing = setInterval(() => {
+      if (stopAsked) skipFilms();
+      const card =
+        (landfallFilm!.playing && landfallFilm!.state().card) ||
+        (contactFilm!.playing && contactFilm!.state().card);
+      if (!card) cardAt = 0;
+      else if (!cardAt) cardAt = performance.now();
+      else if (performance.now() - cardAt > 9000 && !pageWindow.current) skipFilms();
+    }, 200);
+    try {
+      switch (f.kind) {
+        case "jump":
+          await jumpFilm.play(true);
+          break;
+        case "landing":
+          await colonyFilm!.play(f.cell);
+          break;
+        case "landfall":
+          await landfallFilm!.play(f.star, f.index, f.n);
+          break;
+        case "contact":
+          await contactFilm!.play(f.star, f.index);
+          break;
+        case "fleet":
+          await fleetFilm!.play(f.id);
+          break;
+        case "nation":
+          await nationFilm.play(f.ref, true);
+          break;
+        case "far":
+          await farFilm.play(f.event, true);
+          break;
+        case "port":
+          await toPort(f.cell);
+          document.body.classList.add("filming");
+          await holdStop(9);
+          break;
+        case "world":
+          await farStood(f.star, f.planet, false);
+          document.body.classList.add("filming");
+          await holdStop(8);
+          break;
+        case "filled":
+          if (await exposed.seeFilled?.(f.key)) {
+            document.body.classList.add("filming");
+            await holdStop(8);
+          }
+          break;
+        case "map":
+          lensFocus = f.star;
+          await toStarsShot(f.lens);
+          document.body.classList.add("filming");
+          await holdStop(8);
+          break;
+        case "fire":
+          if (await watchRaid(f.event)) {
+            document.body.classList.add("filming");
+            await holdStop(45, () => !raidPlaying);
+            endRaidFilm();
+          }
+          break;
+      }
+    } finally {
+      clearInterval(closing);
+      lensFocus = null;
+      document.body.classList.remove("filming");
+      directorControls.showStop(null);
+      stopNow = null;
+    }
+  };
+  directorControls.onStopNext = () => {
+    stopAsked = "next";
+    skipFilms();
+  };
+  directorControls.onStopPage = () => {
+    stopPage = stopNow?.page ?? null;
+    stopAsked = "page";
+    skipFilms();
+  };
   /** Film a take: the eye taken where it is seen, the clock at the pace it is best seen at. */
   const film = async (next: Take): Promise<void> => {
     const s = next.shot;
     switch (s.kind) {
+      case "stars":
+        await toStarsShot(s.lens);
+        // (Past the age told, the years go by among them.)
+        if (!touring) time.pick(1);
+        return;
+      case "stop":
+        await filmStop(s.stop, s.n, s.of);
+        return;
       case "starfight":
         await fleetFilm!.play(s.id);
         return;
@@ -9533,16 +9806,40 @@ async function runPlanetPage(): Promise<void> {
   const direct = async () => {
     if (!directorControls.watching || filming || !director) return;
     // (Held while the clock is, a page is read, or the god's hand holds an act to lay on the
-    // world shown: the take lasts on.)
-    if ((time.stopped && scale !== "battle") || pageWindow.current || palette.holding) {
+    // world shown: the take lasts on. While it tells the age of the stars the eye itself holds the clock: only the viewer's pause holds it.)
+    if (
+      (touring ? time.paused : time.stopped && scale !== "battle") ||
+      pageWindow.current ||
+      palette.holding
+    ) {
       takeUntil = Math.max(takeUntil, performance.now() + 1500);
       return;
     }
     filming = true;
     try {
       const firsts = await client.query<WorldFirst[]>({ type: "world.firsts" });
-      const news = untold(director, firsts).length > 0;
+      const news = !touring && untold(director, firsts).length > 0;
       if (performance.now() < takeUntil && !(news && take?.shot.kind !== "first")) return;
+      // (The age of the stars, while there is more of it to show; then the clock is let go.)
+      const tourNext = tourTake(director);
+      if (tourNext) {
+        directorControls.tell(tourNext.words);
+        take = tourNext;
+        takeUntil = Infinity;
+        await film(tourNext);
+        takeUntil = performance.now() + tourNext.seconds * 1000;
+        if (stopPage) {
+          const page = stopPage;
+          stopPage = null;
+          stopWatching();
+          await pageWindow.open(page);
+        }
+        return;
+      }
+      if (touring) {
+        touring = false;
+        time.release("tour");
+      }
       const towns = await client.query<TownSeen[]>({ type: "towns.map", args: {} }),
         peopled = await client.query<{ cell: number; people: number }[]>({
           type: "people.map",
@@ -9565,7 +9862,7 @@ async function runPlanetPage(): Promise<void> {
               seconds: 6,
               words: star.words,
             }
-          : nextTake(director, firsts, towns.slice(0, 12), peopled, battles);
+          : nextTake(director, firsts, towns.slice(0, 12), peopled, battles, roundLenses);
       directorControls.tell(next.words);
       take = next;
       takeUntil = Infinity;
@@ -9581,8 +9878,20 @@ async function runPlanetPage(): Promise<void> {
   setInterval(() => void direct(), 1000);
   /** Watching from now: what is already in the world is history; `first`, a take already showing. */
   const watchIt = async (first?: { words: string; seconds: number }) => {
-    const firsts = await client.query<WorldFirst[]>({ type: "world.firsts" }).catch(() => []);
+    const firsts = await client.query<WorldFirst[]>({ type: "world.firsts" }).catch(() => []),
+      tour = await client
+        .query<StarTour>({ type: "star.tour" })
+        .catch((): StarTour => ({ stops: [], lenses: [] }));
     director = newDirector(firsts);
+    director.tour = first ? [] : tour.stops;
+    roundLenses = tour.lenses;
+    // (Among the stars first, and a battle at home in its turn.)
+    if (roundLenses.length) director.battled = 0;
+    if (director.tour.length) {
+      touring = true;
+      // (What has been is told with the clock held, even a clock the viewer had stopped: they asked to be shown.)
+      time.holdOverPause("tour");
+    }
     take = null;
     takeUntil = first ? performance.now() + first.seconds * 1000 : 0;
     directorControls.watching = true;
@@ -9592,6 +9901,11 @@ async function runPlanetPage(): Promise<void> {
     if (!directorControls.watching) return;
     directorControls.watching = false;
     director = null;
+    stopAsked = stopAsked ?? "next";
+    if (touring) {
+      touring = false;
+      time.release("tour");
+    }
   };
   directorControls.onToggle = (on: boolean) => void (on ? watchIt() : stopWatching());
   // The viewer's own steering takes the eye back: a drag on the world, the wheel, the keys that
@@ -9601,9 +9915,11 @@ async function runPlanetPage(): Promise<void> {
   canvas.addEventListener(
     "pointermove",
     (e) => {
+      // (Over a film the eye is the film's, and a thumb moved takes nothing back.)
       if (
         pressedAt &&
         e.buttons &&
+        !(touring && anyFilm()) &&
         Math.hypot(e.clientX - pressedAt.x, e.clientY - pressedAt.y) > 8
       )
         stopWatching();
@@ -9620,6 +9936,10 @@ async function runPlanetPage(): Promise<void> {
     told: directorControls.told,
     take: take ? { kind: take.shot.kind, words: take.words } : null,
     filming,
+    touring,
+    tourAt: director?.tourAt ?? 0,
+    tourOf: director?.tour?.length ?? 0,
+    stop: stopNow?.key ?? null,
   });
   exposed.watchIt = (on: boolean) => (on ? watchIt() : (stopWatching(), Promise.resolve()));
   if (params.has("cradle") && !loaded)

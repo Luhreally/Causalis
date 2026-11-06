@@ -1,7 +1,7 @@
 /* A landing watched (Phase 64): the game's chrome put away and a film's own over the whole screen, a
    year in the bar's lit figures at the top, what is happening in a caption low down where a thumb
    does not rest, and a way out. Inside the phone's safe areas, in the era's glossy look. */
-body.filming #hud > *:not(.colony-film):not(.swap):not(.readying) {
+body.filming #hud > *:not(.colony-film):not(.swap):not(.readying):not(.tour-line):not(.raid-film) {
   display: none !important;
 }
 .colony-film {

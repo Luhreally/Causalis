@@ -8,7 +8,13 @@
 // scrubbing are exact. The world's clock is held all the while, and nothing here writes to history.
 import "./film.css";
 import "./fleet.css";
-import type { FightRgb, HostClient, StarFightPlan, VillagePlan } from "../bridge/index.ts";
+import type {
+  FightRgb,
+  HostClient,
+  ShipCrew,
+  StarFightPlan,
+  VillagePlan,
+} from "../bridge/index.ts";
 import {
   FleetLayer,
   InvasionLayer,
@@ -35,6 +41,8 @@ import {
   invasionSite,
   invasionWords,
   raidersAt,
+  rideEye,
+  shipName,
   shipRef,
   toWorld,
   type FleetFrame,
@@ -119,6 +127,20 @@ export type FleetFilm = {
   /** The drawn state now, as plain numbers (a gate compares it across a scrub). */
   sample(): unknown;
   shipOnScreen(cls?: 0 | 1 | 2): { x: number; y: number; ref: string } | null;
+  /** Aboard a ship (Phase 73): where it stands now, whom with, and how it has gone; null: no one is riding. */
+  riding(): {
+    ship: string;
+    id: number;
+    alive: boolean;
+    broke: boolean;
+    crew: string | null;
+    crewRef: string | null;
+    onScreen: { x: number; y: number } | null;
+  } | null;
+  /** Go aboard a ship by its place in the fight (false: no such ship still afloat). */
+  ride(id: number | null): boolean;
+  /** A ship still afloat that will break up in this fight, and when (a gate rides her). */
+  doomed(): { id: number; at: number } | null;
   raiderOnScreen(): { x: number; y: number; ref: string } | null;
   defenderOnScreen(): { x: number; y: number; ref: string } | null;
   shown(): Record<string, number>;
@@ -144,6 +166,13 @@ type FilmSample = {
 
 /** The camera's near plane while the film plays: nearer than the rig's, so the close ships are not cut. */
 const NEAR_FILM = 0.05;
+/** How long the eye stays where a ship ridden has gone, before it goes back to the whole fight (seconds of the film); how far a drag turns it. */
+const RIDE_AFTER = 3.5,
+  RIDE_TURN = 0.008,
+  /** The eye's rise over a ship ridden, at the first. */
+  RIDE_PITCH = 0.62,
+  /** How long the word to press a ship stands, in the sky's act (seconds of the film). */
+  RIDE_HINT = 16;
 /** The town's hour in the film: late afternoon, the fires showing. */
 const HOUR = 0.72;
 /** The length of the town act, in seconds. */
@@ -179,6 +208,14 @@ export function installFleetFilm(d: FleetFilmDeps): FleetFilm {
     acts = el("div", "fleet-acts"),
     actOver = el("button", "fleet-act"),
     actTown = el("button", "fleet-act"),
+    rideHint = el("div", "fleet-ride-hint"),
+    rideHud = el("div", "ride-hud"),
+    rideNote = el("div", "ride-note"),
+    rideActs = el("div", "ride-acts"),
+    rideWho = el("button", "ride-who"),
+    rideShip = el("button", "ride-round ride-ship"),
+    rideNext = el("button", "ride-round ride-next"),
+    rideOut = el("button", "ride-round ride-out"),
     bar = el("div", "fleet-bar"),
     pauseButton = el("button", "fleet-pause"),
     course = el("div", "fleet-course"),
@@ -198,7 +235,15 @@ export function installFleetFilm(d: FleetFilmDeps): FleetFilm {
   course.append(fill);
   acts.append(actOver, actTown);
   bar.append(pauseButton, course, speedButton);
-  ui.append(yearBox, leftBox, skipButton, wordsBox, tallyBox, acts, bar);
+  rideHint.textContent = "👆 Press a ship to ride aboard";
+  rideHint.hidden = true;
+  rideHud.hidden = true;
+  rideShip.textContent = "The ship";
+  rideNext.textContent = "Next ship";
+  rideOut.textContent = "Leave";
+  rideActs.append(rideWho, rideShip, rideNext, rideOut);
+  rideHud.append(rideNote, rideActs);
+  ui.append(yearBox, leftBox, skipButton, wordsBox, tallyBox, rideHint, rideHud, acts, bar);
   d.hud.append(ui);
 
   let playing = false,
@@ -229,8 +274,16 @@ export function installFleetFilm(d: FleetFilmDeps): FleetFilm {
     nearWas = 0.1,
     /** How near the camera sees, this frame. */
     near = NEAR_FILM,
-    press: { x: number; y: number; at: number } | null = null,
-    done: ((ok: boolean) => void) | null = null;
+    press: { x: number; y: number; at: number; moved: boolean } | null = null,
+    done: ((ok: boolean) => void) | null = null,
+    /** The ship ridden (Phase 73): its place in the fight; where the eye stands about it; the last seen of it; who is with us. */
+    ridingId: number | null = null,
+    rideYaw = 0,
+    ridePitch = RIDE_PITCH,
+    rideLast: FleetNow["ships"][number] | null = null,
+    rideCrew: ShipCrew | null = null,
+    /** Asked for each going aboard, so a late answer is dropped. */
+    rideAsk = 0;
 
   const actEnd = (): number =>
     act === "town" ? TOWN_END : act === "orbit" && script ? script.end : 0;
@@ -267,14 +320,39 @@ export function installFleetFilm(d: FleetFilmDeps): FleetFilm {
       lastFleet = now;
       leftNow = now.left;
       fleet.update(now);
-      const eye = fleetEye(s, t),
-        e = toWorld(frame, eye.e),
-        at = toWorld(frame, eye.at);
-      stage.camera.setPosition(e.x, e.y, e.z);
-      stage.camera.lookAt(at.x, at.y, at.z, frame.y.x, frame.y.y, frame.y.z);
-      near = NEAR_FILM;
+      rideHint.hidden = ridingId !== null || t > RIDE_HINT || paused;
+      // (Aboard, where there is still a ship to be aboard, or where it was for a moment after.)
+      const me = ridingId === null ? null : (now.ships.find((x) => x.id === ridingId) ?? null);
+      if (me) rideLast = me;
+      const ship = ridingId === null ? undefined : s.ships[ridingId],
+        ended = ship ? rideEnd(ship, t) : null,
+        at0 = me ?? (ended !== null && t < ended + RIDE_AFTER ? rideLast : null);
+      if (ridingId !== null && !at0) leaveRide();
+      if (at0 && ship) {
+        const eye = rideEye(at0, rideYaw, ridePitch),
+          e = toWorld(frame, eye.e),
+          at = toWorld(frame, eye.at),
+          u = {
+            x: frame.x.x * eye.up.x + frame.y.x * eye.up.y + frame.z.x * eye.up.z,
+            y: frame.x.y * eye.up.x + frame.y.y * eye.up.y + frame.z.y * eye.up.z,
+            z: frame.x.z * eye.up.x + frame.y.z * eye.up.y + frame.z.z * eye.up.z,
+          };
+        stage.camera.setPosition(e.x, e.y, e.z);
+        stage.camera.lookAt(at.x, at.y, at.z, u.x, u.y, u.z);
+        near = Math.min(NEAR_FILM, at0.length * 0.3);
+        tellRide(p, ship, me !== null, t);
+      } else {
+        const eye = fleetEye(s, t),
+          e = toWorld(frame, eye.e),
+          at = toWorld(frame, eye.at);
+        stage.camera.setPosition(e.x, e.y, e.z);
+        stage.camera.lookAt(at.x, at.y, at.z, frame.y.x, frame.y.y, frame.y.z);
+        near = NEAR_FILM;
+      }
       caption = fleetWords(p, s, t);
     } else if (act === "town" && inv) {
+      if (ridingId !== null) leaveRide();
+      rideHint.hidden = true;
       const now = invasionAt(inv, t, keep);
       townNow = now;
       invasion.update(now, t);
@@ -299,6 +377,97 @@ export function installFleetFilm(d: FleetFilmDeps): FleetFilm {
       caption = invasionWords(p, t);
     }
     paint();
+  };
+
+  /** When a ship ridden stopped being there to ride: broke, or got clear; null: it is there to the end. */
+  const rideEnd = (ship: FleetScript["ships"][number], at: number): number | null => {
+    if (ship.breakAt !== null && at >= ship.breakAt) return ship.breakAt;
+    if (ship.fleeAt !== null && at >= ship.fleeAt) return ship.fleeAt;
+    return null;
+  };
+
+  /** What the ride's chrome says, as the ship stands. Written only where it changes. */
+  const tellRide = (
+    p: StarFightPlan,
+    ship: FleetScript["ships"][number],
+    afloat: boolean,
+    at: number,
+  ): void => {
+    const name = shipName(p.id, ship.side, ship.index),
+      side = ship.side === 0 ? p.attacker : p.defender,
+      broke = ship.breakAt !== null && at >= ship.breakAt;
+    setText(
+      rideNote,
+      afloat
+        ? `Aboard the ${name}, of ${side.name}. You only ride along: this changes nothing in history.`
+        : broke
+          ? `The ${name} has broken up, with all aboard. The fight goes on without her.`
+          : `The ${name} has got clear, and is gone from the fight.`,
+    );
+  };
+
+  /** Off the ship, and back to the whole fight. */
+  const leaveRide = (): void => {
+    ridingId = null;
+    rideAsk++;
+    rideLast = null;
+    rideCrew = null;
+    rideHud.hidden = true;
+    ui.classList.remove("riding");
+  };
+
+  /** Aboard a ship by its place in the fight. */
+  const boardShip = (id: number): boolean => {
+    const p = plan,
+      s = script,
+      ship = s?.ships[id];
+    if (!p || !s || !ship || act !== "orbit" || rideEnd(ship, t) !== null) return false;
+    ridingId = id;
+    rideYaw = 0;
+    ridePitch = RIDE_PITCH;
+    rideLast = null;
+    rideCrew = null;
+    rideHud.hidden = false;
+    ui.classList.add("riding");
+    setText(rideWho, "…");
+    rideWho.disabled = true;
+    const ask = ++rideAsk;
+    void client
+      .query<ShipCrew | null>({
+        type: "star.crew",
+        args: { id: p.id, side: ship.side, index: ship.index },
+      })
+      .catch(() => null)
+      .then((c) => {
+        if (ask !== rideAsk) return;
+        rideCrew = c;
+        rideWho.disabled = !c;
+        rideWho.replaceChildren(
+          c ? c.name : "History names no one aboard",
+          ...(c
+            ? [
+                Object.assign(document.createElement("small"), {
+                  textContent: `${c.words ? `${c.words}. ` : ""}Their page ›`,
+                }),
+              ]
+            : []),
+        );
+      });
+    draw();
+    return true;
+  };
+
+  /** The next ship of the same side still afloat; else any. */
+  const nextShip = (): void => {
+    const s = script,
+      now = lastFleet;
+    if (!s || !now || ridingId === null) return;
+    const me = s.ships[ridingId],
+      afloat = now.ships.filter((x) => !x.lander && rideEnd(s.ships[x.id]!, t) === null),
+      ours = afloat.filter((x) => x.side === me?.side).sort((a, b) => a.id - b.id),
+      list = ours.length > 1 ? ours : [...afloat].sort((a, b) => a.id - b.id),
+      after = list.find((x) => x.id > ridingId!) ?? list[0];
+    if (after) boardShip(after.id);
   };
 
   const clearTown = (): void => {
@@ -328,6 +497,8 @@ export function installFleetFilm(d: FleetFilmDeps): FleetFilm {
     ending = false;
     skipWanted = false;
     press = null;
+    leaveRide();
+    rideHint.hidden = true;
     fleet.clear();
     invasion.clear();
     village.warSceneOverride = null;
@@ -532,7 +703,7 @@ export function installFleetFilm(d: FleetFilmDeps): FleetFilm {
     }
   };
 
-  /** A tap on a ship, a raider, a lander or a defender: the page of what was tapped. */
+  /** A tap on a ship: aboard her. On a wreck, a raider, a lander or a defender: the page of what was tapped. */
   const tap = (x: number, y: number): void => {
     const p = plan,
       s = script;
@@ -540,6 +711,7 @@ export function installFleetFilm(d: FleetFilmDeps): FleetFilm {
     if (act === "orbit" && lastFleet) {
       const hit = fleet.pick(x, y, lastFleet),
         ship = hit ? s.ships[hit.id] : undefined;
+      if (ship && hit && !hit.wreck && boardShip(ship.id)) return;
       if (ship)
         d.openPage(
           shipRef(
@@ -567,7 +739,28 @@ export function installFleetFilm(d: FleetFilmDeps): FleetFilm {
       if (!playing) return;
       e.stopImmediatePropagation();
       // (The touch's own time: a slow frame holds its handler back, and the finger has not stayed.)
-      press = { x: e.clientX, y: e.clientY, at: e.timeStamp };
+      press = { x: e.clientX, y: e.clientY, at: e.timeStamp, moved: false };
+    },
+    true,
+  );
+  // (Aboard, a drag turns the eye about her.)
+  let lookedX = 0,
+    lookedY = 0;
+  canvas.addEventListener(
+    "pointermove",
+    (e) => {
+      if (!playing || !press || ridingId === null) return;
+      if (!press.moved && Math.hypot(e.clientX - press.x, e.clientY - press.y) >= 12) {
+        press.moved = true;
+        lookedX = e.clientX;
+        lookedY = e.clientY;
+      }
+      if (!press.moved) return;
+      e.stopImmediatePropagation();
+      rideYaw -= (e.clientX - lookedX) * RIDE_TURN;
+      ridePitch = Math.max(-0.9, Math.min(1.2, ridePitch + (e.clientY - lookedY) * RIDE_TURN));
+      lookedX = e.clientX;
+      lookedY = e.clientY;
     },
     true,
   );
@@ -580,6 +773,7 @@ export function installFleetFilm(d: FleetFilmDeps): FleetFilm {
       press = null;
       if (
         was &&
+        !was.moved &&
         !cutting &&
         Math.hypot(e.clientX - was.x, e.clientY - was.y) < 12 &&
         e.timeStamp - was.at < 1200
@@ -634,6 +828,22 @@ export function installFleetFilm(d: FleetFilmDeps): FleetFilm {
     else if (e.key === "ArrowRight") film.scrub(t / end + 0.05);
   });
   skipButton.onclick = () => film.skip();
+  rideOut.onclick = () => {
+    leaveRide();
+    draw();
+  };
+  rideNext.onclick = () => nextShip();
+  rideWho.onclick = () => {
+    if (rideCrew) d.openPage(rideCrew.ref);
+  };
+  rideShip.onclick = () => {
+    const p = plan,
+      ship = ridingId === null ? undefined : script?.ships[ridingId];
+    if (p && ship)
+      d.openPage(
+        shipRef(p.id, ship.side, ship.index, ship.cls, ship.breakAt !== null && t >= ship.breakAt),
+      );
+  };
   actOver.onclick = () => void film.toAct(0);
   actTown.onclick = () => void film.toAct(1);
   pauseButton.onclick = () => film.pause(!paused);
@@ -736,6 +946,36 @@ export function installFleetFilm(d: FleetFilmDeps): FleetFilm {
           ship.breakAt !== null && t >= ship.breakAt,
         ),
       };
+    },
+    riding() {
+      const p = plan,
+        s = script;
+      if (!p || !s || ridingId === null || !lastFleet) return null;
+      const me = lastFleet.ships.find((x) => x.id === ridingId),
+        ship = s.ships[ridingId]!,
+        at = me ? fleet.screenOf(me.p) : null;
+      return {
+        ship: shipName(p.id, ship.side, ship.index),
+        id: ridingId,
+        alive: !!me,
+        broke: ship.breakAt !== null && t >= ship.breakAt,
+        crew: rideCrew?.name ?? null,
+        crewRef: rideCrew?.ref ?? null,
+        onScreen: at,
+      };
+    },
+    doomed() {
+      const ship = script?.ships.find(
+        (x) => x.breakAt !== null && x.breakAt > t + 1 && (x.fleeAt === null || x.fleeAt > x.breakAt),
+      );
+      return ship ? { id: ship.id, at: ship.breakAt! } : null;
+    },
+    ride(id) {
+      if (id === null) {
+        leaveRide();
+        return true;
+      }
+      return boardShip(id);
     },
     raiderOnScreen() {
       const p = plan;

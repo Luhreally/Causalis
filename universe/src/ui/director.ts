@@ -19,6 +19,15 @@ export class DirectorControls {
   private readonly stop = el("button", "link director-stop", "✋");
   private on = false;
   private letGoFrame = 0;
+  /** A moment of the age of the stars being shown (Phase 73): its line over any film, what to do from it. */
+  readonly stopLine = el("div", "tour-line");
+  private readonly stopCount = el("span", "tour-count");
+  private readonly stopWords = el("span", "tour-words");
+  private readonly stopPage = el("button", "tour-page", "Its page ›");
+  private readonly stopNext = el("button", "tour-next", "Next ›");
+  private readonly stopHand = el("button", "tour-hand", "✋");
+  onStopPage: () => void = () => {};
+  onStopNext: () => void = () => {};
   /** Asked to watch, or to stop watching. */
   onToggle: (on: boolean) => void = () => {};
 
@@ -39,6 +48,33 @@ export class DirectorControls {
     if (row) row.prepend(this.button);
     else corner.prepend(this.button);
     hud.append(this.caption);
+    this.stopLine.hidden = true;
+    this.stopLine.setAttribute("role", "status");
+    this.stopPage.onclick = () => this.onStopPage();
+    this.stopNext.onclick = () => this.onStopNext();
+    this.stopHand.setAttribute("aria-label", "Take the eye");
+    this.stopHand.onclick = () => this.onToggle(false);
+    const acts = el("div", "tour-acts");
+    acts.append(this.stopPage, this.stopNext, this.stopHand);
+    this.stopLine.append(this.stopCount, this.stopWords, acts);
+    hud.append(this.stopLine);
+  }
+
+  /** The moment shown, its line over the film; null: none. */
+  showStop(
+    stop: {
+      readonly words: string;
+      readonly n: number;
+      readonly of: number;
+      readonly page: boolean;
+    } | null,
+  ): void {
+    this.stopLine.hidden = !stop;
+    document.body.classList.toggle("touring", !!stop);
+    if (!stop) return;
+    this.stopCount.textContent = `🎬 ${stop.n} of ${stop.of}`;
+    this.stopWords.textContent = stop.words;
+    this.stopPage.hidden = !stop.page;
   }
 
   get watching(): boolean {
@@ -52,6 +88,7 @@ export class DirectorControls {
     this.button.setAttribute("aria-pressed", String(on));
     cancelAnimationFrame(this.letGoFrame);
     this.stop.hidden = !on;
+    if (!on) this.showStop(null);
     if (on) {
       this.caption.hidden = false;
       this.caption.classList.remove("let-go");

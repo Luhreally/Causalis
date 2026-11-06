@@ -376,6 +376,11 @@ try {
   const ship = await k<{ x: number; y: number } | null>(`${f}.shipOnScreen(0)`);
   check(!!ship, "no ship on the screen at 12 s");
   if (ship) await page.touchscreen.tap(ship.x, ship.y);
+  // (A press goes aboard, Phase 73; her page is a button of the ride's.)
+  await until("aboard a ship", async () => !!(await k(`${f}.riding()`)));
+  const shipButton = await centre(".ride-ship");
+  check(!!shipButton, "there is no button for the ship ridden");
+  if (shipButton) await page.touchscreen.tap(shipButton.x, shipButton.y);
   await until("a ship's page", async () => ((await openPage()) ?? "").startsWith("ship:"));
   // (Its window opens at once, its words a moment after.)
   await until("a ship's page's words", async () => (await text(".page-title")) !== "…");
@@ -388,6 +393,7 @@ try {
     "a ship's page does not say that history keeps a fleet as a whole",
   );
   await k("globalThis.causalis.closePage()");
+  await k(`${f}.ride(null)`);
   const after9 = await state();
   check(
     after9.t === at12.t && (await playing()),

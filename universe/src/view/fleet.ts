@@ -642,6 +642,27 @@ export function fleetEye(script: FleetScript, t: number): FleetEye {
   };
 }
 
+/**
+ * The eye behind a ship ridden (Phase 73): off its stern and above it, turned about it by `yaw` and `pitch`, looking where it looks, its
+ * hull low in the shot and what it is flying at beyond. A pure function of the ship now. `up` is the shot's up, in the fight's frame.
+ */
+export function rideEye(s: ShipNow, yaw: number, pitch: number): FleetEye & { readonly up: V3 } {
+  const f = norm(s.f),
+    side = norm(cross(f, Math.abs(f.y) > 0.92 ? { x: 0, y: 0, z: 1 } : { x: 0, y: 1, z: 0 })),
+    up = cross(side, f),
+    far = s.length * 4.4,
+    c = Math.cos(pitch),
+    back = add(
+      add(scale(f, -c * Math.cos(yaw)), scale(side, c * Math.sin(yaw))),
+      scale(up, Math.sin(pitch)),
+    );
+  return {
+    e: add(s.p, scale(back, far)),
+    at: add(s.p, add(scale(f, s.length * 0.8), scale(up, s.length * 0.1))),
+    up,
+  };
+}
+
 export function fightWay(id: string): V3 {
   const h = hashText(id);
   const y = unit(h, 1) - 0.5;

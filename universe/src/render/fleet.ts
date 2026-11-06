@@ -387,6 +387,12 @@ export class FleetLayer {
     this.last = { ...NOTHING };
   }
 
+  /** Where a point of the fight's frame stands on the screen (CSS pixels), or null behind the eye. */
+  screenOf(p: V3): { x: number; y: number } | null {
+    const q = this.screen(p);
+    return q.z > 0 ? { x: q.x, y: q.y } : null;
+  }
+
   /** The screen point of a point in the fight's frame (CSS pixels; z is depth, positive in front). */
   private screen(p: V3): { x: number; y: number; z: number } {
     const w = toWorld(this.frame, p);

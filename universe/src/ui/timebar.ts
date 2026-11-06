@@ -132,6 +132,18 @@ export class TimeBar {
     this.apply();
   }
 
+  /** Paused by the viewer themselves, and not only held by something. */
+  get paused(): boolean {
+    return this.state.paused;
+  }
+
+  /** Held by `who` in place of any pause: when it lets go, the clock runs (the eye asked to watch from a stopped clock). */
+  holdOverPause(who: string): void {
+    this.state.paused = false;
+    this.state.hold(who);
+    this.apply();
+  }
+
   release(who: string): void {
     this.state.release(who);
     this.apply();
