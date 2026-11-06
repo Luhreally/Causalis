@@ -1121,6 +1121,18 @@ export {
 } from "./dwelling.ts";
 export { REIGN, carried, decreeCost, mustCarry, peaceRefused, tieOf, warCost } from "./reign.ts";
 export {
+  TERMS,
+  answerOf,
+  dealOf,
+  tributeOf,
+  type AimKind,
+  type BondKind,
+  type Deal,
+  type Offer as PeaceOffer,
+  type Refusal,
+  type WarEnd,
+} from "./terms.ts";
+export {
   COURT,
   claimChance,
   doubtOf,

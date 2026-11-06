@@ -15,6 +15,28 @@ export type ReignWar = {
   readonly last: { readonly ref: string; readonly words: string } | null;
 };
 
+/** What binds a ruler's realm since a peace: who, what it comes to, in words. */
+export type ReignBond = {
+  readonly kind: "oath" | "vassal" | "pays" | "paid" | "truce";
+  readonly other: string;
+  readonly otherName: string;
+  readonly words: string;
+  readonly grain: number;
+  readonly until: number;
+  /** An oath of one's own: whether they could rise, and why not. */
+  readonly can?: boolean;
+  readonly why?: string;
+};
+
+/** A peace that could be offered or demanded. */
+export type ReignOffer = {
+  readonly id: string;
+  readonly label: string;
+  readonly can: boolean;
+  /** What it comes to, or the answer they would give. */
+  readonly words: string;
+};
+
 /** How the ruler's rule ended, and who is offered. */
 export type ReignFall = {
   readonly how: "died" | "overthrown" | "realm";
@@ -79,6 +101,8 @@ export type ReignNow = {
   readonly of: number;
   readonly neighbours: readonly ReignNeighbour[];
   readonly wars: readonly ReignWar[];
+  /** What binds the realm since a peace (W7). */
+  readonly bonds: readonly ReignBond[];
   /** The one who would come after, in words (eldest child by birth; else how rule passes). */
   readonly heir: string;
   /** Their spouse, in words (null: no one). */
@@ -127,7 +151,12 @@ export type ReignFoe = {
 export type ReignWars = {
   readonly words: string;
   readonly host: number;
-  readonly wars: readonly (ReignWar & { readonly can: boolean; readonly peace: string })[];
+  readonly wars: readonly (ReignWar & {
+    readonly can: boolean;
+    readonly peace: string;
+    readonly offers: readonly ReignOffer[];
+  })[];
+  readonly bonds: readonly ReignBond[];
   /** Wars over in the last few years: how each came out, in words. */
   readonly lately: readonly (ReignWar & { readonly came: string })[];
   readonly foes: readonly ReignFoe[];

@@ -16,20 +16,42 @@ import {
 import { cellRef } from "../../gen/index.ts";
 import {
   REIGN,
+  TERMS,
+  answerOf,
   carried,
   decreeCost,
   mustCarry,
   peaceRefused,
   tieOf,
   warCost,
+  type PeaceOffer,
+  type Refusal,
 } from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
 import { beliefOf } from "../belief/belief.ts";
 import { loreOf } from "../lore/lore.ts";
-import { LAW, POLITY_EVENTS, politiesOf, reach, realmName, type Polity } from "../polity/polity.ts";
+import {
+  LAW,
+  POLITY_EVENTS,
+  cutOff,
+  politiesOf,
+  reach,
+  realmName,
+  type Polity,
+} from "../polity/polity.ts";
 import { interestsOf, pressure } from "../polity/interests.ts";
-import { WAR, WAR_EVENTS, fieldedOf, frontier, warsOf } from "../war/war.ts";
+import { WAR, WAR_EVENTS, fieldedOf, frontier, strengthOf, warsOf, type War } from "../war/war.ts";
+import {
+  bindPeace,
+  bondsOf,
+  canBind,
+  grainMade,
+  landOffered,
+  owing,
+  riseUp,
+  termsOfOffer,
+} from "../war/bonds.ts";
 import { DIPLOMACY_EVENTS, diplomacyOf, relationRef } from "../diplomacy/diplomacy.ts";
 import { capacityOf, orderOf, realmOrder, type RealmOrder } from "./order.ts";
 import {
@@ -51,7 +73,8 @@ export type RulerArgs = { readonly realm: Ref; readonly ruler: string };
 export type DecreeArgs = RulerArgs & { readonly law: Law | "tithe"; readonly to: number };
 /** A war on a realm, for a land of it (its frontier's first, if none is named). */
 export type WarArgs = RulerArgs & { readonly against: Ref; readonly prize?: number };
-export type PeaceArgs = RulerArgs & { readonly with: Ref };
+/** Peace asked of a realm, and what is offered or demanded (absent: a truce, with nothing changed). */
+export type PeaceArgs = RulerArgs & { readonly with: Ref; readonly offer?: PeaceOffer };
 /** One of a house: who, and how they stand to its ruler ("self" is the ruler). */
 export type HousePerson = {
   readonly name: string;
@@ -90,6 +113,7 @@ export type Voices = {
 const clamp = (lo: number, hi: number, x: number) => Math.max(lo, Math.min(hi, x));
 const pct = (x: number) => Math.round(x * 100);
 const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s);
+void (null as unknown as War);
 
 /** What a ruler holds now. */
 export function stationOf(ctx: PopulationContext, r: Polity): Station {
@@ -248,6 +272,15 @@ export function warProblem(
   if (!foe) return "That realm has fallen.";
   if (foe === r) return "A realm cannot be set against itself.";
   if (warsOf(ctx.world).between(r.ref, foe.ref)) return "You are at war with them already.";
+  const held = bondsOf(ctx.world),
+    oath = held.oathOf(r.ref);
+  if (oath)
+    return `You have sworn to ${realmName(politiesOf(ctx.world).get(oath.to)!)}: you make no war of your own until year ${oath.until}, unless you rise.`;
+  const bound = held.between(r.ref, foe.ref);
+  if (bound)
+    return bound.kind === "truce"
+      ? `A truce holds you from them until year ${bound.until}.`
+      : `${bound.from === r.ref ? "You pay them" : "They pay you"} tribute until year ${bound.until}: there is no war between you while it runs.`;
   const lands = frontier(ctx, r, foe);
   if (!lands.length) return "No land lies between you to fight for.";
   if (prize !== undefined && !lands.includes(prize as number))
@@ -259,27 +292,114 @@ export function warProblem(
   return carryProblem(st, warVoices(ctx, r, foe, t));
 }
 
-/** Why a foe will not hear of peace (null: they will). */
-export function peaceProblem(ctx: PopulationContext, r: Polity, foe: Polity | null): string | null {
+/** A foe's answer, in its own ruler's voice. */
+const answers = (foe: Polity, words: string) =>
+  `${foe.ruler.name} of ${foe.town} answers: "${words}"`;
+
+/** Why a foe will not hear of a peace on these terms (null: they will). */
+export function peaceProblem(
+  ctx: PopulationContext,
+  r: Polity,
+  foe: Polity | null,
+  offer: PeaceOffer = "truce",
+): string | null {
   if (!foe) return "That realm has fallen.";
-  const w = warsOf(ctx.world).between(r.ref, foe.ref);
+  const world = ctx.world,
+    w = warsOf(world).between(r.ref, foe.ref);
   if (!w) return "You are not at war with them.";
   if (w.civil) return "This war is for your own seat: there is no one to ask for peace.";
-  const year = yearOfMoment(ctx.world.now),
+  const year = yearOfMoment(world.now),
     side = w.attacker === r.ref ? 0 : 1,
     attacker = side === 0 ? r : foe,
     won = w.battles.filter((b) => b.won === (side === 0)).length,
     people = attacker.members.reduce((s, c) => s + (ctx.provinces.get(c)?.total() ?? 0), 0),
-    weary = (w.fallen[0] + w.fallen[1]) / Math.max(1, people);
-  return peaceRefused(
-    side === 1,
-    w.battles.length - 2 * won,
-    year - w.declared,
-    weary,
-    attacker.members.includes(w.prize),
-  )
-    ? `${cap(realmName(foe))} is winning, and holds out for the land it came for.`
-    : null;
+    weary = (w.fallen[0] + w.fallen[1]) / Math.max(1, people),
+    refused = !!peaceRefused(
+      side === 1,
+      w.battles.length - 2 * won,
+      year - w.declared,
+      weary,
+      attacker.members.includes(w.prize),
+    ),
+    held = bondsOf(world),
+    giving = offer === "give-land" || offer === "give-tribute",
+    payer = giving ? r : foe;
+  // What cannot be given is not asked of anyone's will.
+  if (offer === "give-land" && landOffered(ctx, w, r, foe, offer) === null)
+    return "You have no land to give them but your seat.";
+  if (offer === "take-land" && landOffered(ctx, w, r, foe, offer) === null)
+    return answers(
+      foe,
+      "We have no land to give you but our seat, and that you must come and take.",
+    );
+  if (offer === "give-tribute" || offer === "take-tribute") {
+    if (Math.floor(TERMS.tributeShare * grainMade(ctx, payer)) < 1)
+      return giving
+        ? "Your people make no grain to pay with."
+        : answers(foe, "We make no grain to pay you with.");
+    if (owing(world, payer) >= TERMS.owesMost)
+      return giving
+        ? "You already pay as many as your stores can bear."
+        : answers(foe, "We already pay as many as our stores can bear.");
+  }
+  if (offer === "take-knee" && Math.floor(TERMS.oathShare * grainMade(ctx, foe)) < 1)
+    return answers(foe, "We make no grain to pay you with.");
+  const code: Refusal = answerOf(
+    offer,
+    2 * won - w.battles.length,
+    strengthOf(ctx, r) / Math.max(1, strengthOf(ctx, foe)),
+    refused,
+    canBind(world, r, foe),
+  );
+  switch (code) {
+    case "winning":
+      return answers(
+        foe,
+        "We are winning, and we came for more than your word. Offer us land or grain, or fight on.",
+      );
+    case "all":
+      return answers(foe, "We shall have it all. Keep your grain until we come for it.");
+    case "not-beaten":
+      return answers(
+        foe,
+        "You have not beaten us. We give nothing to one who has won no more than it has lost.",
+      );
+    case "not-knee":
+      return answers(
+        foe,
+        "We would sooner fall. Beat us twice over, and be three times what we are, and ask again.",
+      );
+    case "cannot-bind":
+      return held.oathOf(foe.ref)
+        ? answers(foe, "We are sworn to another already.")
+        : held.oathOf(r.ref)
+          ? answers(foe, "You are sworn yourself: one who has knelt takes no oaths.")
+          : held.vassalsOf(foe.ref).length
+            ? answers(foe, "Others are sworn to us: we kneel to no one while they are.")
+            : answers(foe, "You hold as many oaths as anyone can make good.");
+    default:
+      return null;
+  }
+}
+
+/** The offers a ruler could make in a war, in the order they are shown. */
+export const OFFERS: readonly PeaceOffer[] = [
+  "truce",
+  "give-land",
+  "give-tribute",
+  "take-land",
+  "take-tribute",
+  "take-knee",
+];
+
+/** Why a vassal cannot rise (null: it can). */
+export function riseProblem(ctx: PopulationContext, r: Polity): string | null {
+  const oath = bondsOf(ctx.world).oathOf(r.ref);
+  if (!oath) return "You have sworn no oath.";
+  const st = stationOf(ctx, r);
+  if (st.legitimacy < REIGN.marchLine)
+    return `Only ${pct(st.legitimacy)} in a hundred hold your rule rightful: no one will rise with you.`;
+  return null;
 }
 
 /** What a marriage of state between two realms would be remembered at (0: their peoples keep no houses). */
@@ -334,7 +454,7 @@ export function wedProblem(
   return null;
 }
 
-/** Teach a peopled world what a ruler can do by the god's hand: "reign.decree", "reign.war", "reign.peace", "reign.wed". */
+/** Teach a peopled world what a ruler can do by the god's hand: "reign.decree", "reign.war", "reign.peace", "reign.rise", "reign.wed". */
 export function installReign(world: World, ctx: () => PopulationContext): void {
   const orderHere = (r: Polity) =>
       realmOrder(
@@ -573,7 +693,8 @@ export function installReign(world: World, ctx: () => PopulationContext): void {
       const bad = rulerProblem(world, args);
       if (bad) return bad;
       const a = args as PeaceArgs;
-      return peaceProblem(ctx(), standing(world, a.realm)!, standing(world, a.with));
+      if (a.offer !== undefined && !OFFERS.includes(a.offer)) return "There is no such offer.";
+      return peaceProblem(ctx(), standing(world, a.realm)!, standing(world, a.with), a.offer);
     },
     apply: (command, t) => {
       const a = command.args as PeaceArgs,
@@ -584,8 +705,12 @@ export function installReign(world: World, ctx: () => PopulationContext): void {
         attacker = w.attacker === r.ref ? r : foe,
         defender = attacker === r ? foe : r,
         year = yearOfMoment(t),
-        won = attacker.members.includes(w.prize),
+        offer: PeaceOffer = a.offer ?? "truce",
+        made = termsOfOffer(c, w, r, foe, offer, year),
         o = orderHere(r);
+      // (Land that passes by the peace is land won, as a battle's is: the war came out as it says.)
+      let won = attacker.members.includes(w.prize);
+      if (made.land === w.prize) won = offer === "give-land" ? attacker === foe : attacker === r;
       w.ended = year;
       w.peace = world.events.emit({
         type: WAR_EVENTS.peace.type,
@@ -598,6 +723,7 @@ export function installReign(world: World, ctx: () => PopulationContext): void {
           years: year - w.declared,
           won,
           by: r.ruler.name,
+          terms: made.terms,
         },
       });
       diplomacyOf(world).remember(attacker.ref, defender.ref, {
@@ -606,11 +732,46 @@ export function installReign(world: World, ctx: () => PopulationContext): void {
         year,
         source: w.event,
       });
+      if (made.land !== null) {
+        const from = offer === "give-land" ? r : foe,
+          to = offer === "give-land" ? foe : r,
+          realms = politiesOf(world);
+        realms.leave(from, made.land);
+        realms.join(to, made.land);
+        realms.setDiscontent(made.land, { level: 0.6, cause: w.peace });
+        cutOff(c, from, w.peace);
+      }
+      bindPeace(c, w, made, w.peace, year);
+      // (What is given costs standing, what is won brings it; a truce goes by how the war stood.)
       o.legitimacy = clamp(
         0.02,
         0.98,
-        o.legitimacy + (won === (attacker === r) ? REIGN.peaceWon : REIGN.peaceLost),
+        o.legitimacy +
+          (offer === "truce"
+            ? won === (attacker === r)
+              ? REIGN.peaceWon
+              : REIGN.peaceLost
+            : offer.startsWith("give")
+              ? 2 * REIGN.peaceLost
+              : 2 * REIGN.peaceWon),
       );
+    },
+  });
+
+  world.defineCommand({
+    type: "reign.rise",
+    validate: (args) => {
+      const bad = rulerProblem(world, args);
+      if (bad) return bad;
+      return riseProblem(ctx(), standing(world, (args as RulerArgs).realm)!);
+    },
+    apply: (command, t) => {
+      const a = command.args as RulerArgs,
+        c = ctx(),
+        r = standing(world, a.realm)!,
+        o = orderHere(r);
+      riseUp(c, bondsOf(world).oathOf(r.ref)!, t, r.ruler.name, command.id);
+      o.legitimacy = clamp(0.02, 0.98, o.legitimacy - warCost(true, true));
     },
   });
 

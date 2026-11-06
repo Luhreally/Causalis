@@ -3,13 +3,15 @@
 // why not, in the very words the world refuses it with. Pure reads: asking moves nothing, and nothing is kept
 // but a memo of the last reading of a moment.
 import { yearOfMoment, type Ref, type World } from "../kernel/index.ts";
-import { FEMALE, REIGN, decreeCost, warCost } from "../rules/index.ts";
+import { FEMALE, REIGN, decreeCost, warCost, type PeaceOffer } from "../rules/index.ts";
 import {
   LAWS,
   LAW_OF,
   LAW_POSITIONS,
   LEADERSHIP,
+  OFFERS,
   SUCCESSION,
+  bondsOf,
   courtOf,
   decreeProblem,
   diplomacyOf,
@@ -21,7 +23,9 @@ import {
   politiesOf,
   populationContext,
   realmName,
+  riseProblem,
   stationOf,
+  termsOfOffer,
   tieBetween,
   titheVoices,
   warProblem,
@@ -33,13 +37,16 @@ import {
   type Station,
   type War,
 } from "../sim/index.ts";
+import { aimPhrase, grainSum, termsPhrase } from "../causal/index.ts";
 import type {
+  ReignBond,
   ReignDecrees,
   ReignFall,
   ReignLaw,
   ReignMatch,
   ReignMatches,
   ReignNow,
+  ReignOffer,
   ReignPerson,
   ReignWar,
   ReignWars,
@@ -115,15 +122,20 @@ function warLine(world: World, r: Polity, w: War): ReignWar {
     foe = politiesOf(world).get(mine === 0 ? w.defender : w.attacker),
     last = w.battles.at(-1),
     place = last ? landTitle(world, last.land, true) : "",
-    foeName = foe ? realmName(foe) : "a realm now gone";
+    foeName = foe ? realmName(foe) : "a realm now gone",
+    declared = world.events.get(w.event),
+    aim = aimPhrase(
+      world,
+      declared?.data ?? null,
+      declared?.place ?? null,
+      mine === 0 ? "mine" : "theirs",
+      landTitle(world, w.prize, true),
+    );
   return {
     ref: w.ref,
     foe: foe?.ref ?? "",
     foeName,
-    words:
-      mine === 0
-        ? `You went to war for ${landTitle(world, w.prize, true)}`
-        : `They came for ${landTitle(world, w.prize, true)}`,
+    words: mine === 0 ? `You went to war ${aim}` : `They came ${aim}`,
     since: w.declared,
     fallen: [w.fallen[mine]!, w.fallen[1 - mine]!],
     battles: w.battles.length,
@@ -134,6 +146,96 @@ function warLine(world: World, r: Polity, w: War): ReignWar {
         }
       : null,
   };
+}
+
+/** What binds a realm since a peace, in a ruler's words: the oath they swore, those sworn to them, what they pay and are paid. */
+export function bondLines(world: World, r: Polity): ReignBond[] {
+  const realms = politiesOf(world),
+    ctx = populationContext(world),
+    rank: Readonly<Record<ReignBond["kind"], number>> = {
+      oath: 0,
+      vassal: 1,
+      pays: 2,
+      paid: 3,
+      truce: 4,
+    };
+  return bondsOf(world)
+    .of(r.ref)
+    .map((b): ReignBond => {
+      const mine = b.from === r.ref,
+        other = realms.get(mine ? b.to : b.from),
+        otherName = other ? realmName(other) : "a realm now gone",
+        grain = grainSum(b.grain),
+        paid = b.paid ? `; ${grainSum(b.paid)} paid so far` : "",
+        short = b.short
+          ? `, and ${mine ? "you have" : "they have"} been short ${b.short} year${b.short === 1 ? "" : "s"}`
+          : "",
+        kind: ReignBond["kind"] =
+          b.kind === "truce"
+            ? "truce"
+            : b.kind === "vassal"
+              ? mine
+                ? "oath"
+                : "vassal"
+              : mine
+                ? "pays"
+                : "paid",
+        words =
+          kind === "truce"
+            ? `A truce holds you and ${otherName} from war until year ${b.until}.`
+            : kind === "oath"
+              ? `You have bent the knee to ${otherName}: you keep your lands and your seat, pay ${grain} grain a year out of your seat's stores, and make no war of your own, until year ${b.until}${paid}${short}.`
+              : kind === "vassal"
+                ? `${otherName} has bent the knee to you: it pays ${grain} grain a year to your seat and makes no war of its own, until year ${b.until}${paid}${short}.`
+                : kind === "pays"
+                  ? `You pay ${otherName} ${grain} grain a year out of your seat's stores, until year ${b.until}${paid}${short}.`
+                  : `${otherName} pays you ${grain} grain a year, to your seat's stores, until year ${b.until}${paid}${short}.`;
+      if (kind !== "oath")
+        return { kind, other: other?.ref ?? "", otherName, words, grain: b.grain, until: b.until };
+      const why = riseProblem(ctx, r);
+      return {
+        kind,
+        other: other?.ref ?? "",
+        otherName,
+        words,
+        grain: b.grain,
+        until: b.until,
+        can: !why,
+        why: why ?? "It breaks your oath, and it is war.",
+      };
+    })
+    .sort((x, y) => rank[x.kind] - rank[y.kind] || (x.other < y.other ? -1 : 1));
+}
+
+/** What a ruler could offer or demand in a war, each with what it comes to, or the answer they would give. */
+function offersOf(world: World, r: Polity, foe: Polity | undefined, w: War): ReignOffer[] {
+  if (!foe || foe.ended !== null || w.civil) return [];
+  const ctx = populationContext(world),
+    year = yearOfMoment(world.now),
+    label = (offer: PeaceOffer, land: string, grain: string): string =>
+      offer === "truce"
+        ? "🕊️ Ask for peace, nothing changed"
+        : offer === "give-land"
+          ? `🕊️ Offer ${land}`
+          : offer === "give-tribute"
+            ? `🕊️ Offer ${grain} grain a year`
+            : offer === "take-land"
+              ? `⚖️ Demand ${land}`
+              : offer === "take-tribute"
+                ? `⚖️ Demand ${grain} grain a year`
+                : "⚖️ Demand they bend the knee";
+  return OFFERS.map((offer) => {
+    const bad = peaceProblem(ctx, r, foe, offer),
+      made = termsOfOffer(ctx, w, r, foe, offer, year),
+      land = made.land !== null ? landTitle(world, made.land, true) : "a land",
+      terms = termsPhrase(world, { terms: made.terms });
+    return {
+      id: offer,
+      label: label(offer, land, grainSum(made.grain)),
+      can: !bad,
+      words: bad ?? (terms ? `They would agree: ${terms}.` : "They would agree."),
+    };
+  });
 }
 
 /** The family a ruler's page tells. */
@@ -261,6 +363,7 @@ export function reignNow(world: World, realm: unknown, ruler: unknown): ReignNow
       .fighting(r.ref)
       .filter((w) => w.ended === null)
       .map((w) => warLine(world, r, w)),
+    bonds: bondLines(world, r),
     heir: named
       ? `${named.name}, ${year - named.born}, ${court?.heirBy === "voices" ? "whom the voices lean to" : court?.heirBy === "word" ? "named by your word" : "your heir"}`
       : r.succession !== 0
@@ -308,6 +411,15 @@ function reignDecrees(world: World, realm: unknown): ReignDecrees | null {
           });
       laws.push({ law, title: LAW_TITLES[law], now: LAW_POSITIONS[law][now]!, options });
     }
+  // (What leaves and comes to the seat's stores by a peace, as it is spent: W7.)
+  const bound = bondLines(world, r),
+    owes = bound
+      .filter((b) => b.kind === "oath" || b.kind === "pays")
+      .reduce((n, b) => n + b.grain, 0),
+    owed = bound
+      .filter((b) => b.kind === "vassal" || b.kind === "paid")
+      .reduce((n, b) => n + b.grain, 0),
+    spends = `${owes ? ` You pay ${grainSum(owes)} grain a year in tribute out of your seat's stores.` : ""}${owed ? ` You are paid ${grainSum(owed)} grain a year in tribute.` : ""}`;
   const tithe = Math.round(r.tribute * 100),
     steps = [tithe - REIGN.titheStep, tithe + REIGN.titheStep].filter(
       (to) => to >= REIGN.titheLeast && to <= REIGN.titheMost,
@@ -330,7 +442,7 @@ function reignDecrees(world: World, realm: unknown): ReignDecrees | null {
     }),
   });
   return {
-    words: `${stationWords(st)} ${pct(st.legitimacy)} in a hundred hold your rule rightful. What you set is weighed again by the realm in its turn.`,
+    words: `${stationWords(st)} ${pct(st.legitimacy)} in a hundred hold your rule rightful.${spends} What you set is weighed again by the realm in its turn.`,
     laws,
   };
 }
@@ -352,7 +464,12 @@ function reignWars(world: World, realm: unknown): ReignWars | null {
         const line = warLine(world, r, w),
           foe = realms.get(line.foe as Ref),
           bad = peaceProblem(ctx, r, foe && foe.ended === null ? foe : null);
-        return { ...line, can: !bad, peace: bad ?? "They will hear of it." };
+        return {
+          ...line,
+          can: !bad,
+          peace: bad ?? "They will hear of it.",
+          offers: offersOf(world, r, foe && foe.ended === null ? foe : undefined, w),
+        };
       }),
     fighting = new Set(wars.map((w) => w.foe)),
     met = diplomacy.of(r.ref).map((x) => (x.a === r.ref ? x.b : x.a)),
@@ -396,24 +513,30 @@ function reignWars(world: World, realm: unknown): ReignWars | null {
       .filter((w) => w.ended !== null && w.ended >= year - LATELY)
       .slice(-4)
       .reverse()
-      .map((w) => ({
-        ...warLine(world, r, w),
-        came: `Over in year ${w.ended}: ${
-          r.members.includes(w.prize) === (w.attacker === r.ref)
-            ? w.attacker === r.ref
-              ? `you took ${landTitle(world, w.prize, true)}`
-              : `you held ${landTitle(world, w.prize, true)}`
-            : w.attacker === r.ref
-              ? `${landTitle(world, w.prize, true)} is not yours`
-              : `${landTitle(world, w.prize, true)} is lost`
-        }.`,
-      }));
+      .map((w) => {
+        const said = w.peace ? termsPhrase(world, world.events.get(w.peace)?.data ?? null) : null;
+        return {
+          ...warLine(world, r, w),
+          came: said
+            ? `Over in year ${w.ended}: ${said}.`
+            : `Over in year ${w.ended}: ${
+                r.members.includes(w.prize) === (w.attacker === r.ref)
+                  ? w.attacker === r.ref
+                    ? `you took ${landTitle(world, w.prize, true)}`
+                    : `you held ${landTitle(world, w.prize, true)}`
+                  : w.attacker === r.ref
+                    ? `${landTitle(world, w.prize, true)} is not yours`
+                    : `${landTitle(world, w.prize, true)} is lost`
+              }.`,
+        };
+      });
   return {
     words: `You can field ${many(host)} of your ${many(people)} people.${
       foes.length ? "" : wars.length ? "" : " No realm lies within your reach."
     }`,
     host,
     wars,
+    bonds: bondLines(world, r),
     lately,
     foes,
   };

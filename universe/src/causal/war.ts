@@ -2,8 +2,10 @@
 // many fell, how it ended — and why: the declaration, whose factors reach the
 // rivalry and its reasons, the famine and the dry year behind it, and the land
 // they wanted, down to its ground.
-import { yearOfMoment, type CauseRef } from "../kernel/index.ts";
+import { yearOfMoment, type CauseRef, type Ref, type World } from "../kernel/index.ts";
+import { cellRef } from "../gen/index.ts";
 import {
+  BOND_EVENTS,
   FAR_EVENTS,
   FIRE_EVENTS,
   WAR,
@@ -11,6 +13,9 @@ import {
   politiesOf,
   realmName,
   warsOf,
+  type PeaceTerms,
+  type War,
+  type WarAim,
 } from "../sim/index.ts";
 import { landWords } from "./generated.ts";
 import { count } from "./words.ts";
@@ -46,14 +51,100 @@ const CIVIL: Readonly<Record<string, string>> = {
   revolution: "for the old court's return",
   freed: "to take back the freed",
 };
+
+/**
+ * What a war is about, as a person would say it, after "went to war": a war from before aims has none, and says only
+ * the land it was for. `whom` is who the land was lost to, as the one speaking names them.
+ */
+export function aimPhrase(
+  world: World,
+  data: unknown,
+  place: Ref | null,
+  voice: "told" | "mine" | "theirs" = "told",
+  name?: string,
+): string {
+  const d = data as Partial<WarAim> | null,
+    land = name ?? landWords(world, place),
+    their = voice === "mine" ? "your" : voice === "theirs" ? "their" : "its",
+    them = voice === "mine" ? "them" : voice === "theirs" ? "you" : "it",
+    swore = voice === "mine" ? "you swore" : voice === "theirs" ? "they swore" : "it swore";
+  switch (d?.aim) {
+    case "stores":
+      return `for the stores of ${land}, ${their} own people hungry`;
+    case "back":
+      return `to take back ${land}, ${d.lost !== undefined ? `lost to ${them} in ${d.lost}` : `once ${their} own`}`;
+    case "holy":
+      return `in a holy war, ${d.faith ?? "one faith"} against ${d.theirs ?? "another"}, going for ${land}`;
+    case "tribute":
+      return d.owed !== undefined
+        ? `to have the tribute unpaid since ${d.owed}`
+        : `to make ${them} pay tribute`;
+    case "free":
+      return `to throw off the oath ${swore}`;
+    case "land":
+      return `to take ${land}`;
+    default:
+      return `for ${land}`;
+  }
+}
+
+/** A sum of grain, as one says it: the great ones in round words. */
+export function grainSum(n: number): string {
+  return n >= 1e9
+    ? `${(n / 1e9).toFixed(1)} billion`
+    : n >= 1e6
+      ? `${(n / 1e6).toFixed(1)} million`
+      : count(n);
+}
+
+/** A war's aim in words (null: it has none, being older than aims, or a realm's war with itself, which says its own). */
+export function warAimWords(world: World, w: War): string | null {
+  const e = world.events.get(w.event);
+  if (!e || !(e.data as Partial<WarAim> | null)?.aim) return null;
+  return aimPhrase(world, e.data, e.place);
+}
+
+/** What a peace came to, in words (null: older than terms, or it says nothing of them). */
+export function termsPhrase(world: World, data: unknown): string | null {
+  const t = (data as { terms?: PeaceTerms } | null)?.terms;
+  if (!t) return null;
+  const ceded = t.lands
+      ? `${t.payer ?? "the loser"} cedes ${t.lands === 1 && t.land !== undefined ? landWords(world, cellRef(0, t.land)) : `${count(t.lands)} lands`}`
+      : "",
+    both = (s: string) => (ceded ? `${ceded}; ${s}` : s);
+  switch (t.kind) {
+    case "tribute":
+      return both(
+        `${t.payer} pays ${t.to} ${grainSum(t.grain ?? 0)} grain a year until ${t.until}`,
+      );
+    case "vassal":
+      return both(
+        `${t.payer} bends the knee to ${t.to}, keeping its lands and its ruler and paying ${grainSum(t.grain ?? 0)} grain a year until ${t.until}`,
+      );
+    case "truce":
+      return t.beaten
+        ? both(`${t.beaten} was beaten back, and swore a truce until ${t.until}`)
+        : both(
+            ceded
+              ? `a truce until ${t.until}`
+              : `neither could win, and a truce holds until ${t.until}, with nothing changed`,
+          );
+    case "free":
+      return "the oath is thrown off, and nothing owed";
+    default:
+      return ceded || null;
+  }
+}
+
 registerEventWords(WAR_EVENTS.declared.type, (world, e) => {
   const civil = (e.data as { civil?: string } | null)?.civil,
-    by = (e.data as { by?: string } | null)?.by;
+    by = (e.data as { by?: string } | null)?.by,
+    aim = aimPhrase(world, e.data, e.place);
   if (by)
-    return `By your hand, at the word of ${by}, ${text(e.data, "a")} went to war with ${text(e.data, "b")} for ${landWords(world, e.place)}, ${year(e.t)}`;
+    return `By your hand, at the word of ${by}, ${text(e.data, "a")} went to war with ${text(e.data, "b")} ${aim}, ${year(e.t)}`;
   return civil
     ? `${cap(text(e.data, "a"))} rose against ${text(e.data, "b")} ${CIVIL[civil] ?? "in a civil war"}, marching on ${landWords(world, e.place)}, ${year(e.t)}`
-    : `${cap(text(e.data, "a"))} went to war with ${text(e.data, "b")} for ${landWords(world, e.place)}, ${year(e.t)}`;
+    : `${cap(text(e.data, "a"))} went to war with ${text(e.data, "b")} ${aim}, ${year(e.t)}`;
 });
 registerEventWords(WAR_EVENTS.battle.type, (world, e) => {
   const d = e.data as { won?: boolean; fallen?: number; tip?: boolean } | null;
@@ -177,9 +268,47 @@ registerEventWords(WAR_EVENTS.strike.type, (_, e) => {
     return `Rockets of ${text(e.data, "a")} fell on ${d.name ?? "a town"} of ${text(e.data, "b")} from ${count(d.km ?? 0)} km away; ${count(d.dead ?? 0)} died and ${count(d.homes ?? 0)} home${d.homes === 1 ? "" : "s"} came down, ${year(e.t)}`;
   return `Machines of ${text(e.data, "a")} struck ${d?.name ?? "a town"} of ${text(e.data, "b")} from the air; ${count(d?.dead ?? 0)} died and ${count(d?.homes ?? 0)} home${d?.homes === 1 ? "" : "s"} came down, ${year(e.t)}`;
 });
-registerEventWords(WAR_EVENTS.peace.type, (_, e) => {
-  const d = e.data as { years?: number; won?: boolean; by?: string } | null;
-  return `${d?.by ? `By your hand, at the asking of ${d.by}: peace` : "Peace"} between ${text(e.data, "a")} and ${text(e.data, "b")} after ${count(d?.years ?? 0)} year${d?.years === 1 ? "" : "s"}${d?.won ? ", the land they fought for won" : ""}, ${year(e.t)}`;
+registerEventWords(WAR_EVENTS.peace.type, (world, e) => {
+  const d = e.data as { years?: number; won?: boolean; by?: string; terms?: PeaceTerms } | null,
+    head = `${d?.by ? `By your hand, at the asking of ${d.by}: peace` : "Peace"} between ${text(e.data, "a")} and ${text(e.data, "b")} after ${count(d?.years ?? 0)} year${d?.years === 1 ? "" : "s"}`,
+    terms = termsPhrase(world, e.data);
+  return terms
+    ? `${head}: ${terms}, ${year(e.t)}`
+    : `${head}${d?.won ? ", the land they fought for won" : ""}, ${year(e.t)}`;
+});
+registerEventWords(BOND_EVENTS.ended.type, (_, e) => {
+  const d = e.data as {
+      kind?: string;
+      how?: string;
+      years?: number;
+      paid?: number;
+      fell?: string;
+    } | null,
+    a = text(e.data, "a"),
+    b = text(e.data, "b");
+  if (d?.how === "fell")
+    return d.kind === "vassal"
+      ? `The oath of ${a} to ${b} ended with the fall of ${d.fell ?? "a realm"}, ${year(e.t)}`
+      : d.kind === "tribute"
+        ? `The tribute of ${a} to ${b} ended with the fall of ${d.fell ?? "a realm"}, ${year(e.t)}`
+        : `The truce between ${a} and ${b} ended with the fall of ${d.fell ?? "a realm"}, ${year(e.t)}`;
+  return d?.kind === "vassal"
+    ? `The oath of ${a} to ${b} ran out after ${count(d.years ?? 0)} years and ${grainSum(d.paid ?? 0)} grain: ${a} answers to no one, ${year(e.t)}`
+    : d?.kind === "tribute"
+      ? `The tribute of ${a} to ${b} is over: ${grainSum(d.paid ?? 0)} grain in ${count(d.years ?? 0)} years, ${year(e.t)}`
+      : `The truce between ${a} and ${b} ran out, ${year(e.t)}`;
+});
+registerEventWords(BOND_EVENTS.unpaid.type, (_, e) => {
+  const d = e.data as { kind?: string; since?: number; grain?: number } | null;
+  return `${cap(text(e.data, "a"))} has stopped paying ${text(e.data, "b")}: ${grainSum(d?.grain ?? 0)} grain a year owed, and short since ${d?.since ?? "lately"}, ${year(e.t)}`;
+});
+registerEventWords(BOND_EVENTS.rose.type, (_, e) => {
+  const d = e.data as { years?: number; by?: string } | null;
+  return `${d?.by ? `By your hand, at the word of ${d.by}, ` : ""}${d?.by ? text(e.data, "a") : cap(text(e.data, "a"))} threw off the oath it swore to ${text(e.data, "b")}, after ${count(d?.years ?? 0)} years, ${year(e.t)}`;
+});
+registerEventWords(BOND_EVENTS.sacked.type, (world, e) => {
+  const d = e.data as { grain?: number } | null;
+  return `The host of ${text(e.data, "a")} carried off ${grainSum(d?.grain ?? 0)} grain from the stores of ${landWords(world, e.place)}, ${year(e.t)}`;
 });
 registerDecisionWords("war.declare", (world, d) => {
   const realm = politiesOf(world).get(d.subject);

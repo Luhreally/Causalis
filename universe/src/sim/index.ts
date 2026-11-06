@@ -299,6 +299,8 @@ export {
   type DecreeArgs,
   type HousePerson,
   type PeaceArgs,
+  OFFERS,
+  riseProblem,
   type RulerArgs,
   type Station,
   type Voices,
@@ -421,6 +423,19 @@ export {
   type GreatFall,
   type GreatWorks,
 } from "./war/fire.ts";
+export {
+  BOND_EVENTS,
+  UNPAID_TERM,
+  aimOf,
+  bondsOf,
+  canBind,
+  grainMade,
+  landOffered,
+  termsOfOffer,
+  type Bond as WarBond,
+  type PeaceTerms,
+  type WarAim,
+} from "./war/bonds.ts";
 export { FAR_EVENTS, commandOf, farStar, farWorksOf, farWorldOf, strikeWorld } from "./war/far.ts";
 export {
   ARMS_TAKE,

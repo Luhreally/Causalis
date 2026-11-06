@@ -187,7 +187,18 @@ export function installReign(d: ReignDeps): ReignFlow {
       { against, prize },
       "War is declared. The host goes out, and the first battle comes at the end of next year.",
     );
-  hud.onPeace = (foe) => void act("reign.peace", { with: foe }, "They heard you: the war is over.");
+  hud.onPeace = (foe, offer) =>
+    void act(
+      "reign.peace",
+      { with: foe, offer },
+      offer === "truce"
+        ? "They heard you: the war is over, and a truce holds."
+        : offer.startsWith("give")
+          ? "They took what you offered: the war is over."
+          : "They gave way: the war is over, on your terms.",
+    );
+  hud.onRise = () =>
+    void act("reign.rise", {}, "You have thrown off your oath. It is war, or it will be soon.");
   hud.onWed = (m) =>
     void act(
       "reign.wed",

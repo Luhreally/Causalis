@@ -6,6 +6,7 @@ import { farWarBlocks } from "../far.ts";
 import { fireRealmStats } from "./fire.ts";
 import {
   beliefOf,
+  bondsOf,
   cultureOf,
   designsOf,
   diplomacyOf,
@@ -24,7 +25,14 @@ import {
   type War,
 } from "../../sim/index.ts";
 import { hostWords } from "../chain.ts";
-import { governmentWords, principleName, standingWords } from "../../causal/index.ts";
+import {
+  governmentWords,
+  grainSum,
+  principleName,
+  standingWords,
+  termsPhrase,
+  warAimWords,
+} from "../../causal/index.ts";
 import type { Ref, World } from "../../kernel/index.ts";
 import type { Block, Item, PageModel, Place, Row, Stat, Tab } from "../../bridge/index.ts";
 import { realmColor } from "../colors.ts";
@@ -100,6 +108,7 @@ export function realmPageModel(world: World, ref: string): PageModel {
     stat("Ruler", [link(r.ruler.name, `rule:${r.ref}`)], { why: r.ruler.event }),
     ...wealthStats(world, r.ref),
     stat("At war", fighting.length ? many(fighting.length, "war", "wars") : "at peace"),
+    ...bondStats(world, r.ref),
     ...fireRealmStats(world, r.ref),
     stat("Tithe", `${Math.round(r.tribute * 100)}%`, { why: r.tithed ?? r.event }),
   ];
@@ -407,6 +416,33 @@ function warPlace(
 }
 
 /** A war: its sides, what it is for, its battles and fallen, its two hosts and how it ended. */
+/** What binds a realm since a peace, on its page, each resting on the peace that made it (W7). */
+function bondStats(world: World, ref: Ref): Stat[] {
+  const realms = politiesOf(world);
+  return bondsOf(world)
+    .of(ref)
+    .map((b) => {
+      const mine = b.from === ref,
+        other = mine ? b.to : b.from,
+        grain = grainSum(b.grain),
+        paid = b.paid ? `; ${grainSum(b.paid)} paid so far` : "";
+      void realms;
+      return b.kind === "truce"
+        ? stat("Truce", [realmLink(world, other), `, until year ${b.until}`], { why: b.event })
+        : b.kind === "vassal"
+          ? stat(
+              mine ? "Sworn to" : "Sworn to it",
+              [realmLink(world, other), `, ${grain} grain a year until year ${b.until}${paid}`],
+              { why: b.event },
+            )
+          : stat(
+              mine ? "Pays tribute to" : "Paid tribute by",
+              [realmLink(world, other), `, ${grain} grain a year until year ${b.until}${paid}`],
+              { why: b.event },
+            );
+    });
+}
+
 export function warPage(world: World, ref: string, tab?: string): PageModel {
   const w = warsOf(world).get(ref as Ref);
   if (!w) throw new Error(`no war ${ref}`);
@@ -448,8 +484,12 @@ export function warPage(world: World, ref: string, tab?: string): PageModel {
     fallen = w.fallen[0] + w.fallen[1],
     // (The wounded who lived, each side's, where the battles kept them: Phase 55 M224.)
     wounded = woundedOf(w);
+  // (What it is about and what its peace came to: older wars have neither: W7.)
+  const aim = warAimWords(world, w),
+    terms = w.peace ? termsPhrase(world, world.events.get(w.peace)?.data ?? null) : null;
   const stats: Stat[] = [
     stat("Declared", `year ${w.declared}`, { why: w.event }),
+    ...(aim ? [stat("Fought", aim, { why: w.event })] : []),
     stat("For", [landLink(world, w.prize)]),
     stat("Battles", count(w.battles.length), {
       parts: [
@@ -474,6 +514,7 @@ export function warPage(world: World, ref: string, tab?: string): PageModel {
         ]
       : []),
     stat("Now", w.ended === null ? "still fought" : `ended in year ${w.ended}`, { why: w.peace }),
+    ...(terms ? [stat("Terms", terms, { why: w.peace })] : []),
   ];
   const battleRows: Row[] = [...w.battles].reverse().map((b) => ({
     ref: b.event,

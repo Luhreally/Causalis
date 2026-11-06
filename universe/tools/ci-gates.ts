@@ -321,6 +321,8 @@ export const GATES: readonly Gate[] = [
   { gate: 90, args: ["--ci"], s: 240 },
   // Gate 92, a town's price board and what it is known for (tools/m1-gate.ts): every town tallied, what it is known for must differ; the board by touch, a line to its good's page, its chain, where it is cheap and dear; the square by touch at its real place; one reading with a person's page; the paths nobody watches; a young world on CI.
   { gate: 92, args: ["--ci"], s: 240 },
+  // Gate 94, wars with aims and peace with terms (tools/w7-gate.ts): the rule; an old save, a realm gone, a tribute unpaid, a vassal risen; a run read for its worst; a ruler's tray, sheet, offers and refusal by touch; a year on, the grain in both realms' pages; a young world on CI.
+  { gate: 94, args: ["--ci"], s: 300 },
   // Gate 82, worlds filled (tools/p70b-gate.ts): a world at two shares, pressed from the 🚀 list by touch and read in the pixels; one that can never fill, and what its page says; a young world given both on CI.
   { gate: 82, args: ["--ci"], s: 240 },
   // Gate 80, the law of a universe and the first jump (tools/p68-gate.ts): shut, a page says why; open, a ship leaves, jumps and comes out, pressed by touch and read in the pixels.

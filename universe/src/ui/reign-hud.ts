@@ -60,6 +60,7 @@ export class ReignHud {
   private readonly sheet = el("div", "life-book reign-sheet");
   private readonly win = el("div", "life-window reign-window");
   private readonly said = el("p", "reign-said");
+  private readonly bound = el("button", "life-offer reign-act reign-bound");
   private last: ReignNow | null = null;
   private fallKey = "";
   private toldPage: string | null = null;
@@ -71,7 +72,8 @@ export class ReignHud {
   onSheet: (kind: "decrees" | "wars" | "matches") => void = () => {};
   onDecree: (law: string, to: number) => void = () => {};
   onWar: (against: string, prize: number) => void = () => {};
-  onPeace: (foe: string) => void = () => {};
+  onPeace: (foe: string, offer: string) => void = () => {};
+  onRise: () => void = () => {};
   onWed: (m: ReignMatch) => void = () => {};
   onHeir: () => void = () => {};
   /** A plot or an heir's death answered (Lives L5): "let" sends nothing. */
@@ -138,7 +140,11 @@ export class ReignHud {
     walk.dataset.act = "walk";
     walk.append(el("span", "life-icon", "🕹"), el("span", "life-label", "Walk"));
     walk.onclick = () => this.onWalk();
-    this.tray.append(realm, walk);
+    // (What a peace has bound the realm to, shown only while something does: W7.)
+    this.bound.dataset.act = "bonds";
+    this.bound.hidden = true;
+    this.bound.onclick = () => this.onSheet("wars");
+    this.tray.append(realm, this.bound, walk);
     this.element.append(this.strip, this.told, this.tray, this.sheet, this.win);
     parent.append(this.element);
   }
@@ -206,9 +212,36 @@ export class ReignHud {
         : "🕊️ At peace",
     );
     this.warsChip.classList.toggle("low", l.wars.length > 0);
+    this.drawBound(l);
     put(this.heir, `👪 ${l.heir}`);
     this.drawBars(l);
     this.drawFall(l.fell);
+  }
+
+  /** The tray's own word for what binds the realm: who has knelt, who kneels, what is paid. */
+  private drawBound(l: ReignNow): void {
+    const sworn = l.bonds.filter((b) => b.kind === "vassal").length,
+      oath = l.bonds.some((b) => b.kind === "oath"),
+      paying = l.bonds.some((b) => b.kind === "pays"),
+      paid = l.bonds.some((b) => b.kind === "paid"),
+      shown = oath
+        ? "⛓️ Sworn"
+        : sworn
+          ? `🤝 ${sworn} sworn`
+          : paying
+            ? "🌾 You pay"
+            : paid
+              ? "🌾 Paid"
+              : "";
+    this.bound.hidden = !shown;
+    const key = shown;
+    if (this.bound.dataset.key === key) return;
+    this.bound.dataset.key = key;
+    const [icon, ...rest] = shown.split(" ");
+    this.bound.replaceChildren(
+      el("span", "life-icon", icon ?? ""),
+      el("span", "life-label", rest.join(" ")),
+    );
   }
 
   private drawBars(l: ReignNow): void {
@@ -270,6 +303,25 @@ export class ReignHud {
 
   wars(d: ReignWars): void {
     const body: HTMLElement[] = [el("p", "life-winwords", d.words)];
+    // (First, what a peace has bound the realm to: W7.)
+    for (const b of d.bonds) {
+      const box = el("div", `reign-law reign-bond reign-bond-${b.kind}`),
+        name = el("button", "life-choice reign-foename", b.otherName);
+      box.dataset.bond = b.kind;
+      name.onclick = () => this.onPage(b.other);
+      box.append(name, el("div", "reign-optwords", b.words));
+      if (b.kind === "oath") {
+        const rise = el(
+          "button",
+          `life-choice reign-rise${b.can ? "" : " refused"}`,
+          `⚔️ Rise against ${b.otherName}`,
+        );
+        rise.dataset.can = b.can ? "1" : "0";
+        rise.onclick = () => this.onRise();
+        box.append(rise, el("div", "reign-optwords", b.why ?? ""));
+      }
+      body.push(box);
+    }
     for (const w of d.wars) {
       const box = el("div", "reign-law reign-warline");
       box.dataset.war = w.ref;
@@ -278,15 +330,8 @@ export class ReignHud {
           "life-choice reign-warpage",
           `⚔️ ${w.foeName}, since year ${w.since}`,
         ),
-        last = w.last,
-        peace = el(
-          "button",
-          `life-choice reign-peace${w.can ? "" : " refused"}`,
-          "🕊️ Ask for peace",
-        );
+        last = w.last;
       page.onclick = () => this.onPage(w.ref);
-      peace.dataset.foe = w.foe;
-      peace.onclick = () => this.onPeace(w.foe);
       box.append(
         page,
         el(
@@ -300,7 +345,16 @@ export class ReignHud {
         b.onclick = () => this.onPage(last.ref);
         box.append(b);
       }
-      box.append(peace, el("div", "reign-optwords", w.peace));
+      // What could be offered or demanded: one the other would refuse can still be pressed, and they say why.
+      if (!w.offers.length) box.append(el("div", "reign-optwords", w.peace));
+      for (const o of w.offers) {
+        const b = el("button", `life-choice reign-peace${o.can ? "" : " refused"}`, o.label);
+        b.dataset.foe = w.foe;
+        b.dataset.offer = o.id;
+        b.dataset.can = o.can ? "1" : "0";
+        b.onclick = () => this.onPeace(w.foe, o.id);
+        box.append(b, el("div", "reign-optwords", o.words));
+      }
       body.push(box);
     }
     for (const w of d.lately) {

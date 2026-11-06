@@ -44,6 +44,7 @@ import "./belief.ts";
 export { principleName } from "./lore.ts";
 export { standingWords } from "./diplomacy.ts";
 import "./war.ts";
+export { aimPhrase, grainSum, termsPhrase, warAimWords } from "./war.ts";
 import "./city.ts";
 import "./design.ts";
 import "./ecology.ts";

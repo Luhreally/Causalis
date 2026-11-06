@@ -110,6 +110,9 @@ body.ruling #hud > *:not(.reign-hud):not(.page-window):not(.panel.page-panel):no
   flex: 1 1 0;
   min-width: 0;
 }
+.reign-tray .reign-act[hidden] {
+  display: none;
+}
 .reign-sheet,
 .reign-window {
   max-height: calc(100vh - 330px);
@@ -142,6 +145,7 @@ body.ruling #hud > *:not(.reign-hud):not(.page-window):not(.panel.page-panel):no
 }
 .reign-hud .reign-opt,
 .reign-hud .reign-peace,
+.reign-hud .reign-rise,
 .reign-hud .reign-declare,
 .reign-hud .reign-wed,
 .reign-hud .reign-foename,

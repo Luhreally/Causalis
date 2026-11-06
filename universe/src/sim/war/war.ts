@@ -92,6 +92,18 @@ import { RIVALRY, diplomacyOf, relationRef } from "../diplomacy/diplomacy.ts";
 import { CREDIT, warChest } from "../credit/credit.ts";
 import { STRIFE, settleCivil } from "../strife/strife.ts";
 import { GENERAL } from "../polity/polity.ts";
+import {
+  bindPeace,
+  bondsOf,
+  bondsYear,
+  chooseAim,
+  goesForPrize,
+  installBonds,
+  reckonPeace,
+  sack,
+  takesLand,
+} from "./bonds.ts";
+import type { AimKind } from "../../rules/index.ts";
 
 export const WAR = defineKind("war", "war", "minted");
 
@@ -197,6 +209,15 @@ export type War = {
 };
 
 const DECLARE = defineStream("war.declare");
+/** A war's aim among the reasons for it, in the words of its why (a land wanted has its own). */
+const AIM_FACTOR: Readonly<Record<AimKind, string | null>> = {
+  land: null,
+  stores: "the hunger for their stores",
+  back: "a land they lost to them",
+  holy: "a holy war on unbelievers",
+  tribute: "the tribute they would have of them",
+  free: "an oath they would throw off",
+};
 /** Years after a peace before a realm is as ready for war as it was. */
 export const WEARY_YEARS = 30;
 const FIGHT = defineStream("war.fight");
@@ -1102,7 +1123,11 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     diplomacy = diplomacyOf(world),
     culture = cultureOf(world),
     lore = loreOf(world),
+    bonds = bondsOf(world),
     year = yearOfMoment(t);
+
+  // What peace left behind: what falls due and runs out, who stops paying, who rises (W7).
+  bondsYear(ctx, t);
 
   // 1. Declarations: rivals, and realms who covet a neighbour's stores in a famine.
   // A realm fresh from war is slow to go to war again: its fallen are still mourned.
@@ -1124,6 +1149,8 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     };
   for (const r of diplomacy.all()) {
     if (fighting.has(pairKey(r.a, r.b))) continue;
+    // (A truce, a tribute or an oath holds the two from war while it runs: W7.)
+    if (bonds.between(r.a, r.b)) continue;
     const covets = r.terms.find((x) => /for their stores$/.test(x.name));
     // Without hatred or hunger there is no will to war, whatever else holds.
     if (!covets && -r.opinion - -RIVALRY <= 0) continue;
@@ -1139,6 +1166,8 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       attacker = hungry ?? (sa >= sb ? a0 : b0),
       defender = attacker === a0 ? b0 : a0,
       ratio = (attacker === a0 ? sa : sb) / Math.max(1, attacker === a0 ? sb : sa);
+    // (One who has sworn an oath declares no war of its own: W7.)
+    if (bonds.oathOf(attacker.ref)) continue;
     const valour = culture.get(attacker.seat)?.traits[WAY.valour] ?? 0.5,
       hatred = Math.max(0, -r.opinion - (covets ? 0 : -RIVALRY)),
       last = lastPeace.get(attacker.ref),
@@ -1150,8 +1179,8 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     // Its people's voices at most double the chance: a draw beyond that cannot be met, and
     // the land it would want and the voices need not be reckoned.
     if (base <= 0 || !(draw < 2 * base)) continue;
-    const prize = frontier(ctx, attacker, defender)[0];
-    if (prize === undefined) continue;
+    const front = frontier(ctx, attacker, defender);
+    if (!front.length) continue;
     // Its people's voices: traders who want peace with those they trade with hold it
     // back; a temple that wants war on unbelievers urges it on.
     const voices = interestsOf(ctx, attacker, t),
@@ -1162,6 +1191,24 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       answer = holdBack(ctx, attacker, defender, year),
       chance = base * swayed * answer;
     if (chance <= 0 || !(draw < chance)) continue;
+    // What it is about, read off what drove it, and the land it goes for (W7).
+    const chosen = chooseAim(
+        ctx,
+        attacker,
+        defender,
+        r,
+        !!covets,
+        pressure(
+          voices.filter((i) => i.group === "the temple"),
+          "war",
+          defender.ref,
+        ).total,
+        pressure(voices, "more tribute").total,
+        ratio,
+        front,
+      ),
+      prize = chosen.prize,
+      aimName = AIM_FACTOR[chosen.aim.aim];
     const factors: Factor[] = [
       {
         name: "their rivalry",
@@ -1184,6 +1231,13 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         source: null,
       },
     ];
+    if (aimName)
+      factors.push({
+        name: aimName,
+        value: 1,
+        contribution: 0.45,
+        source: chosen.source ? { ref: chosen.source, role: "pressure", weight: 1 } : null,
+      });
     // The rivalry's own reasons, as they stood — so the war's why holds when the realms are gone.
     for (const term of r.terms
       .filter((x) => x.value < 0 && x.source && !/for their stores$/.test(x.name))
@@ -1246,7 +1300,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     const decision = world.decisions.record({
       rule: "war.declare",
       subject: attacker.ref,
-      outcome: { against: defender.ref, prize },
+      outcome: { against: defender.ref, prize, aim: chosen.aim.aim },
       score: chance,
       threshold: 0,
       factors,
@@ -1257,7 +1311,12 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         subjects: [ref, attacker.ref, defender.ref],
         place: cellRef(0, prize),
         causes: [{ ref: decision, role: "trigger", weight: 1 }],
-        data: { a: realmName(attacker), b: realmName(defender) },
+        data: {
+          a: realmName(attacker),
+          b: realmName(defender),
+          ...chosen.aim,
+          ...(goesForPrize(chosen.aim.aim) ? { aimed: true } : {}),
+        },
       });
     wars.add({
       ref,
@@ -1285,7 +1344,9 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     }
     // (A ruler's aim, Lives L4: the land named is fought for while it can be reached.)
     const front = frontier(ctx, a, b),
-      aimed = (world.events.get(w.event)?.data as { aimed?: boolean } | null)?.aimed === true,
+      declared = world.events.get(w.event)?.data as { aimed?: boolean; aim?: AimKind } | null,
+      aimed = declared?.aimed === true,
+      aim = declared?.aim,
       land = aimed && front.includes(w.prize) ? w.prize : front[0];
     if (land === undefined) {
       // No land left between them to fight over: the war ends, and history says so.
@@ -1431,7 +1492,9 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     wars.noteTerms(w, fought, termsA, termsB, bodySize(ctx));
     // A seat is not taken in a day: the first victory there lays a siege, the second takes it.
     const besieged = seat && won && !w.battles.slice(0, -1).some((x) => x.land === land && x.won);
-    if (won && !besieged) {
+    // (A host come for grain carries it off; come for tribute, or to be free, it leaves the land where it lies: W7.)
+    const hauled = won && aim === "stores" ? sack(ctx, a, b, land, battle) : 0;
+    if (won && !besieged && takesLand(aim)) {
       const taken = world.events.emit({
         type: WAR_EVENTS.taken.type,
         subjects: [a.ref, b.ref],
@@ -1465,24 +1528,43 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         w.fallen[1] / Math.max(1, peopleA) +
         (struck ? (struck[1] + struck[2]) / Math.max(1, peopleA) : 0),
       years = year - w.declared,
-      prizeWon = a.members.includes(w.prize);
+      prizeWon = a.members.includes(w.prize),
+      // (What it came for, W7, where that is not a land: the grain carried off, the field won.)
+      got =
+        hauled > 0 ||
+        (won &&
+          (aim === "free" ||
+            (aim === "tribute" && 2 * w.battles.filter((x) => x.won).length > w.battles.length)));
     // A beaten attacker often gives up; a won prize, a weary people or long years end it too.
     const repulsed = resolved.combat.broken === 0 && world.rng.real(FIGHT, key, t, 6) < 0.5;
     if (
       prizeWon ||
+      got ||
       repulsed ||
       weary > 0.02 ||
       years >= 6 ||
       world.rng.real(FIGHT, key, t, 5) < 0.12
     ) {
       w.ended = year;
+      // (Its terms, where both still stand and it was not a realm's war with itself: W7.)
+      const made =
+        !w.civil && a.ended === null && b.ended === null
+          ? reckonPeace(ctx, w, a, b, aim, prizeWon || got, year)
+          : null;
       w.peace = world.events.emit({
         type: WAR_EVENTS.peace.type,
         subjects: [w.ref, a.ref, b.ref],
         place: ctx.provinces.get(a.seat)?.ref ?? null,
         causes: [{ ref: battle, role: "trigger", weight: 1 }],
-        data: { a: realmName(a), b: realmName(b), years, won: prizeWon },
+        data: {
+          a: realmName(a),
+          b: realmName(b),
+          years,
+          won: prizeWon || got,
+          ...(made ? { terms: made.terms } : {}),
+        },
       });
+      if (made) bindPeace(ctx, w, made, w.peace, year);
       diplomacy.remember(a.ref, b.ref, {
         name: "a war between them",
         value: -0.45,
@@ -1539,6 +1621,7 @@ export function installWar(world: World, ctx: () => PopulationContext): WarStore
   const store = world.register(new WarStore());
   store.drawn((key, t, round, side) => world.rng.real(FIGHT, key, t, 100 + round, side));
   world.register(new ArmsStore());
+  installBonds(world);
   installFire(world);
   installFar(world, ctx);
   world.addPinner(() => store.pinned());

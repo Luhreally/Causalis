@@ -26,6 +26,10 @@ registerCommandWords("reign.peace", (world, c) => {
   const a = c.args as { realm: Ref; ruler: string; with: Ref };
   return `Your act: as ${a.ruler} you asked ${called(world, a.with)} for peace, year ${yearOfMoment(c.t)}`;
 });
+registerCommandWords("reign.rise", (world, c) => {
+  const a = c.args as { realm: Ref; ruler: string };
+  return `Your act: as ${a.ruler} you raised ${called(world, a.realm)} against the one it swore to, year ${yearOfMoment(c.t)}`;
+});
 registerCommandWords("reign.wed", (world, c) => {
   const a = c.args as WedArgs;
   return `Your act: as ${a.ruler} you wed ${a.who.name} to ${a.partner.name} of ${called(world, a.to)}, year ${yearOfMoment(c.t)}`;
