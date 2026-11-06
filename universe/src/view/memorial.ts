@@ -36,6 +36,8 @@ export type PlacedMemorial = {
   /** How high it stands, and how far it reaches to each side along its front (metres), for a finger. */
   readonly high: number;
   readonly wide: number;
+  /** How far it reaches to each side along its front as it is drawn, risen with the city about it (metres). */
+  readonly across: number;
 };
 
 /** The most parts one thing raised is made of: a town's worst is five of these. */
@@ -316,27 +318,23 @@ export function memorialsPlaced(plan: VillagePlan): readonly PlacedMemorial[] {
           if (!clearAt(ground, { x, z }, Math.min(4, wide * 0.5))) continue;
           taken.push({ x, z, wide });
           // (Its face toward the middle: a part's front, v up, looks at the square.)
-          const yaw = Math.atan2(-x, -z);
+          const yaw = Math.atan2(-x, -z),
+            // (Walls keep to the rim; what stands up may rise with the city about it.)
+            scale =
+              k *
+              0.82 *
+              (m.form === "wall" || m.form === "reef" || m.form === "heap"
+                ? Math.min(big / k, 1.15)
+                : big / k);
           out.push({
             m,
             x,
             z,
             yaw,
-            // (Walls keep to the rim; what stands up may rise with the city about it.)
-            scale:
-              k *
-              0.82 *
-              (m.form === "wall" || m.form === "reef" || m.form === "heap"
-                ? Math.min(big / k, 1.15)
-                : big / k),
-            high:
-              own.high *
-              k *
-              0.82 *
-              (m.form === "wall" || m.form === "reef" || m.form === "heap"
-                ? Math.min(big / k, 1.15)
-                : big / k),
+            scale,
+            high: own.high * scale,
             wide,
+            across: own.wide * scale,
           });
           return;
         }

@@ -269,6 +269,7 @@ export class TownTraffic {
       a = new pc.Vec3(),
       b = new pc.Vec3(),
       w = new pc.Vec3(),
+      mid = new pc.Vec3(),
       M = this.scale,
       /** How far outside what is drawn the finger is, and whether that counts as on it. */
       test = (cx: number, cz: number, yaw: number, long: number, wide: number, high: number) => {
@@ -280,12 +281,14 @@ export class TownTraffic {
         cam.worldToScreen(at, b);
         at.set((cx + (c * wide) / 2) * M, high * M, (cz - (s * wide) / 2) * M);
         cam.worldToScreen(at, w);
+        at.set(cx * M, high * M, cz * M);
+        cam.worldToScreen(at, mid);
         if (a.z <= 0 || b.z <= 0) return Infinity;
         const dx = b.x - a.x,
           dy = b.y - a.y,
           len = dx * dx + dy * dy,
           u = len ? Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / len)) : 0,
-          half = Math.hypot(w.x - (a.x + b.x) / 2, w.y - (a.y + b.y) / 2);
+          half = Math.hypot(w.x - mid.x, w.y - mid.y);
         return Math.hypot(a.x + dx * u - x, a.y + dy * u - y) - half;
       };
     let best: ({ direct: boolean; depth: number } & ({ owner: number } | { line: number })) | null =

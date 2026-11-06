@@ -49,6 +49,8 @@ export class MemorialLayer {
   private notes: InstancedBatch | null = null;
   /** What was last laid out, for a finger and the look tools. */
   placed: readonly PlacedMemorial[] = [];
+  /** The boxes each is made of, for a finger. */
+  private boxes: { readonly p: PlacedMemorial; readonly b: ReturnType<typeof partAt> }[] = [];
   parts = 0;
   batchesUsed = 0;
 
@@ -70,6 +72,7 @@ export class MemorialLayer {
     this.batches = [];
     this.notes = null;
     this.placed = memorialsPlaced(plan);
+    this.boxes = [];
     this.parts = 0;
     // A list of parts for each mesh and colour.
     const groups = new Map<
@@ -83,7 +86,9 @@ export class MemorialLayer {
           id = `${q.mesh}|${colour.join()}`;
         let g = groups.get(id);
         if (!g) groups.set(id, (g = { mesh: q.mesh, colour, list: [] }));
-        g.list.push(partAt(p, q));
+        const b = partAt(p, q);
+        g.list.push(b);
+        this.boxes.push({ p, b });
         this.parts++;
       }
     }
@@ -141,37 +146,116 @@ export class MemorialLayer {
   }
 
   /**
-   * The thing raised at a point of the screen (null: none), a finger's reach about it: the nearest, by its standing shape on the
-   * screen from foot to head and its breadth there. Only what lies in front of the eye: of a tall one stood close under, as much as can be seen.
+   * The thing raised right under the finger: a line from the eye through it against the boxes it is made of, the nearest it meets (null: none),
+   * and how far from the eye that is, as `worldToScreen` says it.
+   */
+  under(
+    cam: pc.CameraComponent,
+    x: number,
+    y: number,
+  ): { p: PlacedMemorial; depth: number } | null {
+    if (!this.boxes.length) return null;
+    const eye = cam.entity.getPosition(),
+      ahead = cam.screenToWorld(x, y, 1, new pc.Vec3()),
+      ox = eye.x / M,
+      oy = eye.y / M,
+      oz = eye.z / M,
+      dx = ahead.x / M - ox,
+      dy = ahead.y / M - oy,
+      dz = ahead.z / M - oz;
+    let best: PlacedMemorial | null = null,
+      bestT = Infinity;
+    for (const { p, b } of this.boxes) {
+      const c = Math.cos(b.yaw),
+        s = Math.sin(b.yaw),
+        fx = ox - b.x,
+        fz = oz - b.z,
+        // (The line in the box's own turn: its u along (c, -s), its v along (s, c).)
+        from = [fx * c - fz * s, oy - b.y, fx * s + fz * c],
+        along = [dx * c - dz * s, dy, dx * s + dz * c],
+        half = [b.sx / 2, b.sy / 2, b.sz / 2];
+      let t0 = 0,
+        t1 = Infinity;
+      for (let i = 0; i < 3 && t0 <= t1; i++) {
+        const o = from[i]!,
+          d = along[i]!,
+          h = half[i]!;
+        if (Math.abs(d) < 1e-9) {
+          if (Math.abs(o) > h) t0 = Infinity;
+          continue;
+        }
+        const a = (-h - o) / d,
+          e = (h - o) / d;
+        t0 = Math.max(t0, Math.min(a, e));
+        t1 = Math.min(t1, Math.max(a, e));
+      }
+      if (t0 <= t1 && t0 < bestT) {
+        bestT = t0;
+        best = p;
+      }
+    }
+    if (!best) return null;
+    const at = new pc.Vec3();
+    cam.worldToScreen(
+      new pc.Vec3((ox + dx * bestT) * M, (oy + dy * bestT) * M, (oz + dz * bestT) * M),
+      at,
+    );
+    return { p: best, depth: at.z };
+  }
+
+  /**
+   * The thing raised at a point of the screen (null: none): the one right under the finger, else within its reach, by its standing shape on the
+   * screen from foot to head and its breadth there, the nearest to the finger. Of a tall one stood close under, as much as can be seen.
    */
   at(cam: pc.CameraComponent, x: number, y: number, reach = 16): PlacedMemorial | null {
+    const on = this.under(cam, x, y);
+    if (on) return on.p;
+    if (reach <= 0) return null;
     let best: PlacedMemorial | null = null,
-      bestD = Infinity,
-      bestOn = false,
-      bestNear = Infinity;
+      bestD = Infinity;
     const foot = new pc.Vec3(),
-      head = new pc.Vec3();
+      head = new pc.Vec3(),
+      there = new pc.Vec3(),
+      side = new pc.Vec3();
     for (const p of this.placed) {
       const seen = seenOf(cam, p, foot, head);
       if (foot.z <= 0 || head.z <= 0) continue;
-      // (How far a metre is on the screen, there: from its height.)
-      const high = Math.max(8, Math.hypot(foot.x - head.x, foot.y - head.y)),
-        half = Math.max(10, (high / Math.max(1, seen)) * p.wide * 0.8) + reach,
-        along = Math.max(0, Math.min(1, (y - foot.y) / (head.y - foot.y || 1))),
-        cx = foot.x + (head.x - foot.x) * along,
-        cy = foot.y + (head.y - foot.y) * along,
-        inY = y >= Math.min(foot.y, head.y) - reach && y <= Math.max(foot.y, head.y) + reach,
-        d = Math.abs(x - cx);
-      if (!inY || d > half) continue;
-      // (The finger right on one, the nearest of those to the eye: a stone in front before one behind it. Else only near: the nearest to the finger.)
-      const on =
-          d <= half - reach && y >= Math.min(foot.y, head.y) && y <= Math.max(foot.y, head.y),
-        off = Math.hypot(x - cx, y - cy);
-      if (on ? !bestOn || foot.z < bestNear : !bestOn && off < bestD) {
+      const least = Math.min(foot.y, head.y),
+        most = Math.max(foot.y, head.y);
+      if (y < least - reach || y > most + reach) continue;
+      // (Its middle and breadth on the screen where the finger is: a tall one's foot can be near the eye and its head far from it.)
+      const up = head.y < foot.y,
+        aim = Math.max(least, Math.min(most, y));
+      let a = 0,
+        b = seen;
+      for (let i = 0; i < 12; i++) {
+        const mid = (a + b) / 2;
+        cam.worldToScreen(new pc.Vec3(p.x * M, mid * M, p.z * M), there);
+        if (up === there.y > aim) a = mid;
+        else b = mid;
+      }
+      // (Its two ends along its front, as it faces: if one is behind the eye, as far along as lies before it.)
+      const h = ((a + b) / 2) * M,
+        ux = Math.cos(p.yaw) * p.across * M,
+        uz = -Math.sin(p.yaw) * p.across * M;
+      cam.worldToScreen(new pc.Vec3(p.x * M, h, p.z * M), there);
+      const axis = there.x,
+        depth = there.z,
+        end = (sign: number, out: pc.Vec3): void => {
+          cam.worldToScreen(new pc.Vec3(p.x * M + sign * ux, h, p.z * M + sign * uz), out);
+          if (out.z > 0 || depth <= 0) return;
+          const f = (0.9 * depth) / (depth - out.z);
+          cam.worldToScreen(new pc.Vec3(p.x * M + sign * ux * f, h, p.z * M + sign * uz * f), out);
+        };
+      end(1, there);
+      end(-1, side);
+      const half = Math.abs(there.x - side.x) / 2,
+        cx = half > 10 ? (there.x + side.x) / 2 : axis;
+      if (Math.abs(x - cx) > Math.max(10, half) + reach) continue;
+      const off = Math.hypot(x - cx, y - aim);
+      if (off < bestD) {
         bestD = off;
         best = p;
-        bestOn = on;
-        bestNear = foot.z;
       }
     }
     return best;
@@ -179,17 +263,8 @@ export class MemorialLayer {
 
   /** Whether the body of a thing raised is right under the finger, nearer the eye than `depth`. */
   over(cam: pc.CameraComponent, x: number, y: number, depth: number): boolean {
-    const p = this.at(cam, x, y, 0);
-    if (!p) return false;
-    const d = this.depth(cam, p);
-    return d > 0 && d < depth;
-  }
-
-  /** How far from the eye a thing raised stands, as `worldToScreen` says it. */
-  depth(cam: pc.CameraComponent, p: PlacedMemorial): number {
-    const foot = new pc.Vec3();
-    cam.worldToScreen(new pc.Vec3(p.x * M, 0, p.z * M), foot);
-    return foot.z;
+    const on = this.under(cam, x, y);
+    return !!on && on.depth > 0 && on.depth < depth;
   }
 
   /** Where each thing raised stands on the screen (the look tools). */
