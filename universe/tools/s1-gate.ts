@@ -523,12 +523,29 @@ if (argv.includes("--renders")) {
 // —— The title on the phone: a touch starts it, a press of 🔊 stops it, and it is remembered.
 {
   await touchAnywhere();
+  // (A runner with no sound device may never start a context, or may start one whose clock stands still. The
+  // renders above need no device. All that follows does, so on CI that ends the gate, and says so.)
+  const noDevice = async (why: string) => {
+    console.log(`::warning::gate 90: ${why}: nothing live was measured on this machine`);
+    await browser.close();
+    await server.close();
+    for (const p of problems) console.log(`  - ${p}`);
+    console.log(problems.length ? `gate 90: ${problems.length} problem(s)` : "gate 90 passed");
+    process.exit(problems.length ? 1 : 0);
+  };
+  if (ci) {
+    const end = Date.now() + slow(5000);
+    while (Date.now() < end && (await state()).ctx !== "running") await page.waitForTimeout(100);
+    const was = await state();
+    if (was.ctx !== "running") await noDevice(`the context is ${was.ctx} after a touch`);
+  }
   await until("the context running after a touch", async () => (await state()).ctx === "running");
   const st = await state();
   say(
     `after a touch: ${st.ctx}; the graph built in ${st.startMs.toFixed(1)} ms; ${st.nodes} nodes`,
   );
   const m = await measure(1500);
+  if (ci && m.ran < 0.2) await noDevice(`the context's clock ran ${m.ran} s in 1.5 s`);
   say(
     `the title, as a speaker gets it: ${dbfs(m.rms)} dBFS, peak ${m.peak.toFixed(2)}; its clock ran ${m.ran.toFixed(2)} s`,
   );
