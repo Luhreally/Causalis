@@ -1479,9 +1479,7 @@ export class VillageScene {
   }
 
   /** The song at the feast now and who sings it (T1; null: none), where it shows on the screen. */
-  sungNow(
-    t: number,
-  ): {
+  sungNow(t: number): {
     readonly ref: string;
     readonly title: string;
     readonly line: string;

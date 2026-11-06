@@ -299,11 +299,17 @@ export function memorialsPlaced(plan: VillagePlan): readonly PlacedMemorial[] {
           parts = memorialParts(m, key),
           own = reachOf(parts),
           wide = own.wide * k * 0.82;
-        for (const s of slots) {
-          const x = r * Math.cos(s.a),
-            z = r * Math.sin(s.a);
-          if (taken.some((t) => Math.hypot(t.x - x, t.z - z) < (t.wide + wide) * 0.92)) continue;
-          if (stalls.some((q) => Math.hypot(q.x - x, q.z - z) < 4.5 * k + wide * 0.4)) continue;
+        // (On the rim; where it is full, a little further in; then closer beside its neighbours: what a town lists, stands.)
+        for (const s of [
+          ...slots.map((q) => ({ ...q, ring: r, gap: 0.92 })),
+          ...slots.map((q) => ({ ...q, ring: r * 0.76, gap: 0.92 })),
+          ...slots.map((q) => ({ ...q, ring: r, gap: 0.6 })),
+        ]) {
+          const x = s.ring * Math.cos(s.a),
+            z = s.ring * Math.sin(s.a);
+          if (taken.some((t) => Math.hypot(t.x - x, t.z - z) < (t.wide + wide) * s.gap)) continue;
+          // (Its breadth runs along the rim, and the stalls stand well in from it: it is only what reaches in toward them that counts.)
+          if (stalls.some((q) => Math.hypot(q.x - x, q.z - z) < 3.2 * k + wide * 0.15)) continue;
           if (wonders.some((q) => Math.hypot(q.x - x, q.z - z) < 7 + wide * 0.6)) continue;
           if (!clearOfHall(plan, x, z, wide * 0.7)) continue;
           if (!clearAt(ground, { x, z }, Math.min(4, wide * 0.5))) continue;
