@@ -212,14 +212,18 @@ function forge(
       rivalMoves(ctx, p, c, f, o, world.now);
       c.plot = { ...c.plot!, won };
     };
+  // A plotter can die in the year of the plot, and a ruler can, and then it comes to nothing (as Tuk Lilindis
+  // did at 41, on Earth at 450). Others stand by for the scenes that need the year's end.
+  const spare = left.slice(3).filter((p) => p !== bereftP),
+    foundTries = [foundP, ...spare.slice(0, 2)],
+    wonTries = [wonP, ...spare.slice(2, 4)],
+    scenes = new Map([...foundTries, ...wonTries].map((p) => [p, scene(p)] as const));
   const look = scene(lookP),
     dies = scene(diesP),
-    found = scene(foundP),
-    won = scene(wonP),
     answer = scene(answerP),
     bereft = scene(bereftP);
-  move(foundP, false);
-  move(wonP, true);
+  foundTries.forEach((p) => move(p, false));
+  wonTries.forEach((p) => move(p, true));
   move(answerP, false);
   // The one who is to die, and an heir about to, are of the oldest band a people's table has.
   diesP.ruler = { ...diesP.ruler, born: now - 3 * ctx.life.bands.at(-1)! };
@@ -238,6 +242,18 @@ function forge(
     hashAt = world.now + YEAR;
   world.runTo(hashAt);
   const hashes = JSON.stringify(world.domainHashes());
+  // Each scene is the first that came out as drawn.
+  const cameOut = (tries: readonly Polity[], type: string) =>
+      scenes.get(
+        tries.find((p) =>
+          courts.of(p.ref)?.told.some((e) => {
+            const told = world.events.get(e);
+            return told?.type === type && told.t > hashAt - 2 * YEAR;
+          }),
+        ) ?? tries[0]!,
+      )!,
+    found = cameOut(foundTries, "court.found"),
+    won = cameOut(wonTries, "court.seized");
   say(
     `${seed}: year ${now}, ${realms.living().length} realms, ${usable.length} with a rival; read ${look.town}, made in ${((performance.now() - started) / 1000).toFixed(0)} s`,
   );
@@ -565,10 +581,29 @@ async function play(f: Forged, tag: string): Promise<void> {
   check(told.includes(f.found.rival), `${tag}: the plotter is not told`);
   check(/plot was found/.test(told), `${tag}: a plot found is not told: ${told.slice(0, 400)}`);
   await k(
-    `[...document.querySelectorAll(".page-window li, .page-window .item, .page-window button, .page-window a")].filter((x) => /plot was found/.test(x.textContent)).pop()?.setAttribute("data-gate", "found")`,
+    `[...document.querySelectorAll(".page-window li, .page-window .item, .page-window button, .page-window a")].filter((x) => /plot was found/.test(x.textContent) && x.textContent.includes(${JSON.stringify(f.found.rival)})).pop()?.setAttribute("data-gate", "found")`,
   );
   await shot(`${tag}-5-found`);
-  await tap(`[data-gate="found"]`);
+  await k(`document.querySelector('[data-gate="found"]')?.scrollIntoView({ block: "center" })`);
+  await page.waitForTimeout(80);
+  const said = await k<{ x: number; y: number; under: boolean } | null>(`(() => {
+    const row = document.querySelector('[data-gate="found"]');
+    if (!row) return null;
+    const walk = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+      const i = n.textContent.indexOf("plot was found");
+      if (i < 0) continue;
+      const range = document.createRange();
+      range.setStart(n, i);
+      range.setEnd(n, i + 14);
+      const r = range.getClientRects()[0];
+      const x = r.left + r.width / 2, y = r.top + r.height / 2, top = document.elementFromPoint(x, y);
+      return { x, y, under: !top || !(row === top || row.contains(top)) };
+    }
+    return null;
+  })()`);
+  check(!!said && !said.under, `${tag}: the words of a plot found are not there to touch`);
+  if (said) await page.touchscreen.tap(said.x, said.y);
   await until(`${tag}: the plot's page`, async () => /Why it happened/i.test(await pageText()));
   await settle(400);
   // Down its why: the plot's move, and what moved them.
@@ -743,7 +778,8 @@ async function rule(f: Forged, tag: string): Promise<void> {
     const name = c.heir;
     // (Death takes its time. Any other window on the way is let come: this ruler is here for the one thing.)
     // (Their own death's window says "has died" too: this one is the heir's.)
-    const died = async () => (await text(".reign-window")).includes(", your heir, died");
+    const died = async () =>
+      (await seen(".reign-window")) && (await text(".reign-window")).includes(", your heir, died");
     let came = false;
     for (let y = 1; y <= 40 && !came; y++) {
       await k(`globalThis.causalis.client.advance(${Math.round(f.hashAt + y * YEAR)})`);
@@ -752,6 +788,8 @@ async function rule(f: Forged, tag: string): Promise<void> {
         came = await died();
         if (came) break;
         if (await seen(`.reign-drama[data-choice="let"]`)) {
+          came = await died();
+          if (came) break;
           await tap(`.reign-drama[data-choice="let"]`);
           await settle(200);
           if (await seen(".reign-pace")) await tap(".reign-pace");
