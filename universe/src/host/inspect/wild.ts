@@ -1,7 +1,13 @@
 // What the world did by itself, on its page (N1): what happened, where, who died, and why here, with its land and its plates to open.
 import type { HistoryEvent, World } from "../../kernel/index.ts";
 import { isProvinceWorld, worldKindOf } from "../../gen/index.ts";
-import { NATURE, faultRate, kindBiomeName, yearsBetween, type FaultKind } from "../../rules/index.ts";
+import {
+  NATURE,
+  faultRate,
+  kindBiomeName,
+  yearsBetween,
+  type FaultKind,
+} from "../../rules/index.ts";
 import { populationContext } from "../../sim/index.ts";
 import type { Block, Span } from "../../bridge/index.ts";
 import { landLink, townLink } from "./names.ts";

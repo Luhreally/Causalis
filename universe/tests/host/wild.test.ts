@@ -2,7 +2,14 @@
 // comes by no hand, the same each run, through a save; a fire goes only over what can burn; a world with nothing to burn has no fire.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DAY, YEAR, loadWorld, rulesetId, saveWorld, seedFromText } from "../../src/kernel/index.ts";
+import {
+  DAY,
+  YEAR,
+  loadWorld,
+  rulesetId,
+  saveWorld,
+  seedFromText,
+} from "../../src/kernel/index.ts";
 import { ALIEN, EARTH } from "../../src/host/planet.ts";
 import { landPlan } from "../../src/host/land.ts";
 import { why } from "../../src/causal/index.ts";
@@ -114,7 +121,10 @@ test("by itself, a world shakes and burns, by no hand", () => {
       d = (e.data ?? {}) as { natural?: boolean };
     if (!d.natural) continue;
     told++;
-    assert.ok(!e.causes.some((c) => c.ref.startsWith("cmd:")), `${e.id} has a hand among its causes`);
+    assert.ok(
+      !e.causes.some((c) => c.ref.startsWith("cmd:")),
+      `${e.id} has a hand among its causes`,
+    );
     const claim = why(world, e.id).claim;
     assert.ok(!/By your hand|Your act/.test(claim), claim);
     assert.ok(!/undefined|NaN|\[object|\bnull\b/.test(claim), claim);
@@ -152,7 +162,10 @@ test("a fire goes only over ground that can burn, each patch from one it took, a
   }
   // A scar is gone when what burned has grown back.
   const y = Math.floor(world.now / YEAR);
-  assert.ok(store.scars.every((f) => f.gone > world.now - YEAR), String(y));
+  assert.ok(
+    store.scars.every((f) => f.gone > world.now - YEAR),
+    String(y),
+  );
 });
 
 test("a world of sulfur burns blue, and says so", () => {
@@ -193,7 +206,9 @@ test("the same seed, the same fires; and through a save it goes on the same", ()
   assert.equal(JSON.stringify(again.domainHashes()), JSON.stringify(world.domainHashes()));
 
   // A save holds it, and running on from it comes to the same world as never having saved.
-  const doc = JSON.parse(JSON.stringify(saveWorld(world, rulesetId(world, EARTH.version), { universe: EARTH.name }))),
+  const doc = JSON.parse(
+      JSON.stringify(saveWorld(world, rulesetId(world, EARTH.version), { universe: EARTH.name })),
+    ),
     { world: loaded } = loadWorld(doc, (s) => EARTH.build(s), rulesetId(world, EARTH.version));
   assert.deepEqual(wildOf(loaded)!.tally, store.tally);
   assert.equal(wildOf(loaded)!.scars.length, store.scars.length);

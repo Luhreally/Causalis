@@ -277,7 +277,10 @@ export class LandLayer {
   private readonly settled: GroundBatches;
   private readonly rising: GroundBatches;
   private readonly fieldBatches: InstancedBatch[] = [];
-  private readonly roadBatches: Record<"track" | "paved" | "rails" | "faint", InstancedBatch | null> = {
+  private readonly roadBatches: Record<
+    "track" | "paved" | "rails" | "faint",
+    InstancedBatch | null
+  > = {
     track: null,
     paved: null,
     rails: null,
@@ -411,7 +414,12 @@ export class LandLayer {
         settled = had?.settled ?? new TownParts();
       settled.clear();
       // (Of worn ground, what the land's eye can make out.)
-      townGround(scene, settled, !!town.plan.ash, Math.min(LAND_WORN, 40 + Math.floor(scene.plan.lots / 6)));
+      townGround(
+        scene,
+        settled,
+        !!town.plan.ash,
+        Math.min(LAND_WORN, 40 + Math.floor(scene.plan.lots / 6)),
+      );
       townHomes(scene, scene.settled, moment, settled);
       townAsh(scene, moment, settled, true);
       this.towns.set(town.ref, {
@@ -647,7 +655,9 @@ export class LandLayer {
       )
       .join("|")}|${plan.lanes
       .map((l) => (l.since <= year ? `${l.from}:${l.dx}:${l.dz}:${l.ships}` : ""))
-      .join("|")}|${(plan.envoys ?? []).map((e) => e.ref).join("|")}|${(plan.camps ?? []).map((c) => c.home).join(",")}`;
+      .join(
+        "|",
+      )}|${(plan.envoys ?? []).map((e) => e.ref).join("|")}|${(plan.camps ?? []).map((c) => c.home).join(",")}`;
     if (key === this.roadsKey) return;
     this.roadsKey = key;
     this.roadWays = [];
@@ -761,7 +771,15 @@ export class LandLayer {
         b = new InstancedBatch(
           this.stage,
           this.meshes.box,
-          [...(look === "track" ? TRACK : look === "paved" ? PAVED : look === "faint" ? FAINT : RAILS)],
+          [
+            ...(look === "track"
+              ? TRACK
+              : look === "paved"
+                ? PAVED
+                : look === "faint"
+                  ? FAINT
+                  : RAILS),
+          ],
           Math.max(64, Math.ceil(list.length * 1.3)),
           this.root,
         );

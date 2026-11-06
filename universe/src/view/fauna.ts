@@ -18,7 +18,14 @@ import type { VillagePlan } from "../bridge/index.ts";
 import { fieldPoint } from "./country.ts";
 import { flockAt, flockMember, foldReach, prowlAt } from "./flock.ts";
 import { gameAt, huntGround, huntOn } from "./hunt.ts";
-import { COAT_COLOURS, HERD, coatColour, coatWord, passAt, type CreatureBody } from "../rules/index.ts";
+import {
+  COAT_COLOURS,
+  HERD,
+  coatColour,
+  coatWord,
+  passAt,
+  type CreatureBody,
+} from "../rules/index.ts";
 import { buildBody, strideOf, type Built, type Pose } from "./creature.ts";
 import { dryAt, keepOut, villageGround, type Ground } from "./ground.ts";
 import { treesOf } from "./village.ts";

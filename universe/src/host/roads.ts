@@ -398,4 +398,3 @@ export function getAbout(world: World, cell: number, era: LandEra): GetAbout {
     mount: means.rides ? (means.mount ?? null) : null,
   };
 }
-

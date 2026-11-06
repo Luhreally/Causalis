@@ -350,8 +350,7 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
       lost = p ? new Set(wildsOf(ctx, cell).lost) : new Set<number>();
     const blocks: Block[] = [];
     // What its woods were, what they came to and what did it, whoever lives there (E1).
-    for (const b of [woodsBlock(world, cell), woodsTurnsBlock(world, cell)])
-      if (b) blocks.push(b);
+    for (const b of [woodsBlock(world, cell), woodsTurnsBlock(world, cell)]) if (b) blocks.push(b);
     // What goes on it, when, and what has become of them (Z1).
     const herds = herdBlock(world, cell);
     if (herds) blocks.push(herds);

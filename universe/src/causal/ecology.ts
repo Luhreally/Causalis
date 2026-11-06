@@ -25,7 +25,14 @@ registerEventWords(HERD_EVENTS.grazed.type, (world, e) => {
   return `The flocks of ${landWords(world, e.place)} grazed its pasture down, and the wild ${d?.beast ?? "herds"} had less to come for, ${year(e.t)}`;
 });
 registerEventWords(HERD_EVENTS.known.type, (world, e) => {
-  const d = e.data as { given?: string; by?: string; beast?: string; town?: string; flocks?: boolean; water?: boolean } | null,
+  const d = e.data as {
+      given?: string;
+      by?: string;
+      beast?: string;
+      town?: string;
+      flocks?: boolean;
+      water?: boolean;
+    } | null,
     took = d?.water
       ? "took from their pens and their shoals"
       : d?.flocks
@@ -42,7 +49,13 @@ registerEventWords(HERD_EVENTS.after.type, (world, e) => {
   return `${d?.who ?? "Someone"} of ${d?.town ?? landWords(world, e.place)} set out after ${d?.given ?? "the beast"}, ${year(e.t)}`;
 });
 registerEventWords(HERD_EVENTS.ended.type, (world, e) => {
-  const d = e.data as { given?: string; by?: string; how?: string; killer?: string | null; town?: string } | null,
+  const d = e.data as {
+      given?: string;
+      by?: string;
+      how?: string;
+      killer?: string | null;
+      town?: string;
+    } | null,
     name = `${d?.given ?? "The beast"}, ${d?.by ?? ""}`,
     at = d?.town ?? landWords(world, e.place);
   if (d?.how === "hunted")
@@ -55,10 +68,20 @@ registerEventWords(HERD_EVENTS.ended.type, (world, e) => {
 function headWords(n: number): string {
   if (n >= 1e6) return `${Math.round(n / 1e5) / 10} million`;
   const round = n >= 1e4 ? 1000 : n >= 1000 ? 100 : 10;
-  return String(Math.max(round, Math.round(n / round) * round)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return String(Math.max(round, Math.round(n / round) * round)).replace(
+    /\B(?=(\d{3})+(?!\d))/g,
+    ",",
+  );
 }
 registerEventWords(HERD_EVENTS.driven.type, (world, e) => {
-  const d = e.data as { a?: string; b?: string; beast?: string | null; share?: number; head?: number; water?: boolean } | null,
+  const d = e.data as {
+      a?: string;
+      b?: string;
+      beast?: string | null;
+      share?: number;
+      head?: number;
+      water?: boolean;
+    } | null,
     head = d?.head && !d.water ? `some ${headWords(d.head)} head of ` : "",
     what = d?.water ? "the shoals out of their pens" : `${d?.beast ?? "beasts"}`,
     who = d?.a ?? "A host";

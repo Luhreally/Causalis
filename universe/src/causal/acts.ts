@@ -289,7 +289,8 @@ registerEventWords(DISASTER_EVENTS.quake.type, (world, e) => {
     return `The ground shook under ${landWords(world, e.place as Ref | null)}, a shock of magnitude ${d.mag}: ${tollWords(d.dead ?? 0, homes)}, year ${yearOfMoment(e.t)}`;
   }
   // (Its record forgotten, whether a hand did it is too: no one's is claimed.)
-  if (!d) return `The ground shook under ${landWords(world, e.place as Ref | null)}, year ${yearOfMoment(e.t)}`;
+  if (!d)
+    return `The ground shook under ${landWords(world, e.place as Ref | null)}, year ${yearOfMoment(e.t)}`;
   return `By your hand: the ground shook under ${landWords(world, e.place as Ref | null)}, and ${said(d?.dead)} died${d?.blocks ? `, and ${d.blocks} of its cities' blocks fell` : ""}, year ${yearOfMoment(e.t)}`;
 });
 registerEventWords(DISASTER_EVENTS.meteor.type, (world, e) => {
@@ -304,7 +305,8 @@ registerEventWords(DISASTER_EVENTS.meteor.type, (world, e) => {
     const homes = Object.values(d.homes ?? {}).reduce((a, b) => a + b, 0);
     return `A stone some ${d.metres ?? 20} metres across fell on ${landWords(world, e.place as Ref | null)}: ${tollWords(d.dead ?? 0, homes)}, year ${yearOfMoment(e.t)}`;
   }
-  if (!d) return `A stone fell from the sky on ${landWords(world, e.place as Ref | null)}, year ${yearOfMoment(e.t)}`;
+  if (!d)
+    return `A stone fell from the sky on ${landWords(world, e.place as Ref | null)}, year ${yearOfMoment(e.t)}`;
   return `By your hand: fire fell from the sky on ${landWords(world, e.place as Ref | null)}: ${said(d?.dead)} died, and its fields burned for ${d?.years ?? 2} years, year ${yearOfMoment(e.t)}`;
 });
 registerEventWords(DISASTER_EVENTS.flood.type, (world, e) => {
