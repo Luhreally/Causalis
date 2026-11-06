@@ -1401,8 +1401,8 @@ export class TownBuilder {
       });
       this.store.fold(f.town, FOLD.begun, i, at, this.year);
       begun++;
-      // (A temple raised is told: its town's faith in stone.)
-      if (def.kind === "temple") {
+      // (A temple raised is told: its town's faith in stone. Not one the eye reckons apart: reading a town changes nothing.)
+      if (def.kind === "temple" && this.store === townsOf(this.ctx.world)) {
         const why = causeOf(this.ctx, s.cell, def.kind);
         this.ctx.world.events.emit({
           type: TOWN_EVENTS.temple.type,

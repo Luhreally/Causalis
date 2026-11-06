@@ -409,6 +409,7 @@ async function unlike(a: string, b: string): Promise<number> {
 
 /** Down to a port by touch, from the 🚀 list. */
 async function toPort(cell: number, tag: string): Promise<string> {
+  const before = await ask<unknown>("hashes");
   await until("the 🚀 button", () => page.isVisible(".colonies-button"));
   const listed = () => k<boolean>(`!document.querySelector(".colony-sheet").hidden`);
   // (Once more if a touch came as the panel moved: a real thumb would try again.)
@@ -432,6 +433,11 @@ async function toPort(cell: number, tag: string): Promise<string> {
   );
   await settleFor(5500);
   await shot(`${tag}-port`);
+  // (Reading a colony's town and its port is reading: a temple it reckons raised is no event of the world's.)
+  check(
+    JSON.stringify(before) === JSON.stringify(await ask<unknown>("hashes")),
+    `going down to the port of ${cell} changed the world`,
+  );
   return (await page.screenshot()).toString("base64");
 }
 
