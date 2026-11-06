@@ -908,6 +908,8 @@ type Stint = {
   readonly butt?: Point;
   /** What they carry on the way to it (a bier borne to the graveyard: Phase 43 M205). */
   readonly walkCarry?: Carry;
+  /** To be there before `until`, wherever the day has them: they set out as soon as that takes. */
+  readonly inTime?: boolean;
   /**
    * Walked to in step with others along a way they share (a bier's bearers): so far along it and
    * across its line, all of them setting off along it at `start` (world seconds).
@@ -1302,17 +1304,7 @@ function fightsOn(plan: VillagePlan, day: number): ReadonlyMap<number, readonly 
         arrive = start + inStepTime(way, pace),
         wait = q.at - HOMECOMING.gather,
         done = arrive + HOMECOMING.setDown,
-        // (In a great town the road's end may lie a long walk from any door: they set out in time
-        // to be there, or one comes up behind the litter when it has gone.)
-        setOff = (i: number) => Math.min(wait, q.at - (dist(homeOf(i), edge) / pace) * 1.5 - 120),
-        two = nearest(
-          edge,
-          (i) => able(i) && !column.has(i) && free(i, setOff(i), done),
-          2,
-          wait,
-          done,
-          Infinity,
-        );
+        two = nearest(edge, (i) => able(i) && !column.has(i), 2, wait, done, Infinity);
       if (two.length < 2) continue;
       const head = runsOf(way)[0]?.d ?? { x: -dir.x, z: -dir.z },
         laid = stepWay(way, HOMECOMING.along + 1),
@@ -1322,9 +1314,11 @@ function fightsOn(plan: VillagePlan, day: number): ReadonlyMap<number, readonly 
           by = clearSpot(ground, offWay(edge, head, along * 1.3, 1.8)),
           there = stepAt(laid, laid.long + along, 0);
         put(i, {
-          from: setOff(i) + j * 30,
+          from: wait + j * 30,
           until: q.at,
           at: by,
+          // (Out on the far pastures, a walk longer than the rest have: the litter waits for no one.)
+          inTime: true,
           task: "watch",
           carry: null,
           face: Math.atan2(dir.x, dir.z),
@@ -3086,8 +3080,14 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
   /** The day's legs with a part in the town's trouble put in (the legs it takes the place of cut out). */
   function breakIn(part: Stint): void {
     const plain = legs.splice(0),
-      s0 = part.from - day * DAY,
-      s1 = Math.max(s0, part.until - day * DAY);
+      s1 = Math.max(part.from, part.until) - day * DAY;
+    let s0 = part.from - day * DAY;
+    if (part.inTime) {
+      // (By the streets and with a while in hand: the straight way's half as long again.)
+      const w = whereAt(plain, s0),
+        walk = (Math.hypot(part.at.x - w.x, part.at.z - w.z) / pace) * 1.4 + 360;
+      s0 = Math.max(0, Math.min(s0, s1 - walk));
+    }
     legs.push(...cutLegs(plain, 0, s0));
     let t = part.inStep
       ? takeUp(part.inStep, s0, whereAt(plain, s0), part.walkCarry ?? null, part.to)

@@ -23,6 +23,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { preview } from "vite";
 import { chromium } from "playwright";
+import type { VillagePlan } from "../src/bridge/index.ts";
+import { leanOn } from "../src/view/errands.ts";
 
 const ci = process.argv.includes("--ci"),
   soft = process.argv.includes("--soft"),
@@ -552,11 +554,15 @@ await page.waitForFunction(
 );
 await k(`globalThis.causalis.setQuality("high")`);
 await k(`globalThis.causalis.client.setSpeed(0)`);
-const works = await townWhere(
-  (p) =>
-    p.people.some((x) => x.trade?.kind === "machinist") &&
-    p.people.some((x) => x.trade?.kind === "founder"),
-);
+// (Not one going hungry: its works rightly stand idle while its people look for food.)
+const nextDay =
+    Math.floor((await k<number>(`globalThis.causalis.client.status?.t ?? 0`)) / DAY) + 1,
+  works = await townWhere(
+    (p) =>
+      p.people.some((x) => x.trade?.kind === "machinist") &&
+      p.people.some((x) => x.trade?.kind === "founder") &&
+      !leanOn(p as unknown as VillagePlan, nextDay),
+  );
 check(!!works, "no town of the Earth seed keeps founders and machinists at its works by 1050");
 if (works) {
   const founders = new Set(

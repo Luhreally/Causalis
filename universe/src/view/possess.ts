@@ -319,8 +319,24 @@ export function workOf(
     kind = TRADE_KIND[work.trade];
   if (!kind) return { ...work, far: -1 };
   const m = momentOf(plan, index, t),
-    p = placesNear(plan, ground, t, m).find((q) => q.kind === kind);
-  return { ...work, far: p ? Math.round(Math.hypot(p.x - m.x, p.z - m.z) * 10) / 10 : -1 };
+    // (A row is a field's breadth: how far from its edge, as the work itself asks, not its middle.)
+    off = (q: PossessPlace) => {
+      if (q.kind !== "row" || !q.w || !q.d) return Math.hypot(q.x - m.x, q.z - m.z);
+      const ax = Math.cos(q.yaw),
+        az = -Math.sin(q.yaw),
+        dx = m.x - q.x,
+        dz = m.z - q.z;
+      return Math.max(
+        0,
+        Math.abs(dx * ax + dz * az) - q.w / 2,
+        Math.abs(-dx * az + dz * ax) - q.d / 2,
+      );
+    },
+    near = placesNear(plan, ground, t, m).filter((q) => q.kind === kind);
+  return {
+    ...work,
+    far: near.length ? Math.round(Math.min(...near.map(off)) * 10) / 10 : -1,
+  };
 }
 
 /**

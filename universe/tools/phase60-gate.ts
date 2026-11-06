@@ -548,8 +548,7 @@ async function walk(
   const all = await k<Candidate[]>(`globalThis.causalis.possess.candidates()`),
     order = ["smith", "potter", "weaver", "farmer"],
     chosen = all
-      // (Far enough that he has not walked there by the time he is taken: one on his way there may have.)
-      .filter((c) => !c.child && c.far >= 12 && c.far <= 60 && order.includes(c.trade))
+      .filter((c) => !c.child && c.far >= 6 && c.far <= 60 && order.includes(c.trade))
       .sort((a, b) => order.indexOf(a.trade) - order.indexOf(b.trade) || a.far - b.far)[0];
   check(!!chosen, n(`none of ${great.name}'s ${all.length} under the hand a walk from their work`));
   if (!chosen) return null;
