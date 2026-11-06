@@ -7,6 +7,7 @@ import "./y2k.css";
 import "./brushes.css";
 import "./tour.css";
 import "./can.css";
+import "./years.css";
 import { Checkpoint } from "./checkpoint.ts";
 import { HostClient, LOT, inlinePair, lotStates, progress, workerPort } from "../bridge/index.ts";
 import {
@@ -84,6 +85,7 @@ import {
   isGreat,
   HoverTips,
   LogButton,
+  RunNote,
   type MapName,
   type PeopleEntry,
   type WorldStats,
@@ -3556,6 +3558,8 @@ async function runPlanetPage(): Promise<void> {
     location.search = `?universe=${encodeURIComponent(u)}&seed=${encodeURIComponent(s)}&load=${encodeURIComponent(name)}`;
   };
   planetPanel.onSaves = () => client.saves();
+  /** What a world taken up again in place has to forget. */
+  const takeUp: (() => void)[] = [];
   planetPanel.onLoadSave = async (save) => {
     if (save.universe !== universe || save.seed !== seed) {
       elsewhere(save.universe, save.seed, save.name);
@@ -3564,6 +3568,7 @@ async function runPlanetPage(): Promise<void> {
     try {
       const got = await client.load(save.name);
       tidings.fromNow();
+      for (const f of takeUp) f();
       rememberSave(save.name);
       paintGlobe();
       return `back at year ${Math.floor(got.t / YEAR)}${got.fellBack ? " (from the save before; the latest did not read)" : ""}`;
@@ -9118,6 +9123,22 @@ async function runPlanetPage(): Promise<void> {
   // free roam) takes the eye back. Begun from the genesis (?watch), it watches from the first
   // village on.
   const directorControls = new DirectorControls(corner, hud);
+  // What a run of years came to, once the eye is free to read it (A1).
+  const runNote = new RunNote(
+    tidings.element,
+    client,
+    time,
+    (ref) => void pageWindow.open(ref),
+    () =>
+      events.open ||
+      directorControls.watching ||
+      ["filming", "fleet-filming", "homing", "living", "possessing", "ruling", "paging"].some((c) =>
+        document.body.classList.contains(c),
+      ) ||
+      !!document.querySelector(".jump-screen"),
+  );
+  if (exposed.jumpedFrom !== undefined) runNote.jumped();
+  takeUp.push(() => runNote.fromNow());
   clusterPanel.under(directorControls.caption);
   // A colony's landing watched (Phase 64), and the list of the worlds settled that leads to it.
   colonyFilm = installColonyFilm({

@@ -261,6 +261,9 @@ export class Tidings {
     } else head.append(from, close);
     card.append(head, claim, whyBox);
     this.element.prepend(card);
+    // (What a run came to stays at the head of them.)
+    const note = this.element.querySelector(".ran-note");
+    if (note) this.element.prepend(note);
     while (this.element.children.length > SHOWN) this.element.lastElementChild!.remove();
     setTimeout(() => {
       if (!open) card.remove();

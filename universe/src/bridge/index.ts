@@ -1,6 +1,15 @@
 // bridge: the protocol between the page and the simulation host — message types,
 // the client, the worker port and the in-thread pair. May import: kernel.
 // See README.md and docs/architecture/universe-architecture.md §30.
+export {
+  ALL_LINES,
+  ALL_WORTH,
+  ANNAL_ALL,
+  ANNAL_KINDS,
+  KIND_LINES,
+  KIND_WORTH,
+} from "./annals.ts";
+export type { AnnalLine, AnnalYear, AnnalsIndex, RunTold } from "./annals.ts";
 export type { BrushKind, BrushStrokeArgs, BrushPreview, BrushState } from "./brush.ts";
 export type {
   ShipCrew,

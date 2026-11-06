@@ -33,6 +33,7 @@ import type { Block, Item, Line, PageModel, Row, Stat } from "../../bridge/index
 import { ageWorldOf, lacksNow, matterWorldOf, worldReadingOf } from "../reading.ts";
 import { principleName } from "../../causal/index.ts";
 import { landLink, realmLink } from "./names.ts";
+import { nextBlock, nextWords } from "./next.ts";
 import { stageOf } from "./stage.ts";
 import { count, item, link, stat, yearNow } from "./words.ts";
 
@@ -184,7 +185,9 @@ export function meansPage(world: World, tab?: string): PageModel {
     stats: Stat[] = reading.measures.map((m) =>
       stat(MEASURES[m.id].name, [link(m.words, measureRef(m.id))]),
     );
+  const next = nextBlock(world);
   const here: Block[] = [
+    next,
     {
       type: "list",
       items: [
@@ -329,7 +332,7 @@ export function meansPage(world: World, tab?: string): PageModel {
     kind: "means",
     icon: reading.icon,
     title: "What it can do",
-    subtitle: [`It stands at ${reading.name}`],
+    subtitle: [`It stands at ${reading.name}. `, ...nextWords(next)],
     color: null,
     place: null,
     stats,

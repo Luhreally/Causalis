@@ -222,7 +222,7 @@ function otherWorld(universe: string, seed: string): Other {
 }
 
 /** The world the eye is on: what it knows now, and what that opens. */
-function hereOf(world: World) {
+export function hereOf(world: World) {
   const ctx = populationContext(world),
     g = ctx.generated as ProvinceWorld,
     lore = loreOf(world),

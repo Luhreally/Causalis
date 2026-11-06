@@ -29,6 +29,7 @@ export { WhyTree, el, type WhyNode } from "./why.ts";
 export { claimWords, clockWords, eventWords, roleWords, speedWords, when } from "./words.ts";
 export { TimeBar } from "./timebar.ts";
 export { Tidings, type Tiding } from "./tidings.ts";
+export { RunNote } from "./ran.ts";
 export { GuidedWalk, type WalkCue } from "./walk.ts";
 export { PageWindow } from "./inspector.ts";
 export { NamesSwitch, namesMode, namesThings, type NamesArgs, type NamesMode } from "./names.ts";

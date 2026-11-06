@@ -492,6 +492,15 @@ export function chroniclePage(world: World, tab?: string): PageModel {
   ];
   const tabs: Tab[] = [
     { id: "story", name: "Story", blocks: storyBlocks(world, s) },
+    // Year by year, read only as it is scrolled (A1).
+    {
+      id: "years",
+      name: "The Years",
+      blocks: [
+        { type: "text", lines: [["Each year something happened. Every name opens its page."]] },
+        { type: "tool", tool: "years.scroll", args: {} },
+      ],
+    },
     { id: "ages", name: "Ages", blocks: ageBlocks(world, s) },
     { id: "firsts", name: "Firsts", blocks: firstBlocks(world, s) },
     { id: "centuries", name: "Centuries", blocks: centuryBlocks(s) },

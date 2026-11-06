@@ -4,6 +4,7 @@
 // then "confirm"), because what follows is history's.
 import type { HostClient, Leader } from "../bridge/index.ts";
 import { drawCanPick } from "./can-pick.ts";
+import { drawYears } from "./years.ts";
 import { drawLeaderCard, drawWealthCompare } from "./leaders.ts";
 import { el } from "./why.ts";
 import { WAY_CHOICES } from "./palette.ts";
@@ -198,6 +199,9 @@ export function drawTool(
   switch (tool) {
     case "can.pick":
       drawCanPick(into, args, ctx);
+      return;
+    case "years.scroll":
+      drawYears(into, ctx);
       return;
     case "acts.land": {
       const hand = new HandView(ctx.client);
