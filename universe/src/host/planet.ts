@@ -216,6 +216,8 @@ function globeFrame(world: World) {
       kind: kindOn(g),
       // (Its life's colours, where they are not Earth's green: Phase 57.)
       ...lookMeta(g),
+      // (A people of the water's lands are its sea, not its ground: what their lenses paint.)
+      ...(pw.life.people?.body.medium === "water" ? { undersea: true } : {}),
     },
     arrays: {
       elevation: Float32Array.from(g.tectonics.elevation),

@@ -19,6 +19,10 @@ const HALO: GlowStops = [
   [1, "rgba(20,40,120,0)"],
 ];
 
+/** How much of what lies under it the sea's shell hides: as a rule, and over a people of the water's lands. */
+const SEA_OPACITY = 0.38,
+  CLEAR_SEA = 0.1;
+
 /**
  * Each kind's globe (Phase 56): its sea's colour, its air's glow about the rim, its clouds — an oil
  * world's dark gloss under grey-brown air, a sulfur world's sour sea and yellow haze, an ice world's
@@ -178,7 +182,7 @@ export class GlobeScene {
     water.diffuse = new pc.Color(0.08, 0.28, 0.62);
     water.specular = new pc.Color(0.9, 0.95, 1);
     water.gloss = 0.86;
-    water.opacity = 0.38;
+    water.opacity = SEA_OPACITY;
     water.blendType = pc.BLEND_NORMAL;
     water.depthWrite = false;
     water.update();
@@ -333,6 +337,15 @@ export class GlobeScene {
     this.sea.enabled = on && seas;
     this.halo.enabled = on && air;
     this.clouds.enabled = on && clouds;
+  }
+
+  /** A lens painting a people of the water's lands: its sea thinner, or their colours drown. */
+  clearSea(clear: boolean): void {
+    const m = this.sea.render!.meshInstances[0]!.material as pc.StandardMaterial,
+      opacity = clear ? CLEAR_SEA : SEA_OPACITY;
+    if (m.opacity === opacity) return;
+    m.opacity = opacity;
+    m.update();
   }
 
   /** Draw it as its world's kind (Phase 56): its sea, its air's glow and its clouds its kind's. */

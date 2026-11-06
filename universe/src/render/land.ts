@@ -36,6 +36,7 @@ import {
   townScene,
   townWalls,
   wayOf,
+  floorAt,
   wetAt,
   type FieldsLaid,
   type LandField,
@@ -102,7 +103,10 @@ class GroundBatches {
       gone?: readonly { x: number; z: number; r: number }[];
     }[],
     g: LandGround,
+    /** A people of the water's: it stands on the seabed, none of it ashore. */
+    undersea = false,
   ): void {
+    const floor = undersea ? floorAt : groundAt;
     const keys = new Map<string, { mesh: PartMesh; color: Rgb; n: number }>();
     for (const t of towns)
       for (const [key, grp] of t.parts.groups) {
@@ -123,21 +127,22 @@ class GroundBatches {
         for (let o = 0; o < d.length; o += 7) {
           const x = t.x + d[o]! * LAND_ACROSS,
             z = t.z + d[o + 2]! * LAND_ACROSS;
-          if (wetAt(g, x, z)) continue;
+          if (wetAt(g, x, z) !== undersea) continue;
           if (t.gone?.some((h) => Math.hypot(x - h.x, z - h.z) < h.r)) continue;
           const top = d[o + 1]! + d[o + 4]! / 2,
             q = m * 7;
-          let ground = groundAt(g, x, z);
-          // (A wide slab lies on its highest corner, or the land's rises come up through it.)
+          let ground = floor(g, x, z);
+          // (A wide slab lies on its highest corner, or the land's rises come up through it. On the
+          // seabed the shore comes up over it, as it should: one lifted there would hang in the sea.)
           const sx = d[o + 3]! * LAND_ACROSS,
             sz = d[o + 5]! * LAND_ACROSS;
-          if (Math.max(sx, sz) > g.tileKm / 4) {
+          if (!undersea && Math.max(sx, sz) > g.tileKm / 4) {
             const c = Math.cos(d[o + 6]!),
               s = Math.sin(d[o + 6]!);
             for (const [u, v] of CORNERS) {
               const a = (u * sx) / 2,
                 b = (v * sz) / 2;
-              ground = Math.max(ground, groundAt(g, x + a * c + b * s, z - a * s + b * c));
+              ground = Math.max(ground, floor(g, x + a * c + b * s, z - a * s + b * c));
             }
           }
           ground += LIFT;
@@ -387,6 +392,7 @@ export class LandLayer {
             : []),
         ],
         g,
+        !!plan.undersea,
       );
       // Fields about each town, the greatest's first, none on another's ground or fields.
       const circles = plan.towns.map((town) => {
@@ -440,7 +446,7 @@ export class LandLayer {
         townWalls(d.scene, moment, parts);
         rising.push({ parts, x: d.x, z: d.z });
       }
-      this.rising.show(rising, g);
+      this.rising.show(rising, g, !!this.plan.undersea);
     }
     const share = (t % YEAR) / YEAR,
       season = Math.floor(share * 48);
@@ -507,7 +513,8 @@ export class LandLayer {
       if (look === "none") continue;
       const k = `${road.from}-${road.to}`;
       let line = this.lines.get(k);
-      if (!line) this.lines.set(k, (line = roadLine(g, roadTiles(g, road.from, road.to))));
+      if (!line)
+        this.lines.set(k, (line = roadLine(g, roadTiles(g, road.from, road.to, !!plan.undersea))));
       if (line.length < 2) continue;
       const ends = [road.a, road.b].flatMap((ref) => {
           const d = ref ? this.towns.get(ref) : undefined;
@@ -515,7 +522,9 @@ export class LandLayer {
         }),
         out = roadOutside(line, ends);
       if (out.length < 2) continue;
-      pieces[look === "rails" ? "paved" : look].push(...linePieces(g, out, LIFT * 1.4));
+      pieces[look === "rails" ? "paved" : look].push(
+        ...linePieces(g, out, LIFT * 1.4, undefined, plan.undersea ? floorAt : groundAt),
+      );
       this.roadWays.push({ way: wayOf(out), look, traffic: road.traffic });
       if (look === "rails") {
         // The railway beside the road: its bed a little to one side.
@@ -528,7 +537,9 @@ export class LandLayer {
               n = Math.hypot(dx, dz) || 1;
             return { x: p.x - (dz / n) * off, z: p.z + (dx / n) * off };
           });
-        pieces.rails.push(...linePieces(g, side, LIFT * 1.6));
+        pieces.rails.push(
+          ...linePieces(g, side, LIFT * 1.6, undefined, plan.undersea ? floorAt : groundAt),
+        );
         this.railWays.push({ way: wayOf(side), busy: road.traffic });
       }
     }
@@ -547,6 +558,7 @@ export class LandLayer {
       this.railWays,
       this.laneWays,
       this.stage.quality.landTraffic,
+      !!plan.undersea,
     );
     for (const look of ["track", "paved", "rails"] as const) {
       const list = pieces[look];

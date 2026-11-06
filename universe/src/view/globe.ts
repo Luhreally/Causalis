@@ -328,6 +328,14 @@ export function frameKind(frame: FrameMessage): string {
   return (frame.meta as { kind?: string }).kind ?? "rocky";
 }
 
+/** How far the ground recedes under a lens on a people of the water's world: no one's, as the sea is on another's. */
+const ASHORE = 0.4;
+
+/** Whether a frame's world's people live in its sea, their lands its sea cells, not its ground. */
+export function frameUndersea(frame: FrameMessage): boolean {
+  return !!(frame.meta as { undersea?: boolean }).undersea;
+}
+
 /** A frame's world's life's colours (Phase 57: its pigment's name, "bare", or none for Earth's green). */
 export function frameLook(frame: FrameMessage): string | undefined {
   return (frame.meta as { lifeLook?: string }).lifeLook;
@@ -676,9 +684,11 @@ export function builtOverCells(
 ): void {
   const a = frame.arrays,
     elevation = a.elevation!,
-    province = a.province;
+    province = a.province,
+    undersea = frameUndersea(frame);
   for (let c = 0; c < elevation.length; c++) {
-    if (elevation[c]! <= 0 || a.lake?.[c] || !built.has(province ? province[c]! : c)) continue;
+    if (elevation[c]! <= 0 !== undersea || a.lake?.[c] || !built.has(province ? province[c]! : c))
+      continue;
     const u = Math.imul(c + 1, 2654435761) >>> 24,
       q = c * 4;
     if (u < 40) {
@@ -712,13 +722,15 @@ export function globeColors(
     // (What grows there in its life's own colours: Phase 57.)
     palette = lifePalette(kind, frameLook(frame)),
     depth = KIND_DEPTH[kind] ?? DEPTH,
-    waters = kindWater(kind);
+    waters = kindWater(kind),
+    undersea = frameUndersea(frame);
   for (let c = 0; c < n; c++) {
     const e = elevation[c]!,
       sea = e <= 0,
       biome = a.biome![c]!,
-      // People's facts are their province's: each land cell shows its province's.
-      province = sea ? -1 : a.province ? a.province[c]! : c;
+      // People's facts are their province's: each land cell shows its province's. (A people of the
+      // water lives in the sea cells of theirs: the ground about it is no one's.)
+      province = sea !== undersea ? -1 : a.province ? a.province[c]! : c;
     let col: Rgb;
     switch (lens) {
       case "terrain":
@@ -786,7 +798,9 @@ export function globeColors(
             grey = (base[0] + base[1] + base[2]) / 3;
           col = sea
             ? [base[0] * 0.7, base[1] * 0.7, base[2] * 0.75]
-            : [grey * 0.65, grey * 0.65, grey * 0.6];
+            : undersea
+              ? [grey * ASHORE, grey * ASHORE, grey * ASHORE]
+              : [grey * 0.65, grey * 0.65, grey * 0.6];
         }
         break;
       }
@@ -818,7 +832,9 @@ export function globeColors(
             grey = (base[0] + base[1] + base[2]) / 3;
           col = sea
             ? [base[0] * 0.7, base[1] * 0.7, base[2] * 0.75]
-            : [grey * 0.65, grey * 0.65, grey * 0.6];
+            : undersea
+              ? [grey * ASHORE, grey * ASHORE, grey * ASHORE]
+              : [grey * 0.65, grey * 0.65, grey * 0.6];
         }
         break;
       }
@@ -902,18 +918,19 @@ function borders(
   grid: SphereGrid,
 ): void {
   const province = frame.arrays.province as Int32Array | undefined,
-    elevation = frame.arrays.elevation!;
+    elevation = frame.arrays.elevation!,
+    undersea = frameUndersea(frame);
   if (!province) return;
   const n = elevation.length,
     shade = new Float32Array(n).fill(1);
   for (let c = 0; c < n; c++) {
-    if (elevation[c]! <= 0) continue;
+    if (elevation[c]! <= 0 !== undersea) continue;
     const p = province[c]!,
       mine = colors.get(p);
     let k = 1;
     for (let j = grid.offsets[c]!; j < grid.offsets[c + 1]!; j++) {
       const m = grid.neighbours[j]!;
-      if (elevation[m]! <= 0) continue;
+      if (elevation[m]! <= 0 !== undersea) continue;
       const q = province[m]!;
       if (q === p) continue;
       const theirs = colors.get(q);

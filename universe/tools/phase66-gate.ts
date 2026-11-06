@@ -17,6 +17,9 @@
 //      towers; a landing's film showing what its first ship found, then its air and its green coming over
 //      the years its town grows, and the world as it stands when it is done;
 //   9. watching changed nothing; the world runs on from there and its save is whole.
+// Its small world being a people of the water's (asked for 2026-11-05, "the overlays dont look right in
+// the underwater cities/countries"), it also looks at what they hold where they hold it: a town seen from
+// under its sea; its land's map with the town drawn on the seabed; the Realms lens on their sea's spots.
 // On CI and by default the world is a small one that gets there ("kestrel 557", twelve lands, to year
 // 2,400, a couple of minutes); --baked <file> takes the title's own world instead, Earth's "tide 207"
 // at year 2,000 (or --seed another at --year another), and looks at it (a world that wants a quarter of
@@ -166,6 +169,93 @@ const fly = async (x: number, z: number, distance: number, pitch: number) => {
     `globalThis.causalis.rig.flyTo({ target: { x: ${x * 0.1}, y: 0, z: ${z * 0.1} }, distance: ${distance}, pitch: ${pitch} })`,
   );
   await page.waitForTimeout(slow(1800));
+};
+/** How much of the middle of the screen has an edge in it: a plain sea has none, a town many. */
+const busyAround = async (): Promise<number> => {
+  const data = (await page.screenshot()).toString("base64");
+  return page.evaluate(async (d) => {
+    const bitmap = await createImageBitmap(
+        await (await fetch(`data:image/png;base64,${d}`)).blob(),
+      ),
+      c = new OffscreenCanvas(bitmap.width, bitmap.height),
+      x = c.getContext("2d")!;
+    x.drawImage(bitmap, 0, 0);
+    const w = bitmap.width,
+      h = bitmap.height,
+      px = x.getImageData(0, 0, w, h).data,
+      sum = (i: number) => px[i]! + px[i + 1]! + px[i + 2]!;
+    let sharp = 0,
+      n = 0;
+    for (let y = Math.floor(h * 0.42); y < h * 0.62; y++)
+      for (let i = Math.floor(w * 0.1); i < w * 0.7; i += 2) {
+        n++;
+        if (Math.abs(sum((y * w + i) * 4) - sum((y * w + i + 1) * 4)) > 24) sharp++;
+      }
+    return n ? sharp / n : 0;
+  }, data);
+};
+/**
+ * Of a people of the water's sea spots on the screen (clear of the panels), the share that read their
+ * realm's colour rather than the sea's, by the way each colour leans (a bright or a shaded one alike).
+ */
+const seaInItsRealms = async (): Promise<{ spots: number; share: number }> => {
+  const spots = await page.evaluate(async () => {
+      const c = (
+          globalThis as unknown as {
+            causalis: {
+              client: {
+                query(q: unknown): Promise<{ cell: number; realm: number[] | null }[]>;
+                latestFrame(view: string): { arrays: Record<string, ArrayLike<number>> } | null;
+              };
+              spotOnScreen(spot: number): { x: number; y: number } | null;
+            };
+          }
+        ).causalis,
+        map = await c.client.query({ type: "people.map" }),
+        f = c.client.latestFrame("globe")!,
+        province = f.arrays.province!,
+        elevation = f.arrays.elevation!,
+        by = new Map(map.map((m) => [m.cell, m.realm])),
+        out: { x: number; y: number; realm: number[] }[] = [];
+      for (let s = 0; s < province.length; s++) {
+        const realm = by.get(province[s]!);
+        if (!realm || elevation[s]! > 0) continue;
+        const at = c.spotOnScreen(s);
+        if (at) out.push({ x: at.x, y: at.y, realm });
+      }
+      return out;
+    }),
+    data = (await page.screenshot()).toString("base64");
+  return page.evaluate(
+    async ([d, list]) => {
+      const bitmap = await createImageBitmap(
+          await (await fetch(`data:image/png;base64,${d as string}`)).blob(),
+        ),
+        c = new OffscreenCanvas(bitmap.width, bitmap.height),
+        x = c.getContext("2d")!;
+      x.drawImage(bitmap, 0, 0);
+      const w = bitmap.width,
+        h = bitmap.height,
+        px = x.getImageData(0, 0, w, h).data,
+        sea = [0.1, 0.25, 0.55],
+        lean = (a: number[], b: number[]) =>
+          (a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!) /
+          (Math.hypot(a[0]!, a[1]!, a[2]!) * Math.hypot(b[0]!, b[1]!, b[2]!) || 1);
+      let spots = 0,
+        theirs = 0;
+      for (const s of list as { x: number; y: number; realm: number[] }[]) {
+        if (s.y < h * 0.45 || s.y > h * 0.95 || s.x < w * 0.02 || s.x > w * 0.7) continue;
+        // (A realm of the sea's own colour says nothing either way.)
+        if (lean(s.realm, sea) > 0.95) continue;
+        const q = (Math.round(s.y) * w + Math.round(s.x)) * 4,
+          p = [px[q]!, px[q + 1]!, px[q + 2]!];
+        spots++;
+        if (lean(p, s.realm) > lean(p, sea)) theirs++;
+      }
+      return { spots, share: spots ? theirs / spots : 0 };
+    },
+    [data, spots] as const,
+  );
 };
 const toTown = async (ref: string) => {
   await k(`globalThis.causalis.goTo(${JSON.stringify(ref)})`);
@@ -330,6 +420,12 @@ try {
   check(built.length > 0, "no land reads as built over");
   const top = (await ask<TownMap | null>("past.town"))!;
   say(`its greatest town: ${top.name}, ${top.people.toLocaleString("en")} people`);
+  // (A people of the water's town: seen from under their sea.)
+  if (!bakedFile)
+    check(
+      (await k<string | undefined>("document.body.dataset.colony")) === "air",
+      "a town of a people of the water is not seen under their sea",
+    );
   await page.locator("button:has-text('‹ The land'):visible").first().tap();
   await until("its land", async () => (await scale()) === "region", slow(60000));
   await until(
@@ -348,6 +444,23 @@ try {
     check(land.parts > 5000, `a land built over has only ${land.parts} parts`);
   }
   await shot("06-its-land");
+  // (A people of the water's towns stand on the seabed: seen from over them, not a plain sea.)
+  if (!bakedFile) {
+    const on = await k<{ x: number; z: number; r: number } | null>(
+      `globalThis.causalis.landTown(${JSON.stringify(top.ref)})`,
+    );
+    check(!!on, `its land draws no ${top.name}`);
+    if (on) {
+      await k(
+        `globalThis.causalis.rig.flyTo({ target: { x: ${on.x}, y: 0, z: ${on.z} }, yaw: 0, pitch: -62, distance: ${on.r * 2.2} }, 0.05)`,
+      );
+      await page.waitForTimeout(slow(1800));
+      const busy = await busyAround();
+      say(`over ${top.name} on its land's map, under the sea: ${(busy * 100).toFixed(1)}% edges`);
+      check(busy > 0.08, `${top.name} is not to be seen on its land's map (${busy.toFixed(3)})`);
+      await shot("06a-its-town-on-the-seabed");
+    }
+  }
 
   // 5. The world seen whole: its lands built over painted on its face, and said in its legend.
   await page.locator("button:has-text('‹ The world'):visible").first().tap();
@@ -355,6 +468,20 @@ try {
   await until("its legend", async () => /built over/.test(await text("#hud")), slow(30000));
   await page.waitForTimeout(slow(800));
   await shot("06b-the-world-seen-whole");
+  // (A people of the water's lands are its sea: a realm's colour there, and not plain water.)
+  if (!bakedFile) {
+    await page.locator('.mapmodes .mode[aria-label^="Realms"]').first().click({ force: true });
+    await page.waitForTimeout(slow(1500));
+    const seen = await seaInItsRealms();
+    say(
+      `their sea under the Realms lens: ${seen.spots} spots, ${seen.share.toFixed(2)} in its colour`,
+    );
+    check(seen.spots > 8, `too few of their sea's spots on the screen (${seen.spots})`);
+    check(seen.share > 0.6, `their sea does not read their realms (${seen.share.toFixed(2)})`);
+    await shot("06b2-their-realms");
+    await page.locator('.mapmodes .mode[aria-label^="Land"]').first().click({ force: true });
+    await page.waitForTimeout(slow(500));
+  }
 
   // Its star: the mirrors about it, drawn and told, and the way to their page.
   await k("globalThis.causalis.sky()");

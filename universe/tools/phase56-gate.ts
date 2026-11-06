@@ -246,7 +246,8 @@ await page.fill(".seed-input", "violet hollow");
 await page.dispatchEvent(".seed-input", "input");
 const dials = await page.$$eval(".making-dial", (b) => b.map((x) => x.textContent ?? ""));
 say(`the title: ${dials.length} dials (${dials.join(", ")})`);
-check(dials.length === 7, `${dials.length} making dials, not seven`);
+// (Eight since Phase 68: its lanes.)
+check(dials.length === 8, `${dials.length} making dials, not eight`);
 /** The world the seed's text makes, told: its words come with this ending, and whether life arises. */
 const told = async (what: string, ends: RegExp) => {
   const ok = await until(

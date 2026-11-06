@@ -53,13 +53,20 @@ export function regionFromGlobe(
   return out;
 }
 
-/** A land built over (Phase 66): its dry tiles the greys of street and roof, a block's lights among them. */
-export function builtOverTiles(colors: Uint8Array, frame: FrameMessage): Uint8Array {
+/**
+ * A land built over (Phase 66): its dry tiles (a people of the water's, `undersea`: its sea's) the
+ * greys of street and roof, a block's lights among them.
+ */
+export function builtOverTiles(
+  colors: Uint8Array,
+  frame: FrameMessage,
+  undersea = false,
+): Uint8Array {
   const e = frame.arrays.elevation!,
     water = frame.arrays.water,
     out = colors.slice();
   for (let t = 0; t < e.length; t++) {
-    if (e[t]! <= 0 || water?.[t]) continue;
+    if (undersea ? water?.[t] !== 1 : e[t]! <= 0 || water?.[t]) continue;
     const u = Math.imul(t + 1, 2654435761) >>> 24,
       grey = 72 + (u & 31),
       q = t * 4;

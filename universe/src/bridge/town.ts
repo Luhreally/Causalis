@@ -748,6 +748,8 @@ export type LandPlan = {
   readonly colony?: ColonyLook;
   /** Built over from edge to edge (Phase 66): street and roof from shore to shore. */
   readonly covered?: true;
+  /** A people of the water's: its towns stand on the seabed, and none ashore. */
+  readonly undersea?: true;
 };
 
 /**
