@@ -526,7 +526,11 @@ export function villagePlan(
   const more = Math.min(folk, Math.max(0, Math.ceil(v.population / FOLK_PER) - people.length)),
     // (Those a case of this year or last names keep their own names, and those it sent away aren't drawn. J1.)
     cases = folk > 0 ? namedByCases(world, ref, now) : null,
-    inCase = new Set(cases?.named.map((p) => p.ref));
+    inCase = new Set(cases?.named.map((p) => p.ref)),
+    // (Four of a town's lines to a home, of those no one watched lives in.)
+    taken = new Set(people.map((p) => p.home)),
+    free = homes.map((_, i) => i).filter((i) => !taken.has(i)),
+    homesFor = free.length ? free : homes.map((_, i) => i);
   if (more > 0) {
     // Each the holder of one of its lines (Phase 55 M225): one of every twelve of its people kept
     // by its roster, named in its land's tongue with a family's name to every four lines (four to a
@@ -538,9 +542,6 @@ export function villagePlan(
       grown = lifeOf(world).adulthood,
       lines = linesOf(v.population),
       builders = Math.min(Math.round(more * 0.4), 2 * risingAt(town, world.now)),
-      taken = new Set(people.map((p) => p.home)),
-      free = homes.map((_, i) => i).filter((i) => !taken.has(i)),
-      homesFor = free.length ? free : homes.map((_, i) => i),
       // (The order each was drawn in: the first drawn are its builders.)
       drawnAt = new Map<string, number>();
     for (let k = 0; k < lines && drawnAt.size < more; k++) {
@@ -643,17 +644,22 @@ export function villagePlan(
         h = m ? roster.holderOf(Number(m[1]), Number(m[2])) : null;
       if (!h || roster.holder(h.line)?.n !== h.n) continue;
       const age = now - h.born,
-        own = age < grown ? OCC.dependent : workOf(h.key, work);
+        child = age < grown,
+        own: number = child ? OCC.dependent : workOf(h.key, work),
+        last = h.fates.at(-1),
+        machine = !child && isMachineFolk(past, h.ref);
       people.push({
         ref: h.ref,
         name: roster.nameOf(h),
-        role: `${(FOLK_WORDS[own] ?? "One").toLowerCase()} of ${v.name}`,
-        home: Math.floor(h.line / 4) % homes.length,
+        role: `${past?.covered && own === OCC.farmer ? "vat-tender" : (FOLK_WORDS[own] ?? "One").toLowerCase()} of ${v.name}${machine ? ", of made limbs" : ""}`,
+        ...(machine ? { machine: true as const } : {}),
+        home: homesFor[Math.floor(h.line / 4) % homesFor.length]!,
         age,
         occupation: own,
-        child: age < grown,
+        child,
         sex: h.sex,
         folk: true,
+        ...cameHome(world, last && homeFrom(last) ? last : undefined),
       });
     }
   }
