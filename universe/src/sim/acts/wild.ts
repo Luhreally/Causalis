@@ -11,6 +11,7 @@ import {
   YEAR,
   defineEventType,
   defineStream,
+  dmath,
   yearOfMoment,
   type CauseRef,
   type Factor,
@@ -851,7 +852,7 @@ function wildfire(
   tally.homesLost += homes;
   for (const { v } of towns)
     if (dead > 0)
-      grieve(world, v.cell, Math.min(0.5, 0.1 + 0.05 * Math.log10(Math.max(1, dead))), event);
+      grieve(world, v.cell, Math.min(0.5, 0.1 + 0.05 * dmath.log10(Math.max(1, dead))), event);
   if (towns.length) answer(ctx, towns[0]!.v.cell, event, dead, "fire", towns[0]!.v.name, t);
 }
 
@@ -873,7 +874,7 @@ function skyMonth(ctx: PopulationContext, g: ProvinceWorld, idx: Index, t: SimTi
   const cell = Math.floor(world.rng.real(SKY, 1, t, 0) * g.offworld.base),
     P = g.grid.positions,
     R = 6371 * g.planet.radius,
-    reach = NATURE.star.seenKm / R,
+    reach = dmath.cos(NATURE.star.seenKm / R),
     seen: number[] = [],
     out = [cell],
     done = new Set(out);
@@ -884,7 +885,7 @@ function skyMonth(ctx: PopulationContext, g: ProvinceWorld, idx: Index, t: SimTi
         P[3 * c]! * P[3 * cell]! +
         P[3 * c + 1]! * P[3 * cell + 1]! +
         P[3 * c + 2]! * P[3 * cell + 2]!;
-    if (Math.acos(Math.min(1, d)) > reach) continue;
+    if (d < reach) continue;
     if ((ctx.provinces.get(c)?.total() ?? 0) > 0) seen.push(c);
     for (let k = g.grid.offsets[c]!; k < g.grid.offsets[c + 1]!; k++) {
       const m = g.grid.neighbours[k]!;
