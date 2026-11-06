@@ -192,7 +192,8 @@ export class LivedBody implements PosedHook {
   }
   /** Whether what they keep or a line has them now, on their own day's way to work (R1). */
   get riding(): boolean {
-    return !this.spot && !this.walk && goesIn(this.plan, this.index, this.now, true) !== null;
+    const walkingBack = !!this.walk && this.now < this.walk.to;
+    return !this.spot && !walkingBack && goesIn(this.plan, this.index, this.now, true) !== null;
   }
   /** Whether the block now is the night's. */
   get asleep(): boolean {
@@ -378,8 +379,10 @@ export class LivedBody implements PosedHook {
       this.here = { x: m.x, z: m.z };
       this.yaw = m.yaw;
     } else {
-      this.here = { x: own.moment.x, z: own.moment.z };
-      this.yaw = own.moment.yaw;
+      // (Hidden in what they ride: where it has them, not where they got in, so the eye goes along.)
+      const goes = this.riding ? momentOf(this.plan, i, t) : own.moment;
+      this.here = { x: goes.x, z: goes.z };
+      this.yaw = goes.yaw;
     }
     // Those of their house about them at their door, while they eat or sit with them.
     const what = this.block?.what;

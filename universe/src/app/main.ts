@@ -847,7 +847,7 @@ type Exposed = {
   landCarrier?: (kind: string) => { x: number; y: number; z: number } | null;
   landRiders?: () => { ref: string; name: string; x: number; y: number }[];
   /** Road gangs on the land, and what its works draw; its plan as last read; what a town's people keep and ride (R1's gate). */
-  landGangs?: () => { ref: string; x: number; y: number; stopped: boolean }[];
+  landGangs?: () => { ref: string; x: number; y: number; stopped: boolean; cut: boolean }[];
   landWorks?: () => { gangs: number; hands: number; parts: number; faint: number } | null;
   landPlanNow?: () => unknown;
   landRoadHead?: (ref: string) => { x: number; y: number; z: number } | null;
@@ -9288,7 +9288,7 @@ async function runPlanetPage(): Promise<void> {
       ...(rig.distance < 70
         ? region.land.gangs(stage.camera.camera!).map((g) => ({
             key: `gang:${g.ref}`,
-            text: g.stopped ? "🚧 Works, stopped" : "🚧 Road works",
+            text: g.cut ? "🚧 Road cut" : g.stopped ? "🚧 Works, stopped" : "🚧 Road works",
             at: { x: g.x, y: g.y - 30 },
             priority: 1e12,
           }))

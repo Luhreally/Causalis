@@ -74,26 +74,31 @@ export function ridesOf(plan: VillagePlan): Rides {
     lines: BusLine[] = [];
   if (about && plan.town && (about.own || about.line)) {
     const ground = villageSolids(plan),
-      seen = new Set<number>();
-    if (about.own)
+      // (A household's goes with the one of them whose ref comes first, by who they are and not where the plan lists them: the plan is read again each year, and for a life begun, and it mustn't change hands then.)
+      ownerOf = new Map<number, number>();
+    if (about.own) {
       plan.people.forEach((p, i) => {
-        if (seen.has(p.home) || !goesToWork(plan, p)) return;
-        const home = plan.homes[p.home];
-        if (!home) return;
-        seen.add(p.home);
-        if (unit(`${plan.ref}|car|${p.home}`) >= about.share) return;
+        if (!plan.homes[p.home] || !goesToWork(plan, p)) return;
+        const had = ownerOf.get(p.home);
+        if (had === undefined || p.ref < plan.people[had]!.ref) ownerOf.set(p.home, i);
+      });
+      for (const [h, i] of ownerOf) {
+        const home = plan.homes[h]!,
+          key = home.household ?? String(h);
+        if (unit(`${plan.ref}|car|${key}`) >= about.share) continue;
         const out = streetDoor(home, 0, undefined),
           s = Math.sin(home.yaw),
           c = Math.cos(home.yaw),
           door = parkNear(ground, { x: out.x - s * KERB, z: out.z - c * KERB });
         owners.set(i, {
           index: i,
-          home: p.home,
-          tone: Math.floor(unit(`${plan.ref}|tone|${p.home}`) * 6),
+          home: h,
+          tone: Math.floor(unit(`${plan.ref}|tone|${key}`) * 6),
           door,
           doorYaw: home.yaw + Math.PI / 2,
         });
-      });
+      }
+    }
     if (about.line) {
       plan.people.forEach((p, i) => {
         if (!goesToWork(plan, p) || owners.has(i)) return;

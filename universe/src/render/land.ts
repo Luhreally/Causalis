@@ -873,7 +873,9 @@ export class LandLayer {
   }
 
   /** Those at work on its roads, on the screen (R1). */
-  gangs(cam: pc.CameraComponent): { ref: string; x: number; y: number; stopped: boolean }[] {
+  gangs(
+    cam: pc.CameraComponent,
+  ): { ref: string; x: number; y: number; stopped: boolean; cut: boolean }[] {
     return this.works.gangs(cam);
   }
 

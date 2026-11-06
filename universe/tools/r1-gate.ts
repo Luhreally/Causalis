@@ -381,7 +381,11 @@ if (site && !problems.length) {
       shown = true;
       await shot(`5-${what}`);
       await page.touchscreen.tap(mine.x, mine.y);
-      await until(`the ${what} road's page`, async () => (await windowWords()).length > 80);
+      await until(
+        `the ${what} road's page`,
+        async () => says.test(await windowWords()) && !/^\W*…/.test(await windowWords()),
+        slow(30000),
+      );
       const words = await windowWords();
       say(`${what}: ${words.slice(0, 600).replace(/\n/g, " | ")}`);
       await shot(`5-${what}-page`);
@@ -446,11 +450,25 @@ if (site && !problems.length) {
           await page.waitForTimeout(slow(1200));
           continue;
         }
-        const crowd = await k<number | null>(
-          `globalThis.causalis.townPick(${car.x}, ${car.y}, 12)`,
-        );
         await k(`globalThis.causalis.closePage()`);
-        await page.touchscreen.tap(car.x, car.y);
+        // (Where it stands once the eye has stopped: a page closed brings the eye back over some frames.)
+        let stood = { x: car.x, y: car.y };
+        for (let i = 0; i < 40; i++) {
+          await k(
+            `new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => done(true))))`,
+          );
+          const c2 = await k<{ x: number; y: number } | null>(
+            `globalThis.causalis.townRides().carsAt.find((c) => c.index === ${car.index}) ?? null`,
+          );
+          if (!c2) break;
+          const still = Math.hypot(c2.x - stood.x, c2.y - stood.y) < 0.5;
+          stood = { x: c2.x, y: c2.y };
+          if (still) break;
+        }
+        const crowd = await k<number | null>(
+          `globalThis.causalis.townPick(${stood.x}, ${stood.y}, 12)`,
+        );
+        await page.touchscreen.tap(stood.x, stood.y);
         await page.waitForTimeout(slow(900));
         const who = await k<number | null>("globalThis.causalis.watched()"),
           name = await k<string>(`globalThis.causalis.planNow().people[${car.index}].name`),
@@ -459,7 +477,7 @@ if (site && !problems.length) {
         if (crowd !== null && crowd !== car.index) pressed.crowded++;
         if (who === car.index && shown.includes(name)) pressed.right++;
         say(
-          `a car pressed at (${car.x.toFixed(0)}, ${car.y.toFixed(0)}), ${crowd !== null ? `someone standing by it` : "no one by it"}: ${who === car.index ? "its owner" : `someone else (${who})`}, ${name}`,
+          `a car pressed at (${stood.x.toFixed(0)}, ${stood.y.toFixed(0)}), ${crowd !== null ? `someone standing by it` : "no one by it"}: ${who === car.index ? "its owner" : `someone else (${who})`}, ${name}`,
         );
         if (pressed.n === 1) await shot("6-car-owner");
         await k(`globalThis.causalis.closePage()`);
@@ -552,7 +570,23 @@ if (site && !problems.length) {
         b?.click();
       });
       await page.waitForTimeout(slow(600));
-      const mid = Math.round(today * 86400 + (one.from + one.to) / 2);
+      // (The plan is read again for a life: where they stand in it, and what days it has them, as it is now.)
+      const nowDay =
+          Math.floor((await k<number>("globalThis.causalis.client.status?.t ?? 0")) / 86400) + 1,
+        at = await k<{ index: number; from: number; to: number; owner: boolean } | null>(
+          `(() => {
+            const c = globalThis.causalis, index = c.planNow().people.findIndex((p) => p.ref === "agent:${one.agent}"), w = index >= 0 ? c.townWalks(index, ${nowDay}) : [];
+            return w.length ? { index, from: w[0].from, to: w[0].to, owner: c.townRides().owners.includes(index) } : null;
+          })()`,
+        );
+      check(!!at, `the ${kind} has no long walk on the day they are lived`);
+      if (!at) break;
+      check(
+        at.owner === (kind === "owner"),
+        `one who ${kind === "owner" ? "kept a car" : "rode a line"} no longer does, their life begun`,
+      );
+      one.index = at.index;
+      const mid = Math.round(nowDay * 86400 + (at.from + at.to) / 2);
       await k(`globalThis.causalis.client.advance(${mid})`);
       await page.waitForTimeout(slow(2200));
       const a2 = await k<{ x: number; z: number } | null>("globalThis.causalis.life.where()"),

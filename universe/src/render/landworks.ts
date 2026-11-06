@@ -74,7 +74,14 @@ export class LandWorks {
   private readonly still = new Map<string, Slot>();
   private readonly moving = new Map<string, Slot>();
   private hands: Hand[] = [];
-  private heads: { ref: string; x: number; y: number; z: number; stopped: boolean }[] = [];
+  private heads: {
+    ref: string;
+    x: number;
+    y: number;
+    z: number;
+    stopped: boolean;
+    cut: boolean;
+  }[] = [];
   private gone = 0;
   private last = 0;
   private drawn = false;
@@ -165,6 +172,7 @@ export class LandWorks {
         y: y(head.x, head.z),
         z: head.z,
         stopped: site.stopped,
+        cut: site.cut,
       });
       const yaw = head.yaw,
         c = Math.cos(yaw),
@@ -357,14 +365,16 @@ export class LandWorks {
   }
 
   /** The gangs on the land and where on the screen each stands. */
-  gangs(cam: pc.CameraComponent): { ref: string; x: number; y: number; stopped: boolean }[] {
+  gangs(
+    cam: pc.CameraComponent,
+  ): { ref: string; x: number; y: number; stopped: boolean; cut: boolean }[] {
     const at = new pc.Vec3(),
       out = new pc.Vec3(),
-      list: { ref: string; x: number; y: number; stopped: boolean }[] = [];
+      list: { ref: string; x: number; y: number; stopped: boolean; cut: boolean }[] = [];
     for (const h of this.heads) {
       at.set(h.x, h.y + 0.08, h.z);
       cam.worldToScreen(at, out);
-      if (out.z > 0) list.push({ ref: h.ref, x: out.x, y: out.y, stopped: h.stopped });
+      if (out.z > 0) list.push({ ref: h.ref, x: out.x, y: out.y, stopped: h.stopped, cut: h.cut });
     }
     return list;
   }

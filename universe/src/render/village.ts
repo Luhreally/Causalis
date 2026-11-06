@@ -1903,7 +1903,8 @@ export class VillageScene {
     this.moments = drawn.map((d) => d.moment);
     this.rides.update(
       plan,
-      this.moments,
+      // (Where their day has them, not as drawn: one hidden in what they ride is drawn standing where they got in.)
+      targets,
       t,
       step !== 0,
       fine,
