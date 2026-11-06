@@ -675,6 +675,8 @@ async function rule(f: Forged, tag: string): Promise<void> {
     async () => /plot against you/i.test(await text(".reign-window")),
     slow(30000),
   );
+  // (The window holds the clock on the next frame, and a word of the clock already on its way may still come: then still.)
+  await settle(800);
   const t0 = await clock();
   await settle(1500);
   check((await clock()) === t0, `${tag}: the clock ran on behind the window of a plot`);

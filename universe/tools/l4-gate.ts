@@ -26,6 +26,7 @@ import { ALIEN, EARTH } from "../src/host/planet.ts";
 import {
   diplomacyOf,
   frontier,
+  courtOf,
   politiesOf,
   populationContext,
   stationOf,
@@ -149,13 +150,27 @@ function forge(
     names = new Map(fitting.map((p) => [p.ref, p.ruler.name])),
     // The same save run on with no one ruled: the hashes to meet.
     hashAt = world.now + YEAR;
+  // (A plot or an heir's death stops the clock with a window of its own, which gate 79 presses: one with neither, here.)
+  const troubled = new Set<string>(),
+    note = () => {
+      for (const c of courtOf(world)?.all() ?? [])
+        if (c.plot || c.told.some((e) => world.events.get(e)?.type === "court.heirdied"))
+          troubled.add(c.realm);
+    };
+  note();
   world.runTo(hashAt);
+  note();
   const hashes = JSON.stringify(world.domainHashes());
   // One whose ruler lives through the years the gate runs (a death is keyed by the seat and the moment).
-  world.runTo(hashAt + 3 * YEAR);
-  const realm = fitting.find(
-    (p) => p !== old && p.ended === null && p.ruler.name === names.get(p.ref),
-  );
+  for (let y = 1; y <= 3; y++) {
+    world.runTo(hashAt + y * YEAR);
+    note();
+  }
+  const realm =
+    fitting.find(
+      (p) =>
+        p !== old && p.ended === null && p.ruler.name === names.get(p.ref) && !troubled.has(p.ref),
+    ) ?? fitting.find((p) => p !== old && p.ended === null && p.ruler.name === names.get(p.ref));
   if (!realm) throw new Error(`no ruler lives through three years on ${seed}`);
   const st = stationOf(ctx, realm);
   say(
@@ -217,6 +232,15 @@ const centre = (sel: string) =>
   })()`);
 /** A real touch: a control under another element is found this way. */
 const tap = async (sel: string) => {
+  // (What history brought meanwhile, answered: what is pressed here lies under it. A step's own window is not the court's.)
+  if (!/reign-drama/.test(sel)) {
+    const buy = page.locator(`.reign-drama[data-choice="buy"]`);
+    if (await buy.count().catch(() => 0)) {
+      say(`a plot came on the way: ${await text(".reign-window .life-wintitle")}`);
+      await buy.first().tap();
+      await page.waitForTimeout(slow(600));
+    }
+  }
   await k(
     `document.querySelector(${JSON.stringify(sel)})?.scrollIntoView({ block: "center", inline: "center" })`,
   );
