@@ -3011,15 +3011,9 @@ async function runPlanetPage(): Promise<void> {
     maxPitch: 80,
     drift: drift(),
     onTap: (x, y) =>
+      // (An act in hand falls where the finger comes down, on a stone or a court as on anyone: to read one, put it down.)
       palette.armed &&
-      (scale === "globe" || scale === "region" || scale === "camp" || scale === "village") &&
-      // (A press on a thing a town raised reads it: the hand's act isn't cast on the ground beneath it. T1.)
-      !(
-        scale === "village" &&
-        plan &&
-        !homeOpen() &&
-        (village.stoneAt(x, y) || village.courtAt(x, y, now()))
-      )
+      (scale === "globe" || scale === "region" || scale === "camp" || scale === "village")
         ? tapPalette(x, y)
         : scale === "globe"
           ? tapGlobe(x, y)
