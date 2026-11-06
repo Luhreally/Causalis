@@ -432,7 +432,10 @@ function bondStats(world: World, ref: Ref): Stat[] {
         : b.kind === "vassal"
           ? stat(
               mine ? "Sworn to" : "Sworn to it",
-              [realmLink(world, other), `, ${grain} grain a year until year ${b.until}${paid}`],
+              [
+                realmLink(world, other),
+                `, ${b.grain ? `${grain} grain a year ` : ""}until year ${b.until}${paid}`,
+              ],
               { why: b.event },
             )
           : stat(

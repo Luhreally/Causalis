@@ -115,7 +115,7 @@ export class ReignHud {
     for (const [icon, label, kind] of [
       ["📜", "Decrees", "decrees"],
       ["⚔️", "War, peace", "wars"],
-      ["💍", "Marriage", "matches"],
+      ["💍", "Marry", "matches"],
     ] as const) {
       const b = el("button", "life-offer reign-act");
       b.dataset.act = kind;

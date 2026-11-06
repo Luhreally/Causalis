@@ -41,7 +41,7 @@ import {
   type Polity,
 } from "../polity/polity.ts";
 import { interestsOf, pressure } from "../polity/interests.ts";
-import { WAR, WAR_EVENTS, fieldedOf, frontier, strengthOf, warsOf, type War } from "../war/war.ts";
+import { WAR, WAR_EVENTS, fieldedOf, frontier, strengthOf, warsOf } from "../war/war.ts";
 import {
   bindPeace,
   bondsOf,
@@ -50,6 +50,7 @@ import {
   landOffered,
   owing,
   riseUp,
+  spareOf,
   termsOfOffer,
 } from "../war/bonds.ts";
 import { DIPLOMACY_EVENTS, diplomacyOf, relationRef } from "../diplomacy/diplomacy.ts";
@@ -113,7 +114,6 @@ export type Voices = {
 const clamp = (lo: number, hi: number, x: number) => Math.max(lo, Math.min(hi, x));
 const pct = (x: number) => Math.round(x * 100);
 const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s);
-void (null as unknown as War);
 
 /** What a ruler holds now. */
 export function stationOf(ctx: PopulationContext, r: Polity): Station {
@@ -337,6 +337,10 @@ export function peaceProblem(
       return giving
         ? "Your people make no grain to pay with."
         : answers(foe, "We make no grain to pay you with.");
+    if (spareOf(ctx, payer) < termsOfOffer(ctx, w, r, foe, offer, year).grain)
+      return giving
+        ? "Your people eat all they make: you have nothing to spare to pay with."
+        : answers(foe, "We eat all we make. There is nothing here to pay you with.");
     if (owing(world, payer) >= TERMS.owesMost)
       return giving
         ? "You already pay as many as your stores can bear."

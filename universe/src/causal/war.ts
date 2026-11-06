@@ -119,7 +119,7 @@ export function termsPhrase(world: World, data: unknown): string | null {
       );
     case "vassal":
       return both(
-        `${t.payer} bends the knee to ${t.to}, keeping its lands and its ruler and paying ${grainSum(t.grain ?? 0)} grain a year until ${t.until}`,
+        `${t.payer} bends the knee to ${t.to}, keeping its lands and its ruler${t.grain ? ` and paying ${grainSum(t.grain)} grain a year` : ", with nothing to pay"} until ${t.until}`,
       );
     case "truce":
       return t.beaten
@@ -131,6 +131,8 @@ export function termsPhrase(world: World, data: unknown): string | null {
           );
     case "free":
       return "the oath is thrown off, and nothing owed";
+    case "fell":
+      return `${t.payer} is no more`;
     default:
       return ceded || null;
   }
@@ -143,7 +145,7 @@ registerEventWords(WAR_EVENTS.declared.type, (world, e) => {
   if (by)
     return `By your hand, at the word of ${by}, ${text(e.data, "a")} went to war with ${text(e.data, "b")} ${aim}, ${year(e.t)}`;
   return civil
-    ? `${cap(text(e.data, "a"))} rose against ${text(e.data, "b")} ${CIVIL[civil] ?? "in a civil war"}, marching on ${landWords(world, e.place)}, ${year(e.t)}`
+    ? `${cap(text(e.data, "a"))} rose against ${text(e.data, "b")} ${CIVIL[civil] ?? "in a civil war"}, going for ${landWords(world, e.place)}, ${year(e.t)}`
     : `${cap(text(e.data, "a"))} went to war with ${text(e.data, "b")} ${aim}, ${year(e.t)}`;
 });
 registerEventWords(WAR_EVENTS.battle.type, (world, e) => {
@@ -269,12 +271,16 @@ registerEventWords(WAR_EVENTS.strike.type, (_, e) => {
   return `Machines of ${text(e.data, "a")} struck ${d?.name ?? "a town"} of ${text(e.data, "b")} from the air; ${count(d?.dead ?? 0)} died and ${count(d?.homes ?? 0)} home${d?.homes === 1 ? "" : "s"} came down, ${year(e.t)}`;
 });
 registerEventWords(WAR_EVENTS.peace.type, (world, e) => {
-  const d = e.data as { years?: number; won?: boolean; by?: string; terms?: PeaceTerms } | null,
+  const d = e.data as
+      { years?: number; won?: boolean; by?: string; terms?: PeaceTerms; fire?: string } | null,
     head = `${d?.by ? `By your hand, at the asking of ${d.by}: peace` : "Peace"} between ${text(e.data, "a")} and ${text(e.data, "b")} after ${count(d?.years ?? 0)} year${d?.years === 1 ? "" : "s"}`,
     terms = termsPhrase(world, e.data);
-  return terms
-    ? `${head}: ${terms}, ${year(e.t)}`
-    : `${head}${d?.won ? ", the land they fought for won" : ""}, ${year(e.t)}`;
+  if (terms) return `${head}: ${terms}, ${year(e.t)}`;
+  // (What the greatest fire ended, W5: no one's terms.)
+  if (d?.fire === "fell") return `${head}: the greatest fire fell, and no one would fight on, ${year(e.t)}`;
+  if (d?.fire === "stepped")
+    return `${head}: at the brink of the greatest fire they stepped back, ${year(e.t)}`;
+  return `${head}${d?.won ? ", the land they fought for won" : ""}, ${year(e.t)}`;
 });
 registerEventWords(BOND_EVENTS.ended.type, (_, e) => {
   const d = e.data as {

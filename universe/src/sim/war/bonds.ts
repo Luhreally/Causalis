@@ -1,11 +1,13 @@
 // Wars with aims, peace with terms (W7). What a war is about is read off what drove it, kept on its declaration's own
 // event, and steers where the host goes and what a battle won takes. What a peace comes to goes by how the war went and
 // how far each side is spent: land ceded, a tribute, an oath, a truce. Whatever binds is kept here, by the two realms'
-// refs, and runs out by the world's clock. A tribute really moves, between the two seats' stores, out of what the payer
-// has above three months of food, as a tithe does: a realm with nothing to spare pays nothing and is short. Three short
-// years and it has stopped paying, which is remembered, and is a reason for the next war. A vassal keeps its lands and
-// its ruler, pays, declares no war of its own, and rises when it is strong enough. No one bound holds anyone bound, so
-// no chain is longer than one.
+// refs, and runs out by the world's clock. A tribute really moves, from the payer's lands to the other's seat, out of
+// what each land has above three months of food, as a tithe does. Where people eat all they make there is nothing to
+// take, and no one asks it: on a far world most realms are so, and a peace there comes to land, a truce, or an oath that
+// pays nothing. One who can pay and then can't is short; three short years and it has stopped paying, which is
+// remembered, and is a reason for the next war. A vassal keeps its lands and its ruler, pays what it can be asked,
+// declares no war of its own, and rises when it is strong enough. No one bound holds anyone bound, so no chain is longer
+// than one.
 import {
   defineEventType,
   defineStream,
@@ -33,6 +35,7 @@ import type { MarketStore } from "../economy/market.ts";
 import { beliefOf } from "../belief/belief.ts";
 import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { diplomacyOf, type Relation } from "../diplomacy/diplomacy.ts";
+import { heldAmongStars } from "../space/nation-store.ts";
 import { WAR, WAR_EVENTS, frontier, strengthOf, warsOf, type War } from "./war.ts";
 
 export const BOND_EVENTS = {
@@ -148,6 +151,21 @@ export function grainMade(ctx: PopulationContext, p: Polity): number {
   return made;
 }
 
+/** What one land can give up of grain: what it holds above three months of its food. */
+function landSpare(ctx: PopulationContext, cell: number): number {
+  const prov = ctx.provinces.get(cell),
+    m = ctx.world.store<MarketStore>("economy.markets").get(cell);
+  if (!prov || !m || heldAmongStars(ctx.world, cell)) return 0;
+  return Math.floor(Math.max(0, Math.min(m.stock[G.grain]!, m.food(FOODS) - mouths(prov, ctx.life) * 3)));
+}
+
+/** What a realm could give up of grain this year, over all its lands: nothing, where its people eat all they make. */
+export function spareOf(ctx: PopulationContext, p: Polity): number {
+  let n = 0;
+  for (const c of p.members) n += landSpare(ctx, c);
+  return n;
+}
+
 /** The land of a realm's it lost to `d`, within reach (`front`), the latest first: won from it in their wars, else last its own. */
 function lostLand(
   ctx: PopulationContext,
@@ -242,8 +260,8 @@ export function chooseAim(
       prize: nearestSeat(ctx, front, d.seat),
       source: mine.event,
     };
-  // A much stronger realm whose court and host press for more would have it paid.
-  if (ratio >= TERMS.tributeRatio && press >= TERMS.tributePress && grainMade(ctx, d) > 0)
+  // A much stronger realm whose court and host press for more would have it paid: by one who has something to pay.
+  if (ratio >= TERMS.tributeRatio && press >= TERMS.tributePress && spareOf(ctx, d) > 0)
     return { aim: { aim: "tribute" }, prize: first, source: null };
   return { aim: { aim: "land" }, prize: first, source: null };
 }
@@ -324,8 +342,8 @@ function landsTaken(a: Polity, w: War): number[] {
 
 /** What a peace says of itself: kept on its event, told by its words. Null: nothing can be said (one side fell). */
 export type PeaceTerms = {
-  /** What it came to: "land", "tribute", "vassal", "truce", or "free" (a rising that won). */
-  readonly kind: "land" | "free" | BondKind;
+  /** What it came to: "land", "tribute", "vassal", "truce", "free" (a rising that won), or "fell" (one side is no more: `payer`). */
+  readonly kind: "land" | "free" | "fell" | BondKind;
   /** Who gives, and to whom. */
   readonly payer?: string;
   readonly to?: string;
@@ -416,8 +434,9 @@ function termsOfDeal(
   }
   const payer = deal.winner === 0 ? b : a,
     other = deal.winner === 0 ? a : b,
-    grain = Math.floor(deal.share * grainMade(ctx, payer));
-  // (Nothing to pay with: an oath still binds at nothing; a tribute of nothing, or one more than can be paid, is a truce.)
+    asked = Math.floor(deal.share * grainMade(ctx, payer)),
+    // (Nothing to spare: an oath still binds, and pays nothing; a tribute of nothing, or one more than can be borne, is a truce.)
+    grain = spareOf(ctx, payer) >= asked ? asked : 0;
   if (deal.bond === "tribute" && (grain < 1 || owing(ctx.world, payer) >= TERMS.owesMost))
     return truce();
   return {
@@ -500,7 +519,9 @@ export function termsOfOffer(
           Math.max(1, Math.abs(2 * w.battles.filter((x) => x.won).length - w.battles.length)),
           peopleFallen,
         ),
-    grain = Math.floor(share * grainMade(ctx, payer));
+    asked = Math.floor(share * grainMade(ctx, payer)),
+    // (An oath from one with nothing to spare pays nothing. A tribute they can't pay is never agreed: reign.ts.)
+    grain = knee && spareOf(ctx, payer) < asked ? 0 : asked;
   return {
     deal: { ...base, bond: knee ? "vassal" : "tribute", share, years },
     terms: {
@@ -672,16 +693,24 @@ export function bondsYear(ctx: PopulationContext, t: SimTime): void {
       continue;
     }
     if (b.kind === "truce") continue;
-    // A year's payment: out of what its seat has above three months of its food, and no more than the realm can bear.
-    const seat = ctx.provinces.get(from.seat),
-      out = markets.get(from.seat),
-      into = markets.get(to.seat);
+    // (An oath that asks nothing: its one who has nothing to spare owes nothing.)
+    if (b.grain <= 0) continue;
+    // A year's payment: out of what its lands have above three months of their food, the seat's first, and no more than the realm can bear.
+    const into = markets.get(to.seat);
     let paid = 0;
-    if (seat && out && into) {
-      const spare = Math.max(0, out.food(FOODS) - mouths(seat, ctx.life) * 3),
-        room = leeway.get(from.ref) ?? Math.floor(TERMS.yearMost * grainMade(ctx, from));
-      paid = Math.floor(Math.max(0, Math.min(b.grain, out.stock[G.grain]!, spare, room)));
-      if (paid > 0) into.move("in", G.grain, out.move("out", G.grain, paid));
+    if (into) {
+      const room = leeway.get(from.ref) ?? Math.floor(TERMS.yearMost * grainMade(ctx, from));
+      let left = Math.min(b.grain, room);
+      for (const c of [from.seat, ...from.members.filter((x) => x !== from.seat)]) {
+        if (left <= 0) break;
+        const out = markets.get(c),
+          n = Math.min(left, landSpare(ctx, c));
+        if (out && n > 0) {
+          into.move("in", G.grain, out.move("out", G.grain, n));
+          paid += n;
+          left -= n;
+        }
+      }
       leeway.set(from.ref, room - paid);
     }
     b.paid += paid;

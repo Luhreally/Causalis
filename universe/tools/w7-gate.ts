@@ -38,6 +38,8 @@ import {
   politiesOf,
   populationContext,
   realmName,
+  riseProblem,
+  strengthOf,
   warsOf,
   endRealm,
   type PeaceTerms,
@@ -132,14 +134,13 @@ const loadFile = (u: typeof EARTH, file: string): World => {
   }).world;
 };
 
-const scratch = fileURLToPath(new URL("../../../../AppData/Local/Temp/", import.meta.url)),
-  file = arg("--save"),
-  universe = (arg("--universe") ?? (file?.includes("earth--") ? "earth" : "alien")) as
+const file = arg("--save"),
+  // (A young world of many realms, or one given: the worst cases are forged on nine that stand free.)
+  universe = (arg("--universe") ?? (file && !file.includes("earth--") ? "alien" : "earth")) as
     "earth" | "alien",
   seedAsked = arg("--seed") ?? (universe === "earth" ? "first light" : "harrow 348"),
   yearAsked = Number(arg("--year") ?? (universe === "earth" ? 450 : 400)),
   U = universe === "earth" ? EARTH : ALIEN;
-void scratch;
 
 /** Every line of a world's peaces and declarations since `from`, read for what must never be said. */
 function readLines(
@@ -160,9 +161,10 @@ function readLines(
       if (/undefined|NaN|null|\b(pol|war|cell|ev):\d/.test(said)) bad.push(said);
     }
     if (w.peace) {
-      const t = (world.events.get(w.peace)?.data as { terms?: PeaceTerms } | null)?.terms;
-      const k = t?.kind ?? (w.civil ? "civil" : "none");
+      const d = world.events.get(w.peace)?.data as { terms?: PeaceTerms; fire?: string } | null,
+        k = d?.terms?.kind ?? (w.civil ? "civil" : d?.fire ? "fire" : "none");
       terms.set(k, (terms.get(k) ?? 0) + 1);
+      if (k === "none") bad.push(`a peace that says nothing of its terms: ${claimOf(world, w.peace)}`);
     }
   }
   return { aims, terms, bad, lines };
@@ -301,14 +303,20 @@ function pathsNobodyWatches(world: World, name: string): void {
       `${name}: an unpaid tribute is not remembered`,
     );
   }
-  // One realm left binds no one.
-  check(TERMS.realmsLeast > 1, "a lone realm could bind");
-  const one = { ...realms, living: () => [] };
-  void one;
+  // One who cannot be bound is not: a great win over one too many, or with too few left, is not an oath.
   check(
-    !canBind(world, emptyTo, emptyTo) || bonds.vassals() < 1e9,
-    `${name}: can bind is not read`,
+    dealOf({
+      edge: 6,
+      ratio: 20,
+      spent: [0, 0.1],
+      lands: 0,
+      aim: "land",
+      got: false,
+      canBind: false,
+    }).bond !== "vassal",
+    `${name}: an oath taken where none can be bound`,
   );
+  check(!canBind(world, emptyTo, emptyTo) || realms.living().length >= TERMS.realmsLeast, `${name}: bound with too few left`);
 }
 
 // 3. A run read for its worst.
@@ -320,8 +328,7 @@ function readWorst(world: World, name: string, to: number): void {
     ctx = populationContext(world);
   let worstShare = 0,
     worstChain = 0,
-    worstVassals = 0,
-    worstLeft = 0;
+    worstVassals = 0;
   for (let y = from + 1; y <= to; y++) {
     world.runTo(y * YEAR);
     const living = realms.living().length;
@@ -338,8 +345,6 @@ function readWorst(world: World, name: string, to: number): void {
       const made = grainMade(ctx, realms.get(ref as Ref)!);
       if (made > 0) worstShare = Math.max(worstShare, n / made);
     }
-    for (const c of bonds.all())
-      if (c.kind !== "truce" && c.grain) worstLeft = Math.max(worstLeft, c.paid);
   }
   const read = readLines(world, from + 1);
   say(
@@ -376,6 +381,172 @@ type Forged = {
   readonly oldWar: string | null;
   readonly losingWar: string;
 };
+
+/** A war forged between two realms, its battles all going one way. */
+function forgeWar(
+  world: World,
+  a: Polity,
+  d: Polity,
+  wins: boolean,
+  data: Record<string, unknown>,
+): War {
+  const ctx = populationContext(world),
+    year = yearOfMoment(world.now),
+    prize = frontier(ctx, a, d)[0]!,
+    ref = world.minter.mint(WAR),
+    event = world.events.emit({
+      type: WAR_EVENTS.declared.type,
+      subjects: [ref, a.ref, d.ref],
+      place: cellRef(0, prize),
+      causes: [],
+      data: { a: realmName(a), b: realmName(d), aimed: true, ...data },
+    }),
+    w: War = {
+      ref,
+      attacker: a.ref,
+      defender: d.ref,
+      declared: year - 3,
+      event,
+      prize,
+      battles: [],
+      fallen: [120, 340],
+      ended: null,
+      peace: null,
+    };
+  for (let i = 0; i < 3; i++)
+    w.battles.push({
+      year: year - 3 + i,
+      land: prize,
+      won: wins,
+      fallen: [40, 110],
+      event: world.events.emit({
+        type: WAR_EVENTS.battle.type,
+        subjects: [ref, a.ref, d.ref],
+        place: cellRef(0, prize),
+        causes: [{ ref: event, role: "trigger", weight: 1 }],
+        data: { a: realmName(a), b: realmName(d), won: wins, fallen: 150 },
+      }),
+    });
+  warsOf(world).add(w);
+  return w;
+}
+
+// What a ruler can say and have it hold, on real neighbours: land given, land taken, an oath taken, the oath thrown off.
+// (The sheet's buttons are one path, pressed on the phone below; what differs is what each offer does to the world.)
+function offersHold(world: World, name: string, mustAll: boolean): void {
+  const ctx = populationContext(world),
+    realms = politiesOf(world),
+    bonds = bondsOf(world),
+    wars = warsOf(world),
+    diplomacy = diplomacyOf(world);
+  const pairs = (): [Polity, Polity][] => {
+    const out: [Polity, Polity][] = [];
+    for (const r of [...realms.living()].sort(
+      (a, b) => b.members.length - a.members.length || (a.ref < b.ref ? -1 : 1),
+    ))
+      for (const rel of diplomacy.of(r.ref)) {
+        const foe = realms.get(rel.a === r.ref ? rel.b : rel.a);
+        if (!foe || foe.ended !== null) continue;
+        if (wars.between(r.ref, foe.ref) || bonds.between(r.ref, foe.ref)) continue;
+        // (Each has land past its seat on the line between them.)
+        if (!frontier(ctx, r, foe).some((c) => c !== foe.seat)) continue;
+        if (!frontier(ctx, foe, r).some((c) => c !== r.seat)) continue;
+        if (!grainMade(ctx, foe) || !grainMade(ctx, r)) continue;
+        out.push([r, foe]);
+      }
+    return out;
+  };
+  const peace = (r: Polity, foe: Polity, offer: string) => {
+    const why = peaceProblem(ctx, r, foe, offer as never);
+    if (why) return why;
+    world.submit("reign.peace", { realm: r.ref, ruler: r.ruler.name, with: foe.ref, offer });
+    world.runTo(world.now + 2);
+    return null;
+  };
+  let done = 0;
+  // Land taken: the prize of the war it is winning.
+  const first = pairs()[0];
+  if (first) {
+    const [r, foe] = first,
+      w = forgeWar(world, r, foe, true, { aim: "land" }),
+      land = w.prize,
+      bad = foe.seat === land ? null : peace(r, foe, "take-land");
+    if (foe.seat !== land) {
+      check(!bad, `${name}: land demanded of one beaten is refused: ${bad}`);
+      check(r.members.includes(land), `${name}: land demanded did not pass to the one who won`);
+      check(!foe.members.includes(land), `${name}: land demanded stayed with the one who lost it`);
+      check(w.ended !== null, `${name}: land demanded did not end the war`);
+      const said = w.peace ? claimOf(world, w.peace) : "";
+      check(/cedes/.test(said), `${name}: land taken, told: ${said}`);
+      say(`land taken: ${said}`);
+      done++;
+    }
+  }
+  // Land given: to one beating it, from its own border, and never its seat.
+  const second = pairs().find(([r, foe]) => frontier(ctx, foe, r).some((c) => c !== r.seat));
+  if (second) {
+    const [r, foe] = second,
+      w = forgeWar(world, foe, r, true, { aim: "back", lost: yearOfMoment(world.now) - 40 }),
+      land = frontier(ctx, foe, r).find((c) => c !== r.seat)!,
+      bad = peace(r, foe, "give-land");
+    check(!bad, `${name}: land offered to one winning is refused: ${bad}`);
+    check(foe.members.includes(land), `${name}: land offered did not pass`);
+    check(r.members.includes(r.seat), `${name}: land offered took the seat`);
+    const said = w.peace ? claimOf(world, w.peace) : "";
+    check(/cedes/.test(said), `${name}: land given, told: ${said}`);
+    say(`land given: ${said}`);
+    done++;
+  }
+  // An oath taken from one beaten and much weaker; then thrown off, and if land lies between them, a war to be free.
+  const third = pairs().find(
+    ([r, foe]) =>
+      strengthOf(ctx, r) >= TERMS.kneeRatio * strengthOf(ctx, foe) && canBind(world, r, foe),
+  );
+  if (third) {
+    const [r, foe] = third,
+      w = forgeWar(world, r, foe, true, { aim: "land" }),
+      bad = peace(r, foe, "take-knee");
+    check(!bad, `${name}: an oath demanded of one beaten is refused: ${bad}`);
+    const oath = bonds.oathOf(foe.ref);
+    check(oath?.to === r.ref, `${name}: an oath demanded binds no one`);
+    const said = w.peace ? claimOf(world, w.peace) : "";
+    check(/bends the knee/.test(said), `${name}: an oath taken, told: ${said}`);
+    say(`an oath taken: ${said}`);
+    done++;
+    const why = riseProblem(ctx, foe);
+    if (why) say(`the oath not thrown off: ${why}`);
+    else {
+      const warsBefore = wars.all().length;
+      world.submit("reign.rise", { realm: foe.ref, ruler: foe.ruler.name });
+      world.runTo(world.now + 2);
+      check(!bonds.oathOf(foe.ref), `${name}: an oath thrown off still binds`);
+      const free = wars.all().slice(warsBefore)[0];
+      check(!!free, `${name}: a rising with land between them is no war`);
+      if (free) {
+        check(aimOf(world, free)?.aim === "free", `${name}: a rising's aim: ${aimOf(world, free)?.aim}`);
+        const told = claimOf(world, free.event);
+        check(/throw off the oath/.test(told), `${name}: a rising, told: ${told}`);
+        say(`a rising: ${told}`);
+        // (It runs its course, under the rule, and its peace says what it came to; no land passes by it.)
+        const lands = [foe.members.length, r.members.length];
+        world.runTo(world.now + 7 * YEAR);
+        if (free.peace) {
+          const end = claimOf(world, free.peace);
+          say(`its end: ${end}`);
+          check(!/undefined|NaN/.test(end), `${name}: a rising's end, told: ${end}`);
+          void lands;
+        } else say("a rising still fought after seven years");
+      }
+    }
+  }
+  if (!third) {
+    const free = pairs();
+    say(
+      `no oath to take: ${free.length} pairs free, the most lopsided ${Math.max(0, ...free.map(([r, foe]) => strengthOf(ctx, r) / Math.max(1, strengthOf(ctx, foe)))).toFixed(1)} to 1, ${bonds.vassals()} sworn of ${realms.living().length} realms, can bind: ${free.filter(([r, foe]) => canBind(world, r, foe)).length}`,
+    );
+  }
+  check(!mustAll || done === 3, `${name}: only ${done} of the three offers could be run`);
+}
 
 function forge(world: World, seed: string, fromFile: boolean): Forged {
   const ctx = populationContext(world),
@@ -416,59 +587,26 @@ function forge(world: World, seed: string, fromFile: boolean): Forged {
         !bonds.vassalsOf(p.ref).length,
     ),
     vassal = others.find((p) => !wars.fighting(p.ref).length) ?? others[0],
-    overlord = others.find(
-      (p) => p !== vassal && !bonds.between(p.ref, vassal?.ref ?? ("" as Ref)),
-    );
+    // (Beside its overlord, where one can be: a rising there is a war, one elsewhere is only words.)
+    overlord =
+      others.find(
+        (p) =>
+          p !== vassal &&
+          !!vassal &&
+          !bonds.between(p.ref, vassal.ref) &&
+          frontier(ctx, vassal, p).length > 0,
+      ) ?? others.find((p) => p !== vassal && !bonds.between(p.ref, vassal?.ref ?? ("" as Ref)));
   if (!vassal || !overlord) throw new Error(`no two realms left for an oath on ${seed}`);
   // (Whatever it is doing, it stands at peace to swear: a vassal's wars are done with.)
   for (const w of wars.fighting(vassal.ref)) w.ended = year;
-  // Grain enough at the seat to pay with.
-  const seat = markets.get(realm.seat);
-  if (seat) seat.move("in", G.grain, Math.floor(grainMade(ctx, realm) * 0.5));
+  // Grain enough to pay with, for those asked: on a far world people eat all they make, and no one would ask them.
+  for (const p of [realm, losing, winning, vassal])
+    markets.get(p.seat)?.move("in", G.grain, Math.floor(grainMade(ctx, p) * 0.5));
   const old = wars.all().find((w) => !aimOf(world, w) && !w.civil && w.ended !== null);
   // A war it is losing (they came to take back a land), and one it is winning (it came for one).
-  const war = (a: Polity, d: Polity, wins: boolean, data: Record<string, unknown>): War => {
-    const prize = frontier(ctx, a, d)[0]!,
-      ref = world.minter.mint(WAR),
-      event = world.events.emit({
-        type: WAR_EVENTS.declared.type,
-        subjects: [ref, a.ref, d.ref],
-        place: cellRef(0, prize),
-        causes: [],
-        data: { a: realmName(a), b: realmName(d), aimed: true, ...data },
-      }),
-      w: War = {
-        ref,
-        attacker: a.ref,
-        defender: d.ref,
-        declared: year - 3,
-        event,
-        prize,
-        battles: [],
-        fallen: [120, 340],
-        ended: null,
-        peace: null,
-      };
-    for (let i = 0; i < 3; i++)
-      w.battles.push({
-        year: year - 3 + i,
-        land: prize,
-        won: wins,
-        fallen: [40, 110],
-        event: world.events.emit({
-          type: WAR_EVENTS.battle.type,
-          subjects: [ref, a.ref, d.ref],
-          place: cellRef(0, prize),
-          causes: [{ ref: event, role: "trigger", weight: 1 }],
-          data: { a: realmName(a), b: realmName(d), won: wins, fallen: 150 },
-        }),
-      });
-    wars.add(w);
-    return w;
-  };
   const lostYear = year - 40,
-    lw = war(losing, realm, true, { aim: "back", lost: lostYear });
-  war(realm, winning, true, { aim: "land" });
+    lw = forgeWar(world, losing, realm, true, { aim: "back", lost: lostYear });
+  forgeWar(world, realm, winning, true, { aim: "land" });
   forgeBond(
     world,
     "tribute",
@@ -555,6 +693,11 @@ const copy = () =>
   // (On the old save itself, before anything is forged on it.)
   const w = file && existsSync(file) ? loadFile(U, file) : copy();
   pathsNobodyWatches(w, seed);
+}
+{
+  const w = copy();
+  // (A far world's realms may stand too even for an oath: the young world, which CI runs, must run all three.)
+  offersHold(w, seed, !file);
 }
 {
   const w = copy();
@@ -834,32 +977,32 @@ async function phone(f: Forged): Promise<void> {
   );
   say(`a year on: ${moved?.words}`);
   await k(`globalThis.causalis.open(${JSON.stringify(f.realm)})`);
-  await until("the realm's page", () => seen(".page-panel:not([hidden])"), slow(30000));
+  await until("the realm's page", () => seen(".page-window:not([hidden])"), slow(30000));
   await settle(500);
-  const mine = await words(".page-panel:not([hidden])");
+  const mine = await words(".page-window:not([hidden])");
   check(
-    /Pays tribute to/.test(mine),
+    /Pays tribute to/i.test(mine),
     `their page does not say what they pay: ${mine.slice(0, 200)}`,
   );
   await shot("6-realm-page");
   await k(`globalThis.causalis.open(${JSON.stringify(f.losing)})`);
   await settle(800);
-  const theirs = await words(".page-panel:not([hidden])");
+  const theirs = await words(".page-window:not([hidden])");
   check(
-    /Paid tribute by/.test(theirs),
+    /Paid tribute by/i.test(theirs),
     `the other's page does not say what it is paid: ${theirs.slice(0, 200)}`,
   );
   await shot("7-other-page");
   // The war's page.
   await k(`globalThis.causalis.open(${JSON.stringify(f.losingWar)})`);
   await settle(800);
-  const warWords = await words(".page-panel:not([hidden])");
+  const warWords = await words(".page-window:not([hidden])");
   check(
     /to take back/.test(warWords),
     `the war's page does not say its aim: ${warWords.slice(0, 240)}`,
   );
   check(
-    /Terms/.test(warWords) && /grain a year/.test(warWords),
+    /Terms/i.test(warWords) && /grain a year/.test(warWords),
     `the war's page does not say its terms: ${warWords.slice(0, 240)}`,
   );
   say(`the war's page: ${warWords.replace(/\s+/g, " ").slice(0, 280)}`);
@@ -946,9 +1089,9 @@ async function desktop(f: Forged): Promise<void> {
   await p.goto(`${site}?${q}&load=${encodeURIComponent("desk:gate94")}&hold=1`);
   await drawn();
   await p.evaluate(`globalThis.causalis.open(${JSON.stringify(f.losingWar)})`);
-  await p.waitForSelector(".page-panel:not([hidden])", { state: "visible", timeout: slow(30000) });
+  await p.waitForSelector(".page-window:not([hidden])", { state: "visible", timeout: slow(30000) });
   await p.waitForTimeout(slow(600));
-  const w = (await p.locator(".page-panel:not([hidden])").first().innerText()) ?? "";
+  const w = (await p.locator(".page-window:not([hidden])").first().innerText()) ?? "";
   check(
     /to take back/.test(w),
     `on a desktop, the war's page does not say its aim: ${w.slice(0, 200)}`,
@@ -956,9 +1099,9 @@ async function desktop(f: Forged): Promise<void> {
   if (shots) await p.screenshot({ path: join(shots, "11-desktop-war.png") });
   await p.evaluate(`globalThis.causalis.open(${JSON.stringify(f.payer)})`);
   await p.waitForTimeout(slow(800));
-  const t = (await p.locator(".page-panel:not([hidden])").first().innerText()) ?? "";
+  const t = (await p.locator(".page-window:not([hidden])").first().innerText()) ?? "";
   check(
-    /Pays tribute to/.test(t),
+    /Pays tribute to/i.test(t),
     `on a desktop, the payer's page does not say so: ${t.slice(0, 200)}`,
   );
   if (shots) await p.screenshot({ path: join(shots, "12-desktop-payer.png") });

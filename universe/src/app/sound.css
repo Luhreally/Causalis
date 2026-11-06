@@ -30,6 +30,9 @@
   top: calc(env(safe-area-inset-top, 0px) + 8px);
 }
 body.paging .sound-button.free,
-body:has(.event-window:not([hidden])) .sound-button.free {
+body:has(.event-window:not([hidden])) .sound-button.free,
+body:has(.life-book:not([hidden])) .sound-button.free,
+body:has(.life-window:not([hidden])) .sound-button.free,
+body:has(.life-picker:not([hidden])) .sound-button.free {
   display: none !important;
 }

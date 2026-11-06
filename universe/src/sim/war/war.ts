@@ -102,6 +102,7 @@ import {
   reckonPeace,
   sack,
   takesLand,
+  type PeaceTerms,
 } from "./bonds.ts";
 import type { AimKind } from "../../rules/index.ts";
 
@@ -1349,15 +1350,23 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       aim = declared?.aim,
       land = aimed && front.includes(w.prize) ? w.prize : front[0];
     if (land === undefined) {
-      // No land left between them to fight over: the war ends, and history says so.
+      // No land left between them to fight over: the war ends, and history says so, with what it came to (W7).
       w.ended = year;
+      const made = w.civil ? null : reckonPeace(ctx, w, a, b, aim, a.members.includes(w.prize), year);
       w.peace = world.events.emit({
         type: WAR_EVENTS.peace.type,
         subjects: [w.ref, a.ref, b.ref],
         place: ctx.provinces.get(a.seat)?.ref ?? null,
         causes: [{ ref: w.event, role: "trigger", weight: 1 }],
-        data: { a: realmName(a), b: realmName(b), years: year - w.declared, won: false },
+        data: {
+          a: realmName(a),
+          b: realmName(b),
+          years: year - w.declared,
+          won: false,
+          ...(made ? { terms: made.terms } : {}),
+        },
       });
+      if (made) bindPeace(ctx, w, made, w.peace, year);
       if (w.civil) settleCivil(ctx, w, false, false, t);
       continue;
     }
@@ -1546,11 +1555,13 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       world.rng.real(FIGHT, key, t, 5) < 0.12
     ) {
       w.ended = year;
-      // (Its terms, where both still stand and it was not a realm's war with itself: W7.)
+      // (Its terms, where both still stand and it was not a realm's war with itself; else, who is no more: W7.)
       const made =
-        !w.civil && a.ended === null && b.ended === null
-          ? reckonPeace(ctx, w, a, b, aim, prizeWon || got, year)
-          : null;
+          !w.civil && a.ended === null && b.ended === null
+            ? reckonPeace(ctx, w, a, b, aim, prizeWon || got, year)
+            : null,
+        gone: PeaceTerms | null =
+          !w.civil && !made ? { kind: "fell", payer: realmName(a.ended !== null ? a : b) } : null;
       w.peace = world.events.emit({
         type: WAR_EVENTS.peace.type,
         subjects: [w.ref, a.ref, b.ref],
@@ -1561,7 +1572,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
           b: realmName(b),
           years,
           won: prizeWon || got,
-          ...(made ? { terms: made.terms } : {}),
+          ...(made ? { terms: made.terms } : gone ? { terms: gone } : {}),
         },
       });
       if (made) bindPeace(ctx, w, made, w.peace, year);

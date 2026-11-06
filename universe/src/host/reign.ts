@@ -184,11 +184,11 @@ export function bondLines(world: World, r: Polity): ReignBond[] {
           kind === "truce"
             ? `A truce holds you and ${otherName} from war until year ${b.until}.`
             : kind === "oath"
-              ? `You have bent the knee to ${otherName}: you keep your lands and your seat, pay ${grain} grain a year out of your seat's stores, and make no war of your own, until year ${b.until}${paid}${short}.`
+              ? `You have bent the knee to ${otherName}: you keep your lands and your seat, ${b.grain ? `pay ${grain} grain a year out of your lands' stores, ` : "pay nothing, as you have nothing to spare, "}and make no war of your own, until year ${b.until}${paid}${short}.`
               : kind === "vassal"
-                ? `${otherName} has bent the knee to you: it pays ${grain} grain a year to your seat and makes no war of its own, until year ${b.until}${paid}${short}.`
+                ? `${otherName} has bent the knee to you: it ${b.grain ? `pays ${grain} grain a year to your seat` : "has nothing to pay"} and makes no war of its own, until year ${b.until}${paid}${short}.`
                 : kind === "pays"
-                  ? `You pay ${otherName} ${grain} grain a year out of your seat's stores, until year ${b.until}${paid}${short}.`
+                  ? `You pay ${otherName} ${grain} grain a year out of your lands' stores, until year ${b.until}${paid}${short}.`
                   : `${otherName} pays you ${grain} grain a year, to your seat's stores, until year ${b.until}${paid}${short}.`;
       if (kind !== "oath")
         return { kind, other: other?.ref ?? "", otherName, words, grain: b.grain, until: b.until };
@@ -419,7 +419,7 @@ function reignDecrees(world: World, realm: unknown): ReignDecrees | null {
     owed = bound
       .filter((b) => b.kind === "vassal" || b.kind === "paid")
       .reduce((n, b) => n + b.grain, 0),
-    spends = `${owes ? ` You pay ${grainSum(owes)} grain a year in tribute out of your seat's stores.` : ""}${owed ? ` You are paid ${grainSum(owed)} grain a year in tribute.` : ""}`;
+    spends = `${owes ? ` You pay ${grainSum(owes)} grain a year in tribute out of your lands' stores.` : ""}${owed ? ` You are paid ${grainSum(owed)} grain a year in tribute.` : ""}`;
   const tithe = Math.round(r.tribute * 100),
     steps = [tithe - REIGN.titheStep, tithe + REIGN.titheStep].filter(
       (to) => to >= REIGN.titheLeast && to <= REIGN.titheMost,
