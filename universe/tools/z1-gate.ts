@@ -119,7 +119,7 @@ const lands = [...Array(g.offworld.base).keys()]
     return score(b, pb) - score(a, pa) || herdStock(ctx, b) - herdStock(ctx, a) || a - b;
   });
 const land = lands[0];
-if (!saveFile) if (!saveFile) if (!saveFile) if (!saveFile) check(land !== undefined, "no land has creatures that move");
+if (!saveFile) check(land !== undefined, "no land has creatures that move");
 const plan = land !== undefined ? landHerds(world, land) : null,
   first = plan?.herds[0],
   shares = Array.from({ length: 96 }, (_, i) => i / 96),
