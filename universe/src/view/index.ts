@@ -302,6 +302,7 @@ export {
   roadLine,
   roadLook,
   roadOutside,
+  onLines,
   roadTiles,
   tileMiddle,
   tileOf,

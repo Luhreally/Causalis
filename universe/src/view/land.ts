@@ -333,6 +333,55 @@ export function roadOutside(
 }
 
 /**
+ * Whether something `r` about a point lies on any of these lines (region units), read by where the lines go: a land
+ * built over asks it of thousands of blocks.
+ */
+export function onLines(
+  lines: readonly (readonly { x: number; z: number }[])[],
+): (x: number, z: number, r: number) => boolean {
+  const CELL = 8,
+    cells = new Map<number, number[]>(),
+    keyOf = (i: number, j: number) => (i + 4096) * 8192 + (j + 4096);
+  for (const line of lines)
+    for (let k = 0; k + 1 < line.length; k++) {
+      const p = line[k]!,
+        q = line[k + 1]!,
+        n = Math.ceil(Math.hypot(q.x - p.x, q.z - p.z) / (CELL / 2)) + 1,
+        seen = new Set<number>();
+      for (let s = 0; s <= n; s++) {
+        const key = keyOf(
+          Math.floor((p.x + ((q.x - p.x) * s) / n) / CELL),
+          Math.floor((p.z + ((q.z - p.z) * s) / n) / CELL),
+        );
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const c = cells.get(key);
+        if (c) c.push(p.x, p.z, q.x, q.z);
+        else cells.set(key, [p.x, p.z, q.x, q.z]);
+      }
+    }
+  return (x, z, r) => {
+    const i1 = Math.floor((x + r) / CELL),
+      j1 = Math.floor((z + r) / CELL);
+    for (let i = Math.floor((x - r) / CELL); i <= i1; i++)
+      for (let j = Math.floor((z - r) / CELL); j <= j1; j++) {
+        const c = cells.get(keyOf(i, j));
+        if (!c) continue;
+        for (let o = 0; o < c.length; o += 4) {
+          const dx = c[o + 2]! - c[o]!,
+            dz = c[o + 3]! - c[o + 1]!,
+            len = dx * dx + dz * dz,
+            u = len ? Math.max(0, Math.min(1, ((x - c[o]!) * dx + (z - c[o + 1]!) * dz) / len)) : 0,
+            ex = c[o]! + u * dx - x,
+            ez = c[o + 1]! + u * dz - z;
+          if (ex * ex + ez * ez < r * r) return true;
+        }
+      }
+    return false;
+  };
+}
+
+/**
  * Pieces of a line laid on the ground, a piece every `step` at most: [x, y, z, length, yaw, pitch]
  * each, its middle `lift` over the ground (lengths and heights in region units).
  */
