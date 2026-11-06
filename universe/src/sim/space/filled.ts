@@ -201,12 +201,7 @@ function adopt(ctx: PopulationContext, store: FilledStore, year: number): void {
 }
 
 /** A world's year: its ship in, its people grown, and its being filled told once. */
-function worldYear(
-  ctx: PopulationContext,
-  store: FilledStore,
-  w: FilledWorld,
-  year: number,
-): void {
+function worldYear(ctx: PopulationContext, store: FilledStore, w: FilledWorld, year: number): void {
   const { world } = ctx;
   if (!w.arrived) {
     if (year < w.arrives) return;

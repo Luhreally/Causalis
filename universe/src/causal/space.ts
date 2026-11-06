@@ -94,7 +94,7 @@ registerEventWords(FILLED_EVENTS.landed.type, (_world, e) => {
 });
 registerEventWords(FILLED_EVENTS.world.type, (_world, e) => {
   const d = (e.data ?? {}) as { realm?: string; people?: number; share?: number; whole?: boolean };
-  const many = (d.people ?? 0).toLocaleString("en");
+  const many = count(d.people ?? 0);
   return d.whole
     ? `A world ${d.realm ? `first settled by ${d.realm} ` : ""}was filled to its edges: ${many} people on it, year ${yearOfMoment(e.t)}`
     : `A world ${d.realm ? `first settled by ${d.realm} ` : ""}came to hold all it can under its roofs, ${d.share ?? "?"}% of its ground and no more: ${many} people on it, year ${yearOfMoment(e.t)}`;

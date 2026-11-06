@@ -39,7 +39,13 @@ const pct = (x: number) =>
   x < 0.001 ? "Under 0.1" : x < 0.095 ? (x * 100).toFixed(1) : String(Math.round(x * 100));
 
 /** Why it is no more than it is, each from its numbers. */
-function whyOf(world: World, w: FilledWorld, r: FillReading, people: number, year: number): string[] {
+function whyOf(
+  world: World,
+  w: FilledWorld,
+  r: FillReading,
+  people: number,
+  year: number,
+): string[] {
   const out: string[] = [],
     ground = fillGround(world, w),
     remade =

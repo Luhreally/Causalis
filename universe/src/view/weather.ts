@@ -153,28 +153,28 @@ export function weatherAt(land: LandSky, t: number, pace = 0, wall: number | nul
         : dark > 0.04 && wet <= 0
           ? ["🌑", "A dark year: soot in the high air, the sun dim behind it"]
           : land.sent < 0
-          ? ["☀️", "Dry: the rain withheld by your hand"]
-          : stormy
-            ? ["⛈️", "A thunderstorm"]
-            : snow > 0.05 && rain > 0.05
-              ? ["🌨️", "Sleet"]
-              : snow > 0.55
-                ? ["❄️", "Snow"]
-                : snow > 0
-                  ? ["🌨️", "Light snow"]
-                  : rain > 0.55
-                    ? ["🌧️", "Heavy rain"]
-                    : rain > 0
-                      ? ["🌦️", "Showers"]
-                      : haze > 0.2
-                        ? ["🌫️", "Dry haze: a year of drought"]
-                        : cloud > 0.5
-                          ? ["☁️", "Overcast"]
-                          : cloud > 0.25
-                            ? ["⛅", "Some cloud"]
-                            : day
-                              ? ["☀️", "Clear"]
-                              : ["🌙", "A clear night"];
+            ? ["☀️", "Dry: the rain withheld by your hand"]
+            : stormy
+              ? ["⛈️", "A thunderstorm"]
+              : snow > 0.05 && rain > 0.05
+                ? ["🌨️", "Sleet"]
+                : snow > 0.55
+                  ? ["❄️", "Snow"]
+                  : snow > 0
+                    ? ["🌨️", "Light snow"]
+                    : rain > 0.55
+                      ? ["🌧️", "Heavy rain"]
+                      : rain > 0
+                        ? ["🌦️", "Showers"]
+                        : haze > 0.2
+                          ? ["🌫️", "Dry haze: a year of drought"]
+                          : cloud > 0.5
+                            ? ["☁️", "Overcast"]
+                            : cloud > 0.25
+                              ? ["⛅", "Some cloud"]
+                              : day
+                                ? ["☀️", "Clear"]
+                                : ["🌙", "A clear night"];
   // (Told in true degrees; its sky played in its liquid's: Phase 56.)
   const celsius = land.degrees ? land.degrees.at0 + land.degrees.per * warmth : warmth;
   return { rain, snow, cloud, haze, flash, warmth, celsius, words, icon };
