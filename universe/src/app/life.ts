@@ -323,7 +323,7 @@ export function installLife(d: LifeDeps): LifeFlow {
       until = null;
       pace = "slow";
     }
-    if (hud.waiting || pace === "stop") d.time.hold("life");
+    if (hud.waiting || pace === "stop" || !d.pages.element.hidden) d.time.hold("life");
     else {
       d.time.release("life");
       const speed =
