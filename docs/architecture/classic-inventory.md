@@ -8,10 +8,10 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | Area | in | partial | missing | n/a |
 |---|---|---|---|---|
 | World & ground | 3 | 8 | 0 | 1 |
-| Life & creatures | 3 | 5 | 0 | 0 |
+| Life & creatures | 4 | 4 | 0 | 0 |
 | People & minds | 3 | 8 | 6 | 3 |
-| Households, towns & building | 13 | 7 | 2 | 11 |
-| Farming, crafts & industry | 11 | 6 | 0 | 1 |
+| Households, towns & building | 14 | 6 | 2 | 11 |
+| Farming, crafts & industry | 12 | 5 | 0 | 1 |
 | Trade, wealth & markets | 3 | 5 | 0 | 1 |
 | Politics, diplomacy & law | 5 | 3 | 0 | 0 |
 | War | 6 | 5 | 0 | 0 |
@@ -21,7 +21,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | Observation UI & lenses | 16 | 1 | 1 | 2 |
 | Space | 3 | 0 | 0 | 1 |
 | Engine, performance & saves | 1 | 0 | 0 | 19 |
-| **All 185 sections** | **79** | **53** | **11** | **42** |
+| **All 185 sections** | **82** | **50** | **11** | **42** |
 
 ## World & ground
 
@@ -45,9 +45,9 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | Classic | What it did | Universe | Where / what's missing |
 |---|---|---|---|
 | 20 Artificial life | Life emerges from chemistry, founders seeded, the biosphere kept alive | **in** | Life's history from the first cells (`gen/evolution.ts`, Phase 17), played in the genesis and the meadow (`view/genesis.ts`, `view/meadow.ts`, Phases 24 and 27) |
-| 21 Perception & behaviour | Each creature senses, feeds, drinks, hunts, scavenges, gathers and socialises | **partial** | Seen in the meadow and around villages, where hunters stalk and scavengers trail (`view/meadow.ts`, `view/fauna.ts`). Missing: creatures choosing for themselves in the running world |
+| 21 Perception & behaviour | Each creature senses, feeds, drinks, hunts, scavenges, gathers and socialises | **partial** | Seen in the meadow and around villages, where hunters stalk and scavengers trail (`view/meadow.ts`, `view/fauna.ts`); a land's creatures go where the green is, through the year and the centuries, and come past towns (`sim/ecology/herds.ts`, `render/landherds.ts`, Z1). Missing: one creature choosing for itself in the running world |
 | 22 Health, disease, death | Infection, lifespan, death causes, corpses that decay back into the ground | **partial** | Sickness goes much deeper (`sim/health/health.ts`, Phase 20); deaths come from life tables. Missing: injuries, and corpses that lie and decay |
-| 23 Reproduction & evolution | Offspring inherit a mutated genome; lineages evolve as you watch | **partial** | Lineages evolve over deep time (`gen/evolution.ts`), and traits pass to children under the hand (`sim/hand/hand.ts`). Missing: evolution during history |
+| 23 Reproduction & evolution | Offspring inherit a mutated genome; lineages evolve as you watch | **in** | Lineages evolve over deep time (`gen/evolution.ts`), traits pass to children under the hand (`sim/hand/hand.ts`), and the tree goes on through history: a new kind stands apart where it is cut off, a kind dies out on the last of its ground, one is made tame (`sim/ecology/herds.ts`, Z1) |
 | 24 Memory & social | Fear memories of places that steer behaviour; social cohesion | **partial** | People met have memories drawn from history (`causal/observer.ts`, `causal/biography.ts`). Missing: memories that change what anyone does |
 | 32c Creature visuals | Procedural creature models from the genome | **in** | Bodies built from each lineage's plan (`view/creature.ts`, Phase 9) |
 | 40 Sentience continuity | Thinking life can't be stranded; wild kin uplifted; parallel peoples | **partial** | One people rises to thought on a living world (`gen/civilizations.ts`, `sim/population/world.ts`). Missing: two thinking peoples on one world, and wild kin uplifted |
@@ -88,7 +88,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 32e Architecture render | Palettes, footprints, roofs, function marks, sites going up | **in** | Homes in their designs, rising inside scaffolds (`view/town.ts`, `render/town.ts`) |
 | 32f Interiors | Cutaway homes: furniture, and who is inside | **partial** | Any home opens in cutaway with what its people need, can get and can pay for, and those who are in it (Lives L6, `rules/dwelling.ts`). Missing: workshops |
 | 32g Town render | Work at its faces; the place itself | **in** | `render/work.ts`; trades at their buildings (`render/trades.ts`, Phase 41) |
-| 52 Living society | Monuments, caravans that walk, wildlife lives, petty crime and captives | **partial** | Traders on the road (`view/trade.ts`, Phase 48); captives (`sim/order/order.ts`); stones raised to what a town went through, each with its page (`host/inspect/memory.ts`, `render/memorial.ts`, T1). theft and exile, as a town's cases (`host/inspect/justice.ts`, J1). Missing: dens and beasts of legend |
+| 52 Living society | Monuments, caravans that walk, wildlife lives, petty crime and captives | **in** | Traders on the road (`view/trade.ts`, Phase 48); captives (`sim/order/order.ts`); stones raised to what a town went through, each with its page (`host/inspect/memory.ts`, `render/memorial.ts`, T1). theft and exile, as a town's cases (`host/inspect/justice.ts`, J1); dens on a land's map, and beasts people give a name to, with their page and their end (`host/inspect/herds.ts`, Z1) |
 | 68 Expansion | Settlers found new camps; caps scale with the map | **in** | Bands spread and towns are founded (`sim/population/systems.ts`); the god can send settlers (`sim/acts/peoples.ts`) |
 | 82 Granary | Farms scale with mouths, rations stretch, relief comes, the hungry move, births slow | **in** | Stores, fertility that follows how well fed, relief by trade, moves away from hunger (`sim/population/systems.ts`, `sim/economy/systems.ts`) |
 | 83 Aftermath | Ruins resettled, refugees walk to friends, thinned towns colonised | **partial** | People leave hungry or war-torn lands (`sim/population/systems.ts`). Missing: ruins resettled, colonists sent to thinned towns |
@@ -126,7 +126,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 30e Production | Facilities run, smelting, civic production | **partial** | Crafters make goods for each land (`sim/economy/systems.ts`), smelting copper, tin and iron from ore within reach as a step of their own, the metal then worked into tools and arms (Phase 52); works and what drives them (`sim/design/design.ts`); trades drawn at work (`render/trades.ts`). Missing: buildings that produce on their own |
 | 30f Technology | Research, shared knowledge, stage gates, epochs | **in** | `sim/lore/lore.ts`, `rules/principles.ts`, `host/inspect/stage.ts` |
 | 42 Environment & armament | Harvest uses up features; groves regrow while minerals run out; weapons emerge | **in** | Wild, forest and soil drawn down and healing (`sim/ecology/ecology.ts`); arms from the metals the seat's market holds — smelted within reach or brought by road — their kit worn out and drawn again from the markets, and counted in battle by what they are made of (`sim/design/design.ts`, `sim/war/arms.ts`, Phase 52); ores that run out by what has been dug, deeper by better means and then the old heaps (`sim/economy/lodes.ts`) |
-| 42d Agriculture & herding | Fields as tile chemistry, herds in pens, defence against predators, herd theft | **partial** | Fields sown and reaped, flocks folded and culled (`view/fields.ts`, `view/flock.ts`); predators take flocks (`sim/ecology/ecology.ts`). Missing: herders defending flocks, herds stolen in war |
+| 42d Agriculture & herding | Fields as tile chemistry, herds in pens, defence against predators, herd theft | **in** | Fields sown and reaped, flocks folded and culled (`view/fields.ts`, `view/flock.ts`); predators take flocks (`sim/ecology/ecology.ts`), with a herder standing between them; herds driven off in war, and what the land loses by it (`sim/ecology/herds.ts`, Z1) |
 | 61 Item models | Procedural models for tools, weapons and armour; glyphs for compounds | **partial** | A trade's tool in hand on portraits (`ui/portrait.ts`); tools by material (`view/detail.ts`). Missing: models by recipe, quality and wear; compound glyphs |
 | 86 Harvest | Yields follow the tending and the water; ripeness | **in** | Harvests by soil, rain, tools and knowledge (`sim/population/systems.ts`); reaping row by row (`view/fields.ts`, Phase 44) |
 | 87 The long tree | Sixteen middle and late crafts with real effects | **in** | 91 principles with effects (`rules/principles.ts`) |
@@ -295,7 +295,7 @@ Ranked by how much each would add to the game's depth and to what you see, leani
 11. **Diplomacy with more moves.** Classic 56, 90, 100, 69. Tribute and vassals, envoys between seats, the world's own marriages and claims, embassies, allies who answer a call, compacts against the greatest and a blocs lens are built (2026-11-06). Next: open markets, a person's choice when their realm is called, a compact's own first march. **S**
 12. **A living ecology through history.** Classic 19, 42, 113, 119. Forests that seed outward and wither in drought, long ages of rain, ores that run out, new crowns turning with the seasons: built (2026-11-06). Next: crags, weed beds drawn in the sea, who builds with what stands. **S**
 13. **The god's hand on the ground.** Classic 31. Raise and lower land, add water, seed life or ore, strike lightning anywhere, claim land for a realm: WorldBox's own brushes, built (Phase 62). Next: a faith reading the strokes, an edit at a town's scale. **S**
-14. **Wild lives.** Classic 52, 42d, 21, 23. Herds that follow the warmth, dens, courtship, beasts of legend; herders guarding flocks and herds stolen in war; lineages still changing during history. **M**
+14. **Wild lives.** Classic 52, 42d, 21, 23. Herds that follow the warmth, dens, beasts people name, herders guarding flocks, herds stolen in war and lineages still changing during history: built (2026-11-06). Next: herds feeding what a land can hunt, grazed pasture worn on the map, a fallen hunter as a person on the roster. **M**
 15. **Roads built and travelled.** Classic 88, 46, 122, 155. Roads laid stone by stone and rails metal by metal, paths worn by feet, household cars for the trip to work, buses with riders. **M**
 16. **Songs, tales, murals, monuments, rites.** Classic 58, 52, 50. Songs and tales made from the world's history and carried to feasts, and stones raised to wars and calamities: built (2026-11-06). Next: murals painted with pigment, solstice rites with offerings, a Speaker's prophecies. **M**
 17. **Interiors.** Classic 32f. Homes and workshops opened in cutaway, with their furniture and the people inside. **M**
@@ -508,6 +508,24 @@ Rain and people. `ash vale`'s people stand a quarter lower from year 300 on, and
 Limits, stated: "there is none to be had" has never fired, 0 of 46 mines on `first light`. Who builds with what, a battle's forests and a home's wood still read the ecology's forest, not what stands now, so this step doesn't move builds, battles and air at once. Weed beds are counted, told and on the lens, but not drawn in the sea. The Ores lens doesn't dim a done lode.
 
 Cut for later: crags with lit faces, which need a flat-shaded mesh and a steepness measure across land scales; more crowns than these four, and a shape of its own for an alien life, which keep the world's tint for now.
+
+## Wild lives, as built (2026-11-06)
+
+A world's creatures used to be a drawn list that stood still while its history ran. Now they go where the green is, people drive them off, a town can come to know one of them by name, and the tree of life goes on.
+
+- **One number a land.** `ecology.herds`, a byte for each of 4,002 lands, looked at once in five years (`sim/ecology/herds.ts`). Creatures walk in from the land beside and give way to fields, towns and a people's flocks. Everything seen moving is a reading of those numbers: `land.herds` moves nothing, and a kind's way through a year comes from warmth or rain either side of it.
+- **Seen where they are.** Herds cross a land's map in their season and are gone out of it, a den is a mound with its page, and a town's edge has them coming past (`render/landherds.ts`, `view/fauna.ts`). A press on any of them opens what it is, what it eats, what eats it and where it lives.
+- **A beast people name.** Seldom, about one in 80 years and never within 45 of the last, one hunter stands out on a land with a town: it gets a name in that town's tongue and a page (`beast:`). It takes from their flocks and from those who go out against it, and comes to its end by a hunter's hand, old age or leaving (`rules/herds.ts`). A herder stands between it and the fold.
+- **War takes herds.** A host can drive off a quarter to over half of what a land keeps, told with who and why; what it took grows back over twelve years. On a people of the water, it's their pens.
+- **The tree goes on.** A new kind stands apart where it's cut off, about once in 350 years. A kind dies out only when every land it has was pressed and lost it. Now and then one is made tame. The tree of life's page lists them under "Since the first peoples".
+
+Tested by force, since no run reached them: a beast whose town has fallen, a kind going out both ways, a realm of one land raided and a hive's world's creatures (`tests/host/herds-paths.test.ts`). All read clean.
+
+Measures. `first light` young, 0 to 700: 5 beasts named, all ended, 3 hunters fell to them, 16 to 38 herds driven a century, 1 new kind, none gone. Far `first light`, 2000 to 2300: 1 beast, 17 to 22 drives a century, 1 new kind, 1 tame. `alien harrow 348`, 3000 to 3600: no beast, 2 new kinds. Its 50 lands with both towns and wild left no hunter on any of them, so by that age none can rise there, and that's the world's own story. `gale 710`, far and always at war: 78 drives in 20 years, 354 million head. How far they go: the middle of a world's creatures moves 200 to 1,340 km a century, 4,000 and more once a young world fills. `fed` doesn't move beyond a part in a hundred. Year's cost on `gale 710`: 1352 ms against 1441 side by side, nothing that can be measured. Save: 17 to 64 KB of store before gzip.
+
+Limits, stated: how many creatures a land holds doesn't feed what it can hunt. Overgrazing is told but pasture isn't worn on the map. A fallen hunter is a name, not a person on the roster. Tame kinds don't join the flocks. A new kind isn't in the tree's chart. A land built over shows no creature (`vale 471` at 2000 says so). No far world's kind has gone out by itself, though the rule is live: on `first light` at 2015 only 4 kinds live on 16 lands or fewer, 3 of those on lands no one lives on.
+
+Cut for later: courtship and the young in a den, seen; a beast at large in the people bar.
 
 ## The work-down order (2026-10-25)
 

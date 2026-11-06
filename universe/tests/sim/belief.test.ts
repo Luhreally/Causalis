@@ -19,6 +19,7 @@ const OMENS = new Set([
   "act.rain",
   "act.harvest",
   "act.plague",
+  "act.fire",
   "act.inspire",
   "hand.laid",
   "people.famine",

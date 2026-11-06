@@ -155,25 +155,37 @@ test("a word heard heartens the hearer, and stays with them", () => {
 });
 
 test("one struck down by the god in another's body dies out of the counts, or lives wounded", () => {
-  const { world, smith, folk } = laid();
-  world.runTo(world.submit("possess.take", take(smith, folk)).t);
-  const victim = folk[0]!;
-  // Blows at the one before him until he is down (he follows him if he flees or fights).
-  for (let k = 0; k < 40; k++) {
-    const l = handOf(world).resting!.possessed!.local;
-    if (l.deeds.some((d) => d.kind === "struck" && d.agent === victim.id)) break;
-    const a = l.bodies[0]!,
-      b = l.bodies.find((x) => x.id === victim.id)!,
-      dx = b.x - a.x,
-      dz = b.z - a.z,
-      dist = Math.hypot(dx, dz) || 1,
-      m = (v: number) => (v / dist) * 31;
-    send(world, [
-      go(m(dx), m(dz), dist < 1.4 ? HAND_ACT.strike : 0, dist > 3),
-      ...steps(9, go(m(dx), m(dz), 0, dist > 3)),
-    ]);
+  // (The one struck can hit back and put the hand's own body down: the world's right. Then the same blows at another of them.)
+  let last: { world: World; victim: ReturnType<typeof laid>["folk"][number] } | null = null;
+  for (let at = 0; at < 6 && !last; at++) {
+    const { world, smith, folk } = laid();
+    world.runTo(world.submit("possess.take", take(smith, folk)).t);
+    const victim = folk[at]!;
+    // Blows at the one before him until he is down (he follows him if he flees or fights).
+    for (let k = 0; k < 40; k++) {
+      const l = handOf(world).resting!.possessed?.local;
+      if (!l) break;
+      if (l.deeds.some((d) => d.kind === "struck" && d.agent === victim.id)) break;
+      const a = l.bodies[0]!,
+        b = l.bodies.find((x) => x.id === victim.id)!,
+        dx = b.x - a.x,
+        dz = b.z - a.z,
+        dist = Math.hypot(dx, dz) || 1,
+        m = (v: number) => (v / dist) * 31;
+      send(world, [
+        go(m(dx), m(dz), dist < 1.4 ? HAND_ACT.strike : 0, dist > 3),
+        ...steps(9, go(m(dx), m(dz), 0, dist > 3)),
+      ]);
+    }
+    if (
+      handOf(world)
+        .resting!.possessed?.local.deeds.some((d) => d.kind === "struck" && d.agent === victim.id)
+    )
+      last = { world, victim };
   }
-  const w = handOf(world).resting!,
+  assert.ok(last, "someone among them was struck before the hand's own body went down");
+  const { world, victim } = last,
+    w = handOf(world).resting!,
     struck = w.possessed!.local.deeds.find((d) => d.kind === "struck" && d.agent === victim.id);
   assert.ok(struck && struck.kind === "struck", "struck down");
   const prov = populationContext(world).provinces.get(w.cell)!,

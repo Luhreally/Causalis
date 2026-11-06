@@ -209,12 +209,15 @@ function forgeBrink(
   // (The holder a realm of some size beside a far greater one: a great attacker's people are not soon weary, so its war lasts its year.)
   let pair: [Polity, Polity] | null = null;
   for (const foe of living) {
-    for (const a of living)
-      if (a !== foe && a.members.length >= 3 && frontier(ctx, foe, a).length) {
-        pair = [a, foe];
-        break;
-      }
-    if (pair) break;
+    const beside = living.filter(
+        (a) => a !== foe && a.members.length >= 3 && frontier(ctx, foe, a).length,
+      ),
+      // (Where realms have come to be much of a size, the greatest neighbour is no far greater one: half its size or less, if it has one.)
+      a = beside.find((x) => x.members.length * 2 <= foe.members.length) ?? beside[0];
+    if (a) {
+      pair = [a, foe];
+      break;
+    }
   }
   if (!pair)
     for (const foe of living) {
@@ -707,7 +710,7 @@ async function watch(f: Forged, tag: string): Promise<void> {
     `${tag}: of the first ${ground.first} lots of ${ground.lots} drawn, ${ground.razed} are ash; ${ground.standing} of the ${ground.civics} buildings there stand`,
   );
   check(
-    ground.razed >= ground.first * 0.9,
+    ground.razed >= Math.min(ground.first, strike.homes) * 0.9,
     `${tag}: its heart is not cleared: ${ground.razed} of the first ${ground.first} lots`,
   );
   check(ground.standing === 0, `${tag}: ${ground.standing} buildings stand in its heart`);

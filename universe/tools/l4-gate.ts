@@ -421,7 +421,12 @@ async function play(f: Forged, tag: string): Promise<void> {
     open = decrees.laws.flatMap((l) =>
       l.options.filter((o) => o.can).map((o) => ({ law: l.law, to: o.to, label: o.label })),
     );
-  check(open.length > 0, `${tag}: nothing can be decreed even with the standing back`);
+  // (Where the realm's voices must be carried they can stand against every step, and each says so in the world's own words.)
+  if (!open.length) say(`${tag}: nothing to decree: ${decrees.laws[0]?.options[0]?.words}`);
+  check(
+    open.length > 0 || decrees.laws.every((l) => l.options.every((o) => /voices/.test(o.words))),
+    `${tag}: nothing can be decreed even with the standing back`,
+  );
   const pick = open.find((o) => o.law !== "tithe") ?? open[0];
   if (pick) {
     const before = await legit();
@@ -448,70 +453,87 @@ async function play(f: Forged, tag: string): Promise<void> {
   }
 
   // 5. War by touch, for a land named; its first battle reached.
-  await tap(`.reign-act[data-act="wars"]`);
-  await until(`${tag}: the neighbours`, () => seen(".reign-declare"), slow(30000));
-  const sheet = await ask<ReignWars>("reign.wars", { realm: f.realm }),
-    foe = sheet.foes.find((x) => x.can && x.aims.length);
-  check(!!foe, `${tag}: no neighbour can be gone to war on`);
-  await settle(200);
-  await shot(`${tag}-6-neighbours`);
-  if (foe) {
-    say(`${tag}: war on ${foe.name} (${foe.regard}): ${foe.words}`);
-    const standingWas = await legit();
-    await tap(`.reign-foe[data-foe="${foe.ref}"] .reign-declare`);
-    await until(
-      `${tag}: war declared`,
-      async () => (await reign())?.wars.some((w) => w.foe === foe.ref) === true,
-    );
-    await settle(400);
-    await shot(`${tag}-7-war`);
-    check((await legit()) < standingWas, `${tag}: the war cost nothing`);
-    const w = (await reign())!.wars.find((x) => x.foe === foe.ref);
-    say(
-      `${tag}: ${w?.words}, year ${w?.since}; chip: ${await text('.reign-chip[data-chip="wars"]')}`,
-    );
-    // The first battle comes at the end of the year after the one it was declared in.
-    const yearEnd = (Math.floor((await clock()) / YEAR) + 2) * YEAR + 2;
-    await advanceTo(yearEnd);
-    await until(
-      `${tag}: its first battle`,
-      async () =>
-        ((await reign())?.wars.find((x) => x.foe === foe.ref)?.battles ?? 0) > 0 ||
-        !(await reign())?.wars.some((x) => x.foe === foe.ref),
-      slow(60000),
-    );
-    await settle(600);
-    say(`${tag}: the bar says: ${await text(".reign-told")}`);
+  // (The land between them can go to a third realm before a blow is struck, and the war ends with it, as a world may: then on another neighbour.)
+  const unfought = new Set<string>();
+  for (let tries = 0; tries < 3; tries++) {
+    const sheet = await ask<ReignWars>("reign.wars", { realm: f.realm }),
+      foe = sheet.foes.find((x) => x.can && x.aims.length && !unfought.has(x.ref));
+    if (!foe && unfought.size) break;
     await tap(`.reign-act[data-act="wars"]`);
-    await until(`${tag}: the war's line`, () => seen(".reign-warline, .reign-lately"), slow(30000));
-    const after = await ask<ReignWars>("reign.wars", { realm: f.realm }),
-      over = after.lately.find((x) => x.foe === foe.ref);
-    if (over)
-      say(
-        `${tag}: ${over.came} ${over.last?.words}, fallen ${over.fallen[0]} and ${over.fallen[1]}`,
+    await until(`${tag}: the neighbours`, () => seen(".reign-declare"), slow(30000));
+    check(!!foe, `${tag}: no neighbour can be gone to war on`);
+    await settle(200);
+    await shot(`${tag}-6-neighbours`);
+    if (foe) {
+      say(`${tag}: war on ${foe.name} (${foe.regard}): ${foe.words}`);
+      const standingWas = await legit();
+      await tap(`.reign-foe[data-foe="${foe.ref}"] .reign-declare`);
+      await until(
+        `${tag}: war declared`,
+        async () => (await reign())?.wars.some((w) => w.foe === foe.ref) === true,
       );
-    const battle = await seen(".reign-battle");
-    check(battle, `${tag}: the first battle is not on the war's line`);
-    if (battle) {
-      say(`${tag}: ${await text(".reign-battle")}`);
-      await settle(200);
-      await shot(`${tag}-8-battle-line`);
-      await tap(".reign-battle");
-      await until(`${tag}: the battle's page`, () => seen(".page-panel .page-icon"), slow(30000));
+      await settle(400);
+      await shot(`${tag}-7-war`);
+      check((await legit()) < standingWas, `${tag}: the war cost nothing`);
+      const w = (await reign())!.wars.find((x) => x.foe === foe.ref);
+      say(
+        `${tag}: ${w?.words}, year ${w?.since}; chip: ${await text('.reign-chip[data-chip="wars"]')}`,
+      );
+      // The first battle comes at the end of the year after the one it was declared in.
+      const yearEnd = (Math.floor((await clock()) / YEAR) + 2) * YEAR + 2;
+      await advanceTo(yearEnd);
+      await until(
+        `${tag}: its first battle`,
+        async () =>
+          ((await reign())?.wars.find((x) => x.foe === foe.ref)?.battles ?? 0) > 0 ||
+          !(await reign())?.wars.some((x) => x.foe === foe.ref),
+        slow(60000),
+      );
       await settle(600);
-      await shot(`${tag}-9-battle-page`);
-      await k(`globalThis.causalis.closePage?.()`);
-      await settle(300);
-      if (await seen(".reign-peace")) {
-        await tap(".reign-peace");
-        await settle(600);
-        const said = await text(".reign-said");
-        say(`${tag}: asked for peace: ${said || "they heard"}`);
-        await shot(`${tag}-10-peace`);
+      say(`${tag}: the bar says: ${await text(".reign-told")}`);
+      await tap(`.reign-act[data-act="wars"]`);
+      await until(
+        `${tag}: the war's line`,
+        () => seen(".reign-warline, .reign-lately"),
+        slow(30000),
+      );
+      const after = await ask<ReignWars>("reign.wars", { realm: f.realm }),
+        over = after.lately.find((x) => x.foe === foe.ref);
+      if (over)
+        say(
+          `${tag}: ${over.came} ${over.last?.words}, fallen ${over.fallen[0]} and ${over.fallen[1]}`,
+        );
+      const battle = await seen(".reign-battle");
+      if (!battle && over && !over.fallen[0] && !over.fallen[1]) {
+        say(`${tag}: over before a blow was struck`);
+        unfought.add(foe.ref);
+        await tap(".reign-close");
+        await settle(300);
+        continue;
       }
-      // (The war may be over by now, on its terms, its line still open.)
-      if (await seen(".reign-close")) await tap(".reign-close");
-    } else if (await seen(".reign-close")) await tap(".reign-close");
+      check(battle, `${tag}: the first battle is not on the war's line`);
+      if (battle) {
+        say(`${tag}: ${await text(".reign-battle")}`);
+        await settle(200);
+        await shot(`${tag}-8-battle-line`);
+        await tap(".reign-battle");
+        await until(`${tag}: the battle's page`, () => seen(".page-panel .page-icon"), slow(30000));
+        await settle(600);
+        await shot(`${tag}-9-battle-page`);
+        await k(`globalThis.causalis.closePage?.()`);
+        await settle(300);
+        if (await seen(".reign-peace")) {
+          await tap(".reign-peace");
+          await settle(600);
+          const said = await text(".reign-said");
+          say(`${tag}: asked for peace: ${said || "they heard"}`);
+          await shot(`${tag}-10-peace`);
+        }
+        // (The war may be over by now, on its terms, its line still open.)
+        if (await seen(".reign-close")) await tap(".reign-close");
+      } else if (await seen(".reign-close")) await tap(".reign-close");
+    }
+    break;
   }
 
   // 6. A marriage of state.

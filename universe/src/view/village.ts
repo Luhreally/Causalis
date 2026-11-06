@@ -1002,7 +1002,20 @@ function fightsOn(plan: VillagePlan, day: number): ReadonlyMap<number, readonly 
       // (Nor one whose day the care of the wounded takes, nor one away with the levy, abed or
       // gone meanwhile: Phase 55 M226, M229.)
       !care.scripts.has(i) &&
-      !unseen(plan, i, from - 900, until + 900);
+      !unseen(plan, i, from - 900, until + 900) &&
+      // (Nor one the court has that day, nor a trader out on the road: their day goes to that
+      // first, and a bier would go on three shoulders.)
+      !courtRole(plan, i, day) &&
+      !onTrip(i),
+    onTrip = (i: number) => {
+      const p = plan.people[i]!;
+      return (
+        p.occupation === OCC.trader &&
+        !p.child &&
+        !oldOf(plan, p) &&
+        !!tripOn(plan, traderSeat(plan, i), day)
+      );
+    };
   for (const d of [...days.keys()]) if (d < day - 2) days.delete(d);
   days.set(day, out);
   const scene = struck.length ? sceneOf(plan, day * DAY) : null,

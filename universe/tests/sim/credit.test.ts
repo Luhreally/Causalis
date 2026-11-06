@@ -488,14 +488,15 @@ test("a jubilee at a new ruler's coming: every debt its lands owe released; its 
   shares[BOND.debt] = 0.2;
   order.lands.set(owing[0]!, { cell: owing[0]!, shares, cause: null });
   for (let j = k + 2; j < k + 100; j++) creditYear(ctx, at(j));
-  assert.equal(store.jubilees.length, 0, "none under an old ruler");
+  // (Its own: another realm's new ruler may proclaim one meanwhile.)
+  const itsJubilee = () => store.jubilees.find((x) => x.realm === p.ref);
+  assert.equal(itsJubilee(), undefined, "none under an old ruler");
   // A new ruler.
   (p.ruler as { since: number }).since = 60;
   let j = k + 100;
-  while (!store.jubilees.length && j < k + 300) creditYear(ctx, at(j++));
-  const jubilee = store.jubilees[0]!;
+  while (!itsJubilee() && j < k + 300) creditYear(ctx, at(j++));
+  const jubilee = itsJubilee()!;
   assert.ok(jubilee, "a jubilee proclaimed");
-  assert.equal(jubilee.realm, p.ref);
   for (const c of owing)
     assert.ok(
       store.loans

@@ -374,9 +374,11 @@ test("past what a world keeps, the rosters least lately asked for are let go", (
   clearRosters();
   const first = townRoster(world, all[0]!),
     asked = townRoster(world, all[1]!);
-  for (let i = 2; i < 3000; i++) townRoster(world, all[i]!);
-  assert.equal(townRoster(world, all[1]!), asked, "asked for again: kept");
-  for (let i = 3000; i < many; i++) townRoster(world, all[i]!);
+  // (Asked for again every thousand towns, where one who is never asked for again goes.)
+  for (let i = 2; i < many; i++) {
+    townRoster(world, all[i]!);
+    if (i % 1000 === 0) assert.equal(townRoster(world, all[1]!), asked, "asked for lately: kept");
+  }
   assert.equal(townRoster(world, all[1]!), asked, "asked for lately: kept");
   const again = townRoster(world, all[0]!);
   assert.notEqual(again, first, "the least lately asked for: let go");

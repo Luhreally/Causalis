@@ -116,7 +116,10 @@ test("fire sent on a town that is no city burns a fifth of its homes, those abou
     burnt.length,
     "its burnt homes are razed runs of the year",
   );
-  const fire = world.events.all().find((e) => e.type === LOCAL_ACT_EVENTS.fire.type)!;
+  // (The god's: a town burns by itself too, N1.)
+  const fire = world.events
+    .all()
+    .find((e) => e.type === LOCAL_ACT_EVENTS.fire.type && e.causes[0]?.ref === act.id)!;
   assert.equal(fire.causes[0]!.ref, act.id);
   assert.deepEqual(
     { homes: (fire.data as { homes: number }).homes, lot: (fire.data as { lot: number }).lot },
@@ -145,7 +148,10 @@ test("fire on a city burns a fifth of its quarters and kills a hundredth of its 
   );
   for (const p of ctx.provinces.all())
     for (let r = 0; r < 20; r++) for (let o = 0; o < 7; o++) assert.ok(p.counts.get(r, o) >= 0);
-  const fire = world.events.all().find((e) => e.type === LOCAL_ACT_EVENTS.fire.type)!;
+  // (The god's: a town burns by itself too, N1.)
+  const fire = world.events
+    .all()
+    .find((e) => e.type === LOCAL_ACT_EVENTS.fire.type && e.causes[0]?.ref === act.id)!;
   assert.equal(fire.causes[0]!.ref, act.id);
   // The city rebuilds, a few blocks a year, toward what its worth asks.
   world.runTo(330 * YEAR);

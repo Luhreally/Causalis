@@ -169,8 +169,9 @@ test("a realm fresh from war is slow to go to war again, and says so", () => {
   // (A civil war is declared by a rising, not weighed between realms: Phase 22 M146.)
   for (const w of wars) {
     if (w.civil) continue;
-    const d = world.decisions.get(world.events.get(w.event)!.causes[0]!.ref as Ref)!,
-      weary = d.factors.find((f) => f.name === "the years since their last war");
+    // (Nor is a war a call was answered with: D1.)
+    const d = world.decisions.get(world.events.get(w.event)!.causes[0]!.ref as Ref),
+      weary = d?.factors.find((f) => f.name === "the years since their last war");
     if (!weary) continue;
     cited++;
     assert.ok(weary.value < WEARY_YEARS, `${weary.value} years since`);
