@@ -17,11 +17,11 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | War | 6 | 5 | 0 | 0 |
 | Faith, culture, language & lore | 1 | 3 | 0 | 0 |
 | History, legends & records | 7 | 2 | 0 | 0 |
-| God's acts & player tools | 3 | 1 | 2 | 3 |
+| God's acts & player tools | 4 | 0 | 2 | 3 |
 | Observation UI & lenses | 16 | 1 | 1 | 2 |
 | Space | 3 | 0 | 0 | 1 |
 | Engine, performance & saves | 1 | 0 | 0 | 19 |
-| **All 185 sections** | **76** | **56** | **11** | **42** |
+| **All 185 sections** | **77** | **55** | **11** | **42** |
 
 ## World & ground
 
@@ -209,7 +209,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 
 | Classic | What it did | Universe | Where / what's missing |
 |---|---|---|---|
-| 31 God tools | Brushes: ignite, lightning, rain, drought, soil, seed life, plague, heal, terrain, water, ore, factions, disasters | **partial** | The palette of acts (`ui/palette.ts`, `sim/acts/`): rain, harvest, plague, healing, inspiration, quake, meteor, flood, fire, spring, shrine, settlers, warming, a star's flare. Missing: brushes on the ground: raise and lower land, add water, seed life or ore, lightning anywhere, claim land |
+| 31 God tools | Brushes: ignite, lightning, rain, drought, soil, seed life, plague, heal, terrain, water, ore, factions, disasters | **in** | The palette of acts (`ui/palette.ts`, `sim/acts/`): rain, harvest, plague, healing, inspiration, quake, meteor, flood, fire, spring, shrine, settlers, warming, a star's flare; brushes dragged on the ground: raise and lower land, add water, seed life or ore, lightning anywhere, claim land (Phase 62) |
 | 34a Civic inspectors | Set a town's priority and policy; ask it to build | **missing** | — |
 | 54 Divine acts | Mark a chosen one, whisper a craft, a sign in the sky, bind a truce, sow discord | **in** | One person inspired or blessed (`sim/acts/local.ts`); inspiration (`sim/acts/acts.ts`); a sign for or against a rule (`sim/order/acts.ts`); friendship, discord, a war ended (`sim/acts/peoples.ts`) |
 | 79 Causal push | The skip aims at the next stage and tilts the odds | **missing** | There are speeds for each scale and a director, but nothing aims time at the next stage |
@@ -294,7 +294,7 @@ Ranked by how much each would add to the game's depth and to what you see, leani
 10. **Coin, markets and personal standing.** Classic 89, 101, 145, 63. A price board and a specialty for each town, and who in a town is poor or rich: built (2026-11-06). Next: treasuries, coin that buys grain for the hungry, finery for the well-off, a war tithe. **L**
 11. **Diplomacy with more moves.** Classic 56, 90, 100, 69. Tribute and vassals, envoys between seats, the world's own marriages and claims, embassies, allies who answer a call, compacts against the greatest and a blocs lens are built (2026-11-06). Next: open markets, a person's choice when their realm is called, a compact's own first march. **S**
 12. **A living ecology through history.** Classic 19, 42, 113, 119. Forests that seed outward and wither in drought, ores that run out, more kinds of tree turning with the seasons, crags. **L**
-13. **The god's hand on the ground.** Classic 31. Raise and lower land, add water, seed plants, beasts, people or ore, strike lightning anywhere, claim land for a realm: WorldBox's own brushes. **L**
+13. **The god's hand on the ground.** Classic 31. Raise and lower land, add water, seed life or ore, strike lightning anywhere, claim land for a realm: WorldBox's own brushes, built (Phase 62). Next: a faith reading the strokes, an edit at a town's scale. **S**
 14. **Wild lives.** Classic 52, 42d, 21, 23. Herds that follow the warmth, dens, courtship, beasts of legend; herders guarding flocks and herds stolen in war; lineages still changing during history. **M**
 15. **Roads built and travelled.** Classic 88, 46, 122, 155. Roads laid stone by stone and rails metal by metal, paths worn by feet, household cars for the trip to work, buses with riders. **M**
 16. **Songs, tales, murals, monuments, rites.** Classic 58, 52, 50. Songs and tales made from the world's history and carried to feasts, and stones raised to wars and calamities: built (2026-11-06). Next: murals painted with pigment, solstice rites with offerings, a Speaker's prophecies. **M**
