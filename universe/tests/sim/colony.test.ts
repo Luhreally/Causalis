@@ -2,10 +2,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText, type Ref, type World } from "../../src/kernel/index.ts";
 import { offworldSite } from "../../src/gen/index.ts";
-import { G, principle } from "../../src/rules/index.ts";
+import { EFFECTS, G, principle } from "../../src/rules/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import {
   COLONISTS,
+  COLONY_GAP,
+  COLS,
+  ROWS,
   SPACE_EVENTS,
   WAY,
   cultureOf,
@@ -94,6 +97,44 @@ test("a realm with a station and the knowledge of habitats sets its settlers dow
   world.runTo((y + 40) * YEAR);
   assert.ok(land.total() > 0.8 * COLONISTS, `${land.total()} forty years on`);
   assert.ok(land.fed >= 800, `fed ${land.fed}`);
+});
+
+test("settlers come again to a land whose people died out: one land still, of one realm, knowing each thing once", () => {
+  const { world, realm } = readied(),
+    ctx = populationContext(world),
+    program = () => spaceOf(world).of(realm.ref)!;
+  let y = 80;
+  while (!program().colonies.length && y < 200) world.runTo(++y * YEAR);
+  const cell = program().colonies[0]!.cell,
+    land = ctx.provinces.get(cell)!,
+    lore = loreOf(world);
+  // Every one of them dies.
+  for (let r = 0; r < ROWS; r++)
+    for (let o = 0; o < COLS; o++) land.counts.add(r, o, -land.counts.get(r, o));
+  assert.equal(land.total(), 0);
+  assert.ok(
+    prospects(ctx, realm).some((x) => x.cell === cell),
+    "the land is free again",
+  );
+  // (Until the machines to send them, and the gap: a throw here is what stopped a world.)
+  const until = y + 3 * COLONY_GAP;
+  while (program().colonies.length < 2 && y < until) world.runTo(++y * YEAR);
+  const back = program().colonies.find((c, i) => i > 0 && c.cell === cell);
+  assert.ok(back, "they came again");
+  assert.equal(ctx.provinces.get(cell), land, "one land");
+  assert.equal(ctx.provinces.all().filter((x) => x.cell === cell).length, 1);
+  assert.ok(land.total() > 0, "with people on it");
+  assert.equal(politiesOf(world).of(cell)?.ref, realm.ref);
+  assert.equal(realm.members.filter((c) => c === cell).length, 1, "a member once");
+  // (What they know is counted once: the sum of what the land knows, no more.)
+  for (const e of EFFECTS) {
+    let sum = 0;
+    for (const [id] of lore.of(cell)) sum += principle(id).effects[e] ?? 0;
+    assert.ok(
+      Math.abs(lore.effect(cell, e) - sum) < 1e-9,
+      `${e}: ${lore.effect(cell, e)} of ${sum}`,
+    );
+  }
 });
 
 test("colonies drift from home by the ordinary rules: the halls press their ways, and far ones go their own way", () => {
