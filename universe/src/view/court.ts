@@ -163,7 +163,8 @@ export function courtParts(plan: VillagePlan): readonly MemorialPart[] {
       // (A people who cannot grip carve no bench: a low heap of the land's stone for those who judge, and a line of stones where the one brought stands.)
       if (!c.grips) {
         parts.push(cone("main", 0, 0.7, -0.6, 15, 1.4, 9));
-        for (let i = 0; i < 5; i++) parts.push(cone("main", -4 + i * 2, 0.7, DOCK_V, 1.5, 1.4, 1.5));
+        for (let i = 0; i < 5; i++)
+          parts.push(cone("main", -4 + i * 2, 0.7, DOCK_V, 1.5, 1.4, 1.5));
         break;
       }
       // (A bench on a low floor, a board behind it, and a rail before it; a pole for its flag.)

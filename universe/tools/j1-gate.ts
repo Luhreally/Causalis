@@ -547,7 +547,10 @@ async function possessed(town: string) {
   const whom = await k<number>(
     `(() => { const p = globalThis.causalis.planNow(); return p?.people?.findIndex((x) => !x.child && x.ref.startsWith("agent:")) ?? -1; })()`,
   );
-  const take = () => k<string | null>(`globalThis.causalis.possess?.take?.(${whom}) ?? null`);
+  // (Across the square from the court: at their work a far city's people may be kilometres off.)
+  const spot = (await court())?.place,
+    stand = spot ? `{ x: ${-spot.worldX}, z: ${-spot.worldZ} }` : "undefined",
+    take = () => k<string | null>(`globalThis.causalis.possess?.take?.(${whom}, ${stand}) ?? null`);
   let why = await take();
   if (why) {
     await k(`globalThis.causalis.client.command("hand.lay", { village: ${JSON.stringify(town)} })`);
@@ -577,7 +580,7 @@ async function possessed(town: string) {
     const m = await me(),
       off = m ? Math.hypot(seen.worldX - m.x, seen.worldZ - m.z) : 0;
     say(`possessed; the court ${off.toFixed(0)} m off`);
-    if (off > 45) {
+    if (off > 43) {
       await page.touchscreen.tap(seen.px, seen.py);
       await page.waitForTimeout(slow(350));
       check((await pageNow()) === null, "possessed: a court far off opened without walking to it");
@@ -737,6 +740,14 @@ if (r.town) {
       })()`);
       say(`the note: ${note?.text?.replace(/\s+/g, " ")}`);
       check((note?.h ?? 0) >= 40, `the court's note is ${note?.h ?? 0} px tall`);
+      if (note) {
+        // (The note pressed: the case it tells of.)
+        await page.touchscreen.tap(note.x, note.y);
+        await until("a case's page, from the court's note", async () =>
+          String((await pageNow()) ?? "").startsWith("case:"),
+        );
+        await closePage();
+      }
       // Pressed by touch at its real place; not the ground beneath it.
       const at = await reachable();
       check(!!at, "no point of the court a finger can reach");
@@ -768,7 +779,9 @@ if (r.town) {
       await toHour(heldCase.day + 1, 11);
       const h = (await court())?.held.find((x) => x.who === heldCase.who),
         at = (await court())?.place;
-      say(`held: ${heldCase.who}, ${heldCase.sentence}, at ${h?.x?.toFixed(1)}, ${h?.z?.toFixed(1)}`);
+      say(
+        `held: ${heldCase.who}, ${heldCase.sentence}, at ${h?.x?.toFixed(1)}, ${h?.z?.toFixed(1)}`,
+      );
       check(!!h && h.x !== null, `${heldCase.who} is not held in the town the day after`);
       if (h && h.x !== null && h.z !== null && at) {
         const off = Math.hypot(h.x - at.worldX, h.z - at.worldZ);

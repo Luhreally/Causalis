@@ -1527,7 +1527,11 @@ export class VillageScene {
       held: plan.court.sittings
         .filter((s) => {
           const day = Math.floor(t / 86400);
-          return (s.sentence === "stocks" || s.sentence === "cell") && day > s.day && day < s.day + s.days;
+          return (
+            (s.sentence === "stocks" || s.sentence === "cell") &&
+            day > s.day &&
+            day < s.day + s.days
+          );
         })
         .map((s) => {
           const k = plan.people.findIndex((p) => p.ref === s.accused),

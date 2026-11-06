@@ -8693,10 +8693,13 @@ async function runPlanetPage(): Promise<void> {
     if (c)
       return {
         target: { x: c.worldX * VILLAGE_METRE, y: 0.3, z: c.worldZ * VILLAGE_METRE },
-        yaw: (c.yaw * 180) / Math.PI,
-        pitch: -16,
-        // (Nearer than the square's middle: its well and whatever stands by it stay behind the eye.)
-        distance: Math.min(3.2, Math.max(1.6, Math.hypot(c.worldX, c.worldZ) * VILLAGE_METRE * 0.8)),
+        // (From the side of the square, as the well stands in its middle, and no further than the square's own ground.)
+        yaw: (c.yaw * 180) / Math.PI + 40,
+        pitch: -18,
+        distance: Math.min(
+          3.2,
+          Math.max(1.6, Math.hypot(c.worldX, c.worldZ) * VILLAGE_METRE * 2.4),
+        ),
       };
     const s = village.stonesOnScreen().find((x) => x.ref === ref);
     return s
@@ -9288,9 +9291,18 @@ async function runPlanetPage(): Promise<void> {
     tidings.element,
     (ref) => void pageWindow.open(ref),
     () => {
-      if (scale !== "village" || !plan || pageWindow.visible || events.open || !!time.lapse) return null;
+      if (scale !== "village" || !plan || pageWindow.visible || events.open || !!time.lapse)
+        return null;
       const s = courtSitting(plan, now());
-      return s && plan.court ? { ref: s.ref, title: plan.court.law, line: s.line } : null;
+      // (A hive's turning and a reef's meeting don't sit.)
+      const f = plan.court?.form;
+      return s && plan.court
+        ? {
+            ref: s.ref,
+            title: `${plan.court.law} ${f === "hive" || f === "reef" ? "is today" : "sits"}`,
+            line: s.line,
+          }
+        : null;
     },
     () =>
       directorControls.watching ||

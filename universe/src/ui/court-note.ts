@@ -34,7 +34,7 @@ export class CourtNote {
     this.ref = s.ref;
     const head = el("b", "sung-head"),
       line = el("span", "sung-line");
-    head.textContent = `⚖️ ${s.title} sits`;
+    head.textContent = `⚖️ ${s.title}`;
     line.textContent = s.line;
     this.element.replaceChildren(head, line);
   }

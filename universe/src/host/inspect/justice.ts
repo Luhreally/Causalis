@@ -430,11 +430,7 @@ function factsOf(world: World, s: Settlement, year: number): Facts {
       if (any) {
         war = Math.max(war, 0.5);
         causes.push({
-          line: [
-            "The levy was called for ",
-            link("their realm's war", w.ref),
-            ".",
-          ],
+          line: ["The levy was called for ", link("their realm's war", w.ref), "."],
           weight: 0.7,
           offences: ["desert"],
         });
@@ -701,7 +697,10 @@ function deedOf(f: Facts, o: Offence, w: Party | null, h: number): Line {
   if (f.form === "hive")
     switch (o) {
       case "stores":
-        return [pick(["took more than their share from ", "kept back what they carried to "]), f.store];
+        return [
+          pick(["took more than their share from ", "kept back what they carried to "]),
+          f.store,
+        ];
       case "bread":
         return ["ate the share of ", them];
       case "rent":

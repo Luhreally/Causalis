@@ -284,14 +284,7 @@ export type Memorial = {
 export type CourtForm = "hive" | "reef" | "elders" | "kin" | "magistrate" | "bench";
 /** What came of a case (J1), as far as it is seen in the town. */
 export type CourtSentence =
-  | "free"
-  | "bribe"
-  | "fine"
-  | "shame"
-  | "stocks"
-  | "cell"
-  | "labour"
-  | "banish";
+  "free" | "bribe" | "fine" | "shame" | "stocks" | "cell" | "labour" | "banish";
 /** A case as its town's day sees it (J1): its page, its day, who stands, what they did, what comes of it and for how long. */
 export type CourtSitting = {
   readonly ref: string;

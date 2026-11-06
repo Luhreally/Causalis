@@ -3020,13 +3020,25 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
       homeEvening(go(stop, c.at, at, null, "Home from the court's labour"), "Supper at home");
       return legs;
     }
-    const start = Math.max(up, (c.kind === "watch" ? COURT_HOURS.gather : COURT_HOURS.gather) * HOUR);
+    const start = Math.max(
+      up,
+      (c.kind === "watch" ? COURT_HOURS.gather : COURT_HOURS.gather) * HOUR,
+    );
     stay(up, start, at, ACTIVITY.home);
     // (Those who judge stand behind what stands in the way of everyone else.)
     const spot = c.kind === "judge" ? c.at : clearSpot(ground, c.at),
       there = go(start, at, spot, null, c.why),
       over = Math.max(there, COURT_HOURS.close * HOUR);
-    stay(there, over, spot, ACTIVITY.gathering, null, c.kind === "watch" ? "talk" : null, c.face, c.why);
+    stay(
+      there,
+      over,
+      spot,
+      ACTIVITY.gathering,
+      null,
+      c.kind === "watch" ? "talk" : null,
+      c.face,
+      c.why,
+    );
     if (c.kind === "accused" && c.thenAt) {
       const then = c.thenAt;
       if (c.then === "banish") {
@@ -3049,7 +3061,16 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
         return legs;
       }
       const put = go(over, spot, then, null, c.then === "stocks" ? "To the stocks" : "To the cell");
-      stay(put, Math.max(DAY, put + 1), then, ACTIVITY.gathering, null, null, c.thenFace, c.then === "stocks" ? "In the stocks" : "Locked in the town's cell");
+      stay(
+        put,
+        Math.max(DAY, put + 1),
+        then,
+        ACTIVITY.gathering,
+        null,
+        null,
+        c.thenFace,
+        c.then === "stocks" ? "In the stocks" : "Locked in the town's cell",
+      );
       return legs;
     }
     homeEvening(go(over, spot, at, null, "Home from the court"), "Supper at home");
