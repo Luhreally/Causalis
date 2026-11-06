@@ -337,6 +337,7 @@ import { deviceTier } from "./tier.ts";
 import { installHeld, type HeldField } from "./held.ts";
 import { installPossession } from "./possess.ts";
 import { installHome, type HomeAsk } from "./home.ts";
+import { installMoney } from "./money.ts";
 import { installLeaders } from "./leaders.ts";
 import { installLife } from "./life.ts";
 import { installReign } from "./reign.ts";
@@ -5426,6 +5427,8 @@ async function runPlanetPage(): Promise<void> {
   });
   /** The year a people's town is read at while a meeting is filmed (Phase 69; null: now). */
   let folkFilmedAt: number | null = null;
+  /** A town's money told its plan was read again (Lives L6). */
+  let moneyPlan: (() => void) | null = null;
   const loadPlan = async (ref: string) => {
     // Asked once a year: the year is marked before the answer comes.
     planYear = Math.floor(clock.t / YEAR);
@@ -5449,6 +5452,7 @@ async function runPlanetPage(): Promise<void> {
     performance.measure("village.build", { start: t0 });
     villagePanel.show(plan.name, fresh);
     villagePanel.foreign = !!plan.native;
+    moneyPlan?.();
     storesTold = null;
     villagePanel.hand = plan.hand;
     villagePanel.works = {
@@ -6108,7 +6112,8 @@ async function runPlanetPage(): Promise<void> {
   // A tap in the village: someone, else a beast (its lineage and what it is doing), else no one.
   let lifeTap: ((x: number, y: number) => boolean) | null = null;
   // (A home open: a tap is for what is in it. Lives L6.)
-  let homeTap: ((x: number, y: number) => boolean) | null = null,
+  let moneyTap: ((x: number, y: number) => boolean) | null = null,
+    homeTap: ((x: number, y: number) => boolean) | null = null,
     homeOpen: () => boolean = () => false;
   /** Whether a ruler is being ruled (Lives L4): the town is seen by day then, as one watched growing is. */
   let ruling: () => boolean = () => false,
@@ -6117,6 +6122,8 @@ async function runPlanetPage(): Promise<void> {
     // (The sheet of lives up: one tapped goes on it, Lives L3.)
     if (homeTap?.(x, y)) return;
     if (lifeTap?.(x, y)) return;
+    // (A town's money over it: a home tapped gives its page, whoever stands before it. Lives L6.)
+    if (moneyTap?.(x, y)) return;
     // One borne home on a litter (Phase 55 wave 5): their card, as anyone's.
     const borne = plan ? village.pickLitter(x, y) : null;
     if (borne !== null) return selectPerson(borne);
@@ -8725,6 +8732,21 @@ async function runPlanetPage(): Promise<void> {
     live: (agent) => lifeFlow.liveAgent(agent),
   });
   homeTap = homeFlow.tapped;
+  // A town's money over it (Lives L6): 💰 on its bar.
+  const moneyFlow = installMoney({
+    stage,
+    hud,
+    client,
+    village,
+    rig,
+    pages: pageWindow,
+    panel: villagePanel,
+    plan: () => (scale === "village" ? plan : null),
+    scale: () => scale,
+    now,
+  });
+  moneyTap = moneyFlow.tapped;
+  moneyPlan = moneyFlow.planNow;
   // (A page's Go to, from a home: the home closed, then gone to.)
   const goToPage = pageWindow.onGoTo;
   pageWindow.onGoTo = (place, ref) => {

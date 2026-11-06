@@ -13,6 +13,7 @@ import {
   civicChimneys,
   civicMotions,
   civicsActive,
+  homeBox,
   lotNear,
   roofTop,
   townCivics,
@@ -311,6 +312,11 @@ export class TownLayer {
   lotAt(p: number): { x: number; z: number } | null {
     const s = this.scene;
     return s && p >= 0 && p < s.lots.x.length ? { x: s.lots.x[p]!, z: s.lots.z[p]! } : null;
+  }
+
+  /** A home's box as it stands at moment t (metres), for what is laid over it; null: no such lot. */
+  homeBox(p: number, t: number): ReturnType<typeof homeBox> {
+    return this.scene ? homeBox(this.scene, p, t) : null;
   }
 
   /** How far out its lots reach (metres), for the eye. */

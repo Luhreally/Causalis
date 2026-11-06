@@ -43,18 +43,19 @@ import { townRoster } from "../roster.ts";
 import { armsBlock } from "./arm.ts";
 import { battleWords } from "../burials.ts";
 import { count, item, link, many, sentence, stat, yearNow } from "./words.ts";
-import { landLink, realmLink, townLink } from "./names.ts";
+import { landLink, townLink } from "./names.ts";
 import { lotRef } from "./fabric.ts";
+import { paysLine } from "./living.ts";
 import {
   RING_HOME,
   dwellOf,
   dwellRef,
   dweltRef,
+  foodWord,
   homeFacts,
   homeLine,
   homeRead,
   homeTitle,
-  rentOf,
   type HomeRead,
 } from "../home.ts";
 
@@ -154,7 +155,7 @@ function worthLine(world: World, r: HomeRead, t: DwellingThing): Line {
   return [
     `${count(Math.max(1, Math.round(t.coin)))} coin at the market of `,
     landLink(world, r.cell),
-    ` now, ${against}. A coin is a person's bread for a day.`,
+    ` now, ${against}. A coin is a person's ${foodWord(r.plan)} for a day.`,
     ...(short.length ? [` No ${short.join(" or ")} is to be had there now.`] : []),
   ];
 }
@@ -253,15 +254,11 @@ export function homePage(world: World, ref: string): PageModel {
     name = HOME_LEVELS[r.level] ?? "home",
     storeys = HOME_STOREYS[r.level] ?? 1,
     { age, before } = ageLines(r, year),
-    rent = r.state === "stands" && !r.plan.native ? rentOf(world, r.cell, r.level) : null,
-    realm = (to: string) => realmLink(world, to),
-    pays: Line = f.noHouses
-      ? ["Nothing: its people do not count kin, and no family holds it."]
-      : r.state !== "stands"
-        ? ["No one pays: no one lives here."]
-        : rent
-          ? [rent.words, ...(rent.to ? [realm(rent.to)] : []), "."]
-          : ["No rent is known: no law of land is kept here."],
+    pays = paysLine(
+      world,
+      { r, day: { seated: people.some((p) => p.figure?.startsWith("rule:")) } },
+      f.noHouses,
+    ),
     whose: Line = f.noHouses
       ? ["No family's: those of this people who sleep here sleep here."]
       : r.state !== "stands"
@@ -339,7 +336,7 @@ export function homePage(world: World, ref: string): PageModel {
       title: "What they have",
       lines: [
         [
-          `${homeLine(r, d.rooms.length, floors, people.length)}. What it holds comes to ${count(Math.round(d.spent))} coin at the market now. They have had ${standingWords(f.coin)} to spend: their wages and their land's making, less their bread and rent.`,
+          `${homeLine(r, d.rooms.length, floors, people.length)}. What it holds comes to ${count(Math.round(d.spent))} coin at the market now. They have had ${standingWords(f.coin)} to spend: their wages and their land's making, less their ${foodWord(r.plan)} and rent.`,
         ],
       ],
     });

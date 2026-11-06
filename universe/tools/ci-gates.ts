@@ -308,6 +308,8 @@ export const GATES: readonly Gate[] = [
   { gate: 85, args: ["--ci"], s: 240 },
   // Gate 86, a home you can look into (tools/l6-gate.ts): the rule; a home's page, Look in pressed by touch; something in it and someone in it tapped; rich beside poor in the pixels; the paths nobody watches; a young world on CI.
   { gate: 86, args: ["--ci"], s: 200 },
+  // Gate 88, what things cost and who pays (tools/l7-gate.ts): the one reckoning; a town's money by touch, on and off in the pixels; a home tapped through it; a person's page, where they live and what a day's work buys, Look in by touch; the paths nobody watches; a young world on CI.
+  { gate: 88, args: ["--ci"], s: 300 },
   // Gate 87, your hand in it (tools/p73-gate.ts): 🎬 on the age of the stars, each moment on the screen; the lenses by touch, in the pixels; a ship pressed and ridden; the paths nobody watches; a young world on CI.
   { gate: 87, args: ["--ci"], s: 480 },
   // Gate 89, what can be done here (tools/f5-gate.ts): from the world's page by touch; what's odd, seven functions; two worlds side by side that fit a phone; the paths nobody watches; a young world on CI.

@@ -297,6 +297,35 @@ export function roofTop(scene: TownScene, p: number, t: number): number | null {
   return L.h + (level === 2 ? 3.2 : level === 5 ? 10 : 2.8);
 }
 
+/** A home's box at moment t, whole or rising or what is left of it (metres), for what is laid over it; null: no such lot. */
+export function homeBox(
+  scene: TownScene,
+  p: number,
+  t: number,
+): {
+  readonly x: number;
+  readonly z: number;
+  readonly yaw: number;
+  readonly w: number;
+  readonly d: number;
+  readonly h: number;
+} | null {
+  const { lots, states } = scene;
+  if (p < 0 || p >= lots.x.length) return null;
+  const L = LEVELS[Math.max(0, Math.min(TOP_LEVEL, states.level[p]!))]!,
+    home = states.what[p] === LOT.home,
+    whole = home && progress(states.began[p]!, states.takes[p]!, t) >= 1,
+    top = whole ? (roofTop(scene, p, t) ?? L.h) : home ? 2 : 0.6;
+  return {
+    x: lots.x[p]!,
+    z: lots.z[p]!,
+    yaw: lots.yaw[p]!,
+    w: L.w + 0.8,
+    d: L.d + 0.8,
+    h: top + 0.4,
+  };
+}
+
 /**
  * The ground of a sealed town (Phase 64): its first hall, a great dome on the square its pods ring; its
  * blocks' plates of rock levelled and swept, a covered way down each with the pressure kept in it.

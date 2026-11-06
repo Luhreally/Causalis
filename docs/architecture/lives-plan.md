@@ -95,6 +95,32 @@ Measures, Earth `first light`, year 1500, 430 by 932: opening a home took 25 ms 
 
 Limits, stated: the frame cost on a slowed phone is not measured. Hive and burrow chambers are laid out but no such town has been pressed. A person's page has no Look in yet, for those met or for agents. Rent has no law behind it. Every number is a first guess in `rules/dwelling.ts`. The next three: 144 Homes view (a lens of who owns or rents), 145 Wages (wages paid and rent owed in history), 89 Markets and coin (a town's price board).
 
+### L6, second slice: what things cost and who pays, as built (2026-11-06)
+
+A town's money can be read at a touch. 💰 on the town's bar turns every home and its lot from deep violet to gold by what its people have to spend, with a legend of the ramp, its two ends in coin, and who owns and who rents. Tap a home for its page. Anyone's page now leads with **Home** and **A day's work**, and under their first facts, 🏠 Look in and "Where they live, and what it comes to": their home, what a day's work brings and what that buys here, what they pay and to whom, and what is left. Nothing is kept: **reading moves nothing**, and the gate compares every hash before and after.
+
+- **One reckoning.** `reckonDay` and `wageTimes` in `rules/dwelling.ts`, `reckonHome` in `host/home.ts`. A home's furniture, its page, the lens and a person's page all read the one sum, and the gate checks they agree. One lived as reads their own: `dayWage`, their real purse and the rent their strip pays, not the home's estimate.
+- **Three readings of a home changed, none of them history.** A family's standing is now 30% how near the square, 50% the repute of their street (a key to their block of 8 lots), 20% their own: it was 35% and 65% their own, which is confetti, and no street could be rich. A child brings in nothing, even where the record gives them an occupation. A ruler pays no rent: it goes with the seat.
+- **The ramp is the town's own spread**, from its 3rd to its 97th percentile of coin, because the five word bands gave two colours in nearly every far town. A spread narrower than 6 times is laid about its middle, so homes nearly alike stay nearly one colour.
+- **Cheap.** `homeMoney` furnishes nothing, 5.7 to 17.6 ms a town where `homeSurvey` takes 269 to 949 ms. Nothing is asked of the host until 💰 is pressed, and the layer has no per-frame work (a single check for leaving the town, only while it is on).
+
+Tally of 160 towns of each far save, by word band (very little / little / enough / plenty / a great deal):
+
+| Save | Homes standing | Bands | Let |
+|---|---|---|---|
+| `first light` 1500 | 775,568, plus 66,370 ruins | 0 / 1 / 34 / 64 / 0% | 50% |
+| `gale 710` 1500 | 940,815, plus 34 ruins | 2 / 5 / 35 / 57 / 0% | 75% |
+| `kestrel 557` 2000 | 689,300 | 3 / 9 / 45 / 42 / 0% | 96% |
+| `first light` year 30 | 2,769 | 33 / 19 / 40 / 8 / 0% | |
+
+No town of the 160 was one colour. A young world is poor, as it should be: a third have very little, mostly falling short of their bread. On and off differ in 44% of the shot at Pedackholt, `first light` 1500, 47% in a town of halls or of ruins, 42% in a town at war, 53% on a water world.
+
+Found by pressing, after the spec: one lived as read "To live there: nothing" over a sum that took rent. A town with no fabric of lots keeps its homes in a ring about a wide ground, and the lens had nothing to say to an eye over its middle: the eye now stands back until they are in sight, and comes back when it is turned off.
+
+**What wages and rent moving through history would need:** a store of households' purses by land, read and written each year in `sim/economy`, with wages paid out of a market's real output and rent moved to an owner the realm's law names; that owner must exist, a lord or landlord class per land which the courts could seat (L5). Then a rule version bump on both universes and the seed list. Eviction, debt (Phase 21's credit could hold it) and a class tally on the wealth lens would follow. Until then this slice is a reading, and the page says "History keeps a land's market, not a family's purse".
+
+Limits, stated: the frame cost on a slowed phone is not measured (the lens adds at most 9 draw calls, nothing per frame). A home's level does not enter its coin, so a gold hut can stand beside a violet tower. A person past those a town draws has no address, because a plan stops at 160 homes. Hive and burrow towns under the lens have not been pressed. The next: 89 Markets and coin, a town's price board.
+
 ## What is known, and what is not
 
 - Realm pages show rulers: a name, since when, and the event that made them. Their Court tabs show heirs,
