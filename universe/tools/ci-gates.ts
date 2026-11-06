@@ -314,6 +314,9 @@ export const GATES: readonly Gate[] = [
   { gate: 87, args: ["--ci"], s: 480 },
   // Gate 89, what can be done here (tools/f5-gate.ts): from the world's page by touch; what's odd, seven functions; two worlds side by side that fit a phone; the paths nobody watches; a young world on CI.
   { gate: 89, args: ["--ci"], s: 200 },
+  // The Sound gate: every place its own air, by numbers off the real output and off renders; cues
+  // on real presses; 🔊 by touch, remembered; no AudioContext, a hidden tab; the same history.
+  { gate: 90, args: ["--ci"], s: 240 },
   // Gate 82, worlds filled (tools/p70b-gate.ts): a world at two shares, pressed from the 🚀 list by touch and read in the pixels; one that can never fill, and what its page says; a young world given both on CI.
   { gate: 82, args: ["--ci"], s: 240 },
   // Gate 80, the law of a universe and the first jump (tools/p68-gate.ts): shut, a page says why; open, a ship leaves, jumps and comes out, pressed by touch and read in the pixels.

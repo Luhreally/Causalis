@@ -5,6 +5,7 @@
 // world it was bound for. A card tells who, what it cost and what it did. The world's clock is held all the while, and
 // nothing here writes to history.
 import "./film.css";
+import { sound } from "./sound.ts";
 import "./contact.css";
 import "./jump.css";
 import type { HostClient, JumpPlan } from "../bridge/index.ts";
@@ -234,6 +235,7 @@ export function installJumpFilm(d: JumpFilmDeps): JumpFilm {
         });
         // —— The jump: drawn out to a line and gone, in a flash, and the sky begins to run.
         stageNow = "jump";
+        if (!skipped) sound.cue("jump");
         words.textContent = p.jump;
         await run(1.7, (k, dt) => {
           const s = k * k;
@@ -292,6 +294,7 @@ export function installJumpFilm(d: JumpFilmDeps): JumpFilm {
         }
         // —— Out, by another star, over the world it was bound for.
         stageNow = "out";
+        if (!skipped) sound.cue("out");
         frame = null;
         shotK = 0;
         await d.cut("that star", async () => {

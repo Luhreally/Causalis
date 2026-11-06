@@ -3,6 +3,7 @@
 // that ground was the year they came, and the fight the two sides' numbers say, told in words. A pure function of the
 // plan and the film's clock. The world's clock is held all the while, and nothing here writes to history.
 import "./film.css";
+import { sound } from "./sound.ts";
 import "./contact.css";
 import type { HostClient, LandfallPlan, VillagePlan } from "../bridge/index.ts";
 import {
@@ -171,7 +172,9 @@ export function installLandfallFilm(d: LandfallFilmDeps): LandfallFilm {
       { x: eye.e.x * M, y: eye.e.y * M, z: eye.e.z * M },
       { x: eye.at.x * M, y: eye.at.y * M, z: eye.at.z * M },
     );
+    const stageWas = stageNow;
     stageNow = landfallStage(script, t);
+    if (stageNow === "down" && stageWas !== "down") sound.cue("landing");
     words.textContent = landfallWords(script, t);
     // (The card says it all: nothing shows through it.)
     words.style.visibility = card.hidden ? "" : "hidden";

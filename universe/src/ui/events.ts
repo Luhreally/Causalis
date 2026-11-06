@@ -152,10 +152,13 @@ export class EventWindows {
       this.clock?.release("window");
       return;
     }
+    this.onShow?.();
     if (this.pauses) this.clock?.hold("window");
     await this.draw(t);
   }
 
+  /** A window has opened (what is heard of it). */
+  onShow: (() => void) | null = null;
   private readonly waiting = el("span", "event-more");
   private drawWaiting(): void {
     this.waiting.textContent = this.queue.length ? `${this.queue.length} more waiting` : "";

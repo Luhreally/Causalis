@@ -1,0 +1,35 @@
+/* 🔊 (Sound, first slice): a thumb's size, among the corner's tools; by itself, at the same edge,
+   where a mode has put them away, over nothing but the world; and given way to a page read there. */
+.sound-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  font-size: 1.2rem;
+  line-height: 1;
+  touch-action: manipulation;
+}
+.sound-button[hidden] {
+  display: none !important;
+}
+.sound-button.off {
+  opacity: 0.72;
+}
+.sound-button.free {
+  position: fixed;
+  z-index: 70;
+  right: calc(env(safe-area-inset-right, 0px) + 8px);
+  top: calc(env(safe-area-inset-top, 0px) + 206px);
+}
+.sound-button.free.on-title {
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+}
+body.paging .sound-button.free,
+body:has(.event-window:not([hidden])) .sound-button.free {
+  display: none !important;
+}

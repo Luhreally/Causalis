@@ -8,6 +8,7 @@
 // scrubbing are exact. The world's clock is held all the while, and nothing here writes to history.
 import "./film.css";
 import "./fleet.css";
+import { sound } from "./sound.ts";
 import type {
   FightRgb,
   HostClient,
@@ -318,6 +319,7 @@ export function installFleetFilm(d: FleetFilmDeps): FleetFilm {
     if (act === "orbit" && frame) {
       const now = fleetAt(s, t);
       lastFleet = now;
+      sound.fleet(now.beams.length, now.missiles.length, now.wrecks.length);
       leftNow = now.left;
       fleet.update(now);
       rideHint.hidden = ridingId !== null || t > RIDE_HINT || paused;
@@ -513,6 +515,7 @@ export function installFleetFilm(d: FleetFilmDeps): FleetFilm {
     time.release("film");
     ui.hidden = true;
     document.body.classList.remove("fleet-filming");
+    sound.fleet(0, 0, 0);
     plan = null;
     script = null;
     frame = null;
@@ -636,6 +639,7 @@ export function installFleetFilm(d: FleetFilmDeps): FleetFilm {
     village.warSceneOverride = () => townNow?.scene ?? null;
     village.blazeOverride = () => townNow?.blaze ?? null;
     act = "town";
+    sound.cue("landing");
     t = 0;
     draw();
   };

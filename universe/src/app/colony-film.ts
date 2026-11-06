@@ -8,6 +8,7 @@
 // people about it. The world's clock is held all the while: nothing is changed by watching, and it can
 // be skipped at any moment. The eye is the film's: the rig is given it back at the town's first view.
 import "./film.css";
+import { sound } from "./sound.ts";
 import type {
   ClusterPlan,
   ColonyEntry,
@@ -377,6 +378,7 @@ export function installColonyFilm(d: ColonyFilmDeps): ColonyFilm {
               most: town.lots,
             },
           });
+        sound.cue("landing");
         say(look.founded, text("descent"));
       },
       frame: (k, dt, w) => {

@@ -349,6 +349,8 @@ import { installFleetFilm, type FleetFilm } from "./fleet-film.ts";
 import { installNationFilm, type FilmMark, type NationFilm } from "./nation-film.ts";
 import { installFarFilm, type FarFilm } from "./far-film.ts";
 import { installJumpFilm, type JumpFilm } from "./jump-film.ts";
+import { sound } from "./sound.ts";
+import { airOf, airOfWorld } from "./sound-mix.ts";
 // (Anyone's family and body on their card, a war's soldiers named from its roll: Phase 55 wave 5.)
 import { kinLines } from "../ui/index.ts";
 import { seatRef, type KinCard, type StruckMember, type StruckNow } from "../bridge/index.ts";
@@ -887,6 +889,8 @@ type Exposed = {
   landfallFilm?: LandfallFilm;
   toFolk?: (star: string, index: number, at?: number) => Promise<FolkNear | null>;
   fleetFilm?: FleetFilm;
+  /** What is heard (Sound, first slice): its state and its measures, for a gate. */
+  sound?: typeof sound;
   /** Realms among the stars (Phase 72): a realm's coming apart watched, the stars drawn held. */
   nationFilm?: NationFilm;
   nationsShown?: () => number | null;
@@ -1604,6 +1608,10 @@ async function runPlanetPage(): Promise<void> {
     searchBox = new SearchBox(corner, client),
     outliner = new Outliner(corner),
     logButton = new LogButton(corner);
+  // 🔊 among them (Sound, first slice); nothing plays until a touch, and then only if it is on.
+  sound.tell(airOf("globe"));
+  sound.mount(corner);
+  exposed.sound = sound;
   outliner.arms = searchBox.arms = armsBook;
   alerts.onOpen = (ref) => void pageWindow.open(ref);
   searchBox.onOpen = (ref) => void pageWindow.open(ref);
@@ -1624,6 +1632,7 @@ async function runPlanetPage(): Promise<void> {
     !!(navigator as { webdriver?: boolean }).webdriver && !params.has("events"),
   );
   events.clock = time;
+  events.onShow = () => sound.cue("event");
   events.onOpen = (ref) => void pageWindow.open(ref);
   events.onGoTo = async (ref) => {
     const place = await client.query<Place | null>({ type: "place", args: { ref } });
@@ -1667,6 +1676,7 @@ async function runPlanetPage(): Promise<void> {
   };
   // While a page is open the scales' own windows stand aside (their sheets would cover it).
   pageWindow.onOpen = (page) => {
+    sound.cue("page");
     if (page.kind === "log") logButton.read();
     document.body.classList.add("paging");
     markBarBottom();
@@ -1701,6 +1711,9 @@ async function runPlanetPage(): Promise<void> {
   planetPanel.onHelp = () => walk.start();
   // A world no people rose on (a world never seen, its seed taken as it fell: one in ten): told
   // so in the bar, and on a world never seen, the way on to the nearest one life arises on.
+  /** What is heard of this world: whether anything lives on it, and its air (Sound, first slice). */
+  let worldAlive = true;
+  const worldAir = { thin: 0, wind: 0 };
   const lifeless = el("div", "walk lifeless");
   lifeless.hidden = true;
   planetPanel.bar.append(lifeless);
@@ -1708,6 +1721,7 @@ async function runPlanetPage(): Promise<void> {
   void client
     .lifeOf(universe, seed)
     .then((life) => {
+      worldAlive = life.living;
       if (life.peopled) return;
       const keep = el("button", "link", "Watch it as it is"),
         on = el("button", "walk-next", "🌱 To a world where life arises"),
@@ -5833,6 +5847,7 @@ async function runPlanetPage(): Promise<void> {
       s = g?.since ?? -1,
       white = s < 0 ? 0 : s < 0.6 ? 1 : s < 6 ? Math.pow(1 - (s - 0.6) / 5.4, 2) : 0,
       dusk = s < 0 ? 0 : 0.26 * Math.min(1, s / 30) * Math.max(0, 1 - s / GREAT_LASTS);
+    sound.fireSeen(s);
     greatLight.hidden = white <= 0 && dusk <= 0;
     if (greatLight.hidden) return;
     greatLight.style.background =
@@ -9751,6 +9766,7 @@ async function runPlanetPage(): Promise<void> {
         await fleetFilm!.play(s.id);
         return;
       case "first": {
+        sound.cue("first");
         // (The first jump: played from its leaving, Phase 68.)
         if (s.first.what.startsWith("🌀") && directorJump) {
           await directorJump();
@@ -9983,6 +9999,107 @@ async function runPlanetPage(): Promise<void> {
         void watchIt({ words: "🏘️ Their first village", seconds: 20 });
     });
   else if (params.has("watch")) void watchIt();
+  // What is heard here (Sound, first slice): read as a person sees it, four times a second and only
+  // while someone is listening, and told only as it changes (app/sound.ts). Nothing goes back.
+  const heard = airOf("globe");
+  let heardAt = 0,
+    flashWas = 0,
+    worldAirAsked = false;
+  /** How much of the land shown is sea (a sample of its tiles; no list made, nothing kept). */
+  const seaOfLand = () => {
+    const e = client.latestFrame("region")?.arrays.elevation as Float32Array | undefined;
+    if (!e) return 0;
+    let sea = 0,
+      all = 0;
+    for (let i = 0; i < e.length; i += 23) {
+      all++;
+      if (e[i]! <= 0) sea++;
+    }
+    return sea / Math.max(1, all);
+  };
+  stage.onUpdate(() => {
+    const wall = performance.now();
+    if (wall < heardAt || !sound.listening) return;
+    heardAt = wall + 250;
+    // (A world's air, read once, as soon as anyone is listening: nothing asked for one who has it off.)
+    if (!worldAirAsked) {
+      worldAirAsked = true;
+      void client
+        .query<SystemPlan>({ type: "planet.system" })
+        .then((sys) => {
+          const home = sys.bodies.find((b) => b.kind === "home");
+          if (home) Object.assign(worldAir, airOfWorld(home.pressure, home.gravity));
+        })
+        .catch(() => {});
+    }
+    // A film's own place and its own hour, not the world's behind it.
+    const filmHolds = !!fleetFilm?.townHeld || !!landfallFilm?.townHeld,
+      film =
+        !!fleetFilm?.playing ||
+        !!landfallFilm?.playing ||
+        !!colonyFilm?.playing ||
+        !!contactFilm?.playing ||
+        jumpFilm.playing ||
+        farFilm.playing ||
+        nationFilm.playing,
+      inSpace =
+        film &&
+        !filmHolds &&
+        !(colonyFilm?.playing && !colonyFilm.townAway && scale === "village"),
+      inTown = scale === "village" && !!plan,
+      world = client.latestFrame("globe"),
+      hour = document.body.dataset.daylight,
+      sea = !inSpace && scale === "region" ? seaOfLand() : 0;
+    heard.place = inSpace
+      ? "stars"
+      : scale === "galaxy"
+        ? "galaxy"
+        : scale === "cluster" || scale === "system"
+          ? "stars"
+          : scale === "globe" || scale === "world"
+            ? "globe"
+            : scale === "battle"
+              ? "battle"
+              : onColony()
+                ? "halls"
+                : scale === "village"
+                  ? "town"
+                  : sea > 0.08
+                    ? "shore"
+                    : "land";
+    heard.night = inSpace ? 0 : hour === "night" ? 1 : hour === "dusk" || hour === "dawn" ? 0.5 : 0;
+    heard.rain = inSpace ? 0 : (weatherNow?.rain ?? 0);
+    const square =
+      inTown && !film && !raidPlaying && !time.lapse && plan ? squareNow(plan, now(), false) : null;
+    heard.market = square?.icon === "🛒";
+    heard.feast = !!square && square.icon !== "🛒";
+    heard.war =
+      inTown &&
+      (filmHolds ||
+        !!townWar ||
+        !!raidOver(plan?.town, raidPlaying ? raidPlaying.t : now()));
+    heard.under =
+      !inSpace &&
+      (inTown
+        ? plan?.body?.medium === "water" || (!plan?.native && !!world && frameUndersea(world))
+        : scale === "region"
+          ? !!landPlan?.undersea
+          : scale === "camp" && !!world && frameUndersea(world));
+    // (A people met on another world's own ground has life about it, whatever this one's.)
+    heard.alive = !!plan?.native || worldAlive;
+    heard.thin = plan?.native || inSpace ? 0 : worldAir.thin;
+    heard.wind = plan?.native || inSpace ? 0 : worldAir.wind;
+    heard.hush = Math.max(
+      sound.fireHush,
+      inSpace || weatherCell() < 0 ? 0 : 0.7 * (landSky?.dark?.soot ?? 0),
+    );
+    heard.held = time.paused && !film && !raidPlaying;
+    sound.tell(heard);
+    // (A storm's flash, its thunder.)
+    const flash = inSpace ? 0 : (weatherNow?.flash ?? 0);
+    if (flash > 0.3 && flashWas <= 0.3) sound.cue("thunder");
+    flashWas = flash;
+  });
   // The world's kind (Phase 56): its globe's seas, air and clouds, a land's sea, the sky over its
   // ground, its warmth's legend.
   client.onFrame((frame) => {
@@ -10016,6 +10133,9 @@ async function runTitlePage(): Promise<void> {
     // Storage may be shut (a private window): how to play shown, harmlessly.
   }
   const { showTitle } = await import("./title.ts");
+  sound.tell(airOf("title"));
+  sound.mount(null, true);
+  exposed.sound = sound;
   showTitle({ connect, first });
 }
 
@@ -10031,6 +10151,9 @@ async function runGenesisPage(): Promise<void> {
   const { client, mode } = await connect();
   Object.assign(exposed, { client, mode, seed, universe, stage, drawn: () => 1 });
   await client.start(universe, seed);
+  sound.tell(airOf("stars"));
+  sound.mount(null);
+  exposed.sound = sound;
   const { runGenesis } = await import("./genesis.ts");
   await runGenesis({
     stage,
