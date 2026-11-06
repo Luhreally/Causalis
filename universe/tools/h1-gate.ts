@@ -543,7 +543,7 @@ if (chosen) {
       await until(
         "the site's page",
         async () => /at work|It took/i.test(await windowWords()),
-        10000,
+        30000,
         false,
       );
       opened = await windowWords();
@@ -639,7 +639,7 @@ if (chosen) {
         );
       let got = false,
         pressed = false;
-      for (let go = 0; go < 4 && !got; go++) {
+      for (let go = 0; go < 2 && !got; go++) {
         const onIt = await onStone();
         if (!onIt) {
           await frames(10);
@@ -647,9 +647,10 @@ if (chosen) {
         }
         pressed = true;
         await page.touchscreen.tap(onIt.x, onIt.y);
-        for (let w = 0; w < 12 && !got; w++) {
-          await frames(4);
-          got = /asking/i.test(await windowWords());
+        // (A page's window comes before its words, and a far world's page can take some seconds to read.)
+        for (let w = 0; w < 160 && !got; w++) {
+          await page.waitForTimeout(250);
+          got = /stone of the asking/i.test(await windowWords());
         }
         if (!got) {
           say(
