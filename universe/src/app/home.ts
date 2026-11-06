@@ -95,6 +95,7 @@ export function installHome(d: HomeDeps): HomeFlow {
       pitch: number;
       yaw: number;
       target: { x: number; y: number; z: number };
+      follow: typeof d.rig.follow;
     } | null = null,
     roam = false;
 
@@ -187,6 +188,7 @@ export function installHome(d: HomeDeps): HomeFlow {
     d.time.release("home");
     if (d.scale() === "village") d.village.visible = true;
     if (was) {
+      d.rig.follow = was.follow;
       d.rig.flyTo(
         { target: was.target, distance: was.distance, pitch: was.pitch, yaw: was.yaw },
         0.6,
@@ -265,7 +267,10 @@ export function installHome(d: HomeDeps): HomeFlow {
       pitch: d.rig.pitch,
       yaw: d.rig.yaw,
       target: { x: d.rig.target.x, y: d.rig.target.y, z: d.rig.target.z },
+      follow: d.rig.follow,
     };
+    // (Whoever the eye was after stays out of this: a life's, while it is lived from inside its home.)
+    d.rig.follow = null;
     d.rig.flyTo(
       { target: { x: 0, y: 0, z: 0 }, distance: drawn.distance, pitch: EYE_PITCH, yaw: 0 },
       0.5,
@@ -351,8 +356,21 @@ export function installHome(d: HomeDeps): HomeFlow {
     },
   });
 
+  /** Why it could not be looked into, said where anyone can read it, whatever else is up. */
+  const told = async (ask: HomeAsk): Promise<string | null> => {
+    const why = await open(ask);
+    if (why) {
+      const note = document.createElement("div");
+      note.className = "home-note";
+      note.textContent = why[0]!.toUpperCase() + why.slice(1) + ".";
+      document.body.append(note);
+      setTimeout(() => note.remove(), 4000);
+    }
+    return why;
+  };
+
   return {
-    open,
+    open: told,
     close,
     tapped,
     get on() {

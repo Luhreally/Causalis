@@ -392,6 +392,22 @@ const closeHome = async () => {
   await k("globalThis.causalis.home.close()");
   await page.waitForTimeout(slow(120));
 };
+/** The town the eye goes down to. */
+async function goDown(ref: string): Promise<void> {
+  await k(`globalThis.causalis.goTo(${JSON.stringify(ref)})`);
+  await until(
+    "the town",
+    () =>
+      k<boolean>(
+        `globalThis.causalis.scale() === "village" && globalThis.causalis.planNow()?.ref === ${JSON.stringify(ref)}`,
+      ),
+    slow(60000),
+  );
+  await page.waitForTimeout(slow(800));
+}
+/** The world as a save holds it, to look through its towns for a home of a kind the one looked at lacks. */
+let lookThrough: (test: (s: Survey) => boolean) => { town: string; home: Survey } | null = () =>
+  null;
 /** The town to look at: the one with the most lots standing, the eye gone to it. */
 async function toTown(world: Forged): Promise<string> {
   const doc = JSON.parse(gunzipSync(world.bytes).toString("utf8")) as Parameters<
@@ -407,16 +423,14 @@ async function toTown(world: Forged): Promise<string> {
     // (A town big enough to show rich and poor, not one so great its lots are all one tower: the second rank of them.)
     town = towns[Math.min(towns.length - 1, Math.floor(towns.length * 0.02))]!;
   say(`${towns.length} towns; looking at ${town.name}, ${Math.round(town.population)} people`);
-  await k(`globalThis.causalis.goTo(${JSON.stringify(town.ref)})`);
-  await until(
-    "the town",
-    () =>
-      k<boolean>(
-        `globalThis.causalis.scale() === "village" && globalThis.causalis.planNow()?.ref === ${JSON.stringify(town.ref)}`,
-      ),
-    slow(60000),
-  );
-  await page.waitForTimeout(slow(800));
+  lookThrough = (test) => {
+    for (const s of towns.slice(0, 600)) {
+      const home = (u.queries["home.survey"]!(w, { town: s.ref }) as Survey[]).find(test);
+      if (home) return { town: s.ref, home };
+    }
+    return null;
+  };
+  await goDown(town.ref);
   return town.ref;
 }
 
@@ -538,18 +552,42 @@ if (rich.coin > poor.coin * 8 && rich.rooms > poor.rooms)
   );
 
 // The paths nobody watches.
-const ruin = survey.find((s) => s.state === "fell" || s.state === "razed");
+// (A ruin and a ruler's home, wherever in the world they are.)
+const ruin = lookThrough((s) => s.state === "fell" || s.state === "razed");
 if (ruin) {
-  const s = await openHome(town, ruin.n);
+  await goDown(ruin.town);
+  const s = await openHome(ruin.town, ruin.home.n);
   await shot("home-ruin");
   say(`ruin: ${s?.title}: ${s?.line}; ${s?.things.join()}`);
   check(!s || s.folk.length === 0, "someone lives in a ruin");
-  await k(`globalThis.causalis.open(${JSON.stringify(`dwell:${town}:${ruin.n}`)})`);
+  check((s?.things.length ?? 0) > 0, "a ruin holds nothing");
+  await k(`globalThis.causalis.open(${JSON.stringify(`dwell:${ruin.town}:${ruin.home.n}`)})`);
   await page.waitForTimeout(slow(400));
-  readWell(await pageText(), "a ruin's page");
+  await shot("home-ruin-page");
+  text = await pageText();
+  readWell(text, "a ruin's page");
+  check(/STOOD|Stood/.test(text), `a ruin still stands, by its page: ${text.slice(0, 200)}`);
+  check(!/\b0 homes\b|\bof 0\b/.test(text), `a ruin's page counts nothing: ${text.slice(0, 400)}`);
   await k("globalThis.causalis.closePage?.()");
   await closeHome();
-} else say("no ruin in this town");
+} else say("no ruin in this world");
+const crowned = lookThrough((s) => s.figure);
+if (crowned) {
+  await goDown(crowned.town);
+  const s = await openHome(crowned.town, crowned.home.n);
+  await shot("home-ruler");
+  say(`ruler's: ${s?.title}: ${s?.line}; ${s?.things.length} things`);
+  check((s?.rooms ?? 0) >= 2, `a ruler's home is ${s?.rooms} rooms`);
+  await k(`globalThis.causalis.open(${JSON.stringify(`dwell:${crowned.town}:${crowned.home.n}`)})`);
+  await page.waitForTimeout(slow(400));
+  await shot("home-ruler-page");
+  text = await pageText();
+  readWell(text, "a ruler's home's page");
+  check(/HOME OF|Home of/.test(text), `a ruler's home says not whose: ${text.slice(0, 300)}`);
+  await k("globalThis.causalis.closePage?.()");
+  await closeHome();
+} else say("no ruler's home in this world");
+await goDown(town);
 const empty = standing.find((s) => s.people === 0);
 if (empty) {
   const s = await openHome(town, empty.n);
@@ -565,10 +603,10 @@ if (empty) {
 const ruler = survey.find((s) => s.figure);
 if (ruler) {
   const s = await openHome(town, ruler.n);
-  await shot("home-ruler");
-  say(`ruler's: ${s?.title}: ${s?.line}; ${s?.things.length} things`);
+  await shot("home-ruler-here");
+  say(`ruler's, here: ${s?.title}: ${s?.line}; ${s?.things.length} things`);
   await closeHome();
-} else say("no ruler's home in this town");
+}
 // A lot's own page offers it, and one that does not exist says so.
 await k(`globalThis.causalis.open(${JSON.stringify(`lot:${town}:${poor.n}`)})`);
 await page.waitForTimeout(slow(400));
@@ -667,8 +705,16 @@ if (await sheet()) {
     check(!(await homing()), "a home stays open under one lived as");
     await press(".life-goin");
     await until("their home, from their strip", async () => !!(await homeState())?.lifted);
+    await until("the eye over their home", async () => !(await homeState())?.flying);
     await page.waitForTimeout(slow(400));
-    await shot("home-goin");
+    const lifeShot = await shot("home-goin"),
+      lifeC = await colourOf(lifeShot);
+    say(`their home, from their strip: ${lifeC.colours} colours`);
+    check(lifeC.colours >= 12, `their home, from their strip, is nothing to see: ${lifeC.colours}`);
+    check(
+      (await spots()).filter((s) => s.y > 120 && s.y < 830 && s.x > 0 && s.x < 430).length > 2,
+      "little of their home lies on the screen, from their strip",
+    );
     await press(".home-leave");
     await page.waitForTimeout(slow(600));
     check(!(await homeState()), "Back out left their home open");

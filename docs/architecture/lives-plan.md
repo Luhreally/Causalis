@@ -79,6 +79,22 @@ Found by pressing, after the spec: a person's page said nothing where history ha
 
 Coups, civil wars, realms ended and successions all held within what a century's chance gives, on six worlds. Limits, stated: marriages of state still move regard and give no claim, and the kin words wait with them; a voice does nothing of their own but plot; the numbers are first guesses, all in `rules/court.ts`.
 
+### L6, first slice: homes, as built (2026-11-06)
+
+A home can be looked into. 🏠 Look in, on a home's page, a lot's or a household's, or 🏠 Go in on the tray of a life, puts the town away, holds the clock and lifts the roof off a cutaway of that home. It adds no state and no events: **reading moves nothing**, the gate compares every hash before and after, and history moves only when someone in it is taken.
+
+- **What it holds is what its people need, what their land allows and what they can pay for.** `rules/dwelling.ts` is a table of needs (sleep, cook, sit, keep, wash, read, tell the hour), each with its ways, best first, each asking something of the world and costing goods at this market's prices. The first way they can pay for stands there. Nothing says a family at a level owns a thing.
+- **Coin is read, not rolled**: wages from L3's table, this market's bread, the land's making as L2's book has it, standing by their street and their own key, rent, and a seat at court. A home's rooms are as many as they can pay for and its level gives.
+- **Any body, any world.** A water people sleeps in kelp hammocks in round chambers, warms a stone at a vent and keeps a kelp knife, not a hoe. A people who cannot grip cook at a fire pit, keep things in niches in the wall, and never sit to a table. Wood comes from trees standing there or from a market that deals in what is made of it. A people who keep no houses have one hall for all who sleep there, and no family's name on it.
+- **Tap anything.** A thing says what it is for, what it is made of, how good it is, who made it (a real hand at the works where one is to be found), and its worth at the market. A person gives their page, 🖐 Possess and 🏡 Live as. 🚪 Back out returns the eye to where it stood, and to the person it was following.
+- A ruin holds what was left (a pot only if it wasn't burnt). A ruler's home has two rooms more than its level gives. A flat says which floor of how many.
+
+Found by pressing, after the spec: 90% of the homes of a world with screens and cold boxes ate on a mat, because wood was read off the trees outside the door. A wall was given up on when one long thing did not fit, so halls of beds had no room for anything else. A life's 🏠 Go in opened on an empty picture, the life's own eye still following its body, and the button itself lay off the edge of a phone. Round walls stood out from their rooms like fins. A home's buttons lay over a page's words.
+
+Measures, Earth `first light`, year 1500, 430 by 932: opening a home took 25 ms for one room (43 parts) and 4 ms for seven rooms on three floors (184 parts); nothing runs per frame once the roof is off, nothing at all for one who never opens a home. Poor against rich: 34 colours against 40, 62% of the shot different.
+
+Limits, stated: the frame cost on a slowed phone is not measured. Hive and burrow chambers are laid out but no such town has been pressed. A person's page has no Look in yet, for those met or for agents. Rent has no law behind it. Every number is a first guess in `rules/dwelling.ts`. The next three: 144 Homes view (a lens of who owns or rents), 145 Wages (wages paid and rent owed in history), 89 Markets and coin (a town's price board).
+
 ## What is known, and what is not
 
 - Realm pages show rulers: a name, since when, and the event that made them. Their Court tabs show heirs,

@@ -74,7 +74,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 132 Cradle | The widowed love again; towns keep bearing children | **n/a** | A birth-rate fix. Universe's births come from life tables |
 | 141 Settled intent | The inspector shows what a life is steadily doing, not each tick's flicker | **n/a** | Universe's day is a pure function of time, so nothing flickers |
 | 146 Steady steps | Walkers don't step straight back | **n/a** | A walking fix for Classic's agents |
-| 148 Address | Where a person lives: the home, its owner, the rent, the household | **partial** | The person page names their town (`host/inspect/settled.ts`). Missing: the house, its owner and the rent |
+| 148 Address | Where a person lives: the home, its owner, the rent, the household | **partial** | A home's page says whose it is, who lives there, what they pay and to whom, its size, age and what it was before (`host/inspect/home.ts`). Missing: a person's own page does not yet lead to it, and rent has no law behind it |
 | 152 Conversation | Mood, stress, loneliness and standing; what people say to each other | **partial** | Rings of talk, hot words and brawls where grievance runs high (`view/village.ts`). Missing: mood kept for each person and passed between people |
 | 153 First aid | Helpers chosen by kin, clinic care, field medics | **partial** | Healers spare a share of the sick (`sim/health/health.ts`); brigades turn out when the god strikes a town (Phase 42). Missing: carers for the hurt, clinics for wounds, field medics |
 
@@ -86,7 +86,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 30a Society places | Stages, crafts, buildings, plans, camps and towns | **in** | Buildings raised by need and knowledge (`rules/buildings.ts`, `sim/town/fabric.ts`, Phase 23); stages (`host/inspect/stage.ts`) |
 | 30d Labour | Hands assigned to work; buildings kept up | **partial** | Work counted by occupation (`sim/population/model.ts`); homes wear out and are rebuilt (`sim/town/fabric.ts`); a day's errands drawn (`view/errands.ts`, Phase 39). Missing: hands assigned to sites, and upkeep as work |
 | 32e Architecture render | Palettes, footprints, roofs, function marks, sites going up | **in** | Homes in their designs, rising inside scaffolds (`view/town.ts`, `render/town.ts`) |
-| 32f Interiors | Cutaway homes: furniture, and who is inside | **missing** | — |
+| 32f Interiors | Cutaway homes: furniture, and who is inside | **partial** | Any home opens in cutaway with what its people need, can get and can pay for, and those who are in it (Lives L6, `rules/dwelling.ts`). Missing: workshops |
 | 32g Town render | Work at its faces; the place itself | **in** | `render/work.ts`; trades at their buildings (`render/trades.ts`, Phase 41) |
 | 52 Living society | Monuments, caravans that walk, wildlife lives, petty crime and captives | **partial** | Traders on the road (`view/trade.ts`, Phase 48); captives (`sim/order/order.ts`). Missing: monuments, dens and beasts of legend, theft and exile |
 | 68 Expansion | Settlers found new camps; caps scale with the map | **in** | Bands spread and towns are founded (`sim/population/systems.ts`); the god can send settlers (`sim/acts/peoples.ts`) |
