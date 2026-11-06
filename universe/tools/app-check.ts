@@ -499,6 +499,14 @@ for (const engine of engines) {
         { timeout: 10000 },
       );
       await kept.click(".walk .link:has-text('Skip')");
+      // (A click's answer can come back before its handler has run: WebKit, on a busy runner.)
+      await kept
+        .waitForFunction(
+          () => (globalThis as { causalis?: Exposed }).causalis?.walk?.() === -1,
+          undefined,
+          { timeout: 10000 },
+        )
+        .catch(() => {});
       const after = await stepOf();
       if (first !== 0 || after !== -1)
         throw new Error(`the guided walk went ${first} → ${after}, not 0 → 1 → skipped`);
