@@ -15,6 +15,7 @@ jobs:
   # success, not the last push: a failed push's changes still count until a deploy has passed with them.
   moved:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     permissions:
       actions: read
       contents: read
@@ -39,6 +40,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -52,6 +54,7 @@ jobs:
   universe:
     name: universe (tests ${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -78,6 +81,7 @@ jobs:
     needs: moved
     if: needs.moved.outputs.history == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     defaults:
       run:
         working-directory: universe
@@ -100,6 +104,7 @@ jobs:
     needs: moved
     if: needs.moved.outputs.history == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     defaults:
       run:
         working-directory: universe
@@ -121,6 +126,7 @@ jobs:
     needs: moved
     if: needs.moved.outputs.history == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     defaults:
       run:
         working-directory: universe
@@ -147,6 +153,7 @@ jobs:
     needs: moved
     if: needs.moved.outputs.history == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     defaults:
       run:
         working-directory: universe
@@ -168,6 +175,7 @@ jobs:
   universe-journey:
     name: universe-journey (gates ${{ matrix.gates }})
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -199,7 +207,7 @@ jobs:
           cache-dependency-path: universe/package-lock.json
       - run: npm ci
       # WebKit is also used by the names and brush journeys.
-      - run: npx playwright install --with-deps chromium ${{ (contains(format(' {0} ', matrix.gates), ' 7 ') || contains(format(' {0} ', matrix.gates), ' 58 ') || contains(format(' {0} ', matrix.gates), ' 62 ')) && 'webkit' || '' }}
+      - run: bash tools/install-browsers.sh chromium ${{ (contains(format(' {0} ', matrix.gates), ' 7 ') || contains(format(' {0} ', matrix.gates), ' 58 ') || contains(format(' {0} ', matrix.gates), ' 62 ')) && 'webkit' || '' }}
       - run: npm run build
       - run: node tools/ci-gates.ts ${{ matrix.gates }}
         env:
@@ -216,6 +224,7 @@ jobs:
   universe-engines:
     needs: moved
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     defaults:
       run:
         working-directory: universe
@@ -231,7 +240,7 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('universe/package-lock.json') }}
-      - run: npx playwright install --with-deps chromium webkit firefox
+      - run: bash tools/install-browsers.sh chromium webkit firefox
       - run: sudo apt-get install -y --no-install-recommends libgl1-mesa-dri libglx-mesa0 libegl-mesa0
       - if: needs.moved.outputs.history == 'true'
         run: npm run engines

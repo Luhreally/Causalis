@@ -135,6 +135,18 @@ needs the seed list run once, in the background.
 | F4 Rocky worlds differ | The same reading on rocky alien worlds: no ore means no bronze age, and a long blade of flakes on a spine instead; beasts decide mounts; bodies decide tools | Alien rocky worlds stop retracing Earth's order | Rocky alien worlds, not Earth |
 | F5 The tree of what can be done | The tech page shows functions, this world's means for each, the figures, and what shuts the rest. Compare two worlds side by side | Open any world and read why it went its way | Nothing: it shows what is there |
 
+## F5, as built (2026-11-06)
+
+A world now says what it can do, and why. On any world's page, the age's chip and 🪜 open **What can be done here**. It leads with what's odd about this world, as facts with what each shuts: on `vale 471`, "Its air holds no free oxygen: nothing burns. That shuts digging coal, the steam engine and drilling for oil and 4 more steps." Then seven functions: holding an edge, heat and how high it goes, a charge, throwing things far, moving under its own power, flight, and talking at a distance. Each says what this world has reached, what could come next, and what never will, with the figures and the year: "Stops at 3,000 °C: the electric arc, since year 665", "Never burning a fuel". `first light` says "Nothing about it is odd". **Beside another** sets any world next to it, by a chip or a typed seed, in two columns that fit a phone, with why they part on top. A world's facts need no simulated years, so any seed text works.
+
+- **Whether and why are one reading.** `rules/can.ts` holds `stepStop`, `openSteps` and `whyShut`, so they can't disagree: `affordsPrinciple` is now `bodyStop`'s yes or no, and `openTo` in `host/can.ts` is `openSteps`.
+- **A land's lack is not a world's.** It reads "Not as its lands stand" where a land lacks something, "Never" where the world does. A line's colour says had, could be, or never.
+- **It only reads.** No state, no events, no version bump. The eight fixtures are unchanged and every hash is the same before and after.
+
+Tally, 65 worlds (the 22 of the list, 3 of Earth, 40 more; 12 with no people): 47 different sentences for what is shut and 107 for what is odd, none on every world, and none where whether and why disagree. The commonest is "No coal lies within reach of its people's lands", on 17 of 65. History agrees with the reading: at 1500 on `vale 471`, `gale 710`, `kestrel 557`, `quill 742` and `first light`, no step is known that the reading from first lands calls shut. Opening costs 20 to 24 ms, nothing until opened; another world's column about 0.5 s once, and the last six are kept.
+
+Limits, stated: ▶ films from a line are cut, a line opens its thing's page. `shutWhy` and `shutBecause` keep their own words on principle pages and the picker, read from the same conditions but not yet from `stopWords`. Edge figures for water metals (75%, 90%) are estimates the page doesn't mark yet. "Talking at a distance" reads current and orbit, since the rules have no step for signals. `kestrel 557`, `quill 742` and year 40 were read by the rule's words and tally, not as shots of their own pages.
+
 ## Order
 
 F1 goes next, alongside L1 and L2 of lives-plan.md, since those change only pages and the map. F2 follows it.
