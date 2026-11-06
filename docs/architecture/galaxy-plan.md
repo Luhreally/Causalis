@@ -278,6 +278,24 @@ The fallen on `harrow 348` each came after the realm at home ended. Talwick held
 - **The galaxy view isn't coloured by holder yet,** only the stars around.
 - A far realm's seat is its first world, with no capital of its own to go down to. Lights on a world in the dark thin only with its people. Trade's far runs and raids read who holds a port, and nothing yet chooses a run for who holds it.
 
+
+## Phase 73, first slice, as built (2026-11-06)
+
+The age of the stars is brought to you. Open a far seed and press 🎬: "The age of the stars here: 10 moments". It plays each moment in its own film, in order, under a line saying what it is, with Its page, Next and ✋. Between them it shows the stars under the lens that fits what comes next. When the telling ends the clock is let go and the eye goes round the stars, a lens at a time, with now and then home whole, not a village nobody asked for. A seed with nothing among the stars has none of this, and 🎬 does what it did.
+
+- **Read, not stored.** `star.tour` (`host/tour.ts`) reads each phase's own record once, on 🎬. `star.lens` (`host/starlens.ts`) is read every 2 s only while the stars are looked at under such a lens, as `nation.map` is. No store, no event, no command, no version bump. History's hashes are the same before and after the telling, the lenses and a ride.
+- **The Director only sequences.** `tourTake` in `view/director.ts` goes stars, moment, stars, moment, each moment playing the film it already had. The clock is held while the age is told, even from a paused clock.
+- **Five lenses at the stars around**: who holds them (on by default, with Phase 72's marks and chips, so the map a person knows stands), the peoples among them, lanes and ships, trade, war and fire. Tap one for its legend with counts, tap again for none. Under Peoples, Trade and War the web of lanes goes out so what the lens says can be read.
+- **Press a ship in a fleet's film and you are aboard.** The eye rides behind her, a thumb's drag turns it, and the fight goes on around you. Her people are real: `crewOf` in `host/starfight.ts` reads one of the town the fleet sailed from who held their line that year, grown by their own people's reckoning, with a page. The screen says plainly that this changes nothing, and both the ship's page and the words say history does not name who sailed. Next ship; Leave. If she breaks up with you aboard you are told, and the eye goes back to the whole fight.
+
+Measures, `alien harrow 348` at 3000: 10 moments in order (landing 1309, fullest world 1606, jump 1648, conquest 1679, first run 1775, a people who held 1889, dark 2183, raid 2641, Talwick's greatest and fall 2770, fleet 2853). Share of the map that differs from no lens: who holds 6.9%, peoples 32.8%, lanes 43.9%, trade 69.6%, war 46.7%. A lens's second read is under 1 ms; the first Peoples read walks every world of every star, about 100 ms, and is kept 25 years. With no lens on, nothing runs per frame, and `nation.map` is read once in 10 s, not 2.
+
+Found by pressing, after the spec: the lens bar stood over the panel's bar when it was measured before the panel had its last words, and would have stood under the Director's caption; it is now watched, and stands under both. 🎬 was 41 px wide, a 38 px rule beating its own.
+
+**What steering a ship would need:** a body in the fight, so the fight must be something a body can change. A fleet is one strength in `StarWar` and the hulls are drawn from a hash of the fight. To steer: bids at a fixed step kept by the hand, as `sim/hand/possess.ts` does; a local fight on keyed streams whose result replaces the battle's `won` and `strength`; the war goes on from that, a god's act with a command and a why. That is a phase of its own, and moves history.
+
+Limits, stated: not measured on a real iPhone. The greatest fire and a world unmade as moments have run only by the same path as the others, since no save used here holds one. Cut for later: god's acts at star scale, lenses on the galaxy view, riding a ship on a run or a landing, a raid's own film.
+
 ## The seed picker
 
 Choose Earth-like or alien, then a target age, and get seeds that plausibly reach it.

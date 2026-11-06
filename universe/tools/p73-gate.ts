@@ -222,6 +222,22 @@ const until = async (what: string, ok: () => Promise<boolean>, ms = slow(25000))
   problems.push(`${what} did not come`);
   return false;
 };
+/** The bar of lenses lies clear of what is over it: the panel's bar, and the Director's words when they are up. */
+const lensesClear = async (when: string): Promise<void> => {
+  const over = await k<string | null>(`(() => {
+    const bar = document.querySelector(".star-lens-bar");
+    if (!bar || !bar.getBoundingClientRect().height) return null;
+    const b = bar.getBoundingClientRect();
+    for (const s of ["header.bar", ".director-caption:not([hidden])"])
+      for (const e of document.querySelectorAll(s)) {
+        const r = e.getBoundingClientRect();
+        if (r.height && r.bottom > b.top + 1 && r.top < b.bottom - 1 && r.left < b.right && r.right > b.left)
+          return s + " ends at " + Math.round(r.bottom) + ", the lenses begin at " + Math.round(b.top);
+      }
+    return null;
+  })()`);
+  check(!over, `the lenses lie under something ${when}: ${over}`);
+};
 const settleFor = (ms: number) => page.waitForTimeout(slow(ms));
 const shot = async (name: string) => {
   if (shots) await page.screenshot({ path: join(shots, `${name}.png`) });
@@ -485,6 +501,7 @@ await until("the eye on the age of the stars", async () => (await director()).to
 await until("the stars around first", async () => (await director()).take?.kind === "stars");
 await settleFor(1200);
 await shot("tour-open");
+await lensesClear("as the telling opens");
 {
   const opened = await director();
   say(`opened: ${opened.told}`);
@@ -558,10 +575,11 @@ const seenStops = new Map<string, { lit: number; tones: number; words: string }>
 {
   const after = await director();
   check(!after.touring, "the telling never ended");
+  // (A world's first may fall due as the clock is let go: it plays, with a card that closes by itself, and the round goes on after it.)
   await until(
     "the round among the stars",
     async () => (await director()).take?.kind === "stars",
-    slow(30000),
+    slow(180000),
   );
   const d = await director();
   say(`after the telling: ${d.take?.kind}, "${d.told}"`);
@@ -571,6 +589,7 @@ const seenStops = new Map<string, { lit: number; tones: number; words: string }>
   );
   await settleFor(600);
   await shot("round");
+  await lensesClear("in the round");
   await k("globalThis.causalis.watchIt(false)");
   await k("globalThis.causalis.client.setSpeed(0)");
 }
