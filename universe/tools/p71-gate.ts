@@ -502,7 +502,7 @@ if (busiest) {
     [/Carries/i, "what is carried"],
     [/From/i, "from where"],
     [/short there, plenty here/, "why"],
-    [/machines to carry/, "what the crossing costs"],
+    [/machines? to carry/, "what the crossing costs"],
     [/has cleared/, "who gains"],
     [/What it did/i, "what it did"],
     [/when this opened/, "what it did, from its numbers"],
