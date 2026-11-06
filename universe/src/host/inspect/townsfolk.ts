@@ -19,6 +19,7 @@ import { item, link, sentence, stat, yearNow } from "./words.ts";
 import { landLink, realmLink, townLink } from "./names.ts";
 import { lookOf, woundBlock } from "./wounds.ts";
 import { isMachineFolk, landPast } from "../past.ts";
+import { heldWords, lawBlock } from "./justice.ts";
 
 /** How a man came home from a battle he went to, said before its name (as the veterans' page does). */
 const WAR_WORDS: Readonly<Record<Fate, string>> = {
@@ -108,7 +109,12 @@ export function townsfolkPage(world: World, ref: string): PageModel {
     );
   if (!fell && !died && !holds) rows.push(stat("Now", "no longer among the town's people"));
 
+  // What came of them before their town's court (J1).
+  const held = heldWords(world, s.ref, h.ref),
+    law = lawBlock(world, s.ref, h.ref);
+  if (held) rows.push(stat("Now", sentence(held)));
   const blocks: Block[] = [{ type: "facts", rows }];
+  if (law) blocks.push(law);
   if (h.fates.length)
     blocks.push({
       type: "list",

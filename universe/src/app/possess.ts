@@ -157,6 +157,17 @@ export function installPossession(d: PossessionDeps): Possession {
       ref = d.village.stoneAt(x - r.left, y - r.top),
       stone = ref ? d.village.stonesOnScreen().find((s) => s.ref === ref) : null,
       me = on.posed.drawnAt(on.now.agent);
+    // (A town's court, as a stone is: near enough to read. J1.)
+    if (!ref && me) {
+      const t = d.village.courtNow(),
+        tried = t?.place ? d.village.courtAt(x - r.left, y - r.top) : null;
+      if (tried && t?.place) {
+        if (Math.hypot(t.place.worldX - me.x, t.place.worldZ - me.z) > READ_REACH)
+          hud.say("That stands too far off to read: walk nearer");
+        else void d.pages.open(tried);
+      }
+      return;
+    }
     if (!ref || !stone || !me) return;
     if (Math.hypot(stone.worldX - me.x, stone.worldZ - me.z) > READ_REACH)
       hud.say("That stands too far off to read: walk nearer");

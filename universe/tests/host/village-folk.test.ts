@@ -14,6 +14,7 @@ import {
 } from "../../src/host/burials.ts";
 import { strikesOn } from "../../src/host/town.ts";
 import { FOLK_PER, healerOf } from "../../src/host/village.ts";
+import { namedByCases } from "../../src/host/inspect/justice.ts";
 import { townsfolkPage } from "../../src/host/inspect/townsfolk.ts";
 import {
   WAR_BURIAL,
@@ -252,9 +253,15 @@ test("folk are the holders of the town's lines, named, aged and fated as its ros
     for (let k = 0; k < lines; k++) if (roster.holder(k) !== null) held.push(k);
     const folk = plan.people.filter((p) => p.folk),
       drawn = folk.map((p) => parseTownsfolkRef(p.ref)?.line ?? -1);
-    // As many as the eye is given, the first of its lines that are held, in their order.
-    assert.equal(folk.length, Math.min(more, held.length), `${ref} drawn`);
-    assert.deepEqual(drawn, held.slice(0, folk.length), `${ref} its first lines held`);
+    // As many as the eye is given, the first of its lines that are held, in their order, but for
+    // one a case sent away; and after them, whoever a case names that those don't reach (J1).
+    const cases = namedByCases(world, ref, Y),
+      here = held.filter((k) => !cases.away.has(roster.holder(k)!.ref)),
+      first = here.slice(0, Math.min(more, here.length)),
+      inCase = new Set(cases.named.map((p) => p.ref));
+    assert.deepEqual(drawn.slice(0, first.length), first, `${ref} its first lines held`);
+    for (const p of folk.slice(first.length))
+      assert.ok(inCase.has(p.ref), `${ref} ${p.ref} past its share, and no case names them`);
     for (const p of folk) {
       const at = `${ref} ${p.ref}`,
         t = parseTownsfolkRef(p.ref);

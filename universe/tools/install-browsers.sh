@@ -39,5 +39,14 @@ for try in 1 2 3 4 5 6; do
   sleep 3
   sudo pkill -9 -x apt-get || true
   sudo timeout -k 10 120 dpkg --configure -a || true
+  # (A mirror that gives 30 kB/s never errors, so apt never leaves it: after two stalls, the main archive first. On a day when
+  # one job of sixteen drew a bad one, six tries of it took all of them, 18 minutes.)
+  if [ "$try" = 2 ] && [ -f /etc/apt/apt-mirrors.txt ]; then
+    printf 'http://archive.ubuntu.com/ubuntu/	priority:1
+http://security.ubuntu.com/ubuntu/	priority:2
+' |
+      sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+    sudo timeout -k 10 120 apt-get update -q || true
+  fi
 done
 exit 1

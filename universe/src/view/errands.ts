@@ -1125,6 +1125,8 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
       smelter = first(crafters);
       if (smelter >= 0) crafters.splice(crafters.indexOf(smelter), 1);
     }
+    // (Every free hand at its buildings today: the furnace comes first.)
+    if (smelter < 0) smelter = first(kinds.flatMap((k, i) => (k === "build" ? [i] : [])));
     if (smelter >= 0) kinds[smelter] = "smelt";
   }
   // One of its fellers at the charcoal clamp in the woodlot, where it smelts its own ore or its own
