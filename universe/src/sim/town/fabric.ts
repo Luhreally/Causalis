@@ -1452,7 +1452,9 @@ export class TownBuilder {
    */
   askedCivic(f: Fabric, kind: CivicKind): { at: number; lots: number } {
     const def = civic(kind),
-      old = def.replaces ? f.civics.find((c) => c.fell === null && c.kind === def.replaces) : undefined;
+      old = def.replaces
+        ? f.civics.find((c) => c.fell === null && c.kind === def.replaces)
+        : undefined;
     if (old) this.fall(f, old, FOLD.replaced);
     // (At a great town's edge it would rise past what anyone can be shown: there, by its heart.)
     const lots = CIVIC_LOTS[kind],

@@ -17,11 +17,11 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | War | 6 | 5 | 0 | 0 |
 | Faith, culture, language & lore | 1 | 3 | 0 | 0 |
 | History, legends & records | 7 | 2 | 0 | 0 |
-| God's acts & player tools | 4 | 0 | 2 | 3 |
+| God's acts & player tools | 5 | 0 | 1 | 3 |
 | Observation UI & lenses | 16 | 1 | 1 | 2 |
 | Space | 3 | 0 | 0 | 1 |
 | Engine, performance & saves | 1 | 0 | 0 | 19 |
-| **All 185 sections** | **85** | **48** | **10** | **42** |
+| **All 185 sections** | **86** | **48** | **9** | **42** |
 
 ## World & ground
 
@@ -210,7 +210,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | Classic | What it did | Universe | Where / what's missing |
 |---|---|---|---|
 | 31 God tools | Brushes: ignite, lightning, rain, drought, soil, seed life, plague, heal, terrain, water, ore, factions, disasters | **in** | The palette of acts (`ui/palette.ts`, `sim/acts/`): rain, harvest, plague, healing, inspiration, quake, meteor, flood, fire, spring, shrine, settlers, warming, a star's flare; brushes dragged on the ground: raise and lower land, add water, seed life or ore, lightning anywhere, claim land (Phase 62) |
-| 34a Civic inspectors | Set a town's priority and policy; ask it to build | **missing** | — |
+| 34a Civic inspectors | Set a town's priority and policy; ask it to build | **in** | A town can be asked to raise a thing or put one first, by the god from its bar or page and by a ruler of its own realm; it answers by name and in its own voice (`sim/town/asks.ts`, `host/inspect/asks.ts`, `ui/ask-sheet.ts`) |
 | 54 Divine acts | Mark a chosen one, whisper a craft, a sign in the sky, bind a truce, sow discord | **in** | One person inspired or blessed (`sim/acts/local.ts`); inspiration (`sim/acts/acts.ts`); a sign for or against a rule (`sim/order/acts.ts`); friendship, discord, a war ended (`sim/acts/peoples.ts`) |
 | 79 Causal push | The skip aims at the next stage and tilts the odds | **missing** | There are speeds for each scale and a director, but nothing aims time at the next stage |
 | 127 Many hands | The effort builds while scholars study | **n/a** | A tuning fix inside the skip |
@@ -300,7 +300,7 @@ Ranked by how much each would add to the game's depth and to what you see, leani
 16. **Songs, tales, murals, monuments, rites.** Classic 58, 52, 50. Songs and tales made from the world's history and carried to feasts, and stones raised to wars and calamities: built (2026-11-06). Next: murals painted with pigment, solstice rites with offerings, a Speaker's prophecies. **M**
 17. **Interiors.** Classic 32f. Homes and workshops opened in cutaway, with their furniture and the people inside. **M**
 18. **Knowledge that can be lost.** Classic 81, 106. Crafts lost when a town falls and kept by archives; rare crafts opened only by having seen a quake or a falling star. **S**
-19. **Town directives.** Classic 34a. The god sets a town's priority or policy and asks it to build. **M**
+19. **Town directives.** Classic 34a. The god or a ruler asks a town to raise something or put something first, and it answers in its own voice: built (2026-11-06). Next: each offered row reading how short of its want that town is, piety read against the realm's mean, a site crew's own words. **M**
 20. **Time with a goal.** Classic 79, 129, 159, 160. What the next stage still needs and a digest of years run fast: built (2026-11-06). Next: a push aimed at that stage. **S**
 21. **Reading the people and the years.** Classic 49, 55, 66. Year-by-year annals with digests, a bar of the lives that matter now, and the whole history written out as a file: built (2026-11-06). Next: a people's own names on the bar and in the file; a bar in a life or a reign; a town's and a faith's entry in the file. **S**
 22. **Sound.** Classic 35. Ambience by place and scale, and cues for great events: first slice built (2026-11-06). Next: surf by a coastal town, a burning town, footsteps, a world's own birds. **M**
@@ -542,6 +542,22 @@ Found by watching: a town read again destroyed its cars and buses for good, sinc
 Measures, gate 101 on the phone. `first light` at 2000, Gameason: 60 cars and 3 lines from the 220 people drawn, 21 aboard of a morning, 2,397 of 14,532 ways worn; three cars pressed, three owners, two with someone standing by. `kestrel 557` at 2000, Traelmere: 49 current-sleds, 3 drift-lines, 12 aboard. `harrow 259` and `vale 471` at 2000 and `harrow 348` at 3000 pass the same. Young `first light` at 300 and 540: no cars, a track being laid, 82 of 282 ways worn. A frame on the worst town, Saiseathaethwick at 2000 with 75 cars, at a phone's size on a desktop's graphics: 5.9 ms at the 95th percentile against 5.3 without, and 4.5 against 3.7 on its land.
 
 Limits, stated. A road's stone is told in tonnes and comes out of no store; a gang's wage is words. Doing either is a rule change with its own A/B. A road opening isn't in The Years, and a cut road isn't news. Only those a town draws have cars, as with walkers, so a great city's sprawl has none. A car keeps its owner's walking pace on the clock, which at a town's speeds reads quick. A line runs a loop with no stops or timetable. No clade flies yet, so nothing is drawn for those who fly. On far worlds a gang is upkeep, relaying what's there: a road laid new is a young world's sight.
+
+## A town asked, as built (2026-11-06)
+
+A god could burn a town and couldn't ask it for a well. Now a town can be asked, and it's the town that decides how the asking goes. It's a rule change, and a world no one asks in is bit for bit what it was: the store keeps nothing until someone asks and stays out of the hash until then, so the eight oracle records didn't move.
+
+- **Asking.** 🙏 on a town's bar or its page opens a sheet of what it can raise and what it can put first, each with about how long and how many at it, and a list of what isn't to be asked of it, with why: "A well: they live in the water". A ruler has the same sheet for the towns of their own realm, and is answered by that town's head. What a town can raise comes off what it has and what its people are, so a reef has its speaking hollow and a hive its brood store. A colony's sealed halls can't be asked, and a band's camp has no town to ask (`sim/town/asks.ts`, `ui/ask-sheet.ts`).
+- **The answer.** It comes back as a page, by name, with why: glad, grudged, by half, or refused, from hunger, war on their land, how much they've been asked lately, and how devout they are. "Dree Biston, for the council, answered you: it will be done gladly." A hive doesn't answer at all: "No one says yes. The workers simply come." People in the town say their piece: "I've carried enough for the speaking hollow. I'd like to see who asked come and carry some." (`host/inspect/asks.ts`, `causal/asks.ts`).
+- **The site.** Dug ground, a timber frame, heaps of the land's own stuff that go down as it goes up, an orange flag, down while the work stands idle, and the hands along both long sides. The building is one of the town's own, in its fabric, so it stands and reloads as they do, and it stands from the moment of asking with the clock stopped. Those at work can be pressed, and a press on the site opens its page. A band of hands costs the fields, and the page says how much: "Those hands aren't in the fields: 1 in a thousand of what Fathearney's land would have brought in isn't." Those at it eat from what the land brought in (`view/town.ts`, `view/errands.ts`).
+- **A priority.** Put food, faith, trade, learning, walls or arms first: for some years a share of the town is at it, and it shows on their day and on the board. Walls asked for count in war.
+- **What it leaves.** A stone of the asking and a song, kept as the town's other stones are, and The Years keep it. "We were asked, and we carried it, and it stands, and no one has yet told us why us." A site can be given up: what stood of it razed, the town taken by another realm, no one left, and its page says how far it got and why.
+
+Found by watching. A site begun with the clock stopped didn't exist yet, because its start is the world's clock, a moment after the paused screen's, so it now stands from the asking. A stone in a far city stood taller than the screen's open part and its middle lay under the top panel; a stone or a car behind it could take the press; and a tall stone stood close under, its head behind the eye, couldn't be pressed at all, since a finger was only measured against a thing whose whole height lay in front of the eye. Now the stone in front takes the press, and a tall one counts as far up as can be seen. A car only near the finger, and nearer the eye, took a press meant for a stone right under it; and someone of the crowd pressed in a life, a reign or a possession brought nothing at all, since those screens have no place for a card, so their page comes now. Gate 102 presses one under a reign.
+
+Measures, `tools/h1-tally.ts` over each world's towns, one raise and one priority each. `first light` at 300: 30 towns, grudged 41, by half 10, glad 6, refused 2. `harrow 348` at 3000: glad 29, grudged 16, by half 15. `kestrel 557` at 2000: grudged 13, glad 9, by half 6. `vale 471`: glad 13, by half 9, grudged 6. `harrow 259`: glad 19, by half 8, refused 1. `gale 710`: glad 14, by half 9, grudged 5. A well in 4.0 months with 8 hands of 478, a school in 15.0 with 10 of 278; a workshop at harrow in 3.0 with 14 of 1,545,723. Lands asked against the same lands unasked: fed 90.7 against 90.6 at harrow, worst single land -0.2 points. Unasked, run against the tree before it: young `first light` 0 to 300 and far `harrow 348` 3000 to 3010, the same chain. Gate 102 passes on the phone on `first light` young, `harrow 348` at 3000, and `kestrel 557`, `vale 471`, `harrow 259` and `gale 710` at 2000. A frame at a far city's site, at a phone's size on a desktop's graphics: 16.8 ms at the median with a site and without, at the 60 fps cap, so a small cost couldn't show there. Not measured on a phone.
+
+Limits, stated. Past about half a million people a town is offered much the same five things, so a far great town's list says little about that town, and "They are a devout people" stood on 60 of 60 far pages at harrow; the levers are in the ranked list. Trade, faith and learning change the day, the board's words and the hands, not a land's piety or lore. Homes changes who builds. Only asked walls count in war, not walls a town raised itself. Food and tools are really drawn; stone and timber are told, as a road's are. A raised thing can take a lot that held homes, and no page says whose homes they were. A person's name can read differently some years later, as the roster's name follows the tongue's drift.
 
 ## The work-down order (2026-10-25)
 

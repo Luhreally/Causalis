@@ -537,7 +537,8 @@ if (chosen) {
         `globalThis.causalis.townScreen(${spot.x + dx!}, ${spot.z + dz!})`,
       );
       if (!atP) continue;
-      const person = await k<number | null>(`globalThis.causalis.townPick(${atP.x}, ${atP.y}, 12)`);
+      // (At the reach a press has: someone within it takes the press before the site.)
+      const person = await k<number | null>(`globalThis.causalis.townPick(${atP.x}, ${atP.y})`);
       if (person !== null) continue;
       await page.touchscreen.tap(atP.x, atP.y);
       await until(
@@ -654,8 +655,13 @@ if (chosen) {
         }
         if (!got) {
           say(
-            `a press on the stone, at ${onIt.x.toFixed(0)}, ${onIt.y.toFixed(0)}, brought: ${line(await windowWords(), 90)}; watching ${await k<number | null>("globalThis.causalis.watched()")}`,
+            `a press on the stone, at ${onIt.x.toFixed(0)}, ${onIt.y.toFixed(0)}, brought: ${line(await windowWords(), 90)}; watching ${await k<number | null>("globalThis.causalis.watched()")}; ${JSON.stringify(
+              await k<unknown>(
+                `(() => { const c = globalThis.causalis, x = ${onIt.x}, y = ${onIt.y}; return { near: c.townPick(x, y, 10), top: document.elementFromPoint(x, y)?.tagName, stones: c.stones()?.list.map((s) => [s.ref.slice(-14), Math.round(s.footX), Math.round(s.footY), Math.round(s.headY), s.front]) }; })()`,
+              ),
+            )}`,
           );
+          await shot(`${tag}-pressed-${go}`);
           await closeWindow().catch(() => {});
         }
       }
@@ -861,6 +867,33 @@ if (chosen) {
                   !!now && read.includes(now.ruler),
                   `the stone and song of a ruler's asking don't name them: ${line(read, 300)}`,
                 );
+                // Someone of the crowd pressed by a ruler: a reign's screen has no place for a card, so their page comes.
+                const crowd = await k<{ x: number; y: number; name: string } | null>(
+                  `(() => {
+                    const c = globalThis.causalis, people = c.planNow().people;
+                    for (let i = 0; i < people.length; i++) {
+                      if (!people[i].folk) continue;
+                      const p = c.personOnScreen(i);
+                      if (!p || p.x < 20 || p.x > 410 || p.y < 330 || p.y > 850) continue;
+                      if (document.elementFromPoint(p.x, p.y)?.tagName !== "CANVAS" || c.townPick(p.x, p.y) !== i) continue;
+                      return { x: p.x, y: p.y, name: people[i].name };
+                    }
+                    return null;
+                  })()`,
+                );
+                if (crowd) {
+                  await page.touchscreen.tap(crowd.x, crowd.y);
+                  await until(
+                    "a page for one of the crowd",
+                    async () => (await windowWords()).length > 40,
+                    30000,
+                    false,
+                  );
+                  const theirs2 = await windowWords();
+                  say(`one of the crowd under a reign, ${crowd.name}: ${line(theirs2, 200)}`);
+                  check(theirs2.length > 40, "a ruler pressing someone of the crowd got nothing");
+                  await closeWindow().catch(() => {});
+                } else say("no one of the crowd on a reign's screen to press");
               }
             }
           }

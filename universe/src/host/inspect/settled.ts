@@ -262,7 +262,6 @@ export function townPage(world: World, ref: string): PageModel {
   {
     const built = buildingsTab(world, s.ref as Ref);
     if (built) tabs.push(built);
-
   }
   {
     const items: Item[] = met.map((h) =>

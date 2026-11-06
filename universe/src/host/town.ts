@@ -227,7 +227,12 @@ export function townPlan(
     ],
     walls:
       f.walls && f.walls.reach <= lots
-        ? { start: f.walls.start, end: f.walls.end, reach: f.walls.reach, ...askedOfWalls(world, ref) }
+        ? {
+            start: f.walls.start,
+            end: f.walls.end,
+            reach: f.walls.reach,
+            ...askedOfWalls(world, ref),
+          }
         : null,
     months: HOME_MONTHS,
     designs,

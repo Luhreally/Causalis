@@ -327,8 +327,8 @@ export function buildingPage(world: World, ref: string): PageModel {
       asked
         ? "It stands where the town could find room for it, on lots it cleared."
         : def.place === "core"
-        ? "It stands at the heart of the town, about its square."
-        : "It was raised at the edge of the town as it stood then.",
+          ? "It stands at the heart of the town, about its square."
+          : "It was raised at the edge of the town as it stood then.",
     ],
   ];
   if (waited)
@@ -366,7 +366,9 @@ export function buildingPage(world: World, ref: string): PageModel {
       townLink(world, s.ref),
     ],
     color: null,
-    place: asked ? { scale: "village", town: s.ref, site: asked.ref } : { scale: "village", town: s.ref },
+    place: asked
+      ? { scale: "village", town: s.ref, site: asked.ref }
+      : { scale: "village", town: s.ref },
     stats,
     tabs: [{ id: "overview", name: "Overview", blocks }],
     followable: false,
