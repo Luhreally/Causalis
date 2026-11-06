@@ -56,6 +56,11 @@ export function tileOf(g: LandGround, x: number, z: number): number {
  * split corner to corner from its upper right to its lower left, as the mesh is (never below the sea).
  */
 export function groundAt(g: LandGround, x: number, z: number): number {
+  return Math.max(0, floorAt(g, x, z));
+}
+
+/** The floor at a point, the seabed under the sea: where a people of the water's town stands. */
+export function floorAt(g: LandGround, x: number, z: number): number {
   const half = ((g.size - 1) * g.tileKm) / 2,
     fi = Math.max(0, Math.min(g.size - 1 - 1e-9, (x + half) / g.tileKm)),
     fj = Math.max(0, Math.min(g.size - 1 - 1e-9, (z + half) / g.tileKm)),
@@ -69,7 +74,7 @@ export function groundAt(g: LandGround, x: number, z: number): number {
     c = h[(j + 1) * g.size + i]!,
     d = h[(j + 1) * g.size + i + 1]!,
     y = u + v <= 1 ? a + (b - a) * u + (c - a) * v : d + (c - d) * (1 - u) + (b - d) * (1 - v);
-  return Math.max(0, y);
+  return y;
 }
 
 /** Whether a point of the region is over the sea or a lake (rivers are bridged and built over). */
@@ -233,9 +238,15 @@ function dryNear(g: LandGround, tile: number): number {
 }
 
 /** A road's way over the land between two tiles: round the sea and the lakes, easy on the climbs, bridging rivers where it must. */
-export function roadTiles(g: LandGround, from: number, to: number): number[] {
-  const a = dryNear(g, from),
-    b = dryNear(g, to),
+export function roadTiles(
+  g: LandGround,
+  from: number,
+  to: number,
+  /** A people of the water's: along the seabed, and never ashore. */
+  undersea = false,
+): number[] {
+  const a = undersea ? from : dryNear(g, from),
+    b = undersea ? to : dryNear(g, to),
     n = g.size * g.size,
     cost = new Float64Array(n).fill(Infinity),
     came = new Int32Array(n).fill(-1),
@@ -265,7 +276,7 @@ export function roadTiles(g: LandGround, from: number, to: number): number[] {
         if (ni < 0 || nj < 0 || ni >= g.size || nj >= g.size) continue;
         const s = nj * g.size + ni,
           w = g.water[s]!;
-        if (done[s] || ((w === 1 || w === 3) && s !== b)) continue;
+        if (done[s] || ((undersea ? w !== 1 : w === 1 || w === 3) && s !== b)) continue;
         const run = (di && dj ? Math.SQRT2 : 1) * g.tileKm,
           climb = Math.abs(g.heights[s]! - g.heights[t]!) / run,
           step = run * (1 + 5 * climb) + (w === 2 ? 2 * g.tileKm : 0),
@@ -330,6 +341,8 @@ export function linePieces(
   line: readonly { x: number; z: number }[],
   lift: number,
   step = 0.3,
+  /** What it lies on: the ground, or (a people of the water's) the seabed. */
+  floor: (g: LandGround, x: number, z: number) => number = groundAt,
 ): number[][] {
   const out: number[][] = [];
   for (let k = 0; k + 1 < line.length; k++) {

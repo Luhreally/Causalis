@@ -99,8 +99,8 @@ say(
   `the title: ${dials.length} dials (${dials.join(", ")}); turned: “${made}” — ${lit.join(", ")}; told “${madeWords}”; “${life}”`,
 );
 check(hiddenAtFirst, "the making dials show for a world like ours");
-// (Seven since Phase 56: its carbon and its ices.)
-check(dials.length === 7, `${dials.length} making dials`);
+// (Seven since Phase 56: its carbon and its ices. Eight since Phase 68: its lanes.)
+check(dials.length === 8, `${dials.length} making dials`);
 check(made === "violet hollow ~pull heavy ~star red", `the seed's text reads “${made}”`);
 check(lit.length === 2, "the dials turned are not lit");
 check(told, "the world a made seed makes is not told");

@@ -85,8 +85,12 @@ export function landPlan(world: World, cell: number, budget = 8000): LandPlan {
     // (Built over from edge to edge: no fields, nor bands, are left on it. Phase 66.)
     covered = !!landPast(world, cell)?.covered,
     // (Farmed under its roofs, on another body: no open fields.)
+    // (Nor ashore, for a people of the water: their fields are the shelf's.)
     fields =
-      era !== "forage" && !covered && !offworldSite(populationContext(world).generated, cell),
+      era !== "forage" &&
+      !covered &&
+      !offworldSite(populationContext(world).generated, cell) &&
+      populationContext(world).medium !== "water",
     plans = new Map<string, TownPlan | null>();
   let left = Math.max(0, budget);
   for (const s of [...settled].sort(
@@ -132,6 +136,7 @@ export function landPlan(world: World, cell: number, budget = 8000): LandPlan {
     lanes: landLanes(world, cell, towns),
     camps: covered ? [] : landCamps(world, cell, towns),
     ...(covered ? { covered: true as const } : {}),
+    ...(populationContext(world).medium === "water" ? { undersea: true as const } : {}),
   };
 }
 

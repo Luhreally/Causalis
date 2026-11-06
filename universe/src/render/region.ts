@@ -47,6 +47,8 @@ export class RegionScene {
   readonly land: LandLayer;
   /** Every tree of the woods, and the clearings made in them for the towns (by their key). */
   private trees: readonly RegionTree[] = [];
+  /** The sheet of its sea. */
+  private seaSheet: pc.Entity | null = null;
   /** The colour of the sea a land is built with: its world's kind's (Phase 56). */
   private seaColour: Rgb = SEA;
   private cleared = "";
@@ -178,11 +180,22 @@ export class RegionScene {
     });
     sea.setLocalPosition(0, 0, 0);
     this.root.addChild(sea);
+    this.seaSheet = sea;
     this.mesh = mesh;
     this.size = size;
     this.tileKm = tileKm;
     this.heights = heights;
     this.key = key;
+  }
+
+  /** A people of the water's land: its sea thinner, to show their towns and a lens's colours under it. */
+  clearSea(clear: boolean): void {
+    if (!this.seaSheet) return;
+    const m = this.seaSheet.render!.meshInstances[0]!.material as pc.StandardMaterial,
+      opacity = clear ? CLEAR_SEA : SEA_OPACITY;
+    if (m.opacity === opacity) return;
+    m.opacity = opacity;
+    m.update();
   }
 
   /** Its world's kind (Phase 56): a land's sea is its liquid's, from the next land built. */
@@ -283,6 +296,7 @@ export class RegionScene {
    * as huts; the woods cleared from the towns and their fields.
    */
   setTowns(plan: LandPlan, t: number): void {
+    this.clearSea(!!plan.undersea);
     if (!this.ground) return;
     this.land.set(plan, t);
     const drawn = this.land.drawn();
@@ -490,13 +504,17 @@ export function regionMaterials(
 /** A rocky world's sea over a region. */
 const SEA: Rgb = [0.08, 0.3, 0.66];
 
+/** How much of what lies under it a land's sea hides: as a rule, and over a people of the water's towns. */
+const SEA_OPACITY = 0.62,
+  CLEAR_SEA = 0.3;
+
 /** The sea over a region: a glossy sheet (blue, or its kind's), clear enough to show the shallows. */
 function seaMaterial(colour: Rgb = SEA): pc.StandardMaterial {
   const m = new pc.StandardMaterial();
   m.diffuse = new pc.Color(colour[0], colour[1], colour[2]);
   m.specular = new pc.Color(0.85, 0.92, 1);
   m.gloss = 0.84;
-  m.opacity = 0.62;
+  m.opacity = SEA_OPACITY;
   m.blendType = pc.BLEND_NORMAL;
   m.depthWrite = false;
   m.update();

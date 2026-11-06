@@ -344,8 +344,35 @@ const overPhone = (p: Page = page) =>
 const sameSet = (a: readonly string[], b: readonly string[]) =>
   a.length === b.length && [...a].sort().join(" ") === [...b].sort().join(" ");
 
+/** Those a town draws who are borne home by this moment's next days (the plan's indices), a town at a time. */
+const borneSoon = async (ref: string, t: number) => {
+  const drawn = await ask<Plan>("village.plan", {
+    ref,
+    families: QUALITY.families,
+    folk: QUALITY.folk,
+  });
+  return drawn.people.findIndex((p) =>
+    (p.wounds ?? []).some((w) => w.borne && w.home >= t && w.home < t + 12 * DAY),
+  );
+};
+type WoundedRow = { ref: string; name: string; healer: boolean; hospital: boolean; borne: number };
+
 // —— 0. The world, and its people's plan ——————————————————————————————————————————————————
 await begin(page);
+// (History moves under a fixed year as the rules change: on to the first turn from there with one borne
+// home whom a town draws, a couple of days off at the least, for all that is looked at before them.)
+for (let years = 0; years < 12; years++) {
+  const at = await now(),
+    rows = await ask<WoundedRow[]>("village.wounded", { most: 40 });
+  let found = false;
+  for (const row of rows.filter((r) => r.borne > 0).slice(0, 6))
+    if ((await borneSoon(row.ref, at + 2 * DAY)) >= 0) {
+      found = true;
+      break;
+    }
+  if (found) break;
+  await advance((Math.floor(at / YEAR) + 1) * YEAR);
+}
 const t0 = await now();
 say(`the world at year ${Math.floor(t0 / YEAR)}, day ${Math.floor((t0 % YEAR) / DAY)}`);
 const earth = await ask<Frame>("people.anatomy", {});
@@ -370,7 +397,7 @@ const candidates = await k<Candidate[]>(`(async () => {
   return out.sort((a, b) => b.fallen - a.fallen || (a.event < b.event ? -1 : 1));
 })()`);
 say(`${candidates.length} battles fought before a town at the turn`);
-check(candidates.length > 0, "no battle fought before a town at the turn of year 365");
+check(candidates.length > 0, "no battle fought before a town at the turn of the year");
 let at: (Candidate & { war: TownWarNow }) | null = null;
 for (const c of candidates.slice(0, 4)) {
   await into(c.town);
@@ -625,17 +652,35 @@ let fallenRef = "";
 }
 
 // —— 3. One of the town's people ————————————————————————————————————————————————————————
-const plan = await ask<Plan>("village.plan", {
-  ref: town,
-  families: QUALITY.families,
-  folk: QUALITY.folk,
-});
+const planOf = (ref: string) =>
+    ask<Plan>("village.plan", { ref, families: QUALITY.families, folk: QUALITY.folk }),
+  plainOf = (of: Plan) =>
+    of.people
+      .map((p, index) => ({ p, index }))
+      .filter(({ p }) => p.folk && !p.trade && !p.healer && !p.child && /^folk:town:/.test(p.ref));
+let plan = await planOf(town),
+  folkTown = town;
+// (A hamlet draws its watched families and no crowd: the heart of the world's greatest land, then.)
+if (!plainOf(plan).length) {
+  const lands = await ask<{ cell: number; people: number }[]>("people.map", {});
+  for (const land of [...lands]
+    .sort((a, b) => b.people - a.people || a.cell - b.cell)
+    .slice(0, 6)) {
+    const heart = await ask<string | null>("land.heart", { cell: land.cell });
+    if (!heart) continue;
+    const there = await planOf(heart);
+    if (!plainOf(there).length) continue;
+    plan = there;
+    folkTown = heart;
+    await into(heart);
+    say(`no crowd drawn in ${town}: its people looked at in ${there.name}`);
+    break;
+  }
+}
 const lineOf = (ref: string) => Number(ref.split(":")[4] ?? -1);
 {
   await putAway();
-  const plain = plan.people
-    .map((p, index) => ({ p, index }))
-    .filter(({ p }) => p.folk && !p.trade && !p.healer && !p.child && /^folk:town:/.test(p.ref));
+  const plain = plainOf(plan);
   const mates = (p: PlanPerson) =>
     plan.people.filter(
       (q) =>
@@ -717,8 +762,8 @@ const lineOf = (ref: string) => Number(ref.split(":")[4] ?? -1);
   const maker = plan.people.find((p) => p.trade),
     met = plan.people.find((p) => !p.folk && /^prsn:/.test(p.ref));
   for (const [what, ref] of [
-    ["a maker", maker?.trade ? `seat:${town}:${maker.trade.kind}:${maker.trade.seat}` : null],
-    ["the healer", plan.people.some((p) => p.healer) ? `heal:${town}` : null],
+    ["a maker", maker?.trade ? `seat:${folkTown}:${maker.trade.kind}:${maker.trade.seat}` : null],
+    ["the healer", plan.people.some((p) => p.healer) ? `heal:${folkTown}` : null],
     ["one met", met?.ref ?? null],
   ] as const) {
     if (!ref) {
@@ -740,6 +785,7 @@ const lineOf = (ref: string) => Number(ref.split(":")[4] ?? -1);
 // —— 6a. At a phone's width (Chromium): the soldier's card and page ——————————————————————————————
 {
   await putAway();
+  if (folkTown !== town) await into(town);
   await page.setViewportSize({ width: 430, height: 932 });
   await page.waitForTimeout(slow(800));
   const c = await tapMan(true);
@@ -761,8 +807,7 @@ const lineOf = (ref: string) => Number(ref.split(":")[4] ?? -1);
 // —— 4. One borne home on a litter ——————————————————————————————————————————————————————————
 {
   await putAway();
-  type Row = { ref: string; name: string; healer: boolean; hospital: boolean; borne: number };
-  const rows = await ask<Row[]>("village.wounded", { most: 40 });
+  const rows = await ask<WoundedRow[]>("village.wounded", { most: 40 });
   let tapped = false;
   for (const row of rows.filter((r) => r.borne > 0).slice(0, 6)) {
     const p2 = await ask<Plan>("village.plan", {

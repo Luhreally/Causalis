@@ -5,7 +5,7 @@
 // held; drawn in a few batches by mesh and colour, put again each frame.
 import * as pc from "playcanvas";
 import type { LandEra } from "../bridge/index.ts";
-import { CARRIERS, alongWay, groundAt, type LandGround, type Way } from "../view/index.ts";
+import { CARRIERS, alongWay, floorAt, groundAt, type LandGround, type Way } from "../view/index.ts";
 import { InstancedBatch } from "./batch.ts";
 import type { Rgb, Stage } from "./stage.ts";
 
@@ -297,6 +297,7 @@ export class LandTraffic {
   private gone = 0;
   private last = 0;
   private drawn = false;
+  private undersea = false;
 
   constructor(stage: Stage, root: pc.Entity, meshes: Readonly<Record<Mesh, pc.Mesh>>) {
     this.stage = stage;
@@ -314,7 +315,10 @@ export class LandTraffic {
     rails: readonly BusyWay[],
     lanes: readonly BusyWay[],
     most: number,
+    /** A people of the water's: what goes along its roads goes along the seabed. */
+    undersea = false,
   ): void {
+    this.undersea = undersea;
     const by = CARRIERS[era],
       rail: CarrierKind = era === "modern" ? "train" : "steam-train",
       wants: {
@@ -442,7 +446,7 @@ export class LandTraffic {
         const at = alongWay(c.way, head - car.back, c.aside),
           sin = Math.sin(at.yaw),
           cos = Math.cos(at.yaw),
-          base = c.floats ? 0.01 : groundAt(g, at.x, at.z) + c.lift,
+          base = c.floats ? 0.01 : (this.undersea ? floorAt : groundAt)(g, at.x, at.z) + c.lift,
           slots = c.slots[k]!;
         car.parts.forEach((p, j) => {
           const b = slots[j]!;

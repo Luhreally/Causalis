@@ -6,6 +6,7 @@
 // hills about its halls. And the ship that brought them: its crossing, its descent, and the first halls
 // set up, as functions of a film's clock. Pure: what is drawn, for the renderer to draw.
 import { remadeWorld, remakingAt, rockOf } from "../rules/index.ts";
+import { kindWater } from "./globe.ts";
 import type { ColonyLook, ColonyVoyage } from "../bridge/index.ts";
 
 type Rgb = readonly [number, number, number];
@@ -42,6 +43,30 @@ export type ColonySky = {
   /** The fill of light from the sky and the ground. */
   readonly fill: Rgb;
 };
+
+/**
+ * Over a people of the water's town: their sea, its own colour all the way up and paling toward its
+ * surface; its far towers lost in it sooner than in air; the star's light cooled coming down.
+ */
+export function seaSky(kind: string): ColonySky {
+  const sea = kindWater(kind)?.sea ?? ([0.08, 0.3, 0.66] as Rgb),
+    surface: Rgb = [0.72, 0.92, 0.98],
+    deep: Rgb = [0.01, 0.03, 0.08];
+  return {
+    airless: false,
+    stops: [
+      css(mix(sea, surface, 0.6)),
+      css(mix(sea, surface, 0.25)),
+      css(sea),
+      css(mix(sea, deep, 0.4)),
+    ],
+    haze: mix(sea, deep, 0.25),
+    clearness: 0.5,
+    sun: mix(surface, [1, 1, 1], 0.3),
+    strength: 0.8,
+    fill: [0.26, 0.4, 0.5],
+  };
+}
 
 /** What a world's sky is, from its air and its star. */
 export function colonySky(look: ColonyLook): ColonySky {

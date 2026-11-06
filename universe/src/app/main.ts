@@ -137,6 +137,7 @@ import {
   colonyHour,
   landingToShow,
   colonySky,
+  seaSky,
   newDirector,
   nextTake,
   starFightTake,
@@ -153,6 +154,8 @@ import {
   cellAt,
   cellCenter,
   builtOverCells,
+  frameKind,
+  frameUndersea,
   builtOverTiles,
   globeColors,
   regionColors,
@@ -1838,6 +1841,7 @@ async function runPlanetPage(): Promise<void> {
     // (Lands built over, grey and lit from edge to edge, as the land's own colours: Phase 66.)
     if (lens === "terrain" && builtLands.size) builtOverCells(colors, frame, builtLands);
     globe.paint(litLands.size ? litColors(colors, frame, litLands) : colors);
+    globe.clearSea(frameUndersea(frame) && lens !== "terrain");
     globeLensColors = colors;
     // Clouds over the land as it is; none over what a lens paints.
     globe.weather = lens === "terrain" && stage.quality.clouds;
@@ -1910,7 +1914,9 @@ async function runPlanetPage(): Promise<void> {
         : colors;
     // (A land built over: streets and roofs from shore to shore. Phase 66.)
     region.paint(
-      regionLens === "land" && landPlan?.covered ? builtOverTiles(seasoned, frame) : seasoned,
+      regionLens === "land" && landPlan?.covered
+        ? builtOverTiles(seasoned, frame, !!landPlan.undersea)
+        : seasoned,
     );
     painted = colors.length / 4;
   };
@@ -5830,6 +5836,10 @@ async function runPlanetPage(): Promise<void> {
       rig.target.set(0, Math.min(14, far * 0.09), 0);
       if (way)
         rig.yaw = (Math.atan2(-way.x, -way.z) * 180) / Math.PI + (village.colony.hanging ? 0 : 50);
+    } else {
+      // (A town of a people of the water: seen from under their sea.)
+      const world = client.latestFrame("globe");
+      if (world && frameUndersea(world)) stage.colonySky(seaSky(frameKind(world)));
     }
   };
   /** The moment the eye came down to a colony's town: its sun's morning. */
@@ -7835,7 +7845,9 @@ async function runPlanetPage(): Promise<void> {
           .catch(() => {});
       }
     }
-    if (!sky) {
+    // (No rain falls in a town under the sea.)
+    const world = client.latestFrame("globe");
+    if (!sky || (scale === "village" && !plan?.colony && world && frameUndersea(world))) {
       if (weatherNow) {
         weatherNow = null;
         handNow = null;

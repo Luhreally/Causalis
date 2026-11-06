@@ -1302,7 +1302,17 @@ function fightsOn(plan: VillagePlan, day: number): ReadonlyMap<number, readonly 
         arrive = start + inStepTime(way, pace),
         wait = q.at - HOMECOMING.gather,
         done = arrive + HOMECOMING.setDown,
-        two = nearest(edge, (i) => able(i) && !column.has(i), 2, wait, done, Infinity);
+        // (In a great town the road's end may lie a long walk from any door: they set out in time
+        // to be there, or one comes up behind the litter when it has gone.)
+        setOff = (i: number) => Math.min(wait, q.at - (dist(homeOf(i), edge) / pace) * 1.5 - 120),
+        two = nearest(
+          edge,
+          (i) => able(i) && !column.has(i) && free(i, setOff(i), done),
+          2,
+          wait,
+          done,
+          Infinity,
+        );
       if (two.length < 2) continue;
       const head = runsOf(way)[0]?.d ?? { x: -dir.x, z: -dir.z },
         laid = stepWay(way, HOMECOMING.along + 1),
@@ -1312,7 +1322,7 @@ function fightsOn(plan: VillagePlan, day: number): ReadonlyMap<number, readonly 
           by = clearSpot(ground, offWay(edge, head, along * 1.3, 1.8)),
           there = stepAt(laid, laid.long + along, 0);
         put(i, {
-          from: wait + j * 30,
+          from: setOff(i) + j * 30,
           until: q.at,
           at: by,
           task: "watch",

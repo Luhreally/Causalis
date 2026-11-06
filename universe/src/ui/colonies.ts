@@ -189,10 +189,9 @@ export class Colonies {
 
   private draw(): void {
     // (A world remade, or being remade, first among them: the rest as history has them. Phase 66.)
-    const rank = (c: ColonyEntry) => (c.remade >= 1 ? 2 : c.remade > 0 ? 1 : 0);
-    this.rows.replaceChildren(
-      ...this.far.map((p) => this.farRow(p)),
-      ...[...this.list]
+    const rank = (c: ColonyEntry) => (c.remade >= 1 ? 2 : c.remade > 0 ? 1 : 0),
+      remade = this.list.filter((c) => rank(c) > 0).length,
+      rows = [...this.list]
         .sort((a, b) => rank(b) - rank(a))
         .map((c) => {
           const row = el("div", "colony-row"),
@@ -236,7 +235,11 @@ export class Colonies {
             row.append(acts);
           }
           return row;
-        }),
+        });
+    this.rows.replaceChildren(
+      ...rows.slice(0, remade),
+      ...this.far.map((p) => this.farRow(p)),
+      ...rows.slice(remade),
     );
   }
 }
