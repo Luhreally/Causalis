@@ -158,23 +158,34 @@ console.log("the Phase 9 gate");
   let year = 700,
     wars = q<WarsMap>("wars.map"),
     battles = 0;
-  for (const w of wars.wars)
-    for (const b of w.battles) {
-      const cell = map.find((m) => (m as { centre?: number }).centre === b.spot)?.cell;
-      if (cell === undefined) continue;
-      for (const v of q<{ ref: string }[]>("settlements", { cell })) {
-        const p = q<VillagePlan>("village.plan", { ref: v.ref });
-        if (!p.life?.heart) continue;
-        if (p.life.battle && battleOf(p, 10, 12).length === 20) battles++;
-        break;
+  const seenBattles = () => {
+    let n = 0;
+    for (const w of wars.wars)
+      for (const b of w.battles) {
+        const cell = map.find((m) => (m as { centre?: number }).centre === b.spot)?.cell;
+        if (cell === undefined) continue;
+        for (const v of q<{ ref: string }[]>("settlements", { cell })) {
+          const p = q<VillagePlan>("village.plan", { ref: v.ref });
+          if (!p.life?.heart) continue;
+          if (p.life.battle && battleOf(p, 10, 12).length === 20) n++;
+          break;
+        }
       }
-    }
-  say(`battles seen in the villages fought over: ${battles}`);
+    return n;
+  };
+  battles = seenBattles();
+  // (A year with no battle at the heart of a land is a world's right, wars having aims and ends: the next year that has one.)
+  while (!battles && year < 760) {
+    world.runTo(++year * YEAR);
+    wars = q<WarsMap>("wars.map");
+    battles = seenBattles();
+  }
+  say(`battles seen in the villages fought over: ${battles}, year ${year}`);
   if (!battles) problems.push("no battle was seen in a village fought over");
   // Its hosts on the globe: year 700's, or of the first year after it with a host on the move (a war
   // that ended within the year leaves its battles on the globe, not its host).
   let marching = marks(wars);
-  while (!marching && year < 740) {
+  while (!marching && year < 800) {
     world.runTo(++year * YEAR);
     wars = q<WarsMap>("wars.map");
     marching = marks(wars);

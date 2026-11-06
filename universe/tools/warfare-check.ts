@@ -34,7 +34,7 @@ try {
       await context.addInitScript(() => localStorage.setItem("causalis.quality", "auto"));
       page.on("pageerror", (e) => errors.push(e.message));
       page.on("crash", () => errors.push("page crashed"));
-      await page.goto(base + "?seed=first%20light&year=125&hold&v=cohesion", {
+      await page.goto(base + "?seed=first%20light&year=150&hold&v=cohesion", {
         waitUntil: "domcontentloaded",
       });
       await page.waitForFunction("globalThis.causalis?.drawn()>0", undefined, { timeout: 300000 });
