@@ -19,10 +19,9 @@ type Data = {
   years?: number;
 } | null;
 
-registerEventWords(STRIFE_EVENTS.coup.type, (world, e) => {
-  const d = e.data as Data,
-    p = e.subjects[0] ? politiesOf(world).get(e.subjects[0]) : undefined;
-  return `${d?.general ?? "A general"} seized the seat of ${d?.realm ?? "a realm"} in a coup: it became ${p ? realmName(p) : "a protectorate"}, ruled by its army, ${year(e.t)}`;
+registerEventWords(STRIFE_EVENTS.coup.type, (_world, e) => {
+  const d = e.data as Data;
+  return `${d?.general ?? "A general"} seized the seat of ${d?.realm ?? "a realm"} in a coup, and its army took the rule, ${year(e.t)}`;
 });
 registerEventWords(STRIFE_EVENTS.foiled.type, (_world, e) => {
   const d = e.data as Data;

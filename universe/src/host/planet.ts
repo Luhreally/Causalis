@@ -146,6 +146,7 @@ import {
   worldFirstsNow,
   type Counted,
 } from "./inspect/index.ts";
+import { annalsIndex, annalsRead, runTold } from "./inspect/annals.ts";
 import { MAP_QUERIES } from "./map.ts";
 import { POSSESS_QUERIES } from "./possess.ts";
 import { LIFE_QUERIES } from "./life.ts";
@@ -1528,6 +1529,13 @@ function planetUniverse(name: string, prior: Prior): Universe {
       // The world's stage, and its firsts the earliest first (Phase 31 M167, M168).
       "world.stage": (world) => stageOf(world),
       "world.firsts": (world) => worldFirstsNow(world),
+      // The years as a scroll, and what a run of them came to, from one reading (A1).
+      "annals.index": (world) => annalsIndex(world),
+      "annals.read": (world, args) => annalsRead(world, (args as { years: number[] }).years),
+      "annals.run": (world, args) => {
+        const a = args as { from: number; to: number };
+        return runTold(world, a.from, a.to);
+      },
       // What the god's hand may answer a great happening with (Phase 11 M100).
       "event.answers": (world, args) => {
         const a = args as { ref: string; watch: string };

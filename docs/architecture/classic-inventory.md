@@ -16,12 +16,12 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | Politics, diplomacy & law | 2 | 6 | 0 | 0 |
 | War | 5 | 6 | 0 | 0 |
 | Faith, culture, language & lore | 1 | 3 | 0 | 0 |
-| History, legends & records | 5 | 3 | 1 | 0 |
-| God's acts & player tools | 1 | 3 | 2 | 3 |
-| Observation UI & lenses | 15 | 1 | 2 | 2 |
+| History, legends & records | 6 | 2 | 1 | 0 |
+| God's acts & player tools | 3 | 1 | 2 | 3 |
+| Observation UI & lenses | 15 | 2 | 1 | 2 |
 | Space | 3 | 0 | 0 | 1 |
 | Engine, performance & saves | 1 | 0 | 0 | 19 |
-| **All 185 sections** | **66** | **63** | **14** | **42** |
+| **All 185 sections** | **69** | **61** | **13** | **42** |
 
 ## World & ground
 
@@ -198,7 +198,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 15 Events | An event bus and a causal journal | **in** | `kernel/history.ts`, `causal/why.ts` |
 | 29 History | Significance, chronicles, statistics | **in** | `host/inspect/world.ts`, `host/inspect/stats.ts` |
 | 47 Legends | A linked encyclopedia of the world's history | **in** | Pages for everything (`host/inspect/`, Phase 10) |
-| 55 Years | Year-by-year annals, filtered, with a digest for each year | **partial** | Each thing's history, and the chronicle by age and century (`host/inspect/words.ts`, `host/inspect/world.ts`). Missing: a year-by-year scroll with digests |
+| 55 Years | Year-by-year annals, filtered, with a digest for each year | **in** | The Years, a tab of the Chronicle: every year with something told, filtered by kind, each name a link, a year to go to (`host/inspect/annals.ts`, `ui/years.ts`, gate 91) |
 | 66 Legends export | The whole history written out as HTML and text | **missing** | Only the save exports as a file |
 | 69 Eras | Ages, leagues, wonders, the ship that leaves | **partial** | Stages (`host/inspect/stage.ts`) and flight to the stars (`sim/space/`). Missing: leagues of allied realms, wonders |
 | 81 Records | Archives keep the crafts a fallen town knew | **partial** | Knowledge spreads, faster once writing is known (`sim/lore/lore.ts`). Missing: crafts lost with a fallen town, and archives that keep them |
@@ -216,8 +216,8 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 127 Many hands | The effort builds while scholars study | **n/a** | A tuning fix inside the skip |
 | 129 Plain words | The skip says what stands in its way | **n/a** | What the skip reports. The need it met is under 160 |
 | 131 Transit | One press runs with the ship | **n/a** | A tuning fix inside the skip |
-| 159 Skip digest | What happened while you skipped | **partial** | The message log and tidings keep what you follow (`ui/alerts.ts`, `ui/tidings.ts`). Missing: a summary of years run fast |
-| 160 Next goal | The next stage, and what it still needs | **partial** | The stage chip shows the stages reached (`host/inspect/stage.ts`, Phase 31). Missing: what the next stage still needs |
+| 159 Skip digest | What happened while you skipped | **in** | A note when a person comes back from running fast, from the same reading as the Years (`ui/ran.ts`); the message log and tidings keep what you follow (`ui/alerts.ts`, `ui/tidings.ts`) |
+| 160 Next goal | The next stage, and what it still needs | **in** | The stage chip's page says what the next stage still needs, from F5's reading, and what could come instead where the way is shut (`host/inspect/next.ts`, `host/inspect/stage.ts`) |
 
 ## Observation UI & lenses
 
@@ -301,8 +301,8 @@ Ranked by how much each would add to the game's depth and to what you see, leani
 17. **Interiors.** Classic 32f. Homes and workshops opened in cutaway, with their furniture and the people inside. **M**
 18. **Knowledge that can be lost.** Classic 81, 106. Crafts lost when a town falls and kept by archives; rare crafts opened only by having seen a quake or a falling star. **S**
 19. **Town directives.** Classic 34a. The god sets a town's priority or policy and asks it to build. **M**
-20. **Time with a goal.** Classic 79, 129, 159, 160. What the next stage still needs, in plain words; a digest of years run fast; a push aimed at that stage. **S**
-21. **Reading the people and the years.** Classic 49, 55, 66. A bar of the lives that matter now, year-by-year annals with digests, and the whole history written out as a file. **S**
+20. **Time with a goal.** Classic 79, 129, 159, 160. What the next stage still needs and a digest of years run fast: built (2026-11-06). Next: a push aimed at that stage. **S**
+21. **Reading the people and the years.** Classic 49, 55, 66. Year-by-year annals with digests: built (2026-11-06). Next: a bar of the lives that matter now, and the whole history written out as a file. **S**
 22. **Sound.** Classic 35. Ambience by place and scale, and cues for great events: first slice built (2026-11-06). Next: surf by a coastal town, a burning town, footsteps, a world's own birds. **M**
 23. **A second people.** Classic 40. Another lineage rising to thought on the same world. **L**
 
@@ -322,6 +322,24 @@ Measures, on the final code (gate 90): every place from -16 to -30 dBFS, -46 for
 Limits, stated: **no measure says whether it sounds good**, and the WAV files gate 90 writes with `--shots` exist for a person to judge. No real iPhone has run it. The silent switch relies on `navigator.audioSession.type = "ambient"` and wasn't thrown. Playwright's WebKit on Windows has no WebAudio, so the game there is the no-sound path, and Safari's own audio is unmeasured. A hidden tab was forged. A world's first and thunder are checked as rendered cues, and haven't been caught firing live in a gate.
 
 Cut for later: surf by a coastal town, a burning town's crackle, a possessed person's footsteps, a world's own pitch for its birds, a volume slider, a camp's own sound (a camp reads as land), 🔊 on the sandbox and bench pages.
+
+## The Years and what's next, as built (2026-11-06)
+
+A person can run hundreds of years in a minute, and could not then easily say what happened, or what the world was reaching for. Now they can. On the Chronicle's second tab, **The Years**: every year with something told, newest or oldest first, in six filters (all, wars, firsts, sorrows, people, the stars), a year to go to, every name a link. Back from a run at speed, a small note says **what happened while you ran**, and goes by itself. The stage chip's page leads with **what's next**: what the next age still needs on this world, the way to it, and what it never will and why.
+
+- **It only reads.** `host/inspect/annals.ts` reads `world.events`, which keeps everything for 20 years, importance 4 for 400, 5 for 1,200 and 6 on for good. No state, no events, no version bump; the fixtures don't move and hashes are the same before and after. The reading is kept outside the world and taken again only when the log has moved on.
+- **One reading.** The scroll and the note are the same `annalsOf`, so they can't disagree. What's next is F5's `hereOf`, `openSteps`, `whyShut` and `stopWords`, so it can't disagree with What can be done here.
+- **What makes a line worth a person's time.** What only spreads known things isn't told. A first anywhere is worth most, then a realm's fall. A war is told by its beginning, its end and its worst year, and a famine or sickness once, when it began, with how long and what it took. Several of a kind in a year are one line: the greatest, and how many more. With no filter a year shows at most three lines.
+- **A name a person can say.** "The hot desert at 37.3°N 136.0°E" reads as "Koath's land" or "the hot desert", a link.
+- **Never over anything.** The note waits for any film, window, page, life, possession, reign or home; comes once for a run; says nothing if nothing happened; and goes in 20 s, stepping aside for whatever comes meanwhile.
+
+Found by reading the lines: a trade run read "0 light-years, 1 years a crossing" (now "among one star's own worlds, a year a crossing"), and a coup read "it became the league of X" of the same league (now "and its army took the rule"). Both had been live in the Chronicle. On a phone the filters took two rows and left two years of room, so they're one row now and only they and their count stay over the scroll. The bar's pause was 23 px wide on a phone, now 40.
+
+Measures, on a loaded machine (a seed list at five jobs). `harrow 348` at 3000, 28,259 events: the tab pressed to words on the screen 645 ms; a piece of 24 years 6 to 8 ms over the wire; at most 48 rows drawn at once; 851 of 3,000 years told with no filter (28%), the emptiest stretch 45 years, bad words 0. Worst first readings, on the worker, once: `first light` at 2000 (188,730 events) 1.3 s, `vale 471` (321,290) 1.7 s, `marrow 266` at 1500 (418,830) 2.3 s. On those worlds 46%, 64% and 83% of years have a line with no filter, the commonest under one in ten: they are worlds with a lot going on, and `vale 471`'s famines (317 of its 2,287 lines) are its real history.
+
+Limits, stated: the note's count "52 realms fell" in 240 years reads large, and is the world's own. A filter's lesser things can't be expanded. The first reading on a busy world stalls the worker for up to 2.3 s, once per reading, the world standing meanwhile; the note's own reading comes with the run over. While a far world runs at speed the bar's date leads the host by up to a second's worth of years, so it steps back when stopped: that's older than this work. No line "It never will" was seen on a screen on these worlds at their stages; it's read by rule against F5 on four worlds. Safari itself wasn't run.
+
+Cut for later: writing the history out as a file (row 66), the people bar (row 49), a note kept to read again.
 
 ## The work-down order (2026-10-25)
 

@@ -1,0 +1,143 @@
+/* The Years (A1): the bar stays as the years go under it, and a year's lines are a thumb's size each. */
+.years-bar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 0 6px;
+  background: var(--panel-solid);
+  border-bottom: 1px solid var(--line);
+}
+.years-chips {
+  display: flex;
+  gap: 3px;
+}
+/* (Six across a phone: each its icon over its word.) */
+.page-window .years-chip {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 1px;
+  font-size: 0.7rem;
+  line-height: 1.15;
+  white-space: pre-line;
+}
+.page-window .years-chip.on {
+  background: var(--accent);
+  color: var(--panel-solid);
+}
+.years-go {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-bottom: 4px;
+}
+.page-window .years-at {
+  flex: 1 1 5em;
+  width: 5em;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 8px;
+  /* (Under 16 px, a phone's browser zooms in on a field as it is touched.) */
+  font-size: 16px;
+}
+.page-window .years-to,
+.page-window .years-order {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+.page-window .years-says {
+  margin: 0;
+  font-size: 0.78rem;
+}
+.page-window .years-onward {
+  min-height: 44px;
+  font-size: 0.82rem;
+}
+/* (Safari keeps no anchor of its own, so the eye is held by hand: the two would fight.) */
+.years-list {
+  overflow-anchor: none;
+}
+.years-row {
+  display: flex;
+  gap: 8px;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--line);
+}
+.years-row.here {
+  background: rgba(201, 146, 31, 0.22);
+}
+.years-year {
+  flex: 0 0 2.9em;
+  padding: 10px 0 0 2px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.years-lines {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.page-window .years-line {
+  display: block;
+  min-height: 44px;
+  padding: 8px 6px;
+  line-height: 1.38;
+  cursor: pointer;
+}
+
+/* What a run came to: at the head of the news, a thumb's size each. */
+.ran-note {
+  pointer-events: auto;
+  max-height: 52vh;
+  overflow: auto;
+  padding: 4px 10px 8px;
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  line-height: 1.36;
+  font-size: 0.86rem;
+  animation: tiding-in 0.25s ease-out;
+}
+.ran-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 700;
+}
+.ran-note .ran-close {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  background: none;
+  border: 0;
+}
+.ran-line {
+  min-height: 44px;
+  padding: 5px 0;
+  border-top: 1px solid var(--line);
+  cursor: pointer;
+}
+.ran-note .ran-read {
+  min-height: 44px;
+  padding: 0 8px;
+  margin-left: auto;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+/* On a phone the news's place at the top lies under the buttons down its edge: the note stands in the clear, under them. */
+@media (max-width: 640px) {
+  .ran-note {
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    bottom: calc(64px + var(--safe-bottom, 0px));
+    max-height: 30vh;
+  }
+}
