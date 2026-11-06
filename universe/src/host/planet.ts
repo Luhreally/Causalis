@@ -194,6 +194,7 @@ import { genesisOf } from "./genesis.ts";
 import { TRAIT_LOOK } from "./inspect/folk.ts";
 import { actsMap, landSky, paletteLand } from "./acts.ts";
 import { fireShadow } from "./inspect/fire.ts";
+import { tilesUnderWoods, woodsMap } from "./inspect/woods.ts";
 import { FAR_QUERIES } from "./far.ts";
 import { groundMap, spotGround } from "./inspect/ground.ts";
 import { worldGlobe } from "./worlds.ts";
@@ -300,11 +301,16 @@ function regionFrame(world: World, focus: string | null) {
         warm: Float32Array.from(r.temperature),
       } as Record<string, Float32Array | Uint8Array | Int32Array>,
     };
+  // (Its woods as they stand now: E1. Its map is sent again when they have moved a twentieth.)
+  const woods = tilesUnderWoods(world, center, r.biome, r.water, r.precipitation, r.size);
   return {
-    key: `${r.ref}:${homePlanet(world).surfaceKey}`,
+    key: `${r.ref}:${homePlanet(world).surfaceKey}:${woods.key}`,
     meta: {
       ref: r.ref,
       surfaceKey: `${r.ref}:${homePlanet(world).surfaceKey}`,
+      woods: woods.key,
+      woodsRatio: woods.ratio,
+      woodsParched: woods.parched,
       center,
       size: r.size,
       tileKm: r.tileKm,
@@ -315,7 +321,7 @@ function regionFrame(world: World, focus: string | null) {
     },
     arrays: {
       elevation: Float32Array.from(r.elevation),
-      biome: Uint8Array.from(r.biome),
+      biome: woods.biome,
       water: Uint8Array.from(r.water),
       fertility: Uint8Array.from(r.fertility, (f) => Math.round(f * 255)),
       deposit,
@@ -827,8 +833,9 @@ function planetUniverse(name: string, prior: Prior): Universe {
   // they do, so worlds with no furnace have blades and guns of their own stuff. And with F2 and F3: heat, not
   // fire; no lists by kind. And with F4: rocky worlds read as any other, each turning aside where its numbers
   // shut the first way. And with W2: past its engines, wings, and war from the air; what the tree's roots
-  // know crosses the sea. And with W3: past its rocketry, loads thrown.)
-  const version = name === "alien" ? "alien-19" : `${name}-15`,
+  // know crosses the sea. And with W3: past its rocketry, loads thrown. And with E1: woods that move, long ages of rain,
+  // lodes that run out.)
+  const version = name === "alien" ? "alien-20" : `${name}-16`,
     make = (seed: Seed, frequency?: number) => {
       // The chronicle opens after a generated prehistory: bands across the land.
       const world = makePopulationWorld(seed, {
@@ -1081,6 +1088,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
       "acts.map": (world) => actsMap(world),
       /** A land's sky (Phase 30 M162): its climate, this year's rain, the god's acts on it. */
       "land.sky": (world, args) => landSky(world, (args as { cell: number }).cell),
+      "woods.map": (world) => woodsMap(world),
       // Every land's chief rock, for the Ground lens (Phase 15 M124).
       "ground.map": (world) => groundMap(world),
       "palette.land": (world, args) => paletteLand(world, (args as { cell: number }).cell),

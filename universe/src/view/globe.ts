@@ -29,6 +29,7 @@ export const LENSES = [
   "plates",
   "resources",
   "life",
+  "forest",
   "diplomacy",
   "war",
   "unrest",
@@ -78,6 +79,7 @@ export const LENS_NAMES: Readonly<Record<Lens, string>> = {
   laws: "Laws",
   sickness: "Sickness",
   debt: "Debt",
+  forest: "Forest",
 };
 
 /** Each map mode's icon, for the map modes' bar (Phase 10 M96). */
@@ -111,6 +113,7 @@ export const LENS_ICONS: Readonly<Record<Lens, string>> = {
   laws: "🏛️",
   sickness: "🦠",
   debt: "💸",
+  forest: "🌲",
 };
 
 /** How every land stands toward the realm the diplomacy lens is of, in its colours. */
@@ -630,6 +633,15 @@ export function goodsSpread(values: ReadonlyMap<number, number>): Map<number, nu
   return new Map([...values].map(([c, v]) => [c, top > 0 ? Math.min(1, v / top) : 0]));
 }
 
+/** How much of a land its woods stand on (E1): bare ground to the thickest. */
+const WOODS_RAMP: readonly Stop[] = [
+  [0, [0.74, 0.66, 0.46]],
+  [0.15, [0.68, 0.7, 0.36]],
+  [0.4, [0.36, 0.62, 0.26]],
+  [0.7, [0.12, 0.46, 0.2]],
+  [1, [0.03, 0.26, 0.14]],
+];
+
 /** How a deeper lens's value is laid on its ramp, and whether a land shows at all. */
 const DEEP: Readonly<
   Partial<
@@ -652,6 +664,7 @@ const DEEP: Readonly<
   laws: { stops: LAWS_RAMP, at: (v) => v, shown: (v) => v >= 0 },
   sickness: { stops: SICKNESS, at: (v) => Math.sqrt(v), shown: () => true },
   debt: { stops: DEBT, at: (v) => v, shown: () => true },
+  forest: { stops: WOODS_RAMP, at: (v) => v, shown: () => true },
 };
 
 /**
@@ -701,6 +714,45 @@ export function builtOverCells(
       colors[q + 1] = grey;
       colors[q + 2] = grey + 8;
     }
+  }
+}
+
+/**
+ * Woods as they stand now, on the land lens's colours (E1): a land's woods gone from so many of its spots, or come to so
+ * many of those that can bear them; keyed by spot, so the same spots go first and come back last. `woods`: each land's
+ * share now and at first, where they differ.
+ */
+export function woodsOverCells(
+  colors: Uint8Array,
+  frame: FrameMessage,
+  woods: ReadonlyMap<number, readonly [number, number]>,
+): void {
+  const a = frame.arrays,
+    elevation = a.elevation!,
+    province = a.province,
+    biome = a.biome!,
+    palette = lifePalette(frameKind(frame), frameLook(frame)),
+    wood = palette[9]!,
+    open = palette[8]!;
+  if (!province || frameUndersea(frame) || frameLook(frame) === "bare") return;
+  for (let c = 0; c < elevation.length; c++) {
+    if (elevation[c]! <= 0 || a.lake?.[c] || a.river?.[c]) continue;
+    const w = woods.get(province[c]!);
+    if (!w) continue;
+    const [now, first] = w,
+      b = biome[c]!,
+      forest = b === 6 || b === 9 || b === 10 || b === 13 || b === 14,
+      // (What can bear woods at all: the grass and the scrub at their edge.)
+      bears = b === 5 || b === 8 || b === 12,
+      u = (Math.imul(c + 1, 2654435761) >>> 16) / 65536;
+    let col: Rgb | null = null;
+    if (forest && now < first && u < 1 - now / Math.max(0.001, first)) col = open;
+    else if (bears && now > first && u < (now - first) / Math.max(0.001, 1 - first)) col = wood;
+    if (!col) continue;
+    const q = c * 4,
+      lift = Math.min(1, elevation[c]! / 4000) * 0.25;
+    for (let j = 0; j < 3; j++)
+      colors[q + j] = Math.round(Math.min(1, col[j]! + (1 - col[j]!) * lift) * 255);
   }
 }
 
@@ -818,7 +870,8 @@ export function globeColors(
       case "standing":
       case "laws":
       case "sickness":
-      case "debt": {
+      case "debt":
+      case "forest": {
         const v = values?.get(province),
           deep = DEEP[lens];
         if (v !== undefined && deep && deep.shown(v)) col = ramp(deep.stops, deep.at(v));
@@ -1041,6 +1094,8 @@ export function lensLegend(lens: Lens, kind = "rocky", look?: string): Legend {
       return { kind: "ramp", stops: stops(SICKNESS), low: "spared lately", high: "a great dying" };
     case "debt":
       return { kind: "ramp", stops: stops(DEBT), low: "owes nothing", high: "a year's food" };
+    case "forest":
+      return { kind: "ramp", stops: stops(WOODS_RAMP), low: "bare", high: "thick" };
     case "belief":
       return {
         kind: "keys",

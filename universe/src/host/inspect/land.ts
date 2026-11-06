@@ -3,6 +3,7 @@
 // and a ship bound for a star are lands too (offworld sites), and a spot of the fine grid
 // and a region open onto the land they are part of.
 import { fireLandStats } from "./fire.ts";
+import { lodesBlock, woodsBlock, woodsTurnsBlock } from "./woods.ts";
 import {
   BIOME_NAMES,
   cellRef,
@@ -332,6 +333,9 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
           ),
         ),
       });
+    // What has been dug here, and what became of it (E1).
+    const dug = lodesBlock(world, cell, landTitle(world, cell));
+    if (dug) blocks.push(dug);
     tabs.push({ id: "land", name: "Land", blocks });
     // Its ground (Phase 15 M124): bedrock, soil, what lies in it, its water, the air.
     tabs.push({ id: "ground", name: "Ground", blocks: groundBlocks(world, cell) });
@@ -341,6 +345,9 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
     const living = livingIn(g.life, cell),
       lost = p ? new Set(wildsOf(ctx, cell).lost) : new Set<number>();
     const blocks: Block[] = [];
+    // What its woods were, what they came to and what did it, whoever lives there (E1).
+    for (const b of [woodsBlock(world, cell), woodsTurnsBlock(world, cell)])
+      if (b) blocks.push(b);
     if (p) {
       const e = p.ecology,
         rows: Stat[] = [

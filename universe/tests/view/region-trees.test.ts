@@ -18,6 +18,24 @@ function frame(size: number, biome: number): FrameMessage {
   };
 }
 
+test("a wider grove: each ground its own crowns, and a drought browns the broad ones but not the needles", () => {
+  const kinds = (biome: number, meta = {}) => {
+    const f = frame(64, biome);
+    return new Set(
+      regionTrees({ ...f, meta: { ...(f.meta as object), ...meta } } as FrameMessage).map(
+        (t) => t.kind,
+      ),
+    );
+  };
+  assert.deepEqual([...kinds(6)], ["conifer"]);
+  assert.deepEqual([...kinds(9)], ["broadleaf"]);
+  assert.deepEqual([...kinds(13)], ["flat"]);
+  assert.deepEqual([...kinds(14)], ["tall"]);
+  assert.ok(kinds(9, { woodsParched: true }).has("parched"), "a dry run browns the broad crowns");
+  assert.ok(kinds(9, { woodsParched: true }).has("broadleaf"), "and leaves some green");
+  assert.deepEqual([...kinds(6, { woodsParched: true })], ["conifer"]);
+});
+
 test("a region's woods: as its land grows them, never on the water, spread to the cap, the same each time", () => {
   const forest = regionTrees(frame(64, 14)),
     steppe = regionTrees(frame(64, 8)),

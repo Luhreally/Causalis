@@ -64,6 +64,15 @@ export type ActsMap = { readonly year: number; readonly acts: readonly ActMark[]
  * A land's sky (Phase 30 M162): what its weather is made from — its climate, this year's rain
  * against its usual, and the god's acts on it now — for the near views to play day by day.
  */
+/** Each land's woods now and at first, in hundredths of it (E1): every land that has or had any. */
+export type WoodsMap = {
+  /** Changes when they do. */
+  readonly key: string;
+  readonly lands: readonly (readonly [number, number, number])[];
+  /** A people of the water: its weed beds. */
+  readonly undersea?: true;
+};
+
 export type LandSky = {
   readonly cell: number;
   /** Its mean warmth (°C), half its yearly swing (°C), and its rain in a usual year (mm). */

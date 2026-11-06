@@ -60,6 +60,7 @@ import {
   type StarClass,
 } from "../../rules/index.ts";
 import { ecologyOf, firstForest, wildsOf } from "../ecology/ecology.ts";
+import { woodsBurned, woodsStanding } from "../ecology/woods.ts";
 import type { MarketStore } from "../economy/market.ts";
 import { capacityOf, orderOf } from "../order/order.ts";
 import { homePlanet } from "../planet/store.ts";
@@ -582,7 +583,7 @@ const rainIn = (ctx: PopulationContext, cell: number): number =>
 
 /** The standing share of a land's woods: as they were at first, where no one has touched them. */
 const forestIn = (ctx: PopulationContext, cell: number): number =>
-  Math.max(NATURE.fire.farmed, ecologyOf(ctx.world).get(cell)?.forest ?? 1);
+  Math.max(NATURE.fire.farmed, woodsStanding(ctx, cell));
 
 /** A fire goes out from its first patch: through what can burn, slower across a river, nothing at water or bare ground, out with its season. */
 function spread(
@@ -733,8 +734,16 @@ function wildfire(
           if (someone(g.grid.neighbours[k]!)) return true;
         return false;
       });
-  // (Where no one lives or lives near, it is nothing to anyone: no one's history keeps it.)
-  if (!seen) return;
+  // (Where no one lives or lives near, it is nothing to anyone: no one's history keeps it. Its woods burn all the same: E1.)
+  if (!seen) {
+    for (const land of lands) {
+      const share =
+        patches.filter((c) => g.provinceOf[c] === land).length /
+        Math.max(1, g.childOffsets[land + 1]! - g.childOffsets[land]!);
+      woodsBurned(ctx, land, share * (1 - NATURE.fire.forestLeft), yearOfMoment(t));
+    }
+    return;
+  }
   const decision = world.decisions.record({
     rule: "wild.lit",
     subject: place,
@@ -825,11 +834,15 @@ function wildfire(
   // What it took of the land's woods.
   const wilds = ecologyOf(world);
   for (const land of lands) {
-    const w = wilds.get(land);
-    if (!w) continue;
-    const share =
-      patches.filter((c) => g.provinceOf[c] === land).length /
-      Math.max(1, g.childOffsets[land + 1]! - g.childOffsets[land]!);
+    const w = wilds.get(land),
+      share =
+        patches.filter((c) => g.provinceOf[c] === land).length /
+        Math.max(1, g.childOffsets[land + 1]! - g.childOffsets[land]!);
+    if (!w) {
+      // (A land no one keeps: its woods' reach itself. E1.)
+      woodsBurned(ctx, land, share * (1 - NATURE.fire.forestLeft), yearOfMoment(t));
+      continue;
+    }
     w.forest = Math.max(0, w.forest * (1 - share * (1 - NATURE.fire.forestLeft)));
   }
   store.scars.push({

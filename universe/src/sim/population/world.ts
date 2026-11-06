@@ -60,6 +60,8 @@ import { installStrife, installStrifeActs } from "../strife/strife.ts";
 import { installCourts } from "../court/court.ts";
 import { installDesigns } from "../design/design.ts";
 import { installEcology } from "../ecology/ecology.ts";
+import { installWoods } from "../ecology/woods.ts";
+import { installLodes } from "../economy/worked.ts";
 import { makePlanetWorld, homePlanet, type PlanetWorldOptions } from "../planet/store.ts";
 import { Province, capacity, livable, row } from "./model.ts";
 import { HistoryStore, PopulationStore, SettlementStore } from "./stores.ts";
@@ -334,6 +336,8 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installPeopleActs(world, () => populationContext(world));
   installDisasters(world, () => populationContext(world));
   installWild(world, () => populationContext(world));
+  installWoods(world, () => populationContext(world));
+  installLodes(world, () => populationContext(world));
   installWaysActs(world, () => populationContext(world));
   installNatureActs(world, () => populationContext(world));
   installBrushes(world, () => populationContext(world));

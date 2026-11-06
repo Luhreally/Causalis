@@ -446,7 +446,7 @@ function workplace(
     case OCC.crafter: {
       // In a land that digs, half its crafters dig: their picks out, what they dig back.
       const mine = plan.works?.mine;
-      if (mine && draw(12) < 0.5)
+      if (mine && !mine.spent && draw(12) < 0.5)
         return at(
           mine.x + (draw(4) - 0.5) * 20,
           mine.z + (draw(5) - 0.5) * 20,
@@ -3787,7 +3787,7 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
       case "quarry":
       case "mine": {
         const mine = plan.works?.mine;
-        if (!mine) return errandOf({ ...role, kind: "workshop" }, town, k);
+        if (!mine || mine.spent) return errandOf({ ...role, kind: "workshop" }, town, k);
         const stone = role.kind === "quarry",
           // (Its own copper ore, named where its plan says it: Phase 51 M213.)
           ore = mine.what === "ore" ? (plan.stuff?.ore ?? null) : null,

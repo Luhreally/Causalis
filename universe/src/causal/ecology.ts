@@ -4,8 +4,9 @@
 // were driven off, the small game eating the grain, the fish grown few, the scavengers
 // gone with the kills — and why: the people who pressed the land, their fields, the land
 // itself.
-import { yearOfMoment } from "../kernel/index.ts";
-import { ECOLOGY_EVENTS } from "../sim/index.ts";
+import { yearOfMoment, type Ref } from "../kernel/index.ts";
+import { ECOLOGY_EVENTS, LODE_EVENTS, WOODS_EVENTS } from "../sim/index.ts";
+import { groveWhyWords, type GroveWhy } from "../rules/index.ts";
 import { landWords } from "./generated.ts";
 import { registerEventWords } from "./why.ts";
 
@@ -15,6 +16,60 @@ const num = (data: unknown, key: string) => {
 };
 const year = (t: number) => `year ${yearOfMoment(t)}`;
 
+registerEventWords(WOODS_EVENTS.turn.type, (world, e) => {
+  const d = e.data as { from?: number; to?: number; why?: GroveWhy; woods?: string } | null,
+    woods = d?.woods ?? "woods",
+    from = d?.from ?? 0,
+    to = d?.to ?? 0;
+  const ofLand = (n: number) =>
+    n >= 100 ? "all of it" : n <= 0 ? "none of it" : `${n} parts in a hundred of it`;
+  // ("from 22 parts in a hundred of it to 7": said once.)
+  const towards = to > 0 && to < 100 && from > 0 && from < 100 ? `${to}` : ofLand(to);
+  return `The ${woods} of ${landWords(world, e.place)} ${to > from ? "came" : "went back"}, from ${ofLand(from)} to ${towards}: ${groveWhyWords(d?.why ?? "age", `the ${woods}`)}, ${year(e.t)}`;
+});
+registerEventWords(LODE_EVENTS.out.type, (world, e) => {
+  const d = e.data as {
+      metal?: string;
+      how?: string;
+      from?: number | null;
+      town?: string | null;
+      lie?: string;
+      kind?: string;
+    } | null,
+    metal = d?.metal ?? "ore",
+    at = landWords(world, e.place),
+    then =
+      d?.how === "neighbour" && d.from !== null && d.from !== undefined
+        ? `they haul it now from ${landWords(world, `cell:0:${d.from}` as Ref)}`
+        : d?.how === "far" && d.from !== null && d.from !== undefined
+          ? `they go now as far as ${landWords(world, `cell:0:${d.from}` as Ref)} for it, at a long haul`
+          : d?.how === "road" && d.from !== null && d.from !== undefined
+            ? `it comes now down the road from ${landWords(world, `cell:0:${d.from}` as Ref)}`
+            : d?.how === "store"
+              ? "they have what is in store, and no more"
+              : "there is none to be had";
+  // (Oil is not dug.)
+  const stopped =
+    d?.kind === "oil"
+      ? `the wells of ${d?.town} stood dry`
+      : `the diggers of ${d?.town} laid down their picks`;
+  return `The ${metal} of ${at} gave out in ${year(e.t)}${d?.town ? `, and ${stopped}` : ""}: ${then}`;
+});
+registerEventWords(LODE_EVENTS.deeper.type, (world, e) => {
+  const d = e.data as { metal?: string; reopened?: boolean; tier?: number; kind?: string } | null,
+    metal = d?.metal ?? "ore",
+    at = landWords(world, e.place),
+    oil = d?.kind === "oil";
+  if ((d?.tier ?? 1) >= 3)
+    return oil
+      ? `The last of the ${metal} of ${at} was drawn up by machines, for what little it still gives, ${year(e.t)}`
+      : `The old heaps of the ${metal} of ${at} were sorted over by machines, for what little they still give, ${year(e.t)}`;
+  if (d?.reopened)
+    return `Better means reached below the old workings of the ${metal} of ${at}, and it was ${oil ? "drawn" : "dug"} again, leaner, ${year(e.t)}`;
+  return oil
+    ? `The ${metal} of ${at} was drawn down as deep as its people had gone, and they bored deeper for what was left, ${year(e.t)}`
+    : `The ${metal} of ${at} was dug out as deep as its people had gone, and they sank deeper for ${d?.kind === "coal" ? "a thinner seam" : "leaner ore"}, ${year(e.t)}`;
+});
 registerEventWords(ECOLOGY_EVENTS.thinned.type, (world, e) => {
   const left = num(e.data, "wild");
   return `The game of ${landWords(world, e.place)} grew scarce under the hunt${left === null ? "" : `: ${left} parts in a hundred of what it was`}, ${year(e.t)}`;

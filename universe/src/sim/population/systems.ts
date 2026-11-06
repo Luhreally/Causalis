@@ -59,6 +59,9 @@ import {
   smokeIn,
 } from "../climate/air.ts";
 import { powerOf } from "../economy/systems.ts";
+import { longRain } from "../climate/long.ts";
+import { lodesOf } from "../economy/lodes.ts";
+import { lodePush } from "../economy/worked.ts";
 import {
   GONE_KEPT,
   HAND_VITAL,
@@ -762,7 +765,7 @@ export function weatherYear(ctx: PopulationContext, t: SimTime): void {
       g = gaussian(world.rng.real(RAIN, key, t, 0), world.rng.real(RAIN, key, t, 1)),
       // The warming moves a land's rain (drier or wetter), and the year's weather about it.
       // (And the soot of a great fire, W5: exactly 1 under a clear sky.)
-      moved = rainShift(ctx, p.cell) * darkRain(world),
+      moved = rainShift(ctx, p.cell) * darkRain(world) * longRain(ctx, p.cell, yearOfMoment(t)),
       natural = dmath.clamp(moved * (1 + 0.22 * g), 0.35, 1.6),
       rain = act ? natural * (1 + act.sign * ACT_STRENGTH.rain) : natural;
     p.rain = Math.round(rain * 1000);
@@ -958,7 +961,9 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
       budding = p.knowsCultivation
         ? 0
         : Math.min(0.3, Math.max(0, eating / Math.max(1, c.forage) - 0.25)),
-      pushed = 0.6 * hunger + crowd,
+      // (And a mine's end, for those who worked it: E1.)
+      leaving = lodePush(world, p.cell, year),
+      pushed = 0.6 * hunger + crowd + leaving,
       pressure = pushed + budding;
     if (pressure < 0.05) continue;
     // Budding goes only to empty land; those pushed by hunger or crowding go anywhere better.
@@ -985,7 +990,7 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
         ),
         others = (peopled(m)?.total() ?? 0) * appetite,
         attraction = there / (others + appetite) - perHere;
-      if (attraction > 0.05 && there > 20 && (!buddingOnly || !peopled(m)))
+      if (attraction > 0.05 - leaving && there > 20 && (!buddingOnly || !peopled(m)))
         options.push({ cell: m, attraction });
     }
     if (!options.length) continue;
@@ -998,11 +1003,13 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
     const key = refHash(p.ref),
       movers = Math.min(pop - held, Math.floor(pop * Math.min(0.06, pressure * 0.08)));
     if (movers < MIN_GROUP) continue;
+    if (leaving > 0) lodesOf(world)!.tally.left += Math.round((movers * leaving) / pressure);
     // A band that sets out is at least MIN_GROUP strong: a small exodus goes one way.
     const best = options.slice(0, Math.max(1, Math.min(3, Math.floor(movers / MIN_GROUP))));
     const split = apportion(
       movers,
-      best.map((o) => o.attraction),
+      // (Those leaving a worked-out land take a land no better than their own: E1.)
+      best.map((o) => Math.max(0.001, o.attraction)),
       best.map((o) => world.rng.u32(MOVES, key, t, 0, o.cell)),
     );
     // Who goes: in proportion to every sex, age and occupation.

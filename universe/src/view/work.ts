@@ -368,6 +368,14 @@ export function minePieces(mine: Mine): MinePiece[] {
   }
   // A pit's mouth, its spoil heaped by it, and the diggers' shed.
   add("pit", 0, 0.25, 0, mine.kind === "shaft" ? 8 : 14, 0.2, mine.kind === "shaft" ? 8 : 14);
+  // (Given out: the heaps grown high, the shed fallen in, and nothing over the mouth. E1.)
+  if (mine.spent) {
+    add("spoil", 20, 4, -6, 22, 8, 20, 0.5);
+    add("spoil", -6, 2.5, -20, 15, 5, 14, 1.3);
+    add("shed", -16, 0.8, 8, 9, 1.6, 6, 0.5, 0.18);
+    add("frame", 5, 0.4, 5, 0.6, 0.6, 11, 0.9);
+    return out;
+  }
   add("spoil", 20, 3, -6, 16, 6, 16, 0.5);
   add("shed", -16, 2, 8, 9, 4, 6, 0.2);
   if (mine.kind === "pit") {

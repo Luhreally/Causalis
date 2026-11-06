@@ -13,8 +13,9 @@ import {
   surfaceOre,
   worldChemistry,
 } from "../../gen/index.ts";
-import { SOLAR, worldOre, type Chemistry, type OreLie } from "../../rules/index.ts";
+import { LODE, SOLAR, worldOre, type Chemistry, type OreLie } from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
+import { lodesOf, type LodeStore } from "./lodes.ts";
 
 /** How an ore lies in a land: as the stuffs name it, or in a seam (coal, oil, salt). */
 export type OreLieAt = OreLie | "seam";
@@ -104,6 +105,15 @@ const WITHIN = new Map<string, OreAt | null>();
  * (the nearest by cell order), yielding less for the haul.
  */
 export function oreWithin(ctx: PopulationContext, cell: number, kind: string): OreAt | null {
+  // (Once any lode of the kind has moved from what the world laid down: E1.)
+  const lodes = lodesOf(ctx.world);
+  if (lodes?.movedKind(kind))
+    return lodes.answer(cell, kind, "within", () => findWithin(ctx, cell, kind, lodes));
+  return oreLaid(ctx, cell, kind);
+}
+
+/** The ore of a kind the world laid down within a land's reach, as though no one had ever dug it: a people may know of what is gone. */
+export function oreLaid(ctx: PopulationContext, cell: number, kind: string): OreAt | null {
   const key = `${ctx.generated.digest}:${ctx.medium}:${cell}:${kind}`,
     known = WITHIN.get(key);
   if (known !== undefined) return known;
@@ -113,12 +123,26 @@ export function oreWithin(ctx: PopulationContext, cell: number, kind: string): O
   return found;
 }
 
-function findWithin(ctx: PopulationContext, cell: number, kind: string): OreAt | null {
+function findWithin(
+  ctx: PopulationContext,
+  cell: number,
+  kind: string,
+  lodes: LodeStore | null = null,
+): OreAt | null {
   const g = ctx.generated,
     chem = worldChemistry(g),
     at = (c: number, reach: number): OreAt | null => {
+      if (lodes?.isOut(c, kind)) return null;
       const o = oreIn(ctx, c, kind);
-      return o ? { kind, cell: c, ...o, reach, grade: reach * oreGrade(kind, o.lie, chem) } : null;
+      return o
+        ? {
+            kind,
+            cell: c,
+            ...o,
+            reach,
+            grade: reach * oreGrade(kind, o.lie, chem) * (lodes ? lodeGrade(lodes, c, kind) : 1),
+          }
+        : null;
     };
   const own = at(cell, 1);
   if (own) return own;
@@ -129,5 +153,37 @@ function findWithin(ctx: PopulationContext, cell: number, kind: string): OreAt |
     const o = at(c, NEIGHBOUR_REACH);
     if (o) return o;
   }
+  if (lodes)
+    for (const c of farther(ctx, cell, kind, lodes, around)) {
+      const o = at(c, LODE.farReach);
+      if (o) return o;
+    }
   return null;
+}
+
+/** What a smelter's year yields at the depth a lode is worked at, against its first. */
+export function lodeGrade(lodes: LodeStore, cell: number, kind: string): number {
+  return LODE.grades[lodes.tierOf(cell, kind)] ?? 1;
+}
+
+/**
+ * The lands two steps off a people go looking in, once a lode of theirs or beside them is done (none before: they had
+ * no need to go so far), in cell order.
+ */
+export function farther(
+  ctx: PopulationContext,
+  cell: number,
+  kind: string,
+  lodes: LodeStore,
+  around: readonly number[],
+): number[] {
+  if (!lodes.isOut(cell, kind) && !around.some((c) => lodes.isOut(c, kind))) return [];
+  const g = ctx.generated,
+    out = new Set<number>();
+  for (const n of around)
+    for (let k = g.grid.offsets[n]!; k < g.grid.offsets[n + 1]!; k++) {
+      const m = g.grid.neighbours[k]!;
+      if (m !== cell && !around.includes(m)) out.add(m);
+    }
+  return [...out].sort((a, b) => a - b);
 }

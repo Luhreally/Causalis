@@ -33,6 +33,7 @@ export {
   groundColors,
   goodsSpread,
   builtOverCells,
+  woodsOverCells,
   frameKind,
   frameUndersea,
   globeColors,

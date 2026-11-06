@@ -121,9 +121,25 @@ export {
   anyHardener,
   furnaceHeat,
   heatShortfall,
+  oreKnown,
   oreWorkable,
   type Workable,
 } from "./economy/heat.ts";
+export { LodeStore, lodesOf, type Lode, type LodeTally } from "./economy/lodes.ts";
+export { LODE_EVENTS, digMeans, digOre, installLodes, lodePush, lodesYear } from "./economy/worked.ts";
+export {
+  WOODS_EVENTS,
+  WoodsStore,
+  installWoods,
+  woodsBurned,
+  woodsOf,
+  woodsRead,
+  woodsStanding,
+  woodsWords,
+  woodsYear,
+  type WoodsTurn,
+} from "./ecology/woods.ts";
+export { longRain } from "./climate/long.ts";
 export {
   bestMetal,
   metalRank,

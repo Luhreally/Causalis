@@ -94,6 +94,7 @@ import {
   RunNote,
   type MapName,
   type PeopleEntry,
+
   type WorldStats,
   installTimeKeys,
   type TimeKeys,
@@ -173,6 +174,7 @@ import {
   cellAt,
   cellCenter,
   builtOverCells,
+  woodsOverCells,
   frameKind,
   frameUndersea,
   builtOverTiles,
@@ -363,7 +365,7 @@ import { sound } from "./sound.ts";
 import { airOf, airOfWorld } from "./sound-mix.ts";
 // (Anyone's family and body on their card, a war's soldiers named from its roll: Phase 55 wave 5.)
 import { kinLines } from "../ui/index.ts";
-import { seatRef, type KinCard, type StruckMember, type StruckNow } from "../bridge/index.ts";
+import { seatRef, type KinCard, type StruckMember, type StruckNow, type WoodsMap } from "../bridge/index.ts";
 import type { WealthBook, WealthMeasure } from "../bridge/index.ts";
 import {
   hasSpires,
@@ -401,6 +403,7 @@ const DEEP_LENSES: readonly Lens[] = [
   "laws",
   "sickness",
   "debt",
+  "forest",
 ];
 /** The map modes that show the people (repainted as their numbers come, and turned to them). */
 const PEOPLE_LENSES: readonly Lens[] = [
@@ -992,6 +995,8 @@ type Exposed = {
   globeArcsOnScreen?: () => { x: number; y: number }[];
   /** The eye onto where a rocket's way over the land comes down (the look tools). */
   faceLandArc?: () => boolean;
+  /** How many trees a land's woods were planted with (E1). */
+  landTrees?: () => number;
   streaksOnScreen?: () => { x: number; y: number }[];
   warsInPlace?: () => {
     marks: {
@@ -1879,6 +1884,8 @@ async function runPlanetPage(): Promise<void> {
   /** The lands of the world built over from edge to edge (Phase 66), as last asked. */
   let builtLands: ReadonlySet<number> = new Set<number>(),
     builtAsked = -1;
+  /** Each land's woods now and at first, where they differ (E1). */
+  let woodsLands: ReadonlyMap<number, readonly [number, number]> = new Map();
   const askBuilt = async () => {
     const year = Math.floor(now() / YEAR);
     if (Math.abs(year - builtAsked) < 5) return;
@@ -1929,6 +1936,8 @@ async function runPlanetPage(): Promise<void> {
       // (Lands taken by force, still resenting it, in shadow: M104.)
       lens === "realms" || lens === "war" ? takenLands : undefined,
     );
+    // (Woods as they stand now, not as they were: E1.)
+    if (lens === "terrain" && woodsLands.size) woodsOverCells(colors, frame, woodsLands);
     // (Lands built over, grey and lit from edge to edge, as the land's own colours: Phase 66.)
     if (lens === "terrain" && builtLands.size) builtOverCells(colors, frame, builtLands);
     globe.paint(litLands.size ? litColors(colors, frame, litLands) : colors);
@@ -1942,7 +1951,8 @@ async function runPlanetPage(): Promise<void> {
   // the weather below keeps them).
   let landSky: LandSky | null = null,
     seasonT = 0,
-    regionSurfaceKey = "";
+    regionSurfaceKey = "",
+    regionWoodsKey: string | undefined;
   const paintRegion = () => {
     const frame = client.latestFrame("region");
     if (!frame || scale !== "region") return;
@@ -1993,6 +2003,12 @@ async function runPlanetPage(): Promise<void> {
       arriveAt = null;
     }
     // (The globe's lens seen in the land: each tile its spot's colour on the map, M95.)
+    // (Its woods have moved since it was last drawn: E1.)
+    const woodsNow = (frame.meta as { woods?: string }).woods;
+    if (woodsNow !== regionWoodsKey) {
+      regionWoodsKey = woodsNow;
+      region.plantTrees(regionTrees(frame, stage.quality.regionTrees));
+    }
     const parent = frame.arrays.parent as Int32Array | undefined,
       colors =
         regionLens === "world" && parent && globeLensColors
@@ -2042,6 +2058,10 @@ async function runPlanetPage(): Promise<void> {
         paintGlobe();
       });
     if (l === "war") void readFronts();
+    if (l === "forest") {
+      woodsKey = "";
+      readWoods();
+    }
     // (The wealth lens: a realm's, by a measure chosen under its legend; its ranking a press away.)
     mapModes.action(l === "wealth" ? "📊 The ranking" : null, () => {
       void pageWindow.open("world:ledger#wealth");
@@ -2094,6 +2114,27 @@ async function runPlanetPage(): Promise<void> {
               : l;
   };
   /** Every realm's wealth read, and the lens's colours of it (Lives L2). */
+  /** Each land's woods now and at first (E1): for the Forest lens, and the Land lens where they have moved. */
+  let woodsKey = "",
+    woodsAsked = 0;
+  function readWoods(): void {
+    if (scale !== "globe" || (lens !== "forest" && lens !== "terrain")) return;
+    const y = client.status?.t ?? 0;
+    if (woodsKey && y - woodsAsked < 5 * YEAR) return;
+    woodsAsked = y;
+    void client.query<WoodsMap>({ type: "woods.map" }).then((map) => {
+      const key = map.key;
+      if (key === woodsKey) return;
+      woodsKey = key;
+      deepValues.set("forest", new Map(map.lands.map(([c, now]) => [c, now / 100])));
+      woodsLands = new Map(
+        map.lands.flatMap(([c, now, first]) =>
+          now === first ? [] : [[c, [now / 100, first / 100]] as const],
+        ),
+      );
+      if (lens === "forest" || lens === "terrain") paintGlobe();
+    });
+  }
   function readWealth(): void {
     void client.query<WealthBook>({ type: "wealth.book" }).then((book) => {
       wealthBook = book;
@@ -2353,6 +2394,7 @@ async function runPlanetPage(): Promise<void> {
     density = new Map(entries.map((e) => [e.cell, e.density]));
     foodPrices = new Map(entries.map((e) => [e.cell, e.food]));
     trade = new Map(entries.map((e) => [e.cell, e.trade]));
+    readWoods();
     for (const k of [
       "unrest",
       "strength",
@@ -9055,6 +9097,7 @@ async function runPlanetPage(): Promise<void> {
   exposed.landTown = (ref: string) => region.land.townAt(ref);
   exposed.landParts = () => region.land.count;
   exposed.landFire = () => region.fire.shown;
+  exposed.landTrees = () => region.treesPlanted;
   exposed.landFront = () => region.fire.front();
   exposed.land = () => region.land.info();
   exposed.camps = () =>

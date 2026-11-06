@@ -1167,3 +1167,18 @@ export {
   voicesHeard,
   weightOf,
 } from "./court.ts";
+export {
+  GROVE,
+  GROVE_LONG,
+  GROVE_RAINS,
+  GROVE_WARMS,
+  GROVE_WHYS,
+  groveAt,
+  groveHolds,
+  groveStep,
+  groveWhyWords,
+  groveWords,
+  type GroveWhy,
+  type GroveWords,
+} from "./grove.ts";
+export { LODE, LODE_DEPTH_WORDS, LODE_KINDS, lodeSize } from "./lodes.ts";

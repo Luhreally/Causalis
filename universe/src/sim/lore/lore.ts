@@ -54,7 +54,7 @@ import {
 const EFFECT_INDEX: ReadonlyMap<string, number> = new Map(EFFECTS.map((e, i) => [e, i]));
 import type { PopulationContext } from "../population/systems.ts";
 import { marketGoodRef, type MarketStore } from "../economy/market.ts";
-import { oreWorkable } from "../economy/heat.ts";
+import { oreKnown } from "../economy/heat.ts";
 import { cultureOf } from "../culture/culture.ts";
 import { politiesOf } from "../polity/polity.ts";
 import { laneLawOf } from "../space/lanes.ts";
@@ -226,7 +226,8 @@ export function oreDriver(
       kind === "coal" || kind === "oil" ? (seamRef(ctx.generated, c, kind) as Ref | null) : null;
     return { value: c === cell ? 1 : 0.5, ref: seam ?? cellRef(0, c) };
   }
-  const ore = oreWorkable(ctx, cell, kind, bringing);
+  // (A people may come to know by what was there, though the lode be gone: the ages do not wait on a mine. E1.)
+  const ore = oreKnown(ctx, cell, kind, bringing);
   if (ore) return { value: ore.cell === cell ? 1 : 0.5, ref: ore.ref };
   const markets = ctx.world.store<MarketStore>("economy.markets"),
     m = markets.get(cell);

@@ -24,6 +24,7 @@ import { bondageReading, lawReading, orderReadings, standingReading } from "./in
 import { LAWS, type Law } from "../sim/index.ts";
 import { sicknessReading, sicknessValue } from "./inspect/sickness.ts";
 import { debtReading, debtValue } from "./inspect/credit.ts";
+import { woodsReading } from "./inspect/woods.ts";
 import { wealthReading } from "./wealth.ts";
 
 /** The lenses read here, beside the people's own (people, food, trade). */
@@ -45,6 +46,7 @@ export const DEEP_LENSES = [
   "sickness",
   // What it owes the houses of lending, against a year's food (Phase 21 M144).
   "debt",
+  "forest",
 ] as const;
 export type DeepLens = (typeof DEEP_LENSES)[number];
 
@@ -196,6 +198,8 @@ export function lensReading(
 ): Reading | null {
   const ctx = populationContext(world),
     prov = ctx.provinces.get(cell);
+  // (A land's woods are there for the reading, whoever lives there: E1.)
+  if (lens === "forest") return woodsReading(world, cell);
   if (!prov) return null;
   const realms = politiesOf(world),
     realm: Polity | undefined = realms.of(cell);

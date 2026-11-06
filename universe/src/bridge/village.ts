@@ -514,6 +514,8 @@ export type VillagePlan = {
       readonly what: "coal" | "ore" | "stone";
       /** The event that explains it (its first digging), if one was recorded. */
       readonly ref: string | null;
+      /** Its lode has given out: the workings stand, and no one goes to them (E1). */
+      readonly spent?: true;
     } | null;
     readonly well: { readonly x: number; readonly z: number; readonly ref: string } | null;
     readonly factory: { readonly x: number; readonly z: number; readonly ref: string } | null;

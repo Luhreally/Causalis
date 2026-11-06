@@ -49,6 +49,7 @@ import {
   USE,
   warsOf,
   wildsOf,
+  lodesOf,
   fireOf,
 } from "../sim/index.ts";
 import { landWords, meetHousehold, observer, settleAll, type WarFate } from "../causal/index.ts";
@@ -1092,7 +1093,20 @@ export function villagePlan(
             )
             .find(({ p, a }) => clear(p, a))?.p ??
           at(roadWay + Math.PI / 2, Math.max(outer, pastureAt + pastureR) + 80)),
-      mine = m?.mine
+      // (Every lode of its own given out: the workings stand, and no one goes to them. E1.)
+      own = lodesOf(world)
+        ?.all()
+        .filter((l) => l.cell === cell),
+      lode = own?.length && own.every((l) => l.out !== null) ? own[0] : undefined,
+      mine = lode
+        ? {
+            ...mineAt,
+            kind: engines ? "shaft" : "pit",
+            what: lode.kind === "coal" ? "coal" : "ore",
+            ref: lode.ref,
+            spent: true,
+          }
+        : m?.mine
         ? { ...mineAt, kind: engines ? "shaft" : "pit", what: "coal", ref: m.mine }
         : (made?.[G.copper] ?? 0) + (made?.[G.tin] ?? 0) + (made?.[G.iron] ?? 0) > 0
           ? {

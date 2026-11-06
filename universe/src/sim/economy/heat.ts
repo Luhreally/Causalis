@@ -19,8 +19,18 @@ import {
 } from "../../rules/index.ts";
 import type { LoreStore } from "../lore/lore.ts";
 import type { PopulationContext } from "../population/systems.ts";
+import { LODE } from "../../rules/index.ts";
+import { lodesOf, type LodeStore } from "./lodes.ts";
 import type { MarketStore } from "./market.ts";
-import { NEIGHBOUR_REACH, oreWithin, oresIn, type OreAt } from "./ore.ts";
+import {
+  NEIGHBOUR_REACH,
+  farther,
+  lodeGrade,
+  oreLaid,
+  oreWithin,
+  oresIn,
+  type OreAt,
+} from "./ore.ts";
 
 /** Ore a land can work: oreWithin's answer, or copper hardened with its own arsenic. */
 export type Workable = OreAt & { readonly arsenical?: true };
@@ -56,18 +66,46 @@ export function oreWorkable(
   kind: string,
   bringing?: string,
 ): Workable | null {
+  return workable(ctx, cell, kind, bringing, lodesOf(ctx.world));
+}
+
+/** The same as the world laid it down, though it be dug to nothing since: what a people may come to know by (E1). */
+export function oreKnown(
+  ctx: PopulationContext,
+  cell: number,
+  kind: string,
+  bringing?: string,
+): Workable | null {
+  return workable(ctx, cell, kind, bringing, null);
+}
+
+function workable(
+  ctx: PopulationContext,
+  cell: number,
+  kind: string,
+  bringing: string | undefined,
+  lodes: LodeStore | null,
+): Workable | null {
   const chem = worldChemistry(ctx.generated);
-  if (chem.solar || !ctx.affords.fire || !SMELTED.has(kind)) return oreWithin(ctx, cell, kind);
+  if (chem.solar || !ctx.affords.fire || !SMELTED.has(kind))
+    return lodes ? oreWithin(ctx, cell, kind) : oreLaid(ctx, cell, kind);
   const heat = furnaceHeat(ctx, cell, bringing),
-    key = `${ctx.generated.digest}:${ctx.medium}:${cell}:${kind}:${heat}`,
+    work = (dug: LodeStore | null): Workable | null => {
+      let found: Workable | null = findWorkable(ctx, cell, kind, heat, dug);
+      if (!found && kind === "tin" && (arsenicalFallback(chem) || !anyHardener(ctx))) {
+        const cu = workable(ctx, cell, "copper", bringing, dug);
+        if (cu) found = { ...cu, kind: "tin", grade: cu.grade * ARSENICAL_GRADE, arsenical: true };
+      }
+      return found;
+    };
+  // (Once any lode of the kind has moved from what the world laid down: E1.)
+  if (lodes && (lodes.movedKind(kind) || (kind === "tin" && lodes.movedKind("copper"))))
+    return lodes.answer(cell, kind, `heat ${heat}`, () => work(lodes));
+  const key = `${ctx.generated.digest}:${ctx.medium}:${cell}:${kind}:${heat}`,
     kept = WORKABLE.get(key);
   if (kept !== undefined) return kept;
   if (WORKABLE.size > 200_000) WORKABLE.clear();
-  let found: Workable | null = findWorkable(ctx, cell, kind, heat);
-  if (!found && kind === "tin" && (arsenicalFallback(chem) || !anyHardener(ctx))) {
-    const cu = oreWorkable(ctx, cell, "copper", bringing);
-    if (cu) found = { ...cu, kind: "tin", grade: cu.grade * ARSENICAL_GRADE, arsenical: true };
-  }
+  const found = work(null);
   WORKABLE.set(key, found);
   return found;
 }
@@ -77,15 +115,23 @@ function findWorkable(
   cell: number,
   kind: string,
   heat: number,
+  lodes: LodeStore | null,
 ): OreAt | null {
   const g = ctx.generated,
     chem = worldChemistry(g),
     at = (c: number, reach: number): OreAt | null => {
+      if (lodes?.isOut(c, kind)) return null;
       for (const o of oresIn(ctx, c, kind)) {
         const ore = worldOre(chem, kind, o.lie);
         if (!ore) continue;
         if (o.lie === "vent" || heat >= reductionHeat(ore))
-          return { kind, cell: c, ...o, reach, grade: reach * ore.grade };
+          return {
+            kind,
+            cell: c,
+            ...o,
+            reach,
+            grade: reach * ore.grade * (lodes ? lodeGrade(lodes, c, kind) : 1),
+          };
       }
       return null;
     };
@@ -98,6 +144,11 @@ function findWorkable(
     const o = at(c, NEIGHBOUR_REACH);
     if (o) return o;
   }
+  if (lodes)
+    for (const c of farther(ctx, cell, kind, lodes, around)) {
+      const o = at(c, LODE.farReach);
+      if (o) return o;
+    }
   return null;
 }
 

@@ -67,6 +67,9 @@ import {
 import { GOOD_COUNT, type Market, type MarketStore, type TradeFlow } from "./market.ts";
 import { metalRank, metalSource, sourceRef } from "./metals.ts";
 import { heatShortfall, oreWorkable } from "./heat.ts";
+import { lodesOf } from "./lodes.ts";
+import { oreLaid } from "./ore.ts";
+import { digOre } from "./worked.ts";
 import { kmBetween, seaRange, seaReach } from "./sea.ts";
 import { politiesOf } from "../polity/polity.ts";
 import { fieldedOf, warsOf, type War } from "../war/war.ts";
@@ -130,10 +133,15 @@ export function whyNot(ctx: PopulationContext, cell: number, m: Market, r: Recip
           ? ": a blast driven by a mill's wheel would reach it"
           : ""
       }`;
+    // (All it could reach is dug: E1.)
+    if (lodesOf(ctx.world)?.movedKind(r.needs.ore) && oreLaid(ctx, cell, r.needs.ore))
+      return `the ${roleWord(worldChemistry(ctx.generated), r.needs.ore)} within reach is worked out`;
     return `no ${roleWord(worldChemistry(ctx.generated), r.needs.ore)} within a few days' walk`;
   }
   if (r.needs?.seam && !surfaceOre(ctx.generated, cell, r.needs.seam))
     return `no ${r.needs.seam} under its own ground`;
+  if (r.needs?.seam && lodesOf(ctx.world)?.isOut(cell, r.needs.seam))
+    return `its ${r.needs.seam} is worked out`;
   if (r.clay && !ctx.generated.water.river[cell] && !ctx.generated.water.lake[cell])
     return "no clay: no river or lake to dig it from";
   return null;
@@ -374,6 +382,9 @@ function makeAndUse(
         ),
         metal = TOOL_RECIPE_METAL[r.id];
       if (metal && out > 0) made.set(metal, (made.get(metal) ?? 0) + out);
+      // (What it took of the lode it came from: E1.)
+      if (r.needs?.ore) digOre(ctx, p.cell, r.needs.ore, out, n);
+      else if (r.needs?.seam) digOre(ctx, p.cell, r.needs.seam, out, n, true);
     });
   }
   toolsOfYear(ctx, p, m, made, t);

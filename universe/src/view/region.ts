@@ -135,7 +135,8 @@ export type RegionTree = {
   /** Where in the tile, -0.5..0.5 across and along. */
   readonly dx: number;
   readonly dz: number;
-  readonly kind: "conifer" | "broadleaf";
+  /** The crown: needles; round; low and flat on the dry tropics' grass; tall and dark in the rainforest; or browned by a drought. */
+  readonly kind: "conifer" | "broadleaf" | "flat" | "tall" | "parched";
   readonly size: number;
 };
 
@@ -143,15 +144,17 @@ export type RegionTree = {
 const CLUMP = 3;
 
 /** How wooded each land is (gen's BIOME codes): the chance a tile bears a tree, and its kind. */
-const WOODED: Readonly<Record<number, readonly [number, "conifer" | "broadleaf"]>> = {
+const WOODED: Readonly<
+  Record<number, readonly [number, "conifer" | "broadleaf" | "flat" | "tall"]>
+> = {
   5: [0.04, "conifer"],
   6: [0.55, "conifer"],
   8: [0.04, "broadleaf"],
   9: [0.45, "broadleaf"],
   10: [0.6, "conifer"],
-  12: [0.07, "broadleaf"],
-  13: [0.35, "broadleaf"],
-  14: [0.7, "broadleaf"],
+  12: [0.07, "flat"],
+  13: [0.35, "flat"],
+  14: [0.7, "tall"],
   15: [0.12, "conifer"],
 };
 
@@ -185,7 +188,10 @@ export function regionTrees(frame: FrameMessage, cap = 4000): RegionTree[] {
   let expected = 0;
   for (let t = 0; t < biome.length; t++) if (!water[t]) expected += WOODED[biome[t]!]?.[0] ?? 0;
   // (A little under the cap, so the last rows are not left bare by the luck of the first.)
-  const thin = Math.min(1, (0.9 * cap) / CLUMP / Math.max(1, expected));
+  // (Thinned as this land's woods were at their fullest, so that a land's woods gone are fewer trees, not the same number thicker: E1.)
+  const { woodsParched: parched } = frame.meta as { woodsParched?: boolean },
+    stands = (frame.meta as { woodsRatio?: number }).woodsRatio ?? 1,
+    thin = Math.min(1, (0.9 * cap) / CLUMP / Math.max(1, expected / Math.max(0.05, stands)));
   for (let t = 0; t < biome.length && out.length + CLUMP <= cap; t++) {
     if (water[t]) continue;
     const wood = WOODED[biome[t]!];
@@ -195,7 +201,8 @@ export function regionTrees(frame: FrameMessage, cap = 4000): RegionTree[] {
         tile: t,
         dx: (unit(t, 1 + 4 * k) - 0.5) * 0.9,
         dz: (unit(t, 2 + 4 * k) - 0.5) * 0.9,
-        kind: wood[1],
+        // (A land in a run of dry years: most broad crowns brown, the needles holding on.)
+        kind: parched && wood[1] !== "conifer" && unit(t, 4 + 4 * k) < 0.6 ? "parched" : wood[1],
         size: 0.32 + 0.22 * unit(t, 3 + 4 * k),
       });
   }

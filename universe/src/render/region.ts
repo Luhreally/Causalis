@@ -320,6 +320,11 @@ export class RegionScene {
   }
 
   /** The region's woods: a low-poly crown for each tree, on the ground where it stands (none on a town's ground). */
+  /** How many trees its woods were planted with, as last told (E1: gate 99 reads this beside the pixels). */
+  get treesPlanted(): number {
+    return this.trees.length;
+  }
+
   plantTrees(trees: readonly RegionTree[]): void {
     this.trees = trees;
     this.plantWoods(
@@ -364,6 +369,10 @@ export class RegionScene {
     if (!this.heights || !trees.length) return;
     const s = this.stage,
       half = ((this.size - 1) * this.tileKm) / 2,
+      round = pc.Mesh.fromGeometry(
+        s.device,
+        new pc.SphereGeometry({ radius: 0.5, latitudeBands: 3, longitudeBands: 6 }),
+      ),
       kinds = [
         {
           kind: "conifer",
@@ -374,13 +383,31 @@ export class RegionScene {
         },
         {
           kind: "broadleaf",
-          mesh: pc.Mesh.fromGeometry(
-            s.device,
-            new pc.SphereGeometry({ radius: 0.5, latitudeBands: 3, longitudeBands: 6 }),
-          ),
+          mesh: round,
           color: lifeTint([0.16, 0.56, 0.18], this.look),
           w: 0.65,
           h: 0.55,
+        },
+        {
+          kind: "flat",
+          mesh: round,
+          color: lifeTint([0.32, 0.5, 0.15], this.look),
+          w: 0.95,
+          h: 0.3,
+        },
+        {
+          kind: "tall",
+          mesh: round,
+          color: lifeTint([0.05, 0.38, 0.14], this.look),
+          w: 0.55,
+          h: 1.05,
+        },
+        {
+          kind: "parched",
+          mesh: round,
+          color: lifeTint([0.52, 0.37, 0.13], this.look),
+          w: 0.65,
+          h: 0.5,
         },
       ];
     for (const k of kinds) {
