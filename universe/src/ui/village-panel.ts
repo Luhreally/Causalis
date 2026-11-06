@@ -76,12 +76,15 @@ export class VillagePanel {
   private readonly backLine = el("button", "speed", "‹ The land");
   /** A town's money over it (Lives L6): a lens of its own. */
   private readonly moneyLine = el("button", "town-money", "💰");
+  /** Its price board (Markets, first slice). */
+  private readonly boardLine = el("button", "town-money town-board", "🏷️");
   private warRef: string | null = null;
   private folkOpen = false;
   private cardKey = "";
   onBack: () => void = () => {};
   onLive: () => void = () => {};
   onMoney: () => void = () => {};
+  onBoard: () => void = () => {};
   onClose: () => void = () => {};
   /** The stores' card opened (what else is up is put away). */
   onStores: () => void = () => {};
@@ -112,12 +115,16 @@ export class VillagePanel {
     this.moneyLine.title = "Who has what, street by street";
     this.moneyLine.setAttribute("aria-label", "Who has what, street by street");
     this.moneyLine.onclick = () => this.onMoney();
+    this.boardLine.title = "What is for sale here, and what it costs";
+    this.boardLine.setAttribute("aria-label", "What is for sale here, and what it costs");
+    this.boardLine.onclick = () => this.onBoard();
     bar.append(
       back,
       this.title,
       this.timeSlot,
       this.liveLine,
       this.moneyLine,
+      this.boardLine,
       this.storesLine,
       this.warLine,
     );

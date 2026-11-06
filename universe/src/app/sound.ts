@@ -1157,6 +1157,14 @@ const keep = (v: string): void => {
 const canSound = () =>
   typeof AudioContext !== "undefined" && typeof OfflineAudioContext !== "undefined";
 
+/**
+ * A machine driving the page, not come to hear it: its clicks start nothing, and a runner of few cores keeps
+ * them. (Gate 90 says it has come to hear. 🔊 is there either way, so every gate sees the same page.)
+ */
+const machineOnly = () =>
+  (navigator as { webdriver?: boolean }).webdriver === true &&
+  !(globalThis as { causalisHears?: boolean }).causalisHears;
+
 /** Sound on the page: its button, its context, and what the page tells it. */
 export class Sound {
   /** 🔊 or 🔇; among the corner's tools, or by itself where a mode has put them away. */
@@ -1280,7 +1288,7 @@ export class Sound {
   }
 
   private readonly gesture = (): void => {
-    if (!this.wanted || !canSound()) return;
+    if (!this.wanted || !canSound() || machineOnly()) return;
     if (!this.ctx) this.begin();
     else if (this.ctx.state !== "running" && !document.hidden) void this.wake();
   };

@@ -63,7 +63,11 @@ const until = async (what: string, ok: () => Promise<boolean>, ms = 60000, p: Pa
   return false;
 };
 const shot = async (name: string, p: Page = page) => {
-  if (shots) await p.screenshot({ path: join(shots, `${name}.png`) });
+  // (A picture missed, drawing 60,000 parts in software on a busy runner, is not the town's failure.)
+  if (shots)
+    await p
+      .screenshot({ path: join(shots, `${name}.png`), timeout: 90000 })
+      .catch((e: unknown) => console.log(`  no picture of ${name}: ${String(e).slice(0, 80)}`));
 };
 const year = (p: Page = page) =>
   k<number>(
@@ -170,8 +174,24 @@ const towns = await k<{ ref: string; cell: number; people: number; name: string 
   const tapped: string[] = [],
     seen = (p: { x: number; y: number } | null) =>
       !!p && p.x > 20 && p.x < 1346 && p.y > 120 && p.y < 780;
-  const tap = async (x: number, y: number, want: RegExp, title: RegExp, what: string) => {
-    const ref = await k<string | null>(`globalThis.causalis.refAt(${x}, ${y})`);
+  const tap = async (x0: number, y0: number, want: RegExp, title: RegExp, what: string) => {
+    // (Someone may be standing there just then, and a person is what a tap on them finds: a step to the side.)
+    let x = x0,
+      y = y0,
+      ref = await k<string | null>(`globalThis.causalis.refAt(${x}, ${y})`);
+    for (const [dx, dy] of [
+      [8, 0],
+      [-8, 0],
+      [0, 8],
+      [0, -8],
+      [8, 8],
+      [-8, -8],
+    ] as const) {
+      if (!ref?.startsWith("prsn:")) break;
+      x = x0 + dx;
+      y = y0 + dy;
+      ref = await k<string | null>(`globalThis.causalis.refAt(${x}, ${y})`);
+    }
     tapped.push(`${what}: ${ref}`);
     if (!ref || !want.test(ref)) {
       problems.push(`a tap on ${what} found ${ref ?? "nothing"}`);

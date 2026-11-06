@@ -634,6 +634,33 @@ function traced(world: World, cell: number, kind: string): Line[] {
 }
 
 /**
+ * How one of a land's goods came to its market, from the ground (Markets, first slice: a board's line leads here): its metal's roads back to the
+ * smelter, or the chain of the last such thing its town's makers made. Foods and fuels have no making beyond their recipe (none here).
+ */
+export function goodChain(
+  world: World,
+  cell: number,
+  goodId: string,
+  year: number,
+): readonly Line[] {
+  const town = makingTown(world, cell)?.ref ?? null;
+  switch (goodId) {
+    case "copper":
+    case "tin":
+    case "iron":
+      return traced(world, cell, goodId);
+    case "tools":
+      return toolMade(world, cell, `board:${cell}`, year, false, town).chain;
+    case "pottery":
+      return potMade(world, cell, `board:${cell}`, year, false, town).chain;
+    case "clothing":
+      return clothMade(world, cell, `board:${cell}`, year, false, false, town).chain;
+    default:
+      return [];
+  }
+}
+
+/**
  * Whether a land's tin is smelted from arsenical ore (Phase 54): the land that smelts it, as `whence`
  * finds it, and that land's ore of tin. The Sun's tin never is.
  */

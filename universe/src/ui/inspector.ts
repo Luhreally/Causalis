@@ -314,7 +314,15 @@ export class PageWindow {
     this.seen = JSON.stringify({ ...page, year: 0 });
     if (fresh) {
       // (A long page to read: it opens tall on a phone.)
-      if (page.kind === "can" && innerWidth <= 640) this.inspector.classList.add("tall");
+      if (
+        (page.kind === "can" ||
+          (/^(board|dear):/.test(page.ref) && !document.body.classList.contains("living"))) &&
+        innerWidth <= 640
+      )
+        this.inspector.classList.add("tall");
+      // (A life's strips stand over the top of the screen: a tall sheet would lie under them, its close with it.)
+      if (innerWidth <= 640 && document.body.classList.contains("living"))
+        this.inspector.classList.remove("tall");
       this.tab = page.tab ?? page.tabs[0]?.id ?? "";
       this.opened = new Set();
       this.openStat = null;
@@ -619,6 +627,10 @@ export class PageWindow {
     switch (b.type) {
       case "text":
         for (const l of b.lines) box.append(el("p").appendChild(this.line(l)).parentElement!);
+        break;
+      case "board":
+        box.append(this.board(b));
+        if (title) title.remove();
         break;
       case "facts": {
         const facts = el("div", "facts");
@@ -973,6 +985,36 @@ export class PageWindow {
       return wrap;
     }
     return row;
+  }
+
+  /** A market's board: painted planks, a line a good, each opening its page (Markets, first slice). */
+  private board(b: Extract<Block, { type: "board" }>): HTMLElement {
+    const plank = el("div", "price-board");
+    if (b.title) plank.append(el("div", "board-cap", b.title));
+    if (b.known)
+      plank.append(el("p", "board-known").appendChild(this.line(b.known)).parentElement!);
+    if (b.coin) plank.append(el("p", "board-coin").appendChild(this.line(b.coin)).parentElement!);
+    const shelves = new Set(b.rows.map((r) => r.shelf));
+    let shelf = -1;
+    for (const r of b.rows) {
+      if (r.shelf !== shelf && shelves.size > 1)
+        plank.append(el("div", "board-shelf", b.shelves[r.shelf] ?? ""));
+      shelf = r.shelf;
+      const row = el("button", `board-row tone-${r.tone}${r.price ? "" : " board-way"}`),
+        name = el("span", "board-name", r.name),
+        tag = el("span", "board-tag", r.words);
+      if (r.each) name.append(el("small", undefined, r.each));
+      if (r.trend) tag.append(el("small", undefined, `${r.arrow} ${r.trend}`.trim()));
+      row.append(el("span", "board-icon", r.icon), name);
+      if (r.price) row.append(el("span", "board-price", r.price), tag);
+      row.onclick = () => void this.open(r.ref);
+      plank.append(row);
+    }
+    if (b.more)
+      plank.append(
+        el("p", "board-more", `and ${b.more.toLocaleString("en-US")} more between them`),
+      );
+    return plank;
   }
 
   private item(item: Item): HTMLElement {

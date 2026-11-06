@@ -4,6 +4,7 @@
 // instancing benchmark instead.
 import "./styles.css";
 import "./y2k.css";
+import "./board.css";
 import "./brushes.css";
 import "./tour.css";
 import "./can.css";
@@ -208,6 +209,7 @@ import {
   folkLook,
   weatherAt,
   squareNow,
+  squareScale,
   downpourAt,
   seasonAt,
   seasonKey,
@@ -3027,6 +3029,8 @@ async function runPlanetPage(): Promise<void> {
    * its battle's hosts (the battle), a home (its household, if met, else its town's
    * families), a field (its town).
    */
+  /** How far from a town's middle its square reaches, metres (a village's drawn in, as its dressing is). */
+  const SQUARE_REACH = 20;
   const villageThingAt = (x: number, y: number): string | null => {
     // (What a town raised: its tip, T1.)
     const stone = plan ? village.stoneAt(x, y) : null;
@@ -3043,7 +3047,15 @@ async function runPlanetPage(): Promise<void> {
     // a watched family's home on it, theirs.
     const thing = village.townThingAt(mx, mz, now());
     if (thing) {
-      if (thing.kind === "civic") return `bldg:${plan.ref}:${thing.at}:${thing.start}`;
+      if (thing.kind === "civic") {
+        // (A market hall gives its board first; its page is a line of that. Markets, first slice.)
+        const hall = plan.town?.civics.find(
+          (c) => (c.truly ?? c.at) === thing.at && c.start === thing.start,
+        );
+        return hall?.kind === "market" && hall.fell === null
+          ? `board:${plan.ref}`
+          : `bldg:${plan.ref}:${thing.at}:${thing.start}`;
+      }
       if (thing.kind === "walls") return `walls:${plan.ref}`;
       const lot = village.townLot(thing.lot),
         theirs = lot
@@ -3061,6 +3073,9 @@ async function runPlanetPage(): Promise<void> {
       }
     });
     if (home >= 0) return plan.homes[home]!.household ?? `${plan.ref}#families`;
+    // The square itself: what is for sale there (Markets, first slice).
+    if (!plan.native && Math.hypot(mx, mz) < SQUARE_REACH * squareScale(plan))
+      return `board:${plan.ref}`;
     for (const f of plan.fields) {
       const c = Math.cos(-f.yaw),
         s = Math.sin(-f.yaw),
@@ -8819,6 +8834,9 @@ async function runPlanetPage(): Promise<void> {
     now,
   });
   moneyTap = moneyFlow.tapped;
+  villagePanel.onBoard = () => {
+    if (plan && !plan.native) void pageWindow.open(`board:${plan.ref}`);
+  };
   moneyPlan = moneyFlow.planNow;
   // (A page's Go to, from a home: the home closed, then gone to.)
   const goToPage = pageWindow.onGoTo;

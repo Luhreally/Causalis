@@ -73,7 +73,35 @@ export type Row = {
   readonly thumb?: Portrait;
 };
 
+/** A line of a market's board, or a market on a good's list of where it is cheap and dear (Markets, first slice). */
+export type BoardRow = {
+  readonly ref: string;
+  readonly icon: string;
+  readonly name: string;
+  /** How it is sold: "a loaf", "a bar". */
+  readonly each: string;
+  /** What it costs, in the town's own words: "150 coin", "buys 48 loaves". */
+  readonly price: string;
+  readonly tone: "cheap" | "usual" | "dear";
+  /** "very dear", "at its usual worth". */
+  readonly words: string;
+  readonly arrow: string;
+  readonly trend: string;
+  readonly shelf: number;
+};
+
 export type Block =
+  /** A market's price board: what a town is known for, what its coin buys, its lines by shelf. */
+  | {
+      readonly type: "board";
+      readonly title?: string;
+      readonly known: Line | null;
+      readonly coin: Line | null;
+      readonly note: Line | null;
+      readonly shelves: readonly string[];
+      readonly rows: readonly BoardRow[];
+      readonly more?: number;
+    }
   | { readonly type: "text"; readonly title?: string; readonly lines: readonly Line[] }
   | { readonly type: "facts"; readonly title?: string; readonly rows: readonly Stat[] }
   | {

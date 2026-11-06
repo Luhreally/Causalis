@@ -317,11 +317,17 @@ export class LifeHud {
         "life-kinline",
         `${k.name}, ${k.age}: your ${k.is}, a ${k.work} ${k.love > 0 ? "💗".repeat(Math.ceil(k.love * 3)) : ""}`,
       );
-      b.onclick = () => this.onPage(k.ref);
+      b.onclick = () => {
+        this.book.hidden = true;
+        this.onPage(k.ref);
+      };
       kin.append(b);
     }
     const page = el("button", "life-choice", "Their page");
-    page.onclick = () => this.onPage(l.ref);
+    page.onclick = () => {
+      this.book.hidden = true;
+      this.onPage(l.ref);
+    };
     const close = el("button", "life-choice", "Close");
     close.onclick = () => (this.book.hidden = true);
     const acts = el("div", "life-choices");
