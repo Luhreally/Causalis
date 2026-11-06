@@ -171,13 +171,34 @@ function worldAtBrink(
   file?: string,
 ): Forged {
   const u = universe === "earth" ? EARTH : ALIEN,
-    started = performance.now();
-  let world: World;
-  if (file) world = loaded(u, file);
-  else {
-    world = u.build(seedFromText(seed));
-    world.runTo(year * YEAR);
+    started = performance.now(),
+    base = file ? loaded(u, file) : u.build(seedFromText(seed));
+  if (!file) base.runTo(year * YEAR);
+  // (Each try on a copy of the one world, some years on: what one try does to it does not spoil the next.)
+  for (let tries = 0; tries < 6; tries++) {
+    if (tries) base.runTo(base.now + 3 * YEAR);
+    const made = forgeBrink(u, universe, seed, copyOf(u, base), started);
+    if (made) return made;
   }
+  throw new Error(`no fall could come of it on ${seed}, to year ${Math.floor(base.now / YEAR)}`);
+}
+
+const copyOf = (u: typeof EARTH, world: World): World =>
+  loadWorld(
+    JSON.parse(JSON.stringify(saveWorld(world, rulesetId(world, u.version), { universe: u.name }))),
+    (s) => u.build(s),
+    rulesetId(world, u.version),
+    { allowRulesetChange: true },
+  ).world;
+
+/** A world brought to the brink, where the word to loose it would be carried out by history's own reading (null: this one would not). */
+function forgeBrink(
+  u: typeof EARTH,
+  universe: "earth" | "alien",
+  seed: string,
+  world: World,
+  started: number,
+): Forged | null {
   const ctx = populationContext(world),
     wars = warsOf(world),
     realms = politiesOf(world),
@@ -249,7 +270,8 @@ function worldAtBrink(
       defender: holder.ref,
       declared: now(),
       event: told,
-      prize: land,
+      // (Its seat: a land lost at the frontier in a year is a prize won, and the war over before any word could be carried out.)
+      prize: holder.seat,
       battles: Array.from({ length: 5 }, () => ({
         year: now(),
         land,
@@ -269,8 +291,17 @@ function worldAtBrink(
         .find((c) => c.war === ref && c.ended === null) ?? null;
     if (!crisis && wars.get(ref)?.ended === null) wars.get(ref)!.ended = now();
   }
-  if (!crisis)
-    throw new Error(`no crisis came of it on ${seed}: last ended ${wars.get(ref)?.ended}`);
+  if (!crisis) return null;
+  // (A war may yet end in the year after, before the word is carried out, and then it does not fall, by history's own reading:
+  // the world the owner is shown is one where it does. Tried on a copy.)
+  const trial = copyOf(u, world),
+    toldFalls = fireOf(trial).state.falls.length;
+  trial.submit("fire.answer", { realm: holder.ref, ruler: crisis.ruler, answer: "loose" });
+  trial.runTo((Math.floor(world.now / YEAR) + 1) * YEAR + 1);
+  if (fireOf(trial).state.falls.length === toldFalls) {
+    say(`${seed}: year ${crisis.year}: its war would end before the word was carried out: some years on`);
+    return null;
+  }
   say(
     `${seed}: year ${crisis.year}: ${crisis.ruler} of ${holder.ref} at the brink with ${foe.ref}, going ${crisis.desperation.toFixed(2)}; made in ${((performance.now() - started) / 1000).toFixed(0)} s`,
   );
@@ -606,13 +637,52 @@ async function watch(f: Forged, tag: string): Promise<void> {
   );
   check(after.share > 0.1, `${tag}: little of the screen shows what it did at 300 s`);
   await shot(`${tag}-7-after`);
+  // Two levels of ground too near one another flicker into stripes from any way off.
+  const stripes = await striped(page);
+  say(`${tag}: ${(stripes * 100).toFixed(1)}% of the far ground is striped`);
+  check(stripes < STRIPED_MOST, `${tag}: the far ground is striped: ${(stripes * 100).toFixed(1)}%`);
   // From over it, where the lots it took lie: the screen is told from what stood there.
   await k(
     `globalThis.causalis.rig.flyTo({ target: { x: 0, y: 0, z: 0 }, yaw: 0, pitch: -62, distance: 70 }, 0.4)`,
   );
   await settle(1500);
   await shot(`${tag}-7b-from-over-it`);
-  const overAfter = (await page.screenshot()).toString("base64");
+  const overAfter = (await page.screenshot()).toString("base64"),
+    grass = await page.evaluate(async (data) => {
+      const bitmap = await createImageBitmap(
+          await (await fetch(`data:image/png;base64,${data}`)).blob(),
+        ),
+        c = new OffscreenCanvas(bitmap.width, bitmap.height),
+        x = c.getContext("2d")!;
+      x.drawImage(bitmap, 0, 0);
+      const d = x.getImageData(0, 0, bitmap.width, bitmap.height).data;
+      let green = 0,
+        dark = 0,
+        n = 0;
+      // (Under the panel, over the caption; away from the buttons on its right.)
+      for (let y = Math.floor(bitmap.height * 0.24); y < bitmap.height * 0.85; y += 4)
+        for (let px = 0; px < bitmap.width * 0.7; px += 4) {
+          const i = (y * bitmap.width + px) * 4,
+            r = d[i]!,
+            g = d[i + 1]!,
+            b = d[i + 2]!;
+          n++;
+          if (g > r * 1.08 && g > b * 1.08) green++;
+          if (r + g + b < 200) dark++;
+        }
+      return { green: green / n, dark: dark / n };
+    }, overAfter);
+  say(
+    `${tag}: from over it, ${(grass.green * 100).toFixed(1)}% green, ${(grass.dark * 100).toFixed(0)}% dark`,
+  );
+  check(
+    grass.green < 0.01,
+    `${tag}: ${(grass.green * 100).toFixed(1)}% of the ground from over it is still green: it does not read as burned`,
+  );
+  check(
+    grass.dark > 0.3,
+    `${tag}: only ${(grass.dark * 100).toFixed(0)}% of the ground from over it is dark`,
+  );
   // What it did to the ground, as the plan tells it: its heart cleared, none of the buildings there standing.
   const ground = await k<{
     first: number;
@@ -690,6 +760,24 @@ async function watch(f: Forged, tag: string): Promise<void> {
   await k(`globalThis.causalis.goTo("cell:0:${strike.rocket?.to ?? 0}")`);
   await settle(2500);
   await shot(`${tag}-12-land-dark`);
+  // On the land's map it lies burned from the moment it is told, the clock held or not: the land has no film of it.
+  const onLand = await k<{ x: number; z: number; r: number } | null>(
+    `globalThis.causalis.landTown(${JSON.stringify(strike.town)})`,
+  );
+  check(!!onLand, `${tag}: the land draws no ${strike.town}`);
+  if (onLand) {
+    await k(
+      `globalThis.causalis.rig.flyTo({ target: { x: ${onLand.x}, y: 0, z: ${onLand.z} }, yaw: 0, pitch: -62, distance: ${onLand.r * 3} }, 0.05)`,
+    );
+    await settle(1500);
+    await shot(`${tag}-12b-land-burned`);
+    const scar = await darkAround(page);
+    say(`${tag}: on the land's map, ${(scar * 100).toFixed(0)}% of the ground about it is dark`);
+    check(
+      scar > 0.5,
+      `${tag}: on the land's map only ${(scar * 100).toFixed(0)}% of the ground about it is dark: it stands as it stood`,
+    );
+  }
   const y0 = Math.ceil(turn / YEAR);
   await advanceTo((y0 + 2) * YEAR);
   await settle(1000);
@@ -702,6 +790,53 @@ async function watch(f: Forged, tag: string): Promise<void> {
   await k(`globalThis.causalis.zoomThrough?.("out")`);
   await settle(2500);
   await shot(`${tag}-13-world-after`);
+}
+
+/** The most of the far ground that may differ sharply from the pixel over it. */
+const STRIPED_MOST = 0.1;
+/** Of the ground far off under the film's horizon (clear of the cloud's stem and the buttons), how much differs sharply from the pixel over it. */
+async function striped(p: typeof page): Promise<number> {
+  const data = (await p.screenshot()).toString("base64");
+  return p.evaluate(async (d) => {
+    const bitmap = await createImageBitmap(await (await fetch(`data:image/png;base64,${d}`)).blob()),
+      c = new OffscreenCanvas(bitmap.width, bitmap.height),
+      x = c.getContext("2d")!;
+    x.drawImage(bitmap, 0, 0);
+    const w = bitmap.width,
+      px = x.getImageData(0, 0, w, bitmap.height).data,
+      sum = (i: number) => px[i]! + px[i + 1]! + px[i + 2]!;
+    let sharp = 0,
+      n = 0;
+    for (let y = Math.floor(bitmap.height * 0.575); y < bitmap.height * 0.66; y++)
+      for (let i = 0; i < w * 0.4; i += 2) {
+        n++;
+        if (Math.abs(sum((y * w + i) * 4) - sum(((y + 1) * w + i) * 4)) > 24) sharp++;
+      }
+    return n ? sharp / n : 0;
+  }, data);
+}
+
+/** How much of the middle of the screen is dark. */
+async function darkAround(p: typeof page): Promise<number> {
+  const data = (await p.screenshot()).toString("base64");
+  return p.evaluate(async (d) => {
+    const bitmap = await createImageBitmap(await (await fetch(`data:image/png;base64,${d}`)).blob()),
+      c = new OffscreenCanvas(bitmap.width, bitmap.height),
+      x = c.getContext("2d")!;
+    x.drawImage(bitmap, 0, 0);
+    const w = bitmap.width,
+      h = bitmap.height,
+      px = x.getImageData(0, 0, w, h).data;
+    let dark = 0,
+      n = 0;
+    for (let y = Math.floor(h * 0.42); y < h * 0.62; y += 3)
+      for (let i = Math.floor(w * 0.3); i < w * 0.7; i += 3) {
+        const q = (y * w + i) * 4;
+        n++;
+        if (px[q]! + px[q + 1]! + px[q + 2]! < 200) dark++;
+      }
+    return n ? dark / n : 0;
+  }, data);
 }
 
 try {

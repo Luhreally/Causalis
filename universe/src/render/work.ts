@@ -339,15 +339,22 @@ export class WorkLayer {
    * The stores' heaps as much as each holds now: `grain` and `ore` the months they would last,
    * `wood` and `stone` the loads in the yard. Laid again only as a heap's count changes.
    */
-  heapsAt(n: {
-    readonly grain: number;
-    readonly wood: number;
-    readonly stone: number;
-    readonly ore: number;
-  }): void {
+  heapsAt(
+    n: {
+      readonly grain: number;
+      readonly wood: number;
+      readonly stone: number;
+      readonly ore: number;
+    },
+    // (None: burned with all about them, W5.)
+    gone = false,
+  ): void {
     const h = this.heaps;
     if (!h) return;
-    const counts = heapCounts(h.spots, n),
+    const counts = heapCounts(
+        h.spots,
+        gone ? { grain: 0, wood: 0, stone: 0, ore: 0 } : n,
+      ),
       key = `${counts.sacks}|${counts.logs}|${counts.stones}|${counts.ore}`;
     if (key === this.heapsShown) return;
     this.heapsShown = key;
@@ -388,7 +395,7 @@ export class WorkLayer {
   }
 
   /** Pose what moves: the carried things, the mine's cart, the road's traffic, the smoke. */
-  update(hour: number, s: number, carriers: readonly Carrier[]): void {
+  update(hour: number, s: number, carriers: readonly Carrier[], ash = 0): void {
     const plan = this.plan;
     if (!plan || !this.root.enabled) return;
     for (const g of this.items.values()) g.count = 0;
@@ -443,7 +450,7 @@ export class WorkLayer {
       flush(this.cart.body);
       flush(this.cart.wheels);
     }
-    if (this.road) this.traffic(s);
+    if (this.road) this.traffic(s, ash);
     // Smoke.
     if (this.smoke) {
       const { light, dark, sources } = this.smoke;
@@ -459,7 +466,7 @@ export class WorkLayer {
     }
   }
 
-  private traffic(s: number): void {
+  private traffic(s: number, ash: number): void {
     const r = this.road!,
       { traffic, walker } = r,
       scale = walker.scale,
@@ -472,6 +479,8 @@ export class WorkLayer {
         x = t.x * M,
         z = t.z * M,
         rel = (px: number, pz: number) => ({ x: x + px * c + pz * sn, z: z - px * sn + pz * c });
+      // (No one comes through what the greatest fire burned: W5.)
+      if (ash > 0 && Math.hypot(t.x, t.z) < ash) continue;
       if (traffic.kind === "lorry") {
         // A lorry: its bed, its cab before it, four wheels.
         const bed = rel(0, -0.25),

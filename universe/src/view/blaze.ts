@@ -69,8 +69,11 @@ export function blazeNow(scene: TownScene | null, t: number): BlazeNow {
   for (const k of plan.struck ?? [])
     if (k.kind === "quake" && t >= k.at && t < k.at + SHAKE_S)
       shake = Math.max(shake, 1 - (t - k.at) / SHAKE_S);
-  for (const p of scene.struck) {
-    const since = t - states.began[p]!;
+  // (The greatest fire's thousands: at most some dozens are drawn, and going over all of them each frame is what costs.)
+  const stride = Math.max(1, Math.ceil(scene.struck.length / 1000));
+  for (let i = 0; i < scene.struck.length; i += stride) {
+    const p = scene.struck[i]!,
+      since = t - states.began[p]!;
     // (In the order they caught: the rest are yet to.)
     if (since < 0) break;
     const at = {

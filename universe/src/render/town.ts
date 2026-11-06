@@ -16,6 +16,8 @@ import {
   lotNear,
   roofTop,
   townCivics,
+  ashGone,
+  townAsh,
   townGround,
   townHomes,
   townScene,
@@ -206,7 +208,13 @@ export class TownLayer {
     // (A mill's sails turning are drawn by themselves: render/trades.ts.)
     townCivics(scene, t, this.parts, false);
     townWalls(scene, t, this.parts);
+    townAsh(scene, t, this.parts);
     this.rising.show(this.parts);
+  }
+
+  /** How far out the greatest fire's ash lies at moment t (metres; 0: none). */
+  ashGone(t: number): number {
+    return this.scene ? ashGone(this.scene, t) : 0;
   }
 
   /** What of it is alight, smoking and in dust at moment t, and how the ground shakes (Phase 42 M201). */

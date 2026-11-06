@@ -223,6 +223,14 @@ export function townPlan(
     year: Math.min(year, yearOfMoment(world.now)),
     // (What struck it lately: Phase 42 M201.)
     ...(struck.length ? { struck } : {}),
+    // (Its reach, past what is drawn: what the eye has to clear of its sprawl.)
+    ...(() => {
+      const ash = f.changes.reduce(
+        (to, c) => (c[0] === CHANGE.burned && c[6] > 0 ? Math.max(to, c[2]) : to),
+        0,
+      );
+      return ash > 0 ? { ash } : {};
+    })(),
     // (A colony's: its halls, on its own world's ground, Phase 64; no home world's colours.)
     ...(() => {
       const ground = colonyTownCell(ref) === null ? null : siteGround(world, cell);

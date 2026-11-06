@@ -28,6 +28,8 @@ import {
   roadTiles,
   tileMiddle,
   townCivics,
+  landMoment,
+  townAsh,
   townGround,
   townHomes,
   townScene,
@@ -49,6 +51,13 @@ import type { Rgb, Stage } from "./stage.ts";
 /** How far over the ground a town's ground stands (region units), and how deep its slabs go into it. */
 const LIFT = 0.01;
 const SLAB = 0.06;
+/** A slab's corners, as signs along it and across it. */
+const CORNERS: readonly (readonly [number, number])[] = [
+  [-1, -1],
+  [1, -1],
+  [-1, 1],
+  [1, 1],
+];
 /** How much higher a flat thing's every metre stands (its order kept: a yard over its street). */
 const FLAT_UP = 0.004;
 /** How often what rises is put again: sim moments apart at the least, and real milliseconds. */
@@ -105,9 +114,22 @@ class GroundBatches {
           const x = t.x + d[o]! * LAND_ACROSS,
             z = t.z + d[o + 2]! * LAND_ACROSS;
           if (wetAt(g, x, z)) continue;
-          const ground = groundAt(g, x, z) + LIFT,
-            top = d[o + 1]! + d[o + 4]! / 2,
+          const top = d[o + 1]! + d[o + 4]! / 2,
             q = m * 7;
+          let ground = groundAt(g, x, z);
+          // (A wide slab lies on its highest corner, or the land's rises come up through it.)
+          const sx = d[o + 3]! * LAND_ACROSS,
+            sz = d[o + 5]! * LAND_ACROSS;
+          if (Math.max(sx, sz) > g.tileKm / 4) {
+            const c = Math.cos(d[o + 6]!),
+              s = Math.sin(d[o + 6]!);
+            for (const [u, v] of CORNERS) {
+              const a = (u * sx) / 2,
+                b = (v * sz) / 2;
+              ground = Math.max(ground, groundAt(g, x + a * c + b * s, z - a * s + b * c));
+            }
+          }
+          ground += LIFT;
           out[q] = x;
           out[q + 2] = z;
           out[q + 3] = d[o + 3]! * LAND_ACROSS;
@@ -291,11 +313,13 @@ export class LandLayer {
       const had = this.towns.get(town.ref);
       if (had && had.key === town.key) continue;
       const m = tileMiddle(g, town.tile),
-        scene = townScene(town.plan, t, had?.scene.lots),
+        moment = landMoment(town.plan, t),
+        scene = townScene(town.plan, moment, had?.scene.lots),
         settled = had?.settled ?? new TownParts();
       settled.clear();
-      townGround(scene, settled);
-      townHomes(scene, scene.settled, t, settled);
+      townGround(scene, settled, !!town.plan.ash);
+      townHomes(scene, scene.settled, moment, settled);
+      townAsh(scene, moment, settled, true);
       this.towns.set(town.ref, {
         ref: town.ref,
         key: town.key,
@@ -304,7 +328,7 @@ export class LandLayer {
         z: m.z,
         reach: landReach(scene),
         settled,
-        busy: scene.active.length > 0 || civicsActive(town.plan, t) || !!town.plan.walls,
+        busy: scene.active.length > 0 || civicsActive(town.plan, moment) || !!town.plan.walls,
       });
       changed = true;
     }
@@ -377,10 +401,11 @@ export class LandLayer {
       const rising: { parts: TownParts; x: number; z: number }[] = [];
       for (const d of this.towns.values()) {
         if (!d.busy) continue;
-        const parts = new TownParts();
-        townHomes(d.scene, d.scene.active, t, parts);
-        townCivics(d.scene, t, parts);
-        townWalls(d.scene, t, parts);
+        const parts = new TownParts(),
+          moment = landMoment(d.scene.plan, t);
+        townHomes(d.scene, d.scene.active, moment, parts);
+        townCivics(d.scene, moment, parts);
+        townWalls(d.scene, moment, parts);
         rising.push({ parts, x: d.x, z: d.z });
       }
       this.rising.show(rising, g);

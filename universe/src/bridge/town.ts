@@ -118,6 +118,8 @@ export type TownPlan = {
   readonly year: number;
   /** What struck it these two years past, oldest first (Phase 42 M201; absent: nothing). */
   readonly struck?: readonly TownStrike[];
+  /** How far out the greatest fire's ash reaches while it lies, by lots, past those drawn as like as not (W5; absent: none). */
+  readonly ash?: number;
   /** Its world's kind, where it is not rocky (Phase 56): its yards in its kind's colours. */
   readonly kind?: string;
   /** Its world's life's colours, where they are not Earth's green (Phase 57): its yards' grass. */
@@ -472,7 +474,11 @@ function strikes(
       }
     }
   }
-  const order = list.map((_, i) => i).sort((a, b) => list[a]!.at - list[b]!.at || a - b),
+  // (The greatest fire's first: rockets of the same year leave nothing standing in its ground to burn.)
+  const great = (i: number) => (list[i]!.raid?.great ? 0 : 1),
+    order = list
+      .map((_, i) => i)
+      .sort((a, b) => great(a) - great(b) || list[a]!.at - list[b]!.at || a - b),
     near = (k: TownStrike) => (a: number, b: number) =>
       Math.abs(a - Math.max(0, k.lot)) - Math.abs(b - Math.max(0, k.lot)) || a - b;
   for (const i of order) {

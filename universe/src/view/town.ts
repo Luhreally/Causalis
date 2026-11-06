@@ -13,7 +13,7 @@
 // avenues kept clear. Past our ages (Phase 66): spires of woven carbon, works with no stack, vats, and a
 // sprawl of towers to the haze where its people have built over their fields. Pure: what is drawn at a
 // moment, in parts (metres from the square's middle), for the renderer to put in its batches.
-import { timeRaids } from "./raid.ts";
+import { greatGone, timeRaids } from "./raid.ts";
 import {
   BLOCK_D,
   BLOCK_LOTS,
@@ -22,6 +22,7 @@ import {
   LOT,
   LOT_D,
   LOT_W,
+  SPREAD,
   SQUARE,
   STREET,
   WALL_THICK,
@@ -144,6 +145,17 @@ const BRICK: Rgb = [0.66, 0.32, 0.24],
   CRANE: Rgb = [0.96, 0.74, 0.12],
   CHAR: Rgb = [0.17, 0.15, 0.14],
   ASH: Rgb = [0.22, 0.21, 0.2],
+  SCORCHED: Rgb = [0.13, 0.12, 0.11],
+  // (Its top clear of the yards' half a metre; what is left of what stood rises through it.)
+  ASH_FOOT = 0.2,
+  ASH_TOP = 0.8,
+  ASH_TOP_FAR = 3,
+  ASH_QUARTERS: readonly (readonly [number, number])[] = [
+    [-1, -1],
+    [1, -1],
+    [-1, 1],
+    [1, 1],
+  ],
   HEARTH: Rgb = [0.46, 0.44, 0.41],
   STONE: Rgb = [0.74, 0.72, 0.66],
   GOLD: Rgb = [0.98, 0.8, 0.25],
@@ -323,28 +335,34 @@ function sealedGround(scene: TownScene, out: TownParts): void {
   }
 }
 
-/** The ground of a town: its square, and each block's street about it and its yards. */
-export function townGround(scene: TownScene, out: TownParts): void {
+/**
+ * The ground of a town: its square, and each block's street about it and its yards. `burned`: where the greatest fire
+ * took it, none of that (a land's map sets each piece on its own rise, so what lay under the ash would stand through it).
+ */
+export function townGround(scene: TownScene, out: TownParts, burned = false): void {
   const { plan, lots } = scene;
   if (plan.sealed) return sealedGround(scene, out);
+  const ash = burned ? (plan.ash ?? 0) : 0;
   const street: Rgb = plan.paved ? [0.66, 0.64, 0.6] : [0.6, 0.53, 0.4],
     // (On a world of another kind, its grassland's colour: Phase 56; its life's: Phase 57.)
     yard: Rgb = lifeTint(plan.kind ? biomeColor(8, plan.kind) : [0.5, 0.6, 0.34], plan.lifeLook);
   // In metres, as everything here: the streets stand a hand above the land's ground and the
   // pasture under them, the yards a curb above the streets, so neither sinks out of sight.
-  out.put(
-    "cyl",
-    plan.paved ? [0.74, 0.72, 0.66] : [0.68, 0.6, 0.46],
-    0,
-    0.22,
-    0,
-    SQUARE * 2,
-    0.36,
-    SQUARE * 2,
-    0,
-  );
+  if (ash <= 0)
+    out.put(
+      "cyl",
+      plan.paved ? [0.74, 0.72, 0.66] : [0.68, 0.6, 0.46],
+      0,
+      0.22,
+      0,
+      SQUARE * 2,
+      0.36,
+      SQUARE * 2,
+      0,
+    );
   const blocks = Math.ceil(plan.lots / BLOCK_LOTS);
   for (let b = 0; b < blocks; b++) {
+    if (b * BLOCK_LOTS < ash) continue;
     const x = lots.blocks.x[b]!,
       z = lots.blocks.z[b]!,
       yaw = lots.blocks.yaw[b]!;
@@ -354,7 +372,7 @@ export function townGround(scene: TownScene, out: TownParts): void {
   // A well at the square's heart; a market cross once it is paved.
   out.put("cyl", STONE, 0, 0.5, 0, 2.4, 1, 2.4, 0);
   if (plan.paved) out.put("box", STONE, 0, 2.2, 0, 0.6, 3.4, 0.6, 0);
-  sprawl(scene, out);
+  sprawl(scene, out, burned);
 }
 
 /** A whole number's share in [0, 1), for the sprawl's scatter (the plan's own, not history's). */
@@ -394,10 +412,11 @@ export function sprawlOf(plan: TownPlan, lots: TownLots): { r0: number; r1: numb
  * as all its lots would reach, one roof for every few homes, into the haze — its avenues kept
  * clear, and its water.
  */
-function sprawl(scene: TownScene, out: TownParts): void {
+function sprawl(scene: TownScene, out: TownParts, burned = false): void {
   const { plan, looks } = scene,
     ring = sprawlOf(plan, scene.lots);
   if (!ring) return;
+  const clear = burned ? ashReach(plan, scene.lots) : 0;
   const { r0, r1 } = ring,
     n = Math.min(3000, Math.round((plan.whole - plan.lots) / 6)),
     water = plan.water,
@@ -413,6 +432,7 @@ function sprawl(scene: TownScene, out: TownParts): void {
       hi = r0 + ((r1 - r0) * (b + 1)) / bands,
       mid = (lo + hi) / 2,
       across = (2 * Math.PI * hi) / round + 1;
+    if (hi <= clear) continue;
     for (let k = 0; k < round; k++) {
       const a = ((k + 0.5) / round) * 2 * Math.PI,
         x = mid * Math.cos(a),
@@ -430,7 +450,7 @@ function sprawl(scene: TownScene, out: TownParts): void {
       const len = Math.min(60, r1 - r),
         x = (r + len / 2) * ca,
         z = (r + len / 2) * sa;
-      if (wet(x, z, 4)) continue;
+      if (wet(x, z, 4) || r + len <= clear) continue;
       out.put(
         "box",
         plan.paved ? [0.66, 0.64, 0.6] : [0.6, 0.53, 0.4],
@@ -444,6 +464,30 @@ function sprawl(scene: TownScene, out: TownParts): void {
       );
     }
   }
+  sprawlRoofs(scene, out, ashReach(plan, scene.lots), Infinity);
+}
+
+/** How far out from its middle the greatest fire's ash reaches (metres; 0: none). */
+export function ashReach(plan: TownPlan, lots: TownLots): number {
+  const ash = plan.ash ?? 0;
+  if (ash <= 0) return 0;
+  const ring = sprawlOf(plan, lots);
+  if (!ring || ash <= plan.lots) return townReach(lots, Math.min(ash, plan.lots));
+  const { r0, r1 } = ring;
+  return Math.sqrt(r0 * r0 + (r1 * r1 - r0 * r0) * ((ash - plan.lots) / (plan.whole - plan.lots)));
+}
+
+/** A great city's roofs past those drawn, between so far and so far from its middle (metres). */
+function sprawlRoofs(scene: TownScene, out: TownParts, from: number, to: number): void {
+  const { plan, looks } = scene,
+    ring = sprawlOf(plan, scene.lots);
+  if (!ring) return;
+  const { r0, r1 } = ring,
+    n = Math.min(3000, Math.round((plan.whole - plan.lots) / 6)),
+    water = plan.water,
+    wet = (x: number, z: number, margin: number) =>
+      !!water && Math.hypot(x - water.x, z - water.z) < water.r + margin,
+    towers = hasSpires(plan);
   const sector = (2 * Math.PI) / AVENUES;
   // (Its roofs a street's breadth past the lots drawn.)
   const inner = r0 + SPRAWL_GAP;
@@ -459,6 +503,7 @@ function sprawl(scene: TownScene, out: TownParts): void {
       z = r * Math.sin(a),
       yaw = Math.PI / 2 - a,
       off = ((((a - plan.axis) % sector) + sector) % sector) * r;
+    if (r < from || r >= to) continue;
     // (Off its avenues, and out of its water.)
     if (Math.min(off, sector * r - off) < AVENUE_HALF + w / 2 + 1 || wet(x, z, w / 2 + 4)) continue;
     if (towers) {
@@ -927,6 +972,16 @@ export function hasSpires(plan: TownPlan): boolean {
   return plan.runs.some((r) => r[0]! <= 1 && r[5]! >= TOP_LEVEL);
 }
 
+/** What the greatest fire left of a home: its lot's whole width in a low black heap, and here and there a stub (W5). */
+function flatRubble(out: TownParts, x: number, z: number, yaw: number): void {
+  const v = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453,
+    r = v - Math.floor(v),
+    // (Over the ash that lies about it.)
+    high = ASH_TOP - 0.5 + 0.3 + r * 0.9;
+  out.put("box", r < 0.55 ? CHAR : ASH, x, 0.5 + high / 2, z, LOT_W - 1, high, LOT_D - 1.6, yaw);
+  if (r > 0.72) out.put("box", CHAR, x, 0.5 + high + 0.8, z, 0.5, 1.6, 0.5, yaw + r * 3);
+}
+
 /** A home's ruin: let fall, it stands roofless and crumbles; burnt, black stubs that sink. */
 function ruin(
   out: TownParts,
@@ -999,6 +1054,79 @@ export const FALLS_S = 1.5 * 3600,
   SMOULDER_S = 30 * 3600,
   DUST_S = 15 * 60,
   SHAKE_S = 40;
+
+/** When the greatest fire comes on a town drawn from this plan (null: it has not fallen here; its moment unknown: long past). */
+function greatAt(plan: TownPlan): number | null {
+  if (!plan.ash) return null;
+  const k = plan.struck?.find((s) => s.raid?.great);
+  return k ? k.at + (k.raid!.rocket ? SPREAD.rocketFrom : SPREAD.raidFrom) : -Infinity;
+}
+
+/** How far out from its middle the greatest fire's ash lies at moment t (metres; 0: none, or not yet). */
+export function ashGone(scene: TownScene, t: number): number {
+  const at = greatAt(scene.plan);
+  return at === null ? 0 : Math.min(ashReach(scene.plan, scene.lots), greatGone(t - at));
+}
+
+/** The moment a land's map draws a town at: past the greatest fire once it has fallen, the land having no film of it (W5). */
+export function landMoment(plan: TownPlan, t: number): number {
+  const at = greatAt(plan);
+  return at === null || at === -Infinity ? t : Math.max(t, at + 2 * FALLS_S);
+}
+
+/**
+ * The ground the greatest fire burned, as far as it has gone (W5): all one level, one black, a good way over all that lay
+ * under it (its levels so near one another, one over the next, flicker from any way off), in patches that lie on a land's
+ * rises as a town's sprawl does (`fine`: for a land's map, the more of them), up to its water's edge. And, ahead of the
+ * fire, the roofs it has yet to take out there.
+ */
+export function townAsh(scene: TownScene, t: number, out: TownParts, fine = false): void {
+  const { plan, lots } = scene;
+  if (!plan.ash) return;
+  const reach = ashReach(plan, lots),
+    gone = ashGone(scene, t);
+  if (gone < reach) sprawlRoofs(scene, out, gone, reach);
+  if (gone <= 0) return;
+  // (A land's map keeps its own water: its slabs are not set on it.)
+  const water = fine ? undefined : plan.water,
+    bands = fine ? 28 : 14,
+    rounds = fine ? 144 : 72,
+    // (From a land's height a slab must stand as far again over the land under it, or the two flicker.)
+    top = fine ? ASH_TOP_FAR : ASH_TOP,
+    y = (ASH_FOOT + top) / 2,
+    high = top - ASH_FOOT,
+    // (A patch reaching the water, in quarters as far as it takes to lie by the shore.)
+    lay = (x: number, z: number, w: number, d: number, yaw: number, parts: number): void => {
+      const off = water ? Math.hypot(x - water.x, z - water.z) - water.r : Infinity,
+        half = Math.hypot(w, d) / 2;
+      if (off >= half) {
+        out.put("box", SCORCHED, x, y, z, w, high, d, yaw);
+        return;
+      }
+      if (off <= -half || parts <= 0) return;
+      for (const [u, v] of ASH_QUARTERS) {
+        const [px, pz] = at(x, z, yaw, (u * w) / 4, (v * d) / 4);
+        lay(px, pz, w / 2, d / 2, yaw, parts - 1);
+      }
+    };
+  for (let b = 0; b < bands; b++) {
+    const lo = (gone * b) / bands,
+      hi = (gone * (b + 1)) / bands,
+      round = Math.ceil((rounds * (b + 1)) / bands),
+      across = (2 * Math.PI * hi) / round + 1;
+    for (let k = 0; k < round; k++) {
+      const a = ((k + 0.5) / round) * 2 * Math.PI;
+      lay(
+        ((lo + hi) / 2) * Math.cos(a),
+        ((lo + hi) / 2) * Math.sin(a),
+        across,
+        hi - lo + 1,
+        Math.PI / 2 - a,
+        3,
+      );
+    }
+  }
+}
 
 /** Whether a home of a town struck was thrown down by a quake (in rubble, not standing as it burned). */
 export function thrownDown(scene: TownScene, p: number): boolean {
@@ -1075,9 +1203,14 @@ function struckHome(
   since: number,
   burns: boolean,
   thrown: boolean,
+  flat: boolean,
 ): void {
   if (since < 0) {
     home(out, look, level, x, z, yaw);
+    return;
+  }
+  if (flat) {
+    flatRubble(out, x, z, yaw);
     return;
   }
   // (Thrown down: its rubble, burning there a while if it caught.)
@@ -1145,10 +1278,13 @@ export function townHomes(
         t - states.began[p]!,
         states.burns[p] === 1,
         thrownDown(scene, p),
+        !!scene.plan.struck?.[states.struck[p]!]?.raid?.great,
       );
     else if (what === LOT.fallen || what === LOT.razed) {
       const years = (t - states.began[p]!) / YEAR_S;
-      if (years >= 0) ruin(out, look, x, z, yaw, years, what === LOT.razed);
+      if (years >= 0)
+        if (what === LOT.razed && p < (scene.plan.ash ?? 0)) flatRubble(out, x, z, yaw);
+        else ruin(out, look, x, z, yaw, years, what === LOT.razed);
     }
   }
 }
@@ -1495,8 +1631,12 @@ function civicsPut(scene: TownScene, t: number, out: TownParts, still: boolean):
       for (let p = c.at; p < c.at + c.lots && !built; p++)
         built = states.what[p] === LOT.home && states.began[p]! > m.fell;
       const years = (t - m.fell) / YEAR_S;
+      // (What the greatest fire brought down does not stand: W5.)
+      const flat = c.at < (plan.ash ?? 0);
       if (!built && years < 60)
-        civicShape(out, c.kind, f, Math.max(0.12, 0.45 - years / 120), (k) => darker(k, 0.55));
+        civicShape(out, c.kind, f, flat ? 0.08 : Math.max(0.12, 0.45 - years / 120), (k) =>
+          darker(k, flat ? 0.25 : 0.55),
+        );
       continue;
     }
     const g = Math.min(1, (t - m.began) / Math.max(1, m.done - m.began));

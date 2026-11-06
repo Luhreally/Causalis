@@ -242,6 +242,10 @@ export function timeRaids(
 /** How fast what it does goes out across a town (m a world second, drawn so that it can be watched), and for how long at most. */
 const GREAT_GOES = 45,
   GREAT_OUT_S = 20;
+/** How far out what the greatest fire does has gone, so many world seconds after its moment (metres). */
+export function greatGone(seconds: number): number {
+  return seconds <= 0 ? 0 : seconds >= GREAT_OUT_S ? Infinity : seconds * GREAT_GOES;
+}
 /**
  * The greatest fire laid over its town (W5): one, where the first of what it burned stands, and every lot it took caught as what it
  * does comes out to it. What it burned past the streets drawn is not drawn; what is drawn of it is what can be seen.
@@ -265,9 +269,14 @@ function timeGreat(
   }
   x /= Math.max(1, near.length);
   z /= Math.max(1, near.length);
+  // (In half-second steps: each is the town drawn again, and it goes out to thousands of lots.)
   for (const p of mine)
     states.began[p] =
-      at + Math.min(GREAT_OUT_S, Math.hypot(lots.x[p]! - x, lots.z[p]! - z) / GREAT_GOES);
+      at +
+      Math.ceil(
+        Math.min(GREAT_OUT_S, Math.hypot(lots.x[p]! - x, lots.z[p]! - z) / GREAT_GOES) * 2,
+      ) /
+        2;
   WAYS.set(k, {
     heading,
     under: [...mine].sort((a, b) => states.began[a]! - states.began[b]! || a - b),

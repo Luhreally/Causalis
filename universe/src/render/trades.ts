@@ -223,11 +223,12 @@ export class TradesLayer {
    * are not drawn); each kiln aglow while one tends it, each smithy's anvil sparking while one
    * strikes at it (`busy`, by the works' order: who is at it, or null).
    */
-  update(s: number, motion: boolean, busy: readonly AtWork[]): void {
+  update(s: number, motion: boolean, busy: readonly AtWork[], ash = 0): void {
     const works = this.works,
       clock = motion ? s : 0;
     if (this.sails) {
-      const mills = works.filter((w) => w.kind === "mill"),
+      // (None on a tower the greatest fire has brought down, in a film of it: W5.)
+      const mills = works.filter((w) => w.kind === "mill" && Math.hypot(w.x, w.z) >= ash),
         r = SAIL_LONG / 2 + 0.4;
       this.sails.set(mills.length * SAILS, (i, out) => {
         const w = mills[Math.floor(i / SAILS)]!,

@@ -356,6 +356,8 @@ export class VillageScene {
   /** Where smoke rises: roof tops, and a city's workshop chimneys (metres). */
   private hearths: { x: number; y: number; z: number }[] = [];
   private stacks: { x: number; y: number; z: number }[] = [];
+  /** What stands on its square, and whether it is shown (put afresh when that changes). */
+  private squareHall: { shown: boolean; put: (shown: boolean) => void } | null = null;
   key: string | null = null;
   /**
    * One of its people possessed (Phase 60): the clock the town is drawn at, the bodies the small
@@ -1168,15 +1170,20 @@ export class VillageScene {
       1,
       this.root,
     );
-    hall.set(1, (_, out) => {
-      out[0] = plan.market ? 1.4 : 0;
-      out[1] = plan.market ? 0.35 : 0.06;
-      out[2] = plan.market ? -1 : 0;
-      out[3] = plan.market ? 1.8 : 0.25;
-      out[4] = plan.market ? 0.7 : 0.12;
-      out[5] = plan.market ? 1.1 : 0.25;
-      out[6] = 0;
-    });
+    this.squareHall = {
+      shown: false,
+      put: (shown) =>
+        hall.set(shown ? 1 : 0, (_, out) => {
+          out[0] = plan.market ? 1.4 : 0;
+          out[1] = plan.market ? 0.35 : 0.06;
+          out[2] = plan.market ? -1 : 0;
+          out[3] = plan.market ? 1.8 : 0.25;
+          out[4] = plan.market ? 0.7 : 0.12;
+          out[5] = plan.market ? 1.1 : 0.25;
+          out[6] = 0;
+        }),
+    };
+    this.squareHall.put((this.squareHall.shown = true));
     // People: drawn three times their size, so a phone can see them — as their body is
     // built (one figure for a people, part by part, each part a batch per colour group).
     this.figure = figureOf(plan.body, s.quality.detail);
@@ -1591,12 +1598,15 @@ export class VillageScene {
     ) {
       const now = storesNow(plan, t, fine);
       this.stores = { now, t, fine, at: wall };
-      this.work.heapsAt({
-        grain: now.lasts.grain,
-        wood: now.have.wood,
-        stone: now.have.stone,
-        ore: now.lasts.ore,
-      });
+      this.work.heapsAt(
+        {
+          grain: now.lasts.grain,
+          wood: now.have.wood,
+          stone: now.have.stone,
+          ore: now.lasts.ore,
+        },
+        this.town.ashGone(t) > 0,
+      );
     }
     // What struck the town (Phase 42 M201): its homes alight, their smoke rolling up, the dust of
     // those shaken down — the nearest the eye drawn; and while a quake shakes it, the ground
@@ -1680,7 +1690,7 @@ export class VillageScene {
             return m;
         return null;
       });
-      this.trades.update(screen, this.stage.quality.motion, busy);
+      this.trades.update(screen, this.stage.quality.motion, busy, this.town.ashGone(t));
     }
     // Things seen being made (Phase 51 M213): the furnace aglow while one works its bellows; the
     // rack before the smithy, the day's tools hung on it as they are made (laid again each half
@@ -2049,7 +2059,11 @@ export class VillageScene {
       n++;
     });
     this.carriers.length = n;
-    this.work.update((t % 86_400) / 3600, screen, this.carriers);
+    const burned = this.town.ashGone(t);
+    this.work.update((t % 86_400) / 3600, screen, this.carriers, burned);
+    // (Nothing stands on a square the greatest fire has burned.)
+    if (this.squareHall && this.squareHall.shown !== (burned <= 0))
+      this.squareHall.put((this.squareHall.shown = burned <= 0));
     if (this.marked !== null) {
       const m = this.moments[this.marked];
       this.marker.enabled = !!m && !m.hidden;
