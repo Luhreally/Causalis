@@ -78,6 +78,8 @@ export class VillagePanel {
   private readonly moneyLine = el("button", "town-money", "💰");
   /** Its price board (Markets, first slice). */
   private readonly boardLine = el("button", "town-money town-board", "🏷️");
+  /** Ask it for something (H1). */
+  private readonly askLine = el("button", "town-money town-ask", "🙏");
   private warRef: string | null = null;
   private folkOpen = false;
   private cardKey = "";
@@ -85,6 +87,7 @@ export class VillagePanel {
   onLive: () => void = () => {};
   onMoney: () => void = () => {};
   onBoard: () => void = () => {};
+  onAsk: () => void = () => {};
   onClose: () => void = () => {};
   /** The stores' card opened (what else is up is put away). */
   onStores: () => void = () => {};
@@ -118,6 +121,9 @@ export class VillagePanel {
     this.boardLine.title = "What is for sale here, and what it costs";
     this.boardLine.setAttribute("aria-label", "What is for sale here, and what it costs");
     this.boardLine.onclick = () => this.onBoard();
+    this.askLine.title = "Ask this town for something";
+    this.askLine.setAttribute("aria-label", "Ask this town for something");
+    this.askLine.onclick = () => this.onAsk();
     bar.append(
       back,
       this.title,
@@ -125,6 +131,7 @@ export class VillagePanel {
       this.liveLine,
       this.moneyLine,
       this.boardLine,
+      this.askLine,
       this.storesLine,
       this.warLine,
     );
@@ -159,6 +166,7 @@ export class VillagePanel {
   set foreign(on: boolean) {
     this.backLine.textContent = on ? "‹ Their world" : "‹ The land";
     this.liveLine.style.display = on ? "none" : "";
+    this.askLine.style.display = on ? "none" : "";
   }
 
   /** A town watched: its name; `fresh`, a town come to (else the same read again as the years turn). */

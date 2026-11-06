@@ -45,6 +45,8 @@ import { workshopBlocks } from "../chain.ts";
 import { townSite } from "../village.ts";
 import { count, eventsAbout, item, link, many, sentence, stat, yearNow } from "./words.ts";
 import { landLink, townLink } from "./names.ts";
+import { askedBlocks } from "./asks.ts";
+import { raiseThe } from "../../causal/index.ts";
 
 /** What a run of lots says happened to them (the fabric's CHANGE): built, raised, fell, razed, cleared. */
 const BUILT = 0,
@@ -303,20 +305,28 @@ export function buildingPage(world: World, ref: string): PageModel {
   const year = yearNow(world),
     def = civic(c.kind),
     waited = causeOf(populationContext(world), s.cell, c.kind),
-    rising = c.fell === null && c.end > year,
+    // (Asked for, H1: how far it has got is its asking's.)
+    asked = askedBlocks(world, s.ref, c.at, c.start),
+    rising = c.fell === null && (asked ? asked.going : c.end > year),
     stats: Stat[] = [
       stat("Begun", `year ${c.start}`),
       c.fell !== null
         ? stat("Fell", `year ${c.fell}`)
-        : rising
-          ? stat("Rising", `to be done in year ${c.end}`)
-          : stat("Done", `year ${c.end}`),
+        : asked?.going
+          ? stat("Rising", "as its hands allow")
+          : rising
+            ? stat("Rising", `to be done in year ${c.end}`)
+            : asked
+              ? stat("Done", "as it was asked")
+              : stat("Done", `year ${c.end}`),
       stat("Lots", many(c.lots, "lot", "lots")),
     ];
   const lines: Line[] = [
     [`${sentence(def.name)}: ${CIVIC_FOR[c.kind]}.`],
     [
-      def.place === "core"
+      asked
+        ? "It stands where the town could find room for it, on lots it cleared."
+        : def.place === "core"
         ? "It stands at the heart of the town, about its square."
         : "It was raised at the edge of the town as it stood then.",
     ],
@@ -339,6 +349,7 @@ export function buildingPage(world: World, ref: string): PageModel {
   const blocks: Block[] = [
     { type: "facts", rows: [...stats, stat("Town", [townLink(world, s.ref)])] },
     { type: "text", lines },
+    ...(asked?.blocks ?? []),
     // Who works there and what it makes, traced from the ground (Phase 50 M212).
     ...(c.fell === null && !rising ? workshopBlocks(world, s, c.kind, ref, year) : []),
   ];
@@ -347,13 +358,15 @@ export function buildingPage(world: World, ref: string): PageModel {
     ref,
     kind: "building",
     icon: CIVIC_ICON[c.kind],
-    title: `The ${bare(c.kind)} of ${s.name}`,
+    title: asked
+      ? `${sentence(raiseThe(world, c.kind))}${asked.going ? " going up" : ""} in ${s.name}`
+      : `The ${bare(c.kind)} of ${s.name}`,
     subtitle: [
       c.fell !== null ? "The ruin of a building of " : "A building of ",
       townLink(world, s.ref),
     ],
     color: null,
-    place: { scale: "village", town: s.ref },
+    place: asked ? { scale: "village", town: s.ref, site: asked.ref } : { scale: "village", town: s.ref },
     stats,
     tabs: [{ id: "overview", name: "Overview", blocks }],
     followable: false,
@@ -411,6 +424,7 @@ export function wallsPage(world: World, ref: string): PageModel {
         blocks: [
           { type: "facts", rows: [...stats, stat("Town", [townLink(world, s.ref)])] },
           { type: "text", lines },
+          ...(askedBlocks(world, s.ref, -1, 0)?.blocks ?? []),
           ...(walled ? [{ type: "list" as const, title: "Why", items: [walled] }] : []),
         ],
       },

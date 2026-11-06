@@ -39,6 +39,7 @@ function waysOf(world: World): { ways?: "swim" | "tunnel" } {
   return hive && body?.manipulators === "mandibles" ? { ways: "tunnel" } : {};
 }
 import { worldLook } from "./biochem.ts";
+import { askedOfCivic, askedOfWalls, firstOfPlan } from "./inspect/asks.ts";
 import { colonyRemade, colonyTownCell } from "./colony.ts";
 
 /** How long what struck a town is told to its plan: its homes burn a day, and lie in ruin years. */
@@ -219,12 +220,14 @@ export function townPlan(
         ...c.slice(3),
       ]),
     civics: [
-      ...f.civics.filter((c) => c.at + c.lots <= lots).map((c) => ({ ...c, ...thrownAt(c.fell) })),
+      ...f.civics
+        .filter((c) => c.at + c.lots <= lots)
+        .map((c) => ({ ...c, ...thrownAt(c.fell), ...askedOfCivic(world, ref, c) })),
       ...rimWorks(f, lots),
     ],
     walls:
       f.walls && f.walls.reach <= lots
-        ? { start: f.walls.start, end: f.walls.end, reach: f.walls.reach }
+        ? { start: f.walls.start, end: f.walls.end, reach: f.walls.reach, ...askedOfWalls(world, ref) }
         : null,
     months: HOME_MONTHS,
     designs,
@@ -233,6 +236,7 @@ export function townPlan(
     year: Math.min(year, yearOfMoment(world.now)),
     // (What struck it lately: Phase 42 M201.)
     ...(struck.length ? { struck } : {}),
+    ...firstOfPlan(world, ref),
     // (Its reach, past what is drawn: what the eye has to clear of its sprawl.)
     ...(() => {
       const ash = f.changes.reduce(

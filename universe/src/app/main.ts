@@ -5,6 +5,7 @@
 import "./styles.css";
 import "./y2k.css";
 import "./board.css";
+import "./asks.css";
 import "./bar.css";
 import "./brushes.css";
 import "./tour.css";
@@ -61,6 +62,7 @@ import {
   SandboxPanel,
   SystemPanel,
   ClusterPanel,
+  AskSheet,
   VillagePanel,
   WorldPanel,
   CampPanel,
@@ -1347,6 +1349,9 @@ type Exposed = {
   faceSpot?: (spot: number, distance?: number) => void;
   /** Zoom on through to the next scale in or out, and which scale is shown (M88, for the look tools). */
   zoomThrough?: (way: "in" | "out") => Promise<void>;
+  /** A town asked (H1), for the look tools. */
+  asks?: { sheetOpen: () => boolean; show: (town: string) => void };
+  askedSpot?: (ref: string) => { x: number; z: number; size: number } | null;
   /** Open a thing's page (Phase 10 M92), and the page open now. */
   open?: (ref: string) => Promise<void>;
   pageOpen?: () => string | null;
@@ -3206,7 +3211,7 @@ async function runPlanetPage(): Promise<void> {
         const hall = plan.town?.civics.find(
           (c) => (c.truly ?? c.at) === thing.at && c.start === thing.start,
         );
-        return hall?.kind === "market" && hall.fell === null
+        return hall?.kind === "market" && hall.fell === null && !(hall.asked && hall.asked.share < 1)
           ? `board:${plan.ref}`
           : `bldg:${plan.ref}:${thing.at}:${thing.start}`;
       }
@@ -5728,6 +5733,48 @@ async function runPlanetPage(): Promise<void> {
     heldTownWar = tw;
   };
   exposed.townWarScene = () => (scale === "village" ? (village.warNow()?.scene ?? null) : null);
+  // A town asked (H1): the sheet, the asking by whoever's word it is, the answer its own page, and its plan read again at once.
+  const askSheet = new AskSheet(hud, client);
+  let rulerNow: (() => { realm: string; ruler: string } | null) | null = null;
+  askSheet.onPage = (ref) => void pageWindow.open(ref);
+  askSheet.onAsked = (town) => {
+    if (plan?.ref === town && scale === "village") void loadPlan(town);
+  };
+  const askTown = (town: string) => {
+    pageWindow.close();
+    void askSheet.show(town, rulerNow ? rulerNow() : null);
+  };
+  villagePanel.onAsk = () => {
+    if (plan) askTown(plan.ref);
+  };
+  exposed.asks = { sheetOpen: () => askSheet.open, show: (town) => askTown(town) };
+  // (What a town was asked moves through the year: stopped, given up, done. Read again when it does.)
+  let askedKeyNow = "",
+    askedAt = 0;
+  stage.onUpdate(() => {
+    const here = plan,
+      planned = here?.town,
+      open =
+        scale === "village" &&
+        here &&
+        planned &&
+        (planned.first ||
+          planned.walls?.asked ||
+          planned.civics.some((c) => c.asked && !c.asked.left));
+    if (!open || !here) return;
+    const wall = performance.now();
+    if (wall - askedAt < 3000) return;
+    askedAt = wall;
+    void client
+      .query<string>({ type: "town.asked", args: { ref: here.ref } })
+      .then((key) => {
+        const was = askedKeyNow;
+        askedKeyNow = `${here.ref}|${key}`;
+        if (was && was !== askedKeyNow && plan?.ref === here.ref && scale === "village")
+          void loadPlan(here.ref);
+      })
+      .catch(() => {});
+  });
   villagePanel.onWar = (ref) => void pageWindow.open(ref);
   villagePanel.onPage = (ref) => void pageWindow.open(ref);
   // (Where the eye stands, whose names the pages tell: the town's land, or the land shown.)
@@ -8877,6 +8924,20 @@ async function runPlanetPage(): Promise<void> {
    * Where to look at what a town raised (T1): from over its square toward it, low, so no tower of a
    * city stands between.
    */
+  /** The eye on what a town was asked to raise (H1): by day, from the side the square is on, as near as a person can come and see all of it. */
+  const siteView = (ref: string): OrbitView | null => {
+    const s = village.askedSpot(ref, now());
+    if (!s) return null;
+    // (Over a great town's roofs, or the block before it stands between: a village's from nearer and lower.)
+    const great = !!plan?.districts || (plan?.town?.lots ?? 0) > 600;
+    return {
+      target: { x: s.x * VILLAGE_METRE, y: 0.5, z: s.z * VILLAGE_METRE },
+      yaw: (Math.atan2(-s.x, -s.z) * 180) / Math.PI + 25,
+      pitch: great ? -52 : -36,
+      distance: great ? 11 : Math.max(6, (s.size * VILLAGE_METRE) / 0.3),
+    };
+  };
+  exposed.askedSpot = (ref: string) => village.askedSpot(ref, now());
   const stoneView = (ref: string): OrbitView | null => {
     // (A case's page looks across the square at its court: J1.)
     const c = ref.startsWith("case:") ? village.courtNow(now())?.place : null;
@@ -8935,6 +8996,12 @@ async function runPlanetPage(): Promise<void> {
       return;
     }
     if (scale === "village" && place.scale === "village" && place.town === plan?.ref) {
+      if (place.site) {
+        const view = rig.follow || !rig.enabled ? null : siteView(place.site);
+        pageWindow.close();
+        if (view) rig.flyTo(view);
+        return;
+      }
       if (place.stone) {
         // (The eye held on someone, as in a life or a possession: read from where they stand.)
         const view = rig.follow || !rig.enabled ? null : stoneView(place.stone);
@@ -9003,6 +9070,17 @@ async function runPlanetPage(): Promise<void> {
               keep(who);
             }
           }
+          // (What it was asked to raise, H1.)
+          if (place.site) {
+            pageWindow.close();
+            const site = siteView(place.site);
+            if (site) {
+              rig.target.set(site.target.x, site.target.y, site.target.z);
+              rig.yaw = site.yaw;
+              rig.pitch = site.pitch;
+              rig.distance = site.distance;
+            }
+          }
           // (One the world has since displaced from its town's five: the town is still what was asked for.)
           if (place.stone) pageWindow.close();
           const stone = place.stone ? stoneView(place.stone) : null;
@@ -9045,6 +9123,22 @@ async function runPlanetPage(): Promise<void> {
     rig.flyTo({ distance: to }, 0.9);
   };
   pageWindow.onGoTo = (place) => void goTo(place);
+  // (A town's own page has the way to ask it, H1: from anywhere, a ruler's too.)
+  {
+    const acted = pageWindow.sceneActions;
+    pageWindow.sceneActions = (page) =>
+      page.kind === "town" && !page.ref.includes("/")
+        ? [
+            ...acted(page),
+            {
+              label: "🙏 Ask",
+              title: "Ask this town for something",
+              on: false,
+              run: () => askTown(page.ref),
+            },
+          ]
+        : acted(page);
+  }
   // A realm's key figures, each with a home in the town view and a body to take (Lives L1).
   const leaders = installLeaders({
     stage,
@@ -9142,6 +9236,7 @@ async function runPlanetPage(): Promise<void> {
     possession: person,
     leaders,
   });
+  rulerNow = () => reign.who();
   const ruleLeader = (l: { ref: string }) => void reign.take(l.ref.slice("rule:".length));
   pageWindow.onLeaderRule = ruleLeader;
   leaders.onRule = ruleLeader;

@@ -28,6 +28,7 @@ import {
   WALL_THICK,
   WALL_TOWER,
   blocksHeld,
+  askedGrown,
   civicMoments,
   footprint,
   lotStates,
@@ -1401,6 +1402,13 @@ function civicShape(
         put("cone", [0.86, 0.68, 0.3], u, 7, 0, 7, 2, 7);
       }
       break;
+    // A well: a low ring of stone, two posts and a little roof over it (H1).
+    case "well":
+      put("cyl", STONE, 0, 0.6, 0, 3.2, 1.2, 3.2);
+      put("box", TIMBER, -1.5, 1.8, 0, 0.25, 3.6, 0.25);
+      put("box", TIMBER, 1.5, 1.8, 0, 0.25, 3.6, 0.25);
+      put("gable", [0.42, 0.32, 0.24], 0, 3.9, 0, 3.8, 0.8, 2.2);
+      break;
     case "kiln":
       put("cyl", BRICK, 0, 2, 0, 6, 4, 6);
       put("cone", BRICK, 0, 5, 0, 6.4, 2.2, 6.4);
@@ -1675,6 +1683,7 @@ const CIVIC_HIGH: Readonly<Record<string, number>> = {
   fusion: 24,
   minds: 42,
   vats: 16,
+  well: 4,
 };
 
 /**
@@ -1708,11 +1717,25 @@ function civicsPut(scene: TownScene, t: number, out: TownParts, still: boolean):
         );
       continue;
     }
-    const g = Math.min(1, (t - m.began) / Math.max(1, m.done - m.began));
+    const g = c.asked
+      ? askedGrown(c.asked, t)
+      : Math.min(1, (t - m.began) / Math.max(1, m.done - m.began));
     out.put("box", FOOTING, f.x, 0.1, f.z, f.w - 0.6, 0.2, f.d - 0.6, f.yaw);
     civicShape(out, c.kind, f, g < 1 ? Math.max(0.05, g) : 1, undefined, still);
+    if (g < 1 && c.asked) siteStuff(out, f, g, c.asked.heap, c.asked.stopped);
     if (g < 1) {
-      const top = (CIVIC_HIGH[c.kind] ?? 10) * g + 1.5;
+      const top = (CIVIC_HIGH[c.kind] ?? 10) * g + (c.asked ? 3 : 1.5);
+      // (A frame about what was asked for, to the height it has come to: its rails seen from over the roofs.)
+      if (c.asked && !c.asked.left)
+        for (const [u, v, w, d] of [
+          [0, f.d / 2, f.w, 0.35],
+          [0, -f.d / 2, f.w, 0.35],
+          [f.w / 2, 0, 0.35, f.d],
+          [-f.w / 2, 0, 0.35, f.d],
+        ] as const) {
+          const [cx, cz] = at(f.x, f.z, f.yaw, u, v);
+          out.put("box", TIMBER, cx, top, cz, w, 0.35, d, f.yaw);
+        }
       for (const [u, v] of [
         [f.w / 2, f.d / 2],
         [-f.w / 2, f.d / 2],
@@ -1726,6 +1749,34 @@ function civicsPut(scene: TownScene, t: number, out: TownParts, still: boolean):
   }
 }
 
+/** What stands by a site a town was asked for (H1): heaps of what it wants, going down as it goes up, and its flag, down while it stands idle. */
+function siteStuff(
+  out: TownParts,
+  f: { x: number; z: number; yaw: number; w: number; d: number },
+  g: number,
+  heap: readonly [number, number, number],
+  stopped: boolean,
+): void {
+  const left = 1 - g,
+    colour: Rgb = [heap[0], heap[1], heap[2]];
+  out.put("box", DUG, f.x, 0.16, f.z, f.w + 2, 0.12, f.d + 2, f.yaw);
+  for (const [u, v, s] of [
+    [f.w / 2 + 2.2, 1.6, 1],
+    [f.w / 2 + 2.2, -1.6, 0.7],
+    [-(f.w / 2) - 2.2, 0, 0.85],
+  ] as const) {
+    const [x, z] = at(f.x, f.z, f.yaw, u, v),
+      high = (0.3 + 1.5 * left) * s;
+    out.put("box", colour, x, high / 2, z, 2.4 * s, high, 2 * s, f.yaw);
+  }
+  const [px, pz] = at(f.x, f.z, f.yaw, -f.w / 2 - 1, -f.d / 2 - 1),
+    pole = stopped ? 4 : 13;
+  out.put("box", TIMBER, px, pole / 2, pz, 0.4, pole, 0.4, 0);
+  // (Two ways, so that it shows from any side and from over the roofs.)
+  out.put("box", SITE_FLAG, px + 1.6, pole - 1, pz, 3.2, 2, 0.15, 0);
+  out.put("box", SITE_FLAG, px, pole - 1, pz + 1.6, 0.15, 2, 3.2, 0);
+}
+
 /** Whether a town's buildings change through the year from moment t (one rising, begun, fallen). */
 export function civicsActive(plan: TownPlan, t: number): boolean {
   return plan.civics.some((c: TownCivic) => {
@@ -1733,6 +1784,10 @@ export function civicsActive(plan: TownPlan, t: number): boolean {
     return t < m.done || (m.fell !== null && t < m.fell + YEAR_S);
   });
 }
+
+/** The orange of a site's flag, and its dug ground (H1). */
+const SITE_FLAG: Rgb = [0.95, 0.42, 0.08],
+  DUG: Rgb = [0.5, 0.4, 0.28];
 
 /**
  * A town's walls at moment t: courses of stone about it, a tower every few lengths, a gate where
@@ -1742,14 +1797,21 @@ export function townWalls(scene: TownScene, t: number, out: TownParts): void {
   const w = scene.plan.walls,
     ring = scene.walls;
   if (!w || !ring) return;
-  const begun = (w.start + 1) * YEAR_S;
+  const begun = w.asked ? w.asked.began : (w.start + 1) * YEAR_S;
   if (t < begun) return;
-  const g = Math.min(1, (t - begun) / Math.max(YEAR_S, (w.end - w.start) * YEAR_S)),
-    high = 7 * g;
+  const g = w.asked
+      ? askedGrown(w.asked, t)
+      : Math.min(1, (t - begun) / Math.max(YEAR_S, (w.end - w.start) * YEAR_S)),
+    around = w.asked ? g * ring.lengths.length : 0;
+  let k = -1;
   for (const l of ring.lengths) {
+    k++;
+    // (Those asked for go up length by length about the town; what a town raises by itself rises all at once, as it always has.)
+    const high = 7 * (w.asked ? Math.max(0, Math.min(1, around - k)) : g);
     // (A gate where the road runs out, both ways: a tower between two ways through.)
     if (l.gate) {
-      out.put("box", STONE, l.x, high * 0.75, l.z, GATE_TOWER, high * 1.5, GATE_TOWER, l.yaw);
+      if (high > 0.05 || !w.asked)
+        out.put("box", STONE, l.x, high * 0.75, l.z, GATE_TOWER, high * 1.5, GATE_TOWER, l.yaw);
       continue;
     }
     if (high <= 0.05) continue;

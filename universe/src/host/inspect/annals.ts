@@ -94,6 +94,9 @@ const RULES: Readonly<Record<string, readonly [number, number]>> = {
   "town.walled": [FIRSTS, 1],
   "town.temple": [FIRSTS, 1],
   "town.forsaken": [SORROWS, 2],
+  // (What a town was asked, and raised: H1.)
+  "town.asked": [FIRSTS, 2],
+  "town.raised": [FIRSTS, 3],
   "province.peopled": [FIRSTS, 1],
   "trade.route-opened": [FIRSTS, 1],
   "trade.sea-route": [FIRSTS, 2],

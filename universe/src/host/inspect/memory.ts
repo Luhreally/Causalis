@@ -406,6 +406,17 @@ function readMemory(world: World, version: string): Reading {
         );
         break;
       }
+      // What a town raised because it was asked (H1): its stone says who asked and it says what; a ruler's word or the god's.
+      case "town.raised": {
+        const k = blank(e, "asked", 12, "stone");
+        Object.assign(k, {
+          what: typeof d.what === "string" ? d.what : null,
+          who: typeof d.ruler === "string" ? d.ruler : null,
+          town: (e.subjects ?? [])[0] ?? null,
+        });
+        single.push(k);
+        break;
+      }
       case "beast.ended": {
         // (A beast people knew: its song, and a stone where it took many. Z1.)
         const fallen = num(d.fallen),
@@ -567,6 +578,7 @@ function readMemory(world: World, version: string): Reading {
 
 /** The domains of event there is anything to remember from. */
 const MEMORABLE = new Set([
+  "town",
   "war",
   "health",
   "people",
@@ -766,6 +778,7 @@ const STONE_NAMES: Readonly<Record<SongKind, string>> = {
   leaving: "stone of those who went",
   sky: "stone of the god's hand",
   beast: "stone of the beast",
+  asked: "stone of the asking",
 };
 
 /** Colours by what it is made of. */
@@ -1212,7 +1225,9 @@ export function songPage(world: World, ref: string): PageModel {
       : null,
     changed: Line =
       w === 0
-        ? [`It is ${age < 2 ? "new" : `${spoken(age)} years old`}, and it still counts the dead.`]
+        ? [
+            `It is ${age < 2 ? "new" : `${spoken(age)} years old`}, and it still ${d.dead > 0 ? "counts the dead" : "says who was there"}.`,
+          ]
         : w === 1
           ? [
               `It is ${spoken(age)} years old. The numbers in it have gone round; the names have held.`,

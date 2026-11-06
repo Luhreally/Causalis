@@ -3,7 +3,7 @@
 // what rises through the year (homes climbing in their scaffolds, buildings, walls) in another,
 // put again as it climbs. One unit is ten metres, as in the village.
 import * as pc from "playcanvas";
-import { LOT, civicMoments, footprint, progress, type TownPlan } from "../bridge/index.ts";
+import { LOT, askedGrown, civicMoments, footprint, progress, type TownPlan } from "../bridge/index.ts";
 import {
   TownParts,
   blazeNow,
@@ -249,6 +249,23 @@ export class TownLayer {
     if (p < 0) return null;
     const top = roofTop(s, p, t);
     return top === null ? null : { x: s.lots.x[p]!, y: top + 0.5, z: s.lots.z[p]! };
+  }
+
+  /** Where what the town was asked to raise stands (H1): a building, or the length its walls have come to. */
+  askedSpot(ref: string, t: number): { x: number; z: number; size: number } | null {
+    const s = this.scene;
+    if (!s) return null;
+    for (const c of s.plan.civics)
+      if (c.asked?.ref === ref && c.at + c.lots <= s.lots.x.length) {
+        const f = footprint(s.lots, c.at, c.lots);
+        return { x: f.x, z: f.z, size: Math.max(f.w, f.d) };
+      }
+    const w = s.plan.walls?.asked;
+    if (w?.ref === ref && s.walls?.lengths.length) {
+      const l = s.walls.lengths[Math.floor(Math.min(0.999, askedGrown(w, t)) * s.walls.lengths.length)]!;
+      return { x: l.x, z: l.z, size: 24 };
+    }
+    return null;
   }
 
   /** What of the town stands at a point (metres from its middle) at moment t, for a tap. */

@@ -18,6 +18,8 @@ export type {
   WrittenYear,
 } from "./bar.ts";
 export type { BrushKind, BrushStrokeArgs, BrushPreview, BrushState } from "./brush.ts";
+export type { AskOffer, TownOffers } from "./inspect.ts";
+export type { TownAsked, TownFirst } from "./town.ts";
 export type {
   ShipCrew,
   StarLens,
@@ -148,6 +150,7 @@ export {
   WALL_THICK,
   WALL_TOWER,
   blocksHeld,
+  askedGrown,
   civicMoments,
   struckYear,
   footprint,

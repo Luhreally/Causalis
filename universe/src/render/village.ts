@@ -1556,6 +1556,10 @@ export class VillageScene {
   stoneAt(x: number, y: number): string | null {
     return this.memorialLayer.at(this.stage.camera.camera!, x, y)?.m.ref ?? null;
   }
+  /** Where what a town was asked to raise stands, in metres from its middle (H1; null: not drawn here). */
+  askedSpot(ref: string, t: number): { x: number; z: number; size: number } | null {
+    return this.town.askedSpot(ref, t);
+  }
   /** What a town raised, as drawn (the look tools). */
   stonesOnScreen(): ReturnType<MemorialLayer["onScreen"]> {
     return this.memorialLayer.onScreen(this.stage.camera.camera!);

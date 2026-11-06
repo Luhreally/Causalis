@@ -60,6 +60,7 @@ import { agentHolder, householdThingsBlocks, personThingsBlocks } from "./things
 import { buildingsTab } from "./fabric.ts";
 import { townSongsTab } from "./memory.ts";
 import { townLawTab } from "./justice.ts";
+import { askedTownBlock } from "./asks.ts";
 import { threadBlock } from "./thread.ts";
 import { worldLook } from "../biochem.ts";
 
@@ -252,12 +253,16 @@ export function townPage(world: World, ref: string): PageModel {
         ? [{ type: "tool" as const, tool: "acts.place", args: { town: s.ref } }]
         : []),
     );
+    // (What it has been asked, H1: where a town's page opens.)
+    const asked = askedTownBlock(world, s.ref);
+    if (asked) blocks.unshift(asked);
     tabs.push({ id: "overview", name: "Overview", blocks });
   }
   // Its fabric: its homes by level, its other buildings, its walls (Phase 25 M151).
   {
     const built = buildingsTab(world, s.ref as Ref);
     if (built) tabs.push(built);
+
   }
   {
     const items: Item[] = met.map((h) =>

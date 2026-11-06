@@ -604,7 +604,7 @@ type Folk = {
   levied(h: number, not: ReadonlySet<string>): Party | null;
 };
 
-function folkOf(world: World, s: Settlement, year: number): Folk {
+export function folkOf(world: World, s: Settlement, year: number): Folk {
   const ctx = populationContext(world),
     grown = lifeOf(world).adulthood,
     hand = handOf(world).resting;

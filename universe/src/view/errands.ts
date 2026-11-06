@@ -13,6 +13,7 @@ import { finish, hashString, mix } from "../kernel/index.ts";
 import {
   LOT,
   LOT_D,
+  askedGrown,
   civicMoments,
   footprint,
   type StoreBook,
@@ -642,6 +643,8 @@ export type Site = Point & {
   readonly words: string;
   /** Whether it is raised in stone as well as timber. */
   readonly stone: boolean;
+  /** Those who work on it, by their pages, where it was asked for: its page names them (H1). */
+  readonly crew?: readonly string[];
 };
 
 /** Hands wanted at a home of each level going up: a hut's two, a high-rise's many. */
@@ -724,18 +727,45 @@ export function sitesOn(plan: VillagePlan, day: number, ground: Ground): Site[] 
       if (c.at >= town.lots) continue;
       const m = civicMoments(c);
       if (m.began >= b || m.done <= a || (m.fell !== null && m.fell <= a)) continue;
+      // (One asked for stands idle while something stops it, and its page says what: H1.)
+      if (c.asked?.stopped || c.asked?.left) continue;
       const f = footprint(lots, c.at, c.lots),
         what = civic(c.kind as CivicKind).name;
       out.push({
         x: f.x,
         z: f.z,
         yaw: f.yaw,
-        spots: front(f, f.d / 2 + 1.9, [-6, -2, 2, 6, -4, 4]),
-        hands: 6,
-        name: `the new ${what.replace(/^(a|an) /, "")}`,
-        words: `${what} going up`,
+        spots: front(f, f.d / 2 + 1.9, [-6, -2, 2, 6, -4, 4, 0, -8, 8, 1, -1, 3]),
+        hands: c.asked ? Math.max(2, Math.min(12, c.asked.hands)) : 6,
+        name: c.asked?.name ?? `the new ${what.replace(/^(a|an) /, "")}`,
+        words: c.asked ? `${c.asked.name} going up, as the town was asked` : `${what} going up`,
         stone: true,
+        ...(c.asked ? { crew: c.asked.crew } : {}),
       });
+    }
+    // (Walls asked for: at the length they have come to. H1.)
+    const wa = town.walls?.asked;
+    if (wa && !wa.stopped && !wa.left && scene.walls && a < wa.done) {
+      const around = Math.min(0.999, askedGrown(wa, a)),
+        l = scene.walls.lengths[Math.floor(around * scene.walls.lengths.length)];
+      if (l) {
+        const dx = Math.sign(-l.x) || 1,
+          dz = Math.sign(-l.z) || 1;
+        out.push({
+          x: l.x,
+          z: l.z,
+          yaw: l.yaw,
+          spots: [-4, -2, 0, 2, 4, 6].map((u) => ({
+            x: l.x + dx * 3 + u * Math.cos(l.yaw),
+            z: l.z + dz * 3 - u * Math.sin(l.yaw),
+          })),
+          hands: Math.max(2, Math.min(12, wa.hands)),
+          name: wa.name,
+          words: `${wa.name} going up, as the town was asked`,
+          stone: true,
+          crew: wa.crew,
+        });
+      }
     }
   }
   // (The nearest the square's first: the eye is there most.)
@@ -794,7 +824,9 @@ export type RoleKind =
   // The hunt (Phase 47 M209): out after the game with the others.
   | "hunt"
   // The road's trade (Phase 48 M210): a trader setting out, away, or coming back with goods.
-  | "trade";
+  | "trade"
+  // At what the town was asked to put first (H1).
+  | "first";
 
 /** Each day's work in words, for the town's card: "reaping", "felling timber". */
 export const ROLE_WORDS: Readonly<Record<RoleKind, string>> = {
@@ -827,6 +859,7 @@ export const ROLE_WORDS: Readonly<Record<RoleKind, string>> = {
   cart: "carrying in the sheaves",
   hunt: "out hunting",
   trade: "on the road with goods",
+  first: "at what the town was asked to put first",
 };
 
 export type Role = {
@@ -846,6 +879,16 @@ export type Role = {
   readonly seat: number;
 };
 
+/** Where one at a town's walls stands today (H1): a length of them, inside it, each to their own by the day. */
+export function firstAtWalls(plan: VillagePlan, day: number, who: number): Point | null {
+  const scene = sceneOf(plan, day * DAY);
+  if (!scene?.walls || !scene.walls.lengths.length) return null;
+  const l = scene.walls.lengths[(day + who * 7) % scene.walls.lengths.length]!,
+    r = Math.hypot(l.x, l.z) || 1,
+    inward = Math.max(0, r - 3) / r;
+  return { x: l.x * inward, z: l.z * inward };
+}
+
 /** The town's day: what is going up, who does what, whether it goes hungry. */
 export type TownDay = {
   readonly sites: readonly Site[];
@@ -853,6 +896,8 @@ export type TownDay = {
   readonly lean: boolean;
   /** The day of rest (none works). */
   readonly rest: boolean;
+  /** How many are at what the town was asked to put first today (H1). */
+  readonly firstAt?: number;
 };
 
 /** How many fire a kiln and its pots, and how many work at a workshop, at most. */
@@ -939,6 +984,7 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
     stone = 0,
     fellers = 0,
     quarrymen = 0;
+  let firstCount = 0;
   const put = (i: number, supply: boolean): boolean => {
     // (To the site with the most hands still wanted against what it wants; ties, the nearer.)
     let best = -1;
@@ -1010,6 +1056,19 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
         kept.add(best);
         sit(best, kind, k);
       });
+  // Those named on a site's page are on it, day on day (H1).
+  if (!rest)
+    sites.forEach((site, k) => {
+      for (const ref of site.crew ?? []) {
+        const i = plan.people.findIndex((p) => p.ref === ref);
+        if (i < 0 || kept.has(i) || !working(i) || want[k]! <= 0) continue;
+        want[k]!--;
+        kept.add(i);
+        kinds[i] = "build";
+        siteOf[i] = k;
+        wood += 3.5;
+      }
+    });
   // The town's makers at their own trades, day on day (Phase 50 M212): its smiths at the forge
   // while there is ore to work, its potters at its kilns, its weavers at its workshops — the same
   // people the pages of its buildings name, and the makers of the things its people hold.
@@ -1181,6 +1240,23 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
     else if (shop >= 0) sit(i, "workshop", shop);
     else kinds[i] = "workshop";
   }
+  // What the town was asked to put first (H1): so many of those at work today at it, more of them the fewer are at anything else. On its fields where it is food,
+  // on its sites where it is homes and anything is rising; else at the place it is done.
+  const first = plan.town?.first;
+  if (first && !rest)
+    plan.people.forEach((p, i) => {
+      if (!working(i) || kept.has(i) || kinds[i] === "build" || kinds[i] === "as-ever") return;
+      if (draws[i]!(61) >= first.pull) return;
+      if (first.what === "food") {
+        if (p.occupation === OCC.farmer || p.occupation === OCC.forager) return;
+        kinds[i] = plan.fields.length ? "hoe" : plan.water ? "fish" : "gather";
+        firstCount++;
+      } else if (first.what === "homes" && sites.length && put(i, false)) firstCount++;
+      else {
+        sit(i, "first", 0);
+        firstCount++;
+      }
+    });
   // A household's bread: one of it (who works, and is not away down the road) every third day,
   // every day in a lean year.
   const fetcher = new Map<number, number>();
@@ -1199,7 +1275,7 @@ export function townDay(plan: VillagePlan, day: number, ground: Ground): TownDay
     place: placeOf[i]!,
     seat: seatOf[i]!,
   }));
-  const town: TownDay = { sites, roles, lean, rest };
+  const town: TownDay = { sites, roles, lean, rest, ...(firstCount ? { firstAt: firstCount } : {}) };
   if (days.size > 60) days.clear();
   days.set(day, town);
   return town;

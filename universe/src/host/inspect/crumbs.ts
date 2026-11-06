@@ -82,6 +82,8 @@ export function crumbsOf(world: World, ref: string): Line {
       case "lot":
       case "bldg":
       case "walls":
+      // (And what it was asked: H1.)
+      case "ask":
       // (And its healer: Phase 55 M229.)
       case "heal": {
         const t = populationContext(world).settlements.get(

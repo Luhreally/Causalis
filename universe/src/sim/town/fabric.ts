@@ -159,6 +159,7 @@ export const CIVIC_LOTS: Readonly<Record<CivicKind, number>> = {
   fusion: 8,
   minds: 4,
   vats: 8,
+  well: 1,
 };
 
 /** Years a run must have stood untouched before it is history and may join the run it continues (a home takes at most three to raise). */
@@ -1445,6 +1446,35 @@ export class TownBuilder {
     return aligned(f.next, lots);
   }
 
+  /**
+   * One of its buildings begun at the asking (H1): on the lots its own plan would give it, what it takes the place of coming down first. Its `end` is its kind's,
+   * as every building's is when it is read back; how long it truly takes is its ask's.
+   */
+  askedCivic(f: Fabric, kind: CivicKind): { at: number; lots: number } {
+    const def = civic(kind),
+      old = def.replaces ? f.civics.find((c) => c.fell === null && c.kind === def.replaces) : undefined;
+    if (old) this.fall(f, old, FOLD.replaced);
+    // (At a great town's edge it would rise past what anyone can be shown: there, by its heart.)
+    const lots = CIVIC_LOTS[kind],
+      at = this.siteFor(f, lots, f.next > ASKED_EDGE_LOTS ? "core" : def.place);
+    this.clearFor(f, at, lots);
+    f.civics.push({ kind, at, lots, start: this.year, end: this.year + def.years, fell: null });
+    this.store.fold(f.town, FOLD.begun, CIVIC_INDEX.get(kind)!, at, this.year);
+    return { at, lots };
+  }
+
+  /** Its walls begun at the asking (H1), about the town as it stands. */
+  askedWalls(f: Fabric): { at: number; lots: number } {
+    f.walls = { start: this.year, end: this.year + wallYears(f.next), reach: f.next };
+    this.store.fold(f.town, FOLD.walls, this.year, f.next);
+    return { at: -1, lots: 0 };
+  }
+
+  /** A site given up (H1): what stands of it goes to ruin. */
+  askedFall(f: Fabric, c: Civic): void {
+    this.fall(f, c, FOLD.fell);
+  }
+
   /** Lots [at, at + lots) made ready for a building: their homes pulled down, the lots taken. */
   clearFor(f: Fabric, at: number, lots: number): void {
     const end = Math.min(at + lots, f.next),
@@ -1464,6 +1494,9 @@ export class TownBuilder {
     this.claim(f, at, at + lots);
   }
 }
+
+/** Past so many lots, what a town is asked to raise rises near its heart, not at its edge. */
+const ASKED_EDGE_LOTS = 300;
 
 /** Scratch for a town's buildings by kind: how many stand, whether one is rising. */
 const HAVE = new Int32Array(CIVICS.length),

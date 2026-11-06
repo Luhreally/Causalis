@@ -88,6 +88,7 @@ import { WAY, cultureOf } from "../culture/culture.ts";
 import { cutOff, endRealm, politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { interestsOf, pressure } from "../polity/interests.ts";
 import { loreOf } from "../lore/lore.ts";
+import { asksOf } from "../town/asks.ts";
 import { RIVALRY, diplomacyOf, relationRef } from "../diplomacy/diplomacy.ts";
 import { CREDIT, warChest } from "../credit/credit.ts";
 import { STRIFE, settleCivil } from "../strife/strife.ts";
@@ -1474,7 +1475,8 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         sightTerm(fleetA?.flyers ?? 0, fleetB?.flyers ?? 0),
       hills = g.tectonics.elevation[land]! > 600 ? 1.3 : 1,
       river = g.water.river[land] ? 1.1 : 1,
-      walls = 1 + 0.25 * lore.effect(land, "walls"),
+      // (And what its towns were asked to raise and see to, H1: exactly 1 on a land never asked.)
+      walls = (1 + 0.25 * lore.effect(land, "walls")) * asksOf(ctx.world).guard(land, t),
       // Those who hold the land know its ground, and every village is a stronghold; at
       // its seat the whole realm stands.
       seat = land === b.seat,

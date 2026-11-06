@@ -59,7 +59,9 @@ export type CivicKind =
   | "offices"
   | "fusion"
   | "minds"
-  | "vats";
+  | "vats"
+  // A well: raised only at the asking (H1). No town's own plan wants one.
+  | "well";
 
 export type CivicDef = {
   readonly kind: CivicKind;
@@ -294,6 +296,8 @@ export const CIVICS: readonly CivicDef[] = [
     per: 500_000,
     most: 12,
   },
+  // (Only ever asked for: H1. No town holds so many, so none plans one.)
+  { kind: "well", name: "a well", needs: [], people: Infinity, place: "core", years: 1 },
 ];
 
 export const CIVIC_INDEX: ReadonlyMap<CivicKind, number> = new Map(
@@ -334,6 +338,7 @@ export const CIVIC_FOR: Readonly<Record<CivicKind, string>> = {
   fusion: "where a flame of light atoms is held in a bottle of magnets, and the town drawn from it",
   minds: "where the town's minds of crystal reckon, and its machines are told what to do",
   vats: "where the town's food is grown, in tanks of warm broth",
+  well: "where those with no river at hand draw what they drink",
 };
 
 /** Each building's sign. */
@@ -360,4 +365,5 @@ export const CIVIC_ICON: Readonly<Record<CivicKind, string>> = {
   fusion: "🔆",
   minds: "🧠",
   vats: "🧫",
+  well: "🪣",
 };

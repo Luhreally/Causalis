@@ -110,6 +110,9 @@ function omenOf(type: string, data: unknown): { tenet: Tenet; strength: number }
       return { tenet: "teaching", strength: 1 };
     case "act.bless-one":
       return { tenet: "healing", strength: 0.8 };
+    // (A voice that asks: H1.)
+    case "town.asked":
+      return (data as { ruler?: string } | null)?.ruler ? null : { tenet: "presence", strength: 0.4 };
     case "people.famine":
       return { tenet: "hunger", strength: 0.25 };
     case "weather.drought":

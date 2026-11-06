@@ -34,6 +34,8 @@ export type ReignFlow = {
   /** Let them go: back to the world as it was. */
   leave(): void;
   readonly on: boolean;
+  /** Whose word it is, while one is ruled (H1). */
+  who(): { realm: string; ruler: string } | null;
 };
 
 const refused = (e: Error) => e.message.replace(/^reign\.\w+: /, "");
@@ -296,6 +298,7 @@ export function installReign(d: ReignDeps): ReignFlow {
   return {
     take,
     leave,
+    who: () => on,
     get on() {
       return !!on;
     },

@@ -78,7 +78,48 @@ export type TownCivic = {
   readonly truly?: number;
   /** The moment what brought it down reached it, where that was not a year's turn (W5, the greatest fire). */
   readonly thrown?: number;
+  /** What it was asked to be, where a town was asked for it (H1). */
+  readonly asked?: TownAsked;
 };
+
+/** A thing a town was asked to raise, as its plan was read (H1). */
+export type TownAsked = {
+  /** The page of its asking. */
+  readonly ref: string;
+  /** Its name, for those at work on it: "the granary". */
+  readonly name: string;
+  /** Asked, and finished or to be finished as things stood when the plan was read. */
+  readonly began: number;
+  readonly done: number;
+  /** When the plan was read, and how far it had got then, 0 to 1. */
+  readonly read: number;
+  readonly share: number;
+  readonly stopped: boolean;
+  readonly left: boolean;
+  /** How many at work, and those of them anyone can press (their pages). */
+  readonly hands: number;
+  readonly crew: readonly string[];
+  /** The colour of what is heaped by it. */
+  readonly heap: readonly [number, number, number];
+};
+
+/** What a town was asked to put first, while it stands (H1). */
+export type TownFirst = {
+  readonly what: string;
+  /** How many in a hundred of those at work are at it. */
+  readonly pull: number;
+  readonly until: number;
+  /** "Carrying stone to the walls": what they are at. */
+  readonly doing: string;
+  readonly page: string;
+};
+
+/** How far along a thing asked for is at moment t, 0 to 1 (H1): as its page says, between the plan's reading and when it will be done. */
+export function askedGrown(a: TownAsked, t: number): number {
+  if (t >= a.done && !a.stopped && !a.left) return 1;
+  if (a.stopped || a.left || t <= a.read) return a.share;
+  return Math.min(1, a.share + ((t - a.read) / Math.max(1, a.done - a.read)) * (1 - a.share));
+}
 
 /** How a design builds a home: its walls, its roof and its shape (realization ids), its roof's pitch. */
 export type TownDesign = {
@@ -106,7 +147,15 @@ export type TownPlan = {
    */
   readonly runs: readonly (readonly number[])[];
   readonly civics: readonly TownCivic[];
-  readonly walls: { readonly start: number; readonly end: number; readonly reach: number } | null;
+  readonly walls: {
+    readonly start: number;
+    readonly end: number;
+    readonly reach: number;
+    /** Asked for (H1). */
+    readonly asked?: TownAsked;
+  } | null;
+  /** What it was asked to put first, while it stands (H1). */
+  readonly first?: TownFirst;
   /** Months to raise a home of each level (hut, house, townhouse, tenement, block, high-rise). */
   readonly months: readonly number[];
   /** The designs its homes stand in, by the year each was realized. */
@@ -552,6 +601,12 @@ export function progress(began: number, takes: number, t: number): number {
 
 /** The moments a building of a town was begun, done and fell (null: it stands). */
 export function civicMoments(c: TownCivic): { began: number; done: number; fell: number | null } {
+  if (c.asked)
+    return {
+      began: c.asked.began,
+      done: c.asked.done,
+      fell: c.fell === null ? null : (c.thrown ?? (c.fell + 1) * YEAR),
+    };
   const began = (c.start + 1) * YEAR + hash(c.at, c.start) * 0.3 * YEAR;
   return {
     began,

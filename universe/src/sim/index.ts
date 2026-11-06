@@ -572,6 +572,28 @@ export {
 } from "./town/fabric.ts";
 export { BLESSING, LOCAL_ACT_EVENTS, agentName, installLocalActs } from "./acts/local.ts";
 export {
+  ASK_EVENTS,
+  ASK_FIRSTS,
+  ASK_FIRST_YEARS,
+  ASK_PULL,
+  WALL_MOST_LOTS,
+  askFormOf,
+  askShut,
+  asksOf,
+  effortOf,
+  firstProblem,
+  handsFor,
+  raiseProblem,
+  type Ask,
+  type AskAnswer,
+  type AskFirst,
+  type AskForm,
+  type AskRaise,
+  type AskStop,
+  type AskWhyCode,
+  type AskWork,
+} from "./town/asks.ts";
+export {
   FORTUNE,
   PEOPLE_ACT_EVENTS,
   REGARD,

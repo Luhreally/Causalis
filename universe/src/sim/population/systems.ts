@@ -76,6 +76,7 @@ import {
 } from "../hand/hand.ts";
 import { cultureOf, cultureYear } from "../culture/culture.ts";
 import { loreOf } from "../lore/lore.ts";
+import { asksMonth, asksOf } from "../town/asks.ts";
 import { MarketStore } from "../economy/market.ts";
 import {
   BANDS,
@@ -405,11 +406,15 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
     month = periodIndex(t, MONTH),
     markets = marketsOf(world),
     acts = actsOf(world),
+    asks = asksOf(world),
     offworldFrom = isProvinceWorld(ctx.generated) ? ctx.generated.offworld.base : Infinity;
+  // (The month's work on what towns were asked to raise, H1: here, as an old save's agenda holds no new system.)
+  asksMonth(ctx, t);
   for (const p of ctx.provinces.all()) {
     // A blessed harvest is richer, a blighted one poorer.
     const act = acts.at(p.cell, "harvest", t),
-      gift = act ? 1 + act.sign * ACT_STRENGTH.harvest : 1;
+      // (And what its towns were asked to put first, and the hands on what they were asked to raise: H1. Exactly 1 on a land never asked.)
+      gift = (act ? 1 + act.sign * ACT_STRENGTH.harvest : 1) * asks.gift(p.cell, t);
     const m = markets.of(p.cell),
       c = provinceCapacity(ctx, p.cell),
       // The land gives as its living world stands: less game where the wild is thin,
@@ -437,7 +442,7 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
       flocksLost = herdLoss(world, p.cell, t),
       wilds = 1 + lore.effect(p.cell, "forageYield"),
       keeping = Math.min(0.8, lore.effect(p.cell, "keeping")),
-      stored = lore.effect(p.cell, "storage"),
+      stored = lore.effect(p.cell, "storage") + asks.stored(p.cell, t),
       // Food grown in vats (Phase 66), whatever its ground, tended by machines more than hands.
       vats = lore.get(p.cell, "vat-food")
         ? saturate(
@@ -484,6 +489,8 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
     ];
     for (const [g, x] of harvest)
       m.move("made", g, roundKeyed(x * gift, world.rng.real(BIRTHS, key, t, HARVEST, g)));
+    // (Those at work on what its towns were asked to raise eat of it first: H1.)
+    if (asks.open.length) asks.feed(p.cell, m);
     for (const g of FOODS)
       m.move(
         "spoiled",

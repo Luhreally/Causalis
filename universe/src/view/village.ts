@@ -83,6 +83,7 @@ import {
   WORKSHOP,
   MOULDS,
   ROLE_WORDS,
+  firstAtWalls,
   beside,
   boardsOf,
   burnsCharcoal,
@@ -4359,6 +4360,49 @@ function dayOf(plan: VillagePlan, index: number, day: number, fine: boolean): Le
             why: `Setting the pots out at ${market.words}`,
           },
         ];
+      }
+      // At what the town was asked to put first (H1): something fetched from its yard or its store, carried to the place, and the work there.
+      case "first": {
+        const f = plan.town?.first;
+        if (!f) return errandOf({ ...role, kind: "workshop", place: -1 }, town, k);
+        const at =
+            f.what === "stores"
+              ? granary
+              : f.what === "arms"
+                ? (doors.get("smithy")?.[0] ?? doors.get("workshop")?.[0] ?? null)
+                : f.what === "trade"
+                  ? (doors.get("market")?.[0] ?? null)
+                  : f.what === "faith"
+                    ? (doors.get("temple")?.[0] ?? doors.get("shrine")?.[0] ?? null)
+                    : f.what === "learning"
+                      ? (doors.get("school")?.[0] ?? null)
+                      : null,
+          wall = f.what === "walls" ? firstAtWalls(plan, day, index) : null,
+          spot = at
+            ? clearSpot(ground, beside(at, role.seat % 48, 2.2))
+            : wall
+              ? clearSpot(ground, wall)
+              : clearSpot(ground, beside(yard, role.seat % 48, 2.2)),
+          carry = f.what === "faith" || f.what === "learning" ? null : f.what === "stores" ? "sack" : "stone",
+          place = at?.words ?? (wall ? "the walls" : yard.words);
+        return [
+          ...(carry
+            ? [
+                { to: yard.door, carry: null, why: `To ${yard.words}` },
+                { hours: 0.06, task: "load", carry: null, why: `Taking a load for ${place}` },
+                { to: spot, carry, why: `Carrying a load to ${place}, as the town was asked` },
+              ]
+            : [{ to: spot, carry: null, why: `To ${place}, as the town was asked` }]),
+          {
+            flex: true,
+            hours: 2,
+            min: 0.5,
+            task: "tend",
+            carry: null,
+            ...(at ? { face: at.yaw } : {}),
+            why: sentenceOf(f.doing),
+          },
+        ] as ReturnType<typeof errandOf>;
       }
       // The millers: the granary's grain carried to the mill, ground, and brought back as flour.
       case "mill": {

@@ -23,6 +23,7 @@ export { BattleSlowCaption } from "./battle-slow.ts";
 export { WarAgePanel, WarPanel } from "./war-panel.ts";
 export { GalaxyPanel } from "./galaxy-panel.ts";
 export { ClusterPanel } from "./cluster-panel.ts";
+export { AskSheet } from "./ask-sheet.ts";
 export { VillagePanel } from "./village-panel.ts";
 export { DayTold, clockOf } from "./day.ts";
 export { WhyTree, el, type WhyNode } from "./why.ts";

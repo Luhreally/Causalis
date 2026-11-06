@@ -29,6 +29,8 @@ export type Place =
       readonly household?: string;
       /** What it raised, to be looked at (T1). */
       readonly stone?: string;
+      /** What it was asked to raise, to be looked at (H1). */
+      readonly site?: string;
     }
   | { readonly scale: "system"; readonly body?: number }
   | { readonly scale: "cluster"; readonly star: string }
@@ -583,7 +585,33 @@ export type Portrait =
       readonly key: number;
     };
 
+/** One thing a town could be asked (H1). */
+export type AskOffer = {
+  readonly kind: "raise" | "first";
+  readonly what: string;
+  readonly icon: string;
+  readonly name: string;
+  readonly note: string;
+};
+
+/** What a town can be asked now, what it can't and why, and what it has been asked (H1). */
+export type TownOffers = {
+  readonly town: string;
+  readonly name: string;
+  readonly people: number;
+  /** Why it can't be asked at all (null: it can). */
+  readonly shut: string | null;
+  /** Who answers there. */
+  readonly who: string;
+  readonly firstNow: string | null;
+  readonly firsts: readonly AskOffer[];
+  readonly raises: readonly AskOffer[];
+  readonly no: readonly { readonly name: string; readonly why: string }[];
+  readonly asked: readonly { readonly ref: string; readonly words: string }[];
+};
+
 export type PageKind =
+  | "ask"
   | "road"
   | "bloc"
   | "league"

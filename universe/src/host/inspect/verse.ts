@@ -25,7 +25,9 @@ export type SongKind =
   | "peace"
   | "leaving"
   | "sky"
-  | "beast";
+  | "beast"
+  // What a town raised because it was asked (H1).
+  | "asked";
 
 /** What a song is made from. */
 export type SongFacts = {
@@ -518,6 +520,25 @@ const BANKS: Readonly<Record<SongKind, Bank>> = {
       "Leave a light. It will be a long time. Leave a light anyway.",
     ],
     cut: ["They left from here.", "Leave a light.", "Gone up, year {year}."],
+  },
+  asked: {
+    titles: [
+      ["What {town} Was Asked", "The Asking at {town}"],
+      ["What {town} Was Asked", "The Asking"],
+      ["The Asking", "The One Who Asked"],
+      ["The Asking", "They Asked and We Built"],
+    ],
+    near: [
+      "We were asked, and we carried it, and it stands, and no one has yet told us why us.",
+      "The stone came from the yard one load at a time. I know. I carried some.",
+      "It stands where the old homes stood, and they haven't stopped saying so.",
+    ],
+    far: [
+      "Someone asked this of {town}, the song says. No one knows now who it was who carried it.",
+      "Ask who built it, and they'll name no one. Ask who asked, and they look up.",
+      "It was asked for, says the song, and it was raised, and that is all the song knows.",
+    ],
+    cut: ["We were asked.", "It was asked for.", "They asked and we built, year {year}."],
   },
   sky: {
     titles: [

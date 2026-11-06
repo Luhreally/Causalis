@@ -148,6 +148,7 @@ import {
   type Counted,
 } from "./inspect/index.ts";
 import { annalsIndex, annalsRead, runTold } from "./inspect/annals.ts";
+import { askedKey, townOffers } from "./inspect/asks.ts";
 import { MAP_QUERIES } from "./map.ts";
 import { POSSESS_QUERIES } from "./possess.ts";
 import { LIFE_QUERIES } from "./life.ts";
@@ -836,7 +837,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
   // shut the first way. And with W2: past its engines, wings, and war from the air; what the tree's roots
   // know crosses the sea. And with W3: past its rocketry, loads thrown. And with E1: woods that move, long ages of rain,
   // lodes that run out. And with Z1: herds that go somewhere, beasts people know, herds taken in war, a tree that goes on.)
-  const version = name === "alien" ? "alien-21" : `${name}-17`,
+  const version = name === "alien" ? "alien-22" : `${name}-18`,
     make = (seed: Seed, frequency?: number) => {
       // The chronicle opens after a generated prehistory: bands across the land.
       const world = makePopulationWorld(seed, {
@@ -1089,6 +1090,9 @@ function planetUniverse(name: string, prior: Prior): Universe {
       "acts.map": (world) => actsMap(world),
       /** A land's sky (Phase 30 M162): its climate, this year's rain, the god's acts on it. */
       "land.sky": (world, args) => landSky(world, (args as { cell: number }).cell),
+      // What a town can be asked, and whether what it was asked has moved (H1).
+      "town.offers": (world, args) => townOffers(world, (args as { ref: string }).ref),
+      "town.asked": (world, args) => askedKey(world, (args as { ref: string }).ref),
       "woods.map": (world) => woodsMap(world),
       // A land's creatures, as its map draws them (Z1): read, never told back.
       "land.herds": (world, args) => landHerds(world, (args as { cell: number }).cell),
