@@ -215,7 +215,8 @@ const towns = await k<{ ref: string; cell: number; people: number; name: string 
     await page.waitForTimeout(500);
   };
   if (seen(spots?.civic ?? null))
-    await tap(spots!.civic!.x, spots!.civic!.y, /^bldg:/, /^The .+ of /, "a building");
+    // (The first to stand may be a market hall, and a hall gives its board first: Markets, first slice. A building's own page is asked for on the phone below.)
+    await tap(spots!.civic!.x, spots!.civic!.y, /^(bldg|board):/, /^The .+ of /, "a building");
   if (seen(spots?.lot ?? null))
     await tap(
       spots!.lot!.x,
