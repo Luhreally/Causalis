@@ -267,7 +267,7 @@ const CUT_GAP = 0.34;
 /** The most pieces of a town's worn ground its land draws. */
 const LAND_WORN = 340;
 /** The most gangs drawn on a land at once. */
-const MOST_GANGS = 8;
+const MOST_GANGS = 20;
 
 /** How far over the road the middle of one riding on it is (region units). */
 const RIDER_UP = 0.1;
