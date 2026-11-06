@@ -129,11 +129,17 @@ export function starPage(world: World, ref: string): StarPage {
         pressure: p.pressure,
         air: p.air,
         water: p.water,
-        ...(gone ? { unmade: { year: gone.year, by: gone.by ? gone.name : null, event: gone.event } } : {}),
-        ...(dark ? { burned: { year: dark.year, until: dark.until ?? dark.year, event: dark.event } } : {}),
+        ...(gone
+          ? { unmade: { year: gone.year, by: gone.by ? gone.name : null, event: gone.event } }
+          : {}),
+        ...(dark
+          ? { burned: { year: dark.year, until: dark.until ?? dark.year, event: dark.event } }
+          : {}),
         ...(gone
           ? {}
-          : { reach: farReachOf(world, { pull: p.gravity, radius: p.radius, airBar: p.pressure }) }),
+          : {
+              reach: farReachOf(world, { pull: p.gravity, radius: p.radius, airBar: p.pressure }),
+            }),
         ...(f
           ? {
               folk: {
@@ -239,8 +245,12 @@ export function foreignGlobe(world: World, ref: string, index: number): WorldGlo
     ? {
         ...made,
         ...(s ? { scarred: true } : {}),
-        ...(gone ? { unmade: { year: gone.year, by: gone.by ? gone.name : null, event: gone.event } } : {}),
-        ...(dark ? { burned: { year: dark.year, until: dark.until ?? dark.year, event: dark.event } } : {}),
+        ...(gone
+          ? { unmade: { year: gone.year, by: gone.by ? gone.name : null, event: gone.event } }
+          : {}),
+        ...(dark
+          ? { burned: { year: dark.year, until: dark.until ?? dark.year, event: dark.event } }
+          : {}),
       }
     : made;
 }

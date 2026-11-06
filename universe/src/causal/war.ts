@@ -140,7 +140,8 @@ registerEventWords(FAR_EVENTS.fell.type, (_, e) => {
 });
 registerEventWords(
   FAR_EVENTS.given.type,
-  (_, e) => `By the god's hand ${text(e.data, "a")} can turn its star's light on a far mark, ${year(e.t)}`,
+  (_, e) =>
+    `By the god's hand ${text(e.data, "a")} can turn its star's light on a far mark, ${year(e.t)}`,
 );
 registerDecisionWords("far.use", (world, d) => {
   const o = d.outcome as { loose?: boolean; rung?: string; ruler?: string };

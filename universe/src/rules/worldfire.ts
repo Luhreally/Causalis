@@ -103,10 +103,7 @@ export const farGoing = (strength: number, defence: number): number =>
   defence / Math.max(1e-6, strength + defence);
 
 /** The chance a ruler looses a rung, at the brink: the town's own sum, and each rung rarer. */
-export function chanceOfRung(
-  rung: Rung,
-  i: Parameters<typeof chanceOfFall>[0],
-): number {
+export function chanceOfRung(rung: Rung, i: Parameters<typeof chanceOfFall>[0]): number {
   return chanceOfFall(i) * FAR.rarer[rung];
 }
 

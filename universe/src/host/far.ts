@@ -61,7 +61,10 @@ function nearestOf(world: World): {
           c.hullMj,
           `a fleet of ${FAR.hulls} great hulls at ${drive ? Math.round(cruise(drive) * 100) : 0} in a hundred of light's speed, their own speed the strike`,
         ],
-        [c.works ? c.lightMj : 0, `its star's light turned on one mark for ${FAR.gatherYears} years`],
+        [
+          c.works ? c.lightMj : 0,
+          `its star's light turned on one mark for ${FAR.gatherYears} years`,
+        ],
       ];
     for (const [mj, how] of ways)
       if (mj > (best?.mj ?? 0)) best = { ref: p.ref, name: realmName(p), mj, how };
@@ -105,7 +108,11 @@ export function farLadderStats(world: World): Stat[] {
 }
 
 const rungWords = (rung: Rung): string =>
-  rung === "world" ? "a world unmade" : rung === "sky" ? "a world's sky burned" : "a fire carried to another world";
+  rung === "world"
+    ? "a world unmade"
+    : rung === "sky"
+      ? "a world's sky burned"
+      : "a fire carried to another world";
 
 const worldWords = (f: Pick<FarFall, "planet">): string =>
   `its ${["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth"][f.planet] ?? `${f.planet + 1}th`} world`;
@@ -246,7 +253,11 @@ export function farLandStats(world: World, cell: number): Stat[] {
     .filter((f) => f.lands.includes(cell))
     .map((f) =>
       stat(
-        f.rung === "world" ? "Its world was unmade" : f.rung === "sky" ? "Its sky burned" : "A fire carried here",
+        f.rung === "world"
+          ? "Its world was unmade"
+          : f.rung === "sky"
+            ? "Its sky burned"
+            : "A fire carried here",
         `Year ${f.year}, by ${f.by ? f.name : "the god's hand"}: ${peopleWords(f.dead)} dead on that world`,
         { why: f.event },
       ),
@@ -263,7 +274,10 @@ export function farPlan(world: World, event: string): FarFilmPlan | null {
     who = f.by ? f.name : "The god's hand",
     name = rungName(f.rung, sun),
     rows = [
-      { head: "Who", text: f.by ? `${f.name}${f.decision ? ", its ruler's word" : ""}` : "The god's hand" },
+      {
+        head: "Who",
+        text: f.by ? `${f.name}${f.decision ? ", its ruler's word" : ""}` : "The god's hand",
+      },
       {
         head: "What it took",
         text: `${mjWords(f.mj)} ${f.byLight ? "of its star's gathered light" : f.by && f.rung !== "carried" ? "by its great hulls' own speed" : "brought"}, against the ${mjWords(f.need)} ${f.rung === "world" ? "that was this world's binding energy" : f.rung === "sky" ? "that was its whole sky's" : "of one greatest fire"}`,
@@ -364,4 +378,3 @@ export const FAR_QUERIES = {
     };
   },
 } as const;
-

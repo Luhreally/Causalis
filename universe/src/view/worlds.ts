@@ -59,14 +59,20 @@ export const FAR_STRIKE = { x: 0.42, y: 0.42, z: -0.8 };
  * A world's face after what fell (W6): `dark` 0 … 1 over all of it, spreading from where it fell; `mark`: char about that point, the
  * size a fire carried leaves. Pure: the same numbers are the same colours.
  */
-export function farFace(colors: Uint8Array, w: WorldGlobe, dark: number, mark: boolean): Uint8Array {
+export function farFace(
+  colors: Uint8Array,
+  w: WorldGlobe,
+  dark: number,
+  mark: boolean,
+): Uint8Array {
   const grid = sphereGrid(w.frequency),
     out = colors.slice(),
     p = grid.positions,
     l = Math.hypot(FAR_STRIKE.x, FAR_STRIKE.y, FAR_STRIKE.z);
   for (let c = 0; c < grid.count; c++) {
     const along =
-        (p[3 * c]! * FAR_STRIKE.x + p[3 * c + 1]! * FAR_STRIKE.y + p[3 * c + 2]! * FAR_STRIKE.z) / l,
+        (p[3 * c]! * FAR_STRIKE.x + p[3 * c + 1]! * FAR_STRIKE.y + p[3 * c + 2]! * FAR_STRIKE.z) /
+        l,
       far = (1 - along) / 2,
       front = Math.max(0, Math.min(1, (dark * 1.4 - far) / 0.4)),
       scar = mark ? Math.max(0, Math.min(1, (along - 0.975) / 0.012)) : 0,

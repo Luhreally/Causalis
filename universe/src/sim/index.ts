@@ -421,14 +421,7 @@ export {
   type GreatFall,
   type GreatWorks,
 } from "./war/fire.ts";
-export {
-  FAR_EVENTS,
-  commandOf,
-  farStar,
-  farWorksOf,
-  farWorldOf,
-  strikeWorld,
-} from "./war/far.ts";
+export { FAR_EVENTS, commandOf, farStar, farWorksOf, farWorldOf, strikeWorld } from "./war/far.ts";
 export {
   ARMS_TAKE,
   ARMS_WEAR,

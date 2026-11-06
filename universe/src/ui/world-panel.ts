@@ -95,7 +95,11 @@ export class WorldPanel {
     if (!r) return [];
     const burned = w.burned,
       acts = el("div", "colony-row-acts"),
-      sky = el("button", "colony-watch far-sky", burned ? "▶ Watch its sky burn" : "🔥 Burn its sky"),
+      sky = el(
+        "button",
+        "colony-watch far-sky",
+        burned ? "▶ Watch its sky burn" : "🔥 Burn its sky",
+      ),
       unmake = el("button", "colony-watch far-unmake", "🌑 Unmake it");
     sky.onclick = () =>
       burned ? this.onFarWatch(burned.event) : this.askFar(sky, "sky", star, index);
@@ -106,7 +110,13 @@ export class WorldPanel {
       el("h3", undefined, "What it would take"),
       ...r.words.map((t) => el("div", "fact far-reach", t)),
       ...(burned
-        ? [el("div", "fact far-burned", `Its whole sky burned in year ${burned.year}: dark until year ${burned.until}.`)]
+        ? [
+            el(
+              "div",
+              "fact far-burned",
+              `Its whole sky burned in year ${burned.year}: dark until year ${burned.until}.`,
+            ),
+          ]
         : []),
       el("h3", undefined, "Your hand on it"),
       acts,
@@ -117,7 +127,10 @@ export class WorldPanel {
   private askFar(b: HTMLElement, rung: "sky" | "world", star: StarPage, index: number): void {
     if (b.dataset.sure !== "1") {
       b.dataset.sure = "1";
-      b.textContent = rung === "world" ? "🌑 There is no undoing this. Unmake it" : "🔥 There is no undoing this. Burn it";
+      b.textContent =
+        rung === "world"
+          ? "🌑 There is no undoing this. Unmake it"
+          : "🔥 There is no undoing this. Burn it";
       b.classList.add("far-sure");
       return;
     }
@@ -199,8 +212,16 @@ export class WorldPanel {
       this.title.textContent = `What was ${letter}`;
       this.inspector.hidden = false;
       this.facts.replaceChildren(
-        el("div", "fact far-gone", `Unmade in year ${w.unmade.year}, by ${w.unmade.by ?? "the god's hand"}`),
-        el("div", "fact", `It went round ${name} at ${w.a.toFixed(2)} AU. Rubble goes round there now.`),
+        el(
+          "div",
+          "fact far-gone",
+          `Unmade in year ${w.unmade.year}, by ${w.unmade.by ?? "the god's hand"}`,
+        ),
+        el(
+          "div",
+          "fact",
+          `It went round ${name} at ${w.a.toFixed(2)} AU. Rubble goes round there now.`,
+        ),
       );
       this.spot.textContent = "No ground, no air, no one. No ship goes there.";
       const page = el("button", "colony-watch far-page", "📖 What it was and what it took"),

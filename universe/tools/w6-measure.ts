@@ -4,7 +4,14 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
-import { YEAR, loadWorld, rulesetId, saveWorld, seedFromText, type World } from "../src/kernel/index.ts";
+import {
+  YEAR,
+  loadWorld,
+  rulesetId,
+  saveWorld,
+  seedFromText,
+  type World,
+} from "../src/kernel/index.ts";
 import { ALIEN, EARTH } from "../src/host/planet.ts";
 import { rungOf, skyMj, unmakeMj } from "../src/rules/index.ts";
 import {
@@ -21,7 +28,9 @@ import { meansNumbers } from "../src/gen/index.ts";
 const [mode, a, b] = process.argv.slice(2);
 const load = (file: string, universe: string): World => {
   const u = universe === "earth" ? EARTH : ALIEN,
-    doc = JSON.parse(gunzipSync(readFileSync(file)).toString("utf8")) as Parameters<typeof loadWorld>[0];
+    doc = JSON.parse(gunzipSync(readFileSync(file)).toString("utf8")) as Parameters<
+      typeof loadWorld
+    >[0];
   return loadWorld(doc, (s) => u.build(s), rulesetId(u.build(seedFromText(doc.seed)), u.version), {
     allowRulesetChange: true,
   }).world;
@@ -72,7 +81,10 @@ if (mode === "reach") {
       started = performance.now();
     try {
       console.log(
-        JSON.stringify({ ...reach(load(join(a!, f), universe)), ms: Math.round(performance.now() - started) }),
+        JSON.stringify({
+          ...reach(load(join(a!, f), universe)),
+          ms: Math.round(performance.now() - started),
+        }),
       );
     } catch (e) {
       console.log(JSON.stringify({ file: f, failed: (e as Error).message }));
@@ -85,7 +97,9 @@ if (mode === "reach") {
     from = Math.floor(world.now / YEAR),
     years = Number(b ?? 100);
   console.log(JSON.stringify({ start: reach(world) }));
-  const before = JSON.stringify(saveWorld(world, rulesetId(world, u.version), { universe: u.name })).length;
+  const before = JSON.stringify(
+    saveWorld(world, rulesetId(world, u.version), { universe: u.name }),
+  ).length;
   let spent = 0;
   for (let y = 1; y <= years; y++) {
     const t0 = performance.now();
@@ -111,7 +125,9 @@ if (mode === "reach") {
       );
     }
   }
-  const after = JSON.stringify(saveWorld(world, rulesetId(world, u.version), { universe: u.name })).length;
+  const after = JSON.stringify(
+    saveWorld(world, rulesetId(world, u.version), { universe: u.name }),
+  ).length;
   console.log(JSON.stringify({ end: reach(world), saveBefore: before, saveAfter: after }));
 }
 process.exit(0);

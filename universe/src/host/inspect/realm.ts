@@ -861,9 +861,19 @@ export function starWarPage(world: World, ref: string): PageModel {
       stat("Fleet", `strength ${count(w.strength)}`),
       stat("Sailed", `year ${w.sailed}`),
       stat("Arrives", `year ${w.arrives}`),
-      stat("Won", w.won === null ? (w.ended ? "no battle was fought" : "not yet fought") : w.won ? "yes" : "no", {
-        why: w.battle,
-      }),
+      stat(
+        "Won",
+        w.won === null
+          ? w.ended
+            ? "no battle was fought"
+            : "not yet fought"
+          : w.won
+            ? "yes"
+            : "no",
+        {
+          why: w.battle,
+        },
+      ),
     ],
     tabs: [
       {

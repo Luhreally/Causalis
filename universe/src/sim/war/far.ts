@@ -313,7 +313,14 @@ function farResolve(ctx: PopulationContext, t: SimTime): void {
         .all()
         .find((x) => x.ref === c.war),
       star = clusterOf(world).find((x) => x.ref === c.star);
-    if (!by || by.ended !== null || !w || w.ended || !star || fireOf(world).unmade(c.star, c.planet)) {
+    if (
+      !by ||
+      by.ended !== null ||
+      !w ||
+      w.ended ||
+      !star ||
+      fireOf(world).unmade(c.star, c.planet)
+    ) {
       c.ended = year;
       c.end = "gone";
       continue;
@@ -524,7 +531,10 @@ function farBrinks(ctx: PopulationContext, t: SimTime): void {
     realms = politiesOf(world);
   for (const w of starWarsOf(world).all()) {
     if (w.ended || w.arrives !== year + 1) continue;
-    const last = Math.max(s.crises.at(-1)?.year ?? -Infinity, s.far?.crises.at(-1)?.year ?? -Infinity);
+    const last = Math.max(
+      s.crises.at(-1)?.year ?? -Infinity,
+      s.far?.crises.at(-1)?.year ?? -Infinity,
+    );
     if (year - last < FAR.quiet) return;
     const p = realms.get(w.realm);
     if (!p || p.ended !== null) continue;
@@ -672,4 +682,3 @@ export function installFar(world: World, ctx: () => PopulationContext): void {
     },
   });
 }
-

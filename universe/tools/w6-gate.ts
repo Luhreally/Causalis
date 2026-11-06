@@ -306,9 +306,7 @@ const advanceTo = async (t: number) => {
 const pageWords = async (ref: string) => JSON.stringify(await ask<unknown>("page", { ref }));
 
 /** Of the screen's middle: how much is hot (fire's colours), red, bright, and how bright on the whole; and how much differs from an earlier shot. */
-async function read(
-  before?: string,
-): Promise<{
+async function read(before?: string): Promise<{
   hot: number;
   red: number;
   white: number;
@@ -591,16 +589,15 @@ async function run(f: Forged): Promise<void> {
   );
   await k(`globalThis.causalis.closePage?.()`);
   // A colony of it.
-  const colonies =
-      await ask<
-        {
-          star: string | null;
-          planet: number | null;
-          cell: number;
-          people: number;
-          gone?: { year: number };
-        }[]
-      >("colony.list"),
+  const colonies = await ask<
+      {
+        star: string | null;
+        planet: number | null;
+        cell: number;
+        people: number;
+        gone?: { year: number };
+      }[]
+    >("colony.list"),
     mine = colonies.filter((c) => c.star === f.god.star && c.planet === f.god.planet);
   if (f.god.hall) {
     check(mine.length > 0, "its colony is not listed");
@@ -816,7 +813,9 @@ async function run(f: Forged): Promise<void> {
   const peoplePage = await pageWords(f.civ);
   say(`a people unmade: ${peoplePage.slice(0, 260)}`);
   check(
-    /are gone/.test(peoplePage) && /"kind":"civilization"/.test(peoplePage) && !/civ:\d+:\d+\)/.test(peoplePage),
+    /are gone/.test(peoplePage) &&
+      /"kind":"civilization"/.test(peoplePage) &&
+      !/civ:\d+:\d+\)/.test(peoplePage),
     `a people whose world is gone has no page of its own: ${peoplePage.slice(0, 260)}`,
   );
   await k(`globalThis.causalis.open(${JSON.stringify(f.civ)})`);

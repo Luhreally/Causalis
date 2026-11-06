@@ -489,7 +489,13 @@ export class GlobeScene {
         ],
       });
       this.stage.root.addChild(this.core);
-      this.coreGlow = billboard(this.stage, glowMaterial(this.stage, BREAK_GLOW), 1, this.stage.root, true);
+      this.coreGlow = billboard(
+        this.stage,
+        glowMaterial(this.stage, BREAK_GLOW),
+        1,
+        this.stage.root,
+        true,
+      );
       this.shock = billboard(this.stage, glowMaterial(this.stage, SHOCK), 1, this.stage.root, true);
     }
   }
@@ -610,7 +616,13 @@ export class GlobeScene {
         out[3] = out[4] = out[5] = 0.006 + 0.016 * hash(i, 14);
         out[6] = hash(i, 15) * 6.283;
       });
-      this.cinderGlow = billboard(this.stage, glowMaterial(this.stage, CINDER), 0.95, this.ruinRoot, true);
+      this.cinderGlow = billboard(
+        this.stage,
+        glowMaterial(this.stage, CINDER),
+        0.95,
+        this.ruinRoot,
+        true,
+      );
     }
     if (on) {
       if (this.entity) this.entity.enabled = false;

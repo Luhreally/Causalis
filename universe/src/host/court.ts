@@ -280,7 +280,12 @@ export function dramaOf(world: World, r: Polity): ReignDrama | null {
         },
         {
           id: "loose",
-          label: far.rung === "world" ? "🌑 Unmake it" : far.rung === "sky" ? "🔥 Burn its sky" : "☢️ Loose it",
+          label:
+            far.rung === "world"
+              ? "🌑 Unmake it"
+              : far.rung === "sky"
+                ? "🔥 Burn its sky"
+                : "☢️ Loose it",
           can,
           words: can
             ? "It falls at the year's end. No ruler anywhere will ever think of you the same way."
