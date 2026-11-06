@@ -99,7 +99,7 @@ type PlanPerson = {
   wounds?: Wound[];
   away?: { event: string; from: number; until: number }[];
 };
-type Plan = { ref: string; name: string; people: PlanPerson[] };
+type Plan = { ref: string; name: string; people: PlanPerson[]; homes: { x: number; z: number }[] };
 type Row = {
   ref: string;
   name: string;
@@ -972,9 +972,16 @@ if (round.length) {
   s = await shown();
   const h = (await people()).find((p) => p.index === healer);
   check(h?.task === "heal", "the healer not at the round's first door");
+  // (The door of the one they see to: of one abed where any still are; where all are up by the next day, as in a town whose wounds were slight, of one freshly home.)
+  const seenTo = plan.people.find((p) => !!g.why?.includes(`${p.name.split(" ")[0]}'s`)),
+    door = seenTo ? plan.homes[seenTo.home] : null;
   check(
-    !!h && !!s?.homes.some((q) => near(q, h, 12)),
-    "the healer's first door not the home of one abed",
+    !!h && !!door && near(door, h, 12),
+    `the healer's first door (${g.why}) not the home of the one seen to`,
+  );
+  check(
+    !g.why?.startsWith("Dressing") || (!!h && !!s?.homes.some((q) => near(q, h, 12))),
+    "the healer's door on the morning's round not the home of one abed",
   );
   if (h) {
     await face(h.x, h.z, 3);

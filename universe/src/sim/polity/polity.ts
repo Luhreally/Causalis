@@ -34,6 +34,7 @@ import type { LoreStore } from "../lore/lore.ts";
 import { interestsOf, pressure } from "./interests.ts";
 import { revolutionHolds } from "../strife/strife.ts";
 import { courtClaimant, courtFollows } from "../court/court.ts";
+import { claimAtDeath } from "../war/ties.ts";
 import { heldAmongStars } from "../space/nation-store.ts";
 
 export const POLITY = defineKind("pol", "realm", "minted");
@@ -698,6 +699,10 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
           p.succession === 0 ? old.name.split(" ").slice(1).join(" ") : null,
           ctx.life.adulthood,
         );
+    // (A house with no one left: someone of a marriage may come forward, and the realm may pass with them: D1.)
+    const claim = claimAtDeath(ctx, p, old, event, next !== null, t);
+    if (claim?.ruler) p.ruler = { ...claim.ruler, since: year, event };
+    if (p.ended !== null) continue;
     if (crisis && edge.length && edge.length < near.length) {
       // The lands farthest from the seat break away together, and their grievance is why; the one who wanted the seat leads them.
       const aggrieved = [...edge].sort(

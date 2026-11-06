@@ -18,10 +18,12 @@ import {
   civicsActive,
   cropAt,
   groundAt,
+  tileOf,
   landFields,
   laneLine,
   landReach,
   linePieces,
+  onLines,
   roadLine,
   roadLook,
   roadOutside,
@@ -54,7 +56,29 @@ import type { Rgb, Stage } from "./stage.ts";
 
 /** How far over the ground a town's ground stands (region units), and how deep its slabs go into it. */
 const LIFT = 0.01;
+/** Over the tiles a flat thing `r` about a point lies on, how high its top comes. */
+function layTop(
+  tops: Float32Array,
+  g: LandGround,
+  x: number,
+  z: number,
+  r: number,
+  top: number,
+): void {
+  const half = ((g.size - 1) * g.tileKm) / 2,
+    i0 = Math.max(0, Math.round((x - r + half) / g.tileKm)),
+    i1 = Math.min(g.size - 1, Math.round((x + r + half) / g.tileKm)),
+    j0 = Math.max(0, Math.round((z - r + half) / g.tileKm)),
+    j1 = Math.min(g.size - 1, Math.round((z + r + half) / g.tileKm));
+  for (let j = j0; j <= j1; j++)
+    for (let i = i0; i <= i1; i++) {
+      const t = j * g.size + i;
+      if (top > tops[t]!) tops[t] = top;
+    }
+}
 const SLAB = 0.06;
+/** How far off a road a block of a land built over stands (region units): the road, the rails beside it, what goes on them. */
+const WAY_CLEAR = 0.2;
 /** A slab's corners, as signs along it and across it. */
 const CORNERS: readonly (readonly [number, number])[] = [
   [-1, -1],
@@ -87,6 +111,8 @@ type Drawn = {
 class GroundBatches {
   private readonly batches = new Map<string, InstancedBatch>();
   private scratch = new Float32Array(0);
+  /** The top of the wide slabs over each tile, as last shown. */
+  tops: Float32Array | null = null;
   private readonly stage: Stage;
   private readonly root: pc.Entity;
   private readonly meshes: Readonly<Record<PartMesh, pc.Mesh>>;
@@ -103,12 +129,16 @@ class GroundBatches {
       z: number;
       /** Where none of it stands (region units). */
       gone?: readonly { x: number; z: number; r: number }[];
+      /** Whether anything raised may not stand somewhere, `r` about a point (region units). */
+      kept?: (x: number, z: number, r: number) => boolean;
     }[],
     g: LandGround,
     /** A people of the water's: it stands on the seabed, none of it ashore. */
     undersea = false,
   ): void {
     const floor = undersea ? floorAt : groundAt;
+    if (this.tops?.length !== g.size * g.size) this.tops = new Float32Array(g.size * g.size);
+    this.tops.fill(-Infinity);
     const keys = new Map<string, { mesh: PartMesh; color: Rgb; n: number }>();
     for (const t of towns)
       for (const [key, grp] of t.parts.groups) {
@@ -133,12 +163,16 @@ class GroundBatches {
           if (t.gone?.some((h) => Math.hypot(x - h.x, z - h.z) < h.r)) continue;
           const top = d[o + 1]! + d[o + 4]! / 2,
             q = m * 7;
-          let ground = floor(g, x, z);
+          let ground = floor(g, x, z),
+            wide = false;
           // (A wide slab lies on its highest corner, or the land's rises come up through it. On the
           // seabed the shore comes up over it, as it should: one lifted there would hang in the sea.)
           const sx = d[o + 3]! * LAND_ACROSS,
             sz = d[o + 5]! * LAND_ACROSS;
+          if (t.kept && top >= LAND_FLAT && t.kept(x, z, Math.max(sx, sz) / 2 + WAY_CLEAR))
+            continue;
           if (!undersea && Math.max(sx, sz) > g.tileKm / 4) {
+            wide = true;
             const c = Math.cos(d[o + 6]!),
               s = Math.sin(d[o + 6]!);
             for (const [u, v] of CORNERS) {
@@ -158,6 +192,7 @@ class GroundBatches {
             const up = ground + top * FLAT_UP;
             out[q + 1] = up - SLAB / 2;
             out[q + 4] = SLAB;
+            if (wide) layTop(this.tops, g, x, z, Math.hypot(sx, sz) / 2, up);
           } else {
             // (Towers kept from being needles at the land's height: Phase 66.)
             const foot = landHigh(d[o + 1]! - d[o + 4]! / 2),
@@ -218,6 +253,9 @@ const TRACK: Rgb = [0.66, 0.55, 0.38],
   PAVED: Rgb = [0.6, 0.6, 0.58],
   RAILS: Rgb = [0.26, 0.22, 0.2];
 const ROAD_WIDE = { track: 0.07, paved: 0.1, rails: 0.05 } as const;
+
+/** How far over the road the middle of one riding on it is (region units). */
+const RIDER_UP = 0.1;
 
 export class LandLayer {
   readonly root = new pc.Entity("land-towns");
@@ -287,6 +325,7 @@ export class LandLayer {
     this.camps.clear();
     this.herds.clear();
     this.fields = [];
+    this.fieldTops = null;
     this.plan = null;
     this.roadsKey = "";
     this.season = -1;
@@ -393,6 +432,14 @@ export class LandLayer {
                   parts: this.built,
                   x: 0,
                   z: 0,
+                  // (Its roads run clear through it: what goes on them can be seen.)
+                  kept: onLines(
+                    plan.roads.flatMap((r) => {
+                      const out =
+                        roadLook(r, Math.floor(t / YEAR)) === "none" ? null : this.roadOut(r);
+                      return out ? [out] : [];
+                    }),
+                  ),
                   gone: [...this.towns.values()].flatMap((d) =>
                     d.scene.plan.ash
                       ? [{ x: d.x, z: d.z, r: ashReach(d.scene.plan, d.scene.lots) * LAND_ACROSS }]
@@ -426,6 +473,7 @@ export class LandLayer {
             laid,
           ).map((field) => ({ field, crop: -1 }));
         });
+      this.layFieldTops();
       this.season = -1;
     }
     this.drawnAt = -Infinity;
@@ -441,7 +489,7 @@ export class LandLayer {
     const g = this.ground;
     if (!g || !this.plan) return;
     this.running = running;
-    this.traffic.move(g, running);
+    this.traffic.move(g, running, this.overFields);
     this.camps.update(running);
     this.herds.update(g, this.clearings(), (t % YEAR) / YEAR, running);
     const wall = performance.now();
@@ -471,6 +519,28 @@ export class LandLayer {
       this.year = year;
       this.showRoads(year);
     }
+  }
+
+  /**
+   * The top of the field plates lying over each tile: a plate is flat at its middle's height, so across a slope it stands
+   * above the ground, and a road and what goes along it run over it, not under it. As over a great city's trodden ground.
+   */
+  private fieldTops: Float32Array | null = null;
+  private readonly overFields = (g: LandGround, x: number, z: number): number => {
+    const t = tileOf(g, x, z);
+    return Math.max(
+      groundAt(g, x, z),
+      this.fieldTops?.[t] ?? -Infinity,
+      this.settled.tops?.[t] ?? -Infinity,
+    );
+  };
+  private layFieldTops(): void {
+    const g = this.ground;
+    if (!g) return;
+    const tops = new Float32Array(g.size * g.size).fill(-Infinity);
+    for (const { field: f } of this.fields)
+      layTop(tops, g, f.x, f.z, Math.hypot(f.w, f.d) / 2, groundAt(g, f.x, f.z) + LIFT * 0.6);
+    this.fieldTops = tops;
   }
 
   private showFields(share: number): void {
@@ -503,6 +573,25 @@ export class LandLayer {
     });
   }
 
+  /** A road's way between the towns it joins (null: none to draw). */
+  private roadOut(road: LandPlan["roads"][number]): { x: number; z: number }[] | null {
+    const g = this.ground!,
+      k = `${road.from}-${road.to}`;
+    let line = this.lines.get(k);
+    if (!line)
+      this.lines.set(
+        k,
+        (line = roadLine(g, roadTiles(g, road.from, road.to, !!this.plan!.undersea))),
+      );
+    if (line.length < 2) return null;
+    const ends = [road.a, road.b].flatMap((ref) => {
+        const d = ref ? this.towns.get(ref) : undefined;
+        return d ? [{ x: d.x, z: d.z, r: d.reach * 0.92 }] : [];
+      }),
+      out = roadOutside(line, ends);
+    return out.length < 2 ? null : out;
+  }
+
   private showRoads(year: number): void {
     const g = this.ground!,
       plan = this.plan!;
@@ -515,7 +604,7 @@ export class LandLayer {
       .map((r) => `${r.from}-${r.to}-${roadLook(r, year)}-${r.traffic}`)
       .join("|")}|${plan.lanes
       .map((l) => (l.since <= year ? `${l.from}:${l.dx}:${l.dz}:${l.ships}` : ""))
-      .join("|")}`;
+      .join("|")}|${(plan.envoys ?? []).map((e) => e.ref).join("|")}`;
     if (key === this.roadsKey) return;
     this.roadsKey = key;
     this.roadWays = [];
@@ -523,19 +612,10 @@ export class LandLayer {
     for (const road of plan.roads) {
       const look = roadLook(road, year);
       if (look === "none") continue;
-      const k = `${road.from}-${road.to}`;
-      let line = this.lines.get(k);
-      if (!line)
-        this.lines.set(k, (line = roadLine(g, roadTiles(g, road.from, road.to, !!plan.undersea))));
-      if (line.length < 2) continue;
-      const ends = [road.a, road.b].flatMap((ref) => {
-          const d = ref ? this.towns.get(ref) : undefined;
-          return d ? [{ x: d.x, z: d.z, r: d.reach * 0.92 }] : [];
-        }),
-        out = roadOutside(line, ends);
-      if (out.length < 2) continue;
+      const out = this.roadOut(road);
+      if (!out) continue;
       pieces[look === "rails" ? "paved" : look].push(
-        ...linePieces(g, out, LIFT * 1.4, undefined, plan.undersea ? floorAt : groundAt),
+        ...linePieces(g, out, LIFT * 1.4, undefined, plan.undersea ? floorAt : this.overFields),
       );
       this.roadWays.push({ way: wayOf(out), look, traffic: road.traffic });
       if (look === "rails") {
@@ -550,7 +630,7 @@ export class LandLayer {
             return { x: p.x - (dz / n) * off, z: p.z + (dx / n) * off };
           });
         pieces.rails.push(
-          ...linePieces(g, side, LIFT * 1.6, undefined, plan.undersea ? floorAt : groundAt),
+          ...linePieces(g, side, LIFT * 1.6, undefined, plan.undersea ? floorAt : this.overFields),
         );
         this.railWays.push({ way: wayOf(side), busy: road.traffic });
       }
@@ -571,6 +651,7 @@ export class LandLayer {
       this.laneWays,
       this.stage.quality.landTraffic,
       !!plan.undersea,
+      (plan.envoys ?? []).map((e) => e.color),
     );
     for (const look of ["track", "paved", "rails"] as const) {
       const list = pieces[look];
@@ -634,8 +715,43 @@ export class LandLayer {
   }
 
   /** Where the first carrier of a kind is now (region units), or null (the look tools). */
-  carrier(kind: CarrierKind): { x: number; z: number } | null {
-    return this.traffic.first(kind);
+  carrier(kind: CarrierKind): { x: number; y: number; z: number } | null {
+    return this.traffic.nth(kind, 0);
+  }
+
+  /** Where one on an errand on this land's roads is now (region units), or null: on none of its roads (D1). */
+  rider(ref: string): { x: number; y: number; z: number } | null {
+    const k = (this.plan?.envoys ?? []).findIndex((e) => e.ref === ref);
+    return k < 0 ? null : this.traffic.nth("envoy", k);
+  }
+
+  /** Those on an errand on its roads: their page, and where on the screen each stands. */
+  riders(cam: pc.CameraComponent): { ref: string; name: string; x: number; y: number }[] {
+    const at = new pc.Vec3(),
+      out = new pc.Vec3(),
+      list: { ref: string; name: string; x: number; y: number }[] = [];
+    for (const e of this.plan?.envoys ?? []) {
+      const r = this.rider(e.ref);
+      if (!r) continue;
+      at.set(r.x, r.y + RIDER_UP, r.z);
+      cam.worldToScreen(at, out);
+      if (out.z > 0) list.push({ ref: e.ref, name: e.name, x: out.x, y: out.y });
+    }
+    return list;
+  }
+
+  /** The one on an errand nearest a point of the screen, within a finger's reach. */
+  riderAt(cam: pc.CameraComponent, x: number, y: number, reach = 30): string | null {
+    let best: string | null = null,
+      most = reach * reach;
+    for (const r of this.riders(cam)) {
+      const d = (r.x - x) ** 2 + (r.y - y) ** 2;
+      if (d < most) {
+        most = d;
+        best = r.ref;
+      }
+    }
+    return best;
   }
 
   destroy(): void {

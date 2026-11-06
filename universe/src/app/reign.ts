@@ -9,6 +9,7 @@ import type {
   Leader,
   LeaderList,
   ReignDecrees,
+  ReignEnvoys,
   ReignMatches,
   ReignNow,
   ReignWars,
@@ -50,7 +51,7 @@ export function installReign(d: ReignDeps): ReignFlow {
     /** The newest thing told of the realm, once read. */
     toldLast: string | null = null,
     /** The sheet up, to read again when something is done. */
-    sheet: "decrees" | "wars" | "matches" | null = null,
+    sheet: "decrees" | "wars" | "matches" | "envoys" | null = null,
     /** What has been put to them already (Lives L5): asked once. */
     asked: string | null = null;
 
@@ -119,7 +120,7 @@ export function installReign(d: ReignDeps): ReignFlow {
   };
 
   /** A sheet read and put up. */
-  const open = async (kind: "decrees" | "wars" | "matches"): Promise<void> => {
+  const open = async (kind: "decrees" | "wars" | "matches" | "envoys"): Promise<void> => {
     if (!on) return;
     sheet = kind;
     const args = { realm: on.realm };
@@ -129,6 +130,9 @@ export function installReign(d: ReignDeps): ReignFlow {
     } else if (kind === "wars") {
       const s = await d.client.query<ReignWars | null>({ type: "reign.wars", args });
       if (s) hud.wars(s);
+    } else if (kind === "envoys") {
+      const s = await d.client.query<ReignEnvoys | null>({ type: "reign.envoys", args });
+      if (s) hud.envoys(s);
     } else {
       const s = await d.client.query<ReignMatches | null>({ type: "reign.matches", args });
       if (s) hud.matches(s);
@@ -199,6 +203,16 @@ export function installReign(d: ReignDeps): ReignFlow {
     );
   hud.onRise = () =>
     void act("reign.rise", {}, "You have thrown off your oath. It is war, or it will be soon.");
+  hud.onEnvoy = (to, errand, name) =>
+    void act(
+      "reign.envoy",
+      { to, errand },
+      errand === "embassy"
+        ? `Your envoy has set out for ${name}. Your people will keep a house at their seat.`
+        : errand === "pact"
+          ? `Your envoy has set out for ${name}. They have sworn a pact with you.`
+          : `Your envoy has set out for ${name}, with the grain.`,
+    );
   hud.onWed = (m) =>
     void act(
       "reign.wed",

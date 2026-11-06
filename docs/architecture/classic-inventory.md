@@ -7,21 +7,21 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 
 | Area | in | partial | missing | n/a |
 |---|---|---|---|---|
-| World & ground | 2 | 9 | 0 | 1 |
+| World & ground | 3 | 8 | 0 | 1 |
 | Life & creatures | 3 | 5 | 0 | 0 |
 | People & minds | 3 | 8 | 6 | 3 |
 | Households, towns & building | 13 | 7 | 2 | 11 |
-| Farming, crafts & industry | 10 | 7 | 0 | 1 |
-| Trade, wealth & markets | 2 | 6 | 0 | 1 |
-| Politics, diplomacy & law | 3 | 5 | 0 | 0 |
-| War | 5 | 6 | 0 | 0 |
+| Farming, crafts & industry | 11 | 6 | 0 | 1 |
+| Trade, wealth & markets | 3 | 5 | 0 | 1 |
+| Politics, diplomacy & law | 5 | 3 | 0 | 0 |
+| War | 6 | 5 | 0 | 0 |
 | Faith, culture, language & lore | 1 | 3 | 0 | 0 |
 | History, legends & records | 7 | 2 | 0 | 0 |
-| God's acts & player tools | 3 | 1 | 2 | 3 |
+| God's acts & player tools | 4 | 0 | 2 | 3 |
 | Observation UI & lenses | 16 | 1 | 1 | 2 |
 | Space | 3 | 0 | 0 | 1 |
 | Engine, performance & saves | 1 | 0 | 0 | 19 |
-| **All 185 sections** | **72** | **60** | **11** | **42** |
+| **All 185 sections** | **79** | **53** | **11** | **42** |
 
 ## World & ground
 
@@ -31,14 +31,14 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 07 Tile world | Each tile's moisture, fertility, food, smoke, disease, blood, fear, materials, phases and live reactions | **partial** | A region tile has ground, weather, water, soil and ore (`ui/region-panel.ts`, `gen/region.ts`). Missing: smoke, blood and fear signals, phases and reactions per tile |
 | 08 Environment fields | Heat and moisture spreading tile to tile every tick | **partial** | Warmth and rain per cell come from the energy balance and shift as the world warms (`gen/climate.ts`, `sim/climate/air.ts`). Missing: fields that spread tick by tick |
 | 13 Processes | Balanced reactions run on tiles, bodies and stores; matter and energy audited | **partial** | Real substances and balanced reactions as data and pages (`rules/matter.ts`, `host/inspect/matter.ts`). Missing: the sim moves goods, not substances, and nothing audits conservation |
-| 17 Physical substrate | Weather cycle, lightning that ignites, fire, surface water, the sky breathing | **partial** | Dry years and droughts (`sim/population/systems.ts`), weather played up close from the climate (`view/weather.ts`, Phase 30), rivers and lakes (`gen/hydrology.ts`). Missing: fire that catches and spreads, lightning strikes, water that rises and falls |
-| 19 Plant ecology | Plants grow and spread tile by tile from the ground's matter | **partial** | Forest, wild food and soil as stocks per land that heal (`sim/ecology/ecology.ts`); grass grown and grazed in the meadow (`view/meadow.ts`). Missing: plants growing tile by tile through history |
-| 46 Living world | Seasons from axial tilt, paths worn by feet, a new Voice on a death, eruptions, quakes and meteors, omens | **partial** | Seasons (`view/seasons.ts`, `view/weather.ts`), successions (`sim/polity/polity.ts`) and omens read by faiths (`sim/belief/belief.ts`) are in. Missing: paths worn by feet, and natural disasters (only the god's exist, `sim/acts/disasters.ts`) |
+| 17 Physical substrate | Weather cycle, lightning that ignites, fire, surface water, the sky breathing | **partial** | Dry years and droughts (`sim/population/systems.ts`), weather played up close from the climate (`view/weather.ts`, Phase 30), rivers and lakes (`gen/hydrology.ts`); lightning in a dry year lights the woods and the fire goes on across a land's ground tile by tile (`sim/acts/wild.ts`, `view/wildfire.ts`). Missing: water that rises and falls |
+| 19 Plant ecology | Plants grow and spread tile by tile from the ground's matter | **partial** | Forest, wild food and soil as stocks per land that heal (`sim/ecology/ecology.ts`); a land's woods that reach out and draw back with its rain and warmth, read against every patch of its ground (`sim/ecology/woods.ts`); grass grown and grazed in the meadow (`view/meadow.ts`). Missing: plants growing tile by tile from the ground's matter |
+| 46 Living world | Seasons from axial tilt, paths worn by feet, a new Voice on a death, eruptions, quakes and meteors, omens | **partial** | Seasons (`view/seasons.ts`, `view/weather.ts`), successions (`sim/polity/polity.ts`), omens read by faiths (`sim/belief/belief.ts`), and quakes where plates meet, fires and falling stones by themselves (`sim/acts/wild.ts`) are in. Missing: paths worn by feet |
 | 80 Provision | Laid pigment and polymer seams within reach so every world could learn letters | **n/a** | A Classic fix. Universe's deposits come from geology (`gen/deposits.ts`) and writing does not wait on pigment |
 | 91 The long afternoon | Industry strains the sky; ways of rule; orbital stations; an epilogue | **in** | Carbon from burning and clearing warms the world and moves rain (`sim/climate/air.ts`); institutions and laws (`sim/polity/polity.ts`, `sim/order/laws.ts`); stations (`sim/space/space.ts`) |
 | 93 Day and night | A slow day with dusk and night; people sleep, labour stops | **in** | Daylight by the hour (`render/stage.ts`); folk asleep at home at night (`view/village.ts`). Drawn, not simulated |
-| 113 Grove and crag | Tree species by ground, autumn colour, bare winter boughs, crags with lit faces, ground grain | **partial** | Conifer, broadleaf, palm and scrub (`render/village.ts`, `view/region.ts`). Missing: birch, willow and baobab kinds, autumn and bare trees, crags and strata |
-| 119 Living grove | Forests seed outward, saplings grow or wither, fruit in season, trees die back in drought | **partial** | Saplings grow beside felled stumps (the woodlot, Phase 41) and orchards fruit (`view/country.ts`). Missing: forests that spread, wither and die back |
+| 113 Grove and crag | Tree species by ground, autumn colour, bare winter boughs, crags with lit faces, ground grain | **partial** | Conifer, broadleaf, palm and scrub, flat crowns on savanna, tall dark ones in the rainforest, brown ones after a drought, autumn and bare boughs (`render/village.ts`, `view/region.ts`, `view/seasons.ts`). Missing: birch, willow and baobab kinds, crags and strata |
+| 119 Living grove | Forests seed outward, saplings grow or wither, fruit in season, trees die back in drought | **in** | Saplings grow beside felled stumps (the woodlot, Phase 41), orchards fruit (`view/country.ts`), and a land's woods seed outward, wither and die back by its rain through history, brown for years after a drought took them (`sim/ecology/woods.ts`) |
 
 ## Life & creatures
 
@@ -125,7 +125,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 30c Work | Personal tools by recipe, work orders, stores, salvage, research samples | **partial** | Stores by good (`host/inspect/stores.ts`) and the errands that move them (`view/errands.ts`). Missing: each person's tools by recipe, work orders and priorities, salvage |
 | 30e Production | Facilities run, smelting, civic production | **partial** | Crafters make goods for each land (`sim/economy/systems.ts`), smelting copper, tin and iron from ore within reach as a step of their own, the metal then worked into tools and arms (Phase 52); works and what drives them (`sim/design/design.ts`); trades drawn at work (`render/trades.ts`). Missing: buildings that produce on their own |
 | 30f Technology | Research, shared knowledge, stage gates, epochs | **in** | `sim/lore/lore.ts`, `rules/principles.ts`, `host/inspect/stage.ts` |
-| 42 Environment & armament | Harvest uses up features; groves regrow while minerals run out; weapons emerge | **partial** | Wild, forest and soil drawn down and healing (`sim/ecology/ecology.ts`); arms from the metals the seat's market holds — smelted within reach or brought by road — their kit worn out and drawn again from the markets, and counted in battle by what they are made of (`sim/design/design.ts`, `sim/war/arms.ts`, Phase 52). Missing: ores that run out |
+| 42 Environment & armament | Harvest uses up features; groves regrow while minerals run out; weapons emerge | **in** | Wild, forest and soil drawn down and healing (`sim/ecology/ecology.ts`); arms from the metals the seat's market holds — smelted within reach or brought by road — their kit worn out and drawn again from the markets, and counted in battle by what they are made of (`sim/design/design.ts`, `sim/war/arms.ts`, Phase 52); ores that run out by what has been dug, deeper by better means and then the old heaps (`sim/economy/lodes.ts`) |
 | 42d Agriculture & herding | Fields as tile chemistry, herds in pens, defence against predators, herd theft | **partial** | Fields sown and reaped, flocks folded and culled (`view/fields.ts`, `view/flock.ts`); predators take flocks (`sim/ecology/ecology.ts`). Missing: herders defending flocks, herds stolen in war |
 | 61 Item models | Procedural models for tools, weapons and armour; glyphs for compounds | **partial** | A trade's tool in hand on portraits (`ui/portrait.ts`); tools by material (`view/detail.ts`). Missing: models by recipe, quality and wear; compound glyphs |
 | 86 Harvest | Yields follow the tending and the water; ripeness | **in** | Harvests by soil, rain, tools and knowledge (`sim/population/systems.ts`); reaping row by row (`view/fields.ts`, Phase 44) |
@@ -149,7 +149,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 63 Wealth | What a person owns, their standing, inequality, envy | **partial** | The wealth in a land's stores (`host/lenses.ts`); a realm's caste (`sim/order/order.ts`). Missing: personal riches and standing, and envy |
 | 88 Roads & wheels | Roads and rails laid stone by stone; carts, trucks, trains | **partial** | Roads trodden, then paved, then railed as the era turns (`view/land.ts`, `host/land.ts`); carriers in the economy. Missing: roads built from stone and metal over the years |
 | 89 Markets & coin | Price boards, specialties, treasuries; coin buys grain and hands | **partial** | Prices that follow scarcity (`sim/economy/market.ts`). A town's board, what each town is known for, and where a good is dear and where cheap (`host/inspect/board.ts`, gate 92). Missing: treasuries, coin that moves from hand to hand |
-| 100 Blocs & loans | An alliance-blocs lens; loans between treasuries | **partial** | Houses of lending, war loans, defaults and jubilees (`sim/credit/credit.ts`, Phase 21). Missing: a blocs lens |
+| 100 Blocs & loans | An alliance-blocs lens; loans between treasuries | **in** | Houses of lending, war loans, defaults and jubilees (`sim/credit/credit.ts`, Phase 21); a Blocs lens over who stands with whom, each bloc with its page (`sim/war/ties.ts`, `host/inspect/ties.ts`) |
 | 101 Finery & tithe | The well-off want worked goods; a heavy tithe in war | **partial** | A grain tithe sent to the seat (`sim/polity/polity.ts`). Missing: demand for finery, a war tithe |
 | 145 Wages | Hands paid for the time they work; rent follows the pay | **partial** | A year of each kind of work is valued, and people move toward the work that pays (`sim/economy/systems.ts`). A person's page reads what a day's work brings, what it buys, their rent and what is left (L6, second slice). Missing: wages and rent moved through history |
 
@@ -158,11 +158,11 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | Classic | What it did | Universe | Where / what's missing |
 |---|---|---|---|
 | 26 Culture & factions | Ethos, polities, territory | **in** | Ways (`sim/culture/culture.ts`); realms and their lands (`sim/polity/polity.ts`) |
-| 56 Diplomacy | Envoys, tribute, vassals, marriages, claims | **partial** | A pretender's claim can start a civil war (`sim/strife/strife.ts`). Missing: envoys, tribute and vassals between realms, marriages |
+| 56 Diplomacy | Envoys, tribute, vassals, marriages, claims | **in** | Tribute and vassals between realms (`sim/war/bonds.ts`, W7); ties between ruling houses, at a ruler's word (`sim/order/reign.ts`, L5) and by the world's own rulers, by what a people is: a marriage, a fostering, a brood given, a reef grafted; a claim where a house has no one left, with four ends (`sim/war/ties.ts`); envoys seen on the road and standing at a court (`render/landtraffic.ts`, `render/court.ts`); a pretender's claim can start a civil war (`sim/strife/strife.ts`) |
 | 64 Politics | Unrest, rebellion, secession, coups, civil war | **in** | Grievance and secession (`sim/polity/polity.ts`); coups, civil wars and revolutions (`sim/strife/strife.ts`, Phase 22) |
 | 67 Polity traits | Named traits earned by deeds (Warlike, Merchants…) | **partial** | Eight ways, pushed by events and settable by the god (`sim/culture/culture.ts`, `sim/acts/natures.ts`). Missing: named tags |
-| 73 Calamities | Disasters raise unrest and topple Voices | **partial** | The god's disasters leave dead and grievance (`sim/acts/disasters.ts`). Missing: natural calamities, and a ruler blamed for one |
-| 90 Statecraft | Opinion with reasons, pacts, open markets, embassies, coalitions, the wire | **partial** | Regard built from named terms, pacts sworn and broken (`sim/diplomacy/diplomacy.ts`), trade embargoes. Missing: open markets, embassies, alliances in defence, coalitions |
+| 73 Calamities | Disasters raise unrest and topple Voices | **in** | The god's disasters and the world's own leave dead and grievance (`sim/acts/disasters.ts`, `sim/acts/wild.ts`), and a ruler is judged by the help that reached those they left |
+| 90 Statecraft | Opinion with reasons, pacts, open markets, embassies, coalitions, the wire | **partial** | Regard built from named terms, pacts sworn and broken (`sim/diplomacy/diplomacy.ts`), trade embargoes; a pact called on in war, embassies that keep what a realm believes of another's host true, compacts against the greatest (`sim/war/ties.ts`). Missing: open markets, the wire |
 | 99 Civil society | Children learn crafts, circles speak up, the law gets a code | **partial** | Interest groups press their realm (`sim/polity/interests.ts`); laws (`sim/order/laws.ts`). Missing: children taught their parents' craft |
 | 154 Justice | Offences become cases; courts, cells, sentences | **in** | A justice law, and convicts bound to labour (`sim/order/`); a town's cases, each from a cause (`host/inspect/justice.ts`); a court that sits and sentences carried out where they're seen (`view/court.ts`, `render/court.ts`), J1 |
 
@@ -178,7 +178,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 42e Refuges & gear | Shelter in buildings, campaign gates, a functional profile for each piece of primitive gear | **partial** | Walls raised as war nears (`sim/town/fabric.ts`); arms by realm design, each part's material with its edge, guard, mass, lasting and cost, worked to a quality by its seat's stuff and craft (`rules/designs.ts`, `sim/war/arms.ts`, Phase 52). Missing: taking shelter, gear for each person |
 | 72 Naval warfare | Sea battles and blockades | **partial** | Hosts land from the sea (`sim/war/war.ts`). Missing: sea battles, blockades |
 | 74 War-weariness | Weary realms end their wars | **in** | `sim/war/war.ts` |
-| 97 War aims & peace | Aims steer the march; every peace has terms | **partial** | The land a realm wants and the stores it covets (`sim/war/war.ts`). Missing: peace terms such as tribute or bending the knee |
+| 97 War aims & peace | Aims steer the march; every peace has terms | **in** | Aims read off what drove a war and steering it (`sim/war/war.ts`); land, tribute, an oath or a truce (`sim/war/bonds.ts`, `rules/terms.ts`); a ruler's offers (`sim/order/reign.ts`), W7 |
 | 142 Warfare view | A warfare lens, formations, a war tab | **in** | The war lens (`view/globe.ts`); the war panel (`ui/war-panel.ts`, Phase 38); war in place (`view/warplay.ts`, Phase 40) |
 | 143 War strategy | Rally and interception | **partial** | The rally is drawn (`view/warplay.ts`). Missing: the rally and interception decided in the sim |
 
@@ -189,7 +189,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 48 Languages | Each world has a tongue; dialects split by sound change | **in** | `sim/culture/languages.ts` |
 | 50 Belief | The god named; favour, rites, a Speaker, myths, schisms | **partial** | Faiths founded on signs, spreading and splitting (`sim/belief/belief.ts`); the god named by what each people saw (`host/inspect/peoples.ts`). Missing: rites with offerings, prophecy, myths |
 | 58 Festivals & arts | Feasts, songs, tales, dances, murals | **partial** | Feasts with dancing, and market days (`view/feast.ts`, Phase 33); songs and tales made from a people's own history, sung at its feasts and wearing with age (`host/inspect/verse.ts`, T1). Missing: murals |
-| 71 Faith | Sects, zeal, holy wars | **partial** | Faiths and schisms; rival faiths sour regard; the temple's sway toward war (`sim/polity/interests.ts`). Missing: sect zeal, and wars named holy |
+| 71 Faith | Sects, zeal, holy wars | **partial** | Faiths and schisms; rival faiths sour regard; the temple's sway toward war (`sim/polity/interests.ts`); wars fought as holy, naming the two faiths (`sim/war/war.ts`, W7). Missing: sect zeal |
 
 ## History, legends & records
 
@@ -200,7 +200,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 47 Legends | A linked encyclopedia of the world's history | **in** | Pages for everything (`host/inspect/`, Phase 10) |
 | 55 Years | Year-by-year annals, filtered, with a digest for each year | **in** | The Years, a tab of the Chronicle: every year with something told, filtered by kind, each name a link, a year to go to (`host/inspect/annals.ts`, `ui/years.ts`, gate 91) |
 | 66 Legends export | The whole history written out as HTML and text | **in** | One press on The Years writes it (`host/inspect/written.ts`, `ui/written.ts`, `ui/written-file.ts`): realms and their rulers, wars and how they ended, those who mattered, the great deeds by year, links inside it, what it leaves out said at its head; HTML and plain words, kept by a link or the phone's share sheet |
-| 69 Eras | Ages, leagues, wonders, the ship that leaves | **partial** | Stages (`host/inspect/stage.ts`) and flight to the stars (`sim/space/`). Missing: leagues of allied realms, wonders |
+| 69 Eras | Ages, leagues, wonders, the ship that leaves | **partial** | Stages (`host/inspect/stage.ts`), flight to the stars (`sim/space/`), compacts of realms against the greatest (`sim/war/ties.ts`). Missing: wonders |
 | 81 Records | Archives keep the crafts a fallen town knew | **partial** | Knowledge spreads, faster once writing is known (`sim/lore/lore.ts`). Missing: crafts lost with a fallen town, and archives that keep them |
 | 164 Polities compared | Living realms side by side, sortable | **in** | `host/inspect/compare.ts`; the realms' ledger (`host/inspect/world.ts`) |
 | 165 Ages strip | The world's years at a glance, with ages and wars | **in** | Timelines (`host/inspect/world.ts`, `ui/chart.ts`) |
@@ -209,7 +209,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 
 | Classic | What it did | Universe | Where / what's missing |
 |---|---|---|---|
-| 31 God tools | Brushes: ignite, lightning, rain, drought, soil, seed life, plague, heal, terrain, water, ore, factions, disasters | **partial** | The palette of acts (`ui/palette.ts`, `sim/acts/`): rain, harvest, plague, healing, inspiration, quake, meteor, flood, fire, spring, shrine, settlers, warming, a star's flare. Missing: brushes on the ground: raise and lower land, add water, seed life or ore, lightning anywhere, claim land |
+| 31 God tools | Brushes: ignite, lightning, rain, drought, soil, seed life, plague, heal, terrain, water, ore, factions, disasters | **in** | The palette of acts (`ui/palette.ts`, `sim/acts/`): rain, harvest, plague, healing, inspiration, quake, meteor, flood, fire, spring, shrine, settlers, warming, a star's flare; brushes dragged on the ground: raise and lower land, add water, seed life or ore, lightning anywhere, claim land (Phase 62) |
 | 34a Civic inspectors | Set a town's priority and policy; ask it to build | **missing** | — |
 | 54 Divine acts | Mark a chosen one, whisper a craft, a sign in the sky, bind a truce, sow discord | **in** | One person inspired or blessed (`sim/acts/local.ts`); inspiration (`sim/acts/acts.ts`); a sign for or against a rule (`sim/order/acts.ts`); friendship, discord, a war ended (`sim/acts/peoples.ts`) |
 | 79 Causal push | The skip aims at the next stage and tilts the odds | **missing** | There are speeds for each scale and a director, but nothing aims time at the next stage |
@@ -289,12 +289,12 @@ Ranked by how much each would add to the game's depth and to what you see, leani
 5. **Primitive gear and the tribal village.** Classic 112, 42e, 30c. Beyond Phase 49's camp crafts: primitive arms and armour that each work differently (reach-spears, slings, bone and shell coats), storage pits, drying racks, pit kilns, palisades, spirit posts, dugouts. **M**
 6. **Households in their homes.** Classic 121, 144, 145, 148. Each household's house, owned or rented, with wages paid and rent owed, eviction and people sleeping rough, plus a homes lens and the address on a person's page. **L**
 7. **Crime and justice in the town.** Classic 52, 78, 99, 154. Cases from what a town went through, courts that sit, cells, fines and sending away, each seen and given a page: built (2026-11-06). Next: being robbed or stealing when hungry as offers in a life, a decree seen in the cases, a crime lens. **M**
-8. **The world acting on its own.** Classic 17, 46, 73. Natural quakes, eruptions and falling stars, wildfire that spreads and lightning that starts it, all seen where they strike and shaking a town's order and its ruler; paths worn by feet. **M**
-9. **Wars with aims and terms.** Classic 97, 72, 71. Aims that steer the march; peace terms such as tribute, bending the knee and recognition; sea battles and blockades; wars named holy. **M**
+8. **The world acting on its own.** Classic 17, 46, 73. Quakes where plates meet, falling stones, wildfire that spreads and lightning that starts it, all seen where they strike and judging a ruler: built (2026-11-06). Next: tsunami, aftershocks, a fire's front reaching a town before it burns, paths worn by feet. **S**
+9. **Wars with aims and terms.** Classic 97, 72, 71. Aims that steer the march, peace with terms and wars named holy: built (2026-11-06). Next: sea battles and blockades, recognition. **M**
 10. **Coin, markets and personal standing.** Classic 89, 101, 145, 63. A price board and a specialty for each town, and who in a town is poor or rich: built (2026-11-06). Next: treasuries, coin that buys grain for the hungry, finery for the well-off, a war tithe. **L**
-11. **Diplomacy with more moves.** Classic 56, 90, 100, 69. Envoys between seats, tribute and vassals, marriages between ruling families, embassies, open markets, alliances in defence, leagues and coalitions, and a blocs lens. **L**
-12. **A living ecology through history.** Classic 19, 42, 113, 119. Forests that seed outward and wither in drought, ores that run out, more kinds of tree turning with the seasons, crags. **L**
-13. **The god's hand on the ground.** Classic 31. Raise and lower land, add water, seed plants, beasts, people or ore, strike lightning anywhere, claim land for a realm: WorldBox's own brushes. **L**
+11. **Diplomacy with more moves.** Classic 56, 90, 100, 69. Tribute and vassals, envoys between seats, the world's own marriages and claims, embassies, allies who answer a call, compacts against the greatest and a blocs lens are built (2026-11-06). Next: open markets, a person's choice when their realm is called, a compact's own first march. **S**
+12. **A living ecology through history.** Classic 19, 42, 113, 119. Forests that seed outward and wither in drought, long ages of rain, ores that run out, new crowns turning with the seasons: built (2026-11-06). Next: crags, weed beds drawn in the sea, who builds with what stands. **S**
+13. **The god's hand on the ground.** Classic 31. Raise and lower land, add water, seed life or ore, strike lightning anywhere, claim land for a realm: WorldBox's own brushes, built (Phase 62). Next: a faith reading the strokes, an edit at a town's scale. **S**
 14. **Wild lives.** Classic 52, 42d, 21, 23. Herds that follow the warmth, dens, courtship, beasts of legend; herders guarding flocks and herds stolen in war; lineages still changing during history. **M**
 15. **Roads built and travelled.** Classic 88, 46, 122, 155. Roads laid stone by stone and rails metal by metal, paths worn by feet, household cars for the trip to work, buses with riders. **M**
 16. **Songs, tales, murals, monuments, rites.** Classic 58, 52, 50. Songs and tales made from the world's history and carried to feasts, and stones raised to wars and calamities: built (2026-11-06). Next: murals painted with pigment, solstice rites with offerings, a Speaker's prophecies. **M**
@@ -422,6 +422,92 @@ Measures, on the final code: `harrow 348` at 3000, 117 peopled lands: at most 4 
 Limits, stated: no real iPhone has pressed the share button, and it hasn't been pressed in any run, since a share sheet needs a real device. The people on a chip go by the world's own spelling, not a people's own tongue (a viewer's "as they say it" reaches pages only). Star realms' rulers aren't on the bar unless they also rule a land of the home world. A person past those a town draws has no address to go to, as elsewhere.
 
 Cut for later: a people's own names on the bar and in the file; the bar during a life or a reign, showing who matters to that person; a town's, a faith's or a tongue's entry in the file.
+
+## Wars with aims, peace with terms, as built (2026-11-06)
+
+A war used to be about a land and end in a line. Now what a war is about is read off what drove it: hunger, a tribute unpaid, a land lost, a temple's press, a court's press on a much weaker realm, else a land. It's kept on the war's declaration, so a save grows by no column and an old save's wars simply have none. The aim steers: a host goes for the land it came for by name, a hungry host carries off grain and leaves the land, a holy war names the two faiths.
+
+A peace now comes to something, by how the war went and how far each side is spent: land ceded, a tribute, an oath, a truce with a date. Whatever binds is kept in one small store, `sim/war/bonds.ts`, and runs out by the world's clock with a line in the log. A vassal keeps its lands and its ruler, pays what it can be asked, declares no war of its own and rises when it is strong enough. No one bound holds anyone bound, so a chain is at most one. A ruler can offer and demand on the War and peace sheet (`reign.peace`, `reign.rise`), and a refusal comes in the other ruler's voice.
+
+- **A tribute really moves,** from the payer's lands to the other's seat, out of what each land holds above three months of its food, as a tithe does. Three short years and it has stopped paying, which is remembered and is a reason for the next war.
+- **Where people eat all they make, no one asks.** Harvest and eating fall in the same month, so at far ages a market's food at a year's turn is often nothing: on `gale 710` at 2000, 12 of 701 realms could pay 1% of what they make. The first form asked anyway, and 179 of 180 tributes there ended in "stopped paying". Now a tribute needs grain to spare, an oath from one with none pays nothing and says so, and a ruler's offer is refused in those words.
+
+Tally of 60 years each from a save at 2000. `gale 710`: 650 wars, 608 truces, 18 realms that fell, 4 oaths, 1 tribute, none unpaid, worst bond under 2% of what its payer makes, chain 1. `amber 101`: 192 wars, 146 truces, 12 oaths, 10 tributes, 3 lands ceded, 1 unpaid. `first light` before the spare rule: 209 wars, the same shape.
+
+Found by pressing: a peace with no land left between the two said nothing of its terms, and so did one where a side fell and one by the greatest fire; each now says what it came to. The seventh button on the tray broke "Marriage" in two: it reads "Marry". 🔊 lay over the ends of a sheet's lines on the phone and now gives way.
+
+Levers, with what's measured: **far worlds are 96% truces** (608 of 633 on `gale 710`), and attackers win about one battle in ten by design (`defend = strength × 1.5`), so "was beaten back, and swore a truce" is the commonest line of a far age. Tithes move nothing at far ages either, for the same reason as tribute. A peace made by the god's hand has no terms. Cut for later: a blocs lens, wars named by the world, a Years filter for terms ending, claimants across realms, an overlord defending its vassal, a ruler withholding tribute by word, a water people's word for grain in terms and credit lines.
+
+## The world acting on its own, as built (2026-11-06)
+
+A world now does things with no one's hand on it. The ground shakes where its plates meet, lightning in a dry year lights the woods and the fire goes on from there, a stone falls now and then from a sky that brings them, and a new mountain rises where one plate goes under another. Each has its page, and each page says why here: which plates, how often a land like this has a shock so great, how little rain fell that year, how far it burned. A ruler is judged by what they do about it: help reaches those it left, or it doesn't, and that is remembered.
+
+- **The stakes are the owner's rule: the greater the blow, the rarer it falls and the more everyone feels it.** Magnitudes go by the Gutenberg-Richter law, ten times rarer for each step. Lightning, a wood's years between fires, a falling stone's size against its rarity all come from what an encyclopedia says, and `rules/nature.ts` says which. What a small fire or a small shock does stays in a land's own history. Only a world's great losses come as a window.
+- **By what a world holds.** A shock needs plates, a fire needs something to burn and air to burn it, and a stone comes through the air it has to come through: a stone that bursts over one world strikes the ground on another. A world of sulfur burns blue. A methane world has no fire at all.
+- **No second kind of disaster.** Natural shocks, town fires and stones are the god's own events with no hand among their causes, so a town's rubble, its fire brigade, its diggers, its grief and its stones to the dead all come as they do for an act of the god's.
+- **A fire on a land is seen moving.** Its front goes tile by tile over the ground the land's map shows, through what can burn, slower across a river and stopped by a lake, the sea and bare ground. Flames at the line, smoke going up, char behind it going to dry brown over the years, the woods gone from it until they grow back. Its way is worked out once, so a frame only reads a slice of a list. At a fast clock it's drawn out to be watched for twelve of the viewer's seconds; a world's date goes on.
+
+Found by watching, none of it by a green gate:
+
+- **The first gate passed on a fire no one could see:** it stood on the moment a fire lit, and a held world shows nothing of that yet. It now goes back to the day before, on the land the fire crosses, and lets the clock run at a land's own first speed.
+- **The burning ground was a flat orange sheet under floating brown boxes.** Now a thin glowing line, black ground behind it with embers in it, larger flames, and grey puffs that swell as they leave the ground and shrink to nothing at the top of their rise.
+- **A town being watched heard of a shock only at the year's turn,** by when its fire had burned out unseen. It now listens for what the world did to it and reads itself again within seconds, walked in or lived in or only watched: gate 97 presses all three.
+- **A sulfur world never burned blue:** the chemistry spells it sulphur and the rule looked for sulfur. It now goes by the world's kind.
+- **A fire could end before its last patch had burned,** a new unit test found: a patch reached late isn't always the last on the list.
+- **A great shock flattened all that was drawn of a far city's middle, and it fell back to a hamlet's drawing:** a ring of huts in the dark, with no shaking and no dust, 47,929 homes down. A gate's soft `if` had let it pass. A town flattened by anything now stays drawn as its rubble, burning, for as long as that ground lies flat.
+- **Words.** "lit the savanna of the savanna" (a land with no name says its own ground twice), "11 died, and 0 homes fell", "0 died in", "a plate of land meets a plate of land". A forgotten shock's page said "By your hand": it now claims no one's.
+
+Measures: over 40 years of far `first light` at 2000 (59 billion people), 405 shocks a century that reached anyone (magnitude 6s 197, 7s 85, 8s 15, 9s 2.5) and 155 fires, 47 of them reaching a town; 2.73 million dead of shocks and 30,645 of fires; the worst shock 551,847 and the worst fire 4,896. Young `first light`, years 0 to 200 (1 to 5 million people): 333 shocks and 992 fires a century, 416 reaching a town; 7,140 and 1,929 dead; the worst 349 and 32. `gale 710`, carbon, 2,140 shocks a century and no fire; young `tide 653`, sulfur, 1,424 shocks and 1,258 fires. The Years: 105 of 716 lines in `first light`'s first 60 years, in 56 of them; 33 of 269 in `harrow 348`'s 30 years from 3000, in 18, the many told as one with "and seven more like it". Ages, eight worlds against W7: mostly the same or within a step or two, `quill 742`'s electricity 150 years later and `ember 260`'s orbit 50 earlier; none stalled. A year costs 234 ms against 219 on `harrow 348` at 3000 (+7%, run side by side), 2,814 against 2,747 on `gale 710` at 2000 (+2%); a save grows 0.1 MB in 7.3 and 0.4 in 117 over those years.
+
+Limits, stated: a shock brings down a town's heart first, as the god's does, so a great one leaves all that's drawn of a far city flat where a share of it, scattered, would be truer. no generated home world yet has too few plates, so a world with one lid is forged in a unit test, not met. Fire doesn't reach a water people's towns, since their patches lie under the sea; a shock does. A town burns the moment its fire lights rather than when the front comes to it. A flash of lightning stays drawn while the clock is paused.
+
+Cut for later: tsunami, aftershocks, a ruler's answer offered in a possession, a land's page listing what it came through, paths worn by feet (Classic 46's last piece), a town's stone for a fire with under 100 dead, a season for a fire (it falls in its land's fixed month), a fire's front reaching a town before the town burns.
+
+## What binds realms, as built (2026-11-06)
+
+A pact used to be a word on a page. Now it's called on. A realm attacked calls whoever is sworn to it, and they answer or they don't, by how they stand, with the answer told in the world's words. Rulers marry their houses into each other's without anyone's hand, a house with no one left brings a claim to its seat, and realms keep people at each other's courts so that what they believe of each other is true. All of it is `sim/war/ties.ts`, one store that saves, and `host/inspect/ties.ts`.
+
+- **A called war is its own war.** It has its own declaration, which says who called and by what, so battles, the levy, peace terms, strikes, pages, the war lens, the town at war, saves and going cold all work unchanged, and no field goes on a war. A chain is stopped by the rule, not a tuned number: a war a call began calls no one, and no more than four come to one war. A realm in more than one war divides its host among them, so an ally coming really does help.
+- **A bloc is who stands with whom.** A realm stands with the strongest it's bound to, if stronger than it, so a chain of pacts ends at one head and no thread of pacts swallows a world. Read once a year. The Blocs lens 🪢 colours the map by it, and each bloc has its page.
+- **A people with no houses binds as it is.** Read off what a people is, as a town's law is: a hive gives of its brood, a people of the water graft reef to reef, those who choose their rulers foster each other's young, and the rest marry. A fostering brings no war.
+- **A claim comes where a house has no one left:** where a court names no one, or by chance where there's no court. It has four ends: the realm passes to the other house, one of the marriage is seated, it's fought for, or it passes them by.
+- **An envoy can be seen.** One goes with each call, compact, marriage, claim and embassy, kept eight years: a rider under their realm's banner on the longest road of either seat's land, named as the eye comes near, standing before the other's court, each with their page. ⌖ Go to on the page takes the eye to them, and a press on them opens it. A ruler sends one from the tray.
+- **An embassy keeps a reading true.** Without one a realm misreads another's host by up to half as much again, by decade, and that belief is what a declaration reads, so a war's why can say "a host they thought smaller than it was".
+- **A compact is the many against the greatest.** ("League" was already a realm's own title.) At most one open, two past 300 realms; looked for every five years among the three most peopled only, 50 years' rest after one ends, 60 years at the most. It holds its enemy back by half, no member makes war on another, and each answers the others' call.
+
+Found by watching, none of it by a green gate:
+
+- **The first gate counted a rider on the road and showed bare ground,** and its eye stood where no one can stand: the land's nearest is twelve units off. There a rider was a speck with no way to find it among 307 km of land. They're now 2.5 times larger than life, named, and a page goes to them.
+- **A land built over scattered 3,600 blocks and 3,000 towers with no regard for its roads,** so a third of each road and everything on it ran under them. Roads now run clear through it (`onLines`), and a far world's trucks and trains can be seen too.
+- **A rider and a road ran under a field's plate and a far city's trodden ground,** since those lie flat at their highest corner on a slope. Roads, carriers and riders now go over both, tile by tile.
+- **Words.** A hive's fostering said "raised between" where it gives of its brood, and its dead "no one left of the house"; the gift button didn't say how much.
+
+Measures: `alien harrow 348`, 3000 to 3100: 29 wars a century, 6 of them called; 2.21 realms in the average war, 4 at the most; 8% of realms at war in a year; the largest realm 39% of the lands; 1 compact; 11 marriages and 3 claims. Earth `first light`, 2000 to 2040: 187 wars, 35 called; 5 at the most. `kestrel 557`, water, 2000 to 2040: no wars, 7 grafts, 5 claims (3 seated, 1 passed, 1 passed by). Young `first light`, 0 to 700: 571 wars, 11 called; 78 marriages and 33 claims. At year 800 of it, 126 realms stand and the largest holds 36 of 522 lands, against 71 realms and 60 lands before this: allies hold the strong back. `harrow 259`, a hive, 2000 to 2030: 89 given of the brood, 20 claims, 743 wars a century, 113 called. A year on `gale 710` at 2000 costs 2,090 ms against 2,169 before (the same, side by side), and `harrow 348` 179 against 166; a save grows 0.1 MB on 7.4 and 0.3 on 97. Ages don't stall.
+
+Levers, not begun: open markets; a person's choice when their own realm is called (a window: come, or stand aside); a compact's own first march; embassies by a people's own form; envoys walking a town's streets; a window when a followed realm's call is answered. An ally's battles don't count toward the main war's edge at its peace: each war's peace reads its own.
+
+## A living ecology through history, as built (2026-11-06)
+
+A land's woods used to stand where the world first laid them, less what people cut, and an ore lay there for ever. Now woods reach out and draw back with a land's rain through the ages, rain has its long ages, and a lode can be dug out.
+
+- **One number a land.** `reach`, for all 4,000 lands, looked at once in five years (`sim/ecology/woods.ts`). What stands is that share of what the ecology keeps, so fields, felling and fire go on as before. No patch of ground is read after a world's table is made: gen's own rule for where woods stand is asked once per patch at nine rains and three warmings, and read off that. On a people of the water it's the weed beds of their shelf, by how cold the sea is.
+- **Rain has long ages.** Two waves round the world, no state, at most about 12% of a land's rain, so a wet age here is a dry one elsewhere (`sim/climate/long.ts`). Dry years, fires, fields and woods all read the one rain.
+- **A lode gives out.** Only what has been dug is kept (`sim/economy/lodes.ts`). Depths come by means: picks, engines, machines that think, then the old heaps at 0.15 of the first grade, for ever. A town turns to a neighbour's lode, then to one two lands off, to a road, to its store, and some of those who worked it leave. Lore finds by what the world laid down, so the ages don't wait on a mine.
+- **It can be seen.** A land's own map: on `harrow 348` the land at 5.3S 46.4W goes from 9,090 trees to 3,873 in 200 years, most of what's left brown for twelve years after a drought; on `first light` a savanna land goes from 3,378 to 8,310 by year 122, green coming in from its wettest corner. The Forest lens colours the world by what stands. A town's mine gives out as a dark pit among grey heaps. The Years tell a mine's end and seldom anything else; a land's page keeps its last three turns, each with its reason.
+
+Found by watching, none of it by a green gate:
+
+- **The first shots of a mine before and after were night and day,** so their pixel check proved nothing. The gate now takes both at the same noon.
+- **`minds` came 120 years late on `first light` at the first lode sizes,** since the mines ran out before machines reached them. Lodes are a quarter of that size, and the age is back to about when it was.
+- **Words.** A well's page said "dug as deep as picks could reach".
+
+Measures. `first light`: woods 57% of its land at first, 47% by year 300, 28% at 700 when engines fell them, 33% at 1100. 46 mines give out, the first in year 826, all in the 300 years before machines that think reopen them; 30 towns turned to a neighbour's lode, 10 to one two lands off, 2 to a road, 4 to what was in store, none to nothing; 32 million of about 620 million left. Far worlds: none gives out, since machines already reach; `gale 710` has 1,207 go deeper in its first 50 years, importance 3, under the news.
+
+Rain and people. `ash vale`'s people stand a quarter lower from year 300 on, and with the long rain off they match a world without it to a part in a hundred, so it's all the rain: a dry age of 9% at year 300 emptied 26 of its 92 lands fifty years sooner, and growth after that isn't bound by rain, so the gap stays. Elsewhere it goes both ways: `lumen 285` 3% up throughout; `north 495` 15% down at year 600 and 11% up at 800; `vale 496` 8% down at 400, level by 800; `tide 207` 16% down at 800. No world's age stalled. A year on `gale 710` at 2000 costs 730 ms against 706 side by side (3%), its save 97.8 MB against 97.6.
+
+Limits, stated: "there is none to be had" has never fired, 0 of 46 mines on `first light`. Who builds with what, a battle's forests and a home's wood still read the ecology's forest, not what stands now, so this step doesn't move builds, battles and air at once. Weed beds are counted, told and on the lens, but not drawn in the sea. The Ores lens doesn't dim a done lode.
+
+Cut for later: crags with lit faces, which need a flat-shaded mesh and a steepness measure across land scales; more crowns than these four, and a shape of its own for an alien life, which keep the world's tint for now.
 
 ## The work-down order (2026-10-25)
 

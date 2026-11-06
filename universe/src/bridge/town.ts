@@ -750,6 +750,12 @@ export type LandPlan = {
   readonly covered?: true;
   /** A people of the water's: its towns stand on the seabed, and none ashore. */
   readonly undersea?: true;
+  /** Those on an errand between two seats on its roads this year (each with their page, D1). */
+  readonly envoys?: readonly {
+    readonly ref: string;
+    readonly name: string;
+    readonly color: readonly [number, number, number];
+  }[];
   /** The fires that have crossed it and whose scars still stand (N1): none, none at all. */
   readonly burns?: readonly LandBurn[];
 };

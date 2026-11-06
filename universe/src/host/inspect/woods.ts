@@ -131,7 +131,7 @@ function lodeLine(world: World, lode: Lode, title: string): Line {
                 ? [" They have what is in store, and no more."]
                 : [" There is none to be had."];
     return [
-      `The ${metal} of ${title} gave out in year ${lode.out}, dug ${LODE_DEPTH_WORDS[lode.tier] ?? ""}.`,
+      `The ${metal} of ${title} gave out in year ${lode.out}, ${lode.kind === "oil" ? `drawn ${(LODE_DEPTH_WORDS[lode.tier] ?? "").replace("picks", "wells")}` : `dug ${LODE_DEPTH_WORDS[lode.tier] ?? ""}`}.`,
       ...then,
     ];
   }
@@ -148,7 +148,7 @@ function lodeLine(world: World, lode: Lode, title: string): Line {
     ];
   return [
     lode.first !== null
-      ? `The ${metal} of ${title} first gave out in year ${lode.first}, and better means dug on below it: ${leftOf(Math.round(left * 100))} of what they reach is left.`
+      ? `The ${metal} of ${title} first gave out in year ${lode.first}, and better means ${lode.kind === "oil" ? "drew on" : "dug on"} below it: ${leftOf(Math.round(left * 100))} of what they reach is left.`
       : lode.tier
         ? `The ${metal} of ${title} is ${lode.kind === "oil" ? "bored deeper now, for what is left" : `dug deeper now, for ${lode.kind === "coal" ? "a thinner seam" : "leaner ore"}`}: ${leftOf(Math.round(left * 100))} of what its means reach is left.`
         : `The ${metal} of ${title} is worked: ${leftOf(Math.round(left * 100))} of what ${lode.kind === "oil" ? "its wells" : "picks"} can reach is left.`,

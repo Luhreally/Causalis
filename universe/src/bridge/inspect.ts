@@ -15,7 +15,13 @@ export type Line = readonly Span[];
 /** Where a thing is to be seen, for "go to it". */
 export type Place =
   | { readonly scale: "globe"; readonly spot: number }
-  | { readonly scale: "region"; readonly cell: number; readonly tile?: number }
+  | {
+      readonly scale: "region";
+      readonly cell: number;
+      readonly tile?: number;
+      /** One on an errand on its roads, to be looked at (D1). */
+      readonly rider?: string;
+    }
   | {
       readonly scale: "village";
       readonly town: string;
@@ -578,6 +584,10 @@ export type Portrait =
     };
 
 export type PageKind =
+  | "bloc"
+  | "league"
+  | "match"
+  | "envoy"
   | "means"
   | "can"
   | "measure"

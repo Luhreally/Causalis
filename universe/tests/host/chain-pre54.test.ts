@@ -61,19 +61,19 @@ const KIND_ROWS = new Set([
  * rest read as they did.
  */
 const BEFORE: Record<string, string> = {
-  tools: "40038772:19326",
-  stuff: "f4c81c9d:14001",
-  ground: "b06713b8:40842",
-  deposits: "6af9612b:97920",
-  arms: "e5213f30:20486",
-  designs: "5a39910a:30193",
-  workshops: "174cec9e:358241",
-  substances: "b58b1df3:130602",
-  reactions: "35dd93e9:69590",
+  tools: "b6fe5a09:19571",
+  stuff: "b3a6cf6:13729",
+  ground: "c31b876a:43911",
+  deposits: "82e8c6ee:97968",
+  arms: "23639f7b:14471",
+  designs: "a19da905:26603",
+  workshops: "c12b0c68:319876",
+  substances: "b4d7be47:130634",
+  reactions: "150753c5:68617",
   // (Its pages no longer list what only a people of the water could find: F1, canBeFoundHere.)
-  principles: "daba4282:173867",
+  principles: "44c96b1f:167570",
   guide: "ced49326:17137",
-  camps: "7474780d:328591",
+  camps: "caef18ca:343809",
 };
 
 /**

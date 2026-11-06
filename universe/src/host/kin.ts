@@ -802,10 +802,31 @@ function rulerFamily(world: World, ref: string): Family | null {
           note: `of ${other(own.with)}, by a marriage of state`,
         }
       : held.spouse,
-    children: held.children.map((k) => {
-      const m = matches.find((x) => x.who === k.name);
-      return m ? { ...k, event: m.event, note: `wed to ${m.to} of ${other(m.with)}` } : k;
-    }),
+    children: [
+      ...held.children.map((k) => {
+        const m = matches.find((x) => x.who === k.name);
+        return m ? { ...k, event: m.event, note: `wed to ${m.to} of ${other(m.with)}` } : k;
+      }),
+      // (One of the house given in a bond of the world's own: D1.)
+      ...matches
+        .filter(
+          (m) =>
+            m.tie === "child" &&
+            m.of === p.ruler.name &&
+            !held.children.some((k) => k.name === m.who),
+        )
+        .map((m): Kin => ({
+          tie: tieWord(m.whoSex === 0 ? 0 : 1, "child"),
+          name: m.who,
+          ref: null,
+          sex: m.whoSex === 0 ? 0 : 1,
+          born: m.whoBorn,
+          died: null,
+          how: null,
+          event: m.event,
+          note: `${m.form && m.form !== "wed" ? "given to" : "wed to"} ${m.to} of ${other(m.with)}`,
+        })),
+    ],
   };
 }
 

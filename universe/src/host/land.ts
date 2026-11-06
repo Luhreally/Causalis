@@ -36,6 +36,8 @@ import type {
   TownPlan,
 } from "../bridge/index.ts";
 import { townPlan } from "./town.ts";
+import { realmColor } from "./colors.ts";
+import { envoysIn } from "./inspect/ties.ts";
 import { landEra, townSite } from "./village.ts";
 import { colonyLook } from "./colony.ts";
 import { landPast } from "./past.ts";
@@ -141,8 +143,19 @@ export function landPlan(world: World, cell: number, budget = 8000): LandPlan {
     camps: covered ? [] : landCamps(world, cell, towns),
     ...(covered ? { covered: true as const } : {}),
     ...(populationContext(world).medium === "water" ? { undersea: true as const } : {}),
+    ...envoysOfPlan(world, cell),
     ...landBurns(world, cell),
   };
+}
+
+/** Those on an errand on a land's roads this year, for its plan (D1). */
+function envoysOfPlan(world: World, cell: number) {
+  const envoys = envoysIn(world, cell).map((e) => ({
+    ref: `envoy:${e.event}`,
+    name: e.name,
+    color: realmColor(e.from),
+  }));
+  return envoys.length ? { envoys } : {};
 }
 
 /** The fires whose scars still stand on a land (N1), in its own units, the frame `regionPoint` draws it on: none, nothing. */

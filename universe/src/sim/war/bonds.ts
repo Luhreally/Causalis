@@ -270,11 +270,11 @@ export function chooseAim(
 
 /** Whether a war's host goes for its prize by name while it can be reached (else for the fullest land). */
 export const goesForPrize = (aim: AimKind | undefined): boolean =>
-  aim === "land" || aim === "back" || aim === "holy";
+  aim === "land" || aim === "back" || aim === "holy" || aim === "claim";
 
 /** Whether a battle won takes the land (a host that came for grain, for tribute or to be free leaves it). */
 export const takesLand = (aim: AimKind | undefined): boolean =>
-  aim !== "stores" && aim !== "tribute" && aim !== "free";
+  aim !== "stores" && aim !== "tribute" && aim !== "free" && aim !== "ally";
 
 /** A hungry host's battle won: half that land's grain, carried to the hungriest of its own lands. */
 export function sack(

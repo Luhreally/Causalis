@@ -393,6 +393,12 @@ export type VillagePlan = {
   readonly songs?: readonly TownSong[];
   /** Who judges there and whom they hear (J1; absent: no one lives there). */
   readonly court?: TownCourt;
+  /** One come from another seat, at its court this year or last (D1). */
+  readonly envoy?: {
+    readonly ref: string;
+    readonly name: string;
+    readonly color: readonly [number, number, number];
+  };
   readonly people: readonly {
     ref: string;
     name: string;
