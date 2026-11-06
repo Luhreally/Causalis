@@ -453,6 +453,7 @@ test("the first 121 principles keep their ids and indexes; the arms, then the me
       "powered-wings",
       "dropped-loads",
       "thrown-loads",
+      "greatest-fire",
       "lane-sounding",
     ],
   );
@@ -496,8 +497,8 @@ test("on a land with fire, each of the first 121 is open, and its needs met, as 
 
 test("on rocky Earth, a land with fire comes to know the same 95 principles it did at base, and W2's and W3's rows", () => {
   const is = onEarth("land", true);
-  // (And the lanes' row, Phase 68: it opens on matter, and Earth's holds the law.)
-  assert.deepEqual([...is].sort(), [...EARTH_FIRE, "lane-sounding"].sort());
+  // (And the greatest fire's row, W5, and the lanes', Phase 68: they open on matter, and Earth's holds the law.)
+  assert.deepEqual([...is].sort(), [...EARTH_FIRE, "greatest-fire", "lane-sounding"].sort());
   assert.ok(is.has("electricity") && is.has("gunpowder"), "the base reaches the powder");
 });
 

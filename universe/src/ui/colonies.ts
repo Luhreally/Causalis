@@ -157,7 +157,11 @@ export class Colonies {
   /** A world no land holds: how far it is settled, and out to it. */
   private farRow(p: FillPlan): HTMLElement {
     const row = el("div", "colony-row"),
-      name = el("button", "colony-row-name", p.sailing ? "⛴️ A ship under way" : "🌆 A world of another star"),
+      name = el(
+        "button",
+        "colony-row-name",
+        p.sailing ? "⛴️ A ship under way" : "🌆 A world of another star",
+      ),
       acts = el("div", "colony-row-acts");
     name.onclick = () => this.onPage(p.ref);
     row.append(

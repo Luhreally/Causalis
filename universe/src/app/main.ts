@@ -5566,8 +5566,8 @@ async function runPlanetPage(): Promise<void> {
       k.raid!.great
         ? `☢️ ${plan!.name}, the greatest fire, by ${k.raid!.by}`
         : k.raid!.rocket
-        ? `🚀 ${plan!.name}, the rockets thrown by ${k.raid!.by}`
-        : `✈ ${plan!.name}, the raid by ${k.raid!.by}`
+          ? `🚀 ${plan!.name}, the rockets thrown by ${k.raid!.by}`
+          : `✈ ${plan!.name}, the raid by ${k.raid!.by}`
     }: played again. Tap to stop.`;
     words.onclick = endRaidFilm;
     hud.append(words);

@@ -2062,7 +2062,7 @@ export class VillageScene {
     const burned = this.town.ashGone(t);
     this.work.update((t % 86_400) / 3600, screen, this.carriers, burned);
     // (Nothing stands on a square the greatest fire has burned.)
-    if (this.squareHall && this.squareHall.shown !== (burned <= 0))
+    if (this.squareHall && this.squareHall.shown !== burned <= 0)
       this.squareHall.put((this.squareHall.shown = burned <= 0));
     if (this.marked !== null) {
       const m = this.moments[this.marked];

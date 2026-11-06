@@ -393,7 +393,11 @@ export class ReignHud {
     why.onclick = () => this.onPage(d.event);
     acts.append(why);
     this.win.replaceChildren(
-      el("div", "life-wintitle", `${d.kind === "fire" ? "☢️" : d.kind === "plot" ? "🗡️" : "🪦"} ${d.title}`),
+      el(
+        "div",
+        "life-wintitle",
+        `${d.kind === "fire" ? "☢️" : d.kind === "plot" ? "🗡️" : "🪦"} ${d.title}`,
+      ),
       el("p", "life-winwords", d.words),
       said,
       acts,

@@ -351,10 +351,7 @@ export class WorkLayer {
   ): void {
     const h = this.heaps;
     if (!h) return;
-    const counts = heapCounts(
-        h.spots,
-        gone ? { grain: 0, wood: 0, stone: 0, ore: 0 } : n,
-      ),
+    const counts = heapCounts(h.spots, gone ? { grain: 0, wood: 0, stone: 0, ore: 0 } : n),
       key = `${counts.sacks}|${counts.logs}|${counts.stones}|${counts.ore}`;
     if (key === this.heapsShown) return;
     this.heapsShown = key;

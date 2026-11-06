@@ -62,8 +62,6 @@ import {
   townLink,
 } from "./names.ts";
 
-
-
 /** How many places a battle's fallen tab names, the most dead first; the rest are counted. */
 export const FELL_ROWS = 40;
 

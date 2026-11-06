@@ -28,6 +28,7 @@ import {
   roadTiles,
   tileMiddle,
   townCivics,
+  ashReach,
   landMoment,
   townAsh,
   townGround,
@@ -92,7 +93,16 @@ class GroundBatches {
     this.meshes = meshes;
   }
 
-  show(towns: readonly { parts: TownParts; x: number; z: number }[], g: LandGround): void {
+  show(
+    towns: readonly {
+      parts: TownParts;
+      x: number;
+      z: number;
+      /** Where none of it stands (region units). */
+      gone?: readonly { x: number; z: number; r: number }[];
+    }[],
+    g: LandGround,
+  ): void {
     const keys = new Map<string, { mesh: PartMesh; color: Rgb; n: number }>();
     for (const t of towns)
       for (const [key, grp] of t.parts.groups) {
@@ -114,6 +124,7 @@ class GroundBatches {
           const x = t.x + d[o]! * LAND_ACROSS,
             z = t.z + d[o + 2]! * LAND_ACROSS;
           if (wetAt(g, x, z)) continue;
+          if (t.gone?.some((h) => Math.hypot(x - h.x, z - h.z) < h.r)) continue;
           const top = d[o + 1]! + d[o + 4]! / 2,
             q = m * 7;
           let ground = groundAt(g, x, z);
@@ -294,9 +305,16 @@ export class LandLayer {
   }
 
   /** A town's square and how far it reaches (region units), or null. */
-  townAt(ref: string): { x: number; z: number; r: number } | null {
+  townAt(ref: string): { x: number; z: number; r: number; ash: number } | null {
     const d = this.towns.get(ref);
-    return d ? { x: d.x, z: d.z, r: d.reach } : null;
+    return d
+      ? {
+          x: d.x,
+          z: d.z,
+          r: d.reach,
+          ash: d.scene.plan.ash ? ashReach(d.scene.plan, d.scene.lots) * LAND_ACROSS : 0,
+        }
+      : null;
   }
 
   /** A land's towns and roads as they stand at moment t (a town whose plan is unchanged kept). */
@@ -352,7 +370,21 @@ export class LandLayer {
       this.settled.show(
         [
           ...[...this.towns.values()].map((d) => ({ parts: d.settled, x: d.x, z: d.z })),
-          ...(this.built ? [{ parts: this.built, x: 0, z: 0 }] : []),
+          // (A land built over: what the greatest fire burned is burned, past its town's own lots too.)
+          ...(this.built
+            ? [
+                {
+                  parts: this.built,
+                  x: 0,
+                  z: 0,
+                  gone: [...this.towns.values()].flatMap((d) =>
+                    d.scene.plan.ash
+                      ? [{ x: d.x, z: d.z, r: ashReach(d.scene.plan, d.scene.lots) * LAND_ACROSS }]
+                      : [],
+                  ),
+                },
+              ]
+            : []),
         ],
         g,
       );

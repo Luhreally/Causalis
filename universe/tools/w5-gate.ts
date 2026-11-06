@@ -299,7 +299,9 @@ function forgeBrink(
   trial.submit("fire.answer", { realm: holder.ref, ruler: crisis.ruler, answer: "loose" });
   trial.runTo((Math.floor(world.now / YEAR) + 1) * YEAR + 1);
   if (fireOf(trial).state.falls.length === toldFalls) {
-    say(`${seed}: year ${crisis.year}: its war would end before the word was carried out: some years on`);
+    say(
+      `${seed}: year ${crisis.year}: its war would end before the word was carried out: some years on`,
+    );
     return null;
   }
   say(
@@ -640,7 +642,10 @@ async function watch(f: Forged, tag: string): Promise<void> {
   // Two levels of ground too near one another flicker into stripes from any way off.
   const stripes = await striped(page);
   say(`${tag}: ${(stripes * 100).toFixed(1)}% of the far ground is striped`);
-  check(stripes < STRIPED_MOST, `${tag}: the far ground is striped: ${(stripes * 100).toFixed(1)}%`);
+  check(
+    stripes < STRIPED_MOST,
+    `${tag}: the far ground is striped: ${(stripes * 100).toFixed(1)}%`,
+  );
   // From over it, where the lots it took lie: the screen is told from what stood there.
   await k(
     `globalThis.causalis.rig.flyTo({ target: { x: 0, y: 0, z: 0 }, yaw: 0, pitch: -62, distance: 70 }, 0.4)`,
@@ -761,13 +766,13 @@ async function watch(f: Forged, tag: string): Promise<void> {
   await settle(2500);
   await shot(`${tag}-12-land-dark`);
   // On the land's map it lies burned from the moment it is told, the clock held or not: the land has no film of it.
-  const onLand = await k<{ x: number; z: number; r: number } | null>(
+  const onLand = await k<{ x: number; z: number; r: number; ash: number } | null>(
     `globalThis.causalis.landTown(${JSON.stringify(strike.town)})`,
   );
   check(!!onLand, `${tag}: the land draws no ${strike.town}`);
   if (onLand) {
     await k(
-      `globalThis.causalis.rig.flyTo({ target: { x: ${onLand.x}, y: 0, z: ${onLand.z} }, yaw: 0, pitch: -62, distance: ${onLand.r * 3} }, 0.05)`,
+      `globalThis.causalis.rig.flyTo({ target: { x: ${onLand.x}, y: 0, z: ${onLand.z} }, yaw: 0, pitch: -62, distance: ${onLand.ash * 2.2} }, 0.05)`,
     );
     await settle(1500);
     await shot(`${tag}-12b-land-burned`);
@@ -798,7 +803,9 @@ const STRIPED_MOST = 0.1;
 async function striped(p: typeof page): Promise<number> {
   const data = (await p.screenshot()).toString("base64");
   return p.evaluate(async (d) => {
-    const bitmap = await createImageBitmap(await (await fetch(`data:image/png;base64,${d}`)).blob()),
+    const bitmap = await createImageBitmap(
+        await (await fetch(`data:image/png;base64,${d}`)).blob(),
+      ),
       c = new OffscreenCanvas(bitmap.width, bitmap.height),
       x = c.getContext("2d")!;
     x.drawImage(bitmap, 0, 0);
@@ -820,7 +827,9 @@ async function striped(p: typeof page): Promise<number> {
 async function darkAround(p: typeof page): Promise<number> {
   const data = (await p.screenshot()).toString("base64");
   return p.evaluate(async (d) => {
-    const bitmap = await createImageBitmap(await (await fetch(`data:image/png;base64,${d}`)).blob()),
+    const bitmap = await createImageBitmap(
+        await (await fetch(`data:image/png;base64,${d}`)).blob(),
+      ),
       c = new OffscreenCanvas(bitmap.width, bitmap.height),
       x = c.getContext("2d")!;
     x.drawImage(bitmap, 0, 0);

@@ -69,6 +69,7 @@ test("Earth's numbers: reachIn is true, the four burning rows are met, every oth
     .sort();
   assert.deepEqual(met, [
     "bloom-an-iron",
+    "densest-store",
     "fire-a-vessel",
     "fly-under-power",
     "harden-copper",

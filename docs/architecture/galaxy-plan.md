@@ -80,7 +80,7 @@ firearms.ts are the models.
 | 72 Star nations | Federations, empires, vassals, civil wars, dark ages | The fleets of Phase 67 fighting for real empires; a realm falling apart | L |
 | 73 Your hand in it | Galaxy lenses, the director filming firsts, a pilot possessed, god's acts at star scale | All of it, from the title screen | M |
 
-## Worlds filled: asked, not built (2026-11-05)
+## Worlds filled: asked (2026-11-05)
 
 "do they ever fully colonize the whole planet or just set up their one hall and its done?"
 
@@ -96,6 +96,28 @@ firearms.ts are the models.
 So every site is taken by about 1750, and nothing new is settled among the stars for the last 1,200 years of history. That is the larger gap: the galaxy stops growing.
 
 **Direction, not yet designed.** Real lands are what make far years dear, so a world filling should not be 4,000 new provinces. A first thought: a number for how much of a colony world is settled, grown by its people, how livable it is and what they know, with its towns read from that, and the sites freed from a fixed count. To be tested against a year's cost and the save's bound. It comes after W5.
+
+## Worlds filled, first slice, as built (2026-11-05)
+
+**A number per world, not provinces.** Store `space.filled` (dormant until a people has a colony): for each world a people has come to, those beyond any land of it, grown each year by `rules/filling.ts` up to what it can hold. Real lands are what make far years dear, and this adds none.
+
+**The first principle.** `openSky`: can they walk out, from the thresholds `habitability` itself weighs. Open or remade, it fills to its edges. Sealed, the top is `(1 - upkeep/10) x 0.6` of its ground, so the harder a world is to live on, the less of it can ever be roofed, and a page says so from its numbers. Natives who won their landing hold a world's comers to a tenth of its ground (`HELD_TOP`, est.). Those who follow scale with the drive's years over the lane's: 100 a year on a drive, about 350 by lanes (est.).
+
+**`alien harrow 348`, forked 1500 to 3000 under these rules:**
+
+| At year 3000 | Before | Now |
+| --- | --- | --- |
+| Worlds with people | 36 star sites and the home system's | 184 (129 with no land) |
+| Last founded | 1766 | 3020 (a ship under way) |
+| People on them | 70.6 million | 142.7 billion |
+| Greatest | 2.3 million | 6.6 billion |
+| Filled | none | 99, all sealed, at 15% to 54% of their ground |
+
+The galaxy no longer stops growing: 66 worlds in 1800, 92 in 2100, 137 in 2500, 184 in 3000. Mean year 54 ms against 64 before, and a save 2.06 MB against 2.04: the cost does not show. Oracle: 8 of 8 unchanged.
+
+**Seen.** 🚀, a row's 🪐 Its world: its globe with its halls' lights spreading from under 0.1% to a quarter of it and more, its panel "How far it is settled", and "Why no more?" in plain numbers. 🌆 The worlds settled lists them all.
+
+**Levers.** Going down to a colony no land holds (its world and page only); remaking one; "until they lose it" (natives' hold is read once); lights keeping off a native people's ground; a world covered still counts the home world only. A world filled whole, the natives' cap and the tiding's See it have run headless, not been watched: no save at hand has a whole fill.
 
 ## Phase 68, first slice, as built (2026-11-05)
 

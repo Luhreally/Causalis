@@ -248,8 +248,8 @@ export function drawTool(
       b.title = great
         ? "Down to the town it fell on, that afternoon: what it did, and what burned after, played again"
         : rocket
-        ? "Down to the town they fell on, that afternoon: their streaks, what they hit, its fires, played again"
-        : "Down to the town it fell on, that morning: its machines, its loads, its fires, played again";
+          ? "Down to the town they fell on, that afternoon: their streaks, what they hit, its fires, played again"
+          : "Down to the town it fell on, that morning: its machines, its loads, its fires, played again";
       b.onclick = () => ctx.raid!(args.event as string);
       into.append(b);
       return;

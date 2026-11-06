@@ -103,7 +103,8 @@ function forgeYoung(share: number): Forged {
   for (const s of clusterOf(world)) {
     for (const p of worldsOf(world, s)) {
       const h = habitability(p, body, home.gravity);
-      if (h.livable && p.water !== "seas") found.push({ star: s.ref, planet: p.index, upkeep: h.upkeep });
+      if (h.livable && p.water !== "seas")
+        found.push({ star: s.ref, planet: p.index, upkeep: h.upkeep });
     }
     if (found.length >= 2) break;
   }
@@ -286,7 +287,9 @@ async function unlike(a: string, b: string): Promise<number> {
   return page.evaluate(
     async ([a, b]) => {
       const load = async (d: string) => {
-          const bm = await createImageBitmap(await (await fetch(`data:image/png;base64,${d}`)).blob()),
+          const bm = await createImageBitmap(
+              await (await fetch(`data:image/png;base64,${d}`)).blob(),
+            ),
             c = new OffscreenCanvas(bm.width, bm.height),
             x = c.getContext("2d")!;
           x.drawImage(bm, 0, 0);
@@ -301,7 +304,9 @@ async function unlike(a: string, b: string): Promise<number> {
       let n = 0;
       for (let i = 0; i < pa.length; i += 4)
         if (
-          Math.abs(pa[i]! - pb[i]!) + Math.abs(pa[i + 1]! - pb[i + 1]!) + Math.abs(pa[i + 2]! - pb[i + 2]!) >
+          Math.abs(pa[i]! - pb[i]!) +
+            Math.abs(pa[i + 1]! - pb[i + 1]!) +
+            Math.abs(pa[i + 2]! - pb[i + 2]!) >
           60
         )
           n++;
@@ -373,9 +378,18 @@ async function pair(early: Forged, late: Forged, tag: string, pick?: (p: FillPla
   say(
     `${tag}, ${target.key}: earlier "${headEarly}" (${earlyLit?.lit} cells of ${earlyLit?.cells}, ${Math.round(a.warm)} warm px); later "${headLate}" (${lateLit?.lit} cells, ${Math.round(b.warm)} warm px); ${(apart * 100).toFixed(1)}% of the globe's part of the screen differs`,
   );
-  check(b.warm > 40, `${tag}: the later world shows ${Math.round(b.warm)} points of light: not lit across its face`);
-  check(b.warm > a.warm * 3, `${tag}: later ${Math.round(b.warm)} points of light against earlier ${Math.round(a.warm)}`);
-  check(apart > 0.03, `${tag}: only ${(apart * 100).toFixed(1)}% of the screen differs between the two`);
+  check(
+    b.warm > 40,
+    `${tag}: the later world shows ${Math.round(b.warm)} points of light: not lit across its face`,
+  );
+  check(
+    b.warm > a.warm * 3,
+    `${tag}: later ${Math.round(b.warm)} points of light against earlier ${Math.round(a.warm)}`,
+  );
+  check(
+    apart > 0.03,
+    `${tag}: only ${(apart * 100).toFixed(1)}% of the screen differs between the two`,
+  );
   check(/settled/.test(headEarly), `${tag}: the earlier panel told "${headEarly}"`);
 }
 
@@ -385,7 +399,9 @@ async function ends(f: Forged, tag: string) {
   await settle(1200);
   const list = await ask<FillPlan[]>("filled.list"),
     never =
-      list.find((p) => !p.sailing && p.filled !== null && p.why.some((w) => /never fill/.test(w))) ??
+      list.find(
+        (p) => !p.sailing && p.filled !== null && p.why.some((w) => /never fill/.test(w)),
+      ) ??
       list.find((p) => !p.sailing && !p.open && p.top < 1 && p.filled !== null) ??
       null,
     whole = list.find((p) => p.whole) ?? null;
@@ -423,8 +439,14 @@ async function ends(f: Forged, tag: string) {
     const said = await k<string>(`document.body.innerText`);
     await settle(600);
     await shot(`${tag}-whole-page`);
-    check(/to its edges|All of it/.test(said), `${tag}: the page of a world filled does not say so`);
-    check(/rising|full/.test(said), `${tag}: the page does not say what comes after a world is full`);
+    check(
+      /to its edges|All of it/.test(said),
+      `${tag}: the page of a world filled does not say so`,
+    );
+    check(
+      /rising|full/.test(said),
+      `${tag}: the page does not say what comes after a world is full`,
+    );
     await k("globalThis.causalis.closePage?.()");
   }
   // Every world on one page, from the 🚀 list.
