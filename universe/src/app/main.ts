@@ -744,6 +744,8 @@ type Exposed = {
     middle: { x: number; z: number } | null;
     facing: number | null;
   } | null;
+  /** Where a land's camps stand on the screen (for the look tools). */
+  campsOnScreen?: () => { x: number; y: number }[];
   /** A band of a land's camp seen near (Phase 29 M160): its people, the land's beasts, their hour, what they are at. */
   near?: () => {
     cell: number;
@@ -9029,6 +9031,12 @@ async function runPlanetPage(): Promise<void> {
   exposed.land = () => region.land.info();
   exposed.camps = () =>
     scale === "region" ? region.land.camps.info().map((c) => ({ ...c, cell: regionCell })) : [];
+  exposed.campsOnScreen = () =>
+    scale === "region"
+      ? [...region.land.camps.named(stage.camera.camera!).values()].filter(
+          (p): p is { x: number; y: number } => !!p,
+        )
+      : [];
   exposed.landCarrier = (kind: string) => region.land.carrier(kind as CarrierKind);
 
   stage.onUpdate(() => {
