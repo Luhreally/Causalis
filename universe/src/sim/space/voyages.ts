@@ -50,6 +50,7 @@ import {
   spaceOf,
   spendMachines,
 } from "./space.ts";
+import { nationsOf } from "./nation-store.ts";
 import { clusterOf, StarSiteStore, starSitesOf, type SiteLane } from "./stars.ts";
 import { farTaken, filledYear, lastFarSailed, sailFar } from "./filled.ts";
 import { LANE_EVENTS, LANE_ROW, laneDraw, laneLawOf, laneRoute, lanesOf } from "./lanes.ts";
@@ -106,7 +107,46 @@ function livableWorlds(ctx: PopulationContext) {
   return list;
 }
 
-/** The star a realm's ship would sail for now: the nearest in time with a world its people could live on. */
+/**
+ * A world far from all a realm holds is one its word and fleets reach last, and help comes from the nearest of its own: a star this
+ * many light-years from the nearest counts as twice as far off, however quick the crossing (est.). So a realm grows outward from what
+ * it holds, and two realms come to have a border, where before each took whatever star was next.
+ */
+const FROM_ITS_OWN = 5;
+
+const STAR_BY_REF = new WeakMap<readonly GalaxyStar[], Map<string, GalaxyStar>>();
+
+/** The stars of the worlds a realm holds. */
+function heldStars(world: World, realm: Ref): GalaxyStar[] {
+  const store = nationsOf(world);
+  if (!store || store.dormant()) return [];
+  const stars = clusterOf(world);
+  let by = STAR_BY_REF.get(stars);
+  if (!by) STAR_BY_REF.set(stars, (by = new Map(stars.map((s) => [s.ref as string, s]))));
+  const out: GalaxyStar[] = [];
+  for (const h of store.all()) {
+    if (h.holder !== realm) continue;
+    const s = by.get(h.star);
+    if (s) out.push(s);
+  }
+  return out;
+}
+
+/** How much dearer a star is for how far it lies from all a realm holds (1, for a realm that holds none). */
+function dearFromItsOwn(star: GalaxyStar, held: readonly GalaxyStar[]): number {
+  if (!held.length) return 1;
+  let least = Infinity;
+  for (const h of held) {
+    const dx = star.x - h.x,
+      dy = star.y - h.y,
+      dz = star.z - h.z,
+      d = dx * dx + dy * dy + dz * dz;
+    if (d < least) least = d;
+  }
+  return 1 + Math.sqrt(least) / FROM_ITS_OWN;
+}
+
+/** The star a realm's ship would sail for now: the nearest in time with a world its people could live on, and the nearer what it holds the better. */
 export function voyageTarget(
   ctx: PopulationContext,
   p: Polity,
@@ -122,17 +162,23 @@ export function voyageTarget(
     taken = new Set<string>((starSitesOf(ctx.world)?.all() ?? []).map(([, s]) => s.star));
   // (And those a far colony went to, once every kept land was taken.)
   for (const s of farTaken(ctx.world)) taken.add(s);
-  let best: Target | null = null;
+  const held = heldStars(ctx.world, p.ref);
+  let best: Target | null = null,
+    bestScore = Infinity;
   for (const star of clusterOf(ctx.world)) {
     const years = crossingYears(star.distance, drive);
     // The cluster is nearest first: past the longest crossing, no star is nearer in time.
     if (years > longest) break;
     if (taken.has(star.ref)) continue;
+    const dear = dearFromItsOwn(star, held);
     for (const planet of worldsOf(ctx.world, star)) {
       const h = habitability(planet, body, homeGravity);
       if (!h.livable) continue;
-      if (!best || years * (1 + h.upkeep / 10) < best.years * (1 + best.upkeep / 10))
+      const score = years * (1 + h.upkeep / 10) * dear;
+      if (score < bestScore) {
+        bestScore = score;
         best = { star, planet, years, upkeep: h.upkeep };
+      }
     }
   }
   // By the lanes (Phase 68): where the law holds and this people has found them, any star they run to, nearest in time.
@@ -143,9 +189,12 @@ export function voyageTarget(
       if (taken.has(w.star.ref)) continue;
       const route = laneRoute(ctx.world, home, w.star.ref);
       if (!route || machines * COLONY_SHARE < STARSHIP_MACHINES + routeMachines(route)) continue;
-      const years = routeYears(route, v);
-      if (!best || years * (1 + w.upkeep / 10) < best.years * (1 + best.upkeep / 10))
+      const years = routeYears(route, v),
+        score = years * (1 + w.upkeep / 10) * dearFromItsOwn(w.star, held);
+      if (score < bestScore) {
+        bestScore = score;
         best = { star: w.star, planet: w.planet, years, upkeep: w.upkeep, route };
+      }
     }
   }
   return best ? { drive, target: best } : null;
@@ -190,8 +239,6 @@ export function voyageYear(ctx: PopulationContext, t: SimTime): void {
       .filter((x): x is Province => x !== undefined && onHome(g, x.cell))
       .sort((a, b) => b.total() - a.total() || a.cell - b.cell)[0];
     if (!origin || origin.total() < COLONISTS * 5) continue;
-    const choice = voyageTarget(ctx, p, machines);
-    if (!choice) continue;
     // A reason: a rival's ship already sailing, hunger at home, the rulers' will.
     const reasons: Factor[] = [],
       rival = sites.all().find(([, s]) => s.realm !== p.ref)?.[1];
@@ -211,6 +258,8 @@ export function voyageYear(ctx: PopulationContext, t: SimTime): void {
       });
     const drive = reasons.reduce((s, f) => s + f.contribution, 0.3);
     if (!(world.rng.real(VOYAGE, p.seat, t, 0) < FLIGHT_PACE * drive)) continue;
+    const choice = voyageTarget(ctx, p, machines);
+    if (!choice) continue;
     sail(ctx, p, origin, choice.drive, choice.target, reasons, machines, year);
     // One ship a year in all the world.
     return;

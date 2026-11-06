@@ -96,3 +96,8 @@
   height: 12px;
   border-radius: 50%;
 }
+/* (Over a page's words they would only be in the way; the page itself names them.) */
+#hud:has(.page-window:not([hidden])) .nation-legend,
+.panel:has(> .inspector:not([hidden])) > .nation-legend {
+  display: none !important;
+}
