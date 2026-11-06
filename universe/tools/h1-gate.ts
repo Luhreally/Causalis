@@ -633,7 +633,8 @@ if (chosen) {
             if (!s) return null;
             for (const f of [0.5, 0.35, 0.65, 0.25, 0.75, 0.15, 0.85]) {
               const y = s.footY + (s.headY - s.footY) * f, e = document.elementFromPoint(s.footX, y);
-              if (e && e.tagName === "CANVAS" && c.townPick(s.footX, y, 12) === null) return { x: s.footX, y };
+              // (What's in front of it takes the press: someone right there, or a car under the finger.)
+              if (e && e.tagName === "CANVAS" && c.stoneUnder(s.footX, y) === s.ref && !c.townRide(s.footX, y)?.direct) return { x: s.footX, y };
             }
             return null;
           })()`,
