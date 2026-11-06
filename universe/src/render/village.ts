@@ -94,6 +94,8 @@ import {
   gravesBefore,
   TOWN_WELL,
   wonderSpot,
+  sungAt,
+  fireOf,
   type BlazeNow,
   type Burnable,
   type Felling,
@@ -166,6 +168,7 @@ import { FloorLayer, type FloorAt } from "./floor.ts";
 import { BlazeLayer } from "./blaze.ts";
 import { RaidLayer } from "./raid.ts";
 import { GraveyardLayer } from "./graveyard.ts";
+import { MemorialLayer } from "./memorial.ts";
 import { WoundsLayer, bandageOn, propAt, type WornPiece } from "./wounds.ts";
 import { LittersLayer, litterApart, litterHeld } from "./litters.ts";
 import { FolkPoses, nearReach, redrawn } from "./folk.ts";
@@ -347,6 +350,11 @@ export class VillageScene {
   private blazed: BlazeNow | null = null;
   /** Its graveyard and its burying (Phase 43 M205): its graves, those open today, the biers borne to them. */
   private readonly graveyard: GraveyardLayer;
+  /** What it raised to what happened in it, and the song at its feast (T1). */
+  private readonly memorialLayer: MemorialLayer;
+  /** Who sings at its feast now: their place among those drawn (-1: no one), and the day it was chosen for. */
+  private singer = -1;
+  private singerDay = -1;
   /** Wounds worn (Phase 55 M226): bandages, patches, slings, crutches, scars. */
   private readonly worn: WoundsLayer;
   /** The levy's wounded borne home on litters (Phase 55 M229), and those last drawn. */
@@ -405,6 +413,7 @@ export class VillageScene {
     this.blazeLayer = new BlazeLayer(stage, this.root);
     this.raidLayer = new RaidLayer(stage, this.root);
     this.graveyard = new GraveyardLayer(stage, this.root);
+    this.memorialLayer = new MemorialLayer(stage, this.root);
     this.worn = new WoundsLayer(stage, this.root);
     this.litters = new LittersLayer(stage, this.root);
     this.moneyLayer = new TownMoneyLayer(stage, this.root);
@@ -536,6 +545,7 @@ export class VillageScene {
         child !== this.blazeLayer.root &&
         child !== this.raidLayer.root &&
         child !== this.graveyard.root &&
+        child !== this.memorialLayer.root &&
         child !== this.worn.root &&
         child !== this.litters.root &&
         child !== this.moneyLayer.root &&
@@ -714,6 +724,9 @@ export class VillageScene {
     this.craftsKept = null;
     // Its graveyard, just past its homes (Phase 43 M205).
     this.graveyard.build(graveyardFor(plan), plan.lifeLook);
+    // What it raised to what happened in it, on its square's rim (T1).
+    this.memorialLayer.build(plan);
+    this.singer = this.singerDay = -1;
     // A town's well in the middle of its square, where its bucket lines draw (Phase 42 M201): a
     // ring of stone about its water, two posts and a little roof over it.
     if (town && !plan.colony) {
@@ -1420,6 +1433,89 @@ export class VillageScene {
     return this.country.counts();
   }
 
+  /**
+   * Who sings at the feast now (T1): one grown person near its fire, the same through the evening while they stay there; the notes
+   * over them. Nobody drawn near: the notes go up from the fire, and no one's name is told.
+   */
+  private singNow(plan: VillagePlan, t: number, clock: number): void {
+    const song = sungAt(plan, t);
+    if (!song) {
+      this.singer = -1;
+      this.memorialLayer.sing(null, clock);
+      return;
+    }
+    const fire = fireOf(plan),
+      near = (i: number) => {
+        const m = this.moments[i],
+          who = plan.people[i];
+        return (
+          !!m && !m.hidden && !!who && !who.child && Math.hypot(m.x - fire.x, m.z - fire.z) < 26
+        );
+      };
+    if (this.singerDay !== song.day || this.singer < 0 || !near(this.singer)) {
+      this.singerDay = song.day;
+      this.singer = -1;
+      const n = this.moments.length,
+        from = n ? song.day % n : 0;
+      for (let k = 0; k < n; k++)
+        if (near((from + k) % n)) {
+          this.singer = (from + k) % n;
+          break;
+        }
+    }
+    const m = this.singer >= 0 ? this.moments[this.singer] : null;
+    this.memorialLayer.sing(
+      m ? { x: m.x, z: m.z, up: 6 * this.figure.scale } : { x: fire.x, z: fire.z, up: 4 },
+      clock,
+    );
+  }
+
+  /** The song at the feast now and who sings it (T1; null: none), where it shows on the screen. */
+  sungNow(t: number): {
+    readonly ref: string;
+    readonly title: string;
+    readonly line: string;
+    readonly who: string | null;
+    readonly x: number;
+    readonly y: number;
+  } | null {
+    const plan = this.plan,
+      song = plan ? sungAt(plan, t) : null;
+    if (!plan || !song) return null;
+    const m = this.singer >= 0 ? this.moments[this.singer] : null,
+      fire = fireOf(plan),
+      p = this.stage.camera.camera!.worldToScreen(
+        new pc.Vec3((m?.x ?? fire.x) * M, (6 * this.figure.scale + 3) * M, (m?.z ?? fire.z) * M),
+      );
+    return {
+      ref: song.song.ref,
+      title: song.song.title,
+      line: song.song.line,
+      who: m ? (plan.people[this.singer]?.name ?? null) : null,
+      x: p.x,
+      y: p.z > 0 ? p.y : -1,
+    };
+  }
+
+  /** The thing raised at a point of the screen (T1; null: none), and how a person presses it. */
+  stoneAt(x: number, y: number): string | null {
+    return this.memorialLayer.at(this.stage.camera.camera!, x, y)?.m.ref ?? null;
+  }
+  /** What a town raised, as drawn (the look tools). */
+  stonesOnScreen(): ReturnType<MemorialLayer["onScreen"]> {
+    return this.memorialLayer.onScreen(this.stage.camera.camera!);
+  }
+  stonesDrawn(): { readonly parts: number; readonly batches: number; readonly placed: number } {
+    return {
+      parts: this.memorialLayer.parts,
+      batches: this.memorialLayer.batchesUsed,
+      placed: this.memorialLayer.placed.length,
+    };
+  }
+  stonesShown(on: boolean): void {
+    this.memorialLayer.shown(on);
+  }
+
   /** What of a town drawn from its fabric stands at a point (metres from its middle), for a tap (M151). */
   townThingAt(x: number, z: number, t: number): TownThing | null {
     return this.town.thingAt(x, z, t);
@@ -1795,6 +1891,8 @@ export class VillageScene {
     this.crafts.update(screen, this.stage.quality.motion, this.craftsKept);
     this.foundryLayer.update(screen, this.stage.quality.motion, this.craftsKept.foundry);
     this.floorLayer.update(screen, this.stage.quality.motion, this.craftsKept.floor);
+    // The song at its feast (T1): notes rising over whoever sings it.
+    this.singNow(plan, t, screen);
     // Its dead and their burying (Phase 43 M205): the graves open today, their earth heaped
     // beside them; the dead on their biers, on their bearers' shoulders where they are drawn.
     this.mourning = false;

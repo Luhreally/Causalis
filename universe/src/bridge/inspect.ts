@@ -21,6 +21,8 @@ export type Place =
       readonly town: string;
       readonly person?: string;
       readonly household?: string;
+      /** What it raised, to be looked at (T1). */
+      readonly stone?: string;
     }
   | { readonly scale: "system"; readonly body?: number }
   | { readonly scale: "cluster"; readonly star: string }

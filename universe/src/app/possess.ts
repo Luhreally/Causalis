@@ -42,6 +42,9 @@ import {
   type HandBid,
 } from "../view/index.ts";
 
+/** How near (metres) one stands to read what a town raised, walking in someone. */
+const READ_REACH = 40;
+
 export type PossessionDeps = {
   readonly stage: Stage;
   readonly canvas: HTMLCanvasElement;
@@ -147,6 +150,18 @@ export function installPossession(d: PossessionDeps): Possession {
     if (on) on.pace = pace;
   };
   hud.onLetGo = () => void letGo();
+  // What a town raised, read as anywhere in the town, by one near enough to read it (T1). The body stands on while it is read.
+  hud.onTap = (x, y) => {
+    if (!on) return;
+    const r = d.canvas.getBoundingClientRect(),
+      ref = d.village.stoneAt(x - r.left, y - r.top),
+      stone = ref ? d.village.stonesOnScreen().find((s) => s.ref === ref) : null,
+      me = on.posed.drawnAt(on.now.agent);
+    if (!ref || !stone || !me) return;
+    if (Math.hypot(stone.worldX - me.x, stone.worldZ - me.z) > READ_REACH)
+      hud.say("That stands too far off to read: walk nearer");
+    else void d.pages.open(ref);
+  };
 
   /** Why one cannot be possessed here (null: they can): the hand must rest on the town shown. */
   const whyNot = async (index: number): Promise<string | null> => {

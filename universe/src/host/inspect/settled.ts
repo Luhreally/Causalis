@@ -56,6 +56,7 @@ import { faithLink, landLink, landTitle, languageLink, realmLink, townLink } fro
 import { TRAIT_LOOK, agentFamily, metChips, metFamily, traitChips } from "./folk.ts";
 import { agentHolder, householdThingsBlocks, personThingsBlocks } from "./things.ts";
 import { buildingsTab } from "./fabric.ts";
+import { townSongsTab } from "./memory.ts";
 import { threadBlock } from "./thread.ts";
 import { worldLook } from "../biochem.ts";
 
@@ -276,6 +277,11 @@ export function townPage(world: World, ref: string): PageModel {
         { type: "tool", tool: "hand.town", args: { town: s.ref } },
       ],
     });
+  }
+  // What it raised and what it sings (T1).
+  {
+    const songs = townSongsTab(world, s.ref);
+    if (songs) tabs.push(songs);
   }
   // Its men at war (Phase 55 M225): each battle its men were levied to, newest first, and who fell
   // there (its line holders, then the people met from it).

@@ -1,0 +1,188 @@
+// What a town raised, seen (T1): a handful of low parts on the rim of its square, each thing raised in its people's own stuff; and, at a feast, the
+// song seen: notes rising over whoever is singing. Units as the village's: a tenth of a unit to the metre. A batch for each mesh and colour a
+// town's stones want, none for a town with none: the town's worst is five things of at most nine parts each.
+import * as pc from "playcanvas";
+import {
+  memorialParts,
+  memorialsPlaced,
+  partAt,
+  type MemorialPart,
+  type StoneMesh,
+  type PlacedMemorial,
+} from "../view/index.ts";
+import type { VillagePlan } from "../bridge/index.ts";
+import { InstancedBatch, boxMesh, coneMesh, cylinderMesh, gableMesh, keptMesh } from "./batch.ts";
+import type { Rgb, Stage } from "./stage.ts";
+
+const M = 0.1;
+/** How many notes rise over a singer, and how long each takes (seconds of the screen's clock). */
+const NOTES = 3,
+  NOTE_S = 2.4;
+const NOTE: Rgb = [1, 0.86, 0.3];
+
+export class MemorialLayer {
+  readonly root = new pc.Entity("memorials");
+  private readonly stage: Stage;
+  private readonly meshes: Record<StoneMesh, pc.Mesh>;
+  private batches: InstancedBatch[] = [];
+  private notes: InstancedBatch | null = null;
+  /** What was last laid out, for a finger and the look tools. */
+  placed: readonly PlacedMemorial[] = [];
+  parts = 0;
+  batchesUsed = 0;
+
+  constructor(stage: Stage, parent: pc.Entity) {
+    this.stage = stage;
+    parent.addChild(this.root);
+    this.meshes = {
+      box: keptMesh(boxMesh(stage)),
+      cyl: keptMesh(cylinderMesh(stage, 0.5, 1, 10)),
+      cone: keptMesh(coneMesh(stage, 0.5, 1, 8)),
+      gable: keptMesh(gableMesh(stage)),
+    };
+  }
+
+  /** Lay out a town's stones (none: nothing is made). */
+  build(plan: VillagePlan): void {
+    for (const b of this.batches) b.destroy();
+    this.notes?.destroy();
+    this.batches = [];
+    this.notes = null;
+    this.placed = memorialsPlaced(plan);
+    this.parts = 0;
+    // A list of parts for each mesh and colour.
+    const groups = new Map<
+      string,
+      { mesh: StoneMesh; colour: Rgb; list: ReturnType<typeof partAt>[] }
+    >();
+    for (const p of this.placed) {
+      const key = plan.seed ^ (p.m.year * 2654435761);
+      for (const q of memorialParts(p.m, key) as readonly MemorialPart[]) {
+        const colour = (q.tone === "dark" ? p.m.dark : p.m.colour) as Rgb,
+          id = `${q.mesh}|${colour.join()}`;
+        let g = groups.get(id);
+        if (!g) groups.set(id, (g = { mesh: q.mesh, colour, list: [] }));
+        g.list.push(partAt(p, q));
+        this.parts++;
+      }
+    }
+    for (const g of groups.values()) {
+      const b = new InstancedBatch(
+        this.stage,
+        this.meshes[g.mesh],
+        g.colour,
+        g.list.length,
+        this.root,
+      );
+      b.set(g.list.length, (i, out) => {
+        const q = g.list[i]!;
+        out[0] = q.x * M;
+        out[1] = q.y * M;
+        out[2] = q.z * M;
+        out[3] = q.sx * M;
+        out[4] = q.sy * M;
+        out[5] = q.sz * M;
+        out[6] = q.yaw;
+        out[7] = q.tip;
+      });
+      this.batches.push(b);
+    }
+    this.batchesUsed = this.batches.length;
+    if (plan.songs?.length) {
+      this.notes = new InstancedBatch(this.stage, this.meshes.box, NOTE, NOTES, this.root);
+      this.notes.glow([0.7, 0.55, 0.15]);
+      this.notes.set(0, () => {});
+    }
+  }
+
+  /** The notes over a singer now (null: no one sings). `up`: the top of their head (metres). */
+  sing(
+    at: { readonly x: number; readonly z: number; readonly up: number } | null,
+    clock: number,
+  ): void {
+    const n = this.notes;
+    if (!n) return;
+    if (!at) {
+      n.set(0, () => {});
+      return;
+    }
+    n.set(NOTES, (i, out) => {
+      const u = (((clock / NOTE_S + i / NOTES) % 1) + 1) % 1,
+        a = clock * 1.3 + i * 2.1;
+      out[0] = (at.x + Math.cos(a) * 1.3) * M;
+      out[1] = (at.up + 1 + u * 7) * M;
+      out[2] = (at.z + Math.sin(a) * 1.3) * M;
+      const s = (1.5 - u * 0.4) * M;
+      out[3] = out[4] = out[5] = s;
+      out[6] = a;
+      out[7] = Math.PI / 4;
+    });
+  }
+
+  /**
+   * The thing raised at a point of the screen (null: none), a finger's reach about it: the nearest, by its standing shape on the
+   * screen from foot to head and its breadth there. Only what lies in front of the eye.
+   */
+  at(cam: pc.CameraComponent, x: number, y: number, reach = 16): PlacedMemorial | null {
+    let best: PlacedMemorial | null = null,
+      bestD = Infinity;
+    const foot = new pc.Vec3(),
+      head = new pc.Vec3();
+    for (const p of this.placed) {
+      cam.worldToScreen(new pc.Vec3(p.x * M, 0, p.z * M), foot);
+      cam.worldToScreen(new pc.Vec3(p.x * M, p.high * M, p.z * M), head);
+      if (foot.z <= 0 || head.z <= 0) continue;
+      // (How far a metre is on the screen, there: from its height.)
+      const high = Math.max(8, Math.hypot(foot.x - head.x, foot.y - head.y)),
+        half = Math.max(10, (high / Math.max(1, p.high)) * p.wide * 0.8) + reach,
+        along = Math.max(0, Math.min(1, (y - foot.y) / (head.y - foot.y || 1))),
+        cx = foot.x + (head.x - foot.x) * along,
+        cy = foot.y + (head.y - foot.y) * along,
+        inY = y >= Math.min(foot.y, head.y) - reach && y <= Math.max(foot.y, head.y) + reach,
+        d = Math.abs(x - cx);
+      if (inY && d <= half && Math.hypot(x - cx, y - cy) < bestD) {
+        bestD = Math.hypot(x - cx, y - cy);
+        best = p;
+      }
+    }
+    return best;
+  }
+
+  /** Where each thing raised stands on the screen (the look tools). */
+  onScreen(cam: pc.CameraComponent): {
+    ref: string;
+    form: string;
+    x: number;
+    y: number;
+    footX: number;
+    footY: number;
+    headY: number;
+    worldX: number;
+    worldZ: number;
+    front: boolean;
+  }[] {
+    const a = new pc.Vec3(),
+      b = new pc.Vec3();
+    return this.placed.map((p) => {
+      cam.worldToScreen(new pc.Vec3(p.x * M, 0, p.z * M), a);
+      cam.worldToScreen(new pc.Vec3(p.x * M, p.high * M, p.z * M), b);
+      return {
+        ref: p.m.ref,
+        form: p.m.form,
+        x: (a.x + b.x) / 2,
+        y: (a.y + b.y) / 2,
+        footX: a.x,
+        footY: a.y,
+        headY: b.y,
+        worldX: p.x,
+        worldZ: p.z,
+        front: a.z > 0 && b.z > 0,
+      };
+    });
+  }
+
+  /** Whether it is laid out at all (a gate shows the town with it and without). */
+  shown(on: boolean): void {
+    this.root.enabled = on;
+  }
+}

@@ -8,6 +8,14 @@ body.possessing {
 body.possessing #hud > *:not(.possess-hud):not(.page-window):not(.panel.page-panel) {
   display: none !important;
 }
+/* A page read while walking in someone (a stone, T1): it lies over their controls, which wait under it. */
+body.possessing .page-panel .page-window {
+  z-index: 31;
+}
+body.possessing:has(.page-window:not([hidden])) .possess-told,
+body.possessing:has(.page-window:not([hidden])) .possess-hint {
+  display: none;
+}
 /* Possess in hand: why one cannot be taken told whole on the palette's line, not cut short. */
 .palette-line.whole .palette-words {
   white-space: normal;

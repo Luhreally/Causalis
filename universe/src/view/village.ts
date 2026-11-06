@@ -28,6 +28,7 @@ import {
 import { OCC, article } from "../rules/index.ts";
 import { paceOf } from "./figure.ts";
 import { clearAt, clearOf, keepOut, route, villageGround, type Ground } from "./ground.ts";
+import { memorialsPlaced } from "./memorial.ts";
 import { streetDoor } from "./streets.ts";
 import { FEAST_HOURS, MARKET_HOURS, feastOn, feastPlace, marketDay, marketScene } from "./feast.ts";
 import { FLAMES_S, strikeSpan } from "./town.ts";
@@ -5529,6 +5530,26 @@ function groundFor(plan: VillagePlan): Ground {
       g = {
         ...g,
         homesReach: Math.max(g.homesReach, Math.hypot(site.x, site.z) + 5.5),
+      };
+    // (What a town raised stands in the way as a wall does: people go round it, and so does one walked. T1.)
+    const stones = memorialsPlaced(plan);
+    if (stones.length)
+      g = {
+        ...g,
+        homes: [
+          ...g.homes,
+          ...stones.map((s) => {
+            const r = Math.min(s.wide, 0.9);
+            return {
+              x: s.x,
+              z: s.z,
+              r,
+              ax: Math.cos(s.yaw),
+              az: -Math.sin(s.yaw),
+              half: Math.max(0, s.wide - r),
+            };
+          }),
+        ],
       };
     GROUNDS.set(plan, g);
   }

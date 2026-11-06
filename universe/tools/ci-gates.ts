@@ -316,6 +316,8 @@ export const GATES: readonly Gate[] = [
   { gate: 89, args: ["--ci"], s: 200 },
   // Gate 91, the years and what's next (tools/a1-gate.ts): the Years by touch, a few dozen rows of thousands; what's next from the stage chip; a run at speed and its note, once; a world with no one on it; a young world on CI.
   { gate: 91, args: ["--ci"], s: 240 },
+  // Gate 93, memory in the town (tools/t1-gate.ts): stones and songs read off a world, the same twice; a stone in the pixels, pressed by touch; a feast's song; Songs and tales; a town with no past; a young world on CI.
+  { gate: 93, args: ["--ci"], s: 200 },
   // The Sound gate: every place its own air, by numbers off the real output and off renders; cues
   // on real presses; 🔊 by touch, remembered; no AudioContext, a hidden tab; the same history.
   { gate: 90, args: ["--ci"], s: 240 },

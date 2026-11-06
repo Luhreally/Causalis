@@ -71,6 +71,7 @@ import {
   spotOfLand,
   townLink,
 } from "./names.ts";
+import { realmSongsTab } from "./memory.ts";
 
 /** How many places a battle's fallen tab names, the most dead first; the rest are counted. */
 export const FELL_ROWS = 40;
@@ -184,6 +185,8 @@ export function realmPageModel(world: World, ref: string): PageModel {
   });
   // Who holds power in it (Lives L1).
   tabs.push({ id: "leaders", name: "Leaders", blocks: leaderBlocks(world, r) });
+  // What they sing (T1).
+  tabs.push(realmSongsTab(world, r.ref));
   // Who stands near its seat, and wants it (Lives L5).
   tabs.push({ id: "court", name: "Court", blocks: courtBlocks(world, r) });
   // Its lands, most peopled first.

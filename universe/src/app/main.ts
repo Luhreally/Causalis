@@ -9,6 +9,8 @@ import "./brushes.css";
 import "./tour.css";
 import "./can.css";
 import "./years.css";
+import "./memory.css";
+import { SungNote } from "../ui/index.ts";
 import { Checkpoint } from "./checkpoint.ts";
 import { HostClient, LOT, inlinePair, lotStates, progress, workerPort } from "../bridge/index.ts";
 import {
@@ -329,6 +331,7 @@ import {
   slowAhead,
   slowingBegun,
   type Slowing,
+  type OrbitView,
 } from "../view/index.ts";
 
 /** A point along a name's line: `d` radians from its centre, on the unit sphere. */
@@ -828,6 +831,15 @@ type Exposed = {
   townShown?: () => { ref: string; name: string; heart: boolean; battle: string | null } | null;
   /** Where on the screen a point of the town seen near is (metres from its middle; M201), or null. */
   townScreen?: (x: number, z: number) => { x: number; y: number } | null;
+  /** What the town seen near raised, as drawn (T1): where each stands on the screen, its parts; with it hidden or not, to compare a shot. */
+  stones?: () => {
+    readonly list: ReturnType<VillageScene["stonesOnScreen"]>;
+    readonly drawn: ReturnType<VillageScene["stonesDrawn"]>;
+  } | null;
+  stonesShown?: (on: boolean) => void;
+  sungNote?: () => HTMLElement;
+  /** The song at the feast now (T1). */
+  sung?: () => ReturnType<VillageScene["sungNow"]>;
   /** How many of each thing a town's countryside shows now (Phase 32), at the village scale. */
   country?: () => Record<string, number> | null;
   /** What a town's square shows now (Phase 33): its feast, its fire, its market; the bar's words. */
@@ -2991,7 +3003,9 @@ async function runPlanetPage(): Promise<void> {
     drift: drift(),
     onTap: (x, y) =>
       palette.armed &&
-      (scale === "globe" || scale === "region" || scale === "camp" || scale === "village")
+      (scale === "globe" || scale === "region" || scale === "camp" || scale === "village") &&
+      // (A press on a thing a town raised reads it: the hand's act isn't cast on the ground beneath it. T1.)
+      !(scale === "village" && plan && !homeOpen() && village.stoneAt(x, y))
         ? tapPalette(x, y)
         : scale === "globe"
           ? tapGlobe(x, y)
@@ -3019,6 +3033,9 @@ async function runPlanetPage(): Promise<void> {
   /** How far from a town's middle its square reaches, metres (a village's drawn in, as its dressing is). */
   const SQUARE_REACH = 20;
   const villageThingAt = (x: number, y: number): string | null => {
+    // (What a town raised: its tip, T1.)
+    const stone = plan ? village.stoneAt(x, y) : null;
+    if (stone) return stone;
     const at = plan ? onPlane(x, y, 0) : null;
     if (!plan || !at) return null;
     const mx = at.x / VILLAGE_METRE,
@@ -6169,6 +6186,21 @@ async function runPlanetPage(): Promise<void> {
     if (lifeTap?.(x, y)) return;
     // (A town's money over it: a home tapped gives its page, whoever stands before it. Lives L6.)
     if (moneyTap?.(x, y)) return;
+    // The song at its feast and what it raised (T1): a finger on the notes, on the stone. Someone standing right there comes first.
+    if (plan && !homeOpen()) {
+      const sung = village.sungNow(now());
+      if (sung && sung.y >= 0 && Math.hypot(sung.x - x, sung.y - y) < 34) {
+        selectPerson(null);
+        void pageWindow.open(sung.ref);
+        return;
+      }
+      const stone = village.pick(x, y, 10) === null ? village.stoneAt(x, y) : null;
+      if (stone) {
+        selectPerson(null);
+        void pageWindow.open(stone);
+        return;
+      }
+    }
     // One borne home on a litter (Phase 55 wave 5): their card, as anyone's.
     const borne = plan ? village.pickLitter(x, y) : null;
     if (borne !== null) return selectPerson(borne);
@@ -8440,6 +8472,12 @@ async function runPlanetPage(): Promise<void> {
       : null;
   exposed.townScreen = (x: number, z: number) =>
     scale === "village" && plan ? village.screenOf(x, z) : null;
+  exposed.stones = () =>
+    scale === "village" && plan
+      ? { list: village.stonesOnScreen(), drawn: village.stonesDrawn() }
+      : null;
+  exposed.stonesShown = (on: boolean) => village.stonesShown(on);
+  exposed.sung = () => (scale === "village" && plan ? village.sungNow(now()) : null);
   exposed.country = () => (scale === "village" && plan ? village.countryNow() : null);
   exposed.feast = () =>
     scale === "village" && plan
@@ -8622,6 +8660,21 @@ async function runPlanetPage(): Promise<void> {
       pitch: (-Math.asin(p[spot * 3 + 1]!) * 180) / Math.PI,
     };
   };
+  /**
+   * Where to look at what a town raised (T1): from over its square toward it, low, so no tower of a
+   * city stands between.
+   */
+  const stoneView = (ref: string): OrbitView | null => {
+    const s = village.stonesOnScreen().find((x) => x.ref === ref);
+    return s
+      ? {
+          target: { x: s.worldX * VILLAGE_METRE, y: 0.4, z: s.worldZ * VILLAGE_METRE },
+          yaw: (Math.atan2(-s.worldX, -s.worldZ) * 180) / Math.PI,
+          pitch: -16,
+          distance: 3.2,
+        }
+      : null;
+  };
   const goTo = async (place: Place) => {
     walk.saw("scale");
     // Where it is already in the scene shown: a flight there, not a fade (M94).
@@ -8640,6 +8693,13 @@ async function runPlanetPage(): Promise<void> {
       return;
     }
     if (scale === "village" && place.scale === "village" && place.town === plan?.ref) {
+      if (place.stone) {
+        // (The eye held on someone, as in a life or a possession: read from where they stand.)
+        const view = rig.follow || !rig.enabled ? null : stoneView(place.stone);
+        pageWindow.close();
+        if (view) rig.flyTo(view);
+        return;
+      }
       const who = place.person,
         i = who ? plan.people.findIndex((p) => p.ref === who) : -1,
         m = i >= 0 ? village.momentAt(i) : null;
@@ -8699,6 +8759,15 @@ async function runPlanetPage(): Promise<void> {
               }
               keep(who);
             }
+          }
+          // (One the world has since displaced from its town's five: the town is still what was asked for.)
+          if (place.stone) pageWindow.close();
+          const stone = place.stone ? stoneView(place.stone) : null;
+          if (stone) {
+            rig.target.set(stone.target.x, stone.target.y, stone.target.z);
+            rig.yaw = stone.yaw;
+            rig.pitch = stone.pitch;
+            rig.distance = stone.distance;
           }
           swoop();
           return;
@@ -9166,6 +9235,21 @@ async function runPlanetPage(): Promise<void> {
       !!document.querySelector(".jump-screen"),
   );
   if (exposed.jumpedFrom !== undefined) runNote.jumped();
+  // Who sings at the feast (T1): a note that can be pressed, while the eye is free and the town is the thing seen.
+  const sungNote = new SungNote(
+    tidings.element,
+    (ref) => void pageWindow.open(ref),
+    () =>
+      scale !== "village" || !plan || pageWindow.visible || events.open || !!time.lapse
+        ? null
+        : village.sungNow(now()),
+    () =>
+      directorControls.watching ||
+      ["filming", "fleet-filming", "homing", "living", "possessing", "ruling", "paging"].some((c) =>
+        document.body.classList.contains(c),
+      ),
+  );
+  exposed.sungNote = () => sungNote.element;
   takeUp.push(() => runNote.fromNow());
   clusterPanel.under(directorControls.caption);
   // A colony's landing watched (Phase 64), and the list of the worlds settled that leads to it.

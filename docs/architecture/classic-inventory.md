@@ -88,7 +88,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 32e Architecture render | Palettes, footprints, roofs, function marks, sites going up | **in** | Homes in their designs, rising inside scaffolds (`view/town.ts`, `render/town.ts`) |
 | 32f Interiors | Cutaway homes: furniture, and who is inside | **partial** | Any home opens in cutaway with what its people need, can get and can pay for, and those who are in it (Lives L6, `rules/dwelling.ts`). Missing: workshops |
 | 32g Town render | Work at its faces; the place itself | **in** | `render/work.ts`; trades at their buildings (`render/trades.ts`, Phase 41) |
-| 52 Living society | Monuments, caravans that walk, wildlife lives, petty crime and captives | **partial** | Traders on the road (`view/trade.ts`, Phase 48); captives (`sim/order/order.ts`). Missing: monuments, dens and beasts of legend, theft and exile |
+| 52 Living society | Monuments, caravans that walk, wildlife lives, petty crime and captives | **partial** | Traders on the road (`view/trade.ts`, Phase 48); captives (`sim/order/order.ts`); stones raised to what a town went through, each with its page (`host/inspect/memory.ts`, `render/memorial.ts`, T1). Missing: dens and beasts of legend, theft and exile |
 | 68 Expansion | Settlers found new camps; caps scale with the map | **in** | Bands spread and towns are founded (`sim/population/systems.ts`); the god can send settlers (`sim/acts/peoples.ts`) |
 | 82 Granary | Farms scale with mouths, rations stretch, relief comes, the hungry move, births slow | **in** | Stores, fertility that follows how well fed, relief by trade, moves away from hunger (`sim/population/systems.ts`, `sim/economy/systems.ts`) |
 | 83 Aftermath | Ruins resettled, refugees walk to friends, thinned towns colonised | **partial** | People leave hungry or war-torn lands (`sim/population/systems.ts`). Missing: ruins resettled, colonists sent to thinned towns |
@@ -188,7 +188,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 |---|---|---|---|
 | 48 Languages | Each world has a tongue; dialects split by sound change | **in** | `sim/culture/languages.ts` |
 | 50 Belief | The god named; favour, rites, a Speaker, myths, schisms | **partial** | Faiths founded on signs, spreading and splitting (`sim/belief/belief.ts`); the god named by what each people saw (`host/inspect/peoples.ts`). Missing: rites with offerings, prophecy, myths |
-| 58 Festivals & arts | Feasts, songs, tales, dances, murals | **partial** | Feasts with dancing, and market days (`view/feast.ts`, Phase 33). Missing: songs, tales, murals |
+| 58 Festivals & arts | Feasts, songs, tales, dances, murals | **partial** | Feasts with dancing, and market days (`view/feast.ts`, Phase 33); songs and tales made from a people's own history, sung at its feasts and wearing with age (`host/inspect/verse.ts`, T1). Missing: murals |
 | 71 Faith | Sects, zeal, holy wars | **partial** | Faiths and schisms; rival faiths sour regard; the temple's sway toward war (`sim/polity/interests.ts`). Missing: sect zeal, and wars named holy |
 
 ## History, legends & records
@@ -297,7 +297,7 @@ Ranked by how much each would add to the game's depth and to what you see, leani
 13. **The god's hand on the ground.** Classic 31. Raise and lower land, add water, seed plants, beasts, people or ore, strike lightning anywhere, claim land for a realm: WorldBox's own brushes. **L**
 14. **Wild lives.** Classic 52, 42d, 21, 23. Herds that follow the warmth, dens, courtship, beasts of legend; herders guarding flocks and herds stolen in war; lineages still changing during history. **M**
 15. **Roads built and travelled.** Classic 88, 46, 122, 155. Roads laid stone by stone and rails metal by metal, paths worn by feet, household cars for the trip to work, buses with riders. **M**
-16. **Songs, tales, murals, monuments, rites.** Classic 58, 52, 50. Songs and tales made from the world's history and carried to feasts, murals painted with pigment, stones raised to wars and calamities, solstice rites with offerings, a Speaker's prophecies. **M**
+16. **Songs, tales, murals, monuments, rites.** Classic 58, 52, 50. Songs and tales made from the world's history and carried to feasts, and stones raised to wars and calamities: built (2026-11-06). Next: murals painted with pigment, solstice rites with offerings, a Speaker's prophecies. **M**
 17. **Interiors.** Classic 32f. Homes and workshops opened in cutaway, with their furniture and the people inside. **M**
 18. **Knowledge that can be lost.** Classic 81, 106. Crafts lost when a town falls and kept by archives; rare crafts opened only by having seen a quake or a falling star. **S**
 19. **Town directives.** Classic 34a. The god sets a town's priority or policy and asks it to build. **M**
@@ -359,6 +359,30 @@ What the board shows of the sim: **far prices are pinned.** `reprice` clamps a p
 Limits, stated: the market hall's own press isn't exercised by touch, since no hook gives a hall's screen place; the square's and 🏷️'s are. Possession has no button that opens a page, so a board can't be reached there. No no-grip world's board was opened on the screen; `vale 471` was tallied and reads its own things.
 
 Cut for later: a map lens of a good's price, treasuries, finery in rich homes linked to the board, a war's effect past a good's five years of books, a signboard drawn in the square.
+
+## Memory in the town, as built (2026-11-06)
+
+A town now keeps what happened to it. On the rim of its square stand up to five things raised: a standing stone to a hunger, a tomb for one who ruled long, a slab of black glass for the dead of a fire. Each is pressed like anything else, and its page says what it is, who raised it, whether they are gone, and who holds the town now and lets it stand. A people has songs and tales made from the same history. At a feast you see a note with what they're singing, and a town's page, a realm's and a people's have a Songs and tales tab.
+
+- **It only reads.** One reading of the log (`host/inspect/memory.ts`, kept per world by the log's count and last id). No state, no events, no commands, no version bump; the hashes are the same before and after.
+- **How a thing finds its town.** One that names a town: that town. A battle or landing: the land's heart if it stood then, else its oldest. A sickness, hunger or rising: one of its towns standing then, drawn by the event. A ruler or a realm's end: the town the realm is named for. No town then: a song, no stone.
+- **Shape from what happened, stuff from who raised it.** The land's rock, cut. A people who can't grip heap: cairn, heap, barrow, and nothing is cut on them ("No one here can cut a word, so nothing is written on it, and everyone knows what it says"). A water people bind shell and coral. After fusion, black glass.
+- **Songs wear.** Under 60 years they count the dead. Under 400 they round them. Under 1,200 names wear short. Older than that, no name is left, and the page says so under How it has changed, and says what really happened.
+- **It stands in the way.** People go round a stone, and so does one walked.
+- **Pressed anywhere in a town.** From the eye, during a life, and while walking in someone. Possessed, a stone 40 metres off or nearer opens, and the body stands on while it's read; further off it says to walk nearer. Gate 93 presses each by touch.
+
+Tally of whole worlds: harrow 348 at 3000, 333 of 2,101 towns have a stone (16%); kestrel 557 at 2000, 25%; vale 471 at 2000, 16%; first light at 2000, 10%. At most 5 a town and 2 of a kind. The commonest song title is at most 9.9% of a world's. A town's stones are 45 parts at most; on harrow's worst town a frame takes 16.7 ms with them and 16.8 without. Reading a save's memory once takes 8 to 620 ms on the worker, then nothing until the log moves.
+
+Found by tallying what stands against what a page lists: **a quarter of a far city's stones stood nowhere** (harrow 348 at 3000: 93 of 121), since the market's stalls ruled out most of the rim, their clearance counting a stone's breadth along the rim as if it reached inward. All stand now, on the rim, then a little in, then closer beside each other (`view/memorial.ts`), and a stone's ⌖ Go to always closes its page.
+
+Found by pressing: the possession's controls lay over any page, so a page opened there couldn't be touched. It now lies over them, and what they tell gives way while it's open.
+
+A city of towers hides its stones from the eye above it: its page lists them under What they raised, and a stone's own page has **⌖ Go to**, which brings the eye down across the square at it, past whatever stands around. Gate 93 checks the stone is truly in the picture afterward, with and without it.
+
+Limits, stated: a tap isn't stopped by a building standing in front of a stone, as with everything else pressed in a town. Desktop size and Safari weren't run. No saved world tested here showed a stump, the great fire's own stone; it's read by rule.
+
+Cut for later: murals, rites, a Speaker's sayings, a person going to the stone on the day, a song's own tongue-word titles.
+
 
 ## The work-down order (2026-10-25)
 

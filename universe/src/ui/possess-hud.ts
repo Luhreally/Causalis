@@ -17,10 +17,11 @@ import { el } from "./why.ts";
 /** How far the stick reaches from where the thumb came down (CSS px); pushed this far out of it, a run. */
 const STICK_R = 52,
   RUN_AT = 0.92;
-/** A double tap: two taps this close in time (ms) and place (px); a tap: a press that barely moves. */
+/** A double tap: two taps this close in time (ms) and place (px); a tap: a press that barely moves, let go soon (ms). */
 const DOUBLE_MS = 330,
   DOUBLE_PX = 44,
-  TAP_PX = 10;
+  TAP_PX = 10,
+  TAP_MS = 350;
 /** The keys of the four acts, in their places. */
 const ACT_KEYS = ["Space", "KeyE", "KeyF", "KeyR"];
 const AHEAD: Readonly<Record<string, readonly [number, number]>> = {
@@ -47,7 +48,7 @@ const titled = (e: HTMLElement, title: string) => {
 };
 
 type Held =
-  | { kind: "stick"; x0: number; y0: number }
+  | { kind: "stick"; x0: number; y0: number; fromX: number; fromY: number; at: number }
   | { kind: "look"; x: number; y: number; x0: number; y0: number; at: number };
 
 export class PossessHud {
@@ -104,6 +105,8 @@ export class PossessHud {
   onZoom: (factor: number) => void = () => {};
   onBehind: () => void = () => {};
   onPace: (pace: number) => void = () => {};
+  /** A finger put down and lifted on one spot of the world (screen px): what stands there, touched. */
+  onTap: (x: number, y: number) => void = () => {};
 
   constructor(parent: HTMLElement) {
     this.element.hidden = true;
@@ -406,7 +409,7 @@ export class PossessHud {
       const r = this.element.getBoundingClientRect(),
         x0 = Math.max(r.left + STICK_R + 8, Math.min(innerWidth / 2 - STICK_R, x)),
         y0 = Math.max(r.top + STICK_R + 90, Math.min(r.bottom - STICK_R - 8, y));
-      this.held.set(e.pointerId, { kind: "stick", x0, y0 });
+      this.held.set(e.pointerId, { kind: "stick", x0, y0, fromX: x, fromY: y, at: e.timeStamp });
       this.base.hidden = false;
       this.base.style.left = `${x0}px`;
       this.base.style.top = `${y0}px`;
@@ -441,12 +444,18 @@ export class PossessHud {
     const h = this.held.get(e.pointerId);
     if (!h) return;
     this.held.delete(e.pointerId);
+    const brief = e.type === "pointerup" && e.timeStamp - h.at < TAP_MS;
     if (h.kind === "stick") {
       this.push = { x: 0, y: 0 };
       this.base.hidden = true;
       this.knob.style.transform = "";
-    } else if (Math.hypot(e.clientX - h.x0, e.clientY - h.y0) < TAP_PX)
+      // (A thumb lit and lifted on one spot meant what stands there: it did not mean to walk.)
+      if (brief && Math.hypot(e.clientX - h.fromX, e.clientY - h.fromY) < TAP_PX)
+        this.onTap(e.clientX, e.clientY);
+    } else if (Math.hypot(e.clientX - h.x0, e.clientY - h.y0) < TAP_PX) {
       this.tapped = { t: e.timeStamp, x: e.clientX, y: e.clientY };
+      if (brief) this.onTap(e.clientX, e.clientY);
+    }
     this.pinch = this.spread();
   }
 
