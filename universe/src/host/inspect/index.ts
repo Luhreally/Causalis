@@ -65,7 +65,12 @@ import { namedPage, type NamesArg } from "../names.ts";
 import { lawPage } from "../lanes.ts";
 
 /** The page a ref's kind is built by (the tab it asked for, if any). */
-function build(world: World, ref: string, tab: string | null): PageModel {
+function build(
+  world: World,
+  ref: string,
+  tab: string | null,
+  only?: ReadonlySet<string>,
+): PageModel {
   if (ref === "world:chronicle") return chroniclePage(world, tab ?? undefined);
   if (ref === "world:ledger") return ledgerPage(world, tab ?? undefined);
   if (ref === "world:log") return logPage(world, tab ?? undefined);
@@ -159,11 +164,11 @@ function build(world: World, ref: string, tab: string | null): PageModel {
     case "memo":
       return memoryPage(world, ref);
     case "pol":
-      return realmPageModel(world, ref);
+      return realmPageModel(world, ref, only);
     case "rel":
       return relationPage(world, ref);
     case "war":
-      return warPage(world, ref, t);
+      return warPage(world, ref, t, only);
     case "swar":
       return starWarPage(world, ref);
     case "faith":
@@ -214,6 +219,8 @@ export function pageOf(
   names?: NamesArg,
   /** Asked only for its name, its place or its first numbers: where someone lives is not read for that. */
   brief = false,
+  /** Only these tabs read, where a page's kind can leave the others out (a whole history is written from thousands of pages). */
+  only?: ReadonlySet<string>,
 ): PageModel {
   const { ref: base, tab } = splitPageRef(ref);
   let page: PageModel;
@@ -225,7 +232,7 @@ export function pageOf(
           world,
           base,
           brief
-            ? withLeaderPage(world, base, build(world, base, tab))
+            ? withLeaderPage(world, base, build(world, base, tab, only))
             : withLiving(world, base, withLeaderPage(world, base, build(world, base, tab))),
         ),
       ),

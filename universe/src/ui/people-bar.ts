@@ -194,9 +194,11 @@ export class PeopleBar {
   }
 
   private async tick(): Promise<void> {
-    if (this.busy || document.hidden) return;
+    if (document.hidden) return;
     const at = this.where();
-    if (at === null) return;
+    // (A mode or a scale with the foot of the screen to itself.)
+    this.element.classList.toggle("aside", at === null);
+    if (this.busy || at === null) return;
     const place = `${at.cell}|${at.town}`,
       now = performance.now();
     if (place !== this.saw) {

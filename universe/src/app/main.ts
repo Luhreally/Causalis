@@ -9253,6 +9253,8 @@ async function runPlanetPage(): Promise<void> {
         )
       )
         return null;
+      // (On a phone the foot of the stars' map is its legend's, and of the galaxy its own.)
+      if ((scale === "cluster" || scale === "galaxy") && innerWidth <= 640) return null;
       if (scale === "village") barAt = { cell: plan?.cell ?? null, town: plan?.ref ?? null };
       else if (scale === "region" || scale === "camp")
         barAt = { cell: regionCell >= 0 ? regionCell : null, town: null };

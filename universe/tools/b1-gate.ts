@@ -461,6 +461,38 @@ async function walk(world: World, f: Forged, name: string): Promise<void> {
     await page.waitForTimeout(slow(1000));
   }
 
+  // A swipe along the row with a real finger: it moves, and opens nothing.
+  const along = await k<{ x0: number; x1: number; y: number } | null>(`(() => {
+    const r = document.querySelector(".people-row");
+    if (!r || r.scrollWidth <= r.clientWidth + 4) return null;
+    r.scrollLeft = 0;
+    const b = r.getBoundingClientRect();
+    return { x0: b.right - 12, x1: b.left + 12, y: b.y + b.height / 2 };
+  })()`);
+  if (along) {
+    const cdp = await context.newCDPSession(page),
+      finger = (x: number) => [{ x, y: along.y, id: 1 }];
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: finger(along.x0),
+    });
+    for (let i = 1; i <= 10; i++) {
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: finger(along.x0 + ((along.x1 - along.x0) * i) / 10),
+      });
+      await page.waitForTimeout(16);
+    }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await page.waitForTimeout(slow(500));
+    const went = await k<number>(`document.querySelector(".people-row").scrollLeft`);
+    say(`${name}: a swipe along the bar moved it ${Math.round(went)} px`);
+    check(went > 20, `${name}: a swipe along the people bar moved it ${went} px`);
+    check((await pageNow()) === null, `${name}: a swipe along the bar opened a page`);
+    await k(`document.querySelector(".people-row").scrollLeft = 0`);
+    await cdp.detach();
+  }
+
   // Fold, by touch: the row goes, the button stays; and back.
   const s0 = await barSeen();
   if (s0.fold) {
@@ -499,7 +531,18 @@ async function walk(world: World, f: Forged, name: string): Promise<void> {
         );
         await page.waitForTimeout(slow(600));
       }
-      if (
+      if (now === "cluster" || now === "galaxy") {
+        // (On a phone the foot of the stars' map is its legend's.)
+        await page.waitForTimeout(slow(1200));
+        await barGone(`${name}, at the ${now}`);
+        await shot(`${name}-${now}-aside`);
+        const back = await k<boolean>(`(async () => {
+          await globalThis.causalis.zoomThrough?.("in");
+          await new Promise((r) => setTimeout(r, ${slow(2400)}));
+          return !document.querySelector(".people-bar").classList.contains("aside");
+        })()`);
+        check(back, `${name}: the bar did not come back on the way down from the ${now}`);
+      } else if (
         (await k<boolean>(
           `!!document.querySelector("#hud > .panel:not([hidden]) > .inspector:not([hidden], .page-window)")`,
         )) === false

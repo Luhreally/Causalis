@@ -20,10 +20,10 @@ import { annalsIndex, annalsRead } from "./annals.ts";
 import { pageOf } from "./index.ts";
 import { claimOf, yearNow } from "./words.ts";
 
-/** The most of each a file carries, and of a list within a thing. A file of these is about as much as a phone opens at ease. */
-const MOST_REALMS = 1200,
-  MOST_WARS = 1600,
-  MOST_PEOPLE = 900,
+/** The most of each a file carries, and of a list within a thing. A file of these is about as much as a phone opens at ease, and a few minutes' reading on one. */
+const MOST_REALMS = 800,
+  MOST_WARS = 800,
+  MOST_PEOPLE = 600,
   MOST_ITEMS = 8;
 
 /** Which tabs of a page go in, by kind of thing. */
@@ -31,6 +31,12 @@ const TABS: Readonly<Record<string, readonly string[]>> = {
   realms: ["overview", "rulers", "wars"],
   wars: ["overview"],
   people: ["overview"],
+};
+/** The same, as a page takes them: a realm's dozen other tabs are most of what its page costs, and none of them is told here. */
+const ONLY: Readonly<Record<string, ReadonlySet<string>>> = {
+  realms: new Set(TABS.realms),
+  wars: new Set(TABS.wars),
+  people: new Set(TABS.people),
 };
 /** Their page's lines a reader of a file has no use for: what is only true while playing. */
 const NOT_ROWS = new Set(["Family", "By your hand"]);
@@ -45,12 +51,13 @@ export function writtenIndex(world: World): WrittenIndex {
     annals = annalsIndex(world),
     year = yearNow(world),
     worth = annals.years.filter((_, i) => annals.masks[i]! & ANNAL_ALL),
-    // (The realms that stand, then the last to fall.)
+    // (The realms that stand, the greatest first, then the last to fall.)
     realmRefs = [...all]
       .sort(
         (a, b) =>
           Number(a.ended !== null) - Number(b.ended !== null) ||
           (b.ended ?? 0) - (a.ended ?? 0) ||
+          b.members.length - a.members.length ||
           a.founded - b.founded ||
           (a.ref < b.ref ? -1 : 1),
       )
@@ -64,8 +71,14 @@ export function writtenIndex(world: World): WrittenIndex {
       .sort((a, b) => a.i - b.i)
       .map((x) => x.w.ref as string),
     court = courtOf(world),
-    people: string[] = [];
-  for (const r of realms.living()) {
+    people: string[] = [],
+    standing = [...realms.living()].sort(
+      (a, b) => b.members.length - a.members.length || (a.ref < b.ref ? -1 : 1),
+    );
+  let rulers = 0;
+  for (const r of standing) {
+    if (people.length >= MOST_PEOPLE) break;
+    rulers++;
     people.push(`rule:${r.ref}`);
     const c = court?.of(r.ref);
     if (c?.heir !== null && c?.heir !== undefined && c.figures.some((f) => f.id === c.heir))
@@ -74,15 +87,19 @@ export function writtenIndex(world: World): WrittenIndex {
       people.push(courtRef(r.ref, c.rival));
   }
   const fallen = realmRefs.filter((ref) => realms.get(ref as Ref)?.ended !== null);
+  let lastRulers = 0;
   for (const ref of fallen) {
     if (people.length >= MOST_PEOPLE) break;
+    lastRulers++;
     people.push(`rule:${ref}`);
   }
   const left = [
     `A year here tells what The Years tells with no filter, at most ${ALL_LINES} lines of it; ${counted(annals.years.length - worth.length)} more years hold only lesser things, and the world's own log keeps those for a while and then forgets them.`,
     ...(all.length > realmRefs.length
       ? [
-          `${counted(realmRefs.length)} of ${counted(all.length)} realms are told: those that stand and the last to fall.`,
+          standing.length > realmRefs.length
+            ? `${counted(realmRefs.length)} of ${counted(all.length)} realms are told: the greatest of those that stand.`
+            : `${counted(realmRefs.length)} of ${counted(all.length)} realms are told: those that stand and the last to fall.`,
         ]
       : []),
     ...(wars.length > warRefs.length
@@ -90,7 +107,7 @@ export function writtenIndex(world: World): WrittenIndex {
           `${counted(warRefs.length)} of ${counted(wars.length)} wars are told: those that killed the most.`,
         ]
       : []),
-    `The people told are those who rule now, their heirs and rivals, and the last ruler of each realm told: ${counted(people.length)} of them. The town's many and those who sat at a court and left it are not.`,
+    `The people told are those who rule ${rulers < standing.length ? "the greatest realms " : ""}now, their heirs and rivals${lastRulers ? ", and the last rulers of realms that fell" : ""}: ${counted(people.length)} of them. The town's many and those who sat at a court and left it are not.`,
     `Of a realm, a war or a person, the page's first facts and its first ${MOST_ITEMS} lines of a list are told. Towns, lands, faiths and tongues have no entry here, and their names are only words.`,
   ];
   return {
@@ -106,8 +123,13 @@ export function writtenIndex(world: World): WrittenIndex {
 }
 
 /** A page's own words, cut. */
-function entryOf(world: World, ref: string, tabs: readonly string[]): WrittenEntry {
-  const page: PageModel = pageOf(world, ref, undefined, true),
+function entryOf(
+  world: World,
+  ref: string,
+  tabs: readonly string[],
+  only: ReadonlySet<string>,
+): WrittenEntry {
+  const page: PageModel = pageOf(world, ref, undefined, true, only),
     rows: { label: string; value: Line }[] = [],
     lists: { title: string; items: Line[]; more: number }[] = [];
   const said = new Set<string>();
@@ -150,5 +172,5 @@ export function writtenRead(
   ask: WrittenAsk,
 ): readonly WrittenEntry[] | WrittenYear[] {
   if (ask.kind === "years") return yearsOf(world, ask.years);
-  return ask.refs.map((ref) => entryOf(world, ref, TABS[ask.kind]!));
+  return ask.refs.map((ref) => entryOf(world, ref, TABS[ask.kind]!, ONLY[ask.kind]!));
 }
