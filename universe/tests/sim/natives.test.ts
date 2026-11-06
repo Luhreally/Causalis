@@ -13,7 +13,8 @@ import {
   type FolkStage,
 } from "../../src/sim/index.ts";
 
-const worldOf = (text: string) => ({ seed: seedFromText(text) }) as unknown as World;
+const worldOf = (text: string) =>
+  ({ seed: seedFromText(text), hasStore: () => false }) as unknown as World;
 const SEEDS = ["harrow 348", "alien 41", "cinder 570", "first light"];
 
 test("a people is a pure reading of its world: the same twice, and found again by its ref", () => {
