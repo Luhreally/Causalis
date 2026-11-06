@@ -59,6 +59,21 @@ const y = world.now / YEAR,
   ctx = populationContext(world);
 say(`${world.seed.text} at year ${Math.floor(y)}`);
 
+/** How much of a clip of the screen is unlike its own commonest colour: what stands on the ground in it. */
+function unlike(png: Buffer): number {
+  const seen = new Map<number, number>();
+  pixels(png, (r, g, b) => {
+    const key = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
+    seen.set(key, (seen.get(key) ?? 0) + 1);
+    return false;
+  });
+  const top = [...seen].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 0,
+    R = ((top >> 8) & 15) * 16 + 8,
+    G = ((top >> 4) & 15) * 16 + 8,
+    B = (top & 15) * 16 + 8;
+  return pixels(png, (r, g, b) => Math.abs(r - R) + Math.abs(g - G) + Math.abs(b - B) > 70);
+}
+
 /** The pixels of a shot that pass a test (8-bit, whole RGB or RGBA, not interlaced). */
 function pixels(png: Buffer, test: (r: number, g: number, b: number) => boolean): number {
   let at = 8,
@@ -354,8 +369,9 @@ if (site && !problems.length) {
 
   // A road stopped for the fighting and a road cut, seen and pressed where this world has them.
   for (const [what, roads, says] of [
-    ["stopped", stoppedRoads, /Stopped/],
-    ["cut", cutRoads, /Cut/],
+    // (A page's headings come in capitals: `innerText` reads them as a person sees them.)
+    ["stopped", stoppedRoads, /\bstopped\b/i],
+    ["cut", cutRoads, /\bcut\b/i],
   ] as const) {
     if (!roads.length) say(`no road ${what} among this world's first lands`);
     let shown = false;
@@ -370,14 +386,20 @@ if (site && !problems.length) {
       const at = await k<{ x: number; z: number } | null>(
         `globalThis.causalis.landRoadHead(${JSON.stringify(r.ref)})`,
       );
-      if (!at) continue;
+      if (!at) {
+        say(`${what}: ${r.ref} has no place on land ${r.cell}`);
+        continue;
+      }
       await k(`globalThis.causalis.faceLand(${at.x}, ${at.z}, 12)`);
       await page.waitForTimeout(slow(1800));
       const list = await k<{ ref: string; x: number; y: number; stopped: boolean; cut: boolean }[]>(
           "globalThis.causalis.landGangs()",
         ),
         mine = list.find((g) => g.ref === r.ref);
-      if (!mine) continue;
+      if (!mine) {
+        say(`${what}: ${r.ref} has no gang among ${list.length} on land ${r.cell}`);
+        continue;
+      }
       shown = true;
       await shot(`5-${what}`);
       await page.touchscreen.tap(mine.x, mine.y);
@@ -597,7 +619,9 @@ if (site && !problems.length) {
       await page.waitForTimeout(slow(1500));
       const b2 = await k<{ x: number; z: number } | null>("globalThis.causalis.life.where()"),
         moved = a2 && b2 ? Math.hypot(a2.x - b2.x, a2.z - b2.z) : 0,
-        now2 = await k<{ carsAt: { index: number; wx: number; wz: number; riding: boolean }[] }>(
+        now2 = await k<{
+          carsAt: { index: number; x: number; y: number; wx: number; wz: number; riding: boolean }[];
+        }>(
           "globalThis.causalis.townRides()",
         ),
         strip = await k<string>(
@@ -608,6 +632,18 @@ if (site && !problems.length) {
         ),
         car = now2.carsAt.find((c) => c.index === one.index);
       await shot(`10-live-${kind}-on`);
+      // (What they go in, on the screen: a list can hold a car no batch draws.)
+      const box = 64,
+        mx = (page.viewportSize()?.width ?? 430) / 2,
+        cx = car ? car.x : mx,
+        cy = car ? car.y : 460,
+        seen = unlike(
+          await page.screenshot({
+            clip: { x: cx - box / 2, y: cy - box / 2, width: box, height: box },
+          }),
+        );
+      say(`in the pixels: ${seen} about their ${kind === "owner" ? "car" : "coach"}`);
+      check(seen >= 60, `what the ${kind} goes in isn't on the screen (${seen} pixels)`);
       say(
         `riding: the ${kind} went ${moved.toFixed(1)} m in 20 s of the clock; words: ${strip.slice(0, 240).replace(/\n/g, " | ")} ${hidden}`,
       );

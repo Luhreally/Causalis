@@ -559,6 +559,7 @@ export class VillageScene {
         child !== this.memorialLayer.root &&
         child !== this.courtLayer.root &&
         child !== this.worn.root &&
+        child !== this.rides.root &&
         child !== this.litters.root &&
         child !== this.moneyLayer.root &&
         child !== this.placedLayer?.root

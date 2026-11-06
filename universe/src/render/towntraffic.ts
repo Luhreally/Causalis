@@ -23,7 +23,8 @@ const TONES: readonly Rgb[] = [
   [0.76, 0.6, 0.18],
   [0.28, 0.46, 0.34],
 ];
-const GLASS: Rgb = [0.1, 0.13, 0.17],
+const TYRE: Rgb = [0.06, 0.06, 0.07],
+  GLASS: Rgb = [0.1, 0.13, 0.17],
   BUS: Rgb = [0.86, 0.48, 0.1],
   WINDOW: Rgb = [0.9, 0.84, 0.64],
   SLED: Rgb = [0.3, 0.62, 0.64],
@@ -44,7 +45,8 @@ type Slot = { batch: InstancedBatch; data: number[] };
 
 export class TownTraffic {
   private readonly stage: Stage;
-  private readonly root: pc.Entity;
+  /** Its own: a town built again destroys what stands under its root, but for the layers it names. */
+  readonly root: pc.Entity;
   private readonly box: pc.Mesh;
   private readonly slots = new Map<string, Slot>();
   private gone = 0;
@@ -57,7 +59,8 @@ export class TownTraffic {
 
   constructor(stage: Stage, root: pc.Entity) {
     this.stage = stage;
-    this.root = root;
+    this.root = new pc.Entity("town-traffic");
+    root.addChild(this.root);
     this.box = keptMesh(boxMesh(stage));
   }
 
@@ -106,6 +109,7 @@ export class TownTraffic {
     this.last = wall;
     const about = plan.about,
       own = about?.how === "sled" ? SLED : null,
+      wheeled = about?.how === "wheels" || about?.how === "line" || about?.how === "hauler",
       lift = about?.how === "sled" ? 0.55 : 0.34;
     for (const o of rides.owners.values() as Iterable<Owner>) {
       const now = carNow(plan, o, t, fine),
@@ -114,6 +118,7 @@ export class TownTraffic {
         z = now.riding && m ? m.z : now.z,
         yaw = now.riding && m ? m.yaw : now.yaw,
         body = own ?? TONES[o.tone % TONES.length]!;
+      if (wheeled) this.wheels(x, z, yaw, CAR.wide, CAR.long, lift);
       this.put(body, x, lift, z, CAR.wide, CAR.tall * 0.6, CAR.long, yaw);
       this.put(GLASS, x, lift + CAR.tall * 0.6, z, CAR.wide * 0.86, CAR.top, CAR.long * 0.5, yaw);
       this.cars.push({ index: o.index, x, z, yaw, riding: now.riding });
@@ -126,30 +131,13 @@ export class TownTraffic {
         coach = about?.how === "hauler" ? HAULER : about?.how === "sled" ? SLED : BUS;
       const me = lived !== null && rides.riders.has(lived) ? moments[lived] : null;
       if (me && lived !== null && aboardNow(plan, lived, t, fine))
-        this.put(coach, me.x, lift, me.z, COACH.wide, COACH.tall, COACH.long, me.yaw);
+        this.coach(coach, me.x, lift, me.z, me.yaw, MOST_ABOARD, wheeled);
       rides.lines.forEach((line, k) => {
         const seen = out
             ? this.along(line, this.gone * PACE + line.long * 0.37 * k)
             : this.along(line, 0),
           on = Math.min(MOST_ABOARD, Math.round(aboard / rides.lines.length));
-        this.put(coach, seen.x, lift, seen.z, COACH.wide, COACH.tall, COACH.long, seen.yaw);
-        // (Those aboard, a window each.)
-        const c = Math.cos(seen.yaw),
-          s = Math.sin(seen.yaw);
-        for (let w = 0; w < on; w++) {
-          const along = ((w % 6) - 2.5) * (COACH.long / 6.5),
-            flank = (w < 6 ? 1 : -1) * (COACH.wide / 2 + 0.03);
-          this.put(
-            WINDOW,
-            seen.x + s * along + c * flank,
-            lift + COACH.tall * 0.55,
-            seen.z + c * along - s * flank,
-            0.08,
-            COACH.tall * 0.28,
-            COACH.long / 9,
-            seen.yaw,
-          );
-        }
+        this.coach(coach, seen.x, lift, seen.z, seen.yaw, on, wheeled);
         this.buses.push({ n: line.n, x: seen.x, z: seen.z, yaw: seen.yaw, aboard: on });
       });
     }
@@ -169,6 +157,68 @@ export class TownTraffic {
         const q = i * 8;
         for (let j = 0; j < 8; j++) o[j] = d[q + j]!;
       });
+    }
+  }
+
+  /** Four wheels under what stands at x, z: a dark block at each corner, reaching up under its body. */
+  private wheels(x: number, z: number, yaw: number, wide: number, long: number, lift: number): void {
+    const c = Math.cos(yaw),
+      s = Math.sin(yaw),
+      high = lift + 0.3,
+      across = wide / 2 + 0.02,
+      apart = long * 0.32;
+    for (const side of [-1, 1])
+      for (const end of [-1, 1])
+        this.put(
+          TYRE,
+          x + s * end * apart + c * side * across,
+          0,
+          z + c * end * apart - s * side * across,
+          0.26,
+          high,
+          high * 1.7,
+          yaw,
+        );
+  }
+
+  /** A line's vehicle, its lit windows those aboard (a window each), its windscreen on the way it goes. */
+  private coach(
+    body: Rgb,
+    x: number,
+    lift: number,
+    z: number,
+    yaw: number,
+    aboard: number,
+    wheeled: boolean,
+  ): void {
+    if (wheeled) this.wheels(x, z, yaw, COACH.wide, COACH.long, lift);
+    this.put(body, x, lift, z, COACH.wide, COACH.tall, COACH.long, yaw);
+    const c = Math.cos(yaw),
+      s = Math.sin(yaw),
+      front = COACH.long / 2 + 0.03;
+    this.put(
+      GLASS,
+      x + s * front,
+      lift + COACH.tall * 0.48,
+      z + c * front,
+      COACH.wide * 0.82,
+      COACH.tall * 0.38,
+      0.08,
+      yaw,
+    );
+    for (let w = 0; w < aboard; w++) {
+      const along = ((w % 6) - 2.5) * (COACH.long / 6.5),
+        flank = (w < 6 ? 1 : -1) * (COACH.wide / 2 + 0.03);
+      this.put(
+        WINDOW,
+        x + s * along + c * flank,
+        lift + COACH.tall * 0.55,
+        z + c * along - s * flank,
+        0.08,
+        COACH.tall * 0.28,
+        COACH.long / 9,
+        yaw,
+      );
     }
   }
 
