@@ -400,7 +400,13 @@ export function householdPage(world: World, ref: string): PageModel {
             ),
           },
           ...(h.village
-            ? [{ type: "tool" as const, tool: "home.look", args: { town: h.village, household: h.ref } }]
+            ? [
+                {
+                  type: "tool" as const,
+                  tool: "home.look",
+                  args: { town: h.village, household: h.ref },
+                },
+              ]
             : []),
           { type: "why", ref: h.ref },
         ],

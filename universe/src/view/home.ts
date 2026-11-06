@@ -528,28 +528,8 @@ function roundRoom(
       lost = ruin && unitOf(inside.n, k) < 0.4;
     if (door || lost) continue;
     const high = (near ? CUT_NEAR : cap) * (ruin ? 0.3 + unitOf(inside.n, k + 30) * 0.7 : 1);
-    out.put(
-      "box",
-      wall,
-      x * U,
-      (high / 2) * U,
-      z * U,
-      len * U,
-      high * U,
-      THICK * U,
-      a,
-    );
-    out.put(
-      "box",
-      CAP,
-      x * U,
-      (high + 0.01) * U,
-      z * U,
-      len * U,
-      0.03 * U,
-      THICK * U,
-      a,
-    );
+    out.put("box", wall, x * U, (high / 2) * U, z * U, len * U, high * U, THICK * U, a);
+    out.put("box", CAP, x * U, (high + 0.01) * U, z * U, len * U, 0.03 * U, THICK * U, a);
   }
 }
 
