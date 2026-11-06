@@ -364,6 +364,8 @@ async function walk(world: World, f: Forged, name: string): Promise<void> {
   const chipName = first.words.split("\n")[0]!.replace(/^📌 /, "");
   await press(`.people-chip[data-key="${first.key}"] .people-open`, "a chip");
   await until("their page", async () => (await pageNow()) === first.ref);
+  // (A page's window comes first and its words after, as the worker reads them.)
+  await until(`${name}: their page's words`, async () => (await pageText()).includes(chipName), slow(30000));
   await page.waitForTimeout(slow(400));
   const text = await pageText();
   check(

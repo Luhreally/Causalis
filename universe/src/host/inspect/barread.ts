@@ -117,7 +117,7 @@ function ruleOver(world: World, page: PageModel): BarReading {
   return read(
     "😶",
     "Mood",
-    "no mood",
+    "none",
     "History keeps no mood for them. They belong to no realm: their villages rule themselves.",
     "plain",
   );
