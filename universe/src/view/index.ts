@@ -243,6 +243,7 @@ export {
   hasSpires,
   townGround,
   ashGone,
+  ashReach,
   landMoment,
   townAsh,
   townHomes,

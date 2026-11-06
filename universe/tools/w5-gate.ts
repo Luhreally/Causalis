@@ -766,13 +766,13 @@ async function watch(f: Forged, tag: string): Promise<void> {
   await settle(2500);
   await shot(`${tag}-12-land-dark`);
   // On the land's map it lies burned from the moment it is told, the clock held or not: the land has no film of it.
-  const onLand = await k<{ x: number; z: number; r: number } | null>(
+  const onLand = await k<{ x: number; z: number; r: number; ash: number } | null>(
     `globalThis.causalis.landTown(${JSON.stringify(strike.town)})`,
   );
   check(!!onLand, `${tag}: the land draws no ${strike.town}`);
   if (onLand) {
     await k(
-      `globalThis.causalis.rig.flyTo({ target: { x: ${onLand.x}, y: 0, z: ${onLand.z} }, yaw: 0, pitch: -62, distance: ${onLand.r * 3} }, 0.05)`,
+      `globalThis.causalis.rig.flyTo({ target: { x: ${onLand.x}, y: 0, z: ${onLand.z} }, yaw: 0, pitch: -62, distance: ${onLand.ash * 2.2} }, 0.05)`,
     );
     await settle(1500);
     await shot(`${tag}-12b-land-burned`);

@@ -82,6 +82,8 @@ const BATTLE_EVERY = 3;
  * lesser ones are let go, and only those that open a stage of the world are kept.
  */
 export const BEHIND = 3;
+/** Firsts the whole world turns to, however far behind the Director has fallen. */
+const NEVER_LET_GO = /greatest fire|jump through a lane|world filled/;
 
 /** A director begun now: the firsts already in the world are history, not news. */
 export function newDirector(firsts: readonly WorldFirst[]): Director {
@@ -126,7 +128,8 @@ export function nextTake(
   const waiting = untold(d, firsts);
   // (Fallen behind the world — more waiting than can be shown in their time — the lesser are let
   // go, the stages kept.)
-  if (waiting.length > BEHIND) for (const f of waiting) if (!f.stage) d.told.add(f.what);
+  if (waiting.length > BEHIND)
+    for (const f of waiting) if (!f.stage && !NEVER_LET_GO.test(f.what)) d.told.add(f.what);
   const news = waiting.find((f) => !d.told.has(f.what));
   if (news) {
     d.told.add(news.what);
