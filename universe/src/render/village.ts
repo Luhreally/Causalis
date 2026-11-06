@@ -1563,9 +1563,8 @@ export class VillageScene {
    */
   stoneUnder(x: number, y: number): string | null {
     const cam = this.stage.camera.camera!,
-      on = this.memorialLayer.at(cam, x, y, 0);
-    if (on)
-      return this.pick(x, y, 10, this.memorialLayer.depth(cam, on)) === null ? on.m.ref : null;
+      on = this.memorialLayer.under(cam, x, y);
+    if (on) return this.pick(x, y, 10, on.depth) === null ? on.p.m.ref : null;
     const near = this.memorialLayer.at(cam, x, y);
     return near && this.pick(x, y, 10) === null ? near.m.ref : null;
   }

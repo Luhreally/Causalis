@@ -860,6 +860,8 @@ type Exposed = {
   landPlanNow?: () => unknown;
   landRoadHead?: (ref: string) => { x: number; y: number; z: number } | null;
   townPick?: (x: number, y: number, reach?: number) => number | null;
+  townRide?: (x: number, y: number) => unknown;
+  stoneUnder?: (x: number, y: number) => string | null;
   townWalks?: (index: number, day: number) => readonly { from: number; to: number }[];
   townRides?: () => {
     cars: number;
@@ -9291,6 +9293,10 @@ async function runPlanetPage(): Promise<void> {
     plan ? longWalks(plan, index, day, LONG_WALK) : [];
   exposed.townPick = (x: number, y: number, reach?: number) =>
     scale === "village" ? village.pick(x, y, reach) : null;
+  exposed.townRide = (x: number, y: number) =>
+    scale === "village" ? village.pickRide(x, y) : null;
+  exposed.stoneUnder = (x: number, y: number) =>
+    scale === "village" ? village.stoneUnder(x, y) : null;
 
   stage.onUpdate(() => {
     const camps = landPlan?.camps ?? [];
