@@ -5,6 +5,7 @@
 // for is what stands there. A pure function of the facts given, so the same home holds the same things every time, and nothing
 // here is kept or read by the simulation. Every number in it is a first guess. Sizes are a room's own metres: a figure, as the
 // town draws it, stands ROOM_UNIT x 1.7 m high, so a room fits the bodies drawn in it.
+import { dmath } from "../kernel/index.ts";
 import { GOODS, G } from "./goods.ts";
 import type { Medium } from "./bodies.ts";
 
@@ -175,7 +176,8 @@ const WAY = (
 const onLand = (f: DwellingFacts) => f.medium !== "water",
   inWater = (f: DwellingFacts) => f.medium === "water",
   hands = (f: DwellingFacts) => f.grips && onLand(f),
-  joined = (f: DwellingFacts) => f.wood && hands(f) && (f.knows("carpentry") || f.metal !== "stone"),
+  joined = (f: DwellingFacts) =>
+    f.wood && hands(f) && (f.knows("carpentry") || f.metal !== "stone"),
   current = (f: DwellingFacts) =>
     f.knows("electricity") ||
     f.knows("sea-electricity") ||
@@ -213,11 +215,21 @@ export const NEEDS: readonly DwellingNeed[] = [
       WAY("plank-bed", "a plank bed", "wood", "bed", { tools: 0.3, clothing: 0.15 }, (f) =>
         joined(f),
       ),
-      WAY("brick-bed", "a raised bench of brick", "earth", "bed", { pottery: 0.6, clothing: 0.3 }, (f) =>
-        onLand(f) && !f.wood && f.vessel !== null,
+      WAY(
+        "brick-bed",
+        "a raised bench of brick",
+        "earth",
+        "bed",
+        { pottery: 0.6, clothing: 0.3 },
+        (f) => onLand(f) && !f.wood && f.vessel !== null,
       ),
-      WAY("stuffed-pallet", "a stuffed pallet", "cloth", "pallet", { clothing: 0.12 }, (f) =>
-        onLand(f) && f.cloth,
+      WAY(
+        "stuffed-pallet",
+        "a stuffed pallet",
+        "cloth",
+        "pallet",
+        { clothing: 0.12 },
+        (f) => onLand(f) && f.cloth,
       ),
       WAY("hide-pallet", "a pallet of hides", "hide", "pallet", { hides: 0.2 }, onLand),
       WAY("grass-pallet", "a pallet of dry grass", "reed", "pallet", {}, onLand),
@@ -230,8 +242,13 @@ export const NEEDS: readonly DwellingNeed[] = [
     per: "home",
     share: 0.2,
     ways: [
-      WAY("current-stove", "a stove on the current", "works", "stove", { machines: 0.5 }, (f) =>
-        hands(f) && current(f) && (f.knows("electronics") || f.knows("oil-drilling")),
+      WAY(
+        "current-stove",
+        "a stove on the current",
+        "works",
+        "stove",
+        { machines: 0.5 },
+        (f) => hands(f) && current(f) && (f.knows("electronics") || f.knows("oil-drilling")),
       ),
       WAY(
         "iron-stove",
@@ -250,9 +267,21 @@ export const NEEDS: readonly DwellingNeed[] = [
         (f) => hands(f) && f.burns && f.knows("masonry"),
       ),
       WAY("stone-hearth", "a hearth of stones", "stone", "hearth", {}, (f) => hands(f) && f.burns),
-      WAY("heat-stone", "a slab over the land's own heat", "stone", "hearth", {}, (f) => hands(f) && !f.burns && f.heat !== null),
-      WAY("vent-stone", "a stone warmed at a vent", "stone", "hearth", {}, (f) =>
-        inWater(f) && f.knows("vent-working"),
+      WAY(
+        "heat-stone",
+        "a slab over the land's own heat",
+        "stone",
+        "hearth",
+        {},
+        (f) => hands(f) && !f.burns && f.heat !== null,
+      ),
+      WAY(
+        "vent-stone",
+        "a stone warmed at a vent",
+        "stone",
+        "hearth",
+        {},
+        (f) => inWater(f) && f.knows("vent-working"),
       ),
     ],
   },
@@ -263,8 +292,22 @@ export const NEEDS: readonly DwellingNeed[] = [
     per: "home",
     share: 0.05,
     ways: [
-      WAY("metal-pot", "a metal pot", "metal", "pot", { tools: 0.1 }, (f) => hands(f) && f.metal !== "stone"),
-      WAY("fired-pot", "a fired pot", "clay", "pot", { pottery: 0.1 }, (f) => onLand(f) && f.vessel !== null),
+      WAY(
+        "metal-pot",
+        "a metal pot",
+        "metal",
+        "pot",
+        { tools: 0.1 },
+        (f) => hands(f) && f.metal !== "stone",
+      ),
+      WAY(
+        "fired-pot",
+        "a fired pot",
+        "clay",
+        "pot",
+        { pottery: 0.1 },
+        (f) => onLand(f) && f.vessel !== null,
+      ),
       WAY("hide-bag", "a hide bag", "hide", "pot", {}, onLand),
       WAY("shell-bowl", "a shell bowl", "shell", "pot", {}, inWater),
     ],
@@ -276,10 +319,22 @@ export const NEEDS: readonly DwellingNeed[] = [
     per: "home",
     share: 0.05,
     ways: [
-      WAY("tap", "a tap and basin", "works", "basin", { machines: 0.15 }, (f) =>
-        hands(f) && f.knows("sanitation") && f.knows("steam-engine"),
+      WAY(
+        "tap",
+        "a tap and basin",
+        "works",
+        "basin",
+        { machines: 0.15 },
+        (f) => hands(f) && f.knows("sanitation") && f.knows("steam-engine"),
       ),
-      WAY("jar", "a storage jar", "clay", "jar", { pottery: 0.2 }, (f) => onLand(f) && f.vessel !== null),
+      WAY(
+        "jar",
+        "a storage jar",
+        "clay",
+        "jar",
+        { pottery: 0.2 },
+        (f) => onLand(f) && f.vessel !== null,
+      ),
       WAY("net", "a net of what they have gathered", "kelp", "jar", {}, inWater),
     ],
   },
@@ -290,8 +345,13 @@ export const NEEDS: readonly DwellingNeed[] = [
     per: "home",
     share: 0.12,
     ways: [
-      WAY("table-chairs", "a table and chairs", "wood", "table", { tools: 1.1 }, (f) =>
-        joined(f) && f.knows("carpentry"),
+      WAY(
+        "table-chairs",
+        "a table and chairs",
+        "wood",
+        "table",
+        { tools: 1.1 },
+        (f) => joined(f) && f.knows("carpentry"),
       ),
       WAY("table-bench", "a table and benches", "wood", "table", { tools: 0.5 }, joined),
       WAY("woven-mat", "a woven mat", "reed", "mat", { clothing: 0.05 }, onLand),
@@ -305,9 +365,21 @@ export const NEEDS: readonly DwellingNeed[] = [
     per: "room",
     share: 0.04,
     ways: [
-      WAY("bulb", "an electric bulb", "works", "bulb", { machines: 0.01 }, (f) => current(f) && onLand(f)),
-      WAY("oil-lamp", "an oil lamp", "clay", "lamp", { pottery: 0.05 }, (f) =>
-        f.burns && hands(f) && f.vessel !== null,
+      WAY(
+        "bulb",
+        "an electric bulb",
+        "works",
+        "bulb",
+        { machines: 0.01 },
+        (f) => current(f) && onLand(f),
+      ),
+      WAY(
+        "oil-lamp",
+        "an oil lamp",
+        "clay",
+        "lamp",
+        { pottery: 0.05 },
+        (f) => f.burns && hands(f) && f.vessel !== null,
       ),
     ],
   },
@@ -318,8 +390,13 @@ export const NEEDS: readonly DwellingNeed[] = [
     per: "home",
     share: 0.08,
     ways: [
-      WAY("dresser", "a dresser of ware", "wood", "shelf", { tools: 0.6, pottery: 1 }, (f) =>
-        joined(f) && f.knows("carpentry"),
+      WAY(
+        "dresser",
+        "a dresser of ware",
+        "wood",
+        "shelf",
+        { tools: 0.6, pottery: 1 },
+        (f) => joined(f) && f.knows("carpentry"),
       ),
       WAY("chest", "a chest", "wood", "chest", { tools: 0.3 }, joined),
     ],
@@ -331,7 +408,14 @@ export const NEEDS: readonly DwellingNeed[] = [
     per: "home",
     share: 0.15,
     ways: [
-      WAY("cold-box", "a cold box", "works", "coldbox", { machines: 0.6 }, (f) => current(f) && f.knows("electronics")),
+      WAY(
+        "cold-box",
+        "a cold box",
+        "works",
+        "coldbox",
+        { machines: 0.6 },
+        (f) => current(f) && f.knows("electronics"),
+      ),
     ],
   },
   {
@@ -341,8 +425,13 @@ export const NEEDS: readonly DwellingNeed[] = [
     per: "home",
     share: 0.15,
     ways: [
-      WAY("bath", "a bath", "clay", "bath", { pottery: 5 }, (f) =>
-        onLand(f) && (f.knows("sanitation") || f.knows("aqueducts")),
+      WAY(
+        "bath",
+        "a bath",
+        "clay",
+        "bath",
+        { pottery: 5 },
+        (f) => onLand(f) && (f.knows("sanitation") || f.knows("aqueducts")),
       ),
     ],
   },
@@ -353,8 +442,13 @@ export const NEEDS: readonly DwellingNeed[] = [
     per: "home",
     share: 0.12,
     ways: [
-      WAY("long-seat", "a long seat, stuffed", "cloth", "longseat", { tools: 0.5, clothing: 1.2 }, (f) =>
-        joined(f) && f.cloth && f.knows("carpentry"),
+      WAY(
+        "long-seat",
+        "a long seat, stuffed",
+        "cloth",
+        "longseat",
+        { tools: 0.5, clothing: 1.2 },
+        (f) => joined(f) && f.cloth && f.knows("carpentry"),
       ),
     ],
   },
@@ -365,8 +459,13 @@ export const NEEDS: readonly DwellingNeed[] = [
     per: "room",
     share: 0.25,
     ways: [
-      WAY("rug", "a dyed rug", "cloth", "rug", { clothing: 1.2 }, (f) =>
-        onLand(f) && f.cloth && f.knows("dyeing"),
+      WAY(
+        "rug",
+        "a dyed rug",
+        "cloth",
+        "rug",
+        { clothing: 1.2 },
+        (f) => onLand(f) && f.cloth && f.knows("dyeing"),
       ),
     ],
   },
@@ -377,8 +476,13 @@ export const NEEDS: readonly DwellingNeed[] = [
     per: "home",
     share: 0.1,
     ways: [
-      WAY("hanging", "a dyed hanging", "cloth", "hanging", { clothing: 1.5 }, (f) =>
-        onLand(f) && f.cloth && f.knows("dyeing"),
+      WAY(
+        "hanging",
+        "a dyed hanging",
+        "cloth",
+        "hanging",
+        { clothing: 1.5 },
+        (f) => onLand(f) && f.cloth && f.knows("dyeing"),
       ),
     ],
   },
@@ -389,8 +493,13 @@ export const NEEDS: readonly DwellingNeed[] = [
     per: "home",
     share: 0.08,
     ways: [
-      WAY("books", "a shelf of books", "wood", "books", { tools: 1.5 }, (f) =>
-        hands(f) && f.wood && f.knows("writing"),
+      WAY(
+        "books",
+        "a shelf of books",
+        "wood",
+        "books",
+        { tools: 1.5 },
+        (f) => hands(f) && f.wood && f.knows("writing"),
       ),
     ],
   },
@@ -400,7 +509,16 @@ export const NEEDS: readonly DwellingNeed[] = [
     room: "sleep",
     per: "home",
     share: 0.06,
-    ways: [WAY("mirror", "a looking-glass", "glass", "mirror", { tools: 0.7 }, (f) => hands(f) && f.knows("glass"))],
+    ways: [
+      WAY(
+        "mirror",
+        "a looking-glass",
+        "glass",
+        "mirror",
+        { tools: 0.7 },
+        (f) => hands(f) && f.knows("glass"),
+      ),
+    ],
   },
   {
     id: "time",
@@ -408,7 +526,16 @@ export const NEEDS: readonly DwellingNeed[] = [
     room: "sit",
     per: "home",
     share: 0.06,
-    ways: [WAY("clock", "a clock", "metal", "clock", { tools: 1.5 }, (f) => hands(f) && f.knows("clockwork"))],
+    ways: [
+      WAY(
+        "clock",
+        "a clock",
+        "metal",
+        "clock",
+        { tools: 1.5 },
+        (f) => hands(f) && f.knows("clockwork"),
+      ),
+    ],
   },
   {
     id: "news",
@@ -416,7 +543,16 @@ export const NEEDS: readonly DwellingNeed[] = [
     room: "sit",
     per: "home",
     share: 0.08,
-    ways: [WAY("screen", "a screen", "works", "screen", { machines: 0.3 }, (f) => current(f) && f.knows("electronics"))],
+    ways: [
+      WAY(
+        "screen",
+        "a screen",
+        "works",
+        "screen",
+        { machines: 0.3 },
+        (f) => current(f) && f.knows("electronics"),
+      ),
+    ],
   },
   {
     id: "riches",
@@ -424,7 +560,16 @@ export const NEEDS: readonly DwellingNeed[] = [
     room: "store",
     per: "home",
     share: 0.2,
-    ways: [WAY("strongbox", "a strongbox", "metal", "strongbox", { iron: 5 }, (f) => hands(f) && f.metal !== "stone" && f.metal !== "copper")],
+    ways: [
+      WAY(
+        "strongbox",
+        "a strongbox",
+        "metal",
+        "strongbox",
+        { iron: 5 },
+        (f) => hands(f) && f.metal !== "stone" && f.metal !== "copper",
+      ),
+    ],
   },
 ];
 
@@ -540,7 +685,8 @@ export type Dwelling = {
 /** A thing's price in coin at the market now. */
 export function wayCoin(way: Pick<DwellingWay, "cost">, price: (good: number) => number): number {
   let coin = 0;
-  for (const [good, n] of Object.entries(way.cost) as [GoodId, number][]) coin += n * price(G[good]) * COIN_A_UNIT;
+  for (const [good, n] of Object.entries(way.cost) as [GoodId, number][])
+    coin += n * price(G[good]) * COIN_A_UNIT;
   return coin;
 }
 
@@ -563,16 +709,18 @@ export function coinOf(a: {
   readonly rent: number;
 }): number {
   const land = Math.min(LAND_MOST, Math.max(LAND_LEAST, Math.sqrt(a.madeHead / MADE_USUAL))),
-    rank = Math.exp(CLASS_SPREAD * (2 * a.standing - 1)),
+    rank = dmath.exp(CLASS_SPREAD * (2 * a.standing - 1)),
     earned = a.wages * land * rank * (a.court ? COURT_TIMES : 1),
     over = Math.max(0, earned - a.bread * a.mouths - a.rent);
   return POOREST + over * WORK_DAYS * SAVED_YEARS * SAVED_SHARE;
 }
 
 /** How many rooms a family has: as many as they can pay for, and as a home of that level gives. */
-export function roomsOf(f: Pick<DwellingFacts, "level" | "coin" | "court" | "form" | "noHouses">): number {
+export function roomsOf(
+  f: Pick<DwellingFacts, "level" | "coin" | "court" | "form" | "noHouses">,
+): number {
   const at = LEVEL_ROOMS[f.level] ?? LEVEL_ROOMS[0]!,
-    can = 1 + Math.floor(Math.log2(1 + f.coin / ROOM_COIN));
+    can = 1 + Math.floor(dmath.log2(1 + f.coin / ROOM_COIN));
   if (f.noHouses) return 1;
   return Math.max(1, Math.min(at.rooms + (f.court ? 2 : 0), can));
 }
@@ -590,17 +738,30 @@ export function roomUses(n: number, working: boolean, washing: boolean): RoomUse
 }
 
 type Rect = { x: number; z: number; w: number; d: number };
-const ROUND_FORMS: ReadonlySet<string> = new Set(["round", "hive", "nest", "warren", "shell-tower"]);
+const ROUND_FORMS: ReadonlySet<string> = new Set([
+  "round",
+  "hive",
+  "nest",
+  "warren",
+  "shell-tower",
+]);
 /** Whether its rooms are round chambers, its walls curved. */
 export const isRound = (f: Pick<DwellingFacts, "form" | "walls">): boolean =>
   ROUND_FORMS.has(f.form) || f.walls === "tent" || f.walls === "burrow";
 const unit = (key: number, i: number): number => {
-  const v = Math.sin(key * 12.9898 + i * 78.233) * 43758.5453;
+  const v = dmath.sin(key * 12.9898 + i * 78.233) * 43758.5453;
   return v - Math.floor(v);
 };
 
 /** Splits a floor into so many rooms, the walls between them going into `walls`, a door left in each. */
-function split(r: Rect, n: number, key: number, out: Rect[], walls: DwellingWall[], door: number): void {
+function split(
+  r: Rect,
+  n: number,
+  key: number,
+  out: Rect[],
+  walls: DwellingWall[],
+  door: number,
+): void {
   if (n <= 1) {
     out.push(r);
     return;
@@ -618,7 +779,14 @@ function split(r: Rect, n: number, key: number, out: Rect[], walls: DwellingWall
       { ax: x, az: at + gap, bx: x, bz: r.z + r.d / 2 },
     );
     split({ x: x - left / 2, z: r.z, w: left, d: r.d }, a, key + 1, out, walls, door);
-    split({ x: x + (r.w - left) / 2, z: r.z, w: r.w - left, d: r.d }, n - a, key + 2, out, walls, door);
+    split(
+      { x: x + (r.w - left) / 2, z: r.z, w: r.w - left, d: r.d },
+      n - a,
+      key + 2,
+      out,
+      walls,
+      door,
+    );
   } else {
     const top = r.d * share,
       z = r.z - r.d / 2 + top,
@@ -628,19 +796,32 @@ function split(r: Rect, n: number, key: number, out: Rect[], walls: DwellingWall
       { ax: at + gap, az: z, bx: r.x + r.w / 2, bz: z },
     );
     split({ x: r.x, z: z - top / 2, w: r.w, d: top }, a, key + 1, out, walls, door);
-    split({ x: r.x, z: z + (r.d - top) / 2, w: r.w, d: r.d - top }, n - a, key + 2, out, walls, door);
+    split(
+      { x: r.x, z: z + (r.d - top) / 2, w: r.w, d: r.d - top },
+      n - a,
+      key + 2,
+      out,
+      walls,
+      door,
+    );
   }
 }
 
 /** A home's rooms and the walls between them. Its floors stand in a row going back from the street, the lowest nearest. */
-function layOut(f: DwellingFacts, uses: readonly RoomUse[]): { rooms: DwellingRoom[]; walls: DwellingWall[] } {
+function layOut(
+  f: DwellingFacts,
+  uses: readonly RoomUse[],
+): { rooms: DwellingRoom[]; walls: DwellingWall[] } {
   const n = uses.length,
     round = isRound(f),
     rooms: DwellingRoom[] = [],
     walls: DwellingWall[] = [];
   if (round) {
     // Round chambers, each as wide as its share of the floor, side by side on a honeycomb, the first in front.
-    const across = Math.max(3.8, Math.sqrt(((n > 1 ? ROOM_AREA * 0.75 : ROOM_AREA * (1 + f.people / 10)) * 4) / Math.PI));
+    const across = Math.max(
+      3.8,
+      Math.sqrt(((n > 1 ? ROOM_AREA * 0.75 : ROOM_AREA * (1 + f.people / 10)) * 4) / Math.PI),
+    );
     uses.forEach((use, i) => {
       const row = Math.floor(i / 2),
         side = i % 2 ? 0.55 : -0.55,
@@ -729,9 +910,18 @@ class Walker {
 export function furnish(f: DwellingFacts): Dwelling {
   const scale = 1;
   void scale;
-  const working = f.work.some((w) => WORK_THINGS[w]?.shape === "loom" || WORK_THINGS[w]?.shape === "bench" || WORK_THINGS[w]?.shape === "wheel"),
+  const working = f.work.some(
+      (w) =>
+        WORK_THINGS[w]?.shape === "loom" ||
+        WORK_THINGS[w]?.shape === "bench" ||
+        WORK_THINGS[w]?.shape === "wheel",
+    ),
     n = f.ruin ? 1 : roomsOf(f),
-    uses = roomUses(n, working, NEEDS.find((x) => x.id === "wash")!.ways.some((w) => w.asks(f))),
+    uses = roomUses(
+      n,
+      working,
+      NEEDS.find((x) => x.id === "wash")!.ways.some((w) => w.asks(f)),
+    ),
     { rooms, walls } = layOut(f, uses),
     walkers = rooms.map((r) => new Walker(r)),
     things: DwellingThing[] = [];
@@ -746,7 +936,12 @@ export function furnish(f: DwellingFacts): Dwelling {
     const hearth = rooms.findIndex((r) => r.use === "hearth" || r.use === "all");
     return Math.max(0, hearth);
   };
-  const put = (need: { id: string; why: string }, way: DwellingWay, room: number, coin: number): void => {
+  const put = (
+    need: { id: string; why: string },
+    way: DwellingWay,
+    room: number,
+    coin: number,
+  ): void => {
     const r = rooms[room]!,
       [w, d, h] = SHAPE_SIZE[way.shape];
     // What fills the room's middle: a hearth in one room, a table, a rug. A bulb hangs there.
@@ -852,7 +1047,8 @@ export function furnish(f: DwellingFacts): Dwelling {
     put({ id: "work", why: "Their work" }, way, roomFor("work", 0), coin);
     spent += coin;
   }
-  if (f.fought && f.grips) put({ id: "war", why: "What they brought home from war" }, WAR_THING, roomFor("sit", 0), 0);
+  if (f.fought && f.grips)
+    put({ id: "war", why: "What they brought home from war" }, WAR_THING, roomFor("sit", 0), 0);
   return finish(rooms, walls, things, spent);
 }
 
@@ -873,5 +1069,13 @@ function finish(
 
 /** The word for a family's standing against what they can spend: said, not told by history. */
 export function standingWords(coin: number): string {
-  return coin < 200 ? "very little" : coin < 1200 ? "little" : coin < 6000 ? "enough" : coin < 40000 ? "plenty" : "a great deal";
+  return coin < 200
+    ? "very little"
+    : coin < 1200
+      ? "little"
+      : coin < 6000
+        ? "enough"
+        : coin < 40000
+          ? "plenty"
+          : "a great deal";
 }

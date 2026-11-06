@@ -16,14 +16,7 @@ import {
   type HomeSpot,
   type PartShape,
 } from "../view/index.ts";
-import {
-  InstancedBatch,
-  boxMesh,
-  capsuleMesh,
-  coneMesh,
-  cylinderMesh,
-  keptMesh,
-} from "./batch.ts";
+import { InstancedBatch, boxMesh, capsuleMesh, coneMesh, cylinderMesh, keptMesh } from "./batch.ts";
 import { lieDown } from "./possess.ts";
 import type { Stage } from "./stage.ts";
 import { FIGURE_CAPSULE } from "../view/index.ts";
@@ -74,7 +67,13 @@ export class HomeScene {
     for (const g of parts.groups.values()) {
       const n = g.data.length / 8;
       if (!n) continue;
-      const b = new InstancedBatch(this.stage, meshes[g.mesh], [g.color[0], g.color[1], g.color[2]], n, under);
+      const b = new InstancedBatch(
+        this.stage,
+        meshes[g.mesh],
+        [g.color[0], g.color[1], g.color[2]],
+        n,
+        under,
+      );
       if (g.glow) b.glow([g.color[0], g.color[1], g.color[2]]);
       const d = g.data;
       b.set(n, (i, out) => {
@@ -131,7 +130,13 @@ export class HomeScene {
     });
     for (const g of groups.values()) {
       const n = g.data.length / 8,
-        b = new InstancedBatch(this.stage, g.mesh, [g.color[0]!, g.color[1]!, g.color[2]!], n, under),
+        b = new InstancedBatch(
+          this.stage,
+          g.mesh,
+          [g.color[0]!, g.color[1]!, g.color[2]!],
+          n,
+          under,
+        ),
         d = g.data;
       b.set(n, (i, o) => {
         for (let k = 0; k < 8; k++) o[k] = d[i * 8 + k]!;

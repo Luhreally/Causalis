@@ -90,11 +90,21 @@ export function installHome(d: HomeDeps): HomeFlow {
   let inside: HomeInside | null = null,
     planNow: VillagePlan | null = null,
     /** The eye as it stood, to go back to. */
-    was: { distance: number; pitch: number; yaw: number; target: { x: number; y: number; z: number } } | null = null,
+    was: {
+      distance: number;
+      pitch: number;
+      yaw: number;
+      target: { x: number; y: number; z: number };
+    } | null = null,
     roam = false;
 
+  /** Who is being played, by what the page wears (a life's own 🏠 Go in opens a home with one being lived). */
+  const bodyNow = (): string =>
+    /\b(possessing|living|ruling)\b/.exec(document.body.className)?.[1] ?? "";
+  let bodyAt = "";
+
   const hourWords = (t: number): string => {
-    const h = Math.floor(((t % 86_400) + 86_400) % 86_400 / 3600),
+    const h = Math.floor((((t % 86_400) + 86_400) % 86_400) / 3600),
       m = Math.floor((((t % 3600) + 3600) % 3600) / 60);
     return `${h}:${String(m).padStart(2, "0")}`;
   };
@@ -116,7 +126,11 @@ export function installHome(d: HomeDeps): HomeFlow {
     live.className = "home-act home-live";
     live.textContent = "🏡 Live as";
     live.onclick = () => void body(p, "live", words);
-    who.replaceChildren(words, their, ...(p.ref.startsWith("agent:") || !planNow?.native ? [take, live] : []));
+    who.replaceChildren(
+      words,
+      their,
+      ...(p.ref.startsWith("agent:") || !planNow?.native ? [take, live] : []),
+    );
     who.hidden = false;
   };
 
@@ -173,7 +187,10 @@ export function installHome(d: HomeDeps): HomeFlow {
     d.time.release("home");
     if (d.scale() === "village") d.village.visible = true;
     if (was) {
-      d.rig.flyTo({ target: was.target, distance: was.distance, pitch: was.pitch, yaw: was.yaw }, 0.6);
+      d.rig.flyTo(
+        { target: was.target, distance: was.distance, pitch: was.pitch, yaw: was.yaw },
+        0.6,
+      );
       was = null;
     }
     void roam;
@@ -196,23 +213,39 @@ export function installHome(d: HomeDeps): HomeFlow {
       n = homeNumber(plan, k);
     }
     const t0 = performance.now(),
-      got = await d.client.query<HomeInside | null>({ type: "home.inside", args: { town: ask.town, n } });
+      got = await d.client.query<HomeInside | null>({
+        type: "home.inside",
+        args: { town: ask.town, n },
+      });
     if (!got) return "no home stands there that is known";
     inside = got;
     planNow = plan;
+    bodyAt = bodyNow();
     d.time.hold("home");
     const t = d.now(),
       drawn = homeDrawn(got, plan, t);
     scene.show(drawn, plan);
     const made = performance.now() - t0;
-    Object.assign(state, { builtMs: Math.round(made), sceneMs: Math.round(scene.built), parts: drawn.parts.count });
+    Object.assign(state, {
+      builtMs: Math.round(made),
+      sceneMs: Math.round(scene.built),
+      parts: drawn.parts.count,
+    });
     d.village.visible = false;
     document.body.classList.add("homing");
     title.textContent = got.title;
     const here = drawn.folk.filter((f) => f.at === "in").length,
       all = drawn.folk.length;
     line.textContent = `${got.line}. At ${hourWords(t)}, ${
-      all === 0 ? "no one known" : here === 0 ? "no one is in" : here === all ? (all === 1 ? "they are in" : "all are in") : `${here} of ${all} in`
+      all === 0
+        ? "no one known"
+        : here === 0
+          ? "no one is in"
+          : here === all
+            ? all === 1
+              ? "they are in"
+              : "all are in"
+            : `${here} of ${all} in`
     }${got.storey > 0 ? `, ${ordinal(got.storey)} floor of ${got.storeys}` : ""}.`;
     out.replaceChildren(
       ...drawn.folk
@@ -233,7 +266,10 @@ export function installHome(d: HomeDeps): HomeFlow {
       yaw: d.rig.yaw,
       target: { x: d.rig.target.x, y: d.rig.target.y, z: d.rig.target.z },
     };
-    d.rig.flyTo({ target: { x: 0, y: 0, z: 0 }, distance: drawn.distance, pitch: EYE_PITCH, yaw: 0 }, 0.5);
+    d.rig.flyTo(
+      { target: { x: 0, y: 0, z: 0 }, distance: drawn.distance, pitch: EYE_PITCH, yaw: 0 },
+      0.5,
+    );
     return null;
   };
 
@@ -251,7 +287,11 @@ export function installHome(d: HomeDeps): HomeFlow {
   d.stage.onUpdate((dt) => {
     if (!inside) return;
     scene.update(dt);
-    if (d.scale() !== "village") close();
+    // (A page's own way to take a body, or to another scale: the eye is theirs now, not to go back from here.)
+    if (d.scale() !== "village" || bodyNow() !== bodyAt) {
+      was = null;
+      close();
+    }
   });
 
   const tapped = (x: number, y: number): boolean => {

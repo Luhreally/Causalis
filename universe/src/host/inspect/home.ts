@@ -17,7 +17,15 @@ import {
   type DwellingStuff,
   type DwellingThing,
 } from "../../rules/index.ts";
-import { LOT, lotStates, parseTownsfolkRef, type Block, type Item, type Line, type PageModel } from "../../bridge/index.ts";
+import {
+  LOT,
+  lotStates,
+  parseTownsfolkRef,
+  type Block,
+  type Item,
+  type Line,
+  type PageModel,
+} from "../../bridge/index.ts";
 import { marketsOf, populationContext } from "../../sim/index.ts";
 import {
   clothMade,
@@ -90,7 +98,8 @@ function stuffWords(world: World, r: HomeRead, stuff: DwellingStuff): string {
 function madeOf(world: World, r: HomeRead, t: DwellingThing): { made: Made | null; lines: Line[] } {
   const cell = r.cell,
     real = populationContext(world).provinces.get(cell);
-  if (!real) return { made: null, lines: [["Who made it is not known: its people's makers are not kept."]] };
+  if (!real)
+    return { made: null, lines: [["Who made it is not known: its people's makers are not kept."]] };
   const key = `${r.plan.ref}:${r.n}:${t.n}`,
     now = yearNow(world),
     built = r.run ? (r.run[3] ?? now) : now,
@@ -98,9 +107,12 @@ function madeOf(world: World, r: HomeRead, t: DwellingThing): { made: Made | nul
     year = Math.max(built, now - (Math.abs(hash(key)) % 25)),
     town = r.plan.ref;
   try {
-    if (t.stuff === "clay") return { made: potMade(world, cell, key, year, false, town), lines: [] };
-    if (t.stuff === "cloth") return { made: clothMade(world, cell, key, year, false, false, town), lines: [] };
-    if (t.stuff === "metal") return { made: toolMade(world, cell, key, year, false, town), lines: [] };
+    if (t.stuff === "clay")
+      return { made: potMade(world, cell, key, year, false, town), lines: [] };
+    if (t.stuff === "cloth")
+      return { made: clothMade(world, cell, key, year, false, false, town), lines: [] };
+    if (t.stuff === "metal")
+      return { made: toolMade(world, cell, key, year, false, town), lines: [] };
   } catch {
     return { made: null, lines: [["Who made it is not known."]] };
   }
@@ -133,7 +145,12 @@ function worthLine(world: World, r: HomeRead, t: DwellingThing): Line {
   if (!m) return ["Its worth is not known: no market of theirs is kept."];
   const short = goods.filter((g) => (m.stock[G[g]] ?? 0) <= 0).map((g) => GOODS[G[g]]!.name),
     usual = goods.reduce((sum, g) => sum + (t.cost[g] ?? 0) * usualPrice(G[g]) * COIN_A_UNIT, 0),
-    against = t.coin > usual * 1.05 ? "dearer than usual" : t.coin < usual * 0.95 ? "cheaper than usual" : "about its usual";
+    against =
+      t.coin > usual * 1.05
+        ? "dearer than usual"
+        : t.coin < usual * 0.95
+          ? "cheaper than usual"
+          : "about its usual";
   return [
     `${count(Math.max(1, Math.round(t.coin)))} coin at the market of `,
     landLink(world, r.cell),
@@ -159,7 +176,11 @@ function sizeLine(r: HomeRead): Line {
   if (all === 0) return ["No other home stands to set it against."];
   const name = HOME_LEVELS[r.level] ?? "home";
   if (alike === all)
-    return [all === 1 ? "The only home standing of those drawn." : `Every one of the ${count(all)} homes drawn is a ${name}.`];
+    return [
+      all === 1
+        ? "The only home standing of those drawn."
+        : `Every one of the ${count(all)} homes drawn is a ${name}.`,
+    ];
   return [
     `Larger than ${many(smaller, "home", "homes")} of the ${count(all)} drawn; `,
     alike === 1 ? `the only ${name}.` : `one of ${count(alike)} ${name}s.`,
@@ -169,14 +190,20 @@ function sizeLine(r: HomeRead): Line {
 /** How old it is, and what it was before, as its run keeps it. */
 function ageLines(r: HomeRead, year: number): { age: Line; before: Line } {
   const run = r.run;
-  if (!run) return { age: ["When it was raised is not known."], before: ["What stood here before is not known."] };
+  if (!run)
+    return {
+      age: ["When it was raised is not known."],
+      before: ["What stood here before is not known."],
+    };
   const [kind, , , start] = run as [number, number, number, number],
     old = Math.max(0, year - start),
     name = HOME_LEVELS[r.level] ?? "home",
     life = HOME_LIFE[r.level] ?? 50;
   return {
     age: [
-      old === 0 ? `Raised this year, year ${start}.` : `Raised in year ${start}: ${many(old, "year", "years")} old. `,
+      old === 0
+        ? `Raised this year, year ${start}.`
+        : `Raised in year ${start}: ${many(old, "year", "years")} old. `,
       old > 0 ? `A ${name} stands some ${life} years before it is rebuilt.` : "",
     ],
     before:
@@ -195,7 +222,13 @@ const unknownPage = (ref: string, title: string, world: World): PageModel => ({
   color: null,
   place: null,
   stats: [],
-  tabs: [{ id: "overview", name: "Overview", blocks: [{ type: "text", lines: [["Nothing stands there that is known."]] }] }],
+  tabs: [
+    {
+      id: "overview",
+      name: "Overview",
+      blocks: [{ type: "text", lines: [["Nothing stands there that is known."]] }],
+    },
+  ],
   followable: false,
   year: yearNow(world),
 });
@@ -232,7 +265,10 @@ export function homePage(world: World, ref: string): PageModel {
             : [`The family who live here.`]
           : ["Not known: none of those the town's roll names lives here."],
     rows = [
-      stat("Stands", sentence(`a ${name}${storeys > 1 ? ` of ${many(storeys, "storey", "storeys")}` : ""}`)),
+      stat(
+        "Stands",
+        sentence(`a ${name}${storeys > 1 ? ` of ${many(storeys, "storey", "storeys")}` : ""}`),
+      ),
       stat("Whose", whose),
       stat("They pay", pays),
       stat("Size", sizeLine(r)),
@@ -362,7 +398,11 @@ export function homeThingPage(world: World, ref: string): PageModel {
     const arm = armBlock(world, r);
     if (arm) blocks.push(arm);
   } else if (made)
-    blocks.push({ type: "list", title: "From the ground to here", items: made.chain.map((l) => item(l)) });
+    blocks.push({
+      type: "list",
+      title: "From the ground to here",
+      items: made.chain.map((l) => item(l)),
+    });
   else if (lines.length) blocks.push({ type: "text", title: "Where it came from", lines });
   return {
     ref,

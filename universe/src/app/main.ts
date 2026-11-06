@@ -8599,6 +8599,12 @@ async function runPlanetPage(): Promise<void> {
     live: (agent) => lifeFlow.liveAgent(agent),
   });
   homeTap = homeFlow.tapped;
+  // (A page's Go to, from a home: the home closed, then gone to.)
+  const goToPage = pageWindow.onGoTo;
+  pageWindow.onGoTo = (place, ref) => {
+    homeFlow.close();
+    goToPage(place, ref);
+  };
   homeOpen = () => homeFlow.on;
   pageWindow.onHomeLook = (ask: HomeAsk) => void homeFlow.open(ask);
   lifeFlow.onGoIn = (town, who) => void homeFlow.open({ town, person: who });

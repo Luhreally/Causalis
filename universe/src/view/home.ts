@@ -2,8 +2,13 @@
 // out, what stands in them, and who is in at this hour doing what their day has them doing, as the town draws them. Pure: what is drawn
 // is a function of the home's insides, the plan and the moment; parts here, the batches in render/home.ts. Built when it is opened and
 // let go when it is closed: nothing per frame but what is on the screen.
-import type { HomeInside, VillagePlan } from "../bridge/index.ts";
-import type { DwellingRoom, DwellingStuff, DwellingThing } from "../rules/index.ts";
+import type {
+  DwellingRoom,
+  DwellingStuff,
+  DwellingThing,
+  HomeInside,
+  VillagePlan,
+} from "../bridge/index.ts";
 import { biomeColor } from "./globe.ts";
 import { ACTIVITY, houseLook, momentOf, type Task } from "./village.ts";
 
@@ -12,7 +17,10 @@ export type HomeMesh = "box" | "cyl" | "cone";
 
 /** Parts gathered by mesh and colour, eight numbers each (x, y, z, sx, sy, sz, yaw, pitch; world units). */
 export class HomeParts {
-  readonly groups = new Map<string, { mesh: HomeMesh; color: Rgb; glow: boolean; data: number[] }>();
+  readonly groups = new Map<
+    string,
+    { mesh: HomeMesh; color: Rgb; glow: boolean; data: number[] }
+  >();
   put(
     mesh: HomeMesh,
     color: Rgb,
@@ -201,8 +209,14 @@ export function homeFolk(inside: HomeInside, plan: VillagePlan, t: number): Home
       r = 1 + (fire ? Math.max(fire.w, fire.d) / 2 : 0),
       a = (awake++ / Math.max(1, inside.residents.length)) * 2 * Math.PI + 0.6,
       // (Kept within the room's walls.)
-      x = Math.max(room.x - room.w / 2 + 0.4, Math.min(room.x + room.w / 2 - 0.4, cx + Math.cos(a) * r)),
-      z = Math.max(room.z - room.d / 2 + 0.4, Math.min(room.z + room.d / 2 - 0.4, cz + Math.sin(a) * r)),
+      x = Math.max(
+        room.x - room.w / 2 + 0.4,
+        Math.min(room.x + room.w / 2 - 0.4, cx + Math.cos(a) * r),
+      ),
+      z = Math.max(
+        room.z - room.d / 2 + 0.4,
+        Math.min(room.z + room.d / 2 - 0.4, cz + Math.sin(a) * r),
+      ),
       sits = m.activity === ACTIVITY.eating || m.activity === ACTIVITY.resting;
     return {
       index,
@@ -275,8 +289,16 @@ function thingParts(out: HomeParts, t: DwellingThing, inside: HomeInside, dye: n
       pitch,
       glow,
     );
-  const box = (color: Rgb, lx: number, y: number, lz: number, sx: number, sy: number, sz: number, glow = false) =>
-    put("box", color, lx, y, lz, sx, sy, sz, glow);
+  const box = (
+    color: Rgb,
+    lx: number,
+    y: number,
+    lz: number,
+    sx: number,
+    sy: number,
+    sz: number,
+    glow = false,
+  ) => put("box", color, lx, y, lz, sx, sy, sz, glow);
   switch (t.shape) {
     case "bed":
       box(dark, 0, 0.17, 0, w, 0.34, d);
@@ -306,7 +328,16 @@ function thingParts(out: HomeParts, t: DwellingThing, inside: HomeInside, dye: n
     }
     case "stove":
       box(t.stuff === "works" ? PILLOW : [0.14, 0.14, 0.16], 0, h / 2, 0, w, h, d);
-      box(t.stuff === "works" ? [0.1, 0.1, 0.12] : FIRE, 0, h * 0.42, d / 2 + 0.01, w * 0.55, h * 0.3, 0.04, t.stuff !== "works");
+      box(
+        t.stuff === "works" ? [0.1, 0.1, 0.12] : FIRE,
+        0,
+        h * 0.42,
+        d / 2 + 0.01,
+        w * 0.55,
+        h * 0.3,
+        0.04,
+        t.stuff !== "works",
+      );
       if (t.stuff === "metal") put("cyl", [0.2, 0.2, 0.22], 0, h + 0.5, -d * 0.2, 0.2, 1, 0.2);
       break;
     case "pot":
@@ -394,7 +425,16 @@ function thingParts(out: HomeParts, t: DwellingThing, inside: HomeInside, dye: n
     case "shelf":
       box(col, 0, h / 2, 0, w, h, d);
       for (let k = 0; k < 6; k++)
-        put("cyl", k % 2 ? STUFF.clay : PILLOW, -w / 2 + 0.2 + (k % 3) * (w / 3), 0.5 + Math.floor(k / 3) * 0.55, d / 2 + 0.02, 0.22, 0.22, 0.1);
+        put(
+          "cyl",
+          k % 2 ? STUFF.clay : PILLOW,
+          -w / 2 + 0.2 + (k % 3) * (w / 3),
+          0.5 + Math.floor(k / 3) * 0.55,
+          d / 2 + 0.02,
+          0.22,
+          0.22,
+          0.1,
+        );
       break;
     case "rug":
       box(colour, 0, 0.015, 0, w, 0.03, d);
@@ -409,7 +449,15 @@ function thingParts(out: HomeParts, t: DwellingThing, inside: HomeInside, dye: n
     case "books": {
       box(dark, 0, h / 2, 0, w, h, d);
       for (let k = 0; k < 10; k++)
-        box(DYE[(key + k) % DYE.length]!, -w / 2 + 0.1 + (k % 5) * ((w - 0.2) / 5) + 0.1, 0.55 + Math.floor(k / 5) * 0.6, d / 2 + 0.01, 0.14, 0.4, 0.04);
+        box(
+          DYE[(key + k) % DYE.length]!,
+          -w / 2 + 0.1 + (k % 5) * ((w - 0.2) / 5) + 0.1,
+          0.55 + Math.floor(k / 5) * 0.6,
+          d / 2 + 0.01,
+          0.14,
+          0.4,
+          0.04,
+        );
       break;
     }
     case "mirror":
@@ -456,7 +504,15 @@ function thingParts(out: HomeParts, t: DwellingThing, inside: HomeInside, dye: n
 }
 
 /** The floor and walls of a room that is round. */
-function roundRoom(out: HomeParts, r: DwellingRoom, inside: HomeInside, floor: Rgb, wall: Rgb, cap: number, ruin: boolean): void {
+function roundRoom(
+  out: HomeParts,
+  r: DwellingRoom,
+  inside: HomeInside,
+  floor: Rgb,
+  wall: Rgb,
+  cap: number,
+  ruin: boolean,
+): void {
   const U = inside.scale,
     R = r.w / 2;
   out.put("cyl", floor, r.x * U, 0.01 * U, r.z * U, r.w * U, 0.02 * U, r.d * U);
@@ -472,13 +528,44 @@ function roundRoom(out: HomeParts, r: DwellingRoom, inside: HomeInside, floor: R
       lost = ruin && unitOf(inside.n, k) < 0.4;
     if (door || lost) continue;
     const high = (near ? CUT_NEAR : cap) * (ruin ? 0.3 + unitOf(inside.n, k + 30) * 0.7 : 1);
-    out.put("box", wall, x * U, (high / 2) * U, z * U, len * U, high * U, THICK * U, a + Math.PI / 2);
-    out.put("box", CAP, x * U, (high + 0.01) * U, z * U, len * U, 0.03 * U, THICK * U, a + Math.PI / 2);
+    out.put(
+      "box",
+      wall,
+      x * U,
+      (high / 2) * U,
+      z * U,
+      len * U,
+      high * U,
+      THICK * U,
+      a,
+    );
+    out.put(
+      "box",
+      CAP,
+      x * U,
+      (high + 0.01) * U,
+      z * U,
+      len * U,
+      0.03 * U,
+      THICK * U,
+      a,
+    );
   }
 }
 
 /** A length of wall cut low, its cut edge dark so it reads as cut (its door left out by the caller). */
-function wallRun(out: HomeParts, inside: HomeInside, ax: number, az: number, bx: number, bz: number, wall: Rgb, high: number, ruin: boolean, i: number): void {
+function wallRun(
+  out: HomeParts,
+  inside: HomeInside,
+  ax: number,
+  az: number,
+  bx: number,
+  bz: number,
+  wall: Rgb,
+  high: number,
+  ruin: boolean,
+  i: number,
+): void {
   const U = inside.scale,
     dx = bx - ax,
     dz = bz - az,
@@ -492,12 +579,42 @@ function wallRun(out: HomeParts, inside: HomeInside, ax: number, az: number, bx:
       if (unitOf(inside.n + i, k) < 0.35) continue;
       const f = (k + 0.5) / n,
         h = high * (0.25 + unitOf(inside.n + i, k + 40) * 0.75);
-      out.put("box", wall, (ax + dx * f) * U, (h / 2) * U, (az + dz * f) * U, (len / n) * U, h * U, THICK * U, yaw);
+      out.put(
+        "box",
+        wall,
+        (ax + dx * f) * U,
+        (h / 2) * U,
+        (az + dz * f) * U,
+        (len / n) * U,
+        h * U,
+        THICK * U,
+        yaw,
+      );
     }
     return;
   }
-  out.put("box", wall, ((ax + bx) / 2) * U, (high / 2) * U, ((az + bz) / 2) * U, len * U, high * U, THICK * U, yaw);
-  out.put("box", CAP, ((ax + bx) / 2) * U, (high + 0.012) * U, ((az + bz) / 2) * U, len * U, 0.03 * U, THICK * U, yaw);
+  out.put(
+    "box",
+    wall,
+    ((ax + bx) / 2) * U,
+    (high / 2) * U,
+    ((az + bz) / 2) * U,
+    len * U,
+    high * U,
+    THICK * U,
+    yaw,
+  );
+  out.put(
+    "box",
+    CAP,
+    ((ax + bx) / 2) * U,
+    (high + 0.012) * U,
+    ((az + bz) / 2) * U,
+    len * U,
+    0.03 * U,
+    THICK * U,
+    yaw,
+  );
 }
 
 /** A home's insides, as parts: built once when it is opened. */
@@ -507,7 +624,13 @@ export function homeDrawn(inside: HomeInside, plan: VillagePlan, t: number): Hom
     U = inside.scale,
     d = inside.dwelling,
     look = houseLook(
-      { walls: inside.walls, roof: inside.roof, form: inside.form, pitch: inside.pitch, design: null },
+      {
+        walls: inside.walls,
+        roof: inside.roof,
+        form: inside.form,
+        pitch: inside.pitch,
+        design: null,
+      },
       plan.lifeLook,
     ),
     ruin = inside.state === "fell" || inside.state === "razed",
@@ -548,21 +671,75 @@ export function homeDrawn(inside: HomeInside, plan: VillagePlan, t: number): Hom
     gz = 90;
   if (high) {
     const below = Math.min(14, 1.2 + inside.storey * 0.32);
-    parts.put("box", [0.62, 0.62, 0.6], 0, -0.08 * U, 0, (d.halfW * 2 + 0.6) * U, 0.16 * U, (d.halfD * 2 + 0.6) * U);
+    parts.put(
+      "box",
+      [0.62, 0.62, 0.6],
+      0,
+      -0.08 * U,
+      0,
+      (d.halfW * 2 + 0.6) * U,
+      0.16 * U,
+      (d.halfD * 2 + 0.6) * U,
+    );
     for (let k = 1; k <= 5; k++)
-      parts.put("box", k % 2 ? [0.5, 0.5, 0.5] : [0.58, 0.58, 0.58], 0, -0.08 * U - k * 0.34, 0, (d.halfW * 2 + 0.3) * U, 0.32, (d.halfD * 2 + 0.3) * U);
-    parts.put("box", [groundC[0] * 0.7, groundC[1] * 0.7, groundC[2] * 0.7], 0, -below - 2, 0, 60, 0.2, 60);
+      parts.put(
+        "box",
+        k % 2 ? [0.5, 0.5, 0.5] : [0.58, 0.58, 0.58],
+        0,
+        -0.08 * U - k * 0.34,
+        0,
+        (d.halfW * 2 + 0.3) * U,
+        0.32,
+        (d.halfD * 2 + 0.3) * U,
+      );
+    parts.put(
+      "box",
+      [groundC[0] * 0.7, groundC[1] * 0.7, groundC[2] * 0.7],
+      0,
+      -below - 2,
+      0,
+      60,
+      0.2,
+      60,
+    );
     for (let k = 0; k < 40; k++) {
       const x = (unitOf(key, k) - 0.5) * 40,
         z = (unitOf(key, k + 50) - 0.5) * 40;
       if (Math.abs(x) < radius + 1 && Math.abs(z) < radius + 1) continue;
       const h = 0.5 + unitOf(key, k + 90) * (below * 0.8);
-      parts.put("box", k % 3 ? [0.58, 0.56, 0.54] : [0.46, 0.44, 0.44], x, -below - 2 + h / 2, z, 0.9, h, 1.2);
+      parts.put(
+        "box",
+        k % 3 ? [0.58, 0.56, 0.54] : [0.46, 0.44, 0.44],
+        x,
+        -below - 2 + h / 2,
+        z,
+        0.9,
+        h,
+        1.2,
+      );
     }
   } else {
-    parts.put("box", water ? [0.62, 0.6, 0.46] : den ? [0.27, 0.2, 0.13] : [groundC[0], groundC[1], groundC[2]], 0, -0.06 * U, 0, gx, 0.1 * U, gz);
+    parts.put(
+      "box",
+      water ? [0.62, 0.6, 0.46] : den ? [0.27, 0.2, 0.13] : [groundC[0], groundC[1], groundC[2]],
+      0,
+      -0.06 * U,
+      0,
+      gx,
+      0.1 * U,
+      gz,
+    );
     if (!water && !den)
-      parts.put("box", plan.town?.paved ? [0.48, 0.47, 0.45] : [0.56, 0.47, 0.34], 0, -0.005 * U, (d.halfD + 2.1) * U, gx, 0.02 * U, 2.4 * U);
+      parts.put(
+        "box",
+        plan.town?.paved ? [0.48, 0.47, 0.45] : [0.56, 0.47, 0.34],
+        0,
+        -0.005 * U,
+        (d.halfD + 2.1) * U,
+        gx,
+        0.02 * U,
+        2.4 * U,
+      );
   }
   // Each room: its floor, its walls.
   d.rooms.forEach((r, i) => {
@@ -580,22 +757,47 @@ export function homeDrawn(inside: HomeInside, plan: VillagePlan, t: number): Hom
         for (let a = 0; a < nx; a++)
           for (let b = 0; b < nz; b++)
             if ((a + b) % 2)
-              parts.put("box", floorB, (r.x - r.w / 2 + ((a + 0.5) * r.w) / nx) * U, 0.012 * U, (r.z - r.d / 2 + ((b + 0.5) * r.d) / nz) * U, (r.w / nx) * U, 0.004 * U, (r.d / nz) * U);
+              parts.put(
+                "box",
+                floorB,
+                (r.x - r.w / 2 + ((a + 0.5) * r.w) / nx) * U,
+                0.012 * U,
+                (r.z - r.d / 2 + ((b + 0.5) * r.d) / nz) * U,
+                (r.w / nx) * U,
+                0.004 * U,
+                (r.d / nz) * U,
+              );
     } else {
       parts.put("box", floorA, r.x * U, 0.005 * U, r.z * U, r.w * U, 0.01 * U, r.d * U);
       if (floorA === FLOOR.planks) {
         const n = Math.max(2, Math.round(r.w / 0.4));
         for (let a = 1; a < n; a += 2)
-          parts.put("box", [floorA[0] * 0.85, floorA[1] * 0.85, floorA[2] * 0.85], (r.x - r.w / 2 + ((a + 0.5) * r.w) / n) * U, 0.012 * U, r.z * U, (r.w / n) * U, 0.003 * U, r.d * U);
+          parts.put(
+            "box",
+            [floorA[0] * 0.85, floorA[1] * 0.85, floorA[2] * 0.85],
+            (r.x - r.w / 2 + ((a + 0.5) * r.w) / n) * U,
+            0.012 * U,
+            r.z * U,
+            (r.w / n) * U,
+            0.003 * U,
+            r.d * U,
+          );
       }
     }
   });
   // Walls within, then the walls about each floor.
-  d.walls.forEach((w, i) => wallRun(parts, inside, w.ax, w.az, w.bx, w.bz, wallIn, CUT * 0.85, ruin, i + 100));
+  d.walls.forEach((w, i) =>
+    wallRun(parts, inside, w.ax, w.az, w.bx, w.bz, wallIn, CUT * 0.85, ruin, i + 100),
+  );
   const floors = new Map<number, { lo: number; hi: number; near: number; far: number }>();
   for (const r of d.rooms) {
     if (r.round) continue;
-    const f = floors.get(r.floor) ?? { lo: Infinity, hi: -Infinity, near: -Infinity, far: Infinity };
+    const f = floors.get(r.floor) ?? {
+      lo: Infinity,
+      hi: -Infinity,
+      near: -Infinity,
+      far: Infinity,
+    };
     f.lo = Math.min(f.lo, r.x - r.w / 2);
     f.hi = Math.max(f.hi, r.x + r.w / 2);
     f.far = Math.min(f.far, r.z - r.d / 2);
@@ -621,12 +823,30 @@ export function homeDrawn(inside: HomeInside, plan: VillagePlan, t: number): Hom
         y = CUT + 0.2;
       lid.put("box", look.roof, x * U, y * U, z * U, (w + 0.5) * U, 0.3 * U, (depth + 0.5) * U);
       if (look.rise > 0.1 && !high && inside.level < 3)
-        lid.put("cone", [look.roof[0] * 0.9, look.roof[1] * 0.9, look.roof[2] * 0.9], x * U, (y + 0.9) * U, z * U, (w + 0.4) * U, 1.5 * U, (depth + 0.4) * U);
+        lid.put(
+          "cone",
+          [look.roof[0] * 0.9, look.roof[1] * 0.9, look.roof[2] * 0.9],
+          x * U,
+          (y + 0.9) * U,
+          z * U,
+          (w + 0.4) * U,
+          1.5 * U,
+          (depth + 0.4) * U,
+        );
     }
   }
   if (!floors.size && !ruin)
     for (const r of d.rooms)
-      lid.put("cone", look.roof, r.x * U, (CUT + 0.8) * U, r.z * U, (r.w + 0.4) * U, 1.6 * U, (r.d + 0.4) * U);
+      lid.put(
+        "cone",
+        look.roof,
+        r.x * U,
+        (CUT + 0.8) * U,
+        r.z * U,
+        (r.w + 0.4) * U,
+        1.6 * U,
+        (r.d + 0.4) * U,
+      );
   // What stands in the rooms.
   const dye = Math.abs(key) % DYE.length;
   for (const th of d.things) thingParts(parts, th, inside, dye);
@@ -642,7 +862,16 @@ export function homeDrawn(inside: HomeInside, plan: VillagePlan, t: number): Hom
       })),
       ...folk.flatMap((f): HomeSpot[] =>
         f.at === "in"
-          ? [{ kind: "person", n: f.index, x: f.x, y: f.y + (f.lying ? 0.06 : 0.28), z: f.z, under: -8 }]
+          ? [
+              {
+                kind: "person",
+                n: f.index,
+                x: f.x,
+                y: f.y + (f.lying ? 0.06 : 0.28),
+                z: f.z,
+                under: -8,
+              },
+            ]
           : [],
       ),
     ];

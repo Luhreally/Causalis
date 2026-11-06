@@ -11,7 +11,14 @@ import { fileURLToPath } from "node:url";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { preview } from "vite";
 import { chromium, type Page } from "playwright";
-import { YEAR, loadWorld, rulesetId, saveWorld, seedFromText, type World } from "../src/kernel/index.ts";
+import {
+  YEAR,
+  loadWorld,
+  rulesetId,
+  saveWorld,
+  seedFromText,
+  type World,
+} from "../src/kernel/index.ts";
 import { ALIEN, EARTH } from "../src/host/planet.ts";
 import { furnish, roomsOf, type DwellingFacts } from "../src/rules/index.ts";
 import { populationContext } from "../src/sim/index.ts";
@@ -28,7 +35,12 @@ const argv = process.argv.slice(2),
   alienFile = arg("--alien");
 if (shots) mkdirSync(shots, { recursive: true });
 const slow = (ms: number) => (ci || soft ? ms * 4 : ms);
-const GPU = ["--enable-gpu", "--ignore-gpu-blocklist", "--use-angle=d3d11", "--force_high_performance_gpu"];
+const GPU = [
+  "--enable-gpu",
+  "--ignore-gpu-blocklist",
+  "--use-angle=d3d11",
+  "--force_high_performance_gpu",
+];
 const problems: string[] = [],
   check = (ok: boolean, what: string) => {
     if (!ok) problems.push(what);
@@ -73,19 +85,34 @@ console.log("gate 86, a home you can look into");
     rich = furnish(facts({ coin: 200000, level: 2, court: true }));
   check(poor.rooms.length === 1, `the poorest have ${poor.rooms.length} rooms`);
   check(rich.rooms.length >= 6, `the richest have ${rich.rooms.length} rooms`);
-  check(rich.things.length >= poor.things.length + 12, `rich ${rich.things.length} things, poor ${poor.things.length}`);
+  check(
+    rich.things.length >= poor.things.length + 12,
+    `rich ${rich.things.length} things, poor ${poor.things.length}`,
+  );
   check(roomsOf(facts({ coin: 1e7, level: 0 })) === 1, "a hut gave more than one room");
   check(
     !furnish(facts({ wood: false, coin: 1e6 })).things.some((t) => t.stuff === "wood"),
     "a land with no wood has a wooden thing",
   );
   const sea = ways(facts({ medium: "water", burns: false, grips: false, coin: 1e5 }));
-  check(!sea.some((w) => /bed|hearth|stove|table|lamp/.test(w)), `a water people have ${sea.join()}`);
-  check(sea.some((w) => /hollow|hammock/.test(w)), "a water people sleep nowhere");
+  check(
+    !sea.some((w) => /bed|hearth|stove|table|lamp/.test(w)),
+    `a water people have ${sea.join()}`,
+  );
+  check(
+    sea.some((w) => /hollow|hammock/.test(w)),
+    "a water people sleep nowhere",
+  );
   const cold = ways(facts({ burns: false, coin: 200, knows: () => false }));
-  check(!cold.some((w) => /hearth|stove|lamp/.test(w)), `where nothing burns they have ${cold.join()}`);
+  check(
+    !cold.some((w) => /hearth|stove|lamp/.test(w)),
+    `where nothing burns they have ${cold.join()}`,
+  );
   const fallen = furnish(facts({ ruin: 2 }));
-  check(fallen.things.every((t) => t.need === "ruin"), "a ruin holds a family's things");
+  check(
+    fallen.things.every((t) => t.need === "ruin"),
+    "a ruin holds a family's things",
+  );
   const off = furnish(facts({ coin: 3e6, level: 2 }));
   for (const t of off.things) {
     const r = off.rooms[t.room]!;
@@ -96,21 +123,30 @@ console.log("gate 86, a home you can look into");
   }
 }
 
-type Forged = { readonly bytes: Buffer; readonly universe: "earth" | "alien"; readonly seed: string };
+type Forged = {
+  readonly bytes: Buffer;
+  readonly universe: "earth" | "alien";
+  readonly seed: string;
+};
 const pack = (world: World, universe: "earth" | "alien"): Forged => {
   const u = universe === "earth" ? EARTH : ALIEN;
   return {
-    bytes: gzipSync(JSON.stringify(saveWorld(world, rulesetId(world, u.version), { universe: u.name }))),
+    bytes: gzipSync(
+      JSON.stringify(saveWorld(world, rulesetId(world, u.version), { universe: u.name })),
+    ),
     universe,
     seed: world.seed.text,
   };
 };
 const fromFile = (file: string, universe: "earth" | "alien"): Forged => {
   const u = universe === "earth" ? EARTH : ALIEN,
-    doc = JSON.parse(gunzipSync(readFileSync(file)).toString("utf8")) as Parameters<typeof loadWorld>[0],
+    doc = JSON.parse(gunzipSync(readFileSync(file)).toString("utf8")) as Parameters<
+      typeof loadWorld
+    >[0],
     probe = u.build(seedFromText(doc.seed)),
-    world = loadWorld(doc, (s) => u.build(s), rulesetId(probe, u.version), { allowRulesetChange: true }).world;
-  void populationContext;
+    world = loadWorld(doc, (s) => u.build(s), rulesetId(probe, u.version), {
+      allowRulesetChange: true,
+    }).world;
   return pack(world, universe);
 };
 const youngWorld = (): Forged => {
@@ -149,7 +185,9 @@ const until = async (what: string, ok: () => Promise<boolean>, ms = slow(25000))
   return false;
 };
 const ask = <T>(type: string, args: unknown = {}) =>
-  k<T>(`globalThis.causalis.client.query({ type: ${JSON.stringify(type)}, args: ${JSON.stringify(args)} })`);
+  k<T>(
+    `globalThis.causalis.client.query({ type: ${JSON.stringify(type)}, args: ${JSON.stringify(args)} })`,
+  );
 const shot = async (name: string) => {
   const b = await page.screenshot(shots ? { path: join(shots, `${name}.png`) } : {});
   return b.toString("base64");
@@ -159,9 +197,13 @@ async function loadSave(f: Forged) {
   const name = `${f.universe}:gate86`,
     q = `universe=${f.universe}&seed=${encodeURIComponent(f.seed)}`;
   await page.goto(`${base}?${q}&hold=1`);
-  await page.waitForFunction(() => !!(globalThis as { causalis?: { client?: unknown } }).causalis?.client, undefined, {
-    timeout: slow(120000),
-  });
+  await page.waitForFunction(
+    () => !!(globalThis as { causalis?: { client?: unknown } }).causalis?.client,
+    undefined,
+    {
+      timeout: slow(120000),
+    },
+  );
   await page.waitForFunction(
     () => ((globalThis as { causalis?: { drawn?: () => number } }).causalis?.drawn?.() ?? 0) > 0,
     undefined,
@@ -172,7 +214,12 @@ async function loadSave(f: Forged) {
       const bytes = Uint8Array.from(atob(data as string), (c) => c.charCodeAt(0));
       const c = (
         globalThis as unknown as {
-          causalis: { client: { importSave(b: Uint8Array): Promise<unknown>; save(n: string): Promise<unknown> } };
+          causalis: {
+            client: {
+              importSave(b: Uint8Array): Promise<unknown>;
+              save(n: string): Promise<unknown>;
+            };
+          };
         }
       ).causalis.client;
       await c.importSave(bytes);
@@ -217,8 +264,23 @@ async function press(selector: string): Promise<boolean> {
   return true;
 }
 
-type Spot = { kind: string; n: number; x: number; y: number; way: string | null; shape: string | null };
-type Survey = { n: number; level: number; state: string; coin: number; rooms: number; people: number; figure: boolean };
+type Spot = {
+  kind: string;
+  n: number;
+  x: number;
+  y: number;
+  way: string | null;
+  shape: string | null;
+};
+type Survey = {
+  n: number;
+  level: number;
+  state: string;
+  coin: number;
+  rooms: number;
+  people: number;
+  figure: boolean;
+};
 type HomeState = {
   ref: string;
   title: string;
@@ -237,12 +299,17 @@ type HomeState = {
 };
 const homeState = () => k<HomeState | null>("globalThis.causalis.home.state()"),
   spots = () => k<Spot[]>("globalThis.causalis.home.spots()");
-const pageText = () =>
-  k<string>(`document.querySelector(".page-window")?.innerText ?? ""`);
+const pageText = () => k<string>(`document.querySelector(".page-window")?.innerText ?? ""`);
 /** A page's words checked: no raw ref, no wrong one. */
 const readWell = (text: string, where: string) => {
-  check(!/\b(dwell|dwelt|lot|bldg|folk|agent):[a-z0-9]/i.test(text), `a raw ref on ${where}: ${text.slice(0, 200)}`);
-  check(!/\b1 (rooms|people|years|homes|lots)\b/.test(text), `"1 ..." wrong on ${where}: ${text.slice(0, 300)}`);
+  check(
+    !/\b(dwell|dwelt|lot|bldg|folk|agent):[a-z0-9]/i.test(text),
+    `a raw ref on ${where}: ${text.slice(0, 200)}`,
+  );
+  check(
+    !/\b1 (rooms|people|years|homes|lots)\b/.test(text),
+    `"1 ..." wrong on ${where}: ${text.slice(0, 300)}`,
+  );
   check(!/undefined|NaN|\[object/.test(text), `a broken word on ${where}: ${text.slice(0, 300)}`);
 };
 
@@ -277,24 +344,39 @@ const unlike = (a: string, b: string): Promise<number> =>
   page.evaluate(
     async ([p, q]) => {
       const read = async (d: string) => {
-        const bm = await createImageBitmap(await (await fetch(`data:image/png;base64,${d}`)).blob()),
+        const bm = await createImageBitmap(
+            await (await fetch(`data:image/png;base64,${d}`)).blob(),
+          ),
           c = new OffscreenCanvas(bm.width, bm.height),
           x = c.getContext("2d")!;
         x.drawImage(bm, 0, 0);
-        return x.getImageData(0, Math.round(bm.height * 0.17), bm.width, Math.round(bm.height * 0.68)).data;
+        return x.getImageData(
+          0,
+          Math.round(bm.height * 0.17),
+          bm.width,
+          Math.round(bm.height * 0.68),
+        ).data;
       };
       const A = await read(p as string),
         B = await read(q as string);
       let n = 0;
       for (let i = 0; i < A.length; i += 16)
-        if (Math.abs(A[i]! - B[i]!) + Math.abs(A[i + 1]! - B[i + 1]!) + Math.abs(A[i + 2]! - B[i + 2]!) > 60) n++;
+        if (
+          Math.abs(A[i]! - B[i]!) +
+            Math.abs(A[i + 1]! - B[i + 1]!) +
+            Math.abs(A[i + 2]! - B[i + 2]!) >
+          60
+        )
+          n++;
       return n / (A.length / 16);
     },
     [a, b] as const,
   );
 
 const openHome = async (town: string, n: number): Promise<HomeState | null> => {
-  const why = await k<string | null>(`globalThis.causalis.home.open(${JSON.stringify({ town, n })})`);
+  const why = await k<string | null>(
+    `globalThis.causalis.home.open(${JSON.stringify({ town, n })})`,
+  );
   if (why) {
     problems.push(`home ${n} of ${town}: ${why}`);
     return null;
@@ -310,23 +392,11 @@ const closeHome = async () => {
   await k("globalThis.causalis.home.close()");
   await page.waitForTimeout(slow(120));
 };
-const atHour = async (hour: number): Promise<void> => {
-  // (Held already: a home is opened at the world's own hour. The clock is never set; see what is said.)
-  void hour;
-};
-void atHour;
-
-const greatestTown = () =>
-  k<string | null>(`(async () => {
-    const m = await globalThis.causalis.client.query({ type: "summary" }).catch(() => null);
-    void m;
-    return null;
-  })()`);
-void greatestTown;
-
 /** The town to look at: the one with the most lots standing, the eye gone to it. */
 async function toTown(world: Forged): Promise<string> {
-  const doc = JSON.parse(gunzipSync(world.bytes).toString("utf8")) as Parameters<typeof loadWorld>[0],
+  const doc = JSON.parse(gunzipSync(world.bytes).toString("utf8")) as Parameters<
+      typeof loadWorld
+    >[0],
     u = world.universe === "earth" ? EARTH : ALIEN,
     w = loadWorld(doc, (s) => u.build(s), rulesetId(u.build(seedFromText(doc.seed)), u.version), {
       allowRulesetChange: true,
@@ -340,7 +410,10 @@ async function toTown(world: Forged): Promise<string> {
   await k(`globalThis.causalis.goTo(${JSON.stringify(town.ref)})`);
   await until(
     "the town",
-    () => k<boolean>(`globalThis.causalis.scale() === "village" && globalThis.causalis.planNow()?.ref === ${JSON.stringify(town.ref)}`),
+    () =>
+      k<boolean>(
+        `globalThis.causalis.scale() === "village" && globalThis.causalis.planNow()?.ref === ${JSON.stringify(town.ref)}`,
+      ),
     slow(60000),
   );
   await page.waitForTimeout(slow(800));
@@ -352,13 +425,17 @@ const made = saveFile ? fromFile(saveFile, "earth") : youngWorld();
 await loadSave(made);
 const town = await toTown(made);
 const survey = await ask<Survey[]>("home.survey", { town });
-say(`${survey.length} homes read: ${survey.filter((s) => s.state === "stands").length} standing, ${survey.filter((s) => s.people > 0).length} with people known`);
+say(
+  `${survey.length} homes read: ${survey.filter((s) => s.state === "stands").length} standing, ${survey.filter((s) => s.people > 0).length} with people known`,
+);
 check(survey.length > 0, "no home in the town");
 const standing = survey.filter((s) => s.state === "stands"),
   byCoin = [...standing].sort((a, b) => a.coin - b.coin),
   poor = byCoin.find((s) => s.people > 0) ?? byCoin[0]!,
   rich = byCoin.at(-1)!;
-say(`poorest ${Math.round(poor.coin)} coin, ${poor.rooms} rooms; richest ${Math.round(rich.coin)} coin, ${rich.rooms} rooms, level ${rich.level}`);
+say(
+  `poorest ${Math.round(poor.coin)} coin, ${poor.rooms} rooms; richest ${Math.round(rich.coin)} coin, ${rich.rooms} rooms, level ${rich.level}`,
+);
 
 // The home's page, 🏠 Look in pressed by touch.
 const before = JSON.stringify(await ask<unknown>("hashes"));
@@ -370,7 +447,10 @@ let text = await pageText();
 readWell(text, "a home's page");
 check(/WHOSE|Whose/i.test(text), `a home's page says not whose it is: ${text.slice(0, 300)}`);
 check(/THEY PAY|They pay/i.test(text), "a home's page says not what they pay");
-check(/SIZE|Size/i.test(text) && /AGE|Age/i.test(text) && /BEFORE|Before/i.test(text), "a home's page lacks its size, age or what it was before");
+check(
+  /SIZE|Size/i.test(text) && /AGE|Age/i.test(text) && /BEFORE|Before/i.test(text),
+  "a home's page lacks its size, age or what it was before",
+);
 await press(".page-window .home-look");
 await until("its roof lifted", async () => {
   const s = await homeState();
@@ -379,25 +459,44 @@ await until("its roof lifted", async () => {
 await page.waitForTimeout(slow(300));
 const poorState = await homeState();
 if (poorState) {
-  say(`in: ${poorState.title}: ${poorState.line}; ${poorState.things.length} things; built in ${poorState.builtMs} ms (scene ${poorState.sceneMs}), ${poorState.parts} parts`);
+  say(
+    `in: ${poorState.title}: ${poorState.line}; ${poorState.things.length} things; built in ${poorState.builtMs} ms (scene ${poorState.sceneMs}), ${poorState.parts} parts`,
+  );
   check(poorState.things.length > 0, "nothing in the poorest home");
 }
 const poorShot = await shot("home-poor");
 const poorC = await colourOf(poorShot);
-check(await k<boolean>(`document.body.classList.contains("homing")`), "the town's chrome stayed up");
+check(
+  await k<boolean>(`document.body.classList.contains("homing")`),
+  "the town's chrome stayed up",
+);
 
 // Something in it tapped by touch.
 const list = await spots();
-const pick = list.find((s) => s.kind === "thing" && s.shape !== "rug" && s.shape !== "bulb" && s.x > 40 && s.x < 390 && s.y > 180 && s.y < 800);
+const pick = list.find(
+  (s) =>
+    s.kind === "thing" &&
+    s.shape !== "rug" &&
+    s.shape !== "bulb" &&
+    s.x > 40 &&
+    s.x < 390 &&
+    s.y > 180 &&
+    s.y < 800,
+);
 check(!!pick, "nothing in it to tap on the screen");
 if (pick) {
   await page.touchscreen.tap(pick.x, pick.y);
-  await until("a thing's page", () => k<boolean>(`String(globalThis.causalis.pageOpen() ?? "").startsWith("dwelt:")`));
+  await until("a thing's page", () =>
+    k<boolean>(`String(globalThis.causalis.pageOpen() ?? "").startsWith("dwelt:")`),
+  );
   await page.waitForTimeout(slow(300));
   await shot("page-thing");
   text = await pageText();
   readWell(text, "a thing's page");
-  check(/FOR|For/.test(text) && /MADE OF|Made of/i.test(text) && /WORTH|Worth/i.test(text), `a thing's page lacks for, made of or worth: ${text.slice(0, 300)}`);
+  check(
+    /FOR|For/.test(text) && /MADE OF|Made of/i.test(text) && /WORTH|Worth/i.test(text),
+    `a thing's page lacks for, made of or worth: ${text.slice(0, 300)}`,
+  );
   await k("globalThis.causalis.closePage?.()");
   await page.waitForTimeout(slow(200));
 }
@@ -412,20 +511,31 @@ if (someone) {
 await press(".home-leave");
 await page.waitForTimeout(slow(500));
 check(!(await homeState()), "Back out left the home open");
-check(await k<boolean>(`!document.body.classList.contains("homing")`), "the town's chrome stayed away");
+check(
+  await k<boolean>(`!document.body.classList.contains("homing")`),
+  "the town's chrome stayed away",
+);
 await shot("town-after");
 
 // Rich beside poor, in the pixels.
 const richState = await openHome(town, rich.n);
 const richShot = await shot("home-rich");
 const richC = await colourOf(richShot);
-if (richState) say(`rich: ${richState.title}: ${richState.line}; ${richState.things.length} things; built in ${richState.builtMs} ms, ${richState.parts} parts`);
+if (richState)
+  say(
+    `rich: ${richState.title}: ${richState.line}; ${richState.things.length} things; built in ${richState.builtMs} ms, ${richState.parts} parts`,
+  );
 await closeHome();
 const parted = await unlike(poorShot, richShot);
-say(`poor: ${poorC.colours} colours, ${(poorC.bright * 100).toFixed(1)}% bright; rich: ${richC.colours} colours, ${(richC.bright * 100).toFixed(1)}% bright; ${(parted * 100).toFixed(0)}% of the shot differs`);
+say(
+  `poor: ${poorC.colours} colours, ${(poorC.bright * 100).toFixed(1)}% bright; rich: ${richC.colours} colours, ${(richC.bright * 100).toFixed(1)}% bright; ${(parted * 100).toFixed(0)}% of the shot differs`,
+);
 check(parted > 0.15, `a poor home and a rich one are alike in the shot: ${parted}`);
 if (rich.coin > poor.coin * 8 && rich.rooms > poor.rooms)
-  check(richC.colours >= poorC.colours + 3, `a rich home shows ${richC.colours} colours, a poor one ${poorC.colours}`);
+  check(
+    richC.colours >= poorC.colours + 3,
+    `a rich home shows ${richC.colours} colours, a poor one ${poorC.colours}`,
+  );
 
 // The paths nobody watches.
 const ruin = survey.find((s) => s.state === "fell" || s.state === "razed");
@@ -462,7 +572,11 @@ if (ruler) {
 // A lot's own page offers it, and one that does not exist says so.
 await k(`globalThis.causalis.open(${JSON.stringify(`lot:${town}:${poor.n}`)})`);
 await page.waitForTimeout(slow(400));
-if (poor.n < 1_000_000) check(await k<boolean>(`!!document.querySelector(".page-window .home-look")`), "a lot's page offers no look in");
+if (poor.n < 1_000_000)
+  check(
+    await k<boolean>(`!!document.querySelector(".page-window .home-look")`),
+    "a lot's page offers no look in",
+  );
 await k("globalThis.causalis.closePage?.()");
 await k(`globalThis.causalis.open(${JSON.stringify(`dwell:${town}:999999`)})`);
 await page.waitForTimeout(slow(400));
@@ -471,6 +585,100 @@ await k("globalThis.causalis.closePage?.()");
 
 const after = JSON.stringify(await ask<unknown>("hashes"));
 check(before === after, "looking into a home moved a hash");
+
+// Anyone in it, by touch: their page; then taken, and lived as, which is what moves history. Its page's Go to, as a person has it.
+const sheet = async (): Promise<boolean> => {
+  await openHome(town, poor.n);
+  const one = (await spots()).find((s) => s.kind === "person" && s.y > 180 && s.y < 800);
+  if (!one) {
+    await closeHome();
+    return false;
+  }
+  await page.touchscreen.tap(one.x, one.y);
+  return until("their sheet", () => k<boolean>(`!document.querySelector(".home-who").hidden`));
+};
+const homing = () => k<boolean>(`document.body.classList.contains("homing")`);
+if (await sheet()) {
+  await press(".home-their");
+  await until("their page", () =>
+    k<boolean>(
+      `!!globalThis.causalis.pageOpen() && !document.querySelector(".page-window").hidden`,
+    ),
+  );
+  await page.waitForTimeout(slow(300));
+  await shot("home-their-page");
+  readWell(await pageText(), "their page, from a home");
+  check(await homing(), "their page closed the home");
+  check(
+    await k<boolean>(`getComputedStyle(document.querySelector(".home-acts")).display === "none"`),
+    "a home's buttons lie over a page",
+  );
+  await k("globalThis.causalis.closePage?.()");
+  await page.waitForTimeout(slow(300));
+  check(
+    await k<boolean>(`getComputedStyle(document.querySelector(".home-acts")).display !== "none"`),
+    "a home's buttons did not come back",
+  );
+  await closeHome();
+  // Its page's Go to: the home gives way, the town is there.
+  await k(`globalThis.causalis.open(${JSON.stringify(homeRef)})`);
+  await page.waitForTimeout(slow(400));
+  await press(".page-window .home-look");
+  await until("its roof lifted", async () => !!(await homeState())?.lifted);
+  await press(".home-page");
+  await until("its page", () =>
+    k<boolean>(`String(globalThis.causalis.pageOpen() ?? "").startsWith("dwell:")`),
+  );
+  await page.waitForTimeout(slow(300));
+  await press(".page-window .go-to");
+  await until("the home to give way", async () => !(await homing()));
+  await page.waitForTimeout(slow(600));
+  await shot("home-goto");
+  check(
+    await k<boolean>(`globalThis.causalis.scale() === "village"`),
+    "Go to, from a home, left the town",
+  );
+  // Taken.
+  if (await sheet()) {
+    await press(".home-take");
+    await until(
+      "them taken",
+      () => k<boolean>(`document.body.classList.contains("possessing")`),
+      slow(90000),
+    );
+    await page.waitForTimeout(slow(800));
+    await shot("home-possessed");
+    check(!(await homing()), "a home stays open under one possessed");
+    check(!(await homeState()), "a home is open under one possessed");
+    await press(".possess-letgo");
+    await until("let go", () => k<boolean>(`!document.body.classList.contains("possessing")`));
+    await page.waitForTimeout(slow(600));
+  }
+  // Lived as, and 🏠 Go in from their strip.
+  if (await sheet()) {
+    await press(".home-live");
+    await until(
+      "their life",
+      () => k<boolean>(`document.body.classList.contains("living")`),
+      slow(90000),
+    );
+    await page.waitForTimeout(slow(1200));
+    await shot("home-lived");
+    check(!(await homing()), "a home stays open under one lived as");
+    await press(".life-goin");
+    await until("their home, from their strip", async () => !!(await homeState())?.lifted);
+    await page.waitForTimeout(slow(400));
+    await shot("home-goin");
+    await press(".home-leave");
+    await page.waitForTimeout(slow(600));
+    check(!(await homeState()), "Back out left their home open");
+    check(
+      await k<boolean>(`document.body.classList.contains("living")`),
+      "backing out of their home ended their life",
+    );
+    await shot("home-goin-out");
+  }
+} else say("no one in at this hour to take");
 
 // A water people's town, a far save given (or nothing on CI).
 if (alienFile) {
@@ -486,7 +694,13 @@ if (alienFile) {
     say(`alien home: ${s?.title}: ${s?.line}; ${s?.things.join()}`);
     const c = await colourOf(d);
     say(`alien: ${c.colours} colours`);
-    check(!!s && !s.things.some((w) => /joined-bed|sprung-bed/.test(w)) === (await k<boolean>(`globalThis.causalis.planNow()?.body?.medium === "water"`)) || (await k<boolean>(`globalThis.causalis.planNow()?.body?.medium !== "water"`)), "a water people have a bed");
+    check(
+      (!!s &&
+        !s.things.some((w) => /joined-bed|sprung-bed/.test(w)) ===
+          (await k<boolean>(`globalThis.causalis.planNow()?.body?.medium === "water"`))) ||
+        (await k<boolean>(`globalThis.causalis.planNow()?.body?.medium !== "water"`)),
+      "a water people have a bed",
+    );
     await k(`globalThis.causalis.open(${JSON.stringify(`dwell:${t}:${one.n}`)})`);
     await page.waitForTimeout(slow(400));
     readWell(await pageText(), "an alien home's page");

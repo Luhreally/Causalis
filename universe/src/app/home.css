@@ -1,8 +1,9 @@
 /* A home looked into (Lives L6): the town's chrome put away, what it is along the top where no thumb rests, who is out, and two ways on along the bottom. Inside the phone's safe areas. */
-body.homing #hud > *:not(.home-hud):not(.swap):not(.readying):not(.page-panel) {
+body.homing #hud > *:not(.home-hud):not(.swap):not(.readying):not(.page-window):not(.panel.page-panel) {
   display: none !important;
 }
-.home-hud {
+/* (As #hud's rule for its children would have it otherwise: a finger on the home must reach the home.) */
+#hud > .home-hud {
   position: absolute;
   inset: 0;
   z-index: 38;
@@ -12,6 +13,11 @@ body.homing #hud > *:not(.home-hud):not(.swap):not(.readying):not(.page-panel) {
 }
 .home-hud[hidden] {
   display: none !important;
+}
+/* (A page open over a home: what is in the way of its words waits behind it. Close it and they come back.) */
+body.homing:has(.page-window:not([hidden])) .home-acts,
+body.homing:has(.page-window:not([hidden])) .home-who {
+  display: none;
 }
 .home-cap {
   position: absolute;

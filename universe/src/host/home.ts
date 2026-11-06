@@ -2,13 +2,7 @@
 // market and lore, its realm's law, and furnished by rules/dwelling.ts. Nothing here is kept, drawn from history's streams or read
 // by the simulation: the same home holds the same things every time, and asking moves nothing.
 import { hashString, YEAR, type Ref, type World } from "../kernel/index.ts";
-import {
-  LOT,
-  lotStates,
-  townLots,
-  type HomeInside,
-  type VillagePlan,
-} from "../bridge/index.ts";
+import { LOT, lotStates, townLots, type HomeInside, type VillagePlan } from "../bridge/index.ts";
 import {
   DAY_WAGE,
   FAMILY_SIZE,
@@ -226,7 +220,11 @@ export function rentOf(
       words: `${position === 1 ? "Land here is leased" : "A tall home is let by the floor"}: they pay ${day}, to a landlord history does not name, under the law of `,
       to: realm.ref,
     };
-  return { pays: 0, words: "They own it: land here is the tiller's own, by the law of ", to: realm.ref };
+  return {
+    pays: 0,
+    words: "They own it: land here is the tiller's own, by the law of ",
+    to: realm.ref,
+  };
 }
 
 /** The facts a home's things are chosen from. */
@@ -300,7 +298,9 @@ export function homeFacts(world: World, r: HomeRead): DwellingFacts {
     wood: !bare && (forest ? forest.forest * forest.firstForest > 0.004 : true),
     cloth: !bare,
     vessel: era === "forage" ? null : (means.vessel?.name ?? null),
-    metal: plan.native ? (plan.metal ?? "stone") : toolMetal(populationContext(world), cell, Math.floor(world.now / YEAR)),
+    metal: plan.native
+      ? (plan.metal ?? "stone")
+      : toolMetal(populationContext(world), cell, Math.floor(world.now / YEAR)),
     work,
     fought: people.some((p) => p.war),
     court,
@@ -314,7 +314,10 @@ function familyName(plan: VillagePlan, residents: readonly number[]): string | n
   const grown = residents.map((i) => plan.people[i]!).filter((p) => p.figure || !p.child);
   const named = (grown[0] ?? plan.people[residents[0] ?? -1])?.name;
   if (!named) return null;
-  const words = named.replace(/ of .*$/, "").trim().split(/\s+/);
+  const words = named
+    .replace(/ of .*$/, "")
+    .trim()
+    .split(/\s+/);
   return words.length > 1 ? words.at(-1)! : null;
 }
 
@@ -336,7 +339,8 @@ export function homeLine(r: HomeRead, rooms: number, floors: number, people: num
   if (r.state === "open") return "Nothing stands here";
   const roomWords = rooms === 1 ? "One room" : `${rooms} rooms`,
     onFloors = floors > 1 ? ` on ${floors} floors` : "",
-    who = people === 0 ? "no one known living here" : people === 1 ? "one person" : `${people} people`;
+    who =
+      people === 0 ? "no one known living here" : people === 1 ? "one person" : `${people} people`;
   return `${roomWords}${onFloors}, ${who}`;
 }
 
@@ -348,7 +352,7 @@ export function homeInside(world: World, town: string, n: number): HomeInside | 
     d = furnish(f),
     floors = 1 + Math.max(0, ...d.rooms.map((x) => x.floor)),
     storeys = HOME_STOREYS[r.level] ?? 1,
-    storey = storeys > 3 ? 1 + Math.floor(((f.key >>> 3) % 1000) / 1000 * (storeys - 1)) : 0;
+    storey = storeys > 3 ? 1 + Math.floor((((f.key >>> 3) % 1000) / 1000) * (storeys - 1)) : 0;
   return {
     ref: dwellRef(town, n),
     town,
@@ -377,7 +381,10 @@ export function homeInside(world: World, town: string, n: number): HomeInside | 
 }
 
 /** The homes of a town drawn, each as what is true of it says: the look tools'. */
-export function homeSurvey(world: World, town: string): readonly {
+export function homeSurvey(
+  world: World,
+  town: string,
+): readonly {
   readonly n: number;
   readonly level: number;
   readonly state: string;
