@@ -32,6 +32,7 @@ import {
   tameNow,
   warsOf,
   wildsOf,
+  filledOf,
   lanesOf,
 } from "../../sim/index.ts";
 import { PRINCIPLES, hasBeams } from "../../rules/index.ts";
@@ -1296,6 +1297,11 @@ function firstsOf(world: World, s: BaseSurvey): First[] {
         many(done.length, "world", "worlds"),
         done.length,
       );
+    const filled = filledOf(world);
+    if (filled?.first) {
+      const n = filled.all().filter((w) => w.filled).length;
+      add("🌆 A world filled", at(filled.first), null, many(n, "world", "worlds"), n);
+    }
     if (late?.covered) {
       const { built, lands } = coverOf(ctx);
       add(

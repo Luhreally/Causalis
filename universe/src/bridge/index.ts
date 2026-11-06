@@ -78,6 +78,7 @@ export type {
   ColonyGrowth,
   ColonyLook,
   ColonyVoyage,
+  FillPlan,
   FolkCan,
   FolkContact,
   FolkList,

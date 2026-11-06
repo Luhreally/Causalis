@@ -596,6 +596,15 @@ export {
   rockEarths,
 } from "./space/late.ts";
 export { LateStore, lateOf, remakeKey, type Mirrors, type Remaking } from "./space/late-store.ts";
+export {
+  FILLED_EVENTS,
+  comersBy,
+  fillGround,
+  landsOf,
+  peopleOn,
+  readingOf,
+} from "./space/filled.ts";
+export { FilledStore, bodyKey, filledOf, starKey, type FilledWorld } from "./space/filled-store.ts";
 export { StarSiteStore, lightSteps, starSitesOf, type StarSite } from "./space/stars.ts";
 export { folkGround, siteGround, siteRegion, type SiteGround } from "./space/ground.ts";
 export { hasLandfall, landfallsOf, type Landfall } from "./space/landfall.ts";

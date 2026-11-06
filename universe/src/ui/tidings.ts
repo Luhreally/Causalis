@@ -48,6 +48,8 @@ export class Tidings {
   onStarFight: ((event: string) => void) | null = null;
   /** A strike from the air played again in its town (W2). */
   onRaid: ((event: string) => void) | null = null;
+  /** A world filled seen (Worlds filled): by the event that told of it. */
+  onFilled: ((ref: string) => void) | null = null;
   /** The first jump watched (Phase 68). */
   onJump: (() => void) | null = null;
 
@@ -167,6 +169,15 @@ export class Tidings {
         this.onLanding?.(t.ref);
       };
       head.append(from, watch, close);
+    } else if (t.type === "filled.world" && this.onFilled) {
+      // (A world filled: out to it, lit across its face.)
+      const see = el("button", "tiding-watch", "🌆 See it");
+      see.title = "That world seen whole, its settled ground lit";
+      see.onclick = () => {
+        card.remove();
+        this.onFilled?.(t.ref);
+      };
+      head.append(from, see, close);
     } else if (t.type === "lanes.first" && this.onJump) {
       const watch = el("button", "tiding-watch", "🌀 Watch");
       watch.title = "The ship leaving for the lane, the jump, and where it came out";

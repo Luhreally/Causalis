@@ -82,6 +82,9 @@ const LIGHTS: GlowStops = [
   [1, "rgba(255,140,40,0)"],
 ];
 
+/** The most points of light a world's settled ground draws (one draw call; 16 triangles each). */
+const FILLED_MOST = 4000;
+
 export class GlobeScene {
   private readonly stage: Stage;
   private grid: SphereGrid | null = null;
@@ -106,6 +109,8 @@ export class GlobeScene {
   private lightMaterial: pc.Material | null = null;
   private readonly lights: pc.Entity[] = [];
   private hallSites: { x: number; y: number; z: number }[] = [];
+  /** A world's settled ground, as points of light (Worlds filled). */
+  private filled: InstancedBatch | null = null;
   /** Its world's kind as drawn (Phase 56), and each kind's air glow, made when first wanted. */
   private kindShown = "rocky";
   private readonly glows = new Map<string, pc.Material>();
@@ -247,8 +252,9 @@ export class GlobeScene {
     this.sea.enabled = this.seas;
     this.halo.enabled = this.air;
     this.clouds.enabled = this.cloudy;
-    // (A world anew: none of the last one's halls.)
+    // (A world anew: none of the last one's halls, or its lights.)
     this.setHalls([]);
+    this.setFilled([]);
   }
 
   /** What the world has about it: seas, an air (its glow), clouds. */
@@ -362,6 +368,48 @@ export class GlobeScene {
       const at = this.hallSites[i];
       e.enabled = !!at;
       if (at) e.setLocalPosition(at.x * 1.014, at.y * 1.014, at.z * 1.014);
+    });
+  }
+
+  /**
+   * A world's settled ground as its lights (Worlds filled): a point of light at each cell, in one batch, one draw call
+   * however many. Called with none, it draws nothing.
+   */
+  setFilled(cells: readonly number[], size = 0.0085): void {
+    const p = this.positions;
+    if (!p) return;
+    if (!this.filled && cells.length) {
+      const m = new pc.StandardMaterial();
+      m.diffuse = new pc.Color(0.1, 0.08, 0.05);
+      m.emissive = new pc.Color(1, 0.9, 0.5);
+      m.useLighting = false;
+      m.update();
+      this.filled = new InstancedBatch(
+        this.stage,
+        keptMesh(
+          pc.Mesh.fromGeometry(
+            this.stage.device,
+            new pc.SphereGeometry({ radius: 1, latitudeBands: 2, longitudeBands: 4 }),
+          ),
+        ),
+        [1, 1, 1],
+        FILLED_MOST,
+        this.hallRoot,
+        m,
+      );
+    }
+    const step = Math.max(1, cells.length / FILLED_MOST),
+      n = Math.min(cells.length, FILLED_MOST);
+    this.filled?.set(n, (i, out) => {
+      const c = cells[Math.floor(i * step)]!,
+        x = p[c * 3]!,
+        y = p[c * 3 + 1]!,
+        z = p[c * 3 + 2]!;
+      // (On the ground as it is drawn, hills and all, and a little over it.)
+      out[0] = x * 1.006;
+      out[1] = y * 1.006;
+      out[2] = z * 1.006;
+      out[3] = out[4] = out[5] = size * (0.7 + 0.6 * ((c * 2654435761) % 1000) * 0.001);
     });
   }
 

@@ -123,6 +123,20 @@ export class WorldPanel {
     return [el("div", "fact", words), acts];
   }
 
+  /** How far its ground is settled, why no more, and what stopped it (Worlds filled): told before the rest. */
+  filling(head: string, on: () => void): void {
+    this.more.querySelector(".fill-block")?.remove();
+    // (Someone has walked here: the line that says none has is not true of it.)
+    for (const p of this.more.querySelectorAll("p.muted"))
+      if (p.textContent?.startsWith("No one from home")) p.remove();
+    const block = el("div", "fill-block"),
+      all = el("button", "colony-watch fill-why", "🌆 Why no more?");
+    all.onclick = on;
+    block.append(el("h3", undefined, "How far it is settled"), el("div", "fact fill-head", head));
+    block.append(all);
+    this.more.prepend(block);
+  }
+
   /** Its halls, where another star's world has any: told before the rest. */
   foreignHalls(cell: number, words: string): void {
     this.more.prepend(el("h3", undefined, "Its halls"), ...this.hall(cell, words));

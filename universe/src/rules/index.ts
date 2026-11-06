@@ -198,6 +198,25 @@ export {
   type Need,
 } from "./habitat.ts";
 export {
+  BIRTHS,
+  FILLED_AT,
+  GROUND_SHARE,
+  HELD_TOP,
+  OPEN_KM2,
+  SEALED_KM2,
+  SEALED_REACH,
+  fillDone,
+  fillNext,
+  fillReading,
+  fillShare,
+  heldReading,
+  openSky,
+  yearsToFill,
+  type FillGround,
+  type FillMeans,
+  type FillReading,
+} from "./filling.ts";
+export {
   COVERED_SHARE,
   COVER_PEOPLE_KM2,
   FIRST_MIRRORS_KM2,

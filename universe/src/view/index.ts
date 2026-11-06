@@ -592,6 +592,7 @@ export {
   type WarViewed,
 } from "./warviews.ts";
 export { hallCells, hallDomes } from "./halls.ts";
+export { filledCells, filledColors, settleOrder } from "./filling.ts";
 export {
   FILM,
   colonyHash,

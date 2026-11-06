@@ -124,6 +124,7 @@ import type {
   BattleRoll,
   RollEntry,
   ColonyEntry,
+  FillPlan,
   ColonyLook,
   ColonyVoyage,
   StarFightList,
@@ -167,8 +168,11 @@ import {
   battleFront,
   counterWords,
   LY_SCALE,
+  filledCells,
+  filledColors,
   hallCells,
   hallDomes,
+  settleOrder,
   landTidings,
   campWords,
   BAND_DAY,
@@ -831,6 +835,9 @@ type Exposed = {
   visit?: (index: number) => void;
   /** Down to a colony's land (Phase 64). */
   visiting?: () => number;
+  /** Out to a world being filled, by its key; what is drawn of it (Worlds filled). */
+  seeFilled?: (key: string) => Promise<boolean>;
+  fillShown?: () => { key: string; share: number; lit: number; cells: number } | null;
   /** How many halls stand on the world seen whole (M95: halls from orbit). */
   hallsShown?: () => number;
   colonyFilm?: ColonyFilm;
@@ -3938,6 +3945,7 @@ async function runPlanetPage(): Promise<void> {
     }
     worldPanel.show(systemPlan, index, w, sky);
     worldPanel.visible = true;
+    void showFilled(w, { star: null, planet: -1, body: index });
     time.at("world", worldPanel.timeSlot);
   };
   // Halls from orbit (M95): a body of the home star's seen whole shows the halls set down on
@@ -4011,9 +4019,103 @@ async function runPlanetPage(): Promise<void> {
     if (named.length || hallsNamed) labels.update(named);
     hallsNamed = named.length > 0;
   });
+  // A world's settled ground (Worlds filled): its cells in the order they fill, and how many of them now. Read again every
+  // few seconds while it is looked at, and drawn again only when the share has moved, so the lights spread as years pass.
+  let fillShown: {
+    w: WorldGlobe;
+    where: { star: string | null; planet: number; body: number };
+    order: Int32Array | null;
+    plan: FillPlan;
+    at: number;
+    drawn: number;
+  } | null = null;
+  const drawFilled = (f: NonNullable<typeof fillShown>) => {
+    const lit = filledCells(f.order!, f.plan.share);
+    f.drawn = f.plan.share;
+    worldScene.setFilled(lit);
+    worldScene.paint(filledColors(worldColors(f.w, Math.floor(now() / YEAR)), lit));
+  };
+  const showFilled = async (
+    w: WorldGlobe,
+    where: { star: string | null; planet: number; body: number },
+  ) => {
+    fillShown = null;
+    worldScene.setFilled([]);
+    const plan = await client.query<FillPlan | null>({ type: "filled.world", args: where });
+    if (!plan || seen !== w || w.kind === "giant" || w.kind === "ice giant") return;
+    worldPanel.filling(plan.head, () => void pageWindow.open(plan.ref));
+    if (plan.sailing) return;
+    const starts = hallCells(w.frequency, w.cover).slice(0, 3);
+    fillShown = {
+      w,
+      where,
+      order: settleOrder(w, starts, plan.sea),
+      plan,
+      at: performance.now(),
+      drawn: -1,
+    };
+    drawFilled(fillShown);
+  };
+  stage.onUpdate(() => {
+    if (scale !== "world" || !fillShown || performance.now() - fillShown.at < 4000) return;
+    const f = fillShown;
+    f.at = performance.now();
+    void client
+      .query<FillPlan | null>({ type: "filled.world", args: f.where })
+      .then((plan) => {
+        if (!plan || fillShown !== f) return;
+        f.plan = plan;
+        worldPanel.filling(plan.head, () => void pageWindow.open(plan.ref));
+        if (Math.abs(plan.share - f.drawn) > 0.002) drawFilled(f);
+      })
+      .catch(() => {});
+  });
+  /** Out to a world by the event that told of its filling (a tiding, the Director's first). */
+  const seeFilledEvent = async (ref: string): Promise<boolean> => {
+    const plan = await client
+      .query<FillPlan | null>({ type: "filled.ofEvent", args: { ref } })
+      .catch(() => null);
+    if (!plan) return false;
+    return seeFilled(plan);
+  };
+  /** Out to a world being filled, from anywhere. */
+  const seeFilled = async (plan: FillPlan): Promise<boolean> => {
+    allAway();
+    stage.backdrop("space");
+    client.setInterest({ view: "globe", focus: null });
+    if (plan.star) {
+      const page = await client.query<StarPage>({ type: "galaxy.star", args: { ref: plan.star } });
+      skyStar = page;
+      await toForeignWorld(page, plan.planet, "star");
+      return true;
+    }
+    systemPlan ??= await client.query<SystemPlan>({ type: "planet.system" });
+    watchSky();
+    sky = await client.query<SkyState>({ type: "space.state" });
+    skyStar = null;
+    worldFrom = "system";
+    worldPanel.backTo = "The sky";
+    await toWorld(plan.body);
+    return true;
+  };
+  exposed.seeFilled = (key: string) =>
+    client
+      .query<FillPlan[]>({ type: "filled.list" })
+      .then((l) => l.find((p) => p.key === key) ?? null)
+      .then((p) => (p ? seeFilled(p) : false));
+  exposed.fillShown = () =>
+    fillShown
+      ? {
+          key: fillShown.plan.key,
+          share: fillShown.plan.share,
+          lit: filledCells(fillShown.order!, fillShown.plan.share).length,
+          cells: fillShown.order!.length,
+        }
+      : null;
   /** A world made whole, drawn and turned to (every other scale and its panel put away). */
   const showWorld = (w: WorldGlobe) => {
     hallsShown = [];
+    fillShown = null;
     globe.visible = false;
     planetPanel.visible = false;
     region.visible = false;
@@ -4147,6 +4249,7 @@ async function runPlanetPage(): Promise<void> {
     worldPanel.showForeign(star, index, w, Math.floor(now() / YEAR));
     worldPanel.visible = true;
     time.at("world", worldPanel.timeSlot);
+    void showFilled(w, { star: star.ref, planet: index, body: -1 });
   };
   // Out to the whole galaxy: its disk drawn from its own numbers, tapped for the stars there.
   const galaxyPanel = new GalaxyPanel(hud, client);
@@ -8706,6 +8809,9 @@ async function runPlanetPage(): Promise<void> {
   colonies.toldAloud = !navigator.webdriver || params.has("landings");
   corner.prepend(colonies.button);
   colonies.onLanding = (cell) => void colonyFilm!.play(cell);
+  colonies.onWorld = (cell) => void toColonyWorld(cell);
+  colonies.onFar = (key) => void exposed.seeFilled?.(key);
+  tidings.onFilled = (ref) => void seeFilledEvent(ref);
   colonies.onPage = (ref) => {
     colonies.show(false);
     void pageWindow.open(ref);
@@ -8995,6 +9101,11 @@ async function runPlanetPage(): Promise<void> {
         // (The first jump: played from its leaving, Phase 68.)
         if (s.first.what.startsWith("🌀") && directorJump) {
           await directorJump();
+          return;
+        }
+        // (A world filled: out to it, lit across its face.)
+        if (s.first.what.startsWith("🌆") && s.first.ref) {
+          await seeFilledEvent(s.first.ref);
           return;
         }
         // (The first landing on another world: played from its crossing, not only flown to.)

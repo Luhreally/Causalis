@@ -46,6 +46,7 @@ import { civilizationsNear } from "./contact.ts";
 import { holdWorld, peoplesOf } from "./peoples.ts";
 import { lanesOf, lawlessSeed } from "./lanes.ts";
 import { starSitesOf } from "./stars.ts";
+import { filledOf, starKey } from "./filled-store.ts";
 import { clusterOf } from "./voyages.ts";
 
 /** How far a people has come: its steps, then gone. */
@@ -502,6 +503,8 @@ export type Arrival = {
   readonly found: FolkStage;
   /** A ship sent through the lanes to look (Phase 68): its place among those sent. */
   readonly visit?: number;
+  /** A colony no land holds (Worlds filled): its world's key. */
+  readonly far?: string;
 };
 
 /** Everyone who has come down on a people's world, the first first: read off what history holds. */
@@ -531,6 +534,18 @@ export function arrivalsAt(world: World, f: Folk): readonly Arrival[] {
         visit,
       });
   });
+  // (A colony no land holds, sent when every kept land was taken: Worlds filled.)
+  const far = filledOf(world)?.get(starKey(f.star, f.planet));
+  if (far?.arrived && far.cell === null)
+    out.push({
+      kind: "home",
+      year: far.arrives,
+      event: far.arrived,
+      cell: null,
+      civ: null,
+      found: folkStage(f, far.arrives),
+      far: far.key,
+    });
   const store = peoplesOf(world);
   if (store)
     for (const c of civilizationsNear(world)) {

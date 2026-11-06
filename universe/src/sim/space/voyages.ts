@@ -51,6 +51,7 @@ import {
   spendMachines,
 } from "./space.ts";
 import { clusterOf, StarSiteStore, starSitesOf, type SiteLane } from "./stars.ts";
+import { farTaken, filledYear, lastFarSailed, sailFar } from "./filled.ts";
 import { LANE_EVENTS, LANE_ROW, laneDraw, laneLawOf, laneRoute, lanesOf } from "./lanes.ts";
 
 export { clusterOf };
@@ -118,7 +119,9 @@ export function voyageTarget(
     homeGravity = g.system.bodies[0]!.gravity,
     body = g.life.people?.body ?? null,
     longest = longestCrossing(k),
-    taken = new Set((starSitesOf(ctx.world)?.all() ?? []).map(([, s]) => s.star));
+    taken = new Set<string>((starSitesOf(ctx.world)?.all() ?? []).map(([, s]) => s.star));
+  // (And those a far colony went to, once every kept land was taken.)
+  for (const s of farTaken(ctx.world)) taken.add(s);
   let best: Target | null = null;
   for (const star of clusterOf(ctx.world)) {
     const years = crossingYears(star.distance, drive);
@@ -180,6 +183,7 @@ export function voyageYear(ctx: PopulationContext, t: SimTime): void {
     if (last && year - last.departed < VOYAGE_GAP) continue;
     const machines = machinesOfRealm(ctx, p);
     if (machines * COLONY_SHARE < STARSHIP_MACHINES) continue;
+    if (year - lastFarSailed(world, p.ref) < VOYAGE_GAP) continue;
     // The crew come from the realm's most crowded land of the home world.
     const origin = p.members
       .map((c) => ctx.provinces.get(c))
@@ -240,7 +244,11 @@ function sail(
         !sites.get(g.offworld.base + i) &&
         !ctx.provinces.get(g.offworld.base + i)?.total(),
     );
-  if (free < 0) return;
+  // (Every kept land taken: the ship still sails, and the colony it founds is a number on its world.)
+  if (free < 0) {
+    sailFar(ctx, p, origin, drive, target, reasons, machines, year);
+    return;
+  }
   const cell = g.offworld.base + free,
     lore = loreOf(world),
     driveKnown = lore.get(p.seat, drive.needs[0]!);
@@ -433,6 +441,13 @@ export function noteFirstJump(
 export function installVoyages(world: World, ctx: () => PopulationContext): StarSiteStore {
   const store = world.register(new StarSiteStore());
   world.addPinner(() => store.pinned());
-  world.system({ key: "198.space.voyage", every: YEAR, run: (t) => voyageYear(ctx(), t) });
+  world.system({
+    key: "198.space.voyage",
+    every: YEAR,
+    run: (t) => {
+      voyageYear(ctx(), t);
+      filledYear(ctx(), t);
+    },
+  });
   return store;
 }

@@ -7,6 +7,7 @@ import { PROPULSION, STAR_DRIVES } from "../rules/index.ts";
 import {
   CONTACT_EVENTS,
   GREAT_ACT_EVENTS,
+  FILLED_EVENTS,
   LANE_EVENTS,
   LATE_EVENTS,
   PEOPLES_EVENTS,
@@ -81,6 +82,22 @@ registerEventWords(LANE_EVENTS.came.type, (_world, e) => {
 registerEventWords(VOYAGE_EVENTS.arrived.type, (_world, e) => {
   const d = (e.data ?? {}) as { distance?: number; people?: number };
   return `A ship came to its star ${d.distance?.toFixed(1) ?? "?"} light-years from home, and its ${d.people ?? ""} people went down into halls on a world there, year ${yearOfMoment(e.t)}`;
+});
+
+registerEventWords(FILLED_EVENTS.sailed.type, (_world, e) => {
+  const d = (e.data ?? {}) as { realm?: string; distance?: number; years?: number };
+  return `The realm of ${d.realm ?? "a people"} sent a ship to a star ${d.distance ?? "?"} light-years away, every nearer world being taken: ${d.years ?? "many"} years on the way, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(FILLED_EVENTS.landed.type, (_world, e) => {
+  const d = (e.data ?? {}) as { realm?: string; distance?: number };
+  return `Settlers of ${d.realm ?? "a people"} came down on a world ${d.distance?.toFixed(1) ?? "?"} light-years from home, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(FILLED_EVENTS.world.type, (_world, e) => {
+  const d = (e.data ?? {}) as { realm?: string; people?: number; share?: number; whole?: boolean };
+  const many = (d.people ?? 0).toLocaleString("en");
+  return d.whole
+    ? `A world ${d.realm ? `first settled by ${d.realm} ` : ""}was filled to its edges: ${many} people on it, year ${yearOfMoment(e.t)}`
+    : `A world ${d.realm ? `first settled by ${d.realm} ` : ""}came to hold all it can under its roofs, ${d.share ?? "?"}% of its ground and no more: ${many} people on it, year ${yearOfMoment(e.t)}`;
 });
 
 registerEventWords(LATE_EVENTS.mirrors.type, (_world, e) => {
