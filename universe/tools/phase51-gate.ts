@@ -170,7 +170,7 @@ const t0 = await k<number>(`globalThis.causalis.client.status?.t ?? 0`);
 const towns = await ask<{ ref: string; name: string }[]>("towns.map", {});
 const standing = (c: Civic) => c.kind === "smithy" && (c.end + 1) * YEAR <= t0 && c.fell === null;
 let town: Plan | null = null;
-for (const c of towns.slice(0, 40)) {
+for (const c of towns.slice(0, 160)) {
   const plan = await ask<Plan>("village.plan", { ref: c.ref, folk: 220 });
   if (
     plan.works?.mine?.what === "ore" &&
