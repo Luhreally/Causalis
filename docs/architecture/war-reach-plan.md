@@ -177,6 +177,16 @@ The densest store a world's matter allows, on a rocket. Row `greatest-fire`, fun
 
 So 2,800 world-years: 124 crises, 119 stepped back, 3 falls. Holders go to war at a quarter to two-thirds the rate of others. That is what "The stakes" asked for, so no number was changed. Frames while it burns on a desktop GPU: median 16.7 ms, worst 50 ms; the phone floor is still to be measured by the owner.
 
+Those worlds were forged with the works. Left to themselves, whole Earth runs to 2000 under earth-11:
+
+| World | Works done | First crisis | Falls | Crises |
+| --- | --- | --- | --- | --- |
+| `amber 101` | 992 | 1020 | 1193, 1312 | 43 |
+| `first light` | 934 | 1018 | 1367 | 66 |
+| `tide 207` | 968 | 981 | 1020 | 53 |
+
+So 162 crises and 4 falls in three worlds: a crisis in about every 20 years of holding, and one in forty ends in a fall.
+
 **Cut for later slices:** treaties and tests; a brush for it; the holding passing to a conqueror.
 
 ## Order

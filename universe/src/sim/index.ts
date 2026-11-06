@@ -648,6 +648,7 @@ export {
 export {
   CONTACT_EVENTS,
   ContactStore,
+  civilizationsEver,
   civilizationsNear,
   contactYear,
   contactsOf,

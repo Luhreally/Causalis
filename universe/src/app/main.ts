@@ -4311,7 +4311,7 @@ async function runPlanetPage(): Promise<void> {
         home = homeOf(galaxyPlan);
       galaxyScene.scars(
         scars.at.map((s) => ({ x: home.x + s.x / 1000, z: home.z + s.y / 1000 })),
-        galaxyPlan.radius / 1000 / 24,
+        galaxyPlan.radius / 1000 / 14,
       );
     }
     galaxyScene.visible = true;

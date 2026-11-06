@@ -214,6 +214,8 @@ export function eventPage(world: World, ref: string): PageModel {
   }
   const led = eventsCiting(world, ref);
   if (led.length) blocks.push({ type: "list", title: "What it led to", items: led });
+  // (What fell across the stars happened on that world, whichever realm's seat gave the word: W6.)
+  const far = type === "far.fell" ? (e?.data as { star: string; planet: number } | null) : null;
   return {
     ref,
     kind: "event",
@@ -221,13 +223,23 @@ export function eventPage(world: World, ref: string): PageModel {
     title: TITLES[type] ?? `${heading[0]}${what ? `: ${what.replace(/-/g, " ")}` : ""}`,
     subtitle: [
       ...(year !== null ? [`Year ${year}`] : []),
-      ...(e?.place ? [" · ", refLink(world, e.place)] : []),
+      ...(far
+        ? [" · ", link("that world", `${far.star}/${far.planet}`)]
+        : e?.place
+          ? [" · ", refLink(world, e.place)]
+          : []),
     ],
     color: null,
-    place: placeOfRef(world, e?.place ?? null),
+    place: far
+      ? { scale: "world", star: far.star, index: far.planet }
+      : placeOfRef(world, e?.place ?? null),
     stats: [
       ...(year !== null ? [stat("Year", `${year}`)] : []),
-      ...(e?.place ? [stat("Where", [refLink(world, e.place)])] : []),
+      ...(far
+        ? [stat("Where", [link("That world", `${far.star}/${far.planet}`)])]
+        : e?.place
+          ? [stat("Where", [refLink(world, e.place)])]
+          : []),
     ],
     tabs: [{ id: "overview", name: "Overview", blocks }],
     followable: false,

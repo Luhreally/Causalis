@@ -30,7 +30,8 @@ export const CONTACT_EVENTS = {
 
 /** The civilizations of a world's cluster, kept while the world is the same. */
 const CIVS = new Map<string, Civilization[]>();
-export function civilizationsNear(world: World): Civilization[] {
+/** Every people there ever was about these stars, those whose world is gone among them: what they were called outlives them. */
+export function civilizationsEver(world: World): Civilization[] {
   const key = world.seed.text;
   let civs = CIVS.get(key);
   if (!civs) {
@@ -38,6 +39,10 @@ export function civilizationsNear(world: World): Civilization[] {
     const rng = new Rng(world.seed);
     CIVS.set(key, (civs = civilizationsOf(rng, clusterOf(world), (s) => foreignPlanets(rng, s))));
   }
+  return civs;
+}
+export function civilizationsNear(world: World): Civilization[] {
+  const civs = civilizationsEver(world);
   // (A people whose world was unmade is no more: W6. Exactly the list it always was, until one is.)
   return farOf(world)?.falls.length
     ? civs.filter((c) => !fireOf(world).unmade(c.star, c.planet))

@@ -35,6 +35,7 @@ import {
   type SystemBody,
 } from "../gen/index.ts";
 import {
+  civilizationsEver,
   civilizationsNear,
   clusterOf,
   homePlanet,
@@ -368,7 +369,7 @@ function otherBody(world: World, b: SystemBody): Explanation {
 
 registerExplainer(CIVILIZATION.code, (world, ref) => {
   if (!hasPlanet(world)) return null;
-  const c = civilizationsNear(world).find((x) => x.ref === ref);
+  const c = civilizationsEver(world).find((x) => x.ref === ref);
   if (!c) return null;
   return generated(
     ref,

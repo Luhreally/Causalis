@@ -49,6 +49,12 @@ export type FireShadow = {
   readonly falls: number;
 };
 
+/** The reading, then who holds what, if anyone does. */
+const worksWords = (lead: string, parts: readonly string[]): string => {
+  const rest = parts.filter(Boolean).join(" ");
+  return rest ? `${lead} ${rest}.` : lead;
+};
+
 export function fireShadow(world: World): FireShadow {
   const store = fireOf(world),
     s = store.state,
@@ -87,27 +93,32 @@ export function fireShadow(world: World): FireShadow {
     }),
     cold = Math.round(coldDegrees(s.soot) * 10) / 10,
     gone = far?.falls.some((f) => f.rung === "world"),
-    words = !held.length && !farHeld && !farCrises
-      ? gone
-        ? "A world has been unmade. Everyone in reach of the stars remembers it."
-        : far?.falls.length || s.falls.length
-          ? "No one holds the greatest fire now. The world remembers it."
-          : "No one holds the greatest fire."
-      : [
-          farCrises
-            ? "Everyone in reach of the stars is holding their breath: a fleet is a year from a world, with what could end it."
-            : crises
-              ? "The whole world is holding its breath."
-              : near >= 45
-                ? "The world stands in its shadow."
-                : "It lies far off, for now.",
-          held.length ? `${many(held.length, "realm holds", "realms hold")} the greatest fire` : "",
-          atOdds ? `and ${many(atOdds, "pair of them is", "pairs of them are")} at odds` : "",
-          wars ? `with ${many(wars, "war", "wars")} under way` : "",
-          farHeld ? `and ${many(farHeld, "realm can", "realms can")} turn its star's light on a far mark` : "",
-        ]
-          .filter(Boolean)
-          .join(" ") + ".";
+    words =
+      !held.length && !farHeld && !farCrises
+        ? gone
+          ? "A world has been unmade. Everyone in reach of the stars remembers it."
+          : far?.falls.length || s.falls.length
+            ? "No one holds the greatest fire now. The world remembers it."
+            : "No one holds the greatest fire."
+        : worksWords(
+            farCrises
+              ? "Everyone in reach of the stars is holding their breath: a fleet is a year from a world, with what could end it."
+              : crises
+                ? "The whole world is holding its breath."
+                : near >= 45
+                  ? "The world stands in its shadow."
+                  : "It lies far off, for now.",
+            [
+              held.length
+                ? `${many(held.length, "realm holds", "realms hold")} the greatest fire`
+                : "",
+              atOdds ? `and ${many(atOdds, "pair of them is", "pairs of them are")} at odds` : "",
+              wars ? `with ${many(wars, "war", "wars")} under way` : "",
+              farHeld
+                ? `${held.length ? "and " : ""}${many(farHeld, "realm can", "realms can")} turn its star's light on a far mark`
+                : "",
+            ],
+          );
   return {
     near,
     holders: held.length,

@@ -4,7 +4,9 @@
 // the other and how they stand now; what has passed between them; its wars.
 import { CLADES } from "../../rules/index.ts";
 import {
+  civilizationsEver,
   civilizationsNear,
+  farOf,
   folkByRef,
   homePlanet,
   peopleNature,
@@ -12,6 +14,7 @@ import {
   peopleWords,
   type Meeting,
 } from "../../sim/index.ts";
+import type { Civilization } from "../../gen/index.ts";
 import type { World } from "../../kernel/index.ts";
 import type { Item, PageModel, Stat } from "../../bridge/index.ts";
 import { PEOPLE_COLORS, metName } from "../peoples.ts";
@@ -47,7 +50,8 @@ export function regardWords(regard: number, talking: boolean): string {
 }
 
 function peopleName(world: World, ref: string): string {
-  const c = civilizationsNear(world).find((x) => x.ref === ref);
+  // (Those whose world is gone are still who they were, in every line that names them.)
+  const c = civilizationsEver(world).find((x) => x.ref === ref);
   return c ? `the ${peopleWords(world, c).name}` : "another people";
 }
 
@@ -60,6 +64,61 @@ function meetingLine(world: World, m: Meeting, civRef: string) {
   ];
 }
 
+/** A people whose world was unmade (W6): who they were, what became of them and whose hand it was. */
+function unmadePage(world: World, c: Civilization): PageModel {
+  const words = peopleWords(world, c),
+    fall = farOf(world)?.falls.find(
+      (f) => f.rung === "world" && f.star === c.star && f.planet === c.planet,
+    );
+  return {
+    ref: c.ref,
+    kind: "civilization",
+    icon: "🌑",
+    title: `The ${words.name}`,
+    subtitle: [
+      `${words.kind}, once, of `,
+      link(`a world now gone`, `${c.star}/${c.planet}`),
+      `, ${c.distance.toFixed(1)} light-years out`,
+    ],
+    color: null,
+    place: { scale: "world", star: c.star, index: c.planet },
+    stats: fall
+      ? [
+          stat("Unmade", `Year ${fall.year}`, { why: fall.event }),
+          stat("By", fall.by ? [link(fall.name, fall.by)] : "the god's hand"),
+        ]
+      : [],
+    tabs: [
+      {
+        id: "overview",
+        name: "Overview",
+        blocks: [
+          {
+            type: "text",
+            lines: [
+              [
+                `The ${words.name} are gone. ${fall ? `Their world was unmade in year ${fall.year}, by ${fall.by ? fall.name : "the god's hand"}, ` : "Their world was unmade, "}and all of them who were on it with it. Rubble goes round their star where it was.`,
+              ],
+              ...(fall ? [[claimOf(world, fall.event)]] : []),
+            ],
+          },
+          ...(fall
+            ? [
+                {
+                  type: "tool" as const,
+                  tool: "watch.far",
+                  args: { id: fall.event, label: "🌑 Watch it unmade" },
+                },
+              ]
+            : []),
+        ],
+      },
+    ],
+    followable: false,
+    year: yearNow(world),
+  };
+}
+
 export function civilizationPage(world: World, ref: string): PageModel {
   const civs = civilizationsNear(world),
     i = civs.findIndex((x) => x.ref === ref),
@@ -68,6 +127,8 @@ export function civilizationPage(world: World, ref: string): PageModel {
     // (A people history does not follow, risen on its own world: Phase 69.)
     const risen = folkByRef(world, ref);
     if (risen) return nativePage(world, risen);
+    const lost = civilizationsEver(world).find((x) => x.ref === ref);
+    if (lost) return unmadePage(world, lost);
     throw new Error(`no people ${ref}`);
   }
   const clade = CLADES.find((x) => x.id === c.clade)?.body,

@@ -168,11 +168,18 @@ export class GalaxyScene {
   /** Mark the spot tapped (units), or clear it. */
   /** A smoulder on the disk where a world was unmade, from then on (W6). */
   scars(at: readonly { x: number; z: number }[], size: number): void {
-    this.scarGlow ??= glowMaterial(this.stage, [
-      [0, "rgba(255,80,30,1)"],
-      [0.22, "rgba(230,40,16,0.6)"],
-      [1, "rgba(90,0,0,0)"],
-    ]);
+    // (Covering what is behind it, as the stars' map does: added to a bright arm it would only be more white.)
+    this.scarGlow ??= glowMaterial(
+      this.stage,
+      [
+        [0, "rgba(96,6,4,0.96)"],
+        [0.5, "rgba(150,14,8,0.96)"],
+        [0.62, "rgba(255,62,26,1)"],
+        [0.74, "rgba(200,22,10,0.8)"],
+        [1, "rgba(90,0,0,0)"],
+      ],
+      true,
+    );
     while (this.scarMarks.length < at.length)
       this.scarMarks.push(billboard(this.stage, this.scarGlow, 1, this.root, true));
     this.scarMarks.forEach((e, i) => {
