@@ -194,21 +194,35 @@ The galaxy no longer stops growing: 66 worlds in 1800, 92 in 2100, 137 in 2500, 
 
 **Store `space.trade`, dormant until a first run opens:** at most 36 running, 60 kept, 4 holds under way each. Events `trade.opened` 4, `trade.came` 4, `trade.first` 6, `trade.raided` 5, `trade.first-raid` 7, `trade.closed` 4, `trade.rich` 5. Rules `earth-12`, `alien-16`. Oracle: 8 of 8 unchanged, since no fixture reaches a land away from home. `earth first light` is the same bit for bit through year 1000, and moves between 1000 and 1300, after its first colonies.
 
-**A lane that bleeds stops paying.** Who sends a run reckons on losing what it has lost lately: each hold taken or come in moves its reckoning a quarter of the way to all or nothing. The first rule raised a fear by a raid and let it fade, and one run lost 73 holds and brought in 1 and still ran. Only reading the worst run showed it; the average looked fine.
+**A lane that bleeds stops paying.** Who sends a run reckons on losing what they have lost lately: each hold taken or come in moves their reckoning a quarter of the way to all or nothing. A new run starts from what they last lost on that lane, or what they are losing on all their lanes, whichever is worse, with old losses fading to nothing over a century (est.). The first rule raised a fear by a raid and let it fade, and one run lost 73 holds and brought in 1 and still ran. Only reading the worst run showed it; the average looked fine. Then reading the same sender's runs together showed the same fault one level up: the Qaani opened the same lane four times in 290 years and lost 24 holds of 25, each new run forgetting the last.
 
-| `harrow 348`, 2000 to 3000 | First rule | Raids averaged, fading | Now |
+| `harrow 348`, 2000 to 3000 | First rule | Each run's own reckoning | Remembered too |
 | --- | --- | --- | --- |
-| Worst run, holds taken | 73 | 160 | 8 |
-| That run's holds in | 1 | 42 | 1 |
-| That run | Still running | Still running at 38% | Closed, unpaid, reckoning on losing 74% |
+| Worst run, holds taken and in | 73 and 1 | 8 and 1 | 6 and 35 |
+| That run | Still running | Closed, unpaid | Running, reckoning on losing 20% |
+| Holds in, and taken | | 2,822 and 112 | 2,846 and 89 |
 
-All in: 172 runs ever, 31 running and 29 ended of the 60 kept, 2,822 holds in, 112 taken. The cost does not show: 80 and 77 ms a year in the switched pair, one fork each. A save at year 3000 is 2.07 MB against 2.05, and a run's store is bounded.
+**A people gets its own turn.** Every 5 years the best new run of all opens and, if that was not another people's, the best of another people's too: a far people's goods can't match a home realm's for worth, and they would never have one. So the ports the plan's row asks for now stand on real seeds. A far people comes to a land where it is met and speaking.
 
-**Seen, on `alien harrow 348` at year 3000.** 🚀, a row's 🛰️ Its port: down to its town and out over its port, apron, lit pads, a yard stacked by all that has come in, a tower, craft by who runs them. Its chip opens the run's page: what, from where, why, what the crossing costs, who gains and what it did, each from its numbers. A busy port, land 4075, beside a quiet one, 4072, takes 60 times the lit pad pixels. Every people (👥, from the stars around) links to "Trade among the stars". A land away's Overview says what comes there from other worlds, or why nothing does. A first trade and a first raid are the world's news: a window, for anyone, once. A press of the window path on a real fork showed them: year 2002 "Goods across the dark for gain", year 2022 "The first hold taken".
+| 2000 to 3000, before and after both changes | `harrow 348` | `lumen 285` | `quill 742` |
+| --- | --- | --- | --- |
+| Far peoples calling at year 3000 | 1, 1 | 0, 4 | 0, 2 |
+| Their runs open | 1, 9 | 0, 12 | 0, 3 |
+| Ports of more than one people | 0, 4 | 0, 2 | 0, 1 |
+| Holds in | 2,822, 2,846 | 5,769, 4,211 | 8,059, 6,315 |
+| Holds taken | 112, 89 | 26, 48 | 40, 76 |
+| People on the 36 lands away, millions | 67.5, 67.3 | 108.4, 109.1 | 110.6, 110.6 |
+| Mean year, ms | 87, 87 | 40, 40 | 130, 133 |
+
+The worlds settled on `lumen 285` and `quill 742` hold at 128 and 124, and 981 and 981. On `harrow 348` they swing widely with any change to its history (515 to 283 here), in one fork each.
+
+In all, on `harrow 348`: 252 runs ever, 36 running and 24 ended of the 60 kept. A save at year 3000 is 2.09 MB against 2.05, and a run's store is bounded.
+
+**Seen, on `alien harrow 348` at year 3000.** 🚀, a row's 🛰️ Its port: down to its town and out over its port, apron, lit pads, a yard stacked by all that has come in, a tower, craft by who runs them. Its chip opens the run's page: what, from where, why, what the crossing costs, who gains and what it did, each from its numbers. A busy port beside a quiet one takes over 100 times the lit pad pixels, and on `harrow 348`'s land 4070 a saucer stands among rockets banded by their houses. Every people (👥, from the stars around) links to "Trade among the stars". A land away's Overview says what comes there from other worlds, or why nothing does. A first trade and a first raid are the world's news: a window, for anyone, once. A press of the window path on a real fork showed them: year 2002 "Goods across the dark for gain", year 2022 "The first hold taken".
 
 **Levers.**
 - **Far colonies have no market,** so no run reaches the worlds no land holds (129 of 184 on `harrow 348`). Their want is readable from `upkeep`: machines landed could free hands and raise their growth. This is also what would make trade move the people count, which it does not yet.
-- **One people at most at a real port:** 1 run in 33 on `harrow 348` is a far people's, as `opening` takes only the best candidate every 5 years. Give a people met its own turn, and measure far runs per port. Two peoples at a port and a whole saucer have been watched only on the world gate 84 forges.
+- **A far people's trade ends at the port.** Two peoples stand at a port on real seeds, and a far people's carriers pay nothing back to anyone: a people's page doesn't yet say what it gained, or lost, among the stars.
 - The stars' map and system view draw no runs. Reuse `voyageMarks`.
 - See-it buttons from the window, and trade's firsts in the Director's list.
 - The house as a person with a home in town, from L5's courts. A film of a ship coming in and of a raid. Runs to home-world lands. Credit across the stars, smuggling, blockades. Thrown ships on a lane. Tapping a craft.

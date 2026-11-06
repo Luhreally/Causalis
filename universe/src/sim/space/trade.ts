@@ -97,6 +97,8 @@ const DARK_FOUND = 0.25;
  * toward all or nothing, so a lane that bleeds stops paying (est.).
  */
 const HOLD_TEACHES = 0.25;
+/** Years until what was lost on a run no longer weighs on a new one: those who lost it are gone (est.). */
+const LOSS_FORGOTTEN = 100;
 /** A short land is one whose price stands at this many times its usual worth (est.). */
 const SHORT_AT = 2.5;
 /** What a house's run has cleared, in grain, for it to be counted great. */
@@ -578,6 +580,25 @@ function runYear(
     closeRun(world, r, "unpaid", year, r.lastRaid);
 }
 
+/**
+ * What those who would send a new run reckon on losing: what they last lost on that lane, or else what they are losing on
+ * all their lanes, old losses fading. A people whose every hold is being taken does not simply try the next land along.
+ */
+export function reckonOn(store: TradeStore, sender: Ref, to: number, year: number): number {
+  let own = 0,
+    all = 0,
+    n = 0;
+  for (const r of store.all()) {
+    if (r.realm !== sender) continue;
+    const since = r.closedYear === null ? 0 : year - r.closedYear,
+      left = r.risk * Math.max(0, 1 - since / LOSS_FORGOTTEN);
+    all += left;
+    n++;
+    if (r.to === to && left > own) own = left;
+  }
+  return Math.max(own, n ? all / n : 0);
+}
+
 /** The new run a land would gain most by, weighed for every land away; the best of them opened. */
 function opening(
   ctx: PopulationContext,
@@ -628,6 +649,7 @@ function opening(
   for (const r of open) toLand.set(r.to, (toLand.get(r.to) ?? 0) + 1);
   const trying: {
     worth: number;
+    far?: boolean;
     make: () => void;
   }[] = [];
   const civs = civilizationsNear(world).filter((c) => c.stars <= year),
@@ -647,12 +669,13 @@ function opening(
       const c = crossingOf(ctx, s.realm, s.star, to.star);
       if (!c) continue;
       const from = markets.get(s.cell)!,
-        load = holdOf(asksOf(from, to.market), c, from.price[G.machines]!, budget, 0),
+        risk = reckonOn(store, s.realm.ref, to.cell, year),
+        load = holdOf(asksOf(from, to.market), c, from.price[G.machines]!, budget, risk),
         worth = worthOf(load);
       if (worth <= 0 || machinesOfRealm(ctx, s.realm) * 0.5 < c.machines * tonnesOf(load)) continue;
       trying.push({
         worth,
-        make: () => openRun(ctx, store, s.realm, s.cell, s.star, null, to, c, load, year),
+        make: () => openRun(ctx, store, s.realm, s.cell, s.star, null, to, c, load, year, risk),
       });
     }
     // Another people of the stars, met and speaking with the realm that holds this land; where none holds it, with any of its own.
@@ -667,23 +690,29 @@ function opening(
         if (!met || (to.holder && warBetween(wars, civ.ref, to.holder.ref))) continue;
         const c = farCrossing(world, civ, to.star, year);
         if (!c) continue;
-        const load = holdOf(
+        const risk = reckonOn(store, civ.ref, to.cell, year),
+          load = holdOf(
             farAsks(world, civ.ref, to.market),
             c,
             GOODS[G.machines]!.value * FAR_FLOOR,
             budget,
-            0,
+            risk,
           ),
           worth = worthOf(load);
         if (worth <= 0) continue;
         trying.push({
           worth,
-          make: () => openRun(ctx, store, null, -1, civ.star, civ.ref, to, c, load, year),
+          far: true,
+          make: () => openRun(ctx, store, null, -1, civ.star, civ.ref, to, c, load, year, risk),
         });
       }
   }
   trying.sort((a, b) => b.worth - a.worth);
-  for (const t of trying.slice(0, 1)) t.make();
+  // The best of all; and, if that was not theirs, the best of another people's: a far people's goods can't match a home realm's for worth, and would never get a turn.
+  const best = trying[0],
+    far = best?.far ? undefined : trying.find((t) => t.far);
+  best?.make();
+  far?.make();
 }
 
 /** A run opens: why, from what it is short of there and has plenty of here and what the crossing costs. */
@@ -698,6 +727,7 @@ function openRun(
   c: Crossing,
   load: readonly Load[],
   year: number,
+  risk: number,
 ): void {
   const { world } = ctx,
     from = fromCell >= 0 ? marketsOf(world).get(fromCell)! : null,
@@ -778,7 +808,7 @@ function openRun(
       lastRaid: null,
       lastRaidYear: 0,
       raider: null,
-      risk: 0,
+      risk,
       before: beforeOf(from, to.market, to.people),
       under: [],
       closed: null,

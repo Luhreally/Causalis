@@ -320,7 +320,8 @@ async function loadSave(f: Forged) {
 }
 
 async function press(selector: string): Promise<boolean> {
-  const at = await k<{ x: number; y: number } | null>(`(() => {
+  const where = () =>
+    k<{ x: number; y: number } | null>(`(() => {
     for (const e of document.querySelectorAll(${JSON.stringify(selector)})) {
       e.scrollIntoView({ block: "center" });
       const r = e.getBoundingClientRect();
@@ -328,11 +329,19 @@ async function press(selector: string): Promise<boolean> {
     }
     return null;
   })()`);
+  let at = await where();
   if (!at) {
     problems.push(`nothing to press at ${selector}`);
     return false;
   }
-  await page.waitForTimeout(slow(150));
+  // (A panel above it, still filling, moves it: a touch goes where it stands, not where it stood.)
+  for (let i = 0; i < 40; i++) {
+    await page.waitForTimeout(slow(150));
+    const now = await where();
+    if (!now) break;
+    if (now.x === at.x && now.y === at.y) break;
+    at = now;
+  }
   await page.touchscreen.tap(at.x, at.y);
   await page.waitForTimeout(slow(350));
   say(`pressed ${selector} at ${Math.round(at.x)},${Math.round(at.y)}`);
@@ -401,8 +410,14 @@ async function unlike(a: string, b: string): Promise<number> {
 /** Down to a port by touch, from the 🚀 list. */
 async function toPort(cell: number, tag: string): Promise<string> {
   await until("the 🚀 button", () => page.isVisible(".colonies-button"));
-  await press(".colonies-button");
-  await until("the 🚀 list", () => k<boolean>(`!document.querySelector(".colony-sheet").hidden`));
+  const listed = () => k<boolean>(`!document.querySelector(".colony-sheet").hidden`);
+  // (Once more if a touch came as the panel moved: a real thumb would try again.)
+  for (let i = 0; i < 3 && !(await listed()); i++) {
+    await press(".colonies-button");
+    const end = Date.now() + slow(4000);
+    while (Date.now() < end && !(await listed())) await page.waitForTimeout(80);
+  }
+  await until("the 🚀 list", listed);
   await settleFor(300);
   await shot(`${tag}-list`);
   const sel = `.colony-port[data-cell="${cell}"]`;
@@ -532,7 +547,8 @@ if (quietest && busyShot) {
 }
 // 5. The paths nobody watches.
 {
-  const none = colonies.find((c) => !c.port && c.town);
+  // (One no ship has tried: where one has tried and lost, its page says so instead.)
+  const none = colonies.find((c) => !c.port && c.town && !rows.some((r) => r.to === c.cell));
   await k("globalThis.causalis.closePage?.()");
   if (none) {
     await k(`globalThis.causalis.open("cell:0:${none.cell}")`);
