@@ -185,3 +185,20 @@ export type ReignMatches = {
   readonly words: string;
   readonly matches: readonly ReignMatch[];
 };
+/** Whom a ruler could send an envoy to, and what for (D1). */
+export type ReignEnvoyRealm = {
+  readonly ref: string;
+  readonly name: string;
+  readonly regard: string;
+  readonly known: string;
+  readonly errands: readonly {
+    readonly errand: string;
+    readonly label: string;
+    readonly can: boolean;
+    readonly words: string;
+  }[];
+};
+export type ReignEnvoys = {
+  readonly words: string;
+  readonly realms: readonly ReignEnvoyRealm[];
+};

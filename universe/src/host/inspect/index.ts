@@ -17,6 +17,7 @@ import { landOfRef, landPage, spotPage } from "./land.ts";
 import { agentPage, householdPage, memoryPage, personPage, townPage } from "./settled.ts";
 import { shipPage } from "../starfight.ts";
 import { battlePage, realmPageModel, relationPage, starWarPage, warPage } from "./realm.ts";
+import { blocPage, envoyPage, leaguePage, matchPage } from "./ties.ts";
 import { boardPage, dearPage } from "./board.ts";
 import { designPage, faithPage, goodPage, languagePage } from "./culture.ts";
 import { agePage, depositPageModel, lineagePage, platePageModel } from "./life.ts";
@@ -126,6 +127,11 @@ function build(
   // A stone a town raised, and a song a people sing (T1).
   if (ref.startsWith("stone:")) return stonePage(world, ref);
   if (ref.startsWith("song:")) return songPage(world, ref);
+  // What binds realms (D1).
+  if (ref.startsWith("bloc:")) return blocPage(world, ref);
+  if (ref.startsWith("league:")) return leaguePage(world, ref);
+  if (ref.startsWith("match:")) return matchPage(world, ref);
+  if (ref.startsWith("envoy:")) return envoyPage(world, ref);
   // A town's case before whoever judges there (J1).
   if (ref.startsWith("case:")) return casePage(world, ref);
   // A home and what is in it (Lives L6).

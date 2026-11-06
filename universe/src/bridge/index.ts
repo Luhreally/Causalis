@@ -306,6 +306,8 @@ export type {
   ReignFoe,
   ReignOffer,
   ReignLaw,
+  ReignEnvoyRealm,
+  ReignEnvoys,
   ReignMatch,
   ReignMatches,
   ReignNeighbour,

@@ -1,6 +1,7 @@
 // The pages of power (Phase 10 M91): a realm — its lands and people, how it is ruled and by
 // whom, its wars, its regard for others and what it knows — two realms' regard, a war with
 // its battles and its two hosts, a battle, and a war between the stars.
+import { realmTiesTab, warSideBlocks } from "./ties.ts";
 import { cellRef, offworldSite } from "../../gen/index.ts";
 import { farWarBlocks } from "../far.ts";
 import { fireRealmStats } from "./fire.ts";
@@ -196,6 +197,8 @@ export function realmPageModel(
   if (wants("songs")) tabs.push(realmSongsTab(world, r.ref));
   // Who stands near its seat, and wants it (Lives L5).
   if (wants("court")) tabs.push({ id: "court", name: "Court", blocks: courtBlocks(world, r) });
+  // Who it stands with, whose houses it is tied to, who it called and who called it (D1).
+  if (wants("ties")) tabs.push(realmTiesTab(world, r));
   // Its lands, most peopled first.
   if (wants("lands")) {
     const rows: Row[] = [...r.members]
@@ -540,6 +543,8 @@ export function warPage(
       : []),
     stat("Now", w.ended === null ? "still fought" : `ended in year ${w.ended}`, { why: w.peace }),
     ...(terms ? [stat("Terms", terms, { why: w.peace })] : []),
+    // (Who came, and who stood by: D1.)
+    ...warSideBlocks(world, w).stats,
   ];
   const battleRows: Row[] = (wants("battles") ? [...w.battles].reverse() : []).map((b) => ({
     ref: b.event,
@@ -654,6 +659,8 @@ export function warPage(
           ],
         },
         warTally(world, w),
+        // (Who was called, who came, who stood by: D1.)
+        ...warSideBlocks(world, w).blocks,
         // (Its last battle watched fought, Phase 37 M186.)
         ...watchLast,
         { type: "why", title: "Why it was fought", ref: w.ref },
@@ -752,6 +759,10 @@ function fallenBlocks(world: World, w: War, b: War["battles"][number]): Block[] 
 }
 
 /** A battle (an event of the war's): where, who won, the fallen, and the war it was of. */
+/** A battle's war's allies, for its stats (D1). */
+const alliesStats = (world: World, w: War): Stat[] =>
+  warSideBlocks(world, w).stats.filter((s) => s.label === "With allies" || s.label === "Called to");
+
 export function battlePage(world: World, ref: string): PageModel {
   const e = world.events.get(ref as Ref);
   if (!e || e.type !== WAR_EVENTS.battle.type) throw new Error(`no battle ${ref}`);
@@ -789,6 +800,7 @@ export function battlePage(world: World, ref: string): PageModel {
     place,
     stats: [
       stat("Won by", b ? [realmLink(world, b.won ? w!.attacker : w!.defender)] : ["—"]),
+      ...(w ? alliesStats(world, w) : []),
       stat("Fallen", b ? count(b.fallen[0] + b.fallen[1]) : "—", {
         parts:
           b && w

@@ -89,6 +89,30 @@ export class CourtLayer {
       });
       this.batches.push(b);
     }
+    // (One come from another seat stands before it, under their realm's banner: D1.)
+    if (plan.envoy) {
+      const c = plan.envoy.color as Rgb,
+        bits = [
+          { mesh: "box", tone: "main", u: 7, y: 1.6, v: 6, sx: 1.1, sy: 3.2, sz: 0.7 },
+          { mesh: "box", tone: "main", u: 7, y: 3.7, v: 6, sx: 0.7, sy: 0.8, sz: 0.7 },
+          { mesh: "box", tone: "main", u: 8.2, y: 3.4, v: 6, sx: 0.2, sy: 6.8, sz: 0.2 },
+          { mesh: "box", tone: "main", u: 9.5, y: 6, v: 6, sx: 2.4, sy: 1.5, sz: 0.1 },
+        ] as const,
+        b = new InstancedBatch(this.stage, this.meshes.box, c, bits.length, this.root);
+      b.set(bits.length, (i, out) => {
+        const q = courtPartAt(place, bits[i]!);
+        out[0] = q.x * M;
+        out[1] = q.y * M;
+        out[2] = q.z * M;
+        out[3] = q.sx * M;
+        out[4] = q.sy * M;
+        out[5] = q.sz * M;
+        out[6] = q.yaw;
+        out[7] = 0;
+      });
+      this.batches.push(b);
+      this.parts += bits.length;
+    }
     // (Only those who raise a bench raise a flag: it has a pole to fly from there.)
     if (
       court.grips &&

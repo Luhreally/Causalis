@@ -46,6 +46,7 @@ export const LENSES = [
   "laws",
   "sickness",
   "debt",
+  "blocs",
 ] as const;
 export type Lens = (typeof LENSES)[number];
 
@@ -80,6 +81,7 @@ export const LENS_NAMES: Readonly<Record<Lens, string>> = {
   sickness: "Sickness",
   debt: "Debt",
   forest: "Forest",
+  blocs: "Blocs",
 };
 
 /** Each map mode's icon, for the map modes' bar (Phase 10 M96). */
@@ -114,6 +116,7 @@ export const LENS_ICONS: Readonly<Record<Lens, string>> = {
   sickness: "🦠",
   debt: "💸",
   forest: "🌲",
+  blocs: "🪢",
 };
 
 /** How every land stands toward the realm the diplomacy lens is of, in its colours. */
@@ -824,6 +827,7 @@ export function globeColors(
       case "tongues":
       case "diplomacy":
       case "war":
+      case "blocs":
       case "belief":
       case "ground": {
         const tongue = colors?.get(province);
@@ -956,6 +960,7 @@ const BORDERED: ReadonlySet<Lens> = new Set([
   "tongues",
   "diplomacy",
   "war",
+  "blocs",
   "wealth",
 ]);
 
@@ -1116,6 +1121,14 @@ export function lensLegend(lens: Lens, kind = "rocky", look?: string): Legend {
           [STANDING_COLORS.neutral!, "neutral"],
           [STANDING_COLORS.rival!, "rivals"],
           [STANDING_COLORS.war!, "at war"],
+        ],
+      };
+    case "blocs":
+      return {
+        kind: "keys",
+        keys: [
+          [[0.62, 0.5, 0.82], "each bloc the colour of whoever stands at its head"],
+          [[0.4, 0.4, 0.38], "standing alone"],
         ],
       };
     case "war":

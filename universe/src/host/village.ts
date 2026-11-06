@@ -56,6 +56,7 @@ import { landWords, meetHousehold, observer, settleAll, type WarFate } from "../
 import { personThings } from "./inspect/things.ts";
 import { memorialsOf, townSongs } from "./inspect/memory.ts";
 import { courtIn, namedByCases } from "./inspect/justice.ts";
+import { envoyAtCourt } from "./inspect/ties.ts";
 import {
   LAKE_R,
   LOT,
@@ -342,9 +343,9 @@ export function villagePlan(
         progress(states.began[p]!, states.takes[p]!, world.now) >= 1
       )
         homes.push({ x: lots.x[p]!, z: lots.z[p]!, yaw: lots.yaw[p]!, household: null });
-    // (A raid may flatten all of its middle that is drawn: its people are still about its lots, and
-    // it keeps its fabric and its burning: W2.)
-    if (homes.length < 4 && town.struck?.some((k) => k.raid))
+    // (A raid, a shock or a fire may flatten all of its middle that is drawn: its people are still about
+    // its lots, and it keeps its fabric and its burning, as long as that ground lies flat: W2, N1.)
+    if (homes.length < 4)
       for (let p = 0; p < town.lots && homes.length < Math.max(4, count); p++)
         if (states.what[p] === LOT.razed)
           homes.push({ x: lots.x[p]!, z: lots.z[p]!, yaw: lots.yaw[p]!, household: null });
@@ -1269,6 +1270,8 @@ export function villagePlan(
       rest: restOf(village.cell, village.population, village.founded),
       ...memoryIn(world, ref),
       ...courtIn(world, ref),
+      // (One come from another seat, at its court: D1.)
+      ...envoyAtCourt(world, ref as Ref),
       people,
       ...(stores ? { stores } : {}),
       ...(trade ? { trade } : {}),

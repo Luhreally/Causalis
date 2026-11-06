@@ -26,6 +26,7 @@ import {
   LAW_EVENTS,
   REIGN_EVENTS,
   WAR_EVENTS,
+  bondsOf,
   diplomacyOf,
   frontier,
   orderOf,
@@ -60,7 +61,7 @@ test("costs and ties read as stated", () => {
   assert.equal(peaceRefused(true, 2, 1, 0, true), null);
 });
 
-/** A small world with two realms that meet, and their ruler made to rule alone. */
+/** A small world with two realms that meet and that nothing holds from war, and their ruler made to rule alone. */
 const made = (() => {
   let cached: { world: World; a: Polity; b: Polity } | null = null;
   return () => {
@@ -76,7 +77,9 @@ const made = (() => {
           diplomacyOf(world).get(a.ref, b.ref) &&
           frontier(ctx, a, b).length &&
           tieBetween(world, a, b) > 0 &&
-          !warsOf(world).between(a.ref, b.ref)
+          !warsOf(world).between(a.ref, b.ref) &&
+          !bondsOf(world).between(a.ref, b.ref) &&
+          !bondsOf(world).oathOf(a.ref)
         ) {
           cached = { world, a, b };
           return cached;
@@ -206,7 +209,19 @@ test("a marriage of state comes through a save, and the same word on the same wo
     const r = politiesOf(w).get(a.ref)!,
       o = orderOf(w)!.of(a.ref)!;
     o.legitimacy = 0.9;
-    w.submit("reign.war", { realm: a.ref, ruler: r.ruler.name, against: b.ref });
+    // (A peace holds these two from each other now: the same word, to another who meets them.)
+    const ctx = populationContext(w),
+      foe = politiesOf(w)
+        .living()
+        .find(
+          (c) =>
+            c !== r &&
+            frontier(ctx, r, c).length > 0 &&
+            !warsOf(w).between(r.ref, c.ref) &&
+            !bondsOf(w).between(r.ref, c.ref),
+        );
+    assert.ok(foe, "another realm they meet");
+    w.submit("reign.war", { realm: a.ref, ruler: r.ruler.name, against: foe.ref });
     w.runTo(w.now + YEAR);
   }
   assert.deepEqual(one.domainHashes(), two.domainHashes());

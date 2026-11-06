@@ -578,6 +578,10 @@ export type Portrait =
     };
 
 export type PageKind =
+  | "bloc"
+  | "league"
+  | "match"
+  | "envoy"
   | "means"
   | "can"
   | "measure"

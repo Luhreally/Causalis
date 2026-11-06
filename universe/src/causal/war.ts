@@ -18,6 +18,7 @@ import {
   type WarAim,
 } from "../sim/index.ts";
 import { landWords } from "./generated.ts";
+import { BOND_WORDS } from "./ties.ts";
 import { count } from "./words.ts";
 import { edges, registerDecisionWords, registerEventWords, registerExplainer } from "./why.ts";
 
@@ -81,6 +82,14 @@ export function aimPhrase(
         : `to make ${them} pay tribute`;
     case "free":
       return `to throw off the oath ${swore}`;
+    case "ally": {
+      const f = d as { friend?: string; bond?: string };
+      return `at the call of ${f.friend ?? "one bound to it"}, by ${BOND_WORDS[f.bond ?? ""] ?? "what was between them"}`;
+    }
+    case "claim": {
+      const f = d as { claimant?: string; seat?: string };
+      return `to seat ${f.claimant ?? "one of its own"} at ${f.seat ?? land}, by a marriage between their houses`;
+    }
     case "land":
       return `to take ${land}`;
     default:

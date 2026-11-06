@@ -20,8 +20,8 @@
 // Its small world being a people of the water's (asked for 2026-11-05, "the overlays dont look right in
 // the underwater cities/countries"), it also looks at what they hold where they hold it: a town seen from
 // under its sea; its land's map with the town drawn on the seabed; the Realms lens on their sea's spots.
-// On CI and by default the world is a small one that gets there ("kestrel 557", twelve lands, to year
-// 2,400, a couple of minutes); --baked <file> takes the title's own world instead, Earth's "tide 207"
+// On CI and by default the world is a small one that gets there ("kestrel 557", twelve lands, a century
+// past the year it gathers its star, a couple of minutes); --baked <file> takes the title's own world instead, Earth's "tide 207"
 // at year 2,000 (or --seed another at --year another), and looks at it (a world that wants a quarter of
 // an hour on a runner to reach).
 // (npm run build first; --frames, with a GPU, measures the frames in the town.)
@@ -69,8 +69,9 @@ const root = fileURLToPath(new URL("..", import.meta.url)),
   universe = bakedFile ? EARTH : ALIEN,
   chosen = argv.indexOf("--seed"),
   chosenYear = argv.indexOf("--year"),
-  seed = bakedFile ? (chosen >= 0 ? argv[chosen + 1]! : PAST_WORLD.seed) : "kestrel 557",
-  AT = bakedFile ? (chosenYear >= 0 ? Number(argv[chosenYear + 1]) : PAST_WORLD.year) : 2500;
+  seed = bakedFile ? (chosen >= 0 ? argv[chosen + 1]! : PAST_WORLD.seed) : "kestrel 557";
+/** The year it's looked at: a baked world's own, or a small one's a century past gathering its star (the rules move when; it's the age that is being looked at). */
+let AT = bakedFile ? (chosenYear >= 0 ? Number(argv[chosenYear + 1]) : PAST_WORLD.year) : 0;
 let direct: unknown = null,
   /** A battle of the world's history fought with beams (the map of wars keeps only the last century's). */
   beamBattle: BattleNear | null = null,
@@ -81,6 +82,12 @@ let direct: unknown = null,
   ruleset = rulesetId(world, universe.version);
   if (bakedFile) bytes = readFileSync(bakedFile);
   else {
+    for (let y = 1500; AT === 0 && y <= 6000; y += 50) {
+      world.runTo(y * YEAR);
+      if ((universe.queries["world.stage"]!(world, {}) as { id?: string }).id === "gathered")
+        AT = y + 100;
+    }
+    if (AT === 0) AT = 6000;
     world.runTo(AT * YEAR);
     direct = world.domainHashes();
     const battles = warsOf(world)
