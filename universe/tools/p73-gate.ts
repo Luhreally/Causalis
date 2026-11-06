@@ -306,6 +306,10 @@ async function press(selector: string, thumb = true): Promise<boolean> {
   })()`);
   let at = await place();
   for (let i = 0; i < 12 && at; i++) {
+    // (By frames, not the clock: on a slow machine a frame can take seconds, and what moves a bar, the words over it gone, waits for one. It reads as still until then.)
+    await k(
+      `new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => done(true))))`,
+    );
     await page.waitForTimeout(slow(60));
     const again = await place();
     if (again && Math.abs(again.x - at.x) < 0.5 && Math.abs(again.y - at.y) < 0.5) break;
@@ -461,6 +465,10 @@ await settleFor(1200);
     const said = await k<string>(`document.querySelector(".star-lens-legend").innerText`);
     say(`${lens} with nothing: ${said.replace(/\n/g, " / ")}`);
     check(/yet/i.test(said), `the ${lens} lens with nothing to show says "${said}"`);
+    check(
+      await k<boolean>(`!!document.querySelector('.star-lens.on[data-lens="${lens}"]')`),
+      `the ${lens} lens did not come when pressed`,
+    );
     check(
       (await k<{ marks: number }>("globalThis.causalis.starLens()")).marks === 0,
       `the ${lens} lens draws something where there is nothing`,
