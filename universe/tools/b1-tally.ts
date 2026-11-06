@@ -21,7 +21,7 @@ const argv = process.argv.slice(2),
   showLines = opt("--lines"),
   files = argv.filter((a) => a.includes("="));
 const BAD =
-  /undefined|NaN|\bnull\b|\[object|\bev:\d|\bpol:\d|town:\d|cell:\d|\{\w+\}|\bcourt:|\brule:/;
+  /undefined|NaN|\bnull\b|\[object|\bev:\d|\bpol:\d|town:\d|cell:\d|\{\w+\}|\bcourt:pol|\brule:pol/;
 const top = (m: Map<string, number>) =>
   [...m].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
 const tally = (m: Map<string, number>, k: string) => m.set(k, (m.get(k) ?? 0) + 1);

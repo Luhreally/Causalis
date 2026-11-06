@@ -16,12 +16,12 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | Politics, diplomacy & law | 3 | 5 | 0 | 0 |
 | War | 5 | 6 | 0 | 0 |
 | Faith, culture, language & lore | 1 | 3 | 0 | 0 |
-| History, legends & records | 6 | 2 | 1 | 0 |
+| History, legends & records | 7 | 2 | 0 | 0 |
 | God's acts & player tools | 3 | 1 | 2 | 3 |
-| Observation UI & lenses | 15 | 2 | 1 | 2 |
+| Observation UI & lenses | 16 | 1 | 1 | 2 |
 | Space | 3 | 0 | 0 | 1 |
 | Engine, performance & saves | 1 | 0 | 0 | 19 |
-| **All 185 sections** | **70** | **61** | **12** | **42** |
+| **All 185 sections** | **72** | **60** | **11** | **42** |
 
 ## World & ground
 
@@ -199,7 +199,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 29 History | Significance, chronicles, statistics | **in** | `host/inspect/world.ts`, `host/inspect/stats.ts` |
 | 47 Legends | A linked encyclopedia of the world's history | **in** | Pages for everything (`host/inspect/`, Phase 10) |
 | 55 Years | Year-by-year annals, filtered, with a digest for each year | **in** | The Years, a tab of the Chronicle: every year with something told, filtered by kind, each name a link, a year to go to (`host/inspect/annals.ts`, `ui/years.ts`, gate 91) |
-| 66 Legends export | The whole history written out as HTML and text | **missing** | Only the save exports as a file |
+| 66 Legends export | The whole history written out as HTML and text | **in** | One press on The Years writes it (`host/inspect/written.ts`, `ui/written.ts`, `ui/written-file.ts`): realms and their rulers, wars and how they ended, those who mattered, the great deeds by year, links inside it, what it leaves out said at its head; HTML and plain words, kept by a link or the phone's share sheet |
 | 69 Eras | Ages, leagues, wonders, the ship that leaves | **partial** | Stages (`host/inspect/stage.ts`) and flight to the stars (`sim/space/`). Missing: leagues of allied realms, wonders |
 | 81 Records | Archives keep the crafts a fallen town knew | **partial** | Knowledge spreads, faster once writing is known (`sim/lore/lore.ts`). Missing: crafts lost with a fallen town, and archives that keep them |
 | 164 Polities compared | Living realms side by side, sortable | **in** | `host/inspect/compare.ts`; the realms' ledger (`host/inspect/world.ts`) |
@@ -233,7 +233,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 38 Field guide | Readable chemistry: formulas, reactions, a topic guide | **in** | The concept book (`host/inspect/concepts.ts`); matter pages (`host/inspect/matter.ts`, Phase 15) |
 | 44 Mobile runtime | Touch-first panels, phone performance | **in** | `app/tier.ts`; the touch camera; the free-roam stick (`ui/free.ts`) |
 | 45 Player experience | First expedition, journal, pinned lives, impact of acts | **in** | The guided walk (`ui/walk.ts`); follows (`ui/outliner.ts`); the message log (`ui/alerts.ts`); acts traced through why |
-| 49 Observatory | People bar, linked alerts, map modes | **partial** | Alerts and map modes (`ui/alerts.ts`, `ui/mapmodes.ts`). Missing: a bar of the lives that matter now, with mood, activity and health |
+| 49 Observatory | People bar, linked alerts, map modes | **in** | Alerts and map modes (`ui/alerts.ts`, `ui/mapmodes.ts`); the people bar (`host/bar.ts`, `host/inspect/barread.ts`, `ui/people-bar.ts`): who matters where the eye is, why, and how they are, each a true reading |
 | 123 World signatures | Climate, culture and lineage shape cars, buildings, canopies | **in** | Designs by land and body (`sim/design/design.ts`); each people's look made of their world (`host/folk.ts`, `view/folk.ts`, Phase 34) |
 | 139 Follow a life | The camera keeps a life in the middle | **in** | `followPerson` in `app/main.ts`; the camera eases after them (`render/orbit.ts`) |
 | 140 Map lenses | Twenty-six lenses in groups, with edges drawn | **in** | `view/globe.ts`, `host/lenses.ts` (Phase 12) |
@@ -302,7 +302,7 @@ Ranked by how much each would add to the game's depth and to what you see, leani
 18. **Knowledge that can be lost.** Classic 81, 106. Crafts lost when a town falls and kept by archives; rare crafts opened only by having seen a quake or a falling star. **S**
 19. **Town directives.** Classic 34a. The god sets a town's priority or policy and asks it to build. **M**
 20. **Time with a goal.** Classic 79, 129, 159, 160. What the next stage still needs and a digest of years run fast: built (2026-11-06). Next: a push aimed at that stage. **S**
-21. **Reading the people and the years.** Classic 49, 55, 66. Year-by-year annals with digests: built (2026-11-06). Next: a bar of the lives that matter now, and the whole history written out as a file. **S**
+21. **Reading the people and the years.** Classic 49, 55, 66. Year-by-year annals with digests, a bar of the lives that matter now, and the whole history written out as a file: built (2026-11-06). Next: a people's own names on the bar and in the file; a bar in a life or a reign; a town's and a faith's entry in the file. **S**
 22. **Sound.** Classic 35. Ambience by place and scale, and cues for great events: first slice built (2026-11-06). Next: surf by a coastal town, a burning town, footsteps, a world's own birds. **M**
 23. **A second people.** Classic 40. Another lineage rising to thought on the same world. **L**
 
@@ -402,6 +402,26 @@ Found by pressing: on any page, a tab pressed on a phone sent the page back to i
 Limits, stated: frame cost with a court against without isn't measured (23 parts in 4 batches at most, a budget gate runs on CI). Desktop size and Safari weren't run. A colony's halls and a far people's towns have no court. Where a town has five stones its court can stand within 2 m of one (one town of 60).
 
 Cut for later: being robbed or stealing when hungry as offers on a life's tray; a decree seen in the cases that follow; a crime lens; a page of who's held across a realm; a colony's own court; hanging; a button that waits for the court (a town's sittings are days apart).
+
+## The people bar and the history written out, as built (2026-11-06)
+
+A slim row at the foot of the screen says who matters where the eye is, why, and how they are, and every word of it is read off the world. The ruler of the land you're over; one moving against them or wanting their seat; their heir; the ruler they're at war with; the last to take a seat by force anywhere. Where no realm stands, an elder of the town there. Those a person keeps with 📌 and those they follow come first. A chip opens the same page, with the same face and name, and that page says the same reading in full. And one press on The Years writes the world's whole history out as one file a person can keep and read with no network.
+
+- **Mood is a reading, or it says so.** History keeps no mood for a ruler: it keeps their standing, so a ruler's chip shows ⚖️ and how many in a hundred hold their rule rightful. One at court shows what they want. One of the town's people with no mood kept says none, and their page says why. A body is its page's Body line, its age against what that people lives, and a sickness in its land.
+- **It reads, it never touches.** No state, no events, no bump; the gate compares hashes. A pin is a viewer's, one list to a world. It asks the worker every 0.8 s at most whether the place has settled, and reads only when the place has held for 1.4 s or the year has moved.
+- **It gives way.** A page, a star's card, a leader's chip, a possession, a life, a reign and a film each have the foot of the screen to themselves. On a phone at the stars' map and the galaxy, where a legend lives at the foot, it stands aside and comes back on the way down.
+- **One who left a seat says so.** A pinned ruler who no longer rules reads "No longer rules Sairis", and a press goes to how it passed.
+- **The file is the world's own pages,** cut: no second writer. A realm is its page's facts, rulers and wars; a war its facts; a person theirs; a year what The Years tells with no filter. Links work inside the file, nothing reaches outside it, and what was left out is said at its head. A press saves it; where the browser can hand a file to the share sheet, a second press does that (a share must come straight from a finger, so it can't follow the long read).
+
+Found by measuring: the file took about six minutes on `first light` at 2000 and eleven on `vale 471` at 2000, in node, because a page builds all of its tabs: a realm's other dozen were 89% of what its page cost, and a history tab walked the whole log per realm. A page can now be asked for only the tabs a caller will read, which only the file does. A fallen ruler's "In their reign" and a realm's rulers stopped walking the years after they ended, which every such page gains. Same words in the file, about 64 s and 59 s, then the caps (800 realms, 800 wars, 600 people, each the greatest first) brought the worst world to about 45 s and 4.3 MB on `gale 710` at 2000, and 14 s and 3.0 MB on `first light` at 2000, in node under load.
+
+Found by looking: 1.7 chips show on a phone and the rest are a swipe, which the gate now does with a real finger. On a phone at the stars' map the bar lay over the legend and a chip's name, hence standing aside there. Readings were 10 px: now 11, on a chip 12 px wider, with × a finger's width to press through a larger target than it shows.
+
+Measures, on the final code: `harrow 348` at 3000, 117 peopled lands: at most 4 on the bar and 2.5 on average, nowhere with none, its commonest sentence 9% of them, a read 11 ms on average and 156 ms at worst; the file in about a second in a phone-sized browser, 1.47 MB, the page never held up. `first light` at 2000, 599 lands: at most 3, a read 3.6 ms on average and 1.3 s for the first under load; 9,955 links in the file and none leading nowhere. Over 12 years at three seats, the bar changed in 22% to 39% of seat-years, each a real change of who rules or who wants it. Hashes the same; WebKit read the file (1,061,281 characters).
+
+Limits, stated: no real iPhone has pressed the share button, and it hasn't been pressed in any run, since a share sheet needs a real device. The people on a chip go by the world's own spelling, not a people's own tongue (a viewer's "as they say it" reaches pages only). Star realms' rulers aren't on the bar unless they also rule a land of the home world. A person past those a town draws has no address to go to, as elsewhere.
+
+Cut for later: a people's own names on the bar and in the file; the bar during a life or a reign, showing who matters to that person; a town's, a faith's or a tongue's entry in the file.
 
 ## The work-down order (2026-10-25)
 

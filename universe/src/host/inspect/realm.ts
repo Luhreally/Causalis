@@ -318,7 +318,8 @@ export function realmPageModel(
       tabs.push({ id: "history", name: "History", blocks: [{ type: "list", items }] });
   }
   // Set beside another (Phase 11 M103): its foes, those sworn to it, the greatest.
-  if (wants("compare")) tabs.push({ id: "compare", name: "Compare", blocks: compareWith(world, r) });
+  if (wants("compare"))
+    tabs.push({ id: "compare", name: "Compare", blocks: compareWith(world, r) });
   return {
     ref: r.ref,
     kind: "realm",
