@@ -195,6 +195,10 @@ const phone = {
 const context: BrowserContext = await browser.newContext(phone),
   page: Page = await context.newPage(),
   errors: string[] = [];
+// (This gate has come to hear: a machine's clicks start no sound otherwise.)
+await context.addInitScript(() => {
+  (globalThis as { causalisHears?: boolean }).causalisHears = true;
+});
 page.setDefaultTimeout(slow(60000));
 const listen = (p: Page, into: string[]) => {
   p.on("pageerror", (e) => into.push(`${e.message}\n${e.stack ?? ""}`));
@@ -1153,6 +1157,9 @@ if (!ci) {
       c = await safari.newContext({ viewport: phone.viewport, hasTouch: true, isMobile: true }),
       p = await c.newPage(),
       wrong: string[] = [];
+    await c.addInitScript(() => {
+      (globalThis as { causalisHears?: boolean }).causalisHears = true;
+    });
     listen(p, wrong);
     await p.goto(`${base}?menu=1`);
     await p.waitForSelector(".title-screen", { timeout: slow(30000) });
