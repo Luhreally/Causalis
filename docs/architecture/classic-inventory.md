@@ -7,10 +7,10 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 
 | Area | in | partial | missing | n/a |
 |---|---|---|---|---|
-| World & ground | 3 | 8 | 0 | 1 |
+| World & ground | 4 | 7 | 0 | 1 |
 | Life & creatures | 4 | 4 | 0 | 0 |
 | People & minds | 3 | 8 | 6 | 3 |
-| Households, towns & building | 14 | 6 | 2 | 11 |
+| Households, towns & building | 16 | 5 | 1 | 11 |
 | Farming, crafts & industry | 12 | 5 | 0 | 1 |
 | Trade, wealth & markets | 3 | 5 | 0 | 1 |
 | Politics, diplomacy & law | 5 | 3 | 0 | 0 |
@@ -21,7 +21,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | Observation UI & lenses | 16 | 1 | 1 | 2 |
 | Space | 3 | 0 | 0 | 1 |
 | Engine, performance & saves | 1 | 0 | 0 | 19 |
-| **All 185 sections** | **82** | **50** | **11** | **42** |
+| **All 185 sections** | **85** | **48** | **10** | **42** |
 
 ## World & ground
 
@@ -33,7 +33,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 13 Processes | Balanced reactions run on tiles, bodies and stores; matter and energy audited | **partial** | Real substances and balanced reactions as data and pages (`rules/matter.ts`, `host/inspect/matter.ts`). Missing: the sim moves goods, not substances, and nothing audits conservation |
 | 17 Physical substrate | Weather cycle, lightning that ignites, fire, surface water, the sky breathing | **partial** | Dry years and droughts (`sim/population/systems.ts`), weather played up close from the climate (`view/weather.ts`, Phase 30), rivers and lakes (`gen/hydrology.ts`); lightning in a dry year lights the woods and the fire goes on across a land's ground tile by tile (`sim/acts/wild.ts`, `view/wildfire.ts`). Missing: water that rises and falls |
 | 19 Plant ecology | Plants grow and spread tile by tile from the ground's matter | **partial** | Forest, wild food and soil as stocks per land that heal (`sim/ecology/ecology.ts`); a land's woods that reach out and draw back with its rain and warmth, read against every patch of its ground (`sim/ecology/woods.ts`); grass grown and grazed in the meadow (`view/meadow.ts`). Missing: plants growing tile by tile from the ground's matter |
-| 46 Living world | Seasons from axial tilt, paths worn by feet, a new Voice on a death, eruptions, quakes and meteors, omens | **partial** | Seasons (`view/seasons.ts`, `view/weather.ts`), successions (`sim/polity/polity.ts`), omens read by faiths (`sim/belief/belief.ts`), and quakes where plates meet, fires and falling stones by themselves (`sim/acts/wild.ts`) are in. Missing: paths worn by feet |
+| 46 Living world | Seasons from axial tilt, paths worn by feet, a new Voice on a death, eruptions, quakes and meteors, omens | **in** | Seasons (`view/seasons.ts`, `view/weather.ts`), successions (`sim/polity/polity.ts`), omens read by faiths (`sim/belief/belief.ts`), quakes where plates meet, fires and falling stones by themselves (`sim/acts/wild.ts`), and ways worn by who really walks them, greening where a town has shrunk, with tracks between camps and hamlets before any road (`view/worn.ts`) |
 | 80 Provision | Laid pigment and polymer seams within reach so every world could learn letters | **n/a** | A Classic fix. Universe's deposits come from geology (`gen/deposits.ts`) and writing does not wait on pigment |
 | 91 The long afternoon | Industry strains the sky; ways of rule; orbital stations; an epilogue | **in** | Carbon from burning and clearing warms the world and moves rain (`sim/climate/air.ts`); institutions and laws (`sim/polity/polity.ts`, `sim/order/laws.ts`); stations (`sim/space/space.ts`) |
 | 93 Day and night | A slow day with dusk and night; people sleep, labour stops | **in** | Daylight by the hour (`render/stage.ts`); folk asleep at home at night (`view/village.ts`). Drawn, not simulated |
@@ -105,7 +105,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 118 Common fields | Neighbours reap ripe fields that would rot | **n/a** | A field-access fix |
 | 120 Continuing world | A gentler birth pace once the gate is passed | **n/a** | A balance fix |
 | 121 Lived-in city | Each bed has an address and each home a household; rent, eviction, floor plans | **partial** | A family's door opens on its street (`view/village.ts`); land tenure is law (`sim/order/laws.ts`). Missing: rent, landlords, eviction, homes held by households in the sim |
-| 122 Public streets | Buses carry real riders on built links | **missing** | — |
+| 122 Public streets | Buses carry real riders on built links | **in** | A town's lines run through its square with lit windows for those aboard; riders are its own people, pressed from the line's page; what a line is comes of what a people is: a bus, a hive's hauler, a water people's drift-line, a works-line for those who can't grip (`view/rides.ts`, `render/towntraffic.ts`, `bus:` pages in `host/inspect/road.ts`) |
 | 124 Sidewalks | A street graph that walkers keep to | **in** | The walkers' street graph (`view/streets.ts`, Phase 23) |
 | 125 Zoning | Quarters: a civic heart, commerce, homes, works, fields | **in** | City blocks put to use by what they're worth (`sim/city/city.ts`); lots laid from the square outward (`sim/town/fabric.ts`) |
 | 128 Open ground | Launch tower sited outside a full city | **n/a** | A siting fix |
@@ -114,7 +114,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 136 Ferry | Roads cross the water | **n/a** | Universe joins lands by sea routes (`sim/economy/sea.ts`) |
 | 137 Field | The effort supplies farms left waiting | **n/a** | A fix for the Causal skip |
 | 138 Field gates | People cross field gates; where a second city goes | **n/a** | A movement and siting fix |
-| 155 Streets | Cars owned and driven to work; streets worn into being; crowds | **partial** | Traffic on the land's ways (`render/landtraffic.ts`); crowds at one figure per 12 folk (Phase 45). Missing: household cars, the drive to work, streets worn by feet |
+| 155 Streets | Cars owned and driven to work; streets worn into being; crowds | **in** | Traffic on the land's ways (`render/landtraffic.ts`); crowds at one figure per 12 folk (Phase 45); what people keep at their door, driven to work on the walk their day already has, ridden in Live their day (`view/rides.ts`); streets worn by who walks them (`view/worn.ts`) |
 
 ## Farming, crafts & industry
 
@@ -147,7 +147,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 57 Seafaring | Docks, fishing, voyages to far shores, sea caravans | **in** | Sea reach and sea routes (`sim/economy/sea.ts`); fish stocks (`sim/ecology/ecology.ts`); harbours and boats (`view/country.ts`); fishers (`view/village.ts`) |
 | 59 Wayfinding | Travellers on civil errands find a road | **n/a** | Path-finding for Classic's walkers |
 | 63 Wealth | What a person owns, their standing, inequality, envy | **partial** | The wealth in a land's stores (`host/lenses.ts`); a realm's caste (`sim/order/order.ts`). Missing: personal riches and standing, and envy |
-| 88 Roads & wheels | Roads and rails laid stone by stone; carts, trucks, trains | **partial** | Roads trodden, then paved, then railed as the era turns (`view/land.ts`, `host/land.ts`); carriers in the economy. Missing: roads built from stone and metal over the years |
+| 88 Roads & wheels | Roads and rails laid stone by stone; carts, trucks, trains | **partial** | Roads trodden, then paved, then railed section by section by gangs you can see and press, in the land's own stone and the world's own metal, each road with a page: who built it, what it joins, what goes along it, what stopped or cut it (`host/roads.ts`, `host/inspect/road.ts`, `render/landworks.ts`); carriers in the economy. Missing: what a road takes drawn down from a land's stores, a gang's wage in coin |
 | 89 Markets & coin | Price boards, specialties, treasuries; coin buys grain and hands | **partial** | Prices that follow scarcity (`sim/economy/market.ts`). A town's board, what each town is known for, and where a good is dear and where cheap (`host/inspect/board.ts`, gate 92). Missing: treasuries, coin that moves from hand to hand |
 | 100 Blocs & loans | An alliance-blocs lens; loans between treasuries | **in** | Houses of lending, war loans, defaults and jubilees (`sim/credit/credit.ts`, Phase 21); a Blocs lens over who stands with whom, each bloc with its page (`sim/war/ties.ts`, `host/inspect/ties.ts`) |
 | 101 Finery & tithe | The well-off want worked goods; a heavy tithe in war | **partial** | A grain tithe sent to the seat (`sim/polity/polity.ts`). Missing: demand for finery, a war tithe |
@@ -296,7 +296,7 @@ Ranked by how much each would add to the game's depth and to what you see, leani
 12. **A living ecology through history.** Classic 19, 42, 113, 119. Forests that seed outward and wither in drought, long ages of rain, ores that run out, new crowns turning with the seasons: built (2026-11-06). Next: crags, weed beds drawn in the sea, who builds with what stands. **S**
 13. **The god's hand on the ground.** Classic 31. Raise and lower land, add water, seed life or ore, strike lightning anywhere, claim land for a realm: WorldBox's own brushes, built (Phase 62). Next: a faith reading the strokes, an edit at a town's scale. **S**
 14. **Wild lives.** Classic 52, 42d, 21, 23. Herds that follow the warmth, dens, beasts people name, herders guarding flocks, herds stolen in war and lineages still changing during history: built (2026-11-06). Next: herds feeding what a land can hunt, grazed pasture worn on the map, a fallen hunter as a person on the roster. **M**
-15. **Roads built and travelled.** Classic 88, 46, 122, 155. Roads laid stone by stone and rails metal by metal, paths worn by feet, household cars for the trip to work, buses with riders. **M**
+15. **Roads built and travelled.** Classic 88, 46, 122, 155. Roads laid section by section by gangs you can press, ways worn by who walks them, what a household keeps for the trip to work, lines with riders: built (2026-11-06). Next: a road drawing down a land's stores, a gang's wage in coin, The Years telling a road opened, cars for a city's undrawn thousands. **M**
 16. **Songs, tales, murals, monuments, rites.** Classic 58, 52, 50. Songs and tales made from the world's history and carried to feasts, and stones raised to wars and calamities: built (2026-11-06). Next: murals painted with pigment, solstice rites with offerings, a Speaker's prophecies. **M**
 17. **Interiors.** Classic 32f. Homes and workshops opened in cutaway, with their furniture and the people inside. **M**
 18. **Knowledge that can be lost.** Classic 81, 106. Crafts lost when a town falls and kept by archives; rare crafts opened only by having seen a quake or a falling star. **S**
@@ -526,6 +526,22 @@ Measures. `first light` young, 0 to 700: 5 beasts named, all ended, 3 hunters fe
 Limits, stated: how many creatures a land holds doesn't feed what it can hunt. Overgrazing is told but pasture isn't worn on the map. A fallen hunter is a name, not a person on the roster. Tame kinds don't join the flocks. A new kind isn't in the tree's chart. A land built over shows no creature (`vale 471` at 2000 says so). No far world's kind has gone out by itself, though the rule is live: on `first light` at 2015 only 4 kinds live on 16 lands or fewer, 3 of those on lands no one lives on.
 
 Cut for later: courtship and the young in a den, seen; a beast at large in the people bar.
+
+## Roads built and travelled, as built (2026-11-06)
+
+Roads were a look read off the year, and no one was ever seen laying one. A town at 2000 walked to work. Now a road comes to be, a town's ground shows where its people go, and those who live too far from their work ride. All of it is a reading of what the world already keeps: no rule moved and no save grew, so no world's history is touched.
+
+- **A road being laid.** A gang works along a road a section at a time, with a flag, a shelter, heaps of the land's own stone or stacked lengths of rail, its way pegged out ahead and workers going to and fro. Behind them the road is what it's becoming, ahead of them what it was. A press on the gang or the road opens the road's page, and ⌖ Go to brings the eye back to the gang (`host/roads.ts`, `host/roadwords.ts`, `render/landworks.ts`). Up to 20 gangs are drawn on a land.
+- **A road's page.** Who built it, when, what it's laid with, what goes along it, what it joins, who works it and who pays, how far along, what stopped it, and what cut it. A war or a shock cuts a road: it lies open with rubble, and traffic stops short of the gap (`host/inspect/road.ts`).
+- **Ways worn by feet.** A town's ground wears where its people really walk: home to well, home to work, the square's corners, the way to the fields. Greening where a town has shrunk. Tracks run between camps and hamlets before a road is built (`view/worn.ts`). In a far paved town the wear is faint, as paving would make it.
+- **Getting to work.** Past engines, people who live far from their work go in what they keep: it stands at their door by night and near their work by day, and it goes the way they would have walked. A line runs through the town by way of its square, with a window lit for each aboard. In Live their day one rides: the eye goes along from higher up, and a line's coach comes up about them (`view/rides.ts`, `render/towntraffic.ts`, `view/lived.ts`). Whether someone keeps one is read off that person alone, so a plan read again can't move it.
+- **By what a people is.** A water people has current-sleds and a pale drift-line, a hive has haulers no household owns, a people with nothing to grip has a works-line laid in the ground, and before engines it's feet or a mount's back (`getAbout` in `host/roads.ts`). A water people's roads lie along the sea's floor: `linePieces` took a floor and ignored it, fixed here.
+
+Found by watching: a town read again destroyed its cars and buses for good, since `VillageScene.build` destroys what stands under its root but the layers it names. The lists stayed full while the streets went empty, so gate 101 now counts a ride in the pixels. A clock jumped past the start of a ride left a person walking after their own car from 1.9 km back. A pressed car often gave someone standing by it: a press now asks for the car first and measures to the body drawn, and each car has a spot of its own.
+
+Measures, gate 101 on the phone. `first light` at 2000, Gameason: 60 cars and 3 lines from the 220 people drawn, 21 aboard of a morning, 2,397 of 14,532 ways worn; three cars pressed, three owners, two with someone standing by. `kestrel 557` at 2000, Traelmere: 49 current-sleds, 3 drift-lines, 12 aboard. `harrow 259` and `vale 471` at 2000 and `harrow 348` at 3000 pass the same. Young `first light` at 300 and 540: no cars, a track being laid, 82 of 282 ways worn. A frame on the worst town, Saiseathaethwick at 2000 with 75 cars, at a phone's size on a desktop's graphics: 5.9 ms at the 95th percentile against 5.3 without, and 4.5 against 3.7 on its land.
+
+Limits, stated. A road's stone is told in tonnes and comes out of no store; a gang's wage is words. Doing either is a rule change with its own A/B. A road opening isn't in The Years, and a cut road isn't news. Only those a town draws have cars, as with walkers, so a great city's sprawl has none. A car keeps its owner's walking pace on the clock, which at a town's speeds reads quick. A line runs a loop with no stops or timetable. No clade flies yet, so nothing is drawn for those who fly. On far worlds a gang is upkeep, relaying what's there: a road laid new is a young world's sight.
 
 ## The work-down order (2026-10-25)
 

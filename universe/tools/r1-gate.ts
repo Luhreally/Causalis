@@ -628,10 +628,15 @@ if (site && !problems.length) {
       const b2 = await k<{ x: number; z: number } | null>("globalThis.causalis.life.where()"),
         moved = a2 && b2 ? Math.hypot(a2.x - b2.x, a2.z - b2.z) : 0,
         now2 = await k<{
-          carsAt: { index: number; x: number; y: number; wx: number; wz: number; riding: boolean }[];
-        }>(
-          "globalThis.causalis.townRides()",
-        ),
+          carsAt: {
+            index: number;
+            x: number;
+            y: number;
+            wx: number;
+            wz: number;
+            riding: boolean;
+          }[];
+        }>("globalThis.causalis.townRides()"),
         strip = await k<string>(
           `(() => { const e = document.querySelector(".life-strip"); return e ? e.innerText : ""; })()`,
         ),
@@ -699,4 +704,3 @@ if (problems.length) {
 }
 console.log("gate 101 passed");
 process.exit(0);
-
