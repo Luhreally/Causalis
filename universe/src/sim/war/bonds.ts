@@ -156,7 +156,9 @@ function landSpare(ctx: PopulationContext, cell: number): number {
   const prov = ctx.provinces.get(cell),
     m = ctx.world.store<MarketStore>("economy.markets").get(cell);
   if (!prov || !m || heldAmongStars(ctx.world, cell)) return 0;
-  return Math.floor(Math.max(0, Math.min(m.stock[G.grain]!, m.food(FOODS) - mouths(prov, ctx.life) * 3)));
+  return Math.floor(
+    Math.max(0, Math.min(m.stock[G.grain]!, m.food(FOODS) - mouths(prov, ctx.life) * 3)),
+  );
 }
 
 /** What a realm could give up of grain this year, over all its lands: nothing, where its people eat all they make. */

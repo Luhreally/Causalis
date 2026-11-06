@@ -271,13 +271,19 @@ registerEventWords(WAR_EVENTS.strike.type, (_, e) => {
   return `Machines of ${text(e.data, "a")} struck ${d?.name ?? "a town"} of ${text(e.data, "b")} from the air; ${count(d?.dead ?? 0)} died and ${count(d?.homes ?? 0)} home${d?.homes === 1 ? "" : "s"} came down, ${year(e.t)}`;
 });
 registerEventWords(WAR_EVENTS.peace.type, (world, e) => {
-  const d = e.data as
-      { years?: number; won?: boolean; by?: string; terms?: PeaceTerms; fire?: string } | null,
+  const d = e.data as {
+      years?: number;
+      won?: boolean;
+      by?: string;
+      terms?: PeaceTerms;
+      fire?: string;
+    } | null,
     head = `${d?.by ? `By your hand, at the asking of ${d.by}: peace` : "Peace"} between ${text(e.data, "a")} and ${text(e.data, "b")} after ${count(d?.years ?? 0)} year${d?.years === 1 ? "" : "s"}`,
     terms = termsPhrase(world, e.data);
   if (terms) return `${head}: ${terms}, ${year(e.t)}`;
   // (What the greatest fire ended, W5: no one's terms.)
-  if (d?.fire === "fell") return `${head}: the greatest fire fell, and no one would fight on, ${year(e.t)}`;
+  if (d?.fire === "fell")
+    return `${head}: the greatest fire fell, and no one would fight on, ${year(e.t)}`;
   if (d?.fire === "stepped")
     return `${head}: at the brink of the greatest fire they stepped back, ${year(e.t)}`;
   return `${head}${d?.won ? ", the land they fought for won" : ""}, ${year(e.t)}`;

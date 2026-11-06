@@ -1352,7 +1352,9 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     if (land === undefined) {
       // No land left between them to fight over: the war ends, and history says so, with what it came to (W7).
       w.ended = year;
-      const made = w.civil ? null : reckonPeace(ctx, w, a, b, aim, a.members.includes(w.prize), year);
+      const made = w.civil
+        ? null
+        : reckonPeace(ctx, w, a, b, aim, a.members.includes(w.prize), year);
       w.peace = world.events.emit({
         type: WAR_EVENTS.peace.type,
         subjects: [w.ref, a.ref, b.ref],

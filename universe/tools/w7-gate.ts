@@ -164,7 +164,8 @@ function readLines(
       const d = world.events.get(w.peace)?.data as { terms?: PeaceTerms; fire?: string } | null,
         k = d?.terms?.kind ?? (w.civil ? "civil" : d?.fire ? "fire" : "none");
       terms.set(k, (terms.get(k) ?? 0) + 1);
-      if (k === "none") bad.push(`a peace that says nothing of its terms: ${claimOf(world, w.peace)}`);
+      if (k === "none")
+        bad.push(`a peace that says nothing of its terms: ${claimOf(world, w.peace)}`);
     }
   }
   return { aims, terms, bad, lines };
@@ -316,7 +317,10 @@ function pathsNobodyWatches(world: World, name: string): void {
     }).bond !== "vassal",
     `${name}: an oath taken where none can be bound`,
   );
-  check(!canBind(world, emptyTo, emptyTo) || realms.living().length >= TERMS.realmsLeast, `${name}: bound with too few left`);
+  check(
+    !canBind(world, emptyTo, emptyTo) || realms.living().length >= TERMS.realmsLeast,
+    `${name}: bound with too few left`,
+  );
 }
 
 // 3. A run read for its worst.
@@ -523,7 +527,10 @@ function offersHold(world: World, name: string, mustAll: boolean): void {
       const free = wars.all().slice(warsBefore)[0];
       check(!!free, `${name}: a rising with land between them is no war`);
       if (free) {
-        check(aimOf(world, free)?.aim === "free", `${name}: a rising's aim: ${aimOf(world, free)?.aim}`);
+        check(
+          aimOf(world, free)?.aim === "free",
+          `${name}: a rising's aim: ${aimOf(world, free)?.aim}`,
+        );
         const told = claimOf(world, free.event);
         check(/throw off the oath/.test(told), `${name}: a rising, told: ${told}`);
         say(`a rising: ${told}`);
