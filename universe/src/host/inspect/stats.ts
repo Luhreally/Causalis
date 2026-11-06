@@ -8,8 +8,7 @@
 import { YEAR, type Ref, type World } from "../../kernel/index.ts";
 import { beliefOf, languagesOf, politiesOf, populationContext, warsOf } from "../../sim/index.ts";
 import type { Block, PageModel, Stat } from "../../bridge/index.ts";
-import { realmColor } from "../colors.ts";
-import { faithColor, languageColor } from "../planet.ts";
+import { faithColor, languageColor, realmColor } from "../colors.ts";
 import { count, link, share, stat } from "./words.ts";
 import { storesSummed } from "./stores.ts";
 

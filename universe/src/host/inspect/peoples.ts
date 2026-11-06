@@ -19,8 +19,7 @@ import {
   type Language,
 } from "../../sim/index.ts";
 import type { Block } from "../../bridge/index.ts";
-import { realmColor } from "../colors.ts";
-import { faithColor } from "../planet.ts";
+import { faithColor, realmColor } from "../colors.ts";
 import { claimOf, count, share } from "./words.ts";
 import { faithLink, realmLink } from "./names.ts";
 

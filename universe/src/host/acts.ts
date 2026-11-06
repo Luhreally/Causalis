@@ -30,8 +30,7 @@ import {
 } from "../sim/index.ts";
 import { coldDegrees } from "../rules/index.ts";
 import type { ActKindShown, ActMark, ActsMap, LandSky, PaletteLand } from "../bridge/index.ts";
-import { realmColor } from "./colors.ts";
-import { faithColor, languageColor } from "./planet.ts";
+import { faithColor, languageColor, realmColor } from "./colors.ts";
 import { landTitle } from "./inspect/names.ts";
 import { skyDegrees } from "./kinds.ts";
 
