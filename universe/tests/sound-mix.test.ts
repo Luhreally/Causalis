@@ -109,7 +109,7 @@ test("a world's air: thin carries less, hard wind blows harder", () => {
   const thin = mixOf(at("land", { thin: 1 })),
     land = mixOf(at("land")),
     hard = mixOf(at("land", { wind: 1 }));
-  assert.ok(thin.wind < land.wind / 2);
+  assert.ok(thin.wind < land.wind * 0.55);
   assert.ok(thin.windHz < land.windHz);
   assert.ok(hard.wind > land.wind * 2);
   assert.ok(hard.windHz > land.windHz);

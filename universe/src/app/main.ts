@@ -10048,9 +10048,7 @@ async function runPlanetPage(): Promise<void> {
         farFilm.playing ||
         nationFilm.playing,
       inSpace =
-        film &&
-        !filmHolds &&
-        !(colonyFilm?.playing && !colonyFilm.townAway && scale === "village"),
+        film && !filmHolds && !(colonyFilm?.playing && !colonyFilm.townAway && scale === "village"),
       inTown = scale === "village" && !!plan,
       world = client.latestFrame("globe"),
       hour = document.body.dataset.daylight,
@@ -10080,9 +10078,7 @@ async function runPlanetPage(): Promise<void> {
     heard.feast = !!square && square.icon !== "🛒";
     heard.war =
       inTown &&
-      (filmHolds ||
-        !!townWar ||
-        !!raidOver(plan?.town, raidPlaying ? raidPlaying.t : now()));
+      (filmHolds || !!townWar || !!raidOver(plan?.town, raidPlaying ? raidPlaying.t : now()));
     heard.under =
       !inSpace &&
       (inTown
