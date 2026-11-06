@@ -6,7 +6,7 @@ import type { Memorial, VillagePlan } from "../bridge/index.ts";
 import { SQUARE } from "../bridge/index.ts";
 import { clearOfHall, marketScene, squareScale, FEAST } from "./feast.ts";
 import { clearAt, villageGround } from "./ground.ts";
-import { wonderSpot } from "./village.ts";
+import { wonderAsked } from "./village.ts";
 
 export type StoneMesh = "box" | "cyl" | "cone" | "gable";
 /** Its main stuff, its darker stuff (its cut faces or lit names), or what lies under it. */
@@ -281,7 +281,8 @@ export function memorialsPlaced(plan: VillagePlan): readonly PlacedMemorial[] {
       big = k * cityScale(plan),
       ground = villageGround(plan),
       stalls = marketScene(plan).stalls,
-      wonders = (plan.wonders ?? []).map((w) => wonderSpot(plan, w)),
+      // (Where each was set: where it ends up asks what stands here, this among them.)
+      wonders = (plan.wonders ?? []).map(wonderAsked),
       taken: { x: number; z: number; wide: number }[] = [],
       rimStep = (2 * Math.PI) / FEAST.poles,
       // (In the gaps between the poles (they stand at half steps); first where it faces the road in, then about.)

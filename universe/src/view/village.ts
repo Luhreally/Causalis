@@ -766,13 +766,16 @@ export const TOWN_WELL: Point = { x: 0, z: 0 };
 
 /** Where one of the god's wonders stands in a town (metres): where the hand set it, else by its square. */
 export function wonderSpot(plan: VillagePlan, w: Wonder): Point {
-  const p =
-    w.x !== null && w.z !== null
-      ? { x: w.x, z: w.z }
-      : w.kind === "spring"
-        ? { x: -15, z: 11 }
-        : { x: 13, z: -13 };
-  return clearSpot(groundFor(plan), p);
+  return clearSpot(groundFor(plan), wonderAsked(w));
+}
+
+/** Where a wonder was set, before what stands there moves it aside. */
+export function wonderAsked(w: Wonder): Point {
+  return w.x !== null && w.z !== null
+    ? { x: w.x, z: w.z }
+    : w.kind === "spring"
+      ? { x: -15, z: 11 }
+      : { x: 13, z: -13 };
 }
 
 /** How long after a home catches the alarm is raised (seconds), and how long a fire is fought at most. */
