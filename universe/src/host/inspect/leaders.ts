@@ -100,7 +100,6 @@ export function rulerPage(world: World, ref: string): PageModel {
             ? [townLink(world, town.ref), ", ", landLink(world, r.seat, true)]
             : [landLink(world, r.seat)],
         ),
-        ...(town ? [stat("Home", `a home near the square of ${town.name}`)] : []),
       ],
     },
     { type: "tool", tool: "leader.card", args: { leader: me, short: true } },

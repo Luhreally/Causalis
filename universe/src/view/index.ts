@@ -249,6 +249,7 @@ export {
   landMoment,
   townAsh,
   townHomes,
+  homeBox,
   townScene,
   townThingAt,
   townWalls,
@@ -1162,3 +1163,4 @@ export { GORE_MOST, goreAt, gorePieces, looseMotion, type GorePiece } from "./go
 export { placeOfMember, struckOf, toldBlows, warManOf, warSlot, type WarSlot } from "./body.ts";
 export { armorPanels, armorColor, armorDepth } from "./armor.ts";
 export { AGE_LADDER } from "../rules/index.ts";
+export { MONEY_LET, MONEY_RAMP, MONEY_RUIN, moneyStep, tenureWords } from "./money.ts";

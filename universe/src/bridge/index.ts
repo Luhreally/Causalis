@@ -153,7 +153,13 @@ export {
   type TownWater,
   type WallLength,
 } from "./town.ts";
-export type { DwellingRoom, DwellingStuff, DwellingThing, HomeInside } from "./home.ts";
+export type {
+  DwellingRoom,
+  DwellingStuff,
+  DwellingThing,
+  HomeInside,
+  HomeMoney,
+} from "./home.ts";
 export type { Garrison, HostKinds, WarRaid, WarSide, WarsMap } from "./wars.ts";
 export { HEART_REACH, heartTown } from "./wars.ts";
 export type { BattleNear, BattleOutcome, BattleSideNear, LevyPlace } from "./battle.ts";

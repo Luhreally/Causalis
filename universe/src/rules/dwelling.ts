@@ -26,8 +26,9 @@ export const LAND_MOST = 12,
   LAND_LEAST = 0.3;
 /** How far a family stands above or below their town's middle: e to the power of this, up and down. */
 export const CLASS_SPREAD = 2;
-/** The share of a family's standing that is their street (nearer the square), the rest what is keyed to them. */
-export const HEART_SHARE = 0.35;
+/** The share of a family's standing that is how near the square they live, and the share that is the repute of their street; the rest is keyed to them. */
+export const HEART_SHARE = 0.3,
+  STREET_SHARE = 0.5;
 /** A ruler or a voice of a court: their wages again, so many times over. */
 export const COURT_TIMES = 8;
 /** Coin that buys the next room: the first at this, doubling. */
@@ -711,8 +712,30 @@ export function wayCoin(way: Pick<DwellingWay, "cost">, price: (good: number) =>
 /** A good's usual price, as a market with none to read has it. */
 export const usualPrice = (good: number): number => GOODS[good]?.value ?? 1;
 
-/** What a family can spend on what they keep (coin), from their wages against their bread, their land's making and their standing. */
-export function coinOf(a: {
+/** What a family's standing comes to, 0 the lowest to 1 the highest: how near the square, the repute of their street, their own. */
+export function standingOf(heart: number, street: number, own: number): number {
+  return HEART_SHARE * heart + STREET_SHARE * street + (1 - HEART_SHARE - STREET_SHARE) * own;
+}
+
+/** What a day's wage at their land's usual comes to, by their land's making, their standing, and a seat at court. */
+export function wageTimes(madeHead: number, standing: number, court: boolean): number {
+  const land = Math.min(LAND_MOST, Math.max(LAND_LEAST, Math.sqrt(madeHead / MADE_USUAL))),
+    rank = dmath.exp(CLASS_SPREAD * (2 * standing - 1));
+  return land * rank * (court ? COURT_TIMES : 1);
+}
+
+/** A family's day, in coin: what comes in, what goes on bread and rent, what is left (below nothing: they fall short). */
+export type DayReckoned = {
+  readonly earned: number;
+  readonly fed: number;
+  readonly rent: number;
+  readonly left: number;
+  /** What they can spend on what they keep. */
+  readonly coin: number;
+};
+
+/** A family's day and what it has let them keep: one reckoning, for their home, their pages and the town's lens. */
+export function reckonDay(a: {
   /** A day's wages of those who earn, at their land's usual, in coin. */
   readonly wages: number;
   /** A person's bread for a day at the market, and how many eat. */
@@ -725,12 +748,22 @@ export function coinOf(a: {
   readonly court: boolean;
   /** What they pay a day to live there. */
   readonly rent: number;
-}): number {
-  const land = Math.min(LAND_MOST, Math.max(LAND_LEAST, Math.sqrt(a.madeHead / MADE_USUAL))),
-    rank = dmath.exp(CLASS_SPREAD * (2 * a.standing - 1)),
-    earned = a.wages * land * rank * (a.court ? COURT_TIMES : 1),
-    over = Math.max(0, earned - a.bread * a.mouths - a.rent);
-  return POOREST + over * WORK_DAYS * SAVED_YEARS * SAVED_SHARE;
+}): DayReckoned {
+  const earned = a.wages * wageTimes(a.madeHead, a.standing, a.court),
+    fed = a.bread * a.mouths,
+    left = earned - fed - a.rent;
+  return {
+    earned,
+    fed,
+    rent: a.rent,
+    left,
+    coin: POOREST + Math.max(0, left) * WORK_DAYS * SAVED_YEARS * SAVED_SHARE,
+  };
+}
+
+/** What a family can spend on what they keep (coin), from their wages against their bread, their land's making and their standing. */
+export function coinOf(a: Parameters<typeof reckonDay>[0]): number {
+  return reckonDay(a).coin;
 }
 
 /** How many rooms a family has: as many as they can pay for, and as a home of that level gives. */
@@ -1084,15 +1117,22 @@ function finish(
   return { rooms, walls, things, halfW, halfD, spent };
 }
 
+/** Where what a family can spend falls: its words below, the colour of the town's lens. */
+export const COIN_BANDS: readonly number[] = [200, 1200, 6000, 40000];
+export const COIN_WORDS: readonly string[] = [
+  "very little",
+  "little",
+  "enough",
+  "plenty",
+  "a great deal",
+];
+export function coinBand(coin: number): number {
+  let band = 0;
+  while (band < COIN_BANDS.length && coin >= COIN_BANDS[band]!) band++;
+  return band;
+}
+
 /** The word for a family's standing against what they can spend: said, not told by history. */
 export function standingWords(coin: number): string {
-  return coin < 200
-    ? "very little"
-    : coin < 1200
-      ? "little"
-      : coin < 6000
-        ? "enough"
-        : coin < 40000
-          ? "plenty"
-          : "a great deal";
+  return COIN_WORDS[coinBand(coin)]!;
 }

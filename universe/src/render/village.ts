@@ -8,15 +8,23 @@
 import * as pc from "playcanvas";
 import {
   LAKE_R,
+  LOT_D,
+  LOT_W,
   townLots,
   townReach,
   woundStage,
   type ColonyLook,
+  type HomeMoney,
   type TradeGood,
   type VillagePlan,
   type Visitor,
 } from "../bridge/index.ts";
+import { TownMoneyLayer, type MoneyHome } from "./townmoney.ts";
 import {
+  MONEY_LET,
+  MONEY_RAMP,
+  MONEY_RUIN,
+  moneyStep,
   ACTIVITY,
   ARM_LOOKS,
   armLook,
@@ -223,6 +231,9 @@ function glowWindows(m: pc.StandardMaterial, glow: number): void {
   m.update();
 }
 
+/** A home of a village's ring, not of a lot of its plan (host/home.ts). */
+const RING_HOME = 1_000_000;
+
 export class VillageScene {
   private readonly stage: Stage;
   private readonly root = new pc.Entity("village");
@@ -340,6 +351,8 @@ export class VillageScene {
   private readonly worn: WoundsLayer;
   /** The levy's wounded borne home on litters (Phase 55 M229), and those last drawn. */
   private readonly litters: LittersLayer;
+  /** Its money laid over it (Lives L6): made when first asked for. */
+  private readonly moneyLayer: TownMoneyLayer;
   private littersShown: LitterNow[] = [];
   /** Each look's gear by its key (the same look, the same gear); each one's now (null: none), read for the world's ten minutes `gearAt`; the stumps drawn last. */
   private readonly gears = new Map<string, WoundGear>();
@@ -394,6 +407,7 @@ export class VillageScene {
     this.graveyard = new GraveyardLayer(stage, this.root);
     this.worn = new WoundsLayer(stage, this.root);
     this.litters = new LittersLayer(stage, this.root);
+    this.moneyLayer = new TownMoneyLayer(stage, this.root);
     this.colony = new ColonyLayer(stage, stage.root);
     this.root.enabled = false;
   }
@@ -524,6 +538,7 @@ export class VillageScene {
         child !== this.graveyard.root &&
         child !== this.worn.root &&
         child !== this.litters.root &&
+        child !== this.moneyLayer.root &&
         child !== this.placedLayer?.root
       )
         child.destroy();
@@ -1466,6 +1481,51 @@ export class VillageScene {
   }
 
   /** Where a lot of the town is (metres from its middle). */
+  /** A town's money laid over it (Lives L6): how many homes it was laid on. */
+  moneyShow(data: HomeMoney, t: number): number {
+    const plan = this.plan;
+    if (!plan || plan.ref !== data.town) return 0;
+    const homes: MoneyHome[] = [],
+      ruin = MONEY_RAMP.length,
+      // (A village's homes are as its look draws them, as broad as a lot: the block over one must be broader.)
+      look = houseLook(plan.house, plan.lifeLook),
+      ringW = (look.length * 1.15) / M + 1.2,
+      ringD = (look.width * 1.15) / M + 1.2,
+      ringH = (look.raised + 0.44 * look.height * 2 + 0.75) / M + 0.6;
+    data.n.forEach((n, i) => {
+      const ring = n >= RING_HOME,
+        box = ring ? null : this.town.homeBox(n, t),
+        h = ring ? plan.homes[n - RING_HOME] : null;
+      if (!box && !h) return;
+      const coin = data.coin[i]!,
+        colour = coin < 0 ? ruin : moneyStep(coin, data.lo, data.hi);
+      homes.push({
+        n,
+        x: box?.x ?? h!.x,
+        z: box?.z ?? h!.z,
+        yaw: box?.yaw ?? h!.yaw,
+        w: box?.w ?? ringW,
+        d: box?.d ?? ringD,
+        h: box?.h ?? ringH,
+        pw: box ? LOT_W - 0.6 : ringW * 1.5,
+        pd: box ? LOT_D - 0.6 : ringD * 1.5,
+        colour,
+        let: data.tenure === "mixed" && data.lets[i] === 1,
+      });
+    });
+    this.moneyLayer.show(homes, [...MONEY_RAMP, MONEY_RUIN], MONEY_LET);
+    return homes.length;
+  }
+  moneyClear(): void {
+    this.moneyLayer.clear();
+  }
+  moneyPick(x: number, y: number): number | null {
+    return this.moneyLayer.pick(x, y);
+  }
+  moneySpots(): { n: number; x: number; y: number; colour: number }[] {
+    return this.moneyLayer.spots();
+  }
+
   townLot(p: number): { x: number; z: number } | null {
     return this.town.lotAt(p);
   }

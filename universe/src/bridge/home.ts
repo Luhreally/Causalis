@@ -130,3 +130,24 @@ export type HomeInside = {
   readonly noHouses: boolean;
   readonly dwelling: Dwelling;
 };
+
+/** A town's homes as its lens colours them (Lives L6): read off the one reckoning, nothing kept. */
+export type HomeMoney = {
+  readonly town: string;
+  readonly year: number;
+  /** Each home or ruin drawn, by its number: a lot's, or past any lot one of a village's ring. */
+  readonly n: readonly number[];
+  /** What each can spend, in coin (below nothing: a ruin). */
+  readonly coin: readonly number[];
+  /** 1: its people pay to live there. */
+  readonly lets: readonly number[];
+  /** How many homes stand at each of `words`, and how many are ruins. */
+  readonly counts: readonly number[];
+  readonly ruins: number;
+  readonly words: readonly string[];
+  /** The town's own spread, the ramp's two ends, in coin: from nearly its least to nearly its most. */
+  readonly lo: number;
+  readonly hi: number;
+  /** Who holds them, as the law of land says: all a lord's, all leased, all their own, some of each; halls; not told; none stand. */
+  readonly tenure: "lord" | "leased" | "owned" | "mixed" | "halls" | "untold" | "none";
+};

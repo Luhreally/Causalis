@@ -74,11 +74,14 @@ export class VillagePanel {
   /** Live here (Lives L3): the way into anyone's life in this town. */
   private readonly liveLine = el("button", "town-live", "🏠 Live here");
   private readonly backLine = el("button", "speed", "‹ The land");
+  /** A town's money over it (Lives L6): a lens of its own. */
+  private readonly moneyLine = el("button", "town-money", "💰");
   private warRef: string | null = null;
   private folkOpen = false;
   private cardKey = "";
   onBack: () => void = () => {};
   onLive: () => void = () => {};
+  onMoney: () => void = () => {};
   onClose: () => void = () => {};
   /** The stores' card opened (what else is up is put away). */
   onStores: () => void = () => {};
@@ -106,7 +109,18 @@ export class VillagePanel {
       if (this.warRef) this.onWar(this.warRef);
     };
     this.liveLine.onclick = () => this.onLive();
-    bar.append(back, this.title, this.timeSlot, this.liveLine, this.storesLine, this.warLine);
+    this.moneyLine.title = "Who has what, street by street";
+    this.moneyLine.setAttribute("aria-label", "Who has what, street by street");
+    this.moneyLine.onclick = () => this.onMoney();
+    bar.append(
+      back,
+      this.title,
+      this.timeSlot,
+      this.liveLine,
+      this.moneyLine,
+      this.storesLine,
+      this.warLine,
+    );
     const close = el("button", "close", "×");
     close.setAttribute("aria-label", "Close");
     close.onclick = () => {
@@ -149,6 +163,11 @@ export class VillagePanel {
     this.storesKey = this.cardKey = "";
     this.storesLine.hidden = true;
     this.warNow(null, null);
+  }
+
+  /** Whether its money lies over the town. */
+  set moneyOn(on: boolean) {
+    this.moneyLine.classList.toggle("on", on);
   }
 
   /** The war about the town told (null: none), and what a tap on it opens. */

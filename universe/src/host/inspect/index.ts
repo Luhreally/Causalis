@@ -48,6 +48,7 @@ import { sicknessPage } from "./sickness.ts";
 import { housePage } from "./credit.ts";
 import { buildingPage, lotPage, wallsPage } from "./fabric.ts";
 import { homePage, homeThingPage } from "./home.ts";
+import { withLiving } from "./living.ts";
 import { campPage } from "./camp.ts";
 import { healerPage } from "./wounds.ts";
 import { armPage, armsPage } from "./arm.ts";
@@ -194,13 +195,27 @@ function build(world: World, ref: string, tab: string | null): PageModel {
  * A thing's page, by its ref (`#tab` opens a tab: `war:0:3#attacker`). A thing that no
  * longer stands (a realm fallen, a town gone) still answers: what is known of it.
  */
-export function pageOf(world: World, ref: string, names?: NamesArg): PageModel {
+export function pageOf(
+  world: World,
+  ref: string,
+  names?: NamesArg,
+  /** Asked only for its name, its place or its first numbers: where someone lives is not read for that. */
+  brief = false,
+): PageModel {
   const { ref: base, tab } = splitPageRef(ref);
   let page: PageModel;
   try {
     // (One of the town's people: their family and their body, Phase 55 wave 5.)
     page = withConcepts(
-      tidy(withKin(world, base, withLeaderPage(world, base, build(world, base, tab)))),
+      tidy(
+        withKin(
+          world,
+          base,
+          brief
+            ? withLeaderPage(world, base, build(world, base, tab))
+            : withLiving(world, base, withLeaderPage(world, base, build(world, base, tab))),
+        ),
+      ),
     );
   } catch {
     return unknownPage(world, base, true);
@@ -237,7 +252,7 @@ function tidy(page: PageModel): PageModel {
 
 /** Where a thing is to be seen, for "go to it". */
 export function placeOf(world: World, ref: string): Place | null {
-  return pageOf(world, ref).place;
+  return pageOf(world, ref, undefined, true).place;
 }
 
 /**
@@ -245,7 +260,7 @@ export function placeOf(world: World, ref: string): Place | null {
  * its name and its first numbers — its page's, in plain words.
  */
 export function tipOf(world: World, ref: string, lens?: string, names?: NamesArg): Tip {
-  const p = pageOf(world, ref, names),
+  const p = pageOf(world, ref, names, true),
     plain = (l: Line) => l.map((s) => (typeof s === "string" ? s : s.text)).join(""),
     // (A concept is told by what it is, not by the kind of page it has.)
     what = p.kind === "concept" ? p.tabs[0]?.blocks.find((b) => b.type === "text") : undefined;
