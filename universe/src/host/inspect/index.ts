@@ -20,6 +20,7 @@ import { battlePage, realmPageModel, relationPage, starWarPage, warPage } from "
 import { blocPage, envoyPage, leaguePage, matchPage } from "./ties.ts";
 import { busPage, roadPage } from "./road.ts";
 import { askPage } from "./asks.ts";
+import { archivePage, lostPage } from "./lost.ts";
 import { boardPage, dearPage } from "./board.ts";
 import { designPage, faithPage, goodPage, languagePage } from "./culture.ts";
 import { agePage, depositPageModel, lineagePage, platePageModel } from "./life.ts";
@@ -139,6 +140,9 @@ function build(
   if (ref.startsWith("road:")) return roadPage(world, ref);
   // What a town was asked (H1).
   if (ref.startsWith("ask:")) return askPage(world, ref);
+  // A craft lost, and what was kept of it (K1).
+  if (ref.startsWith("lost:")) return lostPage(world, ref);
+  if (ref.startsWith("archive:")) return archivePage(world, ref);
   if (ref.startsWith("bus:")) return busPage(world, ref);
   // A town's case before whoever judges there (J1).
   if (ref.startsWith("case:")) return casePage(world, ref);

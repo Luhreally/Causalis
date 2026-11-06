@@ -1366,6 +1366,22 @@ export function townHomes(
  * docks, an academy's dome, baths, an observatory, a hospital's cross, a factory's saw-teeth and
  * chimneys, a station's long shed and clock, a power station's cooling tower, offices of glass.
  */
+/** Boards across a building no one here can work now, on its street side and its back: seen from over the roofs (K1). */
+function boardedOver(
+  out: TownParts,
+  f: { x: number; z: number; yaw: number; w: number; d: number },
+): void {
+  for (const side of [1, -1])
+    for (const [tilt, y] of [
+      [0.5, 2.2],
+      [-0.5, 2.2],
+      [0, 3.4],
+    ] as const) {
+      const [px, pz] = at(f.x, f.z, f.yaw, 0, (side * f.d) / 2 - side * 0.2);
+      out.put("box", TIMBER, px, y, pz, Math.min(f.w * 0.8, 7), 0.35, 0.3, f.yaw + tilt * 0.3);
+    }
+}
+
 function civicShape(
   out: TownParts,
   kind: string,
@@ -1577,14 +1593,22 @@ function civicShape(
 function standing(
   scene: TownScene,
   t: number,
-): { kind: string; f: { x: number; z: number; yaw: number; w: number; d: number } }[] {
+): {
+  kind: string;
+  shut: boolean;
+  f: { x: number; z: number; yaw: number; w: number; d: number };
+}[] {
   const { plan, lots } = scene,
-    out: { kind: string; f: { x: number; z: number; yaw: number; w: number; d: number } }[] = [];
+    out: {
+      kind: string;
+      shut: boolean;
+      f: { x: number; z: number; yaw: number; w: number; d: number };
+    }[] = [];
   for (const c of plan.civics) {
     if (c.at + c.lots > lots.x.length) continue;
     const m = civicMoments(c);
     if (m.done > t || (m.fell !== null && t >= m.fell)) continue;
-    out.push({ kind: c.kind, f: footprint(lots, c.at, c.lots) });
+    out.push({ kind: c.kind, shut: !!c.shut, f: footprint(lots, c.at, c.lots) });
   }
   return out;
 }
@@ -1596,7 +1620,9 @@ function standing(
  */
 export function civicChimneys(scene: TownScene, t: number): { x: number; y: number; z: number }[] {
   const out: { x: number; y: number; z: number }[] = [];
-  for (const { kind, f } of standing(scene, t)) {
+  for (const { kind, f, shut } of standing(scene, t)) {
+    // (A smithy no one knows how to work now is cold: K1.)
+    if (shut) continue;
     const top = (u: number, v: number, y: number) => {
       const [x, z] = at(f.x, f.z, f.yaw, u, v);
       out.push({ x, y, z });
@@ -1722,7 +1748,15 @@ function civicsPut(scene: TownScene, t: number, out: TownParts, still: boolean):
       ? askedGrown(c.asked, t)
       : Math.min(1, (t - m.began) / Math.max(1, m.done - m.began));
     out.put("box", FOOTING, f.x, 0.1, f.z, f.w - 0.6, 0.2, f.d - 0.6, f.yaw);
-    civicShape(out, c.kind, f, g < 1 ? Math.max(0.05, g) : 1, undefined, still);
+    civicShape(
+      out,
+      c.kind,
+      f,
+      g < 1 ? Math.max(0.05, g) : 1,
+      c.shut ? (k) => darker(k, 0.72) : undefined,
+      still,
+    );
+    if (c.shut && g >= 1) boardedOver(out, f);
     if (g < 1 && c.asked) siteStuff(out, f, g, c.asked.heap, c.asked.stopped);
     if (g < 1) {
       const top = (CIVIC_HIGH[c.kind] ?? 10) * g + (c.asked ? 3 : 1.5);

@@ -37,6 +37,7 @@ import "./possess.ts";
 import "./life.ts";
 import "./reign.ts";
 export { ANSWER_WORD, firstWords, raiseName, raiseThe } from "./asks.ts";
+export { FELL_WORDS, keptWords } from "./lost.ts";
 import "./court.ts";
 import "./held.ts";
 export { WAYS, WAY_WORDS, kept, waysRef, waysWords } from "./culture.ts";

@@ -40,6 +40,7 @@ function waysOf(world: World): { ways?: "swim" | "tunnel" } {
 }
 import { worldLook } from "./biochem.ts";
 import { askedOfCivic, askedOfWalls, firstOfPlan } from "./inspect/asks.ts";
+import { shutFor } from "./inspect/lost.ts";
 import { colonyRemade, colonyTownCell } from "./colony.ts";
 
 /** How long what struck a town is told to its plan: its homes burn a day, and lie in ruin years. */
@@ -222,7 +223,12 @@ export function townPlan(
     civics: [
       ...f.civics
         .filter((c) => c.at + c.lots <= lots)
-        .map((c) => ({ ...c, ...thrownAt(c.fell), ...askedOfCivic(world, ref, c) })),
+        .map((c) => ({
+          ...c,
+          ...thrownAt(c.fell),
+          ...askedOfCivic(world, ref, c),
+          ...(c.fell === null && shutFor(world, cell, c.kind) ? { shut: true } : {}),
+        })),
       ...rimWorks(f, lots),
     ],
     walls:

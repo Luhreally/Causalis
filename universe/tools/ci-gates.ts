@@ -322,6 +322,8 @@ export const GATES: readonly Gate[] = [
   { gate: 101, args: ["--ci"], s: 360 },
   // Gate 102, a town asked (tools/h1-gate.ts): the bar's 🙏 by real touch, who answers and why, the site in the pixels, its page; a young world on CI.
   { gate: 102, args: ["--ci"], s: 300 },
+  // Gate 103, knowledge that can be lost (tools/k1-gate.ts): a land's fall and what goes, an archive pressed where it stands, a craft lost to the world and told; a young world on CI.
+  { gate: 103, args: ["--ci"], s: 300 },
   // Gate 99, a living ecology (tools/e1-gate.ts): woods that move for more than one reason, a lode at its eve, the Forest lens pressed by touch and the land's colour in the pixels, the same world before and after.
   { gate: 99, args: ["--ci"], s: 240 },
   // Gate 100, wild lives (tools/z1-gate.ts): herds on a land's map by real touch, in the pixels, gone in their season; a beast known, its page and song; herds taken in war; the tree going on; an old save run on.

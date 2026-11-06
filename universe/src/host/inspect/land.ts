@@ -2,6 +2,7 @@
 // market and works, its realm, what it knows and what has happened there. A colony's halls
 // and a ship bound for a star are lands too (offworld sites), and a spot of the fine grid
 // and a region open onto the land they are part of.
+import { landLostBlocks } from "./lost.ts";
 import { landRoadsBlock } from "./road.ts";
 import { fireLandStats } from "./fire.ts";
 import { lodesBlock, woodsBlock, woodsTurnsBlock } from "./woods.ts";
@@ -521,6 +522,9 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
     const bonds = landBondBlocks(world, cell);
     if (bonds.length) tabs.push({ id: "bonds", name: "Bonds", blocks: bonds });
   }
+  // What it has lost, and what it still keeps (K1).
+  const lostBlocks = site ? [] : landLostBlocks(world, cell);
+  if (lostBlocks.length) tabs.push({ id: "lost", name: "Lost", blocks: lostBlocks });
   // What they know.
   if (p?.lore.length)
     tabs.push({

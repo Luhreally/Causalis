@@ -15,6 +15,8 @@ import { resolveLevyMan } from "../roll.ts";
 import { holderWounds } from "../wounds.ts";
 import { armsBlock } from "./arm.ts";
 import { foughtFate } from "../held.ts";
+import { lastHandsOf } from "./lost.ts";
+import { principleName } from "../../causal/index.ts";
 import { item, link, sentence, stat, yearNow } from "./words.ts";
 import { landLink, realmLink, townLink } from "./names.ts";
 import { lookOf, woundBlock } from "./wounds.ts";
@@ -31,6 +33,19 @@ const WAR_WORDS: Readonly<Record<Fate, string>> = {
 const OCCUPATION_WORDS = ["child", "forager", "farmer", "herder", "crafter", "trader", "leader"];
 
 /** One of a town's many, by their line's ref: the holder now, or the one who held it (n null). */
+/** One of the last in a falling land who knows a thing, if this is one (K1). */
+function lastHereStat(world: World, cell: number, occupation: number) {
+  const id = lastHandsOf(world, cell, occupation);
+  return id
+    ? [
+        stat("Knows", [
+          "the last here who knows how: ",
+          link(principleName(id, world), `prin:${id}`),
+        ]),
+      ]
+    : [];
+}
+
 export function townsfolkPage(world: World, ref: string): PageModel {
   const parsed = parseTownsfolkRef(ref),
     s = parsed ? populationContext(world).settlements.get(parsed.town as Ref) : undefined;
@@ -166,6 +181,7 @@ export function townsfolkPage(world: World, ref: string): PageModel {
       stat("Age", `${age}`),
       stat("Work", child ? "a child" : (OCCUPATION_WORDS[occupation] ?? "")),
       stat("Home", [townLink(world, s.ref)]),
+      ...(!child && holds ? lastHereStat(world, s.cell, occupation) : []),
     ],
     tabs: [{ id: "overview", name: "Overview", blocks }],
     followable: false,

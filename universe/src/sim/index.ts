@@ -971,3 +971,25 @@ export {
   wildCount,
   type BeastArgs,
 } from "./hand/wild.ts";
+export {
+  FALL_LEAST,
+  GREAT_DEPTH,
+  KEEP_YEARS,
+  LOST_EVENTS,
+  READ_RATE,
+  SONGS_REACH,
+  keeperOf,
+  lostYear,
+} from "./lore/lost.ts";
+export {
+  handsHolding,
+  isHive,
+  lostOf,
+  needOfHands,
+  type Archive,
+  type CraftBack,
+  type KeepForm,
+  type LostCraft,
+  type LostWhy,
+  type WorldLoss,
+} from "./lore/lost-store.ts";

@@ -102,6 +102,8 @@ export type Principle = {
   readonly asks?: readonly string[];
   /** A law of the universe it asks besides (Phase 68): shut, it is never found, whatever the world's matter. */
   readonly law?: "lanes";
+  /** What only having lived through a thing opens (K1): found by a land that came through it, taught by it to others. */
+  readonly seen?: "quake" | "dry";
 };
 
 /**
@@ -1350,6 +1352,32 @@ export const LAW_TREE: readonly Principle[] = [
   },
 ];
 
+/**
+ * What a people comes to only by having lived through it (K1): the rate is nothing, for no one sits down and finds these.
+ * What they bring is what any craft brings: fewer dead, more kept.
+ */
+export const SEEN_TREE: readonly Principle[] = [
+  {
+    id: "riding-the-shaking",
+    name: "building to ride the shaking",
+    needs: ["cultivation"],
+    rate: 0,
+    drivers: { crafters: 1 },
+    effects: { health: 0.03, building: 0.1 },
+    seen: "quake",
+  },
+  {
+    id: "dry-year-keeping",
+    name: "keeping against the dry years",
+    needs: ["cultivation"],
+    rate: 0,
+    drivers: { farmers: 1 },
+    effects: { storage: 2 },
+    body: { media: ["land", "shore"] },
+    seen: "dry",
+  },
+];
+
 export const PRINCIPLES: readonly Principle[] = [
   ...TREE,
   ...KIND_TREE,
@@ -1357,6 +1385,7 @@ export const PRINCIPLES: readonly Principle[] = [
   ...MEANS_TREE,
   ...HEAT_TREE,
   ...LAW_TREE,
+  ...SEEN_TREE,
 ].map((p) => {
   const q = ASKS[p.id] ? { ...p, body: ASKS[p.id] } : p,
     r = q.needs.some((n) => n.includes("@")) ? { ...q, needs: q.needs.map(expand) } : q;
@@ -1366,6 +1395,44 @@ export const PRINCIPLES: readonly Principle[] = [
 export const PRINCIPLE_INDEX: ReadonlyMap<string, number> = new Map(
   PRINCIPLES.map((p, i) => [p.id, i]),
 );
+
+/**
+ * How deep a principle lies (K1): the shortest road down to a root through what it needs, each step one more
+ * thing that must already be held for it to be held.
+ */
+export const PRINCIPLE_DEPTH: ReadonlyMap<string, number> = (() => {
+  const depth = new Map<string, number>();
+  const of = (id: string, seen: ReadonlySet<string>): number => {
+    const had = depth.get(id);
+    if (had !== undefined) return had;
+    const i = PRINCIPLE_INDEX.get(id);
+    if (i === undefined || seen.has(id)) return 0;
+    const on = new Set(seen).add(id);
+    let most = 0;
+    for (const need of PRINCIPLES[i]!.needs) {
+      let least = Infinity;
+      for (const x of need.split("|")) least = Math.min(least, of(x, on) + 1);
+      if (least !== Infinity) most = Math.max(most, least);
+    }
+    depth.set(id, most);
+    return most;
+  };
+  for (const p of PRINCIPLES) of(p.id, new Set());
+  return depth;
+})();
+
+/** Those that stand on each principle: each one a land holds only while it holds what it needs. */
+export const RESTS_ON: ReadonlyMap<string, readonly Principle[]> = (() => {
+  const on = new Map<string, Principle[]>();
+  for (const p of PRINCIPLES)
+    for (const n of p.needs)
+      for (const x of n.split("|")) {
+        const list = on.get(x);
+        if (list) list.push(p);
+        else on.set(x, [p]);
+      }
+  return on;
+})();
 
 /** A principle by id. */
 export function principle(id: string): Principle {
