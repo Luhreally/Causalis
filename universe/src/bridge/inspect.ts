@@ -51,6 +51,17 @@ export type Item = {
   readonly year?: number;
   /** A small picture beside it (Phase 54 M223): the stone, the ore, the metal, the tool itself. */
   readonly thumb?: Portrait;
+  /** How it stands (F5): had, could be had, or never will be. Its colour says so at a glance. */
+  readonly tone?: Tone;
+};
+
+/** How a step stands on a world (F5). */
+export type Tone = "have" | "open" | "shut";
+/** One world's cell of two side by side (F5): what it comes to, and why. */
+export type SideCell = {
+  readonly tone: Tone;
+  readonly line: Line;
+  readonly why?: Line;
 };
 
 /** A row of a table: its cells, the page it opens, and what to sort each column by. */
@@ -210,6 +221,20 @@ export type Block =
         readonly a: number;
         readonly b: number;
         readonly words: readonly [string, string];
+      }[];
+    }
+  /**
+   * Two worlds side by side (F5): their names, then each row's label across both and a cell of each,
+   * `parts` marking where they differ. Words in two columns that a phone's width holds.
+   */
+  | {
+      readonly type: "sides";
+      readonly title?: string;
+      readonly names: readonly [Line, Line];
+      readonly rows: readonly {
+        readonly label: string;
+        readonly parts: boolean;
+        readonly cells: readonly [SideCell, SideCell];
       }[];
     }
   /**
@@ -524,6 +549,7 @@ export type Portrait =
 
 export type PageKind =
   | "means"
+  | "can"
   | "measure"
   | "land"
   | "spot"

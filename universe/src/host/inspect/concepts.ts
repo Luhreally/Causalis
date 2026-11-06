@@ -439,6 +439,7 @@ export const CONCEPTS: Readonly<Record<string, Concept>> = {
     ],
     see: [
       { text: "What it can do", ref: "world:means" },
+      { text: "What can be done here, and what shuts the rest", ref: "world:can" },
       { text: "The ages compared", ref: "world:chronicle#ages" },
       { text: "A fusion flame", ref: "prin:fusion-power" },
       { text: "Towers from shore to shore", ref: "prin:world-city" },

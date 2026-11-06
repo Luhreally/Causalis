@@ -241,7 +241,9 @@ export {
   type Span,
   type Stat,
   type Tab,
+  type SideCell,
   type Tip,
+  type Tone,
 } from "./inspect.ts";
 export type {
   ClusterPlan,

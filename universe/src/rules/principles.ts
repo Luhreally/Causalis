@@ -115,18 +115,28 @@ export function needsMet(
   return p.needs.every((n) => (n.includes("|") ? n.split("|").some(knows) : knows(n)));
 }
 
-/** Whether a body can come to know a principle, at the heat its land can reach: true no limit, false none, or °C. */
+/** What in a body or its heat keeps it from a principle, at the heat its land can reach (true no limit, false none, or °C); null: nothing does (F5). */
+export function bodyStop(
+  p: Principle,
+  medium: Medium,
+  reach: number | boolean,
+  wants?: Readonly<Record<string, number>>,
+): "heat" | "burns" | "medium" | null {
+  const heat = p.body?.heat === undefined ? undefined : (wants?.[p.id] ?? p.body.heat);
+  if (heat !== undefined && !(reach === true || (typeof reach === "number" && reach >= heat)))
+    return "heat";
+  if (p.body?.burns && reach !== true) return "burns";
+  return !p.body?.media || p.body.media.includes(medium) ? null : "medium";
+}
+
+/** Whether a body can come to know a principle: `bodyStop`'s yes or no, so the two cannot disagree. */
 export function affordsPrinciple(
   p: Principle,
   medium: Medium,
   reach: number | boolean,
   wants?: Readonly<Record<string, number>>,
 ): boolean {
-  const heat = p.body?.heat === undefined ? undefined : (wants?.[p.id] ?? p.body.heat);
-  if (heat !== undefined && !(reach === true || (typeof reach === "number" && reach >= heat)))
-    return false;
-  if (p.body?.burns && reach !== true) return false;
-  return !p.body?.media || p.body.media.includes(medium);
+  return bodyStop(p, medium, reach, wants) === null;
 }
 
 const P = (

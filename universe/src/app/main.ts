@@ -6,6 +6,7 @@ import "./styles.css";
 import "./y2k.css";
 import "./brushes.css";
 import "./tour.css";
+import "./can.css";
 import { Checkpoint } from "./checkpoint.ts";
 import { HostClient, LOT, inlinePair, lotStates, progress, workerPort } from "../bridge/index.ts";
 import {

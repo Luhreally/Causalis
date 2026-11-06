@@ -9,8 +9,10 @@ import { Rng, type Seed } from "../kernel/index.ts";
 import {
   clusterStars,
   foreignPlanets,
+  functionsOf,
   generateHomeWorld,
   makeGalaxy,
+  meansNumbers,
   surfaceOre,
   type GalaxyStar,
   type HomeWorld,
@@ -31,7 +33,7 @@ import {
   longestCrossing,
   matterShuts,
   meansOfAge,
-  needsMet,
+  openSteps,
   principleNameOn,
   reachIn,
   readFunctions,
@@ -43,6 +45,8 @@ import {
   worldOre,
   type AgeWorld,
   type Bodylike,
+  type CanWorld,
+  type LandStop,
   type Principle,
   type Prior,
 } from "../rules/index.ts";
@@ -143,16 +147,18 @@ function oreOpen(
   return false;
 }
 
-/** The land's own driver a principle waits on, where it is the land, not who lives there. */
-function driverOpen(l: Lands, p: Principle, knows: (id: string) => boolean): boolean {
+/** What a people's own lands say of a principle: the ground, not who lives there (null: they stop nothing). */
+function landStop(l: Lands, p: Principle, knows: (id: string) => boolean): LandStop | null {
   const d = p.drivers;
-  if (d.river && !l.river) return false;
-  if (d.coast && !l.coast) return false;
-  if (d.hills && !l.hills) return false;
+  if (d.river && !l.river) return { on: "river" };
+  if (d.coast && !l.coast) return { on: "coast" };
+  if (d.hills && !l.hills) return { on: "hills" };
   // (A stand-in, open where any land of theirs has none of what it stands in for: F4.)
   if (l.w.means && !turnsAside(d, l.w.means, (o) => l.cells.every((c) => l.ore(o).has(c))))
-    return false;
-  return !d.ore || oreOpen(l, d.ore, knows, p.id);
+    return { on: "aside", lacks: d.lacks! };
+  return d.ore && !oreOpen(l, d.ore, knows, p.id)
+    ? { on: "ore", ore: d.ore, lies: l.ore(d.ore).size > 0 }
+    : null;
 }
 
 /**
@@ -162,30 +168,45 @@ function driverOpen(l: Lands, p: Principle, knows: (id: string) => boolean): boo
 const reachOf = (l: Lands, knows: (id: string) => boolean) =>
   l.w.means ? reachIn(l.w.means, knows) : l.w.fire;
 
+/** A world and its people's lands, as the tree of what can be done reads them (rules/can.ts, F5). */
+function canOf(l: Lands, sows: boolean, lanes: boolean): CanWorld {
+  const g = l.g;
+  return {
+    numbers: meansNumbers(g),
+    means: l.w.means!,
+    chem: l.w.chem,
+    functions: functionsOf(g),
+    medium: l.w.medium,
+    fire: l.w.fire,
+    lanes,
+    peopled: !!g.life.people,
+    sows,
+    orbitKms: toOrbit(g.system.bodies[0]!).total,
+    ...(l.w.noGrip ? { noGrip: l.w.noGrip } : {}),
+    land: (p, knows) => landStop(l, p, knows),
+    copper: (knows) =>
+      oreOpen(l, "copper", knows, "metalworking")
+        ? null
+        : { on: "ore", ore: "copper", lies: l.ore("copper").size > 0 },
+  };
+}
+
 /** What a people of these lands could come to know, given time: every principle open to them. */
 function openTo(l: Lands, sows: boolean): Set<string> {
-  const known = new Set<string>(sows ? ["cultivation"] : []),
-    knows = (id: string) => known.has(id),
-    { medium, fire } = l.w;
-  // (What needs nothing but the older systems: fishing, herding and the rest are open to any.)
-  for (let changed = true; changed;) {
-    changed = false;
-    if (!known.has("metalworking") && fire && oreOpen(l, "copper", knows, "metalworking")) {
-      known.add("metalworking");
-      changed = true;
-    }
-    for (const p of PRINCIPLES) {
-      if (known.has(p.id) || p.rate <= 0) continue;
-      if (!affordsPrinciple(p, medium, reachOf(l, knows), l.w.means?.wants) || !needsMet(p, knows))
-        continue;
-      if (matterShuts(p, l.w.functions ?? [])) continue;
-      if (!driverOpen(l, p, knows)) continue;
-      known.add(p.id);
-      changed = true;
-      if (METAL_ROOTS.includes(p.id)) known.add("metalworking");
-    }
-  }
-  return known;
+  return openSteps(canOf(l, sows, true));
+}
+
+/**
+ * A world as the tree of what can be done reads it, from a people's lands: the lands they stand on now and
+ * those their first bands reach. No years run, nothing touched.
+ */
+export function canWorldOf(g: ProvinceWorld, cells: readonly number[], lanes: boolean): CanWorld {
+  const w = ageWorldOf(g);
+  return canOf(
+    landsOf(g, cells, w),
+    cells.some((c) => capacity(g, c, w.medium).farm > 0),
+    lanes,
+  );
 }
 
 /** Why a principle will never be found here: the first thing on the road back to it that is shut. */

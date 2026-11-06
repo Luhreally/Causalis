@@ -1,0 +1,138 @@
+/* What can be done here (F5): a line's colour says at a glance whether a people has it, could, or never will. */
+.page-window .entry.tone-have,
+.page-window .entry.tone-open,
+.page-window .entry.tone-shut {
+  min-height: 44px;
+  padding: 6px 8px 6px 10px;
+  border-left: 5px solid;
+  border-radius: 2px;
+}
+.page-window .entry.tone-have {
+  border-left-color: #2e8b57;
+  background: rgba(46, 139, 87, 0.16);
+}
+.page-window .entry.tone-open {
+  border-left-color: #c9921f;
+  background: rgba(201, 146, 31, 0.13);
+}
+.page-window .entry.tone-shut {
+  border-left-color: #c23b3b;
+  background: rgba(194, 59, 59, 0.16);
+}
+
+/* Two worlds side by side: a row's label across both, then their two cells. */
+.sides {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sides-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 2px 0;
+  background: rgba(16, 28, 72, 0.92);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 4px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.sides-row {
+  border-left: 3px solid transparent;
+  padding-left: 3px;
+}
+.sides-row.parts {
+  border-left-color: #6a4bc4;
+}
+.sides-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+.sides-cells {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 4px;
+}
+.sides-cell {
+  min-width: 0;
+  padding: 5px 6px;
+  border-top: 4px solid;
+  border-radius: 2px;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+.sides-cell.have {
+  border-top-color: #2e8b57;
+  background: rgba(46, 139, 87, 0.18);
+}
+.sides-cell.open {
+  border-top-color: #c9921f;
+  background: rgba(201, 146, 31, 0.15);
+}
+.sides-cell.shut {
+  border-top-color: #c23b3b;
+  background: rgba(194, 59, 59, 0.2);
+}
+.sides-big {
+  display: block;
+  font-weight: 600;
+}
+.sides-why {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.75rem;
+  opacity: 0.86;
+}
+
+/* The pick. */
+.can-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.can-type {
+  display: flex;
+  gap: 4px;
+  align-items: stretch;
+  max-width: 100%;
+}
+.can-universe {
+  display: flex;
+  gap: 2px;
+  flex: none;
+}
+.can-u {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 4px;
+  opacity: 0.55;
+}
+.can-u.on {
+  opacity: 1;
+  outline: 2px solid #6a4bc4;
+  outline-offset: -2px;
+}
+.can-seed {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  font-size: 16px;
+}
+.can-go {
+  flex: none;
+  min-height: 44px;
+  padding: 0 8px;
+}
+.can-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.can-chip {
+  min-height: 44px;
+  padding: 0 10px;
+}

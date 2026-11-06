@@ -185,6 +185,16 @@ export function meansPage(world: World, tab?: string): PageModel {
       stat(MEASURES[m.id].name, [link(m.words, measureRef(m.id))]),
     );
   const here: Block[] = [
+    {
+      type: "list",
+      items: [
+        {
+          tone: "open",
+          line: [link("🪜 What can be done here, and what shuts the rest", "world:can")],
+          ref: "world:can",
+        },
+      ],
+    },
     ...(lands.length
       ? []
       : [

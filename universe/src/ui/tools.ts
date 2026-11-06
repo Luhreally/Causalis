@@ -3,6 +3,7 @@
 // names its tools; they are drawn here, and each asks twice before it acts (what it will do,
 // then "confirm"), because what follows is history's.
 import type { HostClient, Leader } from "../bridge/index.ts";
+import { drawCanPick } from "./can-pick.ts";
 import { drawLeaderCard, drawWealthCompare } from "./leaders.ts";
 import { el } from "./why.ts";
 import { WAY_CHOICES } from "./palette.ts";
@@ -195,6 +196,9 @@ export function drawTool(
   ctx: ToolContext,
 ): void {
   switch (tool) {
+    case "can.pick":
+      drawCanPick(into, args, ctx);
+      return;
     case "acts.land": {
       const hand = new HandView(ctx.client);
       hand.onWhy = (ref) => ctx.open(ref);

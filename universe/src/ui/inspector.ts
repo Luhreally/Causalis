@@ -313,6 +313,8 @@ export class PageWindow {
     this.page = page;
     this.seen = JSON.stringify({ ...page, year: 0 });
     if (fresh) {
+      // (A long page to read: it opens tall on a phone.)
+      if (page.kind === "can" && innerWidth <= 640) this.inspector.classList.add("tall");
       this.tab = page.tab ?? page.tabs[0]?.id ?? "";
       this.opened = new Set();
       this.openStat = null;
@@ -844,6 +846,28 @@ export class PageWindow {
         box.append(tree);
         break;
       }
+      case "sides": {
+        // Two worlds side by side (F5): a row's label across both, then their two cells.
+        const sides = el("div", "sides"),
+          head = el("div", "sides-head");
+        head.append(this.line(b.names[0]), this.line(b.names[1]));
+        sides.append(head);
+        for (const r of b.rows) {
+          const row = el("div", r.parts ? "sides-row parts" : "sides-row"),
+            cells = el("div", "sides-cells");
+          row.append(el("div", "sides-label", r.label));
+          for (const c of r.cells) {
+            const cell = el("div", `sides-cell ${c.tone}`);
+            cell.append(this.line(c.line, "sides-big"));
+            if (c.why) cell.append(this.line(c.why, "sides-why"));
+            cells.append(cell);
+          }
+          row.append(cells);
+          sides.append(row);
+        }
+        box.append(sides);
+        break;
+      }
       case "phylo":
         // A tree of life (Phase 17 M129): each line's name opens its page.
         box.append(
@@ -952,7 +976,10 @@ export class PageWindow {
   }
 
   private item(item: Item): HTMLElement {
-    const row = el("div", item.ref ? "line entry" : "entry");
+    const row = el(
+      "div",
+      `${item.ref ? "line entry" : "entry"}${item.tone ? ` tone-${item.tone}` : ""}`,
+    );
     if (item.thumb) row.append(thumbOf(item.thumb));
     row.append(this.line(item.line));
     if (item.ref) {
