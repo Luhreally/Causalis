@@ -732,6 +732,79 @@ if (ring) {
 const after = JSON.stringify(await ask<unknown>("hashes"));
 check(before === after, "the lens or a person's page moved a hash");
 
+// One lived as, and another under the hand: their own pages. (Taking a body is what moves history: it comes after the hashes.)
+{
+  await goDown(town.ref);
+  const homes = await ask<{ n: number; state: string; people: number }[]>("home.survey", {
+      town: town.ref,
+    }),
+    lived = homes.find((s) => s.state === "stands" && s.people > 0);
+  if (lived) {
+    const why = await k<string | null>(
+      `globalThis.causalis.home.open(${JSON.stringify({ town: town.ref, n: lived.n })})`,
+    );
+    check(!why, `their home did not open: ${why}`);
+    await until("its roof lifted", async () => {
+      const s = await k<{ lifted: boolean; flying: boolean } | null>(
+        "globalThis.causalis.home.state()",
+      );
+      return !!s && s.lifted && !s.flying;
+    });
+    await page.waitForTimeout(slow(300));
+    const one = (
+      await k<{ kind: string; x: number; y: number }[]>("globalThis.causalis.home.spots()")
+    ).find((s) => s.kind === "person" && s.y > 180 && s.y < 800);
+    if (one) {
+      await page.touchscreen.tap(one.x, one.y);
+      await until("their sheet", () => k<boolean>(`!document.querySelector(".home-who").hidden`));
+      await press(".home-live");
+      await until(
+        "their life",
+        () => k<boolean>(`document.body.classList.contains("living")`),
+        slow(90000),
+      );
+      await page.waitForTimeout(slow(1200));
+      const life = await k<{ agent: number; purse: number } | null>(
+        "globalThis.causalis.life.state()",
+      );
+      check(!!life, "no life is being lived");
+      if (life) {
+        const text = await openPage(`agent:${life.agent}`, "lived-page");
+        saysLiving(text, "the page of one lived as");
+        // (What it says they pay, and the sum under it, are one number.)
+        check(
+          !/To live there\s*Nothing/i.test(text) || !/, and [\d.,]+ of rent/.test(text),
+          `one lived as pays nothing and pays rent: ${text.slice(text.search(/To live there/i), text.search(/To live there/i) + 300)}`,
+        );
+        const purse = /In the purse\s*([\d,]+) coin/i.exec(text);
+        check(
+          !!purse,
+          `one lived as has no purse on their page: ${text.slice(Math.max(0, text.search(/Their home/i) - 80), text.search(/Their home/i) + 900)}`,
+        );
+        if (purse) {
+          const said = Number(purse[1]!.replace(/,/g, ""));
+          say(`one lived as: ${said} in the purse, ${Math.round(life.purse)} on their strip`);
+          check(
+            Math.abs(said - life.purse) <= Math.max(2, life.purse * 0.05),
+            `their page says ${said} in the purse, their strip ${life.purse}`,
+          );
+        }
+        await closePage();
+        // Another under the hand, of the same town: their own page, with no purse of theirs to read.
+        const other = (
+          await k<{ ref: string; child: boolean }[]>("globalThis.causalis.planNow().people")
+        ).find((p) => p.ref.startsWith("agent:") && p.ref !== `agent:${life.agent}` && !p.child);
+        if (other) {
+          const theirs = await openPage(other.ref, "hand-page");
+          saysLiving(theirs, "the page of one under the hand");
+          check(!/In the purse/i.test(theirs), "one not lived as has a purse");
+          await closePage();
+        } else say("no other under the hand is drawn");
+      }
+    } else say("no one in at this hour, to live as");
+  } else say("no home with anyone in it, to live as");
+}
+
 // A water people's town, a far save given (or nothing on CI).
 if (alienFile) {
   const alien = fromFile(alienFile, "alien"),

@@ -103,6 +103,13 @@ export class TownMoneyLayer {
     return best;
   }
 
+  /** How far from the town's middle its homes reach, in the world's units. */
+  reach(): number {
+    let most = 0;
+    for (const h of this.homes) most = Math.max(most, h.x * h.x + h.z * h.z);
+    return Math.sqrt(most) * M;
+  }
+
   /** Where the homes stand on the screen, those on it (the look tools). */
   spots(most = 400): { n: number; x: number; y: number; colour: number }[] {
     const cam = this.stage.camera.camera!,

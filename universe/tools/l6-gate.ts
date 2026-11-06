@@ -545,11 +545,16 @@ say(
   `poor: ${poorC.colours} colours, ${(poorC.bright * 100).toFixed(1)}% bright; rich: ${richC.colours} colours, ${(richC.bright * 100).toFixed(1)}% bright; ${(parted * 100).toFixed(0)}% of the shot differs`,
 );
 check(parted > 0.15, `a poor home and a rich one are alike in the shot: ${parted}`);
-if (rich.coin > poor.coin * 8 && rich.rooms > poor.rooms)
+if (rich.coin > poor.coin * 8 && rich.rooms > poor.rooms) {
   check(
-    richC.colours >= poorC.colours + 3,
-    `a rich home shows ${richC.colours} colours, a poor one ${poorC.colours}`,
+    (richState?.things.length ?? 0) >= (poorState?.things.length ?? 0) + 5,
+    `a rich home holds ${richState?.things.length} things, a poor one ${poorState?.things.length}`,
   );
+  check(
+    richC.bright >= poorC.bright + 0.05,
+    `a rich home is ${richC.bright} strongly coloured, a poor one ${poorC.bright}`,
+  );
+}
 
 // The paths nobody watches.
 // (A ruin and a ruler's home, wherever in the world they are.)

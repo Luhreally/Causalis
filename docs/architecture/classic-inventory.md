@@ -74,7 +74,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 132 Cradle | The widowed love again; towns keep bearing children | **n/a** | A birth-rate fix. Universe's births come from life tables |
 | 141 Settled intent | The inspector shows what a life is steadily doing, not each tick's flicker | **n/a** | Universe's day is a pure function of time, so nothing flickers |
 | 146 Steady steps | Walkers don't step straight back | **n/a** | A walking fix for Classic's agents |
-| 148 Address | Where a person lives: the home, its owner, the rent, the household | **partial** | A home's page says whose it is, who lives there, what they pay and to whom, its size, age and what it was before (`host/inspect/home.ts`). Missing: a person's own page does not yet lead to it, and rent has no law behind it |
+| 148 Address | Where a person lives: the home, its owner, the rent, the household | **partial** | A home's page says whose it is, who lives there, what they pay and to whom, its size, age and what it was before (`host/inspect/home.ts`). A person's page leads to it (L6, second slice), for all but those past the homes a town draws. Missing: rent has no law behind it |
 | 152 Conversation | Mood, stress, loneliness and standing; what people say to each other | **partial** | Rings of talk, hot words and brawls where grievance runs high (`view/village.ts`). Missing: mood kept for each person and passed between people |
 | 153 First aid | Helpers chosen by kin, clinic care, field medics | **partial** | Healers spare a share of the sick (`sim/health/health.ts`); brigades turn out when the god strikes a town (Phase 42). Missing: carers for the hurt, clinics for wounds, field medics |
 
@@ -151,7 +151,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 89 Markets & coin | Price boards, specialties, treasuries; coin buys grain and hands | **partial** | Prices that follow scarcity (`sim/economy/market.ts`); currency is known as a principle. Missing: coin, treasuries, price boards, specialties |
 | 100 Blocs & loans | An alliance-blocs lens; loans between treasuries | **partial** | Houses of lending, war loans, defaults and jubilees (`sim/credit/credit.ts`, Phase 21). Missing: a blocs lens |
 | 101 Finery & tithe | The well-off want worked goods; a heavy tithe in war | **partial** | A grain tithe sent to the seat (`sim/polity/polity.ts`). Missing: demand for finery, a war tithe |
-| 145 Wages | Hands paid for the time they work; rent follows the pay | **partial** | A year of each kind of work is valued, and people move toward the work that pays (`sim/economy/systems.ts`). Missing: wages paid to people, and rent |
+| 145 Wages | Hands paid for the time they work; rent follows the pay | **partial** | A year of each kind of work is valued, and people move toward the work that pays (`sim/economy/systems.ts`). A person's page reads what a day's work brings, what it buys, their rent and what is left (L6, second slice). Missing: wages and rent moved through history |
 
 ## Politics, diplomacy & law
 
@@ -237,7 +237,7 @@ Universe paths are relative to `universe/src/`. Keep one thing in mind: Universe
 | 123 World signatures | Climate, culture and lineage shape cars, buildings, canopies | **in** | Designs by land and body (`sim/design/design.ts`); each people's look made of their world (`host/folk.ts`, `view/folk.ts`, Phase 34) |
 | 139 Follow a life | The camera keeps a life in the middle | **in** | `followPerson` in `app/main.ts`; the camera eases after them (`render/orbit.ts`) |
 | 140 Map lenses | Twenty-six lenses in groups, with edges drawn | **in** | `view/globe.ts`, `host/lenses.ts` (Phase 12) |
-| 144 Homes view | A lens of who owns or rents each home; the people with no bed | **missing** | There is no tenure to show (see 121) |
+| 144 Homes view | A lens of who owns or rents each home; the people with no bed | **partial** | 💰 in a town shows what each home has to spend and who owns or rents, by the law of land (L6, second slice). Missing: the people with no bed |
 | 156 Panel memory | Panels keep their scroll and open sections | **n/a** | UI plumbing |
 | 157 Camera fit | A new world fills the screen | **n/a** | UI plumbing |
 | 158 Trends | One small chart per measure, with years and values | **in** | `ui/chart.ts`, `host/inspect/stats.ts` |

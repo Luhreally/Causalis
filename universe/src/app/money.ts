@@ -4,7 +4,7 @@
 import "./money.css";
 import type { HomeMoney, HostClient, VillagePlan } from "../bridge/index.ts";
 import { MONEY_RAMP, tenureWords } from "../view/index.ts";
-import type { VillageScene } from "../render/index.ts";
+import type { OrbitRig, VillageScene } from "../render/index.ts";
 import type { PageWindow, VillagePanel } from "../ui/index.ts";
 import type { Stage } from "../render/index.ts";
 
@@ -13,6 +13,7 @@ export type MoneyDeps = {
   readonly hud: HTMLElement;
   readonly client: HostClient;
   readonly village: VillageScene;
+  readonly rig: OrbitRig;
   readonly pages: PageWindow;
   readonly panel: VillagePanel;
   readonly plan: () => VillagePlan | null;
@@ -28,6 +29,8 @@ export type MoneyFlow = {
 };
 
 const coin = (n: number) => Math.round(n).toLocaleString("en-US");
+/** How far back the eye stands from a ring of homes, against how far they reach. */
+const RING_EYE = 1.9;
 
 export function installMoney(d: MoneyDeps): MoneyFlow {
   const ui = document.createElement("div"),
@@ -57,7 +60,13 @@ export function installMoney(d: MoneyDeps): MoneyFlow {
     data: HomeMoney | null = null,
     watching: (() => void) | null = null,
     drawnMs = 0,
-    shown = 0;
+    shown = 0,
+    /** Where the eye stood before it stood back to see a ring of homes (null: it stayed). */
+    stood: { distance: number; target: { x: number; y: number; z: number } } | null = null;
+
+  const taken = (): boolean =>
+    d.scale() !== "village" ||
+    /\b(possessing|living|ruling|filming)\b/.test(document.body.className);
 
   const off = (): void => {
     on = false;
@@ -68,6 +77,9 @@ export function installMoney(d: MoneyDeps): MoneyFlow {
     d.panel.moneyOn = false;
     watching?.();
     watching = null;
+    // (Back where it stood, unless something else has the eye now.)
+    if (stood && !taken()) d.rig.flyTo({ target: stood.target, distance: stood.distance }, 0.5);
+    stood = null;
   };
 
   const read = async (): Promise<void> => {
@@ -83,6 +95,13 @@ export function installMoney(d: MoneyDeps): MoneyFlow {
     data = got;
     shown = got ? d.village.moneyShow(got, d.now()) : 0;
     drawnMs = performance.now() - t0;
+    // (A town with no fabric of lots keeps its homes in a ring about a wide ground: the eye stands back until they are in sight.)
+    const reach = shown && !plan.town ? d.village.moneyReach() * RING_EYE : 0;
+    if (reach > d.rig.distance && !stood) {
+      const t = d.rig.target;
+      stood = { distance: d.rig.distance, target: { x: t.x, y: t.y, z: t.z } };
+      d.rig.flyTo({ target: { x: 0, y: 0, z: 0 }, distance: reach }, 0.7);
+    }
     if (!got || !shown) {
       low.textContent = "No home stands here to reckon";
       high.textContent = "";
@@ -105,11 +124,7 @@ export function installMoney(d: MoneyDeps): MoneyFlow {
     d.panel.moneyOn = true;
     // (Only while it is on: leaving the town, or taking a body or a film up, puts it away.)
     watching = d.stage.onUpdate(() => {
-      if (
-        d.scale() !== "village" ||
-        /\b(possessing|living|ruling|filming)\b/.test(document.body.className)
-      )
-        off();
+      if (taken()) off();
     });
     void read();
   };

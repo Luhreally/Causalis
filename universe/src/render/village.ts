@@ -1516,6 +1516,9 @@ export class VillageScene {
     this.moneyLayer.show(homes, [...MONEY_RAMP, MONEY_RUIN], MONEY_LET);
     return homes.length;
   }
+  moneyReach(): number {
+    return this.moneyLayer.reach();
+  }
   moneyClear(): void {
     this.moneyLayer.clear();
   }

@@ -8737,6 +8737,7 @@ async function runPlanetPage(): Promise<void> {
     hud,
     client,
     village,
+    rig,
     pages: pageWindow,
     panel: villagePanel,
     plan: () => (scale === "village" ? plan : null),

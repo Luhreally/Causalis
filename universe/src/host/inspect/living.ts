@@ -112,7 +112,14 @@ function livedRows(world: World, l: PersonLiving): Stat[] {
         : [", ", townLink(world, r.plan.ref)]),
     ]),
     stat("A day's work", work),
-    stat("To live there", paysLine(world, l, f.noHouses)),
+    stat(
+      "To live there",
+      l.purse === null
+        ? paysLine(world, l, f.noHouses)
+        : day.rent > 0
+          ? `${coinWords(day.rent)} coin a day, out of their purse.`
+          : "Nothing: the home is their own.",
+    ),
     stat("What is left", [`${from} ${eats}${rentWords}. ${leaves}`]),
     ...(l.purse !== null ? [stat("In the purse", `${count(l.purse)} coin`)] : []),
   ];
