@@ -127,8 +127,12 @@ function forge(
     living = [...realms.living()].sort(
       (a, b) => b.members.length - a.members.length || (a.ref < b.ref ? -1 : 1),
     ),
+    // (One their sheet offers: a truce or an oath can bar the only neighbour a realm has.)
     fit = (p: Polity) =>
-      near(p).some((q) => frontier(ctx, p, q).length > 0 && !wars.between(p.ref, q.ref)),
+      near(p).some((q) => frontier(ctx, p, q).length > 0 && !wars.between(p.ref, q.ref)) &&
+      (u.queries["reign.wars"]!(world, { realm: p.ref }) as ReignWars).foes.some(
+        (x) => x.can && x.aims.length > 0,
+      ),
     // (One by birth, ruling alone, is answered at once: one by others' leave is read in step 1.)
     // (Those by birth, ruling alone, are answered at once: one by others' leave is the old one, read in step 7.)
     alone = (p: Polity) => mustCarry(p.leadership, p.succession) === 0,
