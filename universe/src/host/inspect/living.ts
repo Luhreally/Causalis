@@ -18,6 +18,7 @@ import {
 } from "../home.ts";
 import { count, link, stat } from "./words.ts";
 import { realmLink, townLink } from "./names.ts";
+import { boardRef, wayRow } from "./board.ts";
 
 const OCC_WORD: Readonly<Record<number, string>> = {
   [OCC.forager]: "a forager",
@@ -144,6 +145,9 @@ function livingBlocks(world: World, ref: string, page: PageModel): Block[] {
     return [
       { type: "tool", tool: "home.look", args: { town: l.r.plan.ref, n: l.r.n } },
       { type: "facts", title, rows: livedRows(world, l) },
+      ...(l.r.plan.native
+        ? []
+        : [wayRow("🏷️", "Its market board", boardRef(l.r.plan.ref), "What things cost here")]),
       {
         type: "text",
         lines: [

@@ -17,6 +17,7 @@ import { landOfRef, landPage, spotPage } from "./land.ts";
 import { agentPage, householdPage, memoryPage, personPage, townPage } from "./settled.ts";
 import { shipPage } from "../starfight.ts";
 import { battlePage, realmPageModel, relationPage, starWarPage, warPage } from "./realm.ts";
+import { boardPage, dearPage } from "./board.ts";
 import { designPage, faithPage, goodPage, languagePage } from "./culture.ts";
 import { agePage, depositPageModel, lineagePage, platePageModel } from "./life.ts";
 import { bodyPage, foreignWorldPage, starPageModel } from "./sky.ts";
@@ -95,6 +96,9 @@ function build(world: World, ref: string, tab: string | null): PageModel {
   if (ref.startsWith("rxn:")) return reactionPage(world, ref);
   if (ref.startsWith("prin:")) return principlePage(world, ref);
   if (ref.startsWith("good:")) return goodKindPage(world, ref);
+  // A town's price board, and where a good is cheap and dear (Markets, first slice).
+  if (ref.startsWith("board:")) return boardPage(world, ref);
+  if (ref.startsWith("dear:")) return dearPage(world, ref);
   if (ref.startsWith("thing:")) return thingPage(world, ref);
   // A tool hung on a smithy's rack, tapped there (Phase 51 M213).
   if (ref.startsWith("made:")) return madePage(world, ref);

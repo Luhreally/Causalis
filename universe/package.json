@@ -107,6 +107,7 @@
     "gate:88": "node tools/phase88-gate.ts",
     "gate:89": "node tools/phase89-gate.ts",
     "gate:90": "node tools/phase90-gate.ts",
+    "gate:92": "node tools/phase92-gate.ts",
     "chem-survey": "node tools/chem-survey.ts",
     "diversity": "node tools/diversity.ts 100 900"
   },

@@ -36,9 +36,14 @@ import type { Block, Item, PageModel, PortCaller, PortPlan, Stat } from "../brid
 import { realmColor } from "./colors.ts";
 import { peopleWords as bigWords } from "./filling.ts";
 import type { QueryHandler } from "./host.ts";
+import { goodCoin } from "./inspect/board.ts";
+import { coinWords } from "./inspect/living.ts";
 import { count, item, link, many, stat, yearNow } from "./inspect/words.ts";
 
 const ONE = (n: number) => n.toFixed(n >= 100 ? 0 : 1);
+/** A price as a market board says it (Markets, first slice: one reading, one number). */
+const COIN = (world: World, price: number, good: number): string =>
+  `${coinWords(goodCoin(world, price, good))} coin`;
 const pct = (cover: number) => `${Math.round(cover / 10)}%`;
 
 /** Where a land is, in words. */
@@ -129,7 +134,7 @@ function didLines(world: World, r: StarRun): string[] {
   }
   for (const { good } of goodsOf(r).slice(0, 2))
     out.push(
-      `${GOODS[good]!.name[0]!.toUpperCase()}${GOODS[good]!.name.slice(1)}: ${ONE(b.prices[good] ?? 0)} there when this opened, ${ONE(m.price[good]!)} now.`,
+      `${GOODS[good]!.name[0]!.toUpperCase()}${GOODS[good]!.name.slice(1)}: ${COIN(world, b.prices[good] ?? 0, good)} there when this opened, ${COIN(world, m.price[good]!, good)} now.`,
     );
   out.push(`It held ${bigWords(b.people)} when this opened, and holds ${bigWords(people)} now.`);
   const lost = r.lost.reduce((n, x) => n + x, 0);
@@ -141,7 +146,7 @@ function didLines(world: World, r: StarRun): string[] {
     const left = goodsOf(r)[0];
     if (left)
       out.push(
-        `Since the last ship, in year ${r.lastIn}, ${GOODS[left.good]!.name} stands at ${ONE(m.price[left.good]!)} here, with ${count(m.stock[left.good]!)} left: no one brings more.`,
+        `Since the last ship, in year ${r.lastIn}, ${GOODS[left.good]!.name} stands at ${COIN(world, m.price[left.good]!, left.good)} here, with ${count(m.stock[left.good]!)} left: no one brings more.`,
       );
   }
   return out;
@@ -180,7 +185,7 @@ export function runPage(world: World, ref: string): PageModel {
     gap = (g: number) => (r.before.prices[g] ?? 0) - (r.before.here[g] ?? 0),
     top = [...goodsOf(r)].sort((a, b) => gap(b.good) - gap(a.good))[0],
     short = top
-      ? `${GOODS[top.good]!.name} fetched ${ONE(r.before.prices[top.good] ?? 0)} there, and cost ${ONE(r.before.here[top.good] ?? 0)} here`
+      ? `${GOODS[top.good]!.name} fetched ${COIN(world, r.before.prices[top.good] ?? 0, top.good)} there, and cost ${COIN(world, r.before.here[top.good] ?? 0, top.good)} here`
       : `what it wanted fetched more there than it cost here`,
     stats: Stat[] = [
       stat("Carries", carriedWords(r)),

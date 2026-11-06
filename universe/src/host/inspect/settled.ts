@@ -28,6 +28,7 @@ import { YEAR, yearOfMoment, type Ref, type World } from "../../kernel/index.ts"
 import { FEMALE } from "../../rules/index.ts";
 import type { Block, Item, PageModel, Stat, Tab } from "../../bridge/index.ts";
 import { province, settlementFacts } from "../planet.ts";
+import { boardRef, knownFor, knownLine, wayRow } from "./board.ts";
 import { landEra, landHouse, peopleBody } from "../village.ts";
 import { battleWords, burialWords } from "../burials.ts";
 import { townRoster } from "../roster.ts";
@@ -93,6 +94,9 @@ export function townPage(world: World, ref: string): PageModel {
     stat("Founded", `year ${s.founded}`, { why: s.event }),
     stat("Land", [landLink(world, s.cell)]),
   ];
+  // What it is known for, read from its land's books and its own ground (Markets, first slice).
+  const known = s.population > 0 ? knownFor(world, s.ref) : [];
+  if (known.length) stats.push(stat("Known for", knownLine(known)));
   if (realm) stats.push(stat("Realm", [link(realmName(realm), realm.ref)]), rulerStat(realm));
 
   // How it lives now: fed, at war, its grievance, a battle fought in its land lately.
@@ -207,6 +211,7 @@ export function townPage(world: World, ref: string): PageModel {
         ],
       },
     ];
+    blocks.push(wayRow("🏷️", "Its market board", boardRef(s.ref), "What things cost here"));
     if (now.length) blocks.push({ type: "facts", title: "Now", rows: now });
     // (Its last raid, while what it burned still lies there: played again. W2.)
     const lastRaid = warsOf(world)

@@ -306,6 +306,10 @@ export function rentOf(
   return rentByLaw(lawOfLand(world, cell), level);
 }
 
+/** A person's bread for a day at a market, in coin, by its grain's price: the one reading its board, its homes and their pages share. */
+export const breadCoin = (grainPrice: number): number =>
+  Math.max(0.3, grainPrice / GOODS[G.grain]!.value);
+
 /** What a town's homes are all reckoned from: read once, for one home or for all of them. */
 type TownLedger = {
   readonly price: (good: number) => number;
@@ -322,7 +326,7 @@ function townLedger(world: World, plan: VillagePlan): TownLedger {
     way = cultureOf(world).get(cell)?.traits[WAY.kinship];
   return {
     price,
-    bread: Math.max(0.3, price(G.grain) / GOODS[G.grain]!.value),
+    bread: breadCoin(price(G.grain)),
     madeHead: plan.native ? 4 : landMadeHead(world, cell),
     noHouses: !plan.native && way !== undefined && way < REIGN.noHouses,
     law: plan.native ? null : lawOfLand(world, cell),

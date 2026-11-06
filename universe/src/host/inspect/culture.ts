@@ -28,7 +28,8 @@ import {
   partWords,
   type Part,
 } from "../../rules/index.ts";
-import { armsMade, hostPartWords, hostWords } from "../chain.ts";
+import { armsMade, goodChain, hostPartWords, hostWords } from "../chain.ts";
+import { dearRef, dearTitle, goodCostRows, goodName, wayRow } from "./board.ts";
 import { goodHere, goodRef, howMadeHere, makeUpBlock, weight } from "./matter.ts";
 import { designMatter, realmSeat } from "./ground.ts";
 import { goodYearBlocks } from "./stores.ts";
@@ -414,7 +415,8 @@ export function goodPage(world: World, ref: string): PageModel {
     g = m?.goods.find((x) => x.ref === ref);
   if (!m || !g) throw new Error(`no market good ${ref}`);
   const kind = GOODS[index]!,
-    here = goodHere(world, cell, kind.id);
+    here = goodHere(world, cell, kind.id),
+    chain = goodChain(world, cell, kind.id, yearNow(world));
   return {
     ref,
     kind: "good",
@@ -437,6 +439,7 @@ export function goodPage(world: World, ref: string): PageModel {
           {
             type: "facts",
             rows: [
+              ...goodCostRows(world, cell, index),
               stat("Price", `${g.words} (${g.ratio.toFixed(2)} of its worth)`, { why: ref }),
               stat("Stock", count(g.stock)),
               stat("Made this year", count(g.made)),
@@ -446,6 +449,16 @@ export function goodPage(world: World, ref: string): PageModel {
               ...(m.town ? [stat("Market town", [link(m.town.name, m.town.ref)])] : []),
             ],
           },
+          wayRow("🏷️", dearTitle(goodName(world, index)), dearRef(cell, index)),
+          ...(chain.length
+            ? [
+                {
+                  type: "list" as const,
+                  title: "From the ground to the market",
+                  items: chain.map((l) => item(l)),
+                },
+              ]
+            : []),
           { type: "why", title: "Why its price is what it is", ref },
         ],
       },

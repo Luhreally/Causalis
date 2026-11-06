@@ -221,6 +221,7 @@ export {
   type Alert,
   type Answer,
   type Block,
+  type BoardRow,
   type Breakdown,
   type Habit,
   type Lustre,
