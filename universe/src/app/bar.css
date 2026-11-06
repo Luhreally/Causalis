@@ -18,6 +18,10 @@
 body.palette-off #hud > .people-bar {
   left: 8px;
 }
+/* (A song's or a court's note has the same foot of the screen: it stands over the bar, not under it.) */
+body:has(#hud > .people-bar:not([hidden]):not(.aside)) .sung-note {
+  bottom: calc(76px + var(--safe-bottom));
+}
 .people-bar > * {
   pointer-events: auto;
 }
