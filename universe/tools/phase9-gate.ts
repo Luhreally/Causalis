@@ -255,15 +255,17 @@ console.log("the Phase 9 gate");
     if (way === "in" && (want === "system" || want === "globe"))
       await page.evaluate("globalThis.causalis.rig.pointer = null");
     // (Into a village, not a battle: zoomed in over a battle's mark the eye goes down onto its
-    // field, Phase 37 M186. So with one marked near the middle, aimed at the nearest point of
-    // the screen clear of every mark.)
+    // field, Phase 37 M186, and over a band's camp down among them, Phase 29 M160. So with one
+    // near the middle, aimed at the nearest point of the screen clear of them all.)
     if (way === "in" && want === "village") {
       const aimed = await page.evaluate(() => {
         const k = (globalThis as any).causalis,
           marks: { x: number; y: number }[] = k.battlesOnScreen?.() ?? [],
+          camps: { x: number; y: number }[] = k.campsOnScreen?.() ?? [],
           mid = { x: innerWidth / 2, y: innerHeight / 2 },
           clear = (p: { x: number; y: number }) =>
-            marks.every((m) => Math.hypot(m.x - p.x, m.y - p.y) > 200);
+            marks.every((m) => Math.hypot(m.x - p.x, m.y - p.y) > 200) &&
+            camps.every((m) => Math.hypot(m.x - p.x, m.y - p.y) > 100);
         if (clear(mid)) return { marks: marks.length, moved: 0 };
         for (let r = 40; r < Math.max(innerWidth, innerHeight); r += 40)
           for (let a = 0; a < 16; a++) {
