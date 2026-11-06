@@ -261,6 +261,16 @@ export {
 } from "./town.ts";
 export { Streets, streetDoor } from "./streets.ts";
 export {
+  MOST_STONE_PARTS,
+  memorialParts,
+  memorialsPlaced,
+  partAt,
+  partsOf,
+  type MemorialPart,
+  type StoneMesh,
+  type PlacedMemorial,
+} from "./memorial.ts";
+export {
   CARRIERS,
   CROPS,
   LAND_ACROSS,
@@ -1110,6 +1120,7 @@ export {
   marketScene,
   ringTurn,
   squareNow,
+  sungAt,
   squareScale,
   type SquarePiece,
 } from "./feast.ts";

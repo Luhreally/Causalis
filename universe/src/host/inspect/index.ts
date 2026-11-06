@@ -58,6 +58,7 @@ import { levyManPage, townsfolkPage } from "./townsfolk.ts";
 import { seatPage, withKin } from "./kin.ts";
 import { rulerPage, withLeaderPage } from "./leaders.ts";
 import { courtPage } from "./court.ts";
+import { songPage, stonePage } from "./memory.ts";
 import { namedPage, type NamesArg } from "../names.ts";
 import { lawPage } from "../lanes.ts";
 
@@ -111,6 +112,9 @@ function build(world: World, ref: string, tab: string | null): PageModel {
   if (ref.startsWith("agent:")) return agentPage(world, ref);
   // A town's lots, its other buildings, its walls (Phase 25 M151).
   if (ref.startsWith("lot:")) return lotPage(world, ref);
+  // A stone a town raised, and a song a people sing (T1).
+  if (ref.startsWith("stone:")) return stonePage(world, ref);
+  if (ref.startsWith("song:")) return songPage(world, ref);
   // A home and what is in it (Lives L6).
   if (ref.startsWith("dwell:")) return homePage(world, ref);
   if (ref.startsWith("dwelt:")) return homeThingPage(world, ref);

@@ -276,7 +276,7 @@ export function withoutYear(claim: string, year: number): string {
 const ended = (text: string): string => (/[.!?…]$/.test(text) ? text : `${text}.`);
 
 /** A land's words, without where it lies: on the page a press away, and no one reads a coordinate aloud. */
-function landName(world: World, cell: number): string {
+export function landName(world: World, cell: number): string {
   return landTitle(world, cell, true).replace(/ at -?\d[\d.]*°[NS].*$/, "");
 }
 
@@ -394,7 +394,7 @@ function capital(line: readonly Span[]): Line {
 }
 
 /** An event, as a line. */
-function lineOf(world: World, e: HistoryEvent, year: number, after = ""): Line {
+export function lineOf(world: World, e: HistoryEvent, year: number, after = ""): Line {
   const { names, d } = namesOf(world, e),
     text = ended(`${withoutYear(why(world, e.id).claim, year).replace(/\.$/, "")}${after}`),
     line = linked(text, names),

@@ -252,6 +252,42 @@ export type VillageRest = {
   readonly war?: readonly WarRest[];
 };
 
+/** What a thing a town raised looks like (T1): by what happened and what its people had to build with. */
+export type MemorialForm =
+  | "stone"
+  | "wall"
+  | "stump"
+  | "tomb"
+  | "ring"
+  | "column"
+  | "cairn"
+  | "heap"
+  | "barrow"
+  | "pillar"
+  | "reef"
+  | "dome"
+  | "slab";
+
+/** A thing a town raised to what happened in it (T1): its page, its look, its year, how old and how great. */
+export type Memorial = {
+  readonly ref: string;
+  readonly form: MemorialForm;
+  readonly title: string;
+  readonly year: number;
+  readonly age: number;
+  readonly size: number;
+  readonly colour: readonly [number, number, number];
+  readonly dark: readonly [number, number, number];
+};
+
+/** A song a town knows (T1): its page, what it is called, its first line, what it is of. */
+export type TownSong = {
+  readonly ref: string;
+  readonly title: string;
+  readonly line: string;
+  readonly kind: string;
+};
+
 export type VillagePlan = {
   readonly ref: string;
   readonly name: string;
@@ -323,6 +359,10 @@ export type VillagePlan = {
   readonly figures?: readonly PlanFigure[];
   /** Its dead and their burying (Phase 43 M205; absent: none told). */
   readonly rest?: VillageRest;
+  /** What it raised to what happened in it (T1; absent: nothing great has). */
+  readonly memorials?: readonly Memorial[];
+  /** What it sings at its feasts (T1; absent: nothing yet). */
+  readonly songs?: readonly TownSong[];
   readonly people: readonly {
     ref: string;
     name: string;

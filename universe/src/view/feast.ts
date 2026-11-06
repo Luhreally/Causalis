@@ -7,7 +7,7 @@
 // town with a market, its stalls under striped awnings about the square of a morning. Pure: the
 // square's pieces (metres from its middle) and which days are which; the people's own part in
 // them is their day's (village.ts).
-import type { Feast, VillagePlan } from "../bridge/index.ts";
+import type { Feast, TownSong, VillagePlan } from "../bridge/index.ts";
 import { buryingDay } from "./graveyard.ts";
 
 const DAY = 86_400,
@@ -131,7 +131,7 @@ export function marketAt(
 const HALL = { x: 14, z: -10, hx: 10, hz: 6.5 } as const;
 
 /** Whether a point of the square is `margin` clear of the market hall (where the town keeps a market). */
-function clearOfHall(
+export function clearOfHall(
   plan: Pick<VillagePlan, "market">,
   x: number,
   z: number,
@@ -417,6 +417,34 @@ export function squareNow(
         : `Market day in ${plan.name}: its stalls stand in the square`,
     };
   return null;
+}
+
+/** What each feast is likeliest to want sung (T1): a peace, the war it ended; a harvest, the hungry years; a crowning, the ones before. */
+const SUNG_AT: Readonly<Record<Feast["occasion"], readonly string[]>> = {
+  harvest: ["hunger", "first", "plague"],
+  peace: ["peace", "battle", "struck"],
+  crowning: ["ruler", "fall", "coup"],
+  holy: ["faith", "sky", "first"],
+};
+
+/**
+ * The song at a town's feast at moment t (T1; null: no feast, or too early, or the town knows none): once they have gathered, till it is
+ * over. Each feast has its own, of those the town knows: what the occasion wants first, the same for the same day.
+ */
+export function sungAt(
+  plan: Pick<VillagePlan, "life" | "songs" | "town">,
+  t: number,
+): { readonly song: TownSong; readonly day: number } | null {
+  const songs = plan.songs;
+  if (!songs?.length) return null;
+  const f = feastAt(plan, t);
+  if (!f?.dressed) return null;
+  const hour = ((t % DAY) + DAY) % DAY;
+  if (hour < FEAST_HOURS.gather * HOUR) return null;
+  const wants = SUNG_AT[f.feast.occasion],
+    wanted = songs.filter((s) => wants.includes(s.kind)),
+    from = wanted.length ? wanted : songs;
+  return { song: from[f.feast.day % from.length]!, day: f.feast.day };
 }
 
 /** How fast the ring goes round its fire: radians a second of the screen's clock (once round in half a minute). */

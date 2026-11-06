@@ -53,6 +53,7 @@ import {
 } from "../sim/index.ts";
 import { landWords, meetHousehold, observer, settleAll, type WarFate } from "../causal/index.ts";
 import { personThings } from "./inspect/things.ts";
+import { memorialsOf, townSongs } from "./inspect/memory.ts";
 import {
   LAKE_R,
   LOT,
@@ -69,6 +70,8 @@ import {
   type TownWater,
   type TradeGood,
   type FieldYear,
+  type Memorial,
+  type TownSong,
   type VillageLife,
   type VillagePlan,
   type VillageRest,
@@ -1205,11 +1208,25 @@ export function villagePlan(
       ...(fabric && town ? { town } : {}),
       ...wondersOfIn(world, village.shrine ?? null, village.spring ?? null),
       rest: restOf(village.cell, village.population, village.founded),
+      ...memoryIn(world, ref),
       people,
       ...(stores ? { stores } : {}),
       ...(trade ? { trade } : {}),
     };
   }
+}
+
+/** What a town raised and what it sings (T1), from the world's one reading of what happened. */
+function memoryIn(
+  world: World,
+  ref: Ref,
+): { memorials?: readonly Memorial[]; songs?: readonly TownSong[] } {
+  const memorials = memorialsOf(world, ref),
+    songs = townSongs(world, ref);
+  return {
+    ...(memorials.length ? { memorials } : {}),
+    ...(songs.length ? { songs } : {}),
+  };
 }
 
 /** Goods as a load of them is named on the road (Phase 48 M210), where not as the market names them. */

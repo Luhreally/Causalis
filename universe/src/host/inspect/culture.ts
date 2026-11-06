@@ -42,6 +42,7 @@ import { namesBlock } from "../names.ts";
 import { landPlace } from "./land.ts";
 import { peopleBlocks } from "./peoples.ts";
 import { realmPlace } from "./realm.ts";
+import { peopleSongsTab } from "./memory.ts";
 
 function globeAt(world: World, cell: number): Place | null {
   const spot = spotOfLand(world, cell);
@@ -227,6 +228,8 @@ export function languagePage(world: World, ref: string): PageModel {
     // Its people read (Phase 14 M119): the god as they name it, their ways, faiths, realms,
     // numbers; and its speech, to be heard (M117).
     { id: "people", name: "People", blocks: peopleBlocks(world, l) },
+    // What they sing (T1).
+    peopleSongsTab(world, l),
     {
       id: "speech",
       name: "Speech",
