@@ -453,10 +453,10 @@ export function foreignWorldPage(world: World, ref: string): PageModel {
         id: "overview",
         name: "Overview",
         blocks: [
-          // (What fell on it, what it would take: W6.)
-          ...farWorldBlocks(world, star, index),
           // (Who holds it, and what it has lost: Phase 72.)
           ...nationWorldBlocks(world, `${s.ref}/${index}`),
+          // (What fell on it, what it would take: W6.)
+          ...farWorldBlocks(world, star, index),
           // (How far comers have filled it: Worlds filled.)
           ...fillBlocks(world, { star: s.ref, planet: index, body: -1 }),
           ...tradeWorldBlocks(world, s.ref, index, -1),

@@ -140,6 +140,10 @@ export function nationMap(world: World): NationMap {
   };
 }
 
+/** A realm's colour as the map wears it; one with nothing on the map, its own. */
+const colorOf = (world: World, ref: string): readonly [number, number, number] =>
+  nationMap(world).nations.find((n) => n.ref === ref)?.color ?? realmColor(ref);
+
 /** What a world cut off has lost, in its numbers. */
 function darkLine(world: World, h: Holding): string {
   const w = filledOf(world)?.get(h.key),
@@ -183,7 +187,7 @@ export function nationFall(world: World, ref: string): NationFall | null {
   return {
     ref,
     name: n.name,
-    color: realmColor(ref),
+    color: colorOf(world, ref),
     greatest: n.greatest,
     greatestYear: n.greatestYear,
     fellYear: n.fell?.year ?? null,
@@ -505,7 +509,7 @@ export function nationPage(world: World, ref: string): PageModel {
     icon: wordOf(rows) === "an empire" ? "⚔️" : wordOf(rows) === "a league" ? "🤝" : "👑",
     title: `${n.name} among the stars`,
     subtitle: [`${wordOf(rows)[0]!.toUpperCase()}${wordOf(rows).slice(1)}. ${fallenWords}`],
-    color: realmColor(ref),
+    color: colorOf(world, ref),
     place: null,
     stats: [
       stat("Worlds", count(rows.length), { why: n.fell?.event ?? null }),
@@ -598,6 +602,8 @@ export function nationWorldBlocks(world: World, key: string): Block[] {
     ctx = populationContext(world),
     w = filledOf(world)?.get(key),
     lines: Line[] = [];
+  // (No one left on it: there is no one to hold.)
+  if (w?.gone !== undefined) return [];
   if (n && w) {
     const seat = seatOf(ctx, n),
       r = strainNow(ctx, h, w, n, seat, yearNow(world)),

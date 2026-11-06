@@ -686,7 +686,7 @@ if (windowFile) {
     await shot("window-pressed");
     const seenThere = await k<{ film: boolean; page: boolean; held: number | null }>(`({
       film: !!globalThis.causalis.nationFilm?.playing,
-      page: /Its dark age|Who holds it/.test(document.body.innerText),
+      page: /Its dark age|Who holds it/i.test(document.body.innerText),
       held: globalThis.causalis.nationsShown?.() ?? null,
     })`);
     say(`pressed: ${JSON.stringify(seenThere)}`);
