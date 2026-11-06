@@ -64,8 +64,12 @@ const goodsOf = (r: StarRun): { good: number; n: number }[] =>
 
 const carriedWords = (r: StarRun): string => {
   const g = goodsOf(r).slice(0, 3);
-  return g.length ? g.map((x) => GOODS[x.good]!.name).join(", ") : "nothing yet come in";
+  if (g.length) return g.map((x) => GOODS[x.good]!.name).join(", ");
+  return r.closed ? "nothing ever came in" : "nothing yet come in";
 };
+
+/** Below this share lost, what those who send a run reckon on is not worth a line. */
+const RECKONING_TOLD = 0.05;
 
 const whyClosed: Readonly<Record<NonNullable<StarRun["closedWhy"]>, string>> = {
   gone: "the world it ran to is gone",
@@ -75,13 +79,19 @@ const whyClosed: Readonly<Record<NonNullable<StarRun["closedWhy"]>, string>> = {
   unpaid: "what it could carry no longer pays for the crossing",
 };
 
+/** Why a run ended; one that stopped paying because of what it lost says so. */
+const endWords = (r: StarRun): string =>
+  r.closedWhy === "unpaid" && r.risk >= RECKONING_TOLD
+    ? `those who sent it reckoned on losing ${Math.round(r.risk * 100)}% of all they sent, and what it could carry no longer paid for that`
+    : whyClosed[r.closedWhy!];
+
 /** How the crossing is made up, in words. */
 function crossingWords(r: StarRun, machinePrice: number): string {
   const c = {
       machines: r.machinesTonne,
     } as Crossing,
     grain = perBulk(c, machinePrice);
-  return `${r.ly > 0 ? `${ONE(r.ly)} light-years` : "Among one star's own worlds"}, ${Math.ceil(r.years)} years${r.hops ? ` by ${many(r.hops, "lane", "lanes")}` : r.ly > 0 ? " straight across, on its drive" : ""}. Each tonne costs ${count(Math.round(r.machinesTonne))} machines to carry, hull and fuel: at what a machine fetches, ${ONE(grain)} in grain a sack's weight, so goods must clear that to go.`;
+  return `${r.ly > 0 ? `${ONE(r.ly)} light-years` : "Among one star's own worlds"}, ${many(Math.ceil(r.years), "year", "years")}${r.hops ? ` by ${many(r.hops, "lane", "lanes")}` : r.ly > 0 ? " straight across, on its drive" : ""}. Each tonne costs ${many(Math.round(r.machinesTonne), "machine", "machines")} to carry, hull and fuel: at what a machine fetches, ${ONE(grain)} in grain a sack's weight, so goods must clear that to go.`;
 }
 
 /** What a run did: each from what the land's books said when it opened and what they say now. */
@@ -131,7 +141,7 @@ function didLines(world: World, r: StarRun): string[] {
     const left = goodsOf(r)[0];
     if (left)
       out.push(
-        `Since the last ship, in year ${r.lastIn}, ${GOODS[left.good]!.name} fetches ${ONE(m.price[left.good]!)} here and ${count(m.stock[left.good]!)} is left: no one brings more.`,
+        `Since the last ship, in year ${r.lastIn}, ${GOODS[left.good]!.name} stands at ${ONE(m.price[left.good]!)} here, with ${count(m.stock[left.good]!)} left: no one brings more.`,
       );
   }
   return out;
@@ -146,13 +156,15 @@ function gainWords(world: World, r: StarRun): string {
           ?.figures.find((f) => f.seat === "traders")
       : undefined,
     at = r.house.cell >= 0 ? politiesOf(world).of(r.house.cell) : null;
-  return `${r.house.name[0]!.toUpperCase()}${r.house.name.slice(1)}${at ? ` of ${at.town}` : ""} has cleared ${bigWords(Math.round(r.house.worth))} in grain by it${r.house.rich ? ", and is counted among the great houses" : ""}.${voice ? ` ${voice.name} speaks for the traders at ${realm!.town}'s court.` : ""}`;
+  const has = r.civ ? "have" : "has",
+    worth = Math.round(r.house.worth);
+  return `${r.house.name[0]!.toUpperCase()}${r.house.name.slice(1)}${at ? ` of ${at.town}` : ""} ${has} cleared ${worth > 0 ? `${bigWords(worth)} in grain` : "nothing"} by it${r.house.rich ? `, and ${r.civ ? "are" : "is"} counted among the great houses` : ""}.${voice ? ` ${voice.name} speaks for the traders at ${realm!.town}'s court.` : ""}`;
 }
 
 /** A run as a row. */
 const runRow = (world: World, r: StarRun): Item =>
   item(
-    `${r.closed ? "Ended: " : ""}${carriedWords(r)} from ${r.civ ? `the ${r.name.replace(/^the /, "")}` : r.name}, ${r.house.name}: since ${r.year}, ${many(r.ships, "ship", "ships")} in${r.raided ? `, ${r.raided} taken` : ""}${r.hops ? `, by ${many(r.hops, "lane", "lanes")}` : ""}`,
+    `${r.closed ? "Ended: " : ""}${carriedWords(r)} from ${r.civ ? r.house.name : `${r.name}, ${r.house.name}`}: since ${r.year}${r.ships ? `, ${many(r.ships, "ship", "ships")} in` : ""}${r.raided ? `, ${r.raided} taken` : ""}${r.hops ? `, by ${many(r.hops, "lane", "lanes")}` : ""}`,
     r.ref,
   );
 
@@ -188,10 +200,10 @@ export function runPage(world: World, ref: string): PageModel {
     ref,
     kind: "world",
     icon: r.raided ? "⚔️" : "🛰️",
-    title: `${r.house.name[0]!.toUpperCase()}${r.house.name.slice(1)}'s run`,
+    title: `${r.house.name[0]!.toUpperCase()}${r.house.name.slice(1)}${r.civ ? "'" : "'s"} run`,
     subtitle: [
       r.closed
-        ? `It ended in year ${r.closedYear}: ${whyClosed[r.closedWhy!]}.`
+        ? `It ended in year ${r.closedYear}: ${endWords(r)}.`
         : `Running since year ${r.year}, ${r.name} sending.`,
     ],
     color: null,
@@ -210,6 +222,13 @@ export function runPage(world: World, ref: string): PageModel {
                 `When it opened, ${short}${top && gap(top.good) <= 0 ? "." : ": short there, plenty here."}`,
               ],
               [crossingWords(r, machine)],
+              ...(!r.closed && r.risk >= RECKONING_TOLD
+                ? [
+                    [
+                      `Those who send it reckon on losing ${Math.round(r.risk * 100)}% of what they send, from what they have lost lately: goods must clear that as well.`,
+                    ],
+                  ]
+                : []),
               ...(to && from
                 ? [
                     [

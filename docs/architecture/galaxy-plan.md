@@ -179,6 +179,54 @@ The galaxy no longer stops growing: 66 worlds in 1800, 92 in 2100, 137 in 2500, 
 
 **Levers.** Larger fleets and earlier arrivals, to bring the towns' row into real history. Tapping or possessing a figure in the film. A landing does not yet change the camp drawn after it: pages say what it left. Mines, penal colonies, bonded natives, risings and independence are later slices.
 
+## Phase 71, first slice, as built (2026-11-05)
+
+**What is short is the market's own price; no list says what crosses.** A colony's land has a real market and no road, so its prices already say what it lacks: on far saves at year 2000, pots 9.1 against 1.0 at home where there is no clay to dig, copper 17 against 2.6. What a crossing costs is one function, `rules/freight.ts`: a drive's fuel by the rocket equation at its cruise, a sail's beam, a lane's fuel per ship, a hull per tonne-year, and what spoils for the years under way. A good goes if what it fetches there, times what survives, times what isn't lost to raids, beats what it costs here and what it takes to carry. So a drive's slow crossing carries only what is worth a great deal for its weight, and a lane opens the bulk.
+
+| Ten light-years, machines at 8 grain | On a fusion drive | By two lanes |
+| --- | --- | --- |
+| Years | 218 | 10 |
+| Machines a tonne | 330 | 34 |
+| Grain, a sack's weight | 53 | 5.4 |
+| What clears | Only machines, at their dearest | Pots, copper, tin and iron too; grain never does |
+
+**It lands by the ledger.** The sender's realm pays in machines, goods leave by `out` and come by `in`, and what they do is the market's own: covers, prices, recipes, food. No new effect was written. On `alien harrow 348` from 2000 to 3000, mean pot cover across the 36 lands away goes from 0% to 19%, and a crafter with copper in store can make copper tools where they could not.
+
+**Store `space.trade`, dormant until a first run opens:** at most 36 running, 60 kept, 4 holds under way each. Events `trade.opened` 4, `trade.came` 4, `trade.first` 6, `trade.raided` 5, `trade.first-raid` 7, `trade.closed` 4, `trade.rich` 5. Rules `earth-12`, `alien-16`. Oracle: 8 of 8 unchanged, since no fixture reaches a land away from home. `earth first light` is the same bit for bit through year 1000, and moves between 1000 and 1300, after its first colonies.
+
+**A lane that bleeds stops paying.** Who sends a run reckons on losing what they have lost lately: each hold taken or come in moves their reckoning a quarter of the way to all or nothing. A new run starts from what they last lost on that lane, or what they are losing on all their lanes, whichever is worse, with old losses fading to nothing over a century (est.). The first rule raised a fear by a raid and let it fade, and one run lost 73 holds and brought in 1 and still ran. Only reading the worst run showed it; the average looked fine. Then reading the same sender's runs together showed the same fault one level up: the Qaani opened the same lane four times in 290 years and lost 24 holds of 25, each new run forgetting the last.
+
+| `harrow 348`, 2000 to 3000 | First rule | Each run's own reckoning | Remembered too |
+| --- | --- | --- | --- |
+| Worst run, holds taken and in | 73 and 1 | 8 and 1 | 6 and 35 |
+| That run | Still running | Closed, unpaid | Running, reckoning on losing 20% |
+| Holds in, and taken | | 2,822 and 112 | 2,846 and 89 |
+
+**A people gets its own turn.** Every 5 years the best new run of all opens and, if that was not another people's, the best of another people's too: a far people's goods can't match a home realm's for worth, and they would never have one. So the ports the plan's row asks for now stand on real seeds. A far people comes to a land where it is met and speaking.
+
+| 2000 to 3000, before and after both changes | `harrow 348` | `lumen 285` | `quill 742` |
+| --- | --- | --- | --- |
+| Far peoples calling at year 3000 | 1, 1 | 0, 4 | 0, 2 |
+| Their runs open | 1, 9 | 0, 12 | 0, 3 |
+| Ports of more than one people | 0, 4 | 0, 2 | 0, 1 |
+| Holds in | 2,822, 2,846 | 5,769, 4,211 | 8,059, 6,315 |
+| Holds taken | 112, 89 | 26, 48 | 40, 76 |
+| People on the 36 lands away, millions | 67.5, 67.3 | 108.4, 109.1 | 110.6, 110.6 |
+| Mean year, ms | 87, 87 | 40, 40 | 130, 133 |
+
+The worlds settled on `lumen 285` and `quill 742` hold at 128 and 124, and 981 and 981. On `harrow 348` they swing widely with any change to its history (515 to 283 here), in one fork each.
+
+In all, on `harrow 348`: 252 runs ever, 36 running and 24 ended of the 60 kept. A save at year 3000 is 2.09 MB against 2.05, and a run's store is bounded.
+
+**Seen, on `alien harrow 348` at year 3000.** 🚀, a row's 🛰️ Its port: down to its town and out over its port, apron, lit pads, a yard stacked by all that has come in, a tower, craft by who runs them. Its chip opens the run's page: what, from where, why, what the crossing costs, who gains and what it did, each from its numbers. A busy port beside a quiet one takes over 100 times the lit pad pixels, and on `harrow 348`'s land 4070 a saucer stands among rockets banded by their houses. Every people (👥, from the stars around) links to "Trade among the stars". A land away's Overview says what comes there from other worlds, or why nothing does. A first trade and a first raid are the world's news: a window, for anyone, once. A press of the window path on a real fork showed them: year 2002 "Goods across the dark for gain", year 2022 "The first hold taken".
+
+**Levers.**
+- **Far colonies have no market,** so no run reaches the worlds no land holds (129 of 184 on `harrow 348`). Their want is readable from `upkeep`: machines landed could free hands and raise their growth. This is also what would make trade move the people count, which it does not yet.
+- **A far people's trade ends at the port.** Two peoples stand at a port on real seeds, and a far people's carriers pay nothing back to anyone: a people's page doesn't yet say what it gained, or lost, among the stars.
+- The stars' map and system view draw no runs. Reuse `voyageMarks`.
+- See-it buttons from the window, and trade's firsts in the Director's list.
+- The house as a person with a home in town, from L5's courts. A film of a ship coming in and of a raid. Runs to home-world lands. Credit across the stars, smuggling, blockades. Thrown ships on a lane. Tapping a craft.
+
 ## The seed picker
 
 Choose Earth-like or alien, then a target age, and get seeds that plausibly reach it.
