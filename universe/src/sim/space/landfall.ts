@@ -47,6 +47,7 @@ import { peopleNature, peopleStrength, peoplesOf, speedOf, starPoint } from "./p
 import { COLONISTS } from "./space.ts";
 import { lanesOf, lawlessSeed } from "./lanes.ts";
 import { starSitesOf } from "./stars.ts";
+import { filledOf } from "./filled-store.ts";
 
 /** One landing, read. */
 export type Landfall = {
@@ -99,7 +100,9 @@ function comersOf(
   if (a.kind === "home") {
     // (A ship sent through the lanes to look holds no land, and is told by what it was (Phase 68).)
     const visit = a.visit !== undefined ? lanesOf(world)?.visits[a.visit] : undefined,
-      kept = visit ? undefined : starSitesOf(world)?.get(a.cell!),
+      // (A colony no land holds is told as a kept land's ship is: Worlds filled.)
+      far = a.far !== undefined ? filledOf(world)?.get(a.far) : undefined,
+      kept = visit || far ? undefined : starSitesOf(world)?.get(a.cell!),
       site = visit
         ? {
             realm: visit.realm,
@@ -108,7 +111,15 @@ function comersOf(
             distance: visit.distance,
             from: -1,
           }
-        : kept;
+        : far
+          ? {
+              realm: far.realm,
+              departed: far.sailed,
+              drive: far.drive,
+              distance: far.distance,
+              from: far.from,
+            }
+          : kept;
     if (!site) return null;
     const realm = politiesOf(world).get(site.realm),
       design = designsOf(world).at(site.realm, site.departed) ?? designsOf(world).of(site.realm),
@@ -141,7 +152,9 @@ function comersOf(
         care: woundCare(known),
       },
       // (A land of the home world's, with anyone left alive in it; a ship sent to look has none.)
-      stay: !visit && (populationContext(world).provinces.get(a.cell!)?.total() ?? 0) > 0,
+      stay: far
+        ? far.people > 0
+        : !visit && (populationContext(world).provinces.get(a.cell!)?.total() ?? 0) > 0,
     };
   }
   const civ = civilizationsNear(world).find((c) => c.ref === a.civ);

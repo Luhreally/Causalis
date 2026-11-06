@@ -2,7 +2,7 @@
 // first, each a tap from its landing watched and from going down to its ground; and news of one newly
 // come, whichever scale the eye is at, for as long as it takes to read. A ship still sailing is listed
 // too, with when it comes. Nothing is asked that history does not hold already (host/colony.ts).
-import type { ColonyEntry, HostClient } from "../bridge/index.ts";
+import type { ColonyEntry, FillPlan, HostClient } from "../bridge/index.ts";
 import { el } from "./why.ts";
 
 const POLL_MS = 4000,
@@ -23,6 +23,8 @@ export class Colonies {
   private readonly rows = el("div", "colony-rows");
   private readonly news = el("div", "colony-news");
   private list: readonly ColonyEntry[] = [];
+  /** The colonies no land holds, sent when every kept land was taken (Worlds filled). */
+  private far: readonly FillPlan[] = [];
   private known: Set<number> | null = null;
   private newsTimer: ReturnType<typeof setTimeout> | null = null;
   /** Watch its landing played again. */
@@ -31,6 +33,10 @@ export class Colonies {
   onDown: (cell: number) => void = () => {};
   /** A thing's page (a ship's voyage; a colony's land). */
   onPage: (ref: string) => void = () => {};
+  /** Out to its world seen whole, its settled ground lit. */
+  onWorld: (cell: number) => void = () => {};
+  /** Out to a world no land holds, by its key. */
+  onFar: (key: string) => void = () => {};
   /** Asked before a list is shown: whether anything else is on the screen's bottom edge to put away. */
   onShown: () => void = () => {};
 
@@ -45,19 +51,30 @@ export class Colonies {
     };
     const head = el("div", "colony-sheet-head"),
       why = el("button", "speed", "?"),
+      every = el("button", "speed colony-filled-all", "🌆"),
       close = el("button", "speed", "✕");
+    every.title = "Every world settled: how far each is filled, and why no further";
+    every.setAttribute("aria-label", "Every world settled");
+    every.onclick = () => this.onPage("world:filled");
     why.title = "What a landing is, and why its halls are as they are";
     why.setAttribute("aria-label", "What a colony is");
     why.onclick = () => this.onPage("concept:colonies");
     close.setAttribute("aria-label", "Close the worlds settled");
     close.onclick = () => this.show(false);
-    head.append(el("span", "colony-sheet-title", "🚀 The worlds settled"), why, close);
+    head.append(el("span", "colony-sheet-title", "🚀 The worlds settled"), every, why, close);
     this.sheet.append(head, this.rows);
     this.sheet.hidden = true;
     this.news.hidden = true;
     hud.append(this.sheet, this.news);
     client.subscribe<ColonyEntry[]>({ type: "colony.list" }, POLL_MS, (list) => {
       if (Array.isArray(list)) this.set(list);
+    });
+    client.subscribe<FillPlan[]>({ type: "filled.far" }, POLL_MS, (far) => {
+      if (!Array.isArray(far)) return;
+      this.far = far;
+      this.button.hidden = this.list.length === 0 && far.length === 0;
+      if (!this.list.length) this.count.textContent = String(far.length);
+      if (!this.sheet.hidden) this.draw();
     });
   }
 
@@ -82,8 +99,10 @@ export class Colonies {
   private set(list: readonly ColonyEntry[]): void {
     this.list = list;
     const landed = list.filter((c) => !c.sailing);
-    this.button.hidden = list.length === 0;
-    this.count.textContent = String(landed.length || list.length);
+    this.button.hidden = list.length === 0 && this.far.length === 0;
+    this.count.textContent = String(
+      landed.length + this.far.filter((p) => !p.sailing).length || list.length || this.far.length,
+    );
     // News of what was not here at the last look; and when a world opens with worlds settled already,
     // of how many, and the newest, a tap away.
     if (this.known) {
@@ -135,10 +154,40 @@ export class Colonies {
     }, NEWS_MS);
   }
 
+  /** A world no land holds: how far it is settled, and out to it. */
+  private farRow(p: FillPlan): HTMLElement {
+    const row = el("div", "colony-row"),
+      name = el("button", "colony-row-name", p.sailing ? "⛴️ A ship under way" : "🌆 A world of another star"),
+      acts = el("div", "colony-row-acts");
+    name.onclick = () => this.onPage(p.ref);
+    row.append(
+      name,
+      el(
+        "div",
+        "colony-row-facts",
+        p.sailing
+          ? `Comes in year ${p.year}; sent by ${p.who}`
+          : `Since year ${p.year}; sent by ${p.who}. ${p.head}`,
+      ),
+    );
+    if (!p.sailing) {
+      const whole = el("button", "colony-watch colony-world", "🪐 Its world");
+      whole.dataset.key = p.key;
+      whole.onclick = () => {
+        this.show(false);
+        this.onFar(p.key);
+      };
+      acts.append(whole);
+      row.append(acts);
+    }
+    return row;
+  }
+
   private draw(): void {
     // (A world remade, or being remade, first among them: the rest as history has them. Phase 66.)
     const rank = (c: ColonyEntry) => (c.remade >= 1 ? 2 : c.remade > 0 ? 1 : 0);
     this.rows.replaceChildren(
+      ...this.far.map((p) => this.farRow(p)),
       ...[...this.list]
         .sort((a, b) => rank(b) - rank(a))
         .map((c) => {
@@ -160,12 +209,17 @@ export class Colonies {
                   : c.remade > 0
                     ? `; its world ${Math.round(c.remade * 100)}% remade`
                     : ""
-              }`;
+              }${c.settled >= 0.001 ? `; ${c.settled < 0.095 ? (c.settled * 100).toFixed(1) : Math.round(c.settled * 100)}% of its world settled, ${c.onWorld.toLocaleString("en")} on it` : ""}`;
           row.append(name, el("div", "colony-row-facts", facts));
           if (!c.sailing && c.town) {
             const watch = el("button", "colony-watch", "▶ Watch the landing"),
+              whole = el("button", "colony-watch colony-world", "🪐 Its world"),
               down = el("button", "colony-down", "⬇ Go down");
-            watch.dataset.cell = down.dataset.cell = String(c.cell);
+            watch.dataset.cell = down.dataset.cell = whole.dataset.cell = String(c.cell);
+            whole.onclick = () => {
+              this.show(false);
+              this.onWorld(c.cell);
+            };
             watch.onclick = () => {
               this.show(false);
               this.onLanding(c.cell);
@@ -174,7 +228,7 @@ export class Colonies {
               this.show(false);
               this.onDown(c.cell);
             };
-            acts.append(watch, down);
+            acts.append(watch, whole, down);
             row.append(acts);
           }
           return row;

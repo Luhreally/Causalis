@@ -21,6 +21,7 @@ import { agePage, depositPageModel, lineagePage, platePageModel } from "./life.t
 import { bodyPage, foreignWorldPage, starPageModel } from "./sky.ts";
 import { civilizationPage } from "./starfolk.ts";
 import { folkOnePage, peoplesPage } from "./natives.ts";
+import { filledPage } from "../filling.ts";
 import { actPage, decisionPage, eventPage, unknownPage } from "./history.ts";
 import { chroniclePage, ledgerPage } from "./world.ts";
 import { statsPage } from "./stats.ts";
@@ -61,6 +62,7 @@ function build(world: World, ref: string, tab: string | null): PageModel {
   if (ref === "world:ledger") return ledgerPage(world, tab ?? undefined);
   if (ref === "world:log") return logPage(world, tab ?? undefined);
   if (ref === "world:peoples") return peoplesPage(world);
+  if (ref === "world:filled") return filledPage(world);
   if (ref === "world:law") return lawPage(world);
   if (ref === "world:stats") return statsPage(world, tab ?? undefined);
   if (ref === "world:matter") return matterGuidePage(world, tab ?? undefined);

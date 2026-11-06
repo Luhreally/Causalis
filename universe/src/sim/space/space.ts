@@ -553,6 +553,7 @@ export function installSpace(world: World, ctx: () => PopulationContext): SpaceS
   world.addPinner(() => store.pinned());
   world.system({ key: "197.space.year", every: YEAR, run: (t) => spaceYear(ctx(), t) });
   installVoyages(world, ctx);
+  installFilled(world);
   installContact(world, ctx);
   installStarWars(world, ctx);
   installLanes(world, ctx);
@@ -563,6 +564,7 @@ export function installSpace(world: World, ctx: () => PopulationContext): SpaceS
 }
 
 import { installVoyages } from "./voyages.ts";
+import { installFilled } from "./filled.ts";
 import { installContact } from "./contact.ts";
 import { installStarWars } from "./starwar.ts";
 import { installLanes } from "./lane-visits.ts";

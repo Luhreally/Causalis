@@ -61,6 +61,7 @@ import type {
   VillagePlan,
 } from "../bridge/index.ts";
 import type { QueryHandler } from "./host.ts";
+import { settledOf } from "./filling.ts";
 
 /** A town of a colony's halls: its land's cell, in the kind of a town and a number none is minted with. */
 export const colonyTownRef = (cell: number): Ref => makeRef(SETTLEMENT, 1, cell);
@@ -541,6 +542,7 @@ export function colonyList(world: World): ColonyEntry[] {
       founder: founder ? realmName(founder) : null,
       sky: ground ? (overOf(ground)?.degrees ?? 0) : 0,
       remade: colonyRemade(world, cell),
+      ...settledOf(world, ship?.star ?? null, ship?.planet ?? -1, site.body),
     });
   }
   return out.sort((a, b) => b.founded - a.founded || a.cell - b.cell);

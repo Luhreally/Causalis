@@ -12,6 +12,7 @@ import {
   type Folk,
 } from "../../sim/index.ts";
 import type { World } from "../../kernel/index.ts";
+import { fillingBlocks } from "../filling.ts";
 import type { Block, FolkList, PageModel, Stat } from "../../bridge/index.ts";
 import { clusterOf } from "../../sim/index.ts";
 import { figureBody } from "../folk.ts";
@@ -221,6 +222,7 @@ export function peoplesPage(world: World): PageModel {
         id: "all",
         name: "All of them",
         blocks: [
+          ...fillingBlocks(world),
           ...(met.length
             ? [{ type: "list" as const, title: "A ship has come to them", items: met.map(line) }]
             : []),

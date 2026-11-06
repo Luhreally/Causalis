@@ -258,6 +258,44 @@ export type ColonyEntry = {
   readonly sky: number;
   /** How far its world has been remade (Phase 66; 0: not at all). */
   readonly remade: number;
+  /** How much of its world's ground is settled (0 … 1), and the people on all of it (Worlds filled). */
+  readonly settled: number;
+  readonly onWorld: number;
+};
+
+/** How far a world is filled (Worlds filled): what is drawn of it, and what is told. */
+export type FillPlan = {
+  readonly key: string;
+  /** Its page. */
+  readonly ref: string;
+  /** Who first settled it, and when. */
+  readonly who: string;
+  readonly year: number;
+  readonly sailing: boolean;
+  /** Share of its usable ground settled now, and the most that can ever be. */
+  readonly share: number;
+  readonly top: number;
+  readonly people: number;
+  readonly holds: number;
+  /** Whether its people can walk out on it. */
+  readonly open: boolean;
+  /** Whether a people of the water (its seas are their ground). */
+  readonly sea: boolean;
+  /** How many towns that many people make (est.). */
+  readonly towns: number;
+  /** Whether all it can settle is settled, and when. */
+  readonly filled: number | null;
+  readonly whole: boolean;
+  /** The land it began as (null: no land holds it). */
+  readonly cell: number | null;
+  readonly star: string | null;
+  readonly planet: number;
+  readonly body: number;
+  /** The words of what it is, why it is no more, and what stops it. */
+  readonly head: string;
+  readonly why: readonly string[];
+  /** The people who were on it first. */
+  readonly natives: string | null;
 };
 
 /** A colony's town at a few years of its growth, drawn as it stood then (for a film of it). */
