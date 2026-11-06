@@ -436,7 +436,8 @@ export function settle(
     }
   }
   const settlers = COLONISTS - left,
-    colony = ctx.provinces.add(new Province(cell, year, event));
+    // (A land its people died out on is a land still, with its record: those who come now are its people.)
+    colony = ctx.provinces.get(cell) ?? ctx.provinces.add(new Province(cell, year, event));
   moved.forEach((n, i) => {
     if (!n) return;
     const r = Math.floor(i / COLS),
@@ -463,7 +464,8 @@ export function settle(
   colony.knowsCultivation = true;
   colony.cultivation = seat.cultivation;
   colony.herding = seat.herding;
-  for (const [id, k] of lore.of(p.seat)) lore.learn(cell, id, k, principle(id));
+  for (const [id, k] of lore.of(p.seat))
+    if (!lore.get(cell, id)) lore.learn(cell, id, k, principle(id));
   // A year of food and their share of the seat's goods.
   const markets = marketsOf(world),
     from = markets.of(seat.cell),
@@ -484,7 +486,12 @@ export function settle(
   const langs = languagesOf(world),
     spoken = langs.of(seat.cell);
   if (spoken) langs.speak(cell, spoken.index, event);
-  politiesOf(world).join(p, cell);
+  const realms = politiesOf(world),
+    was = realms.of(cell);
+  if (was?.ref !== p.ref) {
+    if (was) realms.leave(was, cell);
+    realms.join(p, cell);
+  }
 }
 
 /** Set a colony down: settlers, their share of the seat's goods, its knowledge and ways, a place in the realm. */

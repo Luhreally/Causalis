@@ -227,6 +227,57 @@ In all, on `harrow 348`: 252 runs ever, 36 running and 24 ended of the 60 kept. 
 - See-it buttons from the window, and trade's firsts in the Director's list.
 - The house as a person with a home in town, from L5's courts. A film of a ship coming in and of a raid. Runs to home-world lands. Credit across the stars, smuggling, blockades. Thrown ships on a lane. Tapping a craft.
 
+## Phase 72, first slice, as built (2026-11-06)
+
+**A realm holds what it can answer in time.** Each world of another star with people on it is read once in 5 years: how long a word and a fleet take from its realm's seat, on its fastest drive or its lanes, against two of its people's generations (never under 10 years). What pulls it away is that distance past answering, a fleet lost, being held by force, no fleet to send, and a world grown past those who hold it. What ties it down is that it cannot make what keeps its roofs up and gets it through them. Past a strain of 1 it may go, at most 1 chance in 2 a read, and each world goes when it goes. Nothing names a kind of government: "an empire", "a league" and "a realm of its own settlers" are words a page reads off who is held and how.
+
+**Being a realm changes things.** Wars among the stars now start for worlds: one it sent, gone its own way; one of no one within its answering; a rival's that lies nearer it than them. A fleet that wins holds the world. A world in need goes to whoever can answer it and bring what it lacks, or to the nearest free world that makes its own, which then rules a realm of worlds alone. A run's port answers to whoever holds its world.
+
+**A dark age is what a world's numbers do.** A world cut off with no land of its own, whose ground has too little metal or which has fewer than 5 million to work the whole chain, falls toward what it can keep alive: 12% of what it held in the end, most of the way in 150 years. One of 39,159 cut off in 2183 holds 4,700. A world with a land answers to that land's market and ledger, and goes dark by no number.
+
+**A realm grows outward from what it holds.** The rule alone drew confetti, since every realm sails from one home star and each took the next star along. A star far from all a realm holds is one its word and fleets reach last, so a star 5 light-years from the nearest of its own now counts as twice as far off, however quick the crossing.
+
+| `harrow 348`, 1500 to 3000 | Before | After |
+| --- | --- | --- |
+| Worlds whose nearest held star is their own realm's | 36% | 63%, against 4% by chance |
+| The same, in the six greatest realms | 0% to 6% | 55% to 86% |
+| Worlds of other stars at 3000 | 292 | 330 |
+| Realms holding any | 41 | 39 |
+
+**Whether a realm can stand is the world's own answer.** On `lumen 285` lanes carry the word, and no world has ever left. On `quill 742` no one has lanes, a word and a fleet take up to 46 years against 28 to answer in, and no realm has held more than 4 of its 1,190 worlds: settlers go on going out, each world goes its own way, and most fade. Nothing sets this. With hundreds in the dark each mark shrinks, or the map would be black discs and no stars. `gale 710`, with lanes and a long-lived people, is a galaxy of many middling realms: 132 hold 1,273 of its worlds, none more than 25.
+
+| 1500 to 3000, at year 3000 | `harrow 348` | `lumen 285` | `quill 742` | `gale 710` |
+| --- | --- | --- | --- | --- |
+| Worlds of other stars | 330 | 116 | 1,190 | 1,488 |
+| Held by a realm | 236 | 116 | 27 | 1,273 |
+| In the dark now | 30 | 0 | 1,132 | 18 |
+| Realms holding any | 39 | 12 | 22 | 132 |
+| Greatest now, and at its most | Gel 21, 25 | Shaikivo 16, 16 | Pethondath 3, 4 | Hil 25, 25 |
+| Lanes known | Yes | Yes | No | Yes |
+| Years to answer in; farthest word and fleet in the greatest realm | 22; 41 | 24; 32 | 28; 28 | 34; 68 |
+| Worlds that went their own way, ever | 228 | 0 | 1,718 | 597 |
+| Taken by a fleet | 57 | 0 | 532 | 352 |
+| Falls of a realm of many | 5 | 0 | 0 | 9 |
+| Wars, and those for a world | 394, 172 | 126, 0 | 998, 837 | 1,633, 954 |
+| Worlds whose nearest held star is their realm's | 63% | 81% | 67% | 49% |
+| Mean year on a busy machine, ms | 51 | 33 | 113 | 1,023 |
+
+The fallen on `harrow 348` each came after the realm at home ended. Talwick held 14 worlds in 2725 and none in 2785.
+
+**Colours and marks.** A hash's hues fall close: three of `harrow 348`'s seven greatest were one green. So each of the ten greatest takes the free hue nearest its own, from ten the eye tells apart on a phone, and the rest wear their own hue small and faint. Marks are flat covering discs that hold their size. Gel, at 21 worlds, covers 0.42% of the map and Mickar, at 8, 0.09%. The realm's page and the film wear the map's colour.
+
+**Seen, on `alien harrow 348` at year 3000.** 🌌 The stars, marked by who holds them, with chips for the greatest. A chip or a star's row opens the realm's page: worlds, people, where it is ruled from and who rules, word and fleet across it, what holds it, what is pulling it apart, whom it holds by force, who chose it, who has gone. ▶ Watch it come apart plays the map from its greatest year, each world flashing and going black as history has it; Talwick's colour goes from 0.19% of the screen to none. Its card says what those cut off lost, with ▶ The fleet sent to take one back on the real war. A world's page says who holds it and then 🌘 Its dark age: what it held and holds, what it lacked, and a chart. Great news comes as a window with a button to it; the first dark age's opens that world.
+
+**Store `space.nations`, dormant until a world of another star has someone on it,** so nothing moves before then: `node tools/oracle.ts` reads 8 unchanged. Events `nation.left` 4, `nation.first-left` 7, `nation.joined` 3, `nation.taken` 5, `nation.greatest` 7, `nation.fell` 7, `nation.dark` 4, `nation.first-dark` 7. Rules `earth-13`, `alien-17`. A mean year from 1500 to 3000 on `harrow 348` is 51 ms, and a save at 3000 is 2.14 MB against 2.09. Gate 85.
+
+**Cut for later slices.** Far realms sending fleets or runs; vassals; a realm's civil war among its worlds; a seat moved to a far world when its home falls; word and trade between far realms; markets on worlds with no land; worlds with a land in the dark.
+
+**Levers.**
+- **A realm of worlds alone can't send anything yet.** It holds and it falls, and only a realm of the home world goes to war. This is what would give `quill 742` a story of its own: small far realms fighting over the near stars.
+- **Where two realms meet is seen, not told:** no border is drawn, and a page doesn't name a realm's neighbours.
+- **The galaxy view isn't coloured by holder yet,** only the stars around.
+- A far realm's seat is its first world, with no capital of its own to go down to. Lights on a world in the dark thin only with its people. Trade's far runs and raids read who holds a port, and nothing yet chooses a run for who holds it.
+
 ## The seed picker
 
 Choose Earth-like or alien, then a target age, and get seeds that plausibly reach it.

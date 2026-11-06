@@ -3706,10 +3706,14 @@ async function runPlanetPage(): Promise<void> {
   };
   /** How many of the greatest realms are marked plainly (the hues host/nations.ts gives). */
   const NATIONS_MARKED = 10;
+  /** How many worlds of no realm are marked at full size; past that each is the smaller, so hundreds of them leave the stars to be seen. */
+  const NO_ONE_PLAIN = 60;
   const drawNations = (m: NationMap) => {
     nationNow = m;
     clusterPanel.nations(m);
     if (!clusterPlan || nationFilming) return;
+    const noOne = m.stars.filter((s) => !m.nations[s.nation]).length,
+      fewer = Math.min(1, Math.sqrt(NO_ONE_PLAIN / Math.max(1, noOne)));
     drawHeld(
       clusterPlan,
       m.stars.map((s) => {
@@ -3718,7 +3722,13 @@ async function runPlanetPage(): Promise<void> {
           star: s.star,
           color: n ? n.color : s.dark ? DARK_MARK : FREE_MARK,
           // (The greatest plain, those who hold little small beneath them; a world of no one, least.)
-          scale: n ? (s.seat ? 1.5 : s.nation < NATIONS_MARKED ? 1 : 0.55) : s.dark ? 0.7 : 0.4,
+          scale: n
+            ? s.seat
+              ? 1.5
+              : s.nation < NATIONS_MARKED
+                ? 1
+                : 0.55
+            : (s.dark ? 0.7 : 0.4) * fewer,
         };
       }),
       heldReach(

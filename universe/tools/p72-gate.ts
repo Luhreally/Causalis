@@ -628,14 +628,21 @@ if (fallenRef) {
     check(!rawRef.test(said), `a raw ref on a realm with no worlds: ${rawRef.exec(said)?.[0]}`);
     await closePage();
   } else say("every realm here has held a world");
-  // A world of no one, named as a side.
-  const free = map.stars.find((s) => s.nation < 0 && !s.dark);
+  // A world of no one, and not in the dark: its page says so.
+  const free = await k<string | null>(
+    `globalThis.causalis.client.query({ type: "nation.free" }).catch(() => null)`,
+  );
   if (free) {
-    await k(`globalThis.causalis.open(${JSON.stringify(`${free.star}/0`)})`);
+    await k(`globalThis.causalis.open(${JSON.stringify(free)})`);
+    await until("a world no one holds", () =>
+      k<boolean>(`/No one holds it/i.test(document.body.innerText)`),
+    );
     await settleFor(800);
     await shot("free-world");
+    const said = await pageWords();
+    check(!rawRef.test(said), `a raw ref on a world no one holds: ${rawRef.exec(said)?.[0]}`);
     await closePage();
-  }
+  } else say("every world here has someone holding it, or is in the dark");
   await k(`globalThis.causalis.open("world:nations")`);
   await until("who holds the stars", () =>
     k<boolean>(`/Who holds the stars/i.test(document.body.innerText)`),

@@ -140,9 +140,12 @@ export function nationMap(world: World): NationMap {
   };
 }
 
-/** A realm's colour as the map wears it; one with nothing on the map, its own. */
-const colorOf = (world: World, ref: string): readonly [number, number, number] =>
-  nationMap(world).nations.find((n) => n.ref === ref)?.color ?? realmColor(ref);
+/** A realm's colour: the hue the map gives it among the greatest; any other its own, at full strength (faint is for a map of many). */
+const colorOf = (world: World, ref: string): readonly [number, number, number] => {
+  const { nations } = nationMap(world),
+    at = nations.findIndex((n) => n.ref === ref);
+  return at >= 0 && at < MAP_HUES.length ? nations[at]!.color : realmColor(ref);
+};
 
 /** What a world cut off has lost, in its numbers. */
 function darkLine(world: World, h: Holding): string {
@@ -546,7 +549,7 @@ export function nationsPage(world: World): PageModel {
     title: "Who holds the stars",
     subtitle: [
       map.stars.length
-        ? `${worlds(map.stars.length)} of other stars with people on them. ${many(map.nations.length, "realm holds", "realms hold")} ${worlds(map.stars.length - free)}. ${worlds(free)} of their own people, ${dark} of them in the dark.`
+        ? `${worlds(map.stars.length)} of other stars with people on them. ${many(map.nations.length, "realm holds", "realms hold")} ${worlds(map.stars.length - free)}.${free ? ` ${worlds(free)} of their own people${dark ? `, ${count(dark)} of them in the dark` : ""}.` : ""}`
         : "No one has come to live on a world of another star yet, so no one holds any.",
     ],
     color: null,
@@ -564,7 +567,7 @@ export function nationsPage(world: World): PageModel {
                   title: "By how many they hold",
                   items: map.nations.map((n) =>
                     item(
-                      `${n.name}: ${n.word}, ${worlds(n.worlds)}, ${bigWords(n.people)}`,
+                      `${n.name}: ${n.worlds === 1 ? n.word : `${n.word}, ${worlds(n.worlds)}`}, ${bigWords(n.people)}`,
                       nationRef(n.ref),
                     ),
                   ),
@@ -693,6 +696,15 @@ export const NATION_QUERIES: Readonly<Record<string, QueryHandler>> = {
         ?.all()
         .filter((h) => h.dark) ?? [];
     return rows.sort((a, b) => a.dark!.since - b.dark!.since)[0]?.key ?? null;
+  },
+  /** A world no one holds, not in the dark, with people on it: for a gate. */
+  "nation.free": (world) => {
+    const filled = filledOf(world);
+    return (
+      nationsOf(world)
+        ?.all()
+        .find((h) => !h.holder && !h.dark && filled?.get(h.key)?.gone === undefined)?.key ?? null
+    );
   },
   "nation.none": (world) =>
     politiesOf(world)
