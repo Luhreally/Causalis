@@ -459,6 +459,12 @@ await settleFor(1200);
   await k("globalThis.causalis.stars()");
   await until("the stars", () => k<boolean>(`!!globalThis.causalis.starLens?.()`));
   await settleFor(1500);
+  // (The lenses stand under the director's words and move up as they go, on a slow machine long after the watching stops.)
+  await until("the director's words gone", () =>
+    k<boolean>(
+      `(() => { const c = document.querySelector(".director-caption"); return !c || c.getBoundingClientRect().height === 0; })()`,
+    ),
+  );
   for (const lens of ["trade", "war"] as const) {
     await press(`.star-lens[data-lens="${lens}"]`);
     await settleFor(1800);

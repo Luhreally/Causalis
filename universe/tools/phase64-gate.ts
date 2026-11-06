@@ -228,7 +228,8 @@ try {
     tall = await k<number>(
       `Math.min(...[...document.querySelectorAll(".colony-row-acts button")].map((b) => b.getBoundingClientRect().height))`,
     );
-  check(rows === list.length, `the sheet has ${rows} rows for ${list.length} colonies`);
+  // (And a row for each world no land holds, how far it is settled: 70b.)
+  check(rows >= list.length, `the sheet has ${rows} rows for ${list.length} colonies`);
   check(fits, "the sheet does not fit a phone");
   check(tall >= 40, `its buttons are ${tall} px tall`);
   const moon = landed.find((c) => c.kind === "moon") ?? landed[0]!,

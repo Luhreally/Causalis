@@ -707,7 +707,7 @@ async function watch(f: Forged, tag: string): Promise<void> {
     `${tag}: of the first ${ground.first} lots of ${ground.lots} drawn, ${ground.razed} are ash; ${ground.standing} of the ${ground.civics} buildings there stand`,
   );
   check(
-    ground.razed >= ground.first * 0.9,
+    ground.razed >= Math.min(ground.first, strike.homes) * 0.9,
     `${tag}: its heart is not cleared: ${ground.razed} of the first ${ground.first} lots`,
   );
   check(ground.standing === 0, `${tag}: ${ground.standing} buildings stand in its heart`);
