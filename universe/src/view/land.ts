@@ -9,7 +9,7 @@
 // trodden, then paved, then railed. Pure: what is drawn, in the region's units (kilometres).
 import { MinHeap, YEAR } from "../kernel/index.ts";
 import { civic, type CivicKind } from "../rules/index.ts";
-import type { LandCamp, LandPlan, LandRoad, LandTown } from "../bridge/index.ts";
+import type { LandCamp, LandPlan, LandRoad, LandTown, RoadWorks } from "../bridge/index.ts";
 import { REGION_RELIEF, type RegionTree } from "./region.ts";
 import { sprawlOf, type TownScene } from "./town.ts";
 import { townReach } from "../bridge/index.ts";
@@ -321,6 +321,118 @@ export function roadLook(road: LandRoad, year: number): "none" | "track" | "pave
   return "track";
 }
 
+/** A road at a moment of a year (R1): what it is behind its gang and ahead of it, how far along the gang has got, and the gang. */
+export type RoadNow = {
+  readonly behind: "none" | "track" | "paved" | "rails";
+  readonly ahead: "none" | "track" | "paved" | "rails";
+  /** 0 to 1 along its line. */
+  readonly share: number;
+  readonly works: RoadWorks | null;
+  /** The gang stands idle now: its last stop's why (null: at work). */
+  readonly stopped: string | null;
+};
+
+/** How far a gang has got by year y, its idle years not counted. */
+export function worksShare(w: RoadWorks, y: number): number {
+  let idle = 0,
+    idleAll = 0;
+  for (const s of w.stops) {
+    idleAll += s.to - s.from;
+    if (y > s.from) idle += Math.min(y, s.to) - s.from;
+  }
+  const all = w.until - w.from - idleAll;
+  return all > 0 ? Math.max(0, Math.min(1, (y - w.from - idle) / all)) : 1;
+}
+
+/** A road as it stands at year y (a share of the way through it): stage by stage where its stages are told, else all at once as it ever was. */
+export function roadNow(road: LandRoad, y: number): RoadNow {
+  const stages = road.stages;
+  if (!stages?.length) {
+    const look = roadLook(road, Math.floor(y));
+    return { behind: look, ahead: look, share: 1, works: null, stopped: null };
+  }
+  let done: RoadNow["behind"] = "none";
+  for (const s of stages) {
+    if (y >= s.until && (road.works?.what !== s.what || road.works.again || y >= road.works.until))
+      done = s.what;
+  }
+  const w = road.works && y >= road.works.from && y < road.works.until ? road.works : null;
+  if (!w) return { behind: done, ahead: done, share: 1, works: null, stopped: null };
+  const stop = w.stops.find((s) => y >= s.from && y < s.to);
+  return {
+    behind: w.again ? done : w.what,
+    ahead: done,
+    share: worksShare(w, y),
+    works: w,
+    stopped: stop?.why ?? null,
+  };
+}
+
+/** A line cut at a share of its length: the part before and the part after, each with the point between. */
+export function cutLine(
+  line: readonly { x: number; z: number }[],
+  share: number,
+): [{ x: number; z: number }[], { x: number; z: number }[]] {
+  if (share <= 0) return [[], [...line]];
+  if (share >= 1 || line.length < 2) return [[...line], []];
+  let whole = 0;
+  for (let k = 0; k + 1 < line.length; k++)
+    whole += Math.hypot(line[k + 1]!.x - line[k]!.x, line[k + 1]!.z - line[k]!.z);
+  let left = share * whole;
+  for (let k = 0; k + 1 < line.length; k++) {
+    const p = line[k]!,
+      q = line[k + 1]!,
+      len = Math.hypot(q.x - p.x, q.z - p.z);
+    if (left <= len && len > 0) {
+      const at = { x: p.x + ((q.x - p.x) * left) / len, z: p.z + ((q.z - p.z) * left) / len };
+      return [
+        [...line.slice(0, k + 1), at],
+        [at, ...line.slice(k + 1)],
+      ];
+    }
+    left -= len;
+  }
+  return [[...line], []];
+}
+
+/**
+ * A land's tracks between its camps and hamlets, before anyone lays a road: each to the nearest of those about it, as bands and hamlets go between
+ * them. In tiles; none between two a road already joins, and none past a day's walk.
+ */
+export function campTracks(
+  camps: readonly { readonly home: number }[],
+  towns: readonly { readonly tile: number }[],
+  roads: readonly { readonly from: number; readonly to: number }[],
+  size: number,
+  most = 28,
+): (readonly [number, number])[] {
+  const sites = [...camps.map((c) => c.home), ...towns.map((t) => t.tile)],
+    joined = new Set(roads.flatMap((r) => [`${r.from}-${r.to}`, `${r.to}-${r.from}`])),
+    d2 = (a: number, b: number) =>
+      ((a % size) - (b % size)) ** 2 + (Math.floor(a / size) - Math.floor(b / size)) ** 2,
+    out: (readonly [number, number])[] = [],
+    seen = new Set<string>();
+  sites.forEach((a, i) => {
+    let best = -1,
+      far = 34 * 34;
+    sites.forEach((b, j) => {
+      if (i === j || a === b) return;
+      const d = d2(a, b);
+      if (d < far) {
+        far = d;
+        best = j;
+      }
+    });
+    if (best < 0) return;
+    const b = sites[best]!,
+      key = a < b ? `${a}-${b}` : `${b}-${a}`;
+    if (seen.has(key) || joined.has(`${a}-${b}`) || out.length >= most) return;
+    seen.add(key);
+    out.push([a, b]);
+  });
+  return out;
+}
+
 /**
  * A road's line cut where it enters a town's ground (its ends' towns', of `reach` each): it runs
  * to their edges, not through their blocks.
@@ -404,8 +516,8 @@ export function linePieces(
         z0 = p.z + ((q.z - p.z) * s) / n,
         x1 = p.x + ((q.x - p.x) * (s + 1)) / n,
         z1 = p.z + ((q.z - p.z) * (s + 1)) / n,
-        y0 = groundAt(g, x0, z0) + lift,
-        y1 = groundAt(g, x1, z1) + lift,
+        y0 = floor(g, x0, z0) + lift,
+        y1 = floor(g, x1, z1) + lift,
         dx = x1 - x0,
         dz = z1 - z0,
         flat = Math.hypot(dx, dz);

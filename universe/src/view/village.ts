@@ -4538,6 +4538,55 @@ function legsOf(plan: VillagePlan, index: number, day: number, fine: boolean): L
   return legs;
 }
 
+/** A long walk of a person's day (R1): when, from where to where, how long. */
+export type LongWalk = {
+  readonly from: number;
+  readonly to: number;
+  readonly start: Point;
+  readonly end: Point;
+  readonly long: number;
+};
+const LONG_WALKS = new WeakMap<VillagePlan, Map<string, readonly LongWalk[]>>();
+
+/** The walks of a person's day longer than `least` (metres): what a car or a line takes them on, the rest being walked. As their fine day has them. */
+export function longWalks(
+  plan: VillagePlan,
+  index: number,
+  day: number,
+  least: number,
+): readonly LongWalk[] {
+  let kept = LONG_WALKS.get(plan);
+  if (!kept) LONG_WALKS.set(plan, (kept = new Map()));
+  const key = `${index}|${day}`,
+    had = kept.get(key);
+  if (had) return had;
+  const out: LongWalk[] = [];
+  let run: { from: number; to: number; start: Point; end: Point; long: number } | null = null;
+  const close = () => {
+    if (run && run.long >= least) out.push(run);
+    run = null;
+  };
+  for (const leg of legsOf(plan, index, day, true)) {
+    if (leg.activity === ACTIVITY.walking && leg.next) {
+      const len = Math.hypot(leg.next.x - leg.at.x, leg.next.z - leg.at.z);
+      if (run) {
+        run.to = leg.to;
+        run.end = leg.next;
+        run.long += len;
+      } else run = { from: leg.from, to: leg.to, start: leg.at, end: leg.next, long: len };
+    } else close();
+  }
+  close();
+  if (kept.size > 12000) kept.clear();
+  kept.set(key, out);
+  return out;
+}
+
+/** Whether one of the plan is old (their years against their people's span): who no longer goes to work. */
+export function oldOfPerson(plan: VillagePlan, p: VillagePlan["people"][number]): boolean {
+  return p.age >= (62 * (plan.body?.span ?? 70)) / 70;
+}
+
 /**
  * What one of those drawn is at on a day, in words, as their day was laid ("felling timber",
  * "tending the wounded"; where the ground gave their role's errand another, that one's; null: a
@@ -4839,6 +4888,13 @@ function momentIn(
  */
 export type DayLine = { readonly from: number; readonly to: number; words: string; times: number };
 
+/** What a person goes in on a long walk, told to the day's lines by view/rides.ts (it reads this file, so not the other way about). */
+let rideWord: ((plan: VillagePlan, index: number) => string | null) | null = null;
+const RIDE_LEAST = 130;
+export function tellRides(read: (plan: VillagePlan, index: number) => string | null): void {
+  rideWord = read;
+}
+
 /**
  * A person's day told (Phase 45 M207): what they are about from midnight to midnight, a line for
  * each thing in turn, the walk to it folded into it; an errand run again and again (the sheaves
@@ -4847,12 +4903,17 @@ export type DayLine = { readonly from: number; readonly to: number; words: strin
 export function dayTold(plan: VillagePlan, index: number, day: number, fine = true): DayLine[] {
   const stays: { from: number; to: number; words: string; times: number }[] = [];
   let walked: number | null = null;
+  // (What they go in where the walk is long: R1. A person's day says so.)
+  const going = fine ? rideWord?.(plan, index) ?? null : null,
+    longs = going ? longWalks(plan, index, day, RIDE_LEAST) : [];
   for (const leg of legsOf(plan, index, day, fine)) {
     if (leg.activity === ACTIVITY.walking) {
       walked ??= leg.from;
       continue;
     }
-    const words = leg.why ?? sentenceOf(ACTIVITY_WORDS[leg.activity] ?? "about"),
+    const by = walked !== null && longs.some((w) => w.to <= leg.from + 1 && w.from >= walked!),
+      said = leg.why ?? sentenceOf(ACTIVITY_WORDS[leg.activity] ?? "about"),
+      words = by ? `${said}, gone there by ${going}` : said,
       last = stays.at(-1);
     if (last && last.words === words) last.to = leg.to;
     else stays.push({ from: walked ?? leg.from, to: leg.to, words, times: 1 });

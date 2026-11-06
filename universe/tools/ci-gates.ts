@@ -318,6 +318,8 @@ export const GATES: readonly Gate[] = [
   { gate: 91, args: ["--ci"], s: 240 },
   // Gate 97, the world acting on its own (tools/n1-gate.ts): a quake and a fire of the world's own on a far save, its front in the pixels, its page pressed by touch; no fire on a world with nothing to burn; a young world on CI.
   { gate: 97, args: ["--ci"], s: 240 },
+  // Gate 101, roads built and travelled (tools/r1-gate.ts): a gang on a road in the pixels from the land's nearest eye, pressed by touch; a town's ground worn by who walks there; cars and lines past engines; a young world on CI.
+  { gate: 101, args: ["--ci"], s: 360 },
   // Gate 99, a living ecology (tools/e1-gate.ts): woods that move for more than one reason, a lode at its eve, the Forest lens pressed by touch and the land's colour in the pixels, the same world before and after.
   { gate: 99, args: ["--ci"], s: 240 },
   // Gate 100, wild lives (tools/z1-gate.ts): herds on a land's map by real touch, in the pixels, gone in their season; a beast known, its page and song; herds taken in war; the tree going on; an old save run on.

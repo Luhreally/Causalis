@@ -47,6 +47,7 @@ import { HOME_LIFE } from "../rules/index.ts";
 import { houseLook, type HouseLook } from "./village.ts";
 import { biomeColor } from "./globe.ts";
 import { lifeTint } from "./biochem.ts";
+import { WORN_WIDE, wornOf } from "./worn.ts";
 
 type Rgb = readonly [number, number, number];
 export type PartMesh = "box" | "gable" | "cone" | "cyl" | "dome";
@@ -368,13 +369,23 @@ function sealedGround(scene: TownScene, out: TownParts): void {
  * The ground of a town: its square, and each block's street about it and its yards. `burned`: where the greatest fire
  * took it, none of that (a land's map sets each piece on its own rise, so what lay under the ash would stand through it).
  */
-export function townGround(scene: TownScene, out: TownParts, burned = false): void {
+export function townGround(
+  scene: TownScene,
+  out: TownParts,
+  burned = false,
+  /** The most pieces of worn ground drawn (R1). */
+  mostWorn = 1500,
+): void {
   const { plan, lots } = scene;
   if (plan.sealed) return sealedGround(scene, out);
   const ash = burned ? (plan.ash ?? 0) : 0;
-  const street: Rgb = plan.paved ? [0.66, 0.64, 0.6] : [0.6, 0.53, 0.4],
-    // (On a world of another kind, its grassland's colour: Phase 56; its life's: Phase 57.)
-    yard: Rgb = lifeTint(plan.kind ? biomeColor(8, plan.kind) : [0.5, 0.6, 0.34], plan.lifeLook);
+  // (On a world of another kind, its grassland's colour: Phase 56; its life's: Phase 57.)
+  const yard: Rgb = lifeTint(
+      plan.kind ? biomeColor(8, plan.kind) : [0.5, 0.6, 0.34],
+      plan.lifeLook,
+    ),
+    // (A street none has worn is the land's own, a little bared: what has worn it is drawn over it, R1.)
+    street: Rgb = plan.paved ? [0.66, 0.64, 0.6] : mixed(yard, [0.6, 0.53, 0.4], 0.5);
   // In metres, as everything here: the streets stand a hand above the land's ground and the
   // pasture under them, the yards a curb above the streets, so neither sinks out of sight.
   if (ash <= 0)
@@ -398,10 +409,39 @@ export function townGround(scene: TownScene, out: TownParts, burned = false): vo
     out.put("box", street, x, 0.18, z, BLOCK_W + STREET, 0.24, BLOCK_D + STREET, yaw);
     out.put("box", yard, x, 0.3, z, BLOCK_W - 0.6, 0.4, BLOCK_D - 0.6, yaw);
   }
+  // Where its people have gone (R1), over the streets and under the yards' curbs.
+  // (Bared to the ground under it, in its land's own colours: dark enough to be told from a street none walks, from as far as a person's eye goes.)
+  const wornEarth: Rgb =
+    plan.ways === "swim" ? [0.86, 0.84, 0.68] : mixed(yard, [0.16, 0.1, 0.05], 0.8);
+  for (const w of wornOf(scene, mostWorn).pieces) {
+    const deep = 0.5 + 0.12 * w.band,
+      base: Rgb = plan.paved
+        ? mixed(street, [0.2, 0.2, 0.22], 0.28 + 0.13 * w.band)
+        : mixed(street, wornEarth, deep),
+      // (A way none walks now goes back to green. Bands of it, so a few batches hold them all.)
+      c = w.green > 0.5 ? mixed(base, yard, w.green > 0.8 ? 0.8 : 0.55) : base,
+      tunnel = plan.ways === "tunnel";
+    out.put(
+      "box",
+      c,
+      w.x,
+      tunnel ? 0.5 : 0.415,
+      w.z,
+      WORN_WIDE[w.band]!,
+      tunnel ? 0.26 : 0.03,
+      w.len,
+      w.yaw,
+    );
+  }
   // A well at the square's heart; a market cross once it is paved.
   out.put("cyl", STONE, 0, 0.5, 0, 2.4, 1, 2.4, 0);
   if (plan.paved) out.put("box", STONE, 0, 2.2, 0, 0.6, 3.4, 0.6, 0);
   sprawl(scene, out, burned);
+}
+
+/** Two colours mixed: `k` of the second. */
+function mixed(a: Rgb, b: Rgb, k: number): Rgb {
+  return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
 }
 
 /** A whole number's share in [0, 1), for the sprawl's scatter (the plan's own, not history's). */

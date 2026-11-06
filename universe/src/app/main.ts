@@ -368,7 +368,9 @@ import { kinLines } from "../ui/index.ts";
 import { seatRef, type KinCard, type LandHerds, type StruckMember, type StruckNow, type WoodsMap } from "../bridge/index.ts";
 import type { WealthBook, WealthMeasure } from "../bridge/index.ts";
 import {
+  LONG_WALK,
   hasSpires,
+  longWalks,
   mirrorStrength,
   struckOf,
   toldBlows,
@@ -844,6 +846,29 @@ type Exposed = {
   /** Where the first cart, wagon, truck, train or ship of a land is now (Phase 26 M153). */
   landCarrier?: (kind: string) => { x: number; y: number; z: number } | null;
   landRiders?: () => { ref: string; name: string; x: number; y: number }[];
+  /** Road gangs on the land, and what its works draw; its plan as last read; what a town's people keep and ride (R1's gate). */
+  landGangs?: () => { ref: string; x: number; y: number; stopped: boolean }[];
+  landWorks?: () => { gangs: number; hands: number; parts: number; faint: number } | null;
+  landPlanNow?: () => unknown;
+  landRoadHead?: (ref: string) => { x: number; y: number; z: number } | null;
+  townPick?: (x: number, y: number, reach?: number) => number | null;
+  townWalks?: (index: number, day: number) => readonly { from: number; to: number }[];
+  townRides?: () => {
+    cars: number;
+    buses: number;
+    aboard: number;
+    owners: number[];
+    riders: number[];
+    carsAt: {
+      index: number;
+      x: number;
+      y: number;
+      wx: number;
+      wz: number;
+      riding: boolean;
+    }[];
+    busesAt: { n: number; x: number; y: number; aboard: number; wx: number; wz: number }[];
+  } | null;
   /** Where on the screen one of the town's buildings, one of its homes and its walls are (M151). */
   townOnScreen?: () => unknown;
   /** The town seen near (the look tools): which, whether it is its land's heart, the battle it sees. */
@@ -3065,12 +3090,22 @@ async function runPlanetPage(): Promise<void> {
           : named?.startsWith("rider:")
             ? named.slice("rider:".length)
             : region.land.riderAt(stage.camera.camera!, x, y),
-      // A creature of the land, its den, a beast at large (Z1): its page.
-      creature =
+      // A gang on a road (R1): the road's page.
+      gang =
         war || camp !== null || rider
           ? null
+          : named?.startsWith("gang:")
+            ? named.slice("gang:".length)
+            : region.land.gangAt(stage.camera.camera!, x, y),
+      // A creature of the land, its den, a beast at large (Z1): its page.
+      creature =
+        war || camp !== null || rider || gang
+          ? null
           : region.land.herds.pick(stage.camera.camera!, x, y);
-    if (creature) {
+    if (gang) {
+      region.mark(null);
+      void pageWindow.open(gang);
+    } else if (creature) {
       region.mark(null);
       void pageWindow.open(creature);
     } else if (war) void pageWindow.open(war);
@@ -3078,7 +3113,16 @@ async function runPlanetPage(): Promise<void> {
       region.mark(null);
       void pageWindow.open(`camp:${regionCell}:${camp}`);
     } else if (rider) void pageWindow.open(rider);
-    else selectTile(region.pick(x, y));
+    else {
+      // (A road, under the finger, where no town is: R1.)
+      const tile = region.pick(x, y),
+        town = tile === null ? null : region.villageNear(tile),
+        road = town === null ? region.land.roadAt(stage.camera.camera!, x, y) : null;
+      if (road) {
+        region.mark(null);
+        void pageWindow.open(road);
+      } else selectTile(tile);
+    }
   };
   const selectTile = (tile: number | null) => {
     region.mark(tile);
@@ -6315,6 +6359,15 @@ async function runPlanetPage(): Promise<void> {
     if (lifeTap?.(x, y)) return;
     // (A town's money over it: a home tapped gives its page, whoever stands before it. Lives L6.)
     if (moneyTap?.(x, y)) return;
+    // A car pressed: its owner. What goes a line: its page. A finger right on it gets it, whoever stands by it and whatever stands behind; only near it, if no
+    // one stands nearer (R1).
+    const ride = plan && !homeOpen() ? village.pickRide(x, y) : null;
+    if (ride && plan && (ride.direct || village.pick(x, y, 12) === null)) {
+      if ("owner" in ride) return selectPerson(ride.owner);
+      selectPerson(null);
+      void pageWindow.open(`bus:${plan.ref}:${ride.line}`);
+      return;
+    }
     // The song at its feast and what it raised (T1): a finger on the notes, on the stone. Someone standing right there comes first.
     if (plan && !homeOpen()) {
       const sung = village.sungNow(now());
@@ -9197,6 +9250,15 @@ async function runPlanetPage(): Promise<void> {
     scale === "region" ? region.land.camps.info().map((c) => ({ ...c, cell: regionCell })) : [];
   exposed.landCarrier = (kind: string) => region.land.carrier(kind as CarrierKind);
   exposed.landRiders = () => (scale === "region" ? region.land.riders(stage.camera.camera!) : []);
+  exposed.landGangs = () => (scale === "region" ? region.land.gangs(stage.camera.camera!) : []);
+  exposed.landWorks = () => (scale === "region" ? region.land.worksInfo() : null);
+  exposed.landPlanNow = () => landPlan;
+  exposed.landRoadHead = (ref: string) => (scale === "region" ? region.land.rider(ref) : null);
+  exposed.townRides = () => (scale === "village" ? village.ridesInfo() : null);
+  exposed.townWalks = (index: number, day: number) =>
+    plan ? longWalks(plan, index, day, LONG_WALK) : [];
+  exposed.townPick = (x: number, y: number, reach?: number) =>
+    scale === "village" ? village.pick(x, y, reach) : null;
 
   stage.onUpdate(() => {
     const camps = landPlan?.camps ?? [];
@@ -9222,6 +9284,15 @@ async function runPlanetPage(): Promise<void> {
         at: campsAt.get(c.id) ?? null,
         priority: -1 + c.people / 1e6,
       })),
+      // A gang on a road, named as soon as it can be made out (R1).
+      ...(rig.distance < 70
+        ? region.land.gangs(stage.camera.camera!).map((g) => ({
+            key: `gang:${g.ref}`,
+            text: g.stopped ? "🚧 Works, stopped" : "🚧 Road works",
+            at: { x: g.x, y: g.y - 30 },
+            priority: 1e12,
+          }))
+        : []),
       // One on an errand on its roads, named once the eye is near enough to pick them out (D1).
       ...(rig.distance < 40
         ? region.land.riders(stage.camera.camera!).map((r) => ({

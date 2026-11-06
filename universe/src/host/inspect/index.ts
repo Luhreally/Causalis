@@ -18,6 +18,7 @@ import { agentPage, householdPage, memoryPage, personPage, townPage } from "./se
 import { shipPage } from "../starfight.ts";
 import { battlePage, realmPageModel, relationPage, starWarPage, warPage } from "./realm.ts";
 import { blocPage, envoyPage, leaguePage, matchPage } from "./ties.ts";
+import { busPage, roadPage } from "./road.ts";
 import { boardPage, dearPage } from "./board.ts";
 import { designPage, faithPage, goodPage, languagePage } from "./culture.ts";
 import { agePage, depositPageModel, lineagePage, platePageModel } from "./life.ts";
@@ -133,6 +134,9 @@ function build(
   if (ref.startsWith("league:")) return leaguePage(world, ref);
   if (ref.startsWith("match:")) return matchPage(world, ref);
   if (ref.startsWith("envoy:")) return envoyPage(world, ref);
+  // A road and its gang, and what goes a line in a town (R1).
+  if (ref.startsWith("road:")) return roadPage(world, ref);
+  if (ref.startsWith("bus:")) return busPage(world, ref);
   // A town's case before whoever judges there (J1).
   if (ref.startsWith("case:")) return casePage(world, ref);
   // A home and what is in it (Lives L6).

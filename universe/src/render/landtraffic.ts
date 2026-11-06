@@ -4,7 +4,7 @@
 // while the clock runs, at a pace the eye can follow whatever its speed, and stand while it is
 // held; drawn in a few batches by mesh and colour, put again each frame.
 import * as pc from "playcanvas";
-import type { LandEra } from "../bridge/index.ts";
+import type { GetAbout, LandEra } from "../bridge/index.ts";
 import { CARRIERS, alongWay, floorAt, groundAt, type LandGround, type Way } from "../view/index.ts";
 import { InstancedBatch } from "./batch.ts";
 import type { Rgb, Stage } from "./stage.ts";
@@ -30,7 +30,19 @@ type Part = {
 type Car = { readonly back: number; readonly parts: readonly Part[] };
 
 export type CarrierKind =
-  "cart" | "wagon" | "truck" | "steam-train" | "train" | "sail" | "steam" | "envoy";
+  | "cart"
+  | "wagon"
+  | "truck"
+  | "steam-train"
+  | "train"
+  | "sail"
+  | "steam"
+  | "envoy"
+  /** By what a people is (R1): a sled over the sea's floor; a file on foot with loads; a hive's hauler; a car on a line. */
+  | "sled"
+  | "porters"
+  | "hauler"
+  | "shuttle";
 
 /** How much larger than life one on an errand is drawn: the land's nearest eye is twelve units off, and they should be picked out from there. */
 const RIDER_LARGE = 2.5;
@@ -87,6 +99,8 @@ const envoyCar = (banner: Rgb): Car => ({
   })),
 });
 
+const SLED: Rgb = [0.3, 0.62, 0.64],
+  HAULER: Rgb = [0.5, 0.42, 0.3];
 const WOOD: Rgb = [0.5, 0.36, 0.22],
   OX: Rgb = [0.36, 0.26, 0.18],
   HORSE: Rgb = [0.44, 0.3, 0.2],
@@ -118,6 +132,77 @@ function cars(kind: CarrierKind, turn: number): readonly Car[] {
   switch (kind) {
     case "envoy":
       return [];
+    case "sled":
+      return [
+        {
+          back: 0,
+          parts: [
+            { mesh: "box", color: SLED, along: 0, up: 0.03, len: 0.08, wide: 0.034, tall: 0.012 },
+            {
+              mesh: "box",
+              color: LOAD,
+              along: -0.01,
+              up: 0.042,
+              len: 0.044,
+              wide: 0.024,
+              tall: 0.016,
+            },
+          ],
+        },
+      ];
+    case "porters":
+      return [0, 1, 2, 3].map((k) => ({
+        back: k * 0.038,
+        parts: [
+          {
+            mesh: "box" as const,
+            color: WOOD,
+            along: 0,
+            up: 0.004,
+            len: 0.012,
+            wide: 0.012,
+            tall: 0.024,
+          },
+          {
+            mesh: "box" as const,
+            color: CANVAS,
+            along: 0,
+            up: 0.028,
+            len: 0.018,
+            wide: 0.018,
+            tall: 0.012,
+          },
+        ],
+      }));
+    case "hauler":
+      return [
+        {
+          back: 0,
+          parts: [
+            { mesh: "box", color: HAULER, along: 0, up: 0.004, len: 0.1, wide: 0.034, tall: 0.022 },
+            {
+              mesh: "gable",
+              color: LOAD,
+              along: -0.008,
+              up: 0.026,
+              len: 0.07,
+              wide: 0.03,
+              tall: 0.014,
+              ridge: true,
+            },
+          ],
+        },
+      ];
+    case "shuttle":
+      return [
+        {
+          back: 0,
+          parts: [
+            { mesh: "box", color: WHITE, along: 0, up: 0.006, len: 0.09, wide: 0.03, tall: 0.024 },
+            { mesh: "box", color: SLED, along: 0, up: 0.016, len: 0.091, wide: 0.032, tall: 0.006 },
+          ],
+        },
+      ];
     case "cart":
       return [
         {
@@ -310,6 +395,10 @@ const PACE: Readonly<Record<CarrierKind, number>> = {
   cart: 0.08,
   wagon: 0.11,
   truck: 0.34,
+  sled: 0.3,
+  porters: 0.06,
+  hauler: 0.26,
+  shuttle: 0.5,
   "steam-train": 0.42,
   train: 0.7,
   sail: 0.22,
@@ -381,6 +470,8 @@ export class LandTraffic {
     undersea = false,
     /** Those on an errand on its roads this year, each under their realm's colour (D1). */
     envoys: readonly Rgb[] = [],
+    /** How its people get about, read off what they are (R1): what goes on its roads, if not a cart behind a beast. */
+    how?: GetAbout["how"],
   ): void {
     this.undersea = undersea;
     const by = CARRIERS[era],
@@ -393,12 +484,24 @@ export class LandTraffic {
         floats: boolean;
         lift: number;
       }[] = [];
-    if (by.road !== "none")
+    const onRoad: CarrierKind | "none" =
+      by.road === "none"
+        ? "none"
+        : how === "sled" || how === "swim"
+          ? "sled"
+          : how === "feet"
+            ? "porters"
+            : how === "hauler"
+              ? "hauler"
+              : how === "line"
+                ? "shuttle"
+                : by.road;
+    if (onRoad !== "none")
       for (const r of roads)
         if (r.way.length > 0.2)
           wants.push({
             way: r.way,
-            kind: by.road,
+            kind: onRoad,
             n: r.traffic,
             aside: r.look === "track" ? 0.016 : 0.024,
             floats: false,

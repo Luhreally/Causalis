@@ -91,6 +91,7 @@ import { flockBeast, makerAt, seatsOf, townStuff, workshopOf, type Maker } from 
 import { peopleFigure } from "./folk.ts";
 import { planKind } from "./kinds.ts";
 import { isMachineFolk, landPast } from "./past.ts";
+import { getAbout } from "./roads.ts";
 import { worldLook } from "./biochem.ts";
 import {
   LINE,
@@ -1268,6 +1269,7 @@ export function villagePlan(
         ? { past: { machines: past.machines, fliers: past.fliers, covered: past.covered } }
         : {}),
       era: eraOf(village.cell),
+      about: getAbout(world, village.cell, eraOf(village.cell)),
       // (The metal its smiths forge, M217: its tools may still be mostly stone.)
       metal: forgedMetal(ctx, village.cell),
       // (What its things are made of, and its own ore: Phase 51 M213.)

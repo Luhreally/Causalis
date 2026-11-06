@@ -5,6 +5,7 @@
 // so a phone can see them. Instanced throughout: a village is a handful of draw calls. A battle
 // fought before it in its own scene (Phase 55 M227): its field laid along its road (render/battle.ts),
 // its people indoors while it is fought but for those come out to its edge to watch.
+import { TownTraffic } from "./towntraffic.ts";
 import * as pc from "playcanvas";
 import {
   LAKE_R,
@@ -74,6 +75,7 @@ import {
   houseLook,
   limbPitch,
   momentsOf,
+  rideMoments,
   prepareDay,
   sayOf,
   storesNow,
@@ -355,6 +357,8 @@ export class VillageScene {
   /** What it raised to what happened in it, and the song at its feast (T1). */
   private readonly memorialLayer: MemorialLayer;
   private readonly courtLayer: CourtLayer;
+  /** What a town's people keep and ride (R1). */
+  private readonly rides: TownTraffic;
   /** The moment last drawn (a possession's clock isn't the world's: J1). */
   private courtT = 0;
   /** Who sings at its feast now: their place among those drawn (-1: no one), and the day it was chosen for. */
@@ -420,6 +424,7 @@ export class VillageScene {
     this.graveyard = new GraveyardLayer(stage, this.root);
     this.memorialLayer = new MemorialLayer(stage, this.root);
     this.courtLayer = new CourtLayer(stage, this.root);
+    this.rides = new TownTraffic(stage, this.root);
     this.worn = new WoundsLayer(stage, this.root);
     this.litters = new LittersLayer(stage, this.root);
     this.moneyLayer = new TownMoneyLayer(stage, this.root);
@@ -1781,6 +1786,8 @@ export class VillageScene {
     this.warScene = scene;
     this.warLayer.update(scene, screen, this.campNow, this.figure.scale);
     const targets = momentsOf(plan, t, downpour, fine);
+    // (Those gone by car or on a line, in it, not walking beside it: R1.)
+    rideMoments(plan, targets, t, fine);
     // Those come out to watch a battle fought before the town (Phase 55 M227): at its edge, facing it.
     for (const w of this.watchers) {
       const m = targets[w.index];
@@ -1894,6 +1901,15 @@ export class VillageScene {
     const unposed = this.posed ? drawn.slice() : null;
     this.posed?.pose(drawn, this.presence);
     this.moments = drawn.map((d) => d.moment);
+    this.rides.update(
+      plan,
+      this.moments,
+      t,
+      step !== 0,
+      fine,
+      M,
+      (this.posed as { lived?: number } | null)?.lived ?? null,
+    );
     // The town's trades at their buildings (Phase 41 M199): who tends each kiln now (or throws
     // pots by it), and who strikes at each smithy's anvil.
     if (this.trades.works.length) {
@@ -3325,6 +3341,19 @@ export class VillageScene {
   }
 
   /** The watched person nearest a screen point, within a finger's reach. */
+  /** The car or line at a point of the screen (R1): its owner's place, or its line, and whether the finger is right on it. */
+  pickRide(
+    x: number,
+    y: number,
+  ): ({ owner: number; direct: boolean } | { line: number; direct: boolean }) | null {
+    return this.rides.pick(this.stage.camera.camera!, x, y);
+  }
+
+  /** What a town's people keep and ride, and where each is on the screen (the look tools, R1). */
+  ridesInfo() {
+    return this.rides.info(this.stage.camera.camera!);
+  }
+
   pick(x: number, y: number, reach = 28): number | null {
     const cam = this.stage.camera.camera!,
       at = new pc.Vec3();

@@ -1,5 +1,22 @@
 // view: pure view-spec builders — simulation frames to what is drawn and shown.
 // May import: kernel, rules, bridge. See README.md and docs/architecture §28.
+export { WORN_WIDE, wornOf, type Worn, type WornPiece } from "./worn.ts";
+export {
+  CAR_REACH,
+  LONG_WALK,
+  MOST_ABOARD,
+  aboardNow,
+  carClear,
+  carNow,
+  goesIn,
+  goesWords,
+  rideMoments,
+  ridesOf,
+  type BusLine,
+  type CarNow,
+  type Owner,
+  type Rides,
+} from "./rides.ts";
 export {
   CELL_RADIUS,
   CLASS_COLORS,
@@ -78,6 +95,7 @@ export {
   houseLook,
   keepApart,
   momentOf,
+  longWalks,
   momentsOf,
   dayTold,
   legsTold,
@@ -299,9 +317,13 @@ export {
   laneLine,
   landReach,
   linePieces,
+  campTracks,
+  cutLine,
   roadLine,
   roadLook,
+  roadNow,
   roadOutside,
+  worksShare,
   onLines,
   roadTiles,
   tileMiddle,

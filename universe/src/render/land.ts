@@ -11,6 +11,9 @@ import type { LandPlan } from "../bridge/index.ts";
 import {
   CROPS,
   LAND_ACROSS,
+  campTracks,
+  cutLine,
+  roadNow,
   LAND_FLAT,
   LAND_UP,
   TownParts,
@@ -48,6 +51,7 @@ import {
 } from "../view/index.ts";
 import { InstancedBatch, boxMesh, coneMesh, cylinderMesh, gableMesh, keptMesh } from "./batch.ts";
 import { LandTraffic, type BusyWay, type CarrierKind, type RoadWay } from "./landtraffic.ts";
+import { LandWorks, type WorksSite } from "./landworks.ts";
 import { LandHerdsLayer } from "./landherds.ts";
 import type { LandHerds } from "../bridge/index.ts";
 import { LandCamps } from "./landcamps.ts";
@@ -253,6 +257,17 @@ const TRACK: Rgb = [0.66, 0.55, 0.38],
   PAVED: Rgb = [0.6, 0.6, 0.58],
   RAILS: Rgb = [0.26, 0.22, 0.2];
 const ROAD_WIDE = { track: 0.07, paved: 0.1, rails: 0.05 } as const;
+/** A way worn between camps and hamlets, before any road is laid (R1): thin, and nearer the ground's own colour. */
+const FAINT: Rgb = [0.58, 0.5, 0.36];
+const FAINT_WIDE = 0.035;
+/** How often a road's laying is looked at, in a year; a road's sections, and how far either side of a cut lies open (region units). */
+const WORKS_LOOKS = 8;
+const SECTION = 0.25;
+const CUT_GAP = 0.34;
+/** The most pieces of a town's worn ground its land draws. */
+const LAND_WORN = 340;
+/** The most gangs drawn on a land at once. */
+const MOST_GANGS = 8;
 
 /** How far over the road the middle of one riding on it is (region units). */
 const RIDER_UP = 0.1;
@@ -262,14 +277,17 @@ export class LandLayer {
   private readonly settled: GroundBatches;
   private readonly rising: GroundBatches;
   private readonly fieldBatches: InstancedBatch[] = [];
-  private readonly roadBatches: Record<"track" | "paved" | "rails", InstancedBatch | null> = {
+  private readonly roadBatches: Record<"track" | "paved" | "rails" | "faint", InstancedBatch | null> = {
     track: null,
     paved: null,
     rails: null,
+    faint: null,
   };
   private readonly stage: Stage;
   private readonly meshes: Readonly<Record<PartMesh, pc.Mesh>>;
   private readonly traffic: LandTraffic;
+  /** Those laying its roads (R1). */
+  private readonly works: LandWorks;
   /** Its bands' camps (Phase 28 M159). */
   readonly camps: LandCamps;
   /** What goes on its ground that no one drives (Z1). */
@@ -308,6 +326,7 @@ export class LandLayer {
     this.settled = new GroundBatches(stage, this.root, this.meshes);
     this.rising = new GroundBatches(stage, this.root, this.meshes);
     this.traffic = new LandTraffic(stage, this.root, this.meshes);
+    this.works = new LandWorks(stage, this.root, this.meshes);
     this.camps = new LandCamps(stage, this.root, this.meshes);
     this.herds = new LandHerdsLayer(stage, this.root, this.meshes);
   }
@@ -322,6 +341,7 @@ export class LandLayer {
     this.railWays = [];
     this.laneWays = [];
     this.traffic.clear();
+    this.works.clear();
     this.camps.clear();
     this.herds.clear();
     this.fields = [];
@@ -390,7 +410,8 @@ export class LandLayer {
         scene = townScene(town.plan, moment, had?.scene.lots),
         settled = had?.settled ?? new TownParts();
       settled.clear();
-      townGround(scene, settled, !!town.plan.ash);
+      // (Of worn ground, what the land's eye can make out.)
+      townGround(scene, settled, !!town.plan.ash, Math.min(LAND_WORN, 40 + Math.floor(scene.plan.lots / 6)));
       townHomes(scene, scene.settled, moment, settled);
       townAsh(scene, moment, settled, true);
       this.towns.set(town.ref, {
@@ -490,6 +511,7 @@ export class LandLayer {
     if (!g || !this.plan) return;
     this.running = running;
     this.traffic.move(g, running, this.overFields);
+    this.works.move(running);
     this.camps.update(running);
     this.herds.update(g, this.clearings(), (t % YEAR) / YEAR, running);
     const wall = performance.now();
@@ -514,10 +536,11 @@ export class LandLayer {
       this.season = season;
       this.showFields(share);
     }
-    const year = Math.floor(t / YEAR);
-    if (year !== this.year) {
-      this.year = year;
-      this.showRoads(year);
+    // (A road's gang moves on a section at a time, between the year's turns.)
+    const look = Math.floor(t / (YEAR / WORKS_LOOKS));
+    if (look !== this.year) {
+      this.year = look;
+      this.showRoads(t / YEAR);
     }
   }
 
@@ -592,49 +615,125 @@ export class LandLayer {
     return out.length < 2 ? null : out;
   }
 
-  private showRoads(year: number): void {
+  private showRoads(moment: number): void {
     const g = this.ground!,
-      plan = this.plan!;
-    const pieces: Record<"track" | "paved" | "rails", number[][]> = {
+      plan = this.plan!,
+      year = Math.floor(moment),
+      onGround = plan.undersea ? floorAt : this.overFields;
+    const pieces: Record<"track" | "paved" | "rails" | "faint", number[][]> = {
       track: [],
       paved: [],
       rails: [],
+      faint: [],
     };
+    const nows = plan.roads.map((r) => roadNow(r, moment)),
+      /** A road's sections laid. */
+      laidOf = (k: number) => {
+        const n = nows[k]!;
+        if (!n.works) return -1;
+        const out = this.roadOut(plan.roads[k]!);
+        let long = 0;
+        if (out)
+          for (let q = 0; q + 1 < out.length; q++)
+            long += Math.hypot(out[q + 1]!.x - out[q]!.x, out[q + 1]!.z - out[q]!.z);
+        return Math.floor((n.share * long) / SECTION);
+      },
+      cutNow = (r: LandPlan["roads"][number]) =>
+        r.cut && moment >= r.cut.from && moment < r.cut.until ? r.cut : null;
     const key = `${this.stage.quality.landTraffic}|${plan.era}|${plan.roads
-      .map((r) => `${r.from}-${r.to}-${roadLook(r, year)}-${r.traffic}`)
+      .map(
+        (r, k) =>
+          `${r.from}-${r.to}-${nows[k]!.behind}-${nows[k]!.ahead}-${laidOf(k)}-${nows[k]!.stopped ?? ""}-${cutNow(r)?.from ?? ""}-${r.traffic}`,
+      )
       .join("|")}|${plan.lanes
       .map((l) => (l.since <= year ? `${l.from}:${l.dx}:${l.dz}:${l.ships}` : ""))
-      .join("|")}|${(plan.envoys ?? []).map((e) => e.ref).join("|")}`;
+      .join("|")}|${(plan.envoys ?? []).map((e) => e.ref).join("|")}|${(plan.camps ?? []).map((c) => c.home).join(",")}`;
     if (key === this.roadsKey) return;
     this.roadsKey = key;
     this.roadWays = [];
     this.railWays = [];
-    for (const road of plan.roads) {
-      const look = roadLook(road, year);
-      if (look === "none") continue;
-      const out = this.roadOut(road);
-      if (!out) continue;
-      pieces[look === "rails" ? "paved" : look].push(
-        ...linePieces(g, out, LIFT * 1.4, undefined, plan.undersea ? floorAt : this.overFields),
-      );
-      this.roadWays.push({ way: wayOf(out), look, traffic: road.traffic });
-      if (look === "rails") {
-        // The railway beside the road: its bed a little to one side.
-        const off = ROAD_WIDE.paved * 0.9,
-          side = out.map((p, i) => {
-            const q = out[Math.min(out.length - 1, i + 1)]!,
-              r = out[Math.max(0, i - 1)]!,
-              dx = q.x - r.x,
-              dz = q.z - r.z,
-              n = Math.hypot(dx, dz) || 1;
-            return { x: p.x - (dz / n) * off, z: p.z + (dx / n) * off };
-          });
-        pieces.rails.push(
-          ...linePieces(g, side, LIFT * 1.6, undefined, plan.undersea ? floorAt : this.overFields),
-        );
-        this.railWays.push({ way: wayOf(side), busy: road.traffic });
+    const sites: WorksSite[] = [];
+    plan.roads.forEach((road, k) => {
+      const now = nows[k]!,
+        look = now.behind,
+        out = this.roadOut(road);
+      if (!out || (look === "none" && now.ahead === "none")) return;
+      // Behind the gang as it is laid, ahead of it as it was. A road cut lies open at the cut.
+      const [built, left] = now.works ? cutLine(out, now.share) : [out, []],
+        cut = cutNow(road),
+        gap = cut ? (cutLine(out, cut.at)[0].at(-1) ?? null) : null,
+        lay = (line: readonly { x: number; z: number }[], as: typeof look) => {
+          if (as === "none" || line.length < 2) return;
+          const open = (list: number[][]) =>
+            gap ? list.filter((q) => Math.hypot(q[0]! - gap.x, q[2]! - gap.z) > CUT_GAP) : list;
+          pieces[as === "rails" ? "paved" : as].push(
+            ...open(linePieces(g, line, LIFT * 1.4, undefined, onGround)),
+          );
+          if (as === "rails") {
+            // The railway beside the road: its bed a little to one side.
+            const off = ROAD_WIDE.paved * 0.9,
+              side = line.map((p, i) => {
+                const q = line[Math.min(line.length - 1, i + 1)]!,
+                  r = line[Math.max(0, i - 1)]!,
+                  dx = q.x - r.x,
+                  dz = q.z - r.z,
+                  n = Math.hypot(dx, dz) || 1;
+                return { x: p.x - (dz / n) * off, z: p.z + (dx / n) * off };
+              });
+            pieces.rails.push(...open(linePieces(g, side, LIFT * 1.6, undefined, onGround)));
+            this.railWays.push({ way: wayOf(side), busy: road.traffic });
+          }
+        };
+      lay(built, look);
+      lay(left, now.ahead);
+      // What goes along it goes as far as it is laid, and no farther than a cut.
+      const going =
+        look === "none"
+          ? left
+          : now.ahead === "none"
+            ? built
+            : cut
+              ? cutLine(out, Math.max(cut.at, 1 - cut.at))[0]
+              : out;
+      if (going.length >= 2) {
+        const as = (look === "none" ? now.ahead : look) as "track" | "paved" | "rails";
+        this.roadWays.push({ way: wayOf(going), look: as, traffic: road.traffic });
       }
-    }
+      const ref = road.ref;
+      if (ref && now.works)
+        sites.push({
+          ref,
+          line: out,
+          share: now.share,
+          what: now.works.what,
+          colour: now.works.colour,
+          machines: now.works.machines,
+          hands: now.works.hands,
+          stopped: !!now.stopped,
+          cut: false,
+        });
+      else if (ref && cut)
+        sites.push({
+          ref,
+          line: out,
+          share: cut.at,
+          what: look === "none" ? "track" : look,
+          colour: [0.5, 0.48, 0.44],
+          machines: false,
+          hands: 6,
+          stopped: false,
+          cut: true,
+        });
+    });
+    this.works.set(sites.slice(0, MOST_GANGS), g, onGround, !!plan.undersea);
+    // Ways worn between camps and hamlets, by feet: those no road has been laid along.
+    if (!plan.undersea && plan.camps?.length)
+      for (const [a, b] of campTracks(plan.camps, plan.towns, plan.roads, g.size)) {
+        const k = `${a}-${b}`;
+        let line = this.lines.get(k);
+        if (!line) this.lines.set(k, (line = roadLine(g, roadTiles(g, a, b))));
+        if (line.length >= 2) pieces.faint.push(...linePieces(g, line, LIFT * 1.1, 0.5, onGround));
+      }
     // Its sea lanes, from the year its ships first went.
     this.laneWays = [];
     for (const lane of plan.lanes) {
@@ -652,8 +751,9 @@ export class LandLayer {
       this.stage.quality.landTraffic,
       !!plan.undersea,
       (plan.envoys ?? []).map((e) => e.color),
+      plan.about?.how,
     );
-    for (const look of ["track", "paved", "rails"] as const) {
+    for (const look of ["track", "paved", "rails", "faint"] as const) {
       const list = pieces[look];
       let b = this.roadBatches[look];
       if (!b || b.capacity < list.length) {
@@ -661,7 +761,7 @@ export class LandLayer {
         b = new InstancedBatch(
           this.stage,
           this.meshes.box,
-          [...(look === "track" ? TRACK : look === "paved" ? PAVED : RAILS)],
+          [...(look === "track" ? TRACK : look === "paved" ? PAVED : look === "faint" ? FAINT : RAILS)],
           Math.max(64, Math.ceil(list.length * 1.3)),
           this.root,
         );
@@ -672,7 +772,7 @@ export class LandLayer {
         o[0] = x!;
         o[1] = y!;
         o[2] = z!;
-        o[3] = ROAD_WIDE[look];
+        o[3] = look === "faint" ? FAINT_WIDE : ROAD_WIDE[look];
         o[4] = 0.012;
         o[5] = len!;
         o[6] = yaw!;
@@ -719,8 +819,79 @@ export class LandLayer {
     return this.traffic.nth(kind, 0);
   }
 
-  /** Where one on an errand on this land's roads is now (region units), or null: on none of its roads (D1). */
+  /** A road's gang's page at a point of the screen, within a finger's reach (R1). */
+  gangAt(cam: pc.CameraComponent, x: number, y: number): string | null {
+    return this.works.pick(cam, x, y);
+  }
+
+  /** The road at a point of the screen, within a finger's reach of its line (R1): its page, or null. */
+  roadAt(cam: pc.CameraComponent, x: number, y: number, reach = 14): string | null {
+    const g = this.ground,
+      plan = this.plan;
+    if (!g || !plan) return null;
+    const at = new pc.Vec3(),
+      out = new pc.Vec3(),
+      onGround = plan.undersea ? floorAt : this.overFields,
+      now = this.year / WORKS_LOOKS;
+    let best: string | null = null,
+      most = reach * reach;
+    for (const road of plan.roads) {
+      if (!road.ref) continue;
+      const n = roadNow(road, now);
+      if (n.behind === "none" && n.ahead === "none") continue;
+      const line = this.roadOut(road);
+      if (!line) continue;
+      let px = 0,
+        py = 0,
+        had = false;
+      for (const p of line) {
+        at.set(p.x, onGround(g, p.x, p.z) + LIFT, p.z);
+        cam.worldToScreen(at, out);
+        if (out.z <= 0) {
+          had = false;
+          continue;
+        }
+        if (had) {
+          const dx = out.x - px,
+            dy = out.y - py,
+            len = dx * dx + dy * dy,
+            u = len ? Math.max(0, Math.min(1, ((x - px) * dx + (y - py) * dy) / len)) : 0,
+            ex = px + dx * u - x,
+            ey = py + dy * u - y,
+            d = ex * ex + ey * ey;
+          if (d < most) {
+            most = d;
+            best = road.ref;
+          }
+        }
+        px = out.x;
+        py = out.y;
+        had = true;
+      }
+    }
+    return best;
+  }
+
+  /** Those at work on its roads, on the screen (R1). */
+  gangs(cam: pc.CameraComponent): { ref: string; x: number; y: number; stopped: boolean }[] {
+    return this.works.gangs(cam);
+  }
+
+  /** What the works draw, for the look tools (R1). */
+  worksInfo(): { gangs: number; hands: number; parts: number; faint: number } {
+    return { ...this.works.info(), faint: this.roadBatches.faint?.size ?? 0 };
+  }
+
+  /** Where one on an errand on this land's roads is now (region units), or null: on none of its roads (D1). A road: its gang, else its middle (R1). */
   rider(ref: string): { x: number; y: number; z: number } | null {
+    if (ref.startsWith("road:")) {
+      const head = this.works.head(ref);
+      if (head) return head;
+      const road = this.plan?.roads.find((r) => r.ref === ref),
+        line = road ? this.roadOut(road) : null,
+        m = line?.[Math.floor(line.length / 2)];
+      return m && this.ground ? { x: m.x, y: groundAt(this.ground, m.x, m.z), z: m.z } : null;
+    }
     const k = (this.plan?.envoys ?? []).findIndex((e) => e.ref === ref);
     return k < 0 ? null : this.traffic.nth("envoy", k);
   }
@@ -758,6 +929,7 @@ export class LandLayer {
     this.settled.destroy();
     this.rising.destroy();
     this.traffic.destroy();
+    this.works.destroy();
     this.camps.destroy();
     this.herds.destroy();
     for (const b of this.fieldBatches) b.destroy();

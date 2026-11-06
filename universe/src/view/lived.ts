@@ -17,6 +17,7 @@ import { civicDoors } from "./errands.ts";
 import { marketScene } from "./feast.ts";
 import { paceOf } from "./figure.ts";
 import { route } from "./ground.ts";
+import { goesIn } from "./rides.ts";
 import { agentOf, type PosedHook } from "./possess.ts";
 import type { Presence } from "./presence.ts";
 
@@ -180,9 +181,18 @@ export class LivedBody implements PosedHook {
     });
   }
 
-  /** Whether they are walking now (so the clock slows to show it). */
+  /** Who is lived, by their place in the plan: the town draws a line's coach about them when they are aboard. */
+  get lived(): number {
+    return this.index;
+  }
+
+  /** Whether they are walking now, or riding to their work on their own day (so the clock slows to show it). */
   get walking(): boolean {
-    return !!this.walk && this.now < this.walk.to;
+    return (!!this.walk && this.now < this.walk.to) || this.riding;
+  }
+  /** Whether what they keep or a line has them now, on their own day's way to work (R1). */
+  get riding(): boolean {
+    return !this.spot && !this.walk && goesIn(this.plan, this.index, this.now, true) !== null;
   }
   /** Whether the block now is the night's. */
   get asleep(): boolean {

@@ -41,6 +41,7 @@ import { envoysIn } from "./inspect/ties.ts";
 import { landEra, townSite } from "./village.ts";
 import { colonyLook } from "./colony.ts";
 import { landPast } from "./past.ts";
+import { getAbout, readRoad } from "./roads.ts";
 
 /** Lots a land draws of each of its towns at the least (a village's every lot). */
 const LEAST_LOTS = 240;
@@ -138,6 +139,7 @@ export function landPlan(world: World, cell: number, budget = 8000): LandPlan {
     t: world.now,
     era,
     towns,
+    about: getAbout(world, cell, era),
     roads: landRoads(world, cell, towns),
     lanes: landLanes(world, cell, towns),
     camps: covered ? [] : landCamps(world, cell, towns),
@@ -293,6 +295,14 @@ function landRoads(world: World, cell: number, towns: readonly LandTown[]): Land
     size = r.size,
     d2 = (a: number, b: number) =>
       ((a % size) - (b % size)) ** 2 + (Math.floor(a / size) - Math.floor(b / size)) ** 2,
+    /** A town's quake these two years past, by which its roads are cut. */
+    shaken = (a: LandTown, b: LandTown | null) => {
+      for (const t of [a, b]) {
+        const q = t?.plan?.struck?.findLast((x) => x.kind === "quake");
+        if (q) return { year: Math.floor(q.at / YEAR), ref: q.event };
+      }
+      return null;
+    },
     road = (
       from: LandTown,
       to: number,
@@ -300,20 +310,27 @@ function landRoads(world: World, cell: number, towns: readonly LandTown[]): Land
       toward: string | null,
       since: number,
       traffic: number,
-    ): LandRoad => ({
-      from: from.tile,
-      to,
-      a: from.ref,
-      b: b?.ref ?? null,
-      toward,
-      since,
-      paved: paved === null ? null : Math.max(paved, since),
-      rails:
-        railed !== null && from.population >= RAIL_TOWN && (!b || b.population >= RAIL_TOWN)
-          ? Math.max(railed, since)
-          : null,
-      traffic,
-    }),
+      known = true,
+    ): LandRoad => {
+      const bare = {
+        from: from.tile,
+        to,
+        a: from.ref,
+        b: b?.ref ?? null,
+        toward,
+        since,
+        paved: paved === null ? null : Math.max(paved, since),
+        rails:
+          railed !== null && from.population >= RAIL_TOWN && (!b || b.population >= RAIL_TOWN)
+            ? Math.max(railed, since)
+            : null,
+        traffic,
+      };
+      return {
+        ...bare,
+        ...readRoad(world, cell, bare, size, PROVINCE_TILE_KM, known, shaken(from, b)),
+      };
+    },
     out: LandRoad[] = [];
   const founded = [...towns].sort((a, b) => a.founded - b.founded || (a.ref < b.ref ? -1 : 1));
   for (let k = 1; k < founded.length; k++) {
@@ -380,6 +397,7 @@ function landRoads(world: World, cell: number, towns: readonly LandTown[]): Land
         great?.name ?? null,
         opened ? yearOfMoment(opened.t) : yearOfMoment(world.now),
         busy(goodsBetween(world, cell, nb)),
+        !!opened,
       ),
     );
   }

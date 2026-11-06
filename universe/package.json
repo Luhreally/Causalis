@@ -112,6 +112,7 @@
     "gate:97": "node tools/phase97-gate.ts",
     "gate:99": "node tools/phase99-gate.ts",
     "gate:100": "node tools/phase100-gate.ts",
+    "gate:101": "node tools/phase101-gate.ts",
     "gate:92": "node tools/phase92-gate.ts",
     "gate:94": "node tools/phase94-gate.ts",
     "gate:95": "node tools/phase95-gate.ts",

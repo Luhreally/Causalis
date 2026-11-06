@@ -28,6 +28,16 @@ import {
   type TownWater,
 } from "../bridge/index.ts";
 import { kindOf } from "./kinds.ts";
+import { homePlanet } from "../sim/index.ts";
+
+/** How a people pass over their ground, where it isn't on foot (R1): as their law and homes read them. */
+function waysOf(world: World): { ways?: "swim" | "tunnel" } {
+  const body = homePlanet(world).generated.life.people?.body;
+  if (body?.medium === "water") return { ways: "swim" };
+  // (A hive as its law and homes read it; those that dig.)
+  const hive = (body?.social ?? 0) >= 0.9 && (body?.size ?? 100) < 100;
+  return hive && body?.manipulators === "mandibles" ? { ways: "tunnel" } : {};
+}
 import { worldLook } from "./biochem.ts";
 import { colonyRemade, colonyTownCell } from "./colony.ts";
 
@@ -251,6 +261,7 @@ export function townPlan(
         : {
             // (Its world's kind, for its yards' colours: Phase 56.)
             ...(kindOf(world) === "rocky" ? {} : { kind: kindOf(world) }),
+            ...waysOf(world),
             // (Its life's colours, for its yards' grass: Phase 57.)
             ...worldLook(world),
           };

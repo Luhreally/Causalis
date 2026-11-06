@@ -584,6 +584,7 @@ export type Portrait =
     };
 
 export type PageKind =
+  | "road"
   | "bloc"
   | "league"
   | "match"

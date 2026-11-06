@@ -316,7 +316,28 @@ export type TownSong = {
   readonly kind: string;
 };
 
+/**
+ * How a town's people get about (R1), read off what they are and what they have come to: wheels past the age of engines, on a world that grips; a
+ * people of the water's sleds and lines; a hive's haulers, which no household owns; a line laid in the ground for those with nothing to hold a wheel by;
+ * before engines their feet, or the back of a beast for the far trips.
+ */
+export type GetAbout = {
+  readonly how: "wheels" | "sled" | "hauler" | "line" | "swim" | "mount" | "feet";
+  /** What a household may keep, in a word (null: none does). */
+  readonly own: string | null;
+  /** What goes a line with riders, in a word (null: nothing does). */
+  readonly line: string | null;
+  /** The share of households that keep one. */
+  readonly share: number;
+  /** What drives it, in words (null: nothing but themselves). */
+  readonly drive: string | null;
+  /** The beast ridden on the far trips, where it is not Earth's horse. */
+  readonly mount: string | null;
+};
+
 export type VillagePlan = {
+  /** How its people get about (R1; absent: on foot, as an old save's). */
+  readonly about?: GetAbout;
   readonly ref: string;
   readonly name: string;
   /** The land it stands in (Phase 30: its weather). */

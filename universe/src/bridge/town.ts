@@ -10,6 +10,7 @@
 import type { ColonyLook } from "./colony.ts";
 import { MONTH, YEAR, mix } from "../kernel/index.ts";
 import type { GenesisPlan, MeadowPlan } from "./genesis.ts";
+import type { GetAbout } from "./village.ts";
 
 /** A lot: so many metres along its street, so many deep. */
 export const LOT_W = 9;
@@ -124,6 +125,8 @@ export type TownPlan = {
   readonly kind?: string;
   /** Its world's life's colours, where they are not Earth's green (Phase 57): its yards' grass. */
   readonly lifeLook?: string;
+  /** How its people pass over the ground, where it isn't on foot (R1): through the water; by tunnel, the ground humped over them. */
+  readonly ways?: "swim" | "tunnel";
   /**
    * Its halls on another body (Phase 64): each home a sealed pod or tower, its streets covered ways,
    * its ground that world's (`rock`, `ice`: what its yards and streets are laid on).
@@ -699,6 +702,43 @@ export type LandRoad = {
   readonly rails: number | null;
   /** How busy it is: the carts (or wagons, trucks) on it at once (Phase 26 M153). */
   readonly traffic: number;
+  /** Its page (R1). */
+  readonly ref?: string;
+  /** How it came to be, stage by stage (R1; absent: all at once, at its years). */
+  readonly stages?: readonly RoadStage[];
+  /** The gang on it this year, or the last to have been (R1; absent: none). */
+  readonly works?: RoadWorks | null;
+  /** Cut this year (R1; absent: whole). */
+  readonly cut?: RoadCut | null;
+};
+
+/** What a road is laid as (R1). */
+export type RoadLay = "track" | "paved" | "rails";
+/** One laying of a road, from the year its gang began to the year it finished (R1). */
+export type RoadStage = { readonly what: RoadLay; readonly from: number; readonly until: number };
+/** A gang at work on a road (R1): read off the world's record, never kept. */
+export type RoadWorks = {
+  readonly what: RoadLay;
+  readonly from: number;
+  readonly until: number;
+  /** Laid afresh over what was there, not new. */
+  readonly again: boolean;
+  /** The years it stood idle, and why. */
+  readonly stops: readonly { readonly from: number; readonly to: number; readonly why: string; readonly ref: string | null }[];
+  /** How many hands. */
+  readonly hands: number;
+  /** Past the age of engines: fewer hands, and machines. */
+  readonly machines: boolean;
+  /** What it is laid with, in its own colour. */
+  readonly colour: readonly [number, number, number];
+};
+/** A road cut by a war or the ground's shaking (R1): how far along, for how long, why. */
+export type RoadCut = {
+  readonly from: number;
+  readonly until: number;
+  readonly at: number;
+  readonly why: "war" | "quake";
+  readonly ref: string | null;
 };
 
 /**
@@ -740,6 +780,8 @@ export type LandCamp = {
 export type LandPlan = {
   readonly t: number;
   readonly era: LandEra;
+  /** How its people get about (R1; absent: as an old plan's, carts behind a beast). */
+  readonly about?: GetAbout;
   readonly towns: readonly LandTown[];
   readonly roads: readonly LandRoad[];
   readonly lanes: readonly LandLane[];

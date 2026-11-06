@@ -2,6 +2,7 @@
 // market and works, its realm, what it knows and what has happened there. A colony's halls
 // and a ship bound for a star are lands too (offworld sites), and a spot of the fine grid
 // and a region open onto the land they are part of.
+import { landRoadsBlock } from "./road.ts";
 import { fireLandStats } from "./fire.ts";
 import { lodesBlock, woodsBlock, woodsTurnsBlock } from "./woods.ts";
 import { herdBlock } from "./herds.ts";
@@ -201,6 +202,8 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
     if (site && siteGround(world, cell) && ctxHasPeople(world, cell))
       blocks.push({ type: "tool", tool: "watch.landing", args: { cell } });
     blocks.push({ type: "tool", tool: "acts.land", args: { cell } });
+    const roads = site ? null : landRoadsBlock(world, cell);
+    if (roads) blocks.push(roads);
     // What comes here from other worlds, or why nothing does (Phase 71).
     blocks.push(...tradeBlocks(world, cell));
     tabs.push({ id: "overview", name: "Overview", blocks });

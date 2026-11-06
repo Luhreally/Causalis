@@ -378,6 +378,7 @@ export function installLife(d: LifeDeps): LifeFlow {
       walkingNow: () => !!body?.walking,
       inHand: () => walking,
       pickerOpen: () => picker.open,
+      begin,
     },
   });
 
