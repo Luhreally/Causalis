@@ -9,8 +9,8 @@ import { groundAt, type LandGround } from "./land.ts";
 /** How many of the viewer's own seconds a fire takes to cross the land, at the least, however fast the clock runs. */
 export const FIRE_WATCHED_S = 12;
 /** How much of a fire's time a tile burns for (its share of the whole), and for how many of those it smoulders after. */
-const BURN_SHARE = 0.1;
-const SMOULDER_BANDS = 5;
+const BURN_SHARE = 0.05;
+const SMOULDER_BANDS = 6;
 /** How much slower a fire crosses a river's tile, and how much on thin ground; below this fertility nothing is left to burn. */
 const RIVER_SLOW = 5;
 const THIN_SLOW = 2.5;
@@ -79,7 +79,7 @@ export function burnTiles(burn: LandBurn, g: LandGround): BurnTiles {
       }
   });
   // How fast it goes, so that its patches come to one another as history has it.
-  const first = burn.spots[0]?.at ?? burn.from;
+  const first = burn.spots.length ? Math.min(...burn.spots.map((s) => s.at)) : burn.from;
   let ways = 0,
     takes = 0;
   for (let k = 1; k < burn.spots.length; k++) {
@@ -264,6 +264,9 @@ export function scarAge(burn: LandBurn, t: number): number {
   return burn.gone > burn.until ? Math.max(0, (t - burn.until) / (burn.gone - burn.until)) : 1;
 }
 
+/** Of a tile's burning, how long the whole of it glows; and of those behind the line, how many keep an ember. */
+const EMBER_LINE = 0.3;
+const EMBERS_LEFT = 0.28;
 const CHAR: readonly [number, number, number] = [30, 25, 22];
 const BROWN: readonly [number, number, number] = [104, 84, 56];
 const EMBER: readonly [number, number, number] = [214, 84, 20];
@@ -275,8 +278,14 @@ function scarHold(age: number): number {
   return age < FADES_FROM ? 0.92 : Math.max(0, 0.92 * (1 - (age - FADES_FROM) * 3));
 }
 
+/** How much of a burning tile glows, by how long it has burned of its band: the line itself, and here and there an ember left behind it. */
+function emberOf(fresh: number, u: number): number {
+  if (fresh < EMBER_LINE) return 1;
+  return u < EMBERS_LEFT ? Math.max(0, 1 - (fresh - EMBER_LINE) / (1 - EMBER_LINE)) : 0;
+}
+
 /**
- * A fire's scar laid on a land's colours (RGBA per tile), in place: the tiles it has come to by `local`, those burning now in
+ * A fire's scar laid on a land's colours (RGBA per tile), in place: the tiles it has come to by `local`, those at its line in
  * ember, the rest char going to dry brown over its years and then to nothing. How many it lay on.
  */
 export function scarOver(
@@ -290,15 +299,18 @@ export function scarOver(
     hold = scarHold(age);
   if (hold <= 0) return 0;
   const done = firstFrom(b.at, local),
-    hot = local <= burn.until ? firstFrom(b.at, local - burnBand(burn)) : done,
+    band = burnBand(burn),
+    hot = local <= burn.until ? firstFrom(b.at, local - band) : done,
     browned = Math.min(1, age / FADES_FROM);
   for (let i = 0; i < done; i++) {
     const tile = b.tiles[i]!,
       q = tile * 4,
       v = fireUnit(b.key + 4, tile) * 16 - 8,
+      glow = i >= hot ? emberOf((local - b.at[i]!) / band, fireUnit(b.key + 6, tile)) : 0,
       a = i >= hot ? 0.96 : hold;
     for (let c = 0; c < 3; c++) {
-      const to = i >= hot ? EMBER[c]! : CHAR[c]! + (BROWN[c]! - CHAR[c]!) * browned + v,
+      const cold = CHAR[c]! + (BROWN[c]! - CHAR[c]!) * browned + v,
+        to = cold + (EMBER[c]! - cold) * glow,
         own = colors[q + c]!;
       colors[q + c] = Math.max(0, Math.min(255, Math.round(own + (to - own) * a)));
     }

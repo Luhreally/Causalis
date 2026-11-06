@@ -230,11 +230,11 @@ export function fireHomes(fuel: number, burning: number): number {
   return dmath.clamp(NATURE.fire.mostHomes * fuel * burning, 0.02, NATURE.fire.mostHomes);
 }
 
-/** How deep it goes down in history, by its dead: the greater, the longer kept, and the farther it is told (6 and more, as a window). */
+/** How deep it goes down in history, by its dead: the greater, the longer kept, and the farther it is told (6 and more, as a window). So many dead is news on any world, however many live; fewer, on a world they were a part of. */
 export function natureImportance(dead: number, people: number): number {
   const share = dead / Math.max(1, people);
-  if (dead >= 50000 && share >= 1e-3) return 7;
-  if (dead >= 5000 && share >= 2e-4) return 6;
+  if (dead >= 1_000_000 || (dead >= 50000 && share >= 1e-3)) return 7;
+  if (dead >= 100_000 || (dead >= 5000 && share >= 2e-4)) return 6;
   return dead >= 500 ? 5 : dead >= 50 ? 4 : 3;
 }
 
@@ -284,7 +284,7 @@ export function flameLook(sulfur: boolean): {
 } {
   return sulfur
     ? { flame: [0.32, 0.5, 1], smoke: [0.62, 0.58, 0.3] }
-    : { flame: [1, 0.48, 0.1], smoke: [0.34, 0.32, 0.33] };
+    : { flame: [1, 0.48, 0.1], smoke: [0.62, 0.6, 0.58] };
 }
 
 /** How many years a land waits, on average, for a shock as great, at its rate of strong ones. */

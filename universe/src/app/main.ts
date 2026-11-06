@@ -673,7 +673,9 @@ type Exposed = {
   /** A town of the land on screen as drawn from its fabric: its square and reach (region units); and the parts drawn in all (M150). */
   landTown?: (ref: string) => { x: number; z: number; r: number } | null;
   landParts?: () => number;
-  landFire?: () => { flames: number; smoke: number; scar: number; burns: number };
+  landFire?: () => { flames: number; smoke: number; scar: number; burns: number; bare: number };
+  /** Where the flames stand now, on the land (N1). */
+  landFront?: () => { x: number; z: number } | null;
   land?: () => {
     towns: number;
     parts: number;
@@ -5495,9 +5497,12 @@ async function runPlanetPage(): Promise<void> {
   let folkFilmedAt: number | null = null;
   /** A town's money told its plan was read again (Lives L6). */
   let moneyPlan: (() => void) | null = null;
+  /** The moment the plan was last asked for, by the host's own word: what struck the town after that, it hasn't heard of. */
+  let planAsked = 0;
   const loadPlan = async (ref: string) => {
     // Asked once a year: the year is marked before the answer comes.
     planYear = Math.floor(clock.t / YEAR);
+    planAsked = client.status?.t ?? clock.t;
     // (The same town read again as the years turn keeps what its panel shows.)
     const fresh = plan?.ref !== ref;
     const q0 = performance.now();
@@ -8198,7 +8203,25 @@ async function runPlanetPage(): Promise<void> {
         skyAsked = { cell, at: wall };
         void client
           .query<LandSky>({ type: "land.sky", args: { cell } })
-          .then((s) => (landSky = s))
+          .then((s) => {
+            landSky = s;
+            // What the world itself did to a town being watched (N1): read now, not at the year's turn, by when it would have burned out unseen.
+            const here = plan;
+            if (
+              scale === "village" &&
+              here &&
+              s.cell === here.cell &&
+              s.acts.some(
+                (a) =>
+                  a.natural &&
+                  a.from > planAsked &&
+                  (a.kind === "quake" ||
+                    a.kind === "meteor" ||
+                    (a.kind === "fire" && a.town === here.ref)),
+              )
+            )
+              void loadPlan(here.ref);
+          })
           .catch(() => {});
       }
     }
@@ -8997,6 +9020,7 @@ async function runPlanetPage(): Promise<void> {
   exposed.landTown = (ref: string) => region.land.townAt(ref);
   exposed.landParts = () => region.land.count;
   exposed.landFire = () => region.fire.shown;
+  exposed.landFront = () => region.fire.front();
   exposed.land = () => region.land.info();
   exposed.camps = () =>
     scale === "region" ? region.land.camps.info().map((c) => ({ ...c, cell: regionCell })) : [];

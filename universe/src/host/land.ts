@@ -11,7 +11,7 @@
 // And its bands' camps (Phase 28 M159): those of its people who forage or herd, in no village,
 // ranging about its good sites and camped this season near one. Looked at, never lived.
 import { DAY, YEAR, mix, yearOfMoment, type World } from "../kernel/index.ts";
-import { WATER, isProvinceWorld, meansNumbers, offworldSite } from "../gen/index.ts";
+import { WATER, isProvinceWorld, offworldSite, worldKindOf } from "../gen/index.ts";
 import { OCC, OCCUPATIONS, flameLook } from "../rules/index.ts";
 import {
   citiesOf,
@@ -165,7 +165,7 @@ function landBurns(world: World, cell: number): { burns?: readonly LandBurn[] } 
     nz = -oy * ex,
     half = ((REGION_SIZE - 1) * PROVINCE_TILE_KM) / 2,
     r = 1.15 * Math.sqrt((4 * R * R) / g.fine.grid.count),
-    look = flameLook(meansNumbers(g).rockHolds.some((x) => x.includes("sulfur"))),
+    look = flameLook(worldKindOf(g) === "sulfur"),
     burns: LandBurn[] = [];
   for (const f of fires) {
     const spots: { x: number; z: number; r: number; at: number }[] = [];

@@ -1,7 +1,7 @@
 // What the world did by itself, on its page (N1): what happened, where, who died, and why here, with its land and its plates to open.
-import { yearOfMoment, type HistoryEvent, type World } from "../../kernel/index.ts";
-import { isProvinceWorld } from "../../gen/index.ts";
-import { NATURE, faultRate, yearsBetween, type FaultKind } from "../../rules/index.ts";
+import type { HistoryEvent, World } from "../../kernel/index.ts";
+import { isProvinceWorld, worldKindOf } from "../../gen/index.ts";
+import { NATURE, faultRate, kindBiomeName, yearsBetween, type FaultKind } from "../../rules/index.ts";
 import { populationContext } from "../../sim/index.ts";
 import type { Block, Span } from "../../bridge/index.ts";
 import { landLink, townLink } from "./names.ts";
@@ -30,6 +30,15 @@ export function wildBlocks(world: World, e: HistoryEvent): Block[] {
       const p = typeof i === "number" ? g.tectonics.plates[i] : undefined;
       return p ? link(p.continental ? "a plate of land" : "a plate of sea floor", p.ref) : null;
     },
+    /** The plate across: "another", where it is of one kind with the first. */
+    across = (i: unknown, against: unknown): Span | null => {
+      const p = typeof i === "number" ? g.tectonics.plates[i] : undefined,
+        q = typeof against === "number" ? g.tectonics.plates[against] : undefined;
+      return p && q && p.continental === q.continental ? link("another", p.ref) : plate(i);
+    },
+    /** The ground it came out of, in this world's own words. */
+    cover = (fallback: string): string =>
+      typeof d.cover === "string" ? kindBiomeName(worldKindOf(g), d.cover) : fallback,
     out: Block[] = [];
   const dead = typeof d.dead === "number" ? d.dead : 0,
     homesBy = (d.homes && typeof d.homes === "object" ? d.homes : {}) as Record<string, number>,
@@ -41,7 +50,7 @@ export function wildBlocks(world: World, e: HistoryEvent): Block[] {
       type: "text",
       title: "Who it struck",
       lines: [
-        [`${said(dead)} died in `, land, "."],
+        dead > 0 ? [`${said(dead)} died in `, land, "."] : ["No one died in ", land, "."],
         ...towns.map(([ref, n]): Span[] => [
           townLink(world, ref),
           `: ${said(n)} home${n === 1 ? "" : "s"} down.`,
@@ -51,7 +60,7 @@ export function wildBlocks(world: World, e: HistoryEvent): Block[] {
   if (e.type === "act.quake") {
     const kind = (typeof d.kind === "string" ? d.kind : "within") as FaultKind,
       a = plate(d.plate),
-      b = plate(d.across),
+      b = across(d.across, d.plate),
       mag = typeof d.mag === "number" ? d.mag : NATURE.quake.least,
       own = g.tectonics.plates[typeof d.plate === "number" ? d.plate : 0],
       rate = faultRate(kind, typeof d.steps === "number" ? d.steps : 99, own?.speed ?? 1),
@@ -94,9 +103,8 @@ export function wildBlocks(world: World, e: HistoryEvent): Block[] {
       title: "Why here",
       lines: [
         [
-          `Only ${Math.round(rain * 100)} parts in a hundred of the rain `,
           land,
-          ` usually has fell that year, on its ${typeof d.cover === "string" ? d.cover : "ground"}.`,
+          ` had only ${Math.round(rain * 100)} parts in a hundred of its usual rain that year, on its ${cover("ground")}.`,
         ],
         [`Its weather brings ${flashes} flashes to a km² in a year, and one of them caught.`],
         [
@@ -116,7 +124,7 @@ export function wildBlocks(world: World, e: HistoryEvent): Block[] {
       title: "Why here",
       lines: [
         [
-          `The fire came out of the ${typeof d.cover === "string" ? d.cover : "land"} about the town, on the land's own dry year, and no one set it.`,
+          `The fire came out of the ${cover("land")} about the town, in the land's own dry year, and no one set it.`,
         ],
         ...e.causes.slice(0, 1).map((c): Span[] => [link("The fire on the land", c.ref)]),
       ],
@@ -151,7 +159,7 @@ export function wildBlocks(world: World, e: HistoryEvent): Block[] {
   }
   if (e.type === "wild.rise") {
     const a = plate(d.plate),
-      b = plate(d.across);
+      b = across(d.across, d.plate);
     out.push({
       type: "text",
       title: "Why here",
@@ -165,6 +173,5 @@ export function wildBlocks(world: World, e: HistoryEvent): Block[] {
       ],
     });
   }
-  void yearOfMoment;
   return out;
 }

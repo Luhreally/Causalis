@@ -404,6 +404,11 @@ export function landWords(world: World, place: Ref | null): string {
   return `the ${kindBiomeName(worldKindOf(g), BIOME_NAMES[g.climate.biome[c]!]!)} at ${deg(lat)}${lat >= 0 ? "N" : "S"} ${deg(lon)}${lon >= 0 ? "E" : "W"}`;
 }
 
+/** A kind of ground in its own world's words. */
+export function coverWords(world: World, cover: string): string {
+  return hasPlanet(world) ? kindBiomeName(worldKindOf(homePlanet(world).generated), cover) : cover;
+}
+
 /** A star of the cluster in plain words, by its light: a red dwarf, a yellow star, a white dwarf. */
 export function starKind(s: { spectral: string; remnant: boolean }): string {
   if (s.remnant) return "a white dwarf";

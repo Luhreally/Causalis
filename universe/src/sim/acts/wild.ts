@@ -701,7 +701,7 @@ function wildfire(
       FUEL[biome]?.[1] ?? 5,
     ),
     km2 = Math.round(patches.length * idx.patchKm2),
-    last = days[days.length - 1]! + NATURE.fire.lastDays,
+    last = Math.max(...days) + NATURE.fire.lastDays,
     prov = ctx.provinces.get(cell),
     place = cellRef(0, cell),
     drought = prov?.lastDrought ?? null,
@@ -792,7 +792,7 @@ function wildfire(
       data: {
         natural: true,
         cover: BIOME_NAMES[biome] ?? "ground",
-        ...(meansNumbers(g).rockHolds.some((x) => x.includes("sulfur")) ? { flame: "sulfur" } : {}),
+        ...(worldKindOf(g) === "sulfur" ? { flame: "sulfur" } : {}),
         km2,
         lands: lands.length,
         towns: towns.map((x) => x.v.name),
