@@ -1559,12 +1559,15 @@ export class VillageScene {
   }
   /**
    * The thing raised under the finger, unless someone stands right there in front of it (T1). Feet bunch up towards the far ground, so
-   * many stand within a finger of a tall stone's body from behind it, and they aren't in its way.
+   * many stand within a finger of a tall stone's body from behind it, and they aren't in its way. Only near it: anyone right there comes first.
    */
   stoneUnder(x: number, y: number): string | null {
     const cam = this.stage.camera.camera!,
-      p = this.memorialLayer.at(cam, x, y);
-    return p && this.pick(x, y, 10, this.memorialLayer.depth(cam, p)) === null ? p.m.ref : null;
+      on = this.memorialLayer.at(cam, x, y, 0);
+    if (on)
+      return this.pick(x, y, 10, this.memorialLayer.depth(cam, on)) === null ? on.m.ref : null;
+    const near = this.memorialLayer.at(cam, x, y);
+    return near && this.pick(x, y, 10) === null ? near.m.ref : null;
   }
   /** The thing raised at a point of the screen (T1; null: none), and how a person presses it. */
   stoneAt(x: number, y: number): string | null {

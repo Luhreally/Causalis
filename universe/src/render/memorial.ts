@@ -150,22 +150,41 @@ export class MemorialLayer {
       bestOn = false,
       bestNear = Infinity;
     const foot = new pc.Vec3(),
-      head = new pc.Vec3();
+      head = new pc.Vec3(),
+      there = new pc.Vec3(),
+      side = new pc.Vec3(),
+      right = cam.entity.right;
     for (const p of this.placed) {
       const seen = seenOf(cam, p, foot, head);
       if (foot.z <= 0 || head.z <= 0) continue;
-      // (How far a metre is on the screen, there: from its height.)
-      const high = Math.max(8, Math.hypot(foot.x - head.x, foot.y - head.y)),
-        half = Math.max(10, (high / Math.max(1, seen)) * p.wide * 0.8) + reach,
-        along = Math.max(0, Math.min(1, (y - foot.y) / (head.y - foot.y || 1))),
-        cx = foot.x + (head.x - foot.x) * along,
-        cy = foot.y + (head.y - foot.y) * along,
-        inY = y >= Math.min(foot.y, head.y) - reach && y <= Math.max(foot.y, head.y) + reach,
+      const least = Math.min(foot.y, head.y),
+        most = Math.max(foot.y, head.y);
+      if (y < least - reach || y > most + reach) continue;
+      // (Its middle and breadth on the screen where the finger is: a tall one's foot can be near the eye and its head far from it.)
+      const up = head.y < foot.y,
+        aim = Math.max(least, Math.min(most, y));
+      let a = 0,
+        b = seen;
+      for (let i = 0; i < 12; i++) {
+        const mid = (a + b) / 2;
+        cam.worldToScreen(new pc.Vec3(p.x * M, mid * M, p.z * M), there);
+        if (up === there.y > aim) a = mid;
+        else b = mid;
+      }
+      const h = ((a + b) / 2) * M,
+        out = p.wide * 0.8 * M;
+      cam.worldToScreen(new pc.Vec3(p.x * M, h, p.z * M), there);
+      cam.worldToScreen(
+        new pc.Vec3(p.x * M + right.x * out, h + right.y * out, p.z * M + right.z * out),
+        side,
+      );
+      const half = Math.max(10, Math.hypot(side.x - there.x, side.y - there.y)) + reach,
+        cx = there.x,
+        cy = aim,
         d = Math.abs(x - cx);
-      if (!inY || d > half) continue;
+      if (d > half) continue;
       // (The finger right on one, the nearest of those to the eye: a stone in front before one behind it. Else only near: the nearest to the finger.)
-      const on =
-          d <= half - reach && y >= Math.min(foot.y, head.y) && y <= Math.max(foot.y, head.y),
+      const on = d <= half - reach && y >= least && y <= most,
         off = Math.hypot(x - cx, y - cy);
       if (on ? !bestOn || foot.z < bestNear : !bestOn && off < bestD) {
         bestD = off;
