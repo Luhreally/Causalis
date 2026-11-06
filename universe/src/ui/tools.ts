@@ -5,6 +5,7 @@
 import type { HostClient, Leader } from "../bridge/index.ts";
 import { drawCanPick } from "./can-pick.ts";
 import { drawYears } from "./years.ts";
+import { drawBarReading } from "./people-bar.ts";
 import { drawLeaderCard, drawWealthCompare } from "./leaders.ts";
 import { el } from "./why.ts";
 import { WAY_CHOICES } from "./palette.ts";
@@ -202,6 +203,9 @@ export function drawTool(
       return;
     case "years.scroll":
       drawYears(into, ctx);
+      return;
+    case "bar.reading":
+      drawBarReading(into, args as Parameters<typeof drawBarReading>[1]);
       return;
     case "acts.land": {
       const hand = new HandView(ctx.client);

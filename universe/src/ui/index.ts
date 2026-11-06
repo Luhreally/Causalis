@@ -46,6 +46,8 @@ export { HoverTips, breakdownCard, tipCard } from "./hovertip.ts";
 export { Colonies } from "./colonies.ts";
 export { StarWars } from "./starwars.ts";
 export { HomePin, LeaderChip, drawLeaderCard, drawWealthCompare } from "./leaders.ts";
+export { PeopleBar, barPins } from "./people-bar.ts";
+export { setWrittenHold } from "./written.ts";
 export { Alerts, LogButton } from "./alerts.ts";
 export { ArmsBook, drawArms, paintArms } from "./arms.ts";
 export { EventWindows, isGreat, type EventMode } from "./events.ts";

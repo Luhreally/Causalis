@@ -3,6 +3,20 @@
 // See README.md and docs/architecture/universe-architecture.md §30.
 export { ALL_LINES, ALL_WORTH, ANNAL_ALL, ANNAL_KINDS, KIND_LINES, KIND_WORTH } from "./annals.ts";
 export type { AnnalLine, AnnalYear, AnnalsIndex, RunTold } from "./annals.ts";
+export type {
+  BarAsk,
+  BarPerson,
+  BarPin,
+  BarRead,
+  BarReading,
+  BarReadings,
+  BarTone,
+  BarWhy,
+  WrittenAsk,
+  WrittenEntry,
+  WrittenIndex,
+  WrittenYear,
+} from "./bar.ts";
 export type { BrushKind, BrushStrokeArgs, BrushPreview, BrushState } from "./brush.ts";
 export type {
   ShipCrew,
