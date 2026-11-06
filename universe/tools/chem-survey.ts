@@ -24,7 +24,7 @@ import {
 } from "../src/gen/index.ts";
 import { Rng, YEAR, seedFromText, type World } from "../src/kernel/index.ts";
 import {
-  civilizationsNear,
+  civilizationsEver,
   clusterOf,
   makePopulationWorld,
   populationContext,
@@ -325,7 +325,7 @@ export function surveyLife(count: number, from = 0): LifeRow[] {
       kind: worldKindOf(g),
       peopled: !!g.life.people,
       life: worldLife(g),
-      near: civilizationsNear(world).map((c) =>
+      near: civilizationsEver(world).map((c) =>
         civLife(c, stars.find((s) => s.ref === c.star)?.temperature ?? 5778),
       ),
     });
