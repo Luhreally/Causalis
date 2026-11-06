@@ -4840,7 +4840,8 @@ function momentIn(
     z = leg.at.z,
     yaw = leg.face ?? 0,
     activity: Activity = leg.activity,
-    task = leg.task;
+    task = leg.task,
+    moving = false;
   const sheltering =
     !!downpour &&
     t >= downpour.from &&
@@ -4886,6 +4887,7 @@ function momentIn(
     leg.activity === ACTIVITY.playing
   ) {
     // At work they move about a little: a few steps this way and that.
+    moving = true;
     const w = s / 600 + index;
     x += Math.sin(w) * (leg.activity === ACTIVITY.playing ? 3 : 1.5);
     z += Math.cos(w * 0.7) * (leg.activity === ACTIVITY.playing ? 3 : 1.5);
@@ -4900,8 +4902,15 @@ function momentIn(
     x = today.to[2 * index]!;
     z = today.to[2 * index + 1]!;
   } else {
-    const where = { x, z };
-    keepOut(groundFor(plan), where, PERSON_REACH);
+    const where = { x, z },
+      ground = groundFor(plan);
+    keepOut(ground, where, PERSON_REACH);
+    // (Moving about in a way too narrow for it, walls either side pushing them to and fro: where they stood to begin with.)
+    if (moving && !clearAt(ground, where, PERSON_REACH - 1e-3)) {
+      where.x = leg.at.x;
+      where.z = leg.at.z;
+      keepOut(ground, where, PERSON_REACH);
+    }
     if (today) {
       today.from[2 * index] = x;
       today.from[2 * index + 1] = z;

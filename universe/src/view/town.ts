@@ -1702,7 +1702,8 @@ function civicsPut(scene: TownScene, t: number, out: TownParts, still: boolean):
     if (c.at + c.lots > lots.x.length) continue;
     const m = civicMoments(c),
       f = footprint(lots, c.at, c.lots);
-    if (t < m.began) continue;
+    // (What's asked takes its start from the world's clock, a moment on from the screen's: with the clock stopped it would stand unseen.)
+    if (t < m.began - (c.asked ? ASKED_AHEAD : 0)) continue;
     if (m.fell !== null && t >= m.fell) {
       // Fallen: its ruin, till homes are raised on its lots.
       let built = false;
@@ -1785,6 +1786,8 @@ export function civicsActive(plan: TownPlan, t: number): boolean {
   });
 }
 
+/** How far on from the screen's clock an asking can fall, and still be drawn (seconds). */
+const ASKED_AHEAD = 86_400;
 /** The orange of a site's flag, and its dug ground (H1). */
 const SITE_FLAG: Rgb = [0.95, 0.42, 0.08],
   DUG: Rgb = [0.5, 0.4, 0.28];

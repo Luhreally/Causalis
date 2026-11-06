@@ -364,7 +364,8 @@ if (chosen) {
       ))!,
       where = async () =>
         k<{ x: number; y: number } | null>(`globalThis.causalis.townScreen(${spot.x}, ${spot.z})`),
-      boxOf = (at: { x: number; y: number }, r = 130): Rect => ({
+      // (Far enough about it to hold its flag, at its corner: a great site stands wider on the screen than a small one.)
+      boxOf = (at: { x: number; y: number }, r = 200): Rect => ({
         x0: Math.round(at.x - r),
         y0: Math.max(240, Math.round(at.y - r)),
         x1: Math.round(at.x + r),
@@ -447,8 +448,11 @@ if (chosen) {
         const watched = await k<number | null>("globalThis.causalis.watched()"),
           card = await k<string>("document.body.innerText");
         say(`one of them pressed: ${one.name}, shown ${watched === one.index}`);
+        // (They work side by side: the one beside them, under the finger, is one of them too.)
         check(
-          watched === one.index || card.includes(one.name),
+          watched === one.index ||
+            card.includes(one.name) ||
+            hands.some((h) => h.index === watched),
           `pressing one at work didn't bring them (${one.name})`,
         );
         await shot("3b-one-at-work");
@@ -596,18 +600,43 @@ if (chosen) {
       await stood();
       await frames(10);
       await shot(`${tag}-stone`);
-      const fresh = await k<{ list: { ref: string; x: number; y: number }[] } | null>(
-          "globalThis.causalis.stones()",
-        ),
+      const fresh = await k<{ list: { ref: string }[] } | null>("globalThis.causalis.stones()"),
         st = fresh?.list.find((x) => x.ref === ref);
       check(!!st, "the stone isn't on the screen once gone to");
       if (!st) return "";
-      await page.touchscreen.tap(st.x, st.y);
-      await until(
-        "the stone's page, pressed",
-        async () => /asking/i.test(await windowWords()),
-        15000,
-      );
+      // (Where a finger can get at it: a far city's stone stands taller than the screen's open part, and someone may stand before it.
+      // Under a reign the clock runs on, and a crowd can come over it between the look and the press: as a person would, press again.)
+      const onStone = () =>
+        k<{ x: number; y: number } | null>(
+          `(() => {
+            const c = globalThis.causalis, s = c.stones()?.list.find((x) => x.ref === ${JSON.stringify(ref)});
+            if (!s) return null;
+            for (const f of [0.5, 0.35, 0.65, 0.25, 0.75, 0.15, 0.85]) {
+              const y = s.footY + (s.headY - s.footY) * f, e = document.elementFromPoint(s.footX, y);
+              if (e && e.tagName === "CANVAS" && c.townPick(s.footX, y, 12) === null) return { x: s.footX, y };
+            }
+            return null;
+          })()`,
+        );
+      let got = false,
+        pressed = false;
+      for (let go = 0; go < 4 && !got; go++) {
+        const onIt = await onStone();
+        if (!onIt) {
+          await frames(10);
+          continue;
+        }
+        pressed = true;
+        await page.touchscreen.tap(onIt.x, onIt.y);
+        for (let w = 0; w < 12 && !got; w++) {
+          await frames(4);
+          got = /asking/i.test(await windowWords());
+        }
+        if (!got) await closeWindow().catch(() => {});
+      }
+      check(pressed, "no part of the stone can be got at on the screen");
+      check(got, "the stone's page, pressed, did not come");
+      if (!got) return "";
       const sw = await windowWords();
       say(`stone: ${line(sw, 1100)}`);
       await shot(`${tag}-stone-page`);

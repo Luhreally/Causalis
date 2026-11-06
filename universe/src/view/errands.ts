@@ -735,7 +735,13 @@ export function sitesOn(plan: VillagePlan, day: number, ground: Ground): Site[] 
         x: f.x,
         z: f.z,
         yaw: f.yaw,
-        spots: front(f, f.d / 2 + 1.9, [-6, -2, 2, 6, -4, 4, 0, -8, 8, 1, -1, 3]),
+        // (What was asked for has more hands on it: along both its long sides, each with room, from one end of it to the other.)
+        spots: c.asked
+          ? [-0.42, 0.42, -0.25, 0.25, -0.08, 0.08].flatMap((u) => [
+              ...front(f, f.d / 2 + 1.9, [u * f.w]),
+              ...front(f, -(f.d / 2 + 1.9), [u * f.w]),
+            ])
+          : front(f, f.d / 2 + 1.9, [-6, -2, 2, 6, -4, 4, 0, -8, 8, 1, -1, 3]),
         hands: c.asked ? Math.max(2, Math.min(12, c.asked.hands)) : 6,
         name: c.asked?.name ?? `the new ${what.replace(/^(a|an) /, "")}`,
         words: c.asked ? `${c.asked.name} going up, as the town was asked` : `${what} going up`,
