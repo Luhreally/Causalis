@@ -48,6 +48,8 @@ export class Tidings {
   onStarFight: ((event: string) => void) | null = null;
   /** A strike from the air played again in its town (W2). */
   onRaid: ((event: string) => void) | null = null;
+  /** The first jump watched (Phase 68). */
+  onJump: (() => void) | null = null;
 
   constructor(root: HTMLElement, client: HostClient) {
     this.client = client;
@@ -163,6 +165,14 @@ export class Tidings {
       watch.onclick = () => {
         card.remove();
         this.onLanding?.(t.ref);
+      };
+      head.append(from, watch, close);
+    } else if (t.type === "lanes.first" && this.onJump) {
+      const watch = el("button", "tiding-watch", "🌀 Watch");
+      watch.title = "The ship leaving for the lane, the jump, and where it came out";
+      watch.onclick = () => {
+        card.remove();
+        this.onJump?.();
       };
       head.append(from, watch, close);
     } else if (t.type === "war.strike" && this.onRaid) {

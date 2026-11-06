@@ -29,6 +29,8 @@ export type ToolContext = {
   readonly meeting?: (star: string, index: number) => void;
   /** A landing on them, watched (Phase 70). */
   readonly folkLandfall?: (star: string, index: number, n: number) => void;
+  /** The first jump watched (Phase 68). */
+  readonly jump?: () => void;
   /** Watch a battle fought (Phase 37 M186). */
   readonly battle?: (event: string) => void;
   /** Watch a war unfold on the globe (Phase 38 M193). */
@@ -247,6 +249,14 @@ export function drawTool(
         ? "Down to the town they fell on, that afternoon: their streaks, what they hit, its fires, played again"
         : "Down to the town it fell on, that morning: its machines, its loads, its fires, played again";
       b.onclick = () => ctx.raid!(args.event as string);
+      into.append(b);
+      return;
+    }
+    case "watch.jump": {
+      if (!ctx.jump) return;
+      const b = el("button", "act", "🌀 Watch the first jump");
+      b.title = "The ship leaving for the lane, the jump, and where it came out.";
+      b.onclick = () => ctx.jump!();
       into.append(b);
       return;
     }

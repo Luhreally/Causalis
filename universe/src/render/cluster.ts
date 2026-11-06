@@ -21,6 +21,8 @@ export class ClusterScene {
   private readonly marker: pc.Entity;
   private readonly sphere: pc.Mesh;
   private readonly ringMesh: pc.Mesh;
+  /** The lanes between the stars (Phase 68): one mesh of lines, built once a plan, its only cost a draw call. */
+  private laneLines: pc.Entity | null = null;
   private readonly ships: pc.Entity[] = [];
   private readonly rings: pc.Entity[] = [];
   private readonly fleets: pc.Entity[] = [];
@@ -168,6 +170,26 @@ export class ClusterScene {
         ),
         stars: group.stars,
       });
+    }
+    // The lanes, where this universe has them.
+    this.laneLines?.destroy();
+    this.laneLines = null;
+    if (plan.lanes?.length) {
+      const pts: number[] = [],
+        at = (i: number) => {
+          const s = plan.stars[i];
+          return s ? [s.x * LY_SCALE, s.z * LY_SCALE, s.y * LY_SCALE] : [0, 0, 0];
+        };
+      for (const [a, b] of plan.lanes) pts.push(...at(a), ...at(b));
+      const mesh = new pc.Mesh(this.stage.device);
+      mesh.setPositions(pts);
+      mesh.update(pc.PRIMITIVE_LINES);
+      const e = new pc.Entity("lanes");
+      e.addComponent("render", {
+        meshInstances: [new pc.MeshInstance(mesh, glow([0.2, 0.5, 0.85]))],
+      });
+      this.root.addChild(e);
+      this.laneLines = e;
     }
     // Home: the brightest mark, at the middle.
     const home = new InstancedBatch(

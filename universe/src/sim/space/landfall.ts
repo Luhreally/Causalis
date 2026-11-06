@@ -45,6 +45,7 @@ import {
 } from "./natives.ts";
 import { peopleNature, peopleStrength, peoplesOf, speedOf, starPoint } from "./peoples.ts";
 import { COLONISTS } from "./space.ts";
+import { lanesOf, lawlessSeed } from "./lanes.ts";
 import { starSitesOf } from "./stars.ts";
 
 /** One landing, read. */
@@ -96,14 +97,30 @@ function comersOf(
   life: LifeChemistry,
 ): Omit<Landfall, "n" | "arrival" | "natives" | "reading" | "fight"> | null {
   if (a.kind === "home") {
-    const site = starSitesOf(world)?.get(a.cell!);
+    // (A ship sent through the lanes to look holds no land, and is told by what it was (Phase 68).)
+    const visit = a.visit !== undefined ? lanesOf(world)?.visits[a.visit] : undefined,
+      kept = visit ? undefined : starSitesOf(world)?.get(a.cell!),
+      site = visit
+        ? {
+            realm: visit.realm,
+            departed: visit.sailed,
+            drive: visit.drive,
+            distance: visit.distance,
+            from: -1,
+          }
+        : kept;
     if (!site) return null;
     const realm = politiesOf(world).get(site.realm),
       design = designsOf(world).at(site.realm, site.departed) ?? designsOf(world).of(site.realm),
       parts = shipParts(design?.parts ?? []),
       made = hasMachineHost(parts),
       drive = STAR_DRIVES.find((d) => d.id === site.drive) ?? STAR_DRIVES[0]!,
-      years = crossingYears(site.distance, drive),
+      // (By the lanes, the years it was on the way: a short way aboard keeps its people as it does its made soldiers.)
+      years = visit
+        ? visit.arrives - visit.sailed
+        : kept?.lane
+          ? kept.arrives - kept.departed
+          : crossingYears(site.distance, drive),
       force = shipForce(1, COLONISTS, years, made),
       home = homeParty(world, life),
       lore = loreOf(world),
@@ -123,8 +140,8 @@ function comersOf(
         strength: affordancesOf(home.body).strength,
         care: woundCare(known),
       },
-      // (A land of the home world's, with anyone left alive in it.)
-      stay: (populationContext(world).provinces.get(a.cell!)?.total() ?? 0) > 0,
+      // (A land of the home world's, with anyone left alive in it; a ship sent to look has none.)
+      stay: !visit && (populationContext(world).provinces.get(a.cell!)?.total() ?? 0) > 0,
     };
   }
   const civ = civilizationsNear(world).find((c) => c.ref === a.civ);
@@ -208,7 +225,7 @@ export function landfallsOf(world: World, f: Folk, life: LifeChemistry): readonl
         size: f.body.size,
         walls: a.found === "towns" || a.found === "cities" || a.found === "works",
       },
-      key = `${world.seed.text} landfall ${f.ref} ${a.year} ${a.kind} ${a.cell ?? a.civ}`,
+      key = `${lawlessSeed(world.seed.text)} landfall ${f.ref} ${a.year} ${a.kind} ${a.cell ?? a.civ}`,
       u = (s: string) => (hashString(`${key} ${s}`) >>> 0) / 4294967296,
       fight = landfallFight(c.comers, natives, reading.sickness.can, {
         where: u("where"),

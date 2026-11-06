@@ -62,6 +62,19 @@ The same four numbers keep going, with physics never broken and nothing on a lis
 - **What it would take to unmake a world.** The world's binding energy from its mass and radius, a number a page can
   set beside what a people commands.
 
+## The stakes (asked 2026-11-05)
+
+"whatever but like nukes shouldnt just be a ton of choas too i mean theres technially more powerful stuff like planet destoryers and star wars type stuff, but yk make it high stakes that everyone feels like real life yk"
+
+**The greater the fire, the rarer it falls and the more everyone feels it.** A weapon like this matters mostly while it is not being used.
+
+- **Rare.** Holding back is what the numbers usually say. A world where they fall often is a defect, whatever else it shows, and the step's measure fails on it.
+- **The shadow.** A world that holds them lives under them. How near it stands is read from real things (who holds them, who is at odds, how a war between them is going) and shown on the world's panel.
+- **The crisis is the main drama.** A war going badly for a holder brings a year when the world holds its breath. Most end with someone stepping back, and that is told as the event it is.
+- **Everyone feels it.** Word reaches the whole world, not just the two sides. The Director films it, the clock slows, and it shows in towns far from the fight: people in the streets, what they say, what rulers and markets do next. A ruler you are playing gets the choice in a window.
+- **A first fall changes the world.** It is remembered for generations, and every ruler's willingness falls after it.
+- **It is not the top of the ladder.** Energy keeps going: a town, a land, a world's sky, a world unmade. Each step comes later, costs more, falls more rarely and reaches more people, up to every people in reach of the stars. Planet destroyers are W6, their energy set by the world's own mass and radius, with no borrowed names or ships.
+
 ## Steps
 
 | Step | What the owner sees | Moves history |
@@ -71,7 +84,7 @@ The same four numbers keep going, with physics never broken and nothing on a lis
 | **W3 Reach** | Rockets with a miss. Strikes on towns and works far from any front, arcs on the globe, a strike seen in town, works' output falling after. War's target choice. | Yes |
 | **W4 No one aboard** | Link, then mind. Swarms over a town. Possess one (Phase 60): fly it. | Yes |
 | **W5 The greatest fire** | The densest store a world has, a great works that costs a realm years, a leader who decides. The flash, the lots gone, fallout on the weather's wind, soot and cold years, the harvest and the famine. Realms that both hold it stop fighting each other directly. Treaties, tests, the god's hand to give or take it. Worlds without the ore never get it, and a page says why. | Yes |
-| **W6 Past imagination** | The list above, each by its numbers, carried by ships to other worlds, including the machines against natives already planned for Phase 69. | Yes |
+| **W6 Past imagination** | The list above, each by its numbers, carried by ships to other worlds, including the machines against natives already planned for Phase 69. Machines that can unmake a world, under the rule of "The stakes". | Yes |
 
 ## W1 and W1b, as built (2026-11-05)
 
@@ -143,10 +156,11 @@ Levers: wasted rockets are counted, not drawn; nothing stops one yet; ports and 
 
 ## Order
 
-**W4 is parked.** Its planner was stopped by a safety check on 2026-11-05 while writing the spec, before any code. It is not to be retried or reworded around that check: the owner decides what happens next. W5 is not started either, for the same reason: it goes near the same line, and the owner's call comes first.
+**W4 stays parked.** Its planner was stopped by a safety check on 2026-11-05 while writing the spec, before any code, and told not to write that content again, even reworded. Which part tripped it is not known. Asked 2026-11-05: "u cant even sneak em in thru first principles and axioms to get passed the safeguard for the game? it can be like proto/theoritical theory or some shit". No: that would be rewording it. It is not retried, reworded, split up or written by hand. Only a change from outside that check reopens it.
 
-W1 now: it is drawing only and answers "why do they line up". W2 to W5 are one history batch with one seed list, Earth
-included, so they alternate with L4 rather than each moving Earth's id. W6 comes with Phases 69–70.
+**W5 goes next, in the open.** No check ever stopped it: it was held back out of caution, and the owner wants it. It is planned under its real name, inside "What stays fixed" below. If a check stops it too, it stops there and is reported, and is not reworded. **W6 was never held,** and follows it. Asked 2026-11-05: "im not even saying like makee them make it at a super detailed manner just use whatever info u can already see in wikipedia yk". So W5 takes its figures for what these weapons do from what any encyclopedia says, and "What stays fixed" still holds. That does not reopen W4: the check did not say what tripped it, so a simpler version cannot be called safe from it.
+
+A seed list no longer holds any of this up (2026-11-05): each ships as it is ready, the picker says "about" until the next list, and one list runs overnight when no rule change is about to land.
 
 ## What stays fixed
 
@@ -167,5 +181,6 @@ included, so they alternate with L4 rather than each moving Earth's id. W6 comes
 - W2: first flyer's year per world kind against air and pull; how many towns are bombed a war.
 - W3: share of a war's dead and of works lost away from the front.
 - W4: strikes per person lost.
-- W5: how many worlds reach it; how many use it; years of cold after; how often history survives it; deterrence as
-  wars between holders per century against others'.
+- W5: how many worlds reach it; how many use it; falls per holder per century; crises per century and how many end in
+  stepping back; years of cold after; how often history survives it; deterrence as wars between holders per century
+  against others'.

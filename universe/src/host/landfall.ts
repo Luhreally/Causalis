@@ -14,6 +14,7 @@ import {
   peopleWords,
   politiesOf,
   realmName,
+  lanesOf,
   starSitesOf,
   type Folk,
   type FolkStage,
@@ -73,8 +74,14 @@ export function landfallPlan(world: World, f: Folk, l: Landfall): LandfallPlan {
       civIndex >= 0
         ? PEOPLE_COLORS[civIndex % PEOPLE_COLORS.length]!
         : ([0.86, 0.9, 0.96] as const),
-    site = a.kind === "home" ? starSitesOf(world)?.get(a.cell!) : undefined,
-    realm = site ? politiesOf(world).get(site.realm) : undefined,
+    site = a.kind === "home" && a.cell !== null ? starSitesOf(world)?.get(a.cell) : undefined,
+    // (A ship sent through the lanes to look holds no land: its realm is told by what it was, Phase 68.)
+    visit = a.visit !== undefined ? lanesOf(world)?.visits[a.visit] : undefined,
+    realm = site
+      ? politiesOf(world).get(site.realm)
+      : visit
+        ? politiesOf(world).get(visit.realm)
+        : undefined,
     home = homePlanet(world).generated.life.people?.body,
     ape = CLADES.find((x) => x.id === "ape")!.body as unknown as BodyPlan,
     stage = a.found as FolkStage,

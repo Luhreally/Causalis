@@ -53,6 +53,7 @@ import { seatPage, withKin } from "./kin.ts";
 import { rulerPage, withLeaderPage } from "./leaders.ts";
 import { courtPage } from "./court.ts";
 import { namedPage, type NamesArg } from "../names.ts";
+import { lawPage } from "../lanes.ts";
 
 /** The page a ref's kind is built by (the tab it asked for, if any). */
 function build(world: World, ref: string, tab: string | null): PageModel {
@@ -60,6 +61,7 @@ function build(world: World, ref: string, tab: string | null): PageModel {
   if (ref === "world:ledger") return ledgerPage(world, tab ?? undefined);
   if (ref === "world:log") return logPage(world, tab ?? undefined);
   if (ref === "world:peoples") return peoplesPage(world);
+  if (ref === "world:law") return lawPage(world);
   if (ref === "world:stats") return statsPage(world, tab ?? undefined);
   if (ref === "world:matter") return matterGuidePage(world, tab ?? undefined);
   // What a world can do, measured, and the age that makes it (Phase 65).

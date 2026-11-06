@@ -195,6 +195,27 @@ export type ClusterStar = {
 export type ClusterPlan = {
   readonly radius: number;
   readonly stars: readonly ClusterStar[];
+  /** The lanes between them, where this universe has any (Phase 68): places in `stars`, -1 for the home star. */
+  readonly lanes?: readonly (readonly [number, number])[];
+};
+
+/** The first jump, for its film (Phase 68). */
+export type JumpPlan = {
+  readonly star: string;
+  readonly planet: number;
+  readonly year: number;
+  readonly arrives: number;
+  readonly thrown: { readonly hop: number; readonly short: number; readonly years: number } | null;
+  readonly title: string;
+  /** Each shot's caption. */
+  readonly leave: string;
+  readonly opens: string;
+  readonly jump: string;
+  readonly through: string;
+  readonly short: string | null;
+  readonly out: string;
+  readonly rows: readonly { readonly head: string; readonly text: string }[];
+  readonly foot: string;
 };
 
 /** The galaxy's shape (M80): its disk's radius and scale length, its arms and their pitch, where home lies (ly, radians). */

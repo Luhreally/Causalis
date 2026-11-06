@@ -51,6 +51,7 @@ import {
   politiesOf,
   populationContext,
   realmName,
+  lanesOf,
   starSitesOf,
   topLevel,
   type Arrival,
@@ -654,8 +655,16 @@ export function folkContact(world: World, f: Folk): FolkContact | null {
       civIndex >= 0
         ? PEOPLE_COLORS[civIndex % PEOPLE_COLORS.length]!
         : ([0.86, 0.9, 0.96] as const),
-    site = first.kind === "home" ? starSitesOf(world)?.get(first.cell!) : undefined,
-    realm = site ? politiesOf(world).get(site.realm) : undefined;
+    site =
+      first.kind === "home" && first.cell !== null
+        ? starSitesOf(world)?.get(first.cell)
+        : undefined,
+    visit = first.visit !== undefined ? lanesOf(world)?.visits[first.visit] : undefined,
+    realm = site
+      ? politiesOf(world).get(site.realm)
+      : visit
+        ? politiesOf(world).get(visit.realm)
+        : undefined;
   return {
     year: first.year,
     kind: first.kind,

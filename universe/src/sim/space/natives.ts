@@ -44,6 +44,7 @@ import {
 import { homePlanet } from "../planet/store.ts";
 import { civilizationsNear } from "./contact.ts";
 import { holdWorld, peoplesOf } from "./peoples.ts";
+import { lanesOf, lawlessSeed } from "./lanes.ts";
 import { starSitesOf } from "./stars.ts";
 import { clusterOf } from "./voyages.ts";
 
@@ -116,7 +117,7 @@ const round = (x: number) => Math.round(x);
 const DARK: readonly FolkStage[] = ["signals", "orbit", "stars"];
 
 function drawOf(world: World, s: GalaxyStar, index: number): (n: number) => number {
-  const key = `${world.seed.text} natives ${s.sector}:${s.k}/${index}`;
+  const key = `${lawlessSeed(world.seed.text)} natives ${s.sector}:${s.k}/${index}`;
   return (n) => (hashString(`${key} ${n}`) >>> 0) / 4294967296;
 }
 
@@ -358,7 +359,7 @@ const FOLKS = new Map<string, Folk | null>();
 
 /** The people of a world of a star, by its place outward (null: none rose there). */
 export function folkOf(world: World, s: GalaxyStar, index: number): Folk | null {
-  const key = `${world.seed.text} ${s.sector}:${s.k}/${index}`,
+  const key = `${lawlessSeed(world.seed.text)} ${s.sector}:${s.k}/${index}`,
     known = FOLKS.get(key);
   if (known !== undefined) return known;
   const p = foreignPlanets(new Rng(world.seed), s)[index],
@@ -499,6 +500,8 @@ export type Arrival = {
   readonly civ: Ref | null;
   /** The stage they were found at. */
   readonly found: FolkStage;
+  /** A ship sent through the lanes to look (Phase 68): its place among those sent. */
+  readonly visit?: number;
 };
 
 /** Everyone who has come down on a people's world, the first first: read off what history holds. */
@@ -516,6 +519,18 @@ export function arrivalsAt(world: World, f: Folk): readonly Arrival[] {
           civ: null,
           found: folkStage(f, site.arrives),
         });
+  lanesOf(world)?.visits.forEach((v, visit) => {
+    if (v.folk === f.ref && v.arrived)
+      out.push({
+        kind: "home",
+        year: v.arrives,
+        event: v.arrived,
+        cell: null,
+        civ: null,
+        found: folkStage(f, v.arrives),
+        visit,
+      });
+  });
   const store = peoplesOf(world);
   if (store)
     for (const c of civilizationsNear(world)) {

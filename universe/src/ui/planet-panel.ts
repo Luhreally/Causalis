@@ -484,12 +484,15 @@ export class PlanetPanel {
       matter = menuButton("🧪", "Matter"),
       // The tree of life (Phase 17): every line of descent, from the first cells to now.
       life = menuButton("🌳", "Tree of life"),
+      // A law of this universe (Phase 68): lanes between the stars, or none.
+      law = menuButton("🌀", "The law"),
       concepts = menuButton("📖", "Concepts");
     chronicle.onclick = () => this.onChronicle();
     ledger.onclick = () => this.onLedger();
     numbers.onclick = () => this.onNumbers();
     matter.onclick = () => this.onMatter();
     life.onclick = () => this.onTree();
+    law.onclick = () => this.onLaw();
     concepts.onclick = () => this.onConcepts();
     const sky = menuButton("☀️", "The sky");
     sky.onclick = () => this.onSky();
@@ -531,6 +534,7 @@ export class PlanetPanel {
       numbers,
       matter,
       life,
+      law,
       concepts,
       sky,
       origin,
@@ -1136,6 +1140,8 @@ export class PlanetPanel {
   onMatter: () => void = () => {};
   /** Asked for the tree of life (Phase 17 M129). */
   onTree: () => void = () => {};
+  /** Asked for the law of this universe (Phase 68). */
+  onLaw: () => void = () => {};
 
   private worldPage(title: string): void {
     this.onWorldPage();

@@ -555,6 +555,7 @@ export function installSpace(world: World, ctx: () => PopulationContext): SpaceS
   installVoyages(world, ctx);
   installContact(world, ctx);
   installStarWars(world, ctx);
+  installLanes(world, ctx);
   installPeoples(world, ctx);
   const late = world.register(new LateStore());
   world.addPinner(() => late.pinned());
@@ -564,6 +565,7 @@ export function installSpace(world: World, ctx: () => PopulationContext): SpaceS
 import { installVoyages } from "./voyages.ts";
 import { installContact } from "./contact.ts";
 import { installStarWars } from "./starwar.ts";
+import { installLanes } from "./lane-visits.ts";
 import { installPeoples } from "./peoples.ts";
 import { lateYear } from "./late.ts";
 import { LateStore } from "./late-store.ts";

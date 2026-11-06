@@ -325,6 +325,7 @@ import { installContactFilm, type ContactFilm } from "./contact-film.ts";
 import { installLandfallFilm, type LandfallFilm } from "./landfall-film.ts";
 import { VisitorsLayer } from "../render/index.ts";
 import { installFleetFilm, type FleetFilm } from "./fleet-film.ts";
+import { installJumpFilm, type JumpFilm } from "./jump-film.ts";
 // (Anyone's family and body on their card, a war's soldiers named from its roll: Phase 55 wave 5.)
 import { kinLines } from "../ui/index.ts";
 import { seatRef, type KinCard, type StruckMember, type StruckNow } from "../bridge/index.ts";
@@ -837,6 +838,7 @@ type Exposed = {
   landfallFilm?: LandfallFilm;
   toFolk?: (star: string, index: number, at?: number) => Promise<FolkNear | null>;
   fleetFilm?: FleetFilm;
+  jumpFilm?: JumpFilm;
   /** A page opened by its ref (the look tools). */
   pageWindowOpen?: (ref: string) => void;
   planNow?: () => VillagePlan | null;
@@ -3725,6 +3727,7 @@ async function runPlanetPage(): Promise<void> {
   let colonyFilm: ColonyFilm | null = null;
   /** A fight among the stars watched (Phase 67). */
   let fleetFilm: FleetFilm | null = null;
+  let directorJump: (() => Promise<boolean>) | null = null;
   /** Every scale put away, for a film or a list to go on from. */
   const allAway = () => {
     leaveScale();
@@ -4205,6 +4208,8 @@ async function runPlanetPage(): Promise<void> {
   };
   clusterPanel.onGalaxy = () => void toGalaxy();
   clusterPanel.onPeoples = () => void pageWindow.open("world:peoples");
+  clusterPanel.onLaw = () => void pageWindow.open("world:law");
+  planetPanel.onLaw = () => void pageWindow.open("world:law");
   clusterPanel.onVisit = (star, i) => void toForeignWorld(star, i, "cluster");
   // One zoom (M88): pushing on past a scale's nearest or farthest view goes through to the
   // next — out from a village to its land, the world, its sky, the stars about it and the
@@ -8876,6 +8881,45 @@ async function runPlanetPage(): Promise<void> {
     hush: () => colonies.hush(),
   });
   exposed.fleetFilm = fleetFilm;
+  // The first jump watched (Phase 68), from its tiding, the law's page and the Director's firsts.
+  const jumpFilm = installJumpFilm({
+    stage,
+    hud,
+    client,
+    time,
+    rig,
+    toHomeWorld: async () => {
+      allAway();
+      regionCell = -1;
+      toGlobe();
+    },
+    toForeignWorld: async (star, planet) => {
+      allAway();
+      regionCell = -1;
+      stage.backdrop("space");
+      const page = await client.query<StarPage>({ type: "galaxy.star", args: { ref: star } });
+      skyStar = page;
+      await toForeignWorld(page, planet, "star");
+    },
+    cut: (what, work) => fadeOver(() => ready(what, work, true)),
+    toOrbit: () => {
+      setRoam("orbit");
+      endWar();
+      endWarAge();
+    },
+    busy: () =>
+      !!colonyFilm?.playing ||
+      !!fleetFilm?.playing ||
+      !!contactFilm?.playing ||
+      !!landfallFilm?.playing,
+  });
+  exposed.jumpFilm = jumpFilm;
+  pageWindow.onJump = () => {
+    pageWindow.close();
+    void jumpFilm.play();
+  };
+  tidings.onJump = () => void jumpFilm.play();
+  directorJump = () => jumpFilm.play(true);
   exposed.pageWindowOpen = (ref) => void pageWindow.open(ref);
   const starWars = new StarWars(hud);
   starWars.onWatch = (id) => void fleetFilm!.play(id);
@@ -8948,6 +8992,11 @@ async function runPlanetPage(): Promise<void> {
         await fleetFilm!.play(s.id);
         return;
       case "first": {
+        // (The first jump: played from its leaving, Phase 68.)
+        if (s.first.what.startsWith("🌀") && directorJump) {
+          await directorJump();
+          return;
+        }
         // (The first landing on another world: played from its crossing, not only flown to.)
         const landing = s.first.ref ? await landingOfEvent(s.first.ref) : null;
         if (landing) {

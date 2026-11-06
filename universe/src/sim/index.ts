@@ -600,6 +600,19 @@ export { StarSiteStore, lightSteps, starSitesOf, type StarSite } from "./space/s
 export { folkGround, siteGround, siteRegion, type SiteGround } from "./space/ground.ts";
 export { hasLandfall, landfallsOf, type Landfall } from "./space/landfall.ts";
 export {
+  LANE_EVENTS,
+  LANE_ROW,
+  PEOPLES_FIND_LANES,
+  laneLawOf,
+  laneMapOf,
+  laneRoute,
+  laneYearOf,
+  lanesOf,
+  type LaneMap,
+} from "./space/lanes.ts";
+export type { FirstJump, LaneVisit, SiteLane } from "./space/stars.ts";
+export { VISIT_MACHINES, installLanes } from "./space/lane-visits.ts";
+export {
   ABOARD,
   STARSHIP_MACHINES,
   VOYAGE_EVENTS,

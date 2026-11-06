@@ -1,0 +1,8 @@
+/* The first jump (Phase 68): the white of a ship going in or coming out, over all of it and under its words. */
+.jump-flash {
+  position: absolute;
+  inset: 0;
+  background: #f4fbff;
+  opacity: 0;
+  pointer-events: none;
+}

@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { YEAR, seedFromText, type World } from "../../src/kernel/index.ts";
 import { isProvinceWorld } from "../../src/gen/index.ts";
 import { PRINCIPLES, REACTIONS, SUBSTANCES } from "../../src/rules/index.ts";
-import { HEAT_TREE, LATE_TREE, MEANS_TREE } from "../../src/rules/principles.ts";
+import { HEAT_TREE, LATE_TREE, LAW_TREE, MEANS_TREE } from "../../src/rules/principles.ts";
 import { designsOf, homePlanet, politiesOf, populationContext } from "../../src/sim/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import {
@@ -61,19 +61,19 @@ const KIND_ROWS = new Set([
  * rest read as they did.
  */
 const BEFORE: Record<string, string> = {
-  tools: "f3a6744:19659",
-  stuff: "2359788b:14043",
-  ground: "4d6738ae:41034",
-  deposits: "abe2533b:97918",
-  arms: "9f5aeb0d:17455",
-  designs: "9e2000a1:28169",
-  workshops: "1e0235b1:512835",
+  tools: "40038772:19326",
+  stuff: "f4c81c9d:14001",
+  ground: "b06713b8:40842",
+  deposits: "6af9612b:97920",
+  arms: "e5213f30:20486",
+  designs: "5a39910a:30193",
+  workshops: "174cec9e:358241",
   substances: "b58b1df3:130602",
-  reactions: "b844bee3:68510",
+  reactions: "35dd93e9:69590",
   // (Its pages no longer list what only a people of the water could find: F1, canBeFoundHere.)
-  principles: "77a573c0:172041",
+  principles: "d9cc587b:173745",
   guide: "ced49326:17137",
-  camps: "5174f099:328591",
+  camps: "7474780d:328591",
 };
 
 /**
@@ -162,6 +162,7 @@ const CATEGORIES: Record<string, () => unknown> = {
       (p) =>
         !KIND_ROWS.has(p.id) &&
         !HEAT_TREE.some((l) => l.id === p.id) &&
+        !LAW_TREE.some((l) => l.id === p.id) &&
         !LATE_TREE.some((l) => l.id === p.id) &&
         !MEANS_TREE.some((l) => l.id === p.id),
     ).map((p) => page(`prin:${p.id}`)),
