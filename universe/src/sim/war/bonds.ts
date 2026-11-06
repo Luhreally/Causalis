@@ -152,7 +152,7 @@ export function grainMade(ctx: PopulationContext, p: Polity): number {
 }
 
 /** What one land can give up of grain: what it holds above three months of its food. */
-function landSpare(ctx: PopulationContext, cell: number): number {
+export function landSpare(ctx: PopulationContext, cell: number): number {
   const prov = ctx.provinces.get(cell),
     m = ctx.world.store<MarketStore>("economy.markets").get(cell);
   if (!prov || !m || heldAmongStars(ctx.world, cell)) return 0;

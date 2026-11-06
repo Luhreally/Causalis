@@ -26,6 +26,7 @@ export { BattleLayer } from "./battle.ts";
 export { BandLayer } from "./band.ts";
 export { WeatherLayer } from "./weather.ts";
 export { ActsNearLayer } from "./nearacts.ts";
+export { WildfireLayer } from "./wildfire.ts";
 export { OrbitRig, type OrbitOptions } from "./orbit.ts";
 export {
   AutoQuality,

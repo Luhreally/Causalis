@@ -994,6 +994,21 @@ export {
 } from "./weather.ts";
 export { actsNear, type ActsNear, type NearMote } from "./nearacts.ts";
 export {
+  FIRE_POINT,
+  FIRE_WATCHED_S,
+  bareTiles,
+  burnBand,
+  burnClock,
+  burnTiles,
+  burnedBy,
+  fireUnit,
+  flamesOf,
+  scarAge,
+  scarOver,
+  smokeOf,
+  type BurnTiles,
+} from "./wildfire.ts";
+export {
   BEHIND,
   GREAT_BATTLE,
   firstWords,

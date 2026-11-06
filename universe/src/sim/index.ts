@@ -528,6 +528,14 @@ export {
 } from "./acts/peoples.ts";
 export { DISASTER, DISASTER_EVENTS, installDisasters } from "./acts/disasters.ts";
 export {
+  UNBIDDEN_EVENTS,
+  installWild,
+  wildOf,
+  type WildStore,
+  type WildTally,
+  type Wildfire,
+} from "./acts/wild.ts";
+export {
   LINEAGE_NATURES,
   NATURE_EVENTS,
   NATURE_PUSH,

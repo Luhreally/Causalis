@@ -10,6 +10,8 @@ import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 /** The most of each kind drawn at once. */
 const MOST = 700;
+/** How many bits a falling star's line is drawn of. */
+const STREAK_BITS = 18;
 type P = { readonly x: number; readonly y: number; readonly z: number };
 
 /** Each mote's look: its colour, how much it is seen through, its size (a share of the eye's distance). */
@@ -43,9 +45,10 @@ export class ActsNearLayer {
   private readonly flames: InstancedBatch;
   private readonly smoke: InstancedBatch;
   private readonly light: InstancedBatch;
+  private readonly star: InstancedBatch;
   private readonly looks: pc.Material[] = [];
   /** What was drawn last (the look tools). */
-  shown = { motes: 0, flames: 0, smoke: 0, light: 0 };
+  shown = { motes: 0, flames: 0, smoke: 0, light: 0, streak: 0 };
 
   constructor(stage: Stage, parent: pc.Entity) {
     const box = keptMesh(boxMesh(stage)),
@@ -62,6 +65,7 @@ export class ActsNearLayer {
     this.flames = batch([1, 0.5, 0.1], glowing([1, 0.5, 0.1], 0.95, 0.9));
     this.smoke = batch([0.34, 0.32, 0.33], glowing([0.34, 0.32, 0.33], 0.55, 0.1));
     this.light = batch([1, 0.94, 0.62], glowing([1, 0.94, 0.62], 0.45, 1));
+    this.star = batch([1, 0.97, 0.84], glowing([1, 0.97, 0.84], 1, 1));
     parent.addChild(this.root);
   }
 
@@ -222,11 +226,44 @@ export class ActsNearLayer {
       out[6] = s * 0.5;
       out[7] = 0;
     });
+    // A falling star (N1): a line of white fire across the sky before the eye, head first, on its way down somewhere else.
+    const fell = acts?.streak ?? null,
+      tail = fell && fell.k < 1 ? STREAK_BITS : 0;
+    this.star.set(tail, (i, out) => {
+      const k = fell!.k,
+        // (It crosses in the first of its time; what is left of its trail goes in the rest.)
+        go = Math.min(1, k / 0.6),
+        fade = k <= 0.6 ? 1 : 1 - (k - 0.6) / 0.4,
+        lookX = at.x - eye.x,
+        lookZ = at.z - eye.z,
+        len = Math.hypot(lookX, lookZ) || 1,
+        // (Left to right or right to left across the eye, as it falls, and higher or lower.)
+        sign = rand(fell!.key, 0, 20) < 0.5 ? -1 : 1,
+        sideX = (lookZ / len) * sign,
+        sideZ = (-lookX / len) * sign,
+        high = 0.3 + 0.16 * rand(fell!.key, 0, 21),
+        drop = 0.3 + 0.14 * rand(fell!.key, 0, 22),
+        along = d * (-0.42 + 0.72 * go),
+        fall = d * (high - drop * go),
+        // (The trail runs back up the way it came, and thins toward its end.)
+        back = d * 0.012 * Math.min(1, go * 5) * i,
+        thin = 1 - i / STREAK_BITS,
+        size = d * 0.0075 * (0.25 + 0.75 * thin) * fade;
+      out[0] = at.x + sideX * (along - back);
+      out[1] = at.y + fall + back * (drop / 0.72);
+      out[2] = at.z + sideZ * (along - back);
+      out[3] = size;
+      out[4] = size;
+      out[5] = size;
+      out[6] = 0;
+      out[7] = 0;
+    });
     this.shown = {
       motes,
       flames: flames.length,
       smoke: smoke.length,
       light: pillar > 0 && middle ? 1 : 0,
+      streak: tail,
     };
   }
 }

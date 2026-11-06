@@ -143,6 +143,7 @@ export {
   type LandCamp,
   type LandEra,
   type LandLane,
+  type LandBurn,
   type LandPlan,
   type LandRoad,
   type LandTown,

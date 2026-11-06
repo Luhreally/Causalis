@@ -673,6 +673,7 @@ type Exposed = {
   /** A town of the land on screen as drawn from its fabric: its square and reach (region units); and the parts drawn in all (M150). */
   landTown?: (ref: string) => { x: number; z: number; r: number } | null;
   landParts?: () => number;
+  landFire?: () => { flames: number; smoke: number; scar: number; burns: number };
   land?: () => {
     towns: number;
     parts: number;
@@ -1992,11 +1993,12 @@ async function runPlanetPage(): Promise<void> {
         ? seasonTiles(colors, frame, landSky, seasonT)
         : colors;
     // (A land built over: streets and roofs from shore to shore. Phase 66.)
-    region.paint(
+    const dressed =
       regionLens === "land" && landPlan?.covered
         ? builtOverTiles(seasoned, frame, !!landPlan.undersea)
-        : seasoned,
-    );
+        : seasoned;
+    // (What a fire burned, char to brown: on the ground's own colours. N1.)
+    region.paint(regionLens === "land" ? region.fire.scarred(dressed) : dressed);
     painted = colors.length / 4;
   };
   /** The spot of the globe a zoom went down into, to stand in the middle of its land's map. */
@@ -5479,7 +5481,10 @@ async function runPlanetPage(): Promise<void> {
   };
   // The land's towns rising as its clock runs, its fields at the season, its roads at the year.
   stage.onUpdate(() => {
-    if (scale === "region") region.land.update(now(), time.speed > 0);
+    if (scale === "region") {
+      region.land.update(now(), time.speed > 0);
+      if (region.burnsNow(now(), time.pace, rig.distance, time.speed > 0)) paintRegion();
+    }
   });
   /** Whether the town is of spires, the eye then kept out of their walls (Phase 66). */
   let spires = false;
@@ -8991,6 +8996,7 @@ async function runPlanetPage(): Promise<void> {
   exposed.villages = () => villages.length;
   exposed.landTown = (ref: string) => region.land.townAt(ref);
   exposed.landParts = () => region.land.count;
+  exposed.landFire = () => region.fire.shown;
   exposed.land = () => region.land.info();
   exposed.camps = () =>
     scale === "region" ? region.land.camps.info().map((c) => ({ ...c, cell: regionCell })) : [];

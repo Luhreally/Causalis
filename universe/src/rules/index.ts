@@ -2,6 +2,30 @@
 // principles, body-plan primitives and the rest as later milestones need them.
 // May import: kernel. See README.md and docs/architecture §34.
 export { BRUSH_KINDS, BRUSH_LIMIT, brushCells, type BrushKind, type BrushArgs } from "./brush.ts";
+export {
+  NATURE,
+  STARS,
+  answerChance,
+  countOf,
+  crossDays,
+  dryness,
+  faultRate,
+  fireHomes,
+  flameLook,
+  flashesOf,
+  litChance,
+  magnitudeOf,
+  natureImportance,
+  reachesGround,
+  shakeAt,
+  shakeShares,
+  skyRate,
+  spreadChance,
+  stakesOf,
+  yearsBetween,
+  type FaultKind,
+  type StarClass,
+} from "./nature.ts";
 export { resolveCombat, type CombatSide, type CombatFrame, type CombatRecord } from "./combat.ts";
 export {
   landfallFight,

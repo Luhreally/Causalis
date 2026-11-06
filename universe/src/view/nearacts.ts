@@ -30,6 +30,8 @@ export type ActsNear = {
   readonly shake: number;
   /** A stone from the sky: how far it has fallen (0 … 1), its flash as it strikes, its smoke. */
   readonly strike: { readonly fall: number; readonly flash: number; readonly smoke: number } | null;
+  /** A falling star across the sky (N1), on its way down somewhere else: how far along (0 … 1), and a number of its own. */
+  readonly streak: { readonly k: number; readonly key: number } | null;
   /** The god's hand here: each act's sign and words, the latest first. */
   readonly told: readonly { readonly icon: string; readonly words: string }[];
 };
@@ -39,6 +41,7 @@ const SEEN: Partial<Record<ActKindShown, { world: number; real: number }>> = {
   lightning: { world: DAY, real: 3 },
   quake: { world: DAY, real: 5 },
   meteor: { world: DAY, real: 7 },
+  streak: { world: DAY, real: 6 },
   fire: { world: 8 * DAY, real: 9 },
   bless: { world: 30 * DAY, real: 10 },
   curse: { world: 30 * DAY, real: 10 },
@@ -104,7 +107,8 @@ export function actsNear(sky: LandSky, t: number, pace: number): ActsNear {
     told: { icon: string; words: string; from: number }[] = [];
   let pillar = 0,
     shake = 0,
-    strike: ActsNear["strike"] = null;
+    strike: ActsNear["strike"] = null,
+    streak: ActsNear["streak"] = null;
   for (const a of sky.acts) {
     const seen = SEEN[a.kind],
       age = t - a.from;
@@ -134,7 +138,9 @@ export function actsNear(sky: LandSky, t: number, pace: number): ActsNear {
         smoke: u >= 0.12 ? Math.min(1, (1 - u) / 0.5) : 0,
       };
     }
-    const say = TOLD[a.kind];
+    if (a.kind === "streak") streak = { k: 1 - k, key: Math.floor(a.from) % 1000003 };
+    // (What the world did of itself is seen, and is no god's hand: N1.)
+    const say = a.natural ? undefined : TOLD[a.kind];
     if (say) told.push({ icon: say[0], words: say[1], from: a.from });
   }
   told.sort((a, b) => b.from - a.from);
@@ -144,6 +150,7 @@ export function actsNear(sky: LandSky, t: number, pace: number): ActsNear {
     fires,
     shake,
     strike,
+    streak,
     told: told
       .filter((x, i) => told.findIndex((y) => y.words === x.words) === i)
       .map(({ icon, words }) => ({ icon, words })),

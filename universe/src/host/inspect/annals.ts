@@ -218,6 +218,7 @@ const RULES: Readonly<Record<string, readonly [number, number]>> = {
 
 /** What a kind of event not named above makes, by its domain: a new kind of history is told at once. */
 const DOMAINS: Readonly<Record<string, number>> = {
+  wild: SORROWS,
   war: WARS,
   polity: WARS,
   strife: WARS,
@@ -246,6 +247,8 @@ const DOMAINS: Readonly<Record<string, number>> = {
 };
 
 function ruleOf(e: HistoryEvent): readonly [number, number] {
+  // (What the world did by itself goes in by how great it was: N1.)
+  if ((e.data as { natural?: boolean } | null)?.natural) return [SORROWS, e.importance - 1];
   return (
     RULES[e.type] ?? [DOMAINS[e.type.slice(0, e.type.indexOf("."))] ?? PEOPLE, e.importance - 2]
   );
