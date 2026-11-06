@@ -75,6 +75,8 @@ export type TownCivic = {
   readonly fell: number | null;
   /** The lot it truly stands on, where that lies past what is drawn and `at` is where it is drawn (Phase 66). */
   readonly truly?: number;
+  /** The moment what brought it down reached it, where that was not a year's turn (W5, the greatest fire). */
+  readonly thrown?: number;
 };
 
 /** How a design builds a home: its walls, its roof and its shape (realization ids), its roof's pitch. */
@@ -413,7 +415,8 @@ export function lotStates(plan: TownPlan): LotStates {
   }
   // (A run of homes long built may pass over a standing building's lots: they are the building's.)
   for (const c of plan.civics) {
-    if (c.fell !== null) continue;
+    // (One the greatest fire is yet to reach has its lots as it stood: W5.)
+    if (c.fell !== null && c.thrown === undefined) continue;
     for (let p = Math.max(0, c.at); p < Math.min(c.at + c.lots, n); p++) {
       what[p] = LOT.open;
       level[p] = -1;
@@ -428,7 +431,7 @@ export function lotStates(plan: TownPlan): LotStates {
 }
 
 /** The year a strike's razing is reckoned in, as the fabric's: a moment at a year's turn (a raid's) is the year it ends. */
-const struckYear = (k: TownStrike) => Math.floor((k.at - 1) / YEAR);
+export const struckYear = (k: TownStrike) => Math.floor((k.at - 1) / YEAR);
 
 /**
  * Each home razed in a year something struck the town (Phase 42 M201) given to its strike, each
@@ -451,12 +454,15 @@ function strikes(
   if (!list.length) return;
   const theirs: number[][] = list.map(() => []),
     // (The razed lots of each year a strike fell in.)
-    razed = new Map<number, Set<number>>();
+    razed = new Map<number, Set<number>>(),
+    // (What stood, where a run keeps it: all it made flat is gone, so no home stands beside it to tell: W5.)
+    stood = new Int8Array(n);
   for (const run of plan.runs) {
-    const [kind, lo, hi, start, end] = run as [number, number, number, number, number];
+    const [kind, lo, hi, start, end, lv] = run as [number, number, number, number, number, number];
     if (kind !== 3) continue;
     for (let p = Math.max(0, lo); p < Math.min(hi, n); p++) {
       if (what[p] !== LOT.razed) continue;
+      stood[p] = lv;
       for (const k of list) {
         const year = struckYear(k);
         if (year < start || year > end) continue;
@@ -473,7 +479,8 @@ function strikes(
     const k = list[i]!,
       left = razed.get(struckYear(k));
     if (!left?.size || k.homes < 0) continue;
-    const mine = [...left].sort(near(k)).slice(0, k.homes);
+    // (The greatest fire's are all of that ground, not its homes alone.)
+    const mine = [...left].sort(near(k)).slice(0, k.raid?.great ? left.size : k.homes);
     for (const p of mine) left.delete(p);
     theirs[i] = mine;
   }
@@ -510,7 +517,12 @@ function strikes(
         k.at +
         (k.kind === "raid" ? (k.raid?.rocket ? SPREAD.rocketFrom : SPREAD.raidFrom) : 0) +
         (j + hash(p, Math.round(k.at), 3)) * step;
-      // (What stood there: as the nearest home standing beside it.)
+      // (What stood there: as its run keeps it, or as the nearest home standing beside it.)
+      if (stood[p]! > 0) {
+        level[p] = stood[p]!;
+        design[p] = Math.max(0, plan.designs.length - 1);
+        return;
+      }
       level[p] = 1;
       for (let d = 1; d <= 16; d++) {
         const q = what[p - d] === LOT.home ? p - d : what[p + d] === LOT.home ? p + d : -1;
@@ -535,7 +547,7 @@ export function civicMoments(c: TownCivic): { began: number; done: number; fell:
   return {
     began,
     done: Math.max(began + MONTH, (c.end + 1) * YEAR),
-    fell: c.fell === null ? null : (c.fell + 1) * YEAR,
+    fell: c.fell === null ? null : (c.thrown ?? (c.fell + 1) * YEAR),
   };
 }
 

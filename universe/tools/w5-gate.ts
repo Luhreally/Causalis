@@ -612,6 +612,48 @@ async function watch(f: Forged, tag: string): Promise<void> {
   );
   await settle(1500);
   await shot(`${tag}-7b-from-over-it`);
+  const overAfter = (await page.screenshot()).toString("base64");
+  // What it did to the ground, as the plan tells it: its heart cleared, none of the buildings there standing.
+  const ground = await k<{
+    first: number;
+    razed: number;
+    civics: number;
+    standing: number;
+    lots: number;
+  }>(`(() => {
+    const plan = globalThis.causalis.planNow()?.town, runs = plan.runs, heart = Math.min(400, plan.lots), t = globalThis.causalis.raidFilming?.() ?? 0;
+    let razed = 0;
+    for (let p = 0; p < heart; p++)
+      if (runs.some((r) => r[0] === 3 && r[1] <= p && p < r[2])) razed++;
+    const near = plan.civics.filter((c) => c.at < heart);
+    return { first: heart, razed, civics: near.length, standing: near.filter((c) => c.fell === null).length, lots: plan.lots };
+  })()`);
+  say(
+    `${tag}: of the first ${ground.first} lots of ${ground.lots} drawn, ${ground.razed} are ash; ${ground.standing} of the ${ground.civics} buildings there stand`,
+  );
+  check(
+    ground.razed >= ground.first * 0.9,
+    `${tag}: its heart is not cleared: ${ground.razed} of the first ${ground.first} lots`,
+  );
+  check(ground.standing === 0, `${tag}: ${ground.standing} buildings stand in its heart`);
+  // The town as it stood, by the same eye: the same film, from before its moment.
+  await k("globalThis.causalis.stopRaidFilm?.()");
+  await settle(800);
+  await k(`globalThis.causalis.watchRaid(${JSON.stringify(strike.event)})`);
+  await until(`${tag}: the film again`, async () => ((await filming()) ?? 0) > 0, slow(15000));
+  await k(
+    `globalThis.causalis.rig.flyTo({ target: { x: 0, y: 0, z: 0 }, yaw: 0, pitch: -62, distance: 70 }, 0.05)`,
+  );
+  await page.waitForTimeout(600);
+  const stillBefore = ((await filming()) ?? 0) < from;
+  await shot(`${tag}-7a-over-it-before`);
+  check(stillBefore, `${tag}: its moment came before the eye was over it`);
+  const flat = await screenChange(overAfter);
+  say(`${tag}: from over it, ${(flat.share * 100).toFixed(0)}% of the screen differs from before`);
+  check(
+    flat.share > 0.35,
+    `${tag}: from over it only ${(flat.share * 100).toFixed(0)}% of the screen differs: the town still stands`,
+  );
   await k("globalThis.causalis.stopRaidFilm?.()");
   // The pages.
   await open(strike.event);

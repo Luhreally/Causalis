@@ -1184,6 +1184,47 @@ export class TownBuilder {
   }
 
   /**
+   * What the greatest fire makes flat (W5): a share of a town's homes from its heart out, nothing between them spared, the
+   * buildings among them too. All of that ground lies in ash for `ash` years, one run: no one builds on it till then. The
+   * run keeps the height of what stood (`level`) and its years (`design`). How many homes.
+   */
+  flatten(f: Fabric, share: number, ash: number): number {
+    const runs = standingRuns(f);
+    if (!runs) return this.raze(f, share, false, undefined, CHANGE.burned);
+    let all = 0,
+      top = 0;
+    for (const [a, b, level] of runs) {
+      all += b - a;
+      top = Math.max(top, level);
+    }
+    const n = Math.min(all, Math.ceil(all * share));
+    if (n < 1) return 0;
+    let left = n,
+      reach = 0;
+    for (const [a, b, level] of runs) {
+      const k = Math.min(left, b - a);
+      f.homes[level]! -= k;
+      reach = a + k;
+      left -= k;
+      if (left <= 0) break;
+    }
+    // (In the order of their lots: one it reaches may carry it on to the end of its own.)
+    const buildings = f.civics.filter((c) => c.fell === null && c.lots > 0);
+    buildings.sort((a, b) => a.at - b.at);
+    for (const c of buildings) {
+      if (c.at >= reach) break;
+      reach = Math.max(reach, c.at + c.lots);
+      c.fell = this.year;
+      this.comesDue(f, this.year + RUIN_YEARS + 1);
+      this.store.fold(f.town, FOLD.fell, CIVIC_INDEX.get(c.kind)!, c.at);
+    }
+    this.claim(f, 0, reach);
+    this.change(f, CHANGE.burned, 0, reach, top, ash);
+    this.store.ashen.add(f);
+    return n;
+  }
+
+  /**
    * Lots that have lain their years in ash: homes again while its people want them (its edge lets its own fall
    * in time, if that leaves it too many), open ground if not.
    */
@@ -1192,7 +1233,8 @@ export class TownBuilder {
     // over once, not once for each. Runs never share a lot, so a burned run let go is all a cut would do, and what
     // goes on its lots stands over nothing. One let go leaves the list at once if it is the last, as a cut would.)
     const runs = f.changes,
-      due = runs.filter((c) => c[0] === CHANGE.burned && c[4] + ASH_YEARS <= this.year),
+      // (A run's design says how long it lies, where that is not a rocket's: see flatten.)
+      due = runs.filter((c) => c[0] === CHANGE.burned && c[4] + (c[6] || ASH_YEARS) <= this.year),
       opened: [number, number][] = [],
       n = f.next;
     let room = people / 0.6 - housingOf(f);
@@ -1623,6 +1665,18 @@ export function burnTown(
 ): number {
   const f = townsOf(ctx.world).get(town);
   return f ? new TownBuilder(ctx, yearOfMoment(t)).burn(f, share, about, places) : 0;
+}
+
+/** What the greatest fire makes flat (see TownBuilder.flatten): how many homes. */
+export function flattenTown(
+  ctx: PopulationContext,
+  town: Ref,
+  share: number,
+  t: SimTime,
+  ash: number,
+): number {
+  const f = townsOf(ctx.world).get(town);
+  return f ? new TownBuilder(ctx, yearOfMoment(t)).flatten(f, share, ash) : 0;
 }
 
 /** Whether any of a town's homes stand (or rise). */

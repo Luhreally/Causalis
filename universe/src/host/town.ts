@@ -18,7 +18,15 @@ import {
   townsOf,
   type Fabric,
 } from "../sim/index.ts";
-import type { TownCivic, TownDesign, TownPlan, TownStrike, TownWater } from "../bridge/index.ts";
+import {
+  SPREAD,
+  struckYear,
+  type TownCivic,
+  type TownDesign,
+  type TownPlan,
+  type TownStrike,
+  type TownWater,
+} from "../bridge/index.ts";
 import { kindOf } from "./kinds.ts";
 import { worldLook } from "./biochem.ts";
 import { colonyRemade, colonyTownCell } from "./colony.ts";
@@ -178,6 +186,13 @@ export function townPlan(
   let year = 0;
   for (const c of f.changes) year = Math.max(year, c[4]);
   for (const c of f.civics) year = Math.max(year, c.start, c.fell ?? 0);
+  const struck = strikesOn(world, ref, land?.ref ?? null),
+    // (What the greatest fire brought down stood until it came: W5.)
+    greats = struck.filter((k) => k.raid?.great),
+    thrownAt = (fell: number | null) => {
+      const k = fell === null ? undefined : greats.find((g) => struckYear(g) === fell);
+      return k ? { thrown: k.at + (k.raid!.rocket ? SPREAD.rocketFrom : SPREAD.raidFrom) } : {};
+    };
   return {
     family: f.family,
     seed: hashString(`town ${ref}`),
@@ -194,7 +209,7 @@ export function townPlan(
         ...c.slice(3),
       ]),
     civics: [
-      ...f.civics.filter((c) => c.at + c.lots <= lots).map((c) => ({ ...c })),
+      ...f.civics.filter((c) => c.at + c.lots <= lots).map((c) => ({ ...c, ...thrownAt(c.fell) })),
       ...rimWorks(f, lots),
     ],
     walls:
@@ -207,10 +222,7 @@ export function townPlan(
     water,
     year: Math.min(year, yearOfMoment(world.now)),
     // (What struck it lately: Phase 42 M201.)
-    ...(() => {
-      const struck = strikesOn(world, ref, land?.ref ?? null);
-      return struck.length ? { struck } : {};
-    })(),
+    ...(struck.length ? { struck } : {}),
     // (A colony's: its halls, on its own world's ground, Phase 64; no home world's colours.)
     ...(() => {
       const ground = colonyTownCell(ref) === null ? null : siteGround(world, cell);

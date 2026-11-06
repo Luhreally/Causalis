@@ -29,7 +29,6 @@ import {
   fearOf,
   greatFallOf,
   holdBackBy,
-  lotsAboutAim,
   missOf,
   rocketMiss,
   sootOfBurned,
@@ -44,7 +43,7 @@ import { orderOf } from "../order/order.ts";
 import { rulerProblem } from "../order/reign.ts";
 import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import type { PopulationContext } from "../population/systems.ts";
-import { burnTown, townsOf } from "../town/fabric.ts";
+import { flattenTown, townsOf } from "../town/fabric.ts";
 import { fleetOf, foodIn, thrownAtOf, throwerOf, type Thrower } from "./air.ts";
 import { WAR_EVENTS, fieldedOf, frontier, strengthOf, warsOf, type War } from "./war.ts";
 
@@ -398,7 +397,7 @@ function fall(
     miss = carrier.wing ? missOf(carrier.steered) : rocketMiss(target.km, carrier.steered),
     lots = Math.max(1, f.next),
     done = greatFallOf({ lots, people: v.population, miss }),
-    homes = burnTown(ctx, target.ref, done.share, t, lotsAboutAim(miss), 1),
+    homes = flattenTown(ctx, target.ref, done.share, t, FIRE.ashYears),
     dead = done.dead > 0 && all > 0 ? deathsIn(ctx, target.cell, done.dead, t) : 0,
     food = foodIn(ctx, target.cell);
   spill(ctx, target.cell, all > 0 ? done.share * Math.min(1, v.population / all) : 0);

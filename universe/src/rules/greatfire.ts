@@ -21,6 +21,8 @@ export const FIRE = {
   kills: 0.5,
   /** The most of a town one can take (est: some always live). */
   mostGone: 0.9,
+  /** How long what it made flat lies before anyone builds there (years, est: a ruined heart is cleared and rebuilt in a decade or so; a rocket's ash lies 3). */
+  ashYears: 12,
   /** Years a great works takes, and what it takes of the realm's machines, iron and fuel in each of them (est). */
   worksYears: 12,
   worksShare: 0.04,

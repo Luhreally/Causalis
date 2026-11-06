@@ -150,6 +150,45 @@ test("a building gone up on burned lots keeps them when the rest rise", () => {
   assert.deepEqual(read.open, f.open);
 });
 
+test("the greatest fire makes flat from the heart out, buildings too, and lies its own years", () => {
+  const { f, at } = town(1000),
+    civic = (lots: number, kind: string) =>
+      ({ kind, at: lots, lots: 6, start: 10, end: 12, fell: null }) as Fabric["civics"][number];
+  f.civics.push(civic(40, "market"), civic(900, "market"));
+  f.homes[1] = 988;
+  f.open.push([250, 254]);
+  // (Lots 250 to 254 open: its run does not stand there.)
+  f.changes[0]![2] = 250;
+  f.changes.push([CHANGE.built, 254, 1000, 10, 10, 1, 0]);
+  f.homes[1] = 984;
+  const burned = at(100).flatten(f, 0.25, 12),
+    ash = f.changes.filter((c) => c[0] === CHANGE.burned);
+  assert.equal(burned, 246);
+  assert.equal(f.homes[1], 984 - 246);
+  // (Lots 0 to 256: 246 homes, the market's 6 among them and the 4 open. What it reaches is one stretch of ash.)
+  assert.deepEqual(
+    ash.map((c) => [c[1], c[2]]),
+    [[0, 256]],
+  );
+  assert.equal(f.civics[0]!.fell, 100, "the building among them fell");
+  assert.equal(f.civics[1]!.fell, null, "the far one stands");
+  assert.deepEqual(f.open, [], "no open lot lies in the ash");
+  let read = readAgain(f);
+  assert.deepEqual(read.homes, f.homes);
+  assert.deepEqual(read.open, f.open);
+  // A rocket's ash would have risen by now; this has not.
+  at(100 + ASH_YEARS).rise(f, 1e7, 1, 1, 3);
+  assert.equal(f.homes[1], 984 - 246);
+  at(111).rise(f, 1e7, 1, 1, 3);
+  assert.ok(f.changes.some((c) => c[0] === CHANGE.burned));
+  at(112).rise(f, 1e7, 1, 1, 3);
+  assert.ok(!f.changes.some((c) => c[0] === CHANGE.burned), "it rises when its years are up");
+  assert.equal(f.homes[1], 984 - 246 + 256);
+  read = readAgain(f);
+  assert.deepEqual(read.homes, f.homes);
+  assert.deepEqual(read.open, f.open);
+});
+
 test("a raid on a town with no homes burns nothing", () => {
   const { f, store, at } = town(0);
   assert.equal(at(100).burn(f, 0.5, 500), 0);

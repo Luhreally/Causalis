@@ -102,6 +102,7 @@ export {
   WALL_TOWER,
   blocksHeld,
   civicMoments,
+  struckYear,
   footprint,
   lotStates,
   progress,
