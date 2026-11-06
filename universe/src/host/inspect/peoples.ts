@@ -145,7 +145,9 @@ function readSeen(world: World): Map<number, Map<string, number>> {
       else seen(cellOf(e.place), e.type);
       continue;
     }
-    const d = e.data as { sign?: number } | null;
+    const d = e.data as { sign?: number; natural?: boolean } | null;
+    // (What the world did by itself is no god's wrath: N1.)
+    if (d?.natural) continue;
     switch (e.type) {
       case "act.rain":
       case "act.harvest":

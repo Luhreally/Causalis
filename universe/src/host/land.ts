@@ -10,9 +10,9 @@
 // the sea lanes its ships sail toward the lands across the sea they have reached (Phase 26 M153).
 // And its bands' camps (Phase 28 M159): those of its people who forage or herd, in no village,
 // ranging about its good sites and camped this season near one. Looked at, never lived.
-import { YEAR, mix, yearOfMoment, type World } from "../kernel/index.ts";
-import { WATER, isProvinceWorld, offworldSite } from "../gen/index.ts";
-import { OCC, OCCUPATIONS } from "../rules/index.ts";
+import { DAY, YEAR, mix, yearOfMoment, type World } from "../kernel/index.ts";
+import { WATER, isProvinceWorld, offworldSite, worldKindOf } from "../gen/index.ts";
+import { OCC, OCCUPATIONS, flameLook } from "../rules/index.ts";
 import {
   citiesOf,
   landSites,
@@ -22,8 +22,12 @@ import {
   provinceOfTile,
   regionOf,
   townsOf,
+  wildOf,
+  PROVINCE_TILE_KM,
+  REGION_SIZE,
 } from "../sim/index.ts";
 import type {
+  LandBurn,
   LandCamp,
   LandLane,
   LandPlan,
@@ -140,6 +144,7 @@ export function landPlan(world: World, cell: number, budget = 8000): LandPlan {
     ...(covered ? { covered: true as const } : {}),
     ...(populationContext(world).medium === "water" ? { undersea: true as const } : {}),
     ...envoysOfPlan(world, cell),
+    ...landBurns(world, cell),
   };
 }
 
@@ -150,6 +155,50 @@ function envoysOfPlan(world: World, cell: number) {
     color: realmColor(e.from),
   }));
   return envoys.length ? { envoys } : {};
+}
+
+/** The fires whose scars still stand on a land (N1), in its own units, the frame `regionPoint` draws it on: none, nothing. */
+function landBurns(world: World, cell: number): { burns?: readonly LandBurn[] } {
+  const fires = wildOf(world)?.on(cell) ?? [];
+  if (!fires.length) return {};
+  const g = populationContext(world).generated;
+  if (!isProvinceWorld(g)) return {};
+  const P = g.fine.grid.positions,
+    centre = g.centre[cell]!,
+    R = 6371 * g.planet.radius,
+    ox = P[centre * 3]!,
+    oy = P[centre * 3 + 1]!,
+    oz = P[centre * 3 + 2]!,
+    el = Math.sqrt(oz * oz + ox * ox) || 1,
+    ex = oz / el,
+    ez = -ox / el,
+    nx = oy * ez,
+    ny = oz * ex - ox * ez,
+    nz = -oy * ex,
+    half = ((REGION_SIZE - 1) * PROVINCE_TILE_KM) / 2,
+    r = 1.15 * Math.sqrt((4 * R * R) / g.fine.grid.count),
+    look = flameLook(worldKindOf(g) === "sulfur"),
+    burns: LandBurn[] = [];
+  for (const f of fires) {
+    const spots: { x: number; z: number; r: number; at: number }[] = [];
+    f.patches.forEach((c, i) => {
+      const x = (P[3 * c]! * ex + P[3 * c + 2]! * ez) * R,
+        z = -(P[3 * c]! * nx + P[3 * c + 1]! * ny + P[3 * c + 2]! * nz) * R;
+      if (Math.abs(x) > half + r || Math.abs(z) > half + r) return;
+      spots.push({ x, z, r, at: f.from + f.days[i]! * DAY });
+    });
+    if (spots.length)
+      burns.push({
+        event: f.event,
+        from: f.from,
+        until: f.until,
+        gone: f.gone,
+        spots,
+        flame: look.flame,
+        smoke: look.smoke,
+      });
+  }
+  return burns.length ? { burns } : {};
 }
 
 /**

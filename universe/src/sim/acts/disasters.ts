@@ -109,18 +109,30 @@ export function raze(
   homes?: Record<string, number>,
 ): number {
   let down = 0;
-  for (const v of ctx.settlements.inProvince(cell)) {
-    const n = razeTown(ctx, v.ref, share, t);
-    if (homes && n > 0) homes[v.ref] = n;
-    const city = citiesOf(ctx.world).get(v.ref);
-    if (!city) continue;
-    const built = city.uses
-      .map((u, k) => ({ u, k }))
-      .filter((b) => b.u !== USE.open && b.u !== USE.temple);
-    for (const b of built.slice(0, Math.ceil(built.length * share))) {
-      city.uses[b.k] = USE.open;
-      down++;
-    }
+  for (const v of ctx.settlements.inProvince(cell)) down += razeOne(ctx, v, share, t, homes);
+  return down;
+}
+
+/** The same for one town (N1: what the world shakes down, by how near each town is): its homes about `near`, if it is given. */
+export function razeOne(
+  ctx: PopulationContext,
+  v: { readonly ref: Ref },
+  share: number,
+  t: SimTime,
+  homes?: Record<string, number>,
+  near?: number,
+): number {
+  let down = 0;
+  const n = razeTown(ctx, v.ref, share, t, near);
+  if (homes && n > 0) homes[v.ref] = n;
+  const city = citiesOf(ctx.world).get(v.ref);
+  if (!city) return 0;
+  const built = city.uses
+    .map((u, k) => ({ u, k }))
+    .filter((b) => b.u !== USE.open && b.u !== USE.temple);
+  for (const b of built.slice(0, Math.ceil(built.length * share))) {
+    city.uses[b.k] = USE.open;
+    down++;
   }
   return down;
 }

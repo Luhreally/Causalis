@@ -33,7 +33,9 @@ export type ActKindShown =
   | "curse"
   | "ways"
   | "tongue"
-  | "faith";
+  | "faith"
+  /** A falling star overhead, on its way down somewhere else (N1): a streak across the sky. */
+  | "streak";
 
 export type ActMark = {
   readonly kind: ActKindShown;
@@ -52,6 +54,8 @@ export type ActMark = {
   readonly town: string | null;
   /** When it was done, or began (the near views play a moment's act as it happens). */
   readonly from: number;
+  /** What the world did of itself (N1), no god's hand: seen as it happens, and not told as an act. */
+  readonly natural?: true;
 };
 
 export type ActsMap = { readonly year: number; readonly acts: readonly ActMark[] };

@@ -6,6 +6,7 @@ import {
   BRUSH_EVENT,
   ACT_EVENTS,
   DISASTER_EVENTS,
+  UNBIDDEN_EVENTS,
   HAND_EVENTS,
   LOCAL_ACT_EVENTS,
   PEOPLE_ACT_EVENTS,
@@ -25,7 +26,7 @@ import {
   type TongueArgs,
   type WaysArgs,
 } from "../sim/index.ts";
-import { landWords } from "./generated.ts";
+import { coverWords, landWords } from "./generated.ts";
 import { principleName } from "./lore.ts";
 import { registerCommandWords, registerEventWords } from "./why.ts";
 
@@ -111,7 +112,13 @@ registerEventWords(
     `By your hand: a shrine rose in ${named(e.data, villageName(world, e.subjects[0]))}, year ${yearOfMoment(e.t)}`,
 );
 registerEventWords(LOCAL_ACT_EVENTS.fire.type, (world, e) => {
-  const blocks = (e.data as { blocks?: number } | null)?.blocks ?? 0;
+  const blocks = (e.data as { blocks?: number } | null)?.blocks ?? 0,
+    wild = e.data as { natural?: boolean; cover?: string; homes?: number; dead?: number } | null;
+  if (wild?.natural)
+    return `A fire out of the ${coverWords(world, wild.cover ?? "land")} came to ${named(e.data, villageName(world, e.subjects[0]))}: ${said(wild.homes ?? 0)} of its homes burned, and ${said(wild.dead ?? 0)} died, year ${yearOfMoment(e.t)}`;
+  // (Its record forgotten, whether a hand did it is too: no one's is claimed.)
+  if (!e.data)
+    return `Fire swept ${named(e.data, villageName(world, e.subjects[0]))}, year ${yearOfMoment(e.t)}`;
   return `By your hand: fire swept ${named(e.data, villageName(world, e.subjects[0]))}, and ${blocks} of its blocks burned, year ${yearOfMoment(e.t)}`;
 });
 registerEventWords(
@@ -209,12 +216,95 @@ const landOf = (world: WordsWorld, c: { args: unknown }) =>
 /** A number said with its thousands marked, whatever the device's locale: 12,345. */
 const said = (n: unknown) =>
   typeof n === "number" ? String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ",") : "some";
+/** What a blow cost, saying nothing of what it did not. */
+const tollWords = (dead: number, homes: number) => {
+  const fell = homes === 1 ? "1 home fell" : `${said(homes)} homes fell`;
+  return dead > 0 && homes > 0
+    ? `${said(dead)} died, and ${fell}`
+    : dead > 0
+      ? `${said(dead)} died`
+      : homes > 0
+        ? `${fell}, and no one died`
+        : "no one died";
+};
+registerEventWords(UNBIDDEN_EVENTS.fire.type, (world, e) => {
+  const d = e.data as {
+      cover?: string;
+      km2?: number;
+      lands?: number;
+      towns?: string[];
+      dead?: number;
+      flame?: string;
+    } | null,
+    towns = d?.towns ?? [],
+    reached = towns.length
+      ? `, and reached ${towns.length === 1 ? towns[0] : `${towns[0]} and ${towns.length - 1} more`}, where ${said(d?.dead ?? 0)} died`
+      : "";
+  const where = landWords(world, e.place as Ref | null),
+    cover = coverWords(world, d?.cover ?? "land"),
+    // (A land with no name is told by its ground and where it lies: what caught is that ground here.)
+    lies = /^the .+? at (\d.*)$/.exec(where)?.[1],
+    lit = lies ? `the ${cover} at ${lies}` : `the ${cover} of ${where}`;
+  return `Lightning in a dry year lit ${lit}, and ${d?.flame === "sulfur" ? "a fire burning blue with sulfur" : "the fire"} took ${said(d?.km2 ?? 0)} km²${(d?.lands ?? 1) > 1 ? ` across ${d!.lands} lands` : ""}${reached}, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(UNBIDDEN_EVENTS.rise.type, (world, e) => {
+  const d = e.data as { metres?: number; rock?: string } | null;
+  return `A new mountain of ${d?.rock ?? "rock"} went up in ${landWords(world, e.place as Ref | null)}, ${said(d?.metres ?? 0)} metres high by the end of its first year, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(UNBIDDEN_EVENTS.star.type, (world, e) => {
+  const d = e.data as { metres?: number; ground?: boolean; land?: boolean; seen?: number } | null,
+    how = !d?.land
+      ? "and fell into the sea"
+      : d?.ground
+        ? "and struck the ground"
+        : "and burst in the air";
+  return `A falling star some ${d?.metres ?? 20} metres across came down over ${landWords(world, e.place as Ref | null)}, ${how}, seen from ${said(d?.seen ?? 1)} land${d?.seen === 1 ? "" : "s"}, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(UNBIDDEN_EVENTS.answer.type, (_, e) => {
+  const d = e.data as {
+      a?: string;
+      ruler?: string;
+      answered?: boolean;
+      grain?: number;
+      town?: string;
+      what?: string;
+    } | null,
+    what = d?.what === "fire" ? "the fire" : d?.what === "star" ? "the falling star" : "the quake",
+    at = d?.town ? ` at ${d.town}` : "",
+    who = `${d?.ruler ?? "The ruler"} of ${d?.a ?? "the realm"}`;
+  return d?.answered
+    ? `${who} answered ${what}${at}: help went to those it left${d?.grain ? `, and ${said(d.grain)} measures of grain` : ""}, and they stood the higher for it, year ${yearOfMoment(e.t)}`
+    : `${who} did nothing to speak of for those ${what}${at} left, and it was remembered, year ${yearOfMoment(e.t)}`;
+});
 registerEventWords(DISASTER_EVENTS.quake.type, (world, e) => {
-  const d = e.data as { dead?: number; blocks?: number } | null;
+  const d = e.data as {
+    dead?: number;
+    blocks?: number;
+    natural?: boolean;
+    mag?: number;
+    homes?: Record<string, number>;
+  } | null;
+  if (d?.natural) {
+    const homes = Object.values(d.homes ?? {}).reduce((a, b) => a + b, 0);
+    return `The ground shook under ${landWords(world, e.place as Ref | null)}, a shock of magnitude ${d.mag}: ${tollWords(d.dead ?? 0, homes)}, year ${yearOfMoment(e.t)}`;
+  }
+  // (Its record forgotten, whether a hand did it is too: no one's is claimed.)
+  if (!d) return `The ground shook under ${landWords(world, e.place as Ref | null)}, year ${yearOfMoment(e.t)}`;
   return `By your hand: the ground shook under ${landWords(world, e.place as Ref | null)}, and ${said(d?.dead)} died${d?.blocks ? `, and ${d.blocks} of its cities' blocks fell` : ""}, year ${yearOfMoment(e.t)}`;
 });
 registerEventWords(DISASTER_EVENTS.meteor.type, (world, e) => {
-  const d = e.data as { dead?: number; years?: number } | null;
+  const d = e.data as {
+    dead?: number;
+    years?: number;
+    natural?: boolean;
+    metres?: number;
+    homes?: Record<string, number>;
+  } | null;
+  if (d?.natural) {
+    const homes = Object.values(d.homes ?? {}).reduce((a, b) => a + b, 0);
+    return `A stone some ${d.metres ?? 20} metres across fell on ${landWords(world, e.place as Ref | null)}: ${tollWords(d.dead ?? 0, homes)}, year ${yearOfMoment(e.t)}`;
+  }
+  if (!d) return `A stone fell from the sky on ${landWords(world, e.place as Ref | null)}, year ${yearOfMoment(e.t)}`;
   return `By your hand: fire fell from the sky on ${landWords(world, e.place as Ref | null)}: ${said(d?.dead)} died, and its fields burned for ${d?.years ?? 2} years, year ${yearOfMoment(e.t)}`;
 });
 registerEventWords(DISASTER_EVENTS.flood.type, (world, e) => {

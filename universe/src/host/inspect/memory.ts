@@ -463,8 +463,18 @@ function readMemory(world: World, version: string): Reading {
       default: {
         const act = ACTS[t];
         if (!act) break;
-        const k = blank(e, act[2], 7, act[1]);
-        Object.assign(k, { what: act[0], town, dead: num(d.dead) || num(d.killed) });
+        // (What the world did by itself, by what it did: a small shock is no one's stone or song. N1.)
+        const natural = d.natural === true,
+          dead = num(d.dead) || num(d.killed);
+        if (natural && dead < 100) break;
+        const worst =
+            natural && d.homes && typeof d.homes === "object"
+              ? Object.entries(d.homes as Record<string, number>).sort(
+                  (a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1),
+                )[0]?.[0]
+              : null,
+          k = blank(e, act[2], natural ? 2.5 + log(dead) : 7, act[1]);
+        Object.assign(k, { what: act[0], town: town ?? worst ?? null, dead });
         single.push(k);
       }
     }

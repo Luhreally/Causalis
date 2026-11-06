@@ -316,6 +316,8 @@ export const GATES: readonly Gate[] = [
   { gate: 89, args: ["--ci"], s: 200 },
   // Gate 91, the years and what's next (tools/a1-gate.ts): the Years by touch, a few dozen rows of thousands; what's next from the stage chip; a run at speed and its note, once; a world with no one on it; a young world on CI.
   { gate: 91, args: ["--ci"], s: 240 },
+  // Gate 97, the world acting on its own (tools/n1-gate.ts): a quake and a fire of the world's own on a far save, its front in the pixels, its page pressed by touch; no fire on a world with nothing to burn; a young world on CI.
+  { gate: 97, args: ["--ci"], s: 240 },
   // Gate 93, memory in the town (tools/t1-gate.ts): stones and songs read off a world, the same twice; a stone in the pixels, pressed by touch; a feast's song; Songs and tales; a town with no past; a young world on CI.
   { gate: 93, args: ["--ci"], s: 200 },
   // Gate 95, crime and justice in the town (tools/j1-gate.ts): cases read off a world, the same twice; one real person's page, home and case agree; Law and order pressed by touch; a court in the pixels, sitting on its day, pressed by touch; a young world on CI.
@@ -323,6 +325,8 @@ export const GATES: readonly Gate[] = [
   // The Sound gate: every place its own air, by numbers off the real output and off renders; cues
   // on real presses; 🔊 by touch, remembered; no AudioContext, a hidden tab; the same history.
   { gate: 90, args: ["--ci"], s: 240 },
+  // Gate 96, the people bar and the history written out (tools/b1-gate.ts): the bar's words off the screen, a chip by touch to their page and their home; a pin kept and let go; never over a tool; aside in a life, a possession and a reign; the file by touch, read offline in a fresh browser; a world with no one yet; a young world on CI.
+  { gate: 96, args: ["--ci"], s: 280 },
   // Gate 92, a town's price board and what it is known for (tools/m1-gate.ts): every town tallied, what it is known for must differ; the board by touch, a line to its good's page, its chain, where it is cheap and dear; the square by touch at its real place; one reading with a person's page; the paths nobody watches; a young world on CI.
   { gate: 92, args: ["--ci"], s: 240 },
   // Gate 98, what binds realms (tools/d1-gate.ts): the rule; a call that fires; a vassal whose overlord fell, a marriage into a realm gone, a claim on a played ruler's seat; a realm's Bonds tab, the blocs lens and a bloc's page, a ruler's envoy by touch, one on the road; a young world on CI.

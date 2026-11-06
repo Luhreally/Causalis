@@ -755,6 +755,33 @@ export type LandPlan = {
     readonly ref: string;
     readonly color: readonly [number, number, number];
   }[];
+  /** The fires that have crossed it and whose scars still stand (N1): none, none at all. */
+  readonly burns?: readonly LandBurn[];
+};
+
+/**
+ * A wildfire on a land (N1), as the land draws it: its front going over each patch of ground it reached, and the scar it
+ * left, all in the land's own units (as `tileMiddle` gives them). What changes frame to frame is set in batches, never a
+ * mesh rebuilt: a plan's burns change only as a year's plans come.
+ */
+export type LandBurn = {
+  /** The event that tells it, for its page. */
+  readonly event: string;
+  /** The moment it lit, and the moment the last of it burned out. */
+  readonly from: number;
+  readonly until: number;
+  /** The moment what it burned has grown back: the scar fades over the last of its years. */
+  readonly gone: number;
+  /** Each patch of ground it reached, in the order it reached them: where, how wide, and when it came (a moment). */
+  readonly spots: readonly {
+    readonly x: number;
+    readonly z: number;
+    readonly r: number;
+    readonly at: number;
+  }[];
+  /** How its flame and its smoke look on this world: what burns here. */
+  readonly flame: readonly [number, number, number];
+  readonly smoke: readonly [number, number, number];
 };
 
 /**

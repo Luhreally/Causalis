@@ -225,12 +225,15 @@ export function tidings(world: World): Tiding[] {
  * the first ship through a lane. Read from a moment the page keeps (`tidings`' watches are the world's, these are no one's),
  * so a look changes nothing. The hand's own unmaking is no news to the hand.
  */
+const WILD_NEWS = 6;
 export function worldNews(world: World, since: number): Tiding[] {
   const events = world.events,
     out: Tiding[] = [];
   for (let i = firstAfter(events, since); i < events.count; i++) {
     const e = events.at(i),
-      d = e.data as { great?: boolean; god?: boolean } | null,
+      d = e.data as { great?: boolean; god?: boolean; natural?: boolean } | null,
+      // (What the world did by itself, when it is great enough for everyone to feel: N1.)
+      wild = !!d?.natural && e.importance >= WILD_NEWS,
       far = e.type === "far.fell" && !d?.god,
       jump = e.type === "lanes.first",
       goods = e.type === "trade.first" || e.type === "trade.first-raid",
@@ -239,7 +242,8 @@ export function worldNews(world: World, since: number): Tiding[] {
         e.type === "nation.first-left" ||
         e.type === "nation.fell" ||
         e.type === "nation.first-dark";
-    if (!far && !jump && !goods && !nation && !(e.type === "war.strike" && d?.great)) continue;
+    if (!wild && !far && !jump && !goods && !nation && !(e.type === "war.strike" && d?.great))
+      continue;
     out.push({
       watch: (e.subjects[0] ?? "") as Ref,
       label: far

@@ -378,6 +378,24 @@ function bitsOf(a: PlacedAct, s: number, scale: number, out: ActBit[]): void {
       }
       return;
     }
+    case "streak": {
+      // A falling star seen from the globe (N1): its fall and its trail, and no more of it than that.
+      if (a.left > 0.98) {
+        const fall = (1 - a.left) / 0.02,
+          h = 0.25 * (1 - fall),
+          side = 0.12 * (1 - fall);
+        bit("flame", at(side, 0, h), 0.01, 0.01, 0.01);
+        for (let i = 1; i < 8; i++)
+          bit(
+            "ember",
+            at(side + i * 0.012, 0, h + i * 0.025),
+            0.007 - i * 0.0007,
+            0.007 - i * 0.0007,
+            0.007 - i * 0.0007,
+          );
+      }
+      return;
+    }
     case "meteor": {
       // Fire from the sky: first the fall, a blazing stone and its trail; then the land
       // smouldering, embers and smoke going up.

@@ -5,6 +5,7 @@
 import "./styles.css";
 import "./y2k.css";
 import "./board.css";
+import "./bar.css";
 import "./brushes.css";
 import "./tour.css";
 import "./can.css";
@@ -12,6 +13,7 @@ import "./years.css";
 import "./memory.css";
 import { CourtNote, SungNote } from "../ui/index.ts";
 import { courtSitting } from "../view/index.ts";
+import { PeopleBar, barPins, setWrittenHold } from "../ui/index.ts";
 import { Checkpoint } from "./checkpoint.ts";
 import { HostClient, LOT, inlinePair, lotStates, progress, workerPort } from "../bridge/index.ts";
 import {
@@ -674,6 +676,9 @@ type Exposed = {
   /** A town of the land on screen as drawn from its fabric: its square and reach (region units); and the parts drawn in all (M150). */
   landTown?: (ref: string) => { x: number; z: number; r: number } | null;
   landParts?: () => number;
+  landFire?: () => { flames: number; smoke: number; scar: number; burns: number; bare: number };
+  /** Where the flames stand now, on the land (N1). */
+  landFront?: () => { x: number; z: number } | null;
   land?: () => {
     towns: number;
     parts: number;
@@ -1303,6 +1308,9 @@ type Exposed = {
   /** Open a thing's page (Phase 10 M92), and the page open now. */
   open?: (ref: string) => Promise<void>;
   pageOpen?: () => string | null;
+  /** The people bar and whom a viewer keeps on it (B1). */
+  peopleBar?: PeopleBar;
+  barPins?: typeof barPins;
   /** Go to where a thing is to be seen. */
   goTo?: (ref: string) => Promise<void>;
   scale?: () => string;
@@ -1998,11 +2006,12 @@ async function runPlanetPage(): Promise<void> {
         ? seasonTiles(colors, frame, landSky, seasonT)
         : colors;
     // (A land built over: streets and roofs from shore to shore. Phase 66.)
-    region.paint(
+    const dressed =
       regionLens === "land" && landPlan?.covered
         ? builtOverTiles(seasoned, frame, !!landPlan.undersea)
-        : seasoned,
-    );
+        : seasoned;
+    // (What a fire burned, char to brown: on the ground's own colours. N1.)
+    region.paint(regionLens === "land" ? region.fire.scarred(dressed) : dressed);
     painted = colors.length / 4;
   };
   /** The spot of the globe a zoom went down into, to stand in the middle of its land's map. */
@@ -5508,7 +5517,10 @@ async function runPlanetPage(): Promise<void> {
   };
   // The land's towns rising as its clock runs, its fields at the season, its roads at the year.
   stage.onUpdate(() => {
-    if (scale === "region") region.land.update(now(), time.speed > 0);
+    if (scale === "region") {
+      region.land.update(now(), time.speed > 0);
+      if (region.burnsNow(now(), time.pace, rig.distance, time.speed > 0)) paintRegion();
+    }
   });
   /** Whether the town is of spires, the eye then kept out of their walls (Phase 66). */
   let spires = false;
@@ -5519,9 +5531,12 @@ async function runPlanetPage(): Promise<void> {
   let folkFilmedAt: number | null = null;
   /** A town's money told its plan was read again (Lives L6). */
   let moneyPlan: (() => void) | null = null;
+  /** The moment the plan was last asked for, by the host's own word: what struck the town after that, it hasn't heard of. */
+  let planAsked = 0;
   const loadPlan = async (ref: string) => {
     // Asked once a year: the year is marked before the answer comes.
     planYear = Math.floor(clock.t / YEAR);
+    planAsked = client.status?.t ?? clock.t;
     // (The same town read again as the years turn keeps what its panel shows.)
     const fresh = plan?.ref !== ref;
     const q0 = performance.now();
@@ -8232,7 +8247,25 @@ async function runPlanetPage(): Promise<void> {
         skyAsked = { cell, at: wall };
         void client
           .query<LandSky>({ type: "land.sky", args: { cell } })
-          .then((s) => (landSky = s))
+          .then((s) => {
+            landSky = s;
+            // What the world itself did to a town being watched (N1): read now, not at the year's turn, by when it would have burned out unseen.
+            const here = plan;
+            if (
+              scale === "village" &&
+              here &&
+              s.cell === here.cell &&
+              s.acts.some(
+                (a) =>
+                  a.natural &&
+                  a.from > planAsked &&
+                  (a.kind === "quake" ||
+                    a.kind === "meteor" ||
+                    (a.kind === "fire" && a.town === here.ref)),
+              )
+            )
+              void loadPlan(here.ref);
+          })
           .catch(() => {});
       }
     }
@@ -9045,6 +9078,8 @@ async function runPlanetPage(): Promise<void> {
   exposed.villages = () => villages.length;
   exposed.landTown = (ref: string) => region.land.townAt(ref);
   exposed.landParts = () => region.land.count;
+  exposed.landFire = () => region.fire.shown;
+  exposed.landFront = () => region.fire.front();
   exposed.land = () => region.land.info();
   exposed.camps = () =>
     scale === "region" ? region.land.camps.info().map((c) => ({ ...c, cell: regionCell })) : [];
@@ -9289,6 +9324,40 @@ async function runPlanetPage(): Promise<void> {
       !!document.querySelector(".jump-screen"),
   );
   if (exposed.jumpedFrom !== undefined) runNote.jumped();
+  // The people bar (B1): who matters where the eye is, and how they are. The eye's place is read here at a low rate; who
+  // they are is the worker's. A mode with its own chrome hides it, and it isn't read then.
+  barPins.open(`${universe}:${seed}`);
+  let barAt: { cell: number | null; town: string | null } = { cell: null, town: null };
+  const peopleBar = new PeopleBar(
+    hud,
+    client,
+    () => {
+      if (
+        ["filming", "fleet-filming", "homing", "living", "possessing", "ruling"].some((c) =>
+          document.body.classList.contains(c),
+        )
+      )
+        return null;
+      // (On a phone the foot of the stars' map is its legend's, and of the galaxy its own.)
+      if ((scale === "cluster" || scale === "galaxy") && innerWidth <= 640) return null;
+      if (scale === "village") barAt = { cell: plan?.cell ?? null, town: plan?.ref ?? null };
+      else if (scale === "region" || scale === "camp")
+        barAt = { cell: regionCell >= 0 ? regionCell : null, town: null };
+      else if (scale === "globe") {
+        // (The middle of what the bar and the foot leave of the screen; off the world's edge, where it last was.)
+        const at = paletteAt(innerWidth / 2, innerHeight * 0.6);
+        if (at.cell !== null) barAt = { cell: at.cell, town: at.town };
+      } else barAt = { cell: null, town: null };
+      return barAt;
+    },
+    () => [...followedRefs].filter((r) => /^(rule|court|prsn|agent|folk:town):/.test(r)),
+  );
+  peopleBar.onOpen = (ref) => void pageWindow.open(ref);
+  takeUp.push(() => peopleBar.fresh());
+  exposed.peopleBar = peopleBar;
+  exposed.barPins = barPins;
+  // (A file all of one year: the clock held while it is read.)
+  setWrittenHold((on) => (on ? time.hold("writing") : time.release("writing")));
   // Who sings at the feast (T1): a note that can be pressed, while the eye is free and the town is the thing seen.
   const sungNote = new SungNote(
     tidings.element,

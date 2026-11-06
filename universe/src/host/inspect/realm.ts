@@ -34,7 +34,7 @@ import {
   termsPhrase,
   warAimWords,
 } from "../../causal/index.ts";
-import type { Ref, World } from "../../kernel/index.ts";
+import { YEAR, type Ref, type World } from "../../kernel/index.ts";
 import type { Block, Item, PageModel, Place, Row, Stat, Tab } from "../../bridge/index.ts";
 import { realmColor } from "../colors.ts";
 import { hostDesign, realmArms } from "../arms.ts";
@@ -86,8 +86,14 @@ export function realmPlace(world: World, ref: string): Place | null {
 }
 
 /** A realm's page. */
-export function realmPageModel(world: World, ref: string): PageModel {
-  const realms = politiesOf(world),
+export function realmPageModel(
+  world: World,
+  ref: string,
+  /** Only these tabs read (B1: a whole history written out). */
+  only?: ReadonlySet<string>,
+): PageModel {
+  const wants = (tab: string) => !only || only.has(tab),
+    realms = politiesOf(world),
     r = realms.get(ref as Ref);
   if (!r) throw new Error(`no realm ${ref}`);
   const ctx = populationContext(world),
@@ -185,15 +191,16 @@ export function realmPageModel(world: World, ref: string): PageModel {
     ],
   });
   // Who holds power in it (Lives L1).
-  tabs.push({ id: "leaders", name: "Leaders", blocks: leaderBlocks(world, r) });
+  if (wants("leaders"))
+    tabs.push({ id: "leaders", name: "Leaders", blocks: leaderBlocks(world, r) });
   // What they sing (T1).
-  tabs.push(realmSongsTab(world, r.ref));
+  if (wants("songs")) tabs.push(realmSongsTab(world, r.ref));
   // Who stands near its seat, and wants it (Lives L5).
-  tabs.push({ id: "court", name: "Court", blocks: courtBlocks(world, r) });
+  if (wants("court")) tabs.push({ id: "court", name: "Court", blocks: courtBlocks(world, r) });
   // Who it stands with, whose houses it is tied to, who it called and who called it (D1).
-  tabs.push(realmTiesTab(world, r));
+  if (wants("ties")) tabs.push(realmTiesTab(world, r));
   // Its lands, most peopled first.
-  {
+  if (wants("lands")) {
     const rows: Row[] = [...r.members]
       .sort((a, b) => peopleOf(b) - peopleOf(a) || a - b)
       .map((c) => {
@@ -210,12 +217,16 @@ export function realmPageModel(world: World, ref: string): PageModel {
       blocks: [{ type: "table", columns: ["Land", "People", "Grievance"], rows }],
     });
   }
-  // Its rulers, newest first.
-  {
+  // Its rulers, newest first. (Only the years it stood: a far world's log is long, and most of it came after a realm that fell.)
+  if (wants("rulers")) {
     const items: Item[] = [],
-      events = world.events.all();
+      events = world.events.all(),
+      from = r.founded * YEAR,
+      to = r.ended === null ? Infinity : (r.ended + 1) * YEAR;
     for (let i = events.length - 1; i >= 0 && items.length < 12; i--) {
       const e = events[i]!;
+      if (e.t > to) continue;
+      if (e.t < from) break;
       if (e.type === "polity.succession" && e.subjects[0] === r.ref)
         items.push(
           item([`Year ${yearAt(e.t)}: `, link(claimOf(world, e.id), e.id)], e.id, yearAt(e.t)),
@@ -228,19 +239,19 @@ export function realmPageModel(world: World, ref: string): PageModel {
     });
   }
   // Its order (Phase 19 M138): its standing with its people, its rank and levies, its bound.
-  tabs.push({ id: "order", name: "Order", blocks: realmOrderBlocks(world, r) });
+  if (wants("order")) tabs.push({ id: "order", name: "Order", blocks: realmOrderBlocks(world, r) });
   // Its credit (Phase 21 M144): what its lands owe, its war chests, its faith with its lenders.
-  {
+  if (wants("credit")) {
     const credit = realmCreditBlocks(world, r.ref);
     if (credit.length) tabs.push({ id: "credit", name: "Credit", blocks: credit });
   }
   // Its strife (Phase 22 M145): its army's voice, how near a coup is and why, its rule, its coups.
-  {
+  if (wants("strife")) {
     const strife = realmStrifeBlocks(world, r);
     if (strife.length) tabs.push({ id: "strife", name: "Strife", blocks: strife });
   }
   // Its wars.
-  {
+  if (wants("wars")) {
     const items: Item[] = warsOf(world)
       .all()
       .filter((w) => w.attacker === r.ref || w.defender === r.ref)
@@ -260,16 +271,16 @@ export function realmPageModel(world: World, ref: string): PageModel {
     tabs.push({ id: "wars", name: "Wars", blocks: [{ type: "list", items }] });
   }
   // Its army (Phase 13 M115): its host, the men it fields, its wars and battles.
-  tabs.push({ id: "army", name: "Army", blocks: armyBlocks(world, r) });
+  if (wants("army")) tabs.push({ id: "army", name: "Army", blocks: armyBlocks(world, r) });
   // Its lands' stores, summed (Phase 15 M123).
-  if (r.ended === null)
+  if (r.ended === null && wants("stores"))
     tabs.push({
       id: "stores",
       name: "Stores",
       blocks: storesSummed(world, r.members, "Its lands' stores"),
     });
   // Its regard for others.
-  {
+  if (wants("diplomacy")) {
     const rows: Row[] = diplomacyOf(world)
       .of(r.ref)
       .map((x) => {
@@ -299,7 +310,7 @@ export function realmPageModel(world: World, ref: string): PageModel {
     });
   }
   // What its seat knows.
-  {
+  if (wants("lore")) {
     const items = loreOf(world)
       .of(r.seat)
       .map(([id, k]) => ({ id, k }))
@@ -313,13 +324,14 @@ export function realmPageModel(world: World, ref: string): PageModel {
       blocks: [{ type: "list", title: "What its seat knows, newest first", items }],
     });
   }
-  {
+  if (wants("history")) {
     const items = eventsAbout(world, [r.ref], 30, 3);
     if (items.length)
       tabs.push({ id: "history", name: "History", blocks: [{ type: "list", items }] });
   }
   // Set beside another (Phase 11 M103): its foes, those sworn to it, the greatest.
-  tabs.push({ id: "compare", name: "Compare", blocks: compareWith(world, r) });
+  if (wants("compare"))
+    tabs.push({ id: "compare", name: "Compare", blocks: compareWith(world, r) });
   return {
     ref: r.ref,
     kind: "realm",
@@ -452,8 +464,15 @@ function bondStats(world: World, ref: Ref): Stat[] {
     });
 }
 
-export function warPage(world: World, ref: string, tab?: string): PageModel {
-  const w = warsOf(world).get(ref as Ref);
+export function warPage(
+  world: World,
+  ref: string,
+  tab?: string,
+  /** Only these tabs read (B1: a whole history written out). */
+  only?: ReadonlySet<string>,
+): PageModel {
+  const wants = (id: string) => !only || only.has(id),
+    w = warsOf(world).get(ref as Ref);
   if (!w) throw new Error(`no war ${ref}`);
   const realms = politiesOf(world),
     a = realms.get(w.attacker),
@@ -527,7 +546,7 @@ export function warPage(world: World, ref: string, tab?: string): PageModel {
     // (Who came, and who stood by: D1.)
     ...warSideBlocks(world, w).stats,
   ];
-  const battleRows: Row[] = [...w.battles].reverse().map((b) => ({
+  const battleRows: Row[] = (wants("battles") ? [...w.battles].reverse() : []).map((b) => ({
     ref: b.event,
     cells: [
       [link(`year ${b.year}`, b.event)],
@@ -660,11 +679,11 @@ export function warPage(world: World, ref: string, tab?: string): PageModel {
       ],
     },
     // Its course (Phase 13 M115): the fallen year by year, the men each fields, the lands taken.
-    { id: "course", name: "Course", blocks: courseBlocks(world, w) },
+    ...(wants("course") ? [{ id: "course", name: "Course", blocks: courseBlocks(world, w) }] : []),
     { id: "attacker", name: "Attacking host", blocks: hostOf("attacker") },
     { id: "defender", name: "Defending host", blocks: hostOf("defender") },
   ];
-  {
+  if (wants("history")) {
     const items = eventsAbout(world, [w.ref], 30);
     if (items.length)
       tabs.push({ id: "history", name: "History", blocks: [{ type: "list", items }] });

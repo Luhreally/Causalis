@@ -1,0 +1,240 @@
+/* The people bar (B1). On a phone it has the foot of the screen, beside the god's hand: nothing else lives there while the eye is free, and it stands aside for what does. */
+#hud > .people-bar {
+  position: absolute;
+  z-index: 2;
+  left: 64px;
+  right: 8px;
+  bottom: calc(8px + var(--safe-bottom));
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+  gap: 4px;
+  pointer-events: none;
+}
+#hud > .people-bar[hidden],
+#hud > .people-bar.aside {
+  display: none;
+}
+body.palette-off #hud > .people-bar {
+  left: 8px;
+}
+/* (A song's or a court's note has the same foot of the screen: it stands over the bar, not under it.) */
+body:has(#hud > .people-bar:not([hidden]):not(.aside)) .sung-note {
+  bottom: calc(76px + var(--safe-bottom));
+}
+.people-bar > * {
+  pointer-events: auto;
+}
+.people-row {
+  min-width: 0;
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
+}
+.people-row::-webkit-scrollbar {
+  display: none;
+}
+.people-bar.folded .people-row {
+  display: none;
+}
+.people-fold {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  min-height: 0;
+  padding: 0;
+  font-size: 1.2rem;
+}
+.people-chip {
+  position: relative;
+  flex: none;
+  width: 190px;
+  height: 60px;
+}
+.people-open {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  gap: 3px;
+  padding: 2px 3px;
+  overflow: hidden;
+  text-align: left;
+  color: var(--ink);
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0, 0, 18, 0.5);
+}
+.people-chip[data-kind="plot"] .people-open,
+.people-chip[data-kind="rival"] .people-open {
+  border-color: #d9805f;
+}
+.people-chip.gone .people-open {
+  opacity: 0.75;
+}
+.people-face {
+  flex: none;
+  width: 34px;
+  height: 54px;
+  line-height: 54px;
+  text-align: center;
+  font-size: 1.4rem;
+}
+.people-words {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 1.15;
+}
+.people-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #ffe9b8;
+}
+.people-why {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+.people-now {
+  display: flex;
+  gap: 2px;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 0.7rem;
+  letter-spacing: -0.01em;
+}
+.people-read.tone-good,
+.bar-reading-row.tone-good b {
+  color: #9ff0b0;
+}
+.people-read.tone-poor,
+.bar-reading-row.tone-poor b {
+  color: #ffd98a;
+}
+.people-read.tone-bad,
+.bar-reading-row.tone-bad b {
+  color: #ff9f8a;
+}
+.people-off {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 26px;
+  height: 26px;
+  min-height: 0;
+  padding: 0;
+  font-size: 0.8rem;
+  line-height: 1;
+  background: rgba(10, 16, 34, 0.85);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.people-off[hidden] {
+  display: none;
+}
+/* (Small to see, a finger's width to press.) */
+.people-off::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 -18px -18px;
+}
+/* It gives way to a page, and on a phone to the card and the chip that have the foot. */
+body.paging #hud > .people-bar {
+  display: none;
+}
+@media (max-width: 640px) {
+  #hud:has(> .panel:not([hidden]) > .inspector:not([hidden], .page-window)) > .people-bar,
+  #hud:has(> .leader-chip:not([hidden])) > .people-bar {
+    display: none;
+  }
+}
+/* On a desk: a column at the lower left, clear of the god's palette and the map modes. */
+@media (min-width: 641px) {
+  #hud > .people-bar {
+    left: 8px;
+    right: auto;
+    bottom: calc(10px + var(--safe-bottom));
+    width: 172px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  body.palette-off #hud > .people-bar {
+    left: 8px;
+  }
+  .people-row {
+    flex-direction: column;
+    max-height: calc(100vh - var(--bar-bottom, 72px) - 100px);
+    overflow: hidden auto;
+    touch-action: pan-y;
+  }
+  .people-chip {
+    width: auto;
+  }
+  .people-fold {
+    align-self: flex-start;
+  }
+}
+/* How they are now, on their page. */
+.bar-reading {
+  margin: 4px 0 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.bar-reading-title {
+  font-weight: 700;
+  color: var(--accent);
+}
+.bar-reading-row {
+  margin: 3px 0;
+  line-height: 1.3;
+}
+.bar-reading-glyph {
+  margin-right: 4px;
+}
+.bar-pin {
+  margin-top: 4px;
+}
+/* The history written out, on The Years. */
+.written {
+  margin: 6px 0;
+}
+.written-far {
+  height: 10px;
+  margin: 6px 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+}
+.written-fill {
+  height: 100%;
+  background: linear-gradient(180deg, #d9fff5, #29cfa6);
+}
+.written-says {
+  margin: 4px 0;
+}
+.written-keeps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.written-keep {
+  display: inline-block;
+  min-height: 44px;
+  padding: 11px 12px;
+  text-decoration: none;
+}

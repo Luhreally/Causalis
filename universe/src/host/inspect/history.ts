@@ -7,11 +7,13 @@ import { isRef, parseRef, YEAR, type Ref, type World } from "../../kernel/index.
 import type { Block, PageModel, Place } from "../../bridge/index.ts";
 import { eventsCiting, link, sentence, stat, yearAt, yearNow } from "./words.ts";
 import { refLink } from "./names.ts";
+import { wildBlocks } from "./wild.ts";
 import { landPlace } from "./land.ts";
 import { battlePage } from "./realm.ts";
 
 /** What an event's type is in a heading's words, and its icon. */
 const HEADINGS: Readonly<Record<string, readonly [string, string]>> = {
+  wild: ["The world itself", "🌋"],
   war: ["War", "⚔️"],
   polity: ["Realm", "👑"],
   court: ["Court", "🗡️"],
@@ -46,6 +48,10 @@ const HEADINGS: Readonly<Record<string, readonly [string, string]>> = {
 
 /** Events whose kind says itself better whole than as its domain and its word. */
 const TITLES: Readonly<Record<string, string>> = {
+  "wild.fire": "A fire on the land",
+  "wild.rise": "A new mountain",
+  "wild.star": "A falling star",
+  "wild.answer": "A ruler's answer",
   "peoples.sailed": "Ships set out among the stars",
   "peoples.settled": "A star settled",
   "peoples.landed": "They came down",
@@ -201,6 +207,7 @@ export function eventPage(world: World, ref: string): PageModel {
         ),
       ],
     },
+    ...(e ? wildBlocks(world, e) : []),
     { type: "why", title: "Why it happened", ref },
   ];
   // (A strike from the air, while what it burned still lies there: played again in its town. W2.)

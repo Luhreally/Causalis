@@ -18,6 +18,7 @@ import {
   type RegionTree,
 } from "../view/index.ts";
 import { LandLayer } from "./land.ts";
+import { WildfireLayer, wildfireMaterials } from "./wildfire.ts";
 import { InstancedBatch, boxMesh, coneMesh, cylinderMesh, gableMesh } from "./batch.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 import { windowMaterial } from "./village.ts";
@@ -45,6 +46,10 @@ export class RegionScene {
   /** The land's ground as its towns, roads and fields read it; and what is drawn on it. */
   private ground: LandGround | null = null;
   readonly land: LandLayer;
+  /** What burns on it, and its scars (N1). */
+  readonly fire: WildfireLayer;
+  /** The clock's pace when last drawn: how a fire's own clock is read at a plan's coming. */
+  private firePace = 0;
   /** Every tree of the woods, and the clearings made in them for the towns (by their key). */
   private trees: readonly RegionTree[] = [];
   /** The sheet of its sea. */
@@ -66,6 +71,8 @@ export class RegionScene {
     this.marker.enabled = false;
     this.root.addChild(this.marker);
     this.land = new LandLayer(stage, this.root);
+    // (Under the land's own root: a new land's building leaves it standing, and resets it.)
+    this.fire = new WildfireLayer(stage, this.land.root);
     this.root.enabled = false;
   }
 
@@ -93,6 +100,7 @@ export class RegionScene {
     this.cleared = "";
     this.ground = { size, tileKm, heights, water, fertility };
     this.land.reset(this.ground);
+    this.fire.reset(this.ground);
     const n = size * size,
       positions = new Float32Array(n * 3),
       half = ((size - 1) * tileKm) / 2;
@@ -301,11 +309,13 @@ export class RegionScene {
     this.land.set(plan, t);
     const drawn = this.land.drawn();
     this.setVillages(plan.towns, drawn);
+    // (What has burned stands bare: at a plan's coming at most, so a fire costs a planting a second while it moves.)
+    this.fire.set(plan.burns ?? [], t, this.firePace);
     const clearings = this.land.clearings(),
-      key = clearings.map((c) => `${c.x.toFixed(1)},${c.z.toFixed(1)},${c.r.toFixed(1)}`).join(";");
+      key = `${clearings.map((c) => `${c.x.toFixed(1)},${c.z.toFixed(1)},${c.r.toFixed(1)}`).join(";")}|${this.fire.woodKey}`;
     if (key !== this.cleared) {
       this.cleared = key;
-      this.plantWoods(treesClear(this.ground, this.trees, clearings));
+      this.plantWoods(this.fire.standing(treesClear(this.ground, this.trees, clearings)));
     }
   }
 
@@ -313,8 +323,19 @@ export class RegionScene {
   plantTrees(trees: readonly RegionTree[]): void {
     this.trees = trees;
     this.plantWoods(
-      this.ground ? treesClear(this.ground, trees, this.land.clearings()) : [...trees],
+      this.fire.standing(
+        this.ground ? treesClear(this.ground, trees, this.land.clearings()) : trees,
+      ),
     );
+  }
+
+  /**
+   * Each frame, on a land: what burns on it at moment t. Whether its ground must be painted again (a few times a second at most),
+   * its colours going through `fire.scarred`.
+   */
+  burnsNow(t: number, pace: number, distance: number, running: boolean): boolean {
+    this.firePace = pace;
+    return this.fire.update(t, pace, distance, running);
   }
 
   /** The season on the land's woods (null: none told): the broad leaves turned or fallen, snow on them. */
@@ -498,6 +519,8 @@ export function regionMaterials(
     // A home's windows, lamplit, and the sheen of metal and wet things (M79).
     { material: windowMaterial(), instanced: true, mesh: boxMesh(stage) },
     { material: flatMaterial([1, 1, 1], 1, 0.7, 0.5), instanced: true, mesh: boxMesh(stage) },
+    // What burns on a land, and its smoke (N1).
+    ...wildfireMaterials(stage),
   ];
 }
 

@@ -8,6 +8,7 @@ import {
   ACT_EVENTS,
   BELIEF_EVENTS,
   DISASTER_EVENTS,
+  UNBIDDEN_EVENTS,
   LANGUAGE_EVENTS,
   WAYS_ACT_EVENTS,
   languagesOf,
@@ -28,7 +29,7 @@ import {
   type Act,
   fireOf,
 } from "../sim/index.ts";
-import { coldDegrees } from "../rules/index.ts";
+import { NATURE, coldDegrees } from "../rules/index.ts";
 import type { ActKindShown, ActMark, ActsMap, LandSky, PaletteLand } from "../bridge/index.ts";
 import { faithColor, languageColor, realmColor } from "./colors.ts";
 import { landTitle } from "./inspect/names.ts";
@@ -172,6 +173,7 @@ export function actsMap(world: World): ActsMap {
             at,
             to: null,
             color: null,
+            ...((e.data as { natural?: boolean } | null)?.natural ? { natural: true as const } : {}),
           };
         break;
       }
@@ -216,6 +218,23 @@ export function actsMap(world: World): ActsMap {
             at,
             to: null,
             color: null,
+            ...((e.data as { natural?: boolean } | null)?.natural ? { natural: true as const } : {}),
+          };
+        break;
+      }
+      // (The bolt that lit a fire, on its land; a falling star, across a sky: each near view reads how far it is seen.)
+      case UNBIDDEN_EVENTS.fire.type:
+      case UNBIDDEN_EVENTS.star.type: {
+        const at = landAt(cellOf(e.place));
+        if (at)
+          mark = {
+            cell: cellOf(e.place),
+            town: null,
+            kind: e.type === UNBIDDEN_EVENTS.fire.type ? "lightning" : "streak",
+            at,
+            to: null,
+            color: null,
+            natural: true,
           };
         break;
       }
@@ -313,6 +332,16 @@ export function actsMap(world: World): ActsMap {
   return { year, acts: out };
 }
 
+/** Whether a falling star over a point of the globe can be seen from a land (N1). */
+function inSight(g: ReturnType<typeof homePlanet>["generated"], cell: number, at: P3): boolean {
+  if (!isProvinceWorld(g)) return false;
+  const s = g.centre[cell];
+  if (s === undefined || s < 0) return false;
+  const p = g.fine.grid.positions,
+    d = p[s * 3]! * at[0] + p[s * 3 + 1]! * at[1] + p[s * 3 + 2]! * at[2];
+  return Math.acos(Math.min(1, d)) * 6371 * g.planet.radius <= NATURE.star.seenKm;
+}
+
 /**
  * A land's sky (Phase 30 M162): its climate, this year's rain against its usual (moved by the
  * god's rain sent or withheld, as the year's harvest is), and the god's acts on it now.
@@ -336,7 +365,9 @@ export function landSky(world: World, cell: number): LandSky {
           },
         }
       : {}),
-    acts: actsMap(world).acts.filter((a) => a.cell === cell),
+    acts: actsMap(world).acts.filter(
+      (a) => a.cell === cell || (a.kind === "streak" && inSight(g, cell, a.at)),
+    ),
     // (How its warmth is told, where its climate keeps its liquid's degrees: Phase 56.)
     ...skyDegrees(world),
   };
