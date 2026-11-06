@@ -826,6 +826,7 @@ type Exposed = {
   }[];
   /** Where the first cart, wagon, truck, train or ship of a land is now (Phase 26 M153). */
   landCarrier?: (kind: string) => { x: number; y: number; z: number } | null;
+  landRiders?: () => { ref: string; name: string; x: number; y: number }[];
   /** Where on the screen one of the town's buildings, one of its homes and its walls are (M151). */
   townOnScreen?: () => unknown;
   /** The town seen near (the look tools): which, whether it is its land's heart, the battle it sees. */
@@ -2993,12 +2994,21 @@ async function runPlanetPage(): Promise<void> {
   const tapRegion = (x: number, y: number) => {
     const war = regionWars.pick(x, y),
       // A band's camp (Phase 28 M159): its page.
-      camp = war ? null : campAt(x, y);
+      camp = war ? null : campAt(x, y),
+      // One on an errand, on a road (D1): their page.
+      named = labels.keyAt(x, y),
+      rider =
+        war || camp !== null
+          ? null
+          : named?.startsWith("rider:")
+            ? named.slice("rider:".length)
+            : region.land.riderAt(stage.camera.camera!, x, y);
     if (war) void pageWindow.open(war);
     else if (camp !== null) {
       region.mark(null);
       void pageWindow.open(`camp:${regionCell}:${camp}`);
-    } else selectTile(region.pick(x, y));
+    } else if (rider) void pageWindow.open(rider);
+    else selectTile(region.pick(x, y));
   };
   const selectTile = (tile: number | null) => {
     region.mark(tile);
@@ -8729,6 +8739,21 @@ async function runPlanetPage(): Promise<void> {
         }
       : null;
   };
+  /** The eye onto one on an errand on the land shown (D1): false if none is on its roads. */
+  const faceRider = async (ref: string): Promise<boolean> => {
+    // (A land lays what goes on its roads a little after it comes.)
+    for (let i = 0; i < 60; i++) {
+      const at = region.land.rider(ref);
+      if (at) {
+        pageWindow.close();
+        rig.userZoomed = true;
+        rig.flyTo({ target: at, distance: 12, pitch: -35 });
+        return true;
+      }
+      await new Promise((done) => setTimeout(done, 100));
+    }
+    return false;
+  };
   const goTo = async (place: Place) => {
     walk.saw("scale");
     // Where it is already in the scene shown: a flight there, not a fade (M94).
@@ -8741,6 +8766,7 @@ async function runPlanetPage(): Promise<void> {
       }
     }
     if (scale === "region" && place.scale === "region" && place.cell === regionCell) {
+      if (place.rider && (await faceRider(place.rider))) return;
       const at = place.tile === undefined ? null : region.groundAt(place.tile);
       rig.flyTo({ target: at ?? { x: 0, y: 0, z: 0 }, distance: at ? 60 : regionFit() });
       if (place.tile !== undefined) region.mark(place.tile);
@@ -8794,6 +8820,7 @@ async function runPlanetPage(): Promise<void> {
             region.mark(place.tile!);
           }
           swoop();
+          if (place.rider) void faceRider(place.rider);
           return;
         }
         case "village": {
@@ -9049,6 +9076,7 @@ async function runPlanetPage(): Promise<void> {
   exposed.camps = () =>
     scale === "region" ? region.land.camps.info().map((c) => ({ ...c, cell: regionCell })) : [];
   exposed.landCarrier = (kind: string) => region.land.carrier(kind as CarrierKind);
+  exposed.landRiders = () => (scale === "region" ? region.land.riders(stage.camera.camera!) : []);
 
   stage.onUpdate(() => {
     const camps = landPlan?.camps ?? [];
@@ -9074,6 +9102,15 @@ async function runPlanetPage(): Promise<void> {
         at: campsAt.get(c.id) ?? null,
         priority: -1 + c.people / 1e6,
       })),
+      // One on an errand on its roads, named once the eye is near enough to pick them out (D1).
+      ...(rig.distance < 40
+        ? region.land.riders(stage.camera.camera!).map((r) => ({
+            key: `rider:${r.ref}`,
+            text: `📜 ${r.name}`,
+            at: { x: r.x, y: r.y - 34 },
+            priority: 1e13,
+          }))
+        : []),
       // Its hosts' counters and its battles, over the towns about them (M95, M101).
       ...regionWars.labels().map((l) =>
         l.badge

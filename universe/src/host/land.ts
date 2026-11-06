@@ -147,6 +147,7 @@ export function landPlan(world: World, cell: number, budget = 8000): LandPlan {
 function envoysOfPlan(world: World, cell: number) {
   const envoys = envoysIn(world, cell).map((e) => ({
     ref: `envoy:${e.event}`,
+    name: e.name,
     color: realmColor(e.from),
   }));
   return envoys.length ? { envoys } : {};

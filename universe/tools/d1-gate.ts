@@ -773,16 +773,16 @@ let sentTo: string | null = null;
       );
     let at = await where();
     if (at) {
-      await k(`(() => { const r = globalThis.causalis.rig; r.pitch = -50; r.yaw = 40; })()`);
-      await faceIt(at, 3);
+      await k(`(() => { const r = globalThis.causalis.rig; r.pitch = -35; r.yaw = 40; })()`);
+      await faceIt(at, 30);
       await settle(1200);
       await shot("9-road-far");
-      // (It has gone on as the eye came down: to where it is now.)
+      // (As near as a person can come on a land. It has gone on as the eye came down: to where it is now.)
       at = await where();
-      if (at) await faceIt(at, 0.9);
+      if (at) await faceIt(at, 12);
       await settle(700);
       at = await where();
-      if (at) await faceIt(at, 0.9);
+      if (at) await faceIt(at, 12);
       await settle(120);
       await shot("9-road");
       // (Through a far town the road runs under its blocks: on along it, to where it goes in the open.)
@@ -792,9 +792,59 @@ let sentTo: string | null = null;
         await k(`globalThis.causalis.client.setSpeed(0)`);
         await page.waitForTimeout(300);
         at = await where();
-        if (at) await faceIt(at, 0.9);
+        if (at) await faceIt(at, 12);
         await settle(300);
         await shot(`9-road-${i}`);
+      }
+      // A person's way to them: ⌖ Go to on their page, and a press on them opening it.
+      type Rider = { ref: string; x: number; y: number };
+      const riders = () => k<Rider[]>(`globalThis.causalis.landRiders?.() ?? []`);
+      const ref = (await riders())[0]?.ref ?? null;
+      check(!!ref, "one on a road has no place on the screen");
+      if (ref) {
+        await k(`globalThis.causalis.open(${JSON.stringify(ref)})`);
+        await until(
+          "the envoy's page, read",
+          async () =>
+            (await k<string>(
+              `document.querySelector(".page-window .page-title")?.textContent ?? ""`,
+            )) !== "…",
+        );
+        await tap(".page-window:not([hidden]) .go-to", "⌖ Go to on an envoy's page");
+        await until(
+          "the eye come to the one on a road",
+          async () => (await k<number>(`globalThis.causalis.rig.distance`)) <= 12.01,
+          slow(20000),
+        );
+        await settle(1200);
+        const r = (await riders()).find((x) => x.ref === ref) ?? null;
+        const name = await k<string>(
+          `[...document.querySelectorAll("#hud *")].map((e) => (e.children.length ? "" : e.textContent ?? "")).find((t) => t.startsWith("📜 ")) ?? ""`,
+        );
+        say(`their name over them: ${name}`);
+        check(/^📜 \S/.test(name), "no name over the one on a road, as near as a person can come");
+        say(`gone to the rider: ${JSON.stringify(r)}`);
+        check(
+          !!r && r.x > 0 && r.x < 430 && r.y > 150 && r.y < 900,
+          `⌖ Go to left the one on a road off the screen: ${JSON.stringify(r)}`,
+        );
+        await shot("9-road-go-to");
+        if (r) {
+          await page.touchscreen.tap(r.x, r.y);
+          await until(
+            "the page of the one pressed on a road",
+            async () => (await k<string>(`String(globalThis.causalis.pageOpen?.() ?? "")`)) === ref,
+          );
+          await until(
+            "the envoy's page, read again",
+            async () =>
+              (await k<string>(
+                `document.querySelector(".page-window .page-title")?.textContent ?? ""`,
+              )) !== "…",
+          );
+          await shot("9-road-page");
+          await k(`globalThis.causalis.closePage?.()`);
+        }
       }
     }
     // One come from another seat, standing at its court: the ruler's own, sent above.

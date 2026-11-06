@@ -753,6 +753,7 @@ export type LandPlan = {
   /** Those on an errand between two seats on its roads this year (each with their page, D1). */
   readonly envoys?: readonly {
     readonly ref: string;
+    readonly name: string;
     readonly color: readonly [number, number, number];
   }[];
 };

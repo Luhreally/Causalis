@@ -32,40 +32,59 @@ type Car = { readonly back: number; readonly parts: readonly Part[] };
 export type CarrierKind =
   "cart" | "wagon" | "truck" | "steam-train" | "train" | "sail" | "steam" | "envoy";
 
+/** How much larger than life one on an errand is drawn: the land's nearest eye is twelve units off, and they should be picked out from there. */
+const RIDER_LARGE = 2.5;
 /** One on an errand, going along a road under their realm's colour (D1): a mount, a rider, a staff and a banner, large enough to be picked out. */
 const envoyCar = (banner: Rgb): Car => ({
   back: 0,
-  parts: [
-    {
-      mesh: "box",
-      color: [0.3, 0.22, 0.16],
-      along: 0,
-      up: 0.012,
-      len: 0.05,
-      wide: 0.02,
-      tall: 0.024,
-    },
-    { mesh: "box", color: banner, along: 0, up: 0.034, len: 0.022, wide: 0.022, tall: 0.036 },
-    {
-      mesh: "box",
-      color: [0.9, 0.86, 0.72],
-      along: 0,
-      up: 0.068,
-      len: 0.016,
-      wide: 0.016,
-      tall: 0.016,
-    },
-    {
-      mesh: "box",
-      color: [0.2, 0.16, 0.12],
-      along: -0.016,
-      up: 0.03,
-      len: 0.005,
-      wide: 0.005,
-      tall: 0.11,
-    },
-    { mesh: "box", color: banner, along: -0.038, up: 0.104, len: 0.042, wide: 0.006, tall: 0.036 },
-  ],
+  parts: (
+    [
+      {
+        mesh: "box",
+        color: [0.3, 0.22, 0.16],
+        along: 0,
+        up: 0.012,
+        len: 0.05,
+        wide: 0.02,
+        tall: 0.024,
+      },
+      { mesh: "box", color: banner, along: 0, up: 0.034, len: 0.022, wide: 0.022, tall: 0.036 },
+      {
+        mesh: "box",
+        color: [0.9, 0.86, 0.72],
+        along: 0,
+        up: 0.068,
+        len: 0.016,
+        wide: 0.016,
+        tall: 0.016,
+      },
+      {
+        mesh: "box",
+        color: [0.2, 0.16, 0.12],
+        along: -0.016,
+        up: 0.03,
+        len: 0.005,
+        wide: 0.005,
+        tall: 0.11,
+      },
+      {
+        mesh: "box",
+        color: banner,
+        along: -0.038,
+        up: 0.104,
+        len: 0.042,
+        wide: 0.006,
+        tall: 0.036,
+      },
+    ] as Part[]
+  ).map((p) => ({
+    ...p,
+    along: p.along * RIDER_LARGE,
+    up: p.up * RIDER_LARGE,
+    len: p.len * RIDER_LARGE,
+    wide: p.wide * RIDER_LARGE,
+    tall: p.tall * RIDER_LARGE,
+  })),
 });
 
 const WOOD: Rgb = [0.5, 0.36, 0.22],
@@ -548,8 +567,8 @@ export class LandTraffic {
   }
 
   /** Where the first carrier of a kind is now (region units), or null (the look tools). */
-  first(kind: CarrierKind): { x: number; y: number; z: number } | null {
-    const c = this.carriers.find((x) => x.kind === kind);
+  nth(kind: CarrierKind, k: number): { x: number; y: number; z: number } | null {
+    const c = this.carriers.filter((x) => x.kind === kind)[k];
     if (!c) return null;
     const at = alongWay(c.way, c.start + c.pace * this.gone, c.aside),
       on = this.ground;

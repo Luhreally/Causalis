@@ -23,6 +23,7 @@ import {
   laneLine,
   landReach,
   linePieces,
+  onLines,
   roadLine,
   roadLook,
   roadOutside,
@@ -74,6 +75,8 @@ function layTop(
     }
 }
 const SLAB = 0.06;
+/** How far off a road a block of a land built over stands (region units): the road, the rails beside it, what goes on them. */
+const WAY_CLEAR = 0.2;
 /** A slab's corners, as signs along it and across it. */
 const CORNERS: readonly (readonly [number, number])[] = [
   [-1, -1],
@@ -124,6 +127,8 @@ class GroundBatches {
       z: number;
       /** Where none of it stands (region units). */
       gone?: readonly { x: number; z: number; r: number }[];
+      /** Whether anything raised may not stand somewhere, `r` about a point (region units). */
+      kept?: (x: number, z: number, r: number) => boolean;
     }[],
     g: LandGround,
     /** A people of the water's: it stands on the seabed, none of it ashore. */
@@ -162,6 +167,8 @@ class GroundBatches {
           // seabed the shore comes up over it, as it should: one lifted there would hang in the sea.)
           const sx = d[o + 3]! * LAND_ACROSS,
             sz = d[o + 5]! * LAND_ACROSS;
+          if (t.kept && top >= LAND_FLAT && t.kept(x, z, Math.max(sx, sz) / 2 + WAY_CLEAR))
+            continue;
           if (!undersea && Math.max(sx, sz) > g.tileKm / 4) {
             wide = true;
             const c = Math.cos(d[o + 6]!),
@@ -244,6 +251,9 @@ const TRACK: Rgb = [0.66, 0.55, 0.38],
   PAVED: Rgb = [0.6, 0.6, 0.58],
   RAILS: Rgb = [0.26, 0.22, 0.2];
 const ROAD_WIDE = { track: 0.07, paved: 0.1, rails: 0.05 } as const;
+
+/** How far over the road the middle of one riding on it is (region units). */
+const RIDER_UP = 0.1;
 
 export class LandLayer {
   readonly root = new pc.Entity("land-towns");
@@ -411,6 +421,14 @@ export class LandLayer {
                   parts: this.built,
                   x: 0,
                   z: 0,
+                  // (Its roads run clear through it: what goes on them can be seen.)
+                  kept: onLines(
+                    plan.roads.flatMap((r) => {
+                      const out =
+                        roadLook(r, Math.floor(t / YEAR)) === "none" ? null : this.roadOut(r);
+                      return out ? [out] : [];
+                    }),
+                  ),
                   gone: [...this.towns.values()].flatMap((d) =>
                     d.scene.plan.ash
                       ? [{ x: d.x, z: d.z, r: ashReach(d.scene.plan, d.scene.lots) * LAND_ACROSS }]
@@ -543,6 +561,25 @@ export class LandLayer {
     });
   }
 
+  /** A road's way between the towns it joins (null: none to draw). */
+  private roadOut(road: LandPlan["roads"][number]): { x: number; z: number }[] | null {
+    const g = this.ground!,
+      k = `${road.from}-${road.to}`;
+    let line = this.lines.get(k);
+    if (!line)
+      this.lines.set(
+        k,
+        (line = roadLine(g, roadTiles(g, road.from, road.to, !!this.plan!.undersea))),
+      );
+    if (line.length < 2) return null;
+    const ends = [road.a, road.b].flatMap((ref) => {
+        const d = ref ? this.towns.get(ref) : undefined;
+        return d ? [{ x: d.x, z: d.z, r: d.reach * 0.92 }] : [];
+      }),
+      out = roadOutside(line, ends);
+    return out.length < 2 ? null : out;
+  }
+
   private showRoads(year: number): void {
     const g = this.ground!,
       plan = this.plan!;
@@ -563,17 +600,8 @@ export class LandLayer {
     for (const road of plan.roads) {
       const look = roadLook(road, year);
       if (look === "none") continue;
-      const k = `${road.from}-${road.to}`;
-      let line = this.lines.get(k);
-      if (!line)
-        this.lines.set(k, (line = roadLine(g, roadTiles(g, road.from, road.to, !!plan.undersea))));
-      if (line.length < 2) continue;
-      const ends = [road.a, road.b].flatMap((ref) => {
-          const d = ref ? this.towns.get(ref) : undefined;
-          return d ? [{ x: d.x, z: d.z, r: d.reach * 0.92 }] : [];
-        }),
-        out = roadOutside(line, ends);
-      if (out.length < 2) continue;
+      const out = this.roadOut(road);
+      if (!out) continue;
       pieces[look === "rails" ? "paved" : look].push(
         ...linePieces(g, out, LIFT * 1.4, undefined, plan.undersea ? floorAt : this.overFields),
       );
@@ -676,7 +704,42 @@ export class LandLayer {
 
   /** Where the first carrier of a kind is now (region units), or null (the look tools). */
   carrier(kind: CarrierKind): { x: number; y: number; z: number } | null {
-    return this.traffic.first(kind);
+    return this.traffic.nth(kind, 0);
+  }
+
+  /** Where one on an errand on this land's roads is now (region units), or null: on none of its roads (D1). */
+  rider(ref: string): { x: number; y: number; z: number } | null {
+    const k = (this.plan?.envoys ?? []).findIndex((e) => e.ref === ref);
+    return k < 0 ? null : this.traffic.nth("envoy", k);
+  }
+
+  /** Those on an errand on its roads: their page, and where on the screen each stands. */
+  riders(cam: pc.CameraComponent): { ref: string; name: string; x: number; y: number }[] {
+    const at = new pc.Vec3(),
+      out = new pc.Vec3(),
+      list: { ref: string; name: string; x: number; y: number }[] = [];
+    for (const e of this.plan?.envoys ?? []) {
+      const r = this.rider(e.ref);
+      if (!r) continue;
+      at.set(r.x, r.y + RIDER_UP, r.z);
+      cam.worldToScreen(at, out);
+      if (out.z > 0) list.push({ ref: e.ref, name: e.name, x: out.x, y: out.y });
+    }
+    return list;
+  }
+
+  /** The one on an errand nearest a point of the screen, within a finger's reach. */
+  riderAt(cam: pc.CameraComponent, x: number, y: number, reach = 30): string | null {
+    let best: string | null = null,
+      most = reach * reach;
+    for (const r of this.riders(cam)) {
+      const d = (r.x - x) ** 2 + (r.y - y) ** 2;
+      if (d < most) {
+        most = d;
+        best = r.ref;
+      }
+    }
+    return best;
   }
 
   destroy(): void {

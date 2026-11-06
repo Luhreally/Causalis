@@ -612,7 +612,7 @@ export function envoyPage(world: World, ref: string): PageModel {
     title: `${d?.who ?? "An envoy"}, envoy of ${d?.fromTown ?? "one seat"}`,
     subtitle: [`To ${d?.toTown ?? "another seat"}, year ${year}`],
     color: from ? realmColor(from) : null,
-    place: null,
+    place: riderPlace(world, event),
     stats: [
       stat("For", from ? [named(world, from)] : "a realm now gone"),
       stat("To", to ? [named(world, to)] : "a realm now gone"),
@@ -639,6 +639,19 @@ export function envoyPage(world: World, ref: string): PageModel {
     followable: false,
     year,
   };
+}
+
+/** The land of a seat whose roads one on an errand is on now, to be looked at there (null: their errand is over). */
+function riderPlace(world: World, event: Ref): PageModel["place"] {
+  const e = tiesOf(world)
+    .envoys()
+    .find((x) => x.event === event);
+  if (!e) return null;
+  const realms = politiesOf(world),
+    cell = [realms.get(e.from)?.seat, realms.get(e.to)?.seat].find(
+      (c): c is number => c !== undefined && envoysIn(world, c).some((x) => x.event === event),
+    );
+  return cell === undefined ? null : { scale: "region", cell, rider: `envoy:${event}` };
 }
 
 /** One come to this town's court this year or last, where it is a realm's seat: for its plan. */
