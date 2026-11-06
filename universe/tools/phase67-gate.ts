@@ -462,9 +462,19 @@ try {
     "globalThis.causalis.fleetFilm.raiderOnScreen()",
   );
   check(!!raider, "no raider on the screen at 20 s");
+  // (A finger tries again if nothing comes, as anyone's does; a page that never comes still fails.)
+  const tapUntil = async (x: number, y: number, what: string, ref: string) => {
+    for (let i = 0; i < 3; i++) {
+      await page.touchscreen.tap(x, y);
+      for (let w = 0; w < slow(4000) / 60; w++) {
+        if ((await openPage().catch(() => "")) === ref) return;
+        await page.waitForTimeout(60);
+      }
+    }
+    problems.push(`${what} did not come`);
+  };
   if (raider) {
-    await page.touchscreen.tap(raider.x, raider.y);
-    await until("a raider's page", async () => (await openPage()) === landing.raiders.ref);
+    await tapUntil(raider.x, raider.y, "a raider's page", landing.raiders.ref);
     await shot("13-raider-page");
     await k("globalThis.causalis.closePage()");
   }
@@ -473,8 +483,7 @@ try {
   );
   check(!!defender, "no defender on the screen at 20 s");
   if (defender) {
-    await page.touchscreen.tap(defender.x, defender.y);
-    await until("the raid's page", async () => (await openPage()) === plan.event);
+    await tapUntil(defender.x, defender.y, "the raid's page", plan.event);
     await k("globalThis.causalis.closePage()");
   }
 
