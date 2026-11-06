@@ -658,6 +658,7 @@ if (compact) {
   } else check(!head, "the blocs lens has no way to the greatest bloc");
 }
 // A ruler's envoy, sent and answered.
+let sentTo: string | null = null;
 {
   const met = (p: Polity) =>
     diplomacyOf(world)
@@ -706,6 +707,9 @@ if (compact) {
       slow(30000),
     );
     await settle(500);
+    sentTo = await k<string | null>(
+      `globalThis.causalis.client.query({ type: "reign.envoys", args: { realm: ${JSON.stringify(ruled.ref)} } }).then((d) => d.realms.find((r) => r.errands.some((e) => e.errand === "embassy" && !e.can))?.ref ?? null)`,
+    );
     await tap(`.reign-act[data-act="envoys"]`, "the tray's Envoy, again");
     await until("the envoy's sheet, again", () => seen(".reign-envoy"), slow(20000));
     const again = await words(".life-winwords.reign-envoywords");
@@ -760,13 +764,76 @@ if (compact) {
     const year = yearOfMoment(world.now);
     if (year - envoy.year <= 1)
       check((land.traffic.envoy ?? 0) > 0, "one on an errand is not on the land's roads");
-    const at = await k<{ x: number; z: number } | null>(`globalThis.causalis.landCarrier("envoy")`);
-    if (at) {
-      await k(
-        `(() => { const r = globalThis.causalis.rig; r.target.set(${at.x}, 0.15, ${at.z}); r.distance = 1.6; r.pitch = -35; r.yaw = 40; })()`,
+    const where = () =>
+      k<{ x: number; y: number; z: number } | null>(`globalThis.causalis.landCarrier("envoy")`);
+    // (On the rider itself, not the ground under it: a far city's trodden ground stands well over the ground.)
+    const faceIt = (a: { x: number; y: number; z: number }, far: number) =>
+      k(
+        `(() => { const c = globalThis.causalis; c.faceLand(${a.x}, ${a.z}, ${far}); c.rig.target.y = ${a.y}; })()`,
       );
-      await settle(1500);
+    let at = await where();
+    if (at) {
+      await k(`(() => { const r = globalThis.causalis.rig; r.pitch = -50; r.yaw = 40; })()`);
+      await faceIt(at, 3);
+      await settle(1200);
+      await shot("9-road-far");
+      // (It has gone on as the eye came down: to where it is now.)
+      at = await where();
+      if (at) await faceIt(at, 0.9);
+      await settle(700);
+      at = await where();
+      if (at) await faceIt(at, 0.9);
+      await settle(120);
       await shot("9-road");
+      // (Through a far town the road runs under its blocks: on along it, to where it goes in the open.)
+      for (let i = 1; i <= 4; i++) {
+        await k(`globalThis.causalis.client.setSpeed(86400)`);
+        await page.waitForTimeout(9000);
+        await k(`globalThis.causalis.client.setSpeed(0)`);
+        await page.waitForTimeout(300);
+        at = await where();
+        if (at) await faceIt(at, 0.9);
+        await settle(300);
+        await shot(`9-road-${i}`);
+      }
+    }
+    // One come from another seat, standing at its court: the ruler's own, sent above.
+    const to = sentTo ? politiesOf(world).get(sentTo as never) : null,
+      town = to
+        ? populationContext(world)
+            .settlements.inProvince(to.seat)
+            .find((v) => v.name === to.town)
+        : null;
+    say(`at a court: the ruler's own at ${to?.town ?? "nowhere"}, ${town?.ref ?? "no town"}`);
+    check(!!town, "the seat the envoy went to is no town");
+    if (town) {
+      await k(`globalThis.causalis.goTo(${JSON.stringify(town.ref)})`);
+      await until(
+        "the seat's town",
+        async () => (await k<string>("globalThis.causalis.scale()")) === "village",
+      );
+      await settle(2500);
+      const here = await k<{ ref: string } | null>(
+        "globalThis.causalis.planNow?.()?.envoy ?? null",
+      );
+      check(!!here?.ref, `no one from another seat stands at the court of ${to!.town}`);
+      const place = await k<{ worldX: number; worldZ: number; yaw: number } | null>(
+        "globalThis.causalis.court?.()?.place ?? null",
+      );
+      say(`its court: ${JSON.stringify(place)}`);
+      if (place) {
+        // (By day, and from above the roofs between.)
+        const t = await k<number>("globalThis.causalis.client.status?.t ?? 0");
+        await k(
+          `globalThis.causalis.client.advance(${Math.floor(t / 86400) * 86400 + 86400 + 12 * 3600})`,
+        );
+        await settle(1500);
+        await k(
+          `globalThis.causalis.rig.flyTo({ target: { x: ${place.worldX * 0.1}, y: 0.2, z: ${place.worldZ * 0.1} }, yaw: ${(place.yaw * 180) / Math.PI}, distance: 2, pitch: -55 })`,
+        );
+        await settle(1500);
+        await shot("9-court");
+      }
     }
   }
 }

@@ -825,7 +825,7 @@ type Exposed = {
     herds: boolean;
   }[];
   /** Where the first cart, wagon, truck, train or ship of a land is now (Phase 26 M153). */
-  landCarrier?: (kind: string) => { x: number; z: number } | null;
+  landCarrier?: (kind: string) => { x: number; y: number; z: number } | null;
   /** Where on the screen one of the town's buildings, one of its homes and its walls are (M151). */
   townOnScreen?: () => unknown;
   /** The town seen near (the look tools): which, whether it is its land's heart, the battle it sees. */

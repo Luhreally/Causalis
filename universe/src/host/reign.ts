@@ -666,7 +666,9 @@ function reignEnvoys(world: World, realm: unknown): ReignEnvoys | null {
                 ? "📜 Keep a house at their seat"
                 : errand === "pact"
                   ? "🤝 Ask a pact"
-                  : `🌾 Send a gift of ${grainSum(gift)} grain`,
+                  : gift > 0
+                    ? `🌾 Send a gift of ${grainSum(gift)} grain`
+                    : "🌾 Send a gift",
             can: !bad,
             words:
               bad ??

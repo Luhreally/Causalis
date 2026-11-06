@@ -335,6 +335,9 @@ export class LandTraffic {
   private carriers: Carrier[] = [];
   /** How far they have gone, real seconds while the clock ran. */
   private gone = 0;
+  /** The ground they went on when last moved (for where one of them is). */
+  private ground: { g: LandGround; at: (g: LandGround, x: number, z: number) => number } | null =
+    null;
   private last = 0;
   private drawn = false;
   private undersea = false;
@@ -491,7 +494,12 @@ export class LandTraffic {
   }
 
   /** Each carrier where it has got to: on while the clock runs, standing while it is held. */
-  move(g: LandGround, running: boolean): void {
+  move(
+    g: LandGround,
+    running: boolean,
+    onLand: (g: LandGround, x: number, z: number) => number = groundAt,
+  ): void {
+    this.ground = { g, at: onLand };
     const wall = performance.now() / 1000;
     if (running && this.last) this.gone += Math.min(0.25, wall - this.last);
     this.last = wall;
@@ -504,7 +512,7 @@ export class LandTraffic {
         const at = alongWay(c.way, head - car.back, c.aside),
           sin = Math.sin(at.yaw),
           cos = Math.cos(at.yaw),
-          base = c.floats ? 0.01 : (this.undersea ? floorAt : groundAt)(g, at.x, at.z) + c.lift,
+          base = c.floats ? 0.01 : (this.undersea ? floorAt : onLand)(g, at.x, at.z) + c.lift,
           slots = c.slots[k]!;
         car.parts.forEach((p, j) => {
           const b = slots[j]!;
@@ -540,11 +548,16 @@ export class LandTraffic {
   }
 
   /** Where the first carrier of a kind is now (region units), or null (the look tools). */
-  first(kind: CarrierKind): { x: number; z: number } | null {
+  first(kind: CarrierKind): { x: number; y: number; z: number } | null {
     const c = this.carriers.find((x) => x.kind === kind);
     if (!c) return null;
-    const at = alongWay(c.way, c.start + c.pace * this.gone, c.aside);
-    return { x: at.x, z: at.z };
+    const at = alongWay(c.way, c.start + c.pace * this.gone, c.aside),
+      on = this.ground;
+    return {
+      x: at.x,
+      y: on ? (c.floats ? 0.01 : (this.undersea ? floorAt : on.at)(on.g, at.x, at.z) + c.lift) : 0,
+      z: at.z,
+    };
   }
 
   clear(): void {

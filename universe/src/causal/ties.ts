@@ -100,7 +100,9 @@ registerEventWords(TIE_EVENTS.claim.type, (_, e) => {
     whose =
       d?.form && d.form !== "wed"
         ? d.tie === "child"
-          ? `of those ${wed} and ${to} raised between ${realm} and ${other}`
+          ? d.form === "brood"
+            ? `of the brood ${wed} and ${to} gave between ${realm} and ${other}`
+            : `of those ${wed} and ${to} raised between ${realm} and ${other}`
           : d.tie === "widowed"
             ? `who came from ${other} for ${wed}`
             : `who went from ${realm} to ${other}`
@@ -109,7 +111,7 @@ registerEventWords(TIE_EVENTS.claim.type, (_, e) => {
           : d?.tie === "widowed"
             ? `who had been wed to ${wed}, and is of ${other}`
             : `wed to ${to} of ${other}`,
-    head = `${text(e.data, "old", "Its ruler")} died with no one left of the house, and ${who}, ${whose}, came forward for the seat of ${text(e.data, "town", "their fathers")}`;
+    head = `${text(e.data, "old", "Its ruler")} died with ${d?.form === "brood" ? "none of their brood left" : "no one left of the house"}, and ${who}, ${whose}, came forward for the seat of ${text(e.data, "town", "their fathers")}`;
   switch (d?.end) {
     case "passes":
       return `${head}. ${cap(realm)} passed to ${other}, and is its own no more, ${year(e.t)}`;
