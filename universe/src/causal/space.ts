@@ -137,6 +137,8 @@ registerEventWords(TRADE_EVENTS.rich.type, (_world, e) => {
   const d = (e.data ?? {}) as { house?: string; worth?: number };
   return `${d.house ?? "A house"} grew great on the run it keeps, ${count(d.worth ?? 0)} in grain cleared by it, year ${yearOfMoment(e.t)}`;
 });
+/** A word and a fleet's years, at one and at many. */
+const answerWords = (years: number): string => (years <= 1 ? "a year" : `${years} years`);
 const nationWorld = (d: { people?: number; ly?: number }): string =>
   `a world of ${count(d.people ?? 0)} people${d.ly ? `, ${d.ly} light-years out` : ""}`;
 const leftWords = (_world: unknown, e: { t: number; data: unknown }): string => {
@@ -147,7 +149,8 @@ const leftWords = (_world: unknown, e: { t: number; data: unknown }): string => 
     answer?: number | null;
     worlds?: number;
   };
-  return `${nationWorld(d)[0]!.toUpperCase()}${nationWorld(d).slice(1)} went its own way from ${d.realm ?? "the realm that held it"}${d.answer ? `: a word and a fleet took ${d.answer} years` : ": no word or fleet could come"}. It holds ${d.worlds ?? 0} now, year ${yearOfMoment(e.t)}`;
+  const left = d.worlds ?? 0;
+  return `${nationWorld(d)[0]!.toUpperCase()}${nationWorld(d).slice(1)} went its own way from ${d.realm ?? "the realm that held it"}${typeof d.answer === "number" ? `: a word and a fleet took ${answerWords(d.answer)}` : ": no word or fleet could come"}. ${d.realm ?? "That realm"} holds ${left === 0 ? "no world" : left === 1 ? "one world" : `${left} worlds`} now, year ${yearOfMoment(e.t)}`;
 };
 registerEventWords(NATION_EVENTS.left.type, leftWords as never);
 registerEventWords(
@@ -157,7 +160,7 @@ registerEventWords(
 );
 registerEventWords(NATION_EVENTS.joined.type, (_world, e) => {
   const d = (e.data ?? {}) as { realm?: string; people?: number; answer?: number };
-  return `${nationWorld(d)[0]!.toUpperCase()}${nationWorld(d).slice(1)} chose to join ${d.realm ?? "a realm"}, ${d.answer ?? "?"} years' word and fleet away, for what it could not make itself, year ${yearOfMoment(e.t)}`;
+  return `${nationWorld(d)[0]!.toUpperCase()}${nationWorld(d).slice(1)} chose to join ${d.realm ?? "a realm"}, ${answerWords(d.answer ?? 0)} away by word and fleet, for what it could not make itself, year ${yearOfMoment(e.t)}`;
 });
 registerEventWords(NATION_EVENTS.taken.type, (_world, e) => {
   const d = (e.data ?? {}) as {
