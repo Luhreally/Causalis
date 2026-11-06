@@ -75,6 +75,8 @@ A realm is no longer a ruler and a line of events. It has a court: a handful of 
 - **A plot takes a year**: `court.plot` when they move, `court.seized` or `court.found` a year on, drawn when it moved. The army's coups go the same way under the name of its voice, weighed exactly as before. One found, or a claimant beaten, may flee and raise the far lands, and that civil war's first cause is a person. A child on the seat means a regency.
 - **Stepping in.** Ruling, a plot against you or an heir's death stops the clock with a window. `court.answer` seizes or buys off, `court.name` names an heir, and "Let it come" sends nothing, so the realm decides it exactly as it would with no one there.
 
+Found by pressing, after the spec: a person's page said nothing where history had nothing to tell yet, and now says so under its own heading. A window for an heir's death comes only where the heir is not the voices' choosing, since an heir they would choose anyway costs no one a decision. A plotter can die in the year of their plot, and then it comes to nothing and is not told as found (Tuk Lilindis at 41, on Earth at 450): that is the world working, so gate 79 keeps spare plots rather than fixing the odds. A court can part a realm before the first war does: a plotter who flees may take far lands with them.
+
 Coups, civil wars, realms ended and successions all held within what a century's chance gives, on six worlds. Limits, stated: marriages of state still move regard and give no claim, and the kin words wait with them; a voice does nothing of their own but plot; the numbers are first guesses, all in `rules/court.ts`.
 
 ## What is known, and what is not

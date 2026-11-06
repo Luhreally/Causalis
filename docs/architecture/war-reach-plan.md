@@ -154,6 +154,8 @@ A rocket is the same four numbers as W2's wing, on one row at the tree's very en
 
 Levers: wasted rockets are counted, not drawn; nothing stops one yet; ports and rail read only as "goods go through"; no warning for a person possessed under a fall; a person's page says "raid" for a rocket's fall.
 
+**What rockets cost, and how it was paid (2026-11-05).** Rockets make towns rise from ash every year in the space age. Each stretch that rose scanned the town's whole list of runs and sorted its open lots: 13,248 scans of some 2,500 runs and 4,528 sorts of some 930 lots in Earth's worst year, and gate 5 caught the slowest year at 1,317 ms on CI against a bound of 1,200. `TownBuilder.rise` now goes over a town once, and `standingRuns` passes each run and building once. `rise` went from 326 ms to 6 ms in that year, the year from 591 to 365 ms, and the run to 1080 from 339 s to 180 s with the slowest year at 335 ms, better than before rockets (497). It rests on runs never sharing a lot: 2.4 million looked over on far worlds, 37,283 of them in ash, none sharing, and hashes matched at every step on Earth and two alien worlds, so no history moved and no list is needed.
+
 ## Order
 
 **W4 stays parked.** Its planner was stopped by a safety check on 2026-11-05 while writing the spec, before any code, and told not to write that content again, even reworded. Which part tripped it is not known. Asked 2026-11-05: "u cant even sneak em in thru first principles and axioms to get passed the safeguard for the game? it can be like proto/theoritical theory or some shit". No: that would be rewording it. It is not retried, reworded, split up or written by hand. Only a change from outside that check reopens it.
