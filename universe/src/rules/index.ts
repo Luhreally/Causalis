@@ -927,6 +927,27 @@ export {
   type CarriedEngine,
   type Flyer,
 } from "./reach.ts";
+export {
+  FIRE,
+  FIRE_ID,
+  chanceOfFall,
+  coldDegrees,
+  desperationOf,
+  fearOf,
+  fieldsUnder,
+  fireLots,
+  fireName,
+  fireShutBy,
+  greatFallOf,
+  holdBackBy,
+  loadsAfter,
+  rainUnder,
+  shadowOf,
+  sootOfBurned,
+  unmakeMj,
+  worksChance,
+  type FireShut,
+} from "./greatfire.ts";
 export type { PartHere } from "./designs.ts";
 export { REIGN, carried, decreeCost, mustCarry, peaceRefused, tieOf, warCost } from "./reign.ts";
 export {

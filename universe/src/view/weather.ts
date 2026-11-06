@@ -89,7 +89,9 @@ export function weatherAt(land: LandSky, t: number, pace = 0, wall: number | nul
   const grain = weatherGrain(pace),
     fine = grain === "spell",
     share = wetShare(land),
-    warmth = warmthAt(land, t, fine),
+    // (Under the soot of a great fire, W5: colder, the sun a smear behind it.)
+    dark = land.dark?.soot ?? 0,
+    warmth = warmthAt(land, t, fine) - (land.dark?.cold ?? 0),
     hour = (((t % DAY) + DAY) % DAY) / DAY,
     // (Told by the day or the season, it is told as by day.)
     day = !fine || (hour > 0.27 && hour < 0.77),
@@ -100,7 +102,7 @@ export function weatherAt(land: LandSky, t: number, pace = 0, wall: number | nul
         : land.sent === 0 && land.year < 0.72
           ? clamp((0.72 - land.year) / 0.3, 0.25, 0.7)
           : 0,
-    haze = day ? dry : dry * 0.3;
+    haze = Math.max(day ? dry : dry * 0.3, dark > 0 ? Math.min(0.92, 0.3 + dark * 1.5) : 0);
   let wet: number, grey: number;
   if (grain === "season") {
     // (The season's sky: as grey as its spells are wet; rain only where the god sends it.)
@@ -148,7 +150,9 @@ export function weatherAt(land: LandSky, t: number, pace = 0, wall: number | nul
         ? snow > rain
           ? ["🌨️", "Snow sent by your hand"]
           : ["🌧️", "Rain sent by your hand"]
-        : land.sent < 0
+        : dark > 0.04 && wet <= 0
+          ? ["🌑", "A dark year: soot in the high air, the sun dim behind it"]
+          : land.sent < 0
           ? ["☀️", "Dry: the rain withheld by your hand"]
           : stormy
             ? ["⛈️", "A thunderstorm"]

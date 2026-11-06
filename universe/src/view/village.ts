@@ -5693,6 +5693,7 @@ export function keepApart(
  * what each task and want looks like said aloud.
  */
 export const SIGNS: Readonly<Record<string, string>> = {
+  greatfire: "☢️",
   hunger: "🍞",
   war: "⚔️",
   unrest: "😠",

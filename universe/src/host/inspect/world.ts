@@ -4,6 +4,7 @@
 // its realms, towns, wars, faiths, tongues, flights and living lineages compared, as a
 // grand strategy game's ledger compares them. Pure reads of the world as it stands.
 import { cellRef, lives, offworldSite } from "../../gen/index.ts";
+import { fireOf } from "../../sim/index.ts";
 import {
   beliefOf,
   citiesOf,
@@ -789,6 +790,38 @@ function firstsOf(world: World, s: BaseSurvey): First[] {
     ev = (type: string) => s.found.get(type) ?? [],
     second = (...types: string[]) =>
       types.flatMap((t) => ev(t)).sort((a, b) => a.year - b.year)[1]?.year ?? null;
+  // The greatest fire (W5): the first works done, the first year the world held its breath, the first that fell.
+  {
+    const s2 = fireOf(world).state,
+      held = s2.works.find((w) => w.held && !w.given),
+      crisis = s2.crises[0],
+      fell = s2.falls[0],
+      at = (year: number, land: number | null, ref: Ref | null) => ({ year, land, ref });
+    if (held)
+      add(
+        "☢️ The greatest fire held",
+        at(held.done!, held.cell, held.held),
+        s2.works.filter((w) => w.held && w !== held)[0]?.done ?? null,
+        many(fireOf(world).holders().length, "realm holds it", "realms hold it"),
+        fireOf(world).holders().length,
+      );
+    if (crisis)
+      add(
+        "🕯️ The world holding its breath",
+        at(crisis.year, politiesOf(world).get(crisis.holder)?.seat ?? null, crisis.event),
+        s2.crises[1]?.year ?? null,
+        many(s2.crises.length, "time", "times"),
+        s2.crises.length,
+      );
+    if (fell)
+      add(
+        "🔥 The greatest fire falling",
+        at(fell.year, fell.cell, fell.event),
+        s2.falls[1]?.year ?? null,
+        many(s2.falls.length, "fall", "falls"),
+        s2.falls.length,
+      );
+  }
   // The roots: sowing, herds, smelting.
   {
     const lands = provinces.filter((p) => p.knowsCultivation).length;

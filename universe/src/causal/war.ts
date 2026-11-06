@@ -3,7 +3,7 @@
 // rivalry and its reasons, the famine and the dry year behind it, and the land
 // they wanted, down to its ground.
 import { yearOfMoment, type CauseRef } from "../kernel/index.ts";
-import { WAR, WAR_EVENTS, politiesOf, realmName, warsOf } from "../sim/index.ts";
+import { FIRE_EVENTS, WAR, WAR_EVENTS, politiesOf, realmName, warsOf } from "../sim/index.ts";
 import { landWords } from "./generated.ts";
 import { count } from "./words.ts";
 import { edges, registerDecisionWords, registerEventWords, registerExplainer } from "./why.ts";
@@ -62,6 +62,56 @@ registerEventWords(
   (world, e) =>
     `${cap(landWords(world, e.place))} rose against ${text(e.data, "a")} and returned to ${text(e.data, "b")}, ${year(e.t)}`,
 );
+registerEventWords(FIRE_EVENTS.begun.type, (_, e) => {
+  const d = e.data as { place?: string; ruler?: string; years?: number; share?: number } | null;
+  return `${cap(text(e.data, "a"))} began a great works at ${d?.place ?? "its seat"}, by the word of ${d?.ruler ?? "its ruler"}: ${count(d?.years ?? 0)} years, and ${count(d?.share ?? 0)} in a hundred of its machines, iron and fuel in each of them, ${year(e.t)}`;
+});
+registerEventWords(FIRE_EVENTS.held.type, (_, e) => {
+  const d = e.data as { place?: string; years?: number; machines?: number; first?: boolean } | null;
+  return `${cap(text(e.data, "a"))}${d?.first ? ", first of all the world," : ""} holds the greatest fire: ${count(d?.years ?? 0)} years at ${d?.place ?? "its seat"}, ${count(d?.machines ?? 0)} machines gone into it, ${year(e.t)}`;
+});
+registerEventWords(FIRE_EVENTS.crisis.type, (_, e) => {
+  const d = e.data as { ruler?: string; war?: boolean; answer?: boolean } | null;
+  return d?.answer
+    ? `The whole world holds its breath: struck by ${text(e.data, "b")}, ${d?.ruler ?? "the ruler"} of ${text(e.data, "a")} could answer in kind, ${year(e.t)}`
+    : d?.war
+      ? `The whole world holds its breath: its war with ${text(e.data, "b")} going badly, ${d?.ruler ?? "the ruler"} of ${text(e.data, "a")} could loose the greatest fire, ${year(e.t)}`
+      : `The whole world holds its breath: ${text(e.data, "a")} and ${text(e.data, "b")}, who both hold the greatest fire, stand at the brink with no war between them, ${year(e.t)}`;
+});
+registerEventWords(FIRE_EVENTS.stepped.type, (_, e) => {
+  const d = e.data as { ruler?: string; who?: string; held?: boolean } | null;
+  const by = d?.ruler ?? "its ruler";
+  return d?.held
+    ? `${by} of ${text(e.data, "a")} held their hand, by your word, and the world breathed again, ${year(e.t)}`
+    : d?.who === "foe"
+      ? `${cap(text(e.data, "b"))} stepped back from ${text(e.data, "a")}, and the world breathed again, ${year(e.t)}`
+      : `${by} of ${text(e.data, "a")} held their hand and stepped back, and the world breathed again, ${year(e.t)}`;
+});
+registerEventWords(FIRE_EVENTS.cold.type, (_, e) => {
+  const d = e.data as { name?: string; cold?: number } | null;
+  return `The soot of ${d?.name ?? "what burned"} darkens the whole sky: ${d?.cold ?? 0} degrees colder and the harvests failing, ${year(e.t)}`;
+});
+registerEventWords(FIRE_EVENTS.clear.type, (_, e) => {
+  const d = e.data as { name?: string; years?: number } | null;
+  return `The sky clears after ${count(d?.years ?? 0)} dark year${d?.years === 1 ? "" : "s"}, ${year(e.t)}`;
+});
+registerEventWords(
+  FIRE_EVENTS.given.type,
+  (_, e) => `By the god's hand ${text(e.data, "a")} holds the greatest fire, ${year(e.t)}`,
+);
+registerEventWords(
+  FIRE_EVENTS.taken.type,
+  (_, e) => `By the god's hand ${text(e.data, "a")} holds the greatest fire no more, ${year(e.t)}`,
+);
+registerDecisionWords("fire.use", (world, d) => {
+  const realm = politiesOf(world).get(d.subject),
+    o = d.outcome as { loose?: boolean; ruler?: string } | null;
+  return `${o?.ruler ?? "The ruler"} of ${realm ? realmName(realm) : "a realm"} ${o?.loose ? "loosed the greatest fire" : "held their hand"}`;
+});
+registerDecisionWords("fire.works", (world, d) => {
+  const realm = politiesOf(world).get(d.subject);
+  return `${cap(realm ? realmName(realm) : "A realm")} chose to raise a great works`;
+});
 registerEventWords(WAR_EVENTS.strike.type, (_, e) => {
   const d = e.data as {
     name?: string;
@@ -69,7 +119,12 @@ registerEventWords(WAR_EVENTS.strike.type, (_, e) => {
     homes?: number;
     rocket?: boolean;
     km?: number;
+    great?: boolean;
+    first?: boolean;
+    ruler?: string;
   } | null;
+  if (d?.great)
+    return `${d.first ? "The first of all time: the" : "The"} greatest fire fell on ${d.name ?? "a town"} of ${text(e.data, "b")}, at the word of ${d.ruler ?? "the ruler"} of ${text(e.data, "a")}; ${count(d.dead ?? 0)} died and ${count(d.homes ?? 0)} home${d.homes === 1 ? "" : "s"} are gone, ${year(e.t)}`;
   if (d?.rocket)
     return `Rockets of ${text(e.data, "a")} fell on ${d.name ?? "a town"} of ${text(e.data, "b")} from ${count(d.km ?? 0)} km away; ${count(d.dead ?? 0)} died and ${count(d.homes ?? 0)} home${d.homes === 1 ? "" : "s"} came down, ${year(e.t)}`;
   return `Machines of ${text(e.data, "a")} struck ${d?.name ?? "a town"} of ${text(e.data, "b")} from the air; ${count(d?.dead ?? 0)} died and ${count(d?.homes ?? 0)} home${d?.homes === 1 ? "" : "s"} came down, ${year(e.t)}`;

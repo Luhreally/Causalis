@@ -49,7 +49,15 @@ import {
   wildsOf,
 } from "../ecology/ecology.ts";
 import { peopleAffords, peopleLife } from "./life.ts";
-import { airOf, heatYield, rainShift, smokeIn } from "../climate/air.ts";
+import {
+  airOf,
+  darkCause,
+  darkFields,
+  darkRain,
+  heatYield,
+  rainShift,
+  smokeIn,
+} from "../climate/air.ts";
 import { powerOf } from "../economy/systems.ts";
 import {
   GONE_KEPT,
@@ -417,6 +425,8 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
       fields =
         (1 + lore.effect(p.cell, "farmYield")) *
         heatYield(ctx, p.cell) *
+        // (Under the soot of a great fire, W5: exactly 1 under a clear sky.)
+        darkFields(world, p.cell) *
         (p.cell >= offworldFrom ? openFields(ctx, p.cell) : 1),
       flocks = 1 + lore.effect(p.cell, "herdYield"),
       wilds = 1 + lore.effect(p.cell, "forageYield"),
@@ -751,7 +761,8 @@ export function weatherYear(ctx: PopulationContext, t: SimTime): void {
       key = refHash(p.ref),
       g = gaussian(world.rng.real(RAIN, key, t, 0), world.rng.real(RAIN, key, t, 1)),
       // The warming moves a land's rain (drier or wetter), and the year's weather about it.
-      moved = rainShift(ctx, p.cell),
+      // (And the soot of a great fire, W5: exactly 1 under a clear sky.)
+      moved = rainShift(ctx, p.cell) * darkRain(world),
       natural = dmath.clamp(moved * (1 + 0.22 * g), 0.35, 1.6),
       rain = act ? natural * (1 + act.sign * ACT_STRENGTH.rain) : natural;
     p.rain = Math.round(rain * 1000);
@@ -761,6 +772,9 @@ export function weatherYear(ctx: PopulationContext, t: SimTime): void {
       // A land the warming has dried has its droughts the oftener.
       const drier = moved < 1 ? airOf(world).shiftOf(p.cell) : null;
       if (drier) causes.push({ ref: drier, role: "pressure", weight: 0.3 });
+      // (A dry year under the dark: the fire behind it.)
+      const dark = darkCause(world);
+      if (dark) causes.push({ ref: dark, role: "pressure", weight: 0.6 });
       causes.push({ ref: p.ref, role: "constraint", weight: act && act.sign < 0 ? 0.2 : 1 });
       p.lastDrought = world.events.emit({
         type: POPULATION_EVENTS.drought.type,

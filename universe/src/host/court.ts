@@ -2,7 +2,7 @@
 // as L1 and L3 take anyone), what each wants and why, every reason a number history already holds, and what a ruler
 // played by the god's hand can answer when a plot comes or an heir dies. Pure reads: asking moves nothing, nothing is kept.
 import { yearOfMoment, type Ref, type World } from "../kernel/index.ts";
-import { COURT, OCC, REIGN, fleeChance, seizeCost, weightOf } from "../rules/index.ts";
+import { COURT, OCC, REIGN, fearOf, fleeChance, seizeCost, weightOf } from "../rules/index.ts";
 import {
   WAY,
   byBlood,
@@ -18,6 +18,8 @@ import {
   type CourtFigure,
   type GoneFigure,
   type Polity,
+  answerCost,
+  fireOf,
 } from "../sim/index.ts";
 import type { Leader, ReignDrama } from "../bridge/index.ts";
 import { bare, claimOf } from "./inspect/words.ts";
@@ -243,6 +245,54 @@ export function dramaOf(world: World, r: Polity): ReignDrama | null {
   if (!c || !o) return null;
   const year = yearOfMoment(world.now),
     legit = pct(o.legitimacy);
+  // The brink (W5): the strongest way to feel it. Asked once, and the clock is held until it is answered.
+  const brink = fireOf(world).openFor(r.ref);
+  if (brink && !brink.answer) {
+    const foe = politiesOf(world).get(brink.foe),
+      ctx = populationContext(world),
+      cost = foe ? answerCost(ctx, r, foe, year) : 0,
+      chance = fearOf(cost),
+      people = r.members.reduce((n, k) => n + (ctx.provinces.get(k)?.total() ?? 0), 0),
+      dead = Math.round(cost * people),
+      foeName = foe ? realmName(foe) : "your foe",
+      can = o.legitimacy >= REIGN.wordLine && brink.war !== null;
+    return {
+      key: brink.event,
+      kind: "fire",
+      title: "The whole world holds its breath",
+      who: null,
+      words: brink.war
+        ? `Your war with ${foeName} goes badly: by your own reckoning ${pct(brink.desperation)} in a hundred of all you hold stands to be lost. You hold the greatest fire. ${dead > 0 ? `If they answer, some ${dead.toLocaleString("en-US")} of your people die: it frightens you ${pct(chance)} in a hundred.` : "They have nothing to answer with."} Every realm in the world is watching, and it will be remembered for as long as anyone remembers anything.`
+        : `You and ${foeName} both hold the greatest fire, and this year one of you has come too close. ${dead > 0 ? `If it came to it, some ${dead.toLocaleString("en-US")} of your people die.` : ""} Every realm in the world is watching.`,
+      event: brink.event,
+      choices: [
+        {
+          id: "hold",
+          label: "✋ Hold your hand",
+          can: true,
+          words: `You step back. ${brink.war ? "The war ends where it stands." : ""} It costs you nothing but what they will say of you.`,
+        },
+        ...(brink.war
+          ? [
+              {
+                id: "loose",
+                label: "☢️ Loose it",
+                can,
+                words: can
+                  ? "A town of theirs is lost at the year's end, and all the world's skies darken after it. No ruler anywhere will ever think of you the same way."
+                  : `Only ${legit} in a hundred hold your rule rightful: no one would turn the key.`,
+              },
+            ]
+          : []),
+        {
+          id: "let",
+          label: "⏳ Say nothing",
+          can: true,
+          words: "You say nothing, and the realm decides it by the same numbers.",
+        },
+      ],
+    };
+  }
   if (c.plot) {
     const f = c.figures.find((x) => x.id === c.plot!.by);
     if (!f) return null;

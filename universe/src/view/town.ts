@@ -1002,7 +1002,9 @@ export const FALLS_S = 1.5 * 3600,
 
 /** Whether a home of a town struck was thrown down by a quake (in rubble, not standing as it burned). */
 export function thrownDown(scene: TownScene, p: number): boolean {
-  return scene.plan.struck?.[scene.states.struck[p]!]?.kind === "quake";
+  const k = scene.plan.struck?.[scene.states.struck[p]!];
+  // (And what the greatest fire reaches, W5: gone as it comes out to them, not burned down in hours.)
+  return k?.kind === "quake" || !!k?.raid?.great;
 }
 
 /** How high a home's rubble lies, thrown down (metres). */

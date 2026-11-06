@@ -41,6 +41,7 @@ import {
   liftingEngine,
   rocketOn,
 } from "./reach.ts";
+import { FIRE, fireName, fireShutBy } from "./greatfire.ts";
 
 /** What a substance can do, beyond what it weighs and where it melts. */
 export type Properties = {
@@ -897,6 +898,7 @@ export function rowReadings(w: Pick<MatterWorld, "chem" | "means">): FunctionRea
     ),
     flyUnderPower(n),
     throwFar(n),
+    densestStore(n),
     r(
       "build-high",
       "🏗️",
@@ -980,6 +982,35 @@ function throwFar(n: MeansWorld): FunctionReading {
         : first
           ? `On ${charge.name} a first rocket lands ${first.around ? "anywhere on its world" : `${km(first.reachKm)} km away`} under a tonne (estimate), missing by ${Math.round(MISS_THROWN * 100)}% of the way; in ${MOST_STAGES} stages ${most!.around ? "anywhere on its world" : `${km(most!.reachKm)} km`}, and steered, by ${Math.round(MISS_STEERED * 1000) / 10}%.`
           : `Its pull takes nearly all that ${charge.name} gives: a first rocket lands ${km(tried!.reachKm)} km away (estimate), no farther than a gun, so none is built.`,
+    ...(n.firstRoad ? { quiet: true } : {}),
+  };
+}
+
+/** Whether a world's matter holds the densest store of energy within a people's reach, and whether anything could carry it (W5: rules/greatfire.ts). */
+function densestStore(n: MeansWorld): FunctionReading {
+  const shut = fireShutBy(n);
+  return {
+    id: "densest-store",
+    icon: "☢️",
+    name: "hold the densest store of energy",
+    asks: "rock underfoot, a star rich enough in metals that the heaviest stuff lies within reach, and something to carry it far",
+    later: false,
+    met: shut === null,
+    by:
+      shut === null
+        ? `${fireName(n)}: its star's metals ${Math.round(n.metalShare * 100)}% of the Sun's`
+        : null,
+    subst: null,
+    why:
+      shut === "sea"
+        ? "Its people live in its seas, and no great works can be raised there. No one here ever has it."
+        : shut === "ice"
+          ? "Its rock lies under its ice, out of any mine's reach, and the heaviest stuff lies in rock. No one here ever has it."
+          : shut === "poor"
+            ? `Its star has ${Math.round(n.metalShare * 100)}% of the Sun's metals: too little of the heaviest stuff ever gathered in its ground to make a store of (under ${Math.round(FIRE.leastMetals * 100)}%, an estimate). No one here ever has it.`
+            : shut === "carried"
+              ? "Its ground holds it, but nothing here could carry it: no wing lifts a load and no rocket lands past a gun's reach. No one here ever has it."
+              : `Its ground holds the heaviest stuff, with its star's metals at ${Math.round(n.metalShare * 100)}% of the Sun's: what a realm can make of it is a matter of years and wealth, not of whether.`,
     ...(n.firstRoad ? { quiet: true } : {}),
   };
 }

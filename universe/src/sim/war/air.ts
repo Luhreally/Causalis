@@ -77,7 +77,7 @@ export function fleetOf(ctx: PopulationContext, p: Polity, fielded: () => number
 }
 
 /** A land's food in store. */
-function foodIn(ctx: PopulationContext, cell: number): number {
+export function foodIn(ctx: PopulationContext, cell: number): number {
   const m = ctx.world.store<MarketStore>("economy.markets").get(cell);
   return m?.stock.reduce((s, v, i) => (i < 3 ? s + v : s), 0) ?? 0;
 }

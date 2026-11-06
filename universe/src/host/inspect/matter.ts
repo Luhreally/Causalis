@@ -8,6 +8,7 @@
 // in a land: what it is made of there, and how it is made there — or why it is not. Pure reads.
 // A world of another chemistry (Phase 54) has its own substances, reactions and elements, and a
 // "This world" tab of what it is made of: its air, crust, rocks, ores, metals and furnaces.
+import { firePrincipleStats } from "./fire.ts";
 import {
   AIR_OFFSET,
   DRIVEN_BLAST,
@@ -66,6 +67,7 @@ import {
   worldRocks,
   worldSoil,
   type Chemistry,
+  FIRE_ID,
   type Means,
   type Element,
   type MakeUp,
@@ -766,6 +768,7 @@ export function principlePage(world: World, ref: string): PageModel {
         ...(shut ? [stat("On this world", `shut: ${shut}`)] : []),
         ...flyerStats(world, p.id),
         ...rocketStats(world, p.id),
+        ...(p.id === FIRE_ID ? firePrincipleStats(world) : []),
       ],
     },
   ];

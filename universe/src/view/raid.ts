@@ -45,6 +45,8 @@ type RaidWay = {
   readonly far?: readonly FarBurn[];
   /** How high they come over (m): over the tallest of what stands there, in a city of spires. */
   readonly high: number;
+  /** The greatest fire (W5): where it comes down. */
+  readonly great?: { readonly at: number; readonly x: number; readonly z: number };
 };
 /** One rocket's fall on a town (W3): when, and where (out: past the streets drawn, on no lot of the scene's). */
 type RocketFall = {
@@ -78,6 +80,9 @@ export const STREAK_HANGS = 40,
 /** The most rockets' falls drawn on a town, and how fast the clock runs through them: the world's own. */
 export const MOST_STREAKS = 8,
   ROCKET_SPEED = 1;
+/** How long the greatest fire's cloud stands over a town (world seconds), and how long it is watched at the world's own pace (the rest at RAID_FIRES). */
+export const GREAT_LASTS = 900,
+  GREAT_WATCHED = 45;
 /** How far apart hits of one fall catch (world seconds). */
 const CATCH_S = 0.35;
 const WAYS = new WeakMap<TownStrike, RaidWay>();
@@ -153,6 +158,10 @@ export function timeRaids(
     if (!k.raid) return;
     const mine = own.get(i) ?? [],
       key = hashText(k.event);
+    if (k.raid.great) {
+      timeGreat(k, key, mine, lots, states, Math.max(RAID_HIGH, rise + 40));
+      return;
+    }
     if (k.raid.rocket) {
       timeRocket(k, key, mine, plan, lots, states, Math.max(RAID_HIGH, rise + 40), ring);
       return;
@@ -227,6 +236,45 @@ export function timeRaids(
       ...(far.length ? { far } : {}),
       high: Math.max(RAID_HIGH, rise + 40),
     });
+  });
+}
+
+/** How fast what it does goes out across a town (m a world second, drawn so that it can be watched), and for how long at most. */
+const GREAT_GOES = 45,
+  GREAT_OUT_S = 20;
+/**
+ * The greatest fire laid over its town (W5): one, where the first of what it burned stands, and every lot it took caught as what it
+ * does comes out to it. What it burned past the streets drawn is not drawn; what is drawn of it is what can be seen.
+ */
+function timeGreat(
+  k: TownStrike,
+  key: number,
+  mine: readonly number[],
+  lots: TownLots,
+  states: LotStates,
+  high: number,
+): void {
+  const heading = unit(key, 1) * 2 * Math.PI,
+    at = raidRun(k).from,
+    near = [...mine].sort((a, b) => a - b).slice(0, Math.max(1, Math.ceil(mine.length / 8)));
+  let x = 0,
+    z = 0;
+  for (const p of near) {
+    x += lots.x[p]!;
+    z += lots.z[p]!;
+  }
+  x /= Math.max(1, near.length);
+  z /= Math.max(1, near.length);
+  for (const p of mine)
+    states.began[p] =
+      at + Math.min(GREAT_OUT_S, Math.hypot(lots.x[p]! - x, lots.z[p]! - z) / GREAT_GOES);
+  WAYS.set(k, {
+    heading,
+    under: [...mine].sort((a, b) => states.began[a]! - states.began[b]! || a - b),
+    strays: [],
+    falls: [{ at, x, z }],
+    high,
+    great: { at, x, z },
   });
 }
 
@@ -339,6 +387,15 @@ export function raidEye(k: TownStrike): {
 } {
   // (Over a city of spires, from above their tops: from low down there would be nothing to see but walls.)
   const over = wayOf(k).high > RAID_HIGH;
+  // (The greatest fire: far off, or it fills the screen and nothing can be told of it; and from where the whole height of it shows.)
+  const great = wayOf(k).great;
+  if (great)
+    return {
+      target: { x: great.x * 0.1, y: 34, z: great.z * 0.1 },
+      yaw: (wayOf(k).heading * 180) / Math.PI + 74,
+      pitch: over ? -10 : -3,
+      distance: 300,
+    };
   // (Rockets: off to the side of where the first comes down, with the sky it comes from over it.)
   const fall = wayOf(k).falls?.[0];
   if (k.raid?.rocket)
@@ -378,7 +435,15 @@ export type RocketStreak = {
   /** Whether it has yet to land: a bright head. */
   readonly falling: boolean;
 };
+/** The greatest fire as it stands now (W5; metres): where, how long since it fell. */
+export type GreatNow = {
+  readonly x: number;
+  readonly z: number;
+  /** World seconds since it fell. */
+  readonly since: number;
+};
 export type RaidNow = {
+  readonly great?: GreatNow;
   readonly flyers: readonly RaidFlyer[];
   /** Rockets' streaks (W3). */
   readonly streaks: readonly RocketStreak[];
@@ -416,6 +481,7 @@ export function raidRun(k: TownStrike): { readonly from: number; readonly to: nu
 /** From when its first is drawn until its last is gone (world seconds). */
 export function raidSpan(k: TownStrike): { readonly from: number; readonly to: number } {
   const run = raidRun(k);
+  if (k.raid?.great) return { from: run.from - ROCKET_BEFORE, to: run.from + GREAT_LASTS };
   if (k.raid?.rocket) return { from: run.from - ROCKET_BEFORE, to: run.to + ROCKET_AFTER };
   const far = RAID_FAR / Math.max(1, k.raid?.speed ?? 46);
   return { from: run.from - far, to: run.to + far };
@@ -435,6 +501,29 @@ export function raidSlowings(plan: TownPlan): Slowing[] {
     raids = (plan.struck ?? []).filter((k) => k.raid);
   for (const k of raids) {
     const s = raidSpan(k);
+    // (The greatest fire: its own pace while it is watched, then quicker for what burns after.)
+    if (k.raid?.great) {
+      const at = raidRun(k).from;
+      out.push(
+        {
+          key: `raid:${k.event}`,
+          turn: Math.floor(k.at / year),
+          cap: "raid",
+          speed: ROCKET_SPEED,
+          from: s.from,
+          to: at + GREAT_WATCHED,
+        },
+        {
+          key: `raid-after:${k.event}`,
+          turn: Math.floor(k.at / year),
+          cap: "raid",
+          speed: RAID_FIRES,
+          from: at + GREAT_WATCHED,
+          to: s.to,
+        },
+      );
+      continue;
+    }
     out.push({
       key: `raid:${k.event}`,
       turn: Math.floor(k.at / year),
@@ -470,6 +559,8 @@ export function raidFilm(k: TownStrike): {
 } {
   const s = raidSpan(k),
     run = raidRun(k);
+  if (k.raid?.great)
+    return { from: s.from, calm: run.from + GREAT_WATCHED, to: s.to, speed: ROCKET_SPEED };
   return {
     from: s.from,
     calm: run.to + 25,
@@ -522,13 +613,20 @@ export function landRaidsNow(
   const out: LandRaidNow[] = [],
     // (A war with two fronts is on the map twice: its strikes once.)
     told = new Set<string>();
+  // (The greatest fire over a town is what is told of it: W5.)
+  const great = new Set<string>();
+  for (const w of map?.wars ?? [])
+    for (const k of w.raids ?? []) {
+      const since = y - (k.year + 1);
+      if (k.great && since >= 0 && since <= LAND_BURN) great.add(k.town);
+    }
   for (const w of map?.wars ?? [])
     for (const k of w.raids ?? []) {
       if (told.has(k.event)) continue;
       told.add(k.event);
       // (History reckons it at the turn that ends its year.)
       const since = y - (k.year + 1);
-      if (since < 0 || since > LAND_BURN) continue;
+      if (since < 0 || since > LAND_BURN || (great.has(k.town) && !k.great)) continue;
       const at = townAt(k.town);
       if (!at) continue;
       const key = hashText(k.event),
@@ -552,7 +650,7 @@ export function landRaidsNow(
           r: at.r,
           burn: run < 0.5 ? 0 : Math.max(0, 1 - since / LAND_BURN),
           flyers: [],
-          words: `☄️ ${k.name}: ${k.dead.toLocaleString("en")} dead`,
+          words: `${k.great ? "☢️" : "☄️"} ${k.name}: ${k.dead.toLocaleString("en")} dead`,
           arc: { x: left.x, z: left.z, high: Math.max(14, far * 0.22), k: Math.min(1, run * 2) },
         });
         continue;
@@ -708,6 +806,8 @@ export function raidNow(scene: TownScene | null, t: number): RaidNow {
     { struck, states, lots } = scene,
     // A load on its way down to a lot, or just landed on it.
     load = (k: TownStrike, p: number, since: number) => {
+      // (What the greatest fire does is its own: render/raid.ts, then the lots burning.)
+      if (k.raid!.great) return;
       if (since < 0) {
         // (A rocket's is its streak, not a load falling from a machine.)
         if (k.raid!.rocket || falling.length >= MOST_FALLING) return;
@@ -764,7 +864,14 @@ export function raidNow(scene: TownScene | null, t: number): RaidNow {
         bursts.push({ x: f.x, z: f.z, k: since / BURST_S, size: 4 });
     }
   }
-  return flyers?.length || streaks.length || falling.length || bursts.length
-    ? { flyers: flyers ?? [], streaks, falling, bursts, by }
+  let great: GreatNow | undefined;
+  for (const k of list) {
+    const g = k.raid?.great ? wayOf(k).great : undefined;
+    if (!g || t < g.at || t > g.at + GREAT_LASTS) continue;
+    great = { x: g.x, z: g.z, since: t - g.at };
+    by = k.raid!.by;
+  }
+  return flyers?.length || streaks.length || falling.length || bursts.length || great
+    ? { flyers: flyers ?? [], streaks, falling, bursts, by, ...(great ? { great } : {}) }
     : NONE;
 }

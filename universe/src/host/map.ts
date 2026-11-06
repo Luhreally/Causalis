@@ -18,6 +18,7 @@ import {
   warsOf,
   WAR_EVENTS,
 } from "../sim/index.ts";
+import { fireShadow } from "./inspect/fire.ts";
 import { YEAR, type Ref, type World } from "../kernel/index.ts";
 import { realmColor } from "./colors.ts";
 import { pastLands, pastTown } from "./past.ts";
@@ -184,6 +185,7 @@ export function worldStats(world: World) {
     faiths: faiths.size,
     tongues: tongues.size,
     hungry: famine,
+    ...(world.hasStore("war.fire") ? { shadow: fireShadow(world) } : {}),
     colonies: provinces.filter((p) => offworldSite(g, p.cell) && p.total() > 0).length,
   };
 }

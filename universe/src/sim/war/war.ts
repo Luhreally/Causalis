@@ -54,6 +54,7 @@ import {
   type Thrower,
 } from "./air.ts";
 import { ArmsStore, armsOf } from "./arms.ts";
+import { fireYear, holdBack, installFire } from "./fire.ts";
 import {
   COLD_BATTLES,
   ColdWar,
@@ -119,6 +120,8 @@ export type WarStrike = {
   readonly event: Ref;
   /** Rockets (W3; absent: machines): `flyers` then says how many were thrown at it. */
   readonly kind?: "rocket";
+  /** The greatest fire (W5). */
+  readonly great?: true;
   /** Where they left from, and how many landed on the town. */
   readonly from?: number;
   readonly landed?: number;
@@ -1154,7 +1157,9 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       peace = pressure(voices, "peace", defender.ref),
       holy = pressure(voices, "war", defender.ref),
       swayed = (1 - 0.7 * Math.min(1, 2 * peace.total)) * (1 + Math.min(1, 2 * holy.total)),
-      chance = base * swayed;
+      // (What their answer would cost, W5: exactly 1 where the other holds no great fire.)
+      answer = holdBack(ctx, attacker, defender, year),
+      chance = base * swayed * answer;
     if (chance <= 0 || !(draw < chance)) continue;
     const factors: Factor[] = [
       {
@@ -1200,6 +1205,13 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
           contribution: sign * Math.min(1, 2 * voice.total),
           source: voice.strongest.source ? { ref: voice.strongest.source, role, weight: 1 } : null,
         });
+    if (answer < 1)
+      factors.push({
+        name: "what their answer would cost",
+        value: answer,
+        contribution: answer - 1,
+        source: null,
+      });
     // The land wanted is the one with the fullest stores.
     factors.push({
       name: "the stores of the land they want",
@@ -1507,6 +1519,8 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       realms.setDiscontent(c, { level: 0.2, cause: d.cause });
       cutOff(ctx, p, rose);
     }
+  // The greatest fire's year (W5): works, the brink, what falls and what the sky does after.
+  fireYear(ctx, t);
   // The wars that ended this year will not change again: fold them into the digest.
   wars.seal();
   // (Their battles' town tallies are kept FELL_TOWN_YEARS, their lands' for good.)
@@ -1522,6 +1536,7 @@ export function installWar(world: World, ctx: () => PopulationContext): WarStore
   const store = world.register(new WarStore());
   store.drawn((key, t, round, side) => world.rng.real(FIGHT, key, t, 100 + round, side));
   world.register(new ArmsStore());
+  installFire(world);
   world.addPinner(() => store.pinned());
   world.system({ key: "185.war.year", every: YEAR, run: (t) => warYear(ctx(), t) });
   return store;

@@ -128,6 +128,7 @@ const CHIP_OPENS: Readonly<Record<ChipKind, string>> = {
   towns: "Click for the ledger's towns",
   realms: "Click for the ledger's realms",
   wars: "Click for the ledger's wars",
+  shadow: "Click for what the greatest fire is here, and who holds it",
   faiths: "Click for the ledger's faiths",
   tongues: "Click for the ledger's tongues",
   hungry: "Click for the map of food",
@@ -136,7 +137,16 @@ const CHIP_OPENS: Readonly<Record<ChipKind, string>> = {
 
 /** What a chip of the top bar counts. */
 export type ChipKind =
-  "stage" | "people" | "towns" | "realms" | "wars" | "faiths" | "tongues" | "hungry" | "colonies";
+  | "stage"
+  | "people"
+  | "towns"
+  | "realms"
+  | "wars"
+  | "faiths"
+  | "tongues"
+  | "hungry"
+  | "colonies"
+  | "shadow";
 
 /** The world's headline numbers (the host's "world.stats"). */
 export type WorldStats = {
@@ -147,6 +157,15 @@ export type WorldStats = {
   cities: number;
   realms: number;
   wars: number;
+  /** How near the world stands to the greatest fire, and its dark years (W5). */
+  shadow?: {
+    near: number;
+    holders: number;
+    crises: number;
+    words: string;
+    cold: number;
+    falls: number;
+  };
   faiths: number;
   tongues: number;
   hungry: number;
@@ -630,6 +649,18 @@ export class PlanetPanel {
       chip("wars", "⚔️", String(s.wars), `${s.wars} wars being fought`, s.wars ? "hot" : ""),
       chip("faiths", "✨", String(s.faiths), `${s.faiths} faiths held`),
       chip("tongues", "🗣️", String(s.tongues), `${s.tongues} tongues spoken`),
+      // (Only where someone holds it, or it has fallen: a world that lives under it, W5.)
+      ...(s.shadow && (s.shadow.holders || s.shadow.falls)
+        ? [
+            chip(
+              "shadow",
+              s.shadow.crises ? "🕯️" : "☢️",
+              s.shadow.cold > 0 ? `${s.shadow.near} · ${s.shadow.cold}°` : String(s.shadow.near),
+              `${s.shadow.words}${s.shadow.cold > 0 ? ` The sky is dark: ${s.shadow.cold} degrees colder.` : ""}`,
+              s.shadow.crises || s.shadow.cold > 0 || s.shadow.near >= 45 ? "hot" : "",
+            ),
+          ]
+        : []),
       ...(s.hungry
         ? [chip("hungry", "🍞", String(s.hungry), `${s.hungry} lands going hungry`, "hot")]
         : []),

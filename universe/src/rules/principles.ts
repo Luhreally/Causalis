@@ -1301,6 +1301,21 @@ export const HEAT_TREE: readonly Principle[] = [
     ),
     asks: ["throw-far", "make-gas-fast"],
   },
+  // The densest store of energy a world's matter allows, on what already carries a load (War past the line, W5). Last again:
+  // nothing moves before it is found. What shuts it is its world's numbers (densest-store: rules/greatfire.ts). A principle says
+  // what it does: what is made of it, and where, is a realm's great works (sim/war/fire.ts).
+  {
+    ...P(
+      "greatest-fire",
+      "the densest store of energy its matter allows",
+      ["electronics", "thrown-loads|dropped-loads"],
+      0.004,
+      { crafters: 1, leaders: 0.5 },
+      {},
+      { media: ["land", "shore"] },
+    ),
+    asks: ["densest-store"],
+  },
 ];
 
 export const PRINCIPLES: readonly Principle[] = [

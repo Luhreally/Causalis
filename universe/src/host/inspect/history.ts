@@ -73,6 +73,14 @@ const TITLES: Readonly<Record<string, string>> = {
   "act.mandate": "A sign from the heavens",
   "act.decree": "A law decreed",
   "reign.wed": "A marriage of state",
+  "fire.begun": "A great works begun",
+  "fire.held": "The greatest fire held",
+  "fire.crisis": "The world holds its breath",
+  "fire.stepped": "Someone stepped back",
+  "fire.cold": "The dark years",
+  "fire.clear": "The sky clears",
+  "fire.given": "The greatest fire given",
+  "fire.taken": "The greatest fire taken away",
   "court.heir": "An heir named",
   "court.heirdied": "An heir dead",
   "court.regency": "A regency",
@@ -179,7 +187,11 @@ export function eventPage(world: World, ref: string): PageModel {
     blocks.splice(2, 0, {
       type: "tool",
       tool: "watch.raid",
-      args: { event: ref, rocket: (e.data as { rocket?: boolean }).rocket === true },
+      args: {
+        event: ref,
+        rocket: (e.data as { rocket?: boolean }).rocket === true,
+        great: (e.data as { great?: boolean }).great === true,
+      },
     });
   // (A fight among the stars: played again. Phase 67.)
   if (type === "starwar.battle" || type === "peoples.raid")

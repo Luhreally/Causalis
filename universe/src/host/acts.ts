@@ -26,7 +26,9 @@ import {
   realmName,
   warsOf,
   type Act,
+  fireOf,
 } from "../sim/index.ts";
+import { coldDegrees } from "../rules/index.ts";
 import type { ActKindShown, ActMark, ActsMap, LandSky, PaletteLand } from "../bridge/index.ts";
 import { realmColor } from "./colors.ts";
 import { faithColor, languageColor } from "./planet.ts";
@@ -327,6 +329,14 @@ export function landSky(world: World, cell: number): LandSky {
     wet: c.precipitation[cell] ?? 600,
     year: prov && !offworldSite(g, cell) ? prov.rain / 1000 : 1,
     sent: (Math.sign(actsOf(world).at(cell, "rain", world.now)?.sign ?? 0) || 0) as 1 | 0 | -1,
+    ...(fireOf(world).state.soot > 0
+      ? {
+          dark: {
+            soot: fireOf(world).state.soot,
+            cold: coldDegrees(fireOf(world).state.soot),
+          },
+        }
+      : {}),
     acts: actsMap(world).acts.filter((a) => a.cell === cell),
     // (How its warmth is told, where its climate keeps its liquid's degrees: Phase 56.)
     ...skyDegrees(world),

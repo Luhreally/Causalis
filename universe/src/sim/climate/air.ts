@@ -19,7 +19,7 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
-import { G } from "../../rules/index.ts";
+import { G, fieldsUnder, rainUnder } from "../../rules/index.ts";
 import { planetRef } from "../../gen/index.ts";
 import { divineWarming } from "../acts/great.ts";
 import { provinceCapacity, type PopulationContext } from "../population/systems.ts";
@@ -184,6 +184,33 @@ export function heatYield(ctx: PopulationContext, cell: number): number {
   if (t > 22) return Math.max(0.5, 1 - 0.05 * warm);
   if (t < 6) return 1 + 0.03 * warm;
   return 1;
+}
+
+/** What the greatest fire's store holds of the sky (W5), read by name: a world's climate does not lean on its wars. */
+type FireSky = {
+  readonly state: { soot: number; sick: [number, number, number][]; dark: Ref | null };
+};
+const fireSky = (world: World) =>
+  world.hasStore("war.fire") ? world.store<FireSky & StateStore>("war.fire").state : null;
+
+/** What the soot of what burned leaves of a year's rain (W5): exactly 1 under a clear sky. */
+export function darkRain(world: World): number {
+  const soot = fireSky(world)?.soot ?? 0;
+  return soot > 0 ? rainUnder(soot) : 1;
+}
+
+/** What the soot leaves of a land's fields, and what the wind's sickness does (W5): exactly 1 under a clear sky. */
+export function darkFields(world: World, cell: number): number {
+  const s = fireSky(world);
+  if (!s || (!s.soot && !s.sick.length)) return 1;
+  let k = s.soot > 0 ? fieldsUnder(s.soot) : 1;
+  for (const [land, , yields] of s.sick) if (land === cell) k *= yields;
+  return k;
+}
+
+/** The event behind the dark years, while they last (null: a clear sky). */
+export function darkCause(world: World): Ref | null {
+  return fireSky(world)?.dark ?? null;
 }
 
 /** How foul a land's air is with smoke, 0..1, from the fuel it burned in the last three years for each person. */

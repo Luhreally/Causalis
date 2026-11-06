@@ -7,12 +7,14 @@ import * as pc from "playcanvas";
 import { InstancedBatch, ballMesh, boxMesh, coneMesh } from "./batch.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 import {
+  GREAT_LASTS,
   LAND_FLYERS,
   MOST_BURSTS,
   MOST_FALLING,
   MOST_LAND_RAIDS,
   MOST_RAIDERS,
   MOST_STREAKS,
+  type GreatNow,
   type LandRaidNow,
   type RaidNow,
 } from "../view/index.ts";
@@ -32,6 +34,16 @@ const SMOKE: Rgb = [0.92, 0.92, 0.9],
   HEAD: Rgb = [1, 0.86, 0.5];
 const STREAK_WIDE = 0.42,
   HEAD_WIDE = 1.5;
+/** The greatest fire (W5): what it is drawn in, how many parts its head and its skirt have, when its fire goes out, and when its cloud begins to thin (world seconds). */
+const GREAT_WHITE: Rgb = [1, 0.98, 0.9],
+  GREAT_FIRE: Rgb = [1, 0.45, 0.1],
+  GREAT_SMOKE: Rgb = [0.34, 0.27, 0.22],
+  GREAT_STEM: Rgb = [0.3, 0.24, 0.2],
+  GREAT_DUST: Rgb = [0.5, 0.44, 0.36];
+const GREAT_PUFFS = 9,
+  GREAT_SKIRT = 14,
+  GREAT_COOLS = 40,
+  GREAT_THIN = 300;
 
 export class RaidLayer {
   /** Its own entity, kept as the village is laid out again. */
@@ -45,8 +57,16 @@ export class RaidLayer {
   private readonly dust: InstancedBatch;
   private readonly smokes: InstancedBatch;
   private readonly heads: InstancedBatch;
+  /** The greatest fire (W5): what it is seen as, each lit but its heart, so that it stands up as a thing and not a sticker. */
+  private readonly greatHot: InstancedBatch;
+  private readonly greatFire: InstancedBatch;
+  private readonly greatCloud: InstancedBatch;
+  private readonly greatStem: InstancedBatch;
+  private readonly greatSkirt: InstancedBatch;
   /** What was last drawn (the look tools). */
-  shown = { flyers: 0, falling: 0, bursts: 0, streaks: 0 };
+  shown = { flyers: 0, falling: 0, bursts: 0, streaks: 0, great: 0 };
+  /** The greatest fire now (the look tools; the page's flash reads it too). */
+  greatNow: GreatNow | null = null;
 
   constructor(stage: Stage, parent: pc.Entity) {
     parent.addChild(this.root);
@@ -90,15 +110,145 @@ export class RaidLayer {
     const ball = ballMesh(stage, 0.5);
     this.balls = new InstancedBatch(stage, ball, FLASH, MOST_STREAKS, this.root, glow);
     this.cores = new InstancedBatch(stage, ball, HEAD, MOST_STREAKS, this.root, lit);
+    const white = new pc.StandardMaterial();
+    white.useLighting = false;
+    white.diffuse = new pc.Color(0, 0, 0);
+    white.emissive = new pc.Color(GREAT_WHITE[0], GREAT_WHITE[1], GREAT_WHITE[2]);
+    white.update();
+    const fierce = new pc.StandardMaterial();
+    fierce.useLighting = false;
+    fierce.diffuse = new pc.Color(0, 0, 0);
+    fierce.emissive = new pc.Color(GREAT_FIRE[0], GREAT_FIRE[1], GREAT_FIRE[2]);
+    fierce.update();
+    const round = ballMesh(stage, 0.5, 10);
+    this.greatHot = new InstancedBatch(stage, round, GREAT_WHITE, 1, this.root, white);
+    this.greatFire = new InstancedBatch(stage, round, GREAT_FIRE, GREAT_PUFFS, this.root, fierce);
+    this.greatCloud = new InstancedBatch(
+      stage,
+      round,
+      GREAT_SMOKE,
+      GREAT_PUFFS * 2,
+      this.root,
+      flatMaterial(GREAT_SMOKE),
+    );
+    this.greatStem = new InstancedBatch(
+      stage,
+      coneMesh(stage, 0.5, 1, 10),
+      GREAT_SMOKE,
+      1,
+      this.root,
+      flatMaterial(GREAT_STEM),
+    );
+    this.greatSkirt = new InstancedBatch(
+      stage,
+      round,
+      GREAT_DUST,
+      GREAT_SKIRT,
+      this.root,
+      flatMaterial(GREAT_DUST),
+    );
+  }
+
+  /**
+   * The greatest fire (W5), by how long since it fell: a white ball swells over the town and is gone in moments; out of it a head of fire
+   * climbs on a column, the fire going out of it as it rises and spreads; a ring of dust goes out along the ground; the cloud stands, leaning
+   * on the wind, and thins. All of it far taller than anything of the town's, and larger than a rocket's by more than can be mistaken.
+   */
+  private drawGreat(g: GreatNow | undefined): void {
+    this.greatNow = g ?? null;
+    const none = (b: InstancedBatch) => b.set(0, () => {});
+    if (!g) {
+      for (const b of [
+        this.greatHot,
+        this.greatFire,
+        this.greatCloud,
+        this.greatStem,
+        this.greatSkirt,
+      ])
+        none(b);
+      this.shown.great = 0;
+      return;
+    }
+    const s = g.since,
+      x = g.x * M,
+      z = g.z * M,
+      ease = (u: number) => 1 - (1 - u) * (1 - u),
+      rise = ease(Math.min(1, s / 70)),
+      top = 8 + 92 * rise,
+      head = 7 + 26 * ease(Math.min(1, s / 90)),
+      thin = s > GREAT_THIN ? Math.max(0, 1 - (s - GREAT_THIN) / (GREAT_LASTS - GREAT_THIN)) : 1,
+      // (Leaning on the wind, slowly: it stays where it can be seen.)
+      drift = Math.min(40, Math.max(0, s - 30) * 0.06);
+    this.greatHot.set(s < 5 ? 1 : 0, (_, out) => {
+      const r =
+        26 * Math.sqrt(Math.min(1, s / 0.8)) * (s < 1.5 ? 1 : Math.max(0, 1 - (s - 1.5) / 3.5));
+      out[0] = x;
+      out[1] = r * 0.3;
+      out[2] = z;
+      out[3] = out[4] = out[5] = 2 * r;
+    });
+    const hot = s < GREAT_COOLS ? 1 - s / GREAT_COOLS : 0;
+    this.greatFire.set(hot > 0 ? GREAT_PUFFS : 0, (n, out) => {
+      const a = (n / GREAT_PUFFS) * 2 * Math.PI + s * 0.05,
+        out1 = head * (n % 2 ? 0.55 : 0.25),
+        r = head * 0.55 * (0.35 + 0.65 * hot);
+      out[0] = x + Math.cos(a) * out1;
+      out[1] = top - 2 + (n % 3) * 2;
+      out[2] = z + Math.sin(a) * out1;
+      out[3] = out[5] = r;
+      out[4] = r * 0.8;
+    });
+    this.greatCloud.set(s > 1 ? GREAT_PUFFS * 2 : 0, (n, out) => {
+      const under = n >= GREAT_PUFFS,
+        i = n % GREAT_PUFFS,
+        a = (i / GREAT_PUFFS) * 2 * Math.PI + (under ? 0.5 : 0) + s * 0.012,
+        spread = head * (under ? 0.95 : 0.55),
+        r = head * (under ? 0.5 : 0.72) * (0.5 + 0.5 * Math.min(1, s / 25)) * (0.6 + 0.4 * thin);
+      out[0] = x + Math.cos(a) * spread + drift;
+      out[1] = top + (under ? -head * 0.25 : head * 0.12) + ((i % 3) - 1) * 1.5;
+      out[2] = z + Math.sin(a) * spread;
+      out[3] = out[5] = thin > 0 ? r * 1.4 : 0;
+      out[4] = thin > 0 ? r : 0;
+      out[6] = a;
+    });
+    this.greatStem.set(s > 1 && thin > 0.05 ? 1 : 0, (_, out) => {
+      const wide = (5 + head * 0.34) * (0.5 + 0.5 * thin);
+      out[0] = x + drift / 2;
+      out[1] = top / 2;
+      out[2] = z;
+      // (Its broad end down: a column from the fire, narrowing up into the head.)
+      out[3] = out[5] = wide;
+      out[4] = top;
+    });
+    this.greatSkirt.set(s > 0.5 && s < 300 ? GREAT_SKIRT : 0, (n, out) => {
+      const a = (n / GREAT_SKIRT) * 2 * Math.PI,
+        far = 6 + 62 * ease(Math.min(1, s / 45)),
+        k = s < 120 ? 1 : Math.max(0, 1 - (s - 120) / 180),
+        r = (5 + 10 * Math.min(1, s / 40)) * k;
+      out[0] = x + Math.cos(a) * far;
+      out[1] = r * 0.3;
+      out[2] = z + Math.sin(a) * far;
+      out[3] = out[5] = r * 1.6;
+      out[4] = r * 0.8;
+      out[6] = a;
+    });
+    this.shown.great = 1;
   }
 
   update(now: RaidNow): void {
+    this.drawGreat(now.great);
     const { flyers, falling, bursts } = now,
       n = Math.min(MOST_RAIDERS, flyers.length);
     const { streaks } = now,
       s = Math.min(MOST_STREAKS, streaks.length),
       coming = streaks.filter((k) => k.falling).slice(0, MOST_STREAKS);
-    this.shown = { flyers: n, falling: falling.length, bursts: bursts.length, streaks: s };
+    this.shown = {
+      flyers: n,
+      falling: falling.length,
+      bursts: bursts.length,
+      streaks: s,
+      great: now.great ? 1 : 0,
+    };
     // Each a long thin box up its way: its middle half its length back along the way it came.
     this.smokes.set(s, (i, out) => {
       const k = streaks[i]!,

@@ -70,6 +70,8 @@ export type LandSky = {
   readonly year: number;
   /** The god's rain on it now: sent (1), withheld (-1), or neither (0). */
   readonly sent: 1 | 0 | -1;
+  /** The dark years over the whole world (W5): how thick the soot is (0 … 1) and how many degrees colder for it. Absent: a clear sky. */
+  readonly dark?: { readonly soot: number; readonly cold: number };
   /** The god's acts on it now, as the globe plays them. */
   readonly acts: readonly ActMark[];
   /**

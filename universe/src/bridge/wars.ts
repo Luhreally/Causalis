@@ -123,4 +123,6 @@ export type WarRaid = {
   readonly event: string;
   /** Rockets (W3): where they left from and where they fell (spots of the globe). */
   readonly rocket?: { readonly from: number; readonly to: number };
+  /** The greatest fire (W5). */
+  readonly great?: boolean;
 };

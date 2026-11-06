@@ -64,6 +64,33 @@ export type Climate = {
 
 const ITERATIONS = 30;
 
+/** The prevailing wind at a cell, in its tangent frame: by its latitude and how many bands its world's day makes. */
+export function windAt(
+  P: ArrayLike<number>,
+  phi: number,
+  bands: number,
+  c: number,
+): readonly [number, number, number] {
+  const x = P[c * 3]!,
+    y = P[c * 3 + 1]!,
+    z = P[c * 3 + 2]!;
+  // East = y-axis × p, north = p × east.
+  let ex = z,
+    ez = -x;
+  const el = Math.sqrt(ex * ex + ez * ez) || 1;
+  ex /= el;
+  ez /= el;
+  const nx = y * ez,
+    ny = z * ex - x * ez,
+    nz = -y * ex;
+  const band = Math.min(bands - 1, Math.floor((Math.abs(phi) / (Math.PI / 2)) * bands)),
+    toward = phi >= 0 ? -1 : 1,
+    trade = band % 2 === 0;
+  const east = trade ? -1 : 1,
+    north = (trade ? 0.45 : -0.45) * toward;
+  return [east * ex + north * nx, north * ny, east * ez + north * nz];
+}
+
 export function makeClimate(grid: SphereGrid, planet: Planet, elevation: Float32Array): Climate {
   const n = grid.count,
     P = grid.positions,
@@ -113,27 +140,10 @@ export function makeClimate(grid: SphereGrid, planet: Planet, elevation: Float32
   // Prevailing winds in each cell's tangent frame.
   const wind = new Float64Array(n * 3);
   for (let c = 0; c < n; c++) {
-    const x = P[c * 3]!,
-      y = P[c * 3 + 1]!,
-      z = P[c * 3 + 2]!;
-    // East = y-axis × p, north = p × east.
-    let ex = z,
-      ez = -x;
-    const el = Math.sqrt(ex * ex + ez * ez) || 1;
-    ex /= el;
-    ez /= el;
-    const nx = y * ez,
-      ny = z * ex - x * ez,
-      nz = -y * ex;
-    const phi = lat[c]!,
-      band = Math.min(bands - 1, Math.floor((Math.abs(phi) / (Math.PI / 2)) * bands)),
-      toward = phi >= 0 ? -1 : 1,
-      trade = band % 2 === 0;
-    const east = trade ? -1 : 1,
-      north = (trade ? 0.45 : -0.45) * toward;
-    wind[c * 3] = east * ex + north * nx;
-    wind[c * 3 + 1] = north * ny;
-    wind[c * 3 + 2] = east * ez + north * nz;
+    const [wx, wy, wz] = windAt(P, lat[c]!, bands, c);
+    wind[c * 3] = wx;
+    wind[c * 3 + 1] = wy;
+    wind[c * 3 + 2] = wz;
   }
 
   // Where each cell's air goes: its neighbours, weighted by how far downwind they lie.

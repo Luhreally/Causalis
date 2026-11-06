@@ -2363,6 +2363,8 @@ export class VillageScene {
     dust: number;
     /** A raid over it now (W2): what is drawn of it, and whose. */
     raid: { flyers: number; falling: number; bursts: number; streaks: number; by: string | null };
+    /** The greatest fire over it now (W5). */
+    great: { x: number; z: number; since: number } | null;
     alight: number;
     shake: number;
     fight: Record<string, number>;
@@ -2377,6 +2379,7 @@ export class VillageScene {
     return {
       ...this.blazeLayer.shown,
       raid: { ...this.raidLayer.shown, by: this.town.raid(this.lastT).by },
+      great: this.raidLayer.greatNow,
       alight: b.fires.length,
       shake: b.shake,
       fight: fightNow(plan, this.lastT),

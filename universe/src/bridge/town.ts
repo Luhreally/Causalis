@@ -61,6 +61,8 @@ export type TownRaid = {
   readonly speed: number;
   /** Rockets, not machines (W3): none to see but what comes down. */
   readonly rocket?: boolean;
+  /** The greatest fire (W5): one, and what it does. */
+  readonly great?: boolean;
 };
 
 /** One of a town's buildings besides its homes, as its fabric keeps it. */

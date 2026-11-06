@@ -49,6 +49,7 @@ import {
   USE,
   warsOf,
   wildsOf,
+  fireOf,
 } from "../sim/index.ts";
 import { landWords, meetHousehold, observer, settleAll, type WarFate } from "../causal/index.ts";
 import { personThings } from "./inspect/things.ts";
@@ -737,6 +738,17 @@ export function villagePlan(
     for (const visitor of visitors ?? []) {
       talk.push("visitors");
       if (visitor.ours && !talk.includes(visitor.ours)) talk.push(visitor.ours);
+    }
+    // (The year the world holds its breath, or lately burned: it is what everyone talks of, everywhere. W5.)
+    {
+      const fire = fireOf(world).state,
+        y = yearOfMoment(world.now);
+      if (
+        fire.crises.some((c) => c.ended === null) ||
+        fire.dark ||
+        fire.falls.some((f) => y - f.year < 10)
+      )
+        talk.push("greatfire");
     }
     if (fed < 0.85) talk.push("hunger");
     if (war) talk.push("war");

@@ -180,6 +180,7 @@ import { landReadings } from "./lenses.ts";
 import { genesisOf } from "./genesis.ts";
 import { TRAIT_LOOK } from "./inspect/folk.ts";
 import { actsMap, landSky, paletteLand } from "./acts.ts";
+import { fireShadow } from "./inspect/fire.ts";
 import { groundMap, spotGround } from "./inspect/ground.ts";
 import { worldGlobe } from "./worlds.ts";
 import { foreignGlobe, foreignSystem, galaxyPlan, starPage, starsNear } from "./galaxy.ts";
@@ -1103,6 +1104,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
             ...(s.kind === "rocket" && s.from !== undefined
               ? { rocket: { from: s.from, to: s.cell } }
               : {}),
+            ...(s.great ? { great: true } : {}),
           });
           raidsByWar.set(s.war, list);
         }
@@ -1405,6 +1407,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
       },
       // A battle seen near (Phase 37 M183): its hosts, its ground, what came of it.
       "battle.near": (world, args) => battleNear(world, (args as { event: string }).event),
+      // How near the world stands to the greatest fire, its panel's reading (W5).
+      "fire.shadow": (world) => (world.hasStore("war.fire") ? fireShadow(world) : null),
       // Where a strike from the air fell (W2).
       "raid.where": (world, args) => {
         const e = world.events.get((args as { event: string }).event as Ref);

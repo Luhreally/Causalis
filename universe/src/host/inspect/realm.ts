@@ -2,6 +2,7 @@
 // whom, its wars, its regard for others and what it knows — two realms' regard, a war with
 // its battles and its two hosts, a battle, and a war between the stars.
 import { cellRef, offworldSite } from "../../gen/index.ts";
+import { fireRealmStats } from "./fire.ts";
 import {
   beliefOf,
   cultureOf,
@@ -60,6 +61,8 @@ import {
   townLink,
 } from "./names.ts";
 
+
+
 /** How many places a battle's fallen tab names, the most dead first; the rest are counted. */
 export const FELL_ROWS = 40;
 
@@ -96,6 +99,7 @@ export function realmPageModel(world: World, ref: string): PageModel {
     stat("Ruler", [link(r.ruler.name, `rule:${r.ref}`)], { why: r.ruler.event }),
     ...wealthStats(world, r.ref),
     stat("At war", fighting.length ? many(fighting.length, "war", "wars") : "at peace"),
+    ...fireRealmStats(world, r.ref),
     stat("Tithe", `${Math.round(r.tribute * 100)}%`, { why: r.tithed ?? r.event }),
   ];
   const tabs: Tab[] = [];

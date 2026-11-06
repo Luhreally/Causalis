@@ -26,7 +26,15 @@ export {
   type SystemBody,
   type Water,
 } from "./system.ts";
-export { BIOME, BIOME_NAMES, classify, makeClimate, type Biome, type Climate } from "./climate.ts";
+export {
+  BIOME,
+  BIOME_NAMES,
+  classify,
+  makeClimate,
+  windAt,
+  type Biome,
+  type Climate,
+} from "./climate.ts";
 export {
   DEPOSIT_KINDS,
   makeDeposits,

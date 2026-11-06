@@ -280,6 +280,7 @@ import {
   globeArcsNow,
   RAID_FIRES,
   raidEye,
+  GREAT_LASTS,
   raidFilm,
   raidOver,
   raidSlowings,
@@ -1596,6 +1597,7 @@ async function runPlanetPage(): Promise<void> {
       towns: "world:ledger#towns",
       realms: "world:ledger#realms",
       wars: "world:ledger#wars",
+      shadow: "prin:greatest-fire",
       faiths: "world:ledger#faiths",
       tongues: "world:ledger#tongues",
       colonies: "world:ledger#sky",
@@ -5421,7 +5423,9 @@ async function runPlanetPage(): Promise<void> {
       words = document.createElement("button");
     words.className = "film-words raid-film";
     words.textContent = `${
-      k.raid!.rocket
+      k.raid!.great
+        ? `☢️ ${plan!.name}, the greatest fire, by ${k.raid!.by}`
+        : k.raid!.rocket
         ? `🚀 ${plan!.name}, the rockets thrown by ${k.raid!.by}`
         : `✈ ${plan!.name}, the raid by ${k.raid!.by}`
     }: played again. Tap to stop.`;
@@ -5440,6 +5444,27 @@ async function runPlanetPage(): Promise<void> {
     if (raidPlaying.t >= raidPlaying.to) endRaidFilm();
   });
   exposed.watchRaid = watchRaid;
+  // The greatest fire's light over the whole screen (W5): white, for a moment, then the world comes back from it; a brown dusk under the cloud after.
+  const greatLight = document.createElement("div");
+  greatLight.className = "great-light";
+  greatLight.hidden = true;
+  hud.prepend(greatLight);
+  stage.onUpdate(() => {
+    const g = scale === "village" ? village.blazeShown()?.great : null,
+      s = g?.since ?? -1,
+      white = s < 0 ? 0 : s < 0.6 ? 1 : s < 6 ? Math.pow(1 - (s - 0.6) / 5.4, 2) : 0,
+      dusk = s < 0 ? 0 : 0.26 * Math.min(1, s / 30) * Math.max(0, 1 - s / GREAT_LASTS);
+    greatLight.hidden = white <= 0 && dusk <= 0;
+    if (greatLight.hidden) return;
+    greatLight.style.background =
+      white > dusk ? `rgba(255,250,235,${white.toFixed(3)})` : `rgba(48,28,14,${dusk.toFixed(3)})`;
+  });
+  // The year the world holds its breath (W5): the clock comes down to a month a second until it is over, wherever the eye is; and the world's panel reads how near.
+  client.subscribe<{ crises: number } | null>({ type: "fire.shadow" }, 1000, (s) => {
+    if (s && s.crises > 0) {
+      if (!time.capped("fire")) time.cap("fire", YEAR / 12);
+    } else if (time.capped("fire")) time.uncap("fire");
+  });
   exposed.raidFilming = () => raidPlaying?.t ?? null;
   exposed.stopRaidFilm = endRaidFilm;
   /**

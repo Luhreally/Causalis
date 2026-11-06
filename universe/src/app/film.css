@@ -14,6 +14,16 @@ body.filming #hud > *:not(.colony-film):not(.swap):not(.readying) {
 .colony-film[hidden] {
   display: none !important;
 }
+/* The greatest fire's light over the whole screen (W5): under the bars, over the world. */
+.great-light {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.great-light[hidden] {
+  display: none !important;
+}
 .film-year {
   position: absolute;
   top: calc(env(safe-area-inset-top, 0px) + 12px);

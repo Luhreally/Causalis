@@ -235,8 +235,15 @@ export function drawTool(
     case "watch.raid": {
       if (!ctx.raid) return;
       const rocket = args.rocket === true,
-        b = el("button", "act", rocket ? "🚀 Watch them fall" : "✈ Watch the raid");
-      b.title = rocket
+        great = args.great === true,
+        b = el(
+          "button",
+          "act",
+          great ? "☢️ Watch it fall" : rocket ? "🚀 Watch them fall" : "✈ Watch the raid",
+        );
+      b.title = great
+        ? "Down to the town it fell on, that afternoon: what it did, and what burned after, played again"
+        : rocket
         ? "Down to the town they fell on, that afternoon: their streaks, what they hit, its fires, played again"
         : "Down to the town it fell on, that morning: its machines, its loads, its fires, played again";
       b.onclick = () => ctx.raid!(args.event as string);

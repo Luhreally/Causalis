@@ -24,6 +24,7 @@ import { hostWords } from "../chain.ts";
 import type { Block, Item, Row, Stat } from "../../bridge/index.ts";
 import { realmColor } from "../colors.ts";
 import { count, item, link, part, share, stat } from "./words.ts";
+import { fireWarBlocks } from "./fire.ts";
 import { landLink, landTitle, realmLink } from "./names.ts";
 
 type Point = { x: number; y: number };
@@ -255,6 +256,8 @@ export function courseBlocks(world: World, w: War): Block[] {
       ? { type: "list", title: "The lands taken in it", items: taken }
       : { type: "text", lines: [["No land has changed hands in it."]] },
   );
+  // The greatest fire in it (W5): first, as it would be told.
+  blocks.push(...fireWarBlocks(world, w.ref));
   // Its strikes from the air (W2): what they came to, and each still kept.
   const wars = warsOf(world),
     tally = wars.tallyOfStrikes(w.ref);
@@ -263,8 +266,8 @@ export function courseBlocks(world: World, w: War): Block[] {
     const name = (i: 0 | 1) =>
         i === 0 ? (a?.town ?? "the attacker") : (d?.town ?? "the defender"),
       struck = wars.allStrikes().filter((s) => s.war === w.ref),
-      kept = struck.filter((s) => s.kind !== "rocket"),
-      thrown = struck.filter((s) => s.kind === "rocket"),
+      kept = struck.filter((s) => s.kind !== "rocket" && !s.great),
+      thrown = struck.filter((s) => s.kind === "rocket" && !s.great),
       raidDead = (tally?.[1] ?? 0) + (tally?.[2] ?? 0) - thrown.reduce((n, s) => n + s.dead, 0),
       raidTowns = (tally?.[0] ?? 0) - thrown.length,
       raidHomes = (tally?.[3] ?? 0) - thrown.reduce((n, s) => n + s.homes, 0);

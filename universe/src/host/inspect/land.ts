@@ -2,6 +2,7 @@
 // market and works, its realm, what it knows and what has happened there. A colony's halls
 // and a ship bound for a star are lands too (offworld sites), and a spot of the fine grid
 // and a region open onto the land they are part of.
+import { fireLandStats } from "./fire.ts";
 import {
   BIOME_NAMES,
   cellRef,
@@ -122,6 +123,8 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
   }
   stats.push(stat("Towns", count(towns.length)));
   if (realm) stats.push(stat("Realm", [link(realmName(realm), realm.ref)]), rulerStat(realm));
+  // (The greatest fire fell here, or the wind carried it here: W5.)
+  stats.push(...fireLandStats(world, cell));
   // (Past our ages: Phase 66.)
   const past = landPast(world, cell);
   if (past?.covered)

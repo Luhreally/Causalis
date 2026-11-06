@@ -37,7 +37,7 @@ export type ReignNeighbour = {
 export type ReignDrama = {
   /** It is asked once: the event it stands on. */
   readonly key: string;
-  readonly kind: "plot" | "heir";
+  readonly kind: "plot" | "heir" | "fire";
   readonly title: string;
   readonly words: string;
   /** The page of the one it is about, and its why. */

@@ -403,6 +403,20 @@ export {
   type WarStrike,
 } from "./war/war.ts";
 export {
+  FIRE_EVENTS,
+  answerCost,
+  downwindOf,
+  fireAnswerProblem,
+  fireOf,
+  machinesOf,
+  warGoing,
+  type FireAnswerArgs,
+  type FireCrisis,
+  type FireStore,
+  type GreatFall,
+  type GreatWorks,
+} from "./war/fire.ts";
+export {
   ARMS_TAKE,
   ARMS_WEAR,
   ArmsStore,
