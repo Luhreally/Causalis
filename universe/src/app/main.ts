@@ -5414,7 +5414,17 @@ async function runPlanetPage(): Promise<void> {
     shown = 0,
     /** The town's stores as last put on its panel (Phase 39 M198). */
     storesTold: StoresNow | null = null;
-  client.onStatus((s) => (clock = { t: s.t, wall: performance.now(), speed: s.speed }));
+  // (Asked for more than it can give, a world goes at what it gives: a date carried forward at the speed
+  // asked for ran on ahead, by 54 years at a hundred years a second on a slow machine, and stepped back
+  // when the clock stopped.)
+  client.onStatus(
+    (s) =>
+      (clock = {
+        t: s.t,
+        wall: performance.now(),
+        speed: s.achieved > 0 && s.achieved < s.speed * 0.7 ? s.achieved : s.speed,
+      }),
+  );
   /** The sim time now, carried forward smoothly between the host's reports. */
   const now = () => {
     const ahead = Math.min(1, (performance.now() - clock.wall) / 1000) * clock.speed;

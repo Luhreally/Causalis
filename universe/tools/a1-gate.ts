@@ -552,7 +552,17 @@ await until("a page", async () => (await open()) === "world:ledger");
 await press(`.timebar .speed:nth-child(1)`).catch(() => false);
 await k(`(() => { document.querySelector(".timebar .speed").click(); })()`);
 await page.waitForTimeout(slow(2500));
-say(`stopped, a page up: ${await clock()} (ran to ${running})`);
+const stoppedAt = await clock();
+say(`stopped, a page up: ${stoppedAt} (ran to ${running})`);
+// (The date never leads the world by more than a moment: it doesn't step back when the clock stops.)
+{
+  const yearOf = (s: string) => Number(/year (\d+)/.exec(s)?.[1] ?? NaN),
+    back = yearOf(running) - yearOf(stoppedAt);
+  check(
+    back <= 3 + (ci || soft ? 3 : 0),
+    `the date stepped back ${back} years as the clock stopped`,
+  );
+}
 check(!(await noteUp()), "a note came over a page");
 await k("globalThis.causalis.closePage?.()");
 // A film's chrome as it came on: it waits for that too.
