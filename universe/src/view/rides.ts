@@ -262,4 +262,3 @@ export function goesWords(plan: VillagePlan, index: number, day: number): string
 export function carClear(plan: VillagePlan, p: Point): boolean {
   return clearAt(villageSolids(plan), p, 0.6);
 }
-

@@ -125,7 +125,9 @@ export class MemorialLayer {
    */
   at(cam: pc.CameraComponent, x: number, y: number, reach = 16): PlacedMemorial | null {
     let best: PlacedMemorial | null = null,
-      bestD = Infinity;
+      bestD = Infinity,
+      bestOn = false,
+      bestNear = Infinity;
     const foot = new pc.Vec3(),
       head = new pc.Vec3();
     for (const p of this.placed) {
@@ -140,12 +142,28 @@ export class MemorialLayer {
         cy = foot.y + (head.y - foot.y) * along,
         inY = y >= Math.min(foot.y, head.y) - reach && y <= Math.max(foot.y, head.y) + reach,
         d = Math.abs(x - cx);
-      if (inY && d <= half && Math.hypot(x - cx, y - cy) < bestD) {
-        bestD = Math.hypot(x - cx, y - cy);
+      if (!inY || d > half) continue;
+      // (The finger right on one, the nearest of those to the eye: a stone in front before one behind it. Else only near: the nearest to the finger.)
+      const on =
+          d <= half - reach && y >= Math.min(foot.y, head.y) && y <= Math.max(foot.y, head.y),
+        off = Math.hypot(x - cx, y - cy);
+      if (on ? !bestOn || foot.z < bestNear : !bestOn && off < bestD) {
+        bestD = off;
         best = p;
+        bestOn = on;
+        bestNear = foot.z;
       }
     }
     return best;
+  }
+
+  /** Whether the body of a thing raised is right under the finger, nearer the eye than `depth`. */
+  over(cam: pc.CameraComponent, x: number, y: number, depth: number): boolean {
+    const p = this.at(cam, x, y, 0);
+    if (!p) return false;
+    const foot = new pc.Vec3();
+    cam.worldToScreen(new pc.Vec3(p.x * M, 0, p.z * M), foot);
+    return foot.z > 0 && foot.z < depth;
   }
 
   /** Where each thing raised stands on the screen (the look tools). */

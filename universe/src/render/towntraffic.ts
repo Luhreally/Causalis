@@ -163,7 +163,14 @@ export class TownTraffic {
   }
 
   /** Four wheels under what stands at x, z: a dark block at each corner, reaching up under its body. */
-  private wheels(x: number, z: number, yaw: number, wide: number, long: number, lift: number): void {
+  private wheels(
+    x: number,
+    z: number,
+    yaw: number,
+    wide: number,
+    long: number,
+    lift: number,
+  ): void {
     const c = Math.cos(yaw),
       s = Math.sin(yaw),
       high = lift + 0.3,
@@ -251,13 +258,13 @@ export class TownTraffic {
 
   /**
    * The car or line at a point of the screen, by the body drawn, not its middle: its owner's index, or its line. `direct`: the finger is on it
-   * (a finger's breadth about what is drawn); else it is only near.
+   * (a finger's breadth about what is drawn); else it is only near. `depth`: how far it is from the eye.
    */
   pick(
     cam: pc.CameraComponent,
     x: number,
     y: number,
-  ): ({ owner: number; direct: boolean } | { line: number; direct: boolean }) | null {
+  ): ({ direct: boolean; depth: number } & ({ owner: number } | { line: number })) | null {
     const at = new pc.Vec3(),
       a = new pc.Vec3(),
       b = new pc.Vec3(),
@@ -281,21 +288,21 @@ export class TownTraffic {
           half = Math.hypot(w.x - (a.x + b.x) / 2, w.y - (a.y + b.y) / 2);
         return Math.hypot(a.x + dx * u - x, a.y + dy * u - y) - half;
       };
-    let best: ({ owner: number; direct: boolean } | { line: number; direct: boolean }) | null =
+    let best: ({ direct: boolean; depth: number } & ({ owner: number } | { line: number })) | null =
         null,
       least = NEAR_PX;
     for (const c of this.cars) {
       const d = test(c.x, c.z, c.yaw, CAR.long, CAR.wide, CAR.tall / 2);
       if (d < least) {
         least = d;
-        best = { owner: c.index, direct: d <= ON_PX };
+        best = { owner: c.index, direct: d <= ON_PX, depth: (a.z + b.z) / 2 };
       }
     }
     for (const q of this.buses) {
       const d = test(q.x, q.z, q.yaw, COACH.long, COACH.wide, COACH.tall / 2);
       if (d < least) {
         least = d;
-        best = { line: q.n, direct: d <= ON_PX };
+        best = { line: q.n, direct: d <= ON_PX, depth: (a.z + b.z) / 2 };
       }
     }
     return best;
@@ -367,4 +374,3 @@ export class TownTraffic {
     this.slots.clear();
   }
 }
-

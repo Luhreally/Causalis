@@ -1553,6 +1553,10 @@ export class VillageScene {
     this.courtLayer.shown(on);
   }
 
+  /** Whether a thing raised stands right under the finger, nearer the eye than `depth`. */
+  stoneOver(x: number, y: number, depth: number): boolean {
+    return this.memorialLayer.over(this.stage.camera.camera!, x, y, depth);
+  }
   /** The thing raised at a point of the screen (T1; null: none), and how a person presses it. */
   stoneAt(x: number, y: number): string | null {
     return this.memorialLayer.at(this.stage.camera.camera!, x, y)?.m.ref ?? null;
@@ -3344,10 +3348,7 @@ export class VillageScene {
 
   /** The watched person nearest a screen point, within a finger's reach. */
   /** The car or line at a point of the screen (R1): its owner's place, or its line, and whether the finger is right on it. */
-  pickRide(
-    x: number,
-    y: number,
-  ): ({ owner: number; direct: boolean } | { line: number; direct: boolean }) | null {
+  pickRide(x: number, y: number): ReturnType<TownTraffic["pick"]> {
     return this.rides.pick(this.stage.camera.camera!, x, y);
   }
 

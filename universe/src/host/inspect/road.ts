@@ -305,7 +305,14 @@ export function busPage(world: World, ref: string): PageModel {
   return {
     ref,
     kind: "road",
-    icon: about.how === "sled" ? "🌊" : about.how === "hauler" ? "🚛" : about.how === "line" ? "🚈" : "🚌",
+    icon:
+      about.how === "sled"
+        ? "🌊"
+        : about.how === "hauler"
+          ? "🚛"
+          : about.how === "line"
+            ? "🚈"
+            : "🚌",
     title: `The ${word} of ${s.name}, line ${count(lineNo)}`,
     subtitle: [`Through ${s.name}, by way of its square`],
     color: null,
@@ -344,4 +351,3 @@ export function busPage(world: World, ref: string): PageModel {
 
 /** Of a hundred grown who keep nothing of their own, how many ride (as view/rides.ts reads them). */
 export const RIDES_IN_100 = 60;
-
