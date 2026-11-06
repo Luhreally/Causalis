@@ -156,11 +156,34 @@ Levers: wasted rockets are counted, not drawn; nothing stops one yet; ports and 
 
 **What rockets cost, and how it was paid (2026-11-05).** Rockets make towns rise from ash every year in the space age. Each stretch that rose scanned the town's whole list of runs and sorted its open lots: 13,248 scans of some 2,500 runs and 4,528 sorts of some 930 lots in Earth's worst year, and gate 5 caught the slowest year at 1,317 ms on CI against a bound of 1,200. `TownBuilder.rise` now goes over a town once, and `standingRuns` passes each run and building once. `rise` went from 326 ms to 6 ms in that year, the year from 591 to 365 ms, and the run to 1080 from 339 s to 180 s with the slowest year at 335 ms, better than before rockets (497). It rests on runs never sharing a lot: 2.4 million looked over on far worlds, 37,283 of them in ash, none sharing, and hashes matched at every step on Earth and two alien worlds, so no history moved and no list is needed.
 
+## W5, as built (2026-11-05)
+
+The densest store a world's matter allows, on a rocket. Row `greatest-fire`, function `densest-store`; a world with neither gets it never, and its page says why from its numbers (`kestrel 557`: all sea; `vale 471`: rock under ice). `rules/greatfire.ts`, `sim/war/fire.ts` (called from the end of `warYear`), store `war.fire`, dormant until the first works.
+
+**The great works** cost a realm real years and wealth, and hold a store of loads. **The brink:** a war going badly for a holder (`warGoing`) opens a crisis of one year, read from lost battles, lost lands and the seat. **The word** is a ruler's, from how the war goes, their people's ways, what an answer would cost, and the world's dread: 0.196 at its height, 0.0013 against an answer, 0.031 after a first fall. A ruler being played gets it in a window: hold, loose, or say nothing and the numbers decide. A war that ends before the word is carried out ends the crisis: the moment passed, and the world is told.
+
+**A fall** flattens from the heart out: homes, then every building it reaches, all at once (`Fabric.flatten`), the ground lying 12 years in ash. What the wind carries goes down the world's own wind, with its own count of dead. The sky's soot is capped at 1, at most 8 degrees of cold, through the harvests and famine that already exist. The first fall sets a dread that never quite goes.
+
+**Seen.** A flash over the whole screen; a head on a stem, a ring of dust going out; towers standing until what it does reaches them, then gone; a city of black blocks, rubble and fires, to the horizon if it was a great city. The ash is one level, clear of all under it, and goes out with the fire. No lorries, sails, heaps or market hall are left on it. On the land's map it reads at once as a black scar, with no film to wait for, clock held or not. Its town's and land's pages tell it, the realm's page says it holds it, and the world's panel reads how near it stands.
+
+**Measured, 700 years on forks at 1500 with the fire taught (`--teach`), so first years are ceilings:**
+
+| World | Holders | Crises | Stepped back | Falls | Holders' war rate vs others' | ms a year |
+| --- | --- | --- | --- | --- | --- | --- |
+| `amber 101` | 29 | 37 | 37 | 0 | .043 vs .165 | 587 |
+| `first light` | 16 | 39 | 36 | 2 (553,849 and 4,871,441 dead; 13 dark years) | .218 vs .459 | 576 |
+| `tide 207` | 12 | 38 | 37 | 1 (1,373,156 dead; 7 dark years) | .206 vs .591 | 380 |
+| `harrow 348` | 4 | 10 | 9 | 0 | .216 vs .819 | 97 |
+
+So 2,800 world-years: 124 crises, 119 stepped back, 3 falls. Holders go to war at a quarter to two-thirds the rate of others. That is what "The stakes" asked for, so no number was changed. Frames while it burns on a desktop GPU: median 16.7 ms, worst 50 ms; the phone floor is still to be measured by the owner.
+
+**Cut for later slices:** treaties and tests; a brush for it; the holding passing to a conqueror.
+
 ## Order
 
 **W4 stays parked.** Its planner was stopped by a safety check on 2026-11-05 while writing the spec, before any code, and told not to write that content again, even reworded. Which part tripped it is not known. Asked 2026-11-05: "u cant even sneak em in thru first principles and axioms to get passed the safeguard for the game? it can be like proto/theoritical theory or some shit". No: that would be rewording it. It is not retried, reworded, split up or written by hand. Only a change from outside that check reopens it.
 
-**W5 goes next, in the open.** No check ever stopped it: it was held back out of caution, and the owner wants it. It is planned under its real name, inside "What stays fixed" below. If a check stops it too, it stops there and is reported, and is not reworded. **W6 was never held,** and follows it. Asked 2026-11-05: "im not even saying like makee them make it at a super detailed manner just use whatever info u can already see in wikipedia yk". So W5 takes its figures for what these weapons do from what any encyclopedia says, and "What stays fixed" still holds. That does not reopen W4: the check did not say what tripped it, so a simpler version cannot be called safe from it.
+**W5 is built, in the open,** above: no check stopped it. **W6 was never held,** and follows it. Asked 2026-11-05: "im not even saying like makee them make it at a super detailed manner just use whatever info u can already see in wikipedia yk". So W5 takes its figures for what these weapons do from what any encyclopedia says, and "What stays fixed" still holds. That does not reopen W4: the check did not say what tripped it, so a simpler version cannot be called safe from it.
 
 A seed list no longer holds any of this up (2026-11-05): each ships as it is ready, the picker says "about" until the next list, and one list runs overnight when no rule change is about to land.
 
