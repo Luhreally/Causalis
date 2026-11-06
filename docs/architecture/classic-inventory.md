@@ -373,6 +373,8 @@ A town now keeps what happened to it. On the rim of its square stand up to five 
 
 Tally of whole worlds: harrow 348 at 3000, 333 of 2,101 towns have a stone (16%); kestrel 557 at 2000, 25%; vale 471 at 2000, 16%; first light at 2000, 10%. At most 5 a town and 2 of a kind. The commonest song title is at most 9.9% of a world's. A town's stones are 45 parts at most; on harrow's worst town a frame takes 16.7 ms with them and 16.8 without. Reading a save's memory once takes 8 to 620 ms on the worker, then nothing until the log moves.
 
+Found by tallying what stands against what a page lists: **a quarter of a far city's stones stood nowhere** (harrow 348 at 3000: 93 of 121), since the market's stalls ruled out most of the rim, their clearance counting a stone's breadth along the rim as if it reached inward. All stand now, on the rim, then a little in, then closer beside each other (`view/memorial.ts`), and a stone's ⌖ Go to always closes its page.
+
 Found by pressing: the possession's controls lay over any page, so a page opened there couldn't be touched. It now lies over them, and what they tell gives way while it's open.
 
 A city of towers hides its stones from the eye above it: its page lists them under What they raised, and a stone's own page has **⌖ Go to**, which brings the eye down across the square at it, past whatever stands around. Gate 93 checks the stone is truly in the picture afterward, with and without it.
