@@ -78,4 +78,3 @@ export class StarLenses {
     this.note.hidden = !note;
   }
 }
-

@@ -3764,10 +3764,20 @@ async function runPlanetPage(): Promise<void> {
     clusterPanel.lenses.say(
       [
         ...(free
-          ? [{ color: FREE_MARK, words: `${free === 1 ? "1 world" : `${free} worlds`} of no realm` }]
+          ? [
+              {
+                color: FREE_MARK,
+                words: `${free === 1 ? "1 world" : `${free} worlds`} of no realm`,
+              },
+            ]
           : []),
         ...(dark
-          ? [{ color: DARK_MARK, words: `${dark === 1 ? "1 world" : `${dark} worlds`} in the dark` }]
+          ? [
+              {
+                color: DARK_MARK,
+                words: `${dark === 1 ? "1 world" : `${dark} worlds`} in the dark`,
+              },
+            ]
           : []),
       ],
       held

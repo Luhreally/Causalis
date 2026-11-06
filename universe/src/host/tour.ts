@@ -238,4 +238,3 @@ export function starTour(world: World): StarTour {
 export const TOUR_QUERIES: Readonly<Record<string, QueryHandler>> = {
   "star.tour": (world) => starTour(world),
 };
-

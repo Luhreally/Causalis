@@ -351,9 +351,7 @@ async function unlike(a: string, b: string, from = 0, to = 1): Promise<number> {
 /** The share of the shot's middle not nearly black, and how many tones it holds: a shot of nothing has neither. */
 async function looked(d: string): Promise<{ lit: number; tones: number }> {
   return page.evaluate(async (data) => {
-    const bm = await createImageBitmap(
-        await (await fetch(`data:image/png;base64,${data}`)).blob(),
-      ),
+    const bm = await createImageBitmap(await (await fetch(`data:image/png;base64,${data}`)).blob()),
       c = new OffscreenCanvas(bm.width, bm.height),
       x = c.getContext("2d")!;
     x.drawImage(bm, 0, 0);
@@ -421,8 +419,13 @@ await loadSave(plain);
 await settleFor(1200);
 {
   const tour = await ask<{ stops: unknown[]; lenses: unknown[] }>("star.tour");
-  say(`a world with nothing among the stars: ${tour.stops.length} moments, ${tour.lenses.length} lenses`);
-  check(tour.stops.length === 0, `a world with nothing among the stars has ${tour.stops.length} moments of them`);
+  say(
+    `a world with nothing among the stars: ${tour.stops.length} moments, ${tour.lenses.length} lenses`,
+  );
+  check(
+    tour.stops.length === 0,
+    `a world with nothing among the stars has ${tour.stops.length} moments of them`,
+  );
   check(tour.lenses.length === 0, "a world with nothing among the stars goes round them");
   await k("globalThis.causalis.client.setSpeed(0)");
   await press(".director-button");
@@ -455,10 +458,18 @@ await settleFor(1500);
 const before = await hashes(),
   nowAt = () => ask<number>("world.now").catch(() => 0);
 const tour = await ask<{
-  stops: { key: string; year: number; words: string; page: string | null; film: { kind: string } }[];
+  stops: {
+    key: string;
+    year: number;
+    words: string;
+    page: string | null;
+    film: { kind: string };
+  }[];
   lenses: string[];
 }>("star.tour");
-say(`the age here: ${tour.stops.map((s) => `${s.key} ${s.year}`).join(", ")}; lenses ${tour.lenses.join(", ")}`);
+say(
+  `the age here: ${tour.stops.map((s) => `${s.key} ${s.year}`).join(", ")}; lenses ${tour.lenses.join(", ")}`,
+);
 for (const s of tour.stops) say(`  ${s.words}`);
 check(tour.stops.length >= (saveFile ? 5 : 1), `only ${tour.stops.length} moments to show`);
 check(
@@ -504,7 +515,10 @@ const seenStops = new Map<string, { lit: number; tones: number; words: string }>
       const shotNow = await png();
       // (A slow shot may outlast the moment: then it says nothing of it.)
       if ((await director()).stop !== key) continue;
-      if (shots) await page.screenshot({ path: join(shots, `stop-${String(lastN).padStart(2, "0")}-${key}.png`) });
+      if (shots)
+        await page.screenshot({
+          path: join(shots, `stop-${String(lastN).padStart(2, "0")}-${key}.png`),
+        });
       const look = await looked(shotNow),
         line = await k<{ text: string; shown: boolean; top: number; bottom: number }>(`(() => {
           const e = document.querySelector(".tour-line"), r = e.getBoundingClientRect();
@@ -535,7 +549,10 @@ const seenStops = new Map<string, { lit: number; tones: number; words: string }>
       );
     } else await page.waitForTimeout(100);
   }
-  check(seenStops.size >= Math.min(tour.stops.length, saveFile ? 4 : 1), `only ${seenStops.size} moments were seen on the screen`);
+  check(
+    seenStops.size >= Math.min(tour.stops.length, saveFile ? 4 : 1),
+    `only ${seenStops.size} moments were seen on the screen`,
+  );
 }
 // (What the tour ended on: the clock let go, the round among the stars.)
 {
@@ -570,7 +587,11 @@ await settleFor(1200);
   const stop = tour.stops.find((s) => s.key === d.stop);
   if (stop?.page) {
     await press(".tour-page");
-    await until("its page", () => k<boolean>(`!!document.querySelector(".page-window:not([hidden])")`), slow(60000));
+    await until(
+      "its page",
+      () => k<boolean>(`!!document.querySelector(".page-window:not([hidden])")`),
+      slow(60000),
+    );
     await settleFor(800);
     await shot("stop-page");
     const said = await words();
@@ -651,7 +672,9 @@ await shot("lens-holds");
   await press(`.star-lens[data-lens="holds"]`);
   await settleFor(2600);
   check(
-    await k<boolean>(`!!globalThis.causalis.starLens() && (globalThis.causalis.nationsShown?.() ?? 0) > 0`),
+    await k<boolean>(
+      `!!globalThis.causalis.starLens() && (globalThis.causalis.nationsShown?.() ?? 0) > 0`,
+    ),
     "who holds did not come back",
   );
   const during = await hashes();
@@ -682,7 +705,11 @@ await shot("lens-holds");
     const was = await hashes(),
       f = "globalThis.causalis.fleetFilm";
     await k(`void ${f}.play(${JSON.stringify(id)})`);
-    await until("the fleet's film", () => k<boolean>(`${f}.playing && ${f}.state().act === "orbit" && !${f}.state().cutting`), slow(60000));
+    await until(
+      "the fleet's film",
+      () => k<boolean>(`${f}.playing && ${f}.state().act === "orbit" && !${f}.state().cutting`),
+      slow(60000),
+    );
     // (Into the fight: they have come, and something to see.)
     await k(`${f}.pause(true)`);
     const st = await k<{ end: number }>(`${f}.state()`);
@@ -719,10 +746,15 @@ await shot("lens-holds");
         `aboard the ${r.ship} with ${r.crew}: ${(apart * 100).toFixed(1)}% of the view differs; ship at ${JSON.stringify(r.onScreen)}: ${note}`,
       );
       check(apart > 0.03, `going aboard changes ${(apart * 100).toFixed(2)}% of the view`);
-      check(/changes nothing/i.test(note), `the screen does not say riding changes nothing: ${note}`);
+      check(
+        /changes nothing/i.test(note),
+        `the screen does not say riding changes nothing: ${note}`,
+      );
       check(!!r.onScreen, "the ship ridden is not on the screen");
       if (r.onScreen) {
-        const hudTop = await k<number>(`document.querySelector(".ride-hud").getBoundingClientRect().top`);
+        const hudTop = await k<number>(
+          `document.querySelector(".ride-hud").getBoundingClientRect().top`,
+        );
         check(
           Math.abs(r.onScreen.x - 215) < 130 && r.onScreen.y > 150 && r.onScreen.y < hudTop - 10,
           `the ship ridden stands at ${Math.round(r.onScreen.x)},${Math.round(r.onScreen.y)}, the controls from ${Math.round(hudTop)}: not clear in the shot`,
@@ -730,7 +762,9 @@ await shot("lens-holds");
       }
       // Her page, and who is with us.
       await press(".ride-ship");
-      await until("the ship's page", () => k<boolean>(`/not ship by ship/i.test(document.body.innerText)`));
+      await until("the ship's page", () =>
+        k<boolean>(`/not ship by ship/i.test(document.body.innerText)`),
+      );
       await settleFor(500);
       await shot("ride-ship-page");
       {
@@ -744,7 +778,10 @@ await shot("lens-holds");
       // (Those of a world gone its own way are named nowhere; a realm's are.)
       if (!r.crewRef) {
         await k(`${f}.ride(0)`);
-        await until("who is aboard a ship of the realm", async () => (await k<string>(`document.querySelector(".ride-who").textContent`)) !== "…");
+        await until(
+          "who is aboard a ship of the realm",
+          async () => (await k<string>(`document.querySelector(".ride-who").textContent`)) !== "…",
+        );
         await settleFor(300);
         const r0 = await k<{ crew: string | null; crewRef: string | null }>(`${f}.riding()`);
         r.crew = r0.crew;
@@ -753,11 +790,20 @@ await shot("lens-holds");
       }
       if (r.crewRef) {
         await press(".ride-who");
-        await until("the page of who is aboard", () => k<boolean>(`!!document.querySelector(".page-window:not([hidden])") && !/^…$/.test(document.querySelector(".page-title")?.textContent ?? "")`));
+        await until("the page of who is aboard", () =>
+          k<boolean>(
+            `!!document.querySelector(".page-window:not([hidden])") && !/^…$/.test(document.querySelector(".page-title")?.textContent ?? "")`,
+          ),
+        );
         await settleFor(600);
         await shot("ride-crew-page");
         const said = await words();
-        check(!/no such|unknown/i.test(await k<string>(`document.querySelector(".page-window").innerText`)), "the page of who is aboard is no one's");
+        check(
+          !/no such|unknown/i.test(
+            await k<string>(`document.querySelector(".page-window").innerText`),
+          ),
+          "the page of who is aboard is no one's",
+        );
         check(!rawRef.test(said), `a raw ref on the crew's page: ${rawRef.exec(said)?.[0]}`);
         await closePage();
         await settleFor(300);
@@ -812,13 +858,21 @@ await shot("lens-holds");
         await settleFor(200);
         check(!!(await k(`${f}.riding()`)), "could not ride a ship that will break");
         await k(`${f}.pause(false)`);
-        await until("the ship broken up", () => k<boolean>(`!!${f}.riding() && ${f}.riding().broke`), slow(15000));
+        await until(
+          "the ship broken up",
+          () => k<boolean>(`!!${f}.riding() && ${f}.riding().broke`),
+          slow(15000),
+        );
         await settleFor(500);
         await shot("ride-broken");
         const said = await k<string>(`document.querySelector(".ride-note").innerText`);
         say(`broken: ${said}`);
         check(/broken up/i.test(said), `her breaking up is not told: ${said}`);
-        await until("back to the whole fight", async () => !(await k(`${f}.riding()`)), slow(20000));
+        await until(
+          "back to the whole fight",
+          async () => !(await k(`${f}.riding()`)),
+          slow(20000),
+        );
         check(await k<boolean>(`${f}.playing`), "the film stopped when the ship ridden broke");
         await shot("ride-after");
       } else say("no ship breaks in this fight");
@@ -837,7 +891,9 @@ await shot("lens-holds");
 await k(`globalThis.causalis.farFilm.play("ev:0:999999").then((ok) => (globalThis.__gone = ok))`);
 await settleFor(500);
 check((await k<boolean>("globalThis.__gone")) === false, "a film of nothing played");
-await k(`globalThis.causalis.nationFilm.play("pol:0:999999").then((ok) => (globalThis.__gone2 = ok))`);
+await k(
+  `globalThis.causalis.nationFilm.play("pol:0:999999").then((ok) => (globalThis.__gone2 = ok))`,
+);
 await settleFor(500);
 check((await k<boolean>("globalThis.__gone2")) === false, "a realm of nothing played");
 
@@ -849,4 +905,3 @@ if (problems.length) {
   process.exitCode = 1;
 } else console.log("gate 87 passed");
 process.exit();
-

@@ -56,19 +56,18 @@ function folksKept(world: World, year: number): readonly Folk[] {
   return list;
 }
 
-const STAGE_ROW: Readonly<
-  Record<FolkStage, { color: StarLensRgb; scale: number; group: number }>
-> = {
-  camps: { color: GREEN, scale: 0.42, group: 0 },
-  villages: { color: GREEN, scale: 0.55, group: 0 },
-  towns: { color: AMBER, scale: 0.7, group: 1 },
-  cities: { color: AMBER, scale: 0.85, group: 1 },
-  works: { color: SKY, scale: 0.9, group: 2 },
-  signals: { color: SKY, scale: 1, group: 2 },
-  orbit: { color: SKY, scale: 1, group: 2 },
-  stars: { color: VIOLET, scale: 1.2, group: 3 },
-  ruins: { color: ASH, scale: 0.5, group: 4 },
-};
+const STAGE_ROW: Readonly<Record<FolkStage, { color: StarLensRgb; scale: number; group: number }>> =
+  {
+    camps: { color: GREEN, scale: 0.42, group: 0 },
+    villages: { color: GREEN, scale: 0.55, group: 0 },
+    towns: { color: AMBER, scale: 0.7, group: 1 },
+    cities: { color: AMBER, scale: 0.85, group: 1 },
+    works: { color: SKY, scale: 0.9, group: 2 },
+    signals: { color: SKY, scale: 1, group: 2 },
+    orbit: { color: SKY, scale: 1, group: 2 },
+    stars: { color: VIOLET, scale: 1.2, group: 3 },
+    ruins: { color: ASH, scale: 0.5, group: 4 },
+  };
 const STAGE_GROUPS: readonly { color: StarLensRgb; one: string; many: string }[] = [
   { color: GREEN, one: "people in camps or villages", many: "peoples in camps or villages" },
   { color: AMBER, one: "people with towns or cities", many: "peoples with towns or cities" },
@@ -307,4 +306,3 @@ export function starLensMap(world: World, lens: StarLens): StarLensMap {
 export const STAR_LENS_QUERIES: Readonly<Record<string, QueryHandler>> = {
   "star.lens": (world, args) => starLensMap(world, (args as { lens: StarLens }).lens),
 };
-

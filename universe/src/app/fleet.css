@@ -2,7 +2,9 @@
    controls sit over the fight in the same glossy style as film.css. */
 body.fleet-filming
   #hud
-  > *:not(.fleet-film):not(.swap):not(.readying):not(.page-panel):not(.page-window):not(.tour-line) {
+  > *:not(.fleet-film):not(.swap):not(.readying):not(.page-panel):not(.page-window):not(
+    .tour-line
+  ) {
   display: none !important;
 }
 body.paging .fleet-film {

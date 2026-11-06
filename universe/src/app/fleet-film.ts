@@ -966,7 +966,8 @@ export function installFleetFilm(d: FleetFilmDeps): FleetFilm {
     },
     doomed() {
       const ship = script?.ships.find(
-        (x) => x.breakAt !== null && x.breakAt > t + 1 && (x.fleeAt === null || x.fleeAt > x.breakAt),
+        (x) =>
+          x.breakAt !== null && x.breakAt > t + 1 && (x.fleeAt === null || x.fleeAt > x.breakAt),
       );
       return ship ? { id: ship.id, at: ship.breakAt! } : null;
     },

@@ -75,4 +75,3 @@ export type ShipCrew = {
   readonly ref: string;
   readonly words: string;
 };
-
