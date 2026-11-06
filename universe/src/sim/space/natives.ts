@@ -42,6 +42,7 @@ import {
   type Stone,
 } from "../../rules/index.ts";
 import { homePlanet } from "../planet/store.ts";
+import { farOf, fireOf } from "../war/fire.ts";
 import { civilizationsNear } from "./contact.ts";
 import { holdWorld, peoplesOf } from "./peoples.ts";
 import { lanesOf, lawlessSeed } from "./lanes.ts";
@@ -360,6 +361,8 @@ const FOLKS = new Map<string, Folk | null>();
 
 /** The people of a world of a star, by its place outward (null: none rose there). */
 export function folkOf(world: World, s: GalaxyStar, index: number): Folk | null {
+  // (Their world unmade, there is no one there now: W6.)
+  if (farOf(world)?.falls.length && fireOf(world).unmade(s.ref as string, index)) return null;
   const key = `${lawlessSeed(world.seed.text)} ${s.sector}:${s.k}/${index}`,
     known = FOLKS.get(key);
   if (known !== undefined) return known;

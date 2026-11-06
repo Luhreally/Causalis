@@ -272,7 +272,9 @@ export class ClusterPanel {
         const line = el(
           "button",
           "line",
-          `Go to ${String.fromCharCode(98 + i)} — ${w.a.toFixed(2)} AU: ${w.kind === "rocky" ? "a world of rock" : w.kind === "giant" ? "a gas giant" : "an ice giant"}, ${w.gravity.toFixed(2)} g, ${Math.round(w.temperature)} °C, ${w.air === "none" ? "airless" : `${w.air} air`}${w.water === "seas" ? ", seas" : w.water === "ice" ? ", ice" : ""}${w.folk ? `; the ${w.folk.name}, ${w.folk.stage}` : ""} ›`,
+          w.unmade
+            ? `🌑 ${String.fromCharCode(98 + i)} — ${w.a.toFixed(2)} AU: unmade in year ${w.unmade.year}; rubble goes round where it was ›`
+            : `Go to ${String.fromCharCode(98 + i)} — ${w.a.toFixed(2)} AU: ${w.kind === "rocky" ? "a world of rock" : w.kind === "giant" ? "a gas giant" : "an ice giant"}, ${w.gravity.toFixed(2)} g, ${Math.round(w.temperature)} °C, ${w.air === "none" ? "airless" : `${w.air} air`}${w.water === "seas" ? ", seas" : w.water === "ice" ? ", ice" : ""}${w.burned ? "; its sky burned, dark" : ""}${w.folk ? `; the ${w.folk.name}, ${w.folk.stage}` : ""} ›`,
         );
         line.onclick = () => this.onVisit(page, i);
         return line;

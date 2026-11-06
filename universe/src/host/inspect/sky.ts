@@ -12,7 +12,8 @@ import {
   starWarsOf,
 } from "../../sim/index.ts";
 import { LIFE_WORDS, offworldSite, cellRef, starAgeGyr } from "../../gen/index.ts";
-import { Rng, hashString, type World } from "../../kernel/index.ts";
+import { Rng, hashString, type Ref, type World } from "../../kernel/index.ts";
+import { farWorldBlocks } from "../far.ts";
 import { realmColor } from "../colors.ts";
 import type { Item, PageModel, Place, Stat } from "../../bridge/index.ts";
 import { starByRef, starFacts, foreignGlobe } from "../galaxy.ts";
@@ -410,31 +411,47 @@ export function foreignWorldPage(world: World, ref: string): PageModel {
   return {
     ref,
     kind: "world",
-    icon: w.living ? "🌏" : life.level === "cells" ? "🦠" : "🪐",
-    portrait: {
-      kind: "world",
-      look: w.kind,
-      sea: w.water === "seas" ? 0.6 : 0,
-      ice: /ice/.test(w.water) ? 0.7 : 0.1,
-      green: w.living ? 0.6 : life.level === "bodies" ? 0.15 : 0,
-      air: w.air !== "none",
-      key: hashString(ref),
-    },
-    title: `The ${ordinal(index + 1)} world of a star`,
+    icon: w.unmade ? "🌑" : w.living ? "🌏" : life.level === "cells" ? "🦠" : "🪐",
+    // (A world gone has no likeness to draw: W6.)
+    ...(w.unmade
+      ? {}
+      : {
+          portrait: {
+            kind: "world" as const,
+            look: w.kind,
+            sea: w.water === "seas" ? 0.6 : 0,
+            ice: /ice/.test(w.water) ? 0.7 : 0.1,
+            green: w.living ? 0.6 : life.level === "bodies" ? 0.15 : 0,
+            air: w.air !== "none",
+            key: hashString(ref),
+          },
+        }),
+    title: w.unmade
+      ? `What was the ${ordinal(index + 1)} world of a star`
+      : `The ${ordinal(index + 1)} world of a star`,
     subtitle: [link("its star", star)],
     color: null,
     place: { scale: "world", star, index },
-    stats: [
-      stat("Kind", w.kind),
-      stat("Air", w.air),
-      stat("Water", w.water),
-      stat("Life", LIFE_WORDS[life.level]),
-    ],
+    stats: w.unmade
+      ? [
+          stat("Unmade", `year ${w.unmade.year}`, { why: w.unmade.event as Ref }),
+          stat("By", w.unmade.by ?? "the god's hand"),
+          stat("It was", w.kind),
+          stat("Now", "rubble about its star"),
+        ]
+      : [
+          stat("Kind", w.kind),
+          stat("Air", w.air),
+          stat("Water", w.water),
+          stat("Life", LIFE_WORDS[life.level]),
+        ],
     tabs: [
       {
         id: "overview",
         name: "Overview",
         blocks: [
+          // (What fell on it, what it would take: W6.)
+          ...farWorldBlocks(world, star, index),
           // (How far comers have filled it: Worlds filled.)
           ...fillBlocks(world, { star: s.ref, planet: index, body: -1 }),
           {

@@ -3,7 +3,15 @@
 // rivalry and its reasons, the famine and the dry year behind it, and the land
 // they wanted, down to its ground.
 import { yearOfMoment, type CauseRef } from "../kernel/index.ts";
-import { FIRE_EVENTS, WAR, WAR_EVENTS, politiesOf, realmName, warsOf } from "../sim/index.ts";
+import {
+  FAR_EVENTS,
+  FIRE_EVENTS,
+  WAR,
+  WAR_EVENTS,
+  politiesOf,
+  realmName,
+  warsOf,
+} from "../sim/index.ts";
 import { landWords } from "./generated.ts";
 import { count } from "./words.ts";
 import { edges, registerDecisionWords, registerEventWords, registerExplainer } from "./why.ts";
@@ -103,6 +111,45 @@ registerEventWords(
   FIRE_EVENTS.taken.type,
   (_, e) => `By the god's hand ${text(e.data, "a")} holds the greatest fire no more, ${year(e.t)}`,
 );
+registerEventWords(FAR_EVENTS.begun.type, (_, e) => {
+  const d = e.data as { ruler?: string; place?: string; years?: number; share?: number } | null;
+  return `${d?.ruler ?? "Its ruler"} of ${text(e.data, "a")} began turning their star's light, at ${d?.place ?? "their seat"}: ${d?.years ?? 0} years and ${d?.share ?? 0} in a hundred of all they have in each, ${year(e.t)}`;
+});
+registerEventWords(FAR_EVENTS.held.type, (_, e) => {
+  const d = e.data as { place?: string; years?: number; machines?: number } | null;
+  return `${cap(text(e.data, "a"))} can turn its star's light on a far mark, after ${d?.years ?? 0} years at ${d?.place ?? "its seat"} and ${count(d?.machines ?? 0)} machines, ${year(e.t)}`;
+});
+registerEventWords(FAR_EVENTS.crisis.type, (_, e) => {
+  const d = e.data as { ruler?: string; rung?: string; distance?: number } | null;
+  return `Everyone in reach of the stars holds their breath: ${d?.ruler ?? "its ruler"} of ${text(e.data, "a")} has a fleet a year from a world ${d?.distance ?? "?"} light-years out, and could bring ${d?.rung === "world" ? "that world's end" : d?.rung === "sky" ? "fire to its whole sky" : "the greatest fire"}, ${year(e.t)}`;
+});
+registerEventWords(FAR_EVENTS.stepped.type, (_, e) => {
+  const d = e.data as { ruler?: string; held?: boolean } | null;
+  return `${d?.ruler ?? "Its ruler"} of ${text(e.data, "a")} held their hand${d?.held ? ", by your word" : ""}, and everyone in reach of the stars breathed again, ${year(e.t)}`;
+});
+registerEventWords(FAR_EVENTS.fell.type, (_, e) => {
+  const d = e.data as { rung?: string; god?: boolean; dead?: number; first?: boolean } | null,
+    by = d?.god ? "The god's hand" : text(e.data, "a"),
+    what =
+      d?.rung === "world"
+        ? "unmade a world"
+        : d?.rung === "sky"
+          ? "burned a world's whole sky"
+          : "carried the greatest fire to another world";
+  return `${cap(by)} ${what}${d?.first ? ", the first ever" : ""}: ${count(d?.dead ?? 0)} dead, ${year(e.t)}`;
+});
+registerEventWords(
+  FAR_EVENTS.given.type,
+  (_, e) => `By the god's hand ${text(e.data, "a")} can turn its star's light on a far mark, ${year(e.t)}`,
+);
+registerDecisionWords("far.use", (world, d) => {
+  const o = d.outcome as { loose?: boolean; rung?: string; ruler?: string };
+  return `${o.ruler ?? "A ruler"} ${o.loose ? "loosed" : "held back"} ${o.rung === "world" ? "what would unmake a world" : o.rung === "sky" ? "what would burn a world's sky" : "the greatest fire, carried to another world"}`;
+});
+registerDecisionWords("far.works", (_, d) => {
+  const o = d.outcome as { ruler?: string };
+  return `${o.ruler ?? "A ruler"} chose to turn their star's light`;
+});
 registerDecisionWords("fire.use", (world, d) => {
   const realm = politiesOf(world).get(d.subject),
     o = d.outcome as { loose?: boolean; ruler?: string } | null;

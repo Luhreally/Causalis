@@ -169,6 +169,7 @@ import {
   counterWords,
   LY_SCALE,
   filledCells,
+  farFace,
   filledColors,
   hallCells,
   hallDomes,
@@ -329,6 +330,7 @@ import { installContactFilm, type ContactFilm } from "./contact-film.ts";
 import { installLandfallFilm, type LandfallFilm } from "./landfall-film.ts";
 import { VisitorsLayer } from "../render/index.ts";
 import { installFleetFilm, type FleetFilm } from "./fleet-film.ts";
+import { installFarFilm, type FarFilm } from "./far-film.ts";
 import { installJumpFilm, type JumpFilm } from "./jump-film.ts";
 // (Anyone's family and body on their card, a war's soldiers named from its roll: Phase 55 wave 5.)
 import { kinLines } from "../ui/index.ts";
@@ -846,6 +848,10 @@ type Exposed = {
   toFolk?: (star: string, index: number, at?: number) => Promise<FolkNear | null>;
   fleetFilm?: FleetFilm;
   jumpFilm?: JumpFilm;
+  farFilm?: FarFilm;
+  /** Another star's world seen whole, from anywhere (W6's gate and the pages). */
+  seeWorld?: (star: string, planet: number) => Promise<void>;
+  worldRuined?: () => boolean;
   /** A page opened by its ref (the look tools). */
   pageWindowOpen?: (ref: string) => void;
   planNow?: () => VillagePlan | null;
@@ -3665,6 +3671,11 @@ async function runPlanetPage(): Promise<void> {
       clusterPlan = await client.query<ClusterPlan>({ type: "galaxy.cluster" });
       starScene.build(clusterPlan);
     }
+    // (A star with a world unmade, on the map from then on: W6.)
+    starScene.scars(
+      clusterPlan,
+      (await client.query<{ stars: number[] }>({ type: "far.scars" })).stars,
+    );
     clusterPanel.show(clusterPlan);
     // (Come here other than by the home star's system: the sky watched from here too.)
     if (!stopSky) watchSky();
@@ -3735,6 +3746,7 @@ async function runPlanetPage(): Promise<void> {
   /** A fight among the stars watched (Phase 67). */
   let fleetFilm: FleetFilm | null = null;
   let directorJump: (() => Promise<boolean>) | null = null;
+  let directorFar: ((event: string) => Promise<boolean>) | null = null;
   /** Every scale put away, for a film or a list to go on from. */
   const allAway = () => {
     leaveScale();
@@ -4033,7 +4045,10 @@ async function runPlanetPage(): Promise<void> {
     const lit = filledCells(f.order!, f.plan.share);
     f.drawn = f.plan.share;
     worldScene.setFilled(lit);
-    worldScene.paint(filledColors(worldColors(f.w, Math.floor(now() / YEAR)), lit));
+    const face = filledColors(worldColors(f.w, Math.floor(now() / YEAR)), lit);
+    worldScene.paint(
+      f.w.burned || f.w.scarred ? farFace(face, f.w, f.w.burned ? 1 : 0, !!f.w.scarred) : face,
+    );
   };
   const showFilled = async (
     w: WorldGlobe,
@@ -4230,6 +4245,7 @@ async function runPlanetPage(): Promise<void> {
     star: StarPage,
     index: number,
     from: "cluster" | "galaxy" | "star",
+    stood = false,
   ) => {
     const w = await client.query<WorldGlobe>({
       type: "world.globe",
@@ -4244,6 +4260,14 @@ async function runPlanetPage(): Promise<void> {
     galaxyScene.visible = false;
     galaxyPanel.visible = false;
     showWorld(w);
+    // (What fell on it stays: W6. A film of it begins from how it stood.)
+    if (!stood && w.unmade) worldScene.ruin(true);
+    else if (!stood && (w.burned || w.scarred)) {
+      worldScene.blacken(!!w.burned);
+      worldScene.paint(
+        farFace(worldColors(w, Math.floor(now() / YEAR)), w, w.burned ? 1 : 0, !!w.scarred),
+      );
+    }
     worldPanel.backTo =
       from === "galaxy" ? "The galaxy" : from === "star" ? "Its star" : "The stars around";
     worldPanel.showForeign(star, index, w, Math.floor(now() / YEAR));
@@ -4271,6 +4295,14 @@ async function runPlanetPage(): Promise<void> {
       galaxyDrawn = stage.quality.name;
     }
     galaxyScene.mark(null);
+    {
+      const scars = await client.query<{ at: { x: number; y: number }[] }>({ type: "far.scars" }),
+        home = homeOf(galaxyPlan);
+      galaxyScene.scars(
+        scars.at.map((s) => ({ x: home.x + s.x / 1000, z: home.z + s.y / 1000 })),
+        galaxyPlan.radius / 1000 / 24,
+      );
+    }
     galaxyScene.visible = true;
     galaxyPanel.show(galaxyPlan);
     galaxyPanel.visible = true;
@@ -9026,6 +9058,57 @@ async function runPlanetPage(): Promise<void> {
   };
   tidings.onJump = () => void jumpFilm.play();
   directorJump = () => jumpFilm.play(true);
+  // What fell on a world of another star (W6): from its tiding, its page, its world's panel and the Director's firsts; the god's hand.
+  const farStood = async (star: string, planet: number, stood: boolean) => {
+    allAway();
+    regionCell = -1;
+    stage.backdrop("space");
+    const page = await client.query<StarPage>({ type: "galaxy.star", args: { ref: star } });
+    skyStar = page;
+    await toForeignWorld(page, planet, "star", stood);
+  };
+  const farFilm = installFarFilm({
+    stage,
+    hud,
+    client,
+    time,
+    rig,
+    scene: worldScene,
+    toWorld: farStood,
+    paintFace: (dark, mark) => {
+      if (seen)
+        worldScene.paint(farFace(worldColors(seen, Math.floor(now() / YEAR)), seen, dark, mark));
+    },
+    cut: (what, work) => fadeOver(() => ready(what, work, true)),
+    busy: () =>
+      !!colonyFilm?.playing ||
+      !!fleetFilm?.playing ||
+      !!contactFilm?.playing ||
+      !!landfallFilm?.playing ||
+      jumpFilm.playing,
+    fit: globeFit,
+  });
+  exposed.farFilm = farFilm;
+  exposed.seeWorld = (star, planet) => farStood(star, planet, false);
+  exposed.worldRuined = () => worldScene.ruined;
+  directorFar = (event) => farFilm.play(event, true);
+  tidings.onFar = (event) => void farFilm.play(event);
+  pageWindow.onFar = (event) => {
+    pageWindow.close();
+    void farFilm.play(event);
+  };
+  worldPanel.onFarWatch = (event) => void farFilm.play(event);
+  worldPanel.onFarPage = (ref) => void pageWindow.open(ref);
+  worldPanel.onFarStrike = (star, planet, rung) => {
+    void client
+      .command("far.strike", { star, planet, rung })
+      .then(() => client.query<{ event: string }[]>({ type: "far.falls" }))
+      .then((falls) => {
+        const f = falls.at(-1);
+        if (f) void farFilm.play(f.event);
+      })
+      .catch((error: Error) => colonies.say(error.message));
+  };
   exposed.pageWindowOpen = (ref) => void pageWindow.open(ref);
   const starWars = new StarWars(hud);
   starWars.onWatch = (id) => void fleetFilm!.play(id);
@@ -9101,6 +9184,11 @@ async function runPlanetPage(): Promise<void> {
         // (The first jump: played from its leaving, Phase 68.)
         if (s.first.what.startsWith("🌀") && directorJump) {
           await directorJump();
+          return;
+        }
+        // (What fell on a world of another star: played from it whole, W6.)
+        if (/^(🌑|🌫️|☄️)/u.test(s.first.what) && s.first.ref && directorFar) {
+          await directorFar(s.first.ref);
           return;
         }
         // (A world filled: out to it, lit across its face.)

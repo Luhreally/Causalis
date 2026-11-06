@@ -818,7 +818,7 @@ export {
   type StarLine,
   type VoyageMark,
 } from "./cluster.ts";
-export { bandsOf, groundOf, worldColors } from "./worlds.ts";
+export { FAR_STRIKE, bandsOf, farFace, groundOf, worldColors } from "./worlds.ts";
 export {
   GALAXY_LY,
   galaxyPoints,

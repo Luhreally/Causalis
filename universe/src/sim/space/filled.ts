@@ -208,6 +208,8 @@ function worldYear(
   year: number,
 ): void {
   const { world } = ctx;
+  // (Unmade: nothing grows, and no one comes: W6.)
+  if (w.gone !== undefined) return;
   if (!w.arrived) {
     if (year < w.arrives) return;
     w.arrived = world.events.emit({
@@ -273,8 +275,11 @@ export function lastFarSailed(world: World, realm: Ref): number {
 
 /** The stars a ship no longer sails for: those a far colony went to (the kept lands' are told by their own store). */
 export function farTaken(world: World): readonly string[] {
-  const out: string[] = [];
-  for (const w of filledOf(world)?.all() ?? []) if (w.star && w.cell === null) out.push(w.star);
+  const out: string[] = [],
+    store = filledOf(world);
+  for (const w of store?.all() ?? []) if (w.star && w.cell === null) out.push(w.star);
+  // (And a star with a world unmade: W6.)
+  if (store?.barred) out.push(...store.barred);
   return out;
 }
 

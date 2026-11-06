@@ -177,7 +177,7 @@ export class SystemPanel {
               line = el(
                 "button",
                 "line",
-                `${b.designation} — ${KIND_WORDS[b.kind]}${moons ? `, ${moons} moon${moons > 1 ? "s" : ""}` : ""}${settled ? ` · ${settled} settled` : ""}`,
+                `${b.designation} — ${b.unmade ? "🌑 unmade, rubble on its ring" : KIND_WORDS[b.kind]}${moons ? `, ${moons} moon${moons > 1 ? "s" : ""}` : ""}${settled ? ` · ${settled} settled` : ""}`,
               );
             line.onclick = () => {
               this.select(i);

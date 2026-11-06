@@ -52,6 +52,8 @@ export class Tidings {
   onFilled: ((ref: string) => void) | null = null;
   /** The first jump watched (Phase 68). */
   onJump: (() => void) | null = null;
+  /** What fell on a world of another star (W6): its film. */
+  onFar: ((event: string) => void) | null = null;
 
   constructor(root: HTMLElement, client: HostClient) {
     this.client = client;
@@ -178,6 +180,14 @@ export class Tidings {
         this.onFilled?.(t.ref);
       };
       head.append(from, see, close);
+    } else if (t.type === "far.fell" && this.onFar) {
+      const watch = el("button", "tiding-watch far-watch", "🌑 Watch");
+      watch.title = "That world, whole, and what fell on it";
+      watch.onclick = () => {
+        card.remove();
+        this.onFar?.(t.ref);
+      };
+      head.append(from, watch, close);
     } else if (t.type === "lanes.first" && this.onJump) {
       const watch = el("button", "tiding-watch", "🌀 Watch");
       watch.title = "The ship leaving for the lane, the jump, and where it came out";

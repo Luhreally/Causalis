@@ -85,6 +85,49 @@ const LIGHTS: GlowStops = [
 /** The most points of light a world's settled ground draws (one draw call; 16 triangles each). */
 const FILLED_MOST = 4000;
 
+/** A plate of a world's face breaking away (W6). */
+type Plate = {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly ax: number;
+  readonly ay: number;
+  readonly az: number;
+  readonly spin: number;
+  readonly speed: number;
+  /** How far from the strike, 0 … 1: how late it goes. */
+  readonly late: number;
+};
+type Shards = {
+  readonly plates: readonly Plate[];
+  readonly plateOf: Int16Array;
+  readonly rim: Uint8Array;
+  readonly late: Float32Array;
+  readonly base: Float32Array;
+  readonly work: Float32Array;
+};
+/** How many lumps of rubble, and of them still hot, a world unmade leaves (one draw call each, 30 triangles a lump). */
+const RUBBLE = 900,
+  EMBERS = 140;
+const BREAK_GLOW: GlowStops = [
+    [0, "rgba(255,250,235,1)"],
+    [0.3, "rgba(255,220,150,0.85)"],
+    [0.6, "rgba(255,120,40,0.35)"],
+    [1, "rgba(120,20,0,0)"],
+  ],
+  SHOCK: GlowStops = [
+    [0, "rgba(0,0,0,0)"],
+    [0.78, "rgba(255,160,90,0)"],
+    [0.92, "rgba(255,235,200,0.9)"],
+    [0.97, "rgba(255,170,110,0.4)"],
+    [1, "rgba(120,40,10,0)"],
+  ],
+  CINDER: GlowStops = [
+    [0, "rgba(255,120,40,0.75)"],
+    [0.3, "rgba(190,50,12,0.3)"],
+    [1, "rgba(60,10,0,0)"],
+  ];
+
 export class GlobeScene {
   private readonly stage: Stage;
   private grid: SphereGrid | null = null;
@@ -114,6 +157,19 @@ export class GlobeScene {
   /** Its world's kind as drawn (Phase 56), and each kind's air glow, made when first wanted. */
   private kindShown = "rocky";
   private readonly glows = new Map<string, pc.Material>();
+  /** A world's corners as built, to break apart (W6). */
+  private drawn: Float32Array | null = null;
+  private breaking: Shards | null = null;
+  /** The fire inside it as it breaks, its light about it and the ring it throws out; what is left. */
+  private core: pc.Entity | null = null;
+  private coreGlow: pc.Entity | null = null;
+  private shock: pc.Entity | null = null;
+  private readonly ruinRoot = new pc.Entity("ruin");
+  private rubble: InstancedBatch | null = null;
+  private embers: InstancedBatch | null = null;
+  private cinderGlow: pc.Entity | null = null;
+  private isRuin = false;
+  private blackened = false;
 
   constructor(stage: Stage) {
     this.stage = stage;
@@ -170,6 +226,11 @@ export class GlobeScene {
     this.marker.enabled = false;
     stage.root.addChild(this.marker);
     stage.root.addChild(this.hallRoot);
+    stage.root.addChild(this.ruinRoot);
+    this.ruinRoot.enabled = false;
+    stage.onUpdate((dt) => {
+      if (this.ruinRoot.enabled) this.ruinRoot.rotateLocal(0, dt * 1.1, 0);
+    });
   }
 
   /** Build the globe for a grid frequency and relief (once per planet). */
@@ -181,6 +242,11 @@ export class GlobeScene {
     this.entity = null;
     this.mesh?.destroy();
     oldMaterial?.destroy();
+    // (A new face: whatever broke or burned of the last one is no part of it: W6.)
+    this.breaking = null;
+    this.ruin(false);
+    this.blacken(false);
+    this.breakLight(0, 0, 0);
     const grid = sphereGrid(frequency),
       n = grid.count,
       positions = new Float32Array(n * 3);
@@ -228,6 +294,7 @@ export class GlobeScene {
       indices[3 * t + 1] = outward ? 3 * t + 1 : 3 * t + 2;
       indices[3 * t + 2] = outward ? 3 * t + 2 : 3 * t + 1;
     }
+    this.drawn = at;
     const mesh = new pc.Mesh(this.stage.device);
     mesh.setPositions(at);
     mesh.setNormals(normals);
@@ -291,12 +358,283 @@ export class GlobeScene {
   }
 
   set visible(on: boolean) {
-    if (this.entity) this.entity.enabled = on;
-    this.sea.enabled = on && this.entity !== null && this.seas;
-    this.halo.enabled = on && this.entity !== null && this.air;
-    this.clouds.enabled = on && this.entity !== null && this.cloudy;
-    this.hallRoot.enabled = on;
-    if (!on) this.marker.enabled = false;
+    const whole = on && !this.isRuin;
+    if (this.entity) this.entity.enabled = whole;
+    this.sea.enabled = whole && this.entity !== null && this.seas;
+    this.halo.enabled = whole && this.entity !== null && this.air;
+    this.clouds.enabled = whole && this.entity !== null && this.cloudy;
+    this.hallRoot.enabled = whole;
+    this.ruinRoot.enabled = on && this.isRuin;
+    if (!on) {
+      this.marker.enabled = false;
+      this.breakLight(0, 0, 0);
+    }
+  }
+
+  /**
+   * Begin breaking it (W6): its face in plates about its own cells, each with its own way out and its own turn, the plates nearest
+   * the strike going first. Nothing else about it is a list: the shards are its own triangles, the colours its own.
+   */
+  breakBegin(strike: { x: number; y: number; z: number }): void {
+    const grid = this.grid,
+      corners = this.corners,
+      drawn = this.drawn;
+    if (!grid || !corners || !drawn) return;
+    const PLATES = 72,
+      unit = grid.positions,
+      hash = (i: number, k: number) => {
+        const s = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453;
+        return s - Math.floor(s);
+      },
+      plates: Plate[] = [];
+    for (let i = 0; i < PLATES; i++) {
+      const y = 1 - (2 * (i + 0.5)) / PLATES,
+        r = Math.sqrt(1 - y * y),
+        a = i * 2.399963 + hash(i, 1) * 0.5,
+        cx = r * Math.cos(a),
+        cz = r * Math.sin(a),
+        ax = hash(i, 2) - 0.5,
+        ay = hash(i, 3) - 0.5,
+        az = hash(i, 4) - 0.5,
+        al = Math.hypot(ax, ay, az) || 1,
+        away = Math.acos(Math.max(-1, Math.min(1, cx * strike.x + y * strike.y + cz * strike.z)));
+      plates.push({
+        x: cx,
+        y,
+        z: cz,
+        ax: ax / al,
+        ay: ay / al,
+        az: az / al,
+        spin: 0.8 + hash(i, 5) * 2.6,
+        speed: 0.8 + hash(i, 6) * 1.1,
+        late: away / Math.PI,
+      });
+    }
+    const cellPlate = new Int16Array(grid.count);
+    for (let c = 0; c < grid.count; c++) {
+      // (A little of each cell's own wander, so a plate's edge is no straight line.)
+      const px = unit[3 * c]! + (hash(c, 7) - 0.5) * 0.12,
+        py = unit[3 * c + 1]! + (hash(c, 8) - 0.5) * 0.12,
+        pz = unit[3 * c + 2]! + (hash(c, 9) - 0.5) * 0.12;
+      let best = 0,
+        most = -Infinity;
+      for (let i = 0; i < PLATES; i++) {
+        const p = plates[i]!,
+          d = p.x * px + p.y * py + p.z * pz;
+        if (d > most) {
+          most = d;
+          best = i;
+        }
+      }
+      cellPlate[c] = best;
+    }
+    const tris = corners.length / 3,
+      plateOf = new Int16Array(tris),
+      rim = new Uint8Array(tris),
+      late = new Float32Array(tris);
+    for (let t = 0; t < tris; t++) {
+      const a = corners[3 * t]!,
+        b = corners[3 * t + 1]!,
+        c = corners[3 * t + 2]!,
+        pa = cellPlate[a]!;
+      plateOf[t] = pa;
+      rim[t] = pa !== cellPlate[b]! || pa !== cellPlate[c]! ? 1 : 0;
+      late[t] =
+        Math.acos(
+          Math.max(
+            -1,
+            Math.min(
+              1,
+              unit[3 * a]! * strike.x + unit[3 * a + 1]! * strike.y + unit[3 * a + 2]! * strike.z,
+            ),
+          ),
+        ) / Math.PI;
+    }
+    this.breaking = { plates, plateOf, rim, late, base: drawn.slice(), work: drawn };
+    const m = this.entity?.render?.meshInstances[0]?.material as pc.StandardMaterial | undefined;
+    if (m) {
+      m.cull = pc.CULLFACE_NONE;
+      m.update();
+    }
+    this.sea.enabled = false;
+    if (!this.core) {
+      const fire = new pc.StandardMaterial();
+      fire.useLighting = false;
+      fire.diffuse = new pc.Color(0, 0, 0);
+      fire.emissive = new pc.Color(1, 0.5, 0.12);
+      fire.update();
+      this.core = new pc.Entity("core");
+      this.core.addComponent("render", {
+        meshInstances: [
+          new pc.MeshInstance(
+            pc.Mesh.fromGeometry(
+              this.stage.device,
+              new pc.SphereGeometry({ radius: 1, latitudeBands: 16, longitudeBands: 24 }),
+            ),
+            fire,
+          ),
+        ],
+      });
+      this.stage.root.addChild(this.core);
+      this.coreGlow = billboard(this.stage, glowMaterial(this.stage, BREAK_GLOW), 1, this.stage.root, true);
+      this.shock = billboard(this.stage, glowMaterial(this.stage, SHOCK), 1, this.stage.root, true);
+    }
+  }
+
+  /**
+   * Where it has got to (W6): `crack` 0 … 1, the seams opening from the strike out; `apart` 0 … 1, the plates going, those
+   * nearest first, out past the eye. Every corner of its face moved by a plate's way and turn: one mesh, one draw call.
+   */
+  breakTo(crack: number, apart: number): void {
+    const b = this.breaking;
+    if (!b || !this.mesh) return;
+    const out = b.work,
+      base = b.base,
+      n = b.plateOf.length,
+      moved = b.plates.map((p) => {
+        const k = Math.max(0, Math.min(1, (apart - p.late * 0.35) / 0.65)),
+          e = k * k * (3 - 2 * k),
+          turn = p.spin * e,
+          push = p.speed * 7 * e * e + 0.25 * k;
+        return { p, c: Math.cos(turn), s: Math.sin(turn), push };
+      });
+    for (let t = 0; t < n; t++) {
+      const o = 9 * t;
+      if (b.rim[t]! && crack >= b.late[t]!) {
+        // (A seam open: nothing there but the fire under it.)
+        for (let i = 0; i < 9; i++) out[o + i] = 0;
+        continue;
+      }
+      const m = moved[b.plateOf[t]!]!,
+        p = m.p;
+      for (let k = 0; k < 3; k++) {
+        const q = o + 3 * k,
+          vx = base[q]! - p.x,
+          vy = base[q + 1]! - p.y,
+          vz = base[q + 2]! - p.z,
+          dot = (vx * p.ax + vy * p.ay + vz * p.az) * (1 - m.c);
+        // (Rodrigues about its own axis, then out along its own way.)
+        out[q] = p.x + vx * m.c + (p.ay * vz - p.az * vy) * m.s + p.ax * dot + p.x * m.push;
+        out[q + 1] = p.y + vy * m.c + (p.az * vx - p.ax * vz) * m.s + p.ay * dot + p.y * m.push;
+        out[q + 2] = p.z + vz * m.c + (p.ax * vy - p.ay * vx) * m.s + p.az * dot + p.z * m.push;
+      }
+    }
+    this.mesh.setPositions(out);
+    this.mesh.update();
+  }
+
+  /** The fire inside it: how hot (0 dark … 1 white), how large, and the light and ring about it (0: none of them). */
+  breakLight(heat: number, size: number, shock: number, glow = size * 3): void {
+    if (!this.core) return;
+    const on = heat > 0.002 && size > 0;
+    this.core.enabled = on;
+    this.coreGlow!.enabled = on && glow > 0;
+    this.shock!.enabled = shock > 0;
+    if (on) {
+      const m = this.core.render!.meshInstances[0]!.material as pc.StandardMaterial,
+        k = Math.min(1, heat);
+      m.emissive.set(Math.min(1, k * 1.5), k * k * 0.62, k * k * k * k * 0.32);
+      m.update();
+      this.core.setLocalScale(size, size, size);
+      const g = glow * (0.4 + 0.6 * k);
+      this.coreGlow!.setLocalScale(g, g, g);
+      // (Out of its shell its light lies over it, hot at the heart: a flat colour reads as a sticker.)
+      const mat = this.coreGlow!.render!.meshInstances[0]!.material as pc.StandardMaterial,
+        over = size < 0.95;
+      if (mat.depthTest === over) {
+        mat.depthTest = !over;
+        mat.update();
+      }
+    }
+    if (shock > 0) this.shock!.setLocalScale(shock, shock, shock);
+  }
+
+  /** What is left drawn in its place, or the world itself again (W6): rubble going round where it was and a cinder at the heart of it. */
+  ruin(on: boolean): void {
+    this.isRuin = on;
+    if (on && !this.rubble) {
+      const lump = keptMesh(
+          pc.Mesh.fromGeometry(
+            this.stage.device,
+            new pc.SphereGeometry({ radius: 1, latitudeBands: 3, longitudeBands: 5 }),
+          ),
+        ),
+        hash = (i: number, k: number) => {
+          const s = Math.sin(i * 91.17 + k * 37.71) * 24634.6345;
+          return s - Math.floor(s);
+        };
+      this.rubble = new InstancedBatch(this.stage, lump, [0.42, 0.38, 0.35], RUBBLE, this.ruinRoot);
+      this.rubble.set(RUBBLE, (i, out) => {
+        // A broad ring tilted to the eye: thick and close at its heart, thin and far out at its edge.
+        const k = hash(i, 1),
+          r = 0.22 + 2.1 * k * Math.sqrt(k + 0.05),
+          a = hash(i, 2) * Math.PI * 2,
+          lift = (hash(i, 3) - 0.5) * (0.5 / (1 + 2.2 * r)),
+          big = hash(i, 4);
+        out[0] = r * Math.cos(a);
+        out[1] = lift + r * Math.cos(a) * 0.14;
+        out[2] = r * Math.sin(a);
+        const s = 0.006 + 0.052 * big * big * big + 0.012 * (1 - k);
+        out[3] = s;
+        out[4] = s * (0.55 + 0.6 * hash(i, 5));
+        out[5] = s * (0.7 + 0.6 * hash(i, 6));
+        out[6] = hash(i, 7) * 6.283;
+        out[7] = hash(i, 8) * 3.1;
+      });
+      const hot = new pc.StandardMaterial();
+      hot.useLighting = false;
+      hot.diffuse = new pc.Color(0, 0, 0);
+      hot.emissive = new pc.Color(1, 0.36, 0.08);
+      hot.update();
+      this.embers = new InstancedBatch(this.stage, lump, [1, 0.4, 0.1], EMBERS, this.ruinRoot, hot);
+      this.embers.set(EMBERS, (i, out) => {
+        const k = hash(i, 11),
+          r = 0.1 + 0.62 * k,
+          a = hash(i, 12) * Math.PI * 2;
+        out[0] = r * Math.cos(a);
+        out[1] = (hash(i, 13) - 0.5) * 0.18 + r * Math.cos(a) * 0.14;
+        out[2] = r * Math.sin(a);
+        out[3] = out[4] = out[5] = 0.006 + 0.016 * hash(i, 14);
+        out[6] = hash(i, 15) * 6.283;
+      });
+      this.cinderGlow = billboard(this.stage, glowMaterial(this.stage, CINDER), 0.95, this.ruinRoot, true);
+    }
+    if (on) {
+      if (this.entity) this.entity.enabled = false;
+      this.sea.enabled = this.halo.enabled = this.clouds.enabled = false;
+      this.hallRoot.enabled = false;
+      this.marker.enabled = false;
+      this.ruinRoot.enabled = true;
+    } else this.ruinRoot.enabled = false;
+  }
+
+  /** Whether what is drawn is what is left of it. */
+  get ruined(): boolean {
+    return this.isRuin;
+  }
+
+  /** Its whole sky burned (W6): its air's glow out, its clouds thick and brown over all of it. */
+  blacken(on: boolean): void {
+    if (on === this.blackened) return;
+    this.blackened = on;
+    const clouds = this.clouds.render!.meshInstances[0]!.material as pc.StandardMaterial,
+      look = KIND_GLOBES[this.kindShown] ?? KIND_GLOBES.rocky!;
+    if (on) {
+      clouds.diffuse = new pc.Color(0.16, 0.12, 0.09);
+      clouds.opacityMap = null;
+      clouds.opacity = 0.86;
+      this.cloudy = true;
+      this.air = false;
+      if (this.entity?.enabled) {
+        this.clouds.enabled = true;
+        this.halo.enabled = false;
+      }
+    } else {
+      clouds.diffuse = new pc.Color(look.clouds[0], look.clouds[1], look.clouds[2]);
+      clouds.opacityMap = clouds.diffuseMap;
+      clouds.opacity = 0.65;
+    }
+    clouds.update();
   }
 
   /**
@@ -452,7 +790,7 @@ export class GlobeScene {
 
   /** The cell under a screen point, or null when the point misses the globe. */
   pick(x: number, y: number): number | null {
-    if (!this.grid) return null;
+    if (!this.grid || this.isRuin) return null;
     const cam = this.stage.camera.camera!,
       from = cam.screenToWorld(x, y, cam.nearClip),
       to = cam.screenToWorld(x, y, cam.farClip);

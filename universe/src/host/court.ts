@@ -2,7 +2,16 @@
 // as L1 and L3 take anyone), what each wants and why, every reason a number history already holds, and what a ruler
 // played by the god's hand can answer when a plot comes or an heir dies. Pure reads: asking moves nothing, nothing is kept.
 import { yearOfMoment, type Ref, type World } from "../kernel/index.ts";
-import { COURT, OCC, REIGN, fearOf, fleeChance, seizeCost, weightOf } from "../rules/index.ts";
+import {
+  COURT,
+  OCC,
+  REIGN,
+  fearOf,
+  fleeChance,
+  mjWords,
+  seizeCost,
+  weightOf,
+} from "../rules/index.ts";
 import {
   WAY,
   byBlood,
@@ -246,6 +255,46 @@ export function dramaOf(world: World, r: Polity): ReignDrama | null {
   const year = yearOfMoment(world.now),
     legit = pct(o.legitimacy);
   // The brink (W5): the strongest way to feel it. Asked once, and the clock is held until it is answered.
+  const far = fireOf(world).farOpenFor(r.ref);
+  if (far && !far.answer) {
+    const can = o.legitimacy >= REIGN.wordLine,
+      what =
+        far.rung === "world"
+          ? "unmake that world, with everyone on it, for ever"
+          : far.rung === "sky"
+            ? "burn its whole sky, and starve whoever lives under it"
+            : "carry the greatest fire to it";
+    return {
+      key: far.event,
+      kind: "fire",
+      title: "Everyone in reach of the stars holds their breath",
+      who: null,
+      words: `Your fleet is a year from a world of another star, and by your own reckoning its odds stand ${pct(1 - far.going)} in a hundred. You could ${what}: ${mjWords(far.mj)}. Every people in reach of the stars is watching, and it will be remembered for as long as anyone remembers anything.`,
+      event: far.event,
+      choices: [
+        {
+          id: "hold",
+          label: "✋ Hold your hand",
+          can: true,
+          words: "You step back. Your fleet comes in and fights as any fleet does.",
+        },
+        {
+          id: "loose",
+          label: far.rung === "world" ? "🌑 Unmake it" : far.rung === "sky" ? "🔥 Burn its sky" : "☢️ Loose it",
+          can,
+          words: can
+            ? "It falls at the year's end. No ruler anywhere will ever think of you the same way."
+            : `Only ${legit} in a hundred hold your rule rightful: no one would turn the key.`,
+        },
+        {
+          id: "let",
+          label: "⏳ Say nothing",
+          can: true,
+          words: "You say nothing, and the realm decides it by the same numbers.",
+        },
+      ],
+    };
+  }
   const brink = fireOf(world).openFor(r.ref);
   if (brink && !brink.answer) {
     const foe = politiesOf(world).get(brink.foe),

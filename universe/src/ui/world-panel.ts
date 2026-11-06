@@ -54,6 +54,11 @@ export class WorldPanel {
     this.element.hidden = !on;
   }
 
+  /** The god's hand on a world, its film, and its page (W6). */
+  onFarStrike: (star: string, planet: number, rung: "sky" | "world") => void = () => undefined;
+  onFarWatch: (event: string) => void = () => undefined;
+  onFarPage: (ref: string) => void = () => undefined;
+
   /** Show a world: its facts, its why and its halls (from the system's plan and the sky's state). */
   show(plan: SystemPlan, index: number, world: WorldGlobe, sky: SkyState): void {
     const b = plan.bodies[index]!;
@@ -81,6 +86,42 @@ export class WorldPanel {
       el("h3", undefined, "Why is it like this?"),
       ...b.because.map((w) => el("div", "fact", w)),
     );
+  }
+
+  /** What it would take, what the nearest people commands against that, and the god's hand (W6). */
+  private reachRows(star: StarPage, index: number): HTMLElement[] {
+    const w = star.worlds[index]!,
+      r = w.reach;
+    if (!r) return [];
+    const burned = w.burned,
+      acts = el("div", "colony-row-acts"),
+      sky = el("button", "colony-watch far-sky", burned ? "▶ Watch its sky burn" : "🔥 Burn its sky"),
+      unmake = el("button", "colony-watch far-unmake", "🌑 Unmake it");
+    sky.onclick = () =>
+      burned ? this.onFarWatch(burned.event) : this.askFar(sky, "sky", star, index);
+    unmake.onclick = () => this.askFar(unmake, "world", star, index);
+    if (r.skyMj !== null) acts.append(sky);
+    acts.append(unmake);
+    return [
+      el("h3", undefined, "What it would take"),
+      ...r.words.map((t) => el("div", "fact far-reach", t)),
+      ...(burned
+        ? [el("div", "fact far-burned", `Its whole sky burned in year ${burned.year}: dark until year ${burned.until}.`)]
+        : []),
+      el("h3", undefined, "Your hand on it"),
+      acts,
+    ];
+  }
+
+  /** The god's hand on a world: asked twice, since there is no undoing it. */
+  private askFar(b: HTMLElement, rung: "sky" | "world", star: StarPage, index: number): void {
+    if (b.dataset.sure !== "1") {
+      b.dataset.sure = "1";
+      b.textContent = rung === "world" ? "🌑 There is no undoing this. Unmake it" : "🔥 There is no undoing this. Burn it";
+      b.classList.add("far-sure");
+      return;
+    }
+    this.onFarStrike(star.ref, index, rung);
   }
 
   /** Its own people, where it has them: how far they have come, the way down, the first who came (Phase 69). */
@@ -152,6 +193,25 @@ export class WorldPanel {
     const w = star.worlds[index]!,
       letter = String.fromCharCode(98 + index),
       name = starWords(star);
+    // (Unmade, W6: what it was, who did it, what is left. Nothing here to go down to.)
+    if (w.unmade) {
+      this.where.textContent = `${letter}, of ${name}`;
+      this.title.textContent = `What was ${letter}`;
+      this.inspector.hidden = false;
+      this.facts.replaceChildren(
+        el("div", "fact far-gone", `Unmade in year ${w.unmade.year}, by ${w.unmade.by ?? "the god's hand"}`),
+        el("div", "fact", `It went round ${name} at ${w.a.toFixed(2)} AU. Rubble goes round there now.`),
+      );
+      this.spot.textContent = "No ground, no air, no one. No ship goes there.";
+      const page = el("button", "colony-watch far-page", "📖 What it was and what it took"),
+        watch = el("button", "colony-watch far-film", "🌑 Watch it unmade"),
+        acts = el("div", "colony-row-acts");
+      page.onclick = () => this.onFarPage(`${star.ref}/${index}`);
+      watch.onclick = () => this.onFarWatch(w.unmade!.event);
+      acts.append(watch, page);
+      this.more.replaceChildren(acts);
+      return;
+    }
     this.where.textContent = `${letter}, of ${name}`;
     this.title.textContent = `${letter}, seen whole`;
     this.inspector.hidden = false;
@@ -184,6 +244,7 @@ export class WorldPanel {
           ? `${done} in year ${y} of our chronicle`
           : `${what} in year ${y} of our chronicle`;
     this.more.replaceChildren(
+      ...this.reachRows(star, index),
       ...this.folkRows(star, index),
       ...(world.living
         ? [

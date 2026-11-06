@@ -52,6 +52,34 @@ export function livingOf(t: number, rain: number): Rgb {
  * Paint a world: RGBA a cell, as the globe takes it. `year` is the chronicle's now: a
  * people's cities show their lights once they have come to electronics.
  */
+/** Where a thing falls on a world, as the film and the map after it tell it: the face turned to the eye (W6). */
+export const FAR_STRIKE = { x: 0.42, y: 0.42, z: -0.8 };
+
+/**
+ * A world's face after what fell (W6): `dark` 0 … 1 over all of it, spreading from where it fell; `mark`: char about that point, the
+ * size a fire carried leaves. Pure: the same numbers are the same colours.
+ */
+export function farFace(colors: Uint8Array, w: WorldGlobe, dark: number, mark: boolean): Uint8Array {
+  const grid = sphereGrid(w.frequency),
+    out = colors.slice(),
+    p = grid.positions,
+    l = Math.hypot(FAR_STRIKE.x, FAR_STRIKE.y, FAR_STRIKE.z);
+  for (let c = 0; c < grid.count; c++) {
+    const along =
+        (p[3 * c]! * FAR_STRIKE.x + p[3 * c + 1]! * FAR_STRIKE.y + p[3 * c + 2]! * FAR_STRIKE.z) / l,
+      far = (1 - along) / 2,
+      front = Math.max(0, Math.min(1, (dark * 1.4 - far) / 0.4)),
+      scar = mark ? Math.max(0, Math.min(1, (along - 0.975) / 0.012)) : 0,
+      k = Math.max(front * 0.86, scar * 0.92);
+    if (k <= 0) continue;
+    const keep = 1 - k;
+    out[4 * c] = Math.round(out[4 * c]! * keep + 30 * k);
+    out[4 * c + 1] = Math.round(out[4 * c + 1]! * keep + 20 * k);
+    out[4 * c + 2] = Math.round(out[4 * c + 2]! * keep + 14 * k);
+  }
+  return out;
+}
+
 export function worldColors(w: WorldGlobe, year = Infinity): Uint8Array {
   const grid = sphereGrid(w.frequency),
     n = grid.count,

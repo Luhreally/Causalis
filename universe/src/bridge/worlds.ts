@@ -33,4 +33,10 @@ export type WorldGlobe = {
     readonly stars: number;
     readonly heard: number | null;
   } | null;
+  /** Unmade (W6): it draws as rubble, and these its words. Absent: it stands. */
+  readonly unmade?: { readonly year: number; readonly by: string | null; readonly event: string };
+  /** Where a fire carried here left its mark (W6). */
+  readonly scarred?: boolean;
+  /** Its sky burned and still dark (W6). */
+  readonly burned?: { readonly year: number; readonly until: number; readonly event: string };
 };

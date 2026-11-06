@@ -24,6 +24,8 @@ export type SystemPlanBody = {
   readonly water: string;
   readonly radiation: number;
   readonly because: readonly string[];
+  /** Unmade (W6): rubble goes round where it was. */
+  readonly unmade?: boolean;
 };
 
 export type SystemPlan = {
@@ -199,6 +201,37 @@ export type ClusterPlan = {
   readonly lanes?: readonly (readonly [number, number])[];
 };
 
+/** What it would take to burn a world's sky or unmake it, and what the nearest people commands (W6). */
+export type FarReach = {
+  readonly skyMj: number | null;
+  readonly unmakeMj: number;
+  readonly nearest: string | null;
+  readonly mj: number;
+  readonly words: readonly string[];
+};
+
+/** What fell on a world, for its film (W6). */
+export type FarFilmPlan = {
+  readonly event: string;
+  readonly rung: "carried" | "sky" | "world";
+  readonly star: string;
+  readonly planet: number;
+  readonly year: number;
+  readonly name: string;
+  readonly title: string;
+  /** Each shot's caption. */
+  readonly whole: string;
+  readonly strikes: string;
+  readonly breaks: string;
+  readonly gone: string;
+  readonly after: string;
+  readonly rows: readonly { readonly head: string; readonly text: string }[];
+  readonly foot: string;
+  readonly god: boolean;
+  /** The chance it fell by, where a ruler's numbers chose it. */
+  readonly chance: number | null;
+};
+
 /** The first jump, for its film (Phase 68). */
 export type JumpPlan = {
   readonly star: string;
@@ -239,6 +272,10 @@ export type StarPage = ClusterStar & {
     readonly pressure: number;
     readonly air: string;
     readonly water: string;
+    /** What unmade it (W6; absent: it stands), its sky dark since (absent: clear), and what it would take. */
+    readonly unmade?: { readonly year: number; readonly by: string | null; readonly event: string };
+    readonly burned?: { readonly year: number; readonly until: number; readonly event: string };
+    readonly reach?: FarReach;
     /** Its own people, and how far they have come (Phase 69; absent: none rose there). */
     readonly folk?: {
       readonly ref: string;

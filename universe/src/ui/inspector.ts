@@ -140,6 +140,8 @@ export class PageWindow {
   onFolkLandfall: ((star: string, index: number, n: number) => void) | null = null;
   /** The first jump watched (Phase 68). */
   onJump: (() => void) | null = null;
+  /** What fell on a world of another star, played again (W6). */
+  onFar: ((event: string) => void) | null = null;
   /** A battle watched fought (Phase 37 M186). */
   onBattle: ((event: string) => void) | null = null;
   /** A war watched unfolding on the globe (Phase 38 M193). */
@@ -892,6 +894,7 @@ export class PageWindow {
           ...(this.onMeeting ? { meeting: this.onMeeting } : {}),
           ...(this.onFolkLandfall ? { folkLandfall: this.onFolkLandfall } : {}),
           ...(this.onJump ? { jump: this.onJump } : {}),
+          ...(this.onFar ? { far: this.onFar } : {}),
           ...(this.onBattle ? { battle: this.onBattle } : {}),
           ...(this.onWar ? { war: this.onWar } : {}),
           ...(this.onWars ? { wars: this.onWars } : {}),

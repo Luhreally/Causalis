@@ -101,6 +101,8 @@ function whyOf(world: World, w: FilledWorld, r: FillReading, people: number, yea
 
 /** How a world is filling, as a plan (null: it has no reading: a ship still sailing for a world gone). */
 export function fillPlanOf(world: World, w: FilledWorld): FillPlan | null {
+  // (Unmade: nothing fills there now: W6.)
+  if (w.gone !== undefined) return null;
   const ctx = populationContext(world),
     r = readingOf(ctx, w);
   if (!r) return null;

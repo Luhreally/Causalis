@@ -231,6 +231,8 @@ export type ColonyVoyage = {
 
 /** One colony, or one ship still sailing, in the list of them. */
 export type ColonyEntry = {
+  /** Its world unmade (W6; absent: it stands): no one is there now. */
+  readonly gone?: { readonly year: number; readonly by: string | null; readonly event: string };
   /** Its land. */
   readonly cell: number;
   /** Its town and its name (null: a ship still sailing). */

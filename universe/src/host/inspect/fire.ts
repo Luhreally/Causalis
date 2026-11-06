@@ -22,6 +22,7 @@ import {
   type FireCrisis,
 } from "../../sim/index.ts";
 import type { Block, Stat } from "../../bridge/index.ts";
+import { farLadderStats, farLandStats, farRealmStats } from "../far.ts";
 import { matterWorldOf } from "../reading.ts";
 import { count, item, link, many, stat } from "./words.ts";
 
@@ -71,22 +72,39 @@ export function fireShadow(world: World): FireShadow {
       );
     }
   }
-  const crises = store.open().length,
-    near = shadowOf({ holders: held.length, atOdds, wars, worst, crises, dread: s.dread }),
+  // (And across the stars, W6: a far crisis is as much a year the world holds its breath, a far works as much a shadow.)
+  const far = s.far,
+    farCrises = far?.crises.filter((c) => c.ended === null).length ?? 0,
+    farHeld = far?.works.filter((w) => w.done !== null && w.gone === undefined).length ?? 0,
+    crises = store.open().length + farCrises,
+    near = shadowOf({
+      holders: held.length + farHeld,
+      atOdds,
+      wars,
+      worst,
+      crises,
+      dread: s.dread,
+    }),
     cold = Math.round(coldDegrees(s.soot) * 10) / 10,
-    words = !held.length
-      ? s.falls.length
-        ? "No one holds the greatest fire now. The world remembers it."
-        : "No one holds the greatest fire."
+    gone = far?.falls.some((f) => f.rung === "world"),
+    words = !held.length && !farHeld && !farCrises
+      ? gone
+        ? "A world has been unmade. Everyone in reach of the stars remembers it."
+        : far?.falls.length || s.falls.length
+          ? "No one holds the greatest fire now. The world remembers it."
+          : "No one holds the greatest fire."
       : [
-          crises
-            ? "The whole world is holding its breath."
-            : near >= 45
-              ? "The world stands in its shadow."
-              : "It lies far off, for now.",
-          `${many(held.length, "realm holds", "realms hold")} the greatest fire`,
+          farCrises
+            ? "Everyone in reach of the stars is holding their breath: a fleet is a year from a world, with what could end it."
+            : crises
+              ? "The whole world is holding its breath."
+              : near >= 45
+                ? "The world stands in its shadow."
+                : "It lies far off, for now.",
+          held.length ? `${many(held.length, "realm holds", "realms hold")} the greatest fire` : "",
           atOdds ? `and ${many(atOdds, "pair of them is", "pairs of them are")} at odds` : "",
           wars ? `with ${many(wars, "war", "wars")} under way` : "",
+          farHeld ? `and ${many(farHeld, "realm can", "realms can")} turn its star's light on a far mark` : "",
         ]
           .filter(Boolean)
           .join(" ") + ".";
@@ -135,6 +153,7 @@ export function fireRealmStats(world: World, realm: Ref): Stat[] {
         { why: fell.at(-1)!.decision },
       ),
     );
+  out.push(...farRealmStats(world, realm));
   return out;
 }
 
@@ -173,6 +192,7 @@ export function fireLandStats(world: World, cell: number): Stat[] {
         ),
       );
   }
+  out.push(...farLandStats(world, cell));
   const sick = store.state.sick.find(([land]) => land === cell);
   if (sick)
     out.push(
@@ -244,6 +264,7 @@ export function firePrincipleStats(world: World): Stat[] {
               ? `Its star has ${Math.round(n.metalShare * 100)}% of the Sun's metals: too little of the heaviest stuff ever gathered in its ground.`
               : "Nothing here could carry it: no wing lifts a load and no rocket lands past a gun's reach.",
       ),
+      ...farLadderStats(world),
     ];
   const held = store.holders(),
     fell = s.falls.reduce((sum, f) => sum + f.dead, 0),
@@ -269,7 +290,8 @@ export function firePrincipleStats(world: World): Stat[] {
     ),
     stat(
       "Beside what would unmake this world",
-      `All that is held here comes to ${commanded.toExponential(1)} MJ. To unmake this world, its binding energy, would take ${unmake.toExponential(1)} MJ: ${unmake / Math.max(FIRE.mj, commanded) >= 1e6 ? "more than this people could ever bring" : "far past what they hold"}. Energy goes on past this.`,
+      `All that is held here comes to ${commanded.toExponential(1)} MJ. To unmake this world, its binding energy, would take ${unmake.toExponential(1)} MJ: ${unmake / Math.max(FIRE.mj, commanded) >= 1e6 ? "more than this fire could ever bring" : "far past what they hold"}. Energy goes on past this.`,
     ),
+    ...farLadderStats(world),
   ];
 }

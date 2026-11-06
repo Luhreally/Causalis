@@ -54,6 +54,7 @@ import {
   type Thrower,
 } from "./air.ts";
 import { ArmsStore, armsOf } from "./arms.ts";
+import { farYear, installFar } from "./far.ts";
 import { fireYear, holdBack, installFire } from "./fire.ts";
 import {
   COLD_BATTLES,
@@ -1521,6 +1522,8 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     }
   // The greatest fire's year (W5): works, the brink, what falls and what the sky does after.
   fireYear(ctx, t);
+  // And past the town's (W6): a fire carried, a sky, a world.
+  farYear(ctx, t);
   // The wars that ended this year will not change again: fold them into the digest.
   wars.seal();
   // (Their battles' town tallies are kept FELL_TOWN_YEARS, their lands' for good.)
@@ -1537,6 +1540,7 @@ export function installWar(world: World, ctx: () => PopulationContext): WarStore
   store.drawn((key, t, round, side) => world.rng.real(FIGHT, key, t, 100 + round, side));
   world.register(new ArmsStore());
   installFire(world);
+  installFar(world, ctx);
   world.addPinner(() => store.pinned());
   world.system({ key: "185.war.year", every: YEAR, run: (t) => warYear(ctx(), t) });
   return store;

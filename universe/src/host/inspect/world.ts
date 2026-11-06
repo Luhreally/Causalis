@@ -4,7 +4,7 @@
 // its realms, towns, wars, faiths, tongues, flights and living lineages compared, as a
 // grand strategy game's ledger compares them. Pure reads of the world as it stands.
 import { cellRef, lives, offworldSite } from "../../gen/index.ts";
-import { fireOf } from "../../sim/index.ts";
+import { farOf, fireOf } from "../../sim/index.ts";
 import {
   beliefOf,
   citiesOf,
@@ -823,6 +823,26 @@ function firstsOf(world: World, s: BaseSurvey): First[] {
         many(s2.falls.length, "fall", "falls"),
         s2.falls.length,
       );
+  }
+  // Past the town's (W6): the first of each rung.
+  {
+    const falls = farOf(world)?.falls ?? [];
+    for (const [rung, what] of [
+      ["carried", "☄️ A fire carried to another world"],
+      ["sky", "🌫️ A sky burned"],
+      ["world", "🌑 A world unmade"],
+    ] as const) {
+      const of = falls.filter((f) => f.rung === rung),
+        fell = of[0];
+      if (fell)
+        add(
+          what,
+          { year: fell.year, land: null, ref: fell.event },
+          of[1]?.year ?? null,
+          many(of.length, "time", "times"),
+          of.length,
+        );
+    }
   }
   // The roots: sowing, herds, smelting.
   {

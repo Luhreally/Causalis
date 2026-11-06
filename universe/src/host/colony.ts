@@ -35,6 +35,8 @@ import {
   homePlanet,
   housingOf,
   knows,
+  farOf,
+  fireOf,
   lateOf,
   loreOf,
   politiesOf,
@@ -499,6 +501,17 @@ export function colonyMoments(world: World, cell: number, frames: number): numbe
   return out.slice(-frames - 1);
 }
 
+/** Its world unmade (W6): when, and by whom. */
+function goneOf(
+  world: World,
+  star: string | null | undefined,
+  planet: number | null | undefined,
+): { gone?: { year: number; by: string | null; event: string } } {
+  if (!star || planet === null || planet === undefined || !farOf(world)) return {};
+  const f = fireOf(world).unmade(star, planet);
+  return f ? { gone: { year: f.year, by: f.by ? f.name : null, event: f.event } } : {};
+}
+
 /** Every colony there is, the newest first; and every ship yet sailing. */
 export function colonyList(world: World): ColonyEntry[] {
   const g = homePlanet(world).generated;
@@ -543,6 +556,7 @@ export function colonyList(world: World): ColonyEntry[] {
       sky: ground ? (overOf(ground)?.degrees ?? 0) : 0,
       remade: colonyRemade(world, cell),
       ...settledOf(world, ship?.star ?? null, ship?.planet ?? -1, site.body),
+      ...goneOf(world, ship?.star, ship?.planet),
     });
   }
   return out.sort((a, b) => b.founded - a.founded || a.cell - b.cell);

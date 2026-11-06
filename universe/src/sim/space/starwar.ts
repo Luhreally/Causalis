@@ -110,7 +110,7 @@ export function starWarsOf(world: World): StarWarStore {
 }
 
 /** A cause for war between the stars, and where the enemy lies. */
-type Cause = {
+export type Cause = {
   enemy: Ref;
   /** Where its fleet would go: the star, and the world there. */
   star: Ref;
@@ -124,7 +124,7 @@ type Cause = {
 };
 
 /** The causes a realm has for war between the stars. */
-function causes(ctx: PopulationContext, p: Polity, year: number): Cause[] {
+export function causes(ctx: PopulationContext, p: Polity, year: number): Cause[] {
   const { world } = ctx,
     out: Cause[] = [],
     realms = politiesOf(world),

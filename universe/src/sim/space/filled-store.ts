@@ -36,6 +36,8 @@ export type FilledWorld = {
   /** The event of all it can settle being settled. */
   filled: Ref | null;
   filledYear: number | null;
+  /** The year it was unmade (War past the line, W6; absent: it stands). */
+  gone?: number;
 };
 
 export class FilledStore implements StateStore {
@@ -43,6 +45,8 @@ export class FilledStore implements StateStore {
   private readonly worlds = new Map<string, FilledWorld>();
   /** The first world filled to its edges. */
   first: Ref | null = null;
+  /** The stars no ship sails for now, a world of theirs being unmade (W6; absent: none): no part of the hash until one is. */
+  barred?: string[];
 
   dormant(): boolean {
     return !this.worlds.size;
@@ -68,15 +72,22 @@ export class FilledStore implements StateStore {
   }
   hashInto(h: Hasher): void {
     h.value(this.all()).value(this.first);
+    if (this.barred) h.value(this.barred);
   }
   save(): unknown {
-    return { worlds: this.all(), first: this.first };
+    return {
+      worlds: this.all(),
+      first: this.first,
+      ...(this.barred ? { barred: this.barred } : {}),
+    };
   }
   load(state: unknown): void {
-    const s = state as { worlds: FilledWorld[]; first: Ref | null };
+    const s = state as { worlds: FilledWorld[]; first: Ref | null; barred?: string[] };
     this.worlds.clear();
     for (const w of s.worlds) this.worlds.set(w.key, { ...w });
     this.first = s.first ?? null;
+    if (s.barred) this.barred = [...s.barred];
+    else delete this.barred;
   }
 }
 

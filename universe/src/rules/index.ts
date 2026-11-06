@@ -991,6 +991,27 @@ export {
   worksChance,
   type FireShut,
 } from "./greatfire.ts";
+export {
+  FAR,
+  RUNGS,
+  bestMj,
+  chanceOfRung,
+  dreadAfter,
+  farAnswerShare,
+  farGoing,
+  farWorksChance,
+  hullMj,
+  lightMj,
+  mjWords,
+  needOf,
+  rungName,
+  rungOf,
+  shareWords,
+  skyMj,
+  type Command,
+  type FarWorld,
+  type Rung,
+} from "./worldfire.ts";
 export type { PartHere } from "./designs.ts";
 export { REIGN, carried, decreeCost, mustCarry, peaceRefused, tieOf, warCost } from "./reign.ts";
 export {

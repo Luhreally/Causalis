@@ -31,6 +31,8 @@ export type ToolContext = {
   readonly folkLandfall?: (star: string, index: number, n: number) => void;
   /** The first jump watched (Phase 68). */
   readonly jump?: () => void;
+  /** What fell on a world of another star, played again (W6). */
+  readonly far?: (event: string) => void;
   /** Watch a battle fought (Phase 37 M186). */
   readonly battle?: (event: string) => void;
   /** Watch a war unfold on the globe (Phase 38 M193). */
@@ -249,6 +251,14 @@ export function drawTool(
         ? "Down to the town they fell on, that afternoon: their streaks, what they hit, its fires, played again"
         : "Down to the town it fell on, that morning: its machines, its loads, its fires, played again";
       b.onclick = () => ctx.raid!(args.event as string);
+      into.append(b);
+      return;
+    }
+    case "watch.far": {
+      if (!ctx.far) return;
+      const b = el("button", "act far-watch", (args.label as string | undefined) ?? "▶ Watch it");
+      b.title = "That world, whole, and what fell on it, played again with the world's clock held";
+      b.onclick = () => ctx.far!(args.id as string);
       into.append(b);
       return;
     }

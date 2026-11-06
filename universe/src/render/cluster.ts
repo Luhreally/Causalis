@@ -6,7 +6,7 @@ import * as pc from "playcanvas";
 import type { ClusterPlan } from "../bridge/index.ts";
 import { LY_SCALE, clusterSpec } from "../view/index.ts";
 import { InstancedBatch } from "./batch.ts";
-import { glowMaterial } from "./glow.ts";
+import { billboard, glowMaterial } from "./glow.ts";
 import type { Stage } from "./stage.ts";
 
 export class ClusterScene {
@@ -33,6 +33,8 @@ export class ClusterScene {
     stars: readonly { x: number; y: number; z: number; size: number }[];
   }[] = [];
   private readonly disc: pc.Mesh;
+  private scarGlow: pc.Material | null = null;
+  private readonly scarMarks: { glow: pc.Entity; ring: pc.Entity }[] = [];
   /** The peoples of other stars (Phase 18 M134): their holds, ships, fleets and bursts, and the lines between. */
   private readonly peopleHolds: pc.Entity[] = [];
   private readonly peopleOwn: pc.Entity[] = [];
@@ -125,6 +127,37 @@ export class ClusterScene {
           out[6] = Math.atan2(dx, dz);
           out[7] = Math.acos(Math.max(-1, Math.min(1, dy / len)));
         });
+    });
+  }
+
+  /** The stars with a world unmade, marked from then on (W6): a dark red ring and a smoulder about each. */
+  scars(plan: ClusterPlan, stars: readonly number[]): void {
+    this.scarGlow ??= glowMaterial(this.stage, [
+      [0, "rgba(255,70,30,0.95)"],
+      [0.25, "rgba(220,30,16,0.5)"],
+      [1, "rgba(90,0,0,0)"],
+    ]);
+    while (this.scarMarks.length < stars.length) {
+      const e = billboard(this.stage, this.scarGlow, 1, this.root, true),
+        ring = new pc.Entity("scar ring");
+      ring.addComponent("render", {
+        meshInstances: [new pc.MeshInstance(this.ringMesh, glow([1, 0.25, 0.15]))],
+      });
+      this.root.addChild(ring);
+      this.scarMarks.push({ glow: e, ring });
+    }
+    this.scarMarks.forEach((m, i) => {
+      const s = plan.stars[stars[i] ?? -1];
+      m.glow.enabled = m.ring.enabled = !!s;
+      if (!s) return;
+      const x = s.x * LY_SCALE,
+        y = s.z * LY_SCALE,
+        z = s.y * LY_SCALE,
+        r = plan.radius * LY_SCALE * 0.04;
+      m.glow.setLocalPosition(x, y, z);
+      m.glow.setLocalScale(r, r, r);
+      m.ring.setLocalPosition(x, y, z);
+      m.ring.setLocalScale(r * 0.9, r * 0.9, r * 0.9);
     });
   }
 

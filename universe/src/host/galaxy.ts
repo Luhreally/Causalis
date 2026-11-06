@@ -19,11 +19,13 @@ import {
   hasLandfall,
   civilizationsNear,
   contactsOf,
+  fireOf,
   folkOf,
   folkStage,
   homePlanet,
 } from "../sim/index.ts";
 import { civilizationOn, lifeOfWorld } from "./elsewhere.ts";
+import { farReachOf } from "./far.ts";
 import { CLADES } from "../rules/index.ts";
 import type { ClusterStar, GalaxyPlan, StarPage, SystemPlan, WorldGlobe } from "../bridge/index.ts";
 
@@ -114,7 +116,10 @@ export function starPage(world: World, ref: string): StarPage {
     ...starFacts(s, rng),
     worlds: foreignPlanets(rng, s).map((p) => {
       const f = folkOf(world, s, p.index),
-        year = Math.floor(world.now / (365 * 86400));
+        year = Math.floor(world.now / (365 * 86400)),
+        fire = world.hasStore("war.fire") ? fireOf(world) : null,
+        gone = fire?.unmade(s.ref as string, p.index),
+        dark = fire?.burned(s.ref as string, p.index, year);
       return {
         kind: p.kind,
         a: p.a,
@@ -124,6 +129,11 @@ export function starPage(world: World, ref: string): StarPage {
         pressure: p.pressure,
         air: p.air,
         water: p.water,
+        ...(gone ? { unmade: { year: gone.year, by: gone.by ? gone.name : null, event: gone.event } } : {}),
+        ...(dark ? { burned: { year: dark.year, until: dark.until ?? dark.year, event: dark.event } } : {}),
+        ...(gone
+          ? {}
+          : { reach: farReachOf(world, { pull: p.gravity, radius: p.radius, airBar: p.pressure }) }),
         ...(f
           ? {
               folk: {
@@ -179,11 +189,27 @@ export function foreignSystem(world: World, ref: string): SystemPlan {
       water: p.water,
       radiation: p.radiation,
       because: [],
+      ...(world.hasStore("war.fire") && fireOf(world).unmade(s.ref as string, p.index)
+        ? { unmade: true }
+        : {}),
     })),
   };
 }
 
 const MADE = new Map<string, WorldGlobe>();
+
+/** Whether two names are of one star. */
+function sameWorldStar(a: string, b: string): boolean {
+  if (a === b) return true;
+  const zig = (n: number) => (n >= 0 ? 2 * n : -2 * n - 1),
+    key = (r: string) => {
+      const p = r.split(":");
+      return p[0] === "gstar"
+        ? `${zig(Number(p[1])) + 1024 * zig(Number(p[2])) + 1048576 * zig(Number(p[3]))}:${p[4]}`
+        : `${p[1]}:${p[2]}`;
+    };
+  return key(a) === key(b);
+}
 
 /** The people of another star's world, if one of the cluster's civilizations arose there. */
 function peopleOf(world: World, star: GalaxyStar, index: number): WorldGlobe["people"] {
@@ -202,6 +228,24 @@ function peopleOf(world: World, star: GalaxyStar, index: number): WorldGlobe["pe
 
 /** One of another star's worlds (its place outward), made whole. */
 export function foreignGlobe(world: World, ref: string, index: number): WorldGlobe {
+  const fire = world.hasStore("war.fire") ? fireOf(world) : null,
+    gone = fire?.unmade(ref, index),
+    dark = fire?.burned(ref, index, Math.floor(world.now / (365 * 86400))),
+    made = madeGlobe(world, ref, index),
+    s = fire?.state.far?.falls.some(
+      (f) => f.rung === "carried" && f.planet === index && sameWorldStar(f.star, ref),
+    );
+  return gone || dark || s
+    ? {
+        ...made,
+        ...(s ? { scarred: true } : {}),
+        ...(gone ? { unmade: { year: gone.year, by: gone.by ? gone.name : null, event: gone.event } } : {}),
+        ...(dark ? { burned: { year: dark.year, until: dark.until ?? dark.year, event: dark.event } } : {}),
+      }
+    : made;
+}
+
+function madeGlobe(world: World, ref: string, index: number): WorldGlobe {
   const g = homePlanet(world).generated,
     key = `${g.digest} ${ref} ${index}`,
     known = MADE.get(key);

@@ -198,7 +198,7 @@ export function shadowOf(i: {
   readonly crises: number;
   readonly dread: number;
 }): number {
-  if (i.holders <= 0) return 0;
+  if (i.holders <= 0 && i.crises <= 0) return 0;
   return Math.round(
     Math.min(
       100,

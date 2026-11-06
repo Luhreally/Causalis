@@ -18,6 +18,9 @@ import { InstancedBatch, boxMesh } from "./batch.ts";
 import { billboard, glowMaterial } from "./glow.ts";
 import { flatMaterial, type Stage } from "./stage.ts";
 
+/** Lumps a world unmade's belt draws on its ring (W6; one draw call, 30 triangles a lump, seen from far off). */
+const BELT = 260;
+
 export class SystemScene {
   private readonly stage: Stage;
   private readonly root = new pc.Entity("system");
@@ -39,6 +42,7 @@ export class SystemScene {
   /** Its star's mirrors (Phase 66): a band of glints, turning; how many are drawn. */
   private mirrorRoot: pc.Entity | null = null;
   private glints: InstancedBatch | null = null;
+  private belt: InstancedBatch | null = null;
   private glintsAt = -1;
   mirrorsShown = 0;
 
@@ -71,6 +75,8 @@ export class SystemScene {
   /** Build the star, a sphere for every body and the planets' rings. */
   build(plan: SystemPlan): void {
     this.glints?.destroy();
+    this.belt?.destroy();
+    this.belt = null;
     for (const e of [...this.root.children]) if (e !== this.marker) e.destroy();
     this.colonyRings.length = 0;
     this.satellites.length = 0;
@@ -121,26 +127,66 @@ export class SystemScene {
       e.addComponent("render", {
         meshInstances: [new pc.MeshInstance(sphere, flatMaterial([0.5, 0.5, 0.5]))],
       });
+      // (A world unmade has no sphere on its ring: W6.)
+      e.enabled = !b.unmade;
       this.root.addChild(e);
       this.bodies.push(e);
     }
-    // The planets' orbits, one line mesh.
-    const lines: number[] = [];
-    for (const ring of orbitRings(plan)) {
+    // The planets' orbits, one line mesh; on a world unmade's, its rubble, a thick belt of it right round.
+    const lines: number[] = [],
+      rings = orbitRings(plan),
+      goneRings = plan.bodies
+        .filter((b) => b.around < 0)
+        .flatMap((b, i) => (b.unmade ? [rings[i]!] : []));
+    for (const ring of rings) {
       const n = ring.length / 2;
       for (let k = 0; k < n; k++) {
         const j = (k + 1) % n;
         lines.push(ring[k * 2]!, 0, ring[k * 2 + 1]!, ring[j * 2]!, 0, ring[j * 2 + 1]!);
       }
     }
+    if (goneRings.length) {
+      const lump = pc.Mesh.fromGeometry(
+          this.stage.device,
+          new pc.SphereGeometry({ radius: 1, latitudeBands: 3, longitudeBands: 5 }),
+        ),
+        belt = new InstancedBatch(
+          this.stage,
+          lump,
+          [0.7, 0.42, 0.3],
+          BELT * goneRings.length,
+          this.root,
+        ),
+        hash = (i: number, k: number) => {
+          const s = Math.sin(i * 51.17 + k * 17.71) * 14634.6345;
+          return s - Math.floor(s);
+        };
+      this.belt = belt;
+      belt.glow([0.42, 0.16, 0.07]);
+      belt.set(BELT * goneRings.length, (i, out) => {
+        const ring = goneRings[Math.floor(i / BELT)]!,
+          n = ring.length / 2,
+          at = hash(i, 1) * n,
+          a = Math.floor(at) % n,
+          b = (a + 1) % n,
+          f = at - Math.floor(at),
+          x = ring[2 * a]! + (ring[2 * b]! - ring[2 * a]!) * f,
+          z = ring[2 * a + 1]! + (ring[2 * b + 1]! - ring[2 * a + 1]!) * f,
+          out0 = 1 + (hash(i, 2) - 0.5) * 0.16;
+        out[0] = x * out0;
+        out[1] = (hash(i, 3) - 0.5) * 0.24;
+        out[2] = z * out0;
+        out[3] = out[4] = out[5] = 0.028 + 0.075 * hash(i, 4) * hash(i, 4);
+      });
+    }
     const mesh = new pc.Mesh(this.stage.device);
     mesh.setPositions(lines);
     mesh.update(pc.PRIMITIVE_LINES);
-    const rings = new pc.Entity("orbits");
-    rings.addComponent("render", {
+    const orbits = new pc.Entity("orbits");
+    orbits.addComponent("render", {
       meshInstances: [new pc.MeshInstance(mesh, glow([0.25, 0.62, 0.85]))],
     });
-    this.root.addChild(rings);
+    this.root.addChild(orbits);
     this.spots = [];
   }
 

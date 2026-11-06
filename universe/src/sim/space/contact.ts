@@ -19,6 +19,7 @@ import {
 } from "../../kernel/index.ts";
 import { civilizationsOf, foreignPlanets, type Civilization } from "../../gen/index.ts";
 import { politiesOf } from "../polity/polity.ts";
+import { farOf, fireOf } from "../war/fire.ts";
 import { knows, loreOf } from "../lore/lore.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { clusterOf } from "./voyages.ts";
@@ -37,7 +38,10 @@ export function civilizationsNear(world: World): Civilization[] {
     const rng = new Rng(world.seed);
     CIVS.set(key, (civs = civilizationsOf(rng, clusterOf(world), (s) => foreignPlanets(rng, s))));
   }
-  return civs;
+  // (A people whose world was unmade is no more: W6. Exactly the list it always was, until one is.)
+  return farOf(world)?.falls.length
+    ? civs.filter((c) => !fireOf(world).unmade(c.star, c.planet))
+    : civs;
 }
 
 export type Contact = {

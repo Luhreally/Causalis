@@ -33,6 +33,7 @@ import {
   rocketMiss,
   sootOfBurned,
   worksChance,
+  type Rung,
 } from "../../rules/index.ts";
 import { deathsIn, grieve, spill } from "../acts/disasters.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
@@ -118,6 +119,71 @@ export type GreatFall = {
   readonly decision: Ref;
 };
 
+/** A realm's works of turning its star's light on a far mark (W6): as a great works, over generations. */
+export type FarWorks = {
+  readonly realm: Ref;
+  readonly cell: number;
+  readonly place: string;
+  readonly begun: number;
+  done: number | null;
+  paid: number;
+  readonly event: Ref;
+  held: Ref | null;
+  readonly given?: boolean;
+  gone?: number;
+};
+
+/** The year before a fleet comes in, with what its realm could bring (W6). */
+export type FarCrisis = {
+  readonly year: number;
+  readonly holder: Ref;
+  readonly foe: Ref;
+  readonly war: Ref;
+  readonly star: Ref;
+  readonly planet: number;
+  readonly rung: Rung;
+  readonly going: number;
+  readonly mj: number;
+  readonly byLight: boolean;
+  readonly ruler: string;
+  readonly event: Ref;
+  answer?: "hold" | "loose";
+  ended: number | null;
+  end?: "stepped" | "fell" | "gone";
+  endEvent?: Ref;
+};
+
+/** One that fell on a world (W6): `by` null is the god's hand. */
+export type FarFall = {
+  readonly rung: Rung;
+  readonly year: number;
+  readonly by: Ref | null;
+  readonly name: string;
+  readonly on: Ref | null;
+  readonly war: Ref | null;
+  readonly star: Ref;
+  readonly planet: number;
+  readonly lands: readonly number[];
+  readonly people: number;
+  readonly dead: number;
+  readonly mj: number;
+  readonly need: number;
+  readonly byLight: boolean;
+  readonly event: Ref;
+  readonly decision: Ref | null;
+  /** How long a burned sky stays dark. */
+  readonly until?: number;
+};
+
+/** What has come of arms past the town's: absent until the first word of them, so history holds bit for bit before. */
+export type FarState = {
+  works: FarWorks[];
+  crises: FarCrisis[];
+  falls: FarFall[];
+  /** The first of each rung. */
+  firsts: Partial<Record<Rung, Ref>>;
+};
+
 type FireState = {
   works: GreatWorks[];
   crises: FireCrisis[];
@@ -129,6 +195,8 @@ type FireState = {
   /** While the dark years last: the event that told them, and when they began. */
   dark: Ref | null;
   darkSince: number;
+  /** Past the town's (W6). */
+  far?: FarState;
 };
 
 const empty = (): FireState => ({
@@ -149,7 +217,7 @@ export class FireStore implements StateStore {
   /** Nothing has happened yet: no part of the world's hash, so history holds until the first find. */
   dormant(): boolean {
     const s = this.state;
-    return !s.works.length && !s.crises.length && !s.falls.length && !s.soot && !s.dread;
+    return !s.works.length && !s.crises.length && !s.falls.length && !s.soot && !s.dread && !s.far;
   }
   hashInto(h: Hasher): void {
     h.value(this.state);
@@ -173,7 +241,52 @@ export class FireStore implements StateStore {
     }
     for (const f of s.falls) out.push(f.event, f.decision);
     if (s.dark) out.push(s.dark);
+    if (s.far) {
+      for (const w of s.far.works) {
+        out.push(w.event);
+        if (w.held) out.push(w.held);
+      }
+      for (const c of s.far.crises) {
+        out.push(c.event);
+        if (c.endEvent) out.push(c.endEvent);
+      }
+      for (const f of s.far.falls) {
+        out.push(f.event);
+        if (f.decision) out.push(f.decision);
+      }
+    }
     return out;
+  }
+
+  /** A realm's far crisis not yet come to its end (W6; none: none). */
+  farOpenFor(realm: Ref): FarCrisis | null {
+    return this.state.far?.crises.find((c) => c.ended === null && c.holder === realm) ?? null;
+  }
+  /** What unmade a world of a star, by either of the star's names (W6; none: it stands). */
+  unmade(star: string, planet: number): FarFall | null {
+    const far = this.state.far;
+    if (!far) return null;
+    const key = starNumbers(star);
+    return (
+      far.falls.find(
+        (f) => f.rung === "world" && f.planet === planet && starNumbers(f.star) === key,
+      ) ?? null
+    );
+  }
+  /** What burned a world's sky, while it stays dark (W6; none: a clear sky). */
+  burned(star: string, planet: number, year: number): FarFall | null {
+    const far = this.state.far;
+    if (!far) return null;
+    const key = starNumbers(star);
+    return (
+      far.falls.find(
+        (f) =>
+          f.rung === "sky" &&
+          f.planet === planet &&
+          (f.until ?? 0) > year &&
+          starNumbers(f.star) === key,
+      ) ?? null
+    );
   }
 
   /** A realm's works standing or under way (none: it has none). */
@@ -204,6 +317,19 @@ export function fireOf(world: World): FireStore {
   return world.store<FireStore>("war.fire");
 }
 
+/** What has come of arms past the town's (W6; null: nothing yet, or a world with no fire to speak of). */
+export function farOf(world: World): FarState | null {
+  return world.hasStore("war.fire") ? (fireOf(world).state.far ?? null) : null;
+}
+
+/** A star's two names as one: "star:sector:k", or "gstar:i:j:l:k", its sector's cube in the galaxy's zig-zag coding. */
+function starNumbers(ref: string): string {
+  const p = ref.split(":");
+  if (p[0] !== "gstar") return `${p[1]}:${p[2]}`;
+  const zig = (n: number) => (n >= 0 ? 2 * n : -2 * n - 1);
+  return `${zig(Number(p[1])) + 1024 * zig(Number(p[2])) + 1048576 * zig(Number(p[3]))}:${p[4]}`;
+}
+
 const keyOf = (ref: Ref) => Number(ref.split(":")[2]);
 const clampRegard = (x: number) => Math.round(x * 1000) / 1000;
 
@@ -219,7 +345,7 @@ const peopleOf = (ctx: PopulationContext, p: Polity): number =>
   p.members.reduce((n, c) => n + (ctx.provinces.get(c)?.total() ?? 0), 0);
 
 /** What each of a realm's lands gives up to it, of its machines, iron and fuel: the machines taken. */
-function pay(ctx: PopulationContext, p: Polity, share: number): number {
+export function payWorks(ctx: PopulationContext, p: Polity, share: number): number {
   const markets = ctx.world.store<MarketStore>("economy.markets");
   let machines = 0;
   for (const c of [...p.members].sort((a, b) => a - b)) {
@@ -321,7 +447,10 @@ function skyYear(ctx: PopulationContext, year: number): void {
   const { world } = ctx,
     s = fireOf(world).state;
   if (s.dread > 0)
-    s.dread = Math.max(s.falls.length ? FIRE.dreadLeast : 0, s.dread * FIRE.dreadKept);
+    s.dread = Math.max(
+      s.falls.length || s.far?.falls.length ? FIRE.dreadLeast : 0,
+      s.dread * FIRE.dreadKept,
+    );
   if (s.soot > 0) {
     s.soot *= FIRE.sootKept;
     if (s.soot < FIRE.sootTold / 4) s.soot = 0;
@@ -710,10 +839,10 @@ function worksYear(ctx: PopulationContext, t: SimTime): void {
       continue;
     }
     if (w.done !== null) {
-      pay(ctx, p, FIRE.keepShare);
+      payWorks(ctx, p, FIRE.keepShare);
       continue;
     }
-    w.paid += pay(ctx, p, FIRE.worksShare);
+    w.paid += payWorks(ctx, p, FIRE.worksShare);
     if (year - w.begun < FIRE.worksYears) continue;
     w.done = year;
     w.held = world.events.emit({
@@ -899,7 +1028,7 @@ export function fireAnswerProblem(world: World, args: unknown): string | null {
   const bad = rulerProblem(world, args);
   if (bad) return bad;
   const a = args as Partial<FireAnswerArgs>,
-    c = fireOf(world).openFor(a.realm as Ref);
+    c = fireOf(world).openFor(a.realm as Ref) ?? fireOf(world).farOpenFor(a.realm as Ref);
   if (a.answer !== "hold" && a.answer !== "loose") return "it is held or loosed";
   if (!c) return "no one stands at the brink";
   if (a.answer === "loose" && !c.war)
@@ -919,7 +1048,7 @@ export function installFire(world: World): FireStore {
     validate: (args) => fireAnswerProblem(world, args),
     apply: (command) => {
       const a = command.args as FireAnswerArgs,
-        c = store.openFor(a.realm)!;
+        c = store.openFor(a.realm) ?? store.farOpenFor(a.realm)!;
       c.answer = a.answer;
     },
   });

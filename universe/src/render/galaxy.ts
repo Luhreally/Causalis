@@ -33,6 +33,8 @@ export class GalaxyScene {
   private readonly bulge: pc.Entity;
   private readonly home: pc.Entity;
   private readonly spot: pc.Entity;
+  private scarGlow: pc.Material | null = null;
+  private readonly scarMarks: pc.Entity[] = [];
 
   constructor(stage: Stage) {
     this.stage = stage;
@@ -164,6 +166,24 @@ export class GalaxyScene {
   }
 
   /** Mark the spot tapped (units), or clear it. */
+  /** A smoulder on the disk where a world was unmade, from then on (W6). */
+  scars(at: readonly { x: number; z: number }[], size: number): void {
+    this.scarGlow ??= glowMaterial(this.stage, [
+      [0, "rgba(255,80,30,1)"],
+      [0.22, "rgba(230,40,16,0.6)"],
+      [1, "rgba(90,0,0,0)"],
+    ]);
+    while (this.scarMarks.length < at.length)
+      this.scarMarks.push(billboard(this.stage, this.scarGlow, 1, this.root, true));
+    this.scarMarks.forEach((e, i) => {
+      const p = at[i];
+      e.enabled = !!p;
+      if (!p) return;
+      e.setLocalPosition(p.x, size * 0.2, p.z);
+      e.setLocalScale(size, size, size);
+    });
+  }
+
   mark(at: { x: number; z: number } | null, size = 1): void {
     this.spot.enabled = !!at;
     if (!at) return;

@@ -210,8 +210,26 @@ export class Colonies {
                     ? `; its world ${Math.round(c.remade * 100)}% remade`
                     : ""
               }${c.settled >= 0.001 ? `; ${c.settled < 0.095 ? (c.settled * 100).toFixed(1) : Math.round(c.settled * 100)}% of its world settled, ${c.onWorld.toLocaleString("en")} on it` : ""}`;
-          row.append(name, el("div", "colony-row-facts", facts));
-          if (!c.sailing && c.town) {
+          row.append(
+            name,
+            el(
+              "div",
+              "colony-row-facts",
+              c.gone
+                ? `No one is here now: its world was unmade in year ${c.gone.year}, by ${c.gone.by ?? "the god's hand"}.`
+                : facts,
+            ),
+          );
+          if (c.gone) {
+            const whole = el("button", "colony-watch colony-world", "🌑 What is left of it");
+            whole.dataset.cell = String(c.cell);
+            whole.onclick = () => {
+              this.show(false);
+              this.onWorld(c.cell);
+            };
+            acts.append(whole);
+            row.append(acts);
+          } else if (!c.sailing && c.town) {
             const watch = el("button", "colony-watch", "▶ Watch the landing"),
               whole = el("button", "colony-watch colony-world", "🪐 Its world"),
               down = el("button", "colony-down", "⬇ Go down");

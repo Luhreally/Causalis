@@ -2,6 +2,7 @@
 // whom, its wars, its regard for others and what it knows — two realms' regard, a war with
 // its battles and its two hosts, a battle, and a war between the stars.
 import { cellRef, offworldSite } from "../../gen/index.ts";
+import { farWarBlocks } from "../far.ts";
 import { fireRealmStats } from "./fire.ts";
 import {
   beliefOf,
@@ -862,7 +863,9 @@ export function starWarPage(world: World, ref: string): PageModel {
       stat("Fleet", `strength ${count(w.strength)}`),
       stat("Sailed", `year ${w.sailed}`),
       stat("Arrives", `year ${w.arrives}`),
-      stat("Won", w.won === null ? "not yet fought" : w.won ? "yes" : "no", { why: w.battle }),
+      stat("Won", w.won === null ? (w.ended ? "no battle was fought" : "not yet fought") : w.won ? "yes" : "no", {
+        why: w.battle,
+      }),
     ],
     tabs: [
       {
@@ -889,6 +892,7 @@ export function starWarPage(world: World, ref: string): PageModel {
                 },
               ]
             : []),
+          ...farWarBlocks(world, w.ref),
           { type: "why", ref: w.event },
         ],
       },

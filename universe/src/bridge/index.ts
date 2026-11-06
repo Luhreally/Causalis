@@ -227,6 +227,8 @@ export type {
   PeoplesSky,
   SkyState,
   StarPage,
+  FarFilmPlan,
+  FarReach,
   SystemPlan,
   SystemPlanBody,
   GalaxyPlan,

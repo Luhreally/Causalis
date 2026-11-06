@@ -185,6 +185,7 @@ import { genesisOf } from "./genesis.ts";
 import { TRAIT_LOOK } from "./inspect/folk.ts";
 import { actsMap, landSky, paletteLand } from "./acts.ts";
 import { fireShadow } from "./inspect/fire.ts";
+import { FAR_QUERIES } from "./far.ts";
 import { groundMap, spotGround } from "./inspect/ground.ts";
 import { worldGlobe } from "./worlds.ts";
 import { foreignGlobe, foreignSystem, galaxyPlan, starPage, starsNear } from "./galaxy.ts";
@@ -912,6 +913,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
       },
       /** The first jump (Phase 68). */
       "lanes.jump": (world) => jumpPlan(world),
+      /** Arms past the greatest fire (W6). */
+      ...FAR_QUERIES,
       /** Any star of the galaxy (the cluster's or beyond), and its worlds. */
       "galaxy.star": (world, args): StarPage => starPage(world, (args as { ref: string }).ref),
       // Another star's own system, to look at as the home star's is (M95).
