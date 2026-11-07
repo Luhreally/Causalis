@@ -703,6 +703,16 @@ if (ring) {
   await goDown(ring.town.ref);
   const s = await looked("ring");
   check(s.shown > 0, "a village's ring has nothing laid on it");
+  // (The eye stands back from a ring as the lens comes on: a place read while it moves is nowhere, and on a slow machine it moves for many seconds.)
+  let was = "";
+  for (let i = 0; i < 60; i++) {
+    await k(
+      `new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))`,
+    );
+    const now = JSON.stringify(await moneySpots());
+    if (now === was) break;
+    was = now;
+  }
   const list = (await moneySpots()).filter((x) => x.x > 30 && x.x < 400 && x.y > 240 && x.y < 640);
   if (list[0]) {
     await page.touchscreen.tap(list[0].x, list[0].y);

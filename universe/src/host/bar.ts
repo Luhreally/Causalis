@@ -14,7 +14,7 @@ import type {
   Portrait,
 } from "../bridge/index.ts";
 import { courtRef } from "./court.ts";
-import { townRoster } from "./roster.ts";
+import { linesOf, townRoster } from "./roster.ts";
 import { pageOf } from "./inspect/index.ts";
 import { goneOf, readingsOf, warOfRealm } from "./inspect/barread.ts";
 import { bare, claimOf } from "./inspect/words.ts";
@@ -59,9 +59,11 @@ function elderOf(world: World, cell: number | null): { ref: string; town: string
         (a, b) => b.population - a.population || (a.ref < b.ref ? -1 : a.ref > b.ref ? 1 : 0),
       )[0];
   if (!town) return null;
-  const roster = townRoster(world, town.ref);
+  const roster = townRoster(world, town.ref),
+    // (Of those it has: past its own lines a roster still answers, with no one a page knows.)
+    lines = Math.min(ELDER_LINES, linesOf(town.population));
   let best: { ref: string; born: number } | null = null;
-  for (let line = 0; line < ELDER_LINES; line++) {
+  for (let line = 0; line < lines; line++) {
     const h = roster.holder(line);
     if (!h) continue;
     if (!best || h.born < best.born) best = { ref: h.ref, born: h.born };

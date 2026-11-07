@@ -183,7 +183,9 @@ function worldWithStrike(
       .allStrikes()
       .slice(had)
       .filter((s) => s.kind === "rocket");
-    strike = [...all].sort((p, q) => q.homes - p.homes)[0];
+    strike = [...all].sort((p, q) => q.homes - p.homes)[0] ?? strike;
+    // (A war with an aim can be over in a year: what it brought is what there is to watch.)
+    if (strike && wars.get(strike.war)?.ended !== null) break;
   }
   if (!strike) throw new Error(`no rockets fell on ${seed}`);
   const event = world.events.get(strike.event)!,

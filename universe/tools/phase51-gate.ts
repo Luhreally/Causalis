@@ -573,13 +573,20 @@ if (works) {
 
   // 8. The foundry: blown, tapped (in the middle of a founder's draw), poured, stacked; a mould tapped.
   await advance(fday * DAY + 7 * HOUR);
+  // (By the plan and by frames: on a slow machine who is drawn, and the cupola, are as of the last frame, however long ago that was.)
+  const frames = () =>
+    k(`new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))`);
   let tapped = false;
-  for (const p of (await people()).filter((x) => founders.has(x.name))) {
-    const draw = (await k<Leg[]>(`globalThis.causalis.legs?.(${p.index}) ?? []`)).find(
+  const founding = await k<number[]>(
+    `(globalThis.causalis.planNow()?.people ?? []).flatMap((p, i) => (p.trade?.kind === "founder" ? [i] : []))`,
+  );
+  for (const index of founding) {
+    const draw = (await k<Leg[]>(`globalThis.causalis.legs?.(${index}) ?? []`)).find(
       (l) => l.why === "Drawing the iron from the cupola into the ladle" && l.from > 7 * HOUR,
     );
     if (!draw) continue;
     await advance(fday * DAY + (draw.from + draw.to) / 2);
+    await frames();
     tapped = !!(await crafts())?.foundry?.tapping;
     if (tapped) break;
   }

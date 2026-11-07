@@ -514,6 +514,14 @@ try {
 
   // The hand on it, and one of them possessed; let go, the world running on.
   await k(`globalThis.causalis.closePage()`);
+  // (And the card of the one tapped, as a person closes it: on a phone the god's hand stands aside while a card is up.)
+  const cardClose = await centre(
+    "#hud > .panel:not([hidden]) > .inspector:not([hidden], .page-window) .close",
+  );
+  if (cardClose) {
+    await page.touchscreen.tap(cardClose.x, cardClose.y);
+    await page.waitForTimeout(slow(600));
+  }
   await k(
     `globalThis.causalis.client.command("hand.lay", { village: ${JSON.stringify(moon.town)} })`,
   );

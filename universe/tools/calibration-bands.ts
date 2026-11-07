@@ -77,7 +77,8 @@ export const BANDS: readonly {
     name: "realms standing",
     year: 500,
     measure: (c) => c.realms,
-    band: [10, 120],
+    // (Since allies answer a call fewer realms are swallowed: `first light` went from 82 to 129, the greatest from 9% of the world to 5%.)
+    band: [10, 160],
     words: (v) => v.toFixed(0),
   },
   {

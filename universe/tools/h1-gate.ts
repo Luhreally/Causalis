@@ -146,7 +146,8 @@ const towns = [...ctx.settlements.all()]
         !o.shut &&
         o.raises.length &&
         o.firsts.length > 1 &&
-        (townsOf(world).get(s.ref)?.next ?? 0) > 20
+        (townsOf(world).get(s.ref)?.next ?? 0) > 20 &&
+        (!arg("--want") || o.raises.some((r) => r.what === arg("--want")))
       )
         return { s, o };
     }
@@ -330,8 +331,10 @@ if (chosen) {
   // 2. Raise what's listed, by touch; a town may say no, and that's an answer: on to the next, as a person would.
   let n = 0,
     answer = "",
-    ref = "";
-  for (const r of o.raises.slice(0, 4)) {
+    ref = "",
+    whatAsked = "";
+  const wanted = arg("--want");
+  for (const r of wanted ? o.raises.filter((x) => x.what === wanted) : o.raises.slice(0, 4)) {
     if (!(await k<boolean>("globalThis.causalis.asks.sheetOpen()"))) {
       await tapOn(".bar .town-ask");
       await until("the sheet again", async () => (await sheetWords()).length > 20);
@@ -341,6 +344,7 @@ if (chosen) {
     answer = await windowWords();
     say(`answer (${r.what}): ${line(answer, 1500)}`);
     ref = `ask:${s.ref}:${n++}`;
+    whatAsked = r.what;
     await shot(`2-answer-${r.what}`);
     check(/their answer/i.test(answer), "no answer on the page");
     check(/\bwhy\b/i.test(answer), "no why on the answer's page");
@@ -525,18 +529,26 @@ if (chosen) {
     let opened = "";
     await k(`globalThis.causalis.closePage?.()`);
     await stood();
-    const size = spot.size;
-    for (const [dx, dz] of [
-      [0, 0],
-      [size * 0.25, 0],
-      [-size * 0.25, 0],
-      [0, size * 0.25],
-      [0, -size * 0.25],
-    ]) {
+    const size = spot.size,
+      // (Walls: along what stands of them, back from the crew at their head.)
+      round = (back: number) => {
+        const r = Math.hypot(spot.x, spot.z),
+          a = Math.atan2(spot.z, spot.x) - back / r;
+        return [r * Math.cos(a) - spot.x, r * Math.sin(a) - spot.z] as const;
+      };
+    for (const [dx, dz] of whatAsked === "walls"
+      ? [round(8), round(14), round(20), round(26), round(32), round(-14)]
+      : [
+          [0, 0],
+          [size * 0.25, 0],
+          [-size * 0.25, 0],
+          [0, size * 0.25],
+          [0, -size * 0.25],
+        ]) {
       const atP = await k<{ x: number; y: number } | null>(
         `globalThis.causalis.townScreen(${spot.x + dx!}, ${spot.z + dz!})`,
       );
-      if (!atP) continue;
+      if (!atP || atP.y < 260 || atP.y > 850 || atP.x < 10 || atP.x > 420) continue;
       // (At the reach a press has: someone within it takes the press before the site.)
       const person = await k<number | null>(`globalThis.causalis.townPick(${atP.x}, ${atP.y})`);
       if (person !== null) continue;
