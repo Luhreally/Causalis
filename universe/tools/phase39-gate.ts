@@ -163,17 +163,14 @@ for (const candidate of towns.slice(0, 8)) {
 }
 
 // 1. The town drawn with its many.
-const drawn = await k<number>(`globalThis.causalis.watching?.() ?? 0`),
-  everyone = await people(),
-  many = everyone.filter((p) => p.folk).length;
-say(`${town.name} (${town.people}): ${drawn} drawn, ${many} of them of its many (in sight now)`);
+const drawn = await k<number>(`globalThis.causalis.watching?.() ?? 0`);
 check(drawn >= Math.min(60, Math.ceil(town.people / 30)), `too few drawn (${drawn})`);
-check(many >= 1, "none of the town's many drawn");
 
 // 2. At the harvest: reaping, the sheaves carried in, the grain rising; builders and the yard.
 const seen = new Set<string>(),
   tasks = new Set<string>();
-let loads = 0;
+let loads = 0,
+  many = 0;
 const look = async (from: number, to: number, step: number) => {
   for (let m = from * 60; m <= to * 60; m += step) {
     const t = Math.round(day * DAY + m * 60);
@@ -186,7 +183,9 @@ const look = async (from: number, to: number, step: number) => {
       .catch(() => undefined);
     await page.waitForTimeout(slow(60));
     for (const c of await carriers()) seen.add(c.carry);
-    for (const p of await people()) {
+    const out = await people();
+    many = Math.max(many, out.filter((p) => p.folk).length);
+    for (const p of out) {
       if (p.carry) seen.add(p.carry);
       if (p.task) tasks.add(p.task);
       if (p.task === "load") loads++;
@@ -199,6 +198,9 @@ await look(6.25, 8, 1);
 await advance(day * DAY + 9.5 * HOUR);
 const morning = (await stores())!;
 await look(9.5, 12, 3);
+// (Through the morning: at first light they may all be in yet, by when the sun comes up where this town lies.)
+say(`${town.name} (${town.people}): ${drawn} drawn, up to ${many} of them of its many out at once`);
+check(many >= 1, "none of the town's many drawn");
 await advance(day * DAY + 15 * HOUR);
 const afternoon = (await stores())!,
   doing = Object.fromEntries(afternoon.doing.map((d) => [d.kind, d.n]));

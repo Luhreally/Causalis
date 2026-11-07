@@ -385,7 +385,15 @@ function namesOf(world: World, e: HistoryEvent) {
     // (From the last "the": "The bound of the hot desert at" is of the hot desert.)
     const text = m[0].slice(m[0].toLowerCase().lastIndexOf("the ")),
       c = landsByWords(world).get(text.toLowerCase());
-    if (c !== undefined) names.push({ text, ref: cellRef(0, c), as: landName(world, c) });
+    if (c !== undefined) {
+      names.push({ text, ref: cellRef(0, c), as: landName(world, c) });
+      continue;
+    }
+    // (Its own ground, at the place of a land it happened in, as a fire tells it: the same words, without the figures.)
+    const at = text.slice(text.indexOf(" at "));
+    for (const l of lands)
+      if (landWords(world, cellRef(0, l)).endsWith(at))
+        names.push({ text, ref: cellRef(0, l), as: text.slice(0, -at.length) });
   }
   // One of a court, with a page of their own.
   if (typeof d.fig === "number" && e.subjects[0]) {
