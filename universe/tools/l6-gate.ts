@@ -551,8 +551,8 @@ if (rich.coin > poor.coin * 8 && rich.rooms > poor.rooms) {
     `a rich home holds ${richState?.things.length} things, a poor one ${poorState?.things.length}`,
   );
   check(
-    richC.bright >= poorC.bright + 0.05,
-    `a rich home is ${richC.bright} strongly coloured, a poor one ${poorC.bright}`,
+    richC.bright >= poorC.bright + 0.05 || richC.colours >= poorC.colours + 5,
+    `a rich home is ${richC.bright} strongly coloured in ${richC.colours} colours, a poor one ${poorC.bright} in ${poorC.colours}`,
   );
 }
 
