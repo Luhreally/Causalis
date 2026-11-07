@@ -109,9 +109,11 @@ function lossLine(world: World, l: LostCraft): Line {
     line.push(
       l.back.how === "kept"
         ? `They found it again ${y} years on, in what was kept.`
-        : l.back.how === "found"
-          ? `They came upon it again ${y} years on, from nothing.`
-          : `They were taught it again ${y} years on.`,
+        : l.back.how === "brought"
+          ? `Those who came brought it back ${y} years on.`
+          : l.back.how === "found"
+            ? `They came upon it again ${y} years on, from nothing.`
+            : `They were taught it again ${y} years on.`,
     );
   } else line.push("They have not had it since.");
   return line;
@@ -322,7 +324,7 @@ const FORM_ICON: Readonly<Record<KeepForm, string>> = {
 const FORM_STONE: Readonly<Record<KeepForm, MemorialForm>> = {
   brood: "dome",
   reef: "reef",
-  written: "slab",
+  written: "archive",
   reciters: "ring",
   songs: "cairn",
 };
@@ -339,20 +341,49 @@ export function landLostBlocks(world: World, cell: number): Block[] {
     blocks.push({
       type: "list",
       title: "What it has lost",
-      items: list.slice(0, 16).map((l) => {
-        const teachers = lore.landsKnowing(l.id),
-          line: Span[] = [
-            link(cap(principleName(l.id, world)), lostRef(l.id)),
-            `, year ${l.year}: `,
-            ...(l.cause ? [link(FELL_WORDS[l.why], l.cause)] : [FELL_WORDS[l.why]]),
-            teachers
-              ? `. ${many(teachers, "land has", "lands have")} it still.`
-              : ". No one has it now.",
-          ];
-        return item(line, lostRef(l.id), l.year);
-      }),
+      items: [
+        item([forgetWords(world)], null),
+        ...list.slice(0, 16).map((l) => {
+          const teachers = lore.landsKnowing(l.id),
+            line: Span[] = [
+              link(cap(principleName(l.id, world)), lostRef(l.id)),
+              `, year ${l.year}: `,
+              ...(l.cause ? [link(FELL_WORDS[l.why], l.cause)] : [FELL_WORDS[l.why]]),
+              teachers
+                ? `. ${many(teachers, "land has", "lands have")} it still.`
+                : ". No one has it now.",
+            ];
+          return item(line, lostRef(l.id), l.year);
+        }),
+      ],
     });
   }
+  const back = store.closed.filter((l) => l.cell === cell).slice(-12);
+  if (back.length)
+    blocks.push({
+      type: "list",
+      title: "What it came back to",
+      items: back
+        .reverse()
+        .map((l) =>
+          item(
+            [
+              link(cap(principleName(l.id, world)), lostRef(l.id)),
+              `, lost year ${l.year}: `,
+              ...(l.back!.how === "kept"
+                ? ["found again in what was kept"]
+                : l.back!.how === "brought"
+                  ? ["those who came brought it"]
+                  : l.back!.how === "found"
+                    ? ["come upon again, from nothing"]
+                    : ["taught again"]),
+              `, ${many(l.back!.year - l.year, "year", "years")} on.`,
+            ],
+            lostRef(l.id),
+            l.back!.year,
+          ),
+        ),
+    });
   if (kept.length)
     blocks.push({
       type: "list",
@@ -370,13 +401,23 @@ export function landLostBlocks(world: World, cell: number): Block[] {
   return blocks;
 }
 
-/** A town's archive as a thing that stands in it, for its plan to carry. */
-export function archiveMemorials(world: World, town: string): readonly Memorial[] {
+/**
+ * A town's archive as a thing that stands in it, for its plan to carry: of the stuff its land's stones are, dressed pale, so it reads among
+ * what's about it (`stoneOf`: that stuff, of a land; a people of the water grow theirs).
+ */
+export function archiveMemorials(
+  world: World,
+  town: string,
+  stoneOf: (cell: number) => readonly [number, number, number],
+): readonly Memorial[] {
   const a = lostOf(world).archiveOfTown(town);
   if (!a || !a.crafts.length) return [];
   const body = populationContext(world).generated.life.people?.body,
     water = body?.medium === "water",
-    colour: [number, number, number] = water ? [0.62, 0.5, 0.56] : [0.66, 0.6, 0.48];
+    stone = stoneOf(a.cell),
+    colour: [number, number, number] = water
+      ? [0.62, 0.5, 0.56]
+      : [stone[0] * 0.3 + 0.62, stone[1] * 0.3 + 0.6, stone[2] * 0.3 + 0.52];
   return [
     {
       ref: archiveRef(a),
@@ -384,9 +425,9 @@ export function archiveMemorials(world: World, town: string): readonly Memorial[
       title: cap(archiveName(world, a)),
       year: a.year,
       age: Math.max(0, yearNow(world) - a.year),
-      size: Math.min(1.5, 0.85 + a.crafts.length / 30),
+      size: Math.min(1.15, 0.85 + a.crafts.length / 60),
       colour,
-      dark: [colour[0] * 0.45, colour[1] * 0.45, colour[2] * 0.45],
+      dark: [colour[0] * 0.5, colour[1] * 0.46, colour[2] * 0.4],
     },
   ];
 }
@@ -455,6 +496,14 @@ export function forgetWords(world: World): string {
     : "What only many hands hold goes when the hands do.";
 }
 
+/** The earliest any land that has lost a craft came to it (null: no one has lost it). */
+export function firstOfLost(world: World, id: string): { cell: number; year: number } | null {
+  let best: { cell: number; year: number } | null = null;
+  for (const l of lostOf(world).losses(id))
+    if (!best || l.since < best.year) best = { cell: l.cell, year: l.since };
+  return best;
+}
+
 /** The tree's words for a principle lost: for F5's pages. */
 export function lostOfPrinciple(world: World, id: string): Line | null {
   const store = lostOf(world),
@@ -478,38 +527,4 @@ export function lostOfPrinciple(world: World, id: string): Line | null {
     `, year ${l.year}. `,
     link("What became of it", lostRef(id)),
   ];
-}
-
-/** Every craft lost to the world now, for the world's pages. */
-export function lostToWorldBlock(world: World): Block | null {
-  const store = lostOf(world),
-    gone = store.worldLosses(),
-    again = store.foundAgain.slice(-6);
-  if (!gone.length && !again.length) return null;
-  return {
-    type: "list",
-    title: "What no one living knows",
-    items: [
-      ...gone.map((w) =>
-        item(
-          [
-            link(cap(principleName(w.id, world)), lostRef(w.id)),
-            `: lost to the world in year ${w.year}.`,
-          ],
-          lostRef(w.id),
-          w.year,
-        ),
-      ),
-      ...again.map((w) =>
-        item(
-          [
-            link(cap(principleName(w.id, world)), lostRef(w.id)),
-            `: lost in year ${w.year}, found again in year ${w.found!.year}.`,
-          ],
-          lostRef(w.id),
-          w.found!.year,
-        ),
-      ),
-    ],
-  };
 }

@@ -58,7 +58,7 @@ import { oreKnown } from "../economy/heat.ts";
 import { cultureOf } from "../culture/culture.ts";
 import { politiesOf } from "../polity/polity.ts";
 import { laneLawOf } from "../space/lanes.ts";
-import { handsHolding, lostOf, needOfHands, RETAKE_AFTER } from "./lost-store.ts";
+import { holdsAgain, lostOf, RETAKE_AFTER } from "./lost-store.ts";
 
 export const LORE_EVENTS = {
   found: defineEventType("lore.found", 5),
@@ -315,7 +315,7 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
     if (!prov.total()) continue;
     const cell = prov.cell,
       reach = reachIn(means, (n) => knows(ctx, cell, n)),
-      // (What this land has lost it takes up again only once it has the hands to hold it: K1.)
+      // (What this land has lost it takes up again only once it has the hands to hold it, or is what it was: K1.)
       lostHere = gone.ofLand(cell),
       // Only what their body allows: no kilns without fire, no wheels in the water — and only
       // what their world's heat and matter allow (Phase 56, F2).
@@ -325,7 +325,7 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
           (!lostHere ||
             !lostHere.has(p.id) ||
             (year - lostHere.get(p.id)!.year >= RETAKE_AFTER &&
-              handsHolding(ctx, prov, p) >= needOfHands(p))) &&
+              holdsAgain(ctx, prov, p, lostHere.get(p.id)!.then))) &&
           affordsPrinciple(p, ctx.medium, reach, means.wants) &&
           !store.get(cell, p.id) &&
           needsMet(p, (n) => knows(ctx, cell, n)) &&

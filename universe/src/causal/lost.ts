@@ -80,6 +80,13 @@ registerEventWords(LOST_EVENTS.read.type, (world, e) => {
   return `${cap(landWords(world, e.place))} found ${principleName(d?.principle ?? null, world)} again in ${keptWords(world, d?.form ?? "songs", d?.civic ?? null, d?.town ?? "a fallen town")}, year ${yearOfMoment(e.t)}.`;
 });
 
+registerEventWords(LOST_EVENTS.brought.type, (world, e) => {
+  const d = data(e),
+    first = principleName(d?.crafts?.[0] ?? null, world),
+    more = (d?.n ?? 1) - 1;
+  return `Those who came to ${landWords(world, e.place)} brought ${first}${more > 0 ? ` and ${more} ${more === 1 ? "other craft" : "other crafts"}` : ""} back with them, year ${yearOfMoment(e.t)}.`;
+});
+
 registerEventWords(LOST_EVENTS.lostWorld.type, (world, e) => {
   const d = data(e);
   return `${cap(principleName(d?.principle ?? null, world))} went from the world with ${landWords(world, e.place)}, year ${yearOfMoment(e.t)}: no one living knows how${d?.kept ? ", though it is kept where someone may find it" : ""}.`;

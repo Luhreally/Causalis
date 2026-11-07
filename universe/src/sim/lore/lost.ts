@@ -33,10 +33,13 @@ import type { Settlement } from "../population/stores.ts";
 import { townsOf } from "../town/fabric.ts";
 import { knows, loreOf } from "./lore.ts";
 import {
+  FALL_LEAST,
   HOLD_STEP,
   LostStore,
+  READ_HANDS,
   RETAKE_AFTER,
   handsHolding,
+  holdsAgain,
   isHive,
   lostOf,
   needOfHands,
@@ -58,14 +61,16 @@ export const LOST_EVENTS = {
   lostWorld: defineEventType("lore.lost-world", 5),
   /** Someone has it who no one could have taught. */
   foundAgain: defineEventType("lore.found-again", 5),
+  /** Those who came to a land that had lost it brought it with them. */
+  brought: defineEventType("lore.brought", 2),
 };
 
 const LOSE = defineStream("lore.lose");
 const READ = defineStream("lore.read");
 const SEE = defineStream("lore.see");
 
-/** A land has fallen when it holds this much less than it did, within the ledger's last ten years. */
-export const FALL_LEAST = 0.35;
+/** How far back a land's ledger is read for what it was. */
+const FALL_YEARS = 10;
 /** How readily, in a year, a land fallen all the way loses a craft that wants far more hands than it has. */
 export const LOSE_RATE = 0.5;
 /** What keeping does to that: a people that keeps things loses them less readily, and so do those with someone near who has it. */
@@ -89,6 +94,9 @@ export const KEEP_YEARS: Readonly<Record<KeepForm, number>> = {
 };
 /** How deep a song can carry: past this a craft is too much for any song. */
 export const SONGS_REACH = 10;
+/** How soon those who come to a fallen land can bring back what it lost, and how many more than were left it takes. */
+export const BROUGHT_AFTER = 3,
+  BROUGHT_MANY = 2;
 /** Who keep things, in the order they are looked for. */
 const KEEPERS: readonly CivicKind[] = [
   "academy",
@@ -246,6 +254,8 @@ function loseFrom(
       need = needOfHands(p);
     if (!emptied) {
       if (hands >= need) continue;
+      // (What they took up since it fell isn't what the fall took: the ledger still says it fell for ten years.)
+      if (year - k.year <= FALL_YEARS) continue;
       // (Nothing goes from under what still stands on it: no one loses the iron under a steel they still make.)
       const rests = RESTS_ON.get(p.id);
       if (rests?.some((q) => still(q.id) && !needsMet(q, (x) => x !== p.id && still(x)))) continue;
@@ -333,16 +343,66 @@ function settleBacks(ctx: PopulationContext, lost: LostStore): void {
     if (!k) continue;
     const e = world.events.get(k.event),
       read = e?.type === LOST_EVENTS.read.type,
-      from = read ? ((e!.data as { from?: number } | null)?.from ?? null) : null,
+      brought = e?.type === LOST_EVENTS.brought.type,
+      from = read || brought ? ((e!.data as { from?: number } | null)?.from ?? null) : null,
       back: CraftBack = {
         year: k.year,
-        how: read ? "kept" : e?.type === "lore.found" ? "found" : "taught",
+        how: read ? "kept" : brought ? "brought" : e?.type === "lore.found" ? "found" : "taught",
         from,
         kept: read ? ((e!.data as { archive?: number } | null)?.archive ?? null) : null,
         event: k.event,
       };
     lost.closeLoss(l, back);
   }
+}
+
+/**
+ * Those who have moved into a land that lost a craft bring what they know, all at once, shallowest first: a land emptied and filled again is
+ * filled by people from next door, and they did not forget on the way. So too a land grown back to what it was, among those who have it.
+ */
+function broughtIn(ctx: PopulationContext, t: SimTime, lost: LostStore, year: number): void {
+  const { world, generated: g } = ctx,
+    lore = loreOf(world),
+    means = meansOfWorld(g);
+  for (const cell of lost.lands()) {
+    const prov = ctx.provinces.get(cell),
+      now = prov?.total() ?? 0;
+    if (!prov || !now) continue;
+    const ready = [...lost.ofLand(cell)!.values()]
+      .filter((l) => year - l.year >= BROUGHT_AFTER && now >= BROUGHT_MANY * Math.max(1, l.left))
+      .sort(
+        (a, b) =>
+          (PRINCIPLE_DEPTH.get(a.id) ?? 0) - (PRINCIPLE_DEPTH.get(b.id) ?? 0) ||
+          PRINCIPLE_INDEX.get(a.id)! - PRINCIPLE_INDEX.get(b.id)!,
+      );
+    if (!ready.length) continue;
+    const near = nearLands(ctx, cell),
+      come: { l: LostCraft; p: Principle; from: number }[] = [],
+      coming = new Set<string>(),
+      has = (x: string) => coming.has(x) || knows(ctx, cell, x);
+    for (const l of ready) {
+      const p = PRINCIPLES[PRINCIPLE_INDEX.get(l.id)!]!;
+      if (!holdsAgain(ctx, prov, p, l.then)) continue;
+      const from = near.find((n) => lore.get(n, l.id));
+      if (from === undefined || lore.get(cell, l.id) || !needsMet(p, has)) continue;
+      if (!affordsPrinciple(p, ctx.medium, reachIn(means, has), means.wants)) continue;
+      come.push({ l, p, from });
+      coming.add(l.id);
+    }
+    if (!come.length) continue;
+    const event = world.events.emit({
+      type: LOST_EVENTS.brought.type,
+      place: prov.ref,
+      causes: [{ ref: come[0]!.l.event, role: "enabler", weight: 1 }],
+      data: {
+        crafts: come.slice(0, 8).map((c) => c.l.id),
+        n: come.length,
+        from: come[0]!.from,
+      },
+    });
+    for (const c of come) lore.learn(cell, c.l.id, { year, event }, c.p);
+  }
+  void t;
 }
 
 /** Whoever can read what was kept comes to it again. */
@@ -372,10 +432,15 @@ function readArchives(ctx: PopulationContext, t: SimTime, lost: LostStore, year:
       for (const cell of readers) {
         if (lore.get(cell, id)) continue;
         const prov = ctx.provinces.get(cell)!;
-        if (handsHolding(ctx, prov, p) < needOfHands(p)) continue;
-        if (!needsMet(p, (x) => knows(ctx, cell, x))) continue;
         const had = lost.ofLand(cell)?.get(id);
         if (had && year - had.year < RETAKE_AFTER) continue;
+        // (Whoever lost it, when they are enough of what they were; anyone else, with hands enough to read it.)
+        if (
+          !(had && holdsAgain(ctx, prov, p, had.then)) &&
+          handsHolding(ctx, prov, p) < Math.min(needOfHands(p), READ_HANDS)
+        )
+          continue;
+        if (!needsMet(p, (x) => knows(ctx, cell, x))) continue;
         const reach = reachIn(means, (n) => knows(ctx, cell, n));
         if (!affordsPrinciple(p, ctx.medium, reach, means.wants)) continue;
         if (
@@ -522,6 +587,7 @@ export function lostYear(ctx: PopulationContext, t: SimTime): void {
     cache: { walked: Map<string, { ref: Ref; type: string }[]> | null } = { walked: null };
   settleBacks(ctx, store);
   readArchives(ctx, t, store, year);
+  broughtIn(ctx, t, store, year);
   for (const prov of ctx.provinces.all()) {
     const cell = prov.cell;
     if (!lore.sizeOf(cell)) continue;
@@ -543,5 +609,5 @@ export function installLost(world: World, ctx: () => PopulationContext): LostSto
   return store;
 }
 
-export { HOLD_STEP };
+export { FALL_LEAST, HOLD_STEP };
 export type { LostCraft };

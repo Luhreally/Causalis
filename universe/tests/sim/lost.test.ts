@@ -43,6 +43,50 @@ test("a land forgets: its totals are what it still knows, and a land emptied for
   assert.deepEqual(JSON.parse(JSON.stringify(store.save())), saved);
 });
 
+test("those who come to a land that lost a craft bring it, shallowest first, and not at once", () => {
+  const world = EARTH.build(seedFromText("first light"));
+  world.runTo(150 * YEAR);
+  const ctx = populationContext(world),
+    lore = loreOf(world),
+    g = ctx.generated,
+    neighbours = (cell: number) => {
+      const out: number[] = [];
+      for (let k = g.grid.offsets[cell]!; k < g.grid.offsets[cell + 1]!; k++)
+        out.push(g.grid.neighbours[k]!);
+      return out;
+    },
+    land = [...ctx.provinces.all()].find(
+      (p) =>
+        p.total() > 0 &&
+        lore.sizeOf(p.cell) >= 4 &&
+        neighbours(p.cell).some((n) => (ctx.provinces.get(n)?.total() ?? 0) > 0 && lore.sizeOf(n)),
+    )!,
+    cell = land.cell,
+    then = land.total(),
+    near = neighbours(cell).find(
+      (n) => (ctx.provinces.get(n)?.total() ?? 0) > 0 && lore.sizeOf(n),
+    )!,
+    shared = lore.of(cell).filter(([id]) => lore.get(near, id)).length;
+  assert.ok(shared > 0, "the neighbour knows some of what it knows");
+  for (let r = 0; r < land.counts.rows; r++)
+    for (let c = 0; c < land.counts.cols; c++) land.counts.set(r, c, 0);
+  lostYear(ctx, world.now);
+  assert.equal(lore.sizeOf(cell), 0);
+  // They come, as many as it had.
+  land.counts.set(0, 0, then);
+  const year = Math.floor(world.now / YEAR);
+  world.runTo((year + 1) * YEAR);
+  assert.equal(lore.sizeOf(cell) > shared, false, "not back within the year");
+  for (let i = 2; i <= 5; i++) {
+    if (land.total() < then) land.counts.set(0, 0, land.counts.get(0, 0) + then - land.total());
+    world.runTo((year + i) * YEAR);
+  }
+  assert.ok(lore.sizeOf(cell) >= shared, `${lore.sizeOf(cell)} of ${shared} back`);
+  const back = lostOf(world).closed.filter((l) => l.cell === cell);
+  assert.ok(back.length > 0, "the loss is closed");
+  assert.ok(back.some((l) => l.back!.how === "brought" && l.back!.from !== null));
+});
+
 test("a world where no one falls keeps nothing here", () => {
   const world = EARTH.build(seedFromText("first light"));
   world.runTo(10 * YEAR);

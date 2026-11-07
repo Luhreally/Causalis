@@ -24,9 +24,11 @@ import {
 import { ALIEN, EARTH } from "../src/host/planet.ts";
 import { PRINCIPLES, PRINCIPLE_DEPTH, needsMet, principle } from "../src/rules/index.ts";
 import {
+  GREAT_DEPTH,
   loreOf,
   lostOf,
   lostYear,
+  politiesOf,
   populationContext,
   townsOf,
   type Archive,
@@ -136,6 +138,8 @@ const forged = yearNow();
 // (At once: on a far world those next door have moved in within the year, and the rule must see it as it stood.)
 lostYear(ctx, world.now);
 check(!!lostOf(world).worldLoss(only), `${only}, its only land emptied, is not lost to the world`);
+// (Down for some years, as a far land never is: else a far land is full again before anything has gone from it.)
+if (far) for (let y = 1; y <= 6; y++) lostYear(ctx, (world.now + y * YEAR) as typeof world.now);
 check(lore.sizeOf(gone.cell) === 0, `an emptied land still knows ${lore.sizeOf(gone.cell)} things`);
 const worldEvent = lostOf(world).worldLoss(only)?.event;
 // (A year's turn reads as the year it closes.)
@@ -155,10 +159,23 @@ say(
   `emptied: ${store.ofLand(gone.cell)?.size ?? 0} crafts gone, archive ${ruin ? `${ruin.form} ${ruin.civic} at ${ruin.name} holding ${ruin.crafts.length}` : "none"}`,
 );
 world.runTo((forged + 14) * YEAR);
-say(
-  `${ctx.provinces.get(gone.cell)!.total()} live there 14 years on; it has ${lore.sizeOf(gone.cell)} back; the archive read ${ruin?.read.length ?? 0} times; ${only}: ${lostOf(world).worldLoss(only) ? "still lost to the world" : "found again"}`,
-);
-const lostHere = [...(store.ofLand(hurt.cell)?.values() ?? [])];
+{
+  const people = ctx.provinces.get(gone.cell)!.total(),
+    fed = ctx.history.yearsOf(gone.cell).at(-1)?.fed ?? 0;
+  say(
+    `${people} live there 14 years on, fed ${fed} of 1000; it has ${lore.sizeOf(gone.cell)} back; the archive read ${ruin?.read.length ?? 0} times; ${only}: ${lostOf(world).worldLoss(only) ? "still lost to the world" : "found again"}`,
+  );
+  // (Those who filled it came from next door, and they did not forget on the way.)
+  if (far && people > 10000)
+    check(
+      lore.sizeOf(gone.cell) > 40 && fed > 500,
+      `a land filled again by ${people} knows ${lore.sizeOf(gone.cell)} things, and is fed ${fed}`,
+    );
+}
+const lostHere = [
+  ...(store.ofLand(hurt.cell)?.values() ?? []),
+  ...store.closed.filter((l) => l.cell === hurt.cell),
+];
 say(
   `nine in ten gone: ${lostHere.length} crafts lost in 12 years of ${knew}: ${lostHere
     .slice(0, 6)
@@ -183,6 +200,75 @@ check(
   "a land's totals are not what it still knows",
 );
 void writingBefore;
+// A great loss, as a person has it: the deepest craft of a land of a realm, held nowhere else, its keepers razed, its people gone as this year turns.
+let armed: string | null = null,
+  armedTown: string | null = null;
+if (far) {
+  // (Long known there: what a land has just read back doesn't go in the same fall. And not the one just lost and found.)
+  const longKnown = (cell: number) =>
+    lore
+      .of(cell)
+      .filter(
+        ([id, k]) =>
+          id !== only && yearNow() - k.year > 20 && (PRINCIPLE_DEPTH.get(id) ?? 0) >= GREAT_DEPTH,
+      )
+      .map(([id]) => id);
+  const land = lands.find(
+    (l) =>
+      l.cell !== hurt.cell &&
+      l.cell !== gone.cell &&
+      !!politiesOf(world).of(l.cell) &&
+      longKnown(l.cell).length > 0,
+  );
+  if (land) {
+    const deep = longKnown(land.cell).sort(
+      (a, b) => (PRINCIPLE_DEPTH.get(b) ?? 0) - (PRINCIPLE_DEPTH.get(a) ?? 0),
+    )[0]!;
+    // (Kept nowhere: an archive that holds it makes its going no great news.)
+    for (const a of lostOf(world).archives)
+      (a as { crafts: string[] }).crafts = a.crafts.filter((x) => x !== deep);
+    for (const c of lore.knowers(deep)) if (c !== land.cell) lore.forget(c, deep);
+    // (And those next door, or they have filled it before the year has turned: nothing is lost by a land that isn't empty.)
+    const g = ctx.generated;
+    for (let i = g.grid.offsets[land.cell]!; i < g.grid.offsets[land.cell + 1]!; i++) {
+      const n = g.grid.neighbours[i]!;
+      if (ctx.provinces.get(n)) fall(n, 0);
+    }
+    for (const s of ctx.settlements.inProvince(land.cell))
+      for (const c of townsOf(world).get(s.ref)?.civics ?? [])
+        if (
+          ["academy", "school", "observatory", "hall", "temple", "shrine"].includes(c.kind) &&
+          c.fell === null
+        )
+          (c as { fell: number | null }).fell = yearNow();
+    fall(land.cell, 0);
+    armed = deep;
+    armedTown = ctx.settlements.inProvince(land.cell)[0]?.ref ?? null;
+    say(`next year: ${deep} goes with land ${land.cell}, kept nowhere`);
+  }
+  check(!!armed, "no land of a realm with a deep craft to lose");
+}
+// The last here who knows how: someone of a land that fell.
+let lastHere: string | null = null;
+for (const s of ctx.settlements.inProvince(hurt.cell).slice(0, 6)) {
+  const plan = U.queries["village.plan"]!(world, {
+    ref: s.ref,
+    families: 10,
+    folk: 220,
+    figures: true,
+  }) as { people?: { ref: string; child?: boolean }[] } | null;
+  for (const p of (plan?.people ?? []).slice(0, 80)) {
+    if (p.child || !p.ref.startsWith("agent:")) continue;
+    if (/the last here who knows how/.test(JSON.stringify(pageOf(world, p.ref)))) {
+      lastHere = p.ref;
+      break;
+    }
+  }
+  if (lastHere) break;
+}
+say(
+  lastHere ? `the last here who knows how: ${lastHere}` : "no one there is the last who knows how",
+);
 // A save made now loads and goes on the same.
 const pack = (w: World) => saveWorld(w, rulesetId(w, U.version), { universe: U.name });
 const doc = pack(world),
@@ -342,6 +428,29 @@ await page.waitForTimeout(slow(600));
   await k(`globalThis.causalis.client.advance(${day * 86400 + 12 * 3600})`);
   await page.waitForTimeout(slow(400));
 }
+/** A shut building: its page, ⌖ Go to, there it stands. */
+async function seeShut(town: string, c: { at: number; start: number; kind: string }) {
+  const bldg = `bldg:${town}:${c.at}:${c.start}`;
+  await openPage(bldg, /shut/i, "shut-building");
+  await press(".page-window .go-to");
+  await until("the shut building's page gone", async () => (await pageNow()) === null, slow(30000));
+  // (By day: at midnight no one could say what stands shut.)
+  const t = await k<number>("globalThis.causalis.client.status.t");
+  await k(
+    `globalThis.causalis.client.advance(${Math.floor(t / 86400) * 86400 + 86400 + 10 * 3600})`,
+  );
+  await until(
+    "the morning it is seen in",
+    async () =>
+      (await k<number>("globalThis.causalis.client.status.t")) >=
+      Math.floor(t / 86400) * 86400 + 86400 + 10 * 3600 - 1,
+    slow(60000),
+  );
+  await page.waitForTimeout(slow(1600));
+  for (let i = 0; i < 6; i++) await frames();
+  await shot("shut-standing");
+  await page.waitForTimeout(slow(600));
+}
 // A land's page, by its Lost tab, pressed.
 const cellRefOf = (cell: number) => ctx.provinces.get(cell)!.ref;
 await openPage(cellRefOf(gone.cell), /./, "land-emptied");
@@ -351,10 +460,12 @@ const tabAt = await k<number>(
 check(tabAt >= 0, "no Lost tab on a land's page");
 if (tabAt >= 0) {
   await press(`.page-window .tabs .tab:nth-child(${tabAt + 1})`);
-  await until("the Lost tab's words", async () => /What it has lost/i.test(await pageText()));
+  // (On a far world what's lost is mostly back by now: what it came back to, and how.)
+  const lostWords = far ? /What it came back to/i : /What it has lost/i;
+  await until("the Lost tab's words", async () => lostWords.test(await pageText()));
   const t = await pageText();
-  say(`Lost tab: ${line(t, 500)}`);
-  check(/What it has lost/i.test(t), `the Lost tab says: ${line(t, 300)}`);
+  say(`Lost tab: ${line(t, 800)}`);
+  check(lostWords.test(t), `the Lost tab says: ${line(t, 300)}`);
   check(
     !ruin || /What it still keeps/i.test(t),
     `an archive not on its land's page: ${line(t, 300)}`,
@@ -391,16 +502,7 @@ if (ruin) {
     `(globalThis.causalis.planNow()?.town?.civics ?? []).filter((c) => c.shut)`,
   );
   say(`shut in ${ruin.name}: ${shut.map((c) => c.kind).join(", ") || "nothing"}`);
-  check(
-    shut.length > 0 || far === false,
-    `nothing stands shut in ${ruin.name}, which lost ${ruin.crafts.length} crafts`,
-  );
-  if (shut[0]) {
-    const bldg = `bldg:${ruin.town}:${shut[0].at}:${shut[0].start}`;
-    await openPage(bldg, /shut/i, "shut-building");
-    await closePage();
-    await page.waitForTimeout(slow(600));
-  }
+  if (shut[0]) await seeShut(ruin.town, shut[0]);
   const placed = await k<
     {
       ref: string;
@@ -480,6 +582,65 @@ if (ruin) {
     if (shutTown) break;
   }
   say(shutTown ? `a shut ${shutKind} in ${shutTown}` : "no building shut in the land that fell");
+}
+
+if (lastHere) {
+  await openPage(lastHere, /the last here who knows how/i, "the-last-here");
+  await closePage();
+}
+
+// A great loss comes as a window to a person who follows nothing.
+if (armed) {
+  await k(`localStorage.setItem("causalis.events", "window")`);
+  const t = await k<number>("globalThis.causalis.client.status.t");
+  await k(`globalThis.causalis.client.advance(${(Math.floor(t / YEAR) + 1) * YEAR + 1})`);
+  let told = "";
+  await until(
+    "the great loss's window",
+    async () => {
+      const seen = await k<string>(
+        `(() => { const e = document.querySelector(".event-window"); return e && !e.hidden ? e.textContent : ""; })()`,
+      );
+      if (/no one living knows/i.test(seen)) {
+        told = seen;
+        return true;
+      }
+      if (seen) await k(`document.querySelector(".event-window .event-be")?.click()`);
+      return false;
+    },
+    slow(60000),
+  );
+  say(`its window: ${line(told, 260)}`);
+  await page.waitForTimeout(slow(500));
+  await shot("great-loss-window");
+  await k(`document.querySelector(".event-window .event-be")?.click()`);
+  await k(`localStorage.removeItem("causalis.events")`);
+  // What it can't work now stands shut, in the land that went.
+  if (armedTown) {
+    await k(`globalThis.causalis.goTo(${JSON.stringify(armedTown)})`);
+    await until(
+      "the town that went",
+      () =>
+        k<boolean>(
+          `globalThis.causalis.scale() === "village" && globalThis.causalis.planNow()?.ref === ${JSON.stringify(armedTown)}`,
+        ),
+      slow(90000),
+    );
+    await page.waitForTimeout(slow(1000));
+    const shut = await k<{ at: number; start: number; kind: string }[]>(
+      `(globalThis.causalis.planNow()?.town?.civics ?? []).filter((c) => c.shut)`,
+    );
+    say(
+      `shut where it went: ${
+        shut
+          .map((c) => c.kind)
+          .slice(0, 12)
+          .join(", ") || "nothing"
+      }`,
+    );
+    check(shut.length > 0, "nothing stands shut in a town whose land has just gone");
+    if (shut[0]) await seeShut(armedTown, shut[0]);
+  }
 }
 
 check(errors.length === 0, `errors on the page: ${errors.slice(0, 3).join(" | ").slice(0, 600)}`);

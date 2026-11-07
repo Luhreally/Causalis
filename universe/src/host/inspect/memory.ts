@@ -796,7 +796,7 @@ export const songRef = (d: Deed): string => `song:${d.id}`;
 export function memorialsOf(world: World, town: string): readonly Memorial[] {
   const list = memoryOf(world).stones.get(town) ?? [],
     now = yearNow(world),
-    kept = archiveMemorials(world, town);
+    kept = archiveMemorials(world, town, (cell) => handOf(world, cell).colour);
   const stones = list.map((d): Memorial => {
     const hand = handOf(world, d.cell),
       far = farAge(world, d.cell, d.year),
@@ -1127,6 +1127,7 @@ const ICONS: Readonly<Record<MemorialForm, string>> = {
   reef: "🪸",
   dome: "🐚",
   slab: "⬛",
+  archive: "📜",
 };
 
 /** A stone's page: what it is, who raised it, the year, what happened, what is cut on it and what they sing of it. */

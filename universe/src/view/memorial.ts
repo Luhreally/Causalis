@@ -239,6 +239,33 @@ export function memorialParts(m: Memorial, key: number): readonly MemorialPart[]
       }
       return out;
     }
+    case "archive": {
+      // (A house of records: pale, roofed, and open at the front on the rows of what's in it.)
+      const w = 8.5 * s,
+        d = 5 * s,
+        h = 7.5 * s,
+        front = d / 2 + 0.14,
+        rows = 0.6 + h * 0.47;
+      return [
+        box("dark", 0, 0.3, 0, w + 2.4, 0.6, d + 2.4),
+        box("main", 0, 0.6 + h / 2, 0, w, h, d),
+        {
+          mesh: "gable",
+          tone: "dark",
+          u: 0,
+          y: 0.6 + h + 1.5 * s,
+          v: 0,
+          sx: w + 1,
+          sy: 3 * s,
+          sz: d + 1,
+        },
+        box("dark", 0, rows, d / 2 + 0.05, w * 0.72, h * 0.8, 0.12),
+        box("main", 0, 0.6 + h * 0.24, front, w * 0.72, 0.3 * s, 0.18),
+        box("main", 0, 0.6 + h * 0.47, front, w * 0.72, 0.3 * s, 0.18),
+        box("main", 0, 0.6 + h * 0.7, front, w * 0.72, 0.3 * s, 0.18),
+        box("main", 0, rows, front, 0.3 * s, h * 0.8, 0.18),
+      ];
+    }
     case "dome": {
       const h = 6 * s;
       return [

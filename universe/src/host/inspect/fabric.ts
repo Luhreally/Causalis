@@ -379,9 +379,7 @@ export function buildingPage(world: World, ref: string): PageModel {
       townLink(world, s.ref),
     ],
     color: null,
-    place: asked
-      ? { scale: "village", town: s.ref, site: asked.ref }
-      : { scale: "village", town: s.ref },
+    place: { scale: "village", town: s.ref, site: asked ? asked.ref : ref },
     stats,
     tabs: [{ id: "overview", name: "Overview", blocks }],
     followable: false,

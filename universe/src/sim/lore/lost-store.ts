@@ -23,7 +23,7 @@ export type KeepForm = "brood" | "reef" | "written" | "reciters" | "songs";
 
 export type CraftBack = {
   readonly year: number;
-  readonly how: "taught" | "found" | "kept";
+  readonly how: "taught" | "found" | "kept" | "brought";
   /** The land it came back from, the archive it was found in. */
   readonly from: number | null;
   readonly kept: number | null;
@@ -91,6 +91,12 @@ export const HOLD_ROOT = 6,
   HOLD_STEP = 3;
 /** A hive holds with many fewer: what one worker knows all do, and it goes only when the brood goes. */
 export const HIVE_HOLDS = 8;
+/** A land has fallen when it holds this much less than it did, within the ledger's last ten years. */
+export const FALL_LEAST = 0.35;
+/** What a land that fell must have come back to before it can hold again what it lost, whatever the craft asks: a share of what it was. */
+export const BACK_AT = 0.2;
+/** The most hands anyone wants to read a craft out of what was kept: the deepest ask more to hold than any land has. */
+export const READ_HANDS = 100_000;
 /** How long after a land loses a craft it can take it up again, however many hands it has. */
 export const RETAKE_AFTER = 12;
 /** A closed loss stands this long on its pages; then it is let go, its event with it. */
@@ -131,6 +137,16 @@ export function handsHolding(ctx: PopulationContext, prov: Province, p: Principl
       (d.leaders ?? 0) * prov.occupation(OCC.leader),
     hands = Math.max(own, prov.total() / 10);
   return isHive(ctx) ? hands * HIVE_HOLDS : hands;
+}
+
+/** Whether a land can hold again what it lost: it has the hands, or has come back to enough of what it was. */
+export function holdsAgain(
+  ctx: PopulationContext,
+  prov: Province,
+  p: Principle,
+  then: number,
+): boolean {
+  return handsHolding(ctx, prov, p) >= needOfHands(p) || prov.total() >= then * BACK_AT;
 }
 
 export class LostStore implements StateStore {

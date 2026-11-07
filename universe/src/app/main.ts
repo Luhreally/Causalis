@@ -8985,10 +8985,15 @@ async function runPlanetPage(): Promise<void> {
     const s = village.stonesOnScreen().find((x) => x.ref === ref);
     return s
       ? {
-          target: { x: s.worldX * VILLAGE_METRE, y: 0.4, z: s.worldZ * VILLAGE_METRE },
+          // (From far enough to see it: what a city raises stands as high as its towers.)
+          target: {
+            x: s.worldX * VILLAGE_METRE,
+            y: Math.max(0.4, s.high * VILLAGE_METRE * 0.4),
+            z: s.worldZ * VILLAGE_METRE,
+          },
           yaw: (Math.atan2(-s.worldX, -s.worldZ) * 180) / Math.PI,
           pitch: -16,
-          distance: 3.2,
+          distance: Math.max(3.2, s.high * VILLAGE_METRE * 1.3),
         }
       : null;
   };

@@ -237,12 +237,22 @@ export function worldNews(world: World, since: number): Tiding[] {
       far = e.type === "far.fell" && !d?.god,
       jump = e.type === "lanes.first",
       goods = e.type === "trade.first" || e.type === "trade.first-raid",
+      // (A craft gone from the world, kept nowhere, that took a whole age to come to: K1.)
+      forgotten = e.type === "lore.lost-world" && e.importance >= WILD_NEWS,
       nation =
         e.type === "nation.greatest" ||
         e.type === "nation.first-left" ||
         e.type === "nation.fell" ||
         e.type === "nation.first-dark";
-    if (!wild && !far && !jump && !goods && !nation && !(e.type === "war.strike" && d?.great))
+    if (
+      !wild &&
+      !far &&
+      !jump &&
+      !goods &&
+      !nation &&
+      !forgotten &&
+      !(e.type === "war.strike" && d?.great)
+    )
       continue;
     out.push({
       watch: (e.subjects[0] ?? "") as Ref,

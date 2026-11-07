@@ -103,7 +103,7 @@ import { count, item, link, share, stat, yearNow } from "./words.ts";
 import { matterWorldOf } from "../reading.ts";
 import { ownWordsItems } from "../names.ts";
 import { landLink, landTitle } from "./names.ts";
-import { lostOfPrinciple } from "./lost.ts";
+import { firstOfLost, lostOfPrinciple } from "./lost.ts";
 import { airBlock } from "./ground.ts";
 import { elementPortrait, matterPortrait } from "../looks.ts";
 import { principleName } from "../../causal/index.ts";
@@ -718,7 +718,10 @@ export function principlePage(world: World, ref: string): PageModel {
     p = PRINCIPLES.find((x) => x.id === id);
   if (!p) throw new Error(`no principle ${ref}`);
   const all = knowers(world, p.id),
-    first = all.find((k) => k.year !== null),
+    knownNow = all.find((k) => k.year !== null),
+    // (Who first knew it may have lost it since.)
+    lostFirst = firstOfLost(world, p.id),
+    first = lostFirst && (!knownNow || lostFirst.year < knownNow.year!) ? lostFirst : knownNow,
     means = meansOfWorld(homePlanet(world).generated),
     gas = !!p.asks?.includes("make-gas-fast"),
     // (No recipe for black powder on a world that has none: its own way is said below.)

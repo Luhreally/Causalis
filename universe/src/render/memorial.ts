@@ -278,6 +278,7 @@ export class MemorialLayer {
     headY: number;
     worldX: number;
     worldZ: number;
+    high: number;
     front: boolean;
   }[] {
     const a = new pc.Vec3(),
@@ -294,6 +295,7 @@ export class MemorialLayer {
         headY: b.y,
         worldX: p.x,
         worldZ: p.z,
+        high: p.high,
         front: a.z > 0 && b.z > 0,
       };
     });
