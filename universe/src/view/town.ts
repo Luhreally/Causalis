@@ -1868,17 +1868,25 @@ export function townThingAt(scene: TownScene, x: number, z: number, t: number): 
       return { kind: "civic", at: c.truly ?? c.at, start: c.start };
   }
   const w = plan.walls;
-  if (w && scene.walls && t >= (w.start + 1) * YEAR_S)
-    for (const l of scene.walls.lengths)
+  if (w && scene.walls && t >= (w.asked ? w.asked.began : (w.start + 1) * YEAR_S)) {
+    // (Those asked for go up length by length: as far round as they've come, and the one going up.)
+    const up = w.asked ? askedGrown(w.asked, t) * scene.walls.lengths.length : Infinity;
+    let k = -1;
+    for (const l of scene.walls.lengths) {
+      k++;
+      if (k > up) break;
+      // (Thin and tall: a finger on its face comes down on the ground behind it.)
       if (
         inside(
           { x: l.x, z: l.z, yaw: l.yaw, w: l.gate ? GATE_TOWER : l.len, d: WALL_THICK },
           x,
           z,
-          2,
+          4,
         )
       )
         return { kind: "walls" };
+    }
+  }
   const p = lotNear(scene, x, z, LOT_W * 0.75);
   return p >= 0 ? { kind: "lot", lot: p } : null;
 }
