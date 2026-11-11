@@ -703,27 +703,65 @@ if (ring) {
   await goDown(ring.town.ref);
   const s = await looked("ring");
   check(s.shown > 0, "a village's ring has nothing laid on it");
-  // (The eye stands back from a ring as the lens comes on: a place read while it moves is nowhere, and on a slow machine it moves for many seconds.)
-  let was = "";
-  for (let i = 0; i < 60; i++) {
-    await k(
-      `new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))`,
+  // (The eye stands back from a ring as the lens comes on, and lifts and comes back for a card: a place read while it moves is nowhere, and on a slow machine it moves for many seconds.)
+  const still = async (): Promise<Spot[]> => {
+    let was = "";
+    for (let i = 0; i < 60; i++) {
+      await k(
+        `new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))`,
+      );
+      const now = JSON.stringify(await moneySpots());
+      if (now === was) break;
+      was = now;
+    }
+    return moneySpots();
+  };
+  // (A finger among many homes, the clearest of the others first, on the bare ground of the
+  // screen; the next if what opened was not a home, as gate 53 taps a gunner. What it opened
+  // instead is told: a runner's tap that misses says where it went.)
+  const inView = (x: Spot) => x.x > 30 && x.x < 400 && x.y > 240 && x.y < 640,
+    clearest = (all: Spot[]) =>
+      all
+        .filter(inView)
+        .map((a) => ({
+          a,
+          room: Math.min(
+            ...all.filter((b) => b !== a).map((b) => Math.hypot(a.x - b.x, a.y - b.y)),
+            999,
+          ),
+        }))
+        .sort((p, q) => q.room - p.room)
+        .map((p) => p.a);
+  const ringHome = () =>
+    k<boolean>(`String(globalThis.causalis.pageOpen() ?? "").startsWith("dwell:")`);
+  let homePage = false,
+    tried = 0;
+  for (let n = 0; n < 4; n++) {
+    const at = clearest(await still())[n];
+    if (!at) break;
+    const bare = await k<boolean>(
+      `document.elementFromPoint(${at.x}, ${at.y})?.tagName === "CANVAS"`,
     );
-    const now = JSON.stringify(await moneySpots());
-    if (now === was) break;
-    was = now;
+    if (!bare) continue;
+    tried++;
+    await page.touchscreen.tap(at.x, at.y);
+    const end = Date.now() + slow(6000);
+    while (Date.now() < end && !(homePage = await ringHome())) await page.waitForTimeout(100);
+    if (homePage) break;
+    const now = await k<{ open: string | null; scale: string; on: boolean; body: string }>(
+      `({ open: globalThis.causalis.pageOpen(), scale: globalThis.causalis.scale(), on: globalThis.causalis.money.state().on, body: document.body.className })`,
+    );
+    say(`a tap at ${Math.round(at.x)}, ${Math.round(at.y)} took ${JSON.stringify(now)}`);
+    await closePage();
   }
-  const list = (await moneySpots()).filter((x) => x.x > 30 && x.x < 400 && x.y > 240 && x.y < 640);
-  if (list[0]) {
-    await page.touchscreen.tap(list[0].x, list[0].y);
-    await until("a ring home's page", () =>
-      k<boolean>(`String(globalThis.causalis.pageOpen() ?? "").startsWith("dwell:")`),
-    );
+  check(tried > 0, "no home of a ring on the screen");
+  if (tried) check(homePage, "a ring home's page did not come");
+  if (homePage) {
     await page.waitForTimeout(slow(300));
     await shot("ring-page");
     readWell(await pageText(), "a ring home's page");
     await closePage();
-  } else problems.push("no home of a ring on the screen");
+  }
   await lensOff();
 } else say("no village's ring in this world");
 

@@ -298,7 +298,12 @@ await page.waitForTimeout(1500);
         5000,
       );
       await page.mouse.move(683, 790);
+      // (They go a moment after the pointer leaves: on a runner whose frames take a second, that
+      // moment comes a frame or two late. What is asked is that they go, not how fast a machine is.)
+      const putAway = Date.now() + slow(3000);
       await page.waitForTimeout(800);
+      while (Date.now() < putAway && (await page.$$(".hovertip")).length > 0)
+        await page.waitForTimeout(150);
       const left = (await page.$$(".hovertip")).length;
       await press(".alerts-row .alert.tone-war");
       const listed = await page.$$eval(".alert-list:not([hidden]) .alert-open", (x) => x.length);
