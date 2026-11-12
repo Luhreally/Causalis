@@ -392,6 +392,8 @@ export function showTitle(options: TitleOptions): void {
       // rest as the seed falls; and the world it makes, told.
       makingHead = el("h3", undefined, "Its making"),
       makingRow = el("div", "making-row"),
+      sizeHead = el("h3", undefined, "Its size"),
+      sizeRow = el("div", "making-row size-row"),
       madeNote = el("p", "muted seed-made"),
       start = el("button", "begin", "Begin ▶");
     seed.value = randomSeed();
@@ -468,12 +470,20 @@ export function showTitle(options: TitleOptions): void {
           w = MAKING_WORDS[subject],
           c = m[subject],
           words = c !== undefined ? w.choices[c] : undefined;
-        b.textContent = `${w.icon} ${w.name.replace(/^Its /, "").replace(/^./, (c) => c.toUpperCase())}: ${words ? words[0] : "as it falls"}`;
-        b.title = words ? `${w.name}: ${words[1]}` : `${w.name}: as the seed falls — tap to choose`;
+        // (A size unchosen is the usual one, not a chance's.)
+        const none = subject === "size" ? "standard" : "as it falls";
+        b.textContent = `${w.icon} ${w.name.replace(/^Its /, "").replace(/^./, (c) => c.toUpperCase())}: ${words ? words[0] : none}`;
+        b.title = words
+          ? `${w.name}: ${words[1]}`
+          : subject === "size"
+            ? `${w.name}: standard, some 4,000 lands over the globe — tap for a smaller world, quicker to run`
+            : `${w.name}: as the seed falls — tap to choose`;
         b.classList.toggle("on", !!words);
       }
     };
-    makingRow.append(...dials);
+    // (Its size on a row of its own, shown for every kind of world: the rest are an alien world's.)
+    makingRow.append(...dials.filter((b) => b.dataset.subject !== "size"));
+    sizeRow.append(...dials.filter((b) => b.dataset.subject === "size"));
     // A world never seen: whether life arises on the seed's world is told as it is typed, and
     // where it would not, Begin goes on to the nearest seed whose world it does.
     let asked = 0;
@@ -605,6 +615,8 @@ export function showTitle(options: TitleOptions): void {
       lives,
       makingHead,
       makingRow,
+      sizeHead,
+      sizeRow,
       el("h3", undefined, "Its seed"),
       seedRow,
       seedNote,

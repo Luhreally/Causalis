@@ -80,7 +80,10 @@ const hiddenAtFirst = await page.isHidden(".making-row");
 await page.click(".choice-row .choice[data-id='alien']");
 await page.fill(".seed-input", "violet hollow");
 await page.dispatchEvent(".seed-input", "input");
-const dials = await page.$$eval(".making-dial", (b) => b.map((x) => x.textContent ?? ""));
+// (The world's making; its size has a row of its own, for every kind of world.)
+const dials = await page.$$eval(".making-row:not(.size-row) .making-dial", (b) =>
+  b.map((x) => x.textContent ?? ""),
+);
 // The star turned to a dim red one, the pull turned twice (light, then heavy).
 await page.click(".making-dial[data-subject='star']");
 await page.click(".making-dial[data-subject='pull']");

@@ -479,6 +479,7 @@ export {
 export {
   MAKINGS,
   MAKING_SUBJECTS,
+  landsOf,
   MAKING_WORDS,
   madePrior,
   makingAct,

@@ -1,0 +1,46 @@
+// A world's size (asked 2026-11-12: "diffrent galaxy sizes/world/planet sizes options ... to have even more control of
+// performance and speed"): a making in the seed's text that sets how many lands its history runs over, over the same planet.
+// The usual world is untouched; a smaller one is the same ground and seas in fewer, wider lands, with as many people's room.
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { seedFromText, seedWithAct } from "../../src/kernel/index.ts";
+import { MAKINGS, OPEN, landsOf, makingAct, makingsOf } from "../../src/rules/index.ts";
+import { generateHomeWorld, provinceWorld, PROVINCE_FREQUENCY } from "../../src/gen/index.ts";
+
+test("a size is read from the seed's text, and none is the usual", () => {
+  assert.equal(landsOf("first light"), undefined);
+  const small = seedWithAct("first light", makingAct("size", "small")),
+    medium = seedWithAct("alien 41", makingAct("size", "medium"));
+  assert.equal(makingsOf(small).size, "small");
+  assert.equal(landsOf(small), MAKINGS.size.small[0]);
+  assert.equal(landsOf(medium), MAKINGS.size.medium[0]);
+  assert.ok(MAKINGS.size.small[0] < MAKINGS.size.medium[0]);
+  assert.ok(MAKINGS.size.medium[0] < PROVINCE_FREQUENCY);
+});
+
+test("a smaller world is the same planet in fewer, wider lands, as much room in all", () => {
+  const text = "alien 41",
+    small = seedWithAct(text, makingAct("size", "small")),
+    fine = generateHomeWorld(seedFromText(text), OPEN, 32),
+    fineSmall = generateHomeWorld(seedFromText(small), OPEN, 32);
+  // (The same ground and seas, life and people: the size is no part of the planet.)
+  assert.equal(fineSmall.digest, fine.digest);
+  const usual = provinceWorld(fine, 10),
+    fewer = provinceWorld(fineSmall, 5);
+  assert.ok(fewer.grid.count < usual.grid.count / 3);
+  assert.equal(usual.stride, 32 / 10);
+  assert.equal(fewer.stride, 32 / 5);
+  // (Every fine cell is in a land either way: the planet's whole area is shared out, none lost.)
+  const area = (g: typeof usual) => {
+    let a = 0;
+    for (let c = 0; c < g.fine.grid.count; c++)
+      if (g.provinceOf[c]! >= 0) a += g.fine.grid.areas[c]!;
+    return a;
+  };
+  assert.ok(Math.abs(area(usual) - area(fewer)) < 1e-9 * area(usual));
+});
+
+test("the usual world's stride is the 3.2 it always was", () => {
+  const fine = generateHomeWorld(seedFromText("first light"), OPEN, 64);
+  assert.equal(provinceWorld(fine).stride, 3.2);
+});

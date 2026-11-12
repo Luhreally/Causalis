@@ -89,7 +89,7 @@ import {
   type ProvinceWorld,
   worldChemistry,
 } from "../gen/index.ts";
-import { EARTHLIKE, OPEN, type Prior } from "../rules/index.ts";
+import { EARTHLIKE, OPEN, landsOf, type Prior } from "../rules/index.ts";
 import {
   Rng,
   YEAR,
@@ -881,11 +881,13 @@ function planetUniverse(name: string, prior: Prior): Universe {
   const version = name === "alien" ? "alien-22" : `${name}-18`,
     make = (seed: Seed, frequency?: number) => {
       // The chronicle opens after a generated prehistory: bands across the land.
-      const world = makePopulationWorld(seed, {
-        prior,
-        start: "spread",
-        ...(frequency ? { frequency } : {}),
-      });
+      const lands = landsOf(seed.text),
+        world = makePopulationWorld(seed, {
+          prior,
+          start: "spread",
+          ...(frequency ? { frequency } : {}),
+          ...(lands ? { lands } : {}),
+        });
       observer(world);
       // (Its colonies' towns as the eye reads them: Phase 64, nothing history holds.)
       installColonyTowns(world);
@@ -917,7 +919,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
     // What a seed's world allows of each age (Phase 65: "Can it?"): its home world made, and nothing run.
     reading: (seed) => {
       const fine = generateHomeWorld(seed, prior);
-      return readSeed(fine, provinceWorld(fine), seed, name, seedLife(fine));
+      return readSeed(fine, provinceWorld(fine, landsOf(seed.text)), seed, name, seedLife(fine));
     },
     glance: (seed, target) => glanceSeed(seed, prior, target),
     // (The same whatever the seed or the size: a few lands' world tells it for a fraction of the work.)

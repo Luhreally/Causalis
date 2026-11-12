@@ -244,7 +244,10 @@ await page.click(".title-menu .choice:has-text('New world')");
 await page.click(".choice-row .choice[data-id='alien']");
 await page.fill(".seed-input", "violet hollow");
 await page.dispatchEvent(".seed-input", "input");
-const dials = await page.$$eval(".making-dial", (b) => b.map((x) => x.textContent ?? ""));
+// (The world's making; its size has a row of its own, for every kind of world.)
+const dials = await page.$$eval(".making-row:not(.size-row) .making-dial", (b) =>
+  b.map((x) => x.textContent ?? ""),
+);
 say(`the title: ${dials.length} dials (${dials.join(", ")})`);
 // (Eight since Phase 68: its lanes.)
 check(dials.length === 8, `${dials.length} making dials, not eight`);

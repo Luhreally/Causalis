@@ -40,6 +40,13 @@ export const MAKINGS = {
   },
   /** A law of the universe and no part of the world's matter (rules/lanes.ts): lanes between the stars, or none. */
   lanes: { open: [1, 1], shut: [0, 0] },
+  /**
+   * How many lands its history runs over (asked 2026-11-12: "diffrent galaxy sizes/world/planet sizes
+   * options ... to have even more control of performance and speed"): the lands' grid, over the same
+   * planet, its ground and its seas as they fall. The usual is 20 (some 4,000 over the whole globe);
+   * a medium world's lands are about half as many and twice as wide, a small one's a quarter.
+   */
+  size: { small: [10, 10], medium: [14, 14] },
 } as const satisfies Record<string, Record<string, Range>>;
 
 export type MakingSubject = keyof typeof MAKINGS;
@@ -62,6 +69,12 @@ export function makingsOf(text: string): Makings {
     if (Object.hasOwn(MAKINGS[word as MakingSubject], choice)) out[word as MakingSubject] = choice;
   }
   return out;
+}
+
+/** The lands' grid a seed's size makes (undefined: the usual). Earth's as any other's: a size is no part of its likeness. */
+export function landsOf(text: string): number | undefined {
+  const c = makingsOf(text).size;
+  return c ? MAKINGS.size[c as keyof typeof MAKINGS.size][0] : undefined;
 }
 
 /** A making's range for a choice (null: none such). */
@@ -175,6 +188,18 @@ export const MAKING_WORDS: Readonly<
     choices: {
       open: ["open", "lanes between the stars, a law of this universe", "🌀"],
       shut: ["shut", "no lanes between the stars, a law of this universe", "🚫"],
+    },
+  },
+  size: {
+    icon: "🗺️",
+    name: "Its size",
+    choices: {
+      medium: ["medium", "about half as many lands, each twice as wide: quicker to run", "🔸"],
+      small: [
+        "small",
+        "about a quarter as many lands, each four times as wide: the quickest",
+        "🔹",
+      ],
     },
   },
 };

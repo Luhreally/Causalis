@@ -37,6 +37,7 @@ import {
 } from "../../sim/index.ts";
 import type { Block, Item, Line, PageModel, Row, SideCell, Span } from "../../bridge/index.ts";
 import { canWorldOf } from "../can.ts";
+import { landsOf } from "../../rules/index.ts";
 import { lifelessWhy } from "../kinds.ts";
 import { functionBlocks } from "./means.ts";
 import { landLink } from "./names.ts";
@@ -211,7 +212,7 @@ function otherWorld(universe: string, seed: string): Other {
   if (kept) return kept;
   const earth = universe === "earth",
     fine = generateHomeWorld(seedFromText(seed), earth ? EARTHLIKE : OPEN),
-    g = provinceWorld(fine),
+    g = provinceWorld(fine, landsOf(seed)),
     cells = fine.life.people ? spreadOf(g, seed).lands.map(([c]) => c) : [],
     w = canWorldOf(g, cells, laneLaw(seed, earth).open),
     open = openSteps(w),
