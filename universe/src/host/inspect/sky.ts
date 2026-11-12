@@ -330,6 +330,22 @@ export function bodyPage(world: World, ref: string): PageModel {
         blocks: [
           ...(home ? [] : fillBlocks(world, { star: null, planet: -1, body: index })),
           ...(home ? [] : tradeWorldBlocks(world, null, -1, index)),
+          // (How its life began, and on what (B2), high on the page where a thumb finds it.)
+          ...(b.kind === "giant" || b.kind === "ice giant"
+            ? []
+            : [
+                {
+                  type: "list" as const,
+                  items: [
+                    home
+                      ? lifeLink("world:life", true, "here")
+                      : lifeLink(
+                          `life:${ref}`,
+                          !!life && life.level !== "none" && life.level !== "chemistry",
+                        ),
+                  ],
+                },
+              ]),
           {
             type: "facts",
             rows: [
@@ -359,22 +375,6 @@ export function bodyPage(world: World, ref: string): PageModel {
               ]
             : []),
           { type: "text", title: "Why it is like this", lines: b.because.map((w) => [w]) },
-          // (How its life began, and on what: B2.)
-          ...(b.kind === "giant" || b.kind === "ice giant"
-            ? []
-            : [
-                {
-                  type: "list" as const,
-                  items: [
-                    home
-                      ? lifeLink("world:life", true, "here")
-                      : lifeLink(
-                          `life:${ref}`,
-                          !!life && life.level !== "none" && life.level !== "chemistry",
-                        ),
-                  ],
-                },
-              ]),
           // (The home world's kind, where it is not rocky: Phase 56.)
           ...(home ? kindBlocks(world) : []),
           ...(moons.length

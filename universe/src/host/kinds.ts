@@ -88,7 +88,8 @@ export function spotBiome(g: { readonly planet: Planet }, name: string): string 
  */
 export function lifelessWhy(g: HomeWorld): string {
   const kind = worldKindOf(g),
-    t = Math.round(g.planet.meanTemperature),
+    // (A true minus sign, as everywhere else a temperature is told.)
+    t = Math.round(g.planet.meanTemperature).toString().replace("-", "−"),
     at = Math.round(climateMean(g.planet)),
     seas = kind === "rocky" ? "seas" : `${KIND_SEAS[kind].sea}s`;
   if (at < -15) return `its ${seas} froze over before life took hold (${t} °C on average)`;
