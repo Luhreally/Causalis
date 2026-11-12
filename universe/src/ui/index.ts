@@ -61,3 +61,12 @@ export { ReignHud } from "./reign-hud.ts";
 export { bodyView, drawBody, kinLines } from "./body.ts";
 export { SungNote } from "./sung.ts";
 export { CourtNote } from "./court-note.ts";
+export {
+  GRID,
+  alike,
+  closeLifeSheet,
+  outlineOf,
+  showLifeSheet,
+  type LifeSheet,
+  type Outline,
+} from "./life-sheet.ts";

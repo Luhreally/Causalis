@@ -359,6 +359,9 @@ export const GATES: readonly Gate[] = [
   // its place under the bar; only the first landing on another world in a window; the window's ✕ and buttons on the screen unscrolled, a
   // tap outside it (opening nothing beneath), Escape, none shown twice, five waiting put away at once, a family of news told as cards.
   { gate: 107, args: ["--ci"], s: 600 },
+  // Gate 108, every beast drawn from its parts (tools/life-looks-gate.ts): twelve alien worlds' people and beasts drawn at a
+  // phone's size, their outlines read off the pixels and told apart between worlds; first light's drawn as before, to the pixel.
+  { gate: 108, args: ["--ci"], s: 600 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */
