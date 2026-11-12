@@ -991,6 +991,8 @@ type Exposed = {
   reloadPlan?: () => Promise<void>;
   /** Whether a great happening's window is open (M100). */
   eventOpen?: () => boolean;
+  /** The last scales left, and from where (for a check that finds one gone). */
+  scalesLeft?: () => string[];
   tellGreat?: (t: import("../ui/tidings.ts").Tiding) => boolean;
   /** The god's palette (Phase 12 M106): the act in hand, an act taken up or put down, a tap. */
   palette?: {
@@ -1406,6 +1408,8 @@ type Exposed = {
   littersOnScreen?: () => { index: number; x: number; y: number }[];
 };
 const exposed: Exposed = {};
+/** The last scales left, with where each leaving was called from (exposed.scalesLeft). */
+const scalesLeft: string[] = [];
 (globalThis as { causalis?: Exposed }).causalis = exposed;
 
 async function connect(): Promise<{ client: HostClient; mode: string }> {
@@ -1760,6 +1764,7 @@ async function runPlanetPage(): Promise<void> {
     return true;
   };
   exposed.eventOpen = () => events.open;
+  exposed.scalesLeft = () => [...scalesLeft];
   /** News told as the tidings tell it (gate 107): true if told otherwise than as a card. */
   exposed.tellGreat = (t) => tidings.onGreat(t);
   // (The world's own pages — its chronicle, saves, settings — open in its panel instead.)
@@ -8920,6 +8925,10 @@ async function runPlanetPage(): Promise<void> {
   // left as its own way back would leave it, the world's clock given back, and the way
   // there taken under one fade (through the world, which every scale opens from).
   const leaveScale = () => {
+    // (Who left it, kept for a check that finds a scale gone under it: the last few, with where
+    // the call came from.)
+    scalesLeft.push(`${scale}: ${new Error().stack?.split("\n").slice(2, 6).join(" < ") ?? ""}`);
+    if (scalesLeft.length > 6) scalesLeft.shift();
     if (scale === "village") {
       village.visible = false;
       villagePanel.visible = false;

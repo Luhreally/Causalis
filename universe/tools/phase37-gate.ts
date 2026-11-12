@@ -169,6 +169,12 @@ if (greatest) {
   await shot(page, "1-drawn-up");
 
   // 2. Its own clock: it plays at its own pace; Space holds it; the numbers its speeds; the course.
+  if (!(await seen(page)))
+    console.log(
+      `  the battle went from under the check; the scales left: ${(
+        await k<string[]>(page, "globalThis.causalis.scalesLeft?.() ?? []")
+      ).join(" || ")}`,
+    );
   const s0 = (await seen(page))!.s;
   await page.waitForTimeout(2000);
   const s1 = (await seen(page))!.s;
