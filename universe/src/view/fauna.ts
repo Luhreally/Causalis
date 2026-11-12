@@ -98,7 +98,7 @@ export function coatOf(
       [h, s, l] = toHsl(plain.coat),
       turn = ((((look.hue - h) % 1) + 1.5) % 1) - 0.5,
       coat = fromHsl(
-        h + Math.max(-0.08, Math.min(0.08, turn * look.pull)),
+        h + Math.max(-0.045, Math.min(0.045, turn * look.pull)),
         Math.min(0.95, s * look.strength),
         Math.min(0.9, l * look.light),
       );
