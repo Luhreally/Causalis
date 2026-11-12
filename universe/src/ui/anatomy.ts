@@ -151,6 +151,13 @@ export function internalSolids(b: Body, skeleton: boolean): Solid[] {
   return out;
 }
 
+/** A hand lost with the arm it hangs from: the arm's stump tells it, not a wound in the air. */
+export function handWithArm(b: Pick<Body, "members">, member: string): boolean {
+  if (member !== "hand-l" && member !== "hand-r") return false;
+  const arm = member === "hand-l" ? "arm-l" : "arm-r";
+  return b.members.some((x) => x.member === arm && x.state === "lost");
+}
+
 /** Substantial wound cavities, muscle and exposed bone, placed on the actual wounded member. */
 export function injurySolids(b: Body, full = true): Solid[] {
   const f = figureOf(b.person.body, 3),
@@ -161,6 +168,8 @@ export function injurySolids(b: Body, full = true): Solid[] {
     out: Solid[] = [];
   for (const m of b.members) {
     if (!["lost", "struck", "killed", "abed", "healing", "scarred"].includes(m.state)) continue;
+    // (A hand gone with its arm has no wound of its own: the stump is the arm's.)
+    if (handWithArm(b, m.member)) continue;
     const i = a.on[m.member === "eye-l" || m.member === "eye-r" ? "head" : m.member],
       p = f.parts[i];
     if (!p) continue;

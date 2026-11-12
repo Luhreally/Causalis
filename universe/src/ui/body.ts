@@ -8,7 +8,7 @@ import type { Block, KinCard, MemberState, WoundMember } from "../bridge/index.t
 import { figureAnatomy, figureOf, partExtent, woundGear } from "../view/index.ts";
 import { drawSolids, personSolids, surface, type V3 } from "./portrait.ts";
 import { el } from "./why.ts";
-import { internalSolids, injurySolids } from "./anatomy.ts";
+import { handWithArm, internalSolids, injurySolids } from "./anatomy.ts";
 
 type BodyBlock = Extract<Block, { type: "body" }>;
 
@@ -100,7 +100,7 @@ export function drawBody(
       art,
     ),
     marks = b.members
-      .filter((m) => MARK[m.state])
+      .filter((m) => MARK[m.state] && !handWithArm(b, m.member))
       .map((m) => {
         const p = memberPoint(b, m.member);
         return p ? { m, p: at(p) } : null;

@@ -247,8 +247,15 @@ export function bodyTab(
           ...person,
           look: {
             ...look,
+            // (Every member the body has lost is gone from the figure drawn: a wound's, a stroke's
+            // now, and the killing blow's that took one off — the figure shows what the rings and
+            // the words tell. 2026-11-11: "doesnt show it visually right in the inspection screen".)
             lost: [
-              ...new Set([...look.lost, ...struck.filter((s) => s.lost).map((s) => s.member)]),
+              ...new Set([
+                ...look.lost,
+                ...struck.filter((s) => s.lost).map((s) => s.member),
+                ...b.members.filter((m) => m.state === "lost").map((m) => m.member),
+              ]),
             ],
           },
         },
