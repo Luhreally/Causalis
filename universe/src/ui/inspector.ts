@@ -316,6 +316,7 @@ export class PageWindow {
       // (A long page to read: it opens tall on a phone.)
       if (
         (page.kind === "can" ||
+          page.kind === "life" ||
           (/^(board|dear):/.test(page.ref) && !document.body.classList.contains("living"))) &&
         innerWidth <= 640
       )

@@ -23,6 +23,9 @@ export class MicroScene {
   private readonly kinds: { batch: InstancedBatch; color: Rgb }[] = [];
   private readonly motes: InstancedBatch;
   private readonly marks: InstancedBatch;
+  /** The mineral grain the rock-eaters live on (B2), and its colour. */
+  private readonly grain: InstancedBatch;
+  private grainColor: Rgb = [0.42, 0.36, 0.3];
   private readonly water = new pc.Entity("water");
 
   constructor(stage: Stage) {
@@ -60,6 +63,14 @@ export class MicroScene {
       this.root,
       flatMaterial([1, 0.88, 0.4], 0.28, 0.4, 0.4),
     );
+    this.grain = new InstancedBatch(
+      stage,
+      ball,
+      this.grainColor,
+      8,
+      this.root,
+      flatMaterial(this.grainColor, 1, 0.9, 0.1),
+    );
     // The water's surface above, lit, and the slide's floor below (12 across, 9 down, 2.4 deep).
     const box = keptMesh(pc.Mesh.fromGeometry(stage.device, new pc.BoxGeometry()));
     const slab = (y: number, h: number, color: Rgb, opacity: number) => {
@@ -94,11 +105,17 @@ export class MicroScene {
     for (const k of this.kinds) place(k.batch, []);
     place(this.motes, []);
     place(this.marks, []);
+    place(this.grain, []);
     this.water.enabled = false;
   }
 
   /** The living drop, as the view lays it out in the round, each kind in its colour. */
-  living(d: RoundDrop, colors: readonly Rgb[]): void {
+  living(d: RoundDrop, colors: readonly Rgb[], grain?: Rgb): void {
+    if (grain && grain.some((v, j) => v !== this.grainColor[j])) {
+      this.grain.recolor(grain);
+      this.grainColor = grain;
+    }
+    place(this.grain, d.grain.slice(0, 8));
     place(this.skins, []);
     place(this.bits, []);
     d.kinds.forEach((parts, i) => {

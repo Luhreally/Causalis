@@ -184,7 +184,8 @@ export function livingIn(b: Biosphere, cell: number): Species[] {
   return b.species.filter((s) => s.died === null && lives(b, cell, s.index));
 }
 
-const HABITAT: Readonly<Record<Exclude<Niche, "upright ape">, readonly number[]>> = {
+/** The lands (biomes) each role lives in. */
+export const HABITAT: Readonly<Record<Exclude<Niche, "upright ape">, readonly number[]>> = {
   "seed-eater": [
     BIOME.steppe,
     BIOME.savanna,

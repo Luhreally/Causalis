@@ -12,6 +12,8 @@ import {
   type SystemBody,
 } from "../gen/index.ts";
 import { civilizationsNear, homePlanet } from "../sim/index.ts";
+import type { WorldOrigin } from "../gen/index.ts";
+import { originElsewhere } from "./origin.ts";
 
 const KEPT = new Map<string, Elsewhere>();
 
@@ -68,4 +70,42 @@ export function lifeOfBody(world: World, body: SystemBody): Elsewhere | null {
       { ...body, a },
     );
   });
+}
+
+/** How life began on another star's world, or not (B2): read from what is known of it. */
+export function originOfWorld(world: World, s: GalaxyStar, index: number): WorldOrigin {
+  const g = homePlanet(world).generated,
+    p = foreignPlanets(new Rng(world.seed), s)[index];
+  if (!p) throw new Error(`no world ${index} of ${s.ref}`);
+  return originElsewhere(
+    `${g.digest} ${s.sector}:${s.k} ${index}`,
+    s,
+    p,
+    lifeOfWorld(world, s, index),
+  );
+}
+
+/** How life began on a body of the home star's own, or not (B2). */
+export function originOfBody(world: World, body: SystemBody): WorldOrigin | null {
+  const g = homePlanet(world).generated,
+    life = lifeOfBody(world, body);
+  if (!life) return null;
+  const parent =
+      body.kind === "moon" ? g.system.bodies.find((b) => b.ref === body.orbit.around) : undefined,
+    a = parent ? parent.orbit.a : body.orbit.a;
+  return originElsewhere(
+    `${g.digest} home ${body.ref}`,
+    {
+      sector: 0,
+      k: 0,
+      ageGyr: starAgeGyr(g.star),
+      remnant: false,
+      spectral: g.star.spectral,
+      luminosity: g.star.luminosity,
+      temperature: g.star.temperature,
+      mass: g.star.mass,
+    },
+    { ...body, a },
+    life,
+  );
 }

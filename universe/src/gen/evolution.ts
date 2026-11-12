@@ -36,6 +36,7 @@ import type { Species } from "./biosphere.ts";
 import { cladeRef } from "./kinds.ts";
 import { worldChemistry } from "./chemistry.ts";
 import { worldLife } from "./life.ts";
+import { homeAir } from "./origin.ts";
 
 const EVO = defineStream("gen.evolution");
 
@@ -1218,13 +1219,19 @@ function growTree(g: HomeWorld): TreeOfLife {
     dawn.lightHow,
     dawn.lightWhy,
   );
+  // (When its air came to hold oxygen, where its light-eaters split water: read from its numbers, no later than its
+  // first cells together, which needed it to grow so large. B2.)
+  const air = homeAir(g, early(0.15), togetherAt).at;
   const nucleus = dawnLine(
     cells.id,
     "cells with a nucleus",
     "larger cells keeping their instructions in a nucleus, and another cell taken in to burn their food",
     early(0.55),
     "one cell took another in and kept it",
-    dawn.nucleus,
+    // (A nucleus that came before the air changed burned its food in the oxygen its light-eaters gave off about them.)
+    air !== null && air < early(0.55)
+      ? "burning its food in the oxygen the light-eaters gave off about them, before the air held any"
+      : dawn.nucleus,
   );
   const together = dawnLine(
     nucleus.id,
@@ -1450,7 +1457,8 @@ function growTree(g: HomeWorld): TreeOfLife {
     {
       id: "air",
       name: dawn.air,
-      at: early(0.4),
+      // (Never at the same moment as its cells with a nucleus: one came first.)
+      at: air === null ? early(0.4) : air === nucleus.from ? air + 1 : air,
       node: null,
       words: dawn.airWords,
     },
@@ -1491,6 +1499,8 @@ function growTree(g: HomeWorld): TreeOfLife {
       words: "plants and then animals left the water for the land",
     },
   ];
+  // (Told in the order they came: the air may change before its cells with a nucleus came, or after.)
+  rungs.sort((a, b) => b.at - a.at);
 
   // —— The ages.
   const bodied = (n: LifeNode) => n.genome !== null && n.kind !== "people",

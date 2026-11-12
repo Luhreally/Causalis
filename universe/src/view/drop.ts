@@ -22,19 +22,36 @@ export const FIELD_H = 135;
 export const STEP = 1 / 30;
 /** The most lives a drop holds (crowded, none divides), and the most of the larger kinds. */
 const MOST = 240;
-const MOST_OF: Readonly<Record<Way, number>> = { eater: 160, light: 110, hunter: 7, colony: 8 };
+const MOST_OF: Readonly<Record<Way, number>> = {
+  eater: 160,
+  light: 110,
+  hunter: 7,
+  colony: 8,
+  rock: 120,
+};
 const MOST_MOTES = 360;
 
 /** How fast each kind moves (µm a second) and what it spends to keep alive, by its size. */
-const SPEED: Readonly<Record<Way, number>> = { eater: 14, light: 3, hunter: 7, colony: 4 };
+const SPEED: Readonly<Record<Way, number>> = { eater: 14, light: 3, hunter: 7, colony: 4, rock: 3 };
 const UPKEEP: Readonly<Record<Way, number>> = {
   eater: 0.03,
   light: 0.025,
   hunter: 0.01,
   colony: 0.02,
+  rock: 0.025,
 };
 /** What a light-eater makes of full light, a second, by its own worth. */
-const SUN: Readonly<Record<Way, number>> = { eater: 0, light: 0.16, hunter: 0, colony: 0.05 };
+const SUN: Readonly<Record<Way, number>> = {
+  eater: 0,
+  light: 0.16,
+  hunter: 0,
+  colony: 0.05,
+  rock: 0,
+};
+/** What a rock-eater makes of its grain's chemistry, a second, by its own worth, on the grain (less as it is further). */
+const ROCK = 0.11;
+/** How far beyond its grain's edge a rock-eater still gets anything of it (µm). */
+const ROCK_REACH = 22;
 /** A mote's worth to the cell that eats it; what a hunter makes of a cell it takes in, by its worth. */
 const MOTE = 1.5;
 const DIGEST = 1.6;
@@ -44,6 +61,7 @@ const DRIFT: Readonly<Record<Way, number>> = {
   light: 0.07,
   hunter: 0.05,
   colony: 0.04,
+  rock: 0.03,
 };
 
 export type Cell = {
@@ -76,6 +94,10 @@ export type Mote = { x: number; y: number; vx: number; vy: number };
 export type DropState = {
   readonly kinds: readonly DropKind[];
   readonly habitat: DropBlock["habitat"];
+  /** Each kind's pace (1: its way's usual): what it runs on gives it more power or less (B2). */
+  readonly paces: readonly number[];
+  /** The mineral grain the rock-eaters live on, if the drop has one. */
+  readonly grain: DropBlock["grain"] | null;
   cells: Cell[];
   motes: Mote[];
   next: number;
@@ -156,6 +178,8 @@ export function newDrop(
     s: DropState = {
       kinds: b.kinds,
       habitat: b.habitat,
+      paces: b.kinds.map((k) => k.pace ?? 1),
+      grain: b.grain ?? null,
       cells: [],
       motes: [],
       next: 1,
@@ -176,8 +200,7 @@ export function newDrop(
   b.kinds.forEach((k, kind) => {
     if (!s.risen[kind]) return;
     const many = Math.max(1, Math.min(MOST_OF[k.way], Math.round((n * k.share) / whole)));
-    for (let i = 0; i < many; i++)
-      s.cells.push(born(s, kind, null, rnd() * FIELD_W, rnd() * FIELD_H));
+    for (let i = 0; i < many; i++) s.cells.push(born(s, kind, null, ...startAt(s, k)));
   });
   for (let i = 0; i < 160 * b.food; i++)
     s.motes.push({ x: rnd() * FIELD_W, y: rnd() * FIELD_H, vx: 0, vy: 0 });
@@ -185,10 +208,20 @@ export function newDrop(
   return s;
 }
 
+/** Where a kind's first cells stand: a rock-eater about its grain, the rest anywhere. */
+function startAt(s: DropState, k: DropKind): [number, number] {
+  const g = s.grain;
+  if (k.way !== "rock" || !g) return [s.rnd() * FIELD_W, s.rnd() * FIELD_H];
+  const a = s.rnd() * Math.PI * 2,
+    d = g.r * (0.9 + 0.8 * s.rnd());
+  return [wrap(g.x + Math.cos(a) * d, FIELD_W), placeY(s, g.y + Math.sin(a) * d)];
+}
+
 /** A cell come into the drop: of its kind, or of its mother (a little unlike her). */
 export function born(s: DropState, kind: number, mother: Cell | null, x: number, y: number): Cell {
   const k = s.kinds[kind]!,
     r = s.rnd,
+    base = SPEED[k.way] * (s.paces[kind] ?? 1),
     size = mother
       ? Math.min(
           k.size * 2.5,
@@ -199,11 +232,8 @@ export function born(s: DropState, kind: number, mother: Cell | null, x: number,
         )
       : k.size * Math.exp(0.04 * normal(r)),
     speed = mother
-      ? Math.min(
-          SPEED[k.way] * 3,
-          Math.max(SPEED[k.way] * 0.3, mother.speed * Math.exp(0.08 * normal(r))),
-        )
-      : SPEED[k.way] * Math.exp(0.05 * normal(r));
+      ? Math.min(base * 3, Math.max(base * 0.3, mother.speed * Math.exp(0.08 * normal(r))))
+      : base * Math.exp(0.05 * normal(r));
   return {
     id: s.next++,
     kind,
@@ -266,12 +296,15 @@ export function stepDrop(s: DropState): void {
   const hunters = s.cells.filter((c) => c.way === "hunter");
   for (const c of s.cells) {
     if (gone.has(c.id)) continue;
-    c.age += dt;
+    // (Its own time: a kind that runs on little power lives, eats and divides slowly.)
+    const kp = s.paces[c.kind] ?? 1,
+      cdt = dt * kp;
+    c.age += cdt;
     const w = worth(c.size);
     let pace = 1;
     if (c.dividing > 0) {
       // (Dividing, it stays: two when it is done.)
-      c.dividing -= dt;
+      c.dividing -= cdt;
       if (c.dividing <= 0) {
         c.dividing = 0;
         const a = born(s, c.kind, c, c.x, c.y),
@@ -332,7 +365,7 @@ export function stepDrop(s: DropState): void {
       case "light":
       case "colony": {
         // By the light; toward it, slowly, where the water is lit from above.
-        c.energy += SUN[c.way] * w * lightAt(s, c.y) * dt;
+        c.energy += SUN[c.way] * w * lightAt(s, c.y) * cdt;
         if (r() < 0.4 * dt)
           c.heading = s.habitat === "soil" ? r() * Math.PI * 2 : -Math.PI / 2 + (r() - 0.5) * 2.4;
         pace = 0.6;
@@ -344,7 +377,7 @@ export function stepDrop(s: DropState): void {
         let prey: Cell | null = null,
           pd = 0,
           score = 0;
-        if (c.full > 0) c.full -= dt;
+        if (c.full > 0) c.full -= cdt;
         else
           for (const o of s.cells) {
             if (o === c || gone.has(o.id) || o.dividing > 0 || o.size >= c.size * 0.5) continue;
@@ -376,6 +409,26 @@ export function stepDrop(s: DropState): void {
         c.meals = c.meals.filter((m) => m.age < 8);
         break;
       }
+      case "rock": {
+        // By its grain's chemistry: the nearer, the more; toward it when away, keeping to it when there.
+        const g = s.grain;
+        if (!g) {
+          c.energy += ROCK * w * 0.4 * cdt;
+          if (r() < 0.3 * dt) c.heading = r() * Math.PI * 2;
+        } else {
+          const dx = gap(c.x, g.x, FIELD_W),
+            dy = gapY(s, c.y, g.y),
+            d = Math.sqrt(dx * dx + dy * dy);
+          c.energy += ROCK * w * Math.max(0, 1 - Math.max(0, d - g.r) / ROCK_REACH) * cdt;
+          if (d > g.r + 3) {
+            if (r() < 1.2 * dt) c.heading = Math.atan2(dy, dx) + (r() - 0.5) * 0.9;
+          } else {
+            pace = 0.2;
+            if (r() < 0.5 * dt) c.heading = r() * Math.PI * 2;
+          }
+        }
+        break;
+      }
     }
     // It moves, and spends for living and for its speed.
     const v = c.speed * pace;
@@ -387,7 +440,7 @@ export function stepDrop(s: DropState): void {
       c.y = placeY(s, y);
       if (c.y !== y) c.heading = -c.heading;
     }
-    c.energy -= (UPKEEP[c.way] * w + 0.002 * w * (c.speed / SPEED[c.way]) ** 2) * dt;
+    c.energy -= (UPKEEP[c.way] * w + 0.002 * w * (c.speed / (SPEED[c.way] * kp)) ** 2) * cdt;
     if (c.energy <= 0) {
       gone.add(c.id);
       s.died++;
@@ -429,7 +482,14 @@ export function stepDrop(s: DropState): void {
   if (r() < 0.02 * dt)
     s.kinds.forEach((k, kind) => {
       if (s.risen[kind] && !s.cells.some((c) => c.kind === kind) && s.cells.length < MOST)
-        s.cells.push(born(s, kind, null, r() * FIELD_W, 0));
+        s.cells.push(
+          born(
+            s,
+            kind,
+            null,
+            ...(k.way === "rock" ? startAt(s, k) : ([r() * FIELD_W, 0] as [number, number])),
+          ),
+        );
     });
   const before = Math.floor(s.t / 2);
   s.t += dt;
@@ -457,8 +517,7 @@ function record(s: DropState): void {
 export function arise(s: DropState, kind: number, many = 5): void {
   if (s.risen[kind] || !s.kinds[kind]) return;
   s.risen[kind] = true;
-  for (let i = 0; i < many; i++)
-    s.cells.push(born(s, kind, null, s.rnd() * FIELD_W, s.rnd() * FIELD_H));
+  for (let i = 0; i < many; i++) s.cells.push(born(s, kind, null, ...startAt(s, s.kinds[kind]!)));
 }
 
 /** What the god's hand may do to a drop. */
@@ -500,6 +559,8 @@ const DAWN_OF: Readonly<Record<DropKind["way"], DawnWay>> = {
   light: "light",
   hunter: "hunters",
   colony: "together",
+  // (Rock-eaters are eaters of the rock: the hand makes them prosper as it does the eaters.)
+  rock: "eaters",
 };
 
 /**
@@ -600,6 +661,8 @@ export type RoundDrop = {
   readonly motes: readonly CellPart[];
   /** A ring about each cell followed, the one tapped the brightest. */
   readonly marks: readonly CellPart[];
+  /** The mineral grain on the floor the rock-eaters live on (none where the drop has none). */
+  readonly grain: readonly CellPart[];
 };
 
 const part = (
@@ -624,7 +687,31 @@ export function roundDrop(s: DropState, chosen: number | null = null): RoundDrop
     nuclei: CellPart[] = [],
     motes: CellPart[] = [],
     marks: CellPart[] = [],
+    grain: CellPart[] = [],
     t = s.t;
+  if (s.grain) {
+    // (A lump of rock: a few boulders of it, lying on the slide's floor.)
+    const g = s.grain,
+      at = { x: (g.x - FIELD_W / 2) * K, y: (FIELD_H / 2 - g.y) * K },
+      R = g.r * K;
+    for (let i = 0; i < 7; i++) {
+      const a = i * 2.399963,
+        d = i ? R * 0.55 : 0,
+        q = i ? 0.55 + 0.2 * unit(i, 9) : 0.9;
+      grain.push(
+        part(
+          at.x + Math.cos(a) * d,
+          at.y + Math.sin(a) * d * 0.5,
+          Math.sin(a) * d,
+          R * q,
+          R * q * 0.75,
+          R * q,
+          a,
+          0,
+        ),
+      );
+    }
+  }
   for (const m of s.motes) {
     // (Before or behind as it lies, smoothly: a mote drifting does not leap to and fro.)
     const z = Math.sin(m.x * 0.37 + m.y * 0.11) * Math.cos(m.y * 0.29) * DEPTH * 0.45;
@@ -644,9 +731,40 @@ export function roundDrop(s: DropState, chosen: number | null = null): RoundDrop
         x = at.x - ay * apart * side,
         y = at.y + ax * apart * side,
         dd = halves > 1 ? d * 0.8 : d;
-      if (c.way === "eater")
-        // A rod along its way.
-        list.push(part(x, y, at.z, dd * 0.7, dd * 0.7, dd * 1.5, Math.PI / 2, c.heading));
+      const look = s.kinds[c.kind]!.look;
+      if (c.way === "eater" && (look === "coccus" || look === "comma")) {
+        // A ball of two (or a curved rod, two lobes along its way).
+        const ox = Math.cos(c.heading) * dd * 0.32,
+          oy = -Math.sin(c.heading) * dd * 0.32,
+          k = look === "coccus" ? 0.75 : 0.6;
+        list.push(part(x + ox, y + oy, at.z, dd * k, dd * k, dd * k));
+        list.push(
+          part(x - ox, y - oy + (look === "comma" ? dd * 0.15 : 0), at.z, dd * k, dd * k, dd * k),
+        );
+      } else if (c.way === "eater")
+        // A rod along its way (a spiral, long and thin).
+        list.push(
+          look === "spiral"
+            ? part(x, y, at.z, dd * 0.4, dd * 0.4, dd * 2.4, Math.PI / 2, c.heading)
+            : part(x, y, at.z, dd * 0.7, dd * 0.7, dd * 1.5, Math.PI / 2, c.heading),
+        );
+      else if (c.way === "rock")
+        // A flat crust of a cell, lying on its grain.
+        list.push(part(x, y, at.z, dd * 1.1, dd * 0.55, dd * 1.1, c.heading, 0));
+      else if (c.way === "light" && look === "disc")
+        list.push(part(x, y, at.z, dd * 1.2, dd * 0.4, dd * 1.2));
+      else if (c.way === "light" && look === "chain")
+        for (let i = -1; i <= 1; i++)
+          list.push(
+            part(
+              x + Math.cos(c.heading) * dd * 0.55 * i,
+              y - Math.sin(c.heading) * dd * 0.55 * i,
+              at.z,
+              dd * 0.6,
+              dd * 0.6,
+              dd * 0.6,
+            ),
+          );
       else if (c.way === "light") {
         list.push(part(x, y, at.z, dd, dd, dd));
         for (let i = 0; i < 3 && dd > 0.3; i++) {
@@ -702,5 +820,5 @@ export function roundDrop(s: DropState, chosen: number | null = null): RoundDrop
       marks.push(part(at.x, at.y, at.z, r, r, r));
     }
   }
-  return { kinds, nuclei, motes, marks };
+  return { kinds, nuclei, motes, marks, grain };
 }

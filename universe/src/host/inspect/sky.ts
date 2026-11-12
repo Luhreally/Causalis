@@ -18,7 +18,14 @@ import { realmColor } from "../colors.ts";
 import type { Item, PageModel, Place, Stat } from "../../bridge/index.ts";
 import { starByRef, starFacts, foreignGlobe } from "../galaxy.ts";
 import { folkBlocks } from "./natives.ts";
-import { civilizationOn, lifeOfBody, lifeOfWorld, sameStar } from "../elsewhere.ts";
+import {
+  civilizationOn,
+  lifeOfBody,
+  lifeOfWorld,
+  originOfBody,
+  originOfWorld,
+  sameStar,
+} from "../elsewhere.ts";
 import { elsewhereBlocks } from "./small.ts";
 import { worldLook } from "../biochem.ts";
 import { kindBlocks } from "../kinds.ts";
@@ -323,6 +330,22 @@ export function bodyPage(world: World, ref: string): PageModel {
         blocks: [
           ...(home ? [] : fillBlocks(world, { star: null, planet: -1, body: index })),
           ...(home ? [] : tradeWorldBlocks(world, null, -1, index)),
+          // (How its life began, and on what (B2), high on the page where a thumb finds it.)
+          ...(b.kind === "giant" || b.kind === "ice giant"
+            ? []
+            : [
+                {
+                  type: "list" as const,
+                  items: [
+                    home
+                      ? lifeLink("world:life", true, "here")
+                      : lifeLink(
+                          `life:${ref}`,
+                          !!life && life.level !== "none" && life.level !== "chemistry",
+                        ),
+                  ],
+                },
+              ]),
           {
             type: "facts",
             rows: [
@@ -390,6 +413,8 @@ export function bodyPage(world: World, ref: string): PageModel {
                 key: ref,
                 warmth: b.temperature,
                 light: g.star.luminosity / (lightAt * lightAt),
+                origin: originOfBody(world, b)!,
+                lifeRef: `life:${ref}`,
               }),
             },
           ]
@@ -478,6 +503,17 @@ export function foreignWorldPage(world: World, ref: string): PageModel {
           },
           // (Its own people, at their own stage: Phase 69.)
           ...(risen ? folkBlocks(world, risen) : []),
+          // (How its life began, or why none did: B2.)
+          ...(w.unmade || w.kind === "giant" || w.kind === "ice giant"
+            ? []
+            : [
+                {
+                  type: "list" as const,
+                  items: [
+                    lifeLink(`life:${ref}`, life.level !== "none" && life.level !== "chemistry"),
+                  ],
+                },
+              ]),
         ],
       },
       // What lives there (Phase 18 M132): its bodies sketched, a drop of its water.
@@ -490,6 +526,8 @@ export function foreignWorldPage(world: World, ref: string): PageModel {
                 key: ref,
                 warmth: p.temperature,
                 light: s.luminosity / (p.a * p.a),
+                origin: originOfWorld(world, s, index),
+                lifeRef: `life:${ref}`,
               }),
             },
           ]
@@ -498,4 +536,11 @@ export function foreignWorldPage(world: World, ref: string): PageModel {
     followable: false,
     year: yearNow(world),
   };
+}
+
+/** The way to a world's Life page (B2): how its life began, or why none did; its colour says which. */
+function lifeLink(ref: string, lives: boolean, where: "here" | "there" = "there"): Item {
+  return lives
+    ? { tone: "have", line: [link(`🧫 How life began ${where}, and on what`, ref)], ref }
+    : { tone: "shut", line: [link("🪨 Why nothing lives there", ref)], ref };
 }

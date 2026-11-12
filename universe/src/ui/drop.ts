@@ -91,6 +91,33 @@ function paint(
   ctx.fillStyle = s.habitat === "soil" ? "rgba(214, 186, 140, 0.55)" : "rgba(210, 230, 235, 0.45)";
   for (const m of s.motes) ctx.fillRect(m.x * k - 0.6, m.y * k - 0.6, 1.3, 1.3);
   const t = s.t;
+  // The mineral grain the rock-eaters live on (B2): a lump on the floor, its chemistry seeping about it.
+  if (s.grain) {
+    const g = s.grain,
+      gx = g.x * k,
+      gy = g.y * k,
+      gr = g.r * k,
+      seep = ctx.createRadialGradient(gx, gy, gr * 0.6, gx, gy, gr * 2.6);
+    seep.addColorStop(0, css(g.color, 0.28 + 0.06 * Math.sin(t * 1.3)));
+    seep.addColorStop(1, css(g.color, 0));
+    ctx.fillStyle = seep;
+    ctx.beginPath();
+    ctx.arc(gx, gy, gr * 2.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = css(g.color, 0.95, 0, 0.75);
+    ctx.strokeStyle = css(g.color, 0.9, 0, 1.15);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * Math.PI * 2,
+        q = 0.78 + 0.22 * Math.sin(i * 2.7 + 1.3);
+      if (i) ctx.lineTo(gx + Math.cos(a) * gr * q, gy + Math.sin(a) * gr * q * 0.8);
+      else ctx.moveTo(gx + Math.cos(a) * gr * q, gy + Math.sin(a) * gr * q * 0.8);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
   for (const c of s.cells) {
     const kind = s.kinds[c.kind]!,
       x = c.x * k,
@@ -104,8 +131,49 @@ function paint(
         cx = x + ox,
         cy = y + oy,
         rr = parts > 1 ? r * 0.8 : r;
+      const look = kind.look;
       switch (c.way) {
         case "eater": {
+          if (look === "coccus" || look === "comma") {
+            // A ball of two, or a curved rod.
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(c.heading);
+            ctx.fillStyle = css(kind.color, 0.9, c.hue);
+            ctx.beginPath();
+            if (look === "coccus") {
+              ctx.arc(-rr * 0.55, 0, rr * 0.7, 0, Math.PI * 2);
+              ctx.arc(rr * 0.55, 0, rr * 0.7, 0, Math.PI * 2);
+              ctx.fill();
+            } else {
+              ctx.strokeStyle = css(kind.color, 0.9, c.hue);
+              ctx.lineWidth = rr * 0.9;
+              ctx.lineCap = "round";
+              ctx.arc(0, rr * 0.9, rr * 1.4, -Math.PI * 0.8, -Math.PI * 0.2);
+              ctx.stroke();
+            }
+            ctx.restore();
+            break;
+          }
+          if (look === "spiral") {
+            // A corkscrew, turning as it goes.
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(c.heading);
+            ctx.strokeStyle = css(kind.color, 0.9, c.hue);
+            ctx.lineWidth = Math.max(1, rr * 0.55);
+            ctx.lineCap = "round";
+            ctx.beginPath();
+            for (let i = 0; i <= 12; i++) {
+              const along = -rr * 1.8 + (i / 12) * rr * 3.6,
+                side = Math.sin(i * 1.3 + t * 9 + c.id) * rr * 0.55;
+              if (i) ctx.lineTo(along, side);
+              else ctx.moveTo(along, side);
+            }
+            ctx.stroke();
+            ctx.restore();
+            break;
+          }
           // A rod, its whip behind it.
           ctx.save();
           ctx.translate(cx, cy);
@@ -128,6 +196,33 @@ function paint(
           break;
         }
         case "light": {
+          if (look === "disc") {
+            // A flat dark disc, its rim catching what light there is.
+            ctx.fillStyle = css(kind.color, 0.95, c.hue);
+            ctx.strokeStyle = css(kind.color, 0.9, c.hue, 2.2);
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.ellipse(cx, cy, rr * 1.2, rr * 0.7, c.heading, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            break;
+          }
+          if (look === "chain") {
+            // A short chain of cells.
+            ctx.fillStyle = css(kind.color, 0.85, c.hue);
+            for (let i = -1; i <= 1; i++) {
+              ctx.beginPath();
+              ctx.arc(
+                cx + Math.cos(c.heading) * rr * 1.1 * i,
+                cy + Math.sin(c.heading) * rr * 1.1 * i,
+                rr * 0.62,
+                0,
+                Math.PI * 2,
+              );
+              ctx.fill();
+            }
+            break;
+          }
           ctx.fillStyle = css(kind.color, 0.28, c.hue);
           ctx.beginPath();
           ctx.arc(cx, cy, rr * 1.25, 0, Math.PI * 2);
@@ -186,6 +281,26 @@ function paint(
             );
             ctx.fill();
           });
+          break;
+        }
+        case "rock": {
+          // A flat crust of a cell on its grain, its edges angular.
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(c.heading);
+          ctx.fillStyle = css(kind.color, 0.92, c.hue);
+          ctx.strokeStyle = css(kind.color, 0.9, c.hue, 0.6);
+          ctx.lineWidth = 0.8;
+          ctx.beginPath();
+          for (let i = 0; i < 6; i++) {
+            const a = (i / 6) * Math.PI * 2;
+            if (i) ctx.lineTo(Math.cos(a) * rr * 1.2, Math.sin(a) * rr * 0.75);
+            else ctx.moveTo(Math.cos(a) * rr * 1.2, Math.sin(a) * rr * 0.75);
+          }
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
           break;
         }
         case "colony": {
