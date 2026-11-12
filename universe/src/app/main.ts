@@ -416,7 +416,7 @@ const DEEP_LENSES: readonly Lens[] = [
   "debt",
   "forest",
 ];
-/** The map modes that show the people (repainted as their numbers come, and turned to them). */
+/** The map modes that show the people (repainted as their numbers come). */
 const PEOPLE_LENSES: readonly Lens[] = [
   "people",
   "food",
@@ -2091,8 +2091,8 @@ async function runPlanetPage(): Promise<void> {
    *  towns are known. */
   let arriveField: { spot?: number; event?: string; cell: number; until: number } | null = null;
   let landBattleFocus: { event: string; cell: number } | null = null;
-  /** Turn to the most peopled province; closer, for the lenses that show the people. */
-  async function faceThePeople(closer: boolean): Promise<void> {
+  /** Turn to the most peopled province (once, on arriving). */
+  async function faceThePeople(): Promise<void> {
     const map = await client.query<PeopleEntry[]>({ type: "people.map" });
     const most = [...map].sort((a, b) => b.people - a.people || a.cell - b.cell)[0];
     if (!most || scale !== "globe") return;
@@ -2101,7 +2101,6 @@ async function runPlanetPage(): Promise<void> {
       args: { cell: most.centre },
     });
     rig.face(place.lat, place.lon);
-    if (closer && !rig.userZoomed) rig.distance = Math.min(rig.distance, 2);
   }
   planetPanel.onLens = (l) => {
     walk.saw("lens");
@@ -2137,7 +2136,8 @@ async function runPlanetPage(): Promise<void> {
       readWealth();
     }
     paintGlobe();
-    if (PEOPLE_LENSES.includes(l)) void faceThePeople(true);
+    // (A lens only paints: the view stays where it was looked at — asked 2026-11-11, "each time i
+    // click new lens [it] moves the camera"; the world is turned to its people once, on arriving.)
     // (The ways lens shows one way at a time, chosen under its legend: Phase 14 M119; the
     // goods lens one good: Phase 15 M123.)
     if (l === "goods")
@@ -9463,7 +9463,7 @@ async function runPlanetPage(): Promise<void> {
     if (!rig.userZoomed) rig.distance = scale === "globe" ? globeFit() : regionFit();
   });
   // Open facing the people (the most peopled province), not wherever the camera starts.
-  void faceThePeople(false);
+  void faceThePeople();
   // Begun when strangers come down (?contact, Phase 20 M142): the god calls a people of another
   // star down to the most peopled land; once they have crossed (a year), the eye goes down to
   // the town they came down by. (None at the stars yet: what they are, and that they will come.)

@@ -1,11 +1,14 @@
 // Every strike from the air, to be played again (asked 2026-11-11: "make it option just like watching
 // landing or past war"): a button in the corner's row once there are any, a sheet of them newest first —
 // the raids of machines, the rockets thrown, the greatest fire — each a tap from being watched again in
-// its town, and its town's and its war's pages. Nothing is asked that history does not hold already.
+// its town, and its town's and its war's pages. Nothing is asked that history does not hold already;
+// shut, it asks only how many there are, every ten seconds, and open, the newest forty.
 import type { HostClient, StrikeEntry } from "../bridge/index.ts";
 import { el } from "./why.ts";
 
-const POLL_MS = 5000;
+/** While shut, only how many there are, now and then; while open, its rows (the newest forty). */
+const COUNT_MS = 10000,
+  ROWS_MS = 4000;
 const ICON: Readonly<Record<StrikeEntry["kind"], string>> = {
   raid: "✈️",
   rocket: "🚀",
@@ -28,6 +31,11 @@ export class Strikes {
   private readonly filters = el("div", "strike-filters");
   private list: readonly StrikeEntry[] = [];
   private filter: Filter = "all";
+  private readonly client: HostClient;
+  /** The rows' asking, only while the sheet is open. */
+  private stopRows: (() => void) | null = null;
+  /** Whether its rows have come at least once (till then, being read, not "none"). */
+  private read = false;
   /** Played again in its town (false: it could not be). */
   onWatch: (event: string) => Promise<boolean> = () => Promise.resolve(false);
   /** A thing's page (its town, its war). */
@@ -50,22 +58,34 @@ export class Strikes {
     this.sheet.append(head, this.filters, this.rows);
     this.sheet.hidden = true;
     hud.append(this.sheet);
-    client.subscribe<StrikeEntry[]>({ type: "strike.list" }, POLL_MS, (list) => {
-      if (!Array.isArray(list)) return;
-      this.list = list;
-      this.button.hidden = list.length === 0;
-      this.count.textContent = String(list.length);
-      if (!this.sheet.hidden) this.draw();
+    this.client = client;
+    client.subscribe<{ n?: number }>({ type: "strike.count" }, COUNT_MS, (c) => {
+      const n = typeof c?.n === "number" ? c.n : 0;
+      this.button.hidden = n === 0;
+      this.count.textContent = n > 99 ? "99+" : String(n);
     });
   }
 
   /** The list open or shut. */
   show(on: boolean): void {
     this.sheet.hidden = !on;
-    if (on) {
-      this.onShown();
-      this.draw();
+    if (!on) {
+      this.stopRows?.();
+      this.stopRows = null;
+      return;
     }
+    this.onShown();
+    this.draw();
+    this.stopRows ??= this.client.subscribe<StrikeEntry[]>(
+      { type: "strike.list" },
+      ROWS_MS,
+      (list) => {
+        if (!Array.isArray(list)) return;
+        this.list = list;
+        this.read = true;
+        if (!this.sheet.hidden) this.draw();
+      },
+    );
   }
 
   get shown(): boolean {
@@ -99,7 +119,13 @@ export class Strikes {
     this.rows.replaceChildren(
       ...(shown.length
         ? shown.map((s) => this.row(s))
-        : [el("div", "colony-row-facts", "Nothing has struck from the air yet.")]),
+        : [
+            el(
+              "div",
+              "colony-row-facts",
+              this.read ? "Nothing has struck from the air yet." : "Reading the record…",
+            ),
+          ]),
     );
   }
 

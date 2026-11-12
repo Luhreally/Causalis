@@ -212,7 +212,9 @@ import { lookMeta } from "./biochem.ts";
 
 const BOUNDARY_WORDS = ["none", "converging", "spreading", "sliding"];
 
-/** The strikes from the air the world remembers, newest first (at most a hundred and twenty). */
+/** The newest strikes from the air the world remembers, newest first: the sheet's rows, asked only
+ *  while it is open (a long war's hundreds would be words no one reads, sent for nothing). */
+const STRIKE_ROWS = 40;
 function strikeList(world: World): StrikeEntry[] {
   const wars = warsOf(world),
     realms = politiesOf(world),
@@ -224,7 +226,7 @@ function strikeList(world: World): StrikeEntry[] {
     },
     all = wars.allStrikes(),
     out: StrikeEntry[] = [];
-  for (let k = all.length - 1; k >= 0 && out.length < 120; k--) {
+  for (let k = all.length - 1; k >= 0 && out.length < STRIKE_ROWS; k--) {
     const s = all[k]!,
       war = wars.get(s.war),
       by = war ? (s.side === 0 ? war.attacker : war.defender) : null,
@@ -1549,6 +1551,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
       ...WEALTH_QUERIES,
       // Every strike from the air, newest first, each a tap from being played again (2026-11-11).
       "strike.list": (world) => strikeList(world),
+      // (How many it keeps: all the corner's button asks while the sheet is shut.)
+      "strike.count": (world) => ({ n: warsOf(world).allStrikes().length }),
       // What the player has turned off of what the world does by itself (2026-11-11).
       "world.switches": (world) => ({
         off: world.hasStore("acts.switches")
