@@ -90,3 +90,23 @@ test("counts stay integers and never negative, and floods move the population", 
   assert.notEqual(pop.counts.total(), start);
   assert.ok(w.scheduler.pending().length >= 2, "floods reschedule themselves");
 });
+
+test("a host's tally of where the work goes times each system, and changes nothing it runs", () => {
+  const run = (tallied: boolean) => {
+    const s = new Scheduler(0 as SimTime),
+      log: string[] = [];
+    s.addSystem({ key: "050.b", every: 10, run: (t) => log.push(`b${t}`) });
+    s.addSystem({ key: "040.a", every: 5, offset: 2, run: (t) => log.push(`a${t}`) });
+    let now = 0;
+    if (tallied) s.tally = { clock: () => (now += 1), ms: new Map() };
+    s.runTo(40);
+    return { log, tally: s.tally };
+  };
+  const plain = run(false),
+    kept = run(true);
+  assert.deepEqual(kept.log, plain.log);
+  assert.equal(plain.tally, null);
+  // (Each run read the clock before and after: one unit of work each, by its order key.)
+  assert.equal(kept.tally!.ms.get("040.a"), 8);
+  assert.equal(kept.tally!.ms.get("050.b"), 4);
+});

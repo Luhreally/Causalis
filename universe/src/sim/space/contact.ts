@@ -23,6 +23,7 @@ import { farOf, fireOf } from "../war/fire.ts";
 import { knows, loreOf } from "../lore/lore.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { clusterOf } from "./voyages.ts";
+import { skyOf } from "../../rules/index.ts";
 
 export const CONTACT_EVENTS = {
   heard: defineEventType("contact.heard", 6),
@@ -37,7 +38,15 @@ export function civilizationsEver(world: World): Civilization[] {
   if (!civs) {
     if (CIVS.size > 8) CIVS.clear();
     const rng = new Rng(world.seed);
-    CIVS.set(key, (civs = civilizationsOf(rng, clusterOf(world), (s) => foreignPlanets(rng, s))));
+    CIVS.set(
+      key,
+      (civs = civilizationsOf(
+        rng,
+        clusterOf(world),
+        (s) => foreignPlanets(rng, s),
+        skyOf(world.seed.text)?.most,
+      )),
+    );
   }
   return civs;
 }

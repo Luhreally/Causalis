@@ -89,7 +89,7 @@ import {
   type ProvinceWorld,
   worldChemistry,
 } from "../gen/index.ts";
-import { EARTHLIKE, OPEN, landsOf, type Prior } from "../rules/index.ts";
+import { EARTHLIKE, OPEN, landsOf, makingsOf, skyOf, type Prior } from "../rules/index.ts";
 import {
   Rng,
   YEAR,
@@ -952,11 +952,17 @@ function planetUniverse(name: string, prior: Prior): Universe {
         };
       },
       "planet.summary": (world) => summary(homePlanet(world).generated.fine),
+      /**
+       * How fast this world runs on this device, and where its years' work goes (C3, asked 2026-11-12:
+       * "to have even more control of performance and speed"): kept from the first time it is asked,
+       * by system, its years a minute of work, and what it holds that costs it.
+       */
+      "speed.tally": (world) => speedTally(world),
       /** The stars within the cluster's reach of home. */
       "galaxy.cluster": (world): ClusterPlan => {
         const rng = new Rng(world.seed);
         return {
-          radius: CLUSTER_LY,
+          radius: skyOf(world.seed.text)?.radius ?? CLUSTER_LY,
           stars: clusterOf(world).map((s) => clusterStar(s, rng)),
           // (Places in `stars`: the lanes' list has the home star first.)
           ...(laneLawOf(world).open
@@ -1619,7 +1625,8 @@ export function clusterOf(world: World): GalaxyStar[] {
   if (!stars) {
     if (CLUSTERS.size > 8) CLUSTERS.clear();
     const rng = new Rng(world.seed);
-    CLUSTERS.set(key, (stars = clusterStars(rng, makeGalaxy(rng))));
+    // (As far out as the seed's sky reaches: the usual 50 light-years, or its making's.)
+    CLUSTERS.set(key, (stars = clusterStars(rng, makeGalaxy(rng), skyOf(world.seed.text)?.radius)));
   }
   return stars;
 }
@@ -1645,3 +1652,86 @@ export function clusterStar(s: GalaxyStar, rng: Rng): ClusterStar {
 
 export const EARTH = planetUniverse("earth", EARTHLIKE);
 export const ALIEN = planetUniverse("alien", OPEN);
+
+/** Where a world's work has gone since it was first asked, and what it holds. */
+const TALLIES = new WeakMap<World, { readonly from: number; readonly clockFrom: number }>();
+/** What each of a world's busiest works is, in words (by its order key's name). */
+const WORK_WORDS: Readonly<Record<string, string>> = {
+  population: "people's lives",
+  hand: "the god's hand",
+  weather: "weather",
+  ecology: "woods and wild life",
+  woods: "woods",
+  herds: "herds",
+  economy: "markets and trade",
+  climate: "climate",
+  lodes: "lodes",
+  knowledge: "discoveries",
+  lore: "lore",
+  culture: "ways and tongues",
+  polity: "realms",
+  belief: "faiths",
+  war: "wars",
+  diplomacy: "dealings between realms",
+  order: "rule and rights",
+  health: "sickness",
+  credit: "debts",
+  strife: "strife",
+  city: "cities",
+  town: "towns",
+  wild: "beasts",
+  design: "arms and designs",
+  space: "the sky and the stars",
+  checkpoint: "keeping its history",
+  history: "keeping its history",
+  commands: "your commands",
+};
+function speedTally(world: World): {
+  readonly years: number;
+  readonly workMs: number;
+  readonly yearsAMinute: number | null;
+  readonly works: readonly { readonly name: string; readonly share: number }[];
+  readonly lands: number;
+  readonly realms: number;
+  readonly towns: number;
+  readonly wars: number;
+  readonly size: string;
+  readonly sky: string;
+} {
+  const s = world.scheduler;
+  if (!s.tally) {
+    s.tally = { clock: () => performance.now(), ms: new Map() };
+    TALLIES.set(world, { from: world.now, clockFrom: performance.now() });
+  }
+  const since = TALLIES.get(world) ?? { from: world.now, clockFrom: performance.now() },
+    years = (world.now - since.from) / YEAR,
+    byName = new Map<string, number>();
+  let workMs = 0;
+  for (const [key, ms] of s.tally.ms) {
+    workMs += ms;
+    // ("070.floods" is the floods: the works of one kind together.)
+    const name = key.replace(/^\d+\./, "").split(/[.:]/)[0]!;
+    byName.set(name, (byName.get(name) ?? 0) + ms);
+  }
+  const ctx = populationContext(world),
+    m = makingsOf(world.seed.text);
+  return {
+    years: Math.round(years * 10) / 10,
+    workMs: Math.round(workMs),
+    yearsAMinute: years >= 1 && workMs > 0 ? Math.round((years / workMs) * 60000) : null,
+    works: [...byName]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([name, ms]) => ({ name: WORK_WORDS[name] ?? name, share: workMs ? ms / workMs : 0 })),
+    lands: ctx.provinces.all().filter((p) => p.total() > 0).length,
+    realms: politiesOf(world)
+      .all()
+      .filter((p) => p.ended === null).length,
+    towns: ctx.settlements.all().length,
+    wars: warsOf(world)
+      .all()
+      .filter((w) => w.ended === null).length,
+    size: m.size ?? "standard",
+    sky: m.sky ?? "standard",
+  };
+}

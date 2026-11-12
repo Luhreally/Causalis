@@ -480,6 +480,7 @@ export {
   MAKINGS,
   MAKING_SUBJECTS,
   landsOf,
+  skyOf,
   MAKING_WORDS,
   madePrior,
   makingAct,

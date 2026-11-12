@@ -40,6 +40,7 @@ import {
   reductionHeat,
   routeTo,
   turnsAside,
+  skyOf,
   starDriveFor,
   toOrbit,
   worldOre,
@@ -313,7 +314,7 @@ function flightOf(g: ProvinceWorld, seed: Seed, known: ReadonlySet<string>) {
     longest = longestCrossing(knows);
   let target: { star: GalaxyStar; years: number } | null = null;
   if (drive)
-    for (const star of clusterStars(rng, makeGalaxy(rng))) {
+    for (const star of clusterStars(rng, makeGalaxy(rng), skyOf(seed.text)?.radius)) {
       const years = crossingYears(star.distance, drive);
       if (years > longest) break;
       if (

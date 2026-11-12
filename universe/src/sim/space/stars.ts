@@ -12,6 +12,7 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { clusterStars, makeGalaxy, type GalaxyStar } from "../../gen/index.ts";
+import { skyOf } from "../../rules/index.ts";
 
 /** The stars within reach of home: a pure function of the world's seed, kept while it is the same. */
 const CLUSTERS = new Map<string, GalaxyStar[]>();
@@ -21,7 +22,8 @@ export function clusterOf(world: World): GalaxyStar[] {
   if (!stars) {
     if (CLUSTERS.size > 8) CLUSTERS.clear();
     const rng = new Rng(world.seed);
-    CLUSTERS.set(key, (stars = clusterStars(rng, makeGalaxy(rng))));
+    // (As far out as the seed's sky reaches: the usual 50 light-years, or its making's.)
+    CLUSTERS.set(key, (stars = clusterStars(rng, makeGalaxy(rng), skyOf(world.seed.text)?.radius)));
   }
   return stars;
 }

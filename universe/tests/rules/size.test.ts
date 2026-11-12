@@ -44,3 +44,23 @@ test("the usual world's stride is the 3.2 it always was", () => {
   const fine = generateHomeWorld(seedFromText("first light"), OPEN, 64);
   assert.equal(provinceWorld(fine).stride, 3.2);
 });
+
+test("a sky's size: fewer stars and peoples, or more, about the same home", async () => {
+  const { skyOf } = await import("../../src/rules/index.ts");
+  const { Rng } = await import("../../src/kernel/index.ts");
+  const { clusterStars, makeGalaxy, CLUSTER_LY } = await import("../../src/gen/index.ts");
+  assert.equal(skyOf("alien 41"), null);
+  const small = skyOf(seedWithAct("alien 41", makingAct("sky", "small")))!,
+    large = skyOf(seedWithAct("alien 41", makingAct("sky", "large")))!;
+  assert.ok(small.radius < CLUSTER_LY && large.radius > CLUSTER_LY);
+  assert.ok(small.most < 12 && large.most > 12);
+  const count = (radius?: number) => {
+    const rng = new Rng(seedFromText("alien 41"));
+    return clusterStars(rng, makeGalaxy(rng), radius).length;
+  };
+  const usual = count(),
+    few = count(small.radius),
+    many = count(large.radius);
+  assert.ok(few < usual / 4, `${few} stars against ${usual}`);
+  assert.ok(many > usual * 2, `${many} stars against ${usual}`);
+});

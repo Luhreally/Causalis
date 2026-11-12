@@ -58,10 +58,11 @@ export function civilizationsOf(
   rng: Rng,
   stars: readonly GalaxyStar[],
   worldsOf: (s: GalaxyStar) => readonly ForeignPlanet[],
+  most = MOST_CIVILIZATIONS,
 ): Civilization[] {
   const out: Civilization[] = [];
   for (const star of stars) {
-    if (star.remnant || star.ageGyr < 2 || out.length >= MOST_CIVILIZATIONS) continue;
+    if (star.remnant || star.ageGyr < 2 || out.length >= most) continue;
     const key = star.sector * 64 + star.k;
     for (const planet of worldsOf(star)) {
       if (planet.kind !== "rocky" || planet.water !== "seas") continue;

@@ -47,6 +47,12 @@ export const MAKINGS = {
    * a medium world's lands are about half as many and twice as wide, a small one's a quarter.
    */
   size: { small: [10, 10], medium: [14, 14] },
+  /**
+   * How far its stars reach, and how many other peoples they may hold (asked with the size): the
+   * cluster's radius in light-years, and the most of its peoples. The usual is 50 and 12, some 2,000
+   * stars; a small sky's a quarter of the way out, a large one's some four times the stars.
+   */
+  sky: { small: [25, 4], large: [80, 24] },
 } as const satisfies Record<string, Record<string, Range>>;
 
 export type MakingSubject = keyof typeof MAKINGS;
@@ -75,6 +81,14 @@ export function makingsOf(text: string): Makings {
 export function landsOf(text: string): number | undefined {
   const c = makingsOf(text).size;
   return c ? MAKINGS.size[c as keyof typeof MAKINGS.size][0] : undefined;
+}
+
+/** The cluster's radius (light-years) and the most of its other peoples a seed's sky makes (null: the usual). */
+export function skyOf(text: string): { readonly radius: number; readonly most: number } | null {
+  const c = makingsOf(text).sky;
+  if (!c) return null;
+  const [radius, most] = MAKINGS.sky[c as keyof typeof MAKINGS.sky];
+  return { radius, most };
 }
 
 /** A making's range for a choice (null: none such). */
@@ -200,6 +214,14 @@ export const MAKING_WORDS: Readonly<
         "about a quarter as many lands, each four times as wide: the quickest",
         "🔹",
       ],
+    },
+  },
+  sky: {
+    icon: "✨",
+    name: "Its stars",
+    choices: {
+      small: ["few", "the stars within 25 light-years, up to 4 other peoples: the quickest", "🔹"],
+      large: ["many", "the stars within 80 light-years, up to 24 other peoples: the slowest", "🌌"],
     },
   },
 };

@@ -1395,10 +1395,63 @@ export class PlanetPanel {
         );
       };
     void drawNature();
+    // How fast this world runs here, and what it spends its work on (C3 of the sizes plan): read
+    // while the settings are open, every few seconds, nothing kept.
+    const speed = el("div", "speed-tally");
+    const readSpeed = async () => {
+      if (!speed.isConnected) return;
+      const t = await this.client
+        .query<{
+          years: number;
+          yearsAMinute: number | null;
+          works: { name: string; share: number }[];
+          lands: number;
+          realms: number;
+          towns: number;
+          wars: number;
+          size: string;
+          sky: string;
+        }>({ type: "speed.tally" })
+        .catch(() => null);
+      if (!t || !speed.isConnected) return;
+      const n = (k: number) => k.toLocaleString("en-US");
+      speed.replaceChildren(
+        el(
+          "p",
+          undefined,
+          `Its size: ${t.size}; its stars: ${t.sky === "small" ? "few" : t.sky === "large" ? "many" : t.sky}. It holds ${n(t.lands)} peopled lands, ${n(t.realms)} realms, ${n(t.towns)} towns and ${n(t.wars)} wars under way.`,
+        ),
+        el(
+          "p",
+          undefined,
+          t.yearsAMinute === null
+            ? "Its pace on this device: let a year or more go by to measure it."
+            : `Its pace on this device: about ${n(t.yearsAMinute)} years a minute of work (measured over ${n(Math.round(t.years))} years).`,
+        ),
+        ...(t.works.length && t.yearsAMinute !== null
+          ? [
+              el(
+                "p",
+                "muted",
+                `Where its work goes: ${t.works.map((w) => `${w.name} ${Math.round(w.share * 100)}%`).join(", ")}.`,
+              ),
+            ]
+          : []),
+        el(
+          "p",
+          "muted",
+          "A smaller world, or fewer stars, runs faster: chosen for a new world on the title (its size, and its stars).",
+        ),
+      );
+      setTimeout(() => void readSpeed(), 3000);
+    };
+    setTimeout(() => void readSpeed(), 0);
     this.facts.replaceChildren(
       el("h3", undefined, "Quality"),
       list,
       rate,
+      el("h3", undefined, "Speed"),
+      speed,
       el("h3", undefined, "The view"),
       view,
       el("h3", undefined, "Blood and wounds"),

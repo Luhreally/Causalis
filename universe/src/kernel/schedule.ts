@@ -49,7 +49,16 @@ function nextDue(t: number, every: number, offset: number): number {
   return (Math.floor((t - offset) / every) + 1) * every + offset;
 }
 
+/**
+ * Where a world's work goes, kept only when a host asks (C3 of the sizes plan): milliseconds by
+ * system and handler. The clock is the host's: the simulation reads none, and nothing it keeps
+ * here touches history.
+ */
+export type WorkTally = { readonly clock: () => number; readonly ms: Map<string, number> };
+
 export class Scheduler {
+  /** Where the work goes, while a host keeps the tally (null: not kept, and nothing timed). */
+  tally: WorkTally | null = null;
   private readonly systems: System[] = [];
   private readonly handlers = new Map<string, AgendaHandler>();
   private agenda: AgendaItem[] = [];
@@ -178,12 +187,21 @@ export class Scheduler {
           system.next = nextDue(t, system.every, system.offset);
           si++;
           if (!system.off) {
+            const tally = this.tally,
+              from = tally ? tally.clock() : 0;
             system.run(t as SimTime);
+            if (tally)
+              tally.ms.set(system.key, (tally.ms.get(system.key) ?? 0) + tally.clock() - from);
             yield;
           }
         } else if (item) {
           this.agenda.shift();
-          this.handlers.get(item.type)!.run(item, t as SimTime);
+          const handler = this.handlers.get(item.type)!,
+            tally = this.tally,
+            from = tally ? tally.clock() : 0;
+          handler.run(item, t as SimTime);
+          if (tally)
+            tally.ms.set(handler.key, (tally.ms.get(handler.key) ?? 0) + tally.clock() - from);
           yield;
         }
       }

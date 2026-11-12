@@ -392,7 +392,7 @@ export function showTitle(options: TitleOptions): void {
       // rest as the seed falls; and the world it makes, told.
       makingHead = el("h3", undefined, "Its making"),
       makingRow = el("div", "making-row"),
-      sizeHead = el("h3", undefined, "Its size"),
+      sizeHead = el("h3", undefined, "Its size, and its stars'"),
       sizeRow = el("div", "making-row size-row"),
       madeNote = el("p", "muted seed-made"),
       start = el("button", "begin", "Begin ▶");
@@ -471,19 +471,22 @@ export function showTitle(options: TitleOptions): void {
           c = m[subject],
           words = c !== undefined ? w.choices[c] : undefined;
         // (A size unchosen is the usual one, not a chance's.)
-        const none = subject === "size" ? "standard" : "as it falls";
+        const none = subject === "size" || subject === "sky" ? "standard" : "as it falls";
         b.textContent = `${w.icon} ${w.name.replace(/^Its /, "").replace(/^./, (c) => c.toUpperCase())}: ${words ? words[0] : none}`;
         b.title = words
           ? `${w.name}: ${words[1]}`
           : subject === "size"
             ? `${w.name}: standard, some 4,000 lands over the globe — tap for a smaller world, quicker to run`
-            : `${w.name}: as the seed falls — tap to choose`;
+            : subject === "sky"
+              ? `${w.name}: standard, the stars within 50 light-years and up to 12 other peoples — tap for fewer or more`
+              : `${w.name}: as the seed falls — tap to choose`;
         b.classList.toggle("on", !!words);
       }
     };
     // (Its size on a row of its own, shown for every kind of world: the rest are an alien world's.)
-    makingRow.append(...dials.filter((b) => b.dataset.subject !== "size"));
-    sizeRow.append(...dials.filter((b) => b.dataset.subject === "size"));
+    const sized = (b: HTMLElement) => b.dataset.subject === "size" || b.dataset.subject === "sky";
+    makingRow.append(...dials.filter((b) => !sized(b)));
+    sizeRow.append(...dials.filter(sized));
     // A world never seen: whether life arises on the seed's world is told as it is typed, and
     // where it would not, Begin goes on to the nearest seed whose world it does.
     let asked = 0;
