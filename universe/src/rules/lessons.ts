@@ -26,11 +26,11 @@ export type LessonCause = {
 
 /**
  * How a response works, by name: `lessen` takes so much off what each strike of its cause costs at the point the world reckons it
- * (a share of homes that a braced frame keeps standing); `store` puts by so many months more of a year's food; `field` fields so much more of the fighting men; `doctrine:<axis>` weighs
+ * (a share of homes that a braced frame keeps standing); `field` fields so much more of the fighting men; `doctrine:<axis>` weighs
  * an axis of a host's design so much more as it is drawn up (rules/designs.ts); `walls` and `siege` strengthen a host holding its
  * own ground or coming against another's.
  */
-export type LessonHow = "lessen" | "store" | "field" | "walls" | "siege" | `doctrine:${string}`;
+export type LessonHow = "lessen" | "field" | "walls" | "siege" | `doctrine:${string}`;
 
 /** A response: a way of making a choice the world already makes, and the cause it answers. */
 export type LessonResponse = {
@@ -121,9 +121,12 @@ export const LESSON_CAUSES: readonly LessonCause[] = [
 /**
  * The responses. The figures are estimates, each from what the thing does: a braced or tied frame stands through shaking that
  * brings an unbraced one down (half and more of the homes kept, as retrofits are reckoned); lanes kept open between rows stop a
- * fire spreading from roof to roof; floors raised above the usual flood and a way to the high ground; a granary holds half a lean
- * year's want; keeping the sick apart and the water clean halve what a sickness takes where it comes.
+ * fire spreading from roof to roof; floors raised above the usual flood and a way to the high ground; keeping the sick apart and the water clean halve what a sickness takes where it comes.
  */
+// (Hunger is kept, and told, but nothing answers it yet. Granaries that put more by, and stores kept from spoiling, were tried and
+// measured on first light to year 800 beside the world without them: what went hungry rose five times and twice over, as food
+// kept lowered its price, hands left the fields and more were fed into the next lean year. An answer to hunger wants a reserve
+// drawn only in lean months: a number a land, its own.)
 export const LESSON_RESPONSES: readonly LessonResponse[] = [
   {
     id: "braced-frames",
@@ -151,15 +154,6 @@ export const LESSON_RESPONSES: readonly LessonResponse[] = [
     asks: 0.2,
     does: "raise their floors and keep a way to the high ground",
     name: "raised floors against the floods",
-  },
-  {
-    id: "granaries",
-    cause: "famine",
-    how: "store",
-    most: 6,
-    asks: 0.35,
-    does: "fill common granaries against the lean years",
-    name: "granaries against hunger",
   },
   {
     id: "quarantine",

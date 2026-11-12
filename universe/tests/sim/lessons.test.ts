@@ -35,6 +35,7 @@ import {
   lessonStrike,
   lessonsOf,
   makePopulationWorld,
+  politiesOf,
   populationContext,
   useIn,
 } from "../../src/sim/index.ts";
@@ -46,7 +47,8 @@ test("every response answers a cause, every cause is read off history, and the f
     assert.ok(LESSON_CAUSE.has(r.cause), `${r.id} answers ${r.cause}`);
     assert.ok(r.asks >= 0 && r.asks < 1 && r.most > 0, r.id);
   }
-  for (const c of LESSON_CAUSES) assert.ok(LESSONS_FOR.get(c.id)!.length >= 1, c.id);
+  // (A cause may wait for its answer: hunger is kept and told, and nothing yet answers it.)
+  for (const c of LESSON_CAUSES) assert.ok(LESSONS_FOR.has(c.id), c.id);
   for (const t of [
     "act.quake",
     "act.fire",
@@ -170,13 +172,26 @@ test("what is learned is where the world reckons a loss: the god's quake kills f
   assert.ok(braced < without * 0.6, `${braced} dead braced against ${without}`);
 });
 
-test("a land that has gone hungry puts more by", () => {
+test("a realm outnumbered in the battles it lost keeps more men under arms", () => {
   const w = fresh(),
-    land = mostPeopled(w),
+    ctx = populationContext(w),
+    store = lessonsOf(w)!,
+    realm = [...politiesOf(w).living()].sort((a, b) => (a.ref < b.ref ? -1 : 1))[0]!,
     year = AT / YEAR;
-  assert.equal(lessonAdds(w, cellRef(0, land.cell), "store", year), 0);
-  assert.ok(strikeUntil(w, land.cell, "famine", "granaries") >= 0, "never took up granaries");
-  assert.ok(lessonAdds(w, cellRef(0, land.cell), "store", year + 40) > 0);
+  assert.equal(lessonAdds(w, realm.ref, "field", year), 0, "nothing learned: exactly as it was");
+  for (let i = 0; i < 40 && !store.get(realm.ref)?.uses.has("greater-levy"); i++)
+    lessonStrike(
+      ctx,
+      store,
+      { holder: realm.ref, cause: "numbers", share: 0.01, lost: 500, dead: 500 },
+      year + i,
+      (AT + i * YEAR) as SimTime,
+      null,
+    );
+  assert.ok(store.get(realm.ref)?.uses.has("greater-levy"), "never took up a greater levy");
+  assert.ok(lessonAdds(w, realm.ref, "field", year + 40) > 0);
+  const text = JSON.stringify(lessonBlocks(w, realm.ref));
+  assert.match(text, /[\d,]+ men lost to being outnumbered in (?:a year|\d+ years) \(\d+ battles?\)/);
 });
 
 test("a lesson spreads to those beside who have felt the same, and the record saves and loads", () => {
