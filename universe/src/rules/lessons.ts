@@ -121,12 +121,13 @@ export const LESSON_CAUSES: readonly LessonCause[] = [
 /**
  * The responses. The figures are estimates, each from what the thing does: a braced or tied frame stands through shaking that
  * brings an unbraced one down (half and more of the homes kept, as retrofits are reckoned); lanes kept open between rows stop a
- * fire spreading from roof to roof; floors raised above the usual flood and a way to the high ground; keeping the sick apart and the water clean halve what a sickness takes where it comes.
+ * fire spreading from roof to roof; floors raised above the usual flood and a way to the high ground; keeping the sick apart and
+ * the water clean halve what a sickness takes where it comes.
  */
 // (Hunger is kept, and told, but nothing answers it yet. Granaries that put more by, and stores kept from spoiling, were tried and
-// measured on first light to year 800 beside the world without them: what went hungry rose five times and twice over, as food
-// kept: why is not yet read (likely its price falls, hands leave the fields, and more are fed into the next lean year). An answer to hunger wants a reserve
-// drawn only in lean months: a number a land, its own.)
+// measured on first light to year 800 beside the world without them: what went hungry rose five times and twice over. Why is not
+// yet read: likely food kept lowers its price, draws hands from the fields, and feeds more into the next lean year. An answer to
+// hunger wants a reserve drawn only in lean months: a number a land, its own.)
 export const LESSON_RESPONSES: readonly LessonResponse[] = [
   {
     id: "braced-frames",
