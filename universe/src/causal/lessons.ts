@@ -33,9 +33,17 @@ for (const type of [LESSON_EVENTS.taken.type, LESSON_EVENTS.copied.type])
       c = LESSON_CAUSE.get(d?.cause ?? ""),
       year = d?.year ?? yearOfMoment(e.t),
       years = Math.max(1, year - (d?.since ?? year)),
-      cost = c
-        ? `${thousands(d?.lost ?? 0)} ${c.lost} in ${years === 1 ? "a year" : `${years} years`}`
-        : "what it cost them",
+      [unit, ...rest] = (c?.lost ?? "").split(" "),
+      lost = d?.lost ?? 0,
+      dead = d?.dead ?? 0,
+      // ("120 homes and 40 lives lost to quakes", "40 lives lost to quakes": as the page says it.)
+      what =
+        unit === "homes" && dead > 0
+          ? lost > 0
+            ? `${thousands(lost)} homes and ${thousands(dead)} lives ${rest.join(" ")}`
+            : `${thousands(dead)} ${dead === 1 ? "life" : "lives"} ${rest.join(" ")}`
+          : `${thousands(lost)} ${c?.lost ?? ""}`,
+      cost = c ? `${what} in ${years === 1 ? "a year" : `${years} years`}` : "what it cost them",
       from = d?.from
         ? d.from.startsWith("cell:")
           ? `, as the people of ${landWords(world, d.from as Ref)} did`

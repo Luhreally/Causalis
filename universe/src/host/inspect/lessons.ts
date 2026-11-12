@@ -20,7 +20,9 @@ function costWords(cause: string, m: CauseMark, year: number): string {
     [unit, ...rest] = c.lost.split(" "),
     what =
       unit === "homes" && m.dead > 0
-        ? `${count(m.lost)} homes and ${many(m.dead, "life", "lives")} ${rest.join(" ")}`
+        ? m.lost > 0
+          ? `${count(m.lost)} homes and ${many(m.dead, "life", "lives")} ${rest.join(" ")}`
+          : `${many(m.dead, "life", "lives")} ${rest.join(" ")}`
         : `${count(m.lost)} ${c.lost}`;
   return `${what} in ${span} (${many(m.strikes, c.each[0], c.each[1])})`;
 }
@@ -103,7 +105,8 @@ export function lessonBlocks(world: World, holder: string): Block[] {
     );
   }
   if (open.length) blocks.push({ type: "facts", title: "What costs them still", rows: open });
-  return blocks;
+  // (Nothing learned, and nothing that presses them now: no tab.)
+  return learned.length || open.length ? blocks : [];
 }
 
 /** A realm's: what its hosts have learned, and what its lands have, lesson by lesson. */
