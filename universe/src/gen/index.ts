@@ -78,6 +78,7 @@ export {
   MAX_SPECIES,
   SPECIES_WORDS,
   NICHES,
+  HABITAT,
   livingIn,
   lives,
   makeBiosphere,
@@ -232,3 +233,14 @@ export {
   type LifeStar,
   type SmallWay,
 } from "./elsewhere.ts";
+export {
+  elsewhereGround,
+  elsewhereOrigin,
+  heatOf,
+  homeAir,
+  homeOrigin,
+  originGround,
+  tidesOf,
+  type DawnDates,
+  type WorldOrigin,
+} from "./origin.ts";
