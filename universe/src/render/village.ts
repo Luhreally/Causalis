@@ -3336,13 +3336,13 @@ export class VillageScene {
   }
 
   /** A point of the scene on the screen (behind the eye, nowhere). */
-  private onScreen(x: number, y: number, z: number): { x: number; y: number } {
+  private onScreen(x: number, y: number, z: number): { x: number; y: number; depth: number } {
     const p = this.stage.camera.camera!.worldToScreen(new pc.Vec3(x * M, y * M, z * M));
-    return p.z > 0 ? { x: p.x, y: p.y } : { x: -1e6, y: -1e6 };
+    return p.z > 0 ? { x: p.x, y: p.y, depth: p.z } : { x: -1e6, y: -1e6, depth: Infinity };
   }
 
   /** Where each pot on the kilns' boards stands on the screen now (the look tools, Phase 51 M214). */
-  potsOnScreen(): { x: number; y: number; form: string; kiln: number }[] {
+  potsOnScreen(): { x: number; y: number; depth: number; form: string; kiln: number }[] {
     return (this.craftsKept?.boards ?? []).flatMap((b, kiln) =>
       b.pots.map((pot, k) => {
         const at = boardSlot(b, k);
@@ -3352,7 +3352,7 @@ export class VillageScene {
   }
 
   /** Where each of the foundry's moulds lies on the screen now (the look tools, Phase 51 M215). */
-  mouldsOnScreen(): { x: number; y: number; poured: boolean }[] {
+  mouldsOnScreen(): { x: number; y: number; depth: number; poured: boolean }[] {
     return (this.craftsKept?.foundry?.moulds ?? []).map((m) => ({
       ...this.onScreen(m.x, 1, m.z),
       poured: m.since !== null,
@@ -3360,7 +3360,13 @@ export class VillageScene {
   }
 
   /** Where each of the works' machines stands on the screen now, and whether it runs (the look tools, Phase 51 M215). */
-  machinesOnScreen(): { x: number; y: number; kind: "lathe" | "press"; running: boolean }[] {
+  machinesOnScreen(): {
+    x: number;
+    y: number;
+    depth: number;
+    kind: "lathe" | "press";
+    running: boolean;
+  }[] {
     return (this.craftsKept?.floor?.machines ?? []).map((m) => ({
       ...this.onScreen(m.x, m.kind === "lathe" ? 3.5 : 2, m.z),
       kind: m.kind,
@@ -3369,7 +3375,7 @@ export class VillageScene {
   }
 
   /** Where each finished part on the works' bench lies on the screen now (the look tools, Phase 51 M215). */
-  benchOnScreen(): { x: number; y: number; form: string }[] {
+  benchOnScreen(): { x: number; y: number; depth: number; form: string }[] {
     const floor = this.craftsKept?.floor;
     if (!floor) return [];
     return floor.benched.map((part, k) => {
@@ -3379,7 +3385,7 @@ export class VillageScene {
   }
 
   /** Where the middle of each loom's cloth hangs on the screen now (the look tools, Phase 51 M214). */
-  loomsOnScreen(): { x: number; y: number; woven: number; index: number }[] {
+  loomsOnScreen(): { x: number; y: number; depth: number; woven: number; index: number }[] {
     return (this.craftsKept?.looms ?? []).map((l) => ({
       ...this.onScreen(l.x, 5.75 - Math.max(0.3, l.woven) * 1.8, l.z),
       woven: l.woven,
@@ -3451,13 +3457,16 @@ export class VillageScene {
     n: number;
     form: string;
     day: number;
+    /** How far before the eye its mark lies (Infinity: not known). */
+    depth: number;
   } | null {
+    // (The nearest, and how far before the eye it lies: a car behind it does not take the tap.)
     let best: ReturnType<VillageScene["madeAt"]> = null,
       near = Infinity;
-    const offer = (d: number, made: NonNullable<typeof best>) => {
+    const offer = (d: number, made: Omit<NonNullable<typeof best>, "depth">, depth: number) => {
       if (d < near) {
         near = d;
-        best = made;
+        best = { ...made, depth };
       }
     };
     const rack = this.rackKept?.rack,
@@ -3467,7 +3476,7 @@ export class VillageScene {
         const d = Math.hypot(p.x - x, p.y - y),
           h = rack.hung[k];
         if (h && d < reach)
-          offer(d, { trade: "smith", index: h.index, n: h.n, form: h.form, day: today });
+          offer(d, { trade: "smith", index: h.index, n: h.n, form: h.form, day: today }, p.depth);
       });
     const boards = this.craftsKept?.boards ?? [];
     this.potsOnScreen().forEach((p, j) => {
@@ -3479,46 +3488,68 @@ export class VillageScene {
       while (b < boards.length && k >= boards[b]!.pots.length) k -= boards[b++]!.pots.length;
       const pot = boards[b]?.pots[k];
       if (pot)
-        offer(d, { trade: "potter", index: pot.index, n: pot.n, form: pot.form, day: pot.day });
+        offer(
+          d,
+          { trade: "potter", index: pot.index, n: pot.n, form: pot.form, day: pot.day },
+          p.depth,
+        );
     });
     const foundry = this.craftsKept?.foundry;
     this.mouldsOnScreen().forEach((p, m) => {
       const d = Math.hypot(p.x - x, p.y - y),
         mould = foundry?.moulds[m];
       if (mould?.form && mould.index >= 0 && d < reach)
-        offer(d, { trade: "founder", index: mould.index, n: m, form: mould.form, day: mould.day });
+        offer(
+          d,
+          { trade: "founder", index: mould.index, n: m, form: mould.form, day: mould.day },
+          p.depth,
+        );
     });
     const floor = this.craftsKept?.floor;
     this.benchOnScreen().forEach((p, k) => {
       const d = Math.hypot(p.x - x, p.y - y),
         part = floor?.benched[k];
       if (part && d < reach)
-        offer(d, { trade: "machinist", index: part.index, n: part.n, form: part.form, day: today });
+        offer(
+          d,
+          { trade: "machinist", index: part.index, n: part.n, form: part.form, day: today },
+          p.depth,
+        );
     });
     this.machinesOnScreen().forEach((p, m) => {
       const d = Math.hypot(p.x - x, p.y - y),
         mc = floor?.machines[m];
       if (mc?.running && mc.part && mc.index >= 0 && d < reach * 1.5)
-        offer(d / 1.5, { trade: "machinist", index: mc.index, n: mc.n, form: mc.part, day: today });
+        offer(
+          d / 1.5,
+          { trade: "machinist", index: mc.index, n: mc.n, form: mc.part, day: today },
+          p.depth,
+        );
     });
     this.loomsOnScreen().forEach((p, j) => {
       const d = Math.hypot(p.x - x, p.y - y),
         loom = this.craftsKept?.looms[j];
       if (loom && d < reach * 1.5)
-        offer(d / 1.5, { trade: "weaver", index: loom.index, n: 0, form: "length", day: loom.day });
+        offer(
+          d / 1.5,
+          { trade: "weaver", index: loom.index, n: 0, form: "length", day: loom.day },
+          p.depth,
+        );
     });
     return best;
   }
 
   /** Where each tool on the rack hangs on the screen now (the look tools), the first made first. */
-  rackOnScreen(): { x: number; y: number; form: string }[] {
+  rackOnScreen(): { x: number; y: number; depth: number; form: string }[] {
     const rack = this.rackKept?.rack;
     if (!rack) return [];
     return rack.hung.map((h, k) => {
       const at = rackSlot(rack, k),
         // (Halfway down its haft, where a tap on it lands; behind the eye, nowhere.)
         p = this.stage.camera.camera!.worldToScreen(new pc.Vec3(at.x * M, 3 * M, at.z * M));
-      return p.z > 0 ? { x: p.x, y: p.y, form: h.form } : { x: -1e6, y: -1e6, form: h.form };
+      return p.z > 0
+        ? { x: p.x, y: p.y, depth: p.z, form: h.form }
+        : { x: -1e6, y: -1e6, depth: Infinity, form: h.form };
     });
   }
 

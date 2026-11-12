@@ -804,44 +804,53 @@ if (!woundsOnly) {
 }
 
 // —— Wave 3's part (M226, M229) ———————————————————————————————————————————————————————
-const t0 = await now();
-say(`the world at year ${Math.floor(t0 / YEAR)}, day ${ofDay(t0 % YEAR)}`);
-
-// The town: of those whose levy comes home wounded, the first whose plan as drawn has one borne
-// home on a litter and its healer, and no hospital (so the healer goes the round); one with an old
-// wound marking them for good, where there is such a town.
-const rows = await ask<Row[]>("village.wounded", { most: 60 });
-say(`${rows.length} towns whose levy comes home wounded this year`);
-check(rows.length > 0, "no town's levy comes home wounded at this turn of the year");
+let t0 = await now(),
+  rows: Row[] = [];
 let town: { row: Row; plan: Plan; borne: number; healer: number; marked: number } | null = null;
-for (const row of rows
-  .filter((r) => r.healer && !r.hospital && r.borne > 0)
-  .sort((a, b) => b.maimed - a.maimed)) {
-  const plan = await ask<Plan>("village.plan", {
-      ref: row.ref,
-      families: QUALITY.families,
-      folk: QUALITY.folk,
-    }),
-    borne = plan.people.findIndex((p) =>
-      (p.wounds ?? []).some((w) => w.borne && w.home >= t0 && w.home < t0 + 12 * DAY),
-    ),
-    healer = plan.people.findIndex((p) => !!p.healer),
-    marked = plan.people.findIndex((p) =>
-      (p.wounds ?? []).some(
-        (w) =>
-          (w.lasting === "crutch" || w.lasting === "stump" || w.lasting === "patch") &&
-          w.up < t0 + 60 * DAY,
+// (Which turn of the year has such a town moves with history, as which lands have herb-lore and
+// which fought: this one's, else the next's, so to three years on.)
+for (let turn = 0; turn < 4 && !town; turn++) {
+  if (turn) {
+    await advance(t0 + YEAR);
+    t0 = await now();
+  }
+  say(`the world at year ${Math.floor(t0 / YEAR)}, day ${ofDay(t0 % YEAR)}`);
+
+  // The town: of those whose levy comes home wounded, the first whose plan as drawn has one borne
+  // home on a litter and its healer, and no hospital (so the healer goes the round); one with an old
+  // wound marking them for good, where there is such a town.
+  rows = await ask<Row[]>("village.wounded", { most: 60 });
+  say(`${rows.length} towns whose levy comes home wounded this year`);
+  check(rows.length > 0, "no town's levy comes home wounded at this turn of the year");
+  for (const row of rows
+    .filter((r) => r.healer && !r.hospital && r.borne > 0)
+    .sort((a, b) => b.maimed - a.maimed)) {
+    const plan = await ask<Plan>("village.plan", {
+        ref: row.ref,
+        families: QUALITY.families,
+        folk: QUALITY.folk,
+      }),
+      borne = plan.people.findIndex((p) =>
+        (p.wounds ?? []).some((w) => w.borne && w.home >= t0 && w.home < t0 + 12 * DAY),
       ),
-    );
-  if (borne < 0 || healer < 0) continue;
-  if (!town || (town.marked < 0 && marked >= 0)) town = { row, plan, borne, healer, marked };
-  if (marked >= 0) break;
+      healer = plan.people.findIndex((p) => !!p.healer),
+      marked = plan.people.findIndex((p) =>
+        (p.wounds ?? []).some(
+          (w) =>
+            (w.lasting === "crutch" || w.lasting === "stump" || w.lasting === "patch") &&
+            w.up < t0 + 60 * DAY,
+        ),
+      );
+    if (borne < 0 || healer < 0) continue;
+    if (!town || (town.marked < 0 && marked >= 0)) town = { row, plan, borne, healer, marked };
+    if (marked >= 0) break;
+  }
+  say(
+    town
+      ? `the town: ${town.row.name} (${town.row.population} people): ${town.row.wounded} of its lines wounded, ${town.row.borne} borne, ${town.row.maimed} maimed; drawn: ${town.plan.people.length}, its healer ${town.plan.people[town.healer]!.name}`
+      : "no town with one borne home drawn and a healer",
+  );
 }
-say(
-  town
-    ? `the town: ${town.row.name} (${town.row.population} people): ${town.row.wounded} of its lines wounded, ${town.row.borne} borne, ${town.row.maimed} maimed; drawn: ${town.plan.people.length}, its healer ${town.plan.people[town.healer]!.name}`
-    : "no town with one borne home drawn and a healer",
-);
 check(!!town, "no town whose wounded borne home are drawn, with a healer and no hospital");
 if (!town) await fail();
 const { plan, healer } = town!;
@@ -1039,7 +1048,16 @@ if (up) {
 let markPlan = plan,
   markIndex: number | null = null;
 const markTime = await now();
-if (town!.marked < 0) {
+// (The town's own marked one may be abed yet, the wound fresh: then one out of doors, here or in
+// another town.)
+{
+  const out = new Set((await people()).map((p) => p.index)),
+    here = (await shown())?.lasting.find(
+      (p) => out.has(p.index) && p.marks.some((m) => ["crutch", "stump", "patch"].includes(m)),
+    );
+  if (here) markIndex = here.index;
+}
+if (town!.marked < 0 || markIndex === null) {
   for (const row of rows.filter((r) => r.ref !== plan.ref).sort((a, b) => b.maimed - a.maimed)) {
     const candidate = await ask<Plan>("village.plan", {
       ref: row.ref,

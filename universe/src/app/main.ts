@@ -6520,10 +6520,13 @@ async function runPlanetPage(): Promise<void> {
     const ride = plan && !homeOpen() ? village.pickRide(x, y) : null;
     // (But a stone right under the finger stands in front of one only near it, and of one right on it that is farther from the eye. And one only near
     // it takes the press on open ground alone: so many stand about a city's streets that a finger on a building would seldom get the building.)
+    // (So does a thing being made right under it, a part on the works' bench before a car parked behind: Phase 51's tap on it.)
+    const madeOn = ride && plan ? village.madeAt(x, y, 12) : null;
     if (
       ride &&
       plan &&
       !village.stoneOver(x, y, ride.direct ? ride.depth : Infinity) &&
+      !(madeOn && (!ride.direct || madeOn.depth < ride.depth)) &&
       (ride.direct || (village.pick(x, y, 12) === null && villageThingAt(x, y) === null))
     ) {
       if ("owner" in ride) return selectPerson(ride.owner);
