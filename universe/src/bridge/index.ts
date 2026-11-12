@@ -101,6 +101,7 @@ export {
   type TownTrade,
   type TradeGood,
   type BeastPlan,
+  type BeastLookPlan,
   type VillageLife,
   type Feast,
   type CourtForm,

@@ -6,14 +6,16 @@
 import * as pc from "playcanvas";
 import type { VillagePlan } from "../bridge/index.ts";
 import {
-  MOST_OF_TONE,
+  SHAPES,
   beastsAt,
   birdsAt,
   doingOf,
   faunaOf,
   fishAt,
   posed,
+  shapesOf,
   strideOf,
+  usesOf,
   type BeastNow,
   type BeastPart,
   type BirdNow,
@@ -22,12 +24,10 @@ import {
   type FishNow,
   type Pose,
 } from "../view/index.ts";
-import { InstancedBatch, boxMesh, cylinderMesh, keptMesh } from "./batch.ts";
+import { InstancedBatch, beastMeshes, boxMesh, cylinderMesh, keptMesh } from "./batch.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 const M = 0.1; // units per metre, as the village's
-/** The most parts of each tone a beast is drawn with: coat, dark features, horn. */
-const PER_BEAST = MOST_OF_TONE;
 const FLOATS = 8;
 
 /**
@@ -57,8 +57,8 @@ export class FaunaLayer {
   readonly root = new pc.Entity("fauna");
   private fauna: Fauna | null = null;
   private batches: InstancedBatch[] = [];
-  /** Per lineage, its three tones' gathered instances. */
-  private tones: Gathered[][] = [];
+  /** Per lineage, its gathered instances of each tone and shape (tone × SHAPES + shape; none where it has no such part). */
+  private tones: (Gathered | undefined)[][] = [];
   /** A flier's pose (wings beating) and a swimmer's (tail sweeping), reused. */
   private readonly flying: Pose = { gait: 1, phase: 0, head: 0.2, crouch: 0 };
   private readonly swimming: Pose = { gait: 1, phase: 0, head: 0, crouch: 0 };
@@ -139,8 +139,8 @@ export class FaunaLayer {
     return i >= 0;
   }
 
-  private gathered(color: Rgb, capacity: number): Gathered {
-    const batch = new InstancedBatch(this.stage, this.box, color, Math.max(1, capacity), this.root);
+  private gathered(color: Rgb, capacity: number, mesh: pc.Mesh = this.box): Gathered {
+    const batch = new InstancedBatch(this.stage, mesh, color, Math.max(1, capacity), this.root);
     this.batches.push(batch);
     return { batch, data: new Float32Array(Math.max(1, capacity) * FLOATS), count: 0 };
   }
@@ -158,11 +158,20 @@ export class FaunaLayer {
     if (fauna.road.species >= 0) counts[fauna.road.species]! += fauna.road.count;
     for (const b of fauna.birds) counts[b.species]!++;
     for (const f of fauna.fish) counts[f.species]!++;
-    this.tones = fauna.species.map((sp, i) =>
-      [sp.coat.coat, sp.coat.dark, sp.coat.horn].map((color, tone) =>
-        this.gathered(color, counts[i]! * PER_BEAST[tone as 0 | 1 | 2]),
-      ),
-    );
+    // (Each lineage's boxes in its three tones, as ever; an alien beast's other shapes in batches of their own.)
+    const meshes = beastMeshes(this.stage, this.box);
+    this.tones = fauna.species.map((sp, i) => {
+      const out: (Gathered | undefined)[] = [],
+        shapes = shapesOf(sp.body);
+      [sp.coat.coat, sp.coat.dark, sp.coat.horn].forEach((color, tone) => {
+        for (const shape of shapes) {
+          const most = usesOf(sp.body, tone, shape);
+          if (shape === 0 || most > 0)
+            out[tone * SHAPES + shape] = this.gathered(color, counts[i]! * most, meshes[shape]);
+        }
+      });
+      return out;
+    });
     this.dust = ambient
       ? this.gathered([0.76, 0.68, 0.52], counts.reduce((a, b) => a + b, 0) * 3)
       : null;
@@ -192,8 +201,8 @@ export class FaunaLayer {
       tones = this.tones[species]!;
     for (let k = 0; k < count; k++) {
       const p = this.parts[k]!,
-        g = tones[p.tone]!;
-      if (g.count >= g.batch.capacity) continue;
+        g = tones[p.tone * SHAPES + p.shape];
+      if (!g || g.count >= g.batch.capacity) continue;
       // (Tipped about its middle first, then turned to its way.)
       const py = tilt ? mid + (p.y - mid) * ct - p.z * st : p.y,
         pz = tilt ? (p.y - mid) * st + p.z * ct : p.z,
@@ -285,7 +294,7 @@ export class FaunaLayer {
   update(s: number, t?: number): void {
     const fauna = this.fauna;
     if (!fauna || !this.root.enabled) return;
-    for (const tones of this.tones) for (const g of tones) g.count = 0;
+    for (const tones of this.tones) for (const g of tones) if (g) g.count = 0;
     // (The view as the camera stands now, not as it stood for the last frame drawn.)
     const cam = this.stage.camera;
     this.view.copy(cam.getWorldTransform()).invert();
@@ -326,7 +335,7 @@ export class FaunaLayer {
       this.swimming.phase = s * 6 + i;
       this.draw(f.species, f.x, 0.02 + f.y, f.z, f.yaw, f.pitch - Math.PI / 2, this.swimming);
     }
-    for (const tones of this.tones) for (const g of tones) flush(g);
+    for (const tones of this.tones) for (const g of tones) if (g) flush(g);
     // The lit beast's ring, under it and as wide as it is long.
     const at =
         this.heldId !== null

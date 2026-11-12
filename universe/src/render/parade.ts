@@ -6,12 +6,14 @@ import * as pc from "playcanvas";
 import type { BeastPlan } from "../bridge/index.ts";
 import {
   FIGURE_CAPSULE,
-  MOST_OF_TONE,
+  SHAPES,
   buildBody,
   coatOf,
   limbPitch,
   posed,
+  shapesOf,
   strideOf,
+  usesOf,
   type BeastPart,
   type Built,
   figurePaint,
@@ -20,7 +22,15 @@ import {
   type OnStage,
   type PartShape,
 } from "../view/index.ts";
-import { InstancedBatch, boxMesh, capsuleMesh, coneMesh, cylinderMesh, keptMesh } from "./batch.ts";
+import {
+  InstancedBatch,
+  beastMeshes,
+  boxMesh,
+  capsuleMesh,
+  coneMesh,
+  cylinderMesh,
+  keptMesh,
+} from "./batch.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 export class ParadeScene {
@@ -31,7 +41,8 @@ export class ParadeScene {
   private readonly shapes: Record<PartShape, pc.Mesh>;
   private readonly ground: pc.Entity;
   private bodies: Built[] = [];
-  private tones: InstancedBatch[][] = [];
+  /** Each lineage's batches, by tone and shape (tone × SHAPES + shape; none where it has no such part). */
+  private tones: (InstancedBatch | undefined)[][] = [];
   private readonly parts: BeastPart[] = [];
   /** The first people, when they come (a batch a part of their figure). */
   private figure: { f: Figure; batches: InstancedBatch[] } | null = null;
@@ -71,10 +82,12 @@ export class ParadeScene {
     detail: number,
     ground: Rgb,
   ): void {
-    for (const tones of this.tones) for (const b of tones) b.destroy();
+    for (const tones of this.tones) for (const b of tones) b?.destroy();
     this.ground.render!.meshInstances[0]!.material = flatMaterial(ground);
+    const lookOf = (l: (typeof lineages)[number]) =>
+      (l.body as { look?: Parameters<typeof coatOf>[2] } | null)?.look;
     this.bodies = lineages.map((l) => {
-      const coat = coatOf(l.name, false);
+      const coat = coatOf(l.name, false, lookOf(l));
       // (Only the beasts come here: a body each, as its plan crossed to the page.)
       return buildBody(
         l.body as Parameters<typeof buildBody>[0],
@@ -83,12 +96,25 @@ export class ParadeScene {
         l.ref.length,
       );
     });
-    this.tones = lineages.map((l) => {
-      const coat = coatOf(l.name, false);
-      return [coat.coat, coat.dark, coat.horn].map(
-        (c, tone) =>
-          new InstancedBatch(this.stage, this.box, c, MOST_OF_TONE[tone as 0 | 1 | 2], this.root),
-      );
+    const meshes = beastMeshes(this.stage, this.box);
+    this.tones = lineages.map((l, i) => {
+      const coat = coatOf(l.name, false, lookOf(l)),
+        body = this.bodies[i]!,
+        out: (InstancedBatch | undefined)[] = [];
+      [coat.coat, coat.dark, coat.horn].forEach((c, tone) => {
+        for (const shape of shapesOf(body)) {
+          const most = usesOf(body, tone, shape);
+          if (shape === 0 || most > 0)
+            out[tone * SHAPES + shape] = new InstancedBatch(
+              this.stage,
+              meshes[shape]!,
+              c,
+              Math.max(1, most),
+              this.root,
+            );
+        }
+      });
+      return out;
     });
   }
 
@@ -153,7 +179,7 @@ export class ParadeScene {
   update(on: readonly OnStage[], s: number): void {
     const shown = new Set(on.map((o) => o.lineage));
     this.tones.forEach((tones, i) => {
-      if (!shown.has(i)) for (const b of tones) b.set(0, () => {});
+      if (!shown.has(i)) for (const b of tones) b?.set(0, () => {});
     });
     // (Metres on the stage to its units: a creature a little larger than life, to be seen.)
     const M = 0.1;
@@ -171,13 +197,12 @@ export class ParadeScene {
         k = (o.there * shown) / Math.max(0.05, body.length * body.k),
         c = Math.cos(o.yaw),
         sn = Math.sin(o.yaw),
-        lift = fly ? 0.35 + 0.05 * Math.sin(s * 2) : swim ? 0.12 : 0,
-        counts = [0, 0, 0];
-      const lists: BeastPart[][] = [[], [], []];
-      for (let q = 0; q < n; q++) lists[this.parts[q]!.tone]!.push(this.parts[q]!);
-      lists.forEach((list, tone) => {
-        counts[tone] = list.length;
-        tones[tone]!.set(list.length, (j, out) => {
+        lift = fly ? 0.35 + 0.05 * Math.sin(s * 2) : swim ? 0.12 : 0;
+      const lists: BeastPart[][] = Array.from({ length: 3 * SHAPES }, () => []);
+      for (let q = 0; q < n; q++)
+        lists[this.parts[q]!.tone * SHAPES + this.parts[q]!.shape]!.push(this.parts[q]!);
+      lists.forEach((list, at) => {
+        tones[at]?.set(list.length, (j, out) => {
           const p = list[j]!;
           out[0] = o.x * M + (p.x * c + p.z * sn) * k;
           out[1] = lift + p.y * k;

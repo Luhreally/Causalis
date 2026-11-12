@@ -28,6 +28,45 @@ export type BeastPlan = {
   readonly tail: number;
   readonly features: readonly string[];
   readonly warm: boolean;
+  /** An alien beast's look, of its world's founding stock (B1: rules/stocks.ts BeastLook; absent: Earth's, or none). */
+  readonly look?: BeastLookPlan;
+};
+
+/** A lineage's look as it crosses to the page (the rules' BeastLook, in plain values). */
+export type BeastLookPlan = {
+  readonly stock: number;
+  readonly stockName: string;
+  readonly kin: number;
+  readonly seg: string;
+  readonly limbs: string;
+  readonly limbShape: string;
+  readonly joints: number;
+  readonly head: string;
+  readonly eyes: string;
+  readonly mouth: string;
+  readonly tail: string;
+  readonly extras: readonly string[];
+  readonly splay: number;
+  readonly stout: number;
+  readonly eyeSize: number;
+  readonly hue: number;
+  readonly pull: number;
+  readonly dark: readonly [number, number, number];
+  readonly horn: readonly [number, number, number];
+  readonly long: number;
+  readonly deep: number;
+  readonly wide: number;
+  readonly legLen: number;
+  readonly headSize: number;
+  readonly eyeCount: number;
+  readonly marks: string;
+  readonly light: number;
+  readonly strength: number;
+  readonly why: readonly {
+    readonly what: string;
+    readonly because: string;
+    readonly figure: string;
+  }[];
 };
 
 /**
@@ -626,6 +665,18 @@ export type FolkFacts = {
   readonly blood?: string;
   readonly shell?: string;
   readonly lifeLook?: string;
+  /** The founding stock their forebears came of (B1: rules/stocks.ts), for their look to carry it; absent: none. */
+  readonly stock?: {
+    readonly name: string;
+    readonly head: string;
+    readonly eyes: string;
+    readonly mouth: string;
+    readonly tail: string;
+    readonly seg: string;
+    readonly extras: readonly string[];
+    readonly hue: number;
+    readonly pull: number;
+  };
 };
 
 /** A people of another star at a land (Phase 18 M134). */

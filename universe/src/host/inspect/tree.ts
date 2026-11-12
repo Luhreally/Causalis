@@ -16,10 +16,12 @@ import {
   treeOfLife,
   wayWord,
   type HomeWorld,
+  lineLookOf,
   type LifeNode,
   type TreeOfLife,
 } from "../../gen/index.ts";
 import { homePlanet } from "../../sim/index.ts";
+import type { BeastLook, CreatureBody } from "../../rules/index.ts";
 import type { World } from "../../kernel/index.ts";
 import type { Block, Item, PageModel, PhyloLine, Place, Stat, Tab } from "../../bridge/index.ts";
 import { count, item, link, stat, yearNow } from "./words.ts";
@@ -37,6 +39,16 @@ function fineOf(world: World): HomeWorld {
 }
 
 /** The world's tree of life. */
+/** A line's body as the page draws it: of its world's founding stock, where it has one (B1). */
+function drawnBody(
+  world: World,
+  n: LifeNode,
+): (CreatureBody & { readonly look?: BeastLook }) | null {
+  if (!n.body) return null;
+  const look = lineLookOf(fineOf(world), n.id);
+  return look ? { ...n.body, look } : n.body;
+}
+
 export function treeOf(world: World): TreeOfLife {
   return treeOfLife(fineOf(world));
 }
@@ -193,7 +205,12 @@ function changeWords(n: LifeNode): string {
 }
 
 /** A line's ancestry as bodies in a row: the dawn's first steps, then its bodied forebears, then it. */
-function lineupBlock(tree: TreeOfLife, id: number, title = "The bodies it came of"): Block {
+function lineupBlock(
+  world: World,
+  tree: TreeOfLife,
+  id: number,
+  title = "The bodies it came of",
+): Block {
   const line = lineOf(tree, id),
     bodied = line.filter((n) => n.body),
     shown = [...line.filter((n) => !n.body && n.kind === "dawn").slice(-2), ...bodied.slice(-7)];
@@ -204,7 +221,7 @@ function lineupBlock(tree: TreeOfLife, id: number, title = "The bodies it came o
     items: shown.map((n) => ({
       ref: n.ref,
       name: n.name,
-      body: n.body,
+      body: drawnBody(world, n),
       ...(n.body ? {} : { icon: iconOf(n) }),
       words: `${ago(n.from)}${n.innovations[0] ? ` · ${n.innovations[0].what}` : ""}`,
       ...(n.id === id ? { self: true } : {}),
@@ -247,7 +264,7 @@ export function ancestryTab(world: World, species: number): Tab | null {
     id: "ancestry",
     name: "Ancestry",
     blocks: [
-      lineupBlock(tree, id),
+      lineupBlock(world, tree, id),
       {
         type: "facts",
         rows: [
@@ -308,7 +325,7 @@ export function cladePage(world: World, ref: string): PageModel {
       ? {
           portrait: {
             kind: "creature" as const,
-            body: n.body,
+            body: drawnBody(world, n)!,
             name: n.name,
             wool: n.body.covering === "wool",
           },
@@ -364,7 +381,7 @@ export function cladePage(world: World, ref: string): PageModel {
         id: "ancestry",
         name: "Ancestry",
         blocks: [
-          lineupBlock(tree, id),
+          lineupBlock(world, tree, id),
           { type: "list", title: "Its line, from the first", items: lineItems(tree, id) },
         ],
       },
@@ -520,7 +537,7 @@ export function treePage(world: World, tab?: string): PageModel {
             items: kinds.map((n) => ({
               ref: n.ref,
               name: n.name,
-              body: n.body,
+              body: drawnBody(world, n),
               words: ago(n.from),
             })),
           },

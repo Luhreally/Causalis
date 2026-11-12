@@ -8,7 +8,15 @@
 // slitherer's body waving side to side, a flier's wings beating, a swimmer's tail sweeping.
 // Built of boxes, the art track's low-poly, in a village's units and drawn as much larger than
 // life as its people are (the smallest larger still, to be seen at all).
-import type { CreatureBody } from "../rules/index.ts";
+//
+// An alien beast (B1 of the life plan) is drawn of its world's founding stock as well, its `look` (rules/stocks.ts,
+// read on the host): the shapes of its segments (boxes, tapers, domes, bags, discs), how its legs attach and
+// joint (straight under it, sprawled wide, arched high from its sides, bent back at the knee) and the gait that
+// follows from where they are, its head and its eyes, its mouthparts, its kind of tail and what else it bears (a
+// sail, a frill, feelers, graspers, scutes, plumes, a fringe, spurs). Every fact of its plan stays true in it.
+// Earth's, with no look, are drawn exactly as before (tests/view/earth-looks.test.ts).
+import type { BeastLook, CreatureBody } from "../rules/index.ts";
+import { posedLooked, buildLooked } from "./looked.ts";
 
 /** A part of a creature as it stands this moment, in its own frame (facing +z), drawn units. */
 export type BeastPart = {
@@ -23,7 +31,165 @@ export type BeastPart = {
   yaw: number;
   /** 0 its coat, 1 its dark features (hooves, claws, manes, markings), 2 horn, tusk and beak. */
   tone: 0 | 1 | 2;
+  /** Its shape (BEAST_SHAPES; 0 a box, as every part of Earth's beasts is). */
+  shape: BeastShape;
+  /** What it does, for a page's labels (JOBS; 0 untold). */
+  job: number;
 };
+
+/** The shapes a beast is built of: a box, a taper, a dome, a tube (a disc, flattened), a membrane, a bag. */
+export type BeastShape = 0 | 1 | 2 | 3 | 4 | 5;
+export const SHAPES = 6;
+export const SHAPE_NAMES = ["box", "taper", "dome", "tube", "membrane", "bag"] as const;
+
+/** What a part does, as a page labels it. */
+export const JOBS = [
+  "",
+  "body",
+  "walking leg",
+  "wing",
+  "fin",
+  "tail",
+  "head",
+  "neck",
+  "feeler",
+  "grasper",
+  "sail",
+  "frill",
+  "eye",
+  "mouthparts",
+  "growth",
+  "scutes",
+  "plumes",
+  "fringe",
+  "spur",
+  "arm",
+] as const;
+
+type V3 = readonly [number, number, number];
+/** A shape's corners and its faces (each a ring of corners, wound outward). */
+export type ShapeSolid = {
+  readonly corners: readonly V3[];
+  readonly faces: readonly (readonly number[])[];
+};
+
+/**
+ * Each shape's corners and faces, a unit each way about its middle (as the box is): a taper narrowing toward +y to
+ * 0.36 across; a dome on its base at −y; an eight-sided tube along y; a membrane, a thin triangle in the x–z plane
+ * with its base at −z and its point at +z; a bag of few faces. The scenes make meshes of them and a page's picture
+ * its solids, so both draw the same shapes.
+ */
+export const BEAST_SHAPES: readonly ShapeSolid[] = (() => {
+  const ring = (y: number, r: number, n = 8): V3[] =>
+    Array.from({ length: n }, (_, i) => {
+      const a = (2 * Math.PI * (i + 0.5)) / n;
+      return [r * Math.cos(a), y, r * Math.sin(a)] as const;
+    });
+  /** Faces between rings, a point above the last (or a flat cap), and a cap under the first. */
+  const banded = (rings: V3[][], top: V3 | null, bottomCap: boolean) => {
+    const corners: V3[] = rings.flat(),
+      faces: number[][] = [],
+      n = rings[0]!.length,
+      last = (rings.length - 1) * n;
+    for (let r = 0; r + 1 < rings.length; r++)
+      for (let i = 0; i < n; i++) {
+        const a = r * n + i,
+          b = r * n + ((i + 1) % n);
+        faces.push([a, b, b + n, a + n]);
+      }
+    if (top) {
+      corners.push(top);
+      const apex = corners.length - 1;
+      for (let i = 0; i < n; i++) faces.push([last + i, last + ((i + 1) % n), apex]);
+    } else faces.push(Array.from({ length: n }, (_, i) => last + i));
+    if (bottomCap) faces.push(Array.from({ length: n }, (_, i) => n - 1 - i));
+    return { corners, faces };
+  };
+  const boxFaces = [
+    [0, 3, 2, 1],
+    [4, 5, 6, 7],
+    [0, 4, 7, 3],
+    [1, 2, 6, 5],
+    [3, 7, 6, 2],
+    [0, 1, 5, 4],
+  ];
+  const box: ShapeSolid = {
+    corners: [
+      [-0.5, -0.5, -0.5],
+      [0.5, -0.5, -0.5],
+      [0.5, 0.5, -0.5],
+      [-0.5, 0.5, -0.5],
+      [-0.5, -0.5, 0.5],
+      [0.5, -0.5, 0.5],
+      [0.5, 0.5, 0.5],
+      [-0.5, 0.5, 0.5],
+    ],
+    faces: boxFaces,
+  };
+  const t = 0.18,
+    taper: ShapeSolid = {
+      corners: [
+        [-0.5, -0.5, -0.5],
+        [0.5, -0.5, -0.5],
+        [t, 0.5, -t],
+        [-t, 0.5, -t],
+        [-0.5, -0.5, 0.5],
+        [0.5, -0.5, 0.5],
+        [t, 0.5, t],
+        [-t, 0.5, t],
+      ],
+      faces: boxFaces,
+    };
+  const dome = banded([ring(-0.5, 0.5), ring(0.05, 0.44), ring(0.38, 0.24)], [0, 0.5, 0], true),
+    tube = banded([ring(-0.5, 0.5), ring(0.5, 0.5)], null, true),
+    bag = banded(
+      [ring(-0.38, 0.3), ring(-0.12, 0.49), ring(0.16, 0.48), ring(0.4, 0.26)],
+      [0, 0.5, 0],
+      false,
+    );
+  // (The bag's foot: a point under it, in place of a flat cap.)
+  bag.faces.pop();
+  bag.corners.push([0, -0.5, 0]);
+  const foot = bag.corners.length - 1;
+  for (let i = 0; i < 8; i++) bag.faces.push([(i + 1) % 8, i, foot]);
+  const h = 0.5,
+    membrane: ShapeSolid = {
+      corners: [
+        [-0.5, -h, -0.5],
+        [0.5, -h, -0.5],
+        [0, -h, 0.5],
+        [-0.5, h, -0.5],
+        [0.5, h, -0.5],
+        [0, h, 0.5],
+      ],
+      faces: [
+        [0, 1, 2],
+        [3, 5, 4],
+        [0, 3, 4, 1],
+        [1, 4, 5, 2],
+        [2, 5, 3, 0],
+      ],
+    };
+  // (Every face turned outward, away from the shape's middle.)
+  const outward = (sh: ShapeSolid): ShapeSolid => {
+    const c = sh.corners;
+    return {
+      corners: c,
+      faces: sh.faces.map((f) => {
+        const [a, b2, d] = [c[f[0]!]!, c[f[1]!]!, c[f[2]!]!],
+          u = [b2[0] - a[0], b2[1] - a[1], b2[2] - a[2]],
+          v = [d[0] - a[0], d[1] - a[1], d[2] - a[2]],
+          nx = u[1]! * v[2]! - u[2]! * v[1]!,
+          ny = u[2]! * v[0]! - u[0]! * v[2]!,
+          nz = u[0]! * v[1]! - u[1]! * v[0]!,
+          m = [0, 0, 0];
+        for (const i of f) for (let k = 0; k < 3; k++) m[k]! += c[i]![k]! / f.length;
+        return nx * m[0]! + ny * m[1]! + nz * m[2]! < 0 ? [...f].reverse() : f;
+      }),
+    };
+  };
+  return [box, taper, dome, tube, membrane, bag].map(outward);
+})();
 
 /** How a creature holds itself now: its gait (0 still, 1 moving, 2 fast), stride phase, head (0 up … 1 down to its food), crouch (0 … 1). */
 export type Pose = { gait: 0 | 1 | 2; phase: number; head: number; crouch: number };
@@ -38,6 +204,10 @@ export const MOST_OF_TONE = [40, 30, 12] as const;
 /** A creature's body as built from its plan: its measures (metres) and what it has. */
 export type Built = {
   readonly plan: CreatureBody;
+  /** Its stock's look (an alien beast's; null: Earth's, drawn as it always was). */
+  readonly look: BeastLook | null;
+  /** How many parts of each tone and shape it is drawn with (tone × SHAPES + shape), for batches to be sized. */
+  readonly uses: Uint8Array;
   /** Metres to drawn units. */
   readonly k: number;
   /** Body length, height and width; leg length; neck and head; tail. */
@@ -84,11 +254,12 @@ export function strideOf(b: Built): number {
 
 /** Build a creature from its plan: its measures, finer at a finer `detail`. */
 export function buildBody(
-  plan: CreatureBody,
+  plan: CreatureBody & { readonly look?: BeastLook | null },
   detail: number,
   pattern: "spots" | "stripes" | null = null,
   key = 0,
 ): Built {
+  if (plan.look) return buildLooked(plan, plan.look, detail, pattern, key);
   // Length by weight (a 200 kg beast some 1.5 m long); the smallest drawn as a hare at least.
   const s = Math.max(0.26, Math.cbrt(plan.size / 200)),
     swim = plan.moves === "swim",
@@ -119,6 +290,8 @@ export function buildBody(
       ]);
   return {
     plan,
+    look: null,
+    uses: EARTH_USES,
     k: BEAST_SCALE,
     length,
     height,
@@ -133,6 +306,26 @@ export function buildBody(
   };
 }
 
+/** An Earth beast's batches, as they always were: its boxes, of each tone, at most so many. */
+const EARTH_USES = (() => {
+  const u = new Uint8Array(3 * SHAPES);
+  for (let t = 0; t < 3; t++) u[t * SHAPES] = MOST_OF_TONE[t as 0 | 1 | 2];
+  return u;
+})();
+
+/** The most parts of a tone and a shape a built beast is drawn with (its batch's share for each beast). */
+export function usesOf(b: Built, tone: number, shape: number): number {
+  return b.uses[tone * SHAPES + shape] ?? 0;
+}
+
+/** The shapes a built beast is drawn with (an Earth beast's: its boxes alone). */
+export function shapesOf(b: Built): BeastShape[] {
+  const out: BeastShape[] = [];
+  for (let s = 0; s < SHAPES; s++)
+    if (b.uses[s]! + b.uses[SHAPES + s]! + b.uses[2 * SHAPES + s]!) out.push(s as BeastShape);
+  return out;
+}
+
 /** Where each foot came down, as the legs were posed (reused: posing allocates nothing). */
 const FEET = Array.from({ length: 8 }, () => ({ x: 0, y: 0, z: 0, t: 0 }));
 
@@ -145,6 +338,7 @@ const FEET = Array.from({ length: 8 }, () => ({ x: 0, y: 0, z: 0, t: 0 }));
  * eyes, a tail's tuft, the marks of its coat.
  */
 export function posed(b: Built, pose: Pose, out: BeastPart[]): number {
+  if (b.look) return posedLooked(b, b.look, pose, out);
   const p = b.plan,
     k = b.k,
     has = (x: string) => p.features.includes(x as never);
@@ -162,7 +356,22 @@ export function posed(b: Built, pose: Pose, out: BeastPart[]): number {
   ) => {
     if (n >= MOST_PARTS) return;
     const o =
-      out[n] ?? (out[n] = { x: 0, y: 0, z: 0, sx: 0, sy: 0, sz: 0, pitch: 0, yaw: 0, tone: 0 });
+      out[n] ??
+      (out[n] = {
+        x: 0,
+        y: 0,
+        z: 0,
+        sx: 0,
+        sy: 0,
+        sz: 0,
+        pitch: 0,
+        yaw: 0,
+        tone: 0,
+        shape: 0,
+        job: 0,
+      });
+    o.shape = 0;
+    o.job = 0;
     o.x = x * k;
     o.y = y * k;
     o.z = z * k;

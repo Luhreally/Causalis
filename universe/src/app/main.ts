@@ -17,6 +17,7 @@ import { CourtNote, SungNote } from "../ui/index.ts";
 import { courtSitting } from "../view/index.ts";
 import { PeopleBar, barPins, setWrittenHold } from "../ui/index.ts";
 import { CornerRail } from "../ui/index.ts";
+import { closeLifeSheet, showLifeSheet, type LifeSheet } from "../ui/index.ts";
 import { Checkpoint } from "./checkpoint.ts";
 import { HostClient, LOT, inlinePair, lotStates, progress, workerPort } from "../bridge/index.ts";
 import {
@@ -485,6 +486,9 @@ const signs = params.get("signs") !== "0";
 
 type Exposed = {
   client?: HostClient;
+  /** A world's life on one sheet over the screen, each picture's outline read off its pixels (B1, gate 108); and away. */
+  lifeSheet?: (most?: number) => Promise<LifeSheet>;
+  closeLifeSheet?: () => void;
   /** The year a world begun at a far year took up from (a world baked ahead's; 0: its beginning). */
   jumpedFrom?: number;
   mode?: string;
@@ -1820,6 +1824,8 @@ async function runPlanetPage(): Promise<void> {
   time.onWiden = markBarBottom;
   pageWindow.onClose = () => document.body.classList.remove("paging");
   exposed.open = (ref: string) => pageWindow.open(ref);
+  exposed.lifeSheet = (most?: number) => showLifeSheet(client, most);
+  exposed.closeLifeSheet = closeLifeSheet;
   exposed.pageOpen = () => pageWindow.current;
   // The guided walk: on a first visit (not for a machine driving the page, unless asked
   // with ?walk), and again from Help.

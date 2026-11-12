@@ -31,6 +31,9 @@ import {
   looksHurt,
   partExtent,
   posed,
+  BEAST_SHAPES,
+  JOBS,
+  type ShapeSolid,
   woundGear,
   type BeastPart,
 } from "../view/index.ts";
@@ -52,6 +55,8 @@ export type Solid = {
   pitch: number;
   color: Rgb;
   shape?: "box" | "gable" | "pyramid";
+  /** A beast's own shape (view/creature.ts BEAST_SHAPES), a unit each way, scaled by its size. */
+  solid?: ShapeSolid;
 };
 
 /** How a picture is looked at: turned about the up axis, and tipped to look down. */
@@ -65,6 +70,11 @@ function shapeOf(s: Solid): { corners: V3[]; faces: number[][] } {
   const x = s.sx / 2,
     y = s.sy / 2,
     z = s.sz / 2;
+  if (s.solid)
+    return {
+      corners: s.solid.corners.map((c) => [c[0] * s.sx, c[1] * s.sy, c[2] * s.sz] as V3),
+      faces: s.solid.faces as number[][],
+    };
   if (s.shape === "gable")
     // A roof: its eaves at the bottom, its ridge along its length (x) at the top.
     return {
@@ -227,7 +237,7 @@ function creatureSolids(p: Extract<Portrait, { kind: "creature" }>): {
   parts: BeastPart[];
   body: ReturnType<typeof buildBody>;
 } {
-  const coat = coatOf(p.name, p.wool),
+  const coat = coatOf(p.name, p.wool, (p.body as { look?: Parameters<typeof coatOf>[2] }).look),
     body = buildBody(p.body as CreatureBody, 3, coat.pattern, p.name.length),
     parts: BeastPart[] = [],
     n = posed(body, { gait: 0, phase: 0, head: 0.25, crouch: 0 }, parts),
@@ -242,6 +252,7 @@ function creatureSolids(p: Extract<Portrait, { kind: "creature" }>): {
     yaw: q.yaw,
     pitch: q.pitch,
     color: tones[q.tone]!,
+    ...(q.shape ? { solid: BEAST_SHAPES[q.shape]! } : {}),
   }));
   return { solids, parts: parts.slice(0, n), body };
 }
@@ -1135,39 +1146,90 @@ export function drawAnatomy(canvas: HTMLCanvasElement, p: Portrait, w: number, h
     wide = parts.reduce((a, b) => (Math.abs(b.x) + b.sx > Math.abs(a.x) + a.sx ? b : a)),
     core = parts.reduce((a, b) => (b.sx * b.sy * b.sz > a.sx * a.sy * a.sz ? b : a));
   const labels: { text: string; at: V3; side: "left" | "right"; row: number }[] = [];
-  const grows = plan.features.filter((f) => !["claws", "spines"].includes(f));
-  labels.push({
-    text: grows.length ? `head: ${grows.join(", ")}` : "its head",
-    at: middle(front),
-    side: "right",
-    row: 0,
-  });
-  labels.push({
-    text: `covered in ${COVERING[plan.covering] ?? plan.covering}`,
-    at: middle(core),
-    side: "right",
-    row: 1,
-  });
-  if (plan.legs > 0)
+  if (body.look) {
+    // An alien beast (B1): each part named by what it does, at the middle of its parts, its stock's own among them.
+    const words: Record<string, (n: number) => string> = {
+        "walking leg": () =>
+          `${plan.legs} legs, ${body.look!.limbs === "sprawl" ? "sprawled" : body.look!.limbs === "arch" ? "high-kneed" : body.look!.limbs === "rake" ? "back-kneed" : "under it"}`,
+        wing: () => `${plan.wings} wings to fly`,
+        fin: () => `${plan.fins} fins to steer`,
+        tail: () => `a ${body.look!.tail} tail`,
+        head: () => `its head, ${body.look!.head}`,
+        feeler: () => "feelers to feel by",
+        grasper: () => "graspers to hold food",
+        sail: () => "a sail down its back",
+        frill: () => "a frill",
+        eye: (k) => `${body.look!.eyeCount || k} eyes, ${body.look!.eyes}`,
+        mouthparts: () => (body.look!.mouth === "jaw" ? "jaws" : body.look!.mouth),
+        growth: () => plan.features.filter((f) => f !== "claws").join(", ") || "what it grows",
+        scutes: () => "scutes, armour",
+        plumes: () => "plumes",
+        fringe: () => "a fringe to feel currents",
+        spur: () => "spurs",
+        arm: () => "arms to catch with",
+      },
+      jobs = new Map<string, BeastPart[]>();
+    for (const q of parts) {
+      const j = JOBS[q.job] ?? "";
+      if (j && j !== "body" && j !== "neck" && words[j]) jobs.set(j, [...(jobs.get(j) ?? []), q]);
+    }
+    let left = 0,
+      right = 0;
     labels.push({
-      text: `${plan.legs} legs${plan.features.includes("claws") ? ", clawed" : ""}`,
-      at: [low.x, low.y - low.sy / 2, low.z],
-      side: "left",
-      row: 2,
+      text: `covered in ${COVERING[plan.covering] ?? plan.covering}`,
+      at: middle(core),
+      side: "right",
+      row: right++,
     });
-  if (plan.wings > 0)
-    labels.push({ text: `${plan.wings} wings`, at: middle(wide), side: "left", row: 0 });
-  if (plan.fins > 0)
+    for (const [j, qs] of jobs) {
+      if (left >= 4 && right >= 4) break;
+      const m = qs.reduce(
+          (a, q) => [a[0] + q.x / qs.length, a[1] + q.y / qs.length, a[2] + q.z / qs.length] as V3,
+          [0, 0, 0] as V3,
+        ),
+        side = m[2] > 0 ? (right < 4 ? "right" : "left") : left < 4 ? "left" : "right";
+      labels.push({
+        text: words[j]!(qs.length),
+        at: m,
+        side,
+        row: side === "left" ? left++ : right++,
+      });
+    }
+  } else {
+    const grows = plan.features.filter((f) => !["claws", "spines"].includes(f));
     labels.push({
-      text: `${plan.fins} fins`,
-      at: middle(wide),
-      side: "left",
-      row: plan.wings > 0 ? 1 : 0,
+      text: grows.length ? `head: ${grows.join(", ")}` : "its head",
+      at: middle(front),
+      side: "right",
+      row: 0,
     });
-  if (plan.tail > 0.05 || plan.moves === "slither")
-    labels.push({ text: "a tail", at: middle(back), side: "left", row: 1 });
-  if (plan.features.includes("spines"))
-    labels.push({ text: "spines", at: middle(core), side: "right", row: 2 });
+    labels.push({
+      text: `covered in ${COVERING[plan.covering] ?? plan.covering}`,
+      at: middle(core),
+      side: "right",
+      row: 1,
+    });
+    if (plan.legs > 0)
+      labels.push({
+        text: `${plan.legs} legs${plan.features.includes("claws") ? ", clawed" : ""}`,
+        at: [low.x, low.y - low.sy / 2, low.z],
+        side: "left",
+        row: 2,
+      });
+    if (plan.wings > 0)
+      labels.push({ text: `${plan.wings} wings`, at: middle(wide), side: "left", row: 0 });
+    if (plan.fins > 0)
+      labels.push({
+        text: `${plan.fins} fins`,
+        at: middle(wide),
+        side: "left",
+        row: plan.wings > 0 ? 1 : 0,
+      });
+    if (plan.tail > 0.05 || plan.moves === "slither")
+      labels.push({ text: "a tail", at: middle(back), side: "left", row: 1 });
+    if (plan.features.includes("spines"))
+      labels.push({ text: "spines", at: middle(core), side: "right", row: 2 });
+  }
   ctx.font = "11px Verdana, Tahoma, sans-serif";
   ctx.textBaseline = "middle";
   for (const l of labels) {

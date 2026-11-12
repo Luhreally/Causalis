@@ -843,14 +843,22 @@ export {
 } from "./ground.ts";
 export {
   BEAST_SCALE,
+  BEAST_SHAPES,
+  JOBS,
   MOST_OF_TONE,
   MOST_PARTS,
+  SHAPES,
+  SHAPE_NAMES,
   buildBody,
   posed,
+  shapesOf,
   strideOf,
+  usesOf,
   type BeastPart,
+  type BeastShape,
   type Built,
   type Pose,
+  type ShapeSolid,
 } from "./creature.ts";
 export {
   FIGURE_CAPSULE,

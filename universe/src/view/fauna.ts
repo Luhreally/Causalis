@@ -24,6 +24,7 @@ import {
   coatColour,
   coatWord,
   passAt,
+  type BeastLook,
   type CreatureBody,
 } from "../rules/index.ts";
 import { buildBody, strideOf, type Built, type Pose } from "./creature.ts";
@@ -32,6 +33,38 @@ import { treesOf } from "./village.ts";
 import { travellerAt, type Road } from "./work.ts";
 
 export type Rgb = readonly [number, number, number];
+
+/** Hue, saturation, lightness (each 0 … 1) of a colour, and back. */
+function toHsl(c: Rgb): [number, number, number] {
+  const [r, g, b] = c,
+    hi = Math.max(r, g, b),
+    lo = Math.min(r, g, b),
+    l = (hi + lo) / 2,
+    d = hi - lo;
+  if (d === 0) return [0, 0, l];
+  const s = d / (1 - Math.abs(2 * l - 1)),
+    h = hi === r ? ((g - b) / d + 6) % 6 : hi === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h / 6, s, l];
+}
+function fromHsl(h: number, s: number, l: number): Rgb {
+  const c = (1 - Math.abs(2 * l - 1)) * s,
+    hh = (((h % 1) + 1) % 1) * 6,
+    x = c * (1 - Math.abs((hh % 2) - 1)),
+    m = l - c / 2,
+    [r, g, b] =
+      hh < 1
+        ? [c, x, 0]
+        : hh < 2
+          ? [x, c, 0]
+          : hh < 3
+            ? [0, c, x]
+            : hh < 4
+              ? [0, x, c]
+              : hh < 5
+                ? [x, 0, c]
+                : [c, 0, x];
+  return [r + m, g + m, b + m];
+}
 
 export type Coat = {
   readonly coat: Rgb;
@@ -42,8 +75,35 @@ export type Coat = {
   readonly pattern: "spots" | "stripes" | null;
 };
 
-/** A lineage's coat by the colour it is named for: the coat (wool paler), and a pattern over it. */
-export function coatOf(name: string, wool: boolean): Coat {
+/**
+ * A lineage's coat by the colour it is named for: the coat (wool paler), and a pattern over it. An alien beast's
+ * `look` (B1) turns it a little toward the hue its world's pigments leave life, lighter or darker, stronger or
+ * weaker, still the colour it is named for; its dark features take its stock's colour (its blood's or its
+ * pigment's), its horn and plates the colour of what hardens them.
+ */
+export function coatOf(
+  name: string,
+  wool: boolean,
+  look?: {
+    readonly hue: number;
+    readonly pull: number;
+    readonly light: number;
+    readonly strength: number;
+    readonly dark: Rgb;
+    readonly horn: Rgb;
+  } | null,
+): Coat {
+  if (look) {
+    const plain = coatOf(name, wool),
+      [h, s, l] = toHsl(plain.coat),
+      turn = ((((look.hue - h) % 1) + 1.5) % 1) - 0.5,
+      coat = fromHsl(
+        h + Math.max(-0.045, Math.min(0.045, turn * look.pull)),
+        Math.min(0.95, s * look.strength),
+        Math.min(0.9, l * look.light),
+      );
+    return { coat, dark: look.dark, horn: look.horn, pattern: plain.pattern };
+  }
   const word = coatWord(name),
     base = COAT_COLOURS[word ?? "dun"]!,
     coat = coatColour(name, wool),
@@ -214,8 +274,10 @@ export function faunaOf(plan: VillagePlan, cap: number, detail: number, ambient:
     },
     flock: boolean,
   ) => {
-    const coat = coatOf(s.kind ?? s.name, s.wool),
-      plan = (s.body as CreatureBody | null | undefined) ?? defaultBody(s.niche, s.size, s.wool),
+    const plan =
+        (s.body as (CreatureBody & { look?: BeastLook }) | null | undefined) ??
+        defaultBody(s.niche, s.size, s.wool),
+      coat = coatOf(s.kind ?? s.name, s.wool, (plan as { look?: BeastLook }).look),
       body = buildBody(plan, detail, coat.pattern, hashString(s.ref));
     species.push({
       ref: s.ref,

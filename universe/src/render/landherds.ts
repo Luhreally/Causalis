@@ -4,14 +4,17 @@
 import * as pc from "playcanvas";
 import type { LandHerds, LandHerd } from "../bridge/index.ts";
 import {
+  buildBody,
   coatOf,
   floorAt,
+  posed,
+  type BeastPart,
   groundAt,
   herdPassAt as passAt,
   tileMiddle,
   type LandGround,
 } from "../view/index.ts";
-import { InstancedBatch } from "./batch.ts";
+import { InstancedBatch, beastMeshes } from "./batch.ts";
 import type { Rgb, Stage } from "./stage.ts";
 
 type Part = {
@@ -22,6 +25,10 @@ type Part = {
   readonly len: number;
   readonly wide: number;
   readonly tall: number;
+  /** An alien beast's part (B1): its shape (view/creature.ts BEAST_SHAPES), its tip and turn. */
+  readonly shape?: number;
+  readonly pitch?: number;
+  readonly yaw?: number;
 };
 
 type Body = {
@@ -34,8 +41,30 @@ type Body = {
   readonly moves?: string;
 };
 
+const POSED: BeastPart[] = [];
+
 /** A beast's parts, a unit long: read off its body, so a slither has no legs and a six-leg six. */
 function partsOf(body: Body | null | undefined, swims: boolean): readonly Part[] {
+  // An alien beast of its world's stock (B1): built by the one builder, at its plainest, a unit long.
+  const look = (body as { look?: unknown } | null | undefined)?.look;
+  if (body && look) {
+    const b = buildBody(body as Parameters<typeof buildBody>[0], 0, null, 0),
+      n = posed(b, { gait: 0, phase: 0, head: 0.3, crouch: 0 }, POSED),
+      unit = Math.max(1e-6, b.length * b.k),
+      tones = ["coat", "dark", "horn"] as const;
+    return POSED.slice(0, n).map((p) => ({
+      tone: tones[p.tone],
+      along: p.z / unit,
+      aside: p.x / unit,
+      up: p.y / unit - p.sy / unit / 2,
+      len: p.sz / unit,
+      wide: p.sx / unit,
+      tall: p.sy / unit,
+      shape: p.shape,
+      pitch: p.pitch,
+      yaw: p.yaw,
+    }));
+  }
   const legs = swims ? 0 : (body?.legs ?? 4),
     slither = !swims && legs === 0,
     stand = swims ? 0.12 : slither ? 0.02 : 0.26,
@@ -204,6 +233,22 @@ type Spot = { readonly x: number; readonly y: number; readonly z: number; readon
 
 const NEXT = 0.008;
 
+/** Count a part toward its colour's batch (an alien beast's other shapes toward a batch of their own). */
+function want(
+  wanted: Map<string, { rgb: Rgb; n: number; shape?: number }>,
+  colour: string,
+  shape: number | undefined,
+  n: number,
+): void {
+  if (!shape) {
+    wanted.get(colour)!.n += n;
+    return;
+  }
+  const key = `${colour}|${shape}`;
+  if (!wanted.has(key)) wanted.set(key, { rgb: wanted.get(colour)!.rgb, n: 0, shape });
+  wanted.get(key)!.n += n;
+}
+
 const hash = (a: number, b: number): number => {
   let h = Math.imul((a ^ Math.imul(b + 1, 0x9e3779b1)) >>> 0, 0x85ebca6b);
   h ^= h >>> 13;
@@ -258,20 +303,31 @@ export class LandHerdsLayer {
     this.distance = distance;
   }
 
-  private slot(key: string, rgb: Rgb, n: number): void {
+  private slot(key: string, rgb: Rgb, n: number, shape = 0): void {
     const had = this.batches.get(key);
     if (had && had.batch.capacity >= n) return;
     had?.batch.destroy();
     const capacity = Math.max(32, Math.ceil(n * 1.3));
     this.batches.set(key, {
-      batch: new InstancedBatch(this.stage, this.box, rgb, capacity, this.root),
+      batch: new InstancedBatch(
+        this.stage,
+        shape ? beastMeshes(this.stage, this.box)[shape]! : this.box,
+        rgb,
+        capacity,
+        this.root,
+      ),
       data: new Float32Array(capacity * 8),
       n: 0,
     });
   }
 
-  private tonesOf(name: string, wool: boolean, want: Map<string, { rgb: Rgb; n: number }>) {
-    const c = coatOf(name, wool),
+  private tonesOf(
+    name: string,
+    wool: boolean,
+    want: Map<string, { rgb: Rgb; n: number; shape?: number }>,
+    body?: Body | null,
+  ) {
+    const c = coatOf(name, wool, (body as { look?: Parameters<typeof coatOf>[2] } | null)?.look),
       add = (rgb: Rgb) => {
         const key = rgb.map((v) => v.toFixed(3)).join(",");
         if (!want.has(key)) want.set(key, { rgb, n: 0 });
@@ -291,7 +347,7 @@ export class LandHerdsLayer {
     this.key = key;
     this.undersea = plan.undersea;
     const half = ((g.size - 1) * g.tileKm) / 2,
-      wanted = new Map<string, { rgb: Rgb; n: number }>(),
+      wanted = new Map<string, { rgb: Rgb; n: number; shape?: number }>(),
       /** How good a line across the map is: its ground, in the land's own stuff, and clear of what people have made. */
       lineScore = (ox: number, oz: number, ux: number, uz: number, reach: number) => {
         let good = 0;
@@ -338,7 +394,7 @@ export class LandHerdsLayer {
       // (A second kind on another line, so its numbers aren't lost among the first's.)
       const swims = plan.undersea || h.niche === "swimmer" || h.body?.moves === "swim",
         parts = partsOf(h.body, swims),
-        tones = this.tonesOf(h.name, h.wool, wanted),
+        tones = this.tonesOf(h.name, h.wool, wanted, h.body),
         cols = Math.max(2, Math.min(5, Math.round(Math.sqrt(h.n)))),
         seed = (h.ref.length * 2654435761) >>> 0,
         members: Member[] = [];
@@ -351,7 +407,7 @@ export class LandHerdsLayer {
           key: hash(seed, j + 200) * 6.28,
         });
       }
-      for (const p of parts) wanted.get(tones[p.tone])!.n += h.n;
+      for (const p of parts) want(wanted, tones[p.tone], p.shape, h.n);
       return { herd: h, parts, tones, members, ox, oz, reach, scale: sizeOf(h.size), swims };
     });
     // A beast at large: about its town.
@@ -359,8 +415,8 @@ export class LandHerdsLayer {
       const m = tileMiddle(g, plan.beast.tile),
         swims = plan.undersea || plan.beast.body?.moves === "swim",
         parts = partsOf(plan.beast.body, swims),
-        tones = this.tonesOf(plan.beast.kind, plan.beast.wool, wanted);
-      for (const p of parts) wanted.get(tones[p.tone])!.n += 1;
+        tones = this.tonesOf(plan.beast.kind, plan.beast.wool, wanted, plan.beast.body);
+      for (const p of parts) want(wanted, tones[p.tone], p.shape, 1);
       const near = towns.find((o) => (o.x - m.x) * (o.x - m.x) + (o.z - m.z) * (o.z - m.z) < 25);
       this.beast = {
         x: m.x,
@@ -374,7 +430,7 @@ export class LandHerdsLayer {
         swims,
       };
     } else this.beast = null;
-    for (const [k, w] of wanted) this.slot(k, w.rgb, w.n);
+    for (const [k, w] of wanted) this.slot(k, w.rgb, w.n, w.shape ?? 0);
     for (const [k, b] of this.batches)
       if (!wanted.has(k)) {
         b.batch.set(0, () => {});
@@ -469,8 +525,8 @@ export class LandHerdsLayer {
         cos = Math.cos(yaw),
         k = L * scale;
       for (const p of parts) {
-        const b = this.batches.get(tones[p.tone])!;
-        if (b.n >= b.batch.capacity) continue;
+        const b = this.batches.get(p.shape ? `${tones[p.tone]}|${p.shape}` : tones[p.tone]);
+        if (!b || b.n >= b.batch.capacity) continue;
         const o = b.n * 8,
           ax = p.along * k,
           sx = p.aside * k;
@@ -480,8 +536,8 @@ export class LandHerdsLayer {
         b.data[o + 3] = p.wide * k;
         b.data[o + 4] = p.tall * k;
         b.data[o + 5] = p.len * k;
-        b.data[o + 6] = yaw;
-        b.data[o + 7] = 0;
+        b.data[o + 6] = yaw + (p.yaw ?? 0);
+        b.data[o + 7] = p.pitch ?? 0;
         b.n++;
       }
     };
