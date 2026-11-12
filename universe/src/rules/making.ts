@@ -221,7 +221,11 @@ export const MAKING_WORDS: Readonly<
     name: "Its stars",
     choices: {
       small: ["few", "the stars within 25 light-years, up to 4 other peoples: the quickest", "🔹"],
-      large: ["many", "the stars within 80 light-years, up to 24 other peoples: the slowest", "🌌"],
+      large: [
+        "many",
+        "the stars within 80 light-years, up to 24 other peoples: slower among the stars and twice the memory, for a strong computer",
+        "🌌",
+      ],
     },
   },
 };
