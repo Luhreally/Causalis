@@ -24,6 +24,7 @@ import {
   takeUpChance,
   trustOf,
   useAfter,
+  OPEN,
 } from "../../src/rules/index.ts";
 import {
   DISASTER_EVENTS,
@@ -204,4 +205,37 @@ test("a lesson spreads to those beside who have felt the same, and the record sa
   assert.ok(copied?.from?.startsWith("cell:0:"));
   const again = loadWorld(saveWorld(w, RULESET), build, RULESET).world;
   assert.deepEqual(lessonsOf(again)!.save(), store.save());
+});
+
+test("a world's own record teaches it: lands and realms of a small world take lessons up from what history did to them", () => {
+  const w = makePopulationWorld(seedFromText("alien 41"), {
+    prior: OPEN,
+    start: "spread",
+    frequency: 16,
+  });
+  w.runTo(400 * YEAR);
+  const store = lessonsOf(w)!,
+    lands = [...store.holders.entries()].filter(([k]) => k.startsWith("cell:")),
+    realms = [...store.holders.entries()].filter(([k]) => k.startsWith("pol:"));
+  assert.ok(store.taken > 0, "nothing was taken up");
+  assert.ok(
+    lands.some(([, h]) => h.uses.size > 0),
+    "no land leans on a lesson",
+  );
+  assert.ok(
+    realms.some(([, h]) => [...h.causes.values()].some((m) => m.strikes > 0 && m.lost > 0)),
+    "no realm remembers a battle lost",
+  );
+  // Each lesson held answers a cause that has cost its holder something.
+  for (const [, h] of store.holders)
+    for (const id of h.uses.keys()) {
+      const cause = LESSON_RESPONSES.find((r) => r.id === id)!.cause;
+      assert.ok((h.causes.get(cause)?.strikes ?? 0) > 0, `${id} held with no ${cause} remembered`);
+    }
+  // And the Years tell the first in all the world.
+  assert.ok(
+    w.events
+      .all()
+      .some((e) => e.type === LESSON_EVENTS.taken.type && (e.data as { first?: boolean }).first),
+  );
 });
