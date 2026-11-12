@@ -328,6 +328,256 @@ export function homeBox(
   };
 }
 
+/** What stands at a point is looked for among the lots in squares of the ground this broad (metres), each lot in every square its building reaches into. */
+const SURFACE_CELL = 16,
+  /** How far a lot's building reaches from its lot's middle at most (metres): the broadest level's half-diagonal, and its eaves. */
+  LOT_REACH = 9,
+  /** How high the ground of a town lies (metres): its yards a curb over its streets. */
+  GROUND_TOP = 0.5;
+
+/** A town's lots by the squares of the ground they stand in, and its other buildings' footprints: laid once for a scene. */
+type Standing = {
+  readonly x0: number;
+  readonly z0: number;
+  readonly nx: number;
+  readonly nz: number;
+  /** Where each square's lots begin in `list` (they end where the next square's begin). */
+  readonly start: Int32Array;
+  readonly list: Int32Array;
+  readonly civics: readonly {
+    readonly f: { x: number; z: number; yaw: number; w: number; d: number };
+    readonly kind: string;
+    readonly began: number;
+    readonly done: number;
+    readonly fell: number | null;
+    readonly asked: TownCivic["asked"];
+    readonly flat: boolean;
+  }[];
+};
+const STANDING = new WeakMap<TownScene, Standing>();
+
+function standingOf(scene: TownScene): Standing {
+  const kept = STANDING.get(scene);
+  if (kept) return kept;
+  const { lots, plan } = scene,
+    n = Math.min(plan.lots, lots.x.length);
+  let x0 = Infinity,
+    z0 = Infinity,
+    x1 = -Infinity,
+    z1 = -Infinity;
+  for (let p = 0; p < n; p++) {
+    x0 = Math.min(x0, lots.x[p]!);
+    x1 = Math.max(x1, lots.x[p]!);
+    z0 = Math.min(z0, lots.z[p]!);
+    z1 = Math.max(z1, lots.z[p]!);
+  }
+  if (!(n > 0)) x0 = z0 = x1 = z1 = 0;
+  x0 -= LOT_REACH;
+  z0 -= LOT_REACH;
+  const nx = Math.max(1, Math.ceil((x1 + LOT_REACH - x0) / SURFACE_CELL)),
+    nz = Math.max(1, Math.ceil((z1 + LOT_REACH - z0) / SURFACE_CELL)),
+    start = new Int32Array(nx * nz + 1),
+    // (Twice over the lots: how many in each square, then each in its place.)
+    each = (p: number, fn: (cell: number) => void) => {
+      const i0 = Math.max(0, Math.floor((lots.x[p]! - LOT_REACH - x0) / SURFACE_CELL)),
+        i1 = Math.min(nx - 1, Math.floor((lots.x[p]! + LOT_REACH - x0) / SURFACE_CELL)),
+        j0 = Math.max(0, Math.floor((lots.z[p]! - LOT_REACH - z0) / SURFACE_CELL)),
+        j1 = Math.min(nz - 1, Math.floor((lots.z[p]! + LOT_REACH - z0) / SURFACE_CELL));
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) fn(j * nx + i);
+    };
+  for (let p = 0; p < n; p++) each(p, (c) => start[c + 1]!++);
+  for (let c = 0; c < nx * nz; c++) start[c + 1]! += start[c]!;
+  const list = new Int32Array(start[nx * nz]!),
+    at = start.slice(0, nx * nz);
+  for (let p = 0; p < n; p++) each(p, (c) => (list[at[c]!++] = p));
+  const civics = (plan.civics ?? [])
+    .filter((c) => c.at + c.lots <= lots.x.length && !!lots.blocks)
+    .map((c) => {
+      const m = civicMoments(c);
+      return {
+        f: footprint(lots, c.at, c.lots),
+        kind: c.kind,
+        began: m.began,
+        done: m.done,
+        fell: m.fell,
+        asked: c.asked,
+        flat: c.at < (plan.ash ?? 0),
+      };
+    });
+  const made: Standing = { x0, z0, nx, nz, start, list, civics };
+  STANDING.set(scene, made);
+  return made;
+}
+
+/**
+ * How high what stands at a point of a town reaches at moment t (metres; its bare ground where nothing stands): a home's
+ * roof where the point is under it, as it slopes; a tower's top; one of its other buildings; a ruin's heap. What falls
+ * comes down on the first of these in its way, and what is thrown off it lies there (War past the line: raids, rockets).
+ */
+export function townSurface(scene: TownScene, x: number, z: number, t: number): number {
+  const { states, lots } = scene;
+  // (A scene laid out without its homes' shapes stands on bare ground.)
+  if (!states.what || !lots.yaw || !scene.looks) return GROUND_TOP;
+  const s = standingOf(scene),
+    i = Math.floor((x - s.x0) / SURFACE_CELL),
+    j = Math.floor((z - s.z0) / SURFACE_CELL);
+  let top = GROUND_TOP;
+  if (i >= 0 && j >= 0 && i < s.nx && j < s.nz) {
+    const c = j * s.nx + i;
+    for (let k = s.start[c]!; k < s.start[c + 1]!; k++) {
+      const h = lotTop(scene, s.list[k]!, x, z, t);
+      if (h > top) top = h;
+    }
+  }
+  for (const c of s.civics) {
+    if (t < c.began - (c.asked ? ASKED_AHEAD : 0) || !inside(c.f, x, z)) continue;
+    const high = CIVIC_HIGH[c.kind] ?? 10,
+      years = c.fell !== null ? (t - c.fell) / YEAR_S : -1,
+      // (Most of a building's shape is under its tallest part: a hall's roof, a mill's cap.)
+      h =
+        years >= 0
+          ? years < 60
+            ? high * (c.flat ? 0.08 : Math.max(0.12, 0.45 - years / 120))
+            : 0
+          : high *
+            0.8 *
+            (c.asked
+              ? askedGrown(c.asked, t)
+              : Math.min(1, (t - c.began) / Math.max(1, c.done - c.began)));
+    if (h > top) top = h;
+  }
+  return top;
+}
+
+/** How high a lot's home reaches over a point at moment t (metres; 0: the point is not under it). */
+function lotTop(scene: TownScene, p: number, x: number, z: number, t: number): number {
+  const { states, lots, looks } = scene,
+    what = states.what[p];
+  let level = states.level[p]!,
+    design = states.design[p]!,
+    grow = 1,
+    roof = 1;
+  if (what === LOT.home) {
+    const g = progress(states.began[p]!, states.takes[p]!, t);
+    // (Rising, or rebuilt as it wears: its walls as far as they have come, its roof at the last.)
+    let rise = g < 1 ? g : -1;
+    if (g >= 1) {
+      const w = homeWear(scene, p, t);
+      design = w.look;
+      if (w.at !== null && t < w.at + states.takes[p]!) rise = (t - w.at) / states.takes[p]!;
+    } else if (g <= 0) {
+      if (states.raised[p] === 1) level = Math.max(1, level - 1);
+      else if (states.raised[p] !== 2) return 0;
+      rise = -1;
+    }
+    if (rise >= 0) {
+      if (rise < 0.32) return under(lots, p, x, z, LOT_W - 1, LOT_D - 2) ? 0.7 : 0;
+      grow = Math.min(1, (rise - 0.32) / 0.53);
+      roof = rise < 0.85 ? 0 : (rise - 0.85) / 0.15;
+    }
+  } else if (what === LOT.razed && states.struck[p]! >= 0) {
+    const since = t - states.began[p]!;
+    if (since >= 0) {
+      const k = since / FALLS_S,
+        great = !!scene.plan.struck?.[states.struck[p]!]?.raid?.great;
+      // (Burnt out, thrown down, or what the greatest fire left: a low heap.)
+      if (great || k >= 1 || states.burns[p] !== 1 || thrownDown(scene, p))
+        return under(lots, p, x, z, LOT_W - 1, LOT_D - 1.6) ? (great ? 1.6 : RUBBLE_HIGH) : 0;
+      // (Burning: whole a while, then its roof gone and its walls burning down.)
+      if (k >= 0.6) {
+        grow = 1 - (0.5 * (k - 0.6)) / 0.4;
+        roof = 0;
+      }
+    }
+  } else if (what === LOT.fallen || what === LOT.razed)
+    return t >= states.began[p]! && under(lots, p, x, z, LOT_W - 1.5, LOT_D - 2) ? 1.2 : 0;
+  else return 0;
+  const look = looks[design] ?? looks[0];
+  if (!look) return 0;
+  return shapeTop(look, level, lots.x[p]!, lots.z[p]!, lots.yaw[p]!, grow, roof, x, z);
+}
+
+/** Whether a point lies over a lot's ground, so broad along its street and so deep. */
+const under = (lots: TownLots, p: number, x: number, z: number, w: number, d: number): boolean =>
+  inside({ x: lots.x[p]!, z: lots.z[p]!, yaw: lots.yaw[p]!, w, d }, x, z);
+
+/**
+ * How high a home drawn at (hx, hz) reaches over a point (metres; 0: not under it), as `home` draws it: a hut's or a house's
+ * roof sloping from its ridge, a townhouse's, a block's flat top, a spire's shafts, a sealed town's domes.
+ */
+function shapeTop(
+  look: HouseLook,
+  level: number,
+  hx: number,
+  hz: number,
+  yaw: number,
+  grow: number,
+  roof: number,
+  x: number,
+  z: number,
+): number {
+  const dx = x - hx,
+    dz = z - hz,
+    c = Math.cos(yaw),
+    s = Math.sin(yaw),
+    // (In its own frame: along its front, and across it.)
+    u = Math.abs(dx * c - dz * s),
+    v = Math.abs(dx * s + dz * c),
+    L = LEVELS[Math.max(0, Math.min(TOP_LEVEL, level))]!;
+  if (look.sealed) {
+    if (level <= 1) {
+      const r = (level === 0 ? 5.6 : 7.4) / 2,
+        h = (level === 0 ? 3.1 : 4.1) * grow,
+        e = Math.hypot(u, v) / r;
+      return e <= 1 ? 0.8 + h * Math.sqrt(1 - e * e) : 0;
+    }
+    const r =
+        (Math.min(LOT_W - 0.5, L.w + 0.6) *
+          (level === 2 ? 1 : level === 3 ? 0.92 : level === 4 ? 0.84 : level === 5 ? 0.76 : 0.7)) /
+        2,
+      h = L.h * grow * (level > 5 ? spireShare(hx, hz) : 1);
+    return Math.hypot(u, v) <= r ? 0.8 + h + 0.3 + (level >= 4 ? r * 1.1 : r * 0.84) * roof : 0;
+  }
+  if (level >= TOP_LEVEL) {
+    const high = L.h * spireShare(hx, hz) * grow;
+    if (u > L.w / 2 || v > L.d / 2) return 0;
+    let top = Math.min(14, high);
+    for (const [to, wide] of SPIRE_SHAFTS)
+      if (u <= (L.w * wide) / 2 && v <= (L.d * wide) / 2) top = Math.max(top, high * to);
+    return top;
+  }
+  const h = L.h * (level <= 1 ? look.height : 1) * grow;
+  if (level <= 1) {
+    const [w, d] = lowFoot(L, look),
+      base = look.raised * 10 + h,
+      flat = look.rise < 0.1,
+      rh = (look.tent ? 7.5 : flat ? 0.6 : Math.min(5, look.rise * d * 0.5)) * roof;
+    if (look.open || roof <= 0)
+      return (look.round ? Math.hypot(u / w, v / d) <= 0.5 : u <= w / 2 && v <= d / 2) ? base : 0;
+    if (look.round || look.tent) {
+      const e = 2 * Math.hypot(u / (w * 1.15), v / (d * 1.15));
+      return e <= 1 ? base + rh * (1 - e) : 0;
+    }
+    if (flat) return u <= w * 0.51 && v <= d * 0.51 ? base + rh : 0;
+    // (Its ridge along its street: the roof falls away from it across the house.)
+    return u <= w * 0.575 && v <= d * 0.575 ? base + rh * (1 - v / (d * 0.575)) : 0;
+  }
+  if (u > L.w * 0.52 || v > L.d * 0.54) return 0;
+  if (level === 2) {
+    const flat = look.rise < 0.1,
+      rh = (flat ? 0.6 : 3.2) * roof;
+    return flat ? h + rh : h + rh * (1 - v / (L.d * 0.54));
+  }
+  return h + (roof > 0 ? 0.5 : 0);
+}
+
+/** A spire's shafts: to how much of its height each rises, and how much of its footing each is. */
+const SPIRE_SHAFTS: readonly (readonly [number, number])[] = [
+  [0.5, 0.88],
+  [0.8, 0.66],
+  [1, 0.42],
+];
+
 /**
  * The ground of a sealed town (Phase 64): its first hall, a great dome on the square its pods ring; its
  * blocks' plates of rock levelled and swept, a covered way down each with the pressure kept in it.

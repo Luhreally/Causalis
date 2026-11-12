@@ -187,6 +187,16 @@ export {
 } from "./errands.ts";
 export { blazeNow, homesAlong, type Alight, type BlazeNow, type Burnable } from "./blaze.ts";
 export {
+  BIT,
+  DIVE_SEEN,
+  MOST_MARKS,
+  ROCKET_BITS,
+  STREAK_HANGS,
+  diveAt,
+  greatGone,
+  type RaidBurst,
+  type RaidLoad,
+  type RaidMark,
   LAND_FLYERS,
   MOST_BURSTS,
   MOST_FALLING,
