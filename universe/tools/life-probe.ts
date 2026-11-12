@@ -2,6 +2,9 @@
 import { seedFromText } from "../src/kernel/index.ts";
 import { generateHomeWorld } from "../src/gen/index.ts";
 import { EARTHLIKE, OPEN } from "../src/rules/index.ts";
+import { figureBody, folkFacts } from "../src/host/folk.ts";
+import { figureOf } from "../src/view/figure.ts";
+import { folkLook } from "../src/view/folk.ts";
 
 const all = process.argv.includes("--dead");
 for (const seed of process.argv.slice(2).filter((a) => !a.startsWith("--"))) {
@@ -29,4 +32,14 @@ for (const seed of process.argv.slice(2).filter((a) => !a.startsWith("--"))) {
       ? `  PEOPLE: ${life.people.body.name} (${life.people.body.manipulators} ${life.people.body.limbs}, legs ${life.people.body.legs ?? "-"}, ${life.people.body.medium}, ${life.people.body.size} kg) — ${life.people.because}`
       : `  NO PEOPLE: ${life.noPeople ?? "(none said)"}`,
   );
+  // Their figure as the land draws them: its stance and its parts.
+  if (life.people) {
+    const fb = figureBody(life.people.body, folkFacts(g)),
+      look = folkLook(fb),
+      fig = figureOf(fb, 2),
+      bad = fig.parts.filter((p) => ![p.x, p.y, p.z, p.sx, p.sy, p.sz].every(Number.isFinite));
+    console.log(
+      `  FIGURE: ${look?.stance ?? "(no look)"}, ${fig.parts.length} parts (${fig.parts.filter((p) => p.role === "arm").length} arm, ${fig.parts.filter((p) => p.role === "leg").length} leg)${bad.length ? `, ${bad.length} NOT FINITE` : ""}`,
+    );
+  }
 }

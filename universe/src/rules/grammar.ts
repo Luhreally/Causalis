@@ -1453,7 +1453,14 @@ export function lineageName(
   else if (b.moves === "float") noun = hunter ? "sky-trailer" : "sky-bladder";
   else if (b.moves === "glide") noun = "glider";
   else if (b.moves === "climb")
-    noun = arms >= 4 ? "four-handed climber" : arms ? "brachiator" : "climber";
+    noun =
+      arms >= 4 && (b.grasp ?? "hand") === "hand"
+        ? "four-handed climber"
+        : arms
+          ? (b.grasp ?? "hand") === "hand"
+            ? "brachiator"
+            : `${GRIP_WORD[b.grasp!]}-climber`
+          : "climber";
   else if (b.moves === "burrow") noun = b.legs ? "digger" : "delver";
   else if (b.moves === "jet") noun = `${deep}jetter`;
   else if (b.moves === "swim")
@@ -1470,7 +1477,7 @@ export function lineageName(
     b.moves === "crawl" &&
     (r.place === "sea floor" || r.place === "vents" || r.place === "deep")
   )
-    noun = arms ? `${deep}pincer-crawler` : `${deep}floor-crawler`;
+    noun = arms ? `${deep}${GRIP_WORD[b.grasp ?? "hand"]}-crawler` : `${deep}floor-crawler`;
   else if (b.legs >= 10) noun = `${COUNT[b.legs]}-legged ${hunter ? "stalker" : "crawler"}`;
   else if (b.legs === 8)
     noun = hunter ? "spinner" : arms ? "eight-legged grasper" : "eight-strider";
@@ -1498,6 +1505,16 @@ export function lineageName(
   else noun = b.legs === 2 ? "stilt-grazer" : "grazer";
   return `${colour} ${look} ${noun}`;
 }
+
+/** What a lineage's name calls what it grasps with. */
+const GRIP_WORD: Readonly<Record<Grasp, string>> = {
+  hand: "hand",
+  pincer: "pincer",
+  tentacle: "tendril",
+  trunk: "trunk",
+  lip: "lip",
+  tail: "tail",
+};
 
 /** A light-eater's form, by where it grows: mats, grasses, trees, floaters, growths at vents. */
 export type GrowthForm =

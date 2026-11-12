@@ -57,7 +57,7 @@ export function nextBlock(world: World): Block {
         {
           tone: "shut",
           line: [
-            `Nothing, by its own hand: ${g.life.species.length ? "life arose here, and no people rose from it" : lifelessWhy(g)}.`,
+            `Nothing, by its own hand: ${g.life.species.length ? `life arose here, and no people rose from it${g.life.noPeople ? `: ${g.life.noPeople}` : ""}` : lifelessWhy(g)}.`,
           ],
         },
       ],

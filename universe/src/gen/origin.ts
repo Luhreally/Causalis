@@ -10,6 +10,7 @@
 import {
   KINDS,
   airChange,
+  lifeOdds,
   readOrigin,
   warmthPace,
   type AirRead,
@@ -238,6 +239,36 @@ export function elsewhereGround(
   };
 }
 
+/** A far world's numbers as life meets them (B4): its ground as life elsewhere reads it, its bones and shells of water's life. */
+export function farLifeWorld(
+  star: LifeStar & { readonly temperature: number; readonly mass: number },
+  w: LifeGround,
+  life: Elsewhere,
+): LifeWorld {
+  const o = elsewhereGround(star, w, life);
+  return lifeWorldOf(o, { locked: lockedTo(star.mass, w.a), bone: "apatite", shell: "calcite" });
+}
+
+/**
+ * The odds a far world's first chemistry quickened (B5), from its cradles as a home world's are (rules/origin.ts
+ * lifeOdds): read off its ground before any life, its liquid known to last (gen/elsewhere.ts says where not).
+ */
+export function farQuickening(
+  star: LifeStar & { readonly temperature: number; readonly mass: number },
+  w: LifeGround,
+): number {
+  const before: Elsewhere = {
+    level: "chemistry",
+    because: "",
+    where: w.water === "ice" ? "water under its ice" : "seas",
+    cellsAgo: null,
+    bodiesAgo: null,
+    small: [],
+    bodies: [],
+  };
+  return lifeOdds(elsewhereGround(star, w, before)).odds;
+}
+
 /** A pigment by a star's warmth, as a water world's life's is (rules/biochem.ts's edges). */
 function pigmentFor(k: number): OriginGround["pigment"] {
   return k >= 6300
@@ -358,7 +389,13 @@ export type ProtoWorld = Omit<HomeWorld, "life" | "digest" | "deposits"> & {
 
 /** A home world's ground before its life, as though it lived (its first life's needs read from it). */
 export function protoGround(p: ProtoWorld): OriginGround {
-  const g = { ...p, life: { species: [] }, digest: p.ground, deposits: [] } as unknown as HomeWorld;
+  const g = {
+    ...p,
+    life: { species: [] },
+    digest: p.ground,
+    deposits: [],
+    physical: true,
+  } as unknown as HomeWorld;
   return originGround(g);
 }
 
@@ -397,7 +434,14 @@ export function protoLiquidWhy(
 
 /** A home world's numbers as its life reads them, before its life (B3). */
 export function protoLifeWorld(p: ProtoWorld): LifeWorld {
-  const g = { ...p, life: { species: [] }, digest: p.ground, deposits: [] } as unknown as HomeWorld,
+  // (Its life's chemistry read from its numbers, as the world it will be: B3.)
+  const g = {
+      ...p,
+      life: { species: [] },
+      digest: p.ground,
+      deposits: [],
+      physical: true,
+    } as unknown as HomeWorld,
     life = worldLife(g);
   return lifeWorldOf(protoGround(p), {
     locked: lockedTo(p.star.mass, p.planet.orbitAu),

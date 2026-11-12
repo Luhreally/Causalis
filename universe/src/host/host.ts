@@ -17,7 +17,7 @@ import {
   type World,
 } from "../kernel/index.ts";
 import { spine, why, type Explanation } from "../causal/index.ts";
-import { keptRocky } from "../rules/index.ts";
+import { keptLife, keptRocky } from "../rules/index.ts";
 import {
   frameTransfer,
   type FrameArray,
@@ -69,7 +69,9 @@ export type Universe = {
 /**
  * A save loaded. A world saved before Phase 56 whose seed now makes another kind of world no longer
  * regenerates the planet it saved: it is kept as it was made, its kind pinned rocky in its seed
- * ("~carbon oxygen ~volatiles water"), which regenerates that very planet.
+ * ("~carbon oxygen ~volatiles water"), which regenerates that very planet. One saved before B3 whose world's living
+ * things are now read from its numbers is kept with its living things as they were made ("~bodies kept"); one saved
+ * before both, with both.
  */
 export function loadKept(
   doc: SaveDocument,
@@ -79,10 +81,19 @@ export function loadKept(
   try {
     return loadWorld(doc, build, ruleset, { allowRulesetChange: true });
   } catch (error) {
-    const kept = keptRocky(doc.seed),
-      moved = error instanceof Error && error.message.startsWith("this game regenerates");
-    if (!moved || kept === doc.seed) throw error;
-    return loadWorld({ ...doc, seed: kept }, build, ruleset, { allowRulesetChange: true });
+    const moved = (e: unknown) =>
+      e instanceof Error && e.message.startsWith("this game regenerates");
+    if (!moved(error)) throw error;
+    const tries = [keptLife(doc.seed), keptRocky(doc.seed), keptLife(keptRocky(doc.seed))].filter(
+      (t, i, all) => t !== doc.seed && all.indexOf(t) === i,
+    );
+    for (const seed of tries)
+      try {
+        return loadWorld({ ...doc, seed }, build, ruleset, { allowRulesetChange: true });
+      } catch (again) {
+        if (!moved(again)) throw again;
+      }
+    throw error;
   }
 }
 

@@ -12,6 +12,11 @@ import { Rng, dmath, hashString, makeRef, type Ref, type World } from "../../ker
 import {
   CIVILIZATION,
   civName,
+  farKey,
+  farLands,
+  farLifeWorld,
+  farQuickening,
+  risenFar,
   foreignPlanets,
   handDraw,
   lifeElsewhere,
@@ -43,7 +48,7 @@ import {
 } from "../../rules/index.ts";
 import { homePlanet } from "../planet/store.ts";
 import { farOf, fireOf } from "../war/fire.ts";
-import { civilizationsNear } from "./contact.ts";
+import { civilizationsNear, farBodies } from "./contact.ts";
 import { holdWorld, peoplesOf } from "./peoples.ts";
 import { lanesOf, lawlessSeed } from "./lanes.ts";
 import { starSitesOf } from "./stars.ts";
@@ -260,7 +265,10 @@ function readFolk(world: World, s: GalaxyStar, p: ForeignPlanet): Folk | null {
         (c) => c.planet === p.index && c.star.endsWith(`:${s.sector}:${s.k}`),
       ) ?? null,
     rng = new Rng(world.seed),
-    life = lifeElsewhere(rng, s, p, !!followed);
+    // (B4–B5: where the home world's life is read from its numbers, a far world's is too: whether it quickened, by its
+    // cradles; who rose, from its own life.)
+    reads = farBodies(world),
+    life = lifeElsewhere(rng, s, p, !!followed, reads === null ? null : farQuickening(s, p));
   if (!followed) {
     if (life.level !== "bodies") return null;
     // (Bodies must have come ashore: a people of the water is left to a later step.)
@@ -272,7 +280,15 @@ function readFolk(world: World, s: GalaxyStar, p: ForeignPlanet): Folk | null {
     needed = 0.3 + 1.2 * u(7),
     mindsAgo = bodiesAgo - needed;
   if (!followed && mindsAgo <= 0) return null;
-  const body = bodyHere(p, u, followed),
+  const risen =
+    reads === null || followed?.body
+      ? null
+      : risenFar(
+          { ...farLifeWorld(s, p, life), lands: farLands(p.temperature) },
+          farKey(reads, s, p.index),
+        );
+  if (risen && !risen.body) return null;
+  const body = followed?.body ?? risen?.body ?? bodyHere(p, u, followed),
     chem = chemistryHere(s, p, u),
     oxygen = life.small.includes("light"),
     a = affordancesOf(body),

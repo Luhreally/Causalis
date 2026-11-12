@@ -16,6 +16,9 @@ import {
 import { CLADES, toOrbit, type BodyPlan } from "../rules/index.ts";
 import type { GalaxyStar } from "./galaxy.ts";
 import type { ForeignPlanet } from "./system.ts";
+import { lifeElsewhere } from "./elsewhere.ts";
+import { farLands, risenFar } from "./living.ts";
+import { farLifeWorld } from "./origin.ts";
 
 export const CIVILIZATION = defineKind("civ", "civilization of another star", "structural");
 
@@ -52,14 +55,26 @@ export type Civilization = {
   readonly stars: number;
 };
 
+/** The key a far world's own life is read by (B4): the home seed's text and the world's place. */
+export function farKey(
+  seedText: string,
+  s: Pick<GalaxyStar, "sector" | "k">,
+  index: number,
+): string {
+  return `${seedText} ${s.sector}:${s.k}/${index}`;
+}
+
 /**
  * The cluster's other civilizations: its worlds with seas about living stars two billion
  * years old or more, each bearing a people by a keyed draw; the nearest few followed.
+ * `readBodies` (B4: a home world whose life is read from its numbers, its seed's text): each people's body risen
+ * from its own world's life, and no people where none of its lineages could rise.
  */
 export function civilizationsOf(
   rng: Rng,
   stars: readonly GalaxyStar[],
   worldsOf: (s: GalaxyStar) => readonly ForeignPlanet[],
+  readBodies: string | null = null,
 ): Civilization[] {
   const out: Civilization[] = [];
   for (const star of stars) {
@@ -71,6 +86,18 @@ export function civilizationsOf(
         // Red dwarfs flare, and their worlds turn one face to them: life rises there less.
         chance = star.spectral === "MV" ? 0.02 : 0.08;
       if (!(u(0) < chance)) continue;
+      // (Read from its own life: who rose there, if any could.)
+      const risen =
+        readBodies === null
+          ? null
+          : risenFar(
+              {
+                ...farLifeWorld(star, planet, lifeElsewhere(rng, star, planet, true)),
+                lands: farLands(planet.temperature),
+              },
+              farKey(readBodies, star, planet.index),
+            );
+      if (risen && !risen.body) continue;
       const clade = CLADES[Math.floor(u(1) * CLADES.length)]!,
         offset = Math.round(-2500 + 4500 * u(2)),
         pace = 0.7 + 0.7 * u(3),
@@ -87,8 +114,9 @@ export function civilizationsOf(
         star: star.ref,
         planet: planet.index,
         distance: star.distance,
-        clade: clade.id,
-        medium: clade.body.medium,
+        clade: risen?.body ? "risen" : clade.id,
+        medium: risen?.body ? risen.body.medium : clade.body.medium,
+        ...(risen?.body ? { body: risen.body } : {}),
         gravity: planet.gravity,
         speed,
         offset,

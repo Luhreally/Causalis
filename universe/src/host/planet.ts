@@ -864,7 +864,14 @@ export function seedLife(g: HomeWorld): SeedLife {
       ...seedKind(g),
     },
     // (Why none took hold, its seas its liquid's: Phase 56.)
-    words: peopled ? "" : living ? "life arose on it, but no people rose from it" : lifelessWhy(g),
+    // (B4: a world whose living things are read from its numbers says why none of them rose.)
+    words: peopled
+      ? ""
+      : living
+        ? g.life.noPeople
+          ? `life arose on it, but no people rose from it: ${g.life.noPeople}`
+          : "life arose on it, but no people rose from it"
+        : lifelessWhy(g),
   };
 }
 

@@ -189,6 +189,7 @@ export {
   civBody,
   civKind,
   civilizationsOf,
+  farKey,
   type Civilization,
 } from "./civilizations.ts";
 export { COVER, WORLD_FREQUENCY, otherWorld, type OtherWorld } from "./worlds.ts";
@@ -247,14 +248,19 @@ export {
   type WorldOrigin,
 } from "./origin.ts";
 export {
+  farLands,
   homeLifeRoles,
   landShares,
+  risenFar,
+  type RisenFar,
   livingRoles,
   makeLivingBiosphere,
   placeCells,
   type LivingInputs,
 } from "./living.ts";
 export {
+  farLifeWorld,
+  farQuickening,
   lifeWorldOf,
   lockedTo,
   protoGround,

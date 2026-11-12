@@ -89,6 +89,12 @@ export type GenesisPlan = {
       readonly span?: number;
       /** What their own look is made of (Phase 34). */
       readonly folk?: FolkFacts | null;
+      /** A risen people's own (B4): its legs, its wings, what it grasps with, how it goes, a radial body's arms. */
+      readonly legs?: number;
+      readonly wings?: number;
+      readonly hold?: string;
+      readonly moves?: string;
+      readonly rays?: number;
     };
   } | null;
   /**

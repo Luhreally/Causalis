@@ -8,7 +8,7 @@
 //
 // Keyed draws on the biosphere's own stream (never a sequence: no other draw of the world moves), each choice its
 // own key; nothing stored but what the world already keeps of its biosphere.
-import { defineStream, weightedKey, type Rng, type SphereGrid } from "../kernel/index.ts";
+import { Rng, defineStream, seedFromText, weightedKey, type SphereGrid } from "../kernel/index.ts";
 import {
   LEAST_RISE,
   LIFE_NICHES,
@@ -32,6 +32,7 @@ import {
   type LifeWay,
   type LifeWorld,
   type Place,
+  type BodyPlan,
   type RiseCandidate,
 } from "../rules/index.ts";
 import { BIOME, type Climate } from "./climate.ts";
@@ -209,27 +210,7 @@ export function makeLivingBiosphere(i: LivingInputs): Biosphere {
     names = new Set<string>(),
     living = roles.map(() => -1),
     tried = roles.map(() => 0);
-  /** A body for a role: of the stocks that can do it, one weighed by how well its plan suits its place. */
-  const bodyOfRole = (k: number, at: number): { body: CreatureBody; stock: number } | null => {
-    const r = roles[k]!,
-      medium = PLACES[r.place].medium,
-      order = stocks
-        .map((st) => {
-          const sea = medium === "sea",
-            suit =
-              (sea ? (st.began === "water" ? 1.4 : 1) : st.symmetry === "radial" ? 0.35 : 1) *
-              (medium === "air" ? (st.wing ? 1.5 : 0.4) : 1) *
-              (medium === "under" ? (st.pairs === 0 || st.pairs >= 3 ? 1.4 : 0.7) : 1) *
-              (r.place === "canopy" && st.pairs >= 2 ? 1.4 : 1);
-          return { st, key: weightedKey(u(4, k, st.id, at), suit) };
-        })
-        .sort((a, b) => a.key - b.key);
-    for (const { st } of order) {
-      const body = bodyFor(st, r, w, (m) => u(5, k * 8 + st.id, m, at));
-      if (body) return { body, stock: st.id };
-    }
-    return null;
-  };
+  const bodyOfRole = (k: number, at: number) => roleBody(roles[k]!, k, stocks, w, u, at);
   const arise = (k: number, age: number) => {
     const r = roles[k]!,
       list = where.get(r.place) ?? [];
@@ -579,6 +560,130 @@ export function makeLivingBiosphere(i: LivingInputs): Biosphere {
     seedGrass,
     diversity,
     people: { species: people.index, cell, body, because, forebear: fore.index },
+  };
+}
+
+type Draw = (a: number, b: number, c: number, d?: number) => number;
+
+/** A body for a role (the `k`th), at an age: of the stocks that can do it, one weighed by how well its plan suits its place. */
+function roleBody(
+  r: LifeRole,
+  k: number,
+  stocks: readonly DeepStock[],
+  w: LifeWorld,
+  u: Draw,
+  at: number,
+): { body: CreatureBody; stock: number } | null {
+  const medium = PLACES[r.place].medium,
+    order = stocks
+      .map((st) => {
+        const sea = medium === "sea",
+          suit =
+            (sea ? (st.began === "water" ? 1.4 : 1) : st.symmetry === "radial" ? 0.35 : 1) *
+            (medium === "air" ? (st.wing ? 1.5 : 0.4) : 1) *
+            (medium === "under" ? (st.pairs === 0 || st.pairs >= 3 ? 1.4 : 0.7) : 1) *
+            (r.place === "canopy" && st.pairs >= 2 ? 1.4 : 1);
+        return { st, key: weightedKey(u(4, k, st.id, at), suit) };
+      })
+      .sort((a, b) => a.key - b.key);
+  for (const { st } of order) {
+    const body = bodyFor(st, r, w, (m) => u(5, k * 8 + st.id, m, at));
+    if (body) return { body, stock: st.id };
+  }
+  return null;
+}
+
+/**
+ * A far world's land, from its warmth alone where its cells are not known (an estimate): cold land from 5 °C down,
+ * desert growing past 20 °C, tall wet forest past 15 °C, the rest open and wooded; rivers through a twentieth of it.
+ */
+export function farLands(celsius: number): LandShares {
+  const clamp = (x: number) => Math.min(1, Math.max(0, x)),
+    cold = clamp((5 - celsius) / 25),
+    desert = (1 - cold) * (0.12 + 0.25 * clamp((celsius - 20) / 20)),
+    rest = 1 - cold - desert,
+    tall = rest * 0.35 * clamp((celsius - 15) / 10);
+  return {
+    grass: (rest - tall) * 0.5,
+    wood: (rest - tall) * 0.5,
+    tall,
+    desert,
+    cold,
+    rivers: 0.05,
+    shelf: 0.1,
+    vents: 0.02,
+  };
+}
+
+/** A people of a far world, as risen from its own life (B4), or why none rose. */
+export type RisenFar =
+  | {
+      readonly body: BodyPlan;
+      /** The lineage it rose from, and why it rose. */
+      readonly forebear: { readonly name: string; readonly body: CreatureBody };
+      readonly because: string;
+    }
+  | { readonly body: null; readonly why: string };
+
+/**
+ * Who rose on a world known only by its numbers (another star's, B4): its roles and founding stocks read as a home
+ * world's are, a body of its stocks made for each role it fills, and of them the one its body and life best fit
+ * risen, with chance (rules/rise.ts) — or none, and why. Its draws keyed to `key` alone (the world's own text).
+ */
+export function risenFar(world: LifeWorld, key: string): RisenFar {
+  const rng = new Rng(seedFromText(`risen far ${key}`)),
+    u: Draw = (a, b, c, d = 0) => rng.real(LIVING, a, b, c, d),
+    read = rolesOf(world),
+    roles = read.roles.slice(0, read.fills);
+  if (!roles.length)
+    return {
+      body: null,
+      why: "nothing living fills any place there for long: no lineage lasts to rise",
+    };
+  const stockCount = FEWEST_STOCKS + Math.floor(u(1, 0, 0) * (MOST_STOCKS - FEWEST_STOCKS + 1)),
+    stocks: DeepStock[] = [];
+  for (let s = 0; s < stockCount; s++) stocks.push(deepStockOf(world, (k) => u(2, s, k), s));
+  const at = AGES - 1,
+    names = new Set<string>(),
+    candidates: (RiseCandidate & { readonly role: LifeRole })[] = [];
+  roles.forEach((r, k) => {
+    const made = roleBody(r, k, stocks, world, u, at);
+    if (!made) return;
+    const grazes = r.level === 2 && PLACES[r.place].medium === "land",
+      herd =
+        grazes && (r.food === "graze" || r.food === "browse")
+          ? 0.4 + 0.6 * u(7, k, at)
+          : 0.6 * u(7, k, at);
+    let name = lineageName(made.body, r, u(10, k, at));
+    for (const q of KINDS) {
+      if (!names.has(name)) break;
+      name = `${q} ${lineageName(made.body, r, u(10, k, at))}`;
+    }
+    names.add(name);
+    candidates.push({ index: k, name, body: made.body, herd, growth: u(9, k, at), role: r });
+  });
+  const reads = candidates.map((c) => riseRead(c, world));
+  let pick = -1,
+    best = Infinity;
+  reads.forEach((r, j) => {
+    if (r.score < LEAST_RISE) return;
+    const k = weightedKey(u(20, r.index, 0), r.score);
+    if (k < best) [pick, best] = [j, k];
+  });
+  if (pick < 0)
+    return {
+      body: null,
+      why: noneRoseWhy(reads, (j) => candidates.find((c) => c.index === j)?.name ?? "beast", world),
+    };
+  const from = candidates[pick]!,
+    rise = reads[pick]!,
+    body = risenBody(from, world, (m) => u(21, from.index, m));
+  return {
+    body,
+    forebear: { name: from.name, body: from.body },
+    because: `of the ${from.name}, ${PLACES[from.role.place]?.words ?? "its land"}: its ${
+      from.body.arms && from.body.arms > 1 ? `${from.body.arms} ` : ""
+    }${graspWords(from.body.grasp)} free while it stood, it talked by ${rise.talks}, lived together, and its trade fed a brain`,
   };
 }
 

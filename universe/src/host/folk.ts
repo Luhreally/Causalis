@@ -83,6 +83,16 @@ export function figureBody(b: BodyPlan, folk: FolkFacts | null): NonNullable<Vil
     size: b.size,
     span: b.span,
     folk,
+    // (A risen people's own, B4: only where its body has them, so every other figure is as it was.)
+    ...(b.legs !== undefined
+      ? {
+          legs: b.legs,
+          wings: b.wings ?? 0,
+          ...(b.hold !== undefined ? { hold: b.hold } : {}),
+          ...(b.moves !== undefined ? { moves: b.moves } : {}),
+          ...(b.rays !== undefined ? { rays: b.rays } : {}),
+        }
+      : {}),
   };
 }
 

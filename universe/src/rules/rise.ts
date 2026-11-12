@@ -168,8 +168,27 @@ export function noneRoseWhy(
   if (!graspers.length)
     return "no lineage rose to thought: none of its beasts has a limb to grasp with that is free while it stands";
   const best = [...graspers].sort((a, b) => b.score - a.score || a.index - b.index)[0]!;
-  return `no lineage rose to thought: of those with a grasper, the nearest, the ${names(best.index)}, ${best.lacks.length ? best.lacks.join(", and ") : "never came to it"}`;
+  if (best.lacks.length)
+    return `no lineage rose to thought: of those with a grasper, the nearest, the ${names(best.index)}, ${best.lacks.join(", and ")}`;
+  // (Nothing shut it out: what held it back most, its weakest two.)
+  const weakest = (Object.keys(FACTOR_WORDS) as (keyof typeof FACTOR_WORDS)[])
+    .map((k) => ({ k, v: best[k] }))
+    .sort((a, b) => a.v - b.v || (a.k < b.k ? -1 : 1))
+    .slice(0, 2)
+    .map((x) => FACTOR_WORDS[x.k]);
+  return `no lineage rose to thought: of those with a grasper, the nearest, the ${names(best.index)}, never came to it — ${weakest.join(", and ")}`;
 }
+
+/** What held a lineage back from rising, by each part of its reading. */
+const FACTOR_WORDS = {
+  grasp: "what it grasped with handled too coarsely",
+  signal: "it could scarcely signal to its own kind",
+  power: "its trade barely fed a brain",
+  together: "it lived too much alone to learn from others",
+  childhood: "its young were on their own too soon to be taught",
+  size: "its body was of a size a brain scarcely pays in",
+  place: "its place keeps no hearth",
+} as const;
 
 /** The least a lineage's rising score must be (else none rises). */
 export const LEAST_RISE = 0.02;
