@@ -120,11 +120,20 @@ export function riseRead(c: RiseCandidate, w: LifeWorld): RiseRead {
   const together = Math.max(0, (c.herd - 0.2) / 0.8);
   if (!together) lacks.push("it lives alone");
   const childhood = Math.max(0.05, 1.15 - c.growth);
-  const size = band(b.size, 2, 2000, 3) * (b.size < 2 ? band(b.size, 2, 2000, 1.5) : 1);
+  // (A brain to plan with wants a body of tens of kilograms: rising from 3 kg to full at 30, falling past two tonnes. An
+  // estimate: Earth's makers of tools are 3 kg capuchins to 60 kg apes, its brainiest beasts to elephants.)
+  const size =
+    b.size < 3
+      ? 0
+      : b.size < 30
+        ? dmath.log(b.size / 3) / dmath.log(10)
+        : b.size <= 2000
+          ? 1
+          : Math.max(0, 1 - dmath.log(b.size / 2000) / dmath.log(3));
   if (!size)
     lacks.push(
       b.size < 2
-        ? `too small (${massFig(b.size)}) to carry a brain to plan with`
+        ? `too small (${massFig(b.size)}) to carry a brain to plan with (3 kg or more, an estimate)`
         : `too large (${massFig(b.size)})`,
     );
   const at = PLACE_FIT[place] ?? 0;

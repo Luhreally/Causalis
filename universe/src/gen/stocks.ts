@@ -89,8 +89,14 @@ export function worldStocks(world: HomeWorld): WorldStocks | null {
   if (g.prior === "earthlike" || !g.life.species.length) return null;
   const kept = KEPT.get(g.digest);
   if (kept !== undefined) return kept;
-  const tree = treeOfLife(g),
-    nodes = tree.nodes,
+  const tree = treeOfLife(g);
+  if (g.physical) {
+    const out = physicalStocks(g, tree);
+    if (KEPT.size >= 6) KEPT.delete(KEPT.keys().next().value!);
+    KEPT.set(g.digest, out);
+    return out;
+  }
+  const nodes = tree.nodes,
     n = nodes.length,
     first = new Int32Array(n).fill(-1),
     dawnOf = new Int32Array(n).fill(-1),
@@ -165,6 +171,51 @@ export function worldStocks(world: HomeWorld): WorldStocks | null {
   if (KEPT.size >= 6) KEPT.delete(KEPT.keys().next().value!);
   KEPT.set(g.digest, out);
   return out;
+}
+
+/**
+ * The stocks of a world whose living things were read from its physics (B3): its own founding stocks, every lineage
+ * of which says which it came of; each line of the tree is of its genome's stock, and a stock's look is drawn as
+ * any is (rules/stocks.ts), keyed on the world and the stock.
+ */
+function physicalStocks(g: HomeWorld, tree: TreeOfLife): WorldStocks {
+  const nodes = tree.nodes,
+    n = nodes.length,
+    ids = [...new Set(g.life.species.flatMap((s) => (s.body?.stock !== undefined ? [s.body.stock] : [])))].sort(
+      (a, b) => a - b,
+    ),
+    at = new Map(ids.map((id, i) => [id, i])),
+    numbers = stockWorldOf(g),
+    names = new Set<string>(),
+    stocks: Stock[] = ids.map((id, i) => {
+      let s = stockOf(numbers, drawOf(`stock ${g.digest} ${id}`), i);
+      for (let k = 1; names.has(s.name) && k < 6; k++)
+        s = { ...s, name: s.name.replace(" stock", ` stock ${["", "II", "III", "IV", "V", "VI"][k]}`) };
+      names.add(s.name);
+      return s;
+    }),
+    ofLine = new Int16Array(n).fill(-1),
+    kindLine = new Int32Array(n).fill(-1);
+  for (const node of nodes) {
+    const st = node.genome?.stock;
+    if (st !== undefined && at.has(st)) ofLine[node.id] = at.get(st)!;
+  }
+  // (A line's kind is its first stem of its stock on the way down to it.)
+  for (const node of nodes) {
+    if (ofLine[node.id]! < 0) continue;
+    for (const a of lineOf(tree, node.id))
+      if (a.kind === "stem" && ofLine[a.id] === ofLine[node.id]) {
+        kindLine[node.id] = a.id;
+        break;
+      }
+  }
+  const living = stocks.map(() => 0);
+  for (const s of g.life.species) {
+    if (s.died !== null || !s.body || s.body.stock === undefined) continue;
+    const i = at.get(s.body.stock);
+    if (i !== undefined) living[i]!++;
+  }
+  return { stocks, ofLine, kindLine, living, tree };
 }
 
 const LOOKS = new Map<string, BeastLook | null>();

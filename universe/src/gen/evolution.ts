@@ -21,6 +21,7 @@ import {
   creatureName,
   dawnWords,
   creatureWords,
+  bodyFunction,
   type BodyPlan,
   type Covering,
   type CreatureBody,
@@ -68,6 +69,14 @@ export type Genome = {
   readonly feelers: boolean;
   readonly pattern: Pattern;
   readonly diet: Eats;
+  // —— A body read from its world's own physics bears besides (B3; absent on Earth's and on every world made before):
+  /** A radial body's arms, its graspers and what they are, how it goes where its limbs alone do not say, what holds its shape, its founding stock. */
+  readonly rays?: number;
+  readonly arms?: number;
+  readonly grasp?: CreatureBody["grasp"];
+  readonly mode?: Locomotion;
+  readonly frame?: CreatureBody["frame"];
+  readonly stock?: number;
 };
 
 /**
@@ -161,7 +170,20 @@ export function develop(g: Genome, level: number): CreatureBody {
     tail: g.tail,
     features: [...g.grows],
     warm: g.warm,
+    ...physicalOf(g),
   };
+}
+
+/** What a body read from its world's physics bears beside its Earth-like genes (none on Earth's). */
+function physicalOf(g: Genome): Partial<CreatureBody> {
+  const out: { -readonly [K in keyof CreatureBody]?: CreatureBody[K] } = {};
+  if (g.rays !== undefined) out.rays = g.rays;
+  if (g.arms !== undefined) out.arms = g.arms;
+  if (g.grasp !== undefined) out.grasp = g.grasp;
+  if (g.mode !== undefined) out.moves = g.mode;
+  if (g.frame !== undefined) out.frame = g.frame;
+  if (g.stock !== undefined) out.stock = g.stock;
+  return out;
 }
 
 /** The genome a body grew from: what it shows, and what it inherited and does not (its eyes, feelers, markings). */
@@ -186,6 +208,16 @@ export function encode(b: CreatureBody, from: Genome | null): Genome {
     feelers: from?.feelers ?? false,
     pattern: from?.pattern ?? "plain",
     diet: b.eats,
+    ...(b.stock !== undefined
+      ? {
+          ...(b.rays !== undefined ? { rays: b.rays } : {}),
+          ...(b.arms !== undefined ? { arms: b.arms } : {}),
+          ...(b.grasp !== undefined ? { grasp: b.grasp } : {}),
+          mode: b.moves,
+          ...(b.frame !== undefined ? { frame: b.frame } : {}),
+          stock: b.stock,
+        }
+      : {}),
   };
 }
 
@@ -450,6 +482,18 @@ const roundMass = (m: number) =>
 
 /** One change to a genome, by keyed draws `u(k)` in [0, 1). */
 export function mutate(g: Genome, u: (k: number) => number): Genome {
+  const x = mutateOnce(g, u);
+  // (A body read from its world's physics that changes its limbs goes as its new limbs say; one that turns two-sided
+  // keeps no arms about its middle.)
+  if (g.mode === undefined) return x;
+  const limbs = x.legs !== g.legs || x.fins !== g.fins || x.wings !== g.wings || x.axis !== g.axis;
+  if (!limbs) return x;
+  const { mode: _mode, rays, ...rest } = x;
+  void _mode;
+  return x.axis === "radial" && rays !== undefined ? { ...rest, rays } : rest;
+}
+
+function mutateOnce(g: Genome, u: (k: number) => number): Genome {
   let pick = u(0) * OPS_WEIGHT,
     op = OPS[0]![0];
   for (const [name, w] of OPS) {
@@ -548,6 +592,13 @@ export function distance(a: Genome, b: Genome): number {
     (a.diet !== b.diet ? 0.5 : 0);
   for (const f of a.grows) if (!b.grows.includes(f)) d += 0.4;
   for (const f of b.grows) if (!a.grows.includes(f)) d += 0.4;
+  // (A body read from its world's physics: its stock above all, then its graspers, its arms about it, how it goes.)
+  if (a.stock !== undefined || b.stock !== undefined)
+    d +=
+      (a.stock !== b.stock ? 5 : 0) +
+      Math.abs((a.arms ?? 0) - (b.arms ?? 0)) +
+      1.5 * Math.abs((a.rays ?? 0) - (b.rays ?? 0)) +
+      (a.mode !== b.mode ? 0.4 : 0);
   return d;
 }
 
@@ -568,7 +619,8 @@ export function kindOfBody(g: Genome): string {
             : g.legs === 1
               ? "two"
               : "none";
-  return `${g.axis}|${SKIN_GROUP[g.skin]}|${g.warm ? "warm" : "cold"}|${limbs}`;
+  // (On a world read from its physics, a kind is of its founding stock: B3.)
+  return `${g.stock !== undefined ? `stock ${g.stock}|` : ""}${g.axis}|${SKIN_GROUP[g.skin]}|${g.warm ? "warm" : "cold"}|${limbs}`;
 }
 
 // —— Innovations ———————————————————————————————————————————————————————————————————————
@@ -1743,7 +1795,11 @@ function growTree(g: HomeWorld): TreeOfLife {
         parent: mother.id,
         kind: "crown",
         name: s.name,
-        what: s.tame ? "a grass whose heavy seed can be sown" : "a grass of the open country",
+        what: s.form && s.form !== "grass"
+          ? FORM_WHAT[s.form] ?? "a light-eater of its own"
+          : s.tame
+            ? "a grass whose heavy seed can be sown"
+            : "a grass of the open country",
         species: s.index,
         way: "growing in the light",
         from,
@@ -1832,7 +1888,7 @@ function growTree(g: HomeWorld): TreeOfLife {
     for (const f of founding) if (f.age === k) found(f);
     for (const s of order) {
       if (s.arose !== k) continue;
-      if (s.niche === "seed grass") joinGrass(s, k);
+      if (s.niche === "seed grass" || s.niche === "growth") joinGrass(s, k);
       else if (s.body) join(s, k);
     }
     if (k >= 1) ghosts(k);
@@ -1846,8 +1902,10 @@ function growTree(g: HomeWorld): TreeOfLife {
       genome = peopleGenome(people.body),
       from = Math.round(ageSpan(k)[0] * (0.25 + 0.2 * u(18, 0, 0))),
       forebearsFrom = Math.round(ageSpan(k - 1)[0] - 10 * u(18, 0, 1)),
+      // (A people risen from its tree came of the lineage it rose from: B4.)
+      crown = people.forebear !== undefined ? (ofSpecies[people.forebear] ?? -1) : -1,
       // (Earth's own came of the furred four-legged beasts, by way of the tree-climbers.)
-      { mother } = nearest(genome, forebearsFrom, 9000, (n) =>
+      { mother } = crown >= 0 ? { mother: nodes[crown]! } : nearest(genome, forebearsFrom, 9000, (n) =>
         n.kind === "ghost"
           ? 2
           : g.prior === "earthlike" && n.kind === "stem" && n.genome?.skin === "fur"
@@ -1915,16 +1973,43 @@ function growTree(g: HomeWorld): TreeOfLife {
   return { nodes, ofSpecies, rungs, worldAge, children };
 }
 
+/** A light-eater's form in words, on a world read from its physics (B3). */
+const FORM_WHAT: Readonly<Record<string, string>> = {
+  mat: "a low mat of light-eaters over the ground",
+  tree: "growths standing tall on stalks of their own",
+  "tall tree": "growths standing tallest of all, a canopy over the wet forest",
+  floater: "light-eaters afloat on the open sea, buoyed by bladders of gas",
+  stalk: "stalks rooted in the shallows, their fronds in the light",
+  "vent growth": "a growth on the vents' chimneys, living on what the water brings up, in the dark",
+  film: "a film of light-eaters in the ice, living on the light through it",
+};
+
 /** The body a people's own plan would have, as a creature's genome. */
 export function peopleGenome(b: BodyPlan): Genome {
+  // (By what its body does: a people risen from its tree says its legs; of the kinds of before, a shelled body with
+  // mandibles or claws stood on six, the rest on four or two, as their genes had them.)
   const radial = b.symmetry === "radial",
-    legs = radial ? 0 : b.clade === "burrower" || b.clade === "shore" ? 3 : 2;
+    fn = bodyFunction(b),
+    legs = radial
+      ? 0
+      : b.legs !== undefined
+        ? Math.round(b.legs / 2)
+        : fn.feelers || (b.skin === "shell" && b.manipulators === "claws")
+          ? 3
+          : 2;
   return {
+    ...(b.legs !== undefined
+      ? {
+          ...(b.rays !== undefined ? { rays: b.rays } : {}),
+          arms: b.limbs,
+          ...(b.moves ? { mode: b.moves as Locomotion } : {}),
+        }
+      : {}),
     axis: b.symmetry,
     segments: legs >= 3 ? 2 : 1,
     legs,
     fins: b.medium === "water" && !radial ? 1 : 0,
-    wings: 0,
+    wings: b.wings ? Math.round(b.wings / 2) : 0,
     skin:
       b.skin === "skin"
         ? "slick"
@@ -1937,7 +2022,7 @@ export function peopleGenome(b: BodyPlan): Genome {
               : "shell",
     mass: b.size,
     neck: 0.3,
-    tail: b.clade === "crawler" ? 0.6 : 0.1,
+    tail: fn.longTail ? 0.6 : 0.1,
     warm: b.warm,
     gait: "walk",
     grows: b.manipulators === "trunk" ? ["trunk"] : b.manipulators === "claws" ? ["claws"] : [],

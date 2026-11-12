@@ -44,8 +44,9 @@ export function buildLooked(
   key: number,
 ): Built {
   const s = Math.max(0.26, Math.cbrt(plan.size / 200)),
-    swim = plan.moves === "swim",
-    slither = plan.moves === "slither",
+    // (B3: a two-sided jetter is shaped as a swimmer, a legless burrower as a slither.)
+    swim = plan.moves === "swim" || (plan.moves === "jet" && plan.symmetry !== "radial"),
+    slither = plan.moves === "slither" || (plan.moves === "burrow" && plan.legs === 0),
     many = plan.legs >= 6,
     length = 1.5 * s * (swim ? 1.15 : slither ? 1.8 : 1) * look.long,
     height =
@@ -179,9 +180,9 @@ export function posedLooked(b: Built, look: BeastLook, pose: Pose, out: BeastPar
     furred = wool || p.covering === "fur",
     W = b.width + (wool ? 0.12 * L : 0),
     H = b.height + (wool ? 0.1 * L : 0),
-    fly = p.moves === "fly",
-    swim = p.moves === "swim",
-    slither = p.moves === "slither",
+    fly = p.moves === "fly" || p.moves === "float",
+    swim = p.moves === "swim" || (p.moves === "jet" && p.symmetry !== "radial"),
+    slither = p.moves === "slither" || (p.moves === "burrow" && p.legs === 0),
     detail = b.detail,
     fine = detail >= 1,
     finer = detail >= 2,
@@ -192,7 +193,7 @@ export function posedLooked(b: Built, look: BeastLook, pose: Pose, out: BeastPar
       pose.gait === 2 || (p.moves === "hop" && moving)
         ? 0.12 * H * Math.abs(Math.sin(pose.phase))
         : 0,
-    sink = pose.crouch * b.leg * 0.35,
+    sink = pose.crouch * b.leg * 0.35 + (p.moves === "burrow" ? b.leg * 0.35 : 0),
     belly =
       (fly || swim
         ? 0
@@ -218,7 +219,8 @@ export function posedLooked(b: Built, look: BeastLook, pose: Pose, out: BeastPar
   // A radial body: its middle and its arms, as many as its stock's plan has.
   if (p.symmetry === "radial") {
     const arms =
-        look.eyeCount >= 6
+        p.rays ??
+        (look.eyeCount >= 6
           ? 8
           : look.joints === 3
             ? 6
@@ -226,9 +228,97 @@ export function posedLooked(b: Built, look: BeastLook, pose: Pose, out: BeastPar
               ? 3
               : look.seg === "box"
                 ? 4
-                : 5,
-      bell = seg === S.dome || seg === S.bag;
-    put(0, cy, 0, L * 0.6, H * (bell ? 1.4 : 1), L * 0.6, 0, 0, 0, bell ? seg : S.tube, "body");
+                : 5),
+      mode = p.moves;
+    if (mode === "roll") {
+      // A wheel on its edge, its arms its spokes, turning as it rolls.
+      const R = Math.max(H, L * 0.35),
+        turn0 = moving ? pose.phase : 0;
+      put(0, R, 0, 2 * R, W * 0.5, 2 * R, -HALF, 0, HALF, S.tube, "body");
+      for (let a = 0; a < arms; a++) {
+        const t = turn0 + (a / arms) * 2 * Math.PI;
+        put(
+          0,
+          R - Math.cos(t) * R * 0.5,
+          -Math.sin(t) * R * 0.5,
+          W * 0.6,
+          R,
+          W * 0.18,
+          t,
+          1,
+          0,
+          S.box,
+          "arm",
+        );
+      }
+      return n;
+    }
+    if (mode === "rooted") {
+      // A stalk from the rock, a crown of arms spread above it to sift what passes.
+      const stalk = Math.max(H * 1.5, L * 0.6),
+        reachR = L * 0.5;
+      put(0, stalk / 2, 0, W * 0.25, stalk, W * 0.25, 0, 1, 0, S.tube, "body");
+      put(0, stalk, 0, L * 0.35, H * 0.5, L * 0.35, 0, 0, 0, S.dome, "body");
+      for (let a = 0; a < arms; a++) {
+        const turn = (a / arms) * 2 * Math.PI,
+          up = 0.6 + 0.12 * Math.sin(pose.phase + a),
+          out = Math.sqrt(1 - up * up);
+        put(
+          Math.sin(turn) * out * reachR * 0.5,
+          stalk + H * 0.2 + up * reachR * 0.5,
+          Math.cos(turn) * out * reachR * 0.5,
+          W * 0.1,
+          reachR,
+          W * 0.1,
+          -Math.PI + Math.atan2(out, up),
+          1,
+          turn,
+          S.tube,
+          "arm",
+        );
+      }
+      return n;
+    }
+    if (mode === "jet") {
+      // A mantle along its way, its arms trailing from its front, a fin round its hind end.
+      lying(0, cy, -L * 0.1, W * 0.9, H * 0.9, L * 0.7, S.taper, 0, "body");
+      const reachJ = L * 0.45;
+      for (let a = 0; a < arms; a++) {
+        const turn = (a / arms) * 2 * Math.PI,
+          swingJ = 0.2 * Math.sin(pose.phase * 2 + a),
+          pitchJ = -HALF + swingJ * 0.5;
+        put(
+          Math.sin(turn) * W * 0.25,
+          cy + Math.cos(turn) * H * 0.25 - (reachJ / 2) * Math.cos(pitchJ),
+          L * 0.25 - (reachJ / 2) * Math.sin(pitchJ),
+          W * 0.1,
+          reachJ,
+          W * 0.1,
+          pitchJ,
+          1,
+          0,
+          S.tube,
+          "arm",
+        );
+      }
+      if (fine) put(0, cy, -L * 0.42, W * 1.2, 0.02 * L, L * 0.18, 0, 1, 0, S.membrane, "fin");
+      return n;
+    }
+    const lift = mode === "float" ? H * 1.6 : 0,
+      bell = mode === "drift" || mode === "float" || seg === S.dome || seg === S.bag;
+    put(
+      0,
+      cy + lift,
+      0,
+      L * 0.6,
+      H * (bell ? 1.4 : 1),
+      L * 0.6,
+      0,
+      0,
+      0,
+      mode === "float" ? S.bag : bell ? (seg === S.bag ? S.bag : S.dome) : S.tube,
+      "body",
+    );
     for (let a = 0; a < arms; a++) {
       const turn = (a / arms) * 2 * Math.PI + 0.2 * Math.sin(pose.phase + a);
       if (bell) {
@@ -236,7 +326,7 @@ export function posedLooked(b: Built, look: BeastLook, pose: Pose, out: BeastPar
         const swing = 0.25 * Math.sin(pose.phase * 1.5 + a);
         put(
           Math.sin(turn) * L * 0.2,
-          cy - H * 0.9,
+          cy + lift - H * 0.9,
           Math.cos(turn) * L * 0.2,
           W * 0.12,
           H * 2.2,
@@ -344,6 +434,9 @@ export function posedLooked(b: Built, look: BeastLook, pose: Pose, out: BeastPar
       at -= len;
     });
   }
+  // A floater's bag of lifting gas over it (B3: where its air lets a bag of light gas lift it).
+  if (p.moves === "float")
+    put(0, cy + H * 1.4, 0, W * 2.4, H * 2.4, L * 0.95, 0, 0, 0, S.bag, "body");
   // Plates ridge its back; spines stand along it; a hump; scutes in a row; a sail down its back.
   if (fine && p.covering === "plates")
     for (let i = 0; i < 3; i++)
@@ -552,6 +645,90 @@ export function posedLooked(b: Built, look: BeastLook, pose: Pose, out: BeastPar
         );
     }
   }
+
+  // Its graspers (B3), free of the legs it stands on, held before it: arms ending in hands or pincers, or
+  // tentacles. (A trunk, gripping lips or a tail grasp as what they are, drawn where they are.)
+  const armsFree = p.arms ?? 0,
+    grip = p.grasp ?? "hand";
+  if (armsFree > 0 && (grip === "hand" || grip === "pincer" || grip === "tentacle")) {
+    const pairsA = Math.max(1, Math.round(armsFree / 2)),
+      reachA = Math.max(0.14 * L, (b.leg + H) * 0.7),
+      thickA = Math.min(W * 0.16, 0.035 * L + 0.015) * look.stout,
+      len = reachA * (grip === "tentacle" ? 0.85 : 0.6);
+    for (let i = 0; i < pairsA; i++)
+      for (const side of [-1, 1]) {
+        const sx = side * W * 0.42,
+          sy = cy + H * (0.22 - 0.2 * i),
+          sz = L * (0.4 - 0.13 * i),
+          work = 0.2 * Math.sin(pose.phase * (moving ? 1 : 0.5) + side + i),
+          a = (grip === "tentacle" ? -0.9 : swim ? -1.3 : -1.95) + work,
+          ey = sy - len * Math.cos(a),
+          ez = sz - len * Math.sin(a);
+        put(
+          sx,
+          (sy + ey) / 2,
+          (sz + ez) / 2,
+          thickA,
+          len,
+          thickA,
+          a,
+          1,
+          0,
+          grip === "tentacle" ? S.tube : limbShape === S.taper ? S.box : limbShape,
+          "arm",
+        );
+        if (!fine) continue;
+        if (grip === "pincer")
+          put(
+            sx,
+            ey,
+            ez + thickA,
+            thickA * 2.2,
+            thickA * 1.3,
+            thickA * 3,
+            0.3,
+            1,
+            0,
+            S.box,
+            "grasper",
+          );
+        else if (grip === "hand")
+          put(sx, ey, ez, thickA * 1.5, thickA * 1.7, thickA * 1.2, 0, 1, 0, S.box, "grasper");
+        else {
+          const a2 = a + 0.9,
+            l2 = len * 0.6;
+          put(
+            sx,
+            ey - (l2 / 2) * Math.cos(a2),
+            ez - (l2 / 2) * Math.sin(a2),
+            thickA * 0.7,
+            l2,
+            thickA * 0.7,
+            a2,
+            1,
+            0,
+            S.tube,
+            "grasper",
+          );
+        }
+      }
+  }
+  // A glider's skin, spread between its legs.
+  if (p.moves === "glide" && p.legs >= 4 && fine)
+    for (const side of [-1, 1])
+      put(
+        side * (W / 2 + W * 0.35),
+        cy - H * 0.15,
+        0,
+        W * 0.75,
+        0.02 * L,
+        L * 0.7,
+        0,
+        1,
+        0,
+        S.membrane,
+        "wing",
+      );
 
   // Wings: feathered as a bird's (boxes); else membranes, an inner and an outer, beating.
   if (p.wings) {

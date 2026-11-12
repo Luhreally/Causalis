@@ -17,6 +17,9 @@ import {
   agesMade,
   dawnMade,
   kindLives,
+  lifeDraw,
+  lifeKept,
+  lifeOdds,
   livesMade,
   madePrior,
   peoplingMade,
@@ -34,6 +37,9 @@ import { AGES, makeDeepTime, type AgeKind, type DeepTime } from "./deeptime.ts";
 import { barrenBiosphere, makeBiosphere, type Biosphere } from "./biosphere.ts";
 import { BOUNDARY, makeTectonics, type Tectonics } from "./plates.ts";
 import { nativeIronLands, worldChemistry } from "./chemistry.ts";
+import { makeLivingBiosphere } from "./living.ts";
+import { protoGround, protoLifeWorld, protoLiquidWhy, type ProtoWorld } from "./origin.ts";
+import { worldLife } from "./life.ts";
 
 export type HomeWorld = {
   readonly prior: string;
@@ -57,10 +63,30 @@ export type HomeWorld = {
    * of generation (deep time, the biosphere) are added or change.
    */
   readonly ground: string;
+  /**
+   * Whether its living things were read from its own physics (B3 to B5 of the life plan: rules/grammar.ts, gen/living.ts);
+   * absent on Earth's and on a world kept as it was made before.
+   */
+  readonly physical?: true;
 };
 
 /** The planet grid's usual frequency: 40,962 cells (about 110 km apart on an Earth-sized world). */
 export const PLANET_FREQUENCY = 64;
+
+/** The digest of a world's ground alone: its prior and grid, its star and planet, its plates and relief. */
+function groundDigest(
+  prior: string,
+  frequency: number,
+  star: Star,
+  planet: Planet,
+  tectonics: Tectonics,
+): string {
+  const h = new Hasher().string(prior).int(frequency).value(star).value(planet);
+  for (const p of tectonics.plates) h.value(p);
+  hashArray(h, tectonics.plate);
+  hashArray(h, tectonics.elevation);
+  return h.hex();
+}
 
 function hashArray(h: Hasher, a: ArrayLike<number>): void {
   h.int(a.length);
@@ -100,23 +126,50 @@ export function generateHomeWorld(
       tectonics,
       agesMade(seed.text, AGES) as ReadonlyMap<number, AgeKind>,
     ),
-    // (Life takes hold in a kind's liquid only as often as its chemistry lets it: Phase 56.)
-    life = kindLives(seed.text, kind)
-      ? makeBiosphere(grid, rng, climate, water, tectonics.elevation, deep, {
-          prior: prior.name,
-          gravity: planet.gravity,
-          ocean: planet.oceanFraction,
-          dawn: dawnMade(seed.text),
-          lives: livesMade(seed.text, AGES),
-          cradle: peoplingMade(seed.text).cradle,
-        })
-      : barrenBiosphere(grid.count),
+    // (The ground's digest: of the star, the planet, its plates and relief, as below.)
+    groundHash = groundDigest(prior.name, frequency, star, planet, tectonics),
+    // (A world not Earth's, made since its living things were read from its physics (B3 to B5 of the life plan): its
+    // life starts by the odds its own places, energy and time give, and its roles, bodies and people are its own.
+    // Earth's, and a world saved before and kept so, are made by the old tables, frozen.)
+    readsLife = prior.name !== "earthlike" && !lifeKept(seed.text),
+    proto: ProtoWorld | null = readsLife
+      ? { prior: prior.name, star, planet, system, grid, tectonics, climate, water, deep, ground: groundHash }
+      : null,
+    life = proto
+      ? lifeDraw(seed.text) < lifeOdds(protoGround(proto), protoLiquidWhy(proto)).odds
+        ? makeLivingBiosphere({
+            grid,
+            rng,
+            climate,
+            water,
+            elevation: tectonics.elevation,
+            tectonics,
+            deep,
+            world: protoLifeWorld(proto),
+            pigment: worldLife({ ...proto, life: { species: [] } } as unknown as HomeWorld).pigment,
+            dawn: dawnMade(seed.text),
+            lives: livesMade(seed.text, AGES),
+            cradle: peoplingMade(seed.text).cradle,
+          })
+        : barrenBiosphere(grid.count)
+      : // (Life takes hold in a kind's liquid only as often as its chemistry lets it: Phase 56.)
+        kindLives(seed.text, kind)
+        ? makeBiosphere(grid, rng, climate, water, tectonics.elevation, deep, {
+            prior: prior.name,
+            gravity: planet.gravity,
+            ocean: planet.oceanFraction,
+            dawn: dawnMade(seed.text),
+            lives: livesMade(seed.text, AGES),
+            cradle: peoplingMade(seed.text).cradle,
+          })
+        : barrenBiosphere(grid.count),
     deposits = makeDeposits(grid, rng, tectonics, climate, water, tectonics.elevation, deep);
   const h = new Hasher().string(prior.name).int(frequency).value(star).value(planet);
   for (const p of tectonics.plates) h.value(p);
   hashArray(h, tectonics.plate);
   hashArray(h, tectonics.elevation);
   const ground = h.hex();
+  if (ground !== groundHash) throw new Error("the ground's digest was reckoned two ways");
   hashArray(h, climate.temperature);
   hashArray(h, climate.precipitation);
   hashArray(h, climate.biome);
@@ -144,6 +197,7 @@ export function generateHomeWorld(
     life,
     digest: h.hex(),
     ground,
+    ...(proto ? { physical: true as const } : {}),
   };
 }
 

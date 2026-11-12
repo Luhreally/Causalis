@@ -246,3 +246,19 @@ export {
   type DawnDates,
   type WorldOrigin,
 } from "./origin.ts";
+export {
+  homeLifeRoles,
+  landShares,
+  livingRoles,
+  makeLivingBiosphere,
+  placeCells,
+  type LivingInputs,
+} from "./living.ts";
+export {
+  lifeWorldOf,
+  lockedTo,
+  protoGround,
+  protoLifeWorld,
+  protoLiquidWhy,
+  type ProtoWorld,
+} from "./origin.ts";

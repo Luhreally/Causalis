@@ -417,7 +417,7 @@ function roleBlock(g: HomeWorld): Block {
 /** Why a role stands empty. */
 function emptyWhy(
   g: HomeWorld,
-  niche: Exclude<Niche, "upright ape">,
+  niche: Exclude<Niche, "upright ape" | "growth">,
   all: readonly Species[],
   biomes: ReadonlySet<number>,
 ): string {

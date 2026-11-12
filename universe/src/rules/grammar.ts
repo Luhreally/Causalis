@@ -436,9 +436,9 @@ export const FOOD_WORDS: Readonly<Record<Food, string>> = {
 export type SizeClass = "small" | "mid" | "large" | "giant";
 /** Each size class's weights, kg. */
 export const SIZE_RANGE: Readonly<Record<SizeClass, readonly [number, number]>> = {
-  small: [0.003, 1],
-  mid: [1, 80],
-  large: [80, 1500],
+  small: [0.02, 2],
+  mid: [2, 100],
+  large: [100, 1500],
   giant: [1500, 40_000],
 };
 
@@ -610,7 +610,7 @@ export function roleWords(r: Pick<Role, "place" | "food" | "size" | "level">): s
                       ? "root-digger"
                       : "light-eater",
     size = r.size === "mid" ? "" : `${r.size} `,
-    words = `${size}${who} of ${PLACES[r.place].words.replace(/^the /, "its ").replace(/^its its/, "its")}`;
+    words = `${size}${who} of ${PLACES[r.place].words}`;
   return `${/^[aeiou]/.test(words) ? "an" : "a"} ${words}`;
 }
 
@@ -625,6 +625,29 @@ export type RolesRead = {
   readonly fixed: number;
   /** Its longest chain of eating. */
   readonly links: number;
+};
+
+const SIZE_ORDER: readonly SizeClass[] = ["small", "mid", "large", "giant"];
+/**
+ * The largest a place's beasts grow (the canopy's as Earth's largest climbers, under a hundred kilograms; the soil's and
+ * the vents' as small; the sea's and the land's to giants).
+ */
+const PLACE_LARGEST: Readonly<Record<Place, SizeClass>> = {
+  "sunlit sea": "giant",
+  deep: "giant",
+  "sea floor": "large",
+  vents: "mid",
+  shore: "large",
+  river: "large",
+  grassland: "giant",
+  woodland: "giant",
+  canopy: "mid",
+  desert: "giant",
+  "cold land": "giant",
+  underground: "mid",
+  air: "large",
+  ice: "large",
+  twilight: "giant",
 };
 
 /** The most roles a world fills (one lineage each, living, and room for the dead and its growths). */
@@ -647,7 +670,7 @@ export function rolesOf(w: LifeWorld): RolesRead {
       sea = PLACES[p.place].medium === "sea",
       bound = (s: SizeClass) => {
         const [lo] = SIZE_RANGE[s];
-        if (lo > heaviest) return false;
+        if (lo > heaviest || SIZE_ORDER.indexOf(s) > SIZE_ORDER.indexOf(PLACE_LARGEST[p.place])) return false;
         // (A flier as heavy as the air bears; a floater of any weight its bag lifts, to a large one.)
         if (air) return lo <= flier || (floats && s !== "giant");
         // (A giant on land needs bones to bear it: a stock may yet have them; the sea bears more.)
@@ -687,20 +710,82 @@ export function rolesOf(w: LifeWorld): RolesRead {
         roles.push(role(p.place, "scavenge", "mid", 3, e * 0.3));
     }
   }
+  // How many it fills, from all it fixes; then which: each place its share by what it fixes there (the root of it, so
+  // a poor place still has its first eaters), and within a place its links in the shares a chain of eating keeps
+  // (about half as many kinds at each link as at the one below, as on Earth), the richest of each link first.
   roles.sort((a, b) => b.energy - a.energy || (roleKey(a) < roleKey(b) ? -1 : 1));
   const fixed = places.reduce((a, p) => a + p.fixed, 0),
     rich = Math.max(0, Math.min(1, dmath.log10(Math.max(1e-9, fixed) / 0.004) / 2)),
     fills = Math.min(
+      MOST_ROLES,
       roles.filter((r) => r.energy >= LEAST_FIXED * 0.02).length,
       Math.round(10 + 34 * rich),
-    );
+    ),
+    chosen = chooseRoles(roles, places, fills);
   return {
     places,
-    roles,
-    fills: Math.min(MOST_ROLES, fills),
+    roles: [...chosen, ...roles.filter((r) => !chosen.includes(r))],
+    fills: chosen.length,
     fixed,
     links: places.reduce((a, p) => Math.max(a, p.links), 0),
   };
+}
+
+/** Which roles a world fills: each place its share, each link its share within it (see rolesOf). */
+function chooseRoles(roles: readonly Role[], places: readonly PlaceRead[], fills: number): Role[] {
+  const open = places.filter((p) => roles.some((r) => r.place === p.place)),
+    weight = new Map(open.map((p) => [p.place, Math.sqrt(p.fixed)])),
+    all = [...weight.values()].reduce((a, x) => a + x, 0),
+    budget = new Map<Place, number>(),
+    out: Role[] = [];
+  if (!all || fills <= 0) return out;
+  // (Each place its share, at least one; what rounding leaves over to the richest.)
+  let given = 0;
+  for (const p of open) {
+    const k = Math.max(1, Math.floor((fills * weight.get(p.place)!) / all));
+    budget.set(p.place, k);
+    given += k;
+  }
+  const byRich = [...open].sort((a, b) => b.fixed - a.fixed);
+  for (let i = 0; given < fills && i < 400; i++) {
+    const p = byRich[i % byRich.length]!;
+    budget.set(p.place, budget.get(p.place)! + 1);
+    given++;
+  }
+  for (let i = 0; given > fills && i < 400; i++) {
+    const p = byRich[byRich.length - 1 - (i % byRich.length)]!;
+    if (budget.get(p.place)! > 1) {
+      budget.set(p.place, budget.get(p.place)! - 1);
+      given--;
+    }
+  }
+  // Within each place, a link at a time where it is shortest of its share.
+  const picked: { r: Role; place: number; turn: number }[] = [];
+  byRich.forEach((p, pi) => {
+    const mine = roles.filter((r) => r.place === p.place),
+      levels = [...new Set(mine.map((r) => r.level))].sort((a, b) => a - b),
+      share = (l: number) => dmath.pow(0.5, l - 2),
+      total = levels.reduce((a, l) => a + share(l), 0),
+      taken = new Map(levels.map((l) => [l, 0])),
+      want = budget.get(p.place)!;
+    for (let t = 0; t < want; t++) {
+      let best = -1,
+        gap = -Infinity;
+      for (const l of levels) {
+        if (!mine.some((r) => r.level === l && !picked.some((x) => x.r === r))) continue;
+        const g = (share(l) / total) * (t + 1) - taken.get(l)!;
+        if (g > gap + 1e-9) [best, gap] = [l, g];
+      }
+      if (best < 0) break;
+      const r = mine.find((x) => x.level === best && !picked.some((y) => y.r === x))!;
+      picked.push({ r, place: pi, turn: t });
+      taken.set(best, taken.get(best)! + 1);
+    }
+  });
+  // (In the order a world's ages fill them: every place's first, then its second, …)
+  picked.sort((a, b) => a.turn - b.turn || a.place - b.place);
+  for (const x of picked) out.push(x.r);
+  return out.slice(0, fills);
 }
 
 function role(place: Place, food: Food, size: SizeClass, level: number, energy: number): Role {
@@ -1010,7 +1095,9 @@ export function bodyFor(
         : r.food === "graze" && u(11) < 0.4
           ? "wool"
           : "fur";
-  else if (hot) covering = u(10) < 0.6 ? "scales" : "plates";
+  else if (hot)
+    covering =
+      u(10) < 0.5 ? "scales" : u(10) < 0.7 ? "plates" : warmTrade && u(10) < 0.85 ? "fur" : "slick";
   else
     covering =
       warmTrade && u(10) < 0.5
@@ -1161,14 +1248,24 @@ function limbPlan(
       const arms = pairs >= 2 && (handy || u(22) < 0.5) ? 2 : 0;
       return { legs: 2 * pairs - arms, arms, fins: 0, wings: 0, moves: "crawl" };
     }
-    const arms = pairs >= 3 && hunter && u(22) < 0.4 ? 2 : 0;
-    return {
-      legs: 0,
-      arms,
-      fins: Math.min(4, 2 * pairs - arms) as 0 | 2 | 4,
-      wings: 0,
-      moves: "swim",
-    };
+    // In the open water: a boned body's limbs its fins, two pairs at most, a third pair grasping where it hunts; a
+    // shelled body paddles with its hindmost pair, its other legs folded under it (as the sea scorpions did) or its front
+    // pair pincers; a body held by its own pressure swims on its fins or by a jet of its liquid.
+    if (stock.frame === "shell" || stock.frame === "needles") {
+      const arms = pairs >= 3 && (hunter || u(22) < 0.4) ? 2 : 0;
+      return { legs: Math.max(0, 2 * pairs - 2 - arms), arms, fins: 2, wings: 0, moves: "swim" };
+    }
+    if (stock.frame === "none")
+      return {
+        legs: 0,
+        arms: pairs >= 2 && hunter ? 2 : 0,
+        fins: (Math.min(2, pairs) * 2) as 0 | 2 | 4,
+        wings: 0,
+        moves: u(22) < 0.45 ? "jet" : "swim",
+      };
+    const arms = pairs >= 3 && (hunter || u(22) < 0.3) ? 2 : 0,
+      fins = Math.min(4, 2 * pairs - arms) as 0 | 2 | 4;
+    return { legs: Math.max(0, 2 * pairs - arms - fins), arms, fins, wings: 0, moves: "swim" };
   }
   if (medium === "air") {
     if (!stock.wing)
@@ -1221,10 +1318,14 @@ function limbPlan(
   if (legs === 0) return { legs: 0, arms, fins: 0, wings: 0, moves: "slither" };
   const moves: Locomotion = glides
     ? "glide"
-    : r.place === "canopy"
+    : r.place === "canopy" || (arms >= 2 && r.food === "browse" && r.place === "woodland" && u(29) < 0.3)
       ? "climb"
       : legs >= 6
-        ? "crawl"
+        ? hunter && r.food === "chase"
+          ? "run"
+          : u(29) < 0.25
+            ? "walk"
+            : "crawl"
         : legs === 2 && size < 40
           ? "hop"
           : hunter && r.food === "chase"
@@ -1259,4 +1360,171 @@ function floorMoves(r: Pick<Role, "place" | "food">, size: number): Locomotion {
   if (floor && (r.food === "filter" || r.place === "vents")) return "rooted";
   if (floor) return "crawl";
   return size < 1 || r.food === "filter" ? "drift" : "jet";
+}
+
+// —— Names ———————————————————————————————————————————————————————————————————————————————————
+
+const COLOURS = ["dun", "red", "grey", "black", "pale", "brindled", "spotted", "golden"];
+const COUNT = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
+
+/**
+ * A lineage's name, from its body and its role and a colour (one of rules/creatures.ts's, which its coat is drawn by):
+ * "dun six-legged pincer-walker", "grey five-armed jet-star", "black vent-fan".
+ */
+export function lineageName(b: CreatureBody, r: Pick<Role, "place" | "food" | "size">, u: number): string {
+  const colour = COLOURS[Math.floor(u * COLOURS.length)]!,
+    has = (f: Feature) => b.features.includes(f),
+    hunter = r.food === "chase" || r.food === "ambush",
+    arms = b.arms ?? 0,
+    look = has("spines")
+      ? "spined"
+      : has("crest")
+        ? "crested"
+        : has("horns") || has("wide-horns")
+          ? "horned"
+          : has("tusks")
+            ? "tusked"
+            : b.covering === "plates"
+              ? "plated"
+              : b.covering === "shell"
+                ? "shelled"
+                : b.covering === "slick"
+                  ? "slick"
+                  : b.covering === "scales"
+                    ? "scaled"
+                    : b.covering === "feathers"
+                      ? "plumed"
+                      : b.covering === "wool"
+                        ? "woolly"
+                        : "shaggy",
+    rays = b.rays ?? 0,
+    deep = r.place === "deep" ? "deep-" : r.place === "vents" ? "vent-" : "";
+  let noun: string;
+  if (b.symmetry === "radial")
+    noun =
+      b.moves === "drift"
+        ? `${deep}bell`
+        : b.moves === "jet"
+          ? `${COUNT[rays]}-armed ${deep}jetter`
+          : b.moves === "rooted"
+            ? `${deep}fan`
+            : b.moves === "roll"
+              ? `${COUNT[rays]}-spoked roller`
+              : b.moves === "float"
+                ? "sky-bell"
+                : b.moves === "burrow"
+                  ? "star-delver"
+                  : `${COUNT[rays]}-armed ${hunter ? "star-hunter" : "star-walker"}`;
+  else if (b.moves === "fly")
+    noun =
+      b.wings === 4
+        ? hunter
+          ? "four-winged hawker"
+          : "four-wing"
+        : arms
+          ? "hand-wing"
+          : r.food === "scavenge"
+            ? "carrion-glider"
+            : hunter
+              ? "sky-hunter"
+              : r.food === "filter"
+                ? "air-sifter"
+                : "wing-seeder";
+  else if (b.moves === "float") noun = hunter ? "sky-trailer" : "sky-bladder";
+  else if (b.moves === "glide") noun = "glider";
+  else if (b.moves === "climb") noun = arms >= 4 ? "four-handed climber" : arms ? "brachiator" : "climber";
+  else if (b.moves === "burrow") noun = b.legs ? "digger" : "delver";
+  else if (b.moves === "jet") noun = `${deep}jetter`;
+  else if (b.moves === "swim")
+    noun = hunter
+      ? `${deep}fin-hunter`
+      : r.food === "filter" && b.size > 500
+        ? "great sifter"
+        : b.size > 8
+          ? `${deep}finner`
+          : `${deep}fin-darter`;
+  else if (b.moves === "slither") noun = hunter ? "coil-hunter" : arms ? "grasping slither" : "slither";
+  else if (b.moves === "crawl" && (r.place === "sea floor" || r.place === "vents" || r.place === "deep"))
+    noun = arms ? `${deep}pincer-crawler` : `${deep}floor-crawler`;
+  else if (b.legs >= 10) noun = `${COUNT[b.legs]}-legged ${hunter ? "stalker" : "crawler"}`;
+  else if (b.legs === 8) noun = hunter ? "spinner" : arms ? "eight-legged grasper" : "eight-strider";
+  else if (b.legs === 6)
+    noun = arms
+      ? b.grasp === "pincer"
+        ? "pincer-walker"
+        : "six-legged grasper"
+      : hunter
+        ? "six-stalker"
+        : r.food === "graze"
+          ? "crawler"
+          : "sixleg";
+  else if (arms && b.grasp === "trunk") noun = r.size === "giant" ? "trunked colossus" : "trunk-walker";
+  else if (arms) noun = b.grasp === "pincer" ? "pincer-walker" : b.legs === 2 ? "upright grasper" : "grasper";
+  else if (r.size === "giant") noun = "colossus";
+  else if (hunter) noun = b.legs === 2 ? "strider-hunter" : r.size === "small" ? "skulker" : "prowler";
+  else if (r.food === "scavenge") noun = "bone-picker";
+  else if (r.food === "browse") noun = "leaf-reacher";
+  else if (r.food === "seeds" || r.food === "roots") noun = b.legs === 2 ? "hopper" : "seed-nibbler";
+  else noun = b.legs === 2 ? "stilt-grazer" : "grazer";
+  return `${colour} ${look} ${noun}`;
+}
+
+/** A light-eater's form, by where it grows: mats, grasses, trees, floaters, growths at vents. */
+export type GrowthForm = "mat" | "grass" | "tree" | "tall tree" | "floater" | "stalk" | "vent growth" | "film";
+
+/** The form a place's light-eaters (or a vent's rock-eaters) take there; null where none grows. */
+export function growthFormOf(p: Place, w: Pick<LifeWorld, "gravity" | "pressure">): GrowthForm | null {
+  switch (p) {
+    case "sunlit sea":
+      return "floater";
+    case "shore":
+    case "river":
+      return "stalk";
+    case "vents":
+      return "vent growth";
+    case "grassland":
+      return "grass";
+    case "woodland":
+    case "twilight":
+      return standsTall(w) ? "tree" : "mat";
+    case "canopy":
+      return standsTall(w) ? "tall tree" : null;
+    case "desert":
+    case "cold land":
+      return "mat";
+    case "ice":
+      return "film";
+    default:
+      return null;
+  }
+}
+
+/** A light-eater's colour word by what catches its light (rules/biochem.ts pigments): green, russet, blue, near black. */
+export function growthColour(pigment: string): string {
+  return pigment === "carotene"
+    ? "russet"
+    : pigment === "phycocyanin"
+      ? "blue"
+      : pigment === "bacteriochlorophyll"
+        ? "black"
+        : pigment === "polyimine"
+          ? "amber"
+          : "green";
+}
+
+const FORM_WORDS: Readonly<Record<GrowthForm, readonly string[]>> = {
+  mat: ["mat", "crust", "moss"],
+  grass: ["grass", "bearded grass", "reed"],
+  tree: ["tree", "fern-tree", "spire"],
+  "tall tree": ["forest", "canopy-tree", "great spire"],
+  floater: ["drift-weed", "floating mat", "raft-weed"],
+  stalk: ["sea-stalk", "reed-weed", "wrack"],
+  "vent growth": ["vent mat", "chimney-crust", "vent plume"],
+  film: ["snow-film", "ice-bloom", "frost-crust"],
+};
+
+/** A light-eater's name: its colour and its form ("black forest", "russet raft-weed"). */
+export function growthName(form: GrowthForm, pigment: string, u: number): string {
+  const words = FORM_WORDS[form];
+  return `${form === "vent growth" ? "pale" : growthColour(pigment)} ${words[Math.floor(u * words.length)]!}`;
 }

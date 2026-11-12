@@ -11,7 +11,9 @@ import {
   KINDS,
   airChange,
   readOrigin,
+  warmthPace,
   type AirRead,
+  type LifeWorld,
   type Origin,
   type OriginGround,
 } from "../rules/index.ts";
@@ -282,4 +284,110 @@ export function elsewhereOrigin(
   if (KEPT.size >= 32) KEPT.delete(KEPT.keys().next().value!);
   KEPT.set(`elsewhere ${key}`, out);
   return out;
+}
+
+// —— A world as its living things read it (B3–B5) ——————————————————————————————————————————————————
+
+/** Whether one face of a world is locked to its star by the star's tide (its mass over its distance cubed, against the Sun's on Earth). */
+export function lockedTo(starMass: number, a: number): boolean {
+  return starTide(starMass, a) > 30;
+}
+
+/** A liquid's density at its world's warmth, kg/m³ (water 1,000; liquid ammonia 680; methane 450; an oil 850). */
+const LIQUID_DENSITY: Readonly<Record<string, number>> = {
+  water: 1000,
+  ammonia: 680,
+  methane: 450,
+  oil: 850,
+};
+
+/**
+ * A world's numbers as its living things meet them, from its ground (rules/origin.ts): what its life is made of and
+ * runs on as though it lived (its light-eaters' trade, its rock-eaters', its eaters'), its air's weight and oxygen.
+ * Its land's shares are read from its cells where its cells are known (gen/living.ts); here, none.
+ */
+export function lifeWorldOf(
+  o: OriginGround,
+  extra: { readonly locked: boolean; readonly bone: string; readonly shell: string },
+): LifeWorld {
+  const living: OriginGround = { ...o, level: "bodies", eatsLight: o.pigment !== null && o.pigment !== "polyimine" },
+    read = readOrigin(living),
+    rock = read.trades
+      .filter((t) => t.kind === "rock" && t.open)
+      .reduce((a, t) => Math.max(a, t.power), 0),
+    eat = read.eaters,
+    // (A mole of its air: hydrogen's and helium's where its air is hydrogen (an estimate), carbon dioxide's under a
+    // crushing air, else nitrogen's and oxygen's.)
+    airMolar = o.hydrogenAir ? 4 : o.pressure > 5 ? 40 : 29;
+  return {
+    gravity: o.gravity,
+    pressure: o.pressure,
+    airMolar,
+    o2: o.o2 * o.pressure,
+    celsius: o.celsius,
+    sea: o.sea,
+    ice: o.ice,
+    land: Math.max(0, 1 - o.sea - o.ice),
+    starK: o.starK,
+    light: o.ground,
+    heat: o.heat,
+    locked: extra.locked,
+    liquid: o.family,
+    conducts: o.family === "water" || o.family === "ammonia",
+    liquidDensity: LIQUID_DENSITY[o.family] ?? 1000,
+    bone: extra.bone,
+    shell: extra.shell,
+    lightPower: read.light?.power ?? 0,
+    rockPower: rock,
+    eatPower15: eat?.power15 ?? 0,
+    eatPower: eat?.power ?? 0,
+    eatTrade: eat?.id ?? "ferment",
+    pace: warmthPace(o.celsius) / warmthPace(15),
+    lands: { grass: 0, wood: 0, tall: 0, desert: 0, cold: 0, rivers: 0, shelf: 0.1, vents: 0.02 },
+  };
+}
+
+/** A home world before its life (its ground, climate and seas made), as B3–B5 read it. */
+export type ProtoWorld = Omit<HomeWorld, "life" | "digest" | "deposits"> & { readonly ground: string };
+
+/** A home world's ground before its life, as though it lived (its first life's needs read from it). */
+export function protoGround(p: ProtoWorld): OriginGround {
+  const g = { ...p, life: { species: [] }, digest: p.ground, deposits: [] } as unknown as HomeWorld;
+  return originGround(g);
+}
+
+/**
+ * Why no liquid lasts on a world before its life (B5), read from its cells (its warmth in its liquid's own degrees): a
+ * liquid lasts where any of its sea is open, or its sea lies frozen over ground warm enough to keep water under the ice
+ * (an estimate: a fifth of Earth's heat through its ground), or its seas are not all too hot. Else why not.
+ */
+export function protoLiquidWhy(p: Pick<HomeWorld, "planet" | "climate" | "grid" | "tectonics"> & { readonly star?: HomeWorld["star"] }): string | null {
+  const n = p.grid.count,
+    t = p.climate.temperature,
+    e = p.tectonics.elevation;
+  let sea = 0,
+    open = 0,
+    boiling = 0;
+  for (let c = 0; c < n; c++) {
+    if (e[c]! > 0) continue;
+    sea++;
+    if (t[c]! > 0 && t[c]! < 95) open++;
+    if (t[c]! >= 95) boiling++;
+  }
+  if (sea < n * 0.005) return "no sea lies on it to hold life's first chemistry";
+  if (open >= n * 0.002) return null;
+  if (boiling > sea / 2) return "too hot for its seas to hold life's chemistry together";
+  const heat = heatOf(p.planet.gravity, p.star ? starAgeGyr(p.star) : 4.5, p.planet.kind === "sulfur");
+  return heat >= 0.2 ? null : "its seas froze to the floor before life took hold";
+}
+
+/** A home world's numbers as its life reads them, before its life (B3). */
+export function protoLifeWorld(p: ProtoWorld): LifeWorld {
+  const g = { ...p, life: { species: [] }, digest: p.ground, deposits: [] } as unknown as HomeWorld,
+    life = worldLife(g);
+  return lifeWorldOf(protoGround(p), {
+    locked: lockedTo(p.star.mass, p.planet.orbitAu),
+    bone: life.bone,
+    shell: life.shell,
+  });
 }
