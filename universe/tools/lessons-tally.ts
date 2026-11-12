@@ -4,6 +4,7 @@
 // each strike cost before and since. A seed "earth:<text>" is Earth's prior, any other the open. Compare two runs with
 // tools/lessons-compare.ts. Pure reading; it changes nothing.
 import { writeFileSync } from "node:fs";
+import { gzipSync } from "node:zlib";
 import { YEAR, codeOf, seedFromText, yearOfMoment } from "../src/kernel/index.ts";
 import * as rules from "../src/rules/index.ts";
 import { EARTHLIKE, OPEN } from "../src/rules/index.ts";
@@ -111,6 +112,10 @@ for (const s of seeds) {
           strikesSince: u.strikes,
         });
       }
+  // What the lessons' record and its tellings add to a save, gzipped alone.
+  const storeGz = lessons ? gzipSync(JSON.stringify(lessons.save())).length : 0,
+    told = world.events.all().filter((e) => e.type.startsWith("lessons.")),
+    toldGz = told.length ? gzipSync(JSON.stringify(told)).length : 0;
   const ctx = sim.populationContext(world);
   let people = 0;
   for (const p of ctx.provinces.all()) people += p.total();
@@ -124,6 +129,9 @@ for (const s of seeds) {
       wild: tally,
       taken: lessons?.taken ?? null,
       copied: lessons?.copied ?? null,
+      storeGz,
+      told: told.length,
+      toldGz,
       learned,
       losses,
     };
@@ -141,6 +149,9 @@ for (const s of seeds) {
       taken: row.taken,
       copied: row.copied,
       uses: learned.length,
+      storeGz,
+      told: told.length,
+      toldGz,
     }),
   );
 }
