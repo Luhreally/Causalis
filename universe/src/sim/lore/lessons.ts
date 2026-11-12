@@ -135,7 +135,7 @@ function realmPeople(ctx: PopulationContext, ref: Ref): number {
 }
 
 /** The causes a battle's losses fall under, for its loser: each by how far the winner stood above them in it (log of the ratio). */
-function battleCauses(
+export function battleCauses(
   ctx: PopulationContext,
   e: HistoryEvent,
 ): {

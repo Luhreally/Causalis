@@ -132,8 +132,9 @@ async function checkSection(text: string, what: string): Promise<void> {
     `${what}: no “What they have learned”: ${text.slice(0, 200)}`,
   );
   check(
-    /\d[\d,]* \w[\w' ]* (?:lost to|went hungry)[^\n]* in \d+ years?/.test(text) ||
-      /lost to/.test(text),
+    /\d[\d,]* [\w' ]*(?:lost to|went hungry)[^\n]* in (?:a year|[\d,]+ years) \([\d,]+ \w/.test(
+      text,
+    ),
     `${what}: what it cost them is not told in numbers and years: ${text.slice(0, 300)}`,
   );
   check(
