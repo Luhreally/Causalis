@@ -136,7 +136,9 @@ test("each named man struck where history struck him; every figure's fate as dra
       m = members[`lv:${t.id}`];
     assert.equal(hit.at, was.at, `figure ${t.id} struck when drawn`);
     if (!m) {
-      assert.deepEqual(hit, was, "one history does not know: as drawn");
+      // (As drawn, but no part taken his page does not tell: 2026-11-11.)
+      if (was.lost === null) assert.deepEqual(hit, was, "one history does not know: as drawn");
+      else assert.equal(hit.lost, null, "one history does not know: nothing cut off");
       continue;
     }
     assert.equal(hit.place, placeOfMember(m.member), `figure ${t.id} struck in history's member`);

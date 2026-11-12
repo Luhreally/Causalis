@@ -126,8 +126,15 @@ export function rollNames(
         [...s.stood],
       ];
     for (const t of line) {
-      const k = lot(t),
-        // (A maimed one with none of the roll's maimed left takes another wounded man, and so on.)
+      const k = lot(t);
+      // (History knows no cannon: a named man fell to the foe's arms, so one the view has a
+      // cannon's ball or shell take stays a figure of the many, and his card and his body's page
+      // never tell two deaths. Asked 2026-11-11: "it doesnt record the accurate damage you see?")
+      if (k === 0) {
+        const striker = blows.hits[blows.of[t.id] ?? -1]?.striker;
+        if (striker === "ball" || striker === "shell") continue;
+      }
+      const // (A maimed one with none of the roll's maimed left takes another wounded man, and so on.)
         from = k === 1 ? [1, 2] : k === 2 ? [2, 1] : [k];
       for (const f of from) {
         const e = lots[f]!.shift();

@@ -105,6 +105,8 @@ export function toldBlows(
     const e = names[id],
       m = e ? members[e.ref] : undefined,
       place = m ? placeOfMember(m.member) : null;
-    return m && place ? { place, cut: m.cut } : null;
+    // (A named man history struck nowhere it could say: struck where the view has him, but no
+    // part taken that his page does not tell.)
+    return m && place ? { place, cut: m.cut } : e ? { place: null, cut: false } : null;
   };
 }

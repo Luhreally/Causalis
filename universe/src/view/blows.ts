@@ -432,7 +432,9 @@ type Building = BlowHit & { lost: BlowLost | null; shattered: boolean; back: Blo
  * Where history struck the man a figure stands for (by its id; null: none told, as the battle view
  * draws it): the place, and whether the member was cut off there (Phase 55 wave 5, view/body.ts).
  */
-export type BlowTold = (id: number) => { readonly place: BlowPlace; readonly cut: boolean } | null;
+export type BlowTold = (
+  id: number,
+) => { readonly place: BlowPlace | null; readonly cut: boolean } | null;
 
 /**
  * A battle's blows, from its field: each fallen one's hit (where, with what, how they go down, a
@@ -570,7 +572,7 @@ export function newBlows(field: BattleField, told: BlowTold | null = null): Blow
       blow,
       place,
       u: (draw(t.id, 1) - 0.5) * 0.7,
-      v: alongOf(anatomy, place, draw(t.id, 2), !!told?.(t.id)),
+      v: alongOf(anatomy, place, draw(t.id, 2), !!told?.(t.id)?.place),
       face: rout ? -1 : 1,
       mark,
       size: SIZE[mark] * (0.8 + 0.4 * draw(t.id, 9)),
@@ -689,8 +691,9 @@ export function newBlows(field: BattleField, told: BlowTold | null = null): Blow
           says?.place ??
             pick(placeWeights(hurt ? "maimed" : "wounded", striker, blow, edge), draw(t.id, 0)),
         ),
-        // (A maimed one's limb cut off by an edge, or where history says it was cut off there.)
-        cuts = hurt && (says ? says.cut : edge) && isLimb(place) && anatomy.parts[place].length > 0,
+        // (A maimed one's limb cut off by an edge; a named one's where history says it was cut off
+        // there, whatever lot his figure drew, so his page and his figure tell one wound.)
+        cuts = (says ? says.cut : hurt && edge) && isLimb(place) && anatomy.parts[place].length > 0,
         mark = markOf(striker, blow),
         p = placeAt(field, t, pk.at),
         rear = side === 0 ? -1 : 1,
@@ -726,7 +729,7 @@ export function newBlows(field: BattleField, told: BlowTold | null = null): Blow
           blow,
           place,
           u: (draw(t.id, 1) - 0.5) * 0.7,
-          v: alongOf(anatomy, place, draw(t.id, 2), says !== null),
+          v: alongOf(anatomy, place, draw(t.id, 2), !!says?.place),
           face: 1,
           mark,
           size: SIZE[mark] * (0.8 + 0.4 * draw(t.id, 9)) * (hurt && !lost ? 2 : 1),
