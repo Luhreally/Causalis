@@ -182,7 +182,7 @@ function abiotic(air: AirRead): AirRead {
     at: null,
     held: false,
     words:
-      "its oxygen is of no life's making: its star's light splits water high in its air, and the hydrogen escapes to space (an estimate)",
+      "no life made it; its star's light splits water high in its air, and the hydrogen escapes to space (an estimate)",
   };
 }
 

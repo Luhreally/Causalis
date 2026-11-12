@@ -705,7 +705,7 @@ export function airChange(o: OriginGround, light: number | null, floor: number):
       held: false,
       made: round(made),
       soaked: round(soaked),
-      words: "its oxygen is of no life's making",
+      words: "no light-eaters made it",
     };
   const start = light,
     // (It takes a while to fill the seas and the air: about fifty million years at the least.)

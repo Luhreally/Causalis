@@ -174,7 +174,7 @@ function dawnFacts(r: LifeRead): Block {
       air.oxygen
         ? air.at !== null
           ? `Free oxygen since about ${ago(air.at)} (an estimate)`
-          : `Free oxygen: ${air.words}`
+          : `Free oxygen, but ${air.words}`
         : `No free oxygen: ${air.words}`,
     ),
   );
@@ -228,7 +228,7 @@ function airBlock(r: LifeRead): Block {
   } else
     lines.push([
       cap(
-        `${a.oxygen ? "its air holds oxygen: " : "its air never came to hold free oxygen: "}${a.words}.`,
+        `${a.oxygen ? "its air holds oxygen, but " : "its air never came to hold free oxygen: "}${a.words}.`,
       ),
     ]);
   lines.push([
