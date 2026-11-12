@@ -2,7 +2,7 @@
 // with whom now: a realm stands with the strongest it is bound to, if that one is stronger than it, so a chain of pacts ends at one head and no bloc swallows
 // a world by a long thin thread. Each thing bound says why, and links to what made it. Words read off what a people is: a hive gives of its brood, a people of
 // the water graft a reef, those who choose their rulers foster each other's young.
-import { yearOfMoment, type Ref, type World } from "../../kernel/index.ts";
+import { hashString, yearOfMoment, type Ref, type World } from "../../kernel/index.ts";
 import { offworldSite } from "../../gen/index.ts";
 import {
   bondsOf,
@@ -26,8 +26,10 @@ import {
 import { BOND_WORDS, CALL_WHY, ERRAND_WORDS, leagueWords } from "../../causal/index.ts";
 import type { Block, Item, Line, PageModel, Stat, Tab } from "../../bridge/index.ts";
 import { realmColor } from "../colors.ts";
-import { realmLink } from "./names.ts";
+import { realmLink, spotOfLand } from "./names.ts";
 import { claimOf, count, item, link, many, stat, yearNow } from "./words.ts";
+
+type Rgb = readonly [number, number, number];
 
 const BOND_NAMES: Readonly<Record<string, string>> = {
   overlord: "its overlord",
@@ -114,30 +116,237 @@ export function blocsOf(world: World): BlocRead {
   return read;
 }
 
-/** The blocs lens: each land by the colour of the head of its bloc; those who stand alone, dim. */
+/**
+ * An alliance's colours: as far apart as a map's can be, and none the grey of those who stand
+ * alone, the sea's deep blue, or a realm's pale own (so an alliance never reads as one realm).
+ */
+export const ALLIANCE_COLORS: readonly Rgb[] = [
+  [0.9, 0.2, 0.18],
+  [0.98, 0.56, 0.08],
+  [0.98, 0.88, 0.14],
+  [0.56, 0.86, 0.12],
+  [0.08, 0.6, 0.22],
+  [0.06, 0.74, 0.68],
+  [0.55, 0.28, 0.92],
+  [0.9, 0.22, 0.8],
+  [1, 0.6, 0.74],
+  [0.62, 0.36, 0.14],
+  [0.56, 0.06, 0.2],
+  [0.74, 0.66, 1],
+];
+/** Those who stand alone, under the alliances lens: dim, so the alliances are what is seen. */
+export const ALONE_COLOR: Rgb = [0.34, 0.34, 0.32];
+
+/** The colour each alliance was given, kept while it stands (a map read again keeps its colours). */
+const GIVEN = new WeakMap<World, Map<string, number>>();
+
+/**
+ * Each standing alliance's colour, by its head: the one it had, else its own if free, else the next
+ * free; with more alliances than colours, the colour of those furthest off (by their heads' seats,
+ * `at` a spot's latitude and longitude), so two of one colour are never neighbours if it can be helped.
+ */
+function allianceColors(
+  world: World,
+  heads: readonly string[],
+  at: (head: string) => readonly [number, number] | null,
+): Map<string, Rgb> {
+  const had = GIVEN.get(world) ?? new Map<string, number>(),
+    kept = new Map<string, number>(),
+    used = new Set<number>(),
+    n = ALLIANCE_COLORS.length,
+    // (The angle between two seats, as its cosine: the larger, the nearer.)
+    near = (a: readonly [number, number], b: readonly [number, number]) =>
+      Math.sin(a[0]) * Math.sin(b[0]) + Math.cos(a[0]) * Math.cos(b[0]) * Math.cos(a[1] - b[1]);
+  for (const h of heads) {
+    const i = had.get(h);
+    if (i !== undefined && !used.has(i)) {
+      kept.set(h, i);
+      used.add(i);
+    }
+  }
+  for (const h of [...heads].sort()) {
+    if (kept.has(h)) continue;
+    const own = (hashString(h) >>> 0) % n;
+    let i = own;
+    for (let step = 0; step < n && used.has(i); step++) i = (own + step + 1) % n;
+    if (used.has(i)) {
+      const here = at(h);
+      let best = Infinity;
+      for (let c = 0; c < n && here; c++) {
+        let nearest = -Infinity;
+        for (const [o, oc] of kept) {
+          const there = oc === c ? at(o) : null;
+          if (there) nearest = Math.max(nearest, near(here, there));
+        }
+        if (nearest < best) {
+          best = nearest;
+          i = c;
+        }
+      }
+    }
+    kept.set(h, i);
+    used.add(i);
+  }
+  GIVEN.set(world, kept);
+  return new Map([...kept].map(([h, i]) => [h, ALLIANCE_COLORS[i]!]));
+}
+
+/** An alliance as the map and the list tell it: who stands in it, how much it holds, since when, what it fights. */
+export type Alliance = {
+  readonly head: Ref;
+  readonly ref: string;
+  readonly name: string;
+  readonly color: Rgb;
+  /** Its head first, then the strongest. */
+  readonly members: readonly Ref[];
+  readonly lands: number;
+  readonly people: number;
+  /** The year of its oldest bond still standing (null: none written down). */
+  readonly since: number | null;
+  /** The wars its realms fight now, and against whom (those outside it). */
+  readonly wars: readonly { readonly war: Ref; readonly foe: Ref }[];
+  /** The compact it is, if it is one (it keeps the name it was sworn by). */
+  readonly compact: League | undefined;
+};
+
+const ALLIED = new Map<World, { year: number; count: number; list: Alliance[] }>();
+
+/** Every standing alliance, the greatest first (by its people, then its realms): read once a year. */
+export function alliancesOf(world: World): Alliance[] {
+  const year = yearOfMoment(world.now),
+    events = world.events.count,
+    hit = ALLIED.get(world);
+  if (hit && hit.year === year && hit.count === events) return hit.list;
+  const read = blocsOf(world),
+    realms = politiesOf(world),
+    ctx = populationContext(world),
+    g = homePlanet(world).generated,
+    store = tiesOf(world),
+    diplomacy = diplomacyOf(world),
+    bonds = bondsOf(world),
+    wars = warsOf(world),
+    colors = allianceColors(world, [...read.blocs.keys()], (h) => {
+      const seat = realms.get(h as Ref)?.seat,
+        spot = seat === undefined ? undefined : g.centre[seat];
+      return spot === undefined ? null : [g.fine.grid.lat[spot]!, g.fine.grid.lon[spot]!];
+    }),
+    yearOf = (e: Ref | null | undefined) => {
+      const t = e ? world.events.get(e)?.t : undefined;
+      return t === undefined ? null : Math.floor(t / (365 * 86400));
+    },
+    list: Alliance[] = [];
+  for (const [head, members] of read.blocs) {
+    const inIt = new Set<string>(members);
+    let lands = 0,
+      people = 0,
+      since: number | null = null;
+    const older = (y: number | null) => {
+      if (y !== null && (since === null || y < since)) since = y;
+    };
+    for (const r of members) {
+      const p = realms.get(r);
+      if (!p) continue;
+      for (const c of p.members) {
+        if (offworldSite(g, c)) continue;
+        lands++;
+        people += ctx.provinces.get(c)?.total() ?? 0;
+      }
+      for (const x of diplomacy.of(r))
+        if (x.pact && inIt.has(x.a === r ? x.b : x.a)) older(yearOf(x.pact));
+      const oath = bonds.oathOf(r);
+      if (oath && inIt.has(oath.to)) older(oath.since);
+    }
+    const compact = store
+      .open()
+      .find((l) => l.members.includes(head as Ref) && l.members.every((m) => inIt.has(m)));
+    if (compact) older(compact.since);
+    const fought = new Map<string, { war: Ref; foe: Ref }>();
+    for (const r of members)
+      for (const w of wars.fighting(r)) {
+        const foe = w.attacker === r ? w.defender : w.attacker;
+        if (!inIt.has(foe) && !fought.has(w.ref)) fought.set(w.ref, { war: w.ref, foe });
+      }
+    list.push({
+      head: head as Ref,
+      ref: `bloc:${head}`,
+      name: compact ? leagueName(world, compact) : blocName(world, head),
+      color: colors.get(head) ?? ALONE_COLOR,
+      members,
+      lands,
+      people,
+      since,
+      wars: [...fought.values()],
+      compact,
+    });
+  }
+  list.sort(
+    (a, b) =>
+      b.people - a.people || b.members.length - a.members.length || (a.head < b.head ? -1 : 1),
+  );
+  ALLIED.clear();
+  ALLIED.set(world, { year, count: events, list });
+  return list;
+}
+
+/** The alliance a land's realm stands in, as the alliances lens's tooltip tells it (null: it stands alone). */
+export function allianceOfLand(
+  world: World,
+  land: number,
+): { line: string; stats: { label: string; value: string }[] } | null {
+  const r = politiesOf(world).of(land),
+    a = r ? alliancesOf(world).find((x) => x.members.includes(r.ref)) : undefined;
+  if (!r || !a) return null;
+  return {
+    line: `${r.town} stands in ${a.name}: a press opens it`,
+    stats: [
+      { label: "Realms", value: count(a.members.length) },
+      { label: "People", value: count(a.people) },
+      { label: "At war", value: a.wars.length ? many(a.wars.length, "war", "wars") : "at peace" },
+    ],
+  };
+}
+
+/** The alliances lens: every alliance at once, each its own colour over all its realms' lands; those who stand alone, dim. */
 export function blocsLens(world: World) {
   const g = homePlanet(world).generated,
     read = blocsOf(world),
     realms = politiesOf(world),
-    lands: [number, readonly [number, number, number]][] = [],
-    biggest = [...read.blocs.entries()].sort(
-      (a, b) => b[1].length - a[1].length || (a[0] < b[0] ? -1 : 1),
-    );
+    list = alliancesOf(world),
+    colorOf = new Map(list.map((a) => [a.head as string, a.color])),
+    lands: [number, Rgb][] = [],
+    // (Each land in an alliance, and which: a press on it opens its alliance.)
+    allied: [number, string][] = [];
+  let alone = 0;
   for (const p of realms.living()) {
     const h = read.head.get(p.ref),
-      inBloc = h !== undefined && read.blocs.has(h),
-      color = inBloc ? realmColor(h) : ([0.4, 0.4, 0.38] as const);
-    for (const c of p.members) if (!offworldSite(g, c)) lands.push([c, color]);
+      color = (h !== undefined && colorOf.get(h)) || ALONE_COLOR;
+    if (color === ALONE_COLOR) alone++;
+    for (const c of p.members) {
+      if (offworldSite(g, c)) continue;
+      lands.push([c, color]);
+      if (color !== ALONE_COLOR) allied.push([c, `bloc:${h}`]);
+    }
   }
-  const top = biggest[0],
-    head = top ? realms.get(top[0] as Ref) : undefined;
+  const top = list[0];
   return {
     lands,
-    blocs: read.blocs.size,
-    note: head
-      ? `${count(read.blocs.size)} ${read.blocs.size === 1 ? "bloc" : "blocs"}; the greatest stands with ${head.town}: ${count(top![1].length)} realms`
-      : "each realm stands alone",
-    biggest: top ? `bloc:${top[0]}` : null,
+    allied,
+    blocs: list.length,
+    alliances: list.map((a) => ({
+      ref: a.ref,
+      name: a.name,
+      town: realms.get(a.head)?.town ?? a.name,
+      color: a.color,
+      realms: a.members.length,
+      people: a.people,
+      // (Its head's seat, and the spot at its middle, to turn the globe to it.)
+      seat: realms.get(a.head)?.seat ?? null,
+      centre: g.centre[realms.get(a.head)?.seat ?? -1] ?? null,
+    })),
+    note: top
+      ? `${many(list.length, "alliance", "alliances")}; ${count(alone)} ${alone === 1 ? "realm stands" : "realms stand"} alone`
+      : "each realm stands alone: there is no alliance",
+    biggest: top ? top.ref : null,
   };
 }
 
@@ -282,9 +491,15 @@ export function realmTiesTab(world: World, r: Polity): Tab {
     oath = bondsOf(world).oathOf(r.ref),
     vassals = bondsOf(world).vassalsOf(r.ref),
     rows: Stat[] = [];
+  const allied = bloc ? alliancesOf(world).find((a) => a.head === h) : undefined;
   if (bloc)
-    rows.push(stat("Stands with", [link(blocName(world, h!), `bloc:${h}`)], { why: `bloc:${h}` }));
+    rows.push(
+      stat("Stands with", [link(cap(allied?.name ?? blocName(world, h!)), `bloc:${h}`)], {
+        why: `bloc:${h}`,
+      }),
+    );
   else rows.push(stat("Stands with", "no one: it is bound to none stronger, and none to it"));
+  rows.push(stat("Alliances", [link("Every alliance in the world", "world:alliances")]));
   if (oath) rows.push(stat("Sworn to", [named(world, oath.to)], { why: oath.event }));
   if (vassals.length)
     rows.push(
@@ -356,70 +571,193 @@ export function envoyLine(world: World, e: Envoy): Line {
   ];
 }
 
+/** An alliance by whoever stands at its head (the UI's "alliance": "league" is a realm's title already). */
 const blocName = (world: World, head: string): string => {
   const p = politiesOf(world).get(head as Ref);
-  return p ? `those who stand with ${p.town}` : "those who stood together";
+  return p ? `the alliance of ${p.town}` : "those who stood together";
 };
 
-/** A bloc's own page: who stands in it, by what; how much of the world it holds. */
+const cap = (s: string) => s[0]!.toUpperCase() + s.slice(1);
+
+/** How a realm stands in an alliance: at its head, sworn, of its compact, or by a pact. */
+function standsHow(world: World, head: Ref, list: readonly Ref[], r: Ref): string {
+  const realms = politiesOf(world);
+  if (r === head) return "at its head";
+  const oath = bondsOf(world).oathOf(r);
+  if (oath && list.includes(oath.to)) return `sworn to ${realms.get(oath.to)?.town ?? "another"}`;
+  const l = tiesOf(world).leagueOf(r);
+  if (l && l.members.includes(head)) return `of ${leagueName(world, l)}`;
+  const diplomacy = diplomacyOf(world),
+    by = list.find((q) => q !== r && diplomacy.get(q, r)?.pact);
+  return by ? `by a pact with ${realms.get(by)?.town ?? "another"}` : "by those it is sworn to";
+}
+
+/** What an alliance fights now, as a line: against whom, each a link (empty: at peace). */
+function warsLine(world: World, a: Alliance): Line {
+  const foes = [...new Map(a.wars.map((w) => [w.foe as string, w])).values()];
+  if (!foes.length) return [];
+  return [
+    "At war with ",
+    ...foes.slice(0, 4).flatMap((w, i) => [...(i ? [", "] : []), named(world, w.foe)]),
+    ...(foes.length > 4 ? [`, and ${count(foes.length - 4)} more`] : []),
+  ];
+}
+
+/** An alliance's line on the list of them: its size, its age, what it fights. */
+function allianceLine(world: World, a: Alliance): Line {
+  const fights = warsLine(world, a);
+  return [
+    link(cap(a.name), a.ref),
+    `: ${many(a.members.length, "realm", "realms")}, ${many(a.lands, "land", "lands")}, ${many(Math.round(a.people), "soul", "people")}`,
+    a.since !== null ? `; bound since year ${a.since}` : "",
+    ...(fights.length ? [". ", ...fights] : ["; at peace"]),
+    ".",
+  ];
+}
+
+/** Every alliance in the world, the greatest first: each its colour, who stands in it (each a link), and what it fights. */
+export function alliancesBlocks(world: World): Block[] {
+  const list = alliancesOf(world),
+    realms = politiesOf(world),
+    alone = realms.living().filter((p) => !list.some((a) => a.members.includes(p.ref))).length;
+  if (!list.length)
+    return [
+      {
+        type: "text",
+        lines: [
+          [
+            "No two realms stand together now: none is bound to another stronger by a pact, an oath or a compact.",
+          ],
+        ],
+      },
+    ];
+  const blocks: Block[] = [
+    {
+      type: "bars",
+      title: "By their people",
+      bars: list.slice(0, 12).map((a) => ({
+        // (By its head's seat: the chart is narrow on a phone, and the page says what they are.)
+        label: [realms.get(a.head)?.town ?? cap(a.name)],
+        ref: a.ref,
+        value: Math.round(a.people),
+        color: a.color,
+      })),
+      unit: "people",
+    },
+  ];
+  for (const a of list)
+    blocks.push({
+      type: "list",
+      title: cap(a.name),
+      items: [
+        { ...item(allianceLine(world, a), a.ref), swatch: a.color },
+        ...a.members.map((r) =>
+          item([named(world, r), `: ${standsHow(world, a.head, a.members, r)}`], r),
+        ),
+      ],
+    });
+  blocks.push({
+    type: "text",
+    lines: [[`${many(alone, "realm stands", "realms stand")} alone, in no alliance.`]],
+  });
+  return blocks;
+}
+
+/** The world's alliances, all on one page (the alliances lens's list). */
+export function alliancesPage(world: World): PageModel {
+  const list = alliancesOf(world),
+    realms = politiesOf(world).living().length,
+    inOne = list.reduce((n, a) => n + a.members.length, 0),
+    top = list[0];
+  return {
+    ref: "world:alliances",
+    kind: "alliances",
+    icon: "🪢",
+    title: "Alliances",
+    subtitle: [
+      "who stands with whom, the world over: realms bound by a pact, an oath or a compact answer each other's call",
+    ],
+    color: null,
+    place: null,
+    stats: [
+      stat("Alliances", count(list.length)),
+      stat("Realms in one", `${count(inOne)} of ${count(realms)}`),
+      stat("The greatest", top ? [link(cap(top.name), top.ref)] : "none"),
+      stat("At war", many(list.filter((a) => a.wars.length).length, "alliance", "alliances")),
+    ],
+    tabs: [{ id: "overview", name: "Alliances", blocks: alliancesBlocks(world) }],
+    followable: false,
+    year: yearNow(world),
+  };
+}
+
+/** An alliance's own page: who stands in it, by what; how much of the world it holds; what it fights. */
 export function blocPage(world: World, ref: string): PageModel {
   const head = ref.slice("bloc:".length) as Ref,
-    read = blocsOf(world),
     realms = politiesOf(world),
     h = realms.get(head),
-    list = read.blocs.get(head) ?? (h ? [head] : []),
+    a = alliancesOf(world).find((x) => x.head === head),
+    list = a?.members ?? (h ? [head] : []),
     ctx = populationContext(world),
-    people = list.reduce(
-      (s, r) =>
-        s +
-        (realms.get(r)?.members ?? []).reduce(
-          (n, c) => n + (ctx.provinces.get(c)?.total() ?? 0),
-          0,
-        ),
-      0,
-    ),
-    lands = list.reduce((s, r) => s + (realms.get(r)?.members.length ?? 0), 0),
     host = list.reduce((s, r) => {
       const p = realms.get(r);
       return s + (p ? fieldedOf(ctx, p) : 0);
     }, 0),
-    diplomacy = diplomacyOf(world),
-    bonds = bondsOf(world),
-    store = tiesOf(world),
-    how = (r: Ref): string => {
-      if (r === head) return "at its head";
-      const oath = bonds.oathOf(r);
-      if (oath && list.includes(oath.to))
-        return `sworn to ${realms.get(oath.to)?.town ?? "another"}`;
-      const l = store.leagueOf(r);
-      if (l && l.members.includes(head)) return `of ${leagueName(world, l)}`;
-      const by = list.find((q) => q !== r && diplomacy.get(q, r)?.pact);
-      return by ? `by a pact with ${realms.get(by)?.town ?? "another"}` : "by those it is sworn to";
-    },
-    items = list.map((r) => item([named(world, r), `: ${how(r)}`], r));
+    name = a?.name ?? blocName(world, head),
+    items = list.map((r) => item([named(world, r), `: ${standsHow(world, head, list, r)}`], r)),
+    fights = a ? warsLine(world, a) : [],
+    seat = h ? spotOfLand(world, h.seat) : null;
   return {
     ref,
     kind: "bloc",
-    icon: "🤝",
-    title: `${blocName(world, head)[0]!.toUpperCase()}${blocName(world, head).slice(1)}`,
+    icon: "🪢",
+    title: cap(name),
     subtitle: [
       list.length >= 2
-        ? `${count(list.length)} realms who would answer each other's call`
-        : "It stands alone now.",
+        ? `${count(list.length)} realms who would answer each other's call. `
+        : "It stands alone now. ",
+      link("Every alliance", "world:alliances"),
     ],
-    color: h ? realmColor(h.ref) : null,
-    place: null,
+    color: a?.color ?? null,
+    place: seat === null ? null : { scale: "globe", spot: seat },
     stats: [
       stat("Realms", count(list.length)),
-      stat("Lands", count(lands)),
-      stat("People", count(people)),
+      stat("Lands", count(a?.lands ?? 0)),
+      stat("People", count(a?.people ?? 0)),
       stat("Hosts", count(Math.round(host))),
+      stat("Bound since", a?.since != null ? `year ${a.since}` : "no one wrote it down"),
+      stat("At war", fights.length ? fights : "at peace", {
+        why: a?.wars[0]?.war ?? null,
+      }),
+      ...(a?.compact
+        ? [
+            stat("Sworn against", [named(world, a.compact.against)], {
+              why: a.compact.event,
+            }),
+          ]
+        : []),
     ],
     tabs: [
       {
         id: "overview",
         name: "Overview",
-        blocks: [{ type: "list", title: "Who stands in it", items }],
+        blocks: [
+          { type: "list", title: "Who stands in it", items },
+          ...(a?.wars.length
+            ? [
+                {
+                  type: "list" as const,
+                  title: "What it fights",
+                  items: a.wars.map((w) =>
+                    item(
+                      [link(claimOf(world, warsOf(world).get(w.war)?.event ?? w.war), w.war)],
+                      w.war,
+                    ),
+                  ),
+                },
+              ]
+            : []),
+        ],
       },
     ],
     followable: false,

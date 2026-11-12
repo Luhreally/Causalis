@@ -131,12 +131,13 @@
   font-size: 0.8rem;
   white-space: nowrap;
 }
-/* On a phone the news's place at the top lies under the buttons down its edge: the note stands in the clear, under them. */
+/* On a phone the news's place at the top lies under the buttons down its edge: the note stands in the clear, under them and beside them. */
 @media (max-width: 640px) {
   .ran-note {
     position: fixed;
     left: 8px;
-    right: 8px;
+    /* (Clear of the buttons down the right edge too: they reach further down as the bar grows, and its × lay under them.) */
+    right: 54px;
     bottom: calc(64px + var(--safe-bottom, 0px));
     max-height: 30vh;
   }

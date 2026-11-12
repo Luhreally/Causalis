@@ -339,6 +339,8 @@ export const GATES: readonly Gate[] = [
   { gate: 92, args: ["--ci"], s: 240 },
   // Gate 98, what binds realms (tools/d1-gate.ts): the rule; a call that fires; a vassal whose overlord fell, a marriage into a realm gone, a claim on a played ruler's seat; a realm's Bonds tab, the blocs lens and a bloc's page, a ruler's envoy by touch, one on the road; a young world on CI.
   { gate: 98, args: ["--ci"], s: 360 },
+  // Gate 105, every alliance at once (tools/alliances-gate.ts): their colours far apart; at 430 by 932 on first light at 450, more than one alliance's colour in the pixels with no realm open, their key, a land of each pressed to its alliance's page, every alliance listed and a realm of one pressed, the lens in the land.
+  { gate: 105, args: ["--ci"], s: 600 },
   // Gate 94, wars with aims and peace with terms (tools/w7-gate.ts): the rule; an old save, a realm gone, a tribute unpaid, a vassal risen; a run read for its worst; a ruler's tray, sheet, offers and refusal by touch; a year on, the grain in both realms' pages; a young world on CI.
   { gate: 94, args: ["--ci"], s: 300 },
   // Gate 82, worlds filled (tools/p70b-gate.ts): a world at two shares, pressed from the 🚀 list by touch and read in the pixels; one that can never fill, and what its page says; a young world given both on CI.
