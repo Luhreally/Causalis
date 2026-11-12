@@ -366,6 +366,10 @@ export const GATES: readonly Gate[] = [
   // touch at a phone's size; where its life began and on what, when its air changed; its first seas' drop under the glass,
   // its stocks and roles, another world beside it; their places and small lives apart on the screen and in the pixels.
   { gate: 111, args: ["--ci"], s: 600 },
+  // Gate 112, life read from each world's own numbers (tools/life-alien-gate.ts): eight alien worlds' people and beasts drawn at a
+  // phone's size, their outlines told apart between worlds; who rose named on the Life page and their own page giving their body
+  // by what it does and what they rose from; a world where no people rose saying why.
+  { gate: 112, args: ["--ci"], s: 600 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */

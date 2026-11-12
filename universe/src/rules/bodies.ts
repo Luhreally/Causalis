@@ -71,6 +71,9 @@ export type BodyFunction = {
 };
 
 /** What a body's function is read from. */
+/** The graspers that are arms of their own, held free of the legs. */
+const FREE_ARMS: ReadonlySet<string> = new Set(["hand", "pincer", "tentacle"]);
+
 export type FunctionBody = {
   readonly medium: string;
   readonly symmetry: string;
@@ -81,6 +84,8 @@ export type FunctionBody = {
   readonly wings?: number;
   readonly moves?: string;
   readonly rays?: number;
+  /** What a risen people grasps with (rules/creatures.ts Grasp). */
+  readonly hold?: string;
 };
 
 /**
@@ -109,7 +114,9 @@ export function bodyFunction(b: FunctionBody): BodyFunction {
                   : arms >= 4
                     ? "stooped"
                     : "upright"
-                : arms > 0 && b.manipulators !== "trunk"
+                : // (Its front raised where it has arms free of its legs: not where it grasps with a trunk, lips or a tail.)
+                  arms > 0 &&
+                    (b.hold === undefined ? b.manipulators !== "trunk" : FREE_ARMS.has(b.hold))
                   ? "raised"
                   : "low";
     return {

@@ -455,11 +455,9 @@ function livingRoleBlocks(g: HomeWorld): Block[] {
             ? `Its physics allows ${many(past, "role", "roles")} more, past what its energy feeds: about a tenth of what one link eats passes up to the next, so it fills the richest.`
             : "It fills every role its physics allows.",
         ],
-        [
-          people && risen
-            ? `Who rose to thought: ${people.body.name}, ${people.because}.`
-            : `No people rose here: ${g.life.noPeople ?? "none of its lineages came to it"}.`,
-        ],
+        people && risen
+          ? ["Who rose to thought: ", link(people.body.name, risen.ref), `, ${people.because}.`]
+          : [`No people rose here: ${g.life.noPeople ?? "none of its lineages came to it"}.`],
       ],
     },
   ];
