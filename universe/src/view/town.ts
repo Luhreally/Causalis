@@ -731,10 +731,17 @@ export function townSignals(
     tops.push([x, z]);
     drawn.poles++;
   }
-  // (The wire from each pole to the next nearest not yet strung, so it runs as a line and not a web.)
+  // (The wire from each pole to the nearest strung before it: a line through the town that branches, never a web.)
   for (let i = 1; i < tops.length; i++) {
-    const [x0, z0] = tops[i - 1]!,
-      [x1, z1] = tops[i]!,
+    const [x1, z1] = tops[i]!;
+    let j = 0;
+    for (let m = 1; m < i; m++)
+      if (
+        Math.hypot(tops[m]![0] - x1, tops[m]![1] - z1) <
+        Math.hypot(tops[j]![0] - x1, tops[j]![1] - z1)
+      )
+        j = m;
+    const [x0, z0] = tops[j]!,
       len = Math.hypot(x1 - x0, z1 - z0);
     if (len < 1 || len > 90) continue;
     out.put(

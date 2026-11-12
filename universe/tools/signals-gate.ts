@@ -1,12 +1,12 @@
-// node tools/signals-gate.ts [--ci] [--soft] [--shots dir] [--seed text]: gate 109, signals and the world known (docs/architecture/
-// signals-plan.md, asked 2026-11-11: "the utility of phones and laptops and information age" and "the whole world should technically be
-// explored before they reach space"). An alien world run in node past its first orbit and into its information age, taken up in the
-// app at 430 by 932, by real touch:
+// node tools/signals-gate.ts [--ci] [--soft] [--shots dir] [--seed text]: gate 109, signals and the world known
+// (docs/architecture/first-principles-plan.md, "Signals", asked 2026-11-11: "the utility of phones and laptops and information age"
+// and "the whole world should technically be explored before they reach space"). An alien world run in node past its first orbit
+// and into machines in the pocket, taken up in the app at 430 by 932, by real touch:
 //   1. its pages show the signal steps: what can be done here, its ladder of talking at a distance from a runner to a web of machines,
 //      and how much of its world is known; a land's economy, how fast its word goes and what being on the line does; a step's page,
 //      what it does and what it changes;
-//   2. something drawn shows them: in its greatest town, poles and the wire slung between them, a mast over its square, and at night
-//      the cold light of screens in its windows, seen in the pixels;
+//   2. something drawn shows them: in a town of a land with machines in the pocket, poles and the wire slung between them, a mast
+//      over its square, phones in its people's hands, and at night the cold light of screens in its windows, seen in the pixels;
 //   3. the world map fully known after orbit: under the knowledge lens no land is left dark, where the same world before its first orbit
 //      had much of it dark, counted in the pixels; and no page errors.
 import { mkdirSync } from "node:fs";
@@ -66,7 +66,7 @@ for (let y = 100; y <= 2400; y += 50) {
     young = pack(world);
     youngShare = knownWorld(world).share;
   }
-  if (orbit !== null && firstKnown(world, "networks") !== null && y >= orbit + 50) break;
+  if (orbit !== null && firstKnown(world, "pocket-machines") !== null && y >= orbit + 50) break;
 }
 const year = Math.floor(world.now / YEAR),
   orbitYear = firstKnown(world, "orbital-flight"),
@@ -194,7 +194,13 @@ const lensButton = async (name: string) => {
   if (await k<boolean>("document.body.classList.contains('bar-open')"))
     await tap(".bar-fold", "the bar's ☰, to fold it");
 };
-/** Of the pixels of the globe's middle, those near black: land and sea a lens leaves dark. */
+/** Of the globe's spots, the share its lens painted near black (what the app painted, before light and sea lie over it). */
+const paintedDark = () =>
+  k<number>(
+    `(() => { let d = 0, n = 0; for (let s = 0; ; s++) { const c = globalThis.causalis.lensColorAt(s); if (!c || c.length < 3) break; n++; if (Math.max(...c) < 48) d++; } return n ? d / n : -1; })()`,
+  );
+/** Of the pixels of the globe's middle, those dim (none of red, green or blue past 100 of 255): land and sea a lens leaves dark, under the
+ * light and the thin sea over it. */
 const darkShare = (data: string) =>
   page.evaluate(async (d) => {
     const bm = await createImageBitmap(await (await fetch(`data:image/png;base64,${d}`)).blob()),
@@ -204,31 +210,40 @@ const darkShare = (data: string) =>
     const w = bm.width,
       h = bm.height,
       px = x.getImageData(
-        Math.round(w * 0.2),
+        Math.round(w * 0.25),
+        Math.round(h * 0.45),
+        Math.round(w * 0.5),
         Math.round(h * 0.3),
-        Math.round(w * 0.6),
-        Math.round(h * 0.35),
       ).data;
     let dark = 0,
       n = 0;
     for (let i = 0; i < px.length; i += 16) {
       n++;
-      if (Math.max(px[i]!, px[i + 1]!, px[i + 2]!) < 64) dark++;
+      if (Math.max(px[i]!, px[i + 1]!, px[i + 2]!) < 100) dark++;
     }
     return dark / n;
   }, data);
 
 // 3, first: the same world before its first orbit, under the knowledge lens: much of it dark.
-let youngDark = 0;
+let youngDark = 0,
+  youngPainted = 0,
+  // (A spot of the young world's dark, faced in both shots: its home, where the camera starts, is what it knows best.)
+  farSpot = -1;
 if (young) {
   await loadSave(young, "alien:gate109-young");
   await lensButton("Knowledge");
+  await until("its unknown lands painted dark", async () => (await paintedDark()) > 0.2);
+  farSpot = await k<number>(
+    `(() => { const d = []; for (let s = 0; ; s++) { const c = globalThis.causalis.lensColorAt(s); if (!c || c.length < 3) break; if (Math.max(...c) < 48) d.push(s); } return d.length ? d[d.length >> 1] : -1; })()`,
+  );
+  if (farSpot >= 0) await k(`globalThis.causalis.faceSpot(${farSpot})`);
   await settle(2500);
   const k0 = await ask<{ share: number; unknown: number[] }>("known.lands");
   youngDark = await darkShare(await shot("1-young-knowledge"));
+  youngPainted = await paintedDark();
   const said = await k<string>(`document.querySelector(".mapmodes")?.innerText ?? ""`);
   say(
-    `before orbit: ${Math.round(k0.share * 100)}% known, ${k0.unknown.length} lands dark; ${Math.round(youngDark * 100)}% of the globe's middle dark; the lens says “${said.replace(/\n+/g, " | ").slice(0, 160)}”`,
+    `before orbit: ${Math.round(k0.share * 100)}% known, ${k0.unknown.length} lands dark; ${Math.round(youngDark * 100)}% of the globe's middle dark, ${Math.round(youngPainted * 100)}% of its spots painted dark; the lens says “${said.replace(/\n+/g, " | ").slice(0, 160)}”`,
   );
   check(k0.share < 1 && k0.unknown.length > 0, "before its first orbit its people knew all of it");
   check(/% of its world known/.test(said), "the knowledge lens does not say how much is known");
@@ -283,7 +298,7 @@ check(/seeing its world whole/i.test(text), "the rest does not show seeing its w
 type Town = { ref: string; name: string; cell: number; people: number };
 const towns = await ask<Town[]>("towns.map");
 const lore = loreOf(world);
-const wired = towns.find((t) => lore.get(t.cell, "networks"));
+const wired = towns.find((t) => lore.get(t.cell, "pocket-machines"));
 check(!!wired, "no town of a land on the web");
 if (wired) {
   await k(`globalThis.causalis.open("cell:0:${wired.cell}")`);
@@ -305,7 +320,7 @@ if (wired) {
   check(!BAD.test(text), `a broken word on the land's economy: ${text.match(BAD)?.[0]}`);
   for (const w of [/a word goes/i, /on the line/i, /information work/i, /its markets/i])
     check(w.test(text), `the land's economy does not show ${w}`);
-  say(`the land: ${(text.match(/Signals[\s\S]{0,300}/)?.[0] ?? "").replace(/\n+/g, " | ")}`);
+  say(`the land: ${(text.match(/Signals[\s\S]{0,300}/i)?.[0] ?? "").replace(/\n+/g, " | ")}`);
 }
 // A step's page: what it does and what it changes.
 await k(`globalThis.causalis.open("prin:networks")`);
@@ -377,18 +392,30 @@ if (wired) {
 // 3. The map fully known after orbit: reload, the knowledge lens, no land dark.
 await loadSave(late, "alien:gate109");
 await lensButton("Knowledge");
+if (farSpot >= 0) await k(`globalThis.causalis.faceSpot(${farSpot})`);
 await settle(2500);
 const k1 = await ask<{ share: number; unknown: number[] }>("known.lands");
-const lateDark = await darkShare(await shot("5-late-knowledge"));
+const lateDark = await darkShare(await shot("5-late-knowledge")),
+  latePainted = await paintedDark();
 const said = await k<string>(`document.querySelector(".mapmodes")?.innerText ?? ""`);
 say(
-  `after orbit: ${Math.round(k1.share * 100)}% known, ${k1.unknown.length} lands dark; ${Math.round(lateDark * 100)}% of the globe's middle dark (before: ${Math.round(youngDark * 100)}%)`,
+  `after orbit: ${Math.round(k1.share * 100)}% known, ${k1.unknown.length} lands dark; ${Math.round(lateDark * 100)}% of the globe's middle dark, ${Math.round(latePainted * 100)}% of its spots painted dark (before: ${Math.round(youngDark * 100)}%)`,
 );
 check(k1.share === 1 && k1.unknown.length === 0, "after orbit some of its world is still unknown");
 check(
   /all of its world known/i.test(said),
   "the knowledge lens does not say all of its world is known",
 );
+if (young) {
+  check(
+    youngDark > 0.1,
+    `the unknown of its world not dark on the screen before orbit (${youngDark})`,
+  );
+  check(
+    latePainted < youngPainted / 2,
+    `no fewer spots painted dark after orbit (${latePainted} against ${youngPainted})`,
+  );
+}
 if (young)
   check(
     lateDark < youngDark / 2,

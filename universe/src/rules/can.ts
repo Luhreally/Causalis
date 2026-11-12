@@ -705,17 +705,17 @@ export const CAN_FUNCTIONS: readonly CanFunction[] = [
       onSea({ by: at("sea-sound"), figure: paceBy("sound"), first: true }),
       { by: at("hand-sets"), figure: () => "a set carried by hand, on valves", first: true },
       {
-        by: at("networks"),
-        figure: (w) => withStuff(paceBy("web")(w), fnBy("switch-in-crystal")(w)),
-        first: true,
-      },
-      { by: at("pocket-machines"), figure: () => "a machine in every pocket", first: true },
-      {
         by: at("orbital-flight"),
         name: () => "a word from orbit",
         figure: (w) => `the whole world, ${thousands(aroundKm(w.numbers) * 2)} km round`,
         first: true,
       },
+      {
+        by: at("networks"),
+        figure: (w) => withStuff(paceBy("web")(w), fnBy("switch-in-crystal")(w)),
+        first: true,
+      },
+      { by: at("pocket-machines"), figure: () => "a machine in every pocket", first: true },
     ],
   },
   {

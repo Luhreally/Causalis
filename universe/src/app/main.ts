@@ -2057,7 +2057,11 @@ async function runPlanetPage(): Promise<void> {
     // (What its people do not know of their world, dark under the knowledge lens: signals.)
     if (lens === "knowledge" && unknownLands.size) unknownOverCells(colors, frame, unknownLands);
     globe.paint(litLands.size ? litColors(colors, frame, litLands) : colors);
-    globe.clearSea(frameUndersea(frame) && lens !== "terrain");
+    // (Under the knowledge lens, the sea shell cleared, so the seas its people never sailed show dark too: signals.)
+    globe.clearSea(
+      (frameUndersea(frame) && lens !== "terrain") ||
+        (lens === "knowledge" && unknownLands.size > 0),
+    );
     globeLensColors = colors;
     // Clouds over the land as it is; none over what a lens paints.
     globe.weather = lens === "terrain" && stage.quality.clouds;

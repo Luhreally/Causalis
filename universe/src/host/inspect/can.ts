@@ -86,6 +86,25 @@ function functionItems(f: FunctionHere, w: CanWorld, known: Knowledge | null): I
       ],
       ...(f.top.by ? { ref: prinRef(f.top.by) } : {}),
     });
+  // The way it came, where it came by more than two rungs: each with its first year (signals: a word's way from a runner to a web).
+  const before =
+    f.now && known
+      ? f.rungs.slice(0, f.rungs.indexOf(f.now)).filter((r) => r.state === "have" && r.by)
+      : [];
+  if (before.length >= 2)
+    items.push({
+      tone: "have",
+      line: [
+        "Came by ",
+        ...andList(
+          before.map((r) => {
+            const k = known?.get(r.by!);
+            return link(k ? `${r.name} (${count(k.year)})` : r.name, prinRef(r.by!));
+          }),
+        ),
+        ".",
+      ],
+    });
   // Not reached: what it wants first.
   const next = known ? f.next : null;
   if (next) {
