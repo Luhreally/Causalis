@@ -4,7 +4,7 @@
 // decade by decade. A land is the same land in both; a realm is not (history moves), so a realm is read in its own run only.
 import { readFileSync } from "node:fs";
 
-type Loss = [number, number, number];
+type Loss = [number, number, number, number?];
 type Learned = {
   holder: string;
   name: string;
@@ -30,10 +30,19 @@ type Run = {
   losses: Record<string, Record<string, Loss[]>>;
 };
 const [a, b] = process.argv.slice(2).map((f) => JSON.parse(readFileSync(f!, "utf8")) as Run[]);
+/** Strikes from a year on: how many, what they took, the lives among it, and the share of their land's people each took (summed, in thousandths). */
 const sum = (l: Loss[] | undefined, from = -Infinity) =>
   (l ?? []).reduce(
-    (s, x) => (x[0] >= from ? { n: s.n + 1, lost: s.lost + x[1], dead: s.dead + x[2] } : s),
-    { n: 0, lost: 0, dead: 0 },
+    (s, x) =>
+      x[0] >= from
+        ? {
+            n: s.n + 1,
+            lost: s.lost + x[1],
+            dead: s.dead + x[2],
+            share: s.share + (x[3] ? (1000 * (x[1] + x[2])) / x[3] : 0),
+          }
+        : s,
+    { n: 0, lost: 0, dead: 0, share: 0 },
   );
 for (const runB of b!) {
   const runA = a!.find((r) => r.seed === runB.seed);
@@ -72,11 +81,11 @@ for (const runB of b!) {
       y = sum(runB.losses[l.holder]?.[l.cause], after),
       g = byLesson.get(l.lesson) ?? {
         lands: 0,
-        a: { n: 0, lost: 0, dead: 0 },
-        b: { n: 0, lost: 0, dead: 0 },
+        a: { n: 0, lost: 0, dead: 0, share: 0 },
+        b: { n: 0, lost: 0, dead: 0, share: 0 },
       };
     g.lands++;
-    for (const k of ["n", "lost", "dead"] as const) {
+    for (const k of ["n", "lost", "dead", "share"] as const) {
       g.a[k] += x[k];
       g.b[k] += y[k];
     }
@@ -84,7 +93,9 @@ for (const runB of b!) {
   }
   for (const [lesson, g] of byLesson) {
     const per = (s: ReturnType<typeof sum>) =>
-      s.n ? Math.round(((s.lost + s.dead) / s.n) * 10) / 10 : 0;
+      s.n
+        ? `${Math.round(((s.lost + s.dead) / s.n) * 10) / 10} a strike, ${Math.round((s.share / s.n) * 100) / 100} in a thousand of its people`
+        : "none";
     console.log(
       `  ${lesson}: ${g.lands} lands; after taking it up: base ${g.a.n} strikes, ${g.a.lost} lost, ${g.a.dead} dead (${per(g.a)} a strike); lessons ${g.b.n} strikes, ${g.b.lost} lost, ${g.b.dead} dead (${per(g.b)} a strike)`,
     );

@@ -14,7 +14,8 @@ const [yearArg, out, ...rest] = process.argv.slice(2),
   last = Number(yearArg ?? 800),
   seeds = rest.length ? rest : ["earth:first light"];
 
-type Loss = [year: number, lost: number, dead: number];
+/** A loss: its year, what it took (homes, men, those hungry), the lives among it, and the people of its land then (0: a realm). */
+type Loss = [year: number, lost: number, dead: number, people?: number];
 const numOf = (d: unknown, k: string) => {
   const v = (d as Record<string, unknown> | null)?.[k];
   return typeof v === "number" ? v : 0;
@@ -35,8 +36,11 @@ for (const s of seeds) {
       start: "spread",
     }),
     losses: Record<string, Record<string, Loss[]>> = {},
+    ctx0 = sim.populationContext(world),
     add = (holder: string, cause: string, l: Loss) => {
-      ((losses[holder] ??= {})[cause] ??= []).push(l);
+      const cell = holder.startsWith("cell:0:") ? Number(holder.slice(7)) : -1,
+        people = cell >= 0 ? (ctx0.provinces.get(cell)?.total() ?? 0) + l[2] : 0;
+      ((losses[holder] ??= {})[cause] ??= []).push([l[0], l[1], l[2], people]);
     };
   let read = 0;
   const t0 = performance.now(),
