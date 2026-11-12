@@ -60,6 +60,10 @@ import {
   FIGURE_CAPSULE,
   figureOf,
   figureAnatomy,
+  fallenLost,
+  BLOW_PLACES,
+  type FigureAnatomy,
+  type Gore,
   armorPanels,
   armorColor,
   type FigurePart,
@@ -203,7 +207,9 @@ const BOLTS_A_SIDE = 16;
 const TRACER: Rgb = [1, 0.5, 0.18],
   MUZZLE: Rgb = [1, 0.82, 0.42],
   POWDER: Rgb = [0.86, 0.86, 0.84],
-  KICKED: Rgb = [0.5, 0.42, 0.32];
+  KICKED: Rgb = [0.5, 0.42, 0.32],
+  /** A fallen soldier's blood, where a part was taken off them. */
+  SPILT: Rgb = [0.3, 0.02, 0.02];
 /**
  * How a gun fires in a town's fight, as seen (asked for 2026-11-11: a rifle shooting "lasers" made no
  * sense for what it is): how often (s, its rounds a minute hastened for the eye), whether its line
@@ -225,6 +231,12 @@ const TOWN_FIRE_ELSE = { every: 3, volley: false, smoke: 1.2, thick: 0.5 };
 const BURST = { rounds: 5, apart: 0.09 },
   KICK_S = 0.5;
 /** A whole number's place between 0 and 1, the same each time (for who fires when). */
+/** A text's own whole number (a war's ref: its fallen tell apart by it, war to war). */
+const hashText = (t: string) => {
+  let h = 0;
+  for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0;
+  return Math.abs(h) % 100_000;
+};
 const hashUnit = (n: number) => {
   const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
   return x - Math.floor(x);
@@ -300,6 +312,20 @@ export class VillageScene {
   private townFlash: InstancedBatch | null = null;
   private townPowder: InstancedBatch | null = null;
   private townKicks: InstancedBatch | null = null;
+  /**
+   * How much blood and wounds are shown (the game's setting, as a battle's: main.ts sets it). Of a
+   * town war's fallen, a part taken off and its blood; none, none.
+   */
+  gore: Gore = "full";
+  /** The soldiers' figure's places, and for each of its parts the places it is a part of (bits). */
+  private soldierAnatomy: FigureAnatomy | null = null;
+  private partPlaces: number[] = [];
+  /** Below this height of the figure, a helmet's piece: it goes with the head. */
+  private helmetFrom = Number.POSITIVE_INFINITY;
+  /** For each soldier now, the place they lost (BLOW_PLACES' index), or −1. */
+  private soldierLost = new Int8Array(0);
+  private townBlood: InstancedBatch | null = null;
+  private readonly poolsNow: number[] = [];
   /** Who fires now, kept from frame to frame (the list made again each frame, not its room). */
   private readonly shotsNow: {
     i: number;
@@ -2221,7 +2247,24 @@ export class VillageScene {
         out[5] = part.sz * size;
         out[6] = q.yaw;
         out[7] = pp;
+        // (A part taken off them lies apart, out past where it was: a limb to its side, a head
+        // past the shoulders, and a helmet with it.)
+        const lost = this.soldierLost[side * this.soldiersEach + k]!;
+        if (
+          lost >= 0 &&
+          (shell ? lost === 0 && shell.y >= this.helmetFrom : this.partPlaces[pi]! & (1 << lost))
+        ) {
+          const away = lost === 0 ? 0 : px < 0 ? -1 : 1,
+            // (A figure stands about 0.55 of these: an arm or a leg a hand's breadth out from its
+            // place and down along them, a head as far past the shoulders.)
+            ax = away * 0.13,
+            az = away ? (lost >= 6 ? 0.06 : 0.04) : -0.13;
+          out[0] += (ax * c + az * sn) * size;
+          out[2] += (-ax * sn + az * c) * size;
+          out[6] += away ? away * 0.6 : 0.4;
+        }
       };
+      this.fallenParts(troops);
       this.soldiers.forEach((batches, side) =>
         batches.forEach((batch, pi) =>
           batch.set(this.soldiersEach, (k, out) => soldierPart(out, k, pi, side)),
@@ -2412,6 +2455,12 @@ export class VillageScene {
     const anatomy = figureAnatomy(this.figure),
       chest = this.figure.parts[anatomy.on.trunk],
       head = this.figure.parts[anatomy.on.head];
+    this.soldierAnatomy = anatomy;
+    this.partPlaces = this.figure.parts.map((_, i) =>
+      BLOW_PLACES.reduce((m, p, b) => (anatomy.parts[p].includes(i) ? m | (1 << b) : m), 0),
+    );
+    this.helmetFrom = head ? head.y - partExtent(head)[1] / 2 : Number.POSITIVE_INFINITY;
+    this.soldierLost = new Int8Array(2 * this.soldiersEach).fill(-1);
     this.soldierArmorParts = sides
       ? sides.map((side) => {
           const guard = side.host?.guard ?? "",
@@ -2530,6 +2579,11 @@ export class VillageScene {
     this.townKicks = guns
       ? kept(s, meshes.box, KICKED, most, this.root, flatMaterial(KICKED, 0.85))
       : null;
+    // (On the box, as the gunfire's are: a war's batches go with its arms, and a mesh only they
+    // drew on would go with them — the keptMesh crash.)
+    this.townBlood = this.soldiersEach
+      ? kept(s, meshes.box, SPILT, most, this.root, flatMaterial(SPILT, 1, 0.7))
+      : null;
     this.blades = bears(["sword", "axe"])
       ? kept(s, meshes.box, [0.8, 0.82, 0.86], this.soldiersEach * 2, this.root)
       : null;
@@ -2564,6 +2618,58 @@ export class VillageScene {
    * that hangs, smokeless powder's a wisp), the earth a round throws up among the foe; and each
    * machine gun's tracers, a glint going out from its tripod. Nothing when no one fires.
    */
+  /**
+   * Of the town war's fallen now, the part each lost (soldierLost), by the foe's arm, and a pool of
+   * blood where it was taken off (as the gore setting shows: less, a smaller and darker one; none,
+   * no part taken and no blood).
+   */
+  private fallenParts(troops: TownWarScene["soldiers"]): void {
+    const each = this.soldiersEach,
+      lost = this.soldierLost,
+      anatomy = this.soldierAnatomy,
+      blood = this.townBlood,
+      seed = hashText(this.townWar?.ref ?? "");
+    lost.fill(-1);
+    if (!anatomy || this.gore === "none") {
+      blood?.set(0, () => {});
+      return;
+    }
+    const pooled = this.poolsNow;
+    pooled.length = 0;
+    for (let i = 0; i < 2 * each && i < lost.length; i++) {
+      const q = troops[i];
+      if (!q || q.doing !== "fallen" || q.size < 0.5) continue;
+      const side = i < each ? 0 : 1,
+        place = fallenLost(seed + i * 131, this.kits[1 - side]?.arm, anatomy);
+      if (!place) continue;
+      lost[i] = BLOW_PLACES.indexOf(place);
+      pooled.push(i);
+    }
+    if (!blood) return;
+    const less = this.gore === "less",
+      size = this.figure.scale;
+    blood.set(pooled.length, (j, out) => {
+      const i = pooled[j]!,
+        q = troops[i]!,
+        r = (less ? 0.055 : 0.09) * size * q.size * (0.8 + 0.4 * hashUnit(i + seed)),
+        // (Where what was taken lay, as they lie on their back with the head toward −z: the
+        // ground beside the trunk an arm left, below the hip a leg left, past the neck.)
+        place = lost[i]!,
+        across = place === 0 ? 0 : (place % 2 === 0 ? 1 : -1) * (place >= 6 ? 0.05 : 0.12),
+        back = place === 0 ? -0.5 : place >= 6 ? -0.1 : -0.32,
+        c = Math.cos(q.yaw),
+        sn = Math.sin(q.yaw);
+      out[0] = q.x * M + (across * c + back * sn) * size * q.size;
+      out[1] = 0.012 * size;
+      out[2] = q.z * M + (-across * sn + back * c) * size * q.size;
+      out[3] = r * 2;
+      out[4] = 0.01 * size;
+      out[5] = r * 1.6;
+      out[6] = q.yaw + hashUnit(i * 7 + seed);
+      out[7] = 0;
+    });
+  }
+
   private gunfire(troops: TownWarScene["soldiers"], clock: number): void {
     const flash = this.townFlash,
       powder = this.townPowder,

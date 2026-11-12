@@ -460,6 +460,7 @@ export {
   blowWords,
   blowsAt,
   figureAnatomy,
+  fallenLost,
   hurtFigures,
   newBlows,
   type BackWay,

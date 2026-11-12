@@ -1535,6 +1535,8 @@ async function runPlanetPage(): Promise<void> {
     // The weather over the ground the eye is near (Phase 30 M162), and the god's acts on it (M163).
     weather = new WeatherLayer(stage, stage.root),
     handNear = new ActsNearLayer(stage, stage.root);
+  // (A town war's fallen show the blood the setting shows, as a battle's do.)
+  village.gore = gore;
   stage.backdrop("space");
   // While the world is made, the shaders of the scales below are readied, so the first
   // "Look closer" draws at once.
@@ -7669,6 +7671,7 @@ async function runPlanetPage(): Promise<void> {
   planetPanel.goreNow = () => gore;
   planetPanel.onGore = (g) => {
     gore = g;
+    village.gore = g;
     try {
       localStorage.setItem(GORE_KEY, g);
     } catch {

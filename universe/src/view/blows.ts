@@ -330,6 +330,34 @@ export function figureAnatomy(f: Figure): FigureAnatomy {
   };
 }
 
+/**
+ * Of a town war's fallen (drawn about the town, not by a battle's own layer: a siege's, a storm of
+ * the walls'), the part one lost, if any, by the one rule the battles' dead lose theirs by
+ * (severShare, severWeights): the foe's arm, a gun's round or a hand's blow; where it may be taken,
+ * of the parts this figure has. `n` tells them apart (any whole number, the same for the same one).
+ * Asked for 2026-11-11: dismemberment in each battle, with swords and especially guns.
+ */
+export function fallenLost(
+  n: number,
+  foeArm: string | undefined,
+  anatomy: FigureAnatomy,
+): BlowLost | null {
+  const striker: Striker = isGun(foeArm) ? "bullet" : "hand",
+    arm = striker === "bullet" ? (armLook(foeArm).rest ?? foeArm) : foeArm;
+  if (unitOf(n, 1) >= severShare(striker, arm)) return null;
+  const weights = severWeights(striker).map((w, i) =>
+    anatomy.parts[BLOW_PLACES[i]!].length > 0 ? w : 0,
+  );
+  if (!weights.some((w) => w > 0)) return null;
+  const place = pick(weights, unitOf(n, 2));
+  return place === "trunk" ? null : place;
+}
+/** A number's own draw in 0 … 1, by a salt. */
+function unitOf(n: number, salt: number): number {
+  const x = Math.sin(n * 12.9898 + salt * 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
+
 /** Where a place lands on a figure that has none (a limbless body): on the trunk. */
 function onFigure(a: FigureAnatomy, p: BlowPlace): BlowPlace {
   return a.on[p] >= 0 ? p : "trunk";

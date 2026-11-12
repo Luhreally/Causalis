@@ -489,3 +489,22 @@ test("one struck, told: where and with what, what was cut off, and what they are
     /: helping a wounded comrade back through the ranks\.$/,
   );
 });
+
+test("a town war's fallen lose parts by the battles' own rule, by the foe's arm", async () => {
+  const { fallenLost } = await import("../../src/view/blows.ts"),
+    { severShare } = await import("../../src/rules/index.ts"),
+    anatomy = figureAnatomy(figureOf(null, 0)),
+    share = (arm: string | undefined) => {
+      let cut = 0;
+      for (let n = 0; n < 4000; n++) if (fallenLost(n * 131 + 7, arm, anatomy)) cut++;
+      return cut / 4000;
+    };
+  assert.ok(Math.abs(share("sword") - severShare("hand", "sword")) < 0.03, `${share("sword")}`);
+  assert.ok(Math.abs(share("rifle") - severShare("bullet", "rifle")) < 0.03, `${share("rifle")}`);
+  assert.equal(share("spear"), 0);
+  // (Never the trunk; a round never takes a head.)
+  for (let n = 0; n < 500; n++) {
+    assert.notEqual(fallenLost(n, "sword", anatomy), "trunk");
+    assert.notEqual(fallenLost(n, "automatic", anatomy), "head");
+  }
+});
