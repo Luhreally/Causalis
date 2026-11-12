@@ -52,6 +52,7 @@ import type { MarketStore } from "../economy/market.ts";
 import { metalSource, metalsAt, sourceRef } from "../economy/metals.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
 import { knows, loreOf } from "../lore/lore.ts";
+import { lessonAdds } from "../lore/lessons-store.ts";
 import { politiesOf, type Polity } from "../polity/polity.ts";
 import { wildsOf } from "../ecology/ecology.ts";
 
@@ -416,15 +417,18 @@ export function hostFor(
     }
   }
   for (const m of Object.keys(sources) as Material[]) at.add(m);
+  // (What its hosts have learned from the battles they lost weighs the axis that beat them: each exactly 0 where they have not.)
+  const year = yearOfMoment(ctx.world.now),
+    learned = (axis: string) => lessonAdds(ctx.world, p.ref, `doctrine:${axis}`, year);
   const doctrine: Doctrine = {
-    shock: 0.6 + valour,
-    reach: 0.3,
-    range: 0.4,
-    protection: 0.4 + wealth,
-    mobility: 0.2 + (2 * herders) / Math.max(1, people),
+    shock: 0.6 + valour + learned("shock"),
+    reach: 0.3 + learned("reach"),
+    range: 0.4 + learned("range"),
+    protection: 0.4 + wealth + learned("protection"),
+    mobility: 0.2 + (2 * herders) / Math.max(1, people) + learned("mobility"),
     cost: 0.6 - 0.5 * wealth,
-    firepower: 0.35,
-    breach: 0.3,
+    firepower: 0.35 + learned("firepower"),
+    breach: 0.3 + learned("breach"),
   };
   return {
     parts: compose(

@@ -1,0 +1,45 @@
+// What a people learned from what cost them, in words (the lessons, sim/lore/lessons.ts): who took up what, after how much, and from
+// whom.
+import { yearOfMoment, type Ref } from "../kernel/index.ts";
+import { LESSON_EVENTS } from "../sim/index.ts";
+import { LESSON_CAUSE, LESSON_RESPONSE } from "../rules/index.ts";
+import { landWords } from "./generated.ts";
+import { registerEventWords } from "./why.ts";
+
+type Taken = {
+  lesson?: string;
+  cause?: string;
+  lost?: number;
+  dead?: number;
+  strikes?: number;
+  since?: number;
+  year?: number;
+  realm?: string;
+  from?: string;
+} | null;
+
+const thousands = (n: number) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+
+/** Who took it up: a land's people, or a realm's hosts. */
+function who(world: Parameters<typeof landWords>[0], place: string | null, d: Taken): string {
+  if (place) return `The people of ${landWords(world, place as Ref)}`;
+  return d?.realm ? `The hosts of ${d.realm}` : "A realm's hosts";
+}
+
+for (const type of [LESSON_EVENTS.taken.type, LESSON_EVENTS.copied.type])
+  registerEventWords(type, (world, e) => {
+    const d = e.data as Taken,
+      r = LESSON_RESPONSE.get(d?.lesson ?? ""),
+      c = LESSON_CAUSE.get(d?.cause ?? ""),
+      year = d?.year ?? yearOfMoment(e.t),
+      years = Math.max(1, year - (d?.since ?? year)),
+      cost = c
+        ? `${thousands(d?.lost ?? 0)} ${c.lost} in ${years === 1 ? "a year" : `${years} years`}`
+        : "what it cost them",
+      from = d?.from
+        ? d.from.startsWith("cell:")
+          ? `, as the people of ${landWords(world, d.from as Ref)} did`
+          : ", as their neighbours did"
+        : "";
+    return `${who(world, e.place, d)} began to ${r?.does ?? "change their ways"}${from}, after ${cost}, year ${year}`;
+  });

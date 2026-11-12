@@ -76,6 +76,7 @@ import {
 } from "../hand/hand.ts";
 import { cultureOf, cultureYear } from "../culture/culture.ts";
 import { loreOf } from "../lore/lore.ts";
+import { lessonAdds } from "../lore/lessons-store.ts";
 import { asksMonth, asksOf } from "../town/asks.ts";
 import { MarketStore } from "../economy/market.ts";
 import {
@@ -442,7 +443,11 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
       flocksLost = herdLoss(world, p.cell, t),
       wilds = 1 + lore.effect(p.cell, "forageYield"),
       keeping = Math.min(0.8, lore.effect(p.cell, "keeping")),
-      stored = lore.effect(p.cell, "storage") + asks.stored(p.cell, t),
+      stored =
+        lore.effect(p.cell, "storage") +
+        asks.stored(p.cell, t) +
+        // (What a people that has gone hungry has learned to put by: exactly 0 where it has learned nothing of hunger.)
+        lessonAdds(world, p.ref, "store", yearOfMoment(t)),
       // Food grown in vats (Phase 66), whatever its ground, tended by machines more than hands.
       vats = lore.get(p.cell, "vat-food")
         ? saturate(

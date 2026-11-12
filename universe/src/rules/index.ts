@@ -1230,3 +1230,21 @@ export {
   type DwellingKind,
   type HerdWhy,
 } from "./herds.ts";
+export {
+  LESSON,
+  LESSON_CAUSE,
+  LESSON_CAUSES,
+  LESSON_RESPONSE,
+  LESSON_RESPONSES,
+  LESSONS_FOR,
+  faded,
+  lessenBy,
+  pressOf,
+  takeUpChance,
+  trustOf,
+  useAfter,
+  type LessonCause,
+  type LessonHow,
+  type LessonResponse,
+  type LessonScope,
+} from "./lessons.ts";

@@ -74,6 +74,8 @@ const RULES: Readonly<Record<string, readonly [number, number]>> = {
   "people.spread": [FIRSTS, 5],
   "lore.found": [FIRSTS, 3],
   "lore.learned": [FIRSTS, 0],
+  "lessons.taken": [FIRSTS, 2],
+  "lessons.copied": [FIRSTS, 0],
   "knowledge.cultivation": [FIRSTS, 4],
   "knowledge.herding": [FIRSTS, 4],
   "knowledge.metalworking": [FIRSTS, 4],
@@ -894,8 +896,14 @@ function tellYear(world: World, year: number, events: readonly HistoryEvent[], w
       more = list.length - 1,
       war = type === "war.declared" || type === "war.peace" ? warOf(best) : "",
       great = list.some((e) => w.wars.get(warOf(e))?.great),
-      worth = war && great ? 4 : base,
-      lead = war && great ? (list.find((e) => w.wars.get(warOf(e))?.great) ?? best) : best;
+      // (The first in all the world to take up a lesson is told among the year's greatest: the lessons.)
+      first =
+        type === "lessons.taken"
+          ? list.find((e) => (e.data as { first?: boolean } | null)?.first)
+          : undefined,
+      worth = war && great ? 4 : first ? ALL_WORTH : base,
+      lead =
+        war && great ? (list.find((e) => w.wars.get(warOf(e))?.great) ?? best) : (first ?? best);
     add({
       kind,
       worth,

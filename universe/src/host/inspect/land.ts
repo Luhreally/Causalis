@@ -45,6 +45,7 @@ import { dropBlock } from "./small.ts";
 import { landBondBlocks } from "./order.ts";
 import { landHealthBlocks } from "./sickness.ts";
 import { landCreditBlocks } from "./credit.ts";
+import { lessonBlocks } from "./lessons.ts";
 import { biomeWords } from "../kinds.ts";
 import {
   faithLink,
@@ -289,6 +290,11 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
     // Its debts (Phase 21 M143): what it owes, to which houses, against its harvest.
     const debt = landCreditBlocks(world, cell);
     if (debt.length) tabs.push({ id: "debt", name: "Debt", blocks: debt });
+  }
+  // What its people have learned from what has cost them (the lessons).
+  {
+    const learned = lessonBlocks(world, ref);
+    if (learned.length) tabs.push({ id: "learned", name: "Learned", blocks: learned });
   }
   // The ground and its air.
   if (place) {

@@ -88,6 +88,7 @@ import { WAY, cultureOf } from "../culture/culture.ts";
 import { cutOff, endRealm, politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { interestsOf, pressure } from "../polity/interests.ts";
 import { loreOf } from "../lore/lore.ts";
+import { lessonAdds } from "../lore/lessons-store.ts";
 import { asksOf } from "../town/asks.ts";
 import { RIVALRY, diplomacyOf, relationRef } from "../diplomacy/diplomacy.ts";
 import { CREDIT, warChest } from "../credit/credit.ts";
@@ -648,6 +649,11 @@ export class WarStore implements StateStore {
     return out;
   }
 
+  /** What a warm battle's two hosts fought with (shock, protection, range, fire, care), as its exchanges read it (null: gone cold). */
+  termsAt(event: string): readonly [Terms, Terms] | null {
+    return this.terms.get(event) ?? null;
+  }
+
   /** A battle by its event: its war, where it stands in it (null: none such). */
   battleBy(event: string): { war: War; k: number; b: Battle } | null {
     const wars = this.warm;
@@ -806,7 +812,9 @@ function fieldShare(ctx: PopulationContext, p: Polity): number {
     0.04 +
     0.1 * valour +
     0.03 * lore.effect(p.seat, "arms") * (lore.get(p.seat, "standing-army") ? 1 : 0) +
-    (p.leadership === GENERAL ? STRIFE.fields : 0)
+    (p.leadership === GENERAL ? STRIFE.fields : 0) +
+    // (More, where they have learned what being outnumbered costs: exactly 0 where they have not.)
+    lessonAdds(ctx.world, p.ref, "field", yearOfMoment(ctx.world.now))
   );
 }
 
@@ -1496,6 +1504,10 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         hills *
         river *
         walls *
+        // (Works raised where they have learned what invaders cost; ladders and engines where their foes have learned what walls
+        // cost them: both exactly 1 where nothing has been learned.)
+        (1 + lessonAdds(world, b.ref, "walls", year)) *
+        (seat || hills > 1 || walls > 1 ? 1 / (1 + lessonAdds(world, a.ref, "siege", year)) : 1) *
         (chestB ? CREDIT.chest : 1) *
         entrench *
         (1 / Math.max(1, wars.fighting(b.ref).length)) *
