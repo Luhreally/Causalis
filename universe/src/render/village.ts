@@ -172,7 +172,7 @@ import { RaidLayer } from "./raid.ts";
 import { GraveyardLayer } from "./graveyard.ts";
 import { MemorialLayer } from "./memorial.ts";
 import { CourtLayer } from "./court.ts";
-import { courtCaseAt, courtSitting } from "../view/index.ts";
+import { DIVE_SEEN, courtCaseAt, courtSitting, diveAt } from "../view/index.ts";
 import { WoundsLayer, bandageOn, propAt, type WornPiece } from "./wounds.ts";
 import { LittersLayer, litterApart, litterHeld } from "./litters.ts";
 import { FolkPoses, nearReach, redrawn } from "./folk.ts";
@@ -1926,9 +1926,16 @@ export class VillageScene {
     }
     // A raid over the town (W2): its machines, its load falling, each hit's burst.
     if (plan.town?.struck?.some((k) => k.raid) || this.raided) {
+      // (Its machines in the look of the town's age; none of the greatest fire's cloud drawn about the eye.)
       const r = this.town.raid(t);
-      this.raidLayer.update(r);
-      this.raided = r.flyers.length + r.streaks.length + r.falling.length + r.bursts.length > 0;
+      this.raidLayer.update(
+        r,
+        plan.era,
+        !!plan.past,
+        performance.now() / 1000,
+        this.stage.camera.getPosition(),
+      );
+      this.raided = this.raidLayer.busy;
     }
     // The woodlot (Phase 41 M200): a tree coming down at its feller's first blows' end, lying
     // as it is cut up, then its stump; saplings growing where trees were felled.
@@ -2784,16 +2791,15 @@ export class VillageScene {
 
   /** Where rockets' streaks are now, the head and part way up, in the village's units (W3's look tools). */
   streaksShown(): { x: number; y: number; z: number }[] {
-    return this.town.raid(this.lastT).streaks.flatMap((k) => {
-      const up = Math.min(k.length, 180),
-        c = Math.cos(k.slant);
-      return [
-        {
-          x: (k.x - Math.sin(k.yaw) * c * up) * 0.1,
-          y: (k.y + Math.sin(k.slant) * up) * 0.1,
-          z: (k.z - Math.cos(k.yaw) * c * up) * 0.1,
-        },
-      ];
+    const d = [0, 0, 0];
+    return this.town.raid(this.lastT).streaks.map((k) => {
+      // (Part way up the smoke it left: as far up its way from its head as the smoke goes, at most 180 m.)
+      diveAt(Math.min(k.head + 180, DIVE_SEEN), d);
+      return {
+        x: (k.ax - Math.sin(k.yaw) * d[0]!) * 0.1,
+        y: (k.ay + d[1]!) * 0.1,
+        z: (k.az - Math.cos(k.yaw) * d[0]!) * 0.1,
+      };
     });
   }
 

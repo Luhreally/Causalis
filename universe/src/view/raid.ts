@@ -2,7 +2,8 @@
 // drones and modern military and stuff beyond imagination"). Its people's foes' machines come over on a run,
 // in the world's own time, tip to tip and as fast as their air and pull make them, and their load falls; each
 // hit sets its lot alight as any fire does (view/blaze.ts burns it on from there). Pure: the same plan at the
-// same moment flies the same.
+// same moment flies the same. What falls comes down on the first roof or wall in its way, or the ground, and
+// what a hit throws lies where it lands (asked 2026-11-11: "theres like no mesh coliders it seems for many things").
 import {
   SPREAD,
   type LotStates,
@@ -12,18 +13,31 @@ import {
   type WarsMap,
 } from "../bridge/index.ts";
 import type { Slowing } from "./battleday.ts";
-import type { TownScene } from "./town.ts";
+import { homesRiseTo, townSurface, type TownScene } from "./town.ts";
 
 /** How high they come over (metres; an estimate), how far from the town they are first drawn (metres). */
 export const RAID_HIGH = 150,
   RAID_FAR = 1300;
-/** How long a load takes to fall (seconds, from that height at Earth's pull) and how long a hit's burst lasts. */
+/**
+ * How long a load takes to fall (seconds, from that height at Earth's pull) and how long a hit's burst lasts, all told: its
+ * flash and fireball, its smoke, and what it threw lying where it fell till it fades; a rocket's the longer.
+ */
 export const FALL_S = 5.5,
-  BURST_S = 4;
+  BURST_S = 12,
+  ROCKET_BURST_S = 18;
 /** The most flyers, falling loads and bursts drawn at once. */
 export const MOST_RAIDERS = 12,
   MOST_FALLING = 24,
-  MOST_BURSTS = 24;
+  MOST_BURSTS = 32;
+/** How long the ground a hit scorched stays dark (world seconds; the last third of it fading), and the most such marks drawn. */
+export const MARK_S = 1200,
+  MOST_MARKS = 48;
+/** How many things a hit throws (a rocket's, more), and the numbers kept for each: how fast it went off (m/s, three ways), when it came down after the hit (s), where (m, three ways) and how big it is (m). */
+export const BITS = 6,
+  ROCKET_BITS = 10,
+  BIT = 8;
+/** Earth's pull, for what is thrown (m/s²). */
+const PULL = 9.81;
 /** How fast the clock runs through a raid in a town (world seconds a second): a run that can be watched. */
 export const RAID_SPEED = 3;
 /** How many fly abreast. */
@@ -39,6 +53,8 @@ const STRAY_READ = 2048,
 type RaidWay = {
   readonly heading: number;
   readonly under: readonly number[];
+  /** Which lots are among those under its stream (1), so that none is drawn twice. */
+  readonly underMask?: Uint8Array;
   readonly strays: readonly { readonly p: number; readonly at: number }[];
   readonly falls?: readonly RocketFall[];
   /** What it burned past the streets drawn, out in a great city's sprawl. */
@@ -70,13 +86,33 @@ type Ring = { readonly r0: number; readonly r1: number };
 const FAR_HOMES = 9,
   FAR_ABOUT = 70,
   FAR_CATCH = 40;
-/** How steeply they come down (radians from level, est: Earth's first came down at some 65 degrees), how high they are drawn from (m). */
-const STREAK_DOWN = 1.13,
-  STREAK_HIGH = 1600;
-/** How long a streak hangs after it has fallen (world seconds), how long before its first fall the sky is watched (world seconds), and after its last. */
-export const STREAK_HANGS = 40,
+/**
+ * A rocket's way down as it is drawn (W3): how far up it it is first seen (m), and how steeply it comes in there and at the last
+ * (radians from level): out of the sky on a long slant, steepening into a dive onto where it falls (est: Earth's first came down
+ * at some 65 degrees and more).
+ */
+export const DIVE_SEEN = 2200,
+  DIVE_TOP = 0.55,
+  DIVE_END = 1.38;
+/** How long the smoke a rocket left hangs after it has fallen (world seconds), how long before its first fall the sky is watched (world seconds), and after its last. */
+export const STREAK_HANGS = 60,
   ROCKET_BEFORE = 14,
   ROCKET_AFTER = 30;
+/** The bend of a rocket's way (radians a metre along it). */
+const BEND = (DIVE_END - DIVE_TOP) / DIVE_SEEN;
+/**
+ * Where a rocket is `sigma` metres up its way from where it comes down (W3): how far back along its heading (m), how high over
+ * that point (m), and its slant there (radians from level), into `out`. Its slant eases from the dive at the last to the long
+ * slant at the top, a metre at a time, so its way is that curve's sum.
+ */
+export function diveAt(sigma: number, out: number[]): number[] {
+  const s = Math.max(0, Math.min(DIVE_SEEN, sigma)),
+    slant = DIVE_END - BEND * s;
+  out[0] = (Math.sin(DIVE_END) - Math.sin(slant)) / BEND;
+  out[1] = (Math.cos(slant) - Math.cos(DIVE_END)) / BEND;
+  out[2] = slant;
+  return out;
+}
 /** The most rockets' falls drawn on a town, and how fast the clock runs through them: the world's own. */
 export const MOST_STREAKS = 8,
   ROCKET_SPEED = 1;
@@ -229,9 +265,12 @@ export function timeRaids(
         if (dryOut(plan, x, z))
           burnsAbout(key, 320 + r * 30, x, z, rowOver(k, r, rows) + out / speed, far);
       }
+    const underMask = new Uint8Array(plan.lots);
+    for (const p of under) underMask[p] = 1;
     WAYS.set(k, {
       heading,
       under,
+      underMask,
       strays,
       ...(far.length ? { far } : {}),
       high: Math.max(RAID_HIGH, rise + 40),
@@ -396,14 +435,15 @@ export function raidEye(k: TownStrike): {
 } {
   // (Over a city of spires, from above their tops: from low down there would be nothing to see but walls.)
   const over = wayOf(k).high > RAID_HIGH;
-  // (The greatest fire: far off, or it fills the screen and nothing can be told of it; and from where the whole height of it shows.)
+  // (The greatest fire: far enough off that its whole cloud, as drawn, stands between the panel and the foot of the screen; as
+  // low as the eye over a town may go, looking up at it. Further off, the town's haze takes it.)
   const great = wayOf(k).great;
   if (great)
     return {
-      target: { x: great.x * 0.1, y: 34, z: great.z * 0.1 },
+      target: { x: great.x * 0.1, y: 30, z: great.z * 0.1 },
       yaw: (wayOf(k).heading * 180) / Math.PI + 74,
-      pitch: over ? -10 : -3,
-      distance: 300,
+      pitch: over ? -10 : -8,
+      distance: 150,
     };
   // (Rockets: off to the side of where the first comes down, with the sky it comes from over it.)
   const fall = wayOf(k).falls?.[0];
@@ -431,18 +471,30 @@ export type RaidFlyer = {
   readonly span: number;
   readonly length: number;
 };
-/** A rocket's streak (W3): its head now and where the streak reaches up to (metres), and how far it has faded (0 … 1). */
+/**
+ * A rocket (W3) as it is drawn: its head now (metres) and its slant there, coming in along its heading; where its way comes
+ * down (`ax`, `ay`, `az`: what it was thrown at, on its roof or the ground), and how far up that way its head is now and where
+ * it stopped (m along it: what it met first); how fast it comes (m/s); world seconds since it came down (less than 0: on its
+ * way); how far the smoke it left has faded (0 … 1).
+ */
 export type RocketStreak = {
   readonly x: number;
   readonly y: number;
   readonly z: number;
   readonly yaw: number;
-  /** How long it is (m), and down at what slant (radians). */
-  readonly length: number;
   readonly slant: number;
+  readonly ax: number;
+  readonly ay: number;
+  readonly az: number;
+  readonly head: number;
+  readonly stop: number;
+  readonly speed: number;
+  readonly since: number;
   readonly fade: number;
-  /** Whether it has yet to land: a bright head. */
+  /** Whether it has yet to land: its fire and its body. */
   readonly falling: boolean;
+  /** Which it is: its smoke's own drift. */
+  readonly key: number;
 };
 /** The greatest fire as it stands now (W5; metres): where, how long since it fell. */
 export type GreatNow = {
@@ -451,24 +503,290 @@ export type GreatNow = {
   /** World seconds since it fell. */
   readonly since: number;
 };
+/** A load on its way down (metres): where, which way it was flown and how steeply it falls now (radians from level, nose down). */
+export type RaidLoad = {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly yaw: number;
+  readonly pitch: number;
+};
+/**
+ * A hit (metres): where it struck (a roof, a wall in its way, or the ground); how far through its burst (0 … 1) and world seconds
+ * since; how much greater than a load's (a rocket's: 4); which it is, for its own scatter; and what it threw (BIT numbers each).
+ */
+export type RaidBurst = {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly k: number;
+  readonly s: number;
+  readonly size?: number;
+  readonly key: number;
+  readonly bits: Float32Array;
+};
+/** Ground a hit scorched (metres): where, how far about, and how far it has faded (0 … 1). */
+export type RaidMark = {
+  readonly x: number;
+  readonly z: number;
+  readonly r: number;
+  readonly k: number;
+};
 export type RaidNow = {
   readonly great?: GreatNow;
   readonly flyers: readonly RaidFlyer[];
-  /** Rockets' streaks (W3). */
+  /** Rockets (W3). */
   readonly streaks: readonly RocketStreak[];
   /** Loads on their way down. */
-  readonly falling: readonly { readonly x: number; readonly y: number; readonly z: number }[];
-  /** Hits just landed: how far through its burst (0 … 1), and how much larger than a drop's. */
-  readonly bursts: readonly {
-    readonly x: number;
-    readonly z: number;
-    readonly k: number;
-    readonly size?: number;
-  }[];
+  readonly falling: readonly RaidLoad[];
+  /** Hits, while their bursts last. */
+  readonly bursts: readonly RaidBurst[];
+  /** Ground scorched where loads came down on it. */
+  readonly marks: readonly RaidMark[];
   /** Whose machines they are (null: none over the town now). */
   readonly by: string | null;
 };
-const NONE: RaidNow = { flyers: [], streaks: [], falling: [], bursts: [], by: null };
+const NONE: RaidNow = { flyers: [], streaks: [], falling: [], bursts: [], marks: [], by: null };
+
+/** Where a load comes down against where it was meant for: the moment, against its own (≤ 0: it met a roof or wall in its way first), where (m), and the top of what it was meant for. */
+type Impact = {
+  readonly dt: number;
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly top: number;
+};
+/** A rocket's coming down against where it was thrown: where it stopped up its way (m; 0: there), what it was thrown at's top (m). */
+type Dive = { readonly stop: number; readonly top: number };
+/** Where each of a scene's loads came down, and what each hit threw: read once, for the same plan the same. */
+const IMPACTS = new WeakMap<TownScene, Map<number, Impact>>(),
+  DIVES = new WeakMap<TownScene, Map<number, Dive>>(),
+  THROWN = new WeakMap<TownScene, Map<number, Float32Array>>(),
+  GROUND_BY = new WeakMap<TownScene, Map<number, { x: number; z: number }>>(),
+  TALLEST = new WeakMap<TownScene, number>();
+/** A load's or a rocket's own number: its strike's place in the plan, what it is (0 a lot's load, 1 a stray, 2 a rocket's fall), and its lot or fall. */
+const keyOf = (strike: number, kind: number, n: number) => (strike * 4 + kind) * 1_048_576 + n;
+
+const kept = <V>(memo: WeakMap<TownScene, Map<number, V>>, scene: TownScene): Map<number, V> => {
+  let m = memo.get(scene);
+  if (!m) memo.set(scene, (m = new Map()));
+  return m;
+};
+
+/** How high the tallest thing in a town stands (metres): under it, nothing falling can meet anything. */
+function tallestOf(scene: TownScene): number {
+  let h = TALLEST.get(scene);
+  if (h === undefined) {
+    // (Its homes' tallest, a spire's needle on top; or its tallest other building.)
+    h = Math.max(70, (scene.plan.runs ? homesRiseTo(scene.plan) : 0) + 24);
+    TALLEST.set(scene, h);
+  }
+  return h;
+}
+
+/**
+ * Where a load meant for (x, z) at moment `at` comes down: on the roof there, or on the first roof or wall in its way as it
+ * falls on along the machine's way (heading, m/s) from `high`.
+ */
+function loadImpact(
+  scene: TownScene,
+  key: number,
+  x: number,
+  z: number,
+  at: number,
+  heading: number,
+  speed: number,
+  high: number,
+): Impact {
+  const memo = kept(IMPACTS, scene),
+    had = memo.get(key);
+  if (had) return had;
+  const top = townSurface(scene, x, z, at),
+    drop = Math.max(1, high - top),
+    ux = Math.sin(heading),
+    uz = Math.cos(heading),
+    // (A load's way down, back from where it is meant for: on along the machine's way, faster and faster down.)
+    yOf = (s: number) => top + drop * (1 - (1 + s / FALL_S) * (1 + s / FALL_S)),
+    over = (s: number) =>
+      yOf(s) - townSurface(scene, x + ux * speed * s, z + uz * speed * s, at + s),
+    tallest = tallestOf(scene);
+  let made: Impact = { dt: 0, x, y: top, z, top };
+  if (tallest > top) {
+    // (Only its last stretch, under the tallest of what stands, can meet anything: looked along every few metres.)
+    const from = FALL_S * (Math.sqrt(Math.max(0, 1 - (tallest - top) / drop)) - 1),
+      n = Math.min(48, Math.max(2, Math.ceil((speed * -from) / 2.5)));
+    let prev = from;
+    for (let j = 1; j < n; j++) {
+      const s = from * (1 - j / n);
+      if (over(s) > 0) {
+        prev = s;
+        continue;
+      }
+      let lo = prev,
+        hi = s;
+      for (let b = 0; b < 4; b++) {
+        const mid = (lo + hi) / 2;
+        if (over(mid) > 0) lo = mid;
+        else hi = mid;
+      }
+      made = { dt: hi, x: x + ux * speed * hi, y: yOf(hi), z: z + uz * speed * hi, top };
+      break;
+    }
+  }
+  memo.set(key, made);
+  return made;
+}
+
+/**
+ * Where a rocket thrown at (x, z) at moment `at` stops on its way down (m up its way; 0: on what it was thrown at): the first roof
+ * or wall in its way.
+ */
+function diveImpact(
+  scene: TownScene,
+  key: number,
+  x: number,
+  z: number,
+  at: number,
+  heading: number,
+): Dive {
+  const memo = kept(DIVES, scene),
+    had = memo.get(key);
+  if (had) return had;
+  const top = townSurface(scene, x, z, at),
+    ux = Math.sin(heading),
+    uz = Math.cos(heading),
+    d = [0, 0, 0],
+    over = (sigma: number) => {
+      diveAt(sigma, d);
+      return top + d[1]! - townSurface(scene, x - ux * d[0]!, z - uz * d[0]!, at);
+    },
+    tallest = tallestOf(scene);
+  let stop = 0;
+  if (tallest > top) {
+    // (Up its way as far as it is under the tallest of what stands: a dive's last few hundred metres.)
+    const reach = Math.min(DIVE_SEEN, (tallest - top) / Math.sin(DIVE_END) + 40),
+      n = Math.min(64, Math.ceil(reach / 2.5));
+    let prev = reach;
+    for (let j = n - 1; j >= 1; j--) {
+      const sigma = (reach * j) / n;
+      if (over(sigma) > 0) {
+        prev = sigma;
+        continue;
+      }
+      let lo = sigma,
+        hi = prev;
+      for (let b = 0; b < 4; b++) {
+        const mid = (lo + hi) / 2;
+        if (over(mid) > 0) hi = mid;
+        else lo = mid;
+      }
+      stop = hi;
+      break;
+    }
+  }
+  const made = { stop, top };
+  memo.set(key, made);
+  return made;
+}
+
+/** A spot of bare ground by a lot (metres), for a load that did not burn it: before it in its street, beside it, or the lot itself. */
+function groundBy(scene: TownScene, p: number, at: number): { x: number; z: number } {
+  const memo = kept(GROUND_BY, scene),
+    had = memo.get(p);
+  if (had) return had;
+  const { lots } = scene,
+    x = lots.x[p]!,
+    z = lots.z[p]!,
+    yaw = lots.yaw?.[p] ?? 0,
+    c = Math.cos(yaw),
+    s = Math.sin(yaw);
+  let made = { x, z };
+  // (In its own frame: before it in the street, beside it, behind it.)
+  for (const [u, v] of GROUND_SPOTS) {
+    const gx = x + u * c + v * s,
+      gz = z - u * s + v * c;
+    if (townSurface(scene, gx, gz, at) < 1.2) {
+      made = { x: gx, z: gz };
+      break;
+    }
+  }
+  memo.set(p, made);
+  return made;
+}
+const GROUND_SPOTS: readonly (readonly [number, number])[] = [
+  [0, 0],
+  [0, -11],
+  [4.5, 0],
+  [-4.5, 0],
+  [2, -9],
+  [-2, -9],
+];
+
+/**
+ * What a hit at (x, y, z) at moment `at` throws, and where each comes down (BIT numbers each, as `RaidBurst.bits` keeps them):
+ * off on its own slant, to the first roof or wall in its way, or the ground.
+ */
+function thrownOf(
+  scene: TownScene,
+  key: number,
+  x: number,
+  y: number,
+  z: number,
+  at: number,
+  size: number,
+): Float32Array {
+  const memo = kept(THROWN, scene),
+    had = memo.get(key);
+  if (had) return had;
+  const n = size > 1 ? ROCKET_BITS : BITS,
+    q = Math.sqrt(size),
+    out = new Float32Array(n * BIT),
+    y0 = y + 0.6;
+  for (let i = 0; i < n; i++) {
+    const a = unit(key, 500 + i) * 2 * Math.PI,
+      off = (5 + 11 * unit(key, 520 + i)) * q,
+      vx = Math.cos(a) * off,
+      vz = Math.sin(a) * off,
+      vy = (7 + 12 * unit(key, 540 + i)) * Math.sqrt(q),
+      // (When it would reach the bare ground, falling all the way.)
+      ground = (vy + Math.sqrt(vy * vy + 2 * PULL * Math.max(0, y0 - 0.5))) / PULL;
+    let land = ground,
+      prev = 0;
+    // (Each tenth of a second of its flight: the first moment it is under what stands there.)
+    const under = (s: number) =>
+      y0 + vy * s - 0.5 * PULL * s * s <= townSurface(scene, x + vx * s, z + vz * s, at + s);
+    for (let s = 0.1; s < ground; s += 0.1) {
+      if (!under(s)) {
+        prev = s;
+        continue;
+      }
+      let lo = prev,
+        hi = s;
+      for (let b = 0; b < 3; b++) {
+        const mid = (lo + hi) / 2;
+        if (under(mid)) hi = mid;
+        else lo = mid;
+      }
+      // (Into a wall, not onto a roof: it drops at the wall's foot, where it was last clear of it.)
+      const high = y0 + vy * hi - 0.5 * PULL * hi * hi;
+      land = townSurface(scene, x + vx * hi, z + vz * hi, at + hi) - high > 1.5 ? lo : hi;
+      break;
+    }
+    const lx = x + vx * land,
+      lz = z + vz * land,
+      o = i * BIT;
+    out[o] = vx;
+    out[o + 1] = vy;
+    out[o + 2] = vz;
+    out[o + 3] = land;
+    out[o + 4] = lx;
+    out[o + 5] = townSurface(scene, lx, lz, at + land);
+    out[o + 6] = lz;
+    out[o + 7] = (0.9 + 1.4 * unit(key, 560 + i)) * Math.sqrt(q);
+  }
+  memo.set(key, out);
+  return out;
+}
 
 const unit = (a: number, b: number) => {
   let h = (Math.imul(a ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul(b + 0x632be5ab, 0xc2b2ae35)) >>> 0;
@@ -746,133 +1064,172 @@ export function globeArcsNow(
   return out;
 }
 
-/** What of a raid is over a town at moment t (none: nothing now). */
+/**
+ * What of a raid is over a town at moment t (none: nothing now): its machines, its loads falling, each hit's burst where it
+ * came down and what it threw, the ground it scorched; rockets on their way down and the smoke they left; the greatest fire.
+ */
 export function raidNow(scene: TownScene | null, t: number): RaidNow {
   const list = scene?.plan.struck;
   if (!scene || !list?.length) return NONE;
   let flyers: RaidFlyer[] | null = null,
     by: string | null = null;
-  const streaks: RocketStreak[] = [];
-  for (const k of list) {
+  const streaks: RocketStreak[] = [],
+    falling: RaidLoad[] = [],
+    bursts: RaidBurst[] = [],
+    marks: RaidMark[] = [],
+    d = [0, 0, 0],
+    { struck, states, lots } = scene;
+  // A hit's burst while it lasts: where it came down, `s` world seconds ago, so much greater than a load's.
+  const burst = (key: number, x: number, y: number, z: number, s: number, size: number) => {
+    const life = size > 1 ? ROCKET_BURST_S : BURST_S;
+    if (s < 0 || s > life || bursts.length >= MOST_BURSTS) return;
+    bursts.push({
+      x,
+      y,
+      z,
+      k: s / life,
+      s,
+      ...(size > 1 ? { size } : {}),
+      key,
+      bits: thrownOf(scene, key, x, y, z, t - s, size),
+    });
+  };
+  // A load of raid k meant for (x, z) at `at`: on its way down, nose down along its fall, or come down on what was in its way.
+  const load = (k: TownStrike, key: number, x: number, z: number, at: number) => {
+    const s = t - at;
+    if (s < -FALL_S || s > BURST_S) return;
+    const way = wayOf(k),
+      speed = k.raid!.speed,
+      hit = loadImpact(scene, key, x, z, at, way.heading, speed, way.high);
+    if (s >= hit.dt) return burst(key, hit.x, hit.y, hit.z, s - hit.dt, 1);
+    if (falling.length >= MOST_FALLING) return;
+    const u = 1 + s / FALL_S,
+      drop = Math.max(1, way.high - hit.top);
+    // (Falling as it was flown: on along the machine's way, faster and faster down.)
+    falling.push({
+      x: x + Math.sin(way.heading) * speed * s,
+      y: hit.top + drop * (1 - u * u),
+      z: z + Math.cos(way.heading) * speed * s,
+      yaw: way.heading,
+      pitch: Math.atan2((2 * drop * u) / FALL_S, Math.max(1, speed)),
+    });
+  };
+  // Those falling or bursting of a list of lots in the order they caught: every so many of the list as it stands, the same ones
+  // from frame to frame, to what can be drawn. `rest`: those not under a stream drawn, the rest of a great raid.
+  const within = (hits: readonly number[], rest: boolean) => {
+    let lo = 0,
+      hi = hits.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (states.began[hits[mid]!]! < t - BURST_S) lo = mid + 1;
+      else hi = mid;
+    }
+    let end = lo;
+    while (end < hits.length && states.began[hits[end]!]! <= t + FALL_S) end++;
+    const stride = Math.max(1, Math.ceil((end - lo) / (MOST_FALLING + MOST_BURSTS)));
+    for (let i = Math.ceil(lo / stride) * stride; i < end; i += stride) {
+      const p = hits[i]!,
+        n = states.struck[p]!,
+        k = list[n];
+      // (A rocket's is its fall, not its lots'; what the greatest fire does is its own.)
+      if (!k?.raid || k.raid.rocket || k.raid.great || (rest && wayOf(k).underMask?.[p])) continue;
+      load(k, keyOf(n, 0, p), lots.x[p]!, lots.z[p]!, states.began[p]!);
+    }
+  };
+  for (let n = 0; n < list.length; n++) {
+    const k = list[n]!;
     if (!k.raid) continue;
-    const span = raidSpan(k);
-    if (t < span.from || t > span.to) continue;
-    // (Rockets: no machine; whose they are, and each one's streak.)
+    const way = wayOf(k);
+    // Rockets: no machine; each on its way down out of the sky, and the smoke it left; its burst where it stopped.
     if (k.raid.rocket) {
-      by = k.raid.by;
-      const way = wayOf(k),
-        ux = Math.sin(way.heading),
-        uz = Math.cos(way.heading),
-        cos = Math.cos(STREAK_DOWN),
-        sin = Math.sin(STREAK_DOWN),
-        fall = Math.max(200, k.raid.speed);
-      for (const f of way.falls ?? []) {
-        const since = t - f.at;
-        // (From when it can first be seen up there until its smoke is gone.)
-        if (since < -STREAK_HIGH / fall || since > STREAK_HANGS) continue;
-        const left = Math.max(0, -since * fall),
-          // The head on its way down; what it leaves reaches back up to where it was first seen.
-          length = STREAK_HIGH - left;
+      const run = raidRun(k),
+        V = Math.max(200, k.raid.speed);
+      if (t < run.from - DIVE_SEEN / V - 1 || t > run.to + MARK_S) continue;
+      const ux = Math.sin(way.heading),
+        uz = Math.cos(way.heading);
+      (way.falls ?? []).forEach((f, r) => {
+        const key = keyOf(n, 2, r),
+          dive = diveImpact(scene, key, f.x, f.z, f.at, way.heading),
+          down = f.at - dive.stop / V,
+          since = t - down;
+        // (The ground about where it came down, scorched: what of it is not under the homes it burned.)
+        if (!k.raid!.great && since >= 0 && since <= MARK_S && marks.length < MOST_MARKS)
+          marks.push({ x: f.x, z: f.z, r: 11, k: since / MARK_S });
+        if (since < -(DIVE_SEEN - dive.stop) / V || since > STREAK_HANGS) return;
+        by = k.raid!.by;
+        const head = dive.stop + Math.max(0, -since) * V;
+        diveAt(head, d);
         streaks.push({
-          x: f.x - ux * cos * left,
-          y: sin * left,
-          z: f.z - uz * cos * left,
+          x: f.x - ux * d[0]!,
+          y: dive.top + d[1]!,
+          z: f.z - uz * d[0]!,
           yaw: way.heading,
-          length,
-          slant: STREAK_DOWN,
+          slant: d[2]!,
+          ax: f.x,
+          ay: dive.top,
+          az: f.z,
+          head,
+          stop: dive.stop,
+          speed: V,
+          since,
           fade: since > 0 ? since / STREAK_HANGS : 0,
           falling: since < 0,
+          key,
         });
-      }
+        // (The greatest fire's own is its own: render/raid.ts.)
+        if (!k.raid!.great) {
+          diveAt(dive.stop, d);
+          burst(key, f.x - ux * d[0]!, dive.top + d[1]!, f.z - uz * d[0]!, since, 4);
+        }
+      });
       continue;
     }
+    const span = raidSpan(k);
+    if (t < span.from || t > span.to + MARK_S) continue;
+    // Its loads on what it did not burn, and the ground they scorched.
+    if (!k.raid.great) {
+      const strays = way.strays,
+        every = Math.max(1, Math.ceil(strays.length / MOST_MARKS));
+      for (let j = 0; j < strays.length; j++) {
+        const s = strays[j]!,
+          since = t - s.at;
+        if (since < -FALL_S) break;
+        if (since > MARK_S) continue;
+        const g = groundBy(scene, s.p, s.at);
+        if (since <= BURST_S) load(k, keyOf(n, 1, s.p), g.x, g.z, s.at);
+        if (since >= 0 && j % every === 0 && marks.length < MOST_MARKS)
+          marks.push({ x: g.x, z: g.z, r: 3.4, k: since / MARK_S });
+      }
+    }
+    if (t > span.to) continue;
+    // Its machines: in threes, each three a wedge, its leader ahead and its two a little behind and to either side.
     const key = hashText(k.event),
-      heading = wayOf(k).heading,
-      ux = Math.sin(heading),
-      uz = Math.cos(heading),
-      n = Math.min(MOST_RAIDERS, Math.max(1, k.raid.flyers)),
+      ux = Math.sin(way.heading),
+      uz = Math.cos(way.heading),
+      count = Math.min(MOST_RAIDERS, Math.max(1, k.raid.flyers)),
       rows = rowsOf(k),
       each = k.raid.span * 2.4;
     by = k.raid.by;
     flyers ??= [];
-    for (let j = 0; j < n; j++) {
+    for (let j = 0; j < count; j++) {
       const row = Math.floor(j / ABREAST),
-        along = (t - rowOver(k, row, rows)) * k.raid.speed;
+        side = (j % ABREAST) - 1,
+        along = (t - rowOver(k, row, rows)) * k.raid.speed - (side ? each * 0.55 : 0);
       if (Math.abs(along) > RAID_FAR) continue;
-      const aside = ((j % ABREAST) - 1) * each + (unit(key, 40 + j) - 0.5) * k.raid.span;
+      const aside = side * each + (unit(key, 40 + j) - 0.5) * k.raid.span * 0.3;
       flyers.push({
         x: ux * along + uz * aside,
-        y: wayOf(k).high + (unit(key, 70 + j) - 0.5) * 30,
+        y: way.high + (unit(key, 70 + row) - 0.5) * 30 + (side ? 2 + 3 * unit(key, 90 + j) : 0),
         z: uz * along - ux * aside,
-        yaw: heading,
+        yaw: way.heading,
         span: k.raid.span,
         length: k.raid.span * 0.7,
       });
     }
   }
-  const falling: { x: number; y: number; z: number }[] = [],
-    bursts: { x: number; z: number; k: number; size?: number }[] = [],
-    { struck, states, lots } = scene,
-    // A load on its way down to a lot, or just landed on it.
-    load = (k: TownStrike, p: number, since: number) => {
-      // (What the greatest fire does is its own: render/raid.ts, then the lots burning.)
-      if (k.raid!.great) return;
-      if (since < 0) {
-        // (A rocket's is its streak, not a load falling from a machine.)
-        if (k.raid!.rocket || falling.length >= MOST_FALLING) return;
-        const heading = wayOf(k).heading,
-          left = -since / FALL_S;
-        // (Falling as it was flown: on along the machine's way, faster and faster down.)
-        falling.push({
-          x: lots.x[p]! - Math.sin(heading) * k.raid!.speed * -since,
-          y: wayOf(k).high * (1 - (1 - left) * (1 - left)),
-          z: lots.z[p]! - Math.cos(heading) * k.raid!.speed * -since,
-        });
-      } else if (bursts.length < MOST_BURSTS)
-        bursts.push({
-          x: lots.x[p]!,
-          z: lots.z[p]!,
-          k: since / BURST_S,
-          ...(k.raid!.rocket ? { size: 4 } : {}),
-        });
-    },
-    // Those falling or bursting of a list of lots in the order they caught, a stride through it to what can be drawn.
-    within = (hits: readonly number[]) => {
-      let lo = 0,
-        hi = hits.length;
-      while (lo < hi) {
-        const mid = (lo + hi) >> 1;
-        if (states.began[hits[mid]!]! < t - BURST_S) lo = mid + 1;
-        else hi = mid;
-      }
-      let many = 0;
-      for (let i = lo; i < hits.length && states.began[hits[i]!]! <= t + FALL_S; i++) many++;
-      const stride = Math.max(1, Math.ceil(many / (MOST_FALLING + MOST_BURSTS)));
-      for (let i = lo; i < hits.length; i += stride) {
-        const p = hits[i]!,
-          since = t - states.began[p]!;
-        if (since < -FALL_S) break;
-        const k = list[states.struck[p]!];
-        if (k?.raid) load(k, p, since);
-      }
-    };
   // (Those under the machines drawn first: the rest of a great raid is what is not drawn of it.)
-  for (const k of list) if (k.raid) within(wayOf(k).under);
-  if (falling.length < MOST_FALLING || bursts.length < MOST_BURSTS) within(struck);
-  for (const k of list) {
-    if (!k.raid || t < raidSpan(k).from || t > raidSpan(k).to + BURST_S) continue;
-    for (const s of wayOf(k).strays) {
-      const since = t - s.at;
-      if (since < -FALL_S) break;
-      if (since <= BURST_S) load(k, s.p, since);
-    }
-    // (One that came down past the streets drawn: its flash out there.)
-    for (const f of wayOf(k).falls ?? []) {
-      const since = t - f.at;
-      if (f.out && since >= 0 && since <= BURST_S && bursts.length < MOST_BURSTS)
-        bursts.push({ x: f.x, z: f.z, k: since / BURST_S, size: 4 });
-    }
-  }
+  for (const k of list) if (k.raid && !k.raid.rocket) within(wayOf(k).under, false);
+  if (falling.length < MOST_FALLING || bursts.length < MOST_BURSTS) within(struck, true);
   let great: GreatNow | undefined;
   for (const k of list) {
     const g = k.raid?.great ? wayOf(k).great : undefined;
@@ -880,7 +1237,20 @@ export function raidNow(scene: TownScene | null, t: number): RaidNow {
     great = { x: g.x, z: g.z, since: t - g.at };
     by = k.raid!.by;
   }
-  return flyers?.length || streaks.length || falling.length || bursts.length || great
-    ? { flyers: flyers ?? [], streaks, falling, bursts, by, ...(great ? { great } : {}) }
+  return flyers?.length ||
+    streaks.length ||
+    falling.length ||
+    bursts.length ||
+    marks.length ||
+    great
+    ? {
+        flyers: flyers ?? [],
+        streaks,
+        falling,
+        bursts,
+        marks,
+        by,
+        ...(great ? { great } : {}),
+      }
     : NONE;
 }

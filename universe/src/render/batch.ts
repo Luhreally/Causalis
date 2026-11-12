@@ -43,6 +43,12 @@ export class InstancedBatch {
     m.update();
   }
 
+  /** Whether it casts shadows (fire, smoke and dust: not). */
+  shadows(on: boolean): this {
+    if (this.entity.render) this.entity.render.castShadows = on;
+    return this;
+  }
+
   /** What it glows as, drawn in a material of its own light. */
   glow(color: Rgb): void {
     const m = this.instance.material as pc.StandardMaterial;
