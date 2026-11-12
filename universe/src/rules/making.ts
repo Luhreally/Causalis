@@ -210,10 +210,14 @@ export const MAKING_WORDS: Readonly<
     icon: "🗺️",
     name: "Its size",
     choices: {
-      medium: ["medium", "about half as many lands, each twice as wide: quicker to run", "🔸"],
+      medium: [
+        "medium",
+        "about half as many lands, each twice as wide: some twice as quick to run",
+        "🔸",
+      ],
       small: [
         "small",
-        "about a quarter as many lands, each four times as wide: the quickest",
+        "about a quarter as many lands, each four times as wide: some three times as quick, the quickest",
         "🔹",
       ],
     },
