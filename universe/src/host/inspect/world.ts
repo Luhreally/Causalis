@@ -49,6 +49,7 @@ import { bondsLedger } from "./order.ts";
 import { sicknessLedger } from "./sickness.ts";
 import { creditLedger } from "./credit.ts";
 import { strifeLedger } from "./strife.ts";
+import { alliancesBlocks } from "./ties.ts";
 import {
   faithLink,
   landLink,
@@ -1852,6 +1853,8 @@ export function ledgerPage(world: World, tab?: string): PageModel {
     { id: "wars", name: "Wars", blocks: warLedger(world, now) },
     // Each realm's order and its bound (Phase 19 M138).
     { id: "bonds", name: "Bonds", blocks: bondsLedger(world) },
+    // Every alliance, the greatest first (the alliances lens's list, D1).
+    { id: "alliances", name: "Alliances", blocks: alliancesBlocks(world) },
     // Every sickness side by side (Phase 20 M140).
     { id: "sickness", name: "Sickness", blocks: sicknessLedger(world) },
     // Every house of lending side by side, and what is owed them (Phase 21 M143).

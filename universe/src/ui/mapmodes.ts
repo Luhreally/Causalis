@@ -7,6 +7,18 @@ import { el } from "./why.ts";
 
 type Rgb = readonly [number, number, number];
 
+/** An alliance as the alliances lens keys it: its colour, its head's seat, how many realms. */
+export type AllianceKey = {
+  readonly ref: string;
+  readonly name: string;
+  readonly town: string;
+  readonly color: Rgb;
+  readonly realms: number;
+};
+
+/** The most alliances the key names (the rest are on their list, a press away). */
+const KEYED = 4;
+
 const css = (c: Rgb) =>
   `rgb(${Math.round(c[0] * 255)}, ${Math.round(c[1] * 255)}, ${Math.round(c[2] * 255)})`;
 
@@ -23,6 +35,10 @@ export class MapModes {
   private built = false;
   /** Its world's life's colours (Phase 57): the land legend's woods in its own words. */
   private look: string | undefined = undefined;
+  /** The alliances the alliances lens keys, and what a press on one does (D1). */
+  private allied: readonly AllianceKey[] | null = null;
+  private alliedKey = "";
+  private openAlliance: (key: AllianceKey) => void = () => {};
   onLens: (lens: Lens) => void = () => {};
 
   constructor(lens: Lens) {
@@ -106,6 +122,25 @@ export class MapModes {
     this.act.onclick = run;
   }
 
+  /**
+   * The alliances lens's own key: the greatest alliances, each its colour, its head's seat and how
+   * many realms stand in it, a press opening it (null: its plain key). Drawn again only when they change,
+   * so a finger on one is never lost to a redraw.
+   */
+  alliances(list: readonly AllianceKey[] | null, open: (key: AllianceKey) => void): void {
+    this.openAlliance = open;
+    const key = list
+      ? list
+          .slice(0, KEYED)
+          .map((a) => `${a.ref}:${a.realms}:${a.color.join(",")}`)
+          .join("|")
+      : "";
+    if (key === this.alliedKey && !!list === !!this.allied) return;
+    this.alliedKey = key;
+    this.allied = list;
+    if (this.current === "blocs") this.drawLegend();
+  }
+
   /** A line of the mode's own: what it is of ("the league of Geaka"). */
   say(text: string | null): void {
     this.note.textContent = text ?? "";
@@ -122,6 +157,31 @@ export class MapModes {
       const ends = el("div", "legend-ends");
       ends.append(el("span", undefined, l.low), el("span", undefined, l.high));
       parts.push(bar, ends);
+    } else if (this.current === "blocs" && this.allied?.length) {
+      const keys = el("div", "legend-keys alliance-keys");
+      for (const a of this.allied.slice(0, KEYED)) {
+        const b = el("button", "legend-key alliance-key"),
+          dot = el("span", "swatch");
+        dot.style.background = css(a.color);
+        b.append(
+          dot,
+          el("span", "alliance-town", a.town),
+          el("span", "alliance-count", String(a.realms)),
+        );
+        b.title = `${a.name}: ${a.realms} realms`;
+        b.setAttribute("aria-label", b.title);
+        b.dataset.ref = a.ref;
+        b.onclick = () => this.openAlliance(a);
+        keys.append(b);
+      }
+      const alone = el("span", "legend-key"),
+        dot = el("span", "swatch");
+      dot.style.background = css(
+        l.kind === "keys" ? (l.keys.at(-1)?.[0] ?? [0.34, 0.34, 0.32]) : [0.34, 0.34, 0.32],
+      );
+      alone.append(dot, "alone");
+      keys.append(alone);
+      parts.push(keys);
     } else {
       const keys = el("div", "legend-keys");
       for (const [color, words] of this.built && this.current === "terrain"

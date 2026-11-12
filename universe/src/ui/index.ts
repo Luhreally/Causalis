@@ -35,7 +35,7 @@ export { GuidedWalk, type WalkCue } from "./walk.ts";
 export { PageWindow } from "./inspector.ts";
 export { NamesSwitch, namesMode, namesThings, type NamesArgs, type NamesMode } from "./names.ts";
 export { MapLabels, type MapName } from "./maplabels.ts";
-export { MapModes } from "./mapmodes.ts";
+export { MapModes, type AllianceKey } from "./mapmodes.ts";
 export { FreeControls, type FreeMode } from "./free.ts";
 export { DirectorControls } from "./director.ts";
 export { STAR_LENSES, StarLenses } from "./star-lenses.ts";

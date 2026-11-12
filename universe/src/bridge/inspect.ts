@@ -63,6 +63,8 @@ export type Item = {
   readonly thumb?: Portrait;
   /** How it stands (F5): had, could be had, or never will be. Its colour says so at a glance. */
   readonly tone?: Tone;
+  /** Its colour on the map, as a small square before it (an alliance on the alliances lens). */
+  readonly swatch?: readonly [number, number, number];
 };
 
 /** How a step stands on a world (F5). */
@@ -614,6 +616,7 @@ export type PageKind =
   | "ask"
   | "road"
   | "bloc"
+  | "alliances"
   | "league"
   | "match"
   | "envoy"

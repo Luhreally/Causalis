@@ -12,6 +12,7 @@ import "./tour.css";
 import "./can.css";
 import "./years.css";
 import "./memory.css";
+import "./alliances.css";
 import { CourtNote, SungNote } from "../ui/index.ts";
 import { courtSitting } from "../view/index.ts";
 import { PeopleBar, barPins, setWrittenHold } from "../ui/index.ts";
@@ -75,6 +76,7 @@ import {
   FreeControls,
   MapLabels,
   MapModes,
+  type AllianceKey,
   type FreeMode,
   Outliner,
   SearchBox,
@@ -2118,18 +2120,13 @@ async function runPlanetPage(): Promise<void> {
       woodsKey = "";
       readWoods();
     }
-    if (l === "blocs") void readBlocs();
+    // (The alliances lens: the globe turned to the greatest, as it is chosen.)
+    if (l === "blocs") void readBlocs(true);
     // (The wealth lens: a realm's, by a measure chosen under its legend; its ranking a press away.)
-    // (The blocs lens: its greatest a press away. D1.)
+    // (The alliances lens: every alliance listed a press away. D1.)
     mapModes.action(
-      l === "wealth" ? "📊 The ranking" : l === "blocs" ? "🪢 The greatest bloc" : null,
-      () => {
-        if (l === "wealth") void pageWindow.open("world:ledger#wealth");
-        else
-          void client
-            .query<{ biggest: string | null }>({ type: "blocs.lens" })
-            .then((b) => (b.biggest ? pageWindow.open(b.biggest) : undefined));
-      },
+      l === "wealth" ? "📊 The ranking" : l === "blocs" ? "🪢 Every alliance" : null,
+      () => void pageWindow.open(l === "wealth" ? "world:ledger#wealth" : "world:alliances"),
     );
     if (l === "wealth") {
       if (!deepValues.has("wealth")) deepValues.set("wealth", new Map());
@@ -2268,6 +2265,8 @@ async function runPlanetPage(): Promise<void> {
   let standings = new Map<number, readonly [number, number, number]>(),
     fronts = new Map<number, readonly [number, number, number]>(),
     blocColors = new Map<number, readonly [number, number, number]>(),
+    /** Each land in an alliance, and which (D1): under the alliances lens a press on it opens it. */
+    alliedLands = new Map<number, string>(),
     takenLands = new Map<number, readonly [number, number, number]>(),
     focusRealm: string | null = null;
   const readStandings = async () => {
@@ -2314,16 +2313,42 @@ async function runPlanetPage(): Promise<void> {
     if (lens === "war") mapModes.say(w.lands.length ? null : "no war is being fought");
     if (lens === "war" || lens === "realms") paintGlobe();
   };
-  const readBlocs = async () => {
+  /** The globe turned to a spot (an alliance's head's seat), as far off as it was: the whole world's alliances still seen. */
+  const turnToSpot = async (spot: number) => {
+    const place = await client.query<{ lat: number; lon: number }>({
+      type: "cell",
+      args: { cell: spot },
+    });
+    if (scale !== "globe") return;
+    rig.face(place.lat, place.lon);
+  };
+  // Every alliance at once, each its own colour (D1): the key names the greatest, a press on one
+  // turning the globe to it and opening its page.
+  const readBlocs = async (face = false) => {
     const b = await client.query<{
       lands: [number, readonly [number, number, number]][];
+      allied: [number, string][];
       note: string;
+      alliances: (AllianceKey & { centre: number | null })[];
     }>({ type: "blocs.lens" });
     blocColors = new Map(b.lands);
-    if (lens === "blocs") {
-      mapModes.say(b.note);
-      paintGlobe();
-    }
+    alliedLands = new Map(b.allied);
+    if (lens !== "blocs") return;
+    // (Their count on the button to their list; the note only when there are none: a phone's bar
+    // is the top of its screen, and the key is what it is for.)
+    mapModes.say(b.alliances.length ? null : b.note);
+    mapModes.action(
+      b.alliances.length ? `🪢 All ${b.alliances.length} alliances` : "🪢 Alliances",
+      () => void pageWindow.open("world:alliances"),
+    );
+    mapModes.alliances(b.alliances, (a) => {
+      const centre = b.alliances.find((x) => x.ref === a.ref)?.centre;
+      if (centre !== null && centre !== undefined) void turnToSpot(centre);
+      void pageWindow.open(a.ref);
+    });
+    paintGlobe();
+    const top = b.alliances[0]?.centre;
+    if (face && top !== null && top !== undefined) void turnToSpot(top);
   };
   setInterval(() => {
     if (scale !== "globe") return;
@@ -3067,6 +3092,13 @@ async function runPlanetPage(): Promise<void> {
     walk.saw("land");
     const frame = client.latestFrame("globe"),
       province = (frame?.arrays.province as Int32Array | undefined)?.[cell] ?? -1;
+    // (Under the alliances lens, a land of an alliance opens the alliance: every one of them a press
+    // away on the map, as their key and their list have them. D1.)
+    const allied = lens === "blocs" ? alliedLands.get(province) : undefined;
+    if (allied) {
+      void pageWindow.open(allied);
+      return;
+    }
     if (province >= 0) {
       // (Its region readied, so "go to" and zooming in draw at once.)
       void client.query({ type: "region.prepare", args: { cell: province } }).catch(() => {});

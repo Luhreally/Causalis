@@ -17,7 +17,14 @@ import { landOfRef, landPage, spotPage } from "./land.ts";
 import { agentPage, householdPage, memoryPage, personPage, townPage } from "./settled.ts";
 import { shipPage } from "../starfight.ts";
 import { battlePage, realmPageModel, relationPage, starWarPage, warPage } from "./realm.ts";
-import { blocPage, envoyPage, leaguePage, matchPage } from "./ties.ts";
+import {
+  allianceOfLand,
+  alliancesPage,
+  blocPage,
+  envoyPage,
+  leaguePage,
+  matchPage,
+} from "./ties.ts";
 import { busPage, roadPage } from "./road.ts";
 import { askPage } from "./asks.ts";
 import { boardPage, dearPage } from "./board.ts";
@@ -83,6 +90,8 @@ function build(
   if (ref === "world:filled") return filledPage(world);
   if (ref === "world:trade") return tradePage(world);
   if (ref === "world:nations") return nationsPage(world);
+  // Every alliance at once (the alliances lens's list).
+  if (ref === "world:alliances") return alliancesPage(world);
   if (ref.startsWith("nation:")) return nationPage(world, ref.slice("nation:".length));
   if (ref.startsWith("snat:")) return nationPage(world, ref);
   if (ref.startsWith("run:")) return runPage(world, ref);
@@ -313,9 +322,12 @@ export function tipOf(world: World, ref: string, lens?: string, names?: NamesArg
     reading =
       kind === "ground" && Number.isInteger(land)
         ? groundReading(world, land)
-        : kind && (DEEP_LENSES as readonly string[]).includes(kind) && Number.isInteger(land)
-          ? lensReading(world, land, kind as DeepLens, way)
-          : null;
+        : // (The alliances lens: the alliance a land stands in. D1.)
+          kind === "blocs" && Number.isInteger(land)
+          ? allianceOfLand(world, land)
+          : kind && (DEEP_LENSES as readonly string[]).includes(kind) && Number.isInteger(land)
+            ? lensReading(world, land, kind as DeepLens, way)
+            : null;
   if (reading)
     return { ref, icon: p.icon, title: p.title, line: reading.line, stats: reading.stats };
   return {
