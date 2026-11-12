@@ -63,14 +63,15 @@ export class LessonStore implements StateStore {
   /** The responses some people of this world has taken up, in the order they first were. */
   readonly firsts: string[] = [];
 
+  /** Nothing has cost anyone yet: hashed as if not there (what it has read is the log's own, and moves nothing). */
   dormant(): boolean {
-    return this.holders.size === 0 && this.read === 0;
+    return this.holders.size === 0;
   }
   hashInto(h: Hasher): void {
     h.value(this.save());
   }
   save(): unknown {
-    if (this.dormant()) return {};
+    if (this.dormant()) return this.read ? { read: this.read } : {};
     return {
       read: this.read,
       taken: this.taken,
