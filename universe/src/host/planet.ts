@@ -962,6 +962,9 @@ function planetUniverse(name: string, prior: Prior): Universe {
       "speed.tally": (world) => speedTally(world),
       /** Who has learned what from what cost them (the lessons): each land and realm with a lesson, the most learned first. */
       "lessons.held": (world) => lessonsHeld(world),
+      /** Each lesson some people of the world has taken up, and the year the first did. */
+      "lessons.firsts": (world) =>
+        (lessonsOf(world)?.firsts ?? []).map(([lesson, year]) => ({ lesson, year })),
       /** The stars within the cluster's reach of home. */
       "galaxy.cluster": (world): ClusterPlan => {
         const rng = new Rng(world.seed);

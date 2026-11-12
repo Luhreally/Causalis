@@ -198,8 +198,11 @@ if (land) {
 }
 
 // 4. The Years tell the first taking up of a lesson in all the world, in the year it was.
-type Held2 = Held & { taken: number[] };
-const firstYear = Math.min(...(held as Held2[]).flatMap((h) => h.taken));
+const firsts = await k<{ lesson: string; year: number }[]>(
+  `globalThis.causalis.client.query({ type: "lessons.firsts" })`,
+);
+say(`firsts: ${firsts.map((f) => `${f.lesson} ${f.year}`).join(", ")}`);
+const firstYear = firsts[0]?.year ?? NaN;
 if (Number.isFinite(firstYear)) {
   const years = await k<unknown>(
     `globalThis.causalis.client.query({ type: "annals.read", args: { years: [${firstYear}] } })`,

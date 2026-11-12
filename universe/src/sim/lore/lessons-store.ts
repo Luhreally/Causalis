@@ -60,8 +60,8 @@ export class LessonStore implements StateStore {
   /** How many lessons have been taken up in all, by their own finding and from others: for tallies. */
   taken = 0;
   copied = 0;
-  /** The responses some people of this world has taken up, in the order they first were. */
-  readonly firsts: string[] = [];
+  /** The responses some people of this world has taken up, the year each first was and its telling (kept), in that order. */
+  readonly firsts: [string, number, Ref | null][] = [];
 
   /** Nothing has cost anyone yet: hashed as if not there (what it has read is the log's own, and moves nothing). */
   dormant(): boolean {
@@ -76,7 +76,7 @@ export class LessonStore implements StateStore {
       read: this.read,
       taken: this.taken,
       copied: this.copied,
-      firsts: [...this.firsts],
+      firsts: this.firsts.map((f) => [...f]),
       holders: [...this.holders.entries()]
         .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
         .map(([k, h]) => [
@@ -110,7 +110,7 @@ export class LessonStore implements StateStore {
       read?: number;
       taken?: number;
       copied?: number;
-      firsts?: string[];
+      firsts?: [string, number, Ref | null][];
       holders?: [string, unknown[][], unknown[][]][];
     };
     this.holders.clear();
@@ -118,7 +118,7 @@ export class LessonStore implements StateStore {
     this.taken = s.taken ?? 0;
     this.copied = s.copied ?? 0;
     this.firsts.length = 0;
-    this.firsts.push(...(s.firsts ?? []));
+    for (const [id, year, ref] of s.firsts ?? []) this.firsts.push([id, year, ref ?? null]);
     for (const [k, causes, uses] of s.holders ?? []) {
       const h: Holder = { causes: new Map(), uses: new Map() };
       for (const [c, cost, at, lost, dead, first, strikes, share] of causes as [
@@ -151,6 +151,7 @@ export class LessonStore implements StateStore {
     const out: Ref[] = [];
     for (const h of this.holders.values())
       for (const u of h.uses.values()) if (u.ref) out.push(u.ref);
+    for (const f of this.firsts) if (f[2]) out.push(f[2]);
     return out;
   }
 

@@ -308,8 +308,7 @@ function takeUp(
   cause: Ref | null,
 ): void {
   const m = h.causes.get(r.cause)!,
-    first = !store.firsts.includes(r.id);
-  if (first) store.firsts.push(r.id);
+    first = !store.firsts.some((f) => f[0] === r.id);
   const ref = ctx.world.events.emit({
     type: from ? LESSON_EVENTS.copied.type : LESSON_EVENTS.taken.type,
     ...(first && !from ? { importance: 4 } : {}),
@@ -329,6 +328,7 @@ function takeUp(
       ...(first ? { first } : {}),
     },
   });
+  if (first) store.firsts.push([r.id, year, ref]);
   h.uses.set(r.id, {
     w,
     at: year,
