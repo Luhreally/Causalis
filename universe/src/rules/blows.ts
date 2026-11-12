@@ -6,7 +6,7 @@
 // blow lands given what came of it; how many limbs are cut off at most; how many of a side's figures
 // are drawn as its wounded who lived. view/blows.ts and view/battle.ts give these on as they were.
 // Pure tables and functions.
-import { KILL, LIMB_KILL, MAIMED_AT, NINES } from "./anatomy.ts";
+import { CUTS_OFF, KILL, LIMB_KILL, MAIMED_AT, NINES } from "./anatomy.ts";
 import { LETHAL, type Blow } from "./wounds.ts";
 
 /** Where a blow lands (Phase 55): the rule of nines' places, each arm's hand apart. */
@@ -37,7 +37,60 @@ export const ORDNANCE_KILL = {
  * shell; a head struck so, this share of that (an axe,
  * a sword, a ball). Of a side, at most `most` parts cut off, the dead's and the living's together.
  */
-export const SEVER = { edge: 0.28, ball: 0.65, shell: 0.6, head: 0.6, most: 40 } as const;
+export const SEVER = { edge: 0.42, ball: 0.65, shell: 0.6, head: 0.6, most: 60 } as const;
+/**
+ * Of a battle's dead, the share whose death took a part off, by what struck them (asked for
+ * 2026-11-11: "each battle with swords and especially firearms should contain dismemberment"): an
+ * axe's or a sword's edge; a cannon's ball, a bursting shell; a gun's round by the arm — a heavy
+ * soft ball or a rifle's round breaks a limb past holding now and again, a machine gun's burst, many
+ * rounds into one place, oftener. That blow is the one that killed, on the part it took
+ * (severWeights).
+ */
+export const SEVERED = {
+  edge: 0.3,
+  ball: 0.5,
+  shell: 0.45,
+  shot: { musket: 0.12, rifle: 0.15, repeater: 0.15, autoloader: 0.18, automatic: 0.35 },
+} as const;
+/**
+ * The share of the dead struck by `striker` (a hand's blow with `arm`, a gun's round from `arm`, a
+ * ball, a shell) whose death took a part off. History's record of the fallen (host/wounds.ts) and the
+ * battle drawn (view/blows.ts) read it alike, so the part a figure is seen to lose is the part their
+ * page says they lost.
+ */
+export function severShare(striker: Striker, arm: string | undefined): number {
+  switch (striker) {
+    case "ball":
+      return SEVERED.ball;
+    case "shell":
+      return SEVERED.shell;
+    case "hand":
+      return arm !== undefined && CUTS_OFF.has(arm) ? SEVERED.edge : 0;
+    case "bullet":
+      return arm !== undefined && Object.hasOwn(SEVERED.shot, arm)
+        ? SEVERED.shot[arm as keyof typeof SEVERED.shot]
+        : 0;
+    default:
+      return 0;
+  }
+}
+/**
+ * Where a blow that takes a part off takes it (weights in BLOW_PLACES' order): never the trunk; a
+ * head by an edge or a ball, never by a round or a shell (they shatter one; they do not take it off);
+ * a shell's and a ball's oftenest the legs, a round's the arms and hands.
+ */
+export function severWeights(striker: Striker): readonly number[] {
+  switch (striker) {
+    case "hand":
+      return [0.14, 0, 0.19, 0.19, 0.1, 0.1, 0.14, 0.14];
+    case "ball":
+      return [0.12, 0, 0.17, 0.17, 0.06, 0.06, 0.21, 0.21];
+    case "shell":
+      return [0, 0, 0.18, 0.18, 0.07, 0.07, 0.25, 0.25];
+    default:
+      return [0, 0, 0.2, 0.2, 0.14, 0.14, 0.16, 0.16];
+  }
+}
 /** The wounded who live drawn: at most this share of a side's figures that do not fall. */
 export const HURT = { most: 0.8 } as const;
 

@@ -183,18 +183,21 @@ function battleDigest(n: BattleNear, most: number): string {
   return `${field} ${nows} ${words}`;
 }
 
-/** Each case's digests, from the battle view as it was before Phase 53. */
+/**
+ * Each case's digests, from the battle view as it was before Phase 53 (the guns' moments drawn since
+ * 2026-11-11 with the earth a round that missed throws up; their fields and words as before).
+ */
 const BEFORE: Readonly<Record<string, string>> = {
   "spears in the field": "765f5571:185508 6e2ab5ae:1377885 621b846f:94495",
   "bows on a ridge, held": "9e1430e4:247236 74aa48aa:1772087 9a311ddb:104409",
   "muskets and rifles across a river, with cannon":
-    "ccf136de:303100 8cd4dc23:1691225 4de72370:111223",
-  "rifle cavalry storm stone walls": "afdb779c:275400 fe7fa136:1433077 946894c3:92766",
+    "ccf136de:303100 8a1062c0:1694448 4de72370:111223",
+  "rifle cavalry storm stone walls": "afdb779c:275400 fae95f00:1436294 946894c3:92766",
   "horse bows against chariots": "966b9bbe:113067 29601458:718202 3fa18a74:40370",
   "a siege laid at a palisade": "bff2b336:90582 77f333d:583609 2367083b:28236",
   "beasts held": "4481f047:203885 50803852:1518099 d0fc532e:80639",
   "rifles held at the walls, the attackers part armed":
-    "82674b03:152489 63ae4b5d:571521 add8c09d:35334",
+    "82674b03:152489 8f075ba3:575115 add8c09d:35334",
   "a host with no design": "23d1dca2:121965 e330fc15:908641 a90c890e:58307",
   "shell darts in the open": "948ff9ec:239122 65c63a3b:1637226 e2ed5d16:98096",
 };

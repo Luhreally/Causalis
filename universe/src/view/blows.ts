@@ -29,6 +29,8 @@ import {
   hurtFigures,
   killShare,
   placeWeights,
+  severShare,
+  severWeights,
   type Blow,
   type Striker,
 } from "../rules/index.ts";
@@ -473,9 +475,18 @@ export function newBlows(field: BattleField, told: BlowTold | null = null): Blow
       striker = strikers.get(t.id)!,
       blow = blowBy(striker, arm),
       rout = t.by === "rout",
+      // (A named man dies where history says he did, losing the part it says he lost; any other, by
+      // the same share drawn: rules/blows.ts's severShare, the blow that took it off the one that
+      // killed, where such a blow takes one.)
+      says = told?.(t.id) ?? null,
+      cuts = says ? says.cut : draw(t.id, 4) < severShare(striker, arm),
       place = onFigure(
         anatomy,
-        told?.(t.id)?.place ?? pick(placeWeights("dead", striker, blow, false), draw(t.id, 0)),
+        says?.place ??
+          pick(
+            cuts ? severWeights(striker) : placeWeights("dead", striker, blow, false),
+            draw(t.id, 0),
+          ),
       ),
       p = placeAt(field, t, t.falls),
       // (Riders lie with their horses, a seat's defenders on its walk, its climbers at its foot,
@@ -500,23 +511,8 @@ export function newBlows(field: BattleField, told: BlowTold | null = null): Blow
                     ? "thrown"
                     : "crumple"
                   : "thrown",
-      sever =
-        striker === "ball"
-          ? SEVER.ball
-          : striker === "shell"
-            ? SEVER.shell
-            : striker === "hand" && arm !== undefined && CUTS_OFF.has(arm)
-              ? SEVER.edge
-              : 0,
-      can =
-        sever > 0 &&
-        place !== "trunk" &&
-        anatomy.parts[place].length > 0 &&
-        (place !== "head" || striker !== "shell"),
       lost: BlowLost | null =
-        can && draw(t.id, 4) < sever * (place === "head" ? SEVER.head : 1)
-          ? (place as BlowLost)
-          : null,
+        cuts && place !== "trunk" && anatomy.parts[place].length > 0 ? (place as BlowLost) : null,
       mark = markOf(striker, blow),
       a = striker === "arrow" || striker === "dart" ? arrowOf.get(t.id) : undefined,
       shaft =
@@ -782,7 +778,8 @@ export function newBlows(field: BattleField, told: BlowTold | null = null): Blow
   hits.sort((p, q) => p.at - q.at || p.id - q.id);
   const cut = [0, 0];
   for (const h of hits) {
-    if (!h.lost) continue;
+    // (A part history says was cut off stays off, past the most drawn: his page and his figure agree.)
+    if (!h.lost || told?.(h.id)?.cut) continue;
     if (cut[h.side]! >= SEVER.most) {
       h.shattered = h.back !== null;
       h.lost = null;

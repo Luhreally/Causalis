@@ -17,14 +17,18 @@ import {
   type World,
 } from "../kernel/index.ts";
 import {
+  BLOW_PLACES,
   CUTS_OFF,
   STRIKE_HURT,
   anatomyOf,
   blowOf,
+  blowPlaceOf,
   borneHome,
   deathMember,
   healDays,
   maimedShare,
+  severShare,
+  severWeights,
   tendedBy,
   unpackTowns,
   woundAt,
@@ -32,6 +36,7 @@ import {
   woundOf,
   type Anatomy,
   type Blow,
+  type Member,
 } from "../rules/index.ts";
 import {
   handOf,
@@ -707,8 +712,18 @@ export function battleDeath(
   const r = readerOf(world, townOf(world, town, cell)),
     { war, b } = fought,
     foe = f.side === 0 ? 1 : 0,
-    blow = blowOf(b.bore?.[foe]?.[0] ?? null),
-    member = deathMember(r.body, blow, u(hashString(`death ${ref} ${f.event}`), 1));
+    arm = b.bore?.[foe]?.[0] ?? undefined,
+    blow = blowOf(arm),
+    key = hashString(`death ${ref} ${f.event}`),
+    // (A blow that took a part off, by the rule the battle is drawn by, is the one that killed, on
+    // the part it took: so the part a figure is seen to lose is the part this page says was lost.)
+    striker = blow === "shot" ? "bullet" : "hand",
+    has = new Set<string>(r.body.members),
+    weights = severWeights(striker).map((w, i) => (has.has(BLOW_PLACES[i]!) ? w : 0)),
+    cut = weights.some((w) => w > 0) && u(key, 2) < severShare(striker, arm),
+    member = cut
+      ? (blowPlaceOf(weights, u(key, 3)) as Member)
+      : deathMember(r.body, blow, u(key, 1));
   return {
     event: f.event,
     from: "battle",
@@ -719,6 +734,7 @@ export function battleDeath(
     member,
     words: r.body.words[member] ?? "~ body",
     at: (f.year + 1) * 365 * DAY + BATTLE_HOUR * HOUR,
+    ...(cut ? { cut } : {}),
   };
 }
 

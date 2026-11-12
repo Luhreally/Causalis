@@ -519,6 +519,8 @@ export type BattleNow = {
     readonly yaw: number;
     readonly long: number;
     readonly k: number;
+    /** A machine gun's tracer round, not burning light: thin, and its own colour. */
+    readonly tracer?: true;
   }[];
   /** The cannon where they stand, each thrown back as it fires (recoil 1, easing to 0). */
   readonly cannon: readonly { x: number; z: number; yaw: number; recoil: number }[];
@@ -2314,9 +2316,18 @@ export function crawledTo(
 const BOLT_S = 0.16,
   // (Fought by fire, a little longer: the fire is what is watched. W1c.)
   FIRE_BOLT_S = 0.3;
-/** How long a round's streak is, seen crossing the ground in a battle by fire (m), and how long it takes (s: slowed for the eye). */
-const TRACER = 7,
-  STREAK_S = 0.32;
+/**
+ * A machine gun's tracer rounds, one in four of its rounds burning as it goes, as such rounds did: how
+ * long its glint is (m), how long it takes to cross (s, slowed for the eye), and how many burn. No
+ * other gun's round is seen in flight, only its flash, its smoke and the earth it throws up where it
+ * strikes (asked for 2026-11-11: rifles and repeaters were "shooting lasers ... which doesnt make
+ * sense for the material that makes it").
+ */
+const TRACER = 3.2,
+  STREAK_S = 0.22,
+  TRACERS = 0.25;
+/** How long the earth a round throws up where it strikes the ground hangs (s). */
+const KICK_S = 0.55;
 
 /** The smoke a side's arm leaves when it fires (0 none … 1 black powder's white bank). */
 function smokeOf(near: BattleNear, side: 0 | 1): number {
@@ -2450,7 +2461,9 @@ export function battleAt(field: BattleField, s: number): BattleNow {
     spent: BattleNow["spent"][number][] = [];
   const smoke: BattleNow["smoke"][number][] = [],
     flashes: BattleNow["flashes"][number][] = [],
-    bolts: NonNullable<BattleNow["bolts"]>[number][] = [];
+    bolts: NonNullable<BattleNow["bolts"]>[number][] = [],
+    // (Where a round that missed strikes the ground: the earth thrown up, drawn with the dust.)
+    kicks: BattleNow["dust"][number][] = [];
   for (const a of field.arrows) {
     const f = (t - a.at) / a.flight;
     if (f < 0) continue;
@@ -2462,26 +2475,30 @@ export function battleAt(field: BattleField, s: number): BattleNow {
         dz = a.to.z - a.from.z,
         far = Math.hypot(dx, dz) || 1,
         ux = dx / far,
-        uz = dz / far;
-      // (Burning light goes at once and leaves no smoke: a straight line, there and gone. Phase 66.)
+        uz = dz / far,
+        look = armLook((a.side === 0 ? field.near.attacker : field.near.defender).host?.arm);
+      // (A machine gun's tracer, one round in four: a thin glint low across the field, from the gun
+      // on its tripod.)
       if (
-        field.fire &&
-        !armLook((a.side === 0 ? field.near.attacker : field.near.defender).host?.arm).beam &&
-        age < STREAK_S
+        !look.beam &&
+        look.team !== undefined &&
+        age < STREAK_S &&
+        unit(Math.round(a.at * 977), a.side + 7) < TRACERS
       ) {
-        // (Fought by fire, its way across the ground is seen: a short streak of its round. W1b.)
         const k = age / STREAK_S;
         bolts.push({
           side: a.side,
           x: a.from.x + dx * k,
-          y: 1.32,
+          y: 0.9,
           z: a.from.z + dz * k,
           yaw: Math.atan2(dx, dz),
           long: Math.min(TRACER, far),
-          k: 0.9,
+          k: 0.3,
+          tracer: true,
         });
       }
-      if (armLook((a.side === 0 ? field.near.attacker : field.near.defender).host?.arm).beam) {
+      // (Burning light goes at once and leaves no smoke: a straight line, there and gone. Phase 66.)
+      if (look.beam) {
         const boltFor = field.fire ? FIRE_BOLT_S : BOLT_S;
         if (age < boltFor)
           bolts.push({
@@ -2504,6 +2521,12 @@ export function battleAt(field: BattleField, s: number): BattleNow {
           z: a.from.z + uz * 1.1,
           yaw: Math.atan2(dx, dz),
         });
+      // (A round that missed: where it strikes the ground, a spurt of earth, there and settling.)
+      const struck = age - a.flight;
+      if (a.hits < 0 && struck >= 0 && struck < KICK_S) {
+        const ph = struck / KICK_S;
+        kicks.push({ x: a.to.x, y: 0.12 + 0.7 * ph, z: a.to.z, r: 0.16 + 0.42 * ph });
+      }
       if (smokeOf(field.near, a.side) < 1) {
         // (Smokeless powder leaves one thin puff, gone in a moment.)
         if (age < 1.2) {
@@ -2593,8 +2616,8 @@ export function battleAt(field: BattleField, s: number): BattleNow {
           });
       }
   }
-  // Dust where they run and where the lines meet.
-  const dust: BattleNow["dust"][number][] = [];
+  // Dust where they run and where the lines meet (after the earth rounds throw up: those first).
+  const dust: BattleNow["dust"][number][] = kicks;
   for (const x of troopers)
     if ((x.act === "run" || x.act === "flee" || x.act === "fight") && x.id % 5 === 0) {
       const ph = (t * 0.9 + x.id * 0.37) % 1;

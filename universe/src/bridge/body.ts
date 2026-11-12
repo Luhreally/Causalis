@@ -75,6 +75,8 @@ export type DeathBlow = {
   readonly words: string;
   /** When (world seconds). */
   readonly at: number;
+  /** The blow took the member off (a battle's: an edge's, a gun's round's; rules/blows.ts severShare). */
+  readonly cut?: boolean;
 };
 
 /** A blow taken in a battle being fought now, as the battle view draws it: where, and whether it took the member or killed. */
@@ -184,7 +186,10 @@ export function bodyAt(
     if (hand) worse(hand, "lost");
   }
   const dead = death !== null && death.at <= t;
-  if (dead) worse(death.member, "killed");
+  // (A blow that took the member off leaves it gone, an arm's hand with it: the body drawn without it.)
+  if (dead) worse(death.member, death.cut ? "lost" : "killed");
+  const cutHand = dead && death.cut ? handOf(death.member) : null;
+  if (cutHand) worse(cutHand, "lost");
   const members = frame.members.map((m) => ({
       member: m,
       words: frame.words[m] ?? "~ body",
@@ -264,11 +269,13 @@ export function deathWords(d: DeathBlow, sex?: number): string {
     at = `${d.from === "battle" ? "at" : "in"} ${d.where} in ${d.year}`,
     by = d.arm ? `, from ${d.arm}` : "";
   return d.from === "battle"
-    ? d.blow === "shot"
-      ? `killed by a shot to ${part} ${at}${by}`
-      : d.blow === "fire"
-        ? `killed by a burn to ${part} ${at}${by}`
-        : `killed by a blow to ${part} ${at}${by}`
+    ? d.cut
+      ? `killed by a ${d.blow === "shot" ? "shot" : "blow"} that took off ${part} ${at}${by}`
+      : d.blow === "shot"
+        ? `killed by a shot to ${part} ${at}${by}`
+        : d.blow === "fire"
+          ? `killed by a burn to ${part} ${at}${by}`
+          : `killed by a blow to ${part} ${at}${by}`
     : `killed ${at}, ${d.blow === "fire" ? "burned" : "crushed"} about ${part}`;
 }
 

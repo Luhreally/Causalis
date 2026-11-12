@@ -214,8 +214,10 @@ function memberItem(b: BodyNow, read: BodyRead, i: number): Item {
   const m = b.members[i]!,
     name = cap(m.words.replace("~", whose(read.sex))),
     last = m.wounds.length ? read.wounds[m.wounds.at(-1)!]! : null,
+    // (The member the blow that killed them took off is lost, and told by that blow.)
+    killing = !!b.death && (m.state === "killed" || (!!b.death.cut && b.death.member === m.member)),
     why =
-      m.state === "killed" && b.death
+      killing && b.death
         ? ` (${deathWords(b.death, read.sex)})`
         : last && m.state !== "whole"
           ? ` (${last.from === "battle" ? "at" : "in"} ${last.where}, ${last.year})`

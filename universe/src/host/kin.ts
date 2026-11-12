@@ -1208,7 +1208,7 @@ export function battleMembers(
   for (const side of [roll.attacker, roll.defender]) {
     for (const e of side.fell) {
       const d = bodyOf(world, e.ref)?.death;
-      if (d && d.event === event) out[e.ref] = { member: d.member, cut: false };
+      if (d && d.event === event) out[e.ref] = { member: d.member, cut: d.cut ?? false };
     }
     for (const e of side.hurt) {
       const w = bodyOf(world, e.ref)?.wounds.find((x) => x.event === event);

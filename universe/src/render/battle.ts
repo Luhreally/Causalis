@@ -63,6 +63,8 @@ import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 import { VehicleLayer } from "./vehicles.ts";
 
 const M = 0.1;
+/** A machine gun's tracer rounds' burning: orange-red, as they burn. */
+const TRACER_GLOW: Rgb = [1, 0.5, 0.18];
 /** What a beam is drawn in (Phase 66): its own light, as bright by day as by night. */
 function boltMaterial(): pc.StandardMaterial {
   const m = new pc.StandardMaterial();
@@ -726,11 +728,11 @@ export class BattleLayer {
     });
     this.tents.recolor(darker(field.near.attacker.color as Rgb, 0.9));
     for (const side of [0, 1] as const) {
-      const beam = armLook((side === 0 ? field.near.attacker : field.near.defender).host?.arm).beam;
-      if (beam) {
-        this.bolts[side]!.glow(beam as Rgb);
-        this.beamEnds[side]!.glow(beam as Rgb);
-      }
+      const look = armLook((side === 0 ? field.near.attacker : field.near.defender).host?.arm);
+      if (look.beam) {
+        this.bolts[side]!.glow(look.beam as Rgb);
+        this.beamEnds[side]!.glow(look.beam as Rgb);
+      } else if (look.team !== undefined) this.bolts[side]!.glow(TRACER_GLOW);
     }
     // (Towers about ground built over; none, on any other.)
     const towers = fieldTowers(field, FIELD_TOWERS);
@@ -1621,8 +1623,9 @@ export class BattleLayer {
         out[0] = b.x * M;
         out[1] = b.y * M;
         out[2] = b.z * M;
-        // (Fought by fire, a line across a hundred metres of field: thick enough to be seen on a phone. W1c.)
-        const wide = this.field?.fire ? 3 : 1;
+        // (Fought by fire, a beam across a hundred metres of field: thick enough to be seen on a phone,
+        // W1c. A machine gun's tracer is a glint, thin.)
+        const wide = b.tracer ? 0.8 : this.field?.fire ? 3 : 1;
         out[3] = (0.022 * b.k + 0.006) * wide;
         out[4] = (0.022 * b.k + 0.006) * wide;
         out[5] = b.long * M;
@@ -1787,7 +1790,8 @@ export class BattleLayer {
     this.dust.set(now.dust.length, (j, out) => {
       const d = now.dust[j]!;
       out[0] = d.x * M;
-      out[1] = d.y * M;
+      // (Off the ground where it is thrown up: on a hill's side as on the flat, not inside it.)
+      out[1] = (battleGroundAt(field.ground, d.x, d.z) + d.y) * M;
       out[2] = d.z * M;
       out[3] = d.r * M;
       out[4] = d.r * M;

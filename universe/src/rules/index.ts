@@ -746,10 +746,13 @@ export {
   HURT,
   ORDNANCE_KILL,
   SEVER,
+  SEVERED,
   blowPlaceOf,
   hurtFigures,
   killShare,
   placeWeights,
+  severShare,
+  severWeights,
   type BlowPlace,
   type Striker,
 } from "./blows.ts";

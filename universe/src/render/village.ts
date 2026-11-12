@@ -199,8 +199,36 @@ const GUNS: readonly string[] = Object.keys(ARM_LOOKS).filter(isGun);
 const YEAR = 365 * 86_400;
 /** How many beams a side has in the air over a town at once (Phase 66). */
 const BOLTS_A_SIDE = 16;
-/** A round's streak past the line (W1). */
-const TRACER: Rgb = [1, 0.82, 0.45];
+/** A machine gun's tracer rounds, as they burn (W1); a muzzle's flash; powder smoke; the earth a round throws up. */
+const TRACER: Rgb = [1, 0.5, 0.18],
+  MUZZLE: Rgb = [1, 0.82, 0.42],
+  POWDER: Rgb = [0.86, 0.86, 0.84],
+  KICKED: Rgb = [0.5, 0.42, 0.32];
+/**
+ * How a gun fires in a town's fight, as seen (asked for 2026-11-11: a rifle shooting "lasers" made no
+ * sense for what it is): how often (s, its rounds a minute hastened for the eye), whether its line
+ * fires together, how long its smoke hangs (s) and how thick (black powder's a bank, smokeless
+ * powder's a wisp). Its round is not seen in flight; a machine gun's tracers are.
+ */
+const TOWN_FIRE: Readonly<
+  Record<string, { every: number; volley: boolean; smoke: number; thick: number }>
+> = {
+  musket: { every: 7, volley: true, smoke: 3.4, thick: 1 },
+  rifle: { every: 5.5, volley: true, smoke: 3, thick: 0.9 },
+  repeater: { every: 2.4, volley: false, smoke: 2.6, thick: 0.8 },
+  autoloader: { every: 1.5, volley: false, smoke: 0.8, thick: 0.3 },
+  automatic: { every: 1.1, volley: false, smoke: 0.8, thick: 0.3 },
+};
+/** A gun with no row of its own above. */
+const TOWN_FIRE_ELSE = { every: 3, volley: false, smoke: 1.2, thick: 0.5 };
+/** A machine gun's burst: so many rounds, so far apart (s); the earth a round throws up hangs so long (s). */
+const BURST = { rounds: 5, apart: 0.09 },
+  KICK_S = 0.5;
+/** A whole number's place between 0 and 1, the same each time (for who fires when). */
+const hashUnit = (n: number) => {
+  const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+};
 
 /** A material of its own light: a beam's. */
 function litMaterial(color: Rgb): pc.StandardMaterial {
@@ -266,8 +294,20 @@ export class VillageScene {
   private warScene: TownWarScene | null = null;
   private armed = "";
   private soldierBatches: InstancedBatch[] = [];
-  /** Each side's beams in the air, where it bears them (Phase 66). */
+  /** Each side's beams in the air, where it bears them (Phase 66); a machine gun's tracers. */
   private townBolts: (InstancedBatch | null)[] = [];
+  /** The guns' firing about the town: muzzles' flashes, the powder's smoke, the earth rounds throw up. */
+  private townFlash: InstancedBatch | null = null;
+  private townPowder: InstancedBatch | null = null;
+  private townKicks: InstancedBatch | null = null;
+  /** Who fires now, kept from frame to frame (the list made again each frame, not its room). */
+  private readonly shotsNow: {
+    i: number;
+    age: number;
+    n: number;
+    f: (typeof TOWN_FIRE)[string];
+  }[] = [];
+  private readonly tracersNow: { x: number; z: number; yaw: number; k: number }[] = [];
   private soldierArmor: InstancedBatch[] = [];
   private soldierArmorParts: FigurePart[][] = [];
   private meshes: Record<PartShape, pc.Mesh> | null = null;
@@ -2222,7 +2262,7 @@ export class VillageScene {
       });
       // Burning light: from each who fights, now and again, a straight line out at the foe, there and gone.
       this.townBolts.forEach((batch, side) => {
-        if (!batch) return;
+        if (!batch || !armLook(this.kits[side]?.arm).beam) return;
         const firing: { x: number; z: number; yaw: number; k: number }[] = [];
         for (let i = side * this.soldiersEach; i < (side + 1) * this.soldiersEach; i++) {
           const q = troops[i];
@@ -2306,6 +2346,7 @@ export class VillageScene {
         });
       });
     }
+    this.gunfire(troops, clock);
     // What they carry, where they go with it.
     let n = 0;
     plan.people.forEach((p, i) => {
@@ -2463,13 +2504,25 @@ export class VillageScene {
           this.root,
         )
       : null;
-    // (Past the line a gun's rounds are seen as burning light is: a streak out at the foe. W1.)
+    // (Burning light is seen as a beam out at the foe, Phase 66. A gun's round is not seen in flight,
+    // only its flash, its smoke and the earth where it strikes; but a machine gun's tracers, a glint.)
     this.townBolts = this.kits.map((k, i) => {
-      const light = lights[i] ?? (isGun(k.arm) && armLook(k.arm).order === "open" ? TRACER : null);
+      const light = lights[i] ?? (armLook(k.arm).team !== undefined ? TRACER : null);
       return light
         ? kept(s, meshes.box, light as Rgb, BOLTS_A_SIDE, this.root, litMaterial(light as Rgb))
         : null;
     });
+    const guns = this.kits.some((k) => isGun(k.arm) && !armLook(k.arm).beam),
+      most = 2 * this.soldiersEach;
+    this.townFlash = guns
+      ? kept(s, meshes.cone, MUZZLE, most, this.root, litMaterial(MUZZLE))
+      : null;
+    this.townPowder = guns
+      ? kept(s, meshes.box, POWDER, most * 2, this.root, flatMaterial(POWDER, 0.55))
+      : null;
+    this.townKicks = guns
+      ? kept(s, meshes.box, KICKED, most, this.root, flatMaterial(KICKED, 0.85))
+      : null;
     this.blades = bears(["sword", "axe"])
       ? kept(s, meshes.box, [0.8, 0.82, 0.86], this.soldiersEach * 2, this.root)
       : null;
@@ -2494,6 +2547,117 @@ export class VillageScene {
             : null,
         )
       : [];
+  }
+
+  /**
+   * The guns' firing about the town now (asked for 2026-11-11: a rifle shooting "lasers" made no
+   * sense for what it is): each who fires, at their arm's pace (a line of muskets together, repeaters
+   * each in their own time; beside a machine gun, the rest of its host with what they bear), a flash
+   * at the muzzle, the powder's smoke rolling out and drifting off on the wind (black powder's a bank
+   * that hangs, smokeless powder's a wisp), the earth a round throws up among the foe; and each
+   * machine gun's tracers, a glint going out from its tripod. Nothing when no one fires.
+   */
+  private gunfire(troops: TownWarScene["soldiers"], clock: number): void {
+    const flash = this.townFlash,
+      powder = this.townPowder,
+      kicks = this.townKicks;
+    if (!flash || !powder || !kicks) return;
+    const each = this.soldiersEach,
+      size = this.figure.scale,
+      shots = this.shotsNow;
+    shots.length = 0;
+    for (let i = 0; i < 2 * each; i++) {
+      const q = troops[i];
+      if (!q || q.size < 0.5 || (q.doing !== "fight" && q.doing !== "fire")) continue;
+      const kit = this.kits[q.side];
+      if (!kit || !isGun(kit.arm)) continue;
+      const look = armLook(kit.arm);
+      if (look.beam) continue;
+      const f = TOWN_FIRE[look.rest ?? kit.arm] ?? TOWN_FIRE_ELSE,
+        lead = f.volley
+          ? q.side * 1.7 + Math.floor((i - q.side * each) / 8) * 0.18 + hashUnit(i) * 0.3
+          : hashUnit(i) * f.every,
+        t = clock + lead,
+        n = Math.floor(t / f.every),
+        age = t - n * f.every;
+      if (age < Math.max(f.smoke, KICK_S + 0.1)) shots.push({ i, age, n, f });
+    }
+    const muzzle = (q: TownWarScene["soldiers"][number], ahead: number, out: number[]) => {
+      out[0] = q.x * M + Math.sin(q.yaw) * ahead * size;
+      out[1] = 0.42 * size;
+      out[2] = q.z * M + Math.cos(q.yaw) * ahead * size;
+    };
+    const flashing = shots.filter((s) => s.age < 0.09);
+    flash.set(flashing.length, (j, out) => {
+      const s = flashing[j]!,
+        q = troops[s.i]!,
+        w = (0.05 + 0.05 * s.f.thick) * size;
+      muzzle(q, 0.62, out);
+      out[3] = w;
+      out[4] = w * 2.2;
+      out[5] = w;
+      out[6] = q.yaw;
+      // (Its point along the way it fires.)
+      out[7] = Math.PI / 2;
+    });
+    const smoking = shots.filter((s) => s.age < s.f.smoke);
+    powder.set(smoking.length, (j, out) => {
+      const s = smoking[j]!,
+        q = troops[s.i]!,
+        k = s.age / s.f.smoke,
+        r = (0.1 + 0.42 * Math.sqrt(k)) * (0.4 + 0.6 * s.f.thick) * size;
+      muzzle(q, 0.5 + 0.9 * Math.min(1, s.age / 1.2), out);
+      // (Off on the wind, and rising.)
+      out[0] = out[0]! + 0.22 * s.age * size;
+      out[1] = out[1]! + 0.16 * s.age * size;
+      out[3] = r * 2;
+      out[4] = r * 1.6;
+      out[5] = r * 2;
+      out[6] = s.i * 0.7 + s.n;
+      out[7] = s.i * 0.3;
+    });
+    // (Where its round strikes, among the foe as they stand: the earth thrown up, settling.)
+    const struck = shots.filter((s) => s.age >= 0.05 && s.age < 0.05 + KICK_S);
+    kicks.set(struck.length, (j, out) => {
+      const s = struck[j]!,
+        q = troops[s.i]!,
+        foe = troops[(1 - q.side) * each + ((s.i * 7 + s.n * 13) % Math.max(1, each))],
+        ph = (s.age - 0.05) / KICK_S,
+        r = (0.05 + 0.13 * ph) * size,
+        at = foe && foe.size > 0.5 ? foe : null,
+        x = at ? at.x : q.x + Math.sin(q.yaw) * 30,
+        z = at ? at.z : q.z + Math.cos(q.yaw) * 30;
+      out[0] = (x + (hashUnit(s.i * 31 + s.n) - 0.5) * 6) * M;
+      out[1] = (0.03 + 0.22 * ph) * size;
+      out[2] = (z + (hashUnit(s.i * 17 + s.n * 3) - 0.5) * 6) * M;
+      out[3] = r;
+      out[4] = r * 1.4;
+      out[5] = r;
+      out[6] = s.n;
+    });
+    // A machine gun's tracers: a burst a second or so, one of its rounds burning, out along its way.
+    const guns = (this.warScene?.teamGuns ?? []).filter((g) => g.firing),
+      side = this.kits.findIndex((k) => armLook(k.arm).team !== undefined),
+      bolts = side >= 0 ? this.townBolts[side] : null;
+    if (bolts && !armLook(this.kits[side]?.arm).beam) {
+      const going = this.tracersNow;
+      going.length = 0;
+      guns.forEach((g, j) => {
+        const age = (clock + hashUnit(j + 11) * 1.1) % 1.1;
+        if (age < 0.22) going.push({ x: g.x, z: g.z, yaw: g.yaw, k: age / 0.22 });
+      });
+      bolts.set(going.length, (j, out) => {
+        const g = going[j]!,
+          d = 3 + g.k * 40;
+        out[0] = (g.x + Math.sin(g.yaw) * d) * M;
+        out[1] = 0.3 * size;
+        out[2] = (g.z + Math.cos(g.yaw) * d) * M;
+        out[3] = 0.012;
+        out[4] = 0.012;
+        out[5] = 8 * M;
+        out[6] = g.yaw;
+      });
+    }
   }
 
   /**
