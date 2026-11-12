@@ -4,6 +4,7 @@
 import {
   AGES,
   BIOME_NAMES,
+  beastPlanOf,
   ageRef,
   cellRef,
   isProvinceWorld,
@@ -164,7 +165,14 @@ export function lineagePage(world: World, ref: string): PageModel {
     subtitle: [s.what],
     color: null,
     ...(sp.body
-      ? { portrait: { kind: "creature" as const, body: sp.body, name: s.name, wool: s.wool } }
+      ? {
+          portrait: {
+            kind: "creature" as const,
+            body: beastPlanOf(homePlanet(world).generated, sp)!,
+            name: s.name,
+            wool: s.wool,
+          },
+        }
       : {}),
     place: lineagePlace(world, sp.index, s.origin.cell),
     stats,

@@ -4,6 +4,7 @@
 // simulated thing.
 import * as pc from "playcanvas";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
+import { BEAST_SHAPES } from "../view/index.ts";
 
 export class InstancedBatch {
   readonly capacity: number;
@@ -307,4 +308,54 @@ export function gableMesh(stage: Stage): pc.Mesh {
   mesh.setIndices(indices);
   mesh.update();
   return mesh;
+}
+
+/** A faceted mesh of a solid's corners and faces (each face lit by its own normal). */
+export function facetedMesh(
+  stage: Stage,
+  solid: {
+    readonly corners: readonly (readonly [number, number, number])[];
+    readonly faces: readonly (readonly number[])[];
+  },
+): pc.Mesh {
+  const positions: number[] = [],
+    normals: number[] = [],
+    indices: number[] = [];
+  for (const f of solid.faces) {
+    const a = solid.corners[f[0]!]!,
+      b = solid.corners[f[1]!]!,
+      c = solid.corners[f[2]!]!,
+      u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]],
+      v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]],
+      n = [
+        u[1]! * v[2]! - u[2]! * v[1]!,
+        u[2]! * v[0]! - u[0]! * v[2]!,
+        u[0]! * v[1]! - u[1]! * v[0]!,
+      ],
+      len = Math.hypot(n[0]!, n[1]!, n[2]!) || 1,
+      base = positions.length / 3;
+    for (const i of f) {
+      const p = solid.corners[i]!;
+      positions.push(p[0], p[1], p[2]);
+      normals.push(n[0]! / len, n[1]! / len, n[2]! / len);
+    }
+    for (let k = 1; k + 1 < f.length; k++) indices.push(base, base + k, base + k + 1);
+  }
+  const mesh = new pc.Mesh(stage.device);
+  mesh.setPositions(positions);
+  mesh.setNormals(normals);
+  mesh.setIndices(indices);
+  mesh.update();
+  return mesh;
+}
+
+/** The meshes beasts are built of, one for each of their shapes (view/creature.ts BEAST_SHAPES), kept for each stage. */
+const BEAST_MESHES = new WeakMap<Stage, pc.Mesh[]>();
+export function beastMeshes(stage: Stage, box: pc.Mesh): readonly pc.Mesh[] {
+  let kept = BEAST_MESHES.get(stage);
+  if (!kept) {
+    kept = BEAST_SHAPES.map((s, i) => (i === 0 ? box : keptMesh(facetedMesh(stage, s))));
+    BEAST_MESHES.set(stage, kept);
+  }
+  return kept[0] === box ? kept : [box, ...kept.slice(1)];
 }

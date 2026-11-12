@@ -4,7 +4,7 @@
 // with acts laid on its dawn, the world remade from them — generated afresh, the world being
 // watched untouched (it is begun from that text when the viewer begins there).
 import { Rng, seedFromText, seedName, type World } from "../kernel/index.ts";
-import { BIOME_NAMES, AGES, treeOfLife, type ProvinceWorld } from "../gen/index.ts";
+import { BIOME_NAMES, AGES, beastPlanOf, treeOfLife, type ProvinceWorld } from "../gen/index.ts";
 import {
   agesMade,
   bodyWords,
@@ -155,7 +155,8 @@ export function genesisPlan(pw: ProvinceWorld, seed: string): GenesisPlan {
         died: s.died,
         size: s.size,
         level: s.level,
-        body: s.body,
+        // (Its look, of its world's founding stock: B1.)
+        body: beastPlanOf(g, s),
         words: s.body ? creatureWords(s.body, s.niche) : null,
       })),
     people: people

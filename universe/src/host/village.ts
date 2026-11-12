@@ -15,7 +15,7 @@ import {
   type World,
 } from "../kernel/index.ts";
 import type { Feast } from "../bridge/index.ts";
-import { WATER, cellRef, livingIn, type Species } from "../gen/index.ts";
+import { WATER, beastPlanOf, cellRef, livingIn, type Species } from "../gen/index.ts";
 import { AGE_ROWS, G, GOODS, HOME_LIFE, OCC, article, roofPitch } from "../rules/index.ts";
 import {
   actsOf,
@@ -1028,7 +1028,8 @@ export function villagePlan(
                     : s.niche === "seed-eater"
                       ? w.small
                       : w.wild,
-          body: s.body,
+          // (Its look, of its world's founding stock: B1.)
+          body: beastPlanOf(g, s),
         })),
       pop = land?.total() ?? 0,
       herders = land && pop > 0 ? land.occupation(OCC.herder) / pop : 0,
@@ -1046,7 +1047,7 @@ export function villagePlan(
             size: beast.size,
             wool: beast.wool,
             herders: Math.max(1, Math.round(population * herders)),
-            body: beast.body,
+            body: beastPlanOf(g, beast),
             ...(gone.length ? { gone } : {}),
           }
         : null,
@@ -1063,7 +1064,7 @@ export function villagePlan(
                 niche: wild.hunter.niche,
                 size: wild.hunter.size,
                 wool: wild.hunter.wool,
-                body: wild.hunter.body,
+                body: beastPlanOf(g, wild.hunter),
                 known: !!wild.known,
               },
             }

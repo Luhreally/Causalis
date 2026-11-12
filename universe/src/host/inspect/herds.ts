@@ -3,7 +3,7 @@
 // Pure reads of what the world keeps: looking moves nothing.
 import { landPast } from "../past.ts";
 import { REGION_SIZE, PROVINCE_TILE_KM } from "../../sim/index.ts";
-import { isProvinceWorld, lives, regionPoint, type Species } from "../../gen/index.ts";
+import { beastPlanOf, isProvinceWorld, lives, regionPoint, type Species } from "../../gen/index.ts";
 import {
   HERD,
   HERD_RAID,
@@ -180,7 +180,7 @@ export function landHerds(world: World, cell: number): LandHerds {
               niche: water ? "swimmer" : s.niche,
               size: i === 0 && own ? own.size : s.size,
               wool: s.wool,
-              body: s.body,
+              body: beastPlanOf(g, s),
               n,
             },
           ];
@@ -206,7 +206,7 @@ export function landHerds(world: World, cell: number): LandHerds {
           kind: g.life.species[known.species]!.name,
           size: g.life.species[known.species]!.size,
           wool: g.life.species[known.species]!.wool,
-          body: g.life.species[known.species]!.body,
+          body: beastPlanOf(g, g.life.species[known.species]!),
           tile: beastTown?.tile ?? Math.floor((REGION_SIZE * REGION_SIZE) / 2),
         }
       : null;

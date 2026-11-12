@@ -9,7 +9,7 @@ import * as pc from "playcanvas";
 import type { BeastPlan } from "../bridge/index.ts";
 import {
   MEADOW_CELLS,
-  MOST_OF_TONE,
+  SHAPES,
   beastPose,
   buildBody,
   cellMiddle,
@@ -20,12 +20,14 @@ import {
   seasonKey,
   seasonLeaf,
   seasonWater,
+  shapesOf,
+  usesOf,
   type BeastPart,
   type Built,
   type GroundSeason,
   type MeadowState,
 } from "../view/index.ts";
-import { InstancedBatch, boxMesh, coneMesh, cylinderMesh, keptMesh } from "./batch.ts";
+import { InstancedBatch, beastMeshes, boxMesh, coneMesh, cylinderMesh, keptMesh } from "./batch.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 /** Units a metre of the meadow, as the village's. */
@@ -249,6 +251,8 @@ export function groundOfLook(kind: string): { dirt: Rgb; grass: Rgb } {
 type Drawn = {
   readonly body: Built;
   readonly tones: { batch: InstancedBatch; data: Float32Array; n: number }[];
+  /** Each tone and shape's place among its batches (tone × SHAPES + shape; -1: none). */
+  readonly at: Int8Array;
 };
 
 export class MeadowScene {
@@ -353,25 +357,33 @@ export class MeadowScene {
     for (const k of s.kinds) {
       if (this.drawn.has(k.ref)) continue;
       const plan = bodies[k.lineage],
-        coat = coatOf(k.name, false),
+        look = (plan as { look?: Parameters<typeof coatOf>[2] } | null)?.look,
+        coat = coatOf(k.name, false, look),
         body = buildBody(
           (plan ?? { size: k.size }) as Parameters<typeof buildBody>[0],
           this.detail,
           coat.pattern,
           k.ref.length,
         ),
-        most = k.most + 4;
-      this.drawn.set(k.ref, {
-        body,
-        tones: [coat.coat, coat.dark, coat.horn].map((c, tone) => {
-          const cap = most * MOST_OF_TONE[tone as 0 | 1 | 2];
-          return {
-            batch: new InstancedBatch(this.stage, this.box, c, cap, this.root),
+        most = k.most + 4,
+        meshes = beastMeshes(this.stage, this.box),
+        at = new Int8Array(3 * SHAPES).fill(-1),
+        tones: { batch: InstancedBatch; data: Float32Array; n: number }[] = [];
+      // (Its boxes in its three tones, as ever; an alien beast's other shapes in batches of their own.)
+      [coat.coat, coat.dark, coat.horn].forEach((c, tone) => {
+        for (const shape of shapesOf(body)) {
+          const each = usesOf(body, tone, shape);
+          if (shape !== 0 && !each) continue;
+          const cap = most * each;
+          at[tone * SHAPES + shape] = tones.length;
+          tones.push({
+            batch: new InstancedBatch(this.stage, meshes[shape]!, c, cap, this.root),
             data: new Float32Array(cap * FLOATS),
             n: 0,
-          };
-        }),
+          });
+        }
       });
+      this.drawn.set(k.ref, { body, tones, at });
     }
     for (const d of this.drawn.values()) for (const t of d.tones) t.n = 0;
     let lit: { x: number; z: number; r: number } | null = null;
@@ -413,8 +425,8 @@ export class MeadowScene {
         sn = Math.sin(b.heading);
       for (let q = 0; q < n; q++) {
         const p = this.parts[q]!,
-          t = d.tones[p.tone]!;
-        if (t.n >= t.batch.capacity) continue;
+          t = d.tones[d.at[p.tone * SHAPES + p.shape]!];
+        if (!t || t.n >= t.batch.capacity) continue;
         const o = t.n++ * FLOATS,
           a = t.data;
         a[o] = b.x * M + (p.x * c + p.z * sn) * grow;

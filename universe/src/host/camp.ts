@@ -6,6 +6,7 @@
 import { DAY, mix, type World } from "../kernel/index.ts";
 import {
   BIOME,
+  beastPlanOf,
   livingIn,
   personName,
   tonguePersonName,
@@ -171,7 +172,8 @@ export function campNear(world: World, cell: number, id: number): CampNear | nul
         died: null,
         size: s.size,
         level: s.level,
-        body: s.body,
+        // (Its look, of its world's founding stock: B1.)
+        body: beastPlanOf(g, s),
         words: null,
       })),
     },

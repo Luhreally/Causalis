@@ -66,6 +66,15 @@ export {
 } from "./chemistry.ts";
 export { civLife, handDraw, lifeInputs, worldLife } from "./life.ts";
 export {
+  beastLookOf,
+  beastPlanOf,
+  lineLookOf,
+  peopleStock,
+  stockWorldOf,
+  worldStocks,
+  type WorldStocks,
+} from "./stocks.ts";
+export {
   MAX_SPECIES,
   SPECIES_WORDS,
   NICHES,
