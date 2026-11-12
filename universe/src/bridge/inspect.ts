@@ -329,6 +329,14 @@ export type Block =
       /** The kind whose page it is (most of the drop, and named first). */
       readonly focus?: string;
       readonly words?: string;
+      /** A mineral grain on the drop's floor the rock-eaters live on: where (µm), how large, its colour, what it is (B2). */
+      readonly grain?: {
+        readonly x: number;
+        readonly y: number;
+        readonly r: number;
+        readonly color: Rgb;
+        readonly name: string;
+      };
     }
   | { readonly type: "why"; readonly title?: string; readonly ref: string }
   /**
@@ -378,8 +386,18 @@ export type DropKind = {
   /** What it is called in the drop ("small cells"), and the line of the tree it is of. */
   readonly name: string;
   readonly line: string;
-  /** How it lives: by what floats in the water, by light, by taking in other cells; or many cells as one. */
-  readonly way: "eater" | "light" | "hunter" | "colony";
+  /**
+   * How it lives: by what floats in the water, by light, by taking in other cells; or many cells as one; or by the
+   * chemistry of a mineral grain (rock-eaters, B2), clustered on it.
+   */
+  readonly way: "eater" | "light" | "hunter" | "colony" | "rock";
+  /** How fast it lives against its way's usual (1), from the power what it runs on gives (B2). */
+  readonly pace?: number;
+  /** How it is drawn, where not as its way's usual: a rod, a ball of two or four, a spiral, a comma, a ball, a flat disc, a chain, a crust. */
+  readonly look?:
+    "rod" | "coccus" | "spiral" | "comma" | "ball" | "disc" | "chain" | "crust" | "blob";
+  /** What it runs on, in words ("hydrogen with carbon dioxide"). */
+  readonly runs?: string;
   readonly color: Rgb;
   /** Its size across, micrometres. */
   readonly size: number;
@@ -622,6 +640,8 @@ export type PageKind =
   | "envoy"
   | "means"
   | "can"
+  /** How life began on a world (B2). */
+  | "life"
   | "measure"
   | "land"
   | "spot"

@@ -114,3 +114,37 @@ test("a dark drop of soil starves its light-eaters; in the cold, lives go slowly
   }
   assert.ok(cold.t < warm.t / 2, "the ice's time runs slower");
 });
+
+test("rock-eaters live on their grain, clustered about it; a kind that runs on little power lives slowly (B2)", () => {
+  const rock: DropKind = {
+      ref: "r",
+      name: "methane-makers",
+      line: "the first cells",
+      way: "rock",
+      color: [0.85, 0.85, 0.75],
+      size: 2.5,
+      share: 0.4,
+      pace: 0.3,
+    },
+    grain = {
+      x: 90,
+      y: 120,
+      r: 13,
+      color: [0.7, 0.7, 0.6] as const,
+      name: "a crumb of vent chimney",
+    },
+    s = newDrop(drop("sea", { kinds: [KINDS[0]!, rock], grain }));
+  run(s, 40);
+  const on = s.cells.filter((c) => c.kind === 1);
+  assert.ok(on.length >= 5, `${on.length} rock-eaters`);
+  const near = on.filter((c) => Math.hypot(c.x - grain.x, c.y - grain.y) < grain.r + 25).length;
+  assert.ok(near / on.length > 0.8, `${near} of ${on.length} about their grain`);
+  // (The same kind at its usual pace moves faster than at a third of it.)
+  const quick = newDrop(drop("sea", { kinds: [KINDS[0]!, { ...KINDS[2]!, pace: 1 }] })),
+    slow = newDrop(drop("sea", { kinds: [KINDS[0]!, { ...KINDS[2]!, pace: 0.3 }] })),
+    speed = (x: DropState) => {
+      const h = x.cells.filter((c) => c.kind === 1);
+      return h.reduce((a, c) => a + c.speed, 0) / Math.max(1, h.length);
+    };
+  assert.ok(speed(slow) < speed(quick) * 0.5);
+});
