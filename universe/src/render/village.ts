@@ -314,7 +314,7 @@ export class VillageScene {
   private townKicks: InstancedBatch | null = null;
   /**
    * How much blood and wounds are shown (the game's setting, as a battle's: main.ts sets it). Of a
-   * town war's fallen, a part taken off and its blood; none, none.
+   * town war's fallen, at full, a part taken off and its blood; else neither.
    */
   gore: Gore = "full";
   /** The soldiers' figure's places, and for each of its parts the places it is a part of (bits). */
@@ -2620,8 +2620,8 @@ export class VillageScene {
    */
   /**
    * Of the town war's fallen now, the part each lost (soldierLost), by the foe's arm, and a pool of
-   * blood where it was taken off (as the gore setting shows: less, a smaller and darker one; none,
-   * no part taken and no blood).
+   * blood where it was taken off: as the gore setting shows, all of it; less or none, nothing cut
+   * off (as the setting says) and no pool.
    */
   private fallenParts(troops: TownWarScene["soldiers"]): void {
     const each = this.soldiersEach,
@@ -2630,7 +2630,7 @@ export class VillageScene {
       blood = this.townBlood,
       seed = hashText(this.townWar?.ref ?? "");
     lost.fill(-1);
-    if (!anatomy || this.gore === "none") {
+    if (!anatomy || this.gore !== "full") {
       blood?.set(0, () => {});
       return;
     }
@@ -2646,12 +2646,11 @@ export class VillageScene {
       pooled.push(i);
     }
     if (!blood) return;
-    const less = this.gore === "less",
-      size = this.figure.scale;
+    const size = this.figure.scale;
     blood.set(pooled.length, (j, out) => {
       const i = pooled[j]!,
         q = troops[i]!,
-        r = (less ? 0.055 : 0.09) * size * q.size * (0.8 + 0.4 * hashUnit(i + seed)),
+        r = 0.09 * size * q.size * (0.8 + 0.4 * hashUnit(i + seed)),
         // (Where what was taken lay, as they lie on their back with the head toward −z: the
         // ground beside the trunk an arm left, below the hip a leg left, past the neck.)
         place = lost[i]!,
