@@ -228,10 +228,29 @@ for (const engine of engines) {
           undefined,
           { timeout: 10000 },
         );
+        // (On a phone the news waits under an open page, as no window stands over another: the page put
+        // away, the land's news shows.)
+        type Hooks = {
+          causalis?: {
+            closePage?: () => void;
+            pageOpen?: () => string | null;
+            open?: (ref: string) => Promise<void>;
+          };
+        };
+        const landPage = await page.evaluate(() => {
+          const c = (globalThis as Hooks).causalis,
+            ref = c?.pageOpen?.() ?? null;
+          c?.closePage?.();
+          return ref;
+        });
         await page.waitForSelector(".tidings .tiding .tiding-claim", { timeout: 30000 });
         const news = await page.evaluate(
           () => document.querySelector(".tidings .tiding .tiding-claim")?.textContent ?? "",
         );
+        // (Its page again, for its years.)
+        if (landPage)
+          await page.evaluate((ref) => (globalThis as Hooks).causalis?.open?.(ref), landPage);
+        await page.waitForSelector(".page-window .tab", { timeout: 10000 });
         console.log(`${(label + " tidings").padEnd(24)} ${later.mode.padEnd(9)} ${news}`);
         // Its years as charts, and the chronicle of the world.
         await page.click(".page-window .tab:has-text('People')");
