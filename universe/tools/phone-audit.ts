@@ -300,6 +300,22 @@ await state("globe-lens-food", async () => {
   await press('.mapmodes .mode[aria-label="Food"]');
   await settle(800);
 });
+// Every alliance at once (D1): the lens and its key, their list, one of them.
+await state("globe-alliances", async () => {
+  await press('.mapmodes .mode[aria-label="Alliances"]');
+  await settle(1500);
+});
+await state("alliances-list", async () => {
+  await press(".legend-action");
+  await settle(1200);
+});
+await closePage();
+if (await seen(".alliance-key"))
+  await state("alliance-page", async () => {
+    await press(".alliance-key");
+    await settle(1200);
+  });
+await closePage();
 await press('.mapmodes .mode[aria-label="Land"]');
 if (await seen(".people-fold")) {
   await state("people-folded", async () => {

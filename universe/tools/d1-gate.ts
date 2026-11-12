@@ -2,7 +2,7 @@
 //   1. the rule, pure: how a call is weighed, which way a claim goes, who is feared;
 //   2. the paths nobody watches, on a real world: a save from before the rule, loaded and run on; a world at year 40; a vassal whose overlord has fallen; a marriage into a realm that ended; a claim on the seat of a ruler a person plays; a realm at war with its own ally; a water people; a world of many realms;
 //   3. what a whole run came to, read for its worst: wars with allies, the largest, how many called came; every call, compact, marriage and envoy's page read for a bad word;
-//   4. by real touch at 430 by 932: a realm's Bonds tab; a war with allies told; the blocs lens pressed, its colours in the pixels, a bloc's page; a ruler's envoy sent, and answered; one on the road, seen;
+//   4. by real touch at 430 by 932: a realm's Bonds tab; a war with allies told; the alliances (blocs) lens pressed, its colours in the pixels, their list, an alliance's page; a ruler's envoy sent, and answered; one on the road, seen;
 //   5. on a desktop: the same pages read.
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -619,43 +619,56 @@ if (compact) {
   await shot("3-compact");
   await closePage();
 }
-// The blocs lens, by touch; its colours in the pixels.
+// The blocs lens (in the UI "Alliances": "league" is a realm's title), by touch; its colours in the pixels; its list, and one of them.
 {
   const before = await page.screenshot();
-  const opened = await seen(`.mapmodes .mode[aria-label="Blocs"]`);
+  const opened = await seen(`.mapmodes .mode[aria-label="Alliances"]`);
   if (!opened) {
     // (Its bar is behind the phone's map button.)
     await k(
-      `[...document.querySelectorAll("button")].find((b) => /map|lens/i.test(b.title || b.getAttribute("aria-label") || ""))?.click()`,
+      `[...document.querySelectorAll("button")].find((b) => /map|lens|fold the bar/i.test(b.title || b.getAttribute("aria-label") || ""))?.click()`,
     );
     await settle(500);
   }
-  await tap(`.mapmodes .mode[aria-label="Blocs"]`, "the blocs lens");
+  await tap(`.mapmodes .mode[aria-label="Alliances"]`, "the alliances lens");
   await until(
-    "the blocs' note",
-    async () => /bloc|alone/.test(await words(".legend-note")),
+    "the alliances' key",
+    async () =>
+      (await k<number>(`document.querySelectorAll(".alliance-key").length`)) > 0 ||
+      /alone/.test(await words(".legend-note")),
     slow(20000),
   );
   await settle(1500);
-  const note = await words(".legend-note");
-  say(`the lens: ${note}`);
-  check(/blocs?|alone/.test(note), `the lens does not say what it shows: "${note}"`);
+  const key = await words(".legend");
+  say(`the lens: ${key.replace(/\s+/g, " ")}`);
+  check(/alliance|alone/i.test(key), `the lens does not say what it shows: "${key}"`);
   const after = await page.screenshot();
-  check(Buffer.compare(before, after) !== 0, "the blocs lens changed nothing on the screen");
+  check(Buffer.compare(before, after) !== 0, "the alliances lens changed nothing on the screen");
   await shot("4-lens");
   if (await seen(".legend-action")) {
-    await tap(".legend-action", "the greatest bloc");
+    await tap(".legend-action", "every alliance");
     await until(
-      "a bloc's page",
+      "their list",
+      async () => /By their people|No two realms/i.test(await pageText()),
+      slow(20000),
+    );
+    const list = await pageText();
+    check(!BAD.test(list), `the alliances' list says ${BAD.exec(list)?.[0]}`);
+    await closePage();
+  } else check(false, "the alliances lens has no way to their list");
+  if (await seen(".alliance-key")) {
+    await tap(".alliance-key", "an alliance in the key");
+    await until(
+      "an alliance's page",
       async () => /Who stands in it/i.test(await pageText()),
       slow(20000),
     );
     const text = await pageText();
-    say(`a bloc's page: ${text.replace(/\s+/g, " ").slice(0, 300)}`);
-    check(!BAD.test(text), `a bloc's page says ${BAD.exec(text)?.[0]}`);
+    say(`an alliance's page: ${text.replace(/\s+/g, " ").slice(0, 300)}`);
+    check(!BAD.test(text), `an alliance's page says ${BAD.exec(text)?.[0]}`);
     await shot("5-bloc");
     await closePage();
-  } else check(!head, "the blocs lens has no way to the greatest bloc");
+  } else check(!head, "the alliances lens keys no alliance");
 }
 // A ruler's envoy, sent and answered.
 let sentTo: string | null = null;

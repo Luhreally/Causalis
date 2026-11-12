@@ -81,7 +81,7 @@ export const LENS_NAMES: Readonly<Record<Lens, string>> = {
   sickness: "Sickness",
   debt: "Debt",
   forest: "Forest",
-  blocs: "Blocs",
+  blocs: "Alliances",
 };
 
 /** Each map mode's icon, for the map modes' bar (Phase 10 M96). */
@@ -1127,8 +1127,8 @@ export function lensLegend(lens: Lens, kind = "rocky", look?: string): Legend {
       return {
         kind: "keys",
         keys: [
-          [[0.62, 0.5, 0.82], "each bloc the colour of whoever stands at its head"],
-          [[0.4, 0.4, 0.38], "standing alone"],
+          [[0.9, 0.2, 0.18], "each alliance its own colour"],
+          [[0.34, 0.34, 0.32], "standing alone"],
         ],
       };
     case "war":

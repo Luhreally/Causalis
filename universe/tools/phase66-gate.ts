@@ -228,7 +228,9 @@ const seaInItsRealms = async (): Promise<{ spots: number; share: number }> => {
         const realm = by.get(province[s]!);
         if (!realm || elevation[s]! > 0) continue;
         const at = c.spotOnScreen(s);
-        if (at) out.push({ x: at.x, y: at.y, realm });
+        // (Only where the globe itself is seen, not a window of the HUD over it.)
+        if (at && document.elementFromPoint(at.x, at.y)?.tagName === "CANVAS")
+          out.push({ x: at.x, y: at.y, realm });
       }
       return out;
     }),
@@ -250,8 +252,11 @@ const seaInItsRealms = async (): Promise<{ spots: number; share: number }> => {
           (Math.hypot(a[0]!, a[1]!, a[2]!) * Math.hypot(b[0]!, b[1]!, b[2]!) || 1);
       let spots = 0,
         theirs = 0;
-      for (const s of list as { x: number; y: number; realm: number[] }[]) {
-        if (s.y < h * 0.45 || s.y > h * 0.95 || s.x < w * 0.02 || s.x > w * 0.7) continue;
+      // (The spots are where they fall in the page's pixels, the picture in the screen's: a phone's are 3 to 1.)
+      const dpr = w / innerWidth;
+      for (const t of list as { x: number; y: number; realm: number[] }[]) {
+        const s = { ...t, x: t.x * dpr, y: t.y * dpr };
+        if (s.y < 0 || s.y >= h || s.x < 0 || s.x >= w) continue;
         // (A realm of the sea's own colour says nothing either way.)
         if (lean(s.realm, sea) > 0.95) continue;
         const q = (Math.round(s.y) * w + Math.round(s.x)) * 4,
@@ -477,7 +482,36 @@ try {
   await shot("06b-the-world-seen-whole");
   // (A people of the water's lands are its sea: a realm's colour there, and not plain water.)
   if (!bakedFile) {
+    // (What the run brought put away, as a player would, to see the globe under it.)
+    await page
+      .locator(".ran-note .ran-close:visible")
+      .first()
+      .click()
+      .catch(() => undefined);
     await page.locator('.mapmodes .mode[aria-label^="Realms"]').first().click({ force: true });
+    // (A lens only paints, the eye left where it was: turned here to the middle of their sea.)
+    await page.evaluate(async () => {
+      const c = (
+          globalThis as unknown as {
+            causalis: {
+              client: {
+                query(q: unknown): Promise<{ cell: number; realm: number[] | null }[]>;
+                latestFrame(view: string): { arrays: Record<string, ArrayLike<number>> } | null;
+              };
+              faceSpot(spot: number, distance?: number): void;
+            };
+          }
+        ).causalis,
+        map = await c.client.query({ type: "people.map" }),
+        f = c.client.latestFrame("globe")!,
+        province = f.arrays.province!,
+        elevation = f.arrays.elevation!,
+        ruled = new Set(map.filter((m) => m.realm).map((m) => m.cell)),
+        sea: number[] = [];
+      for (let s = 0; s < province.length; s++)
+        if (ruled.has(province[s]!) && elevation[s]! <= 0) sea.push(s);
+      if (sea.length) c.faceSpot(sea[Math.floor(sea.length / 2)]!, 2.6);
+    });
     await page.waitForTimeout(slow(1500));
     const seen = await seaInItsRealms();
     say(

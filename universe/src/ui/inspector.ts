@@ -1025,6 +1025,11 @@ export class PageWindow {
       `${item.ref ? "line entry" : "entry"}${item.tone ? ` tone-${item.tone}` : ""}`,
     );
     if (item.thumb) row.append(thumbOf(item.thumb));
+    if (item.swatch) {
+      const dot = el("span", "swatch");
+      dot.style.background = `rgb(${item.swatch.map((c) => Math.round(c * 255)).join(",")})`;
+      row.append(dot);
+    }
     row.append(this.line(item.line));
     if (item.ref) {
       const ref = item.ref;
