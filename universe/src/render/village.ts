@@ -1504,8 +1504,6 @@ export class VillageScene {
   /** Each soldier's limbs as last drawn (a pitch a part, by their place in the ranks). */
   private soldierLimbs = new Float32Array(0);
 
-  /** Put everyone where they are at time t. */
-  /** How far out the town's lots reach (metres; 0 for a village drawn without its fabric). */
   /** What its land's signals put in the town as drawn, and the share of its windows' light that is screens' (signals). */
   signalsShown(): {
     poles: number;
@@ -1524,6 +1522,8 @@ export class VillageScene {
       : null;
   }
 
+  /** Put everyone where they are at time t. */
+  /** How far out the town's lots reach (metres; 0 for a village drawn without its fabric). */
   townReach(): number {
     return this.town.visible ? this.town.reach() : 0;
   }
