@@ -28,7 +28,7 @@ import {
   type TownWater,
 } from "../bridge/index.ts";
 import { kindOf } from "./kinds.ts";
-import { homePlanet } from "../sim/index.ts";
+import { homePlanet, lessonUse } from "../sim/index.ts";
 
 /** How a people pass over their ground, where it isn't on foot (R1): as their law and homes read them. */
 function waysOf(world: World): { ways?: "swim" | "tunnel" } {
@@ -241,6 +241,11 @@ export function townPlan(
     year: Math.min(year, yearOfMoment(world.now)),
     // (What struck it lately: Phase 42 M201.)
     ...(struck.length ? { struck } : {}),
+    // (Its homes braced as its people have learned from the quakes: the lessons.)
+    ...(() => {
+      const w = land ? lessonUse(world, land.ref, "braced-frames", yearOfMoment(world.now)) : 0;
+      return w > 0 ? { braced: Math.round(w * 100) / 100 } : {};
+    })(),
     ...firstOfPlan(world, ref),
     // (Its reach, past what is drawn: what the eye has to clear of its sprawl.)
     ...(() => {
