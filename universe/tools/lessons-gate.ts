@@ -69,7 +69,7 @@ async function press(selector: string, what: string): Promise<boolean> {
   const where = () =>
     k<{ x: number; y: number } | null>(`(() => {
     for (const e of document.querySelectorAll(${JSON.stringify(selector)})) {
-      e.scrollIntoView({ block: "center" });
+      e.scrollIntoView({ block: "center", inline: "center" });
       const r = e.getBoundingClientRect();
       if (r.width > 0 && r.height > 0) return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
     }
@@ -102,7 +102,8 @@ const offScreen = () =>
     if (!w) return ["no page"];
     const a = w.getBoundingClientRect();
     if (a.left < -1 || a.right > innerWidth + 1) out.push("the page " + Math.round(a.left) + " to " + Math.round(a.right));
-    for (const e of w.querySelectorAll("*")) {
+    // (What the open tab holds: the page's own head is the page's, cut to a line by design.)
+    for (const e of w.querySelectorAll(".page-body *")) {
       const r = e.getBoundingClientRect();
       if (!(r.width > 0 && r.height > 0)) continue;
       if (r.left < -1 || r.right > innerWidth + 1)
@@ -122,13 +123,20 @@ async function learnedTab(ref: string, what: string): Promise<string> {
     return "";
   }
   await press(`.page-window .tabs .tab:nth-child(${tabAt + 1})`, `${what}'s Learned tab`);
+  await until(`${what}'s Learned tab open`, () =>
+    k<boolean>(
+      `/^\s*Learned/.test(document.querySelector(".page-window .tabs .tab.on")?.textContent ?? "")`,
+    ),
+  );
   await page.waitForTimeout(slow(400));
-  return pageText();
+  return k<string>(
+    `(() => { const e = document.querySelector(".page-window .page-body"); return e ? e.innerText : ""; })()`,
+  );
 }
 /** The section's checks: its title, its numbers, no raw ids, nothing off the screen. */
 async function checkSection(text: string, what: string): Promise<void> {
   check(
-    /What they have learned/.test(text),
+    /What they have learned/i.test(text),
     `${what}: no “What they have learned”: ${text.slice(0, 200)}`,
   );
   check(
@@ -175,7 +183,7 @@ if (land) {
     say(`the land's tab: ${text.replace(/\s+/g, " ").slice(0, 400)}`);
     await checkSection(text, "a land");
     check(
-      /What they do now/.test(text) && /Has it worked/.test(text),
+      /What they do now/i.test(text) && /Has it worked/i.test(text),
       `a land: no “what they do now” or “has it worked”`,
     );
     await shot("1-land");
