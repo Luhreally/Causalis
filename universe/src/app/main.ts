@@ -2131,8 +2131,9 @@ async function runPlanetPage(): Promise<void> {
       woodsKey = "";
       readWoods();
     }
-    // (The alliances lens: the globe turned to the greatest, as it is chosen.)
-    if (l === "blocs") void readBlocs(true);
+    // (The alliances lens: read where the globe already looks. No lens turns it: "each time i click
+    // new lens and moves the camrea or something its very annoying". A press on its key does.)
+    if (l === "blocs") void readBlocs();
     // (The wealth lens: a realm's, by a measure chosen under its legend; its ranking a press away.)
     // (The alliances lens: every alliance listed a press away. D1.)
     mapModes.action(
@@ -2336,7 +2337,7 @@ async function runPlanetPage(): Promise<void> {
   };
   // Every alliance at once, each its own colour (D1): the key names the greatest, a press on one
   // turning the globe to it and opening its page.
-  const readBlocs = async (face = false) => {
+  const readBlocs = async () => {
     const b = await client.query<{
       lands: [number, readonly [number, number, number]][];
       allied: [number, string][];
@@ -2359,8 +2360,6 @@ async function runPlanetPage(): Promise<void> {
       void pageWindow.open(a.ref);
     });
     paintGlobe();
-    const top = b.alliances[0]?.centre;
-    if (face && top !== null && top !== undefined) void turnToSpot(top);
   };
   setInterval(() => {
     if (scale !== "globe") return;

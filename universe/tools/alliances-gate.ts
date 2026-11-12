@@ -245,13 +245,33 @@ const lensButton = async (name: string) => {
   await tap(sel, `the ${name} lens`);
   if (await barOpen()) await tap(".bar-fold", "the bar's ☰, to fold it");
 };
-// (Faced as the alliances lens faces it, then under the land lens.)
+// (The globe faced to the greatest alliance, as a press on its key faces it: the lens itself never
+// turns it, and choosing it must leave the camera where it was.)
+{
+  const top = read.alliances[0]!.centre;
+  if (top !== null) await k(`globalThis.causalis.faceSpot(${top})`);
+}
+await settle(1500);
+const camera = () =>
+  k<{ yaw: number; pitch: number; distance: number }>(
+    `(() => { const r = globalThis.causalis.rig; return { yaw: r.yaw, pitch: r.pitch, distance: r.distance }; })()`,
+  );
+const looked = await camera();
 await lensButton("Alliances");
 await until(
   "the alliances' key",
   async () => (await k<number>(`document.querySelectorAll(".alliance-key").length`)) >= 2,
 );
 await settle(2500);
+{
+  const now = await camera();
+  check(
+    Math.abs(now.yaw - looked.yaw) < 0.5 &&
+      Math.abs(now.pitch - looked.pitch) < 0.5 &&
+      Math.abs(now.distance - looked.distance) < 0.02,
+    `choosing the Alliances lens moved the camera: ${JSON.stringify(looked)} to ${JSON.stringify(now)}`,
+  );
+}
 await lensButton("Land");
 await settle(1500);
 const without = await canvasShot();
