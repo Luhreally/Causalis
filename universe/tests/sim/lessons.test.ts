@@ -191,7 +191,10 @@ test("a realm outnumbered in the battles it lost keeps more men under arms", () 
   assert.ok(store.get(realm.ref)?.uses.has("greater-levy"), "never took up a greater levy");
   assert.ok(lessonAdds(w, realm.ref, "field", year + 40) > 0);
   const text = JSON.stringify(lessonBlocks(w, realm.ref));
-  assert.match(text, /[\d,]+ men lost to being outnumbered in (?:a year|\d+ years) \(\d+ battles?\)/);
+  assert.match(
+    text,
+    /[\d,]+ men lost to being outnumbered in (?:a year|\d+ years) \(\d+ battles?\)/,
+  );
 });
 
 test("a lesson spreads to those beside who have felt the same, and the record saves and loads", () => {
@@ -253,4 +256,17 @@ test("a world's own record teaches it: lands and realms of a small world take le
       .all()
       .some((e) => e.type === LESSON_EVENTS.taken.type && (e.data as { first?: boolean }).first),
   );
+});
+
+test("a world saved and loaded goes on learning as the one that was never saved", () => {
+  const seedText = seedFromText("alien 41"),
+    make = () => makePopulationWorld(seedText, { prior: OPEN, start: "spread", frequency: 16 }),
+    a = make();
+  a.runTo(250 * YEAR);
+  const ruleset = rulesetId(a, "test"),
+    b = loadWorld(saveWorld(a, ruleset), make, ruleset).world;
+  a.runTo(320 * YEAR);
+  b.runTo(320 * YEAR);
+  assert.ok((lessonsOf(a)!.taken ?? 0) > 0, "nothing learned to carry through a save");
+  assert.deepEqual(b.domainHashes(), a.domainHashes());
 });

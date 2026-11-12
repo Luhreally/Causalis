@@ -48,9 +48,6 @@ export type Holder = {
   readonly uses: Map<string, Use>;
 };
 
-const r5 = (v: number) => Math.round(v * 1e5) / 1e5;
-const r3 = (v: number) => Math.round(v * 1e3) / 1e3;
-
 export class LessonStore implements StateStore {
   readonly name = "lore.lessons";
   /** Each holder (a land's ref, `cell:0:N`, or a realm's) and what it keeps. */
@@ -70,6 +67,7 @@ export class LessonStore implements StateStore {
   hashInto(h: Hasher): void {
     h.value(this.save());
   }
+  /** Kept as they are, not rounded: a world loaded must go on as the one saved would have. */
   save(): unknown {
     if (this.dormant()) return this.read ? { read: this.read } : {};
     return {
@@ -83,24 +81,24 @@ export class LessonStore implements StateStore {
           k,
           [...h.causes.entries()].map(([c, m]) => [
             c,
-            r5(m.cost),
+            m.cost,
             m.at,
-            Math.round(m.lost),
-            Math.round(m.dead),
+            m.lost,
+            m.dead,
             m.first,
             m.strikes,
-            r5(m.share),
+            m.share,
           ]),
           [...h.uses.entries()].map(([r, u]) => [
             r,
-            r3(u.w),
+            u.w,
             u.at,
             u.taken,
             u.from,
             u.ref,
-            r5(u.before),
+            u.before,
             u.strikes,
-            r5(u.since),
+            u.since,
           ]),
         ]),
     };
