@@ -114,6 +114,8 @@
     "gate:100": "node tools/phase100-gate.ts",
     "gate:101": "node tools/phase101-gate.ts",
     "gate:102": "node tools/phase102-gate.ts",
+    "gate:106": "node tools/phase106-gate.ts",
+    "gate:overlap": "node tools/overlap-gate.ts",
     "gate:92": "node tools/phase92-gate.ts",
     "gate:94": "node tools/phase94-gate.ts",
     "gate:95": "node tools/phase95-gate.ts",

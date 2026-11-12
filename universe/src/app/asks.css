@@ -21,16 +21,17 @@
 }
 /* (On a phone a page opened over the town has the foot while it is read: the sheet waits behind
    it, and comes back as the page is closed.) */
-@media (max-width: 719px) {
+@media (max-width: 640px) {
   #hud:has(.page-window:not([hidden])) .panel.page-panel.ask-sheet {
     display: none;
   }
 }
-/* (And the town's card, which has the same foot, waits under the sheet while the town is asked.) */
-@media (max-width: 640px) {
-  #hud:has(.ask-sheet:not([hidden])) > .panel > .inspector:not(.page-window) {
-    visibility: hidden;
-  }
+/* (And the town's card, which has the same place, waits under the sheet while the town is asked; or
+   the worlds settled are read.) */
+#hud:has(.ask-sheet:not([hidden]), .colony-sheet:not([hidden]))
+  > .panel
+  > .inspector:not(.page-window) {
+  visibility: hidden;
 }
 .ask-sheet h2 {
   margin: 0 28px 4px 0;
@@ -89,11 +90,14 @@
 .bar .town-ask {
   min-width: 34px;
 }
-@media (min-width: 720px) {
+/* (On a desk: beside the corner's rail, as wide as a scale's card, above the windows at the foot.) */
+@media (min-width: 641px) {
   .panel.page-panel.ask-sheet {
     left: auto;
-    right: 12px;
-    bottom: 56px;
-    width: 400px;
+    right: calc(var(--rail-left, 60px) + env(safe-area-inset-right, 0px));
+    bottom: var(--right-foot, 8px);
+    width: 22rem;
+    max-height: min(70vh, calc(100dvh - var(--bar-bottom, 72px) - 8px - var(--right-foot, 8px)));
+    box-sizing: border-box;
   }
 }

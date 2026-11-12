@@ -131,13 +131,17 @@
   font-size: 0.8rem;
   white-space: nowrap;
 }
-/* On a phone the news's place at the top lies under the buttons down its edge: the note stands in the clear, under them. */
+/* On a phone the note stands at the foot of the news's column: beside the corner's rail, above the
+   people bar and the god's hand; while the eye roams, its stick and its hint have that foot. */
 @media (max-width: 640px) {
   .ran-note {
     position: fixed;
     left: 8px;
-    right: 8px;
-    bottom: calc(64px + var(--safe-bottom, 0px));
+    right: calc(60px + env(safe-area-inset-right, 0px));
+    bottom: var(--left-foot, 72px);
     max-height: 30vh;
+  }
+  body.roaming .ran-note {
+    display: none;
   }
 }

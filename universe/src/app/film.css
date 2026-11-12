@@ -128,13 +128,20 @@ body.filming #hud > *:not(.colony-film):not(.swap):not(.readying):not(.tour-line
 .colony-sheet[hidden] {
   display: none !important;
 }
-@media (min-width: 700px) {
+/* (On a desk: beside the corner's rail, as wide as a scale's card, above the windows at the foot
+   there — the map modes, the god's hand — and under the bar.) */
+@media (min-width: 641px) {
   .colony-sheet {
     left: auto;
-    right: 12px;
-    width: 420px;
-    /* (Over the hand's bar along the screen's foot.) */
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 84px);
+    right: calc(var(--rail-left, 60px) + env(safe-area-inset-right, 0px));
+    width: 22rem;
+    bottom: var(--right-foot, 8px);
+    max-height: min(
+      56vh,
+      520px,
+      calc(100dvh - var(--bar-bottom, 72px) - 8px - var(--right-foot, 8px))
+    );
+    box-sizing: border-box;
   }
 }
 .colony-sheet-title {
@@ -222,20 +229,34 @@ body.filming #hud > *:not(.colony-film):not(.swap):not(.readying):not(.tour-line
   white-space: nowrap;
   cursor: pointer;
 }
-@media (min-width: 700px) {
+/* (Beside the corner's rail and above the windows at the foot, never over them: on a phone what a
+   run came to, which has that place, waits while it shows.) */
+.colony-news {
+  right: calc(var(--rail-left, 60px) + env(safe-area-inset-right, 0px));
+  bottom: var(--left-foot, 84px);
+}
+@media (max-width: 640px) {
+  body:has(.colony-news:not([hidden]), .port-chip:not([hidden])) .ran-note,
+  body:has(.port-chip:not([hidden])) .colony-news {
+    display: none;
+  }
+}
+@media (min-width: 641px) {
   .colony-news {
     left: auto;
-    right: 12px;
-    width: 420px;
+    width: 22rem;
+    box-sizing: border-box;
+    bottom: var(--right-foot, 84px);
   }
 }
 
-/* A port's chip (Phase 71): who calls here, a tap from its run's page. */
+/* A port's chip (Phase 71): who calls here, a tap from its run's page; beside the corner's rail and
+   above the god's hand and the people bar at the foot. */
 .port-chip {
   position: absolute;
-  left: 72px;
-  right: 12px;
-  bottom: 18px;
+  left: 8px;
+  right: calc(var(--rail-left, 60px) + env(safe-area-inset-right, 0px));
+  bottom: var(--left-foot, 18px);
   z-index: 3;
   padding: 8px 10px;
   border: 1px solid rgba(255, 200, 90, 0.7);
@@ -246,6 +267,14 @@ body.filming #hud > *:not(.colony-film):not(.swap):not(.readying):not(.tour-line
   font-size: 14px;
   text-align: left;
   pointer-events: auto;
+}
+@media (min-width: 641px) {
+  .port-chip {
+    left: auto;
+    width: 22rem;
+    box-sizing: border-box;
+    bottom: var(--right-foot, 18px);
+  }
 }
 .port-chip:hover,
 .port-chip:active {

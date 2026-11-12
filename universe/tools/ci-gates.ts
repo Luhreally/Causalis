@@ -349,6 +349,10 @@ export const GATES: readonly Gate[] = [
   { gate: 83, args: ["--ci"], s: 480 },
   // Gate 79, courts and drama (tools/l5-gate.ts): a Court tab, a rival's page and home, an heir who follows, a plot found and its why, plots and an heir's death under a ruler, Earth and alien.
   { gate: 79, args: ["--ci"], s: 480 },
+  // Gate 106, no window over another (tools/overlap-gate.ts): at a phone's size by touch and at a desk's by mouse, every main state
+  // visited with the corner's rail as full as it can be, every lens among them; no two windows of the HUD over one another, no
+  // control covered at its middle, none partly off the screen.
+  { gate: 106, args: ["--ci"], s: 900 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */
