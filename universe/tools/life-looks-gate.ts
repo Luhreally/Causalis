@@ -7,7 +7,10 @@
 //   2. their outlines read off the pixels drawn (what each picture covers, fitted to its bounds) and compared between
 //      worlds: two worlds' beasts must share under a third of their outlines, and their peoples' outlines must differ;
 //   3. first light's beasts drawn exactly as before every body was drawn from its parts: each picture's pixels hashed
-//      and held to tools/life-looks-earth.json (written with --pin, from a build of the code before B1).
+//      and held to tools/life-looks-earth.json (written with --pin, from a build of the code before B1). Pixels are the
+//      renderer's own (a GPU and CI's software GL never agree to the bit), so the pin is kept by renderer; one with no
+//      pin of its own says so and leaves Earth to tests/view/earth-looks.test.ts, which holds every beast's every
+//      vertex and is the same on any machine.
 // --shots keeps each world's sheet and a contact sheet of all twelve (life-looks-sheet.png).
 // (npm run build first; --soft draws in software, as CI's browser does.)
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
@@ -185,16 +188,26 @@ if (!earthOnly)
 // 3. Earth, as it was.
 const earth = await sheetOf("earth", "first light");
 if (earth) {
-  const hashes = earth.beasts.map((b) => `${b.name}:${b.hash}`);
+  const hashes = earth.beasts.map((b) => `${b.name}:${b.hash}`),
+    renderer = await k<string>(`(() => {
+      const g = document.createElement("canvas").getContext("webgl2");
+      const e = g && g.getExtension("WEBGL_debug_renderer_info");
+      return g ? String(g.getParameter(e ? e.UNMASKED_RENDERER_WEBGL : g.RENDERER)) : "none";
+    })()`),
+    pins: Record<string, string[]> = existsSync(PIN)
+      ? ((JSON.parse(readFileSync(PIN, "utf8")) as { renderers?: Record<string, string[]> })
+          .renderers ?? {})
+      : {};
   check(
     earth.beasts.every((b) => !b.look),
     "first light: a beast drawn with an alien look",
   );
   if (pin) {
-    writeFileSync(PIN, JSON.stringify({ beasts: hashes }, null, 2) + "\n");
-    say(`first light: ${hashes.length} beasts' pixels pinned to tools/life-looks-earth.json`);
-  } else if (existsSync(PIN)) {
-    const want = (JSON.parse(readFileSync(PIN, "utf8")) as { beasts: string[] }).beasts,
+    pins[renderer] = hashes;
+    writeFileSync(PIN, JSON.stringify({ renderers: pins }, null, 2) + "\n");
+    say(`first light: ${hashes.length} beasts' pixels pinned for ${renderer}`);
+  } else if (pins[renderer]) {
+    const want = pins[renderer],
       moved = hashes.filter((h, i) => h !== want[i]);
     say(`first light: ${hashes.length} beasts drawn, ${moved.length} moved from before`);
     check(
@@ -202,7 +215,9 @@ if (earth) {
       `first light: ${moved.length} beasts drawn otherwise than before (${moved.slice(0, 3).join(", ")})`,
     );
   } else
-    problems.push("first light: no pinned drawing to hold it to (tools/life-looks-earth.json)");
+    say(
+      `first light: ${hashes.length} beasts drawn; no pixels pinned for ${renderer} (Earth's shapes are held by tests/view/earth-looks.test.ts)`,
+    );
 }
 
 // The contact sheet: the twelve worlds side by side, and first light.

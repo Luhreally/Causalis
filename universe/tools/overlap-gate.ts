@@ -384,9 +384,12 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
       await must(open, open === "corner-more" ? press(".corner-more") : tool(open));
       await settle(700);
     });
-    // (Put by as it was opened.)
-    await k(`document.querySelector(".${open}.on")?.click()`);
-    await settle(300);
+    // (Put by as it was opened, until it is: under a loaded machine a surface can still be opening when the first
+    // press comes, and one left open covers the next three, as it did once on 2026-11-12 with the suite running.)
+    for (let i = 0; i < 8 && (await seen(`.${open}.on`)); i++) {
+      await k(`document.querySelector(".${open}.on")?.click()`);
+      await settle(300);
+    }
   }
   await state("log", async () => {
     await must("the log", tool("log-open"));
