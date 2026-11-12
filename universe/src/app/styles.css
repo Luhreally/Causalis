@@ -860,6 +860,11 @@ body[data-scale="micro"] {
   .battle-side-kit:not(.battle-side-hurt) {
     display: none;
   }
+  /* (What is happening, a size smaller: the bar is the field's top third on a phone, and the field
+     is what is watched.) */
+  .battle-told {
+    font-size: 0.9rem;
+  }
 }
 .genesis .genesis-count {
   margin: 0 0 6px;
@@ -1050,12 +1055,22 @@ body[data-scale="micro"] {
   }
 }
 @media (max-width: 640px) {
+  /* (Under the scale's bar however many lines it takes, never over it, and clear of the corner's
+     rail at the right; under the director's caption while it shows.) */
   .tidings {
-    right: 8px;
+    right: calc(60px + env(safe-area-inset-right, 0px));
     width: auto;
-    top: calc(132px + var(--safe-top));
+    top: calc(var(--bar-bottom, 124px) + 8px);
+  }
+  body:has(#hud > .director-caption:not([hidden])) .tidings {
+    top: calc(var(--bar-bottom, 124px) + 64px);
   }
   .tiding:nth-child(n + 3) {
+    display: none;
+  }
+  /* (A great happening's window has the screen while it waits on the viewer: the news waits
+     under it, and is there again as it is let be.) */
+  body:has(.event-window:not([hidden])) .tidings {
     display: none;
   }
 }

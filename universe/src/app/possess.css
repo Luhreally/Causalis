@@ -158,6 +158,18 @@ body.possessing:has(.page-window:not([hidden])) .possess-hint {
   text-align: center;
   pointer-events: none;
 }
+/* (On a phone, between the left edge and the right's column of paces, sprint and "Live their day",
+   centred in what they leave: it no longer runs under them.) */
+@media (max-width: 640px) {
+  .possess-told {
+    left: calc(env(safe-area-inset-left, 0px) + 8px);
+    right: calc(env(safe-area-inset-right, 0px) + 150px);
+    width: fit-content;
+    max-width: none;
+    margin-inline: auto;
+    transform: none;
+  }
+}
 .possess-told:empty {
   display: none;
 }
@@ -293,8 +305,8 @@ body.possessing:has(.page-window:not([hidden])) .possess-hint {
   bottom: 6px;
 }
 .possess-act-2 {
-  right: 74px;
-  bottom: 74px;
+  right: 84px;
+  bottom: 84px;
 }
 .possess-act-3 {
   right: 6px;

@@ -19,6 +19,19 @@
 .ask-sheet[hidden] {
   display: none !important;
 }
+/* (On a phone a page opened over the town has the foot while it is read: the sheet waits behind
+   it, and comes back as the page is closed.) */
+@media (max-width: 719px) {
+  #hud:has(.page-window:not([hidden])) .panel.page-panel.ask-sheet {
+    display: none;
+  }
+}
+/* (And the town's card, which has the same foot, waits under the sheet while the town is asked.) */
+@media (max-width: 640px) {
+  #hud:has(.ask-sheet:not([hidden])) > .panel > .inspector:not(.page-window) {
+    visibility: hidden;
+  }
+}
 .ask-sheet h2 {
   margin: 0 28px 4px 0;
   font-size: 16px;

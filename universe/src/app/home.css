@@ -61,6 +61,26 @@ body.homing:has(.page-window:not([hidden])) .home-who {
   max-height: 104px;
   overflow: hidden;
 }
+/* (On a phone the caption is as tall as its words wrap to, and who is out follows under it: at a
+   fixed height, a caption's third line ran under them.) */
+@media (max-width: 640px) {
+  #hud > .home-hud {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    box-sizing: border-box;
+    padding: calc(env(safe-area-inset-top, 0px) + 8px) calc(env(safe-area-inset-right, 0px) + 8px) 0
+      calc(env(safe-area-inset-left, 0px) + 8px);
+  }
+  .home-cap,
+  .home-out {
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    flex: none;
+  }
+}
 .home-out button {
   min-height: 44px;
   max-width: 100%;

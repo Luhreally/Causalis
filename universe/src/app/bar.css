@@ -161,6 +161,12 @@ body.paging #hud > .people-bar {
   #hud:has(> .leader-chip:not([hidden])) > .people-bar {
     display: none;
   }
+  /* (And to the other sheets that take the foot — the worlds settled, a town asked — and to a
+     great happening's window, which waits on the viewer.) */
+  #hud:has(.colony-sheet:not([hidden]), .ask-sheet:not([hidden]), .event-window:not([hidden]))
+    > .people-bar {
+    display: none;
+  }
 }
 /* On a desk: a column at the lower left, clear of the god's palette and the map modes. */
 @media (min-width: 641px) {
