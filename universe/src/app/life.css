@@ -154,6 +154,10 @@ body.paging .life-tray {
   .reign-hud > :is(.reign-sheet, .reign-window) {
     bottom: calc(env(safe-area-inset-bottom, 0px) + 86px);
   }
+  .life-hud:has(> :is(.life-book, .life-window):not([hidden])) > .life-told,
+  .reign-hud:has(> :is(.reign-sheet, .reign-window):not([hidden])) > .reign-told {
+    visibility: hidden;
+  }
   /* (A reign's strip is the taller, its readings under the name: the sheet's head stays under it.) */
   .reign-hud > :is(.reign-sheet, .reign-window) {
     max-height: calc(100dvh - 416px - env(safe-area-inset-bottom, 0px));
