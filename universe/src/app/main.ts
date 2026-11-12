@@ -83,6 +83,7 @@ import {
   NamesSwitch,
   Alerts,
   Colonies,
+  Strikes,
   StarWars,
   ArmsBook,
   EventWindows,
@@ -9788,7 +9789,22 @@ async function runPlanetPage(): Promise<void> {
   };
   colonies.onDown = (cell) =>
     void fadeOver(() => ready("its ground", () => toColonyLand(cell), true));
-  colonies.onShown = () => pageWindow.close();
+  colonies.onShown = () => {
+    pageWindow.close();
+    strikes.show(false);
+  };
+  // Every strike from the air, each a tap from being played again in its town (2026-11-11).
+  const strikes = new Strikes(hud, client);
+  corner.prepend(strikes.button);
+  strikes.onWatch = (event) => watchRaid(event);
+  strikes.onPage = (ref) => {
+    strikes.show(false);
+    void pageWindow.open(ref);
+  };
+  strikes.onShown = () => {
+    pageWindow.close();
+    colonies.show(false);
+  };
   // Down to a colony's port (Phase 71): its town, the eye over its pads, and a chip that says whose they are.
   const portChip = el("button", "port-chip");
   portChip.hidden = true;

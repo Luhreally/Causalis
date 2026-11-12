@@ -86,10 +86,12 @@ body.filming #hud > *:not(.colony-film):not(.swap):not(.readying):not(.tour-line
 }
 
 /* The worlds settled: the list of them, a tap apart, and news of one newly come. */
-.colonies-button {
+.colonies-button,
+.strikes-button {
   position: relative;
 }
-.colonies-button[hidden] {
+.colonies-button[hidden],
+.strikes-button[hidden] {
   display: none !important;
 }
 .colonies-count {

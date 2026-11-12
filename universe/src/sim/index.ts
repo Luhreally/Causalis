@@ -450,6 +450,7 @@ export {
   type CivilKind,
   type War,
   type WarStrike,
+  STRIKE_YEARS,
 } from "./war/war.ts";
 export {
   FIRE_EVENTS,

@@ -111,6 +111,26 @@ export type WarsMap = {
   }[];
 };
 
+/**
+ * A strike from the air in the list of them all (2026-11-11: "make it option just like watching landing
+ * or past war"): what came (machines, rockets, the greatest fire), on which town, when, by and on whom,
+ * what it cost; and whether its town still keeps it to be played again.
+ */
+export type StrikeEntry = {
+  readonly event: string;
+  readonly kind: "raid" | "rocket" | "great";
+  readonly year: number;
+  readonly town: string;
+  readonly name: string;
+  readonly by: string;
+  readonly on: string;
+  readonly war: string;
+  readonly flyers: number;
+  readonly dead: number;
+  readonly homes: number;
+  readonly watchable: boolean;
+};
+
 /** A strike from the air, on the map of wars (W2). */
 export type WarRaid = {
   readonly town: string;

@@ -48,6 +48,7 @@ import {
   tameNow,
   USES,
   warsOf,
+  STRIKE_YEARS,
   wildsOf,
   WAR_EVENTS,
   laneLawOf,
@@ -127,6 +128,7 @@ import type {
   GenesisPlan,
   SeedLife,
   WarRaid,
+  StrikeEntry,
   WrittenAsk,
 } from "../bridge/index.ts";
 
@@ -209,6 +211,42 @@ import { kindOn, lifelessWhy, seedKind, spotBiome, spotSwing, spotWarmth } from 
 import { lookMeta } from "./biochem.ts";
 
 const BOUNDARY_WORDS = ["none", "converging", "spreading", "sliding"];
+
+/** The strikes from the air the world remembers, newest first (at most a hundred and twenty). */
+function strikeList(world: World): StrikeEntry[] {
+  const wars = warsOf(world),
+    realms = politiesOf(world),
+    ctx = populationContext(world),
+    year = Math.floor(world.now / YEAR),
+    named = (ref: string) => {
+      const r = realms.get(ref as Ref);
+      return r ? realmName(r) : "a realm gone";
+    },
+    all = wars.allStrikes(),
+    out: StrikeEntry[] = [];
+  for (let k = all.length - 1; k >= 0 && out.length < 120; k--) {
+    const s = all[k]!,
+      war = wars.get(s.war),
+      by = war ? (s.side === 0 ? war.attacker : war.defender) : null,
+      on = war ? (s.side === 0 ? war.defender : war.attacker) : null,
+      town = ctx.settlements.get(s.town);
+    out.push({
+      event: s.event,
+      kind: s.great ? "great" : s.kind === "rocket" ? "rocket" : "raid",
+      year: s.year,
+      town: s.town,
+      name: town?.name ?? "a town gone",
+      by: by ? named(by) : "a realm gone",
+      on: on ? named(on) : "a realm gone",
+      war: s.war,
+      flyers: s.flyers,
+      dead: s.dead,
+      homes: s.homes,
+      watchable: !!town && town.population > 0 && year - s.year < STRIKE_YEARS,
+    });
+  }
+  return out;
+}
 
 function globeFrame(world: World) {
   // The globe shows the world as generated (the fine grid); each cell carries its province.
@@ -1509,6 +1547,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
       "written.index": (world) => writtenIndex(world),
       "written.read": (world, args) => writtenRead(world, args as WrittenAsk),
       ...WEALTH_QUERIES,
+      // Every strike from the air, newest first, each a tap from being played again (2026-11-11).
+      "strike.list": (world) => strikeList(world),
       // What the player has turned off of what the world does by itself (2026-11-11).
       "world.switches": (world) => ({
         off: world.hasStore("acts.switches")

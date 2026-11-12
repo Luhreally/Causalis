@@ -2214,6 +2214,7 @@ body.roaming .hint {
   .corner-tools
     :is(
       .colonies-button,
+      .strikes-button,
       .free-buttons > button,
       .search-open,
       .outliner-open,

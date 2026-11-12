@@ -45,6 +45,7 @@ export { Outliner } from "./outliner.ts";
 export { Tooltip } from "./tooltip.ts";
 export { HoverTips, breakdownCard, tipCard } from "./hovertip.ts";
 export { Colonies } from "./colonies.ts";
+export { Strikes } from "./strikes.ts";
 export { StarWars } from "./starwars.ts";
 export { HomePin, LeaderChip, drawLeaderCard, drawWealthCompare } from "./leaders.ts";
 export { PeopleBar, barPins } from "./people-bar.ts";
