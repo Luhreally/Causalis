@@ -125,7 +125,7 @@ export const LESSON_CAUSES: readonly LessonCause[] = [
  */
 // (Hunger is kept, and told, but nothing answers it yet. Granaries that put more by, and stores kept from spoiling, were tried and
 // measured on first light to year 800 beside the world without them: what went hungry rose five times and twice over, as food
-// kept lowered its price, hands left the fields and more were fed into the next lean year. An answer to hunger wants a reserve
+// kept: why is not yet read (likely its price falls, hands leave the fields, and more are fed into the next lean year). An answer to hunger wants a reserve
 // drawn only in lean months: a number a land, its own.)
 export const LESSON_RESPONSES: readonly LessonResponse[] = [
   {

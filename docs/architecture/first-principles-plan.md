@@ -188,7 +188,7 @@ heights), `hostFor` (the design's axes). Each is exactly as it was where nothing
 
 Hunger is kept and told, but nothing answers it yet. Two answers were tried on `first light` to year 800, each beside the same world
 without lessons: granaries putting by six months more, and stores kept from spoiling. Those who went hungry rose from 56 million to 308
-million and to 120 million: food kept lowered its price, hands left the fields, and more were fed into the next lean year. With both
+million and to 120 million. Why is not yet read; likely food kept lowers its price and draws hands from the fields, and more are fed into the next lean year. With both
 switched off it was 24 million. An answer to hunger wants a reserve drawn only in lean months, a number a land.
 
 Seen: a land's and a realm's page have a Learned tab, What they have learned, each lesson with what it cost them, what they do now and how
