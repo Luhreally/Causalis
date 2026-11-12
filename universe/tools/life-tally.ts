@@ -101,15 +101,21 @@ export function outlineOf(s: Species, g: HomeWorld | null): string {
   // (The same token many times is told by its count in fours, so a pair more of the same legs is one outline.)
   const counts = new Map<string, number>();
   for (const t of tokens) tally(counts, t);
-  const multiset = [...counts].map(([t, c]) => `${t}*${Math.ceil(c / 4)}`).join(" ");
+  const multiset = [...counts].map(([t, c]) => `${t}*${Math.ceil(c / 4)}`).join(" "),
+    // (Coarser: which shapes lie which way, present or not, and the bounds' proportions.)
+    kinds = [...new Set(axes.map((a) => `${a.shape}${a.axis}`))].sort().join("");
+  COARSE.value = `${Math.round(Math.log2(L / H))},${Math.round(Math.log2(W / H))}|${kinds}`;
   return `${Math.round(Math.log2(L / H))},${Math.round(Math.log2(W / H))}|${bin(n, 12, 28)}|${multiset}`;
 }
+/** The coarse outline of the beast last read. */
+const COARSE = { value: "" };
 
 const clades = new Map<string, number>(),
   kinds = new Map<string, number>(),
   families = new Map<string, number>(),
   shapes = new Map<string, number>(),
   outlines = new Map<string, number>(),
+  coarse = new Map<string, number>(),
   niches = new Map<string, number>(),
   coverings = new Map<string, number>(),
   growths = new Map<string, number>(),
@@ -120,7 +126,8 @@ const clades = new Map<string, number>(),
   livingPerWorld: number[] = [],
   nichesPerWorld: number[] = [],
   /** Each world's outlines, to tell what one shares with the others. */
-  worldOutlines: Set<string>[] = [];
+  worldOutlines: Set<string>[] = [],
+  worldCoarse: Set<string>[] = [];
 let worlds = 0,
   lifeless = 0,
   peopled = 0,
@@ -151,6 +158,7 @@ for (let i = from; i < to; i++) {
   } else tally(clades, "(no people)");
   const here = new Set<string>(),
     drawn = new Set<string>(),
+    rough = new Set<string>(),
     roles = new Set<string>(),
     stocksHere = new Set<number>();
   let living = 0;
@@ -167,6 +175,8 @@ for (let i = from; i < to; i++) {
     beasts++;
     here.add(shape);
     drawn.add(outline);
+    rough.add(COARSE.value);
+    tally(coarse, COARSE.value);
     roles.add(s.niche);
     tally(shapes, shape);
     tally(outlines, outline);
@@ -180,9 +190,36 @@ for (let i = from; i < to; i++) {
   livingPerWorld.push(living);
   nichesPerWorld.push(roles.size);
   worldOutlines.push(drawn);
+  worldCoarse.push(rough);
   if (!plain) stocks.push(stocksHere.size);
   if (earth) break;
 }
+
+/** Of each world's outlines, the share found on any other world; and two worlds side by side, the share of the smaller's in the larger's. */
+function sharing(sets: readonly Set<string>[]): { elsewhere: number; pair: number } {
+  const seen = new Map<string, number>();
+  for (const set of sets) for (const o of set) tally(seen, o);
+  const own = sets.map((set) =>
+    set.size ? [...set].filter((o) => seen.get(o)! > 1).length / set.size : 0,
+  );
+  let pairs = 0,
+    sum = 0;
+  for (let a = 0; a < sets.length; a++)
+    for (let b = a + 1; b < sets.length; b++) {
+      const [small, big] =
+        sets[a]!.size <= sets[b]!.size ? [sets[a]!, sets[b]!] : [sets[b]!, sets[a]!];
+      if (!small.size) continue;
+      let both = 0;
+      for (const o of small) if (big.has(o)) both++;
+      pairs++;
+      sum += both / small.size;
+    }
+  return {
+    elsewhere: Math.round(100 * mean(own)),
+    pair: pairs ? Math.round((100 * sum) / pairs) : 0,
+  };
+}
+const rough = sharing(worldCoarse);
 
 // What a world's outlines share with the rest: the share of its own found on any other world, and, for two worlds
 // side by side, the share of the smaller's found in the larger's (averaged over pairs).
@@ -222,6 +259,9 @@ console.log(
 );
 console.log(
   `  a world's outlines found on another world: ${Math.round(100 * mean(shared))}% (mean); two worlds side by side share ${pairs ? Math.round((100 * pairShare) / pairs) : 0}% of the smaller's`,
+);
+console.log(
+  `coarse outlines (shapes and which way they lie, the body's proportions): ${coarse.size} in all; top 5 hold ${topShare(coarse, 5)}%; a world's found on another ${rough.elsewhere}%; two worlds share ${rough.pair}% of the smaller's`,
 );
 if (stocks.length)
   console.log(
