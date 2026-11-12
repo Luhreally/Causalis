@@ -13,7 +13,7 @@ export const G0 = 9.81;
 export const R_GAS = 8.314;
 
 /** What holds a body's shape. */
-export type Frame = "none" | "shell" | "bones" | "needles" | "gas";
+export type BodyFrame = "none" | "shell" | "bones" | "needles" | "gas";
 
 /**
  * The heaviest land body each frame has carried on Earth, kg: inner bones the greatest sauropods' (about 70 t,
@@ -23,7 +23,7 @@ export type Frame = "none" | "shell" | "bones" | "needles" | "gas";
  * on land: 0.5 kg, an estimate); a gas-filled frame light and hollow, as a bird's bones are taken to their end
  * (an estimate: 20 kg).
  */
-export const LARGEST_ON_EARTH: Readonly<Record<Frame, number>> = {
+export const LARGEST_ON_EARTH: Readonly<Record<BodyFrame, number>> = {
   bones: 70_000,
   shell: 50,
   none: 1.5,
@@ -38,7 +38,7 @@ export const LARGEST_ON_EARTH: Readonly<Record<Frame, number>> = {
  * within 5% of their water's density), so a frame bears far more, up to the greatest whale's 190 t, which its
  * food, not its frame, holds to.
  */
-export function largestFrame(frame: Frame, gravity: number, inLiquid = false): number {
+export function largestFrame(frame: BodyFrame, gravity: number, inLiquid = false): number {
   const pull = Math.max(0.05, gravity),
     land = LARGEST_ON_EARTH[frame] * dmath.pow(pull, -3);
   return inLiquid ? Math.min(190_000 * dmath.pow(pull, -1), land * 8000) : land;
@@ -46,7 +46,7 @@ export function largestFrame(frame: Frame, gravity: number, inLiquid = false): n
 
 /** Whether a frame bears a body's weight under a pull, and how near its bound it stands (1: at it). */
 export function frameBears(
-  frame: Frame,
+  frame: BodyFrame,
   mass: number,
   gravity: number,
   inLiquid = false,
@@ -114,7 +114,10 @@ export function gasLift(
 ): number {
   return (
     volume *
-    Math.max(0, gasDensity(pressureBar, airMolar, kelvin) - gasDensity(pressureBar, gasMolar, kelvin))
+    Math.max(
+      0,
+      gasDensity(pressureBar, airMolar, kelvin) - gasDensity(pressureBar, gasMolar, kelvin),
+    )
   );
 }
 
@@ -149,7 +152,12 @@ export function drag(density: number, speed: number, area: number, coefficient =
 }
 
 /** The Reynolds number of a body going through a fluid: ρ v L / μ (viscosity Pa·s); under about 1 it swims as a microbe does. */
-export function reynolds(density: number, speed: number, length: number, viscosity: number): number {
+export function reynolds(
+  density: number,
+  speed: number,
+  length: number,
+  viscosity: number,
+): number {
   return (density * speed * length) / Math.max(1e-9, viscosity);
 }
 
@@ -157,7 +165,12 @@ export function reynolds(density: number, speed: number, length: number, viscosi
  * How fast a swimmer can go for long, m/s: where the power its muscles hold (`watts`) meets drag times speed,
  * v = (2P / (ρ C A))^⅓. A streamlined body's coefficient is about 0.1, a squid's in its own jet about 0.3 (estimates).
  */
-export function cruiseSpeed(watts: number, density: number, area: number, coefficient = 0.1): number {
+export function cruiseSpeed(
+  watts: number,
+  density: number,
+  area: number,
+  coefficient = 0.1,
+): number {
   return dmath.cbrt((2 * Math.max(0, watts)) / Math.max(1e-9, density * coefficient * area));
 }
 
@@ -240,7 +253,8 @@ export type Senses = {
 /** The senses a world allows. */
 export function sensesOf(w: SenseWorld): Senses {
   const peakNm = 2.898e6 / Math.max(500, w.star),
-    band = peakNm > 760 ? "near infrared" : peakNm > 620 ? "red" : peakNm > 450 ? "visible" : "blue";
+    band =
+      peakNm > 760 ? "near infrared" : peakNm > 620 ? "red" : peakNm > 450 ? "visible" : "blue";
   return {
     peakNm,
     band,
