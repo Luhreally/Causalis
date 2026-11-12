@@ -2221,7 +2221,7 @@ body.roaming .hint {
       .sound-button,
       .brush-toggle,
       .alert
-    ) {
+    ):not([hidden]) {
     position: relative;
     display: inline-flex;
     align-items: center;
@@ -2235,7 +2235,7 @@ body.roaming .hint {
     font-size: 1.15rem;
   }
   /* (The brushes by their sign alone, as every other tool.) */
-  .corner-tools button.brush-toggle {
+  .corner-tools button.brush-toggle:not([hidden]) {
     font-size: 0;
   }
   .corner-tools button.brush-toggle::before {
