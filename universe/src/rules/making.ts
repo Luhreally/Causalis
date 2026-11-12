@@ -50,7 +50,9 @@ export const MAKINGS = {
   /**
    * How far its stars reach, and how many other peoples they may hold (asked with the size): the
    * cluster's radius in light-years, and the most of its peoples. The usual is 50 and 12, some 2,000
-   * stars; a small sky's a quarter of the way out, a large one's some four times the stars.
+   * stars; a small sky's a quarter of the way out, a large one's some four times the stars. It is more
+   * a choice of company than of speed: first light to 1400 ran 151 years a minute of work with a large
+   * sky against 152, in 639 MB against 573.
    */
   sky: { small: [25, 4], large: [80, 24] },
 } as const satisfies Record<string, Record<string, Range>>;
@@ -220,10 +222,10 @@ export const MAKING_WORDS: Readonly<
     icon: "✨",
     name: "Its stars",
     choices: {
-      small: ["few", "the stars within 25 light-years, up to 4 other peoples: the quickest", "🔹"],
+      small: ["few", "the stars within 25 light-years, up to 4 other peoples", "🔹"],
       large: [
         "many",
-        "the stars within 80 light-years, up to 24 other peoples: slower among the stars and twice the memory, for a strong computer",
+        "the stars within 80 light-years, up to 24 other peoples: about as quick, a little more memory",
         "🌌",
       ],
     },
