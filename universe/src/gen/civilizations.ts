@@ -13,7 +13,7 @@ import {
   type Ref,
   type Rng,
 } from "../kernel/index.ts";
-import { CLADES, toOrbit } from "../rules/index.ts";
+import { CLADES, toOrbit, type BodyPlan } from "../rules/index.ts";
 import type { GalaxyStar } from "./galaxy.ts";
 import type { ForeignPlanet } from "./system.ts";
 
@@ -38,6 +38,8 @@ export type Civilization = {
   /** The lineage that rose to thought there, and the medium it lives in. */
   readonly clade: string;
   readonly medium: string;
+  /** Their body as it rose from their own world's tree (B4; absent: one of the kinds of before, by `clade`). */
+  readonly body?: BodyPlan;
   /** Their world's pull and the speed to orbit it asks. */
   readonly gravity: number;
   readonly speed: number;
@@ -99,6 +101,20 @@ export function civilizationsOf(
     }
   }
   return out;
+}
+
+/** A people of another star's body: its own, risen from its world's tree (B4), else its kind's of before. */
+export function civBody(civ: Pick<Civilization, "clade" | "body">): BodyPlan | null {
+  return (
+    civ.body ??
+    (CLADES.find((c) => c.id === civ.clade)?.body as unknown as BodyPlan | undefined) ??
+    null
+  );
+}
+
+/** What a people of another star is, in words ("trunked giants"). */
+export function civKind(civ: Pick<Civilization, "clade" | "body">): string {
+  return civBody(civ)?.name ?? civ.clade;
 }
 
 // The sounds of a people's name for itself: not the home world's (gen/names.ts), but other.

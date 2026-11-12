@@ -8,7 +8,27 @@
 // furred and hoofed, feathered, scaled, finned). From the body, its name.
 import { dmath } from "../kernel/index.ts";
 
-export type Locomotion = "walk" | "run" | "hop" | "crawl" | "slither" | "swim" | "fly";
+export type Locomotion =
+  | "walk"
+  | "run"
+  | "hop"
+  | "crawl"
+  | "slither"
+  | "swim"
+  | "fly"
+  // (B3 of the life plan: ways of going a world's physics allows beyond the first seven, rules/grammar.ts.)
+  | "burrow"
+  | "climb"
+  | "jet"
+  | "drift"
+  | "float"
+  | "glide"
+  | "roll"
+  | "rooted";
+/** What a grasping limb is (B3): a hand, a pincer, a tentacle, a trunk, lips or mouthparts, a tail that holds. */
+export type Grasp = "hand" | "pincer" | "tentacle" | "trunk" | "lip" | "tail";
+/** What holds a body's shape (rules/physiology.ts): its own pressure, a jointed shell, bones, a mesh of needles, a gas-filled frame. */
+export type Frame = "none" | "shell" | "bones" | "needles" | "gas";
 export type Covering = "fur" | "wool" | "feathers" | "scales" | "shell" | "plates" | "slick";
 export type Eats = "grass" | "leaves" | "seeds" | "flesh" | "carrion" | "plankton";
 export type Feature =
@@ -42,7 +62,8 @@ export type CreatureBody = {
   readonly symmetry: "bilateral" | "radial";
   /** Body parts in a row: one torso; a fore and hind body; three, as a many-legged body has. */
   readonly segments: 1 | 2 | 3;
-  readonly legs: 0 | 2 | 4 | 6 | 8;
+  /** The legs it stands on: Earth's and every world's before B3 0 … 8; a world read from its physics up to 12. */
+  readonly legs: number;
   readonly fins: 0 | 2 | 4;
   readonly wings: 0 | 2 | 4;
   readonly covering: Covering;
@@ -57,6 +78,22 @@ export type CreatureBody = {
   readonly tail: number;
   readonly features: readonly Feature[];
   readonly warm: boolean;
+  // —— What a body read from its world's own physics bears besides (B3, rules/grammar.ts). Absent on Earth's beasts
+  // and on every body drawn the old way, whose facts and hashes stay as they were, bit for bit.
+  /** A radial body's arms about its middle (3 … 8). */
+  readonly rays?: number;
+  /** Its limbs that grasp, free of those it stands on, and what they are. */
+  readonly arms?: number;
+  readonly grasp?: Grasp;
+  /** What holds its shape. */
+  readonly frame?: Frame;
+  /** Where it lives and what it eats there (rules/grammar.ts PLACES, FOODS). */
+  readonly place?: string;
+  readonly food?: string;
+  /** Its world's founding stock it came of (0 … 5). */
+  readonly stock?: number;
+  /** How it takes in its breath. */
+  readonly breath?: "skin" | "tubes" | "gills" | "lungs";
 };
 
 /** What a world offers its beasts: its pull, how much is sea, how thick its air (bar). */

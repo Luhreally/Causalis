@@ -3,6 +3,7 @@
 // sky and ground as a colony's are read (Phase 64), what it carries from what its ground gives (F1); who came
 // to them, and what a meeting of the two can be. A town is reckoned here by the same builder as any other
 // (sim/town/fabric.ts), in a store of its own; nothing here enters history.
+import { civBody } from "../gen/index.ts";
 import {
   DAY,
   Rng,
@@ -133,9 +134,7 @@ export function folkFactsOf(f: Folk, star: GalaxyStar): FolkFacts {
 
 /** A people's figure, as the view draws it. */
 export function folkFigure(f: Folk, star: GalaxyStar): NonNullable<VillagePlan["body"]> {
-  const body: BodyPlan = f.followed
-    ? (CLADES.find((c) => c.id === f.followed!.clade)!.body as unknown as BodyPlan)
-    : f.body;
+  const body: BodyPlan = f.followed ? civBody(f.followed)! : f.body;
   return figureBody(body, folkFactsOf(f, star));
 }
 

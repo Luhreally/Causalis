@@ -10,6 +10,7 @@
 //
 // A people's nature and the stars it could live about are drawn from it alone; its ships,
 // holds and meetings are history, each an event whose why is the decision that chose it.
+import { civBody, civKind } from "../../gen/index.ts";
 import {
   YEAR,
   defineEventType,
@@ -32,7 +33,6 @@ import {
   type GalaxyStar,
 } from "../../gen/index.ts";
 import {
-  CLADES,
   G,
   PRINCIPLES,
   affordsPrinciple,
@@ -302,14 +302,13 @@ const keyOf = (ref: Ref) => {
   return (a * 4096 + b) >>> 0;
 };
 
-const bodyOf = (civ: Civilization): BodyPlan | null =>
-  (CLADES.find((c) => c.id === civ.clade)?.body as BodyPlan | undefined) ?? null;
+const bodyOf = (civ: Civilization): BodyPlan | null => civBody(civ);
 
 /** What a people calls itself, and what it is ("the Kaari, trunked giants"). */
 export function peopleWords(world: World, civ: Civilization): { name: string; kind: string } {
   return {
     name: civName(world.rng, civ),
-    kind: CLADES.find((c) => c.id === civ.clade)?.body.name ?? civ.clade,
+    kind: civKind(civ),
   };
 }
 
@@ -317,7 +316,7 @@ export function peopleWords(world: World, civ: Civilization): { name: string; ki
 export function peopleNature(world: World, civ: Civilization): Nature {
   const k = keyOf(civ.ref),
     u = (n: number) => world.rng.real(NATURE, k, 0, 0, n),
-    body = CLADES.find((c) => c.id === civ.clade)?.body,
+    body = civBody(civ),
     social = body?.social ?? 0.6,
     hunter = body?.diet === "flesh" ? 0.15 : 0;
   return {

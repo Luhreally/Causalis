@@ -25,7 +25,7 @@ import {
   type BodyWound,
   type Member,
 } from "./anatomy.ts";
-import { affordancesOf, type BodyPlan, type Manipulator } from "./bodies.ts";
+import { affordancesOf, bodyFunction, type BodyPlan, type Manipulator } from "./bodies.ts";
 import { G } from "./goods.ts";
 import { maimedShare, type Blow } from "./wounds.ts";
 
@@ -245,7 +245,9 @@ export type PersonFrame = {
 
 /** A people's frame (null: an upright ape with hands, moved as Phase 60 moves them). */
 export function personFrame(body: BodyPlan | null): PersonFrame | null {
-  if (!body || (body.clade === "ape" && body.manipulators === "hands")) return null;
+  // (By what its body does: two hands on two legs, upright, as an upright ape is.)
+  const fn = body ? bodyFunction(body) : null;
+  if (!body || (!fn!.risen && fn!.stance === "upright" && fn!.hands)) return null;
   const walk =
     body.medium === "water"
       ? 1.4

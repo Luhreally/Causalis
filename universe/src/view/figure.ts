@@ -7,6 +7,7 @@
 // figure's own middle, facing +z.
 
 import type { FolkFacts } from "../bridge/index.ts";
+import { bodyFunction } from "../rules/index.ts";
 import { folkLook, type FolkLook } from "./folk.ts";
 
 /** What of a body the figure needs (a subset of rules' BodyPlan, as the plan carries it). */
@@ -21,7 +22,18 @@ export type FigureBody = {
   readonly span?: number;
   /** What their own look is made of (Phase 34; none: their kind's plain figure, or Earth's apes). */
   readonly folk?: FolkFacts | null;
+  /** A risen people's own (B4): its legs, its wings, how it goes, a radial body's arms. */
+  readonly legs?: number;
+  readonly wings?: number;
+  readonly moves?: string;
+  readonly rays?: number;
 };
+
+/** Whether a body stands as an upright ape does, by what it does (two hands, two legs: Earth's, and the kind of before like it). */
+function apeLike(b: FigureBody): boolean {
+  const f = bodyFunction(b);
+  return !f.risen && f.stance === "upright";
+}
 
 export type PartShape = "capsule" | "box" | "cylinder" | "cone";
 
@@ -182,7 +194,7 @@ export function figureOf(b: FigureBody | null, detail = 0): Figure {
   // A people of a world not Earth, in their own look (Phase 34).
   const look = folkLook(b);
   if (b && look) return { parts: folkParts(b, look, detail), scale };
-  if (!b || b.clade === "ape")
+  if (!b || apeLike(b))
     // An upright ape: body, head, two arms and two legs.
     return { parts: upright(detail), scale };
   if (b.symmetry === "radial" || b.manipulators === "tentacles")
@@ -738,7 +750,7 @@ function low(b: FigureBody, look: FolkLook, detail: number): FigurePart[] {
  * long-legged striders faster, giants and low shelled bodies slower, swimmers gliding.
  */
 export function paceOf(b: FigureBody | null): number {
-  if (!b || b.clade === "ape") return 1.25;
+  if (!b || apeLike(b)) return 1.25;
   if (b.medium === "water") return 1.4;
   if (b.skin === "feathers") return 2;
   if (b.manipulators === "trunk") return 1;

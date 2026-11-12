@@ -16,12 +16,14 @@
 // opal milky as glass, with ice white; bare skin is flushed with blood that is not red.
 // Earth's people are its upright apes, as ever: no look. Pure: the same facts, the same people.
 import type { FolkFacts } from "../bridge/index.ts";
+import { bodyFunction } from "../rules/index.ts";
 import { BLOOD_TONES } from "./biochem.ts";
 
 type Rgb = readonly [number, number, number];
 
-/** How a people stands. */
-export type Stance = "upright" | "stooped" | "low" | "mantle" | "strider";
+/** How a people stands (by what its body does, rules/bodies.ts bodyFunction). */
+export type Stance =
+  "upright" | "stooped" | "low" | "mantle" | "strider" | "raised" | "coiled" | "winged";
 
 /** A people's look, made of their world. */
 export type FolkLook = {
@@ -37,7 +39,10 @@ export type FolkLook = {
   /** Neck and tail, 0 … 1. */
   readonly neck: number;
   readonly tail: number;
-  readonly arms: 2 | 4;
+  readonly arms: 1 | 2 | 3 | 4 | 5 | 6;
+  /** The legs they stand on, their wings (B4: as their body has them). */
+  readonly legs: number;
+  readonly wings: number;
   /** A crest (0 … 1), horns (or tusks), eyes, feelers, ears (0 … 1), the hide's markings. */
   readonly crest: number;
   readonly horns: 0 | 1 | 2;
@@ -69,6 +74,11 @@ type LookBody = {
   readonly limbs: number;
   readonly skin: string;
   readonly folk?: FolkFacts | null;
+  /** A risen people's own (B4): its legs, its wings, how it goes, a radial body's arms. */
+  readonly legs?: number;
+  readonly wings?: number;
+  readonly moves?: string;
+  readonly rays?: number;
 };
 
 /** A keyed share in [0, 1). */
@@ -132,16 +142,10 @@ export function folkLook(b: LookBody | null): FolkLook | null {
     // (Their world's founding stock, as their forebears came of it: B1.)
     stock = f.stock,
     grows = new Set(fore?.grows ?? []),
-    radial = b.symmetry === "radial" || b.manipulators === "tentacles";
-  const stance: Stance = radial
-    ? "mantle"
-    : b.clade === "strider" || b.skin === "feathers"
-      ? "strider"
-      : b.clade === "shaggy"
-        ? "stooped"
-        : b.clade === "ape"
-          ? "upright"
-          : "low";
+    radial = b.symmetry === "radial" || b.manipulators === "tentacles",
+    // (How it stands, by what its body does: never its kind's name.)
+    fn = bodyFunction(b as Parameters<typeof bodyFunction>[0]);
+  const stance: Stance = fn.stance;
   // Their build, by their planet's pull (lightly pulled, tall and slight; hard, low and broad).
   const g = f.gravity,
     tall = clamp(1.3 - 0.3 * g, 0.78, 1.32) * (0.92 + 0.16 * u(1)),
@@ -155,7 +159,7 @@ export function folkLook(b: LookBody | null): FolkLook | null {
           : 0,
     horned = grows.has("horns") || grows.has("wide-horns") || grows.has("antlers"),
     horns: 0 | 1 | 2 = horned ? (u(4) < 0.25 ? 1 : 2) : u(4) < 0.1 ? 1 : 0,
-    tusks = grows.has("tusks") || (b.clade === "trunk" && u(5) < 0.6),
+    tusks = grows.has("tusks") || (fn.trunked && u(5) < 0.6),
     beak = grows.has("beak") || b.skin === "feathers",
     eyesOf = fore?.eyes ?? -1,
     eyes: 1 | 2 | 3 | 4 =
@@ -176,7 +180,7 @@ export function folkLook(b: LookBody | null): FolkLook | null {
                   : 2,
     feelers =
       !!fore?.feelers ||
-      b.clade === "burrower" ||
+      fn.feelers ||
       !!stock?.extras.includes("feelers") ||
       (!fore && u(7) < 0.15),
     pattern: FolkLook["pattern"] =
@@ -190,18 +194,17 @@ export function folkLook(b: LookBody | null): FolkLook | null {
     neck0 = fore?.neck ?? 0.5 * u(9),
     tail0 = fore?.tail ?? 0.6 * u(10);
   const neck = stance === "strider" ? 0.5 + 0.5 * neck0 : clamp(neck0, 0, 1),
-    tail =
-      b.clade === "crawler"
-        ? Math.max(0.5, tail0)
-        : stance === "strider"
-          ? 0.4 + 0.4 * tail0
-          : b.clade === "ape"
-            ? tail0 * 0.7
-            : tail0,
+    tail = fn.longTail
+      ? Math.max(0.5, tail0)
+      : stance === "strider"
+        ? 0.4 + 0.4 * tail0
+        : stance === "upright" && fn.hands
+          ? tail0 * 0.7
+          : tail0,
     ears =
       b.skin === "fur"
         ? 0.4 + 0.6 * u(11)
-        : b.clade === "trunk"
+        : fn.trunked
           ? 0.6 + 0.4 * u(11)
           : b.skin === "skin" && u(11) < 0.3
             ? 0.3
@@ -334,7 +337,13 @@ export function folkLook(b: LookBody | null): FolkLook | null {
     beak,
     neck,
     tail: clamp(tail, 0, 1),
-    arms: b.limbs >= 4 && !radial && stance !== "low" ? 4 : 2,
+    arms: fn.risen
+      ? (Math.max(1, Math.min(6, b.limbs)) as FolkLook["arms"])
+      : b.limbs >= 4 && !radial && stance !== "low"
+        ? 4
+        : 2,
+    legs: fn.legs,
+    wings: fn.wings,
     crest,
     horns,
     tusks,

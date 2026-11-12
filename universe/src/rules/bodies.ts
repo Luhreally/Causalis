@@ -37,7 +37,131 @@ export type BodyPlan = {
   readonly span: number;
   /** How closely they live together, 0 (alone) to 1 (a hive). */
   readonly social: number;
+  // —— A people risen from its world's own tree (B4, rules/rise.ts) says besides what its body does: the legs it stands
+  // on, its wings, what its graspers are and how it goes, a radial body's arms. Absent on Earth's upright apes and on
+  // the eight kinds of before, whose bodies are read by what they do (bodyFunction) all the same.
+  readonly legs?: number;
+  readonly wings?: number;
+  readonly hold?: string;
+  readonly moves?: string;
+  readonly rays?: number;
 };
+
+/** How a body stands and holds, read by what it does (B4): never by its kind's name. */
+export type Stance =
+  "upright" | "stooped" | "low" | "mantle" | "strider" | "raised" | "coiled" | "winged";
+
+/** What a body does: how it stands, what it stands on and handles with, what else marks it. */
+export type BodyFunction = {
+  readonly stance: Stance;
+  /** The legs it stands on, the limbs it handles with, its wings. */
+  readonly legs: number;
+  readonly arms: number;
+  readonly wings: number;
+  /** A long tail behind a low body; a trunk that works for hands; feelers. */
+  readonly longTail: boolean;
+  readonly trunked: boolean;
+  readonly feelers: boolean;
+  /** Whether it is two-legged and upright, as an upright ape is (a lost leg takes a crutch). */
+  readonly biped: boolean;
+  /** Whether it handles with hands. */
+  readonly hands: boolean;
+  /** A risen people's own (B4): read from its world's tree, not one of the kinds of before. */
+  readonly risen: boolean;
+};
+
+/** What a body's function is read from. */
+export type FunctionBody = {
+  readonly medium: string;
+  readonly symmetry: string;
+  readonly manipulators: string;
+  readonly limbs: number;
+  readonly skin: string;
+  readonly legs?: number;
+  readonly wings?: number;
+  readonly moves?: string;
+  readonly rays?: number;
+};
+
+/**
+ * What a body does, by its facts alone. A people risen from its tree says it (its legs, wings, graspers); the eight
+ * kinds of before are read from their graspers, their skin and their medium, so each reads as it always drew: a ring of
+ * tentacles a mantle; feathers a strider; four hands a stooping climber; two hands upright; a trunk, a shell, scales
+ * low on four legs or six.
+ */
+export function bodyFunction(b: FunctionBody): BodyFunction {
+  const radial = b.symmetry === "radial" || b.manipulators === "tentacles";
+  if (b.legs !== undefined) {
+    // Risen from its tree: as its body goes.
+    const legs = b.legs,
+      wings = b.wings ?? 0,
+      arms = b.limbs,
+      stance: Stance =
+        radial && (b.medium === "water" || legs === 0)
+          ? "mantle"
+          : wings > 0 && legs <= 2
+            ? "winged"
+            : legs === 0
+              ? "coiled"
+              : legs === 2
+                ? b.skin === "feathers"
+                  ? "strider"
+                  : arms >= 4
+                    ? "stooped"
+                    : "upright"
+                : arms > 0 && b.manipulators !== "trunk"
+                  ? "raised"
+                  : "low";
+    return {
+      stance,
+      legs,
+      arms,
+      wings,
+      longTail: b.moves === "slither" || b.moves === "swim",
+      trunked: b.manipulators === "trunk",
+      feelers: b.manipulators === "mandibles",
+      biped: legs === 2 && !radial,
+      hands: b.manipulators === "hands",
+      risen: true,
+    };
+  }
+  // The eight kinds of before, by what they do.
+  const stance: Stance = radial
+    ? "mantle"
+    : b.skin === "feathers"
+      ? "strider"
+      : b.manipulators === "hands" && b.limbs >= 4
+        ? "stooped"
+        : b.manipulators === "hands"
+          ? "upright"
+          : "low";
+  const trunked = b.manipulators === "trunk",
+    feelers = b.manipulators === "mandibles";
+  return {
+    stance,
+    legs: radial ? 0 : stance === "low" ? (feelers ? 6 : 4) : 2,
+    arms: b.limbs,
+    wings: 0,
+    longTail: b.skin === "scales" && b.manipulators === "claws",
+    trunked,
+    feelers,
+    biped: b.manipulators === "hands" && !radial,
+    hands: b.manipulators === "hands",
+    risen: false,
+  };
+}
+
+/** The hull a people's ships take by its body: heavy bodies slabs, many-legged and low ones discs, striders spindles, the water's mantas. */
+export function hullOf(b: FunctionBody | null): "slab" | "disc" | "spindle" | "dart" | "manta" {
+  if (!b) return "dart";
+  const f = bodyFunction(b);
+  if (f.stance === "mantle" || b.medium !== "land") return "manta";
+  if (f.trunked) return "slab";
+  if (f.feelers || f.longTail || f.legs >= 6) return "disc";
+  if (f.stance === "strider" || f.stance === "winged") return "spindle";
+  if (f.stance === "raised") return "slab";
+  return "dart";
+}
 
 /** What a world offers the clades: its warmth where life is richest, its pull, its seas. */
 export type Conditions = {

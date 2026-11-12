@@ -5,9 +5,9 @@
 // stays true and is told: a colony's halls stand whatever became of those who went out from them. A later slice can
 // make this history (mines, bonded natives, risings, independence all want it): it would have to record the fight as an
 // event with its causes, spend the comers' machines, and take the natives' dead off a stored count, and that costs a seed list.
+import { civBody } from "../../gen/index.ts";
 import { hashString, type Ref, type World } from "../../kernel/index.ts";
 import {
-  CLADES,
   GRIP,
   STAR_DRIVES,
   affordancesOf,
@@ -188,8 +188,7 @@ function comersOf(
         : { role: "mount", id: "foot", material: "hide" },
     ],
     theirs = folkByRef(world, civ.ref),
-    body: BodyPlan =
-      theirs?.body ?? (CLADES.find((c) => c.id === civ.clade)!.body as unknown as BodyPlan);
+    body: BodyPlan = theirs?.body ?? civBody(civ)!;
   return {
     ref: civ.ref,
     ships,

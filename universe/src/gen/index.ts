@@ -186,6 +186,8 @@ export {
   HOME_PACE,
   MOST_CIVILIZATIONS,
   civName,
+  civBody,
+  civKind,
   civilizationsOf,
   type Civilization,
 } from "./civilizations.ts";
