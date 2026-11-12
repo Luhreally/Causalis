@@ -378,6 +378,9 @@ const OCCUPATION_WORDS: Record<string, string> = {
   leader: "leaders",
 };
 
+/** Whether the bar stands open on a phone (the player's choice, kept in this browser). */
+const BAR_OPEN_KEY = "causalis.barOpen";
+
 export class PlanetPanel {
   readonly element = el("div", "panel");
   private readonly client: HostClient;
@@ -467,7 +470,40 @@ export class PlanetPanel {
     this.hand = new HandView(client);
     this.hand.onWhy = (ref) => void this.why.show(ref, this.whyBox);
     const bar = this.bar;
-    bar.append(el("strong", "brand", "Causalis Universe"), this.timeSlot);
+    // (On a phone the bar folds to the date and the speeds, the world's numbers, its menu and the
+    // map modes a tap away: asked for 2026-11-11, "on mobile a lot of the ui gets cluttered". A
+    // player's own choice is kept; a test driving the browser finds it open, as its gates expect.)
+    const fold = el("button", "bar-fold"),
+      opened = (() => {
+        try {
+          const v = localStorage.getItem(BAR_OPEN_KEY);
+          if (v !== null) return v === "1";
+        } catch {
+          // Nowhere to remember it.
+        }
+        return navigator.webdriver;
+      })(),
+      setOpen = (on: boolean) => {
+        document.body.classList.toggle("bar-open", on);
+        fold.textContent = on ? "▴" : "☰";
+        fold.setAttribute(
+          "aria-label",
+          on ? "Fold the bar" : "More: the world's numbers, menu and maps",
+        );
+        fold.title = fold.getAttribute("aria-label")!;
+        fold.setAttribute("aria-expanded", String(on));
+      };
+    setOpen(opened);
+    fold.onclick = () => {
+      const on = !document.body.classList.contains("bar-open");
+      setOpen(on);
+      try {
+        localStorage.setItem(BAR_OPEN_KEY, on ? "1" : "0");
+      } catch {
+        // For this visit only.
+      }
+    };
+    bar.append(el("strong", "brand", "Causalis Universe"), this.timeSlot, fold);
     // The menu: an icon and a word each (a phone shows the icons).
     const menuButton = (icon: string, word: string) => {
       const b = el("button", "link");

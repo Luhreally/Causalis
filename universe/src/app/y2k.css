@@ -3369,3 +3369,31 @@ body.with-palette .hint {
     margin-top: 0;
   }
 }
+
+/* The bar's fold (2026-11-11): only a phone's bar folds — to its date and speeds, the world's
+   numbers, its menu and the map modes behind ☰ — and the lens's key stays. */
+.bar-fold {
+  display: none;
+}
+@media (max-width: 640px) {
+  /* (In the date's line, at its right end: it takes no line of its own.) */
+  .bar:has(.bar-fold) {
+    position: relative;
+  }
+  .bar .bar-fold {
+    position: absolute;
+    top: 6px;
+    right: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 40px;
+    font-size: 1.1rem;
+  }
+  body:not(.bar-open) .bar .world-stats,
+  body:not(.bar-open) .bar .world-menu,
+  body:not(.bar-open) .mapmodes .modes {
+    display: none;
+  }
+}
