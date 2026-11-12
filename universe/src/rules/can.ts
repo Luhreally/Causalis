@@ -22,17 +22,28 @@ import {
   type Means,
   type MeansWorld,
 } from "./means.ts";
-import {
-  FUNCTIONS,
-  METAL_ROOTS,
-  PRINCIPLES,
-  bodyStop,
-  needsMet,
-  type Principle,
-} from "./principles.ts";
+import { METAL_ROOTS, PRINCIPLES, bodyStop, needsMet, type Principle } from "./principles.ts";
 import { matterShuts, type FunctionReading } from "./properties.ts";
 import { aroundKm, flyerOn, liftingEngine, rocketOn, stagesKnown } from "./reach.ts";
 import { fireName } from "./greatfire.ts";
+import {
+  ROCKET_HEIGHT_KM,
+  SIGHT_STEPS,
+  SIGHT_WAYS,
+  WORD_WAYS,
+  delayWords,
+  rocketSightKm,
+} from "./signals.ts";
+
+const EARTH_KM = 6371;
+/** How long a word takes over 1,000 km by a way (rules/signals.ts). */
+const paceBy =
+  (id: string) =>
+  (_w?: unknown): string => {
+    const w = WORD_WAYS.find((x) => x.id === id)!;
+    return `1,000 km in ${delayWords(1000 / w.kmADay)}`;
+  };
+const withStuff = (pace: string, stuff: string | null) => (stuff ? `${pace}, on ${stuff}` : pace);
 
 export type Knows = (id: string) => boolean;
 
@@ -665,24 +676,40 @@ export const CAN_FUNCTIONS: readonly CanFunction[] = [
     name: "Talking at a distance",
     main: true,
     rungs: () => [
-      { by: [], name: () => "a word carried on foot", figure: () => "as far as a band walks" },
       {
-        by: at("writing"),
-        name: () => "a letter",
-        figure: () => "as far as its roads and ships go",
+        by: [],
+        name: (w) => `a word carried by ${w.medium === "water" ? "a swimmer" : "a runner"}`,
+        figure: paceBy("foot"),
       },
+      { by: at("writing"), name: () => "a letter", figure: () => null },
+      onLand({ by: at("riding"), name: () => "a rider", figure: paceBy("rider") }),
+      onSea({
+        by: at("current-reading"),
+        name: () => "a messenger riding the currents",
+        figure: paceBy("current"),
+      }),
+      onLand({
+        by: at("riding", "roads"),
+        name: () => "riders in relays on the post roads",
+        figure: paceBy("post"),
+      }),
+      onLand({ by: at("railways"), name: () => "the mail train", figure: paceBy("rail") }),
       {
-        by: [FUNCTIONS["@current"]!],
+        by: at("telegraph"),
         name: () => "a word down a wire",
-        figure: (w) => fnBy("carry-current")(w),
+        figure: (w) => withStuff(paceBy("wire")(w), fnBy("carry-current")(w)),
         first: true,
       },
+      { by: at("telephone"), figure: paceBy("voice"), first: true },
+      onLand({ by: at("radio"), figure: paceBy("air"), first: true }),
+      onSea({ by: at("sea-sound"), figure: paceBy("sound"), first: true }),
+      { by: at("hand-sets"), figure: () => "a set carried by hand, on valves", first: true },
       {
-        by: at("electronics"),
-        name: () => "a word switched and sent on",
-        figure: (w) => fnBy("switch-current")(w),
+        by: at("networks"),
+        figure: (w) => withStuff(paceBy("web")(w), fnBy("switch-in-crystal")(w)),
         first: true,
       },
+      { by: at("pocket-machines"), figure: () => "a machine in every pocket", first: true },
       {
         by: at("orbital-flight"),
         name: () => "a word from orbit",
@@ -775,7 +802,50 @@ export const CAN_FUNCTIONS: readonly CanFunction[] = [
     rungs: () => [
       { by: at("mathematics") },
       { by: at("electronics"), first: true, figure: fnBy("switch-current") },
+      { by: at("computing"), first: true, figure: () => "relays and valves" },
+      { by: at("solid-state"), first: true, figure: fnBy("switch-in-crystal") },
       { by: at("machine-minds"), first: true, figure: fnBy("think-in-crystal") },
+    ],
+  },
+  {
+    id: "sight",
+    icon: "🔭",
+    name: "Seeing its world whole",
+    main: false,
+    rungs: () => [
+      {
+        by: [],
+        name: () => SIGHT_WAYS[0]!.name,
+        figure: () => `${SIGHT_STEPS.feet} lands round each`,
+      },
+      onLand({
+        by: at("sailing"),
+        name: () => SIGHT_WAYS[1]!.name,
+        figure: () => `and ${SIGHT_STEPS.inland} lands in`,
+      }),
+      onSea({ by: at("current-reading"), name: () => SIGHT_WAYS[1]!.name }),
+      onLand({
+        by: at("powered-wings"),
+        name: () => SIGHT_WAYS[2]!.name,
+        figure: (w) => {
+          const e = liftingEngine(w.numbers);
+          return e ? `${thousands(flyerOn(e, w.numbers).reachKm)} km out and back` : null;
+        },
+        first: true,
+      }),
+      {
+        by: at("rocketry"),
+        name: () => SIGHT_WAYS[3]!.name,
+        figure: (w) =>
+          `${thousands(rocketSightKm(EARTH_KM * w.numbers.radius))} km round, from ${ROCKET_HEIGHT_KM} km up`,
+        first: true,
+      },
+      {
+        by: at("orbital-flight"),
+        name: () => SIGHT_WAYS[4]!.name,
+        figure: () => "every coast, sea and land",
+        first: true,
+      },
     ],
   },
   {

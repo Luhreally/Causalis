@@ -49,6 +49,9 @@ import {
   TRADER_CAPACITY,
   WANTS,
   WORKED,
+  SIGNAL,
+  connectivityOf,
+  infoShare,
   principleNameOn,
   roleWord,
   type LifeHistory,
@@ -648,6 +651,7 @@ function trade(
       );
     },
     cut = new Map<War, number>();
+  const lore = loreOf(ctx.world);
   for (const e of edges(ctx)) {
     const war = open.length ? between(e.a, e.b) : null;
     if (war) {
@@ -655,10 +659,17 @@ function trade(
       continue;
     }
     const ma = markets.of(e.a),
-      mb = markets.of(e.b);
+      mb = markets.of(e.b),
+      // (What both ends' signals put on the line: traders see the far price as it moves, so move more and on a narrower
+      // margin. Exactly 1 before either end has the telegraph: rules/signals.ts.)
+      linked = connectivityOf(Math.min(lore.effect(e.a, "signal"), lore.effect(e.b, "signal"))),
+      moved = 0.25 * (1 + SIGNAL.tradeShare * linked),
+      keen = 2 * (1 + SIGNAL.tradeMargin * linked),
+      // (And what a journey cost in waiting on word and finding a buyer: the haul itself is what it was.)
+      dealt = 1 - SIGNAL.tradeCost * linked;
     for (let g = 0; g < GOOD_COUNT; g++) {
       const [s, d] = ma.price[g]! <= mb.price[g]! ? [ma, mb] : [mb, ma],
-        margin = d.price[g]! - s.price[g]! - e.cost * GOODS[g]!.bulk;
+        margin = d.price[g]! - s.price[g]! - e.cost * dealt * GOODS[g]!.bulk;
       if (margin <= 0) continue;
       const people = ctx.provinces.get(s.cell)!.total(),
         keep = GOODS[g]!.food
@@ -666,7 +677,7 @@ function trade(
           : (wanted.get(s.cell)?.[g] ?? 0),
         spare = s.stock[g]! - keep;
       if (spare <= 0) continue;
-      const count = Math.floor(spare * 0.25 * Math.min(1, (2 * margin) / d.price[g]!));
+      const count = Math.floor(spare * moved * Math.min(1, (keen * margin) / d.price[g]!));
       if (count > 0) plans.push({ from: s.cell, to: d.cell, good: g, count, margin, sea: e.sea });
     }
   }
@@ -676,9 +687,12 @@ function trade(
     load.set(pl.from, (load.get(pl.from) ?? 0) + pl.count * GOODS[pl.good]!.bulk);
   for (const pl of plans) {
     const p = ctx.provinces.get(pl.from)!,
+      // (Information work multiplies what its carriers move: exactly 1 before the telegraph.)
+      info = infoShare(connectivityOf(loreOf(ctx.world).effect(pl.from, "signal"))),
       capacity =
         (TRADER_CAPACITY * p.occupation(OCC.trader) + PORTERAGE_PER_PERSON * p.total()) *
-        (1 + loreOf(ctx.world).effect(pl.from, "carrying")),
+        (1 + loreOf(ctx.world).effect(pl.from, "carrying")) *
+        (1 + SIGNAL.carriers * info),
       carried = load.get(pl.from)!;
     if (carried > capacity) pl.count = Math.floor((pl.count * capacity) / carried);
   }

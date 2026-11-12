@@ -50,6 +50,11 @@ export const EFFECTS = [
   "industry",
   /** How much of that power comes from the tides, currents and the earth's heat, without fuel. */
   "renewable",
+  /**
+   * The share of a land's dealings a signal puts on the line, beyond letters and riders (signals: rules/signals.ts): what
+   * narrows its markets' prices, steadies its hosts far from their seat, and turns a share of its trades to information work.
+   */
+  "signal",
 ] as const;
 export type Effect = (typeof EFFECTS)[number];
 
@@ -1350,6 +1355,105 @@ export const LAW_TREE: readonly Principle[] = [
   },
 ];
 
+/**
+ * Carrying a signal far and fast (signals, docs/architecture/first-principles-plan.md, "Signals"). A principle says what it does, the world says how:
+ * a word down a wire wants a current and a stuff that carries it; a word on waves through the air wants the same wire wound into
+ * a circuit that rings, and air to send it through (water drinks it within metres, so a people of the water sends sound through
+ * the deep instead); a machine that reckons wants the exchange's relays and the valve; a switch of pure crystal wants a crystal
+ * of the right gap that the world's own crust can give, so a world without one stops at valves and wire; then machines joined
+ * in a web, and sets carried in the hand, valves first and pocket machines last. After every other row: a row's place keys its
+ * draws, so nothing before the first is found moves. What each one does to a land's dealings is `signal` (rules/signals.ts).
+ */
+export const SIGNAL_TREE: readonly Principle[] = [
+  {
+    ...P(
+      "telegraph",
+      "the telegraph",
+      ["@current", "writing"],
+      0.006,
+      { traders: 1, leaders: 0.5, town: 0.5 },
+      { signal: 0.25, reach: 1, learning: 0.2 },
+    ),
+    asks: ["carry-current"],
+  },
+  {
+    ...P(
+      "telephone",
+      "the telephone and its exchanges",
+      ["telegraph", "@works"],
+      0.005,
+      { traders: 1, town: 1 },
+      { signal: 0.15, learning: 0.1 },
+    ),
+    asks: ["carry-current"],
+  },
+  {
+    ...P(
+      "radio",
+      "words on waves through the air",
+      // (A voice on the air wants the telephone's microphone and its receiver, and the waves the philosophers found.)
+      ["telephone", "philosophy"],
+      0.005,
+      { crafters: 1, leaders: 0.5 },
+      { signal: 0.15, learning: 0.1 },
+      { media: ["land", "shore"] },
+    ),
+    asks: ["carry-current"],
+  },
+  P(
+    "sea-sound",
+    "words sent by sound through the deep",
+    ["telephone", "mathematics"],
+    0.005,
+    { crafters: 1, leaders: 0.5 },
+    { signal: 0.15, learning: 0.1 },
+    { media: ["water"] },
+  ),
+  P(
+    "computing",
+    "machines that reckon by switches",
+    ["telephone", "electronics"],
+    0.004,
+    { crafters: 1, traders: 0.5, leaders: 0.3 },
+    { signal: 0.05, learning: 0.2 },
+  ),
+  P(
+    "hand-sets",
+    "talking sets carried in the hand",
+    ["radio|sea-sound", "electronics"],
+    0.004,
+    { crafters: 1, leaders: 0.5 },
+    { signal: 0.05 },
+  ),
+  {
+    ...P(
+      "solid-state",
+      "switches of pure crystal",
+      ["computing"],
+      0.0035,
+      { crafters: 1 },
+      { signal: 0.05, learning: 0.1 },
+    ),
+    asks: ["switch-in-crystal"],
+  },
+  P(
+    "networks",
+    "machines joined in a web",
+    ["solid-state", "telephone"],
+    0.003,
+    { traders: 1, crafters: 0.5, town: 1 },
+    { signal: 0.15, reach: 1, learning: 0.4 },
+  ),
+  P(
+    "pocket-machines",
+    "machines in the pocket that talk and reckon",
+    ["networks", "hand-sets"],
+    0.0028,
+    { crafters: 1, traders: 1, town: 1 },
+    { signal: 0.1, learning: 0.2 },
+  ),
+];
+
 export const PRINCIPLES: readonly Principle[] = [
   ...TREE,
   ...KIND_TREE,
@@ -1357,6 +1461,7 @@ export const PRINCIPLES: readonly Principle[] = [
   ...MEANS_TREE,
   ...HEAT_TREE,
   ...LAW_TREE,
+  ...SIGNAL_TREE,
 ].map((p) => {
   const q = ASKS[p.id] ? { ...p, body: ASKS[p.id] } : p,
     r = q.needs.some((n) => n.includes("@")) ? { ...q, needs: q.needs.map(expand) } : q;

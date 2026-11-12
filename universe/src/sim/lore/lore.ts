@@ -117,6 +117,16 @@ export class LoreStore implements StateStore {
     );
   }
 
+  /** What a land knows, in no order: for a reading that only asks what and when (signals: host/known.ts). */
+  entries(cell: number): Iterable<[string, Known]> {
+    return this.known.get(cell)?.entries() ?? [];
+  }
+
+  /** The lands that know anything. */
+  cells(): IterableIterator<number> {
+    return this.known.keys();
+  }
+
   learn(cell: number, id: string, k: Known, p: Principle): void {
     let m = this.known.get(cell);
     if (!m) this.known.set(cell, (m = new Map()));
@@ -268,7 +278,14 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
   for (const prov of ctx.provinces.all()) {
     if (!prov.total()) continue;
     const cell = prov.cell,
-      reach = reachIn(means, (n) => knows(ctx, cell, n)),
+      // (What it knows, as `knows` reads it, with the stores in hand: asked many times a land.)
+      here = (n: string) =>
+        n === "cultivation"
+          ? !!prov.knowsCultivation
+          : n === "metalworking"
+            ? !!markets.get(cell)?.metalworking
+            : !!store.get(cell, n),
+      reach = reachIn(means, here),
       // Only what their body allows: no kilns without fire, no wheels in the water — and only
       // what their world's heat and matter allow (Phase 56, F2).
       open = PRINCIPLES.filter(
@@ -276,8 +293,8 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
           p.rate > 0 &&
           affordsPrinciple(p, ctx.medium, reach, means.wants) &&
           !store.get(cell, p.id) &&
-          needsMet(p, (n) => knows(ctx, cell, n)) &&
-          (!p.body?.lifts || (lifts !== null && knows(ctx, cell, lifts.id))) &&
+          needsMet(p, here) &&
+          (!p.body?.lifts || (lifts !== null && here(lifts.id))) &&
           matterAllows(g, p) &&
           lawAllows(world, p),
       );

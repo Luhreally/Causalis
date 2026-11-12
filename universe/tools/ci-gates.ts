@@ -359,6 +359,10 @@ export const GATES: readonly Gate[] = [
   // its place under the bar; only the first landing on another world in a window; the window's ✕ and buttons on the screen unscrolled, a
   // tap outside it (opening nothing beneath), Escape, none shown twice, five waiting put away at once, a family of news told as cards.
   { gate: 107, args: ["--ci"], s: 600 },
+  // Gate 109, signals and the world known (tools/signals-gate.ts): an alien world run in node past its first orbit into its information
+  // age, taken up at 430 by 932 by touch; its pages show the signal steps (what can be done here, a land's economy, a step's page),
+  // its greatest town draws its poles, wire and mast and at night its screens' cold light, and the knowledge lens leaves no land dark.
+  { gate: 109, args: ["--ci"], s: 420 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */

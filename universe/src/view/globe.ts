@@ -721,6 +721,26 @@ export function builtOverCells(
 }
 
 /**
+ * What its people do not know of their world, on the knowledge lens (signals: host/known.ts): land and sea dark, as a map's
+ * blank. Keyed by land, so the dark goes back land by land as their ships, wings and rockets see further, and all of it at orbit.
+ */
+export function unknownOverCells(
+  colors: Uint8Array,
+  frame: FrameMessage,
+  unknown: ReadonlySet<number>,
+): void {
+  const province = frame.arrays.province;
+  if (!province || !unknown.size) return;
+  for (let c = 0; c < province.length; c++) {
+    if (!unknown.has(province[c]!)) continue;
+    const q = c * 4;
+    colors[q] = Math.round(colors[q]! * 0.18 + 10);
+    colors[q + 1] = Math.round(colors[q + 1]! * 0.18 + 11);
+    colors[q + 2] = Math.round(colors[q + 2]! * 0.18 + 16);
+  }
+}
+
+/**
  * Woods as they stand now, on the land lens's colours (E1): a land's woods gone from so many of its spots, or come to so
  * many of those that can bear them; keyed by spot, so the same spots go first and come back last. `woods`: each land's
  * share now and at first, where they differ.

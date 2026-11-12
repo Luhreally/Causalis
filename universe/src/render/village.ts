@@ -272,9 +272,18 @@ export function windowMaterial(): pc.StandardMaterial {
   return m;
 }
 
-function glowWindows(m: pc.StandardMaterial, glow: number): void {
-  const g = 0.02 + 0.98 * glow;
-  m.emissive = new pc.Color(1 * g, 0.78 * g, 0.4 * g);
+/**
+ * Lamplight in the windows, a share of it the cold light of screens (signals: what its land's web and pocket machines put in
+ * its homes at night).
+ */
+function glowWindows(m: pc.StandardMaterial, glow: number, screens = 0): void {
+  const g = 0.02 + 0.98 * glow,
+    k = Math.min(1, Math.max(0, screens));
+  m.emissive = new pc.Color(
+    (1 + (0.3 - 1) * k) * g,
+    (0.78 + (0.6 - 0.78) * k) * g,
+    (0.4 + (1 - 0.4) * k) * g,
+  );
   m.update();
 }
 
@@ -365,6 +374,8 @@ export class VillageScene {
   private lit = -1;
   /** A town's windows' glass (one for every plan of it: its batches are kept). */
   private townLamps: pc.StandardMaterial | null = null;
+  /** The share of its windows' light that is screens' (signals). */
+  private screens = 0;
   private figure: Figure = figureOf(null);
   private moments: Moment[] = [];
   /**
@@ -764,6 +775,8 @@ export class VillageScene {
     // (Its windows' glass, lit from dusk to dawn as the village's are.)
     if (town) this.townLamps ??= windowMaterial();
     this.town.build(town, plan.ref, t, town ? this.townLamps : null);
+    this.screens = town?.signals?.screens ?? 0;
+    this.lit = -1;
     // (The furnace by the diggings and the smithy's rack, where its people smelt and smith: Phase
     // 51 M213.)
     // (None where nothing burns, and no kiln glows or anvil sparks there: Phase 56.)
@@ -1493,6 +1506,24 @@ export class VillageScene {
 
   /** Put everyone where they are at time t. */
   /** How far out the town's lots reach (metres; 0 for a village drawn without its fabric). */
+  /** What its land's signals put in the town as drawn, and the share of its windows' light that is screens' (signals). */
+  signalsShown(): {
+    poles: number;
+    wires: number;
+    mast: boolean;
+    screens: number;
+    phones: number;
+  } | null {
+    const d = this.town.visible ? this.town.signalsDrawn() : null;
+    return d
+      ? {
+          ...d,
+          screens: this.screens,
+          phones: this.carriers.filter((c) => c.carry === "phone").length,
+        }
+      : null;
+  }
+
   townReach(): number {
     return this.town.visible ? this.town.reach() : 0;
   }
@@ -1852,7 +1883,7 @@ export class VillageScene {
         20;
       if (glow !== this.lit) {
         this.lit = glow;
-        glowWindows(this.windows, glow);
+        glowWindows(this.windows, glow, this.screens);
       }
     }
     // (The beasts move by the screen's clock: a look, at any speed the world runs.)
@@ -2399,15 +2430,18 @@ export class VillageScene {
     this.gunfire(troops, clock);
     // What they carry, where they go with it.
     let n = 0;
+    // (And those about a town of sets carried in the hand with one, in the hand: signals. Every so many by their place.)
+    const phones = Math.round(20 * (plan.town?.signals?.phones ?? 0));
     plan.people.forEach((p, i) => {
-      const m = this.moments[i]!;
-      if (m.hidden || !m.carry) return;
+      const m = this.moments[i]!,
+        carry = m.carry ?? (phones && !p.child && (i * 7) % 20 < phones ? "phone" : null);
+      if (m.hidden || !carry) return;
       const c =
         this.carriers[n] ?? (this.carriers[n] = { x: 0, z: 0, yaw: 0, carry: "tool", size: 1 });
       c.x = m.x * M;
       c.z = m.z * M;
       c.yaw = m.yaw;
-      c.carry = m.carry;
+      c.carry = carry;
       c.size = (p.child ? 0.7 : 1) * this.figure.scale * (this.sizes[i] ?? 1);
       n++;
     });

@@ -495,6 +495,14 @@ export function readSeed(
       `${round(flight.speed)} km/s to reach orbit, by ${flight.lift.propulsion.words}. To steer it: ${told("switch-current")}${machines ? "" : " Nothing here makes machines, so its first flights wait on those visitors give."}`,
       few,
     );
+  // Information (signals): machines joined in a web, on switches of a crystal its crust can give.
+  road(
+    "information",
+    ["networks"],
+    () =>
+      `Its dealings can go on the line, through a web of machines. ${told("switch-in-crystal")}`,
+    few,
+  );
   // Other worlds: halls, and a body to carry them to.
   const halls = !!flight.lift && knows("habitats");
   if (!knows("habitats")) no("worlds", shutOf(["habitats"], known, l));

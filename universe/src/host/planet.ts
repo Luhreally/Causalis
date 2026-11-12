@@ -209,6 +209,7 @@ import { mirrorsOfSky } from "./past.ts";
 import { peopleFigure } from "./folk.ts";
 import { kindOn, lifelessWhy, seedKind, spotBiome, spotSwing, spotWarmth } from "./kinds.ts";
 import { lookMeta } from "./biochem.ts";
+import { knownWorld, unknownCells } from "./known.ts";
 
 const BOUNDARY_WORDS = ["none", "converging", "spreading", "sliding"];
 
@@ -1308,6 +1309,23 @@ function planetUniverse(name: string, prior: Prior): Universe {
       // world remade from them.
       genesis: (world, args): GenesisPlan =>
         genesisOf(world, (args as { seed?: string } | undefined)?.seed),
+      // What its people know of their world, for the map to leave the rest dark (signals: host/known.ts).
+      "known.lands": (world) => {
+        // (A world no people stand on is no one's to know: nothing is left dark.)
+        if (
+          !homePlanet(world).generated.life.people ||
+          !populationContext(world).provinces.all().length
+        )
+          return { share: 0, land: 0, by: "none", unknown: [] as number[], peopled: false };
+        const k = knownWorld(world);
+        return {
+          share: k.share,
+          land: k.land,
+          by: k.by,
+          unknown: unknownCells(world),
+          peopled: true,
+        };
+      },
       "people.map": (world) => {
         const g = homePlanet(world).generated,
           medium = g.life.people?.body.medium ?? "land",

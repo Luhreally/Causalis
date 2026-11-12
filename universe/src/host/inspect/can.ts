@@ -40,6 +40,7 @@ import { canWorldOf } from "../can.ts";
 import { landsOf } from "../../rules/index.ts";
 import { lifelessWhy } from "../kinds.ts";
 import { functionBlocks } from "./means.ts";
+import { knownStat } from "./signals.ts";
 import { landLink } from "./names.ts";
 import { count, link, stat, yearNow } from "./words.ts";
 
@@ -500,6 +501,7 @@ export function canPage(world: World, tab?: string, beside?: string): PageModel 
       stat("Known now", count(nowKnown)),
       stat("Could come to", `${count(openCount)} of ${count(PRINCIPLES.length)}`),
       stat("Shut here", count(shutCount)),
+      ...(g.life.people ? [knownStat(world)] : []),
     ],
     tabs: [
       { id: "here", name: "Here", blocks: [head, odd, ...main] },

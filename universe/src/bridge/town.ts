@@ -181,6 +181,17 @@ export type TownPlan = {
    * its ground that world's (`rock`, `ice`: what its yards and streets are laid on).
    */
   readonly sealed?: { readonly rock: readonly [number, number, number]; readonly icy: boolean };
+  /**
+   * What its land's signals put in it (signals: rules/signals.ts; absent: none): poles and a wire along its streets, a mast
+   * over its square, and the share of its windows lit at night by a screen's cold light.
+   */
+  readonly signals?: {
+    readonly wire: boolean;
+    readonly mast: boolean;
+    readonly screens: number;
+    /** The share of its people about the town with a set in the hand. */
+    readonly phones: number;
+  };
 };
 
 /** A small hash of whole numbers, for the plan's wanderings (not history's). */
