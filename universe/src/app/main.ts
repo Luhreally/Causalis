@@ -7670,6 +7670,12 @@ async function runPlanetPage(): Promise<void> {
   };
   // The blood and the wounds shown (Phase 55): a setting, kept in this browser.
   planetPanel.goreNow = () => gore;
+  // The world's own hand switched (2026-11-11): its disasters, its plagues.
+  planetPanel.switchesNow = async () =>
+    (await client.query<{ off: string[] }>({ type: "world.switches" })).off;
+  planetPanel.onSwitch = async (what, on) => {
+    await client.command("world.switch", { what, on });
+  };
   planetPanel.onGore = (g) => {
     gore = g;
     village.gore = g;

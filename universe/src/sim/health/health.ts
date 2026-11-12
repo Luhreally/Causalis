@@ -13,6 +13,7 @@
 // in the land's ledger of deaths; a land's grief is laid on its realm, and its people turn to
 // their gods, and from strangers. (M141: strangers from another star who come down bring the
 // sicknesses of their own world, that no one here was ever spared; and ours go home with them.)
+import { switchedOff } from "../acts/switches.ts";
 import {
   YEAR,
   defineEventType,
@@ -952,6 +953,9 @@ export function healthYear(ctx: PopulationContext, t: SimTime): void {
         if (v < SICK.vaccinated) setImmune(l, s.ref, v + SICK.vaccinating * (SICK.vaccinated - v));
       }
     }
+  // (Plagues turned off by the player: none spreads, wakes, comes from the stars or rises; those
+  // spared still forget, so a world switched on again meets them as a generation that never had them.)
+  if (switchedOff(world, "plagues")) return;
   // 2. It spreads: from every land it came to last year, by what carries it, one coming a land.
   const burning = new Map<Ref, Set<number>>();
   for (const l of store.lands.values())

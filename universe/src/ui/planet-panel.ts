@@ -442,6 +442,9 @@ export class PlanetPanel {
   onDrift: (on: boolean) => void = () => {};
   /** How much of the blood and the wounds a battle shows (Phase 55: all unless chosen), and its choosing. */
   goreNow: () => Gore = () => "full";
+  /** What of the world's own hand is turned off now (2026-11-11), and turning one off or on. */
+  switchesNow: () => Promise<readonly string[]> = () => Promise.resolve([]);
+  onSwitch: (what: string, on: boolean) => Promise<void> = () => Promise.resolve();
   onGore: (g: Gore) => void = () => {};
   /** Back to the title screen (the world kept first); says how it goes. */
   onMenu: () => Promise<string> = async () => "";
@@ -1360,6 +1363,38 @@ export class PlanetPanel {
           }),
         );
     drawGore();
+    // What the world does by itself, each a switch (asked for 2026-11-11: "give option in game to
+    // get rid of natural disasters and other options"): a command, so its history tells when.
+    const nature = el("div"),
+      said = el("p", "muted"),
+      drawNature = async () => {
+        const off = await this.switchesNow().catch(() => [] as readonly string[]);
+        nature.replaceChildren(
+          ...(
+            [
+              ["disasters", "Natural disasters — quakes, wildfire, stones from the sky"],
+              ["plagues", "Plagues — sicknesses rising and spreading"],
+            ] as const
+          ).map(([what, words]) => {
+            const on = !off.includes(what),
+              b = el("button", `line${on ? " chosen" : ""}`, `${on ? "On" : "Off"} · ${words}`);
+            b.setAttribute("aria-pressed", String(on));
+            b.onclick = async () => {
+              b.disabled = true;
+              try {
+                await this.onSwitch(what, !on);
+                said.textContent = "";
+              } catch (e) {
+                said.textContent = (e as Error).message;
+              }
+              await drawNature();
+            };
+            return b;
+          }),
+          said,
+        );
+      };
+    void drawNature();
     this.facts.replaceChildren(
       el("h3", undefined, "Quality"),
       list,
@@ -1368,6 +1403,8 @@ export class PlanetPanel {
       view,
       el("h3", undefined, "Blood and wounds"),
       gore,
+      el("h3", undefined, "The world's own hand"),
+      nature,
       el("h3", undefined, "Controls"),
       keys,
     );

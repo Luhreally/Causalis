@@ -44,6 +44,10 @@ registerEventWords(BRUSH_EVENT.type, (_, e) => {
   const d = e.data as { kind: string; cells: number; dead: number };
   return `By your hand: you ${BRUSH_DEEDS[d.kind] ?? d.kind} across ${d.cells} spots; ${d.dead} died, year ${yearOfMoment(e.t)}`;
 });
+registerCommandWords("world.switch", (_, c) => {
+  const d = c.args as { what: string; on: boolean };
+  return `Your hand: you turned the world's ${d.what === "plagues" ? "plagues" : "disasters"} ${d.on ? "back on" : "off"}, year ${yearOfMoment(c.t)}`;
+});
 registerCommandWords("act.brush", (_, c) => {
   const d = c.args as { kind: string };
   return `Your brush: you ${BRUSH_DEEDS[d.kind] ?? d.kind}, year ${yearOfMoment(c.t)}`;

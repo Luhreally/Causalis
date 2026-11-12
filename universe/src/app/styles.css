@@ -1073,6 +1073,12 @@ body[data-scale="micro"] {
   body:has(.event-window:not([hidden])) .tidings {
     display: none;
   }
+  /* (So does it while a scale's sheet is read, its settings or a place's card: what a run came to
+     lay over the settings, 2026-11-11.) */
+  body:has(.panel:not([hidden]) > .inspector:not([hidden])) .tidings,
+  body:has(.panel:not([hidden]) > .inspector:not([hidden])) .ran-note {
+    display: none;
+  }
 }
 
 .welcome {

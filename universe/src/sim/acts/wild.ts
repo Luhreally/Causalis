@@ -5,6 +5,7 @@
 // that already follows a strike (a town's page, its brigades, its dead buried, a stone raised, a song) follows these. A ruler answers,
 // or is seen not to. No draw is taken unless a thing is due: a whole year costs one count of each, and a look at each land once a year.
 // Read a world's worst before changing a rate: tools/n1-tally.ts.
+import { switchedOff } from "./switches.ts";
 import {
   DAY,
   MONTH,
@@ -1076,14 +1077,17 @@ export function wildMonth(ctx: PopulationContext, t: SimTime): void {
   if (!store) return;
   const idx = (store.index ??= readWorld(g)),
     month = Math.floor((t % YEAR) / MONTH);
-  quakesMonth(ctx, g, idx, t);
-  firesMonth(ctx, g, idx, month, t);
-  skyMonth(ctx, g, idx, t);
+  // (Its disasters, unless the player has turned them off: a mountain still rises where no one is.)
+  if (!switchedOff(ctx.world, "disasters")) {
+    quakesMonth(ctx, g, idx, t);
+    firesMonth(ctx, g, idx, month, t);
+    skyMonth(ctx, g, idx, t);
+  }
   risesMonth(ctx, g, idx, t);
   if (month === 0 && store.scars.length) store.scars = store.scars.filter((s) => s.gone > t);
 }
 
-/** Teach a peopled world to act on its own. */
+/** Teach a peopled world to act on its own (its disasters a switch the player may turn off). */
 export function installWild(world: World, ctx: () => PopulationContext): WildStore {
   const store = world.register(new WildStore());
   world.addPinner(() => store.pinned());

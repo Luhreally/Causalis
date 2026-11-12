@@ -1,6 +1,7 @@
 // The planet universes: "earth" (the earthlike prior) and "alien" (the open prior).
 // The globe view's frame carries the planet's fields once — they do not change
 // until people change them — and the page colours them by whichever lens is on.
+import type { SwitchStore } from "../sim/index.ts";
 import {
   brushPreview,
   actsOf,
@@ -1508,6 +1509,12 @@ function planetUniverse(name: string, prior: Prior): Universe {
       "written.index": (world) => writtenIndex(world),
       "written.read": (world, args) => writtenRead(world, args as WrittenAsk),
       ...WEALTH_QUERIES,
+      // What the player has turned off of what the world does by itself (2026-11-11).
+      "world.switches": (world) => ({
+        off: world.hasStore("acts.switches")
+          ? [...world.store<SwitchStore>("acts.switches").off]
+          : [],
+      }),
       /** A colony's town at a few years of its growth, as it stood: for a film of it. */
       "colony.growth": (world, args) => {
         const a = args as { cell: number; frames: number; axis: number; most: number };

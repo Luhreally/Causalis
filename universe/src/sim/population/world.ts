@@ -49,6 +49,7 @@ import { installLife } from "../hand/life.ts";
 import { installPeopleActs } from "../acts/peoples.ts";
 import { installDisasters } from "../acts/disasters.ts";
 import { installWild } from "../acts/wild.ts";
+import { installSwitches } from "../acts/switches.ts";
 import { installWaysActs } from "../acts/ways.ts";
 import { installNatureActs } from "../acts/natures.ts";
 import { installBrushes } from "../acts/brush.ts";
@@ -339,6 +340,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installPeopleActs(world, () => populationContext(world));
   installDisasters(world, () => populationContext(world));
   installWild(world, () => populationContext(world));
+  installSwitches(world);
   installWoods(world, () => populationContext(world));
   installHerds(world, () => populationContext(world));
   installLodes(world, () => populationContext(world));

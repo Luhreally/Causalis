@@ -615,6 +615,13 @@ export {
 } from "./acts/peoples.ts";
 export { DISASTER, DISASTER_EVENTS, installDisasters } from "./acts/disasters.ts";
 export {
+  SWITCHES,
+  SwitchStore,
+  installSwitches,
+  switchedOff,
+  type SwitchId,
+} from "./acts/switches.ts";
+export {
   UNBIDDEN_EVENTS,
   installWild,
   wildOf,
