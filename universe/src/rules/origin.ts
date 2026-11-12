@@ -436,10 +436,11 @@ export function cradlesOf(o: OriginGround): CradleRead[] {
     `ice over ${Math.round(ice * 100)}% of it, its brine some eight times as strong as its liquid`,
     ice < 0.02 ? "no ice" : !liquid ? "no liquid to freeze into brine" : null,
   );
-  // Hot springs and clays: the ground's heat on land, its clays holding the chemistry together.
+  // Hot springs and clays: the ground's heat on land, pools in it wetting and drying, its clays holding the chemistry
+  // together; the more of its face is land, the more springs.
   add(
     "springs",
-    0.6 *
+    1.1 *
       land *
       o.heat *
       (o.iceFloor ? 0.2 : 1) *

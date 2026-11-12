@@ -367,16 +367,11 @@ export function bodyPage(world: World, ref: string): PageModel {
                   type: "list" as const,
                   items: [
                     home
-                      ? item(
-                          [link("🧫 How life began here, and on what", "world:life")],
-                          "world:life",
-                        )
-                      : life && life.level !== "none" && life.level !== "chemistry"
-                        ? item(
-                            [link("🧫 How life began there, and on what", `life:${ref}`)],
-                            `life:${ref}`,
-                          )
-                        : item([link("🪨 Why nothing lives there", `life:${ref}`)], `life:${ref}`),
+                      ? lifeLink("world:life", true, "here")
+                      : lifeLink(
+                          `life:${ref}`,
+                          !!life && life.level !== "none" && life.level !== "chemistry",
+                        ),
                   ],
                 },
               ]),
@@ -515,12 +510,7 @@ export function foreignWorldPage(world: World, ref: string): PageModel {
                 {
                   type: "list" as const,
                   items: [
-                    life.level !== "none" && life.level !== "chemistry"
-                      ? item(
-                          [link("🧫 How life began there, and on what", `life:${ref}`)],
-                          `life:${ref}`,
-                        )
-                      : item([link("🪨 Why nothing lives there", `life:${ref}`)], `life:${ref}`),
+                    lifeLink(`life:${ref}`, life.level !== "none" && life.level !== "chemistry"),
                   ],
                 },
               ]),
@@ -546,4 +536,11 @@ export function foreignWorldPage(world: World, ref: string): PageModel {
     followable: false,
     year: yearNow(world),
   };
+}
+
+/** The way to a world's Life page (B2): how its life began, or why none did; its colour says which. */
+function lifeLink(ref: string, lives: boolean, where: "here" | "there" = "there"): Item {
+  return lives
+    ? { tone: "have", line: [link(`🧫 How life began ${where}, and on what`, ref)], ref }
+    : { tone: "shut", line: [link("🪨 Why nothing lives there", ref)], ref };
 }

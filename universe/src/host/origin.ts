@@ -95,7 +95,7 @@ export function grainOf(
 ): DropBlock["grain"] | undefined {
   if (habitat === "soil" || !trade || !kinds.some((k) => k.way === "rock")) return undefined;
   const g = GRAIN[trade] ?? { color: [0.5, 0.45, 0.4] as Rgb, name: "a grain of rock" };
-  return { x: 90, y: 120, r: 13, color: g.color, name: g.name };
+  return { x: 90, y: 106, r: 14, color: g.color, name: g.name };
 }
 
 /** A drop's words: how its small lives live, by what they run on. */

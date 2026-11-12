@@ -362,6 +362,10 @@ export const GATES: readonly Gate[] = [
   // Gate 108, every beast drawn from its parts (tools/life-looks-gate.ts): twelve alien worlds' people and beasts drawn at a
   // phone's size, their outlines read off the pixels and told apart between worlds; first light's drawn as before, to the pixel.
   { gate: 108, args: ["--ci"], s: 600 },
+  // Gate 111, how life began here (tools/dawn-gate.ts): three worlds made and not run, each world's page to its Life page by
+  // touch at a phone's size; where its life began and on what, when its air changed; its first seas' drop under the glass,
+  // its stocks and roles, another world beside it; their places and small lives apart on the screen and in the pixels.
+  { gate: 111, args: ["--ci"], s: 600 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */
