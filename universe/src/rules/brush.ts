@@ -27,7 +27,8 @@ export type BrushArgs = {
  * 2026-11-11: "when i raise land on water i dont see like the mini island i made").
  */
 export const BRUSH_LIMIT = {
-  centres: 64,
+  // (A stroke's spots: on the globe, every spot under the circle drawn, as it is drawn.)
+  centres: 256,
   cells: 512,
   radius: 3,
   rise: 250,

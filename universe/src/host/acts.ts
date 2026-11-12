@@ -104,9 +104,10 @@ export function actsMap(world: World): ActsMap {
   // The craters meteors left, for ever.
   for (const stroke of homePlanet(world).brushStrokes().slice(-32)) {
     if (stroke.t > now || now >= stroke.t + ACT_SHOWN) continue;
+    // (Ground raised or sunk is seen in the ground itself, as in WorldBox: no quake's rubble left
+    // lying over a new island while the world is held.)
+    if (stroke.kind === "raise" || stroke.kind === "lower") continue;
     const kinds: Record<string, ActKindShown> = {
-      raise: "quake",
-      lower: "quake",
       water: "spring",
       drain: "drought",
       life: "bounty",

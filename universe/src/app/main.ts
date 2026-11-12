@@ -151,7 +151,7 @@ import type {
   ColonyVoyage,
   StarFightList,
 } from "../bridge/index.ts";
-import { nearestCell, sphereGrid, yearOfMoment } from "../kernel/index.ts";
+import { forNeighbours, nearestCell, sphereGrid, yearOfMoment } from "../kernel/index.ts";
 
 import {
   GOOD_CHOICES,
@@ -3889,6 +3889,37 @@ async function runPlanetPage(): Promise<void> {
     (on) => (on ? time.hold("brush") : time.release("brush")),
   );
   rig.brush = brushes;
+  // (On the globe, the spots under the brush's circle as it is seen: found out from its middle,
+  // spot by spot, as long as each falls inside it.)
+  brushes.reach = (x, y, r) => {
+    const first = scale === "globe" ? globe.pick(x, y) : null,
+      frame = client.latestFrame("globe");
+    if (first === null || !frame) return null;
+    const grid = sphereGrid((frame.meta as { frequency: number }).frequency),
+      p = grid.positions,
+      seen = new Set([first]),
+      inside = [first];
+    let edge = [first];
+    for (let step = 0; step < 16 && edge.length && inside.length < 256; step++) {
+      const next: number[] = [];
+      for (const c of edge)
+        forNeighbours(grid, c, (n) => {
+          if (seen.has(n)) return;
+          seen.add(n);
+          next.push(n);
+        });
+      const at = globe.screenOf(
+        next.map((c) => ({ x: p[c * 3]!, y: p[c * 3 + 1]!, z: p[c * 3 + 2]! })),
+        1,
+      );
+      edge = next.filter((_, i) => {
+        const s = at[i]!;
+        return s.facing > 0 && Math.hypot(s.x - x, s.y - y) <= r;
+      });
+      inside.push(...edge);
+    }
+    return inside;
+  };
   brushes.place = () => scale;
   corner.append(brushes.button);
   brushes.onArmed = () => {

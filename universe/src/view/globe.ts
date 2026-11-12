@@ -1182,12 +1182,15 @@ export function lensLegend(lens: Lens, kind = "rocky", look?: string): Legend {
 /**
  * How far a cell stands out from the sphere, for relief on the globe (radius 1):
  * the true height over a planet's radius, exaggerated so mountains can be seen
- * (at 25×, an 8 km peak stands 3% proud).
+ * (at 25×, an 8 km peak stands 3% proud). Land however low stands just over the sea's shell
+ * (radius 1.0005, its facets a little less between their corners): a shore of a few tens of metres,
+ * or an island just raised from the sea by a god's brush, is seen as land, not under the water.
  */
+const LAND_FLOOR = 1.0008;
 export function globeRadius(
   elevation: number,
   exaggeration = 25,
   planetRadiusM = 6_371_000,
 ): number {
-  return elevation <= 0 ? 1 : 1 + (exaggeration * elevation) / planetRadiusM;
+  return elevation <= 0 ? 1 : Math.max(LAND_FLOOR, 1 + (exaggeration * elevation) / planetRadiusM);
 }

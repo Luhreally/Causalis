@@ -25,7 +25,7 @@ function checked(world: World, args: unknown): BrushArgs {
     a.cells.length > BRUSH_LIMIT.centres ||
     a.cells.some((c) => !Number.isInteger(c) || c < 0 || c >= g.fine.grid.count)
   )
-    throw new Error("Choose up to 64 spots on this world's ground.");
+    throw new Error(`Choose up to ${BRUSH_LIMIT.centres} spots on this world's ground.`);
   if (
     !Number.isInteger(a.radius) ||
     a.radius < 0 ||

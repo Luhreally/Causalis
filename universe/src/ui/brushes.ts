@@ -36,6 +36,8 @@ const WAIT_MS = 2000;
 const spots = (n: number) => `${n} spot${n === 1 ? "" : "s"} of the world`;
 /** The most marks a stroke's trail leaves on the screen. */
 const TRAIL = 96;
+/** The most spots one stroke takes (as the world allows: BRUSH_LIMIT.centres). */
+const STROKE_SPOTS = 256;
 
 export class GodBrushes {
   readonly button = el("button", "brush-toggle", "🖌 Brushes");
@@ -65,6 +67,14 @@ export class GodBrushes {
   place: () => string = () => "globe";
   private readonly client: HostClient;
   private readonly pick: (x: number, y: number) => number | null;
+  /**
+   * Every spot under a circle on the screen (centre and radius in CSS pixels), where the view can
+   * say (the globe): what is painted is what is under the brush as drawn, at any nearness, as
+   * WorldBox's is. Null: only the spot at its middle, reached out from by the brush's size.
+   */
+  reach: ((x: number, y: number, r: number) => number[] | null) | null = null;
+  /** Whether this stroke's spots are the ground under the circle itself (sent with no reach). */
+  private underCircle = false;
   private readonly hold: (on: boolean) => void;
   onArmed: (() => void) | null = null;
   onOpen: ((ref: string) => void) | null = null;
@@ -226,6 +236,7 @@ export class GodBrushes {
     if (this.cannot()) return false;
     this.hold(true);
     this.drawing = true;
+    this.underCircle = false;
     this.trail.replaceChildren();
     this.trail.className = `brush-trail ${this.kind.value}`;
     this.last = null;
@@ -235,8 +246,11 @@ export class GodBrushes {
   move(x: number, y: number): void {
     if (!this.drawing) return;
     const cell = this.pick(x, y),
-      size = 28 + Number(this.radius.value) * 14;
-    if (cell !== null && this.cells.size < 64) this.cells.add(cell);
+      size = 28 + Number(this.radius.value) * 14,
+      under = cell === null ? null : (this.reach?.(x, y, size / 2) ?? null);
+    if (under) this.underCircle = true;
+    for (const c of under ?? (cell === null ? [] : [cell]))
+      if (this.cells.size < STROKE_SPOTS) this.cells.add(c);
     this.cursor.hidden = false;
     this.cursor.style.left = `${x}px`;
     this.cursor.style.top = `${y}px`;
@@ -258,7 +272,7 @@ export class GodBrushes {
     this.status.textContent =
       cell === null && !this.cells.size
         ? "Not on this world's ground: paint over the land or the sea."
-        : `${this.cells.size} spot${this.cells.size === 1 ? "" : "s"} painted${this.cells.size === 64 ? " · as long as a stroke can be" : ""}`;
+        : `${this.cells.size} spot${this.cells.size === 1 ? "" : "s"} painted${this.cells.size >= STROKE_SPOTS ? " · as long as a stroke can be" : ""}`;
   }
   end(): void {
     if (!this.drawing) return;
@@ -273,7 +287,7 @@ export class GodBrushes {
     const pending: BrushStrokeArgs = {
       kind: this.kind.value as BrushKind,
       cells: [...this.cells].sort((a, b) => a - b),
-      radius: Number(this.radius.value),
+      radius: this.underCircle ? 0 : Number(this.radius.value),
       strength: Number(this.strength.value),
       ore: this.ore.value,
       realm: this.realm.value,
