@@ -310,7 +310,11 @@ export function lifeWorldOf(
   o: OriginGround,
   extra: { readonly locked: boolean; readonly bone: string; readonly shell: string },
 ): LifeWorld {
-  const living: OriginGround = { ...o, level: "bodies", eatsLight: o.pigment !== null && o.pigment !== "polyimine" },
+  const living: OriginGround = {
+      ...o,
+      level: "bodies",
+      eatsLight: o.pigment !== null && o.pigment !== "polyimine",
+    },
     read = readOrigin(living),
     rock = read.trades
       .filter((t) => t.kind === "rock" && t.open)
@@ -348,7 +352,9 @@ export function lifeWorldOf(
 }
 
 /** A home world before its life (its ground, climate and seas made), as B3–B5 read it. */
-export type ProtoWorld = Omit<HomeWorld, "life" | "digest" | "deposits"> & { readonly ground: string };
+export type ProtoWorld = Omit<HomeWorld, "life" | "digest" | "deposits"> & {
+  readonly ground: string;
+};
 
 /** A home world's ground before its life, as though it lived (its first life's needs read from it). */
 export function protoGround(p: ProtoWorld): OriginGround {
@@ -361,7 +367,11 @@ export function protoGround(p: ProtoWorld): OriginGround {
  * liquid lasts where any of its sea is open, or its sea lies frozen over ground warm enough to keep water under the ice
  * (an estimate: a fifth of Earth's heat through its ground), or its seas are not all too hot. Else why not.
  */
-export function protoLiquidWhy(p: Pick<HomeWorld, "planet" | "climate" | "grid" | "tectonics"> & { readonly star?: HomeWorld["star"] }): string | null {
+export function protoLiquidWhy(
+  p: Pick<HomeWorld, "planet" | "climate" | "grid" | "tectonics"> & {
+    readonly star?: HomeWorld["star"];
+  },
+): string | null {
   const n = p.grid.count,
     t = p.climate.temperature,
     e = p.tectonics.elevation;
@@ -377,7 +387,11 @@ export function protoLiquidWhy(p: Pick<HomeWorld, "planet" | "climate" | "grid" 
   if (sea < n * 0.005) return "no sea lies on it to hold life's first chemistry";
   if (open >= n * 0.002) return null;
   if (boiling > sea / 2) return "too hot for its seas to hold life's chemistry together";
-  const heat = heatOf(p.planet.gravity, p.star ? starAgeGyr(p.star) : 4.5, p.planet.kind === "sulfur");
+  const heat = heatOf(
+    p.planet.gravity,
+    p.star ? starAgeGyr(p.star) : 4.5,
+    p.planet.kind === "sulfur",
+  );
   return heat >= 0.2 ? null : "its seas froze to the floor before life took hold";
 }
 

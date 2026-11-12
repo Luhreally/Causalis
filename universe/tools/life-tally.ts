@@ -173,7 +173,12 @@ for (let i = from; i < to; i++) {
     );
   } else {
     tally(clades, "(no people)");
-    if (g.life.noPeople) tally(noPeople, g.life.noPeople.split(":")[1]?.split(",")[0]?.trim().slice(0, 60) ?? g.life.noPeople.slice(0, 60));
+    if (g.life.noPeople)
+      tally(
+        noPeople,
+        g.life.noPeople.split(":")[1]?.split(",")[0]?.trim().slice(0, 60) ??
+          g.life.noPeople.slice(0, 60),
+      );
   }
   const read = homeLifeRoles(g);
   if (read) {
@@ -200,7 +205,8 @@ for (let i = from; i < to; i++) {
     beasts++;
     if (read && bodyBreaks(b, read.world).length) {
       broken++;
-      if (brokenSeen.length < 5) brokenSeen.push(`${seed} ${s.name}: ${bodyBreaks(b, read.world).join("; ")}`);
+      if (brokenSeen.length < 5)
+        brokenSeen.push(`${seed} ${s.name}: ${bodyBreaks(b, read.world).join("; ")}`);
     }
     here.add(shape);
     drawn.add(outline);
@@ -286,7 +292,9 @@ console.log(
 );
 {
   const sh = sharing(worldShapes);
-  console.log(`  silhouettes, the commonest: ${sorted(shapes).split(", ").slice(0, 12).join(", ")}`);
+  console.log(
+    `  silhouettes, the commonest: ${sorted(shapes).split(", ").slice(0, 12).join(", ")}`,
+  );
   console.log(
     `  silhouettes: a world's found on another ${sh.elsewhere}%; two worlds side by side share ${sh.pair}% of the smaller's`,
   );
@@ -301,7 +309,9 @@ if (fillsPerWorld.length)
     `roles filled a world: ${mean(fillsPerWorld).toFixed(1)} (${Math.min(...fillsPerWorld)}–${Math.max(...fillsPerWorld)}); links of the chain: ${sorted(new Map([...new Set(linksPerWorld)].map((k) => [`${k}`, linksPerWorld.filter((x) => x === k).length])))}`,
   );
 if (places.size) console.log(`places offered: ${sorted(places)}`);
-console.log(`physics checks broken: ${broken} of ${beasts} beasts${brokenSeen.length ? ` (${brokenSeen.join(" | ")})` : ""}`);
+console.log(
+  `physics checks broken: ${broken} of ${beasts} beasts${brokenSeen.length ? ` (${brokenSeen.join(" | ")})` : ""}`,
+);
 console.log(
   `drawn outlines: ${outlines.size} in all; top 5 hold ${topShare(outlines, 5)}% of beasts; ${mean(perWorldOutlines).toFixed(1)} a world`,
 );

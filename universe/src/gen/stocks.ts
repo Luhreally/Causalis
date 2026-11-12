@@ -181,16 +181,21 @@ export function worldStocks(world: HomeWorld): WorldStocks | null {
 function physicalStocks(g: HomeWorld, tree: TreeOfLife): WorldStocks {
   const nodes = tree.nodes,
     n = nodes.length,
-    ids = [...new Set(g.life.species.flatMap((s) => (s.body?.stock !== undefined ? [s.body.stock] : [])))].sort(
-      (a, b) => a - b,
-    ),
+    ids = [
+      ...new Set(
+        g.life.species.flatMap((s) => (s.body?.stock !== undefined ? [s.body.stock] : [])),
+      ),
+    ].sort((a, b) => a - b),
     at = new Map(ids.map((id, i) => [id, i])),
     numbers = stockWorldOf(g),
     names = new Set<string>(),
     stocks: Stock[] = ids.map((id, i) => {
       let s = stockOf(numbers, drawOf(`stock ${g.digest} ${id}`), i);
       for (let k = 1; names.has(s.name) && k < 6; k++)
-        s = { ...s, name: s.name.replace(" stock", ` stock ${["", "II", "III", "IV", "V", "VI"][k]}`) };
+        s = {
+          ...s,
+          name: s.name.replace(" stock", ` stock ${["", "II", "III", "IV", "V", "VI"][k]}`),
+        };
       names.add(s.name);
       return s;
     }),

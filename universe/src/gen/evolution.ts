@@ -1795,11 +1795,12 @@ function growTree(g: HomeWorld): TreeOfLife {
         parent: mother.id,
         kind: "crown",
         name: s.name,
-        what: s.form && s.form !== "grass"
-          ? FORM_WHAT[s.form] ?? "a light-eater of its own"
-          : s.tame
-            ? "a grass whose heavy seed can be sown"
-            : "a grass of the open country",
+        what:
+          s.form && s.form !== "grass"
+            ? (FORM_WHAT[s.form] ?? "a light-eater of its own")
+            : s.tame
+              ? "a grass whose heavy seed can be sown"
+              : "a grass of the open country",
         species: s.index,
         way: "growing in the light",
         from,
@@ -1905,15 +1906,18 @@ function growTree(g: HomeWorld): TreeOfLife {
       // (A people risen from its tree came of the lineage it rose from: B4.)
       crown = people.forebear !== undefined ? (ofSpecies[people.forebear] ?? -1) : -1,
       // (Earth's own came of the furred four-legged beasts, by way of the tree-climbers.)
-      { mother } = crown >= 0 ? { mother: nodes[crown]! } : nearest(genome, forebearsFrom, 9000, (n) =>
-        n.kind === "ghost"
-          ? 2
-          : g.prior === "earthlike" && n.kind === "stem" && n.genome?.skin === "fur"
-            ? -4
-            : n.genome && kindOfBody(n.genome) === kindOfBody(genome)
-              ? -1
-              : 0,
-      ),
+      { mother } =
+        crown >= 0
+          ? { mother: nodes[crown]! }
+          : nearest(genome, forebearsFrom, 9000, (n) =>
+              n.kind === "ghost"
+                ? 2
+                : g.prior === "earthlike" && n.kind === "stem" && n.genome?.skin === "fur"
+                  ? -4
+                  : n.genome && kindOfBody(n.genome) === kindOfBody(genome)
+                    ? -1
+                    : 0,
+            ),
       steps = changes(mother.genome!, genome);
     let mid = mother.genome!;
     for (const [i, c] of steps.entries()) if (i % 2 === 0) mid = c.apply(mid);

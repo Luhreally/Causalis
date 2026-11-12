@@ -133,7 +133,18 @@ export function generateHomeWorld(
     // Earth's, and a world saved before and kept so, are made by the old tables, frozen.)
     readsLife = prior.name !== "earthlike" && !lifeKept(seed.text),
     proto: ProtoWorld | null = readsLife
-      ? { prior: prior.name, star, planet, system, grid, tectonics, climate, water, deep, ground: groundHash }
+      ? {
+          prior: prior.name,
+          star,
+          planet,
+          system,
+          grid,
+          tectonics,
+          climate,
+          water,
+          deep,
+          ground: groundHash,
+        }
       : null,
     life = proto
       ? lifeDraw(seed.text) < lifeOdds(protoGround(proto), protoLiquidWhy(proto)).odds

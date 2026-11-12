@@ -6,7 +6,10 @@ import { generateHomeWorld, homeOrigin, worldKindOf } from "../src/gen/index.ts"
 import { OPEN, lifeDraw, lifeOdds } from "../src/rules/index.ts";
 import { protoGround, protoLiquidWhy } from "../src/gen/index.ts";
 
-const nums = process.argv.slice(2).filter((a) => /^\d+$/.test(a)).map(Number),
+const nums = process.argv
+    .slice(2)
+    .filter((a) => /^\d+$/.test(a))
+    .map(Number),
   from = nums[0] ?? 0,
   to = nums[1] ?? 300;
 const tally = new Map<string, number>(),
@@ -26,11 +29,16 @@ for (let i = from; i < to; i++) {
   add(tally, `${worldKindOf(g)} ${was ? "lived" : "lifeless"} → ${is ? "lives" : "lifeless"}`);
   if (!is) add(why, odds.lacks ?? `never quickened (odds ${Math.round(odds.odds * 100)}%)`);
   if (process.argv.includes("--each"))
-    console.log(`${seed} ${worldKindOf(g)}: ${was ? "lived" : "lifeless"} → ${is ? "lives" : "lifeless"}; odds ${odds.odds.toFixed(3)} draw ${lifeDraw(seed).toFixed(3)}; ${odds.words}`);
+    console.log(
+      `${seed} ${worldKindOf(g)}: ${was ? "lived" : "lifeless"} → ${is ? "lives" : "lifeless"}; odds ${odds.odds.toFixed(3)} draw ${lifeDraw(seed).toFixed(3)}; ${odds.words}`,
+    );
   void homeOrigin;
 }
 const sorted = (m: Map<string, number>) =>
-  [...m].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join("; ");
+  [...m]
+    .sort((a, b) => b[1] - a[1])
+    .map(([k, v]) => `${k} ${v}`)
+    .join("; ");
 console.log(`alien ${from}..${to - 1} at grid 16: with life ${before} as kept, ${after} as read`);
 console.log(sorted(tally));
 console.log(`lifeless, why: ${sorted(why)}`);

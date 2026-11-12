@@ -72,7 +72,9 @@ const GRASS = new Set<number>([BIOME.steppe, BIOME.savanna]),
   ICE = new Set<number>([BIOME.ice, BIOME.seaIce]);
 
 /** Which cells each place is: a test for each. */
-export function placeCells(i: Pick<LivingInputs, "grid" | "climate" | "water" | "elevation" | "tectonics" | "world">): Readonly<Record<Place, (c: number) => boolean>> {
+export function placeCells(
+  i: Pick<LivingInputs, "grid" | "climate" | "water" | "elevation" | "tectonics" | "world">,
+): Readonly<Record<Place, (c: number) => boolean>> {
   const { grid, climate, water, elevation, tectonics, world } = i,
     land = (c: number) => elevation[c]! > 0,
     biome = (c: number) => climate.biome[c]!,
@@ -88,7 +90,8 @@ export function placeCells(i: Pick<LivingInputs, "grid" | "climate" | "water" | 
     // (The deep, the floor and the vents lie under a sea's ice as under its open water.)
     deep: (c) => !land(c) && biome(c) !== BIOME.shelf,
     "sea floor": (c) => !land(c),
-    vents: (c) => !land(c) && tectonics.boundary[c] === BOUNDARY.divergent && tectonics.toBoundary[c]! <= 1,
+    vents: (c) =>
+      !land(c) && tectonics.boundary[c] === BOUNDARY.divergent && tectonics.toBoundary[c]! <= 1,
     shore: (c) => land(c) && !ICE.has(biome(c)) && coast(c),
     river: (c) => land(c) && !ICE.has(biome(c)) && (water.river[c] === 1 || water.lake[c] === 1),
     grassland: (c) => land(c) && GRASS.has(biome(c)),
@@ -104,9 +107,22 @@ export function placeCells(i: Pick<LivingInputs, "grid" | "climate" | "water" | 
 }
 
 /** How a world's land divides, read from its cells. */
-export function landShares(i: Pick<LivingInputs, "grid" | "climate" | "water" | "elevation" | "tectonics">): LandShares {
+export function landShares(
+  i: Pick<LivingInputs, "grid" | "climate" | "water" | "elevation" | "tectonics">,
+): LandShares {
   const n = i.grid.count,
-    count = { land: 0, grass: 0, wood: 0, tall: 0, desert: 0, cold: 0, rivers: 0, sea: 0, shelf: 0, vents: 0 };
+    count = {
+      land: 0,
+      grass: 0,
+      wood: 0,
+      tall: 0,
+      desert: 0,
+      cold: 0,
+      rivers: 0,
+      sea: 0,
+      shelf: 0,
+      vents: 0,
+    };
   for (let c = 0; c < n; c++) {
     const b = i.climate.biome[c]!;
     if (i.elevation[c]! > 0) {
@@ -121,7 +137,8 @@ export function landShares(i: Pick<LivingInputs, "grid" | "climate" | "water" | 
     } else {
       count.sea++;
       if (b === BIOME.shelf) count.shelf++;
-      if (i.tectonics.boundary[c] === BOUNDARY.divergent && i.tectonics.toBoundary[c]! <= 1) count.vents++;
+      if (i.tectonics.boundary[c] === BOUNDARY.divergent && i.tectonics.toBoundary[c]! <= 1)
+        count.vents++;
     }
   }
   const of = (x: number, all: number) => (all ? x / all : 0);
@@ -233,7 +250,10 @@ export function makeLivingBiosphere(i: LivingInputs): Biosphere {
       sea = wetPlace(r.place) && !land(origin),
       body = made.body,
       grazes = r.level === 2 && !sea,
-      herd = grazes && (r.food === "graze" || r.food === "browse") ? 0.4 + 0.6 * u(7, k, age) : 0.6 * u(7, k, age),
+      herd =
+        grazes && (r.food === "graze" || r.food === "browse")
+          ? 0.4 + 0.6 * u(7, k, age)
+          : 0.6 * u(7, k, age),
       docility = r.level >= 3 ? 0.1 * u(8, k, age) : u(8, k, age),
       growth = u(9, k, age),
       tame =
@@ -330,7 +350,9 @@ export function makeLivingBiosphere(i: LivingInputs): Biosphere {
   // The ages: each role's first lineage when it opens; at each age's end the great events kill many (an icehouse the
   // warm-fitted, a hothouse the cold); a role left empty is filled again, now and then, an age or more after.
   const spared = (k: number, niche: string) =>
-      lifeActs.some(([a, way]) => a <= k && (LIFE_NICHES[way] as readonly string[]).includes(niche)),
+      lifeActs.some(
+        ([a, way]) => a <= k && (LIFE_NICHES[way] as readonly string[]).includes(niche),
+      ),
     bent = (k: number, niche: string) => {
       let m = i.dawn ? bentBy(i.dawn, niche) : 1;
       for (const [a, way] of lifeActs) if (a < k) m *= bentBy(way, niche);
@@ -364,7 +386,12 @@ export function makeLivingBiosphere(i: LivingInputs): Biosphere {
       }
     }
     for (const g of growths)
-      if (g.died === null && g.s.arose < age && kind === "impact" && u(19, growths.indexOf(g), age) < 0.15)
+      if (
+        g.died === null &&
+        g.s.arose < age &&
+        kind === "impact" &&
+        u(19, growths.indexOf(g), age) < 0.15
+      )
         g.died = age;
   }
   // The living and the dead, in the order they arose (the growths first of their age).
@@ -397,7 +424,8 @@ export function makeLivingBiosphere(i: LivingInputs): Biosphere {
       return r >= s.rainMin && r <= s.rainMax;
     };
   const set = (s: Species, c: number) =>
-    (present[SPECIES_WORDS * c + (s.index >> 5)] = (present[SPECIES_WORDS * c + (s.index >> 5)]! | (1 << (s.index & 31))) >>> 0);
+    (present[SPECIES_WORDS * c + (s.index >> 5)] =
+      (present[SPECIES_WORDS * c + (s.index >> 5)]! | (1 << (s.index & 31))) >>> 0);
   const lives = (c: number, x: number) =>
     ((present[SPECIES_WORDS * c + (x >> 5)]! >>> (x & 31)) & 1) === 1;
   // The eaters and the growths first. Then the hunters, a link at a time: each roams the cells of its place joined to
@@ -408,7 +436,8 @@ export function makeLivingBiosphere(i: LivingInputs): Biosphere {
       queue = [s.origin],
       fit = (c: number) =>
         roam
-          ? cells[s.place as Place](c) && Math.abs(climate.temperature[c]! - s.warm) <= s.tolerance + 14
+          ? cells[s.place as Place](c) &&
+            Math.abs(climate.temperature[c]! - s.warm) <= s.tolerance + 14
           : fitsAt(s, c);
     if (!fit(s.origin)) return 0;
     seen[s.origin] = 1;
@@ -459,16 +488,24 @@ export function makeLivingBiosphere(i: LivingInputs): Biosphere {
       grassWorth = -1;
     for (const s of species) {
       if (!s.tame || s.died !== null || !lives(c, s.index)) continue;
-      if (s.body && s.docility * s.growth > beastWorth) [beast, beastWorth] = [s.index, s.docility * s.growth];
-      else if (!s.body && s.niche === "seed grass" && s.seed > grassWorth) [grass, grassWorth] = [s.index, s.seed];
+      if (s.body && s.docility * s.growth > beastWorth)
+        [beast, beastWorth] = [s.index, s.docility * s.growth];
+      else if (!s.body && s.niche === "seed grass" && s.seed > grassWorth)
+        [grass, grassWorth] = [s.index, s.seed];
     }
     herdBeast[c] = beast;
     seedGrass[c] = grass;
   }
   // Last, who rose to thought: of its living beasts, the one its body and life best fit, with chance.
   const candidates: RiseCandidate[] = species
-      .filter((s) => s.died !== null ? false : !!s.body)
-      .map((s) => ({ index: s.index, name: s.name, body: s.body!, herd: s.herd, growth: s.growth })),
+      .filter((s) => (s.died !== null ? false : !!s.body))
+      .map((s) => ({
+        index: s.index,
+        name: s.name,
+        body: s.body!,
+        herd: s.herd,
+        growth: s.growth,
+      })),
     reads = candidates.map((c) => riseRead(c, w));
   let pick = -1,
     key = Infinity;
@@ -507,7 +544,8 @@ export function makeLivingBiosphere(i: LivingInputs): Biosphere {
     if (score > best) [best, cell] = [score, c];
   }
   const bidden = i.cradle ?? -1;
-  if (bidden >= 0 && bidden < n && (land(bidden) === land(cell) || body.medium === "shore")) cell = bidden;
+  if (bidden >= 0 && bidden < n && (land(bidden) === land(cell) || body.medium === "shore"))
+    cell = bidden;
   const people: Species = {
     index: species.length,
     ref: speciesRef(0, species.length),
@@ -578,7 +616,9 @@ function emptyOf(n: number): Biosphere {
 }
 
 /** The roles a world's living things were read for (its places and energy), for its pages. */
-export function livingRoles(i: Pick<LivingInputs, "grid" | "climate" | "water" | "elevation" | "tectonics" | "world">): {
+export function livingRoles(
+  i: Pick<LivingInputs, "grid" | "climate" | "water" | "elevation" | "tectonics" | "world">,
+): {
   readonly world: LifeWorld;
   readonly roles: readonly LifeRole[];
   readonly read: ReturnType<typeof rolesOf>;

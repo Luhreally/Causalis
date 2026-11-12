@@ -670,7 +670,8 @@ export function rolesOf(w: LifeWorld): RolesRead {
       sea = PLACES[p.place].medium === "sea",
       bound = (s: SizeClass) => {
         const [lo] = SIZE_RANGE[s];
-        if (lo > heaviest || SIZE_ORDER.indexOf(s) > SIZE_ORDER.indexOf(PLACE_LARGEST[p.place])) return false;
+        if (lo > heaviest || SIZE_ORDER.indexOf(s) > SIZE_ORDER.indexOf(PLACE_LARGEST[p.place]))
+          return false;
         // (A flier as heavy as the air bears; a floater of any weight its bag lifts, to a large one.)
         if (air) return lo <= flier || (floats && s !== "giant");
         // (A giant on land needs bones to bear it: a stock may yet have them; the sea bears more.)
@@ -1318,7 +1319,8 @@ function limbPlan(
   if (legs === 0) return { legs: 0, arms, fins: 0, wings: 0, moves: "slither" };
   const moves: Locomotion = glides
     ? "glide"
-    : r.place === "canopy" || (arms >= 2 && r.food === "browse" && r.place === "woodland" && u(29) < 0.3)
+    : r.place === "canopy" ||
+        (arms >= 2 && r.food === "browse" && r.place === "woodland" && u(29) < 0.3)
       ? "climb"
       : legs >= 6
         ? hunter && r.food === "chase"
@@ -1365,13 +1367,31 @@ function floorMoves(r: Pick<Role, "place" | "food">, size: number): Locomotion {
 // —— Names ———————————————————————————————————————————————————————————————————————————————————
 
 const COLOURS = ["dun", "red", "grey", "black", "pale", "brindled", "spotted", "golden"];
-const COUNT = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
+const COUNT = [
+  "no",
+  "one",
+  "two",
+  "three",
+  "four",
+  "five",
+  "six",
+  "seven",
+  "eight",
+  "nine",
+  "ten",
+  "eleven",
+  "twelve",
+];
 
 /**
  * A lineage's name, from its body and its role and a colour (one of rules/creatures.ts's, which its coat is drawn by):
  * "dun six-legged pincer-walker", "grey five-armed jet-star", "black vent-fan".
  */
-export function lineageName(b: CreatureBody, r: Pick<Role, "place" | "food" | "size">, u: number): string {
+export function lineageName(
+  b: CreatureBody,
+  r: Pick<Role, "place" | "food" | "size">,
+  u: number,
+): string {
   const colour = COLOURS[Math.floor(u * COLOURS.length)]!,
     has = (f: Feature) => b.features.includes(f),
     hunter = r.food === "chase" || r.food === "ambush",
@@ -1432,7 +1452,8 @@ export function lineageName(b: CreatureBody, r: Pick<Role, "place" | "food" | "s
                 : "wing-seeder";
   else if (b.moves === "float") noun = hunter ? "sky-trailer" : "sky-bladder";
   else if (b.moves === "glide") noun = "glider";
-  else if (b.moves === "climb") noun = arms >= 4 ? "four-handed climber" : arms ? "brachiator" : "climber";
+  else if (b.moves === "climb")
+    noun = arms >= 4 ? "four-handed climber" : arms ? "brachiator" : "climber";
   else if (b.moves === "burrow") noun = b.legs ? "digger" : "delver";
   else if (b.moves === "jet") noun = `${deep}jetter`;
   else if (b.moves === "swim")
@@ -1443,11 +1464,16 @@ export function lineageName(b: CreatureBody, r: Pick<Role, "place" | "food" | "s
         : b.size > 8
           ? `${deep}finner`
           : `${deep}fin-darter`;
-  else if (b.moves === "slither") noun = hunter ? "coil-hunter" : arms ? "grasping slither" : "slither";
-  else if (b.moves === "crawl" && (r.place === "sea floor" || r.place === "vents" || r.place === "deep"))
+  else if (b.moves === "slither")
+    noun = hunter ? "coil-hunter" : arms ? "grasping slither" : "slither";
+  else if (
+    b.moves === "crawl" &&
+    (r.place === "sea floor" || r.place === "vents" || r.place === "deep")
+  )
     noun = arms ? `${deep}pincer-crawler` : `${deep}floor-crawler`;
   else if (b.legs >= 10) noun = `${COUNT[b.legs]}-legged ${hunter ? "stalker" : "crawler"}`;
-  else if (b.legs === 8) noun = hunter ? "spinner" : arms ? "eight-legged grasper" : "eight-strider";
+  else if (b.legs === 8)
+    noun = hunter ? "spinner" : arms ? "eight-legged grasper" : "eight-strider";
   else if (b.legs === 6)
     noun = arms
       ? b.grasp === "pincer"
@@ -1458,22 +1484,30 @@ export function lineageName(b: CreatureBody, r: Pick<Role, "place" | "food" | "s
         : r.food === "graze"
           ? "crawler"
           : "sixleg";
-  else if (arms && b.grasp === "trunk") noun = r.size === "giant" ? "trunked colossus" : "trunk-walker";
-  else if (arms) noun = b.grasp === "pincer" ? "pincer-walker" : b.legs === 2 ? "upright grasper" : "grasper";
+  else if (arms && b.grasp === "trunk")
+    noun = r.size === "giant" ? "trunked colossus" : "trunk-walker";
+  else if (arms)
+    noun = b.grasp === "pincer" ? "pincer-walker" : b.legs === 2 ? "upright grasper" : "grasper";
   else if (r.size === "giant") noun = "colossus";
-  else if (hunter) noun = b.legs === 2 ? "strider-hunter" : r.size === "small" ? "skulker" : "prowler";
+  else if (hunter)
+    noun = b.legs === 2 ? "strider-hunter" : r.size === "small" ? "skulker" : "prowler";
   else if (r.food === "scavenge") noun = "bone-picker";
   else if (r.food === "browse") noun = "leaf-reacher";
-  else if (r.food === "seeds" || r.food === "roots") noun = b.legs === 2 ? "hopper" : "seed-nibbler";
+  else if (r.food === "seeds" || r.food === "roots")
+    noun = b.legs === 2 ? "hopper" : "seed-nibbler";
   else noun = b.legs === 2 ? "stilt-grazer" : "grazer";
   return `${colour} ${look} ${noun}`;
 }
 
 /** A light-eater's form, by where it grows: mats, grasses, trees, floaters, growths at vents. */
-export type GrowthForm = "mat" | "grass" | "tree" | "tall tree" | "floater" | "stalk" | "vent growth" | "film";
+export type GrowthForm =
+  "mat" | "grass" | "tree" | "tall tree" | "floater" | "stalk" | "vent growth" | "film";
 
 /** The form a place's light-eaters (or a vent's rock-eaters) take there; null where none grows. */
-export function growthFormOf(p: Place, w: Pick<LifeWorld, "gravity" | "pressure">): GrowthForm | null {
+export function growthFormOf(
+  p: Place,
+  w: Pick<LifeWorld, "gravity" | "pressure">,
+): GrowthForm | null {
   switch (p) {
     case "sunlit sea":
       return "floater";
