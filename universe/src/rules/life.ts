@@ -157,6 +157,26 @@ export function dayWage(occupation: number, skill: number, tool: number, ratio: 
   );
 }
 
+/**
+ * What `worked` hours at one's work pay, begun at `skill` hours given to it, `base` an hour of one new to
+ * it: each hour at the level it is worked at. So a span let go by in one step pays what the same span
+ * lived hour by hour pays (it paid at the level it began at, and a life fast-forwarded earned less).
+ */
+export function paidHours(skill: number, worked: number, base: number): number {
+  let paid = 0,
+    at = skill,
+    left = worked;
+  while (left > 1e-9) {
+    const level = levelOf(at),
+      next = SKILL_LEVELS[level + 1] ?? Infinity,
+      h = Math.min(left, next - at);
+    paid += h * base * (1 + 0.1 * level);
+    at += h;
+    left -= h;
+  }
+  return paid;
+}
+
 /** A household's rent a day, where its home is not its own. */
 export const RENT_DAY = 0.5;
 /** What a home of one's own costs; a better tool and good clothes at usual prices (and the most tools). */
@@ -295,14 +315,14 @@ export const LIFE_WANTS: Readonly<
     label: "A fortune",
     goal: 30000,
     grown: true,
-    words: "Thirty thousand coin in the purse.",
+    words: "Thirty thousand coin to your name: the purse, and your home if you own it.",
   },
   best: {
     icon: "⚔️",
     label: "Get ahead of your rival",
     goal: 1,
     grown: true,
-    words: "More coin than your rival, and more standing.",
+    words: "More to your name than your rival, and more standing. Once done, it is done.",
   },
   learn: {
     icon: "✏️",
@@ -366,6 +386,15 @@ export type Life = {
   habit: number;
   want: WantId | null;
   wantsDone: number;
+  /**
+   * The wants won (asked for 2026-11-11: "i already surpassed rival twice why do i keep needing to
+   * make more than them"): one won is not set again; a rival bested, by who they were (absent in a
+   * life kept before).
+   */
+  won?: WantId[];
+  bested?: number;
+  /** Shares bought in the works of their town, each paying its part of what is made (absent: none). */
+  stakes?: number;
   /** Who they measure themselves against (-1: no one), and how lucky that one is (0 … 1). */
   rival: number;
   rivalLuck: number;
@@ -395,6 +424,7 @@ export function copyLife(l: Life): Life {
     kin: [...l.kin],
     suitors: [...l.suitors],
     asked: [...l.asked],
+    ...(l.won ? { won: [...l.won] } : {}),
     waiting: l.waiting.map((h) => ({ ...h })),
     log: l.log.map((x) => ({ ...x })),
   };
@@ -453,7 +483,9 @@ export function reckon(l: Life, f: LifeFacts, t: number): Span {
     earned = 0;
   const from = l.settled,
     grown = f.age >= f.adulthood,
-    wage = grown ? dayWage(f.occupation, l.skill, l.tool, f.ratio) / 8 : 0;
+    wage = grown ? dayWage(f.occupation, l.skill, l.tool, f.ratio) / 8 : 0,
+    // (An hour's pay to one new to it: each hour then paid at the level it is worked at.)
+    base = grown ? dayWage(f.occupation, 0, l.tool, f.ratio) / 8 : 0;
   let at = from;
   const block = l.doing;
   if (block && at < block.to) {
@@ -464,11 +496,11 @@ export function reckon(l: Life, f: LifeFacts, t: number): Span {
     l.rested = unit(l.rested + d.rested * h);
     l.heart = unit(l.heart + d.heart * h);
     l.standing = dmath.clamp(l.standing + d.standing * h, 0, 100);
-    if (d.skill) l.skill += h;
     if (d.pay) {
-      earned += d.pay * wage * h;
+      earned += d.pay * (d.skill ? paidHours(l.skill, h, base) : wage * h);
       if (block.what === "work") past += h - workHours(at, until);
     }
+    if (d.skill) l.skill += h;
     at = until;
   }
   if (block && t >= block.to) l.doing = null;
@@ -476,7 +508,7 @@ export function reckon(l: Life, f: LifeFacts, t: number): Span {
     const h = (t - at) / HOUR,
       habit = HABITS[l.habit] ?? HABITS[0]!,
       worked = grown ? workHours(at, t) * habit.work : 0;
-    earned += wage * worked;
+    earned += paidHours(l.skill, worked, base);
     if (grown) l.skill += worked;
     else l.skill += workHours(at, t) * 0.5;
     l.fed = unit(toward(l.fed, l.short ? 0.35 : 0.8, h));
@@ -485,7 +517,7 @@ export function reckon(l: Life, f: LifeFacts, t: number): Span {
     l.standing = dmath.clamp(l.standing + (habit.standing * h) / (30 * 24), 0, 100);
   }
   const days = (t - from) / DAY,
-    others = grown ? f.others * days : 0,
+    others = grown ? (f.others + (l.stakes ?? 0) * STAKE.pay) * days : 0,
     spent = grown ? (f.mouths * f.bread + (l.owned ? 0 : RENT_DAY)) * days : 0,
     purse = l.purse + earned + others - spent;
   l.short = purse < 0;
@@ -548,6 +580,23 @@ export const startPurse = (occupation: number, age: number, adulthood: number): 
 export const startSkill = (age: number, adulthood: number): number =>
   Math.min(3000, Math.max(0, age - adulthood) * 120);
 
+/**
+ * What one has to their name: the purse, and their home if they own it (a home bought is not coin
+ * gone: it is theirs, worth what it cost).
+ */
+export const worthOf = (l: Pick<Life, "purse" | "owned" | "stakes">): number =>
+  l.purse + (l.owned ? HOME_COST : 0) + (l.stakes ?? 0) * STAKE.cost;
+/**
+ * A share in the works of one's town (asked for 2026-11-11: the life "better the best you can"; coin
+ * with something worth buying past a tool and a coat): what the first costs, how much dearer each next
+ * one is, what each pays a day (coin), and the most one holds. It pays back in a few years: a thing
+ * to save toward, and a purse that grows while one sleeps.
+ */
+export const STAKE = { cost: 600, more: 1.5, pay: 0.6, most: 12 } as const;
+/** What the next share costs, holding `held`. */
+export const stakeCost = (held: number): number =>
+  Math.round(STAKE.cost * dmath.pow(STAKE.more, held));
+
 /** How a want stands: how much of what it counts, of how much. */
 export function wantNow(
   want: WantId,
@@ -556,7 +605,7 @@ export function wantNow(
   rival: { readonly purse: number; readonly standing: number } | null,
 ): { have: number; goal: number; done: boolean } {
   const goal = LIFE_WANTS[want].goal,
-    of = (have: number) => ({ have: Math.round(have), goal, done: have >= goal });
+    of = (have: number) => ({ have: Math.floor(have), goal, done: have >= goal });
   switch (want) {
     case "home":
       return l.owned ? { have: goal, goal, done: true } : of(l.purse);
@@ -572,15 +621,18 @@ export function wantNow(
     case "name":
       return of(l.standing);
     case "fortune":
-      return of(l.purse);
+      return of(worthOf(l));
     case "best":
-      return of(rival && l.purse > rival.purse && l.standing > rival.standing ? 1 : 0);
+      return of(rival && worthOf(l) > rival.purse && l.standing > rival.standing ? 1 : 0);
   }
 }
 
 /** The wants one could take up now, those that still mean something, the first the most natural. */
 export function wantsOpen(
-  l: Pick<Life, "purse" | "owned" | "skill" | "standing" | "taught" | "suitors" | "rival">,
+  l: Pick<
+    Life,
+    "purse" | "owned" | "skill" | "standing" | "taught" | "suitors" | "rival" | "won" | "bested"
+  >,
   f: Pick<LifeFacts, "partnered" | "children" | "age" | "adulthood">,
 ): WantId[] {
   if (f.age < f.adulthood) return wantNow("learn", l, f, null).done ? [] : ["learn"];
@@ -591,8 +643,9 @@ export function wantsOpen(
   if (f.children && !wantNow("teach", l, f, null).done) out.push("teach");
   if (!wantNow("master", l, f, null).done) out.push("master");
   if (!wantNow("name", l, f, null).done) out.push("name");
-  if (l.rival >= 0) out.push("best");
-  if (!wantNow("fortune", l, f, null).done) out.push("fortune");
+  // (A rival once bested is bested; a fortune once made, made.)
+  if (l.rival >= 0 && l.bested !== l.rival) out.push("best");
+  if (!l.won?.includes("fortune") && !wantNow("fortune", l, f, null).done) out.push("fortune");
   return out;
 }
 
@@ -676,7 +729,10 @@ export function lifeOffers(l: Life, f: LifeFacts, o: LifeOfferFacts): LifeOffer[
     f.partnered || f.children ? "Time with those at home: closer kin." : "Quiet at home.",
   );
   add("square", "Be seen in the square: your standing, and your heart.");
-  add("market", "The market: better tools and good clothes, if the town has them.");
+  add(
+    "market",
+    "The market: better tools and good clothes, if the town has them, and shares in what its works make.",
+  );
   if (o.shrine) add("pray", "Pray: a lighter heart.");
   if (o.atWar && grown)
     add("drill", "Your realm is at war: drill with the young for the levy's penny.");

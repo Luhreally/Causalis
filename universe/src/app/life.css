@@ -57,10 +57,15 @@ body.living #hud > *:not(.life-hud):not(.page-window):not(.panel.page-panel):not
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* (A long date goes onto two lines, not the speeds past the strip's edge. 2026-11-11.) */
 .life-time {
   flex: 1 1 auto;
+  min-width: 0;
   font-size: 12px;
-  white-space: nowrap;
+  line-height: 1.2;
+}
+.life-paces > button {
+  flex: 0 0 auto;
 }
 .life-letgo,
 .life-pace,
@@ -116,10 +121,14 @@ body.living #hud > *:not(.life-hud):not(.page-window):not(.panel.page-panel):not
 .life-rival {
   background: rgba(255, 90, 80, 0.16);
 }
+.life-rival.bested {
+  background: rgba(120, 220, 140, 0.16);
+}
+/* (Beside the purse, rising: not over its number, which it would garble.) */
 .life-float {
   position: absolute;
-  right: 12px;
-  top: 96px;
+  right: 74px;
+  top: 92px;
   color: #ffd98a;
   font-weight: 700;
   animation: life-up 0.9s ease-out forwards;
@@ -158,10 +167,12 @@ body.paging .life-tray {
   overflow-x: auto;
   touch-action: pan-x;
 }
+/* (They share the width, so a phone sees the whole tray; past six or so it scrolls. 2026-11-11.) */
 .life-offer,
 .life-walk {
-  flex: 0 0 auto;
-  width: 84px;
+  flex: 1 1 0;
+  min-width: 64px;
+  max-width: 96px;
   min-height: 72px;
   padding: 4px 2px;
   border: 1px solid rgba(160, 190, 255, 0.5);

@@ -86,7 +86,11 @@ export type LifeNow = {
     readonly name: string;
     readonly purse: number;
     readonly standing: number;
+    /** Bested once already (a want won against them, not set again). */
+    readonly bested: boolean;
   } | null;
+  /** What they have to their name: the purse, and their home if they own it. */
+  readonly worth?: number;
   readonly kin: readonly LifeKin[];
   /** Those of them to draw, whom the plan must hold (Agent.id). */
   readonly about: readonly number[];
@@ -94,7 +98,7 @@ export type LifeNow = {
   /** What can be bought while at the market (null: not there). */
   readonly market:
     | readonly {
-        readonly good: "tool" | "cloth";
+        readonly good: "tool" | "cloth" | "stake";
         readonly label: string;
         readonly cost: number;
         readonly can: boolean;

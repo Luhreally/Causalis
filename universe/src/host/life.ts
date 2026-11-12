@@ -18,9 +18,12 @@ import {
   toolCost,
   wantNow,
   wantsOpen,
+  worthOf,
   type Happening,
   type Life,
   type WantId,
+  STAKE,
+  stakeCost,
 } from "../rules/index.ts";
 import {
   agentById,
@@ -279,8 +282,10 @@ export function lifeNow(world: World): LifeNow | null {
           name: first(agentName(c, rival.agent, v)),
           purse: rival.purse,
           standing: rival.standing,
+          bested: l.bested === rival.agent.id,
         }
       : null,
+    worth: Math.floor(worthOf(l)),
     kin: [...kin, ...free],
     about: livedAbout(l),
     offers,
@@ -311,6 +316,16 @@ export function lifeNow(world: World): LifeNow | null {
                 market.stock[G.clothing]! < 1
                   ? "No cloth to be had in this town."
                   : "Your standing rises when you are seen in them.",
+            },
+            {
+              good: "stake",
+              label: "A share in the works",
+              cost: stakeCost(l.stakes ?? 0),
+              can: (l.stakes ?? 0) < STAKE.most && l.purse >= stakeCost(l.stakes ?? 0),
+              words:
+                (l.stakes ?? 0) >= STAKE.most
+                  ? "You hold as much of the works as is to be had."
+                  : `${STAKE.pay} coin a day for good, your share of what is made${l.stakes ? `; you hold ${l.stakes}` : ""}.`,
             },
           ]
         : null,

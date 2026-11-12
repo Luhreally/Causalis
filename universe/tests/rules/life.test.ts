@@ -8,7 +8,11 @@ import {
   lifeOffers,
   reckon,
   wantNow,
+  STAKE,
+  stakeCost,
+  wantsOpen,
   workHours,
+  worthOf,
   type Life,
   type LifeFacts,
 } from "../../src/rules/life.ts";
@@ -76,6 +80,13 @@ test("a span in one step comes to the same as the same span in two", () => {
   reckon(b, farmer, 40 * DAY);
   assert.ok(Math.abs(a.purse - b.purse) < 1e-6);
   assert.ok(Math.abs(a.skill - b.skill) < 1e-6);
+  // (Across a step up in skill too: a hundred days let go by pay what they pay lived in two. 2026-11-11.)
+  const c = fresh({ purse: 5000 }),
+    d = fresh({ purse: 5000 });
+  reckon(c, farmer, 100 * DAY);
+  reckon(d, farmer, 37 * DAY);
+  reckon(d, farmer, 100 * DAY);
+  assert.ok(Math.abs(c.purse - d.purse) < 1e-6, `${c.purse} against ${d.purse}`);
 });
 
 test("a farmer's household with three children gets ahead at a glut's prices, slowly", () => {
@@ -131,4 +142,33 @@ test("the tray says why, puts a low need first, and greys what is under way", ()
   assert.equal(offers.find((o) => o.what === "work")!.can, false);
   assert.ok(offers.some((o) => o.label === "Teach Ilo"));
   assert.ok(offers.every((o) => o.words.length > 0));
+});
+
+test("a home bought is still to their name, and a want won is not set again (2026-11-11)", () => {
+  // (Bought, the purse is down its price; what they are worth is not.)
+  const housed = fresh({ purse: 500, owned: true });
+  assert.equal(worthOf(housed), 500 + HOME_COST);
+  const rival = { purse: HOME_COST, standing: 5 };
+  assert.ok(wantNow("best", housed, farmer, rival).done, "a home counts against a rival");
+  // (A rival bested is bested: not offered again for them, though they grow richer.)
+  const ahead = fresh({ rival: 7, bested: 7 });
+  assert.ok(!wantsOpen(ahead, farmer).includes("best"));
+  assert.ok(wantsOpen(fresh({ rival: 9, bested: 7 }), farmer).includes("best"), "a new rival");
+  // (A fortune made is made, though spent.)
+  assert.ok(!wantsOpen(fresh({ won: ["fortune"] }), farmer).includes("fortune"));
+  assert.ok(wantsOpen(fresh(), farmer).includes("fortune"));
+});
+
+test("a share in the works pays its part a day, the same in one step as in two, and counts to one's name", () => {
+  const none = fresh({ purse: 5000 }),
+    two = fresh({ purse: 5000, stakes: 2 }),
+    split = fresh({ purse: 5000, stakes: 2 });
+  reckon(none, farmer, 40 * DAY);
+  reckon(two, farmer, 40 * DAY);
+  reckon(split, farmer, 17 * DAY);
+  reckon(split, farmer, 40 * DAY);
+  assert.ok(Math.abs(two.purse - none.purse - 2 * STAKE.pay * 40) < 1e-6);
+  assert.ok(Math.abs(split.purse - two.purse) < 1e-6);
+  assert.equal(worthOf(fresh({ purse: 0, stakes: 3 })), 3 * STAKE.cost);
+  assert.ok(stakeCost(1) > stakeCost(0));
 });

@@ -64,7 +64,7 @@ export class LifeHud {
   private last: LifeNow | null = null;
   private purseWas: number | null = null;
   onDo: (what: string, target: number) => void = () => {};
-  onBuy: (good: "tool" | "cloth") => void = () => {};
+  onBuy: (good: "tool" | "cloth" | "stake") => void = () => {};
   onAnswer: (key: string, choice: number) => void = () => {};
   onWant: (want: string) => void = () => {};
   onHeir: (agent: number) => void = () => {};
@@ -169,11 +169,16 @@ export class LifeHud {
     }
     this.rival.hidden = !l.rival;
     if (l.rival) {
-      const ahead = l.rival.purse - l.purse;
+      // (Against what you have to your name, your home with it; once bested, bested.)
+      const ahead = l.rival.purse - (l.worth ?? l.purse),
+        coin = (n: number) => n.toLocaleString("en-US");
       put(
         this.rival,
-        `⚔️ ${l.rival.name}: ${l.rival.purse.toLocaleString("en-US")} coin, ${ahead > 0 ? `${ahead.toLocaleString("en-US")} ahead of you` : `${(-ahead).toLocaleString("en-US")} behind you`}`,
+        l.rival.bested
+          ? `🏆 You have bested ${l.rival.name} (${coin(l.rival.purse)} coin)`
+          : `⚔️ ${l.rival.name}: ${coin(l.rival.purse)} coin, ${ahead > 0 ? `${coin(ahead)} ahead of you` : `${coin(-ahead)} behind you`}`,
       );
+      this.rival.classList.toggle("bested", l.rival.bested);
     }
     this.drawTray(l);
     this.drawMarket(l);

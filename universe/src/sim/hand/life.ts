@@ -50,6 +50,8 @@ import {
   type Life,
   type LifeFacts,
   type WantId,
+  STAKE,
+  stakeCost,
 } from "../../rules/index.ts";
 import { marketsOf, type PopulationContext } from "../population/systems.ts";
 import { agentName } from "../acts/local.ts";
@@ -369,17 +371,27 @@ function wantCheck(
   if (!l.want) return;
   const rival = rivalOf(w, l, yearOfMoment(t), f.adulthood);
   if (!wantNow(l.want, l, f, rival).done) return;
-  if (l.want === "home" && !l.owned) {
+  // (A home bought: its price from the purse, said as such; it is still theirs, to their name.)
+  const bought = l.want === "home" && !l.owned;
+  if (bought) {
     l.purse -= LIFE_WANTS.home.goal;
     l.owned = true;
   }
   const want = l.want;
   l.want = null;
   l.wantsDone++;
+  if (!l.won?.includes(want)) l.won = [...(l.won ?? []), want];
+  if (want === "best") l.bested = l.rival;
   l.heart = Math.min(1, l.heart + 0.3);
   l.standing = Math.min(100, l.standing + 5);
   tell(world, c, w, l, LIFE_EVENTS.want.type, { want }, cause);
-  say(l, t, `${LIFE_WANTS[want].label}: done`);
+  say(
+    l,
+    t,
+    bought
+      ? `You bought your home for ${LIFE_WANTS.home.goal} coin: the rent stops, and it is yours`
+      : `${LIFE_WANTS[want].label}: done`,
+  );
   wait(l, { key: `want:${t}`, kind: "want", who: l.agent, at: t, more: 0 });
 }
 
@@ -628,8 +640,14 @@ export function installLife(world: World, ctx: () => PopulationContext): void {
         w = resting()!,
         l = w.life!,
         good = (args as { good?: unknown } | null)?.good;
-      if (good !== "tool" && good !== "cloth") return "a better tool, or good clothes";
+      if (good !== "tool" && good !== "cloth" && good !== "stake")
+        return "a better tool, good clothes, or a share in the works";
       if (l.doing?.what !== "market") return "go to the market first";
+      if (good === "stake") {
+        const price = stakeCost(l.stakes ?? 0);
+        if ((l.stakes ?? 0) >= STAKE.most) return "you hold as much of the works as is to be had";
+        return l.purse < price ? `${price} coin, and you have ${Math.floor(l.purse)}` : null;
+      }
       const g = good === "tool" ? G.tools : G.clothing,
         cost = (good === "tool" ? toolCost : clothCost)(ratioIn(world, w.cell, g));
       if (good === "tool" && l.tool >= TOOLS_MOST) return "you have the best to be had";
@@ -643,8 +661,17 @@ export function installLife(world: World, ctx: () => PopulationContext): void {
       const c = ctx(),
         w = resting()!,
         l = w.life!,
-        good = (command.args as { good: "tool" | "cloth" }).good,
-        g = good === "tool" ? G.tools : G.clothing,
+        good = (command.args as { good: "tool" | "cloth" | "stake" }).good;
+      if (good === "stake") {
+        const price = stakeCost(l.stakes ?? 0);
+        settle(world, c, w, l, t, command.id);
+        if (l.purse < price || (l.stakes ?? 0) >= STAKE.most) return;
+        l.purse -= price;
+        l.stakes = (l.stakes ?? 0) + 1;
+        say(l, t, `A share in the works: -${price} coin, ${STAKE.pay * l.stakes} coin a day`);
+        return;
+      }
+      const g = good === "tool" ? G.tools : G.clothing,
         cost = (good === "tool" ? toolCost : clothCost)(ratioIn(world, w.cell, g));
       settle(world, c, w, l, t, command.id);
       if (l.purse < cost) return;
