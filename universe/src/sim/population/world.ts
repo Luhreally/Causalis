@@ -246,6 +246,7 @@ export function openingWays(
   lands: Spread["lands"],
   cradle: Ways,
   from: Ref | null,
+  stride: number = SPREAD.stride,
 ): Map<number, Ways> {
   const ways = new Map<number, Ways>([[cradle.cell, cradle]]),
     ring = new Map(lands.map(([cell, r]) => [cell, r]));
@@ -253,7 +254,7 @@ export function openingWays(
     if (cell !== cradle.cell)
       ways.set(
         cell,
-        driftedWays(source, ways.get(back)!, cell, (r - ring.get(back)!) * SPREAD.stride, from),
+        driftedWays(source, ways.get(back)!, cell, (r - ring.get(back)!) * stride, from),
       );
   return ways;
 }
@@ -438,7 +439,13 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
     causes: [{ ref: origin, role: "trigger", weight: 1 }],
     data: { provinces: lands.length, people: sizes.reduce((a, b) => a + b, 0) },
   });
-  const ways = openingWays(world, lands, cradle, spread);
+  const ways = openingWays(
+    world,
+    lands,
+    cradle,
+    spread,
+    homePlanet(world).generated.stride,
+  );
   lands.forEach(([cell], i) => {
     people(
       provinces.add(new Province(cell, 0, cell === home ? origin : spread)),

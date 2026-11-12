@@ -53,6 +53,11 @@ export type ProvinceWorld = HomeWorld & {
   readonly children: Int32Array;
   /** Lands on the system's other bodies, after the planet's own (cells base, base + 1, …). */
   readonly offworld: { readonly base: number; readonly sites: readonly OffworldSite[] };
+  /**
+   * How many steps of the fine grid a step between lands is: 3.2 on a world of the usual size (the
+   * fine grid's 64 to the lands' 20); more where a world's lands are fewer and wider.
+   */
+  readonly stride: number;
 };
 
 /** The offworld site a land is, or null for a land of the planet. */
@@ -67,7 +72,8 @@ export function isProvinceWorld(w: HomeWorld): w is ProvinceWorld {
 
 /** The world as its people live on it: the fine world gathered into provinces. */
 export function provinceWorld(fine: HomeWorld, frequency = PROVINCE_FREQUENCY): ProvinceWorld {
-  const sphere = sphereGrid(frequency),
+  const stride = fine.grid.frequency / frequency,
+    sphere = sphereGrid(frequency),
     n = sphere.count,
     // The system's bodies with ground to build on, three sites each.
     sites: OffworldSite[] = [];
@@ -187,7 +193,7 @@ export function provinceWorld(fine: HomeWorld, frequency = PROVINCE_FREQUENCY): 
     boundary[p] = t.boundary[nearest]!;
     across[p] = t.across[nearest]!;
     const steps = t.toBoundary[nearest]!;
-    toBoundary[p] = steps === 255 ? 255 : Math.round(steps / 3.2);
+    toBoundary[p] = steps === 255 ? 255 : Math.round(steps / stride);
     if (boundary[p] === BOUNDARY.none) toBoundary[p] = 255;
     // Its waters.
     let most = -1;
@@ -329,6 +335,7 @@ export function provinceWorld(fine: HomeWorld, frequency = PROVINCE_FREQUENCY): 
     childOffsets,
     children,
     offworld: { base: n, sites },
+    stride,
   };
 }
 

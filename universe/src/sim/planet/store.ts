@@ -91,12 +91,16 @@ export class HomePlanet implements StateStore {
     this.surfaceDigest = all.length ? new Hasher().value(all).hex() : "";
   }
 
-  constructor(seed: Seed, prior: Prior, frequency = PLANET_FREQUENCY) {
+  /**
+   * `lands`: the lands' grid, where a world is made with fewer and wider lands than the usual (a
+   * smaller world to run: the same planet, its ground and seas as ever, history over fewer lands).
+   */
+  constructor(seed: Seed, prior: Prior, frequency = PLANET_FREQUENCY, lands?: number) {
     this.prior = prior;
     this.generated = provinceWorld(
       generateHomeWorld(seed, prior, frequency),
       // About a tenth as many provinces as fine cells (fewer on a coarse test world).
-      Math.max(2, Math.min(PROVINCE_FREQUENCY, Math.round(frequency / 3.2))),
+      lands ?? Math.max(2, Math.min(PROVINCE_FREQUENCY, Math.round(frequency / 3.2))),
     );
     this.baseDeposits = this.generated.fine.deposits.length;
   }
@@ -186,6 +190,8 @@ export class HomePlanet implements StateStore {
 export type PlanetWorldOptions = {
   readonly prior?: Prior;
   readonly frequency?: number;
+  /** The lands' grid (none: the usual for its frequency). */
+  readonly lands?: number;
   /** What history keeps (docs/architecture §32). */
   readonly retention?: RetentionOptions;
 };
@@ -193,7 +199,9 @@ export type PlanetWorldOptions = {
 /** A world holding only its home planet (Phase 1 builds people and places on it). */
 export function makePlanetWorld(seed: Seed, options: PlanetWorldOptions = {}): World {
   const world = new World(seed, options.retention ? { retention: options.retention } : {});
-  world.register(new HomePlanet(seed, options.prior ?? PRIORS.earthlike!, options.frequency));
+  world.register(
+    new HomePlanet(seed, options.prior ?? PRIORS.earthlike!, options.frequency, options.lands),
+  );
   return world;
 }
 

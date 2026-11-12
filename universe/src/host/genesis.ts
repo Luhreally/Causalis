@@ -59,6 +59,7 @@ function peoplingOf(pw: ProvinceWorld, text: string): GenesisPlan["peopling"] {
       spread.lands,
       firstWays(spread.home, text, null),
       null,
+      pw.stride,
     ),
     { languages, speaks } = planLanguages(
       pw,
