@@ -35,6 +35,7 @@ import { matterPortrait } from "../looks.ts";
 import { landLink, landTitle, landsOf, lineageIcon, spotOfLand } from "./names.ts";
 import { ageLines, ancestryTab } from "./tree.ts";
 import { speciesMatter } from "../biochem.ts";
+import { bodyBlocks } from "./body.ts";
 
 const LEVEL_WORDS = [
   "",
@@ -84,9 +85,12 @@ export function lineagePage(world: World, ref: string): PageModel {
     ),
     stat("Living", s.died === null ? "yes" : "died out"),
   ];
+  // (An alien beast's stock, its parts by what they do and why it is built so: B1.)
+  const built = bodyBlocks(world, sp);
   const facts: Stat[] = [
     stat("What it is", s.what),
     ...(s.body ? [stat("Its body", s.body.words)] : []),
+    ...built.stats,
     // (What it is made of, by its world's life: its bones or shell and blood, or its stalks — Phase 57.)
     ...speciesMatter(world, sp),
     stat("In the web", LEVEL_WORDS[s.level] ?? `level ${s.level}`),
@@ -183,6 +187,7 @@ export function lineagePage(world: World, ref: string): PageModel {
         blocks: [
           ...(sp.body ? [{ type: "anatomy" as const, title: "Its body" }] : []),
           { type: "facts", rows: facts },
+          ...built.blocks,
           // Its nature, as the god has left it: how tame, how fast it breeds (Phase 16).
           ...(sp.died === null && sp.niche !== "seed grass" && sp.niche !== "upright ape"
             ? (() => {

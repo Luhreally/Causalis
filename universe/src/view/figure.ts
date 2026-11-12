@@ -390,6 +390,28 @@ function headParts(look: FolkLook, y: number, z: number, hs: number, detail: num
         ),
       );
     }
+  // What their stock bears (B1): a frill behind the head, eyes on stalks, mouthparts not a jaw's.
+  if (look.frill)
+    out.push(
+      part("cylinder", 0, y + hs * 0.1, cz - depth / 2 - 0.006, hs * 1.9, 0.012, hs * 1.7, 3),
+    );
+  if (look.stalks && detail >= 1)
+    for (const side of [-1, 1]) {
+      out.push(
+        part("cylinder", side * hs * 0.26, top + 0.035, cz + hs * 0.15, 0.012, 0.07, 0.012, 1),
+      );
+      out.push(part("box", side * hs * 0.26, top + 0.075, cz + hs * 0.15, 0.03, 0.03, 0.03, 4));
+    }
+  if (look.mouth === "mandibles")
+    for (const side of [-1, 1])
+      out.push(part("cone", side * hs * 0.16, y - hs * 0.32, front + 0.02, 0.018, 0.05, 0.018, 3));
+  else if (look.mouth === "tendrils" && detail >= 1)
+    for (const side of [-1, 0, 1])
+      out.push(
+        part("cylinder", side * hs * 0.14, y - hs * 0.55, front - 0.01, 0.01, 0.07, 0.01, 1),
+      );
+  else if (look.mouth === "proboscis")
+    out.push(part("cylinder", 0, y - hs * 0.3, front + 0.035, 0.014, 0.014, 0.07, 1));
   return out;
 }
 

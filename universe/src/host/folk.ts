@@ -6,7 +6,7 @@
 // of. Earth's people are its upright apes, as ever: none. Their body as the figures are drawn from
 // it, the one copy every plan carries (a town's, a camp's, the genesis's, a person's page).
 import { hashString } from "../kernel/index.ts";
-import { treeOfLife, type HomeWorld } from "../gen/index.ts";
+import { peopleStock, treeOfLife, type HomeWorld } from "../gen/index.ts";
 import type { BodyPlan } from "../rules/index.ts";
 import type { FolkFacts, VillagePlan } from "../bridge/index.ts";
 import { folkLife } from "./biochem.ts";
@@ -47,6 +47,23 @@ export function folkFacts(g: HomeWorld): FolkFacts | null {
         : null,
       // (Their blood, and their world's life's colours: Phase 57.)
       ...folkLife(g),
+      // (The founding stock their forebears came of, for their look to carry it: B1.)
+      ...((stock) =>
+        stock
+          ? {
+              stock: {
+                name: stock.stockName,
+                head: stock.head,
+                eyes: stock.eyes,
+                mouth: stock.mouth,
+                tail: stock.tail,
+                seg: stock.seg,
+                extras: [...stock.extras],
+                hue: stock.hue,
+                pull: stock.pull,
+              },
+            }
+          : {})(peopleStock(g)),
     };
   }
   if (GATHERED.size >= 8) GATHERED.delete(GATHERED.keys().next().value!);

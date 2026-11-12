@@ -186,7 +186,8 @@ export function posedLooked(b: Built, look: BeastLook, pose: Pose, out: BeastPar
     fine = detail >= 1,
     finer = detail >= 2,
     moving = pose.gait > 0,
-    sprawls = (look.limbs === "sprawl" || look.limbs === "arch" || p.legs >= 6) && p.legs > 2,
+    // (Its legs as its look has them for its body: rules/stocks.ts lookOf.)
+    sprawls = (look.limbs === "sprawl" || look.limbs === "arch") && p.legs > 2,
     bob =
       pose.gait === 2 || (p.moves === "hop" && moving)
         ? 0.12 * H * Math.abs(Math.sin(pose.phase))
@@ -397,7 +398,7 @@ export function posedLooked(b: Built, look: BeastLook, pose: Pose, out: BeastPar
     legTone: 0 | 1 = wool ? 1 : 0,
     stout = look.stout,
     joints = fine && !fly ? look.joints : 1,
-    rake = look.limbs === "rake" || (look.limbs === "arch" && p.legs === 2);
+    rake = look.limbs === "rake";
   for (let i = 0; i < pairs; i++) {
     const along =
       pairs === 1 ? (fly ? 0 : -L * 0.12) : L * (0.36 - (0.72 * i) / Math.max(1, pairs - 1));

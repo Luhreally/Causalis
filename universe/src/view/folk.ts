@@ -54,6 +54,10 @@ export type FolkLook = {
   /** The markings' shades, one for each of the upright apes' hairs (each person's own; grey last, for the old). */
   readonly marks: readonly Rgb[];
   readonly eye: Rgb;
+  /** What their founding stock bears (B1; absent on a people of no stock): a frill, eyes on stalks, mouthparts not a jaw's. */
+  readonly frill?: boolean;
+  readonly stalks?: boolean;
+  readonly mouth?: "mandibles" | "tendrils" | "proboscis" | null;
 };
 
 /** What of a body the look needs. */
@@ -125,6 +129,8 @@ export function folkLook(b: LookBody | null): FolkLook | null {
   if (!b || !f) return null;
   const u = (n: number) => unitOf(f.key, n),
     fore = f.forebears,
+    // (Their world's founding stock, as their forebears came of it: B1.)
+    stock = f.stock,
     grows = new Set(fore?.grows ?? []),
     radial = b.symmetry === "radial" || b.manipulators === "tentacles";
   const stance: Stance = radial
@@ -168,7 +174,11 @@ export function folkLook(b: LookBody | null): FolkLook | null {
                 : u(6) < 0.37
                   ? 4
                   : 2,
-    feelers = !!fore?.feelers || b.clade === "burrower" || (!fore && u(7) < 0.15),
+    feelers =
+      !!fore?.feelers ||
+      b.clade === "burrower" ||
+      !!stock?.extras.includes("feelers") ||
+      (!fore && u(7) < 0.15),
     pattern: FolkLook["pattern"] =
       fore?.pattern === "spots" || fore?.pattern === "stripes"
         ? fore.pattern
@@ -205,8 +215,19 @@ export function folkLook(b: LookBody | null): FolkLook | null {
           : b.skin === "shell"
             ? 0
             : 0.25 * u(12),
-    headShape: FolkLook["headShape"] =
-      stance === "strider" ? "round" : u(13) < 0.35 ? "box" : u(13) < 0.72 ? "round" : "long";
+    headShape: FolkLook["headShape"] = stock
+      ? stock.head === "dome" || stock.head === "bag"
+        ? "round"
+        : stock.head === "wedge" || stock.head === "hammer"
+          ? "long"
+          : "box"
+      : stance === "strider"
+        ? "round"
+        : u(13) < 0.35
+          ? "box"
+          : u(13) < 0.72
+            ? "round"
+            : "long";
   // Their hide: by what covers it, then the land they rose in, then their star's light.
   let h: number, s: number, l: number;
   switch (b.skin) {
@@ -290,7 +311,20 @@ export function folkLook(b: LookBody | null): FolkLook | null {
   for (let k = 0; k < MARK_SHADES - 1; k++)
     marks.push(hsl(hm + (k - 2) * 8, sm, clamp(lm * (0.8 + 0.1 * k), 0.08, 0.9)));
   marks.push(hsl(hm, sm * 0.25, 0.7));
+  // Their stock's hue: their hide turned a little toward it, as its beasts' coats are.
+  if (stock) h = toward(h, stock.hue * 360, 0.2 * stock.pull);
+  const stockEyes = stock?.eyes;
   return {
+    ...(stock
+      ? {
+          frill: stock.extras.includes("frill") || stock.extras.includes("sail"),
+          stalks: stockEyes === "stalks",
+          mouth:
+            stock.mouth === "mandibles" || stock.mouth === "tendrils" || stock.mouth === "proboscis"
+              ? stock.mouth
+              : null,
+        }
+      : {}),
     stance,
     tall,
     girth,
@@ -304,7 +338,14 @@ export function folkLook(b: LookBody | null): FolkLook | null {
     crest,
     horns,
     tusks,
-    eyes,
+    eyes:
+      stockEyes === "row" && eyes === 2
+        ? 3
+        : stockEyes === "cluster" && eyes === 2
+          ? 4
+          : stockEyes === "band" && eyes === 2
+            ? 1
+            : eyes,
     feelers,
     ears,
     pattern,

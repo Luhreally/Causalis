@@ -263,46 +263,39 @@ export function stockOf(w: StockWorld, u: (k: number) => number, id: number): St
         ? mixRgb(blood, [0.05, 0.05, 0.06], 0.3)
         : hueRgb(hue + 0.5 + 0.2 * (u(16) - 0.5), 0.5, 0.26),
     horn = HARD_COLOUR[w.shell] ?? HARD_COLOUR[w.bone] ?? HARD_COLOUR.calcite!;
-  // Why, in the world's own figures.
-  if (limbs === "sprawl" || splay > 0.55)
+  // Why, in the world's own figures: only what the world's numbers favoured (a trait its first bodies happened to
+  // have is told as its stock's, with no cause given).
+  const fig = `pull ${g.toFixed(1)} g`;
+  if ((limbs === "sprawl" || splay > 0.55) && p.heavy > 0.15)
     why.push({
       what: "its legs splay wide",
       because: "to spread its weight under its world's pull",
-      figure: `pull ${g.toFixed(1)} g`,
+      figure: fig,
     });
-  else if (limbs === "rake" || limbs === "arch")
+  else if ((limbs === "rake" || limbs === "arch") && p.light > 0.15)
     why.push({
       what: limbs === "rake" ? "its knees bend back" : "its knees stand high",
-      because:
-        g < 1 ? "a light pull lets long limbs carry it" : "its line's first walkers stood so",
-      figure: `pull ${g.toFixed(1)} g`,
+      because: "a light pull lets long limbs carry it",
+      figure: fig,
     });
   if (stout > 1.15)
     why.push({
       what: "its limbs are stout",
       because: "bone thickens as the pull grows",
-      figure: `pull ${g.toFixed(1)} g`,
+      figure: fig,
     });
-  if (eyeSize > 1.3 || eyes === "cluster" || eyes === "row" || eyes === "band")
+  if (eyeSize > 1.3)
     why.push({
-      what:
-        eyes === "cluster"
-          ? "its eyes are many, clustered on its crown"
-          : eyes === "row"
-            ? "its eyes run in a row along its brow"
-            : eyes === "band"
-              ? "its eye is one band across its face"
-              : "its eyes are large",
+      what: "its eyes are large",
       because: "to gather what light there is",
-      figure: `its star's light peaks at ${Math.round(p.senses.peakNm)} nm (${p.senses.band})`,
+      figure: `its star's light peaks at ${Math.round(p.senses.peakNm)} nm (${p.senses.band}), ${w.insolation.toFixed(2)} of Earth's light`,
     });
-  if (extras.includes("sail") || extras.includes("frill"))
+  if ((extras.includes("sail") || extras.includes("frill")) && p.hot > 0.2)
     why.push({
       what: extras.includes("sail")
         ? "a sail stands down its back"
         : "a frill stands behind its head",
-      because:
-        p.hot > 0.2 ? "to shed its heat" : "for show among its kind, as its first bodies bore it",
+      because: "to shed its heat",
       figure: `its world's mean warmth ${Math.round(w.warmth)} °C`,
     });
   if (extras.includes("fringe"))
@@ -317,10 +310,10 @@ export function stockOf(w: StockWorld, u: (k: number) => number, id: number): St
       because: "to feel its way where light is poor",
       figure: `${w.insolation.toFixed(2)} of Earth's light`,
     });
-  if (seg === "bag" || seg === "dome")
+  if ((seg === "bag" || seg === "dome") && p.cold > 0.2)
     why.push({
       what: seg === "bag" ? "its body is round" : "its body is domed",
-      because: p.cold > 0.2 ? "a round body keeps its warmth" : "its line's first bodies were so",
+      because: "a round body keeps its warmth",
       figure: `its world's mean warmth ${Math.round(w.warmth)} °C`,
     });
   const plan: StockPlan = {
@@ -487,9 +480,42 @@ export function lookOf(
     wide = (plan.seg === "disc" ? 1.35 : 1) * (0.85 + 0.3 * u(4)),
     legLen = (swims ? 1 : 1 / Math.sqrt(plan.stout)) * (0.85 + 0.35 * u(5)),
     headSize = 0.85 + 0.35 * u(6);
-  const why: Why[] = [...plan.why];
+  // How its legs go as its body has them: many legs stand arched from its sides unless they sprawl; two legs stand
+  // under it, bent back where its stock's arch high.
+  const legs = body.legs,
+    limbs: LimbSet =
+      legs > 2
+        ? plan.limbs === "sprawl" || plan.limbs === "arch"
+          ? plan.limbs
+          : legs >= 6
+            ? "arch"
+            : plan.limbs
+        : plan.limbs === "sprawl"
+          ? "under"
+          : plan.limbs === "arch"
+            ? "rake"
+            : plan.limbs;
+  // (Why, as its own body bears its stock's traits: a trait it does not show is not told.)
+  const why: Why[] = plan.why.filter((w) =>
+    w.what === "its legs splay wide"
+      ? legged && limbs === "sprawl"
+      : w.what === "its knees bend back"
+        ? legged && limbs === "rake"
+        : w.what === "its knees stand high"
+          ? legged && limbs === "arch"
+          : w.what === "its limbs are stout"
+            ? legged
+            : w.what.startsWith("a sail")
+              ? extras.includes("sail")
+              : w.what.startsWith("a frill")
+                ? extras.includes("frill")
+                : w.what.startsWith("a fringe")
+                  ? extras.includes("fringe")
+                  : true,
+  );
   return {
     ...plan,
+    limbs,
     extras,
     stock: plan.id,
     stockName: plan.name,

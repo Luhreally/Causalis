@@ -665,6 +665,18 @@ export type FolkFacts = {
   readonly blood?: string;
   readonly shell?: string;
   readonly lifeLook?: string;
+  /** The founding stock their forebears came of (B1: rules/stocks.ts), for their look to carry it; absent: none. */
+  readonly stock?: {
+    readonly name: string;
+    readonly head: string;
+    readonly eyes: string;
+    readonly mouth: string;
+    readonly tail: string;
+    readonly seg: string;
+    readonly extras: readonly string[];
+    readonly hue: number;
+    readonly pull: number;
+  };
 };
 
 /** A people of another star at a land (Phase 18 M134). */
