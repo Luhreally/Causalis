@@ -242,3 +242,21 @@ test("a claim drawn over a capital and the lands about it takes the lands and le
   assert.equal(realms.of(land), into, "the land beside it is claimed");
   assert.equal(realms.of(old.seat), old, "the capital stays its realm's");
 });
+
+test("raised on the sea it is new land at once; a shore lowered goes under the sea (asked 2026-11-11)", () => {
+  const w = build(),
+    g = homePlanet(w).generated,
+    e = g.fine.tectonics.elevation,
+    // (Deep sea: the old steps of 250 m never brought it up.)
+    sea = e.findIndex((h) => h < -2000);
+  assert.ok(sea >= 0);
+  apply(w, stroke(sea));
+  assert.ok(e[sea]! > 0, `raised from the deep: ${e[sea]}`);
+  assert.equal(e[sea], 40);
+  // (Raised again, a hill on it; lowered, back to the sea.)
+  apply(w, stroke(sea));
+  assert.equal(e[sea], 290);
+  apply(w, { ...stroke(sea, "lower"), strength: 2 });
+  assert.ok(e[sea]! < 0, `lowered through the shore: ${e[sea]}`);
+  assert.equal(e[sea], -80);
+});

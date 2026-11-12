@@ -1,7 +1,14 @@
 // rules: data tables and their schemas — generation priors now; commodities,
 // principles, body-plan primitives and the rest as later milestones need them.
 // May import: kernel. See README.md and docs/architecture §34.
-export { BRUSH_KINDS, BRUSH_LIMIT, brushCells, type BrushKind, type BrushArgs } from "./brush.ts";
+export {
+  BRUSH_KINDS,
+  BRUSH_LIMIT,
+  brushCells,
+  brushedHeight,
+  type BrushKind,
+  type BrushArgs,
+} from "./brush.ts";
 export {
   NATURE,
   STARS,

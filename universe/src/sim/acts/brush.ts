@@ -1,6 +1,12 @@
 import { MAX_SUBJECTS, defineEventType, type Ref, type World } from "../../kernel/index.ts";
 import { DEPOSIT_KINDS, cellRef, type HomeWorld } from "../../gen/index.ts";
-import { BRUSH_KINDS, BRUSH_LIMIT, brushCells, type BrushArgs } from "../../rules/index.ts";
+import {
+  BRUSH_KINDS,
+  BRUSH_LIMIT,
+  brushCells,
+  brushedHeight,
+  type BrushArgs,
+} from "../../rules/index.ts";
 import { homePlanet } from "../planet/store.ts";
 import { surfaceBiome, type SurfacePatch } from "../planet/surface.ts";
 import { politiesOf } from "../polity/polity.ts";
@@ -59,7 +65,7 @@ export function brushPreview(ctx: PopulationContext, args: unknown) {
     const e = g.fine.tectonics.elevation[c]!,
       flood =
         (a.kind === "water" && e > 0 && !g.fine.water.lake[c]) ||
-        (a.kind === "lower" && e > 0 && e - BRUSH_LIMIT.rise * a.strength <= 0),
+        (a.kind === "lower" && e > 0 && brushedHeight(e, false, a.strength) <= 0),
       share = a.kind === "lightning" ? 0.01 * a.strength : flood ? 0.2 : 0,
       province = g.provinceOf[c]!,
       kids = g.childOffsets[province + 1]! - g.childOffsets[province]!;
@@ -115,13 +121,15 @@ function changedGround(
       p.elevation = Math.fround(
         Math.max(
           -12000,
-          Math.min(
-            16000,
-            p.elevation + (a.kind === "raise" ? 1 : -1) * BRUSH_LIMIT.rise * a.strength,
-          ),
+          Math.min(16000, brushedHeight(p.elevation, a.kind === "raise", a.strength)),
         ),
       );
       p.temperature = Math.fround(p.temperature - (p.elevation - before) * 0.0065);
+      // (Out of the sea or under it: the water's face there is the ground's, as a drained one's.)
+      if (before <= 0 !== p.elevation <= 0) {
+        p.lake = 0;
+        p.filled = p.elevation;
+      }
       surfaceBiome(p, f.climate.precipitation[cell]!);
     }
     if (a.kind === "water" && p.elevation > 0) {
