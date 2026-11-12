@@ -156,6 +156,30 @@ body.living #hud > *:not(.life-hud):not(.page-window):not(.panel.page-panel):not
 body.paging .life-tray {
   display: none;
 }
+@media (max-width: 640px) {
+  /* (Their book, or a choice that waits on them, stands just above the tray, so the tray's buttons
+     stay to hand while it is open; the day's line waits under it. A reign's the same.) */
+  .life-hud > :is(.life-book, .life-window),
+  .reign-hud > :is(.reign-sheet, .reign-window) {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 86px);
+  }
+  .life-hud:has(> :is(.life-book, .life-window):not([hidden])) > .life-told,
+  .reign-hud:has(> :is(.reign-sheet, .reign-window):not([hidden])) > .reign-told {
+    visibility: hidden;
+  }
+  /* (A reign's strip is the taller, its readings under the name: the sheet's head stays under it.) */
+  .reign-hud > :is(.reign-sheet, .reign-window) {
+    max-height: calc(100dvh - 416px - env(safe-area-inset-bottom, 0px));
+  }
+  /* (The day's clock takes what the paces leave of their line, over two lines if it must, so the
+     last of them is never pushed off the screen's edge.) */
+  .life-time {
+    flex: 1 1 0;
+    min-width: 0;
+    white-space: normal;
+    line-height: 1.25;
+  }
+}
 .life-tray {
   position: absolute;
   left: 0;

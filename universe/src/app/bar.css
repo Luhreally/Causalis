@@ -153,12 +153,20 @@ body:has(#hud > .people-bar:not([hidden]):not(.aside)) .sung-note {
   inset: 0 0 -18px -18px;
 }
 /* It gives way to a page, and on a phone to the card and the chip that have the foot. */
-body.paging #hud > .people-bar {
+body.paging #hud > .people-bar,
+/* (From the moment a page's window shows, while its words are still coming.) */
+#hud:has(> .panel > .page-window:not([hidden])) > .people-bar {
   display: none;
 }
 @media (max-width: 640px) {
   #hud:has(> .panel:not([hidden]) > .inspector:not([hidden], .page-window)) > .people-bar,
   #hud:has(> .leader-chip:not([hidden])) > .people-bar {
+    display: none;
+  }
+  /* (And to the other sheets that take the foot — the worlds settled, a town asked — and to a
+     great happening's window, which waits on the viewer.) */
+  #hud:has(.colony-sheet:not([hidden]), .ask-sheet:not([hidden]), .event-window:not([hidden]))
+    > .people-bar {
     display: none;
   }
 }

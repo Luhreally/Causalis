@@ -15,6 +15,8 @@ export type BrushPreview = {
   atRisk: number;
   towns: number;
   seeded: number;
+  /** Other realms' capitals a claim passed over, which it leaves to them. */
+  spared?: number;
 };
 export type BrushState = {
   count: number;

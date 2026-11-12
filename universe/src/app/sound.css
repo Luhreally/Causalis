@@ -29,10 +29,27 @@
 .sound-button.free.on-title {
   top: calc(env(safe-area-inset-top, 0px) + 8px);
 }
+/* (Where a sheet has put the corner's rail away and the scale's bar stays: just under the bar at
+   the rail's edge, however many lines the bar takes, and never over the bar itself.) */
+body:not(.filming):not(.fleet-filming):not(.living):not(.possessing):not(.ruling):not(.homing)
+  .sound-button.free:not(.on-title) {
+  top: calc(var(--bar-bottom, 198px) + 8px);
+  right: calc(env(safe-area-inset-right, 0px) + 6px);
+}
 body.paging .sound-button.free,
 body:has(.event-window:not([hidden])) .sound-button.free,
 body:has(.life-book:not([hidden])) .sound-button.free,
 body:has(.life-window:not([hidden])) .sound-button.free,
 body:has(.life-picker:not([hidden])) .sound-button.free {
+  display: none !important;
+}
+/* (And under a sheet that has the foot of the screen in the world's own view; a mode that puts the
+   chrome away puts its sheets away with it, so there 🔊 stays.) */
+body:not(.filming):not(.fleet-filming):not(.living):not(.possessing):not(.ruling):not(.homing):has(
+    .ask-sheet:not([hidden]),
+    .colony-sheet:not([hidden]),
+    .brush-panel:not([hidden])
+  )
+  .sound-button.free {
   display: none !important;
 }

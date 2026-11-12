@@ -888,11 +888,11 @@ function planetUniverse(name: string, prior: Prior): Universe {
     },
     queries: {
       "brush.preview": (world, args) => {
-        const { cells, provinces, atRisk, towns, seeded } = brushPreview(
+        const { cells, provinces, atRisk, towns, seeded, spared } = brushPreview(
           populationContext(world),
           args,
         );
-        return { cells, provinces, atRisk, towns, seeded };
+        return { cells, provinces, atRisk, towns, seeded, spared };
       },
       "brush.state": (world) => {
         const home = homePlanet(world),

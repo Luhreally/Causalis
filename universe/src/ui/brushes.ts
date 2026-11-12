@@ -7,16 +7,35 @@ import type {
 } from "../bridge/index.ts";
 import { el } from "./why.ts";
 
-const CHOICES: readonly [BrushKind, string][] = [
-  ["raise", "Raise land"],
-  ["lower", "Lower land"],
-  ["water", "Add water"],
-  ["drain", "Drain water"],
-  ["life", "Seed life"],
-  ["ore", "Seed ore"],
-  ["lightning", "Lightning"],
-  ["claim", "Claim land"],
+/** Each brush: its sign, its name, and what it does to the ground it is drawn over, in a player's words. */
+const CHOICES: readonly [BrushKind, string, string, string][] = [
+  [
+    "raise",
+    "⛰️",
+    "Raise land",
+    "Lifts the ground 250 m at each strength; it grows colder as it rises.",
+  ],
+  [
+    "lower",
+    "⬇️",
+    "Lower land",
+    "Sinks the ground 250 m at each strength; low coasts go under the sea.",
+  ],
+  ["water", "💧", "Add water", "Fills the ground with a lake; anyone living there may drown."],
+  ["drain", "🏜️", "Drain water", "Dries lakes and rivers out of the ground."],
+  ["life", "🌱", "Seed life", "Sows the plants and beasts of this world that can live there."],
+  ["ore", "⛏️", "Seed ore", "Lays a rich lode of the ore you pick, for its people to find."],
+  ["lightning", "⚡", "Lightning", "Strikes the ground: it can kill and burn homes."],
+  ["claim", "🚩", "Claim land", "Gives the lands you paint to the realm you pick."],
 ];
+const SIZES = ["Small", "Medium", "Large", "Huge"];
+const STRENGTHS = ["Gentle", "Firm", "Strong", "Mighty"];
+/** How long a gentle stroke waits for Undo before it lands (in frames that came, not wall time). */
+const WAIT_MS = 2000;
+/** How many of the world's spots a stroke reaches, in words. */
+const spots = (n: number) => `${n} spot${n === 1 ? "" : "s"} of the world`;
+/** The most marks a stroke's trail leaves on the screen. */
+const TRAIL = 96;
 
 export class GodBrushes {
   readonly button = el("button", "brush-toggle", "🖌 Brushes");
@@ -26,15 +45,15 @@ export class GodBrushes {
   private readonly strength = el("select");
   private readonly ore = el("select");
   private readonly realm = el("select");
-  private readonly status = el(
-    "div",
-    "brush-status",
-    "One finger paints. Two fingers move the camera.",
-  );
-  private readonly undo = el("button", "brush-undo", "Undo stroke");
+  private readonly help = el("p", "brush-help");
+  private readonly status = el("div", "brush-status");
+  private readonly undo = el("button", "brush-undo", "↩ Undo stroke");
   private readonly apply = el("button", "brush-apply", "Apply stroke");
   private readonly history = el("div", "brush-history");
   private readonly cursor = el("div", "brush-cursor");
+  /** Where the finger has gone in this stroke, left on the ground until it lands or is undone. */
+  private readonly trail = el("div", "brush-trail");
+  private last: { x: number; y: number } | null = null;
   private undoFrame = 0;
   private sequence = 0;
   private cells = new Set<number>();
@@ -42,6 +61,8 @@ export class GodBrushes {
   private drawing = false;
   private busy = false;
   state: BrushState | null = null;
+  /** The scale the brushes are used at (a town's ground is all one spot of the world's). */
+  place: () => string = () => "globe";
   private readonly client: HostClient;
   private readonly pick: (x: number, y: number) => number | null;
   private readonly hold: (on: boolean) => void;
@@ -59,15 +80,18 @@ export class GodBrushes {
     this.pick = pick;
     this.hold = hold;
     this.panel.hidden = true;
-    this.panel.setAttribute("aria-label", "God brushes");
+    this.panel.setAttribute("aria-label", "God's brushes");
+    this.button.setAttribute("aria-label", "The god's brushes: shape the world by hand");
+    this.button.title = "The god's brushes: shape the world by hand";
     this.button.setAttribute("aria-expanded", "false");
-    for (const [id, name] of CHOICES) this.kind.add(new Option(name, id));
-    for (let n = 0; n <= 3; n++)
-      this.radius.add(new Option(`${n + 1} cell${n ? " rings" : ""}`, String(n)));
-    for (let n = 1; n <= 4; n++) this.strength.add(new Option(`${n}×`, String(n)));
+    for (const [id, sign, name] of CHOICES) this.kind.add(new Option(`${sign} ${name}`, id));
+    SIZES.forEach((name, n) => this.radius.add(new Option(name, String(n))));
+    STRENGTHS.forEach((name, n) => this.strength.add(new Option(name, String(n + 1))));
     const close = el("button", "brush-close", "Done"),
-      title = el("div", "brush-heading", "Shape the world");
-    title.append(close);
+      title = el("div", "brush-heading"),
+      name = el("span", "brush-title", "🖌️ Shape the world");
+    close.setAttribute("aria-label", "Done: put the brush down");
+    title.append(name, close);
     const controls = el("div", "brush-controls");
     for (const [text, input] of [
       ["Brush", this.kind],
@@ -81,15 +105,11 @@ export class GodBrushes {
       controls.append(label);
     }
     this.status.setAttribute("role", "status");
-    const help = el(
-      "p",
-      "brush-help",
-      "These brushes change globe cells, including from a town. Undo cancels a gentle stroke before it applies. Harmful strokes need Apply. Esc puts the brush down.",
-    );
     const actions = el("div", "brush-actions");
     actions.append(this.undo, this.apply);
-    this.panel.append(title, controls, help, this.status, actions, this.history);
-    parent.append(this.button, this.panel, this.cursor);
+    this.panel.append(title, controls, this.help, this.status, actions, this.history);
+    this.trail.setAttribute("aria-hidden", "true");
+    parent.append(this.button, this.panel, this.trail, this.cursor);
     this.cursor.hidden = true;
     this.undo.hidden = this.apply.hidden = true;
     this.button.onclick = () => this.toggle();
@@ -114,9 +134,43 @@ export class GodBrushes {
   get armed(): boolean {
     return !this.panel.hidden;
   }
+  /** How to paint, by the hand at hand: a finger on a phone, the mouse on a desk. */
+  private howTo(): string {
+    const touch = matchMedia("(pointer: coarse)").matches;
+    return touch
+      ? "Drag a finger over the ground to paint; two fingers move the view."
+      : "Drag over the ground to paint; right-drag turns the view, the wheel zooms, Esc puts the brush down.";
+  }
   private choices(): void {
-    this.ore.parentElement!.hidden = this.kind.value !== "ore";
-    this.realm.parentElement!.hidden = this.kind.value !== "claim";
+    const kind = this.kind.value as BrushKind,
+      what = CHOICES.find(([k]) => k === kind);
+    this.ore.parentElement!.hidden = kind !== "ore";
+    this.realm.parentElement!.hidden = kind !== "claim";
+    // (Strength means nothing to a claim, a drain or a seeding of life: it is not offered there.)
+    this.strength.parentElement!.hidden = kind === "claim" || kind === "drain" || kind === "life";
+    this.panel.dataset.kind = kind;
+    const place = this.place(),
+      here =
+        place === "village" || place === "camp"
+          ? " Here, the town's whole ground is one spot of the world."
+          : place === "region"
+            ? " Here, one spot of the world is a wide patch of this land."
+            : "";
+    this.help.textContent = `${what?.[3] ?? ""}${here}`;
+    if (!this.busy && !this.pending) this.status.textContent = this.idle();
+  }
+  /** Why this brush cannot be used here and now, if it cannot. */
+  private cannot(): string | null {
+    const kind = this.kind.value;
+    if (kind === "claim" && this.state && !this.state.realms.length)
+      return "No realm stands on this world yet: there is no one to claim land for.";
+    if (kind === "ore" && this.state && !this.state.ores.length)
+      return "This world's chemistry holds no ore to lay.";
+    return null;
+  }
+  /** What the status says while nothing is drawn: how to paint, or why this brush cannot. */
+  private idle(): string {
+    return this.cannot() ?? this.howTo();
   }
   async refresh(): Promise<void> {
     this.state = await this.client.query<BrushState>({ type: "brush.state" });
@@ -127,15 +181,20 @@ export class GodBrushes {
     if (ore) this.ore.value = ore;
     if (realm) this.realm.value = realm;
     this.history.replaceChildren();
-    for (const s of this.state.strokes.slice(-3).reverse()) {
-      const link = el(
-        "button",
-        "brush-record",
-        `${CHOICES.find(([k]) => k === s.kind)?.[1] ?? s.kind}: ${s.cells.length} spots${s.dead ? `, ${s.dead} dead` : ""}`,
-      );
+    const recent = this.state.strokes.slice(-3).reverse();
+    if (recent.length)
+      this.history.append(el("div", "brush-lately", "Lately (tap one for its page)"));
+    for (const s of recent) {
+      const what = CHOICES.find(([k]) => k === s.kind),
+        link = el(
+          "button",
+          "brush-record",
+          `${what ? `${what[1]} ${what[2]}` : s.kind}: ${s.cells.length} spot${s.cells.length === 1 ? "" : "s"}${s.dead ? `, ${s.dead} dead` : ""}`,
+        );
       link.onclick = () => this.onOpen?.(s.event);
       this.history.append(link);
     }
+    this.choices();
   }
   toggle(): void {
     if (this.busy) return;
@@ -145,8 +204,10 @@ export class GodBrushes {
     }
     this.panel.hidden = false;
     this.button.setAttribute("aria-expanded", "true");
+    this.button.classList.add("on");
     document.body.classList.add("brushes-open");
     this.onArmed?.();
+    this.choices();
     void this.refresh().catch((e: Error) => {
       this.status.textContent = e.message;
     });
@@ -155,25 +216,49 @@ export class GodBrushes {
     this.cancel();
     this.panel.hidden = true;
     this.button.setAttribute("aria-expanded", "false");
+    this.button.classList.remove("on");
     document.body.classList.remove("brushes-open");
   }
   start(x: number, y: number): boolean {
     if (!this.armed || this.busy) return false;
     this.cancel();
+    // (A brush that cannot be used here says so, and the finger moves the view instead.)
+    if (this.cannot()) return false;
     this.hold(true);
     this.drawing = true;
+    this.trail.replaceChildren();
+    this.trail.className = `brush-trail ${this.kind.value}`;
+    this.last = null;
     this.move(x, y);
     return true;
   }
   move(x: number, y: number): void {
     if (!this.drawing) return;
-    const cell = this.pick(x, y);
+    const cell = this.pick(x, y),
+      size = 28 + Number(this.radius.value) * 14;
     if (cell !== null && this.cells.size < 64) this.cells.add(cell);
     this.cursor.hidden = false;
     this.cursor.style.left = `${x}px`;
     this.cursor.style.top = `${y}px`;
-    this.cursor.style.width = this.cursor.style.height = `${28 + Number(this.radius.value) * 14}px`;
-    this.status.textContent = `${this.cells.size} stroke spot${this.cells.size === 1 ? "" : "s"}${this.cells.size === 64 ? " · stroke limit reached" : ""}`;
+    this.cursor.style.width = this.cursor.style.height = `${size}px`;
+    // (A mark on the ground wherever the finger went over it, as far apart as a third of the
+    // brush's breadth: the stroke is seen where it will land.)
+    if (
+      cell !== null &&
+      this.trail.childElementCount < TRAIL &&
+      (!this.last || Math.hypot(x - this.last.x, y - this.last.y) >= size / 3)
+    ) {
+      const mark = el("span", "brush-mark");
+      mark.style.left = `${x}px`;
+      mark.style.top = `${y}px`;
+      mark.style.width = mark.style.height = `${size}px`;
+      this.trail.append(mark);
+      this.last = { x, y };
+    }
+    this.status.textContent =
+      cell === null && !this.cells.size
+        ? "Not on this world's ground: paint over the land or the sea."
+        : `${this.cells.size} spot${this.cells.size === 1 ? "" : "s"} painted${this.cells.size === 64 ? " · as long as a stroke can be" : ""}`;
   }
   end(): void {
     if (!this.drawing) return;
@@ -201,10 +286,14 @@ export class GodBrushes {
       .then((p) => {
         if (seq !== this.sequence) return;
         if (p.atRisk || p.towns) {
-          this.status.textContent = `${p.cells.length} cells. May kill up to ${p.atRisk} people and damage homes in ${p.towns} towns. Apply this stroke?`;
+          this.status.textContent = `${spots(p.cells.length)}. May kill up to ${p.atRisk} people${p.towns ? ` and damage homes in ${p.towns} town${p.towns === 1 ? "" : "s"}` : ""}. Apply this stroke?`;
           this.apply.hidden = false;
+          this.trail.classList.add("asks");
         } else {
-          this.status.textContent = `${p.cells.length} cells · applying shortly. Undo to cancel.`;
+          const spared = p.spared
+            ? ` (${p.spared} capital${p.spared === 1 ? " is" : "s are"} left to ${p.spared === 1 ? "its realm" : "their realms"})`
+            : "";
+          this.status.textContent = `${spots(p.cells.length)}${spared} · lands in a moment. Undo to stop it.`;
           // Count responsive frames rather than wall time: a stalled renderer must not
           // consume the entire Undo window before the next input can be delivered.
           let elapsed = 0,
@@ -213,7 +302,8 @@ export class GodBrushes {
             if (seq !== this.sequence || !this.pending) return;
             elapsed += Math.max(0, Math.min(100, now - last));
             last = now;
-            if (elapsed >= 2000) {
+            this.panel.style.setProperty("--brush-wait", String(Math.min(1, elapsed / WAIT_MS)));
+            if (elapsed >= WAIT_MS) {
               this.undoFrame = 0;
               void this.commit(false);
             } else this.undoFrame = requestAnimationFrame(tick);
@@ -236,21 +326,26 @@ export class GodBrushes {
     this.cells.clear();
     this.drawing = false;
     this.cursor.hidden = true;
+    if (!this.busy) this.trail.replaceChildren();
+    this.panel.style.removeProperty("--brush-wait");
     this.undo.hidden = this.apply.hidden = true;
     this.hold(false);
-    if (!this.busy) this.status.textContent = "One finger paints. Two fingers move the camera.";
+    if (!this.busy) this.status.textContent = this.idle();
   }
   private async commit(confirmed: boolean): Promise<void> {
     if (!this.pending || this.busy) return;
     const args = { ...this.pending, confirmed };
     this.busy = true;
     this.undo.hidden = this.apply.hidden = true;
+    this.panel.style.removeProperty("--brush-wait");
+    this.trail.classList.add("landed");
     try {
       await this.client.command("act.brush", args);
       this.status.textContent = "Stroke recorded. Keeping your world…";
       await this.onCast?.();
       await this.refresh();
       this.status.textContent = "Stroke recorded and saved.";
+      this.history.querySelector(".brush-record")?.classList.add("fresh");
     } catch (e) {
       this.status.textContent = (e as Error).message;
     } finally {
@@ -259,6 +354,11 @@ export class GodBrushes {
       this.cells.clear();
       this.undoFrame = 0;
       this.hold(false);
+      // (The marks fade once the ground itself has been redrawn under them.)
+      const trail = this.trail;
+      setTimeout(() => {
+        if (!this.drawing && !this.pending) trail.replaceChildren();
+      }, 900);
     }
   }
 }

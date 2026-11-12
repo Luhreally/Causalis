@@ -1,4 +1,4 @@
-import { defineEventType, type Ref, type World } from "../../kernel/index.ts";
+import { MAX_SUBJECTS, defineEventType, type Ref, type World } from "../../kernel/index.ts";
 import { DEPOSIT_KINDS, cellRef, type HomeWorld } from "../../gen/index.ts";
 import { BRUSH_KINDS, BRUSH_LIMIT, brushCells, type BrushArgs } from "../../rules/index.ts";
 import { homePlanet } from "../planet/store.ts";
@@ -44,7 +44,15 @@ export function brushPreview(ctx: PopulationContext, args: unknown) {
     home = homePlanet(world),
     g = home.generated,
     cells = brushCells(g.fine.grid, a.cells, a.radius),
-    provinces = [...new Set(cells.map((c) => g.provinceOf[c]!))].sort((a, b) => a - b),
+    touched = [...new Set(cells.map((c) => g.provinceOf[c]!))].sort((a, b) => a - b),
+    // (A claim passes over another realm's capital, which a brush cannot take: the stroke claims
+    // the lands about it, and only a stroke over nothing but capitals is refused.)
+    capital = (p: number) => {
+      const old = a.kind === "claim" ? politiesOf(world).of(p) : null;
+      return !!old && old.ref !== a.realm && old.seat === p;
+    },
+    provinces = touched.filter((p) => !capital(p)),
+    spared = touched.length - provinces.length,
     shares = new Map<number, number>();
   let seeded = 0;
   for (const c of cells) {
@@ -60,14 +68,10 @@ export function brushPreview(ctx: PopulationContext, args: unknown) {
   }
   if (a.kind === "life" && !seeded)
     throw new Error("No living lineage of this world suits this ground. Try warmer, watered land.");
-  if (a.kind === "claim")
-    for (const p of provinces) {
-      const old = politiesOf(world).of(p);
-      if (old && old.ref !== a.realm && old.seat === p)
-        throw new Error(
-          "A realm's capital cannot be claimed with a brush. Use Make union to take its whole realm.",
-        );
-    }
+  if (!provinces.length)
+    throw new Error(
+      "A realm's capital cannot be claimed with a brush. Use Make union to take its whole realm.",
+    );
   // A conservative warning: the held people are immune to aggregate deaths, and tiny cohorts
   // may round down. The command rechecks this at execution time so a stale preview is harmless.
   const atRisk = provinces.reduce(
@@ -78,7 +82,7 @@ export function brushPreview(ctx: PopulationContext, args: unknown) {
       (n, p) => n + ((shares.get(p) ?? 0) > 0 ? ctx.settlements.inProvince(p).length : 0),
       0,
     );
-  return { cells, provinces, atRisk, towns, shares, seeded, kind: a.kind };
+  return { cells, provinces, atRisk, towns, shares, seeded, spared, kind: a.kind };
 }
 
 function suitableLife(f: HomeWorld, c: number) {
@@ -192,10 +196,23 @@ export function installBrushes(world: World, context: () => PopulationContext): 
           dead += strike(ctx, cell, share, t);
           blocks += raze(ctx, cell, share, t, homes);
         }
+      // (An event names at most a few places: a long stroke across many lands names those it
+      // covered most, the first of them its place. The stroke itself keeps every land it touched.)
+      const most =
+        p.provinces.length <= MAX_SUBJECTS
+          ? p.provinces
+          : [...p.provinces]
+              .map((c) => ({
+                c,
+                n: p.cells.filter((x) => home.generated.provinceOf[x] === c).length,
+              }))
+              .sort((x, y) => y.n - x.n || x.c - y.c)
+              .slice(0, MAX_SUBJECTS)
+              .map((x) => x.c);
       const event = world.events.emit({
         type: BRUSH_EVENT.type,
-        subjects: p.provinces.map((c) => cellRef(0, c)),
-        place: cellRef(0, p.provinces[0]!),
+        subjects: most.map((c) => cellRef(0, c)),
+        place: cellRef(0, most[0]!),
         causes: [{ ref: command.id, role: "agent", weight: 1 }],
         data: {
           kind: a.kind,

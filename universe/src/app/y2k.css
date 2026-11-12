@@ -310,18 +310,42 @@ button:active {
     min-width: 40px;
   }
   /* (The world's numbers in columns: how many lines they take is set by how many they are, never
-     by how wide their figures run as they count, so the bar keeps its height.) */
+     by how wide their figures run as they count, so the bar keeps its height. Five to a line, so
+     the world's nine take two.) */
   .bar .world-stats {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    padding: 2px;
   }
   .bar .world-stats > .stat-chip {
     justify-content: center;
+    gap: 3px;
     min-width: 0;
-    padding: 4px 2px;
+    padding: 3px 1px;
   }
-  .bar .world-stats > .stat-chip:nth-child(4n) {
+  .bar .world-stats .chip-icon {
+    font-size: 0.85rem;
+  }
+  .bar .world-stats .chip-value {
+    font-size: 0.8rem;
+  }
+  .bar .world-stats > .stat-chip:nth-child(5n) {
     border-right: 0;
+  }
+  /* (The world's logotype gives its line to the date on a phone: the title screen and the world's
+     own page carry its name.) */
+  .bar:has(> .world-stats) > .brand {
+    display: none;
+  }
+  /* (The world's stage by its sign alone beside the date, so the two keep one line; its name is in
+     its words, and its page a tap away.) */
+  .beside-date > .stat-chip.stage {
+    justify-content: center;
+    min-width: 40px;
+    padding: 2px 6px;
+  }
+  .beside-date > .stat-chip.stage .chip-value {
+    display: none;
   }
   .walk {
     font-size: 0.82rem;
@@ -823,10 +847,12 @@ body[data-world="methane"][data-scale="ground"]:not([data-daylight]) {
 .more {
   margin: 4px 0 0;
 }
-/* On a phone the page is a sheet; a tap on ⤢ grows it tall. */
+/* On a phone the page is a sheet; a tap on ⤢ grows it tall, up to 8px under the foot of the
+   scale's bar (however many lines the bar takes), so the bar is never seen through it. (Its
+   padding and its bevel, 28px, lie outside its max-height; 8px under it, 8px under the bar.) */
 @media (max-width: 640px) {
   .page-window.tall {
-    max-height: calc(100% - 128px - var(--safe-top) - var(--safe-bottom));
+    max-height: calc(100% - var(--bar-bottom, 128px) - 44px - var(--safe-bottom));
   }
 }
 @media (min-width: 641px) {
@@ -1576,11 +1602,11 @@ body.paging .panel:not(.page-panel) .inspector {
   padding: 0 4px;
   font-size: 0.82rem;
 }
-/* (On a phone: from the left edge to the corner's buttons, its words over two lines.) */
+/* (On a phone: from the left edge to the corner's rail, its words over two lines.) */
 @media (max-width: 640px) {
   .director-caption {
     left: 8px;
-    right: 100px;
+    right: 60px;
     transform: none;
     max-width: none;
     font-size: 0.78rem;
@@ -1631,6 +1657,11 @@ body.roaming .hint {
     display: flex;
     align-items: flex-end;
     gap: 12px;
+  }
+  /* (The stick has the lower left while roaming: the god's hand and the people bar, which live there,
+     wait until the eye is free again.) */
+  body.roaming #hud > :is(.people-bar, .palette-toggle, .palette) {
+    display: none;
   }
 }
 .free-pad {
@@ -2124,6 +2155,23 @@ body.roaming .hint {
   body:not(.roaming) #hud:has(> .panel:not([hidden]) > .inspector:not([hidden])) .corner-tools {
     display: none;
   }
+  /* (Nor under the other sheets that take the foot of the screen, a great happening's window, or
+     the god's palette open over the map: the rail comes back as each is put by.) */
+  body:not(.roaming):has(
+      .colony-sheet:not([hidden]),
+      .brush-panel:not([hidden]),
+      .ask-sheet:not([hidden]),
+      .event-window:not([hidden]),
+      #hud > .palette.open
+    )
+    .corner-tools {
+    display: none;
+  }
+  /* (A page opened from the worlds settled, or over them, has the screen while it is read: the sheet,
+     which would lie over it, waits behind it and is there again as it is closed.) */
+  #hud:has(.page-window:not([hidden])) > .colony-sheet {
+    display: none;
+  }
 }
 /* News, while a page is open on a desk: beside the corner's tools, clear of the page, so a
    card never stands over a page's buttons. */
@@ -2143,6 +2191,88 @@ body.roaming .hint {
   height: 34px;
   padding: 0 8px;
   font-size: 1.05rem;
+}
+/*
+ * On a phone the corner's tools are one rail down the right edge: every tool a thumb's size and
+ * the same size, one under another, so no row of them and no wide button reaches into the world.
+ * What a tool opens (search, what is followed, an alert's list, how to steer) is a window beside
+ * the rail, as tall as the screen leaves under the bar, so the rail never moves under a thumb.
+ */
+@media (max-width: 640px) {
+  .corner-tools,
+  .free-controls,
+  .free-buttons,
+  .alerts,
+  .alerts-row {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+  }
+  .corner-tools {
+    right: calc(6px + env(safe-area-inset-right, 0px));
+  }
+  .corner-tools
+    :is(
+      .colonies-button,
+      .free-buttons > button,
+      .search-open,
+      .outliner-open,
+      .log-open,
+      .sound-button,
+      .brush-toggle,
+      .alert
+    ):not([hidden]) {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+    font-size: 1.15rem;
+  }
+  /* (The brushes by their sign alone, as every other tool.) */
+  .corner-tools button.brush-toggle:not([hidden]) {
+    font-size: 0;
+  }
+  .corner-tools button.brush-toggle::before {
+    content: "🖌️";
+    font-size: 1.2rem;
+  }
+  /* (How many are new, on the tile's corner, as the worlds settled have it.) */
+  .corner-tools .outliner-count {
+    position: absolute;
+    right: -4px;
+    bottom: -4px;
+    line-height: 1.35;
+  }
+  .search-box,
+  .outliner-list,
+  .alert-list,
+  .free-hint {
+    position: fixed;
+    z-index: 4;
+    top: calc(var(--bar-bottom, 72px) + 8px);
+    left: 8px;
+    right: calc(60px + env(safe-area-inset-right, 0px));
+    width: auto;
+    max-width: none;
+    box-sizing: border-box;
+  }
+  .free-hint {
+    text-align: left;
+  }
+  /* (Their foot above the people bar and the god's hand, which stay where they are.) */
+  .search-results {
+    max-height: calc(100dvh - var(--bar-bottom, 72px) - 142px - var(--safe-bottom));
+  }
+  .outliner-list,
+  .alert-list {
+    max-height: calc(100dvh - var(--bar-bottom, 72px) - 132px - var(--safe-bottom));
+  }
 }
 
 /*
@@ -2368,6 +2498,14 @@ canvas.arms {
     flex-direction: column;
     align-items: center;
   }
+  /* (On a phone it hangs from under the scale's bar, never over it, as far down as the screen
+     goes; solid, so nothing it stands over shows through its words.) */
+  .event-window {
+    top: calc(var(--bar-bottom, 72px) + 8px);
+    transform: translateX(-50%);
+    max-height: calc(100% - var(--bar-bottom, 72px) - 30px - var(--safe-bottom));
+    background: linear-gradient(180deg, #22366e 0%, #0c1432 100%);
+  }
 }
 
 /*
@@ -2557,6 +2695,12 @@ body.palette-off #hud > .palette-toggle {
      screen, and the round button stood on the start of its last line.) */
   body:not(.casting)
     #hud:has(> .panel:not([hidden]) > .inspector:not([hidden], .page-window))
+    > :is(.palette, .palette-toggle) {
+    display: none;
+  }
+  /* (And under the other sheets at the foot, the worlds settled and a town asked, and while a great
+     happening's window waits on the viewer.) */
+  #hud:has(.colony-sheet:not([hidden]), .ask-sheet:not([hidden]), .event-window:not([hidden]))
     > :is(.palette, .palette-toggle) {
     display: none;
   }
@@ -3205,4 +3349,51 @@ body.with-palette .hint {
   height: 10px;
   border-radius: 50%;
   box-shadow: 0 0 6px currentColor;
+}
+
+/* A lens's key on a phone: its name at the head of the first line of colours, not a line of its own
+   (the bar is the top of the screen's third; a line given back is the map's). */
+@media (max-width: 640px) {
+  .legend:has(> .legend-keys) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 10px;
+  }
+  .legend:has(> .legend-keys) > :not(.legend-title, .legend-keys) {
+    flex-basis: 100%;
+  }
+  .legend > .legend-keys {
+    flex: 1 1 0;
+    min-width: 0;
+    margin-top: 0;
+  }
+}
+
+/* The bar's fold (2026-11-11): only a phone's bar folds — to its date and speeds, the world's
+   numbers, its menu and the map modes behind ☰ — and the lens's key stays. */
+.bar-fold {
+  display: none;
+}
+@media (max-width: 640px) {
+  /* (In the date's line, at its right end: it takes no line of its own.) */
+  .bar:has(.bar-fold) {
+    position: relative;
+  }
+  .bar .bar-fold {
+    position: absolute;
+    top: 6px;
+    right: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 40px;
+    font-size: 1.1rem;
+  }
+  body:not(.bar-open) .bar .world-stats,
+  body:not(.bar-open) .bar .world-menu,
+  body:not(.bar-open) .mapmodes .modes {
+    display: none;
+  }
 }
