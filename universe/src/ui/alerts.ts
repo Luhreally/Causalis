@@ -106,6 +106,14 @@ export class Alerts {
     return [head, rows, ...more, el("div", "tip-more", "Click to list them")];
   }
 
+  /** The list of an alert's cases put by, as another of the rail's windows opens. */
+  close(): void {
+    if (this.shown === null) return;
+    this.shown = null;
+    this.buttons.forEach((x) => x.classList.remove("on"));
+    this.drawList();
+  }
+
   /** The cases of the alert tapped, each opening its page, each put by at its ×. */
   private drawList(): void {
     const a = this.alerts.find((x) => x.id === this.shown);

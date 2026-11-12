@@ -1,12 +1,11 @@
-/* Who sings at the feast (T1): a note among the tidings, pressed for the song. */
+/* Who sings at the feast (T1): a note among the tidings, pressed for the song; in the news's own
+   column, so it stands over nothing — not the god's hand, the people bar, the corner's rail, nor a
+   court's note beside it (2026-11-11). */
 .sung-note {
   pointer-events: auto;
-  /* Along the foot of the screen, beside the hand: not over the bar and its pace. */
-  position: fixed;
-  left: 66px;
-  right: 10px;
-  bottom: 12px;
-  z-index: 5;
+  position: static;
+  width: 100%;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 2px;

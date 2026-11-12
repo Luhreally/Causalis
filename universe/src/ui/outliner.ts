@@ -43,6 +43,12 @@ export class Outliner {
     this.set([]);
   }
 
+  /** Put by, as another of the rail's windows opens. */
+  close(): void {
+    this.list.hidden = true;
+    this.button.classList.remove("on");
+  }
+
   set(followed: readonly { ref: string; label: string }[]): void {
     this.button.replaceChildren(
       el("span", undefined, "📌"),

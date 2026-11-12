@@ -156,10 +156,13 @@ body.living #hud > *:not(.life-hud):not(.page-window):not(.panel.page-panel):not
 body.paging .life-tray {
   display: none;
 }
+/* (Their book, or a choice that waits on them, stands just above the tray, however tall the tray is,
+   so the tray's buttons stay to hand while it is open.) */
+.life-hud > :is(.life-book, .life-window) {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 12px + var(--tray-h, 74px));
+}
 @media (max-width: 640px) {
-  /* (Their book, or a choice that waits on them, stands just above the tray, so the tray's buttons
-     stay to hand while it is open; the day's line waits under it. A reign's the same.) */
-  .life-hud > :is(.life-book, .life-window),
+  /* (The day's line waits under it. A reign's the same.) */
   .reign-hud > :is(.reign-sheet, .reign-window) {
     bottom: calc(env(safe-area-inset-bottom, 0px) + 86px);
   }
@@ -299,11 +302,8 @@ body.living-walk #hud .possess-live {
 #hud .town-live {
   min-height: 44px;
 }
-#hud > .life-toast {
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 120px);
+/* (A word as a life is let go: among the news, at its head, for a few seconds.) */
+.life-toast {
   z-index: 29;
   padding: 6px 10px;
   border-radius: 8px;

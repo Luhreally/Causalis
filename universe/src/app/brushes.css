@@ -30,11 +30,13 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.35),
     0 10px 40px rgba(0, 0, 18, 0.75);
 }
-/* (On a desk, left of the map modes' panel and clear of the corner's column of tools, at the foot.) */
+/* (On a desk, beside the corner's rail as a scale's card stands, above the windows at the foot there,
+   and under the bar.) */
 @media (min-width: 641px) {
   .brush-panel {
-    right: calc(228px + env(safe-area-inset-right, 0px));
-    bottom: calc(10px + env(safe-area-inset-bottom));
+    right: calc(var(--rail-left, 60px) + env(safe-area-inset-right, 0px));
+    bottom: var(--right-foot, 10px);
+    max-height: min(60dvh, calc(100dvh - var(--bar-bottom, 72px) - 8px - var(--right-foot, 10px)));
   }
 }
 /* (On a phone the panel is the screen's foot, under the god's hand's line: the ground above it is

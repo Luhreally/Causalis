@@ -794,9 +794,24 @@ body[data-scale="micro"] {
   opacity: 0.4;
   cursor: default;
 }
+/* (The news stands beside the column while it shows, not over it: on a desk the column a set width.) */
+@media (min-width: 641px) {
+  .war-views {
+    width: 9rem;
+  }
+  .war-view {
+    width: 100%;
+  }
+  body:not(.paging) #hud:has(> .war-views:not([hidden])) > .tidings {
+    left: calc(16px + 9rem);
+  }
+}
 @media (max-width: 640px) {
   .war-views {
     top: calc(var(--bar-bottom, 72px) + 96px);
+  }
+  #hud:has(> .war-views:not([hidden])) > .tidings {
+    left: 56px;
   }
   .war-view {
     min-width: 40px;
@@ -990,6 +1005,10 @@ body[data-scale="micro"] {
   left: 8px;
   top: calc(120px + var(--safe-top));
   width: min(20rem, calc(100% - 16px));
+  /* (Its foot above the windows at the screen's foot under it, the people bar's among them: what
+     the column cannot hold waits, the newest first in it.) */
+  max-height: calc(100dvh - var(--bar-bottom, 72px) - 8px - var(--left-foot, 8px));
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1064,6 +1083,11 @@ body[data-scale="micro"] {
   }
   body:has(#hud > .director-caption:not([hidden])) .tidings {
     top: calc(var(--bar-bottom, 124px) + 64px);
+    max-height: calc(100dvh - var(--bar-bottom, 124px) - 64px - var(--left-foot, 8px));
+  }
+  /* (What a run came to has the foot of that column while it shows: the news above it.) */
+  .tidings:has(> .ran-note) {
+    max-height: calc(100dvh - var(--bar-bottom, 124px) - 16px - var(--left-foot, 8px) - 30vh);
   }
   .tiding:nth-child(n + 3) {
     display: none;

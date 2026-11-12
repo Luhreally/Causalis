@@ -1293,15 +1293,21 @@ body.paging .panel:not(.page-panel) .inspector {
   .world-about {
     display: none;
   }
+  /* (Its signs share the line's width, each its own share to touch: a link's wider reach, which
+     lets a word in a line be touched, would lie over its neighbours' here.) */
   .world-menu {
-    gap: 2px;
+    flex-wrap: nowrap;
+    gap: 0;
   }
   .world-menu .word {
     display: none;
   }
   .world-menu .link {
-    min-width: 32px;
-    min-height: 30px;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 28px;
+    margin: 0;
+    padding: 0;
     justify-content: center;
     font-size: 1.05rem;
   }
@@ -1516,17 +1522,30 @@ body.paging .panel:not(.page-panel) .inspector {
  * Free roam (Phase 10 M98): its buttons under the bar at the upper right, how to steer
  * beside them, and on a phone, while roaming, a stick at the lower left and up and down.
  */
-/* The corner's tools (free roam first, then alerts, search, the outliner, the log): under the scale's bar at the upper right. */
+/* The corner's tools (free roam first, then alerts, search, the outliner, the log): under the scale's
+   bar at the upper right, one under another, as many rows as its room holds; on a desk a second
+   column at the left of the first before any fold (ui/corner-rail.ts counts the rows). What holds
+   its tools draws nothing, so each tool is the rail's own. */
 .corner-tools {
   position: absolute;
   z-index: 3;
   right: 8px;
   top: calc(var(--bar-bottom, 72px) + 8px);
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(var(--rail-rows, 99), auto);
+  justify-items: stretch;
+  align-items: start;
+  gap: 4px;
+  direction: rtl;
   pointer-events: none;
+}
+.corner-tools * {
+  direction: ltr;
+}
+.corner-tools
+  :is(.free-controls, .free-buttons, .alerts, .alerts-row, .search, .outliner, .corner-more-wrap) {
+  display: contents;
 }
 .corner-tools > * {
   pointer-events: auto;
@@ -1535,6 +1554,114 @@ body.paging .panel:not(.page-panel) .inspector {
    only where its tools are, so a card it stands over keeps its buttons, its × among them.) */
 #hud > .corner-tools {
   pointer-events: none;
+}
+/*
+ * The rail kept to its room (2026-11-11, "no panels should ever overlap or cover another one"): its
+ * tools down to the windows at the foot (ui/corner-rail.ts reads where they stand); what the room
+ * cannot hold is folded behind the ⋯ at its foot, whose sheet names each.
+ */
+.corner-tools .folded {
+  display: none !important;
+}
+/* (The brushes by their sign alone, as every other tool; how many, on the tile's corner, as the
+   worlds settled have it: no tool wider than the rail.) */
+/* (Said from the HUD: the phone's rule for every tool's size counts a button among its classes.) */
+#hud .corner-tools button.brush-toggle:not([hidden]) {
+  font-size: 0;
+}
+.corner-tools button.brush-toggle::before {
+  content: "🖌️";
+  font-size: 1.2rem;
+}
+.corner-tools :is(.outliner-open, .corner-more) {
+  position: relative;
+}
+.corner-tools .outliner-count {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  line-height: 1.35;
+}
+.corner-more {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 38px;
+  height: 34px;
+  padding: 0 8px;
+  font-size: 1.05rem;
+}
+.corner-more[hidden] {
+  display: none;
+}
+.corner-more.on {
+  color: #032b24;
+  border-color: #0b7a62;
+  background: linear-gradient(180deg, #d9fff5 0%, #6ff0cf 46%, #29cfa6 54%, #8bf5dc 100%);
+}
+.corner-more-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: min(18rem, calc(100vw - 76px));
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-solid);
+  box-shadow: 0 6px 18px rgba(0, 0, 18, 0.55);
+}
+.corner-more-sheet[hidden] {
+  display: none;
+}
+.corner-more-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 10px;
+  text-align: left;
+}
+.corner-more-row.on {
+  border-color: #0b7a62;
+}
+.corner-more-sign {
+  flex: none;
+  width: 1.6em;
+  font-size: 1.15rem;
+  text-align: center;
+}
+.corner-more-words {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* What the rail opens stands beside it, at every width: under the bar, its right edge at the rail's,
+   its foot above the windows at the screen's foot. While one is open it is what is looked at: what
+   stands in the same place beside the rail (the news, the director's line, a scale's card, a sheet)
+   waits under it, and is there again as it is put by. */
+.corner-tools :is(.search-box, .outliner-list, .alert-list, .corner-more-sheet) {
+  position: fixed;
+  z-index: 4;
+  top: calc(var(--bar-bottom, 72px) + 8px);
+  right: calc(var(--rail-left, 60px) + env(safe-area-inset-right, 0px));
+  max-height: calc(100dvh - var(--bar-bottom, 72px) - 8px - var(--right-foot, 8px));
+  box-sizing: border-box;
+  overflow: auto;
+}
+#hud:has(
+    .corner-tools :is(.search-box, .outliner-list, .alert-list, .corner-more-sheet):not([hidden])
+  )
+  :is(
+    .tidings,
+    .director-caption,
+    .colony-sheet,
+    .ask-sheet,
+    .panel > .inspector:not(.page-window)
+  ) {
+  visibility: hidden;
 }
 .free-controls {
   display: flex;
@@ -1548,6 +1675,8 @@ body.paging .panel:not(.page-panel) .inspector {
 }
 .free-buttons {
   display: flex;
+  flex-direction: column;
+  align-items: flex-end;
   gap: 4px;
 }
 .free-buttons button {
@@ -2137,17 +2266,20 @@ body.roaming .hint {
     right: calc(100% + 8px);
   }
   #hud > .panel > .inspector:not(.page-window) {
-    right: 60px;
+    right: var(--rail-left, 60px);
     /* (Below the bar, however many lines it wraps to: it never covers the bar's own menu; and
        below the corner's top row of tools — the director, the wars, free roam — so its × is
        never under them.) */
     top: calc(var(--bar-bottom, 72px) + 50px);
-    max-height: calc(100% - var(--bar-bottom, 72px) - 58px - var(--safe-bottom));
+    /* (Its padding and its bevel, 2 × 12px and 2 × 2px, lie outside its max-height.) */
+    max-height: calc(100% - var(--bar-bottom, 72px) - 50px - 28px - var(--right-foot, 8px));
   }
-  /* (The god's bar, while such a window stands at the right: centred on the ground left of it,
-     22rem and its bevel and the column's 60px, so neither hides the other's foot.) */
+  /* (The god's bar, while such a window stands at the right: between the people bar's column at
+     the left and the window, 22rem and its bevel and the rail's 60px, so neither hides another's foot.) */
   #hud:has(> .panel:not([hidden]) > .inspector:not([hidden], .page-window)) > .palette {
-    left: calc(50vw - 11rem - 46px);
+    left: 188px;
+    transform: none;
+    max-width: calc(100vw - 188px - var(--rail-left, 60px) - 22rem - 4px - 16px);
   }
 }
 @media (max-width: 640px) {
@@ -2176,10 +2308,15 @@ body.roaming .hint {
 /* News, while a page is open on a desk: beside the corner's tools, clear of the page, so a
    card never stands over a page's buttons. */
 @media (min-width: 641px) {
+  .tidings {
+    top: calc(var(--bar-bottom, 72px) + 8px);
+  }
   body.paging .tidings {
     left: auto;
-    right: 62px;
+    right: calc(var(--rail-left, 60px) + 2px);
     top: calc(var(--bar-bottom, 72px) + 8px);
+    /* (Its foot above the windows at the foot of the right side: the god's hand, the map modes.) */
+    max-height: calc(100dvh - var(--bar-bottom, 72px) - 8px - var(--right-foot, 8px));
   }
 }
 /* The message log's 📬, with what has come since it was read. */
@@ -2221,6 +2358,7 @@ body.roaming .hint {
       .log-open,
       .sound-button,
       .brush-toggle,
+      .corner-more,
       .alert
     ):not([hidden]) {
     position: relative;
@@ -2235,44 +2373,42 @@ body.roaming .hint {
     padding: 0;
     font-size: 1.15rem;
   }
-  /* (The brushes by their sign alone, as every other tool.) */
-  .corner-tools button.brush-toggle:not([hidden]) {
-    font-size: 0;
-  }
-  .corner-tools button.brush-toggle::before {
-    content: "🖌️";
-    font-size: 1.2rem;
-  }
-  /* (How many are new, on the tile's corner, as the worlds settled have it.) */
-  .corner-tools .outliner-count {
-    position: absolute;
-    right: -4px;
-    bottom: -4px;
-    line-height: 1.35;
-  }
   .search-box,
   .outliner-list,
   .alert-list,
+  .corner-more-sheet {
+    left: 8px;
+    width: auto;
+    max-width: none;
+  }
+  /* (Free roam's hint over its stick at the lower left, where the people bar and the god's hand
+     stand aside for it: the place beside the rail under the bar is the news's.) */
   .free-hint {
     position: fixed;
     z-index: 4;
-    top: calc(var(--bar-bottom, 72px) + 8px);
     left: 8px;
     right: calc(60px + env(safe-area-inset-right, 0px));
-    width: auto;
+    bottom: calc(150px + var(--safe-bottom));
     max-width: none;
     box-sizing: border-box;
-  }
-  .free-hint {
     text-align: left;
   }
-  /* (Their foot above the people bar and the god's hand, which stay where they are.) */
+  /* (The results scroll within the box, whose foot is above the windows at the screen's foot.) */
   .search-results {
-    max-height: calc(100dvh - var(--bar-bottom, 72px) - 142px - var(--safe-bottom));
+    max-height: calc(100dvh - var(--bar-bottom, 72px) - 70px - var(--right-foot, 8px));
   }
-  .outliner-list,
-  .alert-list {
-    max-height: calc(100dvh - var(--bar-bottom, 72px) - 132px - var(--safe-bottom));
+}
+/* On a desk, free roam's hint under the bar at the middle, clear of the rail and of the cards beside it. */
+@media (min-width: 641px) {
+  .free-hint {
+    position: fixed;
+    z-index: 3;
+    top: calc(var(--bar-bottom, 72px) + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: min(30rem, calc(100vw - 2 * 8px - 2 * 60px - 2 * 22rem));
+    text-align: center;
   }
 }
 
@@ -2713,13 +2849,14 @@ body.casting canvas {
 body.with-palette .hint {
   display: none;
 }
-/* While a page is open at the left, the palette stands clear of it, beside the map modes. */
+/* While a page is open at the left, the palette stands clear of it, beside the map modes (10px from
+   the edge, 206px wide with their padding and bevel, 2 × 8px and 2 × 2px, and a gap of 8px). */
 @media (min-width: 641px) {
   body.paging #hud > .palette {
     left: auto;
-    right: 232px;
+    right: 244px;
     transform: none;
-    max-width: calc(100vw - 232px - 27rem - 24px);
+    max-width: calc(100vw - 244px - 27rem - 24px);
   }
 }
 /* On a phone: a round button at the lower left; the palette a sheet above it when opened. */
@@ -2738,10 +2875,11 @@ body.with-palette .hint {
     border-color: #5b7d00;
     background: linear-gradient(180deg, #f4ffd6 0%, #d5ff72 46%, #a9e61e 54%, #e2ff9a 100%);
   }
+  /* (Over the people bar, which stands 8px up and is a chip's 60px tall, with a gap between.) */
   #hud > .palette {
     left: 8px;
     right: 8px;
-    bottom: calc(64px + var(--safe-bottom));
+    bottom: calc(76px + var(--safe-bottom));
     transform: none;
     max-width: none;
   }
@@ -3381,16 +3519,24 @@ body.with-palette .hint {
   .bar:has(.bar-fold) {
     position: relative;
   }
+  /* (In the line's own flow, after the date and before the speeds, so a long date or the speeds
+     wrapping never run under it.) */
   .bar .bar-fold {
-    position: absolute;
-    top: 6px;
-    right: 16px;
+    order: 1;
+    flex: none;
+    margin-left: auto;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     min-width: 44px;
     min-height: 40px;
     font-size: 1.1rem;
+  }
+  .bar:has(> .bar-fold) .speeds {
+    order: 2;
+  }
+  .bar:has(> .bar-fold) > :not(.brand, .time-slot, .bar-fold) {
+    order: 3;
   }
   body:not(.bar-open) .bar .world-stats,
   body:not(.bar-open) .bar .world-menu,

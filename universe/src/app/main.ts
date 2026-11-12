@@ -16,6 +16,7 @@ import "./alliances.css";
 import { CourtNote, SungNote } from "../ui/index.ts";
 import { courtSitting } from "../view/index.ts";
 import { PeopleBar, barPins, setWrittenHold } from "../ui/index.ts";
+import { CornerRail } from "../ui/index.ts";
 import { Checkpoint } from "./checkpoint.ts";
 import { HostClient, LOT, inlinePair, lotStates, progress, workerPort } from "../bridge/index.ts";
 import {
@@ -1702,6 +1703,16 @@ async function runPlanetPage(): Promise<void> {
   sound.tell(airOf("globe"));
   sound.mount(corner);
   exposed.sound = sound;
+  // The rail kept to its room, what it opens one at a time (2026-11-11: no window over another).
+  const cornerRail = new CornerRail(corner);
+  for (const [sel, close] of [
+    [".search-box", () => searchBox.close()],
+    [".outliner-list", () => outliner.close()],
+    [".alert-list", () => alerts.close()],
+  ] as const) {
+    const pop = corner.querySelector<HTMLElement>(sel);
+    if (pop) cornerRail.popover(pop, close);
+  }
   outliner.arms = searchBox.arms = armsBook;
   alerts.onOpen = (ref) => void pageWindow.open(ref);
   searchBox.onOpen = (ref) => void pageWindow.open(ref);

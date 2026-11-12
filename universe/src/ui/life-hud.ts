@@ -127,8 +127,11 @@ export class LifeHud {
     document.body.classList.remove("living");
   }
   toast(words: string): void {
-    const t = el("div", "life-toast", words);
-    this.element.parentElement?.append(t);
+    const t = el("div", "life-toast", words),
+      // (Among the news, at its head, so it stands over nothing: the news's column has room for it.)
+      news = document.querySelector<HTMLElement>("#hud > .tidings");
+    if (news) news.prepend(t);
+    else this.element.parentElement?.append(t);
     setTimeout(() => t.remove(), 6000);
   }
   say(words: string): void {
@@ -192,6 +195,10 @@ export class LifeHud {
   }
 
   private drawTray(l: LifeNow): void {
+    // (How tall the tray stands, for what stands just above it.)
+    const tall = `${Math.round(this.tray.offsetHeight)}px`;
+    if (this.tray.offsetHeight && this.element.style.getPropertyValue("--tray-h") !== tall)
+      this.element.style.setProperty("--tray-h", tall);
     const key = `${l.rules ?? ""}${l.offers.map((o) => `${o.what}|${o.target}|${o.label}|${o.can}`).join(",")}`;
     if (key === this.trayKey) return;
     this.trayKey = key;
