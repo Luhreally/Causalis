@@ -164,14 +164,39 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
   };
   /** A tool of the corner's rail pressed: on the rail, or from the ⋯'s sheet where it is folded. */
   const tool = async (cls: string): Promise<boolean> => {
-    if (fill) {
-      await k(FILL);
-      await k("new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))");
-    }
-    if (await seen(`.corner-tools .${cls}`)) return press(`.corner-tools .${cls}`);
+    // (Touched only where a finger would meet it: the rail redraws as its alerts come and go, so
+    // the point is read and checked in the same moment, and read again if something else is there.)
+    const exact = (selector: string) =>
+      k<{ x: number; y: number } | null>(`(() => {
+        for (const e of document.querySelectorAll(${JSON.stringify(selector)})) {
+          const r = e.getBoundingClientRect();
+          if (r.width < 1 || r.height < 1) continue;
+          const x = r.x + r.width / 2, y = r.y + r.height / 2, hit = document.elementFromPoint(x, y);
+          return hit && (hit === e || e.contains(hit)) ? { x, y } : null;
+        }
+        return null;
+      })()`);
+    const reach = async (selector: string) => {
+      for (let i = 0; i < 10; i++) {
+        if (fill) await k(FILL);
+        await k("new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))");
+        const at = await exact(selector);
+        if (at) {
+          if (touch) await page.touchscreen.tap(at.x, at.y);
+          else await page.mouse.click(at.x, at.y);
+          await page.waitForTimeout(slow(300));
+          return true;
+        }
+        await page.waitForTimeout(slow(150));
+      }
+      return false;
+    };
+    if (fill) await k(FILL);
+    await k("new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))");
+    if (await seen(`.corner-tools .${cls}`)) return reach(`.corner-tools .${cls}`);
     if (!(await seen(".corner-more"))) return false;
-    if (!(await seen(".corner-more-sheet"))) await press(".corner-more");
-    return press(`.corner-more-row[data-tool~="${cls}"]`);
+    if (!(await seen(".corner-more-sheet"))) await reach(".corner-more");
+    return reach(`.corner-more-row[data-tool~="${cls}"]`);
   };
   const hold = () => k("globalThis.causalis?.client?.setSpeed?.(0)").catch(() => undefined);
   const closePage = async () => {
@@ -425,10 +450,16 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
     await until("its land's page", () => seen(".page-window .follow"), slow(15000));
     if (await seen(".page-window .follow:not(.on)")) await press(".page-window .follow:not(.on)");
     await closePage();
+    // (And the greatest realms, as a viewer follows them from their pages, so news comes soon.)
+    await k(`(async () => {
+      const c = globalThis.causalis.client,
+        realms = (await c.query({ type: "realms.map" })).sort((a, b) => b.people - a.people).slice(0, 6);
+      for (const r of realms) await c.query({ type: "observe.watch", args: { ref: r.ref, on: true } });
+    })()`).catch(() => undefined);
     await k("globalThis.causalis.client.setSpeed(86400 * 365)");
     await must(
       "the news",
-      until("the news", () => seen(".tidings > .tiding"), slow(60000)),
+      until("the news", () => seen(".tidings > .tiding"), slow(90000)),
     );
     await hold();
     await settle(600);
@@ -482,35 +513,50 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
   await settle(800);
 
   // A life lived, from inside a home.
-  await state("home", async () => {
-    await toTown(town.ref);
-    const homes = await k<{ n: number; state: string; people: number }[]>(
-        `globalThis.causalis.client.query({ type: "home.survey", args: { town: ${JSON.stringify(town.ref)} } })`,
-      ),
-      lived = homes.find((s) => s.state === "stands" && s.people > 0) ?? homes[0];
-    if (!lived) throw new Error("no home");
-    await k(`globalThis.causalis.home.open(${JSON.stringify({ town: town.ref, n: lived.n })})`);
-    await must(
-      "its roof lifted",
-      until("its roof lifted", async () => {
-        const s = await k<{ lifted: boolean; flying: boolean } | null>(
-          "globalThis.causalis.home.state()",
-        );
-        return !!s && s.lifted && !s.flying;
-      }),
-    );
-    await settle(800);
-  });
-  await state("life", async () => {
-    const p = (
-      await k<{ kind: string; x: number; y: number }[]>("globalThis.causalis.home.spots()")
-    ).find(
+  /** Someone in the home, where a finger can touch them clear of the windows. */
+  const someoneIn = async () =>
+    (await k<{ kind: string; x: number; y: number }[]>("globalThis.causalis.home.spots()")).find(
       (s) =>
         s.kind === "person" &&
         s.y > 180 &&
         s.y < view.options.viewport.height - 130 &&
         s.x < W - 70,
     );
+  await state("home", async () => {
+    await toTown(town.ref);
+    const homes = await k<{ n: number; state: string; people: number }[]>(
+        `globalThis.causalis.client.query({ type: "home.survey", args: { town: ${JSON.stringify(town.ref)} } })`,
+      ),
+      lived = homes.filter((s) => s.state === "stands" && s.people > 0);
+    if (!lived.length) throw new Error("no home");
+    // (Someone must be in, for a life to be taken up from there: the clock stands still inside a
+    // home, so if no one is in at this hour, the next home is tried, the day moved on between.)
+    for (let i = 0; ; i++) {
+      const n = lived[i % lived.length]!.n;
+      await k(`globalThis.causalis.home.open(${JSON.stringify({ town: town.ref, n })})`);
+      await must(
+        "its roof lifted",
+        until("its roof lifted", async () => {
+          const s = await k<{ lifted: boolean; flying: boolean } | null>(
+            "globalThis.causalis.home.state()",
+          );
+          return !!s && s.lifted && !s.flying;
+        }),
+      );
+      await settle(800);
+      if (await someoneIn()) break;
+      if (i >= 11) throw new Error("no one in at any hour tried");
+      await k("globalThis.causalis.home.close?.()").catch(() => undefined);
+      await settle(400);
+      if (i % lived.length === lived.length - 1 || i % 3 === 2) {
+        await k("globalThis.causalis.client.setSpeed(3600)");
+        await page.waitForTimeout(1500);
+        await hold();
+      }
+    }
+  });
+  await state("life", async () => {
+    const p = await someoneIn();
     if (!p) throw new Error("no one in");
     if (touch) await page.touchscreen.tap(p.x, p.y);
     else await page.mouse.click(p.x, p.y);

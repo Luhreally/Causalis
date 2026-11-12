@@ -2315,6 +2315,8 @@ body.roaming .hint {
     left: auto;
     right: calc(var(--rail-left, 60px) + 2px);
     top: calc(var(--bar-bottom, 72px) + 8px);
+    /* (Its foot above the windows at the foot of the right side: the god's hand, the map modes.) */
+    max-height: calc(100dvh - var(--bar-bottom, 72px) - 8px - var(--right-foot, 8px));
   }
 }
 /* The message log's 📬, with what has come since it was read. */
