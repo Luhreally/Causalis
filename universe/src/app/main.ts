@@ -3854,6 +3854,7 @@ async function runPlanetPage(): Promise<void> {
     (on) => (on ? time.hold("brush") : time.release("brush")),
   );
   rig.brush = brushes;
+  brushes.place = () => scale;
   corner.append(brushes.button);
   brushes.onArmed = () => {
     palette.putDown();

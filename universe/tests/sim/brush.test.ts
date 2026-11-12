@@ -200,3 +200,45 @@ test("claiming transfers a member land exactly once and protects capitals from a
     /capital cannot be claimed/,
   );
 });
+
+test("a long stroke across more lands than an event can name lands, and the world goes on", () => {
+  const w = build(),
+    g = homePlanet(w).generated,
+    land = populationContext(w)
+      .provinces.all()
+      .map((p) => p.cell)
+      .filter((p) => g.fine.tectonics.elevation[g.centre[p]!]! > 0)
+      .slice(0, 8),
+    cells = land.map((p) => g.centre[p]!);
+  assert.ok(
+    new Set(cells.map((c) => g.provinceOf[c])).size > 4,
+    "the stroke crosses five lands or more",
+  );
+  const before = homePlanet(w).brushStrokes().length;
+  apply(w, { kind: "raise", cells, radius: 0, strength: 1 });
+  const strokes = homePlanet(w).brushStrokes();
+  assert.equal(strokes.length, before + 1);
+  assert.ok(strokes.at(-1)!.provinces.length > 4, "the stroke keeps every land it touched");
+  // (A command after it is taken as any other: no moment was left half done.)
+  apply(w, stroke(cells[0]!, "drain"));
+  assert.equal(homePlanet(w).brushStrokes().length, before + 2);
+});
+
+test("a claim drawn over a capital and the lands about it takes the lands and leaves the capital", () => {
+  const w = build();
+  w.runTo(125 * YEAR);
+  const realms = politiesOf(w),
+    g = homePlanet(w).generated,
+    old = realms.living().find((p) => p.members.length > 2)!,
+    into = realms.living().find((p) => p !== old)!,
+    land = old.members.find((c) => c !== old.seat)!;
+  apply(w, {
+    kind: "claim",
+    cells: [g.centre[old.seat]!, g.centre[land]!],
+    radius: 0,
+    strength: 1,
+    realm: into.ref,
+  });
+  assert.equal(realms.of(land), into, "the land beside it is claimed");
+  assert.equal(realms.of(old.seat), old, "the capital stays its realm's");
+});

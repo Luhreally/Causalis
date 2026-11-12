@@ -153,7 +153,9 @@ body:has(#hud > .people-bar:not([hidden]):not(.aside)) .sung-note {
   inset: 0 0 -18px -18px;
 }
 /* It gives way to a page, and on a phone to the card and the chip that have the foot. */
-body.paging #hud > .people-bar {
+body.paging #hud > .people-bar,
+/* (From the moment a page's window shows, while its words are still coming.) */
+#hud:has(> .panel > .page-window:not([hidden])) > .people-bar {
   display: none;
 }
 @media (max-width: 640px) {
