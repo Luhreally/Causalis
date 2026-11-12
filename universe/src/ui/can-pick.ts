@@ -22,6 +22,8 @@ export function drawCanPick(
   const box = el("div", "can-pick"),
     here = String(args.universe ?? "alien"),
     asked = args.seed === null || args.seed === undefined ? "" : String(args.seed),
+    // (Whose page sets them side by side: what can be done here, or how life began: B2.)
+    to = String(args.to ?? "can"),
     form = el("div", "can-type"),
     input = el("input", "can-seed") as HTMLInputElement,
     go = el("button", "can-go", "Set beside"),
@@ -30,7 +32,7 @@ export function drawCanPick(
   let universe = here;
   const open = (u: string, seed: string) => {
     const s = seed.trim();
-    if (s) ctx.open(`can:${u}|${encodeURIComponent(s)}`);
+    if (s) ctx.open(`${to}:${u}|${encodeURIComponent(s)}`);
   };
   input.type = "text";
   input.placeholder = "Any seed";

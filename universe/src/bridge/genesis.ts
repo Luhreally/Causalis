@@ -25,6 +25,16 @@ export type GenesisPlan = {
     readonly at: number;
     readonly words: string;
   }[];
+  /**
+   * Where its life began and on what (B2): the dawn's first stage told by its own cradle and first life, its title
+   * and words; the place and the trade in a few words each.
+   */
+  readonly origin?: {
+    readonly title: string;
+    readonly words: string;
+    readonly cradle: string;
+    readonly first: string;
+  };
   /** A drop of its first seas, for the dawn to be watched in (its small lives by their ways). */
   readonly drop: Extract<Block, { type: "drop" }> | null;
   /** The acts laid on its dawn: the ages made otherwise (index, kind), what prospered in its seas. */

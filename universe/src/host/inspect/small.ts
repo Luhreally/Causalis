@@ -17,6 +17,8 @@ import {
 import { homePlanet } from "../../sim/index.ts";
 import type { World } from "../../kernel/index.ts";
 import type { Block, DropKind } from "../../bridge/index.ts";
+import { dropKindOf, dropWords, grainOf, originOfHome } from "../origin.ts";
+import type { WorldOrigin } from "../../gen/index.ts";
 
 type Rgb = readonly [number, number, number];
 type Habitat = Extract<Block, { type: "drop" }>["habitat"];
@@ -109,7 +111,12 @@ function placeOf(
 export function dropBlock(
   world: World,
   spot: number,
-  options: { readonly title?: string; readonly focus?: string; readonly habitat?: Habitat } = {},
+  options: {
+    readonly title?: string;
+    readonly focus?: string;
+    readonly habitat?: Habitat;
+    readonly dawn?: boolean;
+  } = {},
 ): Block | null {
   return dropOfWorld(fineOf(world), spot, options);
 }
@@ -118,14 +125,23 @@ export function dropBlock(
 export function dropOfWorld(
   g: HomeWorld,
   spot: number,
-  options: { readonly title?: string; readonly focus?: string; readonly habitat?: Habitat } = {},
+  options: {
+    readonly title?: string;
+    readonly focus?: string;
+    readonly habitat?: Habitat;
+    /** Its first seas': the first life on its grain, where the rock fed it (B2). */
+    readonly dawn?: boolean;
+  } = {},
 ): Extract<Block, { type: "drop" }> | null {
   if (spot < 0 || spot >= g.grid.count) return null;
   const tree = treeOfLife(g),
+    origin = originOfHome(g),
+    small = options.dawn ? origin.dawnSmall : origin.small,
     place = placeOf(g, spot),
     habitat = options.habitat ?? place.habitat,
     kinds: DropKind[] = [];
-  for (const s of SMALL) {
+  // (Its small lives by what they run on, each of its step of the dawn: a world without life holds none.)
+  for (const s of small) {
     const rung = tree.rungs.find((r) => r.id === s.rung),
       node = rung?.node !== null && rung?.node !== undefined ? tree.nodes[rung.node] : undefined;
     if (!node) continue;
@@ -133,22 +149,15 @@ export function dropOfWorld(
     const share =
       s.share *
       (habitat === "soil" ? (s.way === "light" ? 0.3 : s.way === "colony" ? 0 : 1) : 1) *
-      (habitat === "ice" && s.way !== "eater" ? 0.5 : 1) *
+      (habitat === "ice" && s.way !== "eater" && s.way !== "rock" ? 0.5 : 1) *
       (options.focus === node.ref ? 3 : 1);
     if (share <= 0) continue;
-    kinds.push({
-      ref: node.ref,
-      name: s.name,
-      line: node.name,
-      way: s.way,
-      color: s.color,
-      size: s.size,
-      share,
-    });
+    kinds.push(dropKindOf(s, node.ref, node.name, share));
   }
   if (!kinds.length) return null;
   const whole = kinds.reduce((a, k) => a + k.share, 0),
-    seed = seedFromText(`drop ${g.digest} ${spot} ${habitat}`).lo >>> 0;
+    seed = seedFromText(`drop ${g.digest} ${spot} ${habitat}`).lo >>> 0,
+    grain = grainOf(kinds, habitat, rockTrade(origin, small));
   return {
     type: "drop",
     title:
@@ -160,9 +169,32 @@ export function dropOfWorld(
     food: habitat === place.habitat ? place.food : 0.6,
     kinds: kinds.map((k) => ({ ...k, share: k.share / whole })),
     ...(options.focus ? { focus: options.focus } : {}),
-    words:
-      "Each cell lives by its kind's way — after what floats in the water, by the light, by taking in smaller cells — and divides when it has eaten enough, its daughters a little unlike it. The hunters take what is small and slow: watch what grows common. Tap a cell to follow it and its descendants.",
+    ...(grain ? { grain } : {}),
+    words: earthDrop(origin, small)
+      ? "Each cell lives by its kind's way — after what floats in the water, by the light, by taking in smaller cells — and divides when it has eaten enough, its daughters a little unlike it. The hunters take what is small and slow: watch what grows common. Tap a cell to follow it and its descendants."
+      : dropWords(small, grain),
   };
+}
+
+/** What a drop's rock-eaters eat (null: it holds none). */
+function rockTrade(origin: WorldOrigin, small: WorldOrigin["small"]) {
+  return (
+    small.find((s) => s.way === "rock")?.trade ??
+    (origin.first?.kind === "rock" ? origin.first.id : null)
+  );
+}
+
+/** A drop whose small lives are as Earth's always were (its words as they were). */
+function earthDrop(origin: WorldOrigin, small: WorldOrigin["small"]): boolean {
+  return (
+    origin.ground.oxygen &&
+    !small.some((s) => s.way === "rock") &&
+    small.every(
+      (s) =>
+        s.pace === 1 &&
+        ["small cells", "light-eaters", "hunting cells", "cells together"].includes(s.name),
+    )
+  );
 }
 
 /** The warmest shallow sea of the world, where a drop of the dawn's seas is drawn from. */
@@ -196,7 +228,14 @@ function gyrAgo(gyr: number): string {
  */
 export function elsewhereBlocks(
   life: Elsewhere,
-  options: { readonly key: string; readonly warmth: number; readonly light: number },
+  options: {
+    readonly key: string;
+    readonly warmth: number;
+    readonly light: number;
+    /** How its life began (B2): its small lives by what they run on, and its Life page. */
+    readonly origin: WorldOrigin;
+    readonly lifeRef: string;
+  },
 ): Block[] {
   const out: Block[] = [
     {
@@ -210,6 +249,13 @@ export function elsewhereBlocks(
         ...(life.bodiesAgo !== null
           ? [{ label: "Its first bodies", value: [gyrAgo(life.bodiesAgo)] }]
           : []),
+        ...(options.origin.cradle && life.level !== "chemistry"
+          ? [{ label: "It began", value: [`at ${options.origin.cradle.name}`] }]
+          : []),
+        {
+          label: "How",
+          value: [{ text: "How life began here, and on what", ref: options.lifeRef }],
+        },
       ],
     },
   ];
@@ -227,19 +273,10 @@ export function elsewhereBlocks(
     });
   if (life.small.length) {
     const sea = life.where !== "water under its ice",
-      kinds: DropKind[] = [];
-    for (const way of life.small) {
-      const s = SMALL.find((x) => x.way === way)!;
-      kinds.push({
-        ref: "",
-        name: s.name,
-        line: "its own first cells",
-        way,
-        color: s.color,
-        size: s.size,
-        share: s.share,
-      });
-    }
+      habitat: Habitat = sea ? "sea" : "ice",
+      small = options.origin.small,
+      kinds: DropKind[] = small.map((s) => dropKindOf(s, "", "its own first cells", s.share)),
+      grain = grainOf(kinds, habitat, small.find((s) => s.way === "rock")?.trade ?? null);
     const whole = kinds.reduce((a, k) => a + k.share, 0);
     out.push({
       type: "drop",
@@ -250,8 +287,8 @@ export function elsewhereBlocks(
       warmth: options.warmth,
       food: sea ? 0.6 : 0.3,
       kinds: kinds.map((k) => ({ ...k, share: k.share / whole })),
-      words:
-        "Its small lives are not ours: they came of their own first cells, but they live as small lives everywhere must — after what floats, by the light, by taking in others.",
+      ...(grain ? { grain } : {}),
+      words: `Its small lives are not ours: they came of their own first cells. ${dropWords(small, grain)}`,
     });
   }
   return out;

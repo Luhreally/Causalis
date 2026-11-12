@@ -459,7 +459,9 @@ test("a world's beginning remade by an act laid on its dawn: asked of the host, 
     lives: [],
     peopling: { seasLow: false, age: null, cradle: null },
   });
-  assert.ok(plain.rungs.some((r) => r.id === "nucleus") && plain.drop!.kinds.length === 4);
+  // (Its first seas' four kinds, and the methane-makers its first life was, on their vent's grain: B2.)
+  assert.ok(plain.rungs.some((r) => r.id === "nucleus") && plain.drop!.kinds.length === 5);
+  assert.ok(plain.drop!.kinds.some((k) => k.way === "rock"));
   assert.equal(g.seed, seed);
   assert.equal(g.ages[4]!.kind, "impact");
   assert.deepEqual(g.acts, {

@@ -24,6 +24,7 @@ import {
 } from "../sim/index.ts";
 import type { GenesisPlan } from "../bridge/index.ts";
 import { dawnSeaOf, dropOfWorld } from "./inspect/small.ts";
+import { originWords } from "./inspect/lifepage.ts";
 import { figureBody, folkFacts } from "./folk.ts";
 import { spotBiome } from "./kinds.ts";
 import { lookMeta } from "./biochem.ts";
@@ -126,9 +127,15 @@ export function genesisPlan(pw: ProvinceWorld, seed: string): GenesisPlan {
     // (Its life's colours, for its meadows: Phase 57.)
     ...lookMeta(pw),
     rungs: tree.rungs.map((r) => ({ id: r.id, name: r.name, at: r.at, words: r.words })),
+    // (Where its life began and on what, and its first seas' own small lives: B2.)
+    ...(() => {
+      const origin = originWords(g);
+      return origin ? { origin } : {};
+    })(),
     drop: dropOfWorld(g, dawnSeaOf(g), {
       title: "A drop of the first seas",
       habitat: "sea",
+      dawn: true,
     }),
     acts: {
       ages: [...agesMade(seed, AGES)].map(([age, kind]) => ({ age, kind })),

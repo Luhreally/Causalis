@@ -376,7 +376,8 @@ export async function runGenesis(o: {
     owed = 0;
   const freshDrop = () => {
     if (!block) return;
-    const risen = block.kinds.map((k) => k.way === "eater");
+    // (The first cells, and the rock-eaters on their grain where its first life was fed by the rock.)
+    const risen = block.kinds.map((k) => k.way === "eater" || k.way === "rock");
     drop = newDrop(block, risen);
     twin = newDrop(block, risen);
     touched = false;
@@ -1209,9 +1210,9 @@ export async function runGenesis(o: {
   /** A stage of the dawn watched in the drop of the first seas, alive. */
   function dropStage(d: "first cells" | "nucleus" | "colonies"): (typeof STAGES)["galaxy"] {
     return {
-      title: DAWN_WORDS[d][0],
+      title: d === "first cells" && plan.origin ? plan.origin.title : DAWN_WORDS[d][0],
       text: () =>
-        `${DAWN_WORDS[d][1]} ${d === "first cells" ? "Feed the drop, shade it, warm it or stir it, and tap a cell to follow its line: what prospers under your hand will shape the life that comes of it." : ""}`.trim(),
+        `${d === "first cells" && plan.origin ? plan.origin.words : DAWN_WORDS[d][1]} ${d === "first cells" ? "Feed the drop, shade it, warm it or stir it, and tap a cell to follow its line: what prospers under your hand will shape the life that comes of it." : ""}`.trim(),
       enter: () => {
         stage.backdrop("space");
         document.body.dataset.scale = "micro";
@@ -1229,7 +1230,7 @@ export async function runGenesis(o: {
       },
       update: () => {
         if (!drop) return micro.update(dropOf(d, played));
-        micro.living(roundDrop(drop, chosen), colors);
+        micro.living(roundDrop(drop, chosen), colors, block?.grain?.color);
         countDrop();
       },
       acts: block ? dropActs : undefined,

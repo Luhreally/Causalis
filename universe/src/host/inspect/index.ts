@@ -4,6 +4,7 @@
 // it stands (the observer ledger aside, which history never reads): asking never moves it.
 import { meansPage, measurePage } from "./means.ts";
 import { canPage } from "./can.ts";
+import { lifeElsewherePage, lifePage } from "./lifepage.ts";
 import { parseRef, type World } from "../../kernel/index.ts";
 import {
   splitPageRef,
@@ -103,6 +104,10 @@ function build(
   // What can be done here, and beside another world (F5).
   if (ref === "world:can") return canPage(world, tab ?? undefined);
   if (ref.startsWith("can:")) return canPage(world, "beside", ref.slice("can:".length));
+  // How life began here, or on another world, and beside another (B2).
+  if (ref === "world:life") return lifePage(world);
+  if (ref.startsWith("lifewith:")) return lifePage(world, ref.slice("lifewith:".length));
+  if (ref.startsWith("life:")) return lifeElsewherePage(world, ref);
   if (ref.startsWith("means:")) return measurePage(world, ref);
   // The tree of life (Phase 17 M129), and a line of it no living lineage is.
   if (ref === "world:tree") return treePage(world, tab ?? undefined);
