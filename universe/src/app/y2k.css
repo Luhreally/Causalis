@@ -2630,6 +2630,50 @@ canvas.arms {
   color: var(--muted);
   font-size: 0.78rem;
 }
+/* (Always a way out, wherever it is scrolled to: its title with its ✕ pinned at the top, its buttons
+   at the foot; Escape and a tap outside it put it away too. Asked 2026-11-12.) */
+.event-title {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.event-name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.event-close {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  margin: -6px -8px -6px 0;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 6px;
+  background: rgba(0, 0, 30, 0.25);
+  color: #fff;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.event-buttons {
+  position: sticky;
+  bottom: -10px;
+  z-index: 1;
+  padding: 8px 0 10px;
+  background: var(--event-foot, var(--panel-solid));
+}
+.event-all {
+  margin-left: auto;
+}
+.event-all[hidden] {
+  display: none;
+}
+.event-family {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
 @media (max-width: 640px) {
   .event-body {
     flex-direction: column;
@@ -2642,6 +2686,7 @@ canvas.arms {
     transform: translateX(-50%);
     max-height: calc(100% - var(--bar-bottom, 72px) - 30px - var(--safe-bottom));
     background: linear-gradient(180deg, #22366e 0%, #0c1432 100%);
+    --event-foot: #0c1432;
   }
 }
 

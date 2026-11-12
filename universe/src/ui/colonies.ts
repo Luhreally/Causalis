@@ -103,6 +103,16 @@ export class Colonies {
     return !this.sheet.hidden;
   }
 
+  /**
+   * Whether a world had been landed on before a year: of the home star's worlds (a colony), or of
+   * other stars' (a ship come in). Only the first of each is told in a window; the rest as cards.
+   */
+  landedBefore(year: number, star: boolean): boolean {
+    return this.list.some(
+      (c) => !c.sailing && c.town !== null && !!c.star === star && c.founded < year,
+    );
+  }
+
   /** The newest: the first shown and the first offered. */
   get newest(): ColonyEntry | null {
     return this.list.find((c) => c.town !== null) ?? null;
@@ -133,9 +143,21 @@ export class Colonies {
     if (!this.sheet.hidden) this.draw();
   }
 
-  /** A word on the same card, nothing to tap. */
+  /** The card's ✕: put away now, its button no longer glowing. */
+  private shut(): HTMLElement {
+    const x = el("button", "colony-news-close", "✕");
+    x.setAttribute("aria-label", "Close");
+    x.onclick = () => {
+      this.news.hidden = true;
+      this.button.classList.remove("new");
+      if (this.newsTimer) clearTimeout(this.newsTimer);
+    };
+    return x;
+  }
+
+  /** A word on the same card, nothing to tap but its ✕. */
   say(words: string): void {
-    this.news.replaceChildren(el("span", undefined, words));
+    this.news.replaceChildren(el("span", undefined, words), this.shut());
     this.news.hidden = false;
     if (this.newsTimer) clearTimeout(this.newsTimer);
     this.newsTimer = setTimeout(() => {
@@ -156,7 +178,7 @@ export class Colonies {
       this.news.hidden = true;
       this.onLanding(c.cell);
     };
-    this.news.replaceChildren(el("span", undefined, words), watch);
+    this.news.replaceChildren(el("span", undefined, words), watch, this.shut());
     this.news.hidden = false;
     this.button.classList.add("new");
     if (this.newsTimer) clearTimeout(this.newsTimer);

@@ -52,6 +52,48 @@ const ALWAYS: ReadonlySet<string> = new Set([
   "court.found",
 ]);
 
+/**
+ * The families news is told in, each told as the viewer chooses (asked 2026-11-12: "let me be able
+ * to click out of the new planet landed notification that just forces on my screen"): by the start
+ * of the happening's type, the first that fits.
+ */
+export const FAMILIES: readonly {
+  readonly id: string;
+  readonly words: string;
+  readonly types: readonly string[];
+}[] = [
+  {
+    id: "stars",
+    words: "landings and the stars",
+    types: [
+      "space.",
+      "lanes.",
+      "trade.",
+      "peoples.",
+      "contact.",
+      "far.",
+      "nation.",
+      "starwar.",
+      "late.",
+    ],
+  },
+  { id: "war", words: "wars and great fires", types: ["war.", "fire.", "hand."] },
+  {
+    id: "realms",
+    words: "realms and their rule",
+    types: ["polity.", "strife.", "order.", "ties.", "credit.", "belief."],
+  },
+  { id: "lives", words: "lives and courts", types: ["life.", "court."] },
+  { id: "hardship", words: "famine and sickness", types: ["health.", "people.famine"] },
+  { id: "firsts", words: "peoples' firsts", types: ["knowledge.", "people."] },
+  { id: "hand", words: "your hand's acts", types: ["act."] },
+];
+
+/** The family a happening's news is told in (null: none of them). */
+export function familyOf(type: string): string | null {
+  return FAMILIES.find((f) => f.types.some((t) => type.startsWith(t)))?.id ?? null;
+}
+
 /** Whether a tiding is great enough for a window. */
 export function isGreat(t: Tiding): boolean {
   return t.importance >= GREAT || ALWAYS.has(t.type);
@@ -68,6 +110,10 @@ export class EventWindows {
   private readonly why: WhyTree;
   private readonly queue: Tiding[] = [];
   private showing: Tiding | null = null;
+  /** The happenings already shown and put away: never shown again. */
+  private readonly done = new Set<string>();
+  /** A tap outside that put a window away, kept from the thing under it. */
+  private swallowing = false;
   /** The clock a window holds while it waits on the viewer. */
   clock: { hold(who: string): void; release(who: string): void } | null = null;
   /** Go to where a happening is to be seen; open a page. */
@@ -106,6 +152,55 @@ export class EventWindows {
     this.element.setAttribute("role", "dialog");
     this.element.setAttribute("aria-label", "A great happening");
     parent.append(this.element);
+    // (Put away by Escape, or by a tap anywhere outside it, which goes no further: a tap meant to
+    // close it opens nothing beneath.)
+    addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && this.open) {
+        e.stopPropagation();
+        this.letBe();
+      }
+    });
+    addEventListener(
+      "pointerdown",
+      (e) => {
+        if (!this.open || this.element.hidden) return;
+        const at = e.target as Node | null;
+        if (at && this.element.contains(at)) return;
+        e.stopPropagation();
+        e.preventDefault();
+        this.swallowing = true;
+        this.letBe();
+      },
+      true,
+    );
+    for (const type of ["pointerup", "click"] as const)
+      addEventListener(
+        type,
+        (e) => {
+          if (!this.swallowing) return;
+          e.stopPropagation();
+          e.preventDefault();
+          if (type === "click") this.swallowing = false;
+        },
+        true,
+      );
+    // (A tap that never comes to a click lets go of the next one.)
+    addEventListener("pointercancel", () => (this.swallowing = false), true);
+    addEventListener("pointerdown", () => setTimeout(() => (this.swallowing = false), 700), true);
+  }
+
+  /** How a family's news is told (null: as all great happenings are). */
+  familyMode(family: string): EventMode | null {
+    const m = kept(`${MODE_KEY}.${family}`);
+    return m === "window" || m === "card" || m === "none" ? m : null;
+  }
+  setFamilyMode(family: string, m: EventMode | null): void {
+    keep(`${MODE_KEY}.${family}`, m ?? "");
+  }
+  /** How a happening's news is told: as its family's is, else as all are. */
+  modeOf(t: Pick<Tiding, "type">): EventMode {
+    const f = familyOf(t.type);
+    return (f ? this.familyMode(f) : null) ?? this.mode;
   }
 
   /** How great happenings are told. */
@@ -131,7 +226,12 @@ export class EventWindows {
 
   /** A great happening: shown now, or when those before it are let be. */
   tell(t: Tiding): void {
-    if (this.showing?.ref === t.ref || this.queue.some((q) => q.ref === t.ref)) return;
+    if (
+      this.done.has(t.ref) ||
+      this.showing?.ref === t.ref ||
+      this.queue.some((q) => q.ref === t.ref)
+    )
+      return;
     this.queue.push(t);
     if (!this.showing) void this.next();
     else this.drawWaiting();
@@ -142,7 +242,20 @@ export class EventWindows {
     void this.next();
   }
 
+  /** Put this one away, and every one waiting. */
+  letAllBe(): void {
+    for (const q of this.queue) this.remember(q.ref);
+    this.queue.length = 0;
+    void this.next();
+  }
+
+  private remember(ref: string): void {
+    this.done.add(ref);
+    if (this.done.size > 500) this.done.delete(this.done.values().next().value!);
+  }
+
   private async next(): Promise<void> {
+    if (this.showing) this.remember(this.showing.ref);
     const t = this.queue.shift() ?? null;
     this.showing = t;
     if (!t) {
@@ -159,9 +272,13 @@ export class EventWindows {
 
   /** A window has opened (what is heard of it). */
   onShow: (() => void) | null = null;
-  private readonly waiting = el("span", "event-more");
+  private readonly waiting = el("button", "event-all");
   private drawWaiting(): void {
-    this.waiting.textContent = this.queue.length ? `${this.queue.length} more waiting` : "";
+    const n = this.queue.length;
+    this.waiting.hidden = n === 0;
+    this.waiting.textContent = n ? `Let all ${n + 1} be` : "";
+    this.waiting.title = n ? `${n} more waiting: put them all away` : "";
+    this.waiting.onclick = () => this.letAllBe();
   }
 
   private async draw(t: Tiding): Promise<void> {
@@ -175,10 +292,15 @@ export class EventWindows {
         .catch(() => [] as Answer[]),
     ]);
     if (this.showing !== t) return;
-    const head = el("h2", "event-title");
+    const head = el("h2", "event-title"),
+      shut = el("button", "event-close", "✕");
+    shut.setAttribute("aria-label", "Close");
+    shut.title = "Put it away (Escape, or a tap outside it)";
+    shut.onclick = () => this.letBe();
     head.append(
       el("span", "event-icon", event?.icon ?? "📜"),
       el("span", "event-name", event?.title ?? "A great happening"),
+      shut,
     );
     const words = el("div", "event-words"),
       whyBox = el("div", "why event-why");
@@ -303,13 +425,13 @@ export class EventWindows {
       buttons.append(watch);
     }
     buttons.append(go, page, be, this.waiting);
-    this.element.replaceChildren(head, body, ...acts, buttons, this.settings());
+    this.element.replaceChildren(head, body, ...acts, buttons, this.settings(t));
     this.element.hidden = false;
     be.focus({ preventScroll: true });
   }
 
   /** How such happenings are told, and whether the clock waits: kept in this browser. */
-  private settings(): HTMLElement {
+  private settings(t: Tiding): HTMLElement {
     const box = el("div", "event-settings"),
       how = el("select", "event-mode"),
       wait = el("input"),
@@ -335,6 +457,28 @@ export class EventWindows {
     };
     label.append(wait, " The clock waits");
     box.append(el("span", undefined, "Great happenings told "), how, label);
+    // (This one's family, told its own way: landings as cards, say, and wars in windows.)
+    const family = FAMILIES.find((f) => f.id === familyOf(t.type));
+    if (family) {
+      const line = el("div", "event-family"),
+        own = el("select", "event-mode event-family-mode");
+      for (const [value, words] of [
+        ["", "as the rest are"],
+        ["window", "in windows"],
+        ["card", "as cards"],
+        ["none", "not at all"],
+      ] as const) {
+        const o = el("option", undefined, words);
+        o.value = value;
+        own.append(o);
+      }
+      own.value = this.familyMode(family.id) ?? "";
+      own.onchange = () =>
+        this.setFamilyMode(family.id, own.value ? (own.value as EventMode) : null);
+      own.setAttribute("aria-label", `Tell news of ${family.words}`);
+      line.append(el("span", undefined, `News of ${family.words} told `), own);
+      box.append(line);
+    }
     return box;
   }
 }

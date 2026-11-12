@@ -991,6 +991,7 @@ type Exposed = {
   reloadPlan?: () => Promise<void>;
   /** Whether a great happening's window is open (M100). */
   eventOpen?: () => boolean;
+  tellGreat?: (t: import("../ui/tidings.ts").Tiding) => boolean;
   /** The god's palette (Phase 12 M106): the act in hand, an act taken up or put down, a tap. */
   palette?: {
     holding: () => string | null;
@@ -1739,14 +1740,28 @@ async function runPlanetPage(): Promise<void> {
     const place = await client.query<Place | null>({ type: "place", args: { ref } });
     if (place) await goTo(place);
   };
+  /** Whether a world had been landed on before (the 🚀 list's, once it stands). */
+  let landedBefore = (_year: number, _star: boolean) => false;
   tidings.onGreat = (t) => {
     // (While the Director films, the world's own news comes as a card, not a window over the film.)
-    if (!isGreat(t) || events.mode === "card" || (t.world && directorControls.watching))
+    if (!isGreat(t) || (t.world && directorControls.watching)) return false;
+    const mode = events.modeOf(t);
+    if (mode === "card") return false;
+    if (mode === "none") return true;
+    // (A landing in a window only when it is the first on another world, or the first under another
+    // star; every later one is a card and a count on the 🚀. Asked 2026-11-12: "the new planet
+    // landed notification that just forces on my screen".)
+    if (
+      (t.type === "space.colony" || t.type === "space.arrival") &&
+      landedBefore(t.year, t.type === "space.arrival")
+    )
       return false;
-    if (events.mode === "window") events.tell(t);
+    events.tell(t);
     return true;
   };
   exposed.eventOpen = () => events.open;
+  /** News told as the tidings tell it (gate 107): true if told otherwise than as a card. */
+  exposed.tellGreat = (t) => tidings.onGreat(t);
   // (The world's own pages — its chronicle, saves, settings — open in its panel instead.)
   planetPanel.onWorldPage = () => pageWindow.close();
   // The world's chronicle and its ledger (Phase 10 M96b): pages of the window like any other.
@@ -9850,6 +9865,7 @@ async function runPlanetPage(): Promise<void> {
     },
   });
   const colonies = new Colonies(hud, client);
+  landedBefore = (year, star) => colonies.landedBefore(year, star);
   colonies.toldAloud = !navigator.webdriver || params.has("landings");
   corner.prepend(colonies.button);
   colonies.onLanding = (cell) => void colonyFilm!.play(cell);

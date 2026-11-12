@@ -219,6 +219,16 @@ body.filming #hud > *:not(.colony-film):not(.swap):not(.readying):not(.tour-line
 .colony-news span {
   flex: 1;
 }
+/* (Its ✕: put away at once. Asked 2026-11-12.) */
+.colony-news button.colony-news-close {
+  flex: none;
+  width: 44px;
+  min-height: 40px;
+  padding: 0;
+  background: none;
+  border-color: rgba(255, 200, 110, 0.6);
+  color: #f2f6ff;
+}
 .colony-news button {
   min-height: 40px;
   padding: 6px 12px;

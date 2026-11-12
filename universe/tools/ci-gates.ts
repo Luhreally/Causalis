@@ -355,6 +355,10 @@ export const GATES: readonly Gate[] = [
   // visited with the corner's rail as full as it can be, every lens among them; no two windows of the HUD over one another, no
   // control covered at its middle, none partly off the screen.
   { gate: 106, args: ["--ci"], s: 900 },
+  // Gate 107, a notice always put away with one tap (tools/notices-gate.ts): on first light at year 1300 by touch, the landing card's ✕ and
+  // its place under the bar; only the first landing on another world in a window; the window's ✕ and buttons on the screen unscrolled, a
+  // tap outside it (opening nothing beneath), Escape, none shown twice, five waiting put away at once, a family of news told as cards.
+  { gate: 107, args: ["--ci"], s: 600 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */

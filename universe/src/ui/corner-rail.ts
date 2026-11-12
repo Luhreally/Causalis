@@ -19,6 +19,20 @@ const TOOLS =
   ".colonies-button, .strikes-button, .free-buttons > button, .alert, .search-open, .outliner-open, .log-open, .brush-toggle, .sound-button";
 /** What stands at the screen's foot: the rail, the news and the windows at the right end above it. */
 const FEET = "#hud > .people-bar, .mapmodes, #hud > .palette, #hud > .palette-toggle";
+/**
+ * Where the shown scale's bar ends, read from the bar itself (as main.ts marks `--bar-bottom`): a
+ * foot measured before that is marked took the lens row under the bar for the screen's foot, and a
+ * landing's card told as a world opened stood over the bar.
+ */
+function barBottom(): number {
+  const b = [...document.querySelectorAll<HTMLElement>(".panel > header.bar")].find(
+    (x) => x.offsetParent !== null,
+  );
+  return b
+    ? Math.round(b.getBoundingClientRect().bottom)
+    : parseFloat(document.documentElement.style.getPropertyValue("--bar-bottom")) || 0;
+}
+
 /** The gap kept between a window and what it ends above (px). */
 const GAP = 8;
 
@@ -119,7 +133,7 @@ export class CornerRail {
       H = innerHeight,
       cols = W <= 640 ? 1 : 2,
       rem = parseFloat(getComputedStyle(root).fontSize),
-      bar = parseFloat(root.style.getPropertyValue("--bar-bottom")) || 0,
+      bar = barBottom(),
       railFoot = this.foot(W - 8 - cols * 52, W, bar),
       top = Math.round(this.element.getBoundingClientRect().top),
       sign = `${W}x${H} ${top} ${railFoot} ${document.body.className} ${shown(this.element)}`;
