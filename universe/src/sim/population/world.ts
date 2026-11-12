@@ -439,13 +439,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
     causes: [{ ref: origin, role: "trigger", weight: 1 }],
     data: { provinces: lands.length, people: sizes.reduce((a, b) => a + b, 0) },
   });
-  const ways = openingWays(
-    world,
-    lands,
-    cradle,
-    spread,
-    homePlanet(world).generated.stride,
-  );
+  const ways = openingWays(world, lands, cradle, spread, homePlanet(world).generated.stride);
   lands.forEach(([cell], i) => {
     people(
       provinces.add(new Province(cell, 0, cell === home ? origin : spread)),
