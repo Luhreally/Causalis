@@ -976,7 +976,11 @@ function planetUniverse(name: string, prior: Prior): Universe {
           cell = ref.startsWith("cell:0:")
             ? Number(ref.slice(7))
             : (politiesOf(world).get(ref as Ref)?.seat ?? null);
-        return cell === null ? [] : loreOf(world).of(cell).map(([id]) => id);
+        return cell === null
+          ? []
+          : loreOf(world)
+              .of(cell)
+              .map(([id]) => id);
       },
       /** Each lesson some people of the world has taken up, and the year the first did. */
       "lessons.firsts": (world) =>
