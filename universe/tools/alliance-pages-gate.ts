@@ -39,12 +39,12 @@ console.log("gate 114, an alliance read whole");
 
 const BAD = /undefined|NaN|\[object|\bnull\b|Infinity|\b(ev|pol|war|cell|town|bloc|allyvs):\d/;
 const TABS: readonly (readonly [string, RegExp])[] = [
-  ["Overview", /Its weight in the world/],
-  ["Members", /Their weight, the greatest first/],
-  ["Strength", /By the years|History holds no years/],
-  ["Wars", /since its realms were bound|fought no war since/],
-  ["History", /Bound since year|No one wrote down/],
-  ["Within", /What holds it together/],
+  ["Overview", /Its weight in the world/i],
+  ["Members", /Their weight, the greatest first/i],
+  ["Strength", /By the years|History holds no years/i],
+  ["Wars", /since its realms were bound|fought no war since/i],
+  ["History", /Bound since year|No one wrote down/i],
+  ["Within", /What holds it together/i],
 ];
 
 type Span = string | { text: string; ref: string };
@@ -201,7 +201,7 @@ const centre = (sel: string, text = "") =>
   k<At | null>(`(() => {
     for (const e of document.querySelectorAll(${JSON.stringify(sel)})) {
       if (${JSON.stringify(text)} && !e.innerText.includes(${JSON.stringify(text)})) continue;
-      e.scrollIntoView({ block: "center", inline: "center" });
+      e.scrollIntoView({ block: "center", inline: "nearest" });
       const r = e.getBoundingClientRect();
       if (!(r.width > 0 && r.height > 0)) continue;
       const x = r.left + Math.min(r.width / 2, 40), y = r.top + r.height / 2, top = document.elementFromPoint(x, y);
@@ -320,11 +320,15 @@ say(`${read.alliances.length} alliances on the lens`);
 // Every alliance ranked.
 await tap(".legend-action", "Every alliance");
 await until("the Alliances page", async () => (await pageNow()) === "world:alliances");
-await until("its ranking", async () => /Their weight, the greatest first/.test(await pageText()));
+await until("its ranking", async () => /Their weight, the greatest first/i.test(await pageText()));
 {
   const text = await pageText(),
-    rows = await k<number>(`document.querySelectorAll(".page-window tr.row").length`),
-    swatches = await k<number>(`document.querySelectorAll(".page-window tr.row .swatch").length`);
+    rows = await k<number>(
+      `document.querySelector(".page-window .table-wrap")?.querySelectorAll("tr.row").length ?? 0`,
+    ),
+    swatches = await k<number>(
+      `document.querySelector(".page-window .table-wrap")?.querySelectorAll("tr.row .swatch").length ?? 0`,
+    );
   say(`the ranking: ${rows} rows, ${swatches} with their colour`);
   check(
     rows === Math.min(60, read.alliances.length),
@@ -344,7 +348,7 @@ await until("its ranking", async () => /Their weight, the greatest first/.test(a
 const top = read.alliances[0]!;
 await tap(".page-window tr.row", `${top.town} in the ranking`, top.town);
 await until("the greatest alliance's page", async () => (await pageNow()) === top.ref);
-await until("its overview", async () => /Its weight in the world/.test(await pageText()));
+await until("its overview", async () => /Its weight in the world/i.test(await pageText()));
 for (const [i, [name, want]] of TABS.entries()) {
   const at = await k<number>(
     `[...document.querySelectorAll(".page-window .tabs .tab")].findIndex((b) => b.textContent.trim().startsWith(${JSON.stringify(name)}))`,
@@ -391,7 +395,7 @@ for (const [i, [name, want]] of TABS.entries()) {
 // Set beside another.
 if (read.alliances.length >= 2) {
   await tap(`.page-window .tabs .tab:nth-child(1)`, "the Overview tab");
-  await until("the overview again", async () => /Set it beside/.test(await pageText()));
+  await until("the overview again", async () => /Set it beside/i.test(await pageText()));
   const other = read.alliances[1]!.name;
   await tap(
     ".page-window .entry",
@@ -400,7 +404,7 @@ if (read.alliances.length >= 2) {
   );
   await until("two side by side", async () => ((await pageNow()) ?? "").startsWith("allyvs:"));
   await until("their tally", async () =>
-    /Their numbers, pulled against each other/.test(await pageText()),
+    /Their numbers, pulled against each other/i.test(await pageText()),
   );
   const text = await pageText();
   check(!BAD.test(text), `two alliances side by side say ${BAD.exec(text)?.[0]}`);

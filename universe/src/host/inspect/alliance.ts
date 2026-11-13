@@ -44,7 +44,15 @@ import { landEra } from "../village.ts";
 import { eraWords } from "./world.ts";
 import { faithLink, languageLink, realmLink, spotOfLand } from "./names.ts";
 import { claimOf, count, item, link, many, part, share, stat, yearNow } from "./words.ts";
-import { alliancesOf, callLine, envoyLine, leagueName, standsHow, type Alliance } from "./ties.ts";
+import {
+  alliancesOf,
+  callLine,
+  envoyLine,
+  leagueName,
+  relationsOf,
+  standsHow,
+  type Alliance,
+} from "./ties.ts";
 
 type Rgb = readonly [number, number, number];
 type Point = { x: number; y: number };
@@ -133,15 +141,30 @@ function yearRead(world: World): YearRead {
     broken: Broken[] = [],
     TAKEN = WAR_EVENTS.taken.type,
     BROKE = DIPLOMACY_EVENTS.broken.type;
-  for (const e of world.events.all()) {
-    const type = e.type;
-    if (type === TAKEN) {
-      const [by, from] = e.subjects;
-      if (by && from) taken.push({ y: Math.floor(e.t / YEAR), by, from, id: e.id });
-    } else if (type === BROKE) {
-      const [a, b] = e.subjects;
-      if (a && b) broken.push({ y: Math.floor(e.t / YEAR), a, b, id: e.id });
+  const note = (type: string, t: number, subjects: readonly Ref[], id: Ref) => {
+    const [a, b] = subjects;
+    if (!a || !b) return;
+    if (type === TAKEN) taken.push({ y: Math.floor(t / YEAR), by: a, from: b, id });
+    else broken.push({ y: Math.floor(t / YEAR), a, b, id });
+  };
+  // (The log's cold rows read by their columns, each type's name once: an object for each of
+  // seven hundred thousand events costs a phone a tenth of a second, and nothing here needs one.)
+  const log = world.events,
+    cold = log.cold,
+    names = new Map<number, string>();
+  for (let row = 0; row < cold.n; row++) {
+    const code = cold.type[row]!;
+    let type = names.get(code);
+    if (type === undefined) {
+      type = cold.words.wordOf(code);
+      names.set(code, type);
     }
+    if (type === TAKEN || type === BROKE)
+      note(type, cold.t[row]!, cold.subjects(row), `ev:0:${cold.serial[row]}` as Ref);
+  }
+  for (let i = 0; i < log.count - cold.n; i++) {
+    const e = log.hotAt(i);
+    if (e.type === TAKEN || e.type === BROKE) note(e.type, e.t, e.subjects, e.id);
   }
   const read = { year, lands, people, host, worth, hostOf, worthOf, taken, broken };
   YEARS.set(world, read);
@@ -221,12 +244,12 @@ function readAlliance(world: World, a: Alliance): AllianceRead {
     lore = loreOf(world),
     faiths = beliefOf(world),
     tongues = languagesOf(world),
-    diplomacy = diplomacyOf(world),
+    relations = relationsOf(world),
     bonds = bondsOf(world),
     ties: Tie[] = [];
   // The bonds that hold it, each once.
   for (const r of a.members)
-    for (const x of diplomacy.of(r))
+    for (const x of relations.get(r) ?? [])
       if (x.pact && x.a === r && inIt.has(x.b))
         ties.push({
           a: x.a,
@@ -1400,34 +1423,48 @@ export function alliancesPage(world: World): PageModel {
           })),
           unit: "people",
         },
+        // (Two tables of five columns, so each fits a phone's width with no column out of sight.)
         {
           type: "table",
-          title:
-            "Their weight, the greatest first (each by its head's seat; its wars since its realms were bound)",
-          columns: ["Alliance", "Realms", "Lands", "People", "Host", "Wealth", "Wars"],
+          title: "Their weight, the greatest first (each by its head's seat)",
+          columns: ["Alliance", "Realms", "Lands", "People", "Host"],
+          rows: reads.map((r) => ({
+            ref: r.a.ref,
+            swatch: r.a.color,
+            cells: [
+              [link(townOf(world, r.a.head), r.a.ref)],
+              [count(r.members.length)],
+              [count(r.lands)],
+              [short(r.people)],
+              [short(r.host)],
+            ],
+            keys: [
+              townOf(world, r.a.head),
+              r.members.length,
+              r.lands,
+              r.people,
+              Math.round(r.host),
+            ],
+          })),
+        },
+        {
+          type: "table",
+          title: "Their wealth and their wars (its wars since its realms were bound)",
+          columns: ["Alliance", "Wealth", "Wars", "At war now", "Since"],
           rows: reads.map((r) => {
-            const w = foughtOf(world, r).fought;
+            const w = foughtOf(world, r).fought.length,
+              now = new Set(r.a.wars.map((x) => x.foe as string)).size;
             return {
               ref: r.a.ref,
               swatch: r.a.color,
               cells: [
-                [link(politiesOf(world).get(r.a.head)?.town ?? cap(r.a.name), r.a.ref)],
-                [count(r.members.length)],
-                [count(r.lands)],
-                [short(r.people)],
-                [short(r.host)],
-                [worthWords(r.worth)],
-                [count(w.length)],
+                [link(townOf(world, r.a.head), r.a.ref)],
+                [short(r.worth)],
+                [count(w)],
+                [now ? many(now, "foe", "foes") : "at peace"],
+                [r.a.since !== null ? `${r.a.since}` : "—"],
               ],
-              keys: [
-                r.a.name,
-                r.members.length,
-                r.lands,
-                r.people,
-                Math.round(r.host),
-                r.worth,
-                w.length,
-              ],
+              keys: [townOf(world, r.a.head), r.worth, w, now, r.a.since ?? -1],
             };
           }),
         },

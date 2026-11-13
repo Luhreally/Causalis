@@ -20,6 +20,7 @@ import {
   type Envoy,
   type League,
   type Polity,
+  type Relation,
   type TieCall,
   type War,
 } from "../../sim/index.ts";
@@ -211,6 +212,26 @@ export type Alliance = {
 
 const ALLIED = new Map<World, { year: number; count: number; list: Alliance[] }>();
 
+const RELATIONS = new WeakMap<
+  World,
+  { year: number; count: number; by: Map<string, Relation[]> }
+>();
+
+/** Each realm's relations, by realm: read in one pass (diplomacy's own `of` reads every relation each time it is asked). */
+export function relationsOf(world: World): ReadonlyMap<string, readonly Relation[]> {
+  const year = yearOfMoment(world.now),
+    events = world.events.count,
+    hit = RELATIONS.get(world);
+  if (hit && hit.year === year && hit.count === events) return hit.by;
+  const by = new Map<string, Relation[]>();
+  for (const x of diplomacyOf(world).all()) {
+    (by.get(x.a) ?? by.set(x.a, []).get(x.a)!).push(x);
+    (by.get(x.b) ?? by.set(x.b, []).get(x.b)!).push(x);
+  }
+  RELATIONS.set(world, { year, count: events, by });
+  return by;
+}
+
 /** Every standing alliance, the greatest first (by its people, then its realms): read once a year. */
 export function alliancesOf(world: World): Alliance[] {
   const year = yearOfMoment(world.now),
@@ -222,7 +243,7 @@ export function alliancesOf(world: World): Alliance[] {
     ctx = populationContext(world),
     g = homePlanet(world).generated,
     store = tiesOf(world),
-    diplomacy = diplomacyOf(world),
+    relations = relationsOf(world),
     bonds = bondsOf(world),
     wars = warsOf(world),
     colors = allianceColors(world, [...read.blocs.keys()], (h) => {
@@ -251,7 +272,7 @@ export function alliancesOf(world: World): Alliance[] {
         lands++;
         people += ctx.provinces.get(c)?.total() ?? 0;
       }
-      for (const x of diplomacy.of(r))
+      for (const x of relations.get(r) ?? [])
         if (x.pact && inIt.has(x.a === r ? x.b : x.a)) older(yearOf(x.pact));
       const oath = bonds.oathOf(r);
       if (oath && inIt.has(oath.to)) older(oath.since);
