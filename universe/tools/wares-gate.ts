@@ -12,6 +12,10 @@
 //      each line of trade and each company drawn from what it is, inked, two things not the same picture, a motor car not an arm, and a
 //      grain of this world not a far world's; what a board with its pictures costs to open on the phone;
 //   7. hashes the same after all of it, and no page errors.
+// And (asked 2026-11-12: "it doesnt show the shoes and clothes sepratlety or combines axes and sickle ... i want more generative detail ...
+// when i look for it"): a tool good's page shows three tools or more, a row each, each its own picture; clothing shows its garments and
+// its footwear as rows of their own; a picture pressed is drawn large at the fine level, with far more strokes than the same drawn coarse
+// at its size, and its caption is its name, not its share; a company's mark is not another making's.
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -28,7 +32,13 @@ import {
   politiesOf,
   populationContext,
 } from "../src/sim/index.ts";
-import { WARES_SHOWN, tradeItems, tradeWords, waresOf } from "../src/host/inspect/wares.ts";
+import {
+  WARES_SHOWN,
+  tradeItems,
+  tradeWords,
+  waresBlock,
+  waresOf,
+} from "../src/host/inspect/wares.ts";
 import { wareLook } from "../src/host/inspect/ware-looks.ts";
 import { companiesOf, exchangeOf } from "../src/host/inspect/exchange.ts";
 import { pageOf } from "../src/host/inspect/index.ts";
@@ -430,11 +440,96 @@ if (town && best) {
       `the large picture inks ${big.inked} px, no more than a thumbnail`,
     );
     check(big.label.length > 3, "the large picture says nothing of what it is");
+    check(!/\d%/.test(big.label), `the large picture's caption carries its share: "${big.label}"`);
+    // (The same portrait drawn at the zoom's size at each level: the fine one has far more strokes and edges.)
+    const block = waresBlock(world, seatCell, line.startsWith("Machines") ? G.machines : G.tools),
+      first = block?.type === "composition" ? block.parts.find((x) => x.thumb)?.thumb : undefined;
+    if (first) {
+      const at = (detail: "fine" | "coarse") =>
+        k<{ inked: number; edges: number; ms: number }>(
+          `globalThis.causalis.pictureAt(${JSON.stringify(first)}, ${Math.round(big.w)}, ${JSON.stringify(detail)})`,
+        );
+      const coarse = await at("coarse"),
+        fine = await at("fine");
+      say(
+        `drawn large at ${Math.round(big.w)} px: fine ${fine.edges} edges in ${fine.ms.toFixed(1)} ms, coarse ${coarse.edges} edges in ${coarse.ms.toFixed(1)} ms`,
+      );
+      check(
+        fine.edges > coarse.edges * 1.15,
+        `the fine level draws ${fine.edges} edges, the coarse ${coarse.edges}: no more detail when looked at`,
+      );
+    }
     check(big.page.startsWith("mkt:"), `pressing the picture left its page for ${big.page}`);
     await pressEl(`() => document.querySelector(".thumb-zoom-close")`, "the large picture's ✕");
     check(
       !(await k<boolean>(`!!document.querySelector(".thumb-zoom")`)),
       "the large picture does not shut by its ✕",
+    );
+  }
+
+  // 3c. A tool good's page: three tools or more, a row each, each its own picture; clothing: its garments and its footwear apart.
+  /** A good's page's rows, each its name (before where it is from) and its picture once drawn. */
+  const rowsOf = async (ref: string) => {
+    await k(`globalThis.causalis.open(${JSON.stringify(ref)})`);
+    await until(`${ref}'s page`, async () => (await pageIs()) === ref);
+    await page.waitForTimeout(slow(400));
+    await k(
+      `document.querySelector(".page-window .makeup-row")?.scrollIntoView({ block: "center" })`,
+    );
+    await drawnPictures(".page-window .makeup-thumb", ref);
+    return k<{ name: string; drawn: boolean; inked: number; sum: number }[]>(
+      `[...document.querySelectorAll(".page-window .makeup-row")].map((row) => {
+      const c = row.querySelector("canvas.makeup-thumb"), share = row.querySelector(".makeup-share")?.innerText ?? "",
+        name = row.innerText.replace(share, "").split(",")[0].replace(/\\s+/g, " ").trim();
+      if (!c || c.dataset.drawn !== "1") return { name, drawn: false, inked: 0, sum: 0 };
+      const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+      let inked = 0, sum = 0;
+      for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 40) { inked++; sum = (sum * 31 + d[i] * 7 + d[i + 1] * 3 + d[i + 2] + i) % 1000000007; }
+      return { name, drawn: true, inked, sum };
+    })`,
+    );
+  };
+  const apart = (rs: { drawn: boolean; inked: number; sum: number }[]) =>
+    rs.every((r) => r.drawn && r.inked > 30) && new Set(rs.map((r) => r.sum)).size === rs.length;
+  {
+    const rows = await rowsOf(marketGoodRef(seatCell, G.tools)),
+      tools = rows.filter((r) =>
+        /(axes|saws|sickles|ploughshares|knives|hammers|awls|scrapers|blades|chisels)$/i.test(
+          r.name,
+        ),
+      );
+    await shot("tools");
+    say(`tools: ${rows.map((r) => `${r.name}${r.drawn ? ` (${r.inked} px)` : ""}`).join(" | ")}`);
+    check(
+      tools.length >= 3,
+      `the tools' page shows ${tools.length} tools: ${rows.map((r) => r.name).join(", ")}`,
+    );
+    check(
+      !rows.some((r) => / and /.test(r.name) && !/^and others/i.test(r.name)),
+      `a tools' row names two things: ${rows.map((r) => r.name).join(", ")}`,
+    );
+    check(
+      apart(tools),
+      `the tools' pictures are not each drawn and their own: ${JSON.stringify(tools)}`,
+    );
+  }
+  {
+    const rows = await rowsOf(marketGoodRef(seatCell, G.clothing)),
+      worn = rows.filter((r) =>
+        /(tunics|shirts|gowns|dresses|trousers|cloaks|caps|hats|coats)$/i.test(r.name),
+      ),
+      shod = rows.filter((r) => /(boots|shoes|sandals)$/i.test(r.name));
+    await shot("clothing");
+    say(
+      `clothing: ${rows.map((r) => `${r.name}${r.drawn ? ` (${r.inked} px)` : ""}`).join(" | ")}`,
+    );
+    check(
+      worn.length >= 1 && shod.length >= 1,
+      `clothing does not show garments and footwear apart: ${rows.map((r) => r.name).join(", ")}`,
+    );
+    check(
+      apart([...worn, ...shod]),
+      `clothing's pictures are not each drawn and their own: ${JSON.stringify([...worn, ...shod])}`,
     );
   }
 
@@ -526,6 +621,36 @@ if (town && best) {
     `the companies' marks are not drawn: ${marks.length}`,
   );
   check(new Set(marks.map((p) => p.sum)).size >= 2, "every company has the same mark");
+  {
+    // (A company's mark shows what it makes: two companies of different makings never bear the same mark.)
+    const marked = await k<{ name: string; sum: number }[]>(
+      `[...document.querySelectorAll(".page-window .board-row")].flatMap((row) => {
+      const c = row.querySelector("canvas.board-thumb"), n = row.querySelector(".board-name");
+      if (!c || !n || c.dataset.drawn !== "1") return [];
+      const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+      let sum = 0;
+      for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 40) sum = (sum * 31 + d[i] * 7 + d[i + 1] * 3 + d[i + 2] + i) % 1000000007;
+      return [{ name: n.innerText.split("\\n")[0], sum }];
+    })`,
+    );
+    const making = (name: string) => {
+        const c = best!.companies.find((x) => x.name === name);
+        return c?.town ? name.slice(c.town.name.length).trim() : name;
+      },
+      clash = marked.flatMap((a, i) =>
+        marked
+          .slice(i + 1)
+          .filter((b) => making(a.name) !== making(b.name) && a.sum === b.sum)
+          .map((b) => `${a.name} and ${b.name}`),
+      );
+    say(
+      `the exchange's marks: ${marked.map((m) => `${making(m.name)} ${m.sum % 1000}`).join(", ")}`,
+    );
+    check(
+      marked.length >= 2 && clash.length === 0,
+      `companies of different makings bear the same mark: ${clash.join("; ")} (${marked.length} read)`,
+    );
+  }
   // (A company pressed: what its land makes of its good.)
   await pressEl(bySelector(".page-window .board-row"), "a company");
   await until("its good", async () => (await pageIs()).startsWith("mkt:"));

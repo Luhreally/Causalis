@@ -62,3 +62,4 @@ export { bodyView, drawBody, kinLines } from "./body.ts";
 export { SungNote } from "./sung.ts";
 export { CourtNote } from "./court-note.ts";
 export { THUMB_TIMES, lazyThumb, paintThumb } from "./thumbs.ts";
+export { drawPortrait } from "./portrait.ts";
