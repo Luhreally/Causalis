@@ -48,9 +48,11 @@ const WORTH_YEARS = 2;
  * How many shares a company is divided into: so many that one sold for between a hundred and a thousand coin in the first year its books
  * keep (a power of ten, as a company splits its shares when they grow dear). A share's price moves from there with what it takes in.
  */
-function sharesOf(first: number): number {
+function sharesOf(first: number, now: number): number {
   let n = 1;
   while (first / n >= 1000) n *= 10;
+  // (And split again, tenfold, whenever one has grown past ten thousand since.)
+  while (now / n >= 10_000) n *= 10;
   return n;
 }
 /** A making under this share of its land's good is no company of its own. */
@@ -172,7 +174,7 @@ export function companiesOf(world: World, cell: number): readonly Company[] {
           part,
           years,
           worth: now * WORTH_YEARS,
-          share: (now * WORTH_YEARS) / sharesOf(first * WORTH_YEARS),
+          share: (now * WORTH_YEARS) / sharesOf(first * WORTH_YEARS, now * WORTH_YEARS),
         });
       }
     }
@@ -341,7 +343,7 @@ export function exchangePage(world: World, ref: string): PageModel {
     type: "text",
     lines: [
       [
-        `A share's price follows its company's year: what its works made, its part of its land's making, at what its land's market paid. A company is reckoned worth ${WORTH_YEARS} years of what it takes in, its shares split so that one sold for a hundred to a thousand coin when its books begin. The index is all of them together against that first year. Press a line for what is made there.`,
+        `A share's price follows its company's year: what its works made, its part of its land's making, at what its land's market paid. A company is reckoned worth ${WORTH_YEARS} years of what it takes in, its shares split so that one sold for a hundred to a thousand coin when its books begin, and split again whenever one grows past ten thousand. The index is all of them together against that first year. Press a line for what is made there.`,
       ],
     ],
   });

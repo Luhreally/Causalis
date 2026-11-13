@@ -8,8 +8,8 @@ import { loadWorld, rulesetId, seedFromText, type World } from "../src/kernel/in
 import { ALIEN, EARTH } from "../src/host/planet.ts";
 import { GOODS } from "../src/rules/index.ts";
 import { marketsOf, politiesOf, populationContext, realmName } from "../src/sim/index.ts";
-import { tradeWords, waresOf } from "../src/host/inspect/wares.ts";
-import { companiesOf, exchangeOf } from "../src/host/inspect/exchange.ts";
+import { tradeWords, waresBlock, waresOf } from "../src/host/inspect/wares.ts";
+import { companiesOf, exchangeOf, landCompanyBlocks } from "../src/host/inspect/exchange.ts";
 import { pageOf } from "../src/host/inspect/index.ts";
 import { marketGoodRef } from "../src/sim/index.ts";
 
@@ -35,6 +35,23 @@ const peopled = ctx.provinces
   .all()
   .filter((p) => p.total() > 0 && marketsOf(world).get(p.cell))
   .sort((a, b) => b.total() - a.total() || a.cell - b.cell);
+// What this reading adds to a land's pages, read cold (nothing of the world read yet): every good's page block, its trade both ways, its
+// companies; and the exchange of its realm, which reads every land of the realm.
+{
+  const cold = peopled[Math.floor(peopled.length * 0.75)]!,
+    t0 = performance.now();
+  for (let g = 0; g < GOODS.length; g++) waresBlock(world, cold.cell, g);
+  tradeWords(world, cold.cell, "out");
+  tradeWords(world, cold.cell, "in");
+  landCompanyBlocks(world, cold.cell);
+  const t1 = performance.now(),
+    realm = politiesOf(world).of(cold.cell);
+  if (realm) exchangeOf(world, realm.ref);
+  console.log(
+    `  cold, one land (${cold.cell}): its fourteen goods, its trade, its companies ${(t1 - t0).toFixed(1)} ms; its realm's exchange ${(performance.now() - t1).toFixed(1)} ms more`,
+  );
+}
+
 // (The greatest few, the seat of the realm with the most companies listed, and one of the middle.)
 const listed = politiesOf(world)
     .living()
@@ -80,7 +97,8 @@ for (const p of pick) {
 }
 
 // The whole world: what each land names first, under each good.
-const firsts = new Map<string, Map<string, number>>();
+const firsts = new Map<string, Map<string, number>>(),
+  tFirsts = performance.now();
 for (const p of peopled)
   for (let g = 0; g < GOODS.length; g++) {
     const w = waresOf(world, p.cell, g)[0];
@@ -89,7 +107,10 @@ for (const p of peopled)
     by.set(w.name, (by.get(w.name) ?? 0) + 1);
     firsts.set(GOODS[g]!.name, by);
   }
-console.log(`\n-- first thing named, over ${peopled.length} lands`);
+console.log(
+  `
+-- first thing named, over ${peopled.length} lands (every land's every good read in ${(performance.now() - tFirsts).toFixed(0)} ms, the pick's lands already read)`,
+);
 for (const [good, by] of firsts)
   console.log(
     `  ${good}: ${[...by]
@@ -131,10 +152,3 @@ time("a good's page (machines)", () => pageOf(world, marketGoodRef(top.cell, 11)
 time("a good's page (grain)", () => pageOf(world, marketGoodRef(top.cell, 0)));
 time("a land's economy", () => pageOf(world, `cell:0:${top.cell}#economy`));
 if (ex[0]) time("an exchange", () => pageOf(world, `exchange:${ex[0]!.realm}`));
-{
-  const t0 = performance.now();
-  for (const p of peopled) for (let g = 0; g < GOODS.length; g++) waresOf(world, p.cell, g);
-  console.log(
-    `  every land's every good, once: ${(performance.now() - t0).toFixed(0)} ms (cached after)`,
-  );
-}

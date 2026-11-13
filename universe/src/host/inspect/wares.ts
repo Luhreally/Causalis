@@ -231,7 +231,7 @@ function ownWild(world: World, cell: number): Raw[] {
   out.push({
     key: "gathered",
     name: wildSeed
-      ? `${/wild/.test(wildSeed.name) ? "" : "wild "}${grainName(wildSeed)}, roots and fruit`
+      ? `${/\bwild\b/.test(wildSeed.name) ? "" : "wild "}${grainName(wildSeed)}, roots and fruit`
       : "roots, seeds and fruit",
     ref: wildSeed?.ref ?? null,
     w: 0.3 * Math.max(0.1, (wilds.forest + wilds.soil) / 2),
@@ -977,9 +977,11 @@ export function waresBlock(world: World, cell: number, good: number): Block | nu
 
 // —— What a land sends and brings, said specifically ————————————————————————————————————————————
 
-/** A list in words: "a, b and c". */
+/** A list in words: "a, b and c"; where a thing is itself two ("motor cars and lorries"), "motor cars and lorries, and steel". */
 export function andList(xs: readonly string[]): string {
-  return xs.length <= 1 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}`;
+  if (xs.length <= 1) return xs[0] ?? "";
+  const last = xs.some((x) => / and /.test(x)) ? ", and " : " and ";
+  return `${xs.slice(0, -1).join(", ")}${last}${xs.at(-1)}`;
 }
 
 /**

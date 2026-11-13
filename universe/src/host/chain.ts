@@ -565,7 +565,8 @@ function whence(
       made = (markets.get(at)?.book("made", good) ?? 0) > 0,
       next =
         hop < hops
-          ? markets.flows
+          ? markets
+              .flowsOf([at])
               .filter((f) => f.to === at && f.good === good && !roads.includes(f.from))
               .sort((a, b) => b.count - a.count || a.from - b.from)[0]?.from
           : undefined;

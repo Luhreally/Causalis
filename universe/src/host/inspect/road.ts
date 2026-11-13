@@ -3,7 +3,7 @@
 import { YEAR, hashString, type World } from "../../kernel/index.ts";
 import { marketsOf, politiesOf, populationContext, realmName } from "../../sim/index.ts";
 import { isProvinceWorld } from "../../gen/index.ts";
-import { betweenWords } from "./wares.ts";
+import { betweenWords, placeName } from "./wares.ts";
 import type { Block, LandRoad, Line, PageModel, RoadLay, Span } from "../../bridge/index.ts";
 import { CARRIER_WORDS, worksShareOf } from "../roadwords.ts";
 import { landEra } from "../village.ts";
@@ -145,6 +145,12 @@ export function roadPage(world: World, ref: string): PageModel {
   const beyond = !road.b && road.toward ? landToward(world, cell, road.toward) : null,
     carried = beyond !== null ? betweenWords(world, cell, beyond) : null;
   if (carried) tell.push(["What its trade carried last year: ", ...carried, "."]);
+  else if (beyond !== null)
+    tell.push([
+      "No goods went down it last year to or from ",
+      link(placeName(world, beyond), `cell:0:${beyond}`),
+      ": the trade that opened it has stopped, or goes by other roads.",
+    ]);
   blocks.push({ type: "text", title: "The road", lines: tell });
   // The gang on it.
   if (w) {
