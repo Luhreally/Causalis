@@ -16,6 +16,7 @@ import { gzipSync } from "node:zlib";
 import { preview } from "vite";
 import { chromium, type Page } from "playwright";
 import { YEAR, rulesetId, saveWorld, seedFromText, type World } from "../src/kernel/index.ts";
+import { keptLife } from "../src/rules/index.ts";
 import { ALIEN } from "../src/host/planet.ts";
 import { knownAtOrbit, knownWorld } from "../src/host/known.ts";
 import { homePlanet, loreOf } from "../src/sim/index.ts";
@@ -29,7 +30,9 @@ const argv = process.argv.slice(2),
     return at >= 0 ? argv[at + 1] : undefined;
   },
   shots = arg("--shots"),
-  seed = arg("--seed") ?? "alien 132";
+  // (Alien 132 as it was made, life kept: of its own tree of life (B3 to B5) its people swim, and a swimming people's towns
+  // string no wire, so the poles, the wire and the mast are seen on the people it bore before.)
+  seed = arg("--seed") ?? keptLife("alien 132");
 if (shots) mkdirSync(shots, { recursive: true });
 const slow = (ms: number) => (ci || soft ? ms * 4 : ms);
 const GPU = ["--enable-gpu", "--ignore-gpu-blocklist", "--use-angle=d3d11"];

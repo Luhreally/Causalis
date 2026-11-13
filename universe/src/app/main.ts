@@ -3463,6 +3463,14 @@ async function runPlanetPage(): Promise<void> {
       palette.hover(at.cell, at.town);
       return;
     }
+    // (Not in the band of the bar at the top, where a sliver of the world shows above it or beside it: a tip placed by
+    // the pointer there lay over the bar's buttons. 2026-11-13.)
+    const barFoot =
+      parseFloat(document.documentElement.style.getPropertyValue("--bar-bottom")) || 0;
+    if (e.clientY < barFoot) {
+      tooltip.hide();
+      return;
+    }
     tooltip.point(refAt(x, y), e.clientX, e.clientY);
   });
   canvas.addEventListener("pointerleave", () => tooltip.hide());

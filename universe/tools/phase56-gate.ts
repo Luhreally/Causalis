@@ -25,7 +25,7 @@ import { preview } from "vite";
 import { chromium } from "playwright";
 import { seedFromText } from "../src/kernel/index.ts";
 import { generateHomeWorld, worldKindOf } from "../src/gen/index.ts";
-import { KINDS, KIND_SEAS, OPEN, type NovelKind } from "../src/rules/index.ts";
+import { KINDS, KIND_SEAS, OPEN, keptLife, type NovelKind } from "../src/rules/index.ts";
 import { kindLines, surveyKinds } from "./chem-survey.ts";
 
 const ci = process.argv.includes("--ci"),
@@ -299,6 +299,17 @@ await shot("1-title-methane");
   say(`the dials on a phone: overflow ${Math.round(over)} px`);
   check(over <= 2, `the making dials run off a phone's screen (${Math.round(over)} px)`);
 }
+// (A methane world's own chemistry may quicken no life (B5): then it is begun as it was made, its life kept, so its
+// globe and sky are still seen drawn as a methane world's.)
+let asked = "violet hollow ~volatiles methane";
+if (/No people will rise here/.test(await text(".seed-life"))) {
+  asked = keptLife(asked);
+  say(
+    `    (no people of its own chemistry on violet hollow's methane world: begun as made, “${asked}”)`,
+  );
+  await page.fill(".seed-input", asked);
+  await page.waitForTimeout(slow(1500));
+}
 await page.click(".title-form .begin");
 await page.waitForURL(/universe=alien&seed=violet/, { timeout: slow(60000) });
 await until(
@@ -309,7 +320,7 @@ await until(
 const begun = await k<string>("globalThis.causalis.seed"),
   begunKind = await kindShown();
 say(`begun “${begun}”: its globe drawn as ${begunKind.frame}, its sky as ${begunKind.sky}`);
-check(begun === "violet hollow ~volatiles methane", `begun as “${begun}”`);
+check(begun === asked, `begun as “${begun}”, not “${asked}”`);
 check(
   begunKind.frame === "methane" && begunKind.sky === "methane",
   `the world begun drawn as a ${begunKind.frame} world under a ${begunKind.sky} sky`,
@@ -318,10 +329,10 @@ await shot("1-begun-methane", true);
 
 // 3. Each kind's world, by day.
 const WORLDS: readonly { kind: NovelKind; seed: string; year: number; age: string | null }[] = [
-  { kind: "carbon", seed: "alien 20", year: 150, age: "Diamond and copper" },
-  { kind: "sulfur", seed: "alien 84", year: 70, age: null },
-  { kind: "ammonia", seed: "alien 218", year: 30, age: "Worked ice" },
-  { kind: "methane", seed: "alien 1429", year: 400, age: "Worked ice" },
+  { kind: "carbon", seed: keptLife("alien 20"), year: 150, age: "Diamond and copper" },
+  { kind: "sulfur", seed: keptLife("alien 84"), year: 70, age: null },
+  { kind: "ammonia", seed: keptLife("alien 218"), year: 30, age: "Worked ice" },
+  { kind: "methane", seed: keptLife("alien 1429"), year: 400, age: "Worked ice" },
 ];
 for (const [n, w] of WORLDS.entries()) {
   const step = `${n + 2}-${w.kind}`,
