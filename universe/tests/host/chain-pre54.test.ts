@@ -71,19 +71,22 @@ const KIND_ROWS = new Set([
  * from the first years, and with it the towns, realms and their pages; and a smithy's page tells a
  * tool forged there, though its town has works. The guide to matter stays identical. With signals and
  * lessons together (the integration of 2026-11-12) the principles read both: signals' words on lessons' history.
+ * Re-recorded for lessons' second step (2026-11-12): a battle's tactics, a host fed from behind it and a people's losses pressing
+ * its finding move Earth's history from its first losses on, and with it the tools, towns, realms, workshops and pages of 700.
+ * Substances, the guide to matter and the early camps stay identical.
  */
 const BEFORE: Record<string, string> = {
-  tools: "a0a36af:18383",
-  stuff: "3c320bd0:13619",
-  ground: "9ec689ef:43974",
-  deposits: "60101db1:97962",
-  arms: "73cb8617:17184",
-  designs: "3ae032a0:27911",
-  workshops: "14207a5c:265436",
+  tools: "4c8d890c:18460",
+  stuff: "35f77dea:13841",
+  ground: "3d148eb8:42955",
+  deposits: "f9c7ed1:97976",
+  arms: "76a5b1d0:17362",
+  designs: "91d40a81:28018",
+  workshops: "3e9cc2a6:224884",
   substances: "5835b926:130632",
-  reactions: "38d8a8a3:68570",
+  reactions: "b2cc17a0:68720",
   // (Its pages no longer list what only a people of the water could find: F1, canBeFoundHere.)
-  principles: "608ad687:169592",
+  principles: "3ac9e7ee:169613",
   guide: "ced49326:17137",
   camps: "efbd90a7:344430",
 };

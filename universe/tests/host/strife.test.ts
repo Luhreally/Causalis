@@ -45,7 +45,11 @@ test("a realm's strife: its army under arms and its sway, how near a coup is and
   const coup = rows.find((r) => r.label === "A coup")!;
   assert.ok(coup.parts && coup.parts.length >= 3, "a coup's danger broken down");
   assert.match(JSON.stringify(coup.parts), /a rule doubted|the army's sway/);
-  assert.equal(String(rows.find((r) => r.label === "Rule")!.value), "its own");
+  // (Its own, or its own given back after a coup: Earth's greatest realm at 125 may have been seized and restored.)
+  assert.match(
+    String(rows.find((r) => r.label === "Rule")!.value),
+    /^its own(, given back in year \d+)?$/,
+  );
   const tool = strife.blocks.find((b) => b.type === "tool" && b.tool === "acts.strife");
   assert.ok(tool && tool.type === "tool" && tool.args.cell === realm.seat);
   assert.equal(tool.args.junta, false);

@@ -40,15 +40,22 @@ const pageOf = (ref: string) => {
 };
 
 test("a town's founders break out the last day's castings, pour each mould at its tap, and stack what they broke out", () => {
-  // (Towns whose stores are lean that week work at no craft: the foundry towns that are fed.)
-  const towns = plansNow().filter((p) => !!foundryOf(p) && !leanOn(p, 800 * 365 + 120));
-  assert.ok(towns.length > 0, "a fed town with a foundry by its works at 800");
+  // (Towns whose stores are lean that week work at no craft: the foundry towns that are fed. A world grown to the
+  // most its land gives by 800 goes hungry for a generation, so it runs on a decade at a time until one is fed.)
+  let year = 800,
+    towns: VillagePlan[] = [];
+  for (; year <= 880; year += 10) {
+    world.runTo(year * YEAR);
+    towns = plansNow().filter((p) => !!foundryOf(p) && !leanOn(p, year * 365 + 120));
+    if (towns.length) break;
+  }
+  assert.ok(towns.length > 0, `a fed town with a foundry by its works from 800 (to ${year})`);
   let days = 0,
     pages = 0;
   for (const plan of towns.slice(0, 2)) {
     const ground = villageSolids(plan);
     for (let d = 0; d < 6; d++) {
-      const day = 800 * 365 + 120 + d,
+      const day = year * 365 + 120 + d,
         founders = townDay(plan, day, ground).roles.flatMap((r, i) =>
           r.kind === "foundry" ? [i] : [],
         );
