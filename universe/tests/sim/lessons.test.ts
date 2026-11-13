@@ -31,6 +31,7 @@ import {
   DISASTER_EVENTS,
   LESSON_EVENTS,
   LESSON_READ,
+  knows,
   lessened,
   lessonAdds,
   lessonStrike,
@@ -131,14 +132,20 @@ test("a land struck again and again takes up a response by a draw, tells it, and
     .all()
     .find((e) => e.type === LESSON_EVENTS.taken.type && e.place === holder);
   assert.ok(told, "the taking up is told");
-  assert.match(why(w, told.id).claim, /braced frames/);
+  // (In what they know: lashed poles before joinery, braced timber after it, steel after that.)
+  assert.match(
+    why(w, told.id).claim,
+    knows(populationContext(w), land.cell, "carpentry")
+      ? /braced timber frames that stand when the ground shakes/
+      : /frames of lashed poles that stand when the ground shakes/,
+  );
   // Forgotten when the cost stops coming.
   assert.ok(useIn(h, "braced-frames", took + 400) === 0, "never forgotten");
   // Its page says what it cost them and what they do now, in numbers and words.
   const text = JSON.stringify(lessonBlocks(w, holder));
   assert.match(text, /What they have learned/);
   assert.match(text, /\d+ homes and \d+ lives lost to quakes in (?:a year|\d+ years)/);
-  assert.match(text, /braced frames/i);
+  assert.match(text, /frames .{0,30}that stand when the ground shakes/i);
   assert.doesNotMatch(text, /cell:0:|pol:|undefined|NaN/);
 });
 

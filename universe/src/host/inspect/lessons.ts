@@ -4,7 +4,14 @@
 import type { World } from "../../kernel/index.ts";
 import { cellRef } from "../../gen/index.ts";
 import { LESSON, LESSON_CAUSE, LESSON_RESPONSE, faded, pressOf } from "../../rules/index.ts";
-import { lessonsOf, useIn, type CauseMark, type Use } from "../../sim/index.ts";
+import {
+  lessonDoes,
+  lessonsOf,
+  populationContext,
+  useIn,
+  type CauseMark,
+  type Use,
+} from "../../sim/index.ts";
 import type { Block, Line, Stat } from "../../bridge/index.ts";
 import { count, item, many, stat, yearNow } from "./words.ts";
 import { landLink, realmLink } from "./names.ts";
@@ -61,6 +68,7 @@ export function lessonBlocks(world: World, holder: string): Block[] {
   const h = lessonsOf(world)?.get(holder);
   if (!h || (!h.causes.size && !h.uses.size)) return [];
   const year = yearNow(world),
+    ctx = populationContext(world),
     blocks: Block[] = [],
     learned = [...h.uses.entries()]
       .map(([id, u]) => ({ id, u, w: useIn(h, id, year), r: LESSON_RESPONSE.get(id) }))
@@ -82,7 +90,9 @@ export function lessonBlocks(world: World, holder: string): Block[] {
       rows: Stat[] = [];
     if (m) rows.push(stat("What it cost them", costWords(r!.cause, m, year)));
     rows.push(
-      stat("What they do now", `${capital(r!.does)} (${howFar(w)})`, { why: u.ref ?? undefined }),
+      stat("What they do now", `${capital(lessonDoes(ctx, holder, r!))} (${howFar(w)})`, {
+        why: u.ref ?? undefined,
+      }),
       stat("Since", [`year ${u.taken}, from `, ...fromLine(world, u.from)], {
         why: u.ref ?? undefined,
       }),

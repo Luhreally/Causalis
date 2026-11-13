@@ -41,9 +41,12 @@ import {
   hereOf,
   kindBurns,
   realization,
+  performanceOf,
+  type Axis,
   type Doctrine,
   type Material,
   type Part,
+  type Role,
   OPEN_AIR_DRIVES,
   SEALED_DRIVES,
 } from "../../rules/index.ts";
@@ -352,31 +355,17 @@ export function fuelFor(ctx: PopulationContext, p: Polity): Ref | null {
   return null;
 }
 
-/**
- * How a realm would arm its host now, and where its metals come from: only the metals its seat
- * can work this year (`metalsAt`: the craft known, the metal held), each citing its source — the
- * ore within reach, the road it came down, or the market that keeps it. (Machined arms, Phase 53
- * M219: only from works it can reach, and an armoured car's engine only with oil.)
- */
-export function hostFor(
+/** What a realm's host can be made of now: the materials at hand where its people live and what its seat brings in, cited. */
+function hostMeans(
   ctx: PopulationContext,
   p: Polity,
-): { parts: Part[]; sources: Partial<Record<Material, Ref>> } {
-  const culture = cultureOf(ctx.world),
-    ways = culture.get(p.seat),
-    valour = ways?.traits[WAY.valour] ?? 0.5;
-  let people = 0,
-    herders = 0,
-    traders = 0;
-  for (const c of p.members) {
-    const q = ctx.provinces.get(c);
-    if (!q) continue;
-    people += q.total();
-    herders += q.occupation(OCC.herder);
-    traders += q.occupation(OCC.trader);
-  }
-  const wealth = Math.min(0.4, (traders / Math.max(1, people)) * 4 + 0.05),
-    seatKnows = (id: string) => knows(ctx, p.seat, id),
+): {
+  at: Set<Material>;
+  sources: Partial<Record<Material, Ref>>;
+  seatKnows: (id: string) => boolean;
+  means: ReturnType<typeof meansOfWorld>;
+} {
+  const seatKnows = (id: string) => knows(ctx, p.seat, id),
     sources: Partial<Record<Material, Ref>> = {};
   for (const metal of metalsAt(ctx, p.seat)) {
     if (metal === "stone") continue;
@@ -417,6 +406,58 @@ export function hostFor(
     }
   }
   for (const m of Object.keys(sources) as Material[]) at.add(m);
+  return { at, sources, seatKnows, means };
+}
+
+/**
+ * The part of a role a realm could field now drawn up for one axis alone (a heavier guard; shot of their own; riders): of what its
+ * seat knows and its lands hold, as its hosts are made (rules/designs.ts compose). Null where it can make none. Only reads.
+ */
+export function hostBest(ctx: PopulationContext, p: Polity, role: Role, axis: Axis): Part | null {
+  const { at, seatKnows, means } = hostMeans(ctx, p);
+  const part =
+    compose(
+      [role],
+      seatKnows,
+      (m) => at.has(m),
+      { [axis]: 1, cost: 0.05 },
+      ctx.generated.life.people?.body,
+      undefined,
+      undefined,
+      0,
+      means.earthRoad && !means.edgeRoad
+        ? undefined
+        : (id, m) => hereOf(id, m, meansNumbers(ctx.generated), firearm(id)),
+    )[0] ?? null;
+  // (Only one that does something on that axis: no bows, no shot of their own.)
+  return part && (performanceOf([part])[axis] ?? 0) > 0 ? part : null;
+}
+
+/**
+ * How a realm would arm its host now, and where its metals come from: only the metals its seat
+ * can work this year (`metalsAt`: the craft known, the metal held), each citing its source — the
+ * ore within reach, the road it came down, or the market that keeps it. (Machined arms, Phase 53
+ * M219: only from works it can reach, and an armoured car's engine only with oil.)
+ */
+export function hostFor(
+  ctx: PopulationContext,
+  p: Polity,
+): { parts: Part[]; sources: Partial<Record<Material, Ref>> } {
+  const culture = cultureOf(ctx.world),
+    ways = culture.get(p.seat),
+    valour = ways?.traits[WAY.valour] ?? 0.5;
+  let people = 0,
+    herders = 0,
+    traders = 0;
+  for (const c of p.members) {
+    const q = ctx.provinces.get(c);
+    if (!q) continue;
+    people += q.total();
+    herders += q.occupation(OCC.herder);
+    traders += q.occupation(OCC.trader);
+  }
+  const wealth = Math.min(0.4, (traders / Math.max(1, people)) * 4 + 0.05),
+    { at, sources, seatKnows, means } = hostMeans(ctx, p);
   // (What its hosts have learned from the battles they lost weighs the axis that beat them: each exactly 0 where they have not.)
   const year = yearOfMoment(ctx.world.now),
     learned = (axis: string) => lessonAdds(ctx.world, p.ref, `doctrine:${axis}`, year);

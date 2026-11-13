@@ -52,10 +52,15 @@ export type Terms = readonly [
   range: number,
   fire: number,
   care: number,
+  /** What its host had learned of the field (rules/combat.ts): kept only where it had learned any. */
+  screen?: number,
+  steady?: number,
 ];
 
 export function termsOf(t: HostTerms): Terms {
-  return [t.shock, t.protection, t.range, t.fire, t.care];
+  return t.screen || t.steady
+    ? [t.shock, t.protection, t.range, t.fire, t.care, t.screen ?? 0, t.steady ?? 0]
+    : [t.shock, t.protection, t.range, t.fire, t.care];
 }
 
 /** A battle's draws: the stream of its war, at the moment it was fought. */
@@ -230,6 +235,8 @@ function fought(
         fire: t[3],
         care: t[4],
         blow: blowOf(bore?.[k]?.[0]),
+        ...(t[5] ? { screen: t[5] } : {}),
+        ...(t[6] ? { steady: t[6] } : {}),
       };
     },
     // (History fights a year's battles at its end: the moment of the turn.)

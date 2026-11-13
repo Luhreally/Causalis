@@ -8,6 +8,7 @@
 // when the cost stops coming. So the lessons are the causes a world's record holds times the choices of the game, and adding one
 // is a row: a cause and what it costs, or a response, the cause it answers and how it works.
 import { dmath } from "../kernel/index.ts";
+import { needsMet, type Effect } from "./principles.ts";
 
 /** Who keeps a cause's cost: a land's people, or a realm (its hosts). */
 export type LessonScope = "land" | "realm";
@@ -22,6 +23,11 @@ export type LessonCause = {
   readonly lost: string;
   /** One strike of it, and more: "quake", "quakes". */
   readonly each: readonly [string, string];
+  /**
+   * What a principle must do to answer it (rules/principles.ts EFFECTS): a people it presses leans its finding toward the principles
+   * whose own effects these are (sim/lore/lore.ts), so a realm beaten by better arms looks the harder for arms of its own.
+   */
+  readonly answers: readonly Effect[];
 };
 
 /**
@@ -30,7 +36,15 @@ export type LessonCause = {
  * an axis of a host's design so much more as it is drawn up (rules/designs.ts); `walls` and `siege` strengthen a host holding its
  * own ground or coming against another's.
  */
-export type LessonHow = "lessen" | "field" | "walls" | "siege" | `doctrine:${string}`;
+export type LessonHow =
+  "lessen" | "field" | "walls" | "siege" | "screen" | "steady" | "supply" | `doctrine:${string}`;
+
+/**
+ * What a response is made of, by what its people know: the last of these whose needs they meet (rules/principles.ts needsMet: every
+ * need, "a|b" either), so siegecraft is ladders and rams before throwing engines, and those before great guns. Words only: what and
+ * with what, never how a thing is built.
+ */
+export type LessonMeans = readonly { readonly needs: readonly string[]; readonly words: string }[];
 
 /** A response: a way of making a choice the world already makes, and the cause it answers. */
 export type LessonResponse = {
@@ -44,8 +58,15 @@ export type LessonResponse = {
    * leans on it (a raised floor asks little; a levy of more of the men asks much).
    */
   readonly asks: number;
-  /** What they do now, in words: "build braced frames". */
+  /** What they do now, in words: "build braced frames". `{means}` stands for what it is made of now (`means`, or `arms`). */
   readonly does: string;
+  /** What it is made of, by what they know (the first row has no needs: what anyone has). */
+  readonly means?: LessonMeans;
+  /**
+   * Or, for a host's kit: the part of that role its realm can field now, drawn up for that axis alone (rules/designs.ts, by the
+   * realm's own materials and knowledge: sim/design/design.ts hostBest); `means` where it has none.
+   */
+  readonly arms?: { readonly role: "arm" | "guard" | "mount"; readonly axis: string };
   /** What it is, for the annals: "braced frames against the quakes". */
   readonly name: string;
 };
@@ -58,14 +79,23 @@ export const LESSON_CAUSES: readonly LessonCause[] = [
     words: "quakes",
     lost: "homes lost to quakes",
     each: ["quake", "quakes"],
+    answers: ["building"],
   },
-  { id: "fire", scope: "land", words: "fire", lost: "homes lost to fire", each: ["fire", "fires"] },
+  {
+    id: "fire",
+    scope: "land",
+    words: "fire",
+    lost: "homes lost to fire",
+    each: ["fire", "fires"],
+    answers: ["building"],
+  },
   {
     id: "flood",
     scope: "land",
     words: "floods",
     lost: "lives lost to floods",
     each: ["flood", "floods"],
+    answers: ["building"],
   },
   {
     id: "famine",
@@ -73,6 +103,7 @@ export const LESSON_CAUSES: readonly LessonCause[] = [
     words: "hunger",
     lost: "went hungry",
     each: ["famine", "famines"],
+    answers: ["farmYield", "herdYield", "forageYield", "storage", "keeping", "tools"],
   },
   {
     id: "sickness",
@@ -80,6 +111,7 @@ export const LESSON_CAUSES: readonly LessonCause[] = [
     words: "sickness",
     lost: "lives lost to sickness",
     each: ["outbreak", "outbreaks"],
+    answers: ["health"],
   },
   {
     id: "blades",
@@ -87,6 +119,7 @@ export const LESSON_CAUSES: readonly LessonCause[] = [
     words: "their foes' blades and charges",
     lost: "men lost to their foes' blades and charges",
     each: ["battle", "battles"],
+    answers: ["arms", "armour"],
   },
   {
     id: "volleys",
@@ -94,6 +127,7 @@ export const LESSON_CAUSES: readonly LessonCause[] = [
     words: "their foes' shot and arrows",
     lost: "men lost to their foes' shot and arrows",
     each: ["battle", "battles"],
+    answers: ["arms", "armour"],
   },
   {
     id: "numbers",
@@ -101,6 +135,7 @@ export const LESSON_CAUSES: readonly LessonCause[] = [
     words: "being outnumbered",
     lost: "men lost to being outnumbered",
     each: ["battle", "battles"],
+    answers: ["arms", "reach"],
   },
   {
     id: "strongholds",
@@ -108,6 +143,7 @@ export const LESSON_CAUSES: readonly LessonCause[] = [
     words: "coming against walls and heights",
     lost: "men lost to coming against walls and heights",
     each: ["battle", "battles"],
+    answers: ["sieges"],
   },
   {
     id: "invasion",
@@ -115,6 +151,42 @@ export const LESSON_CAUSES: readonly LessonCause[] = [
     words: "invaders on their own ground",
     lost: "men lost to invaders on their own ground",
     each: ["battle", "battles"],
+    answers: ["walls", "arms"],
+  },
+  // How a battle went, from its own exchanges (rules/combat.ts, as the battle keeps them): the men a side lost before the lines
+  // closed, to what was loosed at them; the men cut down once it broke, in the flight.
+  {
+    id: "range",
+    scope: "realm",
+    words: "being shot down before the lines closed",
+    lost: "men lost before the lines closed",
+    each: ["battle", "battles"],
+    answers: ["arms", "armour"],
+  },
+  {
+    id: "rout",
+    scope: "realm",
+    words: "breaking and being cut down in the flight",
+    lost: "men cut down in the flight",
+    each: ["battle", "battles"],
+    answers: ["arms", "armour"],
+  },
+  // What the foe rode, against what they rode (rules/designs.ts mobility); and a host far from its seat, or hungry at home.
+  {
+    id: "mounted",
+    scope: "realm",
+    words: "their foes' riders",
+    lost: "men lost to their foes' riders",
+    each: ["battle", "battles"],
+    answers: ["mounts"],
+  },
+  {
+    id: "supply",
+    scope: "realm",
+    words: "marching far from their bread",
+    lost: "men lost far from their bread",
+    each: ["battle", "battles"],
+    answers: ["haul", "carrying", "storage"],
   },
 ];
 
@@ -135,7 +207,12 @@ export const LESSON_RESPONSES: readonly LessonResponse[] = [
     how: "lessen",
     most: 0.6,
     asks: 0.3,
-    does: "build braced frames that stand when the ground shakes",
+    does: "build {means} that stand when the ground shakes",
+    means: [
+      { needs: [], words: "frames of lashed poles" },
+      { needs: ["carpentry"], words: "braced timber frames" },
+      { needs: ["steel|made-oxygen|drawn-carbon"], words: "frames braced with steel" },
+    ],
     name: "braced frames against the quakes",
   },
   {
@@ -153,7 +230,11 @@ export const LESSON_RESPONSES: readonly LessonResponse[] = [
     how: "lessen",
     most: 0.55,
     asks: 0.2,
-    does: "raise their floors and keep a way to the high ground",
+    does: "raise their floors {means} and keep a way to the high ground",
+    means: [
+      { needs: [], words: "on mounds of earth" },
+      { needs: ["masonry|reef-building"], words: "on stone" },
+    ],
     name: "raised floors against the floods",
   },
   {
@@ -162,7 +243,13 @@ export const LESSON_RESPONSES: readonly LessonResponse[] = [
     how: "lessen",
     most: 0.45,
     asks: 0.3,
-    does: "keep the sick apart and their water clean",
+    does: "keep the sick apart{means}",
+    means: [
+      { needs: [], words: "" },
+      { needs: ["sanitation"], words: " and their water clean" },
+      { needs: ["germs"], words: ", their water clean and their wounds washed" },
+      { needs: ["vaccines"], words: ", their water clean, and the well inoculated" },
+    ],
     name: "keeping the sick apart",
   },
   {
@@ -171,7 +258,9 @@ export const LESSON_RESPONSES: readonly LessonResponse[] = [
     how: "doctrine:protection",
     most: 0.6,
     asks: 0.3,
-    does: "arm their hosts for guard first",
+    does: "arm their hosts for guard first, with {means}",
+    arms: { role: "guard", axis: "protection" },
+    means: [{ needs: [], words: "what guard they can make" }],
     name: "a heavier guard",
   },
   {
@@ -180,7 +269,9 @@ export const LESSON_RESPONSES: readonly LessonResponse[] = [
     how: "doctrine:firepower",
     most: 0.6,
     asks: 0.3,
-    does: "arm their hosts to shoot as their foes shot",
+    does: "arm their hosts to shoot as their foes shot, with {means}",
+    arms: { role: "arm", axis: "range" },
+    means: [{ needs: [], words: "what they can throw" }],
     name: "shot of their own",
   },
   {
@@ -189,7 +280,11 @@ export const LESSON_RESPONSES: readonly LessonResponse[] = [
     how: "field",
     most: 0.05,
     asks: 0.5,
-    does: "keep more of their men under arms",
+    does: "keep more of their men under arms{means}",
+    means: [
+      { needs: [], words: "" },
+      { needs: ["standing-army"], words: ", a standing host and its reserves" },
+    ],
     name: "a greater levy",
   },
   {
@@ -198,7 +293,14 @@ export const LESSON_RESPONSES: readonly LessonResponse[] = [
     how: "siege",
     most: 0.35,
     asks: 0.35,
-    does: "bring ladders, rams and engines against walls",
+    does: "come against walls with {means}",
+    means: [
+      { needs: [], words: "ladders and rams, and mines dug beneath them" },
+      { needs: ["siege-craft"], words: "ladders, rams and throwing engines" },
+      { needs: ["gunpowder"], words: "great guns and powder mines" },
+      { needs: ["gunpowder", "factories|sea-works"], words: "heavy siege guns" },
+      { needs: ["dropped-loads|thrown-loads"], words: "siege guns and loads dropped from the air" },
+    ],
     name: "siegecraft",
   },
   {
@@ -207,10 +309,99 @@ export const LESSON_RESPONSES: readonly LessonResponse[] = [
     how: "walls",
     most: 0.3,
     asks: 0.3,
-    does: "fortify the lands their foes have crossed",
+    does: "fortify the lands their foes have crossed with {means}",
+    means: [
+      { needs: [], words: "banks of earth and ditches" },
+      { needs: ["masonry|reef-building"], words: "walls of stone" },
+      { needs: ["fortification"], words: "walls, towers and ditches" },
+      { needs: ["gunpowder"], words: "low, thick walls that guns cannot breach" },
+      { needs: ["automatic-fire"], words: "trenches, wire and gun pits" },
+    ],
     name: "works along the border",
   },
+  // A screen loosed ahead of the line draws the foe's first fire and spoils its aim: what is loosed at them before the lines close
+  // strikes so much less (half at full use, as skirmishers screened a line).
+  {
+    id: "skirmish-screen",
+    cause: "range",
+    how: "screen",
+    most: 0.5,
+    asks: 0.3,
+    does: "send {means} ahead of the line",
+    means: [
+      { needs: [], words: "their quickest in open order" },
+      { needs: ["archery"], words: "a screen of archers" },
+      { needs: ["firearms"], words: "skirmishers in open order" },
+      { needs: ["rifling"], words: "riflemen in open order" },
+    ],
+    name: "a screen ahead of the line",
+  },
+  // Close order holds a line together when it is pressed and when it gives ground: fewer break at the blows, fewer are cut down
+  // as it falls back (at full use, morale shaken and the flight's losses each the less by a half and more).
+  {
+    id: "formations",
+    cause: "rout",
+    how: "steady",
+    most: 0.6,
+    asks: 0.35,
+    does: "fight in {means}",
+    means: [
+      { needs: [], words: "close ranks that hold together" },
+      { needs: ["standing-army"], words: "drilled ranks that give ground in order" },
+      { needs: ["firearms"], words: "squares of pike and shot" },
+      { needs: ["rifling"], words: "steady lines that fire by rank" },
+      { needs: ["automatic-fire"], words: "sections dug in, each covering the next" },
+    ],
+    name: "formations that hold",
+  },
+  // Riders of their own on the wings: the host drawn up for mobility.
+  {
+    id: "mounted-wings",
+    cause: "mounted",
+    how: "doctrine:mobility",
+    most: 0.6,
+    asks: 0.35,
+    does: "put {means} on their wings",
+    arms: { role: "mount", axis: "mobility" },
+    means: [{ needs: [], words: "their swiftest" }],
+    name: "wings of their own riders",
+  },
+  // A host fed from behind it: what distance and hunger at home take from it, so much less (half at full use).
+  {
+    id: "supply-trains",
+    cause: "supply",
+    how: "supply",
+    most: 0.5,
+    asks: 0.4,
+    does: "feed their hosts from {means}",
+    means: [
+      { needs: [], words: "carriers marching behind them" },
+      { needs: ["cart"], words: "carts and depots along the road" },
+      { needs: ["railways"], words: "trains to the front and depots" },
+      { needs: ["engines"], words: "lorries and depots" },
+    ],
+    name: "supply trains and depots",
+  },
 ];
+
+/** What a response is made of, by what its people know (`means`: the last row whose needs they meet). */
+export function meansWords(
+  r: Pick<LessonResponse, "means">,
+  knows: (id: string) => boolean,
+): string {
+  let words = "";
+  for (const m of r.means ?? []) if (needsMet(m, knows)) words = m.words;
+  return words;
+}
+
+/** What they do, in words: the response's, its means filled in (`made`: what it is made of, else by what they know). */
+export function doesWords(
+  r: Pick<LessonResponse, "does" | "means">,
+  knows: (id: string) => boolean,
+  made?: string | null,
+): string {
+  return r.does.replace("{means}", made || meansWords(r, knows));
+}
 
 /** The same rows by id. */
 export const LESSON_CAUSE: ReadonlyMap<string, LessonCause> = new Map(

@@ -21,6 +21,7 @@ import { cellRef } from "../../gen/index.ts";
 import {
   LESSON,
   LESSON_CAUSE,
+  LESSON_CAUSES,
   LESSON_RESPONSES,
   LESSONS_FOR,
   faded,
@@ -28,13 +29,17 @@ import {
   takeUpChance,
   trustOf,
   useAfter,
+  doesWords,
+  partWords,
+  performanceOf,
   type LessonResponse,
 } from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import type { MarketStore } from "../economy/market.ts";
 import { politiesOf, realmName } from "../polity/polity.ts";
-import { warsOf } from "../war/war.ts";
-import { loreOf } from "./lore.ts";
+import { farFromSeat, hostHungry, warsOf } from "../war/war.ts";
+import { designsOf, hostBest } from "../design/design.ts";
+import { knows, loreOf } from "./lore.ts";
 import { LessonStore, lessonsOf, useIn, type Holder } from "./lessons-store.ts";
 
 export {
@@ -143,6 +148,8 @@ export function battleCauses(
   winner: Ref;
   fallen: number;
   weights: [string, number][];
+  /** Of the loser's fallen, the shares its own exchanges put to a cause outright: before the lines closed, in the flight. */
+  carved: [string, number][];
 } | null {
   const [war, a, b] = e.subjects as Ref[];
   if (!war || !a || !b) return null;
@@ -176,16 +183,53 @@ export function battleCauses(
       river = g.water.river[land] ? 1.1 : 1,
       walls = 1 + 0.25 * loreOf(ctx.world).effect(land, "walls");
     weights.push(["strongholds", ln((battle.seat ? 2 : 1) * hills * river * walls)]);
+    // And far from its seat, or hungry at home: as much as the march took from its strength (sim/war/war.ts).
+    const realm = politiesOf(ctx.world).get(a as Ref);
+    if (realm) {
+      const far = farFromSeat(ctx, realm, land),
+        hungry = hostHungry(ctx, realm, e.t as SimTime);
+      weights.push(["supply", ln(1 + 0.15 * far) + (hungry ? ln(1 / 0.7) : 0)]);
+    }
   } else weights.push(["invasion", dmath.log(1.5)]);
+  // Their riders against ours: what each side's kit was drawn up to move at (rules/designs.ts mobility).
+  const designs = designsOf(ctx.world),
+    mobility = (k: number) => {
+      const ref = battle.designs?.[k];
+      const d = ref ? designs.get(ref) : undefined;
+      return d ? (performanceOf(d.parts).mobility ?? 0) : 0;
+    },
+    mW = mobility(W),
+    mL = mobility(L);
+  if (mW > 0) weights.push(["mounted", ln((1 + mW) / (1 + mL))]);
+  // What its own exchanges say outright (rules/combat.ts): the loser's dead before the lines closed, and once it broke.
+  const carved: [string, number][] = [],
+    frames = battle.combat?.frames;
+  if (frames?.length) {
+    const end = frames.at(-1)!.dead[L] ?? 0;
+    if (end > 0) {
+      let before = 0;
+      for (const f of frames) if (f.at < 48) before = Math.max(before, f.dead[L] ?? 0);
+      const rout = battle.combat!.rout,
+        broke =
+          rout === null || battle.combat!.broken !== L
+            ? end
+            : (frames.find((f) => f.at >= rout)?.dead[L] ?? end);
+      if (before > 0) carved.push(["range", Math.min(1, before / end)]);
+      if (end > broke) carved.push(["rout", Math.min(1, (end - broke) / end)]);
+    }
+  }
   return {
     loser: (L === 0 ? a : b) as Ref,
     winner: (W === 0 ? a : b) as Ref,
     fallen,
     weights: weights.filter((x) => x[1] > 0.02),
+    carved: carved.filter((x) => x[1] > 0.02),
   };
 }
 
-const REALM_CAUSES = ["blades", "volleys", "numbers", "strongholds", "invasion"] as const;
+const REALM_CAUSES: readonly string[] = LESSON_CAUSES.filter((c) => c.scope === "realm").map(
+  (c) => c.id,
+);
 
 /** Each kind of event that tells a loss, and how it is read. */
 const READINGS: Readonly<Record<string, Reading>> = {
@@ -240,10 +284,14 @@ const READINGS: Readonly<Record<string, Reading>> = {
     for (const c of REALM_CAUSES) stood.push({ holder: read.winner, cause: c });
     const total = read.weights.reduce((s, x) => s + x[1], 0),
       people = realmPeople(ctx, read.loser) + read.fallen,
-      struck: Strike[] = [];
-    if (total > 0 && read.fallen > 0 && people > 0)
-      for (const [cause, wt] of read.weights) {
-        const part = (read.fallen * wt) / total;
+      struck: Strike[] = [],
+      // (What its exchanges put to a cause outright comes first; the rest by how far the winner stood above them.)
+      outright = Math.min(
+        1,
+        read.carved.reduce((s, x) => s + x[1], 0),
+      ),
+      rest = read.fallen * (1 - outright),
+      add = (cause: string, part: number) =>
         struck.push({
           holder: read.loser,
           cause,
@@ -251,12 +299,30 @@ const READINGS: Readonly<Record<string, Reading>> = {
           lost: Math.round(part),
           dead: Math.round(part),
         });
-      }
+    if (read.fallen > 0 && people > 0) {
+      for (const [cause, x] of read.carved) add(cause, read.fallen * x);
+      if (total > 0 && rest > 0)
+        for (const [cause, wt] of read.weights) add(cause, (rest * wt) / total);
+    }
     for (const c of REALM_CAUSES)
       if (!struck.some((s) => s.cause === c)) stood.push({ holder: read.loser, cause: c });
     return { struck, stood };
   },
 };
+
+/**
+ * What a holder does by a response now, in words: made of what its people know (a land's own lore; a realm's, its seat's), and for a
+ * host's kit the part its realm could field drawn up for that alone (sim/design/design.ts hostBest). Siegecraft is ladders and rams
+ * before it is engines; a heavier guard is the guard they can make. Only reads.
+ */
+export function lessonDoes(ctx: PopulationContext, holder: string, r: LessonResponse): string {
+  const cell = cellOf(holder),
+    realm = cell === null ? politiesOf(ctx.world).get(holder as Ref) : undefined,
+    at = cell ?? realm?.seat ?? null,
+    here = (id: string) => at !== null && knows(ctx, at, id),
+    part = r.arms && realm ? hostBest(ctx, realm, r.arms.role, r.arms.axis as never) : null;
+  return doesWords(r, here, part ? partWords(part) : null);
+}
 
 /** The kinds of event read for lessons. */
 export const LESSON_READ: readonly string[] = Object.keys(READINGS);
@@ -324,6 +390,7 @@ function takeUp(
       since: m.first,
       year,
       realm: heldBy(ctx, holder),
+      does: lessonDoes(ctx, holder, r),
       ...(from ? { from } : {}),
       ...(first ? { first } : {}),
     },

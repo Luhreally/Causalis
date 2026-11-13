@@ -18,8 +18,10 @@ import {
   type LandFell,
   type Material,
 } from "../../rules/index.ts";
+import { yearOfMoment } from "../../kernel/index.ts";
 import { handOf } from "../hand/hand.ts";
 import { loreOf } from "../lore/lore.ts";
+import { lessonAdds } from "../lore/lessons-store.ts";
 import type { Polity } from "../polity/polity.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import type { Arms } from "./arms.ts";
@@ -51,6 +53,9 @@ export type HostTerms = {
   readonly care: number;
   /** Its arm part's id and material (null: no arm part). */
   readonly bore: Bore | null;
+  /** What its hosts have learned of the field (rules/combat.ts CombatSide): absent where nothing. */
+  readonly screen?: number;
+  readonly steady?: number;
 };
 
 /** A side of a battle as its record reads it: its terms, those in its field, its fallen, its lands. */
@@ -65,7 +70,10 @@ export type SideInBattle = {
 export function hostTerms(ctx: PopulationContext, p: Polity, arms: Arms): HostTerms {
   const does = performanceOf(arms.parts),
     arm = arms.parts.find((x) => x.role === "arm"),
-    lore = loreOf(ctx.world);
+    lore = loreOf(ctx.world),
+    year = yearOfMoment(ctx.world.now),
+    screen = lessonAdds(ctx.world, p.ref, "screen", year),
+    steady = lessonAdds(ctx.world, p.ref, "steady", year);
   return {
     shock: does.shock ?? 0,
     protection: does.protection ?? 0,
@@ -74,6 +82,8 @@ export function hostTerms(ctx: PopulationContext, p: Polity, arms: Arms): HostTe
     blow: blowOf(arm?.id),
     care: woundCare((id) => !!lore.get(p.seat, id)),
     bore: arm ? [arm.id, arm.material] : null,
+    ...(screen > 0 ? { screen } : {}),
+    ...(steady > 0 ? { steady } : {}),
   };
 }
 

@@ -1459,29 +1459,20 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     if (throwB) thrown(ctx, w, 1, throwB, a, b, land, t);
     // (A host on a land's ground drives off what it can: Z1.)
     driveHerds(ctx, w.ref, w.event, a, b, land, t);
-    const key = Number(w.ref.split(":")[2]),
-      far = (() => {
-        // Supply thins with distance from the seat.
-        const dx = g.grid.positions[3 * land]! - g.grid.positions[3 * a.seat]!,
-          dy = g.grid.positions[3 * land + 1]! - g.grid.positions[3 * a.seat + 1]!,
-          dz = g.grid.positions[3 * land + 2]! - g.grid.positions[3 * a.seat + 2]!;
-        // In steps between neighbouring lands (about 0.0175 of the world's radius apart); a host kept in step with its seat by
-        // its signals thins the less (exactly as before the telegraph: rules/signals.ts).
-        const steadied = 1 - SIGNAL.warSteadied * connectivityOf(lore.effect(a.seat, "signal"));
-        return (Math.sqrt(dx * dx + dy * dy + dz * dz) / 0.0175) * steadied;
-      })(),
-      hungry = a.members.some((c) => {
-        const f = ctx.provinces.get(c)?.lastFamine;
-        const e = f ? world.events.get(f) : undefined;
-        return e && t - e.t <= YEAR;
-      }),
+    // (A host fed from behind it, where its realm has learned what marching far from its bread cost: what distance and hunger
+    // take from it, so much less. Exactly as before where nothing has been learned.)
+    const fed = lessonAdds(world, a.ref, "supply", year),
+      key = Number(w.ref.split(":")[2]),
+      far =
+        fed > 0 ? farFromSeat(ctx, a, land) * (1 - Math.min(1, fed)) : farFromSeat(ctx, a, land),
+      hungry = hostHungry(ctx, a, t),
       // (A host paid from a war chest fights the harder, and its lands' hunger slows it not — M144.)
       chestA = warChest(world, a.ref, w.ref),
       chestB = warChest(world, b.ref, w.ref),
       attack =
         strengthOf(ctx, a) *
         (1 / (1 + 0.15 * far)) *
-        (hungry && !chestA ? 0.7 : 1) *
+        (hungry && !chestA ? (fed > 0 ? 1 - 0.3 * (1 - Math.min(1, fed)) : 0.7) : 1) *
         (chestA ? CREDIT.chest : 1) *
         (1 + 0.3 * lore.effect(a.seat, "sieges")) *
         (aim !== "ally" && overseas(ctx, a, land) ? LANDING : 1) *
@@ -1727,4 +1718,26 @@ export function installWar(world: World, ctx: () => PopulationContext): WarStore
   world.addPinner(() => store.pinned());
   world.system({ key: "185.war.year", every: YEAR, run: (t) => warYear(ctx(), t) });
   return store;
+}
+
+/**
+ * How far a host fights from its seat, in steps between neighbouring lands (about 0.0175 of the world's radius apart): its supply
+ * thins with it. A host kept in step with its seat by its signals thins the less (exactly as before the telegraph: rules/signals.ts).
+ */
+export function farFromSeat(ctx: PopulationContext, a: Polity, land: number): number {
+  const g = ctx.generated,
+    dx = g.grid.positions[3 * land]! - g.grid.positions[3 * a.seat]!,
+    dy = g.grid.positions[3 * land + 1]! - g.grid.positions[3 * a.seat + 1]!,
+    dz = g.grid.positions[3 * land + 2]! - g.grid.positions[3 * a.seat + 2]!,
+    steadied = 1 - SIGNAL.warSteadied * connectivityOf(loreOf(ctx.world).effect(a.seat, "signal"));
+  return (Math.sqrt(dx * dx + dy * dy + dz * dz) / 0.0175) * steadied;
+}
+
+/** Whether a realm's lands went hungry within the year before `t`: its host marches the slower. */
+export function hostHungry(ctx: PopulationContext, a: Polity, t: SimTime): boolean {
+  return a.members.some((c) => {
+    const f = ctx.provinces.get(c)?.lastFamine;
+    const e = f ? ctx.world.events.get(f) : undefined;
+    return !!e && t - e.t <= YEAR;
+  });
 }

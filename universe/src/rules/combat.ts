@@ -12,6 +12,13 @@ export type CombatSide = {
   readonly range: number;
   readonly care: number;
   readonly blow: Blow;
+  /**
+   * What its host has learned of the field (rules/lessons.ts; absent, nothing): a screen ahead of its line, which takes so much off
+   * what the foe looses at it before the lines close (that fire over 1 + screen); and close order, which takes so much off what the
+   * blows shake from its morale and what the flight costs it (each over 1 + steady).
+   */
+  readonly screen?: number;
+  readonly steady?: number;
 };
 export type CombatFrame = {
   readonly at: number;
@@ -88,7 +95,14 @@ export function resolveCombat(
             (0.8 + own.shock + enemy.protection * 1.5),
           spread = 1 / (1 + 0.5 * Math.max(0, Math.max(own.range, enemy.range) - 0.6)),
           variation = 0.92 + 0.16 * dmath.clamp(draw(round, k), 0, 1);
-        const contact = at < 48 ? (own.range >= 0.45 || own.fire > 0 ? 0.45 : 0) : 1;
+        const contact =
+          at < 48
+            ? own.range >= 0.45 || own.fire > 0
+              ? enemy.screen
+                ? 0.45 / (1 + enemy.screen)
+                : 0.45
+              : 0
+            : 1;
         return engaged * 0.022 * advantage * through * spread * variation * contact;
       });
     for (const k of [0, 1] as const) {
@@ -97,7 +111,12 @@ export function resolveCombat(
       const loss = hurt[k]! / Math.max(1, men[k]!),
         pressure = Math.max(0, (force[1 - k]! - force[k]!) / total),
         shock = blows[1 - k]! / Math.max(1, men[k]!);
-      morale[k] = dmath.clamp(1 - loss * 1.7 - shock * 4 - pressure * 0.18 - round * 0.001, 0, 1);
+      const held = sides[k]!.steady ? 1 + sides[k]!.steady! : 1;
+      morale[k] = dmath.clamp(
+        1 - loss * 1.7 - (shock * 4) / held - pressure * 0.18 - round * 0.001,
+        0,
+        1,
+      );
     }
     if (round % 2 === 1) frame(at);
     const fail = [0, 1].map(
@@ -122,7 +141,12 @@ export function resolveCombat(
     for (let n = 1; n <= 4; n++) {
       const remaining = Math.max(0, men[loser]! - hurt[loser]!),
         pursuers = Math.max(0, men[winner]! - hurt[winner]!);
-      hurt[loser] = Math.min(men[loser]!, hurt[loser]! + Math.min(remaining, pursuers) * 0.018);
+      const held = sides[loser as 0 | 1].steady,
+        order = held ? 1 + held : 1;
+      hurt[loser] = Math.min(
+        men[loser]!,
+        hurt[loser]! + (Math.min(remaining, pursuers) * 0.018) / order,
+      );
       dead[loser] = Math.min(men[loser]!, Math.round(hurt[loser]! * kills[loser]!));
       frame(Math.min(145, rout + n * 3));
     }

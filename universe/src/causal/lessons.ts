@@ -2,7 +2,7 @@
 // whom.
 import { yearOfMoment, type Ref } from "../kernel/index.ts";
 import { LESSON_EVENTS } from "../sim/index.ts";
-import { LESSON_CAUSE, LESSON_RESPONSE } from "../rules/index.ts";
+import { LESSON_CAUSE, LESSON_RESPONSE, doesWords } from "../rules/index.ts";
 import { landWords } from "./generated.ts";
 import { registerEventWords } from "./why.ts";
 
@@ -16,6 +16,8 @@ type Taken = {
   year?: number;
   realm?: string;
   from?: string;
+  /** What they began to do, as their means were then (absent in older saves: the response's first words). */
+  does?: string;
 } | null;
 
 const thousands = (n: number) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
@@ -49,5 +51,5 @@ for (const type of [LESSON_EVENTS.taken.type, LESSON_EVENTS.copied.type])
           ? `, as the people of ${landWords(world, d.from as Ref)} did`
           : ", as their neighbours did"
         : "";
-    return `${who(world, e.place, d)} began to ${r?.does ?? "change their ways"}${from}, after ${cost}, year ${year}`;
+    return `${who(world, e.place, d)} began to ${d?.does ?? (r ? doesWords(r, () => false) : "change their ways")}${from}, after ${cost}, year ${year}`;
   });
