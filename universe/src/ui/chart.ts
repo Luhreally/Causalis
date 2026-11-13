@@ -345,7 +345,13 @@ export function timelineChart(spans: readonly Span[], from: number, to: number):
         start = (Math.max(from, s.from) - from) / width,
         stop = (Math.min(to, end) - from) / width;
       if (stop < 0.66) words.style.left = `calc(${(stop * 100).toFixed(2)}% + 5px)`;
-      else words.style.right = `calc(${((1 - start) * 100).toFixed(2)}% + 5px)`;
+      else if (start > 0.34) words.style.right = `calc(${((1 - start) * 100).toFixed(2)}% + 5px)`;
+      else {
+        // (A bar across most of the years has no room beside it: its words lie on it, never over the name before it.)
+        words.classList.add("on-bar");
+        words.style.left = `calc(${(start * 100).toFixed(2)}% + 5px)`;
+        words.style.maxWidth = `calc(${((stop - start) * 100).toFixed(2)}% - 10px)`;
+      }
       track.append(words);
     }
     row.append(name, track);

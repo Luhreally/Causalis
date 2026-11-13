@@ -91,7 +91,13 @@ export const hudRead = (exempt: readonly Exemption[] = [], tol = 4): string => `
     let x = (Math.max(c.x0, 0) + Math.min(c.x1, W)) / 2, y = (Math.max(c.y0, 0) + Math.min(c.y1, H)) / 2;
     // (A link that wraps over two lines is touched on its first: its box's middle may be another's.)
     const lines = e.getClientRects();
-    if (lines.length > 1) { const f = lines[0]; x = f.left + f.width / 2; y = f.top + f.height / 2; }
+    // (Its first line still to be seen, as much of it as its scroller lets be: a line scrolled under the window's foot is no target.)
+    if (lines.length > 1) for (const f of lines) {
+      const y0 = Math.max(f.top, c.y0, 0), y1 = Math.min(f.bottom, c.y1, H), x0 = Math.max(f.left, c.x0, 0), x1 = Math.min(f.right, c.x1, W);
+      if (y1 - y0 < 1 || x1 - x0 < 1) continue;
+      x = (x0 + x1) / 2; y = (y0 + y1) / 2;
+      break;
+    }
     const hit = document.elementFromPoint(x, y);
     const mine = hit && (hit === e || e.contains(hit) || (hit.contains(e) && hit !== hud && hit !== document.body && hit !== document.documentElement && hit.id !== "app"));
     if (!mine && !(hit && exempt(e, hit)))

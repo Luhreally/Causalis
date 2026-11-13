@@ -832,11 +832,11 @@ body[data-world="methane"][data-scale="ground"]:not([data-daylight]) {
 .table .sort.on.up::after {
   content: " ▲";
 }
-/* A table fitted to the page (no sideways scroll on a phone): its headings wrap, its first column's long names break. */
+/* A table fitted to the page (no sideways scroll on a phone): its headings wrap, and a long name in any of its columns breaks. */
 .table.fit .sort {
   white-space: normal;
 }
-.table.fit td:first-child {
+.table.fit td {
   overflow-wrap: anywhere;
 }
 /* An alliance's colour at its row's start. */
@@ -1600,6 +1600,15 @@ body.paging .panel:not(.page-panel) .inspector {
   color: var(--muted);
   white-space: nowrap;
   pointer-events: none;
+}
+.timeline-words.on-bar {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #fff;
+  font-weight: 700;
+  text-shadow:
+    0 0 2px #000,
+    0 1px 1px #000;
 }
 .timeline-marks {
   position: relative;
