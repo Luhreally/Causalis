@@ -59,21 +59,24 @@ const KIND_ROWS = new Set([
  * Principles re-recorded for Phase 66: seven of them (electronics, guidance, stations, habitats, the
  * nuclear and fusion drives, the long sleep) now name what they open the way to past our ages; the
  * rest read as they did.
+ * Re-recorded for lessons (2026-11-12): a people's losses remembered and answered move its history
+ * from the first years, and with it the towns, realms and their pages; and a smithy's page tells a
+ * tool forged there, though its town has works. The guide to matter stays identical.
  */
 const BEFORE: Record<string, string> = {
-  tools: "b03ff19e:17898",
-  stuff: "4a8ad6e6:13820",
-  ground: "2bb652b6:42893",
-  deposits: "a4af12d2:97962",
-  arms: "9026455e:13163",
-  designs: "645c2457:25972",
-  workshops: "3dec7581:443053",
-  substances: "b4d7be47:130634",
-  reactions: "bb19b233:68586",
+  tools: "a0a36af:18383",
+  stuff: "3c320bd0:13619",
+  ground: "9ec689ef:43974",
+  deposits: "60101db1:97962",
+  arms: "73cb8617:17184",
+  designs: "3ae032a0:27911",
+  workshops: "14207a5c:265436",
+  substances: "5835b926:130632",
+  reactions: "38d8a8a3:68570",
   // (Its pages no longer list what only a people of the water could find: F1, canBeFoundHere.)
-  principles: "7fbb5444:169139",
+  principles: "59e3ba64:168853",
   guide: "ced49326:17137",
-  camps: "caef18ca:343809",
+  camps: "efbd90a7:344430",
 };
 
 /**

@@ -117,11 +117,23 @@ test("a rising beaten back is put down and its lands returned, or the realm is p
       data: { realm: realmName(p) },
     }),
     seen = new Set<string>();
-  // Risings raised in its far lands again and again, each beaten back: put down, or parted.
-  for (let k = 1; k < 30 && seen.size < 2 && farLands(ctx, p).length; k++) {
+  // Risings raised in its far lands, each beaten back: put down, or parted. (Each in the world as it
+  // was, at its own moment: a realm parted again and again has no far lands left to rise.)
+  for (let k = 1; k < 30 && seen.size < 2; k++) {
+    const w = fresh(),
+      p = greatest(w),
+      ctx = populationContext(w),
+      store = strifeOf(w)!,
+      raised = w.events.emit({
+        type: STRIFE_ACTS.pretender.type,
+        subjects: [p.ref],
+        place: null,
+        data: { realm: realmName(p) },
+      });
+    if (!farLands(ctx, p).length) break;
     const n = store.civil.length,
       rebel = breakAway(ctx, p, farLands(ctx, p), raised, "pretender", at(k * YEAR));
-    if (!rebel) break;
+    if (!rebel) continue;
     const lands = [...rebel.members],
       c = store.civil[n]!;
     assert.equal(c.kind, "pretender");

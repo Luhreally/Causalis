@@ -706,6 +706,8 @@ export function toolMade(
   town?: string | null,
   seat?: number,
   forged?: ToolMetal,
+  /** Made at the smithy, though the town has works (a smithy's own page: what is made there). */
+  atSmithy = false,
 ): Made {
   // (At the smithy, what its smiths forged that year; elsewhere what its land's tools were headed
   // with — Phase 52 M217.)
@@ -750,7 +752,7 @@ export function toolMade(
       : metalOf(chem, metal as Metal, {
           arsenical: metal === "bronze" && tinArsenical(world, cell),
         });
-  const works = workshopOf(world, t?.ref ?? null, ["factory"], year),
+  const works = atSmithy ? null : workshopOf(world, t?.ref ?? null, ["factory"], year),
     smithy = works ?? workshopOf(world, t?.ref ?? null, ["smithy", "workshop"], year),
     trade = works ? "hand at the works" : "smith",
     maker =
@@ -1786,7 +1788,7 @@ export function workshopBlocks(
   }
   const key = `${building}:now`,
     now = forge
-      ? toolMade(world, town.cell, key, year, false, town.ref, undefined, forged)
+      ? toolMade(world, town.cell, key, year, false, town.ref, undefined, forged, kind === "smithy")
       : kind === "kiln"
         ? potMade(world, town.cell, key, year, false, town.ref)
         : kind === "workshop"
