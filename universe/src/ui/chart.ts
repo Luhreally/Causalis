@@ -477,9 +477,10 @@ export function seriesChart(
     }),
     line = svg("path", { d, class: "chart-series" });
   if (b.color) {
-    const c = rgb(b.color);
-    area.style.fill = c;
-    line.style.stroke = c;
+    // (Its line its colour lightened, to stand out on the dark plot however deep its colour; its area its own.)
+    const c = b.color;
+    area.style.fill = rgb(c);
+    line.style.stroke = rgb([0.45 + c[0] * 0.55, 0.45 + c[1] * 0.55, 0.45 + c[2] * 0.55]);
   }
   const cursor = svg("line", { x1: 0, x2: 0, y1: 0, y2: H, class: "chart-cursor" });
   cursor.style.display = "none";

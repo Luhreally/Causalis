@@ -369,12 +369,12 @@ const model = (ref: string) =>
   k<Model>(
     `globalThis.causalis.client.query({ type: "page", args: { ref: ${JSON.stringify(ref)} } })`,
   );
-/** The page's head numbers on the screen, by their labels. */
+/** The page's head numbers on the screen, by their labels (a label's own words, without the ⓘ of its concept). */
 const chips = () =>
   k<Record<string, string>>(`(() => {
     const out = {};
     for (const c of document.querySelectorAll(".page-window .stat")) {
-      const l = c.querySelector(".stat-label")?.textContent ?? "", v = c.querySelector(".stat-value")?.textContent ?? "";
+      const l = c.querySelector(".stat-label")?.firstChild?.textContent ?? "", v = c.querySelector(".stat-value")?.textContent ?? "";
       if (l) out[l] = v.trim();
     }
     return out;
