@@ -330,7 +330,7 @@ export function surveyLife(count: number, from = 0): LifeRow[] {
       g = generateHomeWorld(seedFromText(seed), OPEN);
     if (!g.life.species.length) continue;
     // (The peoples of the stars near a world are its seed's alone: no world need be built.)
-    const world = { seed: seedFromText(seed) } as unknown as World,
+    const world = { seed: seedFromText(seed), hasStore: () => false } as unknown as World,
       stars = clusterOf(world);
     rows.push({
       seed,

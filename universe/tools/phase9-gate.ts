@@ -68,7 +68,13 @@ console.log("the Phase 9 gate");
   const makes = new Set<string>();
   worlds.forEach((w, k) => {
     const beasts = w.life.species.filter(
-      (s) => s.died === null && s.niche !== "seed grass" && s.index !== w.life.people?.species,
+      // (Not its plants: the seed grass, and the growths a world's own tree now grows, its mosses, wracks and trees, are
+      // the eaten, not bodies that go.)
+      (s) =>
+        s.died === null &&
+        s.niche !== "seed grass" &&
+        s.niche !== "growth" &&
+        s.index !== w.life.people?.species,
     );
     for (const s of beasts) {
       if (!s.body) problems.push(`${s.name} has no body`);

@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { preview } from "vite";
 import { chromium, type Page } from "playwright";
+import { keptLife } from "../src/rules/index.ts";
 
 const ci = process.argv.includes("--ci"),
   soft = process.argv.includes("--soft"),
@@ -162,7 +163,8 @@ check(fits, "on a phone the thread runs off the page");
 await phone.close();
 
 // 4. On a world the hand made, the thread ends in the hand's making.
-await begun(page, "alien", "violet hollow ~star red", 0);
+// (Life kept as made: violet hollow is a methane world, whose own chemistry quickens no life now.)
+await begun(page, "alien", keptLife("violet hollow ~star red"), 0);
 const lands = await k<{ cell: number; people: number }[]>(
     page,
     `globalThis.causalis.client.query({ type: "people.map" })`,

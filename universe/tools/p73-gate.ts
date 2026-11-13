@@ -468,6 +468,13 @@ await settleFor(1200);
   for (const lens of ["trade", "war"] as const) {
     await press(`.star-lens[data-lens="${lens}"]`);
     await settleFor(1800);
+    // (A finger tries again if nothing came, as anyone's does: on a slow machine the lenses can move under the bar as the
+    // tap lands, and no press is made of it. Only if it is not on: a second press puts a lens away.)
+    if (!(await k<boolean>(`!!document.querySelector('.star-lens.on[data-lens="${lens}"]')`))) {
+      say(`the ${lens} lens did not come at the first tap: again`);
+      await press(`.star-lens[data-lens="${lens}"]`);
+      await settleFor(1800);
+    }
     const said = await k<string>(`document.querySelector(".star-lens-legend").innerText`);
     say(`${lens} with nothing: ${said.replace(/\n/g, " / ")}`);
     check(/yet/i.test(said), `the ${lens} lens with nothing to show says "${said}"`);

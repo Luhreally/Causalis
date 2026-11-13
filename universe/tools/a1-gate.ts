@@ -25,7 +25,7 @@ import { annalsIndex, annalsRead, runTold, withoutYear } from "../src/host/inspe
 import { nextBlock } from "../src/host/inspect/next.ts";
 import { hereOf } from "../src/host/inspect/can.ts";
 import { lacksNow } from "../src/host/reading.ts";
-import { OPEN, whyShut } from "../src/rules/index.ts";
+import { OPEN, keptLife, whyShut } from "../src/rules/index.ts";
 import type { Block, Line } from "../src/bridge/index.ts";
 
 const argv = process.argv.slice(2),
@@ -181,11 +181,13 @@ const noOne = young("alien", barren ?? "barren 0", 5);
   check(/^Nothing/.test(blockWords(r.next)), `no one, what's next: ${blockWords(r.next)}`);
   check(r.run === null, "a world with no one had a run to tell of");
 }
-readThrough(young("alien", "vale 471"), "young vale 471");
-readThrough(young("alien", "kestrel 557"), "young kestrel 557");
+// (Vale 471 and kestrel 557 as they were made, life kept: of their own chemistry, a methane world bears no life now and
+// kestrel 557's people walk; the years read here are of the peoples the old tables made.)
+readThrough(young("alien", keptLife("vale 471")), "young vale 471");
+readThrough(young("alien", keptLife("kestrel 557")), "young kestrel 557");
 readThrough(young("earth", "first light"), "young first light");
 
-const madeWorld = saveFile ? worldOf(saveFile, "alien") : young("alien", "vale 471");
+const madeWorld = saveFile ? worldOf(saveFile, "alien") : young("alien", keptLife("vale 471"));
 if (saveFile) readThrough(madeWorld, madeWorld.seed.text);
 if (earthFile) readThrough(worldOf(earthFile, "earth"), "first light");
 const made = pack(madeWorld, "alien");

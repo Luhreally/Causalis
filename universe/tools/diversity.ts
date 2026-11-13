@@ -155,7 +155,13 @@ export function survey(seed: string, years: number, untilPower = false): Survey 
     speakers = langs.speakers();
   return {
     seed,
-    clade: body?.clade ?? null,
+    // (A people risen from its own world's tree (B4) is of no table's clade: its plan is its body's own, read as the
+    // tree's founders gather kinds: its symmetry, its covering, its blood, how it goes and what it handles with.)
+    clade: !body
+      ? null
+      : body.clade === "risen"
+        ? `${body.symmetry}|${body.skin}|${body.warm ? "warm" : "cold"}|legs ${body.legs ?? 0}|wings ${body.wings ?? 0}|${body.hold ?? body.manipulators}`
+        : body.clade,
     medium: body?.medium ?? null,
     symmetry: body?.symmetry ?? null,
     manipulators: body?.manipulators ?? null,

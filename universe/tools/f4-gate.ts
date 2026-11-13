@@ -19,6 +19,7 @@ import { YEAR, rulesetId, saveWorld, seedFromText } from "../src/kernel/index.ts
 import { ALIEN, EARTH } from "../src/host/planet.ts";
 import { functionsOf, meansOfWorld } from "../src/gen/index.ts";
 import { homePlanet, loreOf, populationContext } from "../src/sim/index.ts";
+import { keptLife } from "../src/rules/index.ts";
 
 const argv = process.argv.slice(2),
   soft = argv.includes("--soft"),
@@ -40,9 +41,10 @@ const problems: string[] = [],
   },
   say = (s: string) => console.log(`  ${s}`);
 
-const SEED = "alien 132",
+// (Both as they were made, life kept: of alien 132's own tree its people now swim, and alien 12's lands lie elsewhere.)
+const SEED = keptLife("alien 132"),
   AT = 750,
-  THIN = "alien 12";
+  THIN = keptLife("alien 12");
 
 const root = fileURLToPath(new URL("..", import.meta.url)),
   baked = join(root, "dist", "baked"),

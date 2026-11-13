@@ -729,10 +729,12 @@ export function installFleetFilm(d: FleetFilmDeps): FleetFilm {
       return;
     }
     if (act === "town" && townNow && p.landing) {
-      const hit = invasion.pick(x, y, townNow);
-      if (hit && "raider" in hit) d.openPage(p.landing.raiders.ref);
-      else if (hit && "lander" in hit) d.openPage(p.event);
-      else if (village.pickSoldier(x, y)) d.openPage(p.event);
+      // (The nearer of a raider and one of the town's guard takes the tap: in the streets they fight within a finger of
+      // each other, and a raider only near it took a tap right on a defender. 2026-11-13.)
+      const hit = invasion.pick(x, y, townNow),
+        guard = village.pickSoldier(x, y);
+      if (hit && "raider" in hit && (!guard || hit.d <= guard.d)) d.openPage(p.landing.raiders.ref);
+      else if (guard || (hit && "lander" in hit)) d.openPage(p.event);
     }
   };
 

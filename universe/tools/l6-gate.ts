@@ -446,7 +446,9 @@ check(survey.length > 0, "no home in the town");
 const standing = survey.filter((s) => s.state === "stands"),
   byCoin = [...standing].sort((a, b) => a.coin - b.coin),
   poor = byCoin.find((s) => s.people > 0) ?? byCoin[0]!,
-  rich = byCoin.at(-1)!;
+  // (The richest home someone is known to live in, as the poorest is: what a home holds is its people's as much as its
+  // coin's, and a house no one is known in holds only what was left in it. The empty one is looked at below.)
+  rich = byCoin.findLast((s) => s.people > 0) ?? byCoin.at(-1)!;
 say(
   `poorest ${Math.round(poor.coin)} coin, ${poor.rooms} rooms; richest ${Math.round(rich.coin)} coin, ${rich.rooms} rooms, level ${rich.level}`,
 );

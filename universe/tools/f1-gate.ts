@@ -25,7 +25,7 @@ import { YEAR, rulesetId, saveWorld, seedFromText, type World } from "../src/ker
 import { ALIEN, EARTH } from "../src/host/planet.ts";
 import { battleNear } from "../src/host/battle.ts";
 import { meansNumbers, meansOfWorld } from "../src/gen/index.ts";
-import { FIREARMS, gunHere, type MeansWorld } from "../src/rules/index.ts";
+import { FIREARMS, gunHere, keptLife, type MeansWorld } from "../src/rules/index.ts";
 import { homePlanet, warsOf } from "../src/sim/index.ts";
 import type { BattleNear } from "../src/bridge/index.ts";
 import { isGun } from "../src/view/index.ts";
@@ -50,7 +50,8 @@ const problems: string[] = [],
   },
   say = (s: string) => console.log(`  ${s}`);
 
-const SEED = "wren 455",
+// (Wren 455 as it was made, life kept: of its own chemistry, a methane world, no life quickens now.)
+const SEED = keptLife("wren 455"),
   SEARCH_FROM = 1600,
   SEARCH_TO = 2700;
 

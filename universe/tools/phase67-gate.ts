@@ -477,7 +477,10 @@ try {
         await page.waitForTimeout(60);
       }
     }
-    problems.push(`${what} did not come`);
+    // (What came instead, if anything: a page of another, or none.)
+    problems.push(
+      `${what} did not come (at ${Math.round(x)},${Math.round(y)}: ${(await openPage().catch(() => "")) || "no page"})`,
+    );
   };
   if (raider) {
     await tapUntil(raider.x, raider.y, "a raider's page", landing.raiders.ref);

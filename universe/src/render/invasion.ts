@@ -359,9 +359,9 @@ export class InvasionLayer {
     y: number,
     now: InvasionNow,
     reach = 26,
-  ): { raider: number } | { lander: number } | null {
+  ): { raider: number; d: number } | { lander: number } | null {
     if (!this.parts) return null;
-    let best: { raider: number } | null = null,
+    let best: { raider: number; d: number } | null = null,
       bestD = reach;
     for (const r of now.raiders) {
       if (r.size <= 0 || r.doing === "fallen") continue;
@@ -370,7 +370,7 @@ export class InvasionLayer {
       const d = Math.hypot(q.x - x, q.y - y);
       if (d <= bestD) {
         bestD = d;
-        best = { raider: r.i };
+        best = { raider: r.i, d };
       }
     }
     if (best) return best;
