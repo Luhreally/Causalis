@@ -104,3 +104,16 @@ test("how a land builds is drawn of the house its towns raise, and its works of 
     assert.ok(mill.length > bare.length);
   }
 });
+
+test("what lives in a land is drawn beside its name", () => {
+  const life = pageOf(world, `cell:0:${realm.seat}`).tabs.find((t) => t.id === "life");
+  const items =
+    life?.blocks.flatMap((b) =>
+      b.type === "list" && b.title === "What lives here" ? b.items : [],
+    ) ?? [];
+  for (const i of items)
+    assert.ok(
+      i.thumb && (i.thumb.kind === "creature" || i.thumb.kind === "plant"),
+      JSON.stringify(i.line),
+    );
+});
