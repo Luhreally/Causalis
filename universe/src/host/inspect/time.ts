@@ -30,6 +30,7 @@ import {
   LAND_COLUMNS,
   fromSteps,
   logAt,
+  TRADE_STEPS,
   UNREAD,
   owedByLand,
   sentByLand,
@@ -162,7 +163,7 @@ export function realmThrough(world: World, ref: string, home = false): RealmThro
       a.people += n;
       a.grieved += n * (rows.cols[LAND_COLUMNS.indexOf("grievance")]![i]! / 100);
       a.net += n * fromSteps(rows.cols[LAND_COLUMNS.indexOf("worth")]![i]!);
-      a.trade += fromSteps(rows.cols[LAND_COLUMNS.indexOf("trade")]![i]!);
+      a.trade += fromSteps(rows.cols[LAND_COLUMNS.indexOf("trade")]![i]!, TRADE_STEPS);
       decades.set(y, a);
     });
   }
@@ -452,7 +453,7 @@ export function realmTimeTab(world: World, r: Polity): Tab {
         {
           color,
           marks: m.war,
-          note: "What its lands sent along the roads and over the sea in a year, at the goods' usual worth; read once a decade.",
+          note: "What its lands sent along the roads and over the sea in a year, at the goods' usual worth; read once a decade, to within a tenth.",
         },
       ),
     );
@@ -578,12 +579,12 @@ export function landTimeTab(world: World, cell: number): Tab | null {
         "sent",
         "worth",
         withNow(
-          kept(col("trade")).map((q) => ({ x: q.x, y: fromSteps(q.y) })),
+          kept(col("trade")).map((q) => ({ x: q.x, y: fromSteps(q.y, TRADE_STEPS) })),
           now,
           sentByLand(world).get(cell) ?? 0,
         ),
         {
-          note: "What it sent along the roads and over the sea in a year, at the goods' usual worth; read once a decade.",
+          note: "What it sent along the roads and over the sea in a year, at the goods' usual worth; read once a decade, to within a tenth.",
         },
       ),
     );

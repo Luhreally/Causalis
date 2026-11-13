@@ -79,15 +79,17 @@ export const UNREAD = -1_000_000;
 
 /** How many steps a tenfold a worth is kept in: each within some 5% of what it was. */
 export const STEPS = 24;
+/** A land's trade, the roughest of its numbers, in half as many: each within some 10%. */
+export const TRADE_STEPS = 12;
 
 /** A worth as kept: steps of a tenfold (a twenty-fourth: some 10% apart), signed. Small whole numbers, each like the last, fold small. */
-export function toSteps(n: number): number {
-  return Math.sign(n) * Math.round(STEPS * Math.log10(1 + Math.abs(n)));
+export function toSteps(n: number, steps = STEPS): number {
+  return Math.sign(n) * Math.round(steps * Math.log10(1 + Math.abs(n)));
 }
 
 /** What toSteps kept, back as a worth (to within some 5%). */
-export function fromSteps(k: number): number {
-  return Math.sign(k) * (10 ** (Math.abs(k) / STEPS) - 1);
+export function fromSteps(k: number, steps = STEPS): number {
+  return Math.sign(k) * (10 ** (Math.abs(k) / steps) - 1);
 }
 
 /** A value as it changed: the year each change was first so, and what it then was. */
@@ -322,7 +324,7 @@ export function landNow(
     pct(politiesOf(world).discontent(cell).level),
     people && m ? Math.min(99_000, twoFigures((m.food(FOODS) / people) * 10)) : 0,
     people ? toSteps(net / people) : 0,
-    toSteps(sent.get(cell) ?? 0),
+    toSteps(sent.get(cell) ?? 0, TRADE_STEPS),
     healthOf(world)?.land(cell)?.dead ?? 0,
   ];
 }
