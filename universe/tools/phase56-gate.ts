@@ -279,11 +279,16 @@ const turned: [string, string, RegExp][] = [
 for (const [dial, choice, ends] of turned) {
   await page.click(`.making-dial[data-subject='${dial}']`);
   await told(`${dial} turned to ${choice}`, ends);
-  if (ends.source.includes("world"))
+  // (Its life told as its own chemistry makes it (B5): "Life arises" where a people rises, else why none will.)
+  if (ends.source.includes("world")) {
+    const life = await text(".seed-life"),
+      seedNow = await page.inputValue(".seed-input"),
+      peopled = !!generateHomeWorld(seedFromText(seedNow), OPEN).life.people;
     check(
-      /^🌱 Life arises/.test(await text(".seed-life")),
-      `life does not arise on violet hollow with its ${dial} turned to ${choice}`,
+      peopled ? /^🌱 Life arises/.test(life) : /No people will rise here/.test(life),
+      `“${seedNow}” bears ${peopled ? "a people" : "no people"}, but the title says “${life.slice(0, 80)}”`,
     );
+  }
 }
 for (let i = 0; i < 4; i++) await page.click(".making-dial[data-subject='volatiles']");
 await told("a methane world, again", / · 🟠 a methane world$/);
