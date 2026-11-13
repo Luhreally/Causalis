@@ -7,7 +7,9 @@ import {
   EARTHLIKE,
   OPEN,
   affordancesOf,
+  bodyFunction,
   bodyOf,
+  keptLife,
   type BodyPlan,
 } from "../../src/rules/index.ts";
 import { homePlanet, makePopulationWorld } from "../../src/sim/index.ts";
@@ -21,10 +23,10 @@ test("under the Earthlike prior the people are always the upright apes, as Earth
   }
 });
 
-test("on open worlds, the clade that rises is the one the world favours, with a body grown there", () => {
+test("on open worlds kept as they were made, the clade that rises is the one the world favours, with a body grown there", () => {
   const seen = new Map<string, BodyPlan>();
   for (let i = 0; i < 24; i++) {
-    const w = generateHomeWorld(seedFromText(`alien ${i}`), OPEN),
+    const w = generateHomeWorld(seedFromText(keptLife(`alien ${i}`)), OPEN),
       p = w.life.people;
     if (!p) continue;
     const clade = CLADES.find((c) => c.id === p.body.clade)!;
@@ -38,11 +40,40 @@ test("on open worlds, the clade that rises is the one the world favours, with a 
       }) > 0,
       `${clade.id} on a world it does not suit`,
     );
-    assert.deepEqual(generateHomeWorld(seedFromText(`alien ${i}`), OPEN).life.people!.body, p.body);
+    assert.deepEqual(
+      generateHomeWorld(seedFromText(keptLife(`alien ${i}`)), OPEN).life.people!.body,
+      p.body,
+    );
     assert.equal(w.life.species[p.species]!.name, p.body.name);
     seen.set(p.body.clade, p.body);
   }
   assert.ok(seen.size >= 4, `${[...seen.keys()].join(", ")}`);
+});
+
+test("on open worlds read from their numbers, a people rises from a living lineage of its own tree, a grasper free while it stands (B4)", () => {
+  const shapes = new Set<string>();
+  let peopled = 0;
+  for (let i = 0; i < 24; i++) {
+    const w = generateHomeWorld(seedFromText(`alien ${i}`), OPEN),
+      p = w.life.people;
+    if (!p) {
+      // (Where life arose and none rose, it says why.)
+      if (w.life.species.length) assert.match(w.life.noPeople ?? "", /no lineage rose to thought/);
+      continue;
+    }
+    peopled++;
+    assert.equal(p.body.clade, "risen");
+    assert.ok(p.body.legs !== undefined, "its body read from its forebear's");
+    const fore = w.life.species[p.forebear!]!;
+    assert.equal(fore.died, null, `${fore.name} rose and is living`);
+    assert.ok((fore.body?.arms ?? 0) > 0, `${fore.name} has a grasper`);
+    assert.deepEqual(generateHomeWorld(seedFromText(`alien ${i}`), OPEN).life.people!.body, p.body);
+    assert.equal(w.life.species[p.species]!.name, p.body.name);
+    const f = bodyFunction(p.body);
+    shapes.add(`${f.stance} ${f.legs} ${f.arms} ${p.body.hold} ${p.body.medium}`);
+  }
+  assert.ok(peopled >= 12, `${peopled} of 24 peopled`);
+  assert.ok(shapes.size >= 8, `${shapes.size} bodies: ${[...shapes].join("; ")}`);
 });
 
 test("a body's affordances follow from it by laws", () => {

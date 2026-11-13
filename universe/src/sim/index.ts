@@ -811,6 +811,7 @@ export {
   civilizationsEver,
   civilizationsNear,
   contactYear,
+  farBodies,
   contactsOf,
   installContact,
   type Contact,

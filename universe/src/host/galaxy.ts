@@ -2,6 +2,7 @@
 // lies), the real stars about any spot of it (drawn from the galaxy's own sectors, as the
 // cluster's are), any star's page by its ref wherever it lies, and any of its worlds made
 // whole (M81). Scenery that can be looked at closely: nothing here enters history.
+import { civKind } from "../gen/index.ts";
 import { Rng, type World } from "../kernel/index.ts";
 import {
   SECTOR_LY,
@@ -26,7 +27,6 @@ import {
 } from "../sim/index.ts";
 import { civilizationOn, lifeOfWorld } from "./elsewhere.ts";
 import { farReachOf } from "./far.ts";
-import { CLADES } from "../rules/index.ts";
 import type { ClusterStar, GalaxyPlan, StarPage, SystemPlan, WorldGlobe } from "../bridge/index.ts";
 
 /** The galaxy's shape: enough to draw it. */
@@ -223,7 +223,7 @@ function peopleOf(world: World, star: GalaxyStar, index: number): WorldGlobe["pe
   const civ = civilizationOn(world, star, index);
   if (!civ) return null;
   return {
-    name: CLADES.find((c) => c.id === civ.clade)?.body.name ?? civ.clade,
+    name: civKind(civ),
     medium: civ.medium,
     electronics: civ.electronics,
     orbit: civ.orbit,

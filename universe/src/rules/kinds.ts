@@ -287,6 +287,31 @@ export function kindLives(text: string, kind: WorldKind): boolean {
   return kind === "rocky" || kindDraw(seedName(text), 3) < KINDS[kind].life.odds;
 }
 
+/**
+ * The draw a world's life takes hold by (B5): the same keyed draw of its seed's name the kinds' odds were set against,
+ * now set against the odds its own places, energy and time give (rules/origin.ts lifeOdds).
+ */
+export function lifeDraw(text: string): number {
+  return kindDraw(seedName(text), 3);
+}
+
+/**
+ * The act that keeps a world's living things as they were made before they were read from its physics (B3 to B5 of
+ * the life plan): a world saved before is kept so, its seed's text marked ("alien 7 ~bodies kept"), and the old
+ * tables, frozen, make it as they made it.
+ */
+export const LIFE_KEPT = "bodies kept";
+
+/** Whether a seed's text keeps its world's living things as they were made before B3. */
+export function lifeKept(text: string): boolean {
+  return seedActs(text).includes(LIFE_KEPT);
+}
+
+/** A seed's text marked to keep its living things as they were made before B3. */
+export function keptLife(text: string): string {
+  return lifeKept(text) ? text : seedWithAct(text, LIFE_KEPT);
+}
+
 /** A carbon world's C/O, from a draw in [-1, 1): within the making's range for a carbon disk. */
 export function carbonRatio(u: number): number {
   const [lo, hi] = MAKINGS.carbon.carbon;

@@ -5,6 +5,7 @@
 // one). What a block keeps only as far as it is read: the strengths behind a battle's exchanges, and
 // the weight of a cause, which comes of the sums to two or four places that "why" tells.
 import { test } from "node:test";
+import { keptLife } from "../../src/rules/kinds.ts";
 import assert from "node:assert/strict";
 import { YEAR, rulesetId, saveWorld, seedFromText, type World } from "../../src/kernel/index.ts";
 import { ALIEN } from "../../src/host/planet.ts";
@@ -12,7 +13,7 @@ import { loadKept, serializeWhy } from "../../src/host/host.ts";
 import { spine, why } from "../../src/causal/index.ts";
 import { warsOf } from "../../src/sim/index.ts";
 
-const SEED = seedFromText("alien 16"),
+const SEED = seedFromText(keptLife("alien 16")),
   YEARS = 220,
   /** How long to go on asking any one query, in ms (the answers are the same whatever is asked). */
   EACH_MS = 250;

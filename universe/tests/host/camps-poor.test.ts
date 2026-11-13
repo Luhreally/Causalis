@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { keptLife } from "../../src/rules/kinds.ts";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { WATER } from "../../src/gen/index.ts";
@@ -10,7 +11,7 @@ import type { CampNear, LandPlan } from "../../src/bridge/index.ts";
 // it — foragers need no field. A world never seen whose first land is so (its soil everywhere
 // below what a village wants).
 
-const world = ALIEN.build(seedFromText("violet hollow"));
+const world = ALIEN.build(seedFromText(keptLife("violet hollow")));
 world.runTo(YEAR / 8);
 const ctx = populationContext(world),
   cell = [...ctx.provinces.all()].sort((a, b) => b.total() - a.total() || a.cell - b.cell)[0]!.cell,

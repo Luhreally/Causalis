@@ -3,6 +3,7 @@
 // open fire, a kiln with metalworking, a bloomery with iron, cooler in thin air — and where its
 // hardener's ore is beyond its furnace, its smiths harden copper with the arsenic of its own ore.
 import { test } from "node:test";
+import { keptLife } from "../../src/rules/kinds.ts";
 import assert from "node:assert/strict";
 import { seedFromText } from "../../src/kernel/index.ts";
 import { EARTHLIKE, OPEN, worldOre } from "../../src/rules/index.ts";
@@ -18,7 +19,12 @@ import {
 } from "../../src/sim/index.ts";
 
 const ctxOf = (seed: string, prior = OPEN) =>
-  populationContext(makePopulationWorld(seedFromText(seed), { prior, start: "spread" }));
+  populationContext(
+    makePopulationWorld(seedFromText(prior === OPEN ? keptLife(seed) : seed), {
+      prior,
+      start: "spread",
+    }),
+  );
 const lands = (ctx: ReturnType<typeof ctxOf>) =>
   [...ctx.provinces.all()].map((p) => p.cell).sort((a, b) => a - b);
 

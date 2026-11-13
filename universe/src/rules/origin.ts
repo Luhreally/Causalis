@@ -1025,3 +1025,56 @@ export function powerWords(w: number): string {
     sup = String(exp).replace(/[-0-9]/g, (d) => "⁻⁰¹²³⁴⁵⁶⁷⁸⁹"["-0123456789".indexOf(d)]!);
   return `about 10${sup} W`;
 }
+
+// —— Whether life starts (B5) ———————————————————————————————————————————————————————————————————
+
+/**
+ * How often a world's first chemistry quickens into life, a billion years: its places' rates summed (each a place that
+ * gathers the first chemistry, at a pace its warmth and its energy set), against Earth's. An estimate set so a world
+ * like Earth quickens within a few hundred million years nearly always, as Earth's did.
+ */
+export const QUICKENING = 2.2;
+
+/** Whether life can start on a world, and how likely it is to have started by now, with why. */
+export type LifeOdds = {
+  /** The chance it has quickened by now (0 … 1). */
+  readonly odds: number;
+  /** Its places' rate summed (Earth's about 1). */
+  readonly rate: number;
+  /** Billions of years it has had. */
+  readonly years: number;
+  /** What it lacked (null: nothing; it may still not have quickened). */
+  readonly lacks: string | null;
+  readonly words: string;
+};
+
+/** The odds a world's life has quickened, from its five needs: its liquid, its energy, its ingredients, its places, its time. */
+export function lifeOdds(o: OriginGround, liquidWhy: string | null = null): LifeOdds {
+  const liquid = (o.sea > 0.02 || o.underIce) && !liquidWhy,
+    energy = o.heat >= 0.05 || o.ground >= 0.005,
+    cradles = cradlesOf(o).filter((c) => !c.shut && c.rate > 0),
+    rate = cradles.reduce((a, c) => a + c.rate, 0),
+    // (Oil gathers the rest poorly: an estimate, a hundredth of water's.)
+    ingredients = o.family === "oil" ? 0.01 : 1,
+    years = Math.max(0, o.ageGyr - 0.2),
+    lacks = !liquid
+      ? (liquidWhy ?? `no ${o.liquid} lasts on it`)
+      : !energy
+        ? "no flow of energy: no heat from below and no light worth having"
+        : !cradles.length
+          ? "nowhere that gathers the first chemistry"
+          : years <= 0
+            ? `too little time (${Math.round(o.ageGyr * 1000)} million years since it formed)`
+            : null,
+    odds = lacks ? 0 : 1 - dmath.exp(-QUICKENING * rate * ingredients * years);
+  const f = (x: number) => (x >= 10 ? Math.round(x) : x >= 1 ? x.toFixed(1) : x.toFixed(2));
+  return {
+    odds,
+    rate: round(rate * ingredients, 4),
+    years: round(years, 2),
+    lacks,
+    words: lacks
+      ? lacks
+      : `its places gather the first chemistry at ${f(rate * ingredients)}× the pace of Earth's, over ${f(years)} billion years: ${odds > 0.995 ? "life all but had to start" : `about ${Math.max(1, Math.round(odds * 100))} chances in 100 it started`}${cradles[0] ? ` (likeliest at ${cradles[0].name.toLowerCase()})` : ""}`,
+  };
+}

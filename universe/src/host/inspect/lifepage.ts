@@ -15,6 +15,7 @@ import {
   ageSpan,
   beastPlanOf,
   generateHomeWorld,
+  homeLifeRoles,
   treeOfLife,
   worldKindOf,
   worldStocks,
@@ -28,8 +29,11 @@ import {
   KINDS,
   OPEN,
   PIGMENT_WORDS,
+  PLACES,
   TRADES,
+  bodyFunction,
   powerWords,
+  roleId,
   type CradleRead,
   type TradeRead,
 } from "../../rules/index.ts";
@@ -378,6 +382,130 @@ function stockBlocks(g: HomeWorld): Block[] {
   ];
 }
 
+/** A share in words: "38%", "0.4%". */
+const share = (x: number) => (x >= 0.1 ? `${Math.round(x * 100)}%` : `${(x * 100).toFixed(1)}%`);
+
+/**
+ * A world whose living things are read from its numbers (B3): the places it offers and what each fixes of its light
+ * or its rock, the links its chains of eating have; the roles its energy fills, each with a living lineage of it or
+ * why none; the roles its physics allows past what its energy feeds; and who rose to thought, or why none did.
+ */
+function livingRoleBlocks(g: HomeWorld): Block[] {
+  const read = homeLifeRoles(g);
+  if (!read) return [roleBlock(g)];
+  const all = read.read,
+    of = new Map<string, Species[]>();
+  for (const s of g.life.species) if (s.role) of.set(s.role, [...(of.get(s.role) ?? []), s]);
+  const places: Item[] = all.places.map((p) => ({
+    line: [
+      p.shut
+        ? `${PLACES[p.place].icon} ${cap(p.place)}: none — ${p.shut}.`
+        : `${PLACES[p.place].icon} ${cap(p.place)}: ${share(p.share)} of its face; ${many(p.links, "link", "links")} of eating on what it fixes (${p.why}).`,
+    ],
+    tone: p.shut ? "shut" : "have",
+  }));
+  const roles: Item[] = read.roles.map((r) => {
+    const lines = of.get(roleId(r)) ?? [],
+      alive = lines.filter((s) => s.died === null),
+      head = `${PLACES[r.place].icon} ${cap(r.words)}`;
+    if (alive.length)
+      return {
+        line: [
+          `${head}: ${many(alive.length, "living lineage", "living lineages")}, as `,
+          link(alive[0]!.name, alive[0]!.ref),
+        ],
+        ref: alive[0]!.ref,
+        tone: "have",
+      };
+    if (lines.length) {
+      const last = Math.max(...lines.map((s) => s.died ?? 0)),
+        [from, to] = ageSpan(last);
+      return {
+        line: [
+          `${head}: none now. ${cap(many(lines.length, "lineage", "lineages"))} filled it; the last died out ${to === 0 ? `in the last ${from} million years` : `${from}–${to} million years ago`}.`,
+        ],
+        tone: "shut",
+      };
+    }
+    return {
+      line: [`${head}: none. None of its stocks could make a body for it that its world allows.`],
+      tone: "shut",
+    };
+  });
+  const past = all.roles.length - read.roles.length,
+    people = g.life.people,
+    risen = people ? g.life.species[people.species] : null;
+  return [
+    {
+      type: "list",
+      title: "The places its world offers, and what each feeds",
+      items: places,
+    },
+    {
+      type: "list",
+      title: `The ${many(read.roles.length, "role", "roles")} its energy fills${all.links ? `, on chains of up to ${many(all.links, "link", "links")}` : ""}`,
+      items: roles,
+    },
+    {
+      type: "text",
+      lines: [
+        [
+          past > 0
+            ? `Its physics allows ${many(past, "role", "roles")} more, past what its energy feeds: about a tenth of what one link eats passes up to the next, so it fills the richest.`
+            : "It fills every role its physics allows.",
+        ],
+        people && risen
+          ? ["Who rose to thought: ", link(people.body.name, risen.ref), `, ${people.because}.`]
+          : [`No people rose here: ${g.life.noPeople ?? "none of its lineages came to it"}.`],
+      ],
+    },
+  ];
+}
+
+/** A risen people's body by what it does (B4): how it stands, its legs, its graspers, its wings, how it goes. */
+export function bodyByFunction(b: {
+  readonly clade: string;
+  readonly medium: string;
+  readonly symmetry: string;
+  readonly manipulators: string;
+  readonly limbs: number;
+  readonly skin: string;
+  readonly legs?: number;
+  readonly wings?: number;
+  readonly hold?: string;
+  readonly moves?: string;
+  readonly rays?: number;
+}): string {
+  const f = bodyFunction(b),
+    stance: Readonly<Record<string, string>> = {
+      upright: "stands upright on two legs",
+      stooped: "goes stooped on two legs, its arms long",
+      low: "goes low on its legs",
+      mantle: "goes under a mantle on its ring of arms",
+      strider: "strides on two long legs",
+      raised: "goes on its legs with its front raised",
+      coiled: "goes coiled, with no legs",
+      winged: "flies",
+    },
+    grip: Readonly<Record<string, string>> = {
+      hand: "hands",
+      pincer: "pincers",
+      tentacle: "tentacles",
+      trunk: "a trunk",
+      lip: "gripping lips",
+      tail: "a gripping tail",
+    },
+    holds = b.hold ? (grip[b.hold] ?? b.hold) : b.manipulators;
+  return [
+    `It ${stance[f.stance] ?? f.stance}`,
+    f.legs ? `${many(f.legs, "leg", "legs")} under it` : "no legs",
+    `${b.hold === "trunk" || b.hold === "tail" || b.hold === "lip" ? holds : `${f.arms} ${holds}`} to grasp with`,
+    ...(f.wings ? [`${many(f.wings, "wing", "wings")}`] : []),
+    ...(b.rays ? [`a body of ${b.rays} rays`] : []),
+    `of the ${b.medium === "water" ? "water" : b.medium === "shore" ? "shore" : "land"}`,
+  ].join(", ");
+}
+
 /** The roles its living world fills and leaves empty, each with its reason. */
 function roleBlock(g: HomeWorld): Block {
   const fine = fineWorld(g),
@@ -416,7 +544,7 @@ function roleBlock(g: HomeWorld): Block {
 /** Why a role stands empty. */
 function emptyWhy(
   g: HomeWorld,
-  niche: Exclude<Niche, "upright ape">,
+  niche: Exclude<Niche, "upright ape" | "growth">,
   all: readonly Species[],
   biomes: ReadonlySet<number>,
 ): string {
@@ -609,7 +737,11 @@ export function lifePage(world: World, beside?: string): PageModel {
       ...(r.lives
         ? [
             { id: "stocks", name: "Its stocks", blocks: stockBlocks(fine) },
-            { id: "roles", name: "Its roles", blocks: [roleBlock(fine)] },
+            {
+              id: "roles",
+              name: "Its roles",
+              blocks: fine.physical ? livingRoleBlocks(fine) : [roleBlock(fine)],
+            },
           ]
         : []),
       {

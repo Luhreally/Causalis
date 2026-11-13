@@ -7,6 +7,7 @@
 // figure's own middle, facing +z.
 
 import type { FolkFacts } from "../bridge/index.ts";
+import { bodyFunction } from "../rules/index.ts";
 import { folkLook, type FolkLook } from "./folk.ts";
 
 /** What of a body the figure needs (a subset of rules' BodyPlan, as the plan carries it). */
@@ -21,7 +22,19 @@ export type FigureBody = {
   readonly span?: number;
   /** What their own look is made of (Phase 34; none: their kind's plain figure, or Earth's apes). */
   readonly folk?: FolkFacts | null;
+  /** A risen people's own (B4): its legs, its wings, how it goes, a radial body's arms. */
+  readonly legs?: number;
+  readonly wings?: number;
+  readonly hold?: string;
+  readonly moves?: string;
+  readonly rays?: number;
 };
+
+/** Whether a body stands as an upright ape does, by what it does (two hands, two legs: Earth's, and the kind of before like it). */
+function apeLike(b: FigureBody): boolean {
+  const f = bodyFunction(b);
+  return !f.risen && f.stance === "upright";
+}
 
 export type PartShape = "capsule" | "box" | "cylinder" | "cone";
 
@@ -182,7 +195,7 @@ export function figureOf(b: FigureBody | null, detail = 0): Figure {
   // A people of a world not Earth, in their own look (Phase 34).
   const look = folkLook(b);
   if (b && look) return { parts: folkParts(b, look, detail), scale };
-  if (!b || b.clade === "ape")
+  if (!b || apeLike(b))
     // An upright ape: body, head, two arms and two legs.
     return { parts: upright(detail), scale };
   if (b.symmetry === "radial" || b.manipulators === "tentacles")
@@ -278,6 +291,7 @@ export function figureOf(b: FigureBody | null, detail = 0): Figure {
  * limbs swing as an upright ape's do (arms and legs, by role), so their days move as everyone's.
  */
 function folkParts(b: FigureBody, look: FolkLook, detail: number): FigurePart[] {
+  if (b.legs !== undefined) return risenParts(b, look, detail);
   switch (look.stance) {
     case "mantle":
       return mantle(b, look, detail);
@@ -438,7 +452,7 @@ function markings(
 }
 
 /** An upright body on two legs (stooped, for climbers: shorter legs, a heavier body, the head sunk forward, long arms), two arms or four. */
-function standing(look: FolkLook, detail: number): FigurePart[] {
+function standing(look: FolkLook, detail: number, hold = "hand"): FigurePart[] {
   const stooped = look.stance === "stooped",
     T = look.tall,
     G = look.girth * (stooped ? 1.1 : 1),
@@ -470,15 +484,26 @@ function standing(look: FolkLook, detail: number): FigurePart[] {
   const hy = stooped ? L + tor * 0.94 + hs / 2 : L + tor + neck + hs / 2,
     hz = stooped ? d * 0.5 : 0;
   out.push(...headParts(look, hy, hz, hs, detail));
-  // Arms: a pair from the shoulders, a second below them for the four-handed; hands at their ends.
+  // Arms: a pair from the shoulders, a second below them for the four-handed (a third for six); hands at their
+  // ends (B4: a risen people's pincers or tentacles' tips as theirs are).
   const pairs: [number, number, number][] = [[shoulder, A, 0.55]];
-  if (look.arms === 4) pairs.push([shoulder - tor * 0.42, A * 0.85, 0.45]);
+  if (look.arms >= 3) pairs.push([shoulder - tor * 0.42, A * 0.85, 0.45]);
+  if (look.arms >= 5) pairs.push([shoulder - tor * 0.74, A * 0.72, 0.38]);
   for (const [top, len, swing] of pairs)
     for (const side of [-1, 1]) {
       const x = side * (w / 2 + 0.025);
       out.push(
         limb(
-          part("box", x, top - len / 2, 0, 0.045 * look.girth, len, 0.05, 1),
+          part(
+            hold === "tentacle" ? "cylinder" : "box",
+            x,
+            top - len / 2,
+            0,
+            0.045 * look.girth,
+            len,
+            0.05,
+            1,
+          ),
           -side * swing,
           len / 2 - 0.01,
           "arm",
@@ -487,7 +512,11 @@ function standing(look: FolkLook, detail: number): FigurePart[] {
       if (detail >= 1)
         out.push(
           limb(
-            part("box", x, top - len - 0.012, 0.005, 0.05, 0.04, 0.055, 2),
+            hold === "pincer"
+              ? part("box", x, top - len - 0.02, 0.012, 0.06, 0.06, 0.08, 3)
+              : hold === "tentacle"
+                ? part("cone", x, top - len - 0.02, 0.005, 0.035, 0.05, 0.035, 1)
+                : part("box", x, top - len - 0.012, 0.005, 0.05, 0.04, 0.055, 2),
             -side * swing,
             len + 0.002,
             "arm",
@@ -734,11 +763,237 @@ function low(b: FigureBody, look: FolkLook, detail: number): FigurePart[] {
 }
 
 /**
+ * A risen people (B4), built of what its body has, never of a kind: on two legs, upright (stooped for the
+ * many-armed, a strider when feathered); on more, a body along the ground with its front raised where it has arms
+ * free of them, low where it grasps with a trunk, lips or a tail; a coil where it has no legs; on wings where it
+ * flies; a mantle over its ring of arms where it is radial in the water. Its legs, arms and wings as many as it has.
+ */
+function risenParts(b: FigureBody, look: FolkLook, detail: number): FigurePart[] {
+  const hold = b.hold ?? "hand",
+    T = look.tall,
+    G = look.girth,
+    nLegs = Math.min(10, b.legs ?? 0);
+  switch (look.stance) {
+    case "mantle":
+      return mantle({ ...b, limbs: b.rays ?? b.limbs }, look, detail);
+    case "strider":
+      return strider(look, detail);
+    case "upright":
+    case "stooped":
+      return standing(look, detail, hold);
+    case "winged":
+      return winged(look, detail, hold, nLegs, b.wings ?? 2);
+    case "coiled":
+      return coiled(look, detail, hold);
+  }
+  // On four legs or more: a body along the ground on its legs.
+  const out: FigurePart[] = [],
+    long = (0.26 + 0.035 * nLegs) * T,
+    high = 0.16 * T,
+    by = high + 0.05,
+    shell = b.skin === "shell" || b.skin === "plates";
+  out.push(part(shell ? "cone" : "box", 0, by, 0, 0.24 * G, 0.11, long));
+  out.push(part("box", 0, by + 0.06, -0.02, 0.2 * G, 0.02, long * 0.5, 5));
+  out.push(...markings(look, by, 0.24 * G, 0.11, long, detail));
+  out.push(...legs(nLegs, 0.11 * G, long * 0.85, high));
+  const front = long / 2;
+  if (look.stance === "raised") {
+    // Its front raised off the ground, its free arms from it, its head on top.
+    const ty = by + 0.1,
+      tor = 0.16 * T;
+    out.push(part("box", 0, ty + tor / 2 - 0.04, front - 0.04, 0.13 * G, tor, 0.09));
+    out.push(part("box", 0, ty + tor * 0.2 - 0.04, front - 0.04, 0.14 * G, tor * 0.4, 0.1, 5));
+    const arms = Math.max(1, Math.min(3, Math.ceil(look.arms / 2)));
+    for (let i = 0; i < arms; i++)
+      for (const side of [-1, 1]) {
+        const top = ty + tor - 0.05 - i * 0.05,
+          len = 0.15 * T * (1 - 0.12 * i),
+          x = side * (0.065 * G + 0.02);
+        out.push(
+          limb(
+            part(
+              hold === "tentacle" ? "cylinder" : "box",
+              x,
+              top - len / 2,
+              front,
+              0.04,
+              len,
+              0.045,
+              1,
+            ),
+            -side * (0.45 - 0.05 * i),
+            len / 2,
+            "arm",
+          ),
+        );
+        if (detail >= 1 && hold === "pincer")
+          out.push(part("box", x, top - len - 0.015, front + 0.01, 0.055, 0.05, 0.07, 3));
+      }
+    const hs = 0.1 * look.head;
+    out.push(...headParts(look, ty + tor - 0.04 + hs / 2, front, hs, detail));
+  } else {
+    // Low: its head before it, and what it grasps with (a trunk hanging; gripping lips; a tail curled up).
+    const hs = 0.12 * look.head;
+    out.push(...headParts(look, by + 0.02, front + hs / 2, hs, detail));
+    if (hold === "trunk")
+      out.push(
+        limb(
+          part("cylinder", 0, by - 0.1, front + hs + 0.01, 0.045, 0.2, 0.045, 1),
+          0.35,
+          0.09,
+          "arm",
+        ),
+      );
+    else if (hold === "lip")
+      out.push(part("box", 0, by - hs * 0.4, front + hs + 0.012, hs * 0.7, 0.03, 0.035, 2));
+  }
+  if (hold === "tail")
+    out.push(
+      limb(
+        part("cylinder", 0, by + 0.12, -front - 0.04, 0.04, 0.26 * T, 0.04, 1),
+        0.3,
+        0.12,
+        "arm",
+      ),
+    );
+  else if (look.tail > 0.12)
+    out.push(
+      part(
+        "box",
+        0,
+        by - 0.01,
+        -front - 0.04 - 0.06 * look.tail,
+        0.05,
+        0.04,
+        0.08 + 0.12 * look.tail,
+        1,
+      ),
+    );
+  return out;
+}
+
+/** A flier: a body held up between its wings, on two legs or none, its arms (as many as it has) before it. */
+function winged(
+  look: FolkLook,
+  detail: number,
+  hold: string,
+  nLegs: number,
+  wings: number,
+): FigurePart[] {
+  const T = look.tall,
+    G = look.girth,
+    L = nLegs > 0 ? 0.2 * T : 0.1,
+    by = L + 0.12 * T,
+    out: FigurePart[] = [part("capsule", 0, by, 0, 0.7 * G, 0.55 * T, 0.75 * G)];
+  out.push(part("box", 0, by - 0.06, 0, 0.15 * G, 0.05, 0.17 * G, 5));
+  out.push(...markings(look, by, 0.15 * G, 0.14, 0.16 * G, detail));
+  if (nLegs > 0) out.push(...legs(Math.min(2, nLegs), 0.04 * G, 0, L));
+  // Its wings, out to each side, a second pair behind the first; they swing as it goes.
+  for (let w = 0; w < Math.max(1, Math.round(wings / 2)); w++)
+    for (const side of [-1, 1])
+      out.push(
+        limb(
+          part(
+            "box",
+            side * (0.07 * G + 0.16 * T),
+            by + 0.06 - 0.04 * w,
+            -0.03 - 0.06 * w,
+            0.32 * T,
+            0.015,
+            0.13 * T,
+            1,
+          ),
+          side * 0.3,
+          0.01,
+          "arm",
+        ),
+      );
+  const arms = Math.min(3, Math.ceil(look.arms / 2));
+  for (let i = 0; i < arms; i++)
+    for (const side of [-1, 1]) {
+      const len = 0.12 * T;
+      out.push(
+        limb(
+          part(
+            hold === "tentacle" ? "cylinder" : "box",
+            side * 0.07 * G,
+            by - 0.02 - 0.04 * i,
+            0.07,
+            0.03,
+            len,
+            0.035,
+            1,
+          ),
+          -side * 0.45,
+          len / 2,
+          "arm",
+        ),
+      );
+    }
+  const hs = 0.1 * look.head;
+  out.push(...headParts(look, by + 0.13 * T + hs / 2, 0.03, hs, detail));
+  return out;
+}
+
+/** A legless body in a coil on the ground, its front raised from it with its arms and its head. */
+function coiled(look: FolkLook, detail: number, hold: string): FigurePart[] {
+  const T = look.tall,
+    G = look.girth,
+    out: FigurePart[] = [];
+  // The coil: rings of it lying round, smaller toward its tail.
+  for (let i = 0; i < 4; i++) {
+    const a = i * 1.6,
+      r = 0.1 * T * (1 - 0.15 * i);
+    out.push(
+      part(
+        "box",
+        Math.sin(a) * r,
+        0.045,
+        Math.cos(a) * r - 0.04,
+        0.09 * G * (1 - 0.15 * i),
+        0.08,
+        0.14,
+        i % 2 ? 1 : 0,
+      ),
+    );
+  }
+  const tor = 0.24 * T;
+  out.push(part("box", 0, 0.06 + tor / 2, 0.06, 0.12 * G, tor, 0.1));
+  out.push(part("box", 0, 0.06 + tor * 0.3, 0.06, 0.13 * G, tor * 0.3, 0.11, 5));
+  const arms = Math.max(1, Math.min(3, Math.ceil(look.arms / 2)));
+  for (let i = 0; i < arms; i++)
+    for (const side of [-1, 1]) {
+      const top = 0.06 + tor - 0.03 - i * 0.05,
+        len = 0.15 * T * (1 - 0.12 * i);
+      out.push(
+        limb(
+          part(
+            hold === "tentacle" ? "cylinder" : "box",
+            side * (0.06 * G + 0.02),
+            top - len / 2,
+            0.06,
+            0.04,
+            len,
+            0.045,
+            1,
+          ),
+          -side * 0.4,
+          len / 2,
+          "arm",
+        ),
+      );
+    }
+  const hs = 0.1 * look.head;
+  out.push(...headParts(look, 0.06 + tor + hs / 2, 0.08, hs, detail));
+  return out;
+}
+
+/**
  * How fast a people goes about its day, metres a second: an upright ape's easy walk;
  * long-legged striders faster, giants and low shelled bodies slower, swimmers gliding.
  */
 export function paceOf(b: FigureBody | null): number {
-  if (!b || b.clade === "ape") return 1.25;
+  if (!b || apeLike(b)) return 1.25;
   if (b.medium === "water") return 1.4;
   if (b.skin === "feathers") return 2;
   if (b.manipulators === "trunk") return 1;

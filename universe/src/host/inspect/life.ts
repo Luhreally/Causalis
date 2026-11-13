@@ -36,6 +36,7 @@ import { landLink, landTitle, landsOf, lineageIcon, spotOfLand } from "./names.t
 import { ageLines, ancestryTab } from "./tree.ts";
 import { speciesMatter } from "../biochem.ts";
 import { bodyBlocks } from "./body.ts";
+import { bodyByFunction } from "./lifepage.ts";
 
 const LEVEL_WORDS = [
   "",
@@ -87,9 +88,22 @@ export function lineagePage(world: World, ref: string): PageModel {
   ];
   // (An alien beast's stock, its parts by what they do and why it is built so: B1.)
   const built = bodyBlocks(world, sp);
+  // (A people risen from its world's own tree: its body by what it does, and what it rose from and why: B4.)
+  const risen =
+      g.life.people?.species === sp.index && g.life.people.body.legs !== undefined
+        ? g.life.people
+        : null,
+    forebear = risen?.forebear !== undefined ? g.life.species[risen.forebear] : undefined;
   const facts: Stat[] = [
     stat("What it is", s.what),
     ...(s.body ? [stat("Its body", s.body.words)] : []),
+    ...(risen
+      ? [
+          stat("Its body", `${bodyByFunction(risen.body)}.`),
+          ...(forebear ? [stat("Rose from", [link(forebear.name, forebear.ref)])] : []),
+          stat("Why it rose", risen.because),
+        ]
+      : []),
     ...built.stats,
     // (What it is made of, by its world's life: its bones or shell and blood, or its stalks — Phase 57.)
     ...speciesMatter(world, sp),

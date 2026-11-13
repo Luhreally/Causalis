@@ -18,7 +18,8 @@ import {
   type HomeWorld,
   type Species,
 } from "../src/gen/index.ts";
-import { EARTHLIKE, OPEN } from "../src/rules/index.ts";
+import { EARTHLIKE, OPEN, bodyBreaks, bodyFunction } from "../src/rules/index.ts";
+import { homeLifeRoles } from "../src/gen/index.ts";
 import { buildBody, posed, type BeastPart } from "../src/view/index.ts";
 
 const argv = process.argv.slice(2),
@@ -127,7 +128,15 @@ const clades = new Map<string, number>(),
   nichesPerWorld: number[] = [],
   /** Each world's outlines, to tell what one shares with the others. */
   worldOutlines: Set<string>[] = [],
-  worldCoarse: Set<string>[] = [];
+  worldCoarse: Set<string>[] = [],
+  worldShapes: Set<string>[] = [],
+  peopleBodies = new Map<string, number>(),
+  noPeople = new Map<string, number>(),
+  places = new Map<string, number>(),
+  linksPerWorld: number[] = [],
+  fillsPerWorld: number[] = [],
+  brokenSeen: string[] = [];
+let broken = 0;
 let worlds = 0,
   lifeless = 0,
   peopled = 0,
@@ -155,7 +164,28 @@ for (let i = from; i < to; i++) {
   if (people) {
     peopled++;
     tally(clades, people.body.clade);
-  } else tally(clades, "(no people)");
+    // (A people's body by what it does: its symmetry, the legs it stands on, its graspers and how many, its wings, where it lives, its skin.)
+    const b = people.body,
+      f = bodyFunction(b);
+    tally(
+      peopleBodies,
+      `${b.symmetry}${b.rays ? `/${b.rays}` : ""} ${f.legs} legs ${b.limbs} ${b.manipulators}${f.wings ? ` ${f.wings} wings` : ""} ${b.medium} ${b.skin}`,
+    );
+  } else {
+    tally(clades, "(no people)");
+    if (g.life.noPeople)
+      tally(
+        noPeople,
+        g.life.noPeople.split(":")[1]?.split(",")[0]?.trim().slice(0, 60) ??
+          g.life.noPeople.slice(0, 60),
+      );
+  }
+  const read = homeLifeRoles(g);
+  if (read) {
+    linksPerWorld.push(read.read.links);
+    fillsPerWorld.push(read.read.fills);
+    for (const p of read.read.places) if (!p.shut) tally(places, p.place);
+  }
   const here = new Set<string>(),
     drawn = new Set<string>(),
     rough = new Set<string>(),
@@ -165,7 +195,7 @@ for (let i = from; i < to; i++) {
   for (const s of g.life.species) {
     if (s.died !== null || !s.body) continue;
     const b = s.body,
-      shape = `${b.symmetry === "radial" ? "radial " : ""}${b.legs} legs/${b.fins} fins/${b.wings} wings ${b.moves}`,
+      shape = `${b.symmetry === "radial" ? `radial${b.rays ? `/${b.rays}` : ""} ` : ""}${b.legs} legs/${b.fins} fins/${b.wings} wings${b.arms ? `/${b.arms} arms` : ""} ${b.moves}`,
       outline = outlineOf(s, g);
     if (!plain) {
       const look = beastLookOf(g, s);
@@ -173,6 +203,11 @@ for (let i = from; i < to; i++) {
     }
     living++;
     beasts++;
+    if (read && bodyBreaks(b, read.world).length) {
+      broken++;
+      if (brokenSeen.length < 5)
+        brokenSeen.push(`${seed} ${s.name}: ${bodyBreaks(b, read.world).join("; ")}`);
+    }
     here.add(shape);
     drawn.add(outline);
     rough.add(COARSE.value);
@@ -188,6 +223,7 @@ for (let i = from; i < to; i++) {
   perWorldShapes.push(here.size);
   perWorldOutlines.push(drawn.size);
   livingPerWorld.push(living);
+  worldShapes.push(here);
   nichesPerWorld.push(roles.size);
   worldOutlines.push(drawn);
   worldCoarse.push(rough);
@@ -253,6 +289,28 @@ console.log(`living beasts: ${beasts}, ${mean(livingPerWorld).toFixed(1)} a worl
 console.log(`roles: ${sorted(niches)}; ${mean(nichesPerWorld).toFixed(1)} a world`);
 console.log(
   `silhouettes (limbs + how it moves): ${shapes.size} in all; top 5 hold ${topShare(shapes, 5)}% of beasts; ${mean(perWorldShapes).toFixed(1)} a world`,
+);
+{
+  const sh = sharing(worldShapes);
+  console.log(
+    `  silhouettes, the commonest: ${sorted(shapes).split(", ").slice(0, 12).join(", ")}`,
+  );
+  console.log(
+    `  silhouettes: a world's found on another ${sh.elsewhere}%; two worlds side by side share ${sh.pair}% of the smaller's`,
+  );
+}
+if (peopleBodies.size)
+  console.log(
+    `peoples' bodies (by what they do): ${peopleBodies.size} different over ${peopled} peoples; the commonest holds ${topShare(peopleBodies, 1)}%; top 5: ${sorted(peopleBodies).split(", ").slice(0, 5).join(", ")}`,
+  );
+if (noPeople.size) console.log(`no people, why: ${sorted(noPeople)}`);
+if (fillsPerWorld.length)
+  console.log(
+    `roles filled a world: ${mean(fillsPerWorld).toFixed(1)} (${Math.min(...fillsPerWorld)}–${Math.max(...fillsPerWorld)}); links of the chain: ${sorted(new Map([...new Set(linksPerWorld)].map((k) => [`${k}`, linksPerWorld.filter((x) => x === k).length])))}`,
+  );
+if (places.size) console.log(`places offered: ${sorted(places)}`);
+console.log(
+  `physics checks broken: ${broken} of ${beasts} beasts${brokenSeen.length ? ` (${brokenSeen.join(" | ")})` : ""}`,
 );
 console.log(
   `drawn outlines: ${outlines.size} in all; top 5 hold ${topShare(outlines, 5)}% of beasts; ${mean(perWorldOutlines).toFixed(1)} a world`,

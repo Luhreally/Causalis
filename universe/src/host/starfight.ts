@@ -4,8 +4,8 @@
 // number, and never enters the record. The ships, their places and their fates are the view's
 // own, hashed from the fight's id.
 import { hashString, yearOfMoment, type Ref, type World } from "../kernel/index.ts";
-import { offworldSite, type Civilization } from "../gen/index.ts";
-import { CLADES, starDriveFor } from "../rules/index.ts";
+import { civBody, offworldSite, type Civilization } from "../gen/index.ts";
+import { hullOf, starDriveFor } from "../rules/index.ts";
 import { why } from "../causal/index.ts";
 import {
   FLEET_MACHINES,
@@ -221,7 +221,8 @@ function peopleSide(world: World, civ: Civilization, year: number, strength: num
     machines: null,
     gravity: civ.gravity,
     medium,
-    clade: civ.clade,
+    // (The hull its body asks: by what its body does, not its kind's name.)
+    clade: hullOf(civBody(civ)),
     drive: driveOfSpeed(speedOf(civ, year)),
     arm: ps >= 2.2 ? "beam" : "missile",
     beamArm: ps >= 2.2 ? beamArmOf(medium) : null,
@@ -327,8 +328,8 @@ function landingOf(
   defender: FightSide,
   realm: string,
 ): StarLanding | null {
-  const clade = CLADES.find((c) => c.id === civ.clade);
-  if (!clade) return null;
+  const theirs = civBody(civ);
+  if (!theirs) return null;
   const peopled = populationContext(world)
     .settlements.inProvince(r.cell)
     .filter((s) => s.population > 0);
@@ -346,7 +347,7 @@ function landingOf(
       ref: civ.ref,
       name: attacker.name,
       kind: peopleWords(world, civ).kind,
-      body: figureBody(clade.body, starFolk(civ)),
+      body: figureBody(theirs, starFolk(civ)),
       color: attacker.color,
     },
     defenders: {

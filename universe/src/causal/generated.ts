@@ -373,7 +373,7 @@ registerExplainer(CIVILIZATION.code, (world, ref) => {
   if (!c) return null;
   return generated(
     ref,
-    `A people of ${c.clade}s on a world of seas ${c.distance.toFixed(1)} light-years from home (${c.gravity.toFixed(2)} g): their chronicle began ${c.offset < 0 ? `${-c.offset} years before ours` : `in our year ${c.offset}`}, and they came to electronics in our year ${c.electronics}`,
+    `A people of ${c.body ? c.body.name : `${c.clade}s`} on a world of seas ${c.distance.toFixed(1)} light-years from home (${c.gravity.toFixed(2)} g): their chronicle began ${c.offset < 0 ? `${-c.offset} years before ours` : `in our year ${c.offset}`}, and they came to electronics in our year ${c.electronics}`,
     edges(world, [{ ref: c.star, role: "enabler", weight: 1 }]),
   );
 });

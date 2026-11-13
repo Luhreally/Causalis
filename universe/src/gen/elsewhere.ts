@@ -69,7 +69,13 @@ const NONE = (because: string): Elsewhere => ({
  * What lives on a world: by its water, warmth, air and star, and by a draw keyed to the
  * world. `people`: one of the cluster's civilizations rose there.
  */
-export function lifeElsewhere(rng: Rng, star: LifeStar, w: LifeGround, people = false): Elsewhere {
+export function lifeElsewhere(
+  rng: Rng,
+  star: LifeStar,
+  w: LifeGround,
+  people = false,
+  quickens: number | null = null,
+): Elsewhere {
   const key = star.sector * 64 + star.k,
     u = (n: number) => rng.real(LIFE, key, w.index, 0, n),
     age = Math.min(star.ageGyr, 12.6);
@@ -92,7 +98,7 @@ export function lifeElsewhere(rng: Rng, star: LifeStar, w: LifeGround, people = 
     return NONE("its thin air lets the star's radiation through to break what life would build");
   // Water under ice: cells, now and then, warmed from within; never more.
   if (!seas) {
-    if (age < 1 || !(u(0) < 0.3))
+    if (age < 1 || !(u(0) < (quickens ?? 0.3)))
       return {
         ...NONE("frozen over: water under its ice, but nothing has quickened in it"),
         level: "chemistry",
@@ -114,7 +120,7 @@ export function lifeElsewhere(rng: Rng, star: LifeStar, w: LifeGround, people = 
       level: "chemistry",
       where: "seas",
     };
-  if (!(u(2) < 0.85) && !people)
+  if (!(u(2) < (quickens ?? 0.85)) && !people)
     return {
       ...NONE("its seas hold the chemistry of life, but it never quickened"),
       level: "chemistry",

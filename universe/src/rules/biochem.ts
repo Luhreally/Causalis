@@ -66,7 +66,20 @@ export type LifeInputs = {
   readonly mean: number;
   /** A draw in [0, 1) of its ground: which way its first chemistry turned. */
   readonly hand: number;
+  /**
+   * Its own numbers (B3: a world whose living things are read from its physics): its air's oxygen (a share), whether
+   * its seas are sour with acid. Given, its breath, blood, skins and bones are read from them and its warmth, not from
+   * its kind; absent, as its kind's tables have them (every world made before, and kept so).
+   */
+  readonly numbers?: { readonly o2: number; readonly acid: boolean };
 };
+
+/** The warmth (°C) past which a water life's cell skins must be of ether lipids to hold together (an estimate: heat-loving archaea's). */
+export const HOT_SKINS = 70;
+/** The warmth (°C) below which water ice is as hard as granite (an estimate: Titan's crust). */
+export const ICE_HARD = -150;
+/** The least oxygen (a share of its air) a life's breath can be oxygen on. */
+export const LEAST_BREATH = 0.01;
 
 /** Earth's life, frozen: Earth's tables, exactly. */
 export const EARTH_LIFE: LifeChemistry = Object.freeze({
@@ -148,6 +161,7 @@ const PIGMENT_SUBST: Readonly<Record<Pigment, string>> = {
 
 /** A world's life from its kind, its chemistry, its star and its warmth (never Earth's own: that is EARTH_LIFE). */
 export function lifeChemistryOf(i: LifeInputs): LifeChemistry {
+  if (i.numbers) return lifeByNumbers(i, i.numbers);
   const family = FAMILY_OF[i.kind],
     hand: Hand = i.hand < 0.5 ? "left" : "right",
     m = hand === "right" ? "mirror-" : "",
@@ -211,6 +225,64 @@ export function lifeChemistryOf(i: LifeInputs): LifeChemistry {
     ...own,
     dye: PIGMENT_SUBST[pigment],
     earth: false,
+  };
+}
+
+/**
+ * A world's life from its numbers (B3): its liquid's family (what fills its seas), and from its air's oxygen, its seas'
+ * acid and its warmth its breath (oxygen where its air holds enough, else hydrogen), its blood (iron-sulfur on
+ * hydrogen, vanadium in acid, copper in the cold, else iron), its cells' skins (by its liquid; of ether lipids in acid
+ * or past HOT_SKINS) and its bones (ice past ICE_HARD; iron sulfide where its salts are short of oxygen; glass where
+ * acid eats lime; lime in ammonia water or poor rock; else phosphate). Its substances as its liquid's family's.
+ */
+function lifeByNumbers(
+  i: LifeInputs,
+  n: { readonly o2: number; readonly acid: boolean },
+): LifeChemistry {
+  const kept = lifeChemistryOf({ ...i, numbers: undefined }),
+    family = kept.family,
+    breath: Breath = n.o2 >= LEAST_BREATH ? "oxygen" : "hydrogen",
+    blood: Blood =
+      breath === "hydrogen"
+        ? "iron-sulfur"
+        : n.acid
+          ? "vanadium"
+          : i.mean < COLD_BLOOD
+            ? "copper"
+            : "iron",
+    membrane: Membrane =
+      family === "water"
+        ? n.acid || i.mean > HOT_SKINS
+          ? "tetraether"
+          : "bilayer"
+        : family === "ammonia"
+          ? "supple"
+          : family === "oil"
+            ? "inverted"
+            : "azotosome",
+    bone: Bone =
+      i.mean < ICE_HARD
+        ? "ice"
+        : family === "oil" || i.carbon === "carbon-rich"
+          ? "greigite"
+          : n.acid
+            ? "opal"
+            : family === "ammonia"
+              ? "calcite"
+              : i.metals === "poor"
+                ? i.silica === "high"
+                  ? "opal"
+                  : "calcite"
+                : i.silica === "low"
+                  ? "calcite"
+                  : "apatite";
+  return {
+    ...kept,
+    breath,
+    blood,
+    membrane,
+    bone,
+    shell: bone === "apatite" ? "calcite" : bone,
   };
 }
 

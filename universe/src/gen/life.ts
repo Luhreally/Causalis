@@ -7,6 +7,7 @@
 import { finish, hashString, mix } from "../kernel/index.ts";
 import {
   EARTH_LIFE,
+  KINDS,
   PRIORS,
   lifeChemistryOf,
   type LifeChemistry,
@@ -21,11 +22,15 @@ export function handDraw(key: string): number {
   return finish(mix(hashString(`life ${key}`), 1), 11) / 4294967296;
 }
 
-/** What a world's life is read from: its kind, its chemistry's classes, its star, its warmth, its hand. */
+/** What a world's life is read from: its kind, its chemistry's classes, its star, its warmth, its hand (and its numbers, B3). */
 export function lifeInputs(g: HomeWorld): LifeInputs {
-  const chem = worldChemistry(g);
+  const chem = worldChemistry(g),
+    kind = worldKindOf(g);
   return {
-    kind: worldKindOf(g),
+    ...(g.physical
+      ? { numbers: { o2: KINDS[kind].burns ? chem.o2 : 0, acid: kind === "sulfur" } }
+      : {}),
+    kind,
     carbon: chem.carbon,
     metals: chem.metals,
     silica: chem.silica,
@@ -40,10 +45,11 @@ const KEPT = new Map<string, LifeChemistry>();
 /** A world's life by what it is made of: Earth's own on an Earth-like world, else its own (kept by its ground). */
 export function worldLife(g: HomeWorld): LifeChemistry {
   if ((PRIORS[g.prior]?.chemistry ?? "drawn") === "solar") return EARTH_LIFE;
-  const kept = KEPT.get(g.ground);
+  const key = g.physical ? `${g.ground} read` : g.ground,
+    kept = KEPT.get(key);
   if (kept) return kept;
   const life = lifeChemistryOf(lifeInputs(g));
-  KEPT.set(g.ground, life);
+  KEPT.set(key, life);
   if (KEPT.size > 16) KEPT.delete(KEPT.keys().next().value!);
   return life;
 }

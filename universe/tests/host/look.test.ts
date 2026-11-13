@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { keptLife } from "../../src/rules/kinds.ts";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { treeOfLife } from "../../src/gen/index.ts";
@@ -9,7 +10,7 @@ import type { CampNear, GenesisPlan, LandPlan, WarsMap } from "../../src/bridge/
 
 // Phase 34 M176: what a people's look is made of, gathered from their world as it was made.
 
-const alien = ALIEN.build(seedFromText("violet hollow"));
+const alien = ALIEN.build(seedFromText(keptLife("violet hollow")));
 alien.runTo(YEAR / 8);
 const ask = <T>(type: string, args: unknown = {}) => ALIEN.queries[type]!(alien, args) as T;
 

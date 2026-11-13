@@ -87,17 +87,9 @@ const turnHue = (c: FightRgb, degrees: number): FightRgb => {
   return [R + low, G + low, B + low];
 };
 
-// Shapes. A realm's pull or a people's clade picks the hull; a wet world's ships are mantas.
-const CLADE_ARCHETYPE = new Map<string, Archetype>([
-  ["trunk", "slab"],
-  ["burrower", "disc"],
-  ["strider", "spindle"],
-  ["crawler", "disc"],
-  ["shaggy", "dart"],
-  ["swimmer", "manta"],
-  ["shore", "manta"],
-  ["other", "dart"],
-]);
+// Shapes. A realm's pull or a people's body picks the hull (rules/bodies.ts hullOf, by what its body does: a trunked
+// people's slabs, a many-legged or long-tailed low people's discs, striders' spindles); a wet world's ships are mantas.
+const HULLS: ReadonlySet<string> = new Set(["slab", "disc", "spindle", "dart", "manta"]);
 /** The shape a second fleet takes when it would otherwise match the first. */
 const NEXT_ARCHETYPE: Record<Archetype, Archetype> = {
   dart: "slab",
@@ -110,7 +102,8 @@ const NEXT_ARCHETYPE: Record<Archetype, Archetype> = {
 /** The hull shape a side's ships take. */
 export function archetypeOf(side: FightSide): Archetype {
   if (side.medium !== "land") return "manta";
-  if (side.kind === "people") return CLADE_ARCHETYPE.get(side.clade ?? "other") ?? "dart";
+  if (side.kind === "people")
+    return HULLS.has(side.clade ?? "") ? (side.clade as Archetype) : "dart";
   if (side.gravity < 0.7) return "spindle";
   if (side.gravity > 1.3) return "slab";
   return "dart";

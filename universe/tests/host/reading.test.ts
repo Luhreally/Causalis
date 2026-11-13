@@ -2,6 +2,7 @@
 // and the world itself read alike; a seed's reading allows what its world holds and no more; a catalogue
 // names the rules it was run under, and holds up against them.
 import { test } from "node:test";
+import { keptLife } from "../../src/rules/kinds.ts";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { YEAR, rulesetId, seedFromText } from "../../src/kernel/index.ts";
@@ -26,8 +27,8 @@ const SMALL = "kestrel 557";
 const seedOf = (t: string) => seedFromText(t);
 
 test("reading a world, its stage and its pages, moves nothing of its history", () => {
-  const read = ALIEN.build(seedOf(SMALL)),
-    left = ALIEN.build(seedOf(SMALL));
+  const read = ALIEN.build(seedOf(keptLife(SMALL))),
+    left = ALIEN.build(seedOf(keptLife(SMALL)));
   for (const y of [20, 40, 60]) {
     read.runTo(y * YEAR);
     left.runTo(y * YEAR);
@@ -44,7 +45,7 @@ test("reading a world, its stage and its pages, moves nothing of its history", (
 });
 
 test("a world's raw record reads as the world itself does", () => {
-  const world = ALIEN.build(seedOf(SMALL));
+  const world = ALIEN.build(seedOf(keptLife(SMALL)));
   world.runTo(200 * YEAR);
   const g = populationContext(world).generated,
     lore = loreOf(world),
@@ -65,7 +66,7 @@ test("a world's raw record reads as the world itself does", () => {
 });
 
 test("a world's page of what it can do: why it stands here, what it lacks, each measure a page", () => {
-  const world = ALIEN.build(seedOf(SMALL));
+  const world = ALIEN.build(seedOf(keptLife(SMALL)));
   world.runTo(200 * YEAR);
   const page = pageOf(world, "world:means"),
     tabs = page.tabs.map((t) => t.id);
@@ -89,7 +90,7 @@ test("a world's page of what it can do: why it stands here, what it lacks, each 
 });
 
 test("the stage is the measured age, its firsts stay the chronicle's", () => {
-  const world = ALIEN.build(seedOf(SMALL));
+  const world = ALIEN.build(seedOf(keptLife(SMALL)));
   world.runTo(200 * YEAR);
   const s = stageOf(world),
     { reading } = worldReadingOf(world);
@@ -121,7 +122,7 @@ test("a seed read: what it allows, with no history run", () => {
   assert.match(engines.why, /coal/);
   assert.equal(noCoal.furthest, "iron");
   // A people of the water has its own roads to the same ages, and its name for them.
-  const water = ALIEN.reading!(seedOf("alien 41"));
+  const water = ALIEN.reading!(seedOf(keptLife("alien 41")));
   assert.equal(water.medium, "water");
   assert.equal(water.ages.find((a) => a.id === "engines")!.name, "Tide mills");
   assert.equal(water.ages.find((a) => a.id === "engines")!.allowed, true);

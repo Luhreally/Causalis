@@ -24,6 +24,18 @@ import { knows, loreOf } from "../lore/lore.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { clusterOf } from "./voyages.ts";
 import { skyOf } from "../../rules/index.ts";
+import { homePlanet } from "../planet/store.ts";
+import { lawlessSeed } from "./lanes.ts";
+
+/**
+ * Whether a world's far peoples' bodies are read from their own worlds' life (B4): where its home world's life was
+ * (every world but Earth's and those kept as they were made); null: as before. Else the key text they are read by.
+ */
+export function farBodies(world: World): string | null {
+  // (A world with no home planet, a reading of its seed alone: as before.)
+  if (!world.hasStore("planet.home")) return null;
+  return homePlanet(world).generated.fine.physical ? lawlessSeed(world.seed.text) : null;
+}
 
 export const CONTACT_EVENTS = {
   heard: defineEventType("contact.heard", 6),
@@ -45,6 +57,7 @@ export function civilizationsEver(world: World): Civilization[] {
         clusterOf(world),
         (s) => foreignPlanets(rng, s),
         skyOf(world.seed.text)?.most,
+        farBodies(world),
       )),
     );
   }

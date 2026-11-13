@@ -374,6 +374,10 @@ export const GATES: readonly Gate[] = [
   // realm leaning on a lesson read off its own record; a land's Learned tab and its realm's, pressed: What they have learned, its numbers
   // and years, what they do now and whether it worked, no raw ids, nothing off the screen; the Years telling the first lesson taken up.
   { gate: 110, args: ["--ci"], s: 420 },
+  // Gate 112, life read from each world's own numbers (tools/life-alien-gate.ts): eight alien worlds' people and beasts drawn at a
+  // phone's size, their outlines told apart between worlds; who rose named on the Life page and their own page giving their body
+  // by what it does and what they rose from; a world where no people rose saying why.
+  { gate: 112, args: ["--ci"], s: 600 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */

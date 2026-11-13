@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { keptLife } from "../../src/rules/kinds.ts";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
 import { generateHomeWorld, type HomeWorld } from "../../src/gen/index.ts";
@@ -37,7 +38,7 @@ test("hardship and healing scale the hazard of death: near-certain losses stay n
 
 test("a short-lived people does not outbreed the chronicle: it grows by the century as the apes do", () => {
   // A small sea people of a short life (their young near all lost, their herb-lore early).
-  const seed = "alien 29",
+  const seed = keptLife("alien 29"),
     world = ALIEN.build(seedFromText(seed)),
     body = homePlanet(world).generated.life.people!.body;
   assert.ok(body.span < 35 && body.medium === "water", `${seed}: ${body.clade}, ${body.span}`);
@@ -83,7 +84,7 @@ test("where no grass bears seed worth sowing, a people comes to gardens of roots
 
 test("the diversity report tells worlds apart", () => {
   const surveys = [
-      survey("alien 29", 30),
+      survey(keptLife("alien 29"), 30),
       survey(
         first((g) => !g.life.people),
         5,

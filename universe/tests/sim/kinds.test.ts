@@ -3,6 +3,7 @@
 // native copper beaten cold; an ice world's vessels and blades of ice — never a kiln, a furnace or
 // an engine that burns, and never another kind's road. A sulfur world burns, and smelts as Earth's.
 import { test } from "node:test";
+import { keptLife } from "../../src/rules/kinds.ts";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText, type World } from "../../src/kernel/index.ts";
 import { ALIEN } from "../../src/host/planet.ts";
@@ -14,7 +15,7 @@ const byId = new Map(PRINCIPLES.map((p) => [p.id, p]));
 
 /** A world of a seed, run to a year: its kind, its settled lands and what is known anywhere on it. */
 function run(seed: string, years: number) {
-  const world = ALIEN.build(seedFromText(seed));
+  const world = ALIEN.build(seedFromText(keptLife(seed)));
   world.runTo(years * YEAR);
   const ctx = populationContext(world),
     lore = loreOf(world),

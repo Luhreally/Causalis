@@ -2,6 +2,7 @@
 // green earths and black — and the black chert of its shale, lydite, struck on the shale's pyrite
 // for fire as Earth's grey chert is.
 import { test } from "node:test";
+import { keptLife } from "../../src/rules/kinds.ts";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { populationContext } from "../../src/sim/index.ts";
@@ -9,7 +10,7 @@ import { ALIEN } from "../../src/host/planet.ts";
 import { campCraft } from "../../src/host/camp.ts";
 import { landCamps } from "../../src/host/land.ts";
 
-const world = ALIEN.build(seedFromText("alien 16"));
+const world = ALIEN.build(seedFromText(keptLife("alien 16")));
 world.runTo(20 * YEAR);
 const lands = populationContext(world)
   .provinces.all()

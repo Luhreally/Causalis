@@ -142,7 +142,8 @@ async function among(universe: string, seed: string): Promise<Folk | null | "non
 const worlds: [string, string][] = [
   ["alien", "alien 2"],
   ["alien", "alien 7"],
-  ["alien", "alien 12"],
+  // (A people on the land, among their bands: alien 12's rose in the water since B4, so alien 13's stand here.)
+  ["alien", "alien 13"],
   ["alien", "alien 9"],
 ];
 const seen: { seed: string; f: Folk }[] = [];

@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { keptLife } from "../../src/rules/kinds.ts";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText, type World } from "../../src/kernel/index.ts";
 import { cellRef, surfaceOre } from "../../src/gen/index.ts";
@@ -53,7 +54,7 @@ test("what a people can come to know is what its body allows", () => {
 });
 
 test("a people of the water comes to metal by the vents, and its invention takes its own order", () => {
-  const world = ALIEN.build(seedFromText("alien 55")),
+  const world = ALIEN.build(seedFromText(keptLife("alien 55"))),
     ctx = populationContext(world),
     lore = loreOf(world);
   assert.equal(ctx.medium, "water");
@@ -74,7 +75,7 @@ test("a people of the water comes to metal by the vents, and its invention takes
 });
 
 test("a people of the water reaches industry without fire: works turned by the tides make machines", () => {
-  const world = ALIEN.build(seedFromText("alien 55")),
+  const world = ALIEN.build(seedFromText(keptLife("alien 55"))),
     ctx = populationContext(world),
     g = homePlanet(world).generated;
   world.runTo(100 * YEAR);

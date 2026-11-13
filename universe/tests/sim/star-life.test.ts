@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { keptLife } from "../../src/rules/kinds.ts";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText, type Ref, type SimTime } from "../../src/kernel/index.ts";
 import { OPEN } from "../../src/rules/index.ts";
@@ -16,13 +17,16 @@ import {
 // Phase 57: a sickness is a life that lives on its host. Every people of the stars is of water, so
 // on a world whose life is of ammonia water none of theirs comes down with them, nor ours goes home.
 
-const ammonia = makePopulationWorld(seedFromText("alien 218"), { prior: OPEN, start: "spread" });
+const ammonia = makePopulationWorld(seedFromText(keptLife("alien 218")), {
+  prior: OPEN,
+  start: "spread",
+});
 ammonia.runTo(20 * YEAR);
 
 test("only a people whose life is of water shares sickness with the peoples of the stars", () => {
   const g = populationContext(ammonia).generated;
   assert.equal(sharesStarSickness(g), false, "ammonia water's");
-  const sulfur = makePopulationWorld(seedFromText("alien 84"), { prior: OPEN });
+  const sulfur = makePopulationWorld(seedFromText(keptLife("alien 84")), { prior: OPEN });
   assert.equal(
     sharesStarSickness(populationContext(sulfur).generated),
     true,

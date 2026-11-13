@@ -11,6 +11,7 @@ import {
   EARTHLIKE,
   KINDS,
   OPEN,
+  keptLife,
   keptRocky,
   liquidDegrees,
   trueCelsius,
@@ -44,7 +45,8 @@ test("a seed that now falls as a kind, pinned rocky, regenerates the world it ma
   };
   for (const [seed, digest] of Object.entries(before)) {
     assert.notEqual(worldKindOf(alien(seed)), "rocky", `${seed} is a kind now`);
-    const kept = alien(keptRocky(seed));
+    // (Its living things kept as they were made too, as a save of then is loaded: B3.)
+    const kept = alien(keptLife(keptRocky(seed)));
     assert.equal(worldKindOf(kept), "rocky");
     assert.equal(kept.digest, digest, seed);
   }

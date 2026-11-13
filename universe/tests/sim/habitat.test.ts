@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { keptLife } from "../../src/rules/kinds.ts";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
 import { BIOME, generateHomeWorld, refineRegion, WATER } from "../../src/gen/index.ts";
@@ -16,8 +17,8 @@ import {
 /** The first open world whose people live in a medium. */
 function worldOf(medium: string): string {
   for (let i = 0; i < 60; i++) {
-    const p = generateHomeWorld(seedFromText(`alien ${i}`), OPEN).life.people;
-    if (p?.body.medium === medium) return `alien ${i}`;
+    const p = generateHomeWorld(seedFromText(keptLife(`alien ${i}`)), OPEN).life.people;
+    if (p?.body.medium === medium) return keptLife(`alien ${i}`);
   }
   throw new Error(`no ${medium} people in sixty worlds`);
 }
@@ -78,7 +79,7 @@ test("each people spreads over its own medium, and raises its villages there", (
 test("a people of the water comes to tend beds of weed and shell, and builds its villages in the shallows", () => {
   // A world of wide shelves (the first water world, alien 29, is an archipelago of twelve
   // cold-edged places whose people live long content with what the reefs give).
-  const world = ALIEN.build(seedFromText("alien 55")),
+  const world = ALIEN.build(seedFromText(keptLife("alien 55"))),
     ctx = populationContext(world),
     g = homePlanet(world).generated;
   assert.equal(ctx.medium, "water");

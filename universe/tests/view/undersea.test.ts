@@ -3,6 +3,7 @@
 // about them no one's, their borders run there, their land's roads and towns keep to the seabed; and
 // a world of a people of the land is painted as it ever was.
 import { test } from "node:test";
+import { keptLife } from "../../src/rules/kinds.ts";
 import assert from "node:assert/strict";
 import { seedFromText, sphereGrid } from "../../src/kernel/index.ts";
 import { ALIEN } from "../../src/host/planet.ts";
@@ -21,7 +22,7 @@ import {
 
 /** A world's globe frame, as the host sends it. */
 function frameOf(seed: string): FrameMessage {
-  const world = ALIEN.build(seedFromText(seed)),
+  const world = ALIEN.build(seedFromText(keptLife(seed))),
     payload = ALIEN.frames.globe!(world, { view: "globe", focus: null });
   return { kind: "frame", view: "globe", t: 0, ...payload } as unknown as FrameMessage;
 }

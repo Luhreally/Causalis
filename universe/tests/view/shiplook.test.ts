@@ -4,6 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { FightSide } from "../../src/bridge/index.ts";
+import { CLADES, hullOf } from "../../src/rules/index.ts";
 import {
   archetypeOf,
   fleetLook,
@@ -100,13 +101,15 @@ const hueDeg = (c: Vec): number => {
   return (deg + 360) % 360;
 };
 
-test("archetypeOf: pull picks a realm's hull, the clade a people's, and a wet world is manta", () => {
+test("archetypeOf: pull picks a realm's hull, the body a people's, and a wet world is manta", () => {
+  // (A people's hull is read from its body by what it does: rules/bodies.ts hullOf.)
+  const hull = (id: string) => hullOf(CLADES.find((c) => c.id === id)!.body as never);
   assert.equal(archetypeOf(side({ gravity: 0.95 })), "dart");
   assert.equal(archetypeOf(side({ gravity: 0.5 })), "spindle");
   assert.equal(archetypeOf(side({ gravity: 1.5 })), "slab");
   assert.equal(archetypeOf(side({ medium: "water" })), "manta");
-  assert.equal(archetypeOf(side({ kind: "people", clade: "trunk" })), "slab");
-  assert.equal(archetypeOf(side({ kind: "people", clade: "burrower" })), "disc");
+  assert.equal(archetypeOf(side({ kind: "people", clade: hull("trunk") })), "slab");
+  assert.equal(archetypeOf(side({ kind: "people", clade: hull("burrower") })), "disc");
 });
 
 test("fleetLooks: two realms of the same pull still take different shapes", () => {

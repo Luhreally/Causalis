@@ -3,6 +3,7 @@
 // copper within reach is copper glance has a kiln-furnace, 1090 °C, short of the glance's 1150. On
 // Earth the same recipe, at a land with no copper, says exactly what it always has.
 import { test } from "node:test";
+import { keptLife } from "../../src/rules/kinds.ts";
 import assert from "node:assert/strict";
 import { seedFromText } from "../../src/kernel/index.ts";
 import { EARTHLIKE, OPEN, RECIPES, worldOre } from "../../src/rules/index.ts";
@@ -18,7 +19,10 @@ import {
 
 const copperSmelting = RECIPES.find((r) => r.id === "copper-smelting")!;
 const worldOf = (seed: string, prior = OPEN) =>
-  makePopulationWorld(seedFromText(seed), { prior, start: "spread" });
+  makePopulationWorld(seedFromText(prior === OPEN ? keptLife(seed) : seed), {
+    prior,
+    start: "spread",
+  });
 const lands = (ctx: ReturnType<typeof populationContext>) =>
   [...ctx.provinces.all()].map((p) => p.cell).sort((a, b) => a - b);
 

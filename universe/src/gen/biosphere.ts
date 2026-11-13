@@ -48,7 +48,8 @@ export const NICHES = [
   "small hunter",
   "scavenger",
 ] as const;
-export type Niche = (typeof NICHES)[number];
+/** A lineage's way of life: one of the niches, or (on a world read from its physics, B3) a light-eater not a grass. */
+export type Niche = (typeof NICHES)[number] | "growth";
 /** The niches the ages first filled (their lineages drawn first, as they always were). */
 type ClassicNiche = "seed grass" | "grazer" | "browser" | "great beast" | "hunter";
 /** The web's newer niches. */
@@ -113,6 +114,11 @@ export type Species = {
   readonly body: CreatureBody | null;
   /** Its level in the web of eating (1 a plant, 2 a plant-eater, 3 and 4 the hunters; 0 the people). */
   readonly level: number;
+  // —— On a world read from its own physics (B3, gen/living.ts; absent on Earth's and every world made before):
+  /** The role it fills (rules/grammar.ts roleId: its place, food, size and link), where it lives, a light-eater's form. */
+  readonly role?: string;
+  readonly place?: string;
+  readonly form?: string;
 };
 
 export type Biosphere = {
@@ -134,7 +140,11 @@ export type Biosphere = {
     readonly cell: number;
     readonly body: BodyPlan;
     readonly because: string;
+    /** The lineage they rose from (B4: a world read from its physics). */
+    readonly forebear?: number;
   } | null;
+  /** Why no people rose (B4: a world read from its physics where none qualified). */
+  readonly noPeople?: string;
 };
 
 /** A world where no life took hold (Phase 56: a kind's liquid its chemistry never quickened in). */
@@ -185,7 +195,9 @@ export function livingIn(b: Biosphere, cell: number): Species[] {
 }
 
 /** The lands (biomes) each role lives in. */
-export const HABITAT: Readonly<Record<Exclude<Niche, "upright ape">, readonly number[]>> = {
+export const HABITAT: Readonly<
+  Record<Exclude<Niche, "upright ape" | "growth">, readonly number[]>
+> = {
   "seed-eater": [
     BIOME.steppe,
     BIOME.savanna,

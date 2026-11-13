@@ -4,6 +4,7 @@
 // Looked at, never lived: nothing here enters history.
 import { Rng, type World } from "../kernel/index.ts";
 import {
+  farQuickening,
   foreignPlanets,
   lifeElsewhere,
   starAgeGyr,
@@ -11,7 +12,7 @@ import {
   type GalaxyStar,
   type SystemBody,
 } from "../gen/index.ts";
-import { civilizationsNear, homePlanet } from "../sim/index.ts";
+import { civilizationsNear, farBodies, homePlanet } from "../sim/index.ts";
 import type { WorldOrigin } from "../gen/index.ts";
 import { originElsewhere } from "./origin.ts";
 
@@ -44,7 +45,14 @@ export function lifeOfWorld(world: World, s: GalaxyStar, index: number): Elsewhe
     const rng = new Rng(world.seed),
       p = foreignPlanets(rng, s)[index];
     if (!p) throw new Error(`no world ${index} of ${s.ref}`);
-    return lifeElsewhere(rng, s, p, !!civilizationOn(world, s, index));
+    // (B5: where the home world's life is read from its numbers, whether a far world's quickened is read from its cradles.)
+    return lifeElsewhere(
+      rng,
+      s,
+      p,
+      !!civilizationOn(world, s, index),
+      farBodies(world) === null ? null : farQuickening(s, p),
+    );
   });
 }
 
@@ -56,10 +64,8 @@ export function lifeOfBody(world: World, body: SystemBody): Elsewhere | null {
     // (A moon is as far from the star as its planet.)
     const parent =
         body.kind === "moon" ? g.system.bodies.find((b) => b.ref === body.orbit.around) : undefined,
-      a = parent ? parent.orbit.a : body.orbit.a;
-    return lifeElsewhere(
-      new Rng(world.seed),
-      {
+      a = parent ? parent.orbit.a : body.orbit.a,
+      star = {
         sector: 0,
         k: 0,
         ageGyr: starAgeGyr(g.star),
@@ -67,7 +73,15 @@ export function lifeOfBody(world: World, body: SystemBody): Elsewhere | null {
         spectral: g.star.spectral,
         luminosity: g.star.luminosity,
       },
-      { ...body, a },
+      ground = { ...body, a };
+    return lifeElsewhere(
+      new Rng(world.seed),
+      star,
+      ground,
+      false,
+      farBodies(world) === null
+        ? null
+        : farQuickening({ ...star, temperature: g.star.temperature, mass: g.star.mass }, ground),
     );
   });
 }

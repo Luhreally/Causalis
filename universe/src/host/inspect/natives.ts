@@ -1,6 +1,7 @@
 // A people of a world, on the pages (Phase 69): how far they have come and why, what their hands carry and
 // from what, who came to them, and what a meeting of the two can be, in words true both ways. Pure reads.
-import { CLADES, bodyWords, type BodyPlan } from "../../rules/index.ts";
+import { civBody } from "../../gen/index.ts";
+import { bodyWords, type BodyPlan } from "../../rules/index.ts";
 import {
   STAGE_WORDS,
   arrivalsAt,
@@ -24,10 +25,7 @@ import { item, link, many, sentence, stat, yearNow } from "./words.ts";
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /** Their body, whichever way it is kept. */
-const bodyOfFolk = (f: Folk): BodyPlan =>
-  f.followed
-    ? (CLADES.find((c) => c.id === f.followed!.clade)!.body as unknown as BodyPlan)
-    : f.body;
+const bodyOfFolk = (f: Folk): BodyPlan => (f.followed ? civBody(f.followed)! : f.body);
 
 /** Where a people stands now, in a block or two, and the ways down to them (for its page and its world's). */
 export function folkBlocks(world: World, f: Folk): Block[] {

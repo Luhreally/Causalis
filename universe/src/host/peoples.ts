@@ -1,9 +1,9 @@
 // The peoples of other stars as the views read them (Phase 18 M134): each one's colour, the
 // stars it holds, its ships under way, whom it met and how they stand, its raids, and its
 // landings on the home world. Read from the simulation's own store; nothing enters history.
+import { civBody } from "../gen/index.ts";
 import { YEAR, type Ref, type World } from "../kernel/index.ts";
 import type { PeoplesSky, Visitor } from "../bridge/index.ts";
-import { CLADES } from "../rules/index.ts";
 import { figureBody, starFolk } from "./folk.ts";
 import {
   civilizationsNear,
@@ -144,7 +144,7 @@ export function visitorsAt(world: World, cell: number, year: number): Visitor[] 
   ) => {
     const i = civs.findIndex((c) => c.ref === civRef),
       civ = civs[i];
-    const body = civ ? CLADES.find((c) => c.id === civ.clade)?.body : undefined;
+    const body = civ ? civBody(civ) : undefined;
     if (!civ || !body) return;
     const known = found.get(civRef);
     if (known && rank[known.why] >= rank[why]) return;

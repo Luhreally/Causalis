@@ -149,17 +149,25 @@ export function anatomyOf(body: BodyPlan | null): Anatomy {
       words[leg] = `one of ~ ${side} legs`;
     } else {
       // Hands: an upright ape, a strider, one stooping on two legs with four hands.
-      const many = (body?.limbs ?? 2) > 2;
+      const many = (body?.limbs ?? 2) > 2,
+        // (A people risen from its tree may stand on more legs than two: B4.)
+        legsMany = (body?.legs ?? 2) > 2;
       has.add(arm).add(hand).add(leg);
       words[arm] = many ? `one of ~ ${side} arms` : `~ ${side} arm`;
       words[hand] = many ? `one of ~ ${side} hands` : `~ ${side} hand`;
-      words[leg] = `~ ${side} leg`;
-      biped = true;
+      words[leg] = legsMany ? `one of ~ ${side} legs` : `~ ${side} leg`;
+      biped = !legsMany;
     }
     if (sees) {
       has.add(eye);
       words[eye] = radial ? "one of ~ eyes" : "an eye";
     }
+  }
+  // (A body that goes on no legs, a risen people's that slithers, has none to lose: B4.)
+  if (body?.legs === 0 && !radial) {
+    has.delete("leg-l");
+    has.delete("leg-r");
+    biped = false;
   }
   if (biped) words.trunk = "~ chest";
   else if (radial) words.trunk = "~ mantle";

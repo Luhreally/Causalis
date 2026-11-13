@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { keptLife } from "../../src/rules/kinds.ts";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { ALIEN, EARTH } from "../../src/host/planet.ts";
@@ -106,7 +107,7 @@ test("reading the record changes no domain hash", () => {
 });
 
 test("an alien people's record: the same sums, the proportion kept, every arm given a blow", () => {
-  const alien = ALIEN.build(seedFromText("alien 16"));
+  const alien = ALIEN.build(seedFromText(keptLife("alien 16")));
   alien.runTo(150 * YEAR);
   const askAlien = <T>(type: string, args: unknown = {}) => ALIEN.queries[type]!(alien, args) as T;
   const fought = [...warsOf(alien).all()].flatMap((w) => w.battles);
