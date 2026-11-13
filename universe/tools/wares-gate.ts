@@ -215,11 +215,11 @@ const pictures = (selector: string) =>
     for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 40) { inked++; sum = (sum * 31 + d[i] * 7 + d[i + 1] * 3 + d[i + 2] + i) % 1000000007; }
     return { drawn: true, inked, sum };
   })`);
-/** Wait for the pictures under a selector that are on screen to be drawn, then read them. */
+/** Wait for the pictures under a selector that are to be seen (a finger at the middle of one would touch it) to be drawn, then read them. */
 async function drawnPictures(selector: string, what: string) {
   await until(`${what}'s pictures drawn`, async () => {
     const on = await k<number>(
-      `[...document.querySelectorAll(${JSON.stringify(selector)})].filter((c) => { const r = c.getBoundingClientRect(); return r.bottom > 0 && r.top < innerHeight && r.width > 0 && c.dataset.drawn !== "1"; }).length`,
+      `[...document.querySelectorAll(${JSON.stringify(selector)})].filter((c) => { const r = c.getBoundingClientRect(); return r.width > 0 && document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) === c && c.dataset.drawn !== "1"; }).length`,
     );
     return on === 0;
   });
@@ -409,8 +409,8 @@ if (town && best) {
   await page.waitForTimeout(slow(700));
   await shot("economy");
   const econ = await pageText();
-  const sends = /Sends away\s*([^\n]+)/.exec(econ)?.[1] ?? "",
-    brings = /Brings in\s*([^\n]+)/.exec(econ)?.[1] ?? "";
+  const sends = /Sends away\s*([^\n]+)/i.exec(econ)?.[1] ?? "",
+    brings = /Brings in\s*([^\n]+)/i.exec(econ)?.[1] ?? "";
   say(`sends away: ${sends}`);
   say(`brings in: ${brings}`);
   check(!!(sends || brings), `the land's economy says nothing of its trade: ${econ.slice(0, 300)}`);
@@ -441,8 +441,14 @@ if (town && best) {
   // 5. The exchange from the board, by touch.
   await k(`globalThis.causalis.open(${JSON.stringify(`board:${town.ref}`)})`);
   await page.waitForTimeout(slow(600));
+  // (Timed from the tap to its board's marks on screen drawn: a board with its pictures, on the phone.)
   await pressEl(rowNamed("Exchange"), "the exchange's line");
+  const tapped = Date.now() - slow(300);
   await until("the exchange", async () => (await pageIs()).startsWith("exchange:"));
+  const onScreen = await drawnPictures(".page-window .board-thumb", "the exchange's board");
+  say(
+    `the exchange's board open with its ${onScreen.length} marks on screen drawn ${Date.now() - tapped} ms after the tap`,
+  );
   await page.waitForTimeout(slow(600));
   check(await pageSeen(), "the exchange is not to be seen");
   await shot("exchange");
