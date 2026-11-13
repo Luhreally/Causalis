@@ -1816,10 +1816,15 @@ async function runPlanetPage(): Promise<void> {
   // (A ruler's or a life's bar stands in for the scale's while one is lived: a page goes below it,
   // never over it. 2026-11-13.)
   const markBarBottom = () => {
-    const bars = [
-        ...document.querySelectorAll<HTMLElement>(".panel > header.bar, .reign-strip, .life-strip"),
-      ].filter((b) => b.offsetParent !== null),
-      y = `${bars.length ? Math.round(Math.max(...bars.map((b) => b.getBoundingClientRect().bottom))) : 64}px`;
+    // (The first scale's bar shown, as ever; a lived one's in its place while it shows.)
+    const bar =
+        [...document.querySelectorAll<HTMLElement>(".reign-strip, .life-strip")].find(
+          (b) => b.offsetParent !== null,
+        ) ??
+        [...document.querySelectorAll<HTMLElement>(".panel > header.bar")].find(
+          (b) => b.offsetParent !== null,
+        ),
+      y = `${bar ? Math.round(bar.getBoundingClientRect().bottom) : 64}px`;
     if (document.documentElement.style.getPropertyValue("--bar-bottom") !== y)
       document.documentElement.style.setProperty("--bar-bottom", y);
   };
