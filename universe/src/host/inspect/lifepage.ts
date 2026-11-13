@@ -38,12 +38,11 @@ import type { Block, Item, Line, PageModel, Row, SideCell } from "../../bridge/i
 import { fineWorld, originOfHome } from "../origin.ts";
 import { lifeOfBody, lifeOfWorld, originOfBody, originOfWorld } from "../elsewhere.ts";
 import { starByRef } from "../galaxy.ts";
-import { lifelessWhy } from "../kinds.ts";
+import { celsius, lifelessWhy } from "../kinds.ts";
 import { dawnSeaOf, dropOfWorld, elsewhereBlocks } from "./small.ts";
 import { count, item, link, many, stat, yearNow } from "./words.ts";
 
 const cap = (s: string) => `${s[0]!.toUpperCase()}${s.slice(1)}`;
-const celsius = (c: number) => `${c < 0 ? "−" : ""}${Math.abs(Math.round(c))} °C`;
 const NICHE_ICON: Readonly<Record<string, string>> = {
   "seed grass": "🌾",
   grazer: "🦌",

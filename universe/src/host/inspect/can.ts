@@ -38,7 +38,7 @@ import {
 import type { Block, Item, Line, PageModel, Row, SideCell, Span } from "../../bridge/index.ts";
 import { canWorldOf } from "../can.ts";
 import { landsOf } from "../../rules/index.ts";
-import { lifelessWhy } from "../kinds.ts";
+import { celsius, lifelessWhy } from "../kinds.ts";
 import { functionBlocks } from "./means.ts";
 import { landLink } from "./names.ts";
 import { count, link, stat, yearNow } from "./words.ts";
@@ -46,7 +46,6 @@ import { count, link, stat, yearNow } from "./words.ts";
 const prinRef = (id: string) => `prin:${id}`;
 const cap = (s: string) => `${s[0]!.toUpperCase()}${s.slice(1)}`;
 const low = (s: string) => `${s[0]!.toLowerCase()}${s.slice(1)}`;
-const celsius = (c: number) => `${c < 0 ? "−" : ""}${Math.abs(Math.round(c))} °C`;
 
 /** A rung's name as a link to the thing it is. */
 function rungName(r: RungHere, capital = false): Span {

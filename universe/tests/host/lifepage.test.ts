@@ -134,3 +134,9 @@ test("the genesis tells its own cradle and first life where it draws the first c
   assert.notEqual(e.origin?.words, a.origin?.words);
   assert.ok(e.drop?.kinds.some((k) => k.way === "rock"));
 });
+
+test("a warmth just under freezing is told as 0 °C, never −0", async () => {
+  const { celsius } = await import("../../src/host/kinds.ts");
+  assert.equal(celsius(-0.3), "0 °C");
+  assert.equal(celsius(-0.6), "−1 °C");
+});
