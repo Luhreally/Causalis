@@ -368,7 +368,14 @@ function ownPottery(world: World, cell: number): Raw[] {
       },
     ];
   if (knows(world, cell, "glass"))
-    out.push({ key: "glass", name: "glass bottles and jars", ref: null, w: 0.3, from: at });
+    out.push({
+      key: "glass",
+      name: "glass bottles and jars",
+      ref: null,
+      // (As much as its glassworks lean to it: a keyed share, the same every reading.)
+      w: 0.15 + 0.3 * ((hashString(`${cell}:glass`, 0x6d61) >>> 0) / 4294967296),
+      from: at,
+    });
   return out;
 }
 
