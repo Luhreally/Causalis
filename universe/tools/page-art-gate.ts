@@ -21,6 +21,7 @@ import { folksNear, politiesOf, populationContext, warsOf } from "../src/sim/ind
 import { pageOf } from "../src/host/inspect/index.ts";
 import { homeLook, withArt, worksLook } from "../src/host/inspect/art.ts";
 import type { Portrait } from "../src/bridge/index.ts";
+import { keptLife } from "../src/rules/index.ts";
 
 const argv = process.argv.slice(2),
   soft = argv.includes("--soft"),
@@ -89,8 +90,10 @@ function caseOf(name: string, universe: "earth" | "alien", seed: string, year: n
 
 const cases = [
   caseOf("Earth", "earth", "first light", 600),
-  caseOf("alien 20", "alien", "alien 20", 200),
-  caseOf("alien 41", "alien", "alien 41", 150),
+  // (Both as they were made, life kept: of its own chemistry a carbon world quickens no people now, and the old tables'
+  // peoples are the ones these pages were drawn for. The case's name stays the seed's.)
+  caseOf("alien 20", "alien", keptLife("alien 20"), 200),
+  caseOf("alien 41", "alien", keptLife("alien 41"), 150),
 ];
 
 // How each land builds and its works (asked 2026-11-13: "will i see the photo of like their architectural varying styles across seeds?"):
@@ -355,8 +358,10 @@ for (const c of cases) {
     check(!!art.banner, `${c.name} ${r.what}: no banner`);
     if (art.banner) {
       check(art.banner.kind === r.banner, `${c.name} ${r.what}: a ${art.banner.kind} banner`);
+      // (Drawn, not blank: a bare wash has next to no edges. A far world's star and limb over the dark, or a land's sky over
+      // a still sea, are smooth by what they are and read some 1.3 to 2 an edge a pixel across, as looked at 2026-11-13.)
       check(
-        art.banner.edges > art.banner.w * 2,
+        art.banner.edges > art.banner.w,
         `${c.name} ${r.what}: its banner only ${art.banner.edges} edges across ${Math.round(art.banner.w)} px`,
       );
       check(art.banner.inside, `${c.name} ${r.what}: its banner runs past the page`);
@@ -424,14 +429,25 @@ if (!before) {
         `globalThis.causalis.picture(${JSON.stringify(p)}, 64)`,
       ),
     );
-  const sums = new Set(drawn.map((d) => d.sum));
+  const sums = new Set(drawn.map((d) => d.sum)),
+    pictured = [...styles.values(), ...works.values()].slice(0, 40),
+    faint = drawn.reduce((m, d, i) => (d.inked < drawn[m]!.inked ? i : m), 0);
   say(
     `${drawn.length} homes and works drawn at 64 px: ${Math.min(...drawn.map((d) => d.inked))} px inked the least, ${sums.size} different pictures`,
   );
-  check(
-    drawn.every((d) => d.inked > 64 * 64 * 2 * 0.15),
-    "a home or works picture barely inked",
+  // (Which is faintest, so a picture barely inked can be looked at.)
+  say(`  the faintest: ${JSON.stringify(pictured[faint]).slice(0, 400)}`);
+  // (Drawn, not blank or broken: a house of one storey, long or about a court, is low and wide and covers some 6% of its
+  // square at 64 px, looked at 2026-11-13; a burrow or a warren stands 0.4 as high as a house in the town it is drawn of,
+  // so its picture is as much lower.)
+  const low = (p: Portrait | undefined) =>
+    p?.kind === "house" && (p.house.form === "warren" || p.house.walls === "burrow");
+  const thin = drawn.flatMap((d, i) =>
+    d.inked > 64 * 64 * 2 * 0.1 * (low(pictured[i]) ? 0.4 : 1)
+      ? []
+      : [`${d.inked} px: ${JSON.stringify(pictured[i]).slice(0, 300)}`],
   );
+  check(!thin.length, `a home or works picture barely inked: ${thin.join(" | ")}`);
   check(sums.size === drawn.length, "two ways of building drawn the same");
   check(
     factRows.some((f) => /build/i.test(f.label)),
