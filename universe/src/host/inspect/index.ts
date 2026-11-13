@@ -292,6 +292,7 @@ function tidy(page: PageModel): PageModel {
           !(b.type === "table" && !b.rows.length) &&
           !(b.type === "facts" && !b.rows.length) &&
           !(b.type === "chart" && b.points.length < 2) &&
+          !(b.type === "series" && b.points.length < 2) &&
           !(b.type === "lines" && !b.series.some((x) => x.points.length > 1)) &&
           !(b.type === "bars" && !b.bars.length) &&
           !(b.type === "tally" && !b.rows.length) &&

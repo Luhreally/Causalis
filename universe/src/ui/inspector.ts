@@ -24,7 +24,14 @@ import type {
 } from "../bridge/index.ts";
 import { el, WhyTree } from "./why.ts";
 import { folder } from "./window.ts";
-import { barsChart, lineChart, linesChart, tallyChart, timelineChart } from "./chart.ts";
+import {
+  barsChart,
+  lineChart,
+  linesChart,
+  seriesChart,
+  tallyChart,
+  timelineChart,
+} from "./chart.ts";
 import type { Tidings } from "./tidings.ts";
 import type { HoverTips } from "./hovertip.ts";
 import type { ArmsBook } from "./arms.ts";
@@ -115,6 +122,8 @@ export class PageWindow {
   private blocks = new Map<string, { same: string; element: HTMLElement }>();
   /** Each table's sorting and whether it shows every row, kept as the page is read again. */
   private sorts = new Map<string, { by: number; down: boolean; all: boolean }>();
+  /** Each series' year picked by a tap, kept as the page is read again. */
+  private picks = new Map<string, number>();
   private readAt = 0;
   private pressing = false;
   tidings: Tidings | null = null;
@@ -329,6 +338,7 @@ export class PageWindow {
       this.openStat = null;
       this.blocks = new Map();
       this.sorts = new Map();
+      this.picks = new Map();
     }
     // (The world's own pages — its chronicle, its ledger — open wide, as a ledger does.)
     this.inspector.dataset.kind = page.kind;
@@ -716,6 +726,19 @@ export class PageWindow {
             b.to,
           ),
         );
+        break;
+      case "series":
+        // (A year tapped stays picked as the page is read again.)
+        box.append(
+          seriesChart(b, {
+            ...(this.picks.has(key) ? { picked: this.picks.get(key)! } : {}),
+            pick: (year) => {
+              if (year === undefined) this.picks.delete(key);
+              else this.picks.set(key, year);
+            },
+          }),
+        );
+        if (title) title.remove();
         break;
       case "chart":
         box.append(

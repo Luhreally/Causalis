@@ -153,6 +153,26 @@ export type Block =
       /** Each line on a small chart of its own scale, side by side (their sizes far apart). */
       readonly apart?: boolean;
     }
+  /**
+   * A thing's number through the years as it was in each (asked 2026-11-13: "graphs over time"): its title, what its
+   * numbers count, its points, its latest in words as the page says it, and what befell it marked where it fell.
+   */
+  | {
+      readonly type: "series";
+      readonly title: string;
+      /** What its numbers count, after a number: "people", "lands", "men", "a head". */
+      readonly units: string;
+      /** How its numbers are written. */
+      readonly unit: SeriesUnit;
+      readonly points: readonly { readonly x: number; readonly y: number }[];
+      /** Its latest, in words, with its units: as the page says it where it says it. */
+      readonly latest: string;
+      /** How it is read, in a line under it. */
+      readonly note?: string;
+      readonly marks?: readonly SeriesMark[];
+      /** Its line's colour (its thing's own). */
+      readonly color?: Rgb;
+    }
   /** Things side by side as bars: each its name (a link), its amount, its colour. */
   | {
       readonly type: "bars";
@@ -429,6 +449,16 @@ export type PhyloLine = {
 export type Tab = { readonly id: string; readonly name: string; readonly blocks: readonly Block[] };
 
 type Rgb = readonly [number, number, number];
+
+/** How a series' numbers are written: whole ("12,345"), a share ("87%"), a worth ("12.3 thousand"), a price ("1.20"), months ("3.5"). */
+export type SeriesUnit = "count" | "share" | "worth" | "price" | "months";
+
+/** Something that befell a thing, marked on its series in its year: its kind (its colour on the chart) and its words. */
+export type SeriesMark = {
+  readonly x: number;
+  readonly kind: "war" | "ruler" | "curse" | "bless" | "realm" | "join" | "leave";
+  readonly label: string;
+};
 
 /**
  * How a substance's crystals or grains grow (Phase 54 M223), and so how its specimen is cut: salt

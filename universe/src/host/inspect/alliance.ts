@@ -39,6 +39,7 @@ import {
   type Tab,
 } from "../../bridge/index.ts";
 import { realmColor } from "../colors.ts";
+import { allianceTimeTab } from "./time.ts";
 import { wealthBook } from "../wealth.ts";
 import { landEra } from "../village.ts";
 import { eraWords } from "./world.ts";
@@ -639,6 +640,13 @@ export function blocPage(world: World, ref: string): PageModel {
       overviewTab(world, r, reads),
       membersTab(world, r),
       strengthTab(world, r),
+      // (Its realms of each year, summed, and who joined and left: asked 2026-11-13, "graphs over time".)
+      allianceTimeTab(world, a, {
+        realms: r.members.length,
+        lands: r.lands,
+        people: r.people,
+        host: r.host,
+      }),
       warsTab(world, r),
       historyTab(world, r),
       withinTab(world, r),
