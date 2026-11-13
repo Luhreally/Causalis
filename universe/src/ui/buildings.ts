@@ -5,7 +5,7 @@
 // differs as its seed, its age and its world's own stuff make it, and the picture agrees with the town seen near. Low-poly solids on a
 // 2D canvas (ui/portrait.ts), drawn only when on screen and kept.
 import type { Portrait } from "../bridge/index.ts";
-import { houseLook } from "../view/index.ts";
+import { houseLook, lifeTint } from "../view/index.ts";
 import type { Solid } from "./portrait.ts";
 
 type Rgb = readonly [number, number, number];
@@ -107,9 +107,11 @@ function wing(
 export function houseSolids(p: House): Solid[] {
   const look = houseLook(p.house, p.lifeLook),
     storeys = Math.max(1, Math.min(8, Math.round(p.storeys))),
-    out: Solid[] = [box(0, -0.03, 0, 2, 0.06, 2, GROUND)],
     len = look.length * 1.3,
-    wid = look.width * 1.3;
+    wid = look.width * 1.3,
+    // (Its plot a little wider than it stands, so a small picture is the house, not its ground.)
+    plot = (p.house.form === "court" ? len * 1.25 : Math.max(len, wid)) * 1.35 + 0.2,
+    out: Solid[] = [box(0, -0.03, 0, plot, 0.06, plot, lifeTint(GROUND, p.lifeLook))];
   if (p.house.form === "court") {
     // (Four wings round an open square, its door on the front.)
     const s = len * 1.25,
@@ -150,7 +152,7 @@ const METAL: Rgb = [0.56, 0.58, 0.62],
 export function worksSolids(p: Works, t = 0): Solid[] {
   const wall = HALL_STUFF[p.material] ?? HALL_STUFF.wood!,
     roof: Rgb = [wall[0] * 0.62, wall[1] * 0.58, wall[2] * 0.58],
-    out: Solid[] = [box(0, -0.03, 0, 2.4, 0.06, 1.9, GROUND)];
+    out: Solid[] = [box(0, -0.03, 0, 2.4, 0.06, 1.9, lifeTint(GROUND, p.lifeLook))];
   const hall = p.hall;
   let len = 1.3,
     wid = 0.8,

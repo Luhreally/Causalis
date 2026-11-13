@@ -312,7 +312,8 @@ export function worksLook(world: World, cell: number): Portrait | null {
   const land = populationContext(world).provinces.get(cell),
     d = land ? designsOf(world).worksOf(land.ref) : undefined,
     hall = d?.parts.find((p) => p.role === "hall"),
-    drive = d?.parts.find((p) => p.role === "drive");
+    drive = d?.parts.find((p) => p.role === "drive"),
+    look = lifeLook(homePlanet(world).generated);
   return hall
     ? {
         kind: "works",
@@ -320,6 +321,7 @@ export function worksLook(world: World, cell: number): Portrait | null {
         material: hall.material,
         drive: drive?.id ?? "hands",
         key: hashString(`works:${cell}`) >>> 0,
+        ...(look ? { lifeLook: look } : {}),
       }
     : null;
 }

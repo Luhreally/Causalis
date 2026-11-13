@@ -559,6 +559,7 @@ export type Portrait =
       readonly material: string;
       readonly drive: string;
       readonly key: number;
+      readonly lifeLook?: string;
     }
   /** A realm's arms (Phase 11 M102); a war's, its two sides' face to face. */
   | { readonly kind: "arms"; readonly arms: readonly Arms[] }
