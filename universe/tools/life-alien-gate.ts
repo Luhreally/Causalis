@@ -99,6 +99,35 @@ async function open(seed: string): Promise<boolean> {
   }
 }
 
+/** A world's Life page, and its roles tab pressed where it is on the screen. */
+async function rolesTab(): Promise<boolean> {
+  await k(`globalThis.causalis.open("world:life")`);
+  if (
+    !(await until(
+      "the Life page",
+      async () => (await k<string | null>("globalThis.causalis.pageOpen()")) === "world:life",
+    ))
+  )
+    return false;
+  await page.waitForTimeout(slow(600));
+  const at = await k<{ x: number; y: number } | null>(`(() => {
+    for (const e of document.querySelectorAll(".page-window .tabs .tab")) {
+      if ((e.textContent ?? "").trim() !== "Its roles") continue;
+      e.scrollIntoView({ block: "nearest", inline: "center" });
+      const r = e.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    }
+    return null;
+  })()`);
+  if (!at) {
+    problems.push("the Life page has no roles tab");
+    return false;
+  }
+  await page.touchscreen.tap(at.x, at.y);
+  await page.waitForTimeout(slow(600));
+  return true;
+}
+
 // 1. Eight worlds' life, side by side.
 const SHOTS: { seed: string; png: string }[] = [],
   sheets: { seed: string; sheet: Sheet }[] = [];
@@ -157,13 +186,13 @@ check(
 // 2. Who rose, on the Life page; their own page, their body by what it does.
 const first = WORLDS[0]!;
 if (await open(first)) {
-  await k(`globalThis.causalis.open("world:life#roles")`);
+  await rolesTab();
   await until("the Life page's roles", async () =>
     (await pageText()).includes("Who rose to thought"),
   );
   const roles = await pageText();
-  check(/The places its world offers/.test(roles), `${first}: the Life page gives no places`);
-  check(/roles? its energy fills/.test(roles), `${first}: the Life page gives no roles filled`);
+  check(/the places its world offers/i.test(roles), `${first}: the Life page gives no places`);
+  check(/roles? its energy fills/i.test(roles), `${first}: the Life page gives no roles filled`);
   await shot("roles");
   // (The people's name, pressed where it is on the screen.)
   const at = await k<{ x: number; y: number; ref: string } | null>(`(() => {
@@ -200,7 +229,7 @@ if (await open(first)) {
 
 // 3. A world where life arose and no people did: why, on its Life page and in what's next.
 if (await open(NO_PEOPLE)) {
-  await k(`globalThis.causalis.open("world:life#roles")`);
+  await rolesTab();
   await until("the no-people world's roles", async () =>
     (await pageText()).includes("No people rose here"),
   );
