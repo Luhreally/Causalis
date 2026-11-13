@@ -19,7 +19,7 @@ import {
 } from "../../sim/index.ts";
 import { makingTown } from "../chain.ts";
 import { boardRef, wayRow } from "./board.ts";
-import { MACHINE_KINDS, clothOf, madeWares, type WareName } from "./wares.ts";
+import { MACHINE_KINDS, andList, clothOf, madeWares, type WareName } from "./wares.ts";
 import { coinWords } from "./living.ts";
 import { companyMark } from "./ware-looks.ts";
 import { count, link, many, stat, yearNow } from "./words.ts";
@@ -79,6 +79,58 @@ export function hasCompanies(world: World, cell: number): boolean {
   );
 }
 
+/**
+ * A land's tool works and arms works, of its tools: its tool works makes every tool its smiths' metal heads (one works, its part all of
+ * them, called by the greatest: its mark shows it), its arms works the host's kit, each where it comes to a part worth a company.
+ */
+function toolWorks(own: readonly WareName[]): WareName[] {
+  const tools = own.filter((w) => w.key.startsWith("tools:") && !w.key.startsWith("tools:stone")),
+    arms = own.filter((w) => w.key.startsWith("arms:")),
+    out: WareName[] = [];
+  for (const group of [tools, arms]) {
+    const part = group.reduce((n, w) => n + w.share, 0),
+      top = group[0];
+    if (top && part >= LEAST_PART)
+      out.push({
+        ...top,
+        share: part,
+        // (What it makes, in a few words: its three greatest, "steel axes, saws and sickles".)
+        name: andList(
+          group
+            .slice(0, 3)
+            .map((w, i) =>
+              i && w.key.split(":")[1] === top.key.split(":")[1]
+                ? w.name.split(" ").slice(-1)[0]!
+                : w.name,
+            ),
+        ),
+      });
+  }
+  return out;
+}
+
+/**
+ * A land's clothing company: its mills, where its weavers' cloth is the more of what it makes, else its leather works; making all of its
+ * kind (its part the whole good, as one company of the land's clothes), called by its three greatest garments.
+ */
+function clothWorks(own: readonly WareName[]): WareName[] {
+  const woven = own.filter((w) => w.key.startsWith("cloth:")),
+    sewn = own.filter((w) => w.key.startsWith("leather:")),
+    sum = (ws: readonly WareName[]) => ws.reduce((n, w) => n + w.share, 0),
+    group = sum(woven) >= sum(sewn) ? woven : sewn,
+    top = group[0];
+  return top
+    ? [
+        {
+          ...top,
+          name: andList(
+            group.slice(0, 3).map((w, i) => (i ? w.name.split(" ").slice(-1)[0]! : w.name)),
+          ),
+        },
+      ]
+    : [];
+}
+
 /** What a company of a good's making is called after its town: by what it makes. */
 function worksName(world: World, cell: number, good: number, w: WareName | null): string | null {
   const chem = worldChemistry(homePlanet(world).generated),
@@ -104,14 +156,14 @@ function worksName(world: World, cell: number, good: number, w: WareName | null)
       // (Its mills where its weavers' cloth is what it makes most, its leather works where its tanners'.)
       return !knows("factories") || !w
         ? null
-        : w.key === "leather"
+        : w.key.startsWith("leather")
           ? "Leather Works"
           : `${title(clothOf(world, cell).kind)} Mills`;
     case G.tools:
       // (No works knaps stone: a land whose tools are stone has no tool company.)
       return w?.key.startsWith("arms:")
         ? "Arms Works"
-        : knows("factories") && w && w.key !== "tools:stone"
+        : knows("factories") && w && !w.key.startsWith("tools:stone")
           ? "Tool Works"
           : null;
     case G.pottery:
@@ -150,9 +202,13 @@ export function companiesOf(world: World, cell: number): readonly Company[] {
       // (Its own making of the good, each thing of it: the machines its works turn out, the arms its works make for its realm.)
       const own = madeWares(world, cell, good),
         things =
-          good === G.machines || good === G.tools
+          good === G.machines
             ? own.filter((w) => w.share >= LEAST_PART)
-            : own.slice(0, 1);
+            : good === G.tools
+              ? toolWorks(own)
+              : good === G.clothing
+                ? clothWorks(own)
+                : own.slice(0, 1);
       for (const w of things) {
         const works = worksName(world, cell, good, w);
         if (!works || !named) continue;

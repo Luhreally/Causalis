@@ -774,13 +774,20 @@ body[data-world="methane"][data-scale="ground"]:not([data-daylight]) {
   image-rendering: auto;
 }
 /* A small picture is pressed to see it large (ui/thumbs.ts openZoom). */
-.thumb-zoomable {
+/* (A finger's 44 px to press, with the picture's own 28 drawn in the middle and the row laid out as before: its padding taken back by
+   its margins, the 6 px after it kept. Said of the canvas with both its classes, so a list's own rule for its picture's place, a makeup
+   row's or a board line's, does not undo it.) */
+canvas.thumb.thumb-zoomable {
   cursor: zoom-in;
-  /* (A finger's 44 px to press, with the picture's own 28 drawn in the middle and the row laid out as before.) */
   box-sizing: content-box;
   padding: 8px;
   margin: -8px -2px -8px -8px;
   touch-action: manipulation;
+}
+/* (A 26 px picture in a board line's 26 px column: its padding taken back on every side.) */
+.board-icon canvas.thumb.thumb-zoomable {
+  padding: 9px;
+  margin: -9px;
 }
 .thumb-zoom {
   position: fixed;

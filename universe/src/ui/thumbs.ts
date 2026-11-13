@@ -58,9 +58,16 @@ function draw(canvas: HTMLCanvasElement, p: Portrait, size: number): void {
  * A small picture's canvas, drawn once it is on screen (at once where the browser cannot tell). It is the size of the picture from the
  * first, so a row does not move when it is drawn.
  */
-export function lazyThumb(p: Portrait, size = 28, cls = "thumb"): HTMLCanvasElement {
-  const canvas = zoomable(document.createElement("canvas"), p);
+export function lazyThumb(
+  p: Portrait,
+  size = 28,
+  cls = "thumb",
+  label?: () => string,
+): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+  // (Its class first: the press's own class is added to it, not written over.)
   canvas.className = cls;
+  zoomable(canvas, p, label);
   canvas.style.width = `${size}px`;
   canvas.style.height = `${size}px`;
   if (typeof IntersectionObserver === "undefined") {
@@ -92,7 +99,7 @@ const SHOWS = new WeakMap<Element, Portrait>();
  * large in a window over the page, turning slowly, with all the detail a thumbnail leaves out (its shadow, a break's
  * ripples, a bow's string). Drawn only while it is open; shut by its ✕, a tap outside it, or Escape.
  */
-function zoomable(canvas: HTMLCanvasElement, p: Portrait): HTMLCanvasElement {
+function zoomable(canvas: HTMLCanvasElement, p: Portrait, label?: () => string): void {
   SHOWS.set(canvas, p);
   canvas.classList.add("thumb-zoomable");
   canvas.setAttribute("role", "button");
@@ -100,10 +107,20 @@ function zoomable(canvas: HTMLCanvasElement, p: Portrait): HTMLCanvasElement {
   canvas.addEventListener("click", (e) => {
     e.stopPropagation();
     e.preventDefault();
-    const row = canvas.closest(".entry, .board-row, li, tr, .makeup-row");
-    openZoom(p, (row?.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 90));
+    openZoom(p, (label ? label() : rowWords(canvas)).replace(/\s+/g, " ").trim().slice(0, 90));
   });
-  return canvas;
+}
+
+/** What a row says of its thing, without its numbers: its share, its amount, a price, a trend. */
+const NUMBERS = ".makeup-share, .makeup-amount, .makeup-swatch, .board-price, .board-tag";
+function rowWords(canvas: HTMLCanvasElement): string {
+  const row = canvas.closest(".entry, .board-row, li, tr, .makeup-row");
+  if (!row) return "";
+  const copy = row.cloneNode(true) as Element;
+  for (const e of copy.querySelectorAll(NUMBERS)) e.remove();
+  // (A board line's name and what it makes are two lines; said as one, with a comma between.)
+  for (const e of copy.querySelectorAll("small")) e.prepend(", ");
+  return copy.textContent ?? "";
 }
 
 let zoom: { readonly root: HTMLElement; frame: number } | null = null;

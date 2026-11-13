@@ -380,41 +380,216 @@ function ownPottery(world: World, cell: number): Raw[] {
   return out;
 }
 
-/** A land's clothes: woven of its own fibre and sewn of leather, by what its books say its weavers and tanners used. */
+/** What a land is, for how its garments and tools fall among them: read off its world, never kept. */
+type LandReads = {
+  /** Its mean warmth, °C. */
+  readonly warm: number;
+  /** Its workers' shares: farmers, foragers, herders, crafters (0..1 of its workers). */
+  readonly farm: number;
+  readonly forage: number;
+  readonly herd: number;
+  readonly craft: number;
+  /** Its woods: what stands of the forest it had, against a land all forest (0..1). */
+  readonly woods: number;
+  readonly mills: boolean;
+  readonly plough: boolean;
+  /** Its own bent for a thing: a keyed share, the same every reading, so two like lands do not sell the same. */
+  readonly bent: (id: string) => number;
+};
+
+function landReads(world: World, cell: number, m: Market): LandReads {
+  const ctx = populationContext(world),
+    p = ctx.provinces.get(cell),
+    workers = p
+      ? [OCC.forager, OCC.farmer, OCC.herder, OCC.crafter, OCC.trader, OCC.leader].reduce(
+          (n, o) => n + p.occupation(o),
+          0,
+        )
+      : 0,
+    share = (o: number) => (p && workers > 0 ? p.occupation(o) / workers : 0),
+    wilds = wildsOf(ctx, cell);
+  return {
+    warm: homePlanet(world).generated.climate.temperature[cell] ?? 15,
+    farm: share(OCC.farmer),
+    forage: share(OCC.forager),
+    herd: share(OCC.herder),
+    craft: share(OCC.crafter),
+    woods: Math.max(0, Math.min(1, wilds.forest * wilds.firstForest)),
+    mills: !!m.works && knows(world, cell, "factories"),
+    plough: knows(world, cell, "plough"),
+    bent: (id) => 0.7 + 0.6 * ((hashString(`${cell}:${id}`, 0x6761) >>> 0) / 4294967296),
+  };
+}
+
+/** How cold a land is: 0 at 22 °C and over, 1 at freezing and under. */
+const cold = (r: LandReads) => Math.max(0, Math.min(1, (22 - r.warm) / 22));
+
+/** A garment, its own thing (asked 2026-11-12: "it doesnt show the shoes and clothes sepratlety"): its form, and its weight among a land's. */
+type Garment = {
+  /** Its form, as it is drawn (ui/specimen.ts) and keyed. */
+  readonly form: string;
+  readonly plural: string;
+  readonly w: (r: LandReads) => number;
+};
+
+/** What is woven: the body's garment and a long one (shirts and dresses once mills make them), legs' garments, a cloak, a cap or a hat. */
+const WOVEN: readonly Garment[] = [
+  { form: "tunic", plural: "tunics", w: (r) => (r.mills ? 0 : 1) },
+  { form: "shirt", plural: "shirts", w: (r) => (r.mills ? 1 : 0) },
+  { form: "gown", plural: "gowns", w: (r) => (r.mills ? 0 : 0.55) },
+  { form: "dress", plural: "dresses", w: (r) => (r.mills ? 0.55 : 0) },
+  // (Legs wrapped where it is cold, and where they work at machines.)
+  { form: "trousers", plural: "trousers", w: (r) => 0.1 + 0.55 * cold(r) + (r.mills ? 0.3 : 0) },
+  { form: "cloak", plural: "cloaks", w: (r) => 0.05 + 0.6 * cold(r) },
+  { form: "cap", plural: "caps", w: (r) => (r.mills ? 0 : 0.08 + 0.2 * cold(r)) },
+  { form: "hat", plural: "hats", w: (r) => (r.mills ? 0.12 + 0.15 * cold(r) : 0) },
+];
+/** What is sewn of leather: what the feet go in (boots where it is cold, shoes, sandals where it is warm), and coats. */
+const SEWN: readonly Garment[] = [
+  { form: "boot", plural: "boots", w: (r) => (r.warm < 10 ? 1 : 0) },
+  { form: "shoe", plural: "shoes", w: (r) => (r.warm >= 10 && r.warm < 20 ? 1 : 0) },
+  { form: "sandal", plural: "sandals", w: (r) => (r.warm >= 20 ? 1 : 0) },
+  { form: "coat", plural: "coats", w: (r) => 0.25 + 0.9 * cold(r) },
+];
+const FOOT: ReadonlySet<string> = new Set(["boot", "shoe", "sandal"]);
+
+/**
+ * Whether a world's people have feet to shoe: a people that goes on legs, as its figures are drawn (view/figure.ts): not one that lives
+ * in the water, nor a mantle on a ring of arms. Earth's upright apes do.
+ */
+export function shod(world: World): boolean {
+  const b = homePlanet(world).generated.life.people?.body;
+  if (populationContext(world).medium === "water") return false;
+  return !b || (b.medium !== "water" && b.symmetry !== "radial" && b.manipulators !== "tentacles");
+}
+
+/**
+ * A land's clothes, a garment to a thing: woven of its own fibre and sewn of its own hides, by what its books say its weavers and tanners
+ * used; among them by how warm the land is and what it knows, and its own bent.
+ */
 function ownClothing(world: World, cell: number, m: Market): Raw[] {
   const cloth = clothOf(world, cell),
     woven = (m.book("used", G.wool) / 6) * 5,
     leather = (m.book("used", G.hides) / 4) * 3,
     dyed = knows(world, cell, "dyeing"),
-    mill = !!m.works && knows(world, cell, "factories"),
-    out: Raw[] = [];
-  if (woven > 0 || leather <= 0)
-    out.push({
-      key: `cloth:${cloth.kind}`,
-      name: `${dyed ? "dyed " : ""}${cloth.kind} clothes`,
-      ref: null,
-      w: Math.max(woven, 1e-6),
-      from: [mill ? "woven in the mills of " : "woven in ", landLink(world, cell, true)],
+    r = landReads(world, cell, m),
+    feet = shod(world),
+    out: Raw[] = [],
+    land = landLink(world, cell, true),
+    wovenFrom: Line = [r.mills ? "woven in the mills of " : "woven in ", land],
+    sewnFrom: Line = ["sewn by the tanners of ", land];
+  const split = (gs: readonly Garment[], total: number, each: (g: Garment, w: number) => void) => {
+    const ws = gs.map((g) => (FOOT.has(g.form) && !feet ? 0 : g.w(r) * r.bent(g.form))),
+      sum = ws.reduce((a, b) => a + b, 0);
+    gs.forEach((g, i) => {
+      if (ws[i]! > 0 && sum > 0) each(g, (total * ws[i]!) / sum);
     });
+  };
+  if (woven > 0 || leather <= 0)
+    split(WOVEN, Math.max(woven, 1e-6), (g, w) =>
+      out.push({
+        key: `cloth:${cloth.kind}:${g.form}`,
+        // (Dyed is said of what is worn on the body; a cloak or a cap is its fibre's own colour.)
+        name: `${dyed && /tunic|shirt|gown|dress/.test(g.form) ? "dyed " : ""}${cloth.kind} ${g.plural}`,
+        ref: null,
+        w,
+        from: wovenFrom,
+      }),
+    );
   if (leather > 0)
+    split(SEWN, leather, (g, w) =>
+      out.push({
+        key: `leather:${g.form}`,
+        name: `leather ${g.plural}`,
+        ref: null,
+        w,
+        from: sewnFrom,
+      }),
+    );
+  // (Where no hides are tanned, a warm land still goes shod, in sandals plaited of its fibre.)
+  else if (feet && r.warm >= 16 && woven > 0)
     out.push({
-      key: "leather",
-      name: "leather coats and boots",
+      key: `cloth:${cloth.kind}:sandal`,
+      name: `plaited ${cloth.kind} sandals`,
       ref: null,
-      w: leather,
-      from: ["sewn by the tanners of ", landLink(world, cell, true)],
+      w: woven * 0.12,
+      from: wovenFrom,
     });
   return out;
 }
 
-/** What a tool of each metal is, at a market: the things a smith would hang on the rack. */
-const TOOL_KINDS: Readonly<Record<ToolMetal, string>> = {
-  stone: "blades and scrapers",
-  copper: "axes and awls",
-  bronze: "axes and sickles",
-  iron: "ploughshares, axes and sickles",
-  steel: "saws, axes and ploughshares",
+/** A kind of tool a smith hangs on the rack: the metals it is made of, and what in a land it is wanted for. */
+type ToolKind = {
+  readonly form: string;
+  readonly plural: string;
+  readonly metals: readonly ToolMetal[];
+  readonly w: (r: LandReads) => number;
 };
+
+/**
+ * The tools of a land's racks, each by what the land does: axes and saws by its woods and its builders, ploughshares (where it knows the
+ * plough) and sickles by its farmers, awls and scrapers by its hunters' and herders' hides, a blade or a knife for everyone.
+ */
+const TOOL_KINDS: readonly ToolKind[] = [
+  { form: "blade", plural: "blades", metals: ["stone"], w: () => 0.6 },
+  {
+    form: "scraper",
+    plural: "scrapers",
+    metals: ["stone"],
+    w: (r) => 0.2 + 1.2 * r.forage + 0.5 * r.herd,
+  },
+  {
+    form: "awl",
+    plural: "awls",
+    metals: ["stone", "copper", "bronze"],
+    w: (r) => 0.1 + 0.6 * (r.forage + r.herd),
+  },
+  {
+    form: "axe",
+    plural: "axes",
+    metals: ["stone", "copper", "bronze", "iron", "steel"],
+    w: (r) => 0.25 + 1.1 * r.woods,
+  },
+  { form: "knife", plural: "knives", metals: ["copper", "bronze", "iron", "steel"], w: () => 0.3 },
+  {
+    form: "chisel",
+    plural: "chisels",
+    metals: ["copper", "bronze"],
+    w: (r) => 0.1 + 0.9 * r.craft,
+  },
+  {
+    form: "sickle",
+    plural: "sickles",
+    metals: ["bronze", "iron", "steel"],
+    w: (r) => 0.1 + 1.3 * r.farm,
+  },
+  {
+    form: "plough share",
+    plural: "ploughshares",
+    metals: ["iron", "steel"],
+    w: (r) => (r.plough ? 1.5 * r.farm : 0),
+  },
+  {
+    form: "saw",
+    plural: "saws",
+    metals: ["bronze", "iron", "steel"],
+    w: (r) => 0.1 + 0.6 * r.woods + 1.2 * r.craft,
+  },
+  {
+    form: "hammer",
+    plural: "hammers",
+    metals: ["iron", "steel"],
+    w: (r) => 0.08 + 0.8 * r.craft,
+  },
+];
+
+/** A tool kind's key word: "plough share" is keyed "plough-share". */
+const toolId = (form: string) => form.replace(/ /g, "-");
+
+/** A tool kind's form by its key word ("plough-share" → "plough share"). */
+export function toolForm(id: string): string {
+  return TOOL_KINDS.find((k) => toolId(k.form) === id)?.form ?? id;
+}
 
 /** A metal's name as its world makes it: "arsenical copper", "carbide iron". */
 function metalWord(world: World, metal: ToolMetal, cell: number): string {
@@ -424,8 +599,9 @@ function metalWord(world: World, metal: ToolMetal, cell: number): string {
 }
 
 /**
- * A land's tools by metal: each of its last five years' tools as headed with the metal its tools were headed with that year (the books
- * say so: sim/economy/market.ts toolMetals), and a better metal its smiths forge this year at a share of what heads a fair share of them.
+ * A land's tools, a metal and a kind to a thing: each of its last five years' tools as headed with the metal its tools were headed with
+ * that year (the books say so: sim/economy/market.ts toolMetals), and a better metal its smiths forge this year at a share of what heads
+ * a fair share of them; each metal's among its kinds by what the land does.
  */
 function ownTools(world: World, cell: number, m: Market): Raw[] {
   const by = new Map<ToolMetal, number>();
@@ -441,22 +617,32 @@ function ownTools(world: World, cell: number, m: Market): Raw[] {
     by.set(forged, (by.get(forged) ?? 0) + Math.max(1, total) * 0.12);
   const town = makingTown(world, cell),
     year = yearNow(world),
+    r = landReads(world, cell, m),
     smithy = () =>
       workshopOf(world, town?.ref ?? null, ["factory"], year) ??
       workshopOf(world, town?.ref ?? null, ["smithy", "workshop"], year);
-  return [...by].map(([metal, n]) => ({
-    key: `tools:${metal}`,
-    name: `${metalWord(world, metal, cell)} ${TOOL_KINDS[metal]}`,
-    ref: null,
-    w: n,
-    from: (): Line => {
-      if (metal === "stone") return ["knapped in ", landLink(world, cell, true)];
-      const at = smithy();
-      return at
-        ? ["made at ", link(at.name, at.ref)]
-        : ["made by the smiths of ", landLink(world, cell, true)];
-    },
-  }));
+  return [...by].flatMap(([metal, n]) => {
+    const kinds = TOOL_KINDS.filter((k) => k.metals.includes(metal)),
+      ws = kinds.map((k) => k.w(r) * r.bent(`${metal}:${k.form}`)),
+      sum = ws.reduce((a, b) => a + b, 0),
+      word = metalWord(world, metal, cell),
+      from = (): Line => {
+        if (metal === "stone") return ["knapped in ", landLink(world, cell, true)];
+        const at = smithy();
+        return at
+          ? ["made at ", link(at.name, at.ref)]
+          : ["made by the smiths of ", landLink(world, cell, true)];
+      };
+    return kinds
+      .map((k, i): Raw => ({
+        key: `tools:${metal}:${toolId(k.form)}`,
+        name: `${word} ${k.plural}`,
+        ref: null,
+        w: sum > 0 ? (n * ws[i]!) / sum : 0,
+        from,
+      }))
+      .filter((x) => x.w > 0);
+  });
 }
 const METALS_RANK: readonly ToolMetal[] = ["stone", "copper", "bronze", "iron", "steel"];
 

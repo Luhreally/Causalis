@@ -991,13 +991,17 @@ export function moves(p: Portrait): boolean {
   return p.kind !== "sign" && p.kind !== "arms";
 }
 
-/** Draw a page's picture into `canvas` (w × h CSS pixels) as it stands at `t` seconds. */
+/**
+ * Draw a page's picture into `canvas` (w × h CSS pixels) as it stands at `t` seconds. A specimen drawn large is at its fine level
+ * (ui/specimen.ts), unless `detail` asks for a level.
+ */
 export function drawPortrait(
   canvas: HTMLCanvasElement,
   p: Portrait,
   w: number,
   h: number,
   t: number,
+  detail?: "fine" | "coarse",
 ): void {
   const box = { x: 4, y: 4, w: w - 8, h: h - 8 };
   switch (p.kind) {
@@ -1061,7 +1065,7 @@ export function drawPortrait(
     case "thing":
     case "plant":
       // A specimen (Phase 54 M223): cut, poured or made as its stuff is, turning slowly.
-      drawSpecimen(surface(canvas, w, h), p, box, t);
+      drawSpecimen(surface(canvas, w, h), p, box, t, detail);
       return;
     case "company": {
       // A company's mark (asked 2026-11-12): its realm's shield, a pale roundel on it, and in that the thing it makes.
@@ -1069,9 +1073,10 @@ export function drawPortrait(
         sw = w * 0.86,
         sh = h * 0.94;
       drawArms(ctx, p.arms, (w - sw) / 2, (h - sh) / 2, sw, sh);
-      const r = w * 0.3,
+      // (The roundel as large as the shield's middle holds, so what the company makes reads even in a list's small picture.)
+      const r = w * 0.34,
         cx = w / 2,
-        cy = h * 0.47;
+        cy = h * 0.46;
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.fillStyle = "rgba(246,240,224,0.92)";
@@ -1079,7 +1084,8 @@ export function drawPortrait(
       ctx.strokeStyle = "rgba(40,28,14,0.7)";
       ctx.lineWidth = 1;
       ctx.stroke();
-      if (p.good) drawSpecimen(ctx, p.good, { x: cx - r, y: cy - r, w: r * 2, h: r * 2 }, 0);
+      if (p.good)
+        drawSpecimen(ctx, p.good, { x: cx - r, y: cy - r, w: r * 2, h: r * 2 }, t * 0.5, detail);
       return;
     }
     case "arms": {

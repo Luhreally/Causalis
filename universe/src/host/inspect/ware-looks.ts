@@ -13,6 +13,7 @@ import { realmArms } from "../arms.ts";
 import { clothLife, lifeHere } from "../biochem.ts";
 import { landCloth, landClay, landStone, landWood } from "../chain.ts";
 import { elementPortrait, madeHowOf, matterPortrait, thingPortrait } from "../looks.ts";
+import { toolForm } from "./wares.ts";
 
 type Rgb = readonly [number, number, number];
 /** A thing sold, as a page names it: its kind's key ("grass:12", "machine:cars", "arms:arm:rifle"), its page. */
@@ -173,15 +174,6 @@ function armsLook(world: World, cell: number, key: string): Portrait | null {
   });
 }
 
-/** What a tool of each metal is drawn as: the stone's flake, the copper axe, the bronze sickle, the iron share, the steel axe. */
-const TOOL_FORM: Readonly<Record<string, string>> = {
-  stone: "thing",
-  copper: "axe",
-  bronze: "sickle",
-  iron: "plough share",
-  steel: "axe",
-};
-
 /** The symbol of each of the three metals a market sells, its tin as its world's hardener. */
 const HARDENER: Readonly<Record<string, string>> = { tin: "Sn", arsenic: "As", nickel: "Ni" };
 
@@ -305,30 +297,36 @@ function lookOf(world: World, cell: number, good: number, w: Named): Portrait | 
       return p?.kind === "matter" ? { ...p, form: "glass" } : p;
     }
     case "cloth": {
-      const cloth = landCloth(world, cell);
+      // (A garment of the land's own fibre, in its colour: "cloth:<fibre>:<garment>".)
+      const cloth = landCloth(world, cell),
+        form = w.key.split(":")[2] ?? "tunic";
       return thingPortrait({
-        form: "tunic",
+        form,
         made: "woven",
         color: clothLife(world, cell, cloth).colour,
+        // (A plaited sandal's straps, and a garment's buttons or clasp, are of its land's wood.)
+        haft: woodColour(world, cell),
         quality: 60,
         worn: 0,
-        key: hashString(`${cell}:cloth`, 0x636c),
+        key: hashString(`${cell}:cloth:${form}`, 0x636c),
       });
     }
     case "leather":
       return thingPortrait({
-        form: "coat",
+        form: rest ?? "coat",
         made: "sewn",
         color: LEATHER,
+        haft: woodColour(world, cell),
         quality: 60,
         worn: 0,
-        key: hashString(`${cell}:leather`, 0x6c65),
+        key: hashString(`${cell}:leather:${rest ?? ""}`, 0x6c65),
       });
     case "tools": {
-      const metal = rest ?? "stone",
+      // ("tools:<metal>:<kind>": the one thing, of its metal, on a haft of its land's wood.)
+      const [, metal = "stone", kind = "axe"] = w.key.split(":"),
         stone = metal === "stone" ? landStone(world, cell).stone : null;
       return thingPortrait({
-        form: TOOL_FORM[metal] ?? "axe",
+        form: toolForm(kind),
         made: stone ? "knapped" : madeHowOf(metal, "tools"),
         color: stone ? stone.colour : metalColour(world, metal as Metal),
         haft: woodColour(world, cell),

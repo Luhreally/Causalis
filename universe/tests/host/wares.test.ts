@@ -11,6 +11,8 @@ import {
   grainName,
   tradeItems,
   tradeWords,
+  shod,
+  toolForm,
   waresBlock,
   waresOf,
 } from "../../src/host/inspect/wares.ts";
@@ -189,6 +191,49 @@ test("a grain is drawn in its world's own leaf: Earth's green and a far world's 
   assert.ok(pa?.kind === "plant" && pb?.kind === "plant");
   assert.notDeepEqual(pa.leaf, pb.leaf);
   assert.notDeepEqual(specimenParts(pa), specimenParts(pb));
+});
+
+test("one thing, one picture: a tool row is one tool of one metal, a garment row one garment, each drawn as itself", () => {
+  const tools = new Set<string>(),
+    worn = new Set<string>();
+  for (const p of lands) {
+    for (const w of waresOf(world, p.cell, G.tools)) {
+      if (!w.key.startsWith("tools:")) continue;
+      const [, , kind] = w.key.split(":"),
+        look = wareLook(world, p.cell, G.tools, w);
+      assert.ok(kind, `${w.key}: a tool row names its kind`);
+      assert.ok(!/ and |,/.test(w.name), `${w.name}: one thing, not several`);
+      assert.ok(
+        look?.kind === "thing" && look.form === toolForm(kind),
+        `${w.name} drawn as ${JSON.stringify(look)}`,
+      );
+      tools.add(toolForm(kind));
+    }
+    for (const w of waresOf(world, p.cell, G.clothing)) {
+      if (w.key === "others") continue;
+      const look = wareLook(world, p.cell, G.clothing, w),
+        form = w.key.split(":").at(-1)!;
+      assert.ok(!/ and |,/.test(w.name), `${w.name}: one garment`);
+      assert.ok(
+        look?.kind === "thing" && look.form === form,
+        `${w.name} drawn as ${JSON.stringify(look)}`,
+      );
+      worn.add(form);
+    }
+  }
+  for (const t of ["axe", "saw", "sickle", "plough share"])
+    assert.ok(tools.has(t), `${t} among the tools sold: ${[...tools].join(", ")}`);
+  assert.ok(
+    [...worn].some((f) => /tunic|shirt|gown|dress/.test(f)),
+    `a garment: ${[...worn].join(", ")}`,
+  );
+  assert.ok(
+    [...worn].some((f) => /boot|shoe|sandal/.test(f)),
+    `footwear: ${[...worn].join(", ")}`,
+  );
+  // (Earth's people go on feet; a people of the water has none to shoe.)
+  assert.equal(shod(world), true);
+  assert.equal(shod(ALIEN.build(seedFromText("kestrel 557"))), false);
 });
 
 test("reading moves no history", () => {
