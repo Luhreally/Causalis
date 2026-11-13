@@ -7,6 +7,11 @@
 //   3. its realm, pressed from the land's page: a realm's Learned tab, the same checks, where it has one;
 //   4. the annals tell when a lesson was first taken up;
 //   5. no page errors.
+// And its second step (asked 2026-11-12: "it should also be learned philosphies/logic and everything u learn ... more nuanced battle
+// tactics ... rn its says their learned to ram engines before they even have engines"): the land's tab in its three parts (from what
+// has cost them, by their own thought and finding, from others), the found shown a few at first and all at "show all"; what they
+// do named only by means they know; a realm's tactic row (a screen, formations, riders, supply trains), with what it cost them and
+// whether it worked.
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -28,6 +33,48 @@ const check = (ok: boolean, what: string) => {
 };
 const say = (s: string) => console.log(`  ${s}`);
 console.log("the gate of lessons learned (110)");
+
+/**
+ * Words of means and what a people must know to have them (rules/lessons.ts means, rules/designs.ts): any of these on a holder's
+ * tab without its needs known is the defect asked about ("ram engines before they even have engines").
+ */
+const MEANS: readonly [RegExp, string][] = [
+  [/throwing engines/, "siege-craft"],
+  [/great guns|powder mines|siege guns/, "gunpowder"],
+  [/pike and shot|skirmishers in open order|muskets/, "firearms"],
+  [/riflemen|fire by rank|\brifles\b/, "rifling"],
+  [/trenches, wire/, "automatic-fire"],
+  [/carts and depots/, "cart"],
+  [/trains to the front/, "railways"],
+  [/lorries/, "engines"],
+  [/on horseback|as horsemen/, "riding"],
+  [/in chariots/, "chariots"],
+  [/braced timber frames/, "carpentry"],
+  [/frames braced with steel/, "steel|made-oxygen|drawn-carbon"],
+  [/walls of stone/, "masonry|reef-building"],
+];
+/** The means a holder's tab names, in what they do now, without knowing them. */
+async function unknownMeans(ref: string, text: string): Promise<string[]> {
+  const known = new Set(
+    await k<string[]>(
+      `globalThis.causalis.client.query({ type: "lessons.knows", args: { ref: ${JSON.stringify(ref)} } })`,
+    ),
+  );
+  const does = text
+    .split("\n")
+    .filter((l) => /What they do now/i.test(l))
+    .join("\n");
+  return MEANS.filter(
+    ([re, needs]) => re.test(does) && !needs.split("|").some((n) => known.has(n)),
+  ).map(([re, needs]) => `${String(re)} without ${needs}`);
+}
+/** The tactics a battle teaches (rules/lessons.ts), by their tab titles. */
+const TACTICS: Readonly<Record<string, RegExp>> = {
+  "skirmish-screen": /A screen ahead of the line/i,
+  formations: /Formations that hold/i,
+  "mounted-wings": /Wings of their own riders/i,
+  "supply-trains": /Supply trains and depots/i,
+};
 
 /** Words a page must never show: a raw id, a number gone wrong, a word left unfilled. */
 const BAD = /\b(?:cell|pol|ev|town|war):\d+(?::\d+)?\b|undefined|NaN|null|\[object/;
@@ -186,13 +233,58 @@ if (land) {
       /What they do now/i.test(text) && /Has it worked/i.test(text),
       `a land: no “what they do now” or “has it worked”`,
     );
+    // Its three parts: from what has cost them, by their own thought and finding, from others.
+    check(/From what has cost them/i.test(text), "a land: no “from what has cost them”");
+    check(
+      /By their own thought and finding/i.test(text),
+      "a land: no “by their own thought and finding”",
+    );
+    check(/From others/i.test(text), "a land: no “from others”");
+    check(
+      /By their own thought and finding: [\d,]+ \([a-z ,]+ \d+/i.test(text),
+      `a land: what they found is not told by field: ${(text.match(/By their own thought[^\n]*/i) ?? [""])[0]}`,
+    );
+    const bad = await unknownMeans(land.ref, text);
+    check(bad.length === 0, `a land names means it does not know: ${bad.join("; ")}`);
     await shot("1-land");
+    // The few shown first; all at "show all", by touch.
+    const rows = () =>
+      k<number[]>(
+        `[...document.querySelectorAll(".page-window .page-body .table-wrap")].map((t) => t.querySelectorAll("tbody tr").length)`,
+      );
+    const before = await rows(),
+      showAll = await k<number>(
+        `[...document.querySelectorAll(".page-window .page-body .show-all")].filter((b) => !b.hidden).length`,
+      );
+    say(`the land's tables: ${before.join(", ")} rows shown; ${showAll} with more at “show all”`);
+    check(
+      before.length >= 2,
+      `a land: its found and its learned from others not both drawn (${before.length} tables)`,
+    );
+    if (showAll) {
+      await press(".page-window .page-body .show-all:not([hidden])", "show all");
+      const after = await rows();
+      say(`after “show all”: ${after.join(", ")} rows`);
+      check(
+        after.reduce((a, b) => a + b, 0) > before.reduce((a, b) => a + b, 0),
+        "“show all” showed no more",
+      );
+      const offAll = await offScreen();
+      check(offAll.length === 0, `a land, all shown: off the screen: ${offAll.join(" | ")}`);
+      await shot("1b-land-all");
+    }
     // 3. Its realm, pressed from the page's own link.
     const realm = await k<string | null>(
       `(() => { const a = document.querySelector('.page-window a.ref-link[href^="#pol:"]'); return a ? a.getAttribute("href").slice(1) : null; })()`,
     );
-    const target = realms.find((r) => r.ref === realm) ? realm : (realms[0]?.ref ?? null);
-    if (realm && target === realm) {
+    // (A realm with a tactic a battle taught it, where any has one; else the land's own.)
+    const tactical = realms.find((r) => r.lessons.some((l) => l in TACTICS)),
+      target = tactical
+        ? tactical.ref
+        : realms.find((r) => r.ref === realm)
+          ? realm
+          : (realms[0]?.ref ?? null);
+    if (realm && target === realm && !tactical) {
       await press(`.page-window a.ref-link[href="#${realm}"]`, "the land's realm");
       await until("its realm's page", async () => (await pageNow()) === realm);
     } else if (target) await k(`globalThis.causalis.open(${JSON.stringify(target)})`);
@@ -200,6 +292,26 @@ if (land) {
       const text = await learnedTab(target, "a realm");
       say(`the realm's tab: ${text.replace(/\s+/g, " ").slice(0, 400)}`);
       await checkSection(text, "a realm");
+      const badR = await unknownMeans(target, text);
+      check(badR.length === 0, `a realm names means it does not know: ${badR.join("; ")}`);
+      if (tactical) {
+        const [id, re] = Object.entries(TACTICS).find(([t]) => tactical.lessons.includes(t))!,
+          at = text.search(re),
+          row = at >= 0 ? text.slice(at, at + 400) : "";
+        say(`its tactic: ${row.replace(/\s+/g, " ").slice(0, 300)}`);
+        check(at >= 0, `a realm that leans on ${id}: no row for it on its tab`);
+        check(
+          /men [\w' ]+ in (?:a year|[\d,]+ years) \([\d,]+ battles?\)/i.test(row) &&
+            /Has it worked/i.test(row),
+          `a realm's tactic row without what it cost them in battles, or whether it worked: ${row.slice(0, 200)}`,
+        );
+        // Its row in view, as the eye sees it.
+        await k(`(() => {
+          for (const h of document.querySelectorAll(".page-window .page-body h3"))
+            if (${String(re)}.test(h.textContent)) { h.scrollIntoView({ block: "start" }); return; }
+        })()`);
+        await page.waitForTimeout(slow(300));
+      }
       await shot("2-realm");
     } else say("no realm with a lesson to open");
   }

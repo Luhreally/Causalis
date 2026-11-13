@@ -970,6 +970,14 @@ function planetUniverse(name: string, prior: Prior): Universe {
       "speed.tally": (world) => speedTally(world),
       /** Who has learned what from what cost them (the lessons): each land and realm with a lesson, the most learned first. */
       "lessons.held": (world) => lessonsHeld(world),
+      /** What a land knows, or a realm at its seat: the principles its lore holds (for the gates: words of means it has not are a defect). */
+      "lessons.knows": (world, args) => {
+        const ref = (args as { ref: string }).ref,
+          cell = ref.startsWith("cell:0:")
+            ? Number(ref.slice(7))
+            : (politiesOf(world).get(ref as Ref)?.seat ?? null);
+        return cell === null ? [] : loreOf(world).of(cell).map(([id]) => id);
+      },
       /** Each lesson some people of the world has taken up, and the year the first did. */
       "lessons.firsts": (world) =>
         (lessonsOf(world)?.firsts ?? []).map(([lesson, year]) => ({ lesson, year })),
