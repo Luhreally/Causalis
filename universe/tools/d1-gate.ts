@@ -38,13 +38,8 @@ import {
   type Polity,
 } from "../src/sim/index.ts";
 import { claimAtDeath } from "../src/sim/war/ties.ts";
-import {
-  blocPage,
-  envoyPage,
-  leaguePage,
-  matchPage,
-  realmTiesTab,
-} from "../src/host/inspect/ties.ts";
+import { envoyPage, matchPage, realmTiesTab } from "../src/host/inspect/ties.ts";
+import { blocPage, leaguePage } from "../src/host/inspect/alliance.ts";
 import { warPage } from "../src/host/inspect/realm.ts";
 import { claimOf } from "../src/host/inspect/words.ts";
 import { blocsOf } from "../src/host/inspect/ties.ts";

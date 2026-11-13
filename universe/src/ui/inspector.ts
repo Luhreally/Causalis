@@ -1078,6 +1078,11 @@ export class PageWindow {
           r.cells.forEach((c, i) => {
             const td = el("td");
             if (i === 0 && r.thumb) td.append(thumbOf(r.thumb));
+            if (i === 0 && r.swatch) {
+              const dot = el("span", "swatch");
+              dot.style.background = `rgb(${r.swatch.map((c) => Math.round(c * 255)).join(",")})`;
+              td.append(dot);
+            }
             td.append(this.line(c));
             tr.append(td);
           });

@@ -366,6 +366,10 @@ export const GATES: readonly Gate[] = [
   // touch at a phone's size; where its life began and on what, when its air changed; its first seas' drop under the glass,
   // its stocks and roles, another world beside it; their places and small lives apart on the screen and in the pixels.
   { gate: 111, args: ["--ci"], s: 600 },
+  // Gate 114, an alliance read whole (tools/alliance-pages-gate.ts): on first light at 450, every alliance's realms adding up to its totals and its
+  // six tabs read; by touch at a phone's size, the lens chosen with the camera still, every alliance ranked, the greatest's tabs each with its
+  // numbers and its Members table adding up on the screen, set beside another, its "On the map" from another lens; nothing off the screen.
+  { gate: 114, args: ["--ci"], s: 600 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */

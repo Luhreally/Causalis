@@ -381,6 +381,16 @@ await shot("1-lens");
   await tap(".legend-action", "Every alliance");
   await until("the list", async () => (await pageNow()) === "world:alliances");
   await until("its alliances", async () => /By their people/i.test(await pageText()));
+  // (Ranked first, by their heads' seats; each with its realms under its own tab.)
+  for (const a of read.alliances.slice(0, 8))
+    check((await pageText()).includes(a.town), `the ranking leaves out ${a.town}`);
+  await tap(".page-window .tabs .tab:nth-child(2)", "the tab of their realms");
+  await until(
+    "their realms",
+    async () =>
+      /Their realms/.test(await pageText()) &&
+      (await pageText()).toLowerCase().includes(read.alliances[0]!.name.toLowerCase()),
+  );
   const text = await pageText();
   say(`the list: ${text.replace(/\s+/g, " ").slice(0, 300)}`);
   for (const a of read.alliances)
@@ -392,7 +402,7 @@ await shot("1-lens");
   await settle(400);
   await shot("4b-list-members");
   const second = await k<{ name: string; ref: string } | null>(
-    `globalThis.causalis.client.query({ type: "page", args: { ref: ${JSON.stringify(read.alliances[0]!.ref)} } }).then((p) => { const it = p.tabs[0].blocks[0].items[1]; return it ? { name: it.line[0].text, ref: it.ref } : null; })`,
+    `globalThis.causalis.client.query({ type: "page", args: { ref: ${JSON.stringify(read.alliances[0]!.ref)} } }).then((p) => { const it = p.tabs[0].blocks.find((b) => b.title === "Who stands in it")?.items[1]; return it ? { name: it.line[0].text, ref: it.ref } : null; })`,
   );
   if (second) {
     await tap(".page-window .entry", `${second.name} on the list`, second.name);

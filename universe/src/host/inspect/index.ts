@@ -18,14 +18,8 @@ import { landOfRef, landPage, spotPage } from "./land.ts";
 import { agentPage, householdPage, memoryPage, personPage, townPage } from "./settled.ts";
 import { shipPage } from "../starfight.ts";
 import { battlePage, realmPageModel, relationPage, starWarPage, warPage } from "./realm.ts";
-import {
-  allianceOfLand,
-  alliancesPage,
-  blocPage,
-  envoyPage,
-  leaguePage,
-  matchPage,
-} from "./ties.ts";
+import { allianceOfLand, envoyPage, matchPage } from "./ties.ts";
+import { allianceComparePage, alliancesPage, blocPage, leaguePage } from "./alliance.ts";
 import { busPage, roadPage } from "./road.ts";
 import { askPage } from "./asks.ts";
 import { boardPage, dearPage } from "./board.ts";
@@ -113,6 +107,8 @@ function build(
   if (ref === "world:tree") return treePage(world, tab ?? undefined);
   if (ref.startsWith("clade:")) return cladePage(world, ref);
   if (ref.startsWith("compare:")) return comparePage(world, ref);
+  // Two alliances side by side.
+  if (ref.startsWith("allyvs:")) return allianceComparePage(world, ref);
   if (ref.startsWith("concept:")) return conceptPage(world, ref);
   if (ref.startsWith("trait:")) return traitPage(world, ref);
   // Matter (Phase 15 M122): substances, reactions, principles, goods the world over.
