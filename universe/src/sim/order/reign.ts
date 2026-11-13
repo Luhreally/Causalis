@@ -44,6 +44,7 @@ import {
 } from "../polity/polity.ts";
 import { interestsOf, pressure } from "../polity/interests.ts";
 import { WAR, WAR_EVENTS, fieldedOf, frontier, strengthOf, warsOf } from "../war/war.ts";
+import { godMen } from "../war/godhost.ts";
 import {
   bindPeace,
   bondsOf,
@@ -304,7 +305,7 @@ export function warProblem(
   const st = stationOf(ctx, r);
   if (!channel && st.legitimacy < REIGN.marchLine)
     return `Only ${pct(st.legitimacy)} in a hundred hold your rule rightful: no one will march for you.`;
-  if (fieldedOf(ctx, r) < 1) return "You have no one to send.";
+  if (fieldedOf(ctx, r) + godMen(ctx.world, r.ref) < 1) return "You have no one to send.";
   return channel ? null : carryProblem(st, warVoices(ctx, r, foe, t));
 }
 

@@ -325,6 +325,7 @@ export type {
   ReignPerson,
   ReignRole,
   ReignCourt,
+  ReignGod,
   ReignWar,
   ReignWars,
 } from "./reign.ts";

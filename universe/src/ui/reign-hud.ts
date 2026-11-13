@@ -6,6 +6,7 @@
 // them, and courts groups or moves on the seat; and a switch on the bar, as a mortal or the god in them, says which.
 import type {
   ReignCourt,
+  ReignGod,
   ReignDecrees,
   ReignDrama,
   ReignFall,
@@ -34,7 +35,7 @@ const many = (n: number) =>
       : Math.round(n).toLocaleString("en-US");
 const worth = (n: number) => (n >= 100 ? `${Math.round(n)}` : n.toFixed(1));
 /** The sheets the tray opens. */
-export type ReignSheet = "decrees" | "wars" | "matches" | "envoys" | "factions";
+export type ReignSheet = "decrees" | "wars" | "matches" | "envoys" | "factions" | "god";
 const ROLE_ICON: Readonly<Record<string, string>> = {
   heir: "👪",
   rival: "🗡️",
@@ -90,6 +91,10 @@ export class ReignHud {
   /** A group courted, a move on the seat (one of a court). */
   onBack: (group: string) => void = () => {};
   onPlot: () => void = () => {};
+  /** The god's hand through them: a thing done, the realm it is aimed at, the god's own palette opened. */
+  onGod: (args: Readonly<Record<string, unknown>>, label: string) => void = () => {};
+  onGodAim: (realm: string) => void = () => {};
+  onPalette: () => void = () => {};
   /** One of a court gone from it: rule as them (they hold the seat), or the one who rules. */
   onRuleAfter: (seated: boolean) => void = () => {};
   onEnvoy: (to: string, errand: string, name: string) => void = () => {};
@@ -143,6 +148,7 @@ export class ReignHud {
       ["💍", "Marry", "matches"],
       ["🕊️", "Envoy", "envoys"],
       ["🤝", "Factions", "factions"],
+      ["🌟", "God's hand", "god"],
     ] as const) {
       const b = el("button", "life-offer reign-act");
       b.dataset.act = kind;
@@ -222,6 +228,46 @@ export class ReignHud {
       : "Everything is bounded by their station; press to channel the god into them";
     this.channel.setAttribute("aria-pressed", on ? "true" : "false");
     this.strip.classList.toggle("channelled", on);
+    const hand = this.tray.querySelector<HTMLElement>('.reign-act[data-act="god"]');
+    if (hand) hand.hidden = !on;
+    this.element.classList.toggle("godhand", on);
+  }
+
+  /** The god's hand through them: whom it is aimed at, and what it can do to them. */
+  god(d: ReignGod): void {
+    const body: HTMLElement[] = [el("p", "life-winwords reign-godwords", d.words)];
+    const palette = el("button", "life-choice reign-palette", "✋ The god's palette and brushes");
+    palette.onclick = () => this.onPalette();
+    body.push(palette);
+    const aims = el("div", "reign-aims");
+    for (const t of d.targets) {
+      const b = el(
+        "button",
+        `life-choice reign-aim${t.ref === d.target ? " on" : ""}`,
+        `${t.own ? "👑 Your realm" : t.short}${t.atWar ? " ⚔️" : ""}`,
+      );
+      b.dataset.ref = t.ref;
+      b.setAttribute("aria-pressed", t.ref === d.target ? "true" : "false");
+      b.style.borderLeft = `6px solid rgb(${t.color.map((x) => Math.round(x * 255)).join(",")})`;
+      b.onclick = () => this.onGodAim(t.ref);
+      aims.append(b);
+    }
+    body.push(aims);
+    for (const g of d.groups) {
+      const box = el("div", "reign-law reign-godgroup");
+      box.append(el("div", "reign-lawtitle", g.title));
+      for (const o of g.offers) {
+        const b = el("button", `life-choice reign-god${o.can ? "" : " refused"}`, o.label);
+        b.dataset.what = String(o.args.what);
+        if (o.args.arms) b.dataset.arms = String(o.args.arms);
+        if (o.args.men) b.dataset.men = String(o.args.men);
+        b.dataset.can = o.can ? "1" : "0";
+        b.onclick = () => (o.can ? this.onGod(o.args, o.label) : this.answer(o.words));
+        box.append(b, el("div", "reign-optwords", o.words));
+      }
+      body.push(box);
+    }
+    this.open_("🌟 The god's hand", ...body);
   }
 
   set(l: ReignNow, t: number, pace: "stop" | "slow" | "quick"): void {
@@ -241,7 +287,12 @@ export class ReignHud {
     );
     for (const b of this.tray.querySelectorAll<HTMLElement>(".reign-act")) {
       const act = b.dataset.act ?? "",
-        hide = role ? act === "matches" || act === "envoys" : act === "factions";
+        hide =
+          act === "god"
+            ? this.channel.dataset.on !== "1"
+            : role
+              ? act === "matches" || act === "envoys"
+              : act === "factions";
       if (b.hidden !== hide && act !== "bonds") b.hidden = hide;
       if (act === "decrees") put(b.querySelector(".life-label")!, role ? "Propose" : "Decrees");
     }

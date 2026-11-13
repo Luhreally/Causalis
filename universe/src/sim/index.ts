@@ -668,6 +668,20 @@ export {
   isFortuneStrength,
   type Fortune,
 } from "./acts/fortune.ts";
+export {
+  GOD_ACTS,
+  GOD_AGE,
+  GOD_EVENTS,
+  GOD_HOSTS,
+  GOD_HOST_MOST,
+  GOD_PAIRED,
+  godProblem,
+  type GodAct,
+  type GodArgs,
+} from "./order/godhand.ts";
+export { GOD_HOST_LEAST, godHostsOf, godMen, godPower, type GodHost } from "./war/godhost.ts";
+export { bestHostFor } from "./design/design.ts";
+export { openTo } from "./lore/lore.ts";
 export { DISASTER, DISASTER_EVENTS, installDisasters } from "./acts/disasters.ts";
 export {
   SWITCHES,

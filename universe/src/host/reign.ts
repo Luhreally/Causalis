@@ -8,6 +8,7 @@ import {
   REIGN,
   ROLE,
   decreeCost,
+  designWords,
   plotOdds,
   warCost,
   type PeaceOffer,
@@ -81,6 +82,7 @@ import type {
   ReignPerson,
   ReignRole,
   ReignCourt,
+  ReignGod,
   ReignWar,
   ReignWars,
 } from "../bridge/index.ts";
@@ -88,6 +90,8 @@ import { dramaOf, titleOf as courtTitle } from "./court.ts";
 import { familyOf, type Family } from "./kin.ts";
 import { seatTownOf } from "./leaders.ts";
 import { wealthBook } from "./wealth.ts";
+import { realmColor } from "./colors.ts";
+import { GOD_AGE, GOD_HOSTS, bestHostFor, godMen, godProblem, type GodAct } from "../sim/index.ts";
 import { bare, claimOf } from "./inspect/words.ts";
 import { landTitle } from "./inspect/names.ts";
 import type { QueryHandler } from "./host.ts";
@@ -430,7 +434,7 @@ export function reignNow(
     people,
     lands: r.members.length,
     beyond: st.beyond.length,
-    host: Math.round(fieldedOf(ctx, r)),
+    host: Math.round(fieldedOf(ctx, r)) + godMen(world, r.ref),
     legitimacy: st.legitimacy,
     unrest,
     tithe: Math.round(r.tribute * 100),
@@ -881,6 +885,223 @@ function reignEnvoys(world: World, realm: unknown, channel = false): ReignEnvoys
 }
 
 /** One of a court's own sheet: the groups they could court to stand behind them, and a move on the seat. */
+/** The god's hand through them: whom it can be aimed at (their own realm, and those they have met), and what it can do. */
+function reignGod(world: World, realm: unknown, as: As, aim: unknown): ReignGod | null {
+  const realms = politiesOf(world),
+    r = typeof realm === "string" ? realms.get(realm as Ref) : undefined;
+  if (!r || r.ended !== null) return null;
+  const held = heldFig(world, r, as),
+    who = held
+      ? { realm: r.ref, fig: held.f.id, name: held.f.name }
+      : { realm: r.ref, ruler: r.ruler.name },
+    name = held ? held.f.name : r.ruler.name,
+    ctx = populationContext(world),
+    wars = warsOf(world),
+    atWar = (q: Polity) =>
+      wars
+        .fighting(r.ref)
+        .some((w) => w.ended === null && (w.attacker === q.ref || w.defender === q.ref)),
+    met = diplomacyOf(world)
+      .of(r.ref)
+      .map((x) => realms.get(x.a === r.ref ? x.b : x.a))
+      .filter((q): q is Polity => !!q && q.ended === null)
+      .sort((a, b) => b.members.length - a.members.length || (a.ref < b.ref ? -1 : 1))
+      .slice(0, 11),
+    to = met.find((q) => q.ref === aim) ?? r,
+    own = to === r,
+    best = bestHostFor(ctx),
+    bestWords = best.parts.length ? designWords(best.parts) : "",
+    offer = (label: string, what: GodAct, more: Record<string, unknown>, does: string) => {
+      const args = {
+          what,
+          ...(own ? {} : GOD_PAIRED_ACTS.has(what) ? { with: to.ref } : { to: to.ref }),
+          ...more,
+        },
+        bad = godProblem(world, ctx, { ...who, channel: true, ...args });
+      return { label, args, can: !bad, words: bad ?? does };
+    },
+    them = own ? "your realm" : realmName(to),
+    groups: ReignGod["groups"][number][] = [
+      {
+        title: `⚔️ A host for ${them}, out of nothing`,
+        offers: [
+          ...(own
+            ? [
+                offer(
+                  `🛡️ ${many(GOD_HOSTS[0])}, armed as it arms them`,
+                  "host",
+                  { men: GOD_HOSTS[0], arms: "theirs" },
+                  "They stand up at its seat, armed as its smiths arm them now, and stand in its host until they fall, wasting a little each year.",
+                ),
+                offer(
+                  `🛡️ ${many(GOD_HOSTS[1])}, armed as it arms them`,
+                  "host",
+                  { men: GOD_HOSTS[1], arms: "theirs" },
+                  "They stand up at its seat, armed as its smiths arm them now.",
+                ),
+              ]
+            : []),
+          offer(
+            `🌟 ${many(GOD_HOSTS[1])} with the best arms its world allows`,
+            "host",
+            { men: GOD_HOSTS[1], arms: "best" },
+            `Armed with ${bestWords}: the best its world's matter allows, though no one of its people can make them yet.`,
+          ),
+          offer(
+            `🌟 ${many(GOD_HOSTS[2])} with the best arms its world allows`,
+            "host",
+            { men: GOD_HOSTS[2], arms: "best" },
+            `A million armed with ${bestWords}. No realm on this world could stand against them.`,
+          ),
+        ],
+      },
+      {
+        title: `🌾 Stores and people of ${them}`,
+        offers: [
+          offer(
+            "🌾 A year's bread for all its people",
+            "grain",
+            {},
+            "Grain in every land's stores: a year of it for everyone who lives there.",
+          ),
+          offer(
+            "💰 Double its wealth",
+            "wealth",
+            {},
+            "Every store of every land of it doubled: its wealth a head with them.",
+          ),
+          ...(own
+            ? []
+            : [
+                offer(
+                  "🪙 Halve its wealth",
+                  "poorer",
+                  {},
+                  "Every store of every land of it halved.",
+                ),
+              ]),
+          offer(
+            "👥 Half as many people again",
+            "people",
+            {},
+            "Half as many again in every land, of every age and trade as are there.",
+          ),
+          ...(own
+            ? [
+                offer(
+                  "🏘️ A town on an empty land beside it",
+                  "town",
+                  {},
+                  "A town of five thousand on the nearest empty land beside it, with a year's bread: of your realm.",
+                ),
+              ]
+            : []),
+        ],
+      },
+      {
+        title: `📚 What ${them} knows`,
+        offers: [
+          offer(
+            "💡 The next craft it could find",
+            "craft",
+            {},
+            "Every land of it knows its next craft, as if found there this year.",
+          ),
+          offer(
+            `📚 An age of learning (${GOD_AGE} crafts)`,
+            "age",
+            {},
+            `Every land of it comes to the next ${GOD_AGE} crafts its people could, each opening the next: never what its world's matter cannot hold.`,
+          ),
+        ],
+      },
+      {
+        title: `⚖️ The rule of ${them}`,
+        offers: [
+          offer(
+            "👑 Every voice holds its rule rightful",
+            "rightful",
+            {},
+            "Nearly all its people hold its rule rightful from this day.",
+          ),
+          ...(own
+            ? []
+            : [
+                offer(
+                  "🗡️ Its rule held wrongful",
+                  "wrongful",
+                  {},
+                  "Hardly anyone holds its rule rightful: it may not stand.",
+                ),
+              ]),
+          offer("🕊️ Every land content", "calm", {}, "Every grievance in its lands forgotten."),
+          ...(own
+            ? []
+            : [
+                offer(
+                  "🔥 Every land in grievance",
+                  "stir",
+                  {},
+                  "Every land of it holds a grievance against its rule.",
+                ),
+              ]),
+        ],
+      },
+      ...(own
+        ? []
+        : [
+            {
+              title: `🤝 Between your realm and ${realmName(to)}`,
+              offers: [
+                ...(atWar(to)
+                  ? [
+                      offer(
+                        "🕊️ Peace now",
+                        "peace",
+                        {},
+                        "The war ends in a truce, whatever either side would.",
+                      ),
+                    ]
+                  : [
+                      offer(
+                        "⚔️ War now",
+                        "war",
+                        {},
+                        "Your realm goes to war on them, whatever its voices would.",
+                      ),
+                    ]),
+                offer(
+                  "🤝 A pact sworn",
+                  "pact",
+                  {},
+                  "They are sworn to each other, whatever either thinks of the other.",
+                ),
+                offer("🙇 Sworn to you", "swear", {}, "They swear themselves to your realm."),
+                offer(
+                  "🗺️ Take a land of theirs",
+                  "annex",
+                  {},
+                  "The land of theirs nearest yours is yours.",
+                ),
+              ],
+            },
+          ]),
+    ];
+  return {
+    words: `🌟 The god in ${name} can do what no one could: stand up a host out of nothing, fill stores, people lands, give learning, make or unmake a rule, end or begin a war. Each thing done is told in the annals as done by the god in them. Nothing its world's physics forbids: no craft its matter cannot hold, no war where no road lies.`,
+    target: to.ref,
+    targets: [r, ...met].map((q) => ({
+      ref: q.ref,
+      short: q.town,
+      color: realmColor(q.ref),
+      own: q === r,
+      atWar: q !== r && atWar(q),
+    })),
+    groups,
+  };
+}
+const GOD_PAIRED_ACTS = new Set<GodAct>(["peace", "war", "pact", "swear", "annex"]);
+
 function reignCourt(world: World, realm: unknown, as: As): ReignCourt | null {
   const r = realmOf(world, realm),
     held = r ? heldFig(world, r, as) : null;
@@ -961,6 +1182,9 @@ export const REIGN_QUERIES: Readonly<Record<string, QueryHandler>> = {
     reignEnvoys(world, (args as RealmArgs).realm, asOf(args).channel),
   /** One of a court's own: the groups to court, a move on the seat. */
   "reign.court": (world, args) => reignCourt(world, (args as RealmArgs).realm, asOf(args)),
+  /** The god's hand through them: whom it can be aimed at, and what it can do. */
+  "reign.godhand": (world, args) =>
+    reignGod(world, (args as RealmArgs).realm, asOf(args), (args as { to?: unknown }).to),
   /** What has been done by a ruler's word in a realm. */
   "reign.deeds": (world, args) => reignDeeds(world, (args as RealmArgs).realm),
 };

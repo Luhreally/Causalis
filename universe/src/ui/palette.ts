@@ -470,6 +470,8 @@ export class GodPalette {
   onOpen: (ref: string) => void = () => {};
   /** The palette took an act in hand, or put it down. */
   onArmed: (armed: boolean) => void = () => {};
+  /** The palette opened or shut. */
+  onShown: (open: boolean) => void = () => {};
   /**
    * One of a town's people touched with Possess in hand (Phase 60): the town and where in it; told
    * why they cannot be taken (null: taken, the act put down).
@@ -477,15 +479,18 @@ export class GodPalette {
   onPossess: (town: string | null, place?: TownPlace) => Promise<string | null> = async () =>
     "possession is not to be had here";
 
+  /** Open the palette, or shut it (and put down what is in hand). */
+  show(open: boolean): void {
+    this.element.classList.toggle("open", open);
+    if (!open) this.putDown();
+    this.onShown(open);
+  }
+
   constructor(parent: HTMLElement, client: HostClient) {
     this.client = client;
     this.toggle.title = "The god's hand: acts on the lands, the towns, the peoples, the world";
     this.toggle.setAttribute("aria-label", "The god's hand");
-    this.toggle.onclick = () => {
-      const open = !this.element.classList.contains("open");
-      this.element.classList.toggle("open", open);
-      if (!open) this.putDown();
-    };
+    this.toggle.onclick = () => this.show(!this.element.classList.contains("open"));
     for (const k of PALETTE_KINDS) {
       const b = el("button", "palette-tab", k.icon);
       b.title = k.name;

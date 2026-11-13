@@ -1,12 +1,15 @@
 // A ruler ruled by the god's hand in words (Lives L4): the marriage of state, and the commands' own lines. A law set,
 // a tithe, a war and a peace are told by the words those already have, which say whose word it was.
 import { yearOfMoment, type Ref } from "../kernel/index.ts";
+import { principle } from "../rules/index.ts";
 import {
+  GOD_EVENTS,
   REIGN_EVENTS,
   ROLE_EVENTS,
   politiesOf,
   realmName,
   type BackArgs,
+  type GodArgs,
   type ProposeArgs,
   type RoleArgs,
   type WarArgs,
@@ -88,4 +91,69 @@ registerCommandWords("role.back", (world, c) => {
 registerCommandWords("role.plot", (world, c) => {
   const a = c.args as RoleArgs;
   return `Your act: as ${a.name} you moved on the seat of ${called(world, a.realm)}${a.channel ? ", the god in you" : ""}, year ${yearOfMoment(c.t)}`;
+});
+
+// The god's hand through one it entered (2026-11-13): each thing done, told as done by the god in them.
+const many = (n: number) => `${Math.round(n)}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+const craftName = (id: string) => {
+  if (id === "cultivation") return "cultivation";
+  try {
+    return principle(id).name;
+  } catch {
+    return id;
+  }
+};
+const listed = (xs: readonly string[]) =>
+  xs.length < 2 ? (xs[0] ?? "nothing") : `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}`;
+/** What the god's hand did, in words: "1,000,000 men stood up at Doudrethath for ...". */
+export function godDone(d: Record<string, unknown> | null): string {
+  const of = String(d?.of ?? "a realm"),
+    other = String(d?.with ?? "another realm"),
+    at = String(d?.at ?? "its seat"),
+    worth = (n: unknown) => (Number(n) >= 100 ? many(Number(n)) : Number(n).toFixed(1));
+  switch (d?.what) {
+    case "host":
+      return `${many(Number(d.men))} men stood up at ${at} for ${of}, bearing ${String(d.arms)}${d.best ? ", the best arms its world's matter allows" : ""}`;
+    case "grain":
+      return `${many(Number(d.grain))} measures of grain filled the stores of ${of}, a year's bread for all its people`;
+    case "wealth":
+      return `the stores of ${of} were doubled, from ${worth(d.before)} to ${worth(d.after)} a head`;
+    case "poorer":
+      return `the stores of ${of} were halved, from ${worth(d.before)} to ${worth(d.after)} a head`;
+    case "people":
+      return `${many(Number(d.people))} more people were in the lands of ${of}`;
+    case "town":
+      return `a town of ${many(Number(d.people))} stood up on an empty land beside ${at}, and is of ${of}`;
+    case "craft":
+    case "age": {
+      const crafts = Array.isArray(d.crafts) ? (d.crafts as string[]).map(craftName) : [];
+      return `${d.what === "age" ? "an age of learning came to" : "a craft came to"} ${of}: ${listed(crafts)}`;
+    }
+    case "rightful":
+    case "wrongful":
+      return `${Math.round(Number(d.to) * 100)} in a hundred held the rule of ${of} rightful, where ${Math.round(Number(d.from) * 100)} had`;
+    case "calm":
+      return `every land of ${of} was content with its rule`;
+    case "stir":
+      return `every land of ${of} rose in grievance against its rule`;
+    case "peace":
+      return `the war of ${of} and ${other} ended in a truce`;
+    case "war":
+      return `${of} went to war on ${other}`;
+    case "pact":
+      return `${of} and ${other} swore a pact`;
+    case "swear":
+      return `${other} swore itself to ${of}`;
+    case "annex":
+      return `a land of ${other} was taken into ${of}`;
+  }
+  return "history turned";
+}
+registerEventWords(GOD_EVENTS.did.type, (_, e) => {
+  const d = e.data as Record<string, unknown> | null;
+  return `By the god in ${String(d?.by ?? "one it entered")}: ${godDone(d)}, year ${yearOfMoment(e.t)}`;
+});
+registerCommandWords("reign.god", (world, c) => {
+  const a = c.args as GodArgs;
+  return `Your act: the god in ${a.ruler ?? a.name ?? "them"} of ${called(world, a.realm)} (${a.what}), year ${yearOfMoment(c.t)}`;
 });

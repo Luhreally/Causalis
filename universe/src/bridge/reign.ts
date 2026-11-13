@@ -137,6 +137,29 @@ export type ReignRole = {
 };
 
 /** One of a court's own sheet: groups to court, and a move on the seat. */
+/** The god's hand through them (2026-11-13): whom it can be aimed at, and what it can do to them. */
+export type ReignGod = {
+  readonly words: string;
+  /** The realm it is aimed at now. */
+  readonly target: string;
+  readonly targets: readonly {
+    readonly ref: string;
+    readonly short: string;
+    readonly color: readonly [number, number, number];
+    readonly own: boolean;
+    readonly atWar: boolean;
+  }[];
+  readonly groups: readonly {
+    readonly title: string;
+    readonly offers: readonly {
+      readonly label: string;
+      readonly args: Readonly<Record<string, unknown>>;
+      readonly can: boolean;
+      readonly words: string;
+    }[];
+  }[];
+};
+
 export type ReignCourt = {
   readonly words: string;
   readonly groups: readonly {

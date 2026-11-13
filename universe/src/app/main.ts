@@ -3520,6 +3520,9 @@ async function runPlanetPage(): Promise<void> {
     void palette.tap(at.cell, at.town, at.place);
   };
   palette.onOpen = (ref) => void pageWindow.open(ref);
+  palette.onShown = (open) => {
+    if (!open) document.body.classList.remove("godpalette");
+  };
   palette.onArmed = (armed) => {
     document.body.classList.toggle("casting", armed);
     tooltip.hide();
@@ -9431,6 +9434,17 @@ async function runPlanetPage(): Promise<void> {
     pages: pageWindow,
     possession: person,
     leaders,
+    // (The god's palette and brushes over a realm ruled with the god in them: the ruler's tray waits till it shuts.)
+    palette: {
+      open: () => {
+        document.body.classList.add("godpalette");
+        palette.show(true);
+      },
+      shut: () => {
+        if (document.body.classList.contains("godpalette")) palette.show(false);
+        document.body.classList.remove("godpalette");
+      },
+    },
   });
   rulerNow = () => reign.who();
   const ruleLeader = (l: { ref: string }) => {

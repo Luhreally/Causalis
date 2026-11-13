@@ -11,6 +11,7 @@ import type {
   Leader,
   LeaderList,
   ReignCourt,
+  ReignGod,
   ReignDecrees,
   ReignEnvoys,
   ReignMatches,
@@ -30,6 +31,8 @@ export type ReignDeps = {
   readonly pages: PageWindow;
   readonly possession: Possession;
   readonly leaders: Leaders;
+  /** The god's own palette and brushes, opened over a realm ruled with the god in them, and shut. */
+  readonly palette: { open(): void; shut(): void };
 };
 export type ReignFlow = {
   /** Take a realm's ruler, or one of its court by number: nothing is recorded until something is done. */
@@ -52,6 +55,8 @@ export function installReign(d: ReignDeps): ReignFlow {
   let on: { realm: string; ruler: string; role?: { fig: number; name: string } } | null = null,
     /** The god in them: sent with each thing done, and nothing else. */
     channel = false,
+    /** The realm the god's hand is aimed at (null: their own). */
+    aim: string | null = null,
     now: ReignNow | null = null,
     pace: "stop" | "slow" | "quick" = "slow",
     asking = false,
@@ -136,6 +141,8 @@ export function installReign(d: ReignDeps): ReignFlow {
   const leave = (): void => {
     on = null;
     channel = false;
+    aim = null;
+    d.palette.shut();
     hud.setChannel(false);
     now = null;
     walking = false;
@@ -164,6 +171,17 @@ export function installReign(d: ReignDeps): ReignFlow {
     } else if (kind === "factions") {
       const s = await d.client.query<ReignCourt | null>({ type: "reign.court", args });
       if (s) hud.court(s);
+    } else if (kind === "god") {
+      if (!channel) {
+        hud.closeSheet();
+        sheet = null;
+        return;
+      }
+      const s = await d.client.query<ReignGod | null>({
+        type: "reign.godhand",
+        args: { ...args, ...(aim ? { to: aim } : {}) },
+      });
+      if (s) hud.god(s);
     } else {
       const s = await d.client.query<ReignMatches | null>({ type: "reign.matches", args });
       if (s) hud.matches(s);
@@ -180,7 +198,11 @@ export function installReign(d: ReignDeps): ReignFlow {
       await d.client.command(type, { ...who, ...args, ...(channel ? { channel: true } : {}) });
       hud.closeSheet();
       sheet = null;
-      hud.say(channel ? `🌟 ${done} The realm will speak of the omen for years.` : done);
+      hud.say(
+        channel && type !== "reign.god"
+          ? `🌟 ${done} The realm will speak of the omen for years.`
+          : done,
+      );
       await refresh();
     } catch (error) {
       hud.answer(refused(error as Error));
@@ -250,8 +272,24 @@ export function installReign(d: ReignDeps): ReignFlow {
       {},
       "You have moved on the seat. It comes to its end within the year: hold the clock, or let it run.",
     );
+  hud.onGod = (args, label) =>
+    void act(
+      "reign.god",
+      args,
+      `🌟 Done by the god in them: ${label.replace(/^\S+\s/, "")}. The annals will tell it.`,
+    );
+  hud.onGodAim = (realm) => {
+    aim = realm === on?.realm ? null : realm;
+    void open("god");
+  };
+  hud.onPalette = () => {
+    hud.closeSheet();
+    sheet = null;
+    d.palette.open();
+  };
   hud.onChannel = () => {
     channel = !channel;
+    if (!channel) d.palette.shut();
     hud.setChannel(channel);
     hud.say(channel ? CHANNEL_ON : CHANNEL_OFF);
     if (sheet) void open(sheet);

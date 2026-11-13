@@ -57,6 +57,7 @@ import { installBrushes } from "../acts/brush.ts";
 import { installOrderActs } from "../order/acts.ts";
 import { installReign } from "../order/reign.ts";
 import { installRoles } from "../court/roles.ts";
+import { installGodHand } from "../order/godhand.ts";
 import { installHealth, installHealthActs } from "../health/health.ts";
 import { installSummon } from "../space/summon.ts";
 import { installCredit, installCreditActs } from "../credit/credit.ts";
@@ -354,6 +355,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installOrderActs(world, () => populationContext(world));
   installReign(world, () => populationContext(world));
   installRoles(world, () => populationContext(world));
+  installGodHand(world, () => populationContext(world));
   installHealthActs(world, () => populationContext(world));
   installCreditActs(world, () => populationContext(world));
   installStrifeActs(world, () => populationContext(world));

@@ -1,7 +1,21 @@
 /* A ruler ruled by the god's hand (Lives L4): the bar above and the tray below take only their own touches; the world
    goes on in the middle; every control a finger's size; within the phone's safe areas. */
-body.ruling #hud > *:not(.reign-hud):not(.page-window):not(.panel.page-panel):not(.home-hud) {
+body.ruling:not(.godpalette)
+  #hud
+  > *:not(.reign-hud):not(.page-window):not(.panel.page-panel):not(.home-hud) {
   display: none !important;
+}
+/* (With the god in them, the god's own palette and brushes over the realm: the ruler's tray waits till they shut.
+   2026-11-13.) */
+body.ruling.godpalette
+  #hud
+  > *:not(.reign-hud):not(.page-window):not(.panel.page-panel):not(.home-hud):not(.palette):not(
+    .palette-toggle
+  ):not(.brush-toggle):not(.brush-panel) {
+  display: none !important;
+}
+body.godpalette .reign-hud :is(.reign-tray, .reign-sheet, .reign-told, .reign-window) {
+  visibility: hidden;
 }
 #hud > .reign-hud {
   position: absolute;
@@ -240,4 +254,31 @@ body.ruling #hud > *:not(.reign-hud):not(.page-window):not(.panel.page-panel):no
   .reign-hud:has(> :is(.reign-sheet, .reign-window):not([hidden])) > .reign-told {
     visibility: hidden;
   }
+}
+/* (The god's hand through them: whom it is aimed at, a row of realms; what it can do, a finger's size each.) */
+.reign-aims {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+.reign-hud .reign-aim {
+  flex: 0 0 auto;
+  width: auto;
+  margin: 0;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 10px;
+}
+.reign-hud .reign-aim.on {
+  outline: 2px solid #ffd98a;
+  color: #3a2a00;
+  background: linear-gradient(180deg, #fff3cf 0%, #ffd98a 50%, #f2c060 100%);
+}
+.reign-hud :is(.reign-god, .reign-palette) {
+  width: 100%;
+  min-height: 44px;
+}
+.reign-hud .reign-palette {
+  margin-top: 6px;
 }
