@@ -40,7 +40,7 @@ import { politiesOf, realmName } from "../polity/polity.ts";
 import { farFromSeat, hostHungry, warsOf } from "../war/war.ts";
 import { designsOf, hostBest } from "../design/design.ts";
 import { knows, loreOf } from "./lore.ts";
-import { LessonStore, lessonsOf, useIn, type Holder } from "./lessons-store.ts";
+import { LessonStore, lessonAdds, lessonsOf, useIn, type Holder } from "./lessons-store.ts";
 
 export {
   LessonStore,
@@ -183,12 +183,14 @@ export function battleCauses(
       river = g.water.river[land] ? 1.1 : 1,
       walls = 1 + 0.25 * loreOf(ctx.world).effect(land, "walls");
     weights.push(["strongholds", ln((battle.seat ? 2 : 1) * hills * river * walls)]);
-    // And far from its seat, or hungry at home: as much as the march took from its strength (sim/war/war.ts).
+    // And far from its seat, or hungry at home: as much as the march took from its strength (sim/war/war.ts), the less where its
+    // supply trains fed it.
     const realm = politiesOf(ctx.world).get(a as Ref);
     if (realm) {
-      const far = farFromSeat(ctx, realm, land),
+      const fed = Math.min(1, lessonAdds(ctx.world, realm.ref, "supply", yearOfMoment(e.t))),
+        far = farFromSeat(ctx, realm, land) * (1 - fed),
         hungry = hostHungry(ctx, realm, e.t as SimTime);
-      weights.push(["supply", ln(1 + 0.15 * far) + (hungry ? ln(1 / 0.7) : 0)]);
+      weights.push(["supply", ln(1 + 0.15 * far) + (hungry ? ln(1 / (1 - 0.3 * (1 - fed))) : 0)]);
     }
   } else weights.push(["invasion", dmath.log(1.5)]);
   // Their riders against ours: what each side's kit was drawn up to move at (rules/designs.ts mobility).

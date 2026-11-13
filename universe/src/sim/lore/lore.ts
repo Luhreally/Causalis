@@ -286,7 +286,16 @@ function pressesOn(
   const own = lessons.get(cellRef(0, cell)),
     hosts = realm ? lessons.get(realm) : undefined;
   if (!own?.causes.size && !hosts?.causes.size) return null;
-  return (cause) => Math.max(pressIn(own, cause, year), pressIn(hosts, cause, year));
+  // (Each cause read once a land's year: every principle open to it asks again.)
+  const known = new Map<string, number>();
+  return (cause) => {
+    let v = known.get(cause);
+    if (v === undefined) {
+      v = Math.max(pressIn(own, cause, year), pressIn(hosts, cause, year));
+      known.set(cause, v);
+    }
+    return v;
+  };
 }
 
 /**
