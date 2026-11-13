@@ -404,6 +404,40 @@ if (town && best) {
     `${line}'s page does not show the things read: ${named.map((w) => w.name).join(", ")}`,
   );
 
+  // 3b. A thing's picture pressed by touch: drawn large over the page, with the detail a thumbnail leaves out, and shut by its ✕.
+  if (pics.length) {
+    await pressEl(
+      `() => document.querySelector(".page-window .makeup-thumb")`,
+      "a thing's picture",
+    );
+    await until("the picture drawn large", () =>
+      k<boolean>(`!!document.querySelector(".thumb-zoom canvas")`),
+    );
+    await page.waitForTimeout(slow(400));
+    await shot("zoom");
+    const big = await k<{ w: number; inked: number; label: string; page: string }>(`(() => {
+      const c = document.querySelector(".thumb-zoom canvas"), r = c.getBoundingClientRect(), d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+      let inked = 0;
+      for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 40) inked++;
+      return { w: r.width, inked, label: document.querySelector(".thumb-zoom-words")?.textContent ?? "", page: String(globalThis.causalis.pageOpen() ?? "") };
+    })()`);
+    say(
+      `a thing's picture large: ${Math.round(big.w)} px across, ${big.inked} px inked, "${big.label.slice(0, 60)}"`,
+    );
+    check(big.w >= 300, `the large picture is ${Math.round(big.w)} px across`);
+    check(
+      big.inked > 20 * Math.max(...pics.map((p) => p.inked)),
+      `the large picture inks ${big.inked} px, no more than a thumbnail`,
+    );
+    check(big.label.length > 3, "the large picture says nothing of what it is");
+    check(big.page.startsWith("mkt:"), `pressing the picture left its page for ${big.page}`);
+    await pressEl(`() => document.querySelector(".thumb-zoom-close")`, "the large picture's ✕");
+    check(
+      !(await k<boolean>(`!!document.querySelector(".thumb-zoom")`)),
+      "the large picture does not shut by its ✕",
+    );
+  }
+
   // 4. Its land's economy: what it sends and brings, as things.
   await k(`globalThis.causalis.open(${JSON.stringify(`cell:0:${seatCell}#economy`)})`);
   await page.waitForTimeout(slow(700));

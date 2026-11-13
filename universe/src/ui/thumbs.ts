@@ -59,7 +59,7 @@ function draw(canvas: HTMLCanvasElement, p: Portrait, size: number): void {
  * first, so a row does not move when it is drawn.
  */
 export function lazyThumb(p: Portrait, size = 28, cls = "thumb"): HTMLCanvasElement {
-  const canvas = document.createElement("canvas");
+  const canvas = zoomable(document.createElement("canvas"), p);
   canvas.className = cls;
   canvas.style.width = `${size}px`;
   canvas.style.height = `${size}px`;
@@ -82,4 +82,81 @@ export function lazyThumb(p: Portrait, size = 28, cls = "thumb"): HTMLCanvasElem
   WAITING.set(canvas, { p, size });
   watcher.observe(canvas);
   return canvas;
+}
+
+/** What each small picture shows, for its tap to draw it large. */
+const SHOWS = new WeakMap<Element, Portrait>();
+
+/**
+ * A small picture's tap (asked 2026-11-12: "how do i see bigger more detailed photos of the stuff"): the same portrait drawn
+ * large in a window over the page, turning slowly, with all the detail a thumbnail leaves out (its shadow, a break's
+ * ripples, a bow's string). Drawn only while it is open; shut by its ✕, a tap outside it, or Escape.
+ */
+function zoomable(canvas: HTMLCanvasElement, p: Portrait): HTMLCanvasElement {
+  SHOWS.set(canvas, p);
+  canvas.classList.add("thumb-zoomable");
+  canvas.setAttribute("role", "button");
+  canvas.setAttribute("aria-label", "See it larger");
+  canvas.addEventListener("click", (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const row = canvas.closest(".entry, .board-row, li, tr, .makeup-row");
+    openZoom(p, (row?.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 90));
+  });
+  return canvas;
+}
+
+let zoom: { readonly root: HTMLElement; frame: number } | null = null;
+
+function closeZoom(): void {
+  if (!zoom) return;
+  cancelAnimationFrame(zoom.frame);
+  zoom.root.remove();
+  zoom = null;
+  removeEventListener("keydown", onKey);
+}
+
+function onKey(e: KeyboardEvent): void {
+  if (e.key === "Escape") closeZoom();
+}
+
+function openZoom(p: Portrait, label: string): void {
+  closeZoom();
+  const root = document.createElement("div"),
+    card = document.createElement("div"),
+    shut = document.createElement("button"),
+    big = document.createElement("canvas"),
+    words = document.createElement("div"),
+    side = Math.round(Math.max(160, Math.min(420, innerWidth - 48, innerHeight - 200)));
+  root.className = "thumb-zoom";
+  card.className = "thumb-zoom-card";
+  shut.className = "thumb-zoom-close";
+  shut.textContent = "✕";
+  shut.setAttribute("aria-label", "Close");
+  words.className = "thumb-zoom-words";
+  words.textContent = label;
+  big.style.width = `${side}px`;
+  big.style.height = `${side}px`;
+  card.append(shut, big, words);
+  root.append(card);
+  root.addEventListener("click", (e) => {
+    if (e.target === root) closeZoom();
+  });
+  card.addEventListener("click", (e) => e.stopPropagation());
+  shut.addEventListener("click", closeZoom);
+  addEventListener("keydown", onKey);
+  document.body.append(root);
+  const state = { root, frame: 0 },
+    start = performance.now();
+  let last = -1;
+  const tick = (now: number) => {
+    // (A slow turn at some 30 frames a second: one canvas, while it is open.)
+    if (now - last >= 33) {
+      last = now;
+      drawPortrait(big, p, side, side, (now - start) / 1000);
+    }
+    state.frame = requestAnimationFrame(tick);
+  };
+  state.frame = requestAnimationFrame(tick);
+  zoom = state;
 }
