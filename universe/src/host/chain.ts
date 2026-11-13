@@ -785,7 +785,7 @@ function substColour(id: string): Rgb {
 }
 
 /** Where a land's metal of a kind comes from, in a few words: its own ore, a neighbour's, the road's. */
-function metalFrom(world: World, cell: number, kind: "copper" | "iron" | "tin"): string {
+export function metalFrom(world: World, cell: number, kind: "copper" | "iron" | "tin"): string {
   const chem = worldChemistry(homePlanet(world).generated),
     { roads, smelted } = whence(world, cell, kind),
     o = smelted === cell ? oreOf(world, cell, kind) : null,

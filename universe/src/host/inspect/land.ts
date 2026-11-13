@@ -46,6 +46,8 @@ import { dropBlock } from "./small.ts";
 import { landBondBlocks } from "./order.ts";
 import { landHealthBlocks } from "./sickness.ts";
 import { landCreditBlocks } from "./credit.ts";
+import { tradeWords } from "./wares.ts";
+import { landCompanyBlocks } from "./exchange.ts";
 import { biomeWords } from "../kinds.ts";
 import {
   faithLink,
@@ -432,6 +434,18 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
           rows,
         },
       ];
+      // (What it sends and brings, said as the things themselves: "brindled water grain and rifles to Ur".)
+      const sends = tradeWords(world, cell, "out"),
+        brings = tradeWords(world, cell, "in");
+      if (sends || brings)
+        blocks.push({
+          type: "facts",
+          title: "Sends and brings",
+          rows: [
+            ...(sends ? [stat("Sends away", sends.line)] : []),
+            ...(brings ? [stat("Brings in", brings.line)] : []),
+          ],
+        });
       const flows = marketsOf(world).flows.filter((f) => f.from === cell || f.to === cell);
       if (flows.length)
         blocks.push({
@@ -463,6 +477,8 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
           stat("How they build", [link(p.house.words, p.house.ref)], { why: p.house.ref }),
         );
       if (rows2.length) blocks.push({ type: "facts", title: "Works", rows: rows2 });
+      // (Its works as companies, late in a world, and the way to its realm's exchange.)
+      blocks.push(...landCompanyBlocks(world, cell));
       // (Its word, and what its signals do: signals.)
       const signals = landSignalStats(world, cell);
       if (signals.length) blocks.push({ type: "facts", title: "Signals", rows: signals });

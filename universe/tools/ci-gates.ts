@@ -363,6 +363,11 @@ export const GATES: readonly Gate[] = [
   // age, taken up at 430 by 932 by touch; its pages show the signal steps (what can be done here, a land's economy, a step's page),
   // its greatest town draws its poles, wire and mast and at night its screens' cold light, and the knowledge lens leaves no land dark.
   { gate: 109, args: ["--ci"], s: 420 },
+  // Gate 113, what is sold under each good (tools/wares-gate.ts): the first light run in node into its age of works and lending, every
+  // land's every good split into at most five named things whose shares make the whole; at 430 by 932 by touch, the realm's seat's board
+  // keeps its broad rows, a row opens on its named things and where each is from, its land's trade is said as things, and its exchange
+  // lists companies named for their towns with an index drawn.
+  { gate: 113, args: ["--ci"], s: 540 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */

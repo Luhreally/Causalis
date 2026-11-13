@@ -30,6 +30,7 @@ import {
 } from "../../rules/index.ts";
 import { armsMade, goodChain, hostPartWords, hostWords } from "../chain.ts";
 import { dearRef, dearTitle, goodCostRows, goodName, wayRow } from "./board.ts";
+import { waresBlock } from "./wares.ts";
 import { goodHere, goodRef, howMadeHere, makeUpBlock, weight } from "./matter.ts";
 import { designMatter, realmSeat } from "./ground.ts";
 import { goodYearBlocks } from "./stores.ts";
@@ -419,7 +420,9 @@ export function goodPage(world: World, ref: string): PageModel {
   if (!m || !g) throw new Error(`no market good ${ref}`);
   const kind = GOODS[index]!,
     here = goodHere(world, cell, kind.id),
-    chain = goodChain(world, cell, kind.id, yearNow(world));
+    chain = goodChain(world, cell, kind.id, yearNow(world)),
+    // (What is sold under it here: its few named things, their shares, where each is from.)
+    wares = waresBlock(world, cell, index);
   return {
     ref,
     kind: "good",
@@ -439,6 +442,7 @@ export function goodPage(world: World, ref: string): PageModel {
         id: "overview",
         name: "Overview",
         blocks: [
+          ...(wares ? [wares] : []),
           {
             type: "facts",
             rows: [

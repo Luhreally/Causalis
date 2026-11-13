@@ -3358,6 +3358,9 @@ body.with-palette .hint {
   color: var(--accent);
   font-variant-numeric: tabular-nums;
 }
+.makeup-amount:empty {
+  min-width: 0;
+}
 .makeup-amount {
   min-width: 4.5rem;
   text-align: right;

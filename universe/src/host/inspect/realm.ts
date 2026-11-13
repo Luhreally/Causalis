@@ -44,6 +44,7 @@ import { armyBlocks, courseBlocks } from "./army.ts";
 import { storesSummed } from "./stores.ts";
 import { realmOrderBlocks } from "./order.ts";
 import { realmCreditBlocks, warChestRows } from "./credit.ts";
+import { exchangeWay } from "./exchange.ts";
 import { leaderBlocks } from "./leaders.ts";
 import { courtBlocks } from "./court.ts";
 import { wealthStats } from "../wealth.ts";
@@ -242,7 +243,9 @@ export function realmPageModel(
   if (wants("order")) tabs.push({ id: "order", name: "Order", blocks: realmOrderBlocks(world, r) });
   // Its credit (Phase 21 M144): what its lands owe, its war chests, its faith with its lenders.
   if (wants("credit")) {
-    const credit = realmCreditBlocks(world, r.ref);
+    // (Its exchange first, where its seat keeps one: its companies and their index.)
+    const exchange = exchangeWay(world, r.ref),
+      credit = [...(exchange ? [exchange] : []), ...realmCreditBlocks(world, r.ref)];
     if (credit.length) tabs.push({ id: "credit", name: "Credit", blocks: credit });
   }
   // Its strife (Phase 22 M145): its army's voice, how near a coup is and why, its rule, its coups.

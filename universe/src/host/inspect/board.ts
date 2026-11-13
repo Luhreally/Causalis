@@ -25,6 +25,8 @@ import { breadCoin } from "../home.ts";
 import { coinWords } from "./living.ts";
 import { townLink } from "./names.ts";
 import { count, item, link, many, sentence, stat, yearNow } from "./words.ts";
+import { tradeWords } from "./wares.ts";
+import { exchangeWay } from "./exchange.ts";
 
 /** How each good is bought, by what a person would ask for: how much of a market's unit that is, and its words. */
 type Measure = {
@@ -982,6 +984,9 @@ export function boardPage(world: World, ref: string): PageModel {
         `, and these are ${seat.name}'s prices.`,
       ]);
     notes.push(...warLines(world, s.cell, m));
+    // (What its land sends away, said as the things themselves.)
+    const sends = tradeWords(world, s.cell, "out", 2);
+    if (sends) notes.push(["Its land sends away ", ...sends.line, "."]);
     if (board.lacks.length)
       notes.push([
         `Not to be had here: ${board.lacks.slice(0, 5).join(", ")}${board.lacks.length > 5 ? `, and ${count(board.lacks.length - 5)} more` : ""}.`,
@@ -1027,6 +1032,8 @@ export function boardPage(world: World, ref: string): PageModel {
     built = townsOf(world)
       .get(s.ref as Ref)
       ?.civics.find((c) => c.kind === "market" && c.fell === null),
+    // (At its realm's seat, late in a world: the way to its exchange.)
+    exchange = realm && realm.seat === s.cell && mine ? exchangeWay(world, realm.ref) : null,
     tabs: Tab[] = [
       {
         id: "board",
@@ -1046,6 +1053,7 @@ export function boardPage(world: World, ref: string): PageModel {
               ],
             ],
           },
+          ...(exchange ? [exchange] : []),
         ],
       },
     ];
