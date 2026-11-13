@@ -69,7 +69,8 @@ const KIND_ROWS = new Set([
  * every other word reads as it did.
  * Re-recorded for lessons (2026-11-12): a people's losses remembered and answered move its history
  * from the first years, and with it the towns, realms and their pages; and a smithy's page tells a
- * tool forged there, though its town has works. The guide to matter stays identical.
+ * tool forged there, though its town has works. The guide to matter stays identical. With signals and
+ * lessons together (the integration of 2026-11-12) the principles read both: signals' words on lessons' history.
  */
 const BEFORE: Record<string, string> = {
   tools: "a0a36af:18383",
@@ -82,7 +83,7 @@ const BEFORE: Record<string, string> = {
   substances: "5835b926:130632",
   reactions: "38d8a8a3:68570",
   // (Its pages no longer list what only a people of the water could find: F1, canBeFoundHere.)
-  principles: "3f68db09:169878",
+  principles: "608ad687:169592",
   guide: "ced49326:17137",
   camps: "efbd90a7:344430",
 };
