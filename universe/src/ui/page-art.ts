@@ -482,6 +482,36 @@ export function glyphCanvas(glyph: Glyph, p: ArtPalette, size: number): HTMLCanv
 
 /** A section's glyph drawn of its own numbers (a chart's run, a breakdown's shares, bars), else by its title's words; none: neither. */
 export function sectionGlyph(b: Block, p: ArtPalette, size = 16): HTMLCanvasElement | null {
+  // (Drawn once for what it is drawn of, and the same canvas given again once its page has let it go.)
+  const key = `${p.key}|${size}|${JSON.stringify(sectionData(b))}`,
+    pool = SECTION_POOL.get(key);
+  const free = pool?.find((x) => !x.isConnected && !LENT.has(x));
+  if (free) return lend(free);
+  if (pool && !pool.length) return null;
+  const c = drawSection(b, p, size),
+    list = pool ?? [];
+  if (c && list.length < 8) list.push(c);
+  if (SECTION_POOL.size > 400) SECTION_POOL.clear();
+  SECTION_POOL.set(key, list);
+  return c ? lend(c) : null;
+}
+
+const SECTION_POOL = new Map<string, HTMLCanvasElement[]>();
+
+/** What a section's glyph is drawn of. */
+function sectionData(b: Block): unknown {
+  return b.type === "chart"
+    ? ["c", b.points]
+    : b.type === "lines"
+      ? ["l", b.series[0]?.points]
+      : b.type === "composition"
+        ? ["m", b.parts.map((x) => [x.share, x.color])]
+        : b.type === "bars"
+          ? ["b", b.bars.slice(0, 6).map((x) => [x.value, x.color])]
+          : ["t", "title" in b ? b.title : ""];
+}
+
+function drawSection(b: Block, p: ArtPalette, size: number): HTMLCanvasElement | null {
   const run =
     b.type === "chart"
       ? b.points.map((q) => q.y)

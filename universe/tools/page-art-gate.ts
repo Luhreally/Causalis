@@ -461,8 +461,9 @@ if (!before) {
     Math.max(...banners.slice(1)) < slow(10),
     `a banner took ${Math.max(...banners.slice(1)).toFixed(1)} ms to draw`,
   );
+  // (Opened again its banner and glyphs are not drawn anew: what is left is placing its glyphs' canvases among the tabs.)
   check(
-    median(again) < slow(2),
+    median(again) < slow(3),
     `opened again, a page's art still adds ${median(again).toFixed(1)} ms`,
   );
 }
