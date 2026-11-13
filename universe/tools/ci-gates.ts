@@ -368,6 +368,10 @@ export const GATES: readonly Gate[] = [
   // keeps its broad rows, a row opens on its named things and where each is from, its land's trade is said as things, and its exchange
   // lists companies named for their towns with an index drawn.
   { gate: 113, args: ["--ci"], s: 540 },
+  // Gate 115, a page's own art (tools/page-art-gate.ts): the first light, alien 20 and alien 41 run in node; on each a land's, a town's,
+  // a realm's, a war's and a far world's page opened at 430 by 932, its banner drawn of what it is, its tabs' glyphs in its world's
+  // colours, what the art adds to a page's drawing; how each land builds and its works drawn, six ways of building at least.
+  { gate: 115, args: ["--ci"], s: 900 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */
