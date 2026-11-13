@@ -517,6 +517,7 @@ export class BattleLayer {
   private far = new Uint8Array(0);
   private readonly inverse = new pc.Mat4();
   private readonly eyeAt = new pc.Vec3();
+  private readonly heardAt = new pc.Vec3();
   /** The eye's sight in the field's own units, and a figure's reach in it, with a soldier held (Phase 61). */
   private readonly sight = new pc.Mat4();
   private readonly sightView = new pc.Mat4();
@@ -903,6 +904,23 @@ export class BattleLayer {
     this.root.setLocalScale(k, k, k);
     this.casting = shadows;
     this.cast();
+  }
+
+  /**
+   * Where a point of the field (m) lies from the eye, for what is heard there: how far (m, as the scene it is laid in has them:
+   * a town's, before a town) and to which side (-1 left … 1 right), into `out`.
+   */
+  heardFrom(x: number, z: number, out: { far: number; pan: number }): void {
+    const at = this.root.getWorldTransform().transformPoint(this.heardAt.set(x * M, 0.15, z * M), this.heardAt),
+      cam = this.stage.camera,
+      eye = cam.getPosition(),
+      right = cam.right,
+      dx = at.x - eye.x,
+      dy = at.y - eye.y,
+      dz = at.z - eye.z,
+      d = Math.hypot(dx, dy, dz);
+    out.far = d / M;
+    out.pan = d > 1e-6 ? (dx * right.x + dy * right.y + dz * right.z) / d : 0;
   }
 
   /** Whether it casts shadows now (the look tools). */

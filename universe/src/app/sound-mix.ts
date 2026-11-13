@@ -1,7 +1,9 @@
 // What is heard, as numbers (Sound, first slice; Classic's section 35): a place and what is about it
 // go in, the level of every layer of the ambience and how often each small sound comes out. Pure, and
 // knows nothing of WebAudio or of the world: whoever knows the place tells it (app/main.ts, four times
-// a second), and app/sound.ts plays what this says. Nothing here is read back by anything.
+// a second), and app/sound.ts plays what this says. Nothing here is read back by anything. Arms and blasts
+// (asked 2026-11-12) are cues made from their own physics' numbers (view/heard.ts), heard from where they are.
+import type { HeardKind, Voicing } from "../view/index.ts";
 
 /** Where a person is, as they would say it with their eyes shut. */
 export type Place =
@@ -30,6 +32,13 @@ export type Air = {
   hush: number;
   /** The viewer has paused the world: nothing new happens, and the air drops back. */
   held: boolean;
+  /** How much of a fight is hand to hand (0 … 1): a battle's or a town war's clash of iron is as much as there is of it. */
+  melee: number;
+  /** What its blades ring at (Hz), where told by their metal (0: not told). */
+  ring: number;
+  /** Machines' engines overhead, as loud as they are near and many (0 … 1), and whether they are jets. */
+  engines: number;
+  jet: boolean;
 };
 
 /** A place with nothing about it. */
@@ -47,6 +56,10 @@ export function airOf(place: Place): Air {
     wind: 0,
     hush: 0,
     held: false,
+    melee: 1,
+    ring: 0,
+    engines: 0,
+    jet: false,
   };
 }
 
@@ -88,6 +101,12 @@ export type Mix = {
   plucks: number;
   /** A feast's hand drums and its dancers' clapping. */
   dance: number;
+  /** What the clashes ring at (Hz; 0: each its own). */
+  ringHz: number;
+  /** Engines overhead: how loud, and their edge (Hz); a jet's roar (1), not a propeller's beat (0). */
+  engines: number;
+  enginesHz: number;
+  jet: number;
 };
 
 const OPEN = 16000;
@@ -126,6 +145,10 @@ const BASE: Mix = {
   moans: 0,
   plucks: 0,
   dance: 0,
+  ringHz: 0,
+  engines: 0,
+  enginesHz: 760,
+  jet: 0,
 };
 
 const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
@@ -180,8 +203,8 @@ export function mixOf(a: Air): Mix {
         m.rumbleHz = 46;
         m.drums = 0.8;
         m.bells = 0.42;
-        m.clashes = 0.5;
-        m.shots = 0.12;
+        // (Iron on iron as much as there is fighting by the hand; each shot is its own, heard where it is fired.)
+        m.clashes = 0.5 * clamp01(a.melee);
         m.birds = m.tinks = m.hawkers = m.dance = m.crickets = m.owls = 0;
       }
       break;
@@ -253,9 +276,17 @@ export function mixOf(a: Air): Mix {
       m.rumbleHz = 52;
       m.wind = 0.04;
       m.drums = 1.5;
-      m.clashes = 4;
-      m.shots = 0.5;
+      // (The clash of iron where the lines have met, by how many of them are at it; their shots are their own cues.)
+      m.clashes = 4 * clamp01(3 * a.melee);
       break;
+  }
+  m.ringHz = a.ring > 0 ? a.ring : 0;
+  // Machines' engines overhead, where there is air to carry them.
+  const engines = clamp01(a.engines);
+  if (engines > 0 && a.place !== "stars" && a.place !== "galaxy") {
+    m.engines = 0.16 * engines;
+    m.jet = a.jet ? 1 : 0;
+    m.enginesHz = a.jet ? 2400 : 760;
   }
   // The world's own air and wind, where there is air to hear them in.
   const open = a.place === "land" || a.place === "shore" || a.place === "town",
@@ -334,7 +365,9 @@ export function mixOf(a: Air): Mix {
     m.level *= 0.62;
     m.birds = m.gulls = m.owls = m.tinks = m.hawkers = m.bells = 0;
     m.drums = m.clashes = m.shots = m.bubbles = m.moans = m.dance = 0;
+    m.engines = 0;
   }
+  if (a.under) m.engines *= 0.3;
   return m;
 }
 
@@ -366,6 +399,19 @@ export const CUE_RULES = {
   landing: { wait: 2500, most: 1, level: 0.42 },
   thunder: { wait: 2500, most: 1, level: 0.4 },
   fire: { wait: 8000, most: 1, level: 1 },
+  // Arms and blasts (asked 2026-11-12), each by its own physics (view/heard.ts): at the level a near one is heard at.
+  gun: { wait: 45, most: 4, level: 0.3 },
+  cannon: { wait: 260, most: 2, level: 0.36 },
+  bow: { wait: 55, most: 3, level: 0.3 },
+  dart: { wait: 55, most: 3, level: 0.26 },
+  clash: { wait: 70, most: 3, level: 0.26 },
+  thud: { wait: 70, most: 3, level: 0.3 },
+  zap: { wait: 60, most: 3, level: 0.18 },
+  rocket: { wait: 300, most: 2, level: 0.3 },
+  whistle: { wait: 220, most: 2, level: 0.2 },
+  blast: { wait: 160, most: 3, level: 0.4 },
+  /** Fire too thick to hear shot by shot: the crackle of a whole line's (or a whole flight's) at once. */
+  volley: { wait: 180, most: 2, level: 0.3 },
 } as const;
 export type Cue = keyof typeof CUE_RULES;
 /** The cues, each once (the gate and the listening files walk them). */
@@ -391,7 +437,115 @@ export const CUE_LASTS: Record<Cue, number> = {
   landing: 3.9,
   thunder: 3.6,
   fire: 16,
+  gun: 0.75,
+  cannon: 3.2,
+  bow: 0.5,
+  dart: 0.3,
+  clash: 1.1,
+  thud: 0.45,
+  zap: 0.2,
+  rocket: 2.3,
+  whistle: 1.9,
+  blast: 3.3,
+  volley: 1.3,
 };
 
-/** The most nodes of the graph at any moment: its standing layers and what plays over them. */
-export const NODE_BOUND = 130;
+/** The cues of arms and blasts: what the effects switch silences, the air and the world's news left as they are. */
+export const ARMS_CUES: readonly Cue[] = [
+  "beam",
+  "missile",
+  "break",
+  "fire",
+  "gun",
+  "cannon",
+  "bow",
+  "dart",
+  "clash",
+  "thud",
+  "zap",
+  "rocket",
+  "whistle",
+  "blast",
+  "volley",
+];
+
+/** What a cue is made from when nothing says (the gate's renders, and a cue given no numbers): the commonest of its kind. */
+export const VOICED: Partial<Record<Cue, Voicing & { n?: number }>> = {
+  // (A musket's ball: 31 g at 400 m/s, 17.5 mm, black powder: rules/means.ts ballOf.)
+  gun: { joules: 2480, speed: 400, bore: 17.5, black: true },
+  cannon: { joules: 261000, speed: 440, bore: 93, black: true },
+  bow: { speed: 45, joules: 40 },
+  dart: { speed: 60, joules: 30 },
+  // (Steel struck: view/heard.ts ringOf.)
+  clash: { ring: 3170, decay: 0.25 },
+  thud: { ring: 4400, decay: 0.03 },
+  zap: { hz: 1800 },
+  rocket: { coming: 2, speed: 700 },
+  whistle: { coming: 1.7 },
+  blast: { mj: 210 },
+  volley: { joules: 2480, speed: 400, black: true, n: 40 },
+};
+
+/** The cue each kind of arm's sound is played by. */
+export const KIND_CUE: Readonly<Record<HeardKind, Cue>> = {
+  gun: "gun",
+  cannon: "cannon",
+  bow: "bow",
+  dart: "dart",
+  clash: "clash",
+  thud: "thud",
+  zap: "zap",
+  rocket: "rocket",
+  whistle: "whistle",
+  blast: "blast",
+};
+
+/** The cube root, the way a blast scales (Hopkinson 1915): its loudness grows slowly, its body deepens and lengthens. */
+const cbrt = (x: number) => Math.cbrt(Math.max(1e-9, x));
+/** How much bigger than a musket's a firing is: its time and its depth go with the cube root of its energy. */
+export const gunScale = (joules: number): number => cbrt(joules / 2480);
+/** How much bigger than a dropped load's a blast is (210 MJ: rules/reach.ts DROP_KG of gun cotton). */
+export const blastScale = (mj: number): number => cbrt(mj / 210);
+
+/** How long a cue sounds, given its numbers (s): what is waited on for it to be over. */
+export function cueLength(cue: Cue, v?: Voicing): number {
+  const n: Voicing = { ...VOICED[cue], ...v };
+  switch (cue) {
+    case "gun": {
+      const s = gunScale(n.joules ?? 2480),
+        rounds = Math.max(1, n.rounds ?? 1);
+      return 0.42 + 0.3 * Math.pow(s, 0.9) + (rounds - 1) * (n.apart ?? 0.09);
+    }
+    case "cannon":
+      return 0.15 + 1.4 * Math.sqrt(gunScale(n.joules ?? 261000));
+    case "clash":
+      return Math.min(2, 0.05 + 4 * (n.decay ?? 0.25));
+    case "thud":
+      return n.mail ? 0.4 : Math.min(1, 0.22 + 4 * (n.decay ?? 0.03));
+    case "rocket":
+      return Math.min(6, (n.coming ?? 2) + 0.3);
+    case "whistle":
+      return Math.min(6, (n.coming ?? 1.7) + 0.2);
+    case "blast":
+      return Math.min(9, 0.3 + 2.9 * Math.pow(blastScale(n.mj ?? 210), 0.6));
+    default:
+      return CUE_LASTS[cue];
+  }
+}
+
+/**
+ * How a sound comes across the ground to the ear: fainter (half as loud at 80 m, a quarter at 200), and duller, the air taking
+ * its highs first (8 kHz left at 90 m, some 1.3 kHz at a kilometre). Near, as loud as it is.
+ */
+export function farOf(metres: number): { level: number; hz: number } {
+  const m = Math.max(0, metres);
+  return { level: 1 / (1 + Math.max(0, m - 20) / 60), hz: 16000 / (1 + m / 90) };
+}
+
+/** A line's fire, too thick to hear shot by shot: as loud as so many at once would be, but never a wall. */
+export function massOf(n: number): number {
+  return Math.min(1.2, 0.3 * Math.sqrt(Math.max(1, n)));
+}
+
+/** The most nodes of the graph at any moment: its standing layers (and the far ways a cue comes by) and what plays over them. */
+export const NODE_BOUND = 180;

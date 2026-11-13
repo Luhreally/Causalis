@@ -193,6 +193,15 @@ export function battleNear(world: World, ref: string): BattleNear | null {
         ...(c.wounded !== undefined ? { wounded: c.wounded, maimed: c.maimed ?? 0 } : {}),
         ...(b.fell ? { levy: levyPlaces(world, b, at) } : {}),
         host: parts ? kindsOf(parts) : null,
+        // (What its arm and its guard are made of: how a blow of it rings, and what it lands on.)
+        ...(parts
+          ? {
+              stuffs: {
+                arm: parts.find((x) => x.role === "arm")?.material ?? "",
+                guard: parts.find((x) => x.role === "guard")?.material ?? "",
+              },
+            }
+          : {}),
         kit: parts ? hostWords(world, realm, parts) : "spears, on foot",
         ...(b.armed ? { armed: b.armed[at] } : {}),
         // (Cannon where its seat knew powder by the battle's year, not by now — Phase 53 M219.)
