@@ -17,7 +17,7 @@ import { preview } from "vite";
 import { chromium, type Page } from "playwright";
 import { YEAR, rulesetId, saveWorld, seedFromText, type World } from "../src/kernel/index.ts";
 import { ALIEN } from "../src/host/planet.ts";
-import { knownWorld } from "../src/host/known.ts";
+import { knownAtOrbit, knownWorld } from "../src/host/known.ts";
 import { homePlanet, loreOf } from "../src/sim/index.ts";
 import { homeCells } from "../src/host/known.ts";
 
@@ -62,9 +62,14 @@ let young: Buffer | null = null,
 for (let y = 100; y <= 2400; y += 50) {
   world.runTo(y * YEAR);
   const orbit = firstKnown(world, "orbital-flight");
+  // (A save of its world still in part unknown: since a rocket's arc charts it whole in the last years before its first orbit,
+  // the latest before orbit that still has a tenth of it to find.)
   if (orbit === null && y >= 600) {
-    young = pack(world);
-    youngShare = knownWorld(world).share;
+    const share = knownWorld(world).share;
+    if (share < 0.9) {
+      young = pack(world);
+      youngShare = share;
+    }
   }
   if (orbit !== null && firstKnown(world, "pocket-machines") !== null && y >= orbit + 50) break;
 }
@@ -76,7 +81,13 @@ say(
   `${seed}: run to ${year} in ${Math.round((Date.now() - t0) / 1000)} s; first orbit ${orbitYear}, first web ${webYear}; before orbit ${Math.round(youngShare * 100)}% known`,
 );
 check(orbitYear !== null && webYear !== null, `${seed} came to no orbit or no web by ${year}`);
-check(!!young, "no save before its first orbit");
+check(!!young, "no save before its first orbit with its world still in part unknown");
+// The owner's ask (2026-11-11): "the whole world should technically be explored before they reach space".
+const atOrbit = knownAtOrbit(world);
+say(
+  `known the year before its first orbit: ${atOrbit ? Math.round(atOrbit.before.share * 100) : "?"}%`,
+);
+check(!!atOrbit && atOrbit.before.share >= 0.95, "its world not charted before its first orbit");
 
 const root = fileURLToPath(new URL("..", import.meta.url)),
   server = await preview({ root, logLevel: "silent", preview: { port: 4325, strictPort: false } }),
@@ -298,7 +309,9 @@ check(/seeing its world whole/i.test(text), "the rest does not show seeing its w
 type Town = { ref: string; name: string; cell: number; people: number };
 const towns = await ask<Town[]>("towns.map");
 const lore = loreOf(world);
-const wired = towns.find((t) => lore.get(t.cell, "pocket-machines"));
+const wired =
+  towns.find((t) => lore.get(t.cell, "pocket-machines")) ??
+  towns.find((t) => lore.get(t.cell, "networks"));
 check(!!wired, "no town of a land on the web");
 if (wired) {
   await k(`globalThis.causalis.open("cell:0:${wired.cell}")`);
