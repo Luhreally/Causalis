@@ -122,6 +122,16 @@ body.ruling #hud > *:not(.reign-hud):not(.page-window):not(.panel.page-panel):no
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
 }
+/* (Under a page the bar keeps its line and its chips, and stands above the page: the page's top is read from
+   the bar's foot, and the rivals' bars wait till it shuts. 2026-11-13: the bar lay over a realm's page.) */
+.reign-hud.under-page .reign-bars {
+  display: none;
+}
+@media (max-width: 640px) {
+  body:is(.ruling, .living) .page-panel .page-window {
+    max-height: min(55%, calc(100% - var(--bar-bottom, 72px) - 16px - var(--safe-bottom, 0px)));
+  }
+}
 .reign-hud.under-page .reign-sheet,
 .reign-hud.under-page .reign-window,
 .reign-hud.under-page .reign-tray,

@@ -1813,11 +1813,13 @@ async function runPlanetPage(): Promise<void> {
   // The page window stands below whichever scale's bar shows (its lines wrap as it narrows):
   // read as a page opens, as the date widens, and twice a second (a resize observer on the bars
   // trips WebKit's loop check as the scales' panels come and go).
+  // (A ruler's or a life's bar stands in for the scale's while one is lived: a page goes below it,
+  // never over it. 2026-11-13.)
   const markBarBottom = () => {
-    const bar = [...document.querySelectorAll<HTMLElement>(".panel > header.bar")].find(
-        (b) => b.offsetParent !== null,
-      ),
-      y = `${bar ? Math.round(bar.getBoundingClientRect().bottom) : 64}px`;
+    const bars = [
+        ...document.querySelectorAll<HTMLElement>(".panel > header.bar, .reign-strip, .life-strip"),
+      ].filter((b) => b.offsetParent !== null),
+      y = `${bars.length ? Math.round(Math.max(...bars.map((b) => b.getBoundingClientRect().bottom))) : 64}px`;
     if (document.documentElement.style.getPropertyValue("--bar-bottom") !== y)
       document.documentElement.style.setProperty("--bar-bottom", y);
   };
