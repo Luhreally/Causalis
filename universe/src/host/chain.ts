@@ -198,16 +198,36 @@ export function flockBeast(world: World, cell: number, herding: Ref): Species | 
     own = life.herdBeast[cell] ?? -1;
   // (Its own, while it is tame: one the god has made wild was herded, if at all, before.)
   if (own >= 0 && tameNow(world, life.species[own]!)) return life.species[own]!;
-  let ref: Ref | null = herding;
-  for (let hops = 0; ref && hops < 64; hops++) {
+  // (Each herding's beast found once a world: an event never changes, and lands that learned it of one another share the walk back.)
+  let known = HERDED.get(world);
+  if (!known) HERDED.set(world, (known = new Map()));
+  const walked: Ref[] = [];
+  let ref: Ref | null = herding,
+    found: string | null = null,
+    hops = 0;
+  for (; ref && hops < 64; hops++) {
+    const had = known.get(ref);
+    if (had !== undefined) {
+      found = had;
+      break;
+    }
+    walked.push(ref);
     const e = world.events.get(ref);
     if (!e) break;
     const beast = (e.data as { beast?: unknown } | null)?.beast;
-    if (typeof beast === "string") return life.species.find((s) => s.name === beast) ?? null;
+    if (typeof beast === "string") {
+      found = beast;
+      break;
+    }
     ref = (e.causes[0]?.ref as Ref | undefined) ?? null;
   }
+  // (A walk cut short at its last hop is not kept: begun further along, it would go further.)
+  if (hops < 64) for (const r of walked) known.set(r, found);
+  if (found !== null) return life.species.find((s) => s.name === found) ?? null;
   return life.species.find((s) => s.tame && s.niche === "grazer" && s.died === null) ?? null;
 }
+/** The beast named by each herding event's walk back (null: none named), by world. */
+const HERDED = new WeakMap<World, Map<Ref, string | null>>();
 
 /** A land's plant fibres by their colour, undyed (any other a dry straw's). */
 const FIBRE_COLOUR: Readonly<Record<string, Rgb>> = {

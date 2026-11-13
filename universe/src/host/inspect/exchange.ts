@@ -17,9 +17,9 @@ import {
   politiesOf,
   realmName,
 } from "../../sim/index.ts";
-import { landCloth, makingTown } from "../chain.ts";
+import { makingTown } from "../chain.ts";
 import { boardRef, wayRow } from "./board.ts";
-import { MACHINE_KINDS, madeWares, type Ware } from "./wares.ts";
+import { MACHINE_KINDS, clothOf, madeWares, type WareName } from "./wares.ts";
 import { coinWords } from "./living.ts";
 import { count, link, many, stat, yearNow } from "./words.ts";
 
@@ -77,7 +77,7 @@ export function hasCompanies(world: World, cell: number): boolean {
 }
 
 /** What a company of a good's making is called after its town: by what it makes. */
-function worksName(world: World, cell: number, good: number, w: Ware | null): string | null {
+function worksName(world: World, cell: number, good: number, w: WareName | null): string | null {
   const chem = worldChemistry(homePlanet(world).generated),
     knows = (id: string) => !!loreOf(world).get(cell, id);
   switch (good) {
@@ -103,7 +103,7 @@ function worksName(world: World, cell: number, good: number, w: Ware | null): st
         ? null
         : w.key === "leather"
           ? "Leather Works"
-          : `${title(landCloth(world, cell).kind)} Mills`;
+          : `${title(clothOf(world, cell).kind)} Mills`;
     case G.tools:
       // (No works knaps stone: a land whose tools are stone has no tool company.)
       return w?.key.startsWith("arms:")

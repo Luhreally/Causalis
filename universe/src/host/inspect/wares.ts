@@ -24,6 +24,7 @@ import {
   townsOf,
   wildsOf,
   type Market,
+  type TradeFlow,
   type ToolMetal,
 } from "../../sim/index.ts";
 import {
@@ -45,6 +46,7 @@ import {
   landStone,
   makingTown,
   metalFrom,
+  type Cloth,
   workshopOf,
 } from "../chain.ts";
 import { landLink, landTitle } from "./names.ts";
@@ -76,8 +78,15 @@ type Raw = {
   readonly name: string;
   readonly ref: string | null;
   readonly w: number;
-  readonly from: Line;
+  /** (Read only when it is shown: where a thing was made asks its town's buildings, which a far town keeps packed.) */
+  readonly from: Line | (() => Line);
 };
+
+/** A thing's "from" as shown. */
+const lineOf = (from: Line | (() => Line)): Line => (typeof from === "function" ? from() : from);
+
+/** A thing sold under a good by its name alone, as a line of trade or a company says it. */
+export type WareName = Omit<Ware, "from" | "land">;
 
 const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s);
 
@@ -181,7 +190,7 @@ function ownGrain(world: World, cell: number): Raw[] {
 
 /** A land's herds' meat, and their milk where it knows dairying. */
 function ownMeat(world: World, cell: number): Raw[] {
-  const beast = flockOf(world, cell),
+  const beast = beastOf(world, cell),
     from: Line = ["from the herds of ", landLink(world, cell, true)];
   if (!beast) return [{ key: "meat", name: "meat", ref: null, w: 1, from }];
   const name = beastName(beast),
@@ -242,7 +251,7 @@ function ownWild(world: World, cell: number): Raw[] {
 
 /** The fibre a land's flocks give. */
 function ownWool(world: World, cell: number): Raw[] {
-  const beast = flockOf(world, cell),
+  const beast = beastOf(world, cell),
     from: Line = ["shorn from the flocks of ", landLink(world, cell, true)];
   if (!beast) return [{ key: "wool", name: "wool", ref: null, w: 1, from }];
   // (A coat of scales, shell, plates or a slick skin gives no wool: what is combed from it is its fibre, as the market sells it.)
@@ -275,7 +284,7 @@ function ownWool(world: World, cell: number): Raw[] {
 /** A land's hides: its herds' (by its meat, as the year's herds give them) and its hunters' (by its foragers). */
 function ownHides(world: World, cell: number, m: Market): Raw[] {
   const p = populationContext(world).provinces.get(cell),
-    beast = flockOf(world, cell),
+    beast = beastOf(world, cell),
     herd = m.book("made", G.meat) * HERD_GOODS.hidesPerMeat,
     hunted = (p?.occupation(OCC.forager) ?? 0) * FORAGER_HIDES,
     game = livingIn(homePlanet(world).generated.life, cell)
@@ -342,10 +351,12 @@ function ownFuel(world: World, cell: number, good: number): Raw[] {
 function ownPottery(world: World, cell: number): Raw[] {
   const clay = landClay(world, cell),
     town = makingTown(world, cell),
-    kiln = workshopOf(world, town?.ref ?? null, ["kiln"], yearNow(world)),
-    at: Line = kiln
-      ? ["fired at ", link(kiln.name, kiln.ref)]
-      : ["fired in ", landLink(world, cell, true)],
+    at = (): Line => {
+      const kiln = workshopOf(world, town?.ref ?? null, ["kiln"], yearNow(world));
+      return kiln
+        ? ["fired at ", link(kiln.name, kiln.ref)]
+        : ["fired in ", landLink(world, cell, true)];
+    },
     // (A ware is sold by its name: "red earthenware", "grey ware"; a terracotta, as its pots.)
     out: Raw[] = [
       {
@@ -363,7 +374,7 @@ function ownPottery(world: World, cell: number): Raw[] {
 
 /** A land's clothes: woven of its own fibre and sewn of leather, by what its books say its weavers and tanners used. */
 function ownClothing(world: World, cell: number, m: Market): Raw[] {
-  const cloth = landCloth(world, cell),
+  const cloth = clothOf(world, cell),
     woven = (m.book("used", G.wool) / 6) * 5,
     leather = (m.book("used", G.hides) / 4) * 3,
     dyed = knows(world, cell, "dyeing"),
@@ -422,7 +433,7 @@ function ownTools(world: World, cell: number, m: Market): Raw[] {
     by.set(forged, (by.get(forged) ?? 0) + Math.max(1, total) * 0.12);
   const town = makingTown(world, cell),
     year = yearNow(world),
-    smithy =
+    smithy = () =>
       workshopOf(world, town?.ref ?? null, ["factory"], year) ??
       workshopOf(world, town?.ref ?? null, ["smithy", "workshop"], year);
   return [...by].map(([metal, n]) => ({
@@ -430,12 +441,13 @@ function ownTools(world: World, cell: number, m: Market): Raw[] {
     name: `${metalWord(world, metal, cell)} ${TOOL_KINDS[metal]}`,
     ref: null,
     w: n,
-    from:
-      metal === "stone"
-        ? ["knapped in ", landLink(world, cell, true)]
-        : smithy
-          ? ["made at ", link(smithy.name, smithy.ref)]
-          : ["made by the smiths of ", landLink(world, cell, true)],
+    from: (): Line => {
+      if (metal === "stone") return ["knapped in ", landLink(world, cell, true)];
+      const at = smithy();
+      return at
+        ? ["made at ", link(at.name, at.ref)]
+        : ["made by the smiths of ", landLink(world, cell, true)];
+    },
   }));
 }
 const METALS_RANK: readonly ToolMetal[] = ["stone", "copper", "bronze", "iron", "steel"];
@@ -604,10 +616,12 @@ export function machineName(world: World, k: MachineKind): string {
 /** The machines a land's works turn out, by what it knows: the newer the more, the older fading. */
 function ownMachines(world: World, cell: number, m: Market): Raw[] {
   const town = makingTown(world, cell),
-    works = workshopOf(world, town?.ref ?? null, ["factory"], yearNow(world)),
-    from: Line = works
-      ? ["made at ", link(works.name, works.ref)]
-      : ["made in the works of ", landLink(world, cell, true)];
+    from = (): Line => {
+      const works = workshopOf(world, town?.ref ?? null, ["factory"], yearNow(world));
+      return works
+        ? ["made at ", link(works.name, works.ref)]
+        : ["made in the works of ", landLink(world, cell, true)];
+    };
   const out: Raw[] = [],
     lean = leanOf(world, cell, m);
   for (const k of MACHINE_KINDS) {
@@ -696,7 +710,7 @@ function ownArms(world: World, cell: number, good: number): Raw[] {
     unit = GOOD_MATTER[GOODS[good]!.id]?.unitKg ?? 2,
     year = yearNow(world),
     at = good === G.machines ? ["factory"] : ["smithy", "factory", "workshop"],
-    shop = workshopOf(world, makingTown(world, cell)?.ref ?? null, at, year);
+    shop = () => workshopOf(world, makingTown(world, cell)?.ref ?? null, at, year);
   return parts.map((p: Part) => {
     const kg = kitKg([p]),
       perMan = [...kg.values()].reduce((a, b) => a + b, 0);
@@ -705,14 +719,32 @@ function ownArms(world: World, cell: number, good: number): Raw[] {
       name: hostPartWords(world, realm.ref, p).replace(/^with /, ""),
       ref: d.ref,
       w: Math.max(0, (men * perMan * ARMS_WEAR) / unit),
-      from: [
-        "for the host of ",
-        link(realmName(realm), realm.ref),
-        shop ? ", made at " : ", made in ",
-        shop ? link(shop.name, shop.ref) : landLink(world, cell, true),
-      ],
+      from: (): Line => {
+        const at = shop();
+        return [
+          "for the host of ",
+          link(realmName(realm), realm.ref),
+          at ? ", made at " : ", made in ",
+          at ? link(at.name, at.ref) : landLink(world, cell, true),
+        ];
+      },
     };
   });
+}
+
+/** The beast a land's flocks are of, once a moment (found by following its herding back through the lands that taught it, which a far world keeps packed). */
+function beastOf(world: World, cell: number): Species | null {
+  const c = cacheOf(world);
+  if (!c.beasts.has(cell)) c.beasts.set(cell, flockOf(world, cell));
+  return c.beasts.get(cell)!;
+}
+
+/** What a land's weavers weave, once a moment (its flocks' coat, else its plants' fibre). */
+export function clothOf(world: World, cell: number): Cloth {
+  const c = cacheOf(world);
+  let cloth = c.cloths.get(cell);
+  if (!cloth) c.cloths.set(cell, (cloth = landCloth(world, cell)));
+  return cloth;
 }
 
 /** The men a realm fields, once a world's moment (the same for every land of it). */
@@ -830,10 +862,15 @@ export function waresOf(world: World, cell: number, good: number): readonly Ware
     };
     if (own > 0)
       for (const r of madeHere(world, cell, good))
-        put({ key: r.key, name: r.name, ref: r.ref, made: true }, own * r.share, r.from, null);
+        put(
+          { key: r.key, name: r.name, ref: r.ref, made: true },
+          own * r.share,
+          lineOf(r.from),
+          null,
+        );
     if (into > 0) {
       const from = new Map<number, number>();
-      for (const f of marketsOf(world).flowsOf([cell]))
+      for (const f of flowsAt(world, cell))
         if (f.to === cell && f.good === good && f.from !== cell)
           from.set(f.from, (from.get(f.from) ?? 0) + f.count);
       const told = [...from.values()].reduce((a, b) => a + b, 0),
@@ -901,46 +938,57 @@ export function waresOf(world: World, cell: number, good: number): readonly Ware
  * The greatest thing of a good a land sells on, as it would be called where it is sold: what it makes of it; where it made none and only
  * sells on what came to it, what the land that sent it the most makes (a few roads back at most). Null: none.
  */
-export function topOf(world: World, cell: number, good: number): Ware | null {
+export function topOf(world: World, cell: number, good: number): WareName | null {
   const r = madeHere(world, originOf(world, cell, good), good)[0];
-  return r
-    ? { key: r.key, name: r.name, ref: r.ref, share: r.share, from: r.from, made: true }
-    : null;
+  return r ? { key: r.key, name: r.name, ref: r.ref, share: r.share, made: true } : null;
 }
 
 /** The land whose making a land sells on of a good: its own, where it made any; else the one that sent it the most, a few roads back at most. */
 function originOf(world: World, cell: number, good: number, hops = 0): number {
-  const markets = marketsOf(world),
-    m = markets.get(cell);
-  if (!m || m.book("made", good) > 0 || hops >= 3) return cell;
+  const c = cacheOf(world),
+    key = `${cell}:${good}:${hops}`,
+    had = c.origin.get(key);
+  if (had !== undefined) return had;
+  const m = marketsOf(world).get(cell);
+  if (!m || m.book("made", good) > 0 || hops >= 3) {
+    c.origin.set(key, cell);
+    return cell;
+  }
   let best = -1,
     most = 0;
-  for (const f of markets.flowsOf([cell]))
+  for (const f of flowsAt(world, cell))
     if (f.to === cell && f.good === good && f.from !== cell && f.count > most) {
       most = f.count;
       best = f.from;
     }
-  return best >= 0 ? originOf(world, best, good, hops + 1) : cell;
+  const at = best >= 0 ? originOf(world, best, good, hops + 1) : cell;
+  c.origin.set(key, at);
+  return at;
+}
+
+/** Last year's flows out of or into a land, once a moment (a land of a great world's trade has hundreds). */
+function flowsAt(world: World, cell: number): readonly TradeFlow[] {
+  const c = cacheOf(world);
+  let f = c.flows.get(cell);
+  if (!f) c.flows.set(cell, (f = marketsOf(world).flowsOf([cell])));
+  return f;
 }
 
 /** What a land itself makes of a good, each thing with its share of that making (its arms among them), the greatest first. */
-export function madeWares(world: World, cell: number, good: number): readonly Ware[] {
+export function madeWares(world: World, cell: number, good: number): readonly WareName[] {
   return madeHere(world, cell, good).map((r) => ({
     key: r.key,
     name: r.name,
     ref: r.ref,
     share: r.share,
-    from: r.from,
     made: true,
   }));
 }
 
 /** The greatest thing a land itself makes of a good (null: none). */
-export function topMade(world: World, cell: number, good: number): Ware | null {
+export function topMade(world: World, cell: number, good: number): WareName | null {
   const r = madeHere(world, cell, good)[0];
-  return r
-    ? { key: r.key, name: r.name, ref: r.ref, share: r.share, from: r.from, made: true }
-    : null;
+  return r ? { key: r.key, name: r.name, ref: r.ref, share: r.share, made: true } : null;
 }
 
 /** The colours of a good's things, in turn. */
@@ -994,11 +1042,9 @@ export function tradeWords(
   way: "out" | "in",
   most = 3,
 ): { readonly line: Line; readonly partners: number } | null {
-  const flows = marketsOf(world)
-    .flowsOf([cell])
-    .filter((f) =>
-      way === "out" ? f.from === cell && f.to !== cell : f.to === cell && f.from !== cell,
-    );
+  const flows = flowsAt(world, cell).filter((f) =>
+    way === "out" ? f.from === cell && f.to !== cell : f.to === cell && f.from !== cell,
+  );
   if (!flows.length) return null;
   const by = new Map<number, Map<string, number>>(),
     worth = new Map<number, number>();
@@ -1038,7 +1084,7 @@ export function betweenWords(world: World, a: number, b: number): Line | null {
     [b, a],
   ] as const) {
     const sums = new Map<string, number>();
-    for (const f of marketsOf(world).flowsOf([from]))
+    for (const f of flowsAt(world, from))
       if (f.from === from && f.to === to) {
         const top = topOf(world, from, f.good),
           name = top?.name ?? GOODS[f.good]!.name;
@@ -1062,6 +1108,10 @@ type Cache = {
   readonly made: Map<string, (Raw & { share: number })[]>;
   readonly wares: Map<string, readonly Ware[]>;
   readonly fielded: Map<string, number>;
+  readonly origin: Map<string, number>;
+  readonly flows: Map<number, readonly TradeFlow[]>;
+  readonly beasts: Map<number, Species | null>;
+  readonly cloths: Map<number, Cloth>;
 };
 const CACHES = new WeakMap<World, Cache>();
 
@@ -1069,7 +1119,16 @@ const CACHES = new WeakMap<World, Cache>();
 function cacheOf(world: World): Cache {
   let c = CACHES.get(world);
   if (!c || c.now !== world.now) {
-    c = { now: world.now, made: new Map(), wares: new Map(), fielded: new Map() };
+    c = {
+      now: world.now,
+      made: new Map(),
+      wares: new Map(),
+      fielded: new Map(),
+      origin: new Map(),
+      flows: new Map(),
+      beasts: new Map(),
+      cloths: new Map(),
+    };
     CACHES.set(world, c);
   }
   return c;
