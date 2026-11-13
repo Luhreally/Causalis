@@ -2942,8 +2942,17 @@ body.with-palette .hint {
     border-right: none;
     border-bottom: 1px solid var(--chrome-lo);
   }
+  /* (A finger's size each, on as many rows as they need: 2026-11-13.) */
+  .palette-tabs {
+    flex-wrap: wrap;
+  }
   .palette-tab {
-    flex: 1 1 0;
+    flex: 1 0 44px;
+    height: 44px;
+  }
+  .palette-act {
+    width: 44px;
+    height: 44px;
   }
   .palette-words {
     white-space: normal;
@@ -3310,6 +3319,49 @@ body.with-palette .hint {
 .palette-choices .speed {
   padding: 1px 5px;
   font-size: 0.8rem;
+}
+/* A blessing's or a curse's strength, its own slider beside the years it lasts (2026-11-13). */
+.palette-strength {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+}
+.palette-strength[hidden] {
+  display: none;
+}
+.palette-years .speed {
+  min-width: 44px;
+  min-height: 44px;
+}
+.palette-strength input {
+  width: 110px;
+  height: 44px;
+  margin: 0;
+  accent-color: #d5ff72;
+}
+.palette-strength-words {
+  min-width: 5.5em;
+}
+/* (On a phone the line wraps: the years and the strength each a finger's size, under what the act will do.) */
+@media (max-width: 640px) {
+  .palette-line {
+    flex-wrap: wrap;
+  }
+  .palette-line .palette-words {
+    flex: 1 1 100%;
+  }
+  .palette-choices .speed {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .palette-strength {
+    flex: 1 1 auto;
+  }
+  .palette-strength input {
+    flex: 1 1 auto;
+  }
 }
 /* A map mode's choices under its legend (the ways lens: which way). */
 .legend-picks {

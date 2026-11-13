@@ -111,3 +111,18 @@ export function peaceRefused(
     ? "winning"
     : null;
 }
+
+/**
+ * One of a court played by the god's hand, not the ruler (2026-11-13): what their station comes to. A proposal must carry
+ * a majority of the realm's voices, their own group's and those behind them counted wholly for it; where the ruler rules
+ * alone it must also reach the ruler's ear, which hears only those of some weight. A group stands behind one who weighs
+ * at least a share of what it weighs. First guesses, each a number to change.
+ */
+export const ROLE = {
+  /** The share of the realm's voices a proposal must carry. */
+  majority: 0.5,
+  /** Where the ruler rules alone, the share of the realm's sway one must hold, with those behind them, to be heard. */
+  ear: 0.2,
+  /** A group stands behind one who weighs at least this share of what it weighs. */
+  backs: 0.5,
+} as const;

@@ -56,6 +56,7 @@ import { handOf } from "../hand/hand.ts";
 import { LAW_OF, firstLaws, lawGrievance, weighLaws } from "./laws.ts";
 import { CREDIT, creditOf, debtBurden } from "../credit/credit.ts";
 import { seizedFactor } from "../strife/strife.ts";
+import { fortunePull } from "../acts/fortune.ts";
 
 /** The kinds of bondage a people may be held in (corvée, a levy on the free, is the realm's). */
 export const BONDS = ["chattel", "debt", "serf", "indenture", "convict"] as const;
@@ -518,6 +519,20 @@ export function legitimacyFactors(ctx: PopulationContext, p: Polity): Factor[] {
               value: fade,
               contribution: m.sign * MANDATE_PUSH * fade,
               source: { ref: m.event, role: "agent" as const, weight: 1 },
+            },
+          ]
+        : [];
+    })(),
+    // (A blessing or a curse laid for years, while it holds: none, nearly always.)
+    ...(() => {
+      const f = fortunePull(world, p.ref);
+      return f.pull !== 0 && f.event
+        ? [
+            {
+              name: f.pull > 0 ? "the god's blessing on it" : "the god's curse on it",
+              value: f.pull,
+              contribution: f.pull,
+              source: { ref: f.event, role: "agent" as const, weight: 1 },
             },
           ]
         : [];

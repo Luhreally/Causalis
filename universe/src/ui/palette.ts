@@ -9,6 +9,16 @@ import type { CommandReceipt, HostClient, PaletteLand } from "../bridge/index.ts
 import type { Lit } from "../view/index.ts";
 import { el } from "./why.ts";
 
+/** How strong a blessing or curse can be laid, and what each is called (sim/acts/fortune.ts holds the same, as a test holds them). */
+export const FORTUNE_STRENGTHS = [0.5, 1, 1.5, 2, 3] as const;
+export const FORTUNE_WORDS: Readonly<Record<number, string>> = {
+  0.5: "faint",
+  1: "of old",
+  1.5: "strong",
+  2: "great",
+  3: "the greatest",
+};
+
 type Target =
   | "land"
   | "town"
@@ -35,6 +45,8 @@ type PaletteAct = {
   readonly sign?: 1 | -1;
   /** Whether it lasts years (chosen in the palette). */
   readonly lasting?: boolean;
+  /** A realm's fortune: how strong, and for how many years, each chosen in the palette (a one-off of old, unless). */
+  readonly fortune?: boolean;
   /** Between two realms: how the second is lit. */
   readonly second?: "foe" | "friend";
   /** Whether it may fall on an empty land (settlers are sent into one). */
@@ -312,7 +324,14 @@ const ACTS: Readonly<Record<string, PaletteAct>> = {
     command: "act.union",
     second: "friend",
   },
-  bless: { id: "bless", icon: "🌟", name: "Bless a realm", target: "realm", command: "act.bless" },
+  bless: {
+    id: "bless",
+    icon: "🌟",
+    name: "Bless a realm",
+    target: "realm",
+    command: "act.bless",
+    fortune: true,
+  },
   // A people's ways, speech and faith in the god's hand (Phase 14 M117).
   ways: {
     id: "ways",
@@ -344,7 +363,14 @@ const ACTS: Readonly<Record<string, PaletteAct>> = {
     command: "act.faith",
     choose: "tenet",
   },
-  curse: { id: "curse", icon: "🌑", name: "Curse a realm", target: "realm", command: "act.curse" },
+  curse: {
+    id: "curse",
+    icon: "🌑",
+    name: "Curse a realm",
+    target: "realm",
+    command: "act.curse",
+    fortune: true,
+  },
   // The god's hand made flesh (Phase 60): one of the people of the town the hand rests on, walked in;
   // one of the men of a battle fought before a town, a beast about it (Phase 61).
   possess: {
@@ -414,6 +440,12 @@ export class GodPalette {
   private readonly spans = el("span", "palette-years");
   /** The choices an act asks for before it falls: which way, which way pushed; which tenet. */
   private readonly choices = el("span", "palette-choices");
+  /** How strong a realm's fortune is laid (its own slider), and for how many years (the years' buttons). */
+  private readonly strength = el("label", "palette-strength");
+  private readonly strengthInput = el("input");
+  private readonly strengthWords = el("span", "palette-strength-words");
+  private strengthAt = FORTUNE_STRENGTHS.indexOf(1);
+  private fortuneYears = 1;
   private way = "valour";
   private waySign: 1 | -1 = 1;
   private tenet = "rain";
@@ -438,6 +470,8 @@ export class GodPalette {
   onOpen: (ref: string) => void = () => {};
   /** The palette took an act in hand, or put it down. */
   onArmed: (armed: boolean) => void = () => {};
+  /** The palette opened or shut. */
+  onShown: (open: boolean) => void = () => {};
   /**
    * One of a town's people touched with Possess in hand (Phase 60): the town and where in it; told
    * why they cannot be taken (null: taken, the act put down).
@@ -445,15 +479,18 @@ export class GodPalette {
   onPossess: (town: string | null, place?: TownPlace) => Promise<string | null> = async () =>
     "possession is not to be had here";
 
+  /** Open the palette, or shut it (and put down what is in hand). */
+  show(open: boolean): void {
+    this.element.classList.toggle("open", open);
+    if (!open) this.putDown();
+    this.onShown(open);
+  }
+
   constructor(parent: HTMLElement, client: HostClient) {
     this.client = client;
     this.toggle.title = "The god's hand: acts on the lands, the towns, the peoples, the world";
     this.toggle.setAttribute("aria-label", "The god's hand");
-    this.toggle.onclick = () => {
-      const open = !this.element.classList.contains("open");
-      this.element.classList.toggle("open", open);
-      if (!open) this.putDown();
-    };
+    this.toggle.onclick = () => this.show(!this.element.classList.contains("open"));
     for (const k of PALETTE_KINDS) {
       const b = el("button", "palette-tab", k.icon);
       b.title = k.name;
@@ -468,14 +505,34 @@ export class GodPalette {
     for (const n of [1, 3, 5]) {
       const b = el("button", "speed", `${n}y`);
       b.title = `For ${n} year${n === 1 ? "" : "s"}`;
+      b.dataset.years = `${n}`;
       b.onclick = () => {
-        this.years = n;
+        if (this.act?.fortune) this.fortuneYears = n;
+        else this.years = n;
         this.drawYears();
         this.say();
       };
       this.spans.append(b);
     }
-    this.line.append(this.words, this.spans, this.choices);
+    // (A blessing's or a curse's strength: five stops, the second the strength of old.)
+    const input = this.strengthInput;
+    input.type = "range";
+    input.min = "0";
+    input.max = `${FORTUNE_STRENGTHS.length - 1}`;
+    input.step = "1";
+    input.value = `${this.strengthAt}`;
+    input.setAttribute("aria-label", "How strong");
+    input.oninput = () => {
+      this.strengthAt = Number(input.value);
+      this.say();
+    };
+    this.strength.append(
+      el("span", "palette-strength-label", "Strength"),
+      input,
+      this.strengthWords,
+    );
+    this.strength.hidden = true;
+    this.line.append(this.words, this.spans, this.strength, this.choices);
     const bar = el("div", "palette-bar");
     bar.append(this.tabs, this.tiles);
     this.element.append(this.line, bar);
@@ -810,12 +867,24 @@ export class GodPalette {
       case "realm": {
         const r = land?.realm;
         if (!r) return { words: land ? `${land.name} is no realm's` : "no land there", args: null };
-        return {
-          words:
-            a.id === "bless"
+        const strength = FORTUNE_STRENGTHS[this.strengthAt] ?? 1,
+          years = this.fortuneYears,
+          bless = a.id === "bless",
+          what = fortuneReach(bless, strength);
+        if (strength === 1 && years === 1)
+          return {
+            words: bless
               ? `the lands of ${r.name} blessed with content`
               : `the lands of ${r.name} cursed with unrest`,
-          args: { realm: r.ref },
+            args: { realm: r.ref },
+          };
+        return {
+          words: `the lands of ${r.name} ${bless ? "blessed" : "cursed"} with ${what}, ${strengthWords(strength)}, for ${years} year${years === 1 ? "" : "s"}${years > 1 ? ", laid again each year" : ""}`,
+          args: {
+            realm: r.ref,
+            ...(strength !== 1 ? { strength } : {}),
+            ...(years !== 1 ? { years } : {}),
+          },
         };
       }
       case "tongue": {
@@ -868,7 +937,14 @@ export class GodPalette {
   /** The line above the palette: what the act in hand will do, or asks for. */
   private say(problem?: string, tone?: "bad"): void {
     const a = this.act;
-    this.spans.hidden = !a?.lasting;
+    this.spans.hidden = !a?.lasting && !a?.fortune;
+    this.strength.hidden = !a?.fortune;
+    this.drawYears();
+    if (a?.fortune) {
+      const st = FORTUNE_STRENGTHS[this.strengthAt] ?? 1;
+      this.strengthWords.textContent = st === 1 ? "of old" : (FORTUNE_WORDS[st] ?? "");
+      this.strength.dataset.strength = `${st}`;
+    }
     this.drawChoices();
     this.line.classList.toggle("bad", tone === "bad");
     // (Why one of a town's people cannot be taken, told whole, on two lines if it must: Phase 60.)
@@ -1017,11 +1093,45 @@ export class GodPalette {
   }
 
   private drawYears(): void {
+    const years = this.act?.fortune ? this.fortuneYears : this.years;
     [...this.spans.children].forEach((b, i) =>
-      (b as HTMLElement).classList.toggle("on", [1, 3, 5][i] === this.years),
+      (b as HTMLElement).classList.toggle("on", [1, 3, 5][i] === years),
     );
   }
+
+  /** How strong a blessing or curse is to be, and for how many years (for the look tools and the gates). */
+  setFortune(strength: number, years: number): void {
+    const at = FORTUNE_STRENGTHS.indexOf(strength as (typeof FORTUNE_STRENGTHS)[number]);
+    if (at >= 0) this.strengthAt = at;
+    this.strengthInput.value = `${this.strengthAt}`;
+    if ([1, 3, 5].includes(years)) this.fortuneYears = years;
+    this.say();
+  }
 }
+
+/** What a blessing or curse at a strength reaches, in words (fortune.ts: plenty or blight past 1, health or sickness past 1.5). */
+function fortuneReach(bless: boolean, strength: number): string {
+  const parts = bless
+    ? [
+        "content",
+        ...(strength > 1 ? ["plenty"] : []),
+        ...(strength > 1.5 ? ["health"] : []),
+        ...(strength > 1 ? ["standing, and the envy of those who meet them"] : []),
+      ]
+    : [
+        "unrest",
+        ...(strength > 1 ? ["blight"] : []),
+        ...(strength > 1.5 ? ["sickness"] : []),
+        ...(strength > 1 ? ["ill omens"] : []),
+      ];
+  return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0]!;
+}
+const strengthWords = (s: number) =>
+  s === 1
+    ? "at the strength of old"
+    : s === 3
+      ? "at the greatest strength"
+      : `at a ${FORTUNE_WORDS[s] ?? ""} strength`;
 
 function sentence(text: string): string {
   return text ? text[0]!.toUpperCase() + text.slice(1) : text;

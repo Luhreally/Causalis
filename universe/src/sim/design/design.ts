@@ -35,8 +35,12 @@ import {
   OCC,
   WORKED,
   WORKS_ROLES,
+  PRINCIPLES,
+  affordsPrinciple,
   compose,
   designWords,
+  hostPower,
+  reachIn,
   firearm,
   hereOf,
   kindBurns,
@@ -51,7 +55,7 @@ import type { PopulationContext } from "../population/systems.ts";
 import type { MarketStore } from "../economy/market.ts";
 import { metalSource, metalsAt, sourceRef } from "../economy/metals.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
-import { knows, loreOf } from "../lore/lore.ts";
+import { knows, lawAllows, loreOf, matterAllows } from "../lore/lore.ts";
 import { lessonAdds } from "../lore/lessons-store.ts";
 import { politiesOf, type Polity } from "../polity/polity.ts";
 import { wildsOf } from "../ecology/ecology.ts";
@@ -446,6 +450,49 @@ export function hostFor(
     ),
     sources,
   };
+}
+
+/**
+ * The best a host of a realm's people could bear by its world's physics (2026-11-13, the god's host): every craft its
+ * world's matter, heat and laws allow known, as if found, every stuff to hand, made at their best, chosen for the field
+ * alone and not its cost. What no people of that world could ever make, it does not bear. Its power for each man.
+ */
+export function bestHostFor(ctx: PopulationContext): { parts: Part[]; power: number } {
+  const g = ctx.generated,
+    means = meansOfWorld(g),
+    reach = reachIn(means, () => true),
+    allowed = new Set(
+      PRINCIPLES.filter(
+        (p) =>
+          affordsPrinciple(p, ctx.medium, reach, means.wants) &&
+          matterAllows(g, p) &&
+          lawAllows(ctx.world, p),
+      ).map((p) => p.id),
+    ),
+    dry = new Set<Material>(["wood", "reed", "hide", "earth", "mud"]),
+    parts = compose(
+      HOST_ROLES,
+      (id) => id === "cultivation" || id === "metalworking" || allowed.has(id),
+      (m) => ctx.medium !== "water" || !dry.has(m),
+      {
+        shock: 1,
+        reach: 0.5,
+        range: 0.8,
+        protection: 0.8,
+        mobility: 0.5,
+        cost: 0,
+        firepower: 1,
+        breach: 0.6,
+      },
+      g.life.people?.body,
+      undefined,
+      [],
+      0,
+      means.earthRoad && !means.edgeRoad
+        ? undefined
+        : (id, m) => hereOf(id, m, meansNumbers(g), firearm(id)),
+    );
+  return { parts, power: hostPower(parts) };
 }
 
 /** What a land's crafts are done in and driven by, now: none until it knows mills or engines. */
