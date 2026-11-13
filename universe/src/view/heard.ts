@@ -11,16 +11,7 @@ import type { Blows } from "./blows.ts";
 
 /** The kinds of sound an arm or a blast makes. */
 export type HeardKind =
-  | "gun"
-  | "cannon"
-  | "bow"
-  | "dart"
-  | "clash"
-  | "thud"
-  | "zap"
-  | "rocket"
-  | "whistle"
-  | "blast";
+  "gun" | "cannon" | "bow" | "dart" | "clash" | "thud" | "zap" | "rocket" | "whistle" | "blast";
 
 /** The numbers a sound is made from (each kind reads those it needs; the rest unset). */
 export type Voicing = {
@@ -82,7 +73,8 @@ const RING_PER_SPEED = 0.62;
 
 /** How a material rings when struck: its ring (Hz) and how long it lasts (s); unknown stuff as wood. */
 export function ringOf(stuff: string | undefined, size = 1): { ring: number; decay: number } {
-  const [gpa, kg, loss] = (stuff && Object.hasOwn(STRUCK, stuff) ? STRUCK[stuff] : null) ?? STRUCK.wood!,
+  const [gpa, kg, loss] =
+      (stuff && Object.hasOwn(STRUCK, stuff) ? STRUCK[stuff] : null) ?? STRUCK.wood!,
     speed = Math.sqrt((gpa * 1e9) / kg),
     ring = Math.max(260, Math.min(6000, (RING_PER_SPEED * speed) / size));
   return { ring, decay: Math.max(0.025, Math.min(1.6, 1 / (Math.PI * ring * loss))) };
@@ -174,11 +166,20 @@ export type BattleSound = {
   readonly car?: number;
 };
 
-type Side = { readonly arm?: string; readonly guard?: string; readonly stuff?: string; readonly guardStuff?: string };
+type Side = {
+  readonly arm?: string;
+  readonly guard?: string;
+  readonly stuff?: string;
+  readonly guardStuff?: string;
+};
 /** A battle's timeline, read once: everything that sounds, in the order it sounds. */
 const TIMELINES = new WeakMap<BattleField, readonly BattleSound[]>();
 
-function timelineOf(field: BattleField, blows: Blows | null, sides: readonly [Side, Side]): readonly BattleSound[] {
+function timelineOf(
+  field: BattleField,
+  blows: Blows | null,
+  sides: readonly [Side, Side],
+): readonly BattleSound[] {
   const out: BattleSound[] = [],
     near = field.near,
     voice = [0, 1].map((s) => {
@@ -216,7 +217,13 @@ function timelineOf(field: BattleField, blows: Blows | null, sides: readonly [Si
       worn = sides[h.side]!,
       guard = worn.guard ?? (h.side === 0 ? near.attacker : near.defender).host?.guard;
     out.push({ kind: "clash", v: by.strike, t: h.at, x: h.x, z: h.z });
-    out.push({ kind: "thud", v: guardVoice(guard, worn.guardStuff), t: h.at + 0.02, x: h.x, z: h.z });
+    out.push({
+      kind: "thud",
+      v: guardVoice(guard, worn.guardStuff),
+      t: h.at + 0.02,
+      x: h.x,
+      z: h.z,
+    });
   }
   // The armoured cars' guns: a burst of five every 1.6 s from the arrows to the rout while they run (view/battle.ts
   // vehicleNow); knocked out, what they carry goes up.

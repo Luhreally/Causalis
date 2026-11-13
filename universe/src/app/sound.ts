@@ -615,7 +615,14 @@ class Graph {
   }
 
   /** A voice's level from `at`: up over its attack and away over its length, so many times over, so far apart. */
-  private envelope(g: GainNode, at: number, gain: number, attack: number, len: number, a: Again): void {
+  private envelope(
+    g: GainNode,
+    at: number,
+    gain: number,
+    attack: number,
+    len: number,
+    a: Again,
+  ): void {
     const times = Math.max(1, a.times ?? 1),
       every = a.every ?? len;
     g.gain.setValueAtTime(0, at);
@@ -992,7 +999,9 @@ class Graph {
             { from: "white", kind: "highpass", f0: 2500, at, len: 0.02, gain: L * 0.5, to },
             lim,
           );
-        const gap = cracks ? Math.max(0.01, Math.min(0.16, far * (1 / SOUND_SPEED - 1 / speed))) : 0,
+        const gap = cracks
+            ? Math.max(0.01, Math.min(0.16, far * (1 / SOUND_SPEED - 1 / speed)))
+            : 0,
           bang = at + gap;
         this.burst(
           {
@@ -1056,11 +1065,30 @@ class Graph {
         const hz = 105 * Math.sqrt((n.joules ?? 40) / 40);
         if (!this.fits(3, lim)) return false;
         this.tone(
-          { type: "sawtooth", f0: hz, f1: hz * 0.94, at, len: 0.22, attack: 0.002, gain: L * 0.3, to },
+          {
+            type: "sawtooth",
+            f0: hz,
+            f1: hz * 0.94,
+            at,
+            len: 0.22,
+            attack: 0.002,
+            gain: L * 0.3,
+            to,
+          },
           lim,
         );
         this.burst(
-          { from: "white", kind: "bandpass", f0: 1500, q: 1.5, at, len: 0.028, attack: 0.001, gain: L * 0.7, to },
+          {
+            from: "white",
+            kind: "bandpass",
+            f0: 1500,
+            q: 1.5,
+            at,
+            len: 0.028,
+            attack: 0.001,
+            gain: L * 0.7,
+            to,
+          },
           lim,
         );
         this.burst(
@@ -1084,7 +1112,16 @@ class Graph {
         // A dart thrown hard: its whip through the air, and the click that loosed it.
         if (!this.fits(2, lim)) return false;
         this.burst(
-          { from: "white", kind: "highpass", f0: 4000, at, len: 0.012, attack: 0.001, gain: L * 0.5, to },
+          {
+            from: "white",
+            kind: "highpass",
+            f0: 4000,
+            at,
+            len: 0.012,
+            attack: 0.001,
+            gain: L * 0.5,
+            to,
+          },
           lim,
         );
         this.burst(
@@ -1145,7 +1182,17 @@ class Graph {
           clangs = !n.mail && ring > 0 && decay > 0.05;
         if (!this.fits(2 + (n.mail ? 2 : clangs ? 1 : 0), lim)) return false;
         this.burst(
-          { from: "brown", kind: "lowpass", f0: 900, f1: 160, at, len: 0.14, attack: 0.002, gain: L * 1.1, to },
+          {
+            from: "brown",
+            kind: "lowpass",
+            f0: 900,
+            f1: 160,
+            at,
+            len: 0.14,
+            attack: 0.002,
+            gain: L * 1.1,
+            to,
+          },
           lim,
         );
         this.tone({ f0: 150, f1: 85, at, len: 0.12, attack: 0.002, gain: L * 0.7, to }, lim);
@@ -1157,7 +1204,14 @@ class Graph {
         if (n.mail)
           for (let i = 0; i < 2; i++)
             this.tone(
-              { f0: 3800 + 2700 * r(), at: at + 0.012 + 0.018 * i, len: 0.05, attack: 0.001, gain: L * 0.16, to },
+              {
+                f0: 3800 + 2700 * r(),
+                at: at + 0.012 + 0.018 * i,
+                len: 0.05,
+                attack: 0.001,
+                gain: L * 0.16,
+                to,
+              },
               lim,
             );
         return true;
@@ -1166,7 +1220,10 @@ class Graph {
         // Burning light let go: a falling edge, its pitch its own.
         const hz = (n.hz ?? 1800) * (0.9 + 0.2 * r());
         if (!this.fits(1, lim)) return false;
-        this.tone({ type: "sawtooth", f0: hz, f1: hz * 0.18, at, len: 0.13, gain: L * 0.55, to }, lim);
+        this.tone(
+          { type: "sawtooth", f0: hz, f1: hz * 0.18, at, len: 0.13, gain: L * 0.55, to },
+          lim,
+        );
         return true;
       }
       case "rocket": {

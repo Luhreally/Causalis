@@ -357,9 +357,7 @@ export function ballOf(
 ): { speed: number; kg: number; bore: number; joules: number } | null {
   const b = Object.hasOwn(BALLS, id) ? BALLS[id]! : null,
     m = Object.hasOwn(BALL_MASS, id) ? BALL_MASS[id]! : null;
-  return b && m
-    ? { speed: b[0], kg: m[0], bore: m[1], joules: 0.5 * m[0] * b[0] * b[0] }
-    : null;
+  return b && m ? { speed: b[0], kg: m[0], bore: m[1], joules: 0.5 * m[0] * b[0] * b[0] } : null;
 }
 
 const has = (held: readonly string[], want?: readonly string[]) =>

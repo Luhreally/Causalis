@@ -911,7 +911,9 @@ export class BattleLayer {
    * a town's, before a town) and to which side (-1 left … 1 right), into `out`.
    */
   heardFrom(x: number, z: number, out: { far: number; pan: number }): void {
-    const at = this.root.getWorldTransform().transformPoint(this.heardAt.set(x * M, 0.15, z * M), this.heardAt),
+    const at = this.root
+        .getWorldTransform()
+        .transformPoint(this.heardAt.set(x * M, 0.15, z * M), this.heardAt),
       cam = this.stage.camera,
       eye = cam.getPosition(),
       right = cam.right,

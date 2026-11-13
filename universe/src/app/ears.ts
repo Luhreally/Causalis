@@ -66,7 +66,12 @@ export class Ears {
   }
 
   /** The stretch of a clock to hear now: from where it was heard to, unless it has jumped; to a little past now. */
-  private stretch(h: Heard, key: unknown, now: number, pace: number): { from: number; to: number } | null {
+  private stretch(
+    h: Heard,
+    key: unknown,
+    now: number,
+    pace: number,
+  ): { from: number; to: number } | null {
     const to = now + AHEAD * pace;
     if (h.key !== key || h.to < now - 1.5 * pace - 0.5 || h.to > to + 0.5) {
       h.key = key;
@@ -104,7 +109,13 @@ export class Ears {
     out.length = 0;
     for (const e of this.sounds) {
       layer.heardFrom(e.x, e.z, this.way);
-      out.push({ kind: e.kind, v: e.v, in: (e.t - s) / pace, far: this.way.far, pan: this.way.pan });
+      out.push({
+        kind: e.kind,
+        v: e.v,
+        in: (e.t - s) / pace,
+        far: this.way.far,
+        pan: this.way.pan,
+      });
     }
     this.told.battle += out.length;
     this.sound.tell(out, pace);
