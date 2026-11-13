@@ -2094,6 +2094,7 @@ function bowlParts(c: ThingCtx): SpecimenPart[] {
 // Cloth: each garment laid out facing the eye, its shape what says what it is at a glance (its sleeves, its neck, its length, its legs),
 // its seams, stitching and weave drawn only when it is looked at.
 
+const BRASS: Rgb = [0.78, 0.64, 0.32];
 /** A fitting of the garment's second stuff (a belt, a clasp, buttons, laces): its land's wood or leather, dull. */
 function fitting(c: ThingCtx, mesh: Mesh, k = 1): SpecimenPart {
   return {
@@ -2250,13 +2251,15 @@ function shirtParts(c: ThingCtx): SpecimenPart[] {
     ),
   ];
   if (c.fine)
-    parts.push(
-      fitting(
-        c,
-        join(...[0.28, 0.12, -0.04, -0.2, -0.36].map((y) => disc(6, 0.014, 0.01, [0, y, 0.062]))),
-        1.3,
+    parts.push({
+      mesh: join(
+        ...[0.28, 0.12, -0.04, -0.2, -0.36].map((y) => disc(6, 0.016, 0.012, [0, y, 0.064])),
       ),
-    );
+      color: [0.9, 0.88, 0.8],
+      lustre: "pearly",
+      clarity: 0,
+      surface: "none",
+    });
   return parts;
 }
 
@@ -2366,7 +2369,7 @@ function cloakParts(c: ThingCtx): SpecimenPart[] {
     shade(c, beam([0, 0.42, 0.105], [0, -0.86, 0.33], 0.02), 0.42, { surface: "none" }),
     {
       mesh: disc(8, 0.05, 0.03, [0, 0.43, 0.1]),
-      color: [0.78, 0.64, 0.32],
+      color: BRASS,
       lustre: "metallic",
       clarity: 0,
       surface: "none",
@@ -2439,11 +2442,14 @@ function coatParts(c: ThingCtx): SpecimenPart[] {
       ),
       0.55,
     ),
-    fitting(
-      c,
-      join(...[0.02, -0.18, -0.38].map((y) => disc(6, 0.024, 0.02, [0.06, y, 0.062]))),
-      0.8,
-    ),
+    // (Its buttons of horn or brass, standing off its cloth or its leather.)
+    {
+      mesh: join(...[0.02, -0.18, -0.38].map((y) => disc(8, 0.03, 0.03, [0.06, y, 0.066]))),
+      color: BRASS,
+      lustre: "metallic",
+      clarity: 0,
+      surface: "none",
+    },
   ];
 }
 
