@@ -216,3 +216,28 @@ body.ruling #hud > *:not(.reign-hud):not(.page-window):not(.panel.page-panel):no
 .reign-hud .reign-back.behind {
   border-color: #8fd18f;
 }
+/* (A word on the tray is never broken in two: with eight to the tray, they are set a little smaller. 2026-11-13: "Decre es".) */
+.reign-tray .reign-act .life-label {
+  overflow-wrap: normal;
+  word-break: keep-all;
+}
+.reign-tray:has(> .reign-bound:not([hidden])) .reign-act .life-label {
+  font-size: 11px;
+}
+.reign-tray .reign-act {
+  padding-left: 1px;
+  padding-right: 1px;
+}
+/* (At a desk's width the bar is the taller, its readings and rivals under the name: a sheet or a window stands between
+   the bar's foot and the tray, the tray's buttons to hand, and the day's line waits under it. 2026-11-13: the sheet lay
+   over the tray and the bar's foot.) */
+@media (min-width: 641px) {
+  .reign-hud > :is(.reign-sheet, .reign-window) {
+    box-sizing: border-box;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 86px);
+    max-height: calc(100dvh - var(--bar-bottom, 330px) - 98px - env(safe-area-inset-bottom, 0px));
+  }
+  .reign-hud:has(> :is(.reign-sheet, .reign-window):not([hidden])) > .reign-told {
+    visibility: hidden;
+  }
+}

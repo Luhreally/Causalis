@@ -389,7 +389,7 @@ export class ReignHud {
       }
       body.push(box);
     }
-    this.open_("📜 Decrees", ...body);
+    this.open_(this.last?.role ? "📜 Put to the realm" : "📜 Decrees", ...body);
   }
 
   wars(d: ReignWars): void {
