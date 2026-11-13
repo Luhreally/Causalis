@@ -46,7 +46,7 @@ import { dropBlock } from "./small.ts";
 import { landBondBlocks } from "./order.ts";
 import { landHealthBlocks } from "./sickness.ts";
 import { landCreditBlocks } from "./credit.ts";
-import { tradeWords } from "./wares.ts";
+import { tradeItems } from "./wares.ts";
 import { landCompanyBlocks } from "./exchange.ts";
 import { biomeWords } from "../kinds.ts";
 import {
@@ -435,16 +435,22 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
         },
       ];
       // (What it sends and brings, said as the things themselves: "brindled water grain and rifles to Ur".)
-      const sends = tradeWords(world, cell, "out"),
-        brings = tradeWords(world, cell, "in");
-      if (sends || brings)
+      // (A partner to a line, each with a picture of the greatest thing that went.)
+      const sends = tradeItems(world, cell, "out"),
+        brings = tradeItems(world, cell, "in");
+      if (sends)
         blocks.push({
-          type: "facts",
-          title: "Sends and brings",
-          rows: [
-            ...(sends ? [stat("Sends away", sends.line)] : []),
-            ...(brings ? [stat("Brings in", brings.line)] : []),
-          ],
+          type: "list",
+          title: "Sends away",
+          items: sends.items,
+          ...(sends.more ? { more: sends.more } : {}),
+        });
+      if (brings)
+        blocks.push({
+          type: "list",
+          title: "Brings in",
+          items: brings.items,
+          ...(brings.more ? { more: brings.more } : {}),
         });
       const flows = marketsOf(world).flows.filter((f) => f.from === cell || f.to === cell);
       if (flows.length)

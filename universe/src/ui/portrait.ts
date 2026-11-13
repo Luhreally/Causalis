@@ -1059,9 +1059,29 @@ export function drawPortrait(
     case "matter":
     case "element":
     case "thing":
+    case "plant":
       // A specimen (Phase 54 M223): cut, poured or made as its stuff is, turning slowly.
       drawSpecimen(surface(canvas, w, h), p, box, t);
       return;
+    case "company": {
+      // A company's mark (asked 2026-11-12): its realm's shield, a pale roundel on it, and in that the thing it makes.
+      const ctx = surface(canvas, w, h),
+        sw = w * 0.86,
+        sh = h * 0.94;
+      drawArms(ctx, p.arms, (w - sw) / 2, (h - sh) / 2, sw, sh);
+      const r = w * 0.3,
+        cx = w / 2,
+        cy = h * 0.47;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(246,240,224,0.92)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(40,28,14,0.7)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      if (p.good) drawSpecimen(ctx, p.good, { x: cx - r, y: cy - r, w: r * 2, h: r * 2 }, 0);
+      return;
+    }
     case "arms": {
       // A realm's arms whole; a war's two, face to face, crossed blades between them.
       const ctx = surface(canvas, w, h),

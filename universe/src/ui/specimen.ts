@@ -1633,12 +1633,13 @@ function garmentParts(c: ThingCtx): SpecimenPart[] {
     ...head(c, move(box(0.42, h, 0.05), [0, y, 0])),
     color: dim(c.color, k % 2 ? 0.86 : 1),
   });
-  return [
-    head(c, move(box(0.7, 0.16, 0.05), [0, 0.42, 0])),
-    fold(0.16, 0.26, 0),
-    fold(-0.1, 0.26, 1),
-    fold(-0.36, 0.2, 2),
-  ];
+  // (Its shoulders, and its sleeves hanging from them, so it reads as a garment and not a stack of boards.)
+  const shoulders = join(
+    move(box(0.7, 0.16, 0.05), [0, 0.42, 0]),
+    move(rotate(box(0.14, 0.42, 0.05), 0, 0, -0.45), [-0.44, 0.24, 0]),
+    move(rotate(box(0.14, 0.42, 0.05), 0, 0, 0.45), [0.44, 0.24, 0]),
+  );
+  return [head(c, shoulders), fold(0.16, 0.26, 0), fold(-0.1, 0.26, 1), fold(-0.36, 0.2, 2)];
 }
 
 /** A rolled bolt of cloth, its loose end hanging as a bent sheet. */
@@ -1740,6 +1741,373 @@ function castingParts(c: ThingCtx): SpecimenPart[] {
   return [head(c, box(0.8, 0.5, 0.5)), head(c, ribs)];
 }
 
+// Machines, a host's kit and plants as a market sells them (asked 2026-11-12): each of a few solids, its body of its stuff (a car of its
+// land's steel or bronze, a radio's case of its wood), its second stuff the haft's colour, the rest glass, rubber or a lit face.
+
+const TYRE: Rgb = [0.12, 0.12, 0.13];
+const PANE: Rgb = [0.24, 0.32, 0.42];
+const FACE: Rgb = [0.92, 0.88, 0.76];
+const SCREEN: Rgb = [0.36, 0.62, 0.78];
+
+/** A part of a machine's second stuff: a cased set's metal fittings, a metal machine's wooden trim. */
+function trim(c: ThingCtx, mesh: Mesh): SpecimenPart {
+  return { mesh, color: c.wood, lustre: "metallic", clarity: 0, gloss: c.gloss };
+}
+/** A part of its own colour, dull or glassy: rubber, a window, a dial's face. */
+function plain(mesh: Mesh, color: Rgb, lustre: Lustre = "dull", glow = false): SpecimenPart {
+  return { mesh, color, lustre, clarity: 0, ...(glow ? { glow: true, strong: true } : {}) };
+}
+/** A wheel or a disc whose axle runs front to back (z), at a place. */
+const disc = (n: number, r: number, w: number, at: V3): Mesh =>
+  move(rotate(prism(n, r, w), 0, Math.PI / 2, 0), at);
+/** A cylinder lying along x, at a place. */
+const lying = (n: number, r: number, l: number, at: V3): Mesh =>
+  move(rotate(prism(n, r, l), 0, 0, Math.PI / 2), at);
+
+function motorCarParts(c: ThingCtx): SpecimenPart[] {
+  const wheels = join(
+    ...[-0.46, 0.46].flatMap((x) => [-0.3, 0.3].map((z) => disc(8, 0.17, 0.12, [x, -0.16, z]))),
+  );
+  return [
+    head(c, box(1.45, 0.3, 0.6)),
+    head(c, move(box(0.74, 0.26, 0.56), [-0.1, 0.27, 0])),
+    plain(move(box(0.78, 0.16, 0.58), [-0.1, 0.29, 0]), PANE, "vitreous"),
+    plain(wheels, TYRE),
+  ];
+}
+
+function armouredCarParts(c: ThingCtx): SpecimenPart[] {
+  const wheels = join(
+    ...[-0.46, 0, 0.46].flatMap((x) => [-0.32, 0.32].map((z) => disc(8, 0.16, 0.12, [x, -0.2, z]))),
+  );
+  return [
+    head(c, box(1.4, 0.36, 0.62)),
+    head(c, move(prism(8, 0.22, 0.18), [-0.05, 0.27, 0])),
+    head(c, lying(6, 0.035, 0.55, [0.34, 0.29, 0])),
+    plain(wheels, TYRE),
+  ];
+}
+
+function locomotiveParts(c: ThingCtx): SpecimenPart[] {
+  const wheels = join(
+    ...[-0.45, 0, 0.42].flatMap((x) =>
+      [-0.24, 0.24].map((z) => disc(10, 0.16, 0.06, [x, -0.3, z])),
+    ),
+  );
+  return [
+    head(c, lying(10, 0.22, 1.0, [0.12, 0.02, 0])),
+    head(c, move(box(0.42, 0.56, 0.52), [-0.56, 0.1, 0])),
+    trim(c, move(prism(8, 0.07, 0.28), [0.48, 0.34, 0])),
+    plain(move(box(1.5, 0.08, 0.46), [-0.05, -0.2, 0]), TYRE),
+    plain(wheels, dim(c.color, 0.6), "metallic"),
+  ];
+}
+
+function steamEngineParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    plain(move(box(1.1, 0.14, 0.5), [0, -0.42, 0]), dim(c.color, 0.7), "metallic"),
+    head(c, lying(10, 0.17, 0.5, [-0.25, -0.17, 0])),
+    head(c, disc(14, 0.44, 0.07, [0.3, 0.05, 0.26])),
+    trim(c, move(prism(6, 0.035, 0.4), [-0.25, 0.18, 0])),
+  ];
+}
+
+function marineEngineParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    head(c, box(1.0, 0.44, 0.48)),
+    head(c, join(...[-0.3, 0, 0.3].map((x) => move(prism(8, 0.12, 0.42), [x, 0.42, 0])))),
+    trim(c, lying(8, 0.05, 1.3, [0, -0.1, 0.28])),
+  ];
+}
+
+function powerLoomParts(c: ThingCtx): SpecimenPart[] {
+  const posts = join(
+    ...[-0.45, 0.45].flatMap((x) =>
+      [-0.26, 0.26].map((z) => move(box(0.06, 0.9, 0.06), [x, 0, z])),
+    ),
+    move(box(0.96, 0.06, 0.06), [0, 0.42, -0.26]),
+    move(box(0.96, 0.06, 0.06), [0, 0.42, 0.26]),
+  );
+  return [
+    head(c, posts),
+    trim(c, lying(10, 0.09, 0.86, [0, 0.12, -0.18])),
+    plain(move(rotate(box(0.86, 0.02, 0.42), 0, 0.25, 0), [0, 0.05, 0.05]), FACE),
+  ];
+}
+
+function clockParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    head(c, box(0.42, 1.1, 0.26)),
+    trim(c, disc(14, 0.17, 0.03, [0, 0.3, 0.14])),
+    plain(disc(14, 0.14, 0.03, [0, 0.3, 0.16]), FACE),
+    plain(
+      join(
+        move(box(0.02, 0.11, 0.01), [0, 0.35, 0.18]),
+        move(box(0.08, 0.02, 0.01), [0.04, 0.3, 0.18]),
+      ),
+      TYRE,
+    ),
+    trim(c, disc(10, 0.07, 0.02, [0, -0.25, 0.14])),
+  ];
+}
+
+function dynamoParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    plain(move(box(0.8, 0.1, 0.5), [0, -0.32, 0]), dim(c.color, 0.7), "metallic"),
+    head(c, lying(12, 0.26, 0.6, [0, 0, 0])),
+    trim(c, lying(6, 0.035, 1.05, [0, 0, 0])),
+    trim(c, lying(10, 0.14, 0.06, [0.5, 0, 0])),
+  ];
+}
+
+function waterWheelParts(c: ThingCtx): SpecimenPart[] {
+  const paddles = join(
+    ...Array.from({ length: 8 }, (_, k) => {
+      const a = (k / 8) * Math.PI * 2;
+      return move(rotate(box(0.08, 0.2, 0.22), 0, 0, a), [
+        0.72 * Math.cos(a),
+        0.72 * Math.sin(a),
+        0,
+      ]);
+    }),
+  );
+  return [...wheelParts(c), head(c, paddles)];
+}
+
+function sunEngineParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    plain(move(rotate(box(1.1, 0.04, 0.72), 0, 0.7, 0), [0, 0.2, 0]), PANE, "vitreous"),
+    trim(c, move(rotate(box(1.14, 0.03, 0.76), 0, 0.7, 0), [0, 0.18, -0.01])),
+    head(c, move(prism(6, 0.05, 0.6), [0, -0.25, 0])),
+    head(c, move(box(0.4, 0.16, 0.3), [0, -0.52, 0])),
+  ];
+}
+
+function aeroplaneParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    head(c, lying(8, 0.1, 1.4, [0, 0, 0])),
+    head(c, move(box(0.36, 0.03, 1.5), [0.15, 0.02, 0])),
+    head(
+      c,
+      join(
+        move(box(0.18, 0.02, 0.48), [-0.62, 0.04, 0]),
+        move(box(0.16, 0.22, 0.02), [-0.62, 0.14, 0]),
+      ),
+    ),
+    plain(move(box(0.02, 0.44, 0.05), [0.72, 0, 0]), TYRE),
+  ];
+}
+
+function telegraphKeyParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    head(c, box(0.8, 0.1, 0.44)),
+    trim(c, move(rotate(box(0.56, 0.04, 0.07), 0, 0, 0.08), [0.04, 0.12, 0])),
+    plain(move(prism(10, 0.07, 0.06), [0.3, 0.18, 0]), TYRE),
+    trim(c, move(prism(8, 0.06, 0.16), [-0.28, 0.12, 0])),
+  ];
+}
+
+function telephoneParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    head(c, move(prism(12, 0.24, 0.08), [0, -0.5, 0])),
+    head(c, move(prism(8, 0.05, 0.75), [0, -0.1, 0])),
+    head(c, move(rotate(pyramid(10, 0.1, 0.12), 0, -Math.PI / 2, 0), [0, 0.3, 0.02])),
+    trim(c, move(rotate(prism(8, 0.045, 0.34), 0, 0, 0.15), [0.18, 0.02, 0])),
+  ];
+}
+
+function radioSetParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    head(c, box(0.9, 0.6, 0.34)),
+    plain(disc(12, 0.19, 0.02, [-0.18, 0.04, 0.18]), dim(c.color, 0.45)),
+    plain(move(box(0.26, 0.12, 0.02), [0.24, 0.12, 0.18]), FACE),
+    trim(
+      c,
+      join(disc(8, 0.05, 0.05, [0.16, -0.14, 0.19]), disc(8, 0.05, 0.05, [0.32, -0.14, 0.19])),
+    ),
+  ];
+}
+
+function computerParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    head(c, move(box(0.74, 0.56, 0.42), [0, 0.2, -0.1])),
+    plain(move(box(0.58, 0.42, 0.02), [0, 0.22, 0.12]), SCREEN, "vitreous", true),
+    head(c, move(box(0.8, 0.05, 0.3), [0, -0.18, 0.34])),
+    trim(c, move(box(0.3, 0.06, 0.24), [0, -0.12, -0.1])),
+  ];
+}
+
+function phoneParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    head(c, box(0.46, 0.92, 0.06)),
+    plain(move(box(0.4, 0.78, 0.01), [0, 0.01, 0.035]), SCREEN, "vitreous", true),
+    plain(move(prism(8, 0.025, 0.01), [0, 0.42, 0.04]), TYRE),
+  ];
+}
+
+function thinkingMachineParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    head(c, box(0.62, 1.05, 0.5)),
+    plain(
+      join(...[0.3, 0.1, -0.1, -0.3].map((y) => move(box(0.46, 0.04, 0.01), [0, y, 0.26]))),
+      SCREEN,
+      "vitreous",
+      true,
+    ),
+    trim(c, move(box(0.66, 0.06, 0.54), [0, 0.52, 0])),
+  ];
+}
+
+function madeBodyParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    head(c, move(box(0.4, 0.5, 0.22), [0, 0.18, 0])),
+    head(c, move(box(0.22, 0.22, 0.2), [0, 0.58, 0])),
+    trim(
+      c,
+      join(
+        move(box(0.12, 0.5, 0.14), [-0.11, -0.35, 0]),
+        move(box(0.12, 0.5, 0.14), [0.11, -0.35, 0]),
+      ),
+    ),
+    trim(
+      c,
+      join(
+        move(box(0.1, 0.46, 0.12), [-0.27, 0.16, 0]),
+        move(box(0.1, 0.46, 0.12), [0.27, 0.16, 0]),
+      ),
+    ),
+    plain(move(box(0.14, 0.03, 0.01), [0, 0.6, 0.105]), SCREEN, "vitreous", true),
+  ];
+}
+
+function shieldParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    head(c, scale(disc(14, 0.5, 0.06, [0, 0, 0]), [1, 1.15, 1])),
+    trim(c, disc(10, 0.12, 0.08, [0, 0.02, 0.04])),
+  ];
+}
+
+function helmetParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    head(
+      c,
+      lathe(
+        [
+          [0.42, -0.2],
+          [0.4, 0],
+          [0.34, 0.16],
+          [0.2, 0.28],
+          [0, 0.32],
+        ],
+        12,
+      ),
+    ),
+    head(c, move(box(0.06, 0.24, 0.06), [0, -0.22, 0.4])),
+  ];
+}
+
+/** The machines and the vehicles stand on their wheels or their feet, not tipped as a tool lies. */
+const UPRIGHT: ReadonlySet<string> = new Set([
+  "motor car",
+  "armoured car",
+  "locomotive",
+  "steam engine",
+  "marine engine",
+  "power loom",
+  "clock",
+  "dynamo",
+  "water wheel",
+  "sun engine",
+  "aeroplane",
+  "telegraph key",
+  "telephone",
+  "radio set",
+  "computer",
+  "phone",
+  "thinking machine",
+  "made body",
+  "helmet",
+]);
+
+// Plants (kind "plant")
+
+/** A plant: a grass's ear on its stalk (the heavier its seed, the fatter and longer), a bed's frond, a garden's tuber, a dome's leaves. */
+function plantParts(p: Extract<Portrait, { kind: "plant" }>): SpecimenPart[] {
+  const leaf = (mesh: Mesh): SpecimenPart => plain(mesh, p.leaf, "waxy"),
+    blade = (len: number, yaw: number, lean: number, at: V3): Mesh =>
+      move(rotate(scale(bipyramid(4, 0.05, len / 2), [1, 1, 0.25]), yaw, 0, lean), at),
+    bend = 0.08 * (hash(p.key, 1) - 0.5);
+  switch (p.form) {
+    case "ear": {
+      const n = 5 + Math.round(p.seed * 4),
+        r = 0.035 + 0.05 * p.seed,
+        top = 0.1,
+        tip = top + n * r * 2.1;
+      const grains = join(
+        ...Array.from({ length: n }, (_, k) =>
+          move(scale(bipyramid(4, r, r * 1.5), [1, 1, 0.8]), [
+            (k % 2 ? 1 : -1) * r * 0.8 + bend * k,
+            top + k * r * 2.1,
+            0,
+          ]),
+        ),
+      );
+      return [
+        leaf(beam([0, -0.75, 0], [bend * n, top, 0], 0.035)),
+        leaf(
+          join(blade(0.6, 0.3, 0.5, [-0.12, -0.35, 0]), blade(0.55, -0.4, -0.45, [0.12, -0.45, 0])),
+        ),
+        plain(grains, p.ear, "waxy"),
+        plain(beam([bend * n, tip, 0], [bend * n + 0.04, tip + 0.22, 0], 0.012), p.ear),
+      ];
+    }
+    case "frond":
+      return [
+        leaf(
+          join(
+            ...Array.from({ length: 4 }, (_, k) =>
+              move(rotate(box(0.16, 0.34, 0.03), 0.4 * k, 0, (k % 2 ? 0.35 : -0.35) + bend), [
+                k % 2 ? 0.06 : -0.06,
+                -0.5 + k * 0.3,
+                0,
+              ]),
+            ),
+          ),
+        ),
+        plain(move(scale(icosphere(0), [0.18, 0.12, 0.18]), [0.2, -0.62, 0.05]), p.ear, "pearly"),
+      ];
+    case "tuber":
+      return [
+        plain(
+          jitter(scale(icosphere(1), [0.42, 0.3, 0.32]), p.key, 0.08),
+          mix(p.ear, CLAY_DARK, 0.55),
+        ),
+        leaf(
+          join(blade(0.5, 0.2, 0.35, [-0.08, 0.45, 0]), blade(0.45, -0.5, -0.3, [0.08, 0.42, 0])),
+        ),
+      ];
+    case "leaf": {
+      const at = (k: number): V3 => {
+        const a = (k / 5) * Math.PI * 2;
+        return [0.18 * Math.cos(a), 0, 0.18 * Math.sin(a)];
+      };
+      return [
+        leaf(
+          join(
+            ...Array.from({ length: 5 }, (_, k) =>
+              move(
+                rotate(scale(bipyramid(5, 0.16, 0.36), [1, 1, 0.2]), (k / 5) * Math.PI * 2, 0, 0.9),
+                at(k),
+              ),
+            ),
+          ),
+        ),
+        plain(move(prism(8, 0.1, 0.12), [0, -0.12, 0]), mix(p.leaf, p.ear, 0.5), "waxy"),
+      ];
+    }
+  }
+}
+
 // What a made thing is, when its form names no shape: its shape by how it was made.
 
 const MADE_SHAPE: Record<MadeHow, (c: ThingCtx) => SpecimenPart[]> = {
@@ -1797,6 +2165,26 @@ const THINGS: readonly (readonly [readonly string[], ThingBuilder])[] = [
   [["gear", "cog"], gearParts],
   [["wheel"], wheelParts],
   [["casting", "block", "frame"], castingParts],
+  [["motor car"], motorCarParts],
+  [["armoured car"], armouredCarParts],
+  [["locomotive"], locomotiveParts],
+  [["steam engine"], steamEngineParts],
+  [["marine engine"], marineEngineParts],
+  [["power loom"], powerLoomParts],
+  [["clock"], clockParts],
+  [["dynamo"], dynamoParts],
+  [["water wheel"], waterWheelParts],
+  [["sun engine"], sunEngineParts],
+  [["aeroplane"], aeroplaneParts],
+  [["telegraph key"], telegraphKeyParts],
+  [["telephone"], telephoneParts],
+  [["radio set"], radioSetParts],
+  [["computer"], computerParts],
+  [["phone"], phoneParts],
+  [["thinking machine"], thinkingMachineParts],
+  [["made body"], madeBodyParts],
+  [["shield"], shieldParts],
+  [["helmet"], helmetParts],
 ];
 
 /** A form's whole name, when the table names it outright (a later row wins a shared name: the machine's bolt). */
@@ -1867,7 +2255,7 @@ function thingParts(p: Extract<Portrait, { kind: "thing" }>): SpecimenPart[] {
 }
 
 /**
- * The parts of a specimen, as they stand in their own frames (a matter, an element or a made thing);
+ * The parts of a specimen, as they stand in their own frames (a matter, an element, a made thing or a plant);
  * [] for any other kind of portrait. The same portrait always gives the same parts.
  */
 export function specimenParts(p: Portrait): SpecimenPart[] {
@@ -1881,6 +2269,9 @@ export function specimenParts(p: Portrait): SpecimenPart[] {
       break;
     case "thing":
       parts = thingParts(p);
+      break;
+    case "plant":
+      parts = plantParts(p);
       break;
     default:
       return [];
@@ -1933,9 +2324,12 @@ type Pose = { readonly turn: number; readonly tilt: number; readonly roll: numbe
 
 /** A matter and an element turn slowly; a made thing lies at an angle and turns more gently. */
 function poseOf(p: Portrait, t: number): Pose {
+  // (A machine or a vehicle stands on its wheels or its feet; a plant stands up as it grows.)
+  if (p.kind === "thing" && UPRIGHT.has(p.form))
+    return { turn: 0.55 + Math.sin(t * 0.5) * 0.5, tilt: 0.3, roll: 0 };
   return p.kind === "thing"
     ? { turn: 0.3 + Math.sin(t * 0.5) * 0.5, tilt: 0.35, roll: -0.6109 }
-    : { turn: 0.6 + t * 0.35, tilt: 0.35, roll: 0 };
+    : { turn: 0.6 + t * 0.35, tilt: p.kind === "plant" ? 0.15 : 0.35, roll: 0 };
 }
 
 /** A face as it is drawn: its screen corners, its depth, its fill and edge, and what it lights. */

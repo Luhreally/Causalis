@@ -3,17 +3,23 @@ import assert from "node:assert/strict";
 import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { GOODS, G } from "../../src/rules/index.ts";
-import { marketsOf, politiesOf, populationContext } from "../../src/sim/index.ts";
+import { marketGoodRef, marketsOf, politiesOf, populationContext } from "../../src/sim/index.ts";
 import {
   WARES_SHOWN,
+  betweenItems,
   betweenWords,
   grainName,
+  tradeItems,
   tradeWords,
   waresBlock,
   waresOf,
 } from "../../src/host/inspect/wares.ts";
 import { companiesOf, exchangeOf, exchangePage } from "../../src/host/inspect/exchange.ts";
 import { pageOf } from "../../src/host/inspect/index.ts";
+import { wareLook } from "../../src/host/inspect/ware-looks.ts";
+import { ALIEN } from "../../src/host/planet.ts";
+import { homePlanet } from "../../src/sim/index.ts";
+import { specimenParts } from "../../src/ui/specimen.ts";
 import type { Line } from "../../src/bridge/index.ts";
 
 // What is sold under each good (asked 2026-11-12): each of a market's broad goods split into the few named things a land makes or is
@@ -77,7 +83,7 @@ test("tools name their metal and machines name their kind, by what a land knows"
 test("a good's page opens on what is sold under it", () => {
   const p = lands.find((x) => marketsOf(world).get(x.cell)!.book("made", G.tools) > 0)!;
   // (Before its numbers: only a line a page of any kind may open with stands above it.)
-  const page = pageOf(world, `mkt:0:${p.cell}:${G.tools}`),
+  const page = pageOf(world, marketGoodRef(p.cell, G.tools)),
     blocks = page.tabs[0]!.blocks,
     at = blocks.findIndex((b) => b.type === "composition"),
     first = blocks[at]!;
@@ -130,6 +136,59 @@ test("companies are a land's works with lending, named for its town and what it 
   assert.ok(blocks.some((b) => b.type === "chart" && b.points.length >= 2));
   // (A realm with none, or no realm: a page that says so.)
   assert.match(JSON.stringify(exchangePage(world, "exchange:pol:0:999999").tabs), /No exchange/);
+});
+
+test("each thing sold has a picture drawn from what it is, where the page lists it", () => {
+  let parts = 0,
+    pictured = 0;
+  const kinds = new Set<string>();
+  for (const p of lands)
+    for (let g = 0; g < GOODS.length; g++) {
+      const b = waresBlock(world, p.cell, g);
+      if (b?.type !== "composition") continue;
+      for (const x of b.parts) {
+        if (/^And others/.test(words(x.name))) continue;
+        parts++;
+        if (!x.thumb) continue;
+        pictured++;
+        kinds.add(x.thumb.kind === "thing" ? x.thumb.form : x.thumb.kind);
+        // (A specimen draws to solids; a beast has a body to draw.)
+        if (x.thumb.kind === "creature") assert.ok(x.thumb.body);
+        else assert.ok(specimenParts(x.thumb).length > 0, JSON.stringify(x.thumb));
+      }
+    }
+  assert.ok(pictured >= parts * 0.97, `${pictured} of ${parts} things pictured`);
+  for (const k of ["creature", "plant", "axe", "storage jar", "tunic"])
+    assert.ok(kinds.has(k), `a ${k} among ${[...kinds].join(", ")}`);
+  assert.ok(
+    [...kinds].some((k) => /engine|loom|clock|locomotive/.test(k)),
+    "a machine drawn",
+  );
+  // (The trade's lines, each a picture of the greatest thing that went.)
+  const sent = lands.map((p) => tradeItems(world, p.cell, "out")).find((t) => !!t)!;
+  assert.ok(sent.items.length > 0 && sent.items.every((i) => !!i.thumb));
+  const f = marketsOf(world).flows.find((x) => x.from !== x.to)!;
+  assert.ok(betweenItems(world, f.from, f.to).every((i) => !!i.thumb));
+  // (The exchange's companies, each with its mark: its realm's shield and what it makes.)
+  const ex = politiesOf(world)
+    .living()
+    .map((r) => exchangePage(world, `exchange:${r.ref}`).tabs[0]!.blocks)
+    .find((bs) => bs.some((b) => b.type === "board"))!;
+  const board = ex.find((b) => b.type === "board")!;
+  assert.ok(board.type === "board" && board.rows.every((r) => r.thumb?.kind === "company"));
+});
+
+test("a grain is drawn in its world's own leaf: Earth's green and a far world's are not the same", () => {
+  const far = ALIEN.build(seedFromText("alien 7")),
+    grass = (w: typeof world) =>
+      homePlanet(w).generated.life.species.find((s) => s.niche === "seed grass")!,
+    a = grass(world),
+    b = grass(far),
+    pa = wareLook(world, 0, G.grain, { key: `grass:${a.index}`, ref: a.ref }),
+    pb = wareLook(far, 0, G.grain, { key: `grass:${b.index}`, ref: b.ref });
+  assert.ok(pa?.kind === "plant" && pb?.kind === "plant");
+  assert.notDeepEqual(pa.leaf, pb.leaf);
+  assert.notDeepEqual(specimenParts(pa), specimenParts(pb));
 });
 
 test("reading moves no history", () => {

@@ -25,7 +25,7 @@ import { breadCoin } from "../home.ts";
 import { coinWords } from "./living.ts";
 import { townLink } from "./names.ts";
 import { count, item, link, many, sentence, stat, yearNow } from "./words.ts";
-import { tradeWords } from "./wares.ts";
+import { tradeItems } from "./wares.ts";
 import { exchangeWay } from "./exchange.ts";
 
 /** How each good is bought, by what a person would ask for: how much of a market's unit that is, and its words. */
@@ -984,9 +984,6 @@ export function boardPage(world: World, ref: string): PageModel {
         `, and these are ${seat.name}'s prices.`,
       ]);
     notes.push(...warLines(world, s.cell, m));
-    // (What its land sends away, said as the things themselves.)
-    const sends = tradeWords(world, s.cell, "out", 2);
-    if (sends) notes.push(["Its land sends away ", ...sends.line, "."]);
     if (board.lacks.length)
       notes.push([
         `Not to be had here: ${board.lacks.slice(0, 5).join(", ")}${board.lacks.length > 5 ? `, and ${count(board.lacks.length - 5)} more` : ""}.`,
@@ -1019,6 +1016,8 @@ export function boardPage(world: World, ref: string): PageModel {
           : [
               `They keep no coin here: goods change hands for one another, and all of it is told in ${board.staple}.`,
             ],
+    // (What its land sends away, said as the things themselves, each with its picture.)
+    sends = m && board ? tradeItems(world, s.cell, "out", 2) : null,
     realm = politiesOf(world).of(s.cell),
     head: Block = {
       type: "board",
@@ -1042,6 +1041,16 @@ export function boardPage(world: World, ref: string): PageModel {
           head,
           ...(rows.length ? [] : [{ type: "text" as const, lines: [empty] }]),
           ...(notes.length ? [{ type: "text" as const, lines: notes }] : []),
+          ...(sends
+            ? [
+                {
+                  type: "list" as const,
+                  title: "Its land sends away",
+                  items: sends.items,
+                  ...(sends.more ? { more: sends.more } : {}),
+                },
+              ]
+            : []),
           {
             type: "text",
             lines: [

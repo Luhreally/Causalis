@@ -8,7 +8,7 @@
 // appears: each is asked of a principle a land knows, or of a kind that lives in it.
 import { livingIn, offworldSite, type Species, worldChemistry } from "../../gen/index.ts";
 import { hashString, type Ref, type World } from "../../kernel/index.ts";
-import type { Block, Line, Span } from "../../bridge/index.ts";
+import type { Block, Item, Line, Portrait, Span } from "../../bridge/index.ts";
 import {
   ARMS_WEAR,
   designsOf,
@@ -50,6 +50,7 @@ import {
   workshopOf,
 } from "../chain.ts";
 import { landLink, landTitle } from "./names.ts";
+import { wareLook } from "./ware-looks.ts";
 import { link, sentence, yearNow } from "./words.ts";
 
 /** One thing sold under a good: its name, its share of the good here, where it is made or comes from. */
@@ -1018,14 +1019,19 @@ export function waresBlock(world: World, cell: number, good: number): Block | nu
   return {
     type: "composition",
     title: `What is sold as ${name} here`,
-    parts: wares.map((w, i) => ({
-      name:
-        w.key === "others"
-          ? [`${cap(w.name)}`]
-          : ([w.ref ? link(cap(w.name), w.ref) : cap(w.name), ", ", ...w.from] as Span[]),
-      share: w.share,
-      color: w.key === "others" ? COLOURS[4]! : COLOURS[i % 4]!,
-    })),
+    parts: wares.map((w, i) => {
+      // (Its picture, as the land that made it makes it: a thing brought in, as the land it came from.)
+      const thumb = wareLook(world, w.made ? cell : originOf(world, w.land ?? cell, good), good, w);
+      return {
+        name:
+          w.key === "others"
+            ? [`${cap(w.name)}`]
+            : ([w.ref ? link(cap(w.name), w.ref) : cap(w.name), ", ", ...w.from] as Span[]),
+        share: w.share,
+        color: w.key === "others" ? COLOURS[4]! : COLOURS[i % 4]!,
+        ...(thumb ? { thumb } : {}),
+      };
+    }),
     note: "By what its land made and what came down its roads this year: the few greatest, the rest as others.",
   };
 }
@@ -1049,63 +1055,171 @@ export function tradeWords(
   way: "out" | "in",
   most = 3,
 ): { readonly line: Line; readonly partners: number } | null {
+  const t = tradeOf(world, cell, way);
+  if (!t) return null;
+  const line: Span[] = [];
+  t.partners.slice(0, most).forEach((p, i) => {
+    if (i) line.push("; ");
+    line.push(...p.line);
+  });
+  if (t.partners.length > most) line.push(`; and ${t.partners.length - most} more`);
+  return { line, partners: t.partners.length };
+}
+
+/** The same, a partner to an item, each with a picture of the greatest thing that went (asked 2026-11-12). */
+export function tradeItems(
+  world: World,
+  cell: number,
+  way: "out" | "in",
+  most = 3,
+): { readonly items: readonly Item[]; readonly more: number } | null {
+  const t = tradeOf(world, cell, way);
+  if (!t) return null;
+  return {
+    items: t.partners.slice(0, most).map((p) => ({
+      line: p.line,
+      ref: `cell:0:${p.other}`,
+      ...(p.thumb ? { thumb: p.thumb } : {}),
+    })),
+    more: Math.max(0, t.partners.length - most),
+  };
+}
+
+/** A thing as it went down a road: its name, where it was made, its good, and its page. */
+type Sent = {
+  readonly name: string;
+  readonly key: string;
+  readonly ref: string | null;
+  readonly maker: number;
+  readonly good: number;
+};
+/** A land's trade one way, a partner at a time by worth: the two greatest things to each, and a picture of the first. */
+type Partner = {
+  readonly other: number;
+  readonly line: Line;
+  readonly thumb: Portrait | null;
+};
+
+function tradeOf(
+  world: World,
+  cell: number,
+  way: "out" | "in",
+): { readonly partners: readonly Partner[] } | null {
   const flows = flowsAt(world, cell).filter((f) =>
     way === "out" ? f.from === cell && f.to !== cell : f.to === cell && f.from !== cell,
   );
   if (!flows.length) return null;
-  const by = new Map<number, Map<string, number>>(),
+  const by = new Map<number, Map<string, { v: number; s: Sent }>>(),
     worth = new Map<number, number>();
   for (const f of flows) {
     const other = way === "out" ? f.to : f.from,
       maker = way === "out" ? cell : f.from,
       v = f.count * GOODS[f.good]!.value,
       top = topOf(world, maker, f.good),
-      name = top && top.key !== "others" ? top.name : GOODS[f.good]!.name,
-      m = by.get(other) ?? new Map<string, number>();
-    m.set(name, (m.get(name) ?? 0) + v);
+      named = !!top && top.key !== "others",
+      name = named ? top.name : GOODS[f.good]!.name,
+      m = by.get(other) ?? new Map<string, { v: number; s: Sent }>(),
+      had = m.get(name);
+    m.set(name, {
+      v: (had?.v ?? 0) + v,
+      s: had?.s ?? {
+        name,
+        key: named ? top.key : `from:${maker}`,
+        ref: named ? top.ref : null,
+        maker: originOf(world, maker, f.good),
+        good: f.good,
+      },
+    });
     by.set(other, m);
     worth.set(other, (worth.get(other) ?? 0) + v);
   }
-  const partners = [...worth].sort((a, b) => b[1] - a[1] || a[0] - b[0]),
-    line: Span[] = [];
-  partners.slice(0, most).forEach(([other], i) => {
-    const things = [...by.get(other)!]
-      .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))
-      .slice(0, 2)
-      .map(([n]) => n);
-    if (i) line.push("; ");
-    line.push(
-      `${andList(things)} ${way === "out" ? "to" : "from"} `,
-      link(placeName(world, other), `cell:0:${other}`),
-    );
-  });
-  if (partners.length > most) line.push(`; and ${partners.length - most} more`);
-  return { line, partners: partners.length };
+  const partners = [...worth]
+    .sort((a, b) => b[1] - a[1] || a[0] - b[0])
+    .map(([other]): Partner => {
+      const things = [...by.get(other)!]
+        .sort((a, b) => b[1].v - a[1].v || (a[0] < b[0] ? -1 : 1))
+        .slice(0, 2)
+        .map(([, x]) => x.s);
+      return {
+        other,
+        line: [
+          `${andList(things.map((x) => x.name))} ${way === "out" ? "to" : "from"} `,
+          link(placeName(world, other), `cell:0:${other}`),
+        ],
+        get thumb() {
+          const x = things[0];
+          return x ? wareLook(world, x.maker, x.good, x) : null;
+        },
+      };
+    });
+  return { partners };
 }
 
 /** The trade between two lands last year, said specifically each way: "brindled water grain to Ur; rifles from Ur". */
 export function betweenWords(world: World, a: number, b: number): Line | null {
-  const out: Span[] = [];
+  const ways = betweenOf(world, a, b),
+    out: Span[] = [];
+  ways.forEach((w, i) => {
+    if (i) out.push("; ");
+    out.push(...w.line);
+  });
+  return out.length ? out : null;
+}
+
+/** The same, a way to an item, each with a picture of the greatest thing that went. */
+export function betweenItems(world: World, a: number, b: number): readonly Item[] {
+  return betweenOf(world, a, b).map((w) => ({
+    line: w.line,
+    ref: `cell:0:${w.to}`,
+    ...(w.thumb ? { thumb: w.thumb } : {}),
+  }));
+}
+
+function betweenOf(
+  world: World,
+  a: number,
+  b: number,
+): { readonly to: number; readonly line: Line; readonly thumb: Portrait | null }[] {
+  const out: { to: number; line: Line; thumb: Portrait | null }[] = [];
   for (const [from, to] of [
     [a, b],
     [b, a],
   ] as const) {
-    const sums = new Map<string, number>();
+    const sums = new Map<string, { v: number; s: Sent }>();
     for (const f of flowsAt(world, from))
       if (f.from === from && f.to === to) {
         const top = topOf(world, from, f.good),
-          name = top?.name ?? GOODS[f.good]!.name;
-        sums.set(name, (sums.get(name) ?? 0) + f.count * GOODS[f.good]!.value);
+          name = top?.name ?? GOODS[f.good]!.name,
+          had = sums.get(name);
+        sums.set(name, {
+          v: (had?.v ?? 0) + f.count * GOODS[f.good]!.value,
+          s: had?.s ?? {
+            name,
+            key: top?.key ?? `from:${from}`,
+            ref: top?.ref ?? null,
+            maker: originOf(world, from, f.good),
+            good: f.good,
+          },
+        });
       }
     if (!sums.size) continue;
     const things = [...sums]
-      .sort((x, y) => y[1] - x[1] || (x[0] < y[0] ? -1 : 1))
+      .sort((x, y) => y[1].v - x[1].v || (x[0] < y[0] ? -1 : 1))
       .slice(0, 3)
-      .map(([n]) => n);
-    if (out.length) out.push("; ");
-    out.push(`${andList(things)} to `, link(placeName(world, to), `cell:0:${to}`));
+      .map(([, x]) => x.s);
+    const first = things[0]!;
+    out.push({
+      to,
+      line: [
+        `${andList(things.map((x) => x.name))} to `,
+        link(placeName(world, to), `cell:0:${to}`),
+      ],
+      get thumb() {
+        return wareLook(world, first.maker, first.good, first);
+      },
+    });
   }
-  return out.length ? out : null;
+  return out;
 }
 
 // —— Read once a moment ——————————————————————————————————————————————————————————————————————————

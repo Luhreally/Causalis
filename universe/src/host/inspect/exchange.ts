@@ -21,6 +21,7 @@ import { makingTown } from "../chain.ts";
 import { boardRef, wayRow } from "./board.ts";
 import { MACHINE_KINDS, clothOf, madeWares, type WareName } from "./wares.ts";
 import { coinWords } from "./living.ts";
+import { companyMark } from "./ware-looks.ts";
 import { count, link, many, stat, yearNow } from "./words.ts";
 
 /** A company: a land's works at one making, its years by its land's books. */
@@ -40,6 +41,8 @@ export type Company = {
   readonly worth: number;
   /** A share's price now, in coin. */
   readonly share: number;
+  /** The thing it makes the most of, by its kind (host/inspect/wares.ts), for its mark. */
+  readonly thing: { readonly key: string; readonly ref: string | null };
 };
 
 /** A company is worth this many years of what it takes in. */
@@ -175,6 +178,7 @@ export function companiesOf(world: World, cell: number): readonly Company[] {
           years,
           worth: now * WORTH_YEARS,
           share: (now * WORTH_YEARS) / sharesOf(first * WORTH_YEARS, now * WORTH_YEARS),
+          thing: { key: w.key, ref: w.ref },
         });
       }
     }
@@ -233,7 +237,9 @@ function companyRow(world: World, co: Company): BoardRow {
     y1 = co.years.at(-1),
     r = y0 && y1 && y0.coin > 0 ? y1.coin / y0.coin : 1,
     span = y0 && y1 ? Math.max(1, y1.year - y0.year) : 0,
-    years = span === 1 ? "a year" : `${count(span)} years`;
+    years = span === 1 ? "a year" : `${count(span)} years`,
+    // (Its mark: its realm's shield, and on it what it makes.)
+    mark = companyMark(world, co.cell, co.good, co.thing);
   return {
     ref: marketGoodRef(co.cell, co.good),
     icon: ICONS[GOODS[co.good]!.id] ?? "🏭",
@@ -251,6 +257,7 @@ function companyRow(world: World, co: Company): BoardRow {
     arrow: !span ? "" : r >= 1.08 ? "▲" : r <= 0.92 ? "▼" : "●",
     trend: "",
     shelf: 0,
+    ...(mark ? { thumb: mark } : {}),
   };
 }
 const ICONS: Readonly<Record<string, string>> = {

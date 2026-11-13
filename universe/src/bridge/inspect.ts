@@ -100,6 +100,8 @@ export type BoardRow = {
   readonly arrow: string;
   readonly trend: string;
   readonly shelf: number;
+  /** A small picture before its name, drawn from what it is (asked 2026-11-12): a company's mark. */
+  readonly thumb?: Portrait;
 };
 
 export type Block =
@@ -174,6 +176,8 @@ export type Block =
         /** How much, in words with its unit ("1.2 t", "340 g"). */
         readonly amount?: string;
         readonly color: Rgb;
+        /** A small picture of the part, drawn from what it is (asked 2026-11-12): a rifle, a motor car, a land's own grain. */
+        readonly thumb?: Portrait;
       }[];
       /** A line under it: what it is of, or what it is measured against. */
       readonly note?: string;
@@ -585,7 +589,23 @@ export type Portrait =
       /** 0 … 1: how worn it is (nicks, dulled shine, a darker haft). */
       readonly worn: number;
       readonly key: number;
-    };
+    }
+  /**
+   * A sown or grown plant as it is sold (asked 2026-11-12): a grass's ear on its stalk, its seed as
+   * heavy as the lineage's, in its world's own leaf colour; a bed's frond, a garden's tuber, a
+   * dome's leaves.
+   */
+  | {
+      readonly kind: "plant";
+      readonly form: "ear" | "frond" | "tuber" | "leaf";
+      /** 0 … 1: how heavy its seed (a fat ear, a thin one). */
+      readonly seed: number;
+      readonly leaf: Rgb;
+      readonly ear: Rgb;
+      readonly key: number;
+    }
+  /** A company's mark (asked 2026-11-12): its realm's shield, and on it the thing it makes. */
+  | { readonly kind: "company"; readonly arms: Arms; readonly good: Portrait | null };
 
 /** One thing a town could be asked (H1). */
 export type AskOffer = {

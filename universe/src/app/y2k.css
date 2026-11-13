@@ -3361,6 +3361,14 @@ body.with-palette .hint {
 .makeup-amount:empty {
   min-width: 0;
 }
+/* A part's small picture, drawn from what it is (asked 2026-11-12): before its name, the row's middle at its middle. */
+.makeup-row.makeup-pictured {
+  align-items: center;
+}
+.makeup-thumb {
+  float: left;
+  margin: 0 6px 0 0;
+}
 .makeup-amount {
   min-width: 4.5rem;
   text-align: right;

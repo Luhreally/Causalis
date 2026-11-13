@@ -17,6 +17,8 @@ import { CourtNote, SungNote } from "../ui/index.ts";
 import { courtSitting } from "../view/index.ts";
 import { PeopleBar, barPins, setWrittenHold } from "../ui/index.ts";
 import { CornerRail } from "../ui/index.ts";
+import { THUMB_TIMES, paintThumb } from "../ui/index.ts";
+import type { Portrait } from "../bridge/index.ts";
 import { Checkpoint } from "./checkpoint.ts";
 import { HostClient, LOT, inlinePair, lotStates, progress, workerPort } from "../bridge/index.ts";
 import {
@@ -1407,8 +1409,29 @@ type Exposed = {
     ground: { x: number; z: number };
   }[];
   littersOnScreen?: () => { index: number; x: number; y: number }[];
+  /**
+   * A thing's small picture drawn as a page draws it (asked 2026-11-12), for a gate: how many of its pixels are inked, and a sum of them
+   * to tell two pictures apart; and what the pictures drawn on pages so far have cost.
+   */
+  picture?: (p: Portrait, size: number) => { inked: number; sum: number };
+  pictureTimes?: () => { drawn: number; ms: number };
 };
-const exposed: Exposed = {};
+const exposed: Exposed = {
+  picture: (p, size) => {
+    const c = document.createElement("canvas");
+    paintThumb(c, p, size);
+    const d = c.getContext("2d")!.getImageData(0, 0, c.width, c.height).data;
+    let inked = 0,
+      sum = 0;
+    for (let i = 0; i < d.length; i += 4)
+      if (d[i + 3]! > 40) {
+        inked++;
+        sum = (sum * 31 + d[i]! * 7 + d[i + 1]! * 3 + d[i + 2]! + i) % 1_000_000_007;
+      }
+    return { inked, sum };
+  },
+  pictureTimes: () => ({ ...THUMB_TIMES }),
+};
 (globalThis as { causalis?: Exposed }).causalis = exposed;
 
 async function connect(): Promise<{ client: HostClient; mode: string }> {

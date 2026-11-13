@@ -8,7 +8,10 @@
 //   3. a row pressed by touch: its good's page opens on what is sold under it, its named things with their shares, and where each is from;
 //   4. its land's economy: what it sends away and brings in, said as things, not as the broad goods;
 //   5. the exchange from the board, by touch: its companies listed, each named for its town, and its index drawn;
-//   6. hashes the same after all of it, and no page errors.
+//   6. pictures (asked 2026-11-12: "generaritv emergent visuals for like the stuff their selling"): each named thing on the good's page,
+//      each line of trade and each company drawn from what it is, inked, two things not the same picture, a motor car not an arm, and a
+//      grain of this world not a far world's; what a board with its pictures costs to open on the phone;
+//   7. hashes the same after all of it, and no page errors.
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,10 +19,17 @@ import { gzipSync } from "node:zlib";
 import { preview } from "vite";
 import { chromium, type Page } from "playwright";
 import { YEAR, rulesetId, saveWorld, seedFromText, type World } from "../src/kernel/index.ts";
-import { EARTH } from "../src/host/planet.ts";
+import { ALIEN, EARTH } from "../src/host/planet.ts";
 import { GOODS, G } from "../src/rules/index.ts";
-import { marketsOf, politiesOf, populationContext } from "../src/sim/index.ts";
-import { WARES_SHOWN, tradeWords, waresOf } from "../src/host/inspect/wares.ts";
+import {
+  homePlanet,
+  marketGoodRef,
+  marketsOf,
+  politiesOf,
+  populationContext,
+} from "../src/sim/index.ts";
+import { WARES_SHOWN, tradeItems, tradeWords, waresOf } from "../src/host/inspect/wares.ts";
+import { wareLook } from "../src/host/inspect/ware-looks.ts";
 import { companiesOf, exchangeOf } from "../src/host/inspect/exchange.ts";
 import { pageOf } from "../src/host/inspect/index.ts";
 
@@ -136,7 +146,7 @@ say(
 );
 // (What each page costs to read, first and again.)
 for (const [what, ref] of [
-  ["machines' page", `mkt:0:${seatCell}:${G.machines}`],
+  ["machines' page", marketGoodRef(seatCell, G.machines)],
   ["land's economy", `cell:0:${seatCell}#economy`],
   ["exchange", `exchange:${best?.realm}`],
 ] as const) {
@@ -192,6 +202,29 @@ const pageSeen = () =>
   k<boolean>(
     `(() => { const r = document.querySelector(".page-window")?.getBoundingClientRect(); return !!r && r.height > 40 && r.width > 40; })()`,
   );
+
+/** The small pictures under a selector, once drawn (ui/thumbs.ts draws one as it comes on screen): each one's inked pixels, and a sum to tell them apart. */
+const pictures = (selector: string) =>
+  k<
+    { drawn: boolean; inked: number; sum: number }[]
+  >(`[...document.querySelectorAll(${JSON.stringify(selector)})].map((c) => {
+    const r = c.getBoundingClientRect();
+    if (!(r.width > 0) || c.dataset.drawn !== "1") return { drawn: false, inked: 0, sum: 0 };
+    const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+    let inked = 0, sum = 0;
+    for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 40) { inked++; sum = (sum * 31 + d[i] * 7 + d[i + 1] * 3 + d[i + 2] + i) % 1000000007; }
+    return { drawn: true, inked, sum };
+  })`);
+/** Wait for the pictures under a selector that are on screen to be drawn, then read them. */
+async function drawnPictures(selector: string, what: string) {
+  await until(`${what}'s pictures drawn`, async () => {
+    const on = await k<number>(
+      `[...document.querySelectorAll(${JSON.stringify(selector)})].filter((c) => { const r = c.getBoundingClientRect(); return r.bottom > 0 && r.top < innerHeight && r.width > 0 && c.dataset.drawn !== "1"; }).length`,
+    );
+    return on === 0;
+  });
+  return (await pictures(selector)).filter((p) => p.drawn);
+}
 
 /** Press what is at a thing's real place on the phone: scrolled to, at a thumb's size, on the screen, and the thing a finger there would touch. */
 async function pressEl(find: string, what: string): Promise<boolean> {
@@ -290,11 +323,17 @@ if (town && best) {
   const before = JSON.stringify(await ask<unknown>("hashes"));
   await k("globalThis.causalis.closePage?.()");
 
-  // 2. The board by its 🏷️, by touch: its broad rows.
+  // 2. The board by its 🏷️, by touch: its broad rows. (Timed from the press to its pictures on screen drawn.)
+  const pressed = Date.now();
   await pressEl(bySelector(".town-board"), "the board's button");
   await until("the board", async () => (await pageIs()).startsWith("board:"));
+  const boardPics = await drawnPictures(".page-window canvas.thumb", "the board");
+  const opened = Date.now() - pressed - slow(300);
   await page.waitForTimeout(slow(500));
   await shot("board");
+  say(
+    `the board open with its pictures in ${opened} ms after the press (${boardPics.length} pictures drawn so far)`,
+  );
   const rows = await k<string[]>(
     `[...document.querySelector(".page-window .price-board")?.querySelectorAll(".board-row .board-name") ?? []].map((e) => e.innerText.split("\\n")[0])`,
   );
@@ -311,6 +350,15 @@ if (town && best) {
     /sends away/i.test(boardText),
     `the board does not say what its land sends away: ${boardText.slice(0, 300)}`,
   );
+  // (Its land's sends, each with a picture of what went, drawn.)
+  await k(
+    `document.querySelector(".page-window .entry canvas.thumb")?.scrollIntoView({ block: "center" })`,
+  );
+  const sent = await drawnPictures(".page-window .entry canvas.thumb", "the board's trade");
+  check(
+    sent.length > 0 && sent.every((p) => p.inked > 30),
+    `the board's trade lines are not drawn: ${JSON.stringify(sent)}`,
+  );
 
   // 3. A row by touch: its good's page opens on what is sold under it.
   const line =
@@ -324,6 +372,18 @@ if (town && best) {
   );
   const goodText = await pageText();
   say(`${line}: ${parts.map((p) => p.name).join(" | ")}`);
+  // (Each named thing with its picture, drawn from what it is; no two things the same picture.)
+  const pics = await drawnPictures(".page-window .makeup-thumb", `${line}'s things`),
+    named0 = parts.filter((p) => !/^and others/i.test(p.name));
+  say(`${line}: ${pics.length} pictures, inked ${pics.map((p) => p.inked).join(", ")}`);
+  check(
+    pics.length >= named0.length && pics.every((p) => p.inked > 30),
+    `${line}'s things are not all drawn: ${pics.length} of ${named0.length}`,
+  );
+  check(
+    pics.length < 2 || new Set(pics.map((p) => p.sum)).size === pics.length,
+    `two of ${line}'s things are the same picture`,
+  );
   check(/What is sold as/i.test(goodText), `${line}'s page does not say what is sold under it`);
   check(parts.length >= 2, `${line}'s page names ${parts.length} things`);
   check(parts.length <= WARES_SHOWN + 1, `${line}'s page names ${parts.length} things, too many`);
@@ -356,22 +416,24 @@ if (town && best) {
   check(!!(sends || brings), `the land's economy says nothing of its trade: ${econ.slice(0, 300)}`);
   // (As read in node, and in things, not only in the broad goods' names.)
   const flat = (s: string) => s.replace(/\s+/g, " ").trim(),
-    expected = [tradeWords(world, seatCell, "out"), tradeWords(world, seatCell, "in")]
-      .filter((x) => !!x)
-      .map((x) => flat(plain(x!.line)));
+    expected = [tradeItems(world, seatCell, "out"), tradeItems(world, seatCell, "in")]
+      .flatMap((x) => x?.items ?? [])
+      .map((x) => flat(plain(x.line)));
   check(
-    expected.every((x) => flat(econ).includes(x)),
+    expected.length > 0 && expected.every((x) => flat(econ).includes(x)),
     `the land's trade is not as read: ${expected.join(" | ")}`,
   );
   check(
-    expected.some((x) =>
-      x
-        .split("; ")
-        .filter((part) => !/^and \d+ more$/.test(part))
-        .map((part) => part.replace(/ (to|from) [^;]*$/, ""))
-        .some((things) => !GOODS.some((g) => g.name === things)),
-    ),
+    expected.some((x) => !GOODS.some((g) => x.replace(/ (to|from) .*$/, "") === g.name)),
     `the trade is said only as broad goods: ${expected.join(" | ")}`,
+  );
+  await k(
+    `document.querySelector(".page-window .entry canvas.thumb")?.scrollIntoView({ block: "center" })`,
+  );
+  const tradePics = await drawnPictures(".page-window .entry canvas.thumb", "the land's trade");
+  check(
+    tradePics.length > 0 && tradePics.every((p) => p.inked > 30),
+    "the land's trade lines are not drawn",
   );
   if (companiesOf(world, seatCell).length)
     check(/companies/i.test(econ), "the land's economy lists no companies");
@@ -416,6 +478,14 @@ if (town && best) {
     `the exchange does not say its index or prices: ${exText.slice(0, 300)}`,
   );
   check(!broken.test(exText), `a broken word on the exchange: ${exText.slice(0, 300)}`);
+  // (Each company's mark: its realm's shield and what it makes; two makings, two marks.)
+  const marks = await drawnPictures(".page-window .board-thumb", "the exchange's companies");
+  say(`the exchange: ${marks.length} marks drawn, inked ${marks.map((p) => p.inked).join(", ")}`);
+  check(
+    marks.length >= 2 && marks.every((p) => p.inked > 60),
+    `the companies' marks are not drawn: ${marks.length}`,
+  );
+  check(new Set(marks.map((p) => p.sum)).size >= 2, "every company has the same mark");
   // (A company pressed: what its land makes of its good.)
   await pressEl(bySelector(".page-window .board-row"), "a company");
   await until("its good", async () => (await pageIs()).startsWith("mkt:"));
@@ -423,6 +493,48 @@ if (town && best) {
   await shot("company");
   check(/what is sold as/i.test(await pageText()), "a company does not lead to what is made");
   await k("globalThis.causalis.closePage?.()");
+
+  // 6. Two things, two pictures, as the app draws them: a motor car of this land's works against an arm of its realm's host; this
+  // world's grain against a far world's (alien 7's, built, its life's own colour).
+  {
+    const picture = (p: unknown) =>
+      k<{ inked: number; sum: number }>(`globalThis.causalis.picture(${JSON.stringify(p)}, 28)`);
+    const car = wareLook(world, seatCell, G.machines, { key: "machine:cars", ref: null }),
+      arm = politiesOf(world)
+        .living()
+        .flatMap((r) => [...r.members])
+        .flatMap((c) =>
+          [G.tools, G.machines].flatMap((g) =>
+            waresOf(world, c, g)
+              .filter((w) => w.key.startsWith("arms:"))
+              .map((w) => ({ c, g, w })),
+          ),
+        )[0],
+      armLook = arm ? wareLook(world, arm.c, arm.g, arm.w) : null,
+      far = ALIEN.build(seedFromText("alien 7")),
+      grassOf = (w: World) =>
+        homePlanet(w).generated.life.species.find((s) => s.niche === "seed grass")!,
+      mine = grassOf(world),
+      theirs = grassOf(far),
+      grainHere = wareLook(world, seatCell, G.grain, { key: `grass:${mine.index}`, ref: mine.ref }),
+      grainThere = wareLook(far, 0, G.grain, { key: `grass:${theirs.index}`, ref: theirs.ref });
+    const [a, b, c, d] = await Promise.all([car, armLook, grainHere, grainThere].map(picture));
+    say(
+      `a motor car ${a!.inked} px, ${arm?.w.name ?? "no arm"} ${b!.inked} px; ${mine.name} ${c!.inked} px, alien 7's ${theirs.name} ${d!.inked} px`,
+    );
+    check(
+      a!.inked > 30 && b!.inked > 30 && a!.sum !== b!.sum,
+      "a motor car and an arm drawn the same, or not at all",
+    );
+    check(
+      c!.inked > 30 && d!.inked > 30 && c!.sum !== d!.sum,
+      "two worlds' grain drawn the same, or not at all",
+    );
+    const times = await k<{ drawn: number; ms: number }>("globalThis.causalis.pictureTimes()");
+    say(
+      `pictures drawn on pages: ${times.drawn}, ${times.ms.toFixed(1)} ms in all (${(times.ms / Math.max(1, times.drawn)).toFixed(2)} ms each)`,
+    );
+  }
 
   const after = JSON.stringify(await ask<unknown>("hashes"));
   check(before === after, "reading moved history");

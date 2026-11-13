@@ -3,7 +3,7 @@
 import { YEAR, hashString, type World } from "../../kernel/index.ts";
 import { marketsOf, politiesOf, populationContext, realmName } from "../../sim/index.ts";
 import { isProvinceWorld } from "../../gen/index.ts";
-import { betweenWords, placeName } from "./wares.ts";
+import { betweenItems, placeName } from "./wares.ts";
 import type { Block, LandRoad, Line, PageModel, RoadLay, Span } from "../../bridge/index.ts";
 import { CARRIER_WORDS, worksShareOf } from "../roadwords.ts";
 import { landEra } from "../village.ts";
@@ -143,15 +143,17 @@ export function roadPage(world: World, ref: string): PageModel {
   else tell.push(["Nothing goes along it yet: it isn't joined up."]);
   // (A road out of the land: what its trade carried last year, each way, said as the things themselves.)
   const beyond = !road.b && road.toward ? landToward(world, cell, road.toward) : null,
-    carried = beyond !== null ? betweenWords(world, cell, beyond) : null;
-  if (carried) tell.push(["What its trade carried last year: ", ...carried, "."]);
-  else if (beyond !== null)
+    carried = beyond !== null ? betweenItems(world, cell, beyond) : [];
+  if (beyond !== null && !carried.length)
     tell.push([
       "No goods went down it last year to or from ",
       link(placeName(world, beyond), `cell:0:${beyond}`),
       ": the trade that opened it has stopped, or goes by other roads.",
     ]);
   blocks.push({ type: "text", title: "The road", lines: tell });
+  // (A way to a line, each with a picture of the greatest thing that went.)
+  if (carried.length)
+    blocks.push({ type: "list", title: "What its trade carried last year", items: carried });
   // The gang on it.
   if (w) {
     const pay = whoPays(world, cell),

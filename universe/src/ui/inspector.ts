@@ -32,7 +32,7 @@ import { drawTool } from "./tools.ts";
 import type { ToolContext } from "./tools.ts";
 import { drawAnatomy, drawPortrait, moves } from "./portrait.ts";
 import { bodyView } from "./body.ts";
-import { drawThumb } from "./specimen.ts";
+import { lazyThumb } from "./thumbs.ts";
 import { lineupStrip, phyloChart } from "./phylo.ts";
 import { dropView } from "./drop.ts";
 import { namesThings, type NamesSwitch } from "./names.ts";
@@ -41,9 +41,8 @@ import { namesThings, type NamesSwitch } from "./names.ts";
 const REFRESH_MS = 2000;
 /** A specimen's small picture (Phase 54 M223): beside a list item, or at the start of a table row. */
 function thumbOf(p: Portrait): HTMLCanvasElement {
-  const canvas = el("canvas", "thumb");
-  drawThumb(canvas, p, 28);
-  return canvas;
+  // (Drawn once it is on screen, and kept: ui/thumbs.ts.)
+  return lazyThumb(p, 28);
 }
 
 /** The rows a table shows before "show all". */
@@ -771,9 +770,14 @@ export class PageWindow {
           const row = el("div", "makeup-row"),
             swatch = el("span", "makeup-swatch");
           swatch.style.background = css(part.color);
+          const name = this.line(part.name);
+          if (part.thumb) {
+            row.classList.add("makeup-pictured");
+            name.prepend(lazyThumb(part.thumb, 28, "thumb makeup-thumb"));
+          }
           row.append(
             swatch,
-            this.line(part.name),
+            name,
             el(
               "span",
               "makeup-share",
@@ -1007,7 +1011,9 @@ export class PageWindow {
         tag = el("span", "board-tag", r.words);
       if (r.each) name.append(el("small", undefined, r.each));
       if (r.trend) tag.append(el("small", undefined, `${r.arrow} ${r.trend}`.trim()));
-      row.append(el("span", "board-icon", r.icon), name);
+      const icon = el("span", "board-icon", r.thumb ? "" : r.icon);
+      if (r.thumb) icon.append(lazyThumb(r.thumb, 26, "thumb board-thumb"));
+      row.append(icon, name);
       if (r.price) row.append(el("span", "board-price", r.price), tag);
       row.onclick = () => void this.open(r.ref);
       plank.append(row);

@@ -98,6 +98,11 @@
   font-size: 1.05rem;
   text-align: center;
 }
+/* A line's picture in place of its icon: a company's mark (asked 2026-11-12). */
+.board-icon .board-thumb {
+  display: block;
+  margin: 0;
+}
 .board-name {
   font-weight: 700;
   line-height: 1.12;
