@@ -817,7 +817,7 @@ function membersTab(world: World, r: AllianceRead): Tab {
         [count(m.lands)],
         [short(m.people)],
         [short(m.host)],
-        [worthWords(m.worth)],
+        [short(m.worth)],
       ],
       keys: [m.p.town, m.lands, m.people, Math.round(m.host), m.worth],
     })),
@@ -840,6 +840,7 @@ function membersTab(world: World, r: AllianceRead): Tab {
     blocks: [
       {
         type: "table",
+        fit: true,
         title: "Their weight, the greatest first",
         columns: ["Realm", "Lands", "People", "Host", "Wealth"],
         rows: weight,
@@ -854,8 +855,10 @@ function membersTab(world: World, r: AllianceRead): Tab {
       },
       {
         type: "table",
-        title: "What they are",
-        columns: ["Realm", "Age (its seat)", "Faith", "Tongue", "Bound"],
+        fit: true,
+        title:
+          "What they are: each at its seat, its age and how many principles it knows, its faith and tongue; and the year it was bound",
+        columns: ["Realm", "Age", "Faith", "Tongue", "Bound"],
         rows: what,
       },
     ],
@@ -874,14 +877,9 @@ function strengthTab(world: World, r: AllianceRead): Tab {
   if (t.people.length >= 2)
     blocks.push({
       type: "lines",
-      title:
-        "Its people and its host through the years (the lands its realms hold now; each host as its realm fields now)",
+      title: "Its people through the years (the lands its realms hold now)",
       unit: "people",
-      apart: true,
-      series: [
-        { name: "People", color: r.a.color, points: thin(t.people) },
-        { name: "Host", color: r.a.color, points: thin(t.host) },
-      ],
+      series: [{ name: "People", color: r.a.color, points: thin(t.people) }],
     });
   if (t.each.some((e) => e.points.length >= 2))
     blocks.push({
@@ -922,9 +920,10 @@ function strengthTab(world: World, r: AllianceRead): Tab {
   if (rows.length)
     blocks.push({
       type: "table",
+      fit: true,
       title:
         "By the years: of its realms now, how many were bound by then; its lands' people and host; lands taken and lost in battle since the row before",
-      columns: ["Year", "Bound", "People", "Host", "Lands won, lost"],
+      columns: ["Year", "Bound", "People", "Host", "Lands"],
       rows,
     });
   else blocks.push({ type: "text", lines: [["History holds no years of its lands yet."]] });
@@ -945,12 +944,12 @@ function warsTab(world: World, r: AllianceRead): Tab {
     rows: [
       stat(
         "Wars",
-        `${count(w.fought.length)} since its realms were bound, against realms outside it`,
+        `${count(w.fought.length)} since its realms were bound, against realms outside it: ${count(w.won)} won, ${count(w.lost)} lost, ${count(w.drawn)} drawn${w.on ? `, ${count(w.on)} still fought` : ""}`,
         {
           parts: [
-            part("won", count(w.won)),
+            part("won: it took what it fought for, or held", count(w.won)),
             part("lost", count(w.lost)),
-            part("drawn: neither could win", count(w.drawn)),
+            part("drawn: neither could win, and a truce held", count(w.drawn)),
             part("still fought", count(w.on)),
           ],
         },
@@ -1001,8 +1000,10 @@ function warsTab(world: World, r: AllianceRead): Tab {
   if (rows.length)
     blocks.push({
       type: "table",
-      title: "Its wars, the latest first",
-      columns: ["Who, upon whom", "Years", "Battles won", "Its fallen", "How it went"],
+      fit: true,
+      title:
+        "Its wars, the latest first: who upon whom, battles won of all fought, its fallen, and how it went",
+      columns: ["War", "Years", "Battles won", "Fallen", "How"],
       rows,
     });
   if (w.among.length)
@@ -1426,6 +1427,7 @@ export function alliancesPage(world: World): PageModel {
         // (Two tables of five columns, so each fits a phone's width with no column out of sight.)
         {
           type: "table",
+          fit: true,
           title: "Their weight, the greatest first (each by its head's seat)",
           columns: ["Alliance", "Realms", "Lands", "People", "Host"],
           rows: reads.map((r) => ({
@@ -1449,8 +1451,9 @@ export function alliancesPage(world: World): PageModel {
         },
         {
           type: "table",
+          fit: true,
           title: "Their wealth and their wars (its wars since its realms were bound)",
-          columns: ["Alliance", "Wealth", "Wars", "At war now", "Since"],
+          columns: ["Alliance", "Wealth", "Wars", "Foes now", "Since"],
           rows: reads.map((r) => {
             const w = foughtOf(world, r).fought.length,
               now = new Set(r.a.wars.map((x) => x.foe as string)).size;
@@ -1692,7 +1695,7 @@ export function leaguePage(world: World, ref: string): PageModel {
       [count(m.lands)],
       [short(m.people)],
       [short(m.host)],
-      [worthWords(m.worth)],
+      [short(m.worth)],
     ],
     keys: [m.p?.town ?? "", m.lands, m.people, Math.round(m.host), m.worth],
   }));
@@ -1813,6 +1816,7 @@ export function leaguePage(world: World, ref: string): PageModel {
         blocks: [
           {
             type: "table",
+            fit: true,
             title: "Their weight, the greatest first",
             columns: ["Realm", "Lands", "People", "Host", "Wealth"],
             rows,
@@ -1838,8 +1842,9 @@ export function leaguePage(world: World, ref: string): PageModel {
           ? [
               {
                 type: "table",
+                fit: true,
                 title: "What it fought, the latest first",
-                columns: ["Who", "Years", "Battles won", "How it went"],
+                columns: ["Who", "Years", "Battles won", "How"],
                 rows: warRows,
               },
             ]

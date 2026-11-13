@@ -251,6 +251,10 @@ const offScreen = () =>
         if (!(q.width > 0 && q.height > 0)) continue;
         if (q.right > r.right + 2 || q.left < r.left - 2) out.push((e.className || e.tagName) + " past the window's side, " + Math.round(q.left) + " to " + Math.round(q.right));
       }
+      // (A table that must be scrolled sideways hides its last columns on a phone.)
+      for (const t of win.querySelectorAll(".table-wrap"))
+        if (t.getBoundingClientRect().width > 0 && t.scrollWidth > t.clientWidth + 1)
+          out.push("a table " + t.scrollWidth + " wide in " + t.clientWidth + ": " + (t.previousElementSibling?.innerText ?? t.innerText).slice(0, 60));
     }
     return out.slice(0, 4);
   })()`);
@@ -366,7 +370,10 @@ for (const [i, [name, want]] of TABS.entries()) {
   check(!BAD.test(text), `the ${name} tab says ${BAD.exec(text)?.[0]}`);
   for (const o of await offScreen()) problems.push(`the ${name} tab: ${o}`);
   await hudFine(`the ${name} tab`);
-  say(`${name}: ${text.replace(/\s+/g, " ").slice(0, 200)}`);
+  // (What the tab says, past the page's head and its row of tabs.)
+  const tabbed = text.replace(/\s+/g, " "),
+    from = tabbed.lastIndexOf("Within");
+  say(`${name}: ${tabbed.slice(from >= 0 ? from + 6 : 0, (from >= 0 ? from + 6 : 0) + 220)}`);
   await shot(`2-${i}-${name.toLowerCase()}`);
   if (name === "Members") {
     // Its rows on the screen, summed, against its totals.

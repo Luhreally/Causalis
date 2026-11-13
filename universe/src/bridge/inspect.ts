@@ -130,6 +130,8 @@ export type Block =
       readonly title?: string;
       readonly columns: readonly string[];
       readonly rows: readonly Row[];
+      /** Fit to the page's width, never scrolled sideways: its headings wrap, and its first column's long names break. */
+      readonly fit?: boolean;
     }
   | {
       readonly type: "chart";

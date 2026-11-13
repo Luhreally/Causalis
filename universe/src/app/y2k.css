@@ -826,6 +826,13 @@ body[data-world="methane"][data-scale="ground"]:not([data-daylight]) {
 .table .sort.on.up::after {
   content: " ▲";
 }
+/* A table fitted to the page (no sideways scroll on a phone): its headings wrap, its first column's long names break. */
+.table.fit .sort {
+  white-space: normal;
+}
+.table.fit td:first-child {
+  overflow-wrap: anywhere;
+}
 /* An alliance's colour at its row's start. */
 .table .swatch {
   display: inline-block;

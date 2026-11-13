@@ -646,7 +646,7 @@ export class PageWindow {
         if (b.more) box.append(el("p", "muted more", `and ${b.more.toLocaleString("en-US")} more`));
         break;
       case "table":
-        box.append(this.table(b.columns, b.rows, key));
+        box.append(this.table(b.columns, b.rows, key, b.fit));
         break;
       case "lines":
         // (Lines of far different sizes: each its own small chart, side by side.)
@@ -1043,9 +1043,14 @@ export class PageWindow {
    * A table whose columns sort at a tap (a second tap the other way), its first rows shown
    * and the rest at "show all" — both kept as the page is read again.
    */
-  private table(columns: readonly string[], rows: readonly Row[], key: string): HTMLElement {
+  private table(
+    columns: readonly string[],
+    rows: readonly Row[],
+    key: string,
+    fit = false,
+  ): HTMLElement {
     const box = el("div", "table-wrap"),
-      table = el("table", "table"),
+      table = el("table", fit ? "table fit" : "table"),
       head = el("tr"),
       body = el("tbody"),
       state = this.sorts.get(key) ?? { by: -1, down: true, all: false },
