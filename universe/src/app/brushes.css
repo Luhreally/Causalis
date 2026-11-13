@@ -262,7 +262,8 @@
   color: #bac9df;
 }
 @media (max-width: 640px) {
-  .page-window.body-open .page-head {
+  .page-window.body-open .page-head,
+  .page-window.body-open .page-banner-box {
     display: none;
   }
 }

@@ -703,6 +703,31 @@ body[data-world="methane"][data-scale="ground"]:not([data-daylight]) {
   border-radius: 6px 6px 0 0;
   margin-bottom: -2px;
 }
+/* A fact's picture (a land's homes and works), before its words. */
+.fact-value canvas.fact-thumb {
+  float: left;
+  margin-right: 6px;
+}
+/* A page's art (ui/page-art.ts): its banner under its title, a glyph before each tab and section. */
+.page-banner-box {
+  margin: 4px 0 6px;
+  line-height: 0;
+}
+.page-banner {
+  display: block;
+  border-radius: 6px;
+  border: 1px solid var(--chrome-mid);
+  max-width: 100%;
+}
+.art-glyph {
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: 5px;
+  pointer-events: none;
+}
+.tab .art-glyph {
+  vertical-align: -3px;
+}
 .tab.on {
   color: #032b24;
   border-color: #0b7a62 #0b7a62 transparent;
@@ -772,6 +797,64 @@ body[data-world="methane"][data-scale="ground"]:not([data-daylight]) {
   margin-right: 6px;
   flex: none;
   image-rendering: auto;
+}
+/* A small picture is pressed to see it large (ui/thumbs.ts openZoom). */
+/* (A finger's 44 px to press, with the picture's own 28 drawn in the middle and the row laid out as before: its padding taken back by
+   its margins, the 6 px after it kept. Said of the canvas with both its classes, so a list's own rule for its picture's place, a makeup
+   row's or a board line's, does not undo it.) */
+canvas.thumb.thumb-zoomable {
+  cursor: zoom-in;
+  box-sizing: content-box;
+  padding: 8px;
+  margin: -8px -2px -8px -8px;
+  touch-action: manipulation;
+}
+/* A page's own picture of a made thing, a stuff or a plant: pressed, it is drawn large. */
+.portrait-zoomable {
+  cursor: zoom-in;
+  touch-action: manipulation;
+}
+/* (A 26 px picture in a board line's 26 px column: its padding taken back on every side.) */
+.board-icon canvas.thumb.thumb-zoomable {
+  padding: 9px;
+  margin: -9px;
+}
+.thumb-zoom {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 8, 22, 0.72);
+  padding: 16px;
+}
+.thumb-zoom-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100vw - 32px);
+  padding: 52px 16px 16px;
+  border: 2px solid #9fb6ff;
+  border-radius: 10px;
+  background: linear-gradient(#22346e, #121c40);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
+}
+.thumb-zoom-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 44px;
+  height: 44px;
+  font-size: 1.2rem;
+}
+.thumb-zoom-words {
+  max-width: 420px;
+  color: #e8eeff;
+  font-size: 0.95rem;
+  text-align: center;
 }
 /* A name: a link to its page. */
 .ref-link {
@@ -3409,6 +3492,17 @@ body.with-palette .hint {
 .makeup-share {
   color: var(--accent);
   font-variant-numeric: tabular-nums;
+}
+.makeup-amount:empty {
+  min-width: 0;
+}
+/* A part's small picture, drawn from what it is (asked 2026-11-12): before its name, the row's middle at its middle. */
+.makeup-row.makeup-pictured {
+  align-items: center;
+}
+.makeup-thumb {
+  float: left;
+  margin: 0 6px 0 0;
 }
 .makeup-amount {
   min-width: 4.5rem;

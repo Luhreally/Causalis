@@ -383,6 +383,15 @@ export const GATES: readonly Gate[] = [
   // in them, its omen told; a group courted; a blessing and a curse at the greatest strength for 5 years cast by touch, each told on
   // its realm's page; five years on the cursed realm broken apart or fallen, the blessed one whole.
   { gate: 116, args: ["--ci"], s: 420 },
+  // Gate 113, what is sold under each good (tools/wares-gate.ts): the first light run in node into its age of works and lending, every
+  // land's every good split into at most five named things whose shares make the whole; at 430 by 932 by touch, the realm's seat's board
+  // keeps its broad rows, a row opens on its named things and where each is from, its land's trade is said as things, and its exchange
+  // lists companies named for their towns with an index drawn.
+  { gate: 113, args: ["--ci"], s: 540 },
+  // Gate 115, a page's own art (tools/page-art-gate.ts): the first light, alien 20 and alien 41 run in node; on each a land's, a town's,
+  // a realm's, a war's and a far world's page opened at 430 by 932, its banner drawn of what it is, its tabs' glyphs in its world's
+  // colours, what the art adds to a page's drawing; how each land builds and its works drawn, six ways of building at least.
+  { gate: 115, args: ["--ci"], s: 900 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */

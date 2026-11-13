@@ -47,6 +47,7 @@ import { realmOrderBlocks } from "./order.ts";
 import { fortuneBlocks } from "./fortune.ts";
 import { godBlocks } from "./godhand.ts";
 import { realmCreditBlocks, warChestRows } from "./credit.ts";
+import { exchangeWay } from "./exchange.ts";
 import { leaderBlocks } from "./leaders.ts";
 import { courtBlocks } from "./court.ts";
 import { wealthStats } from "../wealth.ts";
@@ -76,6 +77,7 @@ import {
   townLink,
 } from "./names.ts";
 import { realmSongsTab } from "./memory.ts";
+import { loreLook } from "./ware-looks.ts";
 
 /** How many places a battle's fallen tab names, the most dead first; the rest are counted. */
 export const FELL_ROWS = 40;
@@ -248,7 +250,9 @@ export function realmPageModel(
   if (wants("order")) tabs.push({ id: "order", name: "Order", blocks: realmOrderBlocks(world, r) });
   // Its credit (Phase 21 M144): what its lands owe, its war chests, its faith with its lenders.
   if (wants("credit")) {
-    const credit = realmCreditBlocks(world, r.ref);
+    // (Its exchange first, where its seat keeps one: its companies and their index.)
+    const exchange = exchangeWay(world, r.ref),
+      credit = [...(exchange ? [exchange] : []), ...realmCreditBlocks(world, r.ref)];
     if (credit.length) tabs.push({ id: "credit", name: "Credit", blocks: credit });
   }
   // Its strife (Phase 22 M145): its army's voice, how near a coup is and why, its rule, its coups.
@@ -326,9 +330,15 @@ export function realmPageModel(
       .of(r.seat)
       .map(([id, k]) => ({ id, k }))
       .sort((a, b) => b.k.year - a.k.year)
-      .map(({ id, k }) =>
-        item([link(principleName(id, world), k.event), ` — year ${k.year}`], k.event, k.year),
-      );
+      .map(({ id, k }) => {
+        const it = item(
+            [link(principleName(id, world), k.event), ` — year ${k.year}`],
+            k.event,
+            k.year,
+          ),
+          thumb = loreLook(world, r.seat, id);
+        return thumb ? { ...it, thumb } : it;
+      });
     tabs.push({
       id: "lore",
       name: "Lore",

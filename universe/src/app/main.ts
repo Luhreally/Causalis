@@ -18,6 +18,8 @@ import { courtSitting } from "../view/index.ts";
 import { PeopleBar, barPins, setWrittenHold } from "../ui/index.ts";
 import { CornerRail } from "../ui/index.ts";
 import { closeLifeSheet, showLifeSheet, type LifeSheet } from "../ui/index.ts";
+import { THUMB_TIMES, bannerMs, drawPortrait, forgetBanners, paintThumb } from "../ui/index.ts";
+import type { Portrait } from "../bridge/index.ts";
 import { Checkpoint } from "./checkpoint.ts";
 import { HostClient, LOT, inlinePair, lotStates, progress, workerPort } from "../bridge/index.ts";
 import {
@@ -1379,6 +1381,10 @@ type Exposed = {
   /** Open a thing's page (Phase 10 M92), and the page open now. */
   open?: (ref: string) => Promise<void>;
   pageOpen?: () => string | null;
+  /** A page's art on or off (none: as it is), answering how long the last page took to draw (ms). */
+  pageArt?: (on?: boolean, forget?: boolean) => number;
+  /** How long the last page banner took to draw (ms). */
+  bannerMs?: () => number;
   /** The people bar and whom a viewer keeps on it (B1). */
   peopleBar?: PeopleBar;
   barPins?: typeof barPins;
@@ -1413,8 +1419,68 @@ type Exposed = {
     ground: { x: number; z: number };
   }[];
   littersOnScreen?: () => { index: number; x: number; y: number }[];
+  /**
+   * A thing's small picture drawn as a page draws it (asked 2026-11-12), for a gate: how many of its pixels are inked, and a sum of them
+   * to tell two pictures apart; and what the pictures drawn on pages so far have cost.
+   */
+  picture?: (p: Portrait, size: number) => { inked: number; sum: number };
+  /**
+   * The same drawn as a page's large picture at a level (asked 2026-11-12: "more generative detail ... when i look for it"): its inked
+   * pixels, its edges (pixels unlike the one beside or below them: strokes, seams, faces' borders), and a turning frame's cost (ms).
+   */
+  pictureAt?: (
+    p: Portrait,
+    size: number,
+    detail: "fine" | "coarse",
+  ) => { inked: number; edges: number; ms: number };
+  pictureTimes?: () => { drawn: number; ms: number };
 };
-const exposed: Exposed = {};
+const exposed: Exposed = {
+  picture: (p, size) => {
+    const c = document.createElement("canvas");
+    paintThumb(c, p, size);
+    const d = c.getContext("2d")!.getImageData(0, 0, c.width, c.height).data;
+    let inked = 0,
+      sum = 0;
+    for (let i = 0; i < d.length; i += 4)
+      if (d[i + 3]! > 40) {
+        inked++;
+        sum = (sum * 31 + d[i]! * 7 + d[i + 1]! * 3 + d[i + 2]! + i) % 1_000_000_007;
+      }
+    return { inked, sum };
+  },
+  pictureAt: (p, size, detail) => {
+    const c = document.createElement("canvas"),
+      g = () => c.getContext("2d")!;
+    // (A frame's cost as the large view turns: ten frames, each drawn and read back a pixel so its raster is in its time.)
+    drawPortrait(c, p, size, size, 0, detail);
+    const t0 = performance.now();
+    for (let i = 1; i <= 10; i++) {
+      drawPortrait(c, p, size, size, i / 30, detail);
+      g().getImageData(0, 0, 1, 1);
+    }
+    const ms = (performance.now() - t0) / 10;
+    drawPortrait(c, p, size, size, 0.8, detail);
+    const d = g().getImageData(0, 0, c.width, c.height).data,
+      w = c.width,
+      lum = (i: number) => d[i]! * 0.3 + d[i + 1]! * 0.59 + d[i + 2]! * 0.11;
+    let inked = 0,
+      edges = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3]! <= 40) continue;
+      inked++;
+      const right = i + 4,
+        below = i + 4 * w;
+      if (
+        (right < d.length && Math.abs(lum(i) - lum(right)) > 18) ||
+        (below < d.length && Math.abs(lum(i) - lum(below)) > 18)
+      )
+        edges++;
+    }
+    return { inked, edges, ms };
+  },
+  pictureTimes: () => ({ ...THUMB_TIMES }),
+};
 /** The last scales left, with where each leaving was called from (exposed.scalesLeft). */
 const scalesLeft: string[] = [];
 (globalThis as { causalis?: Exposed }).causalis = exposed;
@@ -1837,6 +1903,13 @@ async function runPlanetPage(): Promise<void> {
   exposed.lifeSheet = (most?: number) => showLifeSheet(client, most);
   exposed.closeLifeSheet = closeLifeSheet;
   exposed.pageOpen = () => pageWindow.current;
+  // (A page's art on or off, and how long its last drawing took: gate 115 weighs what the art costs.)
+  exposed.pageArt = (on?: boolean, forget?: boolean) => {
+    if (on !== undefined) pageWindow.artOn = on;
+    if (forget) forgetBanners();
+    return pageWindow.drawMs;
+  };
+  exposed.bannerMs = bannerMs;
   // The guided walk: on a first visit (not for a machine driving the page, unless asked
   // with ?walk), and again from Help.
   const walk = new GuidedWalk(planetPanel.bar);

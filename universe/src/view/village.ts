@@ -6143,6 +6143,8 @@ const ROOF: Readonly<Record<string, Rgb>> = {
   mound: [0.58, 0.44, 0.28],
   open: [0.98, 0.6, 0.54],
 };
+/** A colour a shade darker. */
+const shade = (c: Rgb, k: number): Rgb => [c[0] * k, c[1] * k, c[2] * k];
 
 /**
  * A house's look: its walls and roof in their colours, its shape and its measures; a roof of turf or
@@ -6158,7 +6160,14 @@ export function houseLook(house: VillagePlan["house"], lifeLook?: string): House
     domed = form === "hive" || house.roof === "mound";
   return {
     wall: WALL[house.walls] ?? WALL.wattle!,
-    roof: tent ? WALL.tent! : lifeTint(ROOF[house.roof] ?? ROOF.thatch!, lifeLook),
+    // A tent's skin is its roof, whatever roof its land would build. A house whose land gives nothing to roof with (no roof part:
+    // no reed, sod, kelp nor earth to lay over it) is closed over in its walls' own stuff, a shade darker, not thatched with reed
+    // it has not got; "open" alone is no roof at all, a reef's or shell's warren open to the water above.
+    roof: tent
+      ? WALL.tent!
+      : house.roof === ""
+        ? shade(WALL[house.walls] ?? WALL.wattle!, 0.8)
+        : lifeTint(ROOF[house.roof] ?? ROOF.thatch!, lifeLook),
     round,
     tent,
     length: form === "great-hall" ? 1.7 : long ? 1.15 : court ? 0.9 : form === "warren" ? 1.1 : 0.7,

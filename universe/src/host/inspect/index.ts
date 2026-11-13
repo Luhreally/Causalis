@@ -29,6 +29,7 @@ import {
 import { busPage, roadPage } from "./road.ts";
 import { askPage } from "./asks.ts";
 import { boardPage, dearPage } from "./board.ts";
+import { exchangePage } from "./exchange.ts";
 import { designPage, faithPage, goodPage, languagePage } from "./culture.ts";
 import { agePage, depositPageModel, lineagePage, platePageModel } from "./life.ts";
 import { bodyPage, foreignWorldPage, starPageModel } from "./sky.ts";
@@ -58,6 +59,7 @@ import { crumbsOf } from "./crumbs.ts";
 import { DEEP_LENSES, lensReading, type DeepLens } from "../lenses.ts";
 import { conceptPage, withConcepts } from "./concepts.ts";
 import { withBarBlock } from "./barread.ts";
+import { withArt } from "./art.ts";
 import { sicknessPage } from "./sickness.ts";
 import { housePage } from "./credit.ts";
 import { buildingPage, lotPage, wallsPage } from "./fabric.ts";
@@ -125,6 +127,8 @@ function build(
   // A town's price board, and where a good is cheap and dear (Markets, first slice).
   if (ref.startsWith("board:")) return boardPage(world, ref);
   if (ref.startsWith("dear:")) return dearPage(world, ref);
+  // A realm's exchange, late in a world: its companies and their index (what is sold under each good).
+  if (ref.startsWith("exchange:")) return exchangePage(world, ref);
   if (ref.startsWith("thing:")) return thingPage(world, ref);
   // A tool hung on a smithy's rack, tapped there (Phase 51 M213).
   if (ref.startsWith("made:")) return madePage(world, ref);
@@ -273,6 +277,8 @@ export function pageOf(
     );
     // (How they are now, and the way on and off the people bar: B1.)
     if (!brief) page = withBarBlock(world, base, page);
+    // (What its tabs and banner are drawn of: asked 2026-11-13.)
+    if (!brief && !only) page = withArt(world, page);
   } catch {
     return unknownPage(world, base, true);
   }

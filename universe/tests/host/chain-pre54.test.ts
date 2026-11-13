@@ -96,7 +96,8 @@ const BEFORE: Record<string, string> = {
  */
 const NEW_BLOCKS: ReadonlySet<unknown> = new Set(["What it can do", "What it would do here"]);
 const WORDS = (key: string, value: unknown): unknown => {
-  if (key === "portrait" || key === "thumb") return undefined;
+  // (A page's art, 2026-11-13, is pictures too: its tabs' glyphs and its banner are drawn of it, and say no word.)
+  if (key === "portrait" || key === "thumb" || key === "art") return undefined;
   if (Array.isArray(value))
     return value.filter((x) => !NEW_BLOCKS.has((x as { title?: unknown } | null)?.title));
   if (key === "ref" && typeof value === "string" && value.startsWith("elem:")) return undefined;
