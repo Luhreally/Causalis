@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { keptLife } from "../../src/rules/kinds.ts";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { generateHomeWorld } from "../../src/gen/index.ts";
@@ -61,7 +62,7 @@ test("the same land and the same knowledge give each body its own house", () => 
 });
 
 test("a people of the water builds with the shelf's gifts, not the land's", () => {
-  const world = ALIEN.build(seedFromText("alien 55")),
+  const world = ALIEN.build(seedFromText(keptLife("alien 55"))),
     ctx = populationContext(world);
   world.runTo(60 * YEAR);
   const p = ctx.provinces.all().find((q) => ctx.settlements.inProvince(q.cell).length)!;
