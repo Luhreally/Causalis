@@ -85,6 +85,8 @@ function wing(
         ),
       );
   }
+  // (Every house has its roof: a tent's skin, drawn as its cone from the ground; a house its land gives nothing to roof with, closed over
+  // in its walls' stuff (houseLook). Only one open to the water above has none.)
   if (look.open) return;
   const rise = Math.max(0.05, look.rise * wid * 0.5),
     domed = look.round || look.tent;

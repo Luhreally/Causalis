@@ -1287,7 +1287,7 @@ function peopleBanner(
   const p = paletteOf({ kind: "rocky", star: b.star });
   sky(g, p, w, h, 0.85);
   const groundY = h * 0.86;
-  g.fillStyle = css(biomeColor(b.biome));
+  g.fillStyle = css(biomeColor(b.biome, "rocky", b.look));
   g.fillRect(0, groundY, w, h - groundY);
   if (portrait?.kind !== "person") return;
   const ages = [34, 8, 22, 61, 15] as const,

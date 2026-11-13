@@ -3,7 +3,7 @@
 // make the game slower"). Three worlds run in node — Earth's first light, alien 20 (a carbon world under a white star) and alien 41 (a
 // rocky world under a red dwarf) — each taken up in the app at 430 by 932, and on each:
 //   1. the reading, node side: a land's, a town's, a realm's and a war's page each carry their art, of the right kind, and what reading
-//      it costs; a far world's page its star;
+//      it costs; a far world's page its star; a far people's page the ground and light they rose under;
 //   2. each page opened in the app with its art and without: its banner drawn and inked, its tabs' glyphs drawn and inked, the banner
 //      within the page's width; the time its drawing took, first and opened again, against the same without art;
 //   3. a land's banner not a town's, nor Earth's land's an alien's; a tab's glyph not the same in two worlds' colours;
@@ -17,7 +17,7 @@ import { preview } from "vite";
 import { chromium, type Page } from "playwright";
 import { YEAR, rulesetId, saveWorld, seedFromText, type World } from "../src/kernel/index.ts";
 import { ALIEN, EARTH, clusterOf } from "../src/host/planet.ts";
-import { politiesOf, populationContext, warsOf } from "../src/sim/index.ts";
+import { folksNear, politiesOf, populationContext, warsOf } from "../src/sim/index.ts";
 import { pageOf } from "../src/host/inspect/index.ts";
 import { homeLook, withArt, worksLook } from "../src/host/inspect/art.ts";
 import type { Portrait } from "../src/bridge/index.ts";
@@ -66,18 +66,24 @@ function caseOf(name: string, universe: "earth" | "alien", seed: string, year: n
     far = clusterOf(world)
       .slice(0, 40)
       .map((s) => `${s.ref}/0`)
-      .find((ref) => pageOf(world, ref).kind === "world");
+      .find((ref) => pageOf(world, ref).kind === "world"),
+    // (A people of another world, as the stars about this one hold them: the first by ref whose page draws them.)
+    folk = [...folksNear(world)]
+      .sort((a, b) => (a.ref < b.ref ? -1 : 1))
+      .find((f) => pageOf(world, f.ref).art?.banner?.kind === "people");
   const refs = [
     realm && { what: "land", ref: `cell:0:${realm.seat}`, banner: "land" },
     town && { what: "town", ref: town.ref, banner: "town" },
     realm && { what: "realm", ref: realm.ref, banner: "realm" },
     war && { what: "war", ref: war.ref, banner: "war" },
     far && { what: "far world", ref: far, banner: "world" },
+    folk && { what: "far people", ref: folk.ref, banner: "people" },
   ].filter((x): x is { what: string; ref: string; banner: string } => !!x);
   say(
     `${name}: run to ${year} in ${Math.round((Date.now() - t0) / 1000)} s; ${refs.map((r) => `${r.what} ${r.ref}`).join(", ")}`,
   );
   check(refs.length >= 4, `${name}: only ${refs.length} pages to open`);
+  check(!!folk, `${name}: no far people's page to open`);
   return { name, universe, seed, year, world, refs };
 }
 

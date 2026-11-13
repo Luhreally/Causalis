@@ -3,7 +3,7 @@
 // tabs' glyphs to be drawn in its colours — its kind's seas and ground, its life's pigment, its star's light — and, for a land, a town, a
 // realm, a war, a far world or a people, what its banner shows. Pure reads of what the world holds, once a page is read; nothing kept,
 // nothing per tick. The interface draws it (ui/page-art.ts) once as the page opens.
-import { worldKindOf } from "../../gen/index.ts";
+import { classify, worldKindOf } from "../../gen/index.ts";
 import { hashString, type Ref, type World } from "../../kernel/index.ts";
 import type { BannerFigure, PageArt, PageBanner, PageModel, Portrait } from "../../bridge/index.ts";
 import { HOME_LEVELS, HOME_STOREYS, OCC } from "../../rules/index.ts";
@@ -67,10 +67,18 @@ function bannerOf(world: World, page: PageModel): PageBanner | null {
         : null;
     }
     case "civilization": {
-      // (A people of another world: the ground and light they rose under, as their look was made of.)
+      // (A people of another world: the light they rose under, and the ground of their land's warmth and rain — classed as a world's own
+      // land is, above its sea; their look's biome is a draw for their colours, not their ground — its growth in their life's colours.)
       const p = page.portrait,
         folk = p?.kind === "person" ? p.body?.folk : null;
-      return folk ? { kind: "people", star: folk.star, biome: folk.biome } : null;
+      return folk
+        ? {
+            kind: "people",
+            star: folk.star,
+            biome: classify(1, folk.warmth, folk.rain),
+            ...(folk.lifeLook ? { look: folk.lifeLook } : {}),
+          }
+        : null;
     }
     default:
       return null;

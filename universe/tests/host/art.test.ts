@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { ALIEN } from "../../src/host/planet.ts";
-import { politiesOf, populationContext } from "../../src/sim/index.ts";
+import { folksNear, politiesOf, populationContext } from "../../src/sim/index.ts";
 import { pageOf } from "../../src/host/inspect/index.ts";
 
 // A page's art (asked 2026-11-13), read on a carbon world under a white star: its world's kind and star on every page, and a land's,
@@ -116,4 +116,21 @@ test("what lives in a land is drawn beside its name", () => {
       i.thumb && (i.thumb.kind === "creature" || i.thumb.kind === "plant"),
       JSON.stringify(i.line),
     );
+});
+
+test("a far people's banner stands them on land of their warmth and rain, under their own star", () => {
+  const folks = folksNear(world);
+  assert.ok(folks.length > 0);
+  for (const f of folks) {
+    const p = pageOf(world, f.ref),
+      b = p.art?.banner;
+    assert.equal(b?.kind, "people", f.ref);
+    if (b?.kind !== "people") continue;
+    const folk = p.portrait?.kind === "person" ? p.portrait.body?.folk : null;
+    assert.ok(folk);
+    assert.equal(b.star, folk.star);
+    // (Never a sea's or sea ice's colour under their feet: their ground is land, by its warmth and rain.)
+    assert.ok(b.biome >= 4 && b.biome <= 15, `${f.ref}: biome ${b.biome}`);
+    assert.equal(b.look, folk.lifeLook);
+  }
 });

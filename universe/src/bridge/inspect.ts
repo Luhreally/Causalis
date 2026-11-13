@@ -826,7 +826,13 @@ export type PageBanner =
       readonly biome: number;
     }
   | { readonly kind: "world"; readonly star: number }
-  | { readonly kind: "people"; readonly star: number; readonly biome: number };
+  | {
+      readonly kind: "people";
+      readonly star: number;
+      readonly biome: number;
+      /** Their world's life's colours, where they are not Earth's green (a pigment, or "bare"). */
+      readonly look?: string;
+    };
 
 /** A thing in a few words, for a tooltip: its icon, name, a line and its first numbers. */
 export type Tip = {
