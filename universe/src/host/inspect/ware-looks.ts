@@ -233,6 +233,13 @@ const LORE_LOOK: Readonly<Record<string, string>> = {
   "made-bodies": "machine:bodies",
 };
 
+/** A lineage as a picture beside its name (asked 2026-11-13): a beast as its species page draws it, a grass as an ear of its own seed in its world's leaf, any other green thing a leaf. */
+export function lineageLook(world: World, s: Species): Portrait {
+  return s.body
+    ? { kind: "creature", body: s.body, name: s.name, wool: s.wool }
+    : plantLook(world, s.niche === "seed grass" ? "ear" : "leaf", s.seed, `lineage:${s.ref}`);
+}
+
 /** The thing a knowing puts in a land's makers' hands, as they make it (null: none to show). */
 export function loreLook(world: World, cell: number, id: string): Portrait | null {
   const look = LORE_LOOK[id];

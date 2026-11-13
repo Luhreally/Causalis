@@ -47,7 +47,7 @@ import { landBondBlocks } from "./order.ts";
 import { landHealthBlocks } from "./sickness.ts";
 import { landCreditBlocks } from "./credit.ts";
 import { tradeItems } from "./wares.ts";
-import { loreLook } from "./ware-looks.ts";
+import { lineageLook, loreLook } from "./ware-looks.ts";
 import { homeLook, worksLook } from "./art.ts";
 import { landCompanyBlocks } from "./exchange.ts";
 import { biomeWords } from "../kinds.ts";
@@ -395,8 +395,9 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
     const items: Item[] = living
       .filter((s) => s.niche !== "upright ape")
       .sort((a, b) => a.level - b.level || (a.name < b.name ? -1 : 1))
-      .map((s) =>
-        item(
+      // (Each drawn as it is, beside its name: asked 2026-11-13.)
+      .map((s) => ({
+        ...item(
           [
             `${lineageIcon(s.niche, (s.body?.wings ?? 0) > 0 && s.body?.moves === "fly")} `,
             link(s.name, s.ref),
@@ -404,7 +405,8 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
           ],
           s.ref,
         ),
-      );
+        thumb: lineageLook(world, s),
+      }));
     if (items.length) blocks.push({ type: "list", title: "What lives here", items });
     // (And what lives too small to see: a drop of its water under the glass.)
     if (spot !== null) {
