@@ -116,6 +116,48 @@ for (const s of seeds) {
           strikesSince: u.strikes,
         });
       }
+  // When each land came to know each principle of war (one whose effects are arms, armour, mounts, walls or sieges), found or
+  // learned; the findings their losses pressed toward (the "pressed by" factor, where the tree has it); every lesson's taking up in
+  // its own words.
+  const lore = sim.loreOf(world),
+    warlike = rules.PRINCIPLES.filter((p) =>
+      (["arms", "armour", "mounts", "walls", "sieges"] as const).some(
+        (e) => (p.effects[e] ?? 0) > 0,
+      ),
+    ).map((p) => p.id),
+    knewWar: Record<string, Record<string, number>> = {},
+    pressedFinds: [number, string, number, string, number][] = [],
+    takeUps: [string, number, string, string][] = [];
+  for (const c of lore.cells()) {
+    const m: Record<string, number> = {};
+    for (const id of warlike) {
+      const k = lore.get(c, id);
+      if (k) m[id] = k.year;
+    }
+    if (Object.keys(m).length) knewWar[c] = m;
+  }
+  for (const e of world.events.all()) {
+    if (e.type === "lore.found") {
+      const d = e.causes[0] ? world.decisions.get(e.causes[0].ref) : undefined,
+        f = d?.factors.find((x) => x.name.startsWith("pressed by"));
+      if (f)
+        pressedFinds.push([
+          Number(String(e.place).slice(7)),
+          String((e.data as { principle?: string }).principle),
+          yearOfMoment(e.t),
+          f.name,
+          Math.round(f.contribution * 100) / 100,
+        ]);
+    } else if (e.type === "lessons.taken" || e.type === "lessons.copied") {
+      const d = e.data as { lesson?: string; does?: string };
+      takeUps.push([
+        String(d.lesson),
+        yearOfMoment(e.t),
+        String(d.does ?? ""),
+        String(e.place ?? e.subjects[0] ?? ""),
+      ]);
+    }
+  }
   // What the lessons' record and its tellings add to a save, gzipped alone.
   const storeGz = lessons ? gzipSync(JSON.stringify(lessons.save())).length : 0,
     told = world.events.all().filter((e) => e.type.startsWith("lessons.")),
@@ -138,6 +180,9 @@ for (const s of seeds) {
       toldGz,
       learned,
       losses,
+      knewWar,
+      pressedFinds,
+      takeUps,
     };
   report.push(row);
   console.log(
@@ -153,6 +198,7 @@ for (const s of seeds) {
       taken: row.taken,
       copied: row.copied,
       uses: learned.length,
+      pressedFinds: pressedFinds.length,
       storeGz,
       told: told.length,
       toldGz,

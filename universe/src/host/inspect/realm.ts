@@ -273,9 +273,9 @@ export function realmPageModel(
   }
   // Its army (Phase 13 M115): its host, the men it fields, its wars and battles.
   if (wants("army")) tabs.push({ id: "army", name: "Army", blocks: armyBlocks(world, r) });
-  // What its hosts and its lands have learned from what has cost them (the lessons).
+  // What its hosts have learned, its seat knows, and its lands have learned.
   if (wants("learned")) {
-    const learned = realmLessonBlocks(world, r.ref, r.members);
+    const learned = realmLessonBlocks(world, r.ref, r.members, r.ended === null ? r.seat : null);
     if (learned.length) tabs.push({ id: "learned", name: "Learned", blocks: learned });
   }
   // Its lands' stores, summed (Phase 15 M123).

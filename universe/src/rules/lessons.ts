@@ -135,7 +135,7 @@ export const LESSON_CAUSES: readonly LessonCause[] = [
     words: "being outnumbered",
     lost: "men lost to being outnumbered",
     each: ["battle", "battles"],
-    answers: ["arms", "reach"],
+    answers: ["arms"],
   },
   {
     id: "strongholds",
@@ -186,7 +186,7 @@ export const LESSON_CAUSES: readonly LessonCause[] = [
     words: "marching far from their bread",
     lost: "men lost far from their bread",
     each: ["battle", "battles"],
-    answers: ["haul", "carrying", "storage"],
+    answers: ["haul", "storage"],
   },
 ];
 
@@ -361,9 +361,9 @@ export const LESSON_RESPONSES: readonly LessonResponse[] = [
     how: "doctrine:mobility",
     most: 0.6,
     asks: 0.35,
-    does: "put {means} on their wings",
+    does: "fight {means} on their wings",
     arms: { role: "mount", axis: "mobility" },
-    means: [{ needs: [], words: "their swiftest" }],
+    means: [{ needs: [], words: "with their swiftest runners" }],
     name: "wings of their own riders",
   },
   // A host fed from behind it: what distance and hunger at home take from it, so much less (half at full use).
@@ -403,6 +403,23 @@ export function doesWords(
   return r.does.replace("{means}", made || meansWords(r, knows));
 }
 
+/**
+ * The causes a principle answers: those whose answers (an effect) it has among its own effects (rules/principles.ts). Read from the
+ * principle's effects, never listed by hand: steel answers blades and shot by its arms and armour; a granary, hunger by its storage.
+ */
+export function causesAnswered(p: { readonly effects: Partial<Record<Effect, number>> }): string[] {
+  return LESSON_CAUSES.filter((c) => c.answers.some((e) => (p.effects[e] ?? 0) > 0)).map(
+    (c) => c.id,
+  );
+}
+
+/** How much more readily a principle is found by a people its answered causes press (1: not at all), from each cause's press. */
+export function pushOf(answered: readonly string[], press: (cause: string) => number): number {
+  let sum = 0;
+  for (const c of answered) sum += press(c);
+  return 1 + LESSON.push * Math.min(1, sum);
+}
+
 /** The same rows by id. */
 export const LESSON_CAUSE: ReadonlyMap<string, LessonCause> = new Map(
   LESSON_CAUSES.map((c) => [c.id, c]),
@@ -438,6 +455,11 @@ export const LESSON = {
   trust: 1,
   /** Below this use a practice is let go and forgotten. */
   least: 0.03,
+  /**
+   * How much more readily a people finds a principle whose own effects answer what has cost it, pressed as hard as can be: at most
+   * twice as readily (a realm beaten by better arms looks the harder for arms; Europe's case). Bounded, so no cost makes it certain.
+   */
+  push: 1,
 } as const;
 
 /** The share of their cost a people's use of a response takes off a strike (`lessen`). */

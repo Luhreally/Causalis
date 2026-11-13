@@ -35,12 +35,15 @@ import {
 } from "../../gen/index.ts";
 import {
   EFFECTS,
+  LESSON_CAUSE,
   METAL_ROOTS,
   OCC,
   PRINCIPLES,
   PRINCIPLE_INDEX,
   SMELTING,
   affordsPrinciple,
+  causesAnswered,
+  pushOf,
   liftingEngine,
   matterShuts,
   needsMet,
@@ -57,6 +60,7 @@ import { marketGoodRef, type MarketStore } from "../economy/market.ts";
 import { oreKnown } from "../economy/heat.ts";
 import { cultureOf } from "../culture/culture.ts";
 import { politiesOf } from "../polity/polity.ts";
+import { lessonsOf, pressIn } from "./lessons-store.ts";
 import { laneLawOf } from "../space/lanes.ts";
 
 export const LORE_EVENTS = {
@@ -262,6 +266,58 @@ export function lawAllows(world: World, p: Principle): boolean {
   return p.law !== "lanes" || laneLawOf(world).open;
 }
 
+/** Each principle's causes it answers (rules/lessons.ts causesAnswered), by its effects. */
+const ANSWERS: ReadonlyMap<string, readonly string[]> = new Map(
+  PRINCIPLES.map((p) => [p.id, causesAnswered(p)]),
+);
+
+/**
+ * What presses a land's finding (rules/lessons.ts pushOf), by cause: its own losses, and its realm's hosts'. Null where neither has
+ * lost anything, so a world that has learned nothing finds as it did.
+ */
+function pressesOn(
+  world: World,
+  cell: number,
+  realm: Ref | null,
+  year: number,
+): ((cause: string) => number) | null {
+  const lessons = lessonsOf(world);
+  if (!lessons || !lessons.holders.size) return null;
+  const own = lessons.get(cellRef(0, cell)),
+    hosts = realm ? lessons.get(realm) : undefined;
+  if (!own?.causes.size && !hosts?.causes.size) return null;
+  return (cause) => Math.max(pressIn(own, cause, year), pressIn(hosts, cause, year));
+}
+
+/**
+ * What a land may find next: what it knows meets the principle's needs, and only what its people's body allows (no kilns without
+ * fire, no wheels in the water), and what their world's heat, matter and laws allow (Phase 56, F2, Phase 66, 68). `here`: whether it
+ * knows a principle.
+ */
+function openOf(
+  ctx: PopulationContext,
+  here: (id: string) => boolean,
+  means = meansOfWorld(ctx.generated),
+  lifts = liftingEngine(meansNumbers(ctx.generated)),
+): Principle[] {
+  const reach = reachIn(means, here);
+  return PRINCIPLES.filter(
+    (p) =>
+      p.rate > 0 &&
+      affordsPrinciple(p, ctx.medium, reach, means.wants) &&
+      !here(p.id) &&
+      needsMet(p, here) &&
+      (!p.body?.lifts || (lifts !== null && here(lifts.id))) &&
+      matterAllows(ctx.generated, p) &&
+      lawAllows(ctx.world, p),
+  );
+}
+
+/** What a land may find next (`openOf`), as its lore stands: for its page. Only reads. */
+export function findableAt(ctx: PopulationContext, cell: number): Principle[] {
+  return openOf(ctx, (id) => knows(ctx, cell, id));
+}
+
 /** The lore's year: each land may find one principle and learn one from a neighbour. */
 export function loreYear(ctx: PopulationContext, t: SimTime): void {
   const { world, generated: g } = ctx,
@@ -285,19 +341,7 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
           : n === "metalworking"
             ? !!markets.get(cell)?.metalworking
             : !!store.get(cell, n),
-      reach = reachIn(means, here),
-      // Only what their body allows: no kilns without fire, no wheels in the water — and only
-      // what their world's heat and matter allow (Phase 56, F2).
-      open = PRINCIPLES.filter(
-        (p) =>
-          p.rate > 0 &&
-          affordsPrinciple(p, ctx.medium, reach, means.wants) &&
-          !store.get(cell, p.id) &&
-          needsMet(p, here) &&
-          (!p.body?.lifts || (lifts !== null && here(lifts.id))) &&
-          matterAllows(g, p) &&
-          lawAllows(world, p),
-      );
+      open = openOf(ctx, here, means, lifts);
     if (!open.length) continue;
     // Finding: the first principle whose drivers carry it, in the tree's order.
     const famine = (() => {
@@ -311,6 +355,8 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
         return false;
       })();
     let found: Plan | null = null;
+    // (What has cost it presses it toward what would answer that: exactly 1 where nothing has.)
+    const pressed = pressesOn(world, cell, realms.of(cell)?.ref ?? null, year);
     for (const p of open) {
       const d = p.drivers;
       if (d.river && !g.water.river[cell]) continue;
@@ -347,7 +393,9 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
           (d.traders ?? 0) * prov.occupation(OCC.trader) +
           (d.leaders ?? 0) * prov.occupation(OCC.leader),
         many = 1 + dmath.log10(1 + hands / MANY_HANDS),
-        chance = p.rate * (0.2 + drive) * LORE_PACE * many;
+        answers = pressed ? ANSWERS.get(p.id)! : null,
+        push = answers?.length ? pushOf(answers, pressed!) : 1,
+        chance = p.rate * (0.2 + drive) * LORE_PACE * many * push;
       if (!(world.rng.real(FIND, cell, t, PRINCIPLE_INDEX.get(p.id)!) < chance)) continue;
       const factors: Factor[] = terms
         .filter(([, w, v]) => w * v > 0)
@@ -366,6 +414,16 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
           contribution: 0.5,
           source: { ref: ore.ref, role: "enabler", weight: 1 },
         });
+      // (The losses that pressed it toward this, first: the most of them.)
+      if (push > 1.01) {
+        const worst = answers!.reduce((a, b) => (pressed!(b) > pressed!(a) ? b : a));
+        factors.unshift({
+          name: `pressed by its losses to ${LESSON_CAUSE.get(worst)!.words}`,
+          value: Math.round(pressed!(worst) * 100) / 100,
+          contribution: push - 1,
+          source: null,
+        });
+      }
       found = { cell, p, found: true, factors: factors.slice(0, 6), causes: [] };
       break;
     }

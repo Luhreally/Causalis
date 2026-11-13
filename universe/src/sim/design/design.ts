@@ -429,8 +429,10 @@ export function hostBest(ctx: PopulationContext, p: Polity, role: Role, axis: Ax
         ? undefined
         : (id, m) => hereOf(id, m, meansNumbers(ctx.generated), firearm(id)),
     )[0] ?? null;
-  // (Only one that does something on that axis: no bows, no shot of their own.)
-  return part && (performanceOf([part])[axis] ?? 0) > 0 ? part : null;
+  // (Only one that does something on that axis: no bows, no shot of their own; and a body's own going, on foot or swimming, is
+  // no riders.)
+  if (!part || (performanceOf([part])[axis] ?? 0) <= 0) return null;
+  return role === "mount" && !realization(part.id).needs.length ? null : part;
 }
 
 /**

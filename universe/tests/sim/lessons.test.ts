@@ -143,7 +143,7 @@ test("a land struck again and again takes up a response by a draw, tells it, and
   assert.ok(useIn(h, "braced-frames", took + 400) === 0, "never forgotten");
   // Its page says what it cost them and what they do now, in numbers and words.
   const text = JSON.stringify(lessonBlocks(w, holder));
-  assert.match(text, /What they have learned/);
+  assert.match(text, /From what has cost them/);
   assert.match(text, /\d+ homes and \d+ lives lost to quakes in (?:a year|\d+ years)/);
   assert.match(text, /frames .{0,30}that stand when the ground shakes/i);
   assert.doesNotMatch(text, /cell:0:|pol:|undefined|NaN/);

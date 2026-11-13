@@ -104,6 +104,7 @@ export {
 } from "./bodies.ts";
 export {
   EFFECTS,
+  FIELDS,
   OWN_ENGINES,
   METAL_ROOTS,
   HEAT_TREE,
@@ -113,11 +114,13 @@ export {
   PRINCIPLE_INDEX,
   affordsPrinciple,
   bodyStop,
+  fieldOf,
   needsMet,
   principle,
   type BodyNeeds,
   type Drivers,
   type Effect,
+  type Field,
   type Principle,
 } from "./principles.ts";
 export {
@@ -1395,11 +1398,13 @@ export {
   LESSON_RESPONSE,
   LESSON_RESPONSES,
   LESSONS_FOR,
+  causesAnswered,
   doesWords,
   faded,
   lessenBy,
   meansWords,
   pressOf,
+  pushOf,
   takeUpChance,
   trustOf,
   useAfter,

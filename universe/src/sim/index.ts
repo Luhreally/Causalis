@@ -415,6 +415,7 @@ export {
   LoreStore,
   installLore,
   knows,
+  findableAt,
   loreOf,
   loreYear,
   type Known,
