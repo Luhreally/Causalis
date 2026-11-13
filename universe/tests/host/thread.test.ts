@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { keptLife } from "../../src/rules/kinds.ts";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { ALIEN, EARTH } from "../../src/host/planet.ts";
@@ -54,7 +55,7 @@ test("a town's thread begins at the town, a land's at the land", () => {
 });
 
 test("on a world the hand made, its thread ends in the hand's making", () => {
-  const made = ALIEN.build(seedFromText("violet hollow ~star red"));
+  const made = ALIEN.build(seedFromText(keptLife("violet hollow ~star red")));
   made.runTo(YEAR / 8);
   const g = populationContext(made).generated,
     cradle = g.life.people!.cell,

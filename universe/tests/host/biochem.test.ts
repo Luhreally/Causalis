@@ -3,6 +3,7 @@
 // Earth's; the making chain's fibre, dye, rope and bread; a people of the stars' life and ours.
 // Earth's own is told as Earth's, with nothing added where Earth's pages are pinned.
 import { test } from "node:test";
+import { keptLife } from "../../src/rules/kinds.ts";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText, type Ref, type World } from "../../src/kernel/index.ts";
 import {
@@ -80,12 +81,12 @@ function beastOf(w: World): { ref: string } {
 }
 
 const earth = EARTH.build(seedFromText("first light"));
-const sulfur = ALIEN.build(seedFromText("alien 84"));
+const sulfur = ALIEN.build(seedFromText(keptLife("alien 84")));
 sulfur.runTo(30 * YEAR);
 // (What every read below must leave as it was: Earth's and alien 84's histories.)
 const earthBefore = JSON.stringify(earth.domainHashes()),
   sulfurBefore = JSON.stringify(sulfur.domainHashes());
-const ammonia = ALIEN.build(seedFromText("alien 218"));
+const ammonia = ALIEN.build(seedFromText(keptLife("alien 218")));
 ammonia.runTo(30 * YEAR);
 
 test("Earth's life is Earth's own: told as Earth's, without why, and nothing of it added to Earth's things", () => {
@@ -193,7 +194,7 @@ test("alien 84: bones of silica and green blood, on the lineage's page, the tree
 });
 
 test("alien 16: a shelled people's Body tab tells their shell, of lime, and their blood — never bones", () => {
-  const shelled = ALIEN.build(seedFromText("alien 16"));
+  const shelled = ALIEN.build(seedFromText(keptLife("alien 16")));
   shelled.runTo(30 * YEAR);
   const before = JSON.stringify(shelled.domainHashes()),
     towns = ALIEN.queries["towns.map"]!(shelled, {}) as { ref: string }[];

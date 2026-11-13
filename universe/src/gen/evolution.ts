@@ -77,6 +77,10 @@ export type Genome = {
   readonly mode?: Locomotion;
   readonly frame?: CreatureBody["frame"];
   readonly stock?: number;
+  /** Where it lives, what it eats and how it breathes, as its line does (its role's, carried down its line). */
+  readonly place?: CreatureBody["place"];
+  readonly food?: CreatureBody["food"];
+  readonly breath?: CreatureBody["breath"];
 };
 
 /**
@@ -183,6 +187,9 @@ function physicalOf(g: Genome): Partial<CreatureBody> {
   if (g.mode !== undefined) out.moves = g.mode;
   if (g.frame !== undefined) out.frame = g.frame;
   if (g.stock !== undefined) out.stock = g.stock;
+  if (g.place !== undefined) out.place = g.place;
+  if (g.food !== undefined) out.food = g.food;
+  if (g.breath !== undefined) out.breath = g.breath;
   return out;
 }
 
@@ -216,6 +223,9 @@ export function encode(b: CreatureBody, from: Genome | null): Genome {
           mode: b.moves,
           ...(b.frame !== undefined ? { frame: b.frame } : {}),
           stock: b.stock,
+          ...(b.place !== undefined ? { place: b.place } : {}),
+          ...(b.food !== undefined ? { food: b.food } : {}),
+          ...(b.breath !== undefined ? { breath: b.breath } : {}),
         }
       : {}),
   };

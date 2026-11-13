@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { keptLife } from "../../src/rules/kinds.ts";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { ALIEN, EARTH } from "../../src/host/planet.ts";
@@ -9,10 +10,10 @@ import type { PageModel } from "../../src/bridge/index.ts";
 // Phase 35 M179–M181: a world never seen as the hand made it — its star, its pull, its orbit, its
 // seas, its air — told before it is begun, on its page, and in its people's look.
 
-const madeText = "violet hollow ~pull heavy ~star red";
+const madeText = keptLife("violet hollow ~pull heavy ~star red");
 
 test("the world a seed makes is told before it is begun, as made", () => {
-  const plain = ALIEN.life!(seedFromText("violet hollow")),
+  const plain = ALIEN.life!(seedFromText(keptLife("violet hollow"))),
     made = ALIEN.life!(seedFromText(madeText));
   assert.ok(plain.world && made.world);
   assert.match(made.world.star, /^M/, "a dim red star");
@@ -39,7 +40,7 @@ test("a world made by the hand says so on its page, and its people are of it", (
   const folk = folkFacts(g);
   assert.ok(folk && folk.star < 3900 && folk.gravity > 1.4, JSON.stringify(folk));
   // Unmade, nothing told.
-  const plain = ALIEN.build(seedFromText("violet hollow"));
+  const plain = ALIEN.build(seedFromText(keptLife("violet hollow")));
   plain.runTo(YEAR / 8);
   const pg = populationContext(plain).generated,
     blocks = (ALIEN.queries["page"]!(plain, { ref: pg.planet.ref }) as PageModel).tabs[0]!.blocks;

@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { keptLife } from "../../src/rules/kinds.ts";
 import assert from "node:assert/strict";
 import { seedFromText } from "../../src/kernel/index.ts";
 import {
@@ -26,7 +27,7 @@ import { originOfHome } from "../../src/host/origin.ts";
 
 const earth = generateHomeWorld(seedFromText("first light"), PRIORS.earthlike!),
   sulfur = generateHomeWorld(seedFromText("alien 84"), OPEN),
-  methane = generateHomeWorld(seedFromText("alien 1429"), OPEN);
+  methane = generateHomeWorld(seedFromText(keptLife("alien 1429")), OPEN);
 
 test("Earth's comes out as Earth's own: at seafloor vents, on hydrogen with carbon dioxide; oxygen from light splitting water, about 2.4 billion years ago", () => {
   const o = originOfHome(earth);

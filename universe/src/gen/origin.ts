@@ -401,8 +401,10 @@ export function protoGround(p: ProtoWorld): OriginGround {
 
 /**
  * Why no liquid lasts on a world before its life (B5), read from its cells (its warmth in its liquid's own degrees): a
- * liquid lasts where any of its sea is open, or its sea lies frozen over ground warm enough to keep water under the ice
- * (an estimate: a fifth of Earth's heat through its ground), or its seas are not all too hot. Else why not.
+ * liquid lasts where any of its sea is open, or where its sea lies frozen and is deeper than the ice its ground's heat
+ * lets grow (the heat that comes up through the ice carried by it: a shell as thick as ice's conductivity, 2.2 W/m·K,
+ * times the cold at its top, over that heat, Earth's 0.087 W/m² times its own), or its seas are not all too hot. Else
+ * why not.
  */
 export function protoLiquidWhy(
   p: Pick<HomeWorld, "planet" | "climate" | "grid" | "tectonics"> & {
@@ -412,25 +414,32 @@ export function protoLiquidWhy(
   const n = p.grid.count,
     t = p.climate.temperature,
     e = p.tectonics.elevation;
+  const heat = heatOf(
+      p.planet.gravity,
+      p.star ? starAgeGyr(p.star) : 4.5,
+      p.planet.kind === "sulfur",
+    ),
+    flux = 0.087 * Math.max(1e-3, heat);
   let sea = 0,
     open = 0,
-    boiling = 0;
+    boiling = 0,
+    under = 0;
   for (let c = 0; c < n; c++) {
     if (e[c]! > 0) continue;
     sea++;
     if (t[c]! > 0 && t[c]! < 95) open++;
     if (t[c]! >= 95) boiling++;
+    // (Frozen at its top: liquid below where it is deeper than the ice can grow.)
+    if (t[c]! <= 0 && -e[c]! > (ICE_CONDUCTS * -t[c]!) / flux) under++;
   }
   if (sea < n * 0.005) return "no sea lies on it to hold life's first chemistry";
   if (open >= n * 0.002) return null;
   if (boiling > sea / 2) return "too hot for its seas to hold life's chemistry together";
-  const heat = heatOf(
-    p.planet.gravity,
-    p.star ? starAgeGyr(p.star) : 4.5,
-    p.planet.kind === "sulfur",
-  );
-  return heat >= 0.2 ? null : "its seas froze to the floor before life took hold";
+  return under >= n * 0.002 ? null : "its seas froze to the floor before life took hold";
 }
+
+/** How well ice carries heat, W/m·K (water ice's near its melting). */
+const ICE_CONDUCTS = 2.2;
 
 /** A home world's numbers as its life reads them, before its life (B3). */
 export function protoLifeWorld(p: ProtoWorld): LifeWorld {

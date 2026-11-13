@@ -245,9 +245,9 @@ export type PersonFrame = {
 
 /** A people's frame (null: an upright ape with hands, moved as Phase 60 moves them). */
 export function personFrame(body: BodyPlan | null): PersonFrame | null {
-  // (By what its body does: two hands on two legs, upright, as an upright ape is.)
-  const fn = body ? bodyFunction(body) : null;
-  if (!body || (!fn!.risen && fn!.stance === "upright" && fn!.hands)) return null;
+  // (An upright ape's own: a people risen from its world's tree always moves by its own frame, B4.)
+  if (!body || (!bodyFunction(body).risen && body.clade === "ape" && body.manipulators === "hands"))
+    return null;
   const walk =
     body.medium === "water"
       ? 1.4

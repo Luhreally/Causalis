@@ -4,6 +4,7 @@
 // ore lies within reach. A land that knows no bronze is told it does not know the world's own
 // bronze, arsenical copper.
 import { test } from "node:test";
+import { keptLife } from "../../src/rules/kinds.ts";
 import assert from "node:assert/strict";
 import { seedFromText } from "../../src/kernel/index.ts";
 import { OPEN, RECIPES, metalOf, worldOre } from "../../src/rules/index.ts";
@@ -19,7 +20,10 @@ import {
 } from "../../src/sim/index.ts";
 import { workshopBlocks } from "../../src/host/chain.ts";
 
-const world = makePopulationWorld(seedFromText("alien 16"), { prior: OPEN, start: "spread" }),
+const world = makePopulationWorld(seedFromText(keptLife("alien 16")), {
+    prior: OPEN,
+    start: "spread",
+  }),
   ctx = populationContext(world),
   chem = worldChemistry(ctx.generated),
   lands = [...ctx.provinces.all()].map((p) => p.cell).sort((a, b) => a - b);

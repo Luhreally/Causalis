@@ -5,6 +5,7 @@
 // and its seas by their liquid; and a world saved before its seed made another kind is kept as it
 // was made.
 import { test } from "node:test";
+import { keptLife } from "../../src/rules/kinds.ts";
 import assert from "node:assert/strict";
 import { YEAR, loadWorld, rulesetId, saveWorld, seedFromText } from "../../src/kernel/index.ts";
 import { ALIEN, seedLife, tile } from "../../src/host/planet.ts";
@@ -43,7 +44,7 @@ function facts(p: PageModel): Map<string, string> {
   return out;
 }
 
-const carbon = ALIEN.build(seedFromText("alien 20"));
+const carbon = ALIEN.build(seedFromText(keptLife("alien 20")));
 carbon.runTo(150 * YEAR);
 const ctx = populationContext(carbon),
   lands = ctx.provinces
@@ -166,7 +167,7 @@ test("a town's plan says its world's kind, and that nothing burns there", () => 
 });
 
 test("an ice world's land is told in true degrees, and its seas by their liquid", () => {
-  const methane = ALIEN.build(seedFromText("alien 1429")),
+  const methane = ALIEN.build(seedFromText(keptLife("alien 1429"))),
     c = populationContext(methane),
     centre = c.provinces.all()[0]!.cell;
   let seas = 0;

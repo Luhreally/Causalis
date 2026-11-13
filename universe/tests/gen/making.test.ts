@@ -5,6 +5,7 @@ import { generateHomeWorld } from "../../src/gen/index.ts";
 import {
   EARTHLIKE,
   MAKINGS,
+  keptLife,
   OPEN,
   madePrior,
   makingAct,
@@ -68,16 +69,16 @@ test("each making makes the world so: its star, its pull, its orbit's warmth, it
   );
 });
 
-test("what rises on a world follows its making: life where it is warmed, peoples fit to its pull", () => {
+test("what rises on a world kept as it was made follows its making: life where it is warmed, peoples fit to its pull", () => {
   let warm = 0,
     cold = 0;
   const light: string[] = [],
     heavy: string[] = [];
   for (let i = 0; i < 30; i++) {
-    if (world(`survey ${i} ~air thick`).life.people) warm++;
-    if (world(`survey ${i} ~air thin`).life.people) cold++;
-    const l = world(`survey ${i} ~pull light`).life.people,
-      h = world(`survey ${i} ~pull heavy`).life.people;
+    if (world(keptLife(`survey ${i} ~air thick`)).life.people) warm++;
+    if (world(keptLife(`survey ${i} ~air thin`)).life.people) cold++;
+    const l = world(keptLife(`survey ${i} ~pull light`)).life.people,
+      h = world(keptLife(`survey ${i} ~pull heavy`)).life.people;
     if (l) light.push(l.body.clade);
     if (h) heavy.push(h.body.clade);
   }
@@ -85,4 +86,33 @@ test("what rises on a world follows its making: life where it is warmed, peoples
   // (Long-legged striders on a light world; on a heavy one, few.)
   const striders = (a: string[]) => a.filter((c) => c === "strider").length;
   assert.ok(striders(light) > striders(heavy), `${striders(light)} vs ${striders(heavy)}`);
+});
+
+test("what rises on a world read from its numbers follows its making: peoples where it is warmed, smaller bodies under a heavier pull (B3, B4)", () => {
+  let warm = 0,
+    cold = 0;
+  const light: number[] = [],
+    heavy: number[] = [];
+  let lightBig = 0,
+    heavyBig = 0;
+  for (let i = 0; i < 30; i++) {
+    if (world(`survey ${i} ~air thick`).life.people) warm++;
+    if (world(`survey ${i} ~air thin`).life.people) cold++;
+    const l = world(`survey ${i} ~pull light`).life,
+      h = world(`survey ${i} ~pull heavy`).life;
+    if (l.people) light.push(l.people.body.size);
+    if (h.people) heavy.push(h.people.body.size);
+    for (const s of l.species)
+      if (s.body && s.died === null) lightBig = Math.max(lightBig, s.body.size);
+    for (const s of h.species)
+      if (s.body && s.died === null) heavyBig = Math.max(heavyBig, s.body.size);
+  }
+  assert.ok(warm > cold, `peopled under thick air ${warm}, thin ${cold}`);
+  // (A frame bears less under a heavier pull: rules/grammar.ts frameBears, so its beasts and its peoples are smaller.)
+  const middle = (a: number[]) => [...a].sort((x, y) => x - y)[a.length >> 1]!;
+  assert.ok(heavyBig < lightBig, `largest beast ${lightBig} kg light, ${heavyBig} kg heavy`);
+  assert.ok(
+    middle(heavy) < middle(light),
+    `peoples ${middle(light)} kg light, ${middle(heavy)} kg heavy`,
+  );
 });

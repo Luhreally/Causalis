@@ -31,6 +31,8 @@ import { lawlessSeed } from "./lanes.ts";
  * (every world but Earth's and those kept as they were made); null: as before. Else the key text they are read by.
  */
 export function farBodies(world: World): string | null {
+  // (A world with no home planet, a reading of its seed alone: as before.)
+  if (!world.hasStore("planet.home")) return null;
   return homePlanet(world).generated.fine.physical ? lawlessSeed(world.seed.text) : null;
 }
 
