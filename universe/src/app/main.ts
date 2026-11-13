@@ -9433,7 +9433,15 @@ async function runPlanetPage(): Promise<void> {
     leaders,
   });
   rulerNow = () => reign.who();
-  const ruleLeader = (l: { ref: string }) => void reign.take(l.ref.slice("rule:".length));
+  const ruleLeader = (l: { ref: string }) => {
+    // (One of a court, `court:<realm>:<number>`: taken as themself.)
+    if (l.ref.startsWith("court:")) {
+      const at = l.ref.lastIndexOf(":");
+      void reign.take(l.ref.slice("court:".length, at), Number(l.ref.slice(at + 1)));
+      return;
+    }
+    void reign.take(l.ref.slice("rule:".length));
+  };
   pageWindow.onLeaderRule = ruleLeader;
   leaders.onRule = ruleLeader;
   lifeFlow.onRule = (realm) => void reign.take(realm);

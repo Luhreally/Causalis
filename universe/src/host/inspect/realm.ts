@@ -44,6 +44,7 @@ import { compareWith, warTally, woundedOf } from "./compare.ts";
 import { armyBlocks, courseBlocks } from "./army.ts";
 import { storesSummed } from "./stores.ts";
 import { realmOrderBlocks } from "./order.ts";
+import { fortuneBlocks } from "./fortune.ts";
 import { realmCreditBlocks, warChestRows } from "./credit.ts";
 import { leaderBlocks } from "./leaders.ts";
 import { courtBlocks } from "./court.ts";
@@ -126,6 +127,8 @@ export function realmPageModel(
     id: "overview",
     name: "Overview",
     blocks: [
+      // (A blessing or a curse laid on it for years, while it holds and a while after: 2026-11-13.)
+      ...fortuneBlocks(world, r),
       // (What it holds among the stars: Phase 72.)
       ...nationRealmBlocks(world, r.ref),
       {

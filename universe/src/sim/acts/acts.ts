@@ -45,6 +45,8 @@ export type Crater = { readonly cell: number; readonly year: number; readonly ev
 export class ActStore implements StateStore {
   readonly name = "acts.active";
   private list: Act[] = [];
+  /** The same acts by land, in the order laid (derived: neither hashed nor saved). */
+  private byCell = new Map<number, Act[]>();
   /** The craters meteors left, on the map for ever (hashed and saved only once there are any). */
   private pits: Crater[] = [];
   /**
@@ -56,6 +58,9 @@ export class ActStore implements StateStore {
 
   add(a: Act): void {
     this.list.push(a);
+    const here = this.byCell.get(a.cell);
+    if (here) here.push(a);
+    else this.byCell.set(a.cell, [a]);
   }
 
   all(): readonly Act[] {
@@ -91,7 +96,7 @@ export class ActStore implements StateStore {
   /** The act of a kind in force over a province at time t (the latest, if several). */
   at(cell: number, kind: ActKind, t: number): Act | null {
     let found: Act | null = null;
-    for (const a of this.list)
+    for (const a of this.byCell.get(cell) ?? [])
       if (a.cell === cell && a.kind === kind && a.from <= t && t < a.until) found = a;
     return found;
   }
@@ -125,7 +130,9 @@ export class ActStore implements StateStore {
       craters?: Crater[];
       natures?: [string, { traits: Record<string, number>; events: Ref[] }][];
     };
-    this.list = [...s.acts];
+    this.list = [];
+    this.byCell.clear();
+    for (const a of s.acts) this.add(a);
     this.pits = [...(s.craters ?? [])];
     this.natures = new Map(
       (s.natures ?? []).map(([k, v]) => [k, { traits: { ...v.traits }, events: [...v.events] }]),

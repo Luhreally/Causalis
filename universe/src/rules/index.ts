@@ -1171,7 +1171,16 @@ export {
   type DwellingWay,
   type RoomUse,
 } from "./dwelling.ts";
-export { REIGN, carried, decreeCost, mustCarry, peaceRefused, tieOf, warCost } from "./reign.ts";
+export {
+  REIGN,
+  ROLE,
+  carried,
+  decreeCost,
+  mustCarry,
+  peaceRefused,
+  tieOf,
+  warCost,
+} from "./reign.ts";
 export {
   COULD_NOT,
   TIES,

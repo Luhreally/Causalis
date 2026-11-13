@@ -6,7 +6,7 @@
 // Each is a logged command whose event cites it; what follows (the battles, the pacts and
 // rivalries, the new realm and the war to take it back, the faith's spread, the new land's
 // villages and speech) is the simulation's own.
-import { defineEventType, yearOfMoment, type Ref, type World } from "../../kernel/index.ts";
+import { YEAR, defineEventType, yearOfMoment, type Ref, type World } from "../../kernel/index.ts";
 import { cellRef, offworldSite } from "../../gen/index.ts";
 import { GOODS } from "../../rules/index.ts";
 import { COLS, Province } from "../population/model.ts";
@@ -23,10 +23,21 @@ import {
   politiesOf,
   raiseRealm,
   realmName,
+  type Polity,
 } from "../polity/polity.ts";
 import { WAR, WAR_EVENTS, frontier, warsOf } from "../war/war.ts";
 import { diplomacyOf } from "../diplomacy/diplomacy.ts";
 import { BELIEF_EVENTS, beliefOf } from "../belief/belief.ts";
+import { orderOf } from "../order/order.ts";
+import { actsOf } from "./acts.ts";
+import {
+  FORTUNE_STRENGTHS,
+  FORTUNE_WEIGHT,
+  FORTUNE_YEARS,
+  FortuneStore,
+  isFortuneStrength,
+  type Fortune,
+} from "./fortune.ts";
 
 export const PEOPLE_ACT_EVENTS = {
   friendship: defineEventType("act.friendship", 5),
@@ -35,6 +46,9 @@ export const PEOPLE_ACT_EVENTS = {
   union: defineEventType("act.union", 6),
   bless: defineEventType("act.bless", 5),
   curse: defineEventType("act.curse", 5),
+  /** A year more of a blessing or a curse laid for years, and its lifting. */
+  fortune: defineEventType("act.fortune", 3),
+  fortuneEnd: defineEventType("act.fortune-end", 5),
 };
 
 /** Settlers sent: this share of the land they come from, at most so many, and no fewer than it can spare. */
@@ -55,6 +69,8 @@ export type LandArgs = { cell: number };
 export type ConvertArgs = { cell: number; faith: Ref };
 /** A realm. */
 export type RealmArgs = { realm: Ref };
+/** A realm, how strong a blessing or curse on it is, and for how many years (absent: as it always was, a one-off). */
+export type FortuneArgs = RealmArgs & { strength?: number; years?: number };
 
 /** The most peopled land beside a land (by land, or across the sea its traders cross) that can spare settlers. */
 export function settlersFrom(ctx: PopulationContext, cell: number): number | null {
@@ -350,34 +366,219 @@ export function installPeopleActs(world: World, ctx: () => PopulationContext): v
     },
   });
 
-  // A blessing and a curse on a realm: every land of it the more content, or the more restless.
-  for (const [kind, sign] of [
-    ["bless", -1],
-    ["curse", 1],
-  ] as const)
+  // A blessing and a curse on a realm: every land of it the more content, or the more restless. At the strength it
+  // always had and for one year that is all, and nothing is kept; at any other, it is kept and laid again at each
+  // year's turn while it holds (fortune.ts), the harder by its strength.
+  const fortunes = world.register(new FortuneStore()),
+    peopleOf = (c: PopulationContext, r: Polity) =>
+      r.members.reduce((n, k) => n + (c.provinces.get(k)?.total() ?? 0), 0),
+    grieveAll = (r: Polity, by: number, event: Ref) => {
+      for (const cell of r.members) {
+        const d = realms().discontent(cell),
+          level = Math.max(0, d.level + by);
+        realms().setDiscontent(cell, {
+          level,
+          cause: by > 0 ? event : level > 0 ? d.cause : null,
+        });
+      }
+    },
+    /** The lands a year of a fortune reaches past their grievance: harvests, then deaths, the most peopled first. */
+    planFortune = (c: PopulationContext, r: Polity, f: Fortune) => {
+      const lands = [...r.members].sort(
+          (x, y) =>
+            (c.provinces.get(y)?.total() ?? 0) - (c.provinces.get(x)?.total() ?? 0) || x - y,
+        ),
+        share = (s: number) => Math.round(lands.length * Math.min(1, Math.max(0, s))),
+        past = Math.max(0, f.strength - 1);
+      return {
+        harvest: lands.slice(0, share(FORTUNE_WEIGHT.harvestPer * past)),
+        sick: lands.slice(
+          0,
+          share(FORTUNE_WEIGHT.sickPer * Math.max(0, f.strength - FORTUNE_WEIGHT.sickFrom)),
+        ),
+      };
+    },
+    /** A year of a fortune laid: its lands' grievance, their harvests and deaths, its standing, its neighbours' envy. */
+    layFortune = (
+      r: Polity,
+      f: Fortune,
+      plan: { harvest: readonly number[]; sick: readonly number[] },
+      t: number,
+      event: Ref,
+    ) => {
+      f.laid++;
+      const past = Math.max(0, f.strength - 1),
+        until = Math.min(f.until, t + YEAR),
+        store = actsOf(world);
+      grieveAll(r, -f.sign * FORTUNE * f.strength, event);
+      // (The same acts the palette lays on a land: a curse's blight and plague take, with -1; a blessing gives.)
+      for (const cell of plan.harvest)
+        store.add({
+          command: f.command,
+          event,
+          kind: "harvest",
+          cell,
+          sign: f.sign,
+          from: t,
+          until,
+        });
+      for (const cell of plan.sick)
+        store.add({
+          command: f.command,
+          event,
+          kind: "plague",
+          cell,
+          sign: f.sign,
+          from: t,
+          until,
+        });
+      const o = orderOf(world)?.of(r.ref);
+      if (o && past > 0)
+        o.legitimacy = Math.max(
+          0.02,
+          Math.min(0.98, o.legitimacy + f.sign * FORTUNE_WEIGHT.standing * past),
+        );
+      // (A blessing's luck is envied by everyone who meets the realm, fading as memories fade.)
+      if (f.sign > 0 && past > 0) {
+        const year = yearOfMoment(t),
+          diplomacy = diplomacyOf(world);
+        for (const x of diplomacy.of(r.ref))
+          diplomacy.remember(x.a === r.ref ? x.b : x.a, r.ref, {
+            name: "envy of the god's favour",
+            value: -FORTUNE_WEIGHT.envy * past,
+            year,
+            source: event,
+          });
+      }
+    };
+  world.addPinner(() => fortunes.pinned());
+  for (const kind of ["bless", "curse"] as const)
     world.defineCommand({
       type: `act.${kind}`,
-      validate: (args) =>
-        standing((args as Partial<RealmArgs> | null)?.realm) ? null : "a standing realm is wanted",
-      apply: (command) => {
-        const r = standing((command.args as RealmArgs).realm)!,
-          event = world.events.emit({
+      validate: (args) => {
+        const a = args as Partial<FortuneArgs> | null;
+        if (!standing(a?.realm)) return "a standing realm is wanted";
+        if (a?.strength !== undefined && !isFortuneStrength(a.strength))
+          return `a strength is one of ${FORTUNE_STRENGTHS.join(", ")}`;
+        if (
+          a?.years !== undefined &&
+          (!Number.isInteger(a.years) || a.years < 1 || a.years > FORTUNE_YEARS)
+        )
+          return `a span is 1 to ${FORTUNE_YEARS} years`;
+        return null;
+      },
+      apply: (command, t) => {
+        const a = command.args as FortuneArgs,
+          r = standing(a.realm)!,
+          c = ctx(),
+          strength = a.strength ?? 1,
+          years = a.years ?? 1,
+          sign = kind === "bless" ? 1 : -1;
+        // (The one-off it always was: told and done exactly as before.)
+        if (strength === 1 && years === 1) {
+          const event = world.events.emit({
             type: PEOPLE_ACT_EVENTS[kind].type,
             subjects: [r.ref],
-            place: ctx().provinces.get(r.seat)?.ref ?? null,
+            place: c.provinces.get(r.seat)?.ref ?? null,
             causes: agent(command),
             data: { name: realmName(r), lands: r.members.length },
           });
-        for (const cell of r.members) {
-          const d = realms().discontent(cell),
-            level = Math.max(0, d.level + sign * FORTUNE);
-          realms().setDiscontent(cell, {
-            level,
-            cause: sign > 0 ? event : level > 0 ? d.cause : null,
-          });
+          grieveAll(r, -sign * FORTUNE, event);
+          return;
         }
+        const people = peopleOf(c, r),
+          f: Fortune = {
+            realm: r.ref,
+            sign,
+            strength,
+            years,
+            from: t,
+            until: t + years * YEAR,
+            command: command.id,
+            event: "" as Ref,
+            name: realmName(r),
+            people,
+            lands: r.members.length,
+            legitimacy: orderOf(world)?.of(r.ref)?.legitimacy ?? 0.6,
+            laid: 0,
+            told: [],
+          },
+          plan = planFortune(c, r, f),
+          event = world.events.emit({
+            type: PEOPLE_ACT_EVENTS[kind].type,
+            subjects: [r.ref],
+            place: c.provinces.get(r.seat)?.ref ?? null,
+            causes: agent(command),
+            data: {
+              name: realmName(r),
+              lands: r.members.length,
+              strength,
+              years,
+              people,
+              harvest: plan.harvest.length,
+              sick: plan.sick.length,
+            },
+          });
+        fortunes.add({ ...f, event });
+        layFortune(r, fortunes.all().at(-1)!, plan, t, event);
       },
     });
+  // At each year's turn every fortune holding is laid again, until it has been laid its years; then it lifts, and what it
+  // did is told. (None holds, nearly always: nothing is done.)
+  world.system({
+    key: "168.acts.fortunes",
+    every: YEAR,
+    run: (t) => {
+      if (!fortunes.all().length) return;
+      const c = ctx();
+      for (const f of [...fortunes.all()]) {
+        const r = realms().get(f.realm),
+          living = !!r && r.ended === null;
+        if (living && f.laid < f.years && t < f.until) {
+          const plan = planFortune(c, r, f),
+            event = world.events.emit({
+              type: PEOPLE_ACT_EVENTS.fortune.type,
+              subjects: [f.realm],
+              place: c.provinces.get(r.seat)?.ref ?? null,
+              causes: [{ ref: f.event, role: "agent", weight: 1 }],
+              data: {
+                name: f.name,
+                sign: f.sign,
+                strength: f.strength,
+                years: f.years,
+                year: f.laid + 1,
+                people: peopleOf(c, r),
+                lands: r.members.length,
+                harvest: plan.harvest.length,
+                sick: plan.sick.length,
+              },
+            });
+          layFortune(r, f, plan, t, event);
+          f.told = [...f.told, event];
+          continue;
+        }
+        // (Laid its years, it lifts at the turn nearest its end.)
+        if (living && t < f.until && !(f.laid >= f.years && f.until - t < YEAR / 2)) continue;
+        world.events.emit({
+          type: PEOPLE_ACT_EVENTS.fortuneEnd.type,
+          subjects: [f.realm],
+          place: r ? (c.provinces.get(r.seat)?.ref ?? null) : null,
+          causes: [{ ref: f.event, role: "agent", weight: 1 }],
+          data: {
+            name: f.name,
+            sign: f.sign,
+            strength: f.strength,
+            years: f.years,
+            fell: !living,
+            people: [f.people, living ? peopleOf(c, r) : 0],
+            lands: [f.lands, living ? r.members.length : 0],
+            standing: [f.legitimacy, living ? (orderOf(world)?.of(f.realm)?.legitimacy ?? 0) : 0],
+          },
+        });
+        fortunes.drop(f);
+      }
+    },
+  });
 
   // Conversion: a land turned to a faith.
   world.defineCommand({

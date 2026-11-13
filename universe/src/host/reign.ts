@@ -3,7 +3,15 @@
 // why not, in the very words the world refuses it with. Pure reads: asking moves nothing, and nothing is kept
 // but a memo of the last reading of a moment.
 import { yearOfMoment, type Ref, type World } from "../kernel/index.ts";
-import { FEMALE, REIGN, decreeCost, warCost, type PeaceOffer } from "../rules/index.ts";
+import {
+  FEMALE,
+  REIGN,
+  ROLE,
+  decreeCost,
+  plotOdds,
+  warCost,
+  type PeaceOffer,
+} from "../rules/index.ts";
 import {
   LAWS,
   LAW_OF,
@@ -38,6 +46,19 @@ import {
   type War,
 } from "../sim/index.ts";
 import {
+  ROLE_EVENTS,
+  backProblem,
+  plotProblem,
+  proposalVoices,
+  proposeProblem,
+  roleHeld,
+  roleStationOf,
+  dangerOf,
+  type CourtFigure,
+  type Court,
+  type RoleStation,
+} from "../sim/index.ts";
+import {
   ERRANDS,
   boundTo,
   envoyProblem,
@@ -58,10 +79,12 @@ import type {
   ReignNow,
   ReignOffer,
   ReignPerson,
+  ReignRole,
+  ReignCourt,
   ReignWar,
   ReignWars,
 } from "../bridge/index.ts";
-import { dramaOf } from "./court.ts";
+import { dramaOf, titleOf as courtTitle } from "./court.ts";
 import { familyOf, type Family } from "./kin.ts";
 import { seatTownOf } from "./leaders.ts";
 import { wealthBook } from "./wealth.ts";
@@ -218,7 +241,13 @@ export function bondLines(world: World, r: Polity): ReignBond[] {
 }
 
 /** What a ruler could offer or demand in a war, each with what it comes to, or the answer they would give. */
-function offersOf(world: World, r: Polity, foe: Polity | undefined, w: War): ReignOffer[] {
+function offersOf(
+  world: World,
+  r: Polity,
+  foe: Polity | undefined,
+  w: War,
+  channel = false,
+): ReignOffer[] {
   if (!foe || foe.ended !== null || w.civil) return [];
   const ctx = populationContext(world),
     year = yearOfMoment(world.now),
@@ -235,7 +264,7 @@ function offersOf(world: World, r: Polity, foe: Polity | undefined, w: War): Rei
                 ? `⚖️ Demand ${grain} grain a year`
                 : "⚖️ Demand they bend the knee";
   return OFFERS.map((offer) => {
-    const bad = peaceProblem(ctx, r, foe, offer),
+    const bad = peaceProblem(ctx, r, foe, offer, channel),
       made = termsOfOffer(ctx, w, r, foe, offer, year),
       land = made.land !== null ? landTitle(world, made.land, true) : "a land",
       terms = termsPhrase(world, { terms: made.terms });
@@ -306,13 +335,59 @@ function fallOf(world: World, r: Polity | undefined, ruler: string): ReignFall |
   };
 }
 
+/** Who a sheet is read for: the ruler, or one of a court (by number), and whether the god is in them. */
+type As = { readonly fig: number | null; readonly channel: boolean };
+const asOf = (args: unknown): As => {
+  const a = args as { fig?: unknown; channel?: unknown } | null;
+  return { fig: typeof a?.fig === "number" ? a.fig : null, channel: a?.channel === true };
+};
+/** The one of a court a sheet is read for (null: the ruler, or one gone). */
+function heldFig(world: World, r: Polity, as: As): { c: Court; f: CourtFigure } | null {
+  if (as.fig === null) return null;
+  const c = courtOf(world)?.of(r.ref),
+    f = c?.figures.find((x) => x.id === as.fig);
+  return c && f ? { c, f } : null;
+}
+
+/** What one of a court can do, in a sentence: their part, their weight, whether the ruler hears them. */
+function roleWords(r: Polity, f: CourtFigure, st: RoleStation): string {
+  const weight = `${pct(st.sway + st.backing)} in a hundred of the realm's sway${st.backing ? ", with those behind you" : ""}`,
+    part =
+      st.kind === "general"
+        ? `You hold the army's voice at court: the host is yours to turn, and you weigh ${weight}.`
+        : st.kind === "heir"
+          ? `You are heir to the seat of ${r.town}, and weigh ${weight}.`
+          : st.kind === "rival"
+            ? `You want the seat of ${r.town}, and weigh ${weight}.`
+            : f.seat === "house"
+              ? `You are of the ruler's house, and speak for no group at court.`
+              : `You are the voice of ${f.seat} at court, and weigh ${weight}.`,
+    say =
+      st.sway + st.backing > 0
+        ? st.heard
+          ? ` You cannot decree: you put a thing to the realm, and it carries only if ${pct(ROLE.majority)} in a hundred of its voices do.`
+          : ` ${r.ruler.name} rules alone and hears only those who weigh ${pct(ROLE.ear)} in a hundred: court a group to be heard.`
+        : " Court a group, and it will speak through you.";
+  return `${part}${say}`;
+}
+
+/** What the god in them lifts, in a line. */
+const CHANNEL_WORDS =
+  "🌟 The god is in them: their word carries past the voices, their standing and what others will hear, and is told as an omen. Nothing comes from nothing: no host where none can go, no land where none lies between.";
+const MORTAL_WORDS = "🧍 As a mortal: everything is bounded by their station.";
+
 const MEMO = new WeakMap<World, { key: string; now: ReignNow }>();
 
 /** How the ruler stands now (null: no such realm). */
-export function reignNow(world: World, realm: unknown, ruler: unknown): ReignNow | null {
+export function reignNow(
+  world: World,
+  realm: unknown,
+  ruler: unknown,
+  role: { fig: number; name: string } | null = null,
+): ReignNow | null {
   const r = realmOf(world, realm);
   if (!r || typeof ruler !== "string") return null;
-  const key = `${r.ref}|${ruler}|${world.now}|${world.events.count}`,
+  const key = `${r.ref}|${ruler}|${role?.fig ?? ""}|${world.now}|${world.events.count}`,
     hit = MEMO.get(world);
   if (hit?.key === key) return hit.now;
   const ctx = populationContext(world),
@@ -384,22 +459,97 @@ export function reignNow(world: World, realm: unknown, ruler: unknown): ReignNow
     spouse: spouse ? `${spouse.name}, ${year - spouse.born}` : null,
     told,
     fell,
-    drama: fell ? null : dramaOf(world, r),
+    drama: fell || role ? null : dramaOf(world, r),
+    role: role ? roleNow(world, r, role) : null,
   };
   MEMO.set(world, { key, now });
   return now;
 }
 
-/** What they could decree. */
-function reignDecrees(world: World, realm: unknown): ReignDecrees | null {
+/** One of a court as the bar reads them: who, what they are, what they can do; or how they left it. */
+function roleNow(world: World, r: Polity, role: { fig: number; name: string }): ReignRole {
+  const c = courtOf(world)?.of(r.ref),
+    f = c?.figures.find((x) => x.id === role.fig && x.name === role.name),
+    year = yearOfMoment(world.now);
+  if (!c || !f || r.ended !== null) {
+    const gone = c?.gone.find((g) => g.id === role.fig),
+      seated = r.ended === null && r.ruler.name === role.name,
+      how = r.ended !== null ? "fell" : seated ? "seated" : (gone?.how ?? "stood down"),
+      words =
+        how === "fell"
+          ? `${realmName(r)} has fallen, and its court with it.`
+          : seated
+            ? `${role.name} holds the seat of ${r.town} now.`
+            : how === "died"
+              ? `${role.name} has died.`
+              : how === "found"
+                ? `${role.name}'s move was found: they are gone from the court.`
+                : how === "fled"
+                  ? `${role.name} fled the court, and raised the far lands.`
+                  : `${role.name} has left the court.`;
+    return {
+      fig: role.fig,
+      name: role.name,
+      title: "",
+      kind: "voice",
+      age: 0,
+      sway: 0,
+      words,
+      ref: `court:${r.ref}:${role.fig}`,
+      gone: { how, words, seated, event: gone?.event ?? (seated ? r.ruler.event : null) },
+    };
+  }
+  const st = roleStationOf(populationContext(world), r, c, f);
+  return {
+    fig: f.id,
+    name: f.name,
+    title: courtTitle(r, c, f),
+    kind: st.kind,
+    age: year - f.born,
+    sway: st.sway + st.backing,
+    words: roleWords(r, f, st),
+    ref: `court:${r.ref}:${f.id}`,
+    gone: null,
+  };
+}
+
+/** What they could decree, or put to the realm. */
+function reignDecrees(
+  world: World,
+  realm: unknown,
+  as: As = { fig: null, channel: false },
+): ReignDecrees | null {
   const r = realmOf(world, realm),
     o = r ? orderOf(world)?.of(r.ref) : null;
   if (!r) return null;
   const ctx = populationContext(world),
     t = world.now,
     st = stationOf(ctx, r),
+    held = heldFig(world, r, as),
+    rs = held ? roleStationOf(ctx, r, held.c, held.f) : null,
     word = (cost: number, against: number) =>
-      `Costs ${pct(cost)} in a hundred of your standing${against > 0.02 && st.beyond.length ? `; ${st.beyond.length} lands past your reach will chafe` : ""}.`,
+      `${held ? "Costs the realm" : "Costs"} ${pct(cost)} in a hundred of ${held ? "its" : "your"} standing${against > 0.02 && st.beyond.length ? `; ${st.beyond.length} lands past ${held ? "the seat's" : "your"} reach will chafe` : ""}.`,
+    /** Why it could not be done, as the one held would be told (null: it can). */
+    why = (law: Law | "tithe", to: number): string | null =>
+      held
+        ? proposeProblem(ctx, r, held.c, held.f, {
+            what: law === "tithe" ? "tithe" : "law",
+            ...(law === "tithe" ? {} : { law }),
+            to,
+            channel: as.channel,
+          })
+        : decreeProblem(ctx, r, law, to, t, as.channel),
+    /** The voices as they would stand, the one held counted for it. */
+    voicesFor = (law: Law | "tithe", to: number) =>
+      held && rs
+        ? (proposalVoices(ctx, r, rs, {
+            what: law === "tithe" ? "tithe" : "law",
+            ...(law === "tithe" ? {} : { law }),
+            to,
+          }) ?? (law === "tithe" ? titheVoices(ctx, r, to, t) : lawVoices(ctx, r, o!, law, to, t)))
+        : law === "tithe"
+          ? titheVoices(ctx, r, to, t)
+          : lawVoices(ctx, r, o!, law, to, t),
     laws: ReignLaw[] = [];
   if (o)
     for (const law of LAWS) {
@@ -408,8 +558,8 @@ function reignDecrees(world: World, realm: unknown): ReignDecrees | null {
         options = [now - 1, now + 1]
           .filter((to) => to >= 0 && to <= 2)
           .map((to) => {
-            const bad = decreeProblem(ctx, r, law, to, t),
-              v = lawVoices(ctx, r, o, law, to, t);
+            const bad = why(law, to),
+              v = voicesFor(law, to);
             return {
               to,
               label: LAW_POSITIONS[law][to]!,
@@ -439,8 +589,8 @@ function reignDecrees(world: World, realm: unknown): ReignDecrees | null {
     title: "The tithe of grain to the seat",
     now: `${tithe} parts in a hundred`,
     options: steps.map((to) => {
-      const bad = decreeProblem(ctx, r, "tithe", to, t),
-        v = titheVoices(ctx, r, to, t);
+      const bad = why("tithe", to),
+        v = voicesFor("tithe", to);
       return {
         to,
         label: `${to < tithe ? "Lighter" : "Heavier"}: ${to} in a hundred`,
@@ -451,8 +601,14 @@ function reignDecrees(world: World, realm: unknown): ReignDecrees | null {
       };
     }),
   });
+  const mode = as.channel ? `${CHANNEL_WORDS} ` : "";
+  if (held && rs)
+    return {
+      words: `${mode}${roleWords(r, held.f, rs)} ${pct(st.legitimacy)} in a hundred hold ${r.ruler.name}'s rule rightful.${spends}`,
+      laws,
+    };
   return {
-    words: `${stationWords(st)} ${pct(st.legitimacy)} in a hundred hold your rule rightful.${spends} What you set is weighed again by the realm in its turn.`,
+    words: `${mode}${stationWords(st)} ${pct(st.legitimacy)} in a hundred hold your rule rightful.${spends} What you set is weighed again by the realm in its turn.`,
     laws,
   };
 }
@@ -471,9 +627,22 @@ function calledWords(world: World, foe: Polity): string {
 }
 
 /** Whom they fight, and whom they could. */
-function reignWars(world: World, realm: unknown): ReignWars | null {
+function reignWars(
+  world: World,
+  realm: unknown,
+  as: As = { fig: null, channel: false },
+): ReignWars | null {
   const r = realmOf(world, realm);
   if (!r) return null;
+  const held = heldFig(world, r, as),
+    ties = tiesOf(world),
+    year0 = yearOfMoment(world.now),
+    /** What they believe of a foe's host, and what the foe knows of theirs. */
+    knownOf = (foe: Polity): string => {
+      const truth = fieldedOf(populationContext(world), foe),
+        mine = misreadOf(world, r.ref, foe.ref, year0);
+      return `You believe their host is about ${many(Math.round(truth * mine))}${ties.embassyOf(r.ref, foe.ref) ? ", and your people at their seat keep it true" : ""}. ${ties.embassyOf(foe.ref, r.ref) ? "Their people at your seat know your host truly." : "They know your host only by rumour."}`;
+    };
   const ctx = populationContext(world),
     t = world.now,
     diplomacy = diplomacyOf(world),
@@ -486,12 +655,32 @@ function reignWars(world: World, realm: unknown): ReignWars | null {
       .map((w) => {
         const line = warLine(world, r, w),
           foe = realms.get(line.foe as Ref),
-          bad = peaceProblem(ctx, r, foe && foe.ended === null ? foe : null);
+          standingFoe = foe && foe.ended === null ? foe : null,
+          bad = held
+            ? proposeProblem(ctx, r, held.c, held.f, {
+                what: "peace",
+                against: line.foe as Ref,
+                channel: as.channel,
+              })
+            : peaceProblem(ctx, r, standingFoe, "truce", as.channel);
+        // (One of a court can only put a truce to the realm; the ruler offers or demands.)
+        const offers = held
+          ? standingFoe && !w.civil
+            ? [
+                {
+                  id: "truce",
+                  label: "🕊️ Put a truce to the realm",
+                  can: !bad,
+                  words: bad ?? "They would hear it, and the realm would make it.",
+                },
+              ]
+            : []
+          : offersOf(world, r, standingFoe ?? undefined, w, as.channel);
         return {
           ...line,
           can: !bad,
           peace: bad ?? "They will hear of it.",
-          offers: offersOf(world, r, foe && foe.ended === null ? foe : undefined, w),
+          offers,
         };
       }),
     fighting = new Set(wars.map((w) => w.foe)),
@@ -504,7 +693,13 @@ function reignWars(world: World, realm: unknown): ReignWars | null {
         if (!lands.length) return [];
         const regard = diplomacy.get(r.ref, foe.ref),
           opinion = regard?.opinion ?? 0,
-          bad = warProblem(ctx, r, foe, undefined, t),
+          bad = held
+            ? proposeProblem(ctx, r, held.c, held.f, {
+                what: "war",
+                against: foe.ref,
+                channel: as.channel,
+              })
+            : warProblem(ctx, r, foe, undefined, t, as.channel),
           v = warVoices(ctx, r, foe, t),
           theirs = Math.round(fieldedOf(ctx, foe));
         return [
@@ -525,6 +720,7 @@ function reignWars(world: World, realm: unknown): ReignWars | null {
               bad ??
               `Your ${many(host)} against their ${many(theirs)}. Costs ${pct(warCost(!!regard?.pact, opinion < 0))} in a hundred of your standing${regard?.pact ? ", and breaks your pact" : ""}.${v.names.length && v.against > v.forIt ? ` ${v.names.join(" and ")} would rather not.` : ""}${calledWords(world, foe)}`,
             aims: lands.slice(0, 3).map((cell) => ({ cell, name: landTitle(world, cell, true) })),
+            known: knownOf(foe),
           },
         ];
       })
@@ -554,8 +750,8 @@ function reignWars(world: World, realm: unknown): ReignWars | null {
         };
       });
   return {
-    words: `You can field ${many(host)} of your ${many(people)} people.${
-      foes.length ? "" : wars.length ? "" : " No realm lies within your reach."
+    words: `${as.channel ? `${CHANNEL_WORDS} ` : ""}${held ? `You cannot make war or peace yourself: you put it to the realm, and it carries only if its voices do. ` : ""}${held ? "The realm" : "You"} can field ${many(host)} of ${held ? "its" : "your"} ${many(people)} people.${
+      foes.length ? "" : wars.length ? "" : " No realm lies within reach."
     }`,
     host,
     wars,
@@ -566,7 +762,7 @@ function reignWars(world: World, realm: unknown): ReignWars | null {
 }
 
 /** Whom their house could wed. */
-function reignMatches(world: World, realm: unknown): ReignMatches | null {
+function reignMatches(world: World, realm: unknown, channel = false): ReignMatches | null {
   const r = realmOf(world, realm);
   if (!r) return null;
   const ctx = populationContext(world),
@@ -586,7 +782,7 @@ function reignMatches(world: World, realm: unknown): ReignMatches | null {
     for (const who of mine.people) {
       const partner = theirs.people.find((p) => p.sex !== who.sex);
       if (!partner) continue;
-      const bad = wedProblem(ctx, r, other, who, partner),
+      const bad = wedProblem(ctx, r, other, who, partner, channel),
         tie = tieBetween(world, r, other);
       found = true;
       matches.push({
@@ -622,7 +818,7 @@ function reignMatches(world: World, realm: unknown): ReignMatches | null {
 }
 
 /** Whom they could send to, and what for. */
-function reignEnvoys(world: World, realm: unknown): ReignEnvoys | null {
+function reignEnvoys(world: World, realm: unknown, channel = false): ReignEnvoys | null {
   const r = realmOf(world, realm);
   if (!r) return null;
   const ctx = populationContext(world),
@@ -658,7 +854,7 @@ function reignEnvoys(world: World, realm: unknown): ReignEnvoys | null {
               : "at peace with you",
         known: `You believe their host is about ${many(Math.round(truth * factor))}.${ties.embassyOf(r.ref, q.ref) ? " Your people there keep it true." : " No one of yours is there to say."}`,
         errands: ERRANDS.map((errand: RulerErrand) => {
-          const bad = envoyProblem(ctx, r, q, errand);
+          const bad = envoyProblem(ctx, r, q, errand, channel);
           return {
             errand,
             label:
@@ -684,6 +880,47 @@ function reignEnvoys(world: World, realm: unknown): ReignEnvoys | null {
   };
 }
 
+/** One of a court's own sheet: the groups they could court to stand behind them, and a move on the seat. */
+function reignCourt(world: World, realm: unknown, as: As): ReignCourt | null {
+  const r = realmOf(world, realm),
+    held = r ? heldFig(world, r, as) : null;
+  if (!r || !held) return null;
+  const ctx = populationContext(world),
+    { c, f } = held,
+    st = roleStationOf(ctx, r, c, f),
+    o = orderOf(world)?.of(r.ref),
+    d = o ? dangerOf(ctx, r, c, f, o) : null,
+    odds = d ? plotOdds(d.weight, d.doubt, d.tradition) : 0,
+    bad = plotProblem(ctx, r, c, f, as.channel),
+    army = f.seat === "the army";
+  return {
+    words: `${as.channel ? `${CHANNEL_WORDS} ` : ""}${roleWords(r, f, st)}`,
+    groups: st.groups.map((g) => {
+      const why = backProblem(ctx, r, c, f, g.group, as.channel);
+      return {
+        group: g.group,
+        label: `🤝 Court ${g.group}`,
+        can: !why,
+        behind: g.behind,
+        words: g.behind
+          ? `${g.group[0]!.toUpperCase()}${g.group.slice(1)} stand behind you: ${pct(g.sway)} in a hundred of the realm's sway is yours to put things with.`
+          : (why ??
+            `They hold ${pct(g.sway)} in a hundred of the realm's sway, and will stand behind you: what you put to the realm carries with them, and a move on the seat weighs the more.`),
+      };
+    }),
+    plot: {
+      label: army ? "⚔️ Turn the host on the seat" : `🗡️ Move on the seat of ${r.town}`,
+      can: !bad,
+      odds: as.channel ? 1 : odds,
+      words:
+        bad ??
+        (as.channel
+          ? `It carries: the god's will through you takes the seat from ${r.ruler.name} within the year.`
+          : `By the numbers ${pct(odds)} in a hundred it takes the seat from ${r.ruler.name} within the year; if it fails you are found, and dead or fled.${army ? " The army goes with you, or turns on you." : ""}`),
+    },
+  };
+}
+
 /** What has been done by a ruler's word in a realm, oldest first: an event's type, its causes, whose word it was. */
 function reignDeeds(
   world: World,
@@ -703,16 +940,27 @@ type RealmArgs = { realm?: unknown; ruler?: unknown };
 
 export const REIGN_QUERIES: Readonly<Record<string, QueryHandler>> = {
   /** How a ruler stands, and how their rule ended (null: no such realm). */
-  "reign.now": (world, args) =>
-    reignNow(world, (args as RealmArgs).realm, (args as RealmArgs).ruler),
-  /** What they could decree. */
-  "reign.decrees": (world, args) => reignDecrees(world, (args as RealmArgs).realm),
+  "reign.now": (world, args) => {
+    const a = args as RealmArgs & { fig?: unknown; name?: unknown };
+    return reignNow(
+      world,
+      a.realm,
+      a.ruler,
+      typeof a.fig === "number" && typeof a.name === "string" ? { fig: a.fig, name: a.name } : null,
+    );
+  },
+  /** What they could decree, or put to the realm as one of its court; channelled or not. */
+  "reign.decrees": (world, args) => reignDecrees(world, (args as RealmArgs).realm, asOf(args)),
   /** Whom they fight and whom they could. */
-  "reign.wars": (world, args) => reignWars(world, (args as RealmArgs).realm),
+  "reign.wars": (world, args) => reignWars(world, (args as RealmArgs).realm, asOf(args)),
   /** Whom their house could wed. */
-  "reign.matches": (world, args) => reignMatches(world, (args as RealmArgs).realm),
+  "reign.matches": (world, args) =>
+    reignMatches(world, (args as RealmArgs).realm, asOf(args).channel),
   /** Whom they could send an envoy to (D1). */
-  "reign.envoys": (world, args) => reignEnvoys(world, (args as RealmArgs).realm),
+  "reign.envoys": (world, args) =>
+    reignEnvoys(world, (args as RealmArgs).realm, asOf(args).channel),
+  /** One of a court's own: the groups to court, a move on the seat. */
+  "reign.court": (world, args) => reignCourt(world, (args as RealmArgs).realm, asOf(args)),
   /** What has been done by a ruler's word in a realm. */
   "reign.deeds": (world, args) => reignDeeds(world, (args as RealmArgs).realm),
 };

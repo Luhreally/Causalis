@@ -41,6 +41,12 @@ export function drawLeaderCard(
     b.onclick = () => rule(l);
     card.append(b);
   }
+  // (One of a court can be taken as themself, within their own station: 2026-11-13.)
+  if (rule && l.ref.startsWith("court:")) {
+    const b = el("button", "act leader-rule leader-role", "🎭 Act as them");
+    b.onclick = () => rule(l);
+    card.append(b);
+  }
   into.append(card);
 }
 

@@ -323,6 +323,8 @@ export type {
   ReignNeighbour,
   ReignNow,
   ReignPerson,
+  ReignRole,
+  ReignCourt,
   ReignWar,
   ReignWars,
 } from "./reign.ts";

@@ -70,10 +70,17 @@ import {
   type Law,
 } from "./laws.ts";
 
-export const REIGN_EVENTS = { wed: defineEventType("reign.wed", 5) };
+export const REIGN_EVENTS = {
+  wed: defineEventType("reign.wed", 5),
+  /** The god's will carried through one of the realm, past what their station bounds: an omen the realm remembers. */
+  channel: defineEventType("reign.channel", 4),
+};
 
-/** Who a command is done as. */
-export type RulerArgs = { readonly realm: Ref; readonly ruler: string };
+/**
+ * Who a command is done as. `channel`: the god's will carried through them, past what their station bounds (the voices,
+ * their standing, what others will hear); never past what the world has to do it with.
+ */
+export type RulerArgs = { readonly realm: Ref; readonly ruler: string; readonly channel?: boolean };
 /** A law set, or the tithe: `to` is a law's position, or the tithe's parts in a hundred. */
 export type DecreeArgs = RulerArgs & { readonly law: Law | "tithe"; readonly to: number };
 /** A war on a realm, for a land of it (its frontier's first, if none is named). */
@@ -225,11 +232,12 @@ export function decreeProblem(
   law: unknown,
   to: unknown,
   t: SimTime,
+  channel = false,
 ): string | null {
   const o = orderOf(ctx.world)?.of(r.ref);
   if (!o) return "this realm has no order yet to set anything in";
   const st = stationOf(ctx, r);
-  if (st.legitimacy < REIGN.wordLine)
+  if (!channel && st.legitimacy < REIGN.wordLine)
     return `Only ${pct(st.legitimacy)} in a hundred hold your rule rightful: your word stops at the seat's door.`;
   if (law === "tithe") {
     const now = Math.round(r.tribute * 100);
@@ -240,7 +248,7 @@ export function decreeProblem(
     )
       return `The tithe is ${REIGN.titheLeast} to ${REIGN.titheMost} parts in a hundred of the grain.`;
     if (to === now) return "It is so already.";
-    return carryProblem(st, titheVoices(ctx, r, to as number, t));
+    return channel ? null : carryProblem(st, titheVoices(ctx, r, to as number, t));
   }
   if (!(LAWS as readonly unknown[]).includes(law)) return `a law is wanted: ${LAWS.join(", ")}`;
   const l = law as Law,
@@ -248,13 +256,14 @@ export function decreeProblem(
   if (to === now) return "It is its law already.";
   if (to !== now + 1 && to !== now - 1) return "A law moves a step at a time.";
   if ((to as number) < 0 || (to as number) > 2) return "There is no such law.";
-  if (!st.writes)
+  if (!st.writes && !channel)
     return "Nothing is written here: custom is the law, and no word changes what has always been done.";
   const step = to as number;
   if (l === "faith" && beliefOf(ctx.world).of(r.seat).faith === null)
     return "Your people keep no faith to make a law of.";
   if (!st.written && (l === "justice" || l === "faith") && step === 2)
     return `"${LAW_POSITIONS[l][2]}" has to be written, and nothing is written at your seat.`;
+  if (channel) return null;
   const v = stepVoices(swayOnLaws(ctx, r, o, t), l, now, step);
   // (Under the sacred, the temple's word on a law is the law's.)
   if (
@@ -272,6 +281,7 @@ export function warProblem(
   foe: Polity | null,
   prize: unknown,
   t: SimTime,
+  channel = false,
 ): string | null {
   if (!foe) return "That realm has fallen.";
   if (foe === r) return "A realm cannot be set against itself.";
@@ -292,10 +302,10 @@ export function warProblem(
   if (prize !== undefined && !lands.includes(prize as number))
     return "That land is not within your reach.";
   const st = stationOf(ctx, r);
-  if (st.legitimacy < REIGN.marchLine)
+  if (!channel && st.legitimacy < REIGN.marchLine)
     return `Only ${pct(st.legitimacy)} in a hundred hold your rule rightful: no one will march for you.`;
   if (fieldedOf(ctx, r) < 1) return "You have no one to send.";
-  return carryProblem(st, warVoices(ctx, r, foe, t));
+  return channel ? null : carryProblem(st, warVoices(ctx, r, foe, t));
 }
 
 /** A foe's answer, in its own ruler's voice. */
@@ -308,6 +318,7 @@ export function peaceProblem(
   r: Polity,
   foe: Polity | null,
   offer: PeaceOffer = "truce",
+  channel = false,
 ): string | null {
   if (!foe) return "That realm has fallen.";
   const world = ctx.world,
@@ -361,6 +372,8 @@ export function peaceProblem(
     refused,
     canBind(world, r, foe),
   );
+  // (Channelled, their will gives way; what they cannot give, or bind, stays as it is.)
+  if (channel && code !== "cannot-bind") return null;
   switch (code) {
     case "winning":
       return answers(
@@ -403,11 +416,11 @@ export const OFFERS: readonly PeaceOffer[] = [
 ];
 
 /** Why a vassal cannot rise (null: it can). */
-export function riseProblem(ctx: PopulationContext, r: Polity): string | null {
+export function riseProblem(ctx: PopulationContext, r: Polity, channel = false): string | null {
   const oath = bondsOf(ctx.world).oathOf(r.ref);
   if (!oath) return "You have sworn no oath.";
   const st = stationOf(ctx, r);
-  if (st.legitimacy < REIGN.marchLine)
+  if (!channel && st.legitimacy < REIGN.marchLine)
     return `Only ${pct(st.legitimacy)} in a hundred hold your rule rightful: no one will rise with you.`;
   return null;
 }
@@ -426,6 +439,7 @@ export function wedProblem(
   other: Polity | null,
   who: Partial<HousePerson> | null | undefined,
   partner: Partial<HousePerson> | null | undefined,
+  channel = false,
 ): string | null {
   const world = ctx.world;
   if (!other) return "That realm has fallen.";
@@ -450,7 +464,7 @@ export function wedProblem(
   const regard = diplomacyOf(world).get(r.ref, other.ref);
   if (!regard) return "Your houses have never met: no border or road lies between you.";
   if (warsOf(world).between(r.ref, other.ref)) return "You are at war with them.";
-  if (regard.opinion < REIGN.wedRefused)
+  if (!channel && regard.opinion < REIGN.wedRefused)
     return `${cap(realmName(other))} thinks too ill of you to give you one of its own.`;
   if (tieBetween(world, r, other) <= 0)
     return "Your peoples do not count kin so: a match would bind two people, not two realms.";
@@ -479,6 +493,7 @@ export function envoyProblem(
   r: Polity,
   other: Polity | null,
   errand: unknown,
+  channel = false,
 ): string | null {
   if (!other) return "That realm has fallen.";
   if (other === r) return "No envoy is needed to your own seat.";
@@ -487,19 +502,20 @@ export function envoyProblem(
     regard = diplomacyOf(world).get(r.ref, other.ref),
     ties = tiesOf(world);
   if (!regard) return "No border or road lies between you: no one could reach them.";
-  if (warsOf(world).between(r.ref, other.ref))
+  // (Channelled, they hear an envoy even in war; but swear to no one whose host stands against theirs.)
+  if ((!channel || errand === "pact") && warsOf(world).between(r.ref, other.ref))
     return answers(other, "Send us no one while your host stands against ours.");
   if (errand === "embassy") {
     if (ties.embassyOf(r.ref, other.ref)) return "Your people are at their seat already.";
     if (ties.embassiesOf(r.ref).length >= TIES.embassiesMost)
       return `You keep ${TIES.embassiesMost} houses at others' seats already: there is no one left to send.`;
-    if (regard.opinion < RIVALRY)
+    if (!channel && regard.opinion < RIVALRY)
       return answers(other, "We keep no house here for those who wish us ill.");
     return null;
   }
   if (errand === "pact") {
     if (regard.pact) return "You are sworn to them already.";
-    if (regard.opinion < TIES.envoyPactAt)
+    if (!channel && regard.opinion < TIES.envoyPactAt)
       return answers(other, "We do not know you well enough to swear to anything.");
     return null;
   }
@@ -507,135 +523,351 @@ export function envoyProblem(
   return null;
 }
 
+const orderHere = (world: World, r: Polity) =>
+    realmOrder(
+      orderOf(world)!,
+      r,
+      cultureOf(world).get(r.seat),
+      beliefOf(world).of(r.seat).faith !== null,
+    ),
+  placeOf = (c: PopulationContext, r: Polity) => c.provinces.get(r.seat)?.ref ?? null,
+  /** Whose word it was: the ruler's, or one of the realm's who put it to them (roles.ts). */
+  wordOf = (by: string): Factor => ({
+    name: `the word of ${by}`,
+    value: 1,
+    contribution: 1,
+    source: null,
+  }),
+  voiced = (v: Voices, carry: number): Factor[] => [
+    {
+      name: carry > 0 ? "the voices carried" : "the voices for it",
+      value: v.share,
+      contribution: v.forIt,
+      source: null,
+    },
+    ...(v.names.length
+      ? [
+          {
+            name: `${v.names.join(" and ")} against it`,
+            value: v.against,
+            contribution: -v.against,
+            source: null,
+          },
+        ]
+      : []),
+  ],
+  /** A word's cost: in standing, and in the grievance of the lands past the seat's reach. */
+  pay = (
+    world: World,
+    c: PopulationContext,
+    r: Polity,
+    o: RealmOrder,
+    cost: number,
+    against: number,
+    event: Ref,
+  ) => {
+    o.legitimacy = clamp(0.02, 0.98, o.legitimacy - cost);
+    const realms = politiesOf(world);
+    if (against > 0)
+      for (const land of stationOf(c, r).beyond) {
+        if (land === r.seat) continue;
+        const d = realms.discontent(land);
+        realms.setDiscontent(land, {
+          level: d.level + REIGN.pastReach * against,
+          cause: event,
+        });
+      }
+  };
+
+/** The god's will carried through one of a realm, told as an omen of its own: what it did, whose it was. */
+export function channelled(
+  world: World,
+  c: PopulationContext,
+  r: Polity,
+  command: Ref,
+  who: string,
+  act: string,
+): Ref {
+  return world.events.emit({
+    type: REIGN_EVENTS.channel.type,
+    subjects: [r.ref],
+    place: placeOf(c, r),
+    causes: [{ ref: command, role: "agent", weight: 1 }],
+    data: { realm: realmName(r), who, act },
+  });
+}
+
+/** Whose word a thing is, what moved it (the command), and what else weighed (the god's will, who put it to them). */
+export type WordBy = {
+  readonly by: string;
+  readonly cause: Ref;
+  readonly extra?: readonly Factor[];
+};
+
+const GOD_WILL: Factor = {
+  name: "the god's will through them",
+  value: 1,
+  contribution: 1,
+  source: null,
+};
+/** The god's will as a decision's factor, when channelled. */
+export const godWill = (on: boolean | undefined): Factor[] => (on ? [GOD_WILL] : []);
+
+/** A law set, or the tithe, by a ruler's word or one put to them and carried. */
+export function applyDecree(
+  world: World,
+  c: PopulationContext,
+  r: Polity,
+  law: Law | "tithe",
+  to: number,
+  t: SimTime,
+  w: WordBy,
+): Ref {
+  const o = orderHere(world, r),
+    st = stationOf(c, r),
+    by = w.by,
+    year = yearOfMoment(t),
+    extra = w.extra ?? [];
+  if (law === "tithe") {
+    const from = Math.round(r.tribute * 100),
+      v = titheVoices(c, r, to, t),
+      decision = world.decisions.record({
+        rule: "polity.tithe",
+        subject: r.ref,
+        outcome: { from, to },
+        score: v.share,
+        threshold: st.carry,
+        factors: [wordOf(by), ...extra, ...voiced(v, st.carry)],
+      }),
+      event = world.events.emit({
+        type: POLITY_EVENTS.tithe.type,
+        subjects: [r.ref],
+        place: placeOf(c, r),
+        causes: [
+          { ref: w.cause, role: "agent", weight: 1 },
+          { ref: decision, role: "enabler", weight: 0.5 },
+        ],
+        data: { name: realmName(r), from, to, by },
+      });
+    r.tribute = to / 100;
+    r.tithed = event;
+    pay(world, c, r, o, decreeCost(v.against), v.against, event);
+    return event;
+  }
+  const k = LAW_OF[law],
+    from = o.laws[k]!,
+    sway = swayOnLaws(c, r, o, t),
+    v = stepVoices(sway, law, from, to),
+    voices = voicesOf(v.forIt, v.against, namesOf(v.groups)),
+    decision = world.decisions.record({
+      rule: "order.law",
+      subject: r.ref,
+      outcome: {
+        law,
+        from: LAW_POSITIONS[law][from]!,
+        to: LAW_POSITIONS[law][to]!,
+      },
+      score: voices.share,
+      threshold: st.carry,
+      factors: [wordOf(by), ...extra, ...voiced(voices, st.carry)],
+    }),
+    event = world.events.emit({
+      type: LAW_EVENTS.changed.type,
+      subjects: [r.ref],
+      place: placeOf(c, r),
+      causes: [
+        { ref: w.cause, role: "agent", weight: 1 },
+        { ref: decision, role: "enabler", weight: 0.5 },
+      ],
+      data: { realm: realmName(r), law, from, to, by, year },
+    });
+  o.laws[k] = to;
+  o.lawEvents[k] = event;
+  o.approval = approvalOf(o.laws, sway);
+  pay(world, c, r, o, decreeCost(v.against), v.against, event);
+  return event;
+}
+
+/** A war declared on a realm, by a ruler's word or one put to them and carried. */
+export function applyWar(
+  world: World,
+  c: PopulationContext,
+  r: Polity,
+  foe: Polity,
+  prizeAsked: number | undefined,
+  t: SimTime,
+  w: WordBy,
+): Ref {
+  const o = orderHere(world, r),
+    st = stationOf(c, r),
+    year = yearOfMoment(t),
+    diplomacy = diplomacyOf(world),
+    regard = diplomacy.get(r.ref, foe.ref),
+    pact = regard?.pact ?? null,
+    grievance = (regard?.opinion ?? 0) < 0,
+    lands = frontier(c, r, foe),
+    prize = prizeAsked ?? lands[0]!,
+    v = warVoices(c, r, foe, t),
+    factors: Factor[] = [
+      wordOf(w.by),
+      ...(w.extra ?? []),
+      {
+        name: "the land they want",
+        value: prize,
+        contribution: 0.5,
+        source: { ref: cellRef(0, prize), role: "enabler", weight: 1 },
+      },
+      ...voiced(v, st.carry),
+    ];
+  if (regard)
+    factors.push({
+      name: "what they think of each other",
+      value: regard.opinion,
+      contribution: -regard.opinion,
+      source: { ref: relationRef(r.ref, foe.ref), role: "pressure", weight: 1 },
+    });
+  const decision = world.decisions.record({
+      rule: "war.declare",
+      subject: r.ref,
+      outcome: { against: foe.ref, prize },
+      score: v.share,
+      threshold: st.carry,
+      factors,
+    }),
+    ref = world.minter.mint(WAR),
+    event = world.events.emit({
+      type: WAR_EVENTS.declared.type,
+      subjects: [ref, r.ref, foe.ref],
+      place: cellRef(0, prize),
+      causes: [
+        { ref: w.cause, role: "agent", weight: 1 },
+        { ref: decision, role: "trigger", weight: 1 },
+      ],
+      // (`aimed`: the battles go for the land named, while it can be reached: war.ts.)
+      data: { a: realmName(r), b: realmName(foe), by: w.by, aimed: true },
+    });
+  warsOf(world).add({
+    ref,
+    attacker: r.ref,
+    defender: foe.ref,
+    declared: year,
+    event,
+    prize,
+    battles: [],
+    fallen: [0, 0],
+    ended: null,
+    peace: null,
+  });
+  if (regard && pact) {
+    const broken = world.events.emit({
+      type: DIPLOMACY_EVENTS.broken.type,
+      subjects: [regard.a, regard.b],
+      place: placeOf(c, r),
+      causes: [
+        { ref: pact, role: "enabler", weight: 0.4 },
+        { ref: event, role: "trigger", weight: 0.6 },
+      ],
+      data: { a: realmName(r), b: realmName(foe), reason: `the word of ${w.by}` },
+    });
+    diplomacy.remember(r.ref, foe.ref, {
+      name: "a broken pact",
+      value: -0.4,
+      year,
+      source: broken,
+    });
+    regard.pact = null;
+  }
+  pay(world, c, r, o, warCost(pact !== null, grievance), 0, event);
+  return event;
+}
+
+/** A peace made with a foe on an offer, by a ruler's word or one put to them and heard. */
+export function applyPeace(
+  world: World,
+  c: PopulationContext,
+  r: Polity,
+  foe: Polity,
+  offerAsked: PeaceOffer | undefined,
+  t: SimTime,
+  w: WordBy,
+): Ref {
+  const wr = warsOf(world).between(r.ref, foe.ref)!,
+    attacker = wr.attacker === r.ref ? r : foe,
+    defender = attacker === r ? foe : r,
+    year = yearOfMoment(t),
+    offer: PeaceOffer = offerAsked ?? "truce",
+    made = termsOfOffer(c, wr, r, foe, offer, year),
+    o = orderHere(world, r);
+  // (Land that passes by the peace is land won, as a battle's is: the war came out as it says.)
+  let won = attacker.members.includes(wr.prize);
+  if (made.land === wr.prize) won = offer === "give-land" ? attacker === foe : attacker === r;
+  wr.ended = year;
+  wr.peace = world.events.emit({
+    type: WAR_EVENTS.peace.type,
+    subjects: [wr.ref, attacker.ref, defender.ref],
+    place: placeOf(c, attacker),
+    causes: [{ ref: w.cause, role: "agent", weight: 1 }],
+    data: {
+      a: realmName(attacker),
+      b: realmName(defender),
+      years: year - wr.declared,
+      won,
+      by: w.by,
+      terms: made.terms,
+    },
+  });
+  diplomacyOf(world).remember(attacker.ref, defender.ref, {
+    name: "a war between them",
+    value: -0.45,
+    year,
+    source: wr.event,
+  });
+  if (made.land !== null) {
+    const from = offer === "give-land" ? r : foe,
+      to = offer === "give-land" ? foe : r,
+      realms = politiesOf(world);
+    realms.leave(from, made.land);
+    realms.join(to, made.land);
+    realms.setDiscontent(made.land, { level: 0.6, cause: wr.peace });
+    cutOff(c, from, wr.peace);
+  }
+  bindPeace(c, wr, made, wr.peace, year);
+  // (What is given costs standing, what is won brings it; a truce goes by how the war stood.)
+  o.legitimacy = clamp(
+    0.02,
+    0.98,
+    o.legitimacy +
+      (offer === "truce"
+        ? won === (attacker === r)
+          ? REIGN.peaceWon
+          : REIGN.peaceLost
+        : offer.startsWith("give")
+          ? 2 * REIGN.peaceLost
+          : 2 * REIGN.peaceWon),
+  );
+  return wr.peace;
+}
+
 /** Teach a peopled world what a ruler can do by the god's hand: "reign.decree", "reign.war", "reign.peace", "reign.rise", "reign.wed". */
 export function installReign(world: World, ctx: () => PopulationContext): void {
-  const orderHere = (r: Polity) =>
-      realmOrder(
-        orderOf(world)!,
-        r,
-        cultureOf(world).get(r.seat),
-        beliefOf(world).of(r.seat).faith !== null,
-      ),
-    placeOf = (c: PopulationContext, r: Polity) => c.provinces.get(r.seat)?.ref ?? null,
-    word = (r: Polity): Factor => ({
-      name: `the word of ${r.ruler.name}`,
-      value: 1,
-      contribution: 1,
-      source: null,
-    }),
-    voiced = (v: Voices, carry: number): Factor[] => [
-      {
-        name: carry > 0 ? "the voices carried" : "the voices for it",
-        value: v.share,
-        contribution: v.forIt,
-        source: null,
-      },
-      ...(v.names.length
-        ? [
-            {
-              name: `${v.names.join(" and ")} against it`,
-              value: v.against,
-              contribution: -v.against,
-              source: null,
-            },
-          ]
-        : []),
-    ],
-    /** A word's cost: in standing, and in the grievance of the lands past the seat's reach. */
-    pay = (
-      c: PopulationContext,
-      r: Polity,
-      o: RealmOrder,
-      cost: number,
-      against: number,
-      event: Ref,
-    ) => {
-      o.legitimacy = clamp(0.02, 0.98, o.legitimacy - cost);
-      const realms = politiesOf(world);
-      if (against > 0)
-        for (const land of stationOf(c, r).beyond) {
-          if (land === r.seat) continue;
-          const d = realms.discontent(land);
-          realms.setDiscontent(land, {
-            level: d.level + REIGN.pastReach * against,
-            cause: event,
-          });
-        }
-    };
-
   world.defineCommand({
     type: "reign.decree",
     validate: (args) => {
       const bad = rulerProblem(world, args);
       if (bad) return bad;
       const a = args as DecreeArgs;
-      return decreeProblem(ctx(), standing(world, a.realm)!, a.law, a.to, world.now);
+      return decreeProblem(ctx(), standing(world, a.realm)!, a.law, a.to, world.now, !!a.channel);
     },
     apply: (command, t) => {
       const a = command.args as DecreeArgs,
         c = ctx(),
-        r = standing(world, a.realm)!,
-        o = orderHere(r),
-        st = stationOf(c, r),
-        by = r.ruler.name,
-        year = yearOfMoment(t);
-      if (a.law === "tithe") {
-        const from = Math.round(r.tribute * 100),
-          v = titheVoices(c, r, a.to, t),
-          decision = world.decisions.record({
-            rule: "polity.tithe",
-            subject: r.ref,
-            outcome: { from, to: a.to },
-            score: v.share,
-            threshold: st.carry,
-            factors: [word(r), ...voiced(v, st.carry)],
-          }),
-          event = world.events.emit({
-            type: POLITY_EVENTS.tithe.type,
-            subjects: [r.ref],
-            place: placeOf(c, r),
-            causes: [
-              { ref: command.id, role: "agent", weight: 1 },
-              { ref: decision, role: "enabler", weight: 0.5 },
-            ],
-            data: { name: realmName(r), from, to: a.to, by },
-          });
-        r.tribute = a.to / 100;
-        r.tithed = event;
-        pay(c, r, o, decreeCost(v.against), v.against, event);
-        return;
-      }
-      const k = LAW_OF[a.law],
-        from = o.laws[k]!,
-        sway = swayOnLaws(c, r, o, t),
-        v = stepVoices(sway, a.law, from, a.to),
-        voices = voicesOf(v.forIt, v.against, namesOf(v.groups)),
-        decision = world.decisions.record({
-          rule: "order.law",
-          subject: r.ref,
-          outcome: {
-            law: a.law,
-            from: LAW_POSITIONS[a.law][from]!,
-            to: LAW_POSITIONS[a.law][a.to]!,
-          },
-          score: voices.share,
-          threshold: st.carry,
-          factors: [word(r), ...voiced(voices, st.carry)],
-        }),
-        event = world.events.emit({
-          type: LAW_EVENTS.changed.type,
-          subjects: [r.ref],
-          place: placeOf(c, r),
-          causes: [
-            { ref: command.id, role: "agent", weight: 1 },
-            { ref: decision, role: "enabler", weight: 0.5 },
-          ],
-          data: { realm: realmName(r), law: a.law, from, to: a.to, by, year },
-        });
-      o.laws[k] = a.to;
-      o.lawEvents[k] = event;
-      o.approval = approvalOf(o.laws, sway);
-      pay(c, r, o, decreeCost(v.against), v.against, event);
+        r = standing(world, a.realm)!;
+      applyDecree(world, c, r, a.law, a.to, t, {
+        by: r.ruler.name,
+        cause: command.id,
+        extra: godWill(a.channel),
+      });
+      if (a.channel) channelled(world, c, r, command.id, r.ruler.name, "decree");
     },
   });
 
@@ -651,92 +883,19 @@ export function installReign(world: World, ctx: () => PopulationContext): void {
         standing(world, a.against),
         a.prize,
         world.now,
+        !!a.channel,
       );
     },
     apply: (command, t) => {
       const a = command.args as WarArgs,
         c = ctx(),
-        r = standing(world, a.realm)!,
-        foe = standing(world, a.against)!,
-        o = orderHere(r),
-        st = stationOf(c, r),
-        year = yearOfMoment(t),
-        diplomacy = diplomacyOf(world),
-        regard = diplomacy.get(r.ref, foe.ref),
-        pact = regard?.pact ?? null,
-        grievance = (regard?.opinion ?? 0) < 0,
-        lands = frontier(c, r, foe),
-        prize = a.prize ?? lands[0]!,
-        v = warVoices(c, r, foe, t),
-        factors: Factor[] = [
-          word(r),
-          {
-            name: "the land they want",
-            value: prize,
-            contribution: 0.5,
-            source: { ref: cellRef(0, prize), role: "enabler", weight: 1 },
-          },
-          ...voiced(v, st.carry),
-        ];
-      if (regard)
-        factors.push({
-          name: "what they think of each other",
-          value: regard.opinion,
-          contribution: -regard.opinion,
-          source: { ref: relationRef(r.ref, foe.ref), role: "pressure", weight: 1 },
-        });
-      const decision = world.decisions.record({
-          rule: "war.declare",
-          subject: r.ref,
-          outcome: { against: foe.ref, prize },
-          score: v.share,
-          threshold: st.carry,
-          factors,
-        }),
-        ref = world.minter.mint(WAR),
-        event = world.events.emit({
-          type: WAR_EVENTS.declared.type,
-          subjects: [ref, r.ref, foe.ref],
-          place: cellRef(0, prize),
-          causes: [
-            { ref: command.id, role: "agent", weight: 1 },
-            { ref: decision, role: "trigger", weight: 1 },
-          ],
-          // (`aimed`: the battles go for the land named, while it can be reached: war.ts.)
-          data: { a: realmName(r), b: realmName(foe), by: r.ruler.name, aimed: true },
-        });
-      warsOf(world).add({
-        ref,
-        attacker: r.ref,
-        defender: foe.ref,
-        declared: year,
-        event,
-        prize,
-        battles: [],
-        fallen: [0, 0],
-        ended: null,
-        peace: null,
+        r = standing(world, a.realm)!;
+      applyWar(world, c, r, standing(world, a.against)!, a.prize, t, {
+        by: r.ruler.name,
+        cause: command.id,
+        extra: godWill(a.channel),
       });
-      if (regard && pact) {
-        const broken = world.events.emit({
-          type: DIPLOMACY_EVENTS.broken.type,
-          subjects: [regard.a, regard.b],
-          place: placeOf(c, r),
-          causes: [
-            { ref: pact, role: "enabler", weight: 0.4 },
-            { ref: event, role: "trigger", weight: 0.6 },
-          ],
-          data: { a: realmName(r), b: realmName(foe), reason: `the word of ${r.ruler.name}` },
-        });
-        diplomacy.remember(r.ref, foe.ref, {
-          name: "a broken pact",
-          value: -0.4,
-          year,
-          source: broken,
-        });
-        regard.pact = null;
-      }
-      pay(c, r, o, warCost(pact !== null, grievance), 0, event);
+      if (a.channel) channelled(world, c, r, command.id, r.ruler.name, "war");
     },
   });
 
@@ -747,67 +906,23 @@ export function installReign(world: World, ctx: () => PopulationContext): void {
       if (bad) return bad;
       const a = args as PeaceArgs;
       if (a.offer !== undefined && !OFFERS.includes(a.offer)) return "There is no such offer.";
-      return peaceProblem(ctx(), standing(world, a.realm)!, standing(world, a.with), a.offer);
+      return peaceProblem(
+        ctx(),
+        standing(world, a.realm)!,
+        standing(world, a.with),
+        a.offer,
+        !!a.channel,
+      );
     },
     apply: (command, t) => {
       const a = command.args as PeaceArgs,
         c = ctx(),
-        r = standing(world, a.realm)!,
-        foe = standing(world, a.with)!,
-        w = warsOf(world).between(r.ref, foe.ref)!,
-        attacker = w.attacker === r.ref ? r : foe,
-        defender = attacker === r ? foe : r,
-        year = yearOfMoment(t),
-        offer: PeaceOffer = a.offer ?? "truce",
-        made = termsOfOffer(c, w, r, foe, offer, year),
-        o = orderHere(r);
-      // (Land that passes by the peace is land won, as a battle's is: the war came out as it says.)
-      let won = attacker.members.includes(w.prize);
-      if (made.land === w.prize) won = offer === "give-land" ? attacker === foe : attacker === r;
-      w.ended = year;
-      w.peace = world.events.emit({
-        type: WAR_EVENTS.peace.type,
-        subjects: [w.ref, attacker.ref, defender.ref],
-        place: placeOf(c, attacker),
-        causes: [{ ref: command.id, role: "agent", weight: 1 }],
-        data: {
-          a: realmName(attacker),
-          b: realmName(defender),
-          years: year - w.declared,
-          won,
-          by: r.ruler.name,
-          terms: made.terms,
-        },
+        r = standing(world, a.realm)!;
+      applyPeace(world, c, r, standing(world, a.with)!, a.offer, t, {
+        by: r.ruler.name,
+        cause: command.id,
       });
-      diplomacyOf(world).remember(attacker.ref, defender.ref, {
-        name: "a war between them",
-        value: -0.45,
-        year,
-        source: w.event,
-      });
-      if (made.land !== null) {
-        const from = offer === "give-land" ? r : foe,
-          to = offer === "give-land" ? foe : r,
-          realms = politiesOf(world);
-        realms.leave(from, made.land);
-        realms.join(to, made.land);
-        realms.setDiscontent(made.land, { level: 0.6, cause: w.peace });
-        cutOff(c, from, w.peace);
-      }
-      bindPeace(c, w, made, w.peace, year);
-      // (What is given costs standing, what is won brings it; a truce goes by how the war stood.)
-      o.legitimacy = clamp(
-        0.02,
-        0.98,
-        o.legitimacy +
-          (offer === "truce"
-            ? won === (attacker === r)
-              ? REIGN.peaceWon
-              : REIGN.peaceLost
-            : offer.startsWith("give")
-              ? 2 * REIGN.peaceLost
-              : 2 * REIGN.peaceWon),
-      );
+      if (a.channel) channelled(world, c, r, command.id, r.ruler.name, "peace");
     },
   });
 
@@ -816,15 +931,17 @@ export function installReign(world: World, ctx: () => PopulationContext): void {
     validate: (args) => {
       const bad = rulerProblem(world, args);
       if (bad) return bad;
-      return riseProblem(ctx(), standing(world, (args as RulerArgs).realm)!);
+      const a = args as RulerArgs;
+      return riseProblem(ctx(), standing(world, a.realm)!, !!a.channel);
     },
     apply: (command, t) => {
       const a = command.args as RulerArgs,
         c = ctx(),
         r = standing(world, a.realm)!,
-        o = orderHere(r);
+        o = orderHere(world, r);
       riseUp(c, bondsOf(world).oathOf(r.ref)!, t, r.ruler.name, command.id);
       o.legitimacy = clamp(0.02, 0.98, o.legitimacy - warCost(true, true));
+      if (a.channel) channelled(world, c, r, command.id, r.ruler.name, "rise");
     },
   });
 
@@ -834,7 +951,13 @@ export function installReign(world: World, ctx: () => PopulationContext): void {
       const bad = rulerProblem(world, args);
       if (bad) return bad;
       const a = args as Partial<EnvoyArgs>;
-      return envoyProblem(ctx(), standing(world, a.realm)!, standing(world, a.to), a.errand);
+      return envoyProblem(
+        ctx(),
+        standing(world, a.realm)!,
+        standing(world, a.to),
+        a.errand,
+        !!a.channel,
+      );
     },
     apply: (command, t) => {
       const a = command.args as EnvoyArgs,
@@ -844,6 +967,7 @@ export function installReign(world: World, ctx: () => PopulationContext): void {
         year = yearOfMoment(t),
         diplomacy = diplomacyOf(world),
         regard = diplomacy.get(r.ref, other.ref)!;
+      if (a.channel) channelled(world, c, r, command.id, r.ruler.name, "envoy");
       if (a.errand === "embassy") {
         openEmbassy(c, r, other, command.id, t);
         return;
@@ -888,7 +1012,14 @@ export function installReign(world: World, ctx: () => PopulationContext): void {
       const bad = rulerProblem(world, args);
       if (bad) return bad;
       const a = args as Partial<WedArgs>;
-      return wedProblem(ctx(), standing(world, a.realm)!, standing(world, a.to), a.who, a.partner);
+      return wedProblem(
+        ctx(),
+        standing(world, a.realm)!,
+        standing(world, a.to),
+        a.who,
+        a.partner,
+        !!a.channel,
+      );
     },
     apply: (command, t) => {
       const a = command.args as WedArgs,
@@ -921,7 +1052,7 @@ export function installReign(world: World, ctx: () => PopulationContext): void {
         regard.opinion = clamp(-1, 1, regard.opinion + tie);
       }
       const keep = (p: Polity, who: HousePerson, to: HousePerson, withRealm: Ref) => {
-        const o = orderHere(p);
+        const o = orderHere(world, p);
         o.matches = [
           ...(o.matches ?? []),
           {
@@ -939,6 +1070,7 @@ export function installReign(world: World, ctx: () => PopulationContext): void {
       };
       keep(r, a.who, a.partner, other.ref);
       keep(other, a.partner, a.who, r.ref);
+      if (a.channel) channelled(world, c, r, command.id, r.ruler.name, "wed");
     },
   });
 }

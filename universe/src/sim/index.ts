@@ -325,9 +325,32 @@ export {
   type CourtStore,
   type GoneFigure,
   type Plot,
+  backingOf,
+  type Backing,
 } from "./court/court.ts";
 export {
+  ROLE_EVENTS,
+  backProblem,
+  installRoles,
+  plotProblem,
+  proposalVoices,
+  proposeProblem,
+  roleHeld,
+  roleKind,
+  roleStationOf,
+  type BackArgs,
+  type ProposeArgs,
+  type RoleArgs,
+  type RoleKind,
+  type RoleStation,
+} from "./court/roles.ts";
+export {
   REIGN_EVENTS,
+  applyDecree,
+  applyPeace,
+  applyWar,
+  channelled,
+  godWill,
   decreeProblem,
   installReign,
   ERRANDS,
@@ -630,9 +653,21 @@ export {
   settlersFrom,
   type ConvertArgs,
   type LandArgs,
+  type FortuneArgs,
   type PairArgs,
   type RealmArgs,
 } from "./acts/peoples.ts";
+export {
+  FORTUNE_STRENGTHS,
+  FORTUNE_WEIGHT,
+  FORTUNE_WORDS,
+  FORTUNE_YEARS,
+  FortuneStore,
+  fortunePull,
+  fortunesOf,
+  isFortuneStrength,
+  type Fortune,
+} from "./acts/fortune.ts";
 export { DISASTER, DISASTER_EVENTS, installDisasters } from "./acts/disasters.ts";
 export {
   SWITCHES,

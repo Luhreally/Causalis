@@ -33,6 +33,7 @@ export { WAR_DRAWS, WAR_PAST_YEARS, warClaimKey, warClaimLimit, type WarFate } f
 export { FOLK, folkRef } from "./population.ts";
 import "./economy.ts";
 import "./acts.ts";
+export { fortuneHow, fortuneWhat } from "./acts.ts";
 import "./possess.ts";
 import "./life.ts";
 import "./reign.ts";

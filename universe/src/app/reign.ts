@@ -2,19 +2,22 @@
 // it rules, so a world under a ruler who does nothing goes on exactly as it would have. The eye goes to their home; the
 // clock runs months (view/lived.ts ruledSpeed) and is held whenever a choice is open; each thing done is a command, and a
 // refusal comes back in the world's words. When their rule ends the bar says how, and offers whoever holds the seat.
+// One of the realm's court can be taken instead (2026-11-13): what they do goes through role.* commands, put to the
+// realm rather than decreed. A switch, as a mortal or the god in them, is sent with each thing done; nothing else is.
 import "./life.css";
 import "./reign.css";
 import type {
   HostClient,
   Leader,
   LeaderList,
+  ReignCourt,
   ReignDecrees,
   ReignEnvoys,
   ReignMatches,
   ReignNow,
   ReignWars,
 } from "../bridge/index.ts";
-import { ReignHud, type PageWindow, type TimeBar } from "../ui/index.ts";
+import { ReignHud, type PageWindow, type ReignSheet, type TimeBar } from "../ui/index.ts";
 import { ruledSpeed } from "../view/index.ts";
 import type { Leaders } from "./leaders.ts";
 import type { Possession } from "./possess.ts";
@@ -29,8 +32,8 @@ export type ReignDeps = {
   readonly leaders: Leaders;
 };
 export type ReignFlow = {
-  /** Take a realm's ruler: nothing is recorded until something is done. */
-  take(realm: string): Promise<string | null>;
+  /** Take a realm's ruler, or one of its court by number: nothing is recorded until something is done. */
+  take(realm: string, fig?: number): Promise<string | null>;
   /** Let them go: back to the world as it was. */
   leave(): void;
   readonly on: boolean;
@@ -38,11 +41,17 @@ export type ReignFlow = {
   who(): { realm: string; ruler: string } | null;
 };
 
-const refused = (e: Error) => e.message.replace(/^reign\.\w+: /, "");
+const refused = (e: Error) => e.message.replace(/^(reign|role)\.\w+: /, "");
+/** What the god in them lifts, said when the switch is pressed. */
+const CHANNEL_ON =
+  "🌟 The god is in them. Their word carries past the voices, their standing and what others will hear: history can be turned. Each thing done so is an omen the realm remembers. Nothing comes from nothing: no host where none can go, no land where none lies between.";
+const CHANNEL_OFF = "🧍 As a mortal: everything is bounded by their station again.";
 
 export function installReign(d: ReignDeps): ReignFlow {
   const hud = new ReignHud(d.hud);
-  let on: { realm: string; ruler: string } | null = null,
+  let on: { realm: string; ruler: string; role?: { fig: number; name: string } } | null = null,
+    /** The god in them: sent with each thing done, and nothing else. */
+    channel = false,
     now: ReignNow | null = null,
     pace: "stop" | "slow" | "quick" = "slow",
     asking = false,
@@ -53,7 +62,7 @@ export function installReign(d: ReignDeps): ReignFlow {
     /** The newest thing told of the realm, once read. */
     toldLast: string | null = null,
     /** The sheet up, to read again when something is done. */
-    sheet: "decrees" | "wars" | "matches" | "envoys" | null = null,
+    sheet: ReignSheet | null = null,
     /** What has been put to them already (Lives L5): asked once. */
     asked: string | null = null;
 
@@ -65,7 +74,7 @@ export function installReign(d: ReignDeps): ReignFlow {
     try {
       const l = await d.client.query<ReignNow | null>({
         type: "reign.now",
-        args: { realm: on.realm, ruler: on.ruler },
+        args: { realm: on.realm, ruler: on.ruler, ...(on.role ?? {}) },
       });
       if (!on || !l) return;
       // What has just happened in the realm, said as it comes, with its page a tap away.
@@ -86,16 +95,31 @@ export function installReign(d: ReignDeps): ReignFlow {
     }
   };
 
-  const take = async (realm: string): Promise<string | null> => {
+  const take = async (realm: string, fig?: number): Promise<string | null> => {
     const list = await d.client.query<LeaderList | null>({
         type: "leaders.of",
         args: { realm },
       }),
-      l: Leader | undefined = list?.leaders.find((x) => x.ref === `rule:${realm}`);
-    if (!l) return "no one rules there";
-    if (!l.town && l.cannot && /fallen/.test(l.cannot)) return l.cannot;
+      ruler: Leader | undefined = list?.leaders.find((x) => x.ref === `rule:${realm}`);
+    if (!ruler) return "no one rules there";
+    if (!ruler.town && ruler.cannot && /fallen/.test(ruler.cannot)) return ruler.cannot;
+    // (One of its court: found among those who live at its seat, by their page.)
+    let l = ruler;
+    if (fig !== undefined) {
+      const court = await d.client
+          .query<Leader[]>({ type: "leaders.court", args: { realm } })
+          .catch(() => [] as Leader[]),
+        held = court.find((x) => x.ref === `court:${realm}:${fig}`);
+      if (!held) return "they are no longer at its court";
+      l = held;
+    }
     if (d.possession.on) await d.possession.letGo();
-    on = { realm, ruler: l.name };
+    on =
+      fig !== undefined
+        ? { realm, ruler: ruler.name, role: { fig, name: l.name } }
+        : { realm, ruler: ruler.name };
+    channel = false;
+    hud.setChannel(false);
     toldLast = null;
     asked = null;
     was ??= d.time.speed;
@@ -104,13 +128,15 @@ export function installReign(d: ReignDeps): ReignFlow {
     d.pages.close();
     hud.show();
     await refresh();
-    if (now) hud.say(now.station);
+    if (now) hud.say(now.role ? now.role.words : now.station);
     if (l.town) await d.leaders.home(l);
     return null;
   };
 
   const leave = (): void => {
     on = null;
+    channel = false;
+    hud.setChannel(false);
     now = null;
     walking = false;
     hud.hide();
@@ -121,11 +147,11 @@ export function installReign(d: ReignDeps): ReignFlow {
     sent = 0;
   };
 
-  /** A sheet read and put up. */
-  const open = async (kind: "decrees" | "wars" | "matches" | "envoys"): Promise<void> => {
+  /** A sheet read and put up, for whoever is held, as a mortal or with the god in them. */
+  const open = async (kind: ReignSheet): Promise<void> => {
     if (!on) return;
     sheet = kind;
-    const args = { realm: on.realm };
+    const args = { realm: on.realm, channel, ...(on.role ? { fig: on.role.fig } : {}) };
     if (kind === "decrees") {
       const s = await d.client.query<ReignDecrees | null>({ type: "reign.decrees", args });
       if (s) hud.decrees(s);
@@ -135,20 +161,26 @@ export function installReign(d: ReignDeps): ReignFlow {
     } else if (kind === "envoys") {
       const s = await d.client.query<ReignEnvoys | null>({ type: "reign.envoys", args });
       if (s) hud.envoys(s);
+    } else if (kind === "factions") {
+      const s = await d.client.query<ReignCourt | null>({ type: "reign.court", args });
+      if (s) hud.court(s);
     } else {
       const s = await d.client.query<ReignMatches | null>({ type: "reign.matches", args });
       if (s) hud.matches(s);
     }
   };
 
-  /** Something done: gone through the world's own door, or refused in its words in the sheet. */
+  /** Something done: gone through the world's own door, or refused in its words in the sheet. One of a court acts as themself. */
   const act = async (type: string, args: Record<string, unknown>, done: string): Promise<void> => {
     if (!on) return;
+    const who = on.role
+      ? { realm: on.realm, fig: on.role.fig, name: on.role.name }
+      : { realm: on.realm, ruler: on.ruler };
     try {
-      await d.client.command(type, { realm: on.realm, ruler: on.ruler, ...args });
+      await d.client.command(type, { ...who, ...args, ...(channel ? { channel: true } : {}) });
       hud.closeSheet();
       sheet = null;
-      hud.say(done);
+      hud.say(channel ? `🌟 ${done} The realm will speak of the omen for years.` : done);
       await refresh();
     } catch (error) {
       hud.answer(refused(error as Error));
@@ -186,17 +218,55 @@ export function installReign(d: ReignDeps): ReignFlow {
       .catch((error: Error) => hud.say(refused(error)));
   };
   hud.onSheet = (kind) => void open(kind);
-  hud.onDecree = (law, to) => void act("reign.decree", { law, to }, "Your word has gone out.");
+  hud.onDecree = (law, to) =>
+    void (on?.role
+      ? act(
+          "role.propose",
+          law === "tithe" ? { what: "tithe", to } : { what: "law", law, to },
+          "You put it to the realm, and it carried: it is law.",
+        )
+      : act("reign.decree", { law, to }, "Your word has gone out."));
   hud.onWar = (against, prize) =>
+    void (on?.role
+      ? act(
+          "role.propose",
+          { what: "war", against, prize },
+          "You put it to the realm, and it carried: war is declared. The first battle comes at the end of next year.",
+        )
+      : act(
+          "reign.war",
+          { against, prize },
+          "War is declared. The host goes out, and the first battle comes at the end of next year.",
+        ));
+  hud.onBack = (group) =>
     void act(
-      "reign.war",
-      { against, prize },
-      "War is declared. The host goes out, and the first battle comes at the end of next year.",
+      "role.back",
+      { group },
+      `${group[0]!.toUpperCase()}${group.slice(1)} stand behind you now.`,
     );
+  hud.onPlot = () =>
+    void act(
+      "role.plot",
+      {},
+      "You have moved on the seat. It comes to its end within the year: hold the clock, or let it run.",
+    );
+  hud.onChannel = () => {
+    channel = !channel;
+    hud.setChannel(channel);
+    hud.say(channel ? CHANNEL_ON : CHANNEL_OFF);
+    if (sheet) void open(sheet);
+  };
+  hud.onRuleAfter = (seated) => {
+    const realm = now?.realm,
+      name = seated ? now?.role?.name : now?.ruler;
+    if (!realm || !name) return;
+    hud.hide();
+    void take(realm);
+  };
   hud.onPeace = (foe, offer) =>
     void act(
-      "reign.peace",
-      { with: foe, offer },
+      on?.role ? "role.propose" : "reign.peace",
+      on?.role ? { what: "peace", against: foe } : { with: foe, offer },
       offer === "truce"
         ? "They heard you: the war is over, and a truce holds."
         : offer.startsWith("give")
@@ -288,6 +358,8 @@ export function installReign(d: ReignDeps): ReignFlow {
     reign: {
       take,
       leave,
+      channel: () => channel,
+      as: () => on?.role ?? null,
       state: () => now,
       pace: () => pace,
       sheet: () => sheet,
