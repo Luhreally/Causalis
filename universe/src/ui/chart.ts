@@ -2,6 +2,7 @@
 // the years with its range and latest value in words. Plain SVG, sized by its
 // container, coloured by the page's tokens so it follows light and dark.
 import { el } from "./why.ts";
+import { worthWords, type SeriesMark, type SeriesUnit } from "../bridge/index.ts";
 
 const SVG = "http://www.w3.org/2000/svg";
 
@@ -344,7 +345,13 @@ export function timelineChart(spans: readonly Span[], from: number, to: number):
         start = (Math.max(from, s.from) - from) / width,
         stop = (Math.min(to, end) - from) / width;
       if (stop < 0.66) words.style.left = `calc(${(stop * 100).toFixed(2)}% + 5px)`;
-      else words.style.right = `calc(${((1 - start) * 100).toFixed(2)}% + 5px)`;
+      else if (start > 0.34) words.style.right = `calc(${((1 - start) * 100).toFixed(2)}% + 5px)`;
+      else {
+        // (A bar across most of the years has no room beside it: its words lie on it, never over the name before it.)
+        words.classList.add("on-bar");
+        words.style.left = `calc(${(start * 100).toFixed(2)}% + 5px)`;
+        words.style.maxWidth = `calc(${((stop - start) * 100).toFixed(2)}% - 10px)`;
+      }
       track.append(words);
     }
     row.append(name, track);
@@ -360,5 +367,198 @@ export function timelineChart(spans: readonly Span[], from: number, to: number):
   const axis = el("div", "timeline-axis");
   axis.append(el("span", "timeline-name"), marks);
   box.append(axis);
+  return box;
+}
+
+/** A series' numbers in words, by how they are written (SeriesUnit). */
+export function seriesFormat(unit: SeriesUnit): (y: number) => string {
+  switch (unit) {
+    case "share":
+      return (y) => `${Math.round(y * 100)}%`;
+    case "worth":
+      return (y) => worthWords(y);
+    case "price":
+      return (y) => y.toFixed(2);
+    case "months":
+      return (y) => (y >= 100 ? Math.round(y).toLocaleString("en-US") : y.toFixed(1));
+    default:
+      return (y) => Math.round(y).toLocaleString("en-US");
+  }
+}
+
+/** A mark's colour on a series, by its kind. */
+const MARK_COLORS: Readonly<Record<SeriesMark["kind"], string>> = {
+  war: "#ff5a4a",
+  ruler: "#ffd84a",
+  curse: "#c77dff",
+  bless: "#7dffb0",
+  realm: "#6fe7ff",
+  join: "#7dffb0",
+  leave: "#ff9a4a",
+};
+const MARK_WORDS: Readonly<Record<SeriesMark["kind"], string>> = {
+  war: "wars",
+  ruler: "rulers",
+  curse: "curses",
+  bless: "blessings",
+  realm: "realms",
+  join: "joined",
+  leave: "left",
+};
+
+/** A series as a page gives it (the bridge's series block). */
+export type SeriesBlock = {
+  readonly title: string;
+  readonly units: string;
+  readonly unit: SeriesUnit;
+  readonly points: readonly ChartPoint[];
+  readonly latest: string;
+  readonly note?: string;
+  readonly marks?: readonly SeriesMark[];
+  readonly color?: Rgb;
+};
+
+/**
+ * A thing's number through the years (asked 2026-11-13: "graphs over time"): its title and its latest in words over it, the
+ * years along it and its range in its units under it, what befell it marked along its foot, and a finger's tap anywhere on it
+ * (or a pointer over it) tells the year there and its number then, with what befell it near that year. The year picked is
+ * kept by `picked` as the page is read again.
+ */
+export function seriesChart(
+  b: SeriesBlock,
+  keep: { readonly picked?: number; readonly pick?: (year: number | undefined) => void } = {},
+): HTMLElement {
+  const box = el("figure", "chart chart-over"),
+    format = seriesFormat(b.unit),
+    points = b.points,
+    head = el("figcaption");
+  head.append(el("span", "series-title", b.title), el("strong", "series-latest", b.latest));
+  box.append(head);
+  if (points.length < 2) {
+    box.append(el("p", "muted", "Not enough years yet."));
+    return box;
+  }
+  const W = 300,
+    H = 100,
+    pad = 4,
+    xs = points.map((p) => p.x),
+    ys = points.map((p) => p.y),
+    x0 = xs[0]!,
+    x1 = xs.at(-1)!,
+    zero = b.unit !== "price" && b.unit !== "months",
+    y0 = zero ? Math.min(0, ...ys) : Math.min(...ys),
+    y1 = Math.max(...ys, y0 + (b.unit === "share" ? 0.01 : 1)),
+    X = (x: number) => pad + ((x - x0) / Math.max(1e-9, x1 - x0)) * (W - 2 * pad),
+    // (Its foot, below the line, a strip of its own for what befell it.)
+    Y = (y: number) => H - pad - 8 - ((y - y0) / (y1 - y0)) * (H - 2 * pad - 8);
+  const plot = el("div", "series-plot"),
+    chart = svg("svg", { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "none", role: "img" });
+  chart.setAttribute(
+    "aria-label",
+    `${b.title}: ${format(points[0]!.y)} ${b.units} in year ${x0}, ${b.latest} in year ${x1}`,
+  );
+  for (const k of [0.25, 0.5, 0.75])
+    chart.append(
+      svg("line", {
+        x1: 0,
+        x2: W,
+        y1: Y(y0 + (y1 - y0) * k),
+        y2: Y(y0 + (y1 - y0) * k),
+        class: "chart-grid",
+      }),
+    );
+  // What befell it, as ticks along its foot.
+  const marks = (b.marks ?? []).filter((m) => m.x >= x0 && m.x <= x1);
+  for (const m of marks) {
+    const tick = svg("line", { x1: X(m.x), x2: X(m.x), y1: H - 9, y2: H, class: "series-mark" });
+    tick.style.stroke = MARK_COLORS[m.kind];
+    chart.append(tick);
+  }
+  const d = points
+    .map((p, i) => `${i ? "L" : "M"}${X(p.x).toFixed(1)} ${Y(p.y).toFixed(1)}`)
+    .join(" ");
+  const area = svg("path", {
+      d: `${d} L${X(x1).toFixed(1)} ${Y(y0)} L${X(x0).toFixed(1)} ${Y(y0)} Z`,
+      class: "chart-area",
+    }),
+    line = svg("path", { d, class: "chart-series" });
+  if (b.color) {
+    // (Its line its colour lightened, to stand out on the dark plot however deep its colour; its area its own.)
+    const c = b.color;
+    area.style.fill = rgb(c);
+    line.style.stroke = rgb([0.45 + c[0] * 0.55, 0.45 + c[1] * 0.55, 0.45 + c[2] * 0.55]);
+  }
+  const cursor = svg("line", { x1: 0, x2: 0, y1: 0, y2: H, class: "chart-cursor" });
+  cursor.style.display = "none";
+  chart.append(area, line, cursor);
+  // (A dot, not a circle of the stretched drawing: it stays round.)
+  const dot = el("span", "series-dot");
+  dot.hidden = true;
+  plot.append(chart, dot);
+  box.append(plot);
+  const axis = el("div", "axis");
+  axis.append(
+    el("span", undefined, `year ${x0}`),
+    el("span", "series-range", `${format(y0)} – ${format(y1)} ${b.units}`),
+    el("span", undefined, `year ${x1}`),
+  );
+  const readout = el("div", "chart-readout series-readout", "Tap the line: a year and its number");
+  readout.classList.add("muted");
+  box.append(axis, readout);
+  if (marks.length) {
+    const key = el("div", "chart-key series-key");
+    for (const kind of [...new Set(marks.map((m) => m.kind))]) {
+      const k = el("span", "key"),
+        sw = el("span", "swatch");
+      sw.style.background = MARK_COLORS[kind];
+      k.append(sw, el("span", "key-name", MARK_WORDS[kind]));
+      key.append(k);
+    }
+    box.append(key);
+  }
+  if (b.note) box.append(el("p", "series-note", b.note));
+  // A year picked: the point nearest it, its number, and what befell it near then.
+  const near = Math.max(1, (x1 - x0) / 60);
+  const show = (year: number | undefined) => {
+    if (year === undefined) {
+      cursor.style.display = "none";
+      dot.hidden = true;
+      readout.textContent = "Tap the line: a year and its number";
+      readout.classList.add("muted");
+      return;
+    }
+    let p = points[0]!;
+    for (const q of points) if (Math.abs(q.x - year) < Math.abs(p.x - year)) p = q;
+    cursor.style.display = "";
+    cursor.setAttribute("x1", String(X(p.x)));
+    cursor.setAttribute("x2", String(X(p.x)));
+    dot.hidden = false;
+    dot.style.left = `${(X(p.x) / W) * 100}%`;
+    dot.style.top = `${(Y(p.y) / H) * 100}%`;
+    const befell = marks
+      .filter((m) => Math.abs(m.x - p.x) <= near)
+      .sort((a, c) => Math.abs(a.x - p.x) - Math.abs(c.x - p.x))
+      .slice(0, 2)
+      .map((m) => `${m.label} (year ${m.x})`);
+    readout.classList.remove("muted");
+    readout.textContent = [`Year ${p.x}: ${format(p.y)} ${b.units}`, ...befell].join(" · ");
+  };
+  const yearAt = (e: PointerEvent) => {
+    const r = chart.getBoundingClientRect();
+    return r.width ? x0 + ((e.clientX - r.left) / r.width) * (x1 - x0) : undefined;
+  };
+  let picked = keep.picked;
+  show(picked);
+  chart.addEventListener("pointermove", (e) => {
+    if (e.pointerType === "mouse") show(yearAt(e));
+  });
+  chart.addEventListener("pointerdown", (e) => {
+    picked = yearAt(e);
+    keep.pick?.(picked);
+    show(picked);
+  });
+  chart.addEventListener("pointerleave", (e) => {
+    if (e.pointerType === "mouse") show(picked);
+  });
   return box;
 }

@@ -24,7 +24,14 @@ import type {
 } from "../bridge/index.ts";
 import { el, WhyTree } from "./why.ts";
 import { folder } from "./window.ts";
-import { barsChart, lineChart, linesChart, tallyChart, timelineChart } from "./chart.ts";
+import {
+  barsChart,
+  lineChart,
+  linesChart,
+  seriesChart,
+  tallyChart,
+  timelineChart,
+} from "./chart.ts";
 import type { Tidings } from "./tidings.ts";
 import type { HoverTips } from "./hovertip.ts";
 import type { ArmsBook } from "./arms.ts";
@@ -121,6 +128,8 @@ export class PageWindow {
   private blocks = new Map<string, { same: string; element: HTMLElement }>();
   /** Each table's sorting and whether it shows every row, kept as the page is read again. */
   private sorts = new Map<string, { by: number; down: boolean; all: boolean }>();
+  /** Each series' year picked by a tap, kept as the page is read again. */
+  private picks = new Map<string, number>();
   private readAt = 0;
   private pressing = false;
   tidings: Tidings | null = null;
@@ -337,6 +346,7 @@ export class PageWindow {
       this.openStat = null;
       this.blocks = new Map();
       this.sorts = new Map();
+      this.picks = new Map();
     }
     // (The world's own pages — its chronicle, its ledger — open wide, as a ledger does.)
     this.inspector.dataset.kind = page.kind;
@@ -699,7 +709,7 @@ export class PageWindow {
         if (b.more) box.append(el("p", "muted more", `and ${b.more.toLocaleString("en-US")} more`));
         break;
       case "table":
-        box.append(this.table(b.columns, b.rows, key));
+        box.append(this.table(b.columns, b.rows, key, b.fit));
         break;
       case "lines":
         // (Lines of far different sizes: each its own small chart, side by side.)
@@ -769,6 +779,19 @@ export class PageWindow {
             b.to,
           ),
         );
+        break;
+      case "series":
+        // (A year tapped stays picked as the page is read again.)
+        box.append(
+          seriesChart(b, {
+            ...(this.picks.has(key) ? { picked: this.picks.get(key)! } : {}),
+            pick: (year) => {
+              if (year === undefined) this.picks.delete(key);
+              else this.picks.set(key, year);
+            },
+          }),
+        );
+        if (title) title.remove();
         break;
       case "chart":
         box.append(
@@ -1113,9 +1136,14 @@ export class PageWindow {
    * A table whose columns sort at a tap (a second tap the other way), its first rows shown
    * and the rest at "show all" — both kept as the page is read again.
    */
-  private table(columns: readonly string[], rows: readonly Row[], key: string): HTMLElement {
+  private table(
+    columns: readonly string[],
+    rows: readonly Row[],
+    key: string,
+    fit = false,
+  ): HTMLElement {
     const box = el("div", "table-wrap"),
-      table = el("table", "table"),
+      table = el("table", fit ? "table fit" : "table"),
       head = el("tr"),
       body = el("tbody"),
       state = this.sorts.get(key) ?? { by: -1, down: true, all: false },
@@ -1148,6 +1176,11 @@ export class PageWindow {
           r.cells.forEach((c, i) => {
             const td = el("td");
             if (i === 0 && r.thumb) td.append(thumbOf(r.thumb));
+            if (i === 0 && r.swatch) {
+              const dot = el("span", "swatch");
+              dot.style.background = `rgb(${r.swatch.map((c) => Math.round(c * 255)).join(",")})`;
+              td.append(dot);
+            }
             td.append(this.line(c));
             tr.append(td);
           });
