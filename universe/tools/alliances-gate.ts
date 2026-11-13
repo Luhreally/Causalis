@@ -355,7 +355,9 @@ await shot("1-lens");
       const got = now.startsWith("cell:") ? Number(now.split(":")[2]) : -1,
         hers = got >= 0 ? read.allied.find(([l]) => l === got)?.[1] : undefined;
       if (got === land || hers !== undefined)
-        problems.push(`a land of ${hers ?? ref} (${got}, pressed at ${land}) opened ${now}, not its alliance`);
+        problems.push(
+          `a land of ${hers ?? ref} (${got}, pressed at ${land}) opened ${now}, not its alliance`,
+        );
       else
         say(
           `  (a press at ${land}'s middle fell on land ${got}, in no alliance: its page, rightly)`,
