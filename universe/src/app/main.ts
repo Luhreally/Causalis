@@ -1416,7 +1416,7 @@ type Exposed = {
   picture?: (p: Portrait, size: number) => { inked: number; sum: number };
   /**
    * The same drawn as a page's large picture at a level (asked 2026-11-12: "more generative detail ... when i look for it"): its inked
-   * pixels, its edges (pixels unlike the one beside or below them: strokes, seams, faces' borders), and how long it took (ms).
+   * pixels, its edges (pixels unlike the one beside or below them: strokes, seams, faces' borders), and a turning frame's cost (ms).
    */
   pictureAt?: (
     p: Portrait,
@@ -1441,11 +1441,17 @@ const exposed: Exposed = {
   },
   pictureAt: (p, size, detail) => {
     const c = document.createElement("canvas"),
-      t0 = performance.now();
+      g = () => c.getContext("2d")!;
+    // (A frame's cost as the large view turns: ten frames, each drawn and read back a pixel so its raster is in its time.)
+    drawPortrait(c, p, size, size, 0, detail);
+    const t0 = performance.now();
+    for (let i = 1; i <= 10; i++) {
+      drawPortrait(c, p, size, size, i / 30, detail);
+      g().getImageData(0, 0, 1, 1);
+    }
+    const ms = (performance.now() - t0) / 10;
     drawPortrait(c, p, size, size, 0.8, detail);
-    const g = c.getContext("2d")!,
-      d = g.getImageData(0, 0, c.width, c.height).data,
-      ms = performance.now() - t0,
+    const d = g().getImageData(0, 0, c.width, c.height).data,
       w = c.width,
       lum = (i: number) => d[i]! * 0.3 + d[i + 1]! * 0.59 + d[i + 2]! * 0.11;
     let inked = 0,
