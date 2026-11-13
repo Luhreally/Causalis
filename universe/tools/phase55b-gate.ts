@@ -816,8 +816,11 @@ const lineOf = (ref: string) => Number(ref.split(":")[4] ?? -1);
         folk: QUALITY.folk,
       }),
       t = await now(),
-      borne = p2.people.findIndex((p) =>
-        (p.wounds ?? []).some((w) => w.borne && w.home >= t && w.home < t + 12 * DAY),
+      // (One of the crowd drawn, whose tap gives a card: one of the town's named lines has its
+      // page in the window instead, by design.)
+      borne = p2.people.findIndex(
+        (p) =>
+          p.folk && (p.wounds ?? []).some((w) => w.borne && w.home >= t && w.home < t + 12 * DAY),
       );
     if (borne < 0) continue;
     await into(row.ref);

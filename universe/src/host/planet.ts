@@ -53,6 +53,8 @@ import {
   WAR_EVENTS,
   laneLawOf,
   laneMapOf,
+  lessonsOf,
+  useIn,
 } from "../sim/index.ts";
 import {
   FOODS,
@@ -959,6 +961,11 @@ function planetUniverse(name: string, prior: Prior): Universe {
        * by system, its years a minute of work, and what it holds that costs it.
        */
       "speed.tally": (world) => speedTally(world),
+      /** Who has learned what from what cost them (the lessons): each land and realm with a lesson, the most learned first. */
+      "lessons.held": (world) => lessonsHeld(world),
+      /** Each lesson some people of the world has taken up, and the year the first did. */
+      "lessons.firsts": (world) =>
+        (lessonsOf(world)?.firsts ?? []).map(([lesson, year]) => ({ lesson, year })),
       /** The stars within the cluster's reach of home. */
       "galaxy.cluster": (world): ClusterPlan => {
         const rng = new Rng(world.seed);
@@ -1752,4 +1759,28 @@ function speedTally(world: World): {
     size: m.size ?? "standard",
     sky: m.sky ?? "standard",
   };
+}
+
+/** Each land and realm that leans on a lesson now: its ref, how many, and what its causes have cost it in all. */
+function lessonsHeld(
+  world: World,
+): { ref: string; lessons: string[]; taken: number[]; lost: number }[] {
+  const store = lessonsOf(world),
+    year = Math.floor(world.now / YEAR),
+    out: { ref: string; lessons: string[]; taken: number[]; lost: number }[] = [];
+  for (const [ref, h] of store?.holders ?? []) {
+    const lessons = [...h.uses.keys()].filter((id) => useIn(h, id, year) > 0).sort();
+    if (!lessons.length) continue;
+    let lost = 0;
+    for (const m of h.causes.values()) lost += m.lost;
+    out.push({
+      ref,
+      lessons,
+      taken: lessons.map((id) => h.uses.get(id)!.taken),
+      lost: Math.round(lost),
+    });
+  }
+  return out.sort(
+    (a, b) => b.lessons.length - a.lessons.length || b.lost - a.lost || (a.ref < b.ref ? -1 : 1),
+  );
 }

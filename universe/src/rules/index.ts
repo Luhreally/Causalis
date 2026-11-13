@@ -1319,3 +1319,21 @@ export {
   type SightWay,
   type WordWay,
 } from "./signals.ts";
+export {
+  LESSON,
+  LESSON_CAUSE,
+  LESSON_CAUSES,
+  LESSON_RESPONSE,
+  LESSON_RESPONSES,
+  LESSONS_FOR,
+  faded,
+  lessenBy,
+  pressOf,
+  takeUpChance,
+  trustOf,
+  useAfter,
+  type LessonCause,
+  type LessonHow,
+  type LessonResponse,
+  type LessonScope,
+} from "./lessons.ts";

@@ -199,3 +199,40 @@ because the natives in those scenes fight with what this plan gives them.
 Earth's history. Rules stay pure tables and functions, and no random draws are added. Physics breaks only where
 a universe's laws openly say so. Every means has a page and a why. Star Wars is the level, not the content. The
 figures come from real chemistry and materials, and a page says plainly where a figure is an estimate.
+
+## Lessons, as built (2026-11-12)
+
+Asked for: "intelligent and adaptive like improvements at the first principle root level for example they should learn at some point if
+they have this many earthquakes or wtv they should build structures that support that but this should emerge from data driven means not
+necessirly hardcoded in ... there should be countless like armies that lose a learn".
+
+**A people learns from its own record.** A land's people and a realm keep, cause by cause, what it has cost them: a share of them faded
+with a forty-year half-life, and the count ("1,240 homes and 310 lives lost to quakes in 60 years"). It is read once a year off the events
+history already writes, back only as far as the last one read (`sim/lore/lessons.ts`, one reading a kind of event): quakes, town fires,
+floods, famines, sicknesses come, and battles. A battle's loser's fallen are shared among what the winner stood above them in, each by the
+log of the ratio: their blades against its guard, their shot, their numbers, the walls and heights it came against, or its own ground
+crossed. Nothing is per person, and nothing is swept: what fades is faded when it is read.
+
+**A response is a choice the world already makes, with another way of making it** (`rules/lessons.ts`, one row each): braced frames,
+firebreaks, raised floors, keeping the sick apart, a heavier guard and shot of their own (weights on the host's design), a
+greater levy, siegecraft, works along the border. Each says how it works, by name (`lessen` a strike's cost where the world reckons it,
+`field` more of the men, `walls`, `siege`, `doctrine:<axis>`), how far it goes, and what it asks. How far a people
+leans on it moves at each strike: toward it by how hard the cause presses them, less what it asks, and by whether it worked (each strike's
+cost since against before: halving it doubles the pull; a rise turns them from it). It is first taken up by a keyed draw, never at a
+line drawn for a cause. A land that takes one up passes it to neighbours and sea partners who have felt the same, by a draw; a land
+struck takes up what a neighbour does where it has worked there. It fades with a sixty-year half-life once nothing presses it, and is let
+go under 3%. Every figure is one for all causes, and a guess. Adding a lesson is a row; adding a cause is a row and its reading.
+
+Where it is read: `shakeLand` and the god's quake (homes and lives), the wild fire and the god's fire (homes and lives), the flood (lives),
+`tollOf` (a sickness's dead), `fieldShare` (the levy), a battle's defence (works; siegecraft against walls and
+heights), `hostFor` (the design's axes). Each is exactly as it was where nothing has been learned.
+
+Hunger is kept and told, but nothing answers it yet. Two answers were tried on `first light` to year 800, each beside the same world
+without lessons: granaries putting by six months more, and stores kept from spoiling. Those who went hungry rose from 56 million to 308
+million and to 120 million. Why is not yet read; likely food kept lowers its price and draws hands from the fields, and more are fed into the next lean year. With both
+switched off it was 24 million. An answer to hunger wants a reserve drawn only in lean months, a number a land.
+
+Seen: a land's and a realm's page have a Learned tab, What they have learned, each lesson with what it cost them, what they do now and how
+many of them, whom they had it from, and whether it has worked; then what costs them still. A realm's also lists what its lands have
+learned. The Years tell the first in all the world to take each lesson up. Homes braced against the quakes are drawn with corner posts and
+a belt rail, in the share of the town that leans on it. Gate 110 (`tools/lessons-gate.ts`).

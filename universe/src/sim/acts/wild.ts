@@ -71,6 +71,7 @@ import { REGION_SIZE, PROVINCE_TILE_KM, type PopulationContext } from "../popula
 import type { Settlement } from "../population/stores.ts";
 import { townsOf } from "../town/fabric.ts";
 import { landSpare } from "../war/bonds.ts";
+import { lessened } from "../lore/lessons-store.ts";
 import { actsOf } from "./acts.ts";
 import { DISASTER, DISASTER_EVENTS, deathsIn, grieve, razeOne, spill } from "./disasters.ts";
 import { LOCAL_ACT_EVENTS } from "./local.ts";
@@ -331,8 +332,10 @@ function shakeLand(
     homes: Record<string, number> = {},
     // (What its machines have built stands up to more: 20,000 of tens of millions in the greatest quake of a machine age, a fifth of a mud-brick town in a lesser one.)
     built = (ctx.world.store<MarketStore>("economy.markets").get(cell)?.machineCover ?? 0) / 1000,
-    spared = 1 - q.builtSpares * built,
-    stands = 1 - q.builtStands * built;
+    // (And what its people have learned of quakes, their own and their neighbours': exactly 1 where they have learned nothing.)
+    learned = lessened(ctx.world, cellRef(0, cell), "quake", yearOfMoment(t)),
+    spared = (1 - q.builtSpares * built) * learned,
+    stands = (1 - q.builtStands * built) * learned;
   let dead = 0,
     blocks = 0,
     worst = 0,
@@ -779,7 +782,10 @@ function wildfire(
         NATURE.fire.reachLeast + NATURE.fire.reachFuel * fuel
       )
         continue;
-      const share = fireHomes(fuel, dryness(g.fine.climate.precipitation[on]!, here.rain / 1000));
+      // (What its people have learned of fire keeps it to fewer roofs: exactly 1 where they have learned nothing of it.)
+      const share =
+        fireHomes(fuel, dryness(g.fine.climate.precipitation[on]!, here.rain / 1000)) *
+        lessened(world, cellRef(0, land), "fire", yearOfMoment(t));
       const fabric = townsOf(world).get(v.ref),
         lot = fabric ? Math.max(0, fabric.next - 1) : undefined,
         lost = razeOne(ctx, v, share, t, homesBy, lot),

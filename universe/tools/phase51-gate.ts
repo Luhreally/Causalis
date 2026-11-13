@@ -456,15 +456,23 @@ const tapMade = async (
   check(seen.length > 0, `${name} not on the screen`);
   if (!seen.length) return "";
   const p = seen[Math.floor(seen.length / 2)]!;
+  // (The window closed first, and its page waited for shown: a closed window keeps the title it
+  // last had, so an earlier thing's page would otherwise be read for this one's.)
+  await k(`document.querySelector(".page-window .close")?.click()`);
   await page.mouse.click(p.x, p.y);
   await page
     .waitForFunction(
-      () => /^An? /.test(document.querySelector(".page-window .page-title")?.textContent ?? ""),
+      () => {
+        const w = document.querySelector<HTMLElement>(".page-window");
+        return !!w && !w.hidden && /^An? /.test(w.querySelector(".page-title")?.textContent ?? "");
+      },
       undefined,
       { timeout: slow(20000) },
     )
     .catch(() => undefined);
-  return title();
+  return k<string>(
+    `(() => { const w = document.querySelector(".page-window"); return w && !w.hidden ? (w.querySelector(".page-title")?.textContent ?? "") : ""; })()`,
+  );
 };
 
 // 5. The clamp in the woodlot of the town that smelts its own ore: there, smoking or built up.

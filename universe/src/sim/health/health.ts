@@ -40,6 +40,7 @@ import { COLS } from "../population/model.ts";
 import { marketsOf, roundKeyed, type PopulationContext } from "../population/systems.ts";
 import { handOf } from "../hand/hand.ts";
 import { loreOf } from "../lore/lore.ts";
+import { lessened } from "../lore/lessons-store.ts";
 import { WAY, cultureOf, pushWays } from "../culture/culture.ts";
 import { politiesOf } from "../polity/polity.ts";
 import { warsOf } from "../war/war.ts";
@@ -440,7 +441,9 @@ export function tollOf(
         s.deadliness *
         (1 + 0.8 * hungerOf(ctx, cell)) *
         (1 - healedOf(ctx.world, cell)) *
-        (1 + (SICK.bound - 1) * bound),
+        (1 + (SICK.bound - 1) * bound) *
+        // (Fewer where its people have learned to keep the sick apart: exactly 1 where they have learned nothing.)
+        lessened(ctx.world, cellRef(0, cell), "sickness", yearOfMoment(ctx.world.now)),
     );
   // (The survivors who took it are spared it: the spared among the living after.)
   const immuneAfter = share >= 1 ? 1 : clamp(0, 1, (imm + takers - share) / (1 - share));

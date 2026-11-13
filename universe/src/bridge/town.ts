@@ -172,6 +172,11 @@ export type TownPlan = {
   readonly ash?: number;
   /** Its world's kind, where it is not rocky (Phase 56): its yards in its kind's colours. */
   readonly kind?: string;
+  /**
+   * The share of its homes framed against the ground's shaking, as its people have learned from the quakes that struck them
+   * (the lessons; absent: none): their posts and a belt rail drawn on their walls.
+   */
+  readonly braced?: number;
   /** Its world's life's colours, where they are not Earth's green (Phase 57): its yards' grass. */
   readonly lifeLook?: string;
   /** How its people pass over the ground, where it isn't on foot (R1): through the water; by tunnel, the ground humped over them. */

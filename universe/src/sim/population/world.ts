@@ -37,6 +37,7 @@ import { installSpace } from "../space/space.ts";
 import { installPolities } from "../polity/polity.ts";
 import { installBelief } from "../belief/belief.ts";
 import { installLore } from "../lore/lore.ts";
+import { installLessons } from "../lore/lessons.ts";
 import { installDiplomacy } from "../diplomacy/diplomacy.ts";
 import { installWar } from "../war/war.ts";
 import { installOrder } from "../order/order.ts";
@@ -325,6 +326,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installPolities(world, () => populationContext(world));
   installBelief(world, () => populationContext(world));
   installLore(world, () => populationContext(world));
+  installLessons(world, () => populationContext(world));
   installDiplomacy(world, () => populationContext(world));
   installWar(world, () => populationContext(world));
   installOrder(world, () => populationContext(world));

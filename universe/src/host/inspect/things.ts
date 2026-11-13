@@ -714,6 +714,8 @@ export function madePage(world: World, ref: string): PageModel {
                   town,
                   seat,
                   forgedMetal(populationContext(world), s.cell, year),
+                  // (Hung on the smithy's rack by one of its smiths: forged there, works or none.)
+                  true,
                 ),
     name =
       trade === "weaver" ? `a ${form} of ${mk.stuff}` : `${article(mk.stuff)} ${mk.stuff} ${form}`,

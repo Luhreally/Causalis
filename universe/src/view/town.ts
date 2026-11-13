@@ -1659,7 +1659,13 @@ export function townHomes(
           now = looks[w.look] ?? look;
         if (w.at !== null && t < w.at + states.takes[p]!)
           rising(out, now, level, x, z, yaw, (t - w.at) / states.takes[p]!);
-        else home(out, now, level, x, z, yaw);
+        else {
+          home(out, now, level, x, z, yaw);
+          // (Framed against the shaking, as many as its people have learned to frame: the lessons.)
+          const braced = scene.plan.braced ?? 0;
+          if (braced > 0 && (Math.imul(p + 1, 0x9e3779b1) >>> 0) / 4294967296 < braced)
+            bracing(out, now, level, x, z, yaw);
+        }
       } else if (g > 0) rising(out, look, level, x, z, yaw, g);
       // (Not yet begun: a home rebuilt higher still stands as it was, a step lower; a worn one
       // as it was.)
@@ -1685,6 +1691,38 @@ export function townHomes(
         if (what === LOT.razed && p < (scene.plan.ash ?? 0)) flatRubble(out, x, z, yaw);
         else ruin(out, look, x, z, yaw, years, what === LOT.razed);
     }
+  }
+}
+
+/** A home framed against the ground's shaking: its corner posts and a belt rail about its walls, in its roof's timber. */
+function bracing(
+  out: TownParts,
+  look: HouseLook,
+  level: number,
+  x: number,
+  z: number,
+  yaw: number,
+): void {
+  if (look.sealed || look.round || look.tent || look.open || level > 1) return;
+  const L = LEVELS[Math.max(0, Math.min(TOP_LEVEL, level))]!,
+    h = L.h * look.height,
+    [w, d] = lowFoot(L, look),
+    y0 = look.raised * 10,
+    post = 0.28;
+  if (h <= 1) return;
+  for (const [u, v] of [
+    [-1, -1],
+    [1, -1],
+    [-1, 1],
+    [1, 1],
+  ] as const) {
+    const [px, pz] = at(x, z, yaw, (u * (w + post)) / 2, (v * (d + post)) / 2);
+    out.put("box", look.roof, px, y0 + h / 2, pz, post, h, post, yaw);
+  }
+  // A rail at the height of a hand, about its front and back.
+  for (const v of [-1, 1]) {
+    const [px, pz] = at(x, z, yaw, 0, (v * (d + post)) / 2);
+    out.put("box", look.roof, px, y0 + h * 0.55, pz, w + post, post, post, yaw);
   }
 }
 

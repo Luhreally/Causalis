@@ -1,6 +1,7 @@
 // The pages of power (Phase 10 M91): a realm — its lands and people, how it is ruled and by
 // whom, its wars, its regard for others and what it knows — two realms' regard, a war with
 // its battles and its two hosts, a battle, and a war between the stars.
+import { realmLessonBlocks } from "./lessons.ts";
 import { realmTiesTab, warSideBlocks } from "./ties.ts";
 import { cellRef, offworldSite } from "../../gen/index.ts";
 import { farWarBlocks } from "../far.ts";
@@ -272,6 +273,11 @@ export function realmPageModel(
   }
   // Its army (Phase 13 M115): its host, the men it fields, its wars and battles.
   if (wants("army")) tabs.push({ id: "army", name: "Army", blocks: armyBlocks(world, r) });
+  // What its hosts and its lands have learned from what has cost them (the lessons).
+  if (wants("learned")) {
+    const learned = realmLessonBlocks(world, r.ref, r.members);
+    if (learned.length) tabs.push({ id: "learned", name: "Learned", blocks: learned });
+  }
   // Its lands' stores, summed (Phase 15 M123).
   if (r.ended === null && wants("stores"))
     tabs.push({

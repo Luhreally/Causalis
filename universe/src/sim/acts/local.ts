@@ -16,7 +16,14 @@ import {
   needsMet,
   reachIn,
 } from "../../rules/index.ts";
-import { cradleTongue, meansOfWorld, tonguePersonName, worldKindOf } from "../../gen/index.ts";
+import {
+  cellRef,
+  cradleTongue,
+  meansOfWorld,
+  tonguePersonName,
+  worldKindOf,
+} from "../../gen/index.ts";
+import { lessened } from "../lore/lessons-store.ts";
 import { COLS } from "../population/model.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import type { Settlement } from "../population/stores.ts";
@@ -157,9 +164,11 @@ export function installLocalActs(world: World, ctx: () => PopulationContext): vo
       for (const b of burnt) city!.uses[b.k] = USE.open;
       // (And as great a share of its homes, the heart first — or those about the lot it fell on:
       // Phase 23, Phase 42 M201.)
-      const homes = razeTown(c, v.ref, 0.2, t, lot);
+      // (Fewer, where its people have learned to keep lanes a fire stops at: exactly as many where they have learned nothing.)
+      const learned = lessened(world, cellRef(0, v.cell), "fire", year),
+        homes = razeTown(c, v.ref, 0.2 * learned, t, lot);
       const p = c.provinces.get(v.cell)!,
-        toll = Math.round(v.population / 100);
+        toll = Math.round((v.population / 100) * learned);
       let dead = toll;
       for (let b = 0; b < BANDS && dead > 0; b++)
         for (let r = b; r < 2 * BANDS && dead > 0; r += BANDS)

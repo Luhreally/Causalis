@@ -370,6 +370,10 @@ export const GATES: readonly Gate[] = [
   // age, taken up at 430 by 932 by touch; its pages show the signal steps (what can be done here, a land's economy, a step's page),
   // its greatest town draws its poles, wire and mast and at night its screens' cold light, and the knowledge lens leaves no land dark.
   { gate: 109, args: ["--ci"], s: 420 },
+  // Gate 110, what a people has learned from what has cost it (tools/lessons-gate.ts): on first light at year 700 by touch, some land and
+  // realm leaning on a lesson read off its own record; a land's Learned tab and its realm's, pressed: What they have learned, its numbers
+  // and years, what they do now and whether it worked, no raw ids, nothing off the screen; the Years telling the first lesson taken up.
+  { gate: 110, args: ["--ci"], s: 420 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */

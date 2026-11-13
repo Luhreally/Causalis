@@ -420,6 +420,25 @@ export {
   type Known,
 } from "./lore/lore.ts";
 export {
+  HOMELESS,
+  LESSON_EVENTS,
+  LESSON_READ,
+  LessonStore,
+  installLessons,
+  lessened,
+  lessonAdds,
+  lessonUse,
+  lessonsOf,
+  lessonsYear,
+  pressIn,
+  strike as lessonStrike,
+  useIn,
+  type CauseMark,
+  type Holder,
+  type Strike,
+  type Use,
+} from "./lore/lessons.ts";
+export {
   DIPLOMACY_EVENTS,
   DiplomacyStore,
   PACT,

@@ -14,7 +14,8 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { GOODS, BANDS } from "../../rules/index.ts";
-import { offworldSite } from "../../gen/index.ts";
+import { cellRef, offworldSite } from "../../gen/index.ts";
+import { lessened } from "../lore/lessons-store.ts";
 import { COLS } from "../population/model.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { handOf } from "../hand/hand.ts";
@@ -180,9 +181,11 @@ export function installDisasters(world: World, ctx: () => PopulationContext): vo
       const c = ctx(),
         cell = (command.args as LandArgs).cell,
         k = DISASTER.quake,
-        dead = strike(c, cell, k.dead, t),
+        // (Frames its people have learned to brace stand through it: exactly 1 where they have learned nothing.)
+        learned = lessened(world, cellRef(0, cell), "quake", yearOfMoment(t)),
+        dead = strike(c, cell, k.dead * learned, t),
         homes: Record<string, number> = {},
-        blocks = raze(c, cell, k.blocks, t, homes);
+        blocks = raze(c, cell, k.blocks * learned, t, homes);
       spill(c, cell, k.stores);
       const event = world.events.emit({
         type: DISASTER_EVENTS.quake.type,
@@ -245,7 +248,13 @@ export function installDisasters(world: World, ctx: () => PopulationContext): vo
       }
       let dead = 0;
       for (const l of lands) {
-        dead += strike(c, l, l === cell ? k.dead : k.dead / 2, t);
+        dead += strike(
+          c,
+          l,
+          (l === cell ? k.dead : k.dead / 2) *
+            lessened(world, cellRef(0, l), "flood", yearOfMoment(t)),
+          t,
+        );
         spill(c, l, l === cell ? k.stores : k.stores / 2);
       }
       const event = world.events.emit({
