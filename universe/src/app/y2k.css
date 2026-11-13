@@ -784,6 +784,11 @@ canvas.thumb.thumb-zoomable {
   margin: -8px -2px -8px -8px;
   touch-action: manipulation;
 }
+/* A page's own picture of a made thing, a stuff or a plant: pressed, it is drawn large. */
+.portrait-zoomable {
+  cursor: zoom-in;
+  touch-action: manipulation;
+}
 /* (A 26 px picture in a board line's 26 px column: its padding taken back on every side.) */
 .board-icon canvas.thumb.thumb-zoomable {
   padding: 9px;

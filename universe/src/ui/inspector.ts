@@ -32,7 +32,7 @@ import { drawTool } from "./tools.ts";
 import type { ToolContext } from "./tools.ts";
 import { drawAnatomy, drawPortrait, moves } from "./portrait.ts";
 import { bodyView } from "./body.ts";
-import { lazyThumb } from "./thumbs.ts";
+import { lazyThumb, openZoom } from "./thumbs.ts";
 import { lineupStrip, phyloChart } from "./phylo.ts";
 import { dropView } from "./drop.ts";
 import { namesThings, type NamesSwitch } from "./names.ts";
@@ -363,6 +363,11 @@ export class PageWindow {
     const p = page.portrait;
     this.portrait.hidden = !p;
     if (!p) return;
+    // (A made thing's, a stuff's or a plant's picture is pressed to see it large, at its fine level: ui/thumbs.ts openZoom.)
+    const specimen =
+      p.kind === "thing" || p.kind === "matter" || p.kind === "element" || p.kind === "plant";
+    this.portrait.classList.toggle("portrait-zoomable", specimen);
+    this.portrait.onclick = specimen ? () => openZoom(p, page.title) : null;
     const size = innerWidth > 640 ? 96 : 84,
       started = performance.now(),
       // (A world's face is drawn pixel by pixel: it turns at a few frames a second.)

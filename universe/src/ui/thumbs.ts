@@ -137,7 +137,8 @@ function onKey(e: KeyboardEvent): void {
   if (e.key === "Escape") closeZoom();
 }
 
-function openZoom(p: Portrait, label: string): void {
+/** A picture drawn large over the page at its fine level, turning, captioned (a thumbnail's press, a page's own picture's). */
+export function openZoom(p: Portrait, label: string): void {
   closeZoom();
   const root = document.createElement("div"),
     card = document.createElement("div"),
