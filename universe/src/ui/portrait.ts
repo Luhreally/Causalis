@@ -785,7 +785,7 @@ function drawWorld(
 }
 
 /** A star's colour by its warmth (a blackbody, near enough). */
-function starColor(k: number): Rgb {
+export function starColor(k: number): Rgb {
   const t = Math.max(1000, Math.min(40000, k)) / 100;
   const r = t <= 66 ? 255 : 329.7 * Math.pow(t - 60, -0.1332);
   const g = t <= 66 ? 99.47 * Math.log(t) - 161.1 : 288.1 * Math.pow(t - 60, -0.0755);

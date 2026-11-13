@@ -174,6 +174,13 @@ function armsLook(world: World, cell: number, key: string): Portrait | null {
   });
 }
 
+/** The arm a realm's host carries, as its seat's smiths make it (null: a realm with no design of arms, or none for an arm). */
+export function realmArmLook(world: World, realm: string): Portrait | null {
+  const r = politiesOf(world).get(realm as never),
+    arm = r ? designsOf(world).of(r.ref)?.parts.find((p) => p.role === "arm") : undefined;
+  return r && arm ? armsLook(world, r.seat, `arms:arm:${arm.id}`) : null;
+}
+
 /** The symbol of each of the three metals a market sells, its tin as its world's hardener. */
 const HARDENER: Readonly<Record<string, string>> = { tin: "Sn", arsenic: "As", nickel: "Ni" };
 

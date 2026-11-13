@@ -729,7 +729,81 @@ export type PageModel = {
   readonly year: number;
   /** How often (ms) it is worth reading again as the world runs, when not the usual. */
   readonly every?: number;
+  /** What its tabs and its banner are drawn of (none: plain tabs, no banner). */
+  readonly art?: PageArt;
 };
+
+/**
+ * What a page's own drawings are made of (asked 2026-11-13: "add more graphics and like icons and like stuff for the tabs ... make it
+ * generative and like derived from first principles ... but it shouldt make the game slower"): its world, for its tabs' glyphs to be
+ * drawn in that world's colours — its star's light through its air, its seas' liquid, its ground, what grows there — and, for a page of
+ * a place, a realm, a war or a people, what its banner shows of it. Read with the page; the interface draws it once as the page opens
+ * and keeps it, nothing per tick.
+ */
+export type PageArt = {
+  readonly world: {
+    /** Its kind (rules/kinds.ts): its seas' liquid and its bare ground. */
+    readonly kind: string;
+    /** Its life's colours, where they are not Earth's green (`lifeLook`); "bare" where nothing took hold. */
+    readonly look?: string;
+    /** Its star's warmth, kelvin: the light everything on it is seen in. */
+    readonly star: number;
+  };
+  readonly banner?: PageBanner;
+};
+
+/** A person drawn in a banner: their age, their work (OCCUPATIONS' index), whether a child. */
+export type BannerFigure = {
+  readonly age: number;
+  readonly occupation: number;
+  readonly child: boolean;
+};
+
+/**
+ * What a page's banner draws: a land as its ground runs west to east through it (metres above its sea, a band of cells wide, with each
+ * stretch's biome), its woods, a home of its design and some of its people; a town's skyline, its homes by their storeys and its other
+ * buildings standing; a realm's arms over the shape of its lands (each land a point, its seat first, 0 … 1000 across); a war's two sides,
+ * each its arms and the arm its host carries; a world far off by its star; a people by the ground and light they rose under.
+ */
+export type PageBanner =
+  | {
+      readonly kind: "land";
+      readonly heights: readonly number[];
+      readonly biomes: readonly number[];
+      /** Where along the run the land itself lies (0 … 1). */
+      readonly here: number;
+      readonly woods: number;
+      readonly house: VillagePlan["house"] | null;
+      readonly era: NonNullable<VillagePlan["era"]>;
+      readonly body: VillagePlan["body"];
+      readonly folk: readonly BannerFigure[];
+      readonly key: number;
+    }
+  | {
+      readonly kind: "town";
+      readonly house: VillagePlan["house"];
+      /** Its homes standing at each level (HOME_LEVELS' order). */
+      readonly levels: readonly number[];
+      readonly civics: readonly string[];
+      readonly walls: boolean;
+      readonly biome: number;
+      readonly key: number;
+    }
+  | {
+      readonly kind: "realm";
+      readonly arms: Arms;
+      /** Its lands, x and y by turns (0 … 1000), its seat's first. */
+      readonly lands: readonly number[];
+      /** How far apart two neighbouring lands lie, in the same units. */
+      readonly step: number;
+    }
+  | {
+      readonly kind: "war";
+      readonly sides: readonly { readonly arms: Arms; readonly arm: Portrait | null }[];
+      readonly biome: number;
+    }
+  | { readonly kind: "world"; readonly star: number }
+  | { readonly kind: "people"; readonly star: number; readonly biome: number };
 
 /** A thing in a few words, for a tooltip: its icon, name, a line and its first numbers. */
 export type Tip = {
