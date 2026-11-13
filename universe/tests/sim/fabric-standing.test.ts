@@ -3,6 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  CHANGE,
   TownBuilder,
   civicMask,
   levelsOf,
@@ -67,25 +68,30 @@ test("homes and open lots read by spans are what the lots tell, run over run, bu
   }
 });
 
-test("a building's place about the square is the first free stretch the lots tell of", () => {
+test("a building's place about the square is the first free stretch the lots tell of, ash taken as no one's to build on", () => {
   const store = Object.create(TownBuilder.prototype) as TownBuilder;
   for (let seed = 1; seed <= 400; seed++) {
     const r = randomFrom(seed),
       next = Math.floor(r() * 300),
       lots = 1 + Math.floor(r() * 9),
+      // (A run in ash from the heart out, as the greatest fire leaves one, or a raid's stretch; or none.)
+      ash: [number, number][] =
+        r() < 0.5 ? [] : [[Math.floor(r() * 20), Math.floor(r() * 20) + Math.floor(r() * 80)]],
       f = {
         next,
+        changes: ash.map(([a, b]) => [CHANGE.burned, a, b, 0, 0, 0, 0]),
         civics: Array.from({ length: Math.floor(r() * 12) }, () => ({
           at: Math.floor(r() * (next + 10)),
           lots: 1 + Math.floor(r() * 10),
           fell: r() < 0.25 ? 3 : null,
         })),
       } as unknown as Fabric,
-      under = civicMask(f, 0, next);
+      under = civicMask(f, 0, next),
+      ashen = (q: number) => ash.some(([a, b]) => a <= q && q < b);
     let want = -1;
     for (let p = 0; p < next && want < 0; p += lots) {
       let free = true;
-      for (let q = p; q < Math.min(p + lots, next) && free; q++) free = !under[q];
+      for (let q = p; q < Math.min(p + lots, next) && free; q++) free = !under[q] && !ashen(q);
       if (free) want = p;
     }
     if (want >= 0) assert.equal(store.siteFor(f, lots, "core"), want, `fabric ${seed}`);
