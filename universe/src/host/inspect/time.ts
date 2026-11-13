@@ -307,18 +307,20 @@ export function realmTimeTab(world: World, r: Polity): Tab {
     ),
     bin = span[1] - span[0] <= 400 ? 10 : span[1] - span[0] <= 2000 ? 50 : 100,
     fell = new Map<number, number>();
+  // (Each point the fallen of the `bin` years up to it, counted back from its last year: its latest the last `bin` years
+  // whole, never a span just begun, which drew every line falling to nothing at its end.)
+  const binOf = (year: number) => span[1] - Math.floor((span[1] - year) / bin) * bin;
   for (const w of wars) {
     const side = w.attacker === r.ref ? 0 : 1;
     if (!w.fallen[side]) continue;
     for (const b of w.battles) {
-      if (b.year < span[0]) continue;
-      const k = Math.floor(b.year / bin) * bin;
+      if (b.year <= binOf(span[0]) - bin || b.year > span[1]) continue;
+      const k = binOf(b.year);
       fell.set(k, (fell.get(k) ?? 0) + b.fallen[side]);
     }
   }
   const fallen: Point[] = [];
-  for (let k = Math.floor(span[0] / bin) * bin; k <= span[1]; k += bin)
-    fallen.push({ x: k, y: fell.get(k) ?? 0 });
+  for (let k = binOf(span[0]); k <= span[1]; k += bin) fallen.push({ x: k, y: fell.get(k) ?? 0 });
   const blocks: Block[] = [
     {
       type: "text",
@@ -394,12 +396,15 @@ export function realmTimeTab(world: World, r: Polity): Tab {
         marks: m.war,
       },
     ),
-    series("Its fallen in war", `fallen in ${bin} years`, "count", fallen, {
-      color,
-      marks: m.war,
-      note: `Its dead in battle, each ${bin} years, from its wars' battles.`,
-    }),
   );
+  if (fallen.length >= 2)
+    blocks.push(
+      series("Its fallen in war", `fallen in ${bin} years`, "count", fallen, {
+        color,
+        marks: m.war,
+        note: `Its dead in battle in each ${bin} years, the last its latest ${bin}, from its wars' battles.`,
+      }),
+    );
   if (t.decades.length + (living ? 1 : 0) >= 2)
     blocks.push(
       series(
