@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { preview } from "vite";
 import { chromium } from "playwright";
+import { hudRead, type HudRead } from "./hud-read.ts";
 
 const argv = process.argv.slice(2),
   soft = argv.includes("--soft"),
@@ -253,6 +254,14 @@ const offScreen = () =>
     }
     return out.slice(0, 4);
   })()`);
+/** The owner's rule: no window of the HUD over another, no control covered or off the screen (tools/hud-read.ts, as gate 106 reads it). */
+const READ = hudRead([], 1);
+const hudFine = async (where: string) => {
+  const r = await k<HudRead>(READ);
+  for (const o of r.overlaps) problems.push(`${where}: overlap: ${o}`);
+  for (const c of r.covered) problems.push(`${where}: covered: ${c}`);
+  for (const o of r.off) problems.push(`${where}: off the screen: ${o}`);
+};
 const camera = () =>
   k<{ yaw: number; pitch: number; distance: number }>(
     `(() => { const r = globalThis.causalis.rig; return { yaw: r.yaw, pitch: r.pitch, distance: r.distance }; })()`,
@@ -326,6 +335,7 @@ await until("its ranking", async () => /Their weight, the greatest first/.test(a
     check(text.includes(a.town), `the ranking leaves out ${a.town}`);
   check(!BAD.test(text), `the ranking says ${BAD.exec(text)?.[0]}`);
   for (const o of await offScreen()) problems.push(`the ranking: ${o}`);
+  await hudFine("the ranking");
   await k(`document.querySelector(".page-window .table-wrap")?.scrollIntoView({ block: "start" })`);
   await settle(300);
   await shot("1-ranking");
@@ -351,6 +361,7 @@ for (const [i, [name, want]] of TABS.entries()) {
   check(/\d/.test(text), `the ${name} tab has no numbers`);
   check(!BAD.test(text), `the ${name} tab says ${BAD.exec(text)?.[0]}`);
   for (const o of await offScreen()) problems.push(`the ${name} tab: ${o}`);
+  await hudFine(`the ${name} tab`);
   say(`${name}: ${text.replace(/\s+/g, " ").slice(0, 200)}`);
   await shot(`2-${i}-${name.toLowerCase()}`);
   if (name === "Members") {
@@ -394,6 +405,7 @@ if (read.alliances.length >= 2) {
   const text = await pageText();
   check(!BAD.test(text), `two alliances side by side say ${BAD.exec(text)?.[0]}`);
   for (const o of await offScreen()) problems.push(`side by side: ${o}`);
+  await hudFine("side by side");
   await settle(800);
   await shot("3-side-by-side");
 }
@@ -420,6 +432,7 @@ if (read.alliances.length >= 2) {
     (await k<number>(`document.querySelectorAll(".alliance-key").length`)) >= 1,
     `"On the map" shows no alliance's key`,
   );
+  await hudFine("on the map");
   await shot("4-on-the-map");
 }
 for (const e of errors.slice(0, 5)) say(`ERROR ${e.slice(0, 300)}`);
