@@ -296,7 +296,7 @@ if (town && best) {
   await page.waitForTimeout(slow(500));
   await shot("board");
   const rows = await k<string[]>(
-    `[...document.querySelectorAll(".page-window .price-board .board-row .board-name")].map((e) => e.innerText.split("\\n")[0])`,
+    `[...document.querySelector(".page-window .price-board")?.querySelectorAll(".board-row .board-name") ?? []].map((e) => e.innerText.split("\\n")[0])`,
   );
   say(`${town.name}'s board: ${rows.join(", ")}`);
   check(rows.length >= 6, `the board has ${rows.length} rows`);
@@ -373,7 +373,8 @@ if (town && best) {
     ),
     `the trade is said only as broad goods: ${expected.join(" | ")}`,
   );
-  check(/Companies/.test(econ), "the land's economy lists no companies");
+  if (companiesOf(world, seatCell).length)
+    check(/companies/i.test(econ), "the land's economy lists no companies");
 
   // 5. The exchange from the board, by touch.
   await k(`globalThis.causalis.open(${JSON.stringify(`board:${town.ref}`)})`);
@@ -384,7 +385,7 @@ if (town && best) {
   check(await pageSeen(), "the exchange is not to be seen");
   await shot("exchange");
   const listed = await k<string[]>(
-    `[...document.querySelectorAll(".page-window .board-row .board-name")].map((e) => e.innerText.split("\\n")[0])`,
+    `[...document.querySelector(".page-window .price-board")?.querySelectorAll(".board-row .board-name") ?? []].map((e) => e.innerText.split("\\n")[0])`,
   );
   const chart = await k<boolean>(
     `!!document.querySelector(".page-window figure.chart svg, .page-window figure.chart canvas")`,
@@ -392,6 +393,19 @@ if (town && best) {
   const exText = await pageText();
   say(`the exchange lists: ${listed.slice(0, 6).join(", ")}${listed.length > 6 ? ", ..." : ""}`);
   check(listed.length >= 2, `the exchange lists ${listed.length} companies`);
+  // (Shared out: no more than three of one making on its board, or one land's tool works would be all of it.)
+  {
+    const by = new Map<string, number>();
+    for (const n of listed) {
+      const c = best!.companies.find((x) => x.name === n),
+        making = c?.town ? n.slice(c.town.name.length) : n;
+      by.set(making, (by.get(making) ?? 0) + 1);
+    }
+    check(
+      [...by.values()].every((n) => n <= 3),
+      `one making fills the exchange: ${[...by].map(([m, n]) => `${m} ${n}`).join(", ")}`,
+    );
+  }
   check(
     listed.every((n) => best!.companies.some((c) => c.name === n)),
     `a listed company is not one read: ${listed.join(", ")}`,
@@ -407,7 +421,7 @@ if (town && best) {
   await until("its good", async () => (await pageIs()).startsWith("mkt:"));
   await page.waitForTimeout(slow(400));
   await shot("company");
-  check(/What is sold as/.test(await pageText()), "a company does not lead to what is made");
+  check(/what is sold as/i.test(await pageText()), "a company does not lead to what is made");
   await k("globalThis.causalis.closePage?.()");
 
   const after = JSON.stringify(await ask<unknown>("hashes"));

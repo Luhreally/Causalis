@@ -97,6 +97,10 @@ export function placeName(world: World, cell: number): string {
   return makingTown(world, cell)?.name ?? landTitle(world, cell, true);
 }
 
+/** A land by the town it is named by, a link to its page: "Ur". */
+const placeLink = (world: World, cell: number): Span =>
+  link(placeName(world, cell), `cell:0:${cell}`);
+
 /** The books a land keeps for a good: what it made, brought in and holds. */
 function booked(m: Market, good: number): { made: number; into: number; stock: number } {
   return { made: m.book("made", good), into: m.book("in", good), stock: m.stock[good]! };
@@ -858,8 +862,8 @@ export function waresOf(world: World, cell: number, good: number): readonly Ware
           brought: Span[] = roads.length
             ? [
                 "brought from ",
-                landLink(world, roads[0]![0], true),
-                ...(roads.length === 2 ? [" and ", landLink(world, roads[1]![0], true)] : []),
+                placeLink(world, roads[0]![0]),
+                ...(roads.length === 2 ? [" and ", placeLink(world, roads[1]![0])] : []),
                 ...(roads.length > 2 ? [` and ${roads.length - 1} more`] : []),
               ]
             : [],

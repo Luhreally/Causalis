@@ -263,8 +263,24 @@ const ICONS: Readonly<Record<string, string>> = {
   pottery: "🏺",
 };
 
-/** The board's listing: at most this many companies. */
-const LISTED = 10;
+/** The board's listing: at most this many companies, and no more than so many of one making (or one land's tool works would be all of it). */
+const LISTED = 10,
+  OF_A_MAKING = 3;
+
+/** The companies the exchange's board lists: the greatest by worth, no more than a few of each making. */
+function listedOf(e: Exchange): readonly Company[] {
+  const making = (c: Company) => c.name.slice(c.town ? c.town.name.length : 0),
+    had = new Map<string, number>(),
+    first: Company[] = [];
+  for (const c of e.companies) {
+    const n = had.get(making(c)) ?? 0;
+    if (n < OF_A_MAKING && first.length < LISTED) {
+      first.push(c);
+      had.set(making(c), n + 1);
+    }
+  }
+  return first;
+}
 
 /** A realm's exchange, its page: its greatest companies, its index over the years, and what a share's price is. */
 export function exchangePage(world: World, ref: string): PageModel {
@@ -298,7 +314,8 @@ export function exchangePage(world: World, ref: string): PageModel {
       year,
     };
   }
-  const last = e.index.at(-1),
+  const listed = listedOf(e),
+    last = e.index.at(-1),
     first = e.index[0],
     blocks: Block[] = [
       {
@@ -306,12 +323,12 @@ export function exchangePage(world: World, ref: string): PageModel {
         title: `Year ${year}, the greatest listed`,
         known: null,
         coin: [
-          `${many(e.companies.length, "company", "companies")} of ${realmName(r)}'s lands are listed here. A company is reckoned worth ${WORTH_YEARS} years of what it takes in; its shares were split so that one sold for a hundred to a thousand coin when its books begin.`,
+          `${many(e.companies.length, "company", "companies")} of ${realmName(r)}'s lands are listed here: the greatest, no more than ${OF_A_MAKING} of one making.`,
         ],
         note: null,
         shelves: ["Listed"],
-        rows: e.companies.slice(0, LISTED).map((co) => companyRow(world, co)),
-        ...(e.companies.length > LISTED ? { more: e.companies.length - LISTED } : {}),
+        rows: listed.map((co) => companyRow(world, co)),
+        ...(e.companies.length > listed.length ? { more: e.companies.length - listed.length } : {}),
       },
     ];
   if (e.index.length >= 2)
@@ -324,7 +341,7 @@ export function exchangePage(world: World, ref: string): PageModel {
     type: "text",
     lines: [
       [
-        "A share's price follows its company's year: what its works made, its part of its land's making, at what its land's market paid. The index is all of them together against the first year its books keep. Press a line for what is made there.",
+        `A share's price follows its company's year: what its works made, its part of its land's making, at what its land's market paid. A company is reckoned worth ${WORTH_YEARS} years of what it takes in, its shares split so that one sold for a hundred to a thousand coin when its books begin. The index is all of them together against that first year. Press a line for what is made there.`,
       ],
     ],
   });
