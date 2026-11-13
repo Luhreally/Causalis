@@ -6,11 +6,11 @@ import assert from "node:assert/strict";
 import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { ALIEN } from "../../src/host/planet.ts";
 import { homeCells, knownAtOrbit, knownWorld, unknownCells } from "../../src/host/known.ts";
-import { principle } from "../../src/rules/index.ts";
+import { keptLife, principle } from "../../src/rules/index.ts";
 import { homePlanet, loreOf, populationContext } from "../../src/sim/index.ts";
 
 test("a people knows its lands and those about them; ships show more; orbit shows all of it", () => {
-  const world = ALIEN.build(seedFromText("alien 20"));
+  const world = ALIEN.build(seedFromText(keptLife("alien 20")));
   world.runTo(30 * YEAR);
   const first = knownWorld(world),
     n = homeCells(homePlanet(world).generated);
@@ -51,8 +51,8 @@ test("a people knows its lands and those about them; ships show more; orbit show
 });
 
 test("reading what a people knows changes nothing in history", () => {
-  const a = ALIEN.build(seedFromText("alien 20")),
-    b = ALIEN.build(seedFromText("alien 20"));
+  const a = ALIEN.build(seedFromText(keptLife("alien 20"))),
+    b = ALIEN.build(seedFromText(keptLife("alien 20")));
   a.runTo(12 * YEAR);
   b.runTo(12 * YEAR);
   knownWorld(a);

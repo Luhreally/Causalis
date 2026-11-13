@@ -107,7 +107,13 @@ check(dials.length === 8, `${dials.length} making dials`);
 check(made === "violet hollow ~pull heavy ~star red", `the seed's text reads “${made}”`);
 check(lit.length === 2, "the dials turned are not lit");
 check(told, "the world a made seed makes is not told");
-check(/Life arises/.test(life), "a peopled made world not told so");
+// (Since alien life is read from each world's numbers, earth-19/alien-23, a heavy red-star world may bear life and no people;
+// the title says which, and that Begin then takes the nearest world where life arises, which the steps below follow.)
+check(
+  /Life arises/.test(life) ||
+    /No people will rise here[\s\S]*Begin will take the nearest world where life arises/.test(life),
+  `a made world's life not told: “${life}”`,
+);
 
 // 2. Begun so: its home world as made, and its page says so.
 await page.click(".title-form .begin");

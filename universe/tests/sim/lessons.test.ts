@@ -25,6 +25,7 @@ import {
   trustOf,
   useAfter,
   OPEN,
+  keptLife,
 } from "../../src/rules/index.ts";
 import {
   DISASTER_EVENTS,
@@ -226,7 +227,7 @@ test("a lesson spreads to those beside who have felt the same, and the record sa
 });
 
 test("a world's own record teaches it: lands and realms of a small world take lessons up from what history did to them", () => {
-  const w = makePopulationWorld(seedFromText("alien 41"), {
+  const w = makePopulationWorld(seedFromText(keptLife("alien 41")), {
     prior: OPEN,
     start: "spread",
     frequency: 16,
@@ -259,7 +260,7 @@ test("a world's own record teaches it: lands and realms of a small world take le
 });
 
 test("a world saved and loaded goes on learning as the one that was never saved", () => {
-  const seedText = seedFromText("alien 41"),
+  const seedText = seedFromText(keptLife("alien 41")),
     make = () => makePopulationWorld(seedText, { prior: OPEN, start: "spread", frequency: 16 }),
     a = make();
   a.runTo(250 * YEAR);
