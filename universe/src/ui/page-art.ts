@@ -130,7 +130,7 @@ type Glyph =
 
 /** A tab's or a section's glyph by its words (none: no glyph). */
 const GLYPHS: readonly (readonly [RegExp, Glyph])[] = [
-  [/^(overview|here|what|each|listed|rest|measures?)$/, "eye"],
+  [/^(overview|here|what|each|listed|rest|measures?|compare)$/, "eye"],
   [/sick|health|wound|heal/, "heal"],
   [/people|folk|famil|lives|leader|court|kin|townsfolk|who|ruler|met\b|crowd/, "people"],
   [/histor|year|story|event|record|first|fallen|course|annal|chronicle|time/, "years"],
@@ -138,13 +138,13 @@ const GLYPHS: readonly (readonly [RegExp, Glyph])[] = [
   [/thing|good|store|work|econom|market|trade|road|wares|made|board|compan|exchange/, "goods"],
   [/war|might|defend|attack|side|battle|strife|host|arm/, "arms"],
   [/realm|order|law|crown|reign|nation|bloc|league/, "crown"],
-  [/bond|ties|relation|envoy|marriage/, "bond"],
+  [/bond|ties|relation|envoy|marriage|diplom/, "bond"],
   [/town|building|home|lot|fabric|wall/, "house"],
   [/land|ground|lode|deposit|plate|wood|field/, "land"],
   [/life|wild|herd|beast|species|tree|clade|lineage|ecolog/, "life"],
   [/sky|world|star|orbit|planet|moon|galax|colon/, "sky"],
   [/matter|element|substance|reaction|principle|chem|stuff/, "matter"],
-  [/faith|song|tongue|language|memory|word|asks?|answer|justice|case/, "words"],
+  [/faith|song|tongue|language|memory|word|asks?|answer|justice|case|lore|learn|know/, "words"],
   [/origin|why|thread|cause/, "thread"],
 ];
 
@@ -440,6 +440,15 @@ function drawGlyph(g: CanvasRenderingContext2D, glyph: Glyph, p: ArtPalette, s: 
 }
 
 const GLYPH_CACHE = new Map<string, HTMLCanvasElement>();
+/** Glyphs given before, to be given again once their page has let them go: a page opened again makes none. */
+const GLYPH_POOL = new Map<string, HTMLCanvasElement[]>();
+/** Glyphs given out while a page is being built and not yet in it: not given twice (let go once the build is done). */
+const LENT = new Set<HTMLCanvasElement>();
+function lend(c: HTMLCanvasElement): HTMLCanvasElement {
+  if (!LENT.size) queueMicrotask(() => LENT.clear());
+  LENT.add(c);
+  return c;
+}
 
 /** A glyph as a small canvas of `size` CSS pixels, drawn once a world's colours and copied after. */
 export function glyphCanvas(glyph: Glyph, p: ArtPalette, size: number): HTMLCanvasElement {
@@ -452,7 +461,12 @@ export function glyphCanvas(glyph: Glyph, p: ArtPalette, size: number): HTMLCanv
     drawGlyph(g, glyph, p, size);
     GLYPH_CACHE.set(key, kept);
   }
+  const pool = GLYPH_POOL.get(key) ?? [],
+    free = pool.find((x) => !x.isConnected && !LENT.has(x));
+  if (free) return lend(free);
   const c = document.createElement("canvas");
+  if (pool.length < 48) pool.push(c);
+  GLYPH_POOL.set(key, pool);
   c.className = "art-glyph";
   c.width = kept.width;
   c.height = kept.height;
@@ -461,7 +475,7 @@ export function glyphCanvas(glyph: Glyph, p: ArtPalette, size: number): HTMLCanv
   c.dataset.glyph = glyph;
   c.setAttribute("aria-hidden", "true");
   c.getContext("2d")?.drawImage(kept, 0, 0);
-  return c;
+  return lend(c);
 }
 
 // —— A section's own numbers ————————————————————————————————————————————————————————————————
@@ -624,121 +638,155 @@ function landBanner(
   ref: string,
 ): void {
   const next = stream(b.key);
-  sky(g, p, w, h, 0.18 + next() * 0.64);
-  const n = Math.max(24, Math.round(w / 4)),
+  sky(g, p, w, h, 0.12 + next() * 0.3);
+  const n = Math.max(24, Math.round(w / 3)),
     base = resample(b.heights, n),
-    // (Its ground's own roughness, keyed: a few hundred metres up and down within each stretch.)
-    rough = base.map((_, i) => Math.sin(i * 0.9 + next() * 6) * 40 + (next() - 0.5) * 70),
-    hi = Math.max(800, ...base.map((v) => Math.abs(v))),
-    seaY = h * 0.72,
-    y = (v: number) => seaY - (Math.max(-hi * 0.25, v) / hi) * h * 0.5,
+    // (Its ground's own roughness, keyed: a little up and down within each stretch, two scales of it.)
+    phase = next() * 6,
+    rough = base.map(
+      (_, i) => Math.sin(i * 0.45 + phase) * 0.06 + Math.sin(i * 1.7 + phase * 2) * 0.03,
+    ),
+    top = Math.max(250, ...base.map((v) => Math.abs(v))),
+    wet = base.some((v) => v < 0),
+    seaY = wet ? h * 0.8 : h * 0.97,
+    // (Its relief told against its own highest: a plain is a plain, a range stands up.)
+    y = (v: number, r = 0) =>
+      seaY -
+      (Math.max(-top * 0.2, v) / top + (v > 0 ? r : 0)) * h * (wet ? 0.42 : 0.5) -
+      (wet ? 0 : h * 0.12),
     xs = (i: number) => (i / (n - 1)) * w;
-  // A far ridge: the same ground, higher and paler, a little to the east.
+  // A far range: the same ground lifted and paler, its peaks keyed.
   g.beginPath();
   g.moveTo(0, h);
-  for (let i = 0; i < n; i++)
-    g.lineTo(xs(i), y(Math.max(0, base[(i + 5) % n]!) * 1.25 + 200) - h * 0.08);
+  for (let i = 0; i < n; i++) {
+    const v = Math.max(0, base[(i + 7) % n]!) / top;
+    g.lineTo(xs(i), y(0) - h * (0.16 + 0.22 * v + 0.07 * Math.abs(Math.sin(i * 0.31 + phase))));
+  }
   g.lineTo(w, h);
   g.closePath();
-  g.fillStyle = css(mix(p.rock, p.horizon, 0.55));
+  g.fillStyle = css(mix(p.rock, p.horizon, 0.62));
   g.fill();
   // Its seas, at their level.
   g.fillStyle = css(p.sea);
   g.fillRect(0, seaY, w, h - seaY);
-  g.fillStyle = css(mix(p.sea, p.light, 0.35), 1, 0.6);
+  g.fillStyle = css(mix(p.sea, p.light, 0.4), 1, 0.7);
   g.fillRect(0, seaY, w, 1);
-  // Its ground, each stretch in its biome's colour.
-  const stretch = (i: number) =>
-    b.biomes[Math.min(b.biomes.length - 1, Math.floor((i / n) * b.biomes.length))]!;
+  // Its ground: each column the colour of the stretch it is in, blended into the next.
+  const colourAt = (i: number): Rgb => {
+    const t = (i / (n - 1)) * (b.biomes.length - 1),
+      a = Math.floor(t),
+      z = Math.min(b.biomes.length - 1, a + 1);
+    return mix(
+      biomeColor(b.biomes[a]!, p.kind, p.look),
+      biomeColor(b.biomes[z]!, p.kind, p.look),
+      t - a,
+    );
+  };
+  const ground = (i: number) => y(base[i]!, rough[i]!);
   for (let i = 0; i < n - 1; i++) {
-    const v0 = base[i]! + rough[i]!,
-      v1 = base[i + 1]! + rough[i + 1]!;
-    if (v0 < 0 && v1 < 0) continue;
-    const c = biomeColor(stretch(i), p.kind, p.look);
+    if (base[i]! < 0 && base[i + 1]! < 0) continue;
     g.beginPath();
-    g.moveTo(xs(i), y(v0));
-    g.lineTo(xs(i + 1) + 0.6, y(v1));
-    g.lineTo(xs(i + 1) + 0.6, h);
+    g.moveTo(xs(i), ground(i));
+    g.lineTo(xs(i + 1) + 0.7, ground(i + 1));
+    g.lineTo(xs(i + 1) + 0.7, h);
     g.lineTo(xs(i), h);
     g.closePath();
-    g.fillStyle = css(c, 0.92 + 0.12 * Math.sin(i * 1.7));
+    g.fillStyle = css(colourAt(i));
     g.fill();
-    // (Snow where it stands high and cold.)
-    if (Math.max(v0, v1) > hi * 0.72) {
+    // (Snow where it stands highest, on a high land.)
+    if (top > 1500 && Math.max(base[i]!, base[i + 1]!) > top * 0.75) {
       g.beginPath();
-      g.moveTo(xs(i), y(v0));
-      g.lineTo(xs(i + 1) + 0.6, y(v1));
-      g.lineTo(xs(i + 1) + 0.6, y(v1) + 3);
-      g.lineTo(xs(i), y(v0) + 3);
+      g.moveTo(xs(i), ground(i));
+      g.lineTo(xs(i + 1) + 0.7, ground(i + 1));
+      g.lineTo(xs(i + 1) + 0.7, ground(i + 1) + 3);
+      g.lineTo(xs(i), ground(i) + 3);
       g.fillStyle = css(p.ice);
       g.fill();
     }
   }
+  // (Deeper toward the foot, as land seen across.)
+  const shade = g.createLinearGradient(0, h * 0.4, 0, h);
+  shade.addColorStop(0, "rgba(0,0,0,0)");
+  shade.addColorStop(1, "rgba(0,0,0,0.28)");
+  g.fillStyle = shade;
+  g.fillRect(0, h * 0.4, w, h * 0.6);
   const groundAt = (x: number) => {
     const i = clamp(Math.round((x / w) * (n - 1)), 0, n - 1);
-    return { v: base[i]! + rough[i]!, y: y(base[i]! + rough[i]!), biome: stretch(i) };
+    return {
+      v: base[i]!,
+      y: ground(i),
+      biome: b.biomes[Math.min(b.biomes.length - 1, Math.floor((i / n) * b.biomes.length))]!,
+    };
   };
-  // Its woods: as many trees as its share of woods, where it is land.
-  const trees = Math.round(b.woods * w * 0.12);
+  // Its woods: as many trees as its share of woods, where it is land, the far ones smaller.
+  const trees = Math.round(b.woods * w * 0.16);
   for (let t = 0; t < trees; t++) {
     const x = next() * w,
       at = groundAt(x);
     if (at.v < 5) continue;
-    const s = h * (0.07 + next() * 0.05),
+    const s = h * (0.09 + next() * 0.07),
       conifer = at.biome === 6 || at.biome === 5 || at.biome === 15,
-      leaf = mix(p.leaf, [0, 0, 0], 0.15 + next() * 0.2);
+      leaf = mix(p.leaf, [0, 0, 0], 0.1 + next() * 0.3),
+      fy = at.y + 1 + next() * 4;
     g.fillStyle = css([0.36, 0.24, 0.14]);
-    g.fillRect(x - 0.6, at.y - s * 0.4, 1.2, s * 0.45);
+    g.fillRect(x - 0.7, fy - s * 0.4, 1.4, s * 0.45);
     g.beginPath();
     if (conifer) {
-      g.moveTo(x, at.y - s * 1.3);
-      g.lineTo(x + s * 0.4, at.y - s * 0.3);
-      g.lineTo(x - s * 0.4, at.y - s * 0.3);
+      g.moveTo(x, fy - s * 1.35);
+      g.lineTo(x + s * 0.42, fy - s * 0.3);
+      g.lineTo(x - s * 0.42, fy - s * 0.3);
       g.closePath();
-    } else g.arc(x, at.y - s * 0.75, s * 0.42, 0, Math.PI * 2);
+    } else g.arc(x, fy - s * 0.75, s * 0.45, 0, Math.PI * 2);
     g.fillStyle = css(leaf);
     g.fill();
   }
-  // Its home and its people, where it has them, standing at the land itself.
+  // Its home and its people, where it has them: at the land itself, near and large.
   const hx = w * b.here,
-    spot = groundAt(hx),
-    standY = Math.max(spot.y, h * 0.42);
-  if (b.house && spot.v >= 0) {
+    foot = h - 3;
+  // (The near ground they stand on: the land's own colour.)
+  g.beginPath();
+  g.moveTo(hx - h * 2.2, h);
+  g.quadraticCurveTo(hx, foot - h * 0.12, hx + h * 2.2, h);
+  g.closePath();
+  g.fillStyle = css(mix(colourAt(Math.round((n - 1) * b.here)), [0, 0, 0], 0.12));
+  g.fill();
+  if (b.house) {
     const look = houseLook(b.house, p.look),
-      hw = h * 0.3 * look.length,
-      hh = look.tent ? 0 : h * 0.16 * look.height,
-      rise = Math.max(2, look.rise * hw * 0.32);
+      hw = h * 0.42 * (look.length / 0.7),
+      hh = look.tent ? 0 : h * 0.24 * look.height,
+      rise = Math.max(3, look.rise * hw * 0.3),
+      x0 = hx - h * 0.35,
+      by = foot - h * 0.04 - (look.raised ? h * 0.08 : 0);
     g.fillStyle = css(look.wall);
-    g.fillRect(hx - hw / 2, standY - hh, hw, hh);
+    g.fillRect(x0 - hw / 2, by - hh, hw, hh);
+    g.strokeStyle = css(look.wall, 0.55);
+    g.lineWidth = 1;
+    g.strokeRect(x0 - hw / 2 + 0.5, by - hh + 0.5, hw - 1, hh - 1);
     g.beginPath();
     if (look.round || look.tent) {
-      g.moveTo(hx - hw * 0.56, standY - hh);
-      g.quadraticCurveTo(hx, standY - hh - rise * 2.2, hx + hw * 0.56, standY - hh);
+      g.moveTo(x0 - hw * 0.58, by - hh);
+      g.quadraticCurveTo(x0, by - hh - rise * 2.4, x0 + hw * 0.58, by - hh);
     } else {
-      g.moveTo(hx - hw * 0.58, standY - hh);
-      g.lineTo(hx, standY - hh - rise);
-      g.lineTo(hx + hw * 0.58, standY - hh);
+      g.moveTo(x0 - hw * 0.6, by - hh);
+      g.lineTo(x0, by - hh - rise);
+      g.lineTo(x0 + hw * 0.6, by - hh);
     }
     g.closePath();
     g.fillStyle = css(look.roof);
     g.fill();
     g.strokeStyle = css(look.roof, 0.6);
-    g.lineWidth = 1;
     g.stroke();
     if (!look.tent) {
-      g.fillStyle = css([0.25, 0.16, 0.1]);
-      g.fillRect(hx - hw * 0.08, standY - hh * 0.62, hw * 0.16, hh * 0.62);
+      g.fillStyle = css([0.22, 0.14, 0.09]);
+      g.fillRect(x0 - hw * 0.08, by - hh * 0.62, hw * 0.16, hh * 0.62);
     }
   }
-  if (spot.v >= 0) {
-    const people = folkFigures(b.folk, b.body, b.era, ref),
-      fh = h * 0.42;
-    people.forEach((person, i) => {
-      const fx = hx + (b.house ? h * 0.36 : 0) + (i - (people.length - 1) / 2) * fh * 0.5,
-        fy = Math.max(groundAt(fx).y, h * 0.42);
-      figure(g, person, fx, fy + 1, person.child ? fh * 0.66 : fh, 0.3 + i * 0.5);
-    });
-  }
+  const people = folkFigures(b.folk, b.body, b.era, ref),
+    fh = h * 0.6;
+  people.forEach((person, i) => {
+    const fx = hx + (b.house ? h * 0.25 : 0) + i * fh * 0.42;
+    figure(g, person, fx, foot, person.child ? fh * 0.64 : fh, 0.5 + i * 0.45);
+  });
 }
 
 /** A building of a town's skyline: how wide and tall, how it is roofed, its colours. */
@@ -788,14 +836,10 @@ function townBanner(
 ): void {
   const next = stream(b.key);
   sky(g, p, w, h, 0.12 + next() * 0.76);
-  const groundY = h * 0.86,
+  const groundY = h * 0.88,
     look = houseLook(b.house, p.look),
-    storey = h * 0.07,
+    storey = h * 0.11,
     homes = b.levels.reduce((s, v) => s + v, 0);
-  // (As many homes drawn as the skyline holds, each level as often as it stands.)
-  const room = Math.round(w / (h * 0.16)),
-    shown = Math.min(room, Math.max(3, homes)),
-    towers: Tower[] = [];
   const pick = () => {
     let r = next() * homes;
     for (let l = 0; l < b.levels.length; l++) {
@@ -805,35 +849,49 @@ function townBanner(
     return 0;
   };
   const STOREYS = [1, 1, 3, 5, 10, 24, 60];
-  for (let i = 0; i < shown; i++) {
-    const level = homes ? pick() : 0,
-      tall = level >= 3,
-      storeys = STOREYS[level]! * (0.8 + next() * 0.4);
-    towers.push({
-      w:
-        h *
-        (level >= 4 ? 0.2 : level >= 2 ? 0.16 : 0.13) *
-        (0.85 + next() * 0.3) *
-        (look.length / 0.7) ** 0.4,
-      h: Math.min(
-        h * 0.8,
-        storey * (level >= 4 ? storeys ** 0.62 * 2 : storeys) * (look.tent ? 0.7 : look.height) +
-          storey * 0.4,
-      ),
-      roof: tall ? "flat" : look.round || look.tent ? "dome" : look.rise < 0.15 ? "flat" : "gable",
-      wall: tall ? mix(level >= 5 ? GLASS : CONCRETE, p.light, 0.12) : look.wall,
-      top: tall ? mix(CONCRETE, [0, 0, 0], 0.2) : look.roof,
-      lit: level >= 2,
-    });
-  }
-  // Its other buildings, among them.
+  /** A row of its homes, each level as often as it stands among them. */
+  const homesRow = (count: number): Tower[] => {
+    const row: Tower[] = [];
+    for (let i = 0; i < count; i++) {
+      const level = homes ? pick() : 0,
+        tall = level >= 3,
+        storeys = STOREYS[level]! * (0.8 + next() * 0.4);
+      row.push({
+        w:
+          h *
+          (level >= 4 ? 0.34 : level >= 2 ? 0.27 : 0.22) *
+          (0.85 + next() * 0.3) *
+          (look.length / 0.7) ** 0.4,
+        h: Math.min(
+          h * 0.78,
+          storey * (level >= 4 ? storeys ** 0.62 * 2 : storeys) * (look.tent ? 0.6 : look.height) +
+            storey * 0.3,
+        ),
+        roof: tall
+          ? "flat"
+          : look.round || look.tent
+            ? "dome"
+            : look.rise < 0.15
+              ? "flat"
+              : "gable",
+        wall: tall ? mix(level >= 5 ? GLASS : CONCRETE, p.light, 0.12) : look.wall,
+        top: tall ? mix(CONCRETE, [0, 0, 0], 0.2) : look.roof,
+        lit: level >= 2,
+      });
+    }
+    return row;
+  };
+  // (As many homes as the skyline holds, a town of few homes drawn as few.)
+  const room = Math.round(w / (h * 0.3)),
+    front = homesRow(Math.min(room, Math.max(3, homes))),
+    back = homes > room ? homesRow(Math.min(room, homes - room)) : [];
+  // Its other buildings, among the near row.
   for (const kind of b.civics) {
     const s = CIVIC_SHAPE[kind];
     if (!s) continue;
-    const at = Math.floor(next() * (towers.length + 1));
-    towers.splice(at, 0, {
-      w: h * 0.12 * s[0],
-      h: Math.min(h * 0.82, storey * s[1] * 1.3),
+    front.splice(Math.floor(next() * (front.length + 1)), 0, {
+      w: h * 0.2 * s[0],
+      h: Math.min(h * 0.82, storey * s[1] * 1.2),
       roof: s[2],
       wall:
         kind === "temple" || kind === "shrine"
@@ -846,130 +904,134 @@ function townBanner(
       lit: false,
     });
   }
-  // (Fitted to the banner's width, the widest last to give way.)
-  const total = towers.reduce((s, t) => s + t.w, 0) + towers.length * 1.5,
-    k = Math.min(1, (w * 0.96) / Math.max(1, total));
-  let x = (w - total * k) / 2;
-  // Its far half first: the same skyline paler behind.
-  g.fillStyle = css(mix(p.rock, p.horizon, 0.6));
-  for (const t of towers) {
-    const tw = t.w * k * 0.8;
-    g.fillRect(x + tw * 0.6, groundY - t.h * 0.7 - 4, tw, t.h * 0.7 + 4);
-    x += (t.w + 1.5) * k;
-  }
+  /** A row standing on `base`, fitted to the width, each `scale` of its size, paled toward the sky by `far`. */
+  const drawRow = (row: Tower[], base: number, scale: number, far: number) => {
+    const gaps = row.map(() => 1 + next() * h * 0.1),
+      total = row.reduce((s, t, i) => s + t.w * scale + gaps[i]!, 0),
+      k = Math.min(1, (w * 0.98) / Math.max(1, total));
+    let x = (w - total * k) / 2 + gaps[0]! * k * 0.5;
+    row.forEach((t, i) => {
+      const tw = t.w * scale * k,
+        th = t.h * scale,
+        top = base - th,
+        wall = mix(t.wall, p.horizon, far),
+        roof = mix(t.top, p.horizon, far);
+      g.fillStyle = css(wall);
+      g.fillRect(x, top, tw, th);
+      g.strokeStyle = css(wall, 0.6);
+      g.lineWidth = 1;
+      g.strokeRect(x + 0.5, top + 0.5, tw - 1, th - 1);
+      // (Its windows lit with its world's light where it stands three storeys and more; a home's door.)
+      if (t.lit && tw > 4) {
+        g.fillStyle = css(mix(p.light, [1, 0.86, 0.5], 0.5), 1, 0.85 - far);
+        for (let wy = top + 3; wy < base - 3; wy += storey * 0.6 * scale)
+          for (let wx = x + 2; wx < x + tw - 2.5; wx += 3.4)
+            if (next() < 0.55) g.fillRect(wx, wy, 1.5, 1.8);
+      } else if (!far && tw > 5 && th > 5) {
+        g.fillStyle = css(wall, 0.4);
+        g.fillRect(x + tw * 0.42, base - th * 0.55, tw * 0.16, th * 0.55);
+      }
+      g.fillStyle = css(roof);
+      g.strokeStyle = css(roof, 0.55);
+      switch (t.roof) {
+        case "gable":
+          g.beginPath();
+          g.moveTo(x - 1, top);
+          g.lineTo(x + tw / 2, top - Math.max(2, tw * 0.5 * Math.max(0.35, look.rise)));
+          g.lineTo(x + tw + 1, top);
+          g.closePath();
+          g.fill();
+          g.stroke();
+          break;
+        case "dome":
+          g.beginPath();
+          g.arc(x + tw / 2, top, tw / 2, Math.PI, 0);
+          g.fill();
+          g.stroke();
+          break;
+        case "spire":
+          g.beginPath();
+          g.moveTo(x + tw * 0.3, top);
+          g.lineTo(x + tw / 2, top - th * 0.5);
+          g.lineTo(x + tw * 0.7, top);
+          g.closePath();
+          g.fill();
+          g.stroke();
+          break;
+        case "stack": {
+          g.fillRect(x + tw * 0.65, top - th * 0.5, tw * 0.16, th * 0.5);
+          // (Its smoke, drifting.)
+          for (let s = 0; s < 4; s++) {
+            g.beginPath();
+            g.arc(
+              x + tw * 0.73 + s * 3,
+              top - th * 0.5 - 2 - s * 2.6,
+              1.6 + s * 0.8,
+              0,
+              Math.PI * 2,
+            );
+            g.fillStyle = css(mix(p.horizon, [0.4, 0.4, 0.42], 0.5), 1, 0.55 - s * 0.1);
+            g.fill();
+          }
+          break;
+        }
+        case "sails": {
+          const cx = x + tw / 2,
+            cy = top + 2;
+          g.strokeStyle = css(mix([0.4, 0.3, 0.2], p.horizon, far));
+          g.lineWidth = 1.6;
+          for (let s = 0; s < 4; s++) {
+            const a = s * (Math.PI / 2) + 0.4;
+            g.beginPath();
+            g.moveTo(cx, cy);
+            g.lineTo(cx + Math.cos(a) * th * 0.55, cy + Math.sin(a) * th * 0.55);
+            g.stroke();
+          }
+          g.lineWidth = 1;
+          break;
+        }
+        case "crane":
+          g.strokeStyle = css([0.5, 0.3, 0.16]);
+          g.beginPath();
+          g.moveTo(x + tw * 0.2, top);
+          g.lineTo(x + tw * 0.2, top - th * 0.7);
+          g.lineTo(x + tw * 1.1, top - th * 0.6);
+          g.lineTo(x + tw * 1.1, top - th * 0.2);
+          g.stroke();
+          break;
+        case "arch":
+          g.beginPath();
+          g.ellipse(x + tw / 2, top, tw / 2, Math.max(2, th * 0.3), 0, Math.PI, 0);
+          g.fill();
+          g.stroke();
+          break;
+        case "torus":
+          g.beginPath();
+          g.ellipse(x + tw / 2, top - 3, tw * 0.45, 3, 0, 0, Math.PI * 2);
+          g.lineWidth = 2.4;
+          g.strokeStyle = css(mix(p.light, [1, 1, 1], 0.4));
+          g.stroke();
+          g.lineWidth = 1;
+          break;
+        case "flat":
+          g.fillRect(x - 0.5, top - 1.5, tw + 1, 1.5);
+          break;
+      }
+      x += tw + gaps[i]! * k;
+    });
+  };
+  // Its far homes paler behind, then its ground and its near row.
+  if (back.length) drawRow(back, groundY - h * 0.08, 0.72, 0.45);
   g.fillStyle = css(biomeColor(b.biome, p.kind, p.look));
   g.fillRect(0, groundY, w, h - groundY);
-  x = (w - total * k) / 2;
-  for (const t of towers) {
-    const tw = t.w * k,
-      top = groundY - t.h;
-    g.fillStyle = css(t.wall);
-    g.fillRect(x, top, tw, t.h);
-    g.strokeStyle = css(t.wall, 0.55);
-    g.lineWidth = 1;
-    g.strokeRect(x + 0.5, top + 0.5, tw - 1, t.h - 1);
-    // (Its windows lit with its world's light where it stands three storeys and more.)
-    if (t.lit && tw > 4) {
-      g.fillStyle = css(mix(p.light, [1, 0.86, 0.5], 0.5), 1, 0.85);
-      for (let wy = top + 3; wy < groundY - 3; wy += storey * 0.7)
-        for (let wx = x + 2; wx < x + tw - 2.5; wx += 3.2)
-          if (next() < 0.55) g.fillRect(wx, wy, 1.4, 1.6);
-    }
-    g.fillStyle = css(t.top);
-    g.strokeStyle = css(t.top, 0.55);
-    switch (t.roof) {
-      case "gable":
-        g.beginPath();
-        g.moveTo(x - 1, top);
-        g.lineTo(x + tw / 2, top - Math.max(2, tw * 0.45 * Math.max(0.3, look.rise)));
-        g.lineTo(x + tw + 1, top);
-        g.closePath();
-        g.fill();
-        g.stroke();
-        break;
-      case "dome":
-        g.beginPath();
-        g.arc(x + tw / 2, top, tw / 2, Math.PI, 0);
-        g.fill();
-        g.stroke();
-        break;
-      case "spire":
-        g.beginPath();
-        g.moveTo(x + tw * 0.3, top);
-        g.lineTo(x + tw / 2, top - t.h * 0.5);
-        g.lineTo(x + tw * 0.7, top);
-        g.closePath();
-        g.fill();
-        g.stroke();
-        break;
-      case "stack": {
-        g.fillRect(x + tw * 0.65, top - t.h * 0.5, tw * 0.16, t.h * 0.5);
-        // (Its smoke, drifting as its world's air carries it.)
-        for (let s = 0; s < 4; s++) {
-          g.beginPath();
-          g.arc(
-            x + tw * 0.73 + s * 3,
-            top - t.h * 0.5 - 2 - s * 2.6,
-            1.6 + s * 0.7,
-            0,
-            Math.PI * 2,
-          );
-          g.fillStyle = css(mix(p.horizon, [0.4, 0.4, 0.42], 0.5), 1, 0.55 - s * 0.1);
-          g.fill();
-        }
-        break;
-      }
-      case "sails": {
-        const cx = x + tw / 2,
-          cy = top + 2;
-        g.strokeStyle = css([0.4, 0.3, 0.2]);
-        g.lineWidth = 1.4;
-        for (let s = 0; s < 4; s++) {
-          const a = s * (Math.PI / 2) + 0.4;
-          g.beginPath();
-          g.moveTo(cx, cy);
-          g.lineTo(cx + Math.cos(a) * t.h * 0.5, cy + Math.sin(a) * t.h * 0.5);
-          g.stroke();
-        }
-        g.lineWidth = 1;
-        break;
-      }
-      case "crane":
-        g.strokeStyle = css([0.5, 0.3, 0.16]);
-        g.beginPath();
-        g.moveTo(x + tw * 0.2, top);
-        g.lineTo(x + tw * 0.2, top - t.h * 0.7);
-        g.lineTo(x + tw * 1.1, top - t.h * 0.6);
-        g.lineTo(x + tw * 1.1, top - t.h * 0.2);
-        g.stroke();
-        break;
-      case "arch":
-        g.beginPath();
-        g.ellipse(x + tw / 2, top, tw / 2, Math.max(2, t.h * 0.3), 0, Math.PI, 0);
-        g.fill();
-        g.stroke();
-        break;
-      case "torus":
-        g.beginPath();
-        g.ellipse(x + tw / 2, top - 3, tw * 0.45, 3, 0, 0, Math.PI * 2);
-        g.lineWidth = 2.4;
-        g.strokeStyle = css(mix(p.light, [1, 1, 1], 0.4));
-        g.stroke();
-        g.lineWidth = 1;
-        break;
-      case "flat":
-        g.fillRect(x - 0.5, top - 1.5, tw + 1, 1.5);
-        break;
-    }
-    x += (t.w + 1.5) * k;
-  }
+  drawRow(front, groundY + 1, 1, 0);
   // Its walls, where it has them, before it all.
   if (b.walls) {
-    const wallY = groundY - h * 0.1,
+    const wallY = groundY - h * 0.12,
       stone: Rgb = mix(p.rock, [0.72, 0.68, 0.6], 0.5);
     g.fillStyle = css(stone);
-    g.fillRect(0, wallY, w, groundY - wallY + 1);
-    for (let cx = 0; cx < w; cx += 6) g.fillRect(cx, wallY - 3, 3.4, 3);
+    g.fillRect(0, wallY, w, h - wallY);
+    for (let cx = 0; cx < w; cx += 7) g.fillRect(cx, wallY - 3.5, 4, 3.5);
     g.strokeStyle = css(stone, 0.6);
     g.beginPath();
     g.moveTo(0, wallY + 0.5);
@@ -1134,11 +1196,11 @@ function worldBanner(
   g.fill();
   // Its world, lit from its star's side: its limb rising at the right.
   if (portrait?.kind === "world") {
-    const pr = h * 1.2,
-      cx = w - h * 0.7,
-      cy = h * 1.25,
+    const pr = h * 0.95,
+      cx = w - h * 1.05,
+      cy = h * 0.98,
       sea: Rgb = portrait.sea > 0.3 ? [0.14, 0.34, 0.66] : [0.56, 0.46, 0.36],
-      body = g.createRadialGradient(cx - pr * 0.6, cy - pr * 0.7, pr * 0.1, cx, cy, pr);
+      body = g.createRadialGradient(cx - pr * 0.75, cy - pr * 0.25, pr * 0.1, cx, cy, pr * 1.1);
     body.addColorStop(0, css(mix(sea, light, 0.35), 1.15));
     body.addColorStop(0.75, css(sea));
     body.addColorStop(1, css(sea, 0.35));
@@ -1257,12 +1319,22 @@ export function drawBanner(
 }
 
 const BANNERS = new Map<string, HTMLCanvasElement>();
+/** How long the last banner took to draw (ms). */
+let bannerTook = 0;
+/** Let every kept banner go (a gate weighs a first drawing again). */
+export function forgetBanners(): void {
+  BANNERS.clear();
+}
+/** How long the last banner took to draw (ms), for a gate to weigh. */
+export function bannerMs(): number {
+  return bannerTook;
+}
 /** How many drawn banners are kept to be shown again. */
 const BANNERS_KEPT = 24;
 
 /**
- * A page's banner, `w` × `h` CSS pixels: drawn once by what it is drawn of and its size, and the same canvas given again after
- * (the oldest let go past BANNERS_KEPT).
+ * A page's banner, `w` × `h` CSS pixels: drawn once by what it is drawn of and its size, in the frame after it is asked for, and the
+ * same canvas given again after (the oldest let go past BANNERS_KEPT).
  */
 export function bannerCanvas(
   art: PageArt,
@@ -1285,8 +1357,14 @@ export function bannerCanvas(
   c.className = "page-banner";
   c.dataset.banner = banner.kind;
   c.setAttribute("aria-hidden", "true");
-  drawBanner(c, art, banner, portrait, ref, w, h);
-  c.dataset.drawn = "1";
+  // (Its size set now, so the page stands as it will; drawn in the next frame, after the page's words are up.)
+  surface(c, w, h);
+  requestAnimationFrame(() => {
+    const t = performance.now();
+    drawBanner(c, art, banner, portrait, ref, w, h);
+    bannerTook = performance.now() - t;
+    c.dataset.drawn = "1";
+  });
   BANNERS.set(key, c);
   while (BANNERS.size > BANNERS_KEPT) BANNERS.delete(BANNERS.keys().next().value!);
   return c;

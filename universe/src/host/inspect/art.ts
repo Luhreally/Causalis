@@ -6,8 +6,9 @@
 import { worldKindOf } from "../../gen/index.ts";
 import { hashString, type Ref, type World } from "../../kernel/index.ts";
 import type { BannerFigure, PageArt, PageBanner, PageModel, Portrait } from "../../bridge/index.ts";
-import { HOME_LEVELS, OCC } from "../../rules/index.ts";
+import { HOME_LEVELS, HOME_STOREYS, OCC } from "../../rules/index.ts";
 import {
+  designsOf,
   homePlanet,
   politiesOf,
   populationContext,
@@ -154,6 +155,9 @@ function landBanner(world: World, cell: number): PageBanner | null {
       heights[b] = Number.isNaN(a) ? 0 : (a + z) / 2;
       biomes[b] = biomes[l >= 0 ? l : Math.min(RUN - 1, r)] ?? g.climate.biome[cell]!;
     }
+  // (The land itself at the middle of its run, as high as it stands.)
+  heights[RUN >> 1] = g.tectonics.elevation[cell]!;
+  biomes[RUN >> 1] = g.climate.biome[cell]!;
   const ctx = populationContext(world),
     land = ctx.provinces.get(cell),
     people = land ? land.total() : 0,
@@ -276,4 +280,46 @@ function warBanner(world: World, ref: string): PageBanner | null {
     sides: [sides[0], sides[1]],
     biome: seat >= 0 && seat < g.grid.count ? g.climate.biome[seat]! : 9,
   };
+}
+
+/**
+ * How a land builds, as a picture (asked 2026-11-13: "will i see the photo of like their architectural varying styles across seeds?"):
+ * the house its towns raise, read as the town in 3D reads it (landHouse: its design's walls, roof, plan and pitch), as many storeys as
+ * its towns' homes stand most often. None: a land no one keeps.
+ */
+export function homeLook(world: World, cell: number): Portrait | null {
+  const ctx = populationContext(world);
+  if (!ctx.provinces.get(cell)?.total()) return null;
+  const levels = HOME_LEVELS.map(() => 0),
+    towns = townsOf(world);
+  for (const s of ctx.settlements.seenIn(cell)) {
+    const f = towns.get(s.ref);
+    if (f) f.homes.forEach((n, l) => (levels[l]! += n));
+  }
+  const most = levels.indexOf(Math.max(...levels)),
+    look = lifeLook(homePlanet(world).generated);
+  return {
+    kind: "house",
+    house: landHouse(world, cell),
+    storeys: HOME_STOREYS[Math.max(0, most)] ?? 1,
+    key: hashString(`house:${cell}`) >>> 0,
+    ...(look ? { lifeLook: look } : {}),
+  };
+}
+
+/** A land's works as a picture: its works design's hall, of its material, and what drives it (none: a land with no works). */
+export function worksLook(world: World, cell: number): Portrait | null {
+  const land = populationContext(world).provinces.get(cell),
+    d = land ? designsOf(world).worksOf(land.ref) : undefined,
+    hall = d?.parts.find((p) => p.role === "hall"),
+    drive = d?.parts.find((p) => p.role === "drive");
+  return hall
+    ? {
+        kind: "works",
+        hall: hall.id,
+        material: hall.material,
+        drive: drive?.id ?? "hands",
+        key: hashString(`works:${cell}`) >>> 0,
+      }
+    : null;
 }

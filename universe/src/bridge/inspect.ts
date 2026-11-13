@@ -51,6 +51,8 @@ export type Stat = {
   readonly parts?: readonly Part[];
   /** The concept it is a measure of (its page in the book of concepts, M97). */
   readonly concept?: string;
+  /** A small picture beside its value (asked 2026-11-13): how a land builds, its works. */
+  readonly thumb?: Portrait;
 };
 
 /** An entry of a list: its words, the page it opens, and the why that explains it. */
@@ -538,6 +540,26 @@ export type Portrait =
       readonly flags: readonly { readonly color: Rgb; readonly key: number }[];
     }
   | { readonly kind: "sign"; readonly color: Rgb; readonly tenet: string }
+  /**
+   * A people's home as they build it (asked 2026-11-13: "will i see the photo of like their architectural varying styles across
+   * seeds?"): the house its towns raise (its walls, roof, plan and pitch, as the town in 3D is built of it), as many storeys as its
+   * homes stand most often, its turf in its world's life's colours.
+   */
+  | {
+      readonly kind: "house";
+      readonly house: VillagePlan["house"];
+      readonly storeys: number;
+      readonly key: number;
+      readonly lifeLook?: string;
+    }
+  /** A land's works as its design has them: the hall its crafts are done in, of its material, and what drives them. */
+  | {
+      readonly kind: "works";
+      readonly hall: string;
+      readonly material: string;
+      readonly drive: string;
+      readonly key: number;
+    }
   /** A realm's arms (Phase 11 M102); a war's, its two sides' face to face. */
   | { readonly kind: "arms"; readonly arms: readonly Arms[] }
   /**

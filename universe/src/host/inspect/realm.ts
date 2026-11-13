@@ -74,6 +74,7 @@ import {
   townLink,
 } from "./names.ts";
 import { realmSongsTab } from "./memory.ts";
+import { loreLook } from "./ware-looks.ts";
 
 /** How many places a battle's fallen tab names, the most dead first; the rest are counted. */
 export const FELL_ROWS = 40;
@@ -318,9 +319,15 @@ export function realmPageModel(
       .of(r.seat)
       .map(([id, k]) => ({ id, k }))
       .sort((a, b) => b.k.year - a.k.year)
-      .map(({ id, k }) =>
-        item([link(principleName(id, world), k.event), ` — year ${k.year}`], k.event, k.year),
-      );
+      .map(({ id, k }) => {
+        const it = item(
+            [link(principleName(id, world), k.event), ` — year ${k.year}`],
+            k.event,
+            k.year,
+          ),
+          thumb = loreLook(world, r.seat, id);
+        return thumb ? { ...it, thumb } : it;
+      });
     tabs.push({
       id: "lore",
       name: "Lore",

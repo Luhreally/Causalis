@@ -177,8 +177,84 @@ function armsLook(world: World, cell: number, key: string): Portrait | null {
 /** The arm a realm's host carries, as its seat's smiths make it (null: a realm with no design of arms, or none for an arm). */
 export function realmArmLook(world: World, realm: string): Portrait | null {
   const r = politiesOf(world).get(realm as never),
-    arm = r ? designsOf(world).of(r.ref)?.parts.find((p) => p.role === "arm") : undefined;
+    arm = r
+      ? designsOf(world)
+          .of(r.ref)
+          ?.parts.find((p) => p.role === "arm")
+      : undefined;
   return r && arm ? armsLook(world, r.seat, `arms:arm:${arm.id}`) : null;
+}
+
+/**
+ * What a knowing makes, as a land's makers make it (asked 2026-11-13: a learned row drawn as that people builds it): the thing it first
+ * puts in their hands, by the same reading as a market's wares — a sickle or a hammer of the metal its smiths head tools with, a pot of
+ * its clay, cloth of its fibre, a machine of its works' metal, its realm's arm. None: a knowing with no one thing to show (law, writing).
+ */
+const LORE_LOOK: Readonly<Record<string, string>> = {
+  cultivation: "tools:sickle",
+  metalworking: "tools:hammer",
+  plough: "tools:plough share",
+  "heavy-plough": "tools:plough share",
+  carpentry: "tools:saw",
+  bronze: "tools:axe",
+  iron: "tools:axe",
+  steel: "tools:knife",
+  "refined-metals": "tools:chisel",
+  "pottery-wheel": "ware:",
+  granaries: "ware:",
+  salting: "ware:",
+  loom: "cloth:tunic",
+  dyeing: "cloth:gown",
+  tanning: "leather:boot",
+  mills: "machine:currents",
+  "current-mills": "machine:currents",
+  clockwork: "machine:clocks",
+  "steam-engine": "machine:steam",
+  factories: "machine:looms",
+  railways: "machine:rails",
+  steamships: "machine:ships",
+  electricity: "machine:dynamos",
+  "sea-electricity": "machine:sea-dynamos",
+  "graphite-dynamos": "machine:dynamos",
+  "ground-dynamos": "machine:ground-dynamos",
+  engines: "machine:cars",
+  "sun-engines": "machine:sun",
+  "heat-engines": "machine:heat",
+  wings: "machine:wings",
+  "powered-wings": "machine:wings",
+  telegraph: "machine:telegraph",
+  telephone: "machine:telephone",
+  radio: "machine:radio",
+  "sea-sound": "machine:sea-sound",
+  computing: "machine:computers",
+  "hand-sets": "machine:phones",
+  "pocket-machines": "machine:phones",
+  "machine-minds": "machine:minds",
+  "made-bodies": "machine:bodies",
+};
+
+/** The thing a knowing puts in a land's makers' hands, as they make it (null: none to show). */
+export function loreLook(world: World, cell: number, id: string): Portrait | null {
+  const look = LORE_LOOK[id];
+  if (!look) return null;
+  const [kind, form = ""] = look.split(":") as [string, string?];
+  switch (kind) {
+    case "tools": {
+      // (Of what its smiths head tools with now; stone before.)
+      const metal = marketsOf(world).get(cell)?.toolMetalIn() ?? "stone";
+      return wareLook(world, cell, G.tools, { key: `tools:${metal}:${form}`, ref: null });
+    }
+    case "ware":
+      return wareLook(world, cell, G.pottery, { key: "ware", ref: null });
+    case "cloth":
+      return wareLook(world, cell, G.clothing, { key: `cloth:lore:${form}`, ref: null });
+    case "leather":
+      return wareLook(world, cell, G.clothing, { key: `leather:${form}`, ref: null });
+    case "machine":
+      return machineLook(world, cell, form);
+    default:
+      return null;
+  }
 }
 
 /** The symbol of each of the three metals a market sells, its tin as its world's hardener. */

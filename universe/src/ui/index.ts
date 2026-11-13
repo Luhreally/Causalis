@@ -63,3 +63,4 @@ export { SungNote } from "./sung.ts";
 export { CourtNote } from "./court-note.ts";
 export { THUMB_TIMES, lazyThumb, paintThumb } from "./thumbs.ts";
 export { drawPortrait } from "./portrait.ts";
+export { bannerMs, forgetBanners } from "./page-art.ts";

@@ -47,6 +47,8 @@ import { landBondBlocks } from "./order.ts";
 import { landHealthBlocks } from "./sickness.ts";
 import { landCreditBlocks } from "./credit.ts";
 import { tradeItems } from "./wares.ts";
+import { loreLook } from "./ware-looks.ts";
+import { homeLook, worksLook } from "./art.ts";
 import { landCompanyBlocks } from "./exchange.ts";
 import { biomeWords } from "../kinds.ts";
 import {
@@ -470,8 +472,14 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
         });
       const ind = p.industry,
         rows2: Stat[] = [];
+      // (Its works and its homes drawn as they are built here, the town in 3D's own plan: asked 2026-11-13.)
+      const works = worksLook(world, cell),
+        home = homeLook(world, cell);
       if (ind.works)
-        rows2.push(stat("Works", [link(ind.works.words, ind.works.ref)], { why: ind.works.ref }));
+        rows2.push({
+          ...stat("Works", [link(ind.works.words, ind.works.ref)], { why: ind.works.ref }),
+          ...(works ? { thumb: works } : {}),
+        });
       if (ind.idle) rows2.push(stat("Works stopped", ind.idle));
       if (ind.power)
         rows2.push(stat("Power", `${(ind.power / 0.1).toFixed(1)}× what their own muscle drives`));
@@ -479,9 +487,10 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
       if (ind.well) rows2.push(stat("Well", "they draw oil"));
       if (ind.factory) rows2.push(stat("Factory", "they make machines"));
       if (p.house)
-        rows2.push(
-          stat("How they build", [link(p.house.words, p.house.ref)], { why: p.house.ref }),
-        );
+        rows2.push({
+          ...stat("How they build", [link(p.house.words, p.house.ref)], { why: p.house.ref }),
+          ...(home ? { thumb: home } : {}),
+        });
       if (rows2.length) blocks.push({ type: "facts", title: "Works", rows: rows2 });
       // (Its works as companies, late in a world, and the way to its realm's exchange.)
       blocks.push(...landCompanyBlocks(world, cell));
@@ -557,17 +566,20 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
           type: "list",
           title: "What they know, newest first",
           // (Each a principle's page; how they came to it, its event.)
-          items: p.lore.map((l) =>
-            item(
-              [
-                link(l.name, prinRef(l.id)),
-                ` — year ${l.year}, `,
-                link("how they came to it", l.event),
-              ],
-              prinRef(l.id),
-              l.year,
-            ),
-          ),
+          // (Each drawn as the thing it puts in their makers' hands, as they make it: asked 2026-11-13.)
+          items: p.lore.map((l) => {
+            const it = item(
+                [
+                  link(l.name, prinRef(l.id)),
+                  ` — year ${l.year}, `,
+                  link("how they came to it", l.event),
+                ],
+                prinRef(l.id),
+                l.year,
+              ),
+              thumb = loreLook(world, cell, l.id);
+            return thumb ? { ...it, thumb } : it;
+          }),
         },
       ],
     });

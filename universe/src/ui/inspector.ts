@@ -36,6 +36,7 @@ import { lazyThumb, openZoom } from "./thumbs.ts";
 import { lineupStrip, phyloChart } from "./phylo.ts";
 import { dropView } from "./drop.ts";
 import { namesThings, type NamesSwitch } from "./names.ts";
+import { bannerCanvas, glyphCanvas, glyphOf, paletteOf, sectionGlyph } from "./page-art.ts";
 
 /** How often an open page is read again while the world runs (ms). */
 const REFRESH_MS = 2000;
@@ -96,6 +97,12 @@ export class PageWindow {
   private readonly stats = el("div", "stats");
   private readonly statDetail = el("div", "stat-detail");
   private readonly tabs = el("nav", "tabs");
+  /** Its banner, where its art draws one (ui/page-art.ts). */
+  private readonly banner = el("div", "page-banner-box");
+  /** Whether pages are drawn with their art (a gate turns it off to weigh what it costs). */
+  artOn = true;
+  /** How long the last drawing of a page took (ms), its art and all. */
+  drawMs = 0;
   private readonly body = el("div", "page-body page");
   private history: string[] = [];
   private at = -1;
@@ -210,7 +217,8 @@ export class PageWindow {
     const boxes = el("span", "page-boxes");
     boxes.append(this.tallButton, folder(this.inspector, this.name), close);
     this.heading.replaceChildren(this.backButton, this.forwardButton, this.icon, this.name, boxes);
-    this.inspector.append(this.heading, head, this.statDetail, this.tabs, this.body);
+    this.banner.hidden = true;
+    this.inspector.append(this.heading, this.banner, head, this.statDetail, this.tabs, this.body);
     this.element.append(this.inspector);
     parent.append(this.element);
     // (Not rebuilt while a finger or the pointer is down on it.)
@@ -308,7 +316,8 @@ export class PageWindow {
   }
 
   private draw(page: PageModel, fresh: boolean): void {
-    const scroll = this.inspector.scrollTop;
+    const began = performance.now(),
+      scroll = this.inspector.scrollTop;
     this.page = page;
     this.seen = JSON.stringify({ ...page, year: 0 });
     if (fresh) {
@@ -348,6 +357,7 @@ export class PageWindow {
     this.sub.replaceChildren(this.line(page.subtitle));
     this.crumbs.replaceChildren(this.line(page.crumbs ?? []));
     this.crumbs.hidden = !page.crumbs?.length;
+    this.drawBanner(page);
     this.drawPortrait(page);
     this.drawActions(page);
     this.drawNames(page);
@@ -356,9 +366,37 @@ export class PageWindow {
     this.drawBody(page);
     if (!fresh) this.inspector.scrollTop = scroll;
     else this.inspector.scrollTop = 0;
+    this.drawMs = performance.now() - began;
   }
 
   /** The page's picture, kept moving (turning, waving, glowing) while it is open. */
+  /**
+   * Its banner, drawn of its art once as it opens and kept (ui/page-art.ts): the same canvas again while its art and width are the
+   * same, as the page is read again.
+   */
+  private drawBanner(page: PageModel): void {
+    const art = this.artOn ? page.art : undefined;
+    if (!art?.banner) {
+      this.banner.hidden = true;
+      this.banner.replaceChildren();
+      return;
+    }
+    const w = Math.max(160, Math.floor(this.inspector.clientWidth - 2 * this.padding())),
+      h = innerWidth > 640 ? 68 : 56,
+      c = bannerCanvas(art, page.portrait, page.ref, w, h);
+    this.banner.hidden = !c;
+    if (c && this.banner.firstChild !== c) this.banner.replaceChildren(c);
+  }
+
+  /** The page window's side padding (px), read once. */
+  private side = -1;
+  private padding(): number {
+    if (this.side < 0) {
+      this.side = parseFloat(getComputedStyle(this.inspector).paddingLeft) || 0;
+    }
+    return this.side;
+  }
+
   private drawPortrait(page: PageModel): void {
     const p = page.portrait;
     this.portrait.hidden = !p;
@@ -535,12 +573,17 @@ export class PageWindow {
   private drawTabs(page: PageModel): void {
     this.tabs.hidden = page.tabs.length < 2;
     // (Kept while they say the same, as the actions are.)
-    const said = JSON.stringify([this.tab, page.tabs.map((t) => [t.id, t.name])]);
+    const art = this.artOn ? page.art : undefined,
+      palette = art ? paletteOf(art.world) : null,
+      said = JSON.stringify([this.tab, page.tabs.map((t) => [t.id, t.name]), palette?.key]);
     if (said === this.tabsSaid) return;
     this.tabsSaid = said;
     this.tabs.replaceChildren(
       ...page.tabs.map((t) => {
-        const b = el("button", t.id === this.tab ? "tab on" : "tab", t.name);
+        const b = el("button", t.id === this.tab ? "tab on" : "tab", t.name),
+          glyph = palette ? (glyphOf(t.id) ?? glyphOf(t.name)) : null;
+        // (Its glyph in its world's colours: ui/page-art.ts.)
+        if (glyph && palette) b.prepend(glyphCanvas(glyph, palette, 14));
         b.onclick = () => {
           if (this.tab === t.id || !this.page) return;
           this.tab = t.id;
@@ -629,7 +672,13 @@ export class PageWindow {
   private block(b: Block, key: string): HTMLElement {
     const box = el("div", `block block-${b.type}`);
     const title = "title" in b && b.title ? el("h3", undefined, b.title) : null;
-    if (title) box.append(title);
+    if (title) {
+      // (Its glyph drawn of its own numbers, or its words': ui/page-art.ts.)
+      const art = this.artOn ? this.page?.art : undefined,
+        glyph = art ? sectionGlyph(b, paletteOf(art.world), 15) : null;
+      if (glyph) title.prepend(glyph);
+      box.append(title);
+    }
     switch (b.type) {
       case "text":
         for (const l of b.lines) box.append(el("p").appendChild(this.line(l)).parentElement!);
@@ -969,6 +1018,16 @@ export class PageWindow {
     // (What it is a measure of: its page in the book of concepts.)
     if (r.concept) label.append(this.conceptLink(r.concept, r.label));
     const value = this.line(r.value, "fact-value");
+    // (Its picture before its words, drawn once on screen; pressed, it is seen large: ui/thumbs.ts.)
+    if (r.thumb)
+      value.prepend(
+        lazyThumb(
+          r.thumb,
+          40,
+          "thumb fact-thumb",
+          () => `${r.label}: ${r.value.map((x) => (typeof x === "string" ? x : x.text)).join("")}`,
+        ),
+      );
     if (r.parts?.length) this.hoverTips?.attach(value, () => this.breakdown(r));
     row.append(label, value);
     if (r.why || r.parts?.length) {

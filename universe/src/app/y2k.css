@@ -703,6 +703,31 @@ body[data-world="methane"][data-scale="ground"]:not([data-daylight]) {
   border-radius: 6px 6px 0 0;
   margin-bottom: -2px;
 }
+/* A fact's picture (a land's homes and works), before its words. */
+.fact-value canvas.fact-thumb {
+  float: left;
+  margin-right: 6px;
+}
+/* A page's art (ui/page-art.ts): its banner under its title, a glyph before each tab and section. */
+.page-banner-box {
+  margin: 4px 0 6px;
+  line-height: 0;
+}
+.page-banner {
+  display: block;
+  border-radius: 6px;
+  border: 1px solid var(--chrome-mid);
+  max-width: 100%;
+}
+.art-glyph {
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: 5px;
+  pointer-events: none;
+}
+.tab .art-glyph {
+  vertical-align: -3px;
+}
 .tab.on {
   color: #032b24;
   border-color: #0b7a62 #0b7a62 transparent;

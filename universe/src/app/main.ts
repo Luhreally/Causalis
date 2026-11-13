@@ -17,7 +17,7 @@ import { CourtNote, SungNote } from "../ui/index.ts";
 import { courtSitting } from "../view/index.ts";
 import { PeopleBar, barPins, setWrittenHold } from "../ui/index.ts";
 import { CornerRail } from "../ui/index.ts";
-import { THUMB_TIMES, drawPortrait, paintThumb } from "../ui/index.ts";
+import { THUMB_TIMES, bannerMs, drawPortrait, forgetBanners, paintThumb } from "../ui/index.ts";
 import type { Portrait } from "../bridge/index.ts";
 import { Checkpoint } from "./checkpoint.ts";
 import { HostClient, LOT, inlinePair, lotStates, progress, workerPort } from "../bridge/index.ts";
@@ -1375,6 +1375,10 @@ type Exposed = {
   /** Open a thing's page (Phase 10 M92), and the page open now. */
   open?: (ref: string) => Promise<void>;
   pageOpen?: () => string | null;
+  /** A page's art on or off (none: as it is), answering how long the last page took to draw (ms). */
+  pageArt?: (on?: boolean, forget?: boolean) => number;
+  /** How long the last page banner took to draw (ms). */
+  bannerMs?: () => number;
   /** The people bar and whom a viewer keeps on it (B1). */
   peopleBar?: PeopleBar;
   barPins?: typeof barPins;
@@ -1881,6 +1885,13 @@ async function runPlanetPage(): Promise<void> {
   pageWindow.onClose = () => document.body.classList.remove("paging");
   exposed.open = (ref: string) => pageWindow.open(ref);
   exposed.pageOpen = () => pageWindow.current;
+  // (A page's art on or off, and how long its last drawing took: gate 115 weighs what the art costs.)
+  exposed.pageArt = (on?: boolean, forget?: boolean) => {
+    if (on !== undefined) pageWindow.artOn = on;
+    if (forget) forgetBanners();
+    return pageWindow.drawMs;
+  };
+  exposed.bannerMs = bannerMs;
   // The guided walk: on a first visit (not for a machine driving the page, unless asked
   // with ?walk), and again from Help.
   const walk = new GuidedWalk(planetPanel.bar);

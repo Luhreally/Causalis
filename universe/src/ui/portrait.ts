@@ -12,6 +12,7 @@
 import type { Portrait } from "../bridge/index.ts";
 import { drawArms } from "./arms.ts";
 import { drawSpecimen } from "./specimen.ts";
+import { houseSolids, worksSolids } from "./buildings.ts";
 import {
   BANDAGE_WIDE,
   EYES,
@@ -1086,6 +1087,16 @@ export function drawPortrait(
       ctx.stroke();
       if (p.good)
         drawSpecimen(ctx, p.good, { x: cx - r, y: cy - r, w: r * 2, h: r * 2 }, t * 0.5, detail);
+      return;
+    }
+    case "house": {
+      const ctx = surface(canvas, w, h);
+      drawSolids(ctx, houseSolids(p), { turn: 0.6 + t * 0.2, tilt: 0.42 }, box);
+      return;
+    }
+    case "works": {
+      const ctx = surface(canvas, w, h);
+      drawSolids(ctx, worksSolids(p, t), { turn: 0.7 + t * 0.15, tilt: 0.4 }, box);
       return;
     }
     case "arms": {
