@@ -9,6 +9,12 @@ import { EARTH } from "../../src/host/planet.ts";
 import {
   FORTUNE_STRENGTHS,
   FORTUNE_WORDS,
+  GOD_EVENTS,
+  godHostsOf,
+  godMen,
+  godProblem,
+  loreOf,
+  strengthOf,
   LAWS,
   LAW_OF,
   PEOPLE_ACT_EVENTS,
@@ -174,4 +180,49 @@ test("a ruler's envoy that would not be heard as a mortal is heard with the god 
   world.runTo(t + 2);
   assert.ok(diplomacyOf(world).get(r.ref, q.ref)?.pact, "no pact sworn");
   assert.equal(count(world, REIGN_EVENTS.channel.type, t), 1);
+});
+
+test("the god's hand through a ruler: refused as a mortal; a host, learning, wealth, a war and a forced peace, each told", () => {
+  const world = fresh(),
+    ctx = populationContext(world),
+    r = biggest(world),
+    who = { realm: r.ref, ruler: r.ruler.name };
+  assert.ok(godHostsOf(world)?.dormant(), "a god's host kept before any was stood up");
+  assert.throws(() => {
+    world.submit("reign.god", { ...who, what: "grain" });
+    world.runTo(world.now + 1);
+  }, /Only with the god in them/);
+  const t = world.now,
+    strength = strengthOf(ctx, r),
+    known = loreOf(world).of(r.seat).length,
+    god = { ...who, channel: true };
+  world.submit("reign.god", { ...god, what: "host", men: 100_000, arms: "best" });
+  world.submit("reign.god", { ...god, what: "age" });
+  world.submit("reign.god", { ...god, what: "wealth" });
+  world.runTo(t + 2);
+  assert.equal(godMen(world, r.ref), 100_000);
+  assert.ok(strengthOf(ctx, r) > strength * 2, "the god's host does not weigh in its strength");
+  assert.ok(loreOf(world).of(r.seat).length > known, "no learning came to its seat");
+  const foe = [...politiesOf(world).living()].find(
+    (q) => q !== r && !godProblem(world, ctx, { ...god, what: "war", with: q.ref }),
+  )!;
+  assert.ok(foe, "no realm to set it at war with");
+  world.submit("reign.god", { ...god, what: "war", with: foe.ref });
+  world.runTo(world.now + 2);
+  const fighting = () =>
+    warsOf(world)
+      .fighting(r.ref)
+      .some((w) => w.ended === null && (w.attacker === foe.ref || w.defender === foe.ref));
+  assert.ok(fighting(), "no war begun");
+  world.submit("reign.god", { ...god, what: "peace", with: foe.ref });
+  world.runTo(world.now + 2);
+  assert.ok(!fighting(), "the war did not end");
+  const told = world.events.all().filter((e) => e.type === GOD_EVENTS.did.type && e.t > t);
+  assert.deepEqual(
+    told.map((e) => (e.data as { what: string }).what),
+    ["host", "age", "wealth", "war", "peace"],
+  );
+  // (A host of the god wastes as one kept under arms does, and is kept in the world's save.)
+  world.runTo(world.now + YEAR);
+  assert.ok(godMen(world, r.ref) < 100_000 && godMen(world, r.ref) > 50_000);
 });

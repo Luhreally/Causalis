@@ -664,6 +664,39 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
         await settle(600);
       });
     await k(`document.querySelector(".reign-close")?.click()`);
+    // (The god's hand through them, its sheet aimed at another realm; and the god's own palette over the realm.)
+    await state("ruling-god", async () => {
+      if (!(await k<boolean>("globalThis.causalis.reign.channel()")))
+        await must("the switch", press(".reign-channel"));
+      await must("the god's hand", press('.reign-act[data-act="god"]'));
+      await must(
+        "the hand's sheet",
+        until("the hand's sheet", () => seen(".reign-sheet .reign-god"), slow(20000)),
+      );
+      const other = await k<string | null>(
+        `document.querySelectorAll(".reign-aim")[1]?.dataset.ref ?? null`,
+      );
+      if (other) {
+        await must("another realm", press(`.reign-aim[data-ref="${other}"]`));
+        await must(
+          "aimed",
+          until("aimed", () => seen(`.reign-aim.on[data-ref="${other}"]`), slow(20000)),
+        );
+      }
+      await settle(600);
+    });
+    await state("ruling-palette", async () => {
+      await must("the palette", press(".reign-palette"));
+      await must(
+        "the palette open",
+        until("the palette open", () => seen(".palette.open"), slow(20000)),
+      );
+      await settle(600);
+    });
+    await k(
+      `document.querySelector(".palette.open") && document.querySelector("#hud > .palette-toggle")?.click()`,
+    );
+    await k(`document.querySelector(".reign-close")?.click()`);
     await k("globalThis.causalis.reign.leave()");
     await settle(800);
   }

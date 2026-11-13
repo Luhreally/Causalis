@@ -468,6 +468,173 @@ try {
     "the blessed realm fell or lost lands",
   );
   await fortuneOn(cursed, /curse, lifted|has fallen|Fell/, "cursed-after");
+
+  // 5. The god's hand through a ruler (2026-11-13: "when i rule i should have ultimate power if god is channelled"): the
+  // ruler of the court's realm taken, the god let in, and from the tray a host stood up out of nothing with the best arms
+  // its world allows, an age of learning, its wealth doubled, a war begun and a peace forced; each on a page, and in the
+  // annals as done by the god in them.
+  const why = await k<string | null>(`globalThis.causalis.reign.take(${JSON.stringify(realm)})`);
+  check(why === null, `the ruler of ${pick.r.town} could not be taken: ${why}`);
+  await until("the ruler's bar", () => seen(".reign-strip"));
+  await settle(1500);
+  check(!(await seen('.reign-act[data-act="god"]')), "the god's hand is on the tray as a mortal");
+  await tap(".reign-channel");
+  await until("the god in them", async () => /god in them/.test(await text(".reign-channel")));
+  const hostBefore = (await reign())?.host ?? 0,
+    ruler = (await reign())?.ruler ?? "";
+  const godDo = async (sel: string, tag: string) => {
+    if (!(await seen(".reign-sheet .reign-god"))) await tap('.reign-act[data-act="god"]');
+    await until(`the god's hand (${tag})`, () => seen(`.reign-sheet ${sel}`), slow(20000));
+    await settle(300);
+    check(
+      (await k<string>(
+        `document.querySelector(${JSON.stringify(`.reign-sheet ${sel}`)})?.dataset.can ?? ""`,
+      )) === "1",
+      `${tag}: the god's hand cannot: ${await text(`.reign-sheet ${sel} + .reign-optwords`)}`,
+    );
+    await tap(`.reign-sheet ${sel}`);
+    await until(`${tag} done`, async () => !(await seen(".reign-sheet")), slow(20000));
+    await settle(500);
+    say(`${tag}: the bar says: ${await text(".reign-told")}`);
+  };
+  await godDo('.reign-god[data-what="host"][data-arms="best"][data-men="100000"]', "a host");
+  await shot("9-host");
+  const hostAfter = (await reign())?.host ?? 0;
+  check(
+    hostAfter >= hostBefore + 90000,
+    `the host did not grow by the god's (${hostBefore} to ${hostAfter})`,
+  );
+  await godDo('.reign-god[data-what="age"]', "an age of learning");
+  await godDo('.reign-god[data-what="wealth"]', "its wealth doubled");
+  // (A realm to make war on and peace with: one the hand could set it against, neither blessed nor cursed.)
+  const sheet0 = await ask<{ targets: { ref: string; own: boolean }[] }>("reign.godhand", {
+    realm,
+    channel: true,
+  });
+  let foe: string | null = null;
+  for (const t of sheet0.targets) {
+    if (t.own || t.ref === blessed.ref || t.ref === cursed.ref) continue;
+    const s2 = await ask<{ groups: { offers: { args: { what: string }; can: boolean }[] }[] }>(
+      "reign.godhand",
+      { realm, channel: true, to: t.ref },
+    );
+    if (s2.groups.some((g) => g.offers.some((o) => o.args.what === "war" && o.can))) {
+      foe = t.ref;
+      break;
+    }
+  }
+  check(!!foe, "no realm the god's hand could set it at war with");
+  if (foe) {
+    await tap('.reign-act[data-act="god"]');
+    await until("the realms to aim at", () => seen(`.reign-aim[data-ref="${foe}"]`));
+    await tap(`.reign-aim[data-ref="${foe}"]`);
+    await until("aimed", () => seen(`.reign-aim.on[data-ref="${foe}"]`));
+    await godDo('.reign-god[data-what="war"]', "a war begun");
+    await godDo('.reign-god[data-what="peace"]', "a peace forced");
+    await shot("10-peace");
+  }
+  // The god's own palette from the ruler's tray: a blessing cast on the land under the finger, then shut.
+  await tap('.reign-act[data-act="god"]');
+  await until("the hand's sheet", () => seen(".reign-palette"));
+  await tap(".reign-palette");
+  await until("the palette", () => seen(".palette.open"));
+  check(
+    await k<boolean>(
+      `getComputedStyle(document.querySelector(".reign-tray")).visibility === "hidden"`,
+    ),
+    "the ruler's tray stands under the god's palette",
+  );
+  await tap(`.palette-tab[data-kind="realms"]`);
+  await tap(`.palette-act[data-act="bless"]`);
+  await until(
+    "bless in hand",
+    async () => (await k<string | null>("globalThis.causalis.palette.holding()")) === "bless",
+  );
+  const spot = await k<{ x: number; y: number } | null>(`(() => {
+    for (const f of [0.3, 0.4, 0.5, 0.25, 0.6]) {
+      const x = innerWidth / 2, y = innerHeight * f, e = document.elementFromPoint(x, y);
+      if (e && e.tagName === "CANVAS") return { x, y };
+    }
+    return null;
+  })()`);
+  check(!!spot, "no ground to touch clear of the HUD while ruling");
+  if (spot) {
+    await page.touchscreen.tap(spot.x, spot.y);
+    await until(
+      "the blessing cast",
+      async () => /Done/.test(await text(".palette-words")),
+      slow(20000),
+    );
+    say(`the god's palette while ruling: ${await text(".palette-words")}`);
+    await shot("10b-palette");
+  }
+  await tap("#hud > .palette-toggle");
+  await until("the tray again", () =>
+    k<boolean>(`getComputedStyle(document.querySelector(".reign-tray")).visibility === "visible"`),
+  );
+
+  // On the realm's page, and its seat's lore.
+  await k(`globalThis.causalis.open(${JSON.stringify(realm)})`);
+  await until(
+    "the realm's page",
+    async () => /The god's hand on it/.test(await pageText()),
+    slow(30000),
+  );
+  const rp = await pageText(),
+    told = rp.match(/The god's hand on it[^]*/)?.[0] ?? "";
+  say(`${pick.r.town}'s page: ${told.slice(0, 700)}`);
+  check(
+    /stood up by the god/.test(told),
+    "the realm's page does not tell the host the god stood up",
+  );
+  check(
+    /stores of [^]*? were doubled/.test(told),
+    "the realm's page does not tell its wealth doubled",
+  );
+  check(/age of learning came to/.test(told), "the realm's page does not tell the age of learning");
+  check(!foe || /ended in a truce/.test(told), "the realm's page does not tell the peace forced");
+  await shot("11-page");
+  await k(`globalThis.causalis.closePage?.()`);
+  const craft =
+    told.match(/age of learning came to [^:]*: ([^,.]+?)(,| and |$)/)?.[1]?.trim() ?? "";
+  await k(`globalThis.causalis.open(${JSON.stringify(`cell:0:${pick.r.seat}`)})`);
+  await until("the seat's page", async () => (await pageText()).length > 0, slow(30000));
+  await k(
+    `[...document.querySelectorAll(".page-panel button.tab")].find((b) => /Lore/.test(b.textContent))?.click()`,
+  );
+  await until("the seat's lore", async () => /What they know/.test(await pageText()), slow(20000));
+  const lore = await pageText();
+  say(
+    `the seat's lore: ${craft || "(no craft named)"} ${new RegExp(craft, "i").test(lore) ? "known" : "NOT known"}`,
+  );
+  check(
+    !!craft && new RegExp(craft, "i").test(lore),
+    `the seat's lore does not hold ${craft || "the age's crafts"}`,
+  );
+  await shot("12-lore");
+  await k(`globalThis.causalis.closePage?.()`);
+  // In the annals, each as done by the god in them.
+  const year = Math.floor((await clock()) / YEAR),
+    annals = await ask<{ year: number; lines: { line: (string | { text: string })[] }[] }[]>(
+      "annals.read",
+      { years: [year - 1, year] },
+    ),
+    lines = annals
+      .flatMap((y) => y.lines)
+      .map((l) => l.line.map((x) => (typeof x === "string" ? x : x.text)).join(""))
+      .filter((l) => /By the god in/.test(l));
+  for (const l of lines) say(`annals: ${l}`);
+  for (const [what, re] of [
+    ["the host", /men stood up at/],
+    ["the age of learning", /age of learning came to/],
+    ["the wealth", /were doubled/],
+    ...(foe ? [["the peace", /ended in a truce/] as const] : []),
+  ] as const)
+    check(
+      lines.some((l) => re.test(l) && l.includes(ruler)),
+      `the annals do not tell ${what} by the god in ${ruler}`,
+    );
+  await k("globalThis.causalis.reign.leave()");
   check(await fits(), "a page is wider than the screen");
 } catch (e) {
   problems.push(`${(e as Error).message}\n${(e as Error).stack ?? ""}`);
