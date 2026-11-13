@@ -349,8 +349,18 @@ await shot("1-lens");
     if (now === ref) {
       opened.add(ref);
       if (opened.size === 1) await shot("2b-land-pressed");
-    } else if (now?.startsWith("cell:") || now?.startsWith("spot:"))
-      problems.push(`a land of ${ref} pressed opened ${now}, not its alliance`);
+    } else if (now?.startsWith("cell:") || now?.startsWith("spot:")) {
+      // (A press at a land's middle can fall on the land beside it, where a land is bent round
+      // another: that land's own page is right, if it stands in no alliance.)
+      const got = now.startsWith("cell:") ? Number(now.split(":")[2]) : -1,
+        hers = got >= 0 ? read.allied.find(([l]) => l === got)?.[1] : undefined;
+      if (got === land || hers !== undefined)
+        problems.push(`a land of ${hers ?? ref} (${got}, pressed at ${land}) opened ${now}, not its alliance`);
+      else
+        say(
+          `  (a press at ${land}'s middle fell on land ${got}, in no alliance: its page, rightly)`,
+        );
+    }
     await k("globalThis.causalis.closePage?.()");
     await settle(300);
   }
