@@ -526,6 +526,18 @@ const SWITCHES: readonly Stuff[] = [
   { subst: "silicon", needs: { Si: 1000 }, rock: true, fallen: true },
 ];
 
+/**
+ * A solid switch (signals, docs/architecture/first-principles-plan.md, "Signals"): a crystal of a half to two electronvolts, grown pure from its melt to
+ * a stray atom in a thousand million. A few kilograms make a land's switches, but they must be won from rock and refined:
+ * polyacetylene, cuprite and carbide switch a current, but none can be grown that pure (an estimate; the gaps are the handbook's).
+ */
+const SOLID_SWITCHES: readonly Stuff[] = [
+  // (Silicon is won from quartz with carbon at some 1,900 °C: a crust with too little carbon to reduce it gives none.)
+  { subst: "silicon", needs: { Si: 1000, C: 100 }, rock: true },
+  { subst: "germanium", needs: { Ge: 0.5 }, rock: true },
+  { subst: "gallium-arsenide", needs: { Ga: 5, As: 1 }, rock: true },
+];
+
 const MIND_STUFFS: readonly Stuff[] = [
   { subst: "silicon", needs: { Si: 10000 }, rock: true },
   { subst: "gallium-arsenide", needs: { Ga: 5, As: 1 }, rock: true },
@@ -1045,6 +1057,18 @@ export function readFunctions(w: MatterWorld): FunctionReading[] {
       w,
       (s) => `a band gap of ${num(PROPERTIES[s.subst]!.bandGap!)} eV`,
     ),
+    solid = byStuffs(
+      {
+        id: "switch-in-crystal",
+        icon: "💠",
+        name: "switch in a pure crystal",
+        asks: "a crystal of a half to two electronvolts, grown pure from its melt: the solid switch",
+        later: false,
+      },
+      SOLID_SWITCHES,
+      w,
+      (s) => `a band gap of ${num(PROPERTIES[s.subst]!.bandGap!)} eV`,
+    ),
     mind = byStuffs(
       {
         id: "think-in-crystal",
@@ -1209,5 +1233,7 @@ export function readFunctions(w: MatterWorld): FunctionReading[] {
       subst: towerStuff,
       why: `${nameOf(towerStuff)[0]!.toUpperCase()}${nameOf(towerStuff).slice(1)} stands ${num(tower, 1)} km under ${num(w.gravity)} g.`,
     },
+    // (Last, so every reading before it keeps its place.)
+    solid,
   ];
 }

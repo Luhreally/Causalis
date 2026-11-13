@@ -13,6 +13,7 @@ import {
   citiesOf,
   designsOf,
   houseFor,
+  loreOf,
   populationContext,
   siteGround,
   townsOf,
@@ -41,6 +42,22 @@ function waysOf(world: World): { ways?: "swim" | "tunnel" } {
 import { worldLook } from "./biochem.ts";
 import { askedOfCivic, askedOfWalls, firstOfPlan } from "./inspect/asks.ts";
 import { colonyRemade, colonyTownCell } from "./colony.ts";
+
+/** What a land's signals put in its towns (signals: rules/signals.ts): a wire, a mast, and screens lit in its windows. */
+function signalsOfTown(world: World, cell: number): { signals?: NonNullable<TownPlan["signals"]> } {
+  const lore = loreOf(world),
+    knows = (id: string) => !!lore.get(cell, id);
+  if (!knows("telegraph")) return {};
+  const screens = knows("pocket-machines")
+    ? 0.6
+    : knows("networks")
+      ? 0.4
+      : knows("computing")
+        ? 0.12
+        : 0;
+  const phones = knows("pocket-machines") ? 0.35 : knows("hand-sets") ? 0.04 : 0;
+  return { signals: { wire: true, mast: knows("radio"), screens, phones } };
+}
 
 /** How long what struck a town is told to its plan: its homes burn a day, and lie in ruin years. */
 const STRUCK_SHOWN = 2 * YEAR;
@@ -242,6 +259,8 @@ export function townPlan(
     // (What struck it lately: Phase 42 M201.)
     ...(struck.length ? { struck } : {}),
     ...firstOfPlan(world, ref),
+    // (What its land's signals put in it: signals.)
+    ...signalsOfTown(world, cell),
     // (Its reach, past what is drawn: what the eye has to clear of its sprawl.)
     ...(() => {
       const ash = f.changes.reduce(

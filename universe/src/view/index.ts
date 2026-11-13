@@ -50,6 +50,7 @@ export {
   groundColors,
   goodsSpread,
   builtOverCells,
+  unknownOverCells,
   woodsOverCells,
   frameKind,
   frameUndersea,

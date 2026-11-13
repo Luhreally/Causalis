@@ -34,6 +34,8 @@ import {
   fellColumns,
   fellOfColumns,
   sightTerm,
+  SIGNAL,
+  connectivityOf,
   unpackFell,
   resolveCombat,
   type CombatRecord,
@@ -1455,8 +1457,10 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         const dx = g.grid.positions[3 * land]! - g.grid.positions[3 * a.seat]!,
           dy = g.grid.positions[3 * land + 1]! - g.grid.positions[3 * a.seat + 1]!,
           dz = g.grid.positions[3 * land + 2]! - g.grid.positions[3 * a.seat + 2]!;
-        // In steps between neighbouring lands (about 0.0175 of the world's radius apart).
-        return Math.sqrt(dx * dx + dy * dy + dz * dz) / 0.0175;
+        // In steps between neighbouring lands (about 0.0175 of the world's radius apart); a host kept in step with its seat by
+        // its signals thins the less (exactly as before the telegraph: rules/signals.ts).
+        const steadied = 1 - SIGNAL.warSteadied * connectivityOf(lore.effect(a.seat, "signal"));
+        return (Math.sqrt(dx * dx + dy * dy + dz * dz) / 0.0175) * steadied;
       })(),
       hungry = a.members.some((c) => {
         const f = ctx.provinces.get(c)?.lastFamine;

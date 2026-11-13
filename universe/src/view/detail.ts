@@ -221,6 +221,8 @@ export function carryWords(
       return "a ladle of iron run molten from the cupola, to be poured into the moulds";
     case "kill":
       return "the hunt's kill, across the shoulders";
+    case "phone":
+      return "a set held in the hand, that talks and reckons";
   }
 }
 

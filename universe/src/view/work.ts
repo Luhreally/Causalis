@@ -47,6 +47,8 @@ export const CARRIES = [
   // A litter by its poles, one of the levy's wounded on it borne home (Phase 55 M229; drawn whole,
   // between its bearers).
   "litter",
+  // A set held in the hand, looked at (signals: a land with sets carried in the hand, and machines in the pocket).
+  "phone",
 ] as const;
 export type Carry = (typeof CARRIES)[number];
 
@@ -220,6 +222,8 @@ const ITEMS: Readonly<Record<Carry, readonly ItemPart[]>> = {
   ],
   bier: [],
   litter: [],
+  // (A slab held in the right hand before the chest, its face tilted up to the eyes.)
+  phone: [P("metal", 0.09, 0.52, 0.16, 0.04, 0.075, 0.012, -0.9)],
   // (Across the shoulders, its body behind the neck; its head hanging down on one side, its
   // legs held together before them in the carrier's hands.)
   // (Two bars held before them, one on the other.)

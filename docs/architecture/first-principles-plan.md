@@ -145,7 +145,48 @@ A world now says what it can do, and why. On any world's page, the age's chip an
 
 Tally, 65 worlds (the 22 of the list, 3 of Earth, 40 more; 12 with no people): 47 different sentences for what is shut and 107 for what is odd, none on every world, and none where whether and why disagree. The commonest is "No coal lies within reach of its people's lands", on 17 of 65. History agrees with the reading: at 1500 on `vale 471`, `gale 710`, `kestrel 557`, `quill 742` and `first light`, no step is known that the reading from first lands calls shut. Opening costs 20 to 24 ms, nothing until opened; another world's column about 0.5 s once, and the last six are kept.
 
-Limits, stated: ▶ films from a line are cut, a line opens its thing's page. `shutWhy` and `shutBecause` keep their own words on principle pages and the picker, read from the same conditions but not yet from `stopWords`. Edge figures for water metals (75%, 90%) are estimates the page doesn't mark yet. "Talking at a distance" reads current and orbit, since the rules have no step for signals. `kestrel 557`, `quill 742` and year 40 were read by the rule's words and tally, not as shots of their own pages.
+Limits, stated: ▶ films from a line are cut, a line opens its thing's page. `shutWhy` and `shutBecause` keep their own words on principle pages and the picker, read from the same conditions but not yet from `stopWords`. Edge figures for water metals (75%, 90%) are estimates the page doesn't mark yet. "Talking at a distance" read current and orbit until Signals gave it steps of its own. `kestrel 557`, `quill 742` and year 40 were read by the rule's words and tally, not as shots of their own pages.
+
+## Signals, as built (2026-11-12)
+
+Asked 2026-11-11: "the utility of phones and laptops and information age", and "the whole world should technically be explored before they reach space". Two functions, each a ladder read from what a land knows, and each rung from what its world allows.
+
+**Carrying a word far and fast.** Nine steps, appended last to the tree (`SIGNAL_TREE` in `rules/principles.ts`, so every land's draws are as they were): the telegraph (current and writing, and a conductor to carry it), the telephone (the telegraph and works), radio (the telephone and philosophy, on land and shore) or sound through the deep (the telephone and mathematics, for a water people), computing (the telephone and electronics), sets carried by hand (radio or sound, and electronics), the solid switch (computing, and a switch in a pure crystal: `switch-in-crystal` in `rules/properties.ts`, silicon from a rock of silicon and carbon, germanium, or gallium with arsenic), networks (the solid switch and the telephone), and machines in the pocket (networks and hand sets). A world with no pure crystal stops at valves and wire; a world with no current has none of it. Before the wire, a word goes by a runner or swimmer (40 km a day), a rider (100), the currents (120, under water), a ship (150), relays on post roads (300) or the mail train (800), each from what a land knows (`WORD_WAYS` in `rules/signals.ts`).
+
+**What it does is one number a land.** Each step adds to a land's `signal` effect; its connectivity is that, at most 0.95 (`connectivityOf`). It is read where history already read distance and delay, and each reading is exactly what it was at 0:
+
+- *Prices meet.* Between two markets, at the lesser of their connectivities `c`, traders move 0.25 × (1 + 2c) of a spare, are 2 × (1 + 2c) as keen on a margin, and the way costs 1 − 0.3c of what it did (`trade` in `sim/economy/systems.ts`).
+- *Information work.* 0.45c of a land's dealings are information work, and that work multiplies what its carriers move by 1 + 2 × that share.
+- *Hosts keep in step.* A host's supply far from its seat is steadied by 1 − 0.6c (`sim/war/war.ts`).
+- *Reach and learning.* The telegraph and networks each add a step of a realm's reach; every step lifts learning (the web most, 0.4).
+
+Never a device, a person or a message. On the pages: a land's Economy tab has **Signals** (how long a word takes over 1,000 km and by what, how much is on the line, its markets, its information work, its hosts afield); each step's page says what it does and what it changes; **What can be done here** has the ladder "Talking at a distance" from a runner to a machine in every pocket, with "Came by" and each rung's year, and the mind's ladder takes computing and the solid switch. A world past networks reaches an **Information** age (📱), beside the others: Earth came to it after orbit, a world may come to it before.
+
+**Seeing a world whole.** What a people knows of its world's surface is a pure reading of what its lands know (`host/known.ts`): from every peopled land and every land that knows anything, two steps on foot; from the coast, as far at sea as its ships go (`SEA_STEPS`), and two steps inland where they land; a water people sees the shores; flyers see what they can fly over and back; a rocket sees its horizon from 150 km (√(2rh), 1,380 km over Earth); and from orbit, everything. So the map is fully known by orbit as a consequence of seeing from it, not a year. The Knowledge lens darkens what isn't known and says how much is; **What can be done here** has the ladder "Seeing its world whole" and how much is known.
+
+**Drawn cheaply, with the batches there are.** A town of a land with the telegraph has poles at its blocks' corners with the wire slung between them; with radio, a mast with a red light over its square; with computing, networks and machines in the pocket, its windows' light goes from warm toward the cold of screens at night (0.12, 0.4, 0.6 of the way); and with hand sets or machines in the pocket some of its grown people carry a phone (4% and 35%).
+
+**Measured** (`tools/signals-probe.ts`, against 062f4a27, its base):
+
+On `first light` (Earth) the steps come in Earth's order: the telegraph in 804, the telephone 879, radio 920, a first orbit 921, computing 948, sets carried by hand 954, the solid switch 979, networks 1003 (the Information age) and machines in the pocket 1038. Against its base:
+
+| | base | with signals |
+|---|---|---|
+| first orbit | 961 | 921 |
+| Other worlds | 1139 | 1094 |
+| realms at 1200 (greatest, in lands) | 175 (37) | 165 (37) |
+| wars by 1200 / by 1500 | 7,968 / 10,217 | 7,549 / 9,507 |
+| people at 1500 | 1.94 billion | 1.89 billion |
+| grain spread between neighbours at 1000 / 1200 / 1500 | 0.070 / 0.068 / 0.023 | 0.064 / 0.066 / 0.029 |
+| known before its first orbit | (no reading) | 78% of its surface, 69% of its land; at orbit, all |
+
+On seven other worlds (alien 16, 47, 67, 75, 94, 132 and `north 155`), every one came to the whole ladder: the telegraph from 710 to 1016, networks from 948 to 1448, the pocket from 981 to 1570. Before its first orbit a world knew 32% (alien 67) to 78% (Earth) of its surface, 26% to 69% of its land, the last of it seen by rocket; at orbit, all of it. A land on the web is at 0.95: a word goes 1,000 km in a second, and 43% of its dealings are information work. Until a world's first telegraph its people, realms and wars are exactly as they were. After it, on Earth wars are fewer (9,507 against 10,217 by 1500); on `north 155` wars are fewer too (657 against 760 by 1800); on alien 132 it goes both ways (its greatest realm 6 lands against 11 at 900, 7 against 3 at 1300; wars 3,488 against 3,356 by 1500). Prices between neighbouring lands meet only a little: the grain spread at 1000 is 0.103 against 0.117 on alien 132, 0.125 against 0.143 on `north 155`, 0.064 against 0.070 on Earth, and later it is as often wider as narrower, since a neighbour's price is set by its own harvest more than by the margin.
+
+**Year cost.** Back to back on the same cores, a run of Earth to 1200 took within 4% of its base's time at every century but one, where it was 13% faster; the unpinned runs swing ±50% on this machine with whatever else runs, and the probe's own readings each five years are in them. `loreYear` reads a land's knowledge once a year instead of once a step's need.
+
+**The oracle's eight are unchanged**, every hash as it was: a land that knows no signal step reads exactly as before.
+
+Limits, stated: phones are drawn in towns, not in the far view's crowds. Known land isn't yet a reason to settle it. No world of 160 alien seeds lacked a pure crystal (silicon is common in rock), so the stop at valves is shown by a test, not a world. A water people's sound through the deep was not reached by year 1800 on the water worlds probed (alien 29 had only writing by then; kestrel 557 no current), so it too is shown by its test. Gate 6's save budget was not run. Gate 109 (`tools/signals-gate.ts`) checks it all on alien 132 at 430 × 932 by touch.
 
 ## Order
 

@@ -36,6 +36,7 @@ export const WORLD_STAGES: readonly {
   { id: "engines", icon: "⚙️", name: "Engines", first: "💡 The steam engine" },
   { id: "electricity", icon: "⚡", name: "Electricity", first: "💡 Electricity" },
   { id: "orbit", icon: "🛰️", name: "Orbit", first: "🛰️ A satellite" },
+  { id: "information", icon: "📱", name: "Information", first: "💡 Machines joined in a web" },
   { id: "worlds", icon: "🪐", name: "Other worlds", first: "🪐 A colony" },
   { id: "stars", icon: "🌠", name: "Other stars", first: "✨ A ship to the stars" },
   { id: "fusion", icon: "🔆", name: "Fusion", first: "💡 A fusion flame held in a bottle" },

@@ -105,6 +105,7 @@ import { ownWordsItems } from "../names.ts";
 import { landLink, landTitle } from "./names.ts";
 import { airBlock } from "./ground.ts";
 import { elementPortrait, matterPortrait } from "../looks.ts";
+import { principleSignalStats } from "./signals.ts";
 import { principleName } from "../../causal/index.ts";
 import { canBeFoundHere, kindBlocks, kindOf, recipeName, shutWhy, workedWords } from "../kinds.ts";
 import {
@@ -208,6 +209,8 @@ const EFFECT_WORDS: Readonly<Record<(typeof EFFECTS)[number], string>> = {
   power: "engines to drive",
   industry: "crafts done in works",
   renewable: "power without fuel",
+  signal:
+    "its dealings go on the line: prices come together, hosts keep in step, trades turn to information",
 };
 
 /** A weight in words: tonnes, kilograms or grams. */
@@ -769,6 +772,7 @@ export function principlePage(world: World, ref: string): PageModel {
         ...flyerStats(world, p.id),
         ...rocketStats(world, p.id),
         ...(p.id === FIRE_ID ? firePrincipleStats(world) : []),
+        ...principleSignalStats(world, p.id),
       ],
     },
   ];

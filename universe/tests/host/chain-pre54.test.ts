@@ -9,7 +9,13 @@ import assert from "node:assert/strict";
 import { YEAR, seedFromText, type World } from "../../src/kernel/index.ts";
 import { isProvinceWorld } from "../../src/gen/index.ts";
 import { PRINCIPLES, REACTIONS, SUBSTANCES } from "../../src/rules/index.ts";
-import { HEAT_TREE, LATE_TREE, LAW_TREE, MEANS_TREE } from "../../src/rules/principles.ts";
+import {
+  HEAT_TREE,
+  LATE_TREE,
+  LAW_TREE,
+  MEANS_TREE,
+  SIGNAL_TREE,
+} from "../../src/rules/principles.ts";
 import { designsOf, homePlanet, politiesOf, populationContext } from "../../src/sim/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import {
@@ -58,7 +64,9 @@ const KIND_ROWS = new Set([
  * discoveries change with the new campaigns. The matter guide and early camps stay identical.
  * Principles re-recorded for Phase 66: seven of them (electronics, guidance, stations, habitats, the
  * nuclear and fusion drives, the long sleep) now name what they open the way to past our ages; the
- * rest read as they did.
+ * rest read as they did. Re-recorded for signals: thirteen (writing, philosophy, factories, electricity,
+ * electronics, sea-works and the kinds' engines and dynamos) name the signal steps they open the way to;
+ * every other word reads as it did.
  */
 const BEFORE: Record<string, string> = {
   tools: "b03ff19e:17898",
@@ -71,7 +79,7 @@ const BEFORE: Record<string, string> = {
   substances: "b4d7be47:130634",
   reactions: "bb19b233:68586",
   // (Its pages no longer list what only a people of the water could find: F1, canBeFoundHere.)
-  principles: "7fbb5444:169139",
+  principles: "3f68db09:169878",
   guide: "ced49326:17137",
   camps: "caef18ca:343809",
 };
@@ -156,13 +164,14 @@ const CATEGORIES: Record<string, () => unknown> = {
     }),
   substances: () => SUBSTANCES.map((s) => page(`subst:${s.id}`)),
   reactions: () => REACTIONS.map((r) => page(`rxn:${r.id}`)),
-  // (Earth's own: the kinds' principles, Phase 56, are none of Earth's; those past our ages, Phase 66, came after.)
+  // (Earth's own: the kinds' principles, Phase 56, are none of Earth's; those past our ages, Phase 66, came after, and so did signals.)
   principles: () =>
     PRINCIPLES.filter(
       (p) =>
         !KIND_ROWS.has(p.id) &&
         !HEAT_TREE.some((l) => l.id === p.id) &&
         !LAW_TREE.some((l) => l.id === p.id) &&
+        !SIGNAL_TREE.some((l) => l.id === p.id) &&
         !LATE_TREE.some((l) => l.id === p.id) &&
         !MEANS_TREE.some((l) => l.id === p.id),
     ).map((p) => page(`prin:${p.id}`)),

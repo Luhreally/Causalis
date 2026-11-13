@@ -180,6 +180,7 @@ import {
   cellAt,
   cellCenter,
   builtOverCells,
+  unknownOverCells,
   woodsOverCells,
   frameKind,
   frameUndersea,
@@ -990,6 +991,8 @@ type Exposed = {
   planNow?: () => VillagePlan | null;
   /** What the lots of the town drawn are now (the look tools): fallen, homes standing whole, all. */
   townLots?: () => { fallen: number; homes: number; lots: number; civics: number } | null;
+  /** What its land's signals put in the town on screen, as drawn (signals). */
+  townSignals?: () => ReturnType<VillageScene["signalsShown"]>;
   closePage?: () => void;
   watched?: () => number | null;
   reloadPlan?: () => Promise<void>;
@@ -1992,7 +1995,33 @@ async function runPlanetPage(): Promise<void> {
   };
   stage.onUpdate(() => {
     if (scale === "globe") void askBuilt();
+    if (scale === "globe" && lens === "knowledge") void askKnown();
   });
+  /** The lands its people do not know of their world, and how much they know, as last asked (signals: host/known.ts). */
+  let unknownLands: ReadonlySet<number> = new Set<number>(),
+    knownAsked = -1,
+    knownWords: string | null = null;
+  const askKnown = async (force = false) => {
+    const year = Math.floor(now() / YEAR);
+    if (!force && Math.abs(year - knownAsked) < 5) return;
+    knownAsked = year;
+    const k = await client
+      .query<{ share: number; by: string; unknown: number[]; peopled: boolean }>({
+        type: "known.lands",
+      })
+      .catch(() => null);
+    if (!k) return;
+    knownWords = !k.peopled
+      ? null
+      : k.share >= 1
+        ? "all of its world known, from orbit"
+        : `${Math.round(k.share * 100)}% of its world known to its people: the dark is not`;
+    if (lens === "knowledge") mapModes.say(knownWords);
+    if (k.unknown.length === unknownLands.size && k.unknown.every((c) => unknownLands.has(c)))
+      return;
+    unknownLands = new Set(k.unknown);
+    if (lens === "knowledge") paintGlobe();
+  };
   /** The globe's colours as its lens paints them (the land's "as the map" shows them, M95). */
   let globeLensColors: Uint8Array | null = null;
   let globeSurfaceKey = "";
@@ -2036,8 +2065,14 @@ async function runPlanetPage(): Promise<void> {
     if (lens === "terrain" && woodsLands.size) woodsOverCells(colors, frame, woodsLands);
     // (Lands built over, grey and lit from edge to edge, as the land's own colours: Phase 66.)
     if (lens === "terrain" && builtLands.size) builtOverCells(colors, frame, builtLands);
+    // (What its people do not know of their world, dark under the knowledge lens: signals.)
+    if (lens === "knowledge" && unknownLands.size) unknownOverCells(colors, frame, unknownLands);
     globe.paint(litLands.size ? litColors(colors, frame, litLands) : colors);
-    globe.clearSea(frameUndersea(frame) && lens !== "terrain");
+    // (Under the knowledge lens, the sea shell cleared, so the seas its people never sailed show dark too: signals.)
+    globe.clearSea(
+      (frameUndersea(frame) && lens !== "terrain") ||
+        (lens === "knowledge" && unknownLands.size > 0),
+    );
     globeLensColors = colors;
     // Clouds over the land as it is; none over what a lens paints.
     globe.weather = lens === "terrain" && stage.quality.clouds;
@@ -2153,6 +2188,10 @@ async function runPlanetPage(): Promise<void> {
         paintGlobe();
       });
     if (l === "war") void readFronts();
+    if (l === "knowledge") {
+      if (knownWords) mapModes.say(knownWords);
+      void askKnown(true);
+    }
     if (l === "forest") {
       woodsKey = "";
       readWoods();
@@ -8875,6 +8914,7 @@ async function runPlanetPage(): Promise<void> {
       : null;
   exposed.stonesShown = (on: boolean) => village.stonesShown(on);
   exposed.court = () => (scale === "village" && plan ? village.courtNow(now()) : null);
+  exposed.townSignals = () => (scale === "village" && plan ? village.signalsShown() : null);
   exposed.courtShown = (on: boolean) => village.courtShown(on);
   exposed.sung = () => (scale === "village" && plan ? village.sungNow(now()) : null);
   exposed.country = () => (scale === "village" && plan ? village.countryNow() : null);

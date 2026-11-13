@@ -78,11 +78,12 @@ test("Earth's matter meets every function, each by the stuff that does it there"
   assert.equal(fn(list, "switch-current").subst, "silicon");
   assert.equal(fn(list, "wall-a-flame").subst, "tungsten");
   assert.equal(fn(list, "hold-a-flame").subst, "niobium-tin");
-  // Four are asked of a people now; the rest are told only as what later ages would ask.
+  // Five are asked of a people now (the last, a pure crystal's switch, by signals); the rest are told only as what later ages would ask.
   assert.deepEqual(
     list.filter((f) => !f.later && !f.quiet).map((f) => f.id),
-    ["make-gas-fast", "edge-without-metal", "carry-current", "switch-current"],
+    ["make-gas-fast", "edge-without-metal", "carry-current", "switch-current", "switch-in-crystal"],
   );
+  assert.equal(fn(list, "switch-in-crystal").subst, "silicon");
 });
 
 test("what a row says of a world fits whether it is met there", () => {

@@ -40,6 +40,7 @@ import { canWorldOf } from "../can.ts";
 import { landsOf } from "../../rules/index.ts";
 import { celsius, lifelessWhy } from "../kinds.ts";
 import { functionBlocks } from "./means.ts";
+import { knownStat } from "./signals.ts";
 import { landLink } from "./names.ts";
 import { count, link, stat, yearNow } from "./words.ts";
 
@@ -83,6 +84,25 @@ function functionItems(f: FunctionHere, w: CanWorld, known: Knowledge | null): I
         f.top.figure ? `, ${f.top.figure}.` : ".",
       ],
       ...(f.top.by ? { ref: prinRef(f.top.by) } : {}),
+    });
+  // The way it came, where it came by more than two rungs: each with its first year (signals: a word's way from a runner to a web).
+  const before =
+    f.now && known
+      ? f.rungs.slice(0, f.rungs.indexOf(f.now)).filter((r) => r.state === "have" && r.by)
+      : [];
+  if (before.length >= 2)
+    items.push({
+      tone: "have",
+      line: [
+        "Came by ",
+        ...andList(
+          before.map((r) => {
+            const k = known?.get(r.by!);
+            return link(k ? `${r.name} (${count(k.year)})` : r.name, prinRef(r.by!));
+          }),
+        ),
+        ".",
+      ],
     });
   // Not reached: what it wants first.
   const next = known ? f.next : null;
@@ -499,6 +519,7 @@ export function canPage(world: World, tab?: string, beside?: string): PageModel 
       stat("Known now", count(nowKnown)),
       stat("Could come to", `${count(openCount)} of ${count(PRINCIPLES.length)}`),
       stat("Shut here", count(shutCount)),
+      ...(g.life.people ? [knownStat(world)] : []),
     ],
     tabs: [
       { id: "here", name: "Here", blocks: [head, odd, ...main] },

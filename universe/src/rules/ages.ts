@@ -14,7 +14,7 @@ import type { Chemistry } from "./chemistry.ts";
 import { POWER } from "./goods.ts";
 import { KINDS, type WorldKind } from "./kinds.ts";
 import { reachIn, type Means } from "./means.ts";
-import { PRINCIPLES, affordsPrinciple, needsMet, principle } from "./principles.ts";
+import { PRINCIPLES, SIGNAL_TREE, affordsPrinciple, needsMet, principle } from "./principles.ts";
 import { PROPERTIES, matterShuts, type FunctionReading } from "./properties.ts";
 
 /** The six measures. */
@@ -404,9 +404,21 @@ const SUMS: readonly {
     words: "relays and the wire",
   },
   { by: ["electronics"], sums: 5000, words: "valves that reckon" },
+  { by: ["computing"], sums: 20000, words: "machines that reckon by relays and valves" },
   { by: ["guidance"], sums: 100000, words: "machines that steer themselves" },
+  // (Signals: a crystal's switches, a web of them, one in every pocket. Estimates, below a mind of crystal's.)
+  { by: ["solid-state"], sums: 200000, words: "switches of pure crystal" },
+  { by: ["networks"], sums: 1000000, words: "machines joined in a web" },
+  { by: ["pocket-machines"], sums: 10000000, words: "a machine in every pocket" },
   { by: ["machine-minds"], sums: 1e10, words: "minds of crystal" },
 ];
+
+/** The share of a land's dealings its signals put on the line: its signal steps' `signal`, summed (rules/signals.ts). */
+export function signalOf(knows: (id: string) => boolean): number {
+  let s = 0;
+  for (const p of SIGNAL_TREE) if (knows(p.id)) s += p.effects.signal ?? 0;
+  return Math.min(0.95, s);
+}
 
 /** The sums a head a land has at hand, a second. */
 export function sumsOf(f: LandFacts): { sums: number; words: string; by: string | null } {
@@ -534,6 +546,8 @@ export type Figures = Readonly<Record<MeasureId, number>> & {
   readonly remade: number;
   readonly cover: number;
   readonly gathered: number;
+  /** The share of its foremost land's dealings on the line (rules/signals.ts). */
+  readonly signal: number;
 };
 
 /** What an age asks: a figure at or past a mark, in words. */
@@ -553,6 +567,8 @@ export type AgeDef = {
   readonly icon: string;
   readonly name: string;
   readonly asks: readonly Ask[];
+  /** An age a world may come to or go round (its place is where it stands among the rest): reached only where its asks stood. */
+  readonly aside?: boolean;
 };
 
 const IRON_ROADS = [
@@ -662,6 +678,22 @@ export const AGE_LADDER: readonly AgeDef[] = [
         at: 25000,
         words: "the whole world seen from orbit",
         road: ["orbital-flight"],
+      },
+    ],
+  },
+  // (Signals: a web of machines carrying most of a land's dealings. Earth came to it after orbit; a world may come to it before,
+  // or never, where its crust holds no crystal pure enough to switch.)
+  {
+    id: "information",
+    icon: "📱",
+    name: "Information",
+    aside: true,
+    asks: [
+      {
+        on: "signal",
+        at: 0.75,
+        words: "three parts in four of a land's dealings on the line: machines joined in a web",
+        road: ["networks"],
       },
     ],
   },
@@ -830,6 +862,7 @@ export function ageOf(figures: Figures): AgeDef {
 export function ageReached(i: number, standsAt: number, figures: Figures): boolean {
   if (i > standsAt) return false;
   const age = AGE_LADDER[i]!;
+  if (age.aside) return age.asks.every((a) => askMet(a, figures));
   return (
     i <= AGE_LADDER.findIndex((a) => a.id === "stars") || age.asks.every((a) => askMet(a, figures))
   );
@@ -1067,9 +1100,11 @@ export function readWorld(
     life: ReturnType<typeof lifeOf> = { level: -1, by: null },
     lifeLand: LandFacts | null = null,
     fire = 0,
-    sea = 0;
+    sea = 0,
+    signal = 0;
   let flame = 0;
   for (const f of among) {
+    signal = Math.max(signal, signalOf(f.knows));
     if (f.knows("fusion-power")) flame = Math.max(flame, energyOf(f));
     const e = energyOf(f) + gatheredHead;
     if (e > energy || (e === energy && energyLand && f.people > energyLand.people)) {
@@ -1142,6 +1177,7 @@ export function readWorld(
     remade: facts.remade ?? 0,
     cover: facts.cover ?? 0,
     gathered: facts.gathered ?? 0,
+    signal,
   };
   const power =
     gatheredHead > energy / 2

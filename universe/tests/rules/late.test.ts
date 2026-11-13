@@ -31,7 +31,13 @@ import {
   remadeWorld,
   remakingAt,
 } from "../../src/rules/late.ts";
-import { HEAT_TREE, LATE_TREE, LAW_TREE, MEANS_TREE } from "../../src/rules/principles.ts";
+import {
+  HEAT_TREE,
+  LATE_TREE,
+  LAW_TREE,
+  MEANS_TREE,
+  SIGNAL_TREE,
+} from "../../src/rules/principles.ts";
 import { seedFromText } from "../../src/kernel/index.ts";
 import { functionsOf } from "../../src/gen/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
@@ -78,12 +84,17 @@ test("what cannot be remade says why, and what can comes to a home's air and war
 test("the steps past ours are added after all the others, so no earlier step moves", () => {
   const ids = PRINCIPLES.map((p) => p.id);
   assert.equal(new Set(ids).size, ids.length);
-  // (After them only arms by what they do, F1, and heat by what reaches it, F2, which every land's earlier draws stand before too.)
+  // (After them only arms by what they do, F1, and heat by what reaches it, F2, laws and signals, which every land's earlier draws stand before too.)
   const from =
-    ids.length - LATE_TREE.length - MEANS_TREE.length - HEAT_TREE.length - LAW_TREE.length;
+    ids.length -
+    LATE_TREE.length -
+    MEANS_TREE.length -
+    HEAT_TREE.length -
+    LAW_TREE.length -
+    SIGNAL_TREE.length;
   assert.deepEqual(
     ids.slice(from),
-    [...LATE_TREE, ...MEANS_TREE, ...HEAT_TREE, ...LAW_TREE].map((p) => p.id),
+    [...LATE_TREE, ...MEANS_TREE, ...HEAT_TREE, ...LAW_TREE, ...SIGNAL_TREE].map((p) => p.id),
   );
   for (const id of [
     "fusion-power",

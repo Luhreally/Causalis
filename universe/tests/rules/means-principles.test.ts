@@ -14,6 +14,7 @@ import {
   type Principle,
 } from "../../src/rules/principles.ts";
 import { SOLAR } from "../../src/rules/chemistry.ts";
+import { SIGNAL_STEPS } from "../../src/rules/signals.ts";
 import {
   matterShuts,
   meansWorldOf,
@@ -455,6 +456,7 @@ test("the first 121 principles keep their ids and indexes; the arms, then the me
       "thrown-loads",
       "greatest-fire",
       "lane-sounding",
+      ...SIGNAL_STEPS,
     ],
   );
 });
@@ -498,12 +500,25 @@ test("on a land with fire, each of the first 121 is open, and its needs met, as 
 test("on rocky Earth, a land with fire comes to know the same 95 principles it did at base, and W2's and W3's rows", () => {
   const is = onEarth("land", true);
   // (And the greatest fire's row, W5, and the lanes', Phase 68: they open on matter, and Earth's holds the law.)
-  assert.deepEqual([...is].sort(), [...EARTH_FIRE, "greatest-fire", "lane-sounding"].sort());
+  // (And signals: every step but sound through the deep, which is a water people's.)
+  assert.deepEqual(
+    [...is].sort(),
+    [
+      ...EARTH_FIRE,
+      "greatest-fire",
+      "lane-sounding",
+      ...SIGNAL_STEPS.filter((id) => id !== "sea-sound"),
+    ].sort(),
+  );
   assert.ok(is.has("electricity") && is.has("gunpowder"), "the base reaches the powder");
 });
 
 test("on Earth's matter with no fire, a water people comes to know the same 51 it did at base", () => {
-  assert.deepEqual([...onEarth("water", false)].sort(), [...EARTH_WATER, "lane-sounding"].sort());
+  // (Signals too: the current its people make, carried by sound through the deep, not on the air.)
+  assert.deepEqual(
+    [...onEarth("water", false)].sort(),
+    [...EARTH_WATER, "lane-sounding", ...SIGNAL_STEPS.filter((id) => id !== "radio")].sort(),
+  );
 });
 
 test("the rows that were fire open at reach true as at base; at reach false only the three that lost their fire", () => {

@@ -221,6 +221,11 @@ export class TownLayer {
     this.rising.show(this.parts);
   }
 
+  /** What its land's signals put in it as drawn (signals; null: no town). */
+  signalsDrawn(): { poles: number; wires: number; mast: boolean } | null {
+    return this.scene ? (this.scene.signals ?? { poles: 0, wires: 0, mast: false }) : null;
+  }
+
   /** How far out the greatest fire's ash lies at moment t (metres; 0: none). */
   ashGone(t: number): number {
     return this.scene ? ashGone(this.scene, t) : 0;

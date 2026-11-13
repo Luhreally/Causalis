@@ -38,6 +38,7 @@ import { richWords } from "./life.ts";
 import { landPast } from "../past.ts";
 import { prinRef } from "./matter.ts";
 import { landStoresBlocks } from "./stores.ts";
+import { landSignalStats } from "./signals.ts";
 import { threadBlock } from "./thread.ts";
 import { groundBlocks } from "./ground.ts";
 import { tradeBlocks } from "../trade.ts";
@@ -462,6 +463,9 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
           stat("How they build", [link(p.house.words, p.house.ref)], { why: p.house.ref }),
         );
       if (rows2.length) blocks.push({ type: "facts", title: "Works", rows: rows2 });
+      // (Its word, and what its signals do: signals.)
+      const signals = landSignalStats(world, cell);
+      if (signals.length) blocks.push({ type: "facts", title: "Signals", rows: signals });
       tabs.push({ id: "economy", name: "Economy", blocks });
       // Its stores broken down (Phase 15 M123): by good and by what they are made of.
       const stores = landStoresBlocks(world, cell);

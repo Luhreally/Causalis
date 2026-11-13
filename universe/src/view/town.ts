@@ -185,6 +185,8 @@ function at(x: number, z: number, yaw: number, u: number, v: number): [number, n
 /** Everything a town's drawing needs, read once from its plan. */
 export type TownScene = {
   readonly plan: TownPlan;
+  /** What its land's signals put in it as last drawn (signals): its poles, the wires between them, a mast. */
+  signals?: { poles: number; wires: number; mast: boolean };
   readonly lots: TownLots;
   readonly states: LotStates;
   /** Its homes razed by what struck it (Phase 42 M201): the lots, in the order they caught or fell. */
@@ -687,7 +689,84 @@ export function townGround(
   // A well at the square's heart; a market cross once it is paved.
   out.put("cyl", STONE, 0, 0.5, 0, 2.4, 1, 2.4, 0);
   if (plan.paved) out.put("box", STONE, 0, 2.2, 0, 0.6, 3.4, 0.6, 0);
+  scene.signals = townSignals(scene, out, ash);
   sprawl(scene, out, burned);
+}
+
+const POLE: Rgb = [0.32, 0.25, 0.18],
+  WIRE: Rgb = [0.12, 0.12, 0.13],
+  MAST: Rgb = [0.62, 0.64, 0.66],
+  MAST_TOP: Rgb = [0.86, 0.18, 0.14];
+/** The most of its blocks a wire runs past (its oldest first): a line through the town, never every street. */
+export const WIRED_BLOCKS = 24;
+
+/**
+ * What its land's signals put in a town (signals): a pole at a corner of each of its first blocks, seven metres high, and the
+ * wire slung between them along its streets; a mast over its square, thirty metres, where it has words on waves through the
+ * air. Two batches and a third, whatever its size.
+ */
+export function townSignals(
+  scene: TownScene,
+  out: TownParts,
+  ash = 0,
+): { poles: number; wires: number; mast: boolean } {
+  const { plan, lots } = scene,
+    s = plan.signals,
+    drawn = { poles: 0, wires: 0, mast: false };
+  if (!s?.wire || plan.ways === "swim") return drawn;
+  const blocks = Math.min(WIRED_BLOCKS, Math.ceil(plan.lots / BLOCK_LOTS)),
+    high = 7,
+    tops: [number, number][] = [];
+  for (let b = 0; b < blocks; b++) {
+    if (b * BLOCK_LOTS < ash) continue;
+    const [x, z] = at(
+      lots.blocks.x[b]!,
+      lots.blocks.z[b]!,
+      lots.blocks.yaw[b]!,
+      (BLOCK_W + STREET * 0.6) / 2,
+      (BLOCK_D + STREET * 0.6) / 2,
+    );
+    out.put("cyl", POLE, x, high / 2, z, 0.28, high, 0.28, 0);
+    out.put("box", POLE, x, high - 0.4, z, 1.6, 0.14, 0.14, lots.blocks.yaw[b]!);
+    tops.push([x, z]);
+    drawn.poles++;
+  }
+  // (The wire from each pole to the nearest strung before it: a line through the town that branches, never a web.)
+  for (let i = 1; i < tops.length; i++) {
+    const [x1, z1] = tops[i]!;
+    let j = 0;
+    for (let m = 1; m < i; m++)
+      if (
+        Math.hypot(tops[m]![0] - x1, tops[m]![1] - z1) <
+        Math.hypot(tops[j]![0] - x1, tops[j]![1] - z1)
+      )
+        j = m;
+    const [x0, z0] = tops[j]!,
+      len = Math.hypot(x1 - x0, z1 - z0);
+    if (len < 1 || len > 90) continue;
+    out.put(
+      "box",
+      WIRE,
+      (x0 + x1) / 2,
+      high - 0.5,
+      (z0 + z1) / 2,
+      0.06,
+      0.06,
+      len,
+      Math.atan2(x1 - x0, z1 - z0),
+    );
+    drawn.wires++;
+  }
+  if (s.mast) {
+    const mx = SQUARE * 0.9,
+      mz = -SQUARE * 0.9;
+    out.put("cyl", MAST, mx, 15, mz, 0.5, 30, 0.5, 0);
+    out.put("box", MAST, mx, 10, mz, 2.4, 0.18, 0.18, 0);
+    out.put("box", MAST, mx, 20, mz, 1.6, 0.18, 0.18, 0);
+    out.put("cone", MAST_TOP, mx, 30.6, mz, 0.7, 1.2, 0.7, 0);
+    drawn.mast = true;
+  }
+  return drawn;
 }
 
 /** Two colours mixed: `k` of the second. */
