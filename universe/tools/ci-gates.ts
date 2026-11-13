@@ -378,6 +378,11 @@ export const GATES: readonly Gate[] = [
   // phone's size, their outlines told apart between worlds; who rose named on the Life page and their own page giving their body
   // by what it does and what they rose from; a world where no people rose saying why.
   { gate: 112, args: ["--ci"], s: 600 },
+  // Gate 116, a role and the god in it, and a realm's fortune (tools/reign2-gate.ts): on harrow 348 at year 400 by touch, one of a
+  // court taken from the Court tab, a year doing nothing hashing the same; a law step refused them as a mortal and carried with the god
+  // in them, its omen told; a group courted; a blessing and a curse at the greatest strength for 5 years cast by touch, each told on
+  // its realm's page; five years on the cursed realm broken apart or fallen, the blessed one whole.
+  { gate: 116, args: ["--ci"], s: 420 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */
