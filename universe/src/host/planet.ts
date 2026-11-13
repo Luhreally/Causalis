@@ -888,7 +888,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
   // shut the first way. And with W2: past its engines, wings, and war from the air; what the tree's roots
   // know crosses the sea. And with W3: past its rocketry, loads thrown. And with E1: woods that move, long ages of rain,
   // lodes that run out. And with Z1: herds that go somewhere, beasts people know, herds taken in war, a tree that goes on.)
-  const version = name === "alien" ? "alien-22" : `${name}-18`,
+  const version = name === "alien" ? "alien-23" : `${name}-19`,
     make = (seed: Seed, frequency?: number) => {
       // The chronicle opens after a generated prehistory: bands across the land.
       const lands = landsOf(seed.text),
