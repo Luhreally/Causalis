@@ -21,6 +21,7 @@ import {
   noneRoseWhy,
   riseRead,
   risenBody,
+  risenMedium,
   roleId,
   rolesOf,
   wetPlace,
@@ -488,10 +489,50 @@ export function makeLivingBiosphere(i: LivingInputs): Biosphere {
         growth: s.growth,
       })),
     reads = candidates.map((c) => riseRead(c, w));
+  // Where a people of each medium can live, as the chronicle settles it (sim/population/model.ts livable): a people of
+  // the water on the shelf, the shallow sea that feeds it; one of the shore on land by such a shelf; one of the land on
+  // land not under ice or on bare heights. A lineage rises only where its people could live among its own lands.
+  const shelfBy = (c: number) => {
+      for (let k = grid.offsets[c]!; k < grid.offsets[c + 1]!; k++)
+        if (climate.biome[grid.neighbours[k]!] === BIOME.shelf) return true;
+      return false;
+    },
+    fits: Readonly<Record<"water" | "shore" | "land", (c: number) => boolean>> = {
+      water: (c) => !land(c) && climate.biome[c] === BIOME.shelf,
+      shore: (c) => land(c) && climate.biome[c] !== BIOME.ice && shelfBy(c),
+      land: (c) => land(c) && climate.biome[c] !== BIOME.ice && climate.biome[c] !== BIOME.alpine,
+    },
+    // (Where it lives or at the edge of it: a lineage of the open sea or its floor comes up onto the shelf beside it.)
+    near = (c: number, x: number) => {
+      if (lives(c, x)) return true;
+      for (let k = grid.offsets[c]!; k < grid.offsets[c + 1]!; k++)
+        if (lives(grid.neighbours[k]!, x)) return true;
+      return false;
+    },
+    settles = (c: RiseCandidate) => {
+      const fit = fits[risenMedium(c.body.place)];
+      for (let k = 0; k < n; k++) if (fit(k) && near(k, c.index)) return true;
+      return false;
+    },
+    homeless = new Set<number>(),
+    homeWords = (medium: "water" | "shore" | "land") => {
+      let shelf = 0,
+        frozen = 0;
+      for (let k = 0; k < n; k++) {
+        if (land(k)) continue;
+        if (climate.biome[k] === BIOME.shelf) shelf++;
+        else if (climate.biome[k] === BIOME.seaIce) frozen++;
+      }
+      return homeWordsOf(medium, shelf, frozen);
+    };
   let pick = -1,
     key = Infinity;
   reads.forEach((r, j) => {
     if (r.score < LEAST_RISE) return;
+    if (!settles(candidates[j]!)) {
+      homeless.add(j);
+      return;
+    }
     const k = weightedKey(u(20, r.index, 0), r.score);
     if (k < key) [pick, key] = [j, k];
   });
@@ -504,17 +545,21 @@ export function makeLivingBiosphere(i: LivingInputs): Biosphere {
       seedGrass,
       diversity,
       people: null,
-      noPeople: noneRoseWhy(reads, why, w),
+      noPeople: homeless.size
+        ? `no lineage rose to thought: the nearest, the ${why(candidates[[...homeless][0]!]!.index)}, lived nowhere its people could have settled (${homeWords(risenMedium(candidates[[...homeless][0]!]!.body.place))})`
+        : noneRoseWhy(reads, why, w),
     };
   const from = candidates[pick]!,
     fore = species[from.index]!,
     rise = reads[pick]!,
     body = risenBody(from, w, (m) => u(21, from.index, m));
-  // Their cradle: where their forebears lived, the most food about it and the mildest (or where the hand bade them).
+  // Their cradle: where their forebears lived and their people can, the most food about it and the mildest (or where
+  // the hand bade them, where they can live).
+  const fit = fits[body.medium];
   let cell = fore.origin,
     best = -Infinity;
   for (let c = 0; c < n; c++) {
-    if (!lives(c, fore.index)) continue;
+    if (!fit(c) || !near(c, fore.index)) continue;
     const t = climate.temperature[c]!,
       mild = t > 10 && t < 30 ? 1 : 0.5,
       score =
@@ -525,8 +570,7 @@ export function makeLivingBiosphere(i: LivingInputs): Biosphere {
     if (score > best) [best, cell] = [score, c];
   }
   const bidden = i.cradle ?? -1;
-  if (bidden >= 0 && bidden < n && (land(bidden) === land(cell) || body.medium === "shore"))
-    cell = bidden;
+  if (bidden >= 0 && bidden < n && fit(bidden)) cell = bidden;
   const people: Species = {
     index: species.length,
     ref: speciesRef(0, species.length),
@@ -685,6 +729,17 @@ export function risenFar(world: LifeWorld, key: string): RisenFar {
       from.body.arms && from.body.arms > 1 ? `${from.body.arms} ` : ""
     }${graspWords(from.body.grasp)} free while it stood, it talked by ${rise.talks}, lived together, and its trade fed a brain`,
   };
+}
+
+/** Why a people of a medium found nowhere to live about its forebears, in words. */
+function homeWordsOf(medium: "water" | "shore" | "land", shelf: number, frozen: number): string {
+  return medium === "water"
+    ? shelf === 0 && frozen > 0
+      ? "its seas lie frozen over: no open shallows a people could live in"
+      : "no shallow shelf about where it lived"
+    : medium === "shore"
+      ? "no shore by a shallow shelf about where it lived"
+      : "no land free of ice about where it lived";
 }
 
 const KINDS = ["lesser", "greater", "highland", "lowland", "northern", "southern", "long-tailed"];

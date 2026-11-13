@@ -287,16 +287,22 @@ export function risenName(b: CreatureBody): string {
 }
 
 /** A risen people's body plan, read from its lineage's body. `u` keyed on the people. */
+/** The medium a people risen from a lineage of a place lives in: the water from the sea, the shore from a shore or a river, else the land. */
+export function risenMedium(place: string | undefined): "water" | "shore" | "land" {
+  const p = (place ?? "grassland") as Place,
+    medium = PLACES[p]?.medium ?? "land";
+  return medium === "sea" && p !== "river"
+    ? "water"
+    : p === "shore" || p === "river"
+      ? "shore"
+      : "land";
+}
+
 export function risenBody(c: RiseCandidate, w: LifeWorld, u: (k: number) => number): BodyPlan {
   const b = c.body,
     place = (b.place ?? "grassland") as Place,
     medium = PLACES[place]?.medium ?? "land",
-    water =
-      medium === "sea" && place !== "river"
-        ? "water"
-        : place === "shore" || place === "river"
-          ? "shore"
-          : "land",
+    water = risenMedium(b.place),
     senses: Sense[] = [];
   const s = sensesOf({ star: w.starK, pressure: w.pressure, liquid: w.conducts ? "water" : "oil" });
   if (PLACES[place]?.lit !== false && w.light >= 0.02) senses.push("sight");

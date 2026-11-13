@@ -1315,6 +1315,7 @@ export {
   noneRoseWhy,
   riseRead,
   risenBody,
+  risenMedium,
   risenName,
   type RiseCandidate,
   type RiseRead,
