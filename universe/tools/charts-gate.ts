@@ -185,9 +185,15 @@ const chosen = new Map<string, { realm: string; seat: number; alliance: string |
           standing.split(" ")[0]!,
         );
       // Its own past: its people of each year its lands of that year.
-      const lands = lines.find((l) => l.title === "Lands")!,
-        people = lines.find((l) => l.title === "People")!,
-        moved = new Set(lands.points.map((p) => p.y)).size;
+      const lands = lines.find((l) => l.title === "Lands"),
+        people = lines.find((l) => l.title === "People");
+      if (!lands || !people) {
+        problems.push(
+          `${where}: no lines of its people and lands (its page: ${m.tabs.map((t) => t.id).join(", ")})`,
+        );
+        continue;
+      }
+      const moved = new Set(lands.points.map((p) => p.y)).size;
       let mismatched = 0,
         differs = 0;
       for (const p of people.points.slice(0, -1)) {
