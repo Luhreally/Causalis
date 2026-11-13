@@ -128,6 +128,8 @@ export type Block =
       readonly title?: string;
       readonly columns: readonly string[];
       readonly rows: readonly Row[];
+      /** How many rows it shows before "show all" (absent: the inspector's own, sixty). */
+      readonly few?: number;
     }
   | {
       readonly type: "chart";

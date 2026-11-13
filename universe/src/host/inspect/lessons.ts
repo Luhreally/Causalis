@@ -258,6 +258,9 @@ function pressedLines(world: World, holder: string, cell: number): Line[] {
   return lines;
 }
 
+/** The rows of what they found and what they learned from others shown at first: the latest; the rest at "show all". */
+const FEW = 8;
+
 /**
  * Everything a land's people, or a realm at its seat, have learned, by how they came to it: from what has cost them (the lessons),
  * by their own thought and finding (each principle its lore holds that it found, by field), and from others (what came to it from
@@ -312,6 +315,7 @@ export function learnedBlocks(world: World, holder: string, cell: number | null)
       type: "table",
       title: "By their own thought and finding",
       columns: ["Found", "Field", "Year"],
+      few: FEW,
       rows: rows.map((c) => ({
         ref: `prin:${c.id}`,
         cells: [[principleName(c.id, world)], [c.field], [String(c.year)]],
@@ -338,6 +342,7 @@ export function learnedBlocks(world: World, holder: string, cell: number | null)
       type: "table",
       title: "From others",
       columns: ["Learned", "From", "Year"],
+      few: FEW,
       rows: rows.map((c) => ({
         ref: `prin:${c.id}`,
         cells: [
