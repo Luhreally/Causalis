@@ -1264,7 +1264,9 @@ function limbPlan(
         wings: 0,
         moves: u(22) < 0.45 ? "jet" : "swim",
       };
-    const arms = pairs >= 3 && (hunter || u(22) < 0.3) ? 2 : 0,
+    // (A hunter of two pairs may keep its front pair to seize with, as a mantis shrimp does, and swim on the other.)
+    const arms =
+        (pairs >= 3 && (hunter || u(22) < 0.3)) || (pairs === 2 && hunter && u(22) < 0.5) ? 2 : 0,
       fins = Math.min(4, 2 * pairs - arms) as 0 | 2 | 4;
     return { legs: Math.max(0, 2 * pairs - arms - fins), arms, fins, wings: 0, moves: "swim" };
   }
