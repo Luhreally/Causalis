@@ -452,11 +452,16 @@ if (town && best) {
       const coarse = await at("coarse"),
         fine = await at("fine");
       say(
-        `drawn large at ${Math.round(big.w)} px: fine ${fine.edges} edges in ${fine.ms.toFixed(1)} ms, coarse ${coarse.edges} edges in ${coarse.ms.toFixed(1)} ms`,
+        `drawn large at ${Math.round(big.w)} px: fine ${fine.edges} edges, ${fine.ms.toFixed(2)} ms a frame; coarse ${coarse.edges} edges, ${coarse.ms.toFixed(2)} ms a frame`,
       );
       check(
         fine.edges > coarse.edges * 1.15,
         `the fine level draws ${fine.edges} edges, the coarse ${coarse.edges}: no more detail when looked at`,
+      );
+      // (It turns at 30 frames a second: a frame within 8 ms on this machine's GPU, four times that on a software renderer.)
+      check(
+        fine.ms < slow(8),
+        `a frame of the large picture takes ${fine.ms.toFixed(1)} ms at the fine level`,
       );
     }
     check(big.page.startsWith("mkt:"), `pressing the picture left its page for ${big.page}`);
