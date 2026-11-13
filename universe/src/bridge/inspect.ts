@@ -83,6 +83,8 @@ export type Row = {
   readonly keys?: readonly (number | string)[];
   /** A small picture at the row's start (Phase 54 M223). */
   readonly thumb?: Portrait;
+  /** Its colour on the map, as a small square at the row's start (an alliance on the alliances lens). */
+  readonly swatch?: readonly [number, number, number];
 };
 
 /** A line of a market's board, or a market on a good's list of where it is cheap and dear (Markets, first slice). */
@@ -128,6 +130,8 @@ export type Block =
       readonly title?: string;
       readonly columns: readonly string[];
       readonly rows: readonly Row[];
+      /** Fit to the page's width, never scrolled sideways: its headings wrap, and its first column's long names break. */
+      readonly fit?: boolean;
     }
   | {
       readonly type: "chart";
