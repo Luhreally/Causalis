@@ -8,11 +8,15 @@
 import { YEAR, type World } from "../kernel/index.ts";
 import { isProvinceWorld, meansNumbers, type HomeWorld } from "../gen/index.ts";
 import {
+  FRAMES,
   PRINCIPLES,
+  PROPULSION,
   SIGHT_STEPS,
   flyerOn,
+  launcherFor,
   liftingEngine,
   rocketSightKm,
+  toOrbit,
   type Principle,
 } from "../rules/index.ts";
 import { SEA_STEPS, homePlanet, loreOf, populationContext } from "../sim/index.ts";
@@ -162,30 +166,82 @@ export function knownWorld(world: World, atYear?: number): KnownWorld {
       }
     }
   }
-  // From the air, and from a rocket's height: every cell within reach of a land that has them.
   const numbers = meansNumbers(g),
     engine = liftingEngine(numbers),
     radiusKm = EARTH_KM * g.planet.radius,
     wingsKm = engine ? flyerOn(engine, numbers).reachKm : 0,
-    rocketKm = rocketSightKm(radiusKm),
-    p = g.grid.positions;
-  for (const s of sources) {
-    const km = Math.max(
-      s.knows("rocketry") ? rocketKm : 0,
+    rocketKm = rocketSightKm(radiusKm);
+  // From the air and from a rocket's height, hopping. A machine flies out and back from a field, and a rocket sees its
+  // horizon from its height (√(2Rh)); with ships to carry either and its fuel, any shore its people know is a field, and
+  // every land seen from one is the next, so a world is charted base by base: as Earth's was from the air, decades before
+  // its first orbit, and as sounding rockets went up from ships at sea. A world whose air lifts no wing still charts
+  // itself so by rocket before it reaches orbit. Without ships, only their own lands are fields; what lies further than
+  // a reach from any land stays dark until orbit.
+  // A rocket thrown on an arc sees along it: before orbit, a land's best launcher reaches some share ν of orbit's
+  // speed, and a ballistic arc's best range over a sphere is ψ with sin(ψ/2) = ν²/(2 − ν²) (ν = 0.9: some 9,500 km on
+  // the home world, as Earth's first long-range rocket flew two months before its first orbit). Its sight is that
+  // range and the horizon at its end.
+  const climb = toOrbit(g.system.bodies[0]!),
+    needs = [...new Set([...PROPULSION, ...FRAMES].flatMap((x) => x.needs))],
+    throws = new Map<string, number>();
+  const throwKm = (knows: (id: string) => boolean): number => {
+    const key = needs.map((id) => (knows(id) ? 1 : 0)).join("");
+    let km = throws.get(key);
+    if (km === undefined) {
+      if (launcherFor(knows, climb.total)) km = Math.PI * radiusKm;
+      else {
+        let lo = 0,
+          hi = climb.total;
+        for (let i = 0; i < 24; i++) {
+          const mid = (lo + hi) / 2;
+          if (launcherFor(knows, mid)) lo = mid;
+          else hi = mid;
+        }
+        const nu = Math.min(1, Math.max(0, lo - climb.gravityLoss - climb.dragLoss) / climb.orbit),
+          x = (nu * nu) / (2 - nu * nu);
+        km = 2 * Math.asin(Math.min(1, x)) * radiusKm;
+      }
+      throws.set(key, km);
+    }
+    return km;
+  };
+  const reachOf = (s: (typeof sources)[number]) =>
+    Math.max(
+      s.knows("rocketry") ? rocketKm + throwKm(s.knows) : 0,
       engine && s.knows("powered-wings") && s.knows(engine.id) ? wingsKm : 0,
     );
-    if (km <= 0) continue;
-    by = s.knows("rocketry") && rocketKm >= wingsKm ? "rocket" : by === "rocket" ? by : "wings";
-    // (A chord on a unit sphere for the arc of km over the world's radius.)
-    const chord = 2 * Math.sin(Math.min(Math.PI, km / radiusKm) / 2),
-      within = chord * chord,
-      a = s.cell;
-    for (let c = 0; c < n; c++) {
-      if (known[c]) continue;
-      const dx = p[3 * a]! - p[3 * c]!,
-        dy = p[3 * a + 1]! - p[3 * c + 1]!,
-        dz = p[3 * a + 2]! - p[3 * c + 2]!;
-      if (dx * dx + dy * dy + dz * dz <= within) known[c] = 1;
+  const sees = sources.filter((s) => reachOf(s) > 0);
+  if (sees.length) {
+    const km = Math.max(...sees.map(reachOf));
+    by = sees.some((s) => s.knows("rocketry")) && rocketKm >= wingsKm ? "rocket" : "wings";
+    const cellKm = radiusKm * Math.sqrt((4 * Math.PI) / n),
+      steps = Math.max(1, Math.min(30000, Math.floor(km / cellKm))),
+      hop = sees.some((s) => s.ships >= 1),
+      left = new Int32Array(n).fill(-1),
+      fields: number[] = [];
+    const field = (c: number) => {
+      known[c] = 1;
+      if (left[c]! < steps) {
+        left[c] = steps;
+        fields.push(c);
+      }
+    };
+    for (const s of sees) field(s.cell);
+    if (hop) for (let c = 0; c < n; c++) if (known[c] && land(c)) field(c);
+    for (let f = 0; f < fields.length; f++) {
+      const c = fields[f]!,
+        b = left[c]!;
+      if (b <= 0) continue;
+      for (let k = g.grid.offsets[c]!; k < g.grid.offsets[c + 1]!; k++) {
+        const m = g.grid.neighbours[k]!;
+        if (m >= n) continue;
+        known[m] = 1;
+        const next = hop && land(m) ? steps : b - 1;
+        if (next > left[m]!) {
+          left[m] = next;
+          fields.push(m);
+        }
+      }
     }
   }
   return done(read());
