@@ -644,6 +644,15 @@ export function alliancesBlocks(world: World): Block[] {
       })),
       unit: "people",
     },
+    {
+      type: "text",
+      lines: [
+        [
+          link("Every alliance ranked", "world:alliances"),
+          ": their lands, people, hosts, wealth and wars side by side, each a page of its own.",
+        ],
+      ],
+    },
   ];
   for (const a of list)
     blocks.push({
