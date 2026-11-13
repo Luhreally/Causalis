@@ -30,6 +30,7 @@ import {
   openSteps,
   readCan,
   whyShut,
+  keptLife,
 } from "../src/rules/index.ts";
 import { spreadOf } from "../src/sim/index.ts";
 
@@ -120,7 +121,8 @@ const fromFile = (file: string, universe: "earth" | "alien"): Forged => {
   return pack(world, universe);
 };
 const youngWorld = (): Forged => {
-  const world = ALIEN.build(seedFromText("vale 471"));
+  // (Kept as made: read from its numbers, a methane world this cold bears no life, and this page wants a people's means.)
+  const world = ALIEN.build(seedFromText(keptLife("vale 471")));
   world.runTo(30 * YEAR);
   return pack(world, "alien");
 };

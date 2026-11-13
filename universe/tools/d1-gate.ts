@@ -710,15 +710,22 @@ let sentTo: string | null = null;
     const asked = await k<string>(
       `globalThis.causalis.client.query({ type: "reign.envoys", args: { realm: ${JSON.stringify(ruled.ref)} } }).then((d) => JSON.stringify(d.realms.map((r) => r.errands.map((e) => e.can))))`,
     );
-    await tap(`.reign-send[data-can="1"]`, "send an envoy");
-    await until(
-      "the envoy gone",
-      async () =>
-        (await k<string>(
-          `globalThis.causalis.client.query({ type: "reign.envoys", args: { realm: ${JSON.stringify(ruled.ref)} } }).then((d) => JSON.stringify(d.realms.map((r) => r.errands.map((e) => e.can))))`,
-        )) !== asked,
-      slow(30000),
+    // (An errand that binds, where one can go: a gift leaves what could be asked as it was.)
+    const binds = await seen(`.reign-send[data-can="1"]:not([data-errand="gift"])`);
+    await tap(
+      binds ? `.reign-send[data-can="1"]:not([data-errand="gift"])` : `.reign-send[data-can="1"]`,
+      "send an envoy",
     );
+    say(`sent: ${binds ? "an errand that binds" : "a gift only (none would hear more)"}`);
+    if (binds)
+      await until(
+        "the envoy gone",
+        async () =>
+          (await k<string>(
+            `globalThis.causalis.client.query({ type: "reign.envoys", args: { realm: ${JSON.stringify(ruled.ref)} } }).then((d) => JSON.stringify(d.realms.map((r) => r.errands.map((e) => e.can))))`,
+          )) !== asked,
+        slow(30000),
+      );
     await settle(500);
     sentTo = await k<string | null>(
       `globalThis.causalis.client.query({ type: "reign.envoys", args: { realm: ${JSON.stringify(ruled.ref)} } }).then((d) => d.realms.find((r) => r.errands.some((e) => e.errand === "embassy" && !e.can))?.ref ?? null)`,
@@ -731,7 +738,7 @@ let sentTo: string | null = null;
       `[...document.querySelectorAll(".reign-envoy")].map((e) => e.innerText).join(" ")`,
     );
     check(
-      /Your people are at their seat already|You are sworn to them already/.test(all),
+      !binds || /Your people are at their seat already|You are sworn to them already/.test(all),
       "the sheet does not say what the envoy did",
     );
     await shot("7-sent");

@@ -387,7 +387,14 @@ export function warSideBlocks(world: World, w: War): { stats: Stat[]; blocks: Bl
     came = wars
       .hotOf(w.defender)
       .concat(w.attacker === w.defender ? [] : wars.hotOf(w.attacker))
-      .filter((x) => (world.events.get(x.event)?.data as { call?: Ref } | null)?.call === w.ref),
+      .filter((x) => (world.events.get(x.event)?.data as { call?: Ref } | null)?.call === w.ref)
+      // (And those that came to it, ended since: a call keeps the war it opened.)
+      .concat(
+        calls.flatMap((c) => {
+          const x = c.opened ? wars.get(c.opened) : undefined;
+          return x ? [x] : [];
+        }),
+      ),
     seen = new Set<string>(),
     items: Item[] = [],
     stats: Stat[] = [];

@@ -3169,10 +3169,17 @@ async function runPlanetPage(): Promise<void> {
     const frame = client.latestFrame("globe"),
       province = (frame?.arrays.province as Int32Array | undefined)?.[cell] ?? -1;
     // (Under the alliances lens, a land of an alliance opens the alliance: every one of them a press
-    // away on the map, as their key and their list have them. D1.)
-    const allied = lens === "blocs" ? alliedLands.get(province) : undefined;
-    if (allied) {
-      void pageWindow.open(allied);
+    // away on the map, as their key and their list have them. D1. Read again at the press: alliances
+    // made or broken since the lens was chosen are the world's now, not as they stood then.)
+    if (lens === "blocs" && province >= 0) {
+      void readBlocs().then(() => {
+        const allied = alliedLands.get(province);
+        if (allied) void pageWindow.open(allied);
+        else {
+          void client.query({ type: "region.prepare", args: { cell: province } }).catch(() => {});
+          void pageWindow.open(`cell:0:${province}`);
+        }
+      });
       return;
     }
     if (province >= 0) {
