@@ -3530,7 +3530,9 @@ function surfaceMarks(
     const side = Math.sqrt(f.area);
     switch (surface) {
       case "weave": {
-        const n = Math.max(2, Math.min(12, Math.round(side / (0.028 * S))));
+        // (On its broad panels: a weave on every small face of a fold would cost a frame and show nothing.)
+        if (rank >= 6) return;
+        const n = Math.max(2, Math.min(6, Math.round(side / (0.04 * S))));
         out.push({
           face: k,
           lines: [...linesAcross(f, n, false), ...linesAcross(f, n, true)],
@@ -3538,7 +3540,7 @@ function surfaceMarks(
           alpha: 0.22,
           width: 0.5,
         });
-        if (rank < 6)
+        if (rank < 4)
           out.push({
             face: k,
             lines: [insetLoop(f, 0.88)],
@@ -3622,6 +3624,7 @@ function surfaceMarks(
         return;
       }
       case "machined": {
+        if (rank >= 12) return;
         out.push({
           face: k,
           lines: linesAcross(f, Math.max(3, Math.min(9, Math.round(side / (0.04 * S)))), false),
@@ -3904,12 +3907,7 @@ function paint(
   };
   const views = parts.map((q) => ({ q, pts: q.mesh.v.map(view) }));
   // (Each part's marks by the face they lie on, and the free ones, at the fine level only.)
-  const onFace = parts.map((q) => {
-    if (!q.marks) return null;
-    const m = new Map<number, Mark[]>();
-    for (const k of q.marks) if (k.face !== undefined) m.set(k.face, [...(m.get(k.face) ?? []), k]);
-    return m;
-  });
+  const onFace = parts.map(marksByFace);
   let minX = Infinity,
     maxX = -Infinity,
     minY = Infinity,
@@ -4176,6 +4174,24 @@ function closeOn(
     minY: Math.max(minY, cy - half),
     maxY: Math.min(maxY, cy + half),
   };
+}
+
+/** A part's marks by the face they lie on, once a part (kept while its picture is drawn). */
+const BY_FACE = new WeakMap<SpecimenPart, Map<number, Mark[]>>();
+function marksByFace(q: SpecimenPart): Map<number, Mark[]> | null {
+  if (!q.marks) return null;
+  let m = BY_FACE.get(q);
+  if (!m) {
+    m = new Map();
+    for (const k of q.marks)
+      if (k.face !== undefined) {
+        const had = m.get(k.face);
+        if (had) had.push(k);
+        else m.set(k.face, [k]);
+      }
+    BY_FACE.set(q, m);
+  }
+  return m;
 }
 
 /** Marks stroked (or dotted) as their part's face is drawn, each in its colour, width and dash. */
