@@ -54,7 +54,7 @@ try {
         before = await page.evaluate(() => causalis.client.query({ type: "hashes" }));
       await page.locator(".brush-toggle").tap();
       await page.waitForFunction(
-        () => document.querySelectorAll(".brush-controls select")[3]!.children.length > 0,
+        () => document.querySelector(".brush-controls .brush-ore")!.children.length > 0,
       );
       if (shots)
         await page.screenshot({ path: join(shots, `brushes-before-${engine.name()}.png`) });

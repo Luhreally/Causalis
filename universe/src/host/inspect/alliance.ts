@@ -14,7 +14,7 @@ import {
   beliefOf,
   bondsOf,
   diplomacyOf,
-  fieldedOf,
+  hostOf as hostMen,
   homePlanet,
   languagesOf,
   livingMatches,
@@ -130,7 +130,7 @@ function yearRead(world: World): YearRead {
   const hostOf = new Map<string, number>(),
     worthOf = new Map<string, number>();
   for (const r of politiesOf(world).living()) {
-    const h = fieldedOf(ctx, r);
+    const h = hostMen(ctx, r);
     hostOf.set(r.ref, h);
     host += h;
   }

@@ -138,6 +138,25 @@ export type ReignRole = {
 
 /** One of a court's own sheet: groups to court, and a move on the seat. */
 /** The god's hand through them (2026-11-13): whom it can be aimed at, and what it can do to them. */
+/** A slider over how much one of the god's hand's acts does (2026-11-13). */
+export type GodAmount = {
+  /** The argument it sets. */
+  readonly key: string;
+  /** What the slider is called: "Men", "Bread". */
+  readonly label: string;
+  /** Its stops, gentlest first: the value, its read-out, the button's label at it and what it will do. */
+  readonly stops: readonly {
+    readonly value: number;
+    readonly says: string;
+    readonly label: string;
+    readonly words: string;
+  }[];
+  /** The stop it starts at: the amount the act always did. */
+  readonly at: number;
+  /** Offers that share one slider (a host, armed either way). */
+  readonly shared?: string;
+};
+
 export type ReignGod = {
   readonly words: string;
   /** The realm it is aimed at now. */
@@ -156,6 +175,8 @@ export type ReignGod = {
       readonly args: Readonly<Record<string, unknown>>;
       readonly can: boolean;
       readonly words: string;
+      /** How much, where an amount means something: a slider above it. */
+      readonly amount?: GodAmount;
     }[];
   }[];
 };

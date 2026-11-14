@@ -3536,6 +3536,16 @@ body.with-palette .hint {
 .palette-strength-words {
   min-width: 5.5em;
 }
+/* What the strength and the years chosen will do, plainly, under the line (2026-11-13). */
+.palette-does {
+  font-size: 0.72rem;
+  line-height: 1.3;
+  color: var(--ink);
+  opacity: 0.9;
+}
+.palette-does[hidden] {
+  display: none;
+}
 /* (On a phone the line wraps: the years and the strength each a finger's size, under what the act will do.) */
 @media (max-width: 640px) {
   .palette-line {
