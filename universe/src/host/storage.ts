@@ -5,7 +5,7 @@
 // only then does the index move — so a crash mid-write leaves the previous save
 // intact, and a damaged latest save falls back to the one before.
 import type { SaveMeta } from "../bridge/index.ts";
-import { SaveError, type SaveDocument } from "../kernel/index.ts";
+import { PIECE_MOST, SaveError, joinJson, splitJson, type SaveDocument } from "../kernel/index.ts";
 
 export interface ByteStore {
   get(key: string): Promise<Uint8Array | undefined>;
@@ -86,24 +86,77 @@ async function pipe(
   return new Uint8Array(await out.arrayBuffer());
 }
 
-/** A save document as gzipped UTF-8 JSON. */
-export async function encodeSave(doc: SaveDocument): Promise<Uint8Array> {
-  return pipe(new TextEncoder().encode(JSON.stringify(doc)), new CompressionStream("gzip"));
+/** What a save written in pieces begins with (a save in one text begins "{"). */
+const SPLIT_HEAD = "CAUSALIS-SPLIT 1\n";
+
+/**
+ * A save document as gzipped UTF-8 JSON: one text, or, where that would be longer than an engine's longest string
+ * (or than `most`), a line saying so and then its pieces a line each (kernel/split-json.ts), gzipped as they come.
+ */
+export async function encodeSave(doc: SaveDocument, most = PIECE_MOST * 4): Promise<Uint8Array> {
+  let text: string | null = null;
+  try {
+    text = JSON.stringify(doc);
+  } catch (error) {
+    if (!(error instanceof RangeError)) throw error;
+  }
+  if (text !== null && text.length <= most)
+    return pipe(new TextEncoder().encode(text), new CompressionStream("gzip"));
+  text = null;
+  const gzip = new CompressionStream("gzip"),
+    out = new Response(gzip.readable).arrayBuffer(),
+    writer = gzip.writable.getWriter(),
+    encoder = new TextEncoder();
+  await writer.write(encoder.encode(SPLIT_HEAD));
+  await splitJson(
+    doc,
+    async (piece) => {
+      await writer.write(encoder.encode(piece));
+      await writer.write(encoder.encode("\n"));
+    },
+    Math.min(most, PIECE_MOST),
+  );
+  await writer.close();
+  return new Uint8Array(await out);
 }
 
 /** The document encodeSave wrote. */
 export async function decodeSave(bytes: Uint8Array): Promise<SaveDocument> {
   let text: string;
   try {
-    // (Text already, if a server that read a file's name took the gzip off on its way: "{".)
-    text = new TextDecoder().decode(
-      bytes[0] === 123 ? bytes : await pipe(bytes, new DecompressionStream("gzip")),
-    );
+    // (Text already, if a server that read a file's name took the gzip off on its way: "{" or a split save's "C".)
+    const plain =
+      bytes[0] === 123 || bytes[0] === 67
+        ? bytes
+        : await pipe(bytes, new DecompressionStream("gzip"));
+    if (plain[0] === 67) return joinSplit(plain);
+    text = new TextDecoder().decode(plain);
   } catch (error) {
+    if (error instanceof SaveError) throw error;
     throw new SaveError(`the save's bytes do not decompress (${(error as Error).message})`);
   }
   try {
     return JSON.parse(text) as SaveDocument;
+  } catch {
+    throw new SaveError("the save's bytes are not a save document");
+  }
+}
+
+/** A save written in pieces, read a line at a time: no text of it longer than a piece. */
+function joinSplit(bytes: Uint8Array): SaveDocument {
+  const decoder = new TextDecoder(),
+    texts: string[] = [];
+  let from = bytes.indexOf(10) + 1;
+  if (!from || decoder.decode(bytes.subarray(0, from)) !== SPLIT_HEAD)
+    throw new SaveError("the save's bytes are not a save document");
+  while (from < bytes.length) {
+    let to = bytes.indexOf(10, from);
+    if (to < 0) to = bytes.length;
+    if (to > from) texts.push(decoder.decode(bytes.subarray(from, to)));
+    from = to + 1;
+  }
+  try {
+    return joinJson(texts) as SaveDocument;
   } catch {
     throw new SaveError("the save's bytes are not a save document");
   }

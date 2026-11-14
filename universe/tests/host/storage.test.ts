@@ -1,6 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, loadWorld, rulesetId, saveWorld, type Seed } from "../../src/kernel/index.ts";
+import {
+  YEAR,
+  joinJson,
+  jsonCopy,
+  loadWorld,
+  rulesetId,
+  saveWorld,
+  splitJson,
+  type Seed,
+} from "../../src/kernel/index.ts";
 import {
   MemoryByteStore,
   SaveSlots,
@@ -73,4 +82,47 @@ test("the saves kept are listed with their world, time and size", async () => {
   assert.equal(auto.universe, "toy");
   assert.equal(auto.seed, "listed");
   assert.ok(auto.bytes > 0 && auto.rulesets === 1 && auto.count === 1);
+});
+
+// 2026-11-13: a world of 162 million people could not be kept, "Invalid string length": its save as one text was
+// longer than an engine's longest string. A save too long for one text is written in pieces and read back the same.
+test("a save too long for one text is written in pieces and reads back the same, its keys in their order", async () => {
+  const w = makeToyWorld("pieces");
+  w.runTo(20 * YEAR);
+  const doc = saveWorld(w, rulesetId(w, "test"), { name: "pieces" }),
+    whole = JSON.parse(JSON.stringify(doc)) as typeof doc,
+    text = JSON.stringify(doc);
+  for (const most of [64, 300, 2000, text.length >> 2]) {
+    const bytes = await encodeSave(doc, most),
+      back = await decodeSave(bytes);
+    assert.deepEqual(back, whole, `pieces of ${most}`);
+    // (Deep equality does not look at the order of keys; the text does.)
+    assert.equal(JSON.stringify(back), text, `keys out of their order at ${most}`);
+    assert.deepEqual(
+      loadWorld(back, build, rulesetId(w, "test")).world.domainHashes(),
+      w.domainHashes(),
+    );
+  }
+  assert.deepEqual(await decodeSave(await encodeSave(doc, text.length)), whole);
+});
+
+test("split JSON keeps what JSON keeps: holes, nulls, nesting, long runs", async () => {
+  const value = {
+    a: [1, null, undefined, "x".repeat(50), { deep: [[], {}, [1, 2, [3, { z: "end" }]]] }],
+    skipped: undefined,
+    run: Array.from({ length: 500 }, (_, i) => ({ i, s: `row ${i}` })),
+    "odd key\n": { "": 0, " ": [true, false] },
+    n: [Number.NaN, 1e300, -0],
+  };
+  for (const most of [16, 40, 100, 1000, 1e9]) {
+    const texts: string[] = [];
+    await splitJson(value, (t) => void texts.push(t), most);
+    assert.equal(JSON.stringify(joinJson(texts)), JSON.stringify(value), `at ${most}`);
+    if (most >= 1000 && most < 1e9)
+      assert.ok(
+        Math.max(...texts.map((t) => t.length)) <= most + 200,
+        `a piece too long at ${most}`,
+      );
+  }
+  assert.deepEqual(jsonCopy(value), JSON.parse(JSON.stringify(value)));
 });

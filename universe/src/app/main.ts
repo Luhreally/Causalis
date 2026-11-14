@@ -4029,13 +4029,27 @@ async function runPlanetPage(): Promise<void> {
   saveWarning.className = "save-warning";
   saveWarning.setAttribute("role", "status");
   saveWarning.hidden = true;
+  // (Put away with its ×, and away until a save is kept and another is not: it stood over the god's hand with no
+  // way to close it, 2026-11-13, "blocking my screen and i cant exit out of it".)
+  const saveWarningWords = document.createElement("span"),
+    saveWarningClose = document.createElement("button");
+  saveWarningClose.className = "save-warning-close";
+  saveWarningClose.textContent = "×";
+  saveWarningClose.setAttribute("aria-label", "Close");
+  let saveWarningShut = false;
+  saveWarningClose.onclick = () => {
+    saveWarningShut = true;
+    saveWarning.hidden = true;
+  };
+  saveWarning.append(saveWarningWords, saveWarningClose);
   hud.append(saveWarning);
   const checkpoint = new Checkpoint(
     () => client.save(`${saveName}:auto`),
     (error) => {
-      saveWarning.hidden = error === null;
+      if (error === null) saveWarningShut = false;
+      saveWarning.hidden = error === null || saveWarningShut;
       if (error !== null) {
-        saveWarning.textContent =
+        saveWarningWords.textContent =
           "Progress could not be saved in this browser. Open Saves and keep a copy as a file.";
         return;
       }
