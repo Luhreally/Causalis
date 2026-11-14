@@ -97,7 +97,8 @@ test("towns grow into cities, and paving reshapes them, answering to the road's 
       plan = laid(true),
       trade = (u: number | undefined) => (TRADE as readonly number[]).includes(u ?? -1);
     if (plan.filter((u, k) => u !== c.uses[k]).length > 12) continue;
-    if (plan.filter((u, k) => trade(u) !== trade(c.uses[k])).length > 3) continue;
+    // (Its trade where the paved plan puts it, a block aside at most: one paved six years since may still have three to move.)
+    if (plan.filter((u, k) => trade(u) !== trade(c.uses[k])).length > 1) continue;
     settled++;
     assert.ok(
       marketsFromRoad(c.uses, c.axis) <= marketsFromRoad(dirt, c.axis) + 0.05,

@@ -1478,3 +1478,113 @@ export function principle(id: string): Principle {
   if (i === undefined) throw new Error(`no principle ${id}`);
   return PRINCIPLES[i]!;
 }
+
+/** The fields of knowing a page groups principles by, in the order it tells them. */
+export const FIELDS = [
+  "thought and letters",
+  "rule and trade",
+  "healing",
+  "fields and food",
+  "crafts and making",
+  "war",
+  "roads, ships and word",
+  "flight beyond the sky",
+] as const;
+export type Field = (typeof FIELDS)[number];
+
+/** Which field each effect belongs to. */
+const EFFECT_FIELD: Readonly<Record<Effect, Field>> = {
+  farmYield: "fields and food",
+  herdYield: "fields and food",
+  forageYield: "fields and food",
+  storage: "fields and food",
+  keeping: "fields and food",
+  tools: "crafts and making",
+  clothing: "crafts and making",
+  pottery: "crafts and making",
+  building: "crafts and making",
+  power: "crafts and making",
+  industry: "crafts and making",
+  renewable: "crafts and making",
+  haul: "roads, ships and word",
+  carrying: "roads, ships and word",
+  reach: "roads, ships and word",
+  ships: "roads, ships and word",
+  signal: "roads, ships and word",
+  health: "healing",
+  learning: "thought and letters",
+  writing: "thought and letters",
+  arms: "war",
+  armour: "war",
+  mounts: "war",
+  walls: "war",
+  sieges: "war",
+};
+
+/**
+ * The principles whose field their effects do not say: a reckoning that carries more but is thought, written law and clerks that
+ * reach farther but are rule. (All others by their effects.)
+ */
+const NAMED_FIELD: Readonly<Record<string, Field>> = {
+  calendar: "thought and letters",
+  writing: "thought and letters",
+  mathematics: "thought and letters",
+  masonry: "crafts and making",
+  bronze: "crafts and making",
+  steel: "crafts and making",
+  astronomy: "thought and letters",
+  "law-codes": "rule and trade",
+  bureaucracy: "rule and trade",
+  currency: "rule and trade",
+  banking: "rule and trade",
+  quarantine: "healing",
+  germs: "healing",
+  "orbital-flight": "flight beyond the sky",
+  stations: "flight beyond the sky",
+  "transfer-flight": "flight beyond the sky",
+  habitats: "flight beyond the sky",
+  "nuclear-drive": "flight beyond the sky",
+  "fusion-drive": "flight beyond the sky",
+  "beamed-sails": "flight beyond the sky",
+  "antimatter-drive": "flight beyond the sky",
+  "lane-sounding": "flight beyond the sky",
+};
+
+/**
+ * A principle's field: by name where its effects mislead, else the field of its greatest effect against that effect's greatest in
+ * the tree (an arm's 1 is as much as a field's 0.25), else that of what it needs (war where any of that is), else by who finds it
+ * (leaders' rule, traders' trade, crafters' making).
+ */
+export function fieldOf(p: Principle): Field {
+  const named = NAMED_FIELD[p.id];
+  if (named) return named;
+  let best: Field | null = null,
+    most = 0;
+  for (const e of EFFECTS) {
+    const v = p.effects[e] ?? 0;
+    if (v <= 0) continue;
+    const share = v / (EFFECT_MOST.get(e) ?? 1);
+    if (share > most + 1e-9) {
+      most = share;
+      best = EFFECT_FIELD[e];
+    }
+  }
+  if (best) return best;
+  // (One that does nothing of its own is of what it grows from: of war if any of that is, a repeater of the rifle; else its first.)
+  const grown = p.needs
+    .map((n) => PRINCIPLES.find((q) => q.id === n.split("|")[0]))
+    .filter((q): q is Principle => !!q)
+    .map(fieldOf);
+  if (grown.length) return grown.includes("war") ? "war" : grown[0]!;
+  const d = p.drivers;
+  return (d.leaders ?? 0) > (d.crafters ?? 0)
+    ? "rule and trade"
+    : (d.traders ?? 0) > (d.crafters ?? 0)
+      ? "rule and trade"
+      : "crafts and making";
+}
+
+/** Each effect's greatest amount in the tree. */
+const EFFECT_MOST: ReadonlyMap<Effect, number> = new Map(
+  EFFECTS.map((e) => [e, Math.max(0, ...PRINCIPLES.map((p) => p.effects[e] ?? 0))]),
+);

@@ -258,22 +258,61 @@ const putAway = async () => {
   if (await close.count()) await close.first().click();
   await page.waitForTimeout(slow(300));
 };
-/** One drawn tapped, the eye brought down to them first (the page window put away): whether their card came. */
+/**
+ * One drawn tapped, the eye brought down to them first (the page window put away): whether their card came. Flown all the way
+ * before the tap (a tap read mid-flight falls beside them), and again from nearer and more overhead where another stood in front
+ * of them; a card that is not theirs is told. "card": their card came; "page": their page (one of the town's lines has no card).
+ */
 const tap = async (i: number) => {
-  const p = (await people()).find((q) => q.index === i);
-  if (!p) return false;
+  const p0 = (await people()).find((q) => q.index === i);
+  if (!p0) return false;
   await putAway();
-  await k(
-    `globalThis.causalis.rig.flyTo({ target: { x: ${p.x * 0.1}, y: 0, z: ${p.z * 0.1} }, distance: 3.5, pitch: -40 })`,
-  );
-  await page.waitForTimeout(slow(2500));
-  const at = await k<{ x: number; y: number } | null>(
-    `globalThis.causalis.personOnScreen?.(${i}) ?? null`,
-  );
-  if (!at) return false;
-  await page.mouse.click(at.x, at.y);
-  await page.waitForTimeout(slow(1200));
-  return (await page.locator(`${CARD} h2:visible`, { hasText: p.name }).count()) > 0;
+  let opened = "";
+  for (const [distance, pitch] of [
+    [3.5, -40],
+    [2.2, -60],
+    [1.5, -80],
+  ] as const) {
+    const p = (await people()).find((q) => q.index === i) ?? p0;
+    await k(
+      `globalThis.causalis.rig.flyTo({ target: { x: ${p.x * 0.1}, y: 0, z: ${p.z * 0.1} }, distance: ${distance}, pitch: ${pitch} })`,
+    );
+    await page.waitForTimeout(slow(2500));
+    const by = Date.now() + slow(15000);
+    while (Date.now() < by && (await k<boolean>("!!globalThis.causalis.rig.flying")))
+      await page.waitForTimeout(200);
+    const at = await k<{ x: number; y: number } | null>(
+      `globalThis.causalis.personOnScreen?.(${i}) ?? null`,
+    );
+    if (!at) continue;
+    // (Where another took the last tap, as a healer kneeling at their side, this one is tapped on their far side from them.)
+    const other = opened
+        ? (await people()).find((q) => q.index !== i && opened.includes(q.name))
+        : null,
+      them = other
+        ? await k<{ x: number; y: number } | null>(
+            `globalThis.causalis.personOnScreen?.(${other.index}) ?? null`,
+          )
+        : null,
+      away = them ? Math.hypot(at.x - them.x, at.y - them.y) : 0,
+      to =
+        them && away > 0.5
+          ? { x: at.x + ((at.x - them.x) / away) * 6, y: at.y + ((at.y - them.y) / away) * 6 }
+          : at;
+    await putAway();
+    await page.mouse.click(to.x, to.y);
+    await page.waitForTimeout(slow(1200));
+    if ((await page.locator(`${CARD} h2:visible`, { hasText: p0.name }).count()) > 0) return "card";
+    // (One of the town's own lines, not of its crowd, has no card: their page opens.)
+    const ref = await k<string>(`globalThis.causalis.planNow?.()?.people?.[${i}]?.ref ?? ""`);
+    if (ref && (await k<string>(`String(globalThis.causalis.pageOpen?.() ?? "")`)) === ref)
+      return "page";
+    opened = await k<string>(
+      `[...document.querySelectorAll("${CARD} h2")].map((h) => h.textContent ?? "").filter(Boolean).join(" | ")`,
+    );
+  }
+  say(`  tapped ${p0.name}: ${opened ? `the card of ${opened} came` : "no card came"}`);
+  return null;
 };
 const ofDay = (t: number) => Math.floor(t / DAY);
 
@@ -996,7 +1035,7 @@ if (round.length) {
     await face(h.x, h.z, 3);
     await shot("5-round");
     // The healer's card opens their page.
-    if (await tap(healer)) {
+    if ((await tap(healer)) === "card") {
       const button = page.locator(`${CARD} button:visible`, { hasText: "Their page" });
       check((await button.count()) > 0, "no page on the healer's card");
       if (await button.count()) {
@@ -1141,17 +1180,21 @@ if (marked) {
     await face(p.x, p.z, 2.5);
     await shot("8-marked");
   }
-  // 6. Their card, and their page.
-  if (p && (await tap(one))) {
+  // 6. Their card, and their page (or their page at once, one of the town's lines).
+  const how = p ? await tap(one) : null;
+  if (how === "page") say("their page came at once: one of the town's lines, not its crowd");
+  if (how) {
     const lines = await k<string[]>(
       `[...document.querySelectorAll("${CARD} .folk-wound")].map((e) => e.textContent ?? "")`,
     );
-    say(`their card: ${lines.join(" | ") || "no wound told"}`);
-    check(lines.length >= 1, "their wounds not told on their card");
-    await shot("9-card");
+    if (how === "card") {
+      say(`their card: ${lines.join(" | ") || "no wound told"}`);
+      check(lines.length >= 1, "their wounds not told on their card");
+      await shot("9-card");
+    }
     const button = page.locator(`${CARD} button:visible`, { hasText: "Their page" });
-    if (await button.count()) {
-      await button.first().click();
+    if (how === "page" || (await button.count())) {
+      if (how === "card") await button.first().click();
       await page
         .waitForFunction(
           () => String((globalThis as any).causalis.pageOpen?.() ?? "").startsWith("folk:"),

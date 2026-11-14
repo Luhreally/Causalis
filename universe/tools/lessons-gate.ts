@@ -7,6 +7,11 @@
 //   3. its realm, pressed from the land's page: a realm's Learned tab, the same checks, where it has one;
 //   4. the annals tell when a lesson was first taken up;
 //   5. no page errors.
+// And its second step (asked 2026-11-12: "it should also be learned philosphies/logic and everything u learn ... more nuanced battle
+// tactics ... rn its says their learned to ram engines before they even have engines"): the land's tab in its three parts (from what
+// has cost them, by their own thought and finding, from others), the found shown a few at first and all at "show all"; what they
+// do named only by means they know; a realm's tactic row (a screen, formations, riders, supply trains), with what it cost them and
+// whether it worked.
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -28,6 +33,48 @@ const check = (ok: boolean, what: string) => {
 };
 const say = (s: string) => console.log(`  ${s}`);
 console.log("the gate of lessons learned (110)");
+
+/**
+ * Words of means and what a people must know to have them (rules/lessons.ts means, rules/designs.ts): any of these on a holder's
+ * tab without its needs known is the defect asked about ("ram engines before they even have engines").
+ */
+const MEANS: readonly [RegExp, string][] = [
+  [/throwing engines/, "siege-craft"],
+  [/great guns|powder mines|siege guns/, "gunpowder"],
+  [/pike and shot|skirmishers in open order|muskets/, "firearms"],
+  [/riflemen|fire by rank|\brifles\b/, "rifling"],
+  [/trenches, wire/, "automatic-fire"],
+  [/carts and depots/, "cart"],
+  [/trains to the front/, "railways"],
+  [/lorries/, "engines"],
+  [/on horseback|as horsemen/, "riding"],
+  [/in chariots/, "chariots"],
+  [/braced timber frames/, "carpentry"],
+  [/frames braced with steel/, "steel|made-oxygen|drawn-carbon"],
+  [/walls of stone/, "masonry|reef-building"],
+];
+/** The means a holder's tab names, in what they do now, without knowing them. */
+async function unknownMeans(ref: string, text: string): Promise<string[]> {
+  const known = new Set(
+    await k<string[]>(
+      `globalThis.causalis.client.query({ type: "lessons.knows", args: { ref: ${JSON.stringify(ref)} } })`,
+    ),
+  );
+  const does = text
+    .split("\n")
+    .filter((l) => /What they do now/i.test(l))
+    .join("\n");
+  return MEANS.filter(
+    ([re, needs]) => re.test(does) && !needs.split("|").some((n) => known.has(n)),
+  ).map(([re, needs]) => `${String(re)} without ${needs}`);
+}
+/** The tactics a battle teaches (rules/lessons.ts), by their tab titles. */
+const TACTICS: Readonly<Record<string, RegExp>> = {
+  "skirmish-screen": /A screen ahead of the line/i,
+  formations: /Formations that hold/i,
+  "mounted-wings": /Wings of their own riders/i,
+  "supply-trains": /Supply trains and depots/i,
+};
 
 /** Words a page must never show: a raw id, a number gone wrong, a word left unfilled. */
 const BAD = /\b(?:cell|pol|ev|town|war):\d+(?::\d+)?\b|undefined|NaN|null|\[object/;
@@ -96,14 +143,20 @@ const pageText = () =>
     `(() => { const e = document.querySelector(".page-window"); return e && e.getBoundingClientRect().height > 0 ? e.innerText : ""; })()`,
   );
 /** Whatever of the page's open tab lies past the screen's sides, or is cut off within its own box. */
-const offScreen = () =>
+/** What of the open tab runs off the screen, or of its one block whose title starts so, where one is named. */
+const offScreen = (block?: string) =>
   k<string[]>(`(() => {
     const w = document.querySelector(".page-window"), out = [];
     if (!w) return ["no page"];
     const a = w.getBoundingClientRect();
     if (a.left < -1 || a.right > innerWidth + 1) out.push("the page " + Math.round(a.left) + " to " + Math.round(a.right));
+    const named = ${JSON.stringify(block ?? "")},
+      within = named
+        ? [...w.querySelectorAll(".page-body .block")].filter((b) => (b.querySelector("h3")?.textContent ?? "").trim().startsWith(named))
+        : [w.querySelector(".page-body")].filter(Boolean);
+    if (named && !within.length) out.push("no block " + named);
     // (What the open tab holds: the page's own head is the page's, cut to a line by design.)
-    for (const e of w.querySelectorAll(".page-body *")) {
+    for (const e of within.flatMap((b) => [...b.querySelectorAll("*")])) {
       const r = e.getBoundingClientRect();
       if (!(r.width > 0 && r.height > 0)) continue;
       if (r.left < -1 || r.right > innerWidth + 1)
@@ -115,17 +168,21 @@ const offScreen = () =>
   })()`);
 /** Open a page, then press its Learned tab by touch; what the tab says (empty: none such). */
 async function learnedTab(ref: string, what: string): Promise<string> {
+  return tabNamed("Learned", ref, what);
+}
+/** On an open page, press the tab of that name by touch; what the tab says (empty: none such). */
+async function tabNamed(name: string, ref: string, what: string): Promise<string> {
   const tabAt = await k<number>(
-    `[...document.querySelectorAll(".page-window .tabs .tab")].findIndex((b) => /^\\s*Learned/.test(b.textContent))`,
+    `[...document.querySelectorAll(".page-window .tabs .tab")].findIndex((b) => b.textContent.trim().startsWith(${JSON.stringify(name)}))`,
   );
   if (tabAt < 0) {
-    problems.push(`no Learned tab on ${what} (${ref})`);
+    problems.push(`no ${name} tab on ${what} (${ref})`);
     return "";
   }
-  await press(`.page-window .tabs .tab:nth-child(${tabAt + 1})`, `${what}'s Learned tab`);
-  await until(`${what}'s Learned tab open`, () =>
+  await press(`.page-window .tabs .tab:nth-child(${tabAt + 1})`, `${what}'s ${name} tab`);
+  await until(`${what}'s ${name} tab open`, () =>
     k<boolean>(
-      `/^\s*Learned/.test(document.querySelector(".page-window .tabs .tab.on")?.textContent ?? "")`,
+      `(document.querySelector(".page-window .tabs .tab.on")?.textContent ?? "").trim().startsWith(${JSON.stringify(name)})`,
     ),
   );
   await page.waitForTimeout(slow(400));
@@ -186,13 +243,58 @@ if (land) {
       /What they do now/i.test(text) && /Has it worked/i.test(text),
       `a land: no “what they do now” or “has it worked”`,
     );
+    // Its three parts: from what has cost them, by their own thought and finding, from others.
+    check(/From what has cost them/i.test(text), "a land: no “from what has cost them”");
+    check(
+      /By their own thought and finding/i.test(text),
+      "a land: no “by their own thought and finding”",
+    );
+    check(/From others/i.test(text), "a land: no “from others”");
+    check(
+      /By their own thought and finding: [\d,]+ \([a-z ,]+ \d+/i.test(text),
+      `a land: what they found is not told by field: ${(text.match(/By their own thought[^\n]*/i) ?? [""])[0]}`,
+    );
+    const bad = await unknownMeans(land.ref, text);
+    check(bad.length === 0, `a land names means it does not know: ${bad.join("; ")}`);
     await shot("1-land");
+    // The few shown first; all at "show all", by touch.
+    const rows = () =>
+      k<number[]>(
+        `[...document.querySelectorAll(".page-window .page-body .table-wrap")].map((t) => t.querySelectorAll("tbody tr").length)`,
+      );
+    const before = await rows(),
+      showAll = await k<number>(
+        `[...document.querySelectorAll(".page-window .page-body .show-all")].filter((b) => !b.hidden).length`,
+      );
+    say(`the land's tables: ${before.join(", ")} rows shown; ${showAll} with more at “show all”`);
+    check(
+      before.length >= 2,
+      `a land: its found and its learned from others not both drawn (${before.length} tables)`,
+    );
+    if (showAll) {
+      await press(".page-window .page-body .show-all:not([hidden])", "show all");
+      const after = await rows();
+      say(`after “show all”: ${after.join(", ")} rows`);
+      check(
+        after.reduce((a, b) => a + b, 0) > before.reduce((a, b) => a + b, 0),
+        "“show all” showed no more",
+      );
+      const offAll = await offScreen();
+      check(offAll.length === 0, `a land, all shown: off the screen: ${offAll.join(" | ")}`);
+      await shot("1b-land-all");
+    }
     // 3. Its realm, pressed from the page's own link.
     const realm = await k<string | null>(
       `(() => { const a = document.querySelector('.page-window a.ref-link[href^="#pol:"]'); return a ? a.getAttribute("href").slice(1) : null; })()`,
     );
-    const target = realms.find((r) => r.ref === realm) ? realm : (realms[0]?.ref ?? null);
-    if (realm && target === realm) {
+    // (A realm with a tactic a battle taught it, where any has one; else the land's own.)
+    const tactical = realms.find((r) => r.lessons.some((l) => l in TACTICS)),
+      target = tactical
+        ? tactical.ref
+        : realms.find((r) => r.ref === realm)
+          ? realm
+          : (realms[0]?.ref ?? null);
+    if (realm && target === realm && !tactical) {
       await press(`.page-window a.ref-link[href="#${realm}"]`, "the land's realm");
       await until("its realm's page", async () => (await pageNow()) === realm);
     } else if (target) await k(`globalThis.causalis.open(${JSON.stringify(target)})`);
@@ -200,8 +302,128 @@ if (land) {
       const text = await learnedTab(target, "a realm");
       say(`the realm's tab: ${text.replace(/\s+/g, " ").slice(0, 400)}`);
       await checkSection(text, "a realm");
+      const badR = await unknownMeans(target, text);
+      check(badR.length === 0, `a realm names means it does not know: ${badR.join("; ")}`);
+      if (tactical) {
+        const [id, re] = Object.entries(TACTICS).find(([t]) => tactical.lessons.includes(t))!,
+          at = text.search(re),
+          row = at >= 0 ? text.slice(at, at + 400) : "";
+        say(`its tactic: ${row.replace(/\s+/g, " ").slice(0, 300)}`);
+        check(at >= 0, `a realm that leans on ${id}: no row for it on its tab`);
+        check(
+          /men [\w' ]+ in (?:a year|[\d,]+ years) \([\d,]+ battles?\)/i.test(row) &&
+            /Has it worked/i.test(row),
+          `a realm's tactic row without what it cost them in battles, or whether it worked: ${row.slice(0, 200)}`,
+        );
+        // Its row in view, as the eye sees it.
+        await k(`(() => {
+          for (const h of document.querySelectorAll(".page-window .page-body h3"))
+            if (${String(re)}.test(h.textContent)) { h.scrollIntoView({ block: "start" }); return; }
+        })()`);
+        await page.waitForTimeout(slow(300));
+      }
       await shot("2-realm");
     } else say("no realm with a lesson to open");
+  }
+}
+
+// 3c. How a realm is held, and what it learned of rule (asked 2026-11-13: "do they learn and adapt from their diplomatic actions,
+// politcal, econmic actions ... maybe some countires ban guns/weapons ... maybe others are more democratic, maybe some countires learn
+// from other countires faults"): a realm that learned of rule, the most from another's fate; its Learned tab tells what befell it and
+// others, and whose fate it was; its Order tab how it is held, each number in words read off it and the people; the Years tell a
+// lesson from another's fate in its year.
+{
+  const ruled = await k<{ ref: string; taught: number; seen: number; year: number | null }[]>(
+    `globalThis.causalis.client.query({ type: "holds.taught" })`,
+  );
+  say(
+    `realms that learned of rule: ${ruled.length}, ${ruled.filter((r) => r.seen).length} from another's fate`,
+  );
+  check(ruled.length > 0, "no realm learned of rule");
+  // (One that told another's fate as a lesson first, so the Years can be read for it.)
+  const r = [...ruled].sort(
+    (a, b) =>
+      +(b.year !== null) - +(a.year !== null) ||
+      b.seen - a.seen ||
+      b.taught - a.taught ||
+      (a.ref < b.ref ? -1 : 1),
+  )[0];
+  if (r) {
+    await k(`globalThis.causalis.open(${JSON.stringify(r.ref)})`);
+    if (await until("a realm that learned of rule", async () => (await pageNow()) === r.ref)) {
+      const text = await learnedTab(r.ref, "a realm that learned of rule"),
+        at = text.search(/From what befell them and others/i);
+      say(`its lessons of rule: ${text.slice(Math.max(0, at)).replace(/\s+/g, " ").slice(0, 400)}`);
+      check(at >= 0, "a realm that learned of rule: no “from what befell them and others”");
+      if (r.seen)
+        check(
+          /Seeing [^.:]+, it (held|blamed|took|thanked|credited)/i.test(text),
+          "a realm that learned from another's fate: whose fate it was is not told",
+        );
+      check(!/\{them\}|undefined|NaN/.test(text), "a lesson of rule with a word unfilled");
+      await k(`(() => {
+        for (const h of document.querySelectorAll(".page-window .page-body h3"))
+          if (/From what befell them/i.test(h.textContent)) { h.scrollIntoView({ block: "start" }); return; }
+      })()`);
+      await page.waitForTimeout(slow(300));
+      const off1 = await offScreen();
+      check(off1.length === 0, `a realm's lessons of rule: off the screen: ${off1.join(" | ")}`);
+      await shot("3-rule-lessons");
+      const order = await tabNamed("Order", r.ref, "a realm");
+      say(
+        `how it is held: ${order
+          .slice(Math.max(0, order.search(/How it is held/i)))
+          .replace(/\s+/g, " ")
+          .slice(0, 400)}`,
+      );
+      for (const label of [
+        "How it is held",
+        "Who bears arms",
+        "Who decides",
+        "How word moves",
+        "Its bonds to others",
+      ])
+        check(new RegExp(label, "i").test(order), `a realm's Order tab: no “${label}”`);
+      check(
+        /Held by (one|a few|many|all)/.test(order),
+        "a realm's Order tab: how it is held, in all, not told",
+      );
+      check(/\(\d+ of 100\)/.test(order), "a realm's Order tab: its numbers not told");
+      check(!/undefined|NaN/.test(order), "a realm's Order tab with a word unfilled");
+      await k(`(() => {
+        for (const h of document.querySelectorAll(".page-window .page-body h3"))
+          if (/How it is held/i.test(h.textContent)) { h.scrollIntoView({ block: "start" }); return; }
+      })()`);
+      await page.waitForTimeout(slow(300));
+      // (Its own block: the tables after it scroll sideways in their own frame on a phone.)
+      const off2 = await offScreen("How it is held");
+      check(off2.length === 0, `a realm's Order tab: off the screen: ${off2.join(" | ")}`);
+      await shot("3b-held");
+    }
+    if (r.year !== null) {
+      // (The Years' words, their spans joined: a realm's name is a link of its own.)
+      const words = (x: unknown): string =>
+          typeof x === "string"
+            ? x
+            : Array.isArray(x)
+              ? x.map(words).join("")
+              : x && typeof x === "object"
+                ? "text" in x && typeof (x as { text: unknown }).text === "string"
+                  ? (x as { text: string }).text
+                  : Object.values(x).map(words).join(" ")
+                : "",
+        years = words(
+          await k<unknown>(
+            `globalThis.causalis.client.query({ type: "annals.read", args: { years: [${r.year}] } })`,
+          ),
+        ),
+        told = years.match(/[^.]*seeing the [^.]*/i)?.[0] ?? "(none)";
+      say(`the Years at ${r.year}: ${told.trim().slice(0, 240)}`);
+      check(
+        /seeing the [^,]+(, [^,]+)*, (took|held|blamed)/i.test(told),
+        `the Years do not tell a lesson from another's fate in year ${r.year}`,
+      );
+    }
   }
 }
 

@@ -274,7 +274,12 @@ test("one of the levy known by the roll alone: his kin given by the keyed rule, 
 
 test("a maker and the healer: their kin by their seat, said plainly; their pages tell them", () => {
   let n = 0;
-  for (const s of towns) {
+  // (The greatest eight: the first few towns may keep no trade yet, a market and a shrine their only civics.)
+  for (const s of populationContext(world)
+    .settlements.all()
+    .filter((t) => t.population > 0)
+    .sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1))
+    .slice(0, 8)) {
     const plan: VillagePlan = villagePlan(world, s.ref as Ref, undefined, 480);
     for (const p of plan.people.filter((q) => q.trade || q.healer).slice(0, 3)) {
       const ref = p.healer ? `heal:${s.ref}` : seatRef(s.ref, p.trade!.kind, p.trade!.seat),

@@ -47,7 +47,7 @@ import { dropBlock } from "./small.ts";
 import { landBondBlocks } from "./order.ts";
 import { landHealthBlocks } from "./sickness.ts";
 import { landCreditBlocks } from "./credit.ts";
-import { lessonBlocks } from "./lessons.ts";
+import { learnedBlocks } from "./lessons.ts";
 import { tradeItems } from "./wares.ts";
 import { lineageLook, loreLook } from "./ware-looks.ts";
 import { homeLook, worksLook } from "./art.ts";
@@ -276,9 +276,9 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
     const debt = landCreditBlocks(world, cell);
     if (debt.length) tabs.push({ id: "debt", name: "Debt", blocks: debt });
   }
-  // What its people have learned from what has cost them (the lessons).
+  // All its people have learned: from what has cost them (the lessons), by their own thought, and from others.
   {
-    const learned = lessonBlocks(world, ref);
+    const learned = learnedBlocks(world, ref, cell);
     if (learned.length) tabs.push({ id: "learned", name: "Learned", blocks: learned });
   }
   // The ground and its air.

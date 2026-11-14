@@ -37,6 +37,8 @@ import { LAW, POLITY_EVENTS, politiesOf, realmName } from "../polity/polity.ts";
 import { diplomacyOf } from "../diplomacy/diplomacy.ts";
 import { fieldedOf, warsOf, type War } from "../war/war.ts";
 import { BOND, orderOf } from "../order/order.ts";
+import { holdOf } from "../order/holds.ts";
+import { HOLD } from "../../rules/index.ts";
 
 export const HOUSE = defineKind("house", "a house of lending", "minted");
 
@@ -424,9 +426,11 @@ export function creditYear(ctx: PopulationContext, t: SimTime): void {
     if (!fallen && !(beaten && debtBurden(ctx, l.cell) >= CREDIT.crushing)) continue;
     const h = store.house(l.house)!,
       why = (fallen ? fallOf(world, l.realm) : null) ?? w?.peace ?? l.event,
+      // (The lender's realm, that bears it: a subject of the default, so it may learn from it, rules/holds.ts unpaid.)
+      theirs = realms.of(h.cell),
       event = world.events.emit({
         type: CREDIT_EVENTS.defaulted.type,
-        subjects: [l.realm, h.ref],
+        subjects: [l.realm, h.ref, ...(theirs && theirs.ref !== l.realm ? [theirs.ref] : [])],
         place: ctx.provinces.get(l.cell)?.ref ?? cellRef(0, l.cell),
         causes: [
           { ref: why, role: "trigger", weight: 1 },
@@ -442,7 +446,6 @@ export function creditYear(ctx: PopulationContext, t: SimTime): void {
     endLoan(store, l, year, "repudiated", event);
     store.defaults.push({ realm: l.realm, year, event });
     // (The lender's realm remembers it.)
-    const theirs = realms.of(h.cell);
     if (p && theirs && theirs.ref !== p.ref)
       diplomacy.remember(p.ref, theirs.ref, {
         name: "debts repudiated",
@@ -789,8 +792,10 @@ export function creditYear(ctx: PopulationContext, t: SimTime): void {
         if (store.chest(p.ref, w.ref)) continue;
         const burden = debtBurden(ctx, p.seat);
         if (burden >= CREDIT.crushing) continue;
-        const men = fieldedOf(ctx, p),
-          want = Math.ceil(CREDIT.season * men * ctx.life.appetite),
+        // (A realm wary of binding itself borrows the less, and from no one abroad: rules/holds.ts trust.)
+        const trust = holdOf(world, p.ref, HOLD.trust),
+          men = fieldedOf(ctx, p),
+          want = Math.ceil(CREDIT.season * men * ctx.life.appetite * (0.5 + trust)),
           enemy = w.attacker === p.ref ? w.defender : w.attacker;
         if (want < 50) continue;
         let best: House | null = null,
@@ -801,6 +806,7 @@ export function creditYear(ctx: PopulationContext, t: SimTime): void {
             const theirs = realms.of(h.cell);
             if (!theirs || theirs.ended !== null || theirs.ref === enemy) continue;
             if ((theirs.ref !== p.ref) !== far) continue;
+            if (far && trust < 0.3) continue;
             if (far) {
               const known = diplomacy.get(theirs.ref, p.ref);
               if (!known || known.opinion < 0 || wars.between(theirs.ref, p.ref)) continue;

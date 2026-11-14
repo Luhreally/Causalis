@@ -40,8 +40,13 @@ function reach(w: World, ref: string, depth = 9): Set<string> {
 
 test("realms go to war, by decisions that cite their rivalry or hunger and the land they want", () => {
   assert.ok(wars.length >= 3, `${wars.length} wars`);
+  // (The wars a realm chose: one joined at a friend's call, a vassal's rising and a civil war each have causes of their own.)
+  const chosen = wars.filter(
+    (w) => !w.civil && world.decisions.get(world.events.get(w.event)!.causes[0]!.ref as Ref),
+  );
+  assert.ok(chosen.length >= 3, `${chosen.length} wars chosen`);
   let rivals = 0;
-  for (const w of wars.slice(0, 10)) {
+  for (const w of chosen.slice(0, 10)) {
     const d = world.decisions.get(world.events.get(w.event)!.causes[0]!.ref as Ref)!;
     assert.equal(d.rule, "war.declare");
     // A war of hatred cites the rivalry; a war of hunger (between realms with no ill will)

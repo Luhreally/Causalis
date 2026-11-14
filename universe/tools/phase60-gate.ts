@@ -599,10 +599,14 @@ async function walk(
     ),
   );
   check(s.agent === Number(chosen.ref.slice(6)), n(`took ${s.agent}, not ${chosen.ref}`));
+  // (Where a store stands under the hand, its taking is the first act, before the work: the work's words are read at the work.)
+  const storeFirst = /^Take .+ from the .+: a theft, if anyone sees$/.test(hint);
+  if (storeFirst) say(n(`a store under the hand: its taking comes first, “${hint}”`));
   check(
-    new RegExp(
-      `^No ${work === "row" ? "field" : work === "wheel" ? "potter's wheel" : work} here: (he|she) is an? ${s.trade}`,
-    ).test(hint),
+    storeFirst ||
+      new RegExp(
+        `^No ${work === "row" ? "field" : work === "wheel" ? "potter's wheel" : work} here: (he|she) is an? ${s.trade}`,
+      ).test(hint),
     n(`the work's words before it could be done: “${hint}”`),
   );
   // The controls as the phone shows them: four acts a thumb's width, Let go, the strip; the game's own put away.

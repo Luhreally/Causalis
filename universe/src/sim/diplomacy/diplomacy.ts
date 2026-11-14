@@ -25,6 +25,9 @@ import type { MarketStore } from "../economy/market.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
 import { LAW, POLITY_EVENTS, politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { beliefOf } from "../belief/belief.ts";
+import { HOLD, HOLDING, OUTCOME } from "../../rules/index.ts";
+import { orderOf } from "../order/order.ts";
+import { blamesOutsiders, holdOf } from "../order/holds.ts";
 
 export const RELATION = defineKind("rel", "two realms' regard", "structural");
 
@@ -282,6 +285,27 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
     const valour = Math.max(wa.traits[WAY.valour]!, wb.traits[WAY.valour]!);
     if (valour > 0.58)
       terms.push({ name: "a people who prize valour", value: -(valour - 0.58) * 2, source: null });
+    // How far each binds itself to others (rules/holds.ts trust): one wary of every pact holds back; two who bind freely draw close.
+    const [ta, tb] = [holdOf(world, a.ref, HOLD.trust), holdOf(world, b.ref, HOLD.trust)],
+      wary = Math.min(ta, tb);
+    if (wary < 0.3)
+      terms.push({
+        name: `the wariness of ${realmName(ta <= tb ? a : b)}`,
+        value: -(0.3 - wary) * 1.2,
+        source: orderOf(world)?.of(ta <= tb ? a.ref : b.ref)?.taught?.[0]?.event ?? null,
+      });
+    else if (wary >= 0.65)
+      terms.push({ name: "two realms that bind freely", value: 0.1, source: null });
+    // A people who laid its own woes at outsiders' door looks on its neighbours the darker (rules/holds.ts blame "theirs").
+    for (const side of [a, b]) {
+      const blamed = blamesOutsiders(world, side.ref, year);
+      if (blamed)
+        terms.push({
+          name: `${realmName(side)} blaming outsiders for ${OUTCOME.get(blamed.taught.what)?.words ?? "its woes"}`,
+          value: -HOLDING.grudgeBy * blamed.fresh,
+          source: blamed.taught.event,
+        });
+    }
     terms.push(...store.remembered(a.ref, b.ref, year));
     const opinion = Math.max(
       -1,

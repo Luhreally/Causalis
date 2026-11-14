@@ -4,7 +4,7 @@ import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { folkRef, spine, why } from "../../src/causal/index.ts";
 import { cradleCell } from "../cradle.ts";
-import { homePlanet as homePlanetOf, warsOf } from "../../src/sim/index.ts";
+import { homePlanet as homePlanetOf, politiesOf, warsOf } from "../../src/sim/index.ts";
 
 /** Where the first people of "first light" began. */
 const CRADLE = cradleCell("first light");
@@ -261,8 +261,8 @@ test("a lineage, a realm, a deposit, a plate and the deep ages each have a page,
   });
   assert.ok(s.name && s.lands >= 1, "a lineage lives somewhere");
   assert.equal(why(world, s.arose.ref as Ref).basis, "generated");
-  const realmRef =
-    folk.realm?.ref ?? world.events.all().find((e) => e.type === "polity.formed")?.subjects[0];
+  // (The cradle's realm, or, where none holds it now, a realm that stands: one fallen holds no lands.)
+  const realmRef = folk.realm?.ref ?? politiesOf(world).living()[0]?.ref;
   assert.ok(realmRef, "a realm to look at");
   const r = ask<{
     lands: number;

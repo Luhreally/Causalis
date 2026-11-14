@@ -276,7 +276,7 @@ export function exchangeOf(world: World, realm: string): Exchange | null {
         name: `The ${town.name} Exchange`,
         town: { ref: town.ref, name: town.name },
         companies,
-        index: first > 0 ? years.map(([year, v]) => ({ year, value: (100 * v) / first })) : [],
+        index: first > 0 ? years.map(([year, v]) => ({ year, value: 100 * (v / first) })) : [],
       };
     }
   }

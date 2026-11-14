@@ -55,6 +55,8 @@ import {
   laneMapOf,
   lessonsOf,
   useIn,
+  orderOf,
+  HOLD_EVENTS,
 } from "../sim/index.ts";
 import {
   FOODS,
@@ -888,8 +890,10 @@ function planetUniverse(name: string, prior: Prior): Universe {
   // fire; no lists by kind. And with F4: rocky worlds read as any other, each turning aside where its numbers
   // shut the first way. And with W2: past its engines, wings, and war from the air; what the tree's roots
   // know crosses the sea. And with W3: past its rocketry, loads thrown. And with E1: woods that move, long ages of rain,
-  // lodes that run out. And with Z1: herds that go somewhere, beasts people know, herds taken in war, a tree that goes on.)
-  const version = name === "alien" ? "alien-23" : `${name}-19`,
+  // lodes that run out. And with Z1: herds that go somewhere, beasts people know, herds taken in war, a tree that goes on. And
+  // with the lessons' second step: lessons of war and want that change how a people fights and stores, and how each realm is held
+  // (who bears arms, who decides, how word moves, how it binds itself) moving with what befell it and others.)
+  const version = name === "alien" ? "alien-24" : `${name}-20`,
     make = (seed: Seed, frequency?: number) => {
       // The chronicle opens after a generated prehistory: bands across the land.
       const lands = landsOf(seed.text),
@@ -973,6 +977,40 @@ function planetUniverse(name: string, prior: Prior): Universe {
       "speed.tally": (world) => speedTally(world),
       /** Who has learned what from what cost them (the lessons): each land and realm with a lesson, the most learned first. */
       "lessons.held": (world) => lessonsHeld(world),
+      /** What a land knows, or a realm at its seat: the principles its lore holds (for the gates: words of means it has not are a defect). */
+      "lessons.knows": (world, args) => {
+        const ref = (args as { ref: string }).ref,
+          cell = ref.startsWith("cell:0:")
+            ? Number(ref.slice(7))
+            : (politiesOf(world).get(ref as Ref)?.seat ?? null);
+        return cell === null
+          ? []
+          : loreOf(world)
+              .of(cell)
+              .map(([id]) => id);
+      },
+      /** The living realms that learned of rule (sim/order/holds.ts): how many lessons each keeps, how many from another's fate, and the year of the last such told. */
+      "holds.taught": (world) =>
+        politiesOf(world)
+          .living()
+          .flatMap((p) => {
+            const taught = orderOf(world)?.of(p.ref)?.taught ?? [],
+              seen = taught.filter((x) => x.of),
+              // (The last another's fate it told as a lesson, the Years say so; many are weighed and not told.)
+              told = seen.find(
+                (x) => x.event && world.events.get(x.event)?.type === HOLD_EVENTS.lesson.type,
+              );
+            return taught.length
+              ? [
+                  {
+                    ref: p.ref,
+                    taught: taught.length,
+                    seen: seen.length,
+                    year: told?.year ?? null,
+                  },
+                ]
+              : [];
+          }),
       /** Each lesson some people of the world has taken up, and the year the first did. */
       "lessons.firsts": (world) =>
         (lessonsOf(world)?.firsts ?? []).map(([lesson, year]) => ({ lesson, year })),
