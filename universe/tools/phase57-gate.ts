@@ -29,8 +29,16 @@ import { preview } from "vite";
 import { chromium } from "playwright";
 import { seedFromText } from "../src/kernel/index.ts";
 import { generateHomeWorld, worldLife } from "../src/gen/index.ts";
-import { EARTHLIKE, OPEN, type LifeChemistry, type Prior } from "../src/rules/index.ts";
+import { EARTHLIKE, OPEN, keptLife, type LifeChemistry, type Prior } from "../src/rules/index.ts";
 import { lifeLines, surveyLife } from "./chem-survey.ts";
+
+// (The sulfur, ammonia, carbon and methane worlds as they were made, life kept: of their own chemistry the last three
+// quicken no life now and alien 84's people wear shells and fight no battle by 125; what is read here is the life the
+// old tables gave them.)
+const A84 = keptLife("alien 84"),
+  A218 = keptLife("alien 218"),
+  A20 = keptLife("alien 20"),
+  A1429 = keptLife("alien 1429");
 
 const ci = process.argv.includes("--ci"),
   soft = process.argv.includes("--soft"),
@@ -72,7 +80,7 @@ const LIVES: readonly {
     life: { kind: "rocky", hand: "right", bone: "calcite", blood: "iron", pigment: "phycocyanin" },
   },
   {
-    seed: "alien 84",
+    seed: A84,
     prior: OPEN,
     life: {
       kind: "sulfur",
@@ -83,7 +91,7 @@ const LIVES: readonly {
     },
   },
   {
-    seed: "alien 218",
+    seed: A218,
     prior: OPEN,
     life: {
       kind: "ammonia",
@@ -97,12 +105,12 @@ const LIVES: readonly {
     },
   },
   {
-    seed: "alien 20",
+    seed: A20,
     prior: OPEN,
     life: { kind: "carbon", bone: "greigite", blood: "iron-sulfur", store: "squalene" },
   },
   {
-    seed: "alien 1429",
+    seed: A1429,
     prior: OPEN,
     life: {
       kind: "methane",
@@ -361,9 +369,9 @@ const beastOf = (seed: string, prior: Prior) =>
 
 // 2. Alien 84: bones of silica, green blood, near-black woods.
 {
-  const year = await openWorld("alien", "alien 84", 125);
+  const year = await openWorld("alien", A84, 125);
   say(`alien 84 at year ${year}`);
-  await globeLooks("alien 84", "bacteriochlorophyll", "black woods", "2-84-globe");
+  await globeLooks(A84, "bacteriochlorophyll", "black woods", "2-84-globe");
   const town = await greatest();
   check(!!town, "no town on alien 84");
   if (town) {
@@ -410,7 +418,7 @@ const beastOf = (seed: string, prior: Prior) =>
     }
   }
   // A beast's page: its bones and blood, and why.
-  const beast = beastOf("alien 84", OPEN);
+  const beast = beastOf(A84, OPEN);
   const named = await opened(beast);
   const bones = (await factOn("Its bones")) ?? "",
     blood = (await factOn("Its blood")) ?? "";
@@ -497,9 +505,9 @@ const beastOf = (seed: string, prior: Prior) =>
 
 // 3. Alien 218: golden woods; a garment of its own fibre; stores of its own starch.
 {
-  const year = await openWorld("alien", "alien 218", 30);
+  const year = await openWorld("alien", A218, 30);
   say(`alien 218 at year ${year}`);
-  await globeLooks("alien 218", "carotene", "golden woods", "3-218-globe");
+  await globeLooks(A218, "carotene", "golden woods", "3-218-globe");
   const town = await greatest();
   check(!!town, "no town on alien 218");
   if (town) {
@@ -552,9 +560,9 @@ const beastOf = (seed: string, prior: Prior) =>
 
 // 4. Alien 1429: amber woods; its dawn fed by the haze; bones of ice, blood of iron and sulfur.
 {
-  const year = await openWorld("alien", "alien 1429", 400);
+  const year = await openWorld("alien", A1429, 400);
   say(`alien 1429 at year ${year}`);
-  await globeLooks("alien 1429", "polyimine", "amber woods", "4-1429-globe");
+  await globeLooks(A1429, "polyimine", "amber woods", "4-1429-globe");
   await opened("world:tree#dawn");
   const rungs = (await listOn("Life before the ages")) ?? [];
   say(`    its dawn: ${rungs.length} steps; ${rungs.find((r) => /haze/.test(r)) ?? "no haze"}`);
@@ -563,7 +571,7 @@ const beastOf = (seed: string, prior: Prior) =>
     "its dawn not fed by the haze",
   );
   await shot("4-1429-dawn");
-  const named = await opened(beastOf("alien 1429", OPEN)),
+  const named = await opened(beastOf(A1429, OPEN)),
     bones = (await factOn("Its bones")) ?? "",
     blood = (await factOn("Its blood")) ?? "";
   say(`    ${named}: bones “${bones.slice(0, 60)}…”; blood “${blood.slice(0, 60)}…”`);

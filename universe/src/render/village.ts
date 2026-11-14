@@ -3768,7 +3768,7 @@ export class VillageScene {
    * The soldier of the war about the town nearest a screen point, within a finger's reach (Phase 55
    * wave 5): their slot in its scene, and how many of a side's host are drawn (null: none there).
    */
-  pickSoldier(x: number, y: number, reach = 22): { slot: number; each: number } | null {
+  pickSoldier(x: number, y: number, reach = 22): { slot: number; each: number; d: number } | null {
     const at = new pc.Vec3();
     let best = -1,
       bestD = reach * reach;
@@ -3781,7 +3781,7 @@ export class VillageScene {
         best = k;
       }
     });
-    return best >= 0 ? { slot: best, each: this.soldiersEach / 2 } : null;
+    return best >= 0 ? { slot: best, each: this.soldiersEach / 2, d: Math.sqrt(bestD) } : null;
   }
 
   /**

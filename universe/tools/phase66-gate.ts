@@ -30,6 +30,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { preview } from "vite";
+import { keptLife } from "../src/rules/index.ts";
 import { chromium } from "playwright";
 import { YEAR, rulesetId, saveWorld, seedFromText } from "../src/kernel/index.ts";
 import { ALIEN, EARTH } from "../src/host/planet.ts";
@@ -69,7 +70,9 @@ const root = fileURLToPath(new URL("..", import.meta.url)),
   universe = bakedFile ? EARTH : ALIEN,
   chosen = argv.indexOf("--seed"),
   chosenYear = argv.indexOf("--year"),
-  seed = bakedFile ? (chosen >= 0 ? argv[chosen + 1]! : PAST_WORLD.seed) : "kestrel 557";
+  // (Kestrel 557 as it was made, life kept: of its own tree of life (B3 to B5) its people walk, where the people it bore before
+  // live in the water, whose towns on the seabed and sea under their realms this gate looks at.)
+  seed = bakedFile ? (chosen >= 0 ? argv[chosen + 1]! : PAST_WORLD.seed) : keptLife("kestrel 557");
 /** The year it's looked at: a baked world's own, or a small one's a century past gathering its star (the rules move when; it's the age that is being looked at). */
 let AT = bakedFile ? (chosenYear >= 0 ? Number(argv[chosenYear + 1]) : PAST_WORLD.year) : 0;
 let direct: unknown = null,

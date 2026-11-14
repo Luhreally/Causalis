@@ -93,7 +93,9 @@ export function lifelessWhy(g: HomeWorld): string {
     at = Math.round(climateMean(g.planet)),
     seas = kind === "rocky" ? "seas" : `${KIND_SEAS[kind].sea}s`;
   if (at < -15) return `its ${seas} froze over before life took hold (${t} °C on average)`;
-  if (at > 60) return `too hot for life to take hold in its ${seas} (${t} °C on average)`;
+  // (Hot for its own liquid: a methane sea at −160 °C is near its boiling.)
+  if (at > 60)
+    return `its ${seas} ran too near their boiling for life to take hold (${t} °C on average)`;
   return kind === "rocky" ? "no life took hold in its first seas" : KINDS[kind].life.barren;
 }
 

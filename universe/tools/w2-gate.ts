@@ -26,6 +26,7 @@ import { SPREAD } from "../src/bridge/index.ts";
 import { ALIEN, EARTH } from "../src/host/planet.ts";
 import {
   G,
+  keptLife,
   askWkg,
   canBurn,
   flyerOn,
@@ -537,7 +538,8 @@ async function watch(f: Forged, tag: string): Promise<void> {
 try {
   const earth = worldWithStrike("earth", "first light", 450, arg("--earth"));
   await watch(earth, "earth");
-  await watch(worldWithStrike("alien", "harrow 348", 400, arg("--alien")), "alien");
+  // (Harrow 348 as it was made, life kept: its strikes are a people's of the old tables.)
+  await watch(worldWithStrike("alien", keptLife("harrow 348"), 400, arg("--alien")), "alien");
 } catch (e) {
   problems.push(`${(e as Error).message}\n${(e as Error).stack ?? ""}`);
 }

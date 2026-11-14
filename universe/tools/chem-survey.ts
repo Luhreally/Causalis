@@ -30,6 +30,7 @@ import {
   populationContext,
 } from "../src/sim/index.ts";
 import { landEra } from "../src/host/village.ts";
+import { keptLife } from "../src/rules/index.ts";
 import {
   NOVEL_KINDS,
   OPEN,
@@ -284,8 +285,19 @@ export function kindLines(rows: readonly KindRow[]): { ok: boolean; lines: strin
     );
   }
   // Each kind comes about, and none crowds out the worlds like ours.
-  for (const kind of NOVEL_KINDS)
-    if (!rows.some((r) => r.kind === kind && r.peopled)) problems.push(`no peopled ${kind} world`);
+  // (Since life on a world not Earth's starts by its own chemistry's odds (B5), a cold kind may quicken on none of these:
+  // its worlds as they were made, life kept, must still carry a people, and the line says which.)
+  for (const kind of NOVEL_KINDS) {
+    if (rows.some((r) => r.kind === kind && r.peopled)) continue;
+    const kept = rows
+      .filter((r) => r.kind === kind)
+      .find((r) => !!generateHomeWorld(seedFromText(keptLife(r.seed)), OPEN).life.people);
+    if (kept)
+      lines.push(
+        `${kind}: no people of its own chemistry here; as made, life kept, ${kept.seed} bears one`,
+      );
+    else problems.push(`no peopled ${kind} world, even as made`);
+  }
   const rocky = rows.filter((r) => r.kind === "rocky").length;
   if (!atLeast(rocky, n, 70)) problems.push(`rocky worlds are ${pc(rocky, n)}, under 70%`);
   const named = NAMED_SEEDS.filter((s) => kindOfSeed(s) !== "rocky");
@@ -318,7 +330,7 @@ export function surveyLife(count: number, from = 0): LifeRow[] {
       g = generateHomeWorld(seedFromText(seed), OPEN);
     if (!g.life.species.length) continue;
     // (The peoples of the stars near a world are its seed's alone: no world need be built.)
-    const world = { seed: seedFromText(seed) } as unknown as World,
+    const world = { seed: seedFromText(seed), hasStore: () => false } as unknown as World,
       stars = clusterOf(world);
     rows.push({
       seed,

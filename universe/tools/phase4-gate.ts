@@ -14,6 +14,7 @@
 // and a half, and the named sea people until it comes to power.
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { keptLife } from "../src/rules/index.ts";
 import { spread, survey, surveyAll, type Survey } from "./diversity.ts";
 
 const args = process.argv.slice(2),
@@ -24,7 +25,9 @@ const args = process.argv.slice(2),
   seeds = Number(plain[0] ?? (ci ? 30 : 100)),
   years = Number(plain[1] ?? (ci ? 150 : 900));
 /** The world the gate knows a sea people comes to power in (radial swimmers, current mills in year 954 since the web of eating, M84). */
-const SEA_POWER = "alien 65";
+// (A sea people that came to power without fuel as its body was made by the old tables: the road to power is the
+// industry's rule, not the bodies'; under a world's own tree a radial people rises rarely, its sea hearth half a land's.)
+const SEA_POWER = keptLife("alien 65");
 /** Earth's lands, and its bounds (tools/phase3-gate.ts): the slowest year, the save. */
 const EARTH_LANDS = 550,
   YEAR_MS = process.env.CI ? 1200 : 600,
@@ -74,7 +77,7 @@ need("arms their hosts carry", kinds(s.arms), ci ? 3 : 5);
 const other = (x: Survey) =>
   x.industry?.fuelless && x.symmetry !== "bilateral" && x.medium !== "land";
 let road = surveys.find(other);
-if (!road && ci) road = survey(SEA_POWER, 1200, true);
+if (!road) road = survey(SEA_POWER, 1200, true);
 if (!road || !other(road))
   problems.push("no people neither two-sided nor of the land came to power without fuel");
 else
