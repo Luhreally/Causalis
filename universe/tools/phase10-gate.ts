@@ -344,6 +344,13 @@ await page.waitForTimeout(1500);
   await page.waitForTimeout(2000);
   await k("globalThis.causalis.client.setSpeed(0)");
   await page.waitForTimeout(2000);
+  // (🔊 back among the corner's tools first: by itself a moment after the corner came back, on a slow runner it lay
+  // over the rail when this was pressed. What is asked is that the log opens, not how fast a machine is.)
+  await until(
+    "🔊 back among the corner's tools",
+    async () => (await page.$$(".sound-button.free")).length === 0,
+    slow(5000),
+  );
   await press(".log-open");
   await until("the message log", async () => (await title()) === "The message log", 15000);
   const told = await page.$$eval(".page-window .table tr.entry", (x) => x.length);

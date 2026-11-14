@@ -1170,6 +1170,7 @@ export class Sound {
   /** 🔊 or 🔇; among the corner's tools, or by itself where a mode has put them away. */
   readonly button: HTMLButtonElement | null = null;
   private corner: HTMLElement | null = null;
+  private watch: IntersectionObserver | null = null;
   private wanted = kept() !== "off";
   private ctx: AudioContext | null = null;
   private graph: Graph | null = null;
@@ -1213,6 +1214,14 @@ export class Sound {
       this.drawButton();
     }
     this.corner = corner;
+    // (The moment the corner's tools come back, 🔊 goes back among them: left by itself until the next half second's
+    // look, it lay over the rail's own buttons, and a press meant for the message log fell on it, 2026-11-13.)
+    this.watch?.disconnect();
+    this.watch = null;
+    if (corner && typeof IntersectionObserver !== "undefined") {
+      this.watch = new IntersectionObserver(() => this.place());
+      this.watch.observe(corner);
+    }
     const b = this.button!;
     b.classList.toggle("on-title", onTitle);
     this.place();
