@@ -397,6 +397,14 @@ export const GATES: readonly Gate[] = [
   // opened by touch, every star the world holds drawn, far ones of a few faces and near ones round once pinched close; a large sky read
   // back from its save.
   { gate: 119, args: ["--ci"], s: 360 },
+  // Gate 114, an alliance read whole (tools/alliance-pages-gate.ts): on first light at 450, every alliance's realms adding up to its totals and its
+  // six tabs read; by touch at a phone's size, the lens chosen with the camera still, every alliance ranked, the greatest's tabs each with its
+  // numbers and its Members table adding up on the screen, set beside another, its "On the map" from another lens; nothing off the screen.
+  { gate: 114, args: ["--ci"], s: 600 },
+  // Gate 117, numbers over time (tools/charts-gate.ts): on first light at 450 and alien 55 at 300, every realm's Over time lines titled, in
+  // their units, at most 160 points, each ending at the page's own number; a realm whose lands changed keeping its own past; by touch at a
+  // phone's size, a realm's, its seat's and the greatest alliance's lines pressed, their latest the head's on the screen; nothing off the screen.
+  { gate: 117, args: ["--ci"], s: 600 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */

@@ -4,10 +4,12 @@ import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { ALIEN } from "../../src/host/planet.ts";
 import { folksNear, politiesOf, populationContext } from "../../src/sim/index.ts";
 import { pageOf } from "../../src/host/inspect/index.ts";
+import { keptLife } from "../../src/rules/index.ts";
 
 // A page's art (asked 2026-11-13), read on a carbon world under a white star: its world's kind and star on every page, and a land's,
 // a town's and a realm's banner each of what it is.
-const world = ALIEN.build(seedFromText("alien 20"));
+// (As it was made, life kept: of its own chemistry a carbon world quickens no people now.)
+const world = ALIEN.build(seedFromText(keptLife("alien 20")));
 world.runTo(160 * YEAR);
 const realm = politiesOf(world)
   .living()

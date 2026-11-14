@@ -54,6 +54,12 @@ export function crumbsOf(world: World, ref: string): Line {
         if (r) add(r.town, r.ref);
         break;
       }
+      // An alliance, two side by side, a compact: up through every alliance.
+      case "bloc":
+      case "allyvs":
+      case "league":
+        add("Alliances", "world:alliances");
+        break;
       case "cell":
       case "regn":
       case "ways":

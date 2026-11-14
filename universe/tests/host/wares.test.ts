@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
-import { GOODS, G } from "../../src/rules/index.ts";
+import { GOODS, G, keptLife } from "../../src/rules/index.ts";
 import { marketGoodRef, marketsOf, politiesOf, populationContext } from "../../src/sim/index.ts";
 import {
   WARES_SHOWN,
@@ -233,7 +233,8 @@ test("one thing, one picture: a tool row is one tool of one metal, a garment row
   );
   // (Earth's people go on feet; a people of the water has none to shoe.)
   assert.equal(shod(world), true);
-  assert.equal(shod(ALIEN.build(seedFromText("kestrel 557"))), false);
+  // (Kestrel 557 as it was made, life kept: its own tree's people walk.)
+  assert.equal(shod(ALIEN.build(seedFromText(keptLife("kestrel 557")))), false);
 });
 
 test("reading moves no history", () => {
