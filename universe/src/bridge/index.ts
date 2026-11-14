@@ -276,6 +276,8 @@ export {
   type Place,
   type Portrait,
   type Row,
+  type SeriesMark,
+  type SeriesUnit,
   type Span,
   type Stat,
   type Tab,

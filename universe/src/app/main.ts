@@ -924,6 +924,8 @@ type Exposed = {
   /** Out to the stars around; how many are shown. */
   stars?: () => void;
   starCount?: () => number;
+  /** What the star map draws (C2): its stars, round near the eye and of a few faces far, and their glows. */
+  starsDrawn?: () => { stars: number; near: number; far: number; glows: number } | null;
   bench?: unknown;
   /** The guided walk's step (from 0), or -1 when it is not showing. */
   walk?: () => number;
@@ -4382,6 +4384,7 @@ async function runPlanetPage(): Promise<void> {
     return scale === "cluster" && i >= 0 ? starScene.starOnScreen(i) : null;
   };
   exposed.starCount = () => (scale === "cluster" && clusterPlan ? clusterPlan.stars.length : 0);
+  exposed.starsDrawn = () => (scale === "cluster" ? starScene.drawn() : null);
   systemPanel.onSelect = (i) => skyScene.mark(i);
   // Down to a world of the system: made whole on the host (a moment), painted, turned.
   const worldPanel = new WorldPanel(hud);
@@ -9424,6 +9427,35 @@ async function runPlanetPage(): Promise<void> {
           ]
         : acted(page);
   }
+  // (An alliance's page, and every alliance's: their realms on the globe under the Alliances lens, asked for by a press. The page is
+  // put by so the globe is seen; the camera stays where it was looked at, as a lens chosen leaves it, unless the globe must be come to.)
+  {
+    const acted = pageWindow.sceneActions;
+    pageWindow.sceneActions = (page) =>
+      page.kind === "bloc" || page.kind === "alliances"
+        ? [
+            ...acted(page),
+            {
+              label: "🪢 On the map",
+              title: "Every alliance on the globe, each its own colour (the Alliances lens)",
+              on: false,
+              run: () => void showAlliances(),
+            },
+          ]
+        : acted(page);
+  }
+  const showAlliances = async () => {
+    pageWindow.close();
+    if (scale !== "globe")
+      await fadeOver(() => {
+        leaveScale();
+        toGlobe();
+      });
+    if (lens !== "blocs") {
+      mapModes.lens = "blocs";
+      planetPanel.onLens("blocs");
+    }
+  };
   // A realm's key figures, each with a home in the town view and a body to take (Lives L1).
   const leaders = installLeaders({
     stage,

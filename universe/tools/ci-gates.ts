@@ -392,6 +392,19 @@ export const GATES: readonly Gate[] = [
   // a realm's, a war's and a far world's page opened at 430 by 932, its banner drawn of what it is, its tabs' glyphs in its world's
   // colours, what the art adds to a page's drawing; how each land builds and its works drawn, six ways of building at least.
   { gate: 115, args: ["--ci"], s: 900 },
+  // Gate 119, the stars' size (tools/stars-size-gate.ts): a small sky the usual one's nearest stars at its density, a large one holding it; at
+  // 430 by 932 by touch, the stars' dial beside the world's size turned on the title, nothing over anything; each size begun and its stars
+  // opened by touch, every star the world holds drawn, far ones of a few faces and near ones round once pinched close; a large sky read
+  // back from its save.
+  { gate: 119, args: ["--ci"], s: 360 },
+  // Gate 114, an alliance read whole (tools/alliance-pages-gate.ts): on first light at 450, every alliance's realms adding up to its totals and its
+  // six tabs read; by touch at a phone's size, the lens chosen with the camera still, every alliance ranked, the greatest's tabs each with its
+  // numbers and its Members table adding up on the screen, set beside another, its "On the map" from another lens; nothing off the screen.
+  { gate: 114, args: ["--ci"], s: 600 },
+  // Gate 117, numbers over time (tools/charts-gate.ts): on first light at 450 and alien 55 at 300, every realm's Over time lines titled, in
+  // their units, at most 160 points, each ending at the page's own number; a realm whose lands changed keeping its own past; by touch at a
+  // phone's size, a realm's, its seat's and the greatest alliance's lines pressed, their latest the head's on the screen; nothing off the screen.
+  { gate: 117, args: ["--ci"], s: 600 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */

@@ -78,6 +78,7 @@ import {
 } from "./names.ts";
 import { realmSongsTab } from "./memory.ts";
 import { loreLook } from "./ware-looks.ts";
+import { realmTimeTab } from "./time.ts";
 
 /** How many places a battle's fallen tab names, the most dead first; the rest are counted. */
 export const FELL_ROWS = 40;
@@ -198,6 +199,8 @@ export function realmPageModel(
       { type: "why", title: "How it came to be", ref: r.ref },
     ],
   });
+  // Its own numbers through the years, as it was in each (asked 2026-11-13: "graphs over time").
+  if (wants("time")) tabs.push(realmTimeTab(world, r));
   // Who holds power in it (Lives L1).
   if (wants("leaders"))
     tabs.push({ id: "leaders", name: "Leaders", blocks: leaderBlocks(world, r) });

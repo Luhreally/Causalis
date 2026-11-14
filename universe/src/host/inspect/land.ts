@@ -30,7 +30,8 @@ import {
 import { folkRef, waysRef } from "../../causal/index.ts";
 import { parseRef, type Ref, type World } from "../../kernel/index.ts";
 import type { Block, Item, Line, PageModel, Place, Row, Stat, Tab } from "../../bridge/index.ts";
-import { cell as spotFacts, market, province, provinceHistory } from "../planet.ts";
+import { cell as spotFacts, market, province } from "../planet.ts";
+import { landTimeTab } from "./time.ts";
 import { realmColor } from "../colors.ts";
 import { rulerStat } from "./leaders.ts";
 import { count, eventsAbout, item, link, many, part, share, stat, yearNow } from "./words.ts";
@@ -263,32 +264,11 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
           stat("Since", `year ${p.faith.since}`, { why: p.faith.event }),
         ],
       });
-    const h = provinceHistory(world, cell);
-    if (h.years.length > 1) {
-      blocks.push(
-        {
-          type: "chart",
-          title: "People",
-          points: h.years.map((y) => ({ x: y.year, y: y.population })),
-          unit: "people",
-        },
-        {
-          type: "chart",
-          title: "How well fed",
-          points: h.years.map((y) => ({ x: y.year, y: y.fed / 100 })),
-          unit: "share",
-        },
-      );
-    }
-    if (h.prices.length > 1)
-      blocks.push({
-        type: "chart",
-        title: "The price of food",
-        points: h.prices.map((y) => ({ x: y.year, y: y.food })),
-        unit: "price",
-      });
     blocks.push({ type: "tool", tool: "meet.land", args: { cell } });
     tabs.push({ id: "people", name: "People", blocks });
+    // Its numbers through the years, in one place (asked 2026-11-13: "graphs over time").
+    const time = landTimeTab(world, cell);
+    if (time) tabs.push(time);
     // Its health (Phase 20 M140): what sickness came, who is spared, its healers.
     const health = landHealthBlocks(world, cell);
     if (health.length) tabs.push({ id: "health", name: "Health", blocks: health });

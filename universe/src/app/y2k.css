@@ -728,6 +728,12 @@ body[data-world="methane"][data-scale="ground"]:not([data-daylight]) {
 .tab .art-glyph {
   vertical-align: -3px;
 }
+/* (A thumb's size, on a phone: owner rule, every control 44px.) */
+@media (pointer: coarse) {
+  .tabs .tab {
+    min-height: 44px;
+  }
+}
 .tab.on {
   color: #032b24;
   border-color: #0b7a62 #0b7a62 transparent;
@@ -908,6 +914,19 @@ canvas.thumb.thumb-zoomable {
 }
 .table .sort.on.up::after {
   content: " ▲";
+}
+/* A table fitted to the page (no sideways scroll on a phone): its headings wrap, and a long name in any of its columns breaks. */
+.table.fit .sort {
+  white-space: normal;
+}
+.table.fit td {
+  overflow-wrap: anywhere;
+}
+/* An alliance's colour at its row's start. */
+.table .swatch {
+  display: inline-block;
+  margin-right: 6px;
+  vertical-align: middle;
 }
 .table td {
   padding: 3px 6px;
@@ -1468,6 +1487,87 @@ body.paging .panel:not(.page-panel) .inspector {
   color: var(--accent);
   font-variant-numeric: tabular-nums;
 }
+/* A thing's number through the years (asked 2026-11-13): its title and latest over it, a tap anywhere on it for a year. */
+.chart-over {
+  margin: 6px 0 14px;
+  padding: 6px 8px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(10, 26, 66, 0.55), rgba(6, 16, 42, 0.35));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.chart-over figcaption {
+  align-items: baseline;
+  flex-wrap: wrap;
+  font-size: 0.86rem;
+}
+.chart-over .series-title {
+  color: var(--ink);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.chart-over .series-latest {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.series-plot {
+  position: relative;
+  margin-top: 4px;
+}
+.chart-over svg {
+  display: block;
+  width: 100%;
+  /* The whole of it a finger's target: taller than 44px, its width the page's. */
+  height: 104px;
+  margin: 0;
+  background: linear-gradient(180deg, rgba(4, 12, 34, 0.6), rgba(8, 20, 52, 0.35));
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  touch-action: pan-y;
+  cursor: crosshair;
+}
+.chart-over .chart-series {
+  stroke: var(--act);
+}
+.series-mark {
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.series-dot {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  margin: -4.5px 0 0 -4.5px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 0 6px rgba(111, 231, 255, 0.8);
+  pointer-events: none;
+}
+.chart-over .axis {
+  gap: 6px;
+  margin-top: 2px;
+}
+.chart-over .series-range {
+  text-align: center;
+}
+.series-readout {
+  margin-top: 2px;
+}
+.series-readout.muted {
+  color: var(--muted);
+}
+.series-key {
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+.series-note {
+  margin: 4px 0 0;
+  font-size: 0.74rem;
+  color: var(--muted);
+}
 /* Small charts side by side, each on its own scale. */
 .charts-apart {
   display: grid;
@@ -1583,6 +1683,15 @@ body.paging .panel:not(.page-panel) .inspector {
   color: var(--muted);
   white-space: nowrap;
   pointer-events: none;
+}
+.timeline-words.on-bar {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #fff;
+  font-weight: 700;
+  text-shadow:
+    0 0 2px #000,
+    0 1px 1px #000;
 }
 .timeline-marks {
   position: relative;
