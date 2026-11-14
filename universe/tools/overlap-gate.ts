@@ -634,6 +634,10 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
     await closePage();
     await state("ruling-sheet", async () => {
       await must("the decrees", press('.reign-act[data-act="decrees"]'));
+      // (Pressed again where the sheet has not come: on CI at a desk's size the first press fell while the page put
+      // away before it was still closing, and no sheet came, 2026-11-14.)
+      if (!(await until("the sheet", () => seen(".reign-sheet .reign-law"), slow(8000))))
+        await must("the decrees, again", press('.reign-act[data-act="decrees"]'));
       await must(
         "the sheet",
         until("the sheet", () => seen(".reign-sheet .reign-law"), slow(20000)),
