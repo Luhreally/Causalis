@@ -26,7 +26,7 @@ import {
   type Movement,
   type Polity,
 } from "../../sim/index.ts";
-import type { World } from "../../kernel/index.ts";
+import type { Ref, World } from "../../kernel/index.ts";
 import type { Block, Item, Part, Row, Stat } from "../../bridge/index.ts";
 import { realmColor } from "../colors.ts";
 import type { Reading } from "../lenses.ts";
@@ -44,6 +44,8 @@ import {
   yearNow,
 } from "./words.ts";
 import { landLink, landTitle, realmLink } from "./names.ts";
+import { designsOf, holdLines, type RealmOrder } from "../../sim/index.ts";
+import { heldWords, partWords, type Hold } from "../../rules/index.ts";
 
 type Rgb = [number, number, number];
 
@@ -271,6 +273,80 @@ function orderHistory(world: World, r: Polity, most = 30): Item[] {
   return out;
 }
 
+const capital = (s: string) => (s ? `${s[0]!.toUpperCase()}${s.slice(1)}` : s);
+
+/** The labels of a realm's four numbers (rules/holds.ts), as its page asks them. */
+const HOLD_ASKS: Readonly<Record<Hold, string>> = {
+  force: "Who bears arms",
+  voice: "Who decides",
+  word: "How word moves",
+  trust: "Its bonds to others",
+};
+
+/** What told a number anew, by the kind of event, as "since …" reads it ("the coup of year 412"). */
+const SINCE: Readonly<Record<string, string>> = {
+  "strife.coup": "the coup",
+  "strife.revolution": "the revolution",
+  "strife.repressed": "the massacre",
+  "polity.ended": "a realm's fall",
+  "war.peace": "the lost war",
+  "ties.answered": "the call to arms",
+  "credit.defaulted": "the default",
+};
+/**
+ * Since what a realm's number has stood where it is: the coup or the revolution that set it, or the lesson behind the weighing that
+ * moved it (its cause, and that lesson's own), else the year it was weighed so.
+ */
+function sinceOf(world: World, ref: string | null): { words: string; ref: string } | null {
+  const e = ref ? world.events.get(ref as Ref) : undefined;
+  if (!e) return null;
+  // (The event itself, then what caused it, then what caused those: a weighing pressed by a lesson, a lesson read off a coup.)
+  const near = [e, ...e.causes.map((c) => world.events.get(c.ref))],
+    far = near.slice(1).map((x) => (x?.causes[0] ? world.events.get(x.causes[0].ref) : undefined)),
+    by = [...near, ...far].find((x) => x && SINCE[x.type]);
+  return by
+    ? { words: `${SINCE[by.type]} of year ${yearAt(by.t)}`, ref: by.id }
+    : { words: `year ${yearAt(e.t)}`, ref: e.id };
+}
+
+/**
+ * How a realm is held (rules/holds.ts): the four together in a line, then each read off its number, its people's body and what force
+ * is on their world (its host's best arm), each with the event that last told it anew and its number.
+ */
+function heldBlocks(world: World, r: Polity, o: RealmOrder): Block[] {
+  if (!o.held) return [];
+  const ctx = populationContext(world),
+    armPart = designsOf(world)
+      .of(r.ref)
+      ?.parts.find((x) => x.role === "arm"),
+    arm = armPart ? partWords(armPart) : null,
+    lines = holdLines(ctx, r, o, arm);
+  return [
+    {
+      type: "facts",
+      title: "How it is held",
+      rows: [
+        { ...stat("In all", heldWords(o.held.map((x) => x / 100))), concept: "laws" },
+        ...lines.map((l) => {
+          const since = sinceOf(world, l.why);
+          return {
+            ...stat(
+              HOLD_ASKS[l.hold],
+              [
+                capital(l.words),
+                ...(since ? [", since ", link(since.words, since.ref)] : []),
+                ` (${Math.round(l.value * 100)} of 100)`,
+              ],
+              { why: l.why },
+            ),
+            concept: "laws",
+          };
+        }),
+      ],
+    },
+  ];
+}
+
 /** A realm's order, as the tab of its page tells it. */
 export function realmOrderBlocks(world: World, r: Polity): Block[] {
   const store = orderOf(world),
@@ -435,6 +511,7 @@ export function realmOrderBlocks(world: World, r: Polity): Block[] {
           },
         ]
       : []),
+    ...heldBlocks(world, r, o),
     whoIsHeld("Who is held, and how", people, held),
     ...(lands.length
       ? [

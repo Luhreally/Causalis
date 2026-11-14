@@ -396,6 +396,22 @@ export {
   type Law,
 } from "./order/laws.ts";
 export {
+  HOLD_EVENTS,
+  HOLD_READ,
+  heldOf,
+  holdLines,
+  holdNow,
+  blamesOutsiders,
+  holdOf,
+  holdsOf,
+  readOutcomes,
+  setHeld,
+  taughtWords,
+  waysRead,
+  weighHolds,
+  type Taught,
+} from "./order/holds.ts";
+export {
   BELIEF_EVENTS,
   BeliefStore,
   DEITIES,

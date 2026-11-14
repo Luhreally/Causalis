@@ -168,12 +168,13 @@ test("a ruler's commands: refused in words, then through the world's own door, t
   const relation = diplomacyOf(world).get(a.ref, b.ref)!;
   assert.ok(relation.opinion > before);
   assert.ok(relation.terms.some((t) => t.name === "a marriage between their houses"));
-  assert.equal(orderOf(world)!.of(a.ref)!.matches!.length, 1);
-  assert.equal(orderOf(world)!.of(b.ref)!.matches!.length, 1);
-  assert.equal(
-    world.events.get(orderOf(world)!.of(b.ref)!.matches![0]!.event)!.type,
-    REIGN_EVENTS.wed.type,
-  );
+  // (One marriage of state by the god's hand on each side, whatever their houses made of themselves: D1's ties wed realms too.)
+  const byHand = (r: Polity) =>
+    (orderOf(world)!.of(r.ref)!.matches ?? []).filter(
+      (m) => world.events.get(m.event)?.type === REIGN_EVENTS.wed.type,
+    );
+  assert.equal(byHand(a).length, 1);
+  assert.equal(byHand(b).length, 1);
   assert.match(
     words(() => world.submit("reign.wed", wed)),
     /ties your house|wed already/,

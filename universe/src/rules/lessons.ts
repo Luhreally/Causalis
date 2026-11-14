@@ -37,7 +37,15 @@ export type LessonCause = {
  * own ground or coming against another's.
  */
 export type LessonHow =
-  "lessen" | "field" | "walls" | "siege" | "screen" | "steady" | "supply" | `doctrine:${string}`;
+  | "lessen"
+  | "field"
+  | "walls"
+  | "siege"
+  | "screen"
+  | "steady"
+  | "supply"
+  | "stores"
+  | `doctrine:${string}`;
 
 /**
  * What a response is made of, by what its people know: the last of these whose needs they meet (rules/principles.ts needsMet: every
@@ -251,6 +259,21 @@ export const LESSON_RESPONSES: readonly LessonResponse[] = [
       { needs: ["vaccines"], words: ", their water clean, and the well inoculated" },
     ],
     name: "keeping the sick apart",
+  },
+  // Grain put by against the lean years (a land's famine: what it keeps, sim/population/systems.ts, so much the more).
+  {
+    id: "granaries",
+    cause: "famine",
+    how: "stores",
+    most: 0.4,
+    asks: 0.3,
+    does: "put grain by against the lean years, in {means}",
+    means: [
+      { needs: [], words: "pits and baskets" },
+      { needs: ["pottery-wheel|pitch-ware|ice-ware"], words: "jars in every house" },
+      { needs: ["granaries"], words: "common granaries kept full" },
+    ],
+    name: "stores against the lean years",
   },
   {
     id: "heavier-guard",

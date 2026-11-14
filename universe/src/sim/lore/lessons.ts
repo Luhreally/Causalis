@@ -41,6 +41,10 @@ import { farFromSeat, hostHungry, warsOf } from "../war/war.ts";
 import { designsOf, hostBest } from "../design/design.ts";
 import { knows, loreOf } from "./lore.ts";
 import { LessonStore, lessonAdds, lessonsOf, useIn, type Holder } from "./lessons-store.ts";
+import { HOLD_READ, readOutcomes } from "../order/holds.ts";
+
+/** The kinds of event a realm learns of rule from (sim/order/holds.ts). */
+const OUTCOME_TYPES: ReadonlySet<string> = new Set(HOLD_READ);
 
 export {
   LessonStore,
@@ -524,12 +528,17 @@ export function lessonsYear(ctx: PopulationContext, t: SimTime): void {
     // (Back only as far as the last read, and never past a year and a little: an old save's first year reads no more.)
     if (code <= store.read || e.t < t - 2 * YEAR) break;
     if (code > top) top = code;
-    if (READINGS[e.type]) fresh.push(e);
+    if (READINGS[e.type] || OUTCOME_TYPES.has(e.type)) fresh.push(e);
   }
   store.read = top;
+  // (What befell realms, and what they learn of rule from it: sim/order/holds.ts, oldest first.)
+  const outcomes = fresh.filter((e) => OUTCOME_TYPES.has(e.type)).reverse();
+  if (outcomes.length) readOutcomes(ctx, outcomes, t);
   for (let i = fresh.length - 1; i >= 0; i--) {
     const e = fresh[i]!,
-      got = READINGS[e.type]!(ctx, e);
+      reading = READINGS[e.type];
+    if (!reading) continue;
+    const got = reading(ctx, e);
     if (!got) continue;
     const at = yearOfMoment(e.t);
     for (const s of got.struck) strike(ctx, store, s, at, t, e.id);

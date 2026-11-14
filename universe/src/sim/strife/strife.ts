@@ -70,6 +70,8 @@ import {
   type RealmOrder,
 } from "../order/order.ts";
 import { LAW_OF } from "../order/laws.ts";
+import { HOLD, HOLDING } from "../../rules/index.ts";
+import { holdOf, holdsOf, setHeld } from "../order/holds.ts";
 import { grieve, strike } from "../acts/disasters.ts";
 import { armyDone, armyMoves, armyVoice } from "../court/court.ts";
 
@@ -354,7 +356,8 @@ export function coupDanger(
     cap = capacityOf(ctx, p).value,
     junta = strifeOf(world)?.junta(p.ref) ?? null,
     old = Math.min(1, Math.max(0, year - p.founded) / 200),
-    standing = loreOf(world).get(p.seat, "standing-army");
+    standing = loreOf(world).get(p.seat, "standing-army"),
+    held = holdsOf(world, p.ref);
   const factors: Factor[] = [
     {
       name: "a rule doubted",
@@ -428,6 +431,23 @@ export function coupDanger(
       contribution: -0.1 * old,
       source: { ref: p.event, role: "constraint", weight: 1 },
     },
+    // (How it is held, rules/holds.ts: a choice the many must carry is not taken by a few; arms kept to the host are the army's.)
+    {
+      name: "a choice the many must carry",
+      value: held[HOLD.voice]!,
+      contribution: -0.3 * (held[HOLD.voice]! - HOLDING.voiceMid),
+      source: o.heldEvents?.[HOLD.voice]
+        ? { ref: o.heldEvents[HOLD.voice]!, role: "constraint", weight: 1 }
+        : null,
+    },
+    {
+      name: "arms kept to the host",
+      value: held[HOLD.force]!,
+      contribution: 0.1 * (held[HOLD.force]! - 0.5),
+      source: o.heldEvents?.[HOLD.force]
+        ? { ref: o.heldEvents[HOLD.force]!, role: "enabler", weight: 1 }
+        : null,
+    },
   ];
   return {
     score: factors.reduce((s, f) => s + f.contribution, 0),
@@ -483,6 +503,10 @@ export function seize(ctx: PopulationContext, p: Polity, causes: CauseRef[], t: 
   if (o) {
     o.corruption *= 0.6;
     o.crisis = null;
+    // (Its choices the generals', the arms theirs, its word watched: rules/holds.ts.)
+    setHeld(o, "voice", 0.12, "most", event);
+    setHeld(o, "force", 0.7, "least", event);
+    setHeld(o, "word", 0.28, "most", event);
   }
   store.coups.push({ realm: p.ref, year, event, won: true, was, general });
   armyDone(world, p, event, true);
@@ -805,7 +829,8 @@ export function revolutionDanger(
     cap = capacityOf(ctx, p).value,
     lore = loreOf(world),
     thought = lore.get(p.seat, "philosophy"),
-    works = lore.get(p.seat, "factories");
+    works = lore.get(p.seat, "factories"),
+    held = holdsOf(world, p.ref);
   const factors: Factor[] = [
     {
       name: "a rule doubted",
@@ -849,6 +874,32 @@ export function revolutionDanger(
       value: works ? 1 : 0,
       contribution: works ? STRIFE.workshops : 0,
       source: works ? { ref: works.event, role: "enabler", weight: 1 } : null,
+    },
+    // (How it is held, rules/holds.ts: a voice already given; arms in the people's hands; grievances kept unspoken, that burst
+    // where the rule is doubted.)
+    {
+      name: "a voice already given",
+      value: held[HOLD.voice]!,
+      contribution: -0.35 * (held[HOLD.voice]! - HOLDING.voiceMid),
+      source: o.heldEvents?.[HOLD.voice]
+        ? { ref: o.heldEvents[HOLD.voice]!, role: "constraint", weight: 1 }
+        : null,
+    },
+    {
+      name: "arms in the people's hands",
+      value: 1 - held[HOLD.force]!,
+      contribution: 0.15 * (HOLDING.forceMid - held[HOLD.force]!),
+      source: o.heldEvents?.[HOLD.force]
+        ? { ref: o.heldEvents[HOLD.force]!, role: "enabler", weight: 1 }
+        : null,
+    },
+    {
+      name: "grievances kept unspoken",
+      value: 1 - held[HOLD.word]!,
+      contribution: 0.6 * (0.5 - held[HOLD.word]!) * (doubt - 0.3),
+      source: o.heldEvents?.[HOLD.word]
+        ? { ref: o.heldEvents[HOLD.word]!, role: "pressure", weight: 1 }
+        : null,
     },
   ];
   return {
@@ -903,6 +954,9 @@ export function revolt(
       o.lawEvents[LAW_OF.land] = event;
     }
     for (const m of o.movements) if (m.cause === movement) m.strength *= 0.4;
+    // (Its choices now the many's, its word freed: rules/holds.ts.)
+    setHeld(o, "voice", 0.75, "least", event);
+    setHeld(o, "word", 0.6, "least", event);
   }
   const ways = cultureOf(world).get(p.seat);
   if (ways) {
@@ -929,7 +983,8 @@ export function repress(
   const { world } = ctx,
     o = orderOf(world)?.of(p.ref),
     year = yearOfMoment(t),
-    dead = strike(ctx, p.seat, 0.02, t),
+    // (A people with arms in its hands is put down the harder: rules/holds.ts force.)
+    dead = strike(ctx, p.seat, 0.02 * (1.5 - holdOf(world, p.ref, HOLD.force)), t),
     event = world.events.emit({
       type: STRIFE_EVENTS.repressed.type,
       subjects: [p.ref],
@@ -1137,7 +1192,12 @@ export function strifeYear(ctx: PopulationContext, t: SimTime): void {
         const odds = clamp(
             0.15,
             0.85,
-            0.25 + 0.5 * danger.movement.strength + 0.3 * danger.doubt - 0.4 * danger.weight,
+            0.25 +
+              0.5 * danger.movement.strength +
+              0.3 * danger.doubt -
+              0.4 * danger.weight +
+              // (A people with arms in its hands wins the more often: rules/holds.ts force.)
+              0.3 * (HOLDING.forceMid - holdOf(world, p.ref, HOLD.force)),
           ),
           won = world.rng.real(COUP, key, t, 11) < odds,
           decision = world.decisions.record({

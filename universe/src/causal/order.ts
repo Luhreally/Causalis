@@ -12,6 +12,15 @@ import {
   realmName,
   type Law,
 } from "../sim/index.ts";
+import {
+  OUTCOME,
+  blameWords,
+  changeWords,
+  holdWords,
+  type Blame,
+  type Hold,
+} from "../rules/index.ts";
+import { HOLD_EVENTS, homePlanet } from "../sim/index.ts";
 import { landWords } from "./generated.ts";
 import { count } from "./words.ts";
 import { registerDecisionWords, registerEventWords } from "./why.ts";
@@ -32,6 +41,25 @@ const realm = (d: unknown) => (d as Data)?.realm ?? "a realm",
   cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s),
   people = (k: number) => `${count(k)} ${k === 1 ? "person" : "people"}`;
 
+// How a realm is held, told anew (rules/holds.ts): read off its numbers and its people's body, as its page reads them.
+registerEventWords(HOLD_EVENTS.held.type, (world, e) => {
+  const d = e.data as { hold?: Hold; from?: number; to?: number } | null,
+    by = { body: homePlanet(world).generated.life.people?.body, arm: null, far: null },
+    h = d?.hold ?? "voice",
+    now = holdWords(h, (d?.to ?? 50) / 100, by),
+    was = holdWords(h, (d?.from ?? 50) / 100, by);
+  return `${cap(realm(e.data))} came to be held so: ${now}, where it was ${was}, ${year(e.t)}`;
+});
+// A lesson of rule (sim/order/holds.ts): what befell it, or another, whom it blamed, and what it did.
+registerEventWords(HOLD_EVENTS.lesson.type, (_, e) => {
+  const d = e.data as { outcome?: string; blame?: Blame; of?: string; change?: string } | null,
+    o = OUTCOME.get(d?.outcome ?? ""),
+    what = d?.of
+      ? `seeing ${(o?.of ?? "the fate of {them}").replace("{them}", d.of)}`
+      : `after ${o?.words ?? "what befell it"}`,
+    blame = d?.blame ? blameWords(o, d.blame, !!d.of) : "weighed it";
+  return `${cap(realm(e.data))}, ${what}, ${blame}${d?.change ? `, and ${d.change}` : ""}, ${year(e.t)}`;
+});
 registerEventWords(
   ORDER_EVENTS.captives.type,
   (world, e) =>

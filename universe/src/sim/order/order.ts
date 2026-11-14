@@ -54,6 +54,8 @@ import { warsOf } from "../war/war.ts";
 import { grieve, strike } from "../acts/disasters.ts";
 import { handOf } from "../hand/hand.ts";
 import { LAW_OF, firstLaws, lawGrievance, weighLaws } from "./laws.ts";
+import { HOLD, HOLDING } from "../../rules/index.ts";
+import { heldOf, holdOf, weighHolds, type Taught } from "./holds.ts";
 import { CREDIT, creditOf, debtBurden } from "../credit/credit.ts";
 import { seizedFactor } from "../strife/strife.ts";
 
@@ -171,6 +173,17 @@ export type RealmOrder = {
   lawEvents: (Ref | null)[];
   /** How far its laws are what its powerful want (-1 … 1), as last weighed. */
   approval: number;
+  /**
+   * How it is held (rules/holds.ts): force, voice, word and trust, each in whole hundredths (sim/order/holds.ts); the event that
+   * last told each in other words; what its lessons of rule still pull on each (hundredths; absent when nothing does); and its
+   * last few lessons of rule. Absent in a save from before them: begun as they would have begun.
+   */
+  held?: number[];
+  heldEvents?: (Ref | null)[];
+  pulls?: number[];
+  taught?: Taught[];
+  /** The year it last told another's fate as a lesson to itself; absent if never. */
+  toldSeen?: number;
   /** Marriages of state its house made by the god's hand (Lives L4); absent if none. */
   matches?: StateMatch[];
 };
@@ -229,6 +242,8 @@ export class OrderStore implements StateStore {
       if (o.mandate) out.push(o.mandate.event);
       for (const f of o.firsts) if (f) out.push(f);
       for (const e of o.lawEvents) if (e) out.push(e);
+      for (const e of o.heldEvents ?? []) if (e) out.push(e);
+      for (const x of o.taught ?? []) if (x.event) out.push(x.event);
       for (const m of o.movements) out.push(m.event);
       for (const m of o.memory) out.push(m.event);
       for (const m of o.matches ?? []) out.push(m.event);
@@ -254,6 +269,10 @@ export class OrderStore implements StateStore {
           firsts: [...o.firsts],
           laws: [...o.laws],
           lawEvents: [...o.lawEvents],
+          ...(o.held ? { held: [...o.held] } : {}),
+          ...(o.heldEvents ? { heldEvents: [...o.heldEvents] } : {}),
+          ...(o.pulls ? { pulls: [...o.pulls] } : {}),
+          ...(o.taught ? { taught: o.taught.map((x) => ({ ...x })) } : {}),
           movements: o.movements.map((m) => ({ ...m })),
           memory: o.memory.map((m) => ({ ...m })),
         },
@@ -499,6 +518,22 @@ export function legitimacyFactors(ctx: PopulationContext, p: Polity): Factor[] {
         ? { ref: o.lawEvents.find((e) => e)!, role: "enabler" as const, weight: 1 }
         : null,
     },
+    // (Its choices carried as widely as its people would have them: the open by many, those who keep to rank by one.)
+    ...(o?.held
+      ? [
+          {
+            name: "its choices carried as its people would have them",
+            value: o.held[HOLD.voice]! / 100,
+            contribution:
+              0.4 *
+              (o.held[HOLD.voice]! / 100 - 0.5) *
+              ((seat?.traits[WAY.openness] ?? 0.5) - (seat?.traits[WAY.hierarchy] ?? 0.5)),
+            source: o.heldEvents?.[HOLD.voice]
+              ? { ref: o.heldEvents[HOLD.voice]!, role: "enabler" as const, weight: 1 }
+              : null,
+          },
+        ]
+      : []),
     {
       name: "its justice",
       value: o?.laws[LAW_OF.justice] ?? 1,
@@ -1270,7 +1305,9 @@ function stirMovements(
             0.4 * (open - 0.5) -
             0.5 * (hier - 0.5) +
             (thought ? 0.2 : 0) +
-            (works ? 0.15 : 0)
+            (works ? 0.15 : 0) -
+            // (A voice given quiets the want of one; one kept from them stirs it: rules/holds.ts voice, about where such rule holds it.)
+            0.4 * (holdOf(world, p.ref, HOLD.voice) - HOLDING.voiceOne)
           : 0,
       source: thought?.event ?? null,
     },
@@ -1279,7 +1316,13 @@ function stirMovements(
     const w = want[cause],
       m = o.movements.find((x) => x.cause === cause);
     if (m) {
-      m.strength = clamp(0, 1, m.strength + MOVEMENT_GROWS * (w.target - m.strength));
+      // (Where word is watched, a want grows the slower in the open: it is held unspoken.)
+      m.strength = clamp(
+        0,
+        1,
+        m.strength +
+          MOVEMENT_GROWS * (0.5 + holdOf(world, p.ref, HOLD.word)) * (w.target - m.strength),
+      );
       if (m.strength < 0.05) o.movements = o.movements.filter((x) => x !== m);
       // A movement pushes its people's ways a little each year it stands.
       else if (seat) {
@@ -1321,7 +1364,11 @@ export function orderYear(ctx: PopulationContext, t: SimTime): void {
     year = yearOfMoment(t),
     living = realms.living();
   for (const p of living)
-    realmOrder(store, p, culture.get(p.seat), beliefOf(world).of(p.seat).faith !== null);
+    heldOf(
+      ctx,
+      p,
+      realmOrder(store, p, culture.get(p.seat), beliefOf(world).of(p.seat).faith !== null),
+    );
 
   // 1. Captives from the lands taken this year.
   for (const w of warsOf(world).hot()) {
@@ -1556,7 +1603,9 @@ export function orderYear(ctx: PopulationContext, t: SimTime): void {
           (atWar ? 0.25 : 0) +
           0.3 * (1 - cap.value) +
           0.15 * remembered +
-          0.2 * valour -
+          0.2 * valour +
+          // (Arms in their hands, or kept from them: rules/holds.ts force.)
+          0.15 * (HOLDING.forceMid - holdOf(world, p.ref, HOLD.force)) -
           0.4 * o.caste -
           0.2 * o.legitimacy;
       if (!(world.rng.real(RISING, c, t, 0) < 0.03 * Math.max(0, score - 0.75))) continue;
@@ -1615,6 +1664,8 @@ export function orderYear(ctx: PopulationContext, t: SimTime): void {
       weighAbolition(ctx, store, p, o, t);
     // (And every ten years, in its turn, its laws: M139.)
     weighLaws(ctx, p, o, t);
+    // (And how it is held: rules/holds.ts.)
+    weighHolds(ctx, p, o, t);
 
     // 9. What it remembers fades.
     for (const m of o.memory) m.weight *= MEMORY_KEPT;

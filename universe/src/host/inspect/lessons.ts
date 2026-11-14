@@ -35,6 +35,9 @@ import { principleName } from "../../causal/index.ts";
 import type { Block, Line, Stat } from "../../bridge/index.ts";
 import { count, item, many, stat, yearNow } from "./words.ts";
 import { landLink, realmLink } from "./names.ts";
+import { orderOf, taughtWords, type Taught } from "../../sim/index.ts";
+import type { Ref } from "../../kernel/index.ts";
+import { link } from "./words.ts";
 
 const capital = (s: string) => `${s[0]!.toUpperCase()}${s.slice(1)}`;
 
@@ -271,7 +274,9 @@ export function learnedBlocks(world: World, holder: string, cell: number | null)
     came = cell === null ? [] : cameBy(world, cell),
     found = came.filter((c) => c.from === null),
     taught = came.filter((c) => c.from !== null);
-  if (!lessons.length && !came.length) return [];
+  // (A realm's lessons of rule: what befell it and others it knew of, sim/order/holds.ts.)
+  const rule: readonly Taught[] = orderOf(world)?.of(holder as Ref)?.taught ?? [];
+  if (!lessons.length && !came.length && !rule.length) return [];
   const ctx = populationContext(world),
     here = (id: string) => cell !== null && knows(ctx, cell, id),
     taken = lessonsOf(world)?.get(holder),
@@ -301,9 +306,32 @@ export function learnedBlocks(world: World, holder: string, cell: number | null)
           ...(most ? [", the most from the people of ", landLink(world, most[0], true)] : []),
           ".",
         ],
+        ...(rule.length
+          ? [
+              [
+                `From what befell them and others: ${many(rule.length, "lesson", "lessons")} of how to rule${
+                  rule.some((x) => x.of)
+                    ? `, ${count(rule.filter((x) => x.of).length)} from another's fate`
+                    : ""
+                }.`,
+              ],
+            ]
+          : []),
       ],
     },
   ];
+  if (rule.length)
+    blocks.push({
+      type: "list",
+      title: "From what befell them and others",
+      items: rule.map((x) =>
+        item(
+          [x.event ? link(`Year ${x.year}`, x.event) : `Year ${x.year}`, `: ${taughtWords(x)}.`],
+          x.event ?? "",
+          x.year,
+        ),
+      ),
+    });
   blocks.push(...lessons);
   const pressed = cell === null ? [] : pressedLines(world, holder, cell);
   if (pressed.length)

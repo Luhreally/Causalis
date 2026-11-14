@@ -51,6 +51,7 @@ import {
   turnsAside,
   type Effect,
   type Principle,
+  HOLD,
 } from "../../rules/index.ts";
 
 /** Each effect's place in a land's totals. */
@@ -62,6 +63,7 @@ import { cultureOf } from "../culture/culture.ts";
 import { politiesOf } from "../polity/polity.ts";
 import { lessonsOf, pressIn } from "./lessons-store.ts";
 import { laneLawOf } from "../space/lanes.ts";
+import { holdOf } from "../order/holds.ts";
 
 export const LORE_EVENTS = {
   found: defineEventType("lore.found", 5),
@@ -441,7 +443,10 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
       continue;
     }
     // Learning: the principle a neighbour knows that this land most readily takes up.
-    const mine = culture.get(cell);
+    const mine = culture.get(cell),
+      // (Word from abroad comes the slower where it is watched: rules/holds.ts word.)
+      ownRealm = realms.of(cell)?.ref ?? null,
+      heard = 0.6 + 0.8 * holdOf(world, ownRealm, HOLD.word);
     let best: { p: Principle; from: number; chance: number } | null = null;
     // (By land, and across the sea from those its ships trade with: what is carried is told too.)
     const borders = g.grid.offsets[cell + 1]! - g.grid.offsets[cell]!,
@@ -464,7 +469,8 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
         behind = carried ? 1 + CARRIED_BEHIND * lacks(n) : 1;
       for (const p of open) {
         if (!store.get(n, p.id)) continue;
-        const chance = LEARNING * like * like * road * kin * written * behind;
+        const chance =
+          LEARNING * like * like * road * kin * written * behind * (kin > 1 ? 1 : heard);
         if (!best || chance > best.chance || (chance === best.chance && n < best.from))
           best = { p, from: n, chance };
       }

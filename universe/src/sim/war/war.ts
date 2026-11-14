@@ -41,6 +41,8 @@ import {
   type CombatRecord,
   type FellColumns,
   type LandFell,
+  HOLD,
+  HOLDING,
 } from "../../rules/index.ts";
 import { designsOf } from "../design/design.ts";
 import { grieve } from "../acts/disasters.ts";
@@ -91,6 +93,7 @@ import { cutOff, endRealm, politiesOf, realmName, type Polity } from "../polity/
 import { interestsOf, pressure } from "../polity/interests.ts";
 import { loreOf } from "../lore/lore.ts";
 import { lessonAdds } from "../lore/lessons-store.ts";
+import { holdOf } from "../order/holds.ts";
 import { asksOf } from "../town/asks.ts";
 import { RIVALRY, diplomacyOf, relationRef } from "../diplomacy/diplomacy.ts";
 import { CREDIT, warChest } from "../credit/credit.ts";
@@ -816,7 +819,9 @@ function fieldShare(ctx: PopulationContext, p: Polity): number {
     0.03 * lore.effect(p.seat, "arms") * (lore.get(p.seat, "standing-army") ? 1 : 0) +
     (p.leadership === GENERAL ? STRIFE.fields : 0) +
     // (More, where they have learned what being outnumbered costs: exactly 0 where they have not.)
-    lessonAdds(ctx.world, p.ref, "field", yearOfMoment(ctx.world.now))
+    lessonAdds(ctx.world, p.ref, "field", yearOfMoment(ctx.world.now)) +
+    // (More where its people bear arms of their own, less where only its host does: rules/holds.ts force.)
+    0.04 * (HOLDING.forceMid - holdOf(ctx.world, p.ref, HOLD.force))
   );
 }
 
@@ -1230,7 +1235,9 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       answer = holdBack(ctx, attacker, defender, year),
       // (A league stands behind its members: D1.)
       leagued = leagueHold(world, attacker.ref, defender.ref),
-      chance = base * swayed * answer * leagued;
+      // (A war its people must carry is chosen the less, where it is not their hunger: rules/holds.ts voice.)
+      carried = covets ? 1 : 1 - 0.35 * holdOf(world, attacker.ref, HOLD.voice),
+      chance = base * swayed * answer * leagued * carried;
     if (chance <= 0 || !(draw < chance)) continue;
     // What it is about, read off what drove it, and the land it goes for (W7).
     const chosen = chooseAim(

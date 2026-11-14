@@ -74,21 +74,24 @@ const KIND_ROWS = new Set([
  * Re-recorded for lessons' second step (2026-11-12): a battle's tactics, a host fed from behind it and a people's losses pressing
  * its finding move Earth's history from its first losses on, and with it the tools, towns, realms, workshops and pages of 700.
  * Substances, the guide to matter and the early camps stay identical.
+ * Re-recorded for how realms are held (2026-11-13): who bears arms, who decides, how word moves and how a realm binds itself, and
+ * what realms learn of rule from what befell them and others, move Earth's history from its first realms on (word across a border
+ * carries learning the faster or the slower), and with it the early camps at 40 and every page of 700. The guide to matter stays.
  */
 const BEFORE: Record<string, string> = {
-  tools: "4c8d890c:18460",
-  stuff: "35f77dea:13841",
-  ground: "3d148eb8:42955",
-  deposits: "f9c7ed1:97976",
-  arms: "76a5b1d0:17362",
-  designs: "91d40a81:28018",
-  workshops: "3e9cc2a6:224884",
-  substances: "5835b926:130632",
-  reactions: "b2cc17a0:68720",
+  tools: "3fd5f8d5:19006",
+  stuff: "ce6cab89:13541",
+  ground: "f54729c0:42089",
+  deposits: "966c087e:97956",
+  arms: "e0098627:15514",
+  designs: "7fc3a442:27147",
+  workshops: "240d1a3:517936",
+  substances: "cbdc9f23:130621",
+  reactions: "40b05475:68555",
   // (Its pages no longer list what only a people of the water could find: F1, canBeFoundHere.)
-  principles: "3ac9e7ee:169613",
+  principles: "f1cc2048:171096",
   guide: "ced49326:17137",
-  camps: "efbd90a7:344430",
+  camps: "2eea5ed3:342250",
 };
 
 /**
