@@ -12,6 +12,7 @@
 import type { Portrait } from "../bridge/index.ts";
 import { drawArms } from "./arms.ts";
 import { drawSpecimen } from "./specimen.ts";
+import { houseSolids, worksSolids } from "./buildings.ts";
 import {
   BANDAGE_WIDE,
   EYES,
@@ -796,7 +797,7 @@ function drawWorld(
 }
 
 /** A star's colour by its warmth (a blackbody, near enough). */
-function starColor(k: number): Rgb {
+export function starColor(k: number): Rgb {
   const t = Math.max(1000, Math.min(40000, k)) / 100;
   const r = t <= 66 ? 255 : 329.7 * Math.pow(t - 60, -0.1332);
   const g = t <= 66 ? 99.47 * Math.log(t) - 161.1 : 288.1 * Math.pow(t - 60, -0.0755);
@@ -1002,13 +1003,17 @@ export function moves(p: Portrait): boolean {
   return p.kind !== "sign" && p.kind !== "arms";
 }
 
-/** Draw a page's picture into `canvas` (w × h CSS pixels) as it stands at `t` seconds. */
+/**
+ * Draw a page's picture into `canvas` (w × h CSS pixels) as it stands at `t` seconds. A specimen drawn large is at its fine level
+ * (ui/specimen.ts), unless `detail` asks for a level.
+ */
 export function drawPortrait(
   canvas: HTMLCanvasElement,
   p: Portrait,
   w: number,
   h: number,
   t: number,
+  detail?: "fine" | "coarse",
 ): void {
   const box = { x: 4, y: 4, w: w - 8, h: h - 8 };
   switch (p.kind) {
@@ -1070,9 +1075,41 @@ export function drawPortrait(
     case "matter":
     case "element":
     case "thing":
+    case "plant":
       // A specimen (Phase 54 M223): cut, poured or made as its stuff is, turning slowly.
-      drawSpecimen(surface(canvas, w, h), p, box, t);
+      drawSpecimen(surface(canvas, w, h), p, box, t, detail);
       return;
+    case "company": {
+      // A company's mark (asked 2026-11-12): its realm's shield, a pale roundel on it, and in that the thing it makes.
+      const ctx = surface(canvas, w, h),
+        sw = w * 0.86,
+        sh = h * 0.94;
+      drawArms(ctx, p.arms, (w - sw) / 2, (h - sh) / 2, sw, sh);
+      // (The roundel as large as the shield's middle holds, so what the company makes reads even in a list's small picture.)
+      const r = w * 0.34,
+        cx = w / 2,
+        cy = h * 0.46;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(246,240,224,0.92)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(40,28,14,0.7)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      if (p.good)
+        drawSpecimen(ctx, p.good, { x: cx - r, y: cy - r, w: r * 2, h: r * 2 }, t * 0.5, detail);
+      return;
+    }
+    case "house": {
+      const ctx = surface(canvas, w, h);
+      drawSolids(ctx, houseSolids(p), { turn: 0.6 + t * 0.2, tilt: 0.42 }, box);
+      return;
+    }
+    case "works": {
+      const ctx = surface(canvas, w, h);
+      drawSolids(ctx, worksSolids(p, t), { turn: 0.7 + t * 0.15, tilt: 0.4 }, box);
+      return;
+    }
     case "arms": {
       // A realm's arms whole; a war's two, face to face, crossed blades between them.
       const ctx = surface(canvas, w, h),

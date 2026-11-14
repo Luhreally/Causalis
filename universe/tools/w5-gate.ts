@@ -698,13 +698,14 @@ async function watch(f: Forged, tag: string): Promise<void> {
     civics: number;
     standing: number;
     lots: number;
+    still: string[];
   }>(`(() => {
     const plan = globalThis.causalis.planNow()?.town, runs = plan.runs, heart = Math.min(400, plan.lots), t = globalThis.causalis.raidFilming?.() ?? 0;
     let razed = 0;
     for (let p = 0; p < heart; p++)
       if (runs.some((r) => r[0] === 3 && r[1] <= p && p < r[2])) razed++;
     const near = plan.civics.filter((c) => c.at < heart);
-    return { first: heart, razed, civics: near.length, standing: near.filter((c) => c.fell === null).length, lots: plan.lots };
+    return { first: heart, razed, civics: near.length, standing: near.filter((c) => c.fell === null).length, lots: plan.lots, still: near.filter((c) => c.fell === null).map((c) => c.kind + " at " + c.at + " of " + c.lots + " lots, from " + c.start + (c.truly !== undefined ? ", truly at " + c.truly : "")) };
   })()`);
   say(
     `${tag}: of the first ${ground.first} lots of ${ground.lots} drawn, ${ground.razed} are ash; ${ground.standing} of the ${ground.civics} buildings there stand`,
@@ -713,7 +714,10 @@ async function watch(f: Forged, tag: string): Promise<void> {
     ground.razed >= Math.min(ground.first, strike.homes) * 0.9,
     `${tag}: its heart is not cleared: ${ground.razed} of the first ${ground.first} lots`,
   );
-  check(ground.standing === 0, `${tag}: ${ground.standing} buildings stand in its heart`);
+  check(
+    ground.standing === 0,
+    `${tag}: ${ground.standing} buildings stand in its heart (${ground.still.join("; ")})`,
+  );
   // The town as it stood, by the same eye: the same film, from before its moment.
   await k("globalThis.causalis.stopRaidFilm?.()");
   await settle(800);

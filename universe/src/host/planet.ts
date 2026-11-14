@@ -16,7 +16,7 @@ import {
   DEITIES,
   designsOf,
   diplomacyOf,
-  fieldedOf,
+  hostOf as hostMen,
   frontier,
   grainLost,
   handOf,
@@ -180,6 +180,7 @@ import { LEADER_QUERIES, withFigures } from "./leaders.ts";
 import { BAR_QUERIES } from "./bar.ts";
 import { writtenIndex, writtenRead } from "./inspect/written.ts";
 import { WEALTH_QUERIES } from "./wealth.ts";
+import { installYears } from "./years.ts";
 import { HELD_QUERIES } from "./held.ts";
 import { SEARCH_QUERIES } from "./search.ts";
 import { takenWordsOf, type NamesArg } from "./names.ts";
@@ -905,6 +906,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
       observer(world);
       // (Its colonies' towns as the eye reads them: Phase 64, nothing history holds.)
       installColonyTowns(world);
+      // (Its realms' and lands' years, as they were, for the charts: read, no part of the rules.)
+      installYears(world);
       return world;
     };
   let rules: string | null = null;
@@ -1223,7 +1226,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
               name: realmName(r),
               color: realmColor(ref),
               // (Its counter's: the men it fields, and its arms.)
-              fields: Math.round(fieldedOf(ctx, r)),
+              fields: Math.round(hostMen(ctx, r)),
               arms: realmArms(world, ref),
               host: hostOf(ref),
             };
@@ -1348,7 +1351,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
           garrisons = realms
             .living()
             .filter((r) => !fighting.has(r.ref) && spot(r.seat) >= 0)
-            .map((r) => ({ r, fields: Math.round(fieldedOf(ctx, r)) }))
+            .map((r) => ({ r, fields: Math.round(hostMen(ctx, r)) }))
             .sort((a, b) => b.fields - a.fields || (a.r.ref < b.r.ref ? -1 : 1))
             .slice(0, GARRISONS)
             .map(({ r, fields }) => ({

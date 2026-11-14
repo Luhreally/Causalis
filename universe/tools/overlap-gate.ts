@@ -583,6 +583,16 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
   await k(
     "document.querySelector('.life-book') && (document.querySelector('.life-book').hidden = true)",
   );
+  // (A page read while living: the bar stands above it, and nothing of the life lies over it. 2026-11-13.)
+  await state("life-page", async () => {
+    await k(`globalThis.causalis.open(${JSON.stringify(town.ref)})`);
+    await must(
+      "the page",
+      until("the page", () => seen(".page-panel .page-icon"), slow(20000)),
+    );
+    await settle(900);
+  });
+  await closePage();
   await press(".life-letgo");
   await until(
     "the life let go",
@@ -592,6 +602,104 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
   await settle(800);
   await k("globalThis.causalis.home.close?.()").catch(() => undefined);
   await settle(800);
+
+  // A realm ruled, and one of its court held with the god in them (2026-11-13): the bar alone, a page read under it,
+  // and a sheet of the tray's open.
+  const ruled = await k<{ ref: string; people: number }[]>(
+    `globalThis.causalis.client.query({ type: "realms.map" })`,
+  )
+    .then((rs) => [...rs].sort((a, b) => b.people - a.people)[0]?.ref ?? null)
+    .catch(() => null);
+  if (ruled) {
+    await state("ruling", async () => {
+      await closePage();
+      const why = await k<string | null>(
+        `globalThis.causalis.reign.take(${JSON.stringify(ruled)})`,
+      );
+      if (why) throw new Error(why);
+      await must(
+        "the bar",
+        until("the bar", () => seen(".reign-strip"), slow(60000)),
+      );
+      await settle(2500);
+    });
+    await state("ruling-page", async () => {
+      await k(`globalThis.causalis.open(${JSON.stringify(ruled)})`);
+      await must(
+        "the page",
+        until("the page", () => seen(".page-panel .page-icon"), slow(20000)),
+      );
+      await settle(900);
+    });
+    await closePage();
+    await state("ruling-sheet", async () => {
+      await must("the decrees", press('.reign-act[data-act="decrees"]'));
+      await must(
+        "the sheet",
+        until("the sheet", () => seen(".reign-sheet .reign-law"), slow(20000)),
+      );
+      await settle(600);
+    });
+    await k(`document.querySelector(".reign-close")?.click()`);
+    const fig = await k<number | null>(
+      `globalThis.causalis.client.query({ type: "leaders.court", args: { realm: ${JSON.stringify(ruled)} } }).then((ls) => { const l = ls[0]; return l ? Number(l.ref.slice(l.ref.lastIndexOf(":") + 1)) : null; })`,
+    ).catch(() => null);
+    if (fig !== null)
+      await state("role-channelled", async () => {
+        const why = await k<string | null>(
+          `globalThis.causalis.reign.take(${JSON.stringify(ruled)}, ${fig})`,
+        );
+        if (why) throw new Error(why);
+        await must(
+          "their bar",
+          until("their bar", () => seen(".reign-hud.as-role .reign-strip"), slow(60000)),
+        );
+        await settle(1500);
+        await must("the switch", press(".reign-channel"));
+        await must("the factions", press('.reign-act[data-act="factions"]'));
+        await must(
+          "the sheet",
+          until("the sheet", () => seen(".reign-sheet .reign-plot"), slow(20000)),
+        );
+        await settle(600);
+      });
+    await k(`document.querySelector(".reign-close")?.click()`);
+    // (The god's hand through them, its sheet aimed at another realm; and the god's own palette over the realm.)
+    await state("ruling-god", async () => {
+      if (!(await k<boolean>("globalThis.causalis.reign.channel()")))
+        await must("the switch", press(".reign-channel"));
+      await must("the god's hand", press('.reign-act[data-act="god"]'));
+      await must(
+        "the hand's sheet",
+        until("the hand's sheet", () => seen(".reign-sheet .reign-god"), slow(20000)),
+      );
+      const other = await k<string | null>(
+        `document.querySelectorAll(".reign-aim")[1]?.dataset.ref ?? null`,
+      );
+      if (other) {
+        await must("another realm", press(`.reign-aim[data-ref="${other}"]`));
+        await must(
+          "aimed",
+          until("aimed", () => seen(`.reign-aim.on[data-ref="${other}"]`), slow(20000)),
+        );
+      }
+      await settle(600);
+    });
+    await state("ruling-palette", async () => {
+      await must("the palette", press(".reign-palette"));
+      await must(
+        "the palette open",
+        until("the palette open", () => seen(".palette.open"), slow(20000)),
+      );
+      await settle(600);
+    });
+    await k(
+      `document.querySelector(".palette.open") && document.querySelector("#hud > .palette-toggle")?.click()`,
+    );
+    await k(`document.querySelector(".reign-close")?.click()`);
+    await k("globalThis.causalis.reign.leave()");
+    await settle(800);
+  }
 
   // A battle watched.
   const wars = await k<{ wars: { battles: { event: string; fallen: number }[] }[] }>(

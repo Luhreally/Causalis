@@ -16,6 +16,7 @@ import type { PopulationContext } from "../population/systems.ts";
 import { WAY, WAY_TRAITS, cultureOf, pushWays, type WayTrait } from "../culture/culture.ts";
 import { LANGUAGE, LANGUAGE_EVENTS, freshName, languagesOf } from "../culture/languages.ts";
 import { BELIEF_EVENTS, FAITH, TENETS, beliefOf, faithName, type Tenet } from "../belief/belief.ts";
+import { actStrengthOf, strengthMark, strengthProblem } from "./acts.ts";
 
 export const WAYS_ACT_EVENTS = {
   ways: defineEventType("act.ways", 5),
@@ -53,10 +54,13 @@ export function installWaysActs(world: World, ctx: () => PopulationContext): voi
       if (bad) return bad;
       if (!(WAY_TRAITS as readonly string[]).includes(a!.way as string))
         return `a way is wanted: ${WAY_TRAITS.join(", ")}`;
-      return a!.sign === 1 || a!.sign === -1 ? null : "sign must be 1 or -1";
+      return a!.sign === 1 || a!.sign === -1 ? strengthProblem(a) : "sign must be 1 or -1";
     },
     apply: (command, t) => {
       const { cell, way, sign } = command.args as WaysArgs,
+        // (At a strength, pushed so many times as far as of old.)
+        s = actStrengthOf(command.args),
+        push = s === 1 ? WAYS_PUSH : WAYS_PUSH * s,
         c = ctx(),
         ways = cultureOf(world).get(cell)!,
         trait = WAY[way],
@@ -66,10 +70,10 @@ export function installWaysActs(world: World, ctx: () => PopulationContext): voi
           subjects: [c.provinces.get(cell)!.ref],
           place: c.provinces.get(cell)!.ref,
           causes: agent(command),
-          data: { way, sign },
+          data: { way, sign, ...strengthMark(s) },
         });
-      pushWays(ways, { event, year, trait, amount: sign * WAYS_PUSH });
-      ways.base[trait] = Math.max(0.02, Math.min(0.98, ways.base[trait]! + sign * WAYS_PUSH));
+      pushWays(ways, { event, year, trait, amount: sign * push });
+      ways.base[trait] = Math.max(0.02, Math.min(0.98, ways.base[trait]! + sign * push));
     },
   });
 

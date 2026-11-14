@@ -7,7 +7,7 @@ import { offworldSite } from "../../gen/index.ts";
 import {
   bondsOf,
   diplomacyOf,
-  fieldedOf,
+  hostOf,
   homePlanet,
   livingMatches,
   misreadOf,
@@ -20,6 +20,7 @@ import {
   type Envoy,
   type League,
   type Polity,
+  type Relation,
   type TieCall,
   type War,
 } from "../../sim/index.ts";
@@ -66,7 +67,7 @@ export function blocsOf(world: World): BlocRead {
     realms = politiesOf(world),
     living = realms.living(),
     strength = new Map<string, number>();
-  for (const p of living) strength.set(p.ref, fieldedOf(ctx, p));
+  for (const p of living) strength.set(p.ref, hostOf(ctx, p));
   const s = (r: Ref) => strength.get(r) ?? 0,
     stronger = (a: Ref, b: Ref) => s(a) > s(b) || (s(a) === s(b) && a < b),
     leader = new Map<string, Ref>(),
@@ -211,6 +212,26 @@ export type Alliance = {
 
 const ALLIED = new Map<World, { year: number; count: number; list: Alliance[] }>();
 
+const RELATIONS = new WeakMap<
+  World,
+  { year: number; count: number; by: Map<string, Relation[]> }
+>();
+
+/** Each realm's relations, by realm: read in one pass (diplomacy's own `of` reads every relation each time it is asked). */
+export function relationsOf(world: World): ReadonlyMap<string, readonly Relation[]> {
+  const year = yearOfMoment(world.now),
+    events = world.events.count,
+    hit = RELATIONS.get(world);
+  if (hit && hit.year === year && hit.count === events) return hit.by;
+  const by = new Map<string, Relation[]>();
+  for (const x of diplomacyOf(world).all()) {
+    (by.get(x.a) ?? by.set(x.a, []).get(x.a)!).push(x);
+    (by.get(x.b) ?? by.set(x.b, []).get(x.b)!).push(x);
+  }
+  RELATIONS.set(world, { year, count: events, by });
+  return by;
+}
+
 /** Every standing alliance, the greatest first (by its people, then its realms): read once a year. */
 export function alliancesOf(world: World): Alliance[] {
   const year = yearOfMoment(world.now),
@@ -222,7 +243,7 @@ export function alliancesOf(world: World): Alliance[] {
     ctx = populationContext(world),
     g = homePlanet(world).generated,
     store = tiesOf(world),
-    diplomacy = diplomacyOf(world),
+    relations = relationsOf(world),
     bonds = bondsOf(world),
     wars = warsOf(world),
     colors = allianceColors(world, [...read.blocs.keys()], (h) => {
@@ -251,7 +272,7 @@ export function alliancesOf(world: World): Alliance[] {
         lands++;
         people += ctx.provinces.get(c)?.total() ?? 0;
       }
-      for (const x of diplomacy.of(r))
+      for (const x of relations.get(r) ?? [])
         if (x.pact && inIt.has(x.a === r ? x.b : x.a)) older(yearOf(x.pact));
       const oath = bonds.oathOf(r);
       if (oath && inIt.has(oath.to)) older(oath.since);
@@ -387,7 +408,14 @@ export function warSideBlocks(world: World, w: War): { stats: Stat[]; blocks: Bl
     came = wars
       .hotOf(w.defender)
       .concat(w.attacker === w.defender ? [] : wars.hotOf(w.attacker))
-      .filter((x) => (world.events.get(x.event)?.data as { call?: Ref } | null)?.call === w.ref),
+      .filter((x) => (world.events.get(x.event)?.data as { call?: Ref } | null)?.call === w.ref)
+      // (And those that came to it, ended since: a call keeps the war it opened.)
+      .concat(
+        calls.flatMap((c) => {
+          const x = c.opened ? wars.get(c.opened) : undefined;
+          return x ? [x] : [];
+        }),
+      ),
     seen = new Set<string>(),
     items: Item[] = [],
     stats: Stat[] = [];
@@ -463,7 +491,7 @@ function matchLines(world: World, r: Polity, year: number): Item[] {
 function knownLine(world: World, r: Polity, q: Polity): Line {
   const ctx = populationContext(world),
     year = yearNow(world),
-    truth = fieldedOf(ctx, q),
+    truth = hostOf(ctx, q),
     factor = misreadOf(world, r.ref, q.ref, year),
     believed = Math.round(truth * factor),
     kept = tiesOf(world).embassyOf(r.ref, q.ref);
@@ -580,7 +608,7 @@ const blocName = (world: World, head: string): string => {
 const cap = (s: string) => s[0]!.toUpperCase() + s.slice(1);
 
 /** How a realm stands in an alliance: at its head, sworn, of its compact, or by a pact. */
-function standsHow(world: World, head: Ref, list: readonly Ref[], r: Ref): string {
+export function standsHow(world: World, head: Ref, list: readonly Ref[], r: Ref): string {
   const realms = politiesOf(world);
   if (r === head) return "at its head";
   const oath = bondsOf(world).oathOf(r);
@@ -644,6 +672,15 @@ export function alliancesBlocks(world: World): Block[] {
       })),
       unit: "people",
     },
+    {
+      type: "text",
+      lines: [
+        [
+          link("Every alliance ranked", "world:alliances"),
+          ": their lands, people, hosts, wealth and wars side by side, each a page of its own.",
+        ],
+      ],
+    },
   ];
   for (const a of list)
     blocks.push({
@@ -661,180 +698,6 @@ export function alliancesBlocks(world: World): Block[] {
     lines: [[`${many(alone, "realm stands", "realms stand")} alone, in no alliance.`]],
   });
   return blocks;
-}
-
-/** The world's alliances, all on one page (the alliances lens's list). */
-export function alliancesPage(world: World): PageModel {
-  const list = alliancesOf(world),
-    realms = politiesOf(world).living().length,
-    inOne = list.reduce((n, a) => n + a.members.length, 0),
-    top = list[0];
-  return {
-    ref: "world:alliances",
-    kind: "alliances",
-    icon: "🪢",
-    title: "Alliances",
-    subtitle: [
-      "who stands with whom, the world over: realms bound by a pact, an oath or a compact answer each other's call",
-    ],
-    color: null,
-    place: null,
-    stats: [
-      stat("Alliances", count(list.length)),
-      stat("Realms in one", `${count(inOne)} of ${count(realms)}`),
-      stat("The greatest", top ? [link(cap(top.name), top.ref)] : "none"),
-      stat("At war", many(list.filter((a) => a.wars.length).length, "alliance", "alliances")),
-    ],
-    tabs: [{ id: "overview", name: "Alliances", blocks: alliancesBlocks(world) }],
-    followable: false,
-    year: yearNow(world),
-  };
-}
-
-/** An alliance's own page: who stands in it, by what; how much of the world it holds; what it fights. */
-export function blocPage(world: World, ref: string): PageModel {
-  const head = ref.slice("bloc:".length) as Ref,
-    realms = politiesOf(world),
-    h = realms.get(head),
-    a = alliancesOf(world).find((x) => x.head === head),
-    list = a?.members ?? (h ? [head] : []),
-    ctx = populationContext(world),
-    host = list.reduce((s, r) => {
-      const p = realms.get(r);
-      return s + (p ? fieldedOf(ctx, p) : 0);
-    }, 0),
-    name = a?.name ?? blocName(world, head),
-    items = list.map((r) => item([named(world, r), `: ${standsHow(world, head, list, r)}`], r)),
-    fights = a ? warsLine(world, a) : [],
-    seat = h ? spotOfLand(world, h.seat) : null;
-  return {
-    ref,
-    kind: "bloc",
-    icon: "🪢",
-    title: cap(name),
-    subtitle: [
-      list.length >= 2
-        ? `${count(list.length)} realms who would answer each other's call. `
-        : "It stands alone now. ",
-      link("Every alliance", "world:alliances"),
-    ],
-    color: a?.color ?? null,
-    place: seat === null ? null : { scale: "globe", spot: seat },
-    stats: [
-      stat("Realms", count(list.length)),
-      stat("Lands", count(a?.lands ?? 0)),
-      stat("People", count(a?.people ?? 0)),
-      stat("Hosts", count(Math.round(host))),
-      stat("Bound since", a?.since != null ? `year ${a.since}` : "no one wrote it down"),
-      stat("At war", fights.length ? fights : "at peace", {
-        why: a?.wars[0]?.war ?? null,
-      }),
-      ...(a?.compact
-        ? [
-            stat("Sworn against", [named(world, a.compact.against)], {
-              why: a.compact.event,
-            }),
-          ]
-        : []),
-    ],
-    tabs: [
-      {
-        id: "overview",
-        name: "Overview",
-        blocks: [
-          { type: "list", title: "Who stands in it", items },
-          ...(a?.wars.length
-            ? [
-                {
-                  type: "list" as const,
-                  title: "What it fights",
-                  items: a.wars.map((w) =>
-                    item(
-                      [link(claimOf(world, warsOf(world).get(w.war)?.event ?? w.war), w.war)],
-                      w.war,
-                    ),
-                  ),
-                },
-              ]
-            : []),
-        ],
-      },
-    ],
-    followable: false,
-    year: yearNow(world),
-  };
-}
-
-/** A league's own page. */
-export function leaguePage(world: World, ref: string): PageModel {
-  const event = ref.slice("league:".length),
-    l = tiesOf(world).leagueBy(event);
-  if (!l) throw new Error(`no league ${ref}`);
-  const realms = politiesOf(world),
-    h = realms.get(l.against),
-    name = leagueName(world, l),
-    title = name[0]!.toUpperCase() + name.slice(1),
-    wars = warsOf(world)
-      .hotOf(l.against)
-      .filter((w) => w.declared >= l.since && (l.until === null || w.declared <= l.until))
-      .filter((w) => l.members.includes(w.attacker) || l.members.includes(w.defender))
-      .slice(-8)
-      .reverse();
-  return {
-    ref,
-    kind: "league",
-    icon: "🛡️",
-    title,
-    subtitle: [
-      "Against ",
-      named(world, l.against),
-      l.until === null ? `, since year ${l.since}` : `, from year ${l.since} to year ${l.until}`,
-    ],
-    color: h ? realmColor(h.ref) : null,
-    place: null,
-    stats: [
-      stat("Sworn", `year ${l.since}`, { why: l.event }),
-      stat("Members", count(l.members.length)),
-      stat(
-        "It feared",
-        `${Math.round(l.share * 100)} in a hundred of the world's people under one realm`,
-      ),
-      stat(
-        "Holds",
-        l.until === null
-          ? "as long as the fear does: none of them makes war on another, and each answers the others' call"
-          : `no longer: ended in year ${l.until}`,
-        { why: l.ended },
-      ),
-    ],
-    tabs: [
-      {
-        id: "overview",
-        name: "Overview",
-        blocks: [
-          {
-            type: "list",
-            title: "Who gathered",
-            items: l.members.map((m) => item([named(world, m)], m)),
-          },
-          ...(wars.length
-            ? [
-                {
-                  type: "list" as const,
-                  title: "What it fought",
-                  items: wars.map((w) =>
-                    item([link(claimOf(world, w.event), w.ref)], w.ref, w.declared),
-                  ),
-                },
-              ]
-            : []),
-          { type: "why", title: "Why they gathered", ref: l.event },
-        ],
-      },
-    ],
-    followable: false,
-    year: yearNow(world),
-  };
 }
 
 /** A marriage's own page: who is whose, and what can come of it. */

@@ -44,7 +44,10 @@ import { compareWith, warTally, woundedOf } from "./compare.ts";
 import { armyBlocks, courseBlocks } from "./army.ts";
 import { storesSummed } from "./stores.ts";
 import { realmOrderBlocks } from "./order.ts";
+import { fortuneBlocks } from "./fortune.ts";
+import { godBlocks } from "./godhand.ts";
 import { realmCreditBlocks, warChestRows } from "./credit.ts";
+import { exchangeWay } from "./exchange.ts";
 import { leaderBlocks } from "./leaders.ts";
 import { courtBlocks } from "./court.ts";
 import { wealthStats } from "../wealth.ts";
@@ -74,6 +77,8 @@ import {
   townLink,
 } from "./names.ts";
 import { realmSongsTab } from "./memory.ts";
+import { loreLook } from "./ware-looks.ts";
+import { realmTimeTab } from "./time.ts";
 
 /** How many places a battle's fallen tab names, the most dead first; the rest are counted. */
 export const FELL_ROWS = 40;
@@ -126,6 +131,9 @@ export function realmPageModel(
     id: "overview",
     name: "Overview",
     blocks: [
+      // (A blessing or a curse laid on it for years, while it holds and a while after: 2026-11-13.)
+      ...fortuneBlocks(world, r),
+      ...godBlocks(world, r),
       // (What it holds among the stars: Phase 72.)
       ...nationRealmBlocks(world, r.ref),
       {
@@ -191,6 +199,8 @@ export function realmPageModel(
       { type: "why", title: "How it came to be", ref: r.ref },
     ],
   });
+  // Its own numbers through the years, as it was in each (asked 2026-11-13: "graphs over time").
+  if (wants("time")) tabs.push(realmTimeTab(world, r));
   // Who holds power in it (Lives L1).
   if (wants("leaders"))
     tabs.push({ id: "leaders", name: "Leaders", blocks: leaderBlocks(world, r) });
@@ -243,7 +253,9 @@ export function realmPageModel(
   if (wants("order")) tabs.push({ id: "order", name: "Order", blocks: realmOrderBlocks(world, r) });
   // Its credit (Phase 21 M144): what its lands owe, its war chests, its faith with its lenders.
   if (wants("credit")) {
-    const credit = realmCreditBlocks(world, r.ref);
+    // (Its exchange first, where its seat keeps one: its companies and their index.)
+    const exchange = exchangeWay(world, r.ref),
+      credit = [...(exchange ? [exchange] : []), ...realmCreditBlocks(world, r.ref)];
     if (credit.length) tabs.push({ id: "credit", name: "Credit", blocks: credit });
   }
   // Its strife (Phase 22 M145): its army's voice, how near a coup is and why, its rule, its coups.
@@ -321,9 +333,15 @@ export function realmPageModel(
       .of(r.seat)
       .map(([id, k]) => ({ id, k }))
       .sort((a, b) => b.k.year - a.k.year)
-      .map(({ id, k }) =>
-        item([link(principleName(id, world), k.event), ` — year ${k.year}`], k.event, k.year),
-      );
+      .map(({ id, k }) => {
+        const it = item(
+            [link(principleName(id, world), k.event), ` — year ${k.year}`],
+            k.event,
+            k.year,
+          ),
+          thumb = loreLook(world, r.seat, id);
+        return thumb ? { ...it, thumb } : it;
+      });
     tabs.push({
       id: "lore",
       name: "Lore",

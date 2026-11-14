@@ -90,10 +90,18 @@ const press = async (sel: string) => {
     problems.push(`${sel} was not there to press`);
     return false;
   }
-  // (What stands over it, if anything does: the press would fall on that instead.)
-  const over = await k<string | null>(
-    `(() => { const e = document.querySelector(${JSON.stringify(sel)}), o = document.elementFromPoint(${at.x}, ${at.y}); return !o || e === o || e?.contains(o) ? null : o.tagName.toLowerCase() + "." + [...o.classList].join("."); })()`,
-  );
+  // (What stands over it, if anything does: the press would fall on that instead. Read where it stands at that
+  // moment, and again if something does: the corner's column moves its tools as alerts come and go, and a neighbour
+  // moved into the place it had a moment before is no cover.)
+  let over: string | null = null;
+  for (let i = 0; i < 6; i++) {
+    at = (await centre(sel)) ?? at;
+    over = await k<string | null>(
+      `(() => { const e = document.querySelector(${JSON.stringify(sel)}), o = document.elementFromPoint(${at.x}, ${at.y}); return !o || e === o || e?.contains(o) ? null : o.tagName.toLowerCase() + "." + [...o.classList].join("."); })()`,
+    );
+    if (!over) break;
+    await page.waitForTimeout(200);
+  }
   if (over) problems.push(`${sel} was covered by ${over} when pressed`);
   await page.mouse.click(at.x, at.y);
   return true;
@@ -344,6 +352,13 @@ await page.waitForTimeout(1500);
   await page.waitForTimeout(2000);
   await k("globalThis.causalis.client.setSpeed(0)");
   await page.waitForTimeout(2000);
+  // (🔊 back among the corner's tools first: by itself a moment after the corner came back, on a slow runner it lay
+  // over the rail when this was pressed. What is asked is that the log opens, not how fast a machine is.)
+  await until(
+    "🔊 back among the corner's tools",
+    async () => (await page.$$(".sound-button.free")).length === 0,
+    slow(5000),
+  );
   await press(".log-open");
   await until("the message log", async () => (await title()) === "The message log", 15000);
   const told = await page.$$eval(".page-window .table tr.entry", (x) => x.length);

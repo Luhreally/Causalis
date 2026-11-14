@@ -1431,9 +1431,12 @@ export class TownBuilder {
     if (place === "core") {
       // (By the spans its standing buildings take, not lot by lot: a great town has tens of millions of lots,
       // and this is asked each year of whichever towns are building. Phase 66.)
+      // (Nor on lots in ash: no one builds there till its years are out. 2026-11-13: a shrine and a granary rose
+      // the year the greatest fire flattened a town's heart, on its ash.)
       const spans = f.civics
         .filter((c) => c.fell === null && c.lots > 0)
         .map((c) => [c.at, c.at + c.lots] as const)
+        .concat(f.changes.filter((c) => c[0] === CHANGE.burned).map((c) => [c[1], c[2]] as const))
         .sort((a, b) => a[0] - b[0]);
       let i = 0,
         reach = -1;

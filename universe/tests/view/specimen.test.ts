@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { drawSpecimen, specimenParts, type SpecimenPart } from "../../src/ui/specimen.ts";
+import { drawSpecimen, hasShape, specimenParts, type SpecimenPart } from "../../src/ui/specimen.ts";
 import type { Habit, MadeHow, MatterForm, Portrait } from "../../src/bridge/index.ts";
 
 // Phase 54 M223: the specimen renderer draws a substance, an element or a made thing as parts
@@ -118,6 +118,7 @@ function recorder() {
     lineTo() {},
     closePath() {},
     arc() {},
+    setLineDash() {},
     ellipse() {},
     rect() {},
     clip() {},
@@ -263,5 +264,92 @@ test("a clear crystal fills more faces than the same crystal opaque, its back fa
   assert.ok(
     clear.counts.fills > opaque.counts.fills,
     `clear ${clear.counts.fills} > opaque ${opaque.counts.fills}`,
+  );
+});
+
+// Asked 2026-11-12 ("it doesnt show the shoes and clothes sepratlety or combines axes and sickle ... i want more generative detail ...
+// when i look for it"): every thing a market names has a shape of its own, and a picture drawn large has a fine level a thumbnail never has.
+const NAMED_FORMS = [
+  "axe",
+  "saw",
+  "sickle",
+  "plough share",
+  "knife",
+  "chisel",
+  "hammer",
+  "awl",
+  "scraper",
+  "blade",
+  "tunic",
+  "shirt",
+  "gown",
+  "dress",
+  "trousers",
+  "cloak",
+  "coat",
+  "cuirass",
+  "hat",
+  "cap",
+  "boot",
+  "shoe",
+  "sandal",
+];
+
+test("every tool and garment a market names has its own shape, sound, and none drawn as another", () => {
+  const seen = new Map<string, string>();
+  for (const form of NAMED_FORMS) {
+    assert.ok(hasShape(form), `${form} has a shape of its own`);
+    const made = /boot|shoe|sandal|coat/.test(form)
+        ? "sewn"
+        : /tunic|shirt|gown|dress|trousers|cloak|hat|cap/.test(form)
+          ? "woven"
+          : "forged",
+      parts = specimenParts(thing(form, made));
+    sound(parts);
+    const sig = JSON.stringify(parts.map((p) => p.mesh.v));
+    assert.ok(!seen.has(sig) || seen.get(sig) === form, `${form} is drawn as ${seen.get(sig)}`);
+    seen.set(sig, form);
+  }
+});
+
+test("a thumbnail's parts carry no marks; drawn large, a tool, a garment and a machine show their making in marks", () => {
+  for (const [form, made] of [
+    ["axe", "forged"],
+    ["saw", "forged"],
+    ["sickle", "cast"],
+    ["tunic", "woven"],
+    ["boot", "sewn"],
+    ["steam engine", "machined"],
+    ["scraper", "knapped"],
+    ["storage jar", "thrown"],
+  ] as const) {
+    const p = thing(form, made);
+    assert.ok(
+      specimenParts(p).every((q) => !q.marks?.length),
+      `${form}: no marks in a thumbnail`,
+    );
+    const fine = specimenParts(p, true),
+      marks = fine.reduce((n, q) => n + (q.marks?.length ?? 0), 0);
+    assert.ok(marks >= 3, `${form} made ${made}: ${marks} marks drawn large`);
+    for (const q of fine)
+      for (const m of q.marks ?? [])
+        if (m.face !== undefined)
+          assert.ok(
+            m.face >= 0 && m.face < q.mesh.f.length,
+            `${form}: a mark on a face of its part`,
+          );
+    const coarse = recorder(),
+      large = recorder();
+    drawSpecimen(coarse.ctx, p, { x: 0, y: 0, w: 300, h: 300 }, 0, "coarse");
+    drawSpecimen(large.ctx, p, { x: 0, y: 0, w: 300, h: 300 }, 0, "fine");
+    assert.ok(
+      large.counts.strokes > coarse.counts.strokes,
+      `${form}: ${large.counts.strokes} strokes fine against ${coarse.counts.strokes} coarse`,
+    );
+  }
+  // (A saw has its every tooth drawn large, and fewer, broader ones small.)
+  assert.ok(
+    specimenParts(thing("saw", "forged"), true)[1]!.mesh.f.length >
+      specimenParts(thing("saw", "forged"))[1]!.mesh.f.length,
   );
 });

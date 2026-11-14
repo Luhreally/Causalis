@@ -1,7 +1,9 @@
 // A road's own page, and a bus's (R1): who built it and when, what it is laid with, what goes along it now and how much, what it joins; the gang on it, who
 // pays them, who they are, how far they have got and what stopped them; what cut it. Read, every word of it, from what the world keeps (host/roads.ts).
 import { YEAR, hashString, type World } from "../../kernel/index.ts";
-import { politiesOf, populationContext, realmName } from "../../sim/index.ts";
+import { marketsOf, politiesOf, populationContext, realmName } from "../../sim/index.ts";
+import { isProvinceWorld } from "../../gen/index.ts";
+import { betweenItems, placeName } from "./wares.ts";
 import type { Block, LandRoad, Line, PageModel, RoadLay, Span } from "../../bridge/index.ts";
 import { CARRIER_WORDS, worksShareOf } from "../roadwords.ts";
 import { landEra } from "../village.ts";
@@ -75,6 +77,23 @@ function handsNamed(world: World, town: string, n: number, key: number): Span[] 
 }
 
 /** A road's own page. */
+/** The land next door a road out of a land goes toward: the neighbour its goods have gone to by road, whose greatest town it is named for. */
+function landToward(world: World, cell: number, toward: string): number | null {
+  const ctx = populationContext(world),
+    g = ctx.generated,
+    markets = marketsOf(world);
+  if (!isProvinceWorld(g)) return null;
+  for (let k = g.grid.offsets[cell]!; k < g.grid.offsets[cell + 1]!; k++) {
+    const nb = g.grid.neighbours[k]!;
+    if (!markets.route(cell, nb) || markets.bySea(cell, nb)) continue;
+    const great = ctx.settlements
+      .seenIn(nb)
+      .sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1))[0];
+    if (great?.name === toward) return nb;
+  }
+  return null;
+}
+
 export function roadPage(world: World, ref: string): PageModel {
   const found = roadOf(world, ref);
   if (!found) throw new Error(`no road ${ref}`);
@@ -122,7 +141,19 @@ export function roadPage(world: World, ref: string): PageModel {
         : `What goes along it: ${go}, one at a time.`,
     ]);
   else tell.push(["Nothing goes along it yet: it isn't joined up."]);
+  // (A road out of the land: what its trade carried last year, each way, said as the things themselves.)
+  const beyond = !road.b && road.toward ? landToward(world, cell, road.toward) : null,
+    carried = beyond !== null ? betweenItems(world, cell, beyond) : [];
+  if (beyond !== null && !carried.length)
+    tell.push([
+      "No goods went down it last year to or from ",
+      link(placeName(world, beyond), `cell:0:${beyond}`),
+      ": the trade that opened it has stopped, or goes by other roads.",
+    ]);
   blocks.push({ type: "text", title: "The road", lines: tell });
+  // (A way to a line, each with a picture of the greatest thing that went.)
+  if (carried.length)
+    blocks.push({ type: "list", title: "What its trade carried last year", items: carried });
   // The gang on it.
   if (w) {
     const pay = whoPays(world, cell),

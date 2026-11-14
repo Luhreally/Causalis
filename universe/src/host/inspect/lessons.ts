@@ -162,7 +162,8 @@ export function realmLessonBlocks(
       const was = held.get(id) ?? { lands: 0, best: -1, at: 0 };
       was.lands++;
       const lost = h.causes.get(LESSON_RESPONSE.get(id)!.cause)?.lost ?? 0;
-      if (lost > was.at) {
+      // (A land that holds to it though nothing it lost is written down still names one.)
+      if (lost > was.at || was.best < 0) {
         was.at = lost;
         was.best = c;
       }

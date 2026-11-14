@@ -43,7 +43,7 @@ import { bandOfAge } from "../hand/hand.ts";
 import { interestsOf } from "../polity/interests.ts";
 import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { orderOf, type RealmOrder } from "../order/order.ts";
-import { rulerProblem } from "../order/reign.ts";
+import { channelled, rulerProblem } from "../order/reign.ts";
 import { battlesOf, breakAway, farLands, foil, seize } from "../strife/strife.ts";
 
 export const COURT_EVENTS = {
@@ -86,7 +86,21 @@ export type CourtFigure = {
   sway: number;
   /** The event that wronged them: the seat was to be theirs. */
   wronged?: Ref;
+  /** The groups that stand behind them, courted by the god's hand (roles.ts): none, but by a player's act. */
+  backing?: Backing[];
 };
+
+/** A group that stands behind one of a court: its share of the realm's sway when it came to them. */
+export type Backing = {
+  readonly group: CourtSeat;
+  readonly sway: number;
+  readonly year: number;
+  readonly event: Ref;
+};
+
+/** The sway that stands behind one of a court, past their own (0, unless a player courted it). */
+export const backingOf = (f: CourtFigure): number =>
+  f.backing ? f.backing.reduce((n, b) => n + b.sway, 0) : 0;
 
 /** A figure gone from a court, for their page: how it ended and the event that says so. */
 export type GoneFigure = {
@@ -168,7 +182,10 @@ export class CourtStore implements StateStore {
     for (const c of this.courts.values()) {
       out.push(c.ruler, ...c.told);
       if (c.plot) out.push(c.plot.event, c.plot.decision);
-      for (const f of c.figures) if (f.wronged) out.push(f.wronged);
+      for (const f of c.figures) {
+        if (f.wronged) out.push(f.wronged);
+        for (const b of f.backing ?? []) out.push(b.event);
+      }
       for (const g of c.gone) if (g.event) out.push(g.event);
     }
     return out;
@@ -186,7 +203,10 @@ export class CourtStore implements StateStore {
     for (const c of s.courts)
       this.courts.set(c.realm, {
         ...c,
-        figures: c.figures.map((f) => ({ ...f })),
+        figures: c.figures.map((f) => ({
+          ...f,
+          ...(f.backing ? { backing: [...f.backing] } : {}),
+        })),
         told: [...c.told],
         gone: [...c.gone],
       });
@@ -416,7 +436,8 @@ export function dangerOf(
     grown = ctx.life.adulthood,
     ways = cultureOf(world).get(p.seat),
     trait = (w: number) => ways?.traits[w] ?? 0.5,
-    weight = weightOf(f.sway),
+    backed = backingOf(f),
+    weight = weightOf(f.sway + backed),
     doubt = doubtOf(o.legitimacy),
     fought = battlesOf(world, p, year),
     defeats = fought.lost ? fought.lost / (fought.won + fought.lost) : 0,
@@ -430,12 +451,14 @@ export function dangerOf(
     who =
       f.seat === "house" ? `${f.name}, of the ruler's house` : `${f.name}, the voice of ${f.seat}`;
   const factors: Factor[] = [
+    // (Their own weight, and the groups that stand behind them, courted by a player's act.)
     {
       name: who,
-      value: f.sway,
+      value: f.sway + backed,
       contribution: COURT.wantWeight * weight,
       source: null,
     },
+
     {
       name: "a rule doubted",
       value: o.legitimacy,
@@ -878,14 +901,66 @@ export function rivalMoves(
   begin(ctx, p, c, f, decision, odds, won, false, t);
 }
 
+/**
+ * One of a court moves on the seat by the god's hand (roles.ts): its odds as any rival's would be, drawn the same way; or,
+ * the god's will through them, sure to carry. The army's voice turns the host on the seat, as the army's coups go.
+ */
+export function figureMoves(
+  ctx: PopulationContext,
+  p: Polity,
+  c: Court,
+  f: CourtFigure,
+  o: RealmOrder,
+  t: SimTime,
+  cause: Ref,
+  channel: boolean,
+): number {
+  const { world } = ctx,
+    danger = dangerOf(ctx, p, c, f, o),
+    odds = plotOdds(danger.weight, danger.doubt, danger.tradition),
+    won = channel || world.rng.real(PLOT, keyOf(p.ref), t, 11) < odds,
+    decision = world.decisions.record({
+      rule: "court.plot",
+      subject: p.ref,
+      outcome: { who: f.name, ruler: p.ruler.name },
+      score: danger.score,
+      threshold: COURT.line,
+      factors: [
+        {
+          name: `the word of ${f.name}`,
+          value: 1,
+          contribution: 1,
+          source: { ref: cause, role: "agent", weight: 1 },
+        },
+        ...(channel
+          ? [{ name: "the god's will through them", value: 1, contribution: 1, source: null }]
+          : []),
+        ...danger.factors,
+      ],
+    });
+  begin(ctx, p, c, f, decision, channel ? 1 : odds, won, f.seat === "the army", t);
+  return channel ? 1 : odds;
+}
+
+/** What has passed at a court, told: kept with the rest (roles.ts). */
+export function courtTold(c: Court, event: Ref): void {
+  told(c, event);
+}
+
 /** A ruler's answer to a plot: "seize" them, or "buy" them off. */
 export type CourtAnswerArgs = {
   readonly realm: Ref;
   readonly ruler: string;
   readonly answer: "seize" | "buy";
+  readonly channel?: boolean;
 };
 /** A ruler's word on who follows them. */
-export type CourtNameArgs = { readonly realm: Ref; readonly ruler: string; readonly fig: number };
+export type CourtNameArgs = {
+  readonly realm: Ref;
+  readonly ruler: string;
+  readonly fig: number;
+  readonly channel?: boolean;
+};
 
 /** Why a ruler's word on a plot would not hold (null: it would). */
 export function answerProblem(world: World, args: unknown): string | null {
@@ -896,7 +971,7 @@ export function answerProblem(world: World, args: unknown): string | null {
     o = orderOf(world)?.of(a.realm as Ref);
   if (a.answer !== "seize" && a.answer !== "buy") return "they can be seized or bought off";
   if (!c?.plot) return "no plot is afoot";
-  if (a.answer === "seize" && o && o.legitimacy < REIGN.wordLine)
+  if (a.answer === "seize" && o && o.legitimacy < REIGN.wordLine && !a.channel)
     return `Only ${Math.round(o.legitimacy * 100)} in a hundred hold your rule rightful: your word stops at the seat's door, and no one will lay a hand on them.`;
   return null;
 }
@@ -910,7 +985,7 @@ export function nameProblem(world: World, args: unknown): string | null {
     o = orderOf(world)?.of(a.realm as Ref),
     f = c && typeof a.fig === "number" ? figureOf(c, a.fig) : undefined;
   if (!f) return "they are not at court";
-  if (o && o.legitimacy < REIGN.wordLine)
+  if (o && o.legitimacy < REIGN.wordLine && !a.channel)
     return `Only ${Math.round(o.legitimacy * 100)} in a hundred hold your rule rightful: your word stops at the seat's door.`;
   return null;
 }
@@ -954,6 +1029,7 @@ export function installCourts(world: World, ctx: () => PopulationContext): Court
         },
       });
       told(court, event);
+      if (a.channel) channelled(world, c, r, command.id, r.ruler.name, "court");
       court.plot = null;
       if (a.answer === "buy") {
         court.quiet = year + COURT.quietBought;
@@ -981,6 +1057,7 @@ export function installCourts(world: World, ctx: () => PopulationContext): Court
           data: { realm: realmName(r), fig: f.id, who: f.name, by: r.ruler.name },
         });
       told(court, event);
+      if (a.channel) channelled(world, c, r, command.id, r.ruler.name, "heir");
       if (o && court.heirBy !== "word")
         o.legitimacy = clamp(0.02, 0.98, o.legitimacy - COURT.nameCost);
       court.heir = f.id;

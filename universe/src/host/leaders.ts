@@ -201,4 +201,9 @@ export function withFigures(world: World, plan: VillagePlan): VillagePlan {
 export const LEADER_QUERIES: Readonly<Record<string, QueryHandler>> = {
   /** A realm's key figures (null: no such realm). */
   "leaders.of": (world, args) => leadersOf(world, (args as { realm: string }).realm),
+  /** A realm's court as its people (Lives L5): each to be taken as one of it (2026-11-13). */
+  "leaders.court": (world, args) => {
+    const r = politiesOf(world).get(asRef((args as { realm: string }).realm));
+    return r ? courtLeaders(world, r) : [];
+  },
 };

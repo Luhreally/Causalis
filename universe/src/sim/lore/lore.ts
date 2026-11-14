@@ -516,6 +516,49 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
   }
 }
 
+/**
+ * What a land could come to next, by the tree, its people's bodies, its world's matter and laws, whatever drives it or
+ * not (2026-11-13: the god's gift of learning). The tree's order.
+ */
+export function openTo(
+  ctx: PopulationContext,
+  cell: number,
+  known?: (id: string) => boolean,
+): Principle[] {
+  const { world, generated: g } = ctx,
+    store = loreOf(world),
+    markets = world.store<MarketStore>("economy.markets"),
+    prov = ctx.provinces.get(cell),
+    means = meansOfWorld(g),
+    lifts = liftingEngine(meansNumbers(g)),
+    here =
+      known ??
+      ((n: string) =>
+        n === "cultivation"
+          ? !!prov?.knowsCultivation
+          : n === "metalworking"
+            ? !!markets.get(cell)?.metalworking
+            : !!store.get(cell, n)),
+    reach = reachIn(means, here);
+  return PRINCIPLES.filter(
+    (p) =>
+      affordsPrinciple(p, ctx.medium, reach, means.wants) &&
+      !here(p.id) &&
+      needsMet(p, here) &&
+      (!p.body?.lifts || (lifts !== null && here(lifts.id))) &&
+      matterAllows(g, p) &&
+      lawAllows(world, p),
+  );
+}
+
+/** A principle given a land outright, as learning it would (the god's gift): known from this year, by this event. */
+export function giveLore(ctx: PopulationContext, cell: number, p: Principle, event: Ref): void {
+  const year = yearOfMoment(ctx.world.now);
+  loreOf(ctx.world).learn(cell, p.id, { year, event }, p);
+  if (METAL_ROOTS.includes(p.id))
+    ctx.world.store<MarketStore>("economy.markets").of(cell).metalworking ??= event;
+}
+
 /** Teach a peopled world its lore. */
 export function installLore(world: World, ctx: () => PopulationContext): LoreStore {
   const store = world.register(new LoreStore());

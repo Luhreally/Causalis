@@ -324,6 +324,7 @@ const THING_FORMS: readonly string[] = [
   "storage jar",
   "cooking pot",
   "plough share",
+  "ploughshare",
   "spearhead",
   "set-blade",
   "gas-dart",
@@ -344,6 +345,9 @@ const THING_FORMS: readonly string[] = [
   "adze",
   "hoe",
   "sickle",
+  "saw",
+  "awl",
+  "scraper",
   "shears",
   "hammer",
   "chisel",
@@ -358,6 +362,13 @@ const THING_FORMS: readonly string[] = [
   "cloak",
   "dress",
   "gown",
+  "trousers",
+  "boot",
+  "shoe",
+  "sandal",
+  "hat",
+  "cap",
+  "cuirass",
   "cloth",
   "piston",
   "shaft",
@@ -368,7 +379,11 @@ const THING_FORMS: readonly string[] = [
   "casting",
 ];
 const THING_FORM_WORDS: readonly (readonly [string, RegExp])[] = THING_FORMS.map(
-  (f): readonly [string, RegExp] => [f, new RegExp(`\\b${f}\\b`)],
+  // (Said one or many: "an axe", "iron axes", "dresses", "boots".)
+  (f): readonly [string, RegExp] => [
+    f,
+    new RegExp(`\\b${f}${/(s|sh|ch|x)$/.test(f) ? "(?:es)?" : "s?"}\\b`),
+  ],
 );
 
 /** The form word in a thing's name ("a bronze sickle" is a sickle), or "thing" where no form word is. */

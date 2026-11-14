@@ -38,7 +38,7 @@ import {
   tongueName,
   WATER,
 } from "../../gen/index.ts";
-import { ACT_STRENGTH, actsOf } from "../acts/acts.ts";
+import { ACT_STRENGTH, actFactor, actsOf } from "../acts/acts.ts";
 import { lineageNature, tameNow } from "../acts/natures.ts";
 import {
   FLOCK_LOSS,
@@ -415,7 +415,9 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
     // A blessed harvest is richer, a blighted one poorer.
     const act = acts.at(p.cell, "harvest", t),
       // (And what its towns were asked to put first, and the hands on what they were asked to raise: H1. Exactly 1 on a land never asked.)
-      gift = (act ? 1 + act.sign * ACT_STRENGTH.harvest : 1) * asks.gift(p.cell, t);
+      gift =
+        (act ? actFactor(act.sign > 0, ACT_STRENGTH.harvest, act.strength) : 1) *
+        asks.gift(p.cell, t);
     const m = markets.of(p.cell),
       c = provinceCapacity(ctx, p.cell),
       // The land gives as its living world stands: less game where the wild is thin,
@@ -584,7 +586,11 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
   for (const p of ctx.provinces.all()) {
     // A plague sent makes deaths likelier; healing, rarer.
     const act = acts.at(p.cell, "plague", t),
-      sickness = !act ? 1 : act.sign < 0 ? 1 + ACT_STRENGTH.plague : 1 - ACT_STRENGTH.healing;
+      sickness = !act
+        ? 1
+        : act.sign < 0
+          ? actFactor(true, ACT_STRENGTH.plague, act.strength)
+          : actFactor(false, ACT_STRENGTH.healing, act.strength);
     // The month counted: its hunger and fertility, and the whole of what pressed on its
     // people this month (hunger, a plague or healing, a star's flare over halls under it) —
     // what changes from month to month is summed month by month, so a plague laid late in
@@ -784,7 +790,7 @@ export function weatherYear(ctx: PopulationContext, t: SimTime): void {
       // (And the soot of a great fire, W5: exactly 1 under a clear sky.)
       moved = rainShift(ctx, p.cell) * darkRain(world) * longRain(ctx, p.cell, yearOfMoment(t)),
       natural = dmath.clamp(moved * (1 + 0.22 * g), 0.35, 1.6),
-      rain = act ? natural * (1 + act.sign * ACT_STRENGTH.rain) : natural;
+      rain = act ? natural * actFactor(act.sign > 0, ACT_STRENGTH.rain, act.strength) : natural;
     p.rain = Math.round(rain * 1000);
     if (rain < 0.72) {
       const causes: CauseRef[] = [];

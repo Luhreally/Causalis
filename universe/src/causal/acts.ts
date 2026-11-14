@@ -22,6 +22,8 @@ import {
   type LandArgs,
   type PairArgs,
   type RealmArgs,
+  type FortuneArgs,
+  FORTUNE_WORDS,
   type FaithArgs,
   type TongueArgs,
   type WaysArgs,
@@ -349,19 +351,95 @@ registerCommandWords("act.union", (world, c) => {
   const [a, b] = pairWords(world, c);
   return `Your act: you made one realm of ${a} and ${b}, year ${yearOfMoment(c.t)}`;
 });
+/** What a blessing or curse brought, by its strength, in words: "content", "content, plenty and health". */
+export function fortuneWhat(sign: number, strength: number, harvest = 0, sick = 0): string {
+  const parts =
+    sign > 0
+      ? [
+          "content",
+          ...(harvest ? ["plenty"] : []),
+          ...(sick ? ["health"] : []),
+          ...(strength > 1 ? ["standing"] : []),
+        ]
+      : [
+          "unrest",
+          ...(harvest ? ["blight"] : []),
+          ...(sick ? ["sickness"] : []),
+          ...(strength > 1 ? ["ill omens"] : []),
+        ];
+  return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0]!;
+}
+/** How strong, and for how long: "at the greatest strength, for 5 years". */
+export function fortuneHow(strength: number, years: number): string {
+  const s = FORTUNE_WORDS[strength] ?? `${strength}`,
+    how =
+      strength === 1
+        ? "at the strength of old"
+        : `at ${s === "the greatest" ? "the greatest" : `a ${s}`} strength`;
+  return `${how}, for ${years} year${years === 1 ? "" : "s"}`;
+}
+const many = (n: number) => `${Math.round(n)}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 for (const [kind, words] of [
   ["bless", "blessed with content"],
   ["curse", "cursed with unrest"],
 ] as const) {
   registerEventWords(PEOPLE_ACT_EVENTS[kind].type, (_, e) => {
-    const d = e.data as { name?: string } | null;
+    const d = e.data as {
+      name?: string;
+      strength?: number;
+      years?: number;
+      harvest?: number;
+      sick?: number;
+    } | null;
+    // (One laid at a strength or for years of its own says how strong, how long, and what it brought.)
+    if (d?.strength !== undefined && d.years !== undefined)
+      return `By your hand: the lands of ${d.name ?? "a realm"} were ${kind === "bless" ? "blessed" : "cursed"} ${fortuneHow(d.strength, d.years)}, with ${fortuneWhat(kind === "bless" ? 1 : -1, d.strength, d.harvest, d.sick)}, year ${yearOfMoment(e.t)}`;
     return `By your hand: the lands of ${d?.name ?? "a realm"} were ${words}, year ${yearOfMoment(e.t)}`;
   });
   registerCommandWords(`act.${kind}`, (world, c) => {
-    const r = realmCalled(world, (c.args as RealmArgs).realm);
-    return `Your act: you ${kind === "bless" ? "blessed" : "cursed"} the lands of ${r}, year ${yearOfMoment(c.t)}`;
+    const a = c.args as FortuneArgs,
+      r = realmCalled(world, a.realm),
+      how =
+        a.strength !== undefined || a.years !== undefined
+          ? ` ${fortuneHow(a.strength ?? 1, a.years ?? 1)}`
+          : "";
+    return `Your act: you ${kind === "bless" ? "blessed" : "cursed"} the lands of ${r}${how}, year ${yearOfMoment(c.t)}`;
   });
 }
+registerEventWords(PEOPLE_ACT_EVENTS.fortune.type, (_, e) => {
+  const d = e.data as {
+    name?: string;
+    sign?: number;
+    strength?: number;
+    years?: number;
+    year?: number;
+    harvest?: number;
+    sick?: number;
+    lands?: number;
+  } | null;
+  const sign = d?.sign ?? -1;
+  return `The god's ${sign > 0 ? "blessing" : "curse"} lay on ${d?.name ?? "a realm"} another year, its ${d?.year ?? 2}${d?.year === 2 ? "nd" : d?.year === 3 ? "rd" : "th"} of ${d?.years ?? 5}: ${fortuneWhat(sign, d?.strength ?? 1, d?.harvest, d?.sick)} on its ${d?.lands ?? 0} land${d?.lands === 1 ? "" : "s"}, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(PEOPLE_ACT_EVENTS.fortuneEnd.type, (_, e) => {
+  const d = e.data as {
+    name?: string;
+    sign?: number;
+    strength?: number;
+    years?: number;
+    fell?: boolean;
+    people?: [number, number];
+    lands?: [number, number];
+    standing?: [number, number];
+  } | null;
+  const what = d?.sign && d.sign > 0 ? "blessing" : "curse",
+    name = d?.name ?? "a realm",
+    [p0, p1] = d?.people ?? [0, 0],
+    [l0, l1] = d?.lands ?? [0, 0],
+    [s0, s1] = d?.standing ?? [0, 0];
+  if (d?.fell)
+    return `The god's ${what} on ${name} lifted after ${d.years ?? 1} year${d.years === 1 ? "" : "s"}, on a realm that had fallen: it held ${many(p0)} people in ${l0} lands when it was laid, year ${yearOfMoment(e.t)}`;
+  return `The god's ${what} on ${name} lifted after ${d?.years ?? 1} year${d?.years === 1 ? "" : "s"}: its people ${many(p0)} to ${many(p1)}, its lands ${l0} to ${l1}, ${Math.round(s0 * 100)} to ${Math.round(s1 * 100)} in a hundred holding its rule rightful, year ${yearOfMoment(e.t)}`;
+});
 
 // The god's hand on a people's ways, speech and faith (Phase 14 M117).
 const WAY_SAID: Readonly<Record<string, readonly [string, string]>> = {

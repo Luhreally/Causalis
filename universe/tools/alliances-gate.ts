@@ -349,8 +349,20 @@ await shot("1-lens");
     if (now === ref) {
       opened.add(ref);
       if (opened.size === 1) await shot("2b-land-pressed");
-    } else if (now?.startsWith("cell:") || now?.startsWith("spot:"))
-      problems.push(`a land of ${ref} pressed opened ${now}, not its alliance`);
+    } else if (now?.startsWith("cell:") || now?.startsWith("spot:")) {
+      // (A press at a land's middle can fall on the land beside it, where a land is bent round
+      // another: that land's own page is right, if it stands in no alliance.)
+      const got = now.startsWith("cell:") ? Number(now.split(":")[2]) : -1,
+        hers = got >= 0 ? read.allied.find(([l]) => l === got)?.[1] : undefined;
+      if (got === land || hers !== undefined)
+        problems.push(
+          `a land of ${hers ?? ref} (${got}, pressed at ${land}) opened ${now}, not its alliance`,
+        );
+      else
+        say(
+          `  (a press at ${land}'s middle fell on land ${got}, in no alliance: its page, rightly)`,
+        );
+    }
     await k("globalThis.causalis.closePage?.()");
     await settle(300);
   }
@@ -381,6 +393,16 @@ await shot("1-lens");
   await tap(".legend-action", "Every alliance");
   await until("the list", async () => (await pageNow()) === "world:alliances");
   await until("its alliances", async () => /By their people/i.test(await pageText()));
+  // (Ranked first, by their heads' seats; each with its realms under its own tab.)
+  for (const a of read.alliances.slice(0, 8))
+    check((await pageText()).includes(a.town), `the ranking leaves out ${a.town}`);
+  await tap(".page-window .tabs .tab:nth-child(2)", "the tab of their realms");
+  await until(
+    "their realms",
+    async () =>
+      /Their realms/.test(await pageText()) &&
+      (await pageText()).toLowerCase().includes(read.alliances[0]!.name.toLowerCase()),
+  );
   const text = await pageText();
   say(`the list: ${text.replace(/\s+/g, " ").slice(0, 300)}`);
   for (const a of read.alliances)
@@ -392,7 +414,7 @@ await shot("1-lens");
   await settle(400);
   await shot("4b-list-members");
   const second = await k<{ name: string; ref: string } | null>(
-    `globalThis.causalis.client.query({ type: "page", args: { ref: ${JSON.stringify(read.alliances[0]!.ref)} } }).then((p) => { const it = p.tabs[0].blocks[0].items[1]; return it ? { name: it.line[0].text, ref: it.ref } : null; })`,
+    `globalThis.causalis.client.query({ type: "page", args: { ref: ${JSON.stringify(read.alliances[0]!.ref)} } }).then((p) => { const it = p.tabs[0].blocks.find((b) => b.title === "Who stands in it")?.items[1]; return it ? { name: it.line[0].text, ref: it.ref } : null; })`,
   );
   if (second) {
     await tap(".page-window .entry", `${second.name} on the list`, second.name);

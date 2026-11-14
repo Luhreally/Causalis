@@ -47,11 +47,10 @@ type Marked = {
   readonly ages: Readonly<Record<string, unknown>>;
   readonly marks?: Readonly<Record<string, string>>;
 };
-const marked = (
-  JSON.parse(readFileSync(new URL("../public/catalogue.json", import.meta.url), "utf8")) as {
-    seeds: readonly Marked[];
-  }
-).seeds;
+const catalogue = JSON.parse(
+    readFileSync(new URL("../public/catalogue.json", import.meta.url), "utf8"),
+  ) as { seeds: readonly Marked[]; rulesets?: Readonly<Record<string, string>> },
+  marked = catalogue.seeds;
 let catalogueMoved = "";
 /** Hold a world to the catalogue's record of it at a year, where it has one. */
 const holdToRecord = (world: World, universe: string, text: string, year: number) => {
@@ -161,14 +160,25 @@ const alien = marked
   .sort((a, b) => a.lands - b.lands)[0];
 if (part === "alien" && alien) {
   const other = ALIEN.build(seedFromText(alien.seed));
-  for (const year of Object.keys(alien.marks!)
-    .map(Number)
-    .sort((a, b) => a - b)) {
-    other.runTo(year * YEAR);
-    holdToRecord(other, ALIEN.name, alien.seed, year);
+  // (A catalogue of other rules is told so by its rulesets alone, and the title reads it as close, not exact: a world held
+  // to it can only be found moved. Under rules that make its people anew a small world can grow great and slow (kestrel
+  // 557's sea people walk now), and its run outlasted the deploy's hour and a half. 2026-11-13.)
+  if (catalogue.rulesets?.[ALIEN.name] !== rulesetId(other, ALIEN.version))
+    console.log(
+      `  the catalogue's alien worlds are of other rules: ${alien.seed} not held to them`,
+    );
+  else {
+    for (const year of Object.keys(alien.marks!)
+      .map(Number)
+      .sort((a, b) => a - b)) {
+      other.runTo(year * YEAR);
+      holdToRecord(other, ALIEN.name, alien.seed, year);
+      // (Moved once is moved: no later year can say more.)
+      if (catalogueMoved) break;
+    }
+    console.log(
+      `  ${alien.seed} held to its record: ${Math.round((performance.now() - t0) / 1000)} s on`,
+    );
   }
-  console.log(
-    `  ${alien.seed} held to its record: ${Math.round((performance.now() - t0) / 1000)} s on`,
-  );
 }
 writeFileSync(join(out, `.part-${part}.json`), JSON.stringify({ worlds, moved: catalogueMoved }));

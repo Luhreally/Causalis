@@ -31,6 +31,7 @@ import { seedFromText } from "../src/kernel/index.ts";
 import { generateHomeWorld, provinceWorld, worldChemistry } from "../src/gen/index.ts";
 import {
   EARTHLIKE,
+  keptLife,
   ORES,
   REACTIONS,
   ROCKS,
@@ -203,7 +204,8 @@ const openWorld = async (universe: string, seed: string, year: number) => {
 };
 
 // 2. A world round a small old star: its matter, and a smithy's bronze-age tool.
-const alienYear = await openWorld("alien", "alien 16", 200);
+// (Alien 16 as it was made, life kept: its bronze-age towns are a people's of the old tables.)
+const alienYear = await openWorld("alien", keptLife("alien 16"), 200);
 const matter = await opened("world:matter#world");
 const blocks = await headings();
 const oxygen = (await factOn("Oxygen")) ?? "",

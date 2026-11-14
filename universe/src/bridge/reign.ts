@@ -112,6 +112,90 @@ export type ReignNow = {
   readonly fell: ReignFall | null;
   /** What must be answered now, if anything (Lives L5). */
   readonly drama: ReignDrama | null;
+  /** One of its court held, not the ruler (null: the ruler is). */
+  readonly role: ReignRole | null;
+};
+
+/** One of a realm's court held by the god's hand: who, what they are, what they can do; or how they left the court. */
+export type ReignRole = {
+  readonly fig: number;
+  readonly name: string;
+  readonly title: string;
+  readonly kind: "heir" | "rival" | "general" | "voice" | "kin";
+  readonly age: number;
+  /** Their weight: their group's share of the realm's sway, and those behind them. */
+  readonly sway: number;
+  readonly words: string;
+  readonly ref: string;
+  readonly gone: {
+    readonly how: string;
+    readonly words: string;
+    /** They hold the seat now: they can be ruled as. */
+    readonly seated: boolean;
+    readonly event: string | null;
+  } | null;
+};
+
+/** One of a court's own sheet: groups to court, and a move on the seat. */
+/** The god's hand through them (2026-11-13): whom it can be aimed at, and what it can do to them. */
+/** A slider over how much one of the god's hand's acts does (2026-11-13). */
+export type GodAmount = {
+  /** The argument it sets. */
+  readonly key: string;
+  /** What the slider is called: "Men", "Bread". */
+  readonly label: string;
+  /** Its stops, gentlest first: the value, its read-out, the button's label at it and what it will do. */
+  readonly stops: readonly {
+    readonly value: number;
+    readonly says: string;
+    readonly label: string;
+    readonly words: string;
+  }[];
+  /** The stop it starts at: the amount the act always did. */
+  readonly at: number;
+  /** Offers that share one slider (a host, armed either way). */
+  readonly shared?: string;
+};
+
+export type ReignGod = {
+  readonly words: string;
+  /** The realm it is aimed at now. */
+  readonly target: string;
+  readonly targets: readonly {
+    readonly ref: string;
+    readonly short: string;
+    readonly color: readonly [number, number, number];
+    readonly own: boolean;
+    readonly atWar: boolean;
+  }[];
+  readonly groups: readonly {
+    readonly title: string;
+    readonly offers: readonly {
+      readonly label: string;
+      readonly args: Readonly<Record<string, unknown>>;
+      readonly can: boolean;
+      readonly words: string;
+      /** How much, where an amount means something: a slider above it. */
+      readonly amount?: GodAmount;
+    }[];
+  }[];
+};
+
+export type ReignCourt = {
+  readonly words: string;
+  readonly groups: readonly {
+    readonly group: string;
+    readonly label: string;
+    readonly can: boolean;
+    readonly behind: boolean;
+    readonly words: string;
+  }[];
+  readonly plot: {
+    readonly label: string;
+    readonly can: boolean;
+    readonly odds: number;
+    readonly words: string;
+  };
 };
 
 /** One way a law could be set: what, and what it would cost (or why not). */
@@ -147,6 +231,8 @@ export type ReignFoe = {
   readonly words: string;
   /** Lands to fight for, the richest first. */
   readonly aims: readonly { readonly cell: number; readonly name: string }[];
+  /** What each side knows of the other's host. */
+  readonly known?: string;
 };
 export type ReignWars = {
   readonly words: string;

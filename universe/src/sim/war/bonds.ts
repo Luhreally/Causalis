@@ -472,6 +472,8 @@ export function termsOfOffer(
   foe: Polity,
   offer: Offer,
   year: number,
+  /** A truce's years, where the god's hand asks other than a truce's own. */
+  truceYears?: number,
 ): {
   deal: Deal;
   terms: PeaceTerms;
@@ -486,7 +488,7 @@ export function termsOfOffer(
     peopleFallen = w.fallen[payer.ref === w.attacker ? 0 : 1] / Math.max(1, peopleOf(ctx, payer)),
     base: Deal = { winner: null, bond: null, share: 0, years: 0 };
   if (offer === "truce") {
-    const years = TERMS.truceYears;
+    const years = truceYears ?? TERMS.truceYears;
     return {
       deal: { ...base, bond: "truce", years },
       terms: { kind: "truce", years, until: year + years, offer },

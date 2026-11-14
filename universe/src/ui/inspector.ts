@@ -24,7 +24,14 @@ import type {
 } from "../bridge/index.ts";
 import { el, WhyTree } from "./why.ts";
 import { folder } from "./window.ts";
-import { barsChart, lineChart, linesChart, tallyChart, timelineChart } from "./chart.ts";
+import {
+  barsChart,
+  lineChart,
+  linesChart,
+  seriesChart,
+  tallyChart,
+  timelineChart,
+} from "./chart.ts";
 import type { Tidings } from "./tidings.ts";
 import type { HoverTips } from "./hovertip.ts";
 import type { ArmsBook } from "./arms.ts";
@@ -32,18 +39,18 @@ import { drawTool } from "./tools.ts";
 import type { ToolContext } from "./tools.ts";
 import { drawAnatomy, drawPortrait, moves } from "./portrait.ts";
 import { bodyView } from "./body.ts";
-import { drawThumb } from "./specimen.ts";
+import { lazyThumb, openZoom } from "./thumbs.ts";
 import { lineupStrip, phyloChart } from "./phylo.ts";
 import { dropView } from "./drop.ts";
 import { namesThings, type NamesSwitch } from "./names.ts";
+import { bannerCanvas, glyphCanvas, glyphOf, paletteOf, sectionGlyph } from "./page-art.ts";
 
 /** How often an open page is read again while the world runs (ms). */
 const REFRESH_MS = 2000;
 /** A specimen's small picture (Phase 54 M223): beside a list item, or at the start of a table row. */
 function thumbOf(p: Portrait): HTMLCanvasElement {
-  const canvas = el("canvas", "thumb");
-  drawThumb(canvas, p, 28);
-  return canvas;
+  // (Drawn once it is on screen, and kept: ui/thumbs.ts.)
+  return lazyThumb(p, 28);
 }
 
 /** The rows a table shows before "show all". */
@@ -97,6 +104,12 @@ export class PageWindow {
   private readonly stats = el("div", "stats");
   private readonly statDetail = el("div", "stat-detail");
   private readonly tabs = el("nav", "tabs");
+  /** Its banner, where its art draws one (ui/page-art.ts). */
+  private readonly banner = el("div", "page-banner-box");
+  /** Whether pages are drawn with their art (a gate turns it off to weigh what it costs). */
+  artOn = true;
+  /** How long the last drawing of a page took (ms), its art and all. */
+  drawMs = 0;
   private readonly body = el("div", "page-body page");
   private history: string[] = [];
   private at = -1;
@@ -115,6 +128,8 @@ export class PageWindow {
   private blocks = new Map<string, { same: string; element: HTMLElement }>();
   /** Each table's sorting and whether it shows every row, kept as the page is read again. */
   private sorts = new Map<string, { by: number; down: boolean; all: boolean }>();
+  /** Each series' year picked by a tap, kept as the page is read again. */
+  private picks = new Map<string, number>();
   private readAt = 0;
   private pressing = false;
   tidings: Tidings | null = null;
@@ -211,7 +226,8 @@ export class PageWindow {
     const boxes = el("span", "page-boxes");
     boxes.append(this.tallButton, folder(this.inspector, this.name), close);
     this.heading.replaceChildren(this.backButton, this.forwardButton, this.icon, this.name, boxes);
-    this.inspector.append(this.heading, head, this.statDetail, this.tabs, this.body);
+    this.banner.hidden = true;
+    this.inspector.append(this.heading, this.banner, head, this.statDetail, this.tabs, this.body);
     this.element.append(this.inspector);
     parent.append(this.element);
     // (Not rebuilt while a finger or the pointer is down on it.)
@@ -309,7 +325,8 @@ export class PageWindow {
   }
 
   private draw(page: PageModel, fresh: boolean): void {
-    const scroll = this.inspector.scrollTop;
+    const began = performance.now(),
+      scroll = this.inspector.scrollTop;
     this.page = page;
     this.seen = JSON.stringify({ ...page, year: 0 });
     if (fresh) {
@@ -329,6 +346,7 @@ export class PageWindow {
       this.openStat = null;
       this.blocks = new Map();
       this.sorts = new Map();
+      this.picks = new Map();
     }
     // (The world's own pages — its chronicle, its ledger — open wide, as a ledger does.)
     this.inspector.dataset.kind = page.kind;
@@ -350,6 +368,7 @@ export class PageWindow {
     this.sub.replaceChildren(this.line(page.subtitle));
     this.crumbs.replaceChildren(this.line(page.crumbs ?? []));
     this.crumbs.hidden = !page.crumbs?.length;
+    this.drawBanner(page);
     this.drawPortrait(page);
     this.drawActions(page);
     this.drawNames(page);
@@ -358,13 +377,46 @@ export class PageWindow {
     this.drawBody(page);
     if (!fresh) this.inspector.scrollTop = scroll;
     else this.inspector.scrollTop = 0;
+    this.drawMs = performance.now() - began;
   }
 
   /** The page's picture, kept moving (turning, waving, glowing) while it is open. */
+  /**
+   * Its banner, drawn of its art once as it opens and kept (ui/page-art.ts): the same canvas again while its art and width are the
+   * same, as the page is read again.
+   */
+  private drawBanner(page: PageModel): void {
+    const art = this.artOn ? page.art : undefined;
+    if (!art?.banner) {
+      this.banner.hidden = true;
+      this.banner.replaceChildren();
+      return;
+    }
+    const w = Math.max(160, Math.floor(this.inspector.clientWidth - 2 * this.padding())),
+      h = innerWidth > 640 ? 68 : 56,
+      c = bannerCanvas(art, page.portrait, page.ref, w, h);
+    this.banner.hidden = !c;
+    if (c && this.banner.firstChild !== c) this.banner.replaceChildren(c);
+  }
+
+  /** The page window's side padding (px), read once. */
+  private side = -1;
+  private padding(): number {
+    if (this.side < 0) {
+      this.side = parseFloat(getComputedStyle(this.inspector).paddingLeft) || 0;
+    }
+    return this.side;
+  }
+
   private drawPortrait(page: PageModel): void {
     const p = page.portrait;
     this.portrait.hidden = !p;
     if (!p) return;
+    // (A made thing's, a stuff's or a plant's picture is pressed to see it large, at its fine level: ui/thumbs.ts openZoom.)
+    const specimen =
+      p.kind === "thing" || p.kind === "matter" || p.kind === "element" || p.kind === "plant";
+    this.portrait.classList.toggle("portrait-zoomable", specimen);
+    this.portrait.onclick = specimen ? () => openZoom(p, page.title) : null;
     const size = innerWidth > 640 ? 96 : 84,
       started = performance.now(),
       // (A world's face is drawn pixel by pixel: it turns at a few frames a second.)
@@ -532,12 +584,17 @@ export class PageWindow {
   private drawTabs(page: PageModel): void {
     this.tabs.hidden = page.tabs.length < 2;
     // (Kept while they say the same, as the actions are.)
-    const said = JSON.stringify([this.tab, page.tabs.map((t) => [t.id, t.name])]);
+    const art = this.artOn ? page.art : undefined,
+      palette = art ? paletteOf(art.world) : null,
+      said = JSON.stringify([this.tab, page.tabs.map((t) => [t.id, t.name]), palette?.key]);
     if (said === this.tabsSaid) return;
     this.tabsSaid = said;
     this.tabs.replaceChildren(
       ...page.tabs.map((t) => {
-        const b = el("button", t.id === this.tab ? "tab on" : "tab", t.name);
+        const b = el("button", t.id === this.tab ? "tab on" : "tab", t.name),
+          glyph = palette ? (glyphOf(t.id) ?? glyphOf(t.name)) : null;
+        // (Its glyph in its world's colours: ui/page-art.ts.)
+        if (glyph && palette) b.prepend(glyphCanvas(glyph, palette, 14));
         b.onclick = () => {
           if (this.tab === t.id || !this.page) return;
           this.tab = t.id;
@@ -626,7 +683,13 @@ export class PageWindow {
   private block(b: Block, key: string): HTMLElement {
     const box = el("div", `block block-${b.type}`);
     const title = "title" in b && b.title ? el("h3", undefined, b.title) : null;
-    if (title) box.append(title);
+    if (title) {
+      // (Its glyph drawn of its own numbers, or its words': ui/page-art.ts.)
+      const art = this.artOn ? this.page?.art : undefined,
+        glyph = art ? sectionGlyph(b, paletteOf(art.world), 15) : null;
+      if (glyph) title.prepend(glyph);
+      box.append(title);
+    }
     switch (b.type) {
       case "text":
         for (const l of b.lines) box.append(el("p").appendChild(this.line(l)).parentElement!);
@@ -646,7 +709,7 @@ export class PageWindow {
         if (b.more) box.append(el("p", "muted more", `and ${b.more.toLocaleString("en-US")} more`));
         break;
       case "table":
-        box.append(this.table(b.columns, b.rows, key, b.few));
+        box.append(this.table(b.columns, b.rows, key, b.few, b.fit));
         break;
       case "lines":
         // (Lines of far different sizes: each its own small chart, side by side.)
@@ -717,6 +780,19 @@ export class PageWindow {
           ),
         );
         break;
+      case "series":
+        // (A year tapped stays picked as the page is read again.)
+        box.append(
+          seriesChart(b, {
+            ...(this.picks.has(key) ? { picked: this.picks.get(key)! } : {}),
+            pick: (year) => {
+              if (year === undefined) this.picks.delete(key);
+              else this.picks.set(key, year);
+            },
+          }),
+        );
+        if (title) title.remove();
+        break;
       case "chart":
         box.append(
           lineChart(b.points, {
@@ -772,9 +848,14 @@ export class PageWindow {
           const row = el("div", "makeup-row"),
             swatch = el("span", "makeup-swatch");
           swatch.style.background = css(part.color);
+          const name = this.line(part.name);
+          if (part.thumb) {
+            row.classList.add("makeup-pictured");
+            name.prepend(lazyThumb(part.thumb, 28, "thumb makeup-thumb"));
+          }
           row.append(
             swatch,
-            this.line(part.name),
+            name,
             el(
               "span",
               "makeup-share",
@@ -961,6 +1042,16 @@ export class PageWindow {
     // (What it is a measure of: its page in the book of concepts.)
     if (r.concept) label.append(this.conceptLink(r.concept, r.label));
     const value = this.line(r.value, "fact-value");
+    // (Its picture before its words, drawn once on screen; pressed, it is seen large: ui/thumbs.ts.)
+    if (r.thumb)
+      value.prepend(
+        lazyThumb(
+          r.thumb,
+          40,
+          "thumb fact-thumb",
+          () => `${r.label}: ${r.value.map((x) => (typeof x === "string" ? x : x.text)).join("")}`,
+        ),
+      );
     if (r.parts?.length) this.hoverTips?.attach(value, () => this.breakdown(r));
     row.append(label, value);
     if (r.why || r.parts?.length) {
@@ -1008,7 +1099,9 @@ export class PageWindow {
         tag = el("span", "board-tag", r.words);
       if (r.each) name.append(el("small", undefined, r.each));
       if (r.trend) tag.append(el("small", undefined, `${r.arrow} ${r.trend}`.trim()));
-      row.append(el("span", "board-icon", r.icon), name);
+      const icon = el("span", "board-icon", r.thumb ? "" : r.icon);
+      if (r.thumb) icon.append(lazyThumb(r.thumb, 26, "thumb board-thumb"));
+      row.append(icon, name);
       if (r.price) row.append(el("span", "board-price", r.price), tag);
       row.onclick = () => void this.open(r.ref);
       plank.append(row);
@@ -1048,9 +1141,10 @@ export class PageWindow {
     rows: readonly Row[],
     key: string,
     few = TABLE_ROWS,
+    fit = false,
   ): HTMLElement {
     const box = el("div", "table-wrap"),
-      table = el("table", "table"),
+      table = el("table", fit ? "table fit" : "table"),
       head = el("tr"),
       body = el("tbody"),
       state = this.sorts.get(key) ?? { by: -1, down: true, all: false },
@@ -1083,6 +1177,11 @@ export class PageWindow {
           r.cells.forEach((c, i) => {
             const td = el("td");
             if (i === 0 && r.thumb) td.append(thumbOf(r.thumb));
+            if (i === 0 && r.swatch) {
+              const dot = el("span", "swatch");
+              dot.style.background = `rgb(${r.swatch.map((c) => Math.round(c * 255)).join(",")})`;
+              td.append(dot);
+            }
             td.append(this.line(c));
             tr.append(td);
           });

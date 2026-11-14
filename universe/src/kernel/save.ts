@@ -13,6 +13,7 @@
 import { Hasher } from "./hash.ts";
 import { eventTypes } from "./history.ts";
 import { packList, unpackList, type Packed } from "./pack.ts";
+import { jsonCopy } from "./split-json.ts";
 import { kinds } from "./ref.ts";
 import { seedFromText, streams, type Seed } from "./rng.ts";
 import type { AgendaItem } from "./schedule.ts";
@@ -28,6 +29,8 @@ export type StoreChunk = {
   readonly hash: string;
   /** The store's save packed by column (packList of it alone), as a store of long lists asks. */
   readonly packed?: true;
+  /** A reading kept beside the world (StateStore.outsideRules): a game without it lets it go. */
+  readonly outside?: true;
 };
 
 /** What a store saved, from its chunk (unpacked if it was packed): for reading a save as it is. */
@@ -87,8 +90,25 @@ export function rulesetId(world: World, appVersion: string): string {
   for (const c of world.commands.types()) h.string(c);
   for (const t of world.scheduler.handlerTypes()) h.string(t);
   for (const key of world.scheduler.systemKeys()) h.string(key);
-  for (const name of world.storeNames()) h.string(name).int(schemaOf(world.store(name)));
+  // (Not a reading kept beside the world: it shapes nothing.)
+  for (const name of world.storeNames())
+    if (!world.store(name).outsideRules) h.string(name).int(schemaOf(world.store(name)));
   return h.hex();
+}
+
+/**
+ * A store's state as JSON keeps it. (Copied without its text where the text would be longer than an engine's longest
+ * string: a world of 162 million people could not be kept for that, 2026-11-13.)
+ */
+function throughJson(value: unknown): unknown {
+  let text: string;
+  try {
+    text = JSON.stringify(value);
+  } catch (error) {
+    if (error instanceof RangeError) return jsonCopy(value);
+    throw error;
+  }
+  return JSON.parse(text) as unknown;
 }
 
 /** Turn a world into a save document. Only between moments. */
@@ -105,12 +125,14 @@ export function saveWorld(
       packed = store.packed === true,
       // (Packed straight from the store: packList keeps what JSON keeps, and the copy through
       // JSON is then of the packed lists, a fraction of the size.)
-      data = JSON.parse(
-        JSON.stringify(packed ? packList([store.save()]) : store.save()),
-      ) as unknown;
-    stores[name] = packed
-      ? { schema: schemaOf(store), data, hash: chunkHash(data), packed: true }
-      : { schema: schemaOf(store), data, hash: chunkHash(data) };
+      data = throughJson(packed ? packList([store.save()]) : store.save());
+    stores[name] = {
+      schema: schemaOf(store),
+      data,
+      hash: chunkHash(data),
+      ...(packed ? { packed: true as const } : {}),
+      ...(store.outsideRules ? { outside: true as const } : {}),
+    };
   }
   return {
     format: SAVE_FORMAT,
@@ -157,11 +179,12 @@ export function loadWorld(
   // these keep and the old did not begins as it would on a new world, from the moment
   // of loading: history is kept, the future follows the new rules.
   for (const name of Object.keys(doc.stores))
-    if (!names.includes(name) && !changed)
+    if (!names.includes(name) && !changed && !doc.stores[name]!.outside)
       throw new SaveError(`the save has a store ${name} this game does not`);
   for (const name of names) {
     const chunk = doc.stores[name];
-    if (!chunk && changed) continue;
+    // (A reading kept beside the world, which a save made without it lacks, begins here, empty.)
+    if (!chunk && (changed || world.store(name).outsideRules)) continue;
     if (!chunk) throw new SaveError(`the save has no store ${name}`);
     if (chunkHash(chunk.data) !== chunk.hash)
       throw new SaveError(`store ${name} is corrupt (its hash does not match)`);

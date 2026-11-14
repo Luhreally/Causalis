@@ -26,7 +26,7 @@ import { chromium } from "playwright";
 import { YEAR, rulesetId, saveWorld, seedFromText, type World } from "../src/kernel/index.ts";
 import { ALIEN, EARTH } from "../src/host/planet.ts";
 import { meansOfWorld } from "../src/gen/index.ts";
-import { OWN_ENGINES, reachIn } from "../src/rules/index.ts";
+import { keptLife, OWN_ENGINES, reachIn } from "../src/rules/index.ts";
 import { homePlanet, loreOf, populationContext } from "../src/sim/index.ts";
 
 const argv = process.argv.slice(2),
@@ -49,7 +49,8 @@ const problems: string[] = [],
   },
   say = (s: string) => console.log(`  ${s}`);
 
-const SEED = "wren 455",
+// (Wren 455 as it was made, life kept: a methane world's own chemistry now quickens no life (B5), and the hearth needs a people.)
+const SEED = keptLife("wren 455"),
   SEARCH_FROM = 400,
   SEARCH_TO = 1100,
   SEARCH_BY = 10,
@@ -138,7 +139,7 @@ const earthReach = reachIn(
   ),
   rocky = meansOfWorld(homePlanet(ALIEN.build(seedFromText("cinder 570"))).generated),
   kestrelReach = reachIn(
-    meansOfWorld(homePlanet(ALIEN.build(seedFromText("kestrel 557"))).generated),
+    meansOfWorld(homePlanet(ALIEN.build(seedFromText(keptLife("kestrel 557")))).generated),
     () => false,
   ),
   north = meansOfWorld(homePlanet(ALIEN.build(seedFromText("north 155"))).generated),

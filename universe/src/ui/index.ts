@@ -57,7 +57,7 @@ export { EventWindows, isGreat, type EventMode } from "./events.ts";
 export { GodPalette, PALETTE_KINDS, WAY_CHOICES, type TownPlace } from "./palette.ts";
 export { PossessHud } from "./possess-hud.ts";
 export { LifeHud, LifePicker } from "./life-hud.ts";
-export { ReignHud } from "./reign-hud.ts";
+export { ReignHud, type ReignSheet } from "./reign-hud.ts";
 export { bodyView, drawBody, kinLines } from "./body.ts";
 export { SungNote } from "./sung.ts";
 export { CourtNote } from "./court-note.ts";
@@ -70,3 +70,6 @@ export {
   type LifeSheet,
   type Outline,
 } from "./life-sheet.ts";
+export { THUMB_TIMES, lazyThumb, paintThumb } from "./thumbs.ts";
+export { drawPortrait } from "./portrait.ts";
+export { bannerMs, forgetBanners } from "./page-art.ts";

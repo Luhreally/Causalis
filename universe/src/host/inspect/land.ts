@@ -30,7 +30,8 @@ import {
 import { folkRef, waysRef } from "../../causal/index.ts";
 import { parseRef, type Ref, type World } from "../../kernel/index.ts";
 import type { Block, Item, Line, PageModel, Place, Row, Stat, Tab } from "../../bridge/index.ts";
-import { cell as spotFacts, market, province, provinceHistory } from "../planet.ts";
+import { cell as spotFacts, market, province } from "../planet.ts";
+import { landTimeTab } from "./time.ts";
 import { realmColor } from "../colors.ts";
 import { rulerStat } from "./leaders.ts";
 import { count, eventsAbout, item, link, many, part, share, stat, yearNow } from "./words.ts";
@@ -47,6 +48,10 @@ import { landBondBlocks } from "./order.ts";
 import { landHealthBlocks } from "./sickness.ts";
 import { landCreditBlocks } from "./credit.ts";
 import { learnedBlocks } from "./lessons.ts";
+import { tradeItems } from "./wares.ts";
+import { lineageLook, loreLook } from "./ware-looks.ts";
+import { homeLook, worksLook } from "./art.ts";
+import { landCompanyBlocks } from "./exchange.ts";
 import { biomeWords } from "../kinds.ts";
 import {
   faithLink,
@@ -259,32 +264,11 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
           stat("Since", `year ${p.faith.since}`, { why: p.faith.event }),
         ],
       });
-    const h = provinceHistory(world, cell);
-    if (h.years.length > 1) {
-      blocks.push(
-        {
-          type: "chart",
-          title: "People",
-          points: h.years.map((y) => ({ x: y.year, y: y.population })),
-          unit: "people",
-        },
-        {
-          type: "chart",
-          title: "How well fed",
-          points: h.years.map((y) => ({ x: y.year, y: y.fed / 100 })),
-          unit: "share",
-        },
-      );
-    }
-    if (h.prices.length > 1)
-      blocks.push({
-        type: "chart",
-        title: "The price of food",
-        points: h.prices.map((y) => ({ x: y.year, y: y.food })),
-        unit: "price",
-      });
     blocks.push({ type: "tool", tool: "meet.land", args: { cell } });
     tabs.push({ id: "people", name: "People", blocks });
+    // Its numbers through the years, in one place (asked 2026-11-13: "graphs over time").
+    const time = landTimeTab(world, cell);
+    if (time) tabs.push(time);
     // Its health (Phase 20 M140): what sickness came, who is spared, its healers.
     const health = landHealthBlocks(world, cell);
     if (health.length) tabs.push({ id: "health", name: "Health", blocks: health });
@@ -397,8 +381,9 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
     const items: Item[] = living
       .filter((s) => s.niche !== "upright ape")
       .sort((a, b) => a.level - b.level || (a.name < b.name ? -1 : 1))
-      .map((s) =>
-        item(
+      // (Each drawn as it is, beside its name: asked 2026-11-13.)
+      .map((s) => ({
+        ...item(
           [
             `${lineageIcon(s.niche, (s.body?.wings ?? 0) > 0 && s.body?.moves === "fly")} `,
             link(s.name, s.ref),
@@ -406,7 +391,8 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
           ],
           s.ref,
         ),
-      );
+        thumb: lineageLook(world, s),
+      }));
     if (items.length) blocks.push({ type: "list", title: "What lives here", items });
     // (And what lives too small to see: a drop of its water under the glass.)
     if (spot !== null) {
@@ -438,6 +424,24 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
           rows,
         },
       ];
+      // (What it sends and brings, said as the things themselves: "brindled water grain and rifles to Ur".)
+      // (A partner to a line, each with a picture of the greatest thing that went.)
+      const sends = tradeItems(world, cell, "out"),
+        brings = tradeItems(world, cell, "in");
+      if (sends)
+        blocks.push({
+          type: "list",
+          title: "Sends away",
+          items: sends.items,
+          ...(sends.more ? { more: sends.more } : {}),
+        });
+      if (brings)
+        blocks.push({
+          type: "list",
+          title: "Brings in",
+          items: brings.items,
+          ...(brings.more ? { more: brings.more } : {}),
+        });
       const flows = marketsOf(world).flows.filter((f) => f.from === cell || f.to === cell);
       if (flows.length)
         blocks.push({
@@ -456,8 +460,14 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
         });
       const ind = p.industry,
         rows2: Stat[] = [];
+      // (Its works and its homes drawn as they are built here, the town in 3D's own plan: asked 2026-11-13.)
+      const works = worksLook(world, cell),
+        home = homeLook(world, cell);
       if (ind.works)
-        rows2.push(stat("Works", [link(ind.works.words, ind.works.ref)], { why: ind.works.ref }));
+        rows2.push({
+          ...stat("Works", [link(ind.works.words, ind.works.ref)], { why: ind.works.ref }),
+          ...(works ? { thumb: works } : {}),
+        });
       if (ind.idle) rows2.push(stat("Works stopped", ind.idle));
       if (ind.power)
         rows2.push(stat("Power", `${(ind.power / 0.1).toFixed(1)}× what their own muscle drives`));
@@ -465,10 +475,13 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
       if (ind.well) rows2.push(stat("Well", "they draw oil"));
       if (ind.factory) rows2.push(stat("Factory", "they make machines"));
       if (p.house)
-        rows2.push(
-          stat("How they build", [link(p.house.words, p.house.ref)], { why: p.house.ref }),
-        );
+        rows2.push({
+          ...stat("How they build", [link(p.house.words, p.house.ref)], { why: p.house.ref }),
+          ...(home ? { thumb: home } : {}),
+        });
       if (rows2.length) blocks.push({ type: "facts", title: "Works", rows: rows2 });
+      // (Its works as companies, late in a world, and the way to its realm's exchange.)
+      blocks.push(...landCompanyBlocks(world, cell));
       // (Its word, and what its signals do: signals.)
       const signals = landSignalStats(world, cell);
       if (signals.length) blocks.push({ type: "facts", title: "Signals", rows: signals });
@@ -541,17 +554,20 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
           type: "list",
           title: "What they know, newest first",
           // (Each a principle's page; how they came to it, its event.)
-          items: p.lore.map((l) =>
-            item(
-              [
-                link(l.name, prinRef(l.id)),
-                ` — year ${l.year}, `,
-                link("how they came to it", l.event),
-              ],
-              prinRef(l.id),
-              l.year,
-            ),
-          ),
+          // (Each drawn as the thing it puts in their makers' hands, as they make it: asked 2026-11-13.)
+          items: p.lore.map((l) => {
+            const it = item(
+                [
+                  link(l.name, prinRef(l.id)),
+                  ` — year ${l.year}, `,
+                  link("how they came to it", l.event),
+                ],
+                prinRef(l.id),
+                l.year,
+              ),
+              thumb = loreLook(world, cell, l.id);
+            return thumb ? { ...it, thumb } : it;
+          }),
         },
       ],
     });

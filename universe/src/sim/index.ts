@@ -180,7 +180,10 @@ export {
   ACT_EVENTS,
   ACT_KINDS,
   ACT_STRENGTH,
+  ACT_STRENGTHS,
   ActStore,
+  actFactor,
+  actStrengthOf,
   actsOf,
   type Act,
   type Crater,
@@ -325,9 +328,32 @@ export {
   type CourtStore,
   type GoneFigure,
   type Plot,
+  backingOf,
+  type Backing,
 } from "./court/court.ts";
 export {
+  ROLE_EVENTS,
+  backProblem,
+  installRoles,
+  plotProblem,
+  proposalVoices,
+  proposeProblem,
+  roleHeld,
+  roleKind,
+  roleStationOf,
+  type BackArgs,
+  type ProposeArgs,
+  type RoleArgs,
+  type RoleKind,
+  type RoleStation,
+} from "./court/roles.ts";
+export {
   REIGN_EVENTS,
+  applyDecree,
+  applyPeace,
+  applyWar,
+  channelled,
+  godWill,
   decreeProblem,
   installReign,
   ERRANDS,
@@ -479,6 +505,7 @@ export {
   installWar,
   fieldedOf,
   fieldedParts,
+  hostOf,
   fireTerms,
   frontier,
   strengthOf,
@@ -649,10 +676,40 @@ export {
   settlersFrom,
   type ConvertArgs,
   type LandArgs,
+  type FortuneArgs,
   type PairArgs,
   type RealmArgs,
 } from "./acts/peoples.ts";
-export { DISASTER, DISASTER_EVENTS, installDisasters } from "./acts/disasters.ts";
+export {
+  FORTUNE_STRENGTHS,
+  FORTUNE_WEIGHT,
+  FORTUNE_WORDS,
+  FORTUNE_YEARS,
+  FortuneStore,
+  fortunePull,
+  fortunesOf,
+  isFortuneStrength,
+  type Fortune,
+} from "./acts/fortune.ts";
+export {
+  GOD_ACTS,
+  GOD_AGE,
+  GOD_AMOUNTS,
+  GOD_BREAD,
+  GOD_EVENTS,
+  GOD_HOSTS,
+  GOD_HOST_MOST,
+  GOD_PAIRED,
+  godAmount,
+  godLearning,
+  godProblem,
+  type GodAct,
+  type GodArgs,
+} from "./order/godhand.ts";
+export { GOD_HOST_LEAST, godHostsOf, godMen, godPower, type GodHost } from "./war/godhost.ts";
+export { bestHostFor } from "./design/design.ts";
+export { openTo } from "./lore/lore.ts";
+export { DISASTER, DISASTER_EVENTS, disasterAt, installDisasters } from "./acts/disasters.ts";
 export {
   SWITCHES,
   SwitchStore,

@@ -18,17 +18,12 @@ import { landOfRef, landPage, spotPage } from "./land.ts";
 import { agentPage, householdPage, memoryPage, personPage, townPage } from "./settled.ts";
 import { shipPage } from "../starfight.ts";
 import { battlePage, realmPageModel, relationPage, starWarPage, warPage } from "./realm.ts";
-import {
-  allianceOfLand,
-  alliancesPage,
-  blocPage,
-  envoyPage,
-  leaguePage,
-  matchPage,
-} from "./ties.ts";
+import { allianceOfLand, envoyPage, matchPage } from "./ties.ts";
+import { allianceComparePage, alliancesPage, blocPage, leaguePage } from "./alliance.ts";
 import { busPage, roadPage } from "./road.ts";
 import { askPage } from "./asks.ts";
 import { boardPage, dearPage } from "./board.ts";
+import { exchangePage } from "./exchange.ts";
 import { designPage, faithPage, goodPage, languagePage } from "./culture.ts";
 import { agePage, depositPageModel, lineagePage, platePageModel } from "./life.ts";
 import { bodyPage, foreignWorldPage, starPageModel } from "./sky.ts";
@@ -58,6 +53,7 @@ import { crumbsOf } from "./crumbs.ts";
 import { DEEP_LENSES, lensReading, type DeepLens } from "../lenses.ts";
 import { conceptPage, withConcepts } from "./concepts.ts";
 import { withBarBlock } from "./barread.ts";
+import { withArt } from "./art.ts";
 import { sicknessPage } from "./sickness.ts";
 import { housePage } from "./credit.ts";
 import { buildingPage, lotPage, wallsPage } from "./fabric.ts";
@@ -113,6 +109,8 @@ function build(
   if (ref === "world:tree") return treePage(world, tab ?? undefined);
   if (ref.startsWith("clade:")) return cladePage(world, ref);
   if (ref.startsWith("compare:")) return comparePage(world, ref);
+  // Two alliances side by side.
+  if (ref.startsWith("allyvs:")) return allianceComparePage(world, ref);
   if (ref.startsWith("concept:")) return conceptPage(world, ref);
   if (ref.startsWith("trait:")) return traitPage(world, ref);
   // Matter (Phase 15 M122): substances, reactions, principles, goods the world over.
@@ -125,6 +123,8 @@ function build(
   // A town's price board, and where a good is cheap and dear (Markets, first slice).
   if (ref.startsWith("board:")) return boardPage(world, ref);
   if (ref.startsWith("dear:")) return dearPage(world, ref);
+  // A realm's exchange, late in a world: its companies and their index (what is sold under each good).
+  if (ref.startsWith("exchange:")) return exchangePage(world, ref);
   if (ref.startsWith("thing:")) return thingPage(world, ref);
   // A tool hung on a smithy's rack, tapped there (Phase 51 M213).
   if (ref.startsWith("made:")) return madePage(world, ref);
@@ -273,6 +273,8 @@ export function pageOf(
     );
     // (How they are now, and the way on and off the people bar: B1.)
     if (!brief) page = withBarBlock(world, base, page);
+    // (What its tabs and banner are drawn of: asked 2026-11-13.)
+    if (!brief && !only) page = withArt(world, page);
   } catch {
     return unknownPage(world, base, true);
   }
@@ -296,6 +298,7 @@ function tidy(page: PageModel): PageModel {
           !(b.type === "table" && !b.rows.length) &&
           !(b.type === "facts" && !b.rows.length) &&
           !(b.type === "chart" && b.points.length < 2) &&
+          !(b.type === "series" && b.points.length < 2) &&
           !(b.type === "lines" && !b.series.some((x) => x.points.length > 1)) &&
           !(b.type === "bars" && !b.bars.length) &&
           !(b.type === "tally" && !b.rows.length) &&

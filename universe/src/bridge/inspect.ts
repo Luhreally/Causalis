@@ -51,6 +51,8 @@ export type Stat = {
   readonly parts?: readonly Part[];
   /** The concept it is a measure of (its page in the book of concepts, M97). */
   readonly concept?: string;
+  /** A small picture beside its value (asked 2026-11-13): how a land builds, its works. */
+  readonly thumb?: Portrait;
 };
 
 /** An entry of a list: its words, the page it opens, and the why that explains it. */
@@ -83,6 +85,8 @@ export type Row = {
   readonly keys?: readonly (number | string)[];
   /** A small picture at the row's start (Phase 54 M223). */
   readonly thumb?: Portrait;
+  /** Its colour on the map, as a small square at the row's start (an alliance on the alliances lens). */
+  readonly swatch?: readonly [number, number, number];
 };
 
 /** A line of a market's board, or a market on a good's list of where it is cheap and dear (Markets, first slice). */
@@ -100,6 +104,8 @@ export type BoardRow = {
   readonly arrow: string;
   readonly trend: string;
   readonly shelf: number;
+  /** A small picture before its name, drawn from what it is (asked 2026-11-12): a company's mark. */
+  readonly thumb?: Portrait;
 };
 
 export type Block =
@@ -130,6 +136,8 @@ export type Block =
       readonly rows: readonly Row[];
       /** How many rows it shows before "show all" (absent: the inspector's own, sixty). */
       readonly few?: number;
+      /** Fit to the page's width, never scrolled sideways: its headings wrap, and its first column's long names break. */
+      readonly fit?: boolean;
     }
   | {
       readonly type: "chart";
@@ -150,6 +158,26 @@ export type Block =
       readonly unit?: "people" | "share" | "price" | "count";
       /** Each line on a small chart of its own scale, side by side (their sizes far apart). */
       readonly apart?: boolean;
+    }
+  /**
+   * A thing's number through the years as it was in each (asked 2026-11-13: "graphs over time"): its title, what its
+   * numbers count, its points, its latest in words as the page says it, and what befell it marked where it fell.
+   */
+  | {
+      readonly type: "series";
+      readonly title: string;
+      /** What its numbers count, after a number: "people", "lands", "men", "a head". */
+      readonly units: string;
+      /** How its numbers are written. */
+      readonly unit: SeriesUnit;
+      readonly points: readonly { readonly x: number; readonly y: number }[];
+      /** Its latest, in words, with its units: as the page says it where it says it. */
+      readonly latest: string;
+      /** How it is read, in a line under it. */
+      readonly note?: string;
+      readonly marks?: readonly SeriesMark[];
+      /** Its line's colour (its thing's own). */
+      readonly color?: Rgb;
     }
   /** Things side by side as bars: each its name (a link), its amount, its colour. */
   | {
@@ -176,6 +204,8 @@ export type Block =
         /** How much, in words with its unit ("1.2 t", "340 g"). */
         readonly amount?: string;
         readonly color: Rgb;
+        /** A small picture of the part, drawn from what it is (asked 2026-11-12): a rifle, a motor car, a land's own grain. */
+        readonly thumb?: Portrait;
       }[];
       /** A line under it: what it is of, or what it is measured against. */
       readonly note?: string;
@@ -428,6 +458,16 @@ export type Tab = { readonly id: string; readonly name: string; readonly blocks:
 
 type Rgb = readonly [number, number, number];
 
+/** How a series' numbers are written: whole ("12,345"), a share ("87%"), a worth ("12.3 thousand"), a price ("1.20"), months ("3.5"). */
+export type SeriesUnit = "count" | "share" | "worth" | "price" | "months";
+
+/** Something that befell a thing, marked on its series in its year: its kind (its colour on the chart) and its words. */
+export type SeriesMark = {
+  readonly x: number;
+  readonly kind: "war" | "ruler" | "curse" | "bless" | "realm" | "join" | "leave";
+  readonly label: string;
+};
+
 /**
  * How a substance's crystals or grains grow (Phase 54 M223), and so how its specimen is cut: salt
  * and galena in cubes, magnetite in octahedra, garnet in dodecahedra, quartz in six-sided prisms
@@ -554,6 +594,27 @@ export type Portrait =
       readonly flags: readonly { readonly color: Rgb; readonly key: number }[];
     }
   | { readonly kind: "sign"; readonly color: Rgb; readonly tenet: string }
+  /**
+   * A people's home as they build it (asked 2026-11-13: "will i see the photo of like their architectural varying styles across
+   * seeds?"): the house its towns raise (its walls, roof, plan and pitch, as the town in 3D is built of it), as many storeys as its
+   * homes stand most often, its turf in its world's life's colours.
+   */
+  | {
+      readonly kind: "house";
+      readonly house: VillagePlan["house"];
+      readonly storeys: number;
+      readonly key: number;
+      readonly lifeLook?: string;
+    }
+  /** A land's works as its design has them: the hall its crafts are done in, of its material, and what drives them. */
+  | {
+      readonly kind: "works";
+      readonly hall: string;
+      readonly material: string;
+      readonly drive: string;
+      readonly key: number;
+      readonly lifeLook?: string;
+    }
   /** A realm's arms (Phase 11 M102); a war's, its two sides' face to face. */
   | { readonly kind: "arms"; readonly arms: readonly Arms[] }
   /**
@@ -605,7 +666,23 @@ export type Portrait =
       /** 0 … 1: how worn it is (nicks, dulled shine, a darker haft). */
       readonly worn: number;
       readonly key: number;
-    };
+    }
+  /**
+   * A sown or grown plant as it is sold (asked 2026-11-12): a grass's ear on its stalk, its seed as
+   * heavy as the lineage's, in its world's own leaf colour; a bed's frond, a garden's tuber, a
+   * dome's leaves.
+   */
+  | {
+      readonly kind: "plant";
+      readonly form: "ear" | "frond" | "tuber" | "leaf";
+      /** 0 … 1: how heavy its seed (a fat ear, a thin one). */
+      readonly seed: number;
+      readonly leaf: Rgb;
+      readonly ear: Rgb;
+      readonly key: number;
+    }
+  /** A company's mark (asked 2026-11-12): its realm's shield, and on it the thing it makes. */
+  | { readonly kind: "company"; readonly arms: Arms; readonly good: Portrait | null };
 
 /** One thing a town could be asked (H1). */
 export type AskOffer = {
@@ -731,7 +808,87 @@ export type PageModel = {
   readonly year: number;
   /** How often (ms) it is worth reading again as the world runs, when not the usual. */
   readonly every?: number;
+  /** What its tabs and its banner are drawn of (none: plain tabs, no banner). */
+  readonly art?: PageArt;
 };
+
+/**
+ * What a page's own drawings are made of (asked 2026-11-13: "add more graphics and like icons and like stuff for the tabs ... make it
+ * generative and like derived from first principles ... but it shouldt make the game slower"): its world, for its tabs' glyphs to be
+ * drawn in that world's colours — its star's light through its air, its seas' liquid, its ground, what grows there — and, for a page of
+ * a place, a realm, a war or a people, what its banner shows of it. Read with the page; the interface draws it once as the page opens
+ * and keeps it, nothing per tick.
+ */
+export type PageArt = {
+  readonly world: {
+    /** Its kind (rules/kinds.ts): its seas' liquid and its bare ground. */
+    readonly kind: string;
+    /** Its life's colours, where they are not Earth's green (`lifeLook`); "bare" where nothing took hold. */
+    readonly look?: string;
+    /** Its star's warmth, kelvin: the light everything on it is seen in. */
+    readonly star: number;
+  };
+  readonly banner?: PageBanner;
+};
+
+/** A person drawn in a banner: their age, their work (OCCUPATIONS' index), whether a child. */
+export type BannerFigure = {
+  readonly age: number;
+  readonly occupation: number;
+  readonly child: boolean;
+};
+
+/**
+ * What a page's banner draws: a land as its ground runs west to east through it (metres above its sea, a band of cells wide, with each
+ * stretch's biome), its woods, a home of its design and some of its people; a town's skyline, its homes by their storeys and its other
+ * buildings standing; a realm's arms over the shape of its lands (each land a point, its seat first, 0 … 1000 across); a war's two sides,
+ * each its arms and the arm its host carries; a world far off by its star; a people by the ground and light they rose under.
+ */
+export type PageBanner =
+  | {
+      readonly kind: "land";
+      readonly heights: readonly number[];
+      readonly biomes: readonly number[];
+      /** Where along the run the land itself lies (0 … 1). */
+      readonly here: number;
+      readonly woods: number;
+      readonly house: VillagePlan["house"] | null;
+      readonly era: NonNullable<VillagePlan["era"]>;
+      readonly body: VillagePlan["body"];
+      readonly folk: readonly BannerFigure[];
+      readonly key: number;
+    }
+  | {
+      readonly kind: "town";
+      readonly house: VillagePlan["house"];
+      /** Its homes standing at each level (HOME_LEVELS' order). */
+      readonly levels: readonly number[];
+      readonly civics: readonly string[];
+      readonly walls: boolean;
+      readonly biome: number;
+      readonly key: number;
+    }
+  | {
+      readonly kind: "realm";
+      readonly arms: Arms;
+      /** Its lands, x and y by turns (0 … 1000), its seat's first. */
+      readonly lands: readonly number[];
+      /** How far apart two neighbouring lands lie, in the same units. */
+      readonly step: number;
+    }
+  | {
+      readonly kind: "war";
+      readonly sides: readonly { readonly arms: Arms; readonly arm: Portrait | null }[];
+      readonly biome: number;
+    }
+  | { readonly kind: "world"; readonly star: number }
+  | {
+      readonly kind: "people";
+      readonly star: number;
+      readonly biome: number;
+      /** Their world's life's colours, where they are not Earth's green (a pigment, or "bare"). */
+      readonly look?: string;
+    };
 
 /** A thing in a few words, for a tooltip: its icon, name, a line and its first numbers. */
 export type Tip = {

@@ -18,6 +18,8 @@ import { courtSitting } from "../view/index.ts";
 import { PeopleBar, barPins, setWrittenHold } from "../ui/index.ts";
 import { CornerRail } from "../ui/index.ts";
 import { closeLifeSheet, showLifeSheet, type LifeSheet } from "../ui/index.ts";
+import { THUMB_TIMES, bannerMs, drawPortrait, forgetBanners, paintThumb } from "../ui/index.ts";
+import type { Portrait } from "../bridge/index.ts";
 import { Checkpoint } from "./checkpoint.ts";
 import { HostClient, LOT, inlinePair, lotStates, progress, workerPort } from "../bridge/index.ts";
 import {
@@ -922,6 +924,8 @@ type Exposed = {
   /** Out to the stars around; how many are shown. */
   stars?: () => void;
   starCount?: () => number;
+  /** What the star map draws (C2): its stars, round near the eye and of a few faces far, and their glows. */
+  starsDrawn?: () => { stars: number; near: number; far: number; glows: number } | null;
   bench?: unknown;
   /** The guided walk's step (from 0), or -1 when it is not showing. */
   walk?: () => number;
@@ -1379,6 +1383,10 @@ type Exposed = {
   /** Open a thing's page (Phase 10 M92), and the page open now. */
   open?: (ref: string) => Promise<void>;
   pageOpen?: () => string | null;
+  /** A page's art on or off (none: as it is), answering how long the last page took to draw (ms). */
+  pageArt?: (on?: boolean, forget?: boolean) => number;
+  /** How long the last page banner took to draw (ms). */
+  bannerMs?: () => number;
   /** The people bar and whom a viewer keeps on it (B1). */
   peopleBar?: PeopleBar;
   barPins?: typeof barPins;
@@ -1413,8 +1421,68 @@ type Exposed = {
     ground: { x: number; z: number };
   }[];
   littersOnScreen?: () => { index: number; x: number; y: number }[];
+  /**
+   * A thing's small picture drawn as a page draws it (asked 2026-11-12), for a gate: how many of its pixels are inked, and a sum of them
+   * to tell two pictures apart; and what the pictures drawn on pages so far have cost.
+   */
+  picture?: (p: Portrait, size: number) => { inked: number; sum: number };
+  /**
+   * The same drawn as a page's large picture at a level (asked 2026-11-12: "more generative detail ... when i look for it"): its inked
+   * pixels, its edges (pixels unlike the one beside or below them: strokes, seams, faces' borders), and a turning frame's cost (ms).
+   */
+  pictureAt?: (
+    p: Portrait,
+    size: number,
+    detail: "fine" | "coarse",
+  ) => { inked: number; edges: number; ms: number };
+  pictureTimes?: () => { drawn: number; ms: number };
 };
-const exposed: Exposed = {};
+const exposed: Exposed = {
+  picture: (p, size) => {
+    const c = document.createElement("canvas");
+    paintThumb(c, p, size);
+    const d = c.getContext("2d")!.getImageData(0, 0, c.width, c.height).data;
+    let inked = 0,
+      sum = 0;
+    for (let i = 0; i < d.length; i += 4)
+      if (d[i + 3]! > 40) {
+        inked++;
+        sum = (sum * 31 + d[i]! * 7 + d[i + 1]! * 3 + d[i + 2]! + i) % 1_000_000_007;
+      }
+    return { inked, sum };
+  },
+  pictureAt: (p, size, detail) => {
+    const c = document.createElement("canvas"),
+      g = () => c.getContext("2d")!;
+    // (A frame's cost as the large view turns: ten frames, each drawn and read back a pixel so its raster is in its time.)
+    drawPortrait(c, p, size, size, 0, detail);
+    const t0 = performance.now();
+    for (let i = 1; i <= 10; i++) {
+      drawPortrait(c, p, size, size, i / 30, detail);
+      g().getImageData(0, 0, 1, 1);
+    }
+    const ms = (performance.now() - t0) / 10;
+    drawPortrait(c, p, size, size, 0.8, detail);
+    const d = g().getImageData(0, 0, c.width, c.height).data,
+      w = c.width,
+      lum = (i: number) => d[i]! * 0.3 + d[i + 1]! * 0.59 + d[i + 2]! * 0.11;
+    let inked = 0,
+      edges = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3]! <= 40) continue;
+      inked++;
+      const right = i + 4,
+        below = i + 4 * w;
+      if (
+        (right < d.length && Math.abs(lum(i) - lum(right)) > 18) ||
+        (below < d.length && Math.abs(lum(i) - lum(below)) > 18)
+      )
+        edges++;
+    }
+    return { inked, edges, ms };
+  },
+  pictureTimes: () => ({ ...THUMB_TIMES }),
+};
 /** The last scales left, with where each leaving was called from (exposed.scalesLeft). */
 const scalesLeft: string[] = [];
 (globalThis as { causalis?: Exposed }).causalis = exposed;
@@ -1813,10 +1881,17 @@ async function runPlanetPage(): Promise<void> {
   // The page window stands below whichever scale's bar shows (its lines wrap as it narrows):
   // read as a page opens, as the date widens, and twice a second (a resize observer on the bars
   // trips WebKit's loop check as the scales' panels come and go).
+  // (A ruler's or a life's bar stands in for the scale's while one is lived: a page goes below it,
+  // never over it. 2026-11-13.)
   const markBarBottom = () => {
-    const bar = [...document.querySelectorAll<HTMLElement>(".panel > header.bar")].find(
-        (b) => b.offsetParent !== null,
-      ),
+    // (The first scale's bar shown, as ever; a lived one's in its place while it shows.)
+    const bar =
+        [...document.querySelectorAll<HTMLElement>(".reign-strip, .life-strip")].find(
+          (b) => b.offsetParent !== null,
+        ) ??
+        [...document.querySelectorAll<HTMLElement>(".panel > header.bar")].find(
+          (b) => b.offsetParent !== null,
+        ),
       y = `${bar ? Math.round(bar.getBoundingClientRect().bottom) : 64}px`;
     if (document.documentElement.style.getPropertyValue("--bar-bottom") !== y)
       document.documentElement.style.setProperty("--bar-bottom", y);
@@ -1830,6 +1905,13 @@ async function runPlanetPage(): Promise<void> {
   exposed.lifeSheet = (most?: number) => showLifeSheet(client, most);
   exposed.closeLifeSheet = closeLifeSheet;
   exposed.pageOpen = () => pageWindow.current;
+  // (A page's art on or off, and how long its last drawing took: gate 115 weighs what the art costs.)
+  exposed.pageArt = (on?: boolean, forget?: boolean) => {
+    if (on !== undefined) pageWindow.artOn = on;
+    if (forget) forgetBanners();
+    return pageWindow.drawMs;
+  };
+  exposed.bannerMs = bannerMs;
   // The guided walk: on a first visit (not for a machine driving the page, unless asked
   // with ?walk), and again from Help.
   const walk = new GuidedWalk(planetPanel.bar);
@@ -3169,10 +3251,17 @@ async function runPlanetPage(): Promise<void> {
     const frame = client.latestFrame("globe"),
       province = (frame?.arrays.province as Int32Array | undefined)?.[cell] ?? -1;
     // (Under the alliances lens, a land of an alliance opens the alliance: every one of them a press
-    // away on the map, as their key and their list have them. D1.)
-    const allied = lens === "blocs" ? alliedLands.get(province) : undefined;
-    if (allied) {
-      void pageWindow.open(allied);
+    // away on the map, as their key and their list have them. D1. Read again at the press: alliances
+    // made or broken since the lens was chosen are the world's now, not as they stood then.)
+    if (lens === "blocs" && province >= 0) {
+      void readBlocs().then(() => {
+        const allied = alliedLands.get(province);
+        if (allied) void pageWindow.open(allied);
+        else {
+          void client.query({ type: "region.prepare", args: { cell: province } }).catch(() => {});
+          void pageWindow.open(`cell:0:${province}`);
+        }
+      });
       return;
     }
     if (province >= 0) {
@@ -3454,6 +3543,14 @@ async function runPlanetPage(): Promise<void> {
       palette.hover(at.cell, at.town);
       return;
     }
+    // (Not in the band of the bar at the top, where a sliver of the world shows above it or beside it: a tip placed by
+    // the pointer there lay over the bar's buttons. 2026-11-13.)
+    const barFoot =
+      parseFloat(document.documentElement.style.getPropertyValue("--bar-bottom")) || 0;
+    if (e.clientY < barFoot) {
+      tooltip.hide();
+      return;
+    }
     tooltip.point(refAt(x, y), e.clientX, e.clientY);
   });
   canvas.addEventListener("pointerleave", () => tooltip.hide());
@@ -3511,6 +3608,9 @@ async function runPlanetPage(): Promise<void> {
     void palette.tap(at.cell, at.town, at.place);
   };
   palette.onOpen = (ref) => void pageWindow.open(ref);
+  palette.onShown = (open) => {
+    if (!open) document.body.classList.remove("godpalette");
+  };
   palette.onArmed = (armed) => {
     document.body.classList.toggle("casting", armed);
     tooltip.hide();
@@ -3929,13 +4029,27 @@ async function runPlanetPage(): Promise<void> {
   saveWarning.className = "save-warning";
   saveWarning.setAttribute("role", "status");
   saveWarning.hidden = true;
+  // (Put away with its ×, and away until a save is kept and another is not: it stood over the god's hand with no
+  // way to close it, 2026-11-13, "blocking my screen and i cant exit out of it".)
+  const saveWarningWords = document.createElement("span"),
+    saveWarningClose = document.createElement("button");
+  saveWarningClose.className = "save-warning-close";
+  saveWarningClose.textContent = "×";
+  saveWarningClose.setAttribute("aria-label", "Close");
+  let saveWarningShut = false;
+  saveWarningClose.onclick = () => {
+    saveWarningShut = true;
+    saveWarning.hidden = true;
+  };
+  saveWarning.append(saveWarningWords, saveWarningClose);
   hud.append(saveWarning);
   const checkpoint = new Checkpoint(
     () => client.save(`${saveName}:auto`),
     (error) => {
-      saveWarning.hidden = error === null;
+      if (error === null) saveWarningShut = false;
+      saveWarning.hidden = error === null || saveWarningShut;
       if (error !== null) {
-        saveWarning.textContent =
+        saveWarningWords.textContent =
           "Progress could not be saved in this browser. Open Saves and keep a copy as a file.";
         return;
       }
@@ -4284,6 +4398,7 @@ async function runPlanetPage(): Promise<void> {
     return scale === "cluster" && i >= 0 ? starScene.starOnScreen(i) : null;
   };
   exposed.starCount = () => (scale === "cluster" && clusterPlan ? clusterPlan.stars.length : 0);
+  exposed.starsDrawn = () => (scale === "cluster" ? starScene.drawn() : null);
   systemPanel.onSelect = (i) => skyScene.mark(i);
   // Down to a world of the system: made whole on the host (a moment), painted, turned.
   const worldPanel = new WorldPanel(hud);
@@ -9326,6 +9441,35 @@ async function runPlanetPage(): Promise<void> {
           ]
         : acted(page);
   }
+  // (An alliance's page, and every alliance's: their realms on the globe under the Alliances lens, asked for by a press. The page is
+  // put by so the globe is seen; the camera stays where it was looked at, as a lens chosen leaves it, unless the globe must be come to.)
+  {
+    const acted = pageWindow.sceneActions;
+    pageWindow.sceneActions = (page) =>
+      page.kind === "bloc" || page.kind === "alliances"
+        ? [
+            ...acted(page),
+            {
+              label: "🪢 On the map",
+              title: "Every alliance on the globe, each its own colour (the Alliances lens)",
+              on: false,
+              run: () => void showAlliances(),
+            },
+          ]
+        : acted(page);
+  }
+  const showAlliances = async () => {
+    pageWindow.close();
+    if (scale !== "globe")
+      await fadeOver(() => {
+        leaveScale();
+        toGlobe();
+      });
+    if (lens !== "blocs") {
+      mapModes.lens = "blocs";
+      planetPanel.onLens("blocs");
+    }
+  };
   // A realm's key figures, each with a home in the town view and a body to take (Lives L1).
   const leaders = installLeaders({
     stage,
@@ -9422,9 +9566,28 @@ async function runPlanetPage(): Promise<void> {
     pages: pageWindow,
     possession: person,
     leaders,
+    // (The god's palette and brushes over a realm ruled with the god in them: the ruler's tray waits till it shuts.)
+    palette: {
+      open: () => {
+        document.body.classList.add("godpalette");
+        palette.show(true);
+      },
+      shut: () => {
+        if (document.body.classList.contains("godpalette")) palette.show(false);
+        document.body.classList.remove("godpalette");
+      },
+    },
   });
   rulerNow = () => reign.who();
-  const ruleLeader = (l: { ref: string }) => void reign.take(l.ref.slice("rule:".length));
+  const ruleLeader = (l: { ref: string }) => {
+    // (One of a court, `court:<realm>:<number>`: taken as themself.)
+    if (l.ref.startsWith("court:")) {
+      const at = l.ref.lastIndexOf(":");
+      void reign.take(l.ref.slice("court:".length, at), Number(l.ref.slice(at + 1)));
+      return;
+    }
+    void reign.take(l.ref.slice("rule:".length));
+  };
   pageWindow.onLeaderRule = ruleLeader;
   leaders.onRule = ruleLeader;
   lifeFlow.onRule = (realm) => void reign.take(realm);

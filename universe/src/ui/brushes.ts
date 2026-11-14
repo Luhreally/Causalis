@@ -30,6 +30,24 @@ const CHOICES: readonly [BrushKind, string, string, string][] = [
 ];
 const SIZES = ["Small", "Medium", "Large", "Huge"];
 const STRENGTHS = ["Gentle", "Firm", "Strong", "Mighty"];
+/** How wide a brush is drawn on the screen at each size (CSS pixels), as the stroke paints what is under it. */
+const brushPx = (size: number) => 28 + size * 14;
+/** What a brush's strength does with the brush in hand, plainly (rules/brush.ts and sim/acts/brush.ts: 250 m, 5 m, 1 in 100, 100,000 a stop). */
+function strengthDoes(kind: string, s: number): string {
+  switch (kind) {
+    case "raise":
+      return `lifts the ground ${250 * s} m`;
+    case "lower":
+      return `sinks the ground ${250 * s} m`;
+    case "water":
+      return `a lake ${5 * s} m deep`;
+    case "ore":
+      return `a lode of ${(100000 * s).toLocaleString("en-US")}`;
+    case "lightning":
+      return `${s} in a hundred under it killed`;
+  }
+  return "";
+}
 /** How long a gentle stroke waits for Undo before it lands (in frames that came, not wall time). */
 const WAIT_MS = 2000;
 /** How many of the world's spots a stroke reaches, in words. */
@@ -43,8 +61,11 @@ export class GodBrushes {
   readonly button = el("button", "brush-toggle", "🖌 Brushes");
   readonly panel = el("section", "brush-panel");
   private readonly kind = el("select");
-  private readonly radius = el("select");
-  private readonly strength = el("select");
+  /** How wide a stroke is, and how strong: sliders, as the god's other strengths are (2026-11-13). */
+  private readonly radius = el("input");
+  private readonly strength = el("input");
+  private readonly radiusWords = el("strong", "brush-amount-says");
+  private readonly strengthWords = el("strong", "brush-amount-says");
   private readonly ore = el("select");
   private readonly realm = el("select");
   private readonly help = el("p", "brush-help");
@@ -95,22 +116,40 @@ export class GodBrushes {
     this.button.title = "The god's brushes: shape the world by hand";
     this.button.setAttribute("aria-expanded", "false");
     for (const [id, sign, name] of CHOICES) this.kind.add(new Option(`${sign} ${name}`, id));
-    SIZES.forEach((name, n) => this.radius.add(new Option(name, String(n))));
-    STRENGTHS.forEach((name, n) => this.strength.add(new Option(name, String(n + 1))));
+    for (const [input, least, most, called] of [
+      [this.radius, 0, SIZES.length - 1, "Brush size"],
+      [this.strength, 1, STRENGTHS.length, "Brush strength"],
+    ] as const) {
+      input.type = "range";
+      input.min = `${least}`;
+      input.max = `${most}`;
+      input.step = "1";
+      input.value = `${least}`;
+      input.className = "brush-amount";
+      input.setAttribute("aria-label", called);
+      input.oninput = () => this.amounts();
+    }
+    this.ore.className = "brush-ore";
+    this.realm.className = "brush-realm";
     const close = el("button", "brush-close", "Done"),
       title = el("div", "brush-heading"),
       name = el("span", "brush-title", "🖌️ Shape the world");
     close.setAttribute("aria-label", "Done: put the brush down");
     title.append(name, close);
     const controls = el("div", "brush-controls");
-    for (const [text, input] of [
-      ["Brush", this.kind],
-      ["Size", this.radius],
-      ["Strength", this.strength],
-      ["Ore", this.ore],
-      ["Realm", this.realm],
+    for (const [text, input, says] of [
+      ["Brush", this.kind, null],
+      ["Size", this.radius, this.radiusWords],
+      ["Strength", this.strength, this.strengthWords],
+      ["Ore", this.ore, null],
+      ["Realm", this.realm, null],
     ] as const) {
-      const label = el("label", "", text);
+      const label = el("label", says ? "brush-slider" : "");
+      if (says) {
+        const head = el("span", "brush-amount-head", `${text}: `);
+        head.append(says);
+        label.append(head);
+      } else label.append(text);
       label.append(input);
       controls.append(label);
     }
@@ -159,6 +198,7 @@ export class GodBrushes {
     // (Strength means nothing to a claim, a drain or a seeding of life: it is not offered there.)
     this.strength.parentElement!.hidden = kind === "claim" || kind === "drain" || kind === "life";
     this.panel.dataset.kind = kind;
+    this.amounts();
     const place = this.place(),
       here =
         place === "village" || place === "camp"
@@ -168,6 +208,16 @@ export class GodBrushes {
             : "";
     this.help.textContent = `${what?.[3] ?? ""}${here}`;
     if (!this.busy && !this.pending) this.status.textContent = this.idle();
+  }
+  /** The size and strength in words, as the sliders stand: what each will do. */
+  private amounts(): void {
+    const size = Number(this.radius.value),
+      s = Number(this.strength.value),
+      does = strengthDoes(this.kind.value, s),
+      sizeWords = `${SIZES[size] ?? ""}, ${brushPx(size)} px across`,
+      strong = `${STRENGTHS[s - 1] ?? ""}${does ? `, ${does}` : ""}`;
+    if (this.radiusWords.textContent !== sizeWords) this.radiusWords.textContent = sizeWords;
+    if (this.strengthWords.textContent !== strong) this.strengthWords.textContent = strong;
   }
   /** Why this brush cannot be used here and now, if it cannot. */
   private cannot(): string | null {
@@ -246,7 +296,7 @@ export class GodBrushes {
   move(x: number, y: number): void {
     if (!this.drawing) return;
     const cell = this.pick(x, y),
-      size = 28 + Number(this.radius.value) * 14,
+      size = brushPx(Number(this.radius.value)),
       under = cell === null ? null : (this.reach?.(x, y, size / 2) ?? null);
     if (under) this.underCircle = true;
     for (const c of under ?? (cell === null ? [] : [cell]))

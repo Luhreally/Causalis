@@ -27,6 +27,10 @@ export type SpecimenPart = {
   readonly gloss?: number;
   /** A haft, a stock or a handle: in a close picture of a made thing it may run out of the frame. */
   readonly handle?: boolean;
+  /** What its surface shows of how it was made, at the fine level (absent: by its making; a haft's is wood). */
+  readonly surface?: Surface;
+  /** Lines and dots over its faces, drawn only at the fine level (ui/specimen.ts finish). */
+  readonly marks?: readonly Mark[];
   /** Lines drawn over it, in their own colour: a bow's string, a break's ripples. */
   readonly strokes?: readonly {
     readonly points: readonly V3[];
@@ -34,6 +38,27 @@ export type SpecimenPart = {
     /** A ripple of a conchoidal break (dropped in a thumbnail); absent for a string. */
     readonly ripple?: boolean;
   }[];
+};
+
+/** What a surface shows of how it was made, at the fine level. */
+export type Surface =
+  "wood" | "weave" | "leather" | "forged" | "cast" | "machined" | "knapped" | "thrown" | "none";
+
+/**
+ * Lines (or dots) over a specimen at the fine level, in one colour: on a face of their part (drawn just after it, where it faces the
+ * eye), or free with a normal (drawn where it faces the eye, just before what is nearer).
+ */
+export type Mark = {
+  readonly face?: number;
+  readonly normal?: V3;
+  readonly lines: readonly (readonly V3[])[];
+  readonly color: Rgb;
+  readonly alpha: number;
+  /** Its width in a picture 300 px across (a dot's radius). */
+  readonly width: number;
+  readonly dash?: boolean;
+  readonly dots?: boolean;
+  readonly closed?: boolean;
 };
 
 type Rgb = readonly [number, number, number];
@@ -402,6 +427,50 @@ function hull(points: readonly V3[]): Mesh {
     v: used.map((i) => pts[i]!),
     f: faces.map((fc) => fc.map((i) => at.get(i)!)),
   });
+}
+
+/**
+ * A flat outline (a, b) given thickness: its two faces whole (not cut in triangles as a hull's are, so a seam or a bevel drawn on one
+ * follows its outline) and its sides. `place` puts a point of the outline at a height across it; `up` is the way the first face looks.
+ */
+function extrude(
+  outline: readonly (readonly [number, number])[],
+  lo: number,
+  hi: number,
+  place: (a: number, b: number, h: number) => V3,
+  up: V3,
+): Mesh {
+  const n = outline.length,
+    v: V3[] = [],
+    f: number[][] = [],
+    hints: V3[] = [];
+  for (const [a, b] of outline) v.push(place(a, b, lo), place(a, b, hi));
+  // (Which way round the outline runs, so each side's hint points out of it.)
+  let area = 0;
+  for (let i = 0; i < n; i++) {
+    const p = outline[i]!,
+      q = outline[(i + 1) % n]!;
+    area += p[0] * q[1] - q[0] * p[1];
+  }
+  const turn = area >= 0 ? 1 : -1;
+  f.push(Array.from({ length: n }, (_, i) => 2 * i + 1));
+  hints.push(up);
+  f.push(Array.from({ length: n }, (_, i) => 2 * i));
+  hints.push(scl(up, -1));
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n,
+      p = outline[i]!,
+      q = outline[j]!,
+      mid = place((p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (lo + hi) / 2),
+      out = place(
+        (p[0] + q[0]) / 2 + turn * (q[1] - p[1]),
+        (p[1] + q[1]) / 2 - turn * (q[0] - p[0]),
+        (lo + hi) / 2,
+      );
+    f.push([2 * i, 2 * j, 2 * j + 1, 2 * i + 1]);
+    hints.push(sub(out, mid));
+  }
+  return outward({ v, f }, hints);
 }
 
 /** A mesh moved by a vector. */
@@ -1099,6 +1168,8 @@ type ThingCtx = {
   readonly quality: number;
   readonly made: MadeHow;
   readonly key: number;
+  /** Drawn large and looked at: its finer parts (a saw's every tooth, a knife's rivets) and its surface's marks. */
+  readonly fine: boolean;
 };
 
 const TARNISH: Rgb = [0.35, 0.4, 0.3];
@@ -1380,33 +1451,76 @@ function beamLanceParts(c: ThingCtx): SpecimenPart[] {
 
 // Tools
 
-/** An axe's wedge head across the top of its haft. */
+/**
+ * An axe's head across the top of its haft: a thick poll wrapped about the haft (its eye, the haft's end standing through it), the cheeks
+ * thinning to a bit that flares above and below the eye, as a felling axe's does.
+ */
 function axeHead(c: ThingCtx): Mesh {
   return edge(
     c,
     hull([
-      [-0.04, 0.5, -0.06],
-      [-0.04, 0.5, 0.06],
-      [-0.04, 0.66, -0.06],
-      [-0.04, 0.66, 0.06],
-      [0.16, 0.44, -0.015],
-      [0.16, 0.44, 0.015],
-      [0.1, 0.66, -0.03],
-      [0.1, 0.66, 0.03],
-      [0.04, 0.46, -0.05],
-      [0.04, 0.46, 0.05],
+      [-0.1, 0.5, -0.056],
+      [-0.1, 0.5, 0.056],
+      [-0.1, 0.66, -0.056],
+      [-0.1, 0.66, 0.056],
+      [0.06, 0.485, -0.05],
+      [0.06, 0.485, 0.05],
+      [0.06, 0.675, -0.05],
+      [0.06, 0.675, 0.05],
+      [0.33, 0.37, -0.006],
+      [0.33, 0.37, 0.006],
+      [0.35, 0.79, -0.006],
+      [0.35, 0.79, 0.006],
+      [0.4, 0.58, -0.004],
+      [0.4, 0.58, 0.004],
     ]),
   );
 }
 
-const axeParts = (c: ThingCtx): SpecimenPart[] => [
-  haft(c, prism(6, 0.042, 1.4)),
-  head(c, axeHead(c)),
-];
+/**
+ * A blade's honed edge at the fine level: a bright line just in from the cutting edge, on both its broad faces (z one way and the
+ * other), the edge's own points given from heel to point.
+ */
+function honed(c: ThingCtx, edgeLine: readonly (readonly [number, number])[], z: number): Mark[] {
+  if (!c.fine) return [];
+  const line = (s: number): V3[] => edgeLine.map(([x, y]): V3 => [x, y, s * z]);
+  return [1, -1].map((s): Mark => ({
+    normal: [0, 0, s],
+    lines: [line(s)],
+    color: mix(c.color, WHITE, 0.62),
+    alpha: 0.75,
+    width: 0.9,
+  }));
+}
+
+/** The haft's end through the eye, and at the fine level the wedge driven into it. */
+function axeParts(c: ThingCtx): SpecimenPart[] {
+  const parts = [
+    haft(c, move(prism(6, 0.042, 1.46), [0, 0.03, 0])),
+    {
+      ...head(c, axeHead(c)),
+      marks: honed(
+        c,
+        [
+          [0.305, 0.4],
+          [0.37, 0.58],
+          [0.32, 0.76],
+        ],
+        0.012,
+      ),
+    },
+  ];
+  if (c.fine)
+    parts.push({
+      ...plain(move(box(0.07, 0.012, 0.012), [-0.005, 0.762, 0]), dim(c.wood, 0.45)),
+      surface: "none",
+    });
+  return parts;
+}
 
 /** An adze: the axe's head turned a quarter about its haft. */
 const adzeParts = (c: ThingCtx): SpecimenPart[] => [
-  haft(c, prism(6, 0.042, 1.4)),
+  haft(c, move(prism(6, 0.042, 1.46), [0, 0.03, 0])),
   head(c, rotate(axeHead(c), Math.PI / 2, 0, 0)),
 ];
 
@@ -1415,21 +1529,78 @@ const hoeParts = (c: ThingCtx): SpecimenPart[] => [
   head(c, edge(c, move(box(0.32, 0.03, 0.2), [0.16, -0.72, 0]))),
 ];
 
-/** A sickle: a crescent of eight segments along an arc, its short handle at one end. */
+/**
+ * A sickle: a crescent blade from its tang round more than half a circle, broad at the heel and thinning to its point, its edge on the
+ * inside of the curve; a short round handle with a collar where the tang goes in.
+ */
 function sickleParts(c: ThingCtx): SpecimenPart[] {
-  const cx = -0.25,
-    R = 0.42,
-    pts: V3[] = [];
-  for (let i = 0; i <= 8; i++) {
-    const a = -0.6 + (1.5 * i) / 8;
-    pts.push([cx + R * Math.cos(a), R * Math.sin(a), 0]);
+  const R = 0.36,
+    C: V3 = [0.03, 0.36, 0],
+    n = 14,
+    from = -1.75,
+    to = 2.75,
+    at = (a: number, r: number, z: number): V3 => [
+      C[0] + r * Math.cos(a),
+      C[1] + r * Math.sin(a),
+      z,
+    ],
+    segs: Mesh[] = [],
+    edgeLine: V3[] = [];
+  for (let i = 0; i < n; i++) {
+    const a0 = from + ((to - from) * i) / n,
+      a1 = from + ((to - from) * (i + 1)) / n,
+      // (Broader in a small picture, or its curve is a hair.)
+      w0 = (c.fine ? 0.1 : 0.15) - (0.088 * i) / n,
+      w1 = (c.fine ? 0.1 : 0.15) - (0.088 * (i + 1)) / n,
+      t0 = 0.016 - (0.008 * i) / n,
+      t1 = 0.016 - (0.008 * (i + 1)) / n;
+    segs.push(
+      hull([
+        at(a0, R + w0 / 2, -t0),
+        at(a0, R + w0 / 2, t0),
+        at(a0, R - w0 / 2, -0.003),
+        at(a0, R - w0 / 2, 0.003),
+        at(a1, R + w1 / 2, -t1),
+        at(a1, R + w1 / 2, t1),
+        at(a1, R - w1 / 2, -0.003),
+        at(a1, R - w1 / 2, 0.003),
+      ]),
+    );
+    edgeLine.push(at(a0, R - w0 / 2 + 0.018, t0 * 0.6));
   }
-  const segs: Mesh[] = [];
-  for (let i = 0; i < 8; i++) segs.push(beam(pts[i]!, pts[i + 1]!, 0.06));
-  const foot = pts[0]!;
+  const root = at(from, R, 0),
+    blade = head(c, edge(c, join(...segs)));
   return [
-    head(c, edge(c, join(...segs))),
-    haft(c, move(prism(6, 0.03, 0.4), [foot[0], foot[1] - 0.2, 0])),
+    c.fine
+      ? {
+          ...blade,
+          marks: [
+            {
+              normal: [0, 0, 1],
+              lines: [edgeLine],
+              color: mix(c.color, WHITE, 0.6),
+              alpha: 0.75,
+              width: 0.9,
+            },
+          ],
+        }
+      : blade,
+    head(c, move(prism(8, 0.045, 0.05), [root[0], root[1] - 0.03, 0])),
+    haft(
+      c,
+      move(
+        lathe(
+          [
+            [0.035, -0.3],
+            [0.045, -0.28],
+            [0.048, -0.05],
+            [0.04, 0],
+          ],
+          8,
+        ),
+        [root[0], root[1] - 0.05, 0],
+      ),
+    ),
   ];
 }
 
@@ -1438,11 +1609,59 @@ const spearheadParts = (c: ThingCtx): SpecimenPart[] => [
   head(c, move(prism(6, 0.04, 0.2), [0, -0.1, 0])),
 ];
 
-/** A plough share: a flat triangle with its one edge turned up. */
-const shareParts = (c: ThingCtx): SpecimenPart[] => [
-  head(c, edge(c, prism(3, 0.32, 0.04))),
-  head(c, beam([0.32, 0, 0], [0.4, 0.28, 0], 0.035)),
-];
+/**
+ * A plough's share and mouldboard, standing as it runs: the share a pointed blade that cuts the sod flat, the mouldboard a curved plate
+ * rising from the share's back and twisting out to turn the sod over, and the shank that bolts them to the plough's beam.
+ */
+function shareParts(c: ThingCtx): SpecimenPart[] {
+  const tip: V3 = [0.55, 0, -0.04],
+    heel: V3 = [-0.12, 0, -0.1],
+    wing: V3 = [-0.02, 0, 0.3],
+    share = hull([
+      tip,
+      heel,
+      wing,
+      add(tip, [0, 0.03, 0]),
+      add(heel, [0, 0.03, 0]),
+      add(wing, [0, 0.03, 0]),
+    ]),
+    // (The board: rows of points across it, from the share's back edge up; each row further back and further out, as the sod turns.)
+    row = (h: number): V3[] =>
+      [0, 0.25, 0.5, 0.75, 1].map((t): V3 => {
+        const a = add(heel, [-0.3 * h, 0.03 + 0.5 * h, -0.02 * h]),
+          b = add(wing, [-0.55 * h, 0.03 + 0.42 * h, 0.42 * h]);
+        // (Bowed: its middle stands proud of a straight line, the more toward its top.)
+        return add(add(scl(a, 1 - t), scl(b, t)), [0, 0, 0.05 * Math.sin(Math.PI * t) * (0.4 + h)]);
+      }),
+    rows = [0, 0.25, 0.5, 0.75, 1].map(row),
+    tiles: Mesh[] = [];
+  for (let i = 0; i < rows.length - 1; i++)
+    for (let j = 0; j < 4; j++) {
+      const q = [rows[i]![j]!, rows[i]![j + 1]!, rows[i + 1]![j]!, rows[i + 1]![j + 1]!];
+      tiles.push(hull([...q, ...q.map((p) => add(p, [0.02, 0, -0.02]))]));
+    }
+  const board = join(...tiles),
+    tint = board.f.map((face) => 0.9 + 0.3 * Math.min(1, centroid(board, face)[1] / 0.5));
+  return [
+    {
+      ...head(c, edge(c, share)),
+      marks: c.fine
+        ? [
+            {
+              normal: [0, 1, 0],
+              lines: [[add(tip, [-0.04, 0.032, 0.03]), add(wing, [0.03, 0.032, -0.02])]],
+              color: mix(c.color, WHITE, 0.65),
+              alpha: 0.8,
+              width: 1,
+            },
+          ]
+        : [],
+    },
+    head(c, board, tint),
+    head(c, beam([0.12, 0.03, -0.06], [-0.08, 0.64, -0.06], 0.06)),
+    haft(c, move(box(0.5, 0.08, 0.08), [-0.12, 0.66, -0.06])),
+  ];
+}
 
 /** Shears: two blades pivoting, joined by a bow spring. */
 const shearsParts = (c: ThingCtx): SpecimenPart[] => [
@@ -1454,50 +1673,297 @@ const shearsParts = (c: ThingCtx): SpecimenPart[] => [
   ),
 ];
 
+/** A hammer: its head square at the face and drawn to a peen behind, on its haft through the eye. */
 const hammerParts = (c: ThingCtx): SpecimenPart[] => [
-  haft(c, prism(6, 0.042, 0.9)),
-  head(c, move(box(0.22, 0.14, 0.14), [0, 0.4, 0])),
-];
-
-/** A chisel: a square bar with its end bevelled to an edge. */
-const chiselParts = (c: ThingCtx): SpecimenPart[] => [
-  head(c, prism(4, 0.04, 0.9)),
+  haft(c, move(prism(6, 0.042, 0.96), [0, 0.03, 0])),
   head(
     c,
     hull([
-      [-0.04, 0.45, -0.04],
-      [0.04, 0.45, -0.04],
-      [-0.04, 0.45, 0.04],
-      [0.04, 0.45, 0.04],
-      [0.04, 0.6, -0.03],
-      [0.04, 0.6, 0.03],
-      [-0.04, 0.6, -0.02],
-      [-0.04, 0.6, 0.02],
+      [0.14, 0.33, -0.065],
+      [0.14, 0.33, 0.065],
+      [0.14, 0.47, -0.065],
+      [0.14, 0.47, 0.065],
+      [-0.04, 0.33, -0.06],
+      [-0.04, 0.33, 0.06],
+      [-0.04, 0.47, -0.06],
+      [-0.04, 0.47, 0.06],
+      [-0.2, 0.38, -0.05],
+      [-0.2, 0.38, 0.05],
+      [-0.2, 0.42, -0.05],
+      [-0.2, 0.42, 0.05],
     ]),
   ),
 ];
 
-const knifeParts = (c: ThingCtx): SpecimenPart[] => [
-  head(
-    c,
-    edge(
+/** A chisel: a square bar bevelled to an edge, its tang in a short wooden handle. */
+const chiselParts = (c: ThingCtx): SpecimenPart[] => [
+  head(c, move(prism(4, 0.035, 0.6), [0, 0.15, 0])),
+  {
+    ...head(
       c,
       hull([
-        [-0.035, 0, -0.008],
-        [0.035, 0, -0.008],
-        [-0.035, 0, 0.008],
-        [0.035, 0, 0.008],
-        [-0.035, 0.5, -0.008],
-        [0.035, 0.5, -0.008],
-        [-0.035, 0.5, 0.008],
-        [0.035, 0.5, 0.008],
-        [0, 0.72, -0.008],
-        [0, 0.72, 0.008],
+        [-0.035, 0.45, -0.035],
+        [0.035, 0.45, -0.035],
+        [-0.035, 0.45, 0.035],
+        [0.035, 0.45, 0.035],
+        [0.04, 0.62, -0.006],
+        [0.04, 0.62, 0.006],
+        [-0.04, 0.62, -0.006],
+        [-0.04, 0.62, 0.006],
       ]),
     ),
+    marks: honed(
+      c,
+      [
+        [-0.036, 0.6],
+        [0.036, 0.6],
+      ],
+      0.012,
+    ),
+  },
+  haft(
+    c,
+    move(
+      lathe(
+        [
+          [0.04, -0.62],
+          [0.055, -0.58],
+          [0.05, -0.2],
+          [0.04, -0.15],
+        ],
+        8,
+      ),
+      [0, 0, 0],
+    ),
   ),
-  haft(c, move(prism(6, 0.03, 0.35), [0, -0.2, 0])),
 ];
+
+/** A knife: a blade with a straight back and its edge swept up to the point, a bolster, and a handle riveted through. */
+function knifeParts(c: ThingCtx): SpecimenPart[] {
+  const outline: [number, number][] = [
+      [-0.036, 0],
+      [0.046, 0],
+      [0.052, 0.3],
+      [0.042, 0.5],
+      [0.014, 0.64],
+      [-0.03, 0.73],
+      [-0.036, 0.6],
+    ],
+    blade = hull(
+      outline.flatMap(([x, y]): V3[] => [
+        [x, y, -0.008],
+        [x, y, 0.008],
+      ]),
+    ),
+    grip = move(scale(prism(6, 0.05, 0.38), [0.9, 1, 0.55]), [0, -0.23, 0]),
+    parts: SpecimenPart[] = [
+      {
+        ...head(c, edge(c, blade)),
+        marks: honed(
+          c,
+          [
+            [0.03, 0.03],
+            [0.036, 0.3],
+            [0.026, 0.49],
+            [0.004, 0.62],
+            [-0.028, 0.7],
+          ],
+          0.009,
+        ),
+      },
+      head(c, move(box(0.11, 0.035, 0.05), [0.005, -0.02, 0])),
+      haft(c, grip),
+    ];
+  if (c.fine)
+    parts.push({
+      ...plain(
+        join(disc(6, 0.013, 0.06, [0, -0.13, 0]), disc(6, 0.013, 0.06, [0, -0.32, 0])),
+        mix(c.color, WHITE, 0.3),
+        "metallic",
+      ),
+      surface: "none",
+    });
+  return parts;
+}
+
+/**
+ * A saw: a tapering blade, its teeth along the edge (eight for the eye in a small picture, two dozen when it is looked at), its back
+ * straight, and an open grip of wood about the hand, screwed to the blade.
+ */
+function sawParts(c: ThingCtx): SpecimenPart[] {
+  const teeth = c.fine ? 26 : 9,
+    y0 = -0.24,
+    y1 = 0.95,
+    spine = -0.12,
+    wide = (y: number) => 0.26 - (0.13 * (y - y0)) / (y1 - y0),
+    blade = hull([
+      [spine, y0, -0.007],
+      [spine, y0, 0.007],
+      [spine, y1, -0.007],
+      [spine, y1, 0.007],
+      [spine + wide(y0), y0, -0.007],
+      [spine + wide(y0), y0, 0.007],
+      [spine + wide(y1), y1, -0.007],
+      [spine + wide(y1), y1, 0.007],
+    ]),
+    tooth: Mesh[] = [],
+    step = (y1 - 0.02 - y0) / teeth,
+    deep = c.fine ? 0.026 : 0.045;
+  for (let k = 0; k < teeth; k++) {
+    const a = y0 + 0.01 + k * step,
+      b = a + step,
+      xa = spine + wide(a),
+      xb = spine + wide(b);
+    tooth.push(
+      hull([
+        [xa - 0.004, a, -0.006],
+        [xa - 0.004, a, 0.006],
+        [xb - 0.004, b, -0.006],
+        [xb - 0.004, b, 0.006],
+        [xb + deep, b - step * 0.15, 0],
+      ]),
+    );
+  }
+  const grip = join(
+    beam([-0.15, -0.2, 0], [0.16, -0.2, 0], 0.075),
+    beam([0.16, -0.2, 0], [0.09, -0.62, 0], 0.075),
+    beam([0.09, -0.62, 0], [-0.17, -0.6, 0], 0.075),
+    beam([-0.17, -0.6, 0], [-0.15, -0.2, 0], 0.075),
+    beam([-0.15, -0.2, 0], [-0.22, -0.14, 0], 0.06),
+  );
+  const parts: SpecimenPart[] = [
+    {
+      ...head(c, edge(c, blade)),
+      marks: honed(
+        c,
+        [
+          [spine + wide(y0) - 0.03, y0 + 0.02],
+          [spine + wide(y1) - 0.03, y1 - 0.02],
+        ],
+        0.008,
+      ),
+    },
+    head(c, join(...tooth)),
+    haft(c, grip),
+  ];
+  if (c.fine)
+    parts.push({
+      ...plain(
+        join(disc(6, 0.018, 0.09, [-0.06, -0.17, 0]), disc(6, 0.018, 0.09, [0.06, -0.17, 0])),
+        [0.78, 0.62, 0.3],
+        "metallic",
+      ),
+      surface: "none",
+    });
+  return parts;
+}
+
+/**
+ * An awl: a wooden handle swelling to the palm, and from it a long spike drawn to a point; knapped of stone, a borer, a flake struck to a
+ * long narrow point.
+ */
+function awlParts(c: ThingCtx): SpecimenPart[] {
+  if (c.made === "knapped")
+    return [
+      head(
+        c,
+        hull([
+          [-0.16, -0.4, 0],
+          [0.15, -0.42, 0],
+          [0.02, -0.3, 0.07],
+          [0.12, -0.18, 0],
+          [-0.12, -0.16, 0],
+          [0.035, 0.1, 0.02],
+          [-0.03, 0.12, 0.01],
+          [0.0, 0.5, 0],
+          [0.0, -0.3, -0.03],
+        ]),
+      ),
+    ];
+  return [
+    haft(
+      c,
+      lathe(
+        [
+          [0.04, -0.62],
+          [0.07, -0.56],
+          [0.085, -0.38],
+          [0.06, -0.18],
+          [0.03, -0.12],
+        ],
+        8,
+      ),
+    ),
+    head(
+      c,
+      lathe(
+        [
+          [0.022, -0.13],
+          [0.02, 0.35],
+          [0, 0.66],
+        ],
+        6,
+      ),
+    ),
+  ];
+}
+
+/** A scraper: a thick flake, flat beneath and ridged above, its rounded end steeply struck to a scraping edge. */
+function scraperParts(c: ThingCtx): SpecimenPart[] {
+  const rim: V3[] = [],
+    top: V3[] = [];
+  for (let i = 0; i <= 8; i++) {
+    const a = (i / 8) * Math.PI;
+    rim.push([0.26 * Math.cos(a), 0.12 + 0.24 * Math.sin(a), 0]);
+    top.push([0.17 * Math.cos(a), 0.12 + 0.16 * Math.sin(a), 0.11]);
+  }
+  const flake = hull([
+    ...rim,
+    ...top,
+    [-0.2, -0.32, 0],
+    [0.2, -0.32, 0],
+    [-0.12, -0.28, 0.06],
+    [0.12, -0.28, 0.06],
+  ]);
+  return [
+    {
+      ...head(c, flake),
+      ...(c.fine
+        ? {
+            marks: [
+              {
+                normal: [0, 0.4, 1] as V3,
+                lines: rim
+                  .slice(1, -1)
+                  .map((p, i): V3[] => [
+                    add(p, [0, 0, 0.015]),
+                    add(scl(add(p, top[i + 1]!), 0.5), [0, 0, 0.01]),
+                  ]),
+                color: dim(c.color, 0.6),
+                alpha: 0.6,
+                width: 0.8,
+              },
+            ],
+          }
+        : {}),
+    },
+  ];
+}
+
+/** A blade struck from a core: long, thin, two ridges along its back where the blades before it came off. */
+function stoneBladeParts(c: ThingCtx): SpecimenPart[] {
+  const at: [number, number, number][] = [
+      [-0.58, 0.03, 0.012],
+      [-0.4, 0.075, 0.03],
+      [0.25, 0.08, 0.035],
+      [0.5, 0.045, 0.022],
+      [0.64, 0.01, 0.006],
+    ],
+    pts: V3[] = [];
+  for (const [y, w, h] of at)
+    pts.push([-w, y, 0], [w, y, 0], [-w * 0.35, y, h], [w * 0.35, y, h], [0, y, -h * 0.25]);
+  return [head(c, edge(c, hull(pts)))];
+}
 
 // Pots
 
@@ -1625,20 +2091,600 @@ function bowlParts(c: ThingCtx): SpecimenPart[] {
   ];
 }
 
-// Cloth
+// Cloth: each garment laid out facing the eye, its shape what says what it is at a glance (its sleeves, its neck, its length, its legs),
+// its seams, stitching and weave drawn only when it is looked at.
 
-/** A flat T-shaped garment: sleeves across, a body in three folds tinted alternately. */
-function garmentParts(c: ThingCtx): SpecimenPart[] {
-  const fold = (y: number, h: number, k: number): SpecimenPart => ({
-    ...head(c, move(box(0.42, h, 0.05), [0, y, 0])),
-    color: dim(c.color, k % 2 ? 0.86 : 1),
-  });
+const BRASS: Rgb = [0.78, 0.64, 0.32];
+/** A fitting of the garment's second stuff (a belt, a clasp, buttons, laces): its land's wood or leather, dull. */
+function fitting(c: ThingCtx, mesh: Mesh, k = 1): SpecimenPart {
+  return {
+    mesh,
+    color: dim(c.wood, k),
+    lustre: "waxy",
+    clarity: 0,
+    gloss: c.gloss,
+    surface: "none",
+  };
+}
+/** A part of the garment in its own stuff, a shade darker or lighter (a fold, a hem, a lapel). */
+const shade = (c: ThingCtx, mesh: Mesh, k: number, extra: Partial<SpecimenPart> = {}) => ({
+  ...head(c, mesh),
+  color: dim(c.color, k),
+  ...extra,
+});
+/** A flat panel of cloth through the given outline (x, y), its front a little proud of its back. */
+function panel(outline: readonly (readonly [number, number])[], t = 0.05, at = 0): Mesh {
+  return extrude(outline, at - t, at + t, (x, y, z) => [x, y, z], [0, 0, 1]);
+}
+/** The neck's opening, dark, at the top of the front. */
+const neckHole = (c: ThingCtx, r: number, y: number, z: number): SpecimenPart =>
+  shade(
+    c,
+    move(rotate(scale(prism(10, r, 0.01), [1, 1, 0.55]), 0, Math.PI / 2, 0), [0, y, z]),
+    0.32,
+    {
+      surface: "none",
+    },
+  );
+/** A sleeve from the shoulder out and down: its top and bottom lines, as wide as `w`. */
+function sleeve(from: V3, to: V3, w: number, t = 0.045): Mesh {
+  const d = sub(to, from),
+    l = Math.hypot(d[0], d[1]) || 1,
+    nx = (-d[1] / l) * (w / 2),
+    ny = (d[0] / l) * (w / 2);
+  return hull(
+    [
+      [from[0] + nx, from[1] + ny],
+      [from[0] - nx, from[1] - ny],
+      [to[0] + nx * 0.85, to[1] + ny * 0.85],
+      [to[0] - nx * 0.85, to[1] - ny * 0.85],
+    ].flatMap(([x, y]): V3[] => [
+      [x!, y!, -t],
+      [x!, y!, t],
+    ]),
+  );
+}
+/** Two sleeves, mirrored. */
+const sleeves = (from: V3, to: V3, w: number): Mesh =>
+  join(sleeve(from, to, w), sleeve([-from[0], from[1], from[2]], [-to[0], to[1], to[2]], w));
+
+/** A tunic: a body widening to its hem, short sleeves, a round neck, a hem band, a cord at the waist. */
+function tunicParts(c: ThingCtx): SpecimenPart[] {
   return [
-    head(c, move(box(0.7, 0.16, 0.05), [0, 0.42, 0])),
-    fold(0.16, 0.26, 0),
-    fold(-0.1, 0.26, 1),
-    fold(-0.36, 0.2, 2),
+    head(
+      c,
+      panel([
+        [-0.28, 0.44],
+        [0.28, 0.44],
+        [0.34, -0.55],
+        [-0.34, -0.55],
+      ]),
+    ),
+    shade(c, sleeves([0.26, 0.34, 0], [0.54, 0.12, 0], 0.22), 0.9),
+    shade(
+      c,
+      panel(
+        [
+          [-0.345, -0.47],
+          [0.345, -0.47],
+          [0.35, -0.56],
+          [-0.35, -0.56],
+        ],
+        0.056,
+      ),
+      0.78,
+    ),
+    neckHole(c, 0.1, 0.42, 0.04),
+    fitting(
+      c,
+      panel(
+        [
+          [-0.315, -0.02],
+          [0.315, -0.02],
+          [0.315, -0.06],
+          [-0.315, -0.06],
+        ],
+        0.06,
+      ),
+    ),
   ];
+}
+
+/** A shirt: a straight body, long sleeves with cuffs, a turned collar, and its buttons down the front. */
+function shirtParts(c: ThingCtx): SpecimenPart[] {
+  const parts: SpecimenPart[] = [
+    head(
+      c,
+      panel([
+        [-0.26, 0.44],
+        [0.26, 0.44],
+        [0.27, -0.5],
+        [-0.27, -0.5],
+      ]),
+    ),
+    shade(c, sleeves([0.24, 0.36, 0], [0.5, -0.26, 0], 0.17), 0.9),
+    shade(
+      c,
+      join(
+        sleeve([0.47, -0.2, 0], [0.505, -0.3, 0], 0.17, 0.05),
+        sleeve([-0.47, -0.2, 0], [-0.505, -0.3, 0], 0.17, 0.05),
+      ),
+      0.75,
+    ),
+    shade(
+      c,
+      join(
+        panel(
+          [
+            [-0.12, 0.46],
+            [0, 0.38],
+            [-0.07, 0.3],
+          ],
+          0.012,
+          0.06,
+        ),
+        panel(
+          [
+            [0.12, 0.46],
+            [0, 0.38],
+            [0.07, 0.3],
+          ],
+          0.012,
+          0.06,
+        ),
+      ),
+      1.12,
+    ),
+    shade(
+      c,
+      panel(
+        [
+          [-0.018, 0.38],
+          [0.018, 0.38],
+          [0.018, -0.5],
+          [-0.018, -0.5],
+        ],
+        0.008,
+        0.052,
+      ),
+      0.8,
+    ),
+  ];
+  if (c.fine)
+    parts.push({
+      mesh: join(
+        ...[0.28, 0.12, -0.04, -0.2, -0.36].map((y) => disc(6, 0.016, 0.012, [0, y, 0.064])),
+      ),
+      color: [0.9, 0.88, 0.8],
+      lustre: "pearly",
+      clarity: 0,
+      surface: "none",
+    });
+  return parts;
+}
+
+/** A gown or a dress: a fitted bodice, a sash at the waist, and a skirt flaring to the hem (a gown's to the floor, with long sleeves). */
+function gownParts(c: ThingCtx, long: boolean): SpecimenPart[] {
+  const hem = long ? -0.95 : -0.62,
+    skirt = scale(
+      lathe(
+        [
+          [0.16, 0.1],
+          [long ? 0.48 : 0.4, hem],
+        ],
+        12,
+      ),
+      [1, 1, 0.42],
+    );
+  return [
+    head(
+      c,
+      panel([
+        [-0.2, 0.5],
+        [0.2, 0.5],
+        [0.16, 0.08],
+        [-0.16, 0.08],
+      ]),
+    ),
+    shade(c, skirt, 1, { tint: skirt.f.map((_, k) => (k % 2 ? 0.84 : 1.04)) }),
+    long
+      ? shade(c, sleeves([0.19, 0.44, 0], [0.4, -0.12, 0], 0.11), 0.92)
+      : shade(c, sleeves([0.19, 0.44, 0], [0.32, 0.3, 0], 0.13), 0.92),
+    fitting(c, move(scale(prism(12, 0.175, 0.07), [1, 1, 0.45]), [0, 0.09, 0])),
+    neckHole(c, 0.09, 0.48, 0.04),
+  ];
+}
+
+/** Trousers: a waistband and the seat, and two legs a little apart down to their hems. */
+function trousersParts(c: ThingCtx): SpecimenPart[] {
+  const leg = (s: 1 | -1) =>
+    panel([
+      [s * 0.02, 0.18],
+      [s * 0.27, 0.18],
+      [s * 0.28, -0.88],
+      [s * 0.08, -0.88],
+    ]);
+  return [
+    head(
+      c,
+      panel([
+        [-0.27, 0.42],
+        [0.27, 0.42],
+        [0.28, 0.12],
+        [0, 0.02],
+        [-0.28, 0.12],
+      ]),
+    ),
+    shade(c, join(leg(1), leg(-1)), 0.92),
+    fitting(
+      c,
+      panel(
+        [
+          [-0.275, 0.5],
+          [0.275, 0.5],
+          [0.275, 0.42],
+          [-0.275, 0.42],
+        ],
+        0.055,
+      ),
+    ),
+    shade(
+      c,
+      panel(
+        [
+          [-0.014, 0.42],
+          [0.014, 0.42],
+          [0.014, 0.12],
+          [-0.014, 0.12],
+        ],
+        0.008,
+        0.052,
+      ),
+      0.75,
+    ),
+  ];
+}
+
+/** A cloak: a bell of cloth from the shoulders to the shins, its hood fallen behind, open down the front, a clasp at the throat. */
+function cloakParts(c: ThingCtx): SpecimenPart[] {
+  const bell = scale(
+    lathe(
+      [
+        [0.13, 0.5],
+        [0.3, 0.32],
+        [0.42, -0.2],
+        [0.52, -0.88],
+      ],
+      12,
+    ),
+    [1, 1, 0.62],
+  );
+  return [
+    head(
+      c,
+      bell,
+      bell.f.map((_, k) => (k % 2 ? 0.86 : 1.05)),
+    ),
+    shade(c, move(scale(icosphere(0), [0.2, 0.17, 0.16]), [0, 0.52, -0.1]), 0.82),
+    shade(c, beam([0, 0.42, 0.105], [0, -0.86, 0.33], 0.02), 0.42, { surface: "none" }),
+    {
+      mesh: disc(8, 0.05, 0.03, [0, 0.43, 0.1]),
+      color: BRASS,
+      lustre: "metallic",
+      clarity: 0,
+      surface: "none",
+    },
+  ];
+}
+
+/** A coat: long, with sleeves, a collar standing behind the neck, lapels turned back, and buttons down its front. */
+function coatParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    head(
+      c,
+      panel([
+        [-0.3, 0.44],
+        [0.3, 0.44],
+        [0.36, -0.82],
+        [-0.36, -0.82],
+      ]),
+    ),
+    shade(c, sleeves([0.28, 0.36, 0], [0.55, -0.32, 0], 0.18), 0.88),
+    shade(
+      c,
+      panel(
+        [
+          [-0.2, 0.56],
+          [0.2, 0.56],
+          [0.24, 0.42],
+          [-0.24, 0.42],
+        ],
+        0.04,
+        -0.03,
+      ),
+      0.8,
+    ),
+    shade(
+      c,
+      join(
+        panel(
+          [
+            [-0.17, 0.44],
+            [-0.02, 0.1],
+            [-0.07, 0.44],
+          ],
+          0.012,
+          0.058,
+        ),
+        panel(
+          [
+            [0.17, 0.44],
+            [0.02, 0.1],
+            [0.07, 0.44],
+          ],
+          0.012,
+          0.058,
+        ),
+      ),
+      1.18,
+    ),
+    shade(
+      c,
+      panel(
+        [
+          [-0.012, 0.1],
+          [0.012, 0.1],
+          [0.012, -0.82],
+          [-0.012, -0.82],
+        ],
+        0.008,
+        0.052,
+      ),
+      0.55,
+    ),
+    // (Its buttons of horn or brass, standing off its cloth or its leather.)
+    {
+      mesh: join(...[0.02, -0.18, -0.38].map((y) => disc(8, 0.03, 0.03, [0.06, y, 0.066]))),
+      color: BRASS,
+      lustre: "metallic",
+      clarity: 0,
+      surface: "none",
+    },
+  ];
+}
+
+/** Armour of plate: a breastplate's shell, a ridge down its middle, its neck turned out. */
+function cuirassParts(c: ThingCtx): SpecimenPart[] {
+  // (A chest's shape: broad at the shoulders, drawn in at the waist, flaring a little at its skirt.)
+  const shell = scale(
+    lathe(
+      [
+        [0.3, -0.5],
+        [0.27, -0.3],
+        [0.33, 0.0],
+        [0.38, 0.26],
+        [0.3, 0.42],
+        [0.16, 0.48],
+      ],
+      12,
+    ),
+    [1, 1, 0.45],
+  );
+  return [
+    head(c, shell),
+    head(c, beam([0, -0.46, 0.125], [0, 0.36, 0.155], 0.025)),
+    shade(
+      c,
+      move(rotate(scale(prism(10, 0.13, 0.01), [1, 1, 0.5]), 0, Math.PI / 2, 0), [0, 0.47, 0.06]),
+      0.3,
+      {
+        surface: "none",
+      },
+    ),
+  ];
+}
+
+/** A brimmed hat: its crown, a band about it, its brim. */
+function hatParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    head(c, prism(16, 0.5, 0.03)),
+    head(
+      c,
+      lathe(
+        [
+          [0.26, 0.01],
+          [0.25, 0.22],
+          [0.2, 0.32],
+          [0, 0.33],
+        ],
+        12,
+      ),
+    ),
+    fitting(
+      c,
+      lathe(
+        [
+          [0.265, 0.02],
+          [0.262, 0.08],
+        ],
+        12,
+      ),
+    ),
+  ];
+}
+
+/** A cap: a low round crown snug on the head, a band about it, a button on top, and a short peak at its front. */
+function capParts(c: ThingCtx): SpecimenPart[] {
+  const peak: [number, number][] = [];
+  for (let i = 0; i <= 6; i++) {
+    const a = Math.PI * (0.15 + (0.7 * i) / 6);
+    peak.push([0.32 * Math.cos(a), 0.15 + 0.3 * Math.sin(a)]);
+  }
+  return [
+    head(
+      c,
+      lathe(
+        [
+          [0.3, 0],
+          [0.3, 0.1],
+          [0.24, 0.22],
+          [0.12, 0.28],
+          [0, 0.29],
+        ],
+        12,
+      ),
+    ),
+    shade(
+      c,
+      lathe(
+        [
+          [0.31, -0.01],
+          [0.312, 0.07],
+        ],
+        12,
+      ),
+      0.8,
+    ),
+    shade(c, move(prism(8, 0.035, 0.03), [0, 0.3, 0]), 0.85),
+    shade(
+      c,
+      extrude([[0.3, 0.12], ...peak, [-0.3, 0.12]], 0.0, 0.025, (x, z, y) => [x, y, z], [0, 1, 0]),
+      0.7,
+    ),
+  ];
+}
+
+/** A foot's sole in its outline: the heel round, the ball broad, the toe pointed a little; `y` its top. */
+function soleOutline(): [number, number][] {
+  return [
+    [-0.4, -0.07],
+    [-0.42, 0],
+    [-0.4, 0.07],
+    [-0.2, 0.1],
+    [0.12, 0.13],
+    [0.32, 0.11],
+    [0.43, 0.05],
+    [0.45, 0],
+    [0.43, -0.05],
+    [0.32, -0.11],
+    [0.12, -0.12],
+    [-0.2, -0.09],
+  ];
+}
+function sole(y0: number, y1: number): Mesh {
+  return extrude(soleOutline(), y0, y1, (x, z, y) => [x, y, z], [0, 1, 0]);
+}
+/** Laces criss-crossed up the front of a boot or a shoe, from the toe's end to its top (drawn only when looked at). */
+function laces(c: ThingCtx, from: number, to: number, x0: number, x1: number, n: number): Mark {
+  const lines: V3[][] = [];
+  for (let k = 0; k < n; k++) {
+    const t0 = k / n,
+      t1 = (k + 1) / n,
+      y0 = from + (to - from) * t0,
+      y1 = from + (to - from) * t1,
+      xa = x0 + (x1 - x0) * t0,
+      xb = x0 + (x1 - x0) * t1;
+    lines.push([
+      [xa, y0, -0.06],
+      [xb + 0.02, y1, 0.06],
+    ]);
+    lines.push([
+      [xa, y0, 0.06],
+      [xb + 0.02, y1, -0.06],
+    ]);
+  }
+  return { normal: [1, 0.3, 0.6], lines, color: mix(c.color, WHITE, 0.55), alpha: 0.9, width: 1 };
+}
+
+/** A boot: a sole and a heel block under it, the foot's upper with its toe cap, the shaft up the leg, laced up its front. */
+function bootParts(c: ThingCtx): SpecimenPart[] {
+  const upper = hull([
+      ...soleOutline().map(([x, z]): V3 => [x * 0.96, 0.06, z * 0.96]),
+      [0.38, 0.13, 0.06],
+      [0.38, 0.13, -0.06],
+      [0.18, 0.23, 0.09],
+      [0.18, 0.23, -0.09],
+      [-0.02, 0.33, 0.1],
+      [-0.02, 0.33, -0.1],
+      [-0.36, 0.3, 0.08],
+      [-0.36, 0.3, -0.08],
+    ]),
+    shaft = lathe(
+      [
+        [0.15, 0.24],
+        [0.14, 0.55],
+        [0.16, 0.86],
+      ],
+      10,
+    ),
+    up = move(scale(shaft, [1.05, 1, 0.85]), [-0.18, 0, 0]),
+    parts: SpecimenPart[] = [
+      shade(c, sole(0, 0.06), 0.45, { surface: "none" }),
+      shade(c, move(box(0.17, 0.07, 0.17), [-0.32, -0.035, 0]), 0.4, { surface: "none" }),
+      head(c, upper),
+      head(c, up),
+      shade(c, move(box(0.08, 0.5, 0.11), [-0.04, 0.55, 0]), 0.78),
+      // (Where the leg goes in, dark.)
+      shade(c, move(scale(prism(10, 0.13, 0.01), [1.05, 1, 0.85]), [-0.18, 0.865, 0]), 0.28, {
+        surface: "none",
+      }),
+    ];
+  if (c.fine) parts[3] = { ...parts[3]!, marks: [laces(c, 0.3, 0.84, -0.02, -0.03, 6)] };
+  return parts;
+}
+
+/** A shoe: the sole and its heel, a low upper over the foot, the tongue, laced across. */
+function shoeParts(c: ThingCtx): SpecimenPart[] {
+  const upper = hull([
+    ...soleOutline().map(([x, z]): V3 => [x * 0.96, 0.06, z * 0.96]),
+    [0.38, 0.13, 0.06],
+    [0.38, 0.13, -0.06],
+    [0.16, 0.22, 0.1],
+    [0.16, 0.22, -0.1],
+    [-0.16, 0.26, 0.1],
+    [-0.16, 0.26, -0.1],
+    [-0.4, 0.24, 0.07],
+    [-0.4, 0.24, -0.07],
+  ]);
+  const parts: SpecimenPart[] = [
+    shade(c, sole(0, 0.06), 0.45, { surface: "none" }),
+    shade(c, move(box(0.15, 0.06, 0.16), [-0.32, -0.03, 0]), 0.4, { surface: "none" }),
+    head(c, upper),
+    // (Where the foot goes in, dark.)
+    shade(c, move(scale(prism(10, 0.1, 0.01), [1.3, 1, 0.75]), [-0.25, 0.262, 0]), 0.28, {
+      surface: "none",
+    }),
+  ];
+  if (c.fine) parts[2] = { ...parts[2]!, marks: [lacesFlat(c)] };
+  return parts;
+}
+/** A shoe's laces, across its instep. */
+function lacesFlat(c: ThingCtx): Mark {
+  const lines: V3[][] = [];
+  for (let k = 0; k < 4; k++) {
+    const x = 0.12 - k * 0.06,
+      y = 0.222 + k * 0.011;
+    lines.push([
+      [x, y, -0.07],
+      [x - 0.05, y + 0.012, 0.07],
+    ]);
+  }
+  return { normal: [0.3, 1, 0.3], lines, color: mix(c.color, WHITE, 0.55), alpha: 0.9, width: 1 };
+}
+
+/** A sandal: a sole, straps over the foot and about the heel, a thong between the toes. */
+function sandalParts(c: ThingCtx): SpecimenPart[] {
+  const strap = (x: number, w: number, h: number) =>
+      join(beam([x, 0.05, -w], [x + 0.02, h, 0], 0.03), beam([x + 0.02, h, 0], [x, 0.05, w], 0.03)),
+    straps = join(
+      strap(0.18, 0.12, 0.15),
+      strap(-0.02, 0.12, 0.2),
+      beam([0.36, 0.05, 0], [0.18, 0.15, 0], 0.025),
+      beam([-0.3, 0.05, -0.09], [-0.42, 0.2, 0], 0.03),
+      beam([-0.42, 0.2, 0], [-0.3, 0.05, 0.09], 0.03),
+      beam([-0.42, 0.2, 0], [-0.02, 0.2, 0], 0.025),
+    );
+  return [head(c, sole(0, 0.05)), shade(c, straps, 0.6, { surface: "none" })];
 }
 
 /** A rolled bolt of cloth, its loose end hanging as a bent sheet. */
@@ -1740,6 +2786,409 @@ function castingParts(c: ThingCtx): SpecimenPart[] {
   return [head(c, box(0.8, 0.5, 0.5)), head(c, ribs)];
 }
 
+// Machines, a host's kit and plants as a market sells them (asked 2026-11-12): each of a few solids, its body of its stuff (a car of its
+// land's steel or bronze, a radio's case of its wood), its second stuff the haft's colour, the rest glass, rubber or a lit face.
+
+const TYRE: Rgb = [0.12, 0.12, 0.13];
+const PANE: Rgb = [0.24, 0.32, 0.42];
+const FACE: Rgb = [0.92, 0.88, 0.76];
+const SCREEN: Rgb = [0.36, 0.62, 0.78];
+
+/** A part of a machine's second stuff: a cased set's metal fittings, a metal machine's wooden trim. */
+function trim(c: ThingCtx, mesh: Mesh): SpecimenPart {
+  return {
+    mesh,
+    color: c.wood,
+    lustre: "metallic",
+    clarity: 0,
+    gloss: c.gloss,
+    // (A cased set's fittings are metal, turned on a lathe; a metal machine's trim is wood.)
+    surface: c.made === "carved" ? "machined" : "wood",
+  };
+}
+/** A part of its own colour, dull or glassy: rubber, a window, a dial's face. */
+function plain(mesh: Mesh, color: Rgb, lustre: Lustre = "dull", glow = false): SpecimenPart {
+  return {
+    mesh,
+    color,
+    lustre,
+    clarity: 0,
+    surface: "none",
+    ...(glow ? { glow: true, strong: true } : {}),
+  };
+}
+/** A wheel or a disc whose axle runs front to back (z), at a place. */
+const disc = (n: number, r: number, w: number, at: V3): Mesh =>
+  move(rotate(prism(n, r, w), 0, Math.PI / 2, 0), at);
+/** A cylinder lying along x, at a place. */
+const lying = (n: number, r: number, l: number, at: V3): Mesh =>
+  move(rotate(prism(n, r, l), 0, 0, Math.PI / 2), at);
+
+function motorCarParts(c: ThingCtx): SpecimenPart[] {
+  const wheels = join(
+    ...[-0.46, 0.46].flatMap((x) => [-0.3, 0.3].map((z) => disc(8, 0.17, 0.12, [x, -0.16, z]))),
+  );
+  return [
+    head(c, box(1.45, 0.3, 0.6)),
+    head(c, move(box(0.74, 0.26, 0.56), [-0.1, 0.27, 0])),
+    plain(move(box(0.78, 0.16, 0.58), [-0.1, 0.29, 0]), PANE, "vitreous"),
+    plain(wheels, TYRE),
+  ];
+}
+
+function armouredCarParts(c: ThingCtx): SpecimenPart[] {
+  const wheels = join(
+    ...[-0.46, 0, 0.46].flatMap((x) => [-0.32, 0.32].map((z) => disc(8, 0.16, 0.12, [x, -0.2, z]))),
+  );
+  return [
+    head(c, box(1.4, 0.36, 0.62)),
+    head(c, move(prism(8, 0.22, 0.18), [-0.05, 0.27, 0])),
+    head(c, lying(6, 0.035, 0.55, [0.34, 0.29, 0])),
+    plain(wheels, TYRE),
+  ];
+}
+
+function locomotiveParts(c: ThingCtx): SpecimenPart[] {
+  const wheels = join(
+    ...[-0.45, 0, 0.42].flatMap((x) =>
+      [-0.24, 0.24].map((z) => disc(10, 0.16, 0.06, [x, -0.3, z])),
+    ),
+  );
+  return [
+    head(c, lying(10, 0.22, 1.0, [0.12, 0.02, 0])),
+    head(c, move(box(0.42, 0.56, 0.52), [-0.56, 0.1, 0])),
+    trim(c, move(prism(8, 0.07, 0.28), [0.48, 0.34, 0])),
+    plain(move(box(1.5, 0.08, 0.46), [-0.05, -0.2, 0]), TYRE),
+    plain(wheels, dim(c.color, 0.6), "metallic"),
+  ];
+}
+
+function steamEngineParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    plain(move(box(1.1, 0.14, 0.5), [0, -0.42, 0]), dim(c.color, 0.7), "metallic"),
+    head(c, lying(10, 0.17, 0.5, [-0.25, -0.17, 0])),
+    head(c, disc(14, 0.44, 0.07, [0.3, 0.05, 0.26])),
+    trim(c, move(prism(6, 0.035, 0.4), [-0.25, 0.18, 0])),
+  ];
+}
+
+function marineEngineParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    head(c, box(1.0, 0.44, 0.48)),
+    head(c, join(...[-0.3, 0, 0.3].map((x) => move(prism(8, 0.12, 0.42), [x, 0.42, 0])))),
+    trim(c, lying(8, 0.05, 1.3, [0, -0.1, 0.28])),
+  ];
+}
+
+function powerLoomParts(c: ThingCtx): SpecimenPart[] {
+  const posts = join(
+    ...[-0.45, 0.45].flatMap((x) =>
+      [-0.26, 0.26].map((z) => move(box(0.06, 0.9, 0.06), [x, 0, z])),
+    ),
+    move(box(0.96, 0.06, 0.06), [0, 0.42, -0.26]),
+    move(box(0.96, 0.06, 0.06), [0, 0.42, 0.26]),
+  );
+  return [
+    head(c, posts),
+    trim(c, lying(10, 0.09, 0.86, [0, 0.12, -0.18])),
+    plain(move(rotate(box(0.86, 0.02, 0.42), 0, 0.25, 0), [0, 0.05, 0.05]), FACE),
+  ];
+}
+
+function clockParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    head(c, box(0.42, 1.1, 0.26)),
+    trim(c, disc(14, 0.17, 0.03, [0, 0.3, 0.14])),
+    plain(disc(14, 0.14, 0.03, [0, 0.3, 0.16]), FACE),
+    plain(
+      join(
+        move(box(0.02, 0.11, 0.01), [0, 0.35, 0.18]),
+        move(box(0.08, 0.02, 0.01), [0.04, 0.3, 0.18]),
+      ),
+      TYRE,
+    ),
+    trim(c, disc(10, 0.07, 0.02, [0, -0.25, 0.14])),
+  ];
+}
+
+function dynamoParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    plain(move(box(0.8, 0.1, 0.5), [0, -0.32, 0]), dim(c.color, 0.7), "metallic"),
+    head(c, lying(12, 0.26, 0.6, [0, 0, 0])),
+    trim(c, lying(6, 0.035, 1.05, [0, 0, 0])),
+    trim(c, lying(10, 0.14, 0.06, [0.5, 0, 0])),
+  ];
+}
+
+function waterWheelParts(c: ThingCtx): SpecimenPart[] {
+  const paddles = join(
+    ...Array.from({ length: 8 }, (_, k) => {
+      const a = (k / 8) * Math.PI * 2;
+      return move(rotate(box(0.08, 0.2, 0.22), 0, 0, a), [
+        0.72 * Math.cos(a),
+        0.72 * Math.sin(a),
+        0,
+      ]);
+    }),
+  );
+  return [...wheelParts(c), head(c, paddles)];
+}
+
+function sunEngineParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    plain(move(rotate(box(1.1, 0.04, 0.72), 0, 0.7, 0), [0, 0.2, 0]), PANE, "vitreous"),
+    trim(c, move(rotate(box(1.14, 0.03, 0.76), 0, 0.7, 0), [0, 0.18, -0.01])),
+    head(c, move(prism(6, 0.05, 0.6), [0, -0.25, 0])),
+    head(c, move(box(0.4, 0.16, 0.3), [0, -0.52, 0])),
+  ];
+}
+
+function aeroplaneParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    head(c, lying(8, 0.1, 1.4, [0, 0, 0])),
+    head(c, move(box(0.36, 0.03, 1.5), [0.15, 0.02, 0])),
+    head(
+      c,
+      join(
+        move(box(0.18, 0.02, 0.48), [-0.62, 0.04, 0]),
+        move(box(0.16, 0.22, 0.02), [-0.62, 0.14, 0]),
+      ),
+    ),
+    plain(move(box(0.02, 0.44, 0.05), [0.72, 0, 0]), TYRE),
+  ];
+}
+
+function telegraphKeyParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    head(c, box(0.8, 0.1, 0.44)),
+    trim(c, move(rotate(box(0.56, 0.04, 0.07), 0, 0, 0.08), [0.04, 0.12, 0])),
+    plain(move(prism(10, 0.07, 0.06), [0.3, 0.18, 0]), TYRE),
+    trim(c, move(prism(8, 0.06, 0.16), [-0.28, 0.12, 0])),
+  ];
+}
+
+function telephoneParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    head(c, move(prism(12, 0.24, 0.08), [0, -0.5, 0])),
+    head(c, move(prism(8, 0.05, 0.75), [0, -0.1, 0])),
+    head(c, move(rotate(pyramid(10, 0.1, 0.12), 0, -Math.PI / 2, 0), [0, 0.3, 0.02])),
+    trim(c, move(rotate(prism(8, 0.045, 0.34), 0, 0, 0.15), [0.18, 0.02, 0])),
+  ];
+}
+
+function radioSetParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    head(c, box(0.9, 0.6, 0.34)),
+    plain(disc(12, 0.19, 0.02, [-0.18, 0.04, 0.18]), dim(c.color, 0.45)),
+    plain(move(box(0.26, 0.12, 0.02), [0.24, 0.12, 0.18]), FACE),
+    trim(
+      c,
+      join(disc(8, 0.05, 0.05, [0.16, -0.14, 0.19]), disc(8, 0.05, 0.05, [0.32, -0.14, 0.19])),
+    ),
+  ];
+}
+
+function computerParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    head(c, move(box(0.74, 0.56, 0.42), [0, 0.2, -0.1])),
+    plain(move(box(0.58, 0.42, 0.02), [0, 0.22, 0.12]), SCREEN, "vitreous", true),
+    head(c, move(box(0.8, 0.05, 0.3), [0, -0.18, 0.34])),
+    trim(c, move(box(0.3, 0.06, 0.24), [0, -0.12, -0.1])),
+  ];
+}
+
+function phoneParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    head(c, box(0.46, 0.92, 0.06)),
+    plain(move(box(0.4, 0.78, 0.01), [0, 0.01, 0.035]), SCREEN, "vitreous", true),
+    plain(move(prism(8, 0.025, 0.01), [0, 0.42, 0.04]), TYRE),
+  ];
+}
+
+function thinkingMachineParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    head(c, box(0.62, 1.05, 0.5)),
+    plain(
+      join(...[0.3, 0.1, -0.1, -0.3].map((y) => move(box(0.46, 0.04, 0.01), [0, y, 0.26]))),
+      SCREEN,
+      "vitreous",
+      true,
+    ),
+    trim(c, move(box(0.66, 0.06, 0.54), [0, 0.52, 0])),
+  ];
+}
+
+function madeBodyParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    head(c, move(box(0.4, 0.5, 0.22), [0, 0.18, 0])),
+    head(c, move(box(0.22, 0.22, 0.2), [0, 0.58, 0])),
+    trim(
+      c,
+      join(
+        move(box(0.12, 0.5, 0.14), [-0.11, -0.35, 0]),
+        move(box(0.12, 0.5, 0.14), [0.11, -0.35, 0]),
+      ),
+    ),
+    trim(
+      c,
+      join(
+        move(box(0.1, 0.46, 0.12), [-0.27, 0.16, 0]),
+        move(box(0.1, 0.46, 0.12), [0.27, 0.16, 0]),
+      ),
+    ),
+    plain(move(box(0.14, 0.03, 0.01), [0, 0.6, 0.105]), SCREEN, "vitreous", true),
+  ];
+}
+
+function shieldParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    head(c, scale(disc(14, 0.5, 0.06, [0, 0, 0]), [1, 1.15, 1])),
+    trim(c, disc(10, 0.12, 0.08, [0, 0.02, 0.04])),
+  ];
+}
+
+function helmetParts(c: ThingCtx): SpecimenPart[] {
+  return [
+    head(
+      c,
+      lathe(
+        [
+          [0.42, -0.2],
+          [0.4, 0],
+          [0.34, 0.16],
+          [0.2, 0.28],
+          [0, 0.32],
+        ],
+        12,
+      ),
+    ),
+    head(c, move(box(0.06, 0.24, 0.06), [0, -0.22, 0.4])),
+  ];
+}
+
+/** The machines and the vehicles stand on their wheels or their feet, not tipped as a tool lies. */
+const UPRIGHT: ReadonlySet<string> = new Set([
+  "motor car",
+  "armoured car",
+  "locomotive",
+  "steam engine",
+  "marine engine",
+  "power loom",
+  "clock",
+  "dynamo",
+  "water wheel",
+  "sun engine",
+  "aeroplane",
+  "telegraph key",
+  "telephone",
+  "radio set",
+  "computer",
+  "phone",
+  "thinking machine",
+  "made body",
+  "helmet",
+  "plough share",
+  "boot",
+  "shoe",
+  "sandal",
+  "hat",
+  "cap",
+]);
+
+/** Tools so slender that a thumbnail draws them broader. */
+const SLENDER: ReadonlySet<string> = new Set(["knife", "chisel", "awl", "blade"]);
+
+/** Garments laid out to face the eye: turned only a little, so their sleeves, neck and legs read. */
+const FLAT: ReadonlySet<string> = new Set([
+  "tunic",
+  "shirt",
+  "gown",
+  "dress",
+  "trousers",
+  "cloak",
+  "coat",
+  "cuirass",
+]);
+
+// Plants (kind "plant")
+
+/** A plant: a grass's ear on its stalk (the heavier its seed, the fatter and longer), a bed's frond, a garden's tuber, a dome's leaves. */
+function plantParts(p: Extract<Portrait, { kind: "plant" }>): SpecimenPart[] {
+  const leaf = (mesh: Mesh): SpecimenPart => plain(mesh, p.leaf, "waxy"),
+    blade = (len: number, yaw: number, lean: number, at: V3): Mesh =>
+      move(rotate(scale(bipyramid(4, 0.05, len / 2), [1, 1, 0.25]), yaw, 0, lean), at),
+    bend = 0.08 * (hash(p.key, 1) - 0.5);
+  switch (p.form) {
+    case "ear": {
+      const n = 5 + Math.round(p.seed * 4),
+        r = 0.035 + 0.05 * p.seed,
+        top = 0.1,
+        tip = top + n * r * 2.1;
+      const grains = join(
+        ...Array.from({ length: n }, (_, k) =>
+          move(scale(bipyramid(4, r, r * 1.5), [1, 1, 0.8]), [
+            (k % 2 ? 1 : -1) * r * 0.8 + bend * k,
+            top + k * r * 2.1,
+            0,
+          ]),
+        ),
+      );
+      return [
+        leaf(beam([0, -0.75, 0], [bend * n, top, 0], 0.035)),
+        leaf(
+          join(blade(0.6, 0.3, 0.5, [-0.12, -0.35, 0]), blade(0.55, -0.4, -0.45, [0.12, -0.45, 0])),
+        ),
+        plain(grains, p.ear, "waxy"),
+        plain(beam([bend * n, tip, 0], [bend * n + 0.04, tip + 0.22, 0], 0.012), p.ear),
+      ];
+    }
+    case "frond":
+      return [
+        leaf(
+          join(
+            ...Array.from({ length: 4 }, (_, k) =>
+              move(rotate(box(0.16, 0.34, 0.03), 0.4 * k, 0, (k % 2 ? 0.35 : -0.35) + bend), [
+                k % 2 ? 0.06 : -0.06,
+                -0.5 + k * 0.3,
+                0,
+              ]),
+            ),
+          ),
+        ),
+        plain(move(scale(icosphere(0), [0.18, 0.12, 0.18]), [0.2, -0.62, 0.05]), p.ear, "pearly"),
+      ];
+    case "tuber":
+      return [
+        plain(
+          jitter(scale(icosphere(1), [0.42, 0.3, 0.32]), p.key, 0.08),
+          mix(p.ear, CLAY_DARK, 0.55),
+        ),
+        leaf(
+          join(blade(0.5, 0.2, 0.35, [-0.08, 0.45, 0]), blade(0.45, -0.5, -0.3, [0.08, 0.42, 0])),
+        ),
+      ];
+    case "leaf": {
+      const at = (k: number): V3 => {
+        const a = (k / 5) * Math.PI * 2;
+        return [0.18 * Math.cos(a), 0, 0.18 * Math.sin(a)];
+      };
+      return [
+        leaf(
+          join(
+            ...Array.from({ length: 5 }, (_, k) =>
+              move(
+                rotate(scale(bipyramid(5, 0.16, 0.36), [1, 1, 0.2]), (k / 5) * Math.PI * 2, 0, 0.9),
+                at(k),
+              ),
+            ),
+          ),
+        ),
+        plain(move(prism(8, 0.1, 0.12), [0, -0.12, 0]), mix(p.leaf, p.ear, 0.5), "waxy"),
+      ];
+    }
+  }
+}
+
 // What a made thing is, when its form names no shape: its shape by how it was made.
 
 const MADE_SHAPE: Record<MadeHow, (c: ThingCtx) => SpecimenPart[]> = {
@@ -1748,7 +3197,7 @@ const MADE_SHAPE: Record<MadeHow, (c: ThingCtx) => SpecimenPart[]> = {
   cast: (c) => [head(c, box(0.5, 0.4, 0.4))],
   thrown: bowlParts,
   woven: clothBoltParts,
-  sewn: garmentParts,
+  sewn: tunicParts,
   machined: boltParts,
   carved: (c) => [haft(c, prism(6, 0.05, 1.0))],
   grown: (c) => [head(c, jitter(scale(icosphere(1), [0.5, 0.4, 0.5]), c.key, 0.15))],
@@ -1779,17 +3228,33 @@ const THINGS: readonly (readonly [readonly string[], ThingBuilder])[] = [
   [["hoe"], hoeParts],
   [["sickle"], sickleParts],
   [["spearhead", "spear point"], spearheadParts],
-  [["plough share", "share"], shareParts],
+  [["plough share", "ploughshare", "share"], shareParts],
   [["shears"], shearsParts],
   [["hammer"], hammerParts],
   [["chisel"], chiselParts],
   [["knife"], knifeParts],
+  [["saw"], sawParts],
+  [["awl", "borer"], awlParts],
+  [["scraper"], scraperParts],
+  [["blade"], stoneBladeParts],
   [["storage jar"], storageParts],
   [["cooking pot"], cookingParts],
   [["jug"], jugParts],
   [["bowl"], bowlParts],
   [["pot", "jar", "vessel"], storageParts],
-  [["tunic", "shirt", "coat", "cloak", "dress", "gown", "garment"], garmentParts],
+  [["tunic", "garment"], tunicParts],
+  [["shirt"], shirtParts],
+  [["gown"], (c) => gownParts(c, true)],
+  [["dress"], (c) => gownParts(c, false)],
+  [["trousers", "breeches"], trousersParts],
+  [["cloak", "cape"], cloakParts],
+  [["coat"], coatParts],
+  [["cuirass", "breastplate"], cuirassParts],
+  [["hat"], hatParts],
+  [["cap", "hood"], capParts],
+  [["boot"], bootParts],
+  [["shoe"], shoeParts],
+  [["sandal"], sandalParts],
   [["cloth", "bolt", "length"], clothBoltParts],
   [["shaft", "axle"], shaftParts],
   [["piston"], pistonParts],
@@ -1797,6 +3262,26 @@ const THINGS: readonly (readonly [readonly string[], ThingBuilder])[] = [
   [["gear", "cog"], gearParts],
   [["wheel"], wheelParts],
   [["casting", "block", "frame"], castingParts],
+  [["motor car"], motorCarParts],
+  [["armoured car"], armouredCarParts],
+  [["locomotive"], locomotiveParts],
+  [["steam engine"], steamEngineParts],
+  [["marine engine"], marineEngineParts],
+  [["power loom"], powerLoomParts],
+  [["clock"], clockParts],
+  [["dynamo"], dynamoParts],
+  [["water wheel"], waterWheelParts],
+  [["sun engine"], sunEngineParts],
+  [["aeroplane"], aeroplaneParts],
+  [["telegraph key"], telegraphKeyParts],
+  [["telephone"], telephoneParts],
+  [["radio set"], radioSetParts],
+  [["computer"], computerParts],
+  [["phone"], phoneParts],
+  [["thinking machine"], thinkingMachineParts],
+  [["made body"], madeBodyParts],
+  [["shield"], shieldParts],
+  [["helmet"], helmetParts],
 ];
 
 /** A form's whole name, when the table names it outright (a later row wins a shared name: the machine's bolt). */
@@ -1845,7 +3330,7 @@ function treat(c: ThingCtx, parts: SpecimenPart[]): SpecimenPart[] {
 }
 
 /** A made thing (Phase 54 M223): its shape by its form, drawn as it was made of its stuff, worn as it is. */
-function thingParts(p: Extract<Portrait, { kind: "thing" }>): SpecimenPart[] {
+function thingParts(p: Extract<Portrait, { kind: "thing" }>, fine: boolean): SpecimenPart[] {
   const worn = Math.min(1, Math.max(0, p.worn)),
     grey =
       (p.lustre === "metallic" || p.lustre === "submetallic") &&
@@ -1861,16 +3346,28 @@ function thingParts(p: Extract<Portrait, { kind: "thing" }>): SpecimenPart[] {
     quality: p.quality,
     made: p.made,
     key: p.key >>> 0,
+    fine,
   };
-  const build = shapeOf(p.form) ?? MADE_SHAPE[p.made];
-  return treat(c, build(c));
+  const build = shapeOf(p.form) ?? MADE_SHAPE[p.made],
+    parts = treat(c, build(c));
+  if (fine) return finish(c, parts);
+  // (A slender tool in a small picture is drawn broader across than it is, as an icon is, or it is a line two pixels wide.)
+  return SLENDER.has(p.form)
+    ? parts.map((q) => ({ ...q, mesh: scale(q.mesh, [1.6, 1, 1.6]) }))
+    : parts;
+}
+
+/** Whether a form names a shape of its own (else it is drawn by how it was made). */
+export function hasShape(form: string): boolean {
+  return !!shapeOf(form);
 }
 
 /**
- * The parts of a specimen, as they stand in their own frames (a matter, an element or a made thing);
- * [] for any other kind of portrait. The same portrait always gives the same parts.
+ * The parts of a specimen, as they stand in their own frames (a matter, an element, a made thing or a plant);
+ * [] for any other kind of portrait. The same portrait always gives the same parts. At the fine level (a picture
+ * drawn large, looked at) a made thing has its finer parts and its surface's marks; a thumbnail never does.
  */
-export function specimenParts(p: Portrait): SpecimenPart[] {
+export function specimenParts(p: Portrait, fine = false): SpecimenPart[] {
   let parts: SpecimenPart[];
   switch (p.kind) {
     case "matter":
@@ -1880,12 +3377,440 @@ export function specimenParts(p: Portrait): SpecimenPart[] {
       parts = elementParts(p);
       break;
     case "thing":
-      parts = thingParts(p);
+      parts = thingParts(p, fine);
+      break;
+    case "plant":
+      parts = plantParts(p);
       break;
     default:
       return [];
   }
   return parts.filter((q) => q.mesh.f.length > 0);
+}
+
+// ---- The fine level (asked 2026-11-12: "i want more generative detail ... lightweight when running the game it just appreciate detail
+// when i look for it") ----------------------------------------------------------------------------------------------------------------
+//
+// Drawn only in the large view, never in a thumbnail: the lines a surface shows of how it was made, read off each face's own shape. A
+// woven cloth's weave and its seams' stitching; leather's stitching and creases; a haft's grain; a forged head's hammer marks and a cast
+// one's parting seam; a machined one's tool lines and the rivets along its plates; a knapped stone's flake scars; a thrown pot's rings;
+// a blade's honed bevel; and wear by its quality. Nothing is kept but the parts a picture is drawn from while it is open.
+
+/** How a face's surface shows how it was made, at the fine level. */
+const SURFACE_OF: Readonly<Record<MadeHow, Surface>> = {
+  knapped: "knapped",
+  forged: "forged",
+  cast: "cast",
+  machined: "machined",
+  thrown: "thrown",
+  woven: "weave",
+  sewn: "leather",
+  carved: "wood",
+  grown: "none",
+};
+
+/** A face laid flat: its middle, its two axes in its plane (u along its longest edge), its normal, its corners in (u, v), its area. */
+type Frame = {
+  readonly o: V3;
+  readonly u: V3;
+  readonly v: V3;
+  readonly n: V3;
+  readonly uv: readonly (readonly [number, number])[];
+  readonly area: number;
+};
+
+function frameOf(mesh: Mesh, face: readonly number[], along?: V3): Frame | null {
+  const nw = newell(mesh, face),
+    len = Math.hypot(nw[0], nw[1], nw[2]);
+  if (len < 1e-12) return null;
+  const n = scl(nw, 1 / len),
+    o = centroid(mesh, face);
+  let u: V3 = [1, 0, 0],
+    best = -1;
+  if (along) {
+    // (A direction asked for, laid into the face's plane: a pot's rings run round it.)
+    const t = sub(along, scl(n, dot(along, n))),
+      l = Math.hypot(t[0], t[1], t[2]);
+    if (l > 1e-6) {
+      u = scl(t, 1 / l);
+      best = 1;
+    }
+  }
+  if (best < 0)
+    for (let i = 0; i < face.length; i++) {
+      const d = sub(mesh.v[face[(i + 1) % face.length]!]!, mesh.v[face[i]!]!),
+        l = Math.hypot(d[0], d[1], d[2]);
+      if (l > best) {
+        best = l;
+        u = scl(d, 1 / Math.max(1e-12, l));
+      }
+    }
+  const v = cross(n, u),
+    uv = face.map((i): [number, number] => {
+      const d = sub(mesh.v[i]!, o);
+      return [dot(d, u), dot(d, v)];
+    });
+  return { o, u, v, n, uv, area: len / 2 };
+}
+
+const fromUV = (f: Frame, a: number, b: number): V3 => add(f.o, add(scl(f.u, a), scl(f.v, b)));
+
+/** Lines across a face, `count` of them evenly, each parallel to its u axis (or its v), clipped to it, `margin` short of its edges. */
+function linesAcross(f: Frame, count: number, alongV: boolean, margin = 0): V3[][] {
+  const pts = f.uv.map(([a, b]): readonly [number, number] => (alongV ? [b, a] : [a, b]));
+  let lo = Infinity,
+    hi = -Infinity;
+  for (const p of pts) {
+    lo = Math.min(lo, p[1]);
+    hi = Math.max(hi, p[1]);
+  }
+  const out: V3[][] = [];
+  for (let k = 0; k < count; k++) {
+    const b = lo + ((hi - lo) * (k + 0.5)) / count;
+    let a0 = Infinity,
+      a1 = -Infinity;
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i]!,
+        q = pts[(i + 1) % pts.length]!;
+      if ((p[1] - b) * (q[1] - b) > 0 || p[1] === q[1]) continue;
+      const a = p[0] + ((q[0] - p[0]) * (b - p[1])) / (q[1] - p[1]);
+      a0 = Math.min(a0, a);
+      a1 = Math.max(a1, a);
+    }
+    a0 += margin;
+    a1 -= margin;
+    if (!(a1 > a0)) continue;
+    out.push(alongV ? [fromUV(f, b, a0), fromUV(f, b, a1)] : [fromUV(f, a0, b), fromUV(f, a1, b)]);
+  }
+  return out;
+}
+
+/** A face's outline drawn in toward its middle (k of the way out): a seam's line, a bevel's, a flake scar's ring. */
+const insetLoop = (f: Frame, k: number): V3[] => f.uv.map(([a, b]) => fromUV(f, a * k, b * k));
+
+/** A keyed point inside a face (its corners' fan, a triangle and a place in it by the key). */
+function inside(f: Frame, key: number, i: number): [number, number] {
+  const n = f.uv.length,
+    t = Math.min(n - 3, Math.floor(hash(key, i) * (n - 2))),
+    p = f.uv[0]!,
+    q = f.uv[t + 1]!,
+    r = f.uv[t + 2]!;
+  let s = hash(key, i + 101),
+    w = hash(key, i + 202);
+  if (s + w > 1) {
+    s = 1 - s;
+    w = 1 - w;
+  }
+  // (Kept off the edges: drawn toward the middle by a fifth.)
+  const a = p[0] + s * (q[0] - p[0]) + w * (r[0] - p[0]),
+    b = p[1] + s * (q[1] - p[1]) + w * (r[1] - p[1]);
+  return [a * 0.8, b * 0.8];
+}
+
+/** The faces of a part worth marking: those large enough to be seen, the largest first, at most so many. */
+function markable(mesh: Mesh, least: number, most: number): { k: number; f: Frame }[] {
+  const out: { k: number; f: Frame }[] = [];
+  mesh.f.forEach((face, k) => {
+    if (face.length < 3) return;
+    const f = frameOf(mesh, face);
+    if (f && f.area >= least) out.push({ k, f });
+  });
+  return out.sort((a, b) => b.f.area - a.f.area || a.k - b.k).slice(0, most);
+}
+
+/** The marks a part's surface shows, face by face. */
+function surfaceMarks(
+  c: ThingCtx,
+  p: SpecimenPart,
+  surface: Surface,
+  least: number,
+  S: number,
+  salt: number,
+): Mark[] {
+  const out: Mark[] = [],
+    dark = (k: number) => dim(p.color, k),
+    light = (t: number) => mix(p.color, WHITE, t),
+    faces = markable(p.mesh, least, 28),
+    key = (c.key + salt) >>> 0;
+  faces.forEach(({ k, f }, rank) => {
+    const side = Math.sqrt(f.area);
+    switch (surface) {
+      case "weave": {
+        // (On its broad panels: a weave on every small face of a fold would cost a frame and show nothing.)
+        if (rank >= 6) return;
+        const n = Math.max(2, Math.min(6, Math.round(side / (0.04 * S))));
+        out.push({
+          face: k,
+          lines: [...linesAcross(f, n, false), ...linesAcross(f, n, true)],
+          color: dark(0.7),
+          alpha: 0.22,
+          width: 0.5,
+        });
+        if (rank < 4)
+          out.push({
+            face: k,
+            lines: [insetLoop(f, 0.88)],
+            color: light(0.5),
+            alpha: 0.6,
+            width: 0.7,
+            dash: true,
+            closed: true,
+          });
+        return;
+      }
+      case "leather": {
+        if (rank < 8)
+          out.push({
+            face: k,
+            lines: [insetLoop(f, 0.84)],
+            color: light(0.55),
+            alpha: 0.75,
+            width: 0.8,
+            dash: true,
+            closed: true,
+          });
+        const creases: V3[][] = [];
+        for (let i = 0; i < 3; i++) {
+          const [a, b] = inside(f, key + k, i * 7),
+            r = side * 0.12,
+            t = hash(key + k, i * 7 + 3) * Math.PI;
+          creases.push([
+            fromUV(f, a - r * Math.cos(t), b - r * Math.sin(t)),
+            fromUV(f, a + r * Math.cos(t), b + r * Math.sin(t)),
+          ]);
+        }
+        out.push({ face: k, lines: creases, color: dark(0.7), alpha: 0.35, width: 0.6 });
+        return;
+      }
+      case "wood": {
+        // (The grain runs along the haft: a few lines down each face's length, wavering.)
+        const lines = linesAcross(f, 2, false).map(([a, b]): V3[] => {
+          const pts: V3[] = [];
+          for (let i = 0; i <= 4; i++) {
+            const t = i / 4,
+              w = (hash(key + k, i + 40) - 0.5) * 0.18 * side;
+            pts.push(add(add(scl(a!, 1 - t), scl(b!, t)), scl(f.v, w)));
+          }
+          return pts;
+        });
+        out.push({ face: k, lines, color: dark(0.6), alpha: 0.45, width: 0.6 });
+        return;
+      }
+      case "forged": {
+        // (Hammer marks: short dents, the more as the smith's work was rougher.)
+        const n = Math.max(
+            1,
+            Math.min(7, Math.round((f.area / least) * 0.5 * (1.4 - c.quality / 100))),
+          ),
+          dents: V3[][] = [];
+        for (let i = 0; i < n; i++) {
+          const [a, b] = inside(f, key + k, i * 5),
+            r = Math.min(0.035 * S, side * 0.16),
+            t = hash(key + k, i * 5 + 2) * Math.PI * 2;
+          dents.push(
+            [0, 0.8, 1.6].map((d) => fromUV(f, a + r * Math.cos(t + d), b + r * Math.sin(t + d))),
+          );
+        }
+        out.push({ face: k, lines: dents, color: dark(0.55), alpha: 0.5, width: 0.7 });
+        return;
+      }
+      case "cast": {
+        // (A pit or two of the sand it was cast in; its seam is drawn round it below.)
+        if (rank < 4) {
+          const [a, b] = inside(f, key + k, 9);
+          out.push({
+            face: k,
+            lines: [[fromUV(f, a, b)]],
+            color: dark(0.45),
+            alpha: 0.5,
+            width: 0.9,
+            dots: true,
+          });
+        }
+        return;
+      }
+      case "machined": {
+        if (rank >= 12) return;
+        out.push({
+          face: k,
+          lines: linesAcross(f, Math.max(3, Math.min(9, Math.round(side / (0.04 * S)))), false),
+          color: light(0.3),
+          alpha: 0.14,
+          width: 0.45,
+        });
+        // (Its plates riveted round their edges.)
+        if (f.area >= least * 5 && rank < 8) {
+          const ring = insetLoop(f, 0.82),
+            pts: V3[] = [],
+            step = 0.075 * S;
+          for (let i = 0; i < ring.length && pts.length < 16; i++) {
+            const a = ring[i]!,
+              b = ring[(i + 1) % ring.length]!,
+              l = Math.hypot(...sub(b, a)),
+              m = Math.max(1, Math.floor(l / step));
+            for (let j = 0; j < m && pts.length < 16; j++) pts.push(add(a, scl(sub(b, a), j / m)));
+          }
+          out.push({
+            face: k,
+            lines: [pts],
+            color: light(0.35),
+            alpha: 0.95,
+            width: 1.4,
+            dots: true,
+          });
+        }
+        return;
+      }
+      case "knapped":
+        out.push({
+          face: k,
+          lines: [insetLoop(f, 0.72), insetLoop(f, 0.42)],
+          color: dark(0.68),
+          alpha: 0.38,
+          width: 0.6,
+          closed: true,
+        });
+        return;
+      case "thrown": {
+        const g = frameOf(p.mesh, p.mesh.f[k]!, cross([0, 1, 0], f.n));
+        if (g)
+          out.push({
+            face: k,
+            lines: linesAcross(g, 2, false),
+            color: dark(0.78),
+            alpha: 0.3,
+            width: 0.6,
+          });
+        return;
+      }
+      default:
+        return;
+    }
+  });
+  return out;
+}
+
+/** Where a plane (axis `ax` at `at`) cuts a face: its two crossing points, or null. */
+function planeCut(mesh: Mesh, face: readonly number[], ax: 0 | 1 | 2, at: number): V3[] | null {
+  const hits: V3[] = [];
+  for (let i = 0; i < face.length; i++) {
+    const a = mesh.v[face[i]!]!,
+      b = mesh.v[face[(i + 1) % face.length]!]!,
+      da = a[ax] - at,
+      db = b[ax] - at;
+    if (da === db || da * db > 0) continue;
+    hits.push(add(a, scl(sub(b, a), da / (da - db))));
+  }
+  return hits.length >= 2 ? [hits[0]!, hits[1]!] : null;
+}
+
+/** Wear: scratches across a used head, the more as it was made worse and has worn. */
+function wearMarks(c: ThingCtx, p: SpecimenPart, least: number, salt: number): Mark[] {
+  const n = Math.round(((100 - c.quality) / 100) * 3 + c.worn * 8);
+  if (n <= 0) return [];
+  return markable(p.mesh, least, 3).map(({ k, f }): Mark => {
+    const lines: V3[][] = [];
+    for (let i = 0; i < n; i++) {
+      const [a, b] = inside(f, c.key + salt + k, i * 11),
+        r = Math.sqrt(f.area) * 0.2,
+        t = hash(c.key + salt + k, i * 11 + 4) * Math.PI;
+      lines.push([
+        fromUV(f, a - r * Math.cos(t), b - r * Math.sin(t)),
+        fromUV(f, a + r * Math.cos(t), b + r * Math.sin(t)),
+      ]);
+    }
+    return { face: k, lines, color: mix(p.color, WHITE, 0.5), alpha: 0.4, width: 0.5 };
+  });
+}
+
+/** Whether a point (a, b) of a face's plane lies inside its outline (a convex face; a point on its edge is in). */
+function within(f: Frame, a: number, b: number): boolean {
+  let sign = 0;
+  for (let i = 0; i < f.uv.length; i++) {
+    const p = f.uv[i]!,
+      q = f.uv[(i + 1) % f.uv.length]!,
+      c = (q[0] - p[0]) * (b - p[1]) - (q[1] - p[1]) * (a - p[0]);
+    if (Math.abs(c) < 1e-9) continue;
+    if (sign === 0) sign = Math.sign(c);
+    else if (Math.sign(c) !== sign) return false;
+  }
+  return true;
+}
+
+/**
+ * A part's free marks laid on its faces: each stroke of each line on the face it lies nearest of those turned its way, so it is drawn
+ * just after that face and hidden with it.
+ */
+function bound(p: SpecimenPart, marks: readonly Mark[]): Mark[] {
+  const frames = p.mesh.f.map((face) => (face.length >= 3 ? frameOf(p.mesh, face) : null)),
+    out: Mark[] = [];
+  for (const m of marks) {
+    if (m.face !== undefined || !m.normal) {
+      out.push(m);
+      continue;
+    }
+    const n = norm(m.normal),
+      by = new Map<number, V3[][]>();
+    for (const line of m.lines)
+      for (let i = 0; i + 1 < line.length || (i === 0 && line.length === 1); i++) {
+        const a = line[i]!,
+          b = line[Math.min(i + 1, line.length - 1)]!,
+          mid = scl(add(a, b), 0.5);
+        let best = -1,
+          score = Infinity;
+        frames.forEach((f, k) => {
+          if (!f || dot(f.n, n) < 0.3) return;
+          // (The face it lies over first: its middle inside the face's outline; else the nearest face's plane.)
+          const d = sub(mid, f.o),
+            sc =
+              Math.abs(dot(d, f.n)) +
+              (within(f, dot(d, f.u), dot(d, f.v)) ? 0 : 1 + Math.hypot(d[0], d[1], d[2]));
+          if (sc < score) {
+            score = sc;
+            best = k;
+          }
+        });
+        if (best < 0) continue;
+        by.set(best, [...(by.get(best) ?? []), a === b ? [a] : [a, b]]);
+      }
+    for (const [face, lines] of by) out.push({ ...m, face, lines });
+  }
+  return out;
+}
+
+/** The fine level's marks on each part of a made thing, by its surface (its own, else its making's: a haft is wood). */
+function finish(c: ThingCtx, parts: readonly SpecimenPart[]): SpecimenPart[] {
+  let lo: V3 = [Infinity, Infinity, Infinity],
+    hi: V3 = [-Infinity, -Infinity, -Infinity];
+  for (const p of parts)
+    for (const v of p.mesh.v) {
+      lo = [Math.min(lo[0], v[0]), Math.min(lo[1], v[1]), Math.min(lo[2], v[2])];
+      hi = [Math.max(hi[0], v[0]), Math.max(hi[1], v[1]), Math.max(hi[2], v[2])];
+    }
+  const S = Math.max(1e-6, hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]),
+    least = 0.0012 * S * S,
+    worn = c.made === "forged" || c.made === "cast" || c.made === "knapped";
+  return parts.map((p, i) => {
+    const surface: Surface =
+        p.surface ?? (p.handle ? "wood" : p.glow || p.clarity > 0.2 ? "none" : SURFACE_OF[c.made]),
+      marks = bound(p, p.marks ?? []);
+    if (surface !== "none") marks.push(...surfaceMarks(c, p, surface, least, S, 1000 + 131 * i));
+    // (Where a cast thing's mould's halves met: a seam round it at its middle, on every face it crosses.)
+    if (surface === "cast")
+      p.mesh.f.forEach((face, k) => {
+        const seam = face.length >= 3 ? planeCut(p.mesh, face, 2, 0) : null;
+        if (seam)
+          marks.push({
+            face: k,
+            lines: [seam],
+            color: mix(p.color, WHITE, 0.45),
+            alpha: 0.65,
+            width: 0.8,
+          });
+      });
+    if (worn && !p.handle && surface !== "none") marks.push(...wearMarks(c, p, least, 2000 + i));
+    return marks.length ? { ...p, marks } : p;
+  });
 }
 
 // ---- Drawing ------------------------------------------------------------------------------------
@@ -1933,9 +3858,14 @@ type Pose = { readonly turn: number; readonly tilt: number; readonly roll: numbe
 
 /** A matter and an element turn slowly; a made thing lies at an angle and turns more gently. */
 function poseOf(p: Portrait, t: number): Pose {
+  // (A machine or a vehicle stands on its wheels or its feet; a plant stands up as it grows.)
+  if (p.kind === "thing" && FLAT.has(p.form))
+    return { turn: 0.22 + Math.sin(t * 0.5) * 0.4, tilt: 0.12, roll: 0 };
+  if (p.kind === "thing" && UPRIGHT.has(p.form))
+    return { turn: 0.55 + Math.sin(t * 0.5) * 0.5, tilt: 0.3, roll: 0 };
   return p.kind === "thing"
     ? { turn: 0.3 + Math.sin(t * 0.5) * 0.5, tilt: 0.35, roll: -0.6109 }
-    : { turn: 0.6 + t * 0.35, tilt: 0.35, roll: 0 };
+    : { turn: 0.6 + t * 0.35, tilt: p.kind === "plant" ? 0.15 : 0.35, roll: 0 };
 }
 
 /** A face as it is drawn: its screen corners, its depth, its fill and edge, and what it lights. */
@@ -1949,6 +3879,10 @@ type Drawn = {
   readonly cx: number;
   readonly cy: number;
   readonly sparkle: boolean;
+  /** Its part's marks on it, at the fine level. */
+  readonly marks?: readonly Mark[];
+  /** A free mark, drawn by itself at its depth (no face). */
+  readonly free?: Mark;
 };
 
 /**
@@ -1978,6 +3912,8 @@ function paint(
     return [x * cr - y * sr, x * sr + y * cr, zz];
   };
   const views = parts.map((q) => ({ q, pts: q.mesh.v.map(view) }));
+  // (Each part's marks by the face they lie on, and the free ones, at the fine level only.)
+  const onFace = parts.map(marksByFace);
   let minX = Infinity,
     maxX = -Infinity,
     minY = Infinity,
@@ -2026,7 +3962,7 @@ function paint(
     ctx.fill();
   }
   const drawn: Drawn[] = [];
-  for (const { q, pts } of views) {
+  views.forEach(({ q, pts }, qi) => {
     const shine = SHINE[q.lustre],
       gloss = q.gloss ?? 1,
       alpha = 1 - 0.65 * q.clarity,
@@ -2089,7 +4025,9 @@ function paint(
         return;
       }
       // Metal: its diffuse dimmed, its highlight tinted toward its own colour.
-      const diffuse = q.lustre === "metallic" ? dim(base, 0.55 * shade) : dim(base, shade);
+      // (In a thumbnail a little less dimmed, so a steel head stands off a dark page.)
+      const diffuse =
+        q.lustre === "metallic" ? dim(base, (thumb ? 0.7 : 0.55) * shade) : dim(base, shade);
       const spec =
         shine.k > 0 ? Math.pow(Math.max(0, dot(nn, HALF)), shine.e) * shine.k * gloss : 0;
       const hi: Rgb = q.lustre === "metallic" ? mix(WHITE, q.color, 0.35) : WHITE,
@@ -2110,13 +4048,45 @@ function paint(
         cx,
         cy: cyS,
         sparkle: q.lustre === "adamantine",
+        // (Marks only on a face turned to the eye enough to show them.)
+        ...(nn[2] > 0.12 && onFace[qi]?.has(fi) ? { marks: onFace[qi]!.get(fi)! } : {}),
       });
     });
-  }
+    for (const m of q.marks ?? []) {
+      if (m.face !== undefined) continue;
+      if (m.normal && view(m.normal)[2] <= 0.05) continue;
+      let z = 0,
+        n = 0;
+      for (const line of m.lines)
+        for (const p of line) {
+          z += view(p)[2];
+          n++;
+        }
+      drawn.push({
+        pts: [],
+        depth: n ? z / n + 1e-3 : 0,
+        fill: "",
+        edge: null,
+        glow: false,
+        spec: 0,
+        cx: 0,
+        cy: 0,
+        sparkle: false,
+        free: m,
+      });
+    }
+  });
   // Back to front: the faces furthest from the eye first.
   drawn.sort((a, b) => a.depth - b.depth);
   ctx.lineJoin = "round";
+  // (A mark's width, against a picture 300 px across.)
+  const sc = Math.max(0.6, Math.min(box.w, box.h) / 300),
+    project = (p: V3) => at(view(p));
   for (const f of drawn) {
+    if (f.free) {
+      strokeMarks(ctx, [f.free], project, sc);
+      continue;
+    }
     ctx.beginPath();
     f.pts.forEach(([x, y], i) => {
       if (i) ctx.lineTo(x, y);
@@ -2132,6 +4102,7 @@ function paint(
       ctx.lineWidth = 1;
       ctx.stroke();
     }
+    if (f.marks) strokeMarks(ctx, f.marks, project, sc);
   }
   // An adamantine's sparkle: a small white four-point star on its brightest face.
   if (!thumb) {
@@ -2211,15 +4182,98 @@ function closeOn(
   };
 }
 
-/** A specimen drawn into the box of a context (CSS pixels) as it stands at `t` seconds. */
+/** A part's marks by the face they lie on, once a part (kept while its picture is drawn). */
+const BY_FACE = new WeakMap<SpecimenPart, Map<number, Mark[]>>();
+function marksByFace(q: SpecimenPart): Map<number, Mark[]> | null {
+  if (!q.marks) return null;
+  let m = BY_FACE.get(q);
+  if (!m) {
+    m = new Map();
+    for (const k of q.marks)
+      if (k.face !== undefined) {
+        const had = m.get(k.face);
+        if (had) had.push(k);
+        else m.set(k.face, [k]);
+      }
+    BY_FACE.set(q, m);
+  }
+  return m;
+}
+
+/** Marks stroked (or dotted) as their part's face is drawn, each in its colour, width and dash. */
+function strokeMarks(
+  ctx: CanvasRenderingContext2D,
+  marks: readonly Mark[],
+  project: (p: V3) => [number, number],
+  sc: number,
+): void {
+  for (const m of marks) {
+    ctx.beginPath();
+    if (m.dots) {
+      const r = Math.max(0.6, m.width * sc);
+      for (const line of m.lines)
+        for (const p of line) {
+          const [x, y] = project(p);
+          ctx.moveTo(x + r, y);
+          ctx.arc(x, y, r, 0, Math.PI * 2);
+        }
+      ctx.globalAlpha = m.alpha;
+      ctx.fillStyle = css(m.color);
+      ctx.fill();
+      ctx.lineWidth = Math.max(0.5, 0.35 * sc);
+      ctx.strokeStyle = css(m.color, 0.45);
+      ctx.stroke();
+      continue;
+    }
+    for (const line of m.lines)
+      line.forEach((p, i) => {
+        const [x, y] = project(p);
+        if (i) ctx.lineTo(x, y);
+        else ctx.moveTo(x, y);
+        if (m.closed && i === line.length - 1) ctx.closePath();
+      });
+    ctx.globalAlpha = m.alpha;
+    ctx.strokeStyle = css(m.color);
+    ctx.lineWidth = Math.max(0.5, m.width * sc);
+    if (m.dash) ctx.setLineDash([2.4 * sc, 2 * sc]);
+    ctx.stroke();
+    if (m.dash) ctx.setLineDash([]);
+  }
+  ctx.globalAlpha = 1;
+}
+
+/** A picture at least this many CSS pixels across is drawn at the fine level, unless asked otherwise. */
+export const FINE_FROM = 120;
+
+/** The parts of a portrait being drawn, at each level: kept by the portrait while it is drawn (its window open), let go with it. */
+const PARTS = new WeakMap<object, { fine?: SpecimenPart[]; coarse?: SpecimenPart[] }>();
+function partsOf(p: Portrait, fine: boolean): SpecimenPart[] {
+  let e = PARTS.get(p);
+  if (!e) PARTS.set(p, (e = {}));
+  return fine ? (e.fine ??= specimenParts(p, true)) : (e.coarse ??= specimenParts(p, false));
+}
+
+/**
+ * A specimen drawn into the box of a context (CSS pixels) as it stands at `t` seconds: at the fine level where the box is large (or
+ * where asked), else as a thumbnail's parts.
+ */
 export function drawSpecimen(
   ctx: CanvasRenderingContext2D,
   p: Portrait,
   box: { x: number; y: number; w: number; h: number },
   t: number,
+  detail?: "fine" | "coarse",
 ): void {
-  const parts = specimenParts(p);
+  const fine = detail ? detail === "fine" : Math.min(box.w, box.h) >= FINE_FROM,
+    parts = partsOf(p, fine);
   if (parts.length) paint(ctx, parts, poseOf(p, t), box, t, false);
+}
+
+/** How a thumbnail looks at a specimen: a three-quarter view, a garment nearly face on. */
+function thumbPose(p: Portrait): Pose {
+  return p.kind === "thing" && FLAT.has(p.form)
+    ? { ...poseOf(p, 0), turn: 0.22, tilt: 0.12 }
+    : { ...poseOf(p, 0), turn: 0.6, tilt: 0.35 };
 }
 
 /** Thumbnails made so far, by portrait, size and pixel ratio: the oldest dropped past 400. */
@@ -2241,15 +4295,7 @@ export function drawThumb(canvas: HTMLCanvasElement, p: Portrait, size: number):
     const g = pic.getContext("2d")!;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     const parts = specimenParts(p);
-    if (parts.length)
-      paint(
-        g,
-        parts,
-        { ...poseOf(p, 0), turn: 0.6, tilt: 0.35 },
-        { x: 0, y: 0, w: size, h: size },
-        0,
-        true,
-      );
+    if (parts.length) paint(g, parts, thumbPose(p), { x: 0, y: 0, w: size, h: size }, 0, true);
     if (THUMBS.size >= THUMB_MAX) THUMBS.delete(THUMBS.keys().next().value!);
     THUMBS.set(key, pic);
   }

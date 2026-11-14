@@ -156,6 +156,8 @@ const RULES: Readonly<Record<string, readonly [number, number]>> = {
   "court.heir": [PEOPLE, 1],
   "court.bought": [PEOPLE, 2],
   "reign.wed": [PEOPLE, 3],
+  // (The god's hand through one it entered, 2026-11-13: what no one else could have done, told high.)
+  "reign.god": [PEOPLE, 5],
   "order.abolished": [PEOPLE, 5],
   "order.freed": [PEOPLE, 6],
   "order.revolt": [PEOPLE, 3],
@@ -889,6 +891,15 @@ function tellYear(world: World, year: number, events: readonly HistoryEvent[], w
       },
     });
   }
+  // The god's hand through one it entered (2026-11-13): each thing it did on a line of its own, never folded.
+  for (const e of take("reign.god"))
+    add({
+      kind: PEOPLE,
+      worth: RULES["reign.god"]![1],
+      ref: e.id,
+      key: `${e.type}:${e.id}`,
+      say: () => lineOf(world, e, year),
+    });
   // A rising crushed the year it rose: the crushing says it rose.
   if (types.has("order.crushed")) types.delete("order.revolt");
   // The rest: one line a kind, its greatest, and how many more.

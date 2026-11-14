@@ -9,6 +9,19 @@ import { InstancedBatch } from "./batch.ts";
 import { billboard, glowMaterial } from "./glow.ts";
 import type { Stage } from "./stage.ts";
 
+/**
+ * The star map by level of detail (C2, the stars' size: a large sky holds some four times the stars): a star whose ball
+ * stands under some 7 pixels across on the screen is drawn as a ball of a few faces, its facets too small to see; one
+ * nearer the eye, as round as ever. A star's size over its distance from the eye past this share is near.
+ */
+const NEAR_SHARE = 1 / 150;
+/** The largest a star is drawn (scene units), so that an eye this far past every star knows them all far. */
+const MOST_SIZE = 0.26;
+/** How far the eye goes (scene units) before the stars are sorted near and far again. */
+const LOD_STEP = 0.75;
+/** How far the eye turns (radians) before the stars' glows are turned to it again: half a degree, a turn no one sees. */
+const GLOW_TURN = 0.009;
+
 export class ClusterScene {
   private readonly stage: Stage;
   private readonly root = new pc.Entity("cluster");
@@ -32,11 +45,31 @@ export class ClusterScene {
   private readonly rings: pc.Entity[] = [];
   private readonly fleets: pc.Entity[] = [];
   private readonly battles: pc.Entity[] = [];
-  /** Each star's glow, a disc turned to the camera every frame, one batch per colour. */
+  /**
+   * Each star's glow, a disc facing the eye, one batch per colour: all turned as the eye is (the view's own plane, a
+   * round glow the same either way), and only when it has turned, so a still or slow eye sends nothing.
+   */
   private glows: {
     batch: InstancedBatch;
     stars: readonly { x: number; y: number; z: number; size: number }[];
   }[] = [];
+  /** The way the glows were last turned (yaw, pitch; null: to be turned), and whether they are shown. */
+  private glowTurn: [number, number] | null = null;
+  private glowsOn = false;
+  /** Each colour's stars as balls: those near the eye round, the rest of a few faces (level of detail). */
+  private lod: {
+    stars: readonly { x: number; y: number; z: number; size: number }[];
+    near: InstancedBatch;
+    far: InstancedBatch;
+  }[] = [];
+  /** Where the eye was when the stars were last sorted (null: to be sorted), and whether every star was far. */
+  private lodAt: pc.Vec3 | null = null;
+  private lodAllFar = false;
+  /** The cluster's reach from home, in scene units. */
+  private reach = 0;
+  /** How many stars are drawn round and how many of a few faces (a gate reads it). */
+  private lodShown = { near: 0, far: 0 };
+  private readonly ball: pc.Mesh;
   private readonly disc: pc.Mesh;
   private scarGlow: pc.Material | null = null;
   private readonly scarMarks: { glow: pc.Entity; ring: pc.Entity }[] = [];
@@ -94,6 +127,11 @@ export class ClusterScene {
       stage.device,
       new pc.PlaneGeometry({ halfExtents: new pc.Vec2(1, 1) }),
     );
+    // (A far star's ball: a quarter of the faces, at a few pixels the same dot.)
+    this.ball = pc.Mesh.fromGeometry(
+      stage.device,
+      new pc.SphereGeometry({ radius: 1, latitudeBands: 3, longitudeBands: 4 }),
+    );
     const cam = new pc.Vec3();
     let clock = 0;
     stage.onUpdate((dt) => {
@@ -111,7 +149,7 @@ export class ClusterScene {
       }
     });
     stage.onUpdate(() => {
-      if (!this.root.enabled || !this.glows.length) return;
+      if (!this.root.enabled || !this.lod.length) return;
       cam.copy(stage.camera.getPosition());
       for (const t of this.holdBatches.values())
         t.batch.set(t.stars.length, (i, out) => {
@@ -141,22 +179,111 @@ export class ClusterScene {
           out[6] = Math.atan2(dx, dz);
           out[7] = Math.acos(Math.max(-1, Math.min(1, dy / len)));
         });
-      for (const g of this.glows)
-        g.batch.set(stage.quality.glows ? g.stars.length : 0, (i, out) => {
-          const s = g.stars[i]!,
-            dx = cam.x - s.x,
-            dy = cam.y - s.y,
-            dz = cam.z - s.z,
-            len = Math.hypot(dx, dy, dz) || 1;
+      this.sortStars(cam);
+      this.turnGlows();
+    });
+  }
+
+  /** The stars sorted near the eye and far from it, once the eye has gone far enough since they last were. */
+  private sortStars(cam: pc.Vec3): void {
+    if (this.lodAt && this.lodAt.distance(cam) < LOD_STEP) return;
+    // (An eye past every star by more than the nearest a star is ever near: all far, as they were.)
+    const allFar = cam.length() - this.reach > MOST_SIZE / NEAR_SHARE;
+    if (allFar && this.lodAllFar && this.lodAt) {
+      this.lodAt.copy(cam);
+      return;
+    }
+    this.lodAt = (this.lodAt ?? new pc.Vec3()).copy(cam);
+    this.lodAllFar = allFar;
+    let near = 0,
+      far = 0;
+    for (const g of this.lod) {
+      const close: (typeof g.stars)[number][] = [],
+        rest: (typeof g.stars)[number][] = [];
+      for (const s of g.stars)
+        if (!allFar && s.size > NEAR_SHARE * Math.hypot(cam.x - s.x, cam.y - s.y, cam.z - s.z))
+          close.push(s);
+        else rest.push(s);
+      const put = (b: InstancedBatch, list: typeof close) =>
+        b.set(list.length, (i, out) => {
+          const s = list[i]!;
           out[0] = s.x;
           out[1] = s.y;
           out[2] = s.z;
-          out[3] = out[4] = out[5] = s.size * 5;
-          // The disc's face (+y) turned to the camera: tipped, then turned.
-          out[6] = Math.atan2(dx, dz);
-          out[7] = Math.acos(Math.max(-1, Math.min(1, dy / len)));
+          out[3] = out[4] = out[5] = s.size;
+          out[6] = 0;
         });
-    });
+      put(g.near, close);
+      put(g.far, rest);
+      near += close.length;
+      far += rest.length;
+    }
+    this.lodShown = { near, far };
+  }
+
+  /** The stars' glows turned to the eye: all as one, to the view's plane, and only once it has turned enough to see. */
+  private turnGlows(): void {
+    if (!this.stage.quality.glows) {
+      if (this.glowsOn) for (const g of this.glows) g.batch.set(0, () => {});
+      this.glowsOn = false;
+      this.glowTurn = null;
+      return;
+    }
+    // (From a star to the eye: back along the way the eye looks.)
+    const f = this.stage.camera.forward,
+      yaw = Math.atan2(-f.x, -f.z),
+      pitch = Math.acos(Math.max(-1, Math.min(1, -f.y))),
+      last = this.glowTurn;
+    if (
+      this.glowsOn &&
+      last &&
+      Math.abs(pitch - last[1]) < GLOW_TURN &&
+      Math.abs(Math.atan2(Math.sin(yaw - last[0]), Math.cos(yaw - last[0]))) * Math.sin(pitch) <
+        GLOW_TURN
+    )
+      return;
+    this.glowTurn = [yaw, pitch];
+    this.glowsOn = true;
+    // The disc's face (+y) turned to the eye, tipped then turned as InstancedBatch.set lays a turn: once for all.
+    const c = Math.cos(yaw),
+      sn = Math.sin(yaw),
+      cp = Math.cos(pitch),
+      sp = Math.sin(pitch);
+    for (const g of this.glows)
+      g.batch.setMatrices(g.stars.length, (m) => {
+        for (let i = 0; i < g.stars.length; i++) {
+          const s = g.stars[i]!,
+            r = s.size * 5,
+            o = i * 16;
+          m[o] = c * r;
+          m[o + 1] = 0;
+          m[o + 2] = -sn * r;
+          m[o + 3] = 0;
+          m[o + 4] = sn * sp * r;
+          m[o + 5] = cp * r;
+          m[o + 6] = c * sp * r;
+          m[o + 7] = 0;
+          m[o + 8] = sn * cp * r;
+          m[o + 9] = -sp * r;
+          m[o + 10] = c * cp * r;
+          m[o + 11] = 0;
+          m[o + 12] = s.x;
+          m[o + 13] = s.y;
+          m[o + 14] = s.z;
+          m[o + 15] = 1;
+        }
+      });
+  }
+
+  /** What the star map draws now (a gate reads it): its stars, round and of a few faces, and their glows. */
+  drawn(): { stars: number; near: number; far: number; glows: number } {
+    const { near, far } = this.lodShown;
+    return {
+      stars: near + far,
+      near,
+      far,
+      glows: this.glowsOn ? this.glows.reduce((n, g) => n + g.stars.length, 0) : 0,
+    };
   }
 
   /** The stars with a world unmade, marked from then on (W6): a dark red ring and a smoulder about each. */
@@ -316,19 +443,38 @@ export class ClusterScene {
   build(plan: ClusterPlan): void {
     for (const b of this.batches) b.destroy();
     for (const g of this.glows) g.batch.destroy();
+    for (const g of this.lod) {
+      g.near.destroy();
+      g.far.destroy();
+    }
     this.batches = [];
     this.glows = [];
+    this.lod = [];
     this.points = [];
+    this.reach = plan.radius * LY_SCALE;
+    this.lodAt = this.glowTurn = null;
+    this.glowsOn = false;
+    this.lodShown = { near: 0, far: 0 };
     for (const group of clusterSpec(plan)) {
-      const batch = new InstancedBatch(
-        this.stage,
-        this.sphere,
-        group.color,
-        group.stars.length,
-        this.root,
-        glow(group.color),
-      );
-      batch.set(group.stars.length, (i, out) => {
+      // (Near and far in one material, sorted as the eye goes: until the first frame, every star far.)
+      const material = glow(group.color),
+        near = new InstancedBatch(
+          this.stage,
+          this.sphere,
+          group.color,
+          group.stars.length,
+          this.root,
+          material,
+        ),
+        far = new InstancedBatch(
+          this.stage,
+          this.ball,
+          group.color,
+          group.stars.length,
+          this.root,
+          material,
+        );
+      far.set(group.stars.length, (i, out) => {
         const s = group.stars[i]!;
         out[0] = s.x;
         out[1] = s.y;
@@ -336,7 +482,7 @@ export class ClusterScene {
         out[3] = out[4] = out[5] = s.size;
         out[6] = 0;
       });
-      this.batches.push(batch);
+      this.lod.push({ stars: group.stars, near, far });
       for (const s of group.stars) this.points.push(s);
       // Its glow in its own light.
       const [r, gr, b] = group.color.map((c) => Math.round(255 * c));

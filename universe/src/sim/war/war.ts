@@ -9,6 +9,7 @@
 // The fallen are written into the ledgers of deaths. A land won changes hands; its
 // people's grievance may raise it in rebellion back to the realm it was taken from.
 // Weariness brings peace, and the war is remembered in the realms' regard.
+import { godFall, godMen, godPower } from "./godhost.ts";
 import {
   YEAR,
   defineEventType,
@@ -842,6 +843,11 @@ export function fieldedOf(ctx: PopulationContext, p: Polity): number {
   return fightingMen(ctx, p) * fieldShare(ctx, p);
 }
 
+/** Every man in a realm's host, as its pages count it: those it fields of its own lands, and those the god stood up for it. */
+export function hostOf(ctx: PopulationContext, p: Polity): number {
+  return fieldedOf(ctx, p) + godMen(ctx.world, p.ref);
+}
+
 /**
  * What the host a realm fields is made of (the strength lens's breakdown, Phase 12 M108): its
  * fighting men, the share of them it fields, its people's valour, whether it keeps a standing army.
@@ -864,8 +870,11 @@ export function strengthOf(ctx: PopulationContext, p: Polity): number {
     // What its host fights with: its design (realized now, if the realm is newer than it), as
     // its seat makes it and as much of it as the host bears (Phase 52 M217: sim/war/arms.ts),
     // borne by bodies as strong as they are.
-    arms = armsOf(ctx, p).power * ctx.affords.strength;
-  return fightingMen(ctx, p) * share * arms;
+    arms = armsOf(ctx, p).power * ctx.affords.strength,
+    own = fightingMen(ctx, p) * share * arms,
+    // (And the men the god stood up for it, as they are armed: none for nearly every realm, godhost.ts.)
+    god = godPower(ctx.world, p.ref);
+  return god ? own + god * ctx.affords.strength : own;
 }
 
 /** The border lands of `b` next to `a`, richest in food first. */
@@ -1520,9 +1529,12 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     // struck the share the blow and the care kill (D5: losses.ts, rules/wounds.ts).
     const levyA = levyOf(ctx, a, Math.round(fieldedOf(ctx, a)), year),
       levyB = levyOf(ctx, b, Math.round(fieldedOf(ctx, b)), year),
+      // (Beside them the men the god stood up for either side, where it did: godhost.ts.)
+      godA = godMen(world, a.ref),
+      godB = godMen(world, b.ref),
       fielded: [number, number] = [
-        levyA.sent.reduce((n, x) => n + x, 0),
-        levyB.sent.reduce((n, x) => n + x, 0),
+        levyA.sent.reduce((n, x) => n + x, 0) + godA,
+        levyB.sent.reduce((n, x) => n + x, 0) + godB,
       ],
       termsA = hostTerms(ctx, a, armsA),
       termsB = hostTerms(ctx, b, armsB),
@@ -1544,11 +1556,16 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       ),
       tip = won !== even.won,
       tipped = tip ? designsOf(world).of((won ? a : b).ref)?.event : undefined,
-      [deadA, deadB] = resolved.dead,
+      [allA, allB] = resolved.dead,
+      // (Of the fallen, the god's men by their share of the field: struck from them, not from the lands.)
+      godFellA = godA ? godFall(world, a.ref, fielded[0], allA) : 0,
+      godFellB = godB ? godFall(world, b.ref, fielded[1], allB) : 0,
+      deadA = allA - godFellA,
+      deadB = allB - godFellB,
       takesA = fallAll(ctx, levyA, deadA, t, key * 2),
       takesB = fallAll(ctx, levyB, deadB, t, key * 2 + 1),
-      fa = takesA.reduce((n, x) => n + x[2], 0),
-      fb = takesB.reduce((n, x) => n + x[2], 0);
+      fa = takesA.reduce((n, x) => n + x[2], 0) + godFellA,
+      fb = takesB.reduce((n, x) => n + x[2], 0) + godFellB;
     w.fallen = [w.fallen[0] + fa, w.fallen[1] + fb];
     const record = battleRecord(ctx, [
       { terms: termsA, field: fieldOf(fielded[0], fa), fallen: fa, takes: takesA },

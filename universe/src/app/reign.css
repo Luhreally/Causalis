@@ -1,7 +1,21 @@
 /* A ruler ruled by the god's hand (Lives L4): the bar above and the tray below take only their own touches; the world
    goes on in the middle; every control a finger's size; within the phone's safe areas. */
-body.ruling #hud > *:not(.reign-hud):not(.page-window):not(.panel.page-panel):not(.home-hud) {
+body.ruling:not(.godpalette)
+  #hud
+  > *:not(.reign-hud):not(.page-window):not(.panel.page-panel):not(.home-hud) {
   display: none !important;
+}
+/* (With the god in them, the god's own palette and brushes over the realm: the ruler's tray waits till they shut.
+   2026-11-13.) */
+body.ruling.godpalette
+  #hud
+  > *:not(.reign-hud):not(.page-window):not(.panel.page-panel):not(.home-hud):not(.palette):not(
+    .palette-toggle
+  ):not(.brush-toggle):not(.brush-panel) {
+  display: none !important;
+}
+body.godpalette .reign-hud :is(.reign-tray, .reign-sheet, .reign-told, .reign-window) {
+  visibility: hidden;
 }
 #hud > .reign-hud {
   position: absolute;
@@ -122,6 +136,16 @@ body.ruling #hud > *:not(.reign-hud):not(.page-window):not(.panel.page-panel):no
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
 }
+/* (Under a page the bar keeps its line and its chips, and stands above the page: the page's top is read from
+   the bar's foot, and the rivals' bars wait till it shuts. 2026-11-13: the bar lay over a realm's page.) */
+.reign-hud.under-page .reign-bars {
+  display: none;
+}
+@media (max-width: 640px) {
+  body:is(.ruling, .living) .page-panel .page-window {
+    max-height: min(55%, calc(100% - var(--bar-bottom, 72px) - 16px - var(--safe-bottom, 0px)));
+  }
+}
 .reign-hud.under-page .reign-sheet,
 .reign-hud.under-page .reign-window,
 .reign-hud.under-page .reign-tray,
@@ -174,4 +198,112 @@ body.ruling #hud > *:not(.reign-hud):not(.page-window):not(.panel.page-panel):no
 }
 .leader-rule {
   min-height: 44px;
+}
+/* As a mortal, or the god in them (2026-11-13): a switch on the bar that says which, and a glow on the bar while the god is. */
+.reign-hud .reign-channel {
+  flex: 0 0 auto;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.reign-hud .reign-channel[data-on="1"] {
+  color: #201400;
+  background: linear-gradient(180deg, #fff3c4 0%, #ffd98a 60%, #f0b84a 100%);
+}
+.reign-strip.channelled {
+  box-shadow:
+    inset 0 0 0 2px #ffd98a,
+    0 0 14px rgba(255, 217, 138, 0.55);
+}
+.reign-hud .reign-back,
+.reign-hud .reign-plot {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 3px;
+  text-align: left;
+}
+.reign-hud .reign-back.behind {
+  border-color: #8fd18f;
+}
+/* (A word on the tray is never broken in two: with eight to the tray, they are set a little smaller. 2026-11-13: "Decre es".) */
+.reign-tray .reign-act .life-label {
+  overflow-wrap: normal;
+  word-break: keep-all;
+}
+.reign-tray:has(> .reign-bound:not([hidden])) .reign-act .life-label {
+  font-size: 11px;
+}
+.reign-tray .reign-act {
+  padding-left: 1px;
+  padding-right: 1px;
+}
+/* (At a desk's width the bar is the taller, its readings and rivals under the name: a sheet or a window stands between
+   the bar's foot and the tray, the tray's buttons to hand, and the day's line waits under it. 2026-11-13: the sheet lay
+   over the tray and the bar's foot.) */
+@media (min-width: 641px) {
+  .reign-hud > :is(.reign-sheet, .reign-window) {
+    box-sizing: border-box;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 86px);
+    max-height: calc(100dvh - var(--bar-bottom, 330px) - 98px - env(safe-area-inset-bottom, 0px));
+  }
+  .reign-hud:has(> :is(.reign-sheet, .reign-window):not([hidden])) > .reign-told {
+    visibility: hidden;
+  }
+}
+/* (The god's hand through them: whom it is aimed at, a row of realms; what it can do, a finger's size each.) */
+.reign-aims {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+.reign-hud .reign-aim {
+  flex: 0 0 auto;
+  width: auto;
+  margin: 0;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 10px;
+}
+.reign-hud .reign-aim.on {
+  outline: 2px solid #ffd98a;
+  color: #3a2a00;
+  background: linear-gradient(180deg, #fff3cf 0%, #ffd98a 50%, #f2c060 100%);
+}
+.reign-hud :is(.reign-god, .reign-palette) {
+  width: 100%;
+  min-height: 44px;
+}
+.reign-hud .reign-palette {
+  margin-top: 6px;
+}
+/* How much the god's hand does (2026-11-13): a slider over the acts it moves, as the palette's strength is, a finger's height. */
+.reign-hud .reign-amount {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 2px;
+  font-size: 12px;
+}
+.reign-hud .reign-amount input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 44px;
+  margin: 0;
+  accent-color: #d5ff72;
+}
+.reign-hud .reign-amount-label {
+  flex: none;
+  color: #ffd98a;
+}
+.reign-hud .reign-amount-says {
+  flex: none;
+  min-width: 5.5em;
+  text-align: right;
+  font-weight: 700;
 }

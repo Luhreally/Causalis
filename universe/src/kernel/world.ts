@@ -25,6 +25,12 @@ export interface StateStore {
    */
   readonly observational?: boolean;
   /**
+   * A reading of the world kept beside it (its years for the charts): saved, but no part of its
+   * rules or its hash. It only reads, so a world runs the same with it or without it; a save made
+   * without it loads, and it begins there, empty. (Observational too.)
+   */
+  readonly outsideRules?: boolean;
+  /**
    * Whether a save keeps what save() gives packed by column (kernel/pack.ts): for a store of
    * long lists of records, which load back as JSON would give them.
    */
@@ -79,6 +85,8 @@ export class World {
   private eventsToFreeze: number | null = null;
   private decisionsToFreeze: number | null = null;
   private readonly pinners: (() => Iterable<Ref | PinnedCodes>)[] = [];
+  /** What reads each year as it closes (addRecorder). */
+  private readonly recorders: ((t: number) => void)[] = [];
   private readonly stores = new Map<string, StateStore>();
   private readonly chain: Checkpoint[] = [];
   /**
@@ -119,6 +127,8 @@ export class World {
       run: (t) => {
         this.checkpoint(t);
         this.keepHouse(t);
+        // (What reads each year as it closes, once all of it is done: nothing it does is history.)
+        for (const record of this.recorders) record(t);
       },
     });
     const clock = () => this.scheduler.now;
@@ -180,6 +190,15 @@ export class World {
 
   handler(handler: AgendaHandler): void {
     this.scheduler.addHandler(handler);
+  }
+
+  /**
+   * Something read of the world each year as it closes, after every system has run and the year's
+   * checkpoint is taken (the charts' years). It must only read: it is no system and no part of the
+   * rules, and the world runs the same with it or without it.
+   */
+  addRecorder(record: (t: number) => void): void {
+    this.recorders.push(record);
   }
 
   /**

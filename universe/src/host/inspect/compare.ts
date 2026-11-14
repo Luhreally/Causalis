@@ -6,7 +6,7 @@
 import type { Ref, World } from "../../kernel/index.ts";
 import {
   diplomacyOf,
-  fieldedOf,
+  hostOf,
   politiesOf,
   populationContext,
   realmName,
@@ -37,7 +37,7 @@ function measures(world: World, r: Polity) {
     people: r.members.reduce((n, c) => n + (ctx.provinces.get(c)?.total() ?? 0), 0),
     lands: r.members.length,
     towns: r.members.reduce((n, c) => n + ctx.settlements.seenIn(c).length, 0),
-    fields: r.ended === null ? fieldedOf(ctx, r) : 0,
+    fields: r.ended === null ? hostOf(ctx, r) : 0,
     wars: fought.length,
     won: fought.reduce(
       (n, w) => n + w.battles.filter((b) => b.won === (w.attacker === r.ref)).length,
@@ -217,7 +217,7 @@ export function warTally(world: World, w: War): Block {
     ctx = populationContext(world),
     fields = (ref: Ref) => {
       const r = realms.get(ref);
-      return r && r.ended === null ? fieldedOf(ctx, r) : 0;
+      return r && r.ended === null ? hostOf(ctx, r) : 0;
     },
     won = w.battles.filter((b) => b.won).length,
     wounded = woundedOf(w);

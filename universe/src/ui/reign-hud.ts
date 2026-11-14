@@ -2,7 +2,11 @@
 // its wealth against those it meets), a tray along the bottom (decrees, war and peace, marriage, the realm, walk), a sheet
 // for each of those, and a window when their rule ends. The middle takes no touches. A choice that cannot be made can
 // still be pressed: the world says why in words. Every control a finger's size. Nothing here decides.
+// One of a court held instead (2026-11-13): the bar names them, the tray puts things to the realm rather than decreeing
+// them, and courts groups or moves on the seat; and a switch on the bar, as a mortal or the god in them, says which.
 import type {
+  ReignCourt,
+  ReignGod,
   ReignDecrees,
   ReignDrama,
   ReignFall,
@@ -30,6 +34,15 @@ const many = (n: number) =>
       ? `${Math.round(n / 1000)}k`
       : Math.round(n).toLocaleString("en-US");
 const worth = (n: number) => (n >= 100 ? `${Math.round(n)}` : n.toFixed(1));
+/** The sheets the tray opens. */
+export type ReignSheet = "decrees" | "wars" | "matches" | "envoys" | "factions" | "god";
+const ROLE_ICON: Readonly<Record<string, string>> = {
+  heir: "👪",
+  rival: "🗡️",
+  general: "🛡️",
+  voice: "🏛️",
+  kin: "👪",
+};
 
 /** A chip of the realm at a glance: tapped, its page. */
 function chip(kind: string, title: string): HTMLButtonElement {
@@ -49,6 +62,8 @@ export class ReignHud {
   private readonly stop = el("button", "life-pace reign-pace", "❚❚");
   private readonly slow = el("button", "life-pace reign-pace", "▶");
   private readonly quick = el("button", "life-pace reign-pace", "▶▶");
+  /** As a mortal, or the god in them: what is lifted, said when it is pressed. */
+  private readonly channel = el("button", "reign-channel", "🧍 As a mortal");
   private readonly people = chip("people", "Their people");
   private readonly host = chip("host", "Their host");
   private readonly order = chip("order", "Their standing and their lands' grievance");
@@ -64,13 +79,26 @@ export class ReignHud {
   private readonly bound = el("button", "life-offer reign-act reign-bound");
   private last: ReignNow | null = null;
   private fallKey = "";
+  /** Where each of the god's hand's sliders was left, by act (or the acts sharing it): kept while the sheet is drawn again. */
+  private readonly godAt = new Map<string, number>();
   private toldPage: string | null = null;
   private toldFor: ReturnType<typeof setTimeout> | null = null;
   onPage: (ref: string) => void = () => {};
   onPace: (pace: "stop" | "slow" | "quick") => void = () => {};
   onLetGo: () => void = () => {};
   onWalk: () => void = () => {};
-  onSheet: (kind: "decrees" | "wars" | "matches" | "envoys") => void = () => {};
+  onSheet: (kind: ReignSheet) => void = () => {};
+  /** The god let into them, or let go. */
+  onChannel: () => void = () => {};
+  /** A group courted, a move on the seat (one of a court). */
+  onBack: (group: string) => void = () => {};
+  onPlot: () => void = () => {};
+  /** The god's hand through them: a thing done, the realm it is aimed at, the god's own palette opened. */
+  onGod: (args: Readonly<Record<string, unknown>>, label: string) => void = () => {};
+  onGodAim: (realm: string) => void = () => {};
+  onPalette: () => void = () => {};
+  /** One of a court gone from it: rule as them (they hold the seat), or the one who rules. */
+  onRuleAfter: (seated: boolean) => void = () => {};
   onEnvoy: (to: string, errand: string, name: string) => void = () => {};
   onDecree: (law: string, to: number) => void = () => {};
   onWar: (against: string, prize: number) => void = () => {};
@@ -87,7 +115,9 @@ export class ReignHud {
       paces = el("div", "life-paces"),
       glance = el("div", "reign-glance");
     top.append(this.who, this.what, this.letGo);
-    paces.append(this.time, this.stop, this.slow, this.quick);
+    paces.append(this.time, this.stop, this.slow, this.quick, this.channel);
+    this.channel.dataset.on = "0";
+    this.channel.onclick = () => this.onChannel();
     glance.append(this.people, this.wealth, this.host, this.order, this.warsChip, this.heir);
     this.strip.append(top, paces, glance, this.bars);
     this.win.hidden = this.sheet.hidden = true;
@@ -119,6 +149,8 @@ export class ReignHud {
       ["⚔️", "War, peace", "wars"],
       ["💍", "Marry", "matches"],
       ["🕊️", "Envoy", "envoys"],
+      ["🤝", "Factions", "factions"],
+      ["🌟", "God's hand", "god"],
     ] as const) {
       const b = el("button", "life-offer reign-act");
       b.dataset.act = kind;
@@ -189,10 +221,133 @@ export class ReignHud {
     this.said.scrollIntoView({ block: "nearest" });
   }
 
+  /** As a mortal, or the god in them: the switch, the bar's glow. */
+  setChannel(on: boolean): void {
+    this.channel.dataset.on = on ? "1" : "0";
+    put(this.channel, on ? "🌟 The god in them" : "🧍 As a mortal");
+    this.channel.title = on
+      ? "The god's will carries their word past their station's bounds; press to be a mortal again"
+      : "Everything is bounded by their station; press to channel the god into them";
+    this.channel.setAttribute("aria-pressed", on ? "true" : "false");
+    this.strip.classList.toggle("channelled", on);
+    const hand = this.tray.querySelector<HTMLElement>('.reign-act[data-act="god"]');
+    if (hand) hand.hidden = !on;
+    this.element.classList.toggle("godhand", on);
+  }
+
+  /** The god's hand through them: whom it is aimed at, and what it can do to them. */
+  god(d: ReignGod): void {
+    const body: HTMLElement[] = [el("p", "life-winwords reign-godwords", d.words)];
+    const palette = el("button", "life-choice reign-palette", "✋ The god's palette and brushes");
+    palette.onclick = () => this.onPalette();
+    body.push(palette);
+    const aims = el("div", "reign-aims");
+    for (const t of d.targets) {
+      const b = el(
+        "button",
+        `life-choice reign-aim${t.ref === d.target ? " on" : ""}`,
+        `${t.own ? "👑 Your realm" : t.short}${t.atWar ? " ⚔️" : ""}`,
+      );
+      b.dataset.ref = t.ref;
+      b.setAttribute("aria-pressed", t.ref === d.target ? "true" : "false");
+      b.style.borderLeft = `6px solid rgb(${t.color.map((x) => Math.round(x * 255)).join(",")})`;
+      b.onclick = () => this.onGodAim(t.ref);
+      aims.append(b);
+    }
+    body.push(aims);
+    for (const g of d.groups) {
+      const box = el("div", "reign-law reign-godgroup");
+      box.append(el("div", "reign-lawtitle", g.title));
+      // (A slider over how much, above the acts it moves: what it is set to, in words, and each act's button and words with it.)
+      const sliders = new Map<string, { set: (() => void)[]; draw: () => void }>();
+      for (const o of g.offers) {
+        const b = el("button", `life-choice reign-god${o.can ? "" : " refused"}`, o.label),
+          words = el("div", "reign-optwords", o.words),
+          what = String(o.args.what),
+          m = o.amount;
+        let args = o.args,
+          label = o.label;
+        b.dataset.what = what;
+        if (o.args.arms) b.dataset.arms = String(o.args.arms);
+        if (o.args.men) b.dataset.men = String(o.args.men);
+        b.dataset.can = o.can ? "1" : "0";
+        b.onclick = () => (o.can ? this.onGod(args, label) : this.answer(o.words));
+        if (m) {
+          const id = m.shared ?? what;
+          let s = sliders.get(id);
+          if (!s) {
+            const all: (() => void)[] = [];
+            const row = el("label", "reign-amount"),
+              input = el("input"),
+              says = el("span", "reign-amount-says");
+            row.dataset.amount = id;
+            input.type = "range";
+            input.min = "0";
+            input.max = `${m.stops.length - 1}`;
+            input.step = "1";
+            input.value = `${this.godAt.get(id) ?? m.at}`;
+            input.setAttribute("aria-label", `How much: ${m.label}`);
+            const draw = () => {
+              const i = Number(input.value);
+              this.godAt.set(id, i);
+              says.textContent = m.stops[i]?.says ?? "";
+              row.dataset.at = `${i}`;
+              for (const f of all) f();
+            };
+            input.oninput = draw;
+            row.append(el("span", "reign-amount-label", `${m.label}:`), input, says);
+            box.append(row);
+            s = { set: all, draw };
+            sliders.set(id, s);
+          }
+          const own = m;
+          s.set.push(() => {
+            const i = this.godAt.get(id) ?? own.at,
+              stop = own.stops[i] ?? own.stops[own.at]!;
+            // (At the amount it always did, the act is asked as it always was: nothing more in its args.)
+            args =
+              i === own.at && !(own.key in o.args) ? o.args : { ...o.args, [own.key]: stop.value };
+            label = stop.label;
+            if (b.textContent !== label) b.textContent = label;
+            if (own.key === "men") b.dataset.men = String(stop.value);
+            b.dataset.amount = String(stop.value);
+            if (o.can && words.textContent !== stop.words) words.textContent = stop.words;
+          });
+        }
+        box.append(b, words);
+      }
+      for (const s of sliders.values()) s.draw();
+      body.push(box);
+    }
+    this.open_("🌟 The god's hand", ...body);
+  }
+
   set(l: ReignNow, t: number, pace: "stop" | "slow" | "quick"): void {
     this.last = l;
-    put(this.who, `👑 ${l.ruler}`);
-    put(this.what, l.fell ? "no longer rules" : `${l.title}, ${l.age}`);
+    const role = l.role;
+    this.element.classList.toggle("as-role", !!role);
+    put(this.who, role ? `${ROLE_ICON[role.kind]} ${role.name}` : `👑 ${l.ruler}`);
+    put(
+      this.what,
+      role
+        ? role.gone
+          ? "no longer at court"
+          : `${role.title}, ${role.age}`
+        : l.fell
+          ? "no longer rules"
+          : `${l.title}, ${l.age}`,
+    );
+    for (const b of this.tray.querySelectorAll<HTMLElement>(".reign-act")) {
+      const act = b.dataset.act ?? "",
+        hide =
+          act === "god"
+            ? this.channel.dataset.on !== "1"
+            : role
+              ? act === "matches" || act === "envoys"
+              : act === "factions";
+      if (b.hidden !== hide && act !== "bonds") b.hidden = hide;
+      if (act === "decrees") put(b.querySelector(".life-label")!, role ? "Propose" : "Decrees");
+    }
     put(this.time, dated(t));
     for (const [b, p] of [
       [this.stop, "stop"],
@@ -216,9 +371,45 @@ export class ReignHud {
     );
     this.warsChip.classList.toggle("low", l.wars.length > 0);
     this.drawBound(l);
-    put(this.heir, `👪 ${l.heir}`);
+    put(this.heir, role ? `👪 Rules: ${l.ruler}` : `👪 ${l.heir}`);
     this.drawBars(l);
-    this.drawFall(l.fell);
+    if (role) this.drawGone(l);
+    else this.drawFall(l.fell);
+  }
+
+  /** One of a court gone from it: how, and whom to go on as. */
+  private drawGone(l: ReignNow): void {
+    const g = l.role?.gone ?? null,
+      key = g ? `gone|${g.how}|${l.role!.name}` : "";
+    if (key === this.fallKey) return;
+    this.fallKey = key;
+    this.win.hidden = !g;
+    if (!g) return;
+    this.sheet.hidden = true;
+    const acts = el("div", "life-choices");
+    if (l.role && !/fell/.test(g.how)) {
+      const b = el(
+        "button",
+        "life-choice reign-heir",
+        g.seated ? `👑 Rule as ${l.role.name}` : `👑 Rule as ${l.ruler}, who holds the seat`,
+      );
+      b.onclick = () => this.onRuleAfter(g.seated);
+      acts.append(b);
+    }
+    const go = el("button", "life-choice reign-end", "✋ Let go");
+    go.onclick = () => this.onLetGo();
+    acts.append(go);
+    if (g.event) {
+      const event = g.event,
+        why = el("button", "life-choice", "📄 How it happened");
+      why.onclick = () => this.onPage(event);
+      acts.append(why);
+    }
+    this.win.replaceChildren(
+      el("div", "life-wintitle", g.seated ? `👑 ${l.role!.name} holds the seat` : `🕯️ ${g.words}`),
+      el("p", "life-winwords", g.words),
+      acts,
+    );
   }
 
   /** The tray's own word for what binds the realm: who has knelt, who kneels, what is paid. */
@@ -301,7 +492,7 @@ export class ReignHud {
       }
       body.push(box);
     }
-    this.open_("📜 Decrees", ...body);
+    this.open_(this.last?.role ? "📜 Put to the realm" : "📜 Decrees", ...body);
   }
 
   wars(d: ReignWars): void {
@@ -387,6 +578,7 @@ export class ReignHud {
       const name = el("button", "life-choice reign-foename", `${f.name}: ${f.regard}`);
       name.onclick = () => this.onPage(f.ref);
       box.append(name, el("div", "reign-optwords", f.words));
+      if (f.known) box.append(el("div", "reign-optwords reign-known", f.known));
       for (const aim of f.aims.length ? f.aims : []) {
         const b = el(
           "button",
@@ -425,6 +617,32 @@ export class ReignHud {
       body.push(box);
     }
     this.open_("🕊️ An envoy", ...body);
+  }
+
+  /** One of a court's own: the groups to court, and a move on the seat. */
+  court(d: ReignCourt): void {
+    const body: HTMLElement[] = [el("p", "life-winwords reign-courtwords", d.words)];
+    for (const g of d.groups) {
+      const box = el("div", "reign-law reign-group");
+      box.dataset.group = g.group;
+      const b = el(
+        "button",
+        `life-choice reign-back${g.can ? "" : " refused"}${g.behind ? " behind" : ""}`,
+        g.behind ? `✅ ${g.group} stand behind you` : g.label,
+      );
+      b.dataset.group = g.group;
+      b.dataset.can = g.can ? "1" : "0";
+      b.onclick = () => (g.behind ? this.answer(g.words) : this.onBack(g.group));
+      box.append(b, el("div", "reign-optwords", g.words));
+      body.push(box);
+    }
+    const box = el("div", "reign-law reign-move"),
+      b = el("button", `life-choice reign-plot${d.plot.can ? "" : " refused"}`, d.plot.label);
+    b.dataset.can = d.plot.can ? "1" : "0";
+    b.onclick = () => this.onPlot();
+    box.append(b, el("div", "reign-optwords", d.plot.words));
+    body.push(box);
+    this.open_("🤝 Factions and the seat", ...body);
   }
 
   matches(d: ReignMatches): void {

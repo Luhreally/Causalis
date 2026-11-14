@@ -4,7 +4,7 @@
 // watched unfolding together (M194).
 import { YEAR, type Ref, type World } from "../kernel/index.ts";
 import {
-  fieldedOf,
+  hostOf,
   homePlanet,
   politiesOf,
   populationContext,
@@ -82,7 +82,7 @@ function courseOf(read: Read, w: War): Campaign | null {
         ref: realm,
         name: r ? realmName(r) : (said ?? "a fallen realm"),
         color: realmColor(realm),
-        fields: r ? Math.round(fieldedOf(ctx, r)) : 0,
+        fields: r ? Math.round(hostOf(ctx, r)) : 0,
         arms: realmArms(world, realm),
         // (Armed as it set out: by its first battle's design, else its design of that year.)
         host: hostKinds(
