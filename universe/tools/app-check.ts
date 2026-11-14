@@ -252,8 +252,8 @@ for (const engine of engines) {
           await page.evaluate((ref) => (globalThis as Hooks).causalis?.open?.(ref), landPage);
         await page.waitForSelector(".page-window .tab", { timeout: 10000 });
         console.log(`${(label + " tidings").padEnd(24)} ${later.mode.padEnd(9)} ${news}`);
-        // Its years as charts, and the chronicle of the world.
-        await page.click(".page-window .tab:has-text('People')");
+        // Its years as charts (on its Over time tab, since 2026-11-13), and the chronicle of the world.
+        await page.click(".page-window .tab:has-text('Over time')");
         await page.waitForSelector(".page-window .chart svg", {
           timeout: 10000,
         });
