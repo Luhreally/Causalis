@@ -9290,6 +9290,17 @@ async function runPlanetPage(): Promise<void> {
         return;
       }
     }
+    // (One on an errand rides the roads of both seats' lands, and their page names one of the two: where they are on
+    // the land shown, the eye goes to them there. Sent to the other seat's land, it was left by another rider, 2026-11-14.)
+    if (
+      scale === "region" &&
+      place.scale === "region" &&
+      place.rider &&
+      region.land.rider(place.rider)
+    ) {
+      await faceRider(place.rider);
+      return;
+    }
     if (scale === "region" && place.scale === "region" && place.cell === regionCell) {
       if (place.rider && (await faceRider(place.rider))) return;
       const at = place.tile === undefined ? null : region.groundAt(place.tile);
@@ -9350,8 +9361,9 @@ async function runPlanetPage(): Promise<void> {
             rig.distance = 60;
             region.mark(place.tile!);
           }
-          swoop();
-          if (place.rider) void faceRider(place.rider);
+          // (Onto the one on an errand, where one is asked for and is on this land's roads: the swoop onto the land
+          // took the eye back from them.)
+          if (!(place.rider && (await faceRider(place.rider)))) swoop();
           return;
         }
         case "village": {

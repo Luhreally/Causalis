@@ -831,6 +831,16 @@ let sentTo: string | null = null;
           async () => (await k<number>(`globalThis.causalis.rig.distance`)) <= 12.01,
           slow(20000),
         );
+        // (And onto this one: where two ride a land's roads the eye stood at twelve already, by the other, and the
+        // flight across the land to this one takes longer than a moment's settling.)
+        await until(
+          "the one on a road come onto the screen",
+          async () => {
+            const r = (await riders()).find((x) => x.ref === ref);
+            return !!r && r.x > 0 && r.x < 430 && r.y > 150 && r.y < 900;
+          },
+          slow(20000),
+        );
         await settle(1200);
         const r = (await riders()).find((x) => x.ref === ref) ?? null;
         const name = await k<string>(
