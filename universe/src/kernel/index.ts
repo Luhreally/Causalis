@@ -118,6 +118,7 @@ export {
 } from "./save.ts";
 export { COLD_ROWS, PinnedCodes, Recent, codeOf, refOfCode } from "./cold.ts";
 export { Words, packList, unpackList, type Packed } from "./pack.ts";
+export { PIECE_MOST, joinJson, jsonCopy, splitJson } from "./split-json.ts";
 export { MinHeap } from "./heap.ts";
 export { fbm3, noise3 } from "./noise.ts";
 export { forNeighbours, nearestCell, sphereGrid, type SphereGrid } from "./sphere.ts";

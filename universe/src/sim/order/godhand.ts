@@ -9,7 +9,7 @@
 // matter cannot hold, no arms its people's bodies cannot bear, no war on a realm no land of theirs can reach.
 import { YEAR, defineEventType, yearOfMoment, type Ref, type World } from "../../kernel/index.ts";
 import { cellRef } from "../../gen/index.ts";
-import { G, GOODS, designWords, type Part } from "../../rules/index.ts";
+import { G, GOODS, TERMS, designWords, type Part } from "../../rules/index.ts";
 import { COLS, Province } from "../population/model.ts";
 import {
   POPULATION_EVENTS,
@@ -70,6 +70,78 @@ export const GOD_PEOPLE = 0.5;
 /** People a town raised on an empty land begins with. */
 export const GOD_TOWN = 5000;
 
+/**
+ * How much the hand does, where an amount means something (asked 2026-11-13: "add sliders for whatever else is relevant to
+ * on those god hand options"): for each such act, the argument that carries it, the stops a slider offers (gentlest first)
+ * and the amount it always did, which is what it does when none is asked. A host may be any whole number between the
+ * least and the most; every other amount is one of its stops. A craft (the next one: an age is many), a war (begun or
+ * not) and a pact (it holds while the two think well enough of each other: no span of years binds it) have none.
+ */
+export const GOD_AMOUNTS = {
+  /** Men stood up. */
+  host: {
+    key: "men",
+    stops: [1_000, 3_000, 10_000, 30_000, 100_000, 300_000, 1_000_000, 3_000_000, 10_000_000],
+    was: 100_000,
+  },
+  /** Years of bread for all its people. */
+  grain: { key: "years", stops: [0.25, 0.5, 1, 2, 5, 10], was: 1 },
+  /** Every store made so many times what it was. */
+  wealth: { key: "by", stops: [1.25, 1.5, 2, 3, 5, 10], was: 2 },
+  /** Of every store, the share taken. */
+  poorer: { key: "share", stops: [0.1, 0.25, 0.5, 0.75, 0.9], was: 0.5 },
+  /** People added to each land, as a share of those there. */
+  people: { key: "share", stops: [0.1, 0.25, 0.5, 1, 2, 4], was: 0.5 },
+  /** People the town begins with. */
+  town: {
+    key: "people",
+    stops: [500, 1_000, 2_000, 5_000, 10_000, 25_000, 50_000, 100_000],
+    was: 5000,
+  },
+  /** Crafts in the age. */
+  age: { key: "crafts", stops: [3, 6, 12, 24, 48], was: 12 },
+  /** Of its people, the share holding its rule rightful. */
+  rightful: { key: "level", stops: [0.6, 0.75, 0.9, 0.98], was: 0.98 },
+  wrongful: { key: "level", stops: [0.4, 0.25, 0.1, 0.02], was: 0.02 },
+  /** Of every land's grievance, the share forgotten. */
+  calm: { key: "share", stops: [0.25, 0.5, 0.75, 1], was: 1 },
+  /** The grievance every land holds at the least. */
+  stir: { key: "level", stops: [0.25, 0.5, 0.75, 1], was: 1 },
+  /** Years the truce binds. */
+  peace: { key: "years", stops: [2, 5, TERMS.truceYears, 15, 30, 50], was: TERMS.truceYears },
+  /** Years a realm is sworn. */
+  swear: { key: "years", stops: [5, 10, 20, 30, 50, 100], was: 30 },
+  /** Lands taken, the nearest first. */
+  annex: { key: "lands", stops: [1, 2, 3, 5, 8], was: 1 },
+} as const;
+type AmountSpec = { readonly key: string; readonly stops: readonly number[]; readonly was: number };
+const amountSpec = (what: GodAct): AmountSpec | undefined =>
+  (GOD_AMOUNTS as Partial<Record<GodAct, AmountSpec>>)[what];
+
+/** How much an act was asked to do: the amount it always did, where none was asked (1 for an act with none). */
+export function godAmount(a: GodArgs): number {
+  const spec = amountSpec(a.what);
+  if (!spec) return 1;
+  const v = (a as unknown as Record<string, unknown>)[spec.key];
+  return typeof v === "number" ? v : spec.was;
+}
+/** Whether an act was asked an amount other than the one it always did (its event then says how much). */
+const asked = (a: GodArgs): boolean => {
+  const spec = amountSpec(a.what);
+  return !!spec && a.what !== "host" && godAmount(a) !== spec.was;
+};
+
+/** Why an amount asked is not one the hand gives (null: it is, or none was asked). */
+function amountProblem(a: GodArgs): string | null {
+  const spec = amountSpec(a.what);
+  if (!spec || a.what === "host") return null;
+  const v = (a as unknown as Record<string, unknown>)[spec.key];
+  if (v === undefined) return null;
+  return typeof v === "number" && spec.stops.includes(v)
+    ? null
+    : `How much is one of ${spec.stops.join(", ")}.`;
+}
+
 /** Who acts (a ruler, or one of a court), with the god in them, and what is asked. */
 export type GodArgs = {
   readonly realm: Ref;
@@ -85,6 +157,14 @@ export type GodArgs = {
   /** A host: how many, and armed as their realm arms them now or with the best their world allows. */
   readonly men?: number;
   readonly arms?: "theirs" | "best";
+  /** How much, where an amount means something (GOD_AMOUNTS; absent: as it always was). */
+  readonly years?: number;
+  readonly by?: number;
+  readonly share?: number;
+  readonly people?: number;
+  readonly crafts?: number;
+  readonly level?: number;
+  readonly lands?: number;
 };
 
 const standing = (world: World, ref: unknown): Polity | null => {
@@ -125,7 +205,7 @@ function emptyBeside(c: PopulationContext, r: Polity): number | null {
 }
 
 /** What a land could come to next, each opening the next: one craft, or an age of them (with what it opens, ids). */
-function learningFor(c: PopulationContext, seat: number, most: number): string[] {
+export function godLearning(c: PopulationContext, seat: number, most: number): string[] {
   const known = new Set<string>(),
     prov = c.provinces.get(seat),
     markets = marketsOf(c.world),
@@ -166,7 +246,9 @@ export function godProblem(world: World, c: PopulationContext, args: unknown): s
     if (other.ref === to.ref) return "A realm cannot be set against itself.";
   }
   const war = other ? warsOf(world).between(to.ref, other.ref) : undefined,
-    atWar = !!war && war.ended === null;
+    atWar = !!war && war.ended === null,
+    much = amountProblem(a);
+  if (much) return much;
   switch (a.what) {
     case "host": {
       const men = a.men;
@@ -194,7 +276,7 @@ export function godProblem(world: World, c: PopulationContext, args: unknown): s
         : null;
     case "craft":
     case "age":
-      return learningFor(c, to.seat, 1).length
+      return godLearning(c, to.seat, 1).length
         ? null
         : "There is nothing more its world's matter lets its people know.";
     case "rightful":
@@ -261,7 +343,12 @@ export function installGodHand(world: World, ctx: () => PopulationContext): void
             causes: [{ ref: command.id, role: "agent", weight: 1 }],
             data: { ...base, ...data },
           }),
-        by = { by: held.by, cause: command.id, extra: godWill(true) };
+        by = { by: held.by, cause: command.id, extra: godWill(true) },
+        /** An older truce, tribute or oath between two realms ended, where the god's word puts another in its place. */
+        unbind = (x: Ref, y: Ref) => {
+          const bonds = bondsOf(world);
+          for (let b = bonds.between(x, y); b; b = bonds.between(x, y)) bonds.remove(b);
+        };
       switch (a.what) {
         case "host": {
           const arms: { parts: readonly Part[]; power: number } =
@@ -286,16 +373,23 @@ export function installGodHand(world: World, ctx: () => PopulationContext): void
           return;
         }
         case "grain": {
+          // (A year's bread for each, or as many years' as asked.)
+          const years = godAmount(a);
           let grain = 0;
           for (const cell of to.members) {
-            const n = Math.round((c.provinces.get(cell)?.total() ?? 0) * GOD_BREAD);
+            const n = Math.round(
+              (c.provinces.get(cell)?.total() ?? 0) * GOD_BREAD * (years === 1 ? 1 : years),
+            );
             if (n > 0) grain += markets.of(cell).move("made", G.grain, n);
           }
-          emit({ grain });
+          emit({ grain, ...(asked(a) ? { years } : {}) });
           return;
         }
         case "wealth":
         case "poorer": {
+          // (Doubled or halved, as they always were, unless another amount is asked: so many times, or such a share taken.)
+          const much = godAmount(a),
+            plain = !asked(a);
           let before = 0,
             after = 0;
           for (const cell of to.members) {
@@ -304,36 +398,43 @@ export function installGodHand(world: World, ctx: () => PopulationContext): void
             for (let g = 0; g < GOODS.length; g++) {
               const had = Math.max(0, m.stock[g]!);
               before += had * GOODS[g]!.value;
-              if (a.what === "wealth") m.move("made", g, Math.floor(had));
-              else m.move("spoiled", g, Math.floor(had / 2));
+              if (a.what === "wealth")
+                m.move("made", g, Math.floor(plain ? had : had * (much - 1)));
+              else m.move("spoiled", g, Math.floor(plain ? had / 2 : had * much));
               after += Math.max(0, m.stock[g]!) * GOODS[g]!.value;
             }
           }
           const people = Math.max(1, peopleOf(c, to));
-          emit({ before: before / people, after: after / people });
+          emit({
+            before: before / people,
+            after: after / people,
+            ...(plain ? {} : a.what === "wealth" ? { times: much } : { share: much }),
+          });
           return;
         }
         case "people": {
+          const share = godAmount(a);
           let added = 0;
           for (const cell of to.members) {
             const p = c.provinces.get(cell);
             if (!p) continue;
             for (let r = 0; r < p.counts.rows; r++)
               for (let o = 0; o < COLS; o++) {
-                const n = Math.floor(p.counts.get(r, o) * GOD_PEOPLE);
+                const n = Math.floor(p.counts.get(r, o) * share);
                 if (n > 0) {
                   p.counts.add(r, o, n);
                   added += n;
                 }
               }
           }
-          emit({ people: added });
+          emit({ people: added, ...(asked(a) ? { share } : {}) });
           return;
         }
         case "town": {
-          const cell = emptyBeside(c, to)!,
+          const many = godAmount(a),
+            cell = emptyBeside(c, to)!,
             from = c.provinces.get(to.seat) ?? c.provinces.get(to.members[0]!)!,
-            event = emit({ people: GOD_TOWN, cell });
+            event = emit({ people: many, cell });
           let dest = c.provinces.get(cell);
           if (!dest) {
             dest = c.provinces.add(new Province(cell, year, event));
@@ -341,7 +442,7 @@ export function installGodHand(world: World, ctx: () => PopulationContext): void
               type: POPULATION_EVENTS.peopled.type,
               place: dest.ref,
               causes: [{ ref: event, role: "trigger", weight: 1 }],
-              data: { people: GOD_TOWN },
+              data: { people: many },
             });
           }
           if (from.knowsCultivation && !dest.knowsCultivation) {
@@ -354,7 +455,7 @@ export function installGodHand(world: World, ctx: () => PopulationContext): void
           let made = 0;
           for (let r = 0; r < from.counts.rows; r++)
             for (let o = 0; o < COLS; o++) {
-              const n = Math.floor((from.counts.get(r, o) * GOD_TOWN) / all);
+              const n = Math.floor((from.counts.get(r, o) * many) / all);
               if (n > 0) {
                 dest.counts.add(r, o, n);
                 made += n;
@@ -367,13 +468,13 @@ export function installGodHand(world: World, ctx: () => PopulationContext): void
         case "craft":
         case "age": {
           // (Each land its own next crafts, in the tree's order from what it knows: its seat's are told.)
-          const most = a.what === "age" ? GOD_AGE : 1,
-            ids = learningFor(c, to.seat, most),
+          const most = a.what === "age" ? godAmount(a) : 1,
+            ids = godLearning(c, to.seat, most),
             event = emit({ crafts: ids, lands: to.members.length });
           for (const cell of to.members) {
             const p = c.provinces.get(cell);
             if (!p?.total()) continue;
-            for (const id of cell === to.seat ? ids : learningFor(c, cell, most)) {
+            for (const id of cell === to.seat ? ids : godLearning(c, cell, most)) {
               if (id === "cultivation") {
                 if (!p.knowsCultivation) {
                   p.knowsCultivation = true;
@@ -391,23 +492,42 @@ export function installGodHand(world: World, ctx: () => PopulationContext): void
         case "wrongful": {
           const o = orderOf(world)!.of(to.ref)!,
             was = o.legitimacy;
-          o.legitimacy = a.what === "rightful" ? 0.98 : 0.02;
+          o.legitimacy = godAmount(a);
           emit({ from: was, to: o.legitimacy });
           return;
         }
         case "calm":
         case "stir": {
-          const event = emit({ lands: to.members.length });
-          for (const cell of to.members)
+          // (Every grievance forgotten, or every land sore, as they always were; or a share of each grievance forgotten,
+          // or every land at least so sore.)
+          const much = godAmount(a),
+            event = emit({
+              lands: to.members.length,
+              ...(asked(a) ? (a.what === "calm" ? { share: much } : { level: much }) : {}),
+            });
+          for (const cell of to.members) {
+            const d = realms.discontent(cell);
             realms.setDiscontent(
               cell,
-              a.what === "calm" ? { level: 0, cause: null } : { level: 1, cause: event },
+              !asked(a)
+                ? a.what === "calm"
+                  ? { level: 0, cause: null }
+                  : { level: 1, cause: event }
+                : a.what === "calm"
+                  ? { level: d.level * (1 - much), cause: d.cause }
+                  : d.level >= much
+                    ? d
+                    : { level: much, cause: event },
             );
+          }
           return;
         }
         case "peace": {
-          const event = emit({});
-          applyPeace(world, c, to, other!, "truce", t, { ...by, cause: event });
+          const years = godAmount(a),
+            event = emit(asked(a) ? { years } : {});
+          // (Whatever bound the two before gives way to the god's truce: its years are the ones that hold.)
+          unbind(to.ref, other!.ref);
+          applyPeace(world, c, to, other!, "truce", t, { ...by, cause: event }, years);
           return;
         }
         case "war": {
@@ -428,7 +548,9 @@ export function installGodHand(world: World, ctx: () => PopulationContext): void
           return;
         }
         case "swear": {
-          const event = emit({});
+          const years = godAmount(a),
+            event = emit(asked(a) ? { years } : {});
+          unbind(to.ref, other!.ref);
           bondsOf(world).add({
             kind: "vassal",
             from: other!.ref,
@@ -437,7 +559,7 @@ export function installGodHand(world: World, ctx: () => PopulationContext): void
             event,
             grain: 0,
             since: year,
-            until: year + 30,
+            until: year + years,
             paid: 0,
             short: 0,
             shortSince: 0,
@@ -445,11 +567,17 @@ export function installGodHand(world: World, ctx: () => PopulationContext): void
           return;
         }
         case "annex": {
-          const cell = frontier(c, to, other!)[0]!,
-            event = emit({ cell });
-          realms.leave(other!, cell);
-          realms.join(to, cell);
-          realms.setDiscontent(cell, { level: 0.3, cause: event });
+          // (The land of theirs nearest, or as many as asked, each the nearest left: never their seat past the first.)
+          const most = godAmount(a),
+            cell = frontier(c, to, other!)[0]!,
+            event = emit({ cell, ...(asked(a) ? { lands: most } : {}) });
+          for (let n = 0, at: number | undefined = cell; at !== undefined;) {
+            realms.leave(other!, at);
+            realms.join(to, at);
+            realms.setDiscontent(at, { level: 0.3, cause: event });
+            if (++n >= most || other!.members.length <= 1) break;
+            at = frontier(c, to, other!).find((x) => x !== other!.seat);
+          }
           cutOff(c, other!, event);
           return;
         }

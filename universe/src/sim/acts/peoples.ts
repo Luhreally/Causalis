@@ -29,7 +29,7 @@ import { WAR, WAR_EVENTS, frontier, warsOf } from "../war/war.ts";
 import { diplomacyOf } from "../diplomacy/diplomacy.ts";
 import { BELIEF_EVENTS, beliefOf } from "../belief/belief.ts";
 import { orderOf } from "../order/order.ts";
-import { actsOf } from "./acts.ts";
+import { actStrengthOf, actsOf, strengthMark, strengthProblem } from "./acts.ts";
 import {
   FORTUNE_STRENGTHS,
   FORTUNE_WEIGHT,
@@ -190,17 +190,24 @@ export function installPeopleActs(world: World, ctx: () => PopulationContext): v
   ] as const)
     world.defineCommand({
       type: `act.${kind}`,
-      validate: pair,
+      validate: (args) => pair(args) ?? strengthProblem(args),
       apply: (command, t) => {
+        // (At a strength: remembered so many times as warmly, or as bitterly, as of old.)
         const { a, b } = command.args as PairArgs,
+          s = actStrengthOf(command.args),
           event = world.events.emit({
             type: PEOPLE_ACT_EVENTS[kind].type,
             subjects: [a, b],
             place: null,
             causes: agent(command),
-            data: { a: realmName(standing(a)!), b: realmName(standing(b)!) },
+            data: { a: realmName(standing(a)!), b: realmName(standing(b)!), ...strengthMark(s) },
           });
-        diplomacyOf(world).remember(a, b, { name, value, year: yearOfMoment(t), source: event });
+        diplomacyOf(world).remember(a, b, {
+          name,
+          value: s === 1 ? value : value * s,
+          year: yearOfMoment(t),
+          source: event,
+        });
       },
     });
 
@@ -261,14 +268,21 @@ export function installPeopleActs(world: World, ctx: () => PopulationContext): v
         return "a land is wanted";
       if (offworldSite(c.generated, cell!) || !livableFor(c, cell!))
         return "no people could live there";
-      return settlersFrom(c, cell!) === null ? "no people near enough to send" : null;
+      return settlersFrom(c, cell!) === null
+        ? "no people near enough to send"
+        : strengthProblem(args);
     },
     apply: (command, t) => {
       const c = ctx(),
         cell = (command.args as LandArgs).cell,
         year = yearOfMoment(t),
         from = c.provinces.get(settlersFrom(c, cell)!)!,
-        count = Math.min(SETTLERS.most, Math.floor(from.total() * SETTLERS.share)),
+        // (So many times as many as of old, where more or fewer are asked.)
+        s = actStrengthOf(command.args),
+        count =
+          s === 1
+            ? Math.min(SETTLERS.most, Math.floor(from.total() * SETTLERS.share))
+            : Math.min(SETTLERS.most * s, Math.floor(from.total() * SETTLERS.share * s)),
         decision = world.decisions.record({
           rule: "act.settle",
           subject: from.ref,
@@ -289,7 +303,7 @@ export function installPeopleActs(world: World, ctx: () => PopulationContext): v
           subjects: [from.ref, cellRef(0, cell)],
           place: cellRef(0, cell),
           causes: agent(command),
-          data: { count },
+          data: { count, ...strengthMark(s) },
         });
       let dest = c.provinces.get(cell);
       if (!dest) {

@@ -64,3 +64,37 @@ test("a sky's size: fewer stars and peoples, or more, about the same home", asyn
   assert.ok(few < usual / 4, `${few} stars against ${usual}`);
   assert.ok(many > usual * 2, `${many} stars against ${usual}`);
 });
+
+test("a small sky is a true one: the usual sky's nearest stars at its density, and a large one holds the usual whole", async () => {
+  const { skyOf } = await import("../../src/rules/index.ts");
+  const { Rng } = await import("../../src/kernel/index.ts");
+  const { clusterStars, makeGalaxy } = await import("../../src/gen/index.ts");
+  const stars = (text: string) => {
+    const rng = new Rng(seedFromText(text));
+    return clusterStars(rng, makeGalaxy(rng), skyOf(text)?.radius);
+  };
+  for (const name of ["first light", "harrow 348"]) {
+    const usual = stars(name),
+      small = stars(seedWithAct(name, makingAct("sky", "small"))),
+      large = stars(seedWithAct(name, makingAct("sky", "large"))),
+      refs = (list: typeof usual, within = Infinity) =>
+        list
+          .filter((s) => s.distance <= within)
+          .map((s) => s.ref)
+          .join(",");
+    assert.equal(refs(small), refs(usual, 25));
+    assert.equal(refs(usual), refs(large, 50));
+    const density = (n: number, r: number) => n / r ** 3,
+      d = density(usual.length, 50);
+    for (const [n, r] of [
+      [small.length, 25],
+      [large.length, 80],
+    ] as const) {
+      const k = density(n, r) / d;
+      assert.ok(
+        k > 0.75 && k < 1.33,
+        `${name}: ${n} stars within ${r} ly are ${k.toFixed(2)} as dense`,
+      );
+    }
+  }
+});

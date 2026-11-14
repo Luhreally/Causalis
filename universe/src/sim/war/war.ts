@@ -838,6 +838,11 @@ export function fieldedOf(ctx: PopulationContext, p: Polity): number {
   return fightingMen(ctx, p) * fieldShare(ctx, p);
 }
 
+/** Every man in a realm's host, as its pages count it: those it fields of its own lands, and those the god stood up for it. */
+export function hostOf(ctx: PopulationContext, p: Polity): number {
+  return fieldedOf(ctx, p) + godMen(ctx.world, p.ref);
+}
+
 /**
  * What the host a realm fields is made of (the strength lens's breakdown, Phase 12 M108): its
  * fighting men, the share of them it fields, its people's valour, whether it keeps a standing army.

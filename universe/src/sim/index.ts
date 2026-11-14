@@ -180,7 +180,10 @@ export {
   ACT_EVENTS,
   ACT_KINDS,
   ACT_STRENGTH,
+  ACT_STRENGTHS,
   ActStore,
+  actFactor,
+  actStrengthOf,
   actsOf,
   type Act,
   type Crater,
@@ -483,6 +486,7 @@ export {
   installWar,
   fieldedOf,
   fieldedParts,
+  hostOf,
   fireTerms,
   frontier,
   strengthOf,
@@ -671,10 +675,14 @@ export {
 export {
   GOD_ACTS,
   GOD_AGE,
+  GOD_AMOUNTS,
+  GOD_BREAD,
   GOD_EVENTS,
   GOD_HOSTS,
   GOD_HOST_MOST,
   GOD_PAIRED,
+  godAmount,
+  godLearning,
   godProblem,
   type GodAct,
   type GodArgs,
@@ -682,7 +690,7 @@ export {
 export { GOD_HOST_LEAST, godHostsOf, godMen, godPower, type GodHost } from "./war/godhost.ts";
 export { bestHostFor } from "./design/design.ts";
 export { openTo } from "./lore/lore.ts";
-export { DISASTER, DISASTER_EVENTS, installDisasters } from "./acts/disasters.ts";
+export { DISASTER, DISASTER_EVENTS, disasterAt, installDisasters } from "./acts/disasters.ts";
 export {
   SWITCHES,
   SwitchStore,

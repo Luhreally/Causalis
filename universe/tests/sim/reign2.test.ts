@@ -32,6 +32,7 @@ import {
   type Polity,
 } from "../../src/sim/index.ts";
 import { TIES } from "../../src/rules/index.ts";
+import { armyBlocks } from "../../src/host/inspect/army.ts";
 import {
   FORTUNE_STRENGTHS as PALETTE_STRENGTHS,
   FORTUNE_WORDS as PALETTE_WORDS,
@@ -201,6 +202,12 @@ test("the god's hand through a ruler: refused as a mortal; a host, learning, wea
   world.submit("reign.god", { ...god, what: "wealth" });
   world.runTo(t + 2);
   assert.equal(godMen(world, r.ref), 100_000);
+  // (Asked 2026-11-13: "when i go the army tab the number isnt 300000": the tab's host counts the god's men.)
+  const fields = armyBlocks(world, r).flatMap((b) => (b.type === "facts" ? b.rows : []))[0]!;
+  assert.ok(
+    Number(JSON.stringify(fields.value).replace(/[^0-9]/g, "")) >= 100_000,
+    `the Army tab fields ${JSON.stringify(fields.value)} with 100,000 stood up by the god`,
+  );
   assert.ok(strengthOf(ctx, r) > strength * 2, "the god's host does not weigh in its strength");
   assert.ok(loreOf(world).of(r.seat).length > known, "no learning came to its seat");
   const foe = [...politiesOf(world).living()].find(

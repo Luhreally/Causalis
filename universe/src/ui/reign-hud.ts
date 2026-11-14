@@ -79,6 +79,8 @@ export class ReignHud {
   private readonly bound = el("button", "life-offer reign-act reign-bound");
   private last: ReignNow | null = null;
   private fallKey = "";
+  /** Where each of the god's hand's sliders was left, by act (or the acts sharing it): kept while the sheet is drawn again. */
+  private readonly godAt = new Map<string, number>();
   private toldPage: string | null = null;
   private toldFor: ReturnType<typeof setTimeout> | null = null;
   onPage: (ref: string) => void = () => {};
@@ -256,15 +258,65 @@ export class ReignHud {
     for (const g of d.groups) {
       const box = el("div", "reign-law reign-godgroup");
       box.append(el("div", "reign-lawtitle", g.title));
+      // (A slider over how much, above the acts it moves: what it is set to, in words, and each act's button and words with it.)
+      const sliders = new Map<string, { set: (() => void)[]; draw: () => void }>();
       for (const o of g.offers) {
-        const b = el("button", `life-choice reign-god${o.can ? "" : " refused"}`, o.label);
-        b.dataset.what = String(o.args.what);
+        const b = el("button", `life-choice reign-god${o.can ? "" : " refused"}`, o.label),
+          words = el("div", "reign-optwords", o.words),
+          what = String(o.args.what),
+          m = o.amount;
+        let args = o.args,
+          label = o.label;
+        b.dataset.what = what;
         if (o.args.arms) b.dataset.arms = String(o.args.arms);
         if (o.args.men) b.dataset.men = String(o.args.men);
         b.dataset.can = o.can ? "1" : "0";
-        b.onclick = () => (o.can ? this.onGod(o.args, o.label) : this.answer(o.words));
-        box.append(b, el("div", "reign-optwords", o.words));
+        b.onclick = () => (o.can ? this.onGod(args, label) : this.answer(o.words));
+        if (m) {
+          const id = m.shared ?? what;
+          let s = sliders.get(id);
+          if (!s) {
+            const all: (() => void)[] = [];
+            const row = el("label", "reign-amount"),
+              input = el("input"),
+              says = el("span", "reign-amount-says");
+            row.dataset.amount = id;
+            input.type = "range";
+            input.min = "0";
+            input.max = `${m.stops.length - 1}`;
+            input.step = "1";
+            input.value = `${this.godAt.get(id) ?? m.at}`;
+            input.setAttribute("aria-label", `How much: ${m.label}`);
+            const draw = () => {
+              const i = Number(input.value);
+              this.godAt.set(id, i);
+              says.textContent = m.stops[i]?.says ?? "";
+              row.dataset.at = `${i}`;
+              for (const f of all) f();
+            };
+            input.oninput = draw;
+            row.append(el("span", "reign-amount-label", `${m.label}:`), input, says);
+            box.append(row);
+            s = { set: all, draw };
+            sliders.set(id, s);
+          }
+          const own = m;
+          s.set.push(() => {
+            const i = this.godAt.get(id) ?? own.at,
+              stop = own.stops[i] ?? own.stops[own.at]!;
+            // (At the amount it always did, the act is asked as it always was: nothing more in its args.)
+            args =
+              i === own.at && !(own.key in o.args) ? o.args : { ...o.args, [own.key]: stop.value };
+            label = stop.label;
+            if (b.textContent !== label) b.textContent = label;
+            if (own.key === "men") b.dataset.men = String(stop.value);
+            b.dataset.amount = String(stop.value);
+            if (o.can && words.textContent !== stop.words) words.textContent = stop.words;
+          });
+        }
+        box.append(b, words);
       }
+      for (const s of sliders.values()) s.draw();
       body.push(box);
     }
     this.open_("🌟 The god's hand", ...body);

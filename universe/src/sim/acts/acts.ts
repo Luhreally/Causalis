@@ -8,12 +8,14 @@
 import {
   YEAR,
   defineEventType,
+  dmath,
   type Hasher,
   type Ref,
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
 import { cellRef } from "../../gen/index.ts";
+import { FORTUNE_STRENGTHS } from "./fortune.ts";
 
 export const ACT_KINDS = ["rain", "harvest", "plague", "inspire"] as const;
 export type ActKind = (typeof ACT_KINDS)[number];
@@ -35,9 +37,41 @@ export type Act = {
   readonly sign: 1 | -1;
   readonly from: number;
   readonly until: number;
+  /** How strong it was laid, where not at the strength it always had (1: absent). */
+  readonly strength?: number;
 };
 
-export type ActArgs = { cell: number; sign: 1 | -1; years: number };
+export type ActArgs = { cell: number; sign: 1 | -1; years: number; strength?: number };
+
+/**
+ * How strong one of the god's acts can be laid (asked 2026-11-13: sliders on the god's hand), weakest first: 1 is the
+ * strength it always had, and is what it does when none is asked. The same stops as a realm's fortune.
+ */
+export const ACT_STRENGTHS = FORTUNE_STRENGTHS;
+/** Why a strength asked is not one an act is laid at (null: it is, or none was asked). */
+export function strengthProblem(args: unknown): string | null {
+  const s = (args as { strength?: unknown } | null)?.strength;
+  return s === undefined ||
+    (typeof s === "number" && (ACT_STRENGTHS as readonly number[]).includes(s))
+    ? null
+    : `a strength is one of ${ACT_STRENGTHS.join(", ")}`;
+}
+/** A strength asked of an act (1 where none was). */
+export const actStrengthOf = (args: unknown): number => {
+  const s = (args as { strength?: unknown } | null)?.strength;
+  return typeof s === "number" ? s : 1;
+};
+/** What a strength other than the one of old adds to an act's record and its event (nothing at 1). */
+export const strengthMark = (s: number): { strength?: number } => (s === 1 ? {} : { strength: s });
+/**
+ * How an act moves what it touches at its strength: raised by `k` (sent rain, a fat harvest, a plague's deaths) a
+ * strength of 1 + k·s; lowered by `k` (rain withheld, blight, healing) to (1 − k)^s, so no strength takes it below nothing.
+ * At the strength of old, exactly 1 ± k.
+ */
+export function actFactor(raise: boolean, k: number, s: number | undefined): number {
+  if (s === undefined || s === 1) return raise ? 1 + k : 1 - k;
+  return raise ? 1 + k * s : dmath.pow(1 - k, s);
+}
 
 /** A crater a meteor left (Phase 13 M112): its land, its year, the event. */
 export type Crater = { readonly cell: number; readonly year: number; readonly event: Ref };
@@ -162,6 +196,8 @@ function validate(args: unknown, count: number, peopled: (cell: number) => boole
   if (a.sign !== 1 && a.sign !== -1) return "sign must be 1 or -1";
   if (!Number.isInteger(a.years) || a.years! < 1 || a.years! > 10)
     return "years must be from 1 to 10";
+  const strong = strengthProblem(a);
+  if (strong) return strong;
   if (!peopled(a.cell!)) return "no one lives there";
   return null;
 }
@@ -185,12 +221,14 @@ export function installActs(
       validate: (args) => validate(args, cells, peopled),
       apply: (command, t) => {
         const a = command.args as ActArgs,
-          years = kind === "inspire" ? 0 : a.years;
+          years = kind === "inspire" ? 0 : a.years,
+          // (Inspiring grants the next way of life: it has no strength.)
+          strong = strengthMark(kind === "inspire" ? 1 : actStrengthOf(a));
         const event = world.events.emit({
           type: ACT_EVENTS[kind].type,
           place: cellRef(0, a.cell),
           causes: [{ ref: command.id, role: "agent", weight: 1 }],
-          data: { sign: a.sign, years },
+          data: { sign: a.sign, years, ...strong },
         });
         store.add({
           command: command.id,
@@ -200,6 +238,7 @@ export function installActs(
           sign: a.sign,
           from: t,
           until: t + years * YEAR,
+          ...strong,
         });
         if (kind === "inspire") inspire(a.cell, event, t);
       },

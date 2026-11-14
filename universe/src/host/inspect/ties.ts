@@ -7,7 +7,7 @@ import { offworldSite } from "../../gen/index.ts";
 import {
   bondsOf,
   diplomacyOf,
-  fieldedOf,
+  hostOf,
   homePlanet,
   livingMatches,
   misreadOf,
@@ -67,7 +67,7 @@ export function blocsOf(world: World): BlocRead {
     realms = politiesOf(world),
     living = realms.living(),
     strength = new Map<string, number>();
-  for (const p of living) strength.set(p.ref, fieldedOf(ctx, p));
+  for (const p of living) strength.set(p.ref, hostOf(ctx, p));
   const s = (r: Ref) => strength.get(r) ?? 0,
     stronger = (a: Ref, b: Ref) => s(a) > s(b) || (s(a) === s(b) && a < b),
     leader = new Map<string, Ref>(),
@@ -491,7 +491,7 @@ function matchLines(world: World, r: Polity, year: number): Item[] {
 function knownLine(world: World, r: Polity, q: Polity): Line {
   const ctx = populationContext(world),
     year = yearNow(world),
-    truth = fieldedOf(ctx, q),
+    truth = hostOf(ctx, q),
     factor = misreadOf(world, r.ref, q.ref, year),
     believed = Math.round(truth * factor),
     kept = tiesOf(world).embassyOf(r.ref, q.ref);

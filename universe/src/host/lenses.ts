@@ -8,6 +8,7 @@ import {
   WAY_TRAITS,
   cultureOf,
   fieldedParts,
+  godMen,
   loreOf,
   marketsOf,
   politiesOf,
@@ -134,7 +135,7 @@ export function landReadings(world: World): (cell: number) => LandReadings {
       strength = fielded.get(realm.ref) ?? -1;
       if (strength < 0) {
         const f = fieldedParts(ctx, realm);
-        strength = f.men * f.share;
+        strength = f.men * f.share + godMen(world, realm.ref);
         fielded.set(realm.ref, strength);
       }
     }
@@ -234,7 +235,7 @@ export function lensReading(
         return { line: "Strength: no realm to field a host", stats: [] };
       const f = fieldedParts(ctx, realm);
       return {
-        line: `Strength: ${realmName(realm)} fields ${count(f.men * f.share)}`,
+        line: `Strength: ${realmName(realm)} fields ${count(f.men * f.share + godMen(world, realm.ref))}`,
         stats: [
           {
             label: "Fighting men",

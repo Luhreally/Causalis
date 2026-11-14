@@ -5,7 +5,7 @@
 // now, read as the page reads its own numbers, so its latest is the page's. Pure readings, made when a page is read.
 import type { Ref, World } from "../../kernel/index.ts";
 import {
-  fieldedOf,
+  hostOf,
   homePlanet,
   marketsOf,
   orderOf,
@@ -375,7 +375,7 @@ export function realmTimeTab(world: World, r: Polity): Tab {
   {
     const host = points(years, t.host);
     // (Now as its army's page counts it: its fighting men, the share of them it fields.)
-    if (living) withNow(host, now, Math.round(fieldedOf(populationContext(world), r)));
+    if (living) withNow(host, now, Math.round(hostOf(populationContext(world), r)));
     if (host.length >= 2)
       blocks.push(
         series("Its host", "men", "count", host, {

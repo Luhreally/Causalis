@@ -791,13 +791,15 @@ export function applyPeace(
   offerAsked: PeaceOffer | undefined,
   t: SimTime,
   w: WordBy,
+  /** A truce's years, where the god's hand asks other than a truce's own. */
+  truceYears?: number,
 ): Ref {
   const wr = warsOf(world).between(r.ref, foe.ref)!,
     attacker = wr.attacker === r.ref ? r : foe,
     defender = attacker === r ? foe : r,
     year = yearOfMoment(t),
     offer: PeaceOffer = offerAsked ?? "truce",
-    made = termsOfOffer(c, wr, r, foe, offer, year),
+    made = termsOfOffer(c, wr, r, foe, offer, year, truceYears),
     o = orderHere(world, r);
   // (Land that passes by the peace is land won, as a battle's is: the war came out as it says.)
   let won = attacker.members.includes(wr.prize);

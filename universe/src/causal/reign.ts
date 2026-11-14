@@ -105,6 +105,45 @@ const craftName = (id: string) => {
 };
 const listed = (xs: readonly string[]) =>
   xs.length < 2 ? (xs[0] ?? "nothing") : `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}`;
+/** A year's bread, or so many years'. */
+const breadFor = (years: unknown) =>
+  years === undefined || Number(years) === 1
+    ? "a year's bread"
+    : Number(years) < 1
+      ? `${shareWords(Number(years))} of a year's bread`
+      : `${Number(years)} years' bread`;
+/** So many times what they were, in words. */
+export const timesWords = (by: number) =>
+  by === 2
+    ? "twice what they were"
+    : by === 1.5
+      ? "half as much again"
+      : by === 1.25
+        ? "a quarter more"
+        : `${by} times what they were`;
+const TENS = ["none", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
+/** A share, in words: "a quarter", "nine in ten". */
+export const shareWords = (s: number) =>
+  s >= 1
+    ? "all"
+    : s === 0.5
+      ? "half"
+      : s === 0.25
+        ? "a quarter"
+        : s === 0.75
+          ? "three quarters"
+          : s === 0.1
+            ? "a tenth"
+            : `${TENS[Math.round(s * 10)] ?? Math.round(s * 10)} in ten`;
+/** People added as a share of those there, in words: "half as many again", "twice as many again". */
+export const againWords = (s: number) =>
+  s === 1
+    ? "as many again"
+    : s === 2
+      ? "twice as many again"
+      : s > 2
+        ? `${s} times as many again`
+        : `${shareWords(s)} as many again`;
 /** What the god's hand did, in words: "1,000,000 men stood up at Doudrethath for ...". */
 export function godDone(d: Record<string, unknown> | null): string {
   const of = String(d?.of ?? "a realm"),
@@ -115,13 +154,13 @@ export function godDone(d: Record<string, unknown> | null): string {
     case "host":
       return `${many(Number(d.men))} men stood up at ${at} for ${of}, bearing ${String(d.arms)}${d.best ? ", the best arms its world's matter allows" : ""}`;
     case "grain":
-      return `${many(Number(d.grain))} measures of grain filled the stores of ${of}, a year's bread for all its people`;
+      return `${many(Number(d.grain))} measures of grain filled the stores of ${of}, ${breadFor(d.years)} for all its people`;
     case "wealth":
-      return `the stores of ${of} were doubled, from ${worth(d.before)} to ${worth(d.after)} a head`;
+      return `the stores of ${of} were ${d.times === undefined ? "doubled" : `made ${timesWords(Number(d.times))}`}, from ${worth(d.before)} to ${worth(d.after)} a head`;
     case "poorer":
-      return `the stores of ${of} were halved, from ${worth(d.before)} to ${worth(d.after)} a head`;
+      return `the stores of ${of} were ${d.share === undefined ? "halved" : `stripped of ${shareWords(Number(d.share))}`}, from ${worth(d.before)} to ${worth(d.after)} a head`;
     case "people":
-      return `${many(Number(d.people))} more people were in the lands of ${of}`;
+      return `${many(Number(d.people))} more people were in the lands of ${of}${d.share === undefined ? "" : `, ${againWords(Number(d.share))}`}`;
     case "town":
       return `a town of ${many(Number(d.people))} stood up on an empty land beside ${at}, and is of ${of}`;
     case "craft":
@@ -133,19 +172,25 @@ export function godDone(d: Record<string, unknown> | null): string {
     case "wrongful":
       return `${Math.round(Number(d.to) * 100)} in a hundred held the rule of ${of} rightful, where ${Math.round(Number(d.from) * 100)} had`;
     case "calm":
-      return `every land of ${of} was content with its rule`;
+      return d.share === undefined
+        ? `every land of ${of} was content with its rule`
+        : `${shareWords(Number(d.share))} of every grievance in the lands of ${of} was forgotten`;
     case "stir":
-      return `every land of ${of} rose in grievance against its rule`;
+      return d.level === undefined
+        ? `every land of ${of} rose in grievance against its rule`
+        : `every land of ${of} was made at least ${Math.round(Number(d.level) * 100)} in a hundred sore against its rule`;
     case "peace":
-      return `the war of ${of} and ${other} ended in a truce`;
+      return `the war of ${of} and ${other} ended in a truce${d.years === undefined ? "" : ` of ${Number(d.years)} years`}`;
     case "war":
       return `${of} went to war on ${other}`;
     case "pact":
       return `${of} and ${other} swore a pact`;
     case "swear":
-      return `${other} swore itself to ${of}`;
+      return `${other} swore itself to ${of}${d.years === undefined ? "" : ` for ${Number(d.years)} years`}`;
     case "annex":
-      return `a land of ${other} was taken into ${of}`;
+      return d.lands === undefined
+        ? `a land of ${other} was taken into ${of}`
+        : `up to ${Number(d.lands)} lands of ${other} were taken into ${of}`;
   }
   return "history turned";
 }

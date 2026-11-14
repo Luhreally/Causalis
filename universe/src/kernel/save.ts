@@ -13,6 +13,7 @@
 import { Hasher } from "./hash.ts";
 import { eventTypes } from "./history.ts";
 import { packList, unpackList, type Packed } from "./pack.ts";
+import { jsonCopy } from "./split-json.ts";
 import { kinds } from "./ref.ts";
 import { seedFromText, streams, type Seed } from "./rng.ts";
 import type { AgendaItem } from "./schedule.ts";
@@ -95,6 +96,21 @@ export function rulesetId(world: World, appVersion: string): string {
   return h.hex();
 }
 
+/**
+ * A store's state as JSON keeps it. (Copied without its text where the text would be longer than an engine's longest
+ * string: a world of 162 million people could not be kept for that, 2026-11-13.)
+ */
+function throughJson(value: unknown): unknown {
+  let text: string;
+  try {
+    text = JSON.stringify(value);
+  } catch (error) {
+    if (error instanceof RangeError) return jsonCopy(value);
+    throw error;
+  }
+  return JSON.parse(text) as unknown;
+}
+
 /** Turn a world into a save document. Only between moments. */
 export function saveWorld(
   world: World,
@@ -109,9 +125,7 @@ export function saveWorld(
       packed = store.packed === true,
       // (Packed straight from the store: packList keeps what JSON keeps, and the copy through
       // JSON is then of the packed lists, a fraction of the size.)
-      data = JSON.parse(
-        JSON.stringify(packed ? packList([store.save()]) : store.save()),
-      ) as unknown;
+      data = throughJson(packed ? packList([store.save()]) : store.save());
     stores[name] = {
       schema: schemaOf(store),
       data,
