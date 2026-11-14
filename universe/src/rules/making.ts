@@ -51,8 +51,12 @@ export const MAKINGS = {
    * How far its stars reach, and how many other peoples they may hold (asked with the size): the
    * cluster's radius in light-years, and the most of its peoples. The usual is 50 and 12, some 2,000
    * stars; a small sky's a quarter of the way out, a large one's some four times the stars. It is more
-   * a choice of company than of speed: first light to 1400 ran 151 years a minute of work with a large
-   * sky against 152, in 639 MB against 573.
+   * a choice of company than of speed. Measured one world to a process (tools/sky-probe.ts, C0), small,
+   * standard and large: first light 258, 2,047 and 8,377 stars, 0, 6 and 24 peoples; its star age 1000 to
+   * 1400 ran 235, 224 and 182 years a minute of work (the large sky's last century 41 s against 29, its
+   * peoples met and its colonies more), heap at most 1.6, 1.6 and 1.4 GB, the save 10.7, 11.2 and 12.8 MB.
+   * Alien 41 (270, 2,107 and 8,469 stars; 2, 12 and 24 peoples), 700 to 1100: 744, 736 and 732 years a
+   * minute, 729, 682 and 751 MB, a save of 3.9 MB each. The star map's plan crosses as 77, 606 and 2,433 KB.
    */
   sky: { small: [25, 4], large: [80, 24] },
 } as const satisfies Record<string, Record<string, Range>>;
@@ -226,10 +230,14 @@ export const MAKING_WORDS: Readonly<
     icon: "✨",
     name: "Its stars",
     choices: {
-      small: ["few", "the stars within 25 light-years, up to 4 other peoples", "🔹"],
+      small: [
+        "few",
+        "the stars within 25 light-years, up to 4 other peoples (often none): a little quicker once among them",
+        "🔹",
+      ],
       large: [
         "many",
-        "the stars within 80 light-years, up to 24 other peoples: about as quick, a little more memory",
+        "the stars within 80 light-years, up to 24 other peoples: as quick at first, up to a third slower once met, a larger save",
         "🌌",
       ],
     },

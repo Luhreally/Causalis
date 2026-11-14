@@ -924,6 +924,8 @@ type Exposed = {
   /** Out to the stars around; how many are shown. */
   stars?: () => void;
   starCount?: () => number;
+  /** What the star map draws (C2): its stars, round near the eye and of a few faces far, and their glows. */
+  starsDrawn?: () => { stars: number; near: number; far: number; glows: number } | null;
   bench?: unknown;
   /** The guided walk's step (from 0), or -1 when it is not showing. */
   walk?: () => number;
@@ -4382,6 +4384,7 @@ async function runPlanetPage(): Promise<void> {
     return scale === "cluster" && i >= 0 ? starScene.starOnScreen(i) : null;
   };
   exposed.starCount = () => (scale === "cluster" && clusterPlan ? clusterPlan.stars.length : 0);
+  exposed.starsDrawn = () => (scale === "cluster" ? starScene.drawn() : null);
   systemPanel.onSelect = (i) => skyScene.mark(i);
   // Down to a world of the system: made whole on the host (a moment), painted, turned.
   const worldPanel = new WorldPanel(hud);
