@@ -53,6 +53,10 @@ type PaletteAct = {
   readonly empty?: boolean;
   /** What is chosen in the palette before it falls: a way to push, a faith's tenet. */
   readonly choose?: "way" | "tenet";
+  /** How strong it falls, on the palette's slider, and what the slider is called (2026-11-13). */
+  readonly strength?: "Strength" | "Settlers";
+  /** A world's or a sun's span of years, chosen in the palette. */
+  readonly span?: "world" | "star";
 };
 
 /** A people's ways, each with its sign in the palette (Phase 14 M117), and on the map. */
@@ -81,6 +85,7 @@ const TENETS: readonly (readonly [string, string, string])[] = [
 const ACTS: Readonly<Record<string, PaletteAct>> = {
   rain: {
     id: "rain",
+    strength: "Strength",
     icon: "🌧️",
     name: "Send rain",
     target: "land",
@@ -90,6 +95,7 @@ const ACTS: Readonly<Record<string, PaletteAct>> = {
   },
   drought: {
     id: "drought",
+    strength: "Strength",
     icon: "☀️",
     name: "Withhold the rain",
     target: "land",
@@ -99,6 +105,7 @@ const ACTS: Readonly<Record<string, PaletteAct>> = {
   },
   bounty: {
     id: "bounty",
+    strength: "Strength",
     icon: "🌽",
     name: "Bless the harvest",
     target: "land",
@@ -108,6 +115,7 @@ const ACTS: Readonly<Record<string, PaletteAct>> = {
   },
   blight: {
     id: "blight",
+    strength: "Strength",
     icon: "🥀",
     name: "Blight the harvest",
     target: "land",
@@ -117,6 +125,7 @@ const ACTS: Readonly<Record<string, PaletteAct>> = {
   },
   plague: {
     id: "plague",
+    strength: "Strength",
     icon: "☠️",
     name: "Send a plague",
     target: "land",
@@ -126,6 +135,7 @@ const ACTS: Readonly<Record<string, PaletteAct>> = {
   },
   healing: {
     id: "healing",
+    strength: "Strength",
     icon: "💊",
     name: "Heal the sick",
     target: "land",
@@ -219,7 +229,14 @@ const ACTS: Readonly<Record<string, PaletteAct>> = {
     command: "act.spring",
   },
   // (On any town whose homes stand, where the hand sends it in it: Phase 42 M201.)
-  fire: { id: "fire", icon: "🔥", name: "Send fire", target: "town", command: "act.fire" },
+  fire: {
+    id: "fire",
+    icon: "🔥",
+    name: "Send fire",
+    target: "town",
+    command: "act.fire",
+    strength: "Strength",
+  },
   war: {
     id: "war",
     icon: "⚔️",
@@ -238,6 +255,7 @@ const ACTS: Readonly<Record<string, PaletteAct>> = {
   },
   friendship: {
     id: "friendship",
+    strength: "Strength",
     icon: "🤝",
     name: "Make friends",
     target: "pair",
@@ -246,6 +264,7 @@ const ACTS: Readonly<Record<string, PaletteAct>> = {
   },
   discord: {
     id: "discord",
+    strength: "Strength",
     icon: "😠",
     name: "Sow discord",
     target: "pair",
@@ -262,6 +281,8 @@ const ACTS: Readonly<Record<string, PaletteAct>> = {
   },
   warm: {
     id: "warm",
+    strength: "Strength",
+    span: "world",
     icon: "🌡️",
     name: "Warm the world",
     target: "world",
@@ -270,6 +291,8 @@ const ACTS: Readonly<Record<string, PaletteAct>> = {
   },
   cool: {
     id: "cool",
+    strength: "Strength",
+    span: "world",
     icon: "❄️",
     name: "Cool the world",
     target: "world",
@@ -278,6 +301,8 @@ const ACTS: Readonly<Record<string, PaletteAct>> = {
   },
   flare: {
     id: "flare",
+    strength: "Strength",
+    span: "star",
     icon: "🌞",
     name: "Make the sun flare",
     target: "star",
@@ -286,6 +311,8 @@ const ACTS: Readonly<Record<string, PaletteAct>> = {
   },
   calm: {
     id: "calm",
+    strength: "Strength",
+    span: "star",
     icon: "🌤️",
     name: "Calm the sun",
     target: "star",
@@ -293,9 +320,17 @@ const ACTS: Readonly<Record<string, PaletteAct>> = {
     sign: 1,
   },
   // The disasters, the makings and a realm's fortunes (Phase 13 M112, M113).
-  flood: { id: "flood", icon: "🌊", name: "Raise the river", target: "land", command: "act.flood" },
+  flood: {
+    id: "flood",
+    icon: "🌊",
+    name: "Raise the river",
+    target: "land",
+    command: "act.flood",
+    strength: "Strength",
+  },
   quake: {
     id: "quake",
+    strength: "Strength",
     icon: "🏚️",
     name: "Shake the ground",
     target: "land",
@@ -303,6 +338,7 @@ const ACTS: Readonly<Record<string, PaletteAct>> = {
   },
   meteor: {
     id: "meteor",
+    strength: "Strength",
     icon: "☄️",
     name: "Fire from the sky",
     target: "land",
@@ -310,6 +346,7 @@ const ACTS: Readonly<Record<string, PaletteAct>> = {
   },
   settle: {
     id: "settle",
+    strength: "Settlers",
     icon: "🧺",
     name: "Send settlers",
     target: "land",
@@ -335,6 +372,7 @@ const ACTS: Readonly<Record<string, PaletteAct>> = {
   // A people's ways, speech and faith in the god's hand (Phase 14 M117).
   ways: {
     id: "ways",
+    strength: "Strength",
     icon: "🎭",
     name: "Push their ways",
     target: "land",
@@ -423,9 +461,36 @@ export const PALETTE_KINDS: readonly {
   { id: "flesh", icon: "🫳", name: "The god made flesh", acts: ["possess"] },
 ];
 
-/** Years a world is warmed or cooled for, and a sun made to flare or calm. */
-const WORLD_YEARS = 50,
-  STAR_YEARS = 3;
+/** The years an act can be laid for, each its own buttons: one on a land (3 unless chosen), a realm's fortune (1), a world's warming (50), a sun's flare (3). */
+const SPANS = { lasting: [1, 3, 5], world: [10, 50, 100], star: [1, 3, 10] } as const;
+/**
+ * How hard each act strikes at the strength of old, to say in words what a strength will do (sim/acts: ACT_STRENGTH,
+ * DISASTER, GREAT_ACT_STRENGTH, REGARD, WAYS_PUSH, SETTLERS, the fire's fifth; a test holds them the same).
+ */
+export const PALETTE_FORCE = {
+  rain: 0.55,
+  harvest: 0.5,
+  plague: 3,
+  healing: 0.5,
+  quake: { dead: 0.04, stores: 0.3, blocks: 0.25 },
+  meteor: { dead: 0.2, stores: 0.8, blocks: 0.5, blighted: 2 },
+  flood: { dead: 0.005, stores: 0.4, drowned: 1, downriver: 3 },
+  fire: { homes: 0.2, dead: 0.01 },
+  warm: 1.5,
+  flare: 2,
+  calm: 0.8,
+  regard: 0.5,
+  ways: 0.25,
+  settlers: { share: 0.08, most: 2000 },
+} as const;
+/** What each strength of settlers is called. */
+const SETTLER_WORDS: Readonly<Record<number, string>> = {
+  0.5: "half as many",
+  1: "as of old",
+  1.5: "half again",
+  2: "twice as many",
+  3: "three times",
+};
 
 /** What an act will do to what it falls on, in words (null: it cannot fall there, and why). */
 type Aim = { readonly words: string; readonly args: Readonly<Record<string, unknown>> | null };
@@ -444,8 +509,14 @@ export class GodPalette {
   private readonly strength = el("label", "palette-strength");
   private readonly strengthInput = el("input");
   private readonly strengthWords = el("span", "palette-strength-words");
-  private strengthAt = FORTUNE_STRENGTHS.indexOf(1);
+  private readonly strengthLabel = el("span", "palette-strength-label", "Strength");
+  /** What the strength and the years chosen will do, in words, under the line. */
+  private readonly does = el("div", "palette-does");
+  /** The strength each act was left at (a fortune's shared by a blessing and a curse), as its slider's stop. */
+  private readonly strengthBy = new Map<string, number>();
   private fortuneYears = 1;
+  private worldYears = 50;
+  private starYears = 3;
   private way = "valour";
   private waySign: 1 | -1 = 1;
   private tenet = "rain";
@@ -502,40 +573,25 @@ export class GodPalette {
       };
       this.tabs.append(b);
     }
-    for (const n of [1, 3, 5]) {
-      const b = el("button", "speed", `${n}y`);
-      b.title = `For ${n} year${n === 1 ? "" : "s"}`;
-      b.dataset.years = `${n}`;
-      b.onclick = () => {
-        if (this.act?.fortune) this.fortuneYears = n;
-        else this.years = n;
-        this.drawYears();
-        this.say();
-      };
-      this.spans.append(b);
-    }
-    // (A blessing's or a curse's strength: five stops, the second the strength of old.)
+    // (An act's strength: five stops, the second the strength of old; each act keeps its own.)
     const input = this.strengthInput;
     input.type = "range";
     input.min = "0";
     input.max = `${FORTUNE_STRENGTHS.length - 1}`;
     input.step = "1";
-    input.value = `${this.strengthAt}`;
+    input.value = `${OLD}`;
     input.setAttribute("aria-label", "How strong");
     input.oninput = () => {
-      this.strengthAt = Number(input.value);
+      if (this.act) this.strengthBy.set(strengthKey(this.act), Number(input.value));
       this.say();
     };
-    this.strength.append(
-      el("span", "palette-strength-label", "Strength"),
-      input,
-      this.strengthWords,
-    );
+    this.strength.append(this.strengthLabel, input, this.strengthWords);
     this.strength.hidden = true;
+    this.does.hidden = true;
     this.line.append(this.words, this.spans, this.strength, this.choices);
     const bar = el("div", "palette-bar");
     bar.append(this.tabs, this.tiles);
-    this.element.append(this.line, bar);
+    this.element.append(this.line, this.does, bar);
     parent.append(this.toggle, this.element);
     this.drawTiles();
     this.drawYears();
@@ -694,33 +750,39 @@ export class GodPalette {
     place?: TownPlace,
   ): Aim {
     const years = this.years,
+      s = this.strengthFor(a),
+      // (A strength other than the one of old is carried in the act, and said; at the one of old, nothing is added.)
+      strong = s === 1 ? {} : { strength: s },
+      at = s === 1 || a.strength !== "Strength" ? "" : `, ${strengthWords(s)}`,
       span = a.lasting ? ` for ${years} year${years === 1 ? "" : "s"}` : "";
     switch (a.target) {
-      case "world":
+      case "world": {
+        const deg = PALETTE_FORCE.warm * s;
         return {
-          words: `the world ${a.sign! > 0 ? "warmed" : "cooled"} by a degree and a half for ${WORLD_YEARS} years`,
-          args: { sign: a.sign, years: WORLD_YEARS },
+          words: `the world ${a.sign! > 0 ? "warmed" : "cooled"} by ${s === 1 ? "a degree and a half" : `${deg} degrees`} for ${this.worldYears} years`,
+          args: { sign: a.sign, years: this.worldYears, ...strong },
         };
+      }
       case "star":
         return this.star
           ? {
-              words: `the sun ${a.sign! < 0 ? "flaring: death likelier under its light" : "calmed: death rarer under its light"} for ${STAR_YEARS} years`,
-              args: { star: this.star, sign: a.sign, years: STAR_YEARS },
+              words: `the sun ${a.sign! < 0 ? "flaring: death likelier under its light" : "calmed: death rarer under its light"} for ${this.starYears} years${at}`,
+              args: { star: this.star, sign: a.sign, years: this.starYears, ...strong },
             }
           : { words: "the sun is being found", args: null };
       case "land": {
         if (!land) return { words: "no land there", args: null };
         if (a.id === "settle")
           return {
-            words: `settlers sent into ${land.name}${land.people ? "" : ", empty now"}`,
-            args: { cell: land.cell },
+            words: `${s === 1 ? "settlers" : `${SETTLER_WORDS[s]} settlers as of old`} sent into ${land.name}${land.people ? "" : ", empty now"}`,
+            args: { cell: land.cell, ...strong },
           };
         if (!land.people) return { words: `no one lives in ${land.name}`, args: null };
         if (a.id === "ways") {
           const w = WAY_CHOICES.find((x) => x[0] === this.way)!;
           return {
-            words: `the people of ${land.name} ${this.waySign > 0 ? "more" : "less"} given to ${w[2]}`,
-            args: { cell: land.cell, way: this.way, sign: this.waySign },
+            words: `the people of ${land.name} ${this.waySign > 0 ? "more" : "less"} given to ${w[2]}${at}`,
+            args: { cell: land.cell, way: this.way, sign: this.waySign, ...strong },
           };
         }
         if (a.id === "newtongue")
@@ -787,12 +849,12 @@ export class GodPalette {
         if (a.id === "quake" || a.id === "meteor" || a.id === "flood")
           return {
             words:
-              a.id === "quake"
+              (a.id === "quake"
                 ? `the ground shaken under ${land.name}`
                 : a.id === "meteor"
                   ? `fire from the sky on ${land.name}: many dead, its fields burned`
-                  : `the river risen over ${land.name}, and downriver`,
-            args: { cell: land.cell },
+                  : `the river risen over ${land.name}, and downriver`) + at,
+            args: { cell: land.cell, ...strong },
           };
         if (a.id === "rise") {
           if (!land.realm) return { words: `${land.name} is no realm's`, args: null };
@@ -816,8 +878,13 @@ export class GodPalette {
           inspire: `the people of ${land.name} inspired`,
         };
         return {
-          words: `${doing[a.id] ?? land.name}${span}`,
-          args: { cell: land.cell, sign: a.sign ?? 1, years: a.lasting ? years : 1 },
+          words: `${doing[a.id] ?? land.name}${span}${a.id === "inspire" ? "" : at}`,
+          args: {
+            cell: land.cell,
+            sign: a.sign ?? 1,
+            years: a.lasting ? years : 1,
+            ...(a.id === "inspire" ? {} : strong),
+          },
         };
       }
       case "town":
@@ -852,8 +919,8 @@ export class GodPalette {
                 : {}
               : { x: Math.round(here.x * 10) / 10, z: Math.round(here.z * 10) / 10 };
         return {
-          words: here ? `${doing} where you touched` : doing,
-          args: { village: t.ref, ...where },
+          words: `${here ? `${doing} where you touched` : doing}${a.id === "fire" ? at : ""}`,
+          args: { village: t.ref, ...where, ...(a.id === "fire" ? strong : {}) },
         };
       }
       case "person":
@@ -867,7 +934,7 @@ export class GodPalette {
       case "realm": {
         const r = land?.realm;
         if (!r) return { words: land ? `${land.name} is no realm's` : "no land there", args: null };
-        const strength = FORTUNE_STRENGTHS[this.strengthAt] ?? 1,
+        const strength = s,
           years = this.fortuneYears,
           bless = a.id === "bless",
           what = fortuneReach(bless, strength);
@@ -929,7 +996,11 @@ export class GodPalette {
           discord: `discord sown between ${one.name} and ${two.name}`,
           union: `${two.name} joined to ${one.name}, one realm`,
         };
-        return { words: doing[a.id] ?? two.name, args: { a: one.ref, b: two.ref } };
+        const felt = a.id === "friendship" || a.id === "discord";
+        return {
+          words: `${doing[a.id] ?? two.name}${felt ? at : ""}`,
+          args: { a: one.ref, b: two.ref, ...(felt ? strong : {}) },
+        };
       }
     }
   }
@@ -937,14 +1008,26 @@ export class GodPalette {
   /** The line above the palette: what the act in hand will do, or asks for. */
   private say(problem?: string, tone?: "bad"): void {
     const a = this.act;
-    this.spans.hidden = !a?.lasting && !a?.fortune;
-    this.strength.hidden = !a?.fortune;
+    this.spans.hidden = !a?.lasting && !a?.fortune && !a?.span;
+    this.strength.hidden = !a?.fortune && !a?.strength;
     this.drawYears();
-    if (a?.fortune) {
-      const st = FORTUNE_STRENGTHS[this.strengthAt] ?? 1;
-      this.strengthWords.textContent = st === 1 ? "of old" : (FORTUNE_WORDS[st] ?? "");
+    if (a && (a.fortune || a.strength)) {
+      const st = this.strengthFor(a),
+        name = a.strength ?? "Strength";
+      this.strengthInput.value = `${this.strengthBy.get(strengthKey(a)) ?? OLD}`;
+      if (this.strengthLabel.textContent !== `${name}:`)
+        this.strengthLabel.textContent = `${name}:`;
+      this.strengthWords.textContent =
+        name === "Settlers"
+          ? (SETTLER_WORDS[st] ?? "")
+          : st === 1
+            ? "of old"
+            : (FORTUNE_WORDS[st] ?? "");
       this.strength.dataset.strength = `${st}`;
     }
+    const does = a && !a.fortune ? actDoes(a, this.strengthFor(a), this.yearsFor(a), this.way) : "";
+    this.does.hidden = !does;
+    if (this.does.textContent !== does) this.does.textContent = does;
     this.drawChoices();
     this.line.classList.toggle("bad", tone === "bad");
     // (Why one of a town's people cannot be taken, told whole, on two lines if it must: Phase 60.)
@@ -1093,17 +1176,63 @@ export class GodPalette {
   }
 
   private drawYears(): void {
-    const years = this.act?.fortune ? this.fortuneYears : this.years;
-    [...this.spans.children].forEach((b, i) =>
-      (b as HTMLElement).classList.toggle("on", [1, 3, 5][i] === years),
-    );
+    const a = this.act,
+      stops: readonly number[] = a?.span ? SPANS[a.span] : SPANS.lasting,
+      years = a ? this.yearsFor(a) : this.years;
+    if (
+      this.spans.children.length !== stops.length ||
+      [...this.spans.children].some((b, i) => (b as HTMLElement).dataset.years !== `${stops[i]}`)
+    )
+      this.spans.replaceChildren(
+        ...stops.map((n) => {
+          const b = el("button", "speed", `${n}y`);
+          b.title = `For ${n} year${n === 1 ? "" : "s"}`;
+          b.dataset.years = `${n}`;
+          b.onclick = () => {
+            const now = this.act;
+            if (now?.fortune) this.fortuneYears = n;
+            else if (now?.span === "world") this.worldYears = n;
+            else if (now?.span === "star") this.starYears = n;
+            else this.years = n;
+            this.drawYears();
+            this.say();
+          };
+          return b;
+        }),
+      );
+    for (const b of this.spans.children)
+      (b as HTMLElement).classList.toggle("on", (b as HTMLElement).dataset.years === `${years}`);
+  }
+
+  /** The strength the act in hand is laid at (1 where it has none). */
+  private strengthFor(a: PaletteAct): number {
+    if (!a.fortune && !a.strength) return 1;
+    return FORTUNE_STRENGTHS[this.strengthBy.get(strengthKey(a)) ?? OLD] ?? 1;
+  }
+
+  /** The years the act in hand is laid for. */
+  private yearsFor(a: PaletteAct): number {
+    return a.fortune
+      ? this.fortuneYears
+      : a.span === "world"
+        ? this.worldYears
+        : a.span === "star"
+          ? this.starYears
+          : this.years;
+  }
+
+  /** How strong an act is to fall, by its id (for the look tools and the gates, as its slider moved). */
+  setStrength(id: string, strength: number): void {
+    const a = ACTS[id],
+      at = FORTUNE_STRENGTHS.indexOf(strength as (typeof FORTUNE_STRENGTHS)[number]);
+    if (a && at >= 0) this.strengthBy.set(strengthKey(a), at);
+    this.say();
   }
 
   /** How strong a blessing or curse is to be, and for how many years (for the look tools and the gates). */
   setFortune(strength: number, years: number): void {
     const at = FORTUNE_STRENGTHS.indexOf(strength as (typeof FORTUNE_STRENGTHS)[number]);
-    if (at >= 0) this.strengthAt = at;
-    this.strengthInput.value = `${this.strengthAt}`;
+    if (at >= 0) this.strengthBy.set("fortune", at);
     if ([1, 3, 5].includes(years)) this.fortuneYears = years;
     this.say();
   }
@@ -1125,6 +1254,66 @@ function fortuneReach(bless: boolean, strength: number): string {
         ...(strength > 1 ? ["ill omens"] : []),
       ];
   return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0]!;
+}
+/** The stop of the strength of old on an act's slider. */
+const OLD = FORTUNE_STRENGTHS.indexOf(1);
+/** Which strength an act keeps: a blessing and a curse share one, every other act its own. */
+const strengthKey = (a: PaletteAct) => (a.fortune ? "fortune" : a.id);
+const hundred = (x: number) => {
+  const n = x * 100;
+  return n >= 1.5 || n === Math.round(n)
+    ? `${Math.round(n)} in a hundred`
+    : `${Math.round(n * 10) / 10} in a hundred`;
+};
+const times = (x: number) => (Math.round(x * 10) / 10).toString();
+const yearsOf = (n: number) => `${n} year${n === 1 ? "" : "s"}`;
+/**
+ * What an act at a strength and for so many years will do, plainly, with its numbers (the sim's own rules: an act raised
+ * by k is 1 + k·s, lowered by k is (1 − k)^s; a disaster's shares s times its own, never past the whole). Empty: nothing
+ * to say beyond the line (an act with no strength or span).
+ */
+function actDoes(a: PaletteAct, s: number, years: number, way: string): string {
+  const f = PALETTE_FORCE,
+    lower = (k: number) => Math.pow(1 - k, s),
+    share = (k: number, most = 1) => Math.min(most, k * s),
+    each = `each year for ${yearsOf(years)}`;
+  switch (a.id) {
+    case "rain":
+      return `Rain ${hundred(f.rain * s)} more than the year would bring, ${each}.`;
+    case "drought":
+      return `Rain at ${hundred(lower(f.rain))} of what the year would bring, ${each}${lower(f.rain) < 0.25 ? ": wells and fields run dry" : ""}.`;
+    case "bounty":
+      return `Harvests ${hundred(f.harvest * s)} richer, ${each}.`;
+    case "blight":
+      return `Harvests at ${hundred(lower(f.harvest))} of their usual, ${each}${lower(f.harvest) < 0.3 ? ": famine likely" : ""}.`;
+    case "plague":
+      return `Deaths ${times(1 + f.plague * s)} times as likely, ${each}.`;
+    case "healing":
+      return `Deaths at ${hundred(lower(f.healing))} of their usual, ${each}.`;
+    case "quake":
+      return `About ${hundred(share(f.quake.dead, 0.9))} of its people dead, ${hundred(share(f.quake.stores))} of its stores spilled, ${hundred(share(f.quake.blocks))} of its homes down (fewer where they have learned to build against it).`;
+    case "meteor":
+      return `About ${hundred(share(f.meteor.dead, 0.9))} of its people dead, ${hundred(share(f.meteor.stores))} of its stores burned, ${hundred(share(f.meteor.blocks))} of its homes down, its fields burned ${yearsOf(Math.max(1, Math.round(f.meteor.blighted * s)))}; a crater left.`;
+    case "flood":
+      return `The river rises over it and up to ${Math.max(1, Math.round(f.flood.downriver * s))} lands downriver: ${hundred(share(f.flood.dead, 0.9))} drowned, ${hundred(share(f.flood.stores))} of the stores soaked, the fields drowned ${yearsOf(Math.max(1, Math.round(f.flood.drowned * s)))}.`;
+    case "fire":
+      return `About ${hundred(share(f.fire.homes))} of the town's homes burn, and ${hundred(f.fire.dead * s)} of its people die.`;
+    case "friendship":
+    case "discord":
+      return `${a.id === "friendship" ? "A kindness" : "A grievance"} worth ${Math.round(f.regard * s * 100)} in their regard of each other (a war between them costs 45), fading by half every thirty years.`;
+    case "ways":
+      return `Their ${WAY_CHOICES.find((x) => x[0] === way)?.[2] ?? way} moved ${hundred(f.ways * s)}, and their old custom with it, so it lasts.`;
+    case "warm":
+    case "cool":
+      return `The world ${a.id === "warm" ? "warmer" : "colder"} by ${times(f.warm * s)} degrees for ${yearsOf(years)}: the rains move, and the fields with them.`;
+    case "flare":
+      return `Under its light, death ${times(1 + (f.flare - 1) * s)} times as likely for ${yearsOf(years)}.`;
+    case "calm":
+      return `Under its light, deaths at ${hundred(lower(1 - f.calm))} of their usual for ${yearsOf(years)}.`;
+    case "settle":
+      return `${sentence(hundred(f.settlers.share * s))} of the most peopled land beside it go, at most ${Math.round(f.settlers.most * s).toLocaleString("en-US")}, with their share of its stores.`;
+  }
+  return "";
 }
 const strengthWords = (s: number) =>
   s === 1

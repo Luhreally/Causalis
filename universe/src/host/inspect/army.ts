@@ -10,6 +10,8 @@ import {
   armsOf,
   designsOf,
   fieldedParts,
+  godHostsOf,
+  godMen,
   loreOf,
   machinedFor,
   marketsOf,
@@ -44,7 +46,12 @@ function fieldedThrough(world: World, r: Polity): Point[] {
     f = fieldedParts(ctx, r),
     people = r.members.reduce((n, c) => n + (ctx.provinces.get(c)?.total() ?? 0), 0),
     k = people ? (f.men * f.share) / people : 0;
-  return peopleThrough(world, r.members).map((p) => ({ x: p.x, y: Math.round(p.y * k) }));
+  // (And the men the god stood up for it, from the year they stood: as many as stand now.)
+  const stood = godHostsOf(world)?.of(r.ref) ?? [];
+  return peopleThrough(world, r.members).map((p) => ({
+    x: p.x,
+    y: Math.round(p.y * k) + stood.reduce((n, h) => n + (p.x >= h.year ? h.men : 0), 0),
+  }));
 }
 
 /** At most `most` points, evenly through (the first and last kept). */
@@ -86,6 +93,7 @@ function machinedStat(world: World, r: Polity): Stat[] {
 export function armyBlocks(world: World, r: Polity): Block[] {
   const ctx = populationContext(world),
     f = fieldedParts(ctx, r),
+    stood = godMen(world, r.ref),
     design = designsOf(world).of(r.ref),
     arms = armsOf(ctx, r),
     // (A man's worth: against one with a club, bare, on foot.)
@@ -122,8 +130,15 @@ export function armyBlocks(world: World, r: Polity): Block[] {
     {
       type: "facts",
       rows: [
-        stat("Fields", count(f.men * f.share), {
+        // (With the men the god stood up for it, where it did: they stand in its host and fight its battles.)
+        stat("Fields", count(f.men * f.share + stood), {
           parts: [
+            ...(stood
+              ? [
+                  { label: ["of its own lands"], value: count(f.men * f.share) },
+                  { label: ["🌟 stood up by the god"], value: count(stood) },
+                ]
+              : []),
             { label: ["fighting men"], value: count(f.men) },
             { label: ["the share it fields"], value: share(f.share) },
             { label: ["its people's valour"], value: share(f.valour) },

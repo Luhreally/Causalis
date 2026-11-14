@@ -16,7 +16,7 @@ import {
   DEITIES,
   designsOf,
   diplomacyOf,
-  fieldedOf,
+  hostOf as hostMen,
   frontier,
   grainLost,
   handOf,
@@ -1185,7 +1185,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
               name: realmName(r),
               color: realmColor(ref),
               // (Its counter's: the men it fields, and its arms.)
-              fields: Math.round(fieldedOf(ctx, r)),
+              fields: Math.round(hostMen(ctx, r)),
               arms: realmArms(world, ref),
               host: hostOf(ref),
             };
@@ -1310,7 +1310,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
           garrisons = realms
             .living()
             .filter((r) => !fighting.has(r.ref) && spot(r.seat) >= 0)
-            .map((r) => ({ r, fields: Math.round(fieldedOf(ctx, r)) }))
+            .map((r) => ({ r, fields: Math.round(hostMen(ctx, r)) }))
             .sort((a, b) => b.fields - a.fields || (a.r.ref < b.r.ref ? -1 : 1))
             .slice(0, GARRISONS)
             .map(({ r, fields }) => ({

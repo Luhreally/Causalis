@@ -42,6 +42,7 @@ import { cultureOf } from "../culture/culture.ts";
 import { citiesOf, USE } from "../city/city.ts";
 import { homesStand, razeTown } from "../town/fabric.ts";
 import { knows, lawAllows, loreOf, matterAllows } from "../lore/lore.ts";
+import { actStrengthOf, strengthMark, strengthProblem } from "./acts.ts";
 
 export const LOCAL_ACT_EVENTS = {
   shrine: defineEventType("act.shrine", 5),
@@ -137,7 +138,7 @@ export function installLocalActs(world: World, ctx: () => PopulationContext): vo
   world.defineCommand({
     type: "act.fire",
     validate: (args) => {
-      const problem = village(args);
+      const problem = village(args) ?? strengthProblem(args);
       if (problem) return problem;
       const { village: ref, lot } = args as FireArgs;
       if (lot !== undefined && (!Number.isInteger(lot) || lot < 0))
@@ -154,21 +155,26 @@ export function installLocalActs(world: World, ctx: () => PopulationContext): vo
         { lot } = command.args as FireArgs,
         v = c.settlements.get((command.args as PlaceArgs).village)!,
         city = citiesOf(world).get(v.ref),
-        year = yearOfMoment(t);
+        year = yearOfMoment(t),
+        // (At a strength, so many times as much of it burns, and as many die: at 1, as it always was.)
+        s = actStrengthOf(command.args);
       // A fifth of a city's built blocks burn, the nearest the middle first; a hundredth of the
       // people die.
       const built = (city?.uses ?? [])
           .map((u, k) => ({ u, k }))
           .filter((b) => b.u !== USE.open && b.u !== USE.temple),
-        burnt = built.slice(0, Math.ceil(built.length / 5));
+        burnt = built.slice(
+          0,
+          s === 1 ? Math.ceil(built.length / 5) : Math.ceil(built.length * Math.min(1, s / 5)),
+        );
       for (const b of burnt) city!.uses[b.k] = USE.open;
       // (And as great a share of its homes, the heart first — or those about the lot it fell on:
       // Phase 23, Phase 42 M201.)
       // (Fewer, where its people have learned to keep lanes a fire stops at: exactly as many where they have learned nothing.)
       const learned = lessened(world, cellRef(0, v.cell), "fire", year),
-        homes = razeTown(c, v.ref, 0.2 * learned, t, lot);
+        homes = razeTown(c, v.ref, Math.min(1, 0.2 * s) * learned, t, lot);
       const p = c.provinces.get(v.cell)!,
-        toll = Math.round((v.population / 100) * learned);
+        toll = Math.round((v.population / 100) * learned * s);
       let dead = toll;
       for (let b = 0; b < BANDS && dead > 0; b++)
         for (let r = b; r < 2 * BANDS && dead > 0; r += BANDS)
@@ -191,6 +197,7 @@ export function installLocalActs(world: World, ctx: () => PopulationContext): vo
           homes,
           dead: toll - dead,
           ...(lot !== undefined ? { lot } : {}),
+          ...strengthMark(s),
         },
       });
     },

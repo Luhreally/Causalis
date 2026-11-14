@@ -12,6 +12,7 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
+import { actFactor, actStrengthOf, strengthMark, strengthProblem } from "./acts.ts";
 
 export const GREAT_ACT_EVENTS = {
   warm: defineEventType("act.warm", 6),
@@ -36,6 +37,8 @@ export type GreatAct = {
   readonly sign: 1 | -1;
   readonly from: number;
   readonly until: number;
+  /** How strong it was laid, where not at the strength it always had (1: absent). */
+  readonly strength?: number;
 };
 
 export class GreatActStore implements StateStore {
@@ -76,14 +79,22 @@ export function greatActsOf(world: World): GreatActStore | null {
 /** The god's warming of a world now (degrees; 0 when none). */
 export function divineWarming(world: World, planet: Ref): number {
   const a = greatActsOf(world)?.at("warm", planet, world.now);
-  return a ? a.sign * GREAT_ACT_STRENGTH.warm : 0;
+  return a ? a.sign * GREAT_ACT_STRENGTH.warm * (a.strength ?? 1) : 0;
 }
 
 /** The hazard a star's flare or calm lays on the lands under its light now (1: none). */
 export function starHazard(world: World, star: Ref): { factor: number; act: GreatAct | null } {
   const a = greatActsOf(world)?.at("flare", star, world.now) ?? null;
   return {
-    factor: !a ? 1 : a.sign < 0 ? GREAT_ACT_STRENGTH.flare : GREAT_ACT_STRENGTH.calm,
+    factor: !a
+      ? 1
+      : a.strength === undefined
+        ? a.sign < 0
+          ? GREAT_ACT_STRENGTH.flare
+          : GREAT_ACT_STRENGTH.calm
+        : a.sign < 0
+          ? actFactor(true, GREAT_ACT_STRENGTH.flare - 1, a.strength)
+          : actFactor(false, 1 - GREAT_ACT_STRENGTH.calm, a.strength),
     act: a,
   };
 }
@@ -107,16 +118,17 @@ export function installGreatActs(
       if (!a || (a.sign !== 1 && a.sign !== -1)) return "sign must be 1 or -1";
       if (!Number.isInteger(a.years) || (a.years as number) < 1 || (a.years as number) > 100)
         return "years must be from 1 to 100";
-      return null;
+      return strengthProblem(a);
     },
     apply: (command, t) => {
-      const a = command.args as { sign: 1 | -1; years: number };
+      const a = command.args as { sign: 1 | -1; years: number },
+        strong = strengthMark(actStrengthOf(a));
       const event = world.events.emit({
         type: GREAT_ACT_EVENTS.warm.type,
         place: null,
         subjects: [planet],
         causes: [{ ref: command.id, role: "agent", weight: 1 }],
-        data: { sign: a.sign, years: a.years },
+        data: { sign: a.sign, years: a.years, ...strong },
       });
       store.add({
         command: command.id,
@@ -126,6 +138,7 @@ export function installGreatActs(
         sign: a.sign,
         from: t,
         until: t + a.years * YEAR,
+        ...strong,
       });
     },
   });
@@ -138,16 +151,17 @@ export function installGreatActs(
       if (a.sign !== 1 && a.sign !== -1) return "sign must be 1 or -1";
       if (!Number.isInteger(a.years) || (a.years as number) < 1 || (a.years as number) > 10)
         return "years must be from 1 to 10";
-      return null;
+      return strengthProblem(a);
     },
     apply: (command, t) => {
-      const a = command.args as { star: Ref; sign: 1 | -1; years: number };
+      const a = command.args as { star: Ref; sign: 1 | -1; years: number },
+        strong = strengthMark(actStrengthOf(a));
       const event = world.events.emit({
         type: GREAT_ACT_EVENTS.flare.type,
         place: null,
         subjects: [a.star],
         causes: [{ ref: command.id, role: "agent", weight: 1 }],
-        data: { sign: a.sign, years: a.years },
+        data: { sign: a.sign, years: a.years, ...strong },
       });
       store.add({
         command: command.id,
@@ -157,6 +171,7 @@ export function installGreatActs(
         sign: a.sign,
         from: t,
         until: t + a.years * YEAR,
+        ...strong,
       });
     },
   });

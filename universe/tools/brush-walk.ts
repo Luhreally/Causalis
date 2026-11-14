@@ -65,6 +65,11 @@ const shot = async (name: string) => {
     await page.screenshot({ path: join(shots, `${String(++n).padStart(2, "0")}-${name}.png`) });
 };
 const status = () => k<string>(`document.querySelector(".brush-status")?.textContent ?? ""`);
+/** The brush's size and strength sliders set, as a finger would leave them. */
+const setAmounts = (size: number, strength: number) =>
+  k(
+    `(() => { const [r, s] = document.querySelectorAll(".brush-controls .brush-amount"); for (const [e, v] of [[r, ${size}], [s, ${strength}]]) { e.value = String(v); e.dispatchEvent(new Event("input")); e.dispatchEvent(new Event("change")); } })()`,
+  );
 const count = () =>
   k<number>(`globalThis.causalis.client.query({ type: "brush.state" }).then((s) => s.count)`);
 const camera = () =>
@@ -178,8 +183,7 @@ async function brushes(scale: string): Promise<void> {
     `under the stroke's start: ${await under(mid.x0, mid.y0)}; its end: ${await under(mid.x1, mid.y1)}`,
   );
   // (Each scale begins at the smallest and gentlest, as a first try would.)
-  await page.locator(".brush-controls select").nth(1).selectOption({ index: 0 });
-  await page.locator(".brush-controls select").nth(2).selectOption({ index: 0 });
+  await setAmounts(0, 1);
   const kinds = await k<string[]>(
     `[...document.querySelector(".brush-controls select").options].map((o) => o.value)`,
   );
@@ -217,8 +221,7 @@ async function brushes(scale: string): Promise<void> {
   // Size and strength: the largest and strongest raise, then Undo before it lands.
   const selects = page.locator(".brush-controls select");
   await selects.nth(0).selectOption("raise");
-  await selects.nth(1).selectOption({ index: 3 });
-  await selects.nth(2).selectOption({ index: 3 });
+  await setAmounts(3, 4);
   const before = await count();
   await stroke(mid.x0, mid.y0 + 30, mid.x1, mid.y1 + 30);
   await settle(300);

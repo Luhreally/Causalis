@@ -23,7 +23,7 @@ import { politiesOf } from "../polity/polity.ts";
 import { citiesOf, USE } from "../city/city.ts";
 import { razeTown } from "../town/fabric.ts";
 import type { MarketStore } from "../economy/market.ts";
-import { actsOf } from "./acts.ts";
+import { actStrengthOf, actsOf, strengthMark, strengthProblem } from "./acts.ts";
 
 export const DISASTER_EVENTS = {
   quake: defineEventType("act.quake", 6),
@@ -149,13 +149,40 @@ export function grieve(world: World, cell: number, amount: number, cause: Ref): 
   });
 }
 
-type LandArgs = { cell: number };
+type LandArgs = { cell: number; strength?: number };
+
+/**
+ * A disaster at a strength (asked 2026-11-13: a slider on the god's hand): its shares of the dead, the stores and the
+ * homes, its grief, how long the fields stay ruined and how far a flood runs downriver, each so many times the one of
+ * old (a share never past the whole, nor the dead past nine in ten). At 1, exactly as it always was.
+ */
+export function disasterAt<K extends keyof typeof DISASTER>(
+  kind: K,
+  s: number,
+): { [P in keyof (typeof DISASTER)[K]]: number } {
+  const k = DISASTER[kind] as Readonly<Record<string, number>>,
+    out: Record<string, number> = {};
+  for (const [name, v] of Object.entries(k))
+    out[name] =
+      s === 1
+        ? v
+        : name === "dead"
+          ? Math.min(0.9, v * s)
+          : name === "stores" || name === "blocks"
+            ? Math.min(1, v * s)
+            : name === "grief"
+              ? v * s
+              : Math.max(1, Math.round(v * s));
+  return out as { [P in keyof (typeof DISASTER)[K]]: number };
+}
 
 /** Teach a peopled world the god's disasters (their craters kept with the acts). */
 export function installDisasters(world: World, ctx: () => PopulationContext): void {
   const peopled = (args: unknown): string | null => {
       const cell = (args as Partial<LandArgs> | null)?.cell;
       if (!Number.isInteger(cell)) return "a land is wanted";
+      const strong = strengthProblem(args);
+      if (strong) return strong;
       const c = ctx();
       if (offworldSite(c.generated, cell!)) return "that land is not of this world";
       return (c.provinces.get(cell!)?.total() ?? 0) > 0 ? null : "no one lives there";
@@ -180,7 +207,8 @@ export function installDisasters(world: World, ctx: () => PopulationContext): vo
     apply: (command, t) => {
       const c = ctx(),
         cell = (command.args as LandArgs).cell,
-        k = DISASTER.quake,
+        s = actStrengthOf(command.args),
+        k = disasterAt("quake", s),
         // (Frames its people have learned to brace stand through it: exactly 1 where they have learned nothing.)
         learned = lessened(world, cellRef(0, cell), "quake", yearOfMoment(t)),
         dead = strike(c, cell, k.dead * learned, t),
@@ -192,7 +220,7 @@ export function installDisasters(world: World, ctx: () => PopulationContext): vo
         subjects: [c.provinces.get(cell)!.ref],
         place: c.provinces.get(cell)!.ref,
         causes: agent(command),
-        data: { dead, blocks, homes },
+        data: { dead, blocks, homes, ...strengthMark(s) },
       });
       grieve(world, cell, k.grief, event);
     },
@@ -205,7 +233,8 @@ export function installDisasters(world: World, ctx: () => PopulationContext): vo
     apply: (command, t) => {
       const c = ctx(),
         cell = (command.args as LandArgs).cell,
-        k = DISASTER.meteor,
+        s = actStrengthOf(command.args),
+        k = disasterAt("meteor", s),
         dead = strike(c, cell, k.dead, t),
         homes: Record<string, number> = {},
         blocks = raze(c, cell, k.blocks, t, homes);
@@ -215,7 +244,7 @@ export function installDisasters(world: World, ctx: () => PopulationContext): vo
         subjects: [c.provinces.get(cell)!.ref],
         place: c.provinces.get(cell)!.ref,
         causes: agent(command),
-        data: { dead, blocks, years: k.blighted, homes },
+        data: { dead, blocks, years: k.blighted, homes, ...strengthMark(s) },
       });
       ruin(command.id, event, cell, k.blighted, t);
       actsOf(world).addCrater({ cell, year: yearOfMoment(t), event });
@@ -237,7 +266,8 @@ export function installDisasters(world: World, ctx: () => PopulationContext): vo
       const c = ctx(),
         g = c.generated,
         cell = (command.args as LandArgs).cell,
-        k = DISASTER.flood,
+        s = actStrengthOf(command.args),
+        k = disasterAt("flood", s),
         // Downriver: the lands its water runs on to, as far as it keeps to the land.
         lands = [cell];
       for (let at = cell, i = 0; i < k.downriver; i++) {
@@ -262,7 +292,7 @@ export function installDisasters(world: World, ctx: () => PopulationContext): vo
         subjects: [c.provinces.get(cell)!.ref],
         place: c.provinces.get(cell)!.ref,
         causes: agent(command),
-        data: { dead, lands: lands.length },
+        data: { dead, lands: lands.length, ...strengthMark(s) },
       });
       for (const l of lands) if (c.provinces.get(l)) ruin(command.id, event, l, k.drowned, t);
       grieve(world, cell, k.grief, event);

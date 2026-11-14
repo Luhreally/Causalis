@@ -24,7 +24,7 @@ import {
   courtOf,
   decreeProblem,
   diplomacyOf,
-  fieldedOf,
+  hostOf,
   frontier,
   lawVoices,
   orderOf,
@@ -68,7 +68,14 @@ import {
   tiesOf,
   type RulerErrand,
 } from "../sim/index.ts";
-import { aimPhrase, grainSum, termsPhrase } from "../causal/index.ts";
+import {
+  againWords,
+  aimPhrase,
+  grainSum,
+  shareWords,
+  termsPhrase,
+  timesWords,
+} from "../causal/index.ts";
 import type {
   ReignEnvoys,
   ReignBond,
@@ -83,6 +90,7 @@ import type {
   ReignRole,
   ReignCourt,
   ReignGod,
+  GodAmount,
   ReignWar,
   ReignWars,
 } from "../bridge/index.ts";
@@ -91,7 +99,16 @@ import { familyOf, type Family } from "./kin.ts";
 import { seatTownOf } from "./leaders.ts";
 import { wealthBook } from "./wealth.ts";
 import { realmColor } from "./colors.ts";
-import { GOD_AGE, GOD_HOSTS, bestHostFor, godMen, godProblem, type GodAct } from "../sim/index.ts";
+import {
+  GOD_AGE,
+  GOD_AMOUNTS,
+  GOD_BREAD,
+  bestHostFor,
+  godLearning,
+  godMen,
+  godProblem,
+  type GodAct,
+} from "../sim/index.ts";
 import { bare, claimOf } from "./inspect/words.ts";
 import { landTitle } from "./inspect/names.ts";
 import type { QueryHandler } from "./host.ts";
@@ -434,7 +451,7 @@ export function reignNow(
     people,
     lands: r.members.length,
     beyond: st.beyond.length,
-    host: Math.round(fieldedOf(ctx, r)) + godMen(world, r.ref),
+    host: Math.round(hostOf(ctx, r)),
     legitimacy: st.legitimacy,
     unrest,
     tithe: Math.round(r.tribute * 100),
@@ -643,7 +660,7 @@ function reignWars(
     year0 = yearOfMoment(world.now),
     /** What they believe of a foe's host, and what the foe knows of theirs. */
     knownOf = (foe: Polity): string => {
-      const truth = fieldedOf(populationContext(world), foe),
+      const truth = hostOf(populationContext(world), foe),
         mine = misreadOf(world, r.ref, foe.ref, year0);
       return `You believe their host is about ${many(Math.round(truth * mine))}${ties.embassyOf(r.ref, foe.ref) ? ", and your people at their seat keep it true" : ""}. ${ties.embassyOf(foe.ref, r.ref) ? "Their people at your seat know your host truly." : "They know your host only by rumour."}`;
     };
@@ -651,7 +668,7 @@ function reignWars(
     t = world.now,
     diplomacy = diplomacyOf(world),
     realms = politiesOf(world),
-    host = Math.round(fieldedOf(ctx, r)),
+    host = Math.round(hostOf(ctx, r)),
     { people } = peopleOf(world, r),
     wars = warsOf(world)
       .fighting(r.ref)
@@ -705,7 +722,7 @@ function reignWars(
               })
             : warProblem(ctx, r, foe, undefined, t, as.channel),
           v = warVoices(ctx, r, foe, t),
-          theirs = Math.round(fieldedOf(ctx, foe));
+          theirs = Math.round(hostOf(ctx, foe));
         return [
           {
             ref: foe.ref,
@@ -845,7 +862,7 @@ function reignEnvoys(world: World, realm: unknown, channel = false): ReignEnvoys
       : "No border or road lies between you and anyone: no one could reach them.",
     realms: met.map(({ q, x }) => {
       const factor = misreadOf(world, r.ref, q.ref, year),
-        truth = fieldedOf(ctx, q);
+        truth = hostOf(ctx, q);
       return {
         ref: q.ref,
         name: realmName(q),
@@ -911,16 +928,80 @@ function reignGod(world: World, realm: unknown, as: As, aim: unknown): ReignGod 
     own = to === r,
     best = bestHostFor(ctx),
     bestWords = best.parts.length ? designWords(best.parts) : "",
-    offer = (label: string, what: GodAct, more: Record<string, unknown>, does: string) => {
+    offer = (
+      label: string,
+      what: GodAct,
+      more: Record<string, unknown>,
+      does: string,
+      amount?: GodAmount,
+    ) => {
       const args = {
           what,
           ...(own ? {} : GOD_PAIRED_ACTS.has(what) ? { with: to.ref } : { to: to.ref }),
           ...more,
         },
         bad = godProblem(world, ctx, { ...who, channel: true, ...args });
-      return { label, args, can: !bad, words: bad ?? does };
+      return { label, args, can: !bad, words: bad ?? does, ...(amount ? { amount } : {}) };
     },
     them = own ? "your realm" : realmName(to),
+    // (What each amount would come to on this realm as it stands: its people, its host, its standing, its lands' grievance.)
+    people = to.members.reduce((n, c) => n + (ctx.provinces.get(c)?.total() ?? 0), 0),
+    host = Math.round(hostOf(ctx, to)),
+    rightful = orderOf(world)?.of(to.ref)?.legitimacy ?? null,
+    sore =
+      to.members.reduce((n, c) => n + Math.min(1, realms.discontent(c).level), 0) /
+      Math.max(1, to.members.length),
+    seat = ctx.provinces.get(to.seat)?.total() ?? 0,
+    learnable = godLearning(ctx, to.seat, GOD_AMOUNTS.age.stops.at(-1)!).length,
+    other = own ? null : to,
+    theirLands = other ? other.members.length : 0,
+    pct = (x: number) => `${Math.round(x * 100)} in a hundred`,
+    against = (n: number) =>
+      host <= 0
+        ? "where it had no host"
+        : n >= host * 1.5
+          ? `${commas(n / host)} times its host of ${commas(host)}`
+          : n >= host * 0.75
+            ? `about as many as its host of ${commas(host)}`
+            : `${Math.max(1, Math.round((n / host) * 100))} in a hundred of its host of ${commas(host)}`,
+    /** A slider over how much an act does: its stops in words, the button's label and what each will do. */
+    amount = (
+      what: keyof typeof GOD_AMOUNTS,
+      label: string,
+      says: (v: number) => string,
+      button: (v: number) => string,
+      words: (v: number) => string,
+      shared?: string,
+    ): GodAmount => {
+      const spec = GOD_AMOUNTS[what] as {
+        key: string;
+        stops: readonly number[];
+        was: number;
+      };
+      return {
+        key: spec.key,
+        label,
+        at: spec.stops.indexOf(spec.was),
+        stops: spec.stops.map((v) => ({
+          value: v,
+          says: says(v),
+          label: button(v),
+          words: words(v),
+        })),
+        ...(shared ? { shared } : {}),
+      };
+    },
+    bread = (y: number) =>
+      y === 1
+        ? "a year's bread"
+        : y < 1
+          ? `${y === 0.25 ? "three months'" : "six months'"} bread`
+          : `${y} years' bread`,
+    hostWords = (arms: "theirs" | "best") => (n: number) =>
+      arms === "theirs"
+        ? `${commas(n)} stand up at its seat, armed as its smiths arm them now: ${against(n)}. They stand in its host until they fall, wasting a little each year.`
+        : `${commas(n)} armed with ${bestWords}, the best its world's matter allows, though no one of its people can make them yet: ${against(n)}.${n >= 1_000_000 ? " No realm on this world could stand against them." : ""}`,
+    men = GOD_AMOUNTS.host.was,
     groups: ReignGod["groups"][number][] = [
       {
         title: `⚔️ A host for ${them}, out of nothing`,
@@ -928,30 +1009,34 @@ function reignGod(world: World, realm: unknown, as: As, aim: unknown): ReignGod 
           ...(own
             ? [
                 offer(
-                  `🛡️ ${many(GOD_HOSTS[0])}, armed as it arms them`,
+                  `🛡️ ${commas(men)}, armed as it arms them`,
                   "host",
-                  { men: GOD_HOSTS[0], arms: "theirs" },
-                  "They stand up at its seat, armed as its smiths arm them now, and stand in its host until they fall, wasting a little each year.",
-                ),
-                offer(
-                  `🛡️ ${many(GOD_HOSTS[1])}, armed as it arms them`,
-                  "host",
-                  { men: GOD_HOSTS[1], arms: "theirs" },
-                  "They stand up at its seat, armed as its smiths arm them now.",
+                  { men, arms: "theirs" },
+                  hostWords("theirs")(men),
+                  amount(
+                    "host",
+                    "Men",
+                    (v) => commas(v),
+                    (v) => `🛡️ ${commas(v)}, armed as it arms them`,
+                    hostWords("theirs"),
+                    "host",
+                  ),
                 ),
               ]
             : []),
           offer(
-            `🌟 ${many(GOD_HOSTS[1])} with the best arms its world allows`,
+            `🌟 ${commas(men)} with the best arms its world allows`,
             "host",
-            { men: GOD_HOSTS[1], arms: "best" },
-            `Armed with ${bestWords}: the best its world's matter allows, though no one of its people can make them yet.`,
-          ),
-          offer(
-            `🌟 ${many(GOD_HOSTS[2])} with the best arms its world allows`,
-            "host",
-            { men: GOD_HOSTS[2], arms: "best" },
-            `A million armed with ${bestWords}. No realm on this world could stand against them.`,
+            { men, arms: "best" },
+            hostWords("best")(men),
+            amount(
+              "host",
+              "Men",
+              (v) => commas(v),
+              (v) => `🌟 ${commas(v)} with the best arms its world allows`,
+              hostWords("best"),
+              "host",
+            ),
           ),
         ],
       },
@@ -963,12 +1048,29 @@ function reignGod(world: World, realm: unknown, as: As, aim: unknown): ReignGod 
             "grain",
             {},
             "Grain in every land's stores: a year of it for everyone who lives there.",
+            amount(
+              "grain",
+              "Bread",
+              (y) =>
+                y === 0.25 ? "3 months" : y === 0.5 ? "6 months" : `${y} year${y === 1 ? "" : "s"}`,
+              (y) => `🌾 ${sentence(bread(y))} for all its people`,
+              (y) =>
+                `${commas(people * GOD_BREAD * y)} measures of grain in its lands' stores: ${bread(y)} for each of its ${commas(people)} people.${y >= 5 ? " No famine can reach it for years." : ""}`,
+            ),
           ),
           offer(
             "💰 Double its wealth",
             "wealth",
             {},
             "Every store of every land of it doubled: its wealth a head with them.",
+            amount(
+              "wealth",
+              "Wealth",
+              (b) => `×${b}`,
+              (b) => (b === 2 ? "💰 Double its wealth" : `💰 Its wealth ×${b}`),
+              (b) =>
+                `Every store of every land of it made ${timesWords(b)}: its wealth a head with them.`,
+            ),
           ),
           ...(own
             ? []
@@ -978,6 +1080,15 @@ function reignGod(world: World, realm: unknown, as: As, aim: unknown): ReignGod 
                   "poorer",
                   {},
                   "Every store of every land of it halved.",
+                  amount(
+                    "poorer",
+                    "Taken",
+                    (s) => shareWords(s),
+                    (s) =>
+                      s === 0.5 ? "🪙 Halve its wealth" : `🪙 Take ${shareWords(s)} of its wealth`,
+                    (s) =>
+                      `${sentence(shareWords(s))} of every store of every land of it spoiled: its wealth a head with them.${s >= 0.9 ? " Its people will go hungry." : ""}`,
+                  ),
                 ),
               ]),
           offer(
@@ -985,6 +1096,14 @@ function reignGod(world: World, realm: unknown, as: As, aim: unknown): ReignGod 
             "people",
             {},
             "Half as many again in every land, of every age and trade as are there.",
+            amount(
+              "people",
+              "More people",
+              (s) => `+${Math.round(s * 100)}%`,
+              (s) => `👥 ${sentence(againWords(s))}`,
+              (s) =>
+                `About ${commas(Math.floor(people * s))} more people in its lands (${againWords(s)}), of every age and trade as are there, with no more bread than they had.`,
+            ),
           ),
           ...(own
             ? [
@@ -993,6 +1112,14 @@ function reignGod(world: World, realm: unknown, as: As, aim: unknown): ReignGod 
                   "town",
                   {},
                   "A town of five thousand on the nearest empty land beside it, with a year's bread: of your realm.",
+                  amount(
+                    "town",
+                    "Its people",
+                    (n) => commas(n),
+                    (n) => `🏘️ A town of ${commas(n)} on an empty land beside it`,
+                    (n) =>
+                      `A town of ${commas(n)} on the nearest empty land beside it, of every age and trade as its seat's ${commas(seat)} are, with a year's bread: of your realm.`,
+                  ),
                 ),
               ]
             : []),
@@ -1012,6 +1139,14 @@ function reignGod(world: World, realm: unknown, as: As, aim: unknown): ReignGod 
             "age",
             {},
             `Every land of it comes to the next ${GOD_AGE} crafts its people could, each opening the next: never what its world's matter cannot hold.`,
+            amount(
+              "age",
+              "Crafts",
+              (n) => `${n}`,
+              (n) => `📚 An age of learning (${n} crafts)`,
+              (n) =>
+                `Every land of it comes to the next ${n} crafts its people could, each opening the next: never what its world's matter cannot hold.${learnable < n ? ` Its seat can come to only ${learnable} more.` : ""}`,
+            ),
           ),
         ],
       },
@@ -1023,6 +1158,17 @@ function reignGod(world: World, realm: unknown, as: As, aim: unknown): ReignGod 
             "rightful",
             {},
             "Nearly all its people hold its rule rightful from this day.",
+            amount(
+              "rightful",
+              "Rightful",
+              (v) => `${Math.round(v * 100)} in 100`,
+              (v) =>
+                v === 0.98
+                  ? "👑 Every voice holds its rule rightful"
+                  : `👑 ${sentence(pct(v))} hold its rule rightful`,
+              (v) =>
+                `${sentence(pct(v))} of its people hold its rule rightful from this day${rightful === null ? "" : `, where ${pct(rightful)} do now`}.`,
+            ),
           ),
           ...(own
             ? []
@@ -1032,9 +1178,38 @@ function reignGod(world: World, realm: unknown, as: As, aim: unknown): ReignGod 
                   "wrongful",
                   {},
                   "Hardly anyone holds its rule rightful: it may not stand.",
+                  amount(
+                    "wrongful",
+                    "Rightful",
+                    (v) => `${Math.round(v * 100)} in 100`,
+                    (v) =>
+                      v === 0.02
+                        ? "🗡️ Its rule held wrongful"
+                        : `🗡️ Only ${pct(v)} hold its rule rightful`,
+                    (v) =>
+                      `Only ${pct(v)} of its people hold its rule rightful from this day${rightful === null ? "" : `, where ${pct(rightful)} do now`}${v <= 0.1 ? ": it may not stand" : ""}.`,
+                  ),
                 ),
               ]),
-          offer("🕊️ Every land content", "calm", {}, "Every grievance in its lands forgotten."),
+          offer(
+            "🕊️ Every land content",
+            "calm",
+            {},
+            "Every grievance in its lands forgotten.",
+            amount(
+              "calm",
+              "Forgotten",
+              (s) => shareWords(s),
+              (s) =>
+                s === 1
+                  ? "🕊️ Every land content"
+                  : `🕊️ ${sentence(shareWords(s))} of every grievance forgotten`,
+              (s) =>
+                s === 1
+                  ? `Every grievance in its lands forgotten (they are ${pct(sore)} sore now).`
+                  : `${sentence(shareWords(s))} of every grievance in its lands forgotten: from ${pct(sore)} sore to ${pct(sore * (1 - s))}.`,
+            ),
+          ),
           ...(own
             ? []
             : [
@@ -1043,23 +1218,41 @@ function reignGod(world: World, realm: unknown, as: As, aim: unknown): ReignGod 
                   "stir",
                   {},
                   "Every land of it holds a grievance against its rule.",
+                  amount(
+                    "stir",
+                    "Grievance",
+                    (v) => `${Math.round(v * 100)} in 100`,
+                    (v) =>
+                      v === 1
+                        ? "🔥 Every land in grievance"
+                        : `🔥 Every land at least ${pct(v)} sore`,
+                    (v) =>
+                      `Every land of it at least ${pct(v)} sore against its rule (now ${pct(sore)} on the whole)${v >= 0.9 ? ": lands so sore may break away" : ""}.`,
+                  ),
                 ),
               ]),
         ],
       },
-      ...(own
-        ? []
-        : [
+      ...(other
+        ? [
             {
-              title: `🤝 Between your realm and ${realmName(to)}`,
+              title: `🤝 Between your realm and ${realmName(other)}`,
               offers: [
-                ...(atWar(to)
+                ...(atWar(other)
                   ? [
                       offer(
                         "🕊️ Peace now",
                         "peace",
                         {},
                         "The war ends in a truce, whatever either side would.",
+                        amount(
+                          "peace",
+                          "Truce",
+                          (y) => `${y} years`,
+                          (y) => `🕊️ Peace now, a truce of ${y} years`,
+                          (y) =>
+                            `The war ends in a truce binding them for ${y} years, whatever either side would.`,
+                        ),
                       ),
                     ]
                   : [
@@ -1076,19 +1269,42 @@ function reignGod(world: World, realm: unknown, as: As, aim: unknown): ReignGod 
                   {},
                   "They are sworn to each other, whatever either thinks of the other.",
                 ),
-                offer("🙇 Sworn to you", "swear", {}, "They swear themselves to your realm."),
+                offer(
+                  "🙇 Sworn to you",
+                  "swear",
+                  {},
+                  "They swear themselves to your realm.",
+                  amount(
+                    "swear",
+                    "Sworn",
+                    (y) => `${y} years`,
+                    (y) => `🙇 Sworn to you for ${y} years`,
+                    (y) => `They swear themselves to your realm for ${y} years.`,
+                  ),
+                ),
                 offer(
                   "🗺️ Take a land of theirs",
                   "annex",
                   {},
                   "The land of theirs nearest yours is yours.",
+                  amount(
+                    "annex",
+                    "Lands",
+                    (n) => `${n}`,
+                    (n) => (n === 1 ? "🗺️ Take a land of theirs" : `🗺️ Take ${n} lands of theirs`),
+                    (n) =>
+                      n === 1
+                        ? `The land of theirs nearest yours is yours (of their ${theirLands}).`
+                        : `Up to ${n} lands of theirs, the nearest yours first, are yours: never their seat (of their ${theirLands}).`,
+                  ),
                 ),
               ],
             },
-          ]),
+          ]
+        : []),
     ];
   return {
-    words: `🌟 The god in ${name} can do what no one could: stand up a host out of nothing, fill stores, people lands, give learning, make or unmake a rule, end or begin a war. Each thing done is told in the annals as done by the god in them. Nothing its world's physics forbids: no craft its matter cannot hold, no war where no road lies.`,
+    words: `🌟 The god in ${name} can do what no one could: stand up a host out of nothing, fill stores, people lands, give learning, make or unmake a rule, end or begin a war. Each thing done is told in the annals as done by the god in them. Nothing its world's physics forbids: no craft its matter cannot hold, no war where no road lies. Slide to say how much.`,
     target: to.ref,
     targets: [r, ...met].map((q) => ({
       ref: q.ref,
@@ -1100,6 +1316,8 @@ function reignGod(world: World, realm: unknown, as: As, aim: unknown): ReignGod 
     groups,
   };
 }
+const commas = (n: number) => Math.round(n).toLocaleString("en-US");
+const sentence = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s);
 const GOD_PAIRED_ACTS = new Set<GodAct>(["peace", "war", "pact", "swear", "annex"]);
 
 function reignCourt(world: World, realm: unknown, as: As): ReignCourt | null {

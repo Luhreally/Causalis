@@ -9,7 +9,11 @@
 //   4. a blessing at the greatest strength for 5 years, and a curse the same, each by touch in the god's hand: the realm's
 //      page says how strong, for how long, and what it lays on it; five years on, the cursed realm has broken apart or
 //      fallen, the blessed one has not, and the page tells the curse lifted;
-//   5. no error in the page; nothing wider than the screen; every control pressed a finger's size.
+//   5. the god's hand through the ruler: a host, an age of learning, wealth doubled; its sliders moved by touch (2026-11-13:
+//      "add sliders for whatever else is relevant"), the host's to ten million and the people's to a tenth more, each act
+//      taking the amount chosen; a war begun and a peace forced; the palette's strength slider on a drought saying what it
+//      will do; each on the realm's page and in the annals;
+//   6. no error in the page; nothing wider than the screen; every control pressed a finger's size.
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -506,6 +510,46 @@ try {
   );
   await godDo('.reign-god[data-what="age"]', "an age of learning");
   await godDo('.reign-god[data-what="wealth"]', "its wealth doubled");
+  // (Two of the hand's sliders moved by touch, each to an end, and the act pressed under it takes the amount chosen.)
+  const slide = async (id: string, end: "least" | "most", says: RegExp) => {
+    if (!(await seen(".reign-sheet .reign-god"))) await tap('.reign-act[data-act="god"]');
+    const row = `.reign-sheet .reign-amount[data-amount="${id}"]`;
+    await until(`the ${id} slider`, () => seen(`${row} input`), slow(20000));
+    await tap(`${row} input`, (c) => ({
+      x: end === "most" ? c.x + c.w / 2 - 6 : c.x - c.w / 2 + 6,
+      y: c.y,
+    }));
+    await until(`the ${id} slider at its ${end}`, async () => says.test(await text(row)));
+    say(`the ${id} slider: ${await text(row)}`);
+  };
+  await slide("host", "most", /10,000,000/);
+  const hostMost = '.reign-god[data-what="host"][data-arms="best"][data-men="10000000"]';
+  check(
+    /10,000,000 with the best arms/.test(await text(`.reign-sheet ${hostMost}`)),
+    "the host's button does not say the men the slider chose",
+  );
+  check(
+    /10,000,000 armed with/.test(await text(`.reign-sheet ${hostMost} + .reign-optwords`)),
+    "the words under the host do not say what ten million will do",
+  );
+  await shot("9b-slider");
+  const before10m = (await reign())?.host ?? 0;
+  await godDo(hostMost, "ten million");
+  const after10m = (await reign())?.host ?? 0;
+  say(`the host by the slider: ${before10m} to ${after10m}`);
+  check(
+    after10m >= before10m + 9_900_000,
+    `the slider's ten million did not stand up (${before10m} to ${after10m})`,
+  );
+  await slide("people", "least", /\+10%/);
+  const peopleBefore = (await reign())?.people ?? 0;
+  await godDo('.reign-god[data-what="people"][data-amount="0.1"]', "a tenth more people");
+  const peopleAfter = (await reign())?.people ?? 0;
+  say(`people by the slider: ${peopleBefore} to ${peopleAfter}`);
+  check(
+    peopleAfter > peopleBefore * 1.05 && peopleAfter < peopleBefore * 1.15,
+    `a tenth more people was not a tenth more (${peopleBefore} to ${peopleAfter})`,
+  );
   // (A realm to make war on and peace with: one the hand could set it against, neither blessed nor cursed.)
   const sheet0 = await ask<{ targets: { ref: string; own: boolean }[] }>("reign.godhand", {
     realm,
@@ -568,6 +612,30 @@ try {
     say(`the god's palette while ruling: ${await text(".palette-words")}`);
     await shot("10b-palette");
   }
+  // (A drought's strength slider, by touch at its far end: it says what the greatest will do, and the line fits the phone.)
+  await tap(`.palette-tab[data-kind="weather"]`);
+  await tap(`.palette-act[data-act="drought"]`);
+  await until(
+    "drought in hand",
+    async () => (await k<string | null>("globalThis.causalis.palette.holding()")) === "drought",
+  );
+  await tap(".palette-strength input", (c) => ({ x: c.x + c.w / 2 - 6, y: c.y }));
+  await until("the drought's greatest strength", async () =>
+    /greatest/.test(await text(".palette-strength")),
+  );
+  const does = await text(".palette-does");
+  say(`the drought at the greatest strength: ${does}`);
+  check(/Rain at 9 in a hundred/.test(does), `the drought does not say what it will do: ${does}`);
+  check(await fits(), "the palette's line is wider than the screen with a strength");
+  check(
+    await k<boolean>(`(() => {
+      const r = document.querySelector(".palette").getBoundingClientRect();
+      return r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth;
+    })()`),
+    "the palette runs off the screen with a strength and its words",
+  );
+  await shot("10c-drought");
+  await k("globalThis.causalis.palette.putDown()");
   await tap("#hud > .palette-toggle");
   await until("the tray again", () =>
     k<boolean>(`getComputedStyle(document.querySelector(".reign-tray")).visibility === "visible"`),
@@ -592,6 +660,10 @@ try {
     "the realm's page does not tell its wealth doubled",
   );
   check(/age of learning came to/.test(told), "the realm's page does not tell the age of learning");
+  check(
+    /10,000,000 stood up by the god/.test(told),
+    "the realm's page does not tell the ten million",
+  );
   check(!foe || /ended in a truce/.test(told), "the realm's page does not tell the peace forced");
   await shot("11-page");
   await k(`globalThis.causalis.closePage?.()`);
@@ -628,6 +700,7 @@ try {
     ["the host", /men stood up at/],
     ["the age of learning", /age of learning came to/],
     ["the wealth", /were doubled/],
+    ["the tenth more people", /a tenth as many again/],
     ...(foe ? [["the peace", /ended in a truce/] as const] : []),
   ] as const)
     check(
