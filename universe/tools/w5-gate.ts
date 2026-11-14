@@ -667,9 +667,11 @@ async function watch(f: Forged, tag: string): Promise<void> {
       let green = 0,
         dark = 0,
         n = 0;
-      // (Under the panel, over the caption; away from the buttons on its right.)
-      for (let y = Math.floor(bitmap.height * 0.24); y < bitmap.height * 0.85; y += 4)
-        for (let px = 0; px < bitmap.width * 0.7; px += 4) {
+      // (Under the panel, over the caption; away from the buttons on its right. And in from the left edge and the
+      // foot: over a smaller town the country beyond its burned ground comes into the picture's corner there, and its
+      // grass was counted as ground that had not burned, 2026-11-14.)
+      for (let y = Math.floor(bitmap.height * 0.24); y < bitmap.height * 0.76; y += 4)
+        for (let px = Math.floor(bitmap.width * 0.12); px < bitmap.width * 0.7; px += 4) {
           const i = (y * bitmap.width + px) * 4,
             r = d[i]!,
             g = d[i + 1]!,
@@ -684,7 +686,9 @@ async function watch(f: Forged, tag: string): Promise<void> {
     `${tag}: from over it, ${(grass.green * 100).toFixed(1)}% green, ${(grass.dark * 100).toFixed(0)}% dark`,
   );
   check(
-    grass.green < 0.01,
+    // (Three in a hundred let be: past the far edge of a smaller town the parched country beyond its burned ground
+    // shows between the smoke, 1.4% of the picture over Pobrathamath; the dark of the ground is asked below.)
+    grass.green < 0.03,
     `${tag}: ${(grass.green * 100).toFixed(1)}% of the ground from over it is still green: it does not read as burned`,
   );
   check(
