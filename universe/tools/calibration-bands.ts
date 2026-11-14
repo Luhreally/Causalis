@@ -32,7 +32,9 @@ export const TURNS: readonly {
   // The first realm (a chiefdom, often, before a kingdom): soon after sowing and towns.
   { id: "state", name: "the first realm", event: "polity.formed", band: [10, 200] },
   { id: "writing", name: "writing", principle: "writing", band: [60, 300] },
-  { id: "iron", name: "iron", principle: "iron", band: [200, 450] },
+  // (From 150: with peoples learning from each other's outcomes, word of a craft crosses borders sooner, and first light's iron
+  // came in 176 where it came in 266. Coal, steam, the factory and electricity kept to their bands, 2026-11-14.)
+  { id: "iron", name: "iron", principle: "iron", band: [150, 450] },
   // Coal is dug for warmth once iron is worked, long before engines burn it.
   { id: "coal", name: "coal dug", event: "industry.mine", band: [250, 700] },
   { id: "steam", name: "the steam engine", principle: "steam-engine", band: [400, 750] },

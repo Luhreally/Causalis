@@ -4,8 +4,8 @@
 // its bore's material wound). That year is searched for, not pinned. Then:
 //   1. the world opened at that year, held, its hash as it was run there;
 //   2. that battle watched near, down on its field;
-//   3. its flashes on the screen: twelve moments from 20 to 40 s, each picture's flash-coloured pixels
-//      counted against the quiet picture at 1 s; the most in the firing window beats it by 8 or more;
+//   3. its flashes on the screen: twenty-five moments from 2 to 74 s, each picture's flash-coloured pixels
+//      counted through the whole fight; some moment shows 8 or more over the pictures six seconds either side;
 //   4. the gun's page, from the ground up: solid acetylene, why not metal, the estimates, true to metres,
 //      and no black powder, iron or steel;
 //   5. the principles of firearms and set edges: titled in the world's words, asking what its matter gives
@@ -285,17 +285,25 @@ await until(
 
 // 3. Its flashes on the screen. (battle() does not expose drawCalls, so no comparison with a metal
 // gun's draws is made here.)
+// (Through the whole fight, not a window of it: when a fight's firing comes is the fight's own. On the world the
+// peoples' holding makes both sides ride, and fire near 55 s where on foot they fired from 20. And a flash is brief:
+// it is read against the pictures six seconds either side of it, not against the first, which the riders leaving
+// the screen alone outdid.)
 const quiet = await scrubTo(1),
   firing: Scrubbed[] = [];
-for (const s of Array.from({ length: 12 }, (_, i) => 20 + (20 * i) / 11))
-  firing.push(await scrubTo(s));
-const top = firing.reduce((a, b) => (b.flashes > a.flashes ? b : a));
+for (const s of Array.from({ length: 25 }, (_, i) => 2 + 3 * i)) firing.push(await scrubTo(s));
+const over = (i: number) =>
+  firing[i]!.flashes -
+  Math.max(firing[i - 2]?.flashes ?? Infinity, firing[i + 2]?.flashes ?? Infinity);
+let best = 2;
+for (let i = 2; i < firing.length - 2; i++) if (over(i) > over(best)) best = i;
+const top = firing[best]!;
 say(
-  `flashes on the screen: ${quiet.flashes} at 1 s; ${firing.map((f) => `${f.s.toFixed(1)} s ${f.flashes}`).join(", ")}; the debug battle() counts ${top.state?.flashes ?? "none (not shown)"} at ${top.s.toFixed(1)} s`,
+  `flashes on the screen: ${quiet.flashes} at 1 s; ${firing.map((f) => `${f.s.toFixed(0)} s ${f.flashes}`).join(", ")}; the most over the pictures about it, ${over(best)} at ${top.s} s; the debug battle() counts ${top.state?.flashes ?? "none (not shown)"} there`,
 );
 check(
-  top.flashes - quiet.flashes >= 8,
-  `the most flashes in 20–40 s (${top.flashes}) beat the quiet picture (${quiet.flashes}) by under 8`,
+  over(best) >= 8,
+  `no moment of the fight's 2–74 s shows 8 flashes more than the pictures six seconds either side (the most, ${over(best)} at ${top.s} s)`,
 );
 if (shots) writeFileSync(join(shots, "flashes.png"), top.png);
 

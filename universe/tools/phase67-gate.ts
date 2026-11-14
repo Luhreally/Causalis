@@ -623,7 +623,8 @@ try {
       async () =>
         (await k<string | null>("globalThis.causalis.director()?.take?.kind ?? null")) ===
           "starfight" || (await playing()),
-      slow(30000),
+      // (Its take comes after the director's own look about, on its clock: on CI's slow frames that outran half a minute.)
+      slow(90000),
     );
     if (await playing()) await k(`${f}.skip()`);
     await k("globalThis.causalis.watchIt(false)");
