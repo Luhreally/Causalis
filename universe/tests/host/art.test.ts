@@ -50,12 +50,13 @@ test("a page asked only for its name carries no art", () => {
 test("what a land knows is drawn as the thing it makes there, each a shape the pictures draw", async () => {
   const { hasShape } = await import("../../src/ui/specimen.ts");
   const { loreLook } = await import("../../src/host/inspect/ware-looks.ts");
-  const lore = pageOf(world, `cell:0:${realm.seat}`).tabs.find((t) => t.id === "lore");
-  const items = lore?.blocks.flatMap((b) => (b.type === "list" ? b.items : [])) ?? [];
-  assert.ok(
-    items.some((i) => i.thumb),
-    "no lore row drawn",
+  // (Some land of the realm knows a thing made, as tanning its boot: its seat may know only what makes nothing by itself, as a grit.)
+  const drawn = realm.members.some((cell) =>
+    (pageOf(world, `cell:0:${cell}`).tabs.find((t) => t.id === "lore")?.blocks ?? [])
+      .flatMap((b) => (b.type === "list" ? b.items : []))
+      .some((i) => i.thumb),
   );
+  assert.ok(drawn, "no lore row drawn in any land of the realm");
   // (Every knowing that names a thing names one the pictures have a shape for.)
   for (const id of [
     "cultivation",
