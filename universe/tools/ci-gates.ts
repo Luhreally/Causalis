@@ -392,6 +392,11 @@ export const GATES: readonly Gate[] = [
   // a realm's, a war's and a far world's page opened at 430 by 932, its banner drawn of what it is, its tabs' glyphs in its world's
   // colours, what the art adds to a page's drawing; how each land builds and its works drawn, six ways of building at least.
   { gate: 115, args: ["--ci"], s: 900 },
+  // Gate 119, the stars' size (tools/stars-size-gate.ts): a small sky the usual one's nearest stars at its density, a large one holding it; at
+  // 430 by 932 by touch, the stars' dial beside the world's size turned on the title, nothing over anything; each size begun and its stars
+  // opened by touch, every star the world holds drawn, far ones of a few faces and near ones round once pinched close; a large sky read
+  // back from its save.
+  { gate: 119, args: ["--ci"], s: 360 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */
