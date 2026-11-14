@@ -90,10 +90,18 @@ const press = async (sel: string) => {
     problems.push(`${sel} was not there to press`);
     return false;
   }
-  // (What stands over it, if anything does: the press would fall on that instead.)
-  const over = await k<string | null>(
-    `(() => { const e = document.querySelector(${JSON.stringify(sel)}), o = document.elementFromPoint(${at.x}, ${at.y}); return !o || e === o || e?.contains(o) ? null : o.tagName.toLowerCase() + "." + [...o.classList].join("."); })()`,
-  );
+  // (What stands over it, if anything does: the press would fall on that instead. Read where it stands at that
+  // moment, and again if something does: the corner's column moves its tools as alerts come and go, and a neighbour
+  // moved into the place it had a moment before is no cover.)
+  let over: string | null = null;
+  for (let i = 0; i < 6; i++) {
+    at = (await centre(sel)) ?? at;
+    over = await k<string | null>(
+      `(() => { const e = document.querySelector(${JSON.stringify(sel)}), o = document.elementFromPoint(${at.x}, ${at.y}); return !o || e === o || e?.contains(o) ? null : o.tagName.toLowerCase() + "." + [...o.classList].join("."); })()`,
+    );
+    if (!over) break;
+    await page.waitForTimeout(200);
+  }
   if (over) problems.push(`${sel} was covered by ${over} when pressed`);
   await page.mouse.click(at.x, at.y);
   return true;
