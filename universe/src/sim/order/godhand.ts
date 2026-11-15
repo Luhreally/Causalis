@@ -15,6 +15,10 @@ import {
   POPULATION_EVENTS,
   livableFor,
   marketsOf,
+  landSites,
+  provinceCapacity,
+  standTown,
+  support,
   type PopulationContext,
 } from "../population/systems.ts";
 import { cutOff, politiesOf, realmName, type Polity } from "../polity/polity.ts";
@@ -108,12 +112,26 @@ export const GOD_AMOUNTS = {
   /** The grievance every land holds at the least. */
   stir: { key: "level", stops: [0.25, 0.5, 0.75, 1], was: 1 },
   /** Years the truce binds. */
-  peace: { key: "years", stops: [2, 5, TERMS.truceYears, 15, 30, 50], was: TERMS.truceYears },
+  peace: {
+    key: "years",
+    stops: [2, 5, TERMS.truceYears, 15, 30, 50, 100, 300, 1000],
+    was: TERMS.truceYears,
+  },
   /** Years a realm is sworn. */
-  swear: { key: "years", stops: [5, 10, 20, 30, 50, 100], was: 30 },
+  swear: { key: "years", stops: [5, 10, 20, 30, 50, 100, 300, 1000], was: 30 },
   /** Lands taken, the nearest first. */
   annex: { key: "lands", stops: [1, 2, 3, 5, 8], was: 1 },
 } as const;
+/**
+ * How deep a grievance the hand lays when it stirs a realm (asked 2026-11-14: stirred to the most, year on year, no
+ * realm broke: a grievance of 1 fades by a quarter before the year's turn weighs it, under the line lands leave at). Up
+ * to three parts in four it is the grievance asked, a nudge the years wear away; past that each point is a wound that
+ * takes years to close, and at the most every land is twice as sore as a famine under a priest-king leaves it: its far
+ * lands break away over the years it takes to fade, and its rule is held wrongful the while.
+ */
+export const STIR_DEEP = { from: 0.75, by: 4 } as const;
+export const stirDepth = (level: number): number =>
+  level + STIR_DEEP.by * Math.max(0, level - STIR_DEEP.from);
 type AmountSpec = { readonly key: string; readonly stops: readonly number[]; readonly was: number };
 const amountSpec = (what: GodAct): AmountSpec | undefined =>
   (GOD_AMOUNTS as Partial<Record<GodAct, AmountSpec>>)[what];
@@ -185,23 +203,51 @@ function holderOf(world: World, a: GodArgs): { r: Polity; by: string } | string 
 const peopleOf = (c: PopulationContext, r: Polity) =>
   r.members.reduce((n, k) => n + (c.provinces.get(k)?.total() ?? 0), 0);
 
-/** The empty land beside a realm people could live in, nearest its seat by the grid's order. */
-function emptyBeside(c: PopulationContext, r: Polity): number | null {
+/** About how many a land feeds a people who live as these do: by its fields if they sow, its pasture if they herd, else its wild. */
+export function landFeeds(
+  c: PopulationContext,
+  cell: number,
+  sows: boolean,
+  herds: boolean,
+): number {
+  return Math.round(support(provinceCapacity(c, cell), sows, herds));
+}
+
+/**
+ * The empty land beside a realm people could live in, with ground a town can stand on, that would feed the most (the nearest its seat by the grid's order
+ * among equals), and about how many: where a town of the god's hand stands. An emptied land is most often one that fed
+ * few (found 2026-11-14: the nearest was tundra with no ground to build on; no town stood, and the five thousand put
+ * there starved in five years).
+ */
+export function godTownSite(
+  c: PopulationContext,
+  r: Polity,
+): { cell: number; feeds: number } | null {
   const g = c.generated,
+    from = c.provinces.get(r.seat) ?? c.provinces.get(r.members[0]!),
+    sows = !!from?.knowsCultivation,
+    herds = !!from?.herding,
     seen = new Set<number>();
+  let best: { cell: number; feeds: number } | null = null;
   for (const cell of [r.seat, ...r.members])
     for (let k = g.grid.offsets[cell]!; k < g.grid.offsets[cell + 1]!; k++) {
       const n = g.grid.neighbours[k]!;
       if (seen.has(n)) continue;
       seen.add(n);
       if (
-        (c.provinces.get(n)?.total() ?? 0) === 0 &&
-        !politiesOf(c.world).of(n) &&
-        livableFor(c, n)
+        (c.provinces.get(n)?.total() ?? 0) !== 0 ||
+        politiesOf(c.world).of(n) ||
+        !livableFor(c, n) ||
+        (!c.settlements.inProvince(n).length && !landSites(c, n).length)
       )
-        return n;
+        continue;
+      const feeds = landFeeds(c, n, sows, herds);
+      if (!best || feeds > best.feeds) best = { cell: n, feeds };
     }
-  return null;
+  return best;
+}
+function emptyBeside(c: PopulationContext, r: Polity): number | null {
+  return godTownSite(c, r)?.cell ?? null;
 }
 
 /** What a land could come to next, each opening the next: one craft, or an age of them (with what it opens, ids). */
@@ -272,7 +318,7 @@ export function godProblem(world: World, c: PopulationContext, args: unknown): s
       return peopleOf(c, to) > 0 ? null : "No one lives in its lands.";
     case "town":
       return emptyBeside(c, to) === null
-        ? "No empty land lies beside it that people could live in."
+        ? "No empty land lies beside it that people could live in, with ground a town could stand on."
         : null;
     case "craft":
     case "age":
@@ -432,9 +478,10 @@ export function installGodHand(world: World, ctx: () => PopulationContext): void
         }
         case "town": {
           const many = godAmount(a),
-            cell = emptyBeside(c, to)!,
+            site = godTownSite(c, to)!,
+            cell = site.cell,
             from = c.provinces.get(to.seat) ?? c.provinces.get(to.members[0]!)!,
-            event = emit({ people: many, cell });
+            event = emit({ people: many, cell, feeds: site.feeds });
           let dest = c.provinces.get(cell);
           if (!dest) {
             dest = c.provinces.add(new Province(cell, year, event));
@@ -463,6 +510,8 @@ export function installGodHand(world: World, ctx: () => PopulationContext): void
             }
           markets.of(cell).move("made", G.grain, made * GOD_BREAD);
           realms.join(to, cell);
+          // (And the town itself, on the land's best ground: its market town from this day, with a page of its own.)
+          standTown(c, dest, made, event, t);
           return;
         }
         case "craft":
@@ -512,12 +561,12 @@ export function installGodHand(world: World, ctx: () => PopulationContext): void
               !asked(a)
                 ? a.what === "calm"
                   ? { level: 0, cause: null }
-                  : { level: 1, cause: event }
+                  : { level: Math.max(d.level, stirDepth(1)), cause: event }
                 : a.what === "calm"
                   ? { level: d.level * (1 - much), cause: d.cause }
-                  : d.level >= much
+                  : d.level >= stirDepth(much)
                     ? d
-                    : { level: much, cause: event },
+                    : { level: stirDepth(much), cause: event },
             );
           }
           return;

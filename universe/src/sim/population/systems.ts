@@ -33,12 +33,13 @@ import {
   lives,
   offworldSite,
   placeName,
+  planetRef,
   refineRegion,
   type Region,
   tongueName,
   WATER,
 } from "../../gen/index.ts";
-import { ACT_STRENGTH, actFactor, actsOf } from "../acts/acts.ts";
+import { ACT_REACH, ACT_STRENGTH, actFactor, actsOf, blightRot, watered } from "../acts/acts.ts";
 import { lineageNature, tameNow } from "../acts/natures.ts";
 import {
   FLOCK_LOSS,
@@ -106,7 +107,7 @@ import { homePlanet } from "../planet/store.ts";
 import { lightSteps, starSitesOf } from "../space/stars.ts";
 import { lateOf, remakeKey } from "../space/late-store.ts";
 import { siteRegion } from "../space/ground.ts";
-import { starHazard } from "../acts/great.ts";
+import { groundWarming, starHazard } from "../acts/great.ts";
 import { capacity, COLS, livable, Province, row, ROWS, type Capacity } from "./model.ts";
 import {
   HistoryStore,
@@ -330,24 +331,38 @@ export function populationContext(world: World): PopulationContext {
 }
 
 // Capacities and regions are pure functions of the generated world: kept, never saved.
+/** The home world's ref: what the god's warming of its ground is asked by. */
+const HOME_PLANET = planetRef(0);
 const CAPACITIES = new Map<string, Capacity>();
-export function provinceCapacity(ctx: PopulationContext, cell: number): Capacity {
-  const key = `${homePlanet(ctx.world).surfaceKey}:${ctx.medium}:${cell}`;
+export function provinceCapacity(
+  ctx: PopulationContext,
+  cell: number,
+  /** The degrees its ground has turned by the god's hand (as it stands now, unless asked as it was made: 0). */
+  warm = groundWarming(ctx.world, HOME_PLANET),
+): Capacity {
+  // (As it was made, on every world no god has warmed: the key and the reckoning are then what they always were.)
+  const made = `${homePlanet(ctx.world).surfaceKey}:${ctx.medium}:${cell}`,
+    key = warm ? `${made}:${warm}` : made;
   let c = CAPACITIES.get(key);
   if (!c) {
     if (CAPACITIES.size > 50_000) CAPACITIES.clear();
-    CAPACITIES.set(key, (c = capacity(ctx.generated, cell, ctx.medium)));
+    CAPACITIES.set(key, (c = capacity(ctx.generated, cell, ctx.medium, warm)));
   }
   return c;
 }
 const LIVABLE = new Map<string, boolean>();
 /** Whether the people can live in a place (a pure function of the generated world: kept, never saved). */
-export function livableFor(ctx: PopulationContext, cell: number): boolean {
-  const key = `${homePlanet(ctx.world).surfaceKey}:${ctx.medium}:${cell}`;
+export function livableFor(
+  ctx: PopulationContext,
+  cell: number,
+  warm = groundWarming(ctx.world, HOME_PLANET),
+): boolean {
+  const made = `${homePlanet(ctx.world).surfaceKey}:${ctx.medium}:${cell}`,
+    key = warm ? `${made}:${warm}` : made;
   let ok = LIVABLE.get(key);
   if (ok === undefined) {
     if (LIVABLE.size > 50_000) LIVABLE.clear();
-    LIVABLE.set(key, (ok = livable(ctx.generated, cell, ctx.medium)));
+    LIVABLE.set(key, (ok = livable(ctx.generated, cell, ctx.medium, warm)));
   }
   return ok;
 }
@@ -510,14 +525,25 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
           ),
         ),
       );
+    // (A blight laid past the strength of old is in the granaries too: acts.ts ACT_REACH. Nothing under any other.)
+    const rot = blightRot(act);
+    if (rot > 0)
+      for (const g of FOODS) m.move("spoiled", g, Math.floor(Math.max(0, m.stock[g]!) * rot));
     // What they eat: their people by the appetite of their body (an upright ape's, one unit a month).
     const need = Math.round(mouths(p, ctx.life));
     let eaten = 0;
     for (const g of FOODS) eaten += m.take("used", g, need - eaten);
     let over = m.food(FOODS) - need * (12 + 12 * pots + stored);
     for (const g of FOODS) if (over > 0) over -= m.take("spoiled", g, Math.ceil(over));
-    const fed = need > 0 ? eaten / need : 1;
-    p.fed = Math.round(fed * 1000);
+    const fed = need > 0 ? eaten / need : 1,
+      // (Rain under the least a year brings of itself, which only the god's hand lays: the wells fail as the drought's
+      // years go on, and bread carried in is not water. Thirst is counted as hunger is.)
+      parched = p.rain < ACT_REACH.wells * 1000 ? acts.latest(p.cell, "rain", t) : null,
+      thirst =
+        parched && parched.sign < 0 && need > 0
+          ? watered(p.rain / 1000, (t - parched.from) / YEAR)
+          : 1000;
+    p.fed = Math.min(Math.round(fed * 1000), thirst);
     p.leanest = Math.min(p.leanest, p.fed);
     // A famine is a month with less than seven-tenths of the food a land needs: a people
     // living at the edge of what their land gives (a lean month or two most years) is
@@ -528,6 +554,7 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
         dry = recentDrought && t - recentDrought.t < 2 * YEAR;
       if (dry) causes.push({ ref: recentDrought.id, role: "trigger", weight: 0.6 });
       if (act && act.sign < 0) causes.push({ ref: act.event, role: "agent", weight: 0.8 });
+      if (parched && thirst < 1000) causes.push({ ref: parched.event, role: "agent", weight: 0.8 });
       // What else pressed the land: its soil worn, its game thinned, its rain moved by the warming.
       const stocks = ecologyOf(world).get(p.cell),
         drier = airOf(world).shiftOf(p.cell);
@@ -1653,6 +1680,60 @@ export function settleYear(ctx: PopulationContext, t: SimTime): void {
       if (held) held.population = hand!.beyond ? inHand : hand!.agents.length;
     }
   }
+}
+
+/**
+ * A town stood up on a land at a word (the god's hand through a ruler: order/godhand.ts), on its best ground, as its
+ * market town from its first day and holding the people it was given; where the land has a place already (one its
+ * people left), that place is the town. Null: the land's region has no ground to build on. Never called by the world's
+ * own years.
+ */
+export function standTown(
+  ctx: PopulationContext,
+  p: Province,
+  people: number,
+  cause: Ref,
+  t: SimTime,
+): Settlement | null {
+  const { world } = ctx,
+    here = ctx.settlements.inProvince(p.cell);
+  let town = here.find((v) => v.market) ?? here[0] ?? null;
+  if (!town) {
+    const site = chooseSite(ctx, p.cell, here, t);
+    if (!site) return null;
+    const ref = world.minter.mint(SETTLEMENT),
+      tongue = cultureOf(world).get(p.cell)?.tongue,
+      index = ctx.settlements.all().length + 1,
+      name = tongue ? tongueName(tongue, index) : placeName(ctx.culture, index),
+      event = world.events.emit({
+        type: POPULATION_EVENTS.founded.type,
+        importance: 4,
+        subjects: [ref],
+        place: p.ref,
+        causes: [{ ref: cause, role: "agent", weight: 1 }],
+        data: { name },
+      });
+    town = ctx.settlements.add({
+      ref,
+      name,
+      cell: p.cell,
+      tile: site.tile,
+      founded: yearOfMoment(t),
+      decision: cause,
+      event,
+      population: 0,
+      market: null,
+    });
+  }
+  town.market ??= world.events.emit({
+    type: POPULATION_EVENTS.market.type,
+    subjects: [town.ref],
+    place: p.ref,
+    causes: [{ ref: cause, role: "agent", weight: 1 }],
+    data: { name: town.name },
+  });
+  town.population += people;
+  return town;
 }
 
 /** A province's market town: the village best placed for its people to come to. */

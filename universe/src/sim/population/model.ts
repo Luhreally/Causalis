@@ -3,7 +3,14 @@
 // with a province's food store and what it knows. A province is a planet cell;
 // it becomes simulated (A0 → A1) the first time people arrive.
 import { CountTable, type Hasher, type Ref } from "../../kernel/index.ts";
-import { BIOME, cellRef, isProvinceWorld, offworldSite, type HomeWorld } from "../../gen/index.ts";
+import {
+  BIOME,
+  cellRef,
+  classify,
+  isProvinceWorld,
+  offworldSite,
+  type HomeWorld,
+} from "../../gen/index.ts";
 import { BANDS, OCCUPATIONS, SEXES, type Medium } from "../../rules/index.ts";
 
 export const ROWS = SEXES * BANDS;
@@ -46,7 +53,45 @@ export const HALL_FARM = 0.35;
 /** People a square kilometre of pasture feeds through its herds. */
 export const HERD_YIELD = 6;
 
-export function capacity(w: HomeWorld, cell: number, medium: Medium = "land"): Capacity {
+/**
+ * How a place's rain moves with a world `warm` degrees warmer, as a share of what it was: the dry lands and the
+ * subtropics lose it, the wet lands and the high latitudes gain (the rule a year's rain already moves by: climate/air.ts
+ * rainShift, here as a pure reading for the ground's own turning).
+ */
+export function rainUnderWarmth(lat: number, rain: number, warm: number): number {
+  if (!warm) return 1;
+  const at = Math.abs(lat),
+    drying = (at >= 0.2618 && at <= 0.6109 ? 1 : 0) + (rain < 500 ? 1 : 0),
+    wetting = (at >= 0.8727 ? 1 : 0) + (rain > 1500 ? 1 : 0),
+    sign = Math.max(-1, Math.min(1, wetting - drying));
+  return Math.max(0.5, 1 + sign * 0.06 * warm);
+}
+
+/**
+ * A cell's biome with its world's ground `warm` degrees warmer or colder than it was made (the god's hand, held long
+ * enough for ice, woods and grass to follow: acts/great.ts groundWarming): by the rule that named every biome when the
+ * world was made (gen/climate.ts classify), so ice gives way to tundra and tundra to woods as it warms, grass to
+ * desert where it also dries, and the other way as it cools. As made wherever the warmth carries it across no line,
+ * and always at 0.
+ */
+export function biomeUnder(w: HomeWorld, cell: number, warm: number): number {
+  const made = w.climate.biome[cell]!;
+  if (!warm) return made;
+  const e = w.tectonics.elevation[cell]!,
+    t = w.climate.temperature[cell]!,
+    p = w.climate.precipitation[cell]!,
+    was = classify(e, t, p),
+    now = classify(e, t + warm, p * rainUnderWarmth(w.grid.lat[cell]!, p, warm));
+  return now === was ? made : now;
+}
+
+export function capacity(
+  w: HomeWorld,
+  cell: number,
+  medium: Medium = "land",
+  /** The degrees its ground has turned warmer by the god's hand (0: as it was made, nearly always). */
+  warm = 0,
+): Capacity {
   // Halls on another world are farmed under their roofs alone: no wild, no pasture.
   const site = offworldSite(w, cell);
   if (site)
@@ -58,7 +103,7 @@ export function capacity(w: HomeWorld, cell: number, medium: Medium = "land"): C
       pasture = 0,
       areaKm2 = 0;
     for (let k = w.childOffsets[cell]!; k < w.childOffsets[cell + 1]!; k++) {
-      const c = capacity(w.fine, w.children[k]!, medium);
+      const c = capacity(w.fine, w.children[k]!, medium, warm);
       forage += c.forage;
       farm += c.farm;
       pasture += c.pasture;
@@ -68,20 +113,20 @@ export function capacity(w: HomeWorld, cell: number, medium: Medium = "land"): C
   }
   const radiusKm = 6371 * w.planet.radius,
     areaKm2 = w.grid.areas[cell]! * radiusKm * radiusKm,
-    biome = w.climate.biome[cell]!;
+    biome = biomeUnder(w, cell, warm);
   // A people of the water lives on the shelf; one of the shore where land and shelf meet.
-  if (medium === "water") return sea(w, cell, areaKm2, 1);
+  if (medium === "water") return sea(w, cell, areaKm2, 1, warm);
   if (medium === "shore") {
     if (!coastal(w, cell)) return { forage: 0, farm: 0, pasture: 0, areaKm2 };
-    if (w.tectonics.elevation[cell]! <= 0) return sea(w, cell, areaKm2, 0.5);
+    if (w.tectonics.elevation[cell]! <= 0) return sea(w, cell, areaKm2, 0.5, warm);
   }
   return land(w, cell, areaKm2, biome);
 }
 
 /** What a shelf gives a people of the water: the warmer the more (the coldest seas a third as much). */
-function sea(w: HomeWorld, cell: number, areaKm2: number, share: number): Capacity {
-  const biome = w.climate.biome[cell]!,
-    warm = Math.min(1, Math.max(0.3, 0.3 + (0.7 * w.climate.temperature[cell]!) / 18)),
+function sea(w: HomeWorld, cell: number, areaKm2: number, share: number, warmer = 0): Capacity {
+  const biome = biomeUnder(w, cell, warmer),
+    warm = Math.min(1, Math.max(0.3, 0.3 + (0.7 * (w.climate.temperature[cell]! + warmer)) / 18)),
     k = areaKm2 * warm * share;
   return {
     forage: k * (SEA_FORAGE[biome] ?? 0),
@@ -100,13 +145,13 @@ export function coastal(w: HomeWorld, cell: number): boolean {
 }
 
 /** Whether a people of a medium can live in a cell at all (and it is not ice or bare rock). */
-export function livable(w: HomeWorld, cell: number, medium: Medium): boolean {
+export function livable(w: HomeWorld, cell: number, medium: Medium, warm = 0): boolean {
   if (medium === "land") {
     if (w.tectonics.elevation[cell]! <= 0) return false;
-    const biome = w.climate.biome[cell]!;
+    const biome = biomeUnder(w, cell, warm);
     if (biome === BIOME.ice || biome === BIOME.alpine) return false;
   }
-  return capacity(w, cell, medium).forage > 0;
+  return capacity(w, cell, medium, warm).forage > 0;
 }
 
 function land(w: HomeWorld, cell: number, areaKm2: number, biome: number): Capacity {

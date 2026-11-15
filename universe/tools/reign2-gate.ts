@@ -382,7 +382,13 @@ try {
     await until("the greatest strength", async () =>
       /greatest/.test(await text(".palette-strength")),
     );
-    await tap(`.palette-years .speed[data-years="5"]`);
+    // (The years' slider moved to its stop of five: 1, 2, 3, 5 ... 1000.)
+    await k(
+      `(() => { const i = document.querySelector(".palette-years input"); i.value = "3"; i.dispatchEvent(new Event("input", { bubbles: true })); })()`,
+    );
+    await until("five years", async () =>
+      /^For:\s*5 years$/.test((await text(".palette-years")).trim()),
+    );
     const land = people
       .filter((p) => r.members.includes(p.cell))
       .sort((a, b) => b.people - a.people)[0]!;

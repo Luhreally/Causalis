@@ -3533,6 +3533,24 @@ body.with-palette .hint {
   margin: 0;
   accent-color: #d5ff72;
 }
+/* For how many years, a slider of stops from one to a thousand (2026-11-14). */
+.palette-years {
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+}
+.palette-years[hidden] {
+  display: none;
+}
+.palette-years input {
+  width: 110px;
+  height: 44px;
+  margin: 0;
+  accent-color: #d5ff72;
+}
+.palette-years-words {
+  min-width: 5.5em;
+}
 .palette-strength-words {
   min-width: 5.5em;
 }
@@ -3562,6 +3580,12 @@ body.with-palette .hint {
     flex: 1 1 auto;
   }
   .palette-strength input {
+    flex: 1 1 auto;
+  }
+  .palette-years {
+    flex: 1 1 auto;
+  }
+  .palette-years input {
     flex: 1 1 auto;
   }
 }
