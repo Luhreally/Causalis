@@ -190,6 +190,8 @@ export type Block =
         readonly color?: Rgb;
       }[];
       readonly unit?: "people" | "share" | "price" | "count";
+      /** Its names are long: each wraps onto lines of its own, never cut short. */
+      readonly wrap?: boolean;
     }
   /**
    * What something is made of (Phase 15 M122): its parts as one bar of their shares, then each
@@ -276,6 +278,8 @@ export type Block =
         /** A word on it (its lands, its fallen). */
         readonly words?: string;
       }[];
+      /** Its names are long: each wraps onto lines of its own, never cut short. */
+      readonly wrap?: boolean;
     }
   /**
    * Two sides set against each other (Phase 11 M103): each row's two amounts pulled apart in a

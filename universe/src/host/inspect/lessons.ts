@@ -154,6 +154,7 @@ export function lessonBlocks(world: World, holder: string): Block[] {
       type: "bars",
       title: "How hard each presses them now",
       unit: "share",
+      wrap: true,
       bars: pressing.map((x) => ({
         label: [capital(x.c!.words)],
         value: x.press,
@@ -168,6 +169,7 @@ export function lessonBlocks(world: World, holder: string): Block[] {
         title: "The lessons they keep",
         from: first,
         to: year,
+        wrap: true,
         rows: learned.map(({ u, w, r }) => ({
           label: [capital(r!.name)],
           from: u.taken,

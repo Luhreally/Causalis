@@ -192,6 +192,20 @@
   background: #ff7a5a;
 }
 
+/* Bars and a timeline whose names are long (what has cost a people, the lessons they keep): each name whole, on lines of its own. */
+.bars.wrap .bar-name,
+.timeline.wrap .timeline-name {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.15;
+}
+.bars.wrap .bar-row,
+.timeline.wrap .timeline-row {
+  padding: 2px 0;
+}
+
 /* The evidence on the years. */
 .evidence {
   display: grid;

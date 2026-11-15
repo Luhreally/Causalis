@@ -85,7 +85,7 @@ export function beliefGlyph(row: BeliefRow, size = 26): HTMLCanvasElement {
  * each as long as the piece moved that belief, filled where it moved it toward the number's high end and hollow toward its low;
  * its heart green where the realm it befell fared well and red where ill, as large as it weighed; ringed in that realm's colour.
  */
-export function evidenceGlyph(mark: EvidenceMark, size = 28): HTMLCanvasElement {
+export function evidenceGlyph(mark: EvidenceMark, size = 24): HTMLCanvasElement {
   const c = document.createElement("canvas"),
     g = surface(c, size, size);
   c.className = "evidence-glyph";
@@ -106,7 +106,7 @@ export function evidenceGlyph(mark: EvidenceMark, size = 28): HTMLCanvasElement 
     if (Math.abs(v) < 0.08) return;
     const px = -dy,
       py = dx,
-      w = 3.2;
+      w = 2.8;
     g.beginPath();
     g.moveTo(m + px * w, m + py * w);
     g.lineTo(m + dx * len, m + dy * len);
@@ -210,7 +210,7 @@ export function beliefsChart(
       );
       b.append(
         el("span", "belief-run-name", "believed"),
-        spark(r.leans, -1, 1, "spark leans", from, to, 0),
+        spark(r.leans, -0.5, 0.5, "spark leans", from, to, 0),
       );
       runs.append(a, b);
       row.append(runs);
@@ -274,7 +274,7 @@ export function evidenceChart(
       button.title = m.words;
       button.setAttribute("aria-label", m.words);
       button.append(evidenceGlyph(m));
-      if (m.realm && shield) button.append(shield(m.realm, 10));
+      if (m.realm && shield) button.append(shield(m.realm, 9));
       button.onclick = (e) => {
         e.stopPropagation();
         // (A first tap tells it; a second opens the event that tells it. On a desk it is told when rested on.)

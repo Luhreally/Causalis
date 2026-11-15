@@ -762,6 +762,7 @@ export class PageWindow {
               ...(x.ref ? { open: () => void this.open(x.ref!) } : {}),
             })),
             unitFormat(b.unit),
+            b.wrap,
           ),
         );
         break;
@@ -778,6 +779,7 @@ export class PageWindow {
             })),
             b.from,
             b.to,
+            b.wrap,
           ),
         );
         break;
