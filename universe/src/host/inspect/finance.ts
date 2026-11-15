@@ -727,7 +727,7 @@ export function campsLedger(world: World): Block[] {
         [
           stand
             ? `${c.camps[0].length} realms stand with the first and ${c.camps[1].length} with the second; ${c.apart.length} stand apart.`
-            : "No other realm stands with either yet: none is both nearer one in its way and bound to it by a fear or an oath.",
+            : `${c.camps[0].length - 1} other realms stand with the first and ${c.camps[1].length - 1} with the second: not two camps yet, while one of the two stands alone. A realm stands with one when it is nearer it in its way and bound to its side by a fear of the other or an oath. ${c.apart.length} stand apart.`,
         ],
       ],
     });
