@@ -207,7 +207,8 @@ export function believeAfter(
 ): Belief {
   const keep = evidenceKept(year - b.at),
     at = own ? 0 : 4,
-    round = (x: number) => Math.round(x * 1000) / 1000,
+    // (Never a nothing below nothing: a save writes -0 as 0.)
+    round = (x: number) => Math.round(x * 1000) / 1000 || 0,
     a = b.a.map((x) => x * keep),
     n = b.n.map((x) => x * keep);
   for (let k = 0; k < 4; k++) {
@@ -352,7 +353,7 @@ export function cameOf(fortune: readonly number[], values: readonly number[]): n
   if (fortune.every((x) => x <= -1)) return [-100];
   const y = faredBy(fortune, values);
   return [
-    Math.round(y * 100),
+    Math.round(y * 100) || 0,
     ...partsOf(fortune, values)
       .filter((p) => p.went * y > 0)
       .slice(0, 2)

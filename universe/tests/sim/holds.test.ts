@@ -80,6 +80,8 @@ test("every living realm's fortune is measured, and no realm gone keeps evidence
     assert.ok((o.from?.length ?? 0) <= LEARNING.teachers);
     if (o.learnt) assert.equal(o.learnt.length, 16);
   }
+  // (And what is kept is what a save gives back: no nothing below nothing, which a save writes as nothing.)
+  assert.deepEqual(JSON.parse(JSON.stringify(store.save())), store.save());
   assert.ok(living.filter((p) => store.of(p.ref)?.fortune).length > living.length / 2);
   for (const o of store.realms.values())
     if (!living.some((p) => p.ref === o.realm))

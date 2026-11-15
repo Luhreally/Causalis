@@ -114,6 +114,8 @@ const BANDS: Readonly<Record<Hold, readonly number[]>> = {
 };
 const bandOf = (h: Hold, v: number) => BANDS[h].filter((b) => v >= b).length;
 
+/** A whole number as kept: never a nothing below nothing (a save writes -0 as 0, and what is loaded must be what was saved). */
+const whole = (x: number): number => Math.round(x) || 0;
 const trait = (w: Ways | undefined, k: number) => w?.traits[k] ?? 0.5;
 /** A people's ways, as rules/holds.ts reads them. */
 export function waysRead(w: Ways | undefined): WaysRead {
@@ -425,7 +427,7 @@ export function fortunesYear(ctx: PopulationContext): void {
     o.fortune = fortuneAfter(
       (o.fortune ?? []).map((x) => x / 100),
       year.map((x, i) => x - mean[i]!),
-    ).map((x) => Math.round(x * 100));
+    ).map((x) => whole(x * 100));
 }
 
 /** The year's end: how each living realm stands on its numbers, kept as how it stood when next year's events befall it. */
@@ -571,13 +573,13 @@ function weigh(
   if (moved > 0) {
     const keep = evidenceKept(year - (o.learntAt ?? year)),
       b = believeAfter(learntOf(o) ?? noBelief(year), evidence, own, year);
-    o.learnt = [...b.a, ...b.n].map((x) => Math.round(x * 1000));
+    o.learnt = [...b.a, ...b.n].map((x) => whole(x * 1000));
     o.learntAt = b.at;
     // (Whom it learns from: each by how far their fates have moved it, faded as its evidence is.)
     const from = new Map((o.from ?? []).map(([ref, w]) => [ref, w * keep]));
     if (!own) from.set(whose.ref, (from.get(whose.ref) ?? 0) + moved * 1000);
     const kept = [...from.entries()]
-      .map(([ref, w]) => [ref, Math.round(w)] as [string, number])
+      .map(([ref, w]) => [ref, whole(w)] as [string, number])
       .filter((x) => x[1] > 0)
       .sort((a, c) => c[1] - a[1] || (a[0] < c[0] ? -1 : 1))
       .slice(0, LEARNING.teachers);
@@ -587,7 +589,7 @@ function weigh(
   return {
     evidence,
     stood: [...stance],
-    leaned: leaningOf(stood, usual).map((x) => Math.round(x * 100)),
+    leaned: leaningOf(stood, usual).map((x) => whole(x * 100)),
     came: cameOf(fortune, values),
     weight,
     blame: blameFrom(evidence, chance, own, seen),
@@ -721,7 +723,7 @@ function learn(
           // (As numbers, a few each, put into words where it is told: how it stood against the usual, how it fared, what it moved.)
           leaned: got.leaned,
           came: got.came,
-          moved: got.evidence.map((x) => Math.round(x * 1000)),
+          moved: got.evidence.map((x) => whole(x * 1000)),
         },
       })
     : null;
@@ -735,8 +737,8 @@ function learn(
       ...(other ? { whose: other.ref } : {}),
       leaned: got.leaned,
       came: got.came,
-      moved: got.evidence.map((x) => Math.round(x * 1000)),
-      weight: Math.round(got.weight * 100),
+      moved: got.evidence.map((x) => whole(x * 1000)),
+      weight: whole(got.weight * 100),
     },
     ...(order.taught ?? []),
   ].slice(0, LEARNING.taught);
