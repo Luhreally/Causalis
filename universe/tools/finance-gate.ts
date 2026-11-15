@@ -340,6 +340,23 @@ if (chosen) {
   const fearer = chosen.fearing ?? chosen.realm;
   if (await openTab(fearer, "Fears", "a realm that fears", /Whom it fears/i))
     await shot("realm-fears");
+  // (Its Learned tab beside them, for a picture: what it has seen go well and ill is what its fears and its money are weighed with.)
+  if (shots) {
+    await k(`globalThis.causalis.closePage?.()`);
+    await settle(300);
+    await k(`globalThis.causalis.open(${JSON.stringify(fearer)})`);
+    await until("the realm's page", async () => (await pageNow()) === fearer);
+    await settle(600);
+    const at = await k<number>(
+      `[...document.querySelectorAll(".page-window .tabs .tab")].findIndex((b) => b.textContent.trim() === "Learned")`,
+    );
+    if (at >= 0) {
+      await tap(`.page-window .tabs .tab:nth-child(${at + 1})`, "the realm's Learned tab");
+      await settle(900);
+      await hudFine("the realm's Learned tab");
+      await shot("realm-learned");
+    } else say("the realm has no Learned tab");
+  }
   // The ledger's Money tab: the square of who holds whom, pressed.
   if (
     await openTab("world:ledger", "Money", "the ledger", /Who holds whom|No realm has sold debt/i)

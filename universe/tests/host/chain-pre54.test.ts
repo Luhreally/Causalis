@@ -85,19 +85,21 @@ const KIND_ROWS = new Set([
  * Re-recorded for a realm's money and its fears (2026-11-14): each realm's fear of how another is held moves its regard for it, how
  * it is held and its host from the first realms that meet, and debt sold and holdings abroad from the first seats that know banking;
  * so Earth's history moves from its first realms on, and with it the early camps at 40 and every page of 700. The guide to matter stays.
+ * Re-recorded for the two together (2026-11-15): the money and its fears on the learned rule, what a people holds abroad counted
+ * in its measured wealth and how wealth is owned learned as how a realm is held is. The guide to matter stays.
  */
 const BEFORE: Record<string, string> = {
-  tools: "f1b6f293:19177",
-  stuff: "f266b2c9:13939",
-  ground: "a6f7b7fa:41937",
-  deposits: "3a698b56:97956",
-  arms: "c96ed4ee:16716",
-  designs: "19ab3383:27912",
-  workshops: "2edfc94e:463938",
+  tools: "2edd0106:18516",
+  stuff: "98b344d8:13711",
+  ground: "78bf99e3:42844",
+  deposits: "f1a07346:97949",
+  arms: "e85eee9d:19537",
+  designs: "4a2ebea1:29352",
+  workshops: "2a40997e:471246",
   substances: "cbdc9f23:130621",
-  reactions: "db9030ae:68630",
+  reactions: "fca855df:68712",
   // (Its pages no longer list what only a people of the water could find: F1, canBeFoundHere.)
-  principles: "efee3e16:171046",
+  principles: "f6173b98:173315",
   guide: "ced49326:17137",
   camps: "87b992a7:342250",
 };
