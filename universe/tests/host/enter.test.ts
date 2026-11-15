@@ -9,7 +9,7 @@ import {
   worldChemistry,
   worldLife,
 } from "../../src/gen/index.ts";
-import { affordancesOf, farMade, makingsOf } from "../../src/rules/index.ts";
+import { G, affordancesOf, farMade, makingsOf } from "../../src/rules/index.ts";
 import { ALIEN, EARTH, clusterOf } from "../../src/host/planet.ts";
 import { enterPlan, enteredHere } from "../../src/host/enter.ts";
 import { folkFacts, peopleFigure } from "../../src/host/folk.ts";
@@ -22,7 +22,10 @@ import {
   homePlanet,
   knownAt,
   loreOf,
+  marketsOf,
   populationContext,
+  seatedCells,
+  spaceOf,
   shutAge,
   type Folk,
 } from "../../src/sim/index.ts";
@@ -196,9 +199,26 @@ test("a people read in orbit stands there within its first years, where its worl
   const got = ok(enterPlan(sky, f.star, f.planet, "alien")),
     world = ALIEN.build(seedFromText(got.seed));
   assert.equal(enteredHere(world)!.shut, null);
+  // What that age left standing, as the chronicle opens: machines in their lands, their world's first flight a fact of
+  // the ages before; and no realm of this chronicle has flown yet, so they are not yet said to stand there.
+  const stock = () =>
+    populationContext(world)
+      .provinces.all()
+      .reduce((a, x) => a + (marketsOf(world).get(x.cell)?.stock[G.machines] ?? 0), 0);
+  assert.ok(stock() > 0, "machines held at the opening");
+  assert.ok(spaceOf(world).first.satellite, "a first flight standing");
+  assert.equal(spaceOf(world).all().length, 0);
+  assert.ok(!enteredHere(world)!.arrived, "not by the crafts alone");
   let year = 0;
   while (!enteredHere(world)!.arrived && year < got.mostYears) world.runTo((year += 10) * YEAR);
   assert.ok(enteredHere(world)!.arrived, `by year ${year}: ${enteredHere(world)!.age}`);
+  assert.ok(
+    spaceOf(world)
+      .all()
+      .some((x) => x.satellite),
+    "a realm of this chronicle in orbit",
+  );
+  assert.ok(stock() > 0);
   // (As many as were read, within the order.)
   const all = populationContext(world)
     .provinces.all()
@@ -232,10 +252,14 @@ test("the reading of a shut road is pure, and the same before entering as on the
       world = ALIEN.build(seedFromText(got.seed)),
       g = homePlanet(world).generated,
       ctx = populationContext(world),
-      pure = farShut(g, far),
+      pure = farShut(g, far, undefined, seatedCells(g, got.seed)),
       there = shutAge(ctx, g.life.people!.cell, far);
     assert.deepEqual(pure, there, f.name);
-    assert.deepEqual(pure, farShut(g, far), "the same each time it is asked");
+    assert.deepEqual(
+      pure,
+      farShut(g, far, undefined, seatedCells(g, got.seed)),
+      "the same each time it is asked",
+    );
     assert.equal(got.shut?.name ?? null, pure?.name ?? null, f.name);
     // (What the tree opens to them from nothing is what their lands were seated with.)
     assert.deepEqual(farCrafts(g, far.stage), knownAt(ctx, g.life.people!.cell, far), f.name);

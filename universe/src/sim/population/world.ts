@@ -307,6 +307,11 @@ function readSpread(
   return { lands: s.lands.slice(0, sizes.length), sizes };
 }
 
+/** The lands a world's people open its chronicle on (a world entered: the lands its people were seated on). Pure. */
+export function seatedCells(g: HomeWorld, text: string): number[] {
+  return readSpread(g, spreadOf(g, text), g.far).lands.map(([cell]) => cell);
+}
+
 export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions = {}): World {
   const world = makePlanetWorld(seed, { retention: PEOPLED_RETENTION, ...options });
   const provinces = world.register(new PopulationStore()),

@@ -9,8 +9,18 @@
 // Part of the world's making, keyed to nothing but its seed's text: no command, no draw, and no world of its own seed
 // is touched.
 import type { Ref } from "../../kernel/index.ts";
-import { farRoads, farShut, type FarShut } from "../../gen/index.ts";
-import { PRINCIPLES, PRINCIPLE_INDEX, type FarMade } from "../../rules/index.ts";
+import { FLOWN, farRoads, farShut, machinesCan, type FarShut } from "../../gen/index.ts";
+import {
+  G,
+  GLUT_YEARS,
+  PRINCIPLES,
+  PRINCIPLE_INDEX,
+  TOOL_USERS,
+  WANTS,
+  type FarMade,
+} from "../../rules/index.ts";
+import type { MarketStore } from "../economy/market.ts";
+import { spaceOf } from "../space/space.ts";
 import { giveLore, loreOf, openTo } from "../lore/lore.ts";
 import type { PopulationContext } from "./systems.ts";
 
@@ -23,8 +33,24 @@ export function shutAge(ctx: PopulationContext, cell: number, far: FarMade): Far
   const lore = loreOf(ctx.world),
     prov = ctx.provinces.get(cell),
     has = (id: string) => (id === "cultivation" ? !!prov?.knowsCultivation : !!lore.get(cell, id));
-  return farShut(ctx.generated, far, has);
+  return farShut(ctx.generated, far, has, peopled(ctx));
 }
+
+/** The lands a world's people live on now. */
+function peopled(ctx: PopulationContext): number[] {
+  return ctx.provinces
+    .all()
+    .filter((p) => p.total() > 0)
+    .map((p) => p.cell);
+}
+
+/** The crafts any one of which makes machines (rules/goods.ts). */
+const MACHINE_CRAFTS = ["factories", "sea-works", "machine-minds"] as const;
+/**
+ * The years of their use a land of a people read past its camps holds of machines at the chronicle's opening
+ * (rules/goods.ts GLUT_YEARS: as many as its works keep by them, so its works go on making them as they wear).
+ */
+const SEATED_MACHINE_YEARS = GLUT_YEARS;
 
 /** The most crafts a land is given: the tree's whole length and to spare. */
 const MOST = 400;
@@ -65,6 +91,28 @@ export function seatKnown(ctx: PopulationContext, home: number, far: FarMade, ev
       }
       // (Every land opens knowing nothing, so what the tree opened to their cradle it opens to each.)
       giveLore(ctx, p.cell, PRINCIPLES[PRINCIPLE_INDEX.get(id)!]!, event);
+    }
+  }
+  // What that age has left standing. A people whose lands can make machines holds them: each land its workers' own,
+  // as its works keep them. And a people read in orbit or beyond flew before this chronicle opened: its world's
+  // first flights are standing facts of the ages before (no realm's own, and no line of this chronicle's years); a
+  // realm founded here flies its own from the machines its lands hold, with those gone before for its reason.
+  const has = (id: string) => ids.includes(id),
+    lands = peopled(ctx);
+  if (MACHINE_CRAFTS.some(has) && machinesCan(ctx.generated, has, lands)) {
+    const markets = ctx.world.store<MarketStore>("economy.markets");
+    for (const p of ctx.provinces.all()) {
+      const users = TOOL_USERS.reduce((s, o) => s + p.occupation(o), 0),
+        stock = Math.round(users * WANTS.machinesPerWorker * SEATED_MACHINE_YEARS);
+      if (stock > 0) markets.of(p.cell).move("carriedIn", G.machines, stock);
+    }
+    if (FLOWN.includes(far.stage)) {
+      const first = spaceOf(ctx.world).first;
+      first.satellite ??= event;
+      if (far.stage === "stars") {
+        if (has("life-support")) first.crew ??= event;
+        if (has("stations")) first.station ??= event;
+      }
     }
   }
   return ids.length;

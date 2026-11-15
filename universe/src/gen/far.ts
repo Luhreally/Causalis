@@ -86,29 +86,43 @@ export function farCrafts(g: HomeWorld, stage: FarStage): string[] {
   return out;
 }
 
-/** Whether anything on a world can make machines, by what its people hold and what its ground holds (rules/goods.ts). */
-function machinesCan(g: HomeWorld, has: (id: string) => boolean): boolean {
+/**
+ * Whether a people can make machines, by what they hold and what their ground holds (rules/goods.ts). `lands`: the
+ * lands they live on (coal is dug from under a land's own ground, and carried a road's length); left out, any land of
+ * their world.
+ */
+export function machinesCan(
+  g: HomeWorld,
+  has: (id: string) => boolean,
+  lands?: Iterable<number>,
+): boolean {
   if (has("sea-works") || has("machine-minds")) return true;
   if (!has("factories")) return false;
   // (Works its own engines drive, where nothing burns or no limb tends a fire.)
   const body = g.life.people?.body;
   if (!kindBurns(worldKindOf(g)) || (body && !affordancesOf(body).fire)) return true;
   const e = g.tectonics.elevation;
+  if (lands) {
+    for (const c of lands) if (surfaceOre(g, c, "coal")) return true;
+    return false;
+  }
   for (let c = 0; c < g.grid.count; c++) if (e[c]! > 0 && surfaceOre(g, c, "coal")) return true;
   return false;
 }
 
 /** The stages read of a people that has flown: what machines alone build (sim/space/space.ts). */
-const FLOWN: readonly FarStage[] = ["orbit", "stars"];
+export const FLOWN: readonly FarStage[] = ["orbit", "stars"];
 
 /**
  * The first road to the age a people was read at that is shut to them on this world, and why (null: none is). `has`:
  * what they hold (their cradle's lore, on a world entered); left out, what the tree opens to them from nothing.
+ * `lands`: the lands they live on, for the fuel under them; left out, any land of their world.
  */
 export function farShut(
   g: HomeWorld,
   far: Pick<FarMade, "stage">,
   has?: (id: string) => boolean,
+  lands?: Iterable<number>,
 ): FarShut | null {
   let held = has;
   if (!held) {
@@ -136,7 +150,7 @@ export function farShut(
     for (const id of road.road) found ??= why(id, seen);
     return { age: road.age, name: name(road.age), why: found ?? "limbs" };
   }
-  if (FLOWN.includes(far.stage) && !machinesCan(g, holds))
+  if (FLOWN.includes(far.stage) && !machinesCan(g, holds, lands))
     return { age: "orbit", name: name("orbit"), why: "fuel" };
   return null;
 }

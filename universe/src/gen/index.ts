@@ -268,4 +268,12 @@ export {
   protoLiquidWhy,
   type ProtoWorld,
 } from "./origin.ts";
-export { FAR_SHUT_WORDS, farCrafts, farRoads, farShut, type FarShut } from "./far.ts";
+export {
+  FAR_SHUT_WORDS,
+  FLOWN,
+  farCrafts,
+  farRoads,
+  farShut,
+  machinesCan,
+  type FarShut,
+} from "./far.ts";

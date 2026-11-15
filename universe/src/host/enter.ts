@@ -40,12 +40,14 @@ import {
   folkStage,
   homePlanet,
   populationContext,
+  seatedCells,
   shutAge,
 } from "../sim/index.ts";
 import type { EnterPlan, Entered } from "../bridge/index.ts";
 import { foreignGlobe } from "./galaxy.ts";
 import { folkFactsOf } from "./natives.ts";
 import { stageOf } from "./inspect/stage.ts";
+import { rawReading } from "./reading.ts";
 import type { QueryHandler } from "./host.ts";
 
 /** The universe a world entered runs in: every world not ours is of the open one. */
@@ -192,7 +194,9 @@ export function enterPlan(
     shut =
       stage === "camps"
         ? null
-        : farShut(provinceWorld(generateHomeWorld(seedFromText(seed), OPEN), landsOf(seed)), made),
+        : ((g) => farShut(g, made, undefined, seatedCells(g, seed)))(
+            provinceWorld(generateHomeWorld(seedFromText(seed), OPEN), landsOf(seed)),
+          ),
     at = shut ? AGE_LADDER.findIndex((a) => a.id === shut.age) : -1;
   return {
     ok: true,
@@ -231,10 +235,15 @@ export function enteredHere(world: World): Entered | null {
     at = now.stages.findIndex((x) => x.id === want),
     // (Come as far as they were read: that step's own first reached, or the age its peoples stand at now that far on.
     // A later step's first alone does not count: a world may write before it builds a city.)
-    arrived =
-      at <= 0 ||
-      now.stages[at]!.year !== null ||
-      now.stages.findIndex((x) => x.id === now.id) >= at;
+    // An age that is flown is stood at by what flies, not by the crafts alone: a realm of this chronicle with its own
+    // first in orbit; among the stars, with its people gone up as well.
+    flown = far.stage === "orbit" || far.stage === "stars",
+    raw = flown ? rawReading(world).w : null,
+    arrived = raw
+      ? raw.sat > 0 && (far.stage === "orbit" || raw.crew > 0)
+      : at <= 0 ||
+        now.stages[at]!.year !== null ||
+        now.stages.findIndex((x) => x.id === now.id) >= at;
   return {
     name: far.name,
     kind: far.body.name,
