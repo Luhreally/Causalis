@@ -75,7 +75,18 @@ function pair(w: World): [Polity, Polity] {
   }
   return rel;
 }
-const food = (w: World, p: Polity) => marketsOf(w).of(p.seat).food(FOODS);
+/** All the food in the world's stores. */
+const food = (w: World) =>
+  marketsOf(w)
+    .all()
+    .reduce((n, m) => n + m.food(FOODS), 0);
+/** Every land of a realm emptied of food. */
+const starve = (w: World, p: Polity) => {
+  for (const c of p.members) {
+    const m = marketsOf(w).get(c);
+    if (m) for (const g of FOODS) m.take("used", g, m.stock[g]!);
+  }
+};
 const events = (w: World, type: string) => {
   const out = [];
   for (let i = 0; i < w.events.count; i++)
@@ -107,14 +118,14 @@ test("a debt held abroad is paid in grain that goes home: none made, none lost",
     [a, b] = pair(w),
     store = financeOf(w)!,
     ma = store.of(a.ref)!,
-    before = food(w, a) + food(w, b);
+    before = food(w);
   ma.held = [[b.ref, 10_000]];
   ma.coupon = 800;
   financeYear(populationContext(w), at(1));
   const paid = ma.paid;
   assert.ok(paid >= 800, `interest and a part of the debt paid: ${paid}`);
   assert.equal(store.of(b.ref)!.income, paid, "what it paid came home to its holders");
-  assert.equal(food(w, a) + food(w, b), before, "grain moved, none made");
+  assert.equal(food(w), before, "grain moved, none made");
   assert.equal(ma.held[0]![1], 10_000 + 800 - paid, "what is left is owed");
   assert.equal(ma.missed, 0);
   // What it would pay now is read off it, each part named.
@@ -128,13 +139,12 @@ test("a realm that cannot pay refuses its debt: its holders lose and remember, e
   const w = fresh(),
     [a, b] = pair(w),
     store = financeOf(w)!,
-    ma = store.of(a.ref)!,
-    m = marketsOf(w).of(a.seat);
+    ma = store.of(a.ref)!;
   ma.held = [[b.ref, 50_000]];
   ma.home = 20_000;
   ma.coupon = 900;
   for (let k = 1; k <= FINANCE.missed; k++) {
-    for (const g of FOODS) m.take("used", g, m.stock[g]!);
+    starve(w, a);
     financeYear(populationContext(w), at(k));
   }
   const refused = events(w, FINANCE_EVENTS.refused.type),
@@ -183,7 +193,17 @@ test("a fear kept is read by diplomacy and by how a realm is held", () => {
     store = financeOf(w)!,
     ctx = populationContext(w);
   store.of(a.ref)!.fears = [
-    { of: b.ref, level: 60, unlike: 45, works: 70, exposed: 60, loss: 80, who: 0, drawn: 24 },
+    {
+      of: b.ref,
+      level: 60,
+      now: 60,
+      unlike: 45,
+      works: 70,
+      exposed: 60,
+      loss: 80,
+      who: 0,
+      drawn: 24,
+    },
   ];
   assert.equal(fearOf(w, a.ref, b.ref), 0.6);
   // (And by trade: so much the less passes between their lands, whichever of the two is asked.)

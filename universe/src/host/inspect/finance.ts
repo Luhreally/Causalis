@@ -153,7 +153,8 @@ function fearParts(world: World, r: Polity, f: Fear) {
     part("× how well the other's is seen to work", hundredth(f.works)),
     part("× how far its people are exposed to it", hundredth(f.exposed)),
     part(`× what ${LOSERS[f.who]} would lose`, hundredth(f.loss)),
-    part(`× ${FINANCE.fear}, to at most 1`, hundredth(f.level)),
+    part(`× ${FINANCE.fear}, to at most 1: this year's`, hundredth(f.now)),
+    part("half of last year's and half of this", hundredth(f.level)),
     ...WAY_NAMES.map((n, k) =>
       part(`  ${n}: here against there`, `${mine[k]!.toFixed(2)} / ${theirs[k]!.toFixed(2)}`),
     ),
@@ -340,7 +341,7 @@ export function realmMoneyBlocks(world: World, r: Polity): Block[] {
           color: realmColor(q) as Rgb,
         })),
       ],
-      note: "In grain's worth. Interest and a part of the debt go home to each people abroad each year, in grain from its seat.",
+      note: "In grain's worth. Interest and a part of the debt go home to each people abroad each year, in food from its lands' stores.",
     });
   // Who holds its listed works.
   if (m.worth > 0) {

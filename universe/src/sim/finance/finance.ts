@@ -1,6 +1,6 @@
 // A realm's money and its fears (rules/finance.ts; asked 2026-11-14). Built on credit (sim/credit): a realm that knows banking at
 // its seat sells debt, to its own people and to the peoples of realms it meets, at an interest read off its record; pays it from
-// its seat's stores, the grain going home to its holders; and, unable to pay, refuses it, which its holders remember (the lessons
+// its lands' stores, the food going home to its holders; and, unable to pay, refuses it, which its holders remember (the lessons
 // of rule, rules/holds.ts) and every lender reads (credit's faithless years). The people of one realm come to hold shares of
 // another's listed works, the more as both are open, at peace and think well of each other; a war between them, or a realm closing
 // itself, takes what was held. How a realm's wealth is owned is two numbers moved every ten years by what it is and what it sees.
@@ -71,7 +71,10 @@ export const FINANCE_EVENTS = {
 /** A fear as kept: of whom, and its level and parts in whole hundredths (rules/finance.ts Threat). */
 export type Fear = {
   readonly of: Ref;
+  /** How much it is feared: half what it was the year before, half this year's reckoning (a fear grows and fades over years). */
   readonly level: number;
+  /** This year's reckoning: the four parts multiplied. */
+  readonly now: number;
   readonly unlike: number;
   readonly works: number;
   readonly exposed: number;
@@ -507,11 +510,14 @@ export function financeYear(ctx: PopulationContext, t: SimTime): void {
         seenToWork(x.faring, y.faring),
         exposure(meeting, x.way[2]),
       );
-      if (th.level < 0.05 && th.drawn < 0.1) continue;
+      const was = x.m.fears.find((f) => f.of === y.p.ref)?.level ?? 0,
+        level = Math.round((was + pct(th.level)) / 2);
+      if (level < 5 && th.drawn < 0.1) continue;
       const list = fears.get(x.p.ref) ?? [];
       list.push({
         of: y.p.ref,
-        level: pct(th.level),
+        level,
+        now: pct(th.level),
         unlike: pct(th.unlike),
         works: pct(th.works),
         exposed: pct(th.exposed),
@@ -628,33 +634,55 @@ export function financeYear(ctx: PopulationContext, t: SimTime): void {
     }
   }
 
-  // 5. Debt served: interest and a part of the principal to each people abroad, in grain from the seat; refused where it cannot be.
+  // 5. Debt served: interest and a part of the principal to each people abroad, in food from its lands' stores; refused where it cannot be.
   for (const r of reads.values()) {
     const m = r.m,
       p = r.p;
     if (m.home > 0) m.home = Math.max(0, m.home - Math.ceil(m.home / FINANCE.term));
-    const abroad = m.held.reduce((s, [, n]) => s + n, 0),
-      sm = markets.get(p.seat),
-      seat = ctx.provinces.get(p.seat);
-    if (abroad > 0 && sm && seat) {
+    const abroad = m.held.reduce((s, [, n]) => s + n, 0);
+    if (abroad > 0) {
+      // What its lands can spare: each land's food above three months' eating, the fullest first; half of it at the most.
+      const lands: { mk: Market; spare: number }[] = [];
+      let spare = 0;
+      for (const c of p.members) {
+        const mk = markets.get(c),
+          prov = ctx.provinces.get(c);
+        if (!mk || !prov) continue;
+        const over = Math.floor(mk.food(FOODS) - CREDIT.keep * mouths(prov, ctx.life));
+        if (over <= 0) continue;
+        lands.push({ mk, spare: over });
+        spare += over;
+      }
+      lands.sort((x, y) => y.spare - x.spare || x.mk.cell - y.mk.cell);
       const due = Math.floor((abroad * m.coupon) / 10_000),
         back = Math.floor(abroad / FINANCE.term),
-        spare = Math.floor(sm.food(FOODS) - CREDIT.keep * mouths(seat, ctx.life)),
-        budget = Math.max(0, Math.floor(spare / 2)),
-        pays = Math.min(due + back, budget);
+        pays = Math.min(due + back, Math.floor(spare / 2));
       m.missed = due > 0 && pays < due / 2 ? m.missed + 1 : 0;
-      let left = pays;
+      let left = pays,
+        at = 0;
       const next: [Ref, number][] = [];
       for (const [q, n] of m.held) {
         const holder = reads.get(q),
           hm = holder ? markets.get(holder.p.seat) : undefined,
           mine = Math.min(left, Math.floor((pays * n) / abroad));
         let sent = 0;
-        if (hm && mine > 0)
-          for (const g of [G.grain, G.wild, G.meat]) {
-            const k = Math.min(mine - sent, sm.stock[g]!);
-            if (k > 0) sent += hm.move("in", g, sm.move("out", g, k));
+        // (From the fullest land on, no more than half of what each can spare; grain first, then what was gathered, then game.)
+        while (hm && sent < mine && at < lands.length) {
+          const land = lands[at]!,
+            room = Math.floor(land.spare / 2);
+          if (room <= 0) {
+            at++;
+            continue;
           }
+          let took = 0;
+          for (const g of [G.grain, G.wild, G.meat]) {
+            const k = Math.min(mine - sent - took, room - took, land.mk.stock[g]!);
+            if (k > 0) took += hm.move("in", g, land.mk.move("out", g, k));
+          }
+          sent += took;
+          land.spare -= 2 * took;
+          if (took <= 0 || Math.floor(land.spare / 2) <= 0) at++;
+        }
         left -= sent;
         m.paid += sent;
         if (holder) holder.m.income += sent;
