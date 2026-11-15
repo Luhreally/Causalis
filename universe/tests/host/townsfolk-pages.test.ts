@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
+import { YEAR, type Ref } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { levyPlaces } from "../../src/host/fallen.ts";
 import { battleRoll, encodeLevy } from "../../src/host/roll.ts";
@@ -8,6 +8,7 @@ import { LINE, ROSTER_YEARS, townRoster } from "../../src/host/roster.ts";
 import { populationContext, warsOf } from "../../src/sim/index.ts";
 import { settleAll } from "../../src/causal/index.ts";
 import { levyManRef, type Line, type PageModel, type VillagePlan } from "../../src/bridge/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 55 M225: a town's many have pages by their line, and a battle's levy by his ref. A holder who
 // fell says where he fell and where he lies; one who lives is as old as the years since he was born;
@@ -15,8 +16,7 @@ import { levyManRef, type Line, type PageModel, type VillagePlan } from "../../s
 // unknown page. One world: the first light, a hundred and twenty-five years on, and every year read
 // from it. Relations only.
 
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(125 * YEAR);
+const world = universeWorld(EARTH, "first light", 125);
 settleAll(world);
 const before = JSON.stringify(world.domainHashes());
 const Y = Math.floor(world.now / YEAR),

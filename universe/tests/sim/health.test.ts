@@ -37,13 +37,13 @@ import {
   type Sickness,
 } from "../../src/sim/index.ts";
 import { why } from "../../src/causal/index.ts";
+import { peopledWorld } from "../worlds.ts";
 
 // Phase 20 M140: sickness. Juniper's realms sixty years on, a sickness made in the most peopled
 // land of its greatest realm, and worked on by the year of sickness alone (the rest held still).
 const seed = seedFromText("juniper"),
   build = (s = seed) => makePopulationWorld(s, { start: "spread" }),
-  world = build();
-world.runTo(60 * YEAR);
+  world = peopledWorld("juniper", 60, { start: "spread" });
 const RULESET = rulesetId(world, "test"),
   AS_IT_WAS = saveWorld(world, RULESET),
   fresh = () => loadWorld(AS_IT_WAS, build, RULESET).world;
@@ -495,8 +495,7 @@ test("sickness is kept whole by a save, goes on alike after it, and the world re
 });
 
 test("over the centuries sicknesses rise of themselves where life crowds, and travel", () => {
-  const w = build(seedFromText("first light"));
-  w.runTo(320 * YEAR);
+  const w = peopledWorld("first light", 320, { start: "spread" });
   const store = healthOf(w)!;
   assert.ok(store.sicknesses.length >= 1, "a sickness rose");
   const s = store.sicknesses.find((x) => x.source !== "the god")!;

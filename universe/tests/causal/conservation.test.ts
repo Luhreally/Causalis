@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, finish, mix, seedFromText, type Ref, type World } from "../../src/kernel/index.ts";
-import { makePopulationWorld, populationContext } from "../../src/sim/index.ts";
+import { YEAR, finish, mix, type Ref, type World } from "../../src/kernel/index.ts";
+import { populationContext } from "../../src/sim/index.ts";
 import {
   deepen,
   meetHousehold,
@@ -10,6 +10,7 @@ import {
   warClaimLimit,
   type Person,
 } from "../../src/causal/index.ts";
+import { peopledWorld } from "../worlds.ts";
 
 /** Every claim is within what history holds, and each place-claim is exactly the people holding it. */
 function assertConserved(world: World, label: string): void {
@@ -47,8 +48,7 @@ function assertConserved(world: World, label: string): void {
 }
 
 test("conservation holds over 1,000 random click orders", () => {
-  const world = makePopulationWorld(seedFromText("first light"));
-  world.runTo(240 * YEAR);
+  const world = peopledWorld("first light", 240);
   const ctx = populationContext(world),
     ledger = observer(world),
     fresh = JSON.stringify(ledger.save()),
@@ -95,8 +95,7 @@ test("conservation holds over 1,000 random click orders", () => {
 });
 
 test("conservation holds as time passes between looks", () => {
-  const world = makePopulationWorld(seedFromText("first light"));
-  world.runTo(236 * YEAR);
+  const world = peopledWorld("first light", 236);
   const ctx = populationContext(world);
   for (let year = 236; year <= 300; year += 4) {
     world.runTo(year * YEAR);

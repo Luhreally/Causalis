@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText } from "../../src/kernel/index.ts";
+import { YEAR } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { MOULDS, floorOf, foundryOf, leanOn } from "../../src/view/errands.ts";
 import {
@@ -12,13 +12,13 @@ import {
   villageSolids,
 } from "../../src/view/index.ts";
 import type { Line, PageModel, VillagePlan } from "../../src/bridge/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 51 M215: things seen made at scale. The first light's world in the age of engines (800):
 // its towns with works keep a foundry, its founders breaking out the last day's castings, ramming
 // the sand and pouring the moulds at their taps; and in the modern age (1050) the works' floor, its
 // machinists at the presses and lathes, the finished parts set on the bench.
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(800 * YEAR);
+const world = universeWorld(EARTH, "first light", 800);
 const ask = <T>(type: string, args: unknown = {}) => EARTH.queries[type]!(world, args) as T;
 const DAY = 86_400,
   HOUR = 3_600;

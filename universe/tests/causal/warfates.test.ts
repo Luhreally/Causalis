@@ -1,15 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type Ref, type World } from "../../src/kernel/index.ts";
+import { YEAR, type Ref, type World } from "../../src/kernel/index.ts";
 import { MALE, bandOf, fellRows, unpackTowns, type LandFell } from "../../src/rules/index.ts";
-import {
-  fighting,
-  makePopulationWorld,
-  poolOf,
-  populationContext,
-  warsOf,
-  type Battle,
-} from "../../src/sim/index.ts";
+import { fighting, poolOf, populationContext, warsOf, type Battle } from "../../src/sim/index.ts";
 import {
   LIFE_WORDS,
   MEMORY_WORDS,
@@ -26,6 +19,7 @@ import {
   type WarFate,
 } from "../../src/causal/index.ts";
 import { warFronts } from "../../src/causal/warfates.ts";
+import { peopledWorld } from "../worlds.ts";
 
 // Phase 55 M225: the men met go to war. A man met is drawn into his land's battles of the last
 // thirty-nine years as one who came home; followed forward, he may fall. Every fate is claimed from
@@ -33,8 +27,7 @@ import { warFronts } from "../../src/causal/warfates.ts";
 // a hundred and twenty-five years on, as the game builds it (bands spread over the land: the cradle
 // world of a single land has fought no battle by then).
 
-const world = makePopulationWorld(seedFromText("first light"), { start: "spread" });
-world.runTo(125 * YEAR);
+const world = peopledWorld("first light", 125, { start: "spread" });
 const before = JSON.stringify(world.domainHashes()),
   ledger = observer(world),
   fresh = JSON.stringify(ledger.save()),

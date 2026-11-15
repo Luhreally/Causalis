@@ -6,12 +6,12 @@ import { ALIEN, EARTH } from "../../src/host/planet.ts";
 import { populationContext } from "../../src/sim/index.ts";
 import type { Block, PageModel } from "../../src/bridge/index.ts";
 import type { HouseholdView } from "../../src/ui/people.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 36 M182: the thread back to the beginning — from a life, a town or a land, a scale at a
 // time, to the galaxy turning; each step opening its own page.
 
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(60 * YEAR);
+const world = universeWorld(EARTH, "first light", 60);
 const ask = <T>(type: string, args: unknown = {}) => EARTH.queries[type]!(world, args) as T;
 const page = (ref: string) => ask<PageModel>("page", { ref });
 type Thread = Extract<Block, { type: "thread" }>;

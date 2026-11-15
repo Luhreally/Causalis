@@ -2,13 +2,12 @@
 // a fabric saved town by town still loads, and a remaking and its mirrors come back whole.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { seedFromText, YEAR } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { LateStore, townsOf } from "../../src/sim/index.ts";
+import { universeWorld } from "../host/worlds.ts";
 
 test("the towns' fabric by column reads back to the letter, and one saved town by town still loads", () => {
-  const world = EARTH.build(seedFromText("first light"));
-  world.runTo(120 * YEAR);
+  const world = universeWorld(EARTH, "first light", 120);
   const towns = townsOf(world),
     saved = towns.save() as { digest: [number, number]; towns: { heads: unknown[][] } };
   assert.ok(saved.towns, "by column");

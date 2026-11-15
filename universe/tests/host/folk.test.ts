@@ -1,14 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText } from "../../src/kernel/index.ts";
+import { YEAR } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { handOf, languagesOf, politiesOf, populationContext } from "../../src/sim/index.ts";
 import type { ActsMap, Block, PageModel, Tip } from "../../src/bridge/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 14: people as individuals (families, traits), peoples read, the god as they name it.
 // The first light's world, its most peopled land's first town under the hand for twenty years.
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(260 * YEAR);
+const world = universeWorld(EARTH, "first light", 260);
 const ask = <T>(type: string, args: unknown = {}) => EARTH.queries[type]!(world, args) as T;
 const page = (ref: string) => ask<PageModel>("page", { ref });
 const map = ask<{ cell: number; people: number }[]>("people.map"),

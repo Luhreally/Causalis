@@ -3,7 +3,7 @@
 // its realm armed it that day; and the army tab's line on machines. Reading any of it changes nothing.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type Ref, type World } from "../../src/kernel/index.ts";
+import { YEAR, type Ref, type World } from "../../src/kernel/index.ts";
 import { cellRef } from "../../src/gen/index.ts";
 import { G, principle, type Part } from "../../src/rules/index.ts";
 import {
@@ -11,7 +11,6 @@ import {
   fuelFor,
   loreOf,
   machinedFor,
-  makePopulationWorld,
   marketsOf,
   politiesOf,
   populationContext,
@@ -22,6 +21,7 @@ import { armsMade, type Made } from "../../src/host/chain.ts";
 import { armPage } from "../../src/host/inspect/arm.ts";
 import { armyBlocks } from "../../src/host/inspect/army.ts";
 import type { Block, Line, Stat } from "../../src/bridge/index.ts";
+import { peopledWorld } from "../worlds.ts";
 
 /** The principles of the later arms: the armoured car's last. */
 const LATER = ["repeating-fire", "self-loading", "automatic-fire", "armoured-vehicles"];
@@ -55,8 +55,7 @@ function teach(world: World, cell: number, list: string[]): void {
 }
 
 // The first light's world at year 80, and three of its realms of two lands or more.
-const world = makePopulationWorld(seedFromText("first light"), { start: "spread" });
-world.runTo(80 * YEAR);
+const world = peopledWorld("first light", 80, { start: "spread" });
 const year = Math.floor(world.now / YEAR),
   ctx = populationContext(world),
   realms = politiesOf(world)

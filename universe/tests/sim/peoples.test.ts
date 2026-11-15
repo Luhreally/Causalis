@@ -43,14 +43,14 @@ import {
   WAYS_PUSH,
 } from "../../src/sim/index.ts";
 import { why } from "../../src/causal/index.ts";
+import { peopledWorld } from "../worlds.ts";
 
 // Juniper's many realms (as the war tests have them), four centuries on.
 const seed = seedFromText("juniper"),
   build = (s = seed) => makePopulationWorld(s, { start: "spread" }),
   AT = 400 * YEAR,
   chain = (w: World) => w.checkpoints().map((c) => c.chain);
-const world = build();
-world.runTo(AT);
+const world = peopledWorld("juniper", 400, { start: "spread" });
 // Each test acts on its own copy of the world as it stood then.
 const RULESET = rulesetId(world, "test"),
   AS_IT_WAS = saveWorld(world, RULESET),
@@ -266,8 +266,7 @@ test("a river risen drowns a river land's fields, and those downriver; a dry lan
 
 test("settlers sent into an empty land people it, with their ways and speech; the flow is history's", () => {
   // (A young world, its people still at their cradle, the lands about it empty.)
-  const w = makePopulationWorld(seedFromText("first light"));
-  w.runTo(60 * YEAR);
+  const w = peopledWorld("first light", 60);
   const ctx = populationContext(w),
     g = ctx.generated,
     empty = Array.from({ length: g.grid.count }, (_, c) => c).find(

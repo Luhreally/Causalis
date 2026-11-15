@@ -25,14 +25,14 @@ import {
 import { BATTLE_HOUR, bodyFrameOf } from "../../src/host/wounds.ts";
 import { planWords } from "../../src/host/inspect/kin.ts";
 import { pageOf } from "../../src/host/inspect/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 55 wave 5: anyone of a town's family and body, read from history without changing it — a
 // line's holders as each other's kin, the rest of their kin by the keyed rule, their house the four
 // lines a home holds, the blow that killed one fallen; the same on every asking, and nothing moved.
 
 const HOUR = 3600;
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(125 * YEAR);
+const world = universeWorld(EARTH, "first light", 125);
 const before = JSON.stringify(world.domainHashes());
 const Y = Math.floor(world.now / YEAR),
   life = populationContext(world).life,

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
+import { YEAR, type Ref } from "../../src/kernel/index.ts";
 import { MALE } from "../../src/rules/index.ts";
 import { lifeOf, populationContext, warsOf } from "../../src/sim/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
@@ -9,13 +9,13 @@ import { townRoster } from "../../src/host/roster.ts";
 import { count } from "../../src/host/inspect/words.ts";
 import { meetHousehold, observer, settleAll, type Person } from "../../src/causal/index.ts";
 import type { Item, Line, PageModel } from "../../src/bridge/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 55 M225: the men met go to war, and a town's War tab says where its men went. One world: the
 // first light, a hundred and twenty-five years on, the households met in the towns that sent the most
 // men, and the thirty years after, in which the men met may fall.
 
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(125 * YEAR);
+const world = universeWorld(EARTH, "first light", 125);
 const Y = Math.floor(world.now / YEAR),
   ledger = observer(world),
   ctx = populationContext(world),

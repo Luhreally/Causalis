@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type SimTime } from "../../src/kernel/index.ts";
+import { type SimTime } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import {
   STRIFE_ACTS,
@@ -17,13 +17,13 @@ import {
   type Polity,
 } from "../../src/sim/index.ts";
 import type { Block, PageModel } from "../../src/bridge/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 22 M146: civil wars and revolutions, read — a civil war's kind and end on its war's page,
 // a realm's civil wars and how near its people are to rising, the ledger's tables, the chronicle's
 // firsts. The first light's world a century and a quarter on; a pretender raised by hand in its
 // greatest realm's far lands, and its people risen in the next.
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(125 * YEAR);
+const world = universeWorld(EARTH, "first light", 125);
 const ask = <T>(type: string, args: unknown = {}) => EARTH.queries[type]!(world, args) as T;
 const ctx = populationContext(world),
   people = (p: Polity) => p.members.reduce((n, c) => n + (ctx.provinces.get(c)?.total() ?? 0), 0),

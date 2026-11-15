@@ -1,6 +1,5 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import {
   LAWS,
@@ -14,12 +13,12 @@ import {
 } from "../../src/sim/index.ts";
 import type { Answer, Block, PageModel, Tip } from "../../src/bridge/index.ts";
 import { ORDER_CONCEPTS } from "../../src/host/inspect/order-concepts.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 19 M138: bonds and freedoms, read — a realm's order on its page, a land's bound, the
 // ledger's bonds, the lenses of bondage and of standing, the book's concepts, the god's acts.
 // The first light's world a century and a quarter on, the bound set in its greatest realm.
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(125 * YEAR);
+const world = universeWorld(EARTH, "first light", 125);
 const ask = <T>(type: string, args: unknown = {}) => EARTH.queries[type]!(world, args) as T;
 const ctx = populationContext(world),
   people = (p: Polity) => p.members.reduce((n, c) => n + (ctx.provinces.get(c)?.total() ?? 0), 0),

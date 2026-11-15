@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
+import { type Ref } from "../../src/kernel/index.ts";
 import {
   LEDGER,
   POLITY_EVENTS,
@@ -9,16 +9,15 @@ import {
   WAY_TRAITS,
   institutionsOf,
   loreOf,
-  makePopulationWorld,
   marketsOf,
   politiesOf,
   populationContext,
   type Ways,
 } from "../../src/sim/index.ts";
 import { spine, why } from "../../src/causal/index.ts";
+import { peopledWorld } from "../worlds.ts";
 
-const world = makePopulationWorld(seedFromText("first light"), { start: "spread" });
-world.runTo(300 * YEAR);
+const world = peopledWorld("first light", 300, { start: "spread" });
 const ctx = populationContext(world),
   realms = politiesOf(world);
 

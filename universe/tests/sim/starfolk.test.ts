@@ -32,13 +32,13 @@ import {
   type Polity,
 } from "../../src/sim/index.ts";
 import { spine, why } from "../../src/causal/index.ts";
+import { peopledWorld } from "../worlds.ts";
 
 // Juniper's realms, sixty years on; among its stars one people has been at the stars a thousand
 // years (the shelled shore-walkers, 35 light-years out), the rest have yet to come to them.
 const seed = seedFromText("juniper"),
   build = (s = seed) => makePopulationWorld(s, { start: "spread" }),
-  world = build();
-world.runTo(60 * YEAR);
+  world = peopledWorld("juniper", 60, { start: "spread" });
 const RULESET = rulesetId(world, "test"),
   AS_IT_WAS = saveWorld(world, RULESET),
   fresh = () => loadWorld(AS_IT_WAS, build, RULESET).world;

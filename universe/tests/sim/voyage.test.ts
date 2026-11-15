@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
+import { YEAR, type Ref } from "../../src/kernel/index.ts";
 import { offworldSite } from "../../src/gen/index.ts";
 import { G, principle } from "../../src/rules/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
@@ -16,10 +16,10 @@ import {
   starSitesOf,
 } from "../../src/sim/index.ts";
 import { landWords, why } from "../../src/causal/index.ts";
+import { universeWorld } from "../host/worlds.ts";
 
 test("a ship sails for another star as a land of its realm, its people living aboard, and comes down on a world there", () => {
-  const world = EARTH.build(seedFromText("first light"));
-  world.runTo(80 * YEAR);
+  const world = universeWorld(EARTH, "first light", 80);
   const realm = [...politiesOf(world).living()].sort(
       (a, b) => b.members.length - a.members.length || (a.ref < b.ref ? -1 : 1),
     )[0]!,

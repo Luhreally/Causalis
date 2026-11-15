@@ -10,3 +10,6 @@ public/__shot-*.json
 
 # A world saved part-way for experiments to fork from (universe/tools/snapshot.ts).
 snapshots/
+
+# The tests' worlds, kept between runs (universe/tests/worlds.ts).
+.world-cache/

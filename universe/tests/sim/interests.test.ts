@@ -1,16 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
+import { type Ref } from "../../src/kernel/index.ts";
 import {
   GROUPS,
   POLITY_EVENTS,
   interestsOf,
-  makePopulationWorld,
   politiesOf,
   populationContext,
   swayOf,
 } from "../../src/sim/index.ts";
 import { why } from "../../src/causal/index.ts";
+import { peopledWorld } from "../worlds.ts";
 
 const PEOPLE = {
   farmers: 5000,
@@ -44,8 +44,7 @@ test("sway is shared among the groups, weighed by who leads", () => {
   );
 });
 
-const world = makePopulationWorld(seedFromText("kestrel"), { start: "spread" });
-world.runTo(400 * YEAR);
+const world = peopledWorld("kestrel", 400, { start: "spread" });
 const ctx = populationContext(world);
 
 test("every realm's groups make demands that rest on something in the world", () => {

@@ -1,21 +1,20 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
+import { type Ref } from "../../src/kernel/index.ts";
 import {
   DIPLOMACY_EVENTS,
   POLITY_EVENTS,
   diplomacyOf,
-  makePopulationWorld,
   marketsOf,
   politiesOf,
   populationContext,
   relationRef,
 } from "../../src/sim/index.ts";
 import { why } from "../../src/causal/index.ts";
+import { peopledWorld } from "../worlds.ts";
 
 // Juniper's land stays divided among many realms, who meet at borders and down roads.
-const world = makePopulationWorld(seedFromText("juniper"), { start: "spread" });
-world.runTo(400 * YEAR);
+const world = peopledWorld("juniper", 400, { start: "spread" });
 const ctx = populationContext(world),
   realms = politiesOf(world),
   relations = diplomacyOf(world).all();

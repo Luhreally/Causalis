@@ -4,7 +4,7 @@
 // kit or a battle before the magazine.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type Ref, type World } from "../../src/kernel/index.ts";
+import { YEAR, type Ref, type World } from "../../src/kernel/index.ts";
 import { cellRef } from "../../src/gen/index.ts";
 import { LATE_TREE } from "../../src/rules/principles.ts";
 import {
@@ -29,11 +29,11 @@ import {
   hostFor,
   loreOf,
   machinedFor,
-  makePopulationWorld,
   marketsOf,
   politiesOf,
   populationContext,
 } from "../../src/sim/index.ts";
+import { peopledWorld } from "../worlds.ts";
 
 /** The principles of the later arms. */
 const LATER = ["repeating-fire", "self-loading", "automatic-fire", "armoured-vehicles"];
@@ -190,8 +190,7 @@ function teach(world: World, cell: number, list: string[]): void {
 }
 
 test("a realm's machined arms come only from works it can reach, its armoured cars only with oil", () => {
-  const world = makePopulationWorld(seedFromText("first light"), { start: "spread" });
-  world.runTo(80 * YEAR);
+  const world = peopledWorld("first light", 80, { start: "spread" });
   const ctx = populationContext(world),
     p = politiesOf(world)
       .living()

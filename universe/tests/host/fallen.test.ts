@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import { keptLife } from "../../src/rules/kinds.ts";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText } from "../../src/kernel/index.ts";
+import { YEAR } from "../../src/kernel/index.ts";
 import { ALIEN, EARTH } from "../../src/host/planet.ts";
 import { LEVY_SHOWN, levyPlaces } from "../../src/host/fallen.ts";
 import { strikesOn } from "../../src/host/town.ts";
@@ -14,13 +14,13 @@ import type {
   LevyPlace,
   WarsMap,
 } from "../../src/bridge/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 55 M224: the host shows the record. A battle seen near tells its wounded, its maimed
 // and where its men came from (by town, countryside and land); a war's course and the ledger's wars
 // tell the wounded; a fire tells the hurt it left with its dead.
 
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(125 * YEAR);
+const world = universeWorld(EARTH, "first light", 125);
 const ask = <T>(type: string, args: unknown = {}) => EARTH.queries[type]!(world, args) as T;
 const before = JSON.stringify(world.domainHashes());
 const wars = [...warsOf(world).all()],
@@ -107,8 +107,7 @@ test("reading the record changes no domain hash", () => {
 });
 
 test("an alien people's record: the same sums, the proportion kept, every arm given a blow", () => {
-  const alien = ALIEN.build(seedFromText(keptLife("alien 16")));
-  alien.runTo(150 * YEAR);
+  const alien = universeWorld(ALIEN, keptLife("alien 16"), 150);
   const askAlien = <T>(type: string, args: unknown = {}) => ALIEN.queries[type]!(alien, args) as T;
   const fought = [...warsOf(alien).all()].flatMap((w) => w.battles);
   assert.ok(fought.length >= 10, `${fought.length} battles`);

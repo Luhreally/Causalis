@@ -2,7 +2,7 @@
 // ground, a realm of one land driven of its herds, a hive's creatures. Each is forced, then read as a person reads it.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type Ref, type World } from "../../src/kernel/index.ts";
+import { YEAR, type Ref, type World } from "../../src/kernel/index.ts";
 import { ALIEN, EARTH } from "../../src/host/planet.ts";
 import {
   HERD_EVENTS,
@@ -16,6 +16,7 @@ import {
 import { why } from "../../src/causal/index.ts";
 import { pageOf } from "../../src/host/inspect/index.ts";
 import { landHerds } from "../../src/host/inspect/herds.ts";
+import { universeWorld } from "./worlds.ts";
 
 const BAD = /undefined|NaN|\[object|\bnull\b|\b(ev|pol|town|war|cell|herd|beast):\d/;
 
@@ -44,8 +45,7 @@ const read = (world: World, ref: string): string => {
 };
 
 test("a beast whose town has fallen: its end is told, its page reads", () => {
-  const world = EARTH.build(seedFromText("first light"));
-  world.runTo(130 * YEAR);
+  const world = universeWorld(EARTH, "first light", 130);
   const store = herdsOf(world)!,
     ctx = populationContext(world),
     g = homePlanet(world).generated,
@@ -100,8 +100,7 @@ test("a beast whose town has fallen: its end is told, its page reads", () => {
 });
 
 test("a kind gone on the last of its ground: told, and on its pages, for the hunted and the ground alike", () => {
-  const world = EARTH.build(seedFromText("first light"));
-  world.runTo(60 * YEAR);
+  const world = universeWorld(EARTH, "first light", 60);
   const store = herdsOf(world)!,
     ctx = populationContext(world),
     g = homePlanet(world).generated,
@@ -133,8 +132,7 @@ test("a kind gone on the last of its ground: told, and on its pages, for the hun
 });
 
 test("a realm of one land driven of its herds: told, and the land eats the less", () => {
-  const world = EARTH.build(seedFromText("first light"));
-  world.runTo(200 * YEAR);
+  const world = universeWorld(EARTH, "first light", 200);
   const ctx = populationContext(world),
     store = herdsOf(world)!,
     realms = politiesOf(world).living(),
@@ -169,8 +167,7 @@ test("a realm of one land driven of its herds: told, and the land eats the less"
 });
 
 test("a hive's world: its creatures read as the rest do, its beast and a drive's words too", () => {
-  const world = ALIEN.build(seedFromText("harrow 259"));
-  world.runTo(150 * YEAR);
+  const world = universeWorld(ALIEN, "harrow 259", 150);
   const store = herdsOf(world)!,
     ctx = populationContext(world),
     g = homePlanet(world).generated;

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText } from "../../src/kernel/index.ts";
+import { YEAR } from "../../src/kernel/index.ts";
 import { cellRef } from "../../src/gen/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { levyPlaces } from "../../src/host/fallen.ts";
@@ -8,14 +8,14 @@ import { FELL_ROWS } from "../../src/host/inspect/realm.ts";
 import { count } from "../../src/host/inspect/words.ts";
 import { warsOf, type Battle } from "../../src/sim/index.ts";
 import type { Block, PageModel, Stat, Tab } from "../../src/bridge/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 55 M224 (T7): the pages tell the wounded and the fallen by place. A battle's page tells its
 // wounded and the places its fallen came from (at most FELL_ROWS, the rest counted); a war's page
 // tells its wounded in its stat, its battles and its tally; a battle kept without its record tells
 // neither.
 
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(125 * YEAR);
+const world = universeWorld(EARTH, "first light", 125);
 const ask = <T>(type: string, args: unknown = {}) => EARTH.queries[type]!(world, args) as T;
 const page = (ref: string) => ask<PageModel>("page", { ref });
 const before = JSON.stringify(world.domainHashes());

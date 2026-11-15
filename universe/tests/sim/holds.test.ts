@@ -3,13 +3,12 @@
 // lesson's blame read off their ways; and the realm's page and Learned tab say so in words read off the numbers and the people.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { HOLD_EVENTS, orderOf, politiesOf } from "../../src/sim/index.ts";
 import type { PageModel } from "../../src/bridge/index.ts";
+import { universeWorld } from "../host/worlds.ts";
 
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(400 * YEAR);
+const world = universeWorld(EARTH, "first light", 400);
 const store = orderOf(world)!,
   living = politiesOf(world).living();
 const events = (type: string) => {

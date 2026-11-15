@@ -26,6 +26,7 @@ import {
 import { FEMALE, OCC } from "../../src/rules/index.ts";
 import { HAND_HOLDS } from "../../src/sim/hand/hand.ts";
 import { cradleCell } from "../cradle.ts";
+import { peopledWorld } from "../worlds.ts";
 
 const seed = seedFromText("first light"),
   HOME = cradleCell("first light");
@@ -56,8 +57,7 @@ test("laying and lifting the hand with no time between leaves every aggregate ex
 });
 
 test("while the hand rests, its people are born and die one by one, inside the counts", () => {
-  const world = build();
-  world.runTo(240 * YEAR);
+  const world = peopledWorld("first light", 240);
   const v = firstVillage(world);
   world.submit("hand.lay", { village: v.ref });
   world.runTo(240 * YEAR + 1);
@@ -91,8 +91,7 @@ test("while the hand rests, its people are born and die one by one, inside the c
 });
 
 test("one hand at a time; lifting needs a hand to lift", () => {
-  const world = build();
-  world.runTo(240 * YEAR);
+  const world = peopledWorld("first light", 240);
   assert.throws(() => world.submit("hand.lift", {}), /rests on no village/);
   const [a, b] = populationContext(world).settlements.inProvince(HOME);
   world.submit("hand.lay", { village: a!.ref });
@@ -122,8 +121,7 @@ test("a world with a hand laid and lifted replays, and its save continues, bit f
 });
 
 test("under the hand, families: couples paired, children with their mothers and fathers, traits in the blood", () => {
-  const world = build();
-  world.runTo(240 * YEAR);
+  const world = peopledWorld("first light", 240);
   world.submit("hand.lay", { village: firstVillage(world).ref });
   world.runTo(240 * YEAR + 1);
   const w = handOf(world).resting!,
@@ -171,8 +169,7 @@ test("what a person is like weighs on their life, and the god may give it or tak
   assert.equal(traitWeight({ ...base, traits: ["frail"] }, "death"), 1.35);
   assert.equal(traitWeight({ ...base, traits: ["fertile"] }, "birth"), 1.4);
   assert.equal(traitWeight({ ...base, traits: ["clever"] }, "death"), 1);
-  const world = build();
-  world.runTo(240 * YEAR);
+  const world = peopledWorld("first light", 240);
   world.submit("hand.lay", { village: firstVillage(world).ref });
   world.runTo(240 * YEAR + 1);
   const w = handOf(world).resting!,
@@ -217,8 +214,7 @@ test("what a person is like draws them to their work, keeps their young, holds t
   assert.equal(traitWeight({ ...base, traits: ["kind"] }, "care"), 0.85);
   assert.equal(traitWeight({ ...base, traits: ["kind"] }, "death"), 1, "their own life as any");
   // The pious are blessed the longer.
-  const world = build();
-  world.runTo(240 * YEAR);
+  const world = peopledWorld("first light", 240);
   world.submit("hand.lay", { village: firstVillage(world).ref });
   world.runTo(240 * YEAR + 1);
   const w = handOf(world).resting!,
@@ -235,8 +231,7 @@ test("what a person is like draws them to their work, keeps their young, holds t
 });
 
 test("a town too great to hold one by one is held by a ward of it, and the rest goes on about it", () => {
-  const world = build();
-  world.runTo(245 * YEAR);
+  const world = peopledWorld("first light", 245);
   const v = firstVillage(world),
     p = populationContext(world).provinces.get(HOME)!,
     // (A town swollen past what a hand holds, its province's counts with it.)

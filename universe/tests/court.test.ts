@@ -2,7 +2,6 @@
 // outlives its realm. Pure numbers, and one real young world.
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { YEAR, seedFromText } from "../src/kernel/index.ts";
 import { EARTH } from "../src/host/planet.ts";
 import {
   COURT,
@@ -26,6 +25,7 @@ import {
 import { dramaOf, parseCourtRef } from "../src/host/court.ts";
 import { courtPage } from "../src/host/inspect/court.ts";
 import { familyOf } from "../src/host/kin.ts";
+import { universeWorld } from "./host/worlds.ts";
 
 describe("a court's numbers", () => {
   it("hears more voices the more a ruler must carry", () => {
@@ -52,8 +52,7 @@ describe("a court's numbers", () => {
 });
 
 describe("a real young world's courts", () => {
-  const world = EARTH.build(seedFromText("first light"));
-  world.runTo(330 * YEAR);
+  const world = universeWorld(EARTH, "first light", 330);
   const ctx = populationContext(world),
     courts = courtOf(world)!,
     realms = politiesOf(world);

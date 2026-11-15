@@ -1,18 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
+import { type Ref } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { sideColors } from "../../src/host/battle.ts";
 import { WAR_EVENTS, warsOf } from "../../src/sim/index.ts";
 import type { BattleNear, Block, Campaign, PageModel, WarAge } from "../../src/bridge/index.ts";
 import { campaignAt, campaignSpan } from "../../src/view/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 37 M183/M186: a battle seen near — what history says of it, for the eye to watch it
 // fought: its hosts as they were in the field, who won and what came of it, the ground it was
 // fought on; and the way to it from its page and its war's.
 
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(125 * YEAR);
+const world = universeWorld(EARTH, "first light", 125);
 const ask = <T>(type: string, args: unknown = {}) => EARTH.queries[type]!(world, args) as T;
 const wars = [...warsOf(world).all()],
   battles = wars.flatMap((w) => w.battles.map((b) => ({ war: w, b })));

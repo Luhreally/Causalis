@@ -18,6 +18,7 @@ import { generateHomeWorld, planetRef, worldKindOf } from "../../src/gen/index.t
 import { KINDS, OPEN, keptRocky } from "../../src/rules/index.ts";
 import { homePlanet, knows, oreWithin, populationContext } from "../../src/sim/index.ts";
 import type { Block, Line, PageModel, Span } from "../../src/bridge/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 const words = (l: Line | string): string =>
   typeof l === "string" ? l : l.map((s: Span) => (typeof s === "string" ? s : s.text)).join("");
@@ -44,8 +45,7 @@ function facts(p: PageModel): Map<string, string> {
   return out;
 }
 
-const carbon = ALIEN.build(seedFromText(keptLife("alien 20")));
-carbon.runTo(150 * YEAR);
+const carbon = universeWorld(ALIEN, keptLife("alien 20"), 150);
 const ctx = populationContext(carbon),
   lands = ctx.provinces
     .all()

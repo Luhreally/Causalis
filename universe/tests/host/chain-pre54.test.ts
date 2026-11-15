@@ -6,7 +6,7 @@
 // (PRE54_RECORD=1 prints the digests to record.)
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type World } from "../../src/kernel/index.ts";
+import { type World } from "../../src/kernel/index.ts";
 import { isProvinceWorld } from "../../src/gen/index.ts";
 import { PRINCIPLES, REACTIONS, SUBSTANCES } from "../../src/rules/index.ts";
 import {
@@ -32,6 +32,7 @@ import { landCamps } from "../../src/host/land.ts";
 import { campRef } from "../../src/host/inspect/camp.ts";
 import { pageOf } from "../../src/host/inspect/index.ts";
 import type { VillagePlan } from "../../src/bridge/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 /**
  * The kinds' own roads (Phase 56), by name: each of the sixteen rows that were kind-bodied, none of
@@ -135,10 +136,8 @@ function lands(world: World, n: number): number[] {
     .map((x) => x.cell);
 }
 
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(700 * YEAR);
-const early = EARTH.build(seedFromText("first light"));
-early.runTo(40 * YEAR);
+const world = universeWorld(EARTH, "first light", 700);
+const early = universeWorld(EARTH, "first light", 40);
 const page = (ref: string) => pageOf(world, ref);
 const q = <T>(type: string, args: unknown = {}) => EARTH.queries[type]!(world, args) as T;
 

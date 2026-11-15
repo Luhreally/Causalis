@@ -1,16 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText } from "../../src/kernel/index.ts";
-import {
-  BELIEF_EVENTS,
-  WAY,
-  beliefOf,
-  cultureOf,
-  makePopulationWorld,
-  marketsOf,
-} from "../../src/sim/index.ts";
+import { YEAR } from "../../src/kernel/index.ts";
+import { BELIEF_EVENTS, WAY, beliefOf, cultureOf, marketsOf } from "../../src/sim/index.ts";
 import { spine, why } from "../../src/causal/index.ts";
 import { cradleCell } from "../cradle.ts";
+import { peopledWorld } from "../worlds.ts";
 
 /** Where the first people of "first light" began. */
 const CRADLE = cradleCell("first light");
@@ -28,8 +22,7 @@ const OMENS = new Set([
   "knowledge.metalworking",
 ]);
 
-const world = makePopulationWorld(seedFromText("first light"), { start: "spread" });
-world.runTo(300 * YEAR);
+const world = peopledWorld("first light", 300, { start: "spread" });
 const faiths = beliefOf(world);
 
 test("faiths are founded by omens, and say which", () => {
@@ -71,8 +64,7 @@ test("faiths spread to neighbours down their roads, and the largest holds many l
 });
 
 test("the god's act is an omen: a devout people struck by it may found a faith in its power", () => {
-  const cradle = makePopulationWorld(seedFromText("first light"));
-  cradle.runTo(60 * YEAR);
+  const cradle = peopledWorld("first light", 60);
   cultureOf(cradle).get(CRADLE)!.traits[WAY.piety] = 0.95;
   for (let y = 60; y < 66; y++) {
     cradle.submit("act.harvest", { cell: CRADLE, sign: 1, years: 1 });

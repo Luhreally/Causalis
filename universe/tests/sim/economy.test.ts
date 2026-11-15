@@ -18,12 +18,12 @@ import {
 } from "../../src/sim/index.ts";
 import { spine, why } from "../../src/causal/index.ts";
 import { cradleCell } from "../cradle.ts";
+import { peopledWorld } from "../worlds.ts";
 
 /** Where the first people of "first light" began. */
 const CRADLE = cradleCell("first light");
 
-const world = makePopulationWorld(seedFromText("first light"));
-world.runTo(300 * YEAR);
+const world = peopledWorld("first light", 300);
 const ctx = populationContext(world),
   markets = marketsOf(world);
 const L = Object.fromEntries(LEDGER.map((l, i) => [l, i])) as Record<

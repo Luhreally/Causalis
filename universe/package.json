@@ -11,6 +11,8 @@
     "typecheck": "tsc --noEmit -p .",
     "lint": "node tools/lint.ts",
     "test": "node --test --test-concurrency=4 \"tests/{*.test.ts,!(perf)/**/*.test.ts}\" && node --test --test-concurrency=1 \"tests/perf/**/*.test.ts\"",
+    "test:fast": "node tools/suite.ts",
+    "test:affected": "node tools/affected.ts",
     "check": "npm run typecheck && npm run lint && npm test",
     "golden": "node tools/golden.ts",
     "engines": "node tools/engines.ts",

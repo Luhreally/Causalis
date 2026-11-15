@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText } from "../../src/kernel/index.ts";
+import { YEAR } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import {
   frontier,
@@ -18,11 +18,11 @@ import type {
   WarsMap,
 } from "../../src/bridge/index.ts";
 import { GROWTH_YEARS } from "../../src/host/lenses.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 12: the god's palette and the acts it casts, the deeper lenses, the world in numbers,
 // the armies. The first light's world, three centuries on.
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(300 * YEAR);
+const world = universeWorld(EARTH, "first light", 300);
 const ask = <T>(type: string, args: unknown = {}) => EARTH.queries[type]!(world, args) as T;
 const map = ask<
   {
@@ -85,8 +85,7 @@ test("acts cast play where they fall: rain over a land, threads between two real
   assert.ok(thread.to, "a thread runs to the other's seat");
   assert.ok(acts.find((m) => m.kind === "rain")!.to === null);
   // Its time run out, it plays no more.
-  const later = EARTH.build(seedFromText("first light"));
-  later.runTo(300 * YEAR);
+  const later = universeWorld(EARTH, "first light", 300);
   later.submit("act.rain", { cell: land.cell, sign: 1, years: 1 });
   later.runTo(302 * YEAR + 86_400);
   assert.ok(

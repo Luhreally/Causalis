@@ -7,13 +7,11 @@
 // gate walks the Earth seed's industrial age the same way.)
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText } from "../../src/kernel/index.ts";
-import { makePopulationWorld } from "../../src/sim/index.ts";
 import { northStar } from "../../src/causal/index.ts";
+import { peopledWorld } from "../worlds.ts";
 
 test("north star: a grown citizen's memory leads across four domains to the planet, all on the record", () => {
-  const world = makePopulationWorld(seedFromText("first light"));
-  world.runTo(300 * YEAR);
+  const world = peopledWorld("first light", 300);
   const star = northStar(world, 300);
   assert.ok(star.citizens.length >= 12, `${star.citizens.length} grown citizens with memories`);
   assert.deepEqual(star.problems, []);

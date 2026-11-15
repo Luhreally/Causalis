@@ -1,6 +1,5 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import {
   designsOf,
@@ -21,12 +20,12 @@ import {
 import { STONES } from "../../src/rules/index.ts";
 import { townDay, villageSolids } from "../../src/view/index.ts";
 import type { Block, Line, PageModel, VillagePlan } from "../../src/bridge/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 50 M212: the chain from the ground to a thing — every made thing made by someone, of what
 // its land holds (or its road brings), traced from where it was dug to who made it and where. The
 // first light's world at 700: its towns work copper, bronze, iron and steel.
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(700 * YEAR);
+const world = universeWorld(EARTH, "first light", 700);
 const ask = <T>(type: string, args: unknown = {}) => EARTH.queries[type]!(world, args) as T;
 const page = (ref: string) => ask<PageModel>("page", { ref });
 const ctx = populationContext(world),

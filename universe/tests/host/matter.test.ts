@@ -1,16 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { GOODS } from "../../src/rules/index.ts";
 import { flowOf, storesSummed } from "../../src/host/inspect/stores.ts";
 import { designsOf, politiesOf, type MarketStore } from "../../src/sim/index.ts";
 import type { Block, PageModel, Tip } from "../../src/bridge/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 15 M122: matter's pages — substances, reactions, principles, goods — and a good in a
 // land made of something, made there or not and why. The first light's world at year 260.
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(260 * YEAR);
+const world = universeWorld(EARTH, "first light", 260);
 const ask = <T>(type: string, args: unknown = {}) => EARTH.queries[type]!(world, args) as T;
 const page = (ref: string) => ask<PageModel>("page", { ref });
 const blocks = (p: PageModel, tab = "overview") => p.tabs.find((t) => t.id === tab)?.blocks ?? [];

@@ -1,14 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, loadWorld, saveWorld, seedFromText, type World } from "../../src/kernel/index.ts";
+import { YEAR, loadWorld, saveWorld, type World } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { askPage, townOffers } from "../../src/host/inspect/asks.ts";
 import { townPlan } from "../../src/host/town.ts";
 import { asksOf, populationContext, type Settlement } from "../../src/sim/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 const grown = (): World => {
-  const w = EARTH.build(seedFromText("first light"));
-  w.runTo(150 * YEAR);
+  const w = universeWorld(EARTH, "first light", 150);
   return w;
 };
 const townOf = (w: World): Settlement => {

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DAY, YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
+import { DAY, YEAR, type Ref } from "../../src/kernel/index.ts";
 import { anatomyOf, lastingOf } from "../../src/rules/index.ts";
 import { parseTownsfolkRef, type VillagePlan, type Wound } from "../../src/bridge/index.ts";
 import { LOCAL_ACT_EVENTS, citiesOf, populationContext } from "../../src/sim/index.ts";
@@ -14,14 +14,14 @@ import {
   withWounds,
   woundedTowns,
 } from "../../src/host/wounds.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 55 M226 (T19): a town's wounds laid over its plan from the record — each one a fate the
 // roster keeps or one of this year's strikes, its days, who tended it — and the towns whose levy
 // comes home wounded. Relations that hold whatever the record's numbers; reading moves nothing.
 
 const HOUR = 3600;
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(125 * YEAR);
+const world = universeWorld(EARTH, "first light", 125);
 const before = JSON.stringify(world.domainHashes());
 const Y = Math.floor(world.now / YEAR),
   ctx = populationContext(world),

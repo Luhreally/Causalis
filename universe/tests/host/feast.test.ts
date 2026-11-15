@@ -1,16 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
+import { YEAR, type Ref } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { politiesOf, populationContext, warsOf } from "../../src/sim/index.ts";
 import type { VillagePlan } from "../../src/bridge/index.ts";
 import { HARVEST } from "../../src/view/village.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 33 M174: the feasts a town keeps, as its plan tells them. The first light's world at 125
 // years, the towns of its most peopled lands; then on, a year at a time, to a peace made and a
 // ruler crowned.
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(125 * YEAR);
+const world = universeWorld(EARTH, "first light", 125);
 const ask = <T>(type: string, args: unknown = {}) => EARTH.queries[type]!(world, args) as T;
 const planOf = (ref: string) => ask<VillagePlan>("village.plan", { ref });
 const townsOf = (cell: number) => populationContext(world).settlements.inProvince(cell);

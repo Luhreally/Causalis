@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type Ref, type World } from "../../src/kernel/index.ts";
+import { YEAR, type Ref, type World } from "../../src/kernel/index.ts";
 import { offworldSite } from "../../src/gen/index.ts";
 import { EFFECTS, G, principle } from "../../src/rules/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
@@ -24,6 +24,7 @@ import {
 } from "../../src/sim/index.ts";
 import { landWords, why } from "../../src/causal/index.ts";
 import type { SkyState } from "../../src/bridge/index.ts";
+import { universeWorld } from "../host/worlds.ts";
 
 const ROAD = [
   "mathematics",
@@ -44,8 +45,7 @@ const ROAD = [
 
 /** Earth grown a while, its largest realm taught the road to the other worlds, with a station and machines. */
 function readied(): { world: World; realm: Polity } {
-  const world = EARTH.build(seedFromText("first light"));
-  world.runTo(80 * YEAR);
+  const world = universeWorld(EARTH, "first light", 80);
   const realm = [...politiesOf(world).living()].sort(
       (a, b) => b.members.length - a.members.length || (a.ref < b.ref ? -1 : 1),
     )[0]!,

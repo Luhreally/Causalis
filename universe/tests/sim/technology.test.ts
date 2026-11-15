@@ -14,6 +14,7 @@ import {
   marketsOf,
   populationContext,
 } from "../../src/sim/index.ts";
+import { universeWorld } from "../host/worlds.ts";
 
 /** Teach a land principles outright (a fixture: the tree takes centuries to reach them). */
 function teach(world: World, cell: number, ids: string[]): void {
@@ -67,8 +68,7 @@ test("a people of the water comes to metal by the vents, and its invention takes
   const worker = ctx.provinces.all().find((p) => lore.get(p.cell, "vent-working"))!;
   assert.ok(marketsOf(world).get(worker.cell)!.metalworking);
   // On Earth the apes never take the sea's road.
-  const earth = EARTH.build(seedFromText("first light"));
-  earth.runTo(60 * YEAR);
+  const earth = universeWorld(EARTH, "first light", 60);
   const earthLore = loreOf(earth);
   for (const p of populationContext(earth).provinces.all())
     assert.ok(!earthLore.get(p.cell, "vent-working"));

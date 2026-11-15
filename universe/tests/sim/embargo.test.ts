@@ -1,13 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { ECONOMY_EVENTS, warsOf } from "../../src/sim/index.ts";
 import { why } from "../../src/causal/index.ts";
+import { universeWorld } from "../host/worlds.ts";
 
 test("war shuts trade between the realms at war: an embargo, told once, its why the war", () => {
-  const world = EARTH.build(seedFromText("first light"));
-  world.runTo(160 * YEAR);
+  const world = universeWorld(EARTH, "first light", 160);
   const embargoes = world.events.all().filter((e) => e.type === ECONOMY_EVENTS.embargo.type);
   assert.ok(embargoes.length > 0, "some war cut trade");
   const e = embargoes[0]!,

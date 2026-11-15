@@ -18,6 +18,7 @@ import {
 } from "../../src/sim/index.ts";
 import { why } from "../../src/causal/index.ts";
 import { G } from "../../src/rules/index.ts";
+import { peopledWorld } from "../worlds.ts";
 
 const fresh = (): Wilds => ({
   cell: 0,
@@ -88,8 +89,7 @@ test("the hunters follow their game, fall under a people who guard their flocks,
 });
 
 test("the default world's lands keep their hunters, and where herders guard their flocks the hunters are driven out or take flocks, and say which", () => {
-  const world = makePopulationWorld(seedFromText("first light"));
-  world.runTo(250 * YEAR);
+  const world = peopledWorld("first light", 250);
   const ctx = populationContext(world),
     life = homePlanet(world).generated.life,
     lands = ctx.provinces.all().filter((p) => p.total() > 0),
@@ -133,8 +133,7 @@ test("the great beasts are hunted out of a foraging land, and history says which
 
 test("a land's harvest is what its soil still gives; its wood, what its forest still holds", () => {
   const twin = () => {
-    const w = makePopulationWorld(seedFromText("first light"));
-    w.runTo(120 * YEAR);
+    const w = peopledWorld("first light", 120);
     return w;
   };
   const whole = twin(),
@@ -164,8 +163,7 @@ test("a land's harvest is what its soil still gives; its wood, what its forest s
 
 test("where people press the land hard, its turns for the worse enter history", () => {
   // Kestrel's dry steppe fills with farmers: game grows scarce and soils wear.
-  const world = makePopulationWorld(seedFromText("kestrel"), { start: "spread" });
-  world.runTo(300 * YEAR);
+  const world = peopledWorld("kestrel", 300, { start: "spread" });
   const told = (type: string) => world.events.all().filter((e) => e.type === type);
   const thinned = told(ECOLOGY_EVENTS.thinned.type),
     worn = told(ECOLOGY_EVENTS.worn.type);
@@ -248,8 +246,7 @@ test("fished hard, the waters grow poor and the wild's food with them; let be, t
 });
 
 test("the web's turns for the worse enter history, each with its why", () => {
-  const world = makePopulationWorld(seedFromText("first light"));
-  world.runTo(120 * YEAR);
+  const world = peopledWorld("first light", 120);
   const ctx = populationContext(world),
     home = homePlanet(world).generated.life.people!.cell,
     cell = ctx.provinces

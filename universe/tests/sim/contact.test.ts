@@ -11,6 +11,7 @@ import {
   politiesOf,
 } from "../../src/sim/index.ts";
 import { spine, why } from "../../src/causal/index.ts";
+import { universeWorld } from "../host/worlds.ts";
 
 test("the cluster holds other peoples, each on a world of seas about an old enough star", () => {
   const world = EARTH.build(seedFromText("first light")),
@@ -26,8 +27,7 @@ test("the cluster holds other peoples, each on a world of seas about an old enou
 });
 
 test("another people is heard when its signals arrive and a realm can listen; the why reaches their world", () => {
-  const world = EARTH.build(seedFromText("first light"));
-  world.runTo(80 * YEAR);
+  const world = universeWorld(EARTH, "first light", 80);
   assert.equal(contactsOf(world).all().length, 0, "no one listens without electronics");
   const realm = [...politiesOf(world).living()].sort(
     (a, b) => b.members.length - a.members.length || (a.ref < b.ref ? -1 : 1),

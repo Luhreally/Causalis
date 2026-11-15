@@ -3,7 +3,6 @@
 // headed with the metal its crafters made them of; hosts armed only with what their seats hold.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { surfaceCopper } from "../../src/gen/index.ts";
 import { G, RECIPES, TOOL_METALS, type ToolMetal } from "../../src/rules/index.ts";
 import {
@@ -12,7 +11,6 @@ import {
   bestMetal,
   hostFor,
   loreOf,
-  makePopulationWorld,
   marketsOf,
   metalRank,
   metalsAt,
@@ -21,9 +19,9 @@ import {
   populationContext,
   toolMetal,
 } from "../../src/sim/index.ts";
+import { peopledWorld } from "../worlds.ts";
 
-const world = makePopulationWorld(seedFromText("first light"), { start: "spread" });
-world.runTo(500 * YEAR);
+const world = peopledWorld("first light", 500, { start: "spread" });
 const ctx = populationContext(world),
   g = ctx.generated,
   cells = Array.from({ length: g.grid.count }, (_, c) => c),
