@@ -581,23 +581,31 @@ check(
   "no town of the Earth seed keeps founders and machinists at its works by 1050",
 );
 // (And not one whose works stand idle while the town builds: a town raising or rebuilding its homes takes whoever is willing to
-// its sites day after day, its machinists among them. At Thindford on first light in 1050, the first such town since realms learn
-// of rule from evidence, they carry beams to a tenement being rebuilt all that week. The first whose floor is at work on its next
-// working day is the one read; its foundry the working day after, its floor the one after that.)
+// its sites day after day, its founders and machinists among them. At Thindford on first light in 1050, the first such town since
+// realms learn of rule from evidence, they are at the works one day and carry beams to a tenement being rebuilt for the week after.
+// The first whose floor is at work on its next two working days is the one read; its foundry the working day after, then its floor.)
 let works: Plan | null = null,
   worksDay = 0;
+const workday = (c: Plan, after: number) => {
+  let d = after + 1;
+  while ((d + (c.seed % 7)) % 7 === 0) d++;
+  return d;
+};
 for (const c of worksTowns) {
-  const d = await enter(c);
-  let on = 0;
-  for (const hour of [9.5, 10.5]) {
-    await advance(d * DAY + hour * HOUR);
-    const f = (await crafts())?.floor;
-    on = Math.max(on, (f?.turning ?? 0) + (f?.pressing ?? 0));
+  let d = await enter(c),
+    on = 1;
+  for (let day = 0; day < 2 && on > 0; day++) {
+    if (day) d = workday(c, d);
+    on = 0;
+    for (const hour of [9.5, 10.5]) {
+      await advance(d * DAY + hour * HOUR);
+      const f = (await crafts())?.floor;
+      on = Math.max(on, (f?.turning ?? 0) + (f?.pressing ?? 0));
+    }
   }
   if (on > 0) {
     works = c;
-    worksDay = d + 1;
-    while ((worksDay + (c.seed % 7)) % 7 === 0) worksDay++;
+    worksDay = workday(c, d);
     break;
   }
   say(`${c.name}'s works floor idle on day ${d}: the next town that keeps founders and machinists`);
