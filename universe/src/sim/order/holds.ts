@@ -29,6 +29,7 @@ import {
   HOLD_WANTS,
   LEARNING,
   OUTCOME,
+  alikeInSize,
   OUTCOMES_OF,
   believeAfter,
   blameFrom,
@@ -556,7 +557,9 @@ function weigh(
       ? 1
       : seenWeight(
           near,
-          likeness(ways, waysRead(culture.get(whose.seat))),
+          // (How like it they are: in their ways, and in how great they are.)
+          likeness(ways, waysRead(culture.get(whose.seat))) *
+            alikeInSize(o.was?.[0] ?? 0, theirs.was?.[0] ?? 0),
           stance[HOLD.word]! / 100,
           ways.openness,
         ),
@@ -598,6 +601,8 @@ function weigh(
  */
 function looked(ctx: PopulationContext, p: Polity, o: RealmOrder, year: number): number[] {
   heldOf(ctx, p, o);
+  // (A save from before evidence: the pulls its written lessons left are let go.)
+  delete o.pulls;
   const usual = usualOf(ctx);
   weigh(ctx, p, o, p, 1, year, usual);
   const reach = reachOf(ctx, p),

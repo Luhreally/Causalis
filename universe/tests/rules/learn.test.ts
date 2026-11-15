@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import {
   FALLEN,
   LEARNING,
+  alikeInSize,
   believeAfter,
   blameFrom,
   cameOf,
@@ -143,6 +144,10 @@ test("another's fate weighs by how near, how like, how freely word leaves them a
   assert.ok(seenWeight(1, 1, 1, 0.1) < seenWeight(1, 1, 1, 0.9));
   assert.equal(likeness(ways(), ways()), 1);
   assert.ok(likeness(ways({ hierarchy: 1, valour: 1 }), ways({ hierarchy: 0, valour: 0 })) < 0.6);
+  // (And in size: a great realm sees little of itself in a single town's fate.)
+  assert.equal(alikeInSize(1000, 1000), 1);
+  assert.ok(alikeInSize(1_000_000, 10_000) < 0.11 && alikeInSize(10_000, 1_000_000) < 0.11);
+  assert.equal(alikeInSize(0, 500), 1, "unmeasured: as like as any");
   assert.equal(chanceOf(ways({ piety: 0.2 })), 0);
   assert.ok(chanceOf(ways({ piety: 0.95 })) > 0.8);
 });
@@ -175,6 +180,7 @@ test("how a realm took it is read off what it did with it, and its words are com
     came = cameOf([0, -0.9, -0.5, 0, 0], v);
   assert.ok(came[0]! < 0);
   assert.equal(cameWords(came), "fared ill (lands lost, its rule doubted)");
+  assert.equal(cameWords(cameOf(FALLEN, v)), "fared ill (everything lost)");
   assert.equal(movedWords(opened), "came to hold more with its choices carried by many");
   assert.equal(movedWords([0.001, 0, 0, 0]), "");
 });

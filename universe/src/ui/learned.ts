@@ -85,7 +85,7 @@ export function beliefGlyph(row: BeliefRow, size = 26): HTMLCanvasElement {
  * each as long as the piece moved that belief, filled where it moved it toward the number's high end and hollow toward its low;
  * its heart green where the realm it befell fared well and red where ill, as large as it weighed; ringed in that realm's colour.
  */
-export function evidenceGlyph(mark: EvidenceMark, size = 22): HTMLCanvasElement {
+export function evidenceGlyph(mark: EvidenceMark, size = 28): HTMLCanvasElement {
   const c = document.createElement("canvas"),
     g = surface(c, size, size);
   c.className = "evidence-glyph";
@@ -106,7 +106,7 @@ export function evidenceGlyph(mark: EvidenceMark, size = 22): HTMLCanvasElement 
     if (Math.abs(v) < 0.08) return;
     const px = -dy,
       py = dx,
-      w = 2.6;
+      w = 3.2;
     g.beginPath();
     g.moveTo(m + px * w, m + py * w);
     g.lineTo(m + dx * len, m + dy * len);

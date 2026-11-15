@@ -1429,6 +1429,7 @@ export {
   FORTUNE_WORDS,
   LEARNING,
   STOOD_WORDS,
+  alikeInSize,
   beliefWords,
   believeAfter,
   blameFrom,

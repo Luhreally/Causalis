@@ -324,5 +324,5 @@
   background: rgba(6, 16, 42, 0.92);
   font-size: 0.72rem;
   text-align: center;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }

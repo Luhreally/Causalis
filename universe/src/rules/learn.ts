@@ -138,6 +138,14 @@ export function likeness(a: WaysRead, b: WaysRead): number {
 }
 
 /**
+ * How like another realm is in size (0 … 1), from the people of each: a realm of many lands sees little of itself in the fate of
+ * one of a single town, and that one little in a great realm's. The root of the smaller over the larger.
+ */
+export function alikeInSize(a: number, b: number): number {
+  return a > 0 && b > 0 ? Math.sqrt(Math.min(a, b) / Math.max(a, b)) : 1;
+}
+
+/**
  * How much another's fate weighs with a realm, against its own (1): by how near it is (1 at its border, nothing where its word
  * does not reach), how like it they are, how freely word leaves them (`shown`: their own number for word), and how far it heeds
  * outsiders (its openness).
@@ -288,6 +296,8 @@ export const FORTUNE_WORDS: Readonly<Record<Fortune, readonly [ill: string, well
 
 /** How a realm fared as a people counted it, kept for the telling: how (-1 … 1), then the parts that weighed most, each its place in FORTUNES plus one, signed by how it went. */
 export function cameOf(fortune: readonly number[], values: readonly number[]): number[] {
+  // (A realm gone lost everything: no part of it weighs more than another.)
+  if (fortune.every((x) => x <= -1)) return [-100];
   const y = faredBy(fortune, values);
   return [
     Math.round(y * 100),
@@ -306,6 +316,7 @@ export function cameWords(came: readonly number[]): string {
       .map((k) => FORTUNE_WORDS[FORTUNES[Math.abs(k) - 1]!]?.[k > 0 ? 1 : 0])
       .filter(Boolean),
     how = Math.abs(y) < 0.05 ? "fared neither well nor ill" : y > 0 ? "fared well" : "fared ill";
+  if (y <= -1 && !parts.length) return "fared ill (everything lost)";
   return parts.length ? `${how} (${parts.join(", ")})` : how;
 }
 

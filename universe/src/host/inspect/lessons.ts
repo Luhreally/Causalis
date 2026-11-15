@@ -44,7 +44,6 @@ import {
   learntOf,
   orderOf,
   politiesOf,
-  realmName,
   taughtWords,
   type Polity,
   type RealmOrder,
@@ -620,7 +619,8 @@ export function believedBlocks(world: World, r: Polity): Block[] {
       return list.map(([ref, w]) => {
         const p = realms.get(ref as Ref);
         return {
-          name: p ? realmName(p) : "a realm gone",
+          // (By its seat's name, as a chart's narrow columns hold it; its page says what it is.)
+          name: p ? p.town : "a realm gone",
           ref,
           color: realmColor(ref),
           share: w / all,
@@ -640,7 +640,7 @@ export function believedBlocks(world: World, r: Polity): Block[] {
     blocks.push({
       type: "taught",
       title: "Whom it learned from, and who from it",
-      self: { name: realmName(r), ref: r.ref, color: realmColor(r.ref) },
+      self: { name: r.town, ref: r.ref, color: realmColor(r.ref) },
       from: by(from),
       to: by(to.slice(0, 6)),
     });
