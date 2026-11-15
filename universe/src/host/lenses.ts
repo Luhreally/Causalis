@@ -25,6 +25,7 @@ import { bondageReading, lawReading, orderReadings, standingReading } from "./in
 import { LAWS, type Law } from "../sim/index.ts";
 import { sicknessReading, sicknessValue } from "./inspect/sickness.ts";
 import { debtReading, debtValue } from "./inspect/credit.ts";
+import { campReading, campValue } from "./inspect/finance.ts";
 import { woodsReading } from "./inspect/woods.ts";
 import { wealthReading } from "./wealth.ts";
 
@@ -48,6 +49,8 @@ export const DEEP_LENSES = [
   // What it owes the houses of lending, against a year's food (Phase 21 M144).
   "debt",
   "forest",
+  // The camps, and how much each realm fears another's way (sim/finance).
+  "camps",
 ] as const;
 export type DeepLens = (typeof DEEP_LENSES)[number];
 
@@ -81,6 +84,8 @@ export type LandReadings = {
   readonly sickness: number;
   /** What it owes, against a year's food (0 … 1, a year's food or more) — M144. */
   readonly debt: number;
+  /** Its realm's camp and fear (host/inspect/finance.ts campValue: -1 … 1; -2 no realm's). */
+  readonly camps: number;
 };
 
 /** The ids a land knows: its lore, and sowing and smelting, which it knows in its own ways. */
@@ -160,6 +165,7 @@ export function landReadings(world: World): (cell: number) => LandReadings {
       ...order(cell),
       sickness: Math.round(sicknessValue(world, cell) * 1000) / 1000,
       debt: Math.round(debtValue(world, cell) * 1000) / 1000,
+      camps: campValue(world, cell),
     };
   };
 }
@@ -213,6 +219,8 @@ export function lensReading(
       return sicknessReading(world, cell);
     case "debt":
       return debtReading(world, cell);
+    case "camps":
+      return campReading(world, cell);
     case "laws":
       return lawReading(
         world,

@@ -48,6 +48,7 @@ import { fortuneBlocks } from "./fortune.ts";
 import { godBlocks } from "./godhand.ts";
 import { realmCreditBlocks, warChestRows } from "./credit.ts";
 import { exchangeWay } from "./exchange.ts";
+import { realmFearBlocks, realmMoneyBlocks } from "./finance.ts";
 import { leaderBlocks } from "./leaders.ts";
 import { courtBlocks } from "./court.ts";
 import { wealthStats } from "../wealth.ts";
@@ -257,6 +258,16 @@ export function realmPageModel(
     const exchange = exchangeWay(world, r.ref),
       credit = [...(exchange ? [exchange] : []), ...realmCreditBlocks(world, r.ref)];
     if (credit.length) tabs.push({ id: "credit", name: "Credit", blocks: credit });
+  }
+  // Its money (sim/finance): what it pays to borrow, its debt and who holds it, its listed works and who holds them.
+  if (wants("money")) {
+    const money = realmMoneyBlocks(world, r);
+    if (money.length) tabs.push({ id: "money", name: "Money", blocks: money });
+  }
+  // Whom it fears and why: the four numbers behind each fear one tap down.
+  if (wants("fears")) {
+    const fears = realmFearBlocks(world, r);
+    if (fears.length) tabs.push({ id: "fears", name: "Fears", blocks: fears });
   }
   // Its strife (Phase 22 M145): its army's voice, how near a coup is and why, its rule, its coups.
   if (wants("strife")) {

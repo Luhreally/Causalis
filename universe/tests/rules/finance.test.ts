@@ -119,7 +119,10 @@ test("how wealth is owned is first read off the land law, the ways and the body,
   assert.equal(ownWords([0.7, 0.1], ape), "widely held, household by household");
   assert.equal(ownWords([0.5, 0.7], ape), "held in common by the realm");
   assert.equal(ownWords([0.5, 0.7], hive), "all held in the hive's one store");
-  assert.match(ownWords([0.1, 0.4], hive), /part the realm's own, the rest held by a few great brood-chambers/);
+  assert.match(
+    ownWords([0.1, 0.4], hive),
+    /part the realm's own, the rest held by a few great brood-chambers/,
+  );
   assert.equal(wayWords(many), "all decide, wealth is widely held");
   assert.equal(wayWords(commune), "a few decide, wealth is the realm's");
 });
@@ -144,14 +147,20 @@ test("fear is the product of its four parts: none of it where any is nothing", (
     fares = { fed: 0.5, calm: 0.7, rich: 10, people: 1e6 },
     works = seenToWork(fares, { ...fares, fed: 0.8, calm: 0.9, rich: 20 }),
     t = threatOf(one, many, works, meets);
-  assert.ok(t.level >= FINANCE.feared, `a neighbour held otherwise and faring better is feared: ${t.level}`);
+  assert.ok(
+    t.level >= FINANCE.feared,
+    `a neighbour held otherwise and faring better is feared: ${t.level}`,
+  );
   assert.equal(threatOf(one, one, works, meets).level, 0, "none of one held alike");
   assert.equal(threatOf(one, many, works, 0).level, 0, "none of one never met");
   assert.equal(threatOf(one, many, 0, meets).level, 0, "none of one seen to fail");
   // A realm a twentieth one's size is looked to less than one of a size.
   assert.ok(seenToWork(fares, { ...fares, people: 5e4 }) < seenToWork(fares, fares));
   // Word watched, a people is less exposed: so a ruler who fears tightens it.
-  assert.ok(exposure({ near: 1, trade: 1, tongue: 1, stakes: 1 }, 0.1) < exposure({ near: 1, trade: 1, tongue: 1, stakes: 1 }, 0.9));
+  assert.ok(
+    exposure({ near: 1, trade: 1, tongue: 1, stakes: 1 }, 0.1) <
+      exposure({ near: 1, trade: 1, tongue: 1, stakes: 1 }, 0.9),
+  );
 });
 
 test("a fear held by those who rule tightens word and arms; a people drawn to a way that works moves toward it", () => {
@@ -165,7 +174,13 @@ test("a fear held by those who rule tightens word and arms; a people drawn to a 
 });
 
 test("two camps stand where two great realms fear each other and others stand nearer one of them", () => {
-  const r = (ref: string, way: Way, people: number, fears: [string, number][], sworn: string[] = []): CampRealm => ({
+  const r = (
+    ref: string,
+    way: Way,
+    people: number,
+    fears: [string, number][],
+    sworn: string[] = [],
+  ): CampRealm => ({
     ref,
     way,
     people,

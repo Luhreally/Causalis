@@ -3577,6 +3577,65 @@ body.with-palette .hint {
   font-size: 0.8rem;
 }
 
+/* Who holds whom (sim/finance): a square of realms, each row a people and each column a realm. */
+.owning {
+  display: grid;
+  gap: 2px;
+  align-items: center;
+  margin: 4px 0 6px;
+  max-width: 100%;
+}
+.owning-corner {
+  font-size: 10px;
+  opacity: 0.7;
+  text-align: right;
+  padding-right: 4px;
+}
+.owning-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 1px 2px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.owning-col {
+  justify-content: center;
+}
+.owning-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  text-align: left;
+}
+.owning-cell {
+  aspect-ratio: 1;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid var(--chrome-lo);
+  border-radius: 2px;
+  background: rgba(127, 127, 127, 0.08);
+  cursor: pointer;
+}
+.owning-cell.owning-self {
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(127, 127, 127, 0.25) 0 2px,
+    transparent 2px 5px
+  );
+  cursor: default;
+}
+.owning-said {
+  min-height: 1.3em;
+  margin: 2px 0;
+}
+
 /* What something is made of (Phase 15 M122): one bar of its parts, then a row for each. */
 .makeup-bar {
   display: flex;

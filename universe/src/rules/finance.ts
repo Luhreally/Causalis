@@ -12,6 +12,7 @@
 // A capitalist democracy, a commune under one ruler, a hive that holds all in common and decides as one: each is a place in the five
 // numbers, read into words where a page shows it (ownWords, wayWords), and a people of another body lands where Earth's never did.
 // Pure tables and functions.
+import { dmath } from "../kernel/index.ts";
 import type { BodyPlan } from "./bodies.ts";
 import type { WaysRead } from "./holds.ts";
 
@@ -150,7 +151,8 @@ export function ownWords(own: readonly number[], body: BodyPlan | null | undefin
     hive = (body?.social ?? 0) >= 0.9 && (body?.size ?? 100) < 100 && body?.medium !== "water",
     brood = (body?.young ?? 1) >= 4 && body?.bearing !== "live",
     house = hive ? "brood-chamber" : brood ? "brood" : "household";
-  if (common >= 0.6) return hive ? "all held in the hive's one store" : "held in common by the realm";
+  if (common >= 0.6)
+    return hive ? "all held in the hive's one store" : "held in common by the realm";
   const whose =
     spread < 0.3
       ? `held by a few great ${house}s`
@@ -170,7 +172,14 @@ export const ownBand = (k: Own, v: number) => OWN_BANDS[k].filter((b) => v >= b)
 /** A way in a few words, for a camp's name or a fear's: who decides, and whose the wealth is. */
 export function wayWords(way: Way): string {
   const [, voice, , spread, common] = way,
-    who = voice < 0.2 ? "one decides" : voice < 0.45 ? "a few decide" : voice < 0.7 ? "many decide" : "all decide",
+    who =
+      voice < 0.2
+        ? "one decides"
+        : voice < 0.45
+          ? "a few decide"
+          : voice < 0.7
+            ? "many decide"
+            : "all decide",
     whose =
       common >= 0.6
         ? "wealth is the realm's"
@@ -207,7 +216,10 @@ export function yieldOf(b: Borrower): { rate: number; parts: Part[] } {
       FINANCE.record *
       Math.min(
         FINANCE.recordMost,
-        b.refused.reduce((s, years) => s + Math.pow(0.5, Math.max(0, years) / FINANCE.recordHalf), 0),
+        b.refused.reduce(
+          (s, years) => s + dmath.pow(0.5, Math.max(0, years) / FINANCE.recordHalf),
+          0,
+        ),
       ),
     parts: Part[] = [
       { name: "what any realm pays", value: FINANCE.base },
@@ -222,7 +234,13 @@ export function yieldOf(b: Borrower): { rate: number; parts: Part[] } {
       { name: "how freely word of its books moves", value: -FINANCE.seen * clamp(b.word) },
       { name: "credit dear since a house failed", value: b.crisis ? FINANCE.crisis : 0 },
     ],
-    rate = Math.round(Math.max(0.01, parts.reduce((s, p) => s + p.value, 0)) * 10_000) / 10_000;
+    rate =
+      Math.round(
+        Math.max(
+          0.01,
+          parts.reduce((s, p) => s + p.value, 0),
+        ) * 10_000,
+      ) / 10_000;
   return { rate, parts: parts.filter((p) => Math.abs(p.value) >= 0.0005) };
 }
 
@@ -339,7 +357,11 @@ export function threatOf(mine: Way, theirs: Way, works: number, exposed: number)
 }
 
 /** What a fear does to how a realm is held (force, voice, word), and where its people are drawn: the two against each other. */
-export function fearMoves(mine: Way, theirs: Way, t: Threat): [force: number, voice: number, word: number] {
+export function fearMoves(
+  mine: Way,
+  theirs: Way,
+  t: Threat,
+): [force: number, voice: number, word: number] {
   // (Those who decide answer a fear of their own loss; where the many would lose, they guard themselves, more gently.)
   const few = t.who === 0 || t.who === 4 || (t.who === 2 && mine[1] < 0.45),
     by = few ? FINANCE.tightens : FINANCE.guards,

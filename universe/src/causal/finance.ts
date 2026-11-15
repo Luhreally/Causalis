@@ -10,9 +10,7 @@ import { registerDecisionWords, registerEventWords } from "./why.ts";
 const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s),
   year = (t: number) => `year ${yearOfMoment(t)}`,
   list = (names: readonly string[]) =>
-    names.length <= 1
-      ? (names[0] ?? "")
-      : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+    names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 
 type Sold = {
   realm?: string;
@@ -37,7 +35,10 @@ registerEventWords(FINANCE_EVENTS.sold.type, (_world, e) => {
     abroad = d?.abroad?.length ? `the people of ${list(d.abroad)}` : "",
     home = (d?.home ?? 0) > 0 ? "its own people" : "",
     who = [home, abroad].filter(Boolean).join(" and ") || "its own people",
-    backed = d?.backer && d.foe ? `; the people of ${d.backer} lent the readier for fearing ${d.foe}'s way` : "";
+    backed =
+      d?.backer && d.foe
+        ? `; the people of ${d.backer} lent the readier for fearing ${d.foe}'s way`
+        : "";
   return `${cap(d?.realm ?? "a realm")} sold ${count(d?.grain ?? 0)} grain's worth of its debt to ${who}, at ${d?.rate ?? "?"} in a hundred a year, ${why}${backed}, ${year(e.t)}`;
 });
 
@@ -84,7 +85,13 @@ registerEventWords(FINANCE_EVENTS.taken.type, (_world, e) => {
 });
 
 registerEventWords(FINANCE_EVENTS.owned.type, (world, e) => {
-  const d = e.data as { realm?: string; own?: string; from?: number; to?: number; now?: number[] } | null,
+  const d = e.data as {
+      realm?: string;
+      own?: string;
+      from?: number;
+      to?: number;
+      now?: number[];
+    } | null,
     body = homePlanet(world).generated.life.people?.body,
     now = (d?.now ?? [50, 20]).map((x) => x / 100),
     was = [...now];

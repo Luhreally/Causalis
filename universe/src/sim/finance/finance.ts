@@ -179,7 +179,13 @@ const pct = (x: number) => Math.round(Math.max(0, Math.min(1, x)) * 100);
 export function wayOf(world: World, realm: Ref): Way {
   const h = holdsOf(world, realm),
     own = financeOf(world)?.of(realm)?.own;
-  return [h[HOLD.force]!, h[HOLD.voice]!, h[HOLD.word]!, (own?.[0] ?? 50) / 100, (own?.[1] ?? 20) / 100];
+  return [
+    h[HOLD.force]!,
+    h[HOLD.voice]!,
+    h[HOLD.word]!,
+    (own?.[0] ?? 50) / 100,
+    (own?.[1] ?? 20) / 100,
+  ];
 }
 
 /** How much a realm fears another's way (0 … 1; 0 where it keeps no such fear). */
@@ -399,7 +405,9 @@ function yieldRead(ctx: PopulationContext, r: Read, year: number) {
   const credit = creditOf(ctx.world),
     burden = debtOf(r.m) / r.takings,
     y = yieldOf({
-      refused: (credit?.defaults ?? []).filter((d) => d.realm === r.p.ref).map((d) => year - d.year),
+      refused: (credit?.defaults ?? [])
+        .filter((d) => d.realm === r.p.ref)
+        .map((d) => year - d.year),
       burden,
       atWar: r.atWar,
       voice: r.way[1],
@@ -527,10 +535,30 @@ export function financeYear(ctx: PopulationContext, t: SimTime): void {
           score: top.level / 100,
           threshold: FINANCE.feared,
           factors: [
-            { name: "how unlike their ways are", value: top.unlike / 100, contribution: top.unlike / 100, source: null },
-            { name: "how well the other's is seen to work", value: top.works / 100, contribution: top.works / 100, source: null },
-            { name: "how far its people are exposed to it", value: top.exposed / 100, contribution: top.exposed / 100, source: null },
-            { name: `what ${LOSERS[top.who]} would lose`, value: top.loss / 100, contribution: top.loss / 100, source: null },
+            {
+              name: "how unlike their ways are",
+              value: top.unlike / 100,
+              contribution: top.unlike / 100,
+              source: null,
+            },
+            {
+              name: "how well the other's is seen to work",
+              value: top.works / 100,
+              contribution: top.works / 100,
+              source: null,
+            },
+            {
+              name: "how far its people are exposed to it",
+              value: top.exposed / 100,
+              contribution: top.exposed / 100,
+              source: null,
+            },
+            {
+              name: `what ${LOSERS[top.who]} would lose`,
+              value: top.loss / 100,
+              contribution: top.loss / 100,
+              source: null,
+            },
           ],
         });
       r.m.told = top.of;
@@ -559,9 +587,8 @@ export function financeYear(ctx: PopulationContext, t: SimTime): void {
     const m = r.m,
       shut = openTo(world, r) < FINANCE.closed,
       takers = new Set<Ref>();
-    for (const [q] of [...m.shares, ...m.held])
-      if (shut || wars.between(r.p.ref, q)) takers.add(q);
-    for (const q of [...takers].sort()) {
+    for (const [q] of [...m.shares, ...m.held]) if (shut || wars.between(r.p.ref, q)) takers.add(q);
+    for (const q of [...takers].sort((x, y) => (x < y ? -1 : 1))) {
       const holder = reads.get(q);
       if (!holder) continue;
       const share = m.shares.find(([x]) => x === q)?.[1] ?? 0,
@@ -584,7 +611,12 @@ export function financeYear(ctx: PopulationContext, t: SimTime): void {
           war: !!war,
         },
       });
-      diplomacy.remember(r.p.ref, q, { name: "what their people held, taken", value: -0.25, year, source: event });
+      diplomacy.remember(r.p.ref, q, {
+        name: "what their people held, taken",
+        value: -0.25,
+        year,
+        source: event,
+      });
     }
   }
 
@@ -629,9 +661,7 @@ export function financeYear(ctx: PopulationContext, t: SimTime): void {
     m.rate = Math.round(y.rate * 10_000);
     // Refused: unpaid too long; or crushed by it; or beaten in a war with years of takings owed.
     const owed = debtOf(m),
-      beaten = wars
-        .of(p.ref)
-        .some((w) => w.ended === year && lost(world, w, p.ref)),
+      beaten = wars.of(p.ref).some((w) => w.ended === year && lost(world, w, p.ref)),
       refuse =
         m.held.length > 0 &&
         (m.missed >= FINANCE.missed ||
@@ -688,7 +718,11 @@ export function financeYear(ctx: PopulationContext, t: SimTime): void {
           fearOf(world, holder.p.ref, issuer.p.ref),
           fearOf(world, issuer.p.ref, holder.p.ref),
         ),
-        gain = dmath.clamp(issuer.m.worth / Math.max(1, issuer.m.worthWas || issuer.m.worth), 0.5, 1.5),
+        gain = dmath.clamp(
+          issuer.m.worth / Math.max(1, issuer.m.worthWas || issuer.m.worth),
+          0.5,
+          1.5,
+        ),
         mine = holder.faring.rich * holder.faring.people,
         theirs = issuer.faring.rich * issuer.faring.people,
         size = Math.min(1, (2 * mine) / Math.max(1, mine + theirs)),
@@ -717,7 +751,9 @@ export function financeYear(ctx: PopulationContext, t: SimTime): void {
         was = now.get(q) ?? 0;
       now.set(q, Math.round(was + FINANCE.stakePace * (to - was)));
     }
-    let list = [...now].filter(([, n]) => n >= 20).sort((x, y) => y[1] - x[1] || (x[0] < y[0] ? -1 : 1));
+    let list = [...now]
+      .filter(([, n]) => n >= 20)
+      .sort((x, y) => y[1] - x[1] || (x[0] < y[0] ? -1 : 1));
     // (Those past the few kept by name are counted together.)
     m.rest = Math.round(0.8 * m.rest) + list.slice(FINANCE.kept).reduce((s, [, n]) => s + n, 0);
     if (m.worth <= 0) m.rest = 0;
@@ -803,7 +839,11 @@ function sell(
         q,
         spare,
         backs,
-        weight: spare * (0.5 + q.trust) * (0.5 + Math.min(0.5, rel.opinion)) * (1 + FINANCE.backs * backs),
+        weight:
+          spare *
+          (0.5 + q.trust) *
+          (0.5 + Math.min(0.5, rel.opinion)) *
+          (1 + FINANCE.backs * backs),
       });
     }
   buyers.sort((a, b) => b.weight - a.weight || (a.q.p.ref < b.q.p.ref ? -1 : 1));
@@ -829,22 +869,31 @@ function sell(
     sold = home + abroad;
   if (sold <= 0) return null;
   const before = debtOf(m) - abroad;
-  m.coupon = Math.round(
-    (before * m.coupon + sold * y.rate * 10_000) / Math.max(1, before + sold),
-  );
+  m.coupon = Math.round((before * m.coupon + sold * y.rate * 10_000) / Math.max(1, before + sold));
   m.home += home;
   // (Too little to tell: it stands, without a telling.)
   if (sold < 50) return null;
-  const backer = bought.filter((b) => b.backs >= FINANCE.fearGone).sort((a, b) => b.backs - a.backs)[0],
+  const backer = bought
+      .filter((b) => b.backs >= FINANCE.fearGone)
+      .sort((a, b) => b.backs - a.backs)[0],
     factors: Factor[] = [
       {
         name:
-          why === "war" ? "a war to fight" : why === "hunger" ? "a hungry seat" : "a way it fears, to arm against",
+          why === "war"
+            ? "a war to fight"
+            : why === "hunger"
+              ? "a hungry seat"
+              : "a way it fears, to arm against",
         value: want,
         contribution: 1,
         source: by.war ? { ref: by.war, role: "trigger", weight: 1 } : null,
       },
-      ...y.parts.map((x) => ({ name: x.name, value: x.value, contribution: -x.value, source: null })),
+      ...y.parts.map((x) => ({
+        name: x.name,
+        value: x.value,
+        contribution: -x.value,
+        source: null,
+      })),
     ],
     decision = world.decisions.record({
       rule: "finance.sell",
@@ -867,7 +916,9 @@ function sell(
         why,
         abroad: bought.slice(0, 3).map((b) => realmName(b.q.p)),
         ...(by.foe && reads.get(by.foe) ? { foe: realmName(reads.get(by.foe)!.p) } : {}),
-        ...(by.feared && reads.get(by.feared) ? { feared: realmName(reads.get(by.feared)!.p) } : {}),
+        ...(by.feared && reads.get(by.feared)
+          ? { feared: realmName(reads.get(by.feared)!.p) }
+          : {}),
         ...(backer ? { backer: realmName(backer.q.p) } : {}),
       },
     });
@@ -928,7 +979,12 @@ function refuseDebt(
       causes: [{ ref: event, role: "trigger", weight: 1 }],
       data: { realm: realmName(holder.p), of: realmName(p), owed: Math.round(n) },
     });
-    diplomacyOf(world).remember(p.ref, q, { name: "debts repudiated", value: -0.3, year, source: lostEvent });
+    diplomacyOf(world).remember(p.ref, q, {
+      name: "debts repudiated",
+      value: -0.3,
+      year,
+      source: lostEvent,
+    });
   }
   // (Its own savers ruined: their grievance against their realm, as when a house of lending fails.)
   if (m.home > 0) {
@@ -945,7 +1001,12 @@ function refuseDebt(
 }
 
 /** Every ten years a realm's ownership moves partway toward what its law, its ways, how it is held and what it sees ask of it. */
-function weighOwn(ctx: PopulationContext, r: Read, reads: ReadonlyMap<string, Read>, year: number): void {
+function weighOwn(
+  ctx: PopulationContext,
+  r: Read,
+  reads: ReadonlyMap<string, Read>,
+  year: number,
+): void {
   const { world } = ctx,
     p = r.p,
     m = r.m;
@@ -957,7 +1018,9 @@ function weighOwn(ctx: PopulationContext, r: Read, reads: ReadonlyMap<string, Re
     top = m.fears[0],
     other = top ? reads.get(top.of) : undefined,
     overthrown = o?.taught?.find((x) => !x.of && x.what === "overthrown" && year - x.year < 20),
-    ruined = m.refusal && creditOf(world)?.defaults.some((d) => d.event === m.refusal && year - d.year < 20);
+    ruined =
+      m.refusal &&
+      creditOf(world)?.defaults.some((d) => d.event === m.refusal && year - d.year < 20);
   for (const k of OWN_KINDS) {
     const i = OWN[k],
       now = m.own[i]! / 100,
@@ -974,20 +1037,73 @@ function weighOwn(ctx: PopulationContext, r: Read, reads: ReadonlyMap<string, Re
               : 0
           : 0,
       // (Rulers overthrown: what was theirs shared out. Savers ruined by a debt refused: more looked for from the realm.)
-      shaken = (overthrown ? (k === "spread" ? 0.15 : 0.1 * (1 - ways.trade)) : 0) + (ruined && k === "common" ? 0.08 : 0),
+      shaken =
+        (overthrown ? (k === "spread" ? 0.15 : 0.1 * (1 - ways.trade)) : 0) +
+        (ruined && k === "common" ? 0.08 : 0),
       target = dmath.clamp(anchor[i]! + held + drawn + guard + shaken, 0, 1),
       gap = target - now;
     if (Math.abs(gap) < FINANCE.ownLeast) continue;
-    const to = Math.round(dmath.clamp(now + FINANCE.ownPace * (1 - 0.5 * ways.tradition) * gap, 0, 1) * 100);
+    const to = Math.round(
+      dmath.clamp(now + FINANCE.ownPace * (1 - 0.5 * ways.tradition) * gap, 0, 1) * 100,
+    );
     if (to === m.own[i]) continue;
     m.own[i] = to;
     if (ownBand(k as Own, to / 100) === ownBand(k as Own, now)) continue;
     const factors: Factor[] = [
-        { name: "what its law on land and its people's ways ask", value: anchor[i]!, contribution: anchor[i]! - now, source: null },
-        ...(held ? [{ name: "how widely its choices are carried", value: voice, contribution: held, source: o?.heldEvents?.[HOLD.voice] ? { ref: o.heldEvents[HOLD.voice]!, role: "enabler" as const, weight: 1 } : null }] : []),
-        ...(drawn && other ? [{ name: `how ${realmName(other.p)} is seen to fare`, value: top!.works / 100, contribution: drawn, source: null }] : []),
-        ...(guard ? [{ name: `what ${LOSERS[top!.who]} would lose`, value: top!.loss / 100, contribution: guard, source: m.toldEvent ? { ref: m.toldEvent, role: "pressure" as const, weight: 1 } : null }] : []),
-        ...(shaken ? [{ name: overthrown ? "its rulers overthrown" : "its savers ruined by a debt refused", value: 1, contribution: shaken, source: overthrown?.event ? { ref: overthrown.event, role: "trigger" as const, weight: 1 } : m.refusal ? { ref: m.refusal, role: "trigger" as const, weight: 1 } : null }] : []),
+        {
+          name: "what its law on land and its people's ways ask",
+          value: anchor[i]!,
+          contribution: anchor[i]! - now,
+          source: null,
+        },
+        ...(held
+          ? [
+              {
+                name: "how widely its choices are carried",
+                value: voice,
+                contribution: held,
+                source: o?.heldEvents?.[HOLD.voice]
+                  ? { ref: o.heldEvents[HOLD.voice]!, role: "enabler" as const, weight: 1 }
+                  : null,
+              },
+            ]
+          : []),
+        ...(drawn && other
+          ? [
+              {
+                name: `how ${realmName(other.p)} is seen to fare`,
+                value: top!.works / 100,
+                contribution: drawn,
+                source: null,
+              },
+            ]
+          : []),
+        ...(guard
+          ? [
+              {
+                name: `what ${LOSERS[top!.who]} would lose`,
+                value: top!.loss / 100,
+                contribution: guard,
+                source: m.toldEvent
+                  ? { ref: m.toldEvent, role: "pressure" as const, weight: 1 }
+                  : null,
+              },
+            ]
+          : []),
+        ...(shaken
+          ? [
+              {
+                name: overthrown ? "its rulers overthrown" : "its savers ruined by a debt refused",
+                value: 1,
+                contribution: shaken,
+                source: overthrown?.event
+                  ? { ref: overthrown.event, role: "trigger" as const, weight: 1 }
+                  : m.refusal
+                    ? { ref: m.refusal, role: "trigger" as const, weight: 1 }
+                    : null,
+              },
+            ]
+          : []),
       ],
       decision = world.decisions.record({
         rule: "finance.owned",

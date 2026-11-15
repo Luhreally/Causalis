@@ -1,7 +1,7 @@
 // node tools/finance-tally.ts <year> [seeds...]: a world's money and fears read over its whole history (sim/finance). For each seed,
 // run to the year: the yields its realms paid (their range, each century), the debts sold and refused, who holds whom at the end (the
 // matrix's shape), the greatest fears and whether two camps stand, and the turning points' years (for the pacing: tools/calibration-bands.ts).
-// A seed "earth:<text>" is Earth's prior, any other the open. `--json <file>` writes the report. Pure reading; it changes nothing.
+// A seed "earth:<text>" is Earth's prior, any other the open ("kept:<text>": its life kept, as the gates take kestrel 557). `--json <file>` writes the report. Pure reading; it changes nothing.
 import { writeFileSync } from "node:fs";
 import {
   YEAR,
@@ -18,6 +18,7 @@ import {
   OPEN,
   campsOf,
   campsStand,
+  keptLife,
   ownWords,
   wayWords,
   type CampRealm,
@@ -55,7 +56,7 @@ export function campsNow(world: World) {
 
 for (const s of seeds) {
   const earth = s.startsWith("earth:"),
-    text = earth ? s.slice(6) : s,
+    text = earth ? s.slice(6) : s.startsWith("kept:") ? keptLife(s.slice(5)) : s,
     world = sim.makePopulationWorld(seedFromText(text), {
       prior: earth ? EARTHLIKE : OPEN,
       start: "spread",
@@ -96,7 +97,9 @@ for (const s of seeds) {
         refusedBy.push(`${(e.data as { realm: string }).realm} (${yearOfMoment(e.t)})`);
       if (e.type === "finance.sold" && (e.data as { backer?: string }).backer) {
         const d = e.data as { backer: string; realm: string; foe?: string };
-        backed.push(`${d.backer} paid for ${d.realm} against ${d.foe ?? "?"} (${yearOfMoment(e.t)})`);
+        backed.push(
+          `${d.backer} paid for ${d.realm} against ${d.foe ?? "?"} (${yearOfMoment(e.t)})`,
+        );
       }
       for (const turn of TURNS)
         if (!turns.has(turn.id)) {
@@ -110,7 +113,10 @@ for (const s of seeds) {
     }
     read = top;
     for (const m of store.all()) {
-      if (m.rate <= 0 || !sim.loreOf(world).get(sim.politiesOf(world).get(m.realm)!.seat, "banking"))
+      if (
+        m.rate <= 0 ||
+        !sim.loreOf(world).get(sim.politiesOf(world).get(m.realm)!.seat, "banking")
+      )
         continue;
       lo = Math.min(lo, m.rate);
       hi = Math.max(hi, m.rate);
@@ -153,7 +159,9 @@ for (const s of seeds) {
       .map(([k, v]) => `${k} ${v}`)
       .join(", ")}`,
   );
-  console.log(`  yields over all years: ${lo === Infinity ? "none sold" : `${pc(lo)} to ${pc(hi)}`}`);
+  console.log(
+    `  yields over all years: ${lo === Infinity ? "none sold" : `${pc(lo)} to ${pc(hi)}`}`,
+  );
   console.log(`  refused: ${refusedBy.length ? refusedBy.slice(0, 8).join("; ") : "none"}`);
   console.log(
     `  who holds whom at ${last}: ${all.length} realms; shares held abroad in ${new Set(holdings.map((h) => h.of)).size} realms by ${new Set(holdings.map((h) => h.by)).size} peoples (${holdings.length} holdings, the greatest ${holdings.length ? pc(Math.max(...holdings.map((h) => h.n))) : "—"}); debt held abroad of ${new Set(debts.map((h) => h.of)).size} realms (${debts.length} holdings)`,
@@ -175,8 +183,15 @@ for (const s of seeds) {
   console.log(
     `  camps stood in ${campsEver} of ${Math.floor(last / 10)} decades read${campYears.length ? ` (first ${campYears[0]}, last ${campYears.at(-1)})` : ""}`,
   );
-  console.log(`  wars paid for by a third who feared the foe: ${backed.length}${backed.length ? `: ${backed.slice(0, 4).join("; ")}` : ""}`);
-  const owns = all.map((m) => ownWords(m.own.map((x) => x / 100), ctx.generated.life.people?.body)),
+  console.log(
+    `  wars paid for by a third who feared the foe: ${backed.length}${backed.length ? `: ${backed.slice(0, 4).join("; ")}` : ""}`,
+  );
+  const owns = all.map((m) =>
+      ownWords(
+        m.own.map((x) => x / 100),
+        ctx.generated.life.people?.body,
+      ),
+    ),
     ownCount = new Map<string, number>();
   for (const o of owns) ownCount.set(o, (ownCount.get(o) ?? 0) + 1);
   console.log(`  how wealth is owned: ${[...ownCount].map(([k, v]) => `${v} ${k}`).join("; ")}`);
@@ -191,9 +206,19 @@ for (const s of seeds) {
     refused: refusedBy,
     holdings: holdings.length,
     debts: debts.length,
-    fears: fears.map(({ m, f }) => ({ realm: name(m.realm), feared: name(f.of), level: f.level, who: LOSERS[f.who] })),
+    fears: fears.map(({ m, f }) => ({
+      realm: name(m.realm),
+      feared: name(f.of),
+      level: f.level,
+      who: LOSERS[f.who],
+    })),
     camps: camps
-      ? { poles: camps.poles.map(name), sizes: camps.camps.map((c) => c.length), apart: camps.apart.length, stand: campsStand(camps) }
+      ? {
+          poles: camps.poles.map(name),
+          sizes: camps.camps.map((c) => c.length),
+          apart: camps.apart.length,
+          stand: campsStand(camps),
+        }
       : null,
     campsEver,
     backed,

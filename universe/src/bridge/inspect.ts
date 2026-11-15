@@ -179,6 +179,22 @@ export type Block =
       /** Its line's colour (its thing's own). */
       readonly color?: Rgb;
     }
+  /**
+   * Who holds whom (sim/finance, asked 2026-11-14: "diffrent citizens owning stocks from diffrent countires"): a square of realms,
+   * each row a people and each column a realm; a cell is how much of that realm's listed works and of its debt that people holds.
+   */
+  | {
+      readonly type: "owning";
+      readonly title: string;
+      readonly realms: readonly {
+        readonly ref: string;
+        readonly name: string;
+        readonly color: Rgb;
+      }[];
+      /** cells[i][j]: what the people of realm i hold of realm j, as a share of it (0 … 1). */
+      readonly cells: readonly (readonly number[])[];
+      readonly note?: string;
+    }
   /** Things side by side as bars: each its name (a link), its amount, its colour. */
   | {
       readonly type: "bars";

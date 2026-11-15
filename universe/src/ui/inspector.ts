@@ -833,6 +833,60 @@ export class PageWindow {
         box.append(w);
         break;
       }
+      case "owning": {
+        // Who holds whom (sim/finance): a square of realms in their colours, each row a people, each column a realm.
+        const n = b.realms.length,
+          grid = el("div", "owning"),
+          said = el("p", "muted owning-said", ""),
+          css = (c: readonly number[], a = 1) =>
+            `rgba(${c.map((v) => Math.round(v * 255)).join(",")},${a})`,
+          most = Math.max(1e-9, ...b.cells.flat()),
+          head = (i: number, cls: string) => {
+            const r = b.realms[i]!,
+              h = el("button", `owning-head ${cls}`);
+            h.type = "button";
+            h.title = r.name;
+            h.setAttribute("aria-label", r.name);
+            if (this.arms) h.append(this.arms.shield(r.ref, 16));
+            else {
+              const dot = el("span", "swatch");
+              dot.style.background = css(r.color);
+              h.append(dot);
+            }
+            if (cls === "owning-row") h.append(el("span", "owning-name", r.name));
+            h.onclick = () => void this.open(r.ref);
+            return h;
+          };
+        grid.style.gridTemplateColumns = `minmax(0, 1fr) repeat(${n}, minmax(18px, 30px))`;
+        grid.append(el("span", "owning-corner", "holds ▸"));
+        for (let j = 0; j < n; j++) grid.append(head(j, "owning-col"));
+        for (let i = 0; i < n; i++) {
+          grid.append(head(i, "owning-row"));
+          for (let j = 0; j < n; j++) {
+            const v = b.cells[i]?.[j] ?? 0,
+              cell = el(
+                "button",
+                `owning-cell${i === j ? " owning-self" : v > 0 ? " owning-some" : ""}`,
+              );
+            cell.type = "button";
+            const words =
+              i === j
+                ? `${b.realms[i]!.name}: itself`
+                : v > 0
+                  ? `The people of ${b.realms[i]!.name} hold ${(v * 100).toFixed(v >= 0.1 ? 0 : 1)}% of ${b.realms[j]!.name}'s listed works and debt`
+                  : `The people of ${b.realms[i]!.name} hold nothing of ${b.realms[j]!.name}'s`;
+            cell.title = words;
+            cell.setAttribute("aria-label", words);
+            if (i !== j && v > 0)
+              cell.style.background = css(b.realms[i]!.color, 0.25 + 0.75 * Math.sqrt(v / most));
+            cell.onclick = () => (said.textContent = words);
+            grid.append(cell);
+          }
+        }
+        box.append(grid, said);
+        if (b.note) box.append(el("p", "muted makeup-note", b.note));
+        break;
+      }
       case "composition": {
         // What something is made of (Phase 15 M122): one bar of its parts, then each part.
         const bar = el("div", "makeup-bar"),
