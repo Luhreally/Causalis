@@ -97,6 +97,7 @@ import { lessonAdds } from "../lore/lessons-store.ts";
 import { holdOf } from "../order/holds.ts";
 import { asksOf } from "../town/asks.ts";
 import { RIVALRY, diplomacyOf, relationRef } from "../diplomacy/diplomacy.ts";
+import { fearFields, warBonds } from "../finance/finance.ts";
 import { CREDIT, warChest } from "../credit/credit.ts";
 import { STRIFE, settleCivil } from "../strife/strife.ts";
 import { driveHerds } from "../ecology/herds.ts";
@@ -822,7 +823,9 @@ function fieldShare(ctx: PopulationContext, p: Polity): number {
     // (More, where they have learned what being outnumbered costs: exactly 0 where they have not.)
     lessonAdds(ctx.world, p.ref, "field", yearOfMoment(ctx.world.now)) +
     // (More where its people bear arms of their own, less where only its host does: rules/holds.ts force.)
-    0.04 * (HOLDING.forceMid - holdOf(ctx.world, p.ref, HOLD.force))
+    0.04 * (HOLDING.forceMid - holdOf(ctx.world, p.ref, HOLD.force)) +
+    // (More against a way it fears: exactly 0 where it fears no one. sim/finance.)
+    fearFields(ctx.world, p.ref)
   );
 }
 
@@ -1483,8 +1486,8 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         fed > 0 ? farFromSeat(ctx, a, land) * (1 - Math.min(1, fed)) : farFromSeat(ctx, a, land),
       hungry = hostHungry(ctx, a, t),
       // (A host paid from a war chest fights the harder, and its lands' hunger slows it not — M144.)
-      chestA = warChest(world, a.ref, w.ref),
-      chestB = warChest(world, b.ref, w.ref),
+      chestA = warChest(world, a.ref, w.ref) ?? warBonds(world, a.ref, w.ref),
+      chestB = warChest(world, b.ref, w.ref) ?? warBonds(world, b.ref, w.ref),
       attack =
         strengthOf(ctx, a) *
         (1 / (1 + 0.15 * far)) *

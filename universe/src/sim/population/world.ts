@@ -61,6 +61,7 @@ import { installGodHand } from "../order/godhand.ts";
 import { installHealth, installHealthActs } from "../health/health.ts";
 import { installSummon } from "../space/summon.ts";
 import { installCredit, installCreditActs } from "../credit/credit.ts";
+import { installFinance } from "../finance/finance.ts";
 import { installStrife, installStrifeActs } from "../strife/strife.ts";
 import { installCourts } from "../court/court.ts";
 import { installDesigns } from "../design/design.ts";
@@ -334,6 +335,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installOrder(world, () => populationContext(world));
   installHealth(world, () => populationContext(world));
   installCredit(world, () => populationContext(world));
+  installFinance(world, () => populationContext(world));
   installStrife(world, () => populationContext(world));
   installCourts(world, () => populationContext(world));
   installCities(world, () => populationContext(world));

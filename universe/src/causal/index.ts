@@ -58,6 +58,7 @@ import "./space.ts";
 import "./order.ts";
 import "./health.ts";
 import "./credit.ts";
+import "./finance.ts";
 import "./strife.ts";
 import "./town.ts";
 import "./lessons.ts";

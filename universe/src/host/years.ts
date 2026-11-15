@@ -16,7 +16,9 @@ import { yearOfMoment, type Hasher, type StateStore, type World } from "../kerne
 import { FOODS, GOODS } from "../rules/index.ts";
 import {
   creditOf,
+  debtOf,
   fieldedOf,
+  financeOf,
   healthOf,
   marketsOf,
   orderOf,
@@ -162,7 +164,28 @@ export type RealmLog = {
   rulers: number[];
   /** The god's blessings (0) and curses (1) on it. */
   acts: Log<number>;
+  /**
+   * Its money (sim/finance; absent in a save from before it, begun there): what it would pay to borrow, in ten-thousandths a
+   * year; what it owes, and what its listed works are worth, in steps (toSteps); its greatest fear, in a hundred.
+   */
+  rate?: Log<number>;
+  owed?: Log<number>;
+  listed?: Log<number>;
+  fear?: Log<number>;
 };
+
+/** The makings a world's works are told by, through the years (the goods a land's works can be companies of). */
+export const WORKS_MAKINGS = [
+  "machines",
+  "iron",
+  "coal",
+  "oil",
+  "copper",
+  "tin",
+  "clothing",
+  "tools",
+  "pottery",
+] as const;
 
 /** Every realm's and every land's years, as they were. */
 export class YearsStore implements StateStore {
@@ -177,6 +200,8 @@ export class YearsStore implements StateStore {
   /** Each land's realm as it changed ("": none), and the first year read of it. */
   readonly landRealm = new Map<number, Log<string> & { first: number }>();
   readonly realms = new Map<string, RealmLog>();
+  /** What the world's works made in a decade's year, by making (WORKS_MAKINGS), at their markets' prices, in steps. */
+  works: { years: number[]; cols: number[][] } = { years: [], cols: WORKS_MAKINGS.map(() => []) };
   /** The last year read (-1: none yet). */
   last = -1;
 
@@ -210,7 +235,12 @@ export class YearsStore implements StateStore {
         bloc: r.bloc,
         rulers: r.rulers,
         acts: r.acts,
+        ...(r.rate ? { rate: r.rate } : {}),
+        ...(r.owed ? { owed: r.owed } : {}),
+        ...(r.listed ? { listed: r.listed } : {}),
+        ...(r.fear ? { fear: r.fear } : {}),
       })),
+      ...(this.works.years.length ? { works: this.works } : {}),
     };
   }
 
@@ -221,6 +251,7 @@ export class YearsStore implements StateStore {
       lands: { key: number; from: number; cols: number[][] }[];
       landRealm: { key: number; first: number; y: number[]; v: string[] }[];
       realms: (RealmLog & { key: string })[];
+      works?: { years: number[]; cols: number[][] };
     };
     this.last = s.last;
     this.landYears = [...s.landYears];
@@ -240,7 +271,14 @@ export class YearsStore implements StateStore {
         bloc: copyLog(r.bloc),
         rulers: [...r.rulers],
         acts: copyLog(r.acts),
+        ...(r.rate ? { rate: copyLog(r.rate) } : {}),
+        ...(r.owed ? { owed: copyLog(r.owed) } : {}),
+        ...(r.listed ? { listed: copyLog(r.listed) } : {}),
+        ...(r.fear ? { fear: copyLog(r.fear) } : {}),
       });
+    this.works = s.works
+      ? { years: [...s.works.years], cols: s.works.cols.map((c) => [...c]) }
+      : { years: [], cols: WORKS_MAKINGS.map(() => []) };
   }
 }
 
@@ -358,7 +396,8 @@ export function readYear(world: World, store: YearsStore, t: number): void {
   }
   // Each standing realm, as it changed.
   const blocs = blocsOf(world),
-    order = orderOf(world);
+    order = orderOf(world),
+    finance = financeOf(world);
   for (const r of realms.living()) {
     let log = store.realms.get(r.ref);
     if (!log)
@@ -391,6 +430,33 @@ export function readYear(world: World, store: YearsStore, t: number): void {
     const head = blocs.head.get(r.ref);
     logPut(log.bloc, year, head && blocs.blocs.has(head) ? head : "");
     if (log.rulers.at(-1) !== r.ruler.since) log.rulers.push(r.ruler.since);
+    // Its money (sim/finance): written as each moved.
+    const money = finance?.of(r.ref);
+    if (money) {
+      const owed = debtOf(money);
+      if (money.rate > 0 && (owed > 0 || log.rate))
+        logPut((log.rate ??= emptyLog()), year, Math.round(money.rate / 25) * 25);
+      if (owed > 0 || log.owed) logPut((log.owed ??= emptyLog()), year, toSteps(owed, TRADE_STEPS));
+      if (money.worth > 0 || log.listed)
+        logPut((log.listed ??= emptyLog()), year, toSteps(money.worth, TRADE_STEPS));
+      const fear = Math.round((money.fears[0]?.level ?? 0) / 5) * 5;
+      if (fear > 0 || log.fear) logPut((log.fear ??= emptyLog()), year, fear);
+    }
+  }
+  // What the world's works made, by making, once a decade.
+  if (year % LAND_EVERY === 0) {
+    const sums = WORKS_MAKINGS.map(() => 0),
+      goods = WORKS_MAKINGS.map((id) => GOODS.findIndex((g) => g.id === id));
+    for (const m of marketsOf(world).all()) {
+      if (!m.works) continue;
+      goods.forEach((g, i) => {
+        if (g >= 0) sums[i] = sums[i]! + m.book("made", g) * m.price[g]!;
+      });
+    }
+    if (sums.some((n) => n > 0) || store.works.years.length) {
+      store.works.years.push(year);
+      sums.forEach((n, i) => store.works.cols[i]!.push(toSteps(n, TRADE_STEPS)));
+    }
   }
   // The god's blessings and curses on a realm, this year.
   for (let i = world.events.count - 1; i >= 0; i--) {
@@ -415,8 +481,15 @@ function thinYears(store: YearsStore, now: number): void {
     logThin(r.standing, now);
     logThin(r.tithe, now);
     logThin(r.bloc, now);
+    for (const l of [r.rate, r.owed, r.listed, r.fear]) if (l) logThin(l, now);
     if (r.rulers.length && r.rulers[0]! < now - RULER_YEARS)
       r.rulers = r.rulers.filter((y) => y >= now - RULER_YEARS);
+  }
+  // (The works' decades, as the lands': every one for two centuries, then one in fifty, one in a hundred.)
+  const worksKept = store.works.years.map((y) => keptDecade(y, now));
+  if (!worksKept.every(Boolean)) {
+    store.works.cols = store.works.cols.map((c) => c.filter((_, i) => worksKept[i]));
+    store.works.years = store.works.years.filter((_, i) => worksKept[i]);
   }
   const keep = store.landYears.map((y) => keptDecade(y, now));
   if (keep.every(Boolean)) return;

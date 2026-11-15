@@ -1075,3 +1075,21 @@ export {
   wildCount,
   type BeastArgs,
 } from "./hand/wild.ts";
+export {
+  FINANCE_EVENTS,
+  FinanceStore,
+  debtOf,
+  fearOf,
+  fearPress,
+  financeOf,
+  financeYear,
+  installFinance,
+  stakesBetween,
+  threatFrom,
+  topFear,
+  warBonds,
+  wayOf,
+  yieldNow,
+  type Fear,
+  type Money,
+} from "./finance/finance.ts";

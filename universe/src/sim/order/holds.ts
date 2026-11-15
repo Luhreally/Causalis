@@ -46,6 +46,7 @@ import { RIVALRY, diplomacyOf } from "../diplomacy/diplomacy.ts";
 import { knows } from "../lore/lore.ts";
 import { warsOf } from "../war/war.ts";
 import { LAW_EVERY, swayOnLaws } from "./laws.ts";
+import { fearPress } from "../finance/finance.ts";
 import { orderOf, type RealmOrder } from "./order.ts";
 
 export const HOLD_EVENTS = {
@@ -165,7 +166,10 @@ export function weighHolds(ctx: PopulationContext, p: Polity, o: RealmOrder, t: 
     pulls = (o.pulls ?? [0, 0, 0, 0]).map((x) => x / 100),
     // (At war, choices fall to those who lead it; a host kept standing makes the arms the realm's, not the households'.)
     atWar = warsOf(world).fighting(p.ref).length ? 1 : 0,
-    standing = knows(ctx, p.seat, "standing-army") ? 1 : 0;
+    standing = knows(ctx, p.seat, "standing-army") ? 1 : 0,
+    // (Another's way feared, or looked to: what it presses on arms, voice and word. sim/finance, rules/finance.ts fearMoves.)
+    fear = fearPress(world, p.ref),
+    feared = fear ? politiesOf(world).get(fear.of) : undefined;
   for (const h of HOLD_KINDS) {
     const k = HOLD[h],
       groups =
@@ -189,7 +193,12 @@ export function weighHolds(ctx: PopulationContext, p: Polity, o: RealmOrder, t: 
           : h === "force"
             ? 0.2 * (0.5 - now[HOLD.voice]!)
             : 0,
-      target = dmath.clamp(0.5 * anchor[k]! + 0.5 * groups + pressed + carried + pulls[k]!, 0, 1),
+      afraid = fear && k < 3 ? fear.moves[k as 0 | 1 | 2] : 0,
+      target = dmath.clamp(
+        0.5 * anchor[k]! + 0.5 * groups + pressed + carried + pulls[k]! + afraid,
+        0,
+        1,
+      ),
       gap = target - now[k]!;
     if (Math.abs(gap) < HOLDING.least) continue;
     const to = Math.round(
@@ -254,6 +263,18 @@ export function weighHolds(ctx: PopulationContext, p: Polity, o: RealmOrder, t: 
                 contribution: carried,
                 source: o.heldEvents?.[HOLD.voice]
                   ? { ref: o.heldEvents[HOLD.voice]!, role: "enabler" as const, weight: 1 }
+                  : null,
+              },
+            ]
+          : []),
+        ...(afraid && Math.abs(afraid) >= 0.01
+          ? [
+              {
+                name: `how ${feared ? realmName(feared) : "another realm"} is held, ${fear!.level >= 0.2 ? "feared" : "looked to"}`,
+                value: fear!.level,
+                contribution: afraid,
+                source: fear!.event
+                  ? { ref: fear!.event, role: "pressure" as const, weight: 1 }
                   : null,
               },
             ]

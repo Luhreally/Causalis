@@ -252,6 +252,33 @@ export const OUTCOMES: readonly RuleOutcome[] = [
     harden: { trust: -0.1, force: 0.05 },
     when: (d) => d.fallen !== true,
   },
+  // A realm's debt its people held, refused (sim/finance: one event for each people that held it): lend abroad the less.
+  {
+    id: "paper-lost",
+    event: "finance.lost",
+    at: 0,
+    words: "another realm's debt their people held, refused",
+    mend: { trust: -0.1 },
+    harden: { trust: -0.2 },
+  },
+  // The debt it sold, refused: it binds itself the less, and its seat keeps arms the closer against its ruined savers.
+  {
+    id: "paper-refused",
+    event: "finance.refused",
+    at: 0,
+    words: "the debt they sold, which they could not pay",
+    mend: { trust: -0.15 },
+    harden: { trust: -0.1, force: 0.05 },
+  },
+  // What its people held in another realm, taken (its second subject): hold abroad the less; or trust no one, and arm.
+  {
+    id: "taken-abroad",
+    event: "finance.taken",
+    at: 1,
+    words: "what their people held in another realm, taken from them",
+    mend: { trust: -0.1 },
+    harden: { trust: -0.2, force: 0.05 },
+  },
 ];
 
 /** The outcomes read off each kind of event. */
