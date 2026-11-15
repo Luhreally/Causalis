@@ -301,7 +301,6 @@ export function realmMoneyBlocks(world: World, r: Polity): Block[] {
         ? `${count(owed)} grain's worth, at ${pc(m.coupon)}: ${count(m.home)} to its own people, ${count(abroad)} abroad`
         : "no debt",
       {
-        why: m.sale ?? null,
         ...(y
           ? {
               parts: [
@@ -454,10 +453,32 @@ export function realmMoneyBlocks(world: World, r: Polity): Block[] {
         ]),
       ),
     });
-  const told: Item[] = [m.refusal, m.sale]
-    .filter((e): e is Ref => !!e)
-    .map((e) => ({ ...item([claimOf(world, e)], e), why: e }));
-  if (told.length) blocks.push({ type: "list", title: "Its last sale and refusal", items: told });
+  // Its last sale, as it was (kept on the realm, not told as an event unless it paid for a war), and its last refusal.
+  const lastly: Item[] = [];
+  if (m.last) {
+    const l = m.last,
+      what =
+        l.why === "war"
+          ? "to pay its host in a war"
+          : l.why === "hunger"
+            ? "to feed its hungry seat"
+            : "to arm against a way it feared",
+      abroad: Line = l.abroad.flatMap((q, i) => [i ? ", " : "", realmLink(world, q)]);
+    lastly.push({
+      ...item(
+        [
+          `Year ${l.year}: it sold ${count(l.grain)} grain's worth at ${(l.rate / 100).toFixed(1)} in a hundred a year, ${what}: ${count(l.home)} to its own people`,
+          ...(l.abroad.length ? [", the rest to the people of ", ...abroad] : []),
+        ],
+        l.why === "war" ? (m.sale ?? null) : null,
+        l.year,
+      ),
+      ...(l.why === "war" && m.sale ? { why: m.sale } : {}),
+    });
+  }
+  if (m.refusal) lastly.push({ ...item([claimOf(world, m.refusal)], m.refusal), why: m.refusal });
+  if (lastly.length)
+    blocks.push({ type: "list", title: "Its last sale and refusal", items: lastly });
   return blocks;
 }
 

@@ -57,15 +57,15 @@ export const FINANCE_EVENTS = {
   /** A realm sold debt: to its own people and to others'. */
   sold: defineEventType("finance.sold", 3),
   /** A realm refused the debt it had sold. */
-  refused: defineEventType("finance.refused", 6),
+  refused: defineEventType("finance.refused", 5),
   /** What a people held of a realm's debt was lost when it refused it (one for each people, for what it learns). */
-  lost: defineEventType("finance.lost", 4),
+  lost: defineEventType("finance.lost", 3),
   /** What a people held in another realm was taken: in a war between them, or as that realm closed itself. */
-  taken: defineEventType("finance.taken", 5),
+  taken: defineEventType("finance.taken", 4),
   /** How a realm's wealth is owned, told in other words. */
-  owned: defineEventType("finance.owned", 5),
+  owned: defineEventType("finance.owned", 4),
   /** A realm came to fear another's way. */
-  feared: defineEventType("finance.feared", 5),
+  feared: defineEventType("finance.feared", 4),
 };
 
 /** A fear as kept: of whom, and its level and parts in whole hundredths (rules/finance.ts Threat). */
@@ -117,9 +117,17 @@ export type Money = {
   chests?: [Ref, Ref][];
   /** Whom its people lost by, and when. */
   burnt?: [Ref, number][];
-  /** Its last sale told, the year of it, and its last refusal. */
+  /** The event of its last sale for a war, its last sale of any kind as it was, and its last refusal. */
   sale?: Ref;
-  soldIn?: number;
+  last?: {
+    readonly year: number;
+    readonly grain: number;
+    readonly home: number;
+    /** Ten-thousandths a year. */
+    readonly rate: number;
+    readonly why: "war" | "hunger" | "arms";
+    readonly abroad: readonly Ref[];
+  };
   refusal?: Ref;
 };
 
@@ -918,43 +926,25 @@ function sell(
   m.home += home;
   // (Too little to tell: it stands, without a telling. And a realm arming, or feeding its seat, year on year tells of it once in ten.)
   if (sold < 50) return null;
-  if (why !== "war" && m.soldIn !== undefined && year - m.soldIn < 10) return null;
-  m.soldIn = year;
+  // Its last sale, kept on it for its page: one record a realm, where an event a sale was most of what this store cost a save.
+  m.last = {
+    year,
+    grain: sold,
+    home,
+    rate: Math.round(y.rate * 10_000),
+    why,
+    abroad: bought.slice(0, 3).map((b) => b.q.p.ref),
+  };
+  // Told only where it paid for a war: the war's chest, which its battles cite; and who lent the readier for fearing the foe.
+  if (why !== "war") return null;
   const backer = bought
       .filter((b) => b.backs >= FINANCE.fearGone)
       .sort((a, b) => b.backs - a.backs)[0],
-    factors: Factor[] = [
-      {
-        name:
-          why === "war"
-            ? "a war to fight"
-            : why === "hunger"
-              ? "a hungry seat"
-              : "a way it fears, to arm against",
-        value: want,
-        contribution: 1,
-        source: by.war ? { ref: by.war, role: "trigger", weight: 1 } : null,
-      },
-      ...y.parts.map((x) => ({
-        name: x.name,
-        value: x.value,
-        contribution: -x.value,
-        source: null,
-      })),
-    ],
-    decision = world.decisions.record({
-      rule: "finance.sell",
-      subject: p.ref,
-      outcome: { sold, home, abroad, rate: y.rate },
-      score: 1 - y.rate / FINANCE.shut,
-      threshold: 0,
-      factors,
-    }),
     event = world.events.emit({
       type: FINANCE_EVENTS.sold.type,
       subjects: [p.ref, ...bought.slice(0, 3).map((b) => b.q.p.ref)],
       place: ctx.provinces.get(p.seat)?.ref ?? null,
-      causes: [{ ref: decision, role: "trigger", weight: 1 }],
+      causes: by.war ? [{ ref: by.war, role: "trigger", weight: 1 }] : [],
       data: {
         realm: realmName(p),
         grain: sold,
@@ -963,9 +953,6 @@ function sell(
         why,
         abroad: bought.slice(0, 3).map((b) => realmName(b.q.p)),
         ...(by.foe && reads.get(by.foe) ? { foe: realmName(reads.get(by.foe)!.p) } : {}),
-        ...(by.feared && reads.get(by.feared)
-          ? { feared: realmName(reads.get(by.feared)!.p) }
-          : {}),
         ...(backer ? { backer: realmName(backer.q.p) } : {}),
       },
     });

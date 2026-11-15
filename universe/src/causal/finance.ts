@@ -116,7 +116,6 @@ const subject = (world: Parameters<typeof politiesOf>[0], ref: string) => {
   const p = politiesOf(world).get(ref as never);
   return cap(p ? realmName(p) : "a realm");
 };
-registerDecisionWords("finance.sell", (world, d) => `${subject(world, d.subject)} sold its debt`);
 registerDecisionWords(
   "finance.fear",
   (world, d) => `${subject(world, d.subject)} came to fear another's way`,
