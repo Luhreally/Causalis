@@ -250,8 +250,8 @@ registerEventWords(STARWAR_EVENTS.peace.type, (_world, e) => {
 });
 
 registerEventWords(GREAT_ACT_EVENTS.warm.type, (_world, e) => {
-  const d = (e.data ?? {}) as { sign?: number; years?: number };
-  return `By your hand the whole world grew ${d.sign === -1 ? "colder" : "warmer"} for ${d.years ?? "some"} years, year ${yearOfMoment(e.t)}`;
+  const d = (e.data ?? {}) as { sign?: number; years?: number; ever?: boolean; degrees?: number };
+  return `By your hand the whole world grew ${d.degrees === undefined ? "" : `${d.degrees} degrees `}${d.sign === -1 ? "colder" : "warmer"} ${d.ever ? "for good" : `for ${d.years ?? "some"} years`}, year ${yearOfMoment(e.t)}`;
 });
 registerEventWords(GREAT_ACT_EVENTS.flare.type, (_world, e) => {
   const d = (e.data ?? {}) as { sign?: number; years?: number };

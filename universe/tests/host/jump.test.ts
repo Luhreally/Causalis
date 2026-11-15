@@ -2,10 +2,11 @@
 // it has come, may be stopped where it stands, and is the same world however it got there.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR } from "../../src/kernel/index.ts";
+import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { HostClient, inlinePair, type JumpProgress } from "../../src/bridge/index.ts";
 import { MemoryByteStore, SimHost, UNIVERSES } from "../../src/host/index.ts";
-import { makeToyWorld } from "../../src/sim/index.ts";
+import { PEOPLE_ACT_EVENTS, fortunesOf, makeToyWorld, politiesOf } from "../../src/sim/index.ts";
+import { EARTH } from "../../src/host/planet.ts";
 import { phoneMinutesTo } from "../../src/ui/jump.ts";
 
 const turn = () => new Promise<void>((r) => setImmediate(r));
@@ -152,4 +153,43 @@ test("the title's estimate grows with the year, some minutes for a far one", () 
   assert.ok(phoneMinutesTo(1500) > phoneMinutesTo(1000));
   assert.ok(phoneMinutesTo(3000) > 2 * phoneMinutesTo(1500) * 0.9);
   assert.ok(phoneMinutesTo(3000) < 60);
+});
+
+// 2026-11-14: a spell laid for years is the world's own from then on, so a jump over it is the same world as the years
+// run one by one: it lifts in its year, neither early nor never.
+test("a jump over a blessing laid for years ends it in its year, the same world as running there", async () => {
+  const AT = 40,
+    SPELL = 30,
+    TO = 110,
+    direct = EARTH.build(seedFromText("first light"));
+  direct.runTo(AT * YEAR);
+  const realm = [...politiesOf(direct).living()].sort(
+      (a, b) => b.members.length - a.members.length || (a.ref < b.ref ? -1 : 1),
+    )[0]!.ref,
+    args = { realm, strength: 1.5, years: SPELL };
+  direct.submit("act.bless", args);
+  direct.runTo(TO * YEAR);
+  const ends = direct.events.all().filter((e) => e.type === PEOPLE_ACT_EVENTS.fortuneEnd.type);
+  assert.equal(ends.length, 1);
+  assert.equal(fortunesOf(direct)!.all().length, 0);
+  // (At the turn that closes its thirtieth year, to the day; or with its realm if that fell first.)
+  const lifted = ends[0]!.t / YEAR,
+    fallen = politiesOf(direct).get(realm)!.ended;
+  assert.ok(
+    fallen !== null && fallen < AT + SPELL
+      ? lifted <= fallen + 1
+      : Math.abs(lifted - (AT + SPELL)) < 1 / 365,
+    `lifted at ${lifted}`,
+  );
+  const hosted = async (how: "jump" | "advance") => {
+    const r = moving();
+    await r.settle(r.client.start("earth", "first light"));
+    await r.settle(r.client.advance(AT * YEAR));
+    await r.settle(r.client.command("act.bless", args));
+    await r.settle(how === "jump" ? r.client.jump(TO * YEAR) : r.client.advance(TO * YEAR));
+    return r.settle(r.client.query({ type: "hashes" }));
+  };
+  const jumped = await hosted("jump");
+  assert.deepEqual(jumped, await hosted("advance"));
+  assert.deepEqual(jumped, direct.domainHashes());
 });

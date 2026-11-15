@@ -760,6 +760,27 @@ export function unknownOverCells(
  * many of those that can bear them; keyed by spot, so the same spots go first and come back last. `woods`: each land's
  * share now and at first, where they differ.
  */
+/**
+ * A globe's frame as its ground stands under the god's warming: the spots whose biome has turned drawn as what they
+ * turned to, and every spot's warmth moved by as much (the Warmth lens). The frame itself where nothing has turned.
+ */
+export function warmedFrame(
+  frame: FrameMessage,
+  warm: number,
+  turned: readonly number[],
+): FrameMessage {
+  if (!warm) return frame;
+  const biome = Uint8Array.from(frame.arrays.biome as Uint8Array),
+    was = frame.arrays.temperature as Float32Array | undefined,
+    temperature = was ? Float32Array.from(was, (t) => t + warm) : undefined;
+  for (let i = 0; i + 1 < turned.length; i += 2)
+    if (turned[i]! < biome.length) biome[turned[i]!] = turned[i + 1]!;
+  return {
+    ...frame,
+    arrays: { ...frame.arrays, biome, ...(temperature ? { temperature } : {}) },
+  };
+}
+
 export function woodsOverCells(
   colors: Uint8Array,
   frame: FrameMessage,

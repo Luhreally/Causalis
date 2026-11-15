@@ -105,12 +105,10 @@ export class HandView {
         (words.textContent = `${c.lasting ? `For ${years} year${years === 1 ? "" : "s"}, ` : ""}${c.effect}. What follows is theirs, and history will remember it was your hand.`);
     const spans = el("div", "speeds");
     if (c.lasting)
-      for (const n of [1, 3, 5]) {
-        const b = el(
-          "button",
-          n === years ? "speed on" : "speed",
-          `${n} year${n === 1 ? "" : "s"}`,
-        );
+      // (Up to a thousand years: asked 2026-11-14.)
+      for (const n of [1, 3, 5, 10, 30, 100, 300, 1000]) {
+        const b = el("button", n === years ? "speed on" : "speed", `${n}y`);
+        b.title = `For ${n} year${n === 1 ? "" : "s"}`;
         b.onclick = () => {
           years = n;
           for (const x of spans.children) x.classList.toggle("on", x === b);

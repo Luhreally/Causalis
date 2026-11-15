@@ -462,7 +462,26 @@ export const PALETTE_KINDS: readonly {
 ];
 
 /** The years an act can be laid for, each its own buttons: one on a land (3 unless chosen), a realm's fortune (1), a world's warming (50), a sun's flare (3). */
-const SPANS = { lasting: [1, 3, 5], world: [10, 50, 100], star: [1, 3, 10] } as const;
+/**
+ * (Asked 2026-11-14: "be able to last for way longer like up to 1000 years": a slider of stops, close together where
+ * the years are few so 1, 5 and 10 are each one notch, and wide where they are many. A world's warmth can also be laid
+ * for good: its last stop, kept here as 0 years.)
+ */
+export const SPAN_STOPS = [1, 2, 3, 5, 10, 20, 50, 100, 200, 500, 1000] as const;
+export const FOR_GOOD = 0;
+const SPANS: Readonly<Record<"lasting" | "world" | "star", readonly number[]>> = {
+  lasting: SPAN_STOPS,
+  world: [10, 20, 50, 100, 200, 500, 1000, FOR_GOOD],
+  star: SPAN_STOPS,
+};
+/** The degrees a world is warmed or cooled at each strength (sim/acts/great.ts WARM_DEGREES; a test holds them the same). */
+export const PALETTE_WARM: Readonly<Record<number, number>> = {
+  0.5: 0.75,
+  1: 1.5,
+  1.5: 3,
+  2: 6,
+  3: 12,
+};
 /**
  * How hard each act strikes at the strength of old, to say in words what a strength will do (sim/acts: ACT_STRENGTH,
  * DISASTER, GREAT_ACT_STRENGTH, REGARD, WAYS_PUSH, SETTLERS, the fire's fifth; a test holds them the same).
@@ -470,6 +489,9 @@ const SPANS = { lasting: [1, 3, 5], world: [10, 50, 100], star: [1, 3, 10] } as 
 export const PALETTE_FORCE = {
   rain: 0.55,
   harvest: 0.5,
+  rot: 0.15,
+  wells: 0.35,
+  wellYears: 3,
   plague: 3,
   healing: 0.5,
   quake: { dead: 0.04, stores: 0.3, blocks: 0.25 },
@@ -502,7 +524,9 @@ export class GodPalette {
   private readonly tiles = el("div", "palette-acts");
   private readonly line = el("div", "palette-line");
   private readonly words = el("span", "palette-words");
-  private readonly spans = el("span", "palette-years");
+  private readonly spans = el("label", "palette-years");
+  private readonly spanInput = el("input");
+  private readonly spanWords = el("span", "palette-years-words");
   /** The choices an act asks for before it falls: which way, which way pushed; which tenet. */
   private readonly choices = el("span", "palette-choices");
   /** How strong a realm's fortune is laid (its own slider), and for how many years (the years' buttons). */
@@ -586,6 +610,23 @@ export class GodPalette {
       this.say();
     };
     this.strength.append(this.strengthLabel, input, this.strengthWords);
+    // (How long: a slider of stops from a year to a thousand, each act keeping its own.)
+    const span = this.spanInput;
+    span.type = "range";
+    span.min = "0";
+    span.step = "1";
+    span.setAttribute("aria-label", "For how many years");
+    span.oninput = () => {
+      const now = this.act,
+        stops = now?.span ? SPANS[now.span] : SPANS.lasting,
+        n = stops[Number(span.value)] ?? stops[0]!;
+      if (now?.fortune) this.fortuneYears = n;
+      else if (now?.span === "world") this.worldYears = n;
+      else if (now?.span === "star") this.starYears = n;
+      else this.years = n;
+      this.say();
+    };
+    this.spans.append(el("span", "palette-years-label", "For:"), span, this.spanWords);
     this.strength.hidden = true;
     this.does.hidden = true;
     this.line.append(this.words, this.spans, this.strength, this.choices);
@@ -757,10 +798,15 @@ export class GodPalette {
       span = a.lasting ? ` for ${years} year${years === 1 ? "" : "s"}` : "";
     switch (a.target) {
       case "world": {
-        const deg = PALETTE_FORCE.warm * s;
+        const deg = PALETTE_WARM[s] ?? PALETTE_FORCE.warm * s,
+          ever = this.worldYears === FOR_GOOD;
         return {
-          words: `the world ${a.sign! > 0 ? "warmed" : "cooled"} by ${s === 1 ? "a degree and a half" : `${deg} degrees`} for ${this.worldYears} years`,
-          args: { sign: a.sign, years: this.worldYears, ...strong },
+          words: `the world ${a.sign! > 0 ? "warmed" : "cooled"} by ${s === 1 ? "a degree and a half" : `${deg} degrees`} ${ever ? "for good" : `for ${this.worldYears} years`}`,
+          args: {
+            sign: a.sign,
+            ...(ever ? { ever: true } : { years: this.worldYears }),
+            ...strong,
+          },
         };
       }
       case "star":
@@ -1179,29 +1225,12 @@ export class GodPalette {
     const a = this.act,
       stops: readonly number[] = a?.span ? SPANS[a.span] : SPANS.lasting,
       years = a ? this.yearsFor(a) : this.years;
-    if (
-      this.spans.children.length !== stops.length ||
-      [...this.spans.children].some((b, i) => (b as HTMLElement).dataset.years !== `${stops[i]}`)
-    )
-      this.spans.replaceChildren(
-        ...stops.map((n) => {
-          const b = el("button", "speed", `${n}y`);
-          b.title = `For ${n} year${n === 1 ? "" : "s"}`;
-          b.dataset.years = `${n}`;
-          b.onclick = () => {
-            const now = this.act;
-            if (now?.fortune) this.fortuneYears = n;
-            else if (now?.span === "world") this.worldYears = n;
-            else if (now?.span === "star") this.starYears = n;
-            else this.years = n;
-            this.drawYears();
-            this.say();
-          };
-          return b;
-        }),
-      );
-    for (const b of this.spans.children)
-      (b as HTMLElement).classList.toggle("on", (b as HTMLElement).dataset.years === `${years}`);
+    const at = Math.max(0, stops.indexOf(years)),
+      words = years === FOR_GOOD ? "for good" : `${years} year${years === 1 ? "" : "s"}`;
+    if (this.spanInput.max !== `${stops.length - 1}`) this.spanInput.max = `${stops.length - 1}`;
+    if (this.spanInput.value !== `${at}`) this.spanInput.value = `${at}`;
+    if (this.spanWords.textContent !== words) this.spanWords.textContent = words;
+    this.spans.dataset.years = `${years}`;
   }
 
   /** The strength the act in hand is laid at (1 where it has none). */
@@ -1233,7 +1262,18 @@ export class GodPalette {
   setFortune(strength: number, years: number): void {
     const at = FORTUNE_STRENGTHS.indexOf(strength as (typeof FORTUNE_STRENGTHS)[number]);
     if (at >= 0) this.strengthBy.set("fortune", at);
-    if ([1, 3, 5].includes(years)) this.fortuneYears = years;
+    if ((SPAN_STOPS as readonly number[]).includes(years)) this.fortuneYears = years;
+    this.say();
+  }
+
+  /** For how many years an act is to be laid, by its id (for the look tools and the gates, as its slider moved): 0, a world's warmth for good. */
+  setYears(id: string, years: number): void {
+    const a = ACTS[id];
+    if (!a || !(a.span ? SPANS[a.span] : SPANS.lasting).includes(years)) return;
+    if (a.fortune) this.fortuneYears = years;
+    else if (a.span === "world") this.worldYears = years;
+    else if (a.span === "star") this.starYears = years;
+    else this.years = years;
     this.say();
   }
 }
@@ -1276,16 +1316,18 @@ function actDoes(a: PaletteAct, s: number, years: number, way: string): string {
   const f = PALETTE_FORCE,
     lower = (k: number) => Math.pow(1 - k, s),
     share = (k: number, most = 1) => Math.min(most, k * s),
-    each = `each year for ${yearsOf(years)}`;
+    each = `each year for ${yearsOf(years)}`,
+    // (What a taking act laid past the strength of old reaches beyond the year's rain and harvest: sim/acts ACT_REACH.)
+    rot = s > 1 ? Math.min(0.9, f.rot * (s - 1)) : 0;
   switch (a.id) {
     case "rain":
       return `Rain ${hundred(f.rain * s)} more than the year would bring, ${each}.`;
     case "drought":
-      return `Rain at ${hundred(lower(f.rain))} of what the year would bring, ${each}${lower(f.rain) < 0.25 ? ": wells and fields run dry" : ""}.`;
+      return `Rain at ${hundred(lower(f.rain))} of what the year would bring, ${each}${lower(f.rain) < f.wells ? `: under ${hundred(f.wells)} the wells and streams fail over ${f.wellYears} years, and its people thirst whatever bread is carried in` : ""}.`;
     case "bounty":
       return `Harvests ${hundred(f.harvest * s)} richer, ${each}.`;
     case "blight":
-      return `Harvests at ${hundred(lower(f.harvest))} of their usual, ${each}${lower(f.harvest) < 0.3 ? ": famine likely" : ""}.`;
+      return `Harvests at ${hundred(lower(f.harvest))} of their usual, ${each}${rot ? `, and ${hundred(rot)} of what its granaries keep rots each month: famine when its stores and its neighbours' bread run out` : ""}.`;
     case "plague":
       return `Deaths ${times(1 + f.plague * s)} times as likely, ${each}.`;
     case "healing":
@@ -1305,7 +1347,7 @@ function actDoes(a: PaletteAct, s: number, years: number, way: string): string {
       return `Their ${WAY_CHOICES.find((x) => x[0] === way)?.[2] ?? way} moved ${hundred(f.ways * s)}, and their old custom with it, so it lasts.`;
     case "warm":
     case "cool":
-      return `The world ${a.id === "warm" ? "warmer" : "colder"} by ${times(f.warm * s)} degrees for ${yearsOf(years)}: the rains move, and the fields with them.`;
+      return `The world ${a.id === "warm" ? "warmer" : "colder"} by ${times(PALETTE_WARM[s] ?? f.warm * s)} degrees ${years === FOR_GOOD ? "for good" : `for ${yearsOf(years)}`}: the rains move at once, and over thirty years its ice, woods and deserts follow. Land that ${a.id === "warm" ? "thaws" : "cools and greens"} can be lived on and farmed; land that ${a.id === "warm" ? "dries" : "freezes"} cannot. The home world's page says how much.`;
     case "flare":
       return `Under its light, death ${times(1 + (f.flare - 1) * s)} times as likely for ${yearsOf(years)}.`;
     case "calm":

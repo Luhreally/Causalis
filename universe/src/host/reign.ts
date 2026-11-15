@@ -107,6 +107,7 @@ import {
   godLearning,
   godMen,
   godProblem,
+  godTownSite,
   type GodAct,
 } from "../sim/index.ts";
 import { bare, claimOf } from "./inspect/words.ts";
@@ -952,6 +953,14 @@ function reignGod(world: World, realm: unknown, as: As, aim: unknown): ReignGod 
       to.members.reduce((n, c) => n + Math.min(1, realms.discontent(c).level), 0) /
       Math.max(1, to.members.length),
     seat = ctx.provinces.get(to.seat)?.total() ?? 0,
+    // (The land a town would stand on, and about how many it feeds: said before it is asked.)
+    townLand = godTownSite(ctx, to),
+    townFeeds = (n: number) =>
+      !townLand
+        ? ""
+        : n > townLand.feeds * 1.2
+          ? ` The land feeds about ${commas(townLand.feeds)}: when its bread is eaten the rest go hungry.`
+          : ` The land feeds about ${commas(townLand.feeds)}.`,
     learnable = godLearning(ctx, to.seat, GOD_AMOUNTS.age.stops.at(-1)!).length,
     other = own ? null : to,
     theirLands = other ? other.members.length : 0,
@@ -1111,14 +1120,14 @@ function reignGod(world: World, realm: unknown, as: As, aim: unknown): ReignGod 
                   "🏘️ A town on an empty land beside it",
                   "town",
                   {},
-                  "A town of five thousand on the nearest empty land beside it, with a year's bread: of your realm.",
+                  `A town of five thousand on the empty land beside it that feeds the most, with a year's bread: of your realm, its market town from this day.${townFeeds(GOD_AMOUNTS.town.was)}`,
                   amount(
                     "town",
                     "Its people",
                     (n) => commas(n),
                     (n) => `🏘️ A town of ${commas(n)} on an empty land beside it`,
                     (n) =>
-                      `A town of ${commas(n)} on the nearest empty land beside it, of every age and trade as its seat's ${commas(seat)} are, with a year's bread: of your realm.`,
+                      `A town of ${commas(n)} on the empty land beside it that feeds the most, of every age and trade as its seat's ${commas(seat)} are, with a year's bread: of your realm, its market town from this day.${townFeeds(n)}`,
                   ),
                 ),
               ]
@@ -1217,7 +1226,7 @@ function reignGod(world: World, realm: unknown, as: As, aim: unknown): ReignGod 
                   "🔥 Every land in grievance",
                   "stir",
                   {},
-                  "Every land of it holds a grievance against its rule.",
+                  "Every land of it sore past bearing against its rule, for years: its far lands break away.",
                   amount(
                     "stir",
                     "Grievance",
@@ -1227,7 +1236,7 @@ function reignGod(world: World, realm: unknown, as: As, aim: unknown): ReignGod 
                         ? "🔥 Every land in grievance"
                         : `🔥 Every land at least ${pct(v)} sore`,
                     (v) =>
-                      `Every land of it at least ${pct(v)} sore against its rule (now ${pct(sore)} on the whole)${v >= 0.9 ? ": lands so sore may break away" : ""}.`,
+                      `Every land of it at least ${pct(v)} sore against its rule (now ${pct(sore)} on the whole)${v >= 0.9 ? ": sore past bearing, for years. Its far lands break away, and its rule is held the less rightful the while" : v >= 0.75 ? ": a year's soreness, soon faded" : ""}.`,
                   ),
                 ),
               ]),

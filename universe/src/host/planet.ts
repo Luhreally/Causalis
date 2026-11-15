@@ -204,6 +204,7 @@ import { TRAIT_LOOK } from "./inspect/folk.ts";
 import { actsMap, landSky, paletteLand } from "./acts.ts";
 import { fireShadow } from "./inspect/fire.ts";
 import { tilesUnderWoods, woodsMap } from "./inspect/woods.ts";
+import { warmthMap } from "./inspect/warmth.ts";
 import { landHerds } from "./inspect/herds.ts";
 import { FAR_QUERIES } from "./far.ts";
 import { groundMap, spotGround } from "./inspect/ground.ts";
@@ -1201,6 +1202,9 @@ function planetUniverse(name: string, prior: Prior): Universe {
       "town.offers": (world, args) => townOffers(world, (args as { ref: string }).ref),
       "town.asked": (world, args) => askedKey(world, (args as { ref: string }).ref),
       "woods.map": (world) => woodsMap(world),
+      // (How far the god's warming has turned the world's ground: the globe draws its biomes by it.)
+      "climate.warmth": (world, args) =>
+        warmthMap(world, (args as { have?: number } | undefined)?.have),
       // A land's creatures, as its map draws them (Z1): read, never told back.
       "land.herds": (world, args) => landHerds(world, (args as { cell: number }).cell),
       // Every land's chief rock, for the Ground lens (Phase 15 M124).

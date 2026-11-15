@@ -8,6 +8,8 @@ import type { Block, PageModel, Place } from "../../bridge/index.ts";
 import { eventsCiting, link, sentence, stat, yearAt, yearNow } from "./words.ts";
 import { refLink } from "./names.ts";
 import { wildBlocks } from "./wild.ts";
+import { warmthBlocks } from "./warmth.ts";
+import { greatActsOf } from "../../sim/index.ts";
 import { landPlace } from "./land.ts";
 import { battlePage } from "./realm.ts";
 
@@ -216,6 +218,8 @@ export function eventPage(world: World, ref: string): PageModel {
       ],
     },
     ...(e ? wildBlocks(world, e) : []),
+    // (A world warmed or cooled: what it has done to the land that can be lived on, as it stands.)
+    ...(type === "act.warm" && warmsNow(world, ref) ? warmthBlocks(world) : []),
     { type: "why", title: "Why it happened", ref },
   ];
   // (A strike from the air, while what it burned still lies there: played again in its town. W2.)
@@ -305,6 +309,13 @@ export function decisionPage(world: World, ref: string): PageModel {
 }
 
 /** An act of the god's (a command): what was done, and what it led to. */
+/** Whether a command or an event is the warming or cooling the world's ground follows now. */
+function warmsNow(world: World, ref: string): boolean {
+  let last: { command: string; event: string } | null = null;
+  for (const a of greatActsOf(world)?.all() ?? []) if (a.kind === "warm") last = a;
+  return !!last && (last.command === ref || last.event === ref);
+}
+
 export function actPage(world: World, ref: string): PageModel {
   const x = why(world, ref as Ref),
     led = eventsCiting(world, ref);
@@ -323,6 +334,7 @@ export function actPage(world: World, ref: string): PageModel {
         name: "Overview",
         blocks: [
           { type: "text", lines: [[x.claim]] },
+          ...(warmsNow(world, ref) ? warmthBlocks(world) : []),
           ...(led.length ? [{ type: "list" as const, title: "What it led to", items: led }] : []),
         ],
       },

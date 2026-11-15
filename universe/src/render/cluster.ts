@@ -4,7 +4,7 @@
 import type { FleetHead, PeopleMark, ReactionMark, StarLine, VoyageMark } from "../view/index.ts";
 import * as pc from "playcanvas";
 import type { ClusterPlan } from "../bridge/index.ts";
-import { LY_SCALE, clusterSpec } from "../view/index.ts";
+import { LY_SCALE, clusterSpec, starsByRef } from "../view/index.ts";
 import { InstancedBatch } from "./batch.ts";
 import { billboard, glowMaterial } from "./glow.ts";
 import type { Stage } from "./stage.ts";
@@ -70,6 +70,9 @@ export class ClusterScene {
   /** How many stars are drawn round and how many of a few faces (a gate reads it). */
   private lodShown = { near: 0, far: 0 };
   private readonly ball: pc.Mesh;
+  /** A star's place and where it falls on the screen, written over for each star looked at (a tap looks at them all). */
+  private readonly world = new pc.Vec3();
+  private readonly screen = new pc.Vec3();
   private readonly disc: pc.Mesh;
   private scarGlow: pc.Material | null = null;
   private readonly scarMarks: { glow: pc.Entity; ring: pc.Entity }[] = [];
@@ -104,7 +107,7 @@ export class ClusterScene {
     stage.root.addChild(this.root);
     this.sphere = pc.Mesh.fromGeometry(
       stage.device,
-      new pc.SphereGeometry({ radius: 1, latitudeBands: 6, longitudeBands: 8 }),
+      lean(new pc.SphereGeometry({ radius: 1, latitudeBands: 6, longitudeBands: 8 })),
     );
     const ring = new pc.Mesh(stage.device),
       pts: number[] = [];
@@ -123,14 +126,19 @@ export class ClusterScene {
     this.marker.enabled = false;
     this.root.addChild(this.marker);
     this.root.enabled = false;
+    // (A glow's disc is flat: two triangles draw what the plane's usual fifty did, and a large sky has thousands.)
     this.disc = pc.Mesh.fromGeometry(
       stage.device,
-      new pc.PlaneGeometry({ halfExtents: new pc.Vec2(1, 1) }),
+      new pc.PlaneGeometry({
+        halfExtents: new pc.Vec2(1, 1),
+        widthSegments: 1,
+        lengthSegments: 1,
+      }),
     );
     // (A far star's ball: a quarter of the faces, at a few pixels the same dot.)
     this.ball = pc.Mesh.fromGeometry(
       stage.device,
-      new pc.SphereGeometry({ radius: 1, latitudeBands: 3, longitudeBands: 4 }),
+      lean(new pc.SphereGeometry({ radius: 1, latitudeBands: 3, longitudeBands: 4 })),
     );
     const cam = new pc.Vec3();
     let clock = 0;
@@ -419,7 +427,7 @@ export class ClusterScene {
       readonly color: readonly [number, number, number];
     }[],
   ): void {
-    const at = new Map(plan.stars.map((s) => [s.ref, s])),
+    const at = starsByRef(plan),
       place = (ref: string | null): [number, number, number] | null => {
         if (ref === null) return [0, 0, 0];
         const s = at.get(ref);
@@ -577,7 +585,7 @@ export class ClusterScene {
   starOnScreen(index: number): { x: number; y: number } | null {
     const s = this.points.find((p) => p.index === index);
     if (!s) return null;
-    const p = this.stage.camera.camera!.worldToScreen(new pc.Vec3(s.x, s.y, s.z));
+    const p = this.stage.camera.camera!.worldToScreen(this.world.set(s.x, s.y, s.z), this.screen);
     return p.z > 0 ? { x: p.x, y: p.y } : null;
   }
 
@@ -587,7 +595,7 @@ export class ClusterScene {
     let best: number | null = null,
       bestD = 22;
     for (const s of this.points) {
-      const p = cam.worldToScreen(new pc.Vec3(s.x, s.y, s.z));
+      const p = cam.worldToScreen(this.world.set(s.x, s.y, s.z), this.screen);
       const d = Math.hypot(p.x - x, p.y - y);
       if (p.z > 0 && d < bestD) {
         bestD = d;
@@ -779,6 +787,30 @@ export class ClusterScene {
     this.marker.setLocalPosition(s.x * LY_SCALE, s.z * LY_SCALE, s.y * LY_SCALE);
     this.marker.setLocalScale(0.35, 0.35, 0.35);
   }
+}
+
+/**
+ * A ball's geometry without the triangles that draw nothing: at each pole a band's quads are triangles, the other half of each
+ * a sliver of no area. The same faces drawn, a third fewer triangles sent for a far star's ball.
+ */
+function lean(g: pc.SphereGeometry): pc.SphereGeometry {
+  const p = g.positions,
+    ix = g.indices;
+  if (!p || !ix) return g;
+  // (A pole's corners are the same place to within the sine of a half turn.)
+  const same = (a: number, b: number) =>
+      Math.abs(p[3 * a]! - p[3 * b]!) < 1e-9 &&
+      Math.abs(p[3 * a + 1]! - p[3 * b + 1]!) < 1e-9 &&
+      Math.abs(p[3 * a + 2]! - p[3 * b + 2]!) < 1e-9,
+    kept: number[] = [];
+  for (let i = 0; i + 2 < ix.length; i += 3) {
+    const a = ix[i]!,
+      b = ix[i + 1]!,
+      c = ix[i + 2]!;
+    if (!same(a, b) && !same(b, c) && !same(a, c)) kept.push(a, b, c);
+  }
+  g.indices = kept;
+  return g;
 }
 
 function glow(color: readonly [number, number, number]): pc.StandardMaterial {

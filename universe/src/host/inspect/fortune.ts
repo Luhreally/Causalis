@@ -36,7 +36,7 @@ export function fortuneBlocks(world: World, r: Polity): Block[] {
       lines: [
         [
           link(`Laid in year ${yearOfMoment(f.from)}`, f.event),
-          `, ${fortuneHow(f.strength, f.years)}: year ${f.laid} of ${f.years}, laid again at each year's turn.`,
+          `, ${fortuneHow(f.strength, f.years)}: year ${f.laid} of ${f.years}, laid again at each year's turn${f.years > f.laid ? `; ${many(f.years - f.laid)} year${f.years - f.laid === 1 ? "" : "s"} left` : ""}.`,
         ],
         [
           `This year it lays ${fortuneWhat(f.sign, f.strength, d?.harvest, d?.sick)} on ${r.members.length} land${r.members.length === 1 ? "" : "s"}${d?.harvest ? `: the harvest ${curse ? "blighted" : "blessed"} on ${d.harvest}` : ""}${d?.sick ? `, ${curse ? "sickness" : "healing"} on ${d.sick}` : ""}${pull ? `; it pulls ${pct(pull)} in a hundred ${curse ? "against" : "for"} its rule` : ""}.`,
