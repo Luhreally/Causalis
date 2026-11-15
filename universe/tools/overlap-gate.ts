@@ -437,6 +437,26 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
       await must("the god's hand", press(".palette-toggle"));
       await settle(600);
     });
+  // (An act in hand whose years and strength are chosen: the line over the palette at its fullest, with both sliders
+  // and what the act will do under them; then the world's warmth at its longest words. 2026-11-14.)
+  for (const [name, act] of [
+    ["palette-years", "drought"],
+    ["palette-warmth", "warm"],
+  ] as const)
+    await state(name, async () => {
+      if (touch && !(await seen(".palette.open")))
+        await must("the god's hand", press(".palette-toggle"));
+      await k(`globalThis.causalis.palette.take(${JSON.stringify(act)})`);
+      await must(
+        "the years' slider",
+        until("the years' slider", () => seen(".palette-years input"), slow(20000)),
+      );
+      // (Both sliders at their far ends: the longest words each can say.)
+      await k(
+        `(() => { for (const i of document.querySelectorAll(".palette-years input, .palette-strength input")) { i.value = i.max; i.dispatchEvent(new Event("input", { bubbles: true })); } })()`,
+      );
+      await settle(600);
+    });
   await k("globalThis.causalis.palette?.putDown?.()").catch(() => undefined);
   if (await seen(".palette.open")) await press(".palette-toggle");
   await state("director", async () => {

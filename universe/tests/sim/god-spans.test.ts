@@ -12,6 +12,8 @@ import {
   ActStore,
   EVER,
   FORTUNE_YEARS,
+  PEOPLE_ACT_EVENTS,
+  endRealm,
   GOD_AMOUNTS,
   GROUND,
   SPAN_MOST,
@@ -341,4 +343,37 @@ test("cooled for ten years, land closes; when it lifts the ground eases back to 
   assert.equal(groundWarming(w, PLANET), 0);
   assert.equal(livableNow(), made);
   assert.equal(warmthRead(w), null);
+});
+
+test("a realm that falls mid-spell takes its fortune with it: lifted at the next year's turn, told once, nothing left laid", () => {
+  const w = fork(),
+    start = w.now,
+    c = populationContext(w),
+    r = biggest(w),
+    lands = [...r.members];
+  w.submit("act.curse", { realm: r.ref, strength: 3, years: 300 });
+  w.runTo(start + 3 * YEAR + 2);
+  assert.equal(fortunesOf(w)!.over(r.ref).length, 1);
+  const fell = w.now;
+  endRealm(c, r, fell, { ref: r.event, role: "trigger", weight: 1 });
+  assert.notEqual(r.ended, null);
+  w.runTo(fell + 2 * YEAR);
+  assert.equal(fortunesOf(w)!.all().length, 0, "the fortune outlived its realm");
+  assert.ok(fortunesOf(w)!.dormant());
+  const told = w.events.all().filter((e) => e.t > start && e.subjects.includes(r.ref)),
+    ends = told.filter((e) => e.type === PEOPLE_ACT_EVENTS.fortuneEnd.type),
+    after = told.filter((e) => e.type === PEOPLE_ACT_EVENTS.fortune.type && e.t > fell);
+  assert.equal(ends.length, 1, "its lifting was not told once");
+  assert.ok(ends[0]!.t - fell <= YEAR, "it lifted later than the year's turn after the fall");
+  assert.equal(after.length, 0, "it was laid again on a fallen realm");
+  // (What it last laid on its lands runs out with that year: no blight or sickness of its word is in force after.)
+  const cmd = actsOf(w)
+    .all()
+    .find((a) => a.from > start && a.kind === "plague")!.command;
+  for (const k of lands)
+    for (const kind of ["harvest", "plague"] as const)
+      assert.notEqual(actsOf(w).at(k, kind, w.now)?.command, cmd, `land ${k} is still under it`);
+  // (And the world goes on, kept and read back the same.)
+  const back = again(w);
+  assert.deepEqual(back.domainHashes(), w.domainHashes());
 });
