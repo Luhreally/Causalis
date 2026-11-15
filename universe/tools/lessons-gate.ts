@@ -369,6 +369,110 @@ if (land) {
       const off1 = await offScreen();
       check(off1.length === 0, `a realm's lessons of rule: off the screen: ${off1.join(" | ")}`);
       await shot("3-rule-lessons");
+      // 3d. What it believes, drawn (asked 2026-11-14: "the learned tab should have more visuals"): its four numbers each a row with
+      // its sign, its track and where it stands; the evidence on the years, each piece a sign of its own; whom it learned from. Each
+      // within the screen; a piece tapped tells itself, and tapped again opens the event that tells it.
+      const drawn = await k<{
+        beliefs: number;
+        glyphs: number;
+        inked: number;
+        marks: number;
+        kinds: number;
+        flows: number;
+        sparks: number;
+        over: string[];
+      }>(`(() => {
+        const b = document.querySelector(".page-window .page-body");
+        const ink = (c) => { try { const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i] > 40) n++; return n; } catch { return 0; } };
+        const marks = [...b.querySelectorAll(".evidence-mark")], over = [];
+        // (No sign lies on another.)
+        for (let i = 0; i < marks.length; i++) for (let j = i + 1; j < marks.length; j++) {
+          const p = marks[i].getBoundingClientRect(), q = marks[j].getBoundingClientRect();
+          if (p.left < q.right - 1 && q.left < p.right - 1 && p.top < q.bottom - 1 && q.top < p.bottom - 1) over.push(marks[i].title.slice(0, 30) + " on " + marks[j].title.slice(0, 30));
+        }
+        return {
+          beliefs: b.querySelectorAll(".belief").length,
+          glyphs: b.querySelectorAll("canvas.belief-glyph").length,
+          inked: [...b.querySelectorAll("canvas.belief-glyph")].filter((c) => ink(c) > 20).length,
+          marks: marks.length,
+          kinds: new Set([...b.querySelectorAll("canvas.evidence-glyph")].map((c) => c.toDataURL())).size,
+          flows: b.querySelectorAll(".taught-flow").length,
+          sparks: b.querySelectorAll(".spark").length,
+          over,
+        };
+      })()`);
+      say(
+        `drawn: ${drawn.beliefs} numbers (${drawn.inked} signs inked, ${drawn.sparks} runs), ${drawn.marks} pieces of evidence in ${drawn.kinds} kinds of sign, ${drawn.flows} flows`,
+      );
+      check(
+        drawn.beliefs === 4 && drawn.inked === 4,
+        `a realm's beliefs: ${drawn.beliefs} rows, ${drawn.inked} signs inked, not 4`,
+      );
+      check(drawn.marks > 0, "a realm that learned of rule: no evidence on the years");
+      check(drawn.marks < 2 || drawn.kinds > 1, "every piece of evidence drawn with the same sign");
+      check(
+        drawn.over.length === 0,
+        `evidence signs one on another: ${drawn.over.slice(0, 3).join(" | ")}`,
+      );
+      for (const [title, name] of [
+        ["What it has seen work", "3c-beliefs"],
+        ["Where it came from", "3d-evidence"],
+        ["Whom it learned from", "3e-taught"],
+      ] as const) {
+        const there = await k<boolean>(`(() => {
+          for (const h of document.querySelectorAll(".page-window .page-body h3"))
+            if (h.textContent.trim().startsWith(${JSON.stringify(title)})) { h.scrollIntoView({ block: "start" }); return true; }
+          return false;
+        })()`);
+        if (!there) {
+          if (title !== "Whom it learned from")
+            problems.push(`a realm that learned of rule: no “${title}”`);
+          continue;
+        }
+        await page.waitForTimeout(slow(300));
+        const off = await offScreen(title);
+        check(off.length === 0, `“${title}”: off the screen: ${off.join(" | ")}`);
+        await shot(name);
+      }
+      // A piece tapped tells itself; tapped again, its event opens.
+      if (drawn.marks > 0) {
+        await press(".page-window .evidence-mark", "a piece of evidence");
+        const told = await k<string>(
+          `document.querySelector(".page-window .evidence-readout")?.textContent ?? ""`,
+        );
+        say(`a piece tapped: ${told.slice(0, 200)}`);
+        check(
+          /^Year \d+: (After|Seeing) /.test(told),
+          `a piece of evidence tapped does not tell itself: ${told.slice(0, 120)}`,
+        );
+        await shot("3f-evidence-told");
+        await press(".page-window .evidence-mark.on", "the piece again");
+        await until("the event behind a piece of evidence", async () =>
+          /^ev:/.test((await pageNow()) ?? ""),
+        );
+        await k(`globalThis.causalis.open(${JSON.stringify(r.ref)})`);
+        await until("the realm's page again", async () => (await pageNow()) === r.ref);
+      }
+      // And at a desk's size: the same tab, within its page.
+      await page.setViewportSize({ width: 1366, height: 768 });
+      await page.waitForTimeout(slow(600));
+      await learnedTab(r.ref, "a realm at a desk");
+      for (const [title, name] of [
+        ["What it has seen work", "4a-desk-beliefs"],
+        ["Where it came from", "4b-desk-evidence"],
+      ] as const) {
+        await k(`(() => {
+          for (const h of document.querySelectorAll(".page-window .page-body h3"))
+            if (h.textContent.trim().startsWith(${JSON.stringify(title)})) { h.scrollIntoView({ block: "start" }); return; }
+        })()`);
+        await page.waitForTimeout(slow(300));
+        const off = await offScreen(title);
+        check(off.length === 0, `at a desk, “${title}”: off the screen: ${off.join(" | ")}`);
+        await shot(name);
+      }
+      await page.setViewportSize({ width: 430, height: 932 });
+      await page.waitForTimeout(slow(600));
+      await learnedTab(r.ref, "a realm that learned of rule");
       const order = await tabNamed("Order", r.ref, "a realm");
       say(
         `how it is held: ${order

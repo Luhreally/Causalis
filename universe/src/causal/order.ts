@@ -12,14 +12,7 @@ import {
   realmName,
   type Law,
 } from "../sim/index.ts";
-import {
-  OUTCOME,
-  blameWords,
-  changeWords,
-  holdWords,
-  type Blame,
-  type Hold,
-} from "../rules/index.ts";
+import { OUTCOME, blameWords, holdWords, type Blame, type Hold } from "../rules/index.ts";
 import { HOLD_EVENTS, homePlanet } from "../sim/index.ts";
 import { landWords } from "./generated.ts";
 import { count } from "./words.ts";
@@ -52,13 +45,26 @@ registerEventWords(HOLD_EVENTS.held.type, (world, e) => {
 });
 // A lesson of rule (sim/order/holds.ts): what befell it, or another, whom it blamed, and what it did.
 registerEventWords(HOLD_EVENTS.lesson.type, (_, e) => {
-  const d = e.data as { outcome?: string; blame?: Blame; of?: string; change?: string } | null,
+  const d = e.data as {
+      outcome?: string;
+      blame?: Blame;
+      of?: string;
+      change?: string;
+      stood?: string;
+      came?: string;
+      well?: boolean;
+    } | null,
     o = OUTCOME.get(d?.outcome ?? ""),
+    // (How the realm it befell stood and fared, as the lesson kept them: sim/order/holds.ts.)
+    how =
+      d?.stood && d.came
+        ? `, ${d.of ? "which" : "in years it"} stood ${d.stood} and ${d.came}`
+        : "",
     what = d?.of
       ? `seeing ${(o?.of ?? "the fate of {them}").replace("{them}", d.of)}`
       : `after ${o?.words ?? "what befell it"}`,
-    blame = d?.blame ? blameWords(o, d.blame, !!d.of) : "weighed it";
-  return `${cap(realm(e.data))}, ${what}, ${blame}${d?.change ? `, and ${d.change}` : ""}, ${year(e.t)}`;
+    blame = d?.blame ? blameWords(o, d.blame, !!d.of, d.well) : "weighed it";
+  return `${cap(realm(e.data))}, ${what}${how}, ${blame}${d?.change ? `, and ${d.change}` : ""}, ${year(e.t)}`;
 });
 registerEventWords(
   ORDER_EVENTS.captives.type,

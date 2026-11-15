@@ -13,11 +13,12 @@
 // A reading only: it is no system and no part of the rules, it hashes nothing and draws nothing, and the world runs the same
 // with it or without it (tests/host/years.test.ts). A save made before it loads; its years begin there.
 import { yearOfMoment, type Hasher, type StateStore, type World } from "../kernel/index.ts";
-import { FOODS, GOODS } from "../rules/index.ts";
+import { FOODS, GOODS, HOLD_KINDS, leanOf } from "../rules/index.ts";
 import {
   creditOf,
   fieldedOf,
   healthOf,
+  learntOf,
   marketsOf,
   orderOf,
   politiesOf,
@@ -162,7 +163,29 @@ export type RealmLog = {
   rulers: number[];
   /** The god's blessings (0) and curses (1) on it. */
   acts: Log<number>;
+  /** Its four numbers (rules/holds.ts), as one (heldPacked); and what it believed of each, in tenths (leanPacked). */
+  held: Log<number>;
+  lean: Log<number>;
 };
+
+/** A realm's four numbers (hundredths) as one number, and back. */
+export const heldPacked = (h: readonly number[]): number =>
+  ((h[0]! * 101 + h[1]!) * 101 + h[2]!) * 101 + h[3]!;
+export const heldUnpacked = (n: number): number[] => [
+  Math.floor(n / 101 ** 3) % 101,
+  Math.floor(n / 101 ** 2) % 101,
+  Math.floor(n / 101) % 101,
+  n % 101,
+];
+/** What a realm believes of its four numbers (-1 … 1 each) as one number, in tenths, and back. */
+export const leanPacked = (l: readonly number[]): number =>
+  l.reduce((n, x) => n * 21 + (Math.round(Math.max(-1, Math.min(1, x)) * 10) + 10), 0);
+export const leanUnpacked = (n: number): number[] => [
+  ((Math.floor(n / 21 ** 3) % 21) - 10) / 10,
+  ((Math.floor(n / 21 ** 2) % 21) - 10) / 10,
+  ((Math.floor(n / 21) % 21) - 10) / 10,
+  ((n % 21) - 10) / 10,
+];
 
 /** Every realm's and every land's years, as they were. */
 export class YearsStore implements StateStore {
@@ -210,6 +233,8 @@ export class YearsStore implements StateStore {
         bloc: r.bloc,
         rulers: r.rulers,
         acts: r.acts,
+        held: r.held,
+        lean: r.lean,
       })),
     };
   }
@@ -240,6 +265,9 @@ export class YearsStore implements StateStore {
         bloc: copyLog(r.bloc),
         rulers: [...r.rulers],
         acts: copyLog(r.acts),
+        // (A save from before they were kept: begun here.)
+        held: r.held ? copyLog(r.held) : emptyLog(),
+        lean: r.lean ? copyLog(r.lean) : emptyLog(),
       });
   }
 }
@@ -372,6 +400,8 @@ export function readYear(world: World, store: YearsStore, t: number): void {
           bloc: emptyLog(),
           rulers: [],
           acts: emptyLog(),
+          held: emptyLog(),
+          lean: emptyLog(),
         }),
       );
     const share = hostShare(world, r),
@@ -391,6 +421,13 @@ export function readYear(world: World, store: YearsStore, t: number): void {
     const head = blocs.head.get(r.ref);
     logPut(log.bloc, year, head && blocs.blocs.has(head) ? head : "");
     if (log.rulers.at(-1) !== r.ruler.since) log.rulers.push(r.ruler.since);
+    // How it is held, and what it believes of that (sim/order/holds.ts), as each changed.
+    const o = order?.of(r.ref);
+    if (o?.held) {
+      logPut(log.held, year, heldPacked(o.held));
+      const b = learntOf(o);
+      logPut(log.lean, year, leanPacked(HOLD_KINDS.map((_, k) => leanOf(b, k, year))));
+    }
   }
   // The god's blessings and curses on a realm, this year.
   for (let i = world.events.count - 1; i >= 0; i--) {
@@ -415,6 +452,8 @@ function thinYears(store: YearsStore, now: number): void {
     logThin(r.standing, now);
     logThin(r.tithe, now);
     logThin(r.bloc, now);
+    logThin(r.held, now);
+    logThin(r.lean, now);
     if (r.rulers.length && r.rulers[0]! < now - RULER_YEARS)
       r.rulers = r.rulers.filter((y) => y >= now - RULER_YEARS);
   }

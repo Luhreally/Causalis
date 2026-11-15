@@ -1,7 +1,10 @@
 // What a land's people or a realm have learned, by how they came to it: from what has cost them (the lessons, rules/lessons.ts), each
 // lesson with what its cause cost them, in numbers and years, what they do now and how far, whom they had it from, and whether it has
 // worked, then what still costs them and is not yet answered, and where their losses press their finding; by their own thought and
-// finding (their lore, by field); and from others. Only reads.
+// finding (their lore, by field); and from others. And, of a realm, what it believes of how to hold itself (rules/learn.ts), drawn:
+// each number with where it stands, which end its evidence favours and how surely, through the years; the evidence itself on the
+// years, its own fates and others' apart; and whom it has learned from and who from it. Every word of these is composed of what was
+// kept and measured. Only reads.
 import type { World } from "../../kernel/index.ts";
 import { cellRef } from "../../gen/index.ts";
 import {
@@ -35,9 +38,34 @@ import { principleName } from "../../causal/index.ts";
 import type { Block, Line, Stat } from "../../bridge/index.ts";
 import { count, item, many, stat, yearNow } from "./words.ts";
 import { landLink, realmLink } from "./names.ts";
-import { orderOf, taughtWords, type Taught } from "../../sim/index.ts";
+import {
+  designsOf,
+  holdNow,
+  learntOf,
+  orderOf,
+  politiesOf,
+  realmName,
+  taughtWords,
+  type Polity,
+  type RealmOrder,
+  type Taught,
+} from "../../sim/index.ts";
+import {
+  HOLD,
+  HOLD_KINDS,
+  beliefWords,
+  leanOf,
+  partWords,
+  sureOf,
+  type Hold,
+} from "../../rules/index.ts";
 import type { Ref } from "../../kernel/index.ts";
+import type { BeliefRow, EvidenceMark, TaughtBy } from "../../bridge/index.ts";
+import { realmColor } from "../colors.ts";
+import { heldUnpacked, leanUnpacked, yearsOf } from "../years.ts";
 import { link } from "./words.ts";
+import { HOLD_ASKS } from "./order.ts";
+import { thinPoints } from "./time.ts";
 
 const capital = (s: string) => `${s[0]!.toUpperCase()}${s.slice(1)}`;
 
@@ -86,6 +114,10 @@ function fromLine(world: World, from: string | null): Line {
   return [realmLink(world, from)];
 }
 
+/** A cause they lean on a lesson for, and one nothing answers yet, as their bars are coloured. */
+const ANSWERED = [0.35, 0.8, 0.62] as const,
+  UNANSWERED = [0.9, 0.42, 0.3] as const;
+
 /** The blocks of a land's or realm's What they have learned (none where nothing has cost them). */
 export function lessonBlocks(world: World, holder: string): Block[] {
   const h = lessonsOf(world)?.get(holder);
@@ -108,6 +140,46 @@ export function lessonBlocks(world: World, holder: string): Block[] {
         : ["Nothing yet: what has cost them has not yet pressed them to change their ways."],
     ],
   });
+  // What presses them now, cause by cause (answered: one they lean on a lesson for), and the lessons they keep, on the years.
+  const pressing = [...h.causes.keys()]
+    .map((cause) => ({
+      cause,
+      c: LESSON_CAUSE.get(cause),
+      press: pressIn(h, cause, year),
+      answered: learned.some((x) => x.r!.cause === cause),
+    }))
+    .filter((x) => x.c && x.press >= LESSON.least)
+    .sort((a, b) => b.press - a.press || (a.cause < b.cause ? -1 : 1));
+  if (pressing.length > 1)
+    blocks.push({
+      type: "bars",
+      title: "How hard each presses them now",
+      unit: "share",
+      bars: pressing.map((x) => ({
+        label: [capital(x.c!.words)],
+        value: x.press,
+        color: x.answered ? ANSWERED : UNANSWERED,
+      })),
+    });
+  if (learned.length) {
+    const first = Math.min(...learned.map((x) => x.u.taken));
+    if (year > first)
+      blocks.push({
+        type: "timeline",
+        title: "The lessons they keep",
+        from: first,
+        to: year,
+        rows: learned.map(({ u, w, r }) => ({
+          label: [capital(r!.name)],
+          from: u.taken,
+          to: null,
+          // (Fuller the more of them lean on it.)
+          color: [0.25 + 0.2 * w, 0.45 + 0.45 * w, 0.5 + 0.5 * w] as const,
+          words: howFar(w),
+          ...(u.ref ? { ref: u.ref } : {}),
+        })),
+      });
+  }
   for (const { u, w, r } of learned) {
     const m = h.causes.get(r!.cause),
       rows: Stat[] = [];
@@ -262,6 +334,10 @@ function pressedLines(world: World, holder: string, cell: number): Line[] {
   return lines;
 }
 
+/** What is their own, and what came from others, as their lines are coloured. */
+const OWN = [0.78, 1, 0.29] as const,
+  OTHERS = [0.44, 0.9, 1] as const;
+
 /** The rows of what they found and what they learned from others shown at first: the latest; the rest at "show all". */
 const FEW = 8;
 
@@ -277,7 +353,10 @@ export function learnedBlocks(world: World, holder: string, cell: number | null)
     taught = came.filter((c) => c.from !== null);
   // (A realm's lessons of rule: what befell it and others it knew of, sim/order/holds.ts.)
   const rule: readonly Taught[] = orderOf(world)?.of(holder as Ref)?.taught ?? [];
-  if (!lessons.length && !came.length && !rule.length) return [];
+  // (What a realm believes of how to hold itself, drawn.)
+  const ruled = politiesOf(world).get(holder as Ref),
+    believed = ruled ? believedBlocks(world, ruled) : [];
+  if (!lessons.length && !came.length && !rule.length && !believed.length) return [];
   const ctx = populationContext(world),
     here = (id: string) => cell !== null && knows(ctx, cell, id),
     taken = lessonsOf(world)?.get(holder),
@@ -321,6 +400,32 @@ export function learnedBlocks(world: World, holder: string, cell: number | null)
       ],
     },
   ];
+  // What they know through the years: what they found themselves against what came to them from others, each as it grew.
+  if (came.length > 2) {
+    const grown = (list: readonly Came[]) => {
+        const years = [...list].map((c) => c.year).sort((a, b) => a - b),
+          points: { x: number; y: number }[] = [];
+        years.forEach((x, i) => {
+          if (points.at(-1)?.x === x) points[points.length - 1] = { x, y: i + 1 };
+          else points.push({ x, y: i + 1 });
+        });
+        if (points.length && points.at(-1)!.x < yearNow(world))
+          points.push({ x: yearNow(world), y: years.length });
+        return thinPoints(points, 80);
+      },
+      series = [
+        { name: "Found by their own thought", color: OWN, points: grown(found) },
+        { name: "Learned from others", color: OTHERS, points: grown(taught) },
+      ].filter((s) => s.points.length > 1);
+    if (series.length)
+      blocks.push({
+        type: "lines",
+        title: "What they know, as it grew",
+        unit: "count",
+        series,
+      });
+  }
+  blocks.push(...believed);
   if (rule.length)
     blocks.push({
       type: "list",
@@ -383,5 +488,161 @@ export function learnedBlocks(world: World, holder: string, cell: number | null)
       })),
     });
   }
+  return blocks;
+}
+
+// —— What a realm believes of how to hold itself, drawn ——————————————————————————————————————————————
+
+/** How firmly a belief is held, by how much evidence stands behind it and how one-sided it is. */
+function firmly(lean: number): string {
+  const a = Math.abs(lean);
+  return a >= 0.45 ? "firmly" : a >= 0.2 ? "somewhat" : "faintly";
+}
+
+/** A log's values through the years kept, each as a point, with now. */
+function through(
+  log: { y: number[]; v: number[] } | undefined,
+  read: (n: number) => number,
+  now: number,
+  last: number,
+): { x: number; y: number }[] {
+  const out = (log?.y ?? []).map((x, i) => ({ x, y: read(log!.v[i]!) }));
+  if (out.at(-1)?.x === now) out[out.length - 1] = { x: now, y: last };
+  else out.push({ x: now, y: last });
+  return out;
+}
+
+/** The evidence a realm keeps that moved a number most. */
+function heaviest(o: RealmOrder, k: number): Taught | undefined {
+  let best: Taught | undefined;
+  for (const x of o.taught ?? [])
+    if (x.moved && Math.abs(x.moved[k] ?? 0) > Math.abs(best?.moved?.[k] ?? 0)) best = x;
+  return best;
+}
+
+/**
+ * What a realm believes of each of its numbers, the evidence for it on the years, and whom it learned from and who from it
+ * (rules/learn.ts; sim/order/holds.ts): none where it keeps no numbers. Only reads.
+ */
+export function believedBlocks(world: World, r: Polity): Block[] {
+  const store = orderOf(world),
+    o = store?.of(r.ref);
+  if (!o?.held) return [];
+  const year = yearNow(world),
+    ctx = populationContext(world),
+    belief = learntOf(o),
+    taught = o.taught ?? [],
+    log = yearsOf(world)?.realms.get(r.ref),
+    armPart = designsOf(world)
+      .of(r.ref)
+      ?.parts.find((x) => x.role === "arm"),
+    arm = armPart ? partWords(armPart) : null,
+    blocks: Block[] = [];
+  if (belief) {
+    const rows: BeliefRow[] = HOLD_KINDS.map((h: Hold) => {
+      const k = HOLD[h],
+        lean = leanOf(belief, k, year),
+        { sure, own } = sureOf(belief, k, year),
+        on = heaviest(o, k),
+        words: (string | { text: string; ref: string })[] =
+          Math.abs(lean) < 0.03
+            ? [
+                sure < 0.05
+                  ? "Nothing it has seen says either way."
+                  : "What it has seen says as much one way as the other.",
+              ]
+            : [
+                `${capital(beliefWords(h, lean))}, ${firmly(lean)}: ${
+                  own >= 0.75
+                    ? "from its own fate"
+                    : own <= 0.25
+                      ? "from what befell others"
+                      : "from its own fate and others'"
+                }`,
+                ...(on?.event
+                  ? [
+                      ", most from ",
+                      link(on.of ? `${on.of}, year ${on.year}` : `year ${on.year}`, on.event),
+                    ]
+                  : []),
+                ".",
+              ];
+      return {
+        label: HOLD_ASKS[h],
+        low: holdNow(ctx, r, h, 0.05, arm),
+        high: holdNow(ctx, r, h, 0.95, arm),
+        now: o.held![k]! / 100,
+        lean,
+        sure,
+        own,
+        words,
+        stood: through(log?.held, (n) => heldUnpacked(n)[k]! / 100, year, o.held![k]! / 100),
+        leans: through(log?.lean, (n) => leanUnpacked(n)[k]!, year, lean),
+      };
+    });
+    blocks.push({
+      type: "beliefs",
+      title: "What it has seen work",
+      rows,
+      note: "Each of its four numbers between its two ends: where it stands, and the end its evidence favours, brighter the more evidence there is, its own apart from what it saw befall others. Nothing here is a written lesson: it is how realms stood against how they fared.",
+    });
+  }
+  const marks: EvidenceMark[] = taught
+    .filter((x) => x.event && x.moved)
+    .map((x) => {
+      const most = Math.max(1, ...x.moved!.map((v) => Math.abs(v)));
+      return {
+        year: x.year,
+        ref: x.event!,
+        own: !x.of,
+        color: realmColor(x.whose ?? r.ref),
+        ...(x.whose ? { realm: x.whose } : {}),
+        fared: (x.came?.[0] ?? 0) / 100,
+        weight: (x.weight ?? 100) / 100,
+        moved: x.moved!.map((v) => v / most),
+        words: `Year ${x.year}: ${taughtWords(x)}.`,
+      };
+    });
+  if (marks.length) {
+    const first = Math.min(...marks.map((m) => m.year));
+    blocks.push({
+      type: "evidence",
+      title: "Where it came from",
+      from: Math.min(first, year - 20),
+      to: year,
+      marks,
+    });
+  }
+  // Whom it learned from (kept, the few it learned most from), and who learned from it (every living realm that keeps it so).
+  const realms = politiesOf(world),
+    by = (list: [string, number][]): TaughtBy[] => {
+      const all = list.reduce((s, x) => s + x[1], 0) || 1;
+      return list.map(([ref, w]) => {
+        const p = realms.get(ref as Ref);
+        return {
+          name: p ? realmName(p) : "a realm gone",
+          ref,
+          color: realmColor(ref),
+          share: w / all,
+        };
+      });
+    },
+    to: [string, number][] = [];
+  if (store)
+    for (const q of realms.living()) {
+      if (q.ref === r.ref) continue;
+      const w = store.of(q.ref)?.from?.find((x) => x[0] === r.ref)?.[1];
+      if (w) to.push([q.ref, w]);
+    }
+  to.sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+  const from = o.from ?? [];
+  if (from.length || to.length)
+    blocks.push({
+      type: "taught",
+      title: "Whom it learned from, and who from it",
+      self: { name: realmName(r), ref: r.ref, color: realmColor(r.ref) },
+      from: by(from),
+      to: by(to.slice(0, 6)),
+    });
   return blocks;
 }

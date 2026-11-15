@@ -44,6 +44,7 @@ import { lineupStrip, phyloChart } from "./phylo.ts";
 import { dropView } from "./drop.ts";
 import { namesThings, type NamesSwitch } from "./names.ts";
 import { bannerCanvas, glyphCanvas, glyphOf, paletteOf, sectionGlyph } from "./page-art.ts";
+import { beliefsChart, evidenceChart, taughtChart } from "./learned.ts";
 
 /** How often an open page is read again while the world runs (ms). */
 const REFRESH_MS = 2000;
@@ -792,6 +793,21 @@ export class PageWindow {
           }),
         );
         if (title) title.remove();
+        break;
+      case "beliefs":
+        box.append(beliefsChart(b.rows, (words) => this.line(words), b.note));
+        break;
+      case "evidence":
+        box.append(
+          evidenceChart(
+            b,
+            (ref) => void this.open(ref),
+            this.arms ? (ref, size) => this.arms!.shield(ref, size) : undefined,
+          ),
+        );
+        break;
+      case "taught":
+        box.append(taughtChart(b, (text, ref) => this.link(text, ref)));
         break;
       case "chart":
         box.append(

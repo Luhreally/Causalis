@@ -13,6 +13,7 @@ import "./can.css";
 import "./years.css";
 import "./memory.css";
 import "./alliances.css";
+import "./learned.css";
 import { CourtNote, SungNote } from "../ui/index.ts";
 import { courtSitting } from "../view/index.ts";
 import { PeopleBar, barPins, setWrittenHold } from "../ui/index.ts";
