@@ -23,6 +23,7 @@ import {
   seenWeight,
   stoodWords,
   sureOf,
+  tookWords,
   valuesOf,
   yearOf,
   type Faring,
@@ -183,4 +184,8 @@ test("how a realm took it is read off what it did with it, and its words are com
   assert.equal(cameWords(cameOf(FALLEN, v)), "fared ill (everything lost)");
   assert.equal(movedWords(opened), "came to hold more with its choices carried by many");
   assert.equal(movedWords([0.001, 0, 0, 0]), "");
+  assert.equal(tookWords("ours", false, false), "held it its own fault");
+  assert.equal(tookWords("theirs", false, true), "held it its strength");
+  assert.equal(tookWords("ours", true, true), "took it as an example to itself");
+  assert.equal(tookWords("theirs", true, false), "blamed those who brought them down");
 });

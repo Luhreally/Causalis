@@ -12,7 +12,14 @@ import {
   realmName,
   type Law,
 } from "../sim/index.ts";
-import { OUTCOME, blameWords, holdWords, type Blame, type Hold } from "../rules/index.ts";
+import {
+  OUTCOME,
+  blameWords,
+  holdWords,
+  tookWords,
+  type Blame,
+  type Hold,
+} from "../rules/index.ts";
 import { HOLD_EVENTS, homePlanet } from "../sim/index.ts";
 import { landWords } from "./generated.ts";
 import { count } from "./words.ts";
@@ -63,7 +70,11 @@ registerEventWords(HOLD_EVENTS.lesson.type, (_, e) => {
     what = d?.of
       ? `seeing ${(o?.of ?? "the fate of {them}").replace("{them}", d.of)}`
       : `after ${o?.words ?? "what befell it"}`,
-    blame = d?.blame ? blameWords(o, d.blame, !!d.of, d.well) : "weighed it";
+    blame = !d?.blame
+      ? "weighed it"
+      : d.well === undefined
+        ? blameWords(o, d.blame, !!d.of)
+        : tookWords(d.blame, !!d.of, d.well);
   return `${cap(realm(e.data))}, ${what}${how}, ${blame}${d?.change ? `, and ${d.change}` : ""}, ${year(e.t)}`;
 });
 registerEventWords(

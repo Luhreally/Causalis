@@ -1450,6 +1450,7 @@ export {
   seenWeight,
   stoodWords,
   sureOf,
+  tookWords,
   valuesOf,
   yearOf,
   SHARED,

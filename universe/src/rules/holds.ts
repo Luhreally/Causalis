@@ -294,13 +294,9 @@ export const BLAME_WORDS: Readonly<
   ],
   "the gods'": ["held it the gods' will", "held it the gods' will", "thanked the gods"],
 };
-/** A blame in words, for an outcome of its own or another's; `well`: it went well for them, as measured (else the row's own word). */
-export const blameWords = (
-  o: RuleOutcome | undefined,
-  blame: Blame,
-  seen: boolean,
-  well?: boolean,
-): string => BLAME_WORDS[blame][(well ?? o?.good) ? 2 : seen ? 1 : 0];
+/** A blame in words, for an outcome of its own or another's (a lesson kept before evidence was measured: rules/learn.ts tookWords). */
+export const blameWords = (o: RuleOutcome | undefined, blame: Blame, seen: boolean): string =>
+  BLAME_WORDS[blame][o?.good ? 2 : seen ? 1 : 0];
 
 /** Whose wants weigh as a realm weighs its numbers: the few who hold the seat, the more as its choices are kept to one. */
 export const FEW_RULE: ReadonlySet<string> = new Set(["the court", "the army", "the temple"]);

@@ -50,6 +50,7 @@ import {
   SHARED,
   yearOf,
   stoodWords,
+  tookWords,
   valuesOf,
   weighsFor,
   firstHolds,
@@ -692,7 +693,8 @@ function learn(
   if (!order) return;
   heldOf(ctx, p, order);
   const got = weigh(ctx, p, order, other ?? p, near, year, usual);
-  if (!got || got.moved < LEARNING.noted) return;
+  // (Kept where it moved some belief of its far enough to tell.)
+  if (!got || Math.max(...got.evidence.map(Math.abs)) < LEARNING.noted) return;
   const change = movedWords(got.evidence),
     // Told where it moved it far: its own fate; another's once in two generations, and a realm's fall only where it was near (its
     // seat within a few weeks' walk).
@@ -761,7 +763,10 @@ export function taughtWords(x: Taught): string {
           : `, in years it stood ${stood} and ${cameWords(x.came)}`
         : "",
     change = x.moved ? movedWords(x.moved.map((v) => v / 1000)) : "";
-  return `${x.of ? `Seeing ${what}` : `After ${what}`}${how}, it ${blameWords(o, x.blame, !!x.of, well)}${change ? `, and ${change}` : ""}`;
+  // (A piece kept before evidence was measured says only whom it blamed.)
+  const took =
+    well === undefined ? blameWords(o, x.blame, !!x.of) : tookWords(x.blame, !!x.of, well);
+  return `${x.of ? `Seeing ${what}` : `After ${what}`}${how}, it ${took}${change ? `, and ${change}` : ""}`;
 }
 
 /** What each number of a realm is now, in words, with the event that last moved it. Only reads. */

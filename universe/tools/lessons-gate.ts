@@ -357,7 +357,7 @@ if (land) {
       check(at >= 0, "a realm that learned of rule: no “from what befell them and others”");
       if (r.seen)
         check(
-          /Seeing [^.:]+, it (held|blamed|took|thanked|credited)/i.test(text),
+          /Seeing [^.:]+, it (held|blamed|took|thanked)/i.test(text),
           "a realm that learned from another's fate: whose fate it was is not told",
         );
       check(!/\{them\}|undefined|NaN/.test(text), "a lesson of rule with a word unfilled");

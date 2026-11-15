@@ -27,9 +27,12 @@ export const LEARNING = {
   prior: 0.5,
   /** How far a belief held as firmly as can be moves what is wanted of its number. */
   learn: 0.5,
-  /** A piece of evidence that moves a realm's beliefs this far in all is told as a lesson; this far, kept for its page. */
+  /**
+   * A piece of evidence that moves a realm's beliefs this far in all is told as a lesson; one that moves some one belief this
+   * far is kept for its page, and told in words as having moved it.
+   */
   told: 0.1,
-  noted: 0.05,
+  noted: 0.03,
   /** A realm tells a fate of its own as a lesson once in so many years, unless it moved it this far. */
   tellEvery: 15,
   great: 0.4,
@@ -262,6 +265,31 @@ export function blameFrom(
   return force - voice - word - trust > 0 ? "theirs" : "ours";
 }
 
+/**
+ * How a realm took a piece of evidence, in words, by how it read it (blameFrom), whether it was its own fate or another's, and
+ * whether the realm it befell fared well, as measured.
+ */
+export function tookWords(blame: Blame, seen: boolean, well: boolean): string {
+  if (blame === "the gods'") return well ? "thanked the gods" : "held it the gods' will";
+  if (blame === "weakness")
+    return well
+      ? "held it their luck, and no way for itself"
+      : "held them weak: it would not happen to it";
+  if (seen)
+    return well
+      ? "took it as an example to itself"
+      : blame === "ours"
+        ? "took it as a warning to itself"
+        : "blamed those who brought them down";
+  return well
+    ? blame === "ours"
+      ? "held it its own doing"
+      : "held it its strength"
+    : blame === "ours"
+      ? "held it its own fault"
+      : "blamed others for it";
+}
+
 // —— Readings in words: composed of how they stood and what was measured, never picked from a list of lessons ————————————
 
 /** Each number's two ends, as a realm standing there is told ("with …"). */
@@ -321,7 +349,7 @@ export function cameWords(came: readonly number[]): string {
 }
 
 /** A belief moved this far by a piece of evidence is told as moved. */
-const MOVED = 0.03;
+const MOVED = LEARNING.noted;
 
 /** What a piece of evidence moved a realm to, in words: the ends it came to hold with (at most two), or nothing. */
 export function movedWords(evidence: readonly number[]): string {
