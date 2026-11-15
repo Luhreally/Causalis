@@ -1452,3 +1452,13 @@ export {
   type RuleOutcome,
   type WaysRead,
 } from "./holds.ts";
+export {
+  FAR_STAGE_AGE,
+  FAR_STAGE_USUAL,
+  FAR_STAGE_YEARS,
+  farAct,
+  farMade,
+  farSeed,
+  type FarMade,
+  type FarStage,
+} from "./far.ts";

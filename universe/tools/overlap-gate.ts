@@ -457,6 +457,16 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
       );
       await settle(600);
     });
+  // (On a phone the act in hand folded the palette to its strip: opened whole again by its way back, the act still held.)
+  if (touch)
+    await state("palette-whole", async () => {
+      await must("the way back to the whole palette", press(".palette-back"));
+      await must(
+        "the whole palette",
+        until("the whole palette", () => seen(".palette.holding.full .palette-act"), slow(20000)),
+      );
+      await settle(600);
+    });
   await k("globalThis.causalis.palette?.putDown?.()").catch(() => undefined);
   if (await seen(".palette.open")) await press(".palette-toggle");
   await state("director", async () => {

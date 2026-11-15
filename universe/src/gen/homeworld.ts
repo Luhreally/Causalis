@@ -16,6 +16,7 @@ import {
 import {
   agesMade,
   dawnMade,
+  farMade,
   kindLives,
   lifeDraw,
   lifeKept,
@@ -25,9 +26,19 @@ import {
   peoplingMade,
   showingScale,
   worldKind,
+  type FarMade,
   type Prior,
 } from "../rules/index.ts";
-import { kindPlanet, makePlanet, makeStar, starAgeGyr, type Planet, type Star } from "./bodies.ts";
+import {
+  farPlanet,
+  farStar,
+  kindPlanet,
+  makePlanet,
+  makeStar,
+  starAgeGyr,
+  type Planet,
+  type Star,
+} from "./bodies.ts";
 import { makeSystem, type StarSystem } from "./system.ts";
 import { makeClimate, type Climate } from "./climate.ts";
 import { makeDeposits, type Deposit } from "./deposits.ts";
@@ -37,7 +48,7 @@ import { AGES, makeDeepTime, type AgeKind, type DeepTime } from "./deeptime.ts";
 import { barrenBiosphere, makeBiosphere, type Biosphere } from "./biosphere.ts";
 import { BOUNDARY, makeTectonics, type Tectonics } from "./plates.ts";
 import { nativeIronLands, worldChemistry } from "./chemistry.ts";
-import { makeLivingBiosphere } from "./living.ts";
+import { makeLivingBiosphere, seatPeople } from "./living.ts";
 import { protoGround, protoLifeWorld, protoLiquidWhy, type ProtoWorld } from "./origin.ts";
 import { worldLife } from "./life.ts";
 
@@ -68,6 +79,11 @@ export type HomeWorld = {
    * absent on Earth's and on a world kept as it was made before.
    */
   readonly physical?: true;
+  /**
+   * What it was made from, where it is a world of another star entered (rules/far.ts): its star and its numbers, its
+   * chemistry and its people as they were read from afar. Absent on a world of its own seed.
+   */
+  readonly far?: FarMade;
 };
 
 /** The planet grid's usual frequency: 40,962 cells (about 110 km apart on an Earth-sized world). */
@@ -103,14 +119,19 @@ export function generateHomeWorld(
   const made = madePrior(prior, seed.text),
     rng = new Rng(seed),
     grid = sphereGrid(frequency),
-    star = makeStar(rng, made),
+    // (A world of another star entered: its star, its numbers and its people as they were read from afar, the rest as
+    // its own seed falls. A world like ours is never one.)
+    far = prior.name === "earthlike" ? null : farMade(seed.text),
+    star = far ? farStar(far) : makeStar(rng, made),
     // (Its kind, on a world of a drawn chemistry: by its own keyed draws, never the seed's stream,
     // and its planet read through its liquid: Phase 56.)
+    // (Every world read from afar is read as one of rock and water: gen/system.ts.)
     kind =
-      (prior.chemistry ?? "drawn") === "solar"
+      far || (prior.chemistry ?? "drawn") === "solar"
         ? "rocky"
         : worldKind({ text: seed.text, mass: star.mass, ageGyr: starAgeGyr(star) }),
-    twin = makePlanet(rng, made, star),
+    drawn = makePlanet(rng, made, star),
+    twin = far ? farPlanet(drawn, far, star) : drawn,
     planet = kind === "rocky" ? twin : kindPlanet(twin, kind, star),
     // The rest of the star's system, on its own stream (the home world is untouched by it).
     system = makeSystem(rng, made, star, planet),
@@ -144,10 +165,12 @@ export function generateHomeWorld(
           water,
           deep,
           ground: groundHash,
+          ...(far ? { far } : {}),
         }
       : null,
-    life = proto
-      ? lifeDraw(seed.text) < lifeOdds(protoGround(proto), protoLiquidWhy(proto)).odds
+    own = proto
+      ? // (A people was seen there: its life took hold, whatever its odds were.)
+        far || lifeDraw(seed.text) < lifeOdds(protoGround(proto), protoLiquidWhy(proto)).odds
         ? makeLivingBiosphere({
             grid,
             rng,
@@ -174,6 +197,10 @@ export function generateHomeWorld(
             cradle: peoplingMade(seed.text).cradle,
           })
         : barrenBiosphere(grid.count),
+    // (And the people seen are its people: their body as it was read, seated where a body of theirs can live.)
+    life = far
+      ? seatPeople(own, far.body, { grid, climate, water, elevation: tectonics.elevation })
+      : own,
     deposits = makeDeposits(grid, rng, tectonics, climate, water, tectonics.elevation, deep);
   const h = new Hasher().string(prior.name).int(frequency).value(star).value(planet);
   for (const p of tectonics.plates) h.value(p);
@@ -209,6 +236,7 @@ export function generateHomeWorld(
     digest: h.hex(),
     ground,
     ...(proto ? { physical: true as const } : {}),
+    ...(far ? { far } : {}),
   };
 }
 

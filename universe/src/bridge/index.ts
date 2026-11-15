@@ -121,6 +121,7 @@ export {
   type FolkFacts,
 } from "./village.ts";
 export type { WorldGlobe } from "./worlds.ts";
+export { enteredSeed, seedShown, type EnterPlan, type Entered, type EnteredSeed } from "./enter.ts";
 export type {
   ColonyEntry,
   ColonyGrowth,
