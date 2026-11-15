@@ -20,7 +20,9 @@ export function folkFacts(g: HomeWorld): FolkFacts | null {
   if (known !== undefined) return known;
   const people = g.life.people;
   let facts: FolkFacts | null = null;
-  if (people && g.prior !== "earthlike") {
+  // (A world of another star entered: their look is made of what it was made of when they were seen from afar.)
+  if (people && g.far?.look) facts = g.far.look as FolkFacts;
+  else if (people && g.prior !== "earthlike") {
     // (Their forebears: the line the tree of life has them come of.)
     const tree = treeOfLife(g),
       them = tree.nodes.find((n) => n.kind === "people"),

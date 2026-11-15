@@ -60,6 +60,10 @@ function folkBlocksOf(world: World, f: Folk): Block[] {
         label: stage === "ruins" ? "⬇ Go down to what is left" : "⬇ Go down to them",
       },
     },
+    // (Their world played as the home world is: no one is left to play on a world of ruins.)
+    ...(stage !== "ruins"
+      ? [{ type: "tool" as const, tool: "watch.enter", args: { star: f.star, index: f.planet } }]
+      : []),
     ...(came.length
       ? [
           {

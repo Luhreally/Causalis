@@ -122,3 +122,4 @@ export { PIECE_MOST, joinJson, jsonCopy, splitJson } from "./split-json.ts";
 export { MinHeap } from "./heap.ts";
 export { fbm3, noise3 } from "./noise.ts";
 export { forNeighbours, nearestCell, sphereGrid, type SphereGrid } from "./sphere.ts";
+export { FAR_ACT, seedCarried, seedPlain, textOf, wordOf } from "./carry.ts";

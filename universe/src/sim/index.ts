@@ -81,6 +81,8 @@ export {
   type PopulationWorldOptions,
   type Spread,
 } from "./population/world.ts";
+export { knownAt, shutAge } from "./population/entered.ts";
+export { seatedCells } from "./population/world.ts";
 export {
   GOOD_COUNT,
   LEDGER,
@@ -975,6 +977,7 @@ export {
   contactBetween,
   folkArms,
   folkByRef,
+  folkGroundDraws,
   folkOf,
   folkPeak,
   folkPeople,

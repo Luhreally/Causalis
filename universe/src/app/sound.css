@@ -40,7 +40,8 @@ body.paging .sound-button.free,
 body:has(.event-window:not([hidden])) .sound-button.free,
 body:has(.life-book:not([hidden])) .sound-button.free,
 body:has(.life-window:not([hidden])) .sound-button.free,
-body:has(.life-picker:not([hidden])) .sound-button.free {
+body:has(.life-picker:not([hidden])) .sound-button.free,
+body:has(.enter-screen) .sound-button.free {
   display: none !important;
 }
 /* (And under a sheet that has the foot of the screen in the world's own view; a mode that puts the

@@ -25,6 +25,8 @@ export class WorldPanel {
   onLanding: (cell: number) => void = () => {};
   /** Down to its own people; their first meeting watched (Phase 69). */
   onFolk: (star: string, index: number) => void = () => {};
+  /** Their world entered, to be played as the home world is (asked 2026-11-13). */
+  onEnter: (star: string, index: number) => void = () => {};
   onMeeting: (star: string, index: number) => void = () => {};
   onLandfall: (star: string, index: number) => void = () => {};
   onDown: (cell: number) => void = () => {};
@@ -155,6 +157,12 @@ export class WorldPanel {
       acts.append(fight);
     }
     acts.append(down);
+    // (Their world played as the home world is. No one is left to play on a world of ruins.)
+    if (!/ruins/.test(f.stage)) {
+      const play = el("button", "colony-watch folk-play", "🌍 Play their world");
+      play.onclick = () => this.onEnter(f.star, index);
+      acts.append(play);
+    }
     return [
       el("h3", undefined, "Its own people"),
       el(

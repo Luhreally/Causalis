@@ -26,6 +26,17 @@ export function handDraw(key: string): number {
 export function lifeInputs(g: HomeWorld): LifeInputs {
   const chem = worldChemistry(g),
     kind = worldKindOf(g);
+  // (A world of another star entered: its life read from what was read of it from afar, and its hand as it was.)
+  if (g.far)
+    return {
+      kind,
+      carbon: chem.carbon,
+      metals: chem.metals,
+      silica: chem.silica,
+      star: g.star.temperature,
+      mean: g.planet.meanTemperature,
+      hand: g.far.hand,
+    };
   return {
     ...(g.physical
       ? { numbers: { o2: KINDS[kind].burns ? chem.o2 : 0, acid: kind === "sulfur" } }

@@ -154,6 +154,7 @@ export class PageWindow {
   onNear: ((cell: number, camp: number) => void) | null = null;
   /** Down to a people on its own world; their first meeting (Phase 69). */
   onFolk: ((star: string, index: number) => void) | null = null;
+  onEnter: ((star: string, index: number) => void) | null = null;
   onMeeting: ((star: string, index: number) => void) | null = null;
   onFolkLandfall: ((star: string, index: number, n: number) => void) | null = null;
   /** The first jump watched (Phase 68). */
@@ -1017,6 +1018,7 @@ export class PageWindow {
           ...(this.onRaid ? { raid: this.onRaid } : {}),
           ...(this.onNear ? { near: this.onNear } : {}),
           ...(this.onFolk ? { folk: this.onFolk } : {}),
+          ...(this.onEnter ? { enter: this.onEnter } : {}),
           ...(this.onMeeting ? { meeting: this.onMeeting } : {}),
           ...(this.onFolkLandfall ? { folkLandfall: this.onFolkLandfall } : {}),
           ...(this.onJump ? { jump: this.onJump } : {}),

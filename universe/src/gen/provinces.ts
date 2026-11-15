@@ -329,6 +329,8 @@ export function provinceWorld(fine: HomeWorld, frequency = PROVINCE_FREQUENCY): 
     life: { species: life.species, present, herdBeast, seedGrass, diversity, people },
     digest: new Hasher().string(fine.digest).string("provinces").int(frequency).hex(),
     ground: fine.ground,
+    // (What a world of another star entered was made from: rules/far.ts.)
+    ...(fine.far ? { far: fine.far } : {}),
     fine,
     provinceOf,
     centre,
