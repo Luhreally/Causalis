@@ -722,8 +722,10 @@ let sentTo: string | null = null;
         slow(30000),
       );
     await settle(500);
+    // (Whom it went to: the realm whose errands changed. A house kept at another's seat from
+    // years before reads the same on the sheet, and no one new stands at that court.)
     sentTo = await k<string | null>(
-      `globalThis.causalis.client.query({ type: "reign.envoys", args: { realm: ${JSON.stringify(ruled.ref)} } }).then((d) => d.realms.find((r) => r.errands.some((e) => e.errand === "embassy" && !e.can))?.ref ?? null)`,
+      `globalThis.causalis.client.query({ type: "reign.envoys", args: { realm: ${JSON.stringify(ruled.ref)} } }).then((d) => { const was = ${asked}; return (d.realms.find((r, i) => JSON.stringify(r.errands.map((e) => e.can)) !== JSON.stringify(was[i])) ?? d.realms.find((r) => r.errands.some((e) => e.errand === "embassy" && !e.can)))?.ref ?? null; })`,
     );
     await tap(`.reign-act[data-act="envoys"]`, "the tray's Envoy, again");
     await until("the envoy's sheet, again", () => seen(".reign-envoy"), slow(20000));

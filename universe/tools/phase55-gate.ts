@@ -910,9 +910,25 @@ await page
 await k(`globalThis.causalis.client.setSpeed(0)`);
 await page.waitForTimeout(slow(800));
 const drawnCount = await k<number>(`globalThis.causalis.watching?.() ?? 0`);
+// (The app asks the plan with the realm's key figures stood in it, Lives L1: those of them who
+// are not among the town's own drawn are added after the last, so the indices above hold.)
+const withKey = await ask<Plan>("village.plan", {
+  ref: plan.ref,
+  families: QUALITY.families,
+  folk: QUALITY.folk,
+  figures: true,
+});
+say(
+  `drawn: ${drawnCount}; the plan's ${plan.people.length} and ${withKey.people.length - plan.people.length} key figures`,
+);
 check(
-  drawnCount === plan.people.length,
-  `${drawnCount} drawn, not the plan's ${plan.people.length}`,
+  drawnCount === withKey.people.length,
+  `${drawnCount} drawn, not the plan's ${withKey.people.length} (its key figures among them)`,
+);
+check(
+  withKey.people.length >= plan.people.length &&
+    plan.people.every((p, i) => withKey.people[i]!.ref === p.ref),
+  "the plan with its key figures doesn't keep the town's own in their places",
 );
 
 // 1. The levy home.
