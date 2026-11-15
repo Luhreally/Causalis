@@ -40,6 +40,7 @@ import {
 } from "../../sim/index.ts";
 import { realmColor } from "../colors.ts";
 import { WORKS_MAKINGS, fromSteps, yearsOf, TRADE_STEPS, type Log } from "../years.ts";
+import { wayRow } from "./board.ts";
 import { realmLink } from "./names.ts";
 import { claimOf, count, item, link, part, stat, yearNow } from "./words.ts";
 import type { Reading } from "../lenses.ts";
@@ -261,10 +262,10 @@ export function realmMoneyBlocks(world: World, r: Polity): Block[] {
     );
   rows.push(
     stat(
-      "It owes",
+      "It has sold",
       owed > 0
         ? `${count(owed)} grain's worth, at ${pc(m.coupon)}: ${count(m.home)} to its own people, ${count(abroad)} abroad`
-        : "nothing it has sold",
+        : "no debt",
       {
         why: m.sale ?? null,
         ...(y
@@ -413,6 +414,41 @@ export function realmMoneyBlocks(world: World, r: Polity): Block[] {
     .filter((e): e is Ref => !!e)
     .map((e) => ({ ...item([claimOf(world, e)], e), why: e }));
   if (told.length) blocks.push({ type: "list", title: "Its last sale and refusal", items: told });
+  return blocks;
+}
+
+/** A land's realm's money, for the land's Economy tab: what its realm pays to borrow through the years, and the way to the rest. */
+export function landMoneyBlocks(world: World, cell: number): Block[] {
+  const r = politiesOf(world).of(cell),
+    m = r && r.ended === null ? financeOf(world)?.of(r.ref) : undefined;
+  if (!r || !m || !loreOf(world).get(r.seat, "banking")) return [];
+  const now = yearNow(world),
+    owed = debtOf(m),
+    rate = through(yearsOf(world)?.realms.get(r.ref)?.rate, (v) => v / 100, now, m.rate / 100),
+    out = m.shares.reduce((s, [, n]) => s + n, 0) + m.rest,
+    blocks: Block[] = [];
+  if (rate.length >= 2)
+    blocks.push({
+      type: "series",
+      title: `What ${realmName(r)} pays to borrow`,
+      units: "in a hundred a year",
+      unit: "price",
+      points: rate,
+      latest: `${(m.rate / 100).toFixed(1)} in a hundred a year`,
+      color: realmColor(r.ref),
+    });
+  blocks.push(
+    wayRow(
+      "🏦",
+      `The money of ${realmName(r)}`,
+      `${r.ref}#money`,
+      [
+        owed > 0 ? `owes ${count(owed)}` : "owes nothing",
+        `pays ${(m.rate / 100).toFixed(1)}%`,
+        ...(m.worth > 0 ? [`${(out / 100).toFixed(1)}% of its works held abroad`] : []),
+      ].join(", "),
+    ),
+  );
   return blocks;
 }
 

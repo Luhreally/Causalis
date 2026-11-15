@@ -52,6 +52,7 @@ import { tradeItems } from "./wares.ts";
 import { lineageLook, loreLook } from "./ware-looks.ts";
 import { homeLook, worksLook } from "./art.ts";
 import { landCompanyBlocks } from "./exchange.ts";
+import { landMoneyBlocks } from "./finance.ts";
 import { biomeWords } from "../kinds.ts";
 import {
   faithLink,
@@ -482,6 +483,8 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
       if (rows2.length) blocks.push({ type: "facts", title: "Works", rows: rows2 });
       // (Its works as companies, late in a world, and the way to its realm's exchange.)
       blocks.push(...landCompanyBlocks(world, cell));
+      // (Its realm's money: what it pays to borrow through the years, who holds its works, and the way to all of it.)
+      blocks.push(...landMoneyBlocks(world, cell));
       // (Its word, and what its signals do: signals.)
       const signals = landSignalStats(world, cell);
       if (signals.length) blocks.push({ type: "facts", title: "Signals", rows: signals });

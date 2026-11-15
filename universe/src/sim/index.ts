@@ -1081,6 +1081,7 @@ export {
   debtOf,
   fearOf,
   fearPress,
+  fearShuts,
   financeOf,
   financeYear,
   installFinance,

@@ -234,6 +234,17 @@ export function fearFields(world: World, realm: Ref): number {
   return f ? FINANCE.fields * (f.level / 100) : 0;
 }
 
+/**
+ * How much of the trade between two realms' lands a fear shuts (sim/economy trade): the greater of what each fears of the other's
+ * way, where it is a fear told or lately told; 0 where neither fears the other.
+ */
+export function fearShuts(store: FinanceStore, a: Ref, b: Ref): number {
+  let fear = 0;
+  for (const f of store.of(a)?.fears ?? []) if (f.of === b) fear = f.level;
+  for (const f of store.of(b)?.fears ?? []) if (f.of === a && f.level > fear) fear = f.level;
+  return fear >= FINANCE.fearGone * 100 ? fear / 100 : 0;
+}
+
 /** The sale of debt a realm paid its host from in a war, if it made one (as credit's war chest). */
 export function warBonds(world: World, realm: Ref, war: Ref): Ref | null {
   const chests = financeOf(world)?.of(realm)?.chests;
@@ -800,6 +811,9 @@ function sell(
     markets = marketsOf(world),
     wars = warsOf(world);
   if (y.rate > FINANCE.shut || y.burden >= FINANCE.full) return null;
+  // (No more at once than half of what it may yet owe: lenders count what it takes in.)
+  want = Math.min(want, Math.floor(0.5 * (FINANCE.full * r.takings - debtOf(m))));
+  if (want < 20) return null;
   const ways = waysRead(cultureOf(world).get(p.seat)),
     // (A hungry seat's own people have no grain to lend it.)
     homeShare =

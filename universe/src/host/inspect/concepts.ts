@@ -8,6 +8,7 @@ import { link, yearNow } from "./words.ts";
 import { ORDER_CONCEPTS, ORDER_CONCEPT_OF } from "./order-concepts.ts";
 import { HEALTH_CONCEPTS, HEALTH_CONCEPT_OF } from "./health-concepts.ts";
 import { CREDIT_CONCEPTS, CREDIT_CONCEPT_OF } from "./credit-concepts.ts";
+import { FINANCE_CONCEPTS, FINANCE_CONCEPT_OF } from "./finance-concepts.ts";
 import { STRIFE_CONCEPTS, STRIFE_CONCEPT_OF } from "./strife-concepts.ts";
 import { LIVES_CONCEPTS, LIVES_CONCEPT_OF } from "./lives-concepts.ts";
 
@@ -450,6 +451,7 @@ export const CONCEPTS: Readonly<Record<string, Concept>> = {
   ...ORDER_CONCEPTS,
   ...HEALTH_CONCEPTS,
   ...CREDIT_CONCEPTS,
+  ...FINANCE_CONCEPTS,
   ...STRIFE_CONCEPTS,
   ...LIVES_CONCEPTS,
 };
@@ -517,6 +519,7 @@ export const CONCEPT_OF: Readonly<Record<string, string>> = {
   ...ORDER_CONCEPT_OF,
   ...HEALTH_CONCEPT_OF,
   ...CREDIT_CONCEPT_OF,
+  ...FINANCE_CONCEPT_OF,
   ...STRIFE_CONCEPT_OF,
   ...LIVES_CONCEPT_OF,
 };

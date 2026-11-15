@@ -22,6 +22,7 @@ import {
   diplomacyYear,
   fearOf,
   fearPress,
+  fearShuts,
   financeOf,
   financeYear,
   loreOf,
@@ -185,6 +186,9 @@ test("a fear kept is read by diplomacy and by how a realm is held", () => {
     { of: b.ref, level: 60, unlike: 45, works: 70, exposed: 60, loss: 80, who: 0, drawn: 24 },
   ];
   assert.equal(fearOf(w, a.ref, b.ref), 0.6);
+  // (And by trade: so much the less passes between their lands, whichever of the two is asked.)
+  assert.equal(fearShuts(store, b.ref, a.ref), 0.6);
+  assert.equal(fearShuts(store, a.ref, a.ref), 0);
   const press = fearPress(w, a.ref)!;
   assert.equal(press.of, b.ref);
   assert.ok(

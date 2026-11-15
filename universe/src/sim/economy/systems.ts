@@ -26,6 +26,7 @@ import {
 } from "../../kernel/index.ts";
 import { cellRef, seamRef, surfaceOre, worldChemistry } from "../../gen/index.ts";
 import { loreOf } from "../lore/lore.ts";
+import { fearShuts, financeOf } from "../finance/finance.ts";
 import {
   ENGINE_GAIN,
   FOODS,
@@ -651,19 +652,25 @@ function trade(
       );
     },
     cut = new Map<War, number>();
-  const lore = loreOf(ctx.world);
+  const lore = loreOf(ctx.world),
+    money = financeOf(ctx.world);
   for (const e of edges(ctx)) {
     const war = open.length ? between(e.a, e.b) : null;
     if (war) {
       cut.set(war, (cut.get(war) ?? 0) + 1);
       continue;
     }
+    // (Where one realm fears how the other is held, the less passes between their lands, by the fear: sim/finance. Exactly as it
+    // was where neither fears the other.)
+    const ra = money ? realms.of(e.a)?.ref : undefined,
+      rb = money ? realms.of(e.b)?.ref : undefined,
+      shut = ra && rb && ra !== rb ? fearShuts(money!, ra, rb) : 0;
     const ma = markets.of(e.a),
       mb = markets.of(e.b),
       // (What both ends' signals put on the line: traders see the far price as it moves, so move more and on a narrower
       // margin. Exactly 1 before either end has the telegraph: rules/signals.ts.)
       linked = connectivityOf(Math.min(lore.effect(e.a, "signal"), lore.effect(e.b, "signal"))),
-      moved = 0.25 * (1 + SIGNAL.tradeShare * linked),
+      moved = 0.25 * (1 + SIGNAL.tradeShare * linked) * (1 - shut),
       keen = 2 * (1 + SIGNAL.tradeMargin * linked),
       // (And what a journey cost in waiting on word and finding a buyer: the haul itself is what it was.)
       dealt = 1 - SIGNAL.tradeCost * linked;
