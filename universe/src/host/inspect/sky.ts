@@ -1,5 +1,6 @@
 // The pages of the sky (Phase 10 M91): the home star and its worlds and moons, a star of the
 // cluster or of the galaxy far out, another star's world, and the people that rose on one.
+import { warmthBlocks } from "./warmth.ts";
 import { CLADES, makingWords, makingsOf } from "../../rules/index.ts";
 import {
   folkOf,
@@ -328,6 +329,8 @@ export function bodyPage(world: World, ref: string): PageModel {
         id: "overview",
         name: "Overview",
         blocks: [
+          // (Warmed or cooled by the god's hand: how far its ground has turned and what land that opened or closed.)
+          ...(home ? warmthBlocks(world) : []),
           ...(home ? [] : fillBlocks(world, { star: null, planet: -1, body: index })),
           ...(home ? [] : tradeWorldBlocks(world, null, -1, index)),
           // (How its life began, and on what (B2), high on the page where a thumb finds it.)

@@ -18,8 +18,15 @@ export const FORTUNE_WORDS: Readonly<Record<number, string>> = {
   2: "great",
   3: "the greatest",
 };
+/**
+ * The most years anything of the god's hand that lasts can be laid for (asked 2026-11-14: "be able to last for way
+ * longer like up to 1000 years"): a land's rain, harvest or sickness, a realm's fortune, a world's warmth, a sun's flare.
+ */
+export const SPAN_MOST = 1000;
 /** The most years a fortune can be laid for. */
-export const FORTUNE_YEARS = 5;
+export const FORTUNE_YEARS = SPAN_MOST;
+/** The years a slider over a span offers, shortest first: every one a whole number of years up to the most. */
+export const SPAN_STOPS = [1, 2, 3, 5, 10, 20, 50, 100, 200, 500, SPAN_MOST] as const;
 
 /** What a fortune does at its strength, a year at a time. First guesses, each a number to change. */
 export const FORTUNE_WEIGHT = {
@@ -57,7 +64,7 @@ export type Fortune = {
   readonly legitimacy: number;
   /** Years laid so far (the first, when it was cast). */
   laid: number;
-  /** The years' events, oldest first. */
+  /** The latest years' events, oldest first (the last dozen). */
   told: Ref[];
 };
 

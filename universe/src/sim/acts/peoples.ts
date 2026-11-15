@@ -568,7 +568,8 @@ export function installPeopleActs(world: World, ctx: () => PopulationContext): v
               },
             });
           layFortune(r, f, plan, t, event);
-          f.told = [...f.told, event];
+          // (The last dozen years' tellings are kept to hand: a fortune laid for a thousand years keeps no thousand.)
+          f.told = [...f.told, event].slice(-12);
           continue;
         }
         // (Laid its years, it lifts at the turn nearest its end.)

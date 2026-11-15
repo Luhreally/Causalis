@@ -51,6 +51,7 @@ export {
   goodsSpread,
   builtOverCells,
   unknownOverCells,
+  warmedFrame,
   woodsOverCells,
   frameKind,
   frameUndersea,

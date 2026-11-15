@@ -183,6 +183,7 @@ import {
   cellCenter,
   builtOverCells,
   unknownOverCells,
+  warmedFrame,
   woodsOverCells,
   frameKind,
   frameUndersea,
@@ -380,6 +381,7 @@ import {
   type LandHerds,
   type StruckMember,
   type StruckNow,
+  type WarmthMap,
   type WoodsMap,
 } from "../bridge/index.ts";
 import type { WealthBook, WealthMeasure } from "../bridge/index.ts";
@@ -2107,9 +2109,41 @@ async function runPlanetPage(): Promise<void> {
   /** The globe's colours as its lens paints them (the land's "as the map" shows them, M95). */
   let globeLensColors: Uint8Array | null = null;
   let globeSurfaceKey = "";
+  /** The world's ground as the god's warming has turned it (asked 2026-11-14): the degrees, and the globe's frame drawn by them. */
+  let groundWarm = 0,
+    groundTurned: readonly number[] = [],
+    warmAsked = -1,
+    warmFrame: {
+      of: NonNullable<ReturnType<typeof client.latestFrame>>;
+      warm: number;
+      frame: NonNullable<ReturnType<typeof client.latestFrame>>;
+    } | null = null;
+  function readWarmth(force = false): void {
+    if (scale !== "globe") return;
+    const y = client.status?.t ?? 0;
+    if (!force && warmAsked >= 0 && y - warmAsked < YEAR && y >= warmAsked) return;
+    warmAsked = y;
+    void client
+      .query<WarmthMap>({ type: "climate.warmth", args: { have: groundWarm } })
+      .then((map) => {
+        if (map.warm === groundWarm) return;
+        groundWarm = map.warm;
+        groundTurned = map.turned ?? [];
+        warmFrame = null;
+        paintGlobe();
+      })
+      .catch(() => undefined);
+  }
   const paintGlobe = () => {
-    const frame = client.latestFrame("globe");
-    if (!frame) return;
+    const made = client.latestFrame("globe");
+    if (!made) return;
+    if (groundWarm && (warmFrame?.of !== made || warmFrame.warm !== groundWarm))
+      warmFrame = {
+        of: made,
+        warm: groundWarm,
+        frame: warmedFrame(made, groundWarm, groundTurned),
+      };
+    const frame = groundWarm ? warmFrame!.frame : made;
     const surfaceKey = (frame.meta as { surfaceKey?: string }).surfaceKey ?? "";
     if (!globe.built || globeSurfaceKey !== surfaceKey) {
       globe.build(
@@ -2656,6 +2690,7 @@ async function runPlanetPage(): Promise<void> {
     foodPrices = new Map(entries.map((e) => [e.cell, e.food]));
     trade = new Map(entries.map((e) => [e.cell, e.trade]));
     readWoods();
+    readWarmth();
     for (const k of [
       "unrest",
       "strength",

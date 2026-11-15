@@ -15,7 +15,7 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { cellRef } from "../../gen/index.ts";
-import { FORTUNE_STRENGTHS } from "./fortune.ts";
+import { FORTUNE_STRENGTHS, SPAN_MOST } from "./fortune.ts";
 
 export const ACT_KINDS = ["rain", "harvest", "plague", "inspire"] as const;
 export type ActKind = (typeof ACT_KINDS)[number];
@@ -79,8 +79,13 @@ export type Crater = { readonly cell: number; readonly year: number; readonly ev
 export class ActStore implements StateStore {
   readonly name = "acts.active";
   private list: Act[] = [];
-  /** The same acts by land, in the order laid (derived: neither hashed nor saved). */
+  /**
+   * The acts that may still be in force, by land, in the order laid, and the latest of each kind a land ever had
+   * (derived: neither hashed nor saved). An act ended is let go of here when another is laid on its land, so a fortune
+   * laid again each year for a thousand years is read no slower in its last year than in its first.
+   */
   private byCell = new Map<number, Act[]>();
+  private lastOf = new Map<string, Act>();
   /** The craters meteors left, on the map for ever (hashed and saved only once there are any). */
   private pits: Crater[] = [];
   /**
@@ -91,10 +96,37 @@ export class ActStore implements StateStore {
   private natures = new Map<string, { traits: Record<string, number>; events: Ref[] }>();
 
   add(a: Act): void {
+    // (The same word laid on again as its last year ends, as a fortune's is at each year's turn: one act, a year longer,
+    // kept under the event that first laid it. Never an act the world laid of itself, which no command stands behind
+    // twice on a land.)
+    const was = this.lastOf.get(`${a.cell}:${a.kind}`);
+    if (
+      was &&
+      was.command === a.command &&
+      was.sign === a.sign &&
+      was.strength === a.strength &&
+      was.until === a.from &&
+      was.event !== a.event &&
+      a.until > a.from
+    ) {
+      const longer: Act = { ...was, until: a.until },
+        at = this.list.lastIndexOf(was);
+      if (at >= 0) {
+        this.list[at] = longer;
+        this.index(longer, was);
+        return;
+      }
+    }
     this.list.push(a);
-    const here = this.byCell.get(a.cell);
-    if (here) here.push(a);
-    else this.byCell.set(a.cell, [a]);
+    this.index(a);
+  }
+
+  private index(a: Act, instead?: Act): void {
+    // (Acts ended by the time this one begins are no longer read: `at` is only ever asked of the present.)
+    const here = (this.byCell.get(a.cell) ?? []).filter((x) => x !== instead && x.until > a.from);
+    here.push(a);
+    this.byCell.set(a.cell, here);
+    this.lastOf.set(`${a.cell}:${a.kind}`, a);
   }
 
   all(): readonly Act[] {
@@ -135,6 +167,12 @@ export class ActStore implements StateStore {
     return found;
   }
 
+  /** The act of a kind laid on a province latest, in force or ended (null: none ever was). */
+  latest(cell: number, kind: ActKind, t: number): Act | null {
+    const a = this.lastOf.get(`${cell}:${kind}`);
+    return a && a.from <= t ? a : null;
+  }
+
   /** Acts are part of the story for ever, and a crater's meteor. */
   pinned(): Ref[] {
     return [
@@ -166,7 +204,15 @@ export class ActStore implements StateStore {
     };
     this.list = [];
     this.byCell.clear();
-    for (const a of s.acts) this.add(a);
+    this.lastOf.clear();
+    // (As they were kept: nothing is joined on the way in, and every one is indexed, the latest of a kind last.)
+    for (const a of s.acts) {
+      this.list.push(a);
+      const here = this.byCell.get(a.cell);
+      if (here) here.push(a);
+      else this.byCell.set(a.cell, [a]);
+      this.lastOf.set(`${a.cell}:${a.kind}`, a);
+    }
     this.pits = [...(s.craters ?? [])];
     this.natures = new Map(
       (s.natures ?? []).map(([k, v]) => [k, { traits: { ...v.traits }, events: [...v.events] }]),
@@ -189,13 +235,46 @@ export const ACT_STRENGTH = {
   healing: 0.5,
 } as const;
 
+/**
+ * What a taking act laid past the strength of old reaches beyond the year's rain and harvest (asked 2026-11-14: "the
+ * god's hand must really do what its sliders say": the greatest drought or blight held five years killed no one on a
+ * land with two years' bread and neighbours to buy from). Stores and trade buy time, not immunity. Nothing here is
+ * reached by a world no god touches: no natural year's rain falls below the wells' line, and no act of the world's
+ * own is laid with a strength.
+ */
+export const ACT_REACH = {
+  /** A blight past the strength of old is in the granaries too: of every food kept, the share rotted each month, for each strength past 1. */
+  rot: 0.15,
+  /** Rain under this share of a usual year's (the driest a year brings of itself) and the wells and streams begin to fail. */
+  wells: 0.35,
+  /** The years ground water lasts: a drought's thirst comes on over them, from the day it was laid. */
+  wellYears: 3,
+  /** How steeply thirst follows the rain's shortfall under the line. */
+  thirst: 1.6,
+} as const;
+/** Of the food a blighted land keeps, the share rotted in a month (0 at the strength of old and under, and for a blight of the world's own). */
+export const blightRot = (act: Act | null): number =>
+  act && act.sign < 0 && act.strength !== undefined && act.strength > 1
+    ? Math.min(0.9, ACT_REACH.rot * (act.strength - 1))
+    : 0;
+/**
+ * Of a land's people, the share its wells and streams still water (in thousandths, as `fed` is) under a drought laid
+ * `years` ago with the year's rain at `rain` of a usual one: 1000 at or over the wells' line.
+ */
+export function watered(rain: number, years: number): number {
+  if (rain >= ACT_REACH.wells) return 1000;
+  const short = Math.min(1, ACT_REACH.thirst * (1 - rain / ACT_REACH.wells)),
+    reach = Math.min(1, Math.max(0, years) / ACT_REACH.wellYears);
+  return Math.round(1000 * (1 - short * reach));
+}
+
 function validate(args: unknown, count: number, peopled: (cell: number) => boolean): string | null {
   const a = args as Partial<ActArgs> | null;
   if (!a || !Number.isInteger(a.cell) || a.cell! < 0 || a.cell! >= count)
     return "cell must be a place on the world";
   if (a.sign !== 1 && a.sign !== -1) return "sign must be 1 or -1";
-  if (!Number.isInteger(a.years) || a.years! < 1 || a.years! > 10)
-    return "years must be from 1 to 10";
+  if (!Number.isInteger(a.years) || a.years! < 1 || a.years! > SPAN_MOST)
+    return `years must be from 1 to ${SPAN_MOST}`;
   const strong = strengthProblem(a);
   if (strong) return strong;
   if (!peopled(a.cell!)) return "no one lives there";

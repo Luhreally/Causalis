@@ -65,6 +65,9 @@ export type ActsMap = { readonly year: number; readonly acts: readonly ActMark[]
  * against its usual, and the god's acts on it now — for the near views to play day by day.
  */
 /** Each land's woods now and at first, in hundredths of it (E1): every land that has or had any. */
+/** How far the god's warming has turned a world's ground, and the spots whose biome turned with it (spot, biome, ...). */
+export type WarmthMap = { readonly warm: number; readonly turned?: readonly number[] };
+
 export type WoodsMap = {
   /** Changes when they do. */
   readonly key: string;

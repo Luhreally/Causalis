@@ -120,7 +120,7 @@ test("an act where no one lives, or for too long, is refused", () => {
     /no one lives there/,
   );
   assert.throws(
-    () => world.submit("act.plague", { cell: HOME, sign: -1, years: 40 }),
+    () => world.submit("act.plague", { cell: HOME, sign: -1, years: 1001 }),
     /years must be/,
   );
   assert.throws(
