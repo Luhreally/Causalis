@@ -425,6 +425,7 @@ function yieldRead(ctx: PopulationContext, r: Read, year: number) {
       word: r.way[2],
       trust: r.trust,
       crisis: !!credit?.crisis && year - credit.crisis.year < CREDIT.crisis,
+      unpaid: r.m.missed,
     });
   return { ...y, burden, takings: r.takings };
 }
@@ -695,14 +696,14 @@ export function financeYear(ctx: PopulationContext, t: SimTime): void {
     } else m.missed = 0;
     const y = yieldRead(ctx, r, year);
     m.rate = Math.round(y.rate * 10_000);
-    // Refused: unpaid too long; or crushed by it; or beaten in a war with years of takings owed.
+    // Refused: unpaid too long; or unpaid and crushed by it; or beaten in a war with a year's takings owed and unpaid.
     const owed = debtOf(m),
       beaten = wars.hotOf(p.ref).some((w) => w.ended === year && lost(world, w, p.ref)),
       refuse =
         m.held.length > 0 &&
         (m.missed >= FINANCE.missed ||
-          (m.missed >= 1 && y.burden >= FINANCE.crushed) ||
-          (beaten && y.burden >= FINANCE.full));
+          (m.missed >= FINANCE.late && y.burden >= FINANCE.crushed) ||
+          (beaten && m.missed >= 1 && y.burden >= FINANCE.beaten));
     if (refuse) refuseDebt(ctx, store, r, reads, year, owed, beaten);
   }
 

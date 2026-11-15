@@ -66,9 +66,17 @@ export const FINANCE = {
   holders: 4,
   /** A part of each debt is paid back each year: one in this many. */
   term: 15,
-  /** A realm that paid less than half its interest this many years running refuses the debt; or owing this many years' takings, having missed one. */
-  missed: 4,
-  crushed: 4,
+  /**
+   * A realm refuses its debt: having paid less than half its interest `missed` years running (a third of a generation); or `late`
+   * years running while it owes `crushed` years of what it takes in; or beaten in a war, a year unpaid, owing `beaten` years' takings.
+   * Each year unpaid makes new debt dearer by `arrears`, up to `arrearsMost` of them.
+   */
+  missed: 8,
+  late: 2,
+  crushed: 3,
+  beaten: 1,
+  arrears: 0.01,
+  arrearsMost: 6,
   /** Whom a realm cost is not its buyer again for this long. */
   burnt: 30,
   /** A realm that fears another this much borrows to arm against it: this share of a season's keep for its host, by its fear. */
@@ -210,6 +218,8 @@ export type Borrower = {
   readonly trust: number;
   /** Credit dear: a house of lending failed lately. */
   readonly crisis: boolean;
+  /** Years running it has left its interest unpaid (absent: none). */
+  readonly unpaid?: number;
 };
 
 /** One part of a sum, for a page to show. */
@@ -238,6 +248,10 @@ export function yieldOf(b: Borrower): { rate: number; parts: Part[] } {
       { name: "how little it binds itself", value: FINANCE.wary * (1 - clamp(b.trust)) },
       { name: "how freely word of its books moves", value: -FINANCE.seen * clamp(b.word) },
       { name: "credit dear since a house failed", value: b.crisis ? FINANCE.crisis : 0 },
+      {
+        name: "interest it has left unpaid",
+        value: FINANCE.arrears * Math.min(FINANCE.arrearsMost, Math.max(0, b.unpaid ?? 0)),
+      },
     ],
     rate =
       Math.round(
