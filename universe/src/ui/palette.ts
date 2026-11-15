@@ -526,6 +526,9 @@ export class GodPalette {
   private readonly words = el("span", "palette-words");
   private readonly spans = el("label", "palette-years");
   private readonly spanInput = el("input");
+  private readonly back = el("button", "palette-back", "▴");
+  /** What the years and the strength stand at, for the strip (where the sliders' own words are put away). */
+  private readonly vals = el("span", "palette-vals");
   private readonly spanWords = el("span", "palette-years-words");
   /** The choices an act asks for before it falls: which way, which way pushed; which tenet. */
   private readonly choices = el("span", "palette-choices");
@@ -629,7 +632,14 @@ export class GodPalette {
     this.spans.append(el("span", "palette-years-label", "For:"), span, this.spanWords);
     this.strength.hidden = true;
     this.does.hidden = true;
-    this.line.append(this.words, this.spans, this.strength, this.choices);
+    // (On a phone, an act in hand folds the palette to a strip, so the globe is free to touch: this opens it whole
+    // again, and folds it back. Asked 2026-11-15.)
+    this.back.title = "The whole palette";
+    this.back.setAttribute("aria-label", "The whole palette");
+    this.back.onclick = () => {
+      this.element.classList.toggle("full");
+    };
+    this.line.append(this.back, this.words, this.vals, this.spans, this.strength, this.choices);
     const bar = el("div", "palette-bar");
     bar.append(this.tabs, this.tiles);
     this.element.append(this.line, this.does, bar);
@@ -1054,6 +1064,11 @@ export class GodPalette {
   /** The line above the palette: what the act in hand will do, or asks for. */
   private say(problem?: string, tone?: "bad"): void {
     const a = this.act;
+    // (Held: on a phone the palette is a strip while an act is in hand; a new act taken folds it again.)
+    if (!a || this.element.dataset.held !== a.id) this.element.classList.remove("full");
+    this.element.classList.toggle("holding", !!a);
+    if (a) this.element.dataset.held = a.id;
+    else delete this.element.dataset.held;
     this.spans.hidden = !a?.lasting && !a?.fortune && !a?.span;
     this.strength.hidden = !a?.fortune && !a?.strength;
     this.drawYears();
@@ -1071,6 +1086,13 @@ export class GodPalette {
             : (FORTUNE_WORDS[st] ?? "");
       this.strength.dataset.strength = `${st}`;
     }
+    const vals = [
+      this.spans.hidden ? "" : (this.spanWords.textContent ?? ""),
+      this.strength.hidden ? "" : (this.strengthWords.textContent ?? ""),
+    ]
+      .filter((x) => x)
+      .join(" · ");
+    if (this.vals.textContent !== vals) this.vals.textContent = vals;
     const does = a && !a.fortune ? actDoes(a, this.strengthFor(a), this.yearsFor(a), this.way) : "";
     this.does.hidden = !does;
     if (this.does.textContent !== does) this.does.textContent = does;
