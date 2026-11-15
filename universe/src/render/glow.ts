@@ -59,7 +59,12 @@ export function billboard(
     mi = new pc.MeshInstance(
       pc.Mesh.fromGeometry(
         stage.device,
-        new pc.PlaneGeometry({ halfExtents: new pc.Vec2(radius, radius) }),
+        // (Flat: two triangles draw what the plane's usual fifty did.)
+        new pc.PlaneGeometry({
+          halfExtents: new pc.Vec2(radius, radius),
+          widthSegments: 1,
+          lengthSegments: 1,
+        }),
       ),
       material,
     );

@@ -89,35 +89,107 @@ async function pipe(
 /** What a save written in pieces begins with (a save in one text begins "{"). */
 const SPLIT_HEAD = "CAUSALIS-SPLIT 1\n";
 
+/** Text sent to the gzip in runs of about this many characters, so that what is encoded at once stays small. */
+const RUN = 4 * 1024 * 1024;
+
 /**
- * A save document as gzipped UTF-8 JSON: one text, or, where that would be longer than an engine's longest string
- * (or than `most`), a line saying so and then its pieces a line each (kernel/split-json.ts), gzipped as they come.
+ * A document's one JSON text, as JSON.stringify(doc) would write it, given out a part at a time: each store's text
+ * on its own, so the whole is never one string (a far world's is hundreds of megabytes: held whole, then again as
+ * bytes, it was most of what a save took of memory). Null where it is past `most` characters or a part of it is
+ * longer than an engine's longest string: then it is written in pieces instead.
  */
-export async function encodeSave(doc: SaveDocument, most = PIECE_MOST * 4): Promise<Uint8Array> {
-  let text: string | null = null;
-  try {
-    text = JSON.stringify(doc);
-  } catch (error) {
-    if (!(error instanceof RangeError)) throw error;
+async function wholeText(
+  doc: SaveDocument,
+  emit: (text: string) => Promise<void>,
+  most: number,
+): Promise<true | null> {
+  let length = 0,
+    sep = "{";
+  const text = (value: unknown): string | undefined | null => {
+      try {
+        return JSON.stringify(value);
+      } catch (error) {
+        if (error instanceof RangeError) return null;
+        throw error;
+      }
+    },
+    put = async (t: string): Promise<boolean> => {
+      length += t.length;
+      if (length > most) return false;
+      for (let at = 0; at < t.length; at += RUN) await emit(t.slice(at, at + RUN));
+      return true;
+    };
+  for (const [key, value] of Object.entries(doc)) {
+    const stores =
+      key === "stores" && value !== null && typeof value === "object" && !Array.isArray(value);
+    if (!stores) {
+      const t = text(value);
+      if (t === null) return null;
+      // (As JSON leaves out what it has no text for.)
+      if (t === undefined) continue;
+      if (!(await put(`${sep}${JSON.stringify(key)}:${t}`))) return null;
+      sep = ",";
+      continue;
+    }
+    if (!(await put(`${sep}${JSON.stringify(key)}:`))) return null;
+    sep = ",";
+    let inner = "{";
+    for (const [name, chunk] of Object.entries(value as Record<string, unknown>)) {
+      const t = text(chunk);
+      if (t === null) return null;
+      if (t === undefined) continue;
+      if (!(await put(`${inner}${JSON.stringify(name)}:${t}`))) return null;
+      inner = ",";
+    }
+    if (!(await put(inner === "{" ? "{}" : "}"))) return null;
   }
-  if (text !== null && text.length <= most)
-    return pipe(new TextEncoder().encode(text), new CompressionStream("gzip"));
-  text = null;
+  return (await put(sep === "{" ? "{}" : "}")) ? true : null;
+}
+
+/** What is written to a gzip, gathered: its writer, and the bytes once it is closed. */
+function gzipped(): {
+  write: (text: string) => Promise<void>;
+  done: () => Promise<Uint8Array>;
+  drop: () => Promise<void>;
+} {
   const gzip = new CompressionStream("gzip"),
     out = new Response(gzip.readable).arrayBuffer(),
     writer = gzip.writable.getWriter(),
     encoder = new TextEncoder();
-  await writer.write(encoder.encode(SPLIT_HEAD));
+  // (A write let go of is told of by done's or drop's own.)
+  void out.catch(() => {});
+  return {
+    write: (text) => writer.write(encoder.encode(text)),
+    done: async () => {
+      await writer.close();
+      return new Uint8Array(await out);
+    },
+    drop: async () => {
+      await writer.abort().catch(() => {});
+    },
+  };
+}
+
+/**
+ * A save document as gzipped UTF-8 JSON: one text (JSON.stringify's, written a store at a time), or, where that
+ * would be longer than an engine's longest string (or than `most`), a line saying so and then its pieces a line
+ * each (kernel/split-json.ts), gzipped as they come.
+ */
+export async function encodeSave(doc: SaveDocument, most = PIECE_MOST * 4): Promise<Uint8Array> {
+  const whole = gzipped();
+  if (await wholeText(doc, whole.write, most)) return whole.done();
+  await whole.drop();
+  const split = gzipped();
+  await split.write(SPLIT_HEAD);
   await splitJson(
     doc,
     async (piece) => {
-      await writer.write(encoder.encode(piece));
-      await writer.write(encoder.encode("\n"));
+      await split.write(piece);
+      await split.write("\n");
     },
     Math.min(most, PIECE_MOST),
   );
-  await writer.close();
-  return new Uint8Array(await out);
+  return split.done();
 }
 
 /** The document encodeSave wrote. */
@@ -162,6 +234,13 @@ function joinSplit(bytes: Uint8Array): SaveDocument {
   }
 }
 
+/** Whether two runs of bytes are the same (a plain walk: a far world's save is tens of millions of them). */
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
 type SlotIndex = {
   latest: "a" | "b";
   count: number;
@@ -190,7 +269,7 @@ export class SaveSlots {
       bytes = await encodeSave(doc);
     await this.store.put(this.key(slot), bytes);
     const back = await this.store.get(this.key(slot));
-    if (!back || back.length !== bytes.length || back.some((b, i) => b !== bytes[i]))
+    if (!back || !sameBytes(back, bytes))
       throw new SaveError("the save did not read back as written; the previous save is untouched");
     const next: SlotIndex = {
       latest: slot,

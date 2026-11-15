@@ -162,7 +162,7 @@ export function godDone(d: Record<string, unknown> | null): string {
     case "people":
       return `${many(Number(d.people))} more people were in the lands of ${of}${d.share === undefined ? "" : `, ${againWords(Number(d.share))}`}`;
     case "town":
-      return `a town of ${many(Number(d.people))} stood up on an empty land beside ${at}, and is of ${of}`;
+      return `a town of ${many(Number(d.people))} stood up on an empty land beside ${at}, and is of ${of}${typeof d.feeds === "number" && Number(d.people) > d.feeds * 1.2 ? `: more than the ${many(d.feeds)} its land feeds` : ""}`;
     case "craft":
     case "age": {
       const crafts = Array.isArray(d.crafts) ? (d.crafts as string[]).map(craftName) : [];

@@ -183,6 +183,7 @@ import {
   cellCenter,
   builtOverCells,
   unknownOverCells,
+  warmedFrame,
   woodsOverCells,
   frameKind,
   frameUndersea,
@@ -380,6 +381,7 @@ import {
   type LandHerds,
   type StruckMember,
   type StruckNow,
+  type WarmthMap,
   type WoodsMap,
 } from "../bridge/index.ts";
 import type { WealthBook, WealthMeasure } from "../bridge/index.ts";
@@ -2107,9 +2109,56 @@ async function runPlanetPage(): Promise<void> {
   /** The globe's colours as its lens paints them (the land's "as the map" shows them, M95). */
   let globeLensColors: Uint8Array | null = null;
   let globeSurfaceKey = "";
+  /** The world's ground as the god's warming has turned it (asked 2026-11-14): the degrees, and the globe's frame drawn by them. */
+  let groundWarm = 0,
+    groundTurned: readonly number[] = [],
+    warmAsked = -1,
+    warmFrame: {
+      of: NonNullable<ReturnType<typeof client.latestFrame>>;
+      warm: number;
+      frame: NonNullable<ReturnType<typeof client.latestFrame>>;
+    } | null = null;
+  /** Whether the clock has come to rest at a moment the ground was not read at (paused, or a run that arrived). */
+  let warmSeen = -1;
+  const warmRest = (y: number): boolean => {
+    const rest = y === warmSeen;
+    warmSeen = y;
+    return rest;
+  };
+  function readWarmth(force = false): void {
+    if (scale !== "globe") return;
+    const y = client.status?.t ?? 0;
+    // (A quarter of a degree is the ground's step: asked again each year that passes, and at any other moment the
+    // clock stands at, so what is drawn at rest is that moment's.)
+    if (
+      !force &&
+      warmAsked >= 0 &&
+      y >= warmAsked &&
+      (y === warmAsked || (y - warmAsked < YEAR && !warmRest(y)))
+    )
+      return;
+    warmAsked = y;
+    void client
+      .query<WarmthMap>({ type: "climate.warmth", args: { have: groundWarm } })
+      .then((map) => {
+        if (map.warm === groundWarm) return;
+        groundWarm = map.warm;
+        groundTurned = map.turned ?? [];
+        warmFrame = null;
+        paintGlobe();
+      })
+      .catch(() => undefined);
+  }
   const paintGlobe = () => {
-    const frame = client.latestFrame("globe");
-    if (!frame) return;
+    const made = client.latestFrame("globe");
+    if (!made) return;
+    if (groundWarm && (warmFrame?.of !== made || warmFrame.warm !== groundWarm))
+      warmFrame = {
+        of: made,
+        warm: groundWarm,
+        frame: warmedFrame(made, groundWarm, groundTurned),
+      };
+    const frame = groundWarm ? warmFrame!.frame : made;
     const surfaceKey = (frame.meta as { surfaceKey?: string }).surfaceKey ?? "";
     if (!globe.built || globeSurfaceKey !== surfaceKey) {
       globe.build(
@@ -2263,6 +2312,8 @@ async function runPlanetPage(): Promise<void> {
     lens = l;
     mapModes.lens = l;
     mapModes.say(null);
+    // (The Land and Warmth lenses draw the ground as the god's warming has turned it: read as the lens is taken.)
+    if (l === "terrain" || l === "temperature") readWarmth(true);
     if (l === "diplomacy") void readStandings();
     if (l === "ground" && !groundPaint.size)
       void client.query<{ cell: number; rock: string }[]>({ type: "ground.map" }).then((map) => {
@@ -2375,6 +2426,8 @@ async function runPlanetPage(): Promise<void> {
     }),
     lensColorAt: (spot: number) =>
       globeLensColors ? [...globeLensColors.slice(spot * 4, spot * 4 + 3)] : null,
+    // (The degrees the globe draws its ground turned by: for the gates.)
+    groundWarm: () => groundWarm,
   });
   /** The chosen good in store a head, land by land. */
   function readGoods(): void {
@@ -2656,6 +2709,7 @@ async function runPlanetPage(): Promise<void> {
     foodPrices = new Map(entries.map((e) => [e.cell, e.food]));
     trade = new Map(entries.map((e) => [e.cell, e.trade]));
     readWoods();
+    readWarmth();
     for (const k of [
       "unrest",
       "strength",
@@ -5876,14 +5930,16 @@ async function runPlanetPage(): Promise<void> {
   // (Asked for more than it can give, a world goes at what it gives: a date carried forward at the speed
   // asked for ran on ahead, by 54 years at a hundred years a second on a slow machine, and stepped back
   // when the clock stopped.)
-  client.onStatus(
-    (s) =>
-      (clock = {
-        t: s.t,
-        wall: performance.now(),
-        speed: s.achieved > 0 && s.achieved < s.speed * 0.7 ? s.achieved : s.speed,
-      }),
-  );
+  client.onStatus((s) => {
+    clock = {
+      t: s.t,
+      wall: performance.now(),
+      speed: s.achieved > 0 && s.achieved < s.speed * 0.7 ? s.achieved : s.speed,
+    };
+    // (The ground as the god's warming has turned it, read as the years go by and once more where the clock comes to
+    // rest: found 2026-11-14, a world run on and paused kept the Warmth lens of the year it was last read in.)
+    readWarmth();
+  });
   /** The sim time now, carried forward smoothly between the host's reports. */
   const now = () => {
     const ahead = Math.min(1, (performance.now() - clock.wall) / 1000) * clock.speed;

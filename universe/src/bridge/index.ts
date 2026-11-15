@@ -245,7 +245,15 @@ export {
 } from "./body.ts";
 export { parseSeatRef, seatRef, type KinCard } from "./kin.ts";
 export type { Campaign, CampaignBattle, WarAge } from "./campaign.ts";
-export type { ActKindShown, ActMark, ActsMap, LandSky, PaletteLand, WoodsMap } from "./acts.ts";
+export type {
+  ActKindShown,
+  ActMark,
+  ActsMap,
+  LandSky,
+  PaletteLand,
+  WarmthMap,
+  WoodsMap,
+} from "./acts.ts";
 export type { HerdPass, LandBeast, LandDen, LandHerd, LandHerds } from "./herds.ts";
 export type { GenesisPlan, MeadowPlan } from "./genesis.ts";
 export type { DepositPage, PlatePage, RealmPage, SpeciesPage } from "./pages.ts";

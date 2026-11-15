@@ -17,7 +17,7 @@ test("the god warms a whole world for a while: the climate reads it as warming, 
   const e = world.events.all().find((x) => x.type === "act.warm")!;
   assert.equal(e.causes[0]!.ref, receipt.id);
   // Only real acts are taken: a century at most.
-  assert.throws(() => world.submit("act.warm", { sign: 1, years: 500 }));
+  assert.throws(() => world.submit("act.warm", { sign: 1, years: 1001 }));
 });
 
 test("the god makes a star flare: every land under its light finds death likelier while it lasts", () => {

@@ -26,6 +26,14 @@ export function starColor(s: Pick<ClusterStar, "temperature" | "remnant">): Rgb3
 }
 
 /** The groups a renderer draws: one colour each, every star in its group placed and sized. */
+/** A plan's stars by their refs: made once a plan (a large sky holds thousands, and its marks are placed every frame). */
+const BY_REF = new WeakMap<ClusterPlan, ReadonlyMap<string, ClusterPlan["stars"][number]>>();
+export function starsByRef(plan: ClusterPlan): ReadonlyMap<string, ClusterPlan["stars"][number]> {
+  let at = BY_REF.get(plan);
+  if (!at) BY_REF.set(plan, (at = new Map(plan.stars.map((s) => [s.ref, s]))));
+  return at;
+}
+
 export function clusterSpec(plan: ClusterPlan): {
   readonly color: Rgb3;
   readonly stars: readonly {
@@ -102,7 +110,7 @@ export function voyageMarks(
   /** Each fleet's lead ship, where its counter stands. */
   readonly heads: readonly FleetHead[];
 } {
-  const at = new Map(plan.stars.map((s) => [s.ref, s]));
+  const at = starsByRef(plan);
   const ships: VoyageMark[] = [],
     rings: VoyageMark[] = [],
     fleets: VoyageMark[] = [],
@@ -207,7 +215,7 @@ export function peopleMarks(
       landings: [],
     };
   if (!p) return empty;
-  const at = new Map(plan.stars.map((s) => [s.ref, s])),
+  const at = starsByRef(plan),
     place = (ref: string): [number, number, number] | null => {
       if (ref === p.home) return [0, 0, 0];
       const s = at.get(ref);
