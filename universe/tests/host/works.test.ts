@@ -149,8 +149,12 @@ test("a town's founders break out the last day's castings, pour each mould at it
 
 test("in the modern age the works' machinists make parts at the presses and lathes and set them on the bench", () => {
   world.runTo(1050 * YEAR);
-  const towns = plansNow().filter((p) => !!floorOf(p));
-  assert.ok(towns.length > 0, "a town with works in the modern age at 1050");
+  // (As with the foundries: a town whose stores are lean that week works at no craft, its
+  // machinists out for food with the rest. Of first light's forty greatest towns at 1050, three
+  // in four are lean in spring, with its money and fears or with them all turned off: the works
+  // read are those of the towns that are fed.)
+  const towns = plansNow().filter((p) => !!floorOf(p) && !leanOn(p, 1050 * 365 + 120));
+  assert.ok(towns.length > 0, "a fed town with works in the modern age at 1050");
   let days = 0,
     pages = 0;
   for (const plan of towns.slice(0, 8)) {

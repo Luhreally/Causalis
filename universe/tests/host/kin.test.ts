@@ -197,8 +197,12 @@ test("one fallen: killed at the battle's hour by a blow to a member of his plan;
       // (Told from the turn, though watched fought at its hour the morning after: not before.)
       const turn = (roll.year + 1) * YEAR;
       assert.ok(!/^Killed/.test(kinCard(world, e.ref, turn - 1).body ?? ""), "killed before");
-      assert.match(kinCard(world, e.ref, turn).body ?? "", /^Killed by a blow to /);
-      assert.match(kinCard(world, e.ref, d.at).body ?? "", /^Killed by a blow to /);
+      // (A share of a battle's dead lose a part to the blow that killed them: told as what it took.)
+      const killed = d.cut
+        ? /^Killed by a (blow|shot) that took off /
+        : /^Killed by a (blow|shot|burn) to /;
+      assert.match(kinCard(world, e.ref, turn).body ?? "", killed);
+      assert.match(kinCard(world, e.ref, d.at).body ?? "", killed);
       // (In the battle as it is fought: as its blows so far leave him, not yet as its end does.)
       const during = (struck: { member: "arm-l"; lost: boolean; fell: boolean }[]) =>
         kinCard(world, e.ref, d.at + 600, { event: roll.event, struck }).body ?? "";
@@ -239,7 +243,9 @@ test("where history struck a battle's named men: the blow that killed each falle
     for (const e of [...roll.attacker.fell, ...roll.defender.fell]) {
       const s = struck[e.ref];
       assert.ok(s, `${e.ref} fell, struck nowhere`);
-      assert.deepEqual(s, { member: bodyOf(world, e.ref)!.death!.member, cut: false }, e.ref);
+      // (Cut off on the field where the blow that killed him took it: the same record's word.)
+      const d = bodyOf(world, e.ref)!.death!;
+      assert.deepEqual(s, { member: d.member, cut: !!d.cut }, e.ref);
       fell++;
     }
     for (const e of [...roll.attacker.hurt, ...roll.defender.hurt]) {

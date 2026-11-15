@@ -54,7 +54,7 @@ type Battle = NonNullable<ReturnType<typeof battleBy>>["b"];
  * year from 30), `second` battle seconds in: the moment before.
  */
 function comeTo(
-  ok: (b: Battle) => boolean,
+  ok: (b: Battle, held: boolean) => boolean,
   second = 20,
 ): { world: World; event: string; year: number } {
   const world = build();
@@ -62,7 +62,14 @@ function comeTo(
     world.runTo((y + 1) * YEAR + 1);
     for (const w of warsOf(world).all())
       for (const b of w.battles)
-        if (b.year === y && b.fielded && b.fell && ok(b)) {
+        if (
+          b.year === y &&
+          b.fielded &&
+          b.fell &&
+          // (Whether its victors hold the land it was fought for at the year's turn: a war with
+          // another aim, won, leaves the land its holder's.)
+          ok(b, !!politiesOf(world).get(w.attacker)?.members.includes(b.land))
+        ) {
           world.runTo((y + 1) * YEAR + 8 * 3600 + second * 60 - 1);
           return { world, event: b.event, year: y };
         }
@@ -316,7 +323,7 @@ test("his blows move the tally: so many more of the foe fallen as his fight stru
 });
 
 test("the hand can turn the day: history's beaten win it, and the land it was fought for is theirs again", () => {
-  const { world, event } = comeTo((b) => b.won && !b.seat && sizeable(b)),
+  const { world, event } = comeTo((b, held) => b.won && !b.seat && held && sizeable(b)),
     was = battleBy(world, event)!.b,
     war = warsOf(world)
       .all()

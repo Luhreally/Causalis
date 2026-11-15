@@ -871,9 +871,21 @@ async function takeRuler(realm: string, tag: string): Promise<void> {
 
 /** A window a plot or a death brought meanwhile, answered: what is pressed lies under it. */
 async function clearWindows(): Promise<void> {
-  const buy = page.locator(`.reign-drama[data-choice="buy"]`);
-  if (await buy.count().catch(() => 0)) {
-    await buy.first().tap();
+  // (Whatever waits on the ruler's word stands over the sheets until it is answered: a plot is
+  // bought off; anything else, an heir dead among them, gets its last answer, the one that
+  // leaves the realm to its own custom. More than one may wait.)
+  for (let n = 0; n < 4; n++) {
+    const buy = page.locator(`.reign-drama[data-choice="buy"]`),
+      any = page.locator(`.reign-drama:not(.refused)`);
+    const one = (await buy.count().catch(() => 0))
+      ? buy.first()
+      : (await any.count().catch(() => 0))
+        ? any.last()
+        : null;
+    // (A window answered stays in the page a moment, unseen.)
+    if (!one || !(await one.isVisible().catch(() => false))) return;
+    say(`a window answered first: ${((await one.textContent().catch(() => "")) ?? "").trim()}`);
+    await one.tap();
     await page.waitForTimeout(slow(400));
   }
 }

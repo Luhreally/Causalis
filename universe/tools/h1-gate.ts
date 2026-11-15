@@ -452,6 +452,12 @@ if (chosen) {
     );
     check(hands.length > 0, "no one is at work on the site in a day that can be watched");
     const named = hands.filter((h) => crew.includes(h.ref));
+    if (crew.length && !named.length)
+      say(
+        `the crew its page names: ${await k<string>(
+          `(() => { const ps = globalThis.causalis.planNow().people, now = globalThis.causalis.peopleNow(); return ${JSON.stringify(crew)}.map((r) => { const i = ps.findIndex((p) => p.ref === r), p = ps[i]; return r + (p ? " " + p.name + (p.child ? " child" : "") + " age " + (p.age ?? "?") + " occ " + p.occupation + (p.trade ? " trade " + p.trade.kind : "") + (p.wounds?.length ? " wounded" : "") + (p.away ? " away" : "") + ": " + (now.find((q) => q.ref === r)?.why ?? "not drawn") : " not in the plan"); }).join(" | "); })()`,
+        )}`,
+      );
     check(
       crew.length === 0 || named.length > 0,
       "those at work on the site aren't those its page names",

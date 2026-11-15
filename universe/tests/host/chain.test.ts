@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { EARTH } from "../../src/host/planet.ts";
 import {
   designsOf,
+  forgedMetal,
   politiesOf,
   populationContext,
   toolMetal,
@@ -116,8 +117,11 @@ test("every link along a thing's chain, a realm's arms and a workshop opens a pa
 });
 
 test("a town's makers are named, kept at their trades, and the ones its buildings' pages name", () => {
-  // The most peopled land's first town that keeps a smithy.
+  // The first town that keeps a smithy in the most peopled land whose smiths forged metal this
+  // year. (A land with no ore in reach and none come down its road keeps smithies that forge
+  // nothing, however many its people: first light's most peopled land at 700 is one.)
   const town = lands
+    .filter((l) => forgedMetal(ctx, l.cell, now) !== "stone")
     .flatMap((l) => ctx.settlements.inProvince(l.cell))
     .find((s) =>
       townsOf(world)
