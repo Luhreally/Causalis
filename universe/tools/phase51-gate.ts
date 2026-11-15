@@ -636,6 +636,18 @@ if (works) {
   say(
     `${works.name}'s works floor: ${floor?.presses ?? 0} presses, ${floor?.lathes ?? 0} lathes; at work ${running}; on the bench ${floor?.benched ?? 0}`,
   );
+  if (!running) {
+    // (What its machinists' day was instead, told for whoever reads a failure.)
+    const at = await k<number[]>(
+      `(globalThis.causalis.planNow()?.people ?? []).flatMap((p, i) => (p.trade?.kind === "machinist" ? [i] : []))`,
+    );
+    for (const index of at.slice(0, 2)) {
+      const legs = await k<Leg[]>(`globalThis.causalis.legs?.(${index}) ?? []`);
+      say(
+        `  a machinist's day ${floorDay}: ${legs.map((l) => `${Math.round(l.from / HOUR)}h ${l.why}`).join("; ")}`,
+      );
+    }
+  }
   check(running > 0, `no machine at work on ${works.name}'s floor`);
   check((floor?.benched ?? 0) > 0, `no finished parts on ${works.name}'s bench by the afternoon`);
   if (floorAt && floorAt.benched > 0) {
