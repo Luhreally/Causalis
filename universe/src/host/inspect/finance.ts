@@ -648,6 +648,8 @@ export function moneyLedger(world: World): Block[] {
         title: "What the world's works make, by making (grain's worth a year)",
         series,
         unit: "count",
+        // (Each making on its own scale: tools and cloth are a hundred times the least of them.)
+        apart: true,
       });
   }
   blocks.push({

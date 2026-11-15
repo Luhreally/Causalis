@@ -63,13 +63,20 @@ const wordsOf = (m: unknown): string => {
 const blocksOf = (m: Model, tab: string) => m.tabs.find((t) => t.id === tab)?.blocks ?? [];
 
 // 1. Pure, on the same world.
-let chosen: { realm: string; name: string; fearing: string | null } | null = null;
+let chosen: {
+  realm: string;
+  name: string;
+  fearing: string | null;
+  /** A realm whose listed works a people abroad holds, and its seat's land, where there is one. */
+  listed: { realm: string; seat: number } | null;
+} | null = null;
 {
   const planet = await import("../src/host/planet.ts");
   const { seedFromText, YEAR } = await import("../src/kernel/index.ts");
   const { pageOf } = await import("../src/host/inspect/index.ts");
   const { landReadings, lensReading } = await import("../src/host/lenses.ts");
-  const { campsRead } = await import("../src/host/inspect/finance.ts");
+  const { campsRead, realmFearBlocks, realmMoneyBlocks } =
+    await import("../src/host/inspect/finance.ts");
   const { campsStand } = await import("../src/rules/index.ts");
   const { debtOf, financeOf, politiesOf, realmName } = await import("../src/sim/index.ts");
   const t0 = performance.now(),
@@ -86,11 +93,17 @@ let chosen: { realm: string; name: string; fearing: string | null } | null = nul
   );
   check(owing.length > 0, "no realm has sold debt");
   check(holdings > 0, "no people holds another realm's debt or works");
-  let slowest = 0;
+  let slowest = 0,
+    own = 0;
   for (const r of realms) {
     const t1 = performance.now(),
       m = pageOf(world, r.ref) as unknown as Model;
     slowest = Math.max(slowest, performance.now() - t1);
+    // (What the two new tabs cost of that, read by themselves: a page builds every tab.)
+    const t2 = performance.now();
+    realmMoneyBlocks(world, r);
+    realmFearBlocks(world, r);
+    own = Math.max(own, performance.now() - t2);
     const where = `${m.title}`,
       fears = blocksOf(m, "fears"),
       money = blocksOf(m, "money");
@@ -119,7 +132,7 @@ let chosen: { realm: string; name: string; fearing: string | null } | null = nul
         `${where}: a fear without its numbers`,
       );
   }
-  check(slowest < 400, `a realm's page took ${slowest.toFixed(0)} ms`);
+  check(own < 60, `a realm's Money and Fears tabs took ${own.toFixed(0)} ms to read`);
   const ledger = pageOf(world, "world:ledger") as unknown as Model,
     money = blocksOf(ledger, "money"),
     campsTab = blocksOf(ledger, "camps");
@@ -150,9 +163,15 @@ let chosen: { realm: string; name: string; fearing: string | null } | null = nul
       realm: most.ref,
       name: realmName(most),
       fearing: (fearing[0] ?? realms.find((r) => store.of(r.ref)!.fears.length))?.ref ?? null,
+      listed: (() => {
+        const held = realms
+          .filter((r) => store.of(r.ref)!.worth > 0 && store.of(r.ref)!.shares.length > 0)
+          .sort((a, b) => store.of(b.ref)!.worth - store.of(a.ref)!.worth)[0];
+        return held ? { realm: held.ref, seat: held.seat } : null;
+      })(),
     };
   say(
-    `${realms.length} realms' pages read, the slowest ${slowest.toFixed(0)} ms; the ledger's Money tab ${money.length} blocks, its Camps tab ${campsTab.length}`,
+    `${realms.length} realms' pages read, the slowest ${slowest.toFixed(0)} ms, its Money and Fears tabs ${own.toFixed(1)} ms of it at the most; the ledger's Money tab ${money.length} blocks, its Camps tab ${campsTab.length}`,
   );
 }
 
@@ -356,7 +375,49 @@ if (chosen) {
     await shot("ledger-camps");
     if (await showBlock("The greatest fears")) await shot("ledger-camps-fears");
   }
-  // The exchange of the realm, where it keeps one: who holds what is listed.
+  // Where a realm's works are listed and held abroad (none before a world's first works): its Money tab's holders, its exchange's,
+  // and its seat's land's Economy tab, which tells its realm's money.
+  if (chosen.listed) {
+    if (
+      await openTab(
+        chosen.listed.realm,
+        "Money",
+        "a realm with listed works",
+        /Who holds its listed works/i,
+      )
+    ) {
+      if (await showBlock("Who holds its listed works")) await shot("realm-listed-holders");
+      if (await showBlock("Its listed works' worth")) await shot("realm-listed-worth");
+    }
+    await k(`globalThis.causalis.closePage?.()`);
+    await settle(300);
+    const exchange = `exchange:${chosen.listed.realm}`;
+    await k(`globalThis.causalis.open(${JSON.stringify(exchange)})`);
+    if (await until("its exchange's page", async () => (await pageNow()) === exchange)) {
+      await settle(800);
+      const text = await pageText();
+      // (Its seat keeps an exchange only with two companies or more: the page says so where it keeps none.)
+      if (/Who holds what is listed here/i.test(text)) {
+        check(!BAD.test(text), `the exchange says ${BAD.exec(text)?.[0]}`);
+        for (const o of await offScreen()) problems.push(`the exchange: ${o}`);
+        await hudFine("the exchange");
+        if (await showBlock("Who holds what is listed here")) await shot("exchange-holders");
+        say("the exchange tells who holds what is listed there");
+      } else say("the realm's seat keeps no exchange of its own");
+    }
+    if (
+      await openTab(
+        `cell:0:${chosen.listed.seat}`,
+        "Economy",
+        "its seat's land",
+        /pays to borrow|The money of/i,
+      )
+    )
+      if (await showBlock("What ")) await shot("land-economy-money");
+  } else
+    say(
+      "no realm's works are listed and held abroad yet: the exchange and its holders are not read",
+    );
   await k(`globalThis.causalis.closePage?.()`);
   await settle(300);
   // The Camps lens on the globe.
