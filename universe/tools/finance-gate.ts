@@ -277,12 +277,13 @@ if (chosen) {
   // here; every other reading is.)
   let wideOverHand = 0;
   const hudFine = async (where: string) => {
-    const r = await k<HudRead>(READ),
+    // (Whether the page open is the wide one, read off the screen.)
+    const wide = await k<boolean>(
+        `[...document.querySelectorAll(".page-window.wide")].some((e) => e.getBoundingClientRect().width > 0)`,
+      ),
+      r = await k<HudRead>(READ),
       letBe = (x: string) =>
-        desk &&
-        /page-window\.wide/.test(x) &&
-        /palette|button\.speed/.test(x) &&
-        !!(wideOverHand += 1);
+        desk && wide && /palette|button\.speed/.test(x) && !!(wideOverHand += 1);
     for (const o of r.overlaps) if (!letBe(o)) problems.push(`${where}: overlap: ${o}`);
     for (const c of r.covered) if (!letBe(c)) problems.push(`${where}: covered: ${c}`);
     for (const o of r.off) problems.push(`${where}: off the screen: ${o}`);
@@ -349,6 +350,17 @@ if (chosen) {
   const fearer = chosen.fearing ?? chosen.realm;
   if (await openTab(fearer, "Fears", "a realm that fears", /Whom it fears/i))
     await shot("realm-fears");
+  // (At a desk, first a tab of the Ledger that stood before this gate, its Credit: what of it lies over the god's hand is the
+  // wide page's own, whichever tab is open. Told beside the new tabs' readings, so the two can be set side by side.)
+  let before = 0;
+  if (desk) {
+    await openTab("world:ledger", "Credit", "the ledger", /house|lending/i);
+    before = wideOverHand;
+    say(
+      `at a desk the Ledger's Credit tab, as it stood before, lies over the god's hand: ${before} readings`,
+    );
+    wideOverHand = 0;
+  }
   // The ledger's Money tab: the square of who holds whom, pressed.
   if (
     await openTab("world:ledger", "Money", "the ledger", /Who holds whom|No realm has sold debt/i)
@@ -433,10 +445,15 @@ if (chosen) {
     await hudFine("the Camps lens");
     await shot("lens-camps");
   }
-  if (wideOverHand)
+  if (wideOverHand || before) {
     say(
-      `at a desk the Ledger lies over the god's hand (${wideOverHand} readings let be: it did before, on every tab)`,
+      `at a desk the Ledger's Money and Camps tabs lie over the god's hand as its Credit tab does (${wideOverHand} readings over the two, ${before} on Credit): the wide page's own, let be here`,
     );
+    check(
+      before > 0,
+      "the Ledger's new tabs lie over the god's hand where its Credit tab does not",
+    );
+  }
   for (const e of errors.slice(0, 5)) say(`ERROR ${e.slice(0, 300)}`);
   check(errors.length === 0, `${errors.length} errors on the page`);
   await browser.close();
