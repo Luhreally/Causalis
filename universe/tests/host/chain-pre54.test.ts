@@ -77,21 +77,24 @@ const KIND_ROWS = new Set([
  * Re-recorded for how realms are held (2026-11-13): who bears arms, who decides, how word moves and how a realm binds itself, and
  * what realms learn of rule from what befell them and others, move Earth's history from its first realms on (word across a border
  * carries learning the faster or the slower), and with it the early camps at 40 and every page of 700. The guide to matter stays.
+ * Re-recorded for a realm's money and its fears (2026-11-14): each realm's fear of how another is held moves its regard for it, how
+ * it is held and its host from the first realms that meet, and debt sold and holdings abroad from the first seats that know banking;
+ * so Earth's history moves from its first realms on, and with it the early camps at 40 and every page of 700. The guide to matter stays.
  */
 const BEFORE: Record<string, string> = {
-  tools: "3fd5f8d5:19006",
-  stuff: "ce6cab89:13541",
-  ground: "f54729c0:42089",
-  deposits: "966c087e:97956",
-  arms: "e0098627:15514",
-  designs: "7fc3a442:27147",
-  workshops: "240d1a3:517936",
-  substances: "cbdc9f23:130621",
-  reactions: "40b05475:68555",
+  tools: "ad465687:18223",
+  stuff: "d5d1112:13819",
+  ground: "59d7d0fa:43926",
+  deposits: "8f14880d:97948",
+  arms: "9f199fb7:15569",
+  designs: "68d1d3a:27254",
+  workshops: "c0003d55:362845",
+  substances: "916e8e1b:130619",
+  reactions: "35eb7a50:68623",
   // (Its pages no longer list what only a people of the water could find: F1, canBeFoundHere.)
-  principles: "f1cc2048:171096",
+  principles: "47595d71:170749",
   guide: "ced49326:17137",
-  camps: "2eea5ed3:342250",
+  camps: "87b992a7:342250",
 };
 
 /**

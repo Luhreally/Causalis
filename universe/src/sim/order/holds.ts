@@ -316,7 +316,8 @@ export function weighHolds(ctx: PopulationContext, p: Polity, o: RealmOrder, t: 
   }
   // What it learned weighs the less each ten years.
   if (o.pulls) {
-    o.pulls = o.pulls.map((x) => Math.trunc(x * HOLDING.pullKept));
+    // (`|| 0`: half of a pull of -1 truncates to -0, which a save reads back as 0: kept as 0, so a world goes on alike after one.)
+    o.pulls = o.pulls.map((x) => Math.trunc(x * HOLDING.pullKept) || 0);
     if (o.pulls.every((x) => x === 0)) delete o.pulls;
   }
 }
@@ -421,13 +422,14 @@ function learn(
     if (!c) continue;
     const was = pulls[HOLD[h]]!,
       add = c * 100;
-    pulls[HOLD[h]] = Math.round(
-      dmath.clamp(
-        was * add > 0 ? Math.sign(add) * Math.max(Math.abs(was), Math.abs(add)) : was + add,
-        -60,
-        60,
-      ),
-    );
+    pulls[HOLD[h]] =
+      Math.round(
+        dmath.clamp(
+          was * add > 0 ? Math.sign(add) * Math.max(Math.abs(was), Math.abs(add)) : was + add,
+          -60,
+          60,
+        ),
+      ) || 0;
   }
   if (pulls.every((x) => x === 0)) delete order.pulls;
   // Told where it is one of the great ones: what befell it at home; another's fate where it took it as a warning or scorned it, once
