@@ -80,6 +80,8 @@ export const FINANCE = {
   /** A realm whose lands hold under `leanMonths` months of food pays up to this much more: lenders see what there is to pay from. */
   lean: 0.12,
   leanMonths: 6,
+  /** A debt refused is remembered this long, by lenders and on a realm's page: past it, it weighs a hundredth of what it did. */
+  remembered: 200,
   /** Whom a realm cost is not its buyer again for this long. */
   burnt: 30,
   /** A realm that fears another this much borrows to arm against it: this share of a season's keep for its host, by its fear. */
@@ -87,6 +89,11 @@ export const FINANCE = {
   arm: 0.25,
   /** And fields this much more of its men at the most (sim/war fieldShare). */
   fields: 0.03,
+  /**
+   * How much of the trade between two realms' lands a fear shuts, for each point of it (sim/economy trade): half at the most. A
+   * fear is not a war: at 1 the greatest fear cut all trade, as a war's embargo does (so it stood until 2026-11-15).
+   */
+  shuts: 0.5,
   /** A realm buys the war debt of one that fights a realm whose way it fears, this much the readier for each point of fear. */
   backs: 2,
 

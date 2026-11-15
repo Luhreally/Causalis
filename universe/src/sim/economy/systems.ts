@@ -28,6 +28,7 @@ import { cellRef, seamRef, surfaceOre, worldChemistry } from "../../gen/index.ts
 import { loreOf } from "../lore/lore.ts";
 import { fearShuts, financeOf } from "../finance/finance.ts";
 import {
+  FINANCE,
   ENGINE_GAIN,
   FOODS,
   FORAGER_HIDES,
@@ -670,7 +671,7 @@ function trade(
       // (What both ends' signals put on the line: traders see the far price as it moves, so move more and on a narrower
       // margin. Exactly 1 before either end has the telegraph: rules/signals.ts.)
       linked = connectivityOf(Math.min(lore.effect(e.a, "signal"), lore.effect(e.b, "signal"))),
-      moved = 0.25 * (1 + SIGNAL.tradeShare * linked) * (1 - shut),
+      moved = 0.25 * (1 + SIGNAL.tradeShare * linked) * (1 - FINANCE.shuts * shut),
       keen = 2 * (1 + SIGNAL.tradeMargin * linked),
       // (And what a journey cost in waiting on word and finding a buyer: the haul itself is what it was.)
       dealt = 1 - SIGNAL.tradeCost * linked;

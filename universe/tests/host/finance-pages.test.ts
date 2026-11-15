@@ -8,7 +8,8 @@ import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { landReadings, lensReading } from "../../src/host/lenses.ts";
 import { yearsOf } from "../../src/host/years.ts";
-import { debtOf, financeOf, politiesOf } from "../../src/sim/index.ts";
+import { creditOf, debtOf, financeOf, politiesOf } from "../../src/sim/index.ts";
+import { REFUSALS_SHOWN } from "../../src/host/inspect/credit.ts";
 import type { Block, PageModel } from "../../src/bridge/index.ts";
 
 const world = EARTH.build(seedFromText("first light"));
@@ -80,4 +81,32 @@ test("the Camps lens reads every peopled land: a number -1 … 1 (-2 a land of n
       seen++;
     }
   assert.ok(seen > 10);
+});
+
+test("a realm that has refused its debts many times tells a count and the last few, not a wall of lines", () => {
+  const p = living.find((x) => debtOf(store.of(x.ref)!) > 0)!,
+    credit = creditOf(world)!,
+    before = credit.defaults.length;
+  // (A dozen refusals laid on it by hand, each told by its founding's event: what a hungry world's realm comes to.)
+  for (let k = 0; k < 12; k++)
+    credit.defaults.push({ realm: p.ref, year: 300 + 10 * k, event: p.event });
+  try {
+    const page_ = page(p.ref),
+      list = tab(page_, "credit")!.blocks.find(
+        (b) => b.type === "list" && b.title?.startsWith("Debts repudiated and released"),
+      );
+    assert.ok(list && list.type === "list");
+    assert.equal(list.items.length, REFUSALS_SHOWN);
+    assert.equal(list.more, 12 - REFUSALS_SHOWN);
+    assert.match(list.title!, /12 times, the last 4/);
+    const money = tab(page_, "money")!.blocks.find((b) => b.type === "facts");
+    assert.ok(money && money.type === "facts");
+    const row = money.rows.find((r) => r.label === "Debts refused");
+    assert.match(
+      JSON.stringify(row?.value),
+      /12 times in the 200 years remembered, the last in year 410/,
+    );
+  } finally {
+    credit.defaults.length = before;
+  }
 });

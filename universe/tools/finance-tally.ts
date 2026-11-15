@@ -154,7 +154,8 @@ for (const s of seeds) {
       .sort((a, b) => b.f.level - a.f.level)
       .slice(0, 6),
     { nodes, camps } = campsNow(world),
-    people = nodes.reduce((n, r) => n + r.people, 0);
+    // (Everyone, of a realm or of none: as tools/pace-tally.ts counts them.)
+    people = ctx.provinces.all().reduce((n, p) => n + p.total(), 0);
   {
     // What it costs a save: the store, and the events of it the log still holds.
     let kept = 0;

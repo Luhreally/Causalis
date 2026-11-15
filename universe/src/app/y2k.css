@@ -3096,6 +3096,14 @@ body.with-palette .hint {
     max-width: calc(100vw - 244px - 27rem - 24px);
   }
 }
+/* While a wide page is open (the Ledger, the Chronicle: 58rem of the screen), no room is left at the foot for the palette beside
+   it: on a desk the palette stands aside, as it does on a phone under any page, and is there again as the page is closed. (Until
+   2026-11-15 it stayed out, and the wide page lay over it on every tab.) */
+@media (min-width: 641px) {
+  #hud:has(.page-window.wide:not([hidden])) > .palette {
+    display: none;
+  }
+}
 /* On a phone: a round button at the lower left; the palette a sheet above it when opened. */
 @media (max-width: 640px) {
   #hud > .palette-toggle {

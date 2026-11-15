@@ -489,6 +489,10 @@ export function financeYear(ctx: PopulationContext, t: SimTime): void {
     r.m.income = 0;
   }
 
+  // (Debts refused longer ago than lenders remember are let go: a realm's record is its last two centuries'.)
+  if (credit && credit.defaults.length && year - credit.defaults[0]!.year >= FINANCE.remembered)
+    credit.defaults = credit.defaults.filter((d) => year - d.year < FINANCE.remembered);
+
   // 2. Whom each fears: of each two that meet, each one's fear of the other's way.
   const relations = diplomacy.all(),
     fears = new Map<string, Fear[]>();

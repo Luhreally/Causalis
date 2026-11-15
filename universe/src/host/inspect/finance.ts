@@ -316,6 +316,16 @@ export function realmMoneyBlocks(world: World, r: Polity): Block[] {
   if (m.paid > 0) rows.push(stat("It paid abroad this year", `${count(m.paid)} grain`));
   if (m.income > 0)
     rows.push(stat("Came home to its people from abroad", `${count(m.income)} grain's worth`));
+  // (How often it has refused, in a line: the Credit tab lists the last few.)
+  const refusals = (creditOf(world)?.defaults ?? []).filter((d) => d.realm === r.ref);
+  if (refusals.length)
+    rows.push(
+      stat(
+        "Debts refused",
+        `${refusals.length === 1 ? "once" : `${count(refusals.length)} times`} in the ${FINANCE.remembered} years remembered, the last in year ${refusals.at(-1)!.year}`,
+        { why: refusals.at(-1)!.event },
+      ),
+    );
   if (m.missed > 0)
     rows.push(stat("Interest unpaid", m.missed === 1 ? "a year" : `${m.missed} years running`));
   if (faithless)

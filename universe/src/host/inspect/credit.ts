@@ -233,6 +233,9 @@ export function landCreditBlocks(world: World, cell: number): Block[] {
 }
 
 /** A realm's debts, for its page (M144): what its lands owe, its war chests, its faith with its lenders. */
+/** How many of a realm's repudiations and jubilees its page lists: the newest. */
+export const REFUSALS_SHOWN = 4;
+
 export function realmCreditBlocks(world: World, realm: Ref): Block[] {
   const store = creditOf(world),
     r = politiesOf(world).get(realm);
@@ -315,11 +318,19 @@ export function realmCreditBlocks(world: World, realm: Ref): Block[] {
         why: h.event,
       })),
     },
-    {
-      type: "list",
-      title: "Debts repudiated and released",
-      items: [...defaults, ...jubilees].sort((a, b) => b.year - a.year).map(told),
-    },
+    // (The last few, and how many more: a realm of a hungry world may have refused its debts a dozen times.)
+    (() => {
+      const all = [...defaults, ...jubilees].sort((a, b) => b.year - a.year);
+      return {
+        type: "list" as const,
+        title:
+          all.length > REFUSALS_SHOWN
+            ? `Debts repudiated and released: ${all.length} times, the last ${REFUSALS_SHOWN}`
+            : "Debts repudiated and released",
+        items: all.slice(0, REFUSALS_SHOWN).map(told),
+        ...(all.length > REFUSALS_SHOWN ? { more: all.length - REFUSALS_SHOWN } : {}),
+      };
+    })(),
   ];
 }
 

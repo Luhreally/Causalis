@@ -401,6 +401,33 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
     await settle(1200);
   });
   await closePage();
+  // The wide pages, the Chronicle and the Ledger, and every tab of the Ledger (2026-11-15: at a desk the Ledger lay over the god's
+  // hand on every tab, and no state here opened a wide page to see it).
+  await state("chronicle", async () => {
+    await k(`globalThis.causalis.open("world:chronicle")`);
+    await must(
+      "the chronicle",
+      until("the chronicle", () => seen(".page-window.wide"), slow(20000)),
+    );
+    await settle(1000);
+  });
+  await closePage();
+  await k(`globalThis.causalis.open("world:ledger")`);
+  await until("the ledger", () => seen(".page-window.wide"), slow(20000));
+  await settle(1000);
+  const ledgerTabs = await k<string[]>(
+    `[...document.querySelectorAll(".page-window .tabs .tab")].map((b) => b.textContent.trim())`,
+  );
+  if (!ledgerTabs.length) failures.push(`${view.name}: the ledger showed no tabs`);
+  for (let i = 0; i < ledgerTabs.length; i++)
+    await state(`ledger-${ledgerTabs[i]!.toLowerCase().replace(/\W+/g, "-")}`, async () => {
+      await must(
+        `the ledger's ${ledgerTabs[i]} tab`,
+        press(`.page-window .tabs .tab:nth-child(${i + 1})`),
+      );
+      await settle(700);
+    });
+  await closePage();
   await state("settings", async () => {
     await must(
       "settings",
