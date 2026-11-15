@@ -5,6 +5,6 @@ import assert from "node:assert/strict";
 import { ALIEN, EARTH } from "../../src/host/planet.ts";
 
 test("cohesion combat continues existing histories under a new ruleset on Earth and alien worlds", () => {
-  assert.equal(EARTH.version, "earth-21");
-  assert.equal(ALIEN.version, "alien-25");
+  assert.equal(EARTH.version, "earth-22");
+  assert.equal(ALIEN.version, "alien-26");
 });

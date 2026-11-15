@@ -183,8 +183,22 @@ export type RealmOrder = {
   heldEvents?: (Ref | null)[];
   pulls?: number[];
   taught?: Taught[];
-  /** The year it last told another's fate as a lesson to itself; absent if never. */
+  /**
+   * What it has learned of how to hold itself (rules/learn.ts; sim/order/holds.ts): its fortune, a faded sum of its years' measured
+   * changes (hundredths, in the order of FORTUNES); how it stood when last measured (`was`: its people, its lands, its standing in
+   * thousandths, its wealth a head, how it ate in thousandths) and its numbers at that year's end (`stood`); what it believes, as the
+   * evidence kept for and against each number (`learnt`: sums then evidence, its own then seen, faded to `learntAt`); and those it
+   * has learned most from, each a realm and how much. A living realm's only: let go when it ends.
+   */
+  fortune?: number[];
+  was?: number[];
+  stood?: number[];
+  learnt?: number[];
+  learntAt?: number;
+  from?: [string, number][];
+  /** The year it last told another's fate as a lesson to itself, and a fate of its own; absent if never. */
   toldSeen?: number;
+  toldOwn?: number;
   /** Marriages of state its house made by the god's hand (Lives L4); absent if none. */
   matches?: StateMatch[];
 };
@@ -244,7 +258,8 @@ export class OrderStore implements StateStore {
       for (const f of o.firsts) if (f) out.push(f);
       for (const e of o.lawEvents) if (e) out.push(e);
       for (const e of o.heldEvents ?? []) if (e) out.push(e);
-      for (const x of o.taught ?? []) if (x.event) out.push(x.event);
+      // (A living realm's kept evidence; a realm gone holds no event of it back: realms gone are as many as history is long.)
+      if (o.was) for (const x of o.taught ?? []) if (x.event) out.push(x.event);
       for (const m of o.movements) out.push(m.event);
       for (const m of o.memory) out.push(m.event);
       for (const m of o.matches ?? []) out.push(m.event);
@@ -274,6 +289,11 @@ export class OrderStore implements StateStore {
           ...(o.heldEvents ? { heldEvents: [...o.heldEvents] } : {}),
           ...(o.pulls ? { pulls: [...o.pulls] } : {}),
           ...(o.taught ? { taught: o.taught.map((x) => ({ ...x })) } : {}),
+          ...(o.fortune ? { fortune: [...o.fortune] } : {}),
+          ...(o.was ? { was: [...o.was] } : {}),
+          ...(o.stood ? { stood: [...o.stood] } : {}),
+          ...(o.learnt ? { learnt: [...o.learnt] } : {}),
+          ...(o.from ? { from: o.from.map((x) => [x[0], x[1]] as [string, number]) } : {}),
           movements: o.movements.map((m) => ({ ...m })),
           memory: o.memory.map((m) => ({ ...m })),
         },

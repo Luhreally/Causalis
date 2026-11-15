@@ -29,14 +29,23 @@ import {
   OWN_KINDS,
   exposure,
   fearMoves,
+  chanceOf,
+  faredBy,
   firstOwn,
+  likeness,
+  ownBelieved,
+  ownEvidence,
+  ownPull,
+  seenWeight,
+  valuesOf,
   losersBefore,
   ownBand,
   seenToWork,
   threatOf,
   yieldOf,
-  type Faring,
+  type SeenFaring,
   type Own,
+  type OwnBelief,
   type Threat,
   type YieldPart as Part,
   type Way,
@@ -89,8 +98,10 @@ export type Money = {
   /** How its wealth is owned (rules/finance.ts: spread, common), in whole hundredths; the event that last told each in other words. */
   own: number[];
   ownEvents?: (Ref | null)[];
-  /** What an overthrow left pulling on each (hundredths), fading; absent when nothing does. */
-  lean?: number[];
+  /** What it has seen of how wealth is owned go well and ill, itself and those it meets (rules/finance.ts OwnBelief); absent: nothing yet. */
+  seen?: OwnBelief;
+  /** What its people hold abroad, as last reckoned: others' debt and their share of others' listed works (grain's worth). */
+  abroad?: number;
   /** Its debt held by its own people (grain's worth), and by each people abroad. */
   home: number;
   held: [Ref, number][];
@@ -204,6 +215,11 @@ export function fearOf(world: World, realm: Ref, of: Ref): number {
   return 0;
 }
 
+/** What a realm's people hold abroad, as last reckoned (grain's worth): part of its wealth, as its fortune is measured. */
+export function heldAbroad(world: World, realm: Ref): number {
+  return financeOf(world)?.of(realm)?.abroad ?? 0;
+}
+
 /** A realm's greatest fear, if it keeps one. */
 export function topFear(world: World, realm: Ref): Fear | null {
   return financeOf(world)?.of(realm)?.fears[0] ?? null;
@@ -230,9 +246,9 @@ export function fearPress(
 ): { moves: [number, number, number]; of: Ref; level: number; event: Ref | null } | null {
   const m = financeOf(world)?.of(realm),
     f = m?.fears[0];
-  if (!m || !f || (f.level < 10 && f.drawn < 10)) return null;
+  if (!m || !f || f.level < 10) return null;
   return {
-    moves: fearMoves(wayOf(world, realm), wayOf(world, f.of), threatFrom(f)),
+    moves: fearMoves(wayOf(world, realm), threatFrom(f)),
     of: f.of,
     level: f.level / 100,
     event: m.told === f.of ? (m.toldEvent ?? null) : null,
@@ -310,7 +326,7 @@ type Read = {
   readonly p: Polity;
   readonly m: Money;
   readonly way: Way;
-  readonly faring: Faring;
+  readonly faring: SeenFaring;
   /** What it takes in of its lands' food in a year. */
   readonly takings: number;
   readonly banking: boolean;
@@ -526,7 +542,7 @@ export function financeYear(ctx: PopulationContext, t: SimTime): void {
       );
       const was = x.m.fears.find((f) => f.of === y.p.ref)?.level ?? 0,
         level = Math.round((was + pct(th.level)) / 2);
-      if (level < 5 && th.drawn < 0.1) continue;
+      if (level < 5) continue;
       const list = fears.get(x.p.ref) ?? [];
       list.push({
         of: y.p.ref,
@@ -608,7 +624,11 @@ export function financeYear(ctx: PopulationContext, t: SimTime): void {
   }
 
   // 3. How each realm's wealth is owned, weighed every ten years (each in its own year of ten).
-  for (const r of reads.values()) weighOwn(ctx, r, reads, year);
+  const usualOwn = [0, 1].map(
+    (k) =>
+      [...reads.values()].reduce((sum, r) => sum + r.m.own[k]! / 100, 0) / Math.max(1, reads.size),
+  );
+  for (const r of reads.values()) weighOwn(ctx, r, reads, year, usualOwn);
 
   // 4. What is taken: holdings between two realms at war, and in a realm closed to strangers.
   for (const r of reads.values()) {
@@ -820,6 +840,17 @@ export function financeYear(ctx: PopulationContext, t: SimTime): void {
       const holder = reads.get(q);
       if (holder) holder.m.income += Math.round((n / 10_000) * m.worth * FINANCE.payout);
     }
+  }
+  // What each people holds abroad, reckoned for its fortune's measure (sim/order/holds.ts counts it in its wealth).
+  const abroad = new Map<string, number>();
+  for (const r of reads.values()) {
+    for (const [q, n] of r.m.held) abroad.set(q, (abroad.get(q) ?? 0) + n);
+    for (const [q, n] of r.m.shares) abroad.set(q, (abroad.get(q) ?? 0) + (n / 10_000) * r.m.worth);
+  }
+  for (const r of reads.values()) {
+    const n = Math.round(abroad.get(r.p.ref) ?? 0);
+    if (n > 0) r.m.abroad = n;
+    else delete r.m.abroad;
   }
 }
 
@@ -1040,36 +1071,64 @@ function weighOwn(
   r: Read,
   reads: ReadonlyMap<string, Read>,
   year: number,
+  usualOwn: readonly number[],
 ): void {
   const { world } = ctx,
     p = r.p,
     m = r.m;
   if ((year + (Number(p.ref.split(":")[2]) % 10)) % 10 !== 0) return;
-  const o = orderOf(world)?.of(p.ref),
-    ways = waysRead(cultureOf(world).get(p.seat)),
+  const order = orderOf(world),
+    o = order?.of(p.ref),
+    culture = cultureOf(world),
+    ways = waysRead(culture.get(p.seat)),
     anchor = firstOwn(o?.laws[LAW_OF.land] ?? 0, ways, ctx.generated.life.people?.body),
     voice = r.way[1],
     top = m.fears[0],
-    other = top ? reads.get(top.of) : undefined,
-    overthrown = o?.taught?.find((x) => !x.of && x.what === "overthrown" && year - x.year < 10),
-    ruined =
-      m.refusal &&
-      creditOf(world)?.defaults.some((d) => d.event === m.refusal && year - d.year < 20);
-  // Rulers overthrown: what was theirs is shared out, and where it lay with a few, taken for all, the more as its people do not
-  // live by trade. It lasts: a lean on both numbers that fades over generations.
-  if (overthrown) {
-    const few = 1 - m.own[0]! / 100,
-      lean = (m.lean ??= [0, 0]);
-    lean[0] = Math.max(lean[0]!, FINANCE.shared0);
-    lean[1] = Math.max(lean[1]!, Math.round(FINANCE.taken0 * few * (1 - ways.trade)));
+    values = valuesOf(ways),
+    chance = chanceOf(ways);
+  // What it has seen go well and ill of how wealth is owned: its own fortune as it stands (measured, sim/order/holds.ts), and that
+  // of the realms it meets and fears or looks to, each by how far its people are exposed to them, how like them they are and how
+  // freely word leaves them: evidence as of how it is held (rules/learn.ts), on these two numbers. No push is written for any event:
+  // rulers overthrown where wealth lay with a few is a fortune fallen while it stood so.
+  const took = (own: readonly number[], fortune: readonly number[] | undefined, weight: number) => {
+    if (!fortune?.length || weight <= 0) return;
+    const e = ownEvidence(
+      own,
+      usualOwn,
+      faredBy(
+        fortune.map((x) => x / 100),
+        values,
+      ),
+      weight * (1 - chance),
+    );
+    if (e.some((x) => x !== 0)) m.seen = ownBelieved(m.seen, e, year);
+  };
+  took(
+    m.own.map((x) => x / 100),
+    o?.fortune,
+    1,
+  );
+  for (const f of m.fears) {
+    const q = reads.get(f.of);
+    if (!q) continue;
+    took(
+      q.m.own.map((x) => x / 100),
+      order?.of(f.of)?.fortune,
+      seenWeight(
+        f.exposed / 100,
+        likeness(ways, waysRead(culture.get(q.p.seat))),
+        q.way[2],
+        ways.openness,
+      ),
+    );
   }
   for (const k of OWN_KINDS) {
     const i = OWN[k],
       now = m.own[i]! / 100,
       // (Where many decide, many come to hold; where works are listed and few decide, they gather to the few.)
       held = k === "spread" ? 0.35 * (voice - 0.4) - (m.worth > 0 && voice < 0.45 ? 0.1 : 0) : 0,
-      // (A people drawn to a way seen to work better moves toward it; those who would lose by it pull the other way.)
-      drawn = top && other ? FINANCE.follows * (top.drawn / 100) * (other.way[3 + i]! - now) : 0,
+      // (What it has seen go well and ill: its evidence. Those who would lose by a feared way pull against it.)
+      learned = ownPull(m.seen, i, year),
       guard =
         top && k === "common"
           ? top.who === 2 || top.who === 3
@@ -1078,9 +1137,7 @@ function weighOwn(
               ? 0.1 * (top.level / 100)
               : 0
           : 0,
-      // (Rulers overthrown: what was theirs shared out. Savers ruined by a debt refused: more looked for from the realm.)
-      shaken = (m.lean?.[i] ?? 0) / 100 + (ruined && k === "common" ? 0.08 : 0),
-      target = dmath.clamp(anchor[i]! + held + drawn + guard + shaken, 0, 1),
+      target = dmath.clamp(anchor[i]! + held + learned + guard, 0, 1),
       gap = target - now;
     if (Math.abs(gap) < FINANCE.ownLeast) continue;
     const to = Math.round(
@@ -1108,12 +1165,12 @@ function weighOwn(
               },
             ]
           : []),
-        ...(drawn && other
+        ...(Math.abs(learned) >= 0.005
           ? [
               {
-                name: `how ${realmName(other.p)} is seen to fare`,
-                value: top!.works / 100,
-                contribution: drawn,
+                name: "what it has seen go well and ill",
+                value: learned,
+                contribution: learned,
                 source: null,
               },
             ]
@@ -1127,20 +1184,6 @@ function weighOwn(
                 source: m.toldEvent
                   ? { ref: m.toldEvent, role: "pressure" as const, weight: 1 }
                   : null,
-              },
-            ]
-          : []),
-        ...(shaken
-          ? [
-              {
-                name: m.lean?.[i] ? "its rulers overthrown" : "its savers ruined by a debt refused",
-                value: 1,
-                contribution: shaken,
-                source: overthrown?.event
-                  ? { ref: overthrown.event, role: "trigger" as const, weight: 1 }
-                  : m.refusal
-                    ? { ref: m.refusal, role: "trigger" as const, weight: 1 }
-                    : null,
               },
             ]
           : []),
@@ -1160,10 +1203,6 @@ function weighOwn(
       causes: [{ ref: decision, role: "trigger", weight: 1 }],
       data: { realm: realmName(p), own: k, from: Math.round(now * 100), to, now: [...m.own] },
     });
-  }
-  if (m.lean) {
-    m.lean = m.lean.map((x) => Math.trunc(x * FINANCE.leanKept));
-    if (m.lean.every((x) => x === 0)) delete m.lean;
   }
 }
 

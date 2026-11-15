@@ -675,7 +675,9 @@ if (!woundsOnly) {
     "a figure on the screen not named",
   );
   await shot("b3-clash");
-  await atTurn(turn, 8 + 85 / 60);
+  // (The struck read before the rout where it comes early: first light's battle of year 369, of riders since realms learn of rule
+  // from evidence, breaks at 67.5 s, and the clock does not go back to it from second 85.)
+  await atTurn(turn, 8 + (rout === null ? 85 : Math.min(85, Math.max(62, rout - 2))) / 60);
   p = await placedSoon();
   const struck = p.onScreen.filter((t) => t.hit),
     crawling = struck.filter((t) => t.crawl || t.act === "crawl" || t.act === "helped").length;
@@ -684,9 +686,15 @@ if (!woundsOnly) {
   );
   check(p.marks.wounds > 0, "no wounds drawn on the struck");
   await shot("b4-struck");
-  await atTurn(turn, 8 + (rout === null ? 144 : Math.min(148, rout + 8)) / 60);
-  p = await placedSoon();
-  const flying = p.onScreen.filter((t) => t.act === "flee").length;
+  // (Looked for from three seconds after it breaks to eight: a host on foot is still in sight eight seconds on; one of riders has
+  // ridden off the field within fifteen.)
+  let flying = 0;
+  for (const after of rout === null ? [0] : [3, 5, 8]) {
+    await atTurn(turn, 8 + (rout === null ? 144 : Math.min(148, rout + after)) / 60);
+    p = await placedSoon();
+    flying = Math.max(flying, p.onScreen.filter((t) => t.act === "flee").length);
+    if (flying) break;
+  }
   say(`the ${rout === null ? "disengagement" : "rout"} at ${p.s.toFixed(0)} s: ${flying} flying`);
   check(
     rout === null ? flying === 0 : flying > 0,

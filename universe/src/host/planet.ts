@@ -895,8 +895,10 @@ function planetUniverse(name: string, prior: Prior): Universe {
   // with the lessons' second step: lessons of war and want that change how a people fights and stores, and how each realm is held
   // (who bears arms, who decides, how word moves, how it binds itself) moving with what befell it and others. And with a realm's
   // money and its fears: debt sold and refused, how wealth is owned, and each realm's fear of another's way, which its regard for
-  // others, how it is held and its host read.)
-  const version = name === "alien" ? "alien-25" : `${name}-21`,
+  // others, how it is held and its host read. And with the
+  // lessons' third step: no lesson of rule written down; each realm's fortune measured year by year, and what it believes of each
+  // of its numbers the association its evidence supports, its own and others' it could see.)
+  const version = name === "alien" ? "alien-26" : `${name}-22`,
     make = (seed: Seed, frequency?: number) => {
       // The chronicle opens after a generated prehistory: bands across the land.
       const lands = landsOf(seed.text),

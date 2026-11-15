@@ -10,9 +10,10 @@
 // near 1 among upright apes; a hive whose every member decides as one and whose soldiers alone bear stings is voice and force both
 // high, on a body that lives as one. The names a player reads are read off the numbers, the body and its means, and never kept.
 // What moves them is the same machinery as a realm's laws (sim/order/holds.ts): its interest groups' wants by their sway, its ways,
-// its memories; and what it learns, which is one rule: an outcome (a rising crushed, a pact that failed it, a neighbour's fall), the
-// cause a people believes lay behind it (its own fault, others', weakness, the gods'), read off its ways, and a change to these
-// numbers that follows from that belief. Pure tables and functions.
+// its memories; and what it learns (rules/learn.ts): no lesson is written down. What befell a realm, or another it could see, is a
+// piece of evidence, how that realm stood on these numbers against how it then fared, measured; what a realm believes of each number
+// is what its evidence supports, and pulls that number. The outcomes listed here only say which of history's events are great enough
+// to be looked at, whom each befell, and what it is called. Pure tables and functions.
 import type { BodyPlan } from "./bodies.ts";
 
 /** The four, in the order a realm keeps them. */
@@ -25,14 +26,8 @@ export const HOLDING = {
   /** How far a weighing moves a number toward what is wanted of it, and the least gap worth moving. */
   pace: 0.3,
   least: 0.06,
-  /** How much a pull from a lesson keeps, each weighing (every ten years). */
-  pullKept: 0.5,
   /** How far a realm can see another's fate: the days of news its fastest word covers (rules/signals.ts wordPace). */
   newsDays: 45,
-  /** A lesson from another's fate weighs this much of one's own. */
-  seen: 0.5,
-  /** A realm keeps its last few lessons of rule, for its page. */
-  kept: 4,
   /** Years a woe blamed on outsiders sours a realm's regard for its neighbours, and by how much at first (sim/diplomacy). */
   grudge: 30,
   grudgeBy: 0.2,
@@ -66,6 +61,8 @@ export type WaysRead = {
   readonly piety: number;
   readonly trade: number;
   readonly thrift: number;
+  /** How far they count their own kin first (absent: the middle): read where a people's faring is weighed (rules/learn.ts). */
+  readonly kinship?: number;
 };
 
 /** A hive, as every rule reads one: those who live as one, small, on land or shore (rules/designs.ts hive). */
@@ -113,9 +110,9 @@ export const unit = (x: number): number => Math.round(Math.max(0, Math.min(1, x)
 export type Blame = "ours" | "theirs" | "weakness" | "the gods'";
 
 /**
- * Who a people blames for an outcome, read off its ways: the open and the untraditional look to themselves; the proud and those
- * who keep to rank to others; the devout to the gods. One who only saw it befall another, and held them a rival, or prizes valour
- * and old ways, holds them weak: "that won't happen to us".
+ * No longer read by the world: how a realm took what befell it is read off what it did with its evidence (rules/learn.ts
+ * blameFrom). Once, who a people blamed for an outcome, picked off its ways: the open and the untraditional looked to themselves;
+ * the proud and those who keep to rank to others; the devout to the gods; one who only saw it befall a rival held them weak.
  */
 export function blameOf(w: WaysRead, own: boolean, rival: boolean): Blame {
   const ours = w.openness + 0.5 * (1 - w.tradition) - (rival ? 0.3 : 0),
@@ -136,9 +133,9 @@ export function blameOf(w: WaysRead, own: boolean, rival: boolean): Blame {
 export type HoldChange = Partial<Record<Hold, number>>;
 
 /**
- * One kind of outcome a realm can learn from: the event that tells it, who it befell (the event's subject at `at`), what it is in
- * words, and what follows for its numbers where they blame themselves (`mend`) and where they blame others (`harden`). Weakness
- * hardens by half (pride, not fear); the gods change nothing. `seen`: others who know of it weigh it too.
+ * One kind of event great enough that realms look at how the one it befell stood and how it fared (rules/learn.ts): the event that
+ * tells it, who it befell (the event's subject at `at`), and what it is called. `seen`: others who know of it weigh it too. What a
+ * realm makes of it is nowhere written: it follows from how that realm stood and what was measured of its fortune.
  */
 export type RuleOutcome = {
   readonly id: string;
@@ -149,135 +146,139 @@ export type RuleOutcome = {
   readonly words: string;
   /** Of another: "the fall of {them}". */
   readonly of?: string;
-  readonly mend: HoldChange;
-  readonly harden: HoldChange;
+  /** No longer read (once a written change to a realm's numbers for each blame): kept so a row written with them still stands. */
+  readonly mend?: HoldChange;
+  readonly harden?: HoldChange;
   readonly seen?: boolean;
-  /** A good outcome: its blame is credit (BLAME_WORDS good). */
+  /**
+   * What the event is in itself, for its words only: one that goes well for whom it befalls (a friend who came, a war won). Whether
+   * the realm fared well is measured (rules/learn.ts faredBy); where the two part, the words say both (rules/learn.ts howWords).
+   */
   readonly good?: boolean;
   /** Only where the event's data says so. */
   readonly when?: (d: Record<string, unknown>) => boolean;
 };
 
 export const OUTCOMES: readonly RuleOutcome[] = [
-  // Their people rose and overthrew their rulers: share the choice, let word move; or keep arms and word closer.
+  // Their people rose and overthrew their rulers.
   {
     id: "overthrown",
     event: "strife.revolution",
     at: 0,
     words: "their rulers overthrown by their own people",
     of: "the overthrow of {them}",
-    mend: { voice: 0.15, word: 0.1 },
-    harden: { force: 0.15, word: -0.15 },
     seen: true,
   },
-  // A rising drowned in blood: the many given a say; or a tighter grip.
+  // A rising drowned in blood.
   {
     id: "crushed",
     event: "strife.repressed",
     at: 0,
     words: "a rising drowned in blood at their seat",
     of: "the rising drowned in blood in {them}",
-    mend: { voice: 0.2, word: 0.1 },
-    harden: { force: 0.2, word: -0.2 },
     seen: true,
   },
-  // The army took the seat: the host under the many, arms among the people; or the host kept close and word watched.
+  // The army took the seat.
   {
     id: "seized",
     event: "strife.coup",
     at: 0,
     words: "their seat seized by their own army",
     of: "the seizing of {them} by its army",
-    mend: { voice: 0.1, force: -0.15 },
-    harden: { force: 0.1, word: -0.15 },
     seen: true,
   },
-  // A realm gone: bind to others and put arms in more hands against the day; or arm the seat and trust none.
+  // A realm gone.
   {
     id: "fell",
     event: "polity.ended",
     at: 0,
     words: "their realm's fall",
     of: "the fall of {them}",
-    mend: { trust: 0.1, force: -0.05 },
-    harden: { force: 0.1, trust: -0.1 },
     seen: true,
   },
-  // Those they called stood aside: bind more carefully; or trust no one.
+  // Those they called stood aside.
   {
     id: "forsaken",
     event: "ties.answered",
     at: 1,
     words: "a friend who stood aside when they called",
-    mend: { trust: -0.05 },
-    harden: { trust: -0.2 },
     when: (d) => d.came === false && !["truce", "sworn", "both", "noway"].includes(String(d.why)),
   },
-  // Those they called came: bind themselves the more.
+  // Those they called came.
   {
     id: "rescued",
     event: "ties.answered",
     at: 1,
     words: "a friend who came when they called",
-    mend: { trust: 0.15 },
-    harden: { trust: 0.05 },
     good: true,
     when: (d) => d.came === true,
   },
-  // A war lost (its peace made against them): put arms in many hands and look for friends; or arm the seat and trust none.
+  // A war's peace: won by the one who made it and lost by the one it was made on; or, where its maker did not win it, a war that
+  // gained them nothing and one withstood.
   {
     id: "beaten",
     event: "war.peace",
-    at: (d) => (d.won === true ? 2 : 1),
+    at: 2,
     words: "a war lost",
-    mend: { force: -0.1, trust: 0.05 },
-    harden: { force: 0.1, trust: -0.1 },
+    when: (d) => d.won === true,
   },
-  // What they lent, never repaid (the lender's realm, its third subject); what they owed, never paid: borrow and lend the less
-  // either way, the more so blaming others.
+  {
+    id: "won",
+    event: "war.peace",
+    at: 1,
+    words: "a war won",
+    good: true,
+    when: (d) => d.won === true,
+  },
+  {
+    id: "failed",
+    event: "war.peace",
+    at: 1,
+    words: "a war that gained them nothing",
+    when: (d) => d.won !== true,
+  },
+  {
+    id: "withstood",
+    event: "war.peace",
+    at: 2,
+    words: "a war withstood",
+    good: true,
+    when: (d) => d.won !== true,
+  },
+  // What they lent, never repaid (the lender's realm, its third subject); what they owed, never paid.
   {
     id: "unpaid",
     event: "credit.defaulted",
     at: 2,
     words: "a debt owed them never repaid",
-    mend: { trust: -0.1 },
-    harden: { trust: -0.2 },
   },
   {
     id: "defaulted",
     event: "credit.defaulted",
     at: 0,
     words: "a debt they could not pay",
-    mend: { trust: -0.15 },
-    harden: { trust: -0.1, force: 0.05 },
     when: (d) => d.fallen !== true,
   },
-  // A realm's debt its people held, refused (sim/finance: one event for each people that held it): lend abroad the less.
+  // Three of a realm's money (sim/finance), named as events worth looking at and no more: what a realm learns of them is what its
+  // measured fortune says of how it stood (rules/learn.ts). What its people hold abroad is counted in its wealth, so a debt
+  // refused or a holding taken is a fortune fallen in a year it stood bound to others.
   {
     id: "paper-lost",
     event: "finance.lost",
     at: 0,
     words: "another realm's debt their people held, refused",
-    mend: { trust: -0.1 },
-    harden: { trust: -0.2 },
   },
-  // The debt it sold, refused: it binds itself the less, and its seat keeps arms the closer against its ruined savers.
   {
     id: "paper-refused",
     event: "finance.refused",
     at: 0,
     words: "the debt they sold, which they could not pay",
-    mend: { trust: -0.15 },
-    harden: { trust: -0.1, force: 0.05 },
   },
-  // What its people held in another realm, taken (its second subject): hold abroad the less; or trust no one, and arm.
   {
     id: "taken-abroad",
     event: "finance.taken",
     at: 1,
     words: "what their people held in another realm, taken from them",
-    mend: { trust: -0.1 },
-    harden: { trust: -0.2, force: 0.05 },
   },
 ];
 
@@ -289,15 +290,18 @@ export const OUTCOMES_OF: ReadonlyMap<string, readonly RuleOutcome[]> = (() => {
 })();
 export const OUTCOME: ReadonlyMap<string, RuleOutcome> = new Map(OUTCOMES.map((o) => [o.id, o]));
 
-/** What a blame does with an outcome: its change, scaled (`by`: 1 for one's own; HOLDING.seen for another's). */
+/**
+ * No longer read by the world (what an outcome changes is learned from evidence, rules/learn.ts): the change a row's own `mend` and
+ * `harden` would have made for a blame, for a row that still carries them.
+ */
 export function changeOf(o: RuleOutcome, blame: Blame, by: number): HoldChange {
-  const base =
+  const base: HoldChange =
       blame === "ours"
-        ? o.mend
+        ? (o.mend ?? {})
         : blame === "theirs"
-          ? o.harden
+          ? (o.harden ?? {})
           : blame === "weakness"
-            ? o.harden
+            ? (o.harden ?? {})
             : {},
     k = (blame === "weakness" ? 0.5 : 1) * by,
     out: HoldChange = {};
@@ -334,7 +338,7 @@ export const BLAME_WORDS: Readonly<
   ],
   "the gods'": ["held it the gods' will", "held it the gods' will", "thanked the gods"],
 };
-/** A blame in words, for an outcome of its own or another's. */
+/** A blame in words, for an outcome of its own or another's (a lesson kept before evidence was measured: rules/learn.ts tookWords). */
 export const blameWords = (o: RuleOutcome | undefined, blame: Blame, seen: boolean): string =>
   BLAME_WORDS[blame][o?.good ? 2 : seen ? 1 : 0];
 

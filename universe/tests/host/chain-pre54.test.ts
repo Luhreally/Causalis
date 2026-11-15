@@ -77,22 +77,27 @@ const KIND_ROWS = new Set([
  * Re-recorded for how realms are held (2026-11-13): who bears arms, who decides, how word moves and how a realm binds itself, and
  * what realms learn of rule from what befell them and others, move Earth's history from its first realms on (word across a border
  * carries learning the faster or the slower), and with it the early camps at 40 and every page of 700. The guide to matter stays.
+ * Re-recorded for evidence (2026-11-14): no lesson of rule is written down; each realm's fortune is measured and what it believes of
+ * its four numbers is what its evidence supports, its own and others', which moves Earth's history from its first realms on, and
+ * with it every page of 700. Substances, the guide to matter and the early camps stay identical.
+ * And again that day: a realm gone holds no event of history back for its kept evidence, and a war is told lost or won only
+ * where its peace says so, which moves what history keeps and tells.
  * Re-recorded for a realm's money and its fears (2026-11-14): each realm's fear of how another is held moves its regard for it, how
  * it is held and its host from the first realms that meet, and debt sold and holdings abroad from the first seats that know banking;
  * so Earth's history moves from its first realms on, and with it the early camps at 40 and every page of 700. The guide to matter stays.
  */
 const BEFORE: Record<string, string> = {
-  tools: "ad465687:18223",
-  stuff: "d5d1112:13819",
-  ground: "59d7d0fa:43926",
-  deposits: "8f14880d:97948",
-  arms: "9f199fb7:15569",
-  designs: "68d1d3a:27254",
-  workshops: "c0003d55:362845",
-  substances: "916e8e1b:130619",
-  reactions: "35eb7a50:68623",
+  tools: "f1b6f293:19177",
+  stuff: "f266b2c9:13939",
+  ground: "a6f7b7fa:41937",
+  deposits: "3a698b56:97956",
+  arms: "c96ed4ee:16716",
+  designs: "19ab3383:27912",
+  workshops: "2edfc94e:463938",
+  substances: "cbdc9f23:130621",
+  reactions: "db9030ae:68630",
   // (Its pages no longer list what only a people of the water could find: F1, canBeFoundHere.)
-  principles: "47595d71:170749",
+  principles: "efee3e16:171046",
   guide: "ced49326:17137",
   camps: "87b992a7:342250",
 };

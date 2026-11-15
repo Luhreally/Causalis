@@ -15,6 +15,7 @@
 import { dmath } from "../kernel/index.ts";
 import type { BodyPlan } from "./bodies.ts";
 import type { WaysRead } from "./holds.ts";
+import { LEARNING, evidenceKept } from "./learn.ts";
 
 /** How wealth is owned: the two numbers, in the order a realm keeps them. */
 export const OWN_KINDS = ["spread", "common"] as const;
@@ -114,10 +115,6 @@ export const FINANCE = {
   // —— How wealth is owned ——
   ownPace: 0.3,
   ownLeast: 0.05,
-  /** Rulers overthrown: what leans on how widely wealth is held, and (where it lay with a few, among a people who do not live by trade) on how much the realm holds for all, in hundredths; and how much of a lean is kept each ten years. */
-  shared0: 20,
-  taken0: 70,
-  leanKept: 0.85,
 
   // —— Fear ——
   /** What the four parts' product is multiplied by, to a number 0 … 1. */
@@ -135,8 +132,6 @@ export const FINANCE = {
   /** How far a fear moves word, arms and voice where those who rule would lose; and where the many would. */
   tightens: { word: -0.25, force: 0.15, voice: -0.1 },
   guards: { word: -0.1, force: 0.08, voice: 0 },
-  /** How far a way seen to work better pulls a people's own numbers toward it. */
-  follows: 0.25,
   /** Camps: two realms that fear each other at least this much between them, each with this share of the world's people or among its so many most peopled. */
   campFear: 0.5,
   campShare: 0.04,
@@ -330,7 +325,7 @@ export function wouldLose(a: Way, b: Way): { loss: number; who: number; each: nu
 }
 
 /** How a realm fares, as its neighbours see it: how its people eat, how quiet they are, what they hold a head. */
-export type Faring = {
+export type SeenFaring = {
   /** Months of food in store a head, against a year's (0 … 1). */
   readonly fed: number;
   /** One less its people's grievance (0 … 1). */
@@ -341,7 +336,7 @@ export type Faring = {
 };
 
 /** How well another's way is seen to work, against one's own: 0.5 where they fare alike and are of a size. */
-export function seenToWork(mine: Faring, theirs: Faring): number {
+export function seenToWork(mine: SeenFaring, theirs: SeenFaring): number {
   const rich = theirs.rich / Math.max(1e-9, mine.rich + theirs.rich) - 0.5,
     better = 0.5 + 0.6 * (theirs.fed - mine.fed) + 0.5 * (theirs.calm - mine.calm) + 0.8 * rich,
     // (A realm a tenth one's size is hardly looked to.)
@@ -397,17 +392,59 @@ export function threatOf(mine: Way, theirs: Way, works: number, exposed: number)
   };
 }
 
-/** What a fear does to how a realm is held (force, voice, word), and where its people are drawn: the two against each other. */
-export function fearMoves(
-  mine: Way,
-  theirs: Way,
-  t: Threat,
-): [force: number, voice: number, word: number] {
-  // (Those who decide answer a fear of their own loss; where the many would lose, they guard themselves, more gently.)
+/**
+ * What a fear does to how a realm is held (force, voice, word): those who decide answer a fear of their own loss; where the many
+ * would lose, they guard themselves, more gently. (Whether a people is drawn to a way seen to fare better is no part of this: what
+ * a realm has seen go well and ill, its own fate and its neighbours', is its evidence, rules/learn.ts.)
+ */
+export function fearMoves(mine: Way, t: Threat): [force: number, voice: number, word: number] {
   const few = t.who === 0 || t.who === 4 || (t.who === 2 && mine[1] < 0.45),
-    by = few ? FINANCE.tightens : FINANCE.guards,
-    pull = (k: number) => FINANCE.follows * t.drawn * (theirs[k]! - mine[k]!);
-  return [by.force * t.level + pull(0), by.voice * t.level + pull(1), by.word * t.level + pull(2)];
+    by = few ? FINANCE.tightens : FINANCE.guards;
+  return [by.force * t.level, by.voice * t.level, by.word * t.level];
+}
+
+// —— What a realm has seen of how wealth is owned ————————————————————————————————————————————————————————
+
+/**
+ * What a realm believes of its two numbers of owning, kept as its beliefs of how it is held are (rules/learn.ts Belief): for each,
+ * the sum of its evidence for standing high on it and how much evidence that is, as of a year.
+ */
+export type OwnBelief = { a: number[]; n: number[]; at: number };
+
+/** A piece of evidence of owning: how a realm stood on each number against the usual, times how it fared, by what it weighs. */
+export function ownEvidence(
+  own: readonly number[],
+  usual: readonly number[],
+  fared: number,
+  weight: number,
+): number[] {
+  // (`|| 0`: never a nothing below nothing, which a save reads back as 0.)
+  return [0, 1].map(
+    (k) => weight * clamp(2 * ((own[k] ?? 0.5) - (usual[k] ?? 0.5)), -1, 1) * fared || 0,
+  );
+}
+
+/** A belief of owning with a piece of evidence added in a year, what it had faded to then (half in LEARNING.half years). */
+export function ownBelieved(
+  b: OwnBelief | undefined,
+  evidence: readonly number[],
+  year: number,
+): OwnBelief {
+  const keep = b ? evidenceKept(year - b.at) : 1,
+    round = (x: number) => Math.round(x * 1000) / 1000 || 0;
+  return {
+    a: [0, 1].map((k) => round((b?.a[k] ?? 0) * keep + (evidence[k] ?? 0))),
+    n: [0, 1].map((k) => round((b?.n[k] ?? 0) * keep + Math.abs(evidence[k] ?? 0))),
+    at: year,
+  };
+}
+
+/** What a belief of owning asks of its number in a year: so much more, or less, wanted of it. */
+export function ownPull(b: OwnBelief | undefined, k: number, year: number): number {
+  if (!b) return 0;
+  const keep = evidenceKept(year - b.at),
+    n = (b.n[k] ?? 0) * keep;
+  return n > 0 ? (LEARNING.learn * (b.a[k] ?? 0) * keep) / (n + LEARNING.prior) : 0;
 }
 
 // —— Camps ——————————————————————————————————————————————————————————————————————————————————————————

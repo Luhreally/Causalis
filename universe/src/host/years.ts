@@ -13,13 +13,14 @@
 // A reading only: it is no system and no part of the rules, it hashes nothing and draws nothing, and the world runs the same
 // with it or without it (tests/host/years.test.ts). A save made before it loads; its years begin there.
 import { yearOfMoment, type Hasher, type StateStore, type World } from "../kernel/index.ts";
-import { FOODS, GOODS } from "../rules/index.ts";
+import { FOODS, GOODS, HOLD_KINDS, leanOf } from "../rules/index.ts";
 import {
   creditOf,
   debtOf,
   fieldedOf,
   financeOf,
   healthOf,
+  learntOf,
   marketsOf,
   orderOf,
   politiesOf,
@@ -172,6 +173,9 @@ export type RealmLog = {
   owed?: Log<number>;
   listed?: Log<number>;
   fear?: Log<number>;
+  /** Its four numbers (rules/holds.ts), as one (heldPacked); and what it believed of each, in tenths (leanPacked). */
+  held: Log<number>;
+  lean: Log<number>;
 };
 
 /** The makings a world's works are told by, through the years (the goods a land's works can be companies of). */
@@ -186,6 +190,25 @@ export const WORKS_MAKINGS = [
   "tools",
   "pottery",
 ] as const;
+
+/** A realm's four numbers (hundredths) as one number, and back. */
+export const heldPacked = (h: readonly number[]): number =>
+  ((h[0]! * 101 + h[1]!) * 101 + h[2]!) * 101 + h[3]!;
+export const heldUnpacked = (n: number): number[] => [
+  Math.floor(n / 101 ** 3) % 101,
+  Math.floor(n / 101 ** 2) % 101,
+  Math.floor(n / 101) % 101,
+  n % 101,
+];
+/** What a realm believes of its four numbers (-1 … 1 each) as one number, in tenths, and back. */
+export const leanPacked = (l: readonly number[]): number =>
+  l.reduce((n, x) => n * 21 + (Math.round(Math.max(-1, Math.min(1, x)) * 10) + 10), 0);
+export const leanUnpacked = (n: number): number[] => [
+  ((Math.floor(n / 21 ** 3) % 21) - 10) / 10,
+  ((Math.floor(n / 21 ** 2) % 21) - 10) / 10,
+  ((Math.floor(n / 21) % 21) - 10) / 10,
+  ((n % 21) - 10) / 10,
+];
 
 /** Every realm's and every land's years, as they were. */
 export class YearsStore implements StateStore {
@@ -239,6 +262,8 @@ export class YearsStore implements StateStore {
         ...(r.owed ? { owed: r.owed } : {}),
         ...(r.listed ? { listed: r.listed } : {}),
         ...(r.fear ? { fear: r.fear } : {}),
+        held: r.held,
+        lean: r.lean,
       })),
       ...(this.works.years.length ? { works: this.works } : {}),
     };
@@ -275,6 +300,9 @@ export class YearsStore implements StateStore {
         ...(r.owed ? { owed: copyLog(r.owed) } : {}),
         ...(r.listed ? { listed: copyLog(r.listed) } : {}),
         ...(r.fear ? { fear: copyLog(r.fear) } : {}),
+        // (A save from before they were kept: begun here.)
+        held: r.held ? copyLog(r.held) : emptyLog(),
+        lean: r.lean ? copyLog(r.lean) : emptyLog(),
       });
     this.works = s.works
       ? { years: [...s.works.years], cols: s.works.cols.map((c) => [...c]) }
@@ -411,6 +439,8 @@ export function readYear(world: World, store: YearsStore, t: number): void {
           bloc: emptyLog(),
           rulers: [],
           acts: emptyLog(),
+          held: emptyLog(),
+          lean: emptyLog(),
         }),
       );
     const share = hostShare(world, r),
@@ -441,6 +471,17 @@ export function readYear(world: World, store: YearsStore, t: number): void {
         logPut((log.listed ??= emptyLog()), year, toSteps(money.worth, TRADE_STEPS));
       const fear = Math.round((money.fears[0]?.level ?? 0) / 10) * 10;
       if (fear > 0 || log.fear) logPut((log.fear ??= emptyLog()), year, fear);
+    }
+    // How it is held, and what it believes of that (sim/order/holds.ts), as each changed.
+    const o = order?.of(r.ref);
+    if (o?.held) {
+      logPut(log.held, year, heldPacked(o.held));
+      // (What it believes, once a decade and in its first year read: it moves a little with every piece of evidence, and a line
+      // through the years wants no more.)
+      if (year % LAND_EVERY === 0 || !log.lean.y.length) {
+        const b = learntOf(o);
+        logPut(log.lean, year, leanPacked(HOLD_KINDS.map((_, k) => leanOf(b, k, year))));
+      }
     }
   }
   // What the world's works made, by making, once a decade.
@@ -482,6 +523,8 @@ function thinYears(store: YearsStore, now: number): void {
     logThin(r.tithe, now);
     logThin(r.bloc, now);
     for (const l of [r.rate, r.owed, r.listed, r.fear]) if (l) logThin(l, now);
+    logThin(r.held, now);
+    logThin(r.lean, now);
     if (r.rulers.length && r.rulers[0]! < now - RULER_YEARS)
       r.rulers = r.rulers.filter((y) => y >= now - RULER_YEARS);
   }

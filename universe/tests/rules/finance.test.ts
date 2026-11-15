@@ -10,6 +10,9 @@ import {
   exposure,
   fearMoves,
   firstOwn,
+  ownBelieved,
+  ownEvidence,
+  ownPull,
   ownWords,
   seenToWork,
   threatOf,
@@ -163,14 +166,30 @@ test("fear is the product of its four parts: none of it where any is nothing", (
   );
 });
 
-test("a fear held by those who rule tightens word and arms; a people drawn to a way that works moves toward it", () => {
+test("a fear held by those who rule tightens word and arms; where the many would lose they guard themselves more gently", () => {
   const feared = threatOf(one, many, 0.5, 0.6),
-    [force, voice, word] = fearMoves(one, many, feared);
+    [force, voice, word] = fearMoves(one, feared);
   assert.ok(force > 0 && word < 0 && voice <= 0, "watched the closer, armed the closer");
-  // Seen to work far better, and its people exposed: drawn more than its rulers can hold.
-  const drawn = threatOf([0.5, 0.5, 0.6, 0.4, 0.1], many, 1, 1),
-    moved = fearMoves([0.5, 0.5, 0.6, 0.4, 0.1], many, drawn);
-  assert.ok(drawn.drawn === 1 && moved[1] > 0, "toward a wider say");
+  const guarded = fearMoves(many, { ...threatOf(many, one, 0.5, 0.6), level: feared.level });
+  assert.ok(guarded[2] < 0 && guarded[2] > word, "word watched, but less");
+  assert.equal(guarded[1], 0);
+});
+
+test("what a realm believes of how wealth is owned is what its evidence supports: how it stood against the usual, by how it fared", () => {
+  const usual = [0.4, 0.2];
+  // A realm whose wealth lay with a few (far under the usual spread) fared ill: evidence for wider holding; none of the common
+  // store, where it stood as most do.
+  const ill = ownEvidence([0.1, 0.2], usual, -0.8, 1);
+  assert.ok(ill[0]! > 0.3 && ill[1] === 0);
+  let b = ownBelieved(undefined, ill, 500);
+  assert.ok(ownPull(b, 0, 500) > 0.1, "it comes to want its wealth among more");
+  assert.equal(ownPull(b, 1, 500), 0);
+  // A neighbour holding much in common that fared well, weighing half: toward a common store. Evidence fades with the years.
+  b = ownBelieved(b, ownEvidence([0.4, 0.8], usual, 0.9, 0.5), 510);
+  const now = ownPull(b, 1, 510);
+  assert.ok(now > 0.05 && ownPull(b, 1, 630) < now / 2);
+  // Where all stand alike, a fate says nothing of how they stand.
+  assert.deepEqual(ownEvidence(usual, usual, -1, 1), [0, 0]);
 });
 
 test("two camps stand where two great realms fear each other and others stand nearer one of them", () => {

@@ -17,6 +17,7 @@ import {
   fearMoves,
   greatRealms,
   losersBefore,
+  ownPull,
   wayDistance,
   ownWords,
   wayWords,
@@ -177,7 +178,7 @@ function fearWords(world: World, r: Polity, f: Fear): Line {
 function fearParts(world: World, r: Polity, f: Fear) {
   const mine = wayOf(world, r.ref),
     theirs = wayOf(world, f.of),
-    moves = fearMoves(mine, theirs, threatFrom(f)),
+    moves = fearMoves(mine, threatFrom(f)),
     press = (["arms kept from its people", "how many decide", "how freely word moves"] as const)
       .map((name, k) => ({ name, v: moves[k]! }))
       .filter((x) => Math.abs(x.v) >= 0.01);
@@ -255,6 +256,13 @@ export function realmFearBlocks(world: World, r: Polity): Block[] {
         parts: [
           part("among how many it lies (0 a few, 1 every household)", own[0]!.toFixed(2)),
           part("how much the realm holds for all", own[1]!.toFixed(2)),
+          // (What its evidence asks of each: what it has seen go well and ill, itself and those it meets.)
+          ...(["among more", "held for all"] as const).flatMap((name, k) => {
+            const pull = ownPull(m.seen, k, yearNow(world));
+            return Math.abs(pull) >= 0.005
+              ? [part(`what it has seen asks: ${name}`, `${pull > 0 ? "+" : ""}${pull.toFixed(2)}`)]
+              : [];
+          }),
         ],
       }),
     ],
