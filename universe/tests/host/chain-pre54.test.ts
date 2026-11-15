@@ -80,19 +80,21 @@ const KIND_ROWS = new Set([
  * Re-recorded for evidence (2026-11-14): no lesson of rule is written down; each realm's fortune is measured and what it believes of
  * its four numbers is what its evidence supports, its own and others', which moves Earth's history from its first realms on, and
  * with it every page of 700. Substances, the guide to matter and the early camps stay identical.
+ * And again that day: a realm gone holds no event of history back for its kept evidence, and a war is told lost or won only
+ * where its peace says so, which moves what history keeps and tells.
  */
 const BEFORE: Record<string, string> = {
-  tools: "9ddd1dc:19167",
-  stuff: "5aee5883:13916",
-  ground: "fafb439f:41969",
-  deposits: "c97cf990:97956",
-  arms: "b6397b64:17045",
-  designs: "a029c660:28141",
-  workshops: "56fb0011:447066",
+  tools: "f1b6f293:19177",
+  stuff: "f266b2c9:13939",
+  ground: "a6f7b7fa:41937",
+  deposits: "3a698b56:97956",
+  arms: "c96ed4ee:16716",
+  designs: "19ab3383:27912",
+  workshops: "2edfc94e:463938",
   substances: "cbdc9f23:130621",
-  reactions: "ffd7ff45:68630",
+  reactions: "db9030ae:68630",
   // (Its pages no longer list what only a people of the water could find: F1, canBeFoundHere.)
-  principles: "a88c9059:171054",
+  principles: "efee3e16:171046",
   guide: "ced49326:17137",
   camps: "2eea5ed3:342250",
 };

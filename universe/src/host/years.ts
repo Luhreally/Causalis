@@ -425,8 +425,12 @@ export function readYear(world: World, store: YearsStore, t: number): void {
     const o = order?.of(r.ref);
     if (o?.held) {
       logPut(log.held, year, heldPacked(o.held));
-      const b = learntOf(o);
-      logPut(log.lean, year, leanPacked(HOLD_KINDS.map((_, k) => leanOf(b, k, year))));
+      // (What it believes, once a decade and in its first year read: it moves a little with every piece of evidence, and a line
+      // through the years wants no more.)
+      if (year % LAND_EVERY === 0 || !log.lean.y.length) {
+        const b = learntOf(o);
+        logPut(log.lean, year, leanPacked(HOLD_KINDS.map((_, k) => leanOf(b, k, year))));
+      }
     }
   }
   // The god's blessings and curses on a realm, this year.

@@ -328,7 +328,8 @@ export function taughtChart(
 ): HTMLElement {
   const box = el("div", "taught"),
     rows = Math.max(1, b.from.length, b.to.length),
-    ROW = 26,
+    // (A row holds a long name on two lines: a name in a people's own tongue is never cut short.)
+    ROW = 32,
     H = rows * ROW,
     W = 100,
     flows = svg("svg", {

@@ -519,10 +519,15 @@ function through(
 }
 
 /** The evidence a realm keeps that moved a number most. */
-function heaviest(o: RealmOrder, k: number): Taught | undefined {
+function heaviest(o: RealmOrder, k: number, own: number, toward: number): Taught | undefined {
   let best: Taught | undefined;
-  for (const x of o.taught ?? [])
-    if (x.moved && Math.abs(x.moved[k] ?? 0) > Math.abs(best?.moved?.[k] ?? 0)) best = x;
+  for (const x of o.taught ?? []) {
+    // (Of the kind the belief is said to come from, and the way it leans: its own fate where it is nearly all its own, another's
+    // where nearly all seen, so the piece named never gainsays the line it is named in.)
+    if (!x.moved || (own >= 0.75 && x.of) || (own <= 0.25 && !x.of)) continue;
+    const v = x.moved[k] ?? 0;
+    if (v * toward > 0 && Math.abs(v) > Math.abs(best?.moved?.[k] ?? 0)) best = x;
+  }
   return best;
 }
 
@@ -546,7 +551,8 @@ export function believedBlocks(world: World, r: Polity): Block[] {
     blocks: Block[] = [];
   // (A people that has seen little says so in words: four tracks with nothing on them tell less.)
   const little = !belief || HOLD_KINDS.every((h) => Math.abs(leanOf(belief, HOLD[h], year)) < 0.03);
-  if (little)
+  // (Of a living realm: one gone believes nothing now, and its kept pieces are told below.)
+  if (little && r.ended === null)
     blocks.push({
       type: "text",
       title: "What it has seen work",
@@ -563,7 +569,7 @@ export function believedBlocks(world: World, r: Polity): Block[] {
       const k = HOLD[h],
         lean = leanOf(belief, k, year),
         { sure, own } = sureOf(belief, k, year),
-        on = heaviest(o, k),
+        on = heaviest(o, k, own, lean),
         words: (string | { text: string; ref: string })[] =
           Math.abs(lean) < 0.03
             ? [

@@ -109,10 +109,7 @@ test("beliefs come of evidence and differ between realms; a piece of evidence sa
   const taught = living.flatMap((p) => store.of(p.ref)?.taught ?? []);
   assert.ok(taught.some((x) => x.of) && taught.some((x) => !x.of), "their own fates and others'");
   for (const x of taught) {
-    assert.ok(
-      x.stood?.length === 4 && x.leaned?.length === 4 && x.came && x.moved?.length === 4,
-      JSON.stringify(x),
-    );
+    assert.ok(x.leaned?.length === 4 && x.came && x.moved?.length === 4, JSON.stringify(x));
     const words = taughtWords(x);
     assert.match(
       words,

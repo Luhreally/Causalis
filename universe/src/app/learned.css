@@ -291,15 +291,15 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  height: 26px;
-  font-size: 0.76rem;
+  height: 32px;
+  font-size: 0.72rem;
+  line-height: 1.1;
   min-width: 0;
 }
+/* (A long name whole, on two lines: never cut short.) */
 .taught-row .ref-link {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 .taught-side.to .taught-row {
   flex-direction: row-reverse;
@@ -313,7 +313,7 @@
 }
 .taught-middle {
   position: relative;
-  min-height: 26px;
+  min-height: 32px;
 }
 .taught-flows {
   position: absolute;

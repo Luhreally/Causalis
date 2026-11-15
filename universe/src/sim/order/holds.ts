@@ -95,8 +95,7 @@ export type Taught = {
   readonly event: Ref | null;
   /** The realm it befell, where another's. */
   readonly whose?: Ref;
-  /** How the realm it befell stood then: its four numbers, hundredths; and how far each lay from what was usual among realms. */
-  readonly stood?: readonly number[];
+  /** How far the realm it befell stood then from what was usual among realms, on each of its four numbers (hundredths). */
   readonly leaned?: readonly number[];
   /** How it fared as this realm counts it, and the parts that weighed most (rules/learn.ts cameOf). */
   readonly came?: readonly number[];
@@ -734,7 +733,6 @@ function learn(
       year,
       event: event ?? e.id,
       ...(other ? { whose: other.ref } : {}),
-      stood: got.stood,
       leaned: got.leaned,
       came: got.came,
       moved: got.evidence.map((x) => Math.round(x * 1000)),
