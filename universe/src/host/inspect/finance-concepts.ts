@@ -81,7 +81,7 @@ export const FINANCE_CONCEPTS: Readonly<Record<string, Concept>> = {
     icon: "⚔️",
     title: "Camps",
     what: [
-      `Camps are read, never kept: where two realms, each with ${pc(FINANCE.campShare)} in a hundred of the world's people or more, fear each other's way ${FINANCE.campFear} between them, they are two poles. Another realm stands with a pole when it is nearer that pole in its way and is bound to its side: by a fear of the other pole, or by an oath to one who stands with this one. The rest stand apart.`,
+      `Camps are read, never kept: where two realms, each among the world's ${FINANCE.campGreat} most peopled or with ${pc(FINANCE.campShare)} in a hundred of its people, fear each other's way ${FINANCE.campFear} between them, they are two poles. Another realm stands with a pole when it is nearer that pole in its way and is bound to its side: by a fear of the other pole, or by an oath to one who stands with this one. The rest stand apart.`,
       "No rule knows of camps. What a player sees of one (pacts among the like-held, hosts grown on both sides, trade thinned between them, a third realm's war paid for by one side against the other's way) comes of each realm's own fear, one realm at a time; and where no two great realms sit far apart in how they are held and owned, no camps come.",
     ],
     drives: ["Two great realms unlike, each seen to work, each exposed to the other."],

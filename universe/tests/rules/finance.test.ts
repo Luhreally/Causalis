@@ -205,7 +205,20 @@ test("two camps stand where two great realms fear each other and others stand ne
   // No camps where the great do not fear each other, or the one that does is small.
   assert.equal(campsOf(world.map((x) => ({ ...x, fears: [] }))), null);
   assert.equal(
-    campsOf([r("a", one, 9e6, []), r("b", many, 1e5, [["a", 0.9]]), r("c", one, 9e6, [])]),
+    campsOf([
+      r("a", one, 9e6, []),
+      r("b", many, 1e5, [["a", 0.9]]),
+      r("c", one, 9e6, []),
+      r("d", one, 9e6, []),
+      r("e", one, 9e6, []),
+    ]),
     null,
   );
+  // On a world of many small realms the few most peopled are its great ones, though none has a twentieth of its people.
+  const manySmall = [
+    r("a", one, 3e5, [["b", 0.6]]),
+    r("b", many, 2e5, [["a", 0.5]]),
+    ...Array.from({ length: 60 }, (_, i) => r(`z${i}`, one, 1e5, [])),
+  ];
+  assert.deepEqual(campsOf(manySmall)?.poles, ["a", "b"]);
 });

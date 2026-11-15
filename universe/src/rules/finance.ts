@@ -119,9 +119,10 @@ export const FINANCE = {
   guards: { word: -0.1, force: 0.08, voice: 0 },
   /** How far a way seen to work better pulls a people's own numbers toward it. */
   follows: 0.25,
-  /** Camps: two realms that fear each other at least this much between them, each with this share of the world's people. */
+  /** Camps: two realms that fear each other at least this much between them, each with this share of the world's people or among its so many most peopled. */
   campFear: 0.5,
   campShare: 0.04,
+  campGreat: 4,
   /** A realm leans to a pole when it stands this much nearer it than the other. */
   campLean: 0.06,
 } as const;
@@ -403,31 +404,27 @@ export type Camps = {
  * no two great realms fear each other enough.
  */
 export function campsOf(realms: readonly CampRealm[]): Camps | null {
-  const all = realms.reduce((s, r) => s + r.people, 0),
-    by = new Map(realms.map((r) => [r.ref, r])),
+  const by = new Map(realms.map((r) => [r.ref, r])),
+    great = new Set(greatRealms(realms).map((r) => r.ref)),
     fear = (a: CampRealm, b: string) => a.fears.find((f) => f.of === b)?.level ?? 0;
   let best: { a: CampRealm; b: CampRealm; fear: number; score: number } | null = null;
+  // (A fear held by one alone of the two is read as well: a pair is found from either end.)
   for (const a of realms) {
-    if (a.people < FINANCE.campShare * all) continue;
+    if (!great.has(a.ref)) continue;
     for (const f of a.fears) {
       const b = by.get(f.of);
-      if (!b || b.ref <= a.ref || b.people < FINANCE.campShare * all) continue;
+      if (!b || !great.has(b.ref)) continue;
       const both = f.level + fear(b, a.ref);
       if (both < FINANCE.campFear) continue;
-      const score = both * Math.min(a.people, b.people);
-      if (!best || score > best.score) best = { a, b, fear: both, score };
-    }
-  }
-  // (A fear held by one alone of the two is read as well: a pair is found from either end.)
-  for (const b of realms) {
-    if (b.people < FINANCE.campShare * all) continue;
-    for (const f of b.fears) {
-      const a = by.get(f.of);
-      if (!a || a.ref >= b.ref || a.people < FINANCE.campShare * all) continue;
-      const both = f.level + fear(a, b.ref);
-      if (both < FINANCE.campFear) continue;
-      const score = both * Math.min(a.people, b.people);
-      if (!best || score > best.score) best = { a, b, fear: both, score };
+      const score = both * Math.min(a.people, b.people),
+        [lo, hi] = a.ref < b.ref ? [a, b] : [b, a];
+      if (
+        !best ||
+        score > best.score ||
+        (score === best.score &&
+          (lo.ref < best.a.ref || (lo.ref === best.a.ref && hi.ref < best.b.ref)))
+      )
+        best = { a: lo, b: hi, fear: both, score };
     }
   }
   if (!best) return null;
@@ -457,6 +454,18 @@ export function campsOf(realms: readonly CampRealm[]): Camps | null {
   }
   const apart = realms.filter((r) => !side.has(r.ref)).map((r) => r.ref);
   return { poles: [x.ref, y.ref], fear: best.fear, camps, apart };
+}
+
+/**
+ * The realms great enough to be a pole: each with `campShare` of the world's people or more, and in any case the `campGreat` most
+ * peopled (a world of hundreds of realms has no realm with a twentieth of its people, and still has its great ones).
+ */
+export function greatRealms<T extends { readonly ref: string; readonly people: number }>(
+  realms: readonly T[],
+): T[] {
+  const all = realms.reduce((s, r) => s + r.people, 0),
+    ranked = [...realms].sort((a, b) => b.people - a.people || (a.ref < b.ref ? -1 : 1));
+  return ranked.filter((r, i) => i < FINANCE.campGreat || r.people >= FINANCE.campShare * all);
 }
 
 /** Whether a world's camps are two in earnest: each pole with at least one other beside it. */

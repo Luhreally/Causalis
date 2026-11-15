@@ -1465,6 +1465,7 @@ export {
   exposure,
   fearMoves,
   firstOwn,
+  greatRealms,
   ownBand,
   ownWords,
   seenToWork,

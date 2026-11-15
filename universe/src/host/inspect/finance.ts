@@ -15,6 +15,7 @@ import {
   campsOf,
   campsStand,
   fearMoves,
+  greatRealms,
   wayDistance,
   ownWords,
   wayWords,
@@ -132,11 +133,7 @@ export function campsRead(world: World): CampsRead {
   if (camps) camps.camps.forEach((c, i) => c.forEach((r) => side.set(r, i as 0 | 1)));
   let axis: [string, string] | null = camps ? [camps.poles[0], camps.poles[1]] : null;
   if (!axis) {
-    const all = nodes.reduce((n, r) => n + r.people, 0),
-      great = nodes
-        .filter((r) => r.people >= FINANCE.campShare * all)
-        .sort((a, b) => b.people - a.people || (a.ref < b.ref ? -1 : 1))
-        .slice(0, 12);
+    const great = greatRealms(nodes).slice(0, 12);
     let far = 0;
     for (let i = 0; i < great.length; i++)
       for (let j = i + 1; j < great.length; j++) {
@@ -757,7 +754,7 @@ export function campsLedger(world: World): Block[] {
       title: "No camps",
       lines: [
         [
-          `No two great realms fear each other's way enough: camps stand where two realms, each with ${Math.round(FINANCE.campShare * 100)} in a hundred of the world's people or more, fear each other ${FINANCE.campFear} between them.`,
+          `No two great realms fear each other's way enough: camps stand where two realms, each among the world's ${FINANCE.campGreat} most peopled or with ${Math.round(FINANCE.campShare * 100)} in a hundred of its people, fear each other ${FINANCE.campFear} between them.`,
         ],
       ],
     });
