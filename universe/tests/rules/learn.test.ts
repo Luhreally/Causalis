@@ -13,6 +13,7 @@ import {
   chanceOf,
   evidenceOf,
   faredBy,
+  howWords,
   fortuneAfter,
   leanOf,
   leaningOf,
@@ -184,6 +185,20 @@ test("how a realm took it is read off what it did with it, and its words are com
   assert.equal(cameWords(cameOf(FALLEN, v)), "fared ill (everything lost)");
   assert.equal(movedWords(opened), "came to hold more with its choices carried by many");
   assert.equal(movedWords([0.001, 0, 0, 0]), "");
+  // (What befell it and how it fared, together where they agree and apart where they part.)
+  const leaned = leaningOf([0.5, 0.05, 0.5, 0.5], MID);
+  assert.equal(
+    howWords(false, false, leaned, came),
+    ", in years it stood more than most with its choices in few hands and fared ill (lands lost, its rule doubted)",
+  );
+  assert.equal(
+    howWords(false, true, leaned, came),
+    ", though over those years it fared ill (lands lost, its rule doubted), standing more than most with its choices in few hands",
+  );
+  assert.match(
+    howWords(true, false, leaned, [40, 2]),
+    /^, which had yet fared well \(lands won\) in those years, standing /,
+  );
   assert.equal(tookWords("ours", false, false), "held it its own fault");
   assert.equal(tookWords("theirs", false, true), "held it its strength");
   assert.equal(tookWords("ours", true, true), "took it as an example to itself");

@@ -150,7 +150,10 @@ export type RuleOutcome = {
   readonly mend?: HoldChange;
   readonly harden?: HoldChange;
   readonly seen?: boolean;
-  /** No longer read: whether it went well is measured (rules/learn.ts faredBy). */
+  /**
+   * What the event is in itself, for its words only: one that goes well for whom it befalls (a friend who came, a war won). Whether
+   * the realm fared well is measured (rules/learn.ts faredBy); where the two part, the words say both (rules/learn.ts howWords).
+   */
   readonly good?: boolean;
   /** Only where the event's data says so. */
   readonly when?: (d: Record<string, unknown>) => boolean;
@@ -207,20 +210,40 @@ export const OUTCOMES: readonly RuleOutcome[] = [
     event: "ties.answered",
     at: 1,
     words: "a friend who came when they called",
+    good: true,
     when: (d) => d.came === true,
   },
-  // A war lost (its peace made against them), and a war won.
+  // A war's peace: won by the one who made it and lost by the one it was made on; or, where its maker did not win it, a war that
+  // gained them nothing and one withstood.
   {
     id: "beaten",
     event: "war.peace",
-    at: (d) => (d.won === true ? 2 : 1),
+    at: 2,
     words: "a war lost",
+    when: (d) => d.won === true,
   },
   {
     id: "won",
     event: "war.peace",
-    at: (d) => (d.won === true ? 1 : 2),
-    words: "a war that went their way",
+    at: 1,
+    words: "a war won",
+    good: true,
+    when: (d) => d.won === true,
+  },
+  {
+    id: "failed",
+    event: "war.peace",
+    at: 1,
+    words: "a war that gained them nothing",
+    when: (d) => d.won !== true,
+  },
+  {
+    id: "withstood",
+    event: "war.peace",
+    at: 2,
+    words: "a war withstood",
+    good: true,
+    when: (d) => d.won !== true,
   },
   // What they lent, never repaid (the lender's realm, its third subject); what they owed, never paid.
   {

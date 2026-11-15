@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { HOLD_EVENTS, learntOf, orderOf, politiesOf, taughtWords } from "../../src/sim/index.ts";
-import { HOLD_KINDS, LEARNING, leanOf } from "../../src/rules/index.ts";
+import { HOLD_KINDS, LEARNING, OUTCOME, leanOf } from "../../src/rules/index.ts";
 import type { PageModel } from "../../src/bridge/index.ts";
 
 const world = EARTH.build(seedFromText("first light"));
@@ -116,9 +116,10 @@ test("beliefs come of evidence and differ between realms; a piece of evidence sa
     const words = taughtWords(x);
     assert.match(
       words,
-      /^(After|Seeing) .+ stood (more than most with|much as most do) .+ fared (ill|well|neither)/,
+      /^(After|Seeing) .+ (stood|standing) (more than most with|much as most do)/,
       words,
     );
+    assert.match(words, /fared (ill|well|neither)/, words);
     assert.doesNotMatch(words, /undefined|NaN|\{them\}/);
   }
   // (Whom a realm learned from is another realm, never itself.)
@@ -129,7 +130,12 @@ test("beliefs come of evidence and differ between realms; a piece of evidence sa
 test("the Learned tab draws it: what it has seen work, where it came from, whom it learned from", () => {
   const p = living.find((x) => {
     const o = store.of(x.ref);
-    return o?.learnt && o.taught?.some((t) => t.moved) && o.from?.length;
+    return (
+      o?.learnt &&
+      o.taught?.some((t) => t.moved) &&
+      o.from?.length &&
+      HOLD_KINDS.some((_, k) => Math.abs(leanOf(learntOf(o), k, 400)) >= 0.03)
+    );
   })!;
   assert.ok(p, "a realm with beliefs, evidence and teachers");
   const page = EARTH.queries.page!(world, { ref: p.ref }) as PageModel,
@@ -152,4 +158,33 @@ test("the Learned tab draws it: what it has seen work, where it came from, whom 
   assert.ok(taughtBy?.type === "taught" && taughtBy.from.length > 0);
   const shares = taughtBy.from.reduce((s, x) => s + x.share, 0);
   assert.ok(Math.abs(shares - 1) < 1e-6);
+});
+
+test("no line says one thing and its opposite: what befell a realm and how it fared are told together where they agree, apart where they part", () => {
+  // (Every piece every realm keeps, living or gone.)
+  const all = [...store.realms.values()].flatMap((o) => o.taught ?? []);
+  assert.ok(all.length > 50, `${all.length} pieces`);
+  let parted = 0;
+  for (const x of all) {
+    const words = taughtWords(x),
+      good = !!OUTCOME.get(x.what)?.good,
+      y = (x.came?.[0] ?? 0) / 100,
+      parts = Math.abs(y) >= 0.05 && y > 0 !== good;
+    if (parts) parted++;
+    assert.equal(/, though over those years|, which had yet /.test(words), parts, words);
+    // The patterns found on first light before this: a war lost told with lands won, a war won with lands lost, a fall or a
+    // rising told as faring well, a friend's coming as faring ill, each as if one thing.
+    assert.doesNotMatch(words, /a war (lost|that gained them nothing), in years [^.]*fared well/);
+    assert.doesNotMatch(words, /a war (won|withstood), in years [^.]*fared ill/);
+    assert.doesNotMatch(
+      words,
+      /(overthrown|drowned in blood|seized|could not pay|never repaid|stood aside)[^.]*, in years [^.]*fared well/,
+    );
+    assert.doesNotMatch(
+      words,
+      /Seeing the (fall|overthrow|seizing|rising)[^.]*, which stood [^.]*fared well/,
+    );
+    assert.doesNotMatch(words, /a friend who came[^.]*, in years [^.]*fared ill/);
+  }
+  assert.ok(parted > 0, "some realm fared against what befell it, and its line says so");
 });

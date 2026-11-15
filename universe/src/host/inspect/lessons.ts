@@ -433,8 +433,13 @@ export function learnedBlocks(world: World, holder: string, cell: number | null)
       title: "From what befell them and others",
       items: rule.map((x) =>
         item(
-          [x.event ? link(`Year ${x.year}`, x.event) : `Year ${x.year}`, `: ${taughtWords(x)}.`],
-          x.event ?? "",
+          [
+            x.event && world.events.get(x.event)
+              ? link(`Year ${x.year}`, x.event)
+              : `Year ${x.year}`,
+            `: ${taughtWords(x)}.`,
+          ],
+          x.event && world.events.get(x.event) ? x.event : "",
           x.year,
         ),
       ),
@@ -539,7 +544,21 @@ export function believedBlocks(world: World, r: Polity): Block[] {
       ?.parts.find((x) => x.role === "arm"),
     arm = armPart ? partWords(armPart) : null,
     blocks: Block[] = [];
-  if (belief) {
+  // (A people that has seen little says so in words: four tracks with nothing on them tell less.)
+  const little = !belief || HOLD_KINDS.every((h) => Math.abs(leanOf(belief, HOLD[h], year)) < 0.03);
+  if (little)
+    blocks.push({
+      type: "text",
+      title: "What it has seen work",
+      lines: [
+        [
+          taught.length
+            ? "Too little yet to believe anything of how a realm should be held: what it has seen says as much one way as the other."
+            : "Nothing yet: nothing great has befallen it, and no realm whose fate it could see has stood much otherwise than most or fared much otherwise.",
+        ],
+      ],
+    });
+  if (belief && !little) {
     const rows: BeliefRow[] = HOLD_KINDS.map((h: Hold) => {
       const k = HOLD[h],
         lean = leanOf(belief, k, year),
@@ -560,7 +579,7 @@ export function believedBlocks(world: World, r: Polity): Block[] {
                       ? "from what befell others"
                       : "from its own fate and others'"
                 }`,
-                ...(on?.event
+                ...(on?.event && world.events.get(on.event)
                   ? [
                       ", most from ",
                       link(on.of ? `${on.of}, year ${on.year}` : `year ${on.year}`, on.event),
@@ -589,7 +608,7 @@ export function believedBlocks(world: World, r: Polity): Block[] {
     });
   }
   const marks: EvidenceMark[] = taught
-    .filter((x) => x.event && x.moved)
+    .filter((x) => x.event && x.moved && world.events.get(x.event))
     .map((x) => {
       const most = Math.max(1, ...x.moved!.map((v) => Math.abs(v)));
       return {

@@ -258,7 +258,8 @@ export class OrderStore implements StateStore {
       for (const f of o.firsts) if (f) out.push(f);
       for (const e of o.lawEvents) if (e) out.push(e);
       for (const e of o.heldEvents ?? []) if (e) out.push(e);
-      for (const x of o.taught ?? []) if (x.event) out.push(x.event);
+      // (A living realm's kept evidence; a realm gone holds no event of it back: realms gone are as many as history is long.)
+      if (o.was) for (const x of o.taught ?? []) if (x.event) out.push(x.event);
       for (const m of o.movements) out.push(m.event);
       for (const m of o.memory) out.push(m.event);
       for (const m of o.matches ?? []) out.push(m.event);

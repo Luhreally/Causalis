@@ -290,6 +290,30 @@ export function tookWords(blame: Blame, seen: boolean, well: boolean): string {
       : "blamed others for it";
 }
 
+/**
+ * How the realm it befell stood and fared, in words, set beside what befell it: where the two agree (a war lost, and it fared ill)
+ * they are told together; where they part (a war lost, in years its lands grew by other wars) they are told as two things, the
+ * second against the first, so no line says one thing and its opposite. `good`: what befell it is of the kind that goes well.
+ */
+export function howWords(
+  seen: boolean,
+  good: boolean,
+  leaned: readonly number[],
+  came: readonly number[],
+): string {
+  const y = (came[0] ?? 0) / 100,
+    parts = Math.abs(y) >= 0.05 && y > 0 !== good,
+    stood = stoodWords(leaned),
+    fared = cameWords(came);
+  if (seen)
+    return parts
+      ? `, which had yet ${fared} in those years, standing ${stood}`
+      : `, which stood ${stood} and ${fared}`;
+  return parts
+    ? `, though over those years it ${fared}, standing ${stood}`
+    : `, in years it stood ${stood} and ${fared}`;
+}
+
 // —— Readings in words: composed of how they stood and what was measured, never picked from a list of lessons ————————————
 
 /** Each number's two ends, as a realm standing there is told ("with …"). */

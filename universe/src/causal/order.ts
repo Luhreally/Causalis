@@ -15,10 +15,9 @@ import {
 import {
   OUTCOME,
   blameWords,
-  cameWords,
   holdWords,
+  howWords,
   movedWords,
-  stoodWords,
   tookWords,
   type Blame,
   type Hold,
@@ -71,7 +70,12 @@ registerEventWords(HOLD_EVENTS.lesson.type, (_, e) => {
     // (How the realm it befell stood and fared, put into words from the numbers the lesson kept: sim/order/holds.ts.)
     how =
       d?.leaned && d.came
-        ? `, ${d.of ? "which" : "in years it"} stood ${stoodWords(d.leaned.map((x) => x / 100))} and ${cameWords(d.came)}`
+        ? howWords(
+            !!d.of,
+            !!o?.good,
+            d.leaned.map((x) => x / 100),
+            d.came,
+          )
         : "",
     what = d?.of
       ? `seeing ${(o?.of ?? "the fate of {them}").replace("{them}", d.of)}`

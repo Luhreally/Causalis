@@ -1440,6 +1440,7 @@ export {
   evidenceKept,
   evidenceOf,
   faredBy,
+  howWords,
   fortuneAfter,
   leanOf,
   leaningOf,

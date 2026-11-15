@@ -92,7 +92,7 @@ for (const w of surveyed) {
       (w.yearMs.slice(0, year / 500).reduce((a, b) => a + b * 500, 0) * PHONE) / 60_000,
     largest = w.stores.map(([name, n]) => `${name} ${(n / 1e6).toFixed(2)}`).join(", ");
   console.log(
-    `  ${w.seed}: ${w.lands} lands; save ${(w.save / 1e6).toFixed(1)} MB (bound ${(bound / 1e6).toFixed(1)}); ${w.pace} years a minute here (${Math.round(phonePace)} on the phone floor); slowest year ${w.slowest} ms, p99 ${w.p99}; run in ${Math.round(w.ms / 1000)} s\n    a year's ms by the 500: ${w.yearMs.join(" ")}; on the phone floor, year 1,500 in ${minutesTo(1500).toFixed(1)} minutes and year 3,000 in ${minutesTo(3000).toFixed(1)}\n    ${largest}`,
+    `  ${w.seed}: ${w.lands} lands; save ${(w.save / 1e6).toFixed(2)} MB (bound ${(bound / 1e6).toFixed(1)}); ${w.pace} years a minute here (${Math.round(phonePace)} on the phone floor); slowest year ${w.slowest} ms, p99 ${w.p99}; run in ${Math.round(w.ms / 1000)} s\n    a year's ms by the 500: ${w.yearMs.join(" ")}; on the phone floor, year 1,500 in ${minutesTo(1500).toFixed(1)} minutes and year 3,000 in ${minutesTo(3000).toFixed(1)}\n    ${largest}`,
   );
   if (w.save > bound) problems.push(`${w.seed}: the save is ${(w.save / 1e6).toFixed(1)} MB`);
   if (ci) continue;

@@ -238,7 +238,8 @@ export async function skySurvey(seed: string, years: number): Promise<SkySurvey>
     stores = Object.entries(doc.stores)
       .map(([name, chunk]) => [name, gzipSync(JSON.stringify(chunk)).length] as const)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 8);
+      // (The largest eight, and whatever a realm's evidence is kept in, however small: its cost is told with the rest.)
+      .filter(([name], i) => i < 8 || name === "order.bonds" || name === "readings.years");
   return {
     seed,
     years,

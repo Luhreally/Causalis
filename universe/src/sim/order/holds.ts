@@ -41,6 +41,7 @@ import {
   evidenceOf,
   leaningOf,
   faredBy,
+  howWords,
   fortuneAfter,
   likeness,
   movedWords,
@@ -753,12 +754,14 @@ export function taughtWords(x: Taught): string {
   if (!o) return "";
   const what = x.of ? (o.of ?? o.words).replace("{them}", x.of) : o.words,
     well = x.came ? x.came[0]! > 0 : undefined,
-    stood = x.leaned ? stoodWords(x.leaned.map((v) => v / 100)) : "",
     how =
       x.leaned && x.came
-        ? x.of
-          ? `, which stood ${stood} and ${cameWords(x.came)}`
-          : `, in years it stood ${stood} and ${cameWords(x.came)}`
+        ? howWords(
+            !!x.of,
+            !!o.good,
+            x.leaned.map((v) => v / 100),
+            x.came,
+          )
         : "",
     change = x.moved ? movedWords(x.moved.map((v) => v / 1000)) : "";
   // (A piece kept before evidence was measured says only whom it blamed.)
