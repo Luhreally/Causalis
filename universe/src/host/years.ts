@@ -166,7 +166,7 @@ export type RealmLog = {
   acts: Log<number>;
   /**
    * Its money (sim/finance; absent in a save from before it, begun there): what it would pay to borrow, in ten-thousandths a
-   * year; what it owes, and what its listed works are worth, in steps (toSteps); its greatest fear, in a hundred.
+   * year (to the half in a hundred); what it owes, and what its listed works are worth, in steps (toSteps); its greatest fear, in a hundred.
    */
   rate?: Log<number>;
   owed?: Log<number>;
@@ -435,11 +435,11 @@ export function readYear(world: World, store: YearsStore, t: number): void {
     if (money) {
       const owed = debtOf(money);
       if (money.rate > 0 && (owed > 0 || log.rate))
-        logPut((log.rate ??= emptyLog()), year, Math.round(money.rate / 25) * 25);
+        logPut((log.rate ??= emptyLog()), year, Math.round(money.rate / 50) * 50);
       if (owed > 0 || log.owed) logPut((log.owed ??= emptyLog()), year, toSteps(owed, TRADE_STEPS));
       if (money.worth > 0 || log.listed)
         logPut((log.listed ??= emptyLog()), year, toSteps(money.worth, TRADE_STEPS));
-      const fear = Math.round((money.fears[0]?.level ?? 0) / 5) * 5;
+      const fear = Math.round((money.fears[0]?.level ?? 0) / 10) * 10;
       if (fear > 0 || log.fear) logPut((log.fear ??= emptyLog()), year, fear);
     }
   }
