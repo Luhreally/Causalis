@@ -31,6 +31,8 @@ export type ToolContext = {
   readonly near?: (cell: number, camp: number) => void;
   /** Down to a people on its own world; their first meeting (Phase 69). */
   readonly folk?: (star: string, index: number) => void;
+  /** Their world entered, to be played as the home world is (asked 2026-11-13). */
+  readonly enter?: (star: string, index: number) => void;
   readonly meeting?: (star: string, index: number) => void;
   /** A landing on them, watched (Phase 70). */
   readonly folkLandfall?: (star: string, index: number, n: number) => void;
@@ -320,6 +322,15 @@ export function drawTool(
       b.title =
         "Down to their own ground: their camp or town, as they are now, under their own sky.";
       b.onclick = () => ctx.folk!(args.star as string, args.index as number);
+      into.append(b);
+      return;
+    }
+    case "watch.enter": {
+      if (!ctx.enter) return;
+      const b = el("button", "act folk-play", "🌍 Play their world");
+      b.title =
+        "Their world made whole and played as the home world is, from the age they are read at. The home world is kept first.";
+      b.onclick = () => ctx.enter!(args.star as string, args.index as number);
       into.append(b);
       return;
     }

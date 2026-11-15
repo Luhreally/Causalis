@@ -47,7 +47,7 @@ export function askEnter(
         again
           ? "You have been here before: their world is taken up where you left it."
           : plan.mostYears > 0
-            ? `Their world is made whole and its history run to that age, over some ${plan.lands.toLocaleString("en")} lands: ${minutes >= 1.5 ? `about ${Math.round(minutes)} minutes` : "about a minute"} here, told as it goes, and it can be taken up at any year on the way.`
+            ? `Their world is made whole, over some ${plan.lands.toLocaleString("en")} lands, and its first years run for their towns and works to stand: ${minutes >= 1.5 ? `about ${Math.round(minutes)} minutes` : "under a minute"} here, told as it goes, and it can be taken up at any year on the way.`
             : "Their world is made whole, which takes a few moments."
       }`,
     ),
@@ -78,15 +78,26 @@ export function askEnter(
   });
 }
 
-/** Said where a world cannot be entered, and why. */
-export function cannotEnter(parent: HTMLElement, why: string): void {
+/** Said where a world cannot be entered, and why; with the way back to the galaxy, where that is the way on (`back`). */
+export function cannotEnter(parent: HTMLElement, why: string, back?: () => void): void {
   const screen = el("div", "jump-screen enter-screen enter-no"),
     card = el("div", "jump-card enter-card"),
     buttons = el("div", "jump-buttons"),
     ok = el("button", "enter-stay", "Back");
   ok.onclick = () => screen.remove();
+  if (back) {
+    const home = el("button", "enter-go enter-home", "Back to the galaxy");
+    home.onclick = () => {
+      home.disabled = ok.disabled = true;
+      back();
+    };
+    buttons.append(home);
+  }
   buttons.append(ok);
-  card.append(el("h2", "jump-head", "This world cannot be played"), el("p", "enter-what", why));
+  card.append(
+    el("h2", "jump-head", back ? "Not from here" : "This world cannot be played"),
+    el("p", "enter-what", why),
+  );
   card.append(buttons);
   screen.append(card);
   parent.append(screen);
@@ -108,8 +119,10 @@ export function aboutEntered(parent: HTMLElement, e: Entered, home: string): voi
       "enter-what",
       `A people of ${e.kind}, ${e.distance.toFixed(0)} light-years from “${home}”. Seen from there ${e.stageWords}, in its year ${e.year.toLocaleString("en")}. ${
         e.arrived
-          ? "Their history here was run to that age."
-          : `Here, by this world's own rules, they have come as far as: ${e.age}.`
+          ? "They stand at that age here."
+          : e.shut !== null
+            ? `Here they stand at: ${e.age}. The sight from afar reads a people's years, not its limbs or its world's stuffs; made whole, their own bodies or their world's matter (a fire their limbs cannot tend, a ground with no coal for the works that build what flies) open no road to ${e.shut.toLowerCase()}, and no rule here gives a people what those cannot.`
+            : `Here, by this world's own rules, they have come as far as: ${e.age}.`
       }`,
     ),
     ...list("As it was seen", e.kept, "enter-kept"),
@@ -179,6 +192,11 @@ export function enterScreen(parent: HTMLElement, name: string, back: () => void)
 
 /** How many years a turn of the run takes on before it is asked how far the world has come. */
 const TURN_YEARS = 10;
+/**
+ * The years a world is run where no road leads its people to the age they were read at (their bodies or their world's
+ * matter shut it): long enough for its realms and towns to stand, and no longer, since no run would bring the age.
+ */
+const SETTLE_YEARS = 20;
 
 /**
  * A world entered run to the age its people were read at: a decade at a time in the host, asked after each whether it
@@ -189,21 +207,22 @@ export async function runToRead(
   client: HostClient,
   screen: EnterScreen,
   first: Entered,
-): Promise<{ here: Entered; ms: number; years: number }> {
+): Promise<{ here: Entered; ms: number; years: number; heapMB: number | null }> {
   const t0 = performance.now();
   let here = first,
     year = Math.floor((await client.query<{ t: number }>({ type: "now" })).t / YEAR);
   const say = (y: number) =>
     screen.say(
-      `Running their history to the age they were seen in (${here.stageWords})`,
+      `Their first years here, until they stand as they were seen (${here.stageWords})`,
       `Year ${y.toLocaleString("en")} of their own count · ${here.age}`,
       here.mostYears > 0 ? Math.min(1, y / here.mostYears) : null,
     );
   screen.stoppable(() => client.stopJump());
   try {
-    while (!here.arrived && year < here.mostYears && !screen.stopped()) {
+    const most = here.shut === null ? here.mostYears : Math.min(here.mostYears, SETTLE_YEARS);
+    while (!here.arrived && year < most && !screen.stopped()) {
       say(year);
-      const to = Math.min(here.mostYears, year + TURN_YEARS),
+      const to = Math.min(most, year + TURN_YEARS),
         got = await client.jump(to * YEAR, (p) => say(Math.floor(p.t / YEAR)));
       year = Math.floor(got.t / YEAR);
       here = (await client.query<Entered | null>({ type: "enter.here" })) ?? here;
@@ -211,5 +230,8 @@ export async function runToRead(
   } finally {
     screen.stoppable(null);
   }
-  return { here, ms: performance.now() - t0, years: year };
+  const heap = await client
+    .query<{ most: number | null }>({ type: "heap" })
+    .catch(() => ({ most: null }));
+  return { here, ms: performance.now() - t0, years: year, heapMB: heap.most };
 }

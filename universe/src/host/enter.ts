@@ -7,7 +7,7 @@
 // Pure reads. Asking changes nothing: the home world's history never learns a world was entered, and the world entered
 // keeps what is done on it to itself.
 import { Rng, type World } from "../kernel/index.ts";
-import { foreignPlanets, handDraw } from "../gen/index.ts";
+import { civBody, foreignPlanets, handDraw } from "../gen/index.ts";
 import {
   FAR_STAGE_AGE,
   FAR_STAGE_USUAL,
@@ -25,8 +25,11 @@ import {
   clusterOf,
   folkGroundDraws,
   folkOf,
+  folkPeople,
   folkStage,
   homePlanet,
+  populationContext,
+  shutAge,
 } from "../sim/index.ts";
 import type { EnterPlan, Entered } from "../bridge/index.ts";
 import { foreignGlobe } from "./galaxy.ts";
@@ -56,7 +59,8 @@ function freshWords(name: string, stage: FarStage, wider = false): string[] {
     `Its realms, towns and persons name themselves in their own tongues. “${name}” is what they are called from afar.`,
     stage === "camps"
       ? "It opens in its first year, its people in bands."
-      : `Its history is run from its first bands until it reaches the age they were read at (${STAGE_WORDS[stage]}), or as near as its own rules bring it. Its years are its own count.`,
+      : `Its chronicle opens with them settled as they were read (${STAGE_WORDS[stage]}): as many as were seen, holding the crafts of that age, every one their own bodies and their world's stuffs allow. Its first years are then run for their towns, realms and works to stand. Its years are its own count, from that opening.`,
+    "The sight from afar reads a followed people's years, not its limbs nor its world's coal. Where their own bodies or their world's matter shut the road to the age they were read at, they stand here at the furthest those allow, and their world says which road is shut.",
     "What happens here stays here. The home world's history goes on as it would have, and its stars' peoples are still read as before.",
     "Its night sky here is its own, not the home world's stars seen from the other side.",
   ];
@@ -88,7 +92,8 @@ export function enterPlan(
   if (farMade(world.seed.text))
     return {
       ok: false,
-      why: "This world was itself entered from another. Go back to the galaxy it was seen from to enter one more.",
+      why: "This world was itself entered from another, and its sky here is its own. The worlds of other peoples are entered from the galaxy it was seen from.",
+      back: true,
     };
   const parts = star.split(":"),
     s = clusterOf(world).find(
@@ -107,6 +112,8 @@ export function enterPlan(
       ok: false,
       why: `The ${f.name} are gone${f.fell !== null ? ` since year ${f.fell}` : ""}: only their ruins are left, and no one to live as.`,
     };
+  // (Their body as their pages and their figures show it from afar: a followed people of the kinds of before, its kind's.)
+  const body = f.followed ? (civBody(f.followed) ?? f.body) : f.body;
   // (The share of its face under sea, as the far sight draws it; and the shares of it open ground and open sea, not ice.)
   const globe = foreignGlobe(world, s.ref, index),
     cells = Math.max(1, globe.elevation.length);
@@ -126,6 +133,7 @@ export function enterPlan(
       from: { universe, seed: world.seed.text },
       year,
       stage,
+      people: folkPeople(f, year),
       star: {
         ref: `star:${s.sector}:${s.k}`,
         mass: s.mass,
@@ -147,7 +155,7 @@ export function enterPlan(
       },
       chem: folkGroundDraws(world, s, index),
       hand: handDraw(f.ref),
-      body: f.body,
+      body,
       look: folkFactsOf(f, s),
     },
     // (The laws of its universe and its lands' grid as the home world's are; its own sky kept small.)
@@ -172,7 +180,7 @@ export function enterPlan(
     universe: ENTERED_UNIVERSE,
     seed: farSeed(made, acts),
     name: f.name,
-    kind: f.body.name,
+    kind: body.name,
     stage,
     stageWords: STAGE_WORDS[stage],
     mostYears: FAR_STAGE_YEARS[stage],
@@ -191,6 +199,8 @@ export function enteredHere(world: World): Entered | null {
     : undefined;
   if (!far) return null;
   const now = stageOf(world),
+    g = homePlanet(world).generated,
+    shut = g.life.people ? shutAge(populationContext(world), g.life.people.cell, far) : null,
     want = FAR_STAGE_AGE[far.stage],
     at = now.stages.findIndex((x) => x.id === want),
     // (Come as far as they were read: that step's own first reached, or the age its peoples stand at now that far on.
@@ -212,6 +222,7 @@ export function enteredHere(world: World): Entered | null {
     mostYears: FAR_STAGE_YEARS[far.stage],
     arrived,
     age: now.name,
+    shut: shut === null ? null : (now.stages.find((x) => x.id === shut)?.name ?? shut),
     kept: KEPT,
     fresh: freshWords(far.name, far.stage),
   };

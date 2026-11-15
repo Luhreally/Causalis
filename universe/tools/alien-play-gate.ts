@@ -20,9 +20,8 @@ import { Rng, YEAR, seedFromText, seedName } from "../src/kernel/index.ts";
 import { foreignPlanets } from "../src/gen/index.ts";
 import { ALIEN, EARTH, clusterOf } from "../src/host/planet.ts";
 import { enterPlan } from "../src/host/enter.ts";
-import { figureBody } from "../src/host/folk.ts";
-import { folkFactsOf } from "../src/host/natives.ts";
-import { folkStage, folksNear, type Folk } from "../src/sim/index.ts";
+import { folkFigure } from "../src/host/natives.ts";
+import { folkPeople, folkStage, folksNear, type Folk } from "../src/sim/index.ts";
 import type { Entered, LandPlan } from "../src/bridge/index.ts";
 import { hudRead, type HudRead } from "./hud-read.ts";
 
@@ -63,14 +62,25 @@ const root = fileURLToPath(new URL("..", import.meta.url)),
   server = await preview({ root, logLevel: "silent", preview: { port: 4321, strictPort: false } }),
   base = server.resolvedUrls!.local[0]!,
   browser = await chromium.launch({
-    args: soft ? ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] : ci ? [] : GPU,
+    // (Its heap told as it is, not rounded to tens of megabytes: the host's most is read off it.)
+    args: [
+      "--enable-precise-memory-info",
+      ...(soft ? ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] : ci ? [] : GPU),
+    ],
   });
 
 type Causalis = {
   causalis?: {
     client?: unknown;
     drawn?: () => number;
-    entered?: { here: Entered; makeMs: number; runMs: number; years: number; loaded: boolean };
+    entered?: {
+      here: Entered;
+      makeMs: number;
+      runMs: number;
+      years: number;
+      loaded: boolean;
+      heapMB: number | null;
+    };
   };
 };
 
@@ -97,7 +107,7 @@ async function walk(home: Home): Promise<void> {
     problems.push(`${tag}: the ${f.name} cannot be entered: ${plan.why}`);
     return;
   }
-  const figure = JSON.stringify(figureBody(f.body, folkFactsOf(f, s)));
+  const figure = JSON.stringify(folkFigure(f, s));
   say(
     `${tag} “${home.seed}”: the ${f.name}, ${f.body.name}, of the ${f.body.medium}, ${plan.stageWords}; ${s.spectral} star ${s.distance.toFixed(0)} ly out, ${p.temperature.toFixed(0)} °C, ${p.gravity.toFixed(2)} g; life ${f.life.pigment}, ${f.life.blood} blood, ${f.life.hand}-handed`,
   );
@@ -258,7 +268,8 @@ async function walk(home: Home): Promise<void> {
     came.here.arrived,
     `${tag}: their world never came to the age they were read at (${came.here.age})`,
   );
-  check(turns > 0, `${tag}: the page did not answer while their world was made`);
+  // (A world made and seated within a couple of seconds may be up before the page is asked twice.)
+  check(turns > 0 || seconds < 4, `${tag}: the page did not answer while their world was made`);
   await k("globalThis.causalis.client.setSpeed(0)");
   await settle(1500);
 
@@ -376,7 +387,10 @@ async function walk(home: Home): Promise<void> {
   await shot("7-back");
 
   // 6. Entered again: taken up where it was left.
-  await press(".folk-play");
+  // (This time from their own page's window: the same way in, where a page is how they were found.)
+  await k(`globalThis.causalis.open(${JSON.stringify(f.ref)})`);
+  await until("the way in on their page", () => inPage(".page-window .folk-play"));
+  await press(".page-window .folk-play");
   await until("the asking, again", () => seen(".enter-ask .enter-go"));
   check(
     /been here before/.test(await words(".enter-ask")),
@@ -433,6 +447,161 @@ async function walk(home: Home): Promise<void> {
     `${tag}: the HUD on their world: ${phone.length} faults of its own at a phone's size, ${desk.length} at a desk's (the home world's own: ${homeFaults.length}, ${deskHome.length})`,
   );
   await shot("10-desk");
+
+  // 8. The way back with the home world's save gone: the home world made again, to the year it was left in.
+  await page.evaluate(
+    async ([u, s]) => {
+      const c = (
+        globalThis as unknown as {
+          causalis: {
+            client: {
+              saves(): Promise<{ name: string; universe: string; seed: string }[]>;
+              deleteSave(name: string): Promise<unknown>;
+            };
+          };
+        }
+      ).causalis.client;
+      for (const x of await c.saves())
+        if (x.universe === u && x.seed === s) await c.deleteSave(x.name);
+    },
+    [home.universe, home.seed] as const,
+  );
+  let wentBy = "";
+  await press(".world-galaxy");
+  await page.waitForURL(
+    (url) => {
+      if (url.searchParams.get("seed") !== home.seed) return false;
+      wentBy ||= url.search;
+      return true;
+    },
+    { timeout: slow(180000) },
+  );
+  check(
+    !/[?&]load=/.test(wentBy),
+    `${tag}: with no save of the home world, the way back asked for one (${wentBy})`,
+  );
+  await drawn();
+  await k("globalThis.causalis.client.setSpeed(0)");
+  await until(
+    "their world, from a home world made again",
+    () => inPage(".folk-play"),
+    slow(120000),
+  );
+  check(
+    (await ask<{ t: number }>("now")).t === homeNow,
+    `${tag}: the home world made again does not stand in the year it was left in`,
+  );
+  check(
+    JSON.stringify(await ask("hashes")) === homeHashes,
+    `${tag}: the home world made again is not the home world that was left`,
+  );
+  say(
+    `${tag}: back with the home world's save gone: made again by “${wentBy.slice(0, 60)}…”, the same to the hash`,
+  );
+  check(
+    errors.length === 0,
+    `${tag}: errors in the page: ${errors.slice(0, 3).join(" | ").slice(0, 600)}`,
+  );
+  await context.close();
+}
+
+/** The ages a world does not come to in its first centuries: its people are seated as they were read. */
+const LATE = ["orbit", "stars", "signals", "works"];
+/** The longest a people read that far on may take to enter, at the home world's own size (s). */
+const LATE_SECONDS = 60;
+
+const reached: boolean[] = [];
+
+/** A people read far on entered: there within the minute, at the age it was read at, as many as were read. */
+async function late(home: Home): Promise<void> {
+  const tag = `${home.universe} late`,
+    u = home.universe === "earth" ? EARTH : ALIEN,
+    world = u.build(seedFromText(home.seed)),
+    folks = folksNear(world),
+    f = LATE.flatMap((st) => folks.filter((x) => folkStage(x, 0) === st))[0];
+  if (!f) {
+    problems.push(`${tag}: no people past its cities about this world's stars`);
+    return;
+  }
+  const plan = enterPlan(world, f.star, f.planet, home.universe);
+  if (!plan.ok) {
+    problems.push(`${tag}: the ${f.name} cannot be entered: ${plan.why}`);
+    return;
+  }
+  const read = folkPeople(f, 0),
+    context = await browser.newContext({
+      viewport: { width: 430, height: 932 },
+      deviceScaleFactor: ci || soft ? 1 : 2,
+      hasTouch: true,
+      isMobile: true,
+    }),
+    page: Page = await context.newPage(),
+    errors: string[] = [];
+  page.setDefaultTimeout(slow(60000));
+  page.on("pageerror", (e) => errors.push(`${e.message}\n${e.stack ?? ""}`));
+  const k = <T>(code: string): Promise<T> => page.evaluate(code) as Promise<T>,
+    ask = <T>(type: string, args: unknown = {}) =>
+      k<T>(
+        `globalThis.causalis.client.query({ type: ${JSON.stringify(type)}, args: ${JSON.stringify(args)} })`,
+      ),
+    drawn = () =>
+      page.waitForFunction(
+        () => ((globalThis as Causalis).causalis?.drawn?.() ?? 0) > 0,
+        undefined,
+        { timeout: slow(240000) },
+      );
+  // (The host run in the page: an engine tells a page its heap and a worker nothing, and the heap is to be read.)
+  await page.goto(
+    `${base}?universe=${home.universe}&seed=${encodeURIComponent(home.seed)}&hold=1&inline=1`,
+  );
+  await drawn();
+  await page.waitForURL((url) => url.searchParams.has("load"), { timeout: slow(90000) });
+  await k(`globalThis.causalis.toFolkWorld(${JSON.stringify(f.star)}, ${f.planet})`);
+  await page.locator(".folk-play").first().waitFor({ state: "attached" });
+  await page.locator(".folk-play").first().scrollIntoViewIfNeeded();
+  await page.locator(".folk-play").first().tap();
+  await page.locator(".enter-ask .enter-go").waitFor();
+  const asked = await k<string>(`document.querySelector(".enter-ask").innerText`);
+  if (shots) await page.screenshot({ path: join(shots, `${home.universe}-late-1-asked.png`) });
+  const t0 = Date.now();
+  await page.locator(".enter-ask .enter-go").tap();
+  await page.waitForURL(
+    (url) => seedName(url.searchParams.get("seed") ?? "").startsWith(`${f.name}, from `),
+    { timeout: slow(120000) },
+  );
+  await page.waitForFunction(() => !!(globalThis as Causalis).causalis?.entered, undefined, {
+    timeout: slow(600000),
+  });
+  await drawn();
+  const seconds = (Date.now() - t0) / 1000,
+    came = (await k<NonNullable<Causalis["causalis"]>["entered"]>("globalThis.causalis.entered"))!,
+    map = await ask<{ cell: number; people: number }[]>("people.map"),
+    people = map.reduce((a, x) => a + x.people, 0),
+    size = new URL(page.url()).searchParams.get("seed")?.match(/~size (\w+)/)?.[1] ?? "standard";
+  say(
+    `${tag} “${home.seed}”: the ${f.name}, ${f.body.name}, of the ${f.body.medium}, read ${plan.stageWords}, some ${read.toLocaleString("en")}: entered in ${seconds.toFixed(1)} s (made ${(came.makeMs / 1000).toFixed(1)} s, run ${came.years} years in ${(came.runMs / 1000).toFixed(1)} s), lands ${size}, ${map.length} peopled, ${people.toLocaleString("en")} people, the host's heap at most ${came.heapMB ?? "?"} MB; the age: ${came.here.age}`,
+  );
+  check(/minute|moments/.test(asked), `${tag}: the asking does not say how long it takes`);
+  // (At the age they were read at; or, where their bodies or their world's matter shut a road to it, at the furthest
+  // those allow, and their world saying which road.)
+  check(
+    came.here.arrived || came.here.shut !== null,
+    `${tag}: their world does not stand at the age they were read at (${came.here.age}), and no road is said to be shut`,
+  );
+  if (!came.here.arrived)
+    say(`${tag}: no road to ${came.here.shut} for them here; they stand at ${came.here.age}`);
+  reached.push(came.here.arrived);
+  check(
+    seconds <= slow(LATE_SECONDS),
+    `${tag}: entering took ${seconds.toFixed(0)} s, over ${slow(LATE_SECONDS)}`,
+  );
+  check(
+    people >= read / 10 && people <= read * 10,
+    `${tag}: ${people.toLocaleString("en")} people, read as some ${read.toLocaleString("en")}`,
+  );
+  check((came.heapMB ?? 0) <= 1024, `${tag}: the host's heap came to ${came.heapMB} MB`);
+  await page.waitForTimeout(slow(1500));
+  if (shots) await page.screenshot({ path: join(shots, `${home.universe}-late-2-globe.png`) });
   check(
     errors.length === 0,
     `${tag}: errors in the page: ${errors.slice(0, 3).join(" | ").slice(0, 600)}`,
@@ -441,11 +610,17 @@ async function walk(home: Home): Promise<void> {
 }
 
 try {
-  for (const home of HOMES) if (!only || only === home.universe) await walk(home);
+  for (const home of HOMES)
+    if (!only || only === home.universe) {
+      if (!argv.includes("--late-only")) await walk(home);
+      await late(home);
+    }
 } finally {
   await browser.close();
   await new Promise<void>((done) => server.httpServer.close(() => done()));
 }
+if (!only && !reached.some(Boolean))
+  problems.push("no people read past its cities stood at the age it was read at");
 if (problems.length) {
   console.log("gate 121 fails:");
   for (const p of problems) console.log(`  - ${p}`);

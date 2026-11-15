@@ -176,7 +176,23 @@ const BUILTIN_QUERIES: Record<string, QueryHandler> = {
   },
   checkpoints: (world) => world.checkpoints().map((c) => ({ t: c.t, chain: c.chain })),
   hashes: (world) => world.domainHashes(),
+  /**
+   * How much the host's own heap holds, and the most it has held since it began (MB; null where the engine does not
+   * tell): the worker's, where the host runs in one. For measuring a long run; nothing reads it but a gate and a page
+   * that tells how its coming went.
+   */
+  heap: () => heapNow(),
 };
+
+let heapMost = 0;
+/** The heap as the engine tells it, and its most so far. */
+function heapNow(): { used: number | null; most: number | null } {
+  const m = (globalThis.performance as { memory?: { usedJSHeapSize: number } } | undefined)?.memory;
+  if (!m) return { used: null, most: null };
+  const used = Math.round(m.usedJSHeapSize / 1048576);
+  heapMost = Math.max(heapMost, used);
+  return { used, most: heapMost };
+}
 
 /** How long after the page asks for anything the host's background work waits, ms. */
 const ASKING_MS = 1500;
@@ -307,6 +323,8 @@ export class SimHost {
     if (arrived) return this.endJump(false);
     if (now - jump.told < this.options.statusEveryMs) return;
     jump.told = now;
+    // (The most the heap holds is read as a long run goes: its peaks fall between its ends.)
+    heapNow();
     this.port.post({ kind: "jumping", t: this.world!.now, to: jump.to, ms: jump.ms });
   }
 

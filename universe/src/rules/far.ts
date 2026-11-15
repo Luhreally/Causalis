@@ -26,6 +26,8 @@ export type FarMade = {
   /** The home world's year it was entered in, and how far its people had come by then. */
   readonly year: number;
   readonly stage: FarStage;
+  /** How many of them there were, all told, as read (an estimate; absent on a world entered before it was carried). */
+  readonly people?: number;
   readonly star: {
     readonly ref: string;
     readonly mass: number;
@@ -107,33 +109,33 @@ export const FAR_STAGE_AGE: Readonly<Record<FarStage, string>> = {
 };
 
 /**
- * About the year of its own count a world comes to each stage, where it does (est.: the first village, realm and city
- * of the worlds measured come within their first century and a half; the later ages by the home world's own pace,
- * gen/civilizations.ts HOME_PACE). For telling how long the way there takes, never for stopping it.
+ * About the year of its own count a world entered comes to stand at each stage (est.). A people read past its camps
+ * opens its chronicle settled and holding its crafts (sim/population/entered.ts): what is left is for its towns, its
+ * realms and its works to stand, a matter of years. For telling how long the way there takes, never for stopping it.
  */
 export const FAR_STAGE_USUAL: Readonly<Record<FarStage, number>> = {
   camps: 0,
-  villages: 60,
-  towns: 90,
-  cities: 120,
-  works: 780,
-  signals: 860,
-  orbit: 1045,
-  stars: 1400,
+  villages: 10,
+  towns: 10,
+  cities: 10,
+  works: 20,
+  signals: 20,
+  orbit: 20,
+  stars: 20,
 };
 
 /**
- * The most years a world entered is run to reach the stage it was read at, before it is taken up as far as it has
- * come: some twice the usual and more (est.), since each world goes at its own pace and some never come to a step
- * their reading gave them.
+ * The most years a world entered is run for its people to stand at the stage they were read at, before it is taken up
+ * as far as it has come: its works are its own to build, and a world whose stuffs make them slowly is not held behind
+ * a screen for the centuries that takes.
  */
 export const FAR_STAGE_YEARS: Readonly<Record<FarStage, number>> = {
   camps: 0,
-  villages: 200,
-  towns: 300,
-  cities: 400,
-  works: 1500,
-  signals: 1800,
-  orbit: 2100,
-  stars: 2600,
+  villages: 40,
+  towns: 40,
+  cities: 40,
+  works: 60,
+  signals: 60,
+  orbit: 60,
+  stars: 60,
 };

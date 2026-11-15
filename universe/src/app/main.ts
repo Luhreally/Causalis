@@ -462,6 +462,11 @@ const TIDING_MS = 4000;
 const SPACE = [0.02, 0.025, 0.045] as const;
 /** The longest a world entered may take to run to the age its people were read at before its lands are reckoned wider (minutes, est.). */
 const ENTER_MINUTES = 8;
+/**
+ * The most lands a world entered runs over (est.): a settled people's towns and their history fill the host's heap by
+ * its lands (measured 2026-11-14: 1,649 lands of 86 million held 924 MB by their sixtieth year, 197 lands 161 MB).
+ */
+const ENTER_LANDS = 800;
 
 const params = new URLSearchParams(location.search);
 /** Whether the view turns slowly when left alone (a setting, off unless chosen), and how fast. */
@@ -516,6 +521,8 @@ type Exposed = {
     runMs: number;
     years: number;
     loaded: boolean;
+    /** The most the host's heap held over its making and its run (MB; null where the engine does not tell). */
+    heapMB: number | null;
   };
   /** Another people's world entered from here, as its button does (asked 2026-11-13); answers why not, where it cannot be. */
   enterWorld?: (star: string, index: number) => Promise<string | null>;
@@ -1689,7 +1696,8 @@ async function runPlanetPage(): Promise<void> {
   // before it was left: its save where there is one, else that world run again to the year it was left in.
   const far = enteredSeed(seed),
     // (A world held where it stands, for the gates, is held on the way in and the way back as well.)
-    held = params.has("hold") ? "&hold=1" : "",
+    // (And a host run in the page, for a measure of its heap, stays in the page.)
+    held = `${params.has("hold") ? "&hold=1" : ""}${inline ? "&inline=1" : ""}`,
     homeSearch = async (): Promise<string> => {
       if (!far) return "";
       const { universe: u, seed: s } = far.from,
@@ -1725,7 +1733,7 @@ async function runPlanetPage(): Promise<void> {
       ran =
         enteredHere && !loaded
           ? await runToRead(client, entering, enteredHere)
-          : { here: enteredHere, ms: 0, years: 0 };
+          : { here: enteredHere, ms: 0, years: 0, heapMB: null };
     enteredHere = ran.here;
     if (enteredHere)
       exposed.entered = {
@@ -1734,6 +1742,7 @@ async function runPlanetPage(): Promise<void> {
         runMs: ran.ms,
         years: ran.years,
         loaded: !!loaded,
+        heapMB: ran.heapMB,
       };
     entering.away();
   }
@@ -4050,7 +4059,9 @@ async function runPlanetPage(): Promise<void> {
     const homeName = far!.from.seed.split(" ~")[0]!;
     planetPanel.entered(
       `🌍 The world of the ${e.name}, seen from “${homeName}” ${e.stageWords}${
-        e.arrived ? "" : `; here: ${e.age.toLowerCase()}`
+        e.arrived
+          ? ""
+          : `; here: ${e.age.toLowerCase()}${e.shut !== null ? " (their bodies or their world's stuffs open no road past it)" : ""}`
       }. What happens here stays here ›`,
       () => aboutEntered(hud, e, homeName),
     );
@@ -4619,11 +4630,13 @@ async function runPlanetPage(): Promise<void> {
         });
     let plan = await ask();
     if (!plan.ok) {
-      cannotEnter(hud, plan.why);
+      cannotEnter(hud, plan.why, plan.back ? () => void planetPanel.onGalaxy() : undefined);
       return plan.why;
     }
     for (const size of ["medium", "small"]) {
-      if (minutesOf(plan) <= ENTER_MINUTES) break;
+      // (And its lands no more than a phone's tab holds of towns and their history: the host's heap goes by them.)
+      if (minutesOf(plan) <= ENTER_MINUTES && (plan.stage === "camps" || plan.lands <= ENTER_LANDS))
+        break;
       const smaller = await ask(size);
       if (smaller.ok) plan = smaller;
     }
@@ -4664,6 +4677,10 @@ async function runPlanetPage(): Promise<void> {
     return null;
   };
   worldPanel.onEnter = (star, index) => void enterWorld(star, index);
+  pageWindow.onEnter = (star, index) => {
+    pageWindow.close();
+    void enterWorld(star, index);
+  };
   exposed.enterWorld = enterWorld;
   pageWindow.onFolk = goDownToFolk;
   const playMeeting = (star: string, index: number) => {
@@ -9116,7 +9133,14 @@ async function runPlanetPage(): Promise<void> {
         theirs.day !== day ||
         theirs.fine !== fine
       )
-        theirs = { plan, i: watched, day, fine, lines: fine ? dayTold(plan, watched, day) : [] };
+        // (One watched who is not of this plan's people, a town drawn anew with fewer of them, has no day told.)
+        theirs = {
+          plan,
+          i: watched,
+          day,
+          fine,
+          lines: fine && p ? dayTold(plan, watched, day) : [],
+        };
       const slot = p?.folk
         ? villagePanel.folkMore
         : p && pageWindow.current === p.ref

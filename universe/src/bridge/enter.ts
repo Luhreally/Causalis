@@ -26,7 +26,12 @@ export type EnterPlan =
       readonly kept: readonly string[];
       readonly fresh: readonly string[];
     }
-  | { readonly ok: false; readonly why: string };
+  | {
+      readonly ok: false;
+      readonly why: string;
+      /** On a world itself entered: the way on is back through the galaxy it was seen from. */
+      readonly back?: true;
+    };
 
 /** What a world entered says of itself (null: a world of its own seed). */
 export type Entered = {
@@ -46,6 +51,11 @@ export type Entered = {
   readonly mostYears: number;
   readonly arrived: boolean;
   readonly age: string;
+  /**
+   * The age on the way to theirs that their own bodies or their world's matter shut to them here, as the full rules
+   * read it (its name; null: every road to the age they were read at is open to them, and they hold its crafts).
+   */
+  readonly shut: string | null;
   readonly kept: readonly string[];
   readonly fresh: readonly string[];
 };

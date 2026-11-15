@@ -1,18 +1,21 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Rng, YEAR, seedFromText, seedName } from "../../src/kernel/index.ts";
-import { foreignPlanets, worldChemistry, worldLife } from "../../src/gen/index.ts";
+import { civBody, foreignPlanets, worldChemistry, worldLife } from "../../src/gen/index.ts";
 import { farMade, makingsOf } from "../../src/rules/index.ts";
 import { ALIEN, EARTH, clusterOf } from "../../src/host/planet.ts";
 import { enterPlan, enteredHere } from "../../src/host/enter.ts";
-import { figureBody, folkFacts, peopleFigure } from "../../src/host/folk.ts";
-import { folkFactsOf } from "../../src/host/natives.ts";
+import { folkFacts, peopleFigure } from "../../src/host/folk.ts";
+import { folkFactsOf, folkFigure } from "../../src/host/natives.ts";
 import { enteredSeed, seedShown, type EnterPlan } from "../../src/bridge/index.ts";
 import {
+  folkPeople,
   folkStage,
   folksNear,
   homePlanet,
+  loreOf,
   populationContext,
+  shutAge,
   type Folk,
 } from "../../src/sim/index.ts";
 
@@ -78,22 +81,35 @@ for (const [what, pick] of [
     assert.deepEqual(worldChemistry(g), f.chem);
     assert.deepEqual(worldLife(g), f.life);
     assert.deepEqual(worldLife(g.fine), f.life);
-    // Its people: the body seen, and the look seen.
-    assert.deepEqual(g.life.people?.body, f.body);
+    // Its people: the body seen (a followed people's as its pages and figures show it from afar), and the look seen.
+    assert.deepEqual(g.life.people?.body, f.followed ? civBody(f.followed) : f.body);
     assert.deepEqual(folkFacts(g.fine), folkFactsOf(f, s));
-    // (Their figure is drawn from that body and that look. A followed people of the kinds of before is drawn from afar
-    // by its kind's usual build, a little off its own in weight and years: here it is its own.)
-    assert.deepEqual(peopleFigure(g.fine), figureBody(f.body, folkFactsOf(f, s)));
+    // (Their figure, drawn from that body and that look: the very figure a town of theirs shows from afar.)
+    assert.deepEqual(peopleFigure(g.fine), folkFigure(f, s));
     // And they live: on ground a body of theirs can, with lands to spread over.
     const ctx = populationContext(world),
       peopled = ctx.provinces.all().filter((x) => x.total() > 0);
     assert.equal(ctx.medium, f.body.medium);
     assert.ok(peopled.length > 0, "peopled lands");
+    // As many as were read (an estimate both ways: within its order), never more than its lands feed.
+    const all = peopled.reduce((a, x) => a + x.total(), 0),
+      read = folkPeople(f, 0);
+    assert.equal(far.people, read);
+    assert.ok(all <= read * 1.1, `${all} people, read as ${read}`);
+    if (got.stage === "camps")
+      assert.ok(all >= read / 10, `${all} people in camps, read as ${read}`);
+    // What they are known to have: a people read past its camps opens holding the crafts of its age, every one its
+    // bodies and its world's stuffs allow; where those shut a road, the world says which age.
+    const held = loreOf(world).of(g.life.people!.cell).length,
+      shut = shutAge(ctx, g.life.people!.cell, far);
+    if (got.stage === "camps") assert.equal(held, 0);
+    else assert.ok(held > 0 || shut !== null, "crafts held, or a road shut");
+    assert.equal(enteredHere(world)!.shut === null, shut === null);
     // It says of itself whom it was made from.
     const here = enteredHere(world)!;
     assert.equal(here.name, f.name);
     assert.equal(here.star, `star:${s.sector}:${s.k}`);
-    assert.equal(here.arrived, got.stage === "camps");
+    if (got.stage === "camps") assert.ok(here.arrived);
     // The same seed, the same world.
     assert.equal(
       homePlanet(ALIEN.build(seedFromText(got.seed))).generated.digest,
@@ -108,11 +124,11 @@ test("a world entered runs to the age its people were read at, and says when it 
   assert.ok(early, "a people in its villages, towns or cities");
   const got = ok(plan(early)),
     world = ALIEN.build(seedFromText(got.seed));
-  assert.ok(got.usualYears > 0 && got.usualYears < got.mostYears);
+  assert.ok(got.usualYears > 0 && got.usualYears <= got.mostYears);
   let year = 0;
   while (!enteredHere(world)!.arrived && year < got.mostYears) world.runTo((year += 10) * YEAR);
   assert.ok(enteredHere(world)!.arrived, `by year ${year}: ${enteredHere(world)!.age}`);
-  assert.ok(year > 0 && year <= got.mostYears);
+  assert.ok(year <= got.mostYears);
 });
 
 test("a smaller grid may be asked for, never a larger than the home world's", () => {
@@ -163,4 +179,33 @@ test("a seed of its own is no world entered", () => {
   assert.equal(enteredHere(home), null);
   assert.equal(farMade("first light"), null);
   assert.equal(enteredSeed("first light ~size small"), null);
+});
+
+test("a people read in orbit stands there within its first years, where its world's stuffs build what flies", () => {
+  const sky = ALIEN.build(seedFromText("alien 41")),
+    f = folksNear(sky).find((x) => folkStage(x, 0) === "orbit" && x.body.medium === "water")!;
+  assert.ok(f, "a people of the water in orbit");
+  const got = ok(enterPlan(sky, f.star, f.planet, "alien")),
+    world = ALIEN.build(seedFromText(got.seed));
+  assert.equal(enteredHere(world)!.shut, null);
+  let year = 0;
+  while (!enteredHere(world)!.arrived && year < got.mostYears) world.runTo((year += 10) * YEAR);
+  assert.ok(enteredHere(world)!.arrived, `by year ${year}: ${enteredHere(world)!.age}`);
+  // (As many as were read, within the order.)
+  const all = populationContext(world)
+    .provinces.all()
+    .reduce((a, x) => a + x.total(), 0);
+  assert.ok(all >= folkPeople(f, 0) / 10 && all <= folkPeople(f, 0) * 10, `${all}`);
+});
+
+test("where a world's matter shuts the road to the age read, it says which, and gives its people nothing it cannot", () => {
+  // (First light's Laxai: read in orbit by a sight that reads no coal; no land of theirs holds a seam.)
+  const sky = EARTH.build(seedFromText("first light")),
+    f = folksNear(sky).find((x) => x.followed && folkStage(x, 0) === "orbit")!;
+  assert.ok(f, "a followed people in orbit");
+  const world = ALIEN.build(seedFromText(ok(enterPlan(sky, f.star, f.planet, "earth")).seed)),
+    here = enteredHere(world)!;
+  assert.ok(!here.arrived);
+  assert.equal(here.shut, "Orbit");
+  assert.ok(loreOf(world).get(homePlanet(world).generated.life.people!.cell, "orbital-flight"));
 });
