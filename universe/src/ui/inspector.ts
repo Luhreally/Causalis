@@ -857,7 +857,7 @@ export class PageWindow {
             h.onclick = () => void this.open(r.ref);
             return h;
           };
-        grid.style.gridTemplateColumns = `minmax(0, 1fr) repeat(${n}, minmax(18px, 30px))`;
+        grid.style.gridTemplateColumns = `minmax(20px, 1fr) repeat(${n}, minmax(0, 44px))`;
         grid.append(el("span", "owning-corner", "holds ▸"));
         for (let j = 0; j < n; j++) grid.append(head(j, "owning-col"));
         for (let i = 0; i < n; i++) {

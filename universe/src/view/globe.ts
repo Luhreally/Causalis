@@ -553,8 +553,8 @@ const DEBT: readonly Stop[] = [
   [1, [0.5, 0.16, 0.12]],
 ];
 /**
- * The camps (sim/finance): one camp's head (deep rust) through its side to those apart (pale) to the other's side and head (deep
- * blue); where no camps stand, from pale toward the middle of one side as a realm's fear grows.
+ * The camps (sim/finance): where each realm's way lies between the two great realms the world is read between (the camps' poles, or
+ * the two great realms least alike): one's own way (deep rust) through those between (pale) to the other's (deep blue).
  */
 const CAMPS_RAMP: readonly Stop[] = [
   [0, [0.62, 0.2, 0.12]],
@@ -1136,7 +1136,12 @@ export function lensLegend(lens: Lens, kind = "rocky", look?: string): Legend {
     case "debt":
       return { kind: "ramp", stops: stops(DEBT), low: "owes nothing", high: "a year's food" };
     case "camps":
-      return { kind: "ramp", stops: stops(CAMPS_RAMP), low: "one camp", high: "the other" };
+      return {
+        kind: "ramp",
+        stops: stops(CAMPS_RAMP),
+        low: "held as one great realm",
+        high: "as the one least like it",
+      };
     case "forest":
       return { kind: "ramp", stops: stops(WOODS_RAMP), low: "bare", high: "thick" };
     case "belief":

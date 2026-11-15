@@ -910,9 +910,9 @@ function sell(
   const before = debtOf(m) - abroad;
   m.coupon = Math.round((before * m.coupon + sold * y.rate * 10_000) / Math.max(1, before + sold));
   m.home += home;
-  // (Too little to tell: it stands, without a telling. And a realm arming year on year tells of it once in ten.)
+  // (Too little to tell: it stands, without a telling. And a realm arming, or feeding its seat, year on year tells of it once in ten.)
   if (sold < 50) return null;
-  if (why === "arms" && m.soldIn !== undefined && year - m.soldIn < 10) return null;
+  if (why !== "war" && m.soldIn !== undefined && year - m.soldIn < 10) return null;
   m.soldIn = year;
   const backer = bought
       .filter((b) => b.backs >= FINANCE.fearGone)

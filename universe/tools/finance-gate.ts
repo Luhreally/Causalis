@@ -284,7 +284,7 @@ if (chosen) {
   const showBlock = (title: string) =>
     k<boolean>(`(() => {
       for (const e of document.querySelectorAll(".page-window h3, .page-window .block-title, .page-window figcaption, .page-window .series-title")) {
-        if (e.textContent.trim().startsWith(${JSON.stringify(title)})) { e.scrollIntoView({ block: "start" }); return true; }
+        if (e.textContent.trim().toLowerCase().startsWith(${JSON.stringify(title.toLowerCase())})) { e.scrollIntoView({ block: "start" }); return true; }
       }
       return false;
     })()`);
@@ -299,9 +299,15 @@ if (chosen) {
   await settle(2500);
   await k("globalThis.causalis.closePage?.()");
   if (await centre(".ran-close")) await tap(".ran-close", "the run's note's ×");
+  // (The god's hand put by, as the overlap gate puts it by before it reads a page: at a desk it stands open at first.)
+  await k("globalThis.causalis.palette?.putDown?.()").catch(() => undefined);
+  if (await centre(".palette.open")) {
+    await k(`document.querySelector("#hud > .palette-toggle")?.click()`);
+    await settle(500);
+  }
 
   // A realm that owes: its Money tab.
-  if (await openTab(chosen.realm, "Money", chosen.name, /Its debt/)) {
+  if (await openTab(chosen.realm, "Money", chosen.name, /Its debt/i)) {
     const drawn = await k<{ lines: number; bars: number }>(
       `({ lines: document.querySelectorAll(".page-window .chart-over svg").length, bars: document.querySelectorAll(".page-window .makeup-bar").length })`,
     );
@@ -313,11 +319,11 @@ if (chosen) {
   }
   // Its fears (a realm that fears, where one does).
   const fearer = chosen.fearing ?? chosen.realm;
-  if (await openTab(fearer, "Fears", "a realm that fears", /Whom it fears/))
+  if (await openTab(fearer, "Fears", "a realm that fears", /Whom it fears/i))
     await shot("realm-fears");
   // The ledger's Money tab: the square of who holds whom, pressed.
   if (
-    await openTab("world:ledger", "Money", "the ledger", /Who holds whom|No realm has sold debt/)
+    await openTab("world:ledger", "Money", "the ledger", /Who holds whom|No realm has sold debt/i)
   ) {
     await shot("ledger-money-top");
     const cells = await k<number>(
@@ -337,7 +343,7 @@ if (chosen) {
     if (await showBlock("What each pays to borrow")) await shot("ledger-money-yields");
     if (await showBlock("What the world's works make")) await shot("ledger-money-works");
   }
-  if (await openTab("world:ledger", "Camps", "the ledger", /camps|Camps|fear each other/)) {
+  if (await openTab("world:ledger", "Camps", "the ledger", /camps|fear each other/i)) {
     await shot("ledger-camps");
     if (await showBlock("The greatest fears")) await shot("ledger-camps-fears");
   }

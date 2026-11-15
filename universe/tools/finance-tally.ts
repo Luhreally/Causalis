@@ -3,6 +3,7 @@
 // matrix's shape), the greatest fears and whether two camps stand, and the turning points' years (for the pacing: tools/calibration-bands.ts).
 // A seed "earth:<text>" is Earth's prior, any other the open ("kept:<text>": its life kept, as the gates take kestrel 557). `--json <file>` writes the report. Pure reading; it changes nothing.
 import { writeFileSync } from "node:fs";
+import { gzipSync } from "node:zlib";
 import {
   YEAR,
   codeOf,
@@ -154,6 +155,16 @@ for (const s of seeds) {
       .slice(0, 6),
     { nodes, camps } = campsNow(world),
     people = nodes.reduce((n, r) => n + r.people, 0);
+  {
+    // What it costs a save: the store, and the events of it the log still holds.
+    let kept = 0;
+    for (let i = 0; i < world.events.count; i++)
+      if (world.events.at(i).type.startsWith("finance.")) kept++;
+    const bytes = gzipSync(JSON.stringify(store.save())).length;
+    console.log(
+      `  kept: the store ${(bytes / 1024).toFixed(1)} kB gzipped for ${store.all().length} realms; ${kept} of its events still in the log of ${world.events.count}`,
+    );
+  }
   console.log(
     `  events: ${Object.entries(counts)
       .map(([k, v]) => `${k} ${v}`)

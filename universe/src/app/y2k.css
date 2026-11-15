@@ -3596,6 +3596,7 @@ body.with-palette .hint {
   align-items: center;
   gap: 4px;
   min-width: 0;
+  min-height: 0;
   padding: 1px 2px;
   border: 0;
   background: none;
@@ -3616,7 +3617,10 @@ body.with-palette .hint {
 }
 .owning-cell {
   aspect-ratio: 1;
+  width: 100%;
+  height: auto;
   min-width: 0;
+  min-height: 0;
   padding: 0;
   border: 1px solid var(--chrome-lo);
   border-radius: 2px;
@@ -3634,6 +3638,15 @@ body.with-palette .hint {
 .owning-said {
   min-height: 1.3em;
   margin: 2px 0;
+}
+/* (On a phone the rows are told by their shields alone, so each square is a finger's size.) */
+@media (max-width: 560px) {
+  .owning-row .owning-name {
+    display: none;
+  }
+  .owning-corner {
+    font-size: 0;
+  }
 }
 
 /* What something is made of (Phase 15 M122): one bar of its parts, then a row for each. */

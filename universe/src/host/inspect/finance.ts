@@ -15,6 +15,7 @@ import {
   campsOf,
   campsStand,
   fearMoves,
+  wayDistance,
   ownWords,
   wayWords,
   type CampRealm,
@@ -94,6 +95,13 @@ type CampsRead = {
   readonly camps: Camps | null;
   /** Each realm's side: 0 or 1; absent, of neither. */
   readonly side: ReadonlyMap<string, 0 | 1>;
+  /**
+   * The two great realms every realm's way is read between: the camps' poles; where no camps stand, the two realms, each great
+   * enough to be a pole, held and owned the least alike (null: a world with fewer than two great realms).
+   */
+  readonly axis: readonly [string, string] | null;
+  /** Each realm's lean between them: -1 held as the first is, 1 as the second. */
+  readonly lean: ReadonlyMap<string, number>;
 };
 const CAMPS = new WeakMap<World, { at: number; read: CampsRead }>();
 
@@ -122,7 +130,34 @@ export function campsRead(world: World): CampsRead {
     camps = campsOf(nodes),
     side = new Map<string, 0 | 1>();
   if (camps) camps.camps.forEach((c, i) => c.forEach((r) => side.set(r, i as 0 | 1)));
-  const read = { nodes, camps, side };
+  let axis: [string, string] | null = camps ? [camps.poles[0], camps.poles[1]] : null;
+  if (!axis) {
+    const all = nodes.reduce((n, r) => n + r.people, 0),
+      great = nodes
+        .filter((r) => r.people >= FINANCE.campShare * all)
+        .sort((a, b) => b.people - a.people || (a.ref < b.ref ? -1 : 1))
+        .slice(0, 12);
+    let far = 0;
+    for (let i = 0; i < great.length; i++)
+      for (let j = i + 1; j < great.length; j++) {
+        const d = wayDistance(great[i]!.way, great[j]!.way);
+        if (d > far) {
+          far = d;
+          axis = [great[i]!.ref, great[j]!.ref];
+        }
+      }
+  }
+  const lean = new Map<string, number>();
+  if (axis) {
+    const x = nodes.find((r) => r.ref === axis![0])!,
+      y = nodes.find((r) => r.ref === axis![1])!;
+    for (const r of nodes) {
+      const dx = wayDistance(r.way, x.way),
+        dy = wayDistance(r.way, y.way);
+      lean.set(r.ref, dx + dy > 0 ? (dx - dy) / (dx + dy) : 0);
+    }
+  }
+  const read = { nodes, camps, side, axis, lean };
   CAMPS.set(world, { at: world.now, read });
   return read;
 }
@@ -737,30 +772,18 @@ export function campsLedger(world: World): Block[] {
     blocks.push({
       type: "table",
       title: "The greatest fears",
-      columns: ["Realm", "Fears", "Fear", "Unlike", "Works", "Exposed", "Loss", "Who would lose"],
+      columns: ["Realm", "Fears", "Fear", "Who would lose"],
       few: 8,
+      fit: true,
       rows: fears.map(({ m, f }) => ({
         ref: m.realm,
         cells: [
           [realmLink(world, m.realm)],
           [realmLink(world, f.of)],
           [hundredth(f.level)],
-          [hundredth(f.unlike)],
-          [hundredth(f.works)],
-          [hundredth(f.exposed)],
-          [hundredth(f.loss)],
           [LOSERS[f.who]!],
         ],
-        keys: [
-          nameOf(world, m.realm),
-          nameOf(world, f.of),
-          f.level,
-          f.unlike,
-          f.works,
-          f.exposed,
-          f.loss,
-          f.who,
-        ],
+        keys: [nameOf(world, m.realm), nameOf(world, f.of), f.level, f.who],
       })),
     });
   // Wars one people paid for against a way it feared.
@@ -782,19 +805,21 @@ export function campsLedger(world: World): Block[] {
 // —— The Camps lens ————————————————————————————————————————————————————————————————————————————————
 
 /**
- * A land under the Camps lens: -1 … 1, the first camp below nothing and the second above, the deeper the more its realm fears; where
- * the world has no camps, how much its realm fears (0 … 1); -2 for a land of no realm.
+ * A land under the Camps lens: -1 … 1, where its realm's way lies between the two great realms the world is read between (the
+ * camps' poles; where no camps stand, the two great realms least alike): -1 held and owned as the first is, 1 as the second.
+ * A realm that stands in a camp is drawn at least well to its side, a pole at its end. -2 for a land of no realm.
  */
 export function campValue(world: World, cell: number): number {
   const r = politiesOf(world).of(cell);
   if (!r || r.ended !== null) return -2;
   const read = campsRead(world),
-    fear = (financeOf(world)?.of(r.ref)?.fears[0]?.level ?? 0) / 100,
     side = read.side.get(r.ref);
-  if (!read.camps) return Math.round(fear * 500) / 1000;
-  if (side === undefined) return 0;
-  const depth = read.camps.poles[side] === r.ref ? 1 : 0.45 + 0.4 * fear;
-  return Math.round((side === 0 ? -depth : depth) * 1000) / 1000;
+  let v = read.lean.get(r.ref) ?? 0;
+  if (side !== undefined) {
+    const sign = side === 0 ? -1 : 1;
+    v = read.camps!.poles[side] === r.ref ? sign : sign * Math.max(0.6, Math.abs(v));
+  }
+  return Math.round(v * 1000) / 1000;
 }
 
 /** A land under the Camps lens, in words: its realm's camp, whom it fears and how much, how it is held and owned. */
@@ -812,11 +837,24 @@ export function campReading(world: World, cell: number): Reading | null {
           : `${realmName(r)}: with ${nameOf(world, read.camps.poles[side]!)}`
         : read.camps
           ? `${realmName(r)}: of neither camp`
-          : `${realmName(r)}: no camps stand`;
+          : `${realmName(r)}: no camps stand`,
+    lean = read.lean.get(r.ref) ?? 0,
+    nearer = read.axis ? read.axis[lean <= 0 ? 0 : 1] : null;
   return {
     line,
     stats: [
       { label: "Held", value: wayWords(wayOf(world, r.ref)) },
+      ...(nearer && read.axis
+        ? [
+            {
+              label: "Nearer the way of",
+              value:
+                nearer === r.ref
+                  ? "itself: one of the two great realms least alike"
+                  : `${nameOf(world, nearer)} than ${nameOf(world, read.axis[lean <= 0 ? 1 : 0])}'s`,
+            },
+          ]
+        : []),
       ...(top
         ? [
             { label: "Fears most", value: `${nameOf(world, top.of)}, ${hundredth(top.level)}` },
