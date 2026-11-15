@@ -107,10 +107,17 @@ export function enterPlan(
       ok: false,
       why: `The ${f.name} are gone${f.fell !== null ? ` since year ${f.fell}` : ""}: only their ruins are left, and no one to live as.`,
     };
-  // (The share of its face under sea, as the far sight draws it.)
-  const globe = foreignGlobe(world, s.ref, index);
-  let low = 0;
-  for (let c = 0; c < globe.elevation.length; c++) if (globe.elevation[c]! <= 0) low++;
+  // (The share of its face under sea, as the far sight draws it; and the shares of it open ground and open sea, not ice.)
+  const globe = foreignGlobe(world, s.ref, index),
+    cells = Math.max(1, globe.elevation.length);
+  let low = 0,
+    ground = 0,
+    sea = 0;
+  for (let c = 0; c < globe.elevation.length; c++) {
+    if (globe.elevation[c]! <= 0) low++;
+    if (globe.cover[c] === 0) ground++;
+    else if (globe.cover[c] === 1) sea++;
+  }
   const made: FarMade = {
       v: 1,
       name: f.name,
@@ -136,7 +143,7 @@ export function enterPlan(
         gravity: p.gravity,
         temperature: p.temperature,
         pressure: p.pressure,
-        seas: globe.elevation.length ? low / globe.elevation.length : 0.5,
+        seas: globe.elevation.length ? low / cells : 0.5,
       },
       chem: folkGroundDraws(world, s, index),
       hand: handDraw(f.ref),
@@ -152,12 +159,12 @@ export function enterPlan(
       ...(asked !== "standard" ? [makingAct("size", asked)] : []),
       ...(home.lanes ? [makingAct("lanes", home.lanes)] : []),
     ],
-    // (About how many lands they will live over: the dry share of its face; a people of the water, its shallows. Est.)
-    dry = 1 - made.planet.seas,
+    // (About how many lands they will live over: the share of its face that is open ground as the far sight draws it;
+    // for a people of the water, the shallows of its open seas. Est.)
     lands = Math.max(
       4,
       Math.round(
-        cellsOf(GRID[asked]!) * (f.body.medium === "water" ? 0.12 * made.planet.seas : dry),
+        cellsOf(GRID[asked]!) * (f.body.medium === "water" ? (0.12 * sea) / cells : ground / cells),
       ),
     );
   return {

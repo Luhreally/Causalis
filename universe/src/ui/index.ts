@@ -3,7 +3,14 @@
 // See README.md and docs/architecture §31.
 export { GodBrushes } from "./brushes.ts";
 export { PAST_WORLD, bakedWorlds, jumpToYear, phoneMinutesTo, type Baked } from "./jump.ts";
-export { askEnter, cannotEnter, enterScreen, runToRead, type EnterScreen } from "./enter.ts";
+export {
+  aboutEntered,
+  askEnter,
+  cannotEnter,
+  enterScreen,
+  runToRead,
+  type EnterScreen,
+} from "./enter.ts";
 export {
   catalogueFor,
   runWords,

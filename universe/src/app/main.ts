@@ -14,7 +14,14 @@ import "./years.css";
 import "./memory.css";
 import "./alliances.css";
 import "./enter.css";
-import { askEnter, cannotEnter, enterScreen, phoneMinutesTo, runToRead } from "../ui/index.ts";
+import {
+  aboutEntered,
+  askEnter,
+  cannotEnter,
+  enterScreen,
+  phoneMinutesTo,
+  runToRead,
+} from "../ui/index.ts";
 import { enteredSeed, type EnterPlan, type Entered } from "../bridge/index.ts";
 import { CourtNote, SungNote } from "../ui/index.ts";
 import { courtSitting } from "../view/index.ts";
@@ -996,6 +1003,8 @@ type Exposed = {
   contactFilm?: ContactFilm;
   landfallFilm?: LandfallFilm;
   toFolk?: (star: string, index: number, at?: number) => Promise<FolkNear | null>;
+  /** A people's own world seen whole, from anywhere (where its people can be gone down to, and their world played). */
+  toFolkWorld?: (star: string, index: number) => Promise<void>;
   fleetFilm?: FleetFilm;
   /** What is heard (Sound, first slice): its state and its measures, for a gate. */
   sound?: typeof sound;
@@ -1679,6 +1688,8 @@ async function runPlanetPage(): Promise<void> {
   // were read at, behind a screen that says what is being done. The way back is the world it was seen from, kept
   // before it was left: its save where there is one, else that world run again to the year it was left in.
   const far = enteredSeed(seed),
+    // (A world held where it stands, for the gates, is held on the way in and the way back as well.)
+    held = params.has("hold") ? "&hold=1" : "",
     homeSearch = async (): Promise<string> => {
       if (!far) return "";
       const { universe: u, seed: s } = far.from,
@@ -1687,7 +1698,7 @@ async function runPlanetPage(): Promise<void> {
           .sort((a, b) => b.savedAt - a.savedAt)[0];
       return `?universe=${encodeURIComponent(u)}&seed=${encodeURIComponent(s)}${
         kept ? `&load=${encodeURIComponent(kept.name)}` : far.year > 0 ? `&year=${far.year}` : ""
-      }&star=${encodeURIComponent(far.star.ref)}&world=${far.planet.index}`;
+      }&star=${encodeURIComponent(far.star.ref)}&world=${far.planet.index}${held}`;
     },
     entering = far
       ? enterScreen(hud, far.name, () => void homeSearch().then((q) => (location.search = q)))
@@ -4036,10 +4047,12 @@ async function runPlanetPage(): Promise<void> {
   // A world entered says whose it is, and how it stands by what was read of them; and offers the way back.
   if (enteredHere) {
     const e = enteredHere;
+    const homeName = far!.from.seed.split(" ~")[0]!;
     planetPanel.entered(
-      `🌍 The world of the ${e.name} (${e.kind}), ${e.distance.toFixed(0)} light-years from “${far!.from.seed.split(" ~")[0]}”. Seen from there ${e.stageWords}${
-        e.arrived ? "" : `; here they have come as far as ${e.age.toLowerCase()}`
-      }. What happens here stays here.`,
+      `🌍 The world of the ${e.name}, seen from “${homeName}” ${e.stageWords}${
+        e.arrived ? "" : `; here: ${e.age.toLowerCase()}`
+      }. What happens here stays here ›`,
+      () => aboutEntered(hud, e, homeName),
     );
     planetPanel.onGalaxy = async () => {
       try {
@@ -4582,6 +4595,7 @@ async function runPlanetPage(): Promise<void> {
     return info;
   };
   exposed.toFolk = toFolk;
+  exposed.toFolkWorld = toFolkWorld;
   /** Those who came, on a people's ground, a film's while. */
   let campComers: VisitorsLayer | null = null;
   const goDownToFolk = (star: string, index: number) => {
@@ -4645,8 +4659,8 @@ async function runPlanetPage(): Promise<void> {
       }
     }
     location.search = before
-      ? `?universe=${encodeURIComponent(before.universe)}&seed=${encodeURIComponent(before.seed)}&load=${encodeURIComponent(before.name)}`
-      : `?universe=${encodeURIComponent(plan.universe)}&seed=${encodeURIComponent(plan.seed)}`;
+      ? `?universe=${encodeURIComponent(before.universe)}&seed=${encodeURIComponent(before.seed)}&load=${encodeURIComponent(before.name)}${held}`
+      : `?universe=${encodeURIComponent(plan.universe)}&seed=${encodeURIComponent(plan.seed)}${held}`;
     return null;
   };
   worldPanel.onEnter = (star, index) => void enterWorld(star, index);

@@ -92,6 +92,34 @@ export function cannotEnter(parent: HTMLElement, why: string): void {
   parent.append(screen);
 }
 
+/** On a world entered: whose it is, how it stands by what was read of them, and what is and is not as it was seen. */
+export function aboutEntered(parent: HTMLElement, e: Entered, home: string): void {
+  parent.querySelector(".enter-about")?.remove();
+  const screen = el("div", "jump-screen enter-screen enter-about"),
+    card = el("div", "jump-card enter-card"),
+    buttons = el("div", "jump-buttons"),
+    ok = el("button", "enter-stay", "Back");
+  ok.onclick = () => screen.remove();
+  buttons.append(ok);
+  card.append(
+    el("h2", "jump-head", `The world of the ${e.name}`),
+    el(
+      "p",
+      "enter-what",
+      `A people of ${e.kind}, ${e.distance.toFixed(0)} light-years from “${home}”. Seen from there ${e.stageWords}, in its year ${e.year.toLocaleString("en")}. ${
+        e.arrived
+          ? "Their history here was run to that age."
+          : `Here, by this world's own rules, they have come as far as: ${e.age}.`
+      }`,
+    ),
+    ...list("As it was seen", e.kept, "enter-kept"),
+    ...list("Not as it was seen", e.fresh, "enter-fresh"),
+    buttons,
+  );
+  screen.append(card);
+  parent.append(screen);
+}
+
 /** The screen a world entered is made and run behind. */
 export type EnterScreen = {
   /** What is being done now, and how far along (0 … 1; null: no telling). */

@@ -452,8 +452,8 @@ export class PlanetPanel {
   /** On a world of another star entered: back to the galaxy it was seen from (this world kept first); says how it goes. */
   onGalaxy: () => Promise<string> = async () => "";
   private readonly galaxy = el("button", "link world-galaxy");
-  private menuTitle: HTMLElement | null = null;
-  private readonly enteredText = el("span", "world-entered");
+  private readonly enteredText = el("button", "link world-entered");
+  private galaxySaid: HTMLElement | null = null;
   /** The bar at the top, where the guided walk shows. */
   readonly bar = el("header", "bar");
   onClose: () => void = () => {};
@@ -572,6 +572,7 @@ export class PlanetPanel {
       said.textContent = ` ${await this.onGalaxy()}`;
       this.galaxy.disabled = false;
     };
+    void this.galaxySaid;
     title.onclick = async () => {
       title.disabled = true;
       said.textContent = " keeping the world…";
@@ -599,8 +600,8 @@ export class PlanetPanel {
       title,
       said,
     );
-    this.menuTitle = title;
-    this.world.append(this.enteredText, this.worldText, menu);
+    this.galaxySaid = said;
+    this.world.append(this.worldText, menu);
     bar.append(this.statsStrip, this.world);
     this.element.append(bar);
     const close = el("button", "close", "×");
@@ -638,10 +639,16 @@ export class PlanetPanel {
     void this.describe();
   }
 
-  /** A world of another star entered says so in its bar, and offers the way back. */
-  entered(words: string): void {
-    this.enteredText.textContent = `${words} `;
-    this.menuTitle?.before(this.galaxy);
+  /** A world of another star entered says so in its bar (pressed: all of it), and offers the way back. */
+  entered(words: string, about: () => void): void {
+    this.enteredText.textContent = words;
+    this.enteredText.title = words;
+    this.enteredText.onclick = about;
+    // (One line of their own, in the place of the world's words: whose world, and the way back beside it. The menu's
+    // row is left as it is, full as it stands on a desk.)
+    const row = el("span", "world-entered-row");
+    row.append(this.enteredText, this.galaxy);
+    this.world.prepend(row);
   }
 
   private async describe(): Promise<void> {

@@ -22,6 +22,34 @@
   margin: 12px 0 10px;
 }
 /* On a world entered, the line that says so, in the world's own bar. */
+.world-entered-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  /* (Clear of the menu's signs under it, whose touch reaches up past their own line.) */
+  margin-bottom: 12px;
+}
+/* (Its two are a line of their own: no wider reach than their words, which would lie over the menu's.) */
+.world-entered-row .link {
+  margin: 0;
+  padding: 2px 0;
+}
+.world-entered-row ~ .world-about {
+  display: none;
+}
+.world-entered-row .world-galaxy {
+  flex: none;
+  white-space: nowrap;
+}
+.enter-card .jump-buttons {
+  margin-top: 12px;
+}
 .world-entered {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
   color: var(--accent);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
