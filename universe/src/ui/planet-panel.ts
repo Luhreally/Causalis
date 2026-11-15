@@ -2,6 +2,7 @@
 // how its people fare, the clock, the lenses to look through, and an inspector for
 // any place — its ground, weather, plate and ores, and the people living there —
 // where every fact can be asked "why?".
+import { enteredSeed, seedShown } from "../bridge/index.ts";
 import type { Breakdown, HostClient, SaveMeta, Status, WorldStage } from "../bridge/index.ts";
 import type { Gore, Lens } from "../view/index.ts";
 import { lineChart } from "./chart.ts";
@@ -448,6 +449,11 @@ export class PlanetPanel {
   onGore: (g: Gore) => void = () => {};
   /** Back to the title screen (the world kept first); says how it goes. */
   onMenu: () => Promise<string> = async () => "";
+  /** On a world of another star entered: back to the galaxy it was seen from (this world kept first); says how it goes. */
+  onGalaxy: () => Promise<string> = async () => "";
+  private readonly galaxy = el("button", "link world-galaxy");
+  private menuTitle: HTMLElement | null = null;
+  private readonly enteredText = el("span", "world-entered");
   /** The bar at the top, where the guided walk shows. */
   readonly bar = el("header", "bar");
   onClose: () => void = () => {};
@@ -558,6 +564,14 @@ export class PlanetPanel {
           ? document.exitFullscreen()
           : document.documentElement.requestFullscreen({ navigationUI: "hide" })
       ).catch(() => {});
+    this.galaxy.append(el("span", "menu-icon", "🌌"), el("span", "word", "Back to the galaxy"));
+    this.galaxy.title = "Back to the galaxy";
+    this.galaxy.onclick = async () => {
+      this.galaxy.disabled = true;
+      said.textContent = " keeping this world…";
+      said.textContent = ` ${await this.onGalaxy()}`;
+      this.galaxy.disabled = false;
+    };
     title.onclick = async () => {
       title.disabled = true;
       said.textContent = " keeping the world…";
@@ -585,7 +599,8 @@ export class PlanetPanel {
       title,
       said,
     );
-    this.world.append(this.worldText, menu);
+    this.menuTitle = title;
+    this.world.append(this.enteredText, this.worldText, menu);
     bar.append(this.statsStrip, this.world);
     this.element.append(bar);
     const close = el("button", "close", "×");
@@ -621,6 +636,12 @@ export class PlanetPanel {
       el("p", "hint", `Tap the world to look at a place. ${steerWords("round")}`),
     );
     void this.describe();
+  }
+
+  /** A world of another star entered says so in its bar, and offers the way back. */
+  entered(words: string): void {
+    this.enteredText.textContent = `${words} `;
+    this.menuTitle?.before(this.galaxy);
   }
 
   private async describe(): Promise<void> {
@@ -1240,7 +1261,7 @@ export class PlanetPanel {
     };
     // Each save, to load; and beside it its delete, asked twice (what will go, then gone).
     const row = (s: SaveMeta): HTMLElement => {
-      const words = `${WORLDS[s.universe] ?? s.universe} “${s.seed}”, year ${Math.floor(s.t / YEAR).toLocaleString()}`,
+      const words = `${enteredSeed(s.seed) ? "A world entered" : (WORLDS[s.universe] ?? s.universe)} “${seedShown(s.seed)}”, year ${Math.floor(s.t / YEAR).toLocaleString()}`,
         line = el("div", "kept-row"),
         b = el(
           "button",

@@ -801,3 +801,120 @@ export function homeLifeRoles(g: HomeWorld): ReturnType<typeof livingRoles> | nu
     world: protoLifeWorld(g as unknown as ProtoWorld),
   });
 }
+
+/**
+ * A world's people seated as they were read from afar (a world of another star entered, rules/far.ts): the body that was
+ * seen, in place of whichever of its lineages would have risen by its own draws. Their forebears are the living lineage
+ * of their own medium nearest them in size; their cradle the best ground a body of theirs can live on, about those
+ * forebears where it can be. A world whose own life left them nowhere at all (no shelf for a people of the water, no
+ * land free of ice) seats them on the mildest ground it has: they were seen there.
+ */
+export function seatPeople(
+  bio: Biosphere,
+  body: BodyPlan,
+  i: Pick<LivingInputs, "grid" | "climate" | "water" | "elevation">,
+): Biosphere {
+  const { grid, climate, water, elevation } = i,
+    n = grid.count,
+    land = (c: number) => elevation[c]! > 0,
+    lives = (c: number, x: number) =>
+      ((bio.present[SPECIES_WORDS * c + (x >> 5)]! >>> (x & 31)) & 1) === 1,
+    shelfBy = (c: number) => {
+      for (let k = grid.offsets[c]!; k < grid.offsets[c + 1]!; k++)
+        if (climate.biome[grid.neighbours[k]!] === BIOME.shelf) return true;
+      return false;
+    },
+    fits: Readonly<Record<"water" | "shore" | "land", (c: number) => boolean>> = {
+      water: (c) => !land(c) && climate.biome[c] === BIOME.shelf,
+      shore: (c) => land(c) && climate.biome[c] !== BIOME.ice && shelfBy(c),
+      land: (c) => land(c) && climate.biome[c] !== BIOME.ice && climate.biome[c] !== BIOME.alpine,
+    },
+    fit = fits[body.medium],
+    near = (c: number, x: number) => {
+      if (lives(c, x)) return true;
+      for (let k = grid.offsets[c]!; k < grid.offsets[c + 1]!; k++)
+        if (lives(grid.neighbours[k]!, x)) return true;
+      return false;
+    },
+    was = bio.people,
+    species = bio.species.filter((s) => s.index !== was?.species),
+    // Their forebears: a living beast of their medium, the nearest them in size (the one that rose by the world's own
+    // draws, where it is of their medium).
+    kin = species.filter(
+      (s) => s.died === null && !!s.body && risenMedium(s.body.place) === body.medium,
+    ),
+    rose = was?.forebear !== undefined ? kin.find((s) => s.index === was.forebear) : undefined,
+    fore =
+      rose ??
+      kin.reduce<Species | null>(
+        (best, s) =>
+          !best ||
+          Math.max(s.size, body.size) / Math.min(s.size, body.size) <
+            Math.max(best.size, body.size) / Math.min(best.size, body.size)
+            ? s
+            : best,
+        null,
+      );
+  const seat = (ok: (c: number) => boolean): number => {
+    let cell = -1,
+      best = -Infinity;
+    for (let c = 0; c < n; c++) {
+      if (!ok(c)) continue;
+      const t = climate.temperature[c]!,
+        mild = t > 10 && t < 30 ? 1 : 0.5,
+        score =
+          (1 +
+            bio.diversity[c]! +
+            (bio.seedGrass[c]! >= 0 ? 3 : 0) +
+            (bio.herdBeast[c]! >= 0 ? 2 : 0)) *
+            mild *
+            (water.river[c] ? 1.3 : 1) -
+          // (Between two grounds alike, the lower cell: no draw is spent on it.)
+          c * 1e-9;
+      if (score > best) [best, cell] = [score, c];
+    }
+    return cell;
+  };
+  let cell = fore ? seat((c) => fit(c) && near(c, fore.index)) : -1;
+  if (cell < 0) cell = seat(fit);
+  if (cell < 0) cell = seat((c) => (body.medium === "water" ? !land(c) : land(c)));
+  if (cell < 0) cell = seat(() => true);
+  const people: Species = {
+    index: species.length,
+    ref: speciesRef(0, species.length),
+    name: body.name,
+    niche: "upright ape",
+    arose: AGES - 1,
+    died: null,
+    origin: cell,
+    warm: Math.round(climate.temperature[cell]!),
+    tolerance: 30,
+    rainMin: 0,
+    rainMax: 10000,
+    size: body.size,
+    herd: 0.8,
+    docility: 0.4,
+    growth: 0.1,
+    wool: false,
+    seed: 0,
+    tame: false,
+    body: null,
+    level: 0,
+  };
+  return {
+    species: [...species, people],
+    present: bio.present,
+    herdBeast: bio.herdBeast,
+    seedGrass: bio.seedGrass,
+    diversity: bio.diversity,
+    people: {
+      species: people.index,
+      cell,
+      body,
+      because: fore
+        ? `of the ${fore.name}, as they were seen from another star before anyone came down to them`
+        : "as they were seen from another star before anyone came down to them",
+      ...(fore ? { forebear: fore.index } : {}),
+    },
+  };
+}

@@ -1,0 +1,27 @@
+/* A world of another star entered: what is asked before going, and the screen its world is made behind. */
+.enter-card {
+  max-height: calc(100% - 8px);
+  overflow-y: auto;
+}
+.enter-what {
+  margin: 0 0 10px;
+}
+.enter-sub {
+  margin: 10px 0 4px;
+  font-size: 0.95rem;
+}
+.enter-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.9rem;
+}
+.enter-list li + li {
+  margin-top: 4px;
+}
+.enter-said {
+  margin: 12px 0 10px;
+}
+/* On a world entered, the line that says so, in the world's own bar. */
+.world-entered {
+  color: var(--accent);
+}

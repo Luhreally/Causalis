@@ -1,0 +1,166 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { Rng, YEAR, seedFromText, seedName } from "../../src/kernel/index.ts";
+import { foreignPlanets, worldChemistry, worldLife } from "../../src/gen/index.ts";
+import { farMade, makingsOf } from "../../src/rules/index.ts";
+import { ALIEN, EARTH, clusterOf } from "../../src/host/planet.ts";
+import { enterPlan, enteredHere } from "../../src/host/enter.ts";
+import { figureBody, folkFacts, peopleFigure } from "../../src/host/folk.ts";
+import { folkFactsOf } from "../../src/host/natives.ts";
+import { enteredSeed, seedShown, type EnterPlan } from "../../src/bridge/index.ts";
+import {
+  folkStage,
+  folksNear,
+  homePlanet,
+  populationContext,
+  type Folk,
+} from "../../src/sim/index.ts";
+
+// A world of another star entered (asked 2026-11-13): made from what was read of it from the home world, so the star,
+// the world's numbers, its chemistry and its people are the ones seen; a world of its own from there on.
+const home = EARTH.build(seedFromText("first light ~size small")),
+  folks = folksNear(home),
+  starOf = (f: Folk) => clusterOf(home).find((s) => s.ref === f.star)!,
+  planetOf = (f: Folk) => foreignPlanets(new Rng(home.seed), starOf(f))[f.planet]!,
+  plan = (f: Folk) => enterPlan(home, f.star, f.planet, "earth"),
+  ok = (p: EnterPlan) => {
+    assert.ok(p.ok, p.ok ? "" : p.why);
+    return p;
+  },
+  // (One in its camps, one of the cluster's followed few further on, one of another medium than the land.)
+  camped = folks.find(
+    (f) => !f.followed && folkStage(f, 0) === "camps" && f.body.medium === "land",
+  )!,
+  followed = folks.find((f) => f.followed && !["camps", "ruins"].includes(folkStage(f, 0)))!,
+  wet = folks.find((f) => f.body.medium !== "land" && folkStage(f, 0) !== "ruins")!;
+
+test("the stars about the home world hold peoples to enter", () => {
+  assert.ok(camped && followed && wet, `${folks.length} peoples`);
+});
+
+for (const [what, pick] of [
+  ["a people in its camps", () => camped],
+  ["a people history follows", () => followed],
+  ["a people not of the land", () => wet],
+] as const)
+  test(`${what}: its world is made from what was read of it`, () => {
+    const f = pick(),
+      s = starOf(f),
+      p = planetOf(f),
+      got = ok(plan(f)),
+      far = farMade(got.seed)!;
+    assert.equal(got.universe, "alien");
+    assert.equal(got.name, f.name);
+    assert.equal(got.stage, folkStage(f, 0));
+    // The seed says whose world it is and where it was seen from, and keeps the home world's size.
+    assert.equal(seedName(got.seed), `${f.name}, from first light ${s.sector}:${s.k}/${f.planet}`);
+    assert.equal(makingsOf(got.seed).size, "small");
+    assert.equal(makingsOf(got.seed).sky, "small");
+    assert.ok(!seedShown(got.seed).includes("~far"), seedShown(got.seed));
+    assert.deepEqual(enteredSeed(got.seed)?.from, { universe: "earth", seed: home.seed.text });
+    assert.equal(far.civ, f.ref);
+    const world = ALIEN.build(seedFromText(got.seed)),
+      g = homePlanet(world).generated;
+    // Its star and its own numbers, as the galaxy has them.
+    assert.equal(g.star.spectral, s.spectral);
+    assert.equal(g.star.temperature, s.temperature);
+    assert.equal(g.star.luminosity, s.luminosity);
+    assert.equal(g.planet.orbitAu, p.a);
+    assert.equal(g.planet.gravity, p.gravity);
+    assert.equal(g.planet.meanTemperature, p.temperature);
+    assert.equal(g.planet.kind, undefined, "read as a world of rock and water");
+    // (The share of its face under sea, as near as its own plates draw it.)
+    let low = 0;
+    const e = g.fine.tectonics.elevation;
+    for (let c = 0; c < e.length; c++) if (e[c]! <= 0) low++;
+    assert.ok(Math.abs(low / e.length - far.planet.seas) < 0.05, `${low / e.length}`);
+    // Its ground's chemistry and its life's, the ones read.
+    assert.deepEqual(worldChemistry(g), f.chem);
+    assert.deepEqual(worldLife(g), f.life);
+    assert.deepEqual(worldLife(g.fine), f.life);
+    // Its people: the body seen, and the look seen.
+    assert.deepEqual(g.life.people?.body, f.body);
+    assert.deepEqual(folkFacts(g.fine), folkFactsOf(f, s));
+    // (Their figure is drawn from that body and that look. A followed people of the kinds of before is drawn from afar
+    // by its kind's usual build, a little off its own in weight and years: here it is its own.)
+    assert.deepEqual(peopleFigure(g.fine), figureBody(f.body, folkFactsOf(f, s)));
+    // And they live: on ground a body of theirs can, with lands to spread over.
+    const ctx = populationContext(world),
+      peopled = ctx.provinces.all().filter((x) => x.total() > 0);
+    assert.equal(ctx.medium, f.body.medium);
+    assert.ok(peopled.length > 0, "peopled lands");
+    // It says of itself whom it was made from.
+    const here = enteredHere(world)!;
+    assert.equal(here.name, f.name);
+    assert.equal(here.star, `star:${s.sector}:${s.k}`);
+    assert.equal(here.arrived, got.stage === "camps");
+    // The same seed, the same world.
+    assert.equal(
+      homePlanet(ALIEN.build(seedFromText(got.seed))).generated.digest,
+      g.digest,
+      "regenerates from its seed alone",
+    );
+  });
+
+test("a world entered runs to the age its people were read at, and says when it has", () => {
+  // (One read in its villages, towns or cities: a step every peopled world of the measured ones comes to.)
+  const early = folks.find((f) => ["villages", "towns", "cities"].includes(folkStage(f, 0)))!;
+  assert.ok(early, "a people in its villages, towns or cities");
+  const got = ok(plan(early)),
+    world = ALIEN.build(seedFromText(got.seed));
+  assert.ok(got.usualYears > 0 && got.usualYears < got.mostYears);
+  let year = 0;
+  while (!enteredHere(world)!.arrived && year < got.mostYears) world.runTo((year += 10) * YEAR);
+  assert.ok(enteredHere(world)!.arrived, `by year ${year}: ${enteredHere(world)!.age}`);
+  assert.ok(year > 0 && year <= got.mostYears);
+});
+
+test("a smaller grid may be asked for, never a larger than the home world's", () => {
+  const usual = ok(plan(camped)),
+    wide = ok(enterPlan(home, camped.star, camped.planet, "earth", "standard"));
+  assert.equal(usual.size, "small");
+  assert.equal(wide.size, "small", "the home world's own, where a larger is asked");
+  const big = EARTH.build(seedFromText("first light")),
+    f = folksNear(big).find((x) => x.ref === camped.ref)!,
+    full = ok(enterPlan(big, f.star, f.planet, "earth")),
+    less = ok(enterPlan(big, f.star, f.planet, "earth", "small"));
+  assert.equal(full.size, "standard");
+  assert.equal(makingsOf(full.seed).size, undefined);
+  assert.equal(less.size, "small");
+  assert.equal(makingsOf(less.seed).size, "small");
+  assert.ok(less.lands < full.lands);
+  assert.ok(
+    less.fresh.length === full.fresh.length + 1,
+    "and it says its lands are reckoned wider",
+  );
+});
+
+test("asking changes nothing at home, and each people's world is its own", () => {
+  const before = JSON.stringify(home.domainHashes());
+  const a = ok(plan(camped)),
+    b = ok(plan(followed));
+  assert.equal(JSON.stringify(home.domainHashes()), before);
+  assert.notEqual(seedName(a.seed), seedName(b.seed));
+  assert.equal(ok(plan(camped)).seed, a.seed, "the same reading, the same seed");
+});
+
+test("where a world cannot be entered, it says why", () => {
+  const none = enterPlan(home, "star:999999:0", 0, "earth");
+  assert.ok(!none.ok);
+  // (A world of ruins: no one to live as. Alien 41's sky holds a people gone before its chronicle opens.)
+  const other = ALIEN.build(seedFromText("alien 41 ~size small")),
+    gone = folksNear(other).find((f) => folkStage(f, 0) === "ruins")!;
+  assert.ok(gone, "a people in ruins");
+  const p = enterPlan(other, gone.star, gone.planet, "alien");
+  assert.ok(!p.ok && /ruins/.test(p.why), JSON.stringify(p).slice(0, 200));
+  // (A world entered is not a place to enter another from.)
+  const inner = ALIEN.build(seedFromText(ok(plan(camped)).seed)),
+    again = enterPlan(inner, camped.star, camped.planet, "alien");
+  assert.ok(!again.ok && /entered/.test(again.why));
+});
+
+test("a seed of its own is no world entered", () => {
+  assert.equal(enteredHere(home), null);
+  assert.equal(farMade("first light"), null);
+  assert.equal(enteredSeed("first light ~size small"), null);
+});

@@ -7,6 +7,7 @@ import {
   KINDS,
   earthDegrees,
   kelvinPerDegree,
+  type FarMade,
   type NovelKind,
   type Prior,
   type Range,
@@ -85,6 +86,26 @@ export function makeStar(rng: Rng, prior: Prior): Star {
   };
 }
 
+/**
+ * The star of a world of another star entered (rules/far.ts): as the galaxy has it (its mass, its light, its warmth,
+ * its age), the rest by the same relations as a star drawn.
+ */
+export function farStar(far: FarMade): Star {
+  const s = far.star;
+  return {
+    ref: starRef(0),
+    mass: s.mass,
+    luminosity: s.luminosity,
+    radius: dmath.pow(s.mass, 0.8),
+    temperature: s.temperature,
+    spectral: s.spectral,
+    lifetimeGyr: 10 * dmath.pow(s.mass, -2.5),
+    ageGyr: s.ageGyr,
+    zoneInner: Math.sqrt(s.luminosity / 1.1),
+    zoneOuter: Math.sqrt(s.luminosity / 0.53),
+  };
+}
+
 export type Planet = {
   readonly ref: string;
   readonly star: string;
@@ -154,6 +175,37 @@ export function makePlanet(rng: Rng, prior: Prior, star: Star): Planet {
     oceanFraction: draw(rng, p.oceanFraction, 2, 6),
     plateCount: Math.round(draw(rng, p.plates, 2, 7)),
     continental: draw(rng, p.continental, 2, 8),
+  };
+}
+
+/**
+ * The planet of a world of another star entered (rules/far.ts): its orbit, its bulk, its pull, its warmth and its seas
+ * as they were read from afar; its day, its tilt and its plates as its own seed draws them (`drawn`). Its year by
+ * Kepler's law; its air's warming what its warmth asks over what its star's light alone gives, and where the light
+ * alone would leave it warmer than it was read, a brighter face instead (its albedo raised), so that its mean stands
+ * where it was seen.
+ */
+export function farPlanet(drawn: Planet, far: FarMade, star: Star): Planet {
+  const p = far.planet,
+    insolation = star.luminosity / (p.a * p.a),
+    grey = 278.6 * dmath.pow(insolation, 0.25),
+    wanted = p.temperature + 273.15,
+    lit = grey * dmath.pow(1 - drawn.albedo, 0.25),
+    albedo =
+      lit <= wanted ? drawn.albedo : Math.min(0.95, 1 - dmath.pow(Math.min(1, wanted / grey), 4)),
+    equilibrium = grey * dmath.pow(1 - albedo, 0.25);
+  return {
+    ...drawn,
+    orbitAu: p.a,
+    yearDays: 365.25 * Math.sqrt((p.a * p.a * p.a) / star.mass),
+    mass: p.mass,
+    radius: p.radius,
+    gravity: p.gravity,
+    insolation,
+    albedo,
+    greenhouse: Math.max(0, wanted - equilibrium),
+    meanTemperature: p.temperature,
+    oceanFraction: Math.min(0.95, Math.max(0.05, p.seas)),
   };
 }
 

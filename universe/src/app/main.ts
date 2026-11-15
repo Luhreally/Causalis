@@ -13,6 +13,9 @@ import "./can.css";
 import "./years.css";
 import "./memory.css";
 import "./alliances.css";
+import "./enter.css";
+import { askEnter, cannotEnter, enterScreen, phoneMinutesTo, runToRead } from "../ui/index.ts";
+import { enteredSeed, type EnterPlan, type Entered } from "../bridge/index.ts";
 import { CourtNote, SungNote } from "../ui/index.ts";
 import { courtSitting } from "../view/index.ts";
 import { PeopleBar, barPins, setWrittenHold } from "../ui/index.ts";
@@ -450,6 +453,8 @@ const SKY = [0.09, 0.1, 0.13] as const;
 /** How long what a town did lately stays on its label (ms). */
 const TIDING_MS = 4000;
 const SPACE = [0.02, 0.025, 0.045] as const;
+/** The longest a world entered may take to run to the age its people were read at before its lands are reckoned wider (minutes, est.). */
+const ENTER_MINUTES = 8;
 
 const params = new URLSearchParams(location.search);
 /** Whether the view turns slowly when left alone (a setting, off unless chosen), and how fast. */
@@ -494,6 +499,19 @@ type Exposed = {
   closeLifeSheet?: () => void;
   /** The year a world begun at a far year took up from (a world baked ahead's; 0: its beginning). */
   jumpedFrom?: number;
+  /**
+   * On a world of another star entered: what it says of itself, and how its coming went (how long its making and its
+   * history's run took, ms, and the years run; nothing run where it was taken up from a save).
+   */
+  entered?: {
+    here: Entered;
+    makeMs: number;
+    runMs: number;
+    years: number;
+    loaded: boolean;
+  };
+  /** Another people's world entered from here, as its button does (asked 2026-11-13); answers why not, where it cannot be. */
+  enterWorld?: (star: string, index: number) => Promise<string | null>;
   mode?: string;
   seed?: string;
   universe?: string;
@@ -1657,12 +1675,57 @@ async function runPlanetPage(): Promise<void> {
     skyBuilt = "",
     skyStar: StarPage | null = null;
   Object.assign(exposed, { client, mode, seed, universe, drawn: () => painted, stage });
+  // A world of another star entered (asked 2026-11-13: rules/far.ts): made, and its history run to the age its people
+  // were read at, behind a screen that says what is being done. The way back is the world it was seen from, kept
+  // before it was left: its save where there is one, else that world run again to the year it was left in.
+  const far = enteredSeed(seed),
+    homeSearch = async (): Promise<string> => {
+      if (!far) return "";
+      const { universe: u, seed: s } = far.from,
+        kept = (await client.saves().catch(() => []))
+          .filter((x) => x.universe === u && x.seed === s)
+          .sort((a, b) => b.savedAt - a.savedAt)[0];
+      return `?universe=${encodeURIComponent(u)}&seed=${encodeURIComponent(s)}${
+        kept ? `&load=${encodeURIComponent(kept.name)}` : far.year > 0 ? `&year=${far.year}` : ""
+      }&star=${encodeURIComponent(far.star.ref)}&world=${far.planet.index}`;
+    },
+    entering = far
+      ? enterScreen(hud, far.name, () => void homeSearch().then((q) => (location.search = q)))
+      : null,
+    enterAt = performance.now();
+  if (entering && loadName)
+    entering.say(`Taking up the world of the ${far!.name}`, "As you left it.", null);
   const { ruleset } = await client.start(universe, seed);
   // ?load=name takes up a save; ?year=N starts the world N years on (it runs there
   // first, behind a screen that says how far it has come; history is the same).
-  const loaded = loadName ? await client.load(loadName) : null;
+  // (A world entered whose save cannot be read is made again from what was read of it.)
+  const loaded = loadName
+    ? await client.load(loadName).catch((error: unknown) => {
+        if (far) return null;
+        throw error;
+      })
+    : null;
   if (!loaded && startYear > 0)
     exposed.jumpedFrom = await jumpToYear(client, startYear, hud, { universe, seed, ruleset });
+  let enteredHere: Entered | null = null;
+  if (far && entering) {
+    enteredHere = await client.query<Entered | null>({ type: "enter.here" });
+    const makeMs = performance.now() - enterAt,
+      ran =
+        enteredHere && !loaded
+          ? await runToRead(client, entering, enteredHere)
+          : { here: enteredHere, ms: 0, years: 0 };
+    enteredHere = ran.here;
+    if (enteredHere)
+      exposed.entered = {
+        here: enteredHere,
+        makeMs,
+        runMs: ran.ms,
+        years: ran.years,
+        loaded: !!loaded,
+      };
+    entering.away();
+  }
   client.setInterest({ view: "globe", focus: null });
   // One clock for every scale, its speeds the scale's own (asked for 2026-10-24): the date
   // drawn each frame, as the scales draw the world.
@@ -3970,6 +4033,27 @@ async function runPlanetPage(): Promise<void> {
     location.search = `?universe=${encodeURIComponent(u)}&seed=${encodeURIComponent(s)}&load=${encodeURIComponent(name)}`;
   };
   planetPanel.onSaves = () => client.saves();
+  // A world entered says whose it is, and how it stands by what was read of them; and offers the way back.
+  if (enteredHere) {
+    const e = enteredHere;
+    planetPanel.entered(
+      `🌍 The world of the ${e.name} (${e.kind}), ${e.distance.toFixed(0)} light-years from “${far!.from.seed.split(" ~")[0]}”. Seen from there ${e.stageWords}${
+        e.arrived ? "" : `; here they have come as far as ${e.age.toLowerCase()}`
+      }. What happens here stays here.`,
+    );
+    planetPanel.onGalaxy = async () => {
+      try {
+        await client.save(`${saveName}:auto`);
+      } catch (error) {
+        if (
+          !confirm(`This world could not be kept (${(error as Error).message}). Leave it anyway?`)
+        )
+          return "stayed";
+      }
+      location.search = await homeSearch();
+      return "to the galaxy…";
+    };
+  }
   /** What a world taken up again in place has to forget. */
   const takeUp: (() => void)[] = [];
   planetPanel.onLoadSave = async (save) => {
@@ -4505,6 +4589,68 @@ async function runPlanetPage(): Promise<void> {
     void fadeOver(() => ready("their ground", () => toFolk(star, index).then(() => {}), true));
   };
   worldPanel.onFolk = goDownToFolk;
+  /**
+   * Another people's world entered (asked 2026-11-13: "i should lowkey be able to play the alien worlds too"): asked
+   * first, with what will be as it was seen and what will not; then this world kept, and the page gone to theirs, which
+   * is taken up where it was left if it was entered before. Only one world is ever held: this one is put away first.
+   */
+  const enterWorld = async (star: string, index: number): Promise<string | null> => {
+    // (Its lands' grid the home world's, unless its history would then take too long to run: then fewer and wider.)
+    const minutesOf = (p: Extract<EnterPlan, { ok: true }>) =>
+        phoneMinutesTo(p.usualYears, 0, p.lands) / (tier.name === "phone" ? 1 : 1.5),
+      ask = (size?: string) =>
+        client.query<EnterPlan>({
+          type: "enter.plan",
+          args: { star, index, universe, ...(size ? { size } : {}) },
+        });
+    let plan = await ask();
+    if (!plan.ok) {
+      cannotEnter(hud, plan.why);
+      return plan.why;
+    }
+    for (const size of ["medium", "small"]) {
+      if (minutesOf(plan) <= ENTER_MINUTES) break;
+      const smaller = await ask(size);
+      if (smaller.ok) plan = smaller;
+    }
+    // (Entered before: the same people seen from the same world, whenever it was; the newest kept.)
+    const now = enteredSeed(plan.seed)!,
+      before = (await client.saves().catch(() => []))
+        .filter((s) => {
+          const m = s.universe === plan.universe ? enteredSeed(s.seed) : null;
+          return (
+            !!m &&
+            m.civ === now.civ &&
+            m.from.universe === now.from.universe &&
+            m.from.seed === now.from.seed
+          );
+        })
+        .sort((a, b) => b.savedAt - a.savedAt)[0],
+      asked = await askEnter(hud, plan, !!before, minutesOf(plan));
+    if (!asked.go) {
+      asked.away();
+      return null;
+    }
+    asked.said("Keeping the home world…");
+    try {
+      await client.save(`${saveName}:auto`);
+    } catch (error) {
+      if (
+        !confirm(
+          `The home world could not be kept (${(error as Error).message}). Enter anyway? It would be run again to this year on coming back.`,
+        )
+      ) {
+        asked.away();
+        return "stayed";
+      }
+    }
+    location.search = before
+      ? `?universe=${encodeURIComponent(before.universe)}&seed=${encodeURIComponent(before.seed)}&load=${encodeURIComponent(before.name)}`
+      : `?universe=${encodeURIComponent(plan.universe)}&seed=${encodeURIComponent(plan.seed)}`;
+    return null;
+  };
+  worldPanel.onEnter = (star, index) => void enterWorld(star, index);
+  exposed.enterWorld = enterWorld;
   pageWindow.onFolk = goDownToFolk;
   const playMeeting = (star: string, index: number) => {
     pageWindow.close();
@@ -10955,6 +11101,9 @@ async function runPlanetPage(): Promise<void> {
     stop: stopNow?.key ?? null,
   });
   exposed.watchIt = (on: boolean) => (on ? watchIt() : (stopWatching(), Promise.resolve()));
+  // (Back from a world entered: to that world as the galaxy has it, where it was left for.)
+  if (params.get("star") && params.has("world"))
+    void firstPicture.then(() => toFolkWorld(params.get("star")!, Number(params.get("world"))));
   if (params.has("cradle") && !loaded)
     void toTheCradle().then((down) => {
       // (Begun from the genesis, watching: from the first village on.)
