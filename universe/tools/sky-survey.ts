@@ -113,6 +113,8 @@ export type SkySurvey = {
   readonly save: number;
   /** The largest stores of the save, gzipped alone. */
   readonly stores: readonly (readonly [string, number])[];
+  /** The kinds of event history keeps most of, by their letters as written out (ungzipped), and how many of each. */
+  readonly kinds: readonly (readonly [string, number, number])[];
   readonly lands: number;
   readonly ms: number;
 };
@@ -238,7 +240,8 @@ export async function skySurvey(seed: string, years: number): Promise<SkySurvey>
     stores = Object.entries(doc.stores)
       .map(([name, chunk]) => [name, gzipSync(JSON.stringify(chunk)).length] as const)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 8);
+      // (The largest eight, and whatever a realm's evidence is kept in, however small: its cost is told with the rest.)
+      .filter(([name], i) => i < 8 || name === "order.bonds" || name === "readings.years");
   return {
     seed,
     years,
@@ -287,6 +290,20 @@ export async function skySurvey(seed: string, years: number): Promise<SkySurvey>
     }),
     save,
     stores,
+    kinds: (() => {
+      const by = new Map<string, [number, number]>();
+      for (let i = 0; i < world.events.count; i++) {
+        const e = world.events.at(i),
+          was = by.get(e.type) ?? [0, 0];
+        was[0] += JSON.stringify(e).length;
+        was[1]++;
+        by.set(e.type, was);
+      }
+      return [...by.entries()]
+        .map(([type, [bytes, n]]) => [type, bytes, n] as const)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10);
+    })(),
     lands: ctx.provinces.all().length,
     ms: Math.round(performance.now() - t0),
   };

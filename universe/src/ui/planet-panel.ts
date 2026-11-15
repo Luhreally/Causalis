@@ -211,6 +211,8 @@ export type PeopleEntry = {
   sickness: number;
   /** What they owe, against a year's food (0 … 1) — M144. */
   debt: number;
+  /** Their realm's camp and fear (-1 … 1; -2 no realm's): sim/finance. */
+  camps: number;
 };
 
 /** A people's ways and speech (the host's waysOf). */

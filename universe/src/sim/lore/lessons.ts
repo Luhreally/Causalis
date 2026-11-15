@@ -41,7 +41,7 @@ import { farFromSeat, hostHungry, warsOf } from "../war/war.ts";
 import { designsOf, hostBest } from "../design/design.ts";
 import { knows, loreOf } from "./lore.ts";
 import { LessonStore, lessonAdds, lessonsOf, useIn, type Holder } from "./lessons-store.ts";
-import { HOLD_READ, readOutcomes } from "../order/holds.ts";
+import { HOLD_READ, fortunesYear, readOutcomes, stoodYear } from "../order/holds.ts";
 
 /** The kinds of event a realm learns of rule from (sim/order/holds.ts). */
 const OUTCOME_TYPES: ReadonlySet<string> = new Set(HOLD_READ);
@@ -531,9 +531,12 @@ export function lessonsYear(ctx: PopulationContext, t: SimTime): void {
     if (READINGS[e.type] || OUTCOME_TYPES.has(e.type)) fresh.push(e);
   }
   store.read = top;
-  // (What befell realms, and what they learn of rule from it: sim/order/holds.ts, oldest first.)
+  // (How each realm has fared, measured; then what befell realms, and what they learn of rule from it, oldest first; then how each
+  // stands as the year closes: sim/order/holds.ts.)
+  fortunesYear(ctx);
   const outcomes = fresh.filter((e) => OUTCOME_TYPES.has(e.type)).reverse();
   if (outcomes.length) readOutcomes(ctx, outcomes, t);
+  stoodYear(ctx);
   for (let i = fresh.length - 1; i >= 0; i--) {
     const e = fresh[i]!,
       reading = READINGS[e.type];

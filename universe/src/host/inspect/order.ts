@@ -276,7 +276,7 @@ function orderHistory(world: World, r: Polity, most = 30): Item[] {
 const capital = (s: string) => (s ? `${s[0]!.toUpperCase()}${s.slice(1)}` : s);
 
 /** The labels of a realm's four numbers (rules/holds.ts), as its page asks them. */
-const HOLD_ASKS: Readonly<Record<Hold, string>> = {
+export const HOLD_ASKS: Readonly<Record<Hold, string>> = {
   force: "Who bears arms",
   voice: "Who decides",
   word: "How word moves",

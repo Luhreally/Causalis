@@ -46,6 +46,7 @@ import { wealthBlocks } from "../wealth.ts";
 import { landEra } from "../village.ts";
 import { bare, claimOf, count, item, link, many, share, stat, yearAt, yearNow } from "./words.ts";
 import { bondsLedger } from "./order.ts";
+import { campsLedger, moneyLedger } from "./finance.ts";
 import { sicknessLedger } from "./sickness.ts";
 import { creditLedger } from "./credit.ts";
 import { strifeLedger } from "./strife.ts";
@@ -1859,6 +1860,9 @@ export function ledgerPage(world: World, tab?: string): PageModel {
     { id: "sickness", name: "Sickness", blocks: sicknessLedger(world) },
     // Every house of lending side by side, and what is owed them (Phase 21 M143).
     { id: "credit", name: "Credit", blocks: creditLedger(world) },
+    // Debt sold and who holds whom, the works' makings through the years; the camps, where two great realms fear each other.
+    { id: "money", name: "Money", blocks: moneyLedger(world) },
+    { id: "camps", name: "Camps", blocks: campsLedger(world) },
     // Every coup and restoration (Phase 22 M145).
     { id: "strife", name: "Strife", blocks: strifeLedger(world) },
     { id: "faiths", name: "Faiths", blocks: faithLedger(world) },

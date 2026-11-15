@@ -411,15 +411,19 @@ await page.setViewportSize({ width: 1366, height: 800 });
 await k(`document.querySelector(".page-window .close")?.click()`);
 await page.waitForTimeout(slow(500));
 /** The first of the first 240 towns whose plan passes `ok`. */
-const townWhere = async (ok: (p: Plan) => boolean): Promise<Plan | null> => {
+const townsWhere = async (ok: (p: Plan) => boolean, most: number): Promise<Plan[]> => {
   // (Looked on well past the first towns: a trade comes to a town with its history, and a craft's
   // knowledge can be slow to spread to the first-founded.)
+  const out: Plan[] = [];
   for (const c of (await ask<{ ref: string }[]>("towns.map", {})).slice(0, 240)) {
     const plan = await ask<Plan>("village.plan", { ref: c.ref, folk: 220 });
-    if (ok(plan)) return plan;
+    if (ok(plan)) out.push(plan);
+    if (out.length >= most) break;
   }
-  return null;
+  return out;
 };
+const townWhere = async (ok: (p: Plan) => boolean): Promise<Plan | null> =>
+  (await townsWhere(ok, 1))[0] ?? null;
 /** Into a town, the clock held: its next working day. */
 const enter = async (plan: Plan): Promise<number> => {
   await k(`document.querySelector(".page-window .close")?.click()`);
@@ -565,19 +569,57 @@ await k(`globalThis.causalis.client.setSpeed(0)`);
 // (Not one going hungry: its works rightly stand idle while its people look for food.)
 const nextDay =
     Math.floor((await k<number>(`globalThis.causalis.client.status?.t ?? 0`)) / DAY) + 1,
-  works = await townWhere(
+  worksTowns = await townsWhere(
     (p) =>
       p.people.some((x) => x.trade?.kind === "machinist") &&
       p.people.some((x) => x.trade?.kind === "founder") &&
       !leanOn(p as unknown as VillagePlan, nextDay),
+    5,
   );
-check(!!works, "no town of the Earth seed keeps founders and machinists at its works by 1050");
+check(
+  worksTowns.length > 0,
+  "no town of the Earth seed keeps founders and machinists at its works by 1050",
+);
+// (And not one whose works stand idle while the town builds: a town raising or rebuilding its homes takes whoever is willing to
+// its sites day after day, its founders and machinists among them. At Thindford on first light in 1050, the first such town since
+// realms learn of rule from evidence, they are at the works one day and carry beams to a tenement being rebuilt for the week after.
+// The first whose floor is at work on its next two working days is the one read; its foundry the working day after, then its floor.)
+let works: Plan | null = null,
+  worksDay = 0;
+const workday = (c: Plan, after: number) => {
+  let d = after + 1;
+  while ((d + (c.seed % 7)) % 7 === 0) d++;
+  return d;
+};
+for (const c of worksTowns) {
+  let d = await enter(c),
+    on = 1;
+  for (let day = 0; day < 2 && on > 0; day++) {
+    if (day) d = workday(c, d);
+    on = 0;
+    for (const hour of [9.5, 10.5]) {
+      await advance(d * DAY + hour * HOUR);
+      const f = (await crafts())?.floor;
+      on = Math.max(on, (f?.turning ?? 0) + (f?.pressing ?? 0));
+    }
+  }
+  if (on > 0) {
+    works = c;
+    worksDay = workday(c, d);
+    break;
+  }
+  say(`${c.name}'s works floor idle on day ${d}: the next town that keeps founders and machinists`);
+}
+check(
+  !!works || !worksTowns.length,
+  `no works floor at work in ${worksTowns.map((p) => p.name).join(", ")} on their next working day`,
+);
 if (works) {
   const founders = new Set(
       works.people.filter((p) => p.trade?.kind === "founder").map((p) => p.name),
     ),
     hands = new Set(works.people.filter((p) => p.trade?.kind === "machinist").map((p) => p.name)),
-    fday = await enter(works);
+    fday = worksDay;
 
   // 8. The foundry: blown, tapped (in the middle of a founder's draw), poured, stacked; a mould tapped.
   await advance(fday * DAY + 7 * HOUR);
@@ -623,12 +665,18 @@ if (works) {
 
   // 9. The works' floor: presses and lathes at work, the bench filling; a finished part tapped.
   await k(`document.querySelector(".page-window .close")?.click()`);
-  const floorDay = fday + ((fday + 1 + (works.seed % 7)) % 7 === 0 ? 2 : 1);
-  let running = 0;
-  for (const hour of [9.5, 10.5, 14]) {
-    await advance(floorDay * DAY + hour * HOUR);
-    const f = (await crafts())?.floor;
-    running = Math.max(running, (f?.turning ?? 0) + (f?.pressing ?? 0));
+  // (Looked for over its next working days, three at most: a day the town builds can take its machinists to its sites.)
+  let floorDay = fday,
+    running = 0;
+  for (let tries = 0; tries < 3 && !running; tries++) {
+    floorDay++;
+    while ((floorDay + (works.seed % 7)) % 7 === 0) floorDay++;
+    for (const hour of [9.5, 10.5, 14]) {
+      await advance(floorDay * DAY + hour * HOUR);
+      const f = (await crafts())?.floor;
+      running = Math.max(running, (f?.turning ?? 0) + (f?.pressing ?? 0));
+    }
+    if (!running) say(`  ${works.name}'s floor idle on day ${floorDay}`);
   }
   await advance(floorDay * DAY + 16 * HOUR);
   const floor = (await crafts())?.floor ?? null,
@@ -636,6 +684,18 @@ if (works) {
   say(
     `${works.name}'s works floor: ${floor?.presses ?? 0} presses, ${floor?.lathes ?? 0} lathes; at work ${running}; on the bench ${floor?.benched ?? 0}`,
   );
+  if (!running) {
+    // (What its machinists' day was instead, told for whoever reads a failure.)
+    const at = await k<number[]>(
+      `(globalThis.causalis.planNow()?.people ?? []).flatMap((p, i) => (p.trade?.kind === "machinist" ? [i] : []))`,
+    );
+    for (const index of at.slice(0, 2)) {
+      const legs = await k<Leg[]>(`globalThis.causalis.legs?.(${index}) ?? []`);
+      say(
+        `  a machinist's day ${floorDay}: ${legs.map((l) => `${Math.round(l.from / HOUR)}h ${l.why}`).join("; ")}`,
+      );
+    }
+  }
   check(running > 0, `no machine at work on ${works.name}'s floor`);
   check((floor?.benched ?? 0) > 0, `no finished parts on ${works.name}'s bench by the afternoon`);
   if (floorAt && floorAt.benched > 0) {

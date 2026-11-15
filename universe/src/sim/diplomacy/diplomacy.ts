@@ -28,6 +28,8 @@ import { beliefOf } from "../belief/belief.ts";
 import { HOLD, HOLDING, OUTCOME } from "../../rules/index.ts";
 import { orderOf } from "../order/order.ts";
 import { blamesOutsiders, holdOf } from "../order/holds.ts";
+import { fearOf, financeOf, stakesBetween, topFear, wayOf } from "../finance/finance.ts";
+import { FINANCE, wayDistance } from "../../rules/index.ts";
 
 export const RELATION = defineKind("rel", "two realms' regard", "structural");
 
@@ -304,6 +306,45 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
           name: `${realmName(side)} blaming outsiders for ${OUTCOME.get(blamed.taught.what)?.words ?? "its woes"}`,
           value: -HOLDING.grudgeBy * blamed.fresh,
           source: blamed.taught.event,
+        });
+    }
+    // Another's way feared (sim/finance): the one who fears draws back; two alike who fear the same realm draw together; and what
+    // each one's people hold of the other's is a reason to keep the peace.
+    const money = financeOf(world);
+    if (money) {
+      const ab = fearOf(world, a.ref, b.ref),
+        ba = fearOf(world, b.ref, a.ref),
+        fear = Math.max(ab, ba);
+      if (fear >= FINANCE.fearGone) {
+        const [who, whom] = ab >= ba ? [a, b] : [b, a];
+        terms.push({
+          name: `the fear ${realmName(who)} has of how ${realmName(whom)} is held`,
+          value: -FINANCE.regard * fear,
+          source: money.of(who.ref)?.toldEvent ?? null,
+        });
+      }
+      const fa = topFear(world, a.ref),
+        fb = topFear(world, b.ref);
+      if (fa && fb && fa.of === fb.of && fa.of !== a.ref && fa.of !== b.ref) {
+        const both = Math.min(fa.level, fb.level) / 100,
+          third = realms.get(fa.of);
+        if (
+          both >= FINANCE.fearGone &&
+          third &&
+          wayDistance(wayOf(world, a.ref), wayOf(world, b.ref)) <= FINANCE.alike
+        )
+          terms.push({
+            name: `a fear they share of how ${realmName(third)} is held`,
+            value: FINANCE.shared * both,
+            source: money.of(a.ref)?.toldEvent ?? null,
+          });
+      }
+      const stakes = stakesBetween(world, a.ref, b.ref);
+      if (stakes >= 0.02)
+        terms.push({
+          name: "what their peoples hold of each other's",
+          value: Math.min(0.2, stakes),
+          source: null,
         });
     }
     terms.push(...store.remembered(a.ref, b.ref, year));

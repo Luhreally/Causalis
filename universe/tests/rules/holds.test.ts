@@ -1,5 +1,5 @@
-// How a realm is held (rules/holds.ts): four numbers, and every name read off them and the people's body; and one rule for what a
-// realm learns: an outcome, a blame read off its ways, a change that follows.
+// How a realm is held (rules/holds.ts): four numbers, and every name read off them and the people's body. What a realm learns is
+// rules/learn.ts (tests/rules/learn.test.ts): the outcomes here only name the events worth looking at.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -127,21 +127,12 @@ test("whom a people blames comes of its ways: the open look to themselves, the p
     );
 });
 
-test("one rule for every lesson: what it changes follows from the blame — mend where it is ours, harden where it is others', half for pride, nothing for the gods", () => {
+test("no outcome says what to make of it: each only names an event, whom it befell and what it is called", () => {
   for (const o of OUTCOMES) {
-    const ours = changeOf(o, "ours", 1),
-      theirs = changeOf(o, "theirs", 1),
-      pride = changeOf(o, "weakness", 1),
-      gods = changeOf(o, "the gods'", 1);
-    assert.deepEqual(ours, { ...o.mend }, o.id);
-    assert.deepEqual(theirs, { ...o.harden }, o.id);
-    for (const [k, v] of Object.entries(pride))
-      assert.equal(v, (o.harden as Record<string, number>)[k]! * 0.5, o.id);
-    assert.deepEqual(gods, {}, o.id);
+    assert.ok(o.id && o.event && o.words, o.id);
+    assert.equal(o.mend, undefined, `${o.id} writes no change`);
+    assert.equal(o.harden, undefined, `${o.id} writes no change`);
+    // (A row that still carried one would be read as it was by changeOf, and by nothing else.)
+    assert.deepEqual(changeOf(o, "ours", 1), {}, o.id);
   }
-  const crushed = OUTCOMES.find((o) => o.id === "crushed")!;
-  assert.ok(
-    crushed.mend.voice! > 0 && crushed.harden.force! > 0,
-    "a rising crushed: a voice, or a tighter grip",
-  );
 });
