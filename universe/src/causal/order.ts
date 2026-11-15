@@ -15,7 +15,10 @@ import {
 import {
   OUTCOME,
   blameWords,
+  cameWords,
   holdWords,
+  movedWords,
+  stoodWords,
   tookWords,
   type Blame,
   type Hold,
@@ -56,26 +59,29 @@ registerEventWords(HOLD_EVENTS.lesson.type, (_, e) => {
       outcome?: string;
       blame?: Blame;
       of?: string;
+      /** (A lesson told before evidence was measured kept its change in words.) */
       change?: string;
-      stood?: string;
-      came?: string;
-      well?: boolean;
+      leaned?: number[];
+      came?: number[];
+      moved?: number[];
     } | null,
     o = OUTCOME.get(d?.outcome ?? ""),
-    // (How the realm it befell stood and fared, as the lesson kept them: sim/order/holds.ts.)
+    well = d?.came ? d.came[0]! > 0 : undefined,
+    change = d?.moved ? movedWords(d.moved.map((x) => x / 1000)) : (d?.change ?? ""),
+    // (How the realm it befell stood and fared, put into words from the numbers the lesson kept: sim/order/holds.ts.)
     how =
-      d?.stood && d.came
-        ? `, ${d.of ? "which" : "in years it"} stood ${d.stood} and ${d.came}`
+      d?.leaned && d.came
+        ? `, ${d.of ? "which" : "in years it"} stood ${stoodWords(d.leaned.map((x) => x / 100))} and ${cameWords(d.came)}`
         : "",
     what = d?.of
       ? `seeing ${(o?.of ?? "the fate of {them}").replace("{them}", d.of)}`
       : `after ${o?.words ?? "what befell it"}`,
     blame = !d?.blame
       ? "weighed it"
-      : d.well === undefined
+      : well === undefined
         ? blameWords(o, d.blame, !!d.of)
-        : tookWords(d.blame, !!d.of, d.well);
-  return `${cap(realm(e.data))}, ${what}${how}, ${blame}${d?.change ? `, and ${d.change}` : ""}, ${year(e.t)}`;
+        : tookWords(d.blame, !!d.of, well);
+  return `${cap(realm(e.data))}, ${what}${how}, ${blame}${change ? `, and ${change}` : ""}, ${year(e.t)}`;
 });
 registerEventWords(
   ORDER_EVENTS.captives.type,

@@ -695,18 +695,16 @@ function learn(
   const got = weigh(ctx, p, order, other ?? p, near, year, usual);
   // (Kept where it moved some belief of its far enough to tell.)
   if (!got || Math.max(...got.evidence.map(Math.abs)) < LEARNING.noted) return;
-  const change = movedWords(got.evidence),
-    // Told where it moved it far: its own fate; another's once in two generations, and a realm's fall only where it was near (its
-    // seat within a few weeks' walk).
-    // (Its own, once in some years unless it was a great one.)
-    told =
-      got.moved >= LEARNING.told &&
-      (other
-        ? (o.id !== "fell" || kmBetween(ctx, p.seat, other.seat) <= HOLDING.nearKm) &&
-          (order.toldSeen === undefined || year - order.toldSeen >= 50)
-        : got.moved >= LEARNING.great ||
-          order.toldOwn === undefined ||
-          year - order.toldOwn >= LEARNING.tellEvery);
+  // Told where it moved it far: its own fate, once in some years unless it was a great one; another's once in two generations,
+  // and a realm's fall only where it was near (its seat within a few weeks' walk).
+  const told =
+    got.moved >= LEARNING.told &&
+    (other
+      ? (o.id !== "fell" || kmBetween(ctx, p.seat, other.seat) <= HOLDING.nearKm) &&
+        (order.toldSeen === undefined || year - order.toldSeen >= 50)
+      : got.moved >= LEARNING.great ||
+        order.toldOwn === undefined ||
+        year - order.toldOwn >= LEARNING.tellEvery);
   if (told && other) order.toldSeen = year;
   if (told && !other) order.toldOwn = year;
   const event = told
@@ -720,10 +718,10 @@ function learn(
           outcome: o.id,
           blame: got.blame,
           ...(other ? { of: realmName(other) } : {}),
-          stood: stoodWords(got.leaned.map((x) => x / 100)),
-          came: cameWords(got.came),
-          well: got.came[0]! > 0,
-          change,
+          // (As numbers, a few each, put into words where it is told: how it stood against the usual, how it fared, what it moved.)
+          leaned: got.leaned,
+          came: got.came,
+          moved: got.evidence.map((x) => Math.round(x * 1000)),
         },
       })
     : null;
