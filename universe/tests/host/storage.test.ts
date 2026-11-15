@@ -126,3 +126,32 @@ test("split JSON keeps what JSON keeps: holes, nulls, nesting, long runs", async
   }
   assert.deepEqual(jsonCopy(value), JSON.parse(JSON.stringify(value)));
 });
+
+// A save in one text is written a store at a time (a far world's text is hundreds of megabytes: never one string):
+// the bytes are of the very text JSON.stringify writes, so a save written before reads as one written now.
+test("a save in one text is the text JSON writes of it, store by store", async () => {
+  const { gunzipSync } = await import("node:zlib");
+  const w = makeToyWorld("one text");
+  w.runTo(20 * YEAR);
+  const doc = saveWorld(w, rulesetId(w, "test"), { name: "one text", gone: undefined });
+  const text = (d: unknown) => JSON.stringify(d);
+  for (const d of [
+    doc,
+    { ...doc, stores: {} },
+    {
+      ...doc,
+      stores: { ...doc.stores, 'odd "name"\n': { schema: 1, data: [undefined], hash: "" } },
+    },
+    {},
+  ] as (typeof doc)[]) {
+    const bytes = await encodeSave(d);
+    assert.equal(gunzipSync(bytes).toString("utf8"), text(d));
+    assert.deepEqual(await decodeSave(bytes), JSON.parse(text(d)));
+  }
+  // (Exactly as long as `most` is one text still; a character longer, pieces.)
+  const exact = await encodeSave(doc, text(doc).length),
+    over = await encodeSave(doc, text(doc).length - 1);
+  assert.equal(gunzipSync(exact).toString("utf8"), text(doc));
+  assert.ok(gunzipSync(over).toString("utf8").startsWith("CAUSALIS-SPLIT 1\n"));
+  assert.equal(JSON.stringify(await decodeSave(over)), text(doc));
+});
