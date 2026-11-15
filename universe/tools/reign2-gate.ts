@@ -185,6 +185,10 @@ const tap = async (
   await page.touchscreen.tap(to.x, to.y);
 };
 const seen = (sel: string) => centre(sel).then((c) => !!c);
+/** The palette opened whole again where an act in hand has folded it to its strip (a phone's: 2026-11-15). */
+const whole = async () => {
+  if (await seen("#hud > .palette.holding:not(.full) .palette-back")) await tap(".palette-back");
+};
 const text = (sel: string) =>
   k<string>(`document.querySelector(${JSON.stringify(sel)})?.textContent ?? ""`);
 const fits = () => k<boolean>("document.documentElement.scrollWidth <= 430");
@@ -371,6 +375,7 @@ try {
   const people = await ask<{ cell: number; centre: number; people: number }[]>("people.map");
   const cast = async (act: "bless" | "curse", r: Polity) => {
     if (!(await seen(".palette.open"))) await tap(".palette-toggle");
+    await whole();
     await tap(`.palette-tab[data-kind="realms"]`);
     await tap(`.palette-act[data-act="${act}"]`);
     await until(
@@ -594,6 +599,7 @@ try {
     ),
     "the ruler's tray stands under the god's palette",
   );
+  await whole();
   await tap(`.palette-tab[data-kind="realms"]`);
   await tap(`.palette-act[data-act="bless"]`);
   await until(
@@ -619,6 +625,7 @@ try {
     await shot("10b-palette");
   }
   // (A drought's strength slider, by touch at its far end: it says what the greatest will do, and the line fits the phone.)
+  await whole();
   await tap(`.palette-tab[data-kind="weather"]`);
   await tap(`.palette-act[data-act="drought"]`);
   await until(
