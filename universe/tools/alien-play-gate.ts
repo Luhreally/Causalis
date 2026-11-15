@@ -513,12 +513,14 @@ const LATE_SECONDS = 60;
 const reached: boolean[] = [];
 
 /** A people read far on entered: there within the minute, at the age it was read at, as many as were read. */
-async function late(home: Home): Promise<void> {
-  const tag = `${home.universe} late`,
+async function late(home: Home, who?: string): Promise<void> {
+  const tag = `${home.universe} late${who ? ` (${who})` : ""}`,
     u = home.universe === "earth" ? EARTH : ALIEN,
     world = u.build(seedFromText(home.seed)),
     folks = folksNear(world),
-    f = LATE.flatMap((st) => folks.filter((x) => folkStage(x, 0) === st))[0];
+    f = who
+      ? folks.find((x) => x.name === who)
+      : LATE.flatMap((st) => folks.filter((x) => folkStage(x, 0) === st))[0];
   if (!f) {
     problems.push(`${tag}: no people past its cities about this world's stars`);
     return;
@@ -582,6 +584,13 @@ async function late(home: Home): Promise<void> {
     `${tag} “${home.seed}”: the ${f.name}, ${f.body.name}, of the ${f.body.medium}, read ${plan.stageWords}, some ${read.toLocaleString("en")}: entered in ${seconds.toFixed(1)} s (made ${(came.makeMs / 1000).toFixed(1)} s, run ${came.years} years in ${(came.runMs / 1000).toFixed(1)} s), lands ${size}, ${map.length} peopled, ${people.toLocaleString("en")} people, the host's heap at most ${came.heapMB ?? "?"} MB; the age: ${came.here.age}`,
   );
   check(/minute|moments/.test(asked), `${tag}: the asking does not say how long it takes`);
+  // (Where their world as made shuts the road to the age read, the asking says so before anyone goes; and only then.)
+  check(
+    !!plan.shut === /stops short of/.test(asked),
+    `${tag}: the asking ${plan.shut ? "does not say" : "says"} their world stops short of the age read`,
+  );
+  if (plan.shut)
+    check(asked.includes(plan.shut.why), `${tag}: the asking does not say why (${plan.shut.why})`);
   // (At the age they were read at; or, where their bodies or their world's matter shut a road to it, at the furthest
   // those allow, and their world saying which road.)
   check(
@@ -602,6 +611,26 @@ async function late(home: Home): Promise<void> {
   check((came.heapMB ?? 0) <= 1024, `${tag}: the host's heap came to ${came.heapMB} MB`);
   await page.waitForTimeout(slow(1500));
   if (shots) await page.screenshot({ path: join(shots, `${home.universe}-late-2-globe.png`) });
+  // From a world entered, another people's world: not from here, and the way on is back through its galaxy.
+  await k(`void globalThis.causalis.enterWorld(${JSON.stringify(f.star)}, ${f.planet})`);
+  await page.locator(".enter-no .enter-home").waitFor();
+  const refused = await k<string>(`document.querySelector(".enter-no").innerText`);
+  check(
+    /galaxy it was seen from/.test(refused),
+    `${tag}: the refusal does not say where to go (“${refused.slice(0, 120)}”)`,
+  );
+  if (shots)
+    await page.screenshot({ path: join(shots, `${home.universe}-late-3-not-from-here.png`) });
+  await page.locator(".enter-no .enter-home").tap();
+  await page.waitForURL((url) => url.searchParams.get("seed") === home.seed, {
+    timeout: slow(180000),
+  });
+  await drawn();
+  await page
+    .locator(".folk-play")
+    .first()
+    .waitFor({ state: "attached", timeout: slow(120000) });
+  say(`${tag}: from their world, another's is refused with the way back, and the way back taken`);
   check(
     errors.length === 0,
     `${tag}: errors in the page: ${errors.slice(0, 3).join(" | ").slice(0, 600)}`,
@@ -610,6 +639,10 @@ async function late(home: Home): Promise<void> {
 }
 
 try {
+  // (--also universe|seed|name: one people more, by name, entered as the late ones are.)
+  const also = arg("--also")?.split("|");
+  if (also?.length === 3)
+    await late({ universe: also[0] as Home["universe"], seed: also[1]!, wet: false }, also[2]);
   for (const home of HOMES)
     if (!only || only === home.universe) {
       if (!argv.includes("--late-only")) await walk(home);

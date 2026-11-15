@@ -51,6 +51,14 @@ export function askEnter(
             : "Their world is made whole, which takes a few moments."
       }`,
     ),
+    // (What the far sight promised and their world as played will not show, said before anyone goes.)
+    shut = plan.shut
+      ? el(
+          "p",
+          "enter-what enter-shut",
+          `Read from afar ${plan.stageWords}; their world as played stops short of ${plan.shut.name.toLowerCase()}, at about ${plan.shut.before.toLowerCase()}: ${plan.shut.why}. The sight from afar reads a people's years, not its limbs or its ground.`,
+        )
+      : null,
     buttons = el("div", "jump-buttons"),
     go = el("button", "enter-go", again ? "Go back to their world" : "Play their world"),
     stay = el("button", "enter-stay", "Not now"),
@@ -59,6 +67,7 @@ export function askEnter(
   card.append(
     head,
     what,
+    ...(shut ? [shut] : []),
     ...list("As it was seen", plan.kept, "enter-kept"),
     ...list("Not as it was seen", plan.fresh, "enter-fresh"),
     said,
@@ -121,7 +130,7 @@ export function aboutEntered(parent: HTMLElement, e: Entered, home: string): voi
         e.arrived
           ? "They stand at that age here."
           : e.shut !== null
-            ? `Here they stand at: ${e.age}. The sight from afar reads a people's years, not its limbs or its world's stuffs; made whole, their own bodies or their world's matter (a fire their limbs cannot tend, a ground with no coal for the works that build what flies) open no road to ${e.shut.toLowerCase()}, and no rule here gives a people what those cannot.`
+            ? `Here they stand at: ${e.age}. The sight from afar reads a people's years, not its limbs or its world's stuffs; made whole, their world opens no road to ${e.shut.toLowerCase()}: ${e.shutWhy ?? "it is shut to them"}. No rule here gives a people what its limbs or its ground cannot.`
             : `Here, by this world's own rules, they have come as far as: ${e.age}.`
       }`,
     ),

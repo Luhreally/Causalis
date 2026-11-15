@@ -6,11 +6,22 @@
 //
 // Pure reads. Asking changes nothing: the home world's history never learns a world was entered, and the world entered
 // keeps what is done on it to itself.
-import { Rng, type World } from "../kernel/index.ts";
-import { civBody, foreignPlanets, handDraw } from "../gen/index.ts";
+import { Rng, seedFromText, type World } from "../kernel/index.ts";
 import {
+  FAR_SHUT_WORDS,
+  civBody,
+  farShut,
+  foreignPlanets,
+  generateHomeWorld,
+  handDraw,
+  provinceWorld,
+} from "../gen/index.ts";
+import {
+  AGE_LADDER,
   FAR_STAGE_AGE,
   FAR_STAGE_USUAL,
+  OPEN,
+  landsOf,
   FAR_STAGE_YEARS,
   MAKINGS,
   farMade,
@@ -175,10 +186,25 @@ export function enterPlan(
         cellsOf(GRID[asked]!) * (f.body.medium === "water" ? (0.12 * sea) / cells : ground / cells),
       ),
     );
+  // Their world's ground made, to read before anyone enters whether a road to their age is shut to them there
+  // (gen/far.ts): the far sight reads neither a followed people's limbs nor their world's fuel.
+  const seed = farSeed(made, acts),
+    shut =
+      stage === "camps"
+        ? null
+        : farShut(provinceWorld(generateHomeWorld(seedFromText(seed), OPEN), landsOf(seed)), made),
+    at = shut ? AGE_LADDER.findIndex((a) => a.id === shut.age) : -1;
   return {
     ok: true,
     universe: ENTERED_UNIVERSE,
-    seed: farSeed(made, acts),
+    seed,
+    shut: shut
+      ? {
+          name: shut.name,
+          before: AGE_LADDER[Math.max(0, at - 1)]!.name,
+          why: FAR_SHUT_WORDS[shut.why],
+        }
+      : null,
     name: f.name,
     kind: body.name,
     stage,
@@ -222,7 +248,8 @@ export function enteredHere(world: World): Entered | null {
     mostYears: FAR_STAGE_YEARS[far.stage],
     arrived,
     age: now.name,
-    shut: shut === null ? null : (now.stages.find((x) => x.id === shut)?.name ?? shut),
+    shut: shut === null ? null : (now.stages.find((x) => x.id === shut.age)?.name ?? shut.name),
+    shutWhy: shut === null ? null : FAR_SHUT_WORDS[shut.why],
     kept: KEPT,
     fresh: freshWords(far.name, far.stage),
   };

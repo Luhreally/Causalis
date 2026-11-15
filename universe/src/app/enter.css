@@ -6,6 +6,9 @@
 .enter-what {
   margin: 0 0 10px;
 }
+.enter-shut {
+  color: var(--accent);
+}
 .enter-sub {
   margin: 10px 0 4px;
   font-size: 0.95rem;

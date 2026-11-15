@@ -1,8 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Rng, YEAR, seedFromText, seedName } from "../../src/kernel/index.ts";
-import { civBody, foreignPlanets, worldChemistry, worldLife } from "../../src/gen/index.ts";
-import { farMade, makingsOf } from "../../src/rules/index.ts";
+import {
+  civBody,
+  farCrafts,
+  farShut,
+  foreignPlanets,
+  worldChemistry,
+  worldLife,
+} from "../../src/gen/index.ts";
+import { affordancesOf, farMade, makingsOf } from "../../src/rules/index.ts";
 import { ALIEN, EARTH, clusterOf } from "../../src/host/planet.ts";
 import { enterPlan, enteredHere } from "../../src/host/enter.ts";
 import { folkFacts, peopleFigure } from "../../src/host/folk.ts";
@@ -13,6 +20,7 @@ import {
   folkStage,
   folksNear,
   homePlanet,
+  knownAt,
   loreOf,
   populationContext,
   shutAge,
@@ -207,5 +215,31 @@ test("where a world's matter shuts the road to the age read, it says which, and 
     here = enteredHere(world)!;
   assert.ok(!here.arrived);
   assert.equal(here.shut, "Orbit");
+  assert.match(here.shutWhy!, /no fuel/);
+  // (And it was said before anyone entered: the plan's reading is the world's own, of the same pure function.)
+  const said = ok(enterPlan(sky, f.star, f.planet, "earth")).shut!;
+  assert.equal(said.name, "Orbit");
+  assert.equal(said.before, "Electricity");
+  assert.match(said.why, /no fuel/);
   assert.ok(loreOf(world).get(homePlanet(world).generated.life.people!.cell, "orbital-flight"));
+});
+
+test("the reading of a shut road is pure, and the same before entering as on the world entered", () => {
+  const sky = ALIEN.build(seedFromText("alien 41"));
+  for (const f of folksNear(sky).filter((x) => x.followed && folkStage(x, 0) !== "camps")) {
+    const got = ok(enterPlan(sky, f.star, f.planet, "alien")),
+      far = farMade(got.seed)!,
+      world = ALIEN.build(seedFromText(got.seed)),
+      g = homePlanet(world).generated,
+      ctx = populationContext(world),
+      pure = farShut(g, far),
+      there = shutAge(ctx, g.life.people!.cell, far);
+    assert.deepEqual(pure, there, f.name);
+    assert.deepEqual(pure, farShut(g, far), "the same each time it is asked");
+    assert.equal(got.shut?.name ?? null, pure?.name ?? null, f.name);
+    // (What the tree opens to them from nothing is what their lands were seated with.)
+    assert.deepEqual(farCrafts(g, far.stage), knownAt(ctx, g.life.people!.cell, far), f.name);
+    // (Limbs that work no fire: said as limbs, not as matter or fuel.)
+    if (pure && !affordancesOf(far.body).fire) assert.equal(pure.why, "limbs", f.name);
+  }
 });

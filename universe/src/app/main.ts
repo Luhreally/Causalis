@@ -2131,6 +2131,8 @@ async function runPlanetPage(): Promise<void> {
   // (Read as the names are placed: the scales' panels come one by one, some later on.)
   labels.ceilings = () => document.querySelectorAll<HTMLElement>(".panel > header.bar");
   bubbles.ceilings = labels.ceilings;
+  // (And to the left of the corner's rail, where they are level with a button of it.)
+  labels.walls = () => document.querySelectorAll<HTMLElement>(".corner-tools button");
   // The signs' font, readied before any village is entered: its first drawing is slow (a
   // colour font loaded and its glyphs drawn), and would otherwise stall a frame there.
   {

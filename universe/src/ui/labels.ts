@@ -46,6 +46,13 @@ export class LabelLayer {
   ceilings: () => Iterable<HTMLElement> = () => [];
   /** How far down the bar showing reaches, about this layer, when last read (0: none). */
   private ceiling = 0;
+  /**
+   * Buttons standing down the scene's right edge (the corner's rail): a name level with one is kept to the left of
+   * it, as within the screen's edge (a town's name ran under the rail's first button, in a land of any world).
+   */
+  walls: () => Iterable<HTMLElement> = () => [];
+  /** Where each stood when last read, about this layer: its left edge, and from where to where down the screen. */
+  private walled: { x: number; y0: number; y1: number }[] = [];
 
   /** Panels over the scene: a label that would fall under one is hidden. */
   get blockers(): HTMLElement[] {
@@ -84,6 +91,17 @@ export class LabelLayer {
         // (One showing along the top, across the most of it.)
         if (r.height > 0 && r.top - origin.top < HEIGHT && r.width > origin.width / 2)
           this.ceiling = Math.max(this.ceiling, r.bottom - origin.top);
+      }
+      this.walled = [];
+      for (const b of this.walls()) {
+        const r = b.getBoundingClientRect();
+        // (One showing, in the right half: what stands on the left is no edge to keep names from.)
+        if (r.width > 0 && r.height > 0 && r.left - origin.left > origin.width / 2)
+          this.walled.push({
+            x: r.left - origin.left,
+            y0: r.top - origin.top,
+            y1: r.bottom - origin.top,
+          });
       }
       this.blocked = [];
       for (const b of this.blocking)
@@ -127,14 +145,17 @@ export class LabelLayer {
       const w = ((l.badge ? l.text.length + 3 : l.text.length) * WIDTH_PER_CHAR) / 2 + 8;
       // (A name whose place is off the screen is hidden; one at its edge, or under the bar along
       // its top, moved within it.)
-      if (at && this.width > 0 && this.height > 0)
-        at =
-          at.x < 0 || at.x > this.width || at.y < 0 || at.y > this.height
-            ? null
-            : {
-                x: Math.max(Math.min(at.x, this.width - w - EDGE), w + EDGE),
-                y: Math.max(at.y, this.ceiling + HEIGHT + EDGE),
-              };
+      if (at && this.width > 0 && this.height > 0) {
+        if (at.x < 0 || at.x > this.width || at.y < 0 || at.y > this.height) at = null;
+        else {
+          const y = Math.max(at.y, this.ceiling + HEIGHT + EDGE);
+          // (The right edge it keeps within: the screen's, or a rail button's it is level with.)
+          let right = this.width;
+          for (const wall of this.walled)
+            if (wall.y0 < y && y - HEIGHT < wall.y1) right = Math.min(right, wall.x);
+          at = { x: Math.max(Math.min(at.x, right - w - EDGE), w + EDGE), y };
+        }
+      }
       if (at) {
         const box = { x0: at.x - w, x1: at.x + w, y0: at.y - HEIGHT, y1: at.y };
         if (placed.some((p) => p.x0 < box.x1 && box.x0 < p.x1 && p.y0 < box.y1 && box.y0 < p.y1))

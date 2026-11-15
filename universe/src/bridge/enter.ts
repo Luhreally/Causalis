@@ -22,6 +22,15 @@ export type EnterPlan =
       readonly lands: number;
       /** Its lands' grid: the home world's ("standard", "medium", "small"), or the one asked for. */
       readonly size: string;
+      /**
+       * Where their world as made shuts the road to the age they were read at: that age's name, the age before it
+       * (as far as they can come), and why in a few words. Null: every road to it is open to them there.
+       */
+      readonly shut: {
+        readonly name: string;
+        readonly before: string;
+        readonly why: string;
+      } | null;
       /** What will be found as it was seen, and what will not, each in a sentence. */
       readonly kept: readonly string[];
       readonly fresh: readonly string[];
@@ -56,6 +65,8 @@ export type Entered = {
    * read it (its name; null: every road to the age they were read at is open to them, and they hold its crafts).
    */
   readonly shut: string | null;
+  /** Why, in a few words ("no fuel in its ground for the works that build what flies"); null with it. */
+  readonly shutWhy: string | null;
   readonly kept: readonly string[];
   readonly fresh: readonly string[];
 };
