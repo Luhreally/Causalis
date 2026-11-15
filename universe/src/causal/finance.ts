@@ -3,7 +3,7 @@
 // is read off the numbers and the people's body (rules/finance.ts ownWords, wayWords): none is kept.
 import { yearOfMoment } from "../kernel/index.ts";
 import { FINANCE_EVENTS, homePlanet, politiesOf, realmName } from "../sim/index.ts";
-import { LOSERS, ownWords, wayWords, type Way } from "../rules/index.ts";
+import { losersBefore, ownWords, wayWords, type Way } from "../rules/index.ts";
 import { count } from "./words.ts";
 import { registerDecisionWords, registerEventWords } from "./why.ts";
 
@@ -109,7 +109,7 @@ registerEventWords(FINANCE_EVENTS.feared.type, (_world, e) => {
     } | null,
     way = (v: number[] | undefined) =>
       v && v.length === 5 ? wayWords(v.map((x) => x / 100) as unknown as Way) : "";
-  return `${cap(d?.realm ?? "a realm")} came to fear how ${d?.of ?? "another realm"} is held${way(d?.theirs) ? ` (there ${way(d?.theirs)}; at home ${way(d?.mine)})` : ""}: ${LOSERS[d?.who ?? 0]} would lose by it, ${year(e.t)}`;
+  return `${cap(d?.realm ?? "a realm")} came to fear how ${d?.of ?? "another realm"} is held${way(d?.theirs) ? ` (there ${way(d?.theirs)}; at home ${way(d?.mine)})` : ""}: ${losersBefore(d?.who ?? 0)} would lose by it, ${year(e.t)}`;
 });
 
 const subject = (world: Parameters<typeof politiesOf>[0], ref: string) => {

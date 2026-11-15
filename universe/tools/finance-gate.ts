@@ -26,7 +26,7 @@ const argv = process.argv.slice(2),
   shots = arg("--shots"),
   YEAR_AT = Number(arg("--year") ?? 600),
   SEED = "first light",
-  SIZE = desk ? { width: 1280, height: 800 } : { width: 430, height: 932 };
+  SIZE = desk ? { width: 1366, height: 800 } : { width: 430, height: 932 };
 if (shots) mkdirSync(shots, { recursive: true });
 const slow = (ms: number) => (ci || soft ? ms * 4 : ms);
 const GPU = [
@@ -302,7 +302,7 @@ if (chosen) {
   // (The god's hand put by, as the overlap gate puts it by before it reads a page: at a desk it stands open at first.)
   await k("globalThis.causalis.palette?.putDown?.()").catch(() => undefined);
   if (await centre(".palette.open")) {
-    await k(`document.querySelector("#hud > .palette-toggle")?.click()`);
+    await tap(".palette-toggle", "the god's hand's button");
     await settle(500);
   }
 

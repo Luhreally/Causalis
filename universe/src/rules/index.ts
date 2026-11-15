@@ -1466,6 +1466,7 @@ export {
   fearMoves,
   firstOwn,
   greatRealms,
+  losersBefore,
   ownBand,
   ownWords,
   seenToWork,

@@ -290,6 +290,12 @@ export const LOSERS = [
   "those who keep its common store",
 ] as const;
 
+/** Who would lose, before a verb: "its people, who have a say, would lose" keeps its comma. */
+export const losersBefore = (who: number): string => {
+  const w = LOSERS[who] ?? LOSERS[0];
+  return w.includes(",") ? `${w},` : w;
+};
+
 /** What each of a realm's holders would lose were it held and owned as another is: the greatest, and who. */
 export function wouldLose(a: Way, b: Way): { loss: number; who: number; each: number[] } {
   const up = (x: number) => Math.max(0, x),

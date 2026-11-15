@@ -25,12 +25,12 @@ import {
   G,
   GOODS,
   HOLD,
-  LOSERS,
   OWN,
   OWN_KINDS,
   exposure,
   fearMoves,
   firstOwn,
+  losersBefore,
   ownBand,
   seenToWork,
   threatOf,
@@ -569,7 +569,7 @@ export function financeYear(ctx: PopulationContext, t: SimTime): void {
               source: null,
             },
             {
-              name: `what ${LOSERS[top.who]} would lose`,
+              name: `what ${losersBefore(top.who)} would lose`,
               value: top.loss / 100,
               contribution: top.loss / 100,
               source: null,
@@ -1129,7 +1129,7 @@ function weighOwn(
         ...(guard
           ? [
               {
-                name: `what ${LOSERS[top!.who]} would lose`,
+                name: `what ${losersBefore(top!.who)} would lose`,
                 value: top!.loss / 100,
                 contribution: guard,
                 source: m.toldEvent

@@ -16,6 +16,7 @@ import {
   campsStand,
   fearMoves,
   greatRealms,
+  losersBefore,
   wayDistance,
   ownWords,
   wayWords,
@@ -168,7 +169,7 @@ function fearWords(world: World, r: Polity, f: Fear): Line {
   return [
     f.level >= FINANCE.feared * 100 ? "It fears how " : "It is wary of how ",
     realmLink(world, f.of),
-    ` is held: there ${wayWords(theirs)}; here ${wayWords(mine)}. ${LOSERS[f.who]![0]!.toUpperCase()}${LOSERS[f.who]!.slice(1)} would lose by it.`,
+    ` is held: there ${wayWords(theirs)}; here ${wayWords(mine)}. ${losersBefore(f.who)[0]!.toUpperCase()}${losersBefore(f.who).slice(1)} would lose by it.`,
   ];
 }
 
@@ -184,7 +185,7 @@ function fearParts(world: World, r: Polity, f: Fear) {
     part("how unlike their ways are", hundredth(f.unlike)),
     part("× how well the other's is seen to work", hundredth(f.works)),
     part("× how far its people are exposed to it", hundredth(f.exposed)),
-    part(`× what ${LOSERS[f.who]} would lose`, hundredth(f.loss)),
+    part(`× what ${losersBefore(f.who)} would lose`, hundredth(f.loss)),
     part(`× ${FINANCE.fear}, to at most 1: this year's`, hundredth(f.now)),
     part("half of last year's and half of this", hundredth(f.level)),
     ...WAY_NAMES.map((n, k) =>
@@ -225,7 +226,7 @@ export function realmFearBlocks(world: World, r: Polity): Block[] {
       type: "facts",
       title: "Its fears, and the numbers behind each",
       rows: m.fears.map((f) =>
-        stat(nameOf(world, f.of), [`${hundredth(f.level)}: ${LOSERS[f.who]} would lose`], {
+        stat(nameOf(world, f.of), [`${hundredth(f.level)}: ${losersBefore(f.who)} would lose`], {
           why: m.told === f.of ? (m.toldEvent ?? null) : null,
           parts: fearParts(world, r, f),
         }),
@@ -528,20 +529,31 @@ export function exchangeHolders(world: World, realm: string): Block[] {
 
 // —— The world's money ——————————————————————————————————————————————————————————————————————————————
 
-/** The realms a world's money is drawn for: those that owe, are held, or hold, the greatest first. */
+/**
+ * The realms a world's money is drawn for: those most held by others and holding of others first (so the square of who holds whom
+ * shows what holdings there are), then those that owe or list the most.
+ */
 function greatest(world: World, most: number): Money[] {
   const store = financeOf(world);
   if (!store) return [];
   const all = store.all(),
-    holds = new Map<string, number>();
+    crossed = new Map<string, number>(),
+    add = (r: string, n: number) => crossed.set(r, (crossed.get(r) ?? 0) + n);
   for (const m of all) {
-    for (const [q, n] of m.shares) holds.set(q, (holds.get(q) ?? 0) + (n / 10_000) * m.worth);
-    for (const [q, n] of m.held) holds.set(q, (holds.get(q) ?? 0) + n);
+    for (const [q, n] of m.shares) {
+      add(q, (n / 10_000) * m.worth);
+      add(m.realm, (n / 10_000) * m.worth);
+    }
+    for (const [q, n] of m.held) {
+      add(q, n);
+      add(m.realm, n);
+    }
   }
-  const weight = (m: Money) => m.worth + debtOf(m) + (holds.get(m.realm) ?? 0);
+  const own = (m: Money) => m.worth + debtOf(m),
+    by = (m: Money) => crossed.get(m.realm) ?? 0;
   return all
-    .filter((m) => weight(m) > 0)
-    .sort((a, b) => weight(b) - weight(a) || (a.realm < b.realm ? -1 : 1))
+    .filter((m) => own(m) + by(m) > 0)
+    .sort((a, b) => by(b) - by(a) || own(b) - own(a) || (a.realm < b.realm ? -1 : 1))
     .slice(0, most);
 }
 
