@@ -3551,6 +3551,15 @@ body.with-palette .hint {
 .palette-years-words {
   min-width: 5.5em;
 }
+/* (With both sliders on the line there is no room left for the words beside them at a desk's width: the words take
+   their own row, whole, as they do on a phone.) */
+.palette-line:has(.palette-years:not([hidden])):has(.palette-strength:not([hidden])) {
+  flex-wrap: wrap;
+}
+.palette-line:has(.palette-years:not([hidden])):has(.palette-strength:not([hidden]))
+  .palette-words {
+  flex: 1 1 100%;
+}
 .palette-strength-words {
   min-width: 5.5em;
 }
