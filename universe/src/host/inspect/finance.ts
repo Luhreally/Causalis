@@ -27,6 +27,7 @@ import {
   diplomacyOf,
   financeOf,
   homePlanet,
+  loreOf,
   politiesOf,
   populationContext,
   realmName,
@@ -239,10 +240,12 @@ export function realmMoneyBlocks(world: World, r: Polity): Block[] {
     log = yearsOf(world)?.realms.get(r.ref),
     color = realmColor(r.ref),
     faithless = creditOf(world)?.faithless(r.ref, now),
-    banking = y !== null && m.rate > 0,
+    banking = !!loreOf(world).get(r.seat, "banking"),
     blocks: Block[] = [];
+  // (A realm whose seat knows no banking, that owes nothing and is held by no one: it has no money to tell of.)
+  if (!banking && owed <= 0 && !m.shares.length && !m.burnt?.length && m.income <= 0) return [];
   const rows: Stat[] = [];
-  if (y)
+  if (y && banking)
     rows.push(
       stat(
         "New debt would cost it",

@@ -67,7 +67,7 @@ export const FINANCE = {
   /** A part of each debt is paid back each year: one in this many. */
   term: 15,
   /** A realm that paid less than half its interest this many years running refuses the debt; or owing this many years' takings, having missed one. */
-  missed: 3,
+  missed: 4,
   crushed: 4,
   /** Whom a realm cost is not its buyer again for this long. */
   burnt: 30,
@@ -96,6 +96,10 @@ export const FINANCE = {
   // —— How wealth is owned ——
   ownPace: 0.3,
   ownLeast: 0.05,
+  /** Rulers overthrown: what leans on how widely wealth is held, and (where it lay with a few, among a people who do not live by trade) on how much the realm holds for all, in hundredths; and how much of a lean is kept each ten years. */
+  shared0: 20,
+  taken0: 70,
+  leanKept: 0.85,
 
   // —— Fear ——
   /** What the four parts' product is multiplied by, to a number 0 … 1. */
@@ -395,8 +399,8 @@ export type Camps = {
 
 /**
  * The two camps of a world, where it has them: the two realms, each great enough, that fear each other the most between them; each
- * other realm with the pole it stands nearer in its way, where it fears the other pole, or is sworn to its own, or stands nearer by
- * far. Null where no two great realms fear each other enough.
+ * other realm with the pole it stands nearer in its way, where it fears the other pole or is sworn to one of that side. Null where
+ * no two great realms fear each other enough.
  */
 export function campsOf(realms: readonly CampRealm[]): Camps | null {
   const all = realms.reduce((s, r) => s + r.people, 0),
@@ -429,25 +433,29 @@ export function campsOf(realms: readonly CampRealm[]): Camps | null {
   if (!best) return null;
   const [x, y] = best.a.people >= best.b.people ? [best.a, best.b] : [best.b, best.a],
     camps: [string[], string[]] = [[x.ref], [y.ref]],
-    apart: string[] = [];
-  for (const r of realms) {
-    if (r === x || r === y) continue;
-    const dx = wayDistance(r.way, x.way),
-      dy = wayDistance(r.way, y.way),
-      lean = dy - dx,
-      // (What binds it to a side: a fear of the other pole, an oath to this one.)
-      forX = fear(r, y.ref) + (r.sworn.includes(x.ref) ? 0.3 : 0),
-      forY = fear(r, x.ref) + (r.sworn.includes(y.ref) ? 0.3 : 0);
-    if (lean > FINANCE.campLean && (forX >= 0.15 || lean > 3 * FINANCE.campLean) && forX >= forY)
-      camps[0].push(r.ref);
-    else if (
-      -lean > FINANCE.campLean &&
-      (forY >= 0.15 || -lean > 3 * FINANCE.campLean) &&
-      forY >= forX
-    )
-      camps[1].push(r.ref);
-    else apart.push(r.ref);
+    side = new Map<string, 0 | 1>([
+      [x.ref, 0],
+      [y.ref, 1],
+    ]);
+  // Twice over: those bound to a pole, then those bound to one who stands with it. What binds a realm to a side is a fear of the
+  // other pole, or an oath to one of this side; and it must stand nearer this side's pole in its way.
+  for (let pass = 0; pass < 2; pass++) {
+    const joins: [CampRealm, 0 | 1][] = [];
+    for (const r of realms) {
+      if (side.has(r.ref)) continue;
+      const lean = wayDistance(r.way, y.way) - wayDistance(r.way, x.way),
+        sworn = (k: 0 | 1) => (r.sworn.some((s) => side.get(s) === k) ? 0.3 : 0),
+        forX = fear(r, y.ref) + sworn(0),
+        forY = fear(r, x.ref) + sworn(1);
+      if (lean > FINANCE.campLean && forX >= 0.15 && forX >= forY) joins.push([r, 0]);
+      else if (-lean > FINANCE.campLean && forY >= 0.15 && forY >= forX) joins.push([r, 1]);
+    }
+    for (const [r, k] of joins) {
+      side.set(r.ref, k);
+      camps[k].push(r.ref);
+    }
   }
+  const apart = realms.filter((r) => !side.has(r.ref)).map((r) => r.ref);
   return { poles: [x.ref, y.ref], fear: best.fear, camps, apart };
 }
 

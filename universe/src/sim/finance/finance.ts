@@ -86,6 +86,8 @@ export type Money = {
   /** How its wealth is owned (rules/finance.ts: spread, common), in whole hundredths; the event that last told each in other words. */
   own: number[];
   ownEvents?: (Ref | null)[];
+  /** What an overthrow left pulling on each (hundredths), fading; absent when nothing does. */
+  lean?: number[];
   /** Its debt held by its own people (grain's worth), and by each people abroad. */
   home: number;
   held: [Ref, number][];
@@ -112,8 +114,9 @@ export type Money = {
   chests?: [Ref, Ref][];
   /** Whom its people lost by, and when. */
   burnt?: [Ref, number][];
-  /** Its last sale, and its last refusal. */
+  /** Its last sale told, the year of it, and its last refusal. */
   sale?: Ref;
+  soldIn?: number;
   refusal?: Ref;
 };
 
@@ -157,13 +160,7 @@ export class FinanceStore implements StateStore {
   load(state: unknown): void {
     this.by.clear();
     for (const m of (state as { realms?: Money[] } | null)?.realms ?? [])
-      this.by.set(m.realm, {
-        ...m,
-        own: [...m.own],
-        held: m.held.map((x) => [...x] as [Ref, number]),
-        shares: m.shares.map((x) => [...x] as [Ref, number]),
-        fears: m.fears.map((f) => ({ ...f })),
-      });
+      this.by.set(m.realm, structuredClone(m));
   }
 }
 
@@ -661,7 +658,7 @@ export function financeYear(ctx: PopulationContext, t: SimTime): void {
     m.rate = Math.round(y.rate * 10_000);
     // Refused: unpaid too long; or crushed by it; or beaten in a war with years of takings owed.
     const owed = debtOf(m),
-      beaten = wars.of(p.ref).some((w) => w.ended === year && lost(world, w, p.ref)),
+      beaten = wars.hotOf(p.ref).some((w) => w.ended === year && lost(world, w, p.ref)),
       refuse =
         m.held.length > 0 &&
         (m.missed >= FINANCE.missed ||
@@ -871,8 +868,10 @@ function sell(
   const before = debtOf(m) - abroad;
   m.coupon = Math.round((before * m.coupon + sold * y.rate * 10_000) / Math.max(1, before + sold));
   m.home += home;
-  // (Too little to tell: it stands, without a telling.)
+  // (Too little to tell: it stands, without a telling. And a realm arming year on year tells of it once in ten.)
   if (sold < 50) return null;
+  if (why === "arms" && m.soldIn !== undefined && year - m.soldIn < 10) return null;
+  m.soldIn = year;
   const backer = bought
       .filter((b) => b.backs >= FINANCE.fearGone)
       .sort((a, b) => b.backs - a.backs)[0],
@@ -1017,10 +1016,18 @@ function weighOwn(
     voice = r.way[1],
     top = m.fears[0],
     other = top ? reads.get(top.of) : undefined,
-    overthrown = o?.taught?.find((x) => !x.of && x.what === "overthrown" && year - x.year < 20),
+    overthrown = o?.taught?.find((x) => !x.of && x.what === "overthrown" && year - x.year < 10),
     ruined =
       m.refusal &&
       creditOf(world)?.defaults.some((d) => d.event === m.refusal && year - d.year < 20);
+  // Rulers overthrown: what was theirs is shared out, and where it lay with a few, taken for all, the more as its people do not
+  // live by trade. It lasts: a lean on both numbers that fades over generations.
+  if (overthrown) {
+    const few = 1 - m.own[0]! / 100,
+      lean = (m.lean ??= [0, 0]);
+    lean[0] = Math.max(lean[0]!, FINANCE.shared0);
+    lean[1] = Math.max(lean[1]!, Math.round(FINANCE.taken0 * few * (1 - ways.trade)));
+  }
   for (const k of OWN_KINDS) {
     const i = OWN[k],
       now = m.own[i]! / 100,
@@ -1037,9 +1044,7 @@ function weighOwn(
               : 0
           : 0,
       // (Rulers overthrown: what was theirs shared out. Savers ruined by a debt refused: more looked for from the realm.)
-      shaken =
-        (overthrown ? (k === "spread" ? 0.15 : 0.1 * (1 - ways.trade)) : 0) +
-        (ruined && k === "common" ? 0.08 : 0),
+      shaken = (m.lean?.[i] ?? 0) / 100 + (ruined && k === "common" ? 0.08 : 0),
       target = dmath.clamp(anchor[i]! + held + drawn + guard + shaken, 0, 1),
       gap = target - now;
     if (Math.abs(gap) < FINANCE.ownLeast) continue;
@@ -1093,7 +1098,7 @@ function weighOwn(
         ...(shaken
           ? [
               {
-                name: overthrown ? "its rulers overthrown" : "its savers ruined by a debt refused",
+                name: m.lean?.[i] ? "its rulers overthrown" : "its savers ruined by a debt refused",
                 value: 1,
                 contribution: shaken,
                 source: overthrown?.event
@@ -1120,6 +1125,10 @@ function weighOwn(
       causes: [{ ref: decision, role: "trigger", weight: 1 }],
       data: { realm: realmName(p), own: k, from: Math.round(now * 100), to, now: [...m.own] },
     });
+  }
+  if (m.lean) {
+    m.lean = m.lean.map((x) => Math.trunc(x * FINANCE.leanKept));
+    if (m.lean.every((x) => x === 0)) delete m.lean;
   }
 }
 
