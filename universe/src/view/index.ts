@@ -898,6 +898,7 @@ export {
   MEETING_SHOWN,
   REACTION_ICONS,
   clusterSpec,
+  starsByRef,
   clusterWords,
   peopleMarks,
   starColor,
