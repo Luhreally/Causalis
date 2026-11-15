@@ -426,6 +426,7 @@ function yieldRead(ctx: PopulationContext, r: Read, year: number) {
       trust: r.trust,
       crisis: !!credit?.crisis && year - credit.crisis.year < CREDIT.crisis,
       unpaid: r.m.missed,
+      months: 12 * r.faring.fed,
     });
   return { ...y, burden, takings: r.takings };
 }

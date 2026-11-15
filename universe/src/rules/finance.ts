@@ -77,6 +77,9 @@ export const FINANCE = {
   beaten: 1,
   arrears: 0.01,
   arrearsMost: 6,
+  /** A realm whose lands hold under `leanMonths` months of food pays up to this much more: lenders see what there is to pay from. */
+  lean: 0.12,
+  leanMonths: 6,
   /** Whom a realm cost is not its buyer again for this long. */
   burnt: 30,
   /** A realm that fears another this much borrows to arm against it: this share of a season's keep for its host, by its fear. */
@@ -220,6 +223,8 @@ export type Borrower = {
   readonly crisis: boolean;
   /** Years running it has left its interest unpaid (absent: none). */
   readonly unpaid?: number;
+  /** The food its lands hold, in months of their eating (absent: enough). */
+  readonly months?: number;
 };
 
 /** One part of a sum, for a page to show. */
@@ -248,6 +253,10 @@ export function yieldOf(b: Borrower): { rate: number; parts: Part[] } {
       { name: "how little it binds itself", value: FINANCE.wary * (1 - clamp(b.trust)) },
       { name: "how freely word of its books moves", value: -FINANCE.seen * clamp(b.word) },
       { name: "credit dear since a house failed", value: b.crisis ? FINANCE.crisis : 0 },
+      {
+        name: "how little its lands have in store to pay from",
+        value: FINANCE.lean * clamp(1 - (b.months ?? FINANCE.leanMonths) / FINANCE.leanMonths),
+      },
       {
         name: "interest it has left unpaid",
         value: FINANCE.arrears * Math.min(FINANCE.arrearsMost, Math.max(0, b.unpaid ?? 0)),
