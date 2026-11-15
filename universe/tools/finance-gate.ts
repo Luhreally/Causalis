@@ -211,6 +211,35 @@ if (chosen) {
     return false;
   };
   const settle = (ms: number) => page.waitForTimeout(slow(ms));
+  // No table cell's words cut with no way to see them: a cell holds its own words; a table
+  // wider than its frame scrolls sideways; one fitted to the page (its names wrap) needs no scroll.
+  const tables = async (where: string) => {
+    const bad = await k<string[]>(`(() => {
+      const out = [];
+      for (const t of document.querySelectorAll(".page-window:not([hidden]) .table")) {
+        const wrap = t.closest(".table-wrap") ?? t.parentElement,
+          scrolls = wrap.scrollWidth > wrap.clientWidth + 1,
+          canScroll = scrolls && /auto|scroll/.test(getComputedStyle(wrap).overflowX),
+          frame = wrap.getBoundingClientRect(),
+          title = t.closest(".block")?.querySelector("h3, .block-title")?.textContent ?? "a table";
+        if (t.classList.contains("fit") && scrolls) out.push(title + ": fitted to the page, yet " + (wrap.scrollWidth - wrap.clientWidth) + " px wider than it");
+        for (const c of t.querySelectorAll("th, td")) {
+          if (!c.getClientRects().length) continue;
+          const r = c.getBoundingClientRect();
+          if (c.scrollWidth > c.clientWidth + 1 && getComputedStyle(c).overflowX !== "visible")
+            out.push(title + ": a cell's own words cut (" + (c.textContent ?? "").slice(0, 30) + ")");
+          else if (r.right > frame.right + 1 && !canScroll)
+            out.push(title + ": a cell past the edge with no way to it (" + (c.textContent ?? "").slice(0, 30) + ")");
+        }
+      }
+      return [...new Set(out)].slice(0, 6);
+    })()`);
+    const n = await k<number>(
+      `document.querySelectorAll(".page-window:not([hidden]) .table").length`,
+    );
+    say(`${where}: ${n} tables, ${bad.length ? bad.join("; ") : "every cell read whole"}`);
+    for (const b of bad) check(false, `${where}: ${b}`);
+  };
   const press = async (x: number, y: number) =>
     desk ? page.mouse.click(x, y) : page.touchscreen.tap(x, y);
   type At = { x: number; y: number; w: number; h: number; under: string | null };
@@ -333,13 +362,16 @@ if (chosen) {
     say(`${chosen.name}, Money: ${drawn.lines} lines over time, ${drawn.bars} bars of holders`);
     check(drawn.bars >= 1, `${chosen.name}: no bar of who holds its debt drawn`);
     await shot("realm-money-top");
+    await tables("a realm, Money");
     if (await showBlock("Who holds its debt")) await shot("realm-money-holders");
     if (await showBlock("What it pays to borrow")) await shot("realm-money-yield");
   }
   // Its fears (a realm that fears, where one does).
   const fearer = chosen.fearing ?? chosen.realm;
-  if (await openTab(fearer, "Fears", "a realm that fears", /Whom it fears/i))
+  if (await openTab(fearer, "Fears", "a realm that fears", /Whom it fears/i)) {
     await shot("realm-fears");
+    await tables("a realm, Fears");
+  }
   // (Its Learned tab beside them, for a picture: what it has seen go well and ill is what its fears and its money are weighed with.)
   if (shots) {
     await k(`globalThis.causalis.closePage?.()`);
@@ -362,6 +394,7 @@ if (chosen) {
     await openTab("world:ledger", "Money", "the ledger", /Who holds whom|No realm has sold debt/i)
   ) {
     await shot("ledger-money-top");
+    await tables("the ledger, Money");
     const cells = await k<number>(
       `document.querySelectorAll(".page-window .owning-cell.owning-some").length`,
     );
@@ -381,6 +414,7 @@ if (chosen) {
   }
   if (await openTab("world:ledger", "Camps", "the ledger", /camps|fear each other/i)) {
     await shot("ledger-camps");
+    await tables("the ledger, Camps");
     if (await showBlock("The greatest fears")) await shot("ledger-camps-fears");
   }
   // Where a realm's works are listed and held abroad (none before a world's first works): its Money tab's holders, its exchange's,

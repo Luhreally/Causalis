@@ -1235,6 +1235,12 @@ body.paging .panel:not(.page-panel) .inspector {
 .page-window.wide .table td {
   white-space: nowrap;
 }
+/* …and but for a table fitted to the page, on a phone: its names wrap, so no column is cut at the edge. */
+@media (max-width: 640px) {
+  .page-window.wide .table.fit td {
+    white-space: normal;
+  }
+}
 /* …but for the message log's words, which wrap. */
 .page-window[data-kind="log"] .table td:last-child {
   min-width: 16rem;
