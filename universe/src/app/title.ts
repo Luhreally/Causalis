@@ -2,6 +2,7 @@
 // A low-poly world turns slowly behind a menu: Continue (the world last kept), a new world
 // (what kind, its seed, where it begins), the worlds kept in this browser (and a kept file
 // opened), the sandbox, how to play. Every choice is an address: the page goes there.
+import { enteredSeed, seedShown } from "../bridge/index.ts";
 import type { HostClient, SaveMeta, SeedLife } from "../bridge/index.ts";
 import { pickerForm } from "./picker.ts";
 import { seedWithAct, seedWithoutAct } from "../kernel/index.ts";
@@ -225,6 +226,8 @@ function choice(icon: string, words: string, note: string, act: () => void): HTM
 function worldWords(s: SaveMeta): string {
   const kind =
     s.universe === "earth" ? "Earth" : s.universe === "alien" ? "A world never seen" : s.universe;
+  // (A world of another star entered, by its people's name: what was read of it is left out of its seed's words.)
+  if (enteredSeed(s.seed)) return `A world entered — “${seedShown(s.seed)}”`;
   return `${kind} — “${s.seed}”`;
 }
 

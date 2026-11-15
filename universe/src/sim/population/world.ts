@@ -24,6 +24,7 @@ import {
   type Medium,
 } from "../../rules/index.ts";
 import { peopleLife } from "./life.ts";
+import { seatKnown } from "./entered.ts";
 import { MarketStore } from "../economy/market.ts";
 import { installEconomy } from "../economy/systems.ts";
 import { installActs } from "../acts/acts.ts";
@@ -143,10 +144,10 @@ export const SPREAD = {
 } as const;
 
 /** Set a province's people: a young people's pyramid, the grown foraging. */
-function people(p: Province, n: number, life: LifeHistory): void {
+function people(p: Province, n: number, life: LifeHistory, grown: number = OCC.forager): void {
   apportion(n, PYRAMID).forEach((k, b) => {
     const [women, men] = apportion(k, [1, 1]);
-    const occupation = life.bands[b]! >= life.adulthood ? OCC.forager : OCC.dependent;
+    const occupation = life.bands[b]! >= life.adulthood ? grown : OCC.dependent;
     p.counts.set(row(FEMALE, b), occupation, women!);
     p.counts.set(row(MALE, b), occupation, men!);
   });
@@ -266,6 +267,50 @@ export function openingWays(
 /** The ways the first people rose with (keyed on the world's name: its acts change them only through what they change). */
 export function firstWays(home: number, text: string, from: Ref | null): Ways {
   return cradleWays(home, hashString(`culture ${seedName(text)}`), from);
+}
+
+/** The most of what a land feeds, sown and gathered, that a settled people read from afar is seated at. */
+const SETTLED_FULL = 0.5;
+
+/**
+ * A people read from another star seated on its world (a world entered, rules/far.ts): as many as were read, in the
+ * lands nearest their cradle (the spread's own order, the cradle first). The rest of their world, where they are too
+ * few to fill it, lies open before them. Any other people's spread is as it falls.
+ */
+function readSpread(
+  g: HomeWorld,
+  s: Spread,
+  far: HomeWorld["far"],
+): Pick<Spread, "lands" | "sizes"> {
+  if (!far || far.people === undefined) return s;
+  // What each land holds at the most. Bands, as the land feeds them wild. A people read past its camps is a settled
+  // one: where they are many, each land's share of them by what it feeds sown and gathered, and never more than a
+  // part of that (SETTLED_FULL: a land filled to its last field starves in its first poor year).
+  let most: readonly number[] = s.sizes;
+  if (far.stage !== "camps") {
+    const appetite = peopleLife(g).appetite,
+      feeds = s.lands.map(([c]) => {
+        const k = capacity(g, c, s.medium);
+        return (k.farm + k.forage) / appetite;
+      }),
+      all = feeds.reduce((a, b) => a + b, 0),
+      share = Math.min(SETTLED_FULL, far.people / Math.max(1, all));
+    most = feeds.map((f, i) => Math.max(s.sizes[i]!, Math.round(f * share)));
+  }
+  // (Land by land outward until all who were read have a land; the last holds who is left, where they are a band.)
+  const sizes: number[] = [];
+  let left = Math.max(SPREAD.least, far.people);
+  for (let n = 0; n < s.lands.length && left >= SPREAD.least; n++) {
+    const here = Math.min(most[n]!, left);
+    sizes.push(here);
+    left -= here;
+  }
+  return { lands: s.lands.slice(0, sizes.length), sizes };
+}
+
+/** The lands a world's people open its chronicle on (a world entered: the lands its people were seated on). Pure. */
+export function seatedCells(g: HomeWorld, text: string): number[] {
+  return readSpread(g, spreadOf(g, text), g.far).lands.map(([cell]) => cell);
 }
 
 export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions = {}): World {
@@ -440,7 +485,9 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
     return world;
   }
   // The ages before the chronicle: bands spread from the cradle across the land.
-  const { lands, sizes } = spreadOf(g, seed.text);
+  const { lands, sizes } = readSpread(g, spreadOf(g, seed.text), g.far),
+    // (A settled people read from afar: its grown at its fields, a year's bread in its stores.)
+    settled = !!g.far && g.far.stage !== "camps" && g.far.people !== undefined;
   const spread = world.events.emit({
     type: POPULATION_EVENTS.spread.type,
     place: cellRef(0, home),
@@ -453,8 +500,10 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
       provinces.add(new Province(cell, 0, cell === home ? origin : spread)),
       sizes[i]!,
       peopleLife(g),
+      settled && capacity(g, cell, medium).farm > 0 ? OCC.farmer : OCC.forager,
     );
-    markets.of(cell).move("carriedIn", G.wild, sizes[i]! * 6);
+    if (settled) markets.of(cell).move("carriedIn", G.grain, sizes[i]! * 12);
+    else markets.of(cell).move("carriedIn", G.wild, sizes[i]! * 6);
     if (cell !== home) culture.set(ways.get(cell)!);
   });
   foundLanguages(
@@ -462,5 +511,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
     lands.map(([cell, , from]) => [cell, from]),
     spread,
   );
+  // (A world of another star entered: its lands open knowing what its people were read to have.)
+  if (g.far) seatKnown(populationContext(world), home, g.far, spread);
   return world;
 }

@@ -128,6 +128,19 @@ function drawOf(world: World, s: GalaxyStar, index: number): (n: number) => numb
   return (n) => (hashString(`${key} ${n}`) >>> 0) / 4294967296;
 }
 
+/**
+ * The three draws a people's world's ground is read by (chemistryHere's own): for a world entered, which is made
+ * from what was read of it (rules/far.ts).
+ */
+export function folkGroundDraws(
+  world: World,
+  s: GalaxyStar,
+  index: number,
+): readonly [number, number, number] {
+  const u = drawOf(world, s, index);
+  return [u(11) * 2 - 1, u(12) * 2 - 1, u(13) * 2 - 1];
+}
+
 /** The world's chemistry, drawn as a home world's is, from its star, its orbit in the star's zone, its ground. */
 function chemistryHere(s: GalaxyStar, p: ForeignPlanet, u: (n: number) => number): Chemistry {
   const inner = Math.sqrt(s.luminosity / 1.1),

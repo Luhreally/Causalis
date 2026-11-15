@@ -410,6 +410,14 @@ export const GATES: readonly Gate[] = [
   // Camps lens on every land; by touch at a phone's size, the Money and Fears tabs, a square pressed telling its number, the lens;
   // nothing over anything, nothing off the screen.
   { gate: 120, args: ["--ci"], s: 900 },
+  // Gate 121, another people's world played (tools/alien-play-gate.ts): from first light and from alien 41, a people of another star in its
+  // towns or cities (one of the water), its world seen whole from home and "Play their world" pressed by touch; what agrees and what cannot
+  // said first; its world made and its first years run behind a screen, the page answering; there, its star, warmth, bodies and look the ones
+  // read, the globe, a land, a town and a person's page seen; years lived; back by the bar to a home world unchanged to the hash; entered
+  // again from their page's window, taken up where it was left; the HUD over nothing at a phone's size and a desk's; back with the home
+  // world's save gone, the home world made again the same. Then a people read in orbit from each: there within the minute, as many as were
+  // read, the host's heap read, at its age or saying which road its bodies or its world's matter shut, said before entering; from their world another refused, with the way back. (355 s with --ci on a loaded laptop.)
+  { gate: 121, args: ["--ci"], s: 380 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */

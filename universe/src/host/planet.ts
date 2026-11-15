@@ -207,6 +207,7 @@ import { tilesUnderWoods, woodsMap } from "./inspect/woods.ts";
 import { warmthMap } from "./inspect/warmth.ts";
 import { landHerds } from "./inspect/herds.ts";
 import { FAR_QUERIES } from "./far.ts";
+import { ENTER_QUERIES } from "./enter.ts";
 import { groundMap, spotGround } from "./inspect/ground.ts";
 import { worldGlobe } from "./worlds.ts";
 import { foreignGlobe, foreignSystem, galaxyPlan, starPage, starsNear } from "./galaxy.ts";
@@ -1628,6 +1629,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
       ...TOUR_QUERIES,
       ...STAR_LENS_QUERIES,
       ...NATIVES_QUERIES,
+      ...ENTER_QUERIES,
       ...LANDFALL_QUERIES,
       // The fights among the stars as the record has them (Phase 67).
       ...STARFIGHT_QUERIES,

@@ -1525,3 +1525,13 @@ export {
   type Threat,
   type Way,
 } from "./finance.ts";
+export {
+  FAR_STAGE_AGE,
+  FAR_STAGE_USUAL,
+  FAR_STAGE_YEARS,
+  farAct,
+  farMade,
+  farSeed,
+  type FarMade,
+  type FarStage,
+} from "./far.ts";

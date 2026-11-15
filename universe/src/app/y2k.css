@@ -3050,6 +3050,20 @@ canvas.arms {
     0 0 10px rgba(255, 196, 64, 0.8),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
+/* What the strip's sliders stand at, said beside its words: a phone's strip only. */
+.palette-vals {
+  display: none;
+}
+/* The way back to the whole palette from its strip: a phone's only. */
+.palette-back {
+  display: none;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font-size: 1.1rem;
+  line-height: 1;
+}
 /* The palette's own button, for a phone (on a desk the palette is always out). */
 #hud > .palette-toggle {
   display: none;
@@ -3130,6 +3144,75 @@ body.with-palette .hint {
   }
   #hud > .palette:not(.open) {
     display: none;
+  }
+  /* (An act in hand: the palette folds to a strip of what the act is, its years and its strength, so the globe is
+     free to touch; the ▴ opens it whole again. 2026-11-15.) */
+  #hud > .palette.holding:not(.full) > .palette-bar,
+  #hud > .palette.holding:not(.full) > .palette-does {
+    display: none;
+  }
+  #hud > .palette.holding:not(.full) {
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+  #hud > .palette.holding .palette-back {
+    display: block;
+  }
+  #hud > .palette.holding.full .palette-back {
+    transform: rotate(180deg);
+  }
+  /* (Its words a line of their own above; the way back shares the first slider's row.) */
+  #hud > .palette.holding:not(.full) .palette-line .palette-words {
+    order: -1;
+    flex: 1 1 100%;
+    font-size: 0.72rem;
+  }
+  #hud > .palette.holding:not(.full) .palette-line {
+    gap: 2px 6px;
+  }
+  /* (One row: the way back, then the years and the strength, each slider as wide as the row allows; what each
+     stands at is said on the line above, so the sliders keep the width.) */
+  #hud > .palette.holding:not(.full) :is(.palette-years, .palette-strength) {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  #hud > .palette.holding:not(.full) :is(.palette-years, .palette-strength) input {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
+  #hud
+    > .palette.holding:not(.full)
+    :is(
+      .palette-years-label,
+      .palette-years-words,
+      .palette-strength-label,
+      .palette-strength-words
+    ) {
+    display: none;
+  }
+  /* (Which slider is which, in a glyph where the words were.) */
+  #hud > .palette.holding:not(.full) .palette-years::before {
+    content: "⏳";
+  }
+  #hud > .palette.holding:not(.full) .palette-strength::before {
+    content: "💪";
+  }
+  /* (The words and what the sliders stand at fill the first row between them, so the way back begins the second.) */
+  #hud > .palette.holding:not(.full) .palette-line .palette-words {
+    flex: 1 1 calc(100% - 12em);
+    min-width: calc(100% - 12em);
+  }
+  #hud > .palette.holding:not(.full) .palette-vals {
+    display: block;
+    order: -1;
+    flex: 0 1 auto;
+    max-width: 11.5em;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 0.72rem;
+    color: var(--accent);
   }
   .palette-bar {
     flex-direction: column;
