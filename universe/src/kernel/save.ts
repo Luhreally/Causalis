@@ -73,8 +73,28 @@ function schemaOf(store: { readonly schema?: number }): number {
   return store.schema ?? 1;
 }
 
-function chunkHash(data: unknown): string {
-  return new Hasher().value(data).hex();
+/**
+ * A store's chunk's hash: of the JSON text it was written as, told by a "j" before it (the text is at hand as a
+ * save is made, and its hash is a straight run over it where the value's is a walk of every list and key); else
+ * of its value, as every save before 2026-11-15 has it and a store too large for one text does.
+ */
+function chunkHash(data: unknown, text?: string): string {
+  return text === undefined
+    ? new Hasher().value(data).hex()
+    : `j${new Hasher().string(text).hex()}`;
+}
+
+/** Whether a chunk's data is what its hash says, as it was hashed. */
+function chunkHolds(chunk: StoreChunk): boolean {
+  if (!chunk.hash.startsWith("j")) return chunkHash(chunk.data) === chunk.hash;
+  let text: string;
+  try {
+    text = JSON.stringify(chunk.data);
+  } catch (error) {
+    if (error instanceof RangeError) return false;
+    throw error;
+  }
+  return chunkHash(chunk.data, text) === chunk.hash;
 }
 
 /**
@@ -100,15 +120,15 @@ export function rulesetId(world: World, appVersion: string): string {
  * A store's state as JSON keeps it. (Copied without its text where the text would be longer than an engine's longest
  * string: a world of 162 million people could not be kept for that, 2026-11-13.)
  */
-function throughJson(value: unknown): unknown {
+function throughJson(value: unknown): { data: unknown; text?: string } {
   let text: string;
   try {
     text = JSON.stringify(value);
   } catch (error) {
-    if (error instanceof RangeError) return jsonCopy(value);
+    if (error instanceof RangeError) return { data: jsonCopy(value) };
     throw error;
   }
-  return JSON.parse(text) as unknown;
+  return { data: JSON.parse(text) as unknown, text };
 }
 
 /** Turn a world into a save document. Only between moments. */
@@ -118,18 +138,39 @@ export function saveWorld(
   meta: Record<string, unknown> = {},
   lineage?: SaveDocument["lineage"],
 ): SaveDocument {
+  const steps = saveSteps(world, ruleset, meta, lineage);
+  for (;;) {
+    const r = steps.next();
+    if (r.done) return r.value;
+  }
+}
+
+/**
+ * saveWorld a piece at a time (2026-11-15): a step yielded after each store is read, and after it is packed and
+ * hashed, and between the pieces of a store that makes its save in pieces (StateStore.saveSteps). Whoever runs it
+ * keeps the world as it is till it is done: what it returns is what saveWorld would.
+ */
+export function* saveSteps(
+  world: World,
+  ruleset: string,
+  meta: Record<string, unknown> = {},
+  lineage?: SaveDocument["lineage"],
+): Generator<void, SaveDocument, void> {
   if (world.scheduler.midMoment) throw new Error("a world is saved between moments");
   const stores: Record<string, StoreChunk> = {};
   for (const name of world.storeNames()) {
     const store = world.store(name),
       packed = store.packed === true,
-      // (Packed straight from the store: packList keeps what JSON keeps, and the copy through
-      // JSON is then of the packed lists, a fraction of the size.)
-      data = throughJson(packed ? packList([store.save()]) : store.save());
+      saved = store.saveSteps ? yield* store.saveSteps() : store.save();
+    yield;
+    // (Packed straight from the store: packList keeps what JSON keeps, and the copy through
+    // JSON is then of the packed lists, a fraction of the size.)
+    const { data, text } = throughJson(packed ? packList([saved]) : saved);
+    yield;
     stores[name] = {
       schema: schemaOf(store),
       data,
-      hash: chunkHash(data),
+      hash: chunkHash(data, text),
       ...(packed ? { packed: true as const } : {}),
       ...(store.outsideRules ? { outside: true as const } : {}),
     };
@@ -186,7 +227,7 @@ export function loadWorld(
     // (A reading kept beside the world, which a save made without it lacks, begins here, empty.)
     if (!chunk && (changed || world.store(name).outsideRules)) continue;
     if (!chunk) throw new SaveError(`the save has no store ${name}`);
-    if (chunkHash(chunk.data) !== chunk.hash)
+    if (!chunkHolds(chunk))
       throw new SaveError(`store ${name} is corrupt (its hash does not match)`);
     const store = world.store(name),
       target = schemaOf(store);

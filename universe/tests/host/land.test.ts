@@ -120,7 +120,7 @@ test("a town's lots, buildings and walls each have a page, up through the town",
   );
   assert.deepEqual(lot.place, { scale: "village", town: great.ref });
   // One of its other buildings.
-  const c = f.civics[0]!,
+  const c = f.civics.get(0)!,
     b = ask<PageModel>("page", { ref: `bldg:${great.ref}:${c.at}:${c.start}` });
   assert.equal(b.kind, "building");
   assert.ok(b.title.startsWith("The ") && b.title.endsWith(` of ${great.name}`), b.title);

@@ -110,6 +110,7 @@ export {
   loadWorld,
   rulesetId,
   saveWorld,
+  saveSteps,
   verifyByReplay,
   type LoadOptions,
   type Loaded,

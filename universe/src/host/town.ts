@@ -17,6 +17,7 @@ import {
   populationContext,
   siteGround,
   townsOf,
+  plainCivic,
   type Fabric,
 } from "../sim/index.ts";
 import {
@@ -162,7 +163,7 @@ export function rimWorks(f: Fabric, lots: number): TownCivic[] {
     while (at >= 0 && taken.some(([a, b]) => a < at + c.lots && at < b)) at -= c.lots;
     if (at < 0) return;
     taken.push([at, at + c.lots]);
-    out.push({ ...c, at, truly: c.at });
+    out.push({ ...plainCivic(c), at, truly: c.at });
   });
   return out;
 }
@@ -239,7 +240,7 @@ export function townPlan(
     civics: [
       ...f.civics
         .filter((c) => c.at + c.lots <= lots)
-        .map((c) => ({ ...c, ...thrownAt(c.fell), ...askedOfCivic(world, ref, c) })),
+        .map((c) => ({ ...plainCivic(c), ...thrownAt(c.fell), ...askedOfCivic(world, ref, c) })),
       ...rimWorks(f, lots),
     ],
     walls:

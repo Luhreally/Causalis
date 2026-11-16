@@ -159,6 +159,10 @@ export class HostClient {
   setSpeed(secondsPerSecond: number): void {
     this.port.post({ kind: "speed", secondsPerSecond });
   }
+  /** The page gone into the background (or back): a save under way, or asked while away, is finished at once. */
+  setBackground(away: boolean): void {
+    this.port.post({ kind: "background", away });
+  }
 
   latestFrame(view: string): FrameMessage | undefined {
     return this.frames.get(view);

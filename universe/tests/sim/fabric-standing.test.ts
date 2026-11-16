@@ -8,6 +8,8 @@ import {
   civicMask,
   levelsOf,
   readStanding,
+  Civics,
+  Runs,
   type Fabric,
 } from "../../src/sim/town/fabric.ts";
 
@@ -46,20 +48,29 @@ test("homes and open lots read by spans are what the lots tell, run over run, bu
       next,
       homes: [0, 0, 0, 0, 0, 0, 0],
       open: [],
-      changes: Array.from({ length: runs }, () => {
-        const a = Math.floor(r() * (next + 20)),
-          b = a + Math.floor(r() * 60);
-        // (A run that is no home's, and runs past the lots taken, are in the fixture on purpose.)
-        return [r() < 0.15 ? 99 : 0, a, b, 0, 1, Math.floor(r() * 7), 0];
-      }),
-      civics: Array.from({ length: standing }, () => ({
-        kind: "market",
-        at: Math.floor(r() * (next + 5)),
-        lots: 1 + Math.floor(r() * 12),
-        start: 0,
-        end: 1,
-        fell: r() < 0.3 ? 5 : null,
-      })),
+      // (Runs never share a lot, and are kept in the order of their lots: fabric.ts. A run that is no home's, and
+      // runs past the lots taken, are in the fixture on purpose.)
+      changes: (() => {
+        let p = 0;
+        return Runs.from(
+          Array.from({ length: runs }, () => {
+            const a = p + Math.floor(r() * 30),
+              b = a + 1 + Math.floor(r() * 60);
+            p = b;
+            return [r() < 0.15 ? 99 : 0, a, b, 0, 1, Math.floor(r() * 7), 0];
+          }),
+        );
+      })(),
+      civics: Civics.from(
+        Array.from({ length: standing }, () => ({
+          kind: "market",
+          at: Math.floor(r() * (next + 5)),
+          lots: 1 + Math.floor(r() * 12),
+          start: 0,
+          end: 1,
+          fell: r() < 0.3 ? 5 : null,
+        })),
+      ),
     } as unknown as Fabric;
     const want = byLots(f);
     readStanding(f);
@@ -79,12 +90,17 @@ test("a building's place about the square is the first free stretch the lots tel
         r() < 0.5 ? [] : [[Math.floor(r() * 20), Math.floor(r() * 20) + Math.floor(r() * 80)]],
       f = {
         next,
-        changes: ash.map(([a, b]) => [CHANGE.burned, a, b, 0, 0, 0, 0]),
-        civics: Array.from({ length: Math.floor(r() * 12) }, () => ({
-          at: Math.floor(r() * (next + 10)),
-          lots: 1 + Math.floor(r() * 10),
-          fell: r() < 0.25 ? 3 : null,
-        })),
+        changes: Runs.from(ash.map(([a, b]) => [CHANGE.burned, a, b, 0, 0, 0, 0])),
+        civics: Civics.from(
+          Array.from({ length: Math.floor(r() * 12) }, () => ({
+            kind: "market" as const,
+            at: Math.floor(r() * (next + 10)),
+            lots: 1 + Math.floor(r() * 10),
+            start: 0,
+            end: 1,
+            fell: r() < 0.25 ? 3 : null,
+          })),
+        ),
       } as unknown as Fabric,
       under = civicMask(f, 0, next),
       ashen = (q: number) => ash.some(([a, b]) => a <= q && q < b);
@@ -106,7 +122,13 @@ test("a building's place about the square is the first free stretch the lots tel
 });
 
 test("a town with no lots taken has no homes and no open lots", () => {
-  const f = { next: 0, homes: [0, 0], open: [], changes: [], civics: [] } as unknown as Fabric;
+  const f = {
+    next: 0,
+    homes: [0, 0],
+    open: [],
+    changes: new Runs(),
+    civics: new Civics(),
+  } as unknown as Fabric;
   readStanding(f);
   assert.deepEqual(f.homes, [0, 0]);
   assert.deepEqual(f.open, []);

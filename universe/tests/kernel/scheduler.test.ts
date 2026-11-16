@@ -41,6 +41,22 @@ test("the same seed gives the same chain; another seed does not", () => {
   assert.notDeepEqual(chainOf(a), chainOf(c));
 });
 
+// 2026-11-15: hashing every store each year was a tenth of a late year; past the first 320 a checkpoint is taken in
+// the fifth year of each decade, the same on every run.
+test("past its first 320 checkpoints a world takes one a decade, in the decade's fifth year", () => {
+  const a = makeToyWorld("alpha"),
+    b = makeToyWorld("alpha");
+  a.runTo(360 * YEAR);
+  b.runTo(360 * YEAR);
+  const years = a.checkpoints().map((c) => c.t / YEAR);
+  assert.deepEqual(
+    years.slice(0, 320),
+    Array.from({ length: 320 }, (_, i) => i + 1),
+  );
+  assert.deepEqual(years.slice(320), [325, 335, 345, 355]);
+  assert.deepEqual(chainOf(a), chainOf(b));
+});
+
 test("how time is stepped never changes history", () => {
   const whole = makeToyWorld("alpha");
   whole.runTo(12 * YEAR);

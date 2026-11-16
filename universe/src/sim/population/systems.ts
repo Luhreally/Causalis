@@ -1468,8 +1468,21 @@ type SiteBlocks = {
   readonly order: Uint16Array;
 };
 const SITE_BLOCKS = new Map<string, SiteBlocks>();
+/**
+ * The same, by land, of the surface last asked of: every village asks its land's each year, and a key written out
+ * for each of twenty thousand villages was most of what the asking cost (tools/cost.ts). Emptied with SITE_BLOCKS.
+ */
+let sitesKey = "",
+  sitesByLand: (SiteBlocks | undefined)[] = [];
 function siteBlocks(ctx: PopulationContext, cell: number): SiteBlocks {
-  const key = `${homePlanet(ctx.world).surfaceKey}:${cell}`;
+  const surface = homePlanet(ctx.world).surfaceKey;
+  if (surface !== sitesKey) {
+    sitesKey = surface;
+    sitesByLand = [];
+  }
+  const known = sitesByLand[cell];
+  if (known) return known;
+  const key = `${surface}:${cell}`;
   let blocks = SITE_BLOCKS.get(key);
   // Halls on another world have no ground of villages to choose among.
   if (!blocks && offworldSite(ctx.generated, cell))
@@ -1505,6 +1518,7 @@ function siteBlocks(ctx: PopulationContext, cell: number): SiteBlocks {
     );
     SITE_BLOCKS.set(key, (blocks = { tiles, scores, order }));
   }
+  sitesByLand[cell] = blocks;
   return blocks;
 }
 

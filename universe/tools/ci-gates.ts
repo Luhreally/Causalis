@@ -418,6 +418,11 @@ export const GATES: readonly Gate[] = [
   // world's save gone, the home world made again the same. Then a people read in orbit from each: there within the minute, as many as were
   // read, the host's heap read, at its age or saying which road its bodies or its world's matter shut, said before entering; from their world another refused, with the way back. (355 s with --ci on a loaded laptop.)
   { gate: 121, args: ["--ci"], s: 380 },
+  // Gate 123, what a system may cost (tools/budget-gate.ts; no browser): first light at 400, the same world small, and alien 55 at 300 run
+  // in node with the scheduler's tally on, each held to its rows of tools/budgets.json. A system with no row, one whose share of the year
+  // is over its budget, or one writing more events, decisions or store bytes than its row fails by name; milliseconds only warn. The default
+  // world at 1,500 runs locally (npm run gate:123).
+  { gate: 123, args: ["--ci"], s: 300 },
   // Gate 122, what a tab holds (tools/memory-gate.ts): the small world whose tab ran out of memory played from its first year at a
   // century a second to year 500 at a phone's size, kept, taken up again in place and by the page loaded again, a player's round of
   // pages, lenses and scales walked twice and a realm's page left open as the years run; after each, garbage collected, the page's and

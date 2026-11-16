@@ -27,6 +27,8 @@ import {
   makePopulationWorld,
   populationContext,
   townsOf,
+  Civics,
+  Runs,
   type Change,
   type Civic,
   type Fabric,
@@ -52,8 +54,8 @@ function bare(): { ctx: PopulationContext; f: Fabric; store: TownStore } {
     aim: -1,
     raise: 0,
     passed: -1,
-    changes: [],
-    civics: [],
+    changes: new Runs(),
+    civics: new Civics(),
     walls: null,
     lean: 0,
     forsaken: null,
@@ -88,11 +90,12 @@ function consistent(f: Fabric, what = ""): void {
     assert.ok(!civic.has(p), `${what}: a home on lot ${p}, under a building`);
   }
   assert.deepEqual(counts, f.homes, `${what}: the runs and the counts agree`);
-  const runs = [...f.changes].sort((a, b) => a[1] - b[1]);
+  // (Kept in the order of their lots, none sharing one: the runs over a stretch are found by halving.)
+  const runs = f.changes.slice();
   for (let i = 1; i < runs.length; i++)
     assert.ok(
       runs[i]![1] >= runs[i - 1]![2],
-      `${what}: runs ${runs[i - 1]} and ${runs[i]} share a lot`,
+      `${what}: runs ${runs[i - 1]} and ${runs[i]} share a lot, or are out of order`,
     );
   for (const [a, b] of f.open)
     for (let p = a; p < b; p++) {
@@ -271,7 +274,7 @@ test("a building among a town's homes does not part their runs once settled, and
     () => false,
     () => false,
   );
-  assert.equal(f.civics[0]!.fell, 30, "it fell");
+  assert.equal(f.civics.get(0)!.fell, 30, "it fell");
   assert.deepEqual([...levelsOf(f, edge, edge + 2)], [-1, -1], "its lots empty");
   assert.ok(
     f.open.some(([a, z]) => a <= edge && z >= edge + 2),
@@ -442,11 +445,7 @@ test("homes fall and burn run by run as they did lot by lot, whatever stands on 
       if (roll(4) > 0) changes.push([roll(5), p, p + n, 0, 0, roll(HOLDS.length), -1]);
       p += n;
     }
-    // (Now and then two runs of homes on a lot, which a town never has: the later stands.)
-    if (roll(8) === 0) {
-      const at = roll(next);
-      changes.push([roll(2), at, at + 1 + roll(20), 0, 0, roll(HOLDS.length), -1]);
-    }
+    // (No two runs share a lot, and they are kept in the order of their lots: fabric.ts.)
     for (let c = roll(10); c > 0; c--)
       civics.push({
         kind: "workshop",
@@ -464,8 +463,8 @@ test("homes fall and burn run by run as they did lot by lot, whatever stands on 
     for (const { f } of towns) {
       Object.assign(f, {
         next,
-        changes: structuredClone(changes),
-        civics: structuredClone(civics),
+        changes: Runs.from(changes),
+        civics: Civics.from(civics),
       });
       f.homes = HOLDS.map(() => 0);
       for (const l of levelsOf(f, 0, next)) if (l >= 0) f.homes[l]!++;
@@ -532,7 +531,8 @@ test("a town settled only as something of it comes due is the town settled every
       ReturnType<typeof bare>,
       ReturnType<typeof bare>,
     ];
-    assert.deepEqual(f, everyYear, `year ${y}: the same town`);
+    const plain = (t: Fabric) => ({ ...t, changes: t.changes.toJSON(), civics: t.civics.toJSON() });
+    assert.deepEqual(plain(f), plain(everyYear), `year ${y}: the same town`);
     assert.equal(digest(store), digest(everyYearStore), `year ${y}: the same digest`);
   }
   assert.ok(passed > 100, `${passed} years with nothing come due`);
@@ -561,7 +561,7 @@ test("a town otherwise still settles on time a building fallen out of use and a 
       if (y === 20) b.civics(f, emptied, none, false, none, none);
       if (y === 90) {
         assert.equal(f.changes.length, 1, "its homes one run");
-        b.change(f, CHANGE.razed, f.changes[0]![1], f.changes[0]![2], 0, 0);
+        b.change(f, CHANGE.razed, f.changes.get(0)![1], f.changes.get(0)![2], 0, 0);
       }
     }
     assert.deepEqual(towns[0]!.f, towns[1]!.f, `year ${y}: the same town`);
@@ -579,7 +579,9 @@ test("the towns' fabric is saved and loaded whole, digest and all", () => {
   const saved = JSON.parse(JSON.stringify(store.save())) as unknown,
     again = new TownStore();
   again.load(saved);
-  assert.deepEqual(again.all(), store.all());
+  const plain = (fs: Fabric[]) =>
+    fs.map((f) => ({ ...f, changes: f.changes.toJSON(), civics: f.civics.toJSON() }));
+  assert.deepEqual(plain(again.all()), plain(store.all()));
   const hash = (s: TownStore) => {
     const h = new Hasher();
     s.hashInto(h);
