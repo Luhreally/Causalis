@@ -466,17 +466,13 @@ export function energyYear(
   // (What it wants: all the buried fuel its hearths and engines would have burned, as coal, the fuel a market first digs.)
   want[G.coal] = want[G.coal]! + Math.round(a.fuelWanted / FUEL_UNIT_KWY);
   if (a.felled > 0) fellWoods(ctx, p.cell, a.felled);
-  // What drives its crafts next year: its works' share of what they wanted; what its engines' buried fuel and the atom drove,
-  // as the economy has always counted fuel burned (a unit driving a crafter's works a sixth of a year: WANTS.fuelPerCrafter).
-  const burnedFuel = a.engineFuel - Math.min(a.engineFuel, a.own),
-    fuelWork =
-      a.by.fission +
-      (a.engineFuel + a.engineWood > 0
-        ? (a.by.burned * burnedFuel) / (a.engineFuel + a.engineWood)
-        : 0),
-    worksShare = a.workWanted > 0 ? a.worksWanted / a.workWanted : 0;
+  // What drives its crafts next year: its works' share of the work they wanted; and what its works drove past its old mills,
+  // in the units the economy has always counted its works' power in (a unit of fuel driving a crafter's works a sixth of a
+  // year: WANTS.fuelPerCrafter), whatever drove them — burned fuel, the atom, dammed rivers, the ground's heat (powerOf).
   m.powerCover = a.worksWanted > 0 ? Math.round((1000 * a.worksHad) / a.worksWanted) : 0;
-  m.burned = Math.round((fuelWork * worksShare) / (WORK_KW / WANTS.fuelPerCrafter));
+  m.burned = Math.round(
+    Math.max(0, a.worksHad - Math.min(a.worksHad, a.by.mills)) / (WORK_KW / WANTS.fuelPerCrafter),
+  );
   // What it sent to the air: the carbon and sulphur of the buried fuel burned; its works' smoke, faded by half a year.
   const was = store.get(p.cell),
     gasUnits = a.gas / FUEL_UNIT_KWY,

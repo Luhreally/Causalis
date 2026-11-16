@@ -346,11 +346,12 @@ function stepGround(
     made = m?.years.at(-1)?.ledger[0],
     supply = supplyOf(n.ppm, n.airHolds),
     farmers = p.occupation(OCC.farmer),
-    manure = farmers > 0 ? Math.min(1, (3 * p.occupation(OCC.herder)) / farmers) : 0,
+    // (Dung enough to spread where its herders are a tenth of its farmers or more.)
+    manure = farmers > 0 ? Math.min(1, (10 * p.occupation(OCC.herder)) / farmers) : 0,
     rotation = knows("rotation");
   // Nitrogen fixed from the air where a current and strong vessels allow it: what its fields lack of their virgin store, as far
   // as its works drove the fixing last year.
-  const fixing = FIXING_NEEDS.every((ids) => ids.some(knows)) && n.airHolds.includes("nitrogen"),
+  const fixing = FIXING_NEEDS.every((ids) => ids.some(knows)),
     nIndex = NUTRIENTS.indexOf("N"),
     lackN = Math.max(0, 1 - (g.nut[nIndex] ?? SHARE) / SHARE),
     energy = ctx.world.hasStore("economy.energy")

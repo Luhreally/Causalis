@@ -16,14 +16,14 @@ import {
 const EARTH_PPM = (e: string) => ({ P: 1050, K: 20900 })[e as "P" | "K"] ?? 0;
 
 test("a world's crust and air set which nutrient its fields lack first", () => {
-  const earth = supplyOf(EARTH_PPM, ["nitrogen", "oxygen"]);
+  const earth = supplyOf(EARTH_PPM, []);
   assert.deepEqual(earth, { N: 1, P: 1, K: 1 });
   // A crust poor in phosphorus: it comes back slowest, and is what runs short.
   const poor = supplyOf((e) => (e === "P" ? 100 : EARTH_PPM(e)), ["nitrogen"]);
   assert.ok(poor.P < 0.4 && poor.N === 1);
-  // An air of ammonia gives nitrogen freely; an air without nitrogen hardly at all.
+  // An air of ammonia gives nitrogen freely besides what life fixes from its nitrogen.
   assert.equal(supplyOf(EARTH_PPM, ["ammonia", "methane"]).N, 2);
-  assert.equal(supplyOf(EARTH_PPM, ["co2"]).N, 0.2);
+  assert.equal(supplyOf(EARTH_PPM, []).N, 1);
   assert.equal(limiting({ N: 0.8, P: 0.5, K: 0.9 }), "P");
 });
 

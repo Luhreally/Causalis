@@ -267,6 +267,8 @@ export function growthTkm2(celsius: number, rainMm: number, light: number, pace 
 export const WOOD_TAKEN = 0.25;
 /** What a square kilometre of standing woods holds, tonnes dry, against what it grows in a year (est: 250 t/ha, some 20 years' growth). */
 export const WOODS_HOLD_YEARS = 20;
+/** The most of a land's standing woods its people fell in a year past what they give (est: some two in a hundred). */
+export const FELLED_MOST = 0.02;
 /** Dry dung a kilogram of herd lets fall in a year (kg, est: 4 kg a day from a 500 kg cow), and how much of it is gathered (est). */
 export const DUNG_A_KG = 2.9;
 export const DUNG_GATHERED = 0.3;
@@ -696,11 +698,11 @@ export function energyAccount(i: EnergyInputs): EnergyAccount {
     ownLeft -= x;
     own += x;
     heat -= x;
-    // (What nothing else gives, the woods do, felled: a land with any woods is not cold for want of a fire.)
+    // (What nothing else gives, the woods do, felled, as far as its people can fell in a year: what is left, they go without.)
     if (heat > 0 && i.fire && i.woodKw > 0) {
-      felled = heat;
-      drawn.wood += heat;
-      heat = 0;
+      felled = Math.min(heat, (i.woodKw / WOOD_TAKEN) * WOODS_HOLD_YEARS * FELLED_MOST);
+      drawn.wood += felled;
+      heat -= felled;
     }
   }
   const heatHad = heatWanted - heat;

@@ -4,6 +4,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   CARRIERS,
+  FELLED_MOST,
+  WOODS_HOLD_YEARS,
+  WOOD_TAKEN,
   FUEL_MAKEUP,
   FUEL_UNIT_KWY,
   GOOD_MATTER,
@@ -169,7 +172,9 @@ test("a farming land's account: its bodies, its beasts and its woods' heat", () 
 
 test("felled past what its woods give where its people outgrow them; coal first where they dig it", () => {
   const bare = energyAccount({ ...LAND, woodKw: 1000, herdKg: 0, grain: 0 });
-  assert.ok(bare.felled > 0 && bare.heatHad === bare.heatWanted);
+  // (As far as its people can fell in a year: the rest they go without.)
+  assert.ok(bare.felled > 0 && bare.heatHad < bare.heatWanted);
+  assert.ok(Math.abs(bare.felled - (1000 / WOOD_TAKEN) * WOODS_HOLD_YEARS * FELLED_MOST) < 1e-6);
   const coal = energyAccount({
     ...LAND,
     woodKw: 1000,

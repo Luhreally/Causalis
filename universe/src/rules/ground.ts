@@ -36,15 +36,15 @@ export const HEALING = 0.02;
 /** What beans and clover in a rotation give back of the nitrogen a harvest takes (est), and what a rotation's fallow spares. */
 export const BEANS_GIVE = 0.7,
   FALLOW_SPARES = 0.2;
-/** What the dung of its herds gives back of what its harvests take, where its herders are a third of its farmers or more (est). */
-export const MANURE_GIVES = 0.4;
+/** What the dung of a land's herds, spread where its people know manuring, gives back of what its harvests take (est): most of the phosphorus and potassium its beasts ate, less of the nitrogen, which the air takes. */
+export const MANURE_GIVES: Readonly<Record<Nutrient, number>> = { N: 0.4, P: 0.8, K: 0.8 };
 /** What a field's ground can be made to hold past its virgin store, by manure, fertiliser or a river's silt (est). */
 export const RICHEST = 1.3;
 
 /**
  * How fast each comes back to an unfarmed ground on a world, against Earth's (0.2 … 2): phosphorus and potassium by what its crust
- * holds of them (the root of its parts in a million over Earth's), nitrogen by what its air holds: fixed from nitrogen by its
- * life, plentiful where ammonia is in the air, scarce where neither is.
+ * holds of them (the root of its parts in a million over Earth's), nitrogen by what its air holds: fixed from its air's nitrogen
+ * by its life, and plentiful where ammonia is in the air besides.
  */
 export function supplyOf(
   ppm: (element: string) => number,
@@ -53,7 +53,8 @@ export function supplyOf(
   const crust = (e: "P" | "K") =>
     Math.min(2, Math.max(0.2, Math.sqrt(Math.max(0, ppm(e)) / EARTH_CRUST_PPM[e])));
   return {
-    N: airHolds.includes("ammonia") ? 2 : airHolds.includes("nitrogen") ? 1 : 0.2,
+    // (Every world's air is mostly nitrogen, its kind's own gases besides: host/inspect/ground.ts airBlock.)
+    N: airHolds.includes("ammonia") ? 2 : 1,
     P: crust("P"),
     K: crust("K"),
   };
@@ -80,7 +81,7 @@ export function nutrientYear(
 ): number {
   const taken = TAKEN[n] * i.farmed * (i.rotation ? 1 - FALLOW_SPARES : 1),
     beans = n === "N" && i.rotation ? BEANS_GIVE * taken : 0,
-    dung = MANURE_GIVES * Math.min(1, i.manure) * taken,
+    dung = MANURE_GIVES[n] * Math.min(1, i.manure) * taken,
     made = n === "N" ? i.fertiliser : 0,
     healing = HEALING * i.supply * Math.max(0, 1 - s) * (n === "N" ? 1 - i.farmed : 1);
   return Math.min(RICHEST, Math.max(0, s - taken + beans + dung + made + healing));
