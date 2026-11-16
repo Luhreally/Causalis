@@ -100,29 +100,56 @@ export type PriceRead = {
   /** The going wage of a worker a year. */
   readonly wage: number;
   /**
+   * A worker's household's year of food, in units of food: what a body needs, not what any price makes it. Every bound on a price is
+   * set in it, so that no price rests on a wage that rests on that price.
+   */
+  readonly living: number;
+  /** How cold the land is for its people (0 … 1: as their deaths unclothed read it, sim/population). */
+  readonly cold: number;
+  /**
    * The work a unit of each food takes (worker-years a unit, by good: NaN where none is made): its worth is that work against the
    * work a unit of its staple takes.
    */
   readonly work: readonly number[];
 };
 
-/** A unit's worth to its user, where what it does can be counted (grain's worth; NaN: it cannot). */
-export function useWorth(g: number, wage: number): number {
+/**
+ * How much more food a body needs to keep warm unclothed at its land's coldest, against clothed (est: a third: shivering and a
+ * hearth's heat stand in for what clothes keep in).
+ */
+export const CLOTHES_WARMTH = 0.33;
+/** How many months' food a household keeps in store, a pot keeping it from spoiling half as fast. */
+export const STORE_MONTHS = 3;
+
+/** The share of each food that spoils a month, on the mean. */
+const FOOD_SPOIL = FOODS.reduce((s, g) => s + GOODS[g]!.spoil, 0) / FOODS.length;
+
+/** A unit's worth to its user, where what it does can be counted (units of food; NaN: it cannot). */
+export function useWorth(g: number, wage: number, cold = 0): number {
   switch (GOOD_USE[GOODS[g]!.id]) {
+    // (A unit of clothing wears for 1 / clothingPerPerson years of one wearer; each month of it saves, in the cold, the food a body
+    // would burn to keep warm. In the warm it keeps its wearer dry: a tenth of that.)
+    case "clothes":
+      return (
+        (12 / WANTS.clothingPerPerson) * CLOTHES_WARMTH * Math.max(0.1, dmath.clamp(cold, 0, 1))
+      );
+    // (A pot serves 1 / potteryPerPerson years of one household member, keeping half of what spoils of their store.)
+    case "holds":
+      return (12 / WANTS.potteryPerPerson) * STORE_MONTHS * 0.5 * FOOD_SPOIL;
     // (A tool raises its holder's work by TOOL_GAIN at full supply, and wears out at toolsPerWorker a year.)
     case "tools":
       return (TOOL_GAIN * wage) / WANTS.toolsPerWorker;
     case "drives":
       return (MACHINE_GAIN * wage) / WANTS.machinesPerWorker;
     case "feeds":
-      // (A month's food is worth at most a month of a worker's year: beyond it, they gather it themselves.)
-      return Math.max(1, wage / 12);
+      // (A unit of any food feeds a person a month, as a unit of the staple does.)
+      return 1;
     default:
       return NaN;
   }
 }
 
-/** The most a unit of anything fetches where it is not made and its use cannot be counted: a worker's year. */
+/** The most a unit of anything fetches where it is not made and its use cannot be counted: a worker's year of food. */
 export const DEAREST_YEARS = 1;
 /** And the least: a ten-thousandth of it. */
 export const CHEAPEST_YEARS = 1e-4;
@@ -138,6 +165,7 @@ export function naturalPrices(r: PriceRead): { worth: number[]; basis: PriceBasi
     worth = new Array<number>(n).fill(NaN),
     basis = new Array<PriceBasis>(n).fill("free"),
     wage = Math.max(1e-6, r.wage),
+    living = Math.max(1, r.living),
     staple = Number.isFinite(r.work[G.grain]!) && r.work[G.grain]! > 0 ? G.grain : G.wild,
     stapleWork = r.work[staple]!;
   // Foods.
@@ -159,7 +187,9 @@ export function naturalPrices(r: PriceRead): { worth: number[]; basis: PriceBasi
       let cost = Math.max(r.outside, 1e-6);
       for (const [g, k] of rec.inputs)
         cost += k * (Number.isFinite(worth[g]!) ? worth[g]! : r.price[g]!);
-      const each = cost / per;
+      // (No one pays more for it than what it does for them, where that can be counted.)
+      const use = useWorth(out, wage, r.cold),
+        each = Number.isFinite(use) ? Math.min(cost / per, use) : cost / per;
       if (!Number.isFinite(worth[out]!) || basis[out] !== "made" || each < worth[out]!) {
         worth[out] = each;
         basis[out] = "made";
@@ -168,7 +198,7 @@ export function naturalPrices(r: PriceRead): { worth: number[]; basis: PriceBasi
   // What it cannot make: by its use; or as an input, by what is made of it.
   for (let g = 0; g < n; g++) {
     if (Number.isFinite(worth[g]!)) continue;
-    const use = useWorth(g, wage);
+    const use = useWorth(g, wage, r.cold);
     if (Number.isFinite(use)) {
       worth[g] = Math.min(use, Math.max(r.price[g]!, use / 4));
       basis[g] = "used";
@@ -193,13 +223,14 @@ export function naturalPrices(r: PriceRead): { worth: number[]; basis: PriceBasi
       basis[g] = "free";
     }
   }
-  // (What rests on nothing counted is held between a ten-thousandth of a worker's year and a whole one; the rest only kept above nothing.)
+  // (What rests on nothing counted is held between a ten-thousandth of a worker's year of food and a whole one; the rest only kept
+  // above nothing. In food, never in wages: a wage is paid in the prices it would bound, and a bound read off it rose with them.)
   for (let g = 0; g < n; g++) {
     const w = Number.isFinite(worth[g]!) ? worth[g]! : 1;
     worth[g] =
       basis[g] === "free" || basis[g] === "inputs"
-        ? dmath.clamp(w, CHEAPEST_YEARS * wage, Math.max(DEAREST_YEARS * wage, 1))
-        : Math.max(w, CHEAPEST_YEARS * wage);
+        ? dmath.clamp(w, CHEAPEST_YEARS * living, DEAREST_YEARS * living)
+        : Math.max(w, CHEAPEST_YEARS * living);
   }
   return { worth, basis };
 }

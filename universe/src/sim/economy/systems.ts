@@ -896,8 +896,17 @@ function reprice(ctx: PopulationContext, p: Province, m: Market, want: readonly 
   work[G.grain] = per(OCC.farmer, G.grain);
   work[G.meat] = per(OCC.herder, G.meat);
   work[G.wild] = per(OCC.forager, G.wild);
-  const { worth, basis } = naturalPrices({ price: m.price, recipes, outside, wage: outside, work });
-  // Who makes each crafted good: the land's crafters by its share of what they made, in shops of a master's few or a works' floor.
+  const { worth, basis } = naturalPrices({
+    price: m.price,
+    recipes,
+    outside,
+    wage: outside,
+    living,
+    // (As its people's deaths unclothed read the cold: sim/population.)
+    cold: dmath.clamp((10 - ctx.generated.climate.temperature[p.cell]!) / 10, 0, 1),
+    work,
+  });
+  // Who could make each crafted good: every shop of the land's crafters, of a master's few or a works' floor.
   const lore = loreOf(ctx.world),
     perShop = lore.get(p.cell, "factories") ? SHOP.works : SHOP.hands,
     crafters = p.occupation(OCC.crafter),
@@ -915,7 +924,7 @@ function reprice(ctx: PopulationContext, p: Province, m: Market, want: readonly 
       markup =
         basis[g] === "made" && made > 0 && craftedWorth > 0
           ? lerner(
-              (crafters * made * m.price[g]!) / craftedWorth / perShop,
+              crafters / perShop,
               ELASTICITY[GOOD_USE[good.id]!]!,
               guild,
               bought / (bought + made),

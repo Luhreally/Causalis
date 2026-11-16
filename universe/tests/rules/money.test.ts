@@ -43,6 +43,8 @@ test("a good's worth rests on its staple, its labour, what it costs to make, wha
     recipes: [recipe("stone-tools"), recipe("pottery"), recipe("weaving")],
     outside: 30,
     wage: 30,
+    living: 20,
+    cold: 0.5,
     work,
   });
   assert.equal(worth[G.grain], 1);
@@ -59,6 +61,28 @@ test("a good's worth rests on its staple, its labour, what it costs to make, wha
   // Wool it cannot make but weaves: worth what weaving leaves of it, or what it fetched.
   assert.ok(basis[G.wool] === "inputs" || basis[G.wool] === "free");
   for (const w of worth) assert.ok(Number.isFinite(w) && w > 0);
+});
+
+test("no worth rests on a wage that rests on it: a land whose wages ran up keeps its foods and free goods in food's own terms", () => {
+  const work = GOODS.map(() => NaN);
+  work[G.wild] = 1 / 30;
+  const dear = GOODS.map(() => 1e30),
+    { worth } = naturalPrices({
+      price: dear,
+      recipes: [],
+      outside: 1e30,
+      wage: 1e30,
+      living: 20,
+      cold: 1,
+      work,
+    });
+  assert.equal(worth[G.wild], 1);
+  // Grain not grown here feeds a month as the staple does.
+  assert.equal(worth[G.grain], 1);
+  // What rests on nothing counted is held within a worker's year of food.
+  assert.ok(worth[G.wool]! <= 20);
+  // Clothes and pots: what they do, food a body would burn in the cold, food kept from spoiling.
+  assert.ok(worth[G.clothing]! > 10 && worth[G.clothing]! < 20 && worth[G.pottery]! < 10);
 });
 
 test("a price leans toward its worth, bent by scarcity and lifted by its makers' hold", () => {

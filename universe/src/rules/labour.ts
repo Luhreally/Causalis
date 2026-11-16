@@ -20,16 +20,19 @@ import { dmath } from "../kernel/index.ts";
 export const SHOP = { hands: 5, works: 60 } as const;
 
 /**
- * What a market's makers of a good can ask above their cost, as a share of its price (the Lerner index, 0 … 0.6): with `shops`
- * independent makers and buyers who go without by `elasticity`, 1 / (shops × elasticity); a guild of strength `guild` acts toward
- * one maker; goods from abroad (`imported`, the share of it bought from elsewhere) hold it down toward what a carrier's margin allows.
+ * What a market's makers of a good can ask above their cost, as a share of its price (the Lerner index, 0 … 0.6). Every shop of the
+ * land's crafters could take the good up (they move to whatever craft pays: occupations follow wages), so it is a market of all of
+ * them, `shops`, whose buyers go without by `elasticity`: 1 / (1 + shops × elasticity), Cournot's 1 / (shops × elasticity) where they
+ * are many, and no more than a lone seller asks of buyers who cannot go without, who prices where they begin to (so never past
+ * 1 / (1 + elasticity)). A guild of strength `guild` keeps the rest out and asks as that lone seller would; goods from abroad
+ * (`imported`, the share bought from elsewhere) hold it down toward what a carrier's margin allows.
  */
 export function lerner(shops: number, elasticity: number, guild: number, imported: number): number {
   const e = Math.max(0.2, elasticity),
-    alone = 1 / (Math.max(1, shops) * e),
-    one = 1 / e,
+    alone = 1 / (1 + Math.max(0, shops) * e),
+    one = 1 / (1 + e),
     g = dmath.clamp(guild, 0, 1),
-    asked = (1 - g) * alone + g * one,
+    asked = (1 - g) * alone + g * Math.max(alone, one),
     held = asked * (1 - dmath.clamp(imported, 0, 1) * 0.8);
   return dmath.clamp(held, 0, 0.6);
 }
