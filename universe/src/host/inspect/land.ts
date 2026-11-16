@@ -36,6 +36,7 @@ import {
 import { folkRef, waysRef } from "../../causal/index.ts";
 import { waysWhyBlock } from "./ways.ts";
 import { lettersBlock } from "./letters.ts";
+import { landCultureBlocks } from "./folkways.ts";
 import { childrenBlock } from "./children.ts";
 import { labourBlock } from "./labour.ts";
 import { parseRef, type Ref, type World } from "../../kernel/index.ts";
@@ -271,6 +272,8 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
     // Who reads, and what their teaching reaches (rules/letters.ts).
     const letters = lettersBlock(world, cell);
     if (letters) blocks.push(letters);
+    // Who they count their own, what they make, what their town draws (the culture sweep).
+    blocks.push(...landCultureBlocks(world, cell));
     // How many children they bear, and why (rules/children.ts).
     const children = childrenBlock(world, cell);
     if (children) blocks.push(children);

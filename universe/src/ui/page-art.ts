@@ -135,6 +135,8 @@ const GLYPHS: readonly (readonly [RegExp, Glyph])[] = [
   [/^(overview|here|what|each|listed|rest|measures?|compare)$/, "eye"],
   // (The rounds' tabs, 2026-11-16: a person's own life, a realm's powers before power that drives works.)
   [/^(self|their life)$|child|birth/, "people"],
+  // (The culture sweep's realm tab: what its seat tells, who its people count their own, its faith's temples.)
+  [/^culture$/, "words"],
   [/^powers?$|coalition|house/, "crown"],
   [/energ|power|fuel|carrier/, "bolt"],
   [/motion|climate|sea|ice|current|tide|season/, "wave"],
