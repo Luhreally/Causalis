@@ -208,7 +208,7 @@ const apart = (world: World, a: Ref, b: Ref) => {
 };
 
 /**
- * What `me` fears of `them` and stands to gain of them, from what it knows: their strength against its own, how well that is
+ * What `me` fears of `them` and stands to gain of them, from what it knows (their numbers as the light between them is old): their strength against its own, how well that is
  * seen (`seen`: 1 their ships came; a half, heard only), whether their bodies could live on its ground, how far apart, how
  * much of it there is to lose and how well it holds together.
  */
@@ -224,8 +224,14 @@ export function meetingReading(
   readonly mine: number;
   readonly theirs: number;
 } {
+  // (What one people knows of another's numbers is as old as the light between them: what it hears of them left them so long ago.
+  // A realm of the home world met on its own ground is seen as it is.)
   const a = sideNumbers(ctx, me, year),
-    b = sideNumbers(ctx, them, year),
+    lag =
+      me.kind === "people" && them.kind === "people"
+        ? Math.ceil(apart(ctx.world, me.civ.star, them.civ.star))
+        : 0,
+    b = sideNumbers(ctx, them, year - lag),
     threat = farThreat({
       mine: a.strength,
       theirs: b.strength,

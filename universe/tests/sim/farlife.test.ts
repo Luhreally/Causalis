@@ -20,6 +20,23 @@ import {
   type FarFacts,
   type FarState,
 } from "../../src/rules/index.ts";
+import {
+  FAR_RING,
+  pack,
+  ringOf,
+  rungInto,
+  sampleInto,
+  unpack,
+  type FarRow,
+} from "../../src/sim/space/farlife-store.ts";
+import {
+  beginReading,
+  heldTo,
+  readAt,
+  readOn,
+  stageByRungs,
+  topByRungs,
+} from "../../src/sim/space/farlife-read.ts";
 
 const EARTH: FarFacts = {
   key: "earth-like",
@@ -229,4 +246,76 @@ test("a landing that brings a sickness never met takes most of a people of citie
   assert.ok(landed(camps, r).people > 0.85 * camps.people);
   assert.ok(landed(cities, r).know > cities.know, "they learn of those who stay");
   assert.ok(landed(cities, r).fear > 0.5);
+});
+
+// —— As history keeps it (sim/space/farlife-store.ts, farlife-read.ts) ————————————————————————————————
+
+const rowOf = (s: FarState): FarRow => ({
+  ref: "civ:1:2" as FarRow["ref"],
+  followed: false,
+  since: 0,
+  last: 0,
+  s: pack(s),
+  fell: s.fell,
+  fearOf: null,
+  ring: [],
+  told: [],
+  broke: null,
+  rungs: [0, s.rung],
+  why: null,
+});
+
+test("a far people's numbers kept whole come back as they were, to a thousandth", () => {
+  const s = lived(EARTH, 900).end,
+    back = unpack(rowOf(s));
+  assert.equal(back.rung, s.rung);
+  assert.equal(back.broken, s.broken);
+  assert.ok(Math.abs(back.people - s.people) <= 1);
+  assert.ok(Math.abs(back.cohesion - s.cohesion) <= 0.001);
+  assert.ok(Math.abs(back.know - s.know) <= 0.001);
+  assert.ok(Math.abs(back.fuel - s.fuel) <= 1e-6);
+});
+
+test("its samples stay within their bound, the far past the thinner, the latest kept", () => {
+  const row = rowOf(farBegins(EARTH));
+  for (let y = 0; y < 2000; y += 10) sampleInto(row, y, farBegins(EARTH));
+  const ring = ringOf(row);
+  assert.ok(ring.length <= FAR_RING, `${ring.length}`);
+  assert.equal(ring.at(-1)!.year, 1990);
+  assert.equal(ring[0]!.year, 0);
+});
+
+test("its rung's changes are kept in order, and read back as stages", () => {
+  const row = rowOf(farBegins(EARTH));
+  rungInto(row, 100, 1);
+  rungInto(row, 110, 1);
+  rungInto(row, 300, 2);
+  assert.deepEqual(row.rungs, [0, 0, 100, 1, 300, 2]);
+  assert.equal(stageByRungs(row.rungs, null, 50), "camps");
+  assert.equal(stageByRungs(row.rungs, null, 299), "villages");
+  assert.equal(stageByRungs(row.rungs, null, 400), "towns");
+  assert.equal(stageByRungs(row.rungs, 350, 400), "ruins");
+  assert.equal(topByRungs(row.rungs, 349), 2);
+});
+
+test("a reading asked of a past year reads what it read going on to it", () => {
+  const r = beginReading(EARTH, -500, null);
+  readOn(r, 1500);
+  const later = readAt(r, 1500),
+    past = readAt(r, 700),
+    again = beginReading(EARTH, -500, null);
+  readOn(again, 700);
+  assert.equal(past.rung, again.state.rung);
+  assert.ok(Math.abs(past.people - again.state.people) < 1e-6 * again.state.people + 1);
+  assert.ok(later.know >= past.know);
+  assert.ok(r.rungs.length >= 4, "it climbed");
+});
+
+test("a followed people's rung is history's, and it breaks rather than falls", () => {
+  const s = { ...farBegins(EARTH, 1e9), peak: 1e9, top: 5 },
+    fallen = { ...s, people: 0, fell: 900 },
+    held = heldTo(s, fallen, 6);
+  assert.equal(held.fell, null);
+  assert.equal(held.rung, 6);
+  assert.ok(held.people >= 0.2 * s.peak);
 });

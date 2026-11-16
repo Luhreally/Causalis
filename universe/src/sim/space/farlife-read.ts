@@ -14,7 +14,6 @@ import {
   type GalaxyStar,
 } from "../../gen/index.ts";
 import {
-  FAR_LIFE,
   FAR_RUNGS,
   GATE_WORDS,
   STARS_RUNG,
@@ -232,6 +231,11 @@ export type FarReading = {
 
 const KEPT_EVERY = 100;
 const SAMPLE_EVERY = 50;
+/**
+ * Years a reading steps at once: a quarter century, where history steps a decade (the rules close their rates over a step, so the
+ * two come to much the same; a world's few dozen peoples are read in some tens of milliseconds, once).
+ */
+export const READ_STEP = 25;
 
 export function beginReading(
   facts: FarFacts,
@@ -258,9 +262,9 @@ export const stepDraw = (facts: FarFacts, year: number) => drawOf(facts.key, yea
 
 /** Read a people's life on to `year` (a step at a time; nothing once it fell). */
 export function readOn(r: FarReading, year: number): void {
-  while (r.at + FAR_LIFE.step <= year && r.state.fell === null) {
-    const to = r.at + FAR_LIFE.step,
-      lived = farStep(r.facts, r.state, FAR_LIFE.step, stepDraw(r.facts, to), to),
+  while (r.at + READ_STEP <= year && r.state.fell === null) {
+    const to = r.at + READ_STEP,
+      lived = farStep(r.facts, r.state, READ_STEP, stepDraw(r.facts, to), to),
       next = r.clock ? heldTo(r.state, lived, r.clock(to)) : lived;
     if (next.fell !== null && r.fellWhy === null) r.fellWhy = fellWords(r.state, r.state.top);
     r.state = next;
@@ -281,9 +285,9 @@ export function readAt(r: FarReading, year: number): FarState {
   const k = Math.min(r.kept.length - 1, Math.floor((year - r.from) / KEPT_EVERY));
   let s = r.kept[k]!,
     at = r.from + k * KEPT_EVERY;
-  while (at + FAR_LIFE.step <= year && s.fell === null) {
-    const to = at + FAR_LIFE.step,
-      lived = farStep(r.facts, s, FAR_LIFE.step, stepDraw(r.facts, to), to);
+  while (at + READ_STEP <= year && s.fell === null) {
+    const to = at + READ_STEP,
+      lived = farStep(r.facts, s, READ_STEP, stepDraw(r.facts, to), to);
     s = r.clock ? heldTo(s, lived, r.clock(to)) : lived;
     at = to;
   }
