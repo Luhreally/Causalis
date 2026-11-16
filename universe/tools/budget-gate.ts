@@ -1,4 +1,4 @@
-// node tools/budget-gate.ts [--ci] [--write] [--only name] [--strict] [--budgets file] — gate 122, what a system may cost.
+// node tools/budget-gate.ts [--ci] [--write] [--only name] [--strict] [--budgets file] — gate 123, what a system may cost.
 //
 // Each world of tools/budgets.json is run to its year with the scheduler's tally on (tools/cost.ts) and held to
 // its rows there:
@@ -206,8 +206,8 @@ if (write) {
   const failed = problems.length + (strict ? warnings.length : 0);
   console.log(
     failed
-      ? `gate 122 fails: ${failed} over budget`
-      : `gate 122 passes: every system, store and total within its budget${warnings.length ? ` (${warnings.length} warnings of the clock)` : ""}`,
+      ? `gate 123 fails: ${failed} over budget`
+      : `gate 123 passes: every system, store and total within its budget${warnings.length ? ` (${warnings.length} warnings of the clock)` : ""}`,
   );
   if (failed) process.exitCode = 1;
 }

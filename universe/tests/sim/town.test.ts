@@ -88,11 +88,12 @@ function consistent(f: Fabric, what = ""): void {
     assert.ok(!civic.has(p), `${what}: a home on lot ${p}, under a building`);
   }
   assert.deepEqual(counts, f.homes, `${what}: the runs and the counts agree`);
-  const runs = [...f.changes].sort((a, b) => a[1] - b[1]);
+  // (Kept in the order of their lots, none sharing one: the runs over a stretch are found by halving.)
+  const runs = f.changes;
   for (let i = 1; i < runs.length; i++)
     assert.ok(
       runs[i]![1] >= runs[i - 1]![2],
-      `${what}: runs ${runs[i - 1]} and ${runs[i]} share a lot`,
+      `${what}: runs ${runs[i - 1]} and ${runs[i]} share a lot, or are out of order`,
     );
   for (const [a, b] of f.open)
     for (let p = a; p < b; p++) {

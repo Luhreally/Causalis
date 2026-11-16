@@ -1,6 +1,6 @@
 {
   "checklist": [
-    "FOR WHOEVER ADDS A SYSTEM (gate 122, tools/budget-gate.ts, holds these rows; node tools/cost.ts shows where a year goes).",
+    "FOR WHOEVER ADDS A SYSTEM (gate 123, tools/budget-gate.ts, holds these rows; node tools/cost.ts shows where a year goes).",
     "1. Keep its state per land, realm or world, never per person: a person is read off those numbers when someone looks (host/), not kept and stepped.",
     "2. Run it yearly or slower, and say the cadence where it is registered (world.system's every); what moves over decades runs by the decade, at an offset so that not every slow system falls on the same year.",
     "3. Keep faded sums, not logs: a running number with a half-life in place of a list that grows with the years. Whatever list it does keep has a stated most and drops its oldest.",
