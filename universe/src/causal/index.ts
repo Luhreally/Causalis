@@ -60,6 +60,7 @@ import "./order.ts";
 import "./health.ts";
 import "./credit.ts";
 import "./finance.ts";
+import "./money.ts";
 import "./strife.ts";
 import "./town.ts";
 import "./lessons.ts";

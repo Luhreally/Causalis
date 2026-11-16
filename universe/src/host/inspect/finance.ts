@@ -470,7 +470,9 @@ export function realmMoneyBlocks(world: World, r: Polity): Block[] {
           ? "to pay its host in a war"
           : l.why === "hunger"
             ? "to feed its hungry seat"
-            : "to arm against a way it feared",
+            : l.why === "deficit"
+              ? "to meet what its treasury spent beyond what it took in"
+              : "to arm against a way it feared",
       abroad: Line = l.abroad.flatMap((q, i) => [i ? ", " : "", realmLink(world, q)]);
     lastly.push({
       ...item(

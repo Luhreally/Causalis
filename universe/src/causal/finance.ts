@@ -17,7 +17,7 @@ type Sold = {
   grain?: number;
   home?: number;
   rate?: number;
-  why?: "war" | "hunger" | "arms";
+  why?: "war" | "hunger" | "arms" | "deficit";
   abroad?: string[];
   foe?: string;
   feared?: string;

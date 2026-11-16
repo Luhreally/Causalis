@@ -1603,3 +1603,6 @@ export {
   childrenWanted,
   livingToBear,
 } from "./children.ts";
+export * from "./money.ts";
+export * from "./labour.ts";
+export * from "./intox.ts";

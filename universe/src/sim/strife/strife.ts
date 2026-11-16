@@ -18,6 +18,7 @@
 // for) — and its old court may flee to the far lands and fight to return; a revolution lost is
 // drowned in blood and remembered.
 // Every step is a decision whose factors cite what drove it.
+import { LABOUR_STORE, giniOf, moneyStore, unionOf } from "../money/kept.ts";
 import {
   YEAR,
   defineEventType,
@@ -956,7 +957,10 @@ export function revolutionDanger(
     thought = lore.get(p.seat, "philosophy"),
     works = lore.get(p.seat, "factories"),
     held = holdsOf(world, p.ref),
-    strain = strainOf(ctx, p);
+    strain = strainOf(ctx, p),
+    organisedAtSeat =
+      works && moneyStore(world, LABOUR_STORE)?.get(p.seat) ? unionOf(world, p.seat).union : null,
+    gini = giniOf(world, p.seat);
   const factors: Factor[] = [
     {
       name: "a rule doubted",
@@ -1015,11 +1019,24 @@ export function revolutionDanger(
       contribution: thought ? STRIFE.ideas : 0,
       source: thought ? { ref: thought.event, role: "enabler", weight: 1 } : null,
     },
+    // (The many massed in workshops count as far as they have bound themselves to act together, where it is weighed: Round B.)
     {
       name: "the many massed in workshops",
-      value: works ? 1 : 0,
-      contribution: works ? STRIFE.workshops : 0,
+      value: organisedAtSeat ?? (works ? 1 : 0),
+      contribution:
+        organisedAtSeat !== null
+          ? STRIFE.workshops * Math.min(1, 2 * organisedAtSeat)
+          : works
+            ? STRIFE.workshops
+            : 0,
       source: works ? { ref: works.event, role: "enabler", weight: 1 } : null,
+    },
+    // (Wealth held by few: its lands' Gini above what a people of farmers alike would show, Round B rules/labour.ts lorenz.)
+    {
+      name: "wealth held by few",
+      value: gini ?? 0,
+      contribution: gini !== null ? 0.5 * Math.max(0, gini - 0.35) : 0,
+      source: null,
     },
     // (How it is held, rules/holds.ts: a voice already given; arms in the people's hands; grievances kept unspoken, that burst
     // where the rule is doubted.)

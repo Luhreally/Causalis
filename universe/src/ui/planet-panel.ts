@@ -221,6 +221,8 @@ export type PeopleEntry = {
   energy: number;
   /** How fouled their ground is (0 … 1): sour rain, metals and salt (Round A). */
   fouled: number;
+  /** How unequally their income is shared: their Gini (0 … 1; -1 none kept): Round B. */
+  inequality: number;
 };
 
 /** A people's ways and speech (the host's waysOf). */

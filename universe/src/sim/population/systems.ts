@@ -3,6 +3,7 @@
 // commits its changes after (compute-then-commit), draws every chance from a key
 // (province, time, purpose), and writes what it did to the ledgers and the
 // history, with causes recorded at the point of decision.
+import { intoxDeaths } from "../money/kept.ts";
 import {
   CountDeltas,
   MONTH,
@@ -694,7 +695,14 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
       // Where much is burned among few, smoke fouls the air.
       smoke = 1 + 0.3 * smokeIn(ctx, p.cell),
       // (What changes slowly — the cold, clothing, medicine, smoke — as it stands now.)
-      mortality = pressure * (1 + 0.25 * cold * bare) * healed * smoke,
+      // (And those who take too much of what calms, wakes or eases: its share of them a year against a crude death rate of four in a
+      // hundred, Round B sim/money/intox.ts.)
+      mortality =
+        pressure *
+        (1 + 0.25 * cold * bare) *
+        healed *
+        smoke *
+        (1 + 25 * intoxDeaths(world, p.cell)),
       // A band's chance of dying within the months, the same for every one of it (reckoned once).
       dying: number[] = [],
       dyingIn = (b: number) =>

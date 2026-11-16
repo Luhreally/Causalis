@@ -1,6 +1,7 @@
 // The pages of power (Phase 10 M91): a realm — its lands and people, how it is ruled and by
 // whom, its wars, its regard for others and what it knows — two realms' regard, a war with
 // its battles and its two hosts, a battle, and a war between the stars.
+import { realmLabourBlocks, realmTreasuryBlocks } from "./money.ts";
 import { realmLessonBlocks } from "./lessons.ts";
 import { realmTiesTab, warSideBlocks } from "./ties.ts";
 import { cellRef, offworldSite } from "../../gen/index.ts";
@@ -267,6 +268,16 @@ export function realmPageModel(
   if (wants("money")) {
     const money = realmMoneyBlocks(world, r);
     if (money.length) tabs.push({ id: "money", name: "Money", blocks: money });
+  }
+  // Its treasury (Round B): its money and prices, its taxes and spending, its borders' tariffs and sanctions, its pooled risk.
+  if (wants("treasury")) {
+    const treasury = realmTreasuryBlocks(world, r);
+    if (treasury.length) tabs.push({ id: "treasury", name: "Treasury", blocks: treasury });
+  }
+  // Its labour (Round B): whom its holders bind and why, its guilds and unions, how its income is shared.
+  if (wants("labour")) {
+    const labour = realmLabourBlocks(world, r);
+    if (labour.length) tabs.push({ id: "labour", name: "Labour", blocks: labour });
   }
   // Whom it fears and why: the four numbers behind each fear one tap down.
   if (wants("fears")) {
