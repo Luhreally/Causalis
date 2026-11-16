@@ -373,7 +373,7 @@ export function starDeathAt(
       if (e.how !== "supernova" || e.star === star) continue;
       const s = stars.find((x) => x.ref === e.star);
       if (!s) continue;
-      const d = Math.hypot(s.x - at.x, s.y - at.y, s.z - at.z),
+      const d = Math.sqrt((s.x - at.x) ** 2 + (s.y - at.y) ** 2 + (s.z - at.z) ** 2),
         under = Math.min(to, e.year + STAR_LIFE.burstYears) - Math.max(from, e.year);
       if (under <= 0 || d > 4 * STAR_LIFE.harmLy) continue;
       const k = burstHarm(d, shelter);
