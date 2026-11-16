@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, yearOfMoment, type Ref } from "../../src/kernel/index.ts";
+import { YEAR, yearOfMoment, type Ref } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { levyPlaces } from "../../src/host/fallen.ts";
 import { LINE, ROSTER_YEARS, townRoster } from "../../src/host/roster.ts";
@@ -25,14 +25,14 @@ import {
 import { OCC } from "../../src/rules/index.ts";
 import { citiesOf, lifeOf, loreOf, populationContext, warsOf } from "../../src/sim/index.ts";
 import { meetHousehold, observer, settleAll } from "../../src/causal/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 55 M225: the village through the roster. A town's folk are the holders of its lines — named,
 // aged and fated as its roster has them, none who fell or died since — its healer sits where its
 // land knows herb-lore, and its year's dead are told less its fallen of the battles at the year's
 // turn and those a strike killed, each buried with their own. Relations, whatever the record holds.
 
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(125 * YEAR);
+const world = universeWorld(EARTH, "first light", 125);
 const before = JSON.stringify(world.domainHashes());
 const Y = Math.floor(world.now / YEAR),
   ctx = populationContext(world),

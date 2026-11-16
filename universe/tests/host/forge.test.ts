@@ -1,19 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { landStone } from "../../src/host/chain.ts";
 import { METALS, ORES, SUBSTANCE, SUBSTANCES } from "../../src/rules/index.ts";
 import { populationContext, toolMetal } from "../../src/sim/index.ts";
 import { dayTold, furnaceOf, rackNow, townDay, villageSolids } from "../../src/view/index.ts";
 import type { Line, PageModel, VillagePlan } from "../../src/bridge/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 51 M213: things seen being made — the furnace by the diggings where a town smelts its own
 // ore, the copper carried to the yard and from it to the forge, and the day's tools hung on the
 // rack before the smithy, each tapped to its page and traced from the ground to the rack. The
 // first light's world at 300: its towns work copper, some of their own ore.
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(300 * YEAR);
+const world = universeWorld(EARTH, "first light", 300);
 const ask = <T>(type: string, args: unknown = {}) => EARTH.queries[type]!(world, args) as T;
 const DAY = 86_400,
   HOUR = 3_600;

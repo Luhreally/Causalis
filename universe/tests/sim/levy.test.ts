@@ -5,19 +5,19 @@
 // its fallen and its wounded; and the hand's village sends no one.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText } from "../../src/kernel/index.ts";
+import { YEAR } from "../../src/kernel/index.ts";
 import { offworldSite } from "../../src/gen/index.ts";
 import { fellTotals, unpackTowns, type Blow } from "../../src/rules/index.ts";
 import {
   LOSSES,
   battleDead,
-  makePopulationWorld,
   politiesOf,
   populationContext,
   warsOf,
   type HostInBattle,
   type HostTerms,
 } from "../../src/sim/index.ts";
+import { peopledWorld } from "../worlds.ts";
 
 /** A host's terms as numbers: its care, its blow, its shock, protection, fire and range. */
 const terms = (
@@ -113,8 +113,7 @@ test("no host loses more than 0.41 of the men it engages, nor any where it bring
   assert.equal(cases, 800);
 });
 
-const world = makePopulationWorld(seedFromText("first light"), { start: "spread" });
-world.runTo(100 * YEAR);
+const world = peopledWorld("first light", 100, { start: "spread" });
 const ctx = populationContext(world),
   battles = () =>
     warsOf(world)

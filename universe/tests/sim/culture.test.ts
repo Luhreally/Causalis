@@ -12,6 +12,7 @@ import {
 } from "../../src/sim/index.ts";
 import { waysRef, why } from "../../src/causal/index.ts";
 import { cradleCell } from "../cradle.ts";
+import { peopledWorld } from "../worlds.ts";
 
 const seed = seedFromText("first light"),
   HOME = cradleCell("first light");
@@ -55,8 +56,7 @@ test("the further the bands went before the chronicle, the further their speech 
 });
 
 test("after centuries, neighbours still speak alike and far lands apart", () => {
-  const world = makePopulationWorld(seed, { start: "spread" });
-  world.runTo(200 * YEAR);
+  const world = peopledWorld("first light", 200, { start: "spread" });
   const culture = cultureOf(world),
     all = culture.all(),
     near: number[] = [],
@@ -98,8 +98,7 @@ test("famine teaches thrift, and the people's ways say which famine", () => {
 });
 
 test("the god's acts deepen devotion where they fall", () => {
-  const world = makePopulationWorld(seed);
-  world.runTo(60 * YEAR);
+  const world = peopledWorld("first light", 60);
   const before = cultureOf(world).get(HOME)!.traits[WAY.piety]!;
   world.submit("act.plague", { cell: HOME, sign: -1, years: 1 });
   world.runTo(62 * YEAR);
@@ -108,8 +107,7 @@ test("the god's acts deepen devotion where they fall", () => {
 
 test("a land newly peopled takes the ways of those who came", () => {
   // Within living memory of the moves that peopled the cradle's neighbours.
-  const world = makePopulationWorld(seed);
-  world.runTo(100 * YEAR);
+  const world = peopledWorld("first light", 100);
   const ctx = populationContext(world),
     culture = cultureOf(world);
   const settled = ctx.provinces.all().filter((p) => p.settledYear > 0);

@@ -1,13 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { calledIn, lexiconOf, speakersAt, takenWordsOf } from "../../src/host/names.ts";
 import { languagesOf } from "../../src/sim/index.ts";
 import type { PageModel } from "../../src/bridge/index.ts";
+import { universeWorld } from "./worlds.ts";
 
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(260 * YEAR);
+const world = universeWorld(EARTH, "first light", 260);
 const query = (ref: string, names?: { as: "theirs"; at: number | null }) =>
   EARTH.queries.page!(world, { ref, names }) as PageModel;
 

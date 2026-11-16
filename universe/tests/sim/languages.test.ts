@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
+import { seedFromText, type Ref } from "../../src/kernel/index.ts";
 import { commonTongue, tongueLikeness, type Tongue } from "../../src/gen/index.ts";
 import {
   APART,
@@ -19,11 +19,11 @@ import {
 } from "../../src/sim/index.ts";
 import { PRINCIPLES } from "../../src/rules/index.ts";
 import { why } from "../../src/causal/index.ts";
+import { peopledWorld } from "../worlds.ts";
 
 // First light's peoples spread over a continent and its islands; three centuries on.
 const opening = makePopulationWorld(seedFromText("first light"), { start: "spread" });
-const world = makePopulationWorld(seedFromText("first light"), { start: "spread" });
-world.runTo(300 * YEAR);
+const world = peopledWorld("first light", 300, { start: "spread" });
 const told = (type: string) => world.events.all().filter((e) => e.type === type);
 
 test("the speech many lands share keeps what most of their people say", () => {

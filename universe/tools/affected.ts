@@ -1,0 +1,376 @@
+// node tools/affected.ts [base-ref] [options]: run only the tests a change can reach.
+//
+// The changed files are those that differ from the base (default universe/integrate, at the point
+// this branch left it), together with what is changed and not yet committed, and new files. Each
+// test file's imports are followed (statically: `import`, `export … from`, `import()`), and a test
+// runs when it reaches a changed file. A changed file that is not code (a golden, a vector, a
+// JSON a tool reads) picks the tests whose own code, or whose imports' code, names it. A change to
+// what every test stands on (package.json, the lockfile, tsconfig, the runner itself) runs the
+// whole suite, and says so. What it runs, it runs wide, through tools/suite.ts.
+//
+// Most code is taken through a folder's index.ts, which re-exports the folder's every file. A test
+// is held to reach the files the names it takes are written in (and theirs in turn), the index
+// itself, and every file under the index that acts on being loaded (registering words, an
+// explainer); not the folder's every file. `--broad` takes every file an import loads instead.
+//
+//   --list          print the tests chosen and why, and stop
+//   --broad         a test reaches every file its imports load
+//   --files a,b     take these as the changed files (paths from the repository's root) instead of git's
+//   --jobs N, --budget GB, --reserve GB, --no-perf, --slow N   as for tools/suite.ts
+//
+// This is for the loop of changing and checking. The whole suite still runs once before a push.
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { allTests, report, runSuite } from "./suite.ts";
+
+const root = fileURLToPath(new URL("..", import.meta.url));
+const slash = (p: string) => p.replaceAll("\\", "/");
+
+/** A change to any of these moves every test (paths from the universe folder). */
+const UNDER_EVERYTHING = [
+  "package.json",
+  "package-lock.json",
+  "tsconfig.json",
+  "tools/suite.ts",
+  "tools/suite-rss.mjs",
+  "tools/affected.ts",
+];
+
+const CODE = /\.(ts|mts|mjs|js)$/;
+const FROM = /\b(import|export)\s+(?:type\s+)?([^;'"`]*?)\s*\bfrom\s*["']([^"']+)["']/g;
+const BARE = /(?:^|\n)\s*import\s*["']([^"']+)["']/g;
+const DYNAMIC = /\bimport\(\s*["']([^"']+)["']\s*\)/g;
+const LOCAL =
+  /^export\s+(?:declare\s+)?(?:abstract\s+)?(?:async\s+)?(?:function\*?|const|let|var|class|interface|type|enum|namespace)\s+([A-Za-z_$][\w$]*)/gm;
+const LOCAL_LIST = /^export\s*(?:type\s*)?\{([^}]*)\}\s*;/gm;
+// A statement at a file's top that does something on being loaded (registers words, an
+// explainer): such a file matters to whoever loads it, whatever names they take from it.
+const ACTS = /^(?:[A-Za-z_$][\w$.]*\(|(?:for|while|if|new) )/m;
+
+const texts = new Map<string, string>();
+function textOf(file: string): string {
+  let text = texts.get(file);
+  if (text === undefined) texts.set(file, (text = readFileSync(join(root, file), "utf8")));
+  return text;
+}
+
+/** One `import … from` or `export … from`: the file it names, and which names (null: all of it). */
+interface Edge {
+  to: string;
+  /** For an import, the names taken; for a re-export, the name given out and the name it has there. */
+  names: [out: string, there: string][] | null;
+}
+interface Info {
+  imports: Edge[];
+  reexports: Edge[];
+  locals: Set<string>;
+  acts: boolean;
+}
+
+const infos = new Map<string, Info>();
+function infoOf(file: string): Info {
+  let info = infos.get(file);
+  if (info) return info;
+  infos.set(file, (info = { imports: [], reexports: [], locals: new Set(), acts: false }));
+  if (!CODE.test(file)) return info;
+  const text = textOf(file);
+  const target = (spec: string): string | undefined => {
+    if (!spec.startsWith(".")) return undefined;
+    const to = slash(relative(root, resolve(root, dirname(file), spec.replace(/\?.*$/, ""))));
+    const full = join(root, to);
+    return to.startsWith("..") || !existsSync(full) || statSync(full).isDirectory()
+      ? undefined
+      : to;
+  };
+  const listed = (inner: string): [string, string][] =>
+    inner
+      .split(",")
+      .map((part) => part.trim().replace(/^type\s+/, ""))
+      .filter(Boolean)
+      .map((part) => {
+        const [there, out] = part.split(/\s+as\s+/);
+        return [(out ?? there)!.trim(), there!.trim()];
+      });
+  for (const m of text.matchAll(FROM)) {
+    const to = target(m[3]!);
+    if (!to) continue;
+    const clause = m[2]!.trim(),
+      braces = clause.match(/^\{([\s\S]*)\}$/);
+    if (m[1] === "import")
+      // (A default or a namespace import takes the whole file.)
+      info.imports.push({ to, names: braces ? listed(braces[1]!) : null });
+    else if (braces) info.reexports.push({ to, names: listed(braces[1]!) });
+    else {
+      info.reexports.push({ to, names: null });
+      const ns = clause.match(/^\*\s+as\s+([\w$]+)$/);
+      // (`export * as ns`: the name stands for the whole file.)
+      if (ns) info.locals.add(`*${ns[1]!}`);
+    }
+  }
+  for (const re of [BARE, DYNAMIC])
+    for (const m of text.matchAll(re)) {
+      const to = target(m[1]!);
+      if (to) info.imports.push({ to, names: null });
+    }
+  for (const m of text.matchAll(LOCAL)) info.locals.add(m[1]!);
+  for (const m of text.matchAll(LOCAL_LIST))
+    for (const [out] of listed(m[1]!)) info.locals.add(out);
+  info.acts = ACTS.test(text);
+  return info;
+}
+
+/**
+ * The file a name taken from `file` is written in, following re-exports, with the files passed
+ * through on the way; undefined when it cannot be told (the whole of `file` is then taken).
+ */
+function defined(
+  file: string,
+  name: string,
+  through: string[],
+  seen = new Set<string>(),
+): string | undefined {
+  if (seen.has(file)) return undefined;
+  seen.add(file);
+  const info = infoOf(file);
+  if (info.locals.has(name)) return file;
+  for (const edge of info.reexports) {
+    const there = edge.names?.find(([out]) => out === name)?.[1];
+    if (there === undefined) continue;
+    through.push(file);
+    return defined(edge.to, there, through, seen) ?? edge.to;
+  }
+  if (info.locals.has(`*${name}`)) return file;
+  for (const edge of info.reexports) {
+    if (edge.names !== null) continue;
+    const mark = through.length;
+    through.push(file);
+    const at = defined(edge.to, name, through, new Set(seen));
+    if (at) return at;
+    through.length = mark;
+  }
+  return undefined;
+}
+
+const wheres = new Map<string, { at: string | undefined; through: string[] }>();
+function where(file: string, name: string): { at: string | undefined; through: string[] } {
+  const key = `${file}\0${name}`;
+  let found = wheres.get(key);
+  if (!found) {
+    const through: string[] = [];
+    wheres.set(key, (found = { at: defined(file, name, through), through }));
+  }
+  return found;
+}
+
+const loads = new Map<string, string[]>();
+/** The files that act on being loaded, among all that loading `file` loads. */
+function actingUnder(file: string): string[] {
+  let list = loads.get(file);
+  if (list) return list;
+  loads.set(file, (list = []));
+  const seen = new Set<string>([file]),
+    stack = [file];
+  while (stack.length) {
+    const at = stack.pop()!,
+      info = infoOf(at);
+    if (info.acts) list.push(at);
+    for (const edge of [...info.imports, ...info.reexports])
+      if (!seen.has(edge.to)) {
+        seen.add(edge.to);
+        stack.push(edge.to);
+      }
+  }
+  return list;
+}
+
+const reached = new Map<string, Set<string>>();
+/**
+ * Everything a test reaches, itself among them. With `broad`, every file its imports load;
+ * without, a name taken through a folder's index.ts reaches the file the name is written in
+ * (and what that file takes in turn), not the folder's every file: the index itself, and any
+ * file under it that acts on being loaded, are still reached.
+ */
+function reach(test: string, broad: boolean): Set<string> {
+  const key = `${broad}\0${test}`,
+    known = reached.get(key);
+  if (known) return known;
+  const seen = new Set<string>([test]),
+    stack = [test];
+  reached.set(key, seen);
+  const whole = (file: string) => {
+    if (seen.has(`+${file}`)) return;
+    seen.add(`+${file}`).add(file);
+    stack.push(file);
+  };
+  seen.add(`+${test}`);
+  while (stack.length) {
+    const file = stack.pop()!,
+      info = infoOf(file);
+    // (A file taken whole gives out all it re-exports.)
+    for (const edge of info.reexports) whole(edge.to);
+    for (const edge of info.imports) {
+      if (broad || edge.names === null) {
+        whole(edge.to);
+        continue;
+      }
+      for (const [, there] of edge.names) {
+        const { at, through } = where(edge.to, there);
+        if (!at) {
+          whole(edge.to);
+          continue;
+        }
+        for (const passed of through) {
+          seen.add(passed);
+          for (const acting of actingUnder(passed)) whole(acting);
+        }
+        whole(at);
+      }
+    }
+  }
+  return seen;
+}
+
+function git(...args: string[]): string[] {
+  const out = execFileSync("git", args, { cwd: root, encoding: "utf8" });
+  return out.split(/\r?\n/).filter(Boolean);
+}
+
+function changedFiles(base: string): string[] {
+  const top = slash(git("rev-parse", "--show-toplevel")[0]!);
+  const names = new Set([
+    ...git("diff", "--name-only", `${base}...HEAD`),
+    ...git("diff", "--name-only", "HEAD"),
+    ...git("ls-files", "--others", "--exclude-standard", "--full-name", top),
+  ]);
+  return [...names].sort();
+}
+
+export interface Choice {
+  /** The tests to run, each with the changed files that chose it. */
+  readonly tests: Map<string, string[]>;
+  /** Why the whole suite runs, when it does. */
+  readonly whole?: string;
+  /** A line for each changed file: what it reached. */
+  readonly notes: string[];
+}
+
+/** Which tests a set of changed files (paths from the repository's root) reaches. */
+export function choose(changed: string[], broad = false): Choice {
+  const top = slash(git("rev-parse", "--show-toplevel")[0]!);
+  const prefix = slash(relative(top, root));
+  const tests = allTests();
+  const reaches = new Map(tests.map((t) => [t, reach(t, broad)]));
+  const chosen = new Map<string, string[]>();
+  const notes: string[] = [];
+  let whole: string | undefined;
+  const pick = (test: string, why: string) => {
+    if (!chosen.has(test)) chosen.set(test, []);
+    chosen.get(test)!.push(why);
+  };
+  for (const path of changed) {
+    if (prefix && !path.startsWith(prefix + "/")) {
+      notes.push(`${path}: outside ${prefix}/, no test of this suite reads it`);
+      continue;
+    }
+    const file = prefix ? path.slice(prefix.length + 1) : path;
+    if (UNDER_EVERYTHING.includes(file)) {
+      whole ??= `${file} stands under every test`;
+      notes.push(`${path}: under every test`);
+      continue;
+    }
+    if (file.endsWith(".md")) {
+      // (The lints ask that each module's README exists, and read no more of it.)
+      notes.push(`${path}: words, no test reads them`);
+      continue;
+    }
+    let hits = tests.filter((t) => reaches.get(t)!.has(file));
+    let how = "reached by";
+    if (!hits.length && !CODE.test(file)) {
+      // Not code: the tests that name it, or whose imports do (a golden read by its name, a
+      // folder read whole).
+      const base = file.split("/").pop()!,
+        folder = file.split("/").slice(0, -1).join("/");
+      const names = (f: string) => {
+        if (!CODE.test(f)) return false;
+        const text = textOf(f);
+        return (
+          text.includes(base) || (folder !== "" && text.includes(folder.split("/").pop()! + "/"))
+        );
+      };
+      hits = tests.filter((t) => [...reaches.get(t)!].some((f) => !f.startsWith("+") && names(f)));
+      how = "named by";
+    }
+    if (
+      !hits.length &&
+      file.startsWith("src/") &&
+      /\.(ts|mts)$/.test(file) &&
+      existsSync(join(root, file))
+    ) {
+      // Code no test imports: is it read as text by one (the lints walk all of src)?
+      hits = tests.filter((t) => /lint/.test(t));
+      how = "reached by no test's imports; the lints read it:";
+    }
+    for (const t of hits) pick(t, file);
+    notes.push(`${path}: ${how} ${hits.length} of ${tests.length} test files`);
+    if (hits.length === tests.length) whole ??= `every test reaches ${file}`;
+  }
+  // A removed file leaves no imports to follow: what imported it has changed too and is in the
+  // list; a test file removed is simply gone.
+  if (whole) for (const t of tests) if (!chosen.has(t)) chosen.set(t, ["whole suite"]);
+  return { tests: chosen, notes, ...(whole ? { whole } : {}) };
+}
+
+async function main(argv: string[]): Promise<void> {
+  const value = (flag: string) => {
+    const at = argv.indexOf(flag);
+    return at < 0 ? undefined : argv.splice(at, 2)[1];
+  };
+  const has = (flag: string) => {
+    const at = argv.indexOf(flag);
+    if (at >= 0) argv.splice(at, 1);
+    return at >= 0;
+  };
+  const num = (flag: string) => {
+    const v = value(flag);
+    return v === undefined ? undefined : Number(v);
+  };
+  const jobs = num("--jobs"),
+    budgetGb = num("--budget"),
+    reserveGb = num("--reserve"),
+    slow = num("--slow"),
+    given = value("--files");
+  const list = has("--list"),
+    noPerf = has("--no-perf"),
+    broad = has("--broad");
+  const base = argv[0] ?? "universe/integrate";
+  const changed = given ? given.split(",").filter(Boolean) : changedFiles(base);
+  if (!changed.length) {
+    console.log(`nothing differs from ${base}: no test to run`);
+    return;
+  }
+  const choice = choose(changed, broad);
+  console.log(`changed${given ? "" : ` since ${base}`}:`);
+  for (const n of choice.notes) console.log(`  ${n}`);
+  if (choice.whole) console.log(`the whole suite runs: ${choice.whole}`);
+  let files = allTests().filter((t) => choice.tests.has(t));
+  if (noPerf) files = files.filter((f) => !f.startsWith("tests/perf/"));
+  console.log(`${files.length} of ${allTests().length} test files chosen`);
+  if (list) {
+    for (const f of files) {
+      const why = choice.tests.get(f)!;
+      console.log(
+        `  ${f}  <- ${why.slice(0, 3).join(", ")}${why.length > 3 ? ` and ${why.length - 3} more` : ""}`,
+      );
+    }
+    return;
+  }
+  if (!files.length) return;
+  const began = Date.now();
+  const results = await runSuite(files, { jobs, budgetGb, reserveGb });
+  process.exit(report(results, (Date.now() - began) / 1000, slow) ? 0 : 1);
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url))
+  await main(process.argv.slice(2));

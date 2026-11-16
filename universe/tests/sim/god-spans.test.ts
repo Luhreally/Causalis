@@ -46,14 +46,14 @@ import {
 import { pageOf } from "../../src/host/inspect/index.ts";
 import { warmthMap, warmthRead } from "../../src/host/inspect/warmth.ts";
 import { warmedFrame } from "../../src/view/index.ts";
+import { universeWorld } from "../host/worlds.ts";
 
 const AT = 220;
 const fork = (() => {
   let doc: ReturnType<typeof saveWorld> | null = null;
   return (): World => {
     if (!doc) {
-      const w = EARTH.build(seedFromText("first light"));
-      w.runTo(AT * YEAR);
+      const w = universeWorld(EARTH, "first light", AT);
       doc = saveWorld(w, "r");
     }
     return loadWorld(doc, (s) => EARTH.build(s), "r").world;

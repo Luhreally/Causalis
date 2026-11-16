@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
+import { type Ref } from "../../src/kernel/index.ts";
 import {
   HOST_ROLES,
   HOUSE_ROLES,
@@ -21,6 +21,7 @@ import {
 } from "../../src/sim/index.ts";
 import { why } from "../../src/causal/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
+import { universeWorld } from "../host/worlds.ts";
 
 const all = () => true;
 const only =
@@ -119,8 +120,7 @@ test("powder and shot: a host that knows the musket bears muskets, the rifle rif
 });
 
 // Amber's land runs from desert to rainforest, and some of its realms have metal near.
-const world = EARTH.build(seedFromText("amber"));
-world.runTo(420 * YEAR);
+const world = universeWorld(EARTH, "amber", 420);
 const ctx = populationContext(world),
   designs = designsOf(world);
 

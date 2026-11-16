@@ -46,6 +46,7 @@ export const LENSES = [
   "laws",
   "sickness",
   "debt",
+  "camps",
   "blocs",
 ] as const;
 export type Lens = (typeof LENSES)[number];
@@ -80,6 +81,7 @@ export const LENS_NAMES: Readonly<Record<Lens, string>> = {
   laws: "Laws",
   sickness: "Sickness",
   debt: "Debt",
+  camps: "Camps",
   forest: "Forest",
   blocs: "Alliances",
 };
@@ -115,6 +117,7 @@ export const LENS_ICONS: Readonly<Record<Lens, string>> = {
   laws: "🏛️",
   sickness: "🦠",
   debt: "💸",
+  camps: "🧭",
   forest: "🌲",
   blocs: "🪢",
 };
@@ -549,6 +552,17 @@ const DEBT: readonly Stop[] = [
   [0.5, [0.86, 0.5, 0.24]],
   [1, [0.5, 0.16, 0.12]],
 ];
+/**
+ * The camps (sim/finance): where each realm's way lies between the two great realms the world is read between (the camps' poles, or
+ * the two great realms least alike): one's own way (deep rust) through those between (pale) to the other's (deep blue).
+ */
+const CAMPS_RAMP: readonly Stop[] = [
+  [0, [0.62, 0.2, 0.12]],
+  [0.25, [0.88, 0.5, 0.3]],
+  [0.5, [0.84, 0.84, 0.78]],
+  [0.75, [0.36, 0.6, 0.88]],
+  [1, [0.12, 0.26, 0.6]],
+];
 /** The laws the laws lens shows, one at a time: each its id, icon and name (M139). */
 export const LAW_CHOICES: readonly (readonly [string, string, string])[] = [
   ["land", "🌾", "The land"],
@@ -667,6 +681,7 @@ const DEEP: Readonly<
   laws: { stops: LAWS_RAMP, at: (v) => v, shown: (v) => v >= 0 },
   sickness: { stops: SICKNESS, at: (v) => Math.sqrt(v), shown: () => true },
   debt: { stops: DEBT, at: (v) => v, shown: () => true },
+  camps: { stops: CAMPS_RAMP, at: (v) => (v + 1) / 2, shown: (v) => v > -2 },
   forest: { stops: WOODS_RAMP, at: (v) => v, shown: () => true },
 };
 
@@ -916,6 +931,7 @@ export function globeColors(
       case "laws":
       case "sickness":
       case "debt":
+      case "camps":
       case "forest": {
         const v = values?.get(province),
           deep = DEEP[lens];
@@ -1140,6 +1156,13 @@ export function lensLegend(lens: Lens, kind = "rocky", look?: string): Legend {
       return { kind: "ramp", stops: stops(SICKNESS), low: "spared lately", high: "a great dying" };
     case "debt":
       return { kind: "ramp", stops: stops(DEBT), low: "owes nothing", high: "a year's food" };
+    case "camps":
+      return {
+        kind: "ramp",
+        stops: stops(CAMPS_RAMP),
+        low: "held as one great realm",
+        high: "as the one least like it",
+      };
     case "forest":
       return { kind: "ramp", stops: stops(WOODS_RAMP), low: "bare", high: "thick" };
     case "belief":

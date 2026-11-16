@@ -1,6 +1,5 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { landClay, landCloth } from "../../src/host/chain.ts";
 import { burnsCharcoal } from "../../src/view/errands.ts";
@@ -20,13 +19,13 @@ import {
   wheelsNow,
 } from "../../src/view/index.ts";
 import type { Line, PageModel, VillagePlan } from "../../src/bridge/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 51 M214: things seen being made — the potters at their wheels and their pots drying on the
 // boards by the kiln, the weavers at their looms before the workshop, and the charcoal clamp in the
 // woodlot through its round of working days. The first light's world at 300: its towns keep their
 // own potters, weavers and colliers.
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(300 * YEAR);
+const world = universeWorld(EARTH, "first light", 300);
 const ask = <T>(type: string, args: unknown = {}) => EARTH.queries[type]!(world, args) as T;
 const DAY = 86_400,
   HOUR = 3_600;

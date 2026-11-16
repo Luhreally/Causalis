@@ -1,15 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { LIFE_QUERIES } from "../../src/host/life.ts";
 import { villagePlan } from "../../src/host/village.ts";
 import type { LifeCard, LifeNow, VillagePlan } from "../../src/bridge/index.ts";
-import { makePopulationWorld, populationContext } from "../../src/sim/index.ts";
+import { populationContext } from "../../src/sim/index.ts";
 import { cradleCell } from "../cradle.ts";
+import { peopledWorld } from "../worlds.ts";
 
 // Lives L3: a life as the page reads it. Asking moves nothing; those about a life are drawn; their house is one home.
-const world = makePopulationWorld(seedFromText("first light"));
-world.runTo(245 * YEAR);
+const world = peopledWorld("first light", 245);
 const town = populationContext(world).settlements.inProvince(cradleCell("first light"))[0]!;
 world.runTo(world.submit("hand.lay", { village: town.ref }).t);
 const ask = <T>(type: string, args?: unknown) => LIFE_QUERIES[type]!(world, args) as T;

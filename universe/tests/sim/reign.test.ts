@@ -6,7 +6,6 @@ import {
   YEAR,
   loadWorld,
   saveWorld,
-  seedFromText,
   type Ref,
   type SaveDocument,
   type World,
@@ -37,6 +36,7 @@ import {
   warsOf,
   type Polity,
 } from "../../src/sim/index.ts";
+import { universeWorld } from "../host/worlds.ts";
 
 test("what a ruler must carry comes from whose leave they hold it by and whether rule is shared", () => {
   assert.equal(mustCarry(0, 0), 0);
@@ -66,8 +66,7 @@ const made = (() => {
   let cached: { world: World; a: Polity; b: Polity } | null = null;
   return () => {
     if (cached) return cached;
-    const world = EARTH.build(seedFromText("first light"));
-    world.runTo(220 * YEAR);
+    const world = universeWorld(EARTH, "first light", 220);
     const ctx = populationContext(world),
       realms = politiesOf(world).living();
     for (const a of realms)

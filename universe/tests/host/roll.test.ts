@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
+import { YEAR, type Ref } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { battleNear, nearCounts } from "../../src/host/battle.ts";
 import { levyPlaces } from "../../src/host/fallen.ts";
@@ -27,14 +27,14 @@ import {
 } from "../../src/bridge/index.ts";
 import { meetHousehold, observer } from "../../src/causal/index.ts";
 import { lifeOf, politiesOf, populationContext, warsOf, type Battle } from "../../src/sim/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 55 M225: a battle's roll names every figure it is drawn as — each side's fallen, its wounded
 // who lived and the rest, place by place: the town's line holders the battle levied first, then the
 // people met who went, then the rest of its levy named for the roll from their refs alone. Read
 // from the record and the observer's ledger, never drawn: relations that hold whatever the numbers.
 
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(125 * YEAR);
+const world = universeWorld(EARTH, "first light", 125);
 const before = JSON.stringify(world.domainHashes());
 const ask = <T>(type: string, args: unknown = {}) => EARTH.queries[type]!(world, args) as T;
 const Y = Math.floor(world.now / YEAR),

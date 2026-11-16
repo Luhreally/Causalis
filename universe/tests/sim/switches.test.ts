@@ -9,13 +9,13 @@ import {
   type World,
 } from "../../src/kernel/index.ts";
 import { makePopulationWorld, switchedOff, type SwitchStore } from "../../src/sim/index.ts";
+import { peopledWorld } from "../worlds.ts";
 
 // The world's own hand, switched (asked for 2026-11-11): its disasters and its plagues turned off
 // by a command, kept in a save, back on by another; a world never switched hashed as before.
 const seed = seedFromText("juniper"),
   build = (s = seed) => makePopulationWorld(s, { start: "spread" }),
-  world = build();
-world.runTo(60 * YEAR);
+  world = peopledWorld("juniper", 60, { start: "spread" });
 const RULESET = rulesetId(world, "test"),
   AS_IT_WAS = saveWorld(world, RULESET),
   fresh = () => loadWorld(AS_IT_WAS, build, RULESET).world;

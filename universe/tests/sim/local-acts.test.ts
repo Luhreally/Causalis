@@ -27,6 +27,7 @@ import {
 import { why } from "../../src/causal/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { cradleCell } from "../cradle.ts";
+import { peopledWorld } from "../worlds.ts";
 
 const seed = seedFromText("first light"),
   HOME = cradleCell("first light");
@@ -35,10 +36,8 @@ const domain = (w: World, name: string) => w.domainHashes().find(([d]) => d === 
 const chain = (w: World) => w.checkpoints().map((c) => c.chain);
 
 test("a spring opened at a village draws the land's settlers to it", () => {
-  const pure = build(),
-    sprung = build();
-  pure.runTo(240 * YEAR);
-  sprung.runTo(240 * YEAR);
+  const pure = peopledWorld("first light", 240),
+    sprung = peopledWorld("first light", 240);
   const small = populationContext(sprung)
     .settlements.inProvince(HOME)
     .filter((v) => !v.market)
@@ -59,8 +58,7 @@ test("a spring opened at a village draws the land's settlers to it", () => {
 });
 
 test("a shrine is a sign the devout read; raising one twice is refused", () => {
-  const world = build();
-  world.runTo(240 * YEAR);
+  const world = peopledWorld("first light", 240);
   const v = populationContext(world).settlements.inProvince(HOME)[0]!;
   world.submit("act.shrine", { village: v.ref });
   world.runTo(240 * YEAR + 1);
@@ -83,8 +81,7 @@ test("a shrine is a sign the devout read; raising one twice is refused", () => {
 });
 
 test("fire sent on a town that is no city burns a fifth of its homes, those about the lot it fell on", () => {
-  const world = build();
-  world.runTo(240 * YEAR);
+  const world = peopledWorld("first light", 240);
   const ctx = populationContext(world),
     v = ctx.settlements
       .inProvince(HOME)
@@ -159,8 +156,7 @@ test("fire on a city burns a fifth of its quarters and kills a hundredth of its 
 });
 
 test("one person inspired comes upon what their land could know next, and is remembered for it", () => {
-  const world = build();
-  world.runTo(240 * YEAR);
+  const world = peopledWorld("first light", 240);
   const v = populationContext(world).settlements.inProvince(HOME)[0]!;
   assert.throws(() => world.submit("act.inspire-one", { agent: 1 }), /rests on no village/);
   world.submit("hand.lay", { village: v.ref });
@@ -184,8 +180,7 @@ test("one person inspired comes upon what their land could know next, and is rem
 });
 
 test("one person blessed is spared death for twenty years while the hand rests", () => {
-  const world = build();
-  world.runTo(240 * YEAR);
+  const world = peopledWorld("first light", 240);
   const v = populationContext(world).settlements.inProvince(HOME)[0]!;
   world.submit("hand.lay", { village: v.ref });
   world.runTo(240 * YEAR + 1);

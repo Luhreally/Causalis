@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DAY, YEAR, seedFromText } from "../../src/kernel/index.ts";
+import { DAY, YEAR } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { levyPlaces } from "../../src/host/fallen.ts";
 import { landTitle } from "../../src/host/inspect/names.ts";
@@ -16,13 +16,13 @@ import {
 } from "../../src/host/burials.ts";
 import { WAR_BURIAL } from "../../src/bridge/index.ts";
 import { populationContext, warsOf } from "../../src/sim/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 55 M225: a battle's fallen are buried where their land lies, told from the battle's record
 // (its towns' tallies of its men), never drawn. One world: the first light, a hundred and
 // twenty-five years on.
 
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(125 * YEAR);
+const world = universeWorld(EARTH, "first light", 125);
 const before = JSON.stringify(world.domainHashes());
 const Y = Math.floor(world.now / YEAR),
   ctx = populationContext(world),

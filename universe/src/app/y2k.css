@@ -1235,6 +1235,12 @@ body.paging .panel:not(.page-panel) .inspector {
 .page-window.wide .table td {
   white-space: nowrap;
 }
+/* …and but for a table fitted to the page, on a phone: its names wrap, so no column is cut at the edge. */
+@media (max-width: 640px) {
+  .page-window.wide .table.fit td {
+    white-space: normal;
+  }
+}
 /* …but for the message log's words, which wrap. */
 .page-window[data-kind="log"] .table td:last-child {
   min-width: 16rem;
@@ -3110,6 +3116,14 @@ body.with-palette .hint {
     max-width: calc(100vw - 244px - 27rem - 24px);
   }
 }
+/* While a wide page is open (the Ledger, the Chronicle: 58rem of the screen), no room is left at the foot for the palette beside
+   it: on a desk the palette stands aside, as it does on a phone under any page, and is there again as the page is closed. (Until
+   2026-11-15 it stayed out, and the wide page lay over it on every tab.) */
+@media (min-width: 641px) {
+  #hud:has(.page-window.wide:not([hidden])) > .palette {
+    display: none;
+  }
+}
 /* On a phone: a round button at the lower left; the palette a sheet above it when opened. */
 @media (max-width: 640px) {
   #hud > .palette-toggle {
@@ -3691,6 +3705,78 @@ body.with-palette .hint {
 .legend-picks .speed {
   padding: 1px 5px;
   font-size: 0.8rem;
+}
+
+/* Who holds whom (sim/finance): a square of realms, each row a people and each column a realm. */
+.owning {
+  display: grid;
+  gap: 2px;
+  align-items: center;
+  margin: 4px 0 6px;
+  max-width: 100%;
+}
+.owning-corner {
+  font-size: 10px;
+  opacity: 0.7;
+  text-align: right;
+  padding-right: 4px;
+}
+.owning-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 0;
+  padding: 1px 2px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.owning-col {
+  justify-content: center;
+}
+.owning-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  text-align: left;
+}
+.owning-cell {
+  aspect-ratio: 1;
+  width: 100%;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 1px solid var(--chrome-lo);
+  border-radius: 2px;
+  background: rgba(127, 127, 127, 0.08);
+  cursor: pointer;
+}
+.owning-cell.owning-self {
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(127, 127, 127, 0.25) 0 2px,
+    transparent 2px 5px
+  );
+  cursor: default;
+}
+.owning-said {
+  min-height: 1.3em;
+  margin: 2px 0;
+}
+/* (On a phone the rows are told by their shields alone, so each square is a finger's size.) */
+@media (max-width: 560px) {
+  .owning-row .owning-name {
+    display: none;
+  }
+  .owning-corner {
+    font-size: 0;
+  }
 }
 
 /* What something is made of (Phase 15 M122): one bar of its parts, then a row for each. */

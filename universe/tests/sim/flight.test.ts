@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type Ref, type World } from "../../src/kernel/index.ts";
+import { YEAR, type Ref, type World } from "../../src/kernel/index.ts";
 import { G, principle } from "../../src/rules/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import {
@@ -14,11 +14,11 @@ import {
   type Polity,
 } from "../../src/sim/index.ts";
 import { why } from "../../src/causal/index.ts";
+import { universeWorld } from "../host/worlds.ts";
 
 /** A grown Earth, and its largest realm taught the road to orbit and given machines. */
 function readied(extra: string[] = []): { world: World; realm: Polity } {
-  const world = EARTH.build(seedFromText("first light"));
-  world.runTo(60 * YEAR);
+  const world = universeWorld(EARTH, "first light", 60);
   const realm = [...politiesOf(world).living()].sort(
       (a, b) => b.members.length - a.members.length || (a.ref < b.ref ? -1 : 1),
     )[0]!,
@@ -68,8 +68,7 @@ test("a realm that knows orbital flight and has the machines sends up its first 
 });
 
 test("no realm flies without orbital flight, however rich", () => {
-  const world = EARTH.build(seedFromText("first light"));
-  world.runTo(60 * YEAR);
+  const world = universeWorld(EARTH, "first light", 60);
   for (const p of politiesOf(world).living())
     marketsOf(world).of(p.seat).move("made", G.machines, 50_000_000);
   world.runTo(80 * YEAR);

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
+import { YEAR, type Ref } from "../../src/kernel/index.ts";
 import {
   BLOCKS,
   BLOCK_M,
@@ -11,12 +11,13 @@ import {
   citiesOf,
   homePlanet,
   layout,
-  makePopulationWorld,
   populationContext,
 } from "../../src/sim/index.ts";
 import { OCC } from "../../src/rules/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { LOT, lotStates, townLots, type TownPlan } from "../../src/bridge/index.ts";
+import { universeWorld } from "../host/worlds.ts";
+import { peopledWorld } from "../worlds.ts";
 
 /** How far a city's blocks of the given uses lie from its road, in blocks, on average. */
 function fromRoad(uses: readonly number[], axis: number, which: readonly number[]): number {
@@ -48,8 +49,7 @@ test("a paved road draws a city's markets and workshops along it", () => {
 
 test("towns grow into cities, and paving reshapes them, answering to the road's learning", () => {
   // Amber's peoples tame beasts to draw carts, and so come to pave their roads.
-  const world = makePopulationWorld(seedFromText("amber"), { start: "spread" });
-  world.runTo(420 * YEAR);
+  const world = peopledWorld("amber", 420, { start: "spread" });
   // (The road's learning comes when history brings it: to amber in year 356 before Phase 55's
   // deaths, in 444 after them. So the world runs on from 420, a decade at a time, until some city
   // has been paved for thirty years and its quarters have had time to come to their worth.)
@@ -113,8 +113,7 @@ test("towns grow into cities, and paving reshapes them, answering to the road's 
 });
 
 test("the microscope over a city shows its quarters, its homes in its housing blocks or on open ground, never on a temple, market or workshop", () => {
-  const world = EARTH.build(seedFromText("first light"));
-  world.runTo(320 * YEAR);
+  const world = universeWorld(EARTH, "first light", 320);
   const city = citiesOf(world).all()[0]!,
     plan = EARTH.queries["village.plan"]!(world, { ref: city.town }) as {
       districts: { uses: number[]; blocks: number; blockM: number } | null;

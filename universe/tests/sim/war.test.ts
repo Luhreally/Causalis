@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type Ref, type World } from "../../src/kernel/index.ts";
+import { type Ref, type World } from "../../src/kernel/index.ts";
 import {
   LIVING_MEMORY,
   POLITY_EVENTS,
@@ -8,16 +8,15 @@ import {
   WEARY_YEARS,
   WarStore,
   diplomacyOf,
-  makePopulationWorld,
   politiesOf,
   populationContext,
   warsOf,
 } from "../../src/sim/index.ts";
 import { why, type Explanation } from "../../src/causal/index.ts";
+import { peopledWorld } from "../worlds.ts";
 
 // Juniper's many realms fight often, holy wars among them.
-const world = makePopulationWorld(seedFromText("juniper"), { start: "spread" });
-world.runTo(400 * YEAR);
+const world = peopledWorld("juniper", 400, { start: "spread" });
 const ctx = populationContext(world),
   wars = warsOf(world).all();
 

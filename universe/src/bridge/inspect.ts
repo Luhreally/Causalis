@@ -179,6 +179,22 @@ export type Block =
       /** Its line's colour (its thing's own). */
       readonly color?: Rgb;
     }
+  /**
+   * Who holds whom (sim/finance, asked 2026-11-14: "diffrent citizens owning stocks from diffrent countires"): a square of realms,
+   * each row a people and each column a realm; a cell is how much of that realm's listed works and of its debt that people holds.
+   */
+  | {
+      readonly type: "owning";
+      readonly title: string;
+      readonly realms: readonly {
+        readonly ref: string;
+        readonly name: string;
+        readonly color: Rgb;
+      }[];
+      /** cells[i][j]: what the people of realm i hold of realm j, as a share of it (0 … 1). */
+      readonly cells: readonly (readonly number[])[];
+      readonly note?: string;
+    }
   /** Things side by side as bars: each its name (a link), its amount, its colour. */
   | {
       readonly type: "bars";
@@ -190,6 +206,8 @@ export type Block =
         readonly color?: Rgb;
       }[];
       readonly unit?: "people" | "share" | "price" | "count";
+      /** Its names are long: each wraps onto lines of its own, never cut short. */
+      readonly wrap?: boolean;
     }
   /**
    * What something is made of (Phase 15 M122): its parts as one bar of their shares, then each
@@ -276,6 +294,8 @@ export type Block =
         /** A word on it (its lands, its fallen). */
         readonly words?: string;
       }[];
+      /** Its names are long: each wraps onto lines of its own, never cut short. */
+      readonly wrap?: boolean;
     }
   /**
    * Two sides set against each other (Phase 11 M103): each row's two amounts pulled apart in a
@@ -370,6 +390,35 @@ export type Block =
         readonly name: string;
       };
     }
+  /**
+   * What a realm believes of each of its numbers (rules/learn.ts): where it stands between the number's two ends, which end its
+   * evidence favours and how surely, how much of that evidence is its own, and both through the years.
+   */
+  | {
+      readonly type: "beliefs";
+      readonly title?: string;
+      readonly rows: readonly BeliefRow[];
+      readonly note?: string;
+    }
+  /**
+   * The evidence behind a realm's beliefs, on the years: its own fates in one lane, what it saw befall others in another, each a
+   * mark that opens the event that tells it, drawn of what it was (whose, how they fared, which numbers it moved and which way).
+   */
+  | {
+      readonly type: "evidence";
+      readonly title?: string;
+      readonly from: number;
+      readonly to: number;
+      readonly marks: readonly EvidenceMark[];
+    }
+  /** Whom a realm has learned from, and who has learned from it: each a realm in its colours, by how much. */
+  | {
+      readonly type: "taught";
+      readonly title?: string;
+      readonly self: { readonly name: string; readonly ref: string; readonly color: Rgb };
+      readonly from: readonly TaughtBy[];
+      readonly to: readonly TaughtBy[];
+    }
   | { readonly type: "why"; readonly title?: string; readonly ref: string }
   /**
    * A thread back to the beginning (Phase 36 M182): from a life, a town or a land, each step a
@@ -411,6 +460,52 @@ export type Block =
       readonly tool: string;
       readonly args: Readonly<Record<string, unknown>>;
     };
+
+/** One of a realm's numbers as it believes of it (a `beliefs` block). */
+export type BeliefRow = {
+  /** What the number asks ("Who decides"), and its two ends in this people's words. */
+  readonly label: string;
+  readonly low: string;
+  readonly high: string;
+  /** Where it stands (0 … 1). */
+  readonly now: number;
+  /** Which end its evidence favours (-1: the low … 1: the high), how much evidence (0 … 1), and the share of it its own. */
+  readonly lean: number;
+  readonly sure: number;
+  readonly own: number;
+  /** What it believes, in words, with the evidence it stands on most. */
+  readonly words: Line;
+  /** Where it stood and what it believed through the years kept (each year, 0 … 1 and -1 … 1). */
+  readonly stood: readonly { readonly x: number; readonly y: number }[];
+  readonly leans: readonly { readonly x: number; readonly y: number }[];
+};
+
+/** A piece of evidence on the years (an `evidence` block). */
+export type EvidenceMark = {
+  readonly year: number;
+  /** The event that tells it. */
+  readonly ref: string;
+  /** Its own fate, or another's it saw. */
+  readonly own: boolean;
+  /** The colour of the realm it befell, and that realm where another's (its arms are drawn). */
+  readonly color: Rgb;
+  readonly realm?: string;
+  /** How the realm it befell fared (-1 … 1), and how much it weighed (0 … 1). */
+  readonly fared: number;
+  readonly weight: number;
+  /** What it did to each belief (-1 … 1, of the most any did): force, voice, word, trust. */
+  readonly moved: readonly number[];
+  readonly words: string;
+};
+
+/** A realm another learned from, or that learned from it (a `taught` block). */
+export type TaughtBy = {
+  readonly name: string;
+  readonly ref: string;
+  readonly color: Rgb;
+  /** Its share of all that was learned on that side (0 … 1). */
+  readonly share: number;
+};
 
 /** A kind of small life in a drop: what it is called there, its line, how it lives. */
 export type DropKind = {

@@ -1,15 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { thingForm } from "../../src/host/looks.ts";
 import { politiesOf, populationContext, tameNow } from "../../src/sim/index.ts";
 import type { Block, PageModel } from "../../src/bridge/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 15 M125: a household's and a person's things, watched. The first light's world at 300,
 // families met in its most peopled land's first towns.
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(300 * YEAR);
+const world = universeWorld(EARTH, "first light", 300);
 const ask = <T>(type: string, args: unknown = {}) => EARTH.queries[type]!(world, args) as T;
 const page = (ref: string) => ask<PageModel>("page", { ref });
 const blocks = (p: PageModel, tab: string) => p.tabs.find((t) => t.id === tab)?.blocks ?? [];

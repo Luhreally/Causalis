@@ -19,12 +19,12 @@ import {
   support,
 } from "../../src/sim/index.ts";
 import { spine, why } from "../../src/causal/index.ts";
+import { peopledWorld } from "../worlds.ts";
 
 const build = (seed: Seed) => makePopulationWorld(seed);
 
 // One long run shared by the tests that only read it.
-const long = makePopulationWorld(seedFromText("first light"));
-long.runTo(300 * YEAR);
+const long = peopledWorld("first light", 300);
 const longCtx = populationContext(long);
 
 test("people are conserved: each year's change is its births less its deaths", () => {
@@ -104,8 +104,7 @@ test("a village explains itself back to the first people", () => {
 
 test("a migration explains itself through its decision", () => {
   // While it is within living memory.
-  const early = makePopulationWorld(seedFromText("first light"));
-  early.runTo(40 * YEAR);
+  const early = peopledWorld("first light", 40);
   const flow = populationContext(early).history.flows()[0]!,
     node = why(early, flow.event as Ref);
   const decision = node.causes[0]!.next();

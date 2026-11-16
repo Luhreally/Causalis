@@ -3,7 +3,6 @@
 // in what a town of a million and a half is.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { seedFromText, YEAR } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { isMachineFolk, landPast, mirrorsOfSky, pastLands, pastTown } from "../../src/host/past.ts";
 import { LINE, MOST_LINES, linesOf } from "../../src/host/roster.ts";
@@ -12,6 +11,7 @@ import { rimWorks } from "../../src/host/town.ts";
 import type { Fabric } from "../../src/sim/town/fabric.ts";
 import { pageOf } from "../../src/host/inspect/index.ts";
 import { populationContext, lateOf } from "../../src/sim/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 test("a town's lines are kept by its people up to a bound", () => {
   assert.equal(linesOf(0), 0);
@@ -84,8 +84,7 @@ test("who is of made limbs is theirs alone, and about the share told", () => {
 });
 
 test("on a young world nothing past ours is read, the store stays out of its hashes, and the book tells it", () => {
-  const world = EARTH.build(seedFromText("first light"));
-  world.runTo(40 * YEAR);
+  const world = universeWorld(EARTH, "first light", 40);
   const before = world.domainHashes();
   assert.deepEqual(pastLands(world), []);
   assert.deepEqual(mirrorsOfSky(world), {});

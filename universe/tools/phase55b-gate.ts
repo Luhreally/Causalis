@@ -690,13 +690,11 @@ const lineOf = (ref: string) => Number(ref.split(":")[4] ?? -1);
         q.ref !== p.ref &&
         Math.floor(lineOf(q.ref) / 4) === Math.floor(lineOf(p.ref) / 4),
     );
-  const one = plain.find(({ p }) => mates(p).length >= 1) ?? plain[0];
-  check(!!one, `no one of ${plan.name}'s people drawn to tap`);
-  if (one) {
-    // The eye brought down to them; tapped.
-    const p = one.p;
+  /** The eye brought down to one of them and a tap where they stand (and again where they stand then): whether their card came. */
+  const tapOn = async (who: (typeof plain)[number]): Promise<boolean> => {
+    const p = who.p;
     const spot = await k<{ x: number; z: number } | null>(
-      `(globalThis.causalis.peopleNow?.() ?? []).find((q) => q.index === ${one.index}) ?? null`,
+      `(globalThis.causalis.peopleNow?.() ?? []).find((q) => q.index === ${who.index}) ?? null`,
     );
     if (spot) {
       await k(
@@ -712,7 +710,7 @@ const lineOf = (ref: string) => Number(ref.split(":")[4] ?? -1);
     // Tapped where they stand, and again where they stand then if no card of theirs came.
     for (let tries = 0; tries < 3; tries++) {
       const on = await k<{ x: number; y: number } | null>(
-        `globalThis.causalis.personOnScreen?.(${one.index}) ?? null`,
+        `globalThis.causalis.personOnScreen?.(${who.index}) ?? null`,
       );
       if (on) await page.mouse.click(on.x, on.y);
       // (Their card come, its kin or not yet.)
@@ -726,8 +724,26 @@ const lineOf = (ref: string) => Number(ref.split(":")[4] ?? -1);
           () => true,
           () => false,
         );
-      if (came) break;
+      if (came) return true;
     }
+    return false;
+  };
+  // (The first of them whose own card comes: where a fallen soldier of the battle before the town lies at the feet of the one
+  // tapped, the nearer takes the tap, and the card that comes is the fallen's. On first light's merged history the first one
+  // chosen, Shepod Ourendis of Seakirholt, stands so.)
+  let one = plain.find(({ p }) => mates(p).length >= 1) ?? plain[0];
+  check(!!one, `no one of ${plan.name}'s people drawn to tap`);
+  if (one) {
+    const tried = [one, ...plain.filter((x) => x !== one && mates(x.p).length >= 1)].slice(0, 5);
+    for (const who of tried) {
+      await putAway();
+      if (await tapOn(who)) {
+        one = who;
+        break;
+      }
+      say(`${who.p.name} tapped: another's card came`);
+    }
+    const p = one.p;
     const c = await cardWithKin();
     say(`${p.name} tapped: “${c.name}” | ${c.family} | ${c.body}`);
     check(c.name === p.name, `the card of ${p.name} not come (“${c.name}”)`);

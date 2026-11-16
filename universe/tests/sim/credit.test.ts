@@ -44,6 +44,7 @@ import {
   type Polity,
 } from "../../src/sim/index.ts";
 import { why } from "../../src/causal/index.ts";
+import { peopledWorld } from "../worlds.ts";
 
 // Phase 21 M143: credit. Juniper's realms sixty years on; the greatest realm's most peopled land
 // made by hand a market town that knows coin and lending, with traders and grain to spare; its
@@ -52,8 +53,7 @@ import { why } from "../../src/causal/index.ts";
 // repudiated; a jubilee; the god's hand.)
 const seed = seedFromText("juniper"),
   build = (s = seed) => makePopulationWorld(s, { start: "spread" }),
-  world = build();
-world.runTo(60 * YEAR);
+  world = peopledWorld("juniper", 60, { start: "spread" });
 const RULESET = rulesetId(world, "test"),
   AS_IT_WAS = saveWorld(world, RULESET),
   fresh = () => loadWorld(AS_IT_WAS, build, RULESET).world;

@@ -1,17 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
+import { type Ref } from "../../src/kernel/index.ts";
 import { EFFECTS, PRINCIPLES, PRINCIPLE_INDEX, principle } from "../../src/rules/index.ts";
 import {
   LORE_EVENTS,
   knows,
   loreOf,
-  makePopulationWorld,
   marketsOf,
   politiesOf,
   populationContext,
 } from "../../src/sim/index.ts";
 import { why } from "../../src/causal/index.ts";
+import { peopledWorld } from "../worlds.ts";
 
 test("the tree of principles is whole: every need exists, and each step has a way in from nothing", () => {
   for (const p of PRINCIPLES)
@@ -38,8 +38,7 @@ test("the tree of principles is whole: every need exists, and each step has a wa
   assert.ok(PRINCIPLES.length >= 50);
 });
 
-const world = makePopulationWorld(seedFromText("first light"), { start: "spread" });
-world.runTo(300 * YEAR);
+const world = peopledWorld("first light", 300, { start: "spread" });
 const ctx = populationContext(world),
   lore = loreOf(world);
 

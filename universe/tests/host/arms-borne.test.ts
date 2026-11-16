@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText } from "../../src/kernel/index.ts";
+import { YEAR } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { hostDesign } from "../../src/host/arms.ts";
 import { armsMade, type Made } from "../../src/host/chain.ts";
@@ -14,14 +14,14 @@ import {
   type PageModel,
 } from "../../src/bridge/index.ts";
 import { warsOf } from "../../src/sim/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 55 M228: each man of a battle's roll bore an arm made by a maker of his own — one of his
 // seat's benches, by who held it then — told on his card, on his page ("What he bore", from the
 // ground to his hand) and on the arm's own page (`arms:<battle>:<side>:<his page>`). Read from the
 // record, never drawn: looking moves nothing.
 
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(125 * YEAR);
+const world = universeWorld(EARTH, "first light", 125);
 const before = JSON.stringify(world.domainHashes());
 const ask = <T>(type: string, args: unknown = {}) => EARTH.queries[type]!(world, args) as T;
 const page = (ref: string) => ask<PageModel>("page", { ref });

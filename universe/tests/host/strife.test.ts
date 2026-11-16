@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type SimTime } from "../../src/kernel/index.ts";
+import { type SimTime } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import {
   foil,
@@ -13,13 +13,13 @@ import {
 } from "../../src/sim/index.ts";
 import type { Block, PageModel } from "../../src/bridge/index.ts";
 import { STRIFE_CONCEPTS } from "../../src/host/inspect/strife-concepts.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 22 M145: strife, read — a realm's army and how near a coup is, its rule by its army, the
 // ledger's coups, the chronicle's first, the book's concepts. The first light's world a century
 // and a quarter on; its greatest realm's seat seized by hand, given back, and a coup foiled in the
 // next greatest.
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(125 * YEAR);
+const world = universeWorld(EARTH, "first light", 125);
 const ask = <T>(type: string, args: unknown = {}) => EARTH.queries[type]!(world, args) as T;
 const ctx = populationContext(world),
   people = (p: Polity) => p.members.reduce((n, c) => n + (ctx.provinces.get(c)?.total() ?? 0), 0),

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
+import { YEAR, type Ref } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import {
   civilizationsNear,
@@ -12,13 +12,13 @@ import {
 } from "../../src/sim/index.ts";
 import type { Answer, Block, PageModel, Tip } from "../../src/bridge/index.ts";
 import { HEALTH_CONCEPTS } from "../../src/host/inspect/health-concepts.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 20 M140: sickness, read — a sickness's page, a land's health, the ledger's sicknesses,
 // the lens of sickness, the book's concepts, the god's hand. The first light's world a century
 // and a quarter on, a new sickness loosed on its greatest realm's most peopled land and given
 // three years to travel.
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(125 * YEAR);
+const world = universeWorld(EARTH, "first light", 125);
 const ask = <T>(type: string, args: unknown = {}) => EARTH.queries[type]!(world, args) as T;
 const ctx = populationContext(world),
   people = (p: Polity) => p.members.reduce((n, c) => n + (ctx.provinces.get(c)?.total() ?? 0), 0),
@@ -141,8 +141,7 @@ test("the god may answer a sickness come: the land warded; the ward told and tit
 test("a sickness from the stars: named for the strangers, told on its page and theirs, first in the chronicle, in the book", () => {
   // Juniper sixty years on: strangers of the people longest at the stars come down to talk in
   // its greatest realm's six most peopled lands.
-  const w = EARTH.build(seedFromText("juniper"));
-  w.runTo(60 * YEAR);
+  const w = universeWorld(EARTH, "juniper", 60);
   const c = populationContext(w),
     held = (cell: number) => c.provinces.get(cell)?.total() ?? 0,
     peopleIn = (p: Polity) => p.members.reduce((n, x) => n + held(x), 0),

@@ -5,12 +5,12 @@ import { EARTH } from "../../src/host/planet.ts";
 import { folkRef, spine, why } from "../../src/causal/index.ts";
 import { cradleCell } from "../cradle.ts";
 import { homePlanet as homePlanetOf, politiesOf, warsOf } from "../../src/sim/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 /** Where the first people of "first light" began. */
 const CRADLE = cradleCell("first light");
 
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(260 * YEAR);
+const world = universeWorld(EARTH, "first light", 260);
 const ask = <T>(type: string, args: unknown = {}) => EARTH.queries[type]!(world, args) as T;
 const warsOfWorld = (w: typeof world) => warsOf(w).all();
 
@@ -74,10 +74,8 @@ test("the people of a province explain themselves, back to the first people and 
 });
 
 test("a century of watching a village meets its families through the observer and never changes history", () => {
-  const quiet = EARTH.build(seedFromText("first light")),
-    busy = EARTH.build(seedFromText("first light"));
-  quiet.runTo(240 * YEAR);
-  busy.runTo(240 * YEAR);
+  const quiet = universeWorld(EARTH, "first light", 240),
+    busy = universeWorld(EARTH, "first light", 240);
   const ref = (EARTH.queries.settlements!(busy, { cell: CRADLE }) as { ref: string }[])[0]!.ref;
   type Plan = {
     people: { ref: string; home: number }[];

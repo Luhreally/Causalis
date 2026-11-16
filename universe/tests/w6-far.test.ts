@@ -34,6 +34,7 @@ import {
   starWarsOf,
   worldsOf,
 } from "../src/sim/index.ts";
+import { universeWorld } from "./host/worlds.ts";
 
 const earth = { pull: 1, radius: 1, airBar: 1 };
 
@@ -105,8 +106,7 @@ test("the god's hand unmakes a world: dormant before, and it stays through a sav
 });
 
 test("a war aimed at a world unmade ends with it, and its people are gone but not forgotten", () => {
-  const world = ALIEN.build(seedFromText("lumen 285"));
-  world.runTo(320 * YEAR);
+  const world = universeWorld(ALIEN, "lumen 285", 320);
   const y = Math.floor(world.now / YEAR),
     holder = [...politiesOf(world).living()].sort(
       (a, b) => b.members.length - a.members.length,

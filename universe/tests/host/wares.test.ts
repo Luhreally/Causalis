@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText } from "../../src/kernel/index.ts";
+import { seedFromText } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { GOODS, G, keptLife } from "../../src/rules/index.ts";
 import { marketGoodRef, marketsOf, politiesOf, populationContext } from "../../src/sim/index.ts";
@@ -23,12 +23,12 @@ import { ALIEN } from "../../src/host/planet.ts";
 import { homePlanet } from "../../src/sim/index.ts";
 import { specimenParts } from "../../src/ui/specimen.ts";
 import type { Line } from "../../src/bridge/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 // What is sold under each good (asked 2026-11-12): each of a market's broad goods split into the few named things a land makes or is
 // brought, with shares; a land's trade said as those things; companies and an exchange late in a world. The first light's world in its
 // age of works and lending (700), read whole: every land, every good.
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(700 * YEAR);
+const world = universeWorld(EARTH, "first light", 700);
 const words = (l: Line) => l.map((s) => (typeof s === "string" ? s : s.text)).join("");
 const ctx = populationContext(world),
   lands = ctx.provinces.all().filter((p) => p.total() > 0 && marketsOf(world).get(p.cell));

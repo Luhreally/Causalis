@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, hashString, seedFromText, type Ref } from "../../src/kernel/index.ts";
+import { YEAR, hashString, type Ref } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { levyPlaces } from "../../src/host/fallen.ts";
 import {
@@ -31,14 +31,14 @@ import {
   warsOf,
   type Battle,
 } from "../../src/sim/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 55 M225: a town keeps its people by line, one of every twelve, each holder for a natural
 // term. Its battles levy the eligible men of its lines by twelves of the men its tally sent, its
 // fallen leave their lines empty a while, and a fire's dead come off its lines from the next year.
 // Read from the record, never drawn: these are relations that hold whatever the record's numbers.
 
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(125 * YEAR);
+const world = universeWorld(EARTH, "first light", 125);
 const before = JSON.stringify(world.domainHashes());
 const Y = Math.floor(world.now / YEAR),
   ctx = populationContext(world),

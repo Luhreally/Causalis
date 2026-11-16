@@ -405,6 +405,11 @@ export const GATES: readonly Gate[] = [
   // their units, at most 160 points, each ending at the page's own number; a realm whose lands changed keeping its own past; by touch at a
   // phone's size, a realm's, its seat's and the greatest alliance's lines pressed, their latest the head's on the screen; nothing off the screen.
   { gate: 117, args: ["--ci"], s: 600 },
+  // Gate 120, a realm's money and its fears (tools/finance-gate.ts): on first light at 600, every realm that owes telling what new debt
+  // would cost it and who holds its debt, every realm's fears with their numbers, the ledger's square of who holds whom and its camps, the
+  // Camps lens on every land; by touch at a phone's size, the Money and Fears tabs, a square pressed telling its number, the lens;
+  // nothing over anything, nothing off the screen.
+  { gate: 120, args: ["--ci"], s: 900 },
   // Gate 121, another people's world played (tools/alien-play-gate.ts): from first light and from alien 41, a people of another star in its
   // towns or cities (one of the water), its world seen whole from home and "Play their world" pressed by touch; what agrees and what cannot
   // said first; its world made and its first years run behind a screen, the page answering; there, its star, warmth, bodies and look the ones

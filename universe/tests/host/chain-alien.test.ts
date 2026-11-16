@@ -1,13 +1,13 @@
 import { test } from "node:test";
 import { keptLife } from "../../src/rules/kinds.ts";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { ALIEN } from "../../src/host/planet.ts";
 import { forgedMetal, homePlanet, oreWithin, populationContext } from "../../src/sim/index.ts";
 import { worldChemistry } from "../../src/gen/index.ts";
 import { stonesFor } from "../../src/rules/index.ts";
 import { landClay, landStone, toolMade, townStuff, type Made } from "../../src/host/chain.ts";
 import type { Line } from "../../src/bridge/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 54 C1: the chain on worlds of their own chemistry. Alien 16 (at 150 years) is reduced and
 // hardened with arsenic: its tin is arsenic ore, its bronze arsenical copper, its copper native.
@@ -15,8 +15,7 @@ import type { Line } from "../../src/bridge/index.ts";
 // chain-pre54.test.ts.
 const words = (l: Line) => l.map((s) => (typeof s === "string" ? s : s.text)).join("");
 
-const sixteen = ALIEN.build(seedFromText(keptLife("alien 16")));
-sixteen.runTo(150 * YEAR);
+const sixteen = universeWorld(ALIEN, keptLife("alien 16"), 150);
 const ctx = populationContext(sixteen),
   chem = worldChemistry(homePlanet(sixteen).generated),
   cells = ctx.provinces
@@ -104,8 +103,7 @@ test("a bronze town's smiths say what their bronze is made of, and what they mel
 });
 
 test("alien 182: a carbon-rich world's iron tool is cohenite iron, at every land with iron ore", () => {
-  const carbon = ALIEN.build(seedFromText(keptLife("alien 182")));
-  carbon.runTo(100 * YEAR);
+  const carbon = universeWorld(ALIEN, keptLife("alien 182"), 100);
   const cx = populationContext(carbon),
     ironLands = cx.provinces
       .all()

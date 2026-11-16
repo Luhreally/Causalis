@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DAY, YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
+import { DAY, YEAR, type Ref } from "../../src/kernel/index.ts";
 import { MALE } from "../../src/rules/index.ts";
 import { lifeOf, populationContext, warsOf } from "../../src/sim/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
@@ -10,14 +10,14 @@ import { metWounds, townWounded, withWounds, woundedTowns } from "../../src/host
 import { lookOf } from "../../src/host/inspect/wounds.ts";
 import { meetHousehold, observer, settleAll, type Person } from "../../src/causal/index.ts";
 import type { Item, Line, PageModel } from "../../src/bridge/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 55 M226, M229 (T42): wounds on the pages that were there — a met veteran's, a line
 // holder's, a town's — and the healer's page by its ref. The first light, 125 years on, the
 // households met in the towns that sent the most men, twenty days into the year: the levy of its
 // turn home and abed.
 
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(125 * YEAR);
+const world = universeWorld(EARTH, "first light", 125);
 const Y = Math.floor(world.now / YEAR),
   ledger = observer(world),
   ctx = populationContext(world),

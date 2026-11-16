@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
+import { YEAR, type Ref } from "../../src/kernel/index.ts";
 import { G, principle } from "../../src/rules/index.ts";
 import { ALIEN } from "../../src/host/planet.ts";
 import {
@@ -14,11 +14,11 @@ import {
   starWarsOf,
 } from "../../src/sim/index.ts";
 import { spine } from "../../src/causal/index.ts";
+import { universeWorld } from "../host/worlds.ts";
 
 test("a war between the stars: declared on old news, its fleet years on the way, its why back to the home world's pull", () => {
   // A world whose neighbours include a people long among the stars.
-  const world = ALIEN.build(seedFromText("alien 41"));
-  world.runTo(60 * YEAR);
+  const world = universeWorld(ALIEN, "alien 41", 60);
   assert.ok(
     civilizationsNear(world).some((c) => c.stars < 0),
     "an old starfaring people near",

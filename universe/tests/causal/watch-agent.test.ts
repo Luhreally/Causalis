@@ -3,17 +3,17 @@
 // children, the god's touches and their death; once it is lifted, remembered by name.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
+import { YEAR, type Ref } from "../../src/kernel/index.ts";
 import { FEMALE } from "../../src/rules/index.ts";
-import { agentName, handOf, makePopulationWorld, populationContext } from "../../src/sim/index.ts";
+import { agentName, handOf, populationContext } from "../../src/sim/index.ts";
 import { newsLog, setWatch, tidings, watches } from "../../src/causal/index.ts";
 import { cradleCell } from "../cradle.ts";
+import { peopledWorld } from "../worlds.ts";
 
 const HOME = cradleCell("first light");
 
 test("one under the hand followed: their children told, and remembered once the hand is lifted", () => {
-  const w = makePopulationWorld(seedFromText("first light"));
-  w.runTo(240 * YEAR);
+  const w = peopledWorld("first light", 240);
   const town = populationContext(w)
     .settlements.inProvince(HOME)
     .sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1))[0]!;

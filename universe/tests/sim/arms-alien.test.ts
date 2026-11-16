@@ -14,6 +14,7 @@ import {
   populationContext,
   type PopulationContext,
 } from "../../src/sim/index.ts";
+import { peopledWorld } from "../worlds.ts";
 
 /** partStuff as it was before Phase 54, frozen. */
 function before(
@@ -40,11 +41,7 @@ const part = (material: (typeof MATERIALS)[number]): Part => ({
 });
 
 test("on Earth a host's stuff is as it was, land by land", () => {
-  const world = makePopulationWorld(seedFromText("first light"), {
-    prior: EARTHLIKE,
-    start: "spread",
-  });
-  world.runTo(400 * YEAR);
+  const world = peopledWorld("first light", 400, { prior: EARTHLIKE, start: "spread" });
   const ctx = populationContext(world),
     cells = [...ctx.provinces.all()].map((p) => p.cell).sort((a, b) => a - b);
   let bog = 0;
@@ -61,11 +58,7 @@ test("on Earth a host's stuff is as it was, land by land", () => {
 });
 
 test("on a world where nothing rusts: copper hardened with arsenic, native iron of its own", () => {
-  const world = makePopulationWorld(seedFromText("alien 16"), {
-    prior: OPEN,
-    start: "spread",
-  });
-  world.runTo(300 * YEAR);
+  const world = peopledWorld("alien 16", 300, { prior: OPEN, start: "spread" });
   const ctx = populationContext(world),
     chem = worldChemistry(ctx.generated),
     cells = [...ctx.provinces.all()].map((p) => p.cell).sort((a, b) => a - b),

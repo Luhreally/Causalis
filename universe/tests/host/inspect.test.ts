@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, parseRef, seedFromText, type Ref } from "../../src/kernel/index.ts";
+import { parseRef, type Ref } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import {
   beliefOf,
@@ -32,9 +32,9 @@ import {
   type WarsMap,
 } from "../../src/bridge/index.ts";
 import { realmColor } from "../../src/host/colors.ts";
+import { universeWorld } from "./worlds.ts";
 
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(260 * YEAR);
+const world = universeWorld(EARTH, "first light", 260);
 const ask = <T>(type: string, args: unknown = {}) => EARTH.queries[type]!(world, args) as T;
 const page = (ref: string) => ask<PageModel>("page", { ref });
 

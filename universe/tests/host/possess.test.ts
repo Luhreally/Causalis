@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type World } from "../../src/kernel/index.ts";
+import { YEAR, type World } from "../../src/kernel/index.ts";
 import { POSSESS_QUERIES } from "../../src/host/possess.ts";
 import { chronicle } from "../../src/host/planet.ts";
 import { withWounds } from "../../src/host/wounds.ts";
@@ -16,13 +16,13 @@ import {
 import { G, HAND_ACT, OCC, POSSESS_HZ, bidLetters, type HandBid } from "../../src/rules/index.ts";
 import {
   handOf,
-  makePopulationWorld,
   marketsOf,
   populationContext,
   type Agent,
   type TakeArgs,
 } from "../../src/sim/index.ts";
 import { cradleCell } from "../cradle.ts";
+import { peopledWorld } from "../worlds.ts";
 
 // Phase 60: one of a town's people possessed, as the page sees it — the small world stepped ahead
 // by the bids not yet sent (the same world the next second's command keeps), its acts in words and
@@ -30,8 +30,7 @@ import { cradleCell } from "../cradle.ts";
 // the chronicle telling the god walking among them. Looking moves nothing. One world, its people
 // taken and let go in turn.
 
-const world = makePopulationWorld(seedFromText("first light"));
-world.runTo(245 * YEAR);
+const world = peopledWorld("first light", 245);
 const town = populationContext(world).settlements.inProvince(cradleCell("first light"))[0]!;
 world.runTo(world.submit("hand.lay", { village: town.ref }).t);
 const hand = handOf(world).resting!,

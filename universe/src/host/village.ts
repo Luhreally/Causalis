@@ -637,13 +637,23 @@ export function villagePlan(
     }
   }
   // Whoever a case names, however few its town draws (J1): one tried is someone you can go and find.
-  if (cases && homes.length) {
+  // And whoever the page of a site it was asked for names at work on it (H1): a town whose
+  // watched households fill what the eye is given draws few of its lines, and those its site's
+  // page names were at no site, others raising it in their stead.
+  const crews =
+    folk > 0 && town
+      ? [...town.civics.map((c) => c.asked), town.walls?.asked].flatMap((a) =>
+          a && !a.left && a.done > world.now ? a.crew.map((ref) => ({ ref })) : [],
+        )
+      : [];
+  if ((cases || crews.length) && homes.length) {
     const here = new Set(people.map((p) => p.ref)),
       roster = townRoster(world, ref, now),
       work = folkWork(world, v.cell),
       grown = lifeOf(world).adulthood;
-    for (const n of cases.named) {
+    for (const n of [...(cases?.named ?? []), ...crews]) {
       if (here.has(n.ref)) continue;
+      here.add(n.ref);
       const m = /:(\d+):(\d+)$/.exec(n.ref),
         h = m ? roster.holderOf(Number(m[1]), Number(m[2])) : null;
       if (!h || roster.holder(h.line)?.n !== h.n) continue;

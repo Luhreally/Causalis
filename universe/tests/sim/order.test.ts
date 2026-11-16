@@ -42,13 +42,13 @@ import {
   type RealmOrder,
 } from "../../src/sim/index.ts";
 import { why } from "../../src/causal/index.ts";
+import { peopledWorld } from "../worlds.ts";
 
 // Juniper's realms, sixty years on: the order of each, and the bound in its lands, worked
 // on directly by the year of the order alone (the rest of the world held still).
 const seed = seedFromText("juniper"),
   build = (s = seed) => makePopulationWorld(s, { start: "spread" }),
-  world = build();
-world.runTo(60 * YEAR);
+  world = peopledWorld("juniper", 60, { start: "spread" });
 const RULESET = rulesetId(world, "test"),
   AS_IT_WAS = saveWorld(world, RULESET),
   fresh = () => loadWorld(AS_IT_WAS, build, RULESET).world;

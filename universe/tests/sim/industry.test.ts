@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type Ref, type World } from "../../src/kernel/index.ts";
+import { YEAR, type Ref, type World } from "../../src/kernel/index.ts";
 import { SEAM, cellRef, seamRef, surfaceOre } from "../../src/gen/index.ts";
 import {
   ECONOMY_EVENTS,
@@ -9,13 +9,13 @@ import {
   designsOf,
   homePlanet,
   loreOf,
-  makePopulationWorld,
   marketsOf,
   populationContext,
   powerOf,
 } from "../../src/sim/index.ts";
 import { G, PRINCIPLES, designWords, principle } from "../../src/rules/index.ts";
 import { why } from "../../src/causal/index.ts";
+import { peopledWorld } from "../worlds.ts";
 
 /** Teach a land principles outright (a fixture: the tree takes centuries to reach them). */
 function teach(world: World, cell: number, ids: string[]): void {
@@ -47,8 +47,7 @@ const CHAIN = [
 
 // First light a century and a half on: its most peopled market land over a coal seam is
 // taught the way to the factory, and given two decades.
-const world = makePopulationWorld(seedFromText("first light"), { start: "spread" });
-world.runTo(150 * YEAR);
+const world = peopledWorld("first light", 150, { start: "spread" });
 const ctx = populationContext(world),
   g = ctx.generated;
 const coalLand = ctx.provinces
@@ -133,8 +132,7 @@ test("without coal to dig or buy, a land that knows engines has none to drive th
 
 test("machines raise what farmers bring in", () => {
   const twin = () => {
-    const w = makePopulationWorld(seedFromText("first light"), { start: "spread" });
-    w.runTo(40 * YEAR);
+    const w = peopledWorld("first light", 40, { start: "spread" });
     return w;
   };
   const plain = twin(),

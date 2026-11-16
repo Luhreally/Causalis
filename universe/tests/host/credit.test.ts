@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type SimTime } from "../../src/kernel/index.ts";
+import { type SimTime } from "../../src/kernel/index.ts";
 import { FOODS, G, MALE, OCC, PRINCIPLES } from "../../src/rules/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import {
@@ -19,14 +19,14 @@ import {
 } from "../../src/sim/index.ts";
 import type { Block, PageModel, Tip } from "../../src/bridge/index.ts";
 import { CREDIT_CONCEPTS } from "../../src/host/inspect/credit-concepts.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 21 M143: credit, read — a house of lending's page, a land's debts, the ledger's houses,
 // the chronicle's first, the book's concepts (M144: a realm's credit, a war's chests, the lens of
 // debt). The first light's world a century and a quarter on;
 // its greatest realm's most peopled land with a town made by hand a market town that knows
 // lending, a house risen there, and the realm's next land lent grain against a famine.
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(125 * YEAR);
+const world = universeWorld(EARTH, "first light", 125);
 // This fixture creates one house and one loan deliberately. A changed campaign may
 // already have banks; their unrelated loans are outside this page scenario.
 creditOf(world)!.houses.length = 0;

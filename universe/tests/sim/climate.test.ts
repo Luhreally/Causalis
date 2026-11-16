@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type Ref, type World } from "../../src/kernel/index.ts";
+import { YEAR, type Ref, type World } from "../../src/kernel/index.ts";
 import { cellRef, surfaceOre } from "../../src/gen/index.ts";
 import {
   AIR_EVENTS,
@@ -12,7 +12,6 @@ import {
   airOf,
   heatYield,
   loreOf,
-  makePopulationWorld,
   marketsOf,
   populationContext,
   rainShift,
@@ -21,6 +20,7 @@ import {
 } from "../../src/sim/index.ts";
 import { G, principle } from "../../src/rules/index.ts";
 import { why } from "../../src/causal/index.ts";
+import { peopledWorld } from "../worlds.ts";
 
 const CHAIN = [
   "writing",
@@ -53,8 +53,7 @@ function teach(world: World, cell: number, ids: string[]): void {
 // First light a century and a half on: its forty most peopled lands over coal learn the
 // way to the factory; then, for forty years, the air is given the smoke of a world of
 // engines besides (a steady twelve parts in a million a year).
-const world = makePopulationWorld(seedFromText("first light"), { start: "spread" });
-world.runTo(150 * YEAR);
+const world = peopledWorld("first light", 150, { start: "spread" });
 const ctx = populationContext(world),
   g = ctx.generated,
   industrial = ctx.provinces

@@ -19,6 +19,7 @@ import {
 } from "../../sim/index.ts";
 import { makingTown } from "../chain.ts";
 import { boardRef, wayRow } from "./board.ts";
+import { exchangeHolders } from "./finance.ts";
 import { MACHINE_KINDS, andList, clothOf, madeWares, type WareName } from "./wares.ts";
 import { coinWords } from "./living.ts";
 import { companyMark } from "./ware-looks.ts";
@@ -410,6 +411,7 @@ export function exchangePage(world: World, ref: string): PageModel {
       ],
     ],
   });
+  blocks.push(...exchangeHolders(world, realm));
   blocks.push(wayRow("🏷️", `The market board of ${e.town.name}`, boardRef(e.town.ref)));
   const tabs: Tab[] = [{ id: "listed", name: "Listed", blocks }];
   return {

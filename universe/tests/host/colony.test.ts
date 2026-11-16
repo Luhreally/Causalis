@@ -5,7 +5,6 @@ import {
   loadWorld,
   rulesetId,
   saveWorld,
-  seedFromText,
   yearOfMoment,
   type World,
 } from "../../src/kernel/index.ts";
@@ -34,6 +33,7 @@ import {
   spaceOf,
   townsOf,
 } from "../../src/sim/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 const ROAD = [
   "mathematics",
@@ -54,8 +54,7 @@ const ROAD = [
 
 /** Earth grown a while, its largest realm taught the road to the other worlds, a colony founded and grown on a few years. */
 function withColony(read: boolean): { world: World; cell: number; year: number } {
-  const world = EARTH.build(seedFromText("first light"));
-  world.runTo(80 * YEAR);
+  const world = universeWorld(EARTH, "first light", 80);
   const realm = [...politiesOf(world).living()].sort(
     (a, b) => b.members.length - a.members.length || (a.ref < b.ref ? -1 : 1),
   )[0]!;

@@ -216,8 +216,12 @@ export type Bar = {
 };
 
 /** Things side by side as bars (Phase 10 M96b): each its name, its bar and its amount. */
-export function barsChart(bars: readonly Bar[], format?: (y: number) => string): HTMLElement {
-  const box = el("div", "bars"),
+export function barsChart(
+  bars: readonly Bar[],
+  format?: (y: number) => string,
+  wrap = false,
+): HTMLElement {
+  const box = el("div", wrap ? "bars wrap" : "bars"),
     f = format ?? ((y: number) => Math.round(y).toLocaleString("en-US")),
     most = Math.max(1e-9, ...bars.map((b) => b.value));
   for (const b of bars) {
@@ -315,8 +319,13 @@ export type Span = {
  * Things through the years (Phase 10 M96b): each a bar from its beginning to its end, one
  * still lasting running on to now, over a scale of the years with its centuries marked.
  */
-export function timelineChart(spans: readonly Span[], from: number, to: number): HTMLElement {
-  const box = el("div", "timeline"),
+export function timelineChart(
+  spans: readonly Span[],
+  from: number,
+  to: number,
+  wrap = false,
+): HTMLElement {
+  const box = el("div", wrap ? "timeline wrap" : "timeline"),
     width = Math.max(1, to - from),
     at = (y: number) => `${(((Math.min(to, Math.max(from, y)) - from) / width) * 100).toFixed(2)}%`;
   // The centuries (or decades, on a short span) as faint marks.

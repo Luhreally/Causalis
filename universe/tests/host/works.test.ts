@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText } from "../../src/kernel/index.ts";
+import { YEAR } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { MOULDS, floorOf, foundryOf, leanOn } from "../../src/view/errands.ts";
 import {
@@ -12,13 +12,13 @@ import {
   villageSolids,
 } from "../../src/view/index.ts";
 import type { Line, PageModel, VillagePlan } from "../../src/bridge/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 51 M215: things seen made at scale. The first light's world in the age of engines (800):
 // its towns with works keep a foundry, its founders breaking out the last day's castings, ramming
 // the sand and pouring the moulds at their taps; and in the modern age (1050) the works' floor, its
 // machinists at the presses and lathes, the finished parts set on the bench.
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(800 * YEAR);
+const world = universeWorld(EARTH, "first light", 800);
 const ask = <T>(type: string, args: unknown = {}) => EARTH.queries[type]!(world, args) as T;
 const DAY = 86_400,
   HOUR = 3_600;
@@ -149,8 +149,12 @@ test("a town's founders break out the last day's castings, pour each mould at it
 
 test("in the modern age the works' machinists make parts at the presses and lathes and set them on the bench", () => {
   world.runTo(1050 * YEAR);
-  const towns = plansNow().filter((p) => !!floorOf(p));
-  assert.ok(towns.length > 0, "a town with works in the modern age at 1050");
+  // (As with the foundries: a town whose stores are lean that week works at no craft, its
+  // machinists out for food with the rest. Of first light's forty greatest towns at 1050, three
+  // in four are lean in spring, with its money and fears or with them all turned off: the works
+  // read are those of the towns that are fed.)
+  const towns = plansNow().filter((p) => !!floorOf(p) && !leanOn(p, 1050 * 365 + 120));
+  assert.ok(towns.length > 0, "a fed town with works in the modern age at 1050");
   let days = 0,
     pages = 0;
   for (const plan of towns.slice(0, 8)) {

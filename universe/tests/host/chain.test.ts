@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import {
   designsOf,
+  forgedMetal,
   politiesOf,
   populationContext,
   toolMetal,
@@ -21,12 +21,12 @@ import {
 import { STONES } from "../../src/rules/index.ts";
 import { townDay, villageSolids } from "../../src/view/index.ts";
 import type { Block, Line, PageModel, VillagePlan } from "../../src/bridge/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 50 M212: the chain from the ground to a thing — every made thing made by someone, of what
 // its land holds (or its road brings), traced from where it was dug to who made it and where. The
 // first light's world at 700: its towns work copper, bronze, iron and steel.
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(700 * YEAR);
+const world = universeWorld(EARTH, "first light", 700);
 const ask = <T>(type: string, args: unknown = {}) => EARTH.queries[type]!(world, args) as T;
 const page = (ref: string) => ask<PageModel>("page", { ref });
 const ctx = populationContext(world),
@@ -117,8 +117,11 @@ test("every link along a thing's chain, a realm's arms and a workshop opens a pa
 });
 
 test("a town's makers are named, kept at their trades, and the ones its buildings' pages name", () => {
-  // The most peopled land's first town that keeps a smithy.
+  // The first town that keeps a smithy in the most peopled land whose smiths forged metal this
+  // year. (A land with no ore in reach and none come down its road keeps smithies that forge
+  // nothing, however many its people: first light's most peopled land at 700 is one.)
   const town = lands
+    .filter((l) => forgedMetal(ctx, l.cell, now) !== "stone")
     .flatMap((l) => ctx.settlements.inProvince(l.cell))
     .find((s) =>
       townsOf(world)

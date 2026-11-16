@@ -1,15 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
+import { YEAR, type Ref } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import { marketsOf, populationContext, townsOf } from "../../src/sim/index.ts";
 import type { LandPlan, PageModel, Tip } from "../../src/bridge/index.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 25 M150–M151: a land's towns as the land draws them, each from its fabric, and its
 // roads; a town's lots, buildings and walls each a page. Juniper's peopled world at 150 years.
 
-const world = EARTH.build(seedFromText("juniper"));
-world.runTo(150 * YEAR);
+const world = universeWorld(EARTH, "juniper", 150);
 const ask = <T>(type: string, args: unknown = {}) => EARTH.queries[type]!(world, args) as T,
   ctx = populationContext(world),
   counts = new Map<number, number>();

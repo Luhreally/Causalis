@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DAY, YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
+import { DAY, YEAR, type Ref } from "../../src/kernel/index.ts";
 import { NO_LOOK, type Block, type PageModel, type Wound } from "../../src/bridge/index.ts";
 import { populationContext } from "../../src/sim/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
@@ -13,12 +13,12 @@ import {
   woundBlock,
   woundedTab,
 } from "../../src/host/inspect/wounds.ts";
+import { universeWorld } from "./worlds.ts";
 
 // Phase 55 M226, M229 (T41): wounds told — a person's, a town's wounded, its healer's page. On the
 // Earth seed at 125 years and twenty days, the levy of the year's turn home and abed.
 
-const world = EARTH.build(seedFromText("first light"));
-world.runTo(125 * YEAR);
+const world = universeWorld(EARTH, "first light", 125);
 const Y = Math.floor(world.now / YEAR);
 world.runTo(Y * YEAR + 20 * DAY);
 const before = JSON.stringify(world.domainHashes());

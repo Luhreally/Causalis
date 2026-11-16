@@ -14,6 +14,8 @@ contract.
 npm install
 npm run dev          # the app at http://localhost:5173
 npm run check        # typecheck + architecture lints + tests
+npm run test:fast    # the same tests, as many files at once as cores and free memory allow (tools/suite.ts)
+npm run test:affected   # only the tests a change since universe/integrate can reach (tools/affected.ts)
 npm run build        # dist/, served at /Causalis/universe/ on GitHub Pages
 ```
 

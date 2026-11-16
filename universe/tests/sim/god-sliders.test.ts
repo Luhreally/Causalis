@@ -3,7 +3,7 @@
 // does exactly what it always did; an amount the hand does not give is refused; the palette says the world's numbers.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { YEAR, seedFromText, type World } from "../../src/kernel/index.ts";
+import { YEAR, type World } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
 import {
   ACT_STRENGTH,
@@ -31,22 +31,18 @@ import {
 import { PALETTE_FORCE } from "../../src/ui/palette.ts";
 import { REIGN_QUERIES } from "../../src/host/reign.ts";
 import { armyBlocks } from "../../src/host/inspect/army.ts";
+import { universeWorld } from "../host/worlds.ts";
 
 const built = (() => {
   let cached: World | null = null;
   return () => {
     if (!cached) {
-      cached = EARTH.build(seedFromText("first light"));
-      cached.runTo(220 * YEAR);
+      cached = universeWorld(EARTH, "first light", 220);
     }
     return cached;
   };
 })();
-const fresh = () => {
-  const w = EARTH.build(seedFromText("first light"));
-  w.runTo(built().now);
-  return w;
-};
+const fresh = () => universeWorld(EARTH, "first light", 220);
 const biggest = (world: World): Polity =>
   [...politiesOf(world).living()].sort(
     (a, b) => b.members.length - a.members.length || (a.ref < b.ref ? -1 : 1),

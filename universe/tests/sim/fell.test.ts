@@ -3,7 +3,7 @@
 // drawn; the towns' tallies let go after FELL_TOWN_YEARS, which changes nothing hashed.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Hasher, YEAR, seedFromText } from "../../src/kernel/index.ts";
+import { Hasher, YEAR } from "../../src/kernel/index.ts";
 import {
   fellOfColumns,
   fellTotals,
@@ -22,16 +22,15 @@ import {
   fieldOf,
   handOf,
   hostTerms,
-  makePopulationWorld,
   politiesOf,
   populationContext,
   townShares,
   warsOf,
 } from "../../src/sim/index.ts";
 import { fellFromLast } from "../../src/sim/war/coldwars.ts";
+import { peopledWorld } from "../worlds.ts";
 
-const world = makePopulationWorld(seedFromText("first light"), { start: "spread" });
-world.runTo(100 * YEAR);
+const world = peopledWorld("first light", 100, { start: "spread" });
 const ctx = populationContext(world),
   store = warsOf(world),
   battles = store.all().flatMap((w) => w.battles),

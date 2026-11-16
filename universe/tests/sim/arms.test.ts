@@ -10,7 +10,6 @@ import {
   chunkData,
   loadWorld,
   saveWorld,
-  seedFromText,
   type SaveDocument,
   type Seed,
   type StoreChunk,
@@ -33,9 +32,9 @@ import {
   populationContext,
   warsOf,
 } from "../../src/sim/index.ts";
+import { peopledWorld } from "../worlds.ts";
 
-const world = makePopulationWorld(seedFromText("first light"), { start: "spread" });
-world.runTo(400 * YEAR);
+const world = peopledWorld("first light", 400, { start: "spread" });
 const ctx = populationContext(world),
   living = politiesOf(world)
     .all()
