@@ -1426,3 +1426,17 @@ export { URBAN_EVERY, urbanOf, urbanYear, wagesOfLand } from "./population/urban
 export { ART_EVERY, artMakers, artOf, artYear } from "./culture/art.ts";
 export { installCultureSweep } from "./culture/sweep.ts";
 export { addsStanding, type StandingOf } from "./order/order.ts";
+export {
+  HOUSE_EVENTS,
+  HouseStore,
+  houseOfGroup,
+  housesOf,
+  housesRead,
+  housesYear,
+  installHouses,
+  originOf,
+  type GoneHouse,
+  type HouseRecord,
+  type HousesRead,
+  type RealmHouses,
+} from "./order/houses.ts";

@@ -58,6 +58,7 @@ import { HOLD, HOLDING } from "../../rules/index.ts";
 import { heldOf, holdOf, weighHolds, type Taught } from "./holds.ts";
 import { WantsStore } from "./wants.ts";
 import { ElectionStore, electionsYear } from "./elections.ts";
+import { housesRead, installHouses } from "./houses.ts";
 import { CREDIT, creditOf, debtBurden } from "../credit/credit.ts";
 import { seizedFactor } from "../strife/strife.ts";
 import { fortunePull } from "../acts/fortune.ts";
@@ -390,6 +391,16 @@ export function boundIn(
  * How far a realm's seat can make its will felt across its lands (0 … 1): writing, the reach
  * its roads and clerks give, its size (the more lands, the thinner), its age.
  */
+/**
+ * What a realm's houses add to what is skimmed a year (round H): a coalition loyal past the middle, kin in office, a grifter's cut.
+ * 0 where none are reckoned.
+ */
+export function houseSkim(world: World, realm: Ref): number {
+  const h = housesRead(world, realm);
+  if (!h) return 0;
+  return 0.008 * (h.loyalty - 0.5) + 0.012 * h.nepotism + 0.01 * h.grift;
+}
+
 export function capacityOf(ctx: PopulationContext, p: Polity): { value: number; parts: Factor[] } {
   const lore = loreOf(ctx.world),
     year = yearOfMoment(ctx.world.now),
@@ -402,6 +413,20 @@ export function capacityOf(ctx: PopulationContext, p: Polity): { value: number; 
       { name: "roads and clerks", value: reach, contribution: 0.2 * reach, source: null },
       { name: "few lands to hold", value: small, contribution: 0.25 * small, source: null },
       { name: "an old seat", value: old, contribution: 0.1 * old, source: p.event },
+      // (Round H, sim/order/houses.ts: offices given to the great houses' kin and not to the able.)
+      ...(() => {
+        const kin = housesRead(ctx.world, p.ref)?.nepotism ?? 0;
+        return kin > 0
+          ? [
+              {
+                name: "offices held by kin, not the able",
+                value: kin,
+                contribution: -0.15 * kin,
+                source: null,
+              },
+            ]
+          : [];
+      })(),
     ].map((f) => ({
       ...f,
       source: f.source ? { ref: f.source, role: "enabler" as const, weight: 1 } : null,
@@ -1580,7 +1605,10 @@ export function orderYear(ctx: PopulationContext, t: SimTime): void {
         0.015 * Math.min(1, Math.max(0, year - p.ruler.since) / 25) -
         (p.leadership === 2 ? 0.01 : 0) -
         (decree ? 0.01 : 0) -
-        0.004 * o.laws[LAW_OF.justice]!,
+        0.004 * o.laws[LAW_OF.justice]! +
+        // (Round H, sim/order/houses.ts: a small coalition out of many is loyal, and can be skimmed the more without the seat
+        // being lost; kin in office skim; a grifter bought in takes its cut.)
+        houseSkim(world, p.ref),
     );
     const seatMarket = markets.get(p.seat);
     if (seatMarket) {
@@ -1593,7 +1621,9 @@ export function orderYear(ctx: PopulationContext, t: SimTime): void {
       (0.45 * hier +
         0.25 * trait(seatWays, WAY.tradition) +
         (p.law === 2 ? 0.2 : 0) +
-        0.3 * boundShare(ctx, p)) *
+        0.3 * boundShare(ctx, p) +
+        // (Round H: offices held by houses whose titles pass with their blood.)
+        0.25 * (housesRead(world, p.ref)?.hereditary ?? 0)) *
         (free ? 0.85 : 1),
     );
     o.caste = clamp(0, 1, o.caste + 0.08 * (casteTarget - o.caste));
@@ -1748,5 +1778,7 @@ export function installOrder(world: World, ctx: () => PopulationContext): OrderS
   world.addPinner(() => store.pinned());
   world.system({ key: "187.order.year", every: YEAR, run: (t) => orderYear(ctx(), t) });
   world.system({ key: "187.order.votes", every: YEAR, run: (t) => electionsYear(ctx(), t) });
+  // (Who its ruler must pay, and the houses that keep power for themselves: sim/order/houses.ts, round H.)
+  installHouses(world, ctx);
   return store;
 }

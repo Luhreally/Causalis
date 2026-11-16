@@ -19,6 +19,7 @@
 // drowned in blood and remembered.
 // Every step is a decision whose factors cite what drove it.
 import { LABOUR_STORE, giniOf, moneyStore, unionOf } from "../money/kept.ts";
+import { housesRead } from "../order/houses.ts";
 import {
   YEAR,
   defineEventType,
@@ -457,7 +458,8 @@ export function coupDanger(
     old = Math.min(1, Math.max(0, year - p.founded) / 200),
     standing = loreOf(world).get(p.seat, "standing-army"),
     held = holdsOf(world, p.ref),
-    strain = strainOf(ctx, p);
+    strain = strainOf(ctx, p),
+    houses = housesRead(world, p.ref);
   const factors: Factor[] = [
     {
       name: "a rule doubted",
@@ -559,6 +561,13 @@ export function coupDanger(
       source: o.heldEvents?.[HOLD.voice]
         ? { ref: o.heldEvents[HOLD.voice]!, role: "constraint", weight: 1 }
         : null,
+    },
+    // (Round H, sim/order/houses.ts: a great house that outweighs the ruler's own, that a general can ride to the seat.)
+    {
+      name: "a great house that outweighs the crown",
+      value: houses?.rival ?? 0,
+      contribution: 0.25 * (houses?.rival ?? 0),
+      source: null,
     },
     {
       name: "arms kept to the host",
@@ -960,7 +969,8 @@ export function revolutionDanger(
     strain = strainOf(ctx, p),
     organisedAtSeat =
       works && moneyStore(world, LABOUR_STORE)?.get(p.seat) ? unionOf(world, p.seat).union : null,
-    gini = giniOf(world, p.seat);
+    gini = giniOf(world, p.seat),
+    following = housesRead(world, p.ref)?.following ?? 0;
   const factors: Factor[] = [
     {
       name: "a rule doubted",
@@ -1055,6 +1065,13 @@ export function revolutionDanger(
       source: o.heldEvents?.[HOLD.force]
         ? { ref: o.heldEvents[HOLD.force]!, role: "enabler", weight: 1 }
         : null,
+    },
+    // (Round H, sim/order/houses.ts: one risen on the people's grievance, carried as far as word carries.)
+    {
+      name: "a demagogue's following",
+      value: following,
+      contribution: 0.5 * following,
+      source: null,
     },
     {
       name: "grievances kept unspoken",
