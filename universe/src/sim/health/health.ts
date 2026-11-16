@@ -68,6 +68,10 @@ export const HEALTH_EVENTS = {
   outbreak: defineEventType("health.outbreak", 4),
   /** A sickness of the home world gone home to the stars with strangers who came down. */
   went: defineEventType("health.went", 5),
+  /** A new strain of a sickness, thrown up where most were spared the old (Round D). */
+  strain: defineEventType("health.strain", 5),
+  /** A sickness held in herds come back to those who keep them (Round D). */
+  spilled: defineEventType("health.spilled", 4),
 };
 
 /** How sickness rises, travels and kills (each a share or a chance a year). */
@@ -134,9 +138,9 @@ export type Sickness = {
   readonly kind: string;
   readonly route: Route;
   readonly source: Source;
-  /** Of those it reaches who are not spared, the share who take it; of those, the share who die. */
-  readonly reach: number;
-  readonly deadliness: number;
+  /** Of those it reaches who are not spared, the share who take it; of those, the share who die (they evolve: strains.ts). */
+  reach: number;
+  deadliness: number;
   /** Years the survivors are spared it (60: for life). */
   readonly lasting: number;
   /** Where and when it rose, and the event of its rising. */
@@ -451,7 +455,7 @@ export function tollOf(
 }
 
 /** A sickness comes to a land: its dead, its spared, its grief; the event, already emitted. */
-function strike(
+export function strike(
   ctx: PopulationContext,
   s: Sickness,
   cell: number,
@@ -786,6 +790,74 @@ export function riseSickness(
     from: null,
     via: agent ? "god" : stars ? "stars" : null,
     ...(stars ? { strangers: stars.name } : {}),
+  });
+  return s;
+}
+
+/**
+ * A new strain of a sickness, thrown up where it burns among the spared (Round D, strains.ts): its parent's way of
+ * passing and lasting, its own harm and reach, named for the land it rose in; of the spared of its parent, a share are
+ * spared it; and its first coming there.
+ */
+export function branchSickness(
+  ctx: PopulationContext,
+  parent: Sickness,
+  cell: number,
+  nature: { reach: number; deadliness: number },
+  cause: Ref,
+  t: SimTime,
+  cross: number,
+): Sickness {
+  const { world } = ctx,
+    store = healthOf(world)!,
+    year = yearOfMoment(t),
+    ref = world.minter.mint(SICKNESS),
+    base = parent.name.replace(/^the (new )?/, ""),
+    name = `the new ${base}`,
+    event = world.events.emit({
+      type: HEALTH_EVENTS.strain.type,
+      subjects: [ref, parent.ref],
+      place: ctx.provinces.get(cell)?.ref ?? cellRef(0, cell),
+      causes: [
+        { ref: cause, role: "trigger", weight: 1 },
+        { ref: parent.event, role: "enabler", weight: 0.5 },
+      ],
+      data: {
+        sickness: name,
+        parent: parent.name,
+        deadliness: Math.round(nature.deadliness * 1000) / 10,
+        reach: Math.round(nature.reach * 100),
+      },
+    });
+  const s: Sickness = {
+    ref,
+    name,
+    kind: parent.kind,
+    route: parent.route,
+    source: parent.source,
+    reach: nature.reach,
+    deadliness: nature.deadliness,
+    lasting: parent.lasting,
+    cell,
+    year,
+    event,
+    people: parent.people,
+    struck: 0,
+    dead: 0,
+    last: year,
+    byDecade: [],
+    ended: null,
+  };
+  store.sicknesses.push(s);
+  // (Of those spared its parent, a share are spared it too.)
+  for (const l of [...store.lands.values()].sort((a, b) => a.cell - b.cell)) {
+    const v = store.immune(l.cell, parent.ref) * cross;
+    if (v >= 0.01) setImmune(l, ref, v);
+  }
+  strike(ctx, s, cell, t, {
+    causes: [{ ref: event, role: "trigger", weight: 1 }],
+    from: null,
+    via: null,
   });
   return s;
 }

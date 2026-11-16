@@ -2,6 +2,7 @@
 // province that suits them best — warm enough, watered, rich in what can be
 // gathered — whose choice is itself a recorded decision the explainer can open.
 import { installMotion } from "../planet/motion.ts";
+import { installStrains } from "../health/strains.ts";
 import {
   World,
   YEAR,
@@ -380,6 +381,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installWar(world, () => populationContext(world));
   installOrder(world, () => populationContext(world));
   installHealth(world, () => populationContext(world));
+  installStrains(world, () => populationContext(world));
   installCredit(world, () => populationContext(world));
   installFinance(world, () => populationContext(world));
   installStrife(world, () => populationContext(world));

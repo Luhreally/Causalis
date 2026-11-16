@@ -1142,3 +1142,10 @@ export {
   warmthShifted,
   type Shift,
 } from "./population/model.ts";
+export {
+  StrainStore,
+  strainLine,
+  strainsOf,
+  strainsYear,
+  type StrainLine,
+} from "./health/strains.ts";

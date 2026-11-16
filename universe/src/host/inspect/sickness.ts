@@ -14,10 +14,13 @@ import {
   loreOf,
   orderOf,
   populationContext,
+  strainLine,
+  strainsOf,
   type Route,
   type Sickness,
   type Via,
 } from "../../sim/index.ts";
+import { EVOLVE } from "../../rules/index.ts";
 import {
   ROUTE_WORDS,
   SOURCE_WORDS,
@@ -146,6 +149,60 @@ function underTheGlass(s: Sickness): Block {
 }
 
 /** A sickness: its nature, its rising, where it is now, who is spared it, its comings. */
+/** How a sickness has changed: its harm and reach then and now, its hosts, its parent and its strains (Round D). */
+function strainBlocks(world: World, s: Sickness): Block[] {
+  const l = strainLine(world, s.ref);
+  if (!l) return [];
+  const pct = (x: number) => `${x < 0.1 ? (x * 100).toFixed(1) : Math.round(x * 100)} in a hundred`,
+    store = healthOf(world),
+    children = (strainsOf(world)?.lines ?? []).filter((x) => x.parent === s.ref),
+    parent = l.parent ? store?.get(l.parent) : undefined,
+    rows: Stat[] = [
+      stat(
+        "Its harm",
+        `${pct(s.deadliness)} of those it takes die; ${pct(l.first.deadliness)} as it rose`,
+      ),
+      stat(
+        "Its reach",
+        `${pct(s.reach)} of those it meets take it; ${pct(l.first.reach)} as it rose`,
+      ),
+      stat(
+        "Its hosts",
+        l.range >= EVOLVE.reservoir
+          ? `it lives in herds as well as people (${Math.round(l.range * 100)} in a hundred of its world's kinds could hold it): it waits in them and comes back to those who keep them`
+          : l.range > 0.05
+            ? `mostly people now (${Math.round(l.range * 100)} in a hundred of its world's kinds)`
+            : "people alone",
+      ),
+      ...(parent ? [stat("A strain of", [sicknessLink(world, parent.ref)])] : []),
+      ...(children.length
+        ? [
+            stat(
+              "Its strains",
+              children.flatMap((c, i) => [...(i ? [", "] : []), sicknessLink(world, c.ref)]),
+            ),
+          ]
+        : []),
+    ],
+    points = l.past.map((r) => ({ x: r[0]!, y: r[1]! / 10 }));
+  return [
+    { type: "facts", title: "How it has changed", rows },
+    ...(points.length >= 2
+      ? [
+          {
+            type: "series" as const,
+            title: "Its harm",
+            units: "in a hundred die",
+            unit: "price" as const,
+            points,
+            latest: pct(s.deadliness),
+            note: "As it passes from host to host its harm moves toward what spreads it best: deadlier where it needs no host up and about (foul water, vermin) and in great crowds, milder on the breath.",
+          },
+        ]
+      : []),
+  ];
+}
+
 export function sicknessPage(world: World, ref: string): PageModel {
   const store = healthOf(world),
     s = store?.get(ref);
@@ -249,6 +306,8 @@ export function sicknessPage(world: World, ref: string): PageModel {
           unit: "people",
         },
         underTheGlass(s),
+        // (How it has changed as it passed from host to host: Round D.)
+        ...strainBlocks(world, s),
         {
           type: "tool",
           tool: "acts.sickness",

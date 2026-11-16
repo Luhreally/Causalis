@@ -1583,3 +1583,13 @@ export {
   type Day,
   type Season,
 } from "./seasons.ts";
+export {
+  EVOLVE,
+  FIRST_RANGE,
+  MOBILITY,
+  TRADE_OFF,
+  bestDeadliness,
+  reachFor,
+  selectionPace,
+  strainChance,
+} from "./pathogens.ts";
