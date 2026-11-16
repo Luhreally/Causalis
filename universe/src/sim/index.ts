@@ -120,6 +120,7 @@ export {
   fumeOf,
   keptAccount,
   machinesWanted,
+  transitionPower,
   workCover,
   type EnergyLand,
   type EnergyReading,

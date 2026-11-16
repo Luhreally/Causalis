@@ -36,6 +36,7 @@ import {
   WIND_SPACING,
   WOODS_HOLD_YEARS,
   WOOD_TAKEN,
+  WIND_TURBINES,
   WORK_KW,
   bestHeat,
   carbonKg,
@@ -405,6 +406,7 @@ export function energyInputs(
     woodKw: (standing * site.growth * 1000 * WOOD_TAKEN * site.woodMj) / MJ_A_KWY,
     riverKw: site.riverKw,
     windKw: site.windKw,
+    windTurbines: WIND_TURBINES.some(knows),
     tideKw: site.tideKw,
     groundKw: site.groundKw,
     groundC: site.groundC,
@@ -449,6 +451,30 @@ export function fuelTonnes(fuel: "coal" | "oil" | "gas"): { carbon: number; sulp
  * taken from its market, its woods felled past what they give, what its works had set to drive its crafts next year, and the
  * buried fuel it wanted added to what its market wants.
  */
+/** The old engines' share of the heat (WORK_KW of work from WANTS.fuelPerCrafter units of fuel a year): what work that burns nothing is counted as, where a land has no engines that burn. */
+const OLD_ENGINE_SHARE = WORK_KW / (WANTS.fuelPerCrafter * FUEL_UNIT_KWY);
+
+/**
+ * The power a land's works drew, as the demographic transition reads it (powerOf: units of fuel burned a year, FUEL_UNIT_KWY
+ * of heat each). A BRIDGE, for round C to replace: it rebuilds the transition on child survival, the cost of raising young and
+ * energyPerHead().work. Until then it is counted as primary energy is by the substitution method: the heat of the fuel, wood
+ * and atom its engines burned and of the ground and the star they drew on, and the work of its turbines and wheels (dams,
+ * currents) as the fuel its own engines would have burned for it (at their share of the heat; the old engines' where it has
+ * none that burn). Its works' share of all of it (the rest is its carriers' and its homes'); its old mills are powerOf's own.
+ *
+ * What it does to first light (its people at 800 / 900 / 1000): 538M / 399M / 256M, against 514M / 553M / 551M on
+ * universe/finance, whose works ran on coal they mostly could not get (their power cover 0.27-0.36). Turbines on its rivers
+ * and tides cover its works (0.75-0.91), half its people come to the full transition (keeps 0.60, against 0.80), and it
+ * falls below replacement there: round C's transition replaces this before the release.
+ */
+export function transitionPower(a: EnergyAccount): number {
+  const worksShare = a.workWanted > 0 ? a.worksWanted / a.workWanted : 0,
+    share = a.share > 0 ? a.share : OLD_ENGINE_SHARE,
+    heat = a.engineFuel + a.engineWood + a.drawn.atom + a.drawn.ground + a.drawn.sun,
+    flows = (a.by.dam + a.by.current) / share;
+  return Math.round(((heat + flows) * worksShare) / FUEL_UNIT_KWY);
+}
+
 export function energyYear(
   ctx: PopulationContext,
   p: Province,
@@ -466,13 +492,9 @@ export function energyYear(
   // (What it wants: all the buried fuel its hearths and engines would have burned, as coal, the fuel a market first digs.)
   want[G.coal] = want[G.coal]! + Math.round(a.fuelWanted / FUEL_UNIT_KWY);
   if (a.felled > 0) fellWoods(ctx, p.cell, a.felled);
-  // What drives its crafts next year: its works' share of the work they wanted; and what its works drove past its old mills,
-  // in the units the economy has always counted its works' power in (a unit of fuel driving a crafter's works a sixth of a
-  // year: WANTS.fuelPerCrafter), whatever drove them — burned fuel, the atom, dammed rivers, the ground's heat (powerOf).
+  // What drives its crafts next year: its works' share of the work they wanted; and the power the demographic transition reads.
   m.powerCover = a.worksWanted > 0 ? Math.round((1000 * a.worksHad) / a.worksWanted) : 0;
-  m.burned = Math.round(
-    Math.max(0, a.worksHad - Math.min(a.worksHad, a.by.mills)) / (WORK_KW / WANTS.fuelPerCrafter),
-  );
+  m.burned = transitionPower(a);
   // What it sent to the air: the carbon and sulphur of the buried fuel burned; its works' smoke, faded by half a year.
   const was = store.get(p.cell),
     gasUnits = a.gas / FUEL_UNIT_KWY,

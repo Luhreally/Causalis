@@ -491,6 +491,17 @@ export const SOURCE_BY: Readonly<Record<Exclude<Source, "none">, readonly string
   fission: ["greatest-fire"],
   fusion: ["fusion-power"],
 };
+/**
+ * The principles that let turbines take the wind for dynamos: blades light and strong enough to stand in a gale, shaped as a
+ * wing is (the first wind farms waited on the aeroplane's wing and on glass-fibre and carbon), or a current made even by
+ * solid-state switches. The tides and the rivers ask only for a dam and a dynamo.
+ */
+export const WIND_TURBINES: readonly string[] = [
+  "powered-wings",
+  "solid-state",
+  "polymer-wire",
+  "drawn-carbon",
+];
 /** The principles that make a heat engine: any one lets a land's works run on any heat it can tap. */
 export const HEAT_ENGINES: readonly string[] = [
   "steam-engine",
@@ -567,6 +578,8 @@ export type EnergyInputs = {
   readonly riverKw: number;
   readonly windKw: number;
   readonly tideKw: number;
+  /** Whether its turbines can take the wind (WIND_TURBINES): blades light and strong enough, their current made even. */
+  readonly windTurbines?: boolean;
   /** The ground's heat a land can draw (kW) and how hot (°C); its vents' heat (kW, 0: none) and theirs (°C). */
   readonly groundKw: number;
   readonly groundC: number;
@@ -723,18 +736,23 @@ export function energyAccount(i: EnergyInputs): EnergyAccount {
     by[s] += work;
     want -= work;
   };
-  // What flows: turbines on a share of it where dynamos carry their work; else wheels.
+  // What flows: turbines on a share of it where dynamos carry their work (the wind's only where blades can take it); else wheels.
   const flows = i.riverKw + i.windKw + i.tideKw,
-    flowWork = (cap: number, wheel: number, s: Source) => {
-      if (want <= 0 || flows <= 0 || cap <= 0) return;
+    flowWork = (cap: number, wheel: number, s: Source, wind = true) => {
+      const on = flows - (wind ? 0 : i.windKw);
+      if (want <= 0 || on <= 0 || cap <= 0) return;
       const can = Math.min(want, cap),
-        k = can / (flows * wheel);
+        k = can / (on * wheel);
       drawn.flow += i.riverKw * k;
-      drawn.wind += i.windKw * k;
+      if (wind) drawn.wind += i.windKw * k;
       drawn.tide += i.tideKw * k;
       gave(s, can);
     };
-  if (i.taps.has("dam")) flowWork(flows * DAMMED * TURBINE_SHARE, TURBINE_SHARE, "dam");
+  if (i.taps.has("dam")) {
+    const wind = !!i.windTurbines,
+      on = flows - (wind ? 0 : i.windKw);
+    flowWork(on * DAMMED * TURBINE_SHARE, TURBINE_SHARE, "dam", wind);
+  }
   if (i.taps.has("current")) flowWork(flows * WHEEL_SHARE, WHEEL_SHARE, "current");
   else if (i.taps.has("mills") && !i.taps.has("dam"))
     flowWork(Math.min(mills, flows * WHEEL_SHARE), WHEEL_SHARE, "mills");

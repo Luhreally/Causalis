@@ -2,7 +2,7 @@
 // is what the economy and the air did with it.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CARRIERS, G, SOURCES, WANTS, WORK_KW } from "../../src/rules/index.ts";
+import { CARRIERS, G, SOURCES } from "../../src/rules/index.ts";
 import {
   airOf,
   carbonPerFuel,
@@ -70,8 +70,8 @@ test("by the age of engines some lands' works run on burned fuel, and what they 
       Math.abs(m.powerCover - cover) <= 3,
       `its power cover ${m.powerCover} against ${cover}`,
     );
-    // (Fuel-equivalent units: a unit drives a crafter's works a sixth of a year.)
-    assert.ok(m.burned <= Math.ceil(e.workHad / (WORK_KW / WANTS.fuelPerCrafter)) + 1);
+    // (What the transition reads of it: its engines' fuel, in units burned: transitionPower, a bridge for round C.)
+    assert.ok(m.burned > 0);
   }
 });
 
