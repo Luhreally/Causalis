@@ -8,7 +8,9 @@
 //   3. a player's round, twice or more: the greatest realms' pages with every tab pressed, the ledger's, a town's; every lens of the globe;
 //      down to a land and a town and out to the stars and back; after each round the heaps, the vertex arrays, the graphics memory the
 //      engine counts and the page's elements read, and what a round adds after the first held to a little;
-//   4. a realm's page left open a minute while the years run at a century a second: the same read again.
+//   4. a realm's page left open a minute while the years run at a century a second: the same read again;
+//   5. the longest page of the greatest towns', the greatest realms' and the world's own held to a million characters, then left open on
+//      its longest tab as the years run, the elements it draws and the nodes alive (collected or not) held to a bound.
 // The budgets are for a phone's tab. An iPhone 15 Plus has 6 GB, and by what is told of it (not measured on one here) a tab is put away
 // somewhere between one and two gigabytes of all it holds, graphics with it: so the page's and the host's heaps are held to 450 MB
 // together, collected, which leaves as much again for what is not yet collected and the rest for the card. They are read after a
@@ -64,6 +66,14 @@ const BUDGET = {
   elements: 3000,
   /** A checkpoint at year 500, MB gzipped (1.9). */
   save: 5,
+  /**
+   * The longest page's characters as JSON (a town's was 2.9 million at year 1,500; the ledger's half a million is now the longest there),
+   * the elements on the page with it open on its longest tab (47,852 as it opened, 286,492 as the years ran), and the nodes alive at the
+   * most, collected or not (4.57 million).
+   */
+  pageChars: 1_000_000,
+  pageElements: 12_000,
+  nodesAlive: 300_000,
 };
 
 const problems: string[] = [],
@@ -402,6 +412,74 @@ let most = 0,
   await settle(1000);
   const r = hold("a realm's page left open a minute", await read());
   check(r.year > from, `the years did not run under an open page (year ${r.year})`);
+  await closePage();
+
+  // 5. The longest page: of the greatest towns', the greatest realms' and the ledger's, the one of the most words, held to a bound; then
+  // left open on its longest tab as the years run (a town's War tab named every one of its fallen: 19,046 lines, and a tab past seven
+  // gigabytes in two minutes).
+  const longest = await k<{
+    ref: string;
+    title: string;
+    chars: number;
+    tab: string;
+    tabChars: number;
+  }>(`(async () => {
+    const c = globalThis.causalis.client,
+      towns = (await c.query({ type: "towns.map", args: {} })).sort((a, b) => b.people - a.people).slice(0, 30),
+      realms = (await c.query({ type: "realms.map" })).sort((a, b) => b.people - a.people).slice(0, 6);
+    let best = null;
+    for (const ref of [...towns.map((x) => x.ref), ...realms.map((x) => x.ref), "world:ledger", "world:chronicle"]) {
+      const m = await c.query({ type: "page", args: { ref } }), chars = JSON.stringify(m).length;
+      if (best && chars <= best.chars) continue;
+      const tabs = m.tabs.map((x) => [x.name, JSON.stringify(x).length]).sort((a, b) => b[1] - a[1]);
+      best = { ref, title: m.title, chars, tab: tabs[0][0], tabChars: tabs[0][1] };
+    }
+    return best;
+  })()`);
+  say(
+    `the longest page of 38: ${longest.title}, ${(longest.chars / 1e3).toFixed(0)} thousand characters; its longest tab, ${longest.tab}, ${(longest.tabChars / 1e3).toFixed(0)} thousand`,
+  );
+  check(
+    longest.chars <= BUDGET.pageChars,
+    `the page of ${longest.title} is ${(longest.chars / 1e6).toFixed(2)} million characters (${BUDGET.pageChars / 1e6})`,
+  );
+  await k(`globalThis.causalis.open(${JSON.stringify(longest.ref)})`).catch(() => undefined);
+  await until(
+    "the longest page",
+    async () => (await k<string | null>("globalThis.causalis.pageOpen() ?? null")) === longest.ref,
+    slow(20000),
+  );
+  await settle(500);
+  await k(
+    `[...document.querySelectorAll(".page-window .tabs .tab")].find((b) => b.textContent.trim() === ${JSON.stringify(longest.tab)})?.click()`,
+  );
+  await settle(1500);
+  let drawn = 0,
+    alive = 0;
+  const until5 = Date.now() + slow(45000);
+  while (Date.now() < until5) {
+    await fastest();
+    await page.waitForTimeout(2500);
+    drawn = Math.max(drawn, await k<number>(`document.getElementsByTagName("*").length`));
+    const m = (await session.cdp.send("Performance.getMetrics")) as {
+      metrics: { name: string; value: number }[];
+    };
+    alive = Math.max(alive, m.metrics.find((x) => x.name === "Nodes")?.value ?? 0);
+  }
+  await stop();
+  await settle(1000);
+  say(
+    `left open on that tab as the years ran: ${drawn} elements on the page at the most, ${alive} nodes alive at the most (collected or not)`,
+  );
+  check(
+    drawn <= BUDGET.pageElements,
+    `the page of ${longest.title} drew ${drawn} elements (${BUDGET.pageElements})`,
+  );
+  check(
+    alive <= BUDGET.nodesAlive,
+    `${alive} nodes were alive with the page of ${longest.title} open (${BUDGET.nodesAlive})`,
+  );
+  hold("the longest page left open", await read());
   await closePage();
 }
 
