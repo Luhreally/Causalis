@@ -616,7 +616,7 @@ export type EnergyAccount = {
   /** Wood its engines burned (kW·yr), and wood felled past what its woods give (kW·yr). */
   readonly engineWood: number;
   readonly felled: number;
-  /** The buried fuel it would have burned, had it had it (kW·yr): its hearths' and its engines' want past what else they had. */
+  /** The buried fuel it wanted (kW·yr): what its hearths and engines would have burned of it had they had all they wanted, past what else they had. */
   readonly fuelWanted: number;
 };
 

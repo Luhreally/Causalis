@@ -138,12 +138,10 @@ export function landEnergyBlocks(world: World, cell: number): Block[] {
   const fume = fumeOf(world, cell);
   if (fume > 0.01)
     burned.push(stat("Its works' smoke", `${fume.toFixed(2)} kW of coal's smoke a head`));
-  if (e.fuelWanted > 0)
+  const without = Math.max(0, e.fuelWanted - e.coal - e.oil - e.gas);
+  if (without > 0)
     burned.push(
-      stat(
-        "Fuel it went without",
-        `${kwWords(e.fuelWanted / Math.max(1, e.people))} a head of heat`,
-      ),
+      stat("Fuel it went without", `${kwWords(without / Math.max(1, e.people))} a head of heat`),
     );
   if (burned.length) blocks.push({ type: "facts", title: "What it burns", rows: burned });
   blocks.push({

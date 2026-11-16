@@ -93,6 +93,7 @@ export type EnergyLand = {
   gas: number;
   own: number;
   felled: number;
+  /** The buried fuel its hearths and engines wanted, had they had it all (kW·yr). */
   fuelWanted: number;
   /** Carbon and sulphur its burning of buried fuel sent up (tonnes). */
   carbon: number;
@@ -430,8 +431,8 @@ export function energyYear(
   // What it burned of its market's buried fuel, in the units the market keeps.
   const coal = m.take("used", G.coal, Math.round(a.coal / FUEL_UNIT_KWY)),
     oil = m.take("used", G.oil, Math.round(a.oil / FUEL_UNIT_KWY));
-  // (What it wants: the fuel it burned and the fuel it went without, as coal, the fuel a market first digs.)
-  want[G.coal] = want[G.coal]! + Math.round((a.coal + a.fuelWanted) / FUEL_UNIT_KWY);
+  // (What it wants: all the buried fuel its hearths and engines would have burned, as coal, the fuel a market first digs.)
+  want[G.coal] = want[G.coal]! + Math.round(a.fuelWanted / FUEL_UNIT_KWY);
   if (a.felled > 0) fellWoods(ctx, p.cell, a.felled);
   // What drives its crafts next year: its works' share of what they wanted; what its engines' buried fuel and the atom drove,
   // as the economy has always counted fuel burned (a unit driving a crafter's works a sixth of a year: WANTS.fuelPerCrafter).
