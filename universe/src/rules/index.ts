@@ -1687,3 +1687,4 @@ export * from "./voice.ts";
 export * from "./urban.ts";
 export * from "./art.ts";
 export * from "./houses.ts";
+export * from "./kinforms.ts";

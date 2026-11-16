@@ -114,6 +114,8 @@ export type CallStanding = {
   /** How rested from their last war, 0 to 1. */
   readonly rested: number;
   readonly valour: number;
+  /** A call to kin: what it asks by the kin the tie made of them (rules/kinforms.ts kinCall); absent, a marriage's. */
+  readonly kin?: number;
 };
 
 /** The chance they come, and what most stands against it. */
@@ -130,7 +132,7 @@ export function callOdds(s: CallStanding): { chance: number; against: CallWhy } 
     chance = clamp(
       TIES.chanceLeast,
       TIES.chanceMost,
-      TIES.comes[s.bond] +
+      (s.bond === "kin" && s.kin !== undefined ? s.kin : TIES.comes[s.bond]) +
         hate +
         (s.valour - 0.5) * TIES.valourBy -
         afraidBy -
@@ -164,6 +166,14 @@ export function claimEnd(
 ): ClaimEnd {
   // A people who choose keep their choosing: one fostered among them can be named, and no one can march on it.
   if (form === "foster") return regard >= TIES.seatRegard && draw < 0.7 ? "seated" : "passedby";
+  // A hive's rule passes by its mother's line: a mother raised from the brood it was given is of its own brood, however it thinks
+  // of the hive that gave it, and no hive marches for one (rules/kinforms.ts).
+  if (form === "brood") return draw < 0.85 ? "seated" : "passedby";
+  // A reef grafted grows as one body: the two fuse as far as they think well enough of each other, else one of the graft is named.
+  if (form === "graft") {
+    if (regard >= TIES.seatRegard && share <= TIES.passShare && draw < 0.6) return "passes";
+    return regard >= TIES.seatRegard && draw < 0.85 ? "seated" : "passedby";
+  }
   if (regard >= TIES.passRegard && share <= TIES.passShare && draw < 0.6) return "passes";
   if (regard >= TIES.seatRegard && draw < 0.85) return "seated";
   if (form === "wed" && reach && 1 / Math.max(1e-6, share) >= TIES.warShare) return "war";

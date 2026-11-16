@@ -23,6 +23,14 @@ import { cellRef, offworldSite, tonguePersonName } from "../../gen/index.ts";
 import {
   COULD_NOT,
   TIES,
+  claimYearsOf,
+  generationOf,
+  heirlessChance,
+  heirsExpected,
+  kinCall,
+  tieRegard,
+  byLine,
+  FEMALE,
   callOdds,
   claimEnd,
   isFeared,
@@ -34,6 +42,7 @@ import {
 import type { PopulationContext } from "../population/systems.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
 import { homePlanet } from "../planet/store.ts";
+import { peopleLife } from "../population/life.ts";
 import { endRealm, politiesOf, realmName, type Polity, type Ruler } from "../polity/polity.ts";
 import { DIPLOMACY_EVENTS, diplomacyOf, type Relation } from "../diplomacy/diplomacy.ts";
 import { courtOf } from "../court/court.ts";
@@ -277,6 +286,40 @@ export function misreadOf(world: World, seer: Ref, seen: Ref, year: number): num
   return dmath.exp(spread * (2 * u - 1));
 }
 
+/** How a world's people make kin: how closely they live, a life of theirs, a generation and the heirs a line looks for (cached). */
+const KIN_FACTS = new Map<
+  string,
+  { social: number; span: number; generation: number; heirs: number }
+>();
+export function kinFactsOf(world: World): {
+  social: number;
+  span: number;
+  generation: number;
+  heirs: number;
+} {
+  const g = homePlanet(world).generated;
+  let k = KIN_FACTS.get(g.digest);
+  if (!k) {
+    const body = g.life.people?.body,
+      life = peopleLife(g);
+    k = {
+      social: body?.social ?? 0.8,
+      span: body?.span ?? 70,
+      generation: generationOf(life),
+      heirs: heirsExpected(life),
+    };
+    if (KIN_FACTS.size > 64) KIN_FACTS.clear();
+    KIN_FACTS.set(g.digest, k);
+  }
+  return k;
+}
+
+/** How long a tie of a form keeps anyone of it to come forward, on a world (rules/kinforms.ts claimYearsOf). */
+export function claimYearsFor(world: World, form: TieForm): number {
+  const k = kinFactsOf(world);
+  return claimYearsOf(form, k.span, k.generation, k.heirs);
+}
+
 /** What a people has for a marriage, read off what they are. */
 export function tieFormOf(world: World, p: Polity): TieForm {
   const body = homePlanet(world).generated.life.people?.body;
@@ -299,7 +342,7 @@ export function livingMatches(world: World, realm: Ref, year: number): StateMatc
   const realms = politiesOf(world);
   return (orderOf(world)?.of(realm)?.matches ?? []).filter((m) => {
     const q = realms.get(m.with);
-    return q && q.ended === null && year - m.year <= TIES.claimYears;
+    return q && q.ended === null && year - m.year <= claimYearsFor(world, m.form ?? "wed");
   });
 }
 
@@ -506,6 +549,16 @@ function answerOne(
       wars: wars.fighting(called.ref).length,
       rested: rested(called),
       valour: cultureOf(world).get(called.seat)?.traits[WAY.valour] ?? 0.5,
+      // (Kin come as far as the tie made them kin: rules/kinforms.ts.)
+      ...(bond === "kin"
+        ? {
+            kin: kinCall(
+              tieFormBetween(world, called, friend),
+              kinFactsOf(world).social,
+              TIES.comes.kin,
+            ),
+          }
+        : {}),
     }),
     draw = world.rng.real(STREAM, refKey(called.ref), t, 10 + (refKey(w.ref) % 1000)),
     came = could === null && draw < odds.chance,
@@ -514,7 +567,14 @@ function answerOne(
       {
         name: "what they are sworn to",
         value: 1,
-        contribution: TIES.comes[bond],
+        contribution:
+          bond === "kin"
+            ? kinCall(
+                tieFormBetween(world, called, friend),
+                kinFactsOf(world).social,
+                TIES.comes.kin,
+              )
+            : TIES.comes[bond],
         source: null,
       },
       { name: "the foe's strength", value: foeRatio, contribution: -foeRatio / 10, source: null },
@@ -968,7 +1028,9 @@ function bondsMade(ctx: PopulationContext, t: SimTime): void {
         other: NonNullable<typeof who>,
       ) => {
         o.matches = [
-          ...(o.matches ?? []).filter((m) => year - m.year <= TIES.claimYears),
+          ...(o.matches ?? []).filter(
+            (m) => year - m.year <= claimYearsFor(world, m.form ?? "wed"),
+          ),
           {
             with: withRealm,
             who: one.name,
@@ -989,7 +1051,8 @@ function bondsMade(ctx: PopulationContext, t: SimTime): void {
     keep(ob, b, a.ref, to, who);
     diplomacy.remember(a.ref, b.ref, {
       name: TIE_TERM[form],
-      value: TIES.tieOther + (form === "wed" ? 0.1 : 0),
+      // (As far as the tie makes the two houses kin: rules/kinforms.ts.)
+      value: tieRegard(form, kinFactsOf(world).social, TIES.tieOther),
       year,
       source: event,
     });
@@ -1041,9 +1104,14 @@ export function claimAtDeath(
   // Someone the court names is someone: the house goes on. No court to say: by the rule's chance.
   if (named) return null;
   const c = courtOf(world)?.of(p.ref);
-  if (!c && !(world.rng.real(STREAM, key, t, 30) < TIES.heirless)) return null;
+  // (As often as a generation of theirs leaves a line no heir: rules/kinforms.ts, the houses' own heirs.)
+  if (!c && !(world.rng.real(STREAM, key, t, 30) < heirlessChance(kinFactsOf(world).heirs)))
+    return null;
   const live = livingMatches(world, p.ref, year);
   if (!live.length || offworldSite(g, p.seat)) return null;
+  // (A line given (a hive's brood, a reef's graft) has no one to come forward until what was given has grown.)
+  const latest = [...live].sort((x, y) => y.year - x.year)[0]!;
+  if (byLine(latest.form ?? "wed") && year - latest.year < ctx.life.adulthood) return null;
   const realms = politiesOf(world),
     // The latest bond first.
     m = [...live].sort((x, y) => y.year - x.year)[0]!,
@@ -1063,13 +1131,15 @@ export function claimAtDeath(
         : drawn,
     u = (n: number) => world.rng.real(STREAM, key, t, 32 + n),
     grown = ctx.life.adulthood,
-    // A child of the marriage if one could be grown, else the one wed.
+    // A child of the marriage if one could be grown, else the one wed. (A hive's seat passes by the mother's line: a mother
+    // raised from the brood the other hive gave, of that hive's line, once that brood has grown.)
+    line = byLine(form),
     child = year - m.year >= grown,
     ways = cultureOf(world).get(p.seat),
-    sex = child ? (u(0) < 0.5 ? 0 : 1) : m.whoSex,
-    house = m.who.split(" ").slice(1).join(" "),
+    sex = form === "brood" ? FEMALE : child ? (u(0) < 0.5 ? 0 : 1) : m.whoSex,
+    house = (line ? m.to : m.who).split(" ").slice(1).join(" "),
     // (The one wed may be who has just died: then the one they were wed to, of the other house.)
-    widowed = !child && m.who === old.name,
+    widowed = !line && !child && m.who === old.name,
     name =
       child && ways
         ? `${tonguePersonName(ways.tongue, Math.floor(u(1) * 1e6), sex)} ${house}`.trim()

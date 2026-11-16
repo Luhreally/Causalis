@@ -1440,3 +1440,4 @@ export {
   type HousesRead,
   type RealmHouses,
 } from "./order/houses.ts";
+export { claimYearsFor, kinFactsOf } from "./war/ties.ts";
