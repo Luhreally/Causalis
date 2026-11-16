@@ -1159,3 +1159,13 @@ export {
   type Council,
 } from "./diplomacy/councils.ts";
 export { SPYING, SPY_EVENTS, SpyStore, spiesOf, spiesYear, type Spy } from "./war/spies.ts";
+export {
+  OCCUPATION_EVENTS,
+  OCCUPYING,
+  OccupationStore,
+  occupationOf,
+  occupationYear,
+  occupy,
+  reliefOf,
+  type Occupied,
+} from "./war/occupation.ts";

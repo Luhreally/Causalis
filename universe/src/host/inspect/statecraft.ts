@@ -18,6 +18,7 @@ import {
   electionsOf,
   politiesOf,
   realmName,
+  occupationOf,
   spiesOf,
   termOf,
   wantsOf,
@@ -25,6 +26,8 @@ import {
 } from "../../sim/index.ts";
 import { HOLDING } from "../../rules/index.ts";
 import { item, part, share, stat } from "./words.ts";
+import { landTitle } from "./names.ts";
+import { cellRef } from "../../gen/index.ts";
 
 /** Why a realm is ruled as it is: its numbers and whose sway is greatest, as formFromPowers reads them. */
 export function powersBlocks(world: World, r: Polity): Block[] {
@@ -76,6 +79,7 @@ export function powersBlocks(world: World, r: Polity): Block[] {
     ...electionBlocks(world, r),
     ...councilBlocks(world, r),
     ...spyBlocks(world, r),
+    ...occupationBlocks(world, r),
     ...wantsBlocks(world, r),
   ];
 }
@@ -237,6 +241,40 @@ function spyBlocks(world: World, r: Polity): Block[] {
     ...(abroad.length ? [{ type: "list" as const, title: "Its spies abroad", items: abroad }] : []),
     ...(within.length
       ? [{ type: "list" as const, title: "Spies in its lands, not yet caught", items: within }]
+      : []),
+  ];
+}
+
+/** The lands it holds by force and how far each fights it; and its own lands others hold so. */
+function occupationBlocks(world: World, r: Polity): Block[] {
+  const store = occupationOf(world);
+  if (!store) return [];
+  const realms = politiesOf(world),
+    line = (c: number, words: string) => item(`${landTitle(world, c)}: ${words}`, cellRef(0, c)),
+    held = store.heldBy(r.ref).map((c) => {
+      const o = store.of(c)!;
+      return line(
+        c,
+        `${o.rising ? "risen against it" : o.resistance > 0.1 ? "resisting" : "quiet"} (${share(o.resistance)}), taken from ${realms.get(o.from) ? realmName(realms.get(o.from)!) : "another"} in year ${o.since}`,
+      );
+    }),
+    lost = store.cells().flatMap((c) => {
+      const o = store.of(c)!;
+      if (o.from !== r.ref) return [];
+      const h = realms.get(o.holder);
+      return [
+        line(
+          c,
+          `held by ${h ? realmName(h) : "another"} since year ${o.since}, its people ${o.rising ? "risen" : "resisting"} (${share(o.resistance)})`,
+        ),
+      ];
+    });
+  return [
+    ...(held.length
+      ? [{ type: "list" as const, title: "Lands it holds by force", items: held }]
+      : []),
+    ...(lost.length
+      ? [{ type: "list" as const, title: "Its lands others hold by force", items: lost }]
       : []),
   ];
 }

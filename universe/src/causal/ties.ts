@@ -1,7 +1,7 @@
 // What binds realms, in words (D1): who was called and how they answered, a league gathered and let go, a marriage and what a people has for one, a claim and
 // what came of it, an envoy's errand, an embassy kept. Only ever what happened, who and why.
 import { yearOfMoment } from "../kernel/index.ts";
-import { COUNCIL_EVENTS, SPY_EVENTS, TIE_EVENTS } from "../sim/index.ts";
+import { COUNCIL_EVENTS, OCCUPATION_EVENTS, SPY_EVENTS, TIE_EVENTS } from "../sim/index.ts";
 import { registerDecisionWords, registerEventWords } from "./why.ts";
 
 type Data = Readonly<Record<string, unknown>> | null;
@@ -53,6 +53,18 @@ registerEventWords(COUNCIL_EVENTS.council.type, (_, e) => {
 registerEventWords(SPY_EVENTS.caught.type, (_, e) => {
   const since = (e.data as { since?: number } | null)?.since;
   return `${cap(text(e.data, "a"))} caught a spy of ${text(e.data, "b")}${since !== undefined ? `, there since year ${since}` : ""}, ${year(e.t)}`;
+});
+
+// Those of a land held by force against its holder (sim/war/occupation.ts).
+registerEventWords(OCCUPATION_EVENTS.insurgency.type, (_, e) => {
+  const kind = (e.data as { kind?: string } | null)?.kind,
+    a = text(e.data, "a"),
+    b = text(e.data, "b");
+  return kind === "rose"
+    ? `A land ${a} took from ${b} rose against it, its people fighting from their own ground, ${year(e.t)}`
+    : kind === "crushed"
+      ? `${cap(a)} put down those who fought it in a land it took from ${b}, ${year(e.t)}`
+      : `A land ${a} took from ${b} threw it off and went its own way, ${year(e.t)}`;
 });
 
 registerEventWords(TIE_EVENTS.answered.type, (_, e) => {

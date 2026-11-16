@@ -9,6 +9,7 @@
 // The fallen are written into the ledgers of deaths. A land won changes hands; its
 // people's grievance may raise it in rebellion back to the realm it was taken from.
 // Weariness brings peace, and the war is remembered in the realms' regard.
+import { OccupationStore, occupationYear, occupy } from "./occupation.ts";
 import { godFall, godMen, godPower } from "./godhost.ts";
 import {
   YEAR,
@@ -1619,8 +1620,9 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       });
       realms.leave(b, land);
       realms.join(a, land);
-      // A land taken by force resents its taker.
+      // A land taken by force resents its taker, and is held by force (sim/war/occupation.ts).
       realms.setDiscontent(land, { level: 1, cause: battle });
+      occupy(world, land, a.ref, b.ref, year);
       // A realm whose seat is taken falls, and its lands pass to its conqueror, aggrieved
       // (those not joined to the conqueror's own go their own way); else what the taken
       // land joined to its seat is cut off.
@@ -1629,6 +1631,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
           realms.leave(b, c);
           realms.join(a, c);
           realms.setDiscontent(c, { level: 0.6, cause: battle });
+          occupy(world, c, a.ref, b.ref, year);
         }
         endRealm(ctx, b, t, { ref: battle, role: "trigger", weight: 1 });
         cutOff(ctx, a, taken);
@@ -1744,6 +1747,10 @@ export function installWar(world: World, ctx: () => PopulationContext): WarStore
   installFar(world, ctx);
   world.addPinner(() => store.pinned());
   world.system({ key: "185.war.year", every: YEAR, run: (t) => warYear(ctx(), t) });
+  // (Lands held by force, and those who fight their holder there: sim/war/occupation.ts.)
+  const held = world.register(new OccupationStore());
+  world.addPinner(() => held.pinned());
+  world.system({ key: "185.war.zoccupied", every: YEAR, run: (t) => occupationYear(ctx(), t) });
   return store;
 }
 
