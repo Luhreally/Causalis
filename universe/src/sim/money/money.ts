@@ -73,6 +73,8 @@ import { LAW_OF } from "../order/laws.ts";
 import { creditOf } from "../credit/credit.ts";
 import { debtOf, financeOf, stakesBetween } from "../finance/finance.ts";
 import { armsKept, warsOf } from "../war/war.ts";
+import { armingSpend } from "../war/arming.ts";
+import { navyCost } from "../war/navy.ts";
 import {
   BIND,
   BIND_STORE,
@@ -857,8 +859,13 @@ export function treasuryYear(ctx: PopulationContext, t: SimTime): void {
       underArms = warsOf(world).fighting(p.ref).length > 0 ? fielded : standing,
       arms =
         12 *
-        appetite *
-        (underArms * TREASURY.armed + (fielded - underArms) * (TREASURY.armed - 1) * TREASURY.idle),
+          appetite *
+          (underArms * TREASURY.armed +
+            (fielded - underArms) * (TREASURY.armed - 1) * TREASURY.idle) +
+        // (And what it turns to arms of what it makes, sends into others' wars and keeps at sea: sim/war/arming.ts, navy.ts.
+        // Nothing where it does none of these.)
+        armingSpend(world, p.ref) +
+        navyCost(world, p.ref),
       interest = money ? (debtOf(money) * money.coupon) / 10_000 : 0,
       tariffs = duties?.get(p.ref)?.[DUTY.revenue] ?? 0,
       seigniorage = coin?.get(p.ref)?.[COIN.seigniorage] ?? 0,
