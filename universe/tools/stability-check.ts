@@ -119,7 +119,25 @@ try {
         document.dispatchEvent(new Event("visibilitychange"));
       });
       await page.reload();
-      await page.waitForFunction((to) => (causalis?.client?.status?.t ?? 0) >= to, 5 * YEAR);
+      // (On a failure, what the page did hold: its year, its saves, its errors, so a runner's failure says why.)
+      await page
+        .waitForFunction((to) => (causalis?.client?.status?.t ?? 0) >= to, 5 * YEAR, {
+          timeout: 60_000,
+        })
+        .catch(async (e) => {
+          const seen = await page
+            .evaluate(async () => ({
+              url: location.href,
+              t: causalis?.client?.status?.t ?? null,
+              saves: (await causalis?.client?.saves?.())?.map((v: { name: string; t: number }) => [
+                v.name,
+                v.t,
+              ]),
+            }))
+            .catch((x) => String(x));
+          console.log(`${engine.name()}: after the reload`, JSON.stringify(seen), errors);
+          throw e;
+        });
       console.log(`${engine.name()}: background checkpoint and reload retain year 5`);
 
       // The minute timer, without waiting a real minute or changing the simulation's clock.
