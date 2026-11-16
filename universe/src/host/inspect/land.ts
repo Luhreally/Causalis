@@ -29,6 +29,8 @@ import {
   siteGround,
 } from "../../sim/index.ts";
 import { folkRef, waysRef } from "../../causal/index.ts";
+import { waysWhyBlock } from "./ways.ts";
+import { lettersBlock } from "./letters.ts";
 import { parseRef, type Ref, type World } from "../../kernel/index.ts";
 import type { Block, Item, Line, PageModel, Place, Row, Stat, Tab } from "../../bridge/index.ts";
 import { cell as spotFacts, market, province } from "../planet.ts";
@@ -256,6 +258,12 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
           stat("Names they give", p.ways.sounds.join(", ")),
         ],
       });
+    // What makes their ways what they are (rules/ways.ts): their body, their land, what they have seen go well, their faith.
+    const why = waysWhyBlock(world, cell);
+    if (why) blocks.push(why);
+    // Who reads, and what their teaching reaches (rules/letters.ts).
+    const letters = lettersBlock(world, cell);
+    if (letters) blocks.push(letters);
     if (p.faith)
       blocks.push({
         type: "facts",

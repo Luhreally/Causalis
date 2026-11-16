@@ -25,6 +25,7 @@ import {
   orderOf,
   politiesOf,
   populationContext,
+  readersOf,
   type Polity,
 } from "../sim/index.ts";
 import { blocsOf } from "./inspect/ties.ts";
@@ -57,6 +58,8 @@ export const LAND_COLUMNS = [
   "trade",
   /** Its dead of sickness, all of them since its years were first kept. */
   "sick",
+  /** Who of its people read, in a thousand (rules/letters.ts; absent in a save from before it: unread there). */
+  "read",
 ] as const;
 export type LandColumn = (typeof LAND_COLUMNS)[number];
 
@@ -281,8 +284,13 @@ export class YearsStore implements StateStore {
     this.last = s.last;
     this.landYears = [...s.landYears];
     this.lands.clear();
-    for (const r of s.lands)
-      this.lands.set(r.key, { from: r.from, cols: r.cols.map((c) => [...c]) });
+    for (const r of s.lands) {
+      // (A column a save from before it lacks: unread in each of its decades.)
+      const cols = LAND_COLUMNS.map((_, i) =>
+        r.cols[i] ? [...r.cols[i]!] : (r.cols[0] ?? []).map(() => UNREAD),
+      );
+      this.lands.set(r.key, { from: r.from, cols });
+    }
     this.landRealm.clear();
     for (const l of s.landRealm)
       this.landRealm.set(l.key, { first: l.first, y: [...l.y], v: [...l.v] });
@@ -392,6 +400,7 @@ export function landNow(
     people ? toSteps(net / people) : 0,
     toSteps(sent.get(cell) ?? 0, TRADE_STEPS),
     healthOf(world)?.land(cell)?.dead ?? 0,
+    Math.round(readersOf(world, cell) * 1000),
   ];
 }
 

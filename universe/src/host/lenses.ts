@@ -14,6 +14,8 @@ import {
   politiesOf,
   populationContext,
   realmName,
+  readersOf,
+  teachingOf,
   type Polity,
 } from "../sim/index.ts";
 import { principleName } from "../causal/index.ts";
@@ -51,6 +53,8 @@ export const DEEP_LENSES = [
   "forest",
   // The camps, and how much each realm fears another's way (sim/finance).
   "camps",
+  // Who reads, land by land (rules/letters.ts).
+  "letters",
 ] as const;
 export type DeepLens = (typeof DEEP_LENSES)[number];
 
@@ -86,6 +90,8 @@ export type LandReadings = {
   readonly debt: number;
   /** Its realm's camp and fear (host/inspect/finance.ts campValue: -1 … 1; -2 no realm's). */
   readonly camps: number;
+  /** The share of its people who read (rules/letters.ts). */
+  readonly letters: number;
 };
 
 /** The ids a land knows: its lore, and sowing and smelting, which it knows in its own ways. */
@@ -166,6 +172,7 @@ export function landReadings(world: World): (cell: number) => LandReadings {
       sickness: Math.round(sicknessValue(world, cell) * 1000) / 1000,
       debt: Math.round(debtValue(world, cell) * 1000) / 1000,
       camps: campValue(world, cell),
+      letters: Math.round(readersOf(world, cell) * 1000) / 1000,
     };
   };
 }
@@ -221,6 +228,18 @@ export function lensReading(
       return debtReading(world, cell);
     case "camps":
       return campReading(world, cell);
+    case "letters": {
+      const t = teachingOf(ctx, prov);
+      return {
+        line: `Letters: ${share(readersOf(world, cell))} read`,
+        stats: [
+          { label: "A generation on", value: share(t.target) },
+          { label: "Their script", value: t.script ? "they write" : "none" },
+          { label: "A school", value: t.school ? "stands" : "none" },
+          { label: "Spared from the food", value: share(t.spare) },
+        ],
+      };
+    }
     case "laws":
       return lawReading(
         world,

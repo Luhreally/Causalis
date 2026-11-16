@@ -226,12 +226,21 @@ export {
   type Window,
 } from "./hand/hand.ts";
 export {
+  CULTURE_EVENTS,
   CultureStore,
-  PUSHES,
   WAY,
   WAY_TRAITS,
+  bodyWays,
   cultureOf,
   cultureYear,
+  decadeOf,
+  isSign,
+  landRead,
+  landWays,
+  waysBeliefOf,
+  waysLearned,
+  waysReading,
+  waysTarget,
   type Nudge,
   type Ways,
   type WayTrait,
@@ -455,6 +464,9 @@ export {
   TENETS,
   beliefOf,
   beliefYear,
+  creedOfFaith,
+  heldCreed,
+  heldScripture,
   installBelief,
   type Belief,
   type Faith,
@@ -1118,6 +1130,15 @@ export {
   type Fear,
   type Money,
 } from "./finance/finance.ts";
+export {
+  LETTERS_EVERY,
+  LettersStore,
+  installLetters,
+  lettersOf,
+  lettersYear,
+  readersOf,
+  teachingOf,
+} from "./lore/letters.ts";
 export {
   FALL_LEAST,
   GREAT_DEPTH,

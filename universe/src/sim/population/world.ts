@@ -31,13 +31,22 @@ import { installActs } from "../acts/acts.ts";
 import { installGreatActs } from "../acts/great.ts";
 import { clusterOf } from "../space/voyages.ts";
 import { installHand } from "../hand/hand.ts";
-import { CultureStore, cradleWays, driftedWays, type Ways } from "../culture/culture.ts";
+import {
+  CultureStore,
+  bodyWays,
+  cradleWays,
+  driftedWays,
+  landShift,
+  landWays,
+  type Ways,
+} from "../culture/culture.ts";
 import { foundLanguages, installLanguages } from "../culture/languages.ts";
 import { installAir } from "../climate/air.ts";
 import { installSpace } from "../space/space.ts";
 import { installPolities } from "../polity/polity.ts";
 import { installBelief } from "../belief/belief.ts";
 import { installLore } from "../lore/lore.ts";
+import { installLetters } from "../lore/letters.ts";
 import { installLessons } from "../lore/lessons.ts";
 import { installDiplomacy } from "../diplomacy/diplomacy.ts";
 import { installWar } from "../war/war.ts";
@@ -253,21 +262,42 @@ export function openingWays(
   cradle: Ways,
   from: Ref | null,
   stride: number = SPREAD.stride,
+  /** The world they spread over: each land they came to draws their ways as the one they left did not (absent: none does). */
+  g?: HomeWorld,
 ): Map<number, Ways> {
   const ways = new Map<number, Ways>([[cradle.cell, cradle]]),
-    ring = new Map(lands.map(([cell, r]) => [cell, r]));
+    ring = new Map(lands.map(([cell, r]) => [cell, r])),
+    medium = g?.life.people?.body.medium ?? "land",
+    appetite = g ? peopleLife(g).appetite : 1;
   for (const [cell, r, back] of lands)
     if (cell !== cradle.cell)
       ways.set(
         cell,
-        driftedWays(source, ways.get(back)!, cell, (r - ring.get(back)!) * stride, from),
+        driftedWays(
+          source,
+          ways.get(back)!,
+          cell,
+          (r - ring.get(back)!) * stride,
+          from,
+          g ? landShift(g, back, cell, medium, appetite) : undefined,
+        ),
       );
   return ways;
 }
 
-/** The ways the first people rose with (keyed on the world's name: its acts change them only through what they change). */
-export function firstWays(home: number, text: string, from: Ref | null): Ways {
-  return cradleWays(home, hashString(`culture ${seedName(text)}`), from);
+/**
+ * The ways the first people rose with: as their body and their cradle make them, where the world is given (keyed on the
+ * world's name: its acts change them only through what they change).
+ */
+export function firstWays(home: number, text: string, from: Ref | null, g?: HomeWorld): Ways {
+  const lean = g
+    ? (() => {
+        const body = bodyWays(g.life.people?.body),
+          land = landWays(g, home, g.life.people?.body.medium ?? "land", peopleLife(g).appetite);
+        return body.map((x, k) => x + land[k]!);
+      })()
+    : undefined;
+  return cradleWays(home, hashString(`culture ${seedName(text)}`), from, lean);
 }
 
 /** The most of what a land feeds, sown and gathered, that a settled people read from afar is seated at. */
@@ -374,6 +404,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installHand(world);
   installPolities(world, () => populationContext(world));
   installBelief(world, () => populationContext(world));
+  installLetters(world, () => populationContext(world));
   installLore(world, () => populationContext(world));
   installLessons(world, () => populationContext(world));
   installLost(world, () => populationContext(world));
@@ -477,7 +508,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   world.addPinner(() => culture.pinned());
   // (Keyed on the world's name: the acts laid on its dawn change its ways only through what they
   // change of its people and land.)
-  const cradle = firstWays(home, seed.text, origin);
+  const cradle = firstWays(home, seed.text, origin, g);
   culture.set(cradle);
   if (options.start !== "spread") {
     people(provinces.add(new Province(home, 0, origin)), first, peopleLife(g));
@@ -496,7 +527,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
     causes: [{ ref: origin, role: "trigger", weight: 1 }],
     data: { provinces: lands.length, people: sizes.reduce((a, b) => a + b, 0) },
   });
-  const ways = openingWays(world, lands, cradle, spread, homePlanet(world).generated.stride);
+  const ways = openingWays(world, lands, cradle, spread, homePlanet(world).generated.stride, g);
   lands.forEach(([cell], i) => {
     people(
       provinces.add(new Province(cell, 0, cell === home ? origin : spread)),

@@ -11,6 +11,7 @@ import {
   orderOf,
   politiesOf,
   populationContext,
+  readersOf,
   warsOf,
   type Polity,
   type War,
@@ -606,6 +607,26 @@ export function landTimeTab(world: World, cell: number): Tab | null {
         series("Dead of sickness", "a year", "count", dead, {
           note: "A year's dead of sickness, on the mean of each span between two years kept.",
         }),
+      );
+    // Who read (rules/letters.ts): from their first decade with a script.
+    const read = kept(col("read")),
+      first = read.findIndex((q) => q.y > 0);
+    if (first >= 0)
+      blocks.push(
+        series(
+          "Who read",
+          "of them",
+          "share",
+          withNow(
+            read.slice(Math.max(0, first - 1)).map((q) => ({ x: q.x, y: q.y / 1000 })),
+            now,
+            readersOf(world, cell),
+          ),
+          {
+            marks,
+            note: "The share of its people who read; read once a decade. A generation brings a land most of the way to what its teaching reaches.",
+          },
+        ),
       );
   }
   blocks.push(

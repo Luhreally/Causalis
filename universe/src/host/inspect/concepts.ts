@@ -11,6 +11,7 @@ import { CREDIT_CONCEPTS, CREDIT_CONCEPT_OF } from "./credit-concepts.ts";
 import { FINANCE_CONCEPTS, FINANCE_CONCEPT_OF } from "./finance-concepts.ts";
 import { STRIFE_CONCEPTS, STRIFE_CONCEPT_OF } from "./strife-concepts.ts";
 import { LIVES_CONCEPTS, LIVES_CONCEPT_OF } from "./lives-concepts.ts";
+import { PEOPLES_CONCEPTS, PEOPLES_CONCEPT_OF } from "./peoples-concepts.ts";
 
 /** A concept: its icon and name, and what the book says of it. */
 export type Concept = {
@@ -177,13 +178,14 @@ export const CONCEPTS: Readonly<Record<string, Concept>> = {
     icon: "✨",
     title: "Faith",
     what: [
-      "A faith is founded on omens: what befell a land in a year — the god's own acts, a famine, a drought, a first sowing — each speaking of a god, the more readily the more pious its people.",
+      "A faith is founded on omens: what befell a land in a year — the god's own acts, a famine, a drought, a sickness that took many, a quake or a fire that came of itself, a star seen to fall, a first sowing — each speaking of a god, the more readily the more pious its people.",
+      "What it holds is what its founders took the power to be: one that harms, to be warded off (custom, thrift, wariness of strangers); one that gives, to be thanked (feasts, kin, sharing); one that knows, to be learned from (against custom, its teaching written, and so more who read); one that walks among them (rank and devotion). It hallows, too, what marked its founders. Held for a generation, a faith draws its lands' ways half the way to what it holds.",
       "It spreads to neighbours alike in speech, by roads, the faster from a holy seat, the slower to a land already holding a faith.",
       "Where three or more of its lands no longer speak like its home, they may break away: a schism, a faith of their own.",
     ],
     drives: ["Omens and piety; speech and roads for its spread."],
     leads: [
-      "Piety growing; the temple's say in the tithe and in holy war; warmth between realms of one faith.",
+      "Ways drawn toward its creed, and through them how realms are held; readers where it teaches written; the temple's say in the tithe and in holy war; warmth between realms of one faith.",
     ],
     see: [
       { text: "The faiths by their faithful", ref: "world:ledger#faiths" },
@@ -454,6 +456,7 @@ export const CONCEPTS: Readonly<Record<string, Concept>> = {
   ...FINANCE_CONCEPTS,
   ...STRIFE_CONCEPTS,
   ...LIVES_CONCEPTS,
+  ...PEOPLES_CONCEPTS,
 };
 
 /** Which concept a number is a measure of, by its label on the pages. */
@@ -522,6 +525,7 @@ export const CONCEPT_OF: Readonly<Record<string, string>> = {
   ...FINANCE_CONCEPT_OF,
   ...STRIFE_CONCEPT_OF,
   ...LIVES_CONCEPT_OF,
+  ...PEOPLES_CONCEPT_OF,
 };
 
 /** A page's numbers and facts, each linked to the concept it measures (where it has one). */

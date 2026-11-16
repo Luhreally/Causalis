@@ -18,14 +18,22 @@ import {
   partStuff,
   politiesOf,
   populationContext,
+  creedOfFaith,
   type Design,
+  type Faith,
 } from "../../sim/index.ts";
+import { WAY_WORDS } from "../../causal/index.ts";
 import {
   GOODS,
   GOOD_MATTER,
   STONES,
   designWords,
   partWords,
+  POWERS,
+  POWER_WORDS,
+  TENET_POWERS,
+  WAY_TRAITS,
+  scriptureOfTenet,
   type Part,
 } from "../../rules/index.ts";
 import { armsMade, goodChain, hostPartWords, hostWords } from "../chain.ts";
@@ -82,6 +90,7 @@ export function faithPage(world: World, ref: string): PageModel {
             ...(f.from ? [stat("Split from", [faithLink(world, f.from)], { why: f.event })] : []),
           ],
         },
+        creedBlock(f),
         { type: "why", title: "How it began", ref: f.ref },
       ],
     },
@@ -120,6 +129,36 @@ export function faithPage(world: World, ref: string): PageModel {
     tabs,
     followable: false,
     year: yearNow(world),
+  };
+}
+
+/** What a faith holds (rules/faith.ts): the power behind the world, and what it draws its faithful toward and away from. */
+function creedBlock(f: Faith): Block {
+  const powers = TENET_POWERS[f.tenet] ?? {},
+    creed = creedOfFaith(f),
+    marked = WAY_TRAITS.map((t, k) => ({ t, v: creed[k]! }))
+      .filter((x) => Math.abs(x.v) >= 2)
+      .sort((a, b) => Math.abs(b.v) - Math.abs(a.v) || (a.t < b.t ? -1 : 1));
+  const toward = marked.filter((x) => x.v > 0).map((x) => WAY_WORDS[x.t]![1]),
+    away = marked.filter((x) => x.v < 0).map((x) => WAY_WORDS[x.t]![1]);
+  return {
+    type: "facts",
+    title: "What it holds",
+    rows: [
+      stat(
+        "The power",
+        POWERS.filter((p) => (powers[p] ?? 0) > 0)
+          .sort((a, b) => (powers[b] ?? 0) - (powers[a] ?? 0))
+          .map((p) => POWER_WORDS[p])
+          .join("; "),
+      ),
+      ...(toward.length ? [stat("It asks them to", toward.join(", "))] : []),
+      ...(away.length ? [stat("It draws them from", away.join(", "))] : []),
+      stat(
+        "Its teaching",
+        scriptureOfTenet(f.tenet) > 0 ? "written, and taught to all it can spare" : "kept by its priests",
+      ),
+    ],
   };
 }
 

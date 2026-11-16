@@ -48,6 +48,7 @@ export const LENSES = [
   "debt",
   "camps",
   "blocs",
+  "letters",
 ] as const;
 export type Lens = (typeof LENSES)[number];
 
@@ -84,6 +85,7 @@ export const LENS_NAMES: Readonly<Record<Lens, string>> = {
   camps: "Camps",
   forest: "Forest",
   blocs: "Alliances",
+  letters: "Letters",
 };
 
 /** Each map mode's icon, for the map modes' bar (Phase 10 M96). */
@@ -120,6 +122,7 @@ export const LENS_ICONS: Readonly<Record<Lens, string>> = {
   camps: "🧭",
   forest: "🌲",
   blocs: "🪢",
+  letters: "📖",
 };
 
 /** How every land stands toward the realm the diplomacy lens is of, in its colours. */
@@ -495,6 +498,13 @@ const WEALTH: readonly Stop[] = [
   [1, [1, 0.98, 0.8]],
 ];
 /** How many things a land knows (of some 85 to be found): the few to the learned. */
+/** Who reads in a land, none (clay) to all (ink-blue): the root, so that the first few who read show (rules/letters.ts). */
+const LETTERS_RAMP: readonly Stop[] = [
+  [0, [0.42, 0.28, 0.2]],
+  [0.25, [0.88, 0.66, 0.28]],
+  [0.55, [0.3, 0.68, 0.7]],
+  [1, [0.14, 0.22, 0.68]],
+];
 const KNOWLEDGE: readonly Stop[] = [
   [0, [0.36, 0.26, 0.22]],
   [6, [0.46, 0.3, 0.62]],
@@ -683,6 +693,7 @@ const DEEP: Readonly<
   debt: { stops: DEBT, at: (v) => v, shown: () => true },
   camps: { stops: CAMPS_RAMP, at: (v) => (v + 1) / 2, shown: (v) => v > -2 },
   forest: { stops: WOODS_RAMP, at: (v) => v, shown: () => true },
+  letters: { stops: LETTERS_RAMP, at: (v) => Math.sqrt(v), shown: () => true },
 };
 
 /**
@@ -932,6 +943,7 @@ export function globeColors(
       case "sickness":
       case "debt":
       case "camps":
+      case "letters":
       case "forest": {
         const v = values?.get(province),
           deep = DEEP[lens];
@@ -1165,6 +1177,8 @@ export function lensLegend(lens: Lens, kind = "rocky", look?: string): Legend {
       };
     case "forest":
       return { kind: "ramp", stops: stops(WOODS_RAMP), low: "bare", high: "thick" };
+    case "letters":
+      return { kind: "ramp", stops: stops(LETTERS_RAMP), low: "none read", high: "all" };
     case "belief":
       return {
         kind: "keys",
