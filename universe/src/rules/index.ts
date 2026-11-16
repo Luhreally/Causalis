@@ -1688,3 +1688,4 @@ export * from "./temple.ts";
 export * from "./voice.ts";
 export * from "./urban.ts";
 export * from "./art.ts";
+export * from "./trade.ts";

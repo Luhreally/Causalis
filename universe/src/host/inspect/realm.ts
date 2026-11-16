@@ -3,6 +3,7 @@
 // its battles and its two hosts, a battle, and a war between the stars.
 import { realmCultureBlocks } from "./folkways.ts";
 import { realmLabourBlocks, realmTreasuryBlocks } from "./money.ts";
+import { realmTradeBlocks } from "./trade.ts";
 import { realmLessonBlocks } from "./lessons.ts";
 import { realmTiesTab, warSideBlocks } from "./ties.ts";
 import { cellRef, offworldSite } from "../../gen/index.ts";
@@ -278,7 +279,8 @@ export function realmPageModel(
   }
   // Its treasury (Round B): its money and prices, its taxes and spending, its borders' tariffs and sanctions, its pooled risk.
   if (wants("treasury")) {
-    const treasury = realmTreasuryBlocks(world, r);
+    // (And its years of plenty and want, its exchange, its plan, its price on smoke: p87.)
+    const treasury = [...realmTreasuryBlocks(world, r), ...realmTradeBlocks(world, r)];
     if (treasury.length) tabs.push({ id: "treasury", name: "Treasury", blocks: treasury });
   }
   // Its labour (Round B): whom its holders bind and why, its guilds and unions, how its income is shared.

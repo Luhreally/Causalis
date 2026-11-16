@@ -45,6 +45,7 @@ import {
   priceLevel,
   rentOf,
   sanctionWanted,
+  sharedOut,
   shipLoss,
   smuggled,
   tariffWanted,
@@ -102,6 +103,7 @@ import {
   stepped,
 } from "./kept.ts";
 import { intoxYear, prohibitionYear } from "./intox.ts";
+import { machineIncome, plannedOf, townRentOf } from "../trade/kept.ts";
 
 export const MONEY_EVENTS = {
   /** What serves a realm as money changed: coin first struck, notes first issued, the lenders' claims passing as money. */
@@ -370,8 +372,10 @@ export function labourYear(ctx: PopulationContext, t: SimTime): void {
           )
         : 0,
       surplus = bound * workers * Math.max(0, w[OCC.farmer]! - livingWorker),
+      // (And what its town's ground and its machines earn their holders: sim/trade, p87.)
+      owned = townRentOf(world, c) + machineIncome(world, c),
       landed = holdersShare(spread) * (1 - common),
-      toAll = ((rent + surplus) * common) / pop,
+      toAll = ((rent + surplus + owned) * common) / pop,
       groups: Earners[] = [];
     for (const occ of [OCC.forager, OCC.farmer, OCC.herder, OCC.crafter, OCC.trader, OCC.leader]) {
       const n = prov.occupation(occ) * (1 - bound) * ratio * (1 - landed),
@@ -387,9 +391,10 @@ export function labourYear(ctx: PopulationContext, t: SimTime): void {
     if (landed > 0)
       groups.push({
         people: landed * pop,
-        each: ((rent + surplus) * (1 - common)) / Math.max(1, landed * pop) + toAll,
+        each: ((rent + surplus + owned) * (1 - common)) / Math.max(1, landed * pop) + toAll,
       });
-    const lz = lorenz(groups);
+    // (What its realm's plan shares out by need, it shares alike: sim/trade, p87.)
+    const lz = lorenz(sharedOut(groups, plannedOf(world, realm?.ref)));
     shares.set(c, [
       ...lz.fifths.map((x) => x * 1000),
       lz.gini * 1000,

@@ -1440,3 +1440,35 @@ export { URBAN_EVERY, urbanOf, urbanYear, wagesOfLand } from "./population/urban
 export { ART_EVERY, artMakers, artOf, artYear } from "./culture/art.ts";
 export { installCultureSweep } from "./culture/sweep.ts";
 export { addsStanding, type StandingOf } from "./order/order.ts";
+  COMMERCE_EVENTS,
+  TRADE_EVERY,
+  capitalYear,
+  cycleYear,
+  installCommerce,
+  planYear,
+  rentYear,
+  smokeYear,
+} from "./trade/trade.ts";
+export {
+  CAP,
+  CAPITAL_STORE,
+  CY,
+  CYCLE_STORE,
+  EX,
+  EXCHANGE_STORE,
+  PL,
+  PLAN_STORE,
+  RENT_STORE,
+  RT,
+  SM,
+  SMOKE_STORE,
+  TRADE_STORES,
+  craftsKept,
+  idleOf,
+  machineIncome,
+  machinesAtWork,
+  plannedOf,
+  smokeCut,
+  townRentOf,
+  tradeStore,
+} from "./trade/kept.ts";
