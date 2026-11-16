@@ -7,6 +7,7 @@ import { EARTH } from "../../src/host/planet.ts";
 import { levyPlaces } from "../../src/host/fallen.ts";
 import { townRoster } from "../../src/host/roster.ts";
 import { count } from "../../src/host/inspect/words.ts";
+import { WAR_TAB } from "../../src/host/inspect/settled.ts";
 import { meetHousehold, observer, settleAll, type Person } from "../../src/causal/index.ts";
 import type { Item, Line, PageModel } from "../../src/bridge/index.ts";
 import { universeWorld } from "./worlds.ts";
@@ -141,7 +142,9 @@ test("a town's War tab: each battle its men went to, newest first, and who fell 
     p.tabs.some((t) => t.id === "war"),
     "the town has a war tab",
   );
-  for (const b of battles) {
+  // (Its newest battles are told, so many of them: a town long at war has more than a page holds.)
+  const toldOf = [...battles].reverse().slice(0, WAR_TAB.battles);
+  for (const b of toldOf) {
     const mine = items.filter((i) => i.ref === b.event);
     assert.equal(mine.length, 1, `${b.event} has one item`);
     assert.ok(
@@ -155,13 +158,42 @@ test("a town's War tab: each battle its men went to, newest first, and who fell 
     [...years].sort((a, b) => b - a),
     "newest first",
   );
-  for (const b of battles)
-    for (const m of b.men)
-      if (m.fate === "fell")
-        assert.ok(
-          items.some((i) => i.ref === m.holder.ref && words(i.line).startsWith("Fell there: ")),
-          `${m.holder.ref} is named as fallen there`,
-        );
+  // (Of each battle's fallen the first are named, so many; the rest are counted in a line after them.)
+  for (const b of toldOf) {
+    const fell = b.men.filter((m) => m.fate === "fell");
+    assert.equal(
+      townRoster(world, town.ref).fallen(b),
+      fell.length,
+      `${b.event}: its fallen counted`,
+    );
+    assert.deepEqual(
+      townRoster(world, town.ref)
+        .fell(b)
+        .map((h) => h.ref),
+      fell.map((m) => m.holder.ref),
+      `${b.event}: its fallen as its men have them`,
+    );
+    for (const m of fell.slice(0, WAR_TAB.named))
+      assert.ok(
+        items.some((i) => i.ref === m.holder.ref && words(i.line).startsWith("Fell there: ")),
+        `${m.holder.ref} is named as fallen there`,
+      );
+    if (fell.length > WAR_TAB.named) {
+      assert.ok(
+        items.some(
+          (i) =>
+            i.year === b.year &&
+            words(i.line) ===
+              `And ${count(fell.length - WAR_TAB.named)} more of its own fell there.`,
+        ),
+        `${b.event}: its other fallen are counted`,
+      );
+    }
+  }
+  assert.ok(
+    items.length <= WAR_TAB.battles * (WAR_TAB.named + 2) + ledger.persons.size,
+    "the tab is no longer than its bounds",
+  );
   for (const person of ledger.persons.values())
     if (person.village === town.ref)
       for (const w of person.wars ?? [])

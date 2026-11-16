@@ -10,6 +10,9 @@ import type { NamesSwitch } from "./names.ts";
 /** How long the pointer rests before a tip opens, and how long one lingers once left (ms). */
 const REST_MS = 260,
   LINGER_MS = 240,
+  /** How long a finger rests on a name before its tip opens on a phone, and how far it may wander (px). */
+  HOLD_MS = 420,
+  HOLD_SLOP = 10,
   /** How long a thing's tip is kept for the next time (ms). */
   KEEP_MS = 8000;
 
@@ -34,6 +37,8 @@ export class HoverTips {
 
   /** The moves that have armed a tip already (the innermost thing a move is over arms its own). */
   private readonly armed = new WeakSet<Event>();
+  /** The name a finger has been held on long enough to open its tip: the click its lifting makes opens nothing. */
+  private held: HTMLElement | null = null;
 
   constructor(parent: HTMLElement, client: HostClient) {
     this.client = client;
@@ -73,10 +78,52 @@ export class HoverTips {
         void this.show(target, content);
       }, REST_MS);
     });
-    target.addEventListener("pointerleave", () => {
+    target.addEventListener("pointerleave", (e) => {
+      if (e.pointerType !== "mouse") return;
       if (this.waiting) clearTimeout(this.waiting);
       this.waiting = null;
       this.linger();
+    });
+    // On a phone a finger held still on a name a moment is its hover (owner, 2026-11-15): its tip
+    // opens, and lifting the finger opens nothing; a tap still opens its page, a scroll lets it be.
+    target.addEventListener("pointerdown", (e) => {
+      if (e.pointerType === "mouse") return;
+      this.held = null;
+      const from = { x: e.clientX, y: e.clientY };
+      let at = from;
+      const move = (m: PointerEvent) => {
+        at = { x: m.clientX, y: m.clientY };
+        if (Math.hypot(at.x - from.x, at.y - from.y) >= HOLD_SLOP) done();
+      };
+      const timer = setTimeout(() => {
+        done();
+        this.held = target;
+        navigator.vibrate?.(8);
+        void this.show(target, content, true);
+      }, HOLD_MS);
+      const done = () => {
+        clearTimeout(timer);
+        removeEventListener("pointermove", move, true);
+        removeEventListener("pointerup", done, true);
+        removeEventListener("pointercancel", done, true);
+      };
+      addEventListener("pointermove", move, true);
+      addEventListener("pointerup", done, true);
+      addEventListener("pointercancel", done, true);
+    });
+    // (The click a held finger's lifting makes, and a long press's menu, are not the name's.)
+    target.addEventListener(
+      "click",
+      (e) => {
+        if (this.held !== target) return;
+        this.held = null;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+      },
+      true,
+    );
+    target.addEventListener("contextmenu", (e) => {
+      if (this.held === target) e.preventDefault();
     });
   }
 
@@ -134,10 +181,11 @@ export class HoverTips {
     this.closeFrom(0);
   }
 
-  private async show(owner: HTMLElement, content: TipContent): Promise<void> {
+  private async show(owner: HTMLElement, content: TipContent, touch = false): Promise<void> {
     const nodes = await content();
-    // (Shown only while the pointer is still on what asked for it.)
-    if (!nodes?.length || !owner.isConnected || !owner.matches(":hover")) return;
+    // (Shown only while the pointer is still on what asked for it: a mouse's hover; a finger held, while
+    // the name is still there.)
+    if (!nodes?.length || !owner.isConnected || (!touch && !owner.matches(":hover"))) return;
     this.closeFrom(this.levelOf(owner));
     const box = el("div", "hovertip");
     box.setAttribute("role", "tooltip");

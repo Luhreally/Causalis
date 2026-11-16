@@ -1218,13 +1218,8 @@ export function villagePlan(
     const out: WarRest["named"][number][] = [];
     for (const rb of roster.battles)
       if (rb.event === event && rb.side === side)
-        for (const m of rb.men)
-          if (m.fate === "fell")
-            out.push({
-              name: roster.nameOf(m.holder),
-              age: rb.year - m.holder.born,
-              ref: m.holder.ref,
-            });
+        for (const h of roster.fell(rb))
+          out.push({ name: roster.nameOf(h), age: rb.year - h.born, ref: h.ref });
     const met: { readonly seq: number; readonly who: WarRest["named"][number] }[] = [];
     for (const q of ledger.persons.values()) {
       if (q.village !== ref || !q.wars) continue;

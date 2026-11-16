@@ -48,6 +48,13 @@ type Point = { readonly x: number; readonly y: number; readonly z: number };
 /** How near the camera sees, as the stage sets it: all but where the rig cuts what stands in its way. */
 const NEAR = 0.1;
 
+/**
+ * How long a finger rests before it is a hold (ms), and how far it may wander meanwhile (CSS px): a
+ * finger held still on the scene is a phone's mouse at rest, its tip shown, and lifting it opens nothing.
+ */
+const HOLD_MS = 420,
+  HOLD_SLOP = 10;
+
 export class OrbitRig {
   yaw = 30;
   pitch: number;
@@ -65,8 +72,21 @@ export class OrbitRig {
       turn: boolean;
       tap: boolean;
       paint: boolean;
+      /** Held still long enough to be a hover (a touch only): it moves the tip, not the view. */
+      hold: boolean;
     }
   >();
+  private holdTimer: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * Told of a finger held still on the scene (a phone's hover, 2026-11-15): where it rests in
+   * client pixels as it begins, as it slides while held, and when it lifts.
+   */
+  onHold: ((x: number, y: number, phase: "start" | "move" | "end") => void) | null = null;
+  /** Whether a finger is held as a hover now. */
+  get holding(): boolean {
+    for (const p of this.pointers.values()) if (p.hold) return true;
+    return false;
+  }
   private pinch = 0;
   /** Two fingers' angle and middle height, last seen (a twist turns; moved up or down together, a tilt). */
   private twist: { angle: number; midY: number } | null = null;
@@ -186,9 +206,30 @@ export class OrbitRig {
         turn,
         tap: true,
         paint,
+        hold: false,
       });
+      this.stopHold();
+      // A finger alone, not painting, held still a moment: a hover.
+      if (e.pointerType !== "mouse" && this.pointers.size === 1 && !paint && this.onHold) {
+        const id = e.pointerId;
+        this.holdTimer = setTimeout(() => {
+          this.holdTimer = null;
+          const p = this.pointers.get(id);
+          if (
+            !p ||
+            this.pointers.size !== 1 ||
+            Math.hypot(p.x - p.startX, p.y - p.startY) >= HOLD_SLOP
+          )
+            return;
+          p.hold = true;
+          p.tap = false;
+          navigator.vibrate?.(8);
+          this.onHold?.(p.x, p.y, "start");
+        }, HOLD_MS);
+      }
       // A pinch or twist never becomes a tap when the last finger comes up.
       if (this.pointers.size > 1) {
+        this.endHolds();
         if ([...this.pointers.values()].some((p) => p.paint)) this.brush?.cancel();
         for (const p of this.pointers.values()) {
           p.tap = false;
@@ -213,6 +254,10 @@ export class OrbitRig {
         dy = e.clientY - p.y;
       p.x = e.clientX;
       p.y = e.clientY;
+      if (p.hold) {
+        this.onHold?.(p.x, p.y, "move");
+        return;
+      }
       if (p.paint) {
         const rect = element.getBoundingClientRect();
         this.brush?.move(p.x - rect.left, p.y - rect.top);
@@ -251,6 +296,8 @@ export class OrbitRig {
     });
     const up = (e: PointerEvent) => {
       const p = this.pointers.get(e.pointerId);
+      this.stopHold();
+      if (p?.hold) this.onHold?.(e.clientX, e.clientY, "end");
       this.pointers.delete(e.pointerId);
       if (p?.paint) this.brush?.end();
       if (
@@ -269,6 +316,8 @@ export class OrbitRig {
     on<PointerEvent>("pointerup", up);
     on<PointerEvent>("pointercancel", (e) => {
       if (this.pointers.get(e.pointerId)?.paint) this.brush?.cancel();
+      this.stopHold();
+      if (this.pointers.get(e.pointerId)?.hold) this.onHold?.(e.clientX, e.clientY, "end");
       this.pointers.delete(e.pointerId);
       this.pinch = this.spread();
       this.twist = this.fingers();
@@ -281,6 +330,7 @@ export class OrbitRig {
         if (e.buttons === 0) this.brush?.end();
         else this.brush?.cancel();
       }
+      if (this.pointers.get(e.pointerId)?.hold) this.onHold?.(e.clientX, e.clientY, "end");
       this.pointers.delete(e.pointerId);
       this.pinch = this.spread();
       this.twist = this.fingers();
@@ -333,6 +383,22 @@ export class OrbitRig {
 
   private tilted(pitch: number): number {
     return Math.max(this.options.minPitch ?? -85, Math.min(this.options.maxPitch ?? -8, pitch));
+  }
+
+  /** No hold is waiting to begin. */
+  private stopHold(): void {
+    if (this.holdTimer) clearTimeout(this.holdTimer);
+    this.holdTimer = null;
+  }
+
+  /** Each finger held as a hover is let go (a second finger takes the view). */
+  private endHolds(): void {
+    this.stopHold();
+    for (const p of this.pointers.values())
+      if (p.hold) {
+        p.hold = false;
+        this.onHold?.(p.x, p.y, "end");
+      }
   }
 
   /**
