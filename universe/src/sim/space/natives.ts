@@ -69,7 +69,6 @@ import { heldFolk, livedFolk, livedPeak, livedStage, type FarReading } from "./f
 import type { FarRow } from "./farlife-store.ts";
 import { seaFolkOf } from "./seafolk.ts";
 
-
 /** How far a people has come: its steps, then gone. */
 export type FolkStage =
   "camps" | "villages" | "towns" | "cities" | "works" | "signals" | "orbit" | "stars" | "ruins";
