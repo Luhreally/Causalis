@@ -3,7 +3,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { YEAR, loadWorld, saveWorld, seedFromText } from "../../src/kernel/index.ts";
+import { STAR_LIFE, burstLeft } from "../../src/rules/index.ts";
 import {
+  clusterOf,
   cropsGive,
   cropsOf,
   dietDeaths,
@@ -14,7 +16,9 @@ import {
   floodYield,
   floodsOf,
   makePopulationWorld,
+  motionOf,
   populationContext,
+  starDeathAt,
   veilYield,
 } from "../../src/sim/index.ts";
 
@@ -56,4 +60,25 @@ test("crops, diets, eruptions and floods: their stores, their factors, and a sav
   again.runTo(40 * YEAR);
   w.runTo(40 * YEAR);
   assert.deepEqual(again.domainHashes(), w.domainHashes());
+});
+
+test("a star's end reaches the peoples of the stars near it: its own goes dark, a supernova's burst harms by its distance", () => {
+  const w = makePopulationWorld(seedFromText("nature sweep stars"), { frequency: 16 });
+  w.runTo(2 * YEAR);
+  const stars = clusterOf(w),
+    a = stars[1]!,
+    near = stars
+      .filter((s) => s.ref !== a.ref)
+      .map((s) => ({ s, d: Math.hypot(s.x - a.x, s.y - a.y, s.z - a.z) }))
+      .sort((x, y) => x.d - y.d)[0]!,
+    store = motionOf(w)!;
+  assert.equal(starDeathAt(w, a.ref, 0, 30).own, null);
+  store.ends.push({ star: a.ref, year: 10, how: "supernova", distance: a.distance, event: a.ref });
+  assert.equal(starDeathAt(w, a.ref, 0, 30).own?.how, "supernova");
+  const by = starDeathAt(w, near.s.ref, 0, 30);
+  assert.ok(by.harm >= 1);
+  if (near.d < STAR_LIFE.harmLy) assert.ok(by.harm > 1.2 && by.years === STAR_LIFE.burstYears);
+  assert.ok(burstLeft(by.harm, by.years) <= 1);
+  // (Before it burst, nothing reached them.)
+  assert.equal(starDeathAt(w, near.s.ref, 0, 9).harm, 1);
 });

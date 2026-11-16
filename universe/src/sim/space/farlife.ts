@@ -18,7 +18,9 @@ import {
 } from "../../kernel/index.ts";
 import { worldLife, type Civilization } from "../../gen/index.ts";
 import {
+  DWARF_LIGHT,
   FAR_LIFE,
+  burstLeft,
   STARS_RUNG,
   battleWearies,
   farDearness,
@@ -65,6 +67,7 @@ import {
 import { filledOf } from "./filled-store.ts";
 import { landfallsOf } from "./landfall.ts";
 import { folkByRef, folkOf, type Folk } from "./natives.ts";
+import { starDeathAt } from "../planet/motion.ts";
 import {
   holdWorld,
   peopleNature,
@@ -84,6 +87,8 @@ export const FARLIFE_EVENTS = {
   fell: defineEventType("farlife.fell", 5),
   /** A landing struck a people down: those a sickness and the fight took. */
   struck: defineEventType("farlife.struck", 5),
+  /** A far people's own star ended (the sweep, Nature lane). */
+  starEnded: defineEventType("farlife.star-ended", 6),
 };
 
 const FARLIFE = defineStream("space.farlife");
@@ -614,7 +619,34 @@ function stepRow(
   const s = unpack(row),
     name = civ ? peopleWords(world, civ).name : (folkByRef(world, row.ref)?.name ?? null),
     years = year - row.last,
-    lived = farStep(reading.facts, s, years, world.rng.real(FARLIFE, refKey(row.ref), t, 0), year);
+    // (Its star's death, and a supernova near it, reach it as they reach the home world: the sweep, Nature lane.)
+    star = civ?.star ?? folkByRef(world, row.ref)?.star ?? null,
+    sky = star ? starDeathAt(world, star, row.last, year) : null,
+    facts = sky?.own
+      ? {
+          ...reading.facts,
+          light: sky.own.how === "supernova" ? 0 : reading.facts.light * DWARF_LIGHT,
+        }
+      : reading.facts;
+  let lived = farStep(facts, s, years, world.rng.real(FARLIFE, refKey(row.ref), t, 0), year);
+  if (sky && sky.harm > 1 && lived.fell === null)
+    lived = {
+      ...lived,
+      people: lived.people * burstLeft(sky.harm, sky.years),
+      sick: Math.max(lived.sick, Math.min(1, sky.harm - 1)),
+    };
+  if (sky?.own?.how === "supernova" && lived.fell === null)
+    lived = { ...lived, people: 0, fell: year };
+  if (sky?.own && !row.told.some((x) => x.what === "star")) {
+    const event = world.events.emit({
+      type: FARLIFE_EVENTS.starEnded.type,
+      place: null,
+      subjects: [row.ref, sky.own.star],
+      causes: [{ ref: sky.own.event, role: "trigger", weight: 1 }],
+      data: { name, how: sky.own.how, year },
+    });
+    tellOn(row, { year, what: "star", by: sky.own.star, amount: 1, event });
+  }
   let next = civ ? heldTo(s, lived, clockRung(civ, year)) : lived;
   if (civ) {
     const f = fearOf(ctx, civ, year);
@@ -645,7 +677,11 @@ function stepRow(
     tellOn(row, { year, what: "mended", by: null, amount: next.cohesion, event: null });
   }
   if (next.fell !== null && s.fell === null) {
-    row.why = fellWords(s, s.top);
+    row.why = sky?.own
+      ? sky.own.how === "supernova"
+        ? "their star burst"
+        : "their star went out"
+      : fellWords(s, s.top);
     const event = world.events.emit({
       type: FARLIFE_EVENTS.fell.type,
       place: null,

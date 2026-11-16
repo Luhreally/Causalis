@@ -1372,6 +1372,7 @@ export {
   motionOf,
   motionYear,
   shiftNow,
+  starDeathAt,
   starEnded,
   type LandTurn,
   type MotionState,

@@ -1644,6 +1644,7 @@ export {
   type StarLife,
   type StarStage,
 } from "./planet.ts";
+export { BURST_TOLL, DWARF_LIGHT, burstLeft } from "./planet.ts";
 export {
   EARTH_SKY,
   GROWS_ABOVE,
