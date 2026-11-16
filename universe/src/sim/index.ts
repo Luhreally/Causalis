@@ -859,6 +859,7 @@ export {
   lineageOf,
   living,
   stepWilds,
+  woodsRegrowth,
   waterYield,
   watersOf,
   wildsOf,

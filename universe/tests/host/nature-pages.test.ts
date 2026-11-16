@@ -10,6 +10,7 @@ import {
   landFiresBlocks,
   worldFiresBlocks,
 } from "../../src/host/inspect/nature.ts";
+import { woodsBlock } from "../../src/host/inspect/woods.ts";
 
 test("the Nature lane's sections read every land of a small world, and its crop where it sows", () => {
   const w = makePopulationWorld(seedFromText("nature sweep"), { frequency: 16, start: "spread" });
@@ -25,6 +26,7 @@ test("the Nature lane's sections read every land of a small world, and its crop 
       assert.equal(c.type, "facts");
     }
     if (d) diets++;
+    woodsBlock(w, p.cell);
     for (const b of landFiresBlocks(w, p.cell)) assert.ok(b.type === "facts" || b.type === "list");
   }
   assert.equal(crops, cropsOf(w)!.size);

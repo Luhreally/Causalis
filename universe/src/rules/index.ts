@@ -1685,3 +1685,4 @@ export * from "./crops.ts";
 export * from "./volcanoes.ts";
 export * from "./floods.ts";
 export * from "./nutrition.ts";
+export * from "./succession.ts";

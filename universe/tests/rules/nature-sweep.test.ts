@@ -21,6 +21,8 @@ import {
   gardenStrain,
   highSunShare,
   poissonCount,
+  primaryGrowth,
+  regrowthPace,
   sulphurMt,
   sunMade,
   tameStep,
@@ -146,4 +148,14 @@ test("the light lived: the noon sun stands high less of the year toward the pole
     fish = dietOf({ [G.grain]: 50, [G.wild]: 10, [G.meat]: 40 }, "both", true, 0);
   assert.ok(north.short > dietOf({ [G.grain]: 90, [G.wild]: 10 }, "both", true, 1).short);
   assert.equal(fish.sun, 1);
+});
+
+test("woods come back as fast as their ground grows: a warm, wet land's in decades, a cold or dry one's in centuries", () => {
+  const temperate = regrowthPace(0.02, 10, 800),
+    tropic = regrowthPace(0.02, 26, 2500),
+    boreal = regrowthPace(0.02, -3, 450),
+    dry = regrowthPace(0.02, 20, 150);
+  assert.ok(Math.abs(temperate - 0.02) < 0.001, `${temperate}`);
+  assert.ok(tropic > 1.6 * temperate && boreal < temperate / 2 && dry < temperate / 2);
+  assert.ok(primaryGrowth(26, 2500) > primaryGrowth(10, 800));
 });
