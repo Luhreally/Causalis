@@ -128,6 +128,14 @@ export class LoreStore implements StateStore {
     return this.known.get(cell)?.entries() ?? [];
   }
 
+  /**
+   * What a land knows, as kept (undefined: nothing). Lore only grows, and a load makes each land's anew: a reading may keep
+   * what it derives of it by this map while its size stands (economy/energy.ts).
+   */
+  knownOf(cell: number): ReadonlyMap<string, Known> | undefined {
+    return this.known.get(cell);
+  }
+
   /** The lands that know anything. */
   cells(): IterableIterator<number> {
     return this.known.keys();

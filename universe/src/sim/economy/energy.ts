@@ -162,29 +162,31 @@ export class EnergyStore implements StateStore {
   }
 }
 
-/** A land's row as the digest folds it. */
+/** A land's row as the digest folds it (in one array kept for it: the fold reads it at once). */
+const ROW: number[] = [];
 function rowOf(e: EnergyLand): number[] {
-  return [
-    e.cell,
-    e.people,
-    ...e.drawn,
-    ...e.by,
-    e.workWanted,
-    e.workHad,
-    e.worksWanted,
-    e.heatWanted,
-    e.heatHad,
-    e.share,
-    e.coal,
-    e.oil,
-    e.gas,
-    e.own,
-    e.felled,
-    e.fuelWanted,
-    e.carbon,
-    e.sulphur,
-    e.fume,
-  ];
+  let i = 0;
+  ROW[i++] = e.cell;
+  ROW[i++] = e.people;
+  for (const x of e.drawn) ROW[i++] = x;
+  for (const x of e.by) ROW[i++] = x;
+  ROW[i++] = e.workWanted;
+  ROW[i++] = e.workHad;
+  ROW[i++] = e.worksWanted;
+  ROW[i++] = e.heatWanted;
+  ROW[i++] = e.heatHad;
+  ROW[i++] = e.share;
+  ROW[i++] = e.coal;
+  ROW[i++] = e.oil;
+  ROW[i++] = e.gas;
+  ROW[i++] = e.own;
+  ROW[i++] = e.felled;
+  ROW[i++] = e.fuelWanted;
+  ROW[i++] = e.carbon;
+  ROW[i++] = e.sulphur;
+  ROW[i++] = e.fume;
+  ROW.length = i;
+  return ROW;
 }
 
 /** A world's energy store (null on a world that keeps none). */
@@ -222,12 +224,23 @@ export const GAS_A_UNIT = 1;
 /** A sea floor's vents' heat (°C: Koschinsky 2008), as rules/means.ts groundHeat reads it. */
 export const VENT_C = 464;
 
+/** The sites last asked for, and the surface and medium they were of (most asks, a year's, are of one world's). */
+let lastSites: { surface: string; medium: string; sites: Map<number, Site> } | null = null;
+
 function siteOf(ctx: PopulationContext, cell: number): Site {
-  const key = `${homePlanet(ctx.world).surfaceKey}:${ctx.medium}`;
-  let sites = SITES.get(key);
+  const surface = homePlanet(ctx.world).surfaceKey;
+  let sites =
+    lastSites && lastSites.surface === surface && lastSites.medium === ctx.medium
+      ? lastSites.sites
+      : undefined;
   if (!sites) {
-    if (SITES.size >= 8) SITES.delete(SITES.keys().next().value!);
-    SITES.set(key, (sites = new Map()));
+    const key = `${surface}:${ctx.medium}`;
+    sites = SITES.get(key);
+    if (!sites) {
+      if (SITES.size >= 8) SITES.delete(SITES.keys().next().value!);
+      SITES.set(key, (sites = new Map()));
+    }
+    lastSites = { surface, medium: ctx.medium, sites };
   }
   const kept = sites.get(cell);
   if (kept) return kept;
@@ -342,17 +355,71 @@ function ownFuel(
   ctx: PopulationContext,
   cell: number,
   airHolds: readonly string[],
-  knows: (id: string) => boolean,
+  k: Knowing,
 ): "haze" | "sulphur" | null {
-  if (airHolds.includes("hydrogen") && knows("cold-chemistry")) return "haze";
+  if (airHolds.includes("hydrogen") && k.coldChemistry) return "haze";
   const t = ctx.generated.tectonics;
   if (
     airHolds.includes("so2") &&
-    knows("steam-engine") &&
+    k.steamEngine &&
     (t.boundary[cell] !== 0 || t.toBoundary[cell]! <= 2)
   )
     return "sulphur";
   return null;
+}
+
+/** What a land's account reads of what it knows: the sources it can tap and the craft of its engines. */
+type Knowing = {
+  readonly taps: ReadonlySet<Source>;
+  readonly engine: boolean;
+  readonly draught: boolean;
+  readonly blast: boolean;
+  readonly windTurbines: boolean;
+  readonly coalKnown: boolean;
+  readonly oilKnown: boolean;
+  readonly coldChemistry: boolean;
+  readonly steamEngine: boolean;
+  readonly carried: number;
+  readonly fitMm: number;
+  readonly strengthMpa: number;
+};
+/** Each land's Knowing, by what it knows as kept, with that map's size then: lore only grows, so it holds while the size does. */
+const KNOWING = new WeakMap<object, { size: number; k: Knowing }>();
+
+function knowingOf(ctx: PopulationContext, cell: number): Knowing {
+  const lore = loreOf(ctx.world),
+    known = lore.knownOf(cell),
+    kept = known && KNOWING.get(known);
+  if (kept && kept.size === known.size) return kept.k;
+  const g = ctx.generated,
+    n = meansNumbers(g),
+    knows = (id: string) => !!lore.get(cell, id),
+    taps = new Set<Source>();
+  for (const s of SOURCES)
+    if (
+      s !== "none" &&
+      SOURCE_BY[s].some(knows) &&
+      (s !== "fission" || n.metalShare >= FISSION_METALS)
+    )
+      taps.add(s);
+  const engine = HEAT_ENGINES.some(knows),
+    facts = { knows } as unknown as LandFacts,
+    k: Knowing = {
+      taps,
+      engine,
+      draught: knows("draught"),
+      blast: knows("steel"),
+      windTurbines: WIND_TURBINES.some(knows),
+      coalKnown: knows("coal-mining"),
+      oilKnown: knows("oil-drilling"),
+      coldChemistry: knows("cold-chemistry"),
+      steamEngine: knows("steam-engine"),
+      carried: engineCarried(ctx, cell),
+      fitMm: engine ? fitOf(facts).mm : 1,
+      strengthMpa: engine ? stuffOf(facts, worldChemistry(g)).strength : 50,
+    };
+  if (known) KNOWING.set(known, { size: known.size, k });
+  return k;
 }
 
 /** What a land's account reads of it this year: `smelted` is the metal its smelters made. */
@@ -366,21 +433,11 @@ export function energyInputs(
     n = meansNumbers(g),
     site = siteOf(ctx, p.cell),
     lore = loreOf(ctx.world),
-    knows = (id: string) => !!lore.get(p.cell, id),
-    taps = new Set<Source>();
-  for (const s of SOURCES)
-    if (
-      s !== "none" &&
-      SOURCE_BY[s].some(knows) &&
-      (s !== "fission" || n.metalShare >= FISSION_METALS)
-    )
-      taps.add(s);
-  const engine = HEAT_ENGINES.some(knows),
-    facts = { knows } as unknown as LandFacts,
+    k = knowingOf(ctx, p.cell),
     fire = meansOfWorld(g).burns,
     people = p.total(),
     standing = woodsRead(ctx, p.cell).now * site.areaKm2,
-    own = engine ? ownFuel(ctx, p.cell, n.airHolds, knows) : null;
+    own = k.engine ? ownFuel(ctx, p.cell, n.airHolds, k) : null;
   return {
     people,
     workers: people - p.occupation(OCC.dependent),
@@ -391,22 +448,22 @@ export function energyInputs(
     fed: Math.min(1, Math.max(0, p.fed / 1000)),
     herdKg: (m.line("made", G.meat) * MEAT_UNIT_KG) / HERD_GIVES,
     beastKg: beastKgOf(ctx, p.cell),
-    draught: knows("draught"),
+    draught: k.draught,
     grain: m.line("made", G.grain),
     cold: coldOf(g.climate.temperature[p.cell]!),
     fire,
     smelted,
-    blast: knows("steel"),
+    blast: k.blast,
     industry: Math.min(1.5, lore.effect(p.cell, "industry")),
-    carried: engineCarried(ctx, p.cell),
-    homes: taps.has("dam"),
+    carried: k.carried,
+    homes: k.taps.has("dam"),
     fixKw: groundOf(ctx.world)?.get(p.cell)?.fixKw ?? 0,
-    taps,
-    engine,
+    taps: k.taps,
+    engine: k.engine,
     woodKw: (standing * site.growth * 1000 * WOOD_TAKEN * site.woodMj) / MJ_A_KWY,
     riverKw: site.riverKw,
     windKw: site.windKw,
-    windTurbines: WIND_TURBINES.some(knows),
+    windTurbines: k.windTurbines,
     tideKw: site.tideKw,
     groundKw: site.groundKw,
     groundC: site.groundC,
@@ -416,14 +473,14 @@ export function energyInputs(
     mirrorC: mirrorHeat(n, 2000),
     coalKwy: m.stock[G.coal]! * FUEL_UNIT_KWY,
     oilKwy: m.stock[G.oil]! * FUEL_UNIT_KWY,
-    gasKwy: knows("oil-drilling") ? m.line("made", G.oil) * GAS_A_UNIT : 0,
+    gasKwy: k.oilKnown ? m.line("made", G.oil) * GAS_A_UNIT : 0,
     ownKwy: own ? p.occupation(OCC.crafter) * OWN_KWY : 0,
     fireC: fire ? furnaceHeat(ctx, p.cell) : joinedHeat(n),
     coldK: n.kelvin,
-    fitMm: engine ? fitOf(facts).mm : 1,
-    strengthMpa: engine ? stuffOf(facts, worldChemistry(g)).strength : 50,
-    coalKnown: knows("coal-mining"),
-    oilKnown: knows("oil-drilling"),
+    fitMm: k.fitMm,
+    strengthMpa: k.strengthMpa,
+    coalKnown: k.coalKnown,
+    oilKnown: k.oilKnown,
   };
 }
 
