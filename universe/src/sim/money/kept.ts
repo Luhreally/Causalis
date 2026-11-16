@@ -121,6 +121,8 @@ export const COIN = {
   unmet: 11,
   /** The forms it has ever had (bits, by MONEY_FORMS). */
   forms: 12,
+  /** The year rising prices were last told. */
+  dearer: 13,
 } as const;
 /** 3. A realm's treasury (grain's worth a year; rates in thousandths). */
 export const TREASURY_STORE = "money.treasury";
@@ -193,7 +195,7 @@ export const BIND = { share: 0, gain: 1, hold: 2, open: 3, law: 4, power: 5 } as
 
 export const MONEY_STORES: readonly (readonly [string, number])[] = [
   [GOODS_STORE, 16],
-  [COIN_STORE, 13],
+  [COIN_STORE, 14],
   [TREASURY_STORE, 31],
   [TARIFF_STORE, 15],
   [LABOUR_STORE, 6],

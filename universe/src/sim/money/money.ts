@@ -560,8 +560,16 @@ export function coinYear(ctx: PopulationContext, t: SimTime): void {
       );
       toldFine = fine * 1e6;
     }
-    if (inflation >= MONEY.told && (was ? was[COIN.inflation]! : 0) < MONEY.told * 10_000)
+    // (Prices rising fast are told once a generation at most: a coin's worth swings with what its lands smelt.)
+    let dearerYear = was ? was[COIN.dearer]! : 0;
+    if (
+      inflation >= MONEY.told &&
+      (was ? was[COIN.inflation]! : 0) < MONEY.told * 10_000 &&
+      (!dearerYear || year - dearerYear >= 25)
+    ) {
       tell(ctx, MONEY_EVENTS.dearer.type, p, { rise: Math.round(inflation * 100), form });
+      dearerYear = year;
+    }
     store.set(p.ref, [
       MONEY_FORMS.indexOf(form),
       good,
@@ -576,6 +584,7 @@ export function coinYear(ctx: PopulationContext, t: SimTime): void {
       since,
       unmet,
       forms | bit,
+      dearerYear,
     ]);
   }
 }
