@@ -23,7 +23,9 @@ test("all the old share farms where the fields need them all; where they need ha
   // (With one village, no trade: the freed go to the crafts.)
   const lone = occupationTargets(sowing(), CAP, 1, null, 0.5);
   assert.equal(lone[OCC.trader], 0);
-  assert.ok(Math.abs(lone[OCC.crafter]! - (0.06 + 0.385)) < 1e-9);
+  // (And the gatherers as the fields: half of the old tenth, gone to the crafts with the field hands.)
+  assert.ok(Math.abs(half[OCC.forager]! - 0.05) < 1e-9 && Math.abs(all[OCC.forager]! - 0.1) < 1e-9);
+  assert.ok(Math.abs(lone[OCC.crafter]! - (0.06 + 0.385 + 0.05)) < 1e-9);
 });
 
 test("a stream of people going on is saved and loaded with its land", () => {

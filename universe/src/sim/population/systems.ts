@@ -288,13 +288,18 @@ export function occupationTargets(
     // else those hands farm.
     const herds = cap.pasture > 0 && p.herding ? 0.07 : 0,
       // (Of the hands the old ways set to the fields, those its fields need: the rest go to the crafts and to trade, as
-      // much to each as the old ways set them, round "peoples": farmingShare.)
+      // much to each as the old ways set them, round "peoples": farmingShare. And of those it set to gather from the wild, the
+      // same share: where its fields grow what its people eat and a sixth over, the wild is not what feeds them. Left at the
+      // old tenth, the freed hands' glut in the crafts halved a crafter's wage, the wage lean's mean fell under a gatherer's,
+      // and gatherers held at 9 in 100 where they had been held at 4: first light's small game was trapped in every land.)
       fields = 0.77 - herds,
-      farm = fields * dmath.clamp(farming, 0, 1),
-      freed = fields - farm,
+      share = dmath.clamp(farming, 0, 1),
+      farm = fields * share,
+      gather = 0.1 * share,
+      freed = fields - farm + (0.1 - gather),
       trades = villages >= 2;
     t[OCC.farmer] = farm;
-    t[OCC.forager] = 0.1;
+    t[OCC.forager] = gather;
     t[OCC.herder] = herds;
     t[OCC.crafter] = 0.06 + freed * (trades ? 0.6 : 1);
     t[OCC.trader] = trades ? 0.04 + freed * 0.4 : 0;
