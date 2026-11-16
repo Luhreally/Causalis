@@ -1401,3 +1401,17 @@ export {
   partnersOf,
   type Partners,
 } from "./ecology/lineage.ts";
+export {
+  HOUSE_EVENTS,
+  HouseStore,
+  houseOfGroup,
+  housesOf,
+  housesRead,
+  housesYear,
+  installHouses,
+  originOf,
+  type GoneHouse,
+  type HouseRecord,
+  type HousesRead,
+  type RealmHouses,
+} from "./order/houses.ts";
