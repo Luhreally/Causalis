@@ -4,6 +4,13 @@
 // the kernel. Changing them changes every universe.
 import { hi32, highWord, lo32, lowWord } from "./bits.ts";
 
+/** A float64's two words, as kernel/bits.ts reads them (the platform's byte order, found once). */
+const F64 = new Float64Array(1),
+  U32 = new Uint32Array(F64.buffer),
+  LITTLE = new Uint8Array(new Uint32Array([1]).buffer)[0] === 1,
+  HI = LITTLE ? 1 : 0,
+  LO = LITTLE ? 0 : 1;
+
 const C1 = 0xcc9e2d51;
 const C2 = 0x1b873593;
 
@@ -140,7 +147,9 @@ export class Hasher {
       case "object": {
         if (Array.isArray(v)) {
           this.word(4).int(v.length);
-          for (const item of v) this.value(item);
+          for (let j = 0; j < v.length; )
+            if (typeof v[j] === "number") j = this.numbers(v, j);
+            else this.value(v[j++]);
           return this;
         }
         const shape = shapeOf(Object.keys(v)),
@@ -158,6 +167,32 @@ export class Hasher {
       default:
         throw new Error(`cannot hash a ${typeof v}`);
     }
+  }
+  /**
+   * The numbers of `list` from `j` on, as value() absorbs each (its tag, then its bits low word first), as far as
+   * they are numbers: where the next one is not. (In locals: a state's long lists of numbers are most of a
+   * checkpoint's words.)
+   */
+  private numbers(list: readonly unknown[], j: number): number {
+    let a = this.a,
+      b = this.b,
+      n = this.n;
+    const tagA = 2,
+      tagB = 2 ^ 0x5bd1e995;
+    for (; j < list.length; j++) {
+      const x = list[j];
+      if (typeof x !== "number") break;
+      F64[0] = x === 0 ? 0 : x !== x ? NaN : x;
+      const lo = U32[LO]!,
+        hi = U32[HI]!;
+      a = mix(mix(mix(a, tagA), lo), hi);
+      b = mix(mix(mix(b, tagB), lo ^ 0x5bd1e995), hi ^ 0x5bd1e995);
+      n += 3;
+    }
+    this.a = a;
+    this.b = b;
+    this.n = n;
+    return j;
   }
   /**
    * The sixteen hex digits of a fingerprint's lanes, as string() absorbs the text hex() writes

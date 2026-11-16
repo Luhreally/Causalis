@@ -66,6 +66,8 @@ const COMMAND_AGENDA = "kernel.command";
 /** How many of the first checkpoints, and of the last, keep their domains' hashes. */
 const DOMAINS_FIRST = 320,
   DOMAINS_LAST = 64;
+/** Past the first DOMAINS_FIRST checkpoints, a checkpoint is taken one period in so many (the tenth year). */
+const LATE_EVERY = 10;
 /** How old a kept event or decision is before it goes cold (kernel/cold.ts). */
 const COLD_AFTER = 50 * YEAR;
 
@@ -121,11 +123,15 @@ export class World {
     this.seed = seed;
     this.rng = new Rng(seed);
     this.scheduler = new Scheduler(options.start ?? (0 as SimTime));
+    const every = options.checkpointEvery ?? YEAR;
     this.scheduler.addSystem({
       key: "999.checkpoint",
-      every: options.checkpointEvery ?? YEAR,
+      every,
       run: (t) => {
-        this.checkpoint(t);
+        // (Every period through the first centuries, the oracle's; then one in LATE_EVERY: hashing every store
+        // is a tenth of a late year, and a world parted from another stays parted.)
+        if (this.chain.length < DOMAINS_FIRST || Math.round(t / every) % LATE_EVERY === 0)
+          this.checkpoint(t);
         this.keepHouse(t);
         // (What reads each year as it closes, once all of it is done: nothing it does is history.)
         for (const record of this.recorders) record(t);

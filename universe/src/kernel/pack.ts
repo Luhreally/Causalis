@@ -135,6 +135,11 @@ function zig(v: number): number {
 
 /** How many letters a whole number takes as a varint. */
 function width(u: number): number {
+  // (Most numbers are of a few letters and under 2^31, told by their bits.)
+  if (u < 32) return 1;
+  if (u < 1024) return 2;
+  if (u < 32768) return 3;
+  if (u < 1048576) return 4;
   let n = 1;
   while (u >= 32) {
     u = Math.floor(u / 32);
@@ -142,6 +147,9 @@ function width(u: number): number {
   }
   return n;
 }
+
+/** Letters of a varint text into a string (all ASCII). */
+const ASCII = new TextDecoder();
 
 /** Varints written into text, a letter at a time. */
 class Varints {
@@ -159,23 +167,26 @@ class Varints {
       grown.set(this.codes);
       this.codes = grown;
     }
+    const codes = this.codes;
+    let n = this.n;
+    // (By bits while they hold it: the same letters.)
+    while (u >= 32 && u < 2147483648) {
+      codes[n++] = CODES[32 + (u & 31)]!;
+      u >>>= 5;
+    }
     while (u >= 32) {
-      this.codes[this.n++] = CODES[32 + (u % 32)]!;
+      codes[n++] = CODES[32 + (u % 32)]!;
       u = Math.floor(u / 32);
     }
-    this.codes[this.n++] = CODES[u]!;
+    codes[n++] = CODES[u]!;
+    this.n = n;
   }
 
   text(): string {
     const codes = this.laidOut() ?? this.codes,
       n = codes === this.codes ? this.n : codes.length;
-    let out = "";
-    for (let at = 0; at < n; at += 4096)
-      out += String.fromCharCode.apply(
-        null,
-        codes.subarray(at, Math.min(n, at + 4096)) as unknown as number[],
-      );
-    return out;
+    // (Its letters are all ASCII, which UTF-8 reads as themselves: one decoding, not a string built up by pieces.)
+    return ASCII.decode(codes.subarray(0, n));
   }
 
   /** The letters by their place in their numbers (none where it would change nothing, or gain nothing). */
@@ -491,13 +502,7 @@ function packFloats(values: readonly number[]): FloatColumn {
     low[at + 7] = CODES[lo & 63]!;
   }
   packInts(tops, out);
-  let text = "";
-  for (let at = 0; at < low.length; at += 4096)
-    text += String.fromCharCode.apply(
-      null,
-      low.subarray(at, Math.min(low.length, at + 4096)) as unknown as number[],
-    );
-  out.l = text;
+  out.l = ASCII.decode(low);
   return out as FloatColumn;
 }
 
