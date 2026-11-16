@@ -98,11 +98,12 @@ export function refKey(ref: string): number {
 // —— Reading a far people's numbers ——————————————————————————————————————————————————————————————
 
 /**
- * The followed peoples as history reads them in a year (`year` left out: as a page reads them). Every reader of them here goes
- * through this one, so that a reading of them by the year (universe/rules-next's civilizationsNear(world, year)) is one line.
+ * The followed peoples as history reads them in a year (`year` left out: as a page reads them): by the year, so that no year
+ * waits on the making of a far world it does not yet need (contact.ts civilizationsBy). Read whole, as first merged, the first
+ * year of first light made every followed people's world at once: 2.7 seconds here, 5.9 on a runner (gates 5 and 6).
  */
-export const followedIn = (world: World, _year?: number): Civilization[] =>
-  civilizationsNear(world);
+export const followedIn = (world: World, year?: number): Civilization[] =>
+  civilizationsNear(world, year);
 
 /** A people's life as read off its world: a followed people's, or one history does not follow (null: none is read). */
 export function lifeReadingOf(world: World, ref: string, year?: number): FarReading | null {
