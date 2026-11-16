@@ -6,8 +6,8 @@
 //   relief: a land of its faith gone hungry is given from the granaries, as far as they hold, wherever it lies;
 //   teaching: as many clergy as there are to the faithful, so far they teach the young they reach, the more the more their faith
 //     holds its teaching written, and where they teach every child they can, a land counts it as a school (rules/letters.ts);
-//   a clergy many and a granary full is a temple that weighs in a realm (sim/polity/interests.ts reads the faith's piety: its
-//     houses are what that piety has raised).
+//   sway: a devout people's piety weighs in its realm as far as its faith has clergy to speak for it: half of it with none, all
+//     of it with a keeper to every village (sim/polity/interests.ts swayOf).
 // Pure tables and functions.
 import { dmath } from "../kernel/index.ts";
 
@@ -30,6 +30,11 @@ export const TEMPLE = {
   spoken: 0.3,
   /** A land of its faith whose clergy teach at least this share counts their school as one (rules/letters.ts schooled). */
   school: 0.5,
+  /**
+   * The share of a devout people's weight a faith carries in a realm (sim/polity/interests.ts swayOf) with no clergy of its own:
+   * piety without houses is many voices, none speaking for it; with a keeper to every village, all of it.
+   */
+  swayLeast: 0.5,
 } as const;
 
 /** The share of its grain made a land of a faith gives it, by its piety and how far it has held the faith (0 … 1). */
@@ -53,6 +58,11 @@ export function templeTeaching(clergy: number, faithful: number, scripture: numb
     dmath.clamp(clergy / faithful / TEMPLE.teachAt, 0, 1) *
     (TEMPLE.spoken + (1 - TEMPLE.spoken) * dmath.clamp(scripture, 0, 1))
   );
+}
+
+/** How far a faith's piety weighs in a realm, by its clergy to its faithful (0 … 1 of a clergy that teaches every young one). */
+export function templeSway(clergy: number): number {
+  return TEMPLE.swayLeast + (1 - TEMPLE.swayLeast) * dmath.clamp(clergy, 0, 1);
 }
 
 /** A granary `years` on: what it held less what rots, plus what was laid up and less what was given out, never below nothing. */
