@@ -1037,22 +1037,30 @@ export class TownBuilder {
           if (i > 0) beside.push(runs[i - 1]!);
         }
       }
-      ruins.list = ruins.list.filter((r) => r[4] >= gone && present(runs, r));
+      // (Kept in place: those still standing and not yet weathered.)
+      const list = ruins.list;
+      let w = 0;
       ruins.next = Infinity;
-      for (const r of ruins.list) ruins.next = Math.min(ruins.next, r[4] + RUIN_YEARS + 1);
+      for (const r of list)
+        if (r[4] >= gone && present(runs, r)) {
+          list[w++] = r;
+          ruins.next = Math.min(ruins.next, r[4] + RUIN_YEARS + 1);
+        }
+      list.length = w;
     }
-    const still: Change[] = [];
+    // (Kept in place: those still young.)
+    let w = 0;
     for (const c of young) {
       if (!present(runs, c)) continue;
       if (c[4] <= old) {
         if (isHome(c[0])) c[0] = CHANGE.built;
         beside.push(c);
       } else {
-        still.push(c);
+        young[w++] = c;
         next = Math.min(next, c[4] + SETTLED);
       }
     }
-    store.young.set(f, still);
+    young.length = w;
     for (let k = last.buildings; k < f.civics.length; k++) {
       const x = f.civics[k]!;
       if (x.fell !== null) continue;

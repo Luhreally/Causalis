@@ -123,9 +123,25 @@ export class Hasher {
     return this.word(lowWord(v)).word(highWord(v));
   }
   string(text: string): this {
-    for (let i = 0; i < text.length; i += 2)
-      this.word(text.charCodeAt(i) | ((i + 1 < text.length ? text.charCodeAt(i + 1) : 0) << 16));
-    return this.word(text.length);
+    // (In locals: a save's store is hashed by its text, tens of millions of letters.)
+    let a = this.a,
+      b = this.b;
+    const n = text.length,
+      pairs = n >> 1;
+    for (let i = 0; i < pairs; i++) {
+      const w = text.charCodeAt(2 * i) | (text.charCodeAt(2 * i + 1) << 16);
+      a = mix(a, w);
+      b = mix(b, w ^ 0x5bd1e995);
+    }
+    if (n & 1) {
+      const w = text.charCodeAt(n - 1);
+      a = mix(a, w);
+      b = mix(b, w ^ 0x5bd1e995);
+    }
+    this.a = a;
+    this.b = b;
+    this.n += pairs + (n & 1);
+    return this.word(n);
   }
   bool(v: boolean): this {
     return this.word(v ? 1 : 0);
