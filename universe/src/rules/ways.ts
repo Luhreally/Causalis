@@ -187,9 +187,17 @@ export function bodyReading(b: BodyPlan | null | undefined): number[] {
   r[BODY_INDEX.get("care")!] = CARE[b.bearing] ?? 0;
   r[BODY_INDEX.get("hunts")!] = HUNTS[b.diet] ?? 0;
   r[BODY_INDEX.get("fluid")!] = FLUID[b.medium] ?? 0;
-  r[BODY_INDEX.get("heavy")!] = dmath.clamp(dmath.log(Math.max(1, b.size) / 60) / dmath.LN10, -1, 1);
+  r[BODY_INDEX.get("heavy")!] = dmath.clamp(
+    dmath.log(Math.max(1, b.size) / 60) / dmath.LN10,
+    -1,
+    1,
+  );
   r[BODY_INDEX.get("warm")!] = b.warm ? 0.5 : -0.5;
-  r[BODY_INDEX.get("scent")!] = b.senses.includes("smell") ? (b.senses.includes("hearing") ? 0.5 : 1) : 0;
+  r[BODY_INDEX.get("scent")!] = b.senses.includes("smell")
+    ? b.senses.includes("hearing")
+      ? 0.5
+      : 1
+    : 0;
   r[BODY_INDEX.get("carries")!] =
     b.medium === "water" || b.senses.includes("echo") || b.senses.includes("electric") ? 1 : 0;
   return r;
@@ -307,11 +315,15 @@ export const WAYS_LEARNING = {
   /** It looks at itself and at so many of the lands it deals with most. */
   look: 3,
   /** A piece of evidence that moves some way's pull this far is told. */
-  told: 0.02,
+  told: 0.05,
 } as const;
 
 /** What a land believes of each way, as kept: the sum of its evidence for standing high on it, and how much evidence that is. */
-export type WaysBelief = { readonly a: readonly number[]; readonly n: readonly number[]; readonly at: number };
+export type WaysBelief = {
+  readonly a: readonly number[];
+  readonly n: readonly number[];
+  readonly at: number;
+};
 
 export const noWaysBelief = (year: number): WaysBelief => ({
   a: WAY_TRAITS.map(() => 0),

@@ -4,6 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  SEEN_TREE,
   AGE_LADDER,
   PRINCIPLES,
   PRINCIPLE_INDEX,
@@ -111,9 +112,9 @@ test("Earth comes to every signal step, in Earth's own order", () => {
   // (A set carried by hand comes on valves, before the crystal; the pocket machine after the web.)
   assert.ok(d.get("hand-sets")! < d.get("solid-state")! + 1);
   assert.ok(d.get("pocket-machines")! > d.get("hand-sets")!);
-  // (Every row is after every other: nothing before the first is found moves.)
+  // (Every row is after every other but what only being there teaches, K1's, appended after: nothing before the first is found moves.)
   const first = PRINCIPLE_INDEX.get(SIGNAL_TREE[0]!.id)!;
-  assert.equal(first, PRINCIPLES.length - SIGNAL_TREE.length);
+  assert.equal(first, PRINCIPLES.length - SIGNAL_TREE.length - SEEN_TREE.length);
 });
 
 test("no current, no signals: each step stops where the world's current does", () => {

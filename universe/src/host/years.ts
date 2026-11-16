@@ -58,7 +58,7 @@ export const LAND_COLUMNS = [
   "trade",
   /** Its dead of sickness, all of them since its years were first kept. */
   "sick",
-  /** Who of its people read, in a thousand (rules/letters.ts; absent in a save from before it: unread there). */
+  /** Who of its people read, in a hundred (rules/letters.ts; absent in a save from before it: unread there). */
   "read",
 ] as const;
 export type LandColumn = (typeof LAND_COLUMNS)[number];
@@ -400,7 +400,7 @@ export function landNow(
     people ? toSteps(net / people) : 0,
     toSteps(sent.get(cell) ?? 0, TRADE_STEPS),
     healthOf(world)?.land(cell)?.dead ?? 0,
-    Math.round(readersOf(world, cell) * 1000),
+    Math.round(readersOf(world, cell) * 100),
   ];
 }
 

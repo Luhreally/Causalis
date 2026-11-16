@@ -138,7 +138,8 @@ export function openSteps(w: CanWorld, known: Iterable<string> = []): Set<string
       changed = true;
     }
     for (const p of PRINCIPLES) {
-      if (open.has(p.id) || p.rate <= 0) continue;
+      // (What only being there teaches, K1, is found by none at a trade and is open all the same: the world shows it.)
+      if (open.has(p.id) || (p.rate <= 0 && p.seen === undefined)) continue;
       if (!needsMet(p, knows) || stepStop(p, w, knows)) continue;
       open.add(p.id);
       changed = true;

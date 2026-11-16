@@ -120,10 +120,13 @@ export function inquiryShare(depth: number): number {
 
 /** How much of the rest of its realm's readers a land's word joins it to (0 … `joined`), by how far word carries in a day. */
 export function joinedBy(kmADay: number): number {
-  return INQUIRY.joined * dmath.clamp(
-    dmath.log(Math.max(1, kmADay) / INQUIRY.near) / dmath.log(INQUIRY.far / INQUIRY.near),
-    0,
-    1,
+  return (
+    INQUIRY.joined *
+    dmath.clamp(
+      dmath.log(Math.max(1, kmADay) / INQUIRY.near) / dmath.log(INQUIRY.far / INQUIRY.near),
+      0,
+      1,
+    )
   );
 }
 
@@ -131,7 +134,12 @@ export function joinedBy(kmADay: number): number {
  * How readily a land's inquiry finds, against one reader alone (1): by its readers (its own and those its word joins it to),
  * what it can measure, and its ways (openness against custom).
  */
-export function inquiryOf(readers: number, measures: number, openness: number, tradition: number): number {
+export function inquiryOf(
+  readers: number,
+  measures: number,
+  openness: number,
+  tradition: number,
+): number {
   return (
     (1 + dmath.log10(1 + Math.max(0, readers) / INQUIRY.readers)) *
     (1 + INQUIRY.measures * Math.min(INQUIRY.measured, Math.max(0, measures))) *

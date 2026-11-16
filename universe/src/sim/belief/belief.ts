@@ -151,7 +151,10 @@ function omenOf(type: string, data: unknown): { tenet: Tenet; strength: number }
     }
     case "wild.fire":
     case "wild.rise":
-      return { tenet: "fire", strength: 0.2 + Math.min(0.4, ((data as { dead?: number } | null)?.dead ?? 0) / 2000) };
+      return {
+        tenet: "fire",
+        strength: 0.2 + Math.min(0.4, ((data as { dead?: number } | null)?.dead ?? 0) / 2000),
+      };
     case "wild.star":
       return { tenet: "presence", strength: 0.3 };
     case "weather.drought":

@@ -163,7 +163,9 @@ function creedBlock(f: Faith): Block {
         : []),
       stat(
         "Its teaching",
-        scriptureOfTenet(f.tenet) > 0 ? "written, and taught to all it can spare" : "kept by its priests",
+        scriptureOfTenet(f.tenet) > 0
+          ? "written, and taught to all it can spare"
+          : "kept by its priests",
       ),
     ],
   };

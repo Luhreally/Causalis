@@ -404,13 +404,20 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
     joinOf = (r: { readonly ref: string; readonly seat: number }): number => {
       let j = realmJoin.get(r.ref);
       if (j === undefined)
-        realmJoin.set(r.ref, (j = joinedBy(wordPace((id) => knows(ctx, r.seat, id), ctx.medium).kmADay)));
+        realmJoin.set(
+          r.ref,
+          (j = joinedBy(wordPace((id) => knows(ctx, r.seat, id), ctx.medium).kmADay)),
+        );
       return j;
     };
   if (letters)
     for (const prov of ctx.provinces.all()) {
       const r = realms.of(prov.cell);
-      if (r) realmReaders.set(r.ref, (realmReaders.get(r.ref) ?? 0) + letters.of(prov.cell) * prov.total());
+      if (r)
+        realmReaders.set(
+          r.ref,
+          (realmReaders.get(r.ref) ?? 0) + letters.of(prov.cell) * prov.total(),
+        );
     }
   type Plan = {
     cell: number;
@@ -467,7 +474,8 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
     const inquiryHere = (): number => {
       if (inquiryRead >= 0) return inquiryRead;
       const working = prov.total() - prov.occupation(OCC.dependent),
-        food = prov.occupation(OCC.forager) + prov.occupation(OCC.farmer) + prov.occupation(OCC.herder),
+        food =
+          prov.occupation(OCC.forager) + prov.occupation(OCC.farmer) + prov.occupation(OCC.herder),
         spare = working > 0 ? Math.max(0, working - food) / working : 0,
         own = letters ? letters.of(cell) * prov.total() : 0,
         realmNow = realms.of(cell),

@@ -15,6 +15,7 @@ import {
 } from "../../src/rules/principles.ts";
 import { SOLAR } from "../../src/rules/chemistry.ts";
 import { SIGNAL_STEPS } from "../../src/rules/signals.ts";
+import { SEEN_TREE } from "../../src/rules/principles.ts";
 import {
   matterShuts,
   meansWorldOf,
@@ -457,6 +458,8 @@ test("the first 121 principles keep their ids and indexes; the arms, then the me
       "greatest-fire",
       "lane-sounding",
       ...SIGNAL_STEPS,
+      // (What only being there teaches, K1: last.)
+      ...SEEN_TREE.map((p) => p.id),
     ],
   );
 });
@@ -508,6 +511,9 @@ test("on rocky Earth, a land with fire comes to know the same 95 principles it d
       "greatest-fire",
       "lane-sounding",
       ...SIGNAL_STEPS.filter((id) => id !== "sea-sound"),
+      // (And what only being there teaches, K1: building to ride the shaking, keeping against the dry year, a land people's.)
+      "riding-the-shaking",
+      "dry-year-keeping",
     ].sort(),
   );
   assert.ok(is.has("electricity") && is.has("gunpowder"), "the base reaches the powder");
@@ -517,7 +523,13 @@ test("on Earth's matter with no fire, a water people comes to know the same 51 i
   // (Signals too: the current its people make, carried by sound through the deep, not on the air.)
   assert.deepEqual(
     [...onEarth("water", false)].sort(),
-    [...EARTH_WATER, "lane-sounding", ...SIGNAL_STEPS.filter((id) => id !== "radio")].sort(),
+    [
+      ...EARTH_WATER,
+      "lane-sounding",
+      ...SIGNAL_STEPS.filter((id) => id !== "radio"),
+      // (Building to ride the shaking is any people's; keeping against the dry year is not the sea's.)
+      "riding-the-shaking",
+    ].sort(),
   );
 });
 

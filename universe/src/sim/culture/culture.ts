@@ -193,7 +193,12 @@ function meanRain(g: HomeWorld, medium: Medium): number {
 }
 
 /** A land as its people's ways read it, as it was made (rules/ways.ts LandReading). */
-export function landRead(g: HomeWorld, cell: number, medium: Medium, appetite: number): LandReading {
+export function landRead(
+  g: HomeWorld,
+  cell: number,
+  medium: Medium,
+  appetite: number,
+): LandReading {
   if (offworldSite(g, cell))
     return { seasonality: 0, gives: 0, rain: 1, relief: 0, shore: 0, river: false, sealed: true };
   const elev = g.tectonics.elevation,
@@ -246,7 +251,12 @@ export function cradleWays(
   /** What their body and land make of each way (an offset each; absent: nothing, every way at its middle). */
   lean?: readonly number[],
 ): Ways {
-  const traits = lean ? waysFrom(lean, WAY_TRAITS.map(() => 0)) : WAY_TRAITS.map(() => 0.5);
+  const traits = lean
+    ? waysFrom(
+        lean,
+        WAY_TRAITS.map(() => 0),
+      )
+    : WAY_TRAITS.map(() => 0.5);
   return {
     cell,
     traits,
@@ -355,11 +365,7 @@ export function waysTarget(world: World, w: Ways, year: number): number[] {
   const learned = waysLearned(w, year),
     held = HELD.map((f) => f(world, w.cell, year));
   return w.base.map((b, k) =>
-    dmath.clamp(
-      b + learned[k]! + held.reduce((s, x) => s + (x?.[k] ?? 0), 0),
-      0.02,
-      0.98,
-    ),
+    dmath.clamp(b + learned[k]! + held.reduce((s, x) => s + (x?.[k] ?? 0), 0), 0.02, 0.98),
   );
 }
 

@@ -12,7 +12,9 @@ export const PEOPLES_CONCEPTS: Readonly<Record<string, Concept>> = {
       "Of its land: how hard its seasons turn (thrift and custom), how much the land gives (plenty makes it less thrifty and less bound to kin), how sure its rain is (piety), how sickly it is, how rugged (valour; rank is hard to hold in the hills), and whether it lies on a shore or a river (trade, openness).",
       "Then a people changes them by what it sees fare well: each decade it weighs, its own and its nearest neighbours', whether those who held a way the more grew and were fed the better. A belief held firmly draws its ways toward it; a belief half-held barely moves them. Hunger presses thrift, the god's hand presses piety, and what it comes to know presses custom.",
     ],
-    drives: ["Body, land, what fared well among it and its neighbours, hunger, the god's hand, its faith."],
+    drives: [
+      "Body, land, what fared well among it and its neighbours, hunger, the god's hand, its faith.",
+    ],
     leads: [
       "How its realms are held (the four numbers of a realm begin from its ways).",
       "What it finds and learns, what it trades, how it fights, whom it marries and makes war on, how it treats the bound.",
@@ -41,7 +43,9 @@ export const PEOPLES_CONCEPTS: Readonly<Record<string, Concept>> = {
       "The deeper a thing lies, the more of it is found by inquiry: by those who read, each tenfold more of them as much again; the more with the means to measure (a calendar, reckoning, the stars' courses, lenses, clockwork, the current and what reckons with it); the more where word joins them to the readers of the rest of their realm; the more as their ways look to the new rather than to custom.",
       "A page of a thing found says how much of the finding was readers at their measures, and how much many hands.",
     ],
-    drives: ["Readers, measures, word between learners, openness against custom, surplus to spare."],
+    drives: [
+      "Readers, measures, word between learners, openness against custom, surplus to spare.",
+    ],
     leads: ["The later ages, sooner where readers are many and joined."],
     see: [{ text: "What emerged, where first, how far it spread", ref: "world:chronicle#firsts" }],
     related: ["letters", "lore", "ages"],

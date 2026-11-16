@@ -2,6 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  SEEN_TREE,
   CARRIED_ENGINES,
   MISS_EYE,
   MISS_STEADIED,
@@ -142,8 +143,11 @@ test("the rows come last, in need order, and ask their world's matter", () => {
   // (Only a later age's rows come after them: what was found before is found as it was.)
   const first = ids.indexOf("powered-wings");
   assert.deepEqual(ids.slice(first, first + 3), ["powered-wings", "dropped-loads", "thrown-loads"]);
-  // (After them only the lanes' row, the greatest fire's, and signals' nine: rows appended later.)
-  assert.ok(first >= ids.length - 6 - SIGNAL_STEPS.length, "they stand at the table's end");
+  // (After them only the lanes' row, the greatest fire's, signals' nine and what only being there teaches (K1): rows appended later.)
+  assert.ok(
+    first >= ids.length - 6 - SIGNAL_STEPS.length - SEEN_TREE.length,
+    "they stand at the table's end",
+  );
   assert.deepEqual(principle("powered-wings").asks, ["fly-under-power"]);
   assert.ok(principle("dropped-loads").needs.includes("powered-wings"));
   assert.deepEqual(principle("powered-wings").effects, {});

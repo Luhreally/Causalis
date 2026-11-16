@@ -12,8 +12,10 @@ import { universeWorld } from "./worlds.ts";
 const world = universeWorld(EARTH, "first light", 125);
 const ask = <T>(type: string, args: unknown = {}) => EARTH.queries[type]!(world, args) as T;
 const page = (ref: string) => ask<PageModel>("page", { ref }),
-  blocks = (p: PageModel, tab: string): readonly Block[] => p.tabs.find((t) => t.id === tab)?.blocks ?? [],
-  titled = (bs: readonly Block[], title: string) => bs.find((b) => "title" in b && b.title === title);
+  blocks = (p: PageModel, tab: string): readonly Block[] =>
+    p.tabs.find((t) => t.id === tab)?.blocks ?? [],
+  titled = (bs: readonly Block[], title: string) =>
+    bs.find((b) => "title" in b && b.title === title);
 
 test("a land that reads says who reads and why, draws its readers through the years, and the lens reads it", () => {
   const ctx = populationContext(world),
@@ -24,7 +26,11 @@ test("a land that reads says who reads and why, draws its readers through the ye
     land = lands[0]!;
   assert.ok(readersOf(world, land.cell) > 0, "someone reads by year 125");
   const p = page(`cell:0:${land.cell}`),
-    people = blocks(p, p.tabs.find((t) => t.blocks.some((b) => "title" in b && b.title === "Reading and writing"))?.id ?? "");
+    people = blocks(
+      p,
+      p.tabs.find((t) => t.blocks.some((b) => "title" in b && b.title === "Reading and writing"))
+        ?.id ?? "",
+    );
   const letters = titled(people, "Reading and writing");
   assert.ok(letters && letters.type === "facts", "a Reading and writing block");
   if (letters?.type === "facts") {
@@ -34,9 +40,13 @@ test("a land that reads says who reads and why, draws its readers through the ye
   }
   const why = titled(people, "What makes them so");
   assert.ok(why && why.type === "text" && why.lines.length > 0, "what makes their ways");
-  if (why?.type === "text") for (const l of why.lines) assert.match(l.join(""), /^They [^:]+: .+\.$/);
+  if (why?.type === "text")
+    for (const l of why.lines) assert.match(l.join(""), /^They [^:]+: .+\.$/);
   const time = blocks(p, "time").find((b) => b.type === "series" && b.title === "Who read");
-  assert.ok(time && time.type === "series" && time.points.length >= 2, "who read, through the years");
+  assert.ok(
+    time && time.type === "series" && time.points.length >= 2,
+    "who read, through the years",
+  );
   const r = lensReading(world, land.cell, "letters");
   assert.match(r?.line ?? "", /^Letters: \d/);
 });

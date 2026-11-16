@@ -3,14 +3,15 @@
 // written; a generation brings a land most of the way there, and a land that loses its script loses its readers as they die.
 // One number a land, reckoned once in ten years in the land's own year (as its ways are weighed), and read each year by the
 // lore's finding (sim/lore/lore.ts: inquiry). Nothing a person, nothing that grows with history.
-import { YEAR, yearOfMoment, type Hasher, type SimTime, type StateStore, type World } from "../../kernel/index.ts";
 import {
-  HOLD,
-  LETTERS,
-  OCC,
-  readersAfter,
-  readersTarget,
-} from "../../rules/index.ts";
+  YEAR,
+  yearOfMoment,
+  type Hasher,
+  type SimTime,
+  type StateStore,
+  type World,
+} from "../../kernel/index.ts";
+import { HOLD, LETTERS, OCC, readersAfter, readersTarget } from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import type { Province } from "../population/model.ts";
 import { politiesOf } from "../polity/polity.ts";

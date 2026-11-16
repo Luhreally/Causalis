@@ -60,9 +60,18 @@ test("a people's first ways come of its body: a short-lived spawning swimmer of 
   const ape = bodyWays(APE),
     fish = bodyWays(swimmer);
   // (Many young and a short life lean to daring, against thrift; a hunter of flesh to valour; spawn cared for less than borne.)
-  assert.ok(fish[WAY.valour]! > ape[WAY.valour]! + 0.1, `valour ${ape[WAY.valour]} → ${fish[WAY.valour]}`);
-  assert.ok(fish[WAY.thrift]! < ape[WAY.thrift]!, `thrift ${ape[WAY.thrift]} → ${fish[WAY.thrift]}`);
-  assert.ok(fish[WAY.kinship]! < ape[WAY.kinship]!, `kinship ${ape[WAY.kinship]} → ${fish[WAY.kinship]}`);
+  assert.ok(
+    fish[WAY.valour]! > ape[WAY.valour]! + 0.1,
+    `valour ${ape[WAY.valour]} → ${fish[WAY.valour]}`,
+  );
+  assert.ok(
+    fish[WAY.thrift]! < ape[WAY.thrift]!,
+    `thrift ${ape[WAY.thrift]} → ${fish[WAY.thrift]}`,
+  );
+  assert.ok(
+    fish[WAY.kinship]! < ape[WAY.kinship]!,
+    `kinship ${ape[WAY.kinship]} → ${fish[WAY.kinship]}`,
+  );
   // (A hive keeps to rank and kin more than a loose band does.)
   const hive = bodyWays({ ...APE, social: 0.95 } as BodyPlan),
     band = bodyWays({ ...APE, social: 0.4 } as BodyPlan);
@@ -135,7 +144,10 @@ test("a faith's creed is what it holds the power to be and what marked its found
   const fear = creedOf("sickness", null),
     thanks = creedOf("plenty", null),
     learning = creedOf("teaching", null);
-  assert.ok(fear[WAY.tradition]! > 0 && fear[WAY.openness]! < 0, "a power that harms is warded off");
+  assert.ok(
+    fear[WAY.tradition]! > 0 && fear[WAY.openness]! < 0,
+    "a power that harms is warded off",
+  );
   assert.ok(thanks[WAY.thrift]! < 0, "a power that gives is thanked at feasts");
   assert.ok(learning[WAY.tradition]! < 0, "a power that knows is learned from");
   // (A warlike founding people's faith hallows valour.)

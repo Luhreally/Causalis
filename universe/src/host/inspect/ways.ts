@@ -59,10 +59,7 @@ export function waysReasons(world: World, w: Ways, k: number): WayReason[] {
   const target = waysTarget(world, w, year)[k]!,
     held = target - Math.max(0.02, Math.min(0.98, w.base[k]! + learned));
   if (Math.abs(held) >= NAMED) out.push({ words: "their faith", press: held });
-  const made =
-      0.5 +
-      bodyWays(body)[k]! +
-      landWays(g, w.cell, ctx.medium, ctx.life.appetite)[k]!,
+  const made = 0.5 + bodyWays(body)[k]! + landWays(g, w.cell, ctx.medium, ctx.life.appetite)[k]!,
     forebears = w.base[k]! - made;
   if (Math.abs(forebears) >= 0.03)
     out.push({ words: "their forebears' ways", press: forebears, chance: 1 });

@@ -1,7 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { YEAR } from "../../src/kernel/index.ts";
-import { BELIEF_EVENTS, WAY, beliefOf, cultureOf, marketsOf } from "../../src/sim/index.ts";
+import {
+  BELIEF_EVENTS,
+  WAY,
+  beliefOf,
+  cultureOf,
+  heldCreed,
+  marketsOf,
+} from "../../src/sim/index.ts";
 import { spine, why } from "../../src/causal/index.ts";
 import { cradleCell } from "../cradle.ts";
 import { peopledWorld } from "../worlds.ts";
@@ -20,6 +27,14 @@ const OMENS = new Set([
   "weather.drought",
   "knowledge.cultivation",
   "knowledge.metalworking",
+  // (What the world does of itself, round "peoples": a sickness that took many, a quake, a fire or a stone from the sky that came
+  // of itself, a mountain rising, a star seen to fall.)
+  "health.outbreak",
+  "act.quake",
+  "act.meteor",
+  "wild.fire",
+  "wild.rise",
+  "wild.star",
 ]);
 
 const world = peopledWorld("first light", 300, { start: "spread" });
@@ -79,22 +94,36 @@ test("the god's act is an omen: a devout people struck by it may found a faith i
 });
 
 // Last in the file: it runs the shared world on.
-test("held for generations, a faith deepens a people's devotion", () => {
-  const culture = cultureOf(world),
+test("held for generations, a faith draws a people's ways the more toward what it holds", () => {
+  const year = () => Math.floor(world.now / YEAR),
+    pull = (cell: number) =>
+      (heldCreed(world, cell, year()) ?? []).reduce((s, v) => s + Math.abs(v), 0),
     before = new Map(
-      culture
+      cultureOf(world)
         .all()
-        .filter((w) => faiths.of(w.cell).faith && w.base[WAY.piety]! < 0.8)
-        .map((w) => [w.cell, { faith: faiths.of(w.cell).faith, piety: w.base[WAY.piety]! }]),
+        .filter((w) => faiths.of(w.cell).faith)
+        .map((w) => [
+          w.cell,
+          { faith: faiths.of(w.cell).faith, since: faiths.of(w.cell).since, pull: pull(w.cell) },
+        ]),
     );
-  assert.ok(before.size > 0, "lands holding a faith, short of the deepest devotion");
+  assert.ok(before.size > 0, "lands holding a faith");
   world.runTo(world.now + 20 * YEAR);
-  // Those that kept the same faith the twenty years are the more devout for it.
-  const kept = [...before].filter(([cell, b]) => faiths.of(cell).faith === b.faith);
+  // Those that kept the same faith the twenty years (not left it and come back) are drawn the harder by it (rules/faith.ts creedHeld).
+  const kept = [...before].filter(
+    ([cell, b]) => faiths.of(cell).faith === b.faith && faiths.of(cell).since === b.since,
+  );
   assert.ok(kept.length > 0);
   for (const [cell, b] of kept)
-    assert.ok(
-      cultureOf(world).get(cell)!.base[WAY.piety]! > b.piety,
-      `land ${cell}: ${b.piety.toFixed(3)} → ${cultureOf(world).get(cell)!.base[WAY.piety]!.toFixed(3)}`,
-    );
+    assert.ok(pull(cell) > b.pull, `land ${cell}: ${b.pull.toFixed(3)} → ${pull(cell).toFixed(3)}`);
+  // And where it asks devotion, their devotion stands above what their body, land and lessons alone would make it.
+  const asked = kept.filter(([cell]) => (heldCreed(world, cell, year())?.[WAY.piety] ?? 0) > 0.02),
+    above = asked.filter(([cell]) => {
+      const w = cultureOf(world).get(cell)!;
+      return w.traits[WAY.piety]! > w.base[WAY.piety]!;
+    });
+  assert.ok(
+    asked.length > 0 && above.length > asked.length / 2,
+    `${above.length} of ${asked.length}`,
+  );
 });

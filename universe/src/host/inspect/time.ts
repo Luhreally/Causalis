@@ -618,7 +618,7 @@ export function landTimeTab(world: World, cell: number): Tab | null {
           "of them",
           "share",
           withNow(
-            read.slice(Math.max(0, first - 1)).map((q) => ({ x: q.x, y: q.y / 1000 })),
+            read.slice(Math.max(0, first - 1)).map((q) => ({ x: q.x, y: q.y / 100 })),
             now,
             readersOf(world, cell),
           ),

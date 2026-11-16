@@ -21,6 +21,7 @@ import {
   prospects,
   spaceOf,
   type Polity,
+  landRead,
 } from "../../src/sim/index.ts";
 import { landWords, why } from "../../src/causal/index.ts";
 import type { SkyState } from "../../src/bridge/index.ts";
@@ -156,10 +157,13 @@ test("colonies drift from home by the ordinary rules: the halls press their ways
   }
   const colonies = spaceOf(world).of(realm.ref)!.colonies;
   assert.ok(colonies.length >= 2, `${colonies.length} colonies`);
-  // Culturally: the halls' life has pressed the first colony's ways past what its settlers brought.
-  const pressed = culture.get(colonies[0]!.cell)!;
-  assert.ok(pressed.traits[WAY.kinship]! > pressed.base[WAY.kinship]!, "kin count for more");
-  assert.ok(pressed.traits[WAY.thrift]! > pressed.base[WAY.thrift]!, "thrift counts for more");
+  // Culturally: the sealed halls draw the first colony's ways as any land draws its people's (rules/ways.ts LAND_PARTS sealed):
+  // kin count for more and thrift too, against the seat's.
+  const pressed = culture.get(colonies[0]!.cell)!,
+    home = culture.get(realm.seat)!;
+  assert.ok(landRead(g, colonies[0]!.cell, "land", 1).sealed, "the halls are sealed");
+  assert.ok(pressed.base[WAY.kinship]! > home.base[WAY.kinship]!, "kin count for more");
+  assert.ok(pressed.base[WAY.thrift]! > home.base[WAY.thrift]!, "thrift counts for more");
   const first = culture.get(colonies[0]!.cell)!,
     seat = culture.get(realm.seat)!,
     apart = Math.sqrt(first.traits.reduce((s, v, i) => s + (v - seat.traits[i]!) ** 2, 0));
