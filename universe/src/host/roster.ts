@@ -164,8 +164,10 @@ export type Roster = {
    * them, 2026-11-15).
    */
   hurt(): readonly number[];
-  /** A battle's fallen, in its men's order, made without making its every man. */
-  fell(battle: RosterBattle): readonly Holder[];
+  /** A battle's fallen, in its men's order (the first `most` of them), made without making its every man. */
+  fell(battle: RosterBattle, most?: number): readonly Holder[];
+  /** How many of the town's lines fell in a battle. */
+  fallen(battle: RosterBattle): number;
   /** Their name in the land's tongue (memoized). */
   nameOf(h: Holder): string;
 };
@@ -1429,14 +1431,20 @@ function foldRoster(
     weigh(8 * hurtLines.length);
     return hurtLines;
   };
-  const fell = (battle: RosterBattle): readonly Holder[] => {
+  const fell = (battle: RosterBattle, most = Infinity): readonly Holder[] => {
     // (A battle told and what was kept of it stand at the same place in their lists.)
     const x = levies[battles.indexOf(battle)],
       out: Holder[] = [];
     if (!x) return out;
-    for (let i = 0; i < x.lines.length; i++)
+    for (let i = 0; i < x.lines.length && out.length < most; i++)
       if (FATES[x.fates[i]!] === "fell") out.push(holderIn(x.lines[i]!, x.year));
     return out;
+  };
+  const fallen = (battle: RosterBattle): number => {
+    const x = levies[battles.indexOf(battle)];
+    let n = 0;
+    if (x) for (let i = 0; i < x.fates.length; i++) if (FATES[x.fates[i]!] === "fell") n++;
+    return n;
   };
   const roster: Roster = {
     town,
@@ -1448,6 +1456,7 @@ function foldRoster(
     strikes,
     hurt,
     fell,
+    fallen,
     nameOf,
   };
   INNER.set(roster, inner);

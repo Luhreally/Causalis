@@ -65,6 +65,14 @@ import { threadBlock } from "./thread.ts";
 import { worldLook } from "../biochem.ts";
 
 const OCCUPATION_WORDS = ["child", "forager", "farmer", "herder", "crafter", "trader", "leader"];
+
+/**
+ * What a town's War tab tells: its newest battles, and of each battle's fallen so many by name, the rest counted.
+ * Every one was named: a town of millions' page came to three million characters and nineteen thousand lines, read
+ * again every two seconds while open and drawn whole when it changed, and left open on that tab as the years ran it
+ * took a browser's tab past seven gigabytes in two minutes (2026-11-15).
+ */
+export const WAR_TAB = { battles: 40, named: 8 } as const;
 /** Each trait said low / middling / high. */
 const TRAIT_WORDS: Readonly<Record<string, readonly [string, string, string]>> = {
   boldness: ["cautious", "steady", "bold"],
@@ -308,8 +316,9 @@ export function townPage(world: World, ref: string): PageModel {
         person.village === s.ref ? person.wars?.find((w) => w.fate === "fell") : undefined;
       if (fate) fallen.set(fate.event, [...(fallen.get(fate.event) ?? []), person]);
     }
-    const items: Item[] = [];
-    for (const rb of [...roster.battles].reverse()) {
+    const items: Item[] = [],
+      told = [...roster.battles].reverse();
+    for (const rb of told.slice(0, WAR_TAB.battles)) {
       const [sent, dead, hurt] = rb.tally;
       items.push(
         item(
@@ -321,7 +330,7 @@ export function townPage(world: World, ref: string): PageModel {
           rb.year,
         ),
       );
-      for (const h of roster.fell(rb))
+      for (const h of roster.fell(rb, WAR_TAB.named))
         items.push(
           item(
             ["Fell there: ", link(roster.nameOf(h), h.ref), `, aged ${rb.year - h.born}`],
@@ -329,6 +338,9 @@ export function townPage(world: World, ref: string): PageModel {
             rb.year,
           ),
         );
+      const unnamed = roster.fallen(rb) - WAR_TAB.named;
+      if (unnamed > 0)
+        items.push(item(`And ${count(unnamed)} more of its own fell there.`, null, rb.year));
       for (const person of fallen.get(rb.event) ?? [])
         items.push(
           item(
@@ -346,7 +358,14 @@ export function townPage(world: World, ref: string): PageModel {
       tabs.push({
         id: "war",
         name: "War",
-        blocks: [{ type: "list", title: "Its men at war", items }],
+        blocks: [
+          {
+            type: "list",
+            title: "Its men at war",
+            items,
+            ...(told.length > WAR_TAB.battles ? { more: told.length - WAR_TAB.battles } : {}),
+          },
+        ],
       });
   }
   // Its wounded (Phase 55 M226, M229): those healing now, those marked for good, and its healer.
