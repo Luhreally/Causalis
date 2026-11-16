@@ -93,7 +93,7 @@ export type SaveReading = {
   readonly gz: number;
   /** Each store as written (and gzipped alone), largest first. */
   readonly stores: readonly (readonly [name: string, bytes: number, gz: number])[];
-  /** The heap after a full collection (null: no collector to ask), and what lies outside it. */
+  /** The heap after a full collection, the save let go (null: no collector to ask), and the buffers outside it. */
   readonly heap: number | null;
   readonly outside: number;
 };
@@ -188,6 +188,20 @@ function powerFit(xs: number[], ys: number[]): { power: number; r2: number } | n
 }
 
 export function readSave(world: World, heap = true): SaveReading {
+  const made = makeSave(world);
+  // (The heap read once the save made is let go: the worker holds none of it after. 2026-11-15: read while the
+  // document and its text were still at hand, a world at 1,400 told 84 MB more than it holds.)
+  let held: number | null = null;
+  if (heap && collect) {
+    collect();
+    held = used();
+  }
+  const m = process.memoryUsage();
+  return { ...made, heap: held, outside: m.arrayBuffers };
+}
+
+/** A save made and written, and how long each took. */
+function makeSave(world: World): Omit<SaveReading, "heap" | "outside"> {
   const t0 = performance.now(),
     doc = saveWorld(world, rulesetId(world, "cost")),
     t1 = performance.now(),
@@ -201,12 +215,6 @@ export function readSave(world: World, heap = true): SaveReading {
         return [name, s.length, gzipSync(s).length] as const;
       })
       .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
-  let held: number | null = null;
-  if (heap && collect) {
-    collect();
-    held = used();
-  }
-  const m = process.memoryUsage();
   return {
     year: Math.round(world.now / YEAR),
     makeMs: t1 - t0,
@@ -215,8 +223,6 @@ export function readSave(world: World, heap = true): SaveReading {
     bytes: text.length,
     gz,
     stores,
-    heap: held,
-    outside: m.external + m.arrayBuffers,
   };
 }
 

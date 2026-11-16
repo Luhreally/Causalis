@@ -135,6 +135,11 @@ function zig(v: number): number {
 
 /** How many letters a whole number takes as a varint. */
 function width(u: number): number {
+  // (Most numbers are of a few letters and under 2^31, told by their bits.)
+  if (u < 32) return 1;
+  if (u < 1024) return 2;
+  if (u < 32768) return 3;
+  if (u < 1048576) return 4;
   let n = 1;
   while (u >= 32) {
     u = Math.floor(u / 32);
@@ -142,6 +147,9 @@ function width(u: number): number {
   }
   return n;
 }
+
+/** Letters of a varint text into a string (all ASCII). */
+const ASCII = new TextDecoder();
 
 /** Varints written into text, a letter at a time. */
 class Varints {
@@ -159,51 +167,72 @@ class Varints {
       grown.set(this.codes);
       this.codes = grown;
     }
+    const codes = this.codes;
+    let n = this.n;
+    // (By bits while they hold it: the same letters.)
+    while (u >= 32 && u < 2147483648) {
+      codes[n++] = CODES[32 + (u & 31)]!;
+      u >>>= 5;
+    }
     while (u >= 32) {
-      this.codes[this.n++] = CODES[32 + (u % 32)]!;
+      codes[n++] = CODES[32 + (u % 32)]!;
       u = Math.floor(u / 32);
     }
-    this.codes[this.n++] = CODES[u]!;
+    codes[n++] = CODES[u]!;
+    this.n = n;
   }
 
   text(): string {
-    const codes = this.laidOut() ?? this.codes,
-      n = codes === this.codes ? this.n : codes.length;
-    let out = "";
-    for (let at = 0; at < n; at += 4096)
-      out += String.fromCharCode.apply(
-        null,
-        codes.subarray(at, Math.min(n, at + 4096)) as unknown as number[],
-      );
-    return out;
+    return lettersText(this.codes, this.n);
   }
+}
 
-  /** The letters by their place in their numbers (none where it would change nothing, or gain nothing). */
-  private laidOut(): Uint8Array | null {
-    if (this.n < LAID_OUT) return null;
-    const count = new Int32Array(16);
-    let place = 0;
-    for (let i = 0; i < this.n; i++) {
-      count[place]!++;
-      place = VALUE_OF[this.codes[i]!]! >= 32 ? place + 1 : 0;
-    }
-    if (count[1] === 0) return null;
-    let at = 1;
-    for (let p = 0; p < count.length; p++) {
-      const here = count[p]!;
-      count[p] = at;
-      at += here;
-    }
-    const out = new Uint8Array(at);
-    out[0] = BY_PLACE;
-    place = 0;
-    for (let i = 0; i < this.n; i++) {
-      const c = this.codes[i]!;
-      out[count[place]!++] = c;
-      place = VALUE_OF[c]! >= 32 ? place + 1 : 0;
-    }
-    return out;
+/** Varints' letters as text: laid out by their place in their numbers where that gains (see laidOut). */
+function lettersText(codes: Uint8Array, n: number): string {
+  const laid = laidOut(codes, n);
+  // (Its letters are all ASCII, which UTF-8 reads as themselves: one decoding, not a string built up by pieces.)
+  return ASCII.decode(laid ?? codes.subarray(0, n));
+}
+
+/** The letters by their place in their numbers (none where it would change nothing, or gain nothing). */
+function laidOut(codes: Uint8Array, n: number): Uint8Array | null {
+  if (n < LAID_OUT) return null;
+  const count = new Int32Array(16);
+  let place = 0;
+  for (let i = 0; i < n; i++) {
+    count[place]!++;
+    place = VALUE_OF[codes[i]!]! >= 32 ? place + 1 : 0;
   }
+  if (count[1] === 0) return null;
+  let at = 1;
+  for (let p = 0; p < count.length; p++) {
+    const here = count[p]!;
+    count[p] = at;
+    at += here;
+  }
+  const out = new Uint8Array(at);
+  out[0] = BY_PLACE;
+  place = 0;
+  for (let i = 0; i < n; i++) {
+    const c = codes[i]!;
+    out[count[place]!++] = c;
+    place = VALUE_OF[c]! >= 32 ? place + 1 : 0;
+  }
+  return out;
+}
+
+/** Each number's varint letters, written into codes from `at`: where the next begins. */
+function letters(codes: Uint8Array, at: number, u: number): number {
+  while (u >= 32 && u < 2147483648) {
+    codes[at++] = CODES[32 + (u & 31)]!;
+    u >>>= 5;
+  }
+  while (u >= 32) {
+    codes[at++] = CODES[32 + (u % 32)]!;
+    u = Math.floor(u / 32);
+  }
+  codes[at++] = CODES[u]!;
+  return at;
 }
 
 /** The numbers in a text laid out by place, the way zig or none left them. */
@@ -300,28 +329,33 @@ function plainKeys(v: object): string[] | null {
 
 /** Whole numbers into `out`: as themselves or as each less the one before, whichever is shorter. */
 function packInts(values: ArrayLike<number>, out: Record<string, unknown>): void {
+  // (Its letters counted first, then written into exactly as many: a late save packs ten million numbers.)
+  const n = values.length;
   let plain = 0,
     steps = 0,
     before = 0;
-  for (let j = 0; j < values.length; j++) {
-    const v = values[j]!;
-    plain += width(zig(v));
-    steps += width(zig(v - before));
+  for (let j = 0; j < n; j++) {
+    const v = values[j]!,
+      d = v - before,
+      z = v < 0 ? -2 * v - 1 : 2 * v,
+      y = d < 0 ? -2 * d - 1 : 2 * d;
+    plain += z < 32 ? 1 : z < 1024 ? 2 : z < 32768 ? 3 : width(z);
+    steps += y < 32 ? 1 : y < 1024 ? 2 : y < 32768 ? 3 : width(y);
     before = v;
   }
-  const text = new Varints(Math.min(plain, steps));
+  const delta = steps < plain,
+    codes = new Uint8Array(delta ? steps : plain);
+  let at = 0;
   before = 0;
-  if (steps < plain) {
-    for (let j = 0; j < values.length; j++) {
+  if (delta)
+    for (let j = 0; j < n; j++) {
       const v = values[j]!;
-      text.push(zig(v - before));
+      at = letters(codes, at, zig(v - before));
       before = v;
     }
-    out.d = text.text();
-  } else {
-    for (let j = 0; j < values.length; j++) text.push(zig(values[j]!));
-    out.i = text.text();
-  }
+  else for (let j = 0; j < n; j++) at = letters(codes, at, zig(values[j]!));
+  if (delta) out.d = lettersText(codes, at);
+  else out.i = lettersText(codes, at);
 }
 
 function unpackInts(p: Packed): number[] {
@@ -491,13 +525,7 @@ function packFloats(values: readonly number[]): FloatColumn {
     low[at + 7] = CODES[lo & 63]!;
   }
   packInts(tops, out);
-  let text = "";
-  for (let at = 0; at < low.length; at += 4096)
-    text += String.fromCharCode.apply(
-      null,
-      low.subarray(at, Math.min(low.length, at + 4096)) as unknown as number[],
-    );
-  out.l = text;
+  out.l = ASCII.decode(low);
   return out as FloatColumn;
 }
 
@@ -537,6 +565,13 @@ function unpackFloats(f: FloatColumn): number[] {
  * by their numbers there, and it is read with them.
  */
 export function packList(values: readonly unknown[], words?: Words): Packed {
+  // (A long list of small whole numbers, as most of a late save's are, told so in one look at each: kept as any
+  // list of whole numbers is.)
+  if (values.length >= 64 && smallInts(values)) {
+    const out: Record<string, unknown> = { n: values.length };
+    packInts(values as readonly number[], out);
+    return out as Packed;
+  }
   const n = values.length,
     out: Record<string, unknown> = { n },
     kinds = new Uint8Array(n),
@@ -578,6 +613,15 @@ export function packList(values: readonly unknown[], words?: Words): Packed {
   if (seen & (1 << RAW)) out.r = of<unknown>(RAW);
   if (seen & (1 << FLOAT)) out.f = packFloats(of<number>(FLOAT));
   return out as Packed;
+}
+
+/** Whether every value is a whole number of 31 bits or fewer either way (so a whole number packList keeps as one). */
+function smallInts(values: readonly unknown[]): boolean {
+  for (let j = 0; j < values.length; j++) {
+    const v = values[j];
+    if (typeof v !== "number" || (v | 0) !== v || Object.is(v, -0)) return false;
+  }
+  return true;
 }
 
 /** Objects by shape (their keys, in order), each shape's values a column for each key. */
@@ -642,6 +686,11 @@ function packArrays(
   out.a = lengths.text();
   // (A hole is read as undefined, which JSON writes as null, as it would in the array.)
   if (most > TUPLE) {
+    // (One array is its own items: a store's long column, not copied.)
+    if (arrays.length === 1 && !hasHoles(arrays[0]!)) {
+      out.e = packList(arrays[0]!, words);
+      return;
+    }
     const items = new Array<unknown>(total);
     let at = 0;
     for (const a of arrays) for (let j = 0; j < a.length; j++) items[at++] = a[j];
@@ -651,6 +700,12 @@ function packArrays(
   const places: unknown[][] = Array.from({ length: most }, () => []);
   for (const a of arrays) for (let j = 0; j < a.length; j++) places[j]!.push(a[j]);
   out.t = places.map((place) => packList(place, words));
+}
+
+/** Whether an array has holes (which a copy reads as undefined). */
+function hasHoles(a: readonly unknown[]): boolean {
+  for (let j = 0; j < a.length; j++) if (!(j in a)) return true;
+  return false;
 }
 
 /** The values packList packed (with the words they were packed with, if any). */

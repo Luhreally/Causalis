@@ -11,6 +11,7 @@ import {
   loadWorld,
   rulesetId,
   saveWorld,
+  saveSteps,
   seedFromText,
   type SaveDocument,
   type Seed,
@@ -196,6 +197,21 @@ function heapNow(): { used: number | null; most: number | null } {
 
 /** How long after the page asks for anything the host's background work waits, ms. */
 const ASKING_MS = 1500;
+/** The most a pump gives a save under way (ms): a frame is due every hundred. */
+const SAVE_SLICE_MS = 40;
+/** What is answered while a save is made: what only reads the world, or nothing of it. */
+const WHILE_SAVING: ReadonlySet<string> = new Set([
+  "query",
+  "interest",
+  "speed",
+  "subscribe",
+  "unsubscribe",
+  "saves",
+  "reading",
+  "glance",
+  "ruleset",
+  "life",
+]);
 /** Queries the page sends on a timer (news of what is followed), not in answer to the viewer. */
 const POLLS: ReadonlySet<string> = new Set(["observe.tidings", "observe.watches", "observe.world"]);
 
@@ -236,6 +252,15 @@ export class SimHost {
   private achievedWindow: { at: number; t: number }[] = [];
   private stepMs = 0;
   private busy = false;
+  /**
+   * A save under way (2026-11-15): made a slice a pump, the world held still till it is written, while what only reads
+   * it (a query, a view, a frame) goes on being answered. A save of a world at 1,500 takes more than a second.
+   */
+  private saving: {
+    readonly id: number;
+    readonly steps: Generator<void, SaveDocument, void>;
+    readonly done: (doc: SaveDocument) => Promise<void>;
+  } | null = null;
 
   constructor(
     port: Port<ToHost, ToMain>,
@@ -258,7 +283,11 @@ export class SimHost {
   /** True when nothing is waiting and the world is paused or caught up: the loop may sleep. */
   get idle(): boolean {
     return (
-      this.inbox.length === 0 && !this.busy && !this.jumping && (this.speed === 0 || !this.world)
+      this.inbox.length === 0 &&
+      !this.busy &&
+      !this.jumping &&
+      !this.saving &&
+      (this.speed === 0 || !this.world)
     );
   }
 
@@ -474,10 +503,13 @@ export class SimHost {
           if (this.jumping) this.endJump(true);
           return;
         case "save": {
-          if (!this.options.storage) throw new Error("this host has no storage");
+          const storage = this.options.storage;
+          if (!storage) throw new Error("this host has no storage");
           this.dropSteps();
-          const bytes = await new SaveSlots(this.options.storage, m.name).write(this.document());
-          this.reply(m.id, { bytes });
+          this.saveInSlices(m.id, async (doc) => {
+            const bytes = await new SaveSlots(storage, m.name).write(doc);
+            this.reply(m.id, { bytes });
+          });
           return;
         }
         case "load": {
@@ -492,8 +524,10 @@ export class SimHost {
         }
         case "export": {
           this.dropSteps();
-          const bytes = await encodeSave(this.document());
-          this.reply(m.id, bytes, [bytes.buffer as ArrayBuffer]);
+          this.saveInSlices(m.id, async (doc) => {
+            const bytes = await encodeSave(doc);
+            this.reply(m.id, bytes, [bytes.buffer as ArrayBuffer]);
+          });
           return;
         }
       }
@@ -510,6 +544,39 @@ export class SimHost {
 
   private document(): SaveDocument {
     return saveWorld(this.world!, this.ruleset(), { universe: this.universe!.name }, this.lineage);
+  }
+
+  /** A save begun, made a slice a pump (see saving), and `done` given it once made. */
+  private saveInSlices(id: number, done: (doc: SaveDocument) => Promise<void>): void {
+    if (!this.world) throw new Error("no world to save");
+    const steps = saveSteps(
+      this.world,
+      this.ruleset(),
+      { universe: this.universe!.name },
+      this.lineage,
+    );
+    this.saving = { id, steps, done };
+  }
+
+  /** As much of the save under way as a slice holds; written, and its asker answered, once it is made. */
+  private async stepSave(start: number): Promise<void> {
+    const s = this.saving!,
+      clock = this.options.clock,
+      deadline = start + Math.max(SAVE_SLICE_MS, this.options.budgetMs);
+    try {
+      for (;;) {
+        const r = s.steps.next();
+        if (r.done) {
+          this.saving = null;
+          await s.done(r.value);
+          return;
+        }
+        if (clock() >= deadline) return;
+      }
+    } catch (error) {
+      this.saving = null;
+      this.fail(s.id, error);
+    }
   }
 
   private load(universe: Universe, doc: SaveDocument): World {
@@ -599,9 +666,22 @@ export class SimHost {
       // (The observatory's regular polls for news are not the viewer asking.)
       if (this.inbox.some((m) => !(m.kind === "query" && POLLS.has(m.query.type))))
         this.lastAsked = start;
-      while (this.inbox.length) await this.handle(this.inbox.shift()!);
+      // (While a save is made, what would change the world waits behind it, and all that came after, in order.)
+      while (this.inbox.length) {
+        if (this.saving && !WHILE_SAVING.has(this.inbox[0]!.kind)) break;
+        await this.handle(this.inbox.shift()!);
+      }
       const world = this.world;
       if (!world) return;
+      if (this.saving) {
+        await this.stepSave(start);
+        this.stepMs = clock() - start;
+        const now = clock();
+        if (now - this.lastFrame >= this.options.frameEveryMs) this.sendFrame(now);
+        this.sendUpdates(now);
+        if (now - this.lastStatus >= this.options.statusEveryMs) this.sendStatus(now);
+        return;
+      }
       if (this.jumping) {
         this.stepJump(start);
         this.stepMs = clock() - start;

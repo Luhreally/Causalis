@@ -322,8 +322,6 @@ export const GATES: readonly Gate[] = [
   { gate: 101, args: ["--ci"], s: 360 },
   // Gate 102, a town asked (tools/h1-gate.ts): the bar's 🙏 by real touch, who answers and why, the site in the pixels, its page; a young world on CI.
   { gate: 102, args: ["--ci"], s: 300 },
-  // Gate 103, knowledge that can be lost (tools/k1-gate.ts): a land's fall and what goes, an archive pressed where it stands, a craft lost to the world and told; a young world on CI.
-  { gate: 103, args: ["--ci"], s: 300 },
   // Gate 99, a living ecology (tools/e1-gate.ts): woods that move for more than one reason, a lode at its eve, the Forest lens pressed by touch and the land's colour in the pixels, the same world before and after.
   { gate: 99, args: ["--ci"], s: 240 },
   // Gate 100, wild lives (tools/z1-gate.ts): herds on a land's map by real touch, in the pixels, gone in their season; a beast known, its page and song; herds taken in war; the tree going on; an old save run on.
@@ -420,6 +418,11 @@ export const GATES: readonly Gate[] = [
   // world's save gone, the home world made again the same. Then a people read in orbit from each: there within the minute, as many as were
   // read, the host's heap read, at its age or saying which road its bodies or its world's matter shut, said before entering; from their world another refused, with the way back. (355 s with --ci on a loaded laptop.)
   { gate: 121, args: ["--ci"], s: 380 },
+  // Gate 123, what a system may cost (tools/budget-gate.ts; no browser): first light at 400, the same world small, and alien 55 at 300 run
+  // in node with the scheduler's tally on, each held to its rows of tools/budgets.json. A system with no row, one whose share of the year
+  // is over its budget, or one writing more events, decisions or store bytes than its row fails by name; milliseconds only warn. The default
+  // world at 1,500 runs locally (npm run gate:123).
+  { gate: 123, args: ["--ci"], s: 300 },
   // Gate 122, what a tab holds (tools/memory-gate.ts): the small world whose tab ran out of memory played from its first year at a
   // century a second to year 500 at a phone's size, kept, taken up again in place and by the page loaded again, a player's round of
   // pages, lenses and scales walked twice and a realm's page left open as the years run; after each, garbage collected, the page's and
@@ -431,11 +434,6 @@ export const GATES: readonly Gate[] = [
   // stays a moment to be read; a tap still opens; a finger held on a name in a page opens the name's tip, and lifting it
   // does not open the name's page.
   { gate: 124, args: ["--ci"], s: 120 },
-  // Gate 123, what a system may cost (tools/budget-gate.ts; no browser): first light at 400, the same world small, and alien 55 at 300 run
-  // in node with the scheduler's tally on, each held to its rows of tools/budgets.json. A system with no row, one whose share of the year
-  // is over its budget, or one writing more events, decisions or store bytes than its row fails by name; milliseconds only warn. The default
-  // world at 1,500 runs locally (npm run gate:123).
-  { gate: 123, args: ["--ci"], s: 300 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */

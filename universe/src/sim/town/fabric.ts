@@ -37,6 +37,7 @@ import {
   type CivicDef,
   type CivicKind,
 } from "../../rules/index.ts";
+import { Civics, NO_FALL, Runs, type Change, type Civic } from "./packed.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import type { Settlement } from "../population/stores.ts";
 import { knows, loreOf } from "../lore/lore.ts";
@@ -82,27 +83,12 @@ const isHome = (what: number) => what === CHANGE.built || what === CHANGE.raised
  * level, design] — built and raised runs are of one level and one design (the year the land's
  * design was realized, -1 before it had one: a run ends where it changed). A run of several
  * years was changed lot by lot through them, in order (a fallen run from its top lot down).
- * No two runs share a lot: what stands on a lot is its run's.
+ * No two runs share a lot: what stands on a lot is its run's. A town's runs are kept in the order of their lots, so
+ * the runs over any stretch are found by halving, not by going over a great town's ten thousand.
  */
-export type Change = [
-  what: number,
-  from: number,
-  to: number,
-  start: number,
-  end: number,
-  level: number,
-  design: number,
-];
+export type { Change } from "./packed.ts";
 
-/** One of a town's other buildings: its first lot, how many it takes, when begun and done, when it fell. */
-export type Civic = {
-  readonly kind: CivicKind;
-  readonly at: number;
-  readonly lots: number;
-  readonly start: number;
-  readonly end: number;
-  fell: number | null;
-};
+export { Civics, NO_FALL, Runs, plainCivic, type Civic } from "./packed.ts";
 
 /** A town's walls: begun, done, and the lots they ring (the town as it stood). */
 export type Walls = {
@@ -126,8 +112,10 @@ export type Fabric = {
   aim: number;
   raise: number;
   passed: number;
-  changes: Change[];
-  civics: Civic[];
+  /** Its runs, in the order of their lots: kept as columns (see packed.ts). */
+  readonly changes: Runs;
+  /** Its other buildings, in the order they were begun: kept as columns (see packed.ts). */
+  readonly civics: Civics;
   walls: Walls | null;
   /** Years in a row it has had far more homes than people. */
   lean: number;
@@ -170,8 +158,6 @@ export const RUIN_YEARS = 60;
 export const ASH_YEARS = 3;
 /** How many sticks of loads a raid's hits come in: each its own stretch of lots. */
 const STICKS = 4;
-/** A burned run let go as a town rises, until its runs are gone over at the end (see rise). */
-const RISEN = -1;
 /** A town weighs its other buildings and its walls one year in so many (each in its own). */
 export const CIVIC_EVERY = 3;
 
@@ -213,17 +199,21 @@ type Saved = [
 ];
 
 /**
- * A town as its settling last went over it: the year, the first year after it that anything of
- * it comes due, and the runs and buildings it went over (see TownBuilder.settle).
+ * A town as its settling last went over it: the year, and the first year after it that anything of it comes due
+ * (see TownBuilder.settle).
  */
 type Settled = {
   readonly year: number;
   due: number;
-  readonly changes: Change[];
-  readonly runs: number;
-  readonly civics: Civic[];
-  readonly buildings: number;
+  /** The last year it was asked to settle, due or not; its buildings as it last went over them. */
+  asked: number;
+  /** Its buildings' version (see Civics) and how many it had. */
+  civics: number;
+  buildings: number;
 };
+
+/** A town's ruins as its settling keeps them: every run of it no home stands in, and the first year one weathers away. */
+type Ruins = { list: number[]; next: number };
 
 export class TownStore implements StateStore {
   readonly name = "town.fabric";
@@ -234,6 +224,14 @@ export class TownStore implements StateStore {
   private readonly bySettlement = new Map<Settlement, Fabric>();
   /** (Each town as its settling last went over it: a cache, let go on loading.) */
   readonly settled = new Map<Fabric, Settled>();
+  /**
+   * (Each town's runs laid or parted in the years before they come to be history, and its ruins, for its settling to
+   * go over instead of every run it has: a cache, let go on loading. A town with none is gone over whole.)
+   */
+  readonly young = new Map<Fabric, number[]>();
+  readonly ruins = new Map<Fabric, Ruins>();
+  /** (Towns whose next settling goes over every run: something changed that the young runs and ruins do not tell.) */
+  readonly whole = new Set<Fabric>();
   /** (Towns with lots in ash, for the year's walk over them: what their runs tell, read again on loading.) */
   readonly ashen = new Set<Fabric>();
   /** Every change folded in as it is made, for the checkpoints: two lanes of the kernel's absorber. */
@@ -286,7 +284,21 @@ export class TownStore implements StateStore {
     h.word(this.a).word(this.b).int(this.map.size);
   }
   save(): unknown {
-    return { digest: [this.a, this.b], towns: toColumns(this.all().map(pack)) };
+    const steps = this.saveSteps();
+    for (;;) {
+      const r = steps.next();
+      if (r.done) return r.value;
+    }
+  }
+  /** save(), a thousand towns a piece (a world at 1,500 has twenty-three thousand): its columns written town by town. */
+  *saveSteps(): Generator<void, unknown, void> {
+    const all = this.all(),
+      columns = newColumns();
+    for (let i = 0; i < all.length; i++) {
+      intoColumns(columns, all[i]!);
+      if (i % 1000 === 999) yield;
+    }
+    return { digest: [this.a, this.b], towns: columns };
   }
   load(state: unknown): void {
     // (Town by town, in a save from before Phase 66.)
@@ -294,12 +306,15 @@ export class TownStore implements StateStore {
     this.map.clear();
     this.bySettlement.clear();
     this.settled.clear();
+    this.young.clear();
+    this.ruins.clear();
+    this.whole.clear();
     this.ashen.clear();
     [this.a, this.b] = s.digest;
     for (const saved of s.fabrics ?? fromColumns(s.towns!)) {
       const f = unpack(saved);
       this.map.set(f.town, f);
-      if (f.changes.some((c) => c[0] === CHANGE.burned)) this.ashen.add(f);
+      if (hasBurned(f.changes)) this.ashen.add(f);
     }
   }
 }
@@ -324,40 +339,91 @@ const HEADS = 9,
   RUN_COLUMNS = 7,
   CIVIC_COLUMNS = 3;
 
-function toColumns(towns: readonly Saved[]): SavedColumns {
-  const heads: unknown[][] = Array.from({ length: HEADS }, () => []),
-    runs: number[][] = Array.from({ length: RUN_COLUMNS }, () => []),
-    civics: number[][] = Array.from({ length: CIVIC_COLUMNS }, () => []),
+/** (Scratch: the lot of the last building of each kind, as a town's are written.) */
+const LAST_OF = new Float64Array(CIVICS.length);
+
+type Columns = {
+  heads: unknown[][];
+  designs: number[];
+  designsOf: number[];
+  runs: number[][];
+  runsOf: number[];
+  civics: number[][];
+  civicsOf: number[];
+  fallen: number[];
+  fallenOf: number[];
+};
+
+function newColumns(): Columns {
+  return {
+    heads: Array.from({ length: HEADS }, () => []),
+    designs: [],
+    designsOf: [],
+    runs: Array.from({ length: RUN_COLUMNS }, () => []),
+    runsOf: [],
+    civics: Array.from({ length: CIVIC_COLUMNS }, () => []),
+    civicsOf: [],
+    fallen: [],
+    fallenOf: [],
+  };
+}
+
+/** A town written into the columns as toColumns writes what pack gives of it, with no list of its own between. */
+function intoColumns(c: Columns, f: Fabric): void {
+  const h = c.heads;
+  h[0]!.push(f.town);
+  h[1]!.push(TOWN_FAMILIES.indexOf(f.family));
+  h[2]!.push(f.next);
+  h[3]!.push(f.aim);
+  h[4]!.push(f.raise);
+  h[5]!.push(f.passed);
+  h[6]!.push(f.lean);
+  h[7]!.push(f.forsaken);
+  h[8]!.push(f.walls ? [f.walls.start, f.walls.end, f.walls.reach] : null);
+  const R = f.changes,
     designs: number[] = [],
-    designsOf: number[] = [],
-    runsOf: number[] = [],
-    civicsOf: number[] = [],
-    fallen: number[] = [],
-    fallenOf: number[] = [];
-  for (const t of towns) {
-    for (let i = 0; i < HEADS; i++) heads[i]!.push(t[i]);
-    designsOf.push(t[9].length);
-    for (const d of t[9]) designs.push(d);
-    runsOf.push(t[10].length / RUN_COLUMNS);
-    for (let i = 0; i < t[10].length; i++) runs[i % RUN_COLUMNS]!.push(t[10][i]!);
-    civicsOf.push(t[11].length / CIVIC_COLUMNS);
-    // (A building's lot against the last of its kind, its year as it stands: they fold the smaller.)
-    let at = 0,
-      start = 0;
-    const lastOf = new Map<number, number>();
-    for (let i = 0; i < t[11].length; i += CIVIC_COLUMNS) {
-      const kind = t[11][i]!;
-      at += t[11][i + 1]!;
-      start += t[11][i + 2]!;
-      civics[0]!.push(kind);
-      civics[1]!.push(at - (lastOf.get(kind) ?? 0));
-      civics[2]!.push(start);
-      lastOf.set(kind, at);
-    }
-    fallenOf.push(t[12].length);
-    for (const f of t[12]) fallen.push(f);
+    runs = c.runs;
+  let to = 0,
+    start = 0;
+  for (let i = 0; i < R.length; i++) {
+    const s = R.slot(i),
+      a = R.v(s, 1),
+      b = R.v(s, 2),
+      first = R.v(s, 3),
+      design = R.v(s, 6);
+    let d = designs.indexOf(design);
+    if (d < 0) d = designs.push(design) - 1;
+    runs[0]!.push(R.v(s, 0));
+    runs[1]!.push(a - to);
+    runs[2]!.push(b - a);
+    runs[3]!.push(first - start);
+    runs[4]!.push(R.v(s, 4) - first);
+    runs[5]!.push(R.v(s, 5));
+    runs[6]!.push(d);
+    to = b;
+    start = first;
   }
-  return { heads, designs, designsOf, runs, runsOf, civics, civicsOf, fallen, fallenOf };
+  c.designsOf.push(designs.length);
+  for (const d of designs) c.designs.push(d);
+  c.runsOf.push(R.length);
+  const cs = f.civics,
+    civics = c.civics;
+  c.civicsOf.push(cs.length);
+  LAST_OF.fill(0);
+  let fallen = 0;
+  for (let i = 0; i < cs.length; i++) {
+    const kind = cs.kinds[i]!,
+      at = cs.ats[i]!;
+    civics[0]!.push(kind);
+    civics[1]!.push(at - LAST_OF[kind]!);
+    civics[2]!.push(cs.starts[i]!);
+    LAST_OF[kind] = at;
+    if (cs.fells[i] !== NO_FALL) {
+      c.fallen.push(i, cs.fells[i]! - cs.starts[i]!);
+      fallen += 2;
+    }
+  }
+  c.fallenOf.push(fallen);
 }
 
 function fromColumns(c: SavedColumns): Saved[] {
@@ -397,53 +463,13 @@ function fromColumns(c: SavedColumns): Saved[] {
   return out;
 }
 
-/** A fabric as saved (see Saved). */
-function pack(f: Fabric): Saved {
-  const designs: number[] = [],
-    runs: number[] = [],
-    civics: number[] = [],
-    fallen: number[] = [];
-  let to = 0,
-    start = 0;
-  for (const c of f.changes) {
-    let d = designs.indexOf(c[6]);
-    if (d < 0) d = designs.push(c[6]) - 1;
-    runs.push(c[0], c[1] - to, c[2] - c[1], c[3] - start, c[4] - c[3], c[5], d);
-    to = c[2];
-    start = c[3];
-  }
-  let at = 0;
-  start = 0;
-  f.civics.forEach((c, i) => {
-    civics.push(CIVIC_INDEX.get(c.kind)!, c.at - at, c.start - start);
-    at = c.at;
-    start = c.start;
-    if (c.fell !== null) fallen.push(i, c.fell - c.start);
-  });
-  return [
-    f.town,
-    TOWN_FAMILIES.indexOf(f.family),
-    f.next,
-    f.aim,
-    f.raise,
-    f.passed,
-    f.lean,
-    f.forsaken,
-    f.walls ? [f.walls.start, f.walls.end, f.walls.reach] : null,
-    designs,
-    runs,
-    civics,
-    fallen,
-  ];
-}
-
 /** A fabric as it was saved, its homes and open lots read again from what stands. */
 function unpack(s: Saved): Fabric {
   const [town, family, next, aim, raise, passed, lean, forsaken, walls, designs, runs] = s,
     packed = s[11],
     fallen = s[12],
-    changes: Change[] = [],
-    civics: Civic[] = [];
+    changes = new Runs(runs.length / 7),
+    civics = new Civics(packed.length / 3);
   let to = 0,
     start = 0;
   for (let i = 0; i < runs.length; i += 7) {
@@ -451,34 +477,32 @@ function unpack(s: Saved): Fabric {
       first = start + runs[i + 3]!;
     to = from + runs[i + 2]!;
     start = first;
-    changes.push([
-      runs[i]!,
-      from,
-      to,
-      first,
-      first + runs[i + 4]!,
-      runs[i + 5]!,
-      designs[runs[i + 6]!]!,
-    ]);
+    changes.insert(
+      changes.length,
+      changes.alloc(
+        runs[i]!,
+        from,
+        to,
+        first,
+        first + runs[i + 4]!,
+        runs[i + 5]!,
+        designs[runs[i + 6]!]!,
+      ),
+    );
   }
+  // (A save from before kept them in the order they were made.)
+  if (!inLotOrder(changes)) changes.sortByLots();
   let at = 0;
   start = 0;
   for (let i = 0; i < packed.length; i += 3) {
     const def = CIVICS[packed[i]!]!;
     at += packed[i + 1]!;
     start += packed[i + 2]!;
-    civics.push({
-      kind: def.kind,
-      at,
-      lots: CIVIC_LOTS[def.kind],
-      start,
-      end: start + def.years,
-      fell: null,
-    });
+    civics.add(packed[i]!, at, CIVIC_LOTS[def.kind], start, start + def.years);
   }
   for (let i = 0; i < fallen.length; i += 2) {
-    const c = civics[fallen[i]!]!;
-    c.fell = c.start + fallen[i + 1]!;
+    const j = fallen[i]!;
+    civics.fells[j] = civics.starts[j]! + fallen[i + 1]!;
   }
   const f: Fabric = {
     town,
@@ -510,9 +534,15 @@ export function readStanding(f: Fabric): void {
   const next = f.next,
     clip = (x: number) => Math.max(0, Math.min(next, x)),
     cuts: number[] = [0, next];
-  for (const c of f.changes)
-    if (isHome(c[0]) || c[0] === CHANGE.burned) cuts.push(clip(c[1]), clip(c[2]));
-  for (const c of f.civics) if (c.fell === null) cuts.push(clip(c.at), clip(c.at + c.lots));
+  const R = f.changes;
+  for (let i = 0; i < R.length; i++) {
+    const c = R.slot(i),
+      what = R.v(c, 0);
+    if (isHome(what) || what === CHANGE.burned) cuts.push(clip(R.v(c, 1)), clip(R.v(c, 2)));
+  }
+  const cs = f.civics;
+  for (let j = 0; j < cs.length; j++)
+    if (cs.fells[j] === NO_FALL) cuts.push(clip(cs.ats[j]!), clip(cs.ats[j]! + cs.spans[j]!));
   const xs = Int32Array.from(cuts.sort((a, b) => a - b));
   let places = 0;
   for (let i = 0; i < xs.length; i++) if (i === 0 || xs[i] !== xs[i - 1]) xs[places++] = xs[i]!;
@@ -539,25 +569,26 @@ export function readStanding(f: Fabric): void {
       return i;
     };
   for (let i = 0; i <= spans; i++) free[i] = i;
-  for (let k = f.changes.length - 1; k >= 0; k--) {
-    const c = f.changes[k]!;
-    if (!isHome(c[0])) continue;
-    const to = spanAt(clip(c[2]));
-    for (let i = find(spanAt(clip(c[1]))); i < to; i = find(i)) {
-      level[i] = c[5];
+  for (let k = R.length - 1; k >= 0; k--) {
+    const c = R.slot(k);
+    if (!isHome(R.v(c, 0))) continue;
+    const to = spanAt(clip(R.v(c, 2)));
+    for (let i = find(spanAt(clip(R.v(c, 1)))); i < to; i = find(i)) {
+      level[i] = R.v(c, 5);
       free[i] = i + 1;
     }
   }
-  for (const c of f.civics) {
-    if (c.fell !== null) continue;
-    const to = spanAt(clip(c.at + c.lots));
-    for (let i = spanAt(clip(c.at)); i < to; i++) under[i] = 1;
+  for (let j = 0; j < cs.length; j++) {
+    if (cs.fells[j] !== NO_FALL) continue;
+    const to = spanAt(clip(cs.ats[j]! + cs.spans[j]!));
+    for (let i = spanAt(clip(cs.ats[j]!)); i < to; i++) under[i] = 1;
   }
   // (Lots in ash are neither homes nor open.)
-  for (const c of f.changes) {
-    if (c[0] !== CHANGE.burned) continue;
-    const to = spanAt(clip(c[2]));
-    for (let i = spanAt(clip(c[1])); i < to; i++) under[i] = 1;
+  for (let k = 0; k < R.length; k++) {
+    const c = R.slot(k);
+    if (R.v(c, 0) !== CHANGE.burned) continue;
+    const to = spanAt(clip(R.v(c, 2)));
+    for (let i = spanAt(clip(R.v(c, 1))); i < to; i++) under[i] = 1;
   }
   for (let i = 0; i < spans; i++) {
     const from = xs[i]!,
@@ -571,6 +602,49 @@ export function readStanding(f: Fabric): void {
     if (last && last[1] === from) last[1] = to;
     else f.open.push([from, to]);
   }
+}
+
+/** Whether runs are in the order of their lots. */
+function inLotOrder(runs: Runs): boolean {
+  for (let i = 1; i < runs.length; i++)
+    if (runs.v(runs.slot(i), 1) < runs.v(runs.slot(i - 1), 1)) return false;
+  return true;
+}
+
+/** Whether any of a town's lots lie in ash. */
+function hasBurned(runs: Runs): boolean {
+  for (let i = 0; i < runs.length; i++) if (runs.v(runs.slot(i), 0) === CHANGE.burned) return true;
+  return false;
+}
+
+/** The first of a town's runs (in the order of their lots) that ends past lot x: where the runs over x begin. */
+export function runAfter(runs: Runs, x: number): number {
+  let lo = 0,
+    hi = runs.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (runs.v(runs.slot(mid), 2) <= x) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/** How many of a town's runs (in the order of their lots) begin before lot x. */
+function runsBefore(runs: Runs, x: number): number {
+  let lo = 0,
+    hi = runs.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (runs.v(runs.slot(mid), 1) < x) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/** The run lot p stands in, if any. */
+export function runAt(f: Fabric, p: number): Change | undefined {
+  const c = f.changes.get(runAfter(f.changes, p));
+  return c && c[1] <= p ? c : undefined;
 }
 
 /** Which of the years a town weighs its buildings in, from its name. */
@@ -599,21 +673,42 @@ export function homesOf(f: Fabric): number {
  * long built may pass over the lots of a building standing among them: those are the building's).
  */
 export function levelsOf(f: Fabric, from: number, to: number): Int8Array {
-  const out = new Int8Array(Math.max(0, to - from)).fill(-1);
-  // (Run by run by its place in the list, and a run's numbers by theirs: a great town's runs are gone over for
-  // each stretch of lots asked of, every year it builds.)
+  return levelsInto(f, from, to, new Int8Array(Math.max(0, to - from)));
+}
+
+/** Scratch for the year's builder: what stands on a stretch of lots, and which of them a building takes. */
+let LEVELS = new Int8Array(1024),
+  UNDER = new Uint8Array(1024);
+function scratchLevels(f: Fabric, from: number, to: number): Int8Array {
+  const n = Math.max(0, to - from);
+  if (LEVELS.length < n) LEVELS = new Int8Array(n * 2);
+  return levelsInto(f, from, to, LEVELS.subarray(0, n));
+}
+function scratchMask(f: Fabric, from: number, to: number): Uint8Array {
+  const n = Math.max(0, to - from);
+  if (UNDER.length < n) UNDER = new Uint8Array(n * 2);
+  return maskInto(f, from, to, UNDER.subarray(0, n));
+}
+
+/** levelsOf, into `out` (of to - from). */
+function levelsInto(f: Fabric, from: number, to: number, out: Int8Array): Int8Array {
+  out.fill(-1);
+  // (Only the runs over the stretch, found by halving: a great town's runs are many, and asked of every year it builds.)
   const runs = f.changes;
-  for (let r = 0; r < runs.length; r++) {
-    const c = runs[r]!;
-    if (!isHome(c[0]) || c[2] <= from || c[1] >= to) continue;
-    const lo = Math.max(c[1], from),
-      hi = Math.min(c[2], to);
-    if (lo < hi) out.fill(c[5], lo - from, hi - from);
+  for (let r = runAfter(runs, from); r < runs.length; r++) {
+    const c = runs.slot(r),
+      a = runs.v(c, 1);
+    if (a >= to) break;
+    if (!isHome(runs.v(c, 0))) continue;
+    const lo = Math.max(a, from),
+      hi = Math.min(runs.v(c, 2), to);
+    if (lo < hi) out.fill(runs.v(c, 5), lo - from, hi - from);
   }
-  for (const c of f.civics) {
-    if (c.fell !== null) continue;
-    const lo = Math.max(c.at, from),
-      hi = Math.min(c.at + c.lots, to);
+  const cs = f.civics;
+  for (let j = 0; j < cs.length; j++) {
+    if (cs.fells[j] !== NO_FALL) continue;
+    const lo = Math.max(cs.ats[j]!, from),
+      hi = Math.min(cs.ats[j]! + cs.spans[j]!, to);
     if (lo < hi) out.fill(-1, lo - from, hi - from);
   }
   return out;
@@ -621,12 +716,18 @@ export function levelsOf(f: Fabric, from: number, to: number): Int8Array {
 
 /** Which of lots [from, to) its standing buildings (other than homes) take, now: 1 where one does. */
 export function civicMask(f: Fabric, from: number, to: number): Uint8Array {
-  const out = new Uint8Array(Math.max(0, to - from));
-  for (const c of f.civics) {
-    if (c.fell !== null) continue;
-    const lo = Math.max(c.at, from),
-      hi = Math.min(c.at + c.lots, to);
-    for (let p = lo; p < hi; p++) out[p - from] = 1;
+  return maskInto(f, from, to, new Uint8Array(Math.max(0, to - from)));
+}
+
+/** civicMask, into `out` (of to - from). */
+function maskInto(f: Fabric, from: number, to: number, out: Uint8Array): Uint8Array {
+  out.fill(0);
+  const cs = f.civics;
+  for (let j = 0; j < cs.length; j++) {
+    if (cs.fells[j] !== NO_FALL) continue;
+    const lo = Math.max(cs.ats[j]!, from),
+      hi = Math.min(cs.ats[j]! + cs.spans[j]!, to);
+    if (lo < hi) out.fill(1, lo - from, hi - from);
   }
   return out;
 }
@@ -635,20 +736,39 @@ export function civicMask(f: Fabric, from: number, to: number): Uint8Array {
  * The highest of lots [from, to) a home stands on now, as levelsOf tells it (-1 where none does):
  * run by run, past the buildings standing on them.
  */
+/** The first of a town's standing buildings on lot p (-1: none). */
+function standingOn(cs: Civics, p: number): number {
+  for (let j = 0; j < cs.length; j++)
+    if (cs.fells[j] === NO_FALL && cs.ats[j]! <= p && cs.ats[j]! + cs.spans[j]! > p) return j;
+  return -1;
+}
+
+/** A town's standing buildings of at least a lot, as [first lot, end lot], in the order of their lots. */
+function standingSpans(cs: Civics): [number, number][] {
+  const out: [number, number][] = [];
+  for (let j = 0; j < cs.length; j++)
+    if (cs.fells[j] === NO_FALL && cs.spans[j]! > 0)
+      out.push([cs.ats[j]!, cs.ats[j]! + cs.spans[j]!]);
+  return out.sort((a, b) => a[0] - b[0]);
+}
+
 function highestHome(f: Fabric, from: number, to: number): number {
-  let best = -1;
-  for (const [what, a, b] of f.changes) {
+  // (From the last run over the stretch back: the first lot found is the highest.)
+  const runs = f.changes;
+  for (let r = runsBefore(runs, to) - 1; r >= 0; r--) {
+    const c = runs.slot(r),
+      what = runs.v(c, 0),
+      a = runs.v(c, 1),
+      b = runs.v(c, 2);
+    if (b <= from) break;
     if (!isHome(what)) continue;
-    for (let p = Math.min(b, to) - 1; p >= Math.max(a, from, best + 1);) {
-      const c = f.civics.find((x) => x.fell === null && x.at <= p && x.at + x.lots > p);
-      if (!c) {
-        best = p;
-        break;
-      }
-      p = c.at - 1;
+    for (let p = Math.min(b, to) - 1; p >= Math.max(a, from);) {
+      const j = standingOn(f.civics, p);
+      if (j < 0) return p;
+      p = f.civics.ats[j]! - 1;
     }
   }
-  return best;
+  return -1;
 }
 
 /**
@@ -657,27 +777,32 @@ function highestHome(f: Fabric, from: number, to: number): number {
  * hundred thousand lots). Null where two runs of homes share a lot (there the later stands).
  */
 function standingRuns(f: Fabric): [number, number, number][] | null {
-  const runs = f.changes.filter((c) => isHome(c[0])).sort((a, b) => a[1] - b[1]),
+  const R = f.changes,
     // (Both in the order of their lots: each is passed once, whatever the size of the town.)
-    civics = f.civics.filter((c) => c.fell === null && c.lots > 0).sort((a, b) => a.at - b.at),
+    civics = standingSpans(f.civics),
     out: [number, number, number][] = [];
   let end = 0,
     i = 0;
-  for (const [, a, b, , , level] of runs) {
+  for (let r = 0; r < R.length; r++) {
+    const c = R.slot(r);
+    if (!isHome(R.v(c, 0))) continue;
+    const a = R.v(c, 1),
+      b = R.v(c, 2),
+      level = R.v(c, 5);
     const lo = Math.max(a, 0),
       hi = Math.min(b, f.next);
     if (lo >= hi) continue;
     if (lo < end) return null;
     end = hi;
     for (let p = lo; p < hi;) {
-      while (i < civics.length && civics[i]!.at + civics[i]!.lots <= p) i++;
+      while (i < civics.length && civics[i]![1] <= p) i++;
       const on = civics[i];
-      if (!on || on.at >= hi) {
+      if (!on || on[0] >= hi) {
         out.push([p, hi, level]);
         break;
       }
-      if (on.at > p) out.push([p, on.at, level]);
-      p = Math.max(p, on.at + on.lots);
+      if (on[0] > p) out.push([p, on[0], level]);
+      p = Math.max(p, on[1]);
     }
   }
   return out;
@@ -686,7 +811,9 @@ function standingRuns(f: Fabric): [number, number, number][] | null {
 /** The lots its standing buildings (other than homes) take, now. */
 export function civicLots(f: Fabric): Set<number> {
   const out = new Set<number>();
-  for (const c of f.civics) if (c.fell === null) for (let k = 0; k < c.lots; k++) out.add(c.at + k);
+  const cs = f.civics;
+  for (let j = 0; j < cs.length; j++)
+    if (cs.fells[j] === NO_FALL) for (let k = 0; k < cs.spans[j]!; k++) out.add(cs.ats[j]! + k);
   return out;
 }
 
@@ -721,12 +848,45 @@ export function lotLevel(p: number, n: number, top: number, edge: number): numbe
   return Math.max(edge, top - Math.floor(Math.sqrt(p / n) * (top - edge + 1)));
 }
 
+/**
+ * The first lot of [p, end) past p a home is built to another level than `level` (lot p's), or end: lotLevel only
+ * falls as lots go outward, so its lots of one level lie together.
+ */
+export function sameLevel(
+  p: number,
+  end: number,
+  n: number,
+  top: number,
+  edge: number,
+  level: number,
+): number {
+  if (top <= edge || p >= n) return end;
+  let lo = p + 1,
+    hi = end;
+  while (lo < hi) {
+    const mid = lo + ((hi - lo) >> 1);
+    if (lotLevel(mid, n, top, edge) === level) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
 /** Where a building of `lots` lots may stand: at a lot its size divides (so a block's half is a half). */
 const aligned = (p: number, lots: number) => Math.ceil(p / lots) * lots;
 
-/** Whether runs a and b may be one: the same change, level and design, side by side. */
-const joins = (a: Change, b: Change) =>
-  a[0] === b[0] && a[5] === b[5] && a[6] === b[6] && (a[2] === b[1] || b[2] === a[1]);
+/** Run b joined into run a, the one before it: its lots and its years. */
+function merge(R: Runs, a: number, b: number): void {
+  R.w(a, 2, R.v(b, 2));
+  R.w(a, 3, Math.min(R.v(a, 3), R.v(b, 3)));
+  R.w(a, 4, Math.max(R.v(a, 4), R.v(b, 4)));
+}
+
+/** Whether runs (slots) a and b may be one: the same change, level and design, side by side. */
+const joins = (R: Runs, a: number, b: number) =>
+  R.v(a, 0) === R.v(b, 0) &&
+  R.v(a, 5) === R.v(b, 5) &&
+  R.v(a, 6) === R.v(b, 6) &&
+  (R.v(a, 2) === R.v(b, 1) || R.v(b, 2) === R.v(a, 1));
 
 /**
  * Whether runs of homes a and b, the one after the other with no run between, may be one across
@@ -734,20 +894,23 @@ const joins = (a: Change, b: Change) =>
  * building's (a building among a town's homes does not part them; should it fall, its lots are
  * cut out again).
  */
-function across(f: Fabric, a: Change, b: Change): boolean {
-  if (a[0] !== b[0] || a[5] !== b[5] || a[6] !== b[6] || b[1] <= a[2]) return false;
-  return isHome(a[0]) && buildingsOnly(f, a[2], b[1]);
+function across(f: Fabric, a: number, b: number): boolean {
+  const R = f.changes;
+  if (
+    R.v(a, 0) !== R.v(b, 0) ||
+    R.v(a, 5) !== R.v(b, 5) ||
+    R.v(a, 6) !== R.v(b, 6) ||
+    R.v(b, 1) <= R.v(a, 2)
+  )
+    return false;
+  return isHome(R.v(a, 0)) && buildingsOnly(f, R.v(a, 2), R.v(b, 1));
 }
 
 /** Whether every lot of [from, to) is a standing building's (building after building, from the first). */
 function buildingsOnly(f: Fabric, from: number, to: number): boolean {
   for (let p = from; p < to;) {
-    let next = p;
-    for (const c of f.civics)
-      if (c.fell === null && c.at <= p && c.at + c.lots > p) {
-        next = c.at + c.lots;
-        break;
-      }
+    const j = standingOn(f.civics, p),
+      next = j < 0 ? p : f.civics.ats[j]! + f.civics.spans[j]!;
     if (next === p) return false;
     p = next;
   }
@@ -799,39 +962,77 @@ export class TownBuilder {
     design: number,
   ): void {
     const year = this.year,
-      runs = f.changes;
-    this.comesDue(f, year + SETTLED);
-    this.store.fold(f.town, FOLD.change, what, from, to, year, level, design);
-    // (Within a year: a run continued, as one.)
-    const last = runs.at(-1),
-      run: Change = [what, from, to, year, year, level, design];
-    if (last && last[3] === year && last[4] === year && joins(last, run)) {
-      last[1] = Math.min(last[1], from);
-      last[2] = Math.max(last[2], to);
+      R = f.changes,
+      run = this.made(f, what, from, to, level, design),
+      // (In the order of their lots: between the runs that end by its first lot and those after.)
+      i = runAfter(R, from),
+      left = i > 0 ? R.slot(i - 1) : -1,
+      right = i < R.length ? R.slot(i) : -1;
+    // (Within a year: a run continued, as one, on either side. The run made is then let go: what its settling kept
+    // of it tells it gone.)
+    const fresh = (c: number) => c >= 0 && R.v(c, 3) === year && R.v(c, 4) === year;
+    if (fresh(left) && joins(R, left, run)) {
+      R.w(left, 2, to);
+      if (fresh(right) && joins(R, left, right)) {
+        R.w(left, 2, R.v(right, 2));
+        R.removeAt(i);
+      }
+      R.release(run);
       return;
     }
-    runs.push(run);
+    if (fresh(right) && joins(R, right, run)) {
+      R.w(right, 1, from);
+      R.release(run);
+      return;
+    }
+    R.insert(i, run);
+  }
+
+  /** A change made this year, told to the digest and to the town's next settling: the run it is. */
+  private made(
+    f: Fabric,
+    what: number,
+    from: number,
+    to: number,
+    level: number,
+    design: number,
+  ): number {
+    const year = this.year;
+    this.comesDue(f, year + SETTLED);
+    this.store.fold(f.town, FOLD.change, what, from, to, year, level, design);
+    const run = f.changes.alloc(what, from, to, year, year, level, design);
+    this.track(f, run);
+    return run;
   }
 
   /** Lots [from, to) cut out of the runs over them: those it covers let go, an end cut back, one it falls within parted. */
   private cut(f: Fabric, from: number, to: number): void {
-    const runs = f.changes;
-    let w = 0,
-      part: Change | null = null;
-    for (let r = 0; r < runs.length; r++) {
-      const c = runs[r]!;
-      if (c[2] > from && c[1] < to) {
-        if (c[1] >= from && c[2] <= to) continue;
-        if (c[1] < from && c[2] > to) {
-          part = [c[0], to, c[2], c[3], c[4], c[5], c[6]];
-          c[2] = from;
-        } else if (c[1] < from) c[2] = from;
-        else c[1] = to;
+    // (Only the runs over the stretch, found by halving: they lie together in the order of their lots.)
+    const R = f.changes,
+      i = runAfter(R, from);
+    let j = i,
+      kept = 0;
+    const keep: number[] = [];
+    for (; j < R.length; j++) {
+      const c = R.slot(j),
+        a = R.v(c, 1),
+        b = R.v(c, 2);
+      if (a >= to) break;
+      if (a >= from && b <= to) continue;
+      if (a < from && b > to) {
+        const part = R.alloc(R.v(c, 0), to, b, R.v(c, 3), R.v(c, 4), R.v(c, 5), R.v(c, 6));
+        keep.push(c, part);
+        this.track(f, part);
+        R.w(c, 2, from);
+        continue;
       }
-      runs[w++] = c;
+      if (a < from) R.w(c, 2, from);
+      else R.w(c, 1, to);
+      keep.push(c);
+      kept++;
     }
-    runs.length = w;
-    if (part) runs.push(part);
+    if (j - i === kept && keep.length === kept) return;
+    R.replace(i, j, keep);
   }
 
   /**
@@ -843,50 +1044,201 @@ export class TownBuilder {
    */
   settle(f: Fabric): void {
     const year = this.year,
-      last = this.store.settled.get(f);
-    // (Nothing comes due before the year its last settling found, while its runs and buildings
-    // are those it went over: every change and every fall since brings that year nearer.)
+      store = this.store,
+      last = store.settled.get(f),
+      asked = last?.asked;
+    if (last) last.asked = year;
+    // (A change lays runs that come due and a building's fall comes due, each bringing that year nearer; a run cut
+    // back or parted keeps its years, and what is let go brings nothing due: so whatever changed since, nothing does.)
+    if (last && last.year < year && year < last.due) return;
+    const young = store.young.get(f),
+      ruins = store.ruins.get(f);
+    // (Gone over whole the first time, and after a year it was not asked, or its buildings were not only added to.)
     if (
-      last &&
-      last.year < year &&
-      year < last.due &&
-      last.changes === f.changes &&
-      last.runs === f.changes.length &&
-      last.civics === f.civics &&
-      last.buildings === f.civics.length
-    )
+      !last ||
+      !young ||
+      !ruins ||
+      asked !== year - 1 ||
+      last.civics !== f.civics.version ||
+      f.civics.length < last.buildings ||
+      store.whole.delete(f)
+    ) {
+      this.settleAll(f);
       return;
-    const old = year - SETTLED,
+    }
+    this.settleYoung(f, last, young, ruins);
+  }
+
+  /**
+   * Settle as settleAll would, going over only the runs that may change: the young come to be history this year, the
+   * runs beside ruins weathered away, and beside each building raised since (between two runs only buildings may
+   * stand). Every run else was gone over as it came to be history, with all it now has beside it.
+   */
+  private settleYoung(f: Fabric, last: Settled, young: number[], ruins: Ruins): void {
+    const year = this.year,
+      store = this.store,
+      old = year - SETTLED,
+      gone = year - RUIN_YEARS,
+      // (Runs as kept: a run let go, or joined into another, is told gone.)
+      beside: number[] = [],
+      R = f.changes;
+    let next = Infinity;
+    if (ruins.next <= year) {
+      const weathered = ruins.list.filter((h) => R.alive(h) && R.v(R.slotOf(h), 4) < gone);
+      if (weathered.length) {
+        R.keep((b) => isHome(R.v(b, 0)) || R.v(b, 4) >= gone);
+        // (A ruin let go keeps its numbers till its slot is taken again: none is taken here.)
+        for (const h of weathered) {
+          const i = runAfter(R, R.v(R.slotOf(h), 1));
+          if (i > 0) beside.push(R.handle(R.slot(i - 1)));
+        }
+      }
+      // (Kept in place: those still standing and not yet weathered.)
+      const list = ruins.list;
+      let w = 0;
+      ruins.next = Infinity;
+      for (const h of list)
+        if (R.alive(h) && R.v(R.slotOf(h), 4) >= gone) {
+          list[w++] = h;
+          ruins.next = Math.min(ruins.next, R.v(R.slotOf(h), 4) + RUIN_YEARS + 1);
+        }
+      list.length = w;
+    }
+    // (Kept in place: those still young.)
+    let w = 0;
+    for (const h of young) {
+      if (!R.alive(h)) continue;
+      const c = R.slotOf(h);
+      if (R.v(c, 4) <= old) {
+        if (isHome(R.v(c, 0))) R.w(c, 0, CHANGE.built);
+        beside.push(h);
+      } else {
+        young[w++] = h;
+        next = Math.min(next, R.v(c, 4) + SETTLED);
+      }
+    }
+    young.length = w;
+    const cs = f.civics;
+    for (let k = last.buildings; k < cs.length; k++) {
+      if (cs.fells[k] !== NO_FALL) continue;
+      const i = runAfter(R, cs.ats[k]!);
+      if (i > 0) beside.push(R.handle(R.slot(i - 1)));
+    }
+    if (beside.length) this.joinAbout(f, beside, old);
+    let fallen = false;
+    for (let k = 0, cs = f.civics; k < cs.length; k++) {
+      const x = cs.fells[k]!;
+      if (x === NO_FALL) continue;
+      else if (x < gone) fallen = true;
+      else next = Math.min(next, x + RUIN_YEARS + 1);
+    }
+    if (fallen) f.civics.keep((k) => f.civics.fells[k] === NO_FALL || f.civics.fells[k]! >= gone);
+    next = Math.min(next, ruins.next);
+    store.settled.set(f, {
+      year,
+      due: next,
+      asked: year,
+      civics: f.civics.version,
+      buildings: f.civics.length,
+    });
+  }
+
+  /** Every run of a town gone over: see settle. */
+  private settleAll(f: Fabric): void {
+    const year = this.year,
+      old = year - SETTLED,
       gone = year - RUIN_YEARS;
-    let c = f.changes,
-      due = false,
+    const R = f.changes;
+    let due = false,
       weathered = false,
       fallen = false,
       // The next year anything comes due: a run SETTLED years on, a ruin or a building fallen
       // RUIN_YEARS on.
       next = Infinity;
     // (Only a year a run comes to be history, or a ruin weathers away, changes anything here.)
-    for (const b of c) {
-      if (b[4] === old) due = true;
-      else if (!isHome(b[0]) && b[4] < gone) weathered = due = true;
-      if (b[4] + SETTLED > year) next = Math.min(next, b[4] + SETTLED);
-      if (!isHome(b[0]) && b[4] + RUIN_YEARS >= year) next = Math.min(next, b[4] + RUIN_YEARS + 1);
+    for (let i = 0; i < R.length; i++) {
+      const b = R.slot(i),
+        end = R.v(b, 4),
+        home = isHome(R.v(b, 0));
+      if (end === old) due = true;
+      else if (!home && end < gone) weathered = due = true;
+      if (end + SETTLED > year) next = Math.min(next, end + SETTLED);
+      if (!home && end + RUIN_YEARS >= year) next = Math.min(next, end + RUIN_YEARS + 1);
     }
-    for (const x of f.civics)
-      if (x.fell === null) continue;
-      else if (x.fell < gone) fallen = true;
-      else next = Math.min(next, x.fell + RUIN_YEARS + 1);
-    if (weathered) c = f.changes = c.filter((b) => isHome(b[0]) || b[4] >= gone);
-    if (due) this.join(f, c, old);
-    if (fallen) f.civics = f.civics.filter((x) => x.fell === null || x.fell >= gone);
+    for (let k = 0, cs = f.civics; k < cs.length; k++) {
+      const x = cs.fells[k]!;
+      if (x === NO_FALL) continue;
+      else if (x < gone) fallen = true;
+      else next = Math.min(next, x + RUIN_YEARS + 1);
+    }
+    if (weathered) R.keep((b) => isHome(R.v(b, 0)) || R.v(b, 4) >= gone);
+    if (due) this.join(f, old);
+    if (fallen) f.civics.keep((k) => f.civics.fells[k] === NO_FALL || f.civics.fells[k]! >= gone);
+    const list: number[] = [],
+      young: number[] = [];
+    let ruinsNext = Infinity;
+    for (let i = 0; i < R.length; i++) {
+      const b = R.slot(i);
+      if (!isHome(R.v(b, 0))) {
+        list.push(R.handle(b));
+        ruinsNext = Math.min(ruinsNext, R.v(b, 4) + RUIN_YEARS + 1);
+      }
+      if (R.v(b, 4) > old) young.push(R.handle(b));
+    }
+    this.store.young.set(f, young);
+    this.store.ruins.set(f, { list, next: ruinsNext });
     this.store.settled.set(f, {
       year,
       due: next,
-      changes: f.changes,
-      runs: f.changes.length,
-      civics: f.civics,
+      asked: year,
+      civics: f.civics.version,
       buildings: f.civics.length,
     });
+  }
+
+  /** A run made or parted, for the town's settling to go over as it comes to be history, and as a ruin weathers. */
+  private track(f: Fabric, run: number): void {
+    const R = f.changes,
+      h = R.handle(run);
+    this.store.young.get(f)?.push(h);
+    if (isHome(R.v(run, 0))) return;
+    const ruins = this.store.ruins.get(f);
+    if (!ruins) return;
+    ruins.list.push(h);
+    ruins.next = Math.min(ruins.next, R.v(run, 4) + RUIN_YEARS + 1);
+  }
+
+  /**
+   * The runs about each of `about` joined as join would join them: each with the run before it and those after, while
+   * each is history and joins or is joined across buildings.
+   */
+  private joinAbout(f: Fabric, about: number[], old: number): void {
+    const R = f.changes,
+      // (Each by its first lot as it was when kept: a run let go keeps its numbers till its slot is taken again,
+      // and none is taken here.)
+      firstOf = (h: number) => R.v(R.slotOf(h), 1);
+    about.sort((a, b) => firstOf(a) - firstOf(b));
+    for (const h of about) {
+      if (!R.alive(h)) continue;
+      const c = R.slotOf(h);
+      if (R.v(c, 4) > old) continue;
+      let i = runAfter(R, R.v(c, 1)),
+        cur = c;
+      const left = i > 0 ? R.slot(i - 1) : -1;
+      if (left >= 0 && R.v(left, 4) <= old && (joins(R, left, cur) || across(f, left, cur))) {
+        merge(R, left, cur);
+        R.removeAt(i);
+        cur = left;
+        i--;
+      }
+      for (;;) {
+        if (i + 1 >= R.length) break;
+        const right = R.slot(i + 1);
+        if (R.v(right, 4) > old || !(joins(R, cur, right) || across(f, cur, right))) break;
+        merge(R, cur, right);
+        R.removeAt(i + 1);
+      }
+    }
   }
 
   /** Something of a town comes due in `year` (a change, a fall): its next settling goes over it by then. */
@@ -896,22 +1248,25 @@ export class TownBuilder {
   }
 
   /** Runs years-old joined, in the order of their lots (see settle). */
-  private join(f: Fabric, c: Change[], old: number): void {
-    for (const b of c) if (isHome(b[0]) && b[4] <= old) b[0] = CHANGE.built;
-    c.sort((a, b) => a[1] - b[1]);
+  private join(f: Fabric, old: number): void {
+    // (Its runs are in the order of their lots already.)
+    const R = f.changes;
+    for (let i = 0; i < R.length; i++) {
+      const b = R.slot(i);
+      if (isHome(R.v(b, 0)) && R.v(b, 4) <= old) R.w(b, 0, CHANGE.built);
+    }
     let w = 0;
-    for (let i = 0; i < c.length; i++) {
-      const b = c[i]!,
-        a = w > 0 ? c[w - 1]! : null;
-      if (a && a[4] <= old && b[4] <= old && (joins(a, b) || across(f, a, b))) {
-        a[2] = b[2];
-        a[3] = Math.min(a[3], b[3]);
-        a[4] = Math.max(a[4], b[4]);
+    for (let i = 0; i < R.length; i++) {
+      const b = R.slot(i),
+        a = w > 0 ? R.order[w - 1]! : -1;
+      if (a >= 0 && R.v(a, 4) <= old && R.v(b, 4) <= old && (joins(R, a, b) || across(f, a, b))) {
+        merge(R, a, b);
+        R.release(b);
         continue;
       }
-      c[w++] = b;
+      R.order[w++] = b;
     }
-    c.length = w;
+    R.length = w;
   }
 
   /** Take a lot for a home: the lowest open lot, else the next of the plan. */
@@ -946,15 +1301,23 @@ export class TownBuilder {
 
   /** Lots [from, to) taken out of the open runs, for a building to stand on. */
   claim(f: Fabric, from: number, to: number): void {
-    const out: [number, number][] = [];
-    for (const [a, b] of f.open) {
-      if (b <= from || a >= to) out.push([a, b]);
-      else {
-        if (a < from) out.push([a, from]);
-        if (b > to) out.push([to, b]);
-      }
+    // (The open runs are in the order of their lots: only those over the stretch are gone over.)
+    const open = f.open;
+    let lo = 0,
+      hi = open.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (open[mid]![1] <= from) lo = mid + 1;
+      else hi = mid;
     }
-    f.open = out;
+    let j = lo;
+    const keep: [number, number][] = [];
+    for (; j < open.length && open[j]![0] < to; j++) {
+      const [a, b] = open[j]!;
+      if (a < from) keep.push([a, from]);
+      if (b > to) keep.push([to, b]);
+    }
+    if (j > lo || keep.length) open.splice(lo, j - lo, ...keep);
     if (to > f.next) {
       this.release(f, f.next, from);
       f.next = to;
@@ -982,8 +1345,8 @@ export class TownBuilder {
     if (f.passed < 0) {
       const from = f.raise,
         span = Math.min(n, from + 512),
-        levels = levelsOf(f, from, span),
-        under = civicMask(f, from, span);
+        levels = scratchLevels(f, from, span),
+        under = scratchMask(f, from, span);
       let run = -1,
         level = -1,
         p = from;
@@ -991,11 +1354,22 @@ export class TownBuilder {
         if (run >= 0) this.change(f, CHANGE.raised, run, to, level, design);
         run = -1;
       };
-      for (; p < span && room > 0 && hands > 0; p++) {
-        const was = levels[p - from]!,
+      // (Lots alike taken together, as lot by lot they would be: what stands on them, whether a building does, and
+      // the level they are rebuilt to, which falls only ring by ring. Every town goes over its lots so, every year.)
+      let to = -1,
+        rings = from;
+      while (p < span && room > 0 && hands > 0) {
+        if (p >= rings) {
           to = lotLevel(p, n, top, edge);
-        if (was < 0 || was >= to || under[p - from]) {
+          rings = sameLevel(p, span, n, top, edge, to);
+        }
+        const was = levels[p - from]!,
+          u = under[p - from]!;
+        let e = p + 1;
+        while (e < rings && levels[e - from] === was && under[e - from] === u) e++;
+        if (was < 0 || was >= to || u) {
           done(p);
+          p = e;
           continue;
         }
         if (run >= 0 && to !== level) done(p);
@@ -1003,10 +1377,14 @@ export class TownBuilder {
           run = p;
           level = to;
         }
-        f.homes[was]!--;
-        f.homes[to]!++;
-        room -= HOLDS[to]! - HOLDS[was]!;
-        hands -= HOLDS[to]!;
+        const dRoom = HOLDS[to]! - HOLDS[was]!,
+          dHands = HOLDS[to]!,
+          k = Math.min(e - p, Math.ceil(room / dRoom), Math.ceil(hands / dHands));
+        f.homes[was]! -= k;
+        f.homes[to]! += k;
+        room -= k * dRoom;
+        hands -= k * dHands;
+        p += k;
       }
       done(p);
       f.raise = p;
@@ -1033,8 +1411,19 @@ export class TownBuilder {
         hands -= homes * HOLDS[edge]!;
         break;
       }
-      const p = this.takeLot(f),
-        to = lotLevel(p, n, top, edge);
+      // (An open run's lots of one level taken together, as many as the year's hands and its room take, as the
+      // lowest open lot one at a time would take them: a great town raises tens of thousands of homes a year.)
+      const open = f.open[0],
+        p = open ? open[0] : f.next,
+        to = lotLevel(p, n, top, edge),
+        hold = HOLDS[to]!,
+        k = Math.min(
+          open ? sameLevel(p, open[1], n, top, edge, to) - p : 1,
+          Math.ceil(Math.min(room, hands) / hold),
+        );
+      if (open) {
+        if ((open[0] += k) >= open[1]) f.open.shift();
+      } else f.next += k;
       if (run >= 0 && (p !== at + 1 || to !== level)) {
         this.change(f, CHANGE.built, run, at + 1, level, design);
         run = -1;
@@ -1043,10 +1432,10 @@ export class TownBuilder {
         run = p;
         level = to;
       }
-      at = p;
-      f.homes[to]!++;
-      room -= HOLDS[to]!;
-      hands -= HOLDS[to]!;
+      at = p + k - 1;
+      f.homes[to]! += k;
+      room -= k * hold;
+      hands -= k * hold;
     }
     if (run >= 0) this.change(f, CHANGE.built, run, at + 1, level, design);
   }
@@ -1067,8 +1456,8 @@ export class TownBuilder {
     let excess = housing - Math.ceil(people / 0.8),
       count = Math.max(1, Math.ceil(homesOf(f) * 0.05)),
       top = -1;
-    const levels = levelsOf(f, from, high + 1),
-      under = civicMask(f, from, high + 1),
+    const levels = scratchLevels(f, from, high + 1),
+      under = scratchMask(f, from, high + 1),
       fall = (lo: number) => {
         if (top < 0) return;
         this.change(f, CHANGE.fell, lo, top + 1, 0, 0);
@@ -1234,61 +1623,90 @@ export class TownBuilder {
    * in time, if that leaves it too many), open ground if not.
    */
   rise(f: Fabric, people: number, top: number, edge: number, design: number): void {
-    // (A great city has thousands of runs and hundreds that rise in a year: its runs and its open lots are gone
-    // over once, not once for each. Runs never share a lot, so a burned run let go is all a cut would do, and what
-    // goes on its lots stands over nothing. One let go leaves the list at once if it is the last, as a cut would.)
-    const runs = f.changes,
+    // (A great city has thousands of runs and hundreds that rise in a year: its runs are gone over once, each due
+    // one's lots told in its place, and its open lots once. Runs never share a lot, so a burned run let go is all a
+    // cut would do, and what goes on its lots stands over nothing.)
+    const R = f.changes,
+      year = this.year,
       // (A run's design says how long it lies, where that is not a rocket's: see flatten.)
-      due = runs.filter((c) => c[0] === CHANGE.burned && c[4] + (c[6] || ASH_YEARS) <= this.year),
-      opened: [number, number][] = [],
+      isDue = (c: number) =>
+        R.v(c, 0) === CHANGE.burned && R.v(c, 4) + (R.v(c, 6) || ASH_YEARS) <= year;
+    let due = false;
+    for (let i = 0; i < R.length && !due; i++) due = isDue(R.slot(i));
+    if (!due) {
+      if (!hasBurned(R)) this.store.ashen.delete(f);
+      return;
+    }
+    const opened: [number, number][] = [],
+      out: number[] = [],
       n = f.next;
     let room = people / 0.6 - housingOf(f);
-    for (const c of due) {
-      const a = c[1],
-        b = c[2];
-      c[0] = RISEN;
-      while (runs.at(-1)?.[0] === RISEN) runs.pop();
+    const lay = (what: number, a: number, b: number, level: number, d: number) => {
+      const run = this.made(f, what, a, b, level, d),
+        last = out.length ? out[out.length - 1]! : -1;
+      // (Within a year: a run continued, as one; the run made let go.)
+      if (last >= 0 && R.v(last, 3) === year && R.v(last, 4) === year && joins(R, last, run)) {
+        R.w(last, 2, b);
+        R.release(run);
+      } else out.push(run);
+    };
+    for (let r = 0, end = R.length; r < end; r++) {
+      const c = R.slot(r);
+      if (!isDue(c)) {
+        out.push(c);
+        continue;
+      }
+      const a = R.v(c, 1),
+        b = R.v(c, 2);
       // (A building may have gone up on them since.)
       const under = civicMask(f, a, b);
+      // (Where one has, nothing is laid on its lots: the runs either side may join across it, which its settling
+      // finds only going over every run.)
+      if (under.includes(1)) this.store.whole.add(f);
       let run = -1,
-        level = -1;
+        level = -1,
+        clear = a;
       const done = (to: number) => {
         if (run < 0) return;
-        if (level >= 0) this.laid(f, CHANGE.built, run, to, level, design);
+        if (level >= 0) lay(CHANGE.built, run, to, level, design);
         else {
-          this.laid(f, CHANGE.razed, run, to, 0, 0);
+          lay(CHANGE.razed, run, to, 0, 0);
           opened.push([run, to]);
         }
         run = -1;
       };
-      for (let p = a; p < b; p++) {
+      // (Lot by lot as its people want them, the lots of one level together.)
+      for (let p = a; p < b;) {
         if (under[p - a]) {
           done(p);
+          p++;
           continue;
         }
-        const to = room > 0 ? lotLevel(p, n, top, edge) : -1;
+        if (clear <= p) for (clear = p + 1; clear < b && !under[clear - a];) clear++;
+        const to = room > 0 ? lotLevel(p, n, top, edge) : -1,
+          k =
+            to < 0
+              ? clear - p
+              : Math.min(sameLevel(p, clear, n, top, edge, to) - p, Math.ceil(room / HOLDS[to]!));
         if (run >= 0 && to !== level) done(p);
         if (run < 0) {
           run = p;
           level = to;
         }
         if (to >= 0) {
-          f.homes[to]!++;
-          room -= HOLDS[to]!;
+          f.homes[to]! += k;
+          room -= k * HOLDS[to]!;
         }
+        p += k;
       }
       done(b);
     }
-    if (due.length) {
-      let w = 0;
-      for (let r = 0; r < runs.length; r++) if (runs[r]![0] !== RISEN) runs[w++] = runs[r]!;
-      runs.length = w;
-    }
+    R.become(out);
     if (opened.length) {
       for (const r of opened) f.open.push(r);
       this.openMerged(f);
     }
-    if (!f.changes.some((c) => c[0] === CHANGE.burned)) this.store.ashen.delete(f);
+    if (!hasBurned(R)) this.store.ashen.delete(f);
   }
 
   /**
@@ -1366,18 +1784,19 @@ export class TownBuilder {
     HAVE.fill(0);
     RISING.fill(0);
     let emptied = false;
-    for (const c of f.civics) {
-      if (c.fell !== null) continue;
-      const def = civic(c.kind);
-      if (!emptied && c.end <= this.year && people < Math.max(30, def.people) / 3) {
-        this.fall(f, c, FOLD.fell);
+    // (Each kind asked of once: a great town has a hundred and fifty buildings, weighed one year in three.)
+    const cs = f.civics;
+    for (let j = 0; j < cs.length; j++) {
+      if (cs.fells[j] !== NO_FALL) continue;
+      const i = cs.kinds[j]!;
+      if (!emptied && cs.ends[j]! <= this.year && people < EMPTIED_BELOW[i]!) {
+        this.fall(f, cs.get(j)!, FOLD.fell);
         emptied = true;
         continue;
       }
-      const i = CIVIC_INDEX.get(c.kind)!;
       HAVE[i]!++;
-      if (c.end > this.year) RISING[i] = 1;
-      if (def.replaces) HAVE[CIVIC_INDEX.get(def.replaces)!]!++;
+      if (cs.ends[j]! > this.year) RISING[i] = 1;
+      if (REPLACES[i]! >= 0) HAVE[REPLACES[i]!]!++;
     }
     let begun = 0;
     for (let i = 0; i < CIVICS.length && begun < (city ? 2 : 1); i++) {
@@ -1396,14 +1815,7 @@ export class TownBuilder {
       const lots = CIVIC_LOTS[def.kind],
         at = this.siteFor(f, lots, def.place);
       this.clearFor(f, at, lots);
-      f.civics.push({
-        kind: def.kind,
-        at,
-        lots,
-        start: this.year,
-        end: this.year + def.years,
-        fell: null,
-      });
+      f.civics.add(i, at, lots, this.year, this.year + def.years);
       this.store.fold(f.town, FOLD.begun, i, at, this.year);
       begun++;
       // (A temple raised is told: its town's faith in stone. Not one the eye reckons apart: reading a town changes nothing.)
@@ -1437,11 +1849,15 @@ export class TownBuilder {
       // and this is asked each year of whichever towns are building. Phase 66.)
       // (Nor on lots in ash: no one builds there till its years are out. 2026-11-13: a shrine and a granary rose
       // the year the greatest fire flattened a town's heart, on its ash.)
-      const spans = f.civics
-        .filter((c) => c.fell === null && c.lots > 0)
-        .map((c) => [c.at, c.at + c.lots] as const)
-        .concat(f.changes.filter((c) => c[0] === CHANGE.burned).map((c) => [c[1], c[2]] as const))
-        .sort((a, b) => a[0] - b[0]);
+      // (A town with no lots in ash is not among the ashen: its runs need not be gone over for them.)
+      const ash = !this.store || this.store.ashen.has(f),
+        spans = (standingSpans(f.civics) as (readonly [number, number])[])
+          .concat(
+            ash
+              ? f.changes.filter((c) => c[0] === CHANGE.burned).map((c) => [c[1], c[2]] as const)
+              : [],
+          )
+          .sort((a, b) => a[0] - b[0]);
       let i = 0,
         reach = -1;
       for (let p = 0; p < f.next; p += lots) {
@@ -1467,7 +1883,7 @@ export class TownBuilder {
     const lots = CIVIC_LOTS[kind],
       at = this.siteFor(f, lots, f.next > ASKED_EDGE_LOTS ? "core" : def.place);
     this.clearFor(f, at, lots);
-    f.civics.push({ kind, at, lots, start: this.year, end: this.year + def.years, fell: null });
+    f.civics.add(CIVIC_INDEX.get(kind)!, at, lots, this.year, this.year + def.years);
     this.store.fold(f.town, FOLD.begun, CIVIC_INDEX.get(kind)!, at, this.year);
     return { at, lots };
   }
@@ -1509,7 +1925,10 @@ const ASKED_EDGE_LOTS = 300;
 
 /** Scratch for a town's buildings by kind: how many stand, whether one is rising. */
 const HAVE = new Int32Array(CIVICS.length),
-  RISING = new Uint8Array(CIVICS.length);
+  RISING = new Uint8Array(CIVICS.length),
+  /** Each kind's: the people below which one long built falls out of use, and the kind it takes the place of (-1: none). */
+  EMPTIED_BELOW = Float64Array.from(CIVICS, (d) => Math.max(30, d.people) / 3),
+  REPLACES = Int8Array.from(CIVICS, (d) => (d.replaces ? CIVIC_INDEX.get(d.replaces)! : -1));
 
 /** A town's fabric begun: its family of streets from its people, and nothing built. */
 function found(ctx: PopulationContext, s: Settlement): Fabric {
@@ -1523,8 +1942,8 @@ function found(ctx: PopulationContext, s: Settlement): Fabric {
     aim: -1,
     raise: 0,
     passed: -1,
-    changes: [],
-    civics: [],
+    changes: new Runs(),
+    civics: new Civics(),
     walls: null,
     lean: 0,
     forsaken: null,
