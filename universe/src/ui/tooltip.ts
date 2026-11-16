@@ -17,6 +17,8 @@ export class Tooltip {
   private showing: string | null = null;
   private waiting: ReturnType<typeof setTimeout> | null = null;
   private at = { x: 0, y: 0 };
+  /** Whether a finger points (held on a phone): the tip stands above it, not under the finger. */
+  private finger = false;
   /** The map mode shown: a land under one of the deeper lenses tells what makes its number (M108). */
   lens = "terrain";
 
@@ -28,8 +30,10 @@ export class Tooltip {
   }
 
   /** The pointer at (x, y) on the screen, resting on `ref` (null: on nothing). */
-  point(ref: string | null, x: number, y: number): void {
+  point(ref: string | null, x: number, y: number, finger = false): void {
     this.at = { x, y };
+    this.finger = finger;
+    this.element.classList.toggle("finger", finger);
     // (A land's tip is of the lens it is seen through.)
     const key = ref?.startsWith("cell:0:") ? `${this.lens}|${ref}` : ref;
     if (key !== this.showing) {
@@ -78,9 +82,19 @@ export class Tooltip {
   private place(): void {
     if (this.element.hidden) return;
     const w = this.element.offsetWidth,
-      h = this.element.offsetHeight,
-      x = Math.min(innerWidth - w - 8, this.at.x + 16),
-      y = this.at.y + 18 + h > innerHeight - 8 ? this.at.y - h - 12 : this.at.y + 18;
+      h = this.element.offsetHeight;
+    // (Above a finger and centred on it, where the finger does not cover it; under it if there is
+    // no room above.)
+    const x = this.finger
+        ? Math.min(innerWidth - w - 8, this.at.x - w / 2)
+        : Math.min(innerWidth - w - 8, this.at.x + 16),
+      y = this.finger
+        ? this.at.y - h - 56 >= 8
+          ? this.at.y - h - 56
+          : this.at.y + 40
+        : this.at.y + 18 + h > innerHeight - 8
+          ? this.at.y - h - 12
+          : this.at.y + 18;
     this.element.style.transform = `translate(${Math.max(8, x)}px, ${Math.max(8, y)}px)`;
   }
 }

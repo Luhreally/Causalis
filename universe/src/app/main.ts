@@ -3666,16 +3666,20 @@ async function runPlanetPage(): Promise<void> {
   let hoverAt = 0;
   canvas.addEventListener("pointermove", (e) => {
     if (e.pointerType !== "mouse" || e.buttons) {
-      tooltip.hide();
+      if (!rig.holding) tooltip.hide();
       return;
     }
+    hover(e.clientX, e.clientY, false);
+  });
+  /** What a pointer at rest at (cx, cy) on the screen tells: a mouse's, or a finger held (a phone's hover). */
+  const hover = (cx: number, cy: number, finger: boolean) => {
     // (Asked a dozen times a second at most: a pick reads the scene.)
     const now = performance.now();
     if (now - hoverAt < 80) return;
     hoverAt = now;
     const rect = canvas.getBoundingClientRect(),
-      x = e.clientX - rect.left,
-      y = e.clientY - rect.top;
+      x = cx - rect.left,
+      y = cy - rect.top;
     // With an act in hand the palette says what it will do where the pointer is, and lights it.
     if (
       palette.armed &&
@@ -3690,14 +3694,35 @@ async function runPlanetPage(): Promise<void> {
     // the pointer there lay over the bar's buttons. 2026-11-13.)
     const barFoot =
       parseFloat(document.documentElement.style.getPropertyValue("--bar-bottom")) || 0;
-    if (e.clientY < barFoot) {
+    if (cy < barFoot) {
       tooltip.hide();
       return;
     }
-    tooltip.point(refAt(x, y), e.clientX, e.clientY);
+    tooltip.point(refAt(x, y), cx, cy, finger);
+  };
+  // A finger held still on the scene is a phone's mouse at rest (owner, 2026-11-15: "if i hold my
+  // finger down it acts as a mouse hover"): the tip of what is under it, following it as it slides;
+  // with an act in hand, the act's reach lit there. Lifted, nothing opens or falls; the tip stays a
+  // few seconds to be read, and the next touch puts it away.
+  let holdLeft: ReturnType<typeof setTimeout> | null = null;
+  rig.onHold = (cx, cy, phase) => {
+    if (holdLeft) clearTimeout(holdLeft);
+    holdLeft = null;
+    if (phase === "end") {
+      holdLeft = setTimeout(() => tooltip.hide(), 4000);
+      return;
+    }
+    if (phase === "start") hoverAt = 0;
+    hover(cx, cy, true);
+  };
+  canvas.addEventListener("pointerleave", (e) => {
+    if (e.pointerType === "mouse") tooltip.hide();
   });
-  canvas.addEventListener("pointerleave", () => tooltip.hide());
-  canvas.addEventListener("pointerdown", () => tooltip.hide());
+  canvas.addEventListener("pointerdown", () => {
+    if (holdLeft) clearTimeout(holdLeft);
+    holdLeft = null;
+    tooltip.hide();
+  });
   canvas.addEventListener("wheel", () => tooltip.hide(), { passive: true });
   // (The view moved under a pointer at rest — steered by the keys, or another scale come to —
   // its tip is of what was there: put away.)
@@ -3767,6 +3792,8 @@ async function runPlanetPage(): Promise<void> {
   };
   // (A right click puts the act in hand down.)
   canvas.addEventListener("contextmenu", (e) => {
+    // (A phone's long press is a hover, not a right click: the act stays in hand.)
+    if (rig.holding || ((e as PointerEvent).pointerType ?? "mouse") !== "mouse") return;
     if (!palette.armed) return;
     e.preventDefault();
     palette.putDown();

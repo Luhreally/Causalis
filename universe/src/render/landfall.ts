@@ -22,7 +22,15 @@ import {
   type ShipGeometry,
 } from "../view/index.ts";
 import { BlazeLayer } from "./blaze.ts";
-import { InstancedBatch, boxMesh, capsuleMesh, coneMesh, cylinderMesh, keptMesh } from "./batch.ts";
+import {
+  InstancedBatch,
+  dropMesh,
+  boxMesh,
+  capsuleMesh,
+  coneMesh,
+  cylinderMesh,
+  keptMesh,
+} from "./batch.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 const M = 0.1;
@@ -487,7 +495,7 @@ export class LandfallLayer {
 
   clear(): void {
     for (const b of this.batches) b.destroy();
-    for (const m of this.meshes) m.destroy();
+    for (const m of this.meshes) dropMesh(m);
     for (const m of this.materials) m.destroy();
     this.batches = [];
     this.meshes.clear();

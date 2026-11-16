@@ -55,7 +55,7 @@ type BlocRead = {
   readonly blocs: ReadonlyMap<string, readonly Ref[]>;
 };
 
-const MEMO = new Map<World, { year: number; count: number; read: BlocRead }>();
+const MEMO = new WeakMap<World, { year: number; count: number; read: BlocRead }>();
 
 /** Who stands with whom: read once a year (the strength of each realm is its host as fielded, without its arms: cheap on seven hundred realms). */
 export function blocsOf(world: World): BlocRead {
@@ -112,7 +112,6 @@ export function blocsOf(world: World): BlocRead {
         ),
       );
   const read = { head, blocs };
-  MEMO.clear();
   MEMO.set(world, { year, count: events, read });
   return read;
 }
@@ -210,7 +209,7 @@ export type Alliance = {
   readonly compact: League | undefined;
 };
 
-const ALLIED = new Map<World, { year: number; count: number; list: Alliance[] }>();
+const ALLIED = new WeakMap<World, { year: number; count: number; list: Alliance[] }>();
 
 const RELATIONS = new WeakMap<
   World,
@@ -304,7 +303,6 @@ export function alliancesOf(world: World): Alliance[] {
     (a, b) =>
       b.people - a.people || b.members.length - a.members.length || (a.head < b.head ? -1 : 1),
   );
-  ALLIED.clear();
   ALLIED.set(world, { year, count: events, list });
   return list;
 }

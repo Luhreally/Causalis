@@ -69,9 +69,11 @@ export const PER_TERM = 16;
 const ROSTERS_MOST = 4096;
 /**
  * What a world's rosters may keep, in bytes as reckoned (roughly), before the least lately asked
- * for are let go.
+ * for are let go. The heap holds some 1.6 times the reckoning (2026-11-15: 123 MB for 77 MB reckoned,
+ * 176 MB for 110 MB, great towns' pages read at year 1,500), so this is some 90 MB of a host that a
+ * phone's tab gives 350 MB: a dozen rosters of towns of millions, three or four such towns' pages.
  */
-const ROSTER_BYTES = 96 * 1024 * 1024;
+const ROSTER_BYTES = 56 * 1024 * 1024;
 
 export type Fate = "stood" | "hurt" | "maimed" | "fell";
 /** A battle a holder was levied for, and how he came home, or did not. */
@@ -155,6 +157,17 @@ export type Roster = {
   battle(event: string): RosterBattle | null;
   /** Oldest first. */
   readonly strikes: readonly RosterStrike[];
+  /**
+   * The lines a battle of the roster's window sent a man home from hurt or maimed, or a strike hurt, lowest first: no
+   * other line's holder bears a wound of them. For those who look for a town's wounded: asking every line for its
+   * holder makes a holder of every one, and a great town has a million (the page of a town of 23 million kept 88 MB of
+   * them, 2026-11-15).
+   */
+  hurt(): readonly number[];
+  /** A battle's fallen, in its men's order (the first `most` of them), made without making its every man. */
+  fell(battle: RosterBattle, most?: number): readonly Holder[];
+  /** How many of the town's lines fell in a battle. */
+  fallen(battle: RosterBattle): number;
   /** Their name in the land's tongue (memoized). */
   nameOf(h: Holder): string;
 };
@@ -409,6 +422,12 @@ export function rosterOf(
 /** Let every roster go, and the strikes they were read from (not the battles by land). */
 export function clearRosters(): void {
   cleared++;
+}
+
+/** What a world's rosters keep now: how many, and their bytes as reckoned (for a test to hold to what the heap says). */
+export function rostersKept(world: World): { rosters: number; bytes: number } {
+  const c = CACHES.get(world);
+  return { rosters: c?.rosters.size ?? 0, bytes: c?.bytes ?? 0 };
 }
 
 /** What a fold asks beyond its lines, in rosterCost's lines. */
@@ -1402,6 +1421,37 @@ function foldRoster(
     return name;
   };
 
+  let hurtLines: number[] | null = null;
+  const hurt = (): readonly number[] => {
+    if (hurtLines) return hurtLines;
+    const seen = new Set<number>();
+    for (const x of levies)
+      for (let i = 0; i < x.lines.length; i++) {
+        const fate = FATES[x.fates[i]!];
+        if (fate === "hurt" || fate === "maimed") seen.add(x.lines[i]!);
+      }
+    for (const x of struck)
+      for (let i = 0; i < x.lines.length; i++)
+        if (STRUCK[x.fates[i]!] === "hurt") seen.add(x.lines[i]!);
+    hurtLines = [...seen].sort((a, b) => a - b);
+    weigh(8 * hurtLines.length);
+    return hurtLines;
+  };
+  const fell = (battle: RosterBattle, most = Infinity): readonly Holder[] => {
+    // (A battle told and what was kept of it stand at the same place in their lists.)
+    const x = levies[battles.indexOf(battle)],
+      out: Holder[] = [];
+    if (!x) return out;
+    for (let i = 0; i < x.lines.length && out.length < most; i++)
+      if (FATES[x.fates[i]!] === "fell") out.push(holderIn(x.lines[i]!, x.year));
+    return out;
+  };
+  const fallen = (battle: RosterBattle): number => {
+    const x = levies[battles.indexOf(battle)];
+    let n = 0;
+    if (x) for (let i = 0; i < x.fates.length; i++) if (FATES[x.fates[i]!] === "fell") n++;
+    return n;
+  };
   const roster: Roster = {
     town,
     year,
@@ -1410,6 +1460,9 @@ function foldRoster(
     battles,
     battle: (event) => battles.find((rb) => rb.event === event) ?? null,
     strikes,
+    hurt,
+    fell,
+    fallen,
     nameOf,
   };
   INNER.set(roster, inner);
