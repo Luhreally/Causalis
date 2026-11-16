@@ -154,3 +154,46 @@ export function landEnergyBlocks(world: World, cell: number): Block[] {
   });
   return blocks;
 }
+
+/** The world's peoples' energy, all their lands summed (the energy measure's page): each carrier a head, and what drives their works. */
+export function worldEnergyBlocks(world: World): Block[] {
+  const books = energyBooks(world);
+  if (!books) return [];
+  const sum = Object.fromEntries(CARRIERS.map((c) => [c, 0])) as Record<Carrier, number>,
+    driving = new Map<Source, number>();
+  let people = 0,
+    carbon = 0;
+  for (const e of books.all()) {
+    if (e.people <= 0) continue;
+    people += e.people;
+    carbon += e.carbon;
+    CARRIERS.forEach((c, i) => (sum[c] += e.drawn[i] ?? 0));
+    const r = energyPerHead(world, e.cell);
+    if (r) driving.set(r.drives, (driving.get(r.drives) ?? 0) + e.people);
+  }
+  if (!people) return [];
+  const all = CARRIERS.reduce((s, c) => s + sum[c], 0);
+  const rows: Stat[] = CARRIERS.filter((c) => sum[c] / people > 0.0005)
+    .sort((a, b) => sum[b] - sum[a])
+    .map((c) =>
+      stat(
+        `${CARRIER_WORDS[c].icon} ${cap(CARRIER_WORDS[c].name)}`,
+        `${kwWords(sum[c] / people)} a head (${pc(sum[c] / Math.max(1e-9, all))})`,
+      ),
+    );
+  rows.push(stat("All told", `${kwWords(all / people)} a head, ${kwWords(all)} in all`));
+  if (carbon > 0)
+    rows.push(
+      stat(
+        "Carbon sent up",
+        `${Math.round(carbon / 1e3).toLocaleString("en-US")} thousand tonnes a year`,
+      ),
+    );
+  const drives: Stat[] = [...driving]
+    .sort((a, b) => b[1] - a[1])
+    .map(([s, n]) => stat(cap(SOURCE_WORDS[s]), `${pc(n / people)} of its people`));
+  return [
+    { type: "facts", title: "What its peoples draw on", rows },
+    { type: "facts", title: "What drives their works", rows: drives },
+  ];
+}
