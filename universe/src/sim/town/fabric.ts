@@ -290,16 +290,15 @@ export class TownStore implements StateStore {
       if (r.done) return r.value;
     }
   }
-  /** save(), a thousand towns a piece (a world at 1,500 has twenty-three thousand). */
+  /** save(), a thousand towns a piece (a world at 1,500 has twenty-three thousand): its columns written town by town. */
   *saveSteps(): Generator<void, unknown, void> {
     const all = this.all(),
-      packed: Saved[] = [];
+      columns = newColumns();
     for (let i = 0; i < all.length; i++) {
-      packed.push(pack(all[i]!));
+      intoColumns(columns, all[i]!);
       if (i % 1000 === 999) yield;
     }
-    yield;
-    return { digest: [this.a, this.b], towns: toColumns(packed) };
+    return { digest: [this.a, this.b], towns: columns };
   }
   load(state: unknown): void {
     // (Town by town, in a save from before Phase 66.)
@@ -343,40 +342,88 @@ const HEADS = 9,
 /** (Scratch: the lot of the last building of each kind, as a town's are written.) */
 const LAST_OF = new Float64Array(CIVICS.length);
 
-function toColumns(towns: readonly Saved[]): SavedColumns {
-  const heads: unknown[][] = Array.from({ length: HEADS }, () => []),
-    runs: number[][] = Array.from({ length: RUN_COLUMNS }, () => []),
-    civics: number[][] = Array.from({ length: CIVIC_COLUMNS }, () => []),
+type Columns = {
+  heads: unknown[][];
+  designs: number[];
+  designsOf: number[];
+  runs: number[][];
+  runsOf: number[];
+  civics: number[][];
+  civicsOf: number[];
+  fallen: number[];
+  fallenOf: number[];
+};
+
+function newColumns(): Columns {
+  return {
+    heads: Array.from({ length: HEADS }, () => []),
+    designs: [],
+    designsOf: [],
+    runs: Array.from({ length: RUN_COLUMNS }, () => []),
+    runsOf: [],
+    civics: Array.from({ length: CIVIC_COLUMNS }, () => []),
+    civicsOf: [],
+    fallen: [],
+    fallenOf: [],
+  };
+}
+
+/** A town written into the columns as toColumns writes what pack gives of it, with no list of its own between. */
+function intoColumns(c: Columns, f: Fabric): void {
+  const h = c.heads;
+  h[0]!.push(f.town);
+  h[1]!.push(TOWN_FAMILIES.indexOf(f.family));
+  h[2]!.push(f.next);
+  h[3]!.push(f.aim);
+  h[4]!.push(f.raise);
+  h[5]!.push(f.passed);
+  h[6]!.push(f.lean);
+  h[7]!.push(f.forsaken);
+  h[8]!.push(f.walls ? [f.walls.start, f.walls.end, f.walls.reach] : null);
+  const R = f.changes,
     designs: number[] = [],
-    designsOf: number[] = [],
-    runsOf: number[] = [],
-    civicsOf: number[] = [],
-    fallen: number[] = [],
-    fallenOf: number[] = [];
-  for (const t of towns) {
-    for (let i = 0; i < HEADS; i++) heads[i]!.push(t[i]);
-    designsOf.push(t[9].length);
-    for (const d of t[9]) designs.push(d);
-    runsOf.push(t[10].length / RUN_COLUMNS);
-    for (let i = 0; i < t[10].length; i++) runs[i % RUN_COLUMNS]!.push(t[10][i]!);
-    civicsOf.push(t[11].length / CIVIC_COLUMNS);
-    // (A building's lot against the last of its kind, its year as it stands: they fold the smaller.)
-    let at = 0,
-      start = 0;
-    LAST_OF.fill(0);
-    for (let i = 0; i < t[11].length; i += CIVIC_COLUMNS) {
-      const kind = t[11][i]!;
-      at += t[11][i + 1]!;
-      start += t[11][i + 2]!;
-      civics[0]!.push(kind);
-      civics[1]!.push(at - LAST_OF[kind]!);
-      civics[2]!.push(start);
-      LAST_OF[kind] = at;
-    }
-    fallenOf.push(t[12].length);
-    for (const f of t[12]) fallen.push(f);
+    runs = c.runs;
+  let to = 0,
+    start = 0;
+  for (let i = 0; i < R.length; i++) {
+    const s = R.slot(i),
+      a = R.v(s, 1),
+      b = R.v(s, 2),
+      first = R.v(s, 3),
+      design = R.v(s, 6);
+    let d = designs.indexOf(design);
+    if (d < 0) d = designs.push(design) - 1;
+    runs[0]!.push(R.v(s, 0));
+    runs[1]!.push(a - to);
+    runs[2]!.push(b - a);
+    runs[3]!.push(first - start);
+    runs[4]!.push(R.v(s, 4) - first);
+    runs[5]!.push(R.v(s, 5));
+    runs[6]!.push(d);
+    to = b;
+    start = first;
   }
-  return { heads, designs, designsOf, runs, runsOf, civics, civicsOf, fallen, fallenOf };
+  c.designsOf.push(designs.length);
+  for (const d of designs) c.designs.push(d);
+  c.runsOf.push(R.length);
+  const cs = f.civics,
+    civics = c.civics;
+  c.civicsOf.push(cs.length);
+  LAST_OF.fill(0);
+  let fallen = 0;
+  for (let i = 0; i < cs.length; i++) {
+    const kind = cs.kinds[i]!,
+      at = cs.ats[i]!;
+    civics[0]!.push(kind);
+    civics[1]!.push(at - LAST_OF[kind]!);
+    civics[2]!.push(cs.starts[i]!);
+    LAST_OF[kind] = at;
+    if (cs.fells[i] !== NO_FALL) {
+      c.fallen.push(i, cs.fells[i]! - cs.starts[i]!);
+      fallen += 2;
+    }
+  }
+  c.fallenOf.push(fallen);
 }
 
 function fromColumns(c: SavedColumns): Saved[] {
@@ -414,55 +461,6 @@ function fromColumns(c: SavedColumns): Saved[] {
     f += c.fallenOf[n]!;
   }
   return out;
-}
-
-/** A fabric as saved (see Saved). */
-function pack(f: Fabric): Saved {
-  const designs: number[] = [],
-    runs: number[] = [],
-    civics: number[] = [],
-    fallen: number[] = [];
-  let to = 0,
-    start = 0;
-  const R = f.changes;
-  for (let i = 0; i < R.length; i++) {
-    const c = R.slot(i),
-      a = R.v(c, 1),
-      b = R.v(c, 2),
-      first = R.v(c, 3),
-      design = R.v(c, 6);
-    let d = designs.indexOf(design);
-    if (d < 0) d = designs.push(design) - 1;
-    runs.push(R.v(c, 0), a - to, b - a, first - start, R.v(c, 4) - first, R.v(c, 5), d);
-    to = b;
-    start = first;
-  }
-  let at = 0;
-  start = 0;
-  const cs = f.civics;
-  for (let i = 0; i < cs.length; i++) {
-    const a = cs.ats[i]!,
-      s = cs.starts[i]!;
-    civics.push(cs.kinds[i]!, a - at, s - start);
-    at = a;
-    start = s;
-    if (cs.fells[i] !== NO_FALL) fallen.push(i, cs.fells[i]! - s);
-  }
-  return [
-    f.town,
-    TOWN_FAMILIES.indexOf(f.family),
-    f.next,
-    f.aim,
-    f.raise,
-    f.passed,
-    f.lean,
-    f.forsaken,
-    f.walls ? [f.walls.start, f.walls.end, f.walls.reach] : null,
-    designs,
-    runs,
-    civics,
-    fallen,
-  ];
 }
 
 /** A fabric as it was saved, its homes and open lots read again from what stands. */

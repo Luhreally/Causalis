@@ -183,38 +183,56 @@ class Varints {
   }
 
   text(): string {
-    const codes = this.laidOut() ?? this.codes,
-      n = codes === this.codes ? this.n : codes.length;
-    // (Its letters are all ASCII, which UTF-8 reads as themselves: one decoding, not a string built up by pieces.)
-    return ASCII.decode(codes.subarray(0, n));
+    return lettersText(this.codes, this.n);
   }
+}
 
-  /** The letters by their place in their numbers (none where it would change nothing, or gain nothing). */
-  private laidOut(): Uint8Array | null {
-    if (this.n < LAID_OUT) return null;
-    const count = new Int32Array(16);
-    let place = 0;
-    for (let i = 0; i < this.n; i++) {
-      count[place]!++;
-      place = VALUE_OF[this.codes[i]!]! >= 32 ? place + 1 : 0;
-    }
-    if (count[1] === 0) return null;
-    let at = 1;
-    for (let p = 0; p < count.length; p++) {
-      const here = count[p]!;
-      count[p] = at;
-      at += here;
-    }
-    const out = new Uint8Array(at);
-    out[0] = BY_PLACE;
-    place = 0;
-    for (let i = 0; i < this.n; i++) {
-      const c = this.codes[i]!;
-      out[count[place]!++] = c;
-      place = VALUE_OF[c]! >= 32 ? place + 1 : 0;
-    }
-    return out;
+/** Varints' letters as text: laid out by their place in their numbers where that gains (see laidOut). */
+function lettersText(codes: Uint8Array, n: number): string {
+  const laid = laidOut(codes, n);
+  // (Its letters are all ASCII, which UTF-8 reads as themselves: one decoding, not a string built up by pieces.)
+  return ASCII.decode(laid ?? codes.subarray(0, n));
+}
+
+/** The letters by their place in their numbers (none where it would change nothing, or gain nothing). */
+function laidOut(codes: Uint8Array, n: number): Uint8Array | null {
+  if (n < LAID_OUT) return null;
+  const count = new Int32Array(16);
+  let place = 0;
+  for (let i = 0; i < n; i++) {
+    count[place]!++;
+    place = VALUE_OF[codes[i]!]! >= 32 ? place + 1 : 0;
   }
+  if (count[1] === 0) return null;
+  let at = 1;
+  for (let p = 0; p < count.length; p++) {
+    const here = count[p]!;
+    count[p] = at;
+    at += here;
+  }
+  const out = new Uint8Array(at);
+  out[0] = BY_PLACE;
+  place = 0;
+  for (let i = 0; i < n; i++) {
+    const c = codes[i]!;
+    out[count[place]!++] = c;
+    place = VALUE_OF[c]! >= 32 ? place + 1 : 0;
+  }
+  return out;
+}
+
+/** Each number's varint letters, written into codes from `at`: where the next begins. */
+function letters(codes: Uint8Array, at: number, u: number): number {
+  while (u >= 32 && u < 2147483648) {
+    codes[at++] = CODES[32 + (u & 31)]!;
+    u >>>= 5;
+  }
+  while (u >= 32) {
+    codes[at++] = CODES[32 + (u % 32)]!;
+    u = Math.floor(u / 32);
+  }
+  codes[at++] = CODES[u]!;
+  return at;
 }
 
 /** The numbers in a text laid out by place, the way zig or none left them. */
@@ -311,28 +329,33 @@ function plainKeys(v: object): string[] | null {
 
 /** Whole numbers into `out`: as themselves or as each less the one before, whichever is shorter. */
 function packInts(values: ArrayLike<number>, out: Record<string, unknown>): void {
+  // (Its letters counted first, then written into exactly as many: a late save packs ten million numbers.)
+  const n = values.length;
   let plain = 0,
     steps = 0,
     before = 0;
-  for (let j = 0; j < values.length; j++) {
-    const v = values[j]!;
-    plain += width(zig(v));
-    steps += width(zig(v - before));
+  for (let j = 0; j < n; j++) {
+    const v = values[j]!,
+      d = v - before,
+      z = v < 0 ? -2 * v - 1 : 2 * v,
+      y = d < 0 ? -2 * d - 1 : 2 * d;
+    plain += z < 32 ? 1 : z < 1024 ? 2 : z < 32768 ? 3 : width(z);
+    steps += y < 32 ? 1 : y < 1024 ? 2 : y < 32768 ? 3 : width(y);
     before = v;
   }
-  const text = new Varints(Math.min(plain, steps));
+  const delta = steps < plain,
+    codes = new Uint8Array(delta ? steps : plain);
+  let at = 0;
   before = 0;
-  if (steps < plain) {
-    for (let j = 0; j < values.length; j++) {
+  if (delta)
+    for (let j = 0; j < n; j++) {
       const v = values[j]!;
-      text.push(zig(v - before));
+      at = letters(codes, at, zig(v - before));
       before = v;
     }
-    out.d = text.text();
-  } else {
-    for (let j = 0; j < values.length; j++) text.push(zig(values[j]!));
-    out.i = text.text();
-  }
+  else for (let j = 0; j < n; j++) at = letters(codes, at, zig(values[j]!));
+  if (delta) out.d = lettersText(codes, at);
+  else out.i = lettersText(codes, at);
 }
 
 function unpackInts(p: Packed): number[] {
