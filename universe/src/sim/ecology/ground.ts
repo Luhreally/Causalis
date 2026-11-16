@@ -496,7 +496,7 @@ function turns(ctx: PopulationContext, g: Ground, _t: SimTime): void {
       data: { acid: g.acid, metal: Math.round(g.metal / 10) },
     });
   else if (fouled < 0.05 && g.fouled) g.fouled = null;
-  if (saltHarm(g.salt) >= 0.25 && !g.salted)
+  if (saltHarm(g.salt) >= 0.35 && !g.salted)
     g.salted = world.events.emit({
       type: GROUND_EVENTS.salted.type,
       place,

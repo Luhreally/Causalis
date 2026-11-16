@@ -138,8 +138,8 @@ export const AQUIFER_YEARS = 200;
 export const SALT_T_M3 = 0.0005;
 /** The salt a square kilometre of field holds at which its crops give half (tonnes, est: some 6 dS/m in its topsoil). */
 export const SALT_HALF = 4000;
-/** The share of a field's salt washed out a year, and the more by every metre of rain past what its crops breathe (est). */
-export const SALT_WASHED = 0.02,
+/** The share of a watered field's salt its drainage washes out a year (est: the water let through past what the crops breathe), and the more by every metre of rain past it. */
+export const SALT_WASHED = 0.3,
   SALT_RAIN = 0.5;
 /** The yield a field gains from being watered (rules/principles.ts irrigation's `farmYield`). */
 export const IRRIGATION_GAIN = 0.2;
