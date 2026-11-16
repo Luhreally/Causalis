@@ -661,7 +661,7 @@ function levyFamily(world: World, man: LevyMan): Family {
       key,
       ref: man.ref,
       name: man.name,
-      sex: 1,
+      sex: man.sex,
       born,
       died,
       how:
@@ -674,7 +674,7 @@ function levyFamily(world: World, man: LevyMan): Family {
     r,
     self,
     surnameOf(man.name, given),
-    "A man of the levy known by the battle's roll alone: no line of a town holds him, so history keeps no one of his. His kin here are given by the keyed rule a line's are given by, from his name and his years — the same each time, but none of them kept.",
+    `${man.sex ? "A man" : "A woman"} of the levy known by the battle's roll alone: no line of a town holds ${man.sex ? "him" : "her"}, so history keeps no one of ${man.sex ? "his" : "hers"}. ${man.sex ? "His" : "Her"} kin here are given by the keyed rule a line's are given by, from ${man.sex ? "his" : "her"} name and years — the same each time, but none of them kept.`,
   );
 }
 
@@ -1152,7 +1152,7 @@ export function bodyOf(world: World, ref: string): BodyRead | null {
         man.fate === "fell"
           ? battleDeath(world, man.place?.ref ?? null, man.ref, man, man.place?.cell ?? man.land)
           : null,
-      sex: 1,
+      sex: man.sex,
     };
   }
   if (ref.startsWith("prsn:")) {

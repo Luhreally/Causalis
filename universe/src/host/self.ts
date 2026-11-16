@@ -15,6 +15,7 @@ import {
   OCC,
   WAGE_GOOD,
   careerOf,
+  levelOf,
   crimeLean,
   holdingsOf,
   pairingOf,
@@ -593,7 +594,7 @@ function readSelf(world: World, who: Who, deep: boolean): SelfRead {
   });
   const work = folkWork(world, who.cell),
     working = yearsOn(world, who.cell, who.born + land.adulthood, who.year + 1),
-    career = careerOf(
+    read = careerOf(
       {
         born: who.born,
         year: who.year,
@@ -610,7 +611,11 @@ function readSelf(world: World, who: Who, deep: boolean): SelfRead {
         hardTimes: working.hunger,
       },
       (i) => u(who.key, 200 + i),
-    );
+    ),
+    // (One the god lives has their own hours at their work: their rank at it now is theirs.)
+    career = who.lived
+      ? read.map((c, i) => (i === read.length - 1 ? { ...c, rank: levelOf(who.lived!.skill) } : c))
+      : read;
   const ownsHome =
       who.lived?.owned ??
       (who.station === "ruler" ||
