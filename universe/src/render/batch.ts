@@ -217,38 +217,72 @@ export function keptMesh(mesh: pc.Mesh): pc.Mesh {
   return mesh;
 }
 
+/**
+ * The plain shapes are made once a stage for each size asked and given again after, held as a kept mesh is. A scene
+ * made them afresh at every building of itself, and one no batch came to use (a pine where no conifer stands, a
+ * figure's cone where none wears one) was never destroyed: nothing destroys a mesh but the last thing drawn of it.
+ * Each visit to a land and its town left some seventeen such buffers on the card for good (2026-11-15). Past
+ * SHAPES_KEPT sizes (a ring of a town's own width, say) a shape is made as it was, and goes with what draws it.
+ */
+const SHAPES = new WeakMap<Stage, Map<string, pc.Mesh>>();
+const SHAPES_KEPT = 256;
+function shape(stage: Stage, key: string, make: () => pc.Mesh): pc.Mesh {
+  let kept = SHAPES.get(stage);
+  if (!kept) SHAPES.set(stage, (kept = new Map()));
+  const had = kept.get(key);
+  if (had) return had;
+  const mesh = make();
+  if (kept.size >= SHAPES_KEPT) return mesh;
+  kept.set(key, keptMesh(mesh));
+  return mesh;
+}
+/** How many plain shapes a stage keeps (for a gate to weigh). */
+export function shapesKept(stage: Stage): number {
+  return SHAPES.get(stage)?.size ?? 0;
+}
+
 export function capsuleMesh(stage: Stage, radius: number, height: number): pc.Mesh {
-  return pc.Mesh.fromGeometry(stage.device, new pc.CapsuleGeometry({ radius, height, sides: 8 }));
+  return shape(stage, `capsule|${radius}|${height}`, () =>
+    pc.Mesh.fromGeometry(stage.device, new pc.CapsuleGeometry({ radius, height, sides: 8 })),
+  );
 }
 
 /** A cone (a pyramid, with few sides): for pitched roofs, round roofs and tents. */
 export function coneMesh(stage: Stage, radius: number, height: number, sides: number): pc.Mesh {
-  return pc.Mesh.fromGeometry(
-    stage.device,
-    new pc.ConeGeometry({ baseRadius: radius, peakRadius: 0, height, capSegments: sides }),
+  return shape(stage, `cone|${radius}|${height}|${sides}`, () =>
+    pc.Mesh.fromGeometry(
+      stage.device,
+      new pc.ConeGeometry({ baseRadius: radius, peakRadius: 0, height, capSegments: sides }),
+    ),
   );
 }
 
 /** A ball of few faces. */
 export function ballMesh(stage: Stage, radius: number, bands = 6): pc.Mesh {
-  return pc.Mesh.fromGeometry(
-    stage.device,
-    new pc.SphereGeometry({ radius, latitudeBands: bands, longitudeBands: bands * 2 }),
+  return shape(stage, `ball|${radius}|${bands}`, () =>
+    pc.Mesh.fromGeometry(
+      stage.device,
+      new pc.SphereGeometry({ radius, latitudeBands: bands, longitudeBands: bands * 2 }),
+    ),
   );
 }
 
 export function cylinderMesh(stage: Stage, radius: number, height: number, sides = 24): pc.Mesh {
-  return pc.Mesh.fromGeometry(
-    stage.device,
-    new pc.CylinderGeometry({ radius, height, capSegments: sides }),
+  return shape(stage, `cylinder|${radius}|${height}|${sides}`, () =>
+    pc.Mesh.fromGeometry(
+      stage.device,
+      new pc.CylinderGeometry({ radius, height, capSegments: sides }),
+    ),
   );
 }
 
 /** A box a unit each way about its middle, its faces square to its axes. */
 export function boxMesh(stage: Stage): pc.Mesh {
-  return pc.Mesh.fromGeometry(
-    stage.device,
-    new pc.BoxGeometry({ halfExtents: new pc.Vec3(0.5, 0.5, 0.5) }),
+  return shape(stage, "box", () =>
+    pc.Mesh.fromGeometry(
+      stage.device,
+      new pc.BoxGeometry({ halfExtents: new pc.Vec3(0.5, 0.5, 0.5) }),
+    ),
   );
 }
 
@@ -257,6 +291,9 @@ export function boxMesh(stage: Stage): pc.Mesh {
  * a triangle at each end. Faceted: each face lit by its own normal.
  */
 export function gableMesh(stage: Stage): pc.Mesh {
+  return shape(stage, "gable", () => gableMade(stage));
+}
+function gableMade(stage: Stage): pc.Mesh {
   const faces: (readonly [number, number, number])[][] = [
     // The slopes (+z, −z) and the ends (−x, +x), each outward.
     [

@@ -554,6 +554,31 @@ export function withWounds(world: World, plan: VillagePlan): VillagePlan {
   return changed ? { ...plan, people } : plan;
 }
 
+/**
+ * The lines of a town whose holder may bear a wound, lowest first: those a battle of the roster's window sent a man
+ * home from hurt or maimed, those a strike hurt, and those struck this year. Every other line's holder has none (and
+ * is not made to be asked).
+ */
+function hurtLines(roster: Roster, now: ThisYear, lines: number): number[] {
+  const hurt = roster.hurt(),
+    more = [...now.hurt.keys()].filter((k) => placeIn(hurt, k) < 0);
+  const all = more.length ? [...hurt, ...more].sort((a, b) => a - b) : hurt;
+  return all.filter((k) => k >= 0 && k < lines);
+}
+/** Where k is in a list of numbers in their order (-1: not in it). */
+function placeIn(list: readonly number[], k: number): number {
+  let lo = 0,
+    hi = list.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >>> 1,
+      x = list[mid]!;
+    if (x < k) lo = mid + 1;
+    else if (x > k) hi = mid - 1;
+    else return mid;
+  }
+  return -1;
+}
+
 /** One of a town's wounded: their ref, name, sex and wounds. */
 export type Wounded = {
   readonly ref: string;
@@ -570,7 +595,8 @@ export function townWounded(world: World, town: string): Wounded[] {
     now = thisYear(world, t, roster),
     lines = linesOf(t.population),
     out: { w: Wounded; healing: boolean; marked: boolean }[] = [];
-  for (let k = 0; k < lines && out.length < WOUNDED_MOST; k++) {
+  for (const k of hurtLines(roster, now, lines)) {
+    if (out.length >= WOUNDED_MOST) break;
     const h = roster.holder(k);
     if (!h || (!h.fates.length && !h.struck.length && !now.hurt.has(k))) continue;
     const wounds = holderWoundsOf(r, roster, h, now);
@@ -634,7 +660,7 @@ export function woundedTowns(world: World, most = 20): WoundedTown[] {
       borne = 0,
       maimed = 0,
       at = Infinity;
-    for (let k = 0; k < lines; k++) {
+    for (const k of hurtLines(roster, now, lines)) {
       const h = roster.holder(k);
       if (!h?.fates.some((f) => f.year === year - 1)) continue;
       for (const w of holderWoundsOf(r, roster, h, now))
