@@ -46,6 +46,7 @@ import { armyBlocks, courseBlocks } from "./army.ts";
 import { storesSummed } from "./stores.ts";
 import { realmOrderBlocks } from "./order.ts";
 import { powersBlocks, warGroundBlocks, warReckoningBlocks } from "./statecraft.ts";
+import { realmWarcraftBlocks, warWarcraftBlocks } from "./warcraft.ts";
 import { fortuneBlocks } from "./fortune.ts";
 import { godBlocks } from "./godhand.ts";
 import { realmCreditBlocks, warChestRows } from "./credit.ts";
@@ -310,7 +311,13 @@ export function realmPageModel(
     tabs.push({ id: "wars", name: "Wars", blocks: [{ type: "list", items }] });
   }
   // Its army (Phase 13 M115): its host, the men it fields, its wars and battles.
-  if (wants("army")) tabs.push({ id: "army", name: "Army", blocks: armyBlocks(world, r) });
+  if (wants("army"))
+    tabs.push({
+      id: "army",
+      name: "Army",
+      // (And what it turns to arms, sends into others' wars and keeps at sea: the last sweep, war.)
+      blocks: [...armyBlocks(world, r), ...realmWarcraftBlocks(world, r)],
+    });
   // What its hosts have learned, its seat knows, and its lands have learned.
   if (wants("learned")) {
     const learned = realmLessonBlocks(world, r.ref, r.members, r.ended === null ? r.seat : null);
@@ -712,6 +719,8 @@ export function warPage(
         // (What it has cost each side against what it is worth to them: round E, sim/war/bonds.ts warCosts.)
         ...warReckoningBlocks(world, w),
         ...warGroundBlocks(world, w),
+        // (Its seat besieged, the sea fought for, arms sent either side: the last sweep, war.)
+        ...warWarcraftBlocks(world, w),
         // (Who was called, who came, who stood by: D1.)
         ...warSideBlocks(world, w).blocks,
         // (Its last battle watched fought, Phase 37 M186.)

@@ -48,6 +48,7 @@ import "./belief.ts";
 export { principleName } from "./lore.ts";
 export { standingWords } from "./diplomacy.ts";
 import "./war.ts";
+import "./warcraft.ts";
 export { aimPhrase, grainSum, termsPhrase, warAimWords } from "./war.ts";
 export { BOND_WORDS, CALL_WHY, ERRAND_WORDS, leagueWords } from "./ties.ts";
 import "./city.ts";
