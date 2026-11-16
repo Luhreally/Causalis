@@ -53,6 +53,7 @@ import { exchangeWay } from "./exchange.ts";
 import { realmFearBlocks, realmMoneyBlocks } from "./finance.ts";
 import { leaderBlocks } from "./leaders.ts";
 import { courtBlocks } from "./court.ts";
+import { realmHousesBlocks } from "./houses.ts";
 import { wealthStats } from "../wealth.ts";
 import { civilWarRows, realmStrifeBlocks } from "./strife.ts";
 import { nationRealmBlocks } from "../nations.ts";
@@ -211,6 +212,11 @@ export function realmPageModel(
   if (wants("songs")) tabs.push(realmSongsTab(world, r.ref));
   // Who stands near its seat, and wants it (Lives L5).
   if (wants("court")) tabs.push({ id: "court", name: "Court", blocks: courtBlocks(world, r) });
+  // Who its ruler must pay, and the houses that keep power for themselves (round H).
+  if (wants("houses")) {
+    const houses = realmHousesBlocks(world, r);
+    if (houses.length) tabs.push({ id: "houses", name: "Houses", blocks: houses });
+  }
   // Who it stands with, whose houses it is tied to, who it called and who called it (D1).
   if (wants("ties")) tabs.push(realmTiesTab(world, r));
   // Its lands, most peopled first.

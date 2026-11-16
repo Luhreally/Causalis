@@ -57,6 +57,7 @@ import "./languages.ts";
 import "./climate.ts";
 import "./space.ts";
 import "./order.ts";
+import "./houses.ts";
 import "./health.ts";
 import "./credit.ts";
 import "./finance.ts";
