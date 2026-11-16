@@ -132,7 +132,12 @@ test("a debt held abroad is paid in grain that goes home: none made, none lost",
   const y = yieldNow(populationContext(w), a)!;
   assert.ok(y.rate >= FINANCE.base - FINANCE.seen && y.rate < 1);
   assert.ok(Math.abs(y.parts.reduce((s, p) => s + p.value, 0) - y.rate) < 0.001);
-  assert.ok(stakesBetween(w, a.ref, b.ref) > 0.9, "all its debt is held by them");
+  // (Its debt held by them is a stake between them, as much as their share of all it owes. Since round B a treasury short
+  // of what it spends sells debt for it in the same year, some to its own people, so theirs is no longer the whole of it.)
+  assert.ok(
+    stakesBetween(w, a.ref, b.ref) >= ma.held[0]![1] / debtOf(ma) - 1e-9,
+    "its debt held by them is a stake between them",
+  );
 });
 
 test("a realm that cannot pay refuses its debt: its holders lose and remember, every lender reads it", () => {

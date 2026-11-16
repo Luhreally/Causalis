@@ -11,7 +11,7 @@
 //   the sea, most of whose young die, comes to the same end by the same rule as an ape.
 // A people at the end of it replaces itself and a little over: it levels off, as far as its food allows. Pure functions.
 import { dmath } from "../kernel/index.ts";
-import { bandWidth, riskUnder, type LifeHistory } from "./species.ts";
+import { bandWidth, diedInBirthYear, riskUnder, type LifeHistory } from "./species.ts";
 
 export const CHILDREN = {
   /** Children living to bear that replace a people: a mother for each mother (a girl is 0.488 of those born). */
@@ -57,14 +57,33 @@ export function bearingOf(life: LifeHistory): Bearing {
   return { born, at: born > 0 ? at / born : 0 };
 }
 
-/** Of those born, the share who live to the age their mothers bore them at, with deaths `m` times as pressing. */
-export function livingToBear(life: LifeHistory, m: number, at = bearingOf(life).at): number {
-  let live = 1;
-  for (let k = 0; k < life.bands.length && life.bands[k]! < at; k++) {
-    const years = Math.min(bandWidth(k, life), at - life.bands[k]!);
-    live *= dmath.pow(1 - riskUnder(life.mortality[k]!, m), years);
+/**
+ * Of those born, the share of a whole bearing life they live to bear (1: every one of them bears all her body could), with
+ * deaths `m` times as pressing: reckoned as the simulation reckons a land (rules/species.ts growthOf), the newborn's deaths
+ * spread over its first year, each band's deaths at its yearly chance and a width-th of each band growing into the next at
+ * the year's end. (A band left at an even pace, not at its last birthday: where the young mostly die, as a spawning
+ * people's do, the few who grow up fast are the ones who live, and reading every one as staying its band's full width
+ * counted a fish's people at a sixtieth of those it raises.)
+ */
+export function livingToBear(life: LifeHistory, m: number): number {
+  const born = bearingOf(life).born;
+  if (born <= 0) return 0;
+  let reach = 1 - diedInBirthYear(riskUnder(life.mortality[0]!, m)),
+    bears = 0;
+  for (let k = 0; k < life.bands.length; k++) {
+    const d = Math.min(1, riskUnder(life.mortality[k]!, m)),
+      w = bandWidth(k, life),
+      // (Each year in the band: counted at its start, then lives the year, then a width-th go on.)
+      stay = (1 - d) * (1 - 1 / w),
+      years = stay < 1 ? 1 / (1 - stay) : w;
+    // (The newborn come into their band after the year's deaths, a width-th of them going on at once: the first year
+    // counted from the year's end. Every later band is come into at a year's end too, and first counted at the next.)
+    const first = k === 0 ? (1 - 1 / w) * years : years,
+      on = k === 0 ? years / w : ((1 - d) / w) * years;
+    bears += reach * life.fertility[k]! * first;
+    if (k + 1 < life.bands.length) reach *= on;
   }
-  return live;
+  return bears / born;
 }
 
 /**
@@ -73,7 +92,7 @@ export function livingToBear(life: LifeHistory, m: number, at = bearingOf(life).
  */
 export function childrenKept(life: LifeHistory, m: number, cost: number): number {
   const b = bearingOf(life),
-    could = b.born * livingToBear(life, m, b.at);
+    could = b.born * livingToBear(life, m);
   return could > 0 ? Math.min(1, childrenWanted(cost) / could) : 1;
 }
 
