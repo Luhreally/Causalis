@@ -121,3 +121,8 @@ registerEventWords(COMMERCE_EVENTS.smoke.type, (_w, e) => {
   const d = e.data as { realm?: string; cut?: number } | null;
   return `${realm(d)} laid a price on its works' smoke, and they cut ${d?.cut ?? 0} in a hundred of it, ${year(e.t)}`;
 });
+registerEventWords(COMMERCE_EVENTS.cartel.type, (_w, e) => {
+  const d = e.data as { good?: string; realms?: string[]; share?: number; markup?: number } | null,
+    who = d?.realms?.length ? d.realms.join(", ") : "Some realms";
+  return `${who}, making ${d?.share ?? 0} in a hundred of the world's ${d?.good ?? "goods"}, came to sell it abroad as one, ${d?.markup ?? 0} in a hundred dearer, ${year(e.t)}`;
+});

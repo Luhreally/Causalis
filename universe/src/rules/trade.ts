@@ -1,8 +1,9 @@
 // Trade's last sweep (p87): what Round B's money and labour left thin. A rule says what a thing does; the world's own numbers say how
 // much. Every feedback here is bounded in what is made and eaten (food's units, a share of a craft's work), never in a price that
 // a wage is paid in, so that no price lifts a wage that lifts the price (Round B's runaway).
-//   Years of plenty and want (slackWanted, multiplier): where money can be held idle, a fall in what the many earn (a harvest short of
-//     its usual, debts called in when a house of lending fails, a fall of its works' shares) is a fall in what they spend on others'
+//   Years of plenty and want (slackWanted, multiplier): where money can be held idle, a fall in what the many earn (what they buy by
+//     their real income short of its usual, as after a poor harvest; debts called in when a house of lending fails; a fall of its
+//     works' shares) is a fall in what they spend on others'
 //     work, passed on through every hand it would have reached (Keynes's multiplier), and the deeper for what is owed against what
 //     is made (Fisher's debt deflation); the crafts it no longer buys stand idle. Under barter goods are bought with goods: a bad
 //     harvest is hunger, never idle hands.
@@ -22,15 +23,15 @@
 //     built as tall as its people know how to build where that saving pays for building so (bid rent), not at a count of people.
 // Pure tables and functions.
 import { dmath } from "../kernel/index.ts";
-import type { MoneyForm } from "./money.ts";
+import type { GoodUse, MoneyForm } from "./money.ts";
 import type { Earners } from "./labour.ts";
 
 // —— 1. Years of plenty and want ——————————————————————————————————————————————————————————————————————————
 
 export const CYCLE = {
-  /** How fast a realm's usual harvest follows its harvests, a year (a faded mean: some seven years). */
+  /** How fast a realm's usual harvest and buying follow its years, a year (a faded mean: some seven years). */
   usual: 0.15,
-  /** What a household keeps ahead (a share of a year's food, est): a harvest short by less is eaten from store, not from spending. */
+  /** What a household keeps ahead (a share of a year's buying, est): buying short by less is met from what is kept. */
   kept: 0.1,
   /** The most a multiplier carries a fall (est: Earth's measured spending multipliers 0.5-2.5, the most where all is spent). */
   kMost: 4,
@@ -74,11 +75,12 @@ export function multiplier(spend: number, imported: number): number {
 
 /** What a realm's year of plenty and want is read from. */
 export type CycleRead = {
-  /** Its harvest against its usual (food's units, both). */
-  readonly food: number;
+  /**
+   * What its households buy of others' work this year by what they earn, against its usual (sim/trade/demand.ts: wares at their worth,
+   * by real income alone, so that a ware's scarcity is never read as its buyers' want). A harvest short of its usual is a fall in it.
+   */
+  readonly spent: number;
   readonly usual: number;
-  /** Its tillers' share of its workers: whose income a harvest is. */
-  readonly tillers: number;
   /** What its lands owe the houses of lending against a year's food (both food's units). */
   readonly leverage: number;
   /** A house of lending failed this year or last. */
@@ -92,9 +94,9 @@ export type CycleRead = {
 
 /** The share of a realm's crafts its fall in spending leaves idle this year (0 … CYCLE.most), and its parts. */
 export function slackWanted(r: CycleRead): { slack: number; parts: [string, number][] } {
-  const short = r.usual > 0 ? dmath.clamp(1 - r.food / r.usual, 0, 1) : 0,
+  const short = r.usual > 0 ? dmath.clamp(1 - r.spent / r.usual, 0, 1) : 0,
     lever = dmath.clamp(r.leverage, 0, CYCLE.leverMost),
-    harvest = Math.max(0, short - CYCLE.kept) * dmath.clamp(r.tillers, 0, 1),
+    harvest = Math.max(0, short - CYCLE.kept),
     called = r.failed ? Math.min(CYCLE.crunch, lever) : 0,
     wealth = CYCLE.wealth * dmath.clamp(r.crashed, 0, 4),
     k = multiplier(r.spend, r.imported),
@@ -104,7 +106,7 @@ export function slackWanted(r: CycleRead): { slack: number; parts: [string, numb
   return {
     slack,
     parts: [
-      ["a harvest short of its usual", harvest],
+      ["what its people buy of others' work short of its usual", harvest],
       ["debts called in as a house of lending failed", called],
       ["its works' shares fallen", wealth],
       ["passed on through every hand (the multiplier)", k],
@@ -399,4 +401,156 @@ export function heartCan(k: (id: string) => boolean): boolean[] {
     k("electronics"),
     k("world-city"),
   ];
+}
+
+// —— 7. Cartels among realms ——————————————————————————————————————————————————————————————————————————————
+
+export const CARTEL = {
+  /** A cartel holds at least this share of a world's making of a good, among at most this many realms, each at least this share. */
+  share: 0.5,
+  members: 5,
+  least: 0.05,
+  /** The most a cartel asks above what its sellers would, a share of the price. */
+  most: 0.5,
+  /** How readily outside makers come in for each unit of the price raised, where nothing bars them (est: their supply's elasticity). */
+  fringe: 2,
+  /** A cartel asking this much is told. */
+  told: 0.1,
+} as const;
+
+/** The sellers of a good who would act as one: the greatest makers, few, holding most of a world's making. */
+export function cartelMembers(shares: readonly number[]): { members: number[]; share: number } {
+  const order = shares
+    .map((s, i) => [s, i] as const)
+    .filter(([s]) => s >= CARTEL.least)
+    .sort((a, b) => b[0] - a[0] || a[1] - b[1]);
+  const members: number[] = [];
+  let share = 0;
+  for (const [s, i] of order) {
+    if (share >= CARTEL.share || members.length >= CARTEL.members) break;
+    members.push(i);
+    share += s;
+  }
+  return share >= CARTEL.share ? { members, share } : { members: [], share: 0 };
+}
+
+/** The Herfindahl index of shares (each 0 … 1): one seller 1, n alike 1 / n. */
+export function hhi(shares: readonly number[]): number {
+  const all = shares.reduce((a, b) => a + Math.max(0, b), 0);
+  if (all <= 0) return 0;
+  let h = 0;
+  for (const s of shares) h += (Math.max(0, s) / all) * (Math.max(0, s) / all);
+  return h;
+}
+
+/** What a cartel among realms is read from. */
+export type CartelRead = {
+  /** Its members' share of the world's making of the good, and the Herfindahl index among them alone. */
+  readonly share: number;
+  readonly within: number;
+  /** How cheaply members see each other ship more than agreed: the reach of their signals and how freely word moves (each 0 … 1, their mean). */
+  readonly signal: number;
+  readonly word: number;
+  /** What bars outside makers from coming in (0 … 1): the share of the world's peopled lands that make none of it. */
+  readonly barred: number;
+  /** How far buyers go without it as its price rises: its substitutes (rules/money.ts ELASTICITY). */
+  readonly elasticity: number;
+};
+
+/**
+ * What a cartel asks above what its members would each ask alone (a share of its export price, 0 … CARTEL.most), and its parts. A
+ * dominant group's Lerner index is one over the elasticity of what is left it to sell: buyers' going without, and outside makers
+ * coming in for their share, over its own share. It holds that as far as its members can watch one another (Stigler: cheating seen is
+ * cheating punished), the fewer and less alike in size the better (one great member holds the rest to it).
+ */
+export function cartelMarkup(c: CartelRead): {
+  markup: number;
+  cohesion: number;
+  parts: [string, number][];
+} {
+  const s = dmath.clamp(c.share, 0, 1);
+  if (s < CARTEL.share) return { markup: 0, cohesion: 0, parts: [] };
+  const fringe = CARTEL.fringe * (1 - dmath.clamp(c.barred, 0, 1)),
+    left = (Math.max(0.2, c.elasticity) + fringe * (1 - s)) / s,
+    watch = (0.3 + 0.7 * dmath.clamp(c.signal, 0, 1)) * (0.5 + 0.5 * dmath.clamp(c.word, 0, 1)),
+    cohesion = dmath.clamp(watch * dmath.sqrt(dmath.clamp(c.within, 0, 1)), 0, 1),
+    markup = dmath.clamp(cohesion / left, 0, CARTEL.most);
+  return {
+    markup,
+    cohesion,
+    parts: [
+      ["its members' share of the world's making", s],
+      ["how cheaply they watch one another", watch],
+      ["how few and unlike they are", c.within],
+      ["what bars outside makers", c.barred],
+      ["how far buyers go without it", c.elasticity],
+    ],
+  };
+}
+
+// —— 8. Demand by income and price ————————————————————————————————————————————————————————————————————————
+
+/**
+ * How much more of a good a household wants for each share more it earns (income elasticity), by what the good does: what feeds a
+ * body is wanted little more once it is fed; wares and what is kept, the more as there is more to spend (est: Engel's law; Earth's
+ * food 0.1-0.3, clothing near 1, durables and fine wares above 1).
+ */
+export const INCOME_ELASTICITY: Readonly<Record<GoodUse, number>> = {
+  feeds: 0.15,
+  fibre: 0.8,
+  hide: 0.8,
+  metal: 1,
+  tools: 0.6,
+  clothes: 1,
+  holds: 0.9,
+  burns: 0.5,
+  drives: 1.2,
+};
+
+export const DEMAND = {
+  /**
+   * What a land makes, in years of its people's food, where its households want what rules/goods.ts WANTS sets (est: a modest one; a
+   * young world's middle land makes some 1.8).
+   */
+  ref: 1.8,
+  /**
+   * A household buys at least this and at most this of what WANTS sets of a ware, whatever it earns and the price (what it lacks past
+   * that it mends and makes do with: est). Held high, so that a poor land's fewer tools never pull it down year on year.
+   */
+  least: 0.6,
+  most: 1.5,
+  /** And of food at least its bodies' need, at most this much more. */
+  foodMost: 1.2,
+  /** Of a year's earnings, what a household can spend beyond them on credit where lending is known (est: a quarter). */
+  credit: 0.25,
+} as const;
+
+/**
+ * How much of what WANTS sets of a good a household wants (a factor): by its earnings against a modest household's (income
+ * elasticity), and its price against its worth (price elasticity: how far buyers go without), held between DEMAND.least and
+ * DEMAND.most (a tool never past what the work wears out); food never below its bodies' need.
+ */
+export function demandFactor(
+  use: GoodUse,
+  income: number,
+  priceRatio: number,
+  priceElasticity: number,
+): number {
+  const rich = dmath.clamp(income / DEMAND.ref, 0.05, 20),
+    dear = dmath.clamp(priceRatio, 0.25, 4),
+    f = dmath.pow(rich, INCOME_ELASTICITY[use]) * dmath.pow(dear, -Math.max(0, priceElasticity));
+  // (A tool is bought for the work it does: never more than the work wears out, however cheap.)
+  return use === "feeds"
+    ? dmath.clamp(f, 1, DEMAND.foodMost)
+    : dmath.clamp(f, DEMAND.least, use === "tools" ? 1 : DEMAND.most);
+}
+
+/**
+ * The share of what a household would buy of its wares it can pay for: all, where what it would spend on them is within what it
+ * earns past its food and what it can borrow; else what that allows, never below DEMAND.least of what it would.
+ */
+export function withinMeans(spend: number, earned: number, food: number, credit: number): number {
+  const means = Math.max(0, earned - food) + Math.max(0, credit);
+  if (spend <= means || spend <= 0) return 1;
+  return dmath.clamp(means / spend, DEMAND.least, 1);
 }

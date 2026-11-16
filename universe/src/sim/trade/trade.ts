@@ -10,6 +10,9 @@
 //     in common), what the plan errs by and the effort lost (sim/economy and sim/money's shares read it).
 //   189.trade.smoke, a realm every five years in its turn: its price on smoke, who asks it and who refuses it, the share its works cut
 //     and what that costs them (sim/climate/air and sim/ecology/ground read the cut).
+//   189.trade.cartel, the world every five years, good by good: whether the few realms that make most of it can sell it abroad as
+//     one (its makers' Herfindahl, how cheaply they watch each other cheat, what bars outside makers, buyers' substitutes), and what
+//     they ask above; sim/economy's trade asks it on what they sell abroad, their carriers keeping it.
 //   189.trade.rent, a land every five years in its turn: what its greatest town's heart is worth, the kind of home it is built to (the
 //     same rule sim/town/fabric builds by) and what its ground earns its holders (sim/money's shares read it).
 // Nothing is drawn: each is a reckoning from numbers the world keeps. A realm's rows go with it.
@@ -25,13 +28,16 @@ import {
 } from "../../kernel/index.ts";
 import {
   AUTOMATE,
+  CARTEL,
   CYCLE,
+  ELASTICITY,
   EXCHANGE,
   FAMILY_SIZE,
   FOODS,
   FUEL_UNIT_KWY,
   G,
   GOODS,
+  GOOD_USE,
   HEART,
   HOLD,
   HOLDS,
@@ -41,10 +47,13 @@ import {
   abatedFor,
   adoptWanted,
   automatable,
+  cartelMarkup,
+  cartelMembers,
   fitOf,
   heartCan,
   heartLevel,
   heartRent,
+  hhi,
   hopesNext,
   machineCost,
   planCost,
@@ -80,14 +89,19 @@ import {
   TREASURY_STORE,
   RowStore,
   moneyStore,
+  refNumber,
   lawTurn,
   stepped,
 } from "../money/kept.ts";
 import {
   CAP,
   CAPITAL_STORE,
+  CARTEL_STORE,
+  CT,
   CY,
   CYCLE_STORE,
+  DEMAND_STORE,
+  DM,
   EX,
   EXCHANGE_STORE,
   PL,
@@ -97,6 +111,7 @@ import {
   SM,
   SMOKE_STORE,
   TRADE_STORES,
+  cartelKey,
   machineIncome,
   tradeStore,
 } from "./kept.ts";
@@ -110,6 +125,8 @@ export const COMMERCE_EVENTS = {
   machines: defineEventType("trade.machines", 2),
   /** A realm first made its works cut a fifth of their smoke. */
   smoke: defineEventType("trade.smoke", 2),
+  /** Realms holding most of a world's making of a good first sold it abroad as one, dearer by a tenth or more. */
+  cartel: defineEventType("trade.cartel", 3),
 };
 
 /** A land or a realm is weighed by the slower reckonings once in this many years, in its turn, stepped so many years at once. */
@@ -156,7 +173,8 @@ function dropGone(ctx: PopulationContext, living: readonly Polity[]): void {
     const s = tradeStore(ctx.world, name);
     if (!s) continue;
     for (const k of s.keys())
-      if (k.includes(":") ? !alive.has(k) : !(ctx.provinces.get(Number(k))?.total() ?? 0))
+      if (k.startsWith("g")) continue;
+      else if (k.includes(":") ? !alive.has(k) : !(ctx.provinces.get(Number(k))?.total() ?? 0))
         s.drop(k);
   }
 }
@@ -199,7 +217,8 @@ function factsOf(world: World, prov: Province, m: Market): LandFacts {
 export function cycleYear(ctx: PopulationContext, t: SimTime): void {
   const { world } = ctx,
     cycles = tradeStore(world, CYCLE_STORE),
-    exchanges = tradeStore(world, EXCHANGE_STORE);
+    exchanges = tradeStore(world, EXCHANGE_STORE),
+    demand = tradeStore(world, DEMAND_STORE);
   if (!cycles || !exchanges) return;
   const year = yearOfMoment(t),
     realms = politiesOf(world),
@@ -223,22 +242,20 @@ export function cycleYear(ctx: PopulationContext, t: SimTime): void {
       continue;
     }
     let food = 0,
-      workers = 0,
-      tillers = 0,
       debt = 0,
       made = 0,
       bought = 0,
-      capital = 0;
+      capital = 0,
+      spent = 0;
     for (const { prov, m } of lands) {
       for (const g of FOODS) food += m.book("made", g);
-      workers += Math.max(1, prov.total() - prov.occupation(OCC.dependent));
-      tillers += prov.occupation(OCC.farmer) + prov.occupation(OCC.herder);
       debt += owed.get(prov.cell) ?? 0;
       for (let g = 0; g < GOODS.length; g++) {
         made += m.book("made", g) * m.price[g]!;
         bought += m.book("in", g) * m.price[g]!;
       }
       capital += machineIncome(world, prov.cell);
+      spent += demand?.at(prov.cell, DM.real) ?? 0;
     }
 
     // Its exchange: where its works are listed (sim/finance listedWorth: banking known, works standing).
@@ -288,6 +305,7 @@ export function cycleYear(ctx: PopulationContext, t: SimTime): void {
     // Its year of plenty or want.
     const cy = cycles.get(p.ref),
       usual = cy && cy[CY.usual]! > 0 ? cy[CY.usual]! : food,
+      usualSpent = cy && cy[CY.usualSpent]! > 0 ? cy[CY.usualSpent]! : spent,
       coin = coins?.get(p.ref),
       form = (coin ? MONEY_FORMS[coin[COIN.form]!] : "barter") as MoneyForm,
       seatShares = shares?.get(p.seat),
@@ -299,9 +317,8 @@ export function cycleYear(ctx: PopulationContext, t: SimTime): void {
         : 0.45,
       spend = spendShare(poor),
       want = slackWanted({
-        food,
-        usual,
-        tillers: tillers / Math.max(1, workers),
+        spent,
+        usual: usualSpent,
         leverage: debt / Math.max(1, usual),
         failed,
         crashed,
@@ -337,6 +354,8 @@ export function cycleYear(ctx: PopulationContext, t: SimTime): void {
       parts[5]! * 1000,
       spend * 1000,
       told,
+      spent,
+      usualSpent + CYCLE.usual * (spent - usualSpent),
     ]);
   }
 }
@@ -560,6 +579,102 @@ export function rentYear(ctx: PopulationContext, t: SimTime): void {
   }
 }
 
+// —— 189.trade.cartel ——————————————————————————————————————————————————————————————————————————————————————
+
+/** A world's cartels among realms, good by good, every TRADE_EVERY years (a cartel's terms are argued over years, not each one). */
+export function cartelYear(ctx: PopulationContext, t: SimTime): void {
+  const { world } = ctx,
+    store = tradeStore(world, CARTEL_STORE);
+  if (!store) return;
+  const year = yearOfMoment(t);
+  if (year % TRADE_EVERY !== 0) return;
+  const realms = politiesOf(world),
+    markets = marketsOf(world),
+    lore = loreOf(world),
+    living = [...realms.living()].sort((a, b) => (a.ref < b.ref ? -1 : 1)),
+    at = new Map<string, number>(living.map((p, i) => [p.ref, i])),
+    made = GOODS.map(() => new Array<number>(living.length).fill(0)),
+    makers = new Array<number>(GOODS.length).fill(0);
+  let lands = 0;
+  for (const prov of ctx.provinces.all()) {
+    if (prov.total() <= 0) continue;
+    lands++;
+    const m = markets.get(prov.cell),
+      i = at.get(realms.of(prov.cell)?.ref ?? "");
+    if (!m) continue;
+    for (let g = 0; g < GOODS.length; g++) {
+      const n = m.book("made", g);
+      if (n <= 0) continue;
+      makers[g]!++;
+      if (i !== undefined) made[g]![i]! += n;
+    }
+  }
+  for (let g = 0; g < GOODS.length; g++) {
+    const key = cartelKey(g),
+      was = store.get(key),
+      all = made[g]!.reduce((a, b) => a + b, 0),
+      // (Its whole making, the lands of no realm with it: they are outside makers too.)
+      world_ = Math.max(all, 1),
+      shares = made[g]!.map((n) => n / world_),
+      { members, share } = cartelMembers(shares);
+    if (!members.length || lands <= 0) {
+      if (was) store.drop(key);
+      continue;
+    }
+    const ps = members.map((i) => living[i]!),
+      read = {
+        share,
+        within: hhi(members.map((i) => shares[i]!)),
+        signal: ps.reduce((a, p) => a + lore.effect(p.seat, "signal"), 0) / ps.length,
+        word: ps.reduce((a, p) => a + holdsOf(world, p.ref)[HOLD.word]!, 0) / ps.length,
+        barred: dmath.clamp(1 - makers[g]! / lands, 0, 1),
+        elasticity: ELASTICITY[GOOD_USE[GOODS[g]!.id]!],
+      },
+      c = cartelMarkup(read);
+    if (c.markup <= 0) {
+      if (was) store.drop(key);
+      continue;
+    }
+    let told = was ? was[CT.told]! : 0;
+    const since = was ? was[CT.since]! : year;
+    if (!told && c.markup >= CARTEL.told) {
+      told = 1;
+      const decision = world.decisions.record({
+        rule: COMMERCE_EVENTS.cartel.type,
+        subject: ps[0]!.ref,
+        outcome: { good: GOODS[g]!.name, markup: Math.round(c.markup * 100) } as never,
+        score: c.markup,
+        threshold: 0,
+        factors: c.parts.map(([n, v]) => factor(n, v)),
+      });
+      world.events.emit({
+        type: COMMERCE_EVENTS.cartel.type,
+        subjects: ps.map((p) => p.ref),
+        place: ctx.provinces.get(ps[0]!.seat)?.ref ?? null,
+        causes: [{ ref: decision, role: "trigger", weight: 1 }],
+        data: {
+          good: GOODS[g]!.name,
+          realms: ps.map((p) => realmName(p)),
+          share: Math.round(share * 100),
+          markup: Math.round(c.markup * 100),
+        },
+      });
+    }
+    const serials = [0, 0, 0, 0, 0];
+    members.forEach((i, k) => (serials[k] = refNumber(living[i]!.ref) + 1));
+    store.set(key, [
+      share * 1000,
+      read.within * 1000,
+      c.cohesion * 1000,
+      read.barred * 1000,
+      c.markup * 1000,
+      ...serials,
+      since,
+      told,
+    ]);
+  }
+}
+
 export function installCommerce(world: World, ctx: () => PopulationContext): void {
   for (const [name, width] of TRADE_STORES) world.register(new RowStore(name, width));
   world.system({ key: "189.trade.cycle", every: YEAR, run: (t) => cycleYear(ctx(), t) });
@@ -567,4 +682,5 @@ export function installCommerce(world: World, ctx: () => PopulationContext): voi
   world.system({ key: "189.trade.plan", every: YEAR, run: (t) => planYear(ctx(), t) });
   world.system({ key: "189.trade.smoke", every: YEAR, run: (t) => smokeYear(ctx(), t) });
   world.system({ key: "189.trade.rent", every: YEAR, run: (t) => rentYear(ctx(), t) });
+  world.system({ key: "189.trade.cartel", every: YEAR, run: (t) => cartelYear(ctx(), t) });
 }

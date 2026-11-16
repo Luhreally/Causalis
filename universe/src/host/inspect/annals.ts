@@ -215,6 +215,7 @@ const RULES: Readonly<Record<string, readonly [number, number]>> = {
   "trade.crash": [PEOPLE, 3],
   "trade.machines": [PEOPLE, 2],
   "trade.smoke": [PEOPLE, 2],
+  "trade.cartel": [PEOPLE, 3],
   "belief.founded": [PEOPLE, 5],
   "belief.schism": [PEOPLE, 3],
   "belief.converted": [PEOPLE, 1],

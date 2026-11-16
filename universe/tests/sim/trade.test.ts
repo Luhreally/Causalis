@@ -4,9 +4,20 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { YEAR, type SimTime, type World } from "../../src/kernel/index.ts";
-import { CYCLE, MONEY_FORMS } from "../../src/rules/index.ts";
+import { CARTEL, CYCLE, DEMAND, FOODS, G, MONEY_FORMS } from "../../src/rules/index.ts";
 import {
   CAPITAL_STORE,
+  CARTEL_STORE,
+  CT,
+  boughtOf,
+  cartelAsk,
+  cartelKey,
+  cartelYear,
+  cartelsNow,
+  foodWanted,
+  marketsOf,
+  mouths,
+  refNumber,
   COIN,
   COIN_STORE,
   CY,
@@ -61,9 +72,9 @@ test("a short harvest idles a realm's crafts once its money can be held, and the
   cycleYear(ctx, at(40));
   const row = cycles.get(p.ref)!;
   assert.ok(row, "the realm's year is kept");
-  // Its usual harvest twice what it reaped, under barter: hunger, never idle hands.
+  // Its usual buying twice this year's, under barter: hunger, never idle hands.
   const usualTwice = [...row];
-  usualTwice[CY.usual] = 2 * Math.max(1, row[CY.food]!);
+  usualTwice[CY.usualSpent] = 2 * Math.max(1, row[CY.spent]!);
   usualTwice[CY.slack] = 0;
   cycles.set(p.ref, usualTwice);
   const coin = coins.get(p.ref),
@@ -113,4 +124,52 @@ test("a town's heart is read by the same rule its town is built by", () => {
     read++;
   }
   assert.ok(read > 0, "some land's town is read");
+});
+
+test("a cartel's row is read by the trade as what its members ask on what they sell abroad, and by no one else", () => {
+  const ctx = populationContext(world),
+    p = greatest(world),
+    store = tradeStore(world, CARTEL_STORE)!;
+  for (let y = 40; y < 45; y++) cartelYear(ctx, at(y));
+  for (const key of store.keys()) {
+    const row = store.get(key)!;
+    assert.ok(
+      row[CT.share]! >= 500 && row[CT.markup]! > 0 && row[CT.markup]! <= CARTEL.most * 1000,
+    );
+  }
+  store.set(cartelKey(G.iron), [700, 500, 600, 900, 200, refNumber(p.ref) + 1, 0, 0, 0, 0, 40, 0]);
+  assert.ok(Math.abs(cartelAsk(world, p.ref, G.iron) - 0.2) < 1e-12);
+  const other = politiesOf(world)
+    .living()
+    .find((q) => q.ref !== p.ref);
+  if (other) assert.equal(cartelAsk(world, other.ref, G.iron), 0);
+  assert.ok(cartelsNow(world).get(G.iron)!.members.has(refNumber(p.ref)));
+  store.drop(cartelKey(G.iron));
+});
+
+test("what a land's households buy stays within their need's bounds, and food is never wanted below its bodies' need", () => {
+  const ctx = populationContext(world),
+    markets = marketsOf(world);
+  let read = 0;
+  for (const prov of ctx.provinces.all()) {
+    const m = markets.get(prov.cell);
+    if (!m || prov.total() <= 0) continue;
+    const b = boughtOf(ctx, prov, m, [
+      [G.tools, 100],
+      [G.clothing, 100],
+      [G.pottery, 100],
+      [G.machines, 10],
+    ]);
+    for (const g of [G.tools, G.clothing, G.pottery]) {
+      const f = b.factor[g]!;
+      assert.ok(
+        f >= DEMAND.least * DEMAND.least - 1e-9 && f <= DEMAND.most,
+        `${prov.cell} ${g}: ${f}`,
+      );
+    }
+    assert.equal(b.factor[G.machines], 1, "machines follow the engines, not the purse");
+    assert.ok(foodWanted(ctx, prov) * FOODS.length >= 12 * mouths(prov, ctx.life) - 1e-9);
+    if (++read >= 40) break;
+  }
+  assert.ok(read > 0);
 });

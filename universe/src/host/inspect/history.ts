@@ -163,6 +163,7 @@ const TITLES: Readonly<Record<string, string>> = {
   "trade.crash": "Shares fallen",
   "trade.machines": "Machines at the crafts",
   "trade.smoke": "Smoke priced",
+  "trade.cartel": "A cartel among realms",
   "strife.coup": "A coup",
   "strife.foiled": "A coup foiled",
   "strife.restored": "Rule restored",

@@ -2,13 +2,18 @@
 // stand idle and why), its exchange (what its listed works earn, what holders ask and hope, how far worth is bid past the long run,
 // its last crash), its plan (what it shares by need, what that costs) and its price on smoke (who asks it, who refuses it, what is
 // cut and at what cost); in a land's Wealth tab, its machines at the crafts' tasks and its town's heart and ground. Every number is
-// a store's, read, never reckoned anew. Pages say what, who, cost and effect.
+// a store's, read, never reckoned anew. Its cartels show on its Treasury tab and on a good's page; what a land's households buy on
+// its Wealth tab. Pages say what, who, cost and effect.
 import type { World } from "../../kernel/index.ts";
-import type { Block, Stat } from "../../bridge/index.ts";
-import { HOME_LEVELS } from "../../rules/index.ts";
+import type { Block, Span, Stat } from "../../bridge/index.ts";
+import { GOODS, HOME_LEVELS } from "../../rules/index.ts";
 import {
   CAP,
   CAPITAL_STORE,
+  CARTEL_STORE,
+  CT,
+  DEMAND_STORE,
+  DM,
   CY,
   CYCLE_STORE,
   EX,
@@ -19,9 +24,13 @@ import {
   RT,
   SM,
   SMOKE_STORE,
+  cartelKey,
+  politiesOf,
+  refNumber,
   tradeStore,
   type Polity,
 } from "../../sim/index.ts";
+import { realmLink } from "./names.ts";
 import { count, part, stat } from "./words.ts";
 
 const pc = (x: number) => `${Math.round(x * 100)}%`,
@@ -49,7 +58,7 @@ export function realmTradeBlocks(world: World, r: Polity): Block[] {
                 ? "Where money can be held, a fall in what some earn is a fall in what they spend on others' work, passed on hand to hand."
                 : "Goods are bought with goods: a bad harvest is hunger, never idle hands.",
             parts: [
-              part("its harvest short of its usual, for those who till", per(cy[CY.harvest]!)),
+              part("what its people buy of others' work short of its usual", per(cy[CY.harvest]!)),
               part("debts called in as a house of lending failed", per(cy[CY.called]!)),
               part("its works' shares fallen", per(cy[CY.wealth]!)),
               part("passed on through so many hands", (cy[CY.k]! / 100).toFixed(2)),
@@ -64,6 +73,13 @@ export function realmTradeBlocks(world: World, r: Polity): Block[] {
           `${count(cy[CY.food]!)} of food, its usual ${count(cy[CY.usual]!)}`,
         ),
       ];
+    if (cy[CY.usualSpent]! > 0)
+      rows.push(
+        stat(
+          "What its people bought of others' work",
+          `${grain(cy[CY.spent]!)}, its usual ${grain(cy[CY.usualSpent]!)}`,
+        ),
+      );
     if (cy[CY.told]! > 0) rows.push(stat("Its last slump told", `year ${cy[CY.told]}`));
     blocks.push({ type: "facts", title: "Years of plenty and want", rows });
   }
@@ -137,14 +153,89 @@ export function realmTradeBlocks(world: World, r: Polity): Block[] {
         }),
       ],
     });
+  // The goods it sells abroad as one with other realms.
+  const sells = realmCartelRows(world, r);
+  if (sells.length) blocks.push({ type: "facts", title: "Its cartels", rows: sells });
   return blocks;
+}
+
+/** The realms of a cartel row, as links. */
+function membersOf(world: World, row: readonly number[]): Span[] {
+  const by = new Map<number, string>(
+      politiesOf(world)
+        .living()
+        .map((p) => [refNumber(p.ref) + 1, p.ref] as const),
+    ),
+    out: Span[] = [];
+  for (let i = 0; i < 5; i++) {
+    const ref = by.get(row[CT.members + i]!);
+    if (!ref) continue;
+    if (out.length) out.push(", ");
+    out.push(realmLink(world, ref));
+  }
+  return out;
+}
+
+function cartelStat(world: World, g: number, row: readonly number[], label: string): Stat {
+  return stat(label, [`${per(row[CT.markup]!)} above, by `, ...membersOf(world, row)], {
+    why: "Where a few realms make most of a good, can see one another ship more than agreed, and outside makers are kept out, they sell it abroad as one, as dear as buyers who can go without it allow.",
+    parts: [
+      part("their share of the world's making", per(row[CT.share]!)),
+      part("how well they hold together", per(row[CT.cohesion]!)),
+      part("of the world's lands, those that make none", per(row[CT.barred]!)),
+      part("since", `year ${row[CT.since]}`),
+      part("the good", GOODS[g]!.name),
+    ],
+  });
+}
+
+/** The goods a realm sells abroad by a cartel. */
+export function realmCartelRows(world: World, r: Polity): Stat[] {
+  const store = tradeStore(world, CARTEL_STORE),
+    n = refNumber(r.ref) + 1,
+    rows: Stat[] = [];
+  if (!store) return rows;
+  for (let g = 0; g < GOODS.length; g++) {
+    const row = store.get(cartelKey(g));
+    if (!row) continue;
+    let member = false;
+    for (let i = 0; i < 5; i++) if (row[CT.members + i] === n) member = true;
+    if (member) rows.push(cartelStat(world, g, row, `Its ${GOODS[g]!.name} sold abroad`));
+  }
+  return rows;
+}
+
+/** A good's cartel among realms, as the good's page shows it (none: no cartel holds it). */
+export function goodCartelRows(world: World, good: number): Stat[] {
+  const row = tradeStore(world, CARTEL_STORE)?.get(cartelKey(good));
+  return row ? [cartelStat(world, good, row, "Sold abroad by a cartel")] : [];
 }
 
 /** A land's machines at the crafts' tasks, and its town's heart and ground. */
 export function landTradeBlocks(world: World, cell: number): Block[] {
-  const cap = tradeStore(world, CAPITAL_STORE)?.get(cell),
+  const dm = tradeStore(world, DEMAND_STORE)?.get(cell),
+    cap = tradeStore(world, CAPITAL_STORE)?.get(cell),
     rent = tradeStore(world, RENT_STORE)?.get(cell),
     blocks: Block[] = [];
+  if (dm)
+    blocks.push({
+      type: "facts",
+      title: "What its households buy",
+      rows: [
+        stat(
+          "What the land makes, in years of its people's food",
+          (dm[DM.income]! / 1000).toFixed(2),
+          {
+            why: "What households buy of their wares follows what they earn (wares the more as there is more, food little more once fed) and what the wares cost against their worth, within what is left past their food and what they can borrow.",
+          },
+        ),
+        stat(
+          "Of what they need, they buy",
+          `tools ${per(dm[DM.tools]!)}, clothing ${per(dm[DM.clothing]!)}, pots ${per(dm[DM.pottery]!)}`,
+          { parts: [part("what their means allow of what they would buy", per(dm[DM.scale]!))] },
+        ),
+      ],
+    });
   if (cap)
     blocks.push({
       type: "facts",

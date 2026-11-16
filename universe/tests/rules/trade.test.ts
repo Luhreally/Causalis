@@ -4,7 +4,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   AUTOMATE,
+  CARTEL,
   CYCLE,
+  DEMAND,
   EXCHANGE,
   HOLDS,
   LEVEL,
@@ -15,6 +17,11 @@ import {
   adoptWanted,
   automatable,
   automationGain,
+  cartelMarkup,
+  cartelMembers,
+  demandFactor,
+  hhi,
+  withinMeans,
   heartCan,
   heartLevel,
   heartRent,
@@ -34,9 +41,8 @@ import {
 } from "../../src/rules/index.ts";
 
 const year = (over: Partial<CycleRead> = {}): CycleRead => ({
-  food: 1000,
+  spent: 1000,
   usual: 1000,
-  tillers: 0.7,
   leverage: 0,
   failed: false,
   crashed: 0,
@@ -46,9 +52,9 @@ const year = (over: Partial<CycleRead> = {}): CycleRead => ({
   ...over,
 });
 
-test("a short harvest idles the crafts only where money can be held, the deeper for debt, never past the most", () => {
+test("buying short of its usual idles the crafts only where money can be held, the deeper for debt, never past the most", () => {
   assert.equal(slackWanted(year()).slack, 0, "a usual year leaves no one idle");
-  const short = year({ food: 800 });
+  const short = year({ spent: 850 });
   assert.equal(
     slackWanted({ ...short, form: "barter" }).slack,
     0,
@@ -60,7 +66,7 @@ test("a short harvest idles the crafts only where money can be held, the deeper 
   assert.ok(coin > 0 && paper > coin, `${coin} ${paper}`);
   assert.ok(owing > paper, "what is owed deepens the fall");
   assert.ok(
-    slackWanted(year({ food: 0, leverage: 5, failed: true, crashed: 4 })).slack <= CYCLE.most,
+    slackWanted(year({ spent: 0, leverage: 5, failed: true, crashed: 4 })).slack <= CYCLE.most,
   );
   // A house failing calls in debts only where they are owed.
   assert.equal(slackWanted(year({ failed: true })).slack, 0);
@@ -173,4 +179,65 @@ test("a town's heart rises with what the walk saved there is worth, as high as i
   assert.ok(heartRent(40_000, 6) > heartRent(10_000, 6), "a greater town's edge lies farther");
   assert.ok(heartRent(40_000, 600) < heartRent(40_000, 6), "built tall, the edge comes near");
   assert.ok(townRent(40_000, 160, 4.5) > townRent(10_000, 160, 4.5));
+});
+
+test("a cartel stands where few realms make most of a good, watch one another, and outsiders are kept out", () => {
+  assert.deepEqual(
+    cartelMembers([0.2, 0.2, 0.2, 0.2, 0.2]).members,
+    [0, 1, 2],
+    "three of five alike hold a half",
+  );
+  assert.deepEqual(
+    cartelMembers(new Array(20).fill(0.05)).members,
+    [],
+    "twenty alike: no few hold most",
+  );
+  assert.deepEqual(cartelMembers([0.1, 0.6, 0.3]).members, [1]);
+  assert.ok(Math.abs(hhi([1, 1]) - 0.5) < 1e-12 && hhi([5]) === 1);
+  const read = { share: 0.7, within: 0.5, signal: 0.8, word: 0.8, barred: 0.9, elasticity: 0.5 },
+    c = cartelMarkup(read).markup;
+  assert.ok(c > 0 && c <= CARTEL.most, `${c}`);
+  assert.equal(
+    cartelMarkup({ ...read, share: 0.4 }).markup,
+    0,
+    "holding less than half, no cartel",
+  );
+  assert.ok(
+    cartelMarkup({ ...read, barred: 0 }).markup < c,
+    "outside makers coming in hold it down",
+  );
+  assert.ok(cartelMarkup({ ...read, signal: 0, word: 0 }).markup < c, "unseen cheating breaks it");
+  assert.ok(
+    cartelMarkup({ ...read, elasticity: 1.4 }).markup < c,
+    "buyers with substitutes hold it down",
+  );
+  assert.ok(
+    cartelMarkup({ ...read, share: 1, within: 1, signal: 1, word: 1, barred: 1, elasticity: 0 })
+      .markup <= CARTEL.most,
+  );
+});
+
+test("demand follows income by kind and price by substitutes, food never below need, spending within means", () => {
+  assert.ok(
+    demandFactor("clothes", 4, 1, 0.6) > demandFactor("clothes", 1, 1, 0.6),
+    "wares the more as earnings rise",
+  );
+  const richer = demandFactor("clothes", 3, 1, 0) / demandFactor("clothes", 1.5, 1, 0),
+    fed = demandFactor("feeds", 3, 1, 0) / demandFactor("feeds", 1.5, 1, 0);
+  assert.ok(richer > fed, "food is wanted little more once a body is fed");
+  assert.ok(
+    demandFactor("tools", 1.3, 2, 0.9) < demandFactor("tools", 1.3, 1, 0.9),
+    "dearer, less bought",
+  );
+  assert.ok(demandFactor("drives", 1.3, 2, 1.4) < demandFactor("feeds", 1.3, 2, 0.4));
+  for (const use of ["feeds", "clothes", "tools", "holds"] as const)
+    for (const inc of [0, 0.5, 1, 10, 1e6])
+      for (const pr of [0, 0.25, 1, 4, 100]) {
+        const f = demandFactor(use, inc, pr, 1);
+        if (use === "feeds") assert.ok(f >= 1 && f <= DEMAND.foodMost, `${use} ${inc} ${pr}: ${f}`);
+        else assert.ok(f >= DEMAND.least && f <= DEMAND.most, `${use} ${inc} ${pr}: ${f}`);
+      }
+  assert.equal(withinMeans(10, 100, 50, 0), 1);
+  assert.ok(Math.abs(withinMeans(100, 100, 50, 25) - 0.75) < 1e-12, "earned past food, and credit");
+  assert.equal(withinMeans(100, 10, 50, 0), DEMAND.least, "never below the least");
 });
