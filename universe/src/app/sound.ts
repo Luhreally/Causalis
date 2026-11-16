@@ -9,27 +9,42 @@
 // before a person's touch. A browser with no WebAudio has no button and no sound, and runs the same.
 import "./sound.css";
 import {
+  ARMS_CUES,
   CUES,
-  CUE_LASTS,
   CUE_RULES,
+  KIND_CUE,
   NODE_BOUND,
+  VOICED,
   airOf,
+  blastScale,
   cueAllowed,
+  cueLength,
+  farOf,
+  gunScale,
+  massOf,
   mixOf,
   type Air,
   type Cue,
   type Mix,
 } from "./sound-mix.ts";
+import { SOUND_SPEED, type HeardKind, type Voicing } from "../view/index.ts";
 
-const STORE = "causalis.sound";
-/** The whole of it, under what a phone's speaker can stand: never a surprise. */
+const STORE = "causalis.sound",
+  STORE_VOLUME = "causalis.sound.volume",
+  STORE_EFFECTS = "causalis.sound.effects";
+/** The whole of it, under what a phone's speaker can stand: never a surprise (the volume set in Settings is a share of this). */
 const VOLUME = 0.72;
 /** How long a crossfade takes to get most of the way (s, the time constant of its fade). */
 const FADE = 0.55;
 /** The voices at once: the world's small sounds, then cues, then the greatest. Three nodes each at most. */
 const VOICES_SMALL = 10,
-  VOICES_CUE = 20,
-  VOICES_ALL = 26;
+  VOICES_CUE = 28,
+  VOICES_ALL = 34;
+/** The ways a cue comes from afar: duller at each (lowpass, Hz), and from the left, ahead or the right. */
+const FAR_HZ = [16000, 6000, 2800, 1300],
+  FAR_PANS = [-0.6, 0, 0.6];
+/** The longest a sound is let take to come across the ground to the ear (s), however slow the clock it was made on. */
+const MOST_DELAY = 2.5;
 /** The rates of the small sounds are worked out over this much of the future, this often (s). */
 const AHEAD = 0.7,
   PUMP_MS = 400;
@@ -78,6 +93,7 @@ type Loops = {
   rain: AudioBuffer;
   murmur: AudioBuffer;
   crickets: AudioBuffer;
+  crackle: AudioBuffer;
 };
 
 function loopMakers(seed: number) {
@@ -236,7 +252,23 @@ function loopMakers(seed: number) {
     peakTo(chs, 0.9);
     return bufferOf(chs, rate);
   };
-  return { white, brown, surf, rain, murmur, crickets };
+  // A line's fire, too thick to tell shot by shot: reports at random, each its own size, none of them in step.
+  const crackle = () => {
+    const rate = 22050,
+      n = rate * 2,
+      chs = [new Float32Array(n), new Float32Array(n)];
+    for (const c of chs)
+      for (let k = 0; k < 150; k++) {
+        const at = Math.floor(r() * n),
+          big = 0.15 + 0.85 * r() * r(),
+          len = 120 + Math.floor(r() * 500);
+        for (let i = 0; i < len; i++)
+          c[(at + i) % n]! += big * (2 * r() - 1) * Math.exp((-6 * i) / len);
+      }
+    peakTo(chs, 0.9);
+    return bufferOf(chs, rate);
+  };
+  return { white, brown, surf, rain, murmur, crickets, crackle };
 }
 
 /** All the loops at once (an offline render, which holds nothing up). */
@@ -249,6 +281,7 @@ function makeLoops(seed: number): Loops {
     rain: m.rain(),
     murmur: m.murmur(),
     crickets: m.crickets(),
+    crackle: m.crackle(),
   };
 }
 
@@ -256,7 +289,7 @@ function makeLoops(seed: number): Loops {
 async function loopsInTurn(seed: number, worst: { ms: number }): Promise<Loops> {
   const m = loopMakers(seed),
     out = {} as Loops;
-  for (const name of ["white", "brown", "rain", "crickets", "murmur", "surf"] as const) {
+  for (const name of ["white", "brown", "rain", "crickets", "murmur", "surf", "crackle"] as const) {
     await new Promise((r) => setTimeout(r, 0));
     const from = performance.now();
     out[name] = m[name]();
@@ -265,7 +298,9 @@ async function loopsInTurn(seed: number, worst: { ms: number }): Promise<Loops> 
   return out;
 }
 
-type Tone = {
+/** Sounded again so many times, so far apart (s): a burst's rounds on one voice. */
+type Again = { times?: number; every?: number };
+type Tone = Again & {
   type?: OscillatorType;
   f0: number;
   f1?: number;
@@ -275,8 +310,8 @@ type Tone = {
   attack?: number;
   to?: AudioNode;
 };
-type Burst = {
-  from: "white" | "brown";
+type Burst = Again & {
+  from: "white" | "brown" | "crackle";
   kind: BiquadFilterType;
   f0: number;
   f1?: number;
@@ -311,7 +346,16 @@ class Graph {
   private readonly pans: StereoPannerNode[];
   // The layers.
   private readonly gains: Record<
-    "wind" | "high" | "surf" | "rain" | "crowd" | "crickets" | "pad" | "shimmer" | "rumble",
+    | "wind"
+    | "high"
+    | "surf"
+    | "rain"
+    | "crowd"
+    | "crickets"
+    | "pad"
+    | "shimmer"
+    | "rumble"
+    | "engines",
     { gain: GainNode; bus: AudioNode; on: boolean; offAt: number }
   >;
   private readonly windLp: BiquadFilterNode;
@@ -322,6 +366,12 @@ class Graph {
   private readonly shimmerOsc: OscillatorNode[];
   private readonly rumbleOsc: OscillatorNode;
   private readonly rumbleLp: BiquadFilterNode;
+  private readonly engLp: BiquadFilterNode;
+  private readonly engOsc: OscillatorNode[];
+  private readonly propGain: GainNode;
+  private readonly jetGain: GainNode;
+  /** The ways a cue comes from afar, by how far ([band][pan]). */
+  private readonly far: StereoPannerNode[][];
   private shown: Mix | null = null;
 
   constructor(ctx: BaseAudioContext, seed: number, limited: boolean, loops?: Loops) {
@@ -403,6 +453,7 @@ class Graph {
       pad: layer(this.dry),
       shimmer: layer(this.dry),
       rumble: layer(this.dry),
+      engines: layer(this.amb),
     };
     // Wind: brown noise, its edge and its strength each moved slowly by a gust (8 nodes). What lies under
     // the high-pass is what a phone's speaker can't give, and would only press on the limiter.
@@ -449,6 +500,42 @@ class Graph {
     this.rumbleLp = filter("lowpass", 90);
     this.rumbleOsc.connect(this.rumbleLp);
     loop(this.loops.brown).connect(this.rumbleLp).connect(this.gains.rumble.gain);
+    // Machines' engines overhead (8 nodes): two engines' beat, a little out of step, through their edge; or a jet's roar.
+    this.engLp = filter("lowpass", 760, 0.9);
+    this.engOsc = [osc("sawtooth", 76), osc("sawtooth", 77.1)];
+    for (const o of this.engOsc) o.connect(this.engLp);
+    this.propGain = gainOf(1);
+    this.engLp.connect(this.propGain).connect(this.gains.engines.gain);
+    const jetBp = filter("bandpass", 2400, 0.7);
+    this.jetGain = gainOf(0);
+    loop(this.loops.white).connect(jetBp).connect(this.jetGain).connect(this.gains.engines.gain);
+    // The ways a cue comes from afar (16 nodes): each band of distance its own dullness, each a side.
+    this.far = FAR_HZ.map((hz) => {
+      const lp = filter("lowpass", hz, 0.6);
+      lp.connect(this.cueBus);
+      return FAR_PANS.map((p) => {
+        const s = this.n(ctx.createStereoPanner());
+        s.pan.value = p;
+        s.connect(lp);
+        return s;
+      });
+    });
+  }
+
+  /** The way a cue comes in from so far off (m), and from which side (-1 … 1). */
+  wayFrom(metres: number, pan: number): AudioNode {
+    const hz = farOf(metres).hz;
+    let band = 0;
+    for (let b = 1; b < FAR_HZ.length; b++)
+      if (Math.abs(Math.log(FAR_HZ[b]! / hz)) < Math.abs(Math.log(FAR_HZ[band]! / hz))) band = b;
+    const side = pan < -0.33 ? 0 : pan > 0.33 ? 2 : 1;
+    return this.far[band]![side]!;
+  }
+
+  /** The level everything is played at (the volume in Settings, a share of the whole). */
+  setVolume(v: number, at: number): void {
+    this.master.gain.cancelScheduledValues(at);
+    this.master.gain.setTargetAtTime(VOLUME * v, at, 0.05);
   }
 
   private n<T extends AudioNode>(node: T): T {
@@ -482,6 +569,10 @@ class Graph {
     lay("pad", m.pad);
     lay("shimmer", m.shimmer);
     lay("rumble", m.rumble);
+    lay("engines", m.engines);
+    set(this.engLp.frequency, m.enginesHz, was?.enginesHz);
+    set(this.propGain.gain, 1 - m.jet, was ? 1 - was.jet : undefined);
+    set(this.jetGain.gain, 1.6 * m.jet, was ? 1.6 * was.jet : undefined);
     set(this.windLp.frequency, m.windHz, was?.windHz);
     set(this.crowdBp.frequency, m.crowdHz, was?.crowdHz);
     set(this.crowdSrc.playbackRate, m.crowdRate, was?.crowdRate);
@@ -518,6 +609,33 @@ class Graph {
     return !this.limited || this.voices < limit;
   }
 
+  /** Room for a whole sound of so many voices: rather none of it than half. */
+  private fits(n: number, limit: number): boolean {
+    return !this.limited || this.voices + n <= limit;
+  }
+
+  /** A voice's level from `at`: up over its attack and away over its length, so many times over, so far apart. */
+  private envelope(
+    g: GainNode,
+    at: number,
+    gain: number,
+    attack: number,
+    len: number,
+    a: Again,
+  ): void {
+    const times = Math.max(1, a.times ?? 1),
+      every = a.every ?? len;
+    g.gain.setValueAtTime(0, at);
+    for (let k = 0; k < times; k++) {
+      const from = at + k * every,
+        last = k === times - 1,
+        to = from + (last ? len : Math.min(len, every * 0.92));
+      if (k > 0) g.gain.setValueAtTime(0.0004, from);
+      g.gain.linearRampToValueAtTime(gain, from + attack);
+      g.gain.exponentialRampToValueAtTime(0.0004, to);
+    }
+  }
+
   private tone(t: Tone, limit: number): void {
     if (!this.room(limit)) return;
     const c = this.ctx,
@@ -527,11 +645,10 @@ class Graph {
     o.type = t.type ?? "sine";
     o.frequency.setValueAtTime(t.f0, t.at);
     if (t.f1) o.frequency.exponentialRampToValueAtTime(t.f1, t.at + t.len);
-    g.gain.setValueAtTime(0, t.at);
-    g.gain.linearRampToValueAtTime(t.gain, t.at + attack);
-    g.gain.exponentialRampToValueAtTime(0.0004, t.at + t.len);
+    this.envelope(g, t.at, t.gain, attack, t.len, t);
     o.connect(g).connect(t.to ?? this.cueBus);
-    this.voice(o, [o, g], t.at, t.at + t.len + 0.02);
+    const span = ((t.times ?? 1) - 1) * (t.every ?? 0);
+    this.voice(o, [o, g], t.at, t.at + span + t.len + 0.02);
   }
 
   private burst(b: Burst, limit: number): void {
@@ -548,13 +665,12 @@ class Graph {
     f.Q.value = b.q ?? 0.7;
     f.frequency.setValueAtTime(b.f0, b.at);
     if (b.f1) f.frequency.exponentialRampToValueAtTime(b.f1, b.at + b.len);
-    g.gain.setValueAtTime(0, b.at);
-    g.gain.linearRampToValueAtTime(b.gain, b.at + attack);
-    g.gain.exponentialRampToValueAtTime(0.0004, b.at + b.len);
+    this.envelope(g, b.at, b.gain, attack, b.len, b);
     s.connect(f)
       .connect(g)
       .connect(b.to ?? this.cueBus);
-    this.voice(s, [s, f, g], b.at, b.at + b.len + 0.02, this.rand() * from.duration);
+    const span = ((b.times ?? 1) - 1) * (b.every ?? 0);
+    this.voice(s, [s, f, g], b.at, b.at + span + b.len + 0.02, this.rand() * from.duration);
   }
 
   private voice(
@@ -699,9 +815,9 @@ class Graph {
       );
     });
     times(m.clashes, (at) => {
-      // Iron on iron.
+      // Iron on iron: at what its metal rings at, where that is told.
       const to_ = pan(),
-        hz = 2200 + 2600 * r();
+        hz = m.ringHz > 0 ? m.ringHz * (0.88 + 0.24 * r()) : 2200 + 2600 * r();
       this.burst(
         { from: "white", kind: "bandpass", f0: hz, q: 3, at, len: 0.07, gain: 0.3, to: to_ },
         small,
@@ -777,13 +893,518 @@ class Graph {
     });
   }
 
-  /** A short sound, from `at`, at this level. */
-  cue(cue: Cue, at: number, level: number): void {
-    const L = level,
-      r = this.rand,
+  /**
+   * A short sound, from `at`, at this level: made from its numbers (`v`; else its kind's commonest) and, given `way`, heard from
+   * so far off and that side (its level by the distance, and duller). Whether it was played (no room: none of it).
+   */
+  cue(
+    cue: Cue,
+    at: number,
+    level: number,
+    v?: Voicing & { n?: number },
+    way?: { far: number; pan: number },
+  ): boolean {
+    const r = this.rand,
       lim = VOICES_CUE,
-      top = VOICES_ALL;
+      top = VOICES_ALL,
+      n: Voicing & { n?: number } = { ...VOICED[cue], ...v },
+      far = way?.far ?? 30,
+      to = way ? this.wayFrom(way.far, way.pan) : this.cueBus,
+      L = level * (way ? farOf(way.far).level : 1);
     switch (cue) {
+      case "gun": {
+        // A gun fired: its ball's crack where it outruns sound, ahead of the report by as much as it outruns it over the
+        // distance; black powder's fizz in the pan; the report, deeper and longer as the cube root of its energy; its thump.
+        const J = n.joules ?? 2480,
+          s = gunScale(J),
+          black = !!n.black,
+          speed = n.speed ?? 400,
+          mach = speed / SOUND_SPEED,
+          G = L * Math.max(0.35, Math.min(1.05, 0.62 + 0.14 * Math.log10(J / 2480))),
+          again = { times: Math.max(1, n.rounds ?? 1), every: n.apart ?? 0.09 },
+          cracks = mach > 1.02,
+          gap = cracks ? Math.max(0.008, Math.min(0.16, far * (1 / SOUND_SPEED - 1 / speed))) : 0,
+          len = 0.12 + 0.3 * Math.pow(s, 0.9) + (black ? 0.06 : 0);
+        if (!this.fits(2 + (cracks ? 1 : 0) + (black ? 1 : 0), lim)) return false;
+        if (cracks)
+          this.burst(
+            {
+              from: "white",
+              kind: "highpass",
+              f0: 3000,
+              at,
+              len: 0.008 + 0.0006 * (n.bore ?? 10),
+              attack: 0.001,
+              gain: L * Math.min(0.95, 0.45 + 0.5 * Math.sqrt(mach - 1)),
+              to,
+              ...again,
+            },
+            lim,
+          );
+        if (black)
+          this.burst(
+            {
+              from: "white",
+              kind: "bandpass",
+              f0: 5200,
+              q: 0.8,
+              at: Math.max(at, at + gap - 0.05),
+              len: 0.09,
+              attack: 0.02,
+              gain: G * 0.24,
+              to,
+            },
+            lim,
+          );
+        this.burst(
+          {
+            from: "white",
+            kind: "lowpass",
+            f0: (black ? 3600 : 5600) / Math.pow(s, 0.8),
+            f1: (black ? 200 : 320) / Math.sqrt(s),
+            at: at + gap,
+            len,
+            attack: 0.002,
+            gain: G * 1.25,
+            to,
+            ...again,
+          },
+          lim,
+        );
+        this.tone(
+          {
+            f0: 160 / Math.sqrt(s),
+            f1: 55 / Math.sqrt(s),
+            at: at + gap,
+            len: 0.1 + 0.16 * s,
+            attack: 0.002,
+            gain: G * 0.9,
+            to,
+            ...again,
+          },
+          lim,
+        );
+        return true;
+      }
+      case "cannon": {
+        // A field gun: its report down low and long, a mid edge a phone's speaker gives, the land answering after.
+        const J = n.joules ?? 261000,
+          s = gunScale(J),
+          speed = n.speed ?? 440,
+          cracks = speed / SOUND_SPEED > 1.02,
+          G = L * Math.max(0.4, Math.min(1.05, 0.62 + 0.14 * Math.log10(J / 2480)));
+        if (!this.fits(4 + (cracks ? 1 : 0), lim)) return false;
+        if (cracks)
+          this.burst(
+            { from: "white", kind: "highpass", f0: 2500, at, len: 0.02, gain: L * 0.5, to },
+            lim,
+          );
+        const gap = cracks
+            ? Math.max(0.01, Math.min(0.16, far * (1 / SOUND_SPEED - 1 / speed)))
+            : 0,
+          bang = at + gap;
+        this.burst(
+          {
+            from: "brown",
+            kind: "lowpass",
+            f0: 2400 / Math.sqrt(s),
+            f1: 70,
+            at: bang,
+            len: 0.4 + 0.4 * Math.pow(s, 0.6),
+            attack: 0.003,
+            gain: G * 1.3,
+            to,
+          },
+          lim,
+        );
+        this.tone(
+          {
+            f0: 120 / Math.pow(s, 0.4),
+            f1: 28,
+            at: bang,
+            len: 0.3 + 0.25 * s,
+            attack: 0.003,
+            gain: G,
+            to,
+          },
+          lim,
+        );
+        this.burst(
+          {
+            from: "white",
+            kind: "bandpass",
+            f0: 1100,
+            f1: 600,
+            q: 1.1,
+            at: bang,
+            len: 0.12 + 0.04 * s,
+            attack: 0.002,
+            gain: G * 0.75,
+            to,
+          },
+          lim,
+        );
+        this.burst(
+          {
+            from: "brown",
+            kind: "lowpass",
+            f0: 600,
+            f1: 60,
+            at: bang + 0.15,
+            len: 1.4 * Math.sqrt(s) - 0.15,
+            attack: 0.25,
+            gain: G * 0.6,
+            to,
+          },
+          lim,
+        );
+        return true;
+      }
+      case "bow": {
+        // A bowstring let go: its note by its draw (a string's pitch goes as the root of its pull), the slap, the arrow away.
+        const hz = 105 * Math.sqrt((n.joules ?? 40) / 40);
+        if (!this.fits(3, lim)) return false;
+        this.tone(
+          {
+            type: "sawtooth",
+            f0: hz,
+            f1: hz * 0.94,
+            at,
+            len: 0.22,
+            attack: 0.002,
+            gain: L * 0.3,
+            to,
+          },
+          lim,
+        );
+        this.burst(
+          {
+            from: "white",
+            kind: "bandpass",
+            f0: 1500,
+            q: 1.5,
+            at,
+            len: 0.028,
+            attack: 0.001,
+            gain: L * 0.7,
+            to,
+          },
+          lim,
+        );
+        this.burst(
+          {
+            from: "white",
+            kind: "bandpass",
+            f0: 1400 * Math.sqrt((n.speed ?? 45) / 45),
+            f1: 600,
+            q: 2.5,
+            at: at + 0.03,
+            len: 0.32,
+            attack: 0.1,
+            gain: L * 0.22,
+            to,
+          },
+          lim,
+        );
+        return true;
+      }
+      case "dart":
+        // A dart thrown hard: its whip through the air, and the click that loosed it.
+        if (!this.fits(2, lim)) return false;
+        this.burst(
+          {
+            from: "white",
+            kind: "highpass",
+            f0: 4000,
+            at,
+            len: 0.012,
+            attack: 0.001,
+            gain: L * 0.5,
+            to,
+          },
+          lim,
+        );
+        this.burst(
+          {
+            from: "white",
+            kind: "bandpass",
+            f0: 50 * (n.speed ?? 60),
+            f1: 900,
+            q: 3,
+            at,
+            len: 0.13,
+            attack: 0.01,
+            gain: L * 0.8,
+            to,
+          },
+          lim,
+        );
+        return true;
+      case "clash": {
+        // A blade struck: the bite of it, and its ring, a free bar's three strongest, the higher dying the sooner.
+        const ring = (n.ring ?? 3170) * (0.94 + 0.12 * r()),
+          decay = n.decay ?? 0.25,
+          parts = [1, 2.76, 5.4].filter((k) => ring * k < 12000);
+        if (!this.fits(1 + parts.length, lim)) return false;
+        this.burst(
+          {
+            from: "white",
+            kind: "bandpass",
+            f0: ring * 1.25,
+            q: 2.5,
+            at,
+            len: 0.03,
+            attack: 0.001,
+            gain: L * 0.7,
+            to,
+          },
+          lim,
+        );
+        parts.forEach((k, i) =>
+          this.tone(
+            {
+              f0: ring * k,
+              at,
+              len: Math.min(2, 0.04 + (4 * decay) / (1 + i)),
+              attack: 0.001,
+              gain: L * [0.5, 0.24, 0.1][i]!,
+              to,
+            },
+            lim,
+          ),
+        );
+        return true;
+      }
+      case "thud": {
+        // A blow landing on what is worn: the dull of it; a plate's clang where it rings; mail's rings, each its own.
+        const ring = n.ring ?? 0,
+          decay = n.decay ?? 0.03,
+          clangs = !n.mail && ring > 0 && decay > 0.05;
+        if (!this.fits(2 + (n.mail ? 2 : clangs ? 1 : 0), lim)) return false;
+        this.burst(
+          {
+            from: "brown",
+            kind: "lowpass",
+            f0: 900,
+            f1: 160,
+            at,
+            len: 0.14,
+            attack: 0.002,
+            gain: L * 1.1,
+            to,
+          },
+          lim,
+        );
+        this.tone({ f0: 150, f1: 85, at, len: 0.12, attack: 0.002, gain: L * 0.7, to }, lim);
+        if (clangs)
+          this.tone(
+            { f0: ring * 0.5, at, len: Math.min(0.9, 3 * decay), attack: 0.002, gain: L * 0.3, to },
+            lim,
+          );
+        if (n.mail)
+          for (let i = 0; i < 2; i++)
+            this.tone(
+              {
+                f0: 3800 + 2700 * r(),
+                at: at + 0.012 + 0.018 * i,
+                len: 0.05,
+                attack: 0.001,
+                gain: L * 0.16,
+                to,
+              },
+              lim,
+            );
+        return true;
+      }
+      case "zap": {
+        // Burning light let go: a falling edge, its pitch its own.
+        const hz = (n.hz ?? 1800) * (0.9 + 0.2 * r());
+        if (!this.fits(1, lim)) return false;
+        this.tone(
+          { type: "sawtooth", f0: hz, f1: hz * 0.18, at, len: 0.13, gain: L * 0.55, to },
+          lim,
+        );
+        return true;
+      }
+      case "rocket": {
+        // A rocket on its fire, coming: its roar rising as it nears and falling in pitch as it comes past onto its mark (the
+        // way it comes in is drawn out of the sky toward the ear and then across it); its boom where it outruns sound.
+        const coming = Math.max(0.3, n.coming ?? 2),
+          V = n.speed ?? 700,
+          up = SOUND_SPEED / (SOUND_SPEED - 0.8 * Math.min(V, 0.6 * SOUND_SPEED)),
+          hz = 900;
+        if (!this.fits(V > SOUND_SPEED ? 3 : 2, lim)) return false;
+        this.burst(
+          {
+            from: "white",
+            kind: "bandpass",
+            f0: hz * up,
+            f1: hz * 1.05,
+            q: 1.4,
+            at,
+            len: coming,
+            attack: coming * 0.7,
+            gain: L * 0.9,
+            to,
+          },
+          lim,
+        );
+        this.burst(
+          {
+            from: "brown",
+            kind: "lowpass",
+            f0: 520,
+            f1: 260,
+            at,
+            len: coming,
+            attack: coming * 0.8,
+            gain: L * 0.9,
+            to,
+          },
+          lim,
+        );
+        if (V > SOUND_SPEED)
+          this.burst(
+            {
+              from: "white",
+              kind: "highpass",
+              f0: 2500,
+              at: at + coming - 0.03,
+              len: 0.025,
+              attack: 0.001,
+              gain: L * 0.6,
+              to,
+            },
+            lim,
+          );
+        return true;
+      }
+      case "whistle": {
+        // A load falling: its fins' whistle, high and falling away as it comes down past the ear's line.
+        const coming = Math.max(0.3, n.coming ?? 1.7);
+        if (!this.fits(2, lim)) return false;
+        this.tone(
+          { f0: 1700, f1: 620, at, len: coming, attack: coming * 0.5, gain: L * 0.5, to },
+          lim,
+        );
+        this.burst(
+          {
+            from: "white",
+            kind: "bandpass",
+            f0: 1700,
+            f1: 620,
+            q: 8,
+            at,
+            len: coming,
+            attack: coming * 0.5,
+            gain: L * 0.6,
+            to,
+          },
+          lim,
+        );
+        return true;
+      }
+      case "blast": {
+        // A charge going off: its crack, its boom, the rumble after, what it threw coming down; all of it slower and deeper
+        // as the cube root of its energy, and only a little louder.
+        const mj = n.mj ?? 210,
+          s = blastScale(mj),
+          G = L * Math.max(0.4, Math.min(1, 0.7 + 0.12 * Math.log10(mj / 210)));
+        if (!this.fits(4, lim)) return false;
+        this.burst(
+          {
+            from: "white",
+            kind: "lowpass",
+            f0: 7500 / Math.pow(s, 0.25),
+            f1: 500,
+            at,
+            len: 0.18 + 0.12 * Math.sqrt(s),
+            attack: 0.002,
+            gain: G * 0.9,
+            to,
+          },
+          lim,
+        );
+        this.tone(
+          {
+            f0: 85 / Math.pow(s, 0.35),
+            f1: 24,
+            at,
+            len: 0.5 + 0.9 * Math.pow(s, 0.6),
+            attack: 0.003,
+            gain: G,
+            to,
+          },
+          lim,
+        );
+        this.burst(
+          {
+            from: "brown",
+            kind: "lowpass",
+            f0: 1000 / Math.pow(s, 0.4),
+            f1: 45,
+            at,
+            len: 0.6 + 2.4 * Math.pow(s, 0.6),
+            attack: 0.03,
+            gain: G * 1.1,
+            to,
+          },
+          lim,
+        );
+        this.burst(
+          {
+            from: "white",
+            kind: "bandpass",
+            f0: 2400,
+            f1: 900,
+            q: 1.3,
+            at: at + 0.12 + 0.2 * Math.sqrt(s),
+            len: 0.4 + Math.pow(s, 0.4),
+            attack: 0.12,
+            gain: G * 0.22,
+            to,
+          },
+          lim,
+        );
+        return true;
+      }
+      case "volley": {
+        // Fire too thick to tell shot by shot: a crackle of reports as many as there are; a flight of arrows, a rush of air.
+        const many = massOf(n.n ?? 40),
+          bows = (n.joules ?? 2480) < 300,
+          s = gunScale(n.joules ?? 2480);
+        if (!this.fits(2, lim)) return false;
+        this.burst(
+          {
+            from: bows ? "white" : "crackle",
+            kind: "bandpass",
+            f0: bows ? 1100 : 1800 / Math.sqrt(s),
+            f1: bows ? 700 : undefined,
+            q: bows ? 0.8 : 0.6,
+            at,
+            len: 0.6,
+            attack: 0.06,
+            gain: L * many * (bows ? 0.35 : 1),
+            to,
+          },
+          lim,
+        );
+        this.burst(
+          {
+            from: "brown",
+            kind: "lowpass",
+            f0: bows ? 500 : 320,
+            f1: 90,
+            at,
+            len: 0.55,
+            attack: 0.03,
+            gain: L * many * 0.5,
+            to,
+          },
+          lim,
+        );
+        return true;
+      }
       case "press":
         this.tone({ f0: 1240, f1: 860, at, len: 0.05, gain: L }, top);
         this.burst(
@@ -954,11 +1575,12 @@ class Graph {
         break;
       case "fire": {
         // The greatest fire. First the air gone, all of it, as the light comes: a moment of nothing.
-        // Then a blow in the chest, a long way down; the sky answering, slowly; and after it, nothing
-        // much at all (the mix's hush keeps it quiet for as long as it lasts).
+        // Then a blow in the chest, a long way down, as late as it is far (`coming`: light is there at
+        // once, sound at its own speed); the sky answering, slowly; and after it, nothing much at all
+        // (the mix's hush keeps it quiet for as long as it lasts).
         this.level.gain.cancelScheduledValues(at);
         this.level.gain.setTargetAtTime(0, at, 0.012);
-        const blow = at + 0.2;
+        const blow = at + 0.2 + Math.max(0, v?.coming ?? 0);
         this.duckUntil = blow + 11;
         this.level.gain.setTargetAtTime(this.shown?.level ?? 1, this.duckUntil, 6);
         this.burst(
@@ -1000,6 +1622,7 @@ class Graph {
         break;
       }
     }
+    return true;
   }
 }
 
@@ -1138,20 +1761,39 @@ function wavOf(b: AudioBuffer): string {
   return btoa(out);
 }
 
-const kept = (): string | null => {
+const kept = (key = STORE): string | null => {
   try {
-    return localStorage.getItem(STORE);
+    return localStorage.getItem(key);
   } catch {
     return null;
   }
 };
-const keep = (v: string): void => {
+const keep = (v: string, key = STORE): void => {
   try {
-    localStorage.setItem(STORE, v);
+    localStorage.setItem(key, v);
   } catch {
     // (Storage may be shut, as in a private window: then it holds only for this visit.)
   }
 };
+/** The volume kept (0 … 1; all of it where none is kept). */
+const keptVolume = (): number => {
+  const v = Number(kept(STORE_VOLUME) ?? "1");
+  return Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 1;
+};
+
+/**
+ * One sound of arms or a blast, as the page tells it: what makes it and by what numbers (view/heard.ts), in how long (s of the
+ * wall's clock, from now) it is made where it is, how far from the ear that is (m), and from which side (-1 left … 1 right).
+ */
+export type HeardEvent = {
+  readonly kind: HeardKind;
+  readonly v: Voicing;
+  readonly in: number;
+  readonly far: number;
+  readonly pan: number;
+};
+/** The kinds whose too many at once are heard together, as a line's fire. */
+const MASSED: ReadonlySet<HeardKind> = new Set(["gun", "bow", "dart", "zap"]);
 
 /** Whether this browser can make sound at all. */
 const canSound = () =>
@@ -1172,6 +1814,9 @@ export class Sound {
   private corner: HTMLElement | null = null;
   private watch: IntersectionObserver | null = null;
   private wanted = kept() !== "off";
+  /** The volume (0 … 1) and whether the sounds of arms and blasts are heard (Settings; kept between visits). */
+  private volume = keptVolume();
+  private effects = kept(STORE_EFFECTS) !== "off";
   private ctx: AudioContext | null = null;
   private graph: Graph | null = null;
   private pump = 0;
@@ -1342,7 +1987,7 @@ export class Sound {
       this.startMs = Math.max(worst.ms, performance.now() - from);
       this.graph.apply(this.mix, ctx.currentTime, 0.05);
       // (In softly, from nothing.)
-      this.graph.master.gain.setTargetAtTime(VOLUME, ctx.currentTime + 0.05, 0.9);
+      this.graph.master.gain.setTargetAtTime(VOLUME * this.volume, ctx.currentTime + 0.05, 0.9);
       this.until = ctx.currentTime;
       if (this.wanted && !document.hidden) this.startPump();
       else void ctx.suspend();
@@ -1425,30 +2070,133 @@ export class Sound {
     }
   }
 
-  /** Something that happened, heard: unless no one is listening, or its kind has had enough for now. */
-  cue(c: Cue, level = 1): void {
+  /**
+   * Something that happened, heard: unless no one is listening, or its kind has had enough for now (or it is of arms and the
+   * effects are off). `v` its numbers, `way` where it is from the ear, `delay` how long until it reaches the ear (s).
+   */
+  cue(
+    c: Cue,
+    level = 1,
+    v?: Voicing & { n?: number },
+    way?: { far: number; pan: number },
+    delay = 0,
+  ): boolean {
     const g = this.graph,
       ctx = this.ctx;
-    if (!g || !ctx || !this.listening || ctx.state !== "running") {
+    if (!g || !ctx || !this.listening || ctx.state !== "running" || !this.heardNow(c)) {
       this.unheard++;
-      return;
+      return false;
     }
     const wall = performance.now(),
       ends = this.ends[c],
-      lasts = CUE_LASTS[c] * 1000;
+      when = wall + delay * 1000;
     while (ends.length && ends[0]! < wall) ends.shift();
-    if (!cueAllowed(c, wall - this.lastAt[c], ends.length)) {
+    if (!cueAllowed(c, when - this.lastAt[c], ends.length)) {
       this.dropped[c]++;
-      return;
+      return false;
     }
     try {
-      g.cue(c, ctx.currentTime + 0.004, CUE_RULES[c].level * level);
-      this.lastAt[c] = wall;
-      ends.push(wall + lasts);
+      if (!g.cue(c, ctx.currentTime + 0.004 + delay, CUE_RULES[c].level * level, v, way)) {
+        this.dropped[c]++;
+        return false;
+      }
+      this.lastAt[c] = Math.max(this.lastAt[c], when);
+      ends.push(when + cueLength(c, v) * 1000);
+      ends.sort((a, b) => a - b);
       this.played[c]++;
+      return true;
     } catch (e) {
       this.fail(e);
+      return false;
     }
+  }
+
+  /** Whether a cue's kind is heard now: everything but arms and blasts, and those while the effects are on. */
+  private heardNow(c: Cue): boolean {
+    return this.effects || !ARMS_CUES.includes(c);
+  }
+
+  /**
+   * What arms and blasts are making now and in the next moments, told four times a second (view/heard.ts says what, the page
+   * says where): each as late as its sound takes to reach the ear over the ground (`pace`: the seconds of the clock it was
+   * made on that go by in one of the wall's, so a battle watched at four times its pace hears its far guns four times as soon),
+   * as faint and dull as its distance makes it. Of each kind, the nearest are heard each by itself, as many as the rules let
+   * sound at once and far enough apart; the rest of a line's fire together, as a crackle as thick as they are many.
+   */
+  heard(list: readonly HeardEvent[], pace = 1): void {
+    if (!list.length) return;
+    if (!this.listening || !this.effects) {
+      this.unheard += list.length;
+      return;
+    }
+    const kinds = new Map<HeardKind, { e: HeardEvent; when: number; level: number }[]>();
+    for (const e of list) {
+      const delay = Math.min(MOST_DELAY, e.far / SOUND_SPEED / Math.max(0.05, pace)),
+        at = { e, when: Math.max(0, e.in + delay), level: farOf(e.far).level };
+      // (Made so long ago that its sound has passed the ear already: not heard.)
+      if (e.in + delay < -0.4) {
+        this.unheard++;
+        continue;
+      }
+      const k = kinds.get(e.kind);
+      if (k) k.push(at);
+      else kinds.set(e.kind, [at]);
+    }
+    for (const [kind, all] of kinds) {
+      const cue = KIND_CUE[kind],
+        wait = CUE_RULES[cue].wait / 1000,
+        chosen: number[] = [],
+        rest: typeof all = [];
+      all.sort((a, b) => b.level - a.level);
+      for (const a of all) {
+        const apart = chosen.every((w) => Math.abs(w - a.when) >= wait);
+        if (apart && chosen.length < CUE_RULES[cue].most && this.cue(cue, 1, a.e.v, a.e, a.when))
+          chosen.push(a.when);
+        else rest.push(a);
+      }
+      if (!rest.length) continue;
+      if (!MASSED.has(kind)) {
+        this.dropped[cue] += rest.length;
+        continue;
+      }
+      // (The rest of them together: when most of them are, from where most of them are.)
+      let when = 0,
+        far = 0,
+        pan = 0;
+      for (const a of rest) {
+        when += a.when;
+        far += a.e.far;
+        pan += a.e.pan;
+      }
+      const n = rest.length;
+      this.cue(
+        "volley",
+        kind === "gun" ? 1 : 0.8,
+        { ...rest[0]!.e.v, n },
+        { far: far / n, pan: pan / n },
+        when / n,
+      );
+    }
+  }
+
+  /** The volume (0 … 1), kept between visits, heard at once. */
+  setVolume(v: number): void {
+    this.volume = Math.max(0, Math.min(1, v));
+    keep(String(Math.round(this.volume * 100) / 100), STORE_VOLUME);
+    const g = this.graph,
+      ctx = this.ctx;
+    if (g && ctx) g.setVolume(this.volume, ctx.currentTime);
+  }
+
+  /** The sounds of arms and blasts heard or not, kept between visits (🔊 still silences everything). */
+  setEffects(on: boolean): void {
+    this.effects = on;
+    keep(on ? "on" : "off", STORE_EFFECTS);
+  }
+
+  /** What Settings shows: whether there is sound here at all, 🔊, the volume and the effects. */
+  settingsNow(): { can: boolean; on: boolean; volume: number; effects: boolean } {
+    return { can: canSound(), on: this.wanted, volume: this.volume, effects: this.effects };
   }
 
   /** A fight among the stars, as drawn this frame (no allocation; counts only): what has just begun in it, heard. */
@@ -1462,9 +2210,16 @@ export class Sound {
     f.wrecks = wrecks;
   }
 
-  /** The greatest fire as seen on the town now: how long since it fell, or below nothing where it has not. */
-  fireSeen(since: number): void {
-    if (since >= 0 && this.fireWas < 0) this.cue("fire");
+  /**
+   * The greatest fire as seen on the town now: how long since it fell, or below nothing where it has not; how far it is from
+   * the ear (m), and the seconds of its clock in one of the wall's. Its light is there at once; its blow comes as late as sound
+   * takes over the distance, on that clock (no later than MOST_DELAY).
+   */
+  fireSeen(since: number, far = 0, pace = 1): void {
+    if (since >= 0 && this.fireWas < 0)
+      this.cue("fire", 1, {
+        coming: Math.min(MOST_DELAY, far / SOUND_SPEED / Math.max(0.05, pace)),
+      });
     this.fireWas = since;
     this.fireHush = since >= 0 ? 1 : 0;
   }
@@ -1493,6 +2248,10 @@ export class Sound {
       states: [...this.states],
       pumping: !!this.pump,
       bound: NODE_BOUND,
+      volume: this.volume,
+      effects: this.effects,
+      /** The master's level now (its target, the volume's share of the whole). */
+      master: g?.master.gain.value ?? 0,
     };
   }
 
@@ -1549,7 +2308,13 @@ export class Sound {
     seconds: number;
     seed: number;
     rate?: number;
-    cues?: readonly { cue: Cue; at: number; level?: number }[];
+    cues?: readonly {
+      cue: Cue;
+      at: number;
+      level?: number;
+      v?: Voicing & { n?: number };
+      way?: { far: number; pan: number };
+    }[];
     /** Fade from another place at this moment. */
     then?: { air: Air; at: number };
     wav?: boolean;
@@ -1574,7 +2339,8 @@ export class Sound {
       g.apply(mix, o.then.at);
       if (!o.bare) g.sprinkle(mix, o.then.at, o.seconds);
     }
-    for (const c of o.cues ?? []) g.cue(c.cue, c.at, CUE_RULES[c.cue].level * (c.level ?? 1));
+    for (const c of o.cues ?? [])
+      g.cue(c.cue, c.at, CUE_RULES[c.cue].level * (c.level ?? 1), c.v, c.way);
     const b = await off.startRendering(),
       ms = performance.now() - from,
       left = b.getChannelData(0),

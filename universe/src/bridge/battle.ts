@@ -47,6 +47,8 @@ export type BattleSideNear = {
   readonly levy?: readonly LevyPlace[];
   /** What it fought with: its host's design (on foot with spears, where it had none). */
   readonly host: HostKinds | null;
+  /** What its arm and its guard are made of ("bronze", "hide"; absent where it had no design, or in older saves). */
+  readonly stuffs?: { readonly arm: string; readonly guard: string };
   /** That host in words: "bronze swords and shields, on foot". */
   readonly kit: string;
   /** How much of its host bore that kit, 0 … 1 (Phase 52 M217; absent in older saves). */

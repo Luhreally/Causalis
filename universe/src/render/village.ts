@@ -176,7 +176,7 @@ import { RaidLayer } from "./raid.ts";
 import { GraveyardLayer } from "./graveyard.ts";
 import { MemorialLayer } from "./memorial.ts";
 import { CourtLayer } from "./court.ts";
-import { DIVE_SEEN, courtCaseAt, courtSitting, diveAt } from "../view/index.ts";
+import { DIVE_SEEN, courtCaseAt, courtSitting, diveAt, type RaidNow } from "../view/index.ts";
 import { WoundsLayer, bandageOn, propAt, type WornPiece } from "./wounds.ts";
 import { LittersLayer, litterApart, litterHeld } from "./litters.ts";
 import { FolkPoses, nearReach, redrawn } from "./folk.ts";
@@ -2701,6 +2701,51 @@ export class VillageScene {
       out[6] = q.yaw + hashUnit(i * 7 + seed);
       out[7] = 0;
     });
+  }
+
+  /**
+   * The guns fired about the town in its war from `c0` to `c1` of the screen's clock (s), as gunfire() draws them: each who
+   * fires, when, where (metres) and with what; each machine gun's bursts (`gun`). Into `out` (emptied first); for what is heard.
+   */
+  shotsBetween(
+    c0: number,
+    c1: number,
+    out: { t: number; x: number; z: number; arm: string; gun?: true }[],
+  ): void {
+    out.length = 0;
+    const troops = this.warScene?.soldiers,
+      each = this.soldiersEach;
+    if (!troops || c1 <= c0) return;
+    for (let i = 0; i < 2 * each; i++) {
+      const q = troops[i];
+      if (!q || q.size < 0.5 || (q.doing !== "fight" && q.doing !== "fire")) continue;
+      const kit = this.kits[q.side];
+      if (!kit || !isGun(kit.arm)) continue;
+      const look = armLook(kit.arm);
+      if (look.beam) continue;
+      const arm = look.rest ?? kit.arm,
+        f = TOWN_FIRE[arm] ?? TOWN_FIRE_ELSE,
+        lead = f.volley
+          ? q.side * 1.7 + Math.floor((i - q.side * each) / 8) * 0.18 + hashUnit(i) * 0.3
+          : hashUnit(i) * f.every;
+      // (Each round fires as its clock plus its lead comes to a whole number of its turns.)
+      for (let n = Math.floor((c0 + lead) / f.every) + 1; n * f.every - lead <= c1; n++)
+        out.push({ t: n * f.every - lead, x: q.x, z: q.z, arm });
+    }
+    const side = this.kits.findIndex((k) => armLook(k.arm).team !== undefined),
+      team = side >= 0 ? this.kits[side]!.arm : "";
+    (this.warScene?.teamGuns ?? []).forEach((g, j) => {
+      if (!g.firing || side < 0) return;
+      const off = hashUnit(j + 11) * 1.1;
+      for (let n = Math.floor((c0 + off) / 1.1) + 1; n * 1.1 - off <= c1; n++)
+        out.push({ t: n * 1.1 - off, x: g.x, z: g.z, arm: team, gun: true });
+    });
+  }
+
+  /** A raid over the town as last drawn (W2; null: none about it), for what is heard of it. */
+  raidShown(): RaidNow | null {
+    if (!this.plan?.town?.struck?.some((k) => k.raid) && !this.raided) return null;
+    return this.town.raid(this.lastT);
   }
 
   private gunfire(troops: TownWarScene["soldiers"], clock: number): void {

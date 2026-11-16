@@ -343,6 +343,22 @@ const BALLS: Readonly<Record<string, readonly [number, number]>> = {
   autoloader: [850, 1200],
   automatic: [850, 1400],
 };
+/** Each arm's ball by its mass (kg) and bore (mm), which give the drag lengths above (est: Earth's own, a sphere's drag 0.47, a pointed bullet's about 0.3). */
+const BALL_MASS: Readonly<Record<string, readonly [number, number]>> = {
+  musket: [0.031, 17.5],
+  rifle: [0.032, 14.7],
+  repeater: [0.015, 8],
+  autoloader: [0.0097, 7.62],
+  automatic: [0.0113, 7.92],
+};
+/** An arm's ball as it leaves (Earth's air): its speed (m/s), mass (kg), bore (mm) and so its energy (J); null where it throws no ball. */
+export function ballOf(
+  id: string,
+): { speed: number; kg: number; bore: number; joules: number } | null {
+  const b = Object.hasOwn(BALLS, id) ? BALLS[id]! : null,
+    m = Object.hasOwn(BALL_MASS, id) ? BALL_MASS[id]! : null;
+  return b && m ? { speed: b[0], kg: m[0], bore: m[1], joules: 0.5 * m[0] * b[0] * b[0] } : null;
+}
 
 const has = (held: readonly string[], want?: readonly string[]) =>
   !want || want.every((x) => held.includes(x));

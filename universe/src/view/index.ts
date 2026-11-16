@@ -1248,3 +1248,17 @@ export { placeOfMember, struckOf, toldBlows, warManOf, warSlot, type WarSlot } f
 export { armorPanels, armorColor, armorDepth } from "./armor.ts";
 export { AGE_LADDER } from "../rules/index.ts";
 export { MONEY_LET, MONEY_RAMP, MONEY_RUIN, moneyStep, tenureWords } from "./money.ts";
+export {
+  BLASTS,
+  SOUND_SPEED,
+  battleSounds,
+  cannonVoice,
+  guardVoice,
+  looseVoice,
+  meleeShare,
+  ringOf,
+  strikeVoice,
+  type BattleSound,
+  type HeardKind,
+  type Voicing,
+} from "./heard.ts";

@@ -1001,6 +1001,7 @@ export {
   EDGE_STUFFS,
   WATER_ARMS,
   airWeight,
+  ballOf,
   edgeFigure,
   forceOf,
   gunHere,
