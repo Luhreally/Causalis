@@ -59,7 +59,8 @@ import { TRAIT_LOOK, agentFamily, metChips, metFamily, traitChips } from "./folk
 import { agentHolder, householdThingsBlocks, personThingsBlocks } from "./things.ts";
 import { buildingsTab } from "./fabric.ts";
 import { townSongsTab } from "./memory.ts";
-import { townLawTab } from "./justice.ts";
+import { townLawTab, townLeanBlocks } from "./justice.ts";
+import { townPeopleTab } from "./self.ts";
 import { askedTownBlock } from "./asks.ts";
 import { threadBlock } from "./thread.ts";
 import { worldLook } from "../biochem.ts";
@@ -295,6 +296,11 @@ export function townPage(world: World, ref: string): PageModel {
         { type: "tool", tool: "hand.town", args: { town: s.ref } },
       ],
     });
+  }
+  // Its people read together: what they want, who they are, their work and wealth, who leans to a wrong (round G).
+  {
+    const people = townPeopleTab(world, s.ref, (selves) => townLeanBlocks(world, s.ref, selves));
+    if (people) tabs.push(people);
   }
   // What it raised and what it sings (T1).
   {

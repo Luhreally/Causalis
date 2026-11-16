@@ -1677,3 +1677,4 @@ export {
   parasiteLoad,
   parasiteToll,
 } from "./lineage.ts";
+export * from "./self.ts";

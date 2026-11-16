@@ -25,6 +25,12 @@ import {
   reckonDay,
   usualPrice,
   wageTimes,
+  CRIME_KINDS,
+  CRIME_WORDS,
+  crimeLean,
+  leanWord,
+  type CrimeKind,
+  type CrimeScene,
 } from "../../rules/index.ts";
 import {
   BOND,
@@ -59,8 +65,9 @@ import type {
 } from "../../bridge/index.ts";
 import { landStone } from "../chain.ts";
 import { breadCoin, homeNumberOf, landMadeHead, personLiving, dwellRef } from "../home.ts";
-import { folkWork, levyHead, linesOf, townRoster, workOf } from "../roster.ts";
+import { folkWork, levyHead, linesOf, rosterCost, townRoster, workOf } from "../roster.ts";
 import { landPast } from "../past.ts";
+import { keyedStanding, leanThen, type SelfRead } from "../self.ts";
 import { goodCoin, boardRef } from "./board.ts";
 import { coinWords } from "./living.ts";
 import { memoryOf } from "./memory.ts";
@@ -183,6 +190,9 @@ type Facts = {
   readonly convicts: boolean;
   readonly corrupt: boolean;
   readonly strict: boolean;
+  /** The town's year as what could lead one of it wrong reads it (rules/self.ts crimeLean); its realm forbids its faith. */
+  readonly scene: CrimeScene;
+  readonly barred: boolean;
 };
 
 /** What the people of a world are, for their law: a hive, of the water, no hands. */
@@ -501,10 +511,12 @@ function factsOf(world: World, s: Settlement, year: number): Facts {
     });
 
   // One faith: a land of another under a realm that allows none.
+  let barred = false;
   if (order && realm && form !== "hive" && lawThen(world, order, "faith", year) === 0) {
     const here = beliefOf(world).of(cell).faith,
       seat = beliefOf(world).of(realm.seat).faith;
-    if (here && seat && here !== seat)
+    barred = !!here && !!seat && here !== seat;
+    if (barred)
       causes.push({
         line: [
           "Their realm keeps one faith, and this land keeps another: ",
@@ -550,7 +562,31 @@ function factsOf(world: World, s: Settlement, year: number): Facts {
     rate = Math.max(0.25, (size - 1) * 0.7) * Math.max(0.25, weigh) * temper;
 
   const convicts =
-    !!order && (order.firsts[BOND.convict] ?? null) !== null && form !== "hive" && form !== "reef";
+      !!order &&
+      (order.firsts[BOND.convict] ?? null) !== null &&
+      form !== "hive" &&
+      form !== "reef",
+    // (How far its law reaches: who judges, how rightful the rule they judge for, what is skimmed from it.)
+    legit = order ? order.legitimacy : 0.5,
+    reach = Math.max(
+      0,
+      Math.min(
+        1,
+        REACH[form] * (realm ? 0.6 + 0.8 * legit : 0.6) -
+          0.4 * (order?.corruption ?? 0) +
+          (order && order.caste >= 0.45 ? 0.1 : 0),
+      ),
+    ),
+    scene: CrimeScene = {
+      hungry,
+      short,
+      opportunity: Math.min(1, (rich ? 0.45 : 0.15) + (carried > 0 ? 0.2 : 0) + 0.35 * war),
+      reach,
+      grievance: Math.min(
+        1,
+        (grievance?.level ?? 0) + (doubted ? 0.25 : 0) + (rising ? 0.2 : 0) + (coup ? 0.1 : 0),
+      ),
+    };
   return {
     s,
     year,
@@ -571,8 +607,52 @@ function factsOf(world: World, s: Settlement, year: number): Facts {
     convicts,
     corrupt: !!order && order.corruption >= 0.3,
     strict: !!order && order.caste >= 0.45,
+    scene,
+    barred,
   };
 }
+
+/** How far a court's word reaches by who judges, before how rightful its rule is: a hive knows all of its own at once. */
+const REACH: Readonly<Record<CourtForm, number>> = {
+  hive: 0.9,
+  reef: 0.5,
+  elders: 0.35,
+  kin: 0.4,
+  magistrate: 0.6,
+  bench: 0.75,
+};
+
+/** What each wrong a court hears is, of the four that lead a person wrong (rules/self.ts). */
+export const OFFENCE_KIND: Readonly<Record<Offence, CrimeKind>> = {
+  stores: "steal",
+  bread: "steal",
+  rent: "cheat",
+  stall: "steal",
+  house: "steal",
+  road: "steal",
+  loot: "steal",
+  desert: "defy",
+  brawl: "harm",
+  speech: "defy",
+  faith: "defy",
+  flight: "cheat",
+};
+
+/** Of so many drawn of a town, the one brought: the likelier the more they lean to it (`d` a unit of the case's own). */
+function weighed<T>(found: readonly T[], weigh: ((x: T) => number) | undefined, d: number): T {
+  if (!weigh || found.length === 1) return found[0]!;
+  const w = found.map((x) => Math.max(0.01, weigh(x))),
+    all = w.reduce((a, b) => a + b, 0);
+  let v = d * all;
+  for (let i = 0; i < found.length; i++) {
+    v -= w[i]!;
+    if (v < 0) return found[i]!;
+  }
+  return found.at(-1)!;
+}
+
+/** Of a town's people, how many are drawn for a case before the one brought is chosen among them by how they lean. */
+const PICK_FROM = 6;
 
 /** A town's strikes, by town, once for each count of a world's strikes. */
 const STRIKES = new WeakMap<
@@ -596,10 +676,16 @@ function strikesOn(world: World, town: string) {
 
 // —— Who ——————————————————————————————————————————————————————————————————————————————————————
 
+/** How far one of a town leans to what a case is of, by their key and the year they were born. */
+type Weigh = (key: number, born: number) => number;
+
 type Folk = {
   readonly lines: number;
-  /** One of the town by a draw: someone grown who holds their place there that year (null: none). */
-  pick(h: number, n: number, not: ReadonlySet<string>): Party | null;
+  /**
+   * One of the town by a draw: someone grown who holds their place there that year (null: none). Weighed: of PICK_FROM drawn, the
+   * one brought the likelier the more they lean to it.
+   */
+  pick(h: number, n: number, not: ReadonlySet<string>, weigh?: Weigh): Party | null;
   /** One this battle's levy stood in (a deserter), by a draw. */
   levied(h: number, not: ReadonlySet<string>): Party | null;
 };
@@ -621,13 +707,21 @@ export function folkOf(world: World, s: Settlement, year: number): Folk {
     });
     return {
       lines: list.length,
-      pick: (h, n, not) => {
+      pick: (h, n, not, weigh) => {
         if (!list.length) return null;
-        for (let k = 0; k < 8; k++) {
+        const found: (typeof list)[number][] = [];
+        for (let k = 0; k < 8 && found.length < (weigh ? PICK_FROM : 1); k++) {
           const a = list[Math.floor(u(h, n + k) * list.length)]!;
-          if (!not.has(`agent:${a.id}`)) return party(a);
+          if (!not.has(`agent:${a.id}`) && !found.includes(a)) found.push(a);
         }
-        return null;
+        if (!found.length) return null;
+        return party(
+          weighed(
+            found,
+            weigh && ((a) => weigh(hashString(`agent ${s.ref} ${a.id}`) >>> 0, a.birthYear)),
+            u(h, n + 40),
+          ),
+        );
       },
       levied: () => null,
     };
@@ -646,14 +740,17 @@ export function folkOf(world: World, s: Settlement, year: number): Folk {
   const pool = Math.min(lines, POOL);
   return {
     lines: pool,
-    pick: (h, n, not) => {
+    pick: (h, n, not, weigh) => {
       if (!pool) return null;
-      for (let k = 0; k < 12; k++) {
+      const found: NonNullable<ReturnType<typeof roster.holder>>[] = [];
+      for (let k = 0; k < 12 && found.length < (weigh ? PICK_FROM : 1); k++) {
         const holder = roster.holder(Math.floor(u(h, n + k) * pool));
         if (!holder || year - holder.born < grown || not.has(holder.ref)) continue;
-        return party(holder);
+        if (found.some((x) => x.ref === holder.ref)) continue;
+        found.push(holder);
       }
-      return null;
+      if (!found.length) return null;
+      return party(weighed(found, weigh && ((x) => weigh(x.key, x.born)), u(h, n + 40)));
     },
     levied: (h, not) => {
       const b = roster.battles.findLast((x) => x.year < year && x.year >= year - 3);
@@ -804,6 +901,13 @@ const NEEDS_WRONGED: Readonly<Record<Offence, boolean>> = {
   speech: false,
   faith: false,
   flight: true,
+};
+
+/** What a wrong takes from those wronged that the better off have the more of. */
+const ROBBED: Readonly<Partial<Record<Offence, boolean>>> = {
+  stall: true,
+  house: true,
+  road: true,
 };
 
 /** What a court here can do, by what they did, how it holds and who they are. */
@@ -1072,10 +1176,28 @@ function drawCases(
       }
     }
     const offence = cause.offences[Math.floor(u(h, 3) * cause.offences.length)]!,
-      accused = offence === "desert" ? folk.levied(h, taken) : folk.pick(h, 100, taken);
+      kind = OFFENCE_KIND[offence],
+      // (Who is brought: of those drawn, the likelier the more what they are and where they stand leads them to it. Rules/self.ts.)
+      accused =
+        offence === "desert"
+          ? folk.levied(h, taken)
+          : folk.pick(
+              h,
+              100,
+              taken,
+              (key, born) => leanThen(world, s.cell, key, born, f.scene, f.barred)[kind],
+            );
     if (!accused) continue;
     taken.add(accused.ref);
-    const wronged = NEEDS_WRONGED[offence] ? folk.pick(h, 200, new Set([...taken])) : null;
+    // (Those robbed of what they keep are the likelier the more they have.)
+    const wronged = NEEDS_WRONGED[offence]
+      ? folk.pick(
+          h,
+          200,
+          new Set([...taken]),
+          ROBBED[offence] ? (key) => 0.3 + 1.5 * keyedStanding(key) : undefined,
+        )
+      : null;
     // (Not one the whole town could not name: a town of one person has no one to wrong.)
     if (NEEDS_WRONGED[offence] && !wronged) continue;
     const sentenceWord = sentenceOf(f, offence, h),
@@ -1557,3 +1679,198 @@ export function caseTally(world: World, year: number) {
 }
 
 export { realmName as _realmName };
+
+// —— A person before the law, on their life's tab (round G) ——————————————————————————————————————————————————————
+
+/** The years back a person's record is read, and what reading an old year's town may cost (its rosters', in rosterCost's lines). */
+const RECORD_YEARS = 8;
+const RECORD_COST = 40_000;
+
+/** Why they lean as they do to a wrong, in a few words read off what leads them to it and what holds them back. */
+function leanWhy(p: SelfRead, k: CrimeKind, scene: CrimeScene): string {
+  const t = p.traits,
+    out: string[] = [];
+  if (k === "steal" || k === "cheat") {
+    if (scene.short && p.standing < 0.5) out.push("a poor home here goes short");
+    if (scene.hungry >= 0.3) out.push("their land went hungry");
+    if (k === "steal" && scene.opportunity >= 0.5) out.push("there is much to be had");
+    if (t.drive >= 0.64) out.push("they want more than they have");
+    if (p.standing >= 0.7) out.push("they have much to lose");
+  }
+  if (k === "harm") {
+    if (t.temper >= 0.64) out.push("they are quick to anger");
+    if (t.temper <= 0.36) out.push("they keep their temper");
+    if (t.warmth <= 0.36) out.push("others' good counts little with them");
+  }
+  if (k === "defy") {
+    if (scene.grievance >= 0.35) out.push("grievance runs high against the rule");
+    if (t.boldness >= 0.64) out.push("they are bold");
+    if (p.land.barred) out.push("their faith is forbidden");
+  }
+  if (t.conscience >= 0.64 && k !== "harm") out.push("their conscience holds them");
+  if (t.conscience <= 0.36 && k !== "harm") out.push("little of what is right weighs with them");
+  if (scene.reach >= 0.7) out.push("the law reaches far here");
+  else if (scene.reach <= 0.3) out.push("the law reaches little here");
+  return out.slice(0, 3).join("; ");
+}
+
+/** What a person reads of the law: what could lead them wrong, who judges them, and their record before their town's court. */
+export function selfLawBlocks(world: World, p: SelfRead): Block[] {
+  const blocks: Block[] = [],
+    who = p.who,
+    s = who.town ? populationContext(world).settlements.get(who.town as Ref) : undefined;
+  // Rulers and their court: no town's court judges them, unless the law is one for all.
+  if (who.station === "ruler" || who.station === "court") {
+    const realm = politiesOf(world).get(p.land.realm as Ref),
+      order = realm ? orderOf(world)?.of(realm.ref) : undefined,
+      one = !!order && lawOf(order, "justice").position === 2;
+    blocks.push({
+      type: "facts",
+      title: "Before the law",
+      rows: [
+        stat(
+          "Who judges them",
+          one
+            ? "the bench, as it judges anyone: the law here is one for all"
+            : who.station === "ruler"
+              ? "no one: the courts are theirs"
+              : "the ruler, and no town's court",
+          { why: order?.lawEvents[3] ?? undefined },
+        ),
+      ],
+    });
+    if (!one) return blocks;
+  }
+  if (!s || s.population <= 0 || p.child) return blocks;
+  const year = Math.floor(world.now / (DAYS_A_YEAR * 86400)),
+    f = factsOf(world, s, year),
+    food = p.wants.find((w) => w.kind === "food")?.pressing ?? 0,
+    faith = p.wants.find((w) => w.kind === "faith")?.pressing ?? 0,
+    lean = crimeLean(
+      { traits: p.traits, standing: p.standing, hunger: food, faith: p.land.barred ? faith : 0 },
+      f.scene,
+    );
+  if (who.alive)
+    blocks.push({
+      type: "facts",
+      title: "What could lead them wrong",
+      rows: CRIME_KINDS.map((k) => {
+        const why = leanWhy(p, k, f.scene);
+        return stat(
+          `${CRIME_WORDS[k][0]!.toUpperCase()}${CRIME_WORDS[k].slice(1)}`,
+          `${leanWord(lean[k])} of ${s.name}${why ? `: ${why}` : ""}`,
+          { why: "concept:self-crime" },
+        );
+      }),
+    });
+  // Their record: each case of their town that names them, in the years they were grown there and its book can be read.
+  const items: Item[] = [],
+    from = Math.max(p.who.born + p.land.adulthood, who.year - RECORD_YEARS);
+  let brought = 0,
+    wronged = 0;
+  for (let y = who.year; y >= from; y--) {
+    if (y < year - 1 && rosterCost(world, s.ref, y) + rosterCost(world, s.ref, y - 1) > RECORD_COST)
+      break;
+    for (const c of casesOf(world, s.ref, y)) {
+      if (!heard(world, c)) continue;
+      if (c.accused.ref === who.ref) {
+        brought++;
+        items.push(
+          item(
+            [
+              link(`Year ${c.year}: ${offenceName(c).toLowerCase()}`, c.ref),
+              `. ${firstName(c.accused)} ${c.came}.`,
+            ],
+            c.ref,
+            c.year,
+          ),
+        );
+      } else if (c.wronged?.ref === who.ref) {
+        wronged++;
+        items.push(
+          item(
+            [
+              link(`Year ${c.year}: wronged`, c.ref),
+              `. ${c.accused.name} ${c.whatWords}, and ${c.came}.`,
+            ],
+            c.ref,
+            c.year,
+          ),
+        );
+      }
+    }
+  }
+  const held = who.alive ? heldWords(world, s.ref, who.ref) : null;
+  blocks.push({
+    type: "facts",
+    title: "Before the court",
+    rows: [
+      stat("Who judges them", sentence(COURT_WORDS[f.form].judged)),
+      stat(
+        `In ${who.year - from + 1} years`,
+        brought || wronged
+          ? `brought before it ${many(brought, "time", "times")}; wronged ${many(wronged, "time", "times")}`
+          : "never brought before it, nor wronged",
+      ),
+      ...(held ? [stat("Now", sentence(held))] : []),
+    ],
+  });
+  if (items.length) blocks.push({ type: "list", title: "Their cases", items });
+  return blocks;
+}
+
+/** On a town's Its people tab: how its law reaches, and who of those named lean most to a wrong, and to which. */
+export function townLeanBlocks(world: World, town: string, selves: readonly SelfRead[]): Block[] {
+  const s = populationContext(world).settlements.get(town as Ref);
+  if (!s || s.population <= 0 || !selves.length) return [];
+  const f = factsOf(world, s, yearNow(world)),
+    leans = selves.map((p) => {
+      const lean = crimeLean(
+          {
+            traits: p.traits,
+            standing: p.standing,
+            hunger: p.wants.find((w) => w.kind === "food")?.pressing ?? 0,
+            faith: p.land.barred ? (p.wants.find((w) => w.kind === "faith")?.pressing ?? 0) : 0,
+          },
+          f.scene,
+        ),
+        top = CRIME_KINDS.reduce((a, k) => (lean[k] > lean[a] ? k : a), CRIME_KINDS[0]);
+      return { p, k: top, v: lean[top] };
+    }),
+    most = [...leans]
+      .sort((a, b) => b.v - a.v)
+      .filter((x) => x.v >= 1.25)
+      .slice(0, 4),
+    reach =
+      f.scene.reach >= 0.7 ? "far" : f.scene.reach >= 0.45 ? "middling far" : "only a little way";
+  return [
+    {
+      type: "facts",
+      title: "What could lead them wrong",
+      rows: [
+        stat("The law reaches", reach, { why: "concept:self-crime" }),
+        stat(
+          "To hand",
+          f.scene.opportunity >= 0.5
+            ? "much: there is money here, or goods on the road, or homes left open"
+            : "little",
+        ),
+        ...(f.scene.short ? [stat("A poor home", "goes short here")] : []),
+      ],
+    },
+    ...(most.length
+      ? [
+          {
+            type: "list" as const,
+            title: "Those who lean most to a wrong",
+            items: most.map((x) =>
+              item(
+                [link(x.p.who.name, x.p.who.ref), `: ${CRIME_WORDS[x.k]}, ${leanWord(x.v)}`],
+                x.p.who.ref,
+              ),
+            ),
+          },
+        ]
+      : []),
+  ];
+}

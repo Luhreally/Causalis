@@ -38,6 +38,7 @@ import {
   ROSTER_YEARS,
   fellLinesOf,
   hurtLinesOf,
+  kinShape,
   levyHead,
   levyLinesOf,
   rosterCost,
@@ -54,6 +55,8 @@ export type LevyMan = {
   readonly name: string;
   /** His age that day. */
   readonly age: number;
+  /** 1: a man; 0: one who bears, where their young leave them free to be sent (roster.ts kinShape). */
+  readonly sex: 0 | 1;
   readonly event: string;
   readonly war: string;
   readonly side: 0 | 1;
@@ -92,7 +95,10 @@ const lotOf = (fate: Fate): Lot => (fate === "fell" ? 0 : fate === "stood" ? 2 :
 
 /** A land's speech for its levy's names: its tongue (none: the cradle's names), and its family names'. */
 type Speech = { readonly tongue: Tongue | undefined; readonly family: Tongue };
-type Namer = (key: number, cell: number) => { readonly name: string; readonly age: number };
+type Namer = (
+  key: number,
+  cell: number,
+) => { readonly name: string; readonly age: number; readonly sex: 0 | 1 };
 
 /**
  * Names for a battle's levy, by a man's key (his ref's hash) and the land he came from: a man's given
@@ -104,6 +110,9 @@ function namerOf(world: World): Namer {
     culture = cultureOf(world),
     life = ctx.life,
     years = Math.max(0, life.bands[7]! - life.adulthood),
+    // (Of a levy, those who bear as their young leave them free: of so many men, so many of them more.)
+    bearers = kinShape(ctx).bearers,
+    mothers = bearers / (1 + bearers),
     speeches = new Map<number, Speech>();
   return (key, cell) => {
     let speech = speeches.get(cell);
@@ -113,12 +122,14 @@ function namerOf(world: World): Namer {
       speech = { tongue, family: { ...family, seed: family.seed ^ 0xf00d } };
       speeches.set(cell, speech);
     }
-    const given = speech.tongue
-      ? tonguePersonName(speech.tongue, key, 1)
-      : personName(ctx.culture, key, 1);
+    const sex: 0 | 1 = mothers > 0 && u(key, 9) < mothers ? 0 : 1,
+      given = speech.tongue
+        ? tonguePersonName(speech.tongue, key, sex)
+        : personName(ctx.culture, key, sex);
     return {
       name: `${given} ${tongueName(speech.family, key >>> 3)}`,
       age: life.adulthood + Math.floor(u(key, 2) * years),
+      sex,
     };
   };
 }
@@ -128,7 +139,7 @@ export function levyName(
   world: World,
   ref: string,
   cell: number,
-): { readonly name: string; readonly age: number } {
+): { readonly name: string; readonly age: number; readonly sex: 0 | 1 } {
   return namerOf(world)(hashString(ref), cell);
 }
 
@@ -456,12 +467,13 @@ export function resolveLevyMan(world: World, ref: string): LevyMan | null {
   const place = at.place >= 0 ? places[at.place]! : null,
     realm = side === 0 ? war.attacker : war.defender,
     key = hashString(ref),
-    { name, age } = namerOf(world)(key, place ? place.cell : homeOf(world, realm, b)),
+    { name, age, sex } = namerOf(world)(key, place ? place.cell : homeOf(world, realm, b)),
     maimed = maimedShare(b, side);
   return {
     ref,
     name,
     age,
+    sex,
     event: b.event,
     war: war.ref,
     side,
