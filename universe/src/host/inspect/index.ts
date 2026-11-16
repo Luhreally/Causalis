@@ -70,7 +70,7 @@ import { seatPage, withKin } from "./kin.ts";
 import { rulerPage, withLeaderPage } from "./leaders.ts";
 import { courtPage } from "./court.ts";
 import { songPage, stonePage } from "./memory.ts";
-import { casePage } from "./justice.ts";
+import { casePage, selfLawBlocks } from "./justice.ts";
 import { namedPage, type NamesArg } from "../names.ts";
 import { lawPage } from "../lanes.ts";
 
@@ -269,7 +269,7 @@ export function pageOf(
         : withLiving(world, base, withLeaderPage(world, base, build(world, base, tab))),
     );
     // (Their life, read whole: what they want, are like, have done and hold — round G.)
-    if (!brief) page = withSelf(world, base, page);
+    if (!brief) page = withSelf(world, base, page, (p) => selfLawBlocks(world, p));
     page = withConcepts(tidy(page));
     // (How they are now, and the way on and off the people bar: B1.)
     if (!brief) page = withBarBlock(world, base, page);

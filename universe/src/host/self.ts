@@ -15,6 +15,7 @@ import {
   OCC,
   WAGE_GOOD,
   careerOf,
+  crimeLean,
   holdingsOf,
   pairingOf,
   partnersOf,
@@ -25,6 +26,8 @@ import {
   usualPrice,
   wantsOf,
   type CareerStep,
+  type CrimeKind,
+  type CrimeScene,
   type Holdings,
   type Nature,
   type Pairing,
@@ -442,7 +445,25 @@ export function yearsOn(
   from: number,
   to: number,
 ): { readonly hunger: number; readonly danger: number } {
-  const deeds = memoryOf(world).byCell.get(cell) ?? [];
+  const memory = memoryOf(world);
+  let kept = YEARS_ON.get(memory);
+  if (!kept) YEARS_ON.set(memory, (kept = new Map()));
+  const at = `${cell}|${from}|${to}`,
+    hit = kept.get(at);
+  if (hit) return hit;
+  const made = readYearsOn(memory.byCell.get(cell) ?? [], from, to);
+  if (kept.size >= 8192) kept.clear();
+  kept.set(at, made);
+  return made;
+}
+
+const YEARS_ON = new WeakMap<object, Map<string, { hunger: number; danger: number }>>();
+
+function readYearsOn(
+  deeds: readonly { readonly year: number; readonly kind: string }[],
+  from: number,
+  to: number,
+): { hunger: number; danger: number } {
   let hard = 0,
     danger = 0;
   for (const d of deeds) {
@@ -643,3 +664,37 @@ export function townSelves(world: World, s: Settlement, most: number): SelfRead[
   }
   return out;
 }
+
+/**
+ * How far one of a town leans to each wrong in a year, for whom its court has brought (justice.ts): read from what is fixed of them by
+ * that year — their key, their kind, their young years, their household's place by their key, and the town's year as its court reads
+ * it — and not from their people's ways, which are the same for all of a town and drift as years pass: a year's cases are told the
+ * same long after. (Their page reads their lean from all of them, as they are now.)
+ */
+export function leanThen(
+  world: World,
+  cell: number,
+  key: number,
+  born: number,
+  scene: CrimeScene,
+  barred: boolean,
+): Record<CrimeKind, number> {
+  const body = homePlanet(world).generated.life.people?.body,
+    youth = yearsOn(world, cell, born, born + lifeOf(world).adulthood),
+    standing = u(key, 41),
+    traits = traitsOf(
+      selfNature(body),
+      {
+        ways: MIDDLE_WAYS,
+        hunger: youth.hunger,
+        danger: youth.danger,
+        standing,
+        lettered: false,
+      },
+      (i) => u(key, 100 + i),
+    );
+  return crimeLean({ traits, standing, hunger: 0, faith: barred ? 0.5 : 0 }, scene);
+}
+
+/** A key's household place, as a list of a town's many reads it (their own home's, where the town is drawn, on their page). */
+export const keyedStanding = (key: number): number => u(key, 41);
