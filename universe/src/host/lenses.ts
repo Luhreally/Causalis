@@ -31,6 +31,7 @@ import { campReading, campValue } from "./inspect/finance.ts";
 import { woodsReading } from "./inspect/woods.ts";
 import { energyReading } from "./inspect/energy.ts";
 import { fouledReading } from "./inspect/fields.ts";
+import { inequalityReading, inequalityValue } from "./inspect/money.ts";
 import { wealthReading } from "./wealth.ts";
 
 /** The lenses read here, beside the people's own (people, food, trade). */
@@ -59,6 +60,8 @@ export const DEEP_LENSES = [
   "energy",
   // How fouled its ground is: sour rain, metals, salt (Round A).
   "fouled",
+  // How unequally a land's income is shared: its Gini (Round B).
+  "inequality",
 ] as const;
 export type DeepLens = (typeof DEEP_LENSES)[number];
 
@@ -98,6 +101,8 @@ export type LandReadings = {
   readonly energy: number;
   /** How fouled its ground is (0 … 1). */
   readonly fouled: number;
+  /** Its Gini (0 … 1; -1 none kept): Round B. */
+  readonly inequality: number;
 };
 
 /** The ids a land knows: its lore, and sowing and smelting, which it knows in its own ways. */
@@ -180,6 +185,7 @@ export function landReadings(world: World): (cell: number) => LandReadings {
       camps: campValue(world, cell),
       energy: Math.round((energyPerHead(world, cell)?.primary ?? 0) * 1000) / 1000,
       fouled: Math.round(fouledOf(world, cell) * 1000) / 1000,
+      inequality: inequalityValue(world, cell),
     };
   };
 }
@@ -239,6 +245,8 @@ export function lensReading(
       return energyReading(world, cell);
     case "fouled":
       return fouledReading(world, cell);
+    case "inequality":
+      return inequalityReading(world, cell);
     case "laws":
       return lawReading(
         world,

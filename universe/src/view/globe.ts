@@ -50,6 +50,7 @@ export const LENSES = [
   "blocs",
   "energy",
   "fouled",
+  "inequality",
 ] as const;
 export type Lens = (typeof LENSES)[number];
 
@@ -86,6 +87,7 @@ export const LENS_NAMES: Readonly<Record<Lens, string>> = {
   camps: "Camps",
   energy: "Energy",
   fouled: "Fouled ground",
+  inequality: "Inequality",
   forest: "Forest",
   blocs: "Alliances",
 };
@@ -124,6 +126,7 @@ export const LENS_ICONS: Readonly<Record<Lens, string>> = {
   camps: "🧭",
   energy: "🔥",
   fouled: "☣️",
+  inequality: "⚖️",
   forest: "🌲",
   blocs: "🪢",
 };
@@ -585,6 +588,14 @@ const FOULED_RAMP: readonly Stop[] = [
   [0.7, [0.42, 0.3, 0.1]],
   [1, [0.16, 0.12, 0.06]],
 ];
+/** How unequally a land's income is shared, its Gini: alike (pale green) to held by few (deep violet) — Round B. */
+const INEQUALITY_RAMP: readonly Stop[] = [
+  [0, [0.74, 0.86, 0.7]],
+  [0.25, [0.86, 0.84, 0.5]],
+  [0.5, [0.88, 0.56, 0.3]],
+  [0.75, [0.66, 0.24, 0.36]],
+  [1, [0.3, 0.1, 0.4]],
+];
 /** The laws the laws lens shows, one at a time: each its id, icon and name (M139). */
 export const LAW_CHOICES: readonly (readonly [string, string, string])[] = [
   ["land", "🌾", "The land"],
@@ -707,6 +718,12 @@ const DEEP: Readonly<
   forest: { stops: WOODS_RAMP, at: (v) => v, shown: () => true },
   // (Its kilowatts a head, from a tenth to ten, on a scale of their powers of ten.)
   fouled: { stops: FOULED_RAMP, at: (v) => Math.sqrt(v), shown: () => true },
+  // (A Gini of 0.2, farmers alike, to 0.7 and past it, a few holding most.)
+  inequality: {
+    stops: INEQUALITY_RAMP,
+    at: (v) => Math.min(1, Math.max(0, (v - 0.2) / 0.5)),
+    shown: (v) => v >= 0,
+  },
   energy: {
     stops: ENERGY_RAMP,
     at: (v) => Math.min(1, Math.max(0, Math.log10(Math.max(1e-3, v) / 0.1) / 2)),
@@ -963,6 +980,7 @@ export function globeColors(
       case "camps":
       case "energy":
       case "fouled":
+      case "inequality":
       case "forest": {
         const v = values?.get(province),
           deep = DEEP[lens];
@@ -1205,6 +1223,13 @@ export function lensLegend(lens: Lens, kind = "rocky", look?: string): Legend {
       };
     case "fouled":
       return { kind: "ramp", stops: stops(FOULED_RAMP), low: "clean", high: "its yield halved" };
+    case "inequality":
+      return {
+        kind: "ramp",
+        stops: stops(INEQUALITY_RAMP),
+        low: "Gini 0.2: alike",
+        high: "0.7: a few hold most",
+      };
     case "belief":
       return {
         kind: "keys",
