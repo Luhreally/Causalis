@@ -697,7 +697,7 @@ function trade(
     cut = new Map<War, number>();
   const lore = loreOf(ctx.world),
     money = financeOf(ctx.world),
-    navied = ctx.world.hasStore("war.navy");
+    navied = ctx.world.hasStore("war.navy"),
     // (Goods some realms hold most of the world's making of, sold abroad dearer by their cartel: sim/trade, p87.)
     cartels = cartelsNow(ctx.world);
   for (const e of edges(ctx)) {
