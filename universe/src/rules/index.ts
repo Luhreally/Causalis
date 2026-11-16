@@ -1688,3 +1688,4 @@ export * from "./urban.ts";
 export * from "./art.ts";
 export * from "./houses.ts";
 export * from "./kinforms.ts";
+export * from "./academy.ts";

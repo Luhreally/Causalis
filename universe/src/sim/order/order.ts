@@ -413,6 +413,8 @@ export function capacityOf(ctx: PopulationContext, p: Polity): { value: number; 
       { name: "roads and clerks", value: reach, contribution: 0.2 * reach, source: null },
       { name: "few lands to hold", value: small, contribution: 0.25 * small, source: null },
       { name: "an old seat", value: old, contribution: 0.1 * old, source: p.event },
+      // (What else makes its reach the surer: its seat's learned clerks and judges, sim/lore/academy.ts.)
+      ...REACHES.flatMap((f) => f(ctx, p)),
       // (Round H, sim/order/houses.ts: offices given to the great houses' kin and not to the able.)
       ...(() => {
         const kin = housesRead(ctx.world, p.ref)?.nepotism ?? 0;
@@ -435,6 +437,16 @@ export function capacityOf(ctx: PopulationContext, p: Polity): { value: number; 
     value: clamp(0.05, 0.95, 0.15 + parts.reduce((s, f) => s + f.contribution, 0)),
     parts,
   };
+}
+
+/** What else makes a realm's seat reach its lands (each a list of factors whose source is a ref, read in `capacityOf`). */
+type ReachOf = (
+  ctx: PopulationContext,
+  p: Polity,
+) => { name: string; value: number; contribution: number; source: Ref | null }[];
+const REACHES: ReachOf[] = [];
+export function addsReach(f: ReachOf): void {
+  if (!REACHES.includes(f)) REACHES.push(f);
 }
 
 /** What else bears on a realm's standing (each a list of factors, read in `legitimacyFactors`). */

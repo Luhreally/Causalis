@@ -78,6 +78,20 @@ export const ART_ROW = {
   at: 6,
 } as const;
 
+/** 6. A land's higher learning (sim/lore/academy.ts), a land's row. */
+export const ACADEMY_STORE = "lore.academies";
+export const ACADEMY_ROW = {
+  /** Its learned and what its patrons would keep at study (hundred-thousandths of its people). */
+  learned: 0,
+  target: 1,
+  /** What its temple, its seat and its houses gave a year to keeping scholars (grain), when last weighed. */
+  temple: 2,
+  seat: 3,
+  houses: 4,
+  /** The year it was last weighed. */
+  at: 5,
+} as const;
+
 /** Every store of the sweep, and its rows' width. */
 export const CULTURE_ROWS: readonly (readonly [string, number])[] = [
   [FOLK_STORE, 5],
@@ -85,6 +99,7 @@ export const CULTURE_ROWS: readonly (readonly [string, number])[] = [
   [VOICE_STORE, 9],
   [URBAN_STORE, 4],
   [ART_STORE, 7],
+  [ACADEMY_STORE, 6],
 ];
 
 /** One of the sweep's stores, where a world keeps it (a world from before the sweep, or one no one lives on, keeps none). */

@@ -1440,4 +1440,6 @@ export {
   type HousesRead,
   type RealmHouses,
 } from "./order/houses.ts";
+export { ACADEMY_EVERY, academyOf, academyYear, learnedOf, patronsOf } from "./lore/academy.ts";
+export { ACADEMY_STORE } from "./culture/rows.ts";
 export { claimYearsFor, kinFactsOf } from "./war/ties.ts";
