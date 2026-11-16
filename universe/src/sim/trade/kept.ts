@@ -3,11 +3,12 @@
 // a land's keyed by its cell or a realm's by its ref, last reckoned only, a faded number where it needs the past.
 import type { World } from "../../kernel/index.ts";
 import { automationGain, abateCost } from "../../rules/index.ts";
-import { RowStore } from "../money/kept.ts";
+import { RowStore, refNumber } from "../money/kept.ts";
 import { politiesOf } from "../polity/polity.ts";
 
 /** 1. A realm's years of plenty and want: its idle crafts (thousandths), its usual harvest and this year's (food's units), what its
- * lands owe against a year's food (thousandths), the fall's parts (thousandths; the multiplier in hundredths), the year last told. */
+ * lands owe against a year's food (thousandths), the fall's parts (thousandths; the multiplier in hundredths), the year last told;
+ * what its households bought by their earnings and its usual (sim/trade/demand.ts). */
 export const CYCLE_STORE = "trade.cycle";
 export const CY = {
   slack: 0,
@@ -21,6 +22,9 @@ export const CY = {
   hoard: 8,
   spend: 9,
   told: 10,
+  /** What its households bought of others' work by what they earned, and its usual (grain's worth at the wares' worth). */
+  spent: 11,
+  usualSpent: 12,
 } as const;
 /** 2. A realm's exchange: its listed works' worth in years of earnings (hundredths), their earnings (grain's worth a year), holders'
  * hopes of growth and the long run's (ten-thousandths a year, signed), what holders ask (ten-thousandths), how far worth is bid past
@@ -74,13 +78,45 @@ export const SM = {
 export const RENT_STORE = "trade.rent";
 export const RT = { heart: 0, level: 1, people: 2, rent: 3, worth: 4 } as const;
 
+/** 7. A good's cartel among realms, keyed "g" and the good's place in GOODS: its members' share of the world's making, the Herfindahl
+ * index among them, how well they hold together, what bars outside makers, what they ask above (thousandths); its members (each a
+ * realm's serial, one more); the year it first asked, whether told. */
+export const CARTEL_STORE = "trade.cartel";
+export const CT = {
+  share: 0,
+  within: 1,
+  cohesion: 2,
+  barred: 3,
+  markup: 4,
+  members: 5,
+  since: 10,
+  told: 11,
+} as const;
+/** The cartel row's key for a good. */
+export const cartelKey = (good: number) => `g${good}`;
+/** 8. A land's buying: what its households earn in years of their food (thousandths), what they buy of tools, clothing and pots
+ * against their need, the share their means allow (thousandths); what they buy by their earnings at the wares' worth, and what their
+ * need is worth (grain's worth). */
+export const DEMAND_STORE = "trade.demand";
+export const DM = {
+  income: 0,
+  tools: 1,
+  clothing: 2,
+  pottery: 3,
+  scale: 4,
+  real: 5,
+  base: 6,
+} as const;
+
 export const TRADE_STORES: readonly (readonly [string, number])[] = [
-  [CYCLE_STORE, 11],
+  [CYCLE_STORE, 13],
   [EXCHANGE_STORE, 10],
   [CAPITAL_STORE, 7],
   [PLAN_STORE, 8],
   [SMOKE_STORE, 9],
   [RENT_STORE, 5],
+  [CARTEL_STORE, 12],
+  [DEMAND_STORE, 7],
 ];
 
 /** One of trade's stores on a world (null where it keeps none). */
@@ -129,4 +165,30 @@ export function smokeCut(world: World, cell: number): number {
 /** What a land's town's ground earns its holders a year (grain's worth). */
 export function townRentOf(world: World, cell: number): number {
   return tradeStore(world, RENT_STORE)?.at(cell, RT.rent) ?? 0;
+}
+
+/** Each good's cartel this year: the serials of its members' realms and what they ask above on what they sell abroad. */
+export function cartelsNow(world: World): Map<number, { members: Set<number>; markup: number }> {
+  const out = new Map<number, { members: Set<number>; markup: number }>(),
+    store = tradeStore(world, CARTEL_STORE);
+  if (!store) return out;
+  for (const k of store.keys()) {
+    const row = store.get(k)!,
+      markup = row[CT.markup]! / 1000;
+    if (markup <= 0) continue;
+    const members = new Set<number>();
+    for (let i = 0; i < 5; i++) if (row[CT.members + i]! > 0) members.add(row[CT.members + i]! - 1);
+    out.set(Number(k.slice(1)), { members, markup });
+  }
+  return out;
+}
+
+/** What a realm's cartel asks above on a good it sells abroad (0: it is in none). */
+export function cartelAsk(world: World, realm: string | null | undefined, good: number): number {
+  if (!realm) return 0;
+  const row = tradeStore(world, CARTEL_STORE)?.get(cartelKey(good));
+  if (!row) return 0;
+  const n = refNumber(realm) + 1;
+  for (let i = 0; i < 5; i++) if (row[CT.members + i] === n) return row[CT.markup]! / 1000;
+  return 0;
 }

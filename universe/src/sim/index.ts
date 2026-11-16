@@ -1444,6 +1444,7 @@ export {
   COMMERCE_EVENTS,
   TRADE_EVERY,
   capitalYear,
+  cartelYear,
   cycleYear,
   installCommerce,
   planYear,
@@ -1453,8 +1454,12 @@ export {
 export {
   CAP,
   CAPITAL_STORE,
+  CARTEL_STORE,
+  CT,
   CY,
   CYCLE_STORE,
+  DEMAND_STORE,
+  DM,
   EX,
   EXCHANGE_STORE,
   PL,
@@ -1464,6 +1469,9 @@ export {
   SM,
   SMOKE_STORE,
   TRADE_STORES,
+  cartelAsk,
+  cartelKey,
+  cartelsNow,
   craftsKept,
   idleOf,
   machineIncome,
@@ -1509,3 +1517,4 @@ export {
   siegesYear,
   type Siege,
 } from "./war/siege.ts";
+export { BOUGHT_WARES, boughtOf, foodWanted } from "./trade/demand.ts";

@@ -54,6 +54,7 @@ import { landPlace } from "./land.ts";
 import { peopleBlocks } from "./peoples.ts";
 import { realmPlace } from "./realm.ts";
 import { peopleSongsTab } from "./memory.ts";
+import { goodCartelRows } from "./trade.ts";
 
 function globeAt(world: World, cell: number): Place | null {
   const spot = spotOfLand(world, cell);
@@ -501,6 +502,8 @@ export function goodPage(world: World, ref: string): PageModel {
             rows: [
               ...goodCostRows(world, cell, index),
               stat("Price", `${g.words} (${g.ratio.toFixed(2)} of its worth)`, { why: ref }),
+              // (Where a few realms sell it abroad as one: sim/trade, p87.)
+              ...goodCartelRows(world, index),
               stat("Stock", count(g.stock)),
               stat("Made this year", count(g.made)),
               stat("Used this year", count(g.used)),

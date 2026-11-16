@@ -92,7 +92,7 @@ import { digOre } from "./worked.ts";
 import { energyYear, machinesWanted } from "./energy.ts";
 import { kmBetween, seaRange, seaReach } from "./sea.ts";
 import { politiesOf } from "../polity/polity.ts";
-import { craftsKept, machinesAtWork } from "../trade/kept.ts";
+import { cartelsNow, craftsKept, machinesAtWork } from "../trade/kept.ts";
 import { fieldedOf, warsOf, type War } from "../war/war.ts";
 import { rearmYear } from "../war/arms.ts";
 import {
@@ -102,9 +102,11 @@ import {
   insuredGainOf,
   intoxLost,
   moneyStore,
+  refNumber,
   sanctionBetween,
   unionOf,
 } from "../money/kept.ts";
+import { boughtOf, foodWanted } from "../trade/demand.ts";
 
 const SPREADING = purpose("spread");
 const HERDS = defineStream("econ.herds");
@@ -432,10 +434,20 @@ function makeAndUse(
   }
   toolsOfYear(ctx, p, m, made, t);
 
+  // What its households buy of what they need, by what they earn and what it costs, within their means (sim/trade/demand.ts, p87):
+  // what they have of it is reckoned against what they need, never against what they could buy.
+  const bought = boughtOf(
+    ctx,
+    p,
+    m,
+    wants.map(([g, need]) => [g, need] as const),
+  );
   for (const [g, need, cover] of wants) {
-    const had = m.take("used", g, need);
-    want[g] = want[g]! + need;
-    m[cover] = need > 0 ? Math.round((1000 * had) / need) : g === G.machines ? 0 : 1000;
+    const asked = g === G.machines ? need : Math.round(need * bought.factor[g]!),
+      had = m.take("used", g, asked);
+    want[g] = want[g]! + asked;
+    m[cover] =
+      need > 0 ? Math.min(1000, Math.round((1000 * had) / need)) : g === G.machines ? 0 : 1000;
   }
   // Its year of energy (economy/energy.ts): hearths, smelters, works, carriers and homes, each fed from what its land
   // holds, the nearest first; what it burned taken from its market and its woods.
@@ -448,8 +460,9 @@ function makeAndUse(
     m.line("made", G.copper) + m.line("made", G.tin) + m.line("made", G.iron),
   );
   firsts(ctx, p, m);
-  // Food wanted over the year: a month's for everyone, twelve times.
-  for (const g of FOODS) want[g] = want[g]! + (mouths(p, ctx.life) * 12) / FOODS.length;
+  // Food wanted over the year: a month's for everyone, twelve times; a little more as the land earns more, never less (p87).
+  const fed = foodWanted(ctx, p);
+  for (const g of FOODS) want[g] = want[g]! + fed;
 }
 
 /** A metal heads a land's tools in a year where it heads at least this share of those its crafters made, */
@@ -653,6 +666,8 @@ type Plan = {
   count: number;
   margin: number;
   sea: boolean;
+  /** What the seller's realm's cartel asks above, a unit (grain's worth; sim/trade, p87): its carriers keep it. */
+  asked?: number;
 };
 
 /** Trade: planned from the year's opening prices and what is left over, then made. */
@@ -683,6 +698,8 @@ function trade(
   const lore = loreOf(ctx.world),
     money = financeOf(ctx.world),
     navied = ctx.world.hasStore("war.navy");
+    // (Goods some realms hold most of the world's making of, sold abroad dearer by their cartel: sim/trade, p87.)
+    cartels = cartelsNow(ctx.world);
   for (const e of edges(ctx)) {
     const war = open.length ? between(e.a, e.b) : null;
     if (war) {
@@ -722,7 +739,9 @@ function trade(
         buyer = s === ma ? tb : ta,
         seller = s === ma ? ta : tb,
         duty = apart && buyer ? dutyOf(ctx.world, buyer) : 0,
-        margin = d.price[g]! * (1 - duty) - s.price[g]! - e.cost * dealt * GOODS[g]!.bulk,
+        cartel = apart && seller ? cartels.get(g) : undefined,
+        asked = cartel && cartel.members.has(refNumber(seller!)) ? cartel.markup * s.price[g]! : 0,
+        margin = d.price[g]! * (1 - duty) - s.price[g]! - asked - e.cost * dealt * GOODS[g]!.bulk,
         insured = e.sea && seller ? insuredGainOf(ctx.world, seller) : 0;
       if (margin <= 0) continue;
       const people = ctx.provinces.get(s.cell)!.total(),
@@ -734,7 +753,16 @@ function trade(
       const count = Math.floor(
         spare * moved * (1 + insured) * Math.min(1, (keen * margin) / d.price[g]!),
       );
-      if (count > 0) plans.push({ from: s.cell, to: d.cell, good: g, count, margin, sea: e.sea });
+      if (count > 0)
+        plans.push({
+          from: s.cell,
+          to: d.cell,
+          good: g,
+          count,
+          margin,
+          sea: e.sea,
+          ...(asked > 0 ? { asked } : {}),
+        });
     }
   }
   // Each province's carriers can move only so much.
@@ -759,7 +787,7 @@ function trade(
       n = from.take("out", pl.good, pl.count);
     if (!n) continue;
     markets.of(pl.to).move("in", pl.good, n);
-    from.tradeMargin += n * pl.margin;
+    from.tradeMargin += n * (pl.margin + (pl.asked ?? 0));
     flows.push({ from: pl.from, to: pl.to, good: pl.good, count: n });
     if (!markets.route(pl.from, pl.to)) openRoute(ctx, markets, pl, n, t);
   }
