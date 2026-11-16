@@ -20,7 +20,7 @@ import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { preview } from "vite";
 import { chromium } from "playwright";
-import { YEAR, rulesetId, saveWorld, seedFromText } from "../src/kernel/index.ts";
+import { YEAR, loadWorld, rulesetId, saveWorld, seedFromText } from "../src/kernel/index.ts";
 import { ALIEN, EARTH } from "../src/host/planet.ts";
 import {
   LAWS,
@@ -73,10 +73,32 @@ const ctx = populationContext(world),
   living = [...realms.living()].sort(
     (a, b) => b.members.length - a.members.length || (a.ref < b.ref ? -1 : 1),
   );
+// (A court where a plot is found or an heir dies in the years the gate runs puts up a window that waits on the word, and no
+// sheet opens under it: the proposals never come. Read on a copy of the save, as gate 76 does on its own world. On harrow 348
+// at 400 since the rounds, Souckwick's was one.)
+const troubled = new Set<string>();
+{
+  const ahead = loadWorld(
+    JSON.parse(JSON.stringify(saveWorld(world, rulesetId(world, u.version), { universe: u.name }))),
+    (s) => u.build(s),
+    rulesetId(world, u.version),
+  ).world;
+  const note = () => {
+    for (const c of courtOf(ahead)?.all() ?? [])
+      if (c.plot || c.told.some((e) => ahead.events.get(e)?.type === "court.heirdied"))
+        troubled.add(c.realm);
+  };
+  note();
+  for (let y = 1; y <= 4; y++) {
+    ahead.runTo(world.now + y * YEAR);
+    note();
+  }
+}
 type Pick = { r: Polity; fig: number; name: string; law: string; to: number; group: string };
 let pick: Pick | null = null;
 for (const r of living) {
   if (pick) break;
+  if (troubled.has(r.ref)) continue;
   const c = courtOf(world)?.of(r.ref),
     o = orderOf(world)?.of(r.ref);
   if (!c || !o) continue;

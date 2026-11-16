@@ -476,7 +476,15 @@ if (chosen) {
         await frames(6);
         const watched = await k<number | null>("globalThis.causalis.watched()"),
           card = await k<string>("document.body.innerText");
-        say(`one of them pressed: ${one.name}, shown ${watched === one.index}`);
+        const got =
+          watched === null
+            ? "no one"
+            : await k<string>(
+                `(() => { const p = globalThis.causalis.peopleNow().find((q) => q.index === ${watched}); return p ? p.name + ": " + (p.why || p.task || "") : "#${watched}"; })()`,
+              );
+        say(
+          `one of them pressed: ${one.name} at ${Math.round(p.x)},${Math.round(p.y)}, shown ${watched === one.index} (${got})`,
+        );
         // (They work side by side: the one beside them, under the finger, is one of them too.)
         check(
           watched === one.index ||

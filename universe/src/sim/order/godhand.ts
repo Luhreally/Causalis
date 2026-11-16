@@ -460,13 +460,21 @@ export function installGodHand(world: World, ctx: () => PopulationContext): void
         }
         case "people": {
           const share = godAmount(a);
-          let added = 0;
+          let added = 0,
+            // (What each age and trade's share leaves over a whole one, carried to the next: floored each, a realm of
+            // a few hundred to a land, most of them in rows of fewer than ten, came out 2 in a hundred more, not a tenth
+            // (gate 116 on harrow 348's Papyr, 1,365 people: 31 more).)
+            owed = 0;
           for (const cell of to.members) {
             const p = c.provinces.get(cell);
             if (!p) continue;
             for (let r = 0; r < p.counts.rows; r++)
               for (let o = 0; o < COLS; o++) {
-                const n = Math.floor(p.counts.get(r, o) * share);
+                const here = p.counts.get(r, o);
+                if (here <= 0) continue;
+                const exact = here * share + owed,
+                  n = Math.floor(exact);
+                owed = exact - n;
                 if (n > 0) {
                   p.counts.add(r, o, n);
                   added += n;
