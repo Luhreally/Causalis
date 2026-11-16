@@ -1313,3 +1313,43 @@ export {
   intoxDependent,
   intoxLost,
 } from "./money/kept.ts";
+export {
+  ICE_STEP,
+  MOTION_EVENTS,
+  MotionStore,
+  STEP as MOTION_STEP,
+  homeField,
+  homeSky,
+  homeStarLife,
+  motionOf,
+  motionYear,
+  shiftNow,
+  starEnded,
+  type LandTurn,
+  type MotionState,
+  type StarEnd,
+} from "./planet/motion.ts";
+export {
+  AS_MADE,
+  SEARED,
+  biomeShifted,
+  searedUnder,
+  warmthShifted,
+  type Shift,
+} from "./population/model.ts";
+export {
+  StrainStore,
+  strainLine,
+  strainsOf,
+  strainsYear,
+  type StrainLine,
+} from "./health/strains.ts";
+export {
+  LINEAGE_EVENTS,
+  LINEAGE_STEP,
+  LineageStore,
+  kindsInPlayOf,
+  lineageYear,
+  partnersOf,
+  type Partners,
+} from "./ecology/lineage.ts";

@@ -1,6 +1,7 @@
 // The pages of the sky (Phase 10 M91): the home star and its worlds and moons, a star of the
 // cluster or of the galaxy far out, another star's world, and the people that rose on one.
 import { warmthBlocks } from "./warmth.ts";
+import { motionBlocks, seasonBlocks, starLifeBlocks } from "./motion.ts";
 import { CLADES, makingWords, makingsOf } from "../../rules/index.ts";
 import {
   folkOf,
@@ -13,7 +14,7 @@ import {
   starWarsOf,
 } from "../../sim/index.ts";
 import { LIFE_WORDS, offworldSite, cellRef, starAgeGyr } from "../../gen/index.ts";
-import { Rng, hashString, type Ref, type World } from "../../kernel/index.ts";
+import { Rng, dmath, hashString, type Ref, type World } from "../../kernel/index.ts";
 import { farWorldBlocks } from "../far.ts";
 import { realmColor } from "../colors.ts";
 import type { Item, PageModel, Place, Stat } from "../../bridge/index.ts";
@@ -114,6 +115,12 @@ export function starPageModel(world: World, ref: string): PageModel {
             },
             { type: "why", ref },
           ],
+        },
+        // (Its life: how far through it, how it brightens, how it ends. Round D.)
+        {
+          id: "life",
+          name: "Its life",
+          blocks: starLifeBlocks(world, g.star, g.star.lifetimeGyr),
         },
       ],
       followable: false,
@@ -224,6 +231,20 @@ export function starPageModel(world: World, ref: string): PageModel {
           ...(warItems.length ? [{ type: "list" as const, title: "Wars", items: warItems }] : []),
         ],
       },
+      // (Its life, Round D: a star past its own life is an ember already.)
+      ...(f.remnant
+        ? []
+        : [
+            {
+              id: "life",
+              name: "Its life",
+              blocks: starLifeBlocks(
+                world,
+                { ref, mass: s.mass, ageGyr: f.ageGyr },
+                10 * dmath.pow(s.mass, -2.5),
+              ),
+            },
+          ]),
     ],
     followable: false,
     year,
@@ -406,6 +427,16 @@ export function bodyPage(world: World, ref: string): PageModel {
           { type: "why", ref },
         ],
       },
+      // Its ground in motion (Round D): its warmth, ice and seas, its currents, its field, its star.
+      ...(home
+        ? [
+            {
+              id: "motion",
+              name: "In motion",
+              blocks: [...seasonBlocks(world), ...motionBlocks(world)],
+            },
+          ]
+        : []),
       // What lives on it (Phase 18 M132): a few of the home star's worlds hold cells.
       ...(life && life.level !== "none"
         ? [

@@ -18,7 +18,13 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
-import { cellRef, isProvinceWorld, offworldSite, type SystemBody } from "../../gen/index.ts";
+import {
+  cellRef,
+  isProvinceWorld,
+  offworldSite,
+  worldLife,
+  type SystemBody,
+} from "../../gen/index.ts";
 import {
   BANDS,
   G,
@@ -327,7 +333,7 @@ export function prospects(ctx: PopulationContext, p: Polity): Prospect[] {
     // (The sites kept for ships to other stars are not the home system's.)
     if (site.site > 0 || site.body < 0) return;
     const body = bodies[site.body]!,
-      h = habitability(body, g.life.people?.body ?? null, home);
+      h = habitability(body, g.life.people?.body ?? null, home, worldLife(g));
     if (!h.livable) return;
     const route = routeTo(list, site.body, g.star.mass),
       way = delivered(knowsHere, toOrbit(home).total, route.speed);

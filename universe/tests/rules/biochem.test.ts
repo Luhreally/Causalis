@@ -12,7 +12,9 @@ import {
   PIGMENT_WORDS,
   SUBSTANCES,
   WORLD_KINDS,
+  backboneOf,
   boneOf,
+  needsOf,
   dawnWords,
   earthMade,
   eats,
@@ -231,4 +233,47 @@ test("the dawn as Earth's life tells it is Earth's word for word; another's its 
   const red = dawnWords(lifeChemistryOf({ ...rocky, star: 3400 }), false);
   assert.match(red.light, /with bacteriochlorophyll, black/);
   assert.match(red.airWords, /too thin to rust/);
+});
+
+// Round D: life of silicon's chains where a world allows it.
+test("silicon's chains stand only in a dry, oxygen-free cold liquid on a world rich in silicon and poor in carbon", () => {
+  assert.equal(
+    backboneOf({ kind: "methane", carbon: "oxide", silica: "high", mean: -180 }).backbone,
+    "silane",
+  );
+  assert.equal(
+    backboneOf({ kind: "ammonia", carbon: "oxide", silica: "high", mean: -60 }).backbone,
+    "silazane",
+  );
+  assert.equal(
+    backboneOf({ kind: "methane", carbon: "carbon-rich", silica: "high", mean: -180 }).backbone,
+    "carbon",
+  );
+  assert.equal(
+    backboneOf({ kind: "rocky", carbon: "oxide", silica: "high", mean: 15 }).backbone,
+    "carbon",
+  );
+  const si = lifeChemistryOf({
+    kind: "methane",
+    carbon: "oxide",
+    metals: "solar",
+    silica: "high",
+    star: 5000,
+    mean: -180,
+    hand: 0.2,
+  });
+  assert.equal(si.backbone, "silane");
+  assert.deepEqual(needsOf(si).poisons, ["oxygen", "water"]);
+  const c = lifeChemistryOf({
+    ...{
+      kind: "methane",
+      carbon: "carbon-rich",
+      metals: "solar",
+      silica: "high",
+      star: 5000,
+      mean: -180,
+      hand: 0.2,
+    },
+  } as const);
+  assert.equal(eats(si, c), false);
 });

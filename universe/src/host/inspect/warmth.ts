@@ -2,13 +2,14 @@
 // sometimes"), read for its pages and the globe: how far its ground has turned, how long is left, and what that has
 // done to the land its people can live on and farm, against the world as it was made. Pure reads; nothing where no god
 // has warmed the world.
-import { yearOfMoment, type World } from "../../kernel/index.ts";
+import { hashString, yearOfMoment, type World } from "../../kernel/index.ts";
 import { planetRef } from "../../gen/index.ts";
 import {
   EVER,
   GROUND,
-  biomeUnder,
+  biomeShifted,
   groundWarming,
+  shiftNow,
   greatActsOf,
   homePlanet,
   livableFor,
@@ -56,7 +57,7 @@ export function warmthRead(world: World): WarmthRead | null {
   const ground = groundWarming(world, planet),
     lifted = world.now >= a.until;
   if (lifted && !ground) return null;
-  const key = `${a.event}:${ground}:${lifted}`,
+  const key = `${a.event}:${ground}:${lifted}:${shiftNow(world).key}`,
     kept = READ.get(world);
   if (kept?.key === key) return kept.read;
   const ctx = populationContext(world),
@@ -70,13 +71,13 @@ export function warmthRead(world: World): WarmthRead | null {
     fedNow = 0;
   for (let c = 0; c < g.offworld.base; c++) {
     const was = livableFor(ctx, c, 0),
-      is = livableFor(ctx, c, ground);
+      is = livableFor(ctx, c);
     if (was) made++;
     if (is) now++;
     if (is && !was) opened++;
     if (was && !is) closed++;
     if (was) fedMade += support(provinceCapacity(ctx, c, 0), sows);
-    if (is) fedNow += support(provinceCapacity(ctx, c, ground), sows);
+    if (is) fedNow += support(provinceCapacity(ctx, c), sows);
   }
   const read: WarmthRead = {
     asked: a.sign * warmDegrees(a.strength),
@@ -94,26 +95,29 @@ export function warmthRead(world: World): WarmthRead | null {
   return read;
 }
 
-const TURNED = new WeakMap<World, { warm: number; turned: number[] }>();
+const TURNED = new WeakMap<World, { key: string; turned: number[] }>();
 /**
- * What the globe needs to draw a warmed world's ground: the degrees it has turned (0: as it was made), and, where the
- * asker does not have them for those degrees already, the spots whose biome has turned and what to (spot, biome, spot,
- * biome ...), by the rule the sim's own lands turn by.
+ * What the globe needs to draw a world's ground as it stands (the god's warming, and the climate's own turning of its
+ * ice, seas and woods: Round D): the degrees it has turned, which reading it is (`stamp`, 0 as it was made), and, where
+ * the asker does not have that reading already, the spots whose biome has turned and what to (spot, biome, ...), by the
+ * rule the sim's own lands turn by.
  */
 export function warmthMap(world: World, have?: number): WarmthMap {
-  const warm = greatActsOf(world)?.all().length ? groundWarming(world, planetRef(0)) : 0;
-  if (!warm || have === warm) return { warm };
+  const shift = shiftNow(world),
+    warm = shift.warm,
+    stamp = shift.key ? hashString(shift.key) || 1 : 0;
+  if (!stamp || have === stamp) return { warm, stamp };
   let kept = TURNED.get(world);
-  if (kept?.warm !== warm) {
+  if (kept?.key !== shift.key) {
     const g = homePlanet(world).generated.fine,
       turned: number[] = [];
     for (let c = 0; c < g.grid.count; c++) {
-      const b = biomeUnder(g, c, warm);
+      const b = biomeShifted(g, c, shift);
       if (b !== g.climate.biome[c]) turned.push(c, b);
     }
-    TURNED.set(world, (kept = { warm, turned }));
+    TURNED.set(world, (kept = { key: shift.key, turned }));
   }
-  return { warm, turned: kept.turned };
+  return { warm, stamp, turned: kept.turned };
 }
 
 /** The god's warming of the world, on its page and on the act's: what was asked, how far the ground has come, what it did. */

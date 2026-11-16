@@ -7,11 +7,12 @@ import {
   BIOME,
   cellRef,
   classify,
+  currentsOf,
   isProvinceWorld,
   offworldSite,
   type HomeWorld,
 } from "../../gen/index.ts";
-import { BANDS, OCCUPATIONS, SEXES, type Medium } from "../../rules/index.ts";
+import { BANDS, OCCUPATIONS, SEXES, seasonOf, type Medium } from "../../rules/index.ts";
 
 export const ROWS = SEXES * BANDS;
 export const COLS = OCCUPATIONS.length;
@@ -85,17 +86,74 @@ export function biomeUnder(w: HomeWorld, cell: number, warm: number): number {
   return now === was ? made : now;
 }
 
+/**
+ * How a world's ground stands against as it was made (planet/motion.ts shiftNow): the warmth its ground has turned
+ * (degrees, the god's and the climate's, in quarter degrees), its seas (m, whole), its overturning less one
+ * (twentieths: the share of its currents' warmth its coasts have lost or gained), and which of the fine lands whose ice
+ * is kept bear a sheet now (1 a sheet, 2 none, 0 a land not kept: as its warmth reads it; null: none kept). `key` is ""
+ * exactly where nothing has moved.
+ */
+export type Shift = {
+  readonly key: string;
+  readonly warm: number;
+  readonly sea: number;
+  readonly overturn: number;
+  readonly ice: Uint8Array | null;
+};
+
+export const AS_MADE: Shift = { key: "", warm: 0, sea: 0, overturn: 0, ice: null };
+
+/** A land's warmth past which nothing of its liquid's life can bear it (degrees of its climate). */
+export const SEARED = 48;
+
+/** A fine cell's warmth through a Shift: its own, the ground's turning, and its current's share lost or gained. */
+export function warmthShifted(w: HomeWorld, cell: number, shift: Shift): number {
+  const current = shift.overturn ? shift.overturn * (currentsOf(w).warmth[cell] ?? 0) : 0;
+  return w.climate.temperature[cell]! + shift.warm + current;
+}
+
+/**
+ * A fine cell's biome through a Shift (as made where nothing about it has moved): its warmth turned, its sea risen or
+ * fallen, its sheet standing or gone, read by the rule that named every biome when the world was made.
+ */
+export function biomeShifted(w: HomeWorld, cell: number, shift: Shift): number {
+  const made = w.climate.biome[cell]!;
+  if (!shift.key) return made;
+  const e = w.tectonics.elevation[cell]!,
+    t = w.climate.temperature[cell]!,
+    p = w.climate.precipitation[cell]!,
+    eNow = e - shift.sea,
+    was = classify(e, t, p);
+  let now = classify(
+    eNow,
+    warmthShifted(w, cell, shift),
+    p * rainUnderWarmth(w.grid.lat[cell]!, p, shift.warm),
+  );
+  const sheet = shift.ice?.[cell] ?? 0;
+  if (eNow > 0 && sheet === 1) now = BIOME.ice;
+  else if (eNow > 0 && sheet === 2 && now === BIOME.ice) now = BIOME.tundra;
+  return now === was ? made : now;
+}
+
+/** Whether a fine cell's warmth through a Shift is past what its life can bear. */
+export function searedUnder(w: HomeWorld, cell: number, shift: Shift): boolean {
+  return !!shift.key && warmthShifted(w, cell, shift) > SEARED;
+}
+
 export function capacity(
   w: HomeWorld,
   cell: number,
   medium: Medium = "land",
   /** The degrees its ground has turned warmer by the god's hand (0: as it was made, nearly always). */
   warm = 0,
+  /** How its ground stands now, where it has moved (planet/motion.ts): read in place of `warm`. */
+  shift: Shift | null = null,
 ): Capacity {
   // Halls on another world are farmed under their roofs alone: no wild, no pasture.
   const site = offworldSite(w, cell);
   if (site)
     return { forage: 0, farm: site.area * HALL_FARM * FARM_YIELD, pasture: 0, areaKm2: site.area };
+  const moved = shift?.key ? shift : null;
   // A province feeds what its fine cells feed.
   if (isProvinceWorld(w)) {
     let forage = 0,
@@ -103,7 +161,7 @@ export function capacity(
       pasture = 0,
       areaKm2 = 0;
     for (let k = w.childOffsets[cell]!; k < w.childOffsets[cell + 1]!; k++) {
-      const c = capacity(w.fine, w.children[k]!, medium, warm);
+      const c = capacity(w.fine, w.children[k]!, medium, warm, moved);
       forage += c.forage;
       farm += c.farm;
       pasture += c.pasture;
@@ -113,20 +171,35 @@ export function capacity(
   }
   const radiusKm = 6371 * w.planet.radius,
     areaKm2 = w.grid.areas[cell]! * radiusKm * radiusKm,
-    biome = biomeUnder(w, cell, warm);
+    biome = moved ? biomeShifted(w, cell, moved) : biomeUnder(w, cell, warm),
+    e = w.tectonics.elevation[cell]! - (moved?.sea ?? 0),
+    heat = moved ? warmthShifted(w, cell, moved) - w.climate.temperature[cell]! : warm;
+  // (Past what its life can bear: nothing lives there.)
+  if (moved && searedUnder(w, cell, moved)) return { forage: 0, farm: 0, pasture: 0, areaKm2 };
   // A people of the water lives on the shelf; one of the shore where land and shelf meet.
-  if (medium === "water") return sea(w, cell, areaKm2, 1, warm);
+  if (medium === "water") return sea(w, cell, areaKm2, 1, heat, biome);
   if (medium === "shore") {
     if (!coastal(w, cell)) return { forage: 0, farm: 0, pasture: 0, areaKm2 };
-    if (w.tectonics.elevation[cell]! <= 0) return sea(w, cell, areaKm2, 0.5, warm);
+    if (e <= 0) return sea(w, cell, areaKm2, 0.5, heat, biome);
   }
-  return land(w, cell, areaKm2, biome);
+  // (Land drowned by a risen sea feeds no one who walks.)
+  if (moved && e <= 0) return { forage: 0, farm: 0, pasture: 0, areaKm2 };
+  return land(w, cell, areaKm2, biome, heat);
 }
 
 /** What a shelf gives a people of the water: the warmer the more (the coldest seas a third as much). */
-function sea(w: HomeWorld, cell: number, areaKm2: number, share: number, warmer = 0): Capacity {
-  const biome = biomeUnder(w, cell, warmer),
-    warm = Math.min(1, Math.max(0.3, 0.3 + (0.7 * (w.climate.temperature[cell]! + warmer)) / 18)),
+function sea(
+  w: HomeWorld,
+  cell: number,
+  areaKm2: number,
+  share: number,
+  warmer = 0,
+  biome = biomeUnder(w, cell, warmer),
+): Capacity {
+  const warm = Math.min(
+      1,
+      Math.max(0.3, 0.3 + (0.7 * (w.climate.temperature[cell]! + warmer)) / 18),
+    ),
     k = areaKm2 * warm * share;
   return {
     forage: k * (SEA_FORAGE[biome] ?? 0),
@@ -145,7 +218,14 @@ export function coastal(w: HomeWorld, cell: number): boolean {
 }
 
 /** Whether a people of a medium can live in a cell at all (and it is not ice or bare rock). */
-export function livable(w: HomeWorld, cell: number, medium: Medium, warm = 0): boolean {
+export function livable(
+  w: HomeWorld,
+  cell: number,
+  medium: Medium,
+  warm = 0,
+  shift: Shift | null = null,
+): boolean {
+  if (shift?.key) return livableShifted(w, cell, medium, shift);
   if (medium === "land") {
     if (w.tectonics.elevation[cell]! <= 0) return false;
     const biome = biomeUnder(w, cell, warm);
@@ -154,8 +234,40 @@ export function livable(w: HomeWorld, cell: number, medium: Medium, warm = 0): b
   return capacity(w, cell, medium, warm).forage > 0;
 }
 
-function land(w: HomeWorld, cell: number, areaKm2: number, biome: number): Capacity {
+/** Whether a people of a medium can live in a cell through a Shift: on a province, on any of its fine cells. */
+function livableShifted(w: HomeWorld, cell: number, medium: Medium, shift: Shift): boolean {
+  if (offworldSite(w, cell)) return capacity(w, cell, medium, 0, shift).forage > 0;
+  const one = (f: HomeWorld, c: number): boolean => {
+    if (medium === "land") {
+      if (f.tectonics.elevation[c]! - shift.sea <= 0) return false;
+      const b = biomeShifted(f, c, shift);
+      if (b === BIOME.ice || b === BIOME.alpine) return false;
+    }
+    return capacity(f, c, medium, 0, shift).forage > 0;
+  };
+  if (!isProvinceWorld(w)) return one(w, cell);
+  for (let k = w.childOffsets[cell]!; k < w.childOffsets[cell + 1]!; k++)
+    if (one(w.fine, w.children[k]!)) return true;
+  return false;
+}
+
+/** What a land's seasons do to its yield against under Earth's sky (rules/seasons.ts): its warmth `heat` degrees turned. */
+export function seasonFactor(w: HomeWorld, cell: number, heat = 0): number {
+  const p = w.planet;
+  return seasonOf(
+    w.climate.temperature[cell]! + heat,
+    w.climate.seasonality[cell]!,
+    p.tilt,
+    p.dayHours,
+    p.yearDays,
+  ).factor;
+}
+
+function land(w: HomeWorld, cell: number, areaKm2: number, biome: number, heat = 0): Capacity {
   const river = w.water.river[cell] === 1,
+    // Its seasons against Earth's sky: its fields by the whole of it, its wild and its grass by its root.
+    season = seasonFactor(w, cell, heat),
+    wild = Math.sqrt(season),
     // A river greens a dry valley and waters its fields.
     wet = river
       ? biome === BIOME.hotDesert || biome === BIOME.coldDesert || biome === BIOME.steppe
@@ -163,9 +275,9 @@ function land(w: HomeWorld, cell: number, areaKm2: number, biome: number): Capac
         : 1.3
       : 1;
   return {
-    forage: areaKm2 * (FORAGE[biome] ?? 0) * wet,
-    farm: areaKm2 * Math.min(0.6, (ARABLE[biome] ?? 0) * wet) * FARM_YIELD,
-    pasture: areaKm2 * (PASTURE[biome] ?? 0) * HERD_YIELD,
+    forage: areaKm2 * (FORAGE[biome] ?? 0) * wet * wild,
+    farm: areaKm2 * Math.min(0.6, (ARABLE[biome] ?? 0) * wet) * FARM_YIELD * season,
+    pasture: areaKm2 * (PASTURE[biome] ?? 0) * HERD_YIELD * wild,
     areaKm2,
   };
 }

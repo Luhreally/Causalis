@@ -27,6 +27,13 @@ export type Membrane = "bilayer" | "tetraether" | "supple" | "inverted" | "azoto
 export type Pigment =
   "chlorophyll" | "carotene" | "phycocyanin" | "bacteriochlorophyll" | "polyimine";
 
+/**
+ * What the chains of its body are built on: carbon's, as every life known; or, where its world is rich in silicon and
+ * poor in carbon and holds neither water nor free oxygen to break silicon's chains, chains of silicon and hydrogen
+ * (silanes, in the cold of liquid methane) or of silicon and nitrogen (silazanes, in ammonia).
+ */
+export type Backbone = "carbon" | "silane" | "silazane";
+
 /** A world's life by what it is made of. */
 export type LifeChemistry = {
   /** Its world's kind (whose seas it was born in). */
@@ -52,6 +59,8 @@ export type LifeChemistry = {
   readonly dye: string;
   /** Earth's own (EARTH_LIFE), and only it. */
   readonly earth: boolean;
+  /** Its chains, where they are not carbon's (Round D: absent on every life of carbon, as all were before). */
+  readonly backbone?: Exclude<Backbone, "carbon">;
 };
 
 /** What a world's life is read from: its kind and chemistry's classes, its star, its warmth, a draw of its ground. */
@@ -159,8 +168,52 @@ const PIGMENT_SUBST: Readonly<Record<Pigment, string>> = {
   polyimine: "polyimine",
 };
 
+/**
+ * What its chains are built on (Round D), by what its world has of each and what would break them. Carbon's chains
+ * hold in every liquid; silicon's burn in oxygen and fall apart in water (silanes hydrolyse), so they stand only in a
+ * dry, oxygen-free liquid: in liquid methane, cold enough that silicon's chains hold as well as carbon's and react
+ * faster where carbon's barely move; in ammonia, where silicon binds to nitrogen (silazanes) and holds. Of the two, the
+ * one its world holds more of wins: a rock rich in silica (its magnesium short against its silicon) and poor in carbon.
+ */
+export function backboneOf(i: Pick<LifeInputs, "kind" | "carbon" | "silica" | "mean">): {
+  readonly backbone: Backbone;
+  readonly why: string;
+} {
+  const silicon = i.silica === "high" ? 1.6 : i.silica === "solar" ? 1 : 0.6,
+    carbon = i.carbon === "carbon-rich" ? 2 : 1,
+    holds =
+      i.kind === "methane" && i.mean < -150 ? 1.2 : i.kind === "ammonia" && i.mean < -30 ? 0.9 : 0;
+  if (silicon * holds > carbon)
+    return i.kind === "methane"
+      ? {
+          backbone: "silane",
+          why: "its rock is rich in silicon and poor in carbon, and in liquid methane, with no water or oxygen to break them, chains of silicon and hydrogen hold as well as carbon's and react where carbon's barely move",
+        }
+      : {
+          backbone: "silazane",
+          why: "its rock is rich in silicon and poor in carbon, and in cold ammonia, with no water or oxygen to break them, silicon binds to nitrogen in chains that hold",
+        };
+  return {
+    backbone: "carbon",
+    why:
+      holds > 0
+        ? "silicon's chains could hold in its liquid, but its world holds more carbon to build with"
+        : "silicon's chains would burn in its oxygen or fall apart in its water: its life is of carbon, as every life known",
+  };
+}
+
+/** A life with its chains read (absent where they are carbon's). */
+function withBackbone(l: LifeChemistry, i: LifeInputs): LifeChemistry {
+  const b = backboneOf(i).backbone;
+  return b === "carbon" ? l : { ...l, backbone: b };
+}
+
 /** A world's life from its kind, its chemistry, its star and its warmth (never Earth's own: that is EARTH_LIFE). */
 export function lifeChemistryOf(i: LifeInputs): LifeChemistry {
+  return withBackbone(lifeOfKind(i), i);
+}
+
+function lifeOfKind(i: LifeInputs): LifeChemistry {
   if (i.numbers) return lifeByNumbers(i, i.numbers);
   const family = FAMILY_OF[i.kind],
     hand: Hand = i.hand < 0.5 ? "left" : "right",
@@ -239,7 +292,7 @@ function lifeByNumbers(
   i: LifeInputs,
   n: { readonly o2: number; readonly acid: boolean },
 ): LifeChemistry {
-  const kept = lifeChemistryOf({ ...i, numbers: undefined }),
+  const kept = lifeOfKind({ ...i, numbers: undefined }),
     family = kept.family,
     breath: Breath = n.o2 >= LEAST_BREATH ? "oxygen" : "hydrogen",
     blood: Blood =
@@ -310,7 +363,39 @@ const UNHANDED: ReadonlySet<string> = new Set(["squalene", "acetylene"]);
  */
 export function eats(eater: LifeChemistry, food: LifeChemistry): boolean {
   if (eater.family !== food.family) return false;
+  // (A body of silicon's chains can make nothing of carbon's, nor carbon's of silicon's.)
+  if ((eater.backbone ?? "carbon") !== (food.backbone ?? "carbon")) return false;
   return eater.hand === food.hand || UNHANDED.has(food.store);
+}
+
+// —— What a people of a life needs ————————————————————————————————————————————————————————————————
+
+/** What a people of a life must have and must be kept from (Round D): its breath, its liquid, its food, its poisons. */
+export type LifeNeeds = {
+  readonly breath: Breath;
+  readonly liquid: string;
+  /** What its food must be: life of its own chains, liquid and hand. */
+  readonly food: string;
+  /** What breaks its body: what it must be sealed from wherever it goes. */
+  readonly poisons: readonly string[];
+};
+
+export function needsOf(l: LifeChemistry): LifeNeeds {
+  const silicon = l.backbone !== undefined;
+  return {
+    breath: l.breath,
+    liquid: l.liquid,
+    food: silicon
+      ? `life of silicon's chains (${l.backbone === "silane" ? "silanes" : "silazanes"}) in ${l.liquid}`
+      : `life of carbon in ${l.liquid}, turning ${l.hand === "left" ? "as Earth's" : "the mirror of Earth's"}`,
+    poisons: silicon
+      ? ["oxygen", "water"]
+      : l.breath === "hydrogen"
+        ? ["oxygen"]
+        : l.family === "water"
+          ? []
+          : ["water"],
+  };
 }
 
 // —— Words ————————————————————————————————————————————————————————————————————————————————

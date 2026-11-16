@@ -2209,6 +2209,8 @@ async function runPlanetPage(): Promise<void> {
   let globeSurfaceKey = "";
   /** The world's ground as the god's warming has turned it (asked 2026-11-14): the degrees, and the globe's frame drawn by them. */
   let groundWarm = 0,
+    // (Which reading of the ground is drawn: the warmth alone, or with the seas and ice moved too, Round D.)
+    groundStamp = 0,
     groundTurned: readonly number[] = [],
     warmAsked = -1,
     warmFrame: {
@@ -2237,9 +2239,11 @@ async function runPlanetPage(): Promise<void> {
       return;
     warmAsked = y;
     void client
-      .query<WarmthMap>({ type: "climate.warmth", args: { have: groundWarm } })
+      .query<WarmthMap>({ type: "climate.warmth", args: { have: groundStamp } })
       .then((map) => {
-        if (map.warm === groundWarm) return;
+        const stamp = map.stamp ?? map.warm;
+        if (stamp === groundStamp) return;
+        groundStamp = stamp;
         groundWarm = map.warm;
         groundTurned = map.turned ?? [];
         warmFrame = null;
@@ -2250,13 +2254,13 @@ async function runPlanetPage(): Promise<void> {
   const paintGlobe = () => {
     const made = client.latestFrame("globe");
     if (!made) return;
-    if (groundWarm && (warmFrame?.of !== made || warmFrame.warm !== groundWarm))
+    if (groundStamp && (warmFrame?.of !== made || warmFrame.warm !== groundStamp))
       warmFrame = {
         of: made,
-        warm: groundWarm,
+        warm: groundStamp,
         frame: warmedFrame(made, groundWarm, groundTurned),
       };
-    const frame = groundWarm ? warmFrame!.frame : made;
+    const frame = groundStamp ? warmFrame!.frame : made;
     const surfaceKey = (frame.meta as { surfaceKey?: string }).surfaceKey ?? "";
     if (!globe.built || globeSurfaceKey !== surfaceKey) {
       globe.build(

@@ -3,6 +3,8 @@
 // and a ship bound for a star are lands too (offworld sites), and a spot of the fine grid
 // and a region open onto the land they are part of.
 import { landLostBlocks } from "./lost.ts";
+import { landSkyRows } from "./motion.ts";
+import { partnersBlock } from "./kinds-play.ts";
 import { landRoadsBlock } from "./road.ts";
 import { fireLandStats } from "./fire.ts";
 import { lodesBlock, woodsBlock, woodsTurnsBlock } from "./woods.ts";
@@ -313,6 +315,8 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
         "Seasons",
         place.seasonality > 0.5 ? "sharp" : place.seasonality > 0.2 ? "marked" : "mild",
       ),
+      // (Its growing and lean seasons, its day, its sea's current: Round D.)
+      ...landSkyRows(world, cell),
       stat("Water", place.river ? "a river runs through it" : place.lake ? "a lake" : "no river"),
       stat(
         "Plate",
@@ -371,6 +375,9 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
     // What goes on it, when, and what has become of them (Z1).
     const herds = herdBlock(world, cell);
     if (herds) blocks.push(herds);
+    // What lives with and off its beasts and flocks (Round D).
+    const partners = partnersBlock(world, cell);
+    if (partners) blocks.push(partners);
     if (p) {
       const e = p.ecology,
         rows: Stat[] = [
