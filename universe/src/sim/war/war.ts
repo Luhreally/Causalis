@@ -13,6 +13,9 @@
 import { groundOf, supplyOf } from "./ground.ts";
 import { OccupationStore, occupationYear, occupy } from "./occupation.ts";
 import { godFall, godMen, godPower } from "./godhost.ts";
+import { ArmingStore, armingYear, footingFields, footingPower } from "./arming.ts";
+import { NavyStore, landingOf, navyYear } from "./navy.ts";
+import { SiegeStore, siegeAtSeat, siegesYear } from "./siege.ts";
 import {
   YEAR,
   defineEventType,
@@ -830,7 +833,9 @@ function fieldShare(ctx: PopulationContext, p: Polity): number {
     // (More where its people bear arms of their own, less where only its host does: rules/holds.ts force.)
     0.04 * (HOLDING.forceMid - holdOf(ctx.world, p.ref, HOLD.force)) +
     // (More against a way it fears: exactly 0 where it fears no one. sim/finance.)
-    fearFields(ctx.world, p.ref)
+    fearFields(ctx.world, p.ref) +
+    // (More as it turns what it makes to arms: exactly 0 where it turns none. sim/war/arming.ts.)
+    footingFields(ctx.world, p.ref)
   );
 }
 
@@ -900,7 +905,7 @@ export function strengthOf(ctx: PopulationContext, p: Polity): number {
     // What its host fights with: its design (realized now, if the realm is newer than it), as
     // its seat makes it and as much of it as the host bears (Phase 52 M217: sim/war/arms.ts),
     // borne by bodies as strong as they are.
-    arms = armsOf(ctx, p).power * ctx.affords.strength,
+    arms = armsOf(ctx, p).power * ctx.affords.strength * footingPower(ctx.world, p.ref),
     own = fightingMen(ctx, p) * share * arms,
     // (And the men the god stood up for it, as they are armed: none for nearly every realm, godhost.ts.)
     god = godPower(ctx.world, p.ref);
@@ -1522,7 +1527,10 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         (hungry && !chestA ? (fed > 0 ? 1 - 0.3 * (1 - Math.min(1, fed)) : 0.7) : 1) *
         (chestA ? CREDIT.chest : 1) *
         (1 + 0.3 * lore.effect(a.seat, "sieges")) *
-        (aim !== "ally" && overseas(ctx, a, land) ? LANDING : 1) *
+        // (Carried over the sea as far as its hulls hold it, and landed as well as its fleet holds the sea: sim/war/navy.ts.)
+        (aim !== "ally" && overseas(ctx, a, land)
+          ? landingOf(world, w, 0, fieldedOf(ctx, a), LANDING)
+          : 1) *
         // (A realm in more than one war divides its host among them: D1.)
         (1 / Math.max(1, wars.fighting(a.ref).length)) *
         sightTerm(fleetA?.flyers ?? 0, fleetB?.flyers ?? 0),
@@ -1634,8 +1642,14 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     w.battles.push(fought);
     wars.noteFell(fought);
     wars.noteTerms(w, fought, termsA, termsB, bodySize(ctx));
-    // A seat is not taken in a day: the first victory there lays a siege, the second takes it.
-    const besieged = seat && won && !w.battles.slice(0, -1).some((x) => x.land === land && x.won);
+    // A seat is not taken in a day: a victory there lays a siege, and it falls only when stormed or starved (sim/war/siege.ts).
+    // Those the siege killed besides the battle (the camp's sick, the town's sick and starved) are the war's cost too.
+    const sieged = seat
+        ? siegeAtSeat(ctx, w, a, b, won, armsA.fire + armsA.breach, fielded[0], t)
+        : null,
+      besieged = seat && won && !sieged?.falls;
+    if (sieged && (sieged.dead[0] || sieged.dead[1]))
+      w.fallen = [w.fallen[0] + sieged.dead[0], w.fallen[1] + sieged.dead[1]];
     // (A host come for grain carries it off; come for tribute, or to be free, it leaves the land where it lies: W7.)
     const hauled = won && aim === "stores" ? sack(ctx, a, b, land, battle) : 0;
     if (won && !besieged && takesLand(aim)) {
@@ -1772,6 +1786,16 @@ export function installWar(world: World, ctx: () => PopulationContext): WarStore
   const held = world.register(new OccupationStore());
   world.addPinner(() => held.pinned());
   world.system({ key: "185.war.zoccupied", every: YEAR, run: (t) => occupationYear(ctx(), t) });
+  // (What realms turn to arms, their fleets and the sea fought for, before the war's year reads them; sieges let go after it.)
+  const arming = world.register(new ArmingStore());
+  world.addPinner(() => arming.pinned());
+  world.system({ key: "184.war.arming", every: YEAR, run: (t) => armingYear(ctx(), t) });
+  const navy = world.register(new NavyStore());
+  world.addPinner(() => navy.pinned());
+  world.system({ key: "184.war.navy", every: YEAR, run: (t) => navyYear(ctx(), t) });
+  const sieges = world.register(new SiegeStore());
+  world.addPinner(() => sieges.pinned());
+  world.system({ key: "185.war.zsieges", every: YEAR, run: (t) => siegesYear(ctx(), t) });
   return store;
 }
 

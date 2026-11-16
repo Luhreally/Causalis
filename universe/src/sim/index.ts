@@ -1472,3 +1472,38 @@ export {
   townRentOf,
   tradeStore,
 } from "./trade/kept.ts";
+  ARMING_EVENTS,
+  ArmingStore,
+  armingOf,
+  armingSpend,
+  armingYear,
+  footingFields,
+  footingOf,
+  footingPower,
+  madeAndSpare,
+  rivalsOf,
+  type Footing,
+} from "./war/arming.ts";
+export {
+  NAVY_EVENTS,
+  NavyStore,
+  blockadeOn,
+  coastal as touchesSea,
+  landingOf,
+  navyCost,
+  navyOf,
+  navyYear,
+  seaCommand,
+  seaRelief,
+  type SeaWar,
+  type Ships,
+} from "./war/navy.ts";
+export {
+  SIEGE_EVENTS,
+  SiegeStore,
+  siegeAtSeat,
+  siegeOf,
+  siegesOf,
+  siegesYear,
+  type Siege,
+} from "./war/siege.ts";

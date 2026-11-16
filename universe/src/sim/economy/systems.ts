@@ -34,6 +34,7 @@ import {
 } from "../../gen/index.ts";
 import { loreOf } from "../lore/lore.ts";
 import { fearShuts, financeOf } from "../finance/finance.ts";
+import { blockadeOn } from "../war/navy.ts";
 import {
   FINANCE,
   ENGINE_GAIN,
@@ -680,7 +681,8 @@ function trade(
     },
     cut = new Map<War, number>();
   const lore = loreOf(ctx.world),
-    money = financeOf(ctx.world);
+    money = financeOf(ctx.world),
+    navied = ctx.world.hasStore("war.navy");
   for (const e of edges(ctx)) {
     const war = open.length ? between(e.a, e.b) : null;
     if (war) {
@@ -703,7 +705,15 @@ function trade(
       // (What both ends' signals put on the line: traders see the far price as it moves, so move more and on a narrower
       // margin. Exactly 1 before either end has the telegraph: rules/signals.ts.)
       linked = connectivityOf(Math.min(lore.effect(e.a, "signal"), lore.effect(e.b, "signal"))),
-      moved = 0.25 * (1 + SIGNAL.tradeShare * linked) * (1 - FINANCE.shuts * shut) * (1 - barred),
+      // (A blockade cuts what goes by sea from a realm whose foe holds the sea: sim/war/navy.ts. Nothing where none is laid.)
+      blockaded =
+        e.sea && navied ? Math.max(blockadeOn(ctx.world, ta), blockadeOn(ctx.world, tb)) : 0,
+      moved =
+        0.25 *
+        (1 + SIGNAL.tradeShare * linked) *
+        (1 - FINANCE.shuts * shut) *
+        (1 - barred) *
+        (1 - blockaded),
       keen = 2 * (1 + SIGNAL.tradeMargin * linked),
       // (And what a journey cost in waiting on word and finding a buyer: the haul itself is what it was.)
       dealt = 1 - SIGNAL.tradeCost * linked;
