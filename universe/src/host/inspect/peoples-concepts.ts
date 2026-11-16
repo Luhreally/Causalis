@@ -63,7 +63,22 @@ export const PEOPLES_CONCEPTS: Readonly<Record<string, Concept>> = {
     drives: ["Its body's life, hunger, medicine, smoke and cold, its readers, its machines."],
     leads: ["How many it numbers, how young it is, how many it can send to war and to work."],
     see: [{ text: "The peoples of the world", ref: "world:peoples" }],
-    related: ["letters", "ways", "lore"],
+    related: ["letters", "labour", "ways", "lore"],
+  },
+  labour: {
+    icon: "⚒️",
+    title: "Who works at what",
+    what: [
+      "A land's fields take as many hands as grow what its people eat and a sixth to spare, at what a farmer's work yields there now: the tools and machines it has, what it knows of fields, its soil and its warmth. The more of its land is worked, the less each new field gives, so a land its people have filled keeps all the old share of its hands in the fields.",
+      "Where each farmer grows for many, the hands its fields do not need go to the crafts and to trade, as many to each as the old ways set them, and the towns grow with them.",
+      "And people leave a land for more than hunger and crowding: a battle fought there, a sack, a quake, a fire or a stone from the sky drives them out, to whatever land near it feeds them better. A stream of them going the same way year on year is told once, when it sets out.",
+    ],
+    drives: ["Its people's mouths, its fields, its tools and machines, what it knows of fields."],
+    leads: [
+      "What it makes, what it trades, how its towns grow, how dear its children are to raise.",
+    ],
+    see: [{ text: "The peoples of the world", ref: "world:peoples" }],
+    related: ["children", "letters", "ways"],
   },
 };
 
@@ -83,4 +98,7 @@ export const PEOPLES_CONCEPT_OF: Readonly<Record<string, string>> = {
   "Born last year": "children",
   "Mothers held by their young": "children",
   "Mothers sent to war": "children",
+  "Its fields need": "labour",
+  Farming: "labour",
+  "At crafts and trade": "labour",
 };

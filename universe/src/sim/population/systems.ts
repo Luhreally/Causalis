@@ -271,17 +271,24 @@ export function occupationTargets(
   cap: Capacity,
   villages: number,
   wages: readonly number[] | null = null,
+  farming = 1,
 ): number[] {
   const t = new Array<number>(COLS).fill(0);
   if (p.knowsCultivation) {
     // Herds only where beasts have been tamed (or the taming learned) and there is pasture;
     // else those hands farm.
-    const herds = cap.pasture > 0 && p.herding ? 0.07 : 0;
-    t[OCC.farmer] = 0.77 - herds;
+    const herds = cap.pasture > 0 && p.herding ? 0.07 : 0,
+      // (Of the hands the old ways set to the fields, those its fields need: the rest go to the crafts and to trade, as
+      // much to each as the old ways set them, round "peoples": farmingShare.)
+      fields = 0.77 - herds,
+      farm = fields * dmath.clamp(farming, 0, 1),
+      freed = fields - farm,
+      trades = villages >= 2;
+    t[OCC.farmer] = farm;
     t[OCC.forager] = 0.1;
     t[OCC.herder] = herds;
-    t[OCC.crafter] = 0.06;
-    t[OCC.trader] = villages >= 2 ? 0.04 : 0;
+    t[OCC.crafter] = 0.06 + freed * (trades ? 0.6 : 1);
+    t[OCC.trader] = trades ? 0.04 + freed * 0.4 : 0;
     t[OCC.leader] = 0.03;
   } else {
     t[OCC.forager] = 0.94;
@@ -300,6 +307,41 @@ export function occupationTargets(
   for (const o of flexible) t[o] = (t[o]! * share) / after;
   return t;
 }
+
+/**
+ * Of the hands the old ways set to a land's fields, the share its fields need (0 … 1; 1 where they need them all): as many as
+ * grow what its people eat and a sixth to spare, at what a farmer's work yields there now (its tools and machines, what it
+ * knows of fields, its soil, its warmth), the land's fields giving the less to each the more of them are worked
+ * (saturate). Where the land cannot feed them all, all the old share farm, as before; where each farmer grows for many,
+ * the rest go to the crafts and to trade, and to the towns (round "peoples": labour from what the land asks).
+ */
+export function farmingShare(ctx: PopulationContext, p: Province): number {
+  if (!p.knowsCultivation) return 1;
+  const m = marketsOf(ctx.world).get(p.cell);
+  if (!m) return 1;
+  const c = provinceCapacity(ctx, p.cell),
+    alive = wildsOf(ctx, p.cell),
+    lore = loreOf(ctx.world),
+    tools = (1 + (TOOL_GAIN * m.toolCover) / 1000) * (1 + (MACHINE_GAIN * m.machineCover) / 1000),
+    gathers = ctx.life.appetite * (1 - hallsShare(ctx, p.cell)),
+    fields =
+      (1 + lore.effect(p.cell, "farmYield")) *
+      heatYield(ctx, p.cell) *
+      darkFields(ctx.world, p.cell) *
+      alive.soil,
+    // (What all its fields give, worked to the full; and what its people eat, a sixth over.)
+    most = c.farm * fields,
+    need = mouths(p, ctx.life) * FARM_SPARE,
+    // (The hands the old ways set to its fields: all but its herders of 0.77 of its grown, as occupationTargets has it.)
+    old = adults(p, ctx.life) * (0.77 - (c.pasture > 0 && p.herding ? 0.07 : 0));
+  if (!(most > 0) || need >= most * 0.95 || !(old > 0)) return 1;
+  const per = PRODUCTIVITY[OCC.farmer]! * tools * gathers,
+    farmers = (-c.farm / per) * dmath.log(1 - need / most);
+  return dmath.clamp(farmers / old, FARM_FLOOR, 1);
+}
+/** What its fields grow past what its people eat, against hunger and a bad year; and the least of the old share that farms. */
+const FARM_SPARE = 7 / 6,
+  FARM_FLOOR = 0.03;
 
 /** What a province can feed in a year (person-years) with the ways it knows (its pasture only if it keeps herds). */
 export function support(cap: Capacity, knows: boolean, herds = true): number {
@@ -870,6 +912,7 @@ export function ageYear(ctx: PopulationContext, t: SimTime): void {
         provinceCapacity(ctx, p.cell),
         ctx.settlements.inProvince(p.cell).length,
         marketsOf(world).wagesOf(p.cell),
+        farmingShare(ctx, p),
       ),
       year = yearOfMoment(t),
       windowed = handOf(world).composition(p.cell, year, ctx.life);
@@ -935,6 +978,7 @@ export function workYear(ctx: PopulationContext, t: SimTime): void {
         provinceCapacity(ctx, p.cell),
         ctx.settlements.inProvince(p.cell).length,
         marketsOf(world).wagesOf(p.cell),
+        farmingShare(ctx, p),
       );
     const desired = apportion(
       grown,
@@ -998,6 +1042,20 @@ export function workYear(ctx: PopulationContext, t: SimTime): void {
   }
 }
 
+/** What drives a land's people from it, past hunger: a battle fought there, a sack, a quake, a fire, a stone from the sky. */
+const FLED_FROM: ReadonlySet<string> = new Set([
+  "war.battle",
+  "war.strike",
+  "act.quake",
+  "act.fire",
+  "act.meteor",
+  "wild.fire",
+]);
+/** How hard what struck a land pushes its people to leave it (hunger at its worst pushes 0.6; six in a hundred go a year at most). */
+const FLEE = 0.5;
+/** The land a place's ref names (cell:0:<n>). */
+const placeCell = (place: string): number => Number(place.slice(place.lastIndexOf(":") + 1));
+
 type PlannedFlow = {
   from: Province;
   to: number;
@@ -1015,6 +1073,15 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
   const peopled = (cell: number) => ctx.provinces.get(cell);
   // What the land feeds is in food; a people's mouths are their numbers by their appetite.
   const appetite = ctx.life.appetite;
+  // The lands a battle, a sack, a quake, a fire or a stone from the sky struck in the year gone: their people flee it, as
+  // well as hunger (round "peoples": refugees). The year's events, read back from the latest.
+  const struck = new Map<number, Ref>();
+  for (let i = world.events.count - 1; i >= 0; i--) {
+    const e = world.events.at(i);
+    if (e.t < t - YEAR) break;
+    if (e.place && FLED_FROM.has(e.type) && !struck.has(placeCell(e.place)))
+      struck.set(placeCell(e.place), e.id);
+  }
   for (const p of ctx.provinces.all()) {
     // (A stream that went last year can go on this one; one that did not has ended.)
     if (p.going.length && p.going.some((s) => s.year < year - 1))
@@ -1034,7 +1101,10 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
         : Math.min(0.3, Math.max(0, eating / Math.max(1, c.forage) - 0.25)),
       // (And a mine's end, for those who worked it: E1.)
       leaving = lodePush(world, p.cell, year),
-      pushed = 0.6 * hunger + crowd + leaving,
+      // (And what struck it: war, a sack, the ground's shaking, fire.)
+      ruin = struck.get(p.cell) ?? null,
+      fleeing = ruin ? FLEE : 0,
+      pushed = 0.6 * hunger + crowd + leaving + fleeing,
       pressure = pushed + budding;
     if (pressure < 0.05) continue;
     // Budding goes only to empty land; those pushed by hunger or crowding go anywhere better.
@@ -1142,6 +1212,12 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
               drought && t - drought.t < YEAR + MONTH
                 ? { ref: drought.id, role: "trigger", weight: 1 }
                 : null,
+          },
+          {
+            name: "fleeing war or ruin",
+            value: fleeing,
+            contribution: fleeing,
+            source: ruin ? { ref: ruin, role: "trigger", weight: 1 } : null,
           },
           {
             name: "better land",

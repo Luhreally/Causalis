@@ -68,6 +68,7 @@ export {
   spaceSteps,
   sitesReady,
   support,
+  farmingShare,
   machineShare,
   raisingCost,
   slowDeaths,

@@ -34,6 +34,7 @@ import { folkRef, waysRef } from "../../causal/index.ts";
 import { waysWhyBlock } from "./ways.ts";
 import { lettersBlock } from "./letters.ts";
 import { childrenBlock } from "./children.ts";
+import { labourBlock } from "./labour.ts";
 import { parseRef, type Ref, type World } from "../../kernel/index.ts";
 import type { Block, Item, Line, PageModel, Place, Row, Stat, Tab } from "../../bridge/index.ts";
 import { cell as spotFacts, market, province } from "../planet.ts";
@@ -270,6 +271,9 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
     // How many children they bear, and why (rules/children.ts).
     const children = childrenBlock(world, cell);
     if (children) blocks.push(children);
+    // Who works at what, and why (sim/population/systems.ts farmingShare).
+    const labour = labourBlock(world, cell);
+    if (labour) blocks.push(labour);
     if (p.faith)
       blocks.push({
         type: "facts",
