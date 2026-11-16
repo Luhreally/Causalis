@@ -30,12 +30,13 @@ export type Baked = {
 type BakedFor = Pick<Baked, "universe" | "seed" | "ruleset">;
 
 /**
- * About how long a year takes, by how far on it is: this machine's milliseconds at every 500th year
- * (tools/sky-survey.ts, its yearMs: Earth's and two aliens' together; to year 3,100 again for Phase 66, whose
- * ages cost more than those before them, and held on from there). Only the shape counts once a jump is under
- * way: a world's own pace so far scales it. Past the last it is taken to hold.
+ * About how long a year takes, by how far on it is: this machine's milliseconds at every 500th year. To 1,500 as
+ * tools/cost.ts read the default world on 2026-11-15, its late years made cheaper that day (the fifty years to each
+ * mark: 275 at 500, 326 at 1,000, 505 at 1,500; a young world's few towns about 120); past it, the rise
+ * tools/sky-survey.ts found to year 3,100 for Phase 66 (Earth's and two aliens' together), scaled to it. Only the
+ * shape counts once a jump is under way: a world's own pace so far scales it. Past the last it is taken to hold.
  */
-const YEAR_MS = [60, 170, 205, 232, 257, 267, 262, 262, 264, 266, 268, 270, 272];
+const YEAR_MS = [120, 275, 326, 505, 559, 581, 570, 570, 575, 579, 583, 588, 592];
 /** The phone floor (an iPhone 15 Plus) runs at two thirds of this machine's pace (tools/phase6-gate.ts). */
 const PHONE = 1.5;
 

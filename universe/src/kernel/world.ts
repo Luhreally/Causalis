@@ -67,7 +67,8 @@ const COMMAND_AGENDA = "kernel.command";
 const DOMAINS_FIRST = 320,
   DOMAINS_LAST = 64;
 /** Past the first DOMAINS_FIRST checkpoints, a checkpoint is taken one period in so many (the tenth year). */
-const LATE_EVERY = 10;
+const LATE_EVERY = 10,
+  LATE_AT = 5;
 /** How old a kept event or decision is before it goes cold (kernel/cold.ts). */
 const COLD_AFTER = 50 * YEAR;
 
@@ -129,8 +130,9 @@ export class World {
       every,
       run: (t) => {
         // (Every period through the first centuries, the oracle's; then one in LATE_EVERY: hashing every store
-        // is a tenth of a late year, and a world parted from another stays parted.)
-        if (this.chain.length < DOMAINS_FIRST || Math.round(t / every) % LATE_EVERY === 0)
+        // is a tenth of a late year, and a world parted from another stays parted. In the fifth year of a decade,
+        // not the decade's own, when history is reckoned: no one year carries both.)
+        if (this.chain.length < DOMAINS_FIRST || Math.round(t / every) % LATE_EVERY === LATE_AT)
           this.checkpoint(t);
         this.keepHouse(t);
         // (What reads each year as it closes, once all of it is done: nothing it does is history.)
