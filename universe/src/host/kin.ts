@@ -866,10 +866,14 @@ export function byKind(f: Family, pairing: Pairing, adulthood: number): Family {
     standing = u(key, 2),
     partners = partnersOf(pairing, grown, standing, draw, f.spouse !== null),
     words = PAIRING_WORDS[pairing],
-    kept = `${f.kept} Their kind ${words.name}: ${words.line} ${words.heirs}`;
-  if (pairing === "brood" || pairing === "none") return { ...f, spouse: null, children: [], kept };
+    kept = `${f.kept} Their kind ${words.name}: ${words.line} ${words.heirs}`,
+    // (A marriage of state history keeps, the god's hand's or the world's own bond between houses, is a tie of their realms,
+    // whatever their kind makes of partners: a ruler of a people that pairs for a season, wed by the hand, was told unwed on
+    // their family page the moment after (gate 76, harrow 348 at 400, every realm that wed).)
+    bond = f.spouse?.event ? f.spouse : null;
+  if (pairing === "brood" || pairing === "none") return { ...f, spouse: bond, children: [], kept };
   if (!partners)
-    return { ...f, spouse: null, children: pairing === "harem" ? [] : f.children, kept };
+    return { ...f, spouse: bond, children: pairing === "harem" ? [] : f.children, kept };
   const spouse = f.spouse ?? null;
   return {
     ...f,
