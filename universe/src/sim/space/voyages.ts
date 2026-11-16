@@ -5,6 +5,7 @@
 // crossing, their ways and tongue drifting with no one near — and when it arrives it
 // becomes halls on that world. Word of it travels at light's speed; its lag weighs on its
 // rule as light-years (stars.ts: lightSteps).
+import { motionOf } from "../planet/motion.ts";
 import {
   Rng,
   YEAR,
@@ -258,6 +259,15 @@ export function voyageYear(ctx: PopulationContext, t: SimTime): void {
         value: 1,
         contribution: 0.5,
         source: { ref: origin.lastFamine, role: "pressure", weight: 1 },
+      });
+    // (Their world dying under them, or its star swelling at the end of its life: they must leave, or end. Round D.)
+    const dying = motionOf(world)?.state;
+    if (dying?.dying || dying?.swelling)
+      reasons.push({
+        name: dying.dying ? "their world dying under them" : "their star swelling at its end",
+        value: 1,
+        contribution: dying.dying ? 3 : 1,
+        source: { ref: (dying.dying ?? dying.swelling)!, role: "pressure", weight: 1 },
       });
     const drive = reasons.reduce((s, f) => s + f.contribution, 0.3);
     if (!(world.rng.real(VOYAGE, p.seat, t, 0) < FLIGHT_PACE * drive)) continue;

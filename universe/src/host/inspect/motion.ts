@@ -3,8 +3,15 @@
 // seas' overturning and the coasts its currents warm, its field and what it keeps off, and its star's life. Pure reads.
 import { yearOfMoment, type World } from "../../kernel/index.ts";
 import { currentsOf } from "../../gen/index.ts";
-import { STAR_LIFE, starLifeOf } from "../../rules/index.ts";
-import { homeField, homePlanet, homeStarLife, motionOf, starEnded } from "../../sim/index.ts";
+import { EARTH_SKY, STAR_LIFE, dayOf, seasonOf, starLifeOf } from "../../rules/index.ts";
+import {
+  homeField,
+  homePlanet,
+  homeStarLife,
+  motionOf,
+  populationContext,
+  starEnded,
+} from "../../sim/index.ts";
 import type { Block, Item, Stat } from "../../bridge/index.ts";
 import { landLink } from "./names.ts";
 import { count, item, link, stat } from "./words.ts";
@@ -321,4 +328,121 @@ export function motionBlocks(world: World): Block[] {
       ],
     });
   return blocks;
+}
+
+/** A land's seasons and days, its current and its sea, as its ground page reads them (Round D). */
+export function landSkyRows(world: World, cell: number): Stat[] {
+  const g = homePlanet(world).generated;
+  if (cell >= g.offworld.base) return [];
+  const p = g.planet,
+    f = g.fine,
+    season = seasonOf(
+      g.climate.temperature[cell]!,
+      g.climate.seasonality[cell]!,
+      p.tilt,
+      p.dayHours,
+      p.yearDays,
+    ),
+    day = dayOf(g.grid.lat[cell]!, p.tilt, p.dayHours),
+    months = (x: number) => (x < 10 ? x.toFixed(1) : `${Math.round(x)}`),
+    rows: Stat[] = [
+      stat(
+        "Growing season",
+        `${months(season.grows * (p.yearDays / 30.44))} months of a year of ${count(Math.round(p.yearDays))} days${Math.abs(season.factor - 1) >= 0.03 ? `: its fields yield ${Math.round(season.factor * 100)} in a hundred of what they would under Earth's sky` : ""}`,
+      ),
+      stat("Lean season", `${months(season.lean)} months its stores must last`),
+      stat(
+        "Its day",
+        `${Math.round(p.dayHours)} hours: ${day.midnightSun ? "a summer sun that never sets" : `${Math.round(day.summerLight)} of light at midsummer`}, ${day.polarNight ? "a winter night that never ends" : `${Math.round(day.winterLight)} at midwinter`}; its people sleep ${day.sleeps === 1 ? "once" : day.sleeps === 2 ? "twice" : "three times"} a day`,
+      ),
+    ];
+  // Its coast's current, and its sea.
+  let sum = 0,
+    n = 0;
+  const w = currentsOf(f).warmth;
+  for (let k = g.childOffsets[cell]!; k < g.childOffsets[cell + 1]!; k++) {
+    const x = g.children[k]!;
+    if (f.tectonics.elevation[x]! <= 0) continue;
+    sum += w[x]!;
+    n++;
+  }
+  const mean = n ? sum / n : 0;
+  if (Math.abs(mean) >= 0.3)
+    rows.push(
+      stat(
+        "Its sea's current",
+        `${mean > 0 ? "a warm current" : "a cold current"}: ${signed(mean, "degrees")} against its latitude`,
+      ),
+    );
+  const turn = motionOf(world)?.lands.get(cell);
+  if (turn?.drowned)
+    rows.push(
+      stat("Drowned", `${Math.round(turn.share / 10)} in a hundred of it under the sea`, {
+        why: turn.drowned,
+      }),
+    );
+  else if (turn?.bared)
+    rows.push(
+      stat("Bared", `${Math.round(-turn.share / 10)} in a hundred more land`, { why: turn.bared }),
+    );
+  return rows;
+}
+
+/** The home world's seasons and days, for its page: its tilt, its day, its year, and its people's most peopled lands. */
+export function seasonBlocks(world: World): Block[] {
+  const g = homePlanet(world).generated,
+    p = g.planet,
+    ctx = populationContext(world),
+    lands = ctx.provinces
+      .all()
+      .filter((x) => x.total() > 0 && x.cell < g.offworld.base)
+      .sort((a, b) => b.total() - a.total() || a.cell - b.cell)
+      .slice(0, 6);
+  return [
+    {
+      type: "facts",
+      title: "☀️ Its seasons and days",
+      rows: [
+        stat("Its tilt", `${p.tilt.toFixed(1)}° (Earth's ${EARTH_SKY.tilt}°)`),
+        stat("Its day", `${p.dayHours.toFixed(1)} hours`),
+        stat("Its year", `${count(Math.round(p.yearDays))} standard days`),
+      ],
+    },
+    ...(lands.length
+      ? [
+          {
+            type: "table" as const,
+            title: "Where its people live",
+            columns: ["Land", "Growing", "Lean", "Yield"],
+            fit: true,
+            rows: lands.map((x) => {
+              const s = seasonOf(
+                g.climate.temperature[x.cell]!,
+                g.climate.seasonality[x.cell]!,
+                p.tilt,
+                p.dayHours,
+                p.yearDays,
+              );
+              return {
+                cells: [
+                  [landLink(world, x.cell)],
+                  [`${(s.grows * (p.yearDays / 30.44)).toFixed(1)} months`],
+                  [`${s.lean.toFixed(1)} months`],
+                  [`${Math.round(s.factor * 100)} in 100`],
+                ],
+                ref: x.ref,
+              };
+            }),
+          },
+        ]
+      : []),
+    {
+      type: "text",
+      lines: [
+        [
+          "A land's fields grow in the months its warmth stands above five degrees; a long night frosts its sprouts and raises that line; its stores must last the lean months between, and spoil as they wait. Its yield is against what the same land would give under Earth's tilt, day and year.",
+        ],
+      ],
+    },
+  ];
 }

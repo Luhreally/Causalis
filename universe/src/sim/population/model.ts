@@ -12,7 +12,7 @@ import {
   offworldSite,
   type HomeWorld,
 } from "../../gen/index.ts";
-import { BANDS, OCCUPATIONS, SEXES, type Medium } from "../../rules/index.ts";
+import { BANDS, OCCUPATIONS, SEXES, seasonOf, type Medium } from "../../rules/index.ts";
 
 export const ROWS = SEXES * BANDS;
 export const COLS = OCCUPATIONS.length;
@@ -184,7 +184,7 @@ export function capacity(
   }
   // (Land drowned by a risen sea feeds no one who walks.)
   if (moved && e <= 0) return { forage: 0, farm: 0, pasture: 0, areaKm2 };
-  return land(w, cell, areaKm2, biome);
+  return land(w, cell, areaKm2, biome, heat);
 }
 
 /** What a shelf gives a people of the water: the warmer the more (the coldest seas a third as much). */
@@ -251,8 +251,23 @@ function livableShifted(w: HomeWorld, cell: number, medium: Medium, shift: Shift
   return false;
 }
 
-function land(w: HomeWorld, cell: number, areaKm2: number, biome: number): Capacity {
+/** What a land's seasons do to its yield against under Earth's sky (rules/seasons.ts): its warmth `heat` degrees turned. */
+export function seasonFactor(w: HomeWorld, cell: number, heat = 0): number {
+  const p = w.planet;
+  return seasonOf(
+    w.climate.temperature[cell]! + heat,
+    w.climate.seasonality[cell]!,
+    p.tilt,
+    p.dayHours,
+    p.yearDays,
+  ).factor;
+}
+
+function land(w: HomeWorld, cell: number, areaKm2: number, biome: number, heat = 0): Capacity {
   const river = w.water.river[cell] === 1,
+    // Its seasons against Earth's sky: its fields by the whole of it, its wild and its grass by its root.
+    season = seasonFactor(w, cell, heat),
+    wild = Math.sqrt(season),
     // A river greens a dry valley and waters its fields.
     wet = river
       ? biome === BIOME.hotDesert || biome === BIOME.coldDesert || biome === BIOME.steppe
@@ -260,9 +275,9 @@ function land(w: HomeWorld, cell: number, areaKm2: number, biome: number): Capac
         : 1.3
       : 1;
   return {
-    forage: areaKm2 * (FORAGE[biome] ?? 0) * wet,
-    farm: areaKm2 * Math.min(0.6, (ARABLE[biome] ?? 0) * wet) * FARM_YIELD,
-    pasture: areaKm2 * (PASTURE[biome] ?? 0) * HERD_YIELD,
+    forage: areaKm2 * (FORAGE[biome] ?? 0) * wet * wild,
+    farm: areaKm2 * Math.min(0.6, (ARABLE[biome] ?? 0) * wet) * FARM_YIELD * season,
+    pasture: areaKm2 * (PASTURE[biome] ?? 0) * HERD_YIELD * wild,
     areaKm2,
   };
 }

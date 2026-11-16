@@ -2,6 +2,7 @@
 // market and works, its realm, what it knows and what has happened there. A colony's halls
 // and a ship bound for a star are lands too (offworld sites), and a spot of the fine grid
 // and a region open onto the land they are part of.
+import { landSkyRows } from "./motion.ts";
 import { landRoadsBlock } from "./road.ts";
 import { fireLandStats } from "./fire.ts";
 import { lodesBlock, woodsBlock, woodsTurnsBlock } from "./woods.ts";
@@ -293,6 +294,8 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
         "Seasons",
         place.seasonality > 0.5 ? "sharp" : place.seasonality > 0.2 ? "marked" : "mild",
       ),
+      // (Its growing and lean seasons, its day, its sea's current: Round D.)
+      ...landSkyRows(world, cell),
       stat("Water", place.river ? "a river runs through it" : place.lake ? "a lake" : "no river"),
       stat(
         "Plate",

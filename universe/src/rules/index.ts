@@ -1568,3 +1568,18 @@ export {
   type StarLife,
   type StarStage,
 } from "./planet.ts";
+export {
+  EARTH_SKY,
+  GROWS_ABOVE,
+  NIGHT_FALL,
+  SEASON_BOUNDS,
+  SLEEPS,
+  SPOIL,
+  dayOf,
+  nightFall,
+  seasonOf,
+  shareAbove,
+  swingOfTilt,
+  type Day,
+  type Season,
+} from "./seasons.ts";

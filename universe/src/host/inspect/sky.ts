@@ -1,7 +1,7 @@
 // The pages of the sky (Phase 10 M91): the home star and its worlds and moons, a star of the
 // cluster or of the galaxy far out, another star's world, and the people that rose on one.
 import { warmthBlocks } from "./warmth.ts";
-import { motionBlocks, starLifeBlocks } from "./motion.ts";
+import { motionBlocks, seasonBlocks, starLifeBlocks } from "./motion.ts";
 import { CLADES, makingWords, makingsOf } from "../../rules/index.ts";
 import {
   folkOf,
@@ -428,7 +428,15 @@ export function bodyPage(world: World, ref: string): PageModel {
         ],
       },
       // Its ground in motion (Round D): its warmth, ice and seas, its currents, its field, its star.
-      ...(home ? [{ id: "motion", name: "In motion", blocks: motionBlocks(world) }] : []),
+      ...(home
+        ? [
+            {
+              id: "motion",
+              name: "In motion",
+              blocks: [...seasonBlocks(world), ...motionBlocks(world)],
+            },
+          ]
+        : []),
       // What lives on it (Phase 18 M132): a few of the home star's worlds hold cells.
       ...(life && life.level !== "none"
         ? [
