@@ -23,6 +23,7 @@ import { claimOf, item, link, many, stat, yearNow } from "./words.ts";
 import { folkBlocks, nativePage } from "./natives.ts";
 import { starSicknessBlocks } from "./sickness.ts";
 import { starLifeBlock } from "../biochem.ts";
+import { farLifeTab } from "./farlife.ts";
 
 const ordinal = (n: number) =>
   `${n}${n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10 === 2 && n % 100 !== 12 ? "nd" : n % 10 === 3 && n % 100 !== 13 ? "rd" : "th"}`;
@@ -259,6 +260,11 @@ export function civilizationPage(world: World, ref: string): PageModel {
           { type: "why", ref },
         ],
       },
+      // (Their life by their own numbers: round F.)
+      ...(() => {
+        const life = farLifeTab(world, c.ref, color);
+        return life ? [life] : [];
+      })(),
       {
         id: "stars",
         name: "Stars",

@@ -5,6 +5,9 @@
 // stays true and is told: a colony's halls stand whatever became of those who went out from them. A later slice can
 // make this history (mines, bonded natives, risings, independence all want it): it would have to record the fight as an
 // event with its causes, spend the comers' machines, and take the natives' dead off a stored count, and that costs a seed list.
+// Round F takes the last of these: the year of a landing, sim/space/farlife.ts reads this fight once and takes those it killed and
+// those its sickness took off the natives' own numbers (farlife-store.ts), with their fear and what they learn of those who stay;
+// the fight itself is still read here, the same every time.
 import { civBody } from "../../gen/index.ts";
 import { hashString, type Ref, type World } from "../../kernel/index.ts";
 import {

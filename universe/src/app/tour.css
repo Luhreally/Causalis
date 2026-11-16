@@ -18,7 +18,8 @@
   pointer-events: auto;
 }
 .star-lens {
-  width: 46px;
+  /* (Six of them and their gaps within the bar's 276 px: 44 each.) */
+  width: 44px;
   min-width: 44px;
   height: 46px;
   min-height: 44px;

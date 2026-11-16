@@ -10,6 +10,7 @@ import {
   folkPeak,
   folkPeople,
   folkStage,
+  farNow,
   type Folk,
 } from "../../sim/index.ts";
 import type { World } from "../../kernel/index.ts";
@@ -21,6 +22,7 @@ import { figureBody } from "../folk.ts";
 import { LANDFALL_NOTE, landfallBlocks, landfallPlans } from "../landfall.ts";
 import { folkContact, folkFactsOf, folkList, folkOneRef } from "../natives.ts";
 import { item, link, many, sentence, stat, yearNow } from "./words.ts";
+import { farLifeTab, peoplesFareBlocks } from "./farlife.ts";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -37,6 +39,8 @@ function folkBlocksOf(world: World, f: Folk): Block[] {
     peak = folkPeak(f, year),
     arms = folkArms(f, stage),
     came = arrivalsAt(world, f),
+    // (Their numbers by their own life, where it is read: round F.)
+    lifeNow = f.lived ? farNow(world, f.ref, year) : null,
     rows: Stat[] = [
       stat("How far they have come", cap(STAGE_WORDS[stage])),
       ...(stage === "ruins" && f.fell !== null
@@ -44,7 +48,14 @@ function folkBlocksOf(world: World, f: Folk): Block[] {
             stat("They fell", `In year ${f.fell}, ${STAGE_WORDS[peak]}`),
             stat("As far as what is left tells", f.fellWhy ?? "No one can say"),
           ]
-        : [stat("How many", `Some ${folkPeople(f, year).toLocaleString("en")} (an estimate)`)]),
+        : [
+            stat(
+              "How many",
+              lifeNow
+                ? `Some ${Math.round(lifeNow.state.people).toLocaleString("en")} on all their world, by their own numbers (an estimate)`
+                : `Some ${folkPeople(f, year).toLocaleString("en")} (an estimate)`,
+            ),
+          ]),
       ...(arms.length ? [stat("What they carry", sentence(arms.join("; ")))] : []),
       ...(f.shut && stage !== "ruins" ? [stat("What holds them", f.shut)] : []),
       stat("Their ground gives", `${cap(f.stone.name)}, ${f.stone.from}`),
@@ -191,6 +202,11 @@ export function nativePage(world: World, f: Folk): PageModel {
           },
         ],
       },
+      // (Their life by their own numbers: round F.)
+      ...(() => {
+        const life = farLifeTab(world, f.ref);
+        return life ? [life] : [];
+      })(),
       { id: "met", name: "Met", blocks: meetingBlocks(world, f) },
     ],
     followable: false,
@@ -234,6 +250,7 @@ export function peoplesPage(world: World): PageModel {
             items: [item("What crosses, who runs it, and why", "world:trade")],
           },
           ...fillingBlocks(world),
+          ...peoplesFareBlocks(world),
           ...(met.length
             ? [{ type: "list" as const, title: "A ship has come to them", items: met.map(line) }]
             : []),

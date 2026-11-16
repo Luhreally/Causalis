@@ -10,6 +10,7 @@ export const STAR_LENSES: readonly (readonly [StarLens, string, string])[] = [
   ["lanes", "🌀", "Lanes and ships"],
   ["trade", "📦", "Trade between them"],
   ["war", "🔥", "War and fire"],
+  ["fear", "😨", "Who fears whom"],
 ];
 
 const css = (c: StarLensRgb) =>

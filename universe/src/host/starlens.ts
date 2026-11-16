@@ -2,8 +2,14 @@
 // from what history holds, as `nation.map` says who holds what. Asked for every two seconds while the stars are looked at with one on, and
 // only then. Pure reads: looking moves nothing.
 import { YEAR, type World } from "../kernel/index.ts";
+import { farStrength } from "../rules/index.ts";
 import {
   farOf,
+  farLifeOf,
+  farNow,
+  folkByRef,
+  homePlanet,
+  politiesOf,
   civilizationsNear,
   filledOf,
   folkStage,
@@ -286,6 +292,87 @@ function warLens(world: World, year: number): StarLensMap {
   };
 }
 
+/**
+ * Who fears whom (round F): each people about the stars whose life history holds or reads, at its star, by how much it fears the one it
+ * fears most (at ease, afraid, in dread), larger as it is the stronger; a line from it to whom it fears (to home's star where it is
+ * a realm of the home world); a people broken by strife in ash, and one a landing struck in violet.
+ */
+function fearLens(world: World, year: number): StarLensMap {
+  const store = farLifeOf(world),
+    civs = civilizationsNear(world),
+    home = homePlanet(world).generated.star.ref as string,
+    marks: StarLensMark[] = [],
+    lines: StarLensLine[] = [],
+    counts = { ease: 0, afraid: 0, dread: 0, broken: 0, struck: 0 },
+    starOf = (ref: string): string | null => {
+      const c = civs.find((x) => x.ref === ref);
+      if (c) return c.star as string;
+      return politiesOf(world).get(ref as never) ? home : null;
+    };
+  for (const c of civs) {
+    const now = farNow(world, c.ref, year);
+    if (!now || year < c.electronics) continue;
+    const s = now.state,
+      strength = farStrength(s),
+      color = s.broken ? ASH : s.fear >= 0.5 ? RED : s.fear >= 0.2 ? AMBER : GREEN;
+    if (s.broken) counts.broken++;
+    else if (s.fear >= 0.5) counts.dread++;
+    else if (s.fear >= 0.2) counts.afraid++;
+    else counts.ease++;
+    marks.push({ star: c.star as string, color, scale: Math.min(1.6, 0.55 + 0.2 * strength) });
+    const feared = now.row?.fearOf ? starOf(now.row.fearOf) : null;
+    if (feared && s.fear >= 0.05)
+      lines.push(
+        feared === home
+          ? { a: null, b: c.star as string, color }
+          : { a: c.star as string, b: feared, color },
+      );
+  }
+  for (const row of store?.all() ?? []) {
+    if (row.followed || !row.told.some((t) => t.what === "sickness" || t.what === "landing"))
+      continue;
+    const f = folkByRef(world, row.ref);
+    if (!f) continue;
+    counts.struck++;
+    marks.push({ star: f.star as string, color: VIOLET, scale: 0.8 });
+  }
+  const keys: StarLensKey[] = [];
+  if (counts.ease)
+    keys.push({ color: GREEN, words: `${many(counts.ease, "people", "peoples")} at ease` });
+  if (counts.afraid)
+    keys.push({
+      color: AMBER,
+      words: `${many(counts.afraid, "people", "peoples")} afraid of another`,
+    });
+  if (counts.dread)
+    keys.push({
+      color: RED,
+      words: `${many(counts.dread, "people", "peoples")} in dread of another`,
+    });
+  if (counts.broken)
+    keys.push({
+      color: ASH,
+      words: `${many(counts.broken, "people", "peoples")} broken by strife`,
+    });
+  if (counts.struck)
+    keys.push({
+      color: VIOLET,
+      words: `${many(counts.struck, "people", "peoples")} a landing struck down`,
+    });
+  if (lines.length)
+    keys.push({ color: WHITE, words: "A line to whom each fears most: larger, the stronger" });
+  return {
+    lens: "fear",
+    year,
+    marks,
+    lines,
+    keys,
+    note: marks.length
+      ? null
+      : "No people about these stars yet speaks across the dark, and none has been come down on.",
+  };
+}
+
 /** What a lens says now (the Who holds lens is `nation.map`'s, and reads there). */
 export function starLensMap(world: World, lens: StarLens): StarLensMap {
   const year = Math.floor(world.now / YEAR);
@@ -298,6 +385,8 @@ export function starLensMap(world: World, lens: StarLens): StarLensMap {
       return tradeLens(world, year);
     case "war":
       return warLens(world, year);
+    case "fear":
+      return fearLens(world, year);
     default:
       return { lens, year, marks: [], lines: [], keys: [], note: null };
   }
