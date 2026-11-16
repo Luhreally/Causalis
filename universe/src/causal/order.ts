@@ -22,7 +22,7 @@ import {
   type Blame,
   type Hold,
 } from "../rules/index.ts";
-import { HOLD_EVENTS, homePlanet } from "../sim/index.ts";
+import { ELECTION_EVENTS, HOLD_EVENTS, homePlanet } from "../sim/index.ts";
 import { landWords } from "./generated.ts";
 import { count } from "./words.ts";
 import { registerDecisionWords, registerEventWords } from "./why.ts";
@@ -51,6 +51,20 @@ registerEventWords(HOLD_EVENTS.held.type, (world, e) => {
     now = holdWords(h, (d?.to ?? 50) / 100, by),
     was = holdWords(h, (d?.from ?? 50) / 100, by);
   return `${cap(realm(e.data))} came to be held so: ${now}, where it was ${was}, ${year(e.t)}`;
+});
+// A choice put to a realm's people (sim/order/elections.ts): whose candidate they gave their sway to.
+registerEventWords(ELECTION_EVENTS.elected.type, (_, e) => {
+  const d = e.data as {
+      group?: string;
+      share?: number;
+      held?: boolean;
+      was?: string | null;
+    } | null,
+    who = d?.group ?? "a group",
+    by = `${Math.round((d?.share ?? 0) * 100)} in a hundred of its sway`;
+  return d?.held
+    ? `${cap(realm(e.data))} chose again: the ${who} govern still, given ${by}, ${year(e.t)}`
+    : `${cap(realm(e.data))} chose the ${who} to govern${d?.was ? `, in place of the ${d.was}` : ""}, given ${by}, ${year(e.t)}`;
 });
 // A lesson of rule (sim/order/holds.ts): what befell it, or another, whom it blamed, and what it did.
 registerEventWords(HOLD_EVENTS.lesson.type, (_, e) => {
@@ -191,6 +205,10 @@ const realmOf = (world: World, ref: string) => {
   const p = politiesOf(world).get(ref as Parameters<ReturnType<typeof politiesOf>["get"]>[0]);
   return p ? realmName(p) : "a realm";
 };
+registerDecisionWords(
+  "order.elected",
+  (world, d) => `The people of ${realmOf(world, d.subject)} chose who would govern them`,
+);
 registerDecisionWords(
   "order.captives",
   (world, d) =>

@@ -75,6 +75,7 @@ import { LAW_EVERY, swayOnLaws } from "./laws.ts";
 import { fearPress, heldAbroad } from "../finance/finance.ts";
 import { orderOf, type RealmOrder } from "./order.ts";
 import { learnWants, wantsOf } from "./wants.ts";
+import { GOVERNS_BY, electionsOf } from "./elections.ts";
 import { interestsOf } from "../polity/interests.ts";
 
 export const HOLD_EVENTS = {
@@ -203,8 +204,13 @@ export function weighHolds(ctx: PopulationContext, p: Polity, o: RealmOrder, t: 
     read = waysRead(ways),
     anchor = firstHolds(p, read, ctx.generated.life.people?.body),
     // (Whose wants weigh is itself how widely its choices are carried: the seat's few under one, the many under all.)
+    // (The group its people chose to govern weighs half again: sim/order/elections.ts.)
+    governing = electionsOf(world)?.governing(p.ref) ?? null,
     sway = new Map(
-      [...swayOnLaws(ctx, p, o, t)].map(([g, w]) => [g, w * weighsFor(g, now[HOLD.voice]!)]),
+      [...swayOnLaws(ctx, p, o, t)].map(([g, w]) => [
+        g,
+        w * weighsFor(g, now[HOLD.voice]!) * (g === governing ? GOVERNS_BY : 1),
+      ]),
     ),
     // (What each group wants of each number is what it has learned from how it fared: sim/order/wants.ts.)
     learned = wantsOf(world),

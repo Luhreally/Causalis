@@ -57,6 +57,7 @@ import { LAW_OF, firstLaws, lawGrievance, weighLaws } from "./laws.ts";
 import { HOLD, HOLDING } from "../../rules/index.ts";
 import { heldOf, holdOf, weighHolds, type Taught } from "./holds.ts";
 import { WantsStore } from "./wants.ts";
+import { ElectionStore, electionsYear } from "./elections.ts";
 import { CREDIT, creditOf, debtBurden } from "../credit/credit.ts";
 import { seizedFactor } from "../strife/strife.ts";
 import { fortunePull } from "../acts/fortune.ts";
@@ -1719,7 +1720,11 @@ export function installOrder(world: World, ctx: () => PopulationContext): OrderS
   const store = world.register(new OrderStore());
   // (What its groups have learned to want of how it is held: sim/order/wants.ts.)
   world.register(new WantsStore());
+  // (Choices put to its people, where its rule has them: sim/order/elections.ts.)
+  const votes = world.register(new ElectionStore());
+  world.addPinner(() => votes.pinned());
   world.addPinner(() => store.pinned());
   world.system({ key: "187.order.year", every: YEAR, run: (t) => orderYear(ctx(), t) });
+  world.system({ key: "187.order.votes", every: YEAR, run: (t) => electionsYear(ctx(), t) });
   return store;
 }

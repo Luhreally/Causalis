@@ -135,7 +135,15 @@ export function learnWants(
       wage = people > 0 ? (paid.get(i.group) ?? 0) / people : 0,
       was = m.get(i.group);
     if (!was) {
-      m.set(i.group, { want: [...now], share, wage, sway: i.sway, held: [...now], year: 0, fared: 0 });
+      m.set(i.group, {
+        want: [...now],
+        share,
+        wage,
+        sway: i.sway,
+        held: [...now],
+        year: 0,
+        fared: 0,
+      });
       continue;
     }
     // (How it fared: each of what it had, against what it had, as a ratio's logarithm; what it never had is not weighed.)

@@ -13,11 +13,14 @@ import {
   holdsOf,
   interestsOf,
   populationContext,
+  chooses,
+  electionsOf,
+  termOf,
   wantsOf,
   type Polity,
 } from "../../sim/index.ts";
 import { HOLDING } from "../../rules/index.ts";
-import { part, share, stat } from "./words.ts";
+import { item, part, share, stat } from "./words.ts";
 
 /** Why a realm is ruled as it is: its numbers and whose sway is greatest, as formFromPowers reads them. */
 export function powersBlocks(world: World, r: Polity): Block[] {
@@ -64,7 +67,11 @@ export function powersBlocks(world: World, r: Polity): Block[] {
           .map((g) => part(g, share(sway.get(g) ?? 0))),
       }),
     );
-  return [{ type: "facts", title: "Who holds which powers", rows }, ...wantsBlocks(world, r)];
+  return [
+    { type: "facts", title: "Who holds which powers", rows },
+    ...electionBlocks(world, r),
+    ...wantsBlocks(world, r),
+  ];
 }
 
 /** What each of its groups has learned to want of how it is held, and how it fared when it last weighed. */
@@ -106,3 +113,55 @@ function wantsBlocks(world: World, r: Polity): Block[] {
 }
 
 const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1);
+
+/** Its choices put to its people, where its rule has them: who governs, when it next chooses, and its last few. */
+function electionBlocks(world: World, r: Polity): Block[] {
+  const v = electionsOf(world)?.of(r.ref);
+  if (r.ended !== null || !chooses(world, r) || !v)
+    return r.ended === null
+      ? [
+          {
+            type: "text",
+            lines: [
+              [
+                r.succession === 1
+                  ? "Its choices are carried by too few for its people to be asked who governs."
+                  : "Its rule does not pass by choice: its people are not asked who governs.",
+              ],
+            ],
+          },
+        ]
+      : [];
+  const term = termOf(populationContext(world)),
+    rows: Stat[] = [
+      stat(
+        "Who governs",
+        v.governing ? `The ${v.governing}, by its people's choice` : "None chosen yet",
+        { why: v.past.at(-1)?.event ?? null },
+      ),
+      stat("Its people choose", `Every ${term} years; next in year ${v.next}`),
+    ];
+  const last = v.past.at(-1);
+  if (last)
+    rows.push(
+      stat("At the last", `Year ${last.year}`, {
+        parts: last.votes.map(([g, x]) => part(`the ${g}' candidate`, share(x))),
+      }),
+    );
+  return [
+    { type: "facts", title: "Choices put to its people", rows },
+    {
+      type: "list",
+      title: "Its elections, newest first",
+      items: [...v.past]
+        .reverse()
+        .map((e) =>
+          item(
+            `Year ${e.year}: the ${e.group} ${e.held ? "chosen again" : "chosen to govern"}, ${share(e.votes[0]?.[1] ?? 0)} of its sway`,
+            e.event,
+            e.year,
+          ),
+        ),
+    },
+  ];
+}

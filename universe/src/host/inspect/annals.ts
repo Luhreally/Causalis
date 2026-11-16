@@ -165,6 +165,7 @@ const RULES: Readonly<Record<string, readonly [number, number]>> = {
   "order.crisis": [PEOPLE, 4],
   "order.law": [PEOPLE, 2],
   "order.held": [PEOPLE, 3],
+  "order.elected": [PEOPLE, 3],
   "order.lesson": [PEOPLE, 2],
   "order.movement": [PEOPLE, 3],
   "order.captives": [PEOPLE, 2],
