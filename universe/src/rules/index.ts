@@ -1680,3 +1680,4 @@ export {
 } from "./lineage.ts";
 export * from "./self.ts";
 export * from "./farlife.ts";
+export * from "./houses.ts";

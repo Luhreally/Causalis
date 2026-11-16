@@ -43,6 +43,7 @@ import { bandOfAge } from "../hand/hand.ts";
 import { interestsOf } from "../polity/interests.ts";
 import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { orderOf, type RealmOrder } from "../order/order.ts";
+import { houseOfGroup } from "../order/houses.ts";
 import { channelled, rulerProblem } from "../order/reign.ts";
 import { battlesOf, breakAway, farLands, foil, seize } from "../strife/strife.ts";
 
@@ -311,7 +312,15 @@ function reckon(ctx: PopulationContext, p: Polity, c: Court, t: SimTime): void {
       f.sway = v.sway;
       continue;
     }
-    const n = person(world, ways, key, t, 4 + COURT.voices.indexOf(v.group as never), null);
+    // (A group's voice at court is of its great house, where one stands: round H, sim/order/houses.ts.)
+    const n = person(
+      world,
+      ways,
+      key,
+      t,
+      4 + COURT.voices.indexOf(v.group as never),
+      houseOfGroup(world, p.ref, v.group),
+    );
     c.figures.push({
       id: store.mint(),
       name: n.name,
