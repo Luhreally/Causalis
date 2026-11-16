@@ -418,6 +418,12 @@ export const GATES: readonly Gate[] = [
   // world's save gone, the home world made again the same. Then a people read in orbit from each: there within the minute, as many as were
   // read, the host's heap read, at its age or saying which road its bodies or its world's matter shut, said before entering; from their world another refused, with the way back. (355 s with --ci on a loaded laptop.)
   { gate: 121, args: ["--ci"], s: 380 },
+  // Gate 122, what a tab holds (tools/memory-gate.ts): the small world whose tab ran out of memory played from its first year at a
+  // century a second to year 500 at a phone's size, kept, taken up again in place and by the page loaded again, a player's round of
+  // pages, lenses and scales walked twice and a realm's page left open as the years run; after each, garbage collected, the page's and
+  // the host's heaps, the vertex arrays the engine keeps and what it counts on the card held to a phone's budget, and what a round adds
+  // to a little.
+  { gate: 122, args: ["--ci"], s: 600 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */
