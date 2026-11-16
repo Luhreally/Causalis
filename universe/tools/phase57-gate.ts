@@ -4,7 +4,7 @@
 //   1. in node: the gate's worlds' lives as their chemistry makes them — Earth's own, and five open
 //      worlds' bones, blood, cells' skins, colours and foods — and the life survey over the open
 //      seeds (two hundred; sixty on CI); (not on CI) the oracle's histories as they were;
-//   2. alien 84, a sulfur-volcano world of acid seas, at year 125 by day: its globe and a land in
+//   2. alien 84, a sulfur-volcano world of acid seas, at year 150 by day: its globe and a land in
 //      its life's near-black, its legend's "black woods" on a desk and a phone; its greatest town;
 //      a beast's page and one met's Body tab telling bones of silica and green blood, and why; the
 //      tree of life's dawn and the matter guide telling what its life is made of; opal's page its
@@ -34,7 +34,7 @@ import { lifeLines, surveyLife } from "./chem-survey.ts";
 
 // (The sulfur, ammonia, carbon and methane worlds as they were made, life kept: of their own chemistry the last three
 // quicken no life now and alien 84's people wear shells and fight no battle by 125; what is read here is the life the
-// old tables gave them.)
+// old tables gave them. Since the rounds that life's wars of 125 have not yet come to a battle, so it is read at 150.)
 const A84 = keptLife("alien 84"),
   A218 = keptLife("alien 218"),
   A20 = keptLife("alien 20"),
@@ -369,7 +369,7 @@ const beastOf = (seed: string, prior: Prior) =>
 
 // 2. Alien 84: bones of silica, green blood, near-black woods.
 {
-  const year = await openWorld("alien", A84, 125);
+  const year = await openWorld("alien", A84, 150);
   say(`alien 84 at year ${year}`);
   await globeLooks(A84, "bacteriochlorophyll", "black woods", "2-84-globe");
   const town = await greatest();
@@ -474,7 +474,7 @@ const beastOf = (seed: string, prior: Prior) =>
     battle = wars.wars
       .flatMap((w) => w.battles)
       .sort((a, b) => b.fallen - a.fallen || (a.event < b.event ? -1 : 1))[0];
-  check(!!battle, "no battle on alien 84 by year 125");
+  check(!!battle, "no battle on alien 84 by year 150");
   if (battle) {
     const near = await ask<Near>("battle.near", { event: battle.event });
     say(
@@ -607,7 +607,8 @@ const beastOf = (seed: string, prior: Prior) =>
 
 // 6. Earth as it was, and bread at its mill.
 {
-  const year = await openWorld("earth", "first light", 500);
+  // (At 600: since the rounds' inquiry, first light comes to mills about 450, and by 500 few of its greatest towns have one.)
+  const year = await openWorld("earth", "first light", 600);
   say(`first light at year ${year}`);
   await globeLooks("first light", null, "woods", "6-earth-globe");
   const keys = await legendKeys();
@@ -639,7 +640,7 @@ const beastOf = (seed: string, prior: Prior) =>
       break;
     }
   }
-  check(!!mill, "no mill among Earth's forty greatest towns by year 500");
+  check(!!mill, "no mill among Earth's forty greatest towns by year 600");
   if (mill) {
     await opened(mill);
     const ground = await listOn("Ground here this year");

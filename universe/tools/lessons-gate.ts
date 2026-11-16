@@ -306,13 +306,22 @@ if (land) {
       check(badR.length === 0, `a realm names means it does not know: ${badR.join("; ")}`);
       if (tactical) {
         const [id, re] = Object.entries(TACTICS).find(([t]) => tactical.lessons.includes(t))!,
-          at = text.search(re),
-          row = at >= 0 ? text.slice(at, at + 400) : "";
+          costed = (r: string) =>
+            /men [\w' ]+ in (?:a year|[\d,]+ years) \([\d,]+ battles?\)/i.test(r) &&
+            /Has it worked/i.test(r);
+        // (Its name stands in what the host does now too, a share of it, above its own row: the row is the one told with
+        // what it cost them, wherever it stands.)
+        let at = -1,
+          row = "";
+        for (const m of text.matchAll(new RegExp(re.source, "gi"))) {
+          const r = text.slice(m.index, m.index + 400);
+          if (at < 0 || costed(r)) [at, row] = [m.index, r];
+          if (costed(r)) break;
+        }
         say(`its tactic: ${row.replace(/\s+/g, " ").slice(0, 300)}`);
         check(at >= 0, `a realm that leans on ${id}: no row for it on its tab`);
         check(
-          /men [\w' ]+ in (?:a year|[\d,]+ years) \([\d,]+ battles?\)/i.test(row) &&
-            /Has it worked/i.test(row),
+          costed(row),
           `a realm's tactic row without what it cost them in battles, or whether it worked: ${row.slice(0, 200)}`,
         );
         // Its row in view, as the eye sees it.

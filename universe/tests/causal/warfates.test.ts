@@ -79,7 +79,11 @@ function placeOf(w: WarFate): { land: LandFell; place: number | "c" | "l" } {
   const b = battles.get(w.event)?.b,
     land = b?.fell?.[w.side].find((l) => l[0] === w.cell);
   assert.ok(land, `${w.event}: its side ${w.side} has no tally of ${w.cell}`);
-  return { land, place: w.town ?? (land[4] === undefined ? "l" : "c") };
+  // (A battle some forty years old lets its towns go; a fate drawn from its countryside while it held them keeps that claim,
+  // which warClaimLimit reads against the land whole. On the rounds' first light a battle of 94 let its towns go in 136.)
+  const country =
+    land[4] !== undefined || ledger.claimed(warClaimKey("l", w.event, w.side, w.cell, "c")) > 0;
+  return { land, place: w.town ?? (country ? "c" : "l") };
 }
 
 /** Every claim is within what history holds; each place's met are within its lot; each fate holds its claims. */

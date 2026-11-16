@@ -778,11 +778,19 @@ type ScopeRead = {
 function dearIn(world: World, good: number, cells: readonly number[], here: number): ScopeRead {
   const ms = measureOf(world, good),
     food = measureOf(world, G.grain),
-    unit = loreOf(world).get(here, "currency")
-      ? "coin"
-      : food.many === "loaves"
-        ? "loaves' worth"
-        : food.many,
+    coin = !!loreOf(world).get(here, "currency"),
+    // (So much, in its money: one of it a loaf's worth, not "1 loaves'".)
+    unitOf = (x: number) =>
+      coin
+        ? "coin"
+        : coinWords(x) === "1"
+          ? food.many === "loaves"
+            ? "loaf's worth"
+            : food.one.replace(/^an? /, "")
+          : food.many === "loaves"
+            ? "loaves' worth"
+            : food.many,
+    priced = (x: number) => `${coinWords(x)} ${unitOf(x)}`,
     name = goodName(world, good),
     Name = sentence(name),
     plural = name.endsWith("s"),
@@ -819,14 +827,14 @@ function dearIn(world: World, good: number, cells: readonly number[], here: numb
     };
   const low = had[0]!,
     high = had.at(-1)!,
-    at = (x: number) => `${coinWords(x)} ${unit} ${ms.one}`,
+    at = (x: number) => `${priced(x)} ${ms.one}`,
     r = high.coin / Math.max(1e-9, low.coin),
     words =
       had.length === 1
         ? `${Name} can be had only at ${low.name}, at ${at(low.coin)}.${lack}`
         : r < 1.06
           ? `${Name} ${plural ? "cost" : "costs"} about the same wherever ${plural ? "they are" : "it is"} had: ${at(low.coin)}.${lack}`
-          : `${Name} ${plural ? "are" : "is"} cheapest at ${low.name}, at ${at(low.coin)}. At ${high.name} ${plural ? "they cost" : "it costs"} ${timesWords(r)}, ${coinWords(high.coin)} ${unit}.${lack}`,
+          : `${Name} ${plural ? "are" : "is"} cheapest at ${low.name}, at ${at(low.coin)}. At ${high.name} ${plural ? "they cost" : "it costs"} ${timesWords(r)}, ${priced(high.coin)}.${lack}`,
     keep = r < 1.06 ? 3 : 11,
     picked = had.length <= keep * 2 ? had : [...had.slice(0, keep), ...had.slice(-keep)],
     rows: BoardRow[] = picked.map((x) => ({
@@ -834,7 +842,7 @@ function dearIn(world: World, good: number, cells: readonly number[], here: numb
       icon: x.cell === here ? "📍" : "🏘️",
       name: x.name,
       each: x.cell === here ? "this market" : "",
-      price: `${coinWords(x.coin)} ${unit}`,
+      price: priced(x.coin),
       tone: toneOf(x.ratio),
       words: priceWords(x.ratio),
       arrow: "",

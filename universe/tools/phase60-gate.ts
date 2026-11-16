@@ -550,6 +550,16 @@ async function walk(
     chosen = all
       .filter((c) => !c.child && c.far >= 6 && c.far <= 60 && order.includes(c.trade))
       .sort((a, b) => order.indexOf(a.trade) - order.indexOf(b.trade) || a.far - b.far)[0];
+  if (!chosen) {
+    const by = new Map<string, number[]>();
+    for (const c of all.filter((x) => !x.child))
+      by.set(c.trade, [...(by.get(c.trade) ?? []), c.far]);
+    say(
+      n(
+        `  under the hand, by trade (how far from their work, m): ${[...by].map(([t, f]) => `${t} ${f.length} (${Math.min(...f)}–${Math.max(...f)})`).join(", ")}`,
+      ),
+    );
+  }
   check(!!chosen, n(`none of ${great.name}'s ${all.length} under the hand a walk from their work`));
   if (!chosen) return null;
   const armed = await arm(hands);

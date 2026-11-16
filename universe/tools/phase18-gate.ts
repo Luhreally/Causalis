@@ -169,9 +169,10 @@ await page.waitForTimeout(1500);
 }
 
 // 2. The peoples among the stars (M133–M135), on a world whose neighbours are old at the stars:
-// one came down by its greatest seat in the year 126, and looked, and went.
+// one came down by its greatest seat in the year 259, and looked, and went. (126 until round F read the far peoples' lives off
+// their own worlds: since, tide's first people to come down does so in 259.)
 {
-  await page.goto(`${base}?universe=alien&seed=tide&year=127`);
+  await page.goto(`${base}?universe=alien&seed=tide&year=260`);
   await page.waitForFunction(
     () => ((globalThis as any).causalis?.drawn?.() as number) > 0,
     undefined,

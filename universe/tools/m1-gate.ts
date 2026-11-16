@@ -342,7 +342,8 @@ const readWell = (text: string, where: string) => {
     `a raw ref on ${where}: ${text.slice(0, 300)}`,
   );
   check(
-    !/\b1 (roads|coasts|bars|tools|loaves|people|years)\b/.test(text),
+    // (A whole one, not a tenth's "0.1 loaves' worth".)
+    !/(?<![\d.])1 (roads|coasts|bars|tools|loaves|people|years)\b/.test(text),
     `"1 ..." wrong on ${where}: ${text.slice(0, 300)}`,
   );
   check(

@@ -300,15 +300,20 @@ export function bodyLine(b: BodyNow, wounds: readonly Wound[], t: number, sex?: 
       .filter(({ w }) => woundStage(w, t) !== "before")
       .sort((a, c) => RANK[c.w.outcome] - RANK[a.w.outcome] || c.w.at - a.w.at || a.i - c.i),
     // (This day's blows, no wound of history's yet: a member struck, or taken — a hand gone with
-    // its arm told by its arm.)
+    // its arm told by its arm. A member an old wound left whole enough is still this day's: an arm
+    // scarred in one battle and lost in this one was told only as scarred.)
     gone = (m: WoundMember) => b.members.some((x) => x.member === m && x.state === "lost"),
+    had = (m: BodyMember, s: MemberState) =>
+      m.wounds.some((i) =>
+        s === "lost" ? wounds[i]!.outcome === "lost" : woundStage(wounds[i]!, t) === "away",
+      ),
     fresh = b.members.filter(
       (m) =>
-        !m.wounds.length &&
-        (m.state === "struck" ||
-          (m.state === "lost" &&
-            !(m.member === "hand-l" && gone("arm-l")) &&
-            !(m.member === "hand-r" && gone("arm-r")))),
+        (m.state === "struck" && !had(m, "struck")) ||
+        (m.state === "lost" &&
+          !had(m, "lost") &&
+          !(m.member === "hand-l" && gone("arm-l")) &&
+          !(m.member === "hand-r" && gone("arm-r"))),
     );
   const told = [
     ...fresh.map(
