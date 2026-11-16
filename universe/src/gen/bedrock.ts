@@ -4,7 +4,7 @@
 // and the biome most of its spots are; and the keenest stone its rocks give, that its people knap
 // tools and points from. Pure functions of the generated world, kept per world.
 import { STONES, keenestRock, type Stone } from "../rules/index.ts";
-import type { HomeWorld } from "./homeworld.ts";
+import { keptKey, type HomeWorld } from "./homeworld.ts";
 import { BOUNDARY } from "./plates.ts";
 import { isProvinceWorld } from "./provinces.ts";
 
@@ -50,7 +50,7 @@ function rockAt(
 
 /** The world's ground, land by land (kept: the ground does not change). */
 export function groundOf(g: HomeWorld): Ground {
-  const key = g.digest,
+  const key = keptKey(g),
     kept = KEPT.get(key);
   if (kept) return kept;
   const fine = isProvinceWorld(g) ? g.fine : g,

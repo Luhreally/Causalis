@@ -17,7 +17,13 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
-import { cellRef, isProvinceWorld, tongueLikeness, type HomeWorld } from "../../gen/index.ts";
+import {
+  cellRef,
+  isProvinceWorld,
+  keptKey,
+  tongueLikeness,
+  type HomeWorld,
+} from "../../gen/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { cultureOf } from "../culture/culture.ts";
@@ -122,7 +128,7 @@ export function occupy(world: World, cell: number, holder: Ref, from: Ref, year:
 const RELIEF = new Map<string, Float32Array>();
 /** The spread of each land's fine ground's heights (m): how well its ground hides those who fight. Kept by world. */
 export function reliefOf(g: HomeWorld): Float32Array {
-  const key = `${g.digest} ${g.grid.count}`,
+  const key = `${keptKey(g)} ${g.grid.count}`,
     kept = RELIEF.get(key);
   if (kept) return kept;
   const out = new Float32Array(g.grid.count);

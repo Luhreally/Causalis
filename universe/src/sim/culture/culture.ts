@@ -25,6 +25,7 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import {
+  keptKey,
   borrowSound,
   cradleTongue,
   offworldSite,
@@ -174,7 +175,7 @@ export function bodyWays(body: BodyPlan | null | undefined): number[] {
 /** The mean rain of the lands a people of a medium could live in, on a world as made (a pure reading, kept). */
 const MEAN_RAIN = new Map<string, number>();
 function meanRain(g: HomeWorld, medium: Medium): number {
-  const key = `${g.digest}:${medium}`;
+  const key = `${keptKey(g)}:${medium}`;
   let m = MEAN_RAIN.get(key);
   if (m === undefined) {
     let sum = 0,

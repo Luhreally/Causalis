@@ -45,6 +45,7 @@ export {
 export {
   PLANET_FREQUENCY,
   generateHomeWorld,
+  keptKey,
   SEAM,
   ironShowing,
   seamRef,

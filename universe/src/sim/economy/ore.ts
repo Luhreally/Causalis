@@ -7,6 +7,7 @@
 // generated world, kept.
 import type { Ref } from "../../kernel/index.ts";
 import {
+  keptKey,
   cellRef,
   ironShowing,
   surfaceCopper,
@@ -114,7 +115,7 @@ export function oreWithin(ctx: PopulationContext, cell: number, kind: string): O
 
 /** The ore of a kind the world laid down within a land's reach, as though no one had ever dug it: a people may know of what is gone. */
 export function oreLaid(ctx: PopulationContext, cell: number, kind: string): OreAt | null {
-  const key = `${ctx.generated.digest}:${ctx.medium}:${cell}:${kind}`,
+  const key = `${keptKey(ctx.generated)}:${ctx.medium}:${cell}:${kind}`,
     known = WITHIN.get(key);
   if (known !== undefined) return known;
   if (WITHIN.size > 200_000) WITHIN.clear();

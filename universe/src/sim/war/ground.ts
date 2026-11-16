@@ -5,6 +5,7 @@
 // (sim/economy HAUL_PER_100KM), the more over broken ground; what is not lost on the way, and what it can take from the land it
 // stands on, is how fed it fights. Pure readings of the world as made and as it stands.
 import { dmath } from "../../kernel/index.ts";
+import { keptKey } from "../../gen/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { capacity } from "../population/model.ts";
 import { support } from "../population/systems.ts";
@@ -52,7 +53,7 @@ const LEAST = new Map<string, number>();
 /** The least water a land's river carries on this world (its rivers' threshold). */
 function riverLeast(ctx: PopulationContext): number {
   const g = ctx.generated,
-    key = `${g.digest} ${g.grid.count}`;
+    key = `${keptKey(g)} ${g.grid.count}`;
   let least = LEAST.get(key);
   if (least === undefined) {
     least = Infinity;

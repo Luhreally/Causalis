@@ -75,6 +75,12 @@ export type HomeWorld = {
    */
   readonly ground: string;
   /**
+   * The ground's departures from how it was made (sim/planet/store.ts changeSurface: a rise of the ground, the god's brush), as
+   * a digest; absent or "" while there are none. Writing them changes the arrays above in place, so a reading kept by the world
+   * keys on `keptKey`, never on the digest alone.
+   */
+  surface?: string;
+  /**
    * Whether its living things were read from its own physics (B3 to B5 of the life plan: rules/grammar.ts, gen/living.ts);
    * absent on Earth's and on a world kept as it was made before.
    */
@@ -108,6 +114,14 @@ function hashArray(h: Hasher, a: ArrayLike<number>): void {
   h.int(a.length);
   for (let i = 0; i < a.length; i++) h.float(a[i]!);
 }
+
+/**
+ * What a reading kept by world, for the life of the process, is keyed on: its digest, and its ground's departures from how it was
+ * made. On the digest alone a reading made before the ground moved (a rise, a brush) was kept after it, so a world run on in one
+ * process read its old ground where the same world loaded in another read its new one: their histories parted (gates 76, 79, 101).
+ */
+export const keptKey = (g: HomeWorld): string =>
+  g.surface ? `${g.digest}~${g.surface}` : g.digest;
 
 export function generateHomeWorld(
   seed: Seed,

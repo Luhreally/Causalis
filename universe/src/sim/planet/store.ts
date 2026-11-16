@@ -89,6 +89,8 @@ export class HomePlanet implements StateStore {
     const all = [...this.patches.values()].sort((a, b) => a.cell - b.cell);
     surfaceDeposits(this.generated, all, this.baseDeposits);
     this.surfaceDigest = all.length ? new Hasher().value(all).hex() : "";
+    // (What is kept by world keys on it with the digest: gen/homeworld.ts keptKey.)
+    this.generated.surface = this.generated.fine.surface = this.surfaceDigest;
   }
 
   /**

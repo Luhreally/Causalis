@@ -6,7 +6,7 @@
 // harden copper with the arsenic its own grey copper ores give. On an Earth-like world the old rule
 // holds unchanged (oreWithin's own answer). Reads the lore's store by its type only: the lore reads
 // this file.
-import { worldChemistry } from "../../gen/index.ts";
+import { keptKey, worldChemistry } from "../../gen/index.ts";
 import {
   ARSENICAL_GRADE,
   arsenicalFallback,
@@ -101,7 +101,7 @@ function workable(
   // (Once any lode of the kind has moved from what the world laid down: E1.)
   if (lodes && (lodes.movedKind(kind) || (kind === "tin" && lodes.movedKind("copper"))))
     return lodes.answer(cell, kind, `heat ${heat}`, () => work(lodes));
-  const key = `${ctx.generated.digest}:${ctx.medium}:${cell}:${kind}:${heat}`,
+  const key = `${keptKey(ctx.generated)}:${ctx.medium}:${cell}:${kind}:${heat}`,
     kept = WORKABLE.get(key);
   if (kept !== undefined) return kept;
   if (WORKABLE.size > 200_000) WORKABLE.clear();
@@ -188,7 +188,7 @@ const HARDENER = new Map<string, boolean>();
 
 /** Whether any land of the world holds its hardener's ore, in a deposit or showing at the surface. */
 export function anyHardener(ctx: PopulationContext): boolean {
-  const key = `${ctx.generated.digest}:${ctx.medium}`,
+  const key = `${keptKey(ctx.generated)}:${ctx.medium}`,
     kept = HARDENER.get(key);
   if (kept !== undefined) return kept;
   let found = false;

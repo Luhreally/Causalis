@@ -36,7 +36,7 @@ import {
 } from "../rules/index.ts";
 import { starAgeGyr } from "./bodies.ts";
 import { meansNumbers, worldChemistry } from "./chemistry.ts";
-import type { HomeWorld } from "./homeworld.ts";
+import { keptKey, type HomeWorld } from "./homeworld.ts";
 import { originGround } from "./origin.ts";
 import { BOUNDARY } from "./plates.ts";
 import { isProvinceWorld } from "./provinces.ts";
@@ -75,7 +75,7 @@ const CONTRAST = new Map<string, number>();
  */
 export function windContrast(g: HomeWorld): number {
   const fine = isProvinceWorld(g) ? g.fine : g,
-    key = `${fine.digest} ${fine.grid.count}`,
+    key = `${keptKey(fine)} ${fine.grid.count}`,
     kept = CONTRAST.get(key);
   if (kept !== undefined) return kept;
   const f = fine.grid;
@@ -103,7 +103,7 @@ export function windContrast(g: HomeWorld): number {
 export function carriersOf(g: HomeWorld): Carriers {
   const bar =
       g.far?.planet.pressure ?? (isProvinceWorld(g) ? g.fine.far?.planet.pressure : undefined) ?? 1,
-    key = `${g.digest} ${g.grid.count} ${bar}`,
+    key = `${keptKey(g)} ${g.grid.count} ${bar}`,
     kept = KEPT.get(key);
   if (kept) return kept;
   const coarse = g.grid.count,

@@ -5,7 +5,7 @@
 // reach over the sea is the planet's own shape, kept, never saved; what a people
 // know sets how much of it they use.
 import { dmath } from "../../kernel/index.ts";
-import type { HomeWorld } from "../../gen/index.ts";
+import { keptKey, type HomeWorld } from "../../gen/index.ts";
 import type { LoreStore } from "../lore/lore.ts";
 
 /** Sea provinces a people's ships can cross, by how many of the ship-crafts they know. */
@@ -29,7 +29,7 @@ const REACH = new Map<string, readonly (readonly [number, number])[]>();
  * fewest sea provinces between them, nearest first, out to the farthest any ship goes.
  */
 export function seaReach(g: HomeWorld, cell: number): readonly (readonly [number, number])[] {
-  const key = `${g.digest}:${cell}`;
+  const key = `${keptKey(g)}:${cell}`;
   let out = REACH.get(key);
   if (out) return out;
   const land = (c: number) => g.tectonics.elevation[c]! > 0,
