@@ -97,7 +97,9 @@ test("each land's soil is what its ground's stocks give", () => {
       w = eco.get(p.cell);
     if (!g || !w) continue;
     for (const x of g.nut) assert.ok(x >= 0 && x <= 1_300_000);
-    if (Math.min(...g.nut) < 900_000) worn++;
+    // (Worn by a twentieth: since the rounds merged a land's fields take only the hands that feed it, and few at 700 are worn by
+    // a tenth, 7 of 530; 90 by a twentieth.)
+    if (Math.min(...g.nut) < 950_000) worn++;
     assert.ok(w.soil >= 0.3 && w.soil <= 1);
     assert.ok(
       Math.abs(w.soil - soilOf(g, false)) < 1e-9 || Math.abs(w.soil - soilOf(g, true)) < 1e-9,

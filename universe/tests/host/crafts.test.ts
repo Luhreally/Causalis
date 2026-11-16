@@ -159,14 +159,16 @@ test("a town's weavers cut the day before's length from their looms and weave th
     const ground: Ground = villageSolids(p);
     return days.some((d) =>
       townDay(p, d, ground).roles.some(
-        (r, i) => r.kind === "workshop" && p.people[i]!.trade?.kind === "weaver",
+        (r, i) => r.kind === "workshop" && r.place >= 0 && p.people[i]!.trade?.kind === "weaver",
       ),
     );
   };
   // (A town keeps weavers where it has a workshop: four hundred people, a market, and carpentry
   // known in its land. Which towns those are is history's: since Phase 55's deaths the first of
   // them in this world at 300 lies past the forty the other tests scan, so this one looks on
-  // through the towns until it finds one.)
+  // through the towns until it finds one. A weaver with no workshop standing weaves at home, at
+  // no loom drawn: since the rounds merged, the first town whose weavers work found has its
+  // workshop still rising at 300, so the town looked for is one seated at a workshop standing.)
   let found = plans.find(weaves);
   for (const t of ask<{ ref: string }[]>("towns.map").slice(plans.length)) {
     if (found) break;

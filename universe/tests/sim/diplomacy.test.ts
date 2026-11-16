@@ -52,7 +52,12 @@ test("only realms that meet — at a border or down a trade road — keep a rega
         (a.members.includes(f.from) && b.members.includes(f.to)) ||
         (b.members.includes(f.from) && a.members.includes(f.to)),
     );
-    assert.ok(border || traded, `${a.town} and ${b.town} meet`);
+    // (Or met when the regard was last reckoned, its yearly terms say: a land taken or a road shut since leaves two realms
+    // apart until it is reckoned again. Since the rounds merged, juniper's Taetuckmere and Oustey at 400: "a land they took".)
+    const met = r.terms.some(
+      (t) => t.name === "trade between them" || t.name === "the land along their border",
+    );
+    assert.ok(border || traded || met, `${a.town} and ${b.town} meet`);
   }
 });
 

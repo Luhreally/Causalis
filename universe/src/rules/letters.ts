@@ -92,9 +92,11 @@ export function measuresOf(knows: (id: string) => boolean): number {
 export const INQUIRY = {
   /**
    * Readers at which inquiry finds twice as readily as one reader: each tenfold more adds as much again (as MANY_HANDS does of
-   * hands, but tenfold as many: a reader at a question is one of many who must ask it before one finds).
+   * hands, but a hundredfold as many: a reader at a question is one of many who must ask it before one finds). At a tenth of
+   * this, merged with the other rounds, first light came to flight beyond the sky in 888 where it had come in 922, and sent up
+   * its first satellite in 895, before gate 3's band; at this, 901, its other ages within a generation of where they were.
    */
-  readers: 100_000,
+  readers: 1_000_000,
   /** How far the means to measure raise what readers find: so much more for each, up to `measured`. */
   measures: 0.25,
   measured: 1,
