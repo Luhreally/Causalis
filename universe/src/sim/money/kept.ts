@@ -149,6 +149,8 @@ export const FISC = {
   resisted: 26,
   /** The bases it has ever laid (bits), the year it last told one. */
   laid: 30,
+  /** What it took of what calms, wakes and eases: its excise, or its own trade's margin. */
+  excise: 31,
 } as const;
 /** 4. A realm's tariff and sanctions: its rate (thousandths) and its parts; up to three sanctions, each the realm's serial (one more) and how much it shuts. */
 export const TARIFF_STORE = "money.tariffs";
@@ -193,16 +195,50 @@ export const SHARE = { fifths: 0, gini: 5, top: 6, rent: 7, rentShare: 8, holder
 export const BIND_STORE = "money.bind";
 export const BIND = { share: 0, gain: 1, hold: 2, open: 3, law: 4, power: 5 } as const;
 
+/** 10. A land's intoxicants: within reach and taken (thousandths, by INTOX_KINDS); who needs it, work lost, deaths a year (millionths), rites, pain eased. */
+export const INTOX_STORE = "money.intox";
+export const INTOX = {
+  have: 0,
+  use: 4,
+  dependent: 8,
+  lost: 9,
+  deaths: 10,
+  rites: 11,
+  eased: 12,
+} as const;
+/** A realm's law on them and their trade: how far forbidden and its six parts; its excise and whether it holds the trade; what it took. */
+export const BAR_STORE = "money.prohibition";
+export const BAR = {
+  barred: 0,
+  parts: 1,
+  excise: 7,
+  monopoly: 8,
+  revenue: 9,
+  /** Its people's year's use and what its lands' life could give (users), the price of a user's year, what it bought from abroad. */
+  demand: 10,
+  supply: 11,
+  price: 12,
+  imported: 13,
+  /** Its money metal paid out for it, faded (grain's worth), and the share of what passes through its markets. */
+  drained: 14,
+  drain: 15,
+  /** Those who carry it organised, where it is forbidden (thousandths). */
+  cartel: 16,
+  told: 17,
+} as const;
+
 export const MONEY_STORES: readonly (readonly [string, number])[] = [
   [GOODS_STORE, 16],
   [COIN_STORE, 14],
-  [TREASURY_STORE, 31],
+  [TREASURY_STORE, 32],
   [TARIFF_STORE, 15],
   [LABOUR_STORE, 6],
   [SMUGGLE_STORE, 6],
   [COVER_STORE, 9],
   [SHARES_STORE, 10],
   [BIND_STORE, 6],
+  [INTOX_STORE, 13],
+  [BAR_STORE, 18],
 ];
 
 /** One of Round B's stores on a world (null where it keeps none). */
@@ -270,7 +306,7 @@ export function taxBurden(world: World, realm: string): number {
 export function revenueOf(world: World, realm: string): number {
   const row = moneyStore(world, TREASURY_STORE)?.get(realm);
   if (!row) return 0;
-  let n = row[FISC.tariffs]! + row[FISC.seigniorage]!;
+  let n = row[FISC.tariffs]! + row[FISC.seigniorage]! + (row[FISC.excise] ?? 0);
   for (let k = 0; k < 4; k++) n += row[FISC.take + k]!;
   return n;
 }
@@ -297,4 +333,29 @@ export function giniOf(world: World, cell: number): number | null {
 export function bindOf(world: World, cell: number): { share: number; hold: number } | null {
   const row = moneyStore(world, BIND_STORE)?.get(cell);
   return row ? { share: row[BIND.share]! / 1000, hold: row[BIND.hold]! / 1000 } : null;
+}
+
+/** A land's work lost to what its people take (a share of its crafts' work; below nothing where what wakes gives more than is lost). */
+export function intoxLost(world: World, cell: number): number {
+  return (moneyStore(world, INTOX_STORE)?.at(cell, INTOX.lost) ?? 0) / 1000;
+}
+/** The share of a land's people who need what they take (0 … 1). */
+export function intoxDependent(world: World, cell: number): number {
+  return (moneyStore(world, INTOX_STORE)?.at(cell, INTOX.dependent) ?? 0) / 1000;
+}
+/** The share of a land's people who die of what they take in a year. */
+export function intoxDeaths(world: World, cell: number): number {
+  return (moneyStore(world, INTOX_STORE)?.at(cell, INTOX.deaths) ?? 0) / 1e6;
+}
+/** How far a realm forbids intoxicants (0 … 1). */
+export function barredOf(world: World, realm: string): number {
+  return (moneyStore(world, BAR_STORE)?.at(realm, BAR.barred) ?? 0) / 1000;
+}
+/** How strongly a forbidden trade's carriers are organised in a realm (0 … 1). */
+export function cartelOf(world: World, realm: string): number {
+  return (moneyStore(world, BAR_STORE)?.at(realm, BAR.cartel) ?? 0) / 1000;
+}
+/** What a realm's treasury took of intoxicants this year (grain's worth). */
+export function exciseOf(world: World, realm: string): number {
+  return moneyStore(world, BAR_STORE)?.at(realm, BAR.revenue) ?? 0;
 }

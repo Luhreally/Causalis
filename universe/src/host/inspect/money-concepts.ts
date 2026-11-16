@@ -1,6 +1,15 @@
 // The book of concepts on money and the state (Round B; sim/money, rules/money.ts, rules/labour.ts): a good's worth, money and its
 // price level, taxes, borders, market power, the Lorenz curve and bondage. Each says how the world works it; numbers are the rules'.
-import { BIND_MOST, COVER, MONEY, SHOP, TARIFF_MOST, TAX_MOST } from "../../rules/index.ts";
+import {
+  BIND_MOST,
+  COVER,
+  EXCISE_MOST,
+  INTOX_HOLD,
+  MONEY,
+  SHOP,
+  TARIFF_MOST,
+  TAX_MOST,
+} from "../../rules/index.ts";
 import type { Concept } from "./concepts.ts";
 
 const pc = (x: number) => `${Math.round(x * 100)}`;
@@ -93,6 +102,23 @@ export const MONEY_CONCEPTS: Readonly<Record<string, Concept>> = {
     see: [],
     related: ["treasury"],
   },
+  intoxicants: {
+    icon: "🍶",
+    title: "What calms, wakes and eases",
+    what: [
+      "A plant makes compounds that keep it from being eaten, and some of them act on the nerves of whatever eats it. A world's own life holds them only for a people of its own chemistry, the same liquid and the same hand: a people come down on another world finds nothing there that acts on it, save what it brews. Some of a world's growing lineages hold one kind each: what calms, what wakes, what brings visions, what eases pain. They grow thicker where much grows and much eats. Where the life makes sugar and a people brews, what calms is within reach anywhere.",
+      `A people takes them as far as they are within reach and wanted: what brings visions for its rites, the more as it is devout; what wakes for its toil; what eases pain in its wars and sicknesses; what calms in its hardship. Of those who take it steadily some come to need it (${Math.round(INTOX_HOLD.easing.binds * 100)} in a hundred of what eases pain, ${Math.round(INTOX_HOLD.calming.binds * 100)} of what calms, next to none of what brings visions), and lose part of their work and, a few, their lives; what wakes keeps them at their work.`,
+      `A realm forbids them as far as its temple, whose rites do not use them, and its court, whose people's work they take and whose money goes abroad for them, can press it, the harder the more it is held by force; its traders, its treasury and their takers, as far as they are heard, press against it. Allowed, its treasury lays an excise on them (up to ${Math.round(EXCISE_MOST * 100)} in a hundred of their worth) or, held hard and reaching far, keeps their trade to itself. Forbidden, they cost the more for the risk, slip across its borders as far as being caught costs little, and where the profit is great and its reach weak those who carry them organise.`,
+    ],
+    drives: [
+      "Its world's life and its people's chemistry; its ways and faith; its wars and lean years; who holds its realm.",
+    ],
+    leads: [
+      "Rites and pain eased; work lost and lives; a treasury's excise; smuggling and cartels; money drained abroad and resented.",
+    ],
+    see: [],
+    related: ["borders", "treasury", "worth"],
+  },
 };
 
 /** Which concept a number on the pages measures, by its label. */
@@ -112,4 +138,7 @@ export const MONEY_CONCEPT_OF: Readonly<Record<string, string>> = {
   "What its makers ask above their cost": "worth",
   "Its fields' and herds' rent": "inequality",
   "Of its people": "binding",
+  "Its law on them": "intoxicants",
+  "Who need it": "intoxicants",
+  "Its people's use a year": "intoxicants",
 };

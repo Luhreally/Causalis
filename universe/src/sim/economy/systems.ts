@@ -91,6 +91,7 @@ import {
   dutyOf,
   guildOf,
   insuredGainOf,
+  intoxLost,
   moneyStore,
   sanctionBetween,
   unionOf,
@@ -288,10 +289,13 @@ function makeAndUse(
   // with fuel and machines to work with make them more so.
   // (While its works stand idle from a rocket's fall, W3, nothing they drive helps, and no machine is made.)
   const idle = m.idleUntil > yearOfMoment(t),
-    powered = idle
-      ? 1
-      : (1 + (ENGINE_GAIN * industry * m.powerCover) / 1000) *
-        (1 + (MACHINE_GAIN * m.machineCover) / 1000),
+    // (Less the work those who need what they take lose, or more where what wakes keeps them at it: Round B, sim/money/intox.ts.)
+    powered =
+      (1 - intoxLost(world, p.cell)) *
+      (idle
+        ? 1
+        : (1 + (ENGINE_GAIN * industry * m.powerCover) / 1000) *
+          (1 + (MACHINE_GAIN * m.machineCover) / 1000)),
     skill = (g: number) =>
       powered *
       (1 +

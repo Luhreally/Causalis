@@ -9,7 +9,7 @@
 // tribute, distance and foreign speech; lands secede when it runs high. Rulers
 // grow old and die; their successions follow the realm's rule, and sometimes
 // break it. Every step is a decision whose factors cite what drove it.
-import { inflationOf, taxBurden } from "../money/kept.ts";
+import { inflationOf, intoxDependent, taxBurden } from "../money/kept.ts";
 import {
   YEAR,
   defineEventType,
@@ -607,6 +607,8 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
           (famine ? (sacred ? 0.8 : 0.5) : 0) +
           p.tribute * 0.8 +
           taxed * 0.8 +
+          // (Those who need what they take, and their kin who bear it.)
+          intoxDependent(world, c) * 0.5 +
           Math.min(0.3, dearer * 0.5) +
           0.02 * far +
           // A land held beyond the seat's reach is ruled by force alone, and chafes.

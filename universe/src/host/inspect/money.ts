@@ -8,6 +8,8 @@ import type { Block, Row, Stat } from "../../bridge/index.ts";
 import { cellRef } from "../../gen/index.ts";
 import {
   BASIS_WORDS,
+  INTOX_KINDS,
+  INTOX_WORDS,
   GOODS,
   GOOD_USE,
   MONEY_FORMS,
@@ -19,6 +21,10 @@ import {
   type MoneyForm,
 } from "../../rules/index.ts";
 import {
+  BAR,
+  BAR_STORE,
+  INTOX,
+  INTOX_STORE,
   BIND,
   BIND_STORE,
   COIN,
@@ -147,16 +153,23 @@ export function realmTreasuryBlocks(world: World, r: Polity): Block[] {
         fisc[FISC.take + 2]! +
         fisc[FISC.take + 3]! +
         fisc[FISC.tariffs]! +
-        fisc[FISC.seigniorage]!;
+        fisc[FISC.seigniorage]! +
+        (fisc[FISC.excise] ?? 0);
     blocks.push({
       type: "facts",
       title: "Its treasury's year",
       rows: [
         stat("It took in", grain(took), {
           parts: [
-            part("taxes", grain(took - fisc[FISC.tariffs]! - fisc[FISC.seigniorage]!)),
+            part(
+              "taxes",
+              grain(
+                took - fisc[FISC.tariffs]! - fisc[FISC.seigniorage]! - (fisc[FISC.excise] ?? 0),
+              ),
+            ),
             part("tariffs", grain(fisc[FISC.tariffs]!)),
             part("making money", grain(fisc[FISC.seigniorage]!)),
+            part("intoxicants", grain(fisc[FISC.excise] ?? 0)),
           ],
         }),
         stat("It spent", grain(spent), {
@@ -223,6 +236,8 @@ export function realmTreasuryBlocks(world: World, r: Polity): Block[] {
       );
     blocks.push({ type: "facts", title: "Its borders", rows });
   }
+  // What calms, wakes, brings visions and eases pain: its law on them, its trade in them, who carries them where they are forbidden.
+  blocks.push(...realmIntoxBlocks(world, r));
   // Its underwriters and its pooled harvests.
   if (cover && (cover[POOL.insured]! > 0 || cover[POOL.pooled]! > 0))
     blocks.push({
@@ -431,6 +446,7 @@ export function landWealthBlocks(world: World, cell: number): Block[] {
       ],
     });
   }
+  blocks.push(...landIntoxBlocks(world, cell));
   if (bind && bind[BIND.share]! > 0)
     blocks.push({
       type: "facts",
@@ -472,4 +488,102 @@ export function inequalityReading(
       { label: "Rent of its harvest", value: per(row[SHARE.rentShare]!) },
     ],
   };
+}
+
+// —— Intoxicants ——————————————————————————————————————————————————————————————————————————————————————————————
+
+/** The six who press for and against forbidding them, as a realm's row keeps their weights. */
+const BAR_PARTS = [
+  "the temple, whose rites do not use them",
+  "the court, whose people's work they take",
+  "a realm held hard",
+  "traders who live by their trade",
+  "what its treasury takes of them",
+  "their takers, as far as they are heard",
+];
+
+/** A realm's law on intoxicants and their trade (what, who, cost and effect). */
+export function realmIntoxBlocks(world: World, r: Polity): Block[] {
+  const row = moneyStore(world, BAR_STORE)?.get(r.ref);
+  if (!row || (row[BAR.demand]! <= 0 && row[BAR.barred]! <= 0)) return [];
+  const barred = row[BAR.barred]!,
+    rows: Stat[] = [
+      stat(
+        "Its law on them",
+        barred >= 500
+          ? `forbidden (${per(barred)})`
+          : barred >= 100
+            ? `frowned on (${per(barred)})`
+            : "allowed",
+        {
+          parts: BAR_PARTS.map((name, k) => {
+            const v = row[BAR.parts + k]! / 1000;
+            return part(name, `${v >= 0 ? "+" : ""}${v.toFixed(2)}`);
+          }),
+        },
+      ),
+      stat("Its people's use a year", `${count(row[BAR.demand]!)} users' worth`, {
+        parts: [
+          part("its lands' own life could give", `${count(row[BAR.supply]!)} users' worth`),
+          part("bought from abroad", `${count(row[BAR.imported]!)} users' worth`),
+          part("a user's year costs", `${(row[BAR.price]! / 1000).toFixed(2)} grain's worth`),
+        ],
+      }),
+      stat(
+        row[BAR.monopoly] ? "Its treasury keeps the trade itself" : "Its excise on them",
+        `${per(row[BAR.excise]!)} of their worth`,
+        { parts: [part("it took this year", grain(row[BAR.revenue]!))] },
+      ),
+    ];
+  if (row[BAR.drained]! > 0)
+    rows.push(
+      stat("Its money paid abroad for them", grain(row[BAR.drained]!), {
+        parts: [
+          part("of what passes through its markets", `${(row[BAR.drain]! / 10).toFixed(1)}%`),
+        ],
+      }),
+    );
+  if (row[BAR.cartel]! > 0)
+    rows.push(stat("Those who carry them past its law, organised", per(row[BAR.cartel]!)));
+  return [{ type: "facts", title: "What calms, wakes and eases", rows }];
+}
+
+/** A land's intoxicants: what its life puts in reach, who takes it, what it gives and costs (never how it is made). */
+export function landIntoxBlocks(world: World, cell: number): Block[] {
+  const row = moneyStore(world, INTOX_STORE)?.get(cell);
+  if (!row) return [];
+  const rows: Row[] = INTOX_KINDS.map((k, i) => ({
+    cells: [
+      [cap(INTOX_WORDS[k].name)],
+      [per(row[INTOX.have + i]!)],
+      [per(row[INTOX.use + i]!)],
+      [INTOX_WORDS[k].does],
+    ],
+    keys: [k, row[INTOX.have + i]!, row[INTOX.use + i]!, k],
+  }));
+  if (!rows.some((x) => (x.keys![1] as number) > 0)) return [];
+  const lost = row[INTOX.lost]!;
+  return [
+    {
+      type: "table",
+      title: "What calms, wakes, brings visions and eases pain",
+      columns: ["What", "Within reach", "Taken by", "What it does"],
+      rows,
+      fit: true,
+    },
+    {
+      type: "facts",
+      title: "What it gives and costs",
+      rows: [
+        stat("Who need it", `${per(row[INTOX.dependent]!)} of its people`),
+        stat(
+          lost >= 0 ? "Work lost to it" : "Work gained by what wakes",
+          `${per(Math.abs(lost))} of its crafts'`,
+        ),
+        stat("Who die of it a year", `${(row[INTOX.deaths]! / 10_000).toFixed(2)}% of its people`),
+        stat("Its rites that draw on it", per(row[INTOX.rites]!)),
+        stat("Pain it eases", per(row[INTOX.eased]!)),
+      ],
+    },
+  ];
 }

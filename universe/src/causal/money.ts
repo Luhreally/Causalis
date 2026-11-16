@@ -2,7 +2,7 @@
 // trade with another shut by its word, goods slipping past its borders; crafters' guilds and workers' unions; underwriters at sea and
 // harvests pooled. Every number is the event's own.
 import { yearOfMoment } from "../kernel/index.ts";
-import { MONEY_EVENTS, politiesOf, realmName } from "../sim/index.ts";
+import { INTOX_EVENTS, MONEY_EVENTS, politiesOf, realmName } from "../sim/index.ts";
 import { MONEY_WORDS, TAX_WORDS, type MoneyForm, type TaxBase } from "../rules/index.ts";
 import { count } from "./words.ts";
 import { registerDecisionWords, registerEventWords } from "./why.ts";
@@ -75,4 +75,25 @@ registerDecisionWords(MONEY_EVENTS.tariff.type, (w, d) => `${subject(w, d.subjec
 registerDecisionWords(
   MONEY_EVENTS.sanction.type,
   (w, d) => `${subject(w, d.subject)} shut its trade with a realm it feared`,
+);
+
+registerEventWords(INTOX_EVENTS.barred.type, (_w, e) => {
+  const d = e.data as { realm?: string; users?: number } | null;
+  return `${realm(d)} forbade what calms, wakes, brings visions and eases pain, taken by ${d?.users ?? 0} in a hundred of its people, ${year(e.t)}`;
+});
+registerEventWords(INTOX_EVENTS.allowed.type, (_w, e) => {
+  const d = e.data as { realm?: string } | null;
+  return `${realm(d)} let what it had forbidden be taken again, ${year(e.t)}`;
+});
+registerEventWords(INTOX_EVENTS.cartel.type, (_w, e) => {
+  const d = e.data as { realm?: string } | null;
+  return `Those who carry what ${d?.realm ?? "a realm"} forbids organised to carry it past its law, ${year(e.t)}`;
+});
+registerEventWords(INTOX_EVENTS.drain.type, (_w, e) => {
+  const d = e.data as { realm?: string; of?: string | null; share?: number } | null;
+  return `${realm(d)}'s money drained abroad${d?.of ? ` to ${d.of}` : ""} for what its people take, ${d?.share ?? 0} in a hundred of what passes through its markets, ${year(e.t)}`;
+});
+registerDecisionWords(
+  INTOX_EVENTS.barred.type,
+  (w, d) => `${subject(w, d.subject)} forbade intoxicants`,
 );

@@ -1539,3 +1539,4 @@ export * from "./energy.ts";
 export * from "./ground.ts";
 export * from "./money.ts";
 export * from "./labour.ts";
+export * from "./intox.ts";

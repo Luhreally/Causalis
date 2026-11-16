@@ -92,9 +92,13 @@ import {
   TARIFF_STORE,
   TREASURY_STORE,
   RowStore,
+  barredOf,
+  cartelOf,
+  exciseOf,
   moneyStore,
   refNumber,
 } from "./kept.ts";
+import { intoxYear, prohibitionYear } from "./intox.ts";
 
 export const MONEY_EVENTS = {
   /** What serves a realm as money changed: coin first struck, notes first issued, the lenders' claims passing as money. */
@@ -590,7 +594,7 @@ export function coinYear(ctx: PopulationContext, t: SimTime): void {
 }
 
 function revenueOfRow(row: readonly number[]): number {
-  let n = row[FISC.tariffs]! + row[FISC.seigniorage]!;
+  let n = row[FISC.tariffs]! + row[FISC.seigniorage]! + (row[FISC.excise] ?? 0);
   for (let k = 0; k < 4; k++) n += row[FISC.take + k]!;
   return n;
 }
@@ -720,8 +724,9 @@ export function dutyYear(ctx: PopulationContext, t: SimTime): void {
           break;
         }
     }
-    const border = (4 * edge) / Math.max(1, r.lands.length),
-      wedge = Math.max(rate, sanctions[0]?.[1] ?? 0),
+    // (What it forbids is a wedge too, and those organised to carry it past its borders carry other goods with it.)
+    const border = (4 * edge) / Math.max(1, r.lands.length) + 2 * cartelOf(world, p.ref),
+      wedge = Math.max(rate, sanctions[0]?.[1] ?? 0, barredOf(world, p.ref)),
       sm = smuggled(
         wedge,
         { force: held[HOLD.force]!, capacity: r.capacity, corruption: o?.corruption ?? 0 },
@@ -828,10 +833,12 @@ export function treasuryYear(ctx: PopulationContext, t: SimTime): void {
       interest = money ? (debtOf(money) * money.coupon) / 10_000 : 0,
       tariffs = duties?.get(p.ref)?.[DUTY.revenue] ?? 0,
       seigniorage = coin?.get(p.ref)?.[COIN.seigniorage] ?? 0,
+      // (What it took of intoxicants, by excise or its own trade: ./intox.ts, reckoned earlier this moment.)
+      excise = exciseOf(world, p.ref),
       was = at(fisc, p.ref),
       reserve = was ? was[FISC.reserve]! : 0,
       spend = arms + clerks + relief + interest,
-      need = Math.max(0, spend - tithe - tariffs - seigniorage - 0.3 * reserve),
+      need = Math.max(0, spend - tithe - tariffs - seigniorage - excise - 0.3 * reserve),
       laid = taxRates(need, base, measured, resisted, o?.corruption ?? 0),
       rate = {} as Record<TaxBase, number>,
       take = {} as Record<TaxBase, number>,
@@ -842,7 +849,8 @@ export function treasuryYear(ctx: PopulationContext, t: SimTime): void {
       rate[b] = b === "land" ? p.tribute : prev + (laid.rate[b] - prev) / 3;
       take[b] = b === "land" ? tithe : rate[b] * base[b] * measured[b] * kept;
     }
-    const revenue = take.land + take.trade + take.heads + take.income + tariffs + seigniorage,
+    const revenue =
+        take.land + take.trade + take.heads + take.income + tariffs + seigniorage + excise,
       balance = revenue - spend,
       left = reserve + balance,
       deficit = Math.max(0, -left),
@@ -900,6 +908,7 @@ export function treasuryYear(ctx: PopulationContext, t: SimTime): void {
       ...TAX_BASES.map((b) => measured[b] * 1000),
       ...TAX_BASES.map((b) => resisted[b] * 1000),
       bits,
+      excise,
     ]);
   }
 }
@@ -1037,10 +1046,16 @@ export function coverYear(ctx: PopulationContext, _t: SimTime): void {
 export function installMoney(world: World, ctx: () => PopulationContext): void {
   for (const [name, width] of MONEY_STORES) world.register(new RowStore(name, width));
   world.system({ key: "186.money.labour", every: YEAR, run: (t) => labourYear(ctx(), t) });
+  world.system({ key: "186.money.intox", every: YEAR, run: (t) => intoxYear(ctx(), t) });
   world.system({ key: "188.money.coin", every: YEAR, run: (t) => coinYear(ctx(), t) });
   world.system({ key: "188.money.trade", every: YEAR, run: (t) => dutyYear(ctx(), t) });
   world.system({ key: "188.money.treasury", every: YEAR, run: (t) => treasuryYear(ctx(), t) });
   world.system({ key: "188.money.cover", every: YEAR, run: (t) => coverYear(ctx(), t) });
+  world.system({
+    key: "188.money.prohibition",
+    every: YEAR,
+    run: (t) => prohibitionYear(ctx(), t),
+  });
 }
 
 export type { MoneyForm };
