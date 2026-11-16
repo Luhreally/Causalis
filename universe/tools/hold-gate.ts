@@ -65,6 +65,12 @@ const tipBox = () =>
   });
 const pageTitle = () =>
   page.$eval(".page-window .page-title", (e) => e.textContent ?? "").catch(() => "");
+/** Waits for a thing to come true (a software-drawn browser on CI takes seconds to open a page). */
+const until = async (ok: () => Promise<boolean>, ms = 20000): Promise<boolean> => {
+  for (const end = Date.now() + ms; Date.now() < end; await page.waitForTimeout(250))
+    if (await ok()) return true;
+  return ok();
+};
 const shot = async (name: string) => {
   if (shots) await page.screenshot({ path: join(shots, `${name}.png`) });
 };
@@ -138,9 +144,11 @@ try {
   await touch("touchStart", cx, cy);
   await page.waitForTimeout(80);
   await touch("touchEnd", cx, cy);
-  await page.waitForTimeout(2500);
-  const tapped =
-    (await pageTitle()) !== "" || (await k<string>("globalThis.causalis.scale()")) !== scaleBefore;
+  const tapped = await until(
+    async () =>
+      (await pageTitle()) !== "" ||
+      (await k<string>("globalThis.causalis.scale()")) !== scaleBefore,
+  );
   check(tapped, "a quick tap still opens what it opened (a page, or the land)");
   await shot("3-tapped");
 
@@ -176,8 +184,13 @@ try {
     await touch("touchStart", lx, ly);
     await page.waitForTimeout(80);
     await touch("touchEnd", lx, ly);
-    await page.waitForTimeout(2500);
-    check((await pageTitle()) !== titleBefore, "a tap on the name still opens its page");
+    check(
+      await until(async () => {
+        const t = await pageTitle();
+        return t !== titleBefore && t !== "…";
+      }),
+      "a tap on the name still opens its page",
+    );
     await shot("5-name-tapped");
   }
 } catch (e) {

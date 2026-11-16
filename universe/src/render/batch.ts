@@ -226,6 +226,16 @@ export function keptMesh(mesh: pc.Mesh): pc.Mesh {
  */
 const SHAPES = new WeakMap<Stage, Map<string, pc.Mesh>>();
 const SHAPES_KEPT = 256;
+/** Every shape given out shared: never destroyed by one who was handed it (see dropMesh). */
+const SHARED = new WeakSet<pc.Mesh>();
+/**
+ * A mesh a layer was handed and is done with: destroyed, unless it is a shared plain shape another
+ * layer may be drawing (a fight's or a landing's clear destroyed the stage's one box, and every batch
+ * of it after drew from buffers gone: "reading 'impl'", 2026-11-15).
+ */
+export function dropMesh(mesh: pc.Mesh): void {
+  if (!SHARED.has(mesh)) mesh.destroy();
+}
 function shape(stage: Stage, key: string, make: () => pc.Mesh): pc.Mesh {
   let kept = SHAPES.get(stage);
   if (!kept) SHAPES.set(stage, (kept = new Map()));
@@ -234,6 +244,7 @@ function shape(stage: Stage, key: string, make: () => pc.Mesh): pc.Mesh {
   const mesh = make();
   if (kept.size >= SHAPES_KEPT) return mesh;
   kept.set(key, keptMesh(mesh));
+  SHARED.add(mesh);
   return mesh;
 }
 /** How many plain shapes a stage keeps (for a gate to weigh). */

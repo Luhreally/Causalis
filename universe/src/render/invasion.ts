@@ -22,7 +22,15 @@ import {
   type PartShape,
   type ShipGeometry,
 } from "../view/index.ts";
-import { InstancedBatch, boxMesh, capsuleMesh, coneMesh, cylinderMesh, keptMesh } from "./batch.ts";
+import {
+  InstancedBatch,
+  dropMesh,
+  boxMesh,
+  capsuleMesh,
+  coneMesh,
+  cylinderMesh,
+  keptMesh,
+} from "./batch.ts";
 import { flatMaterial, type Rgb, type Stage } from "./stage.ts";
 
 /** A tenth of a unit to the metre. */
@@ -338,7 +346,7 @@ export class InvasionLayer {
   /** Frees every batch, mesh and material the town's film made; the next build starts fresh. */
   clear(): void {
     for (const b of this.batches) b.destroy();
-    for (const m of this.meshes) m.destroy();
+    for (const m of this.meshes) dropMesh(m);
     for (const m of this.materials) m.destroy();
     this.batches = [];
     this.meshes.clear();
