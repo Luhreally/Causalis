@@ -723,8 +723,28 @@ function meet(
   return m;
 }
 
-/** Below this regard a people at the stars sends fleets against the other. */
+/** At this regard and below, a people at the stars sends fleets against the other as readily as its boldness has it. */
 export const WAR_REGARD = -0.25;
+/**
+ * The will to send a fleet a people at odds with another has, on the mean: fleetWill over every meeting a fleet could come of on
+ * tide 207 and tide 208 from 900 to 1900, 0.09 to 0.11 (round F). Its will is read against this, so that it shapes who sends one
+ * and when, not how many are sent in all.
+ */
+export const FLEET_WILL_MEAN = 0.1;
+
+/**
+ * The chance a year that a people sends a fleet against another it is at odds with: its boldness; how ill it regards the other, by
+ * the square of how far toward WAR_REGARD (none at all while it regards it well); and its will against the mean.
+ * (Round F's will was taken as it stood, twice over, under the old cliff at WAR_REGARD, and its regard now comes of what each fears
+ * of the other, which leaves few as ill as that: the home world of tide 207 saw no fleet to 3,000, where it saw four by 1,400. Summed
+ * over tide 207's meetings from 900 to 1900 a fleet a year was 15 to be looked for, against 17 under the released rule and 0.3 under
+ * round F's.)
+ */
+export function fleetChance(bold: number, regard: number, will: number): number {
+  if (regard >= 0 || will <= 0) return 0;
+  const ill = Math.min(1, regard / WAR_REGARD);
+  return Math.min(1, 0.03 * (0.5 + bold) * ill * ill * (will / FLEET_WILL_MEAN));
+}
 /** How hard a crowded people presses on its neighbours, at its boldest. */
 export const CROWDED_PRESS = 0.5;
 
@@ -1270,13 +1290,13 @@ export function peoplesYear(ctx: PopulationContext, t: SimTime): void {
       index = store.meetings.indexOf(m);
     if (m.regard > 0 && year - m.last >= every) exchange(ctx, store, m, civ, realm, other, year);
     if (
-      m.regard < WAR_REGARD &&
+      m.regard < 0 &&
       year >= civ.stars &&
       year - m.lastRaid >= FLEET_GAP &&
       !store.ships.some((s) => s.kind === "fleet" && s.civ === civ.ref && !s.arrived) &&
       // (As far as it has an aim worth a fleet: ground it lacks, a threat it would end, goods; none while weary or broken. Round F.)
       world.rng.real(RAID, keyOf(civ.ref), year, index) <
-        0.03 * (0.5 + n.bold) * 2 * (intent = willOf(civ, other, realm, m.cell)).will
+        fleetChance(n.bold, m.regard, (intent = willOf(civ, other, realm, m.cell)).will)
     ) {
       if (realm)
         sendFleet(
