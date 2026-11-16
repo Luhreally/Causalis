@@ -46,6 +46,7 @@ import { landHeart } from "../village.ts";
 import { lineOf, landName } from "./annals.ts";
 import { landLink, languageLink, realmLink, townLink } from "./names.ts";
 import { item, link, stat, yearNow } from "./words.ts";
+import { archiveMemorials } from "./lost.ts";
 import {
   cutOn,
   songOf,
@@ -794,8 +795,9 @@ export const songRef = (d: Deed): string => `song:${d.id}`;
 /** A town's stones, as its plan carries them (none: its past has none). */
 export function memorialsOf(world: World, town: string): readonly Memorial[] {
   const list = memoryOf(world).stones.get(town) ?? [],
-    now = yearNow(world);
-  return list.map((d) => {
+    now = yearNow(world),
+    kept = archiveMemorials(world, town, (cell) => handOf(world, cell).colour);
+  const stones = list.map((d): Memorial => {
     const hand = handOf(world, d.cell),
       far = farAge(world, d.cell, d.year),
       f = formOf(d.shape!, hand, far),
@@ -823,6 +825,8 @@ export function memorialsOf(world: World, town: string): readonly Memorial[] {
             : shade(colour, 0.42),
     };
   });
+  // (What it keeps stands first: the street has room for so many.)
+  return kept.length ? [...kept, ...stones] : stones;
 }
 
 /** The tongue of a land, and a word of it (null: they have none of their own yet). */
@@ -1123,6 +1127,7 @@ const ICONS: Readonly<Record<MemorialForm, string>> = {
   reef: "🪸",
   dome: "🐚",
   slab: "⬛",
+  archive: "📜",
 };
 
 /** A stone's page: what it is, who raised it, the year, what happened, what is cut on it and what they sing of it. */

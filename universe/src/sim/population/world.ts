@@ -45,6 +45,7 @@ import { installOrder } from "../order/order.ts";
 import { installCities } from "../city/city.ts";
 import { installTowns } from "../town/fabric.ts";
 import { installAsks } from "../town/asks.ts";
+import { installLost } from "../lore/lost.ts";
 import { installLocalActs } from "../acts/local.ts";
 import { installPossession } from "../hand/possess.ts";
 import { installLife } from "../hand/life.ts";
@@ -375,6 +376,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installBelief(world, () => populationContext(world));
   installLore(world, () => populationContext(world));
   installLessons(world, () => populationContext(world));
+  installLost(world, () => populationContext(world));
   installDiplomacy(world, () => populationContext(world));
   installWar(world, () => populationContext(world));
   installOrder(world, () => populationContext(world));

@@ -12,6 +12,8 @@ import {
   type CanWorld,
 } from "../../rules/index.ts";
 import type { Block, Item, Line, Span } from "../../bridge/index.ts";
+import { lostOf } from "../../sim/index.ts";
+import { principleName } from "../../causal/index.ts";
 import { lifelessWhy } from "../kinds.ts";
 import { lacksNow } from "../reading.ts";
 import { hereOf } from "./can.ts";
@@ -128,6 +130,16 @@ export function nextBlock(world: World): Block {
     }
     wants.push({ tone: "open", line, ...(ref ? { ref } : {}) });
   }
+  for (const w of lostOf(world).worldLosses().slice(0, 4))
+    wants.push({
+      tone: "shut",
+      line: [
+        `Lost to the world in year ${w.year}: `,
+        link(sentence(principleName(w.id, world)), `lost:${w.id}`),
+        ".",
+      ],
+      ref: `lost:${w.id}`,
+    });
   items.push({
     tone: shut.length ? "shut" : "open",
     line: [

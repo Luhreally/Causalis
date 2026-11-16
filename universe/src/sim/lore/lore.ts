@@ -64,6 +64,7 @@ import { politiesOf } from "../polity/polity.ts";
 import { lessonsOf, pressIn } from "./lessons-store.ts";
 import { laneLawOf } from "../space/lanes.ts";
 import { holdOf } from "../order/holds.ts";
+import { holdsAgain, lostOf, RETAKE_AFTER } from "./lost-store.ts";
 
 export const LORE_EVENTS = {
   found: defineEventType("lore.found", 5),
@@ -105,8 +106,10 @@ export class LoreStore implements StateStore {
   private readonly known = new Map<number, Map<string, Known>>();
   /** Each land's effects, summed from what it knows (derived; rebuilt as lore grows). */
   private readonly totals = new Map<number, Float64Array>();
+  /** How many lands know each principle (derived). */
+  private readonly lands = new Map<string, number>();
   /**
-   * Every learning folded in as it happens (lore only grows), so a checkpoint hashes one
+   * Every learning and every forgetting folded in as it happens, so a checkpoint hashes one
    * digest, not every land's whole knowledge every year.
    */
   private digest = "";
@@ -136,12 +139,53 @@ export class LoreStore implements StateStore {
   learn(cell: number, id: string, k: Known, p: Principle): void {
     let m = this.known.get(cell);
     if (!m) this.known.set(cell, (m = new Map()));
+    if (!m.has(id)) this.lands.set(id, (this.lands.get(id) ?? 0) + 1);
     m.set(id, k);
     this.digest = new Hasher().string(this.digest).int(cell).string(id).value(k).hex();
     this.count++;
     const t = this.totals.get(cell) ?? new Float64Array(EFFECTS.length);
     EFFECTS.forEach((e, i) => (t[i] = t[i]! + (p.effects[e] ?? 0)));
     this.totals.set(cell, t);
+  }
+
+  /**
+   * A land no longer knows a principle (K1). Its totals are summed again from what it still knows, in the order a save
+   * reads them back, so a craft gone takes exactly what it brought.
+   */
+  forget(cell: number, id: string): void {
+    const m = this.known.get(cell);
+    if (!m?.delete(id)) return;
+    this.lands.set(id, (this.lands.get(id) ?? 1) - 1);
+    this.digest = new Hasher().string(this.digest).int(cell).string("-").string(id).hex();
+    this.count++;
+    if (!m.size) {
+      this.known.delete(cell);
+      this.totals.delete(cell);
+      return;
+    }
+    const t = new Float64Array(EFFECTS.length);
+    for (const [known] of this.of(cell)) {
+      const p = PRINCIPLES[PRINCIPLE_INDEX.get(known)!]!;
+      EFFECTS.forEach((e, i) => (t[i] = t[i]! + (p.effects[e] ?? 0)));
+    }
+    this.totals.set(cell, t);
+  }
+
+  /** How many principles a land knows. */
+  sizeOf(cell: number): number {
+    return this.known.get(cell)?.size ?? 0;
+  }
+
+  /** How many lands know a principle. */
+  landsKnowing(id: string): number {
+    return this.lands.get(id) ?? 0;
+  }
+
+  /** The lands that know a principle (lowest first): walks every land, for what happens rarely. */
+  knowers(id: string): number[] {
+    const out: number[] = [];
+    for (const [cell, m] of this.known) if (m.has(id)) out.push(cell);
+    return out.sort((a, b) => a - b);
   }
 
   /** A land's total of an effect. */
@@ -170,6 +214,7 @@ export class LoreStore implements StateStore {
   load(state: unknown): void {
     this.known.clear();
     this.totals.clear();
+    this.lands.clear();
     const byId = new Map(PRINCIPLES.map((p) => [p.id, p]));
     const s = state as { known: [number, [string, Known][]][]; digest?: string; count?: number };
     for (const [cell, list] of s.known)
@@ -310,11 +355,13 @@ function openOf(
   here: (id: string) => boolean,
   means = meansOfWorld(ctx.generated),
   lifts = liftingEngine(meansNumbers(ctx.generated)),
+  /** Which rows are asked at all: those found by looking (a rate), unless said. */
+  asked: (p: Principle) => boolean = (p) => p.rate > 0,
 ): Principle[] {
   const reach = reachIn(means, here);
   return PRINCIPLES.filter(
     (p) =>
-      p.rate > 0 &&
+      asked(p) &&
       affordsPrinciple(p, ctx.medium, reach, means.wants) &&
       !here(p.id) &&
       needsMet(p, here) &&
@@ -339,7 +386,8 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
     year = yearOfMoment(t),
     means = meansOfWorld(g),
     // (The least engine that lifts a machine here: W2's, what a row that flies asks of a land.)
-    lifts = liftingEngine(meansNumbers(g));
+    lifts = liftingEngine(meansNumbers(g)),
+    gone = lostOf(world);
   type Plan = { cell: number; p: Principle; found: boolean; factors: Factor[]; causes: CauseRef[] };
   const plans: Plan[] = [];
   for (const prov of ctx.provinces.all()) {
@@ -352,7 +400,21 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
           : n === "metalworking"
             ? !!markets.get(cell)?.metalworking
             : !!store.get(cell, n),
-      open = openOf(ctx, here, means, lifts);
+      // (What this land has lost it takes up again only once it has the hands to hold it, or is what it was: K1. What only
+      // having lived through a thing opens is open too, to be taught by those who did.)
+      lostHere = gone.ofLand(cell),
+      open = openOf(
+        ctx,
+        here,
+        means,
+        lifts,
+        (p) =>
+          (p.rate > 0 || p.seen !== undefined) &&
+          (!lostHere ||
+            !lostHere.has(p.id) ||
+            (year - lostHere.get(p.id)!.year >= RETAKE_AFTER &&
+              holdsAgain(ctx, prov, p, lostHere.get(p.id)!.then))),
+      );
     if (!open.length) continue;
     // Finding: the first principle whose drivers carry it, in the tree's order.
     const famine = (() => {
@@ -369,6 +431,8 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
     // (What has cost it presses it toward what would answer that: exactly 1 where nothing has.)
     const pressed = pressesOn(world, cell, realms.of(cell)?.ref ?? null, year);
     for (const p of open) {
+      // (What only being there teaches is taught by those who were: lost.ts.)
+      if (p.seen) continue;
       const d = p.drivers;
       if (d.river && !g.water.river[cell]) continue;
       if (d.coast && !coast) continue;

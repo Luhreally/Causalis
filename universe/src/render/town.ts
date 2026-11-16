@@ -276,6 +276,14 @@ export class TownLayer {
         const f = footprint(s.lots, c.at, c.lots);
         return { x: f.x, z: f.z, size: Math.max(f.w, f.d), flag: siteFlagAt(f) };
       }
+    // (A building by its page's ref: `bldg:<town>:<its lot>:<the year it was begun>`.)
+    const m = /^bldg:.*:(\d+):(-?\d+)$/.exec(ref);
+    if (m)
+      for (const c of s.plan.civics)
+        if (c.at === Number(m[1]) && c.start === Number(m[2]) && c.at + c.lots <= s.lots.x.length) {
+          const f = footprint(s.lots, c.at, c.lots);
+          return { x: f.x, z: f.z, size: Math.max(f.w, f.d) };
+        }
     const w = s.plan.walls?.asked;
     if (w?.ref === ref && s.walls?.lengths.length) {
       const l =

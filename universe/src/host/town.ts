@@ -41,6 +41,7 @@ function waysOf(world: World): { ways?: "swim" | "tunnel" } {
 }
 import { worldLook } from "./biochem.ts";
 import { askedOfCivic, askedOfWalls, firstOfPlan } from "./inspect/asks.ts";
+import { shutFor } from "./inspect/lost.ts";
 import { colonyRemade, colonyTownCell } from "./colony.ts";
 
 /** What a land's signals put in its towns (signals: rules/signals.ts): a wire, a mast, and screens lit in its windows. */
@@ -239,7 +240,12 @@ export function townPlan(
     civics: [
       ...f.civics
         .filter((c) => c.at + c.lots <= lots)
-        .map((c) => ({ ...c, ...thrownAt(c.fell), ...askedOfCivic(world, ref, c) })),
+        .map((c) => ({
+          ...c,
+          ...thrownAt(c.fell),
+          ...askedOfCivic(world, ref, c),
+          ...(c.fell === null && shutFor(world, cell, c.kind) ? { shut: true } : {}),
+        })),
       ...rimWorks(f, lots),
     ],
     walls:

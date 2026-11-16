@@ -80,6 +80,8 @@ export type TownCivic = {
   readonly thrown?: number;
   /** What it was asked to be, where a town was asked for it (H1). */
   readonly asked?: TownAsked;
+  /** It stands and no one here now knows how to work it (K1): a smithy cold, a school shut. */
+  readonly shut?: boolean;
 };
 
 /** A thing a town was asked to raise, as its plan was read (H1). */
