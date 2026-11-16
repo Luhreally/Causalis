@@ -472,6 +472,12 @@ export function taxRates(
 export const TREASURY = {
   /** A man under arms costs his year's food, and as much again in his arms and keep. */
   armed: 2,
+  /**
+   * Of his arms and keep, what a levy at peace costs a year: he is at home at his own work and eats of it, and the arms kept
+   * for him wear out over some ten years (est.). As first set a levy at peace cost the treasury his whole year's food and
+   * keep, and every realm taxed its people for a host it was not keeping.
+   */
+  idle: 0.1,
   /** Each of the seat's leaders is paid this many workers' years. */
   clerks: 1.5,
   /** Relief: months of food for each of a famished land's people. */

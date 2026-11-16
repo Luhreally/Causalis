@@ -466,7 +466,13 @@ export function coinYear(ctx: PopulationContext, t: SimTime): void {
         metal,
       }),
       velocity = velocityOf(traders / Math.max(1, r.workers), lore.effect(p.seat, "signal")),
-      made = Math.max(1, r.dealt),
+      // (What its money passes against: its markets' dealings, as they run over the years, not one year's. A year's dealings
+      // swing by half and more as a land leaves or a road shuts, and read alone they set a single realm's prices up 150 in a
+      // hundred one year and down the next: first light's realms at 400 to 430, each told as a rise its people bore.)
+      made =
+        was && wasForm !== "barter"
+          ? Math.sqrt(Math.max(1, r.dealt) * Math.max(1, was[COIN.made]!))
+          : Math.max(1, r.dealt),
       fr = fisc?.get(p.ref),
       // (What its treasury went short last year and did not borrow.)
       unmet = fr ? Math.max(0, fr[FISC.deficit]! - fr[FISC.borrowed]!) : 0,
@@ -815,7 +821,9 @@ export function treasuryYear(ctx: PopulationContext, t: SimTime): void {
         wage = outsideWage(ctx, prov, m);
       heads += 12 * eats * m.price[G.grain]!;
       income += workersOf(prov) * wage;
-      clerks += prov.occupation(OCC.leader) * wage * TREASURY.clerks;
+      // (The seat's leaders are the treasury's to pay, as TREASURY.clerks says; a land's own are kept by its own rents and
+      // dues. Paid in every land, they were nearly twice the tithe on first light at 500, and its people taxed for them.)
+      if (prov.cell === p.seat) clerks += prov.occupation(OCC.leader) * wage * TREASURY.clerks;
       if (prov.lastFamine) {
         const e = world.events.get(prov.lastFamine);
         if (e && world.now - e.t <= YEAR) relief += TREASURY.relief * eats;
@@ -837,10 +845,13 @@ export function treasuryYear(ctx: PopulationContext, t: SimTime): void {
       resisted = taxResisted(sway, (money?.own[0] ?? 50) / 100, top),
       base: Record<TaxBase, number> = { land: harvest, trade: traded, heads, income },
       // (A host under arms costs its food and as much again in its arms and keep: a standing army always, a levy while it
-      // fights. A levy at peace eats at home of its own work; its arms and keep are still the treasury's.)
+      // fights. A levy at peace eats at home of its own work, and the arms kept for it wear out slowly.)
       underArms = !!lore.get(seat, "standing-army") || warsOf(world).fighting(p.ref).length > 0,
       arms =
-        fieldedOf(ctx, p) * 12 * appetite * (underArms ? TREASURY.armed : TREASURY.armed - 1),
+        fieldedOf(ctx, p) *
+        12 *
+        appetite *
+        (underArms ? TREASURY.armed : (TREASURY.armed - 1) * TREASURY.idle),
       interest = money ? (debtOf(money) * money.coupon) / 10_000 : 0,
       tariffs = duties?.get(p.ref)?.[DUTY.revenue] ?? 0,
       seigniorage = coin?.get(p.ref)?.[COIN.seigniorage] ?? 0,
