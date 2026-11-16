@@ -46,12 +46,17 @@ test("homes and open lots read by spans are what the lots tell, run over run, bu
       next,
       homes: [0, 0, 0, 0, 0, 0, 0],
       open: [],
-      changes: Array.from({ length: runs }, () => {
-        const a = Math.floor(r() * (next + 20)),
-          b = a + Math.floor(r() * 60);
-        // (A run that is no home's, and runs past the lots taken, are in the fixture on purpose.)
-        return [r() < 0.15 ? 99 : 0, a, b, 0, 1, Math.floor(r() * 7), 0];
-      }),
+      // (Runs never share a lot, and are kept in the order of their lots: fabric.ts. A run that is no home's, and
+      // runs past the lots taken, are in the fixture on purpose.)
+      changes: (() => {
+        let p = 0;
+        return Array.from({ length: runs }, () => {
+          const a = p + Math.floor(r() * 30),
+            b = a + 1 + Math.floor(r() * 60);
+          p = b;
+          return [r() < 0.15 ? 99 : 0, a, b, 0, 1, Math.floor(r() * 7), 0];
+        });
+      })(),
       civics: Array.from({ length: standing }, () => ({
         kind: "market",
         at: Math.floor(r() * (next + 5)),

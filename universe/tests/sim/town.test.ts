@@ -442,11 +442,7 @@ test("homes fall and burn run by run as they did lot by lot, whatever stands on 
       if (roll(4) > 0) changes.push([roll(5), p, p + n, 0, 0, roll(HOLDS.length), -1]);
       p += n;
     }
-    // (Now and then two runs of homes on a lot, which a town never has: the later stands.)
-    if (roll(8) === 0) {
-      const at = roll(next);
-      changes.push([roll(2), at, at + 1 + roll(20), 0, 0, roll(HOLDS.length), -1]);
-    }
+    // (No two runs share a lot, and they are kept in the order of their lots: fabric.ts.)
     for (let c = roll(10); c > 0; c--)
       civics.push({
         kind: "workshop",
