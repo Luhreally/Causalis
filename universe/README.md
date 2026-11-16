@@ -37,6 +37,19 @@ node tools/journey.ts     # the journey alone, step by step
 node tools/look.ts <dir> [year]   # the look at a phone's size: every scale, as screenshots
 ```
 
+What a year costs, and what a new system may add to it:
+
+```
+npm run cost -- "first light" 1500   # where a year goes: each system's ms, share, growth, allocations, each store's bytes
+npm run gate:122     # every system, store and total held to its row of tools/budgets.json
+                     # (-- --write sets the rows afresh after a change meant to cost more)
+```
+
+Adding a system: the checklist is at the top of `tools/budgets.json` (state per land, realm or
+world and never per person; a yearly or slower cadence, said; faded sums, not logs; the same cost
+at year 3,000 as at 300; a bounded store with a byte budget; draws on a stream of its own; a
+budget row). Gate 122 fails by name a system with no row or over it.
+
 Tests and tools are TypeScript run directly by Node 24 (type stripping), so
 code uses only erasable syntax (no enums, namespaces or parameter properties)
 and relative imports name their `.ts` file.
