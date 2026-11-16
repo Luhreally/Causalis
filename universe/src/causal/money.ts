@@ -2,7 +2,13 @@
 // trade with another shut by its word, goods slipping past its borders; crafters' guilds and workers' unions; underwriters at sea and
 // harvests pooled. Every number is the event's own.
 import { yearOfMoment } from "../kernel/index.ts";
-import { INTOX_EVENTS, MONEY_EVENTS, politiesOf, realmName } from "../sim/index.ts";
+import {
+  COMMERCE_EVENTS,
+  INTOX_EVENTS,
+  MONEY_EVENTS,
+  politiesOf,
+  realmName,
+} from "../sim/index.ts";
 import { MONEY_WORDS, TAX_WORDS, type MoneyForm, type TaxBase } from "../rules/index.ts";
 import { count } from "./words.ts";
 import { registerDecisionWords, registerEventWords } from "./why.ts";
@@ -97,3 +103,21 @@ registerDecisionWords(
   INTOX_EVENTS.barred.type,
   (w, d) => `${subject(w, d.subject)} forbade intoxicants`,
 );
+
+// Trade's last sweep (p87, sim/trade): a slump, a crash, machines at the crafts' tasks, smoke priced.
+registerEventWords(COMMERCE_EVENTS.slump.type, (_w, e) => {
+  const d = e.data as { realm?: string; idle?: number } | null;
+  return `${d?.idle ?? 0} in a hundred of ${d?.realm ?? "a realm"}'s crafts stood idle for want of buyers, ${year(e.t)}`;
+});
+registerEventWords(COMMERCE_EVENTS.crash.type, (_w, e) => {
+  const d = e.data as { realm?: string; fell?: number } | null;
+  return `The shares of ${d?.realm ?? "a realm"}'s works fell from hopes the years could not bear, ${count(d?.fell ?? 0)} grain's worth gone, ${year(e.t)}`;
+});
+registerEventWords(COMMERCE_EVENTS.machines.type, (_w, e) => {
+  const d = e.data as { realm?: string; share?: number; hands?: number } | null;
+  return `Machines came to do ${d?.share ?? 0} in a hundred of the crafts' work in a land of ${d?.realm ?? "a realm"}, the work of ${count(d?.hands ?? 0)} hands, ${year(e.t)}`;
+});
+registerEventWords(COMMERCE_EVENTS.smoke.type, (_w, e) => {
+  const d = e.data as { realm?: string; cut?: number } | null;
+  return `${realm(d)} laid a price on its works' smoke, and they cut ${d?.cut ?? 0} in a hundred of it, ${year(e.t)}`;
+});

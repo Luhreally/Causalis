@@ -7,8 +7,10 @@
 import { worldChemistry } from "../../gen/index.ts";
 import type { Ref, World } from "../../kernel/index.ts";
 import type { Block, BoardRow, PageModel, Tab } from "../../bridge/index.ts";
-import { COIN_A_UNIT, G, GOODS, roleWord } from "../../rules/index.ts";
+import { COIN_A_UNIT, EXCHANGE, G, GOODS, roleWord } from "../../rules/index.ts";
 import {
+  EX,
+  EXCHANGE_STORE,
   creditOf,
   homePlanet,
   loreOf,
@@ -16,6 +18,7 @@ import {
   marketsOf,
   politiesOf,
   realmName,
+  tradeStore,
 } from "../../sim/index.ts";
 import { makingTown } from "../chain.ts";
 import { boardRef, wayRow } from "./board.ts";
@@ -46,8 +49,17 @@ export type Company = {
   readonly thing: { readonly key: string; readonly ref: string | null };
 };
 
-/** A company is worth this many years of what it takes in. */
+/** A company is worth this many years of what it takes in, where its realm's exchange has not yet bid on it. */
 const WORTH_YEARS = 2;
+/**
+ * How many years of what it takes in a land's company is worth: what its realm's exchange bids for a year of its works' earnings
+ * (sim/trade, p87: by what holders ask and hope), times the share of a sale its works keep; else WORTH_YEARS.
+ */
+function worthYears(world: World, cell: number): number {
+  const realm = politiesOf(world).of(cell)?.ref,
+    row = realm ? tradeStore(world, EXCHANGE_STORE)?.get(realm) : undefined;
+  return row && row[EX.years]! > 0 ? (row[EX.years]! / 100) * EXCHANGE.margin : WORTH_YEARS;
+}
 /**
  * How many shares a company is divided into: so many that one sold for between a hundred and a thousand coin in the first year its books
  * keep (a power of ten, as a company splits its shares when they grow dear). A share's price moves from there with what it takes in.
@@ -196,6 +208,7 @@ export function companiesOf(world: World, cell: number): readonly Company[] {
   const m = marketsOf(world).get(cell);
   if (m && hasCompanies(world, cell)) {
     const town = makingTown(world, cell),
+      times = worthYears(world, cell),
       named = town?.name ?? "",
       seen = new Set<string>();
     for (const good of WORKS_GOODS) {
@@ -233,8 +246,8 @@ export function companiesOf(world: World, cell: number): readonly Company[] {
           town: town ? { ref: town.ref, name: town.name } : null,
           part,
           years,
-          worth: now * WORTH_YEARS,
-          share: (now * WORTH_YEARS) / sharesOf(first * WORTH_YEARS, now * WORTH_YEARS),
+          worth: now * times,
+          share: (now * times) / sharesOf(first * times, now * times),
           thing: { key: w.key, ref: w.ref },
         });
       }
@@ -407,7 +420,7 @@ export function exchangePage(world: World, ref: string): PageModel {
     type: "text",
     lines: [
       [
-        `A share's price follows its company's year: what its works made, its part of its land's making, at what its land's market paid. A company is reckoned worth ${WORTH_YEARS} years of what it takes in, its shares split so that one sold for a hundred to a thousand coin when its books begin, and split again whenever one grows past ten thousand. The index is all of them together against that first year. Press a line for what is made there.`,
+        `A share's price follows its company's year: what its works made, its part of its land's making, at what its land's market paid. A company is reckoned worth what its realm's exchange bids for what its works earn (its Treasury says how much and why), its shares split so that one sold for a hundred to a thousand coin when its books begin, and split again whenever one grows past ten thousand. The index is all of them together against that first year. Press a line for what is made there.`,
       ],
     ],
   });

@@ -11,6 +11,7 @@ import { lodesBlock, woodsBlock, woodsTurnsBlock } from "./woods.ts";
 import { herdBlock } from "./herds.ts";
 import { landEnergyBlocks } from "./energy.ts";
 import { landWealthBlocks } from "./money.ts";
+import { landTradeBlocks } from "./trade.ts";
 import { fieldsBlocks } from "./fields.ts";
 import {
   BIOME_NAMES,
@@ -525,7 +526,8 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
       const energy = landEnergyBlocks(world, cell);
       if (energy.length) tabs.push({ id: "energy", name: "Energy", blocks: energy });
       // What its goods are worth and why, its makers' hold, how its income is shared, whom it binds (Round B).
-      const wealth = landWealthBlocks(world, cell);
+      // (And its machines at the crafts' tasks, its town's heart and ground: p87.)
+      const wealth = [...landWealthBlocks(world, cell), ...landTradeBlocks(world, cell)];
       if (wealth.length) tabs.push({ id: "wealth", name: "Wealth", blocks: wealth });
       // Its stores broken down (Phase 15 M123): by good and by what they are made of.
       const stores = landStoresBlocks(world, cell);
