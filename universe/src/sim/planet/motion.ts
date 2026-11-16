@@ -276,9 +276,15 @@ export function shiftNow(world: World): Shift {
     g = homePlanet(world).generated.fine,
     iceMoved = store.cells.length > 0,
     ice = iceMoved ? new Uint8Array(g.grid.count) : null;
+  // (A land's sheet read against its own as made: 1 where one has come, 2 where one has gone, nothing where it stands as
+  // it was. Read as sheet or none, every land whose climate made it ice but whose sheet as made was thinner than a sheet
+  // turned tundra the first year anything moved: on first light 361 lands opened at once under a cooling.)
   if (ice)
-    for (let i = 0; i < store.cells.length; i++)
-      ice[store.cells[i]!] = store.ice[i]! >= ICE.thin ? 1 : 2;
+    for (let i = 0; i < store.cells.length; i++) {
+      const now = store.ice[i]! >= ICE.thin,
+        was = store.made[i]! >= ICE.thin;
+      if (now !== was) ice[store.cells[i]!] = now ? 1 : 2;
+    }
   const moved = warm || sea || overturn || store.state.version > 0,
     shift: Shift = moved
       ? { key: `w${warm}s${sea}o${overturn}v${s.version}`, warm, sea, overturn, ice }

@@ -90,7 +90,8 @@ export function biomeUnder(w: HomeWorld, cell: number, warm: number): number {
  * How a world's ground stands against as it was made (planet/motion.ts shiftNow): the warmth its ground has turned
  * (degrees, the god's and the climate's, in quarter degrees), its seas (m, whole), its overturning less one
  * (twentieths: the share of its currents' warmth its coasts have lost or gained), and which of the fine lands whose ice
- * is kept bear a sheet now (1 a sheet, 2 none, 0 a land not kept: as its warmth reads it; null: none kept). `key` is ""
+ * is kept have a sheet come or gone against as made (1 one come, 2 one gone, 0 as made or a land not kept: as its warmth
+ * reads it; null: none kept). `key` is ""
  * exactly where nothing has moved.
  */
 export type Shift = {
@@ -246,9 +247,15 @@ function livableShifted(w: HomeWorld, cell: number, medium: Medium, shift: Shift
     return capacity(f, c, medium, 0, shift).forage > 0;
   };
   if (!isProvinceWorld(w)) return one(w, cell);
-  for (let k = w.childOffsets[cell]!; k < w.childOffsets[cell + 1]!; k++)
-    if (one(w.fine, w.children[k]!)) return true;
-  return false;
+  // (A province is read as it is unmoved: by its own ground and biome, its warmth and sea turned, and by what its fine
+  // lands feed through the shift. Read as any of its fine lands, 361 of first light's ice and mountain provinces opened
+  // the first year its ground moved at all.)
+  if (medium === "land") {
+    if (w.tectonics.elevation[cell]! - shift.sea <= 0) return false;
+    const b = biomeShifted(w, cell, { ...shift, ice: null });
+    if (b === BIOME.ice || b === BIOME.alpine) return false;
+  }
+  return capacity(w, cell, medium, 0, shift).forage > 0;
 }
 
 /** What a land's seasons do to its yield against under Earth's sky (rules/seasons.ts): its warmth `heat` degrees turned. */

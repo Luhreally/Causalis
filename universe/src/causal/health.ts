@@ -82,6 +82,10 @@ type Data = {
   dead?: number;
   bound?: number;
   strangers?: string;
+  /** Round D: the sickness a strain branched from, how much deadlier it is (in a hundred), and how far its herds keep it. */
+  parent?: string;
+  deadliness?: number;
+  range?: number;
 } | null;
 
 registerExplainer(SICKNESS.code, (world, ref) => {
@@ -119,6 +123,14 @@ registerEventWords(HEALTH_EVENTS.outbreak.type, (world, e) => {
 registerEventWords(HEALTH_EVENTS.went.type, (world, e) => {
   const d = e.data as Data;
   return `${cap(d?.sickness ?? "a sickness")} went home to the stars with the ${d?.strangers ?? "strangers"}, from ${landWords(world, e.place)}: they fear the home world the more, ${year(e.t)}`;
+});
+registerEventWords(HEALTH_EVENTS.strain.type, (world, e) => {
+  const d = e.data as Data;
+  return `A new strain of ${d?.parent ?? "a sickness"}, ${d?.sickness ?? "a new sickness"}, rose in ${landWords(world, e.place)} where most were spared the old: ${d?.deadliness ?? 0} in a hundred it takes die of it, ${year(e.t)}`;
+});
+registerEventWords(HEALTH_EVENTS.spilled.type, (world, e) => {
+  const d = e.data as Data;
+  return `${cap(d?.sickness ?? "a sickness")}, kept in the herds, came back to those who keep them in ${landWords(world, e.place)}, ${year(e.t)}`;
 });
 registerEventWords(
   HEALTH_ACTS.ward.type,

@@ -22,6 +22,7 @@ import {
   actsOf,
   biomeUnder,
   capacity,
+  shiftNow,
   divineWarming,
   fortunesOf,
   greatActsOf,
@@ -208,7 +209,8 @@ test("a world no god warms is as it was made; warmed or cooled, its biomes turn 
     n = g.offworld.base;
   assert.equal(groundWarming(w, PLANET), 0);
   assert.equal(divineWarming(w, PLANET), 0);
-  assert.deepEqual(warmthMap(w), { warm: 0 });
+  // (Round D: the map carries the stamp of the shift it was read under; none where the ground has not moved.)
+  assert.deepEqual(warmthMap(w), { warm: 0, stamp: 0 });
   assert.equal(warmthRead(w), null);
   let ice = 0;
   for (let i = 0; i < g.fine.grid.count; i++) {
@@ -270,9 +272,12 @@ test("warmed for good, the ground follows over a generation: land opens, the pag
   assert.equal(read.opened - read.closed, now - made);
   assert.equal(read.until, null);
   assert.equal(read.ground, 12);
-  // (A land's yield is the warmed ground's.)
-  const land = c.provinces.all().find((p) => p.total() > 0)!.cell;
-  assert.deepEqual(provinceCapacity(c, land), capacity(g, land, c.medium, 12));
+  // (A land's yield is the warmed ground's: since round D, the whole of how its ground now stands, its seas, its currents
+  // and its ice moved with the warmth, a twelve-degree turn the most of it.)
+  const land = c.provinces.all().find((p) => p.total() > 0)!.cell,
+    shift = shiftNow(w);
+  assert.equal(shift.warm, 12);
+  assert.deepEqual(provinceCapacity(c, land), capacity(g, land, c.medium, 0, shift));
   assert.deepEqual(provinceCapacity(c, land, 0), capacity(g, land, c.medium));
   // (The home world's page and the act's say what changed; the globe is handed the spots that turned.)
   const said = (ref: string) => JSON.stringify(pageOf(w, ref));
@@ -282,7 +287,8 @@ test("warmed for good, the ground follows over a generation: land opens, the pag
   const map = warmthMap(w);
   assert.equal(map.warm, 12);
   assert.ok(map.turned!.length > 0 && map.turned!.length % 2 === 0);
-  assert.deepEqual(warmthMap(w, 12), { warm: 12 });
+  // (A globe that has the map of this stamp is handed only the warmth and the stamp: round D keys the map by its shift.)
+  assert.deepEqual(warmthMap(w, map.stamp), { warm: 12, stamp: map.stamp });
   const frame = {
       arrays: {
         biome: Uint8Array.from(g.fine.climate.biome),

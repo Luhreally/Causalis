@@ -61,9 +61,17 @@ test("a metal tool traced from the ground: its ore, its smelting, the smithy and
   for (const { cell } of lands) {
     const metal = toolMetal(ctx, cell);
     if (metal === "stone" || seen.has(metal)) continue;
-    seen.add(metal);
     const made: Made = toolMade(world, cell, `test:${cell}`, now, false),
       refs = refsOf(made.chain);
+    // (A land whose metal was bought down a road longer than the trace follows, or from a market whose smelters bought it
+    // too, says it was smelted in a land none can tell: the next land of that metal is asked. Since round B's markets,
+    // first light's first copper land at 125 buys its copper four roads off.)
+    if (
+      !refs.some((r) => r.startsWith("subst:")) &&
+      /a land none can tell/.test(made.chain.map(words).join(" "))
+    )
+      continue;
+    seen.add(metal);
     assert.equal(made.stuff, metal);
     assert.ok(made.quality >= 5 && made.quality <= 99);
     assert.ok(["rough", "plain", "good", "fine", "masterly"].includes(made.grade));
@@ -78,7 +86,8 @@ test("a metal tool traced from the ground: its ore, its smelting, the smithy and
     );
     // Worked: by a smith named, so many years at it, at the smithy where one stands.
     assert.ok(made.maker && /^[A-Z][a-z]+ [A-Z][a-z]+$/.test(made.maker.name), made.maker?.name);
-    assert.match(words(made.chain.at(-1)!), / at .+ by .+, (a smith|a hand at the works) /);
+    // (At a smithy of a town, or at a smith's hearth where its land keeps none: "by one, a smith, so many years".)
+    assert.match(words(made.chain.at(-1)!), / at .+ by .+, (a smith|a hand at the works)\b/);
     if (made.workshop.ref) assert.ok(refs.includes(made.workshop.ref), "its smithy linked");
     if (metal === "bronze")
       assert.ok(
