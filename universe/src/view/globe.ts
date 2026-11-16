@@ -769,10 +769,10 @@ export function warmedFrame(
   warm: number,
   turned: readonly number[],
 ): FrameMessage {
-  if (!warm) return frame;
+  if (!warm && !turned.length) return frame;
   const biome = Uint8Array.from(frame.arrays.biome as Uint8Array),
     was = frame.arrays.temperature as Float32Array | undefined,
-    temperature = was ? Float32Array.from(was, (t) => t + warm) : undefined;
+    temperature = was && warm ? Float32Array.from(was, (t) => t + warm) : undefined;
   for (let i = 0; i + 1 < turned.length; i += 2)
     if (turned[i]! < biome.length) biome[turned[i]!] = turned[i + 1]!;
   return {

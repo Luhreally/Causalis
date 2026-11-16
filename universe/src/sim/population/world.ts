@@ -1,6 +1,7 @@
 // A world with people (Phase 1): the home planet, and a first people in the
 // province that suits them best — warm enough, watered, rich in what can be
 // gathered — whose choice is itself a recorded decision the explainer can open.
+import { installMotion } from "../planet/motion.ts";
 import {
   World,
   YEAR,
@@ -410,6 +411,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installEcology(world, () => populationContext(world));
   installLanguages(world, () => populationContext(world));
   installAir(world, () => populationContext(world));
+  installMotion(world);
   installSpace(world, () => populationContext(world));
   installSummon(world, () => populationContext(world));
 

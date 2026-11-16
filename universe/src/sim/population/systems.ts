@@ -33,7 +33,6 @@ import {
   lives,
   offworldSite,
   placeName,
-  planetRef,
   refineRegion,
   type Region,
   tongueName,
@@ -107,7 +106,8 @@ import { homePlanet } from "../planet/store.ts";
 import { lightSteps, starSitesOf } from "../space/stars.ts";
 import { lateOf, remakeKey } from "../space/late-store.ts";
 import { siteRegion } from "../space/ground.ts";
-import { groundWarming, starHazard } from "../acts/great.ts";
+import { starHazard } from "../acts/great.ts";
+import { homeSky, shiftNow, starEnded } from "../planet/motion.ts";
 import { capacity, COLS, livable, Province, row, ROWS, type Capacity } from "./model.ts";
 import {
   HistoryStore,
@@ -331,38 +331,39 @@ export function populationContext(world: World): PopulationContext {
 }
 
 // Capacities and regions are pure functions of the generated world: kept, never saved.
-/** The home world's ref: what the god's warming of its ground is asked by. */
-const HOME_PLANET = planetRef(0);
 const CAPACITIES = new Map<string, Capacity>();
-export function provinceCapacity(
-  ctx: PopulationContext,
-  cell: number,
-  /** The degrees its ground has turned by the god's hand (as it stands now, unless asked as it was made: 0). */
-  warm = groundWarming(ctx.world, HOME_PLANET),
-): Capacity {
-  // (As it was made, on every world no god has warmed: the key and the reckoning are then what they always were.)
-  const made = `${homePlanet(ctx.world).surfaceKey}:${ctx.medium}:${cell}`,
-    key = warm ? `${made}:${warm}` : made;
+/**
+ * What a land gives a year. Unasked, as its ground stands now (planet/motion.ts shiftNow: the god's warming and the
+ * climate's, its seas and its ice); asked `warm`, as the god's warming alone would have it (0: as it was made).
+ */
+export function provinceCapacity(ctx: PopulationContext, cell: number, warm?: number): Capacity {
+  const shift = warm === undefined ? shiftNow(ctx.world) : null,
+    // (As it was made, on every world whose ground has not moved: the key and the reckoning are then what they always were.)
+    made = `${homePlanet(ctx.world).surfaceKey}:${ctx.medium}:${cell}`,
+    key = shift ? (shift.key ? `${made}:${shift.key}` : made) : warm ? `${made}:${warm}` : made;
   let c = CAPACITIES.get(key);
   if (!c) {
     if (CAPACITIES.size > 50_000) CAPACITIES.clear();
-    CAPACITIES.set(key, (c = capacity(ctx.generated, cell, ctx.medium, warm)));
+    CAPACITIES.set(
+      key,
+      (c = capacity(ctx.generated, cell, ctx.medium, warm ?? 0, shift?.key ? shift : null)),
+    );
   }
   return c;
 }
 const LIVABLE = new Map<string, boolean>();
-/** Whether the people can live in a place (a pure function of the generated world: kept, never saved). */
-export function livableFor(
-  ctx: PopulationContext,
-  cell: number,
-  warm = groundWarming(ctx.world, HOME_PLANET),
-): boolean {
-  const made = `${homePlanet(ctx.world).surfaceKey}:${ctx.medium}:${cell}`,
-    key = warm ? `${made}:${warm}` : made;
+/** Whether the people can live in a place: unasked, as its ground stands now; asked `warm`, under the god's warming alone. */
+export function livableFor(ctx: PopulationContext, cell: number, warm?: number): boolean {
+  const shift = warm === undefined ? shiftNow(ctx.world) : null,
+    made = `${homePlanet(ctx.world).surfaceKey}:${ctx.medium}:${cell}`,
+    key = shift ? (shift.key ? `${made}:${shift.key}` : made) : warm ? `${made}:${warm}` : made;
   let ok = LIVABLE.get(key);
   if (ok === undefined) {
     if (LIVABLE.size > 50_000) LIVABLE.clear();
-    LIVABLE.set(key, (ok = livable(ctx.generated, cell, ctx.medium, warm)));
+    LIVABLE.set(
+      key,
+      (ok = livable(ctx.generated, cell, ctx.medium, warm ?? 0, shift?.key ? shift : null)),
+    );
   }
   return ok;
 }
@@ -581,16 +582,21 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
 /**
  * What a star's flare or calm (a great act) lays on a land under its light: a land of
  * another body of the home system is under the home star; a ship's or a colony's among
- * the stars, under the star it sailed for. The home world's own lands are sheltered by
- * its air and its field (1).
+ * the stars, under the star it sailed for, and in the dark where that star has ended. The
+ * home world's own lands are sheltered by its air and as much as its field keeps off
+ * (planet/motion.ts homeSky: Earth's keeps nearly all).
  */
 function underStar(ctx: PopulationContext, cell: number): number {
   const site = offworldSite(ctx.generated, cell);
-  if (!site) return 1;
+  if (!site) return homeSky(ctx.world);
   const star =
     site.body >= 0 ? (ctx.generated.star.ref as Ref) : starSitesOf(ctx.world)?.get(cell)?.star;
-  return star ? starHazard(ctx.world, star).factor : 1;
+  if (!star) return 1;
+  // (Halls whose star has ended live on what their own works give, in the dark and the cold.)
+  return starHazard(ctx.world, star).factor * (starEnded(ctx.world, star) ? STAR_DARK : 1);
 }
+/** How much likelier death is in halls whose star has ended. */
+const STAR_DARK = 3;
 
 /**
  * Births and deaths. Every month each land's hunger is counted; its people are reckoned for

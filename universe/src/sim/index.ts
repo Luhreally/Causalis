@@ -1118,3 +1118,27 @@ export {
   type Fear,
   type Money,
 } from "./finance/finance.ts";
+export {
+  ICE_STEP,
+  MOTION_EVENTS,
+  MotionStore,
+  STEP as MOTION_STEP,
+  homeField,
+  homeSky,
+  homeStarLife,
+  motionOf,
+  motionYear,
+  shiftNow,
+  starEnded,
+  type LandTurn,
+  type MotionState,
+  type StarEnd,
+} from "./planet/motion.ts";
+export {
+  AS_MADE,
+  SEARED,
+  biomeShifted,
+  searedUnder,
+  warmthShifted,
+  type Shift,
+} from "./population/model.ts";
