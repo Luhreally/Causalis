@@ -30,6 +30,23 @@ type Game = {
 };
 declare const causalis: Game;
 
+/**
+ * Wait (a minute at most) till the world's own save is kept at `to` or later. Asked from here: waitForFunction takes
+ * an async predicate's promise as met at once, and the page was reloaded before its save was.
+ */
+async function keptBy(page: import("playwright").Page, to: number, what: string): Promise<void> {
+  for (const end = Date.now() + 60_000; ;) {
+    const kept = await page.evaluate(
+      async (t) =>
+        (await causalis.client.saves()).some((s) => s.name.endsWith(":auto") && s.t >= t),
+      to,
+    );
+    if (kept) return;
+    assert.ok(Date.now() < end, what);
+    await new Promise((r) => setTimeout(r, 250));
+  }
+}
+
 try {
   for (const engine of [webkit, chromium]) {
     const browser = await engine.launch(
@@ -109,27 +126,37 @@ try {
         Object.defineProperty(document, "hidden", { configurable: true, value: true });
         document.dispatchEvent(new Event("visibilitychange"));
       }, 5 * YEAR);
-      await page.waitForFunction(
-        async (to) =>
-          (await causalis.client.saves()).some((s) => s.name.endsWith(":auto") && s.t >= to),
-        5 * YEAR,
-      );
+      await keptBy(page, 5 * YEAR, `${engine.name()}: the background save of year 5 is kept`);
       await page.evaluate(() => {
         delete (document as unknown as { hidden?: boolean }).hidden;
         document.dispatchEvent(new Event("visibilitychange"));
       });
       await page.reload();
-      await page.waitForFunction((to) => (causalis?.client?.status?.t ?? 0) >= to, 5 * YEAR);
+      // (On a failure, what the page did hold: its year, its saves, its errors, so a runner's failure says why.)
+      await page
+        .waitForFunction((to) => (causalis?.client?.status?.t ?? 0) >= to, 5 * YEAR, {
+          timeout: 60_000,
+        })
+        .catch(async (e) => {
+          const seen = await page
+            .evaluate(async () => ({
+              url: location.href,
+              t: causalis?.client?.status?.t ?? null,
+              saves: (await causalis?.client?.saves?.())?.map((v: { name: string; t: number }) => [
+                v.name,
+                v.t,
+              ]),
+            }))
+            .catch((x) => String(x));
+          console.log(`${engine.name()}: after the reload`, JSON.stringify(seen), errors);
+          throw e;
+        });
       console.log(`${engine.name()}: background checkpoint and reload retain year 5`);
 
       // The minute timer, without waiting a real minute or changing the simulation's clock.
       await page.evaluate((to) => causalis.client.advance(to), 6 * YEAR);
       await page.clock.fastForward(60_001);
-      await page.waitForFunction(
-        async (to) =>
-          (await causalis.client.saves()).some((s) => s.name.endsWith(":auto") && s.t >= to),
-        6 * YEAR,
-      );
+      await keptBy(page, 6 * YEAR, `${engine.name()}: the minute's save of year 6 is kept`);
       console.log(`${engine.name()}: periodic checkpoint retains year 6`);
       await page.clock.resume();
 

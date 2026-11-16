@@ -24,6 +24,8 @@ export type ToHost =
     }
   | { readonly kind: "command"; readonly id: number; readonly type: string; readonly args: unknown }
   | { readonly kind: "speed"; readonly secondsPerSecond: number }
+  /** The page gone into the background, or back: a save made while it is away is made whole, at once. */
+  | { readonly kind: "background"; readonly away: boolean }
   | { readonly kind: "interest"; readonly interest: Interest }
   | { readonly kind: "query"; readonly id: number; readonly query: Query }
   | {
