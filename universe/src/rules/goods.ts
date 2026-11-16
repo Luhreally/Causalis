@@ -103,6 +103,8 @@ export type Recipe = {
     readonly knowledge?: string;
     /** Only where nothing burns: its works are driven without fuel. */
     readonly fuelless?: boolean;
+    /** Only where the land's own rivers, wind, hot ground or atom carry the current its works ask (gen/carriers.ts). */
+    readonly carried?: boolean;
   };
   /** Only near rivers and lakes (clay), or anywhere. */
   readonly clay?: boolean;
@@ -223,6 +225,15 @@ export const RECIPES: readonly Recipe[] = [
     inputs: [],
     output: [G.iron, 4],
     needs: { ore: "iron", knowledge: "made-oxygen" },
+  },
+  // (Where no seam is: works driven by current from a land's rivers' fall, its wind, its hot ground, or the atom where
+  // the electron is known, gen/carriers.ts. Appended, so every other keeps its place.)
+  {
+    id: "carried-machines",
+    name: "machines made in works driven by current from its waters, wind or ground",
+    inputs: [[G.tools, 2]],
+    output: [G.machines, 3],
+    needs: { knowledge: "electricity", carried: true },
   },
 ];
 

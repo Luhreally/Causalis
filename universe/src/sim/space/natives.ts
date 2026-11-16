@@ -129,6 +129,9 @@ export type Folk = {
   /** The most of them their own world holds, made whole as it is when entered (null: a people not followed, whose
    * world is read from afar alone). */
   readonly holds: number | null;
+  /** Where a followed people's works are driven by another road than fuel, what drives them and what it cost them in
+   * years (null: by fuel, or they do not come to what flies). */
+  readonly drives: string | null;
   /** The year they fell, and why, as far as what is left tells (null: they stand). */
   readonly fell: number | null;
   readonly fellWhy: string | null;
@@ -377,12 +380,19 @@ function readFolk(world: World, s: GalaxyStar, p: ForeignPlanet): Folk | null {
     // (The years of what they never come to are never: no reader of history's years finds them there.)
     never = (stage: "signals" | "orbit" | "stars", year: number) =>
       far?.shut && pastShut(stage, far.shut) ? Infinity : year,
+    // (Their works driven by their rivers, wind, hot ground or the atom and not by fuel: from the electron to what
+    // flies takes them as much longer as the road gives little to spare, far-read.ts. History's years, stretched.)
+    slow = far?.slow ?? 1,
+    paced = (year: number) =>
+      followed && slow > 1 && Number.isFinite(year) && year > followed.electronics
+        ? round(followed.electronics + (year - followed.electronics) * slow)
+        : year,
     held: Civilization | null = followed
       ? {
           ...followed,
           electronics: never("signals", followed.electronics),
-          orbit: never("orbit", followed.orbit),
-          stars: never("stars", followed.stars),
+          orbit: paced(never("orbit", followed.orbit)),
+          stars: paced(never("stars", followed.stars)),
         }
       : null;
   // A people that comes as far as its numbers let it, and past towns, may fall; one that came to the
@@ -401,7 +411,7 @@ function readFolk(world: World, s: GalaxyStar, p: ForeignPlanet): Folk | null {
     ref,
     star: `star:${s.sector}:${s.k}` as Ref,
     planet: p.index,
-    followed: far?.shut ? held : followed,
+    followed: far?.shut || slow > 1 ? held : followed,
     name: civName(rng, { ref }),
     body,
     gravity: p.gravity,
@@ -431,9 +441,24 @@ function readFolk(world: World, s: GalaxyStar, p: ForeignPlanet): Folk | null {
     ceiling,
     shut,
     holds: far ? far.holds : null,
+    drives: far && far.road && far.road in DRIVES ? drivesWords(far.road, far.slow) : null,
     fell,
     fellWhy: fell === null ? null : fallWords(s, p, u(14)),
   };
+}
+
+/** What drives a people's works where they have no fuel to burn, in words. */
+const DRIVES: Readonly<Record<string, string>> = {
+  water: "the fall of their rivers",
+  wind: "their wind",
+  heat: "the heat of their ground",
+  atom: "the atom",
+};
+function drivesWords(road: string, slow: number): string {
+  const by = DRIVES[road]!;
+  return slow > 1.05
+    ? `Their works are driven by ${by}, not by fuel: from the electron to what flies took them ${slow.toFixed(1)} times as long as fuel would have.`
+    : `Their works are driven by ${by}, not by fuel, with current to spare.`;
 }
 
 const FOLKS = new Map<string, Folk | null>();

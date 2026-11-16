@@ -47,6 +47,7 @@ function folkBlocksOf(world: World, f: Folk): Block[] {
         : [stat("How many", `Some ${folkPeople(f, year).toLocaleString("en")} (an estimate)`)]),
       ...(arms.length ? [stat("What they carry", sentence(arms.join("; ")))] : []),
       ...(f.shut && stage !== "ruins" ? [stat("What holds them", f.shut)] : []),
+      ...(f.drives && stage !== "ruins" ? [stat("What drives their works", f.drives)] : []),
       stat("Their ground gives", `${cap(f.stone.name)}, ${f.stone.from}`),
     ];
   return [

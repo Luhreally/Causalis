@@ -99,7 +99,9 @@ export function seatKnown(ctx: PopulationContext, home: number, far: FarMade, ev
   // realm founded here flies its own from the machines its lands hold, with those gone before for its reason.
   const has = (id: string) => ids.includes(id),
     lands = peopled(ctx);
-  if (MACHINE_CRAFTS.some(has) && machinesCan(ctx.generated, has, lands)) {
+  let seated = 0;
+  for (const p of ctx.provinces.all()) seated += p.total();
+  if (MACHINE_CRAFTS.some(has) && machinesCan(ctx.generated, has, lands, seated)) {
     const markets = ctx.world.store<MarketStore>("economy.markets");
     for (const p of ctx.provinces.all()) {
       const users = TOOL_USERS.reduce((s, o) => s + p.occupation(o), 0),

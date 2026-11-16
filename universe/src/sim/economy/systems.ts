@@ -24,7 +24,14 @@ import {
   type SimTime,
   type World,
 } from "../../kernel/index.ts";
-import { cellRef, seamRef, surfaceOre, worldChemistry } from "../../gen/index.ts";
+import {
+  WORKS_WATTS,
+  cellRef,
+  landCarries,
+  seamRef,
+  surfaceOre,
+  worldChemistry,
+} from "../../gen/index.ts";
 import { loreOf } from "../lore/lore.ts";
 import { fearShuts, financeOf } from "../finance/finance.ts";
 import {
@@ -126,6 +133,12 @@ export function whyNot(ctx: PopulationContext, cell: number, m: Market, r: Recip
   const know = r.needs?.knowledge;
   if (know === "metalworking" && !m.metalworking) return "they do not know how to smelt copper";
   if (r.needs?.fuelless && ctx.affords.fire) return "its works burn fuel";
+  if (
+    r.needs?.carried &&
+    landCarries(ctx.generated, cell, !!loreOf(ctx.world).get(cell, "electronics")) <
+      WORKS_WATTS * Math.max(1, ctx.provinces.get(cell)?.total() ?? 0)
+  )
+    return "no river's fall, wind or hot ground under it carries the current its works would ask";
   if (know && know !== "metalworking" && !loreOf(ctx.world).get(cell, know))
     return `they do not know ${principleNameOn(worldChemistry(ctx.generated), know)}`;
   if (r.needs?.ore && !oreWorkable(ctx, cell, r.needs.ore)) {

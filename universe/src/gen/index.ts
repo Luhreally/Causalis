@@ -275,5 +275,16 @@ export {
   farRoads,
   farShut,
   machinesCan,
+  machinesRoad,
   type FarShut,
+  type MachinesRoad,
 } from "./far.ts";
+export {
+  WORKS_WATTS,
+  bestCarrier,
+  carriersOf,
+  fissileShare,
+  landCarries,
+  type CarrierRoad,
+  type Carriers,
+} from "./carriers.ts";

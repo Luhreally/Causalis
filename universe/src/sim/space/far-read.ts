@@ -4,7 +4,9 @@
 // played agree. Pure: of the home world's seed and its stars alone; nothing here enters history.
 import { Rng, seedFromText, type Hasher, type StateStore, type World } from "../../kernel/index.ts";
 import {
+  farCrafts,
   farShut,
+  machinesRoad,
   foreignBody,
   foreignPlanets,
   generateHomeWorld,
@@ -180,6 +182,13 @@ export type FarCeiling = {
   readonly ceiling: FarStage;
   readonly shut: FarShut | null;
   readonly holds: number;
+  /**
+   * How much longer than by fuel it takes them from the electron to what flies, where their works are driven by
+   * another road (gen/far.ts machinesRoad: their rivers' fall, wind, hot ground or the atom; 1 by fuel).
+   */
+  readonly slow: number;
+  /** The road their works are driven by, where they come to what flies (null: they do not). */
+  readonly road: string | null;
 };
 
 /**
@@ -199,7 +208,7 @@ export class FarReadStore implements StateStore {
   of(civ: string): FarCeiling | undefined {
     const c = this.read.get(civ) ?? CEILINGS.get(`${this.seed} ${civ}`);
     // (A save made before the most a world holds was kept beside its ceiling reads it again.)
-    return c && c.holds !== undefined ? c : undefined;
+    return c && c.holds !== undefined && c.slow !== undefined ? c : undefined;
   }
   set(civ: string, c: FarCeiling): void {
     this.read.set(civ, c);
@@ -267,10 +276,20 @@ export function farCeiling(
     last = r;
   }
   const at = last ?? reading("villages"),
+    g = { ...ground, far: at.made },
+    // (Where they come to what flies, by which road their works were driven when they first flew: with the crafts of
+    // orbit, before the minds and drives of the stars, in the lands they are seated on at the furthest they come to.)
+    flown = ceiling === "orbit" || ceiling === "stars",
+    crafts = flown ? new Set(farCrafts(g, "orbit")) : null,
+    driven = crafts
+      ? machinesRoad(g, (id) => crafts.has(id), seatedCells(g, at.seed), at.made.people)
+      : null,
     made: FarCeiling = {
       ceiling,
       shut,
-      holds: seatsAtMost({ ...ground, far: at.made }, at.seed),
+      holds: seatsAtMost(g, at.seed),
+      slow: driven?.slow ?? 1,
+      road: driven?.road ?? null,
     };
   if (CEILINGS.size >= 64) CEILINGS.delete(CEILINGS.keys().next().value!);
   CEILINGS.set(key, made);
