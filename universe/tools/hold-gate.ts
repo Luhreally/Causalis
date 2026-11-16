@@ -27,12 +27,17 @@ const root = fileURLToPath(new URL("..", import.meta.url)),
   }),
   context = await browser.newContext({
     viewport: { width: 430, height: 932 },
-    deviceScaleFactor: 3,
+    // (A runner draws in software: at three pixels to the point each touch waits a second or two on a
+    // frame, and a tap's lift comes after the hold has begun. One pixel to the point there.)
+    deviceScaleFactor: ci ? 1 : 3,
     isMobile: true,
     hasTouch: true,
   }),
   page = await context.newPage(),
   cdp = await context.newCDPSession(page);
+// (HOLD_THROTTLE=n slows the page's processor n times, as a runner's few cores and software drawing do.)
+if (process.env.HOLD_THROTTLE)
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate: Number(process.env.HOLD_THROTTLE) });
 const errors: string[] = [];
 page.on("pageerror", (e) => errors.push(e.message));
 const problems: string[] = [];
@@ -46,6 +51,12 @@ const touch = (type: "touchStart" | "touchMove" | "touchEnd", x: number, y: numb
     type,
     touchPoints: type === "touchEnd" ? [] : [{ x, y, id: 1, radiusX: 4, radiusY: 4, force: 1 }],
   });
+/** A tap: the lift sent 80 ms after the touch, not waiting on the page to answer the touch first. */
+const tap = async (x: number, y: number) => {
+  const down = touch("touchStart", x, y);
+  await new Promise((r) => setTimeout(r, 80));
+  await Promise.all([down, touch("touchEnd", x, y)]);
+};
 const tipShown = () =>
   page
     .$eval(".tooltip", (e) => {
@@ -120,18 +131,28 @@ try {
   await shot("1-held");
   // Slid while held: the tip follows, the view does not turn.
   const before = await k<string | null>(`globalThis.causalis.refAt(${at.x}, ${at.y})`);
+  // (Slid onto land again, so that what is under the finger has a tip to show.)
+  let slide = 48;
+  for (const d of [48, 40, 32, 24, -24, -32, -40, -48])
+    if (
+      (await k<string | null>(`globalThis.causalis.refAt(${at.x + d}, ${at.y})`))?.startsWith(
+        "cell:0:",
+      )
+    ) {
+      slide = d;
+      break;
+    }
   for (let i = 1; i <= 6; i++) {
-    await touch("touchMove", cx + i * 8, cy);
+    await touch("touchMove", cx + (i * slide) / 6, cy);
     await page.waitForTimeout(60);
   }
-  await page.waitForTimeout(400);
-  check(await tipShown(), "slid while held, a tip is still shown");
+  check(await until(tipShown, 10000), "slid while held, a tip is still shown");
   const after = await k<string | null>(`globalThis.causalis.refAt(${at.x}, ${at.y})`);
   check(
     before === after,
     "the view did not turn under a held finger (the same land under the same point)",
   );
-  await touch("touchEnd", cx + 48, cy);
+  await touch("touchEnd", cx + slide, cy);
   await page.waitForTimeout(700);
   check((await pageTitle()) === "", "lifting a held finger opens no page");
   check(await tipShown(), "the tip stays a moment after the finger lifts, to be read");
@@ -141,9 +162,7 @@ try {
 
   // A tap still does what a tap does: no tip, and the scene answers (a page, or the eye going in).
   const scaleBefore = await k<string>("globalThis.causalis.scale()");
-  await touch("touchStart", cx, cy);
-  await page.waitForTimeout(80);
-  await touch("touchEnd", cx, cy);
+  await tap(cx, cy);
   const tapped = await until(
     async () =>
       (await pageTitle()) !== "" ||
@@ -181,9 +200,7 @@ try {
     await page.waitForTimeout(900);
     check((await pageTitle()) === titleBefore, "lifting it does not open the name's page");
     // A tap on it opens it.
-    await touch("touchStart", lx, ly);
-    await page.waitForTimeout(80);
-    await touch("touchEnd", lx, ly);
+    await tap(lx, ly);
     check(
       await until(async () => {
         const t = await pageTitle();
