@@ -54,6 +54,20 @@ import { lanesOf, lawlessSeed } from "./lanes.ts";
 import { starSitesOf } from "./stars.ts";
 import { filledOf, starKey } from "./filled-store.ts";
 import { clusterOf } from "./voyages.ts";
+import { livedFolk, stageByRungs, topByRungs } from "./farlife-read.ts";
+import { seaFolkOf } from "./seafolk.ts";
+
+/** The stage of each of a life's rungs (rules/farlife.ts FAR_RUNGS). */
+const STAGE_OF_RUNG: readonly FolkStage[] = [
+  "camps",
+  "villages",
+  "towns",
+  "cities",
+  "works",
+  "signals",
+  "orbit",
+  "stars",
+];
 
 /** How far a people has come: its steps, then gone. */
 export type FolkStage =
@@ -118,6 +132,11 @@ export type Folk = {
   /** The year they fell, and why, as far as what is left tells (null: they stand). */
   readonly fell: number | null;
   readonly fellWhy: string | null;
+  /**
+   * Their life as their own numbers read it (round F, farlife-read.ts): the years their rung changed and to what (year, rung, …),
+   * by which where they stand in a year is read. Absent: a followed people, whose rungs are history's.
+   */
+  readonly rungs?: readonly number[];
 };
 
 const round = (x: number) => Math.round(x);
@@ -396,7 +415,11 @@ export function folkOf(world: World, s: GalaxyStar, index: number): Folk | null 
     known = FOLKS.get(key);
   if (known !== undefined) return known;
   const p = foreignPlanets(new Rng(world.seed), s)[index],
-    made = p && !s.remnant ? readFolk(world, s, p) : null;
+    // (Their life as their own numbers read it, and a people of the sea where none of the land rose: round F.)
+    made =
+      p && !s.remnant
+        ? livedFolk(world, s, p, readFolk(world, s, p) ?? seaFolkOf(world, s, p))
+        : null;
   if (FOLKS.size >= 512) FOLKS.delete(FOLKS.keys().next().value!);
   FOLKS.set(key, made);
   return made;
@@ -426,6 +449,8 @@ export function folkByRef(world: World, ref: string): Folk | null {
 
 /** How far a people has come by a year. */
 export function folkStage(f: Folk, year: number): FolkStage {
+  // (A people whose life its own numbers read stands where they say: round F.)
+  if (f.rungs && !f.followed) return stageByRungs(f.rungs, f.fell, year);
   if (f.followed) {
     const c = f.followed;
     if (year >= c.stars) return "stars";
@@ -449,6 +474,7 @@ export const pastLadder = (stage: FolkStage) => DARK.includes(stage);
 export function folkPeak(f: Folk, year: number): FolkStage {
   const stage = folkStage(f, year);
   if (stage !== "ruins") return stage;
+  if (f.rungs && !f.followed) return STAGE_OF_RUNG[topByRungs(f.rungs, f.fell! - 1)]!;
   return folkStage({ ...f, fell: null }, f.fell! - 1);
 }
 
