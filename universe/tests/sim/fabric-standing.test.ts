@@ -9,6 +9,7 @@ import {
   levelsOf,
   readStanding,
   Civics,
+  Runs,
   type Fabric,
 } from "../../src/sim/town/fabric.ts";
 
@@ -51,12 +52,14 @@ test("homes and open lots read by spans are what the lots tell, run over run, bu
       // runs past the lots taken, are in the fixture on purpose.)
       changes: (() => {
         let p = 0;
-        return Array.from({ length: runs }, () => {
-          const a = p + Math.floor(r() * 30),
-            b = a + 1 + Math.floor(r() * 60);
-          p = b;
-          return [r() < 0.15 ? 99 : 0, a, b, 0, 1, Math.floor(r() * 7), 0];
-        });
+        return Runs.from(
+          Array.from({ length: runs }, () => {
+            const a = p + Math.floor(r() * 30),
+              b = a + 1 + Math.floor(r() * 60);
+            p = b;
+            return [r() < 0.15 ? 99 : 0, a, b, 0, 1, Math.floor(r() * 7), 0];
+          }),
+        );
       })(),
       civics: Civics.from(
         Array.from({ length: standing }, () => ({
@@ -87,7 +90,7 @@ test("a building's place about the square is the first free stretch the lots tel
         r() < 0.5 ? [] : [[Math.floor(r() * 20), Math.floor(r() * 20) + Math.floor(r() * 80)]],
       f = {
         next,
-        changes: ash.map(([a, b]) => [CHANGE.burned, a, b, 0, 0, 0, 0]),
+        changes: Runs.from(ash.map(([a, b]) => [CHANGE.burned, a, b, 0, 0, 0, 0])),
         civics: Civics.from(
           Array.from({ length: Math.floor(r() * 12) }, () => ({
             kind: "market" as const,
@@ -123,7 +126,7 @@ test("a town with no lots taken has no homes and no open lots", () => {
     next: 0,
     homes: [0, 0],
     open: [],
-    changes: [],
+    changes: new Runs(),
     civics: new Civics(),
   } as unknown as Fabric;
   readStanding(f);

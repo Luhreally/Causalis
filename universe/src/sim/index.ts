@@ -654,6 +654,7 @@ export {
   type Walls,
   Civics,
   NO_FALL,
+  Runs,
   plainCivic,
 } from "./town/fabric.ts";
 export { BLESSING, LOCAL_ACT_EVENTS, agentName, installLocalActs } from "./acts/local.ts";

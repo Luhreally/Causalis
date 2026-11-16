@@ -11,6 +11,7 @@ import {
   housingOf,
   readStanding,
   Civics,
+  Runs,
   type Civic,
   type Fabric,
 } from "../../src/sim/town/fabric.ts";
@@ -31,7 +32,7 @@ function town(
       aim: 0,
       raise: 0,
       passed: -1,
-      changes: [[CHANGE.built, 0, lots, 10, 10, 1, 0]],
+      changes: Runs.from([[CHANGE.built, 0, lots, 10, 10, 1, 0]]),
       civics: new Civics(),
       walls: null,
       lean: 0,
@@ -96,7 +97,7 @@ test("the same raid on the same town burns the same lots: no draw", () => {
     b = town(4000);
   a.at(100).burn(a.f, 0.1, 500);
   b.at(100).burn(b.f, 0.1, 500);
-  assert.deepEqual(a.f.changes, b.f.changes);
+  assert.deepEqual(a.f.changes.slice(), b.f.changes.slice());
 });
 
 test("while its people want them its lots rise again when their years are up, and not before", () => {
@@ -160,7 +161,7 @@ test("the greatest fire makes flat from the heart out, buildings too, and lies i
   f.homes[1] = 988;
   f.open.push([250, 254]);
   // (Lots 250 to 254 open: its run does not stand there.)
-  f.changes[0]![2] = 250;
+  f.changes.w(f.changes.slot(0), 2, 250);
   f.changes.push([CHANGE.built, 254, 1000, 10, 10, 1, 0]);
   f.homes[1] = 984;
   const burned = at(100).flatten(f, 0.25, 12),

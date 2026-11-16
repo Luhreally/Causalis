@@ -28,6 +28,7 @@ import {
   populationContext,
   townsOf,
   Civics,
+  Runs,
   type Change,
   type Civic,
   type Fabric,
@@ -53,7 +54,7 @@ function bare(): { ctx: PopulationContext; f: Fabric; store: TownStore } {
     aim: -1,
     raise: 0,
     passed: -1,
-    changes: [],
+    changes: new Runs(),
     civics: new Civics(),
     walls: null,
     lean: 0,
@@ -90,7 +91,7 @@ function consistent(f: Fabric, what = ""): void {
   }
   assert.deepEqual(counts, f.homes, `${what}: the runs and the counts agree`);
   // (Kept in the order of their lots, none sharing one: the runs over a stretch are found by halving.)
-  const runs = f.changes;
+  const runs = f.changes.slice();
   for (let i = 1; i < runs.length; i++)
     assert.ok(
       runs[i]![1] >= runs[i - 1]![2],
@@ -462,7 +463,7 @@ test("homes fall and burn run by run as they did lot by lot, whatever stands on 
     for (const { f } of towns) {
       Object.assign(f, {
         next,
-        changes: structuredClone(changes),
+        changes: Runs.from(changes),
         civics: Civics.from(civics),
       });
       f.homes = HOLDS.map(() => 0);
@@ -530,7 +531,8 @@ test("a town settled only as something of it comes due is the town settled every
       ReturnType<typeof bare>,
       ReturnType<typeof bare>,
     ];
-    assert.deepEqual(f, everyYear, `year ${y}: the same town`);
+    const plain = (t: Fabric) => ({ ...t, changes: t.changes.toJSON(), civics: t.civics.toJSON() });
+    assert.deepEqual(plain(f), plain(everyYear), `year ${y}: the same town`);
     assert.equal(digest(store), digest(everyYearStore), `year ${y}: the same digest`);
   }
   assert.ok(passed > 100, `${passed} years with nothing come due`);
@@ -559,7 +561,7 @@ test("a town otherwise still settles on time a building fallen out of use and a 
       if (y === 20) b.civics(f, emptied, none, false, none, none);
       if (y === 90) {
         assert.equal(f.changes.length, 1, "its homes one run");
-        b.change(f, CHANGE.razed, f.changes[0]![1], f.changes[0]![2], 0, 0);
+        b.change(f, CHANGE.razed, f.changes.get(0)![1], f.changes.get(0)![2], 0, 0);
       }
     }
     assert.deepEqual(towns[0]!.f, towns[1]!.f, `year ${y}: the same town`);
@@ -577,7 +579,8 @@ test("the towns' fabric is saved and loaded whole, digest and all", () => {
   const saved = JSON.parse(JSON.stringify(store.save())) as unknown,
     again = new TownStore();
   again.load(saved);
-  const plain = (fs: Fabric[]) => fs.map((f) => ({ ...f, civics: f.civics.toJSON() }));
+  const plain = (fs: Fabric[]) =>
+    fs.map((f) => ({ ...f, changes: f.changes.toJSON(), civics: f.civics.toJSON() }));
   assert.deepEqual(plain(again.all()), plain(store.all()));
   const hash = (s: TownStore) => {
     const h = new Hasher();
