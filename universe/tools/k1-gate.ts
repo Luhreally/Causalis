@@ -130,8 +130,11 @@ check(
   lore.landsKnowing(only) === 1,
   `${only} has ${lore.landsKnowing(only)} knowers after the forge`,
 );
-// (Of a young land of 24,000, one in ten is hands enough for all its shallow crafts: on a young world it takes more than that.)
-fall(hurt.cell, saveFile ? 0.1 : 0.02);
+// (Of a young land of 24,000, one in ten is hands enough for all its shallow crafts: on a young world it takes more than that.
+// One in fifty was not enough either: a tenth of 470 is 47 hands, more than the 18 of every craft but those two steps deep, so
+// a land of fifteen crafts most of them shallow lost none in twelve years one run in four, at the K1 merge as since. Down to one
+// in two hundred, a dozen hands: what needs eighteen goes as the rule has it, what needs six stays.)
+fall(hurt.cell, saveFile ? 0.1 : 0.005);
 fall(gone.cell, 0);
 
 const forged = yearNow();

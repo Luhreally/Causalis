@@ -399,14 +399,18 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
     letters = lettersOf(world),
     // (Each realm's readers, and how much of them its seat's fastest word joins each of its lands to: rules/letters.ts.)
     realmReaders = new Map<string, number>(),
-    realmJoin = new Map<string, number>();
+    realmJoin = new Map<string, number>(),
+    // (Read only for a realm one of whose lands has something deep before it this year.)
+    joinOf = (r: { readonly ref: string; readonly seat: number }): number => {
+      let j = realmJoin.get(r.ref);
+      if (j === undefined)
+        realmJoin.set(r.ref, (j = joinedBy(wordPace((id) => knows(ctx, r.seat, id), ctx.medium).kmADay)));
+      return j;
+    };
   if (letters)
     for (const prov of ctx.provinces.all()) {
       const r = realms.of(prov.cell);
-      if (!r) continue;
-      realmReaders.set(r.ref, (realmReaders.get(r.ref) ?? 0) + letters.of(prov.cell) * prov.total());
-      if (!realmJoin.has(r.ref))
-        realmJoin.set(r.ref, joinedBy(wordPace((id) => knows(ctx, r.seat, id), ctx.medium).kmADay));
+      if (r) realmReaders.set(r.ref, (realmReaders.get(r.ref) ?? 0) + letters.of(prov.cell) * prov.total());
     }
   type Plan = {
     cell: number;
@@ -457,22 +461,28 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
     let found: Plan | null = null;
     // How readily its readers find (rules/letters.ts): its own and those its word joins it to in its realm, who have time to spare,
     // with what it can measure, as far as its ways look to the new.
-    const working = prov.total() - prov.occupation(OCC.dependent),
-      food = prov.occupation(OCC.forager) + prov.occupation(OCC.farmer) + prov.occupation(OCC.herder),
-      spare = working > 0 ? Math.max(0, working - food) / working : 0,
-      own = letters ? letters.of(cell) * prov.total() : 0,
-      realmNow = realms.of(cell),
-      joined = realmNow
-        ? (realmJoin.get(realmNow.ref) ?? 0) * Math.max(0, (realmReaders.get(realmNow.ref) ?? 0) - own)
-        : 0,
-      readers = (own + joined) * (0.5 + 0.5 * spare),
-      ways = culture.get(cell),
-      inquiry = inquiryOf(
+    // (Read once, and only where something deep is open to it.)
+    let readers = 0,
+      inquiryRead = -1;
+    const inquiryHere = (): number => {
+      if (inquiryRead >= 0) return inquiryRead;
+      const working = prov.total() - prov.occupation(OCC.dependent),
+        food = prov.occupation(OCC.forager) + prov.occupation(OCC.farmer) + prov.occupation(OCC.herder),
+        spare = working > 0 ? Math.max(0, working - food) / working : 0,
+        own = letters ? letters.of(cell) * prov.total() : 0,
+        realmNow = realms.of(cell),
+        joined = realmNow
+          ? joinOf(realmNow) * Math.max(0, (realmReaders.get(realmNow.ref) ?? 0) - own)
+          : 0,
+        ways = culture.get(cell);
+      readers = (own + joined) * (0.5 + 0.5 * spare);
+      return (inquiryRead = inquiryOf(
         readers,
         measuresOf(here),
         ways?.traits[WAY.openness] ?? 0.5,
         ways?.traits[WAY.tradition] ?? 0.5,
-      );
+      ));
+    };
     // (What has cost it presses it toward what would answer that: exactly 1 where nothing has.)
     const pressed = pressesOn(world, cell, realms.of(cell)?.ref ?? null, year);
     for (const p of open) {
@@ -515,6 +525,7 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
         many = 1 + dmath.log10(1 + hands / MANY_HANDS),
         // (The deeper it lies, the more of it is found by those who read and measure than by those at its trade: rules/letters.ts.)
         asked = inquiryShare(PRINCIPLE_DEPTH.get(p.id) ?? 0),
+        inquiry = asked > 0 ? inquiryHere() : 1,
         finding = (1 - asked) * many + asked * inquiry,
         answers = pressed ? ANSWERS.get(p.id)! : null,
         push = answers?.length ? pushOf(answers, pressed!) : 1,

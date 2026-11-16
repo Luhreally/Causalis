@@ -25,8 +25,6 @@ export class LettersStore implements StateStore {
   readonly name = "lore.letters";
   /** Each peopled land's readers, a share in thousandths. */
   private readonly read = new Map<number, number>();
-  /** What else reads a land's scripture (its faith, sim/belief/belief.ts): set by the faiths when installed. */
-
   /** The share of a land's people who read (0 … 1). */
   of(cell: number): number {
     return (this.read.get(cell) ?? 0) / 1000;
@@ -41,6 +39,11 @@ export class LettersStore implements StateStore {
   /** The lands where anyone reads. */
   cells(): number[] {
     return [...this.read.keys()].sort((a, b) => a - b);
+  }
+
+  /** No one reads anywhere yet: hashed as if not there (a world before letters is the world it was). */
+  dormant(): boolean {
+    return this.read.size === 0;
   }
 
   hashInto(h: Hasher): void {

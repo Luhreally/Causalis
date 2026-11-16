@@ -136,11 +136,12 @@ export function faithPage(world: World, ref: string): PageModel {
 function creedBlock(f: Faith): Block {
   const powers = TENET_POWERS[f.tenet] ?? {},
     creed = creedOfFaith(f),
-    marked = WAY_TRAITS.map((t, k) => ({ t, v: creed[k]! }))
-      .filter((x) => Math.abs(x.v) >= 2)
-      .sort((a, b) => Math.abs(b.v) - Math.abs(a.v) || (a.t < b.t ? -1 : 1));
-  const toward = marked.filter((x) => x.v > 0).map((x) => WAY_WORDS[x.t]![1]),
-    away = marked.filter((x) => x.v < 0).map((x) => WAY_WORDS[x.t]![1]);
+    // (Each way it draws them along, toward the end it draws them to: the four it draws hardest.)
+    asks = WAY_TRAITS.map((t, k) => ({ t, v: creed[k]! }))
+      .filter((x) => Math.abs(x.v) >= 3)
+      .sort((a, b) => Math.abs(b.v) - Math.abs(a.v) || (a.t < b.t ? -1 : 1))
+      .slice(0, 4)
+      .map((x) => WAY_WORDS[x.t]![x.v > 0 ? 1 : 0]);
   return {
     type: "facts",
     title: "What it holds",
@@ -152,8 +153,14 @@ function creedBlock(f: Faith): Block {
           .map((p) => POWER_WORDS[p])
           .join("; "),
       ),
-      ...(toward.length ? [stat("It asks them to", toward.join(", "))] : []),
-      ...(away.length ? [stat("It draws them from", away.join(", "))] : []),
+      ...(asks.length
+        ? [
+            stat(
+              "It asks of them",
+              `that they ${asks.length > 1 ? `${asks.slice(0, -1).join(", ")} and ${asks.at(-1)}` : asks[0]}`,
+            ),
+          ]
+        : []),
       stat(
         "Its teaching",
         scriptureOfTenet(f.tenet) > 0 ? "written, and taught to all it can spare" : "kept by its priests",

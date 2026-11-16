@@ -621,6 +621,10 @@ export function cultureYear(ctx: PopulationContext, t: SimTime): void {
       if (!w || !p.total()) continue;
       lands++;
       for (let k = 0; k < usual.length; k++) usual[k]! += w.traits[k]!;
+    }
+    // (How most fared, read off the lands weighing this year: a tenth of the world, by their number, as good a reading of it
+    // as the whole and a tenth of the reading.)
+    for (const p of weighing) {
       const d = decadeOf(ctx, p.cell);
       if (d) {
         grown += d.grown;
@@ -642,11 +646,14 @@ export function cultureYear(ctx: PopulationContext, t: SimTime): void {
         );
   }
   // Drift and contact, planned from the year's ways so far, then made.
-  const plans = new Map<number, { traits: number[]; tongue: Tongue }>();
+  const plans = new Map<number, { traits: number[]; tongue: Tongue }>(),
+    // (Ways relax toward what they are drawn to in each land's year of ten, ten years' relaxing at once: as slow a thing as a
+    // generation's turning needs no yearly step.)
+    relaxed = 1 - dmath.pow(1 - Math.min(1, WAYS_RELAX * pace), WAYS_LEARNING.every);
   for (const p of provinces) {
     const w = store.get(p.cell)!,
       near = nears.get(p.cell) ?? [],
-      target = waysTarget(world, w, year);
+      target = (year + p.cell) % WAYS_LEARNING.every === 0 ? waysTarget(world, w, year) : null;
     const total = near.reduce((s, x) => s + x.weight, 0);
     const traits = w.traits.map((v, i) => {
       const pull = total ? near.reduce((s, x) => s + x.w.traits[i]! * x.weight, 0) / total - v : 0,
@@ -654,7 +661,7 @@ export function cultureYear(ctx: PopulationContext, t: SimTime): void {
           0.006 *
           gaussian(world.rng.real(DRIFT, p.cell, t, 1, i), world.rng.real(DRIFT, p.cell, t, 2, i));
       // What is not pressed again fades: ways relax toward what they are drawn to, as fast as their generations turn.
-      const relax = WAYS_RELAX * pace * (target[i]! - v);
+      const relax = target ? relaxed * (target[i]! - v) : 0;
       return dmath.clamp(v + 0.01 * pull + relax + wander, 0.02, 0.98);
     });
     let tongue = w.tongue;

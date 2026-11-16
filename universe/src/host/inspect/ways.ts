@@ -31,7 +31,12 @@ const MARKED = 0.06,
   NAMED = 0.008;
 
 /** One reason a way lies where it does: in words, and how far it presses (toward the high end above nothing). */
-export type WayReason = { readonly words: string; readonly press: number };
+export type WayReason = {
+  readonly words: string;
+  readonly press: number;
+  /** What its people are and what they have seen (0), or the chance of their forebears' wandering and their latest years (1). */
+  readonly chance?: 1;
+};
 
 /** Of each way, what presses it, the heaviest first: body, land, lessons, faith, forebears, what was lived through lately. */
 export function waysReasons(world: World, w: Ways, k: number): WayReason[] {
@@ -59,12 +64,20 @@ export function waysReasons(world: World, w: Ways, k: number): WayReason[] {
       bodyWays(body)[k]! +
       landWays(g, w.cell, ctx.medium, ctx.life.appetite)[k]!,
     forebears = w.base[k]! - made;
-  if (Math.abs(forebears) >= 0.03) out.push({ words: "their forebears' ways", press: forebears });
+  if (Math.abs(forebears) >= 0.03)
+    out.push({ words: "their forebears' ways", press: forebears, chance: 1 });
   const lately = w.traits[k]! - target;
-  if (Math.abs(lately) >= 0.02) out.push({ words: "what they have lived through lately", press: lately });
+  if (Math.abs(lately) >= 0.02)
+    out.push({ words: "what they have lived through lately", press: lately, chance: 1 });
+  // (What they are and have seen first, the heaviest first; their forebears' chance and their latest years after.)
   return out
     .filter((x) => x.words)
-    .sort((a, b) => Math.abs(b.press) - Math.abs(a.press) || (a.words < b.words ? -1 : 1));
+    .sort(
+      (a, b) =>
+        (a.chance ?? 0) - (b.chance ?? 0) ||
+        Math.abs(b.press) - Math.abs(a.press) ||
+        (a.words < b.words ? -1 : 1),
+    );
 }
 
 /** A land's most marked ways, each with what presses it there (at most three of each): for the land's People tab. */
