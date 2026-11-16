@@ -21,6 +21,7 @@ import {
   affordancesOf,
   farBegins,
   farStep,
+  farStrength,
   gateOf,
   hottest,
   seaFlows,
@@ -32,6 +33,7 @@ import {
 import type { Folk, FolkStage } from "./natives.ts";
 import { clusterOf } from "./stars.ts";
 import { lawlessSeed } from "./lanes.ts";
+import { farLifeOf, ringOf, unpack, type FarRow } from "./farlife-store.ts";
 
 /** A whole world's face, km², by its radius (Earth's 1). */
 const faceKm2 = (radius: number) => 4 * Math.PI * (6371 * radius) * (6371 * radius);
@@ -355,8 +357,76 @@ export function livedFolk(
           shut: next === "open" || top >= 4 ? null : `Under the water: ${GATE_WORDS[next]}.`,
         }
       : {}),
-    rungs: r.rungs,
+    lived: r,
     fell: r.state.fell,
     fellWhy: r.state.fell !== null ? r.fellWhy : null,
   };
+}
+
+// —— A followed people's life, as history holds it or as read ——————————————————————————————————————
+
+/** A followed people's life as read from its first year (its rungs history's). */
+export function civReading(world: World, civ: Civilization): FarReading | null {
+  const facts = civFacts(world, civ);
+  if (!facts) return null;
+  return readingKept(`${lawlessSeed(world.seed.text)} civ ${civ.ref}`, () =>
+    beginReading(facts, civ.offset, (y) => clockRung(civ, y)),
+  );
+}
+
+/**
+ * A followed people's numbers in a year: as history holds them from the year it took them up (its last step's; a year before it,
+ * the nearest of its samples, with its weariness and strife as they stand), else as read off its world.
+ */
+export function livedState(world: World, civ: Civilization, year: number): FarState | null {
+  const row = farLifeOf(world)?.get(civ.ref);
+  if (row && year >= row.since) {
+    const now = unpack(row);
+    if (year >= row.last) return now;
+    const past = ringOf(row)
+      .filter((x) => x.year <= year)
+      .at(-1);
+    return past
+      ? { ...now, people: past.people, made: past.made, cohesion: past.cohesion, rung: past.rung }
+      : now;
+  }
+  const r = civReading(world, civ);
+  return r ? readAt(r, year) : null;
+}
+
+/** How strong a followed people is among the stars in a year, by its numbers (rules/farlife.ts farStrength; 0.3 where none are read). */
+export function livedStrength(world: World, civ: Civilization, year: number): number {
+  const s = livedState(world, civ, year);
+  return s ? farStrength(s) : 0.3;
+}
+
+// —— A people come down on: its life as history holds it from then ————————————————————————————————
+
+/**
+ * A people history does not follow, as history holds it: where history has taken its life up (a landing on it), where it stands
+ * from then is history's, and whether and when it fell (natives.ts folkOf gives every people it reads through this).
+ */
+export function heldFolk(world: World, f: Folk | null): Folk | null {
+  if (!f || f.followed || !f.lived) return f;
+  const row = farLifeOf(world)?.get(f.ref);
+  if (!row) return f;
+  return { ...f, held: row, fell: row.fell, fellWhy: row.fell !== null ? row.why : null };
+}
+
+/** Where a people whose life is read stands in a year: history's from the year it took it up, else as its numbers read. */
+export function livedStage(f: Folk, year: number): FolkStage {
+  const held = (f as { held?: FarRow }).held;
+  if (held && year >= held.since) return stageByRungs(held.rungs, f.fell, year);
+  return stageByRungs(f.lived!.rungs, held ? null : f.fell, year);
+}
+
+/** The highest a people whose life is read stood before it fell. */
+export function livedPeak(f: Folk): FolkStage {
+  const held = (f as { held?: FarRow }).held,
+    before = f.fell! - 1,
+    top = Math.max(
+      topByRungs(f.lived!.rungs, held ? Math.min(before, held.since) : before),
+      held ? topByRungs(held.rungs, before) : 0,
+    );
+  return FAR_RUNGS[top]! as FolkStage;
 }

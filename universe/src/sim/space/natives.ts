@@ -54,20 +54,10 @@ import { lanesOf, lawlessSeed } from "./lanes.ts";
 import { starSitesOf } from "./stars.ts";
 import { filledOf, starKey } from "./filled-store.ts";
 import { clusterOf } from "./voyages.ts";
-import { livedFolk, stageByRungs, topByRungs } from "./farlife-read.ts";
+import { heldFolk, livedFolk, livedPeak, livedStage, type FarReading } from "./farlife-read.ts";
+import type { FarRow } from "./farlife-store.ts";
 import { seaFolkOf } from "./seafolk.ts";
 
-/** The stage of each of a life's rungs (rules/farlife.ts FAR_RUNGS). */
-const STAGE_OF_RUNG: readonly FolkStage[] = [
-  "camps",
-  "villages",
-  "towns",
-  "cities",
-  "works",
-  "signals",
-  "orbit",
-  "stars",
-];
 
 /** How far a people has come: its steps, then gone. */
 export type FolkStage =
@@ -133,10 +123,12 @@ export type Folk = {
   readonly fell: number | null;
   readonly fellWhy: string | null;
   /**
-   * Their life as their own numbers read it (round F, farlife-read.ts): the years their rung changed and to what (year, rung, …),
+   * Their life as their own numbers read it (round F, farlife-read.ts): its numbers in any year, and the years their rung changed,
    * by which where they stand in a year is read. Absent: a followed people, whose rungs are history's.
    */
-  readonly rungs?: readonly number[];
+  readonly lived?: FarReading;
+  /** Their life as history holds it, from the year a landing on them took it up (farlife-store.ts). */
+  readonly held?: FarRow;
 };
 
 const round = (x: number) => Math.round(x);
@@ -413,7 +405,7 @@ export function folkOf(world: World, s: GalaxyStar, index: number): Folk | null 
   if (farOf(world)?.falls.length && fireOf(world).unmade(s.ref as string, index)) return null;
   const key = `${lawlessSeed(world.seed.text)} ${s.sector}:${s.k}/${index}`,
     known = FOLKS.get(key);
-  if (known !== undefined) return known;
+  if (known !== undefined) return heldFolk(world, known);
   const p = foreignPlanets(new Rng(world.seed), s)[index],
     // (Their life as their own numbers read it, and a people of the sea where none of the land rose: round F.)
     made =
@@ -422,7 +414,7 @@ export function folkOf(world: World, s: GalaxyStar, index: number): Folk | null 
         : null;
   if (FOLKS.size >= 512) FOLKS.delete(FOLKS.keys().next().value!);
   FOLKS.set(key, made);
-  return made;
+  return heldFolk(world, made);
 }
 
 /** Every people about the stars within reach, the nearest first. */
@@ -450,7 +442,7 @@ export function folkByRef(world: World, ref: string): Folk | null {
 /** How far a people has come by a year. */
 export function folkStage(f: Folk, year: number): FolkStage {
   // (A people whose life its own numbers read stands where they say: round F.)
-  if (f.rungs && !f.followed) return stageByRungs(f.rungs, f.fell, year);
+  if (f.lived && !f.followed) return livedStage(f, year);
   if (f.followed) {
     const c = f.followed;
     if (year >= c.stars) return "stars";
@@ -474,7 +466,7 @@ export const pastLadder = (stage: FolkStage) => DARK.includes(stage);
 export function folkPeak(f: Folk, year: number): FolkStage {
   const stage = folkStage(f, year);
   if (stage !== "ruins") return stage;
-  if (f.rungs && !f.followed) return STAGE_OF_RUNG[topByRungs(f.rungs, f.fell! - 1)]!;
+  if (f.lived && !f.followed) return livedPeak(f);
   return folkStage({ ...f, fell: null }, f.fell! - 1);
 }
 

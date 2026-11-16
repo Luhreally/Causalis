@@ -37,6 +37,7 @@ export { resolveCombat, type CombatSide, type CombatFrame, type CombatRecord } f
 export {
   landfallFight,
   nativeHost,
+  sicknessCrossed,
   shipForce,
   standOff,
   type ComerNumbers,
