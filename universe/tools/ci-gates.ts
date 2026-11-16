@@ -418,6 +418,11 @@ export const GATES: readonly Gate[] = [
   // world's save gone, the home world made again the same. Then a people read in orbit from each: there within the minute, as many as were
   // read, the host's heap read, at its age or saying which road its bodies or its world's matter shut, said before entering; from their world another refused, with the way back. (355 s with --ci on a loaded laptop.)
   { gate: 121, args: ["--ci"], s: 380 },
+  // Gate 124, a finger held is a hover (tools/hold-gate.ts; owner, 2026-11-15): in a phone's frame by touch, a finger held
+  // still on a land shows its tip above the finger, follows it slid without turning the view, opens nothing lifted and
+  // stays a moment to be read; a tap still opens; a finger held on a name in a page opens the name's tip, and lifting it
+  // does not open the name's page.
+  { gate: 124, args: ["--ci"], s: 120 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */
