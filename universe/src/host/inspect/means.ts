@@ -2,6 +2,7 @@
 // the six measures with what it is read from, and what the world's matter can and cannot later do.
 // Read, every word of it, from the world as it stands now (host/reading.ts).
 import type { World } from "../../kernel/index.ts";
+import { worldEnergyBlocks } from "./energy.ts";
 import {
   AGE_LADDER,
   COVER_PEOPLE_KM2,
@@ -422,6 +423,8 @@ export function measurePage(world: World, ref: string): PageModel {
         })),
     },
   ];
+  // (The account behind it, every land's summed: Round A.)
+  if (id === "energy") blocks.push(...worldEnergyBlocks(world));
   if (id !== "reach") {
     const best = lands
       .map((f) => ({ f, at: landFigure(id, f, world)! }))

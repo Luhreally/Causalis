@@ -554,7 +554,7 @@ export type Tab = { readonly id: string; readonly name: string; readonly blocks:
 type Rgb = readonly [number, number, number];
 
 /** How a series' numbers are written: whole ("12,345"), a share ("87%"), a worth ("12.3 thousand"), a price ("1.20"), months ("3.5"). */
-export type SeriesUnit = "count" | "share" | "worth" | "price" | "months";
+export type SeriesUnit = "count" | "share" | "worth" | "price" | "months" | "kw";
 
 /** Something that befell a thing, marked on its series in its year: its kind (its colour on the chart) and its words. */
 export type SeriesMark = {

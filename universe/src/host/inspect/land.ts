@@ -7,6 +7,8 @@ import { landRoadsBlock } from "./road.ts";
 import { fireLandStats } from "./fire.ts";
 import { lodesBlock, woodsBlock, woodsTurnsBlock } from "./woods.ts";
 import { herdBlock } from "./herds.ts";
+import { landEnergyBlocks } from "./energy.ts";
+import { fieldsBlocks } from "./fields.ts";
 import {
   BIOME_NAMES,
   cellRef,
@@ -343,7 +345,12 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
     if (dug) blocks.push(dug);
     tabs.push({ id: "land", name: "Land", blocks });
     // Its ground (Phase 15 M124): bedrock, soil, what lies in it, its water, the air.
-    tabs.push({ id: "ground", name: "Ground", blocks: groundBlocks(world, cell) });
+    tabs.push({
+      id: "ground",
+      name: "Ground",
+      // (What feeds its fields and what fouls it, its ground as stocks: Round A.)
+      blocks: [...fieldsBlocks(world, cell), ...groundBlocks(world, cell)],
+    });
   }
   // The living world: its web's levels, and its lineages.
   if (cell < landsOf(world)) {
@@ -498,6 +505,9 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
       const signals = landSignalStats(world, cell);
       if (signals.length) blocks.push({ type: "facts", title: "Signals", rows: signals });
       tabs.push({ id: "economy", name: "Economy", blocks });
+      // What it draws on, and from where (Round A: energy as one budget).
+      const energy = landEnergyBlocks(world, cell);
+      if (energy.length) tabs.push({ id: "energy", name: "Energy", blocks: energy });
       // Its stores broken down (Phase 15 M123): by good and by what they are made of.
       const stores = landStoresBlocks(world, cell);
       if (stores.length) tabs.push({ id: "stores", name: "Stores", blocks: stores });

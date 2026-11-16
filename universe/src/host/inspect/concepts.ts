@@ -12,6 +12,7 @@ import { FINANCE_CONCEPTS, FINANCE_CONCEPT_OF } from "./finance-concepts.ts";
 import { STRIFE_CONCEPTS, STRIFE_CONCEPT_OF } from "./strife-concepts.ts";
 import { LIVES_CONCEPTS, LIVES_CONCEPT_OF } from "./lives-concepts.ts";
 import { PEOPLES_CONCEPTS, PEOPLES_CONCEPT_OF } from "./peoples-concepts.ts";
+import { ENERGY_CONCEPTS, ENERGY_CONCEPT_OF } from "./energy-concepts.ts";
 
 /** A concept: its icon and name, and what the book says of it. */
 export type Concept = {
@@ -457,6 +458,7 @@ export const CONCEPTS: Readonly<Record<string, Concept>> = {
   ...STRIFE_CONCEPTS,
   ...LIVES_CONCEPTS,
   ...PEOPLES_CONCEPTS,
+  ...ENERGY_CONCEPTS,
 };
 
 /** Which concept a number is a measure of, by its label on the pages. */
@@ -526,6 +528,7 @@ export const CONCEPT_OF: Readonly<Record<string, string>> = {
   ...STRIFE_CONCEPT_OF,
   ...LIVES_CONCEPT_OF,
   ...PEOPLES_CONCEPT_OF,
+  ...ENERGY_CONCEPT_OF,
 };
 
 /** A page's numbers and facts, each linked to the concept it measures (where it has one). */

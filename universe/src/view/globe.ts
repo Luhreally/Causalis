@@ -49,6 +49,8 @@ export const LENSES = [
   "camps",
   "blocs",
   "letters",
+  "energy",
+  "fouled",
 ] as const;
 export type Lens = (typeof LENSES)[number];
 
@@ -83,6 +85,8 @@ export const LENS_NAMES: Readonly<Record<Lens, string>> = {
   sickness: "Sickness",
   debt: "Debt",
   camps: "Camps",
+  energy: "Energy",
+  fouled: "Fouled ground",
   forest: "Forest",
   blocs: "Alliances",
   letters: "Letters",
@@ -120,6 +124,8 @@ export const LENS_ICONS: Readonly<Record<Lens, string>> = {
   sickness: "🦠",
   debt: "💸",
   camps: "🧭",
+  energy: "🔥",
+  fouled: "☣️",
   forest: "🌲",
   blocs: "🪢",
   letters: "📖",
@@ -573,6 +579,22 @@ const CAMPS_RAMP: readonly Stop[] = [
   [0.75, [0.36, 0.6, 0.88]],
   [1, [0.12, 0.26, 0.6]],
 ];
+/** What a land draws a head, all told (Round A): a tenth of a kilowatt, its people's own eating (dim), to ten and more (white-hot). */
+const ENERGY_RAMP: readonly Stop[] = [
+  [0, [0.2, 0.16, 0.14]],
+  [0.25, [0.5, 0.22, 0.12]],
+  [0.5, [0.86, 0.42, 0.12]],
+  [0.75, [0.98, 0.76, 0.3]],
+  [1, [1, 0.97, 0.86]],
+];
+/** How fouled a land's ground is, clean (pale) to the worst (sick yellow-black) — Round A. */
+const FOULED_RAMP: readonly Stop[] = [
+  [0, [0.78, 0.82, 0.74]],
+  [0.15, [0.84, 0.8, 0.42]],
+  [0.4, [0.7, 0.56, 0.16]],
+  [0.7, [0.42, 0.3, 0.1]],
+  [1, [0.16, 0.12, 0.06]],
+];
 /** The laws the laws lens shows, one at a time: each its id, icon and name (M139). */
 export const LAW_CHOICES: readonly (readonly [string, string, string])[] = [
   ["land", "🌾", "The land"],
@@ -694,6 +716,13 @@ const DEEP: Readonly<
   camps: { stops: CAMPS_RAMP, at: (v) => (v + 1) / 2, shown: (v) => v > -2 },
   forest: { stops: WOODS_RAMP, at: (v) => v, shown: () => true },
   letters: { stops: LETTERS_RAMP, at: (v) => Math.sqrt(v), shown: () => true },
+  // (Its kilowatts a head, from a tenth to ten, on a scale of their powers of ten.)
+  fouled: { stops: FOULED_RAMP, at: (v) => Math.sqrt(v), shown: () => true },
+  energy: {
+    stops: ENERGY_RAMP,
+    at: (v) => Math.min(1, Math.max(0, Math.log10(Math.max(1e-3, v) / 0.1) / 2)),
+    shown: (v) => v > 0,
+  },
 };
 
 /**
@@ -944,6 +973,8 @@ export function globeColors(
       case "debt":
       case "camps":
       case "letters":
+      case "energy":
+      case "fouled":
       case "forest": {
         const v = values?.get(province),
           deep = DEEP[lens];
@@ -1179,6 +1210,15 @@ export function lensLegend(lens: Lens, kind = "rocky", look?: string): Legend {
       return { kind: "ramp", stops: stops(WOODS_RAMP), low: "bare", high: "thick" };
     case "letters":
       return { kind: "ramp", stops: stops(LETTERS_RAMP), low: "none read", high: "all" };
+    case "energy":
+      return {
+        kind: "ramp",
+        stops: stops(ENERGY_RAMP),
+        low: "0.1 kW a head",
+        high: "10 kW and more",
+      };
+    case "fouled":
+      return { kind: "ramp", stops: stops(FOULED_RAMP), low: "clean", high: "its yield halved" };
     case "belief":
       return {
         kind: "keys",

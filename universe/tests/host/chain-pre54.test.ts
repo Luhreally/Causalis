@@ -88,25 +88,21 @@ const KIND_ROWS = new Set([
  * so Earth's history moves from its first realms on, and with it the early camps at 40 and every page of 700. The guide to matter stays.
  * Re-recorded for the two together (2026-11-15): the money and its fears on the learned rule, what a people holds abroad counted
  * in its measured wealth and how wealth is owned learned as how a realm is held is. The guide to matter stays.
- * Re-recorded for a people's mind and knowledge that can be lost (round "peoples", 2026-11-15): a people's first ways are its
- * body's and its land's and the wander between lands half as wide, so Earth's ways differ from the first year and its history
- * from the first realms; who reads and inquiry move what is found and when; a principle's page tells where it was lost (K1). The
- * guide to matter stays.
  */
 const BEFORE: Record<string, string> = {
-  tools: "7a23d621:17784",
-  stuff: "fc839ead:13464",
-  ground: "4e93c2c1:44304",
-  deposits: "5b0f8bc2:97995",
-  arms: "b750d0bf:15563",
-  designs: "6a53a55e:27089",
-  workshops: "9f552596:388031",
-  substances: "ad5df5d6:130632",
-  reactions: "391cdaba:68576",
+  tools: "eac0d258:17459",
+  stuff: "de3b053b:13649",
+  ground: "647ac2e5:44200",
+  deposits: "a23a6f3d:97948",
+  arms: "ee8d1ba:16115",
+  designs: "9a9d423b:27642",
+  workshops: "c3c6a75:342555",
+  substances: "cbdc9f23:130621",
+  reactions: "50f0e0f4:68700",
   // (Its pages no longer list what only a people of the water could find: F1, canBeFoundHere.)
-  principles: "87d03e83:177721",
+  principles: "204e3f36:171166",
   guide: "ced49326:17137",
-  camps: "f1956565:342370",
+  camps: "87b992a7:342250",
 };
 
 /**

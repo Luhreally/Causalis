@@ -7,6 +7,8 @@ import { GOODS } from "../rules/index.ts";
 import {
   WAY_TRAITS,
   cultureOf,
+  energyPerHead,
+  fouledOf,
   fieldedParts,
   godMen,
   loreOf,
@@ -29,6 +31,8 @@ import { sicknessReading, sicknessValue } from "./inspect/sickness.ts";
 import { debtReading, debtValue } from "./inspect/credit.ts";
 import { campReading, campValue } from "./inspect/finance.ts";
 import { woodsReading } from "./inspect/woods.ts";
+import { energyReading } from "./inspect/energy.ts";
+import { fouledReading } from "./inspect/fields.ts";
 import { wealthReading } from "./wealth.ts";
 
 /** The lenses read here, beside the people's own (people, food, trade). */
@@ -55,6 +59,10 @@ export const DEEP_LENSES = [
   "camps",
   // Who reads, land by land (rules/letters.ts).
   "letters",
+  // What a land draws a head, all told, by its energy account (Round A).
+  "energy",
+  // How fouled its ground is: sour rain, metals, salt (Round A).
+  "fouled",
 ] as const;
 export type DeepLens = (typeof DEEP_LENSES)[number];
 
@@ -92,6 +100,10 @@ export type LandReadings = {
   readonly camps: number;
   /** The share of its people who read (rules/letters.ts). */
   readonly letters: number;
+  /** All it drew a head last year, kW, by its energy account (0: none kept). */
+  readonly energy: number;
+  /** How fouled its ground is (0 … 1). */
+  readonly fouled: number;
 };
 
 /** The ids a land knows: its lore, and sowing and smelting, which it knows in its own ways. */
@@ -173,6 +185,8 @@ export function landReadings(world: World): (cell: number) => LandReadings {
       debt: Math.round(debtValue(world, cell) * 1000) / 1000,
       camps: campValue(world, cell),
       letters: Math.round(readersOf(world, cell) * 1000) / 1000,
+      energy: Math.round((energyPerHead(world, cell)?.primary ?? 0) * 1000) / 1000,
+      fouled: Math.round(fouledOf(world, cell) * 1000) / 1000,
     };
   };
 }
@@ -240,6 +254,10 @@ export function lensReading(
         ],
       };
     }
+    case "energy":
+      return energyReading(world, cell);
+    case "fouled":
+      return fouledReading(world, cell);
     case "laws":
       return lawReading(
         world,
