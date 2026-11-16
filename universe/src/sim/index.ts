@@ -1440,6 +1440,7 @@ export { URBAN_EVERY, urbanOf, urbanYear, wagesOfLand } from "./population/urban
 export { ART_EVERY, artMakers, artOf, artYear } from "./culture/art.ts";
 export { installCultureSweep } from "./culture/sweep.ts";
 export { addsStanding, type StandingOf } from "./order/order.ts";
+export {
   COMMERCE_EVENTS,
   TRADE_EVERY,
   capitalYear,
@@ -1472,6 +1473,7 @@ export {
   townRentOf,
   tradeStore,
 } from "./trade/kept.ts";
+export {
   ARMING_EVENTS,
   ArmingStore,
   armingOf,
