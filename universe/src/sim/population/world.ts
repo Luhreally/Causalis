@@ -53,6 +53,7 @@ import { installPolities } from "../polity/polity.ts";
 import { installBelief } from "../belief/belief.ts";
 import { installLore } from "../lore/lore.ts";
 import { installLetters } from "../lore/letters.ts";
+import { installCultureSweep } from "../culture/sweep.ts";
 import { installLessons } from "../lore/lessons.ts";
 import { installDiplomacy } from "../diplomacy/diplomacy.ts";
 import { installWar } from "../war/war.ts";
@@ -424,6 +425,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installPolities(world, () => populationContext(world));
   installBelief(world, () => populationContext(world));
   installLetters(world, () => populationContext(world));
+  installCultureSweep(world, () => populationContext(world));
   installLore(world, () => populationContext(world));
   installLessons(world, () => populationContext(world));
   installLost(world, () => populationContext(world));
