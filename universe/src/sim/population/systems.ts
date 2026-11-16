@@ -59,7 +59,8 @@ import {
   rainShift,
   smokeIn,
 } from "../climate/air.ts";
-import { powerOf } from "../economy/systems.ts";
+import { energyPerHead } from "../economy/energy.ts";
+import { readersOf } from "../lore/letters.ts";
 import { longRain } from "../climate/long.ts";
 import { lodesOf } from "../economy/lodes.ts";
 import { lodePush } from "../economy/worked.ts";
@@ -102,6 +103,8 @@ import {
   type Affordances,
   type LifeHistory,
   type Medium,
+  childCost,
+  childrenKept,
 } from "../../rules/index.ts";
 import { homePlanet } from "../planet/store.ts";
 import { lightSteps, starSitesOf } from "../space/stars.ts";
@@ -773,13 +776,11 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
 }
 
 /**
- * How much of its old fertility a people keep as power makes them wealthy: all of it
- * below a quarter of a kilowatt a person, down to TRANSITION less at two and a quarter
- * and beyond — fewer children born, as fewer die and each costs more to raise.
+ * How much of what its bodies could bear a people bears (rules/children.ts): as many as it wants living, the fewer the more
+ * of its young live and the more each costs to raise, schooled before it works and its work not wanted where machines do it.
  */
 export function transition(ctx: PopulationContext, cell: number): number {
-  const power = powerOf(ctx, cell),
-    keeps = 1 - TRANSITION * Math.min(1, Math.max(0, (power - 0.25) / 2)),
+  const keeps = childrenKept(ctx.life, slowDeaths(ctx, cell), raisingCost(ctx, cell)),
     lore = loreOf(ctx.world);
   // Past our ages (Phase 66): nothing here runs short any more, and what a people then does is its choice.
   if (lore.get(cell, "made-bodies")) return Math.max(keeps, WRITTEN_KEEPS);
@@ -792,9 +793,26 @@ export function transition(ctx: PopulationContext, cell: number): number {
 const FLAME_KEEPS = 0.72;
 /** What a people that writes and grows its children keeps: each one wanted is made, whatever it can bear. */
 const WRITTEN_KEEPS = 0.95;
-// At the full transition a people about replace themselves: some five children a woman
-// fall to three and a half, as industry's lower deaths let two in three of them grow up.
-const TRANSITION = 0.6;
+
+/** What a land's young cost to raise (rules/children.ts childCost): those of its people who read, and its machines' share of its work. */
+export function raisingCost(ctx: PopulationContext, cell: number): number {
+  return childCost(readersOf(ctx.world, cell), machineShare(ctx, cell));
+}
+
+/** Of the work a land turned last year, the share not done by its bodies or its beasts (0 with none kept). */
+export function machineShare(ctx: PopulationContext, cell: number): number {
+  const e = energyPerHead(ctx.world, cell);
+  return e && e.work > 0 ? dmath.clamp(1 - e.sources.none / e.work, 0, 1) : 0;
+}
+
+/** How pressing a land's deaths are, of what changes slowly: the cold on the ill-clothed, medicine, smoke (as vitalMonth reads them). */
+export function slowDeaths(ctx: PopulationContext, cell: number): number {
+  const cold = dmath.clamp((10 - ctx.generated.climate.temperature[cell]!) / 10, 0, 1),
+    bare = 1 - (marketsOf(ctx.world).get(cell)?.clothingCover ?? 1000) / 1000,
+    healed = 1 - Math.min(0.3, loreOf(ctx.world).effect(cell, "health")),
+    smoke = 1 + 0.3 * smokeIn(ctx, cell);
+  return (1 + 0.25 * cold * bare) * healed * smoke;
+}
 
 /** Below this share of the food it needs (in thousandths), a land's month is a famine. */
 export const FAMINE = 700;
@@ -998,6 +1016,9 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
   // What the land feeds is in food; a people's mouths are their numbers by their appetite.
   const appetite = ctx.life.appetite;
   for (const p of ctx.provinces.all()) {
+    // (A stream that went last year can go on this one; one that did not has ended.)
+    if (p.going.length && p.going.some((s) => s.year < year - 1))
+      p.going = p.going.filter((s) => s.year >= year - 1);
     const pop = p.total();
     if (pop < 20) continue;
     const eating = mouths(p, ctx.life),
@@ -1132,24 +1153,42 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
       });
     });
   }
-  // Make the moves.
+  // Make the moves. A stream that goes on as it set out (as many, within half and twice, to the same land, the year after
+  // last) is told once, when it set out: the year's move goes under that event (Province.going).
   for (const f of planned) {
-    const decision = world.decisions.record({
-      rule: "population.migrate",
-      subject: f.from.ref,
-      outcome: { to: cellRef(0, f.to), count: f.count },
-      score: f.pressure,
-      threshold: 0.05,
-      factors: f.factors,
-    });
-    const event = world.events.emit({
-      type: POPULATION_EVENTS.migration.type,
-      importance: f.count >= 200 ? 3 : 2,
-      subjects: [f.from.ref, cellRef(0, f.to)],
-      place: f.from.ref,
-      causes: [{ ref: decision, role: "trigger", weight: 1 }],
-      data: { count: f.count },
-    });
+    const stream = f.from.going.find((s) => s.to === f.to),
+      goesOn =
+        !!stream &&
+        stream.year === year - 1 &&
+        2 * f.count >= stream.count &&
+        f.count <= 2 * stream.count;
+    let decision: Ref, event: Ref;
+    if (goesOn) {
+      stream.year = year;
+      event = stream.event;
+      decision = stream.decision;
+    } else {
+      decision = world.decisions.record({
+        rule: "population.migrate",
+        subject: f.from.ref,
+        outcome: { to: cellRef(0, f.to), count: f.count },
+        score: f.pressure,
+        threshold: 0.05,
+        factors: f.factors,
+      });
+      event = world.events.emit({
+        type: POPULATION_EVENTS.migration.type,
+        importance: f.count >= 200 ? 3 : 2,
+        subjects: [f.from.ref, cellRef(0, f.to)],
+        place: f.from.ref,
+        causes: [{ ref: decision, role: "trigger", weight: 1 }],
+        data: { count: f.count },
+      });
+      f.from.going = [
+        ...f.from.going.filter((s) => s.to !== f.to && s.year >= year - 1),
+        { to: f.to, event, decision, year, count: f.count },
+      ];
+    }
     let dest = ctx.provinces.get(f.to);
     if (!dest) {
       dest = ctx.provinces.add(new Province(f.to, year, event));

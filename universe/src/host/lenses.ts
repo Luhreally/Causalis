@@ -3,7 +3,7 @@
 // the map's colours, and broken down for the tooltip under the pointer, as a grand strategy
 // game's map modes tell what makes a land's number.
 import type { Ref, World } from "../kernel/index.ts";
-import { GOODS } from "../rules/index.ts";
+import { GOODS, bearingOf, childrenWanted, livingToBear } from "../rules/index.ts";
 import {
   WAY_TRAITS,
   cultureOf,
@@ -16,8 +16,11 @@ import {
   politiesOf,
   populationContext,
   realmName,
+  raisingCost,
   readersOf,
+  slowDeaths,
   teachingOf,
+  transition,
   type Polity,
 } from "../sim/index.ts";
 import { principleName } from "../causal/index.ts";
@@ -63,6 +66,8 @@ export const DEEP_LENSES = [
   "energy",
   // How fouled its ground is: sour rain, metals, salt (Round A).
   "fouled",
+  // How many children a mother bears there (rules/children.ts).
+  "births",
 ] as const;
 export type DeepLens = (typeof DEEP_LENSES)[number];
 
@@ -100,6 +105,8 @@ export type LandReadings = {
   readonly camps: number;
   /** The share of its people who read (rules/letters.ts). */
   readonly letters: number;
+  /** How many children a mother bears at plenty (rules/children.ts). */
+  readonly births: number;
   /** All it drew a head last year, kW, by its energy account (0: none kept). */
   readonly energy: number;
   /** How fouled its ground is (0 … 1). */
@@ -185,6 +192,7 @@ export function landReadings(world: World): (cell: number) => LandReadings {
       debt: Math.round(debtValue(world, cell) * 1000) / 1000,
       camps: campValue(world, cell),
       letters: Math.round(readersOf(world, cell) * 1000) / 1000,
+      births: Math.round(bearingOf(ctx.life).born * transition(ctx, cell) * 100) / 100,
       energy: Math.round((energyPerHead(world, cell)?.primary ?? 0) * 1000) / 1000,
       fouled: Math.round(fouledOf(world, cell) * 1000) / 1000,
     };
@@ -251,6 +259,24 @@ export function lensReading(
           { label: "Their script", value: t.script ? "they write" : "none" },
           { label: "A school", value: t.school ? "stands" : "none" },
           { label: "Spared from the food", value: share(t.spare) },
+        ],
+      };
+    }
+    case "births": {
+      const born = bearingOf(ctx.life).born,
+        kept = transition(ctx, cell);
+      return {
+        line: `Births: a mother bears ${(born * kept).toFixed(1)}`,
+        stats: [
+          { label: "Her body could", value: born.toFixed(1) },
+          {
+            label: "Living to bear their own",
+            value: share(livingToBear(ctx.life, slowDeaths(ctx, cell))),
+          },
+          {
+            label: "Living children they want",
+            value: childrenWanted(raisingCost(ctx, cell)).toFixed(1),
+          },
         ],
       };
     }

@@ -50,6 +50,20 @@ export const PEOPLES_CONCEPTS: Readonly<Record<string, Concept>> = {
     see: [{ text: "What emerged, where first, how far it spread", ref: "world:chronicle#firsts" }],
     related: ["letters", "lore", "ages"],
   },
+  children: {
+    icon: "👶",
+    title: "How many children a people bears",
+    what: [
+      "A mother bears what her body can, the fewer the hungrier she is, until her people have as many children living to bear their own as they want.",
+      "They want as many as replace them and a little over, and more the less each costs to raise. A child costs the more where it must be schooled before it works (where its people read), and where its work is not wanted, machines doing what hands and beasts did.",
+      "How many of those born live to bear their own is read off the people's own life: how many of its young die, under the medicine, the smoke and the cold it lives with now. A people that keeps more of its young bears fewer, whatever its body: a spawning people of the sea, most of whose young die, comes to the same end by the same rule as an ape.",
+      "A people at the end of it replaces itself and a little over, and grows no more than its food allows.",
+    ],
+    drives: ["Its body's life, hunger, medicine, smoke and cold, its readers, its machines."],
+    leads: ["How many it numbers, how young it is, how many it can send to war and to work."],
+    see: [{ text: "The peoples of the world", ref: "world:peoples" }],
+    related: ["letters", "ways", "lore"],
+  },
 };
 
 /** Which of these a number is a measure of, by its label on the pages. */
@@ -60,4 +74,10 @@ export const PEOPLES_CONCEPT_OF: Readonly<Record<string, string>> = {
   "Whose work wants letters": "letters",
   "Spared from the food": "letters",
   "A school": "letters",
+  "A mother bears": "children",
+  "Living to bear their own": "children",
+  "Living children they want": "children",
+  "Schooled before they work": "children",
+  "Work machines do": "children",
+  "Born last year": "children",
 };

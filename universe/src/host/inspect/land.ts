@@ -33,6 +33,7 @@ import {
 import { folkRef, waysRef } from "../../causal/index.ts";
 import { waysWhyBlock } from "./ways.ts";
 import { lettersBlock } from "./letters.ts";
+import { childrenBlock } from "./children.ts";
 import { parseRef, type Ref, type World } from "../../kernel/index.ts";
 import type { Block, Item, Line, PageModel, Place, Row, Stat, Tab } from "../../bridge/index.ts";
 import { cell as spotFacts, market, province } from "../planet.ts";
@@ -266,6 +267,9 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
     // Who reads, and what their teaching reaches (rules/letters.ts).
     const letters = lettersBlock(world, cell);
     if (letters) blocks.push(letters);
+    // How many children they bear, and why (rules/children.ts).
+    const children = childrenBlock(world, cell);
+    if (children) blocks.push(children);
     if (p.faith)
       blocks.push({
         type: "facts",

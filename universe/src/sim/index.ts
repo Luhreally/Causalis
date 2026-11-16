@@ -68,6 +68,10 @@ export {
   spaceSteps,
   sitesReady,
   support,
+  machineShare,
+  raisingCost,
+  slowDeaths,
+  transition,
   type PopulationContext,
 } from "./population/systems.ts";
 export {

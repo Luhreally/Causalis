@@ -66,6 +66,8 @@ export const LAND_COLUMNS = [
   "worn",
   /** Who of its people read, in a hundred (rules/letters.ts; absent in a save from before it: unread there). */
   "read",
+  /** Those born in the year before, in tenths of a thousand of its people (rules/children.ts; absent before: unread). */
+  "born",
 ] as const;
 export type LandColumn = (typeof LAND_COLUMNS)[number];
 
@@ -410,6 +412,12 @@ export function landNow(
     twoFigures(10 * (energyPerHead(world, cell)?.primary ?? 0)),
     Math.round(100 * (1 - (ecologyOf(world).get(cell)?.soil ?? 1))),
     Math.round(readersOf(world, cell) * 100),
+    people
+      ? Math.round(
+          (10_000 * populationContext(world).history.birthsIn(cell, yearOfMoment(world.now) - 1)) /
+            people,
+        )
+      : 0,
   ];
 }
 

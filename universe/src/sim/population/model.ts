@@ -170,6 +170,15 @@ function land(w: HomeWorld, cell: number, areaKm2: number, biome: number): Capac
   };
 }
 
+/** A stream of people a land sends year on year to another (Province.going). */
+export type Going = {
+  readonly to: number;
+  readonly event: Ref;
+  readonly decision: Ref;
+  year: number;
+  readonly count: number;
+};
+
 export class Province {
   readonly cell: number;
   readonly ref: Ref;
@@ -205,6 +214,12 @@ export class Province {
   lastDrought: Ref | null = null;
   /** The last month a famine began (so one lean season is one famine). */
   famineMonth = -100;
+  /**
+   * Those it sends year on year to a land, told once (round "peoples"): each stream's land, the event that told it set out,
+   * the last year it went on, and how many went the year it set out. A stream goes on untold while as many go as did then,
+   * within half and twice.
+   */
+  going: Going[] = [];
 
   constructor(cell: number, settledYear: number, arrival: Ref | null) {
     this.cell = cell;
@@ -236,6 +251,8 @@ export class Province {
     h.string(this.lastFamine ?? "")
       .string(this.lastDrought ?? "")
       .int(this.famineMonth);
+    for (const g of this.going)
+      h.int(g.to).string(g.event).string(g.decision).int(g.year).int(g.count);
   }
 
   save(): unknown {
@@ -257,6 +274,7 @@ export class Province {
       lastFamine: this.lastFamine,
       lastDrought: this.lastDrought,
       famineMonth: this.famineMonth,
+      ...(this.going.length ? { going: this.going.map((g) => ({ ...g })) } : {}),
     };
   }
 
@@ -277,6 +295,8 @@ export class Province {
     p.lastFamine = s.lastFamine as Ref | null;
     p.lastDrought = s.lastDrought as Ref | null;
     p.famineMonth = s.famineMonth as number;
+    // (A save from before streams were told once: every one of them set out anew.)
+    p.going = ((s.going as Going[] | undefined) ?? []).map((g) => ({ ...g }));
     return p;
   }
 }

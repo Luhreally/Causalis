@@ -51,6 +51,7 @@ export const LENSES = [
   "letters",
   "energy",
   "fouled",
+  "births",
 ] as const;
 export type Lens = (typeof LENSES)[number];
 
@@ -90,6 +91,7 @@ export const LENS_NAMES: Readonly<Record<Lens, string>> = {
   forest: "Forest",
   blocs: "Alliances",
   letters: "Letters",
+  births: "Births",
 };
 
 /** Each map mode's icon, for the map modes' bar (Phase 10 M96). */
@@ -129,6 +131,7 @@ export const LENS_ICONS: Readonly<Record<Lens, string>> = {
   forest: "🌲",
   blocs: "🪢",
   letters: "📖",
+  births: "👶",
 };
 
 /** How every land stands toward the realm the diplomacy lens is of, in its colours. */
@@ -511,6 +514,13 @@ const LETTERS_RAMP: readonly Stop[] = [
   [0.55, [0.3, 0.68, 0.7]],
   [1, [0.14, 0.22, 0.68]],
 ];
+/** How many children a mother bears, two (as many as replace a people: sage) to eight (deep rose): rules/children.ts. */
+const BIRTHS_RAMP: readonly Stop[] = [
+  [0, [0.45, 0.62, 0.5]],
+  [0.35, [0.86, 0.8, 0.45]],
+  [0.7, [0.86, 0.48, 0.38]],
+  [1, [0.62, 0.16, 0.32]],
+];
 const KNOWLEDGE: readonly Stop[] = [
   [0, [0.36, 0.26, 0.22]],
   [6, [0.46, 0.3, 0.62]],
@@ -716,6 +726,11 @@ const DEEP: Readonly<
   camps: { stops: CAMPS_RAMP, at: (v) => (v + 1) / 2, shown: (v) => v > -2 },
   forest: { stops: WOODS_RAMP, at: (v) => v, shown: () => true },
   letters: { stops: LETTERS_RAMP, at: (v) => Math.sqrt(v), shown: () => true },
+  births: {
+    stops: BIRTHS_RAMP,
+    at: (v) => Math.min(1, Math.max(0, (v - 2) / 6)),
+    shown: (v) => v > 0,
+  },
   // (Its kilowatts a head, from a tenth to ten, on a scale of their powers of ten.)
   fouled: { stops: FOULED_RAMP, at: (v) => Math.sqrt(v), shown: () => true },
   energy: {
@@ -973,6 +988,7 @@ export function globeColors(
       case "debt":
       case "camps":
       case "letters":
+      case "births":
       case "energy":
       case "fouled":
       case "forest": {
@@ -1210,6 +1226,8 @@ export function lensLegend(lens: Lens, kind = "rocky", look?: string): Legend {
       return { kind: "ramp", stops: stops(WOODS_RAMP), low: "bare", high: "thick" };
     case "letters":
       return { kind: "ramp", stops: stops(LETTERS_RAMP), low: "none read", high: "all" };
+    case "births":
+      return { kind: "ramp", stops: stops(BIRTHS_RAMP), low: "two a mother", high: "eight" };
     case "energy":
       return {
         kind: "ramp",

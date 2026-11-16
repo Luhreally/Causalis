@@ -1587,3 +1587,11 @@ export {
 } from "./far.ts";
 export * from "./energy.ts";
 export * from "./ground.ts";
+export {
+  CHILDREN,
+  bearingOf,
+  childCost,
+  childrenKept,
+  childrenWanted,
+  livingToBear,
+} from "./children.ts";

@@ -662,6 +662,21 @@ export function landTimeTab(world: World, cell: number): Tab | null {
           },
         ),
       );
+    // Its births (rules/children.ts): as many as they want living, the fewer the more live and the dearer each is to raise.
+    const born = kept(col("born"));
+    if (born.length >= 2)
+      blocks.push(
+        series(
+          "Born a year",
+          "in a thousand",
+          "count",
+          born.map((q) => ({ x: q.x, y: q.y / 10 })),
+          {
+            marks,
+            note: "Those born in a year for each thousand of its people; read once a decade. Fewer are born where more of the young live, and where each is schooled before it works or its work is not wanted.",
+          },
+        ),
+      );
   }
   blocks.push(
     series(
