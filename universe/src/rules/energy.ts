@@ -635,7 +635,8 @@ export type EnergyAccount = {
   readonly fuelWanted: number;
 };
 
-const ZEROS = new WeakMap<readonly string[], Record<string, number>>();
+/** (The key lists are the module's own constants, so this holds a few records at most.) */
+const ZEROS = new Map<readonly string[], Record<string, number>>();
 /** A record of each key at 0: a copy of one made once a key list (a year's accounts ask it twice a land). */
 const zeros = <K extends string>(keys: readonly K[]): Record<K, number> => {
   let z = ZEROS.get(keys);
