@@ -90,19 +90,19 @@ const KIND_ROWS = new Set([
  * in its measured wealth and how wealth is owned learned as how a realm is held is. The guide to matter stays.
  */
 const BEFORE: Record<string, string> = {
-  tools: "2edd0106:18516",
-  stuff: "98b344d8:13711",
-  ground: "78bf99e3:42844",
-  deposits: "f1a07346:97949",
-  arms: "e85eee9d:19537",
-  designs: "4a2ebea1:29352",
-  workshops: "2a40997e:471246",
-  substances: "cbdc9f23:130621",
-  reactions: "fca855df:68712",
+  tools: "18823327:17869",
+  stuff: "9776f64a:13400",
+  ground: "7d56af1d:44360",
+  deposits: "922ecfb2:97966",
+  arms: "9c3e0d57:15303",
+  designs: "2d7039bb:26878",
+  workshops: "f3b63eb5:388153",
+  substances: "2d63202b:130638",
+  reactions: "e37a3e1e:68595",
   // (Its pages no longer list what only a people of the water could find: F1, canBeFoundHere.)
-  principles: "f6173b98:173315",
+  principles: "3fae6add:172360",
   guide: "ced49326:17137",
-  camps: "87b992a7:342250",
+  camps: "346a7011:343960",
 };
 
 /**

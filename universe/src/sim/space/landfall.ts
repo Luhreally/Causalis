@@ -29,7 +29,7 @@ import { loreOf } from "../lore/lore.ts";
 import { homePlanet } from "../planet/store.ts";
 import { politiesOf } from "../polity/polity.ts";
 import { populationContext } from "../population/systems.ts";
-import { civilizationsNear } from "./contact.ts";
+import { civilizationOf } from "./contact.ts";
 import {
   arrivalsAt,
   contactBetween,
@@ -157,7 +157,7 @@ function comersOf(
         : !visit && (populationContext(world).provinces.get(a.cell!)?.total() ?? 0) > 0,
     };
   }
-  const civ = civilizationsNear(world).find((c) => c.ref === a.civ);
+  const civ = a.civ ? civilizationOf(world, a.civ) : null;
   if (!civ) return null;
   const strong = peopleStrength(civ, a.year),
     nature = peopleNature(world, civ),

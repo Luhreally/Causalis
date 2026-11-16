@@ -46,7 +46,7 @@ import { diplomacyOf } from "../diplomacy/diplomacy.ts";
 import { knows } from "../lore/lore.ts";
 import { endRealm, politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import type { PopulationContext } from "../population/systems.ts";
-import { civilizationsNear } from "../space/contact.ts";
+import { civilizationOf } from "../space/contact.ts";
 import { filledOf, starKey } from "../space/filled-store.ts";
 import { lateOf } from "../space/late-store.ts";
 import { folkOf, folkPeople } from "../space/natives.ts";
@@ -294,7 +294,7 @@ function aimOf(
 function fearFrom(ctx: PopulationContext, by: Polity, enemy: Ref, year: number): number {
   const realm = politiesOf(ctx.world).get(enemy);
   if (realm) return fearOf(realm.ended === null ? answerCost(ctx, by, realm, year) : 0);
-  const civ = civilizationsNear(ctx.world).find((c) => c.ref === enemy);
+  const civ = civilizationOf(ctx.world, enemy);
   return fearOf(farAnswerShare(civ ? year - civ.stars : 0));
 }
 

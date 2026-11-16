@@ -99,7 +99,7 @@ function livableWorlds(ctx: PopulationContext) {
       out: { star: GalaxyStar; planet: ForeignPlanet; upkeep: number }[] = [];
     for (const star of clusterOf(ctx.world))
       for (const planet of worldsOf(ctx.world, star)) {
-        const h = habitability(planet, g.life.people?.body ?? null, g.system.bodies[0]!.gravity);
+        const h = habitability(planet, g.life.people?.body ?? null, g.system.bodies[0]!);
         if (h.livable) out.push({ star, planet, upkeep: h.upkeep });
       }
     LIVABLE.set(key, (list = out));
@@ -159,7 +159,7 @@ export function voyageTarget(
     drive = starDriveFor(k);
   if (!drive) return null;
   const g = ctx.generated,
-    homeGravity = g.system.bodies[0]!.gravity,
+    home = g.system.bodies[0]!,
     body = g.life.people?.body ?? null,
     longest = longestCrossing(k),
     taken = new Set<string>((starSitesOf(ctx.world)?.all() ?? []).map(([, s]) => s.star));
@@ -175,7 +175,7 @@ export function voyageTarget(
     if (taken.has(star.ref)) continue;
     const dear = dearFromItsOwn(star, held);
     for (const planet of worldsOf(ctx.world, star)) {
-      const h = habitability(planet, body, homeGravity);
+      const h = habitability(planet, body, home);
       if (!h.livable) continue;
       const score = years * (1 + h.upkeep / 10) * dear;
       if (score < bestScore) {
@@ -364,7 +364,7 @@ function sail(
   // The ship: a land of the realm, its people aboard.
   settle(ctx, p, origin, cell, decision, event, year);
   const body = g.life.people?.body ?? null,
-    there = habitability(target.planet, body, g.system.bodies[0]!.gravity).upkeep;
+    there = habitability(target.planet, body, g.system.bodies[0]!).upkeep;
   sites.set(cell, {
     realm: p.ref,
     from: origin.cell,

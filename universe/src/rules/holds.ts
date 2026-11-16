@@ -41,16 +41,7 @@ export const HOLDING = {
   forceMid: 0.55,
 } as const;
 
-/** What each interest group wants of each number (a level, 0 … 1): the court and the army hold force; makers and traders want word and voice. */
-export const HOLD_WANTS: Readonly<Record<string, readonly [number, number, number, number]>> = {
-  farmers: [0.3, 0.6, 0.6, 0.5],
-  herders: [0.2, 0.5, 0.6, 0.4],
-  crafters: [0.5, 0.75, 0.8, 0.6],
-  traders: [0.6, 0.75, 0.9, 0.9],
-  "the court": [0.85, 0.1, 0.25, 0.5],
-  "the temple": [0.6, 0.3, 0.3, 0.4],
-  "the army": [0.9, 0.2, 0.4, 0.3],
-};
+// (What each interest group wants of each number is no table: it is learned from how the group fared, sim/order/wants.ts.)
 
 /** A people's ways, as the numbers here read them (sim/culture/culture.ts WAY_TRAITS, each 0 … 1). */
 export type WaysRead = {

@@ -231,7 +231,10 @@ export {
 } from "./launch.ts";
 export {
   MOST_UPKEEP,
+  BEARS,
+  EARTH_HOME,
   habitability,
+  type HomeGround,
   hallCells,
   rockOf,
   type Ground,
@@ -1198,9 +1201,11 @@ export {
 } from "./ties.ts";
 export {
   TERMS,
+  WAR_YEAR_LEAST,
   answerOf,
   dealOf,
   tributeOf,
+  warReckoning,
   type AimKind,
   type BondKind,
   type Deal,
@@ -1465,7 +1470,6 @@ export {
   HOLD,
   HOLDING,
   HOLD_KINDS,
-  HOLD_WANTS,
   OUTCOME,
   OUTCOMES,
   OUTCOMES_OF,
@@ -1535,3 +1539,4 @@ export {
   type FarMade,
   type FarStage,
 } from "./far.ts";
+export { HARVEST, LEAN_MONTHS, SOWING, THRIFT, storeNeeded, thrift } from "./seasons.ts";

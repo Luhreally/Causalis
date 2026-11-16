@@ -86,23 +86,48 @@ export type WarEnd = {
   readonly got: boolean;
   /** Whether the winner can bind the loser (see canBind). */
   readonly canBind: boolean;
+  /** What a year of the war has cost each, as a share of what it has (warReckoning), and what each had at stake in it. */
+  readonly yearly: readonly [number, number];
+  readonly stakes: readonly [number, number];
 };
+
+/**
+ * How a war stands for each side, read off what it has cost them and what it is worth to them, never by a count of years or a
+ * draw (round E, order). Each side's cost so far is its fallen over its people, and every year of war its host kept from work
+ * over its people (at the least a two-hundredth: a year of war is never free); its stake is what it came for or stands to lose,
+ * as a share of what it has. The attacker's chance of winning is half its battles' record (won over fought, from even) and
+ * half its strength over its foe's. It gives up when what the war has cost it has come to what winning is worth, by that
+ * chance; the defender yields when its cost has come to what losing would take, by the other.
+ */
+export function warReckoning(e: {
+  readonly won: number;
+  readonly fought: number;
+  readonly ratio: number;
+  readonly costs: readonly [number, number];
+  readonly stakes: readonly [number, number];
+}): { readonly chance: number; readonly quits: boolean; readonly yields: boolean } {
+  const chance = 0.5 * ((e.won + 1) / (e.fought + 2)) + 0.5 * (e.ratio / (1 + e.ratio));
+  return {
+    chance,
+    quits: e.costs[0] >= chance * e.stakes[0],
+    yields: e.costs[1] >= (1 - chance) * e.stakes[1],
+  };
+}
+
+/** The least a year of war costs a side, as a share of what it has: its fields and its trade, whatever its host. */
+export const WAR_YEAR_LEAST = 0.005;
 
 const clamp = (lo: number, hi: number, x: number) => Math.max(lo, Math.min(hi, x));
 
-/** A tribute's share and years: by the battles ahead and how far the payer is spent. */
-export function tributeOf(margin: number, spent: number): { share: number; years: number } {
+/**
+ * A tribute's share and years, from what the war cost the one who pays (round E, order): it pays a year of what a year of the
+ * war was costing it (it would rather pay that than fight on), for as many years as it would have taken the war to cost it what
+ * it had at stake; within the least and the most a tribute is.
+ */
+export function tributeOf(yearly: number, stake: number): { share: number; years: number } {
   return {
-    share: clamp(
-      TERMS.tributeShare,
-      TERMS.shareMost,
-      TERMS.tributeShare + TERMS.shareEdge * margin + TERMS.shareSpent * spent,
-    ),
-    years: clamp(
-      TERMS.tributeYears,
-      TERMS.yearsMost,
-      TERMS.tributeYears + TERMS.yearsEdge * margin,
-    ),
+    share: clamp(TERMS.tributeShare, TERMS.shareMost, yearly),
+    years: Math.round(clamp(TERMS.tributeYears, TERMS.yearsMost, stake / Math.max(1e-6, yearly))),
   };
 }
 
@@ -121,7 +146,7 @@ export function dealOf(e: WarEnd): Deal {
   // A beaten attacker goes home under a truce: it pays only one who has beaten it badly and can hold it to it.
   if (winner === 1)
     return margin >= TERMS.paysBackEdge && strength >= TERMS.paysBackRatio
-      ? { ...none, bond: "tribute", ...tributeOf(margin, spent) }
+      ? { ...none, bond: "tribute", ...tributeOf(e.yearly[0], e.stakes[0]) }
       : { ...none, bond: "truce", years: TERMS.truceYears };
   if (
     e.canBind &&
@@ -130,7 +155,7 @@ export function dealOf(e: WarEnd): Deal {
   )
     return { ...none, bond: "vassal", share: TERMS.oathShare, years: TERMS.oathYears };
   if (margin >= TERMS.edge || (margin >= 1 && (e.aim === "tribute" || strength >= TERMS.askRatio)))
-    return { ...none, bond: "tribute", ...tributeOf(margin, spent) };
+    return { ...none, bond: "tribute", ...tributeOf(e.yearly[1], e.stakes[1]) };
   // Land ceded is the term where land was what they got.
   if (e.lands > 0) return none;
   return { ...none, bond: "truce", years: TERMS.truceYears };

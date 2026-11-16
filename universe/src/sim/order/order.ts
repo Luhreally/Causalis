@@ -56,6 +56,8 @@ import { handOf } from "../hand/hand.ts";
 import { LAW_OF, firstLaws, lawGrievance, weighLaws } from "./laws.ts";
 import { HOLD, HOLDING } from "../../rules/index.ts";
 import { heldOf, holdOf, weighHolds, type Taught } from "./holds.ts";
+import { WantsStore } from "./wants.ts";
+import { ElectionStore, electionsYear } from "./elections.ts";
 import { CREDIT, creditOf, debtBurden } from "../credit/credit.ts";
 import { seizedFactor } from "../strife/strife.ts";
 import { fortunePull } from "../acts/fortune.ts";
@@ -1398,6 +1400,12 @@ export function orderYear(ctx: PopulationContext, t: SimTime): void {
     markets = world.store<MarketStore>("economy.markets"),
     year = yearOfMoment(t),
     living = realms.living();
+  // (What the groups of a realm that has ended learned goes with it.)
+  const wanting = world.hasStore("order.wants") ? world.store<WantsStore>("order.wants") : null;
+  if (wanting && year % 10 === 0) {
+    const alive = new Set(living.map((p) => p.ref));
+    for (const r of wanting.realmsKept()) if (!alive.has(r)) wanting.forget(r);
+  }
   for (const p of living)
     heldOf(
       ctx,
@@ -1710,7 +1718,13 @@ export function orderYear(ctx: PopulationContext, t: SimTime): void {
 
 export function installOrder(world: World, ctx: () => PopulationContext): OrderStore {
   const store = world.register(new OrderStore());
+  // (What its groups have learned to want of how it is held: sim/order/wants.ts.)
+  world.register(new WantsStore());
+  // (Choices put to its people, where its rule has them: sim/order/elections.ts.)
+  const votes = world.register(new ElectionStore());
+  world.addPinner(() => votes.pinned());
   world.addPinner(() => store.pinned());
   world.system({ key: "187.order.year", every: YEAR, run: (t) => orderYear(ctx(), t) });
+  world.system({ key: "187.order.votes", every: YEAR, run: (t) => electionsYear(ctx(), t) });
   return store;
 }

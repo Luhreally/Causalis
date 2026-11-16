@@ -47,7 +47,7 @@ import { politiesOf, type Polity } from "../polity/polity.ts";
 import { marketsOf, type PopulationContext } from "../population/systems.ts";
 import { farOf, fireOf } from "../war/fire.ts";
 import { warsOf } from "../war/war.ts";
-import { civilizationsNear } from "./contact.ts";
+import { civilizationOf, civilizationsNear } from "./contact.ts";
 import { LANE_ROW, laneLawOf, laneMapOf, laneRoute, laneYearOf } from "./lanes.ts";
 import { folkByRef } from "./natives.ts";
 import { peopleWords, peoplesOf } from "./peoples.ts";
@@ -459,7 +459,7 @@ function raidOn(
     reach += RAID_YEAR * (w.strength / (w.strength + 4)) * found;
     if (draw < reach) {
       const p = realms.get(foe),
-        civ = p ? null : civilizationsNear(world).find((x) => x.ref === foe);
+        civ = p ? null : civilizationOf(world, foe);
       return {
         name: p?.town ?? (civ ? `the ${peopleWords(world, civ).name}` : "those at war with it"),
         ref: foe,
@@ -493,7 +493,7 @@ function sail(ctx: PopulationContext, r: StarRun, to: Away | Market, year: numbe
     market = "market" in to ? to.market : to,
     people = ctx.provinces.get(r.to)?.total() ?? 0;
   let crossing: Crossing | null, load: Load[], realm: Polity | undefined, from: Market | undefined;
-  const civ = r.civ ? civilizationsNear(world).find((x) => x.ref === r.civ) : null;
+  const civ = r.civ ? civilizationOf(world, r.civ) : null;
   if (r.civ) {
     if (!civ) return false;
     crossing = farCrossing(world, civ, r.toStar, year);
@@ -659,7 +659,7 @@ function opening(
     far?: boolean;
     make: () => void;
   }[] = [];
-  const civs = civilizationsNear(world).filter((c) => c.stars <= year),
+  const civs = civilizationsNear(world, year).filter((c) => c.stars <= year),
     peoples = peoplesOf(world);
   for (const to of away) {
     if ((toLand.get(to.cell) ?? 0) >= MOST_TO_A_LAND) continue;
@@ -745,7 +745,7 @@ function openRun(
     from = fromCell >= 0 ? marketsOf(world).get(fromCell)! : null,
     machinePrice = from ? from.price[G.machines]! : GOODS[G.machines]!.value * FAR_FLOOR,
     ref = makeRef(RUN, 0, store.count),
-    far = civ ? civilizationsNear(world).find((x) => x.ref === civ) : null,
+    far = civ ? civilizationOf(world, civ) : null,
     farName = far ? peopleWords(world, far).name : null,
     key = hashString(`${world.seed.text} run ${ref}`) >>> 0,
     ways = fromCell >= 0 ? cultureOf(world).get(fromCell) : null,

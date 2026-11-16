@@ -23,6 +23,7 @@ import {
   FOODS,
   G,
   TERMS,
+  WAR_YEAR_LEAST,
   dealOf,
   tributeOf,
   type AimKind,
@@ -37,6 +38,7 @@ import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { diplomacyOf, type Relation } from "../diplomacy/diplomacy.ts";
 import { heldAmongStars } from "../space/nation-store.ts";
 import { WAR, WAR_EVENTS, frontier, strengthOf, warsOf, type War } from "./war.ts";
+import { armyOf } from "../strife/strife.ts";
 
 export const BOND_EVENTS = {
   /** A term run out by the clock, or ended by a fall. */
@@ -207,7 +209,14 @@ function nearestSeat(ctx: PopulationContext, front: readonly number[], seat: num
   return best;
 }
 
-/** What a realm's war on another is about, and the land it goes for: read off what drove it. */
+/**
+ * What a realm's war on another is about, and the land it goes for: of all it could go for, the one worth most to it, as a
+ * share of what it has (round E, order; no first match of a list). Grain, where its people hunger: their lives. A tribute
+ * owed, or one a much stronger realm whose court and host press for it would have paid by one with something to spare: a
+ * tribute's worth over its term, of the other's people over its own, as far as it is pressed for. A land lost, a land
+ * coveted: its people over its own (a land lost the more for the grudge). Their seat, for a temple's war on unbelievers:
+ * their people over its own, as far as its temple presses.
+ */
 export function chooseAim(
   ctx: PopulationContext,
   a: Polity,
@@ -221,28 +230,35 @@ export function chooseAim(
 ): { aim: WarAim; prize: number; source: Ref | null } {
   const { world } = ctx,
     first = front[0]!,
-    faiths = beliefOf(world);
+    faiths = beliefOf(world),
+    pa = Math.max(1, peopleOf(ctx, a)),
+    pd = Math.max(1, peopleOf(ctx, d)),
+    landWorth = (c: number) => Math.min(1, (ctx.provinces.get(c)?.total() ?? 0) / pa),
+    tribute = Math.min(1, (TERMS.tributeShare * TERMS.tributeYears * pd) / pa),
+    options: { worth: number; aim: WarAim; prize: number; source: Ref | null }[] = [];
   // The hungry want the stores: the fullest land, whichever it is this year.
-  if (covets) return { aim: { aim: "stores" }, prize: first, source: null };
+  if (covets) options.push({ worth: 1, aim: { aim: "stores" }, prize: first, source: null });
   // A tribute unpaid is owed.
   const unpaid = r.terms.find((x) => x.name === UNPAID_TERM);
   if (unpaid?.source) {
     const e = world.events.get(unpaid.source),
       since = (e?.data as { since?: number } | null)?.since;
-    return {
+    options.push({
+      worth: tribute,
       aim: { aim: "tribute", ...(since !== undefined ? { owed: since } : {}) },
       prize: first,
       source: unpaid.source,
-    };
+    });
   }
   // A land lost is an old grudge, and the host goes for it by name.
   const lost = lostLand(ctx, a, d, front);
   if (lost)
-    return {
+    options.push({
+      worth: Math.min(1, 2 * landWorth(lost.land)),
       aim: { aim: "back", ...(lost.year !== undefined ? { lost: lost.year } : {}) },
       prize: lost.land,
       source: null,
-    };
+    });
   // A temple's war on unbelievers goes for their seat.
   const mine = faiths.of(a.seat),
     theirs = faiths.of(d.seat),
@@ -253,7 +269,8 @@ export function chooseAim(
     mine.faith !== theirs.faith &&
     (zeal || holy >= TERMS.holyPress)
   )
-    return {
+    options.push({
+      worth: Math.min(1, holy + (zeal ? 0.3 : 0)) * Math.min(1, pd / pa),
       aim: {
         aim: "holy",
         faith: faiths.get(mine.faith)?.name ?? "their faith",
@@ -261,11 +278,18 @@ export function chooseAim(
       },
       prize: nearestSeat(ctx, front, d.seat),
       source: mine.event,
-    };
+    });
   // A much stronger realm whose court and host press for more would have it paid: by one who has something to pay.
-  if (ratio >= TERMS.tributeRatio && press >= TERMS.tributePress && spareOf(ctx, d) > 0)
-    return { aim: { aim: "tribute" }, prize: first, source: null };
-  return { aim: { aim: "land" }, prize: first, source: null };
+  if (ratio >= TERMS.tributeRatio && spareOf(ctx, d) > 0)
+    options.push({
+      worth: tribute * Math.min(1, press / TERMS.tributePress),
+      aim: { aim: "tribute" },
+      prize: first,
+      source: null,
+    });
+  options.push({ worth: landWorth(first), aim: { aim: "land" }, prize: first, source: null });
+  const best = options.reduce((x, y) => (y.worth > x.worth ? y : x));
+  return { aim: best.aim, prize: best.prize, source: best.source };
 }
 
 /** Whether a war's host goes for its prize by name while it can be reached (else for the fullest land). */
@@ -361,6 +385,46 @@ export type PeaceTerms = {
   readonly beaten?: string;
 };
 
+/**
+ * What a war has cost each side and what each has at stake in it, as shares of what it has (rules/terms.ts warReckoning):
+ * its fallen and those its strikes killed over its people, and each year of the war its host kept from work over its people
+ * (at the least WAR_YEAR_LEAST); what it came for or stands to lose, by its aim: a land, its people over theirs (a seat twice
+ * over); a tribute or stores, a tribute's worth over its term; to be free, all of it.
+ */
+export function warCosts(
+  ctx: PopulationContext,
+  w: War,
+  a: Polity,
+  b: Polity,
+  aim: AimKind | undefined,
+  year: number,
+): { costs: [number, number]; yearly: [number, number]; stakes: [number, number] } {
+  const pa = Math.max(1, peopleOf(ctx, a)),
+    pb = Math.max(1, peopleOf(ctx, b)),
+    years = Math.max(1, year - w.declared),
+    hostA = Math.max(WAR_YEAR_LEAST, armyOf(ctx, a).people / pa),
+    hostB = Math.max(WAR_YEAR_LEAST, armyOf(ctx, b).people / pb),
+    // (Those its strikes killed weigh as those who fell: W2.)
+    struck = warsOf(ctx.world).tallyOfStrikes(w.ref),
+    costs: [number, number] = [
+      (w.fallen[0] + (struck?.[1] ?? 0)) / pa + years * hostA,
+      (w.fallen[1] + (struck?.[2] ?? 0)) / pb + years * hostB,
+    ],
+    prize = ctx.provinces.get(w.prize)?.total() ?? 0,
+    seat = w.prize === b.seat ? 2 : 1,
+    land = (of: number) => Math.min(1, (seat * prize) / of),
+    tribute = TERMS.tributeShare * TERMS.tributeYears,
+    stakes: [number, number] =
+      aim === "free"
+        ? [1, land(pb)]
+        : aim === "tribute" || aim === "stores"
+          ? [Math.min(1, (tribute * pb) / pa), tribute]
+          : aim === "ally"
+            ? [WAR_YEAR_LEAST * 4, land(pb)]
+            : [land(pa), land(pb)];
+  return { costs, yearly: [costs[0] / years, costs[1] / years], stakes };
+}
+
 /** What a peace comes to, for a war whose realms both stand. */
 export function reckonPeace(
   ctx: PopulationContext,
@@ -388,6 +452,7 @@ export function reckonPeace(
       aim: aim ?? null,
       got,
       canBind: leader === null ? false : canBind(world, leader === 0 ? a : b, leader === 0 ? b : a),
+      ...warCosts(ctx, w, a, b, aim, year),
     });
   return termsOfDeal(ctx, deal, a, b, lands, aim, year);
 }
@@ -485,7 +550,8 @@ export function termsOfOffer(
   const giving = offer === "give-land" || offer === "give-tribute",
     payer = giving ? r : foe,
     other = giving ? foe : r,
-    peopleFallen = w.fallen[payer.ref === w.attacker ? 0 : 1] / Math.max(1, peopleOf(ctx, payer)),
+    // (The one who pays, as the war's sides are counted.)
+    at = payer.ref === w.attacker ? 0 : 1,
     base: Deal = { winner: null, bond: null, share: 0, years: 0 };
   if (offer === "truce") {
     const years = truceYears ?? TERMS.truceYears;
@@ -519,9 +585,15 @@ export function termsOfOffer(
   const knee = offer === "take-knee",
     { share, years } = knee
       ? { share: TERMS.oathShare, years: TERMS.oathYears }
-      : tributeOf(
-          Math.max(1, Math.abs(2 * w.battles.filter((x) => x.won).length - w.battles.length)),
-          peopleFallen,
+      : ((c) => tributeOf(c.yearly[at], c.stakes[at]))(
+          warCosts(
+            ctx,
+            w,
+            politiesOf(ctx.world).get(w.attacker) ?? r,
+            politiesOf(ctx.world).get(w.defender) ?? foe,
+            aimOf(ctx.world, w)?.aim,
+            year,
+          ),
         ),
     asked = Math.floor(share * grainMade(ctx, payer)),
     // (An oath from one with nothing to spare pays nothing. A tribute they can't pay is never agreed: reign.ts.)

@@ -335,3 +335,26 @@ test("those who earn less than their bread still have the least there is, no les
   });
   assert.equal(coin, POOREST);
 });
+
+test("a methane world's homes take the electric ways by its own wire, drawn of its polymers", () => {
+  // (A methane world: nothing burns there, and its current runs in polymer wire, never copper. The same road the
+  // ages and the power station already read: rules/ages.ts, rules/buildings.ts.)
+  const methane = {
+      coin: 1e7,
+      level: 2,
+      burns: false,
+      heat: "the land's own",
+      metal: "iron",
+    } as const,
+    without = ways(facts({ ...methane, knows: knowing("carpentry", "glass", "electronics") })),
+    wired = ways(
+      facts({ ...methane, knows: knowing("carpentry", "glass", "electronics", "polymer-wire") }),
+    );
+  assert.ok(!without.has("bulb"), "a bulb with no current");
+  assert.ok(wired.has("bulb"), "no bulb on a methane world's own wire");
+  // Every way that asks the current is open to them, as it is by any other wire.
+  const copper = ways(
+    facts({ ...methane, knows: knowing("carpentry", "glass", "electronics", "electricity") }),
+  );
+  assert.deepEqual([...wired].sort(), [...copper].sort());
+});

@@ -8,9 +8,19 @@
 // or only what is left of them. Nothing here enters history: no store, no stream, no event; a people of
 // the cluster's followed few (gen/civilizations.ts) is read off the years history already holds of it.
 // The figures for how long a people takes, and for when they fall, are estimates, and pages say so.
-import { Rng, dmath, hashString, makeRef, type Ref, type World } from "../../kernel/index.ts";
+import {
+  Rng,
+  dmath,
+  hashString,
+  makeRef,
+  yearOfMoment,
+  type Ref,
+  type World,
+} from "../../kernel/index.ts";
 import {
   CIVILIZATION,
+  FAR_SHUT_WORDS,
+  civBody,
   civName,
   farKey,
   farLands,
@@ -48,7 +58,8 @@ import {
 } from "../../rules/index.ts";
 import { homePlanet } from "../planet/store.ts";
 import { farOf, fireOf } from "../war/fire.ts";
-import { civilizationsNear, farBodies } from "./contact.ts";
+import { civilizationsEver, civilizationsNear, farBodies, followedBy } from "./contact.ts";
+import { ageBefore, farCeiling, pastShut } from "./far-read.ts";
 import { holdWorld, peoplesOf } from "./peoples.ts";
 import { lanesOf, lawlessSeed } from "./lanes.ts";
 import { starSitesOf } from "./stars.ts";
@@ -115,6 +126,12 @@ export type Folk = {
   /** The furthest its numbers let them come, and what shuts the next step (null: nothing does). */
   readonly ceiling: FolkStage;
   readonly shut: string | null;
+  /** The most of them their own world holds, made whole as it is when entered (null: a people not followed, whose
+   * world is read from afar alone). */
+  readonly holds: number | null;
+  /** Where a followed people's works are driven by another road than fuel, what drives them and what it cost them in
+   * years (null: by fuel, or they do not come to what flies). */
+  readonly drives: string | null;
   /** The year they fell, and why, as far as what is left tells (null: they stand). */
   readonly fell: number | null;
   readonly fellWhy: string | null;
@@ -273,10 +290,12 @@ function fallWords(s: GalaxyStar, p: ForeignPlanet, u: number): string {
 
 /** A people's reading, made once for a world: null where no people rose. */
 function readFolk(world: World, s: GalaxyStar, p: ForeignPlanet): Folk | null {
-  const followed =
-      civilizationsNear(world).find(
+  // (The years history holds of a followed people, as first read: where its own world shuts a road to it, below.)
+  const read =
+      civilizationsEver(world).find(
         (c) => c.planet === p.index && c.star.endsWith(`:${s.sector}:${s.k}`),
       ) ?? null,
+    followed = read as Civilization | null,
     rng = new Rng(world.seed),
     // (B4–B5: where the home world's life is read from its numbers, a far world's is too: whether it quickened, by its
     // cradles; who rose, from its own life.)
@@ -333,9 +352,49 @@ function readFolk(world: World, s: GalaxyStar, p: ForeignPlanet): Folk | null {
   const head = 0.6 + 0.4 * Math.min(1, mindsAgo / 0.8),
     arose = followed ? followed.offset : round(6400 - 7600 * dmath.pow(u(8), 1.15) * head),
     pace = followed ? followed.pace : paceOf(p, body, m, u),
-    { ceiling, shut } = followed
-      ? { ceiling: "stars" as FolkStage, shut: null }
-      : ceilingOf(p, body, m, bodiesAgo, u);
+    // (A followed people comes as far as its own world lets it, made whole as it is when entered: its limbs, its
+    // matter, the fuel under its own lands. Read as the way in reads it: far-read.ts.)
+    far = followed
+      ? farCeiling(
+          world,
+          s,
+          {
+            name: civName(rng, { ref }),
+            ref,
+            followed: true,
+            body: civBody(followed) ?? body,
+            chem: folkGroundDraws(world, s, p.index),
+          },
+          p.index,
+          (stage) => peopleAt(ref, stage),
+        )
+      : null,
+    { ceiling, shut } = far
+      ? {
+          ceiling: far.ceiling as FolkStage,
+          shut: far.shut
+            ? `Their own world shuts the road to ${far.shut.name}: ${FAR_SHUT_WORDS[far.shut.why]}. They come no further than ${ageBefore(far.shut)}.`
+            : null,
+        }
+      : ceilingOf(p, body, m, bodiesAgo, u),
+    // (The years of what they never come to are never: no reader of history's years finds them there.)
+    never = (stage: "signals" | "orbit" | "stars", year: number) =>
+      far?.shut && pastShut(stage, far.shut) ? Infinity : year,
+    // (Their works driven by their rivers, wind, hot ground or the atom and not by fuel: from the electron to what
+    // flies takes them as much longer as the road gives little to spare, far-read.ts. History's years, stretched.)
+    slow = far?.slow ?? 1,
+    paced = (year: number) =>
+      followed && slow > 1 && Number.isFinite(year) && year > followed.electronics
+        ? round(followed.electronics + (year - followed.electronics) * slow)
+        : year,
+    held: Civilization | null = followed
+      ? {
+          ...followed,
+          electronics: never("signals", followed.electronics),
+          orbit: paced(never("orbit", followed.orbit)),
+          stars: paced(never("stars", followed.stars)),
+        }
+      : null;
   // A people that comes as far as its numbers let it, and past towns, may fall; one that came to the
   // first machines and was not heard fell before it could be: history hears all who speak (contact.ts).
   let fell: number | null = null;
@@ -352,7 +411,7 @@ function readFolk(world: World, s: GalaxyStar, p: ForeignPlanet): Folk | null {
     ref,
     star: `star:${s.sector}:${s.k}` as Ref,
     planet: p.index,
-    followed,
+    followed: far?.shut || slow > 1 ? held : followed,
     name: civName(rng, { ref }),
     body,
     gravity: p.gravity,
@@ -381,9 +440,25 @@ function readFolk(world: World, s: GalaxyStar, p: ForeignPlanet): Folk | null {
     pace,
     ceiling,
     shut,
+    holds: far ? far.holds : null,
+    drives: far && far.road && far.road in DRIVES ? drivesWords(far.road, far.slow) : null,
     fell,
     fellWhy: fell === null ? null : fallWords(s, p, u(14)),
   };
+}
+
+/** What drives a people's works where they have no fuel to burn, in words. */
+const DRIVES: Readonly<Record<string, string>> = {
+  water: "the fall of their rivers",
+  wind: "their wind",
+  heat: "the heat of their ground",
+  atom: "the atom",
+};
+function drivesWords(road: string, slow: number): string {
+  const by = DRIVES[road]!;
+  return slow > 1.05
+    ? `Their works are driven by ${by}, not by fuel: from the electron to what flies took them ${slow.toFixed(1)} times as long as fuel would have.`
+    : `Their works are driven by ${by}, not by fuel, with current to spare.`;
 }
 
 const FOLKS = new Map<string, Folk | null>();
@@ -392,6 +467,17 @@ const FOLKS = new Map<string, Folk | null>();
 export function folkOf(world: World, s: GalaxyStar, index: number): Folk | null {
   // (Their world unmade, there is no one there now: W6.)
   if (farOf(world)?.falls.length && fireOf(world).unmade(s.ref as string, index)) return null;
+  return folkMade(world, s, index);
+}
+
+/** The years history reads of the followed people of a world: those its own world lets it come to (null: none followed there). */
+export function followedRead(world: World, s: GalaxyStar, index: number): Civilization | null {
+  return folkMade(world, s, index)?.followed ?? null;
+}
+
+followedBy(followedRead);
+
+function folkMade(world: World, s: GalaxyStar, index: number): Folk | null {
   const key = `${lawlessSeed(world.seed.text)} ${s.sector}:${s.k}/${index}`,
     known = FOLKS.get(key);
   if (known !== undefined) return known;
@@ -434,7 +520,8 @@ export function folkStage(f: Folk, year: number): FolkStage {
   }
   if (f.fell !== null && year >= f.fell) return "ruins";
   const climb = (year - f.arose) / f.pace,
-    top = f.followed ? LADDER.length - 1 : LADDER.indexOf(f.ceiling);
+    // (A followed people's ladder ends where its world shuts a road to it, as any people's does.)
+    top = LADDER.includes(f.ceiling) ? LADDER.indexOf(f.ceiling) : LADDER.length - 1;
   let at = 0;
   for (let i = 1; i <= top; i++) if (climb >= CLIMB[LADDER[i]!]!) at = i;
   return LADDER[at]!;
@@ -452,10 +539,21 @@ export function folkPeak(f: Folk, year: number): FolkStage {
   return folkStage({ ...f, fell: null }, f.fell! - 1);
 }
 
-/** How many of them there are now, all told (est.; a followed people's is not told by history). */
+/**
+ * How many of them there are now, all told (est.; a followed people's is not told by history): read from afar, and
+ * for a followed people never more than its own world holds.
+ */
 export function folkPeople(f: Folk, year: number): number {
-  const stage = folkStage(f, year),
-    k = (hashString(`${f.ref} people`) >>> 0) / 4294967296,
+  const read = peopleAt(f.ref, folkStage(f, year));
+  return f.holds === null ? read : Math.min(read, f.holds);
+}
+
+/** How many a people is read as at a stage (est.). */
+export function folkPeopleAt(f: Pick<Folk, "ref">, stage: FolkStage): number {
+  return peopleAt(f.ref, stage);
+}
+function peopleAt(ref: string, stage: FolkStage): number {
+  const k = (hashString(`${ref} people`) >>> 0) / 4294967296,
     between = (lo: number, hi: number) => round(lo * dmath.pow(hi / lo, k));
   switch (stage) {
     case "ruins":
@@ -580,7 +678,7 @@ export function arrivalsAt(world: World, f: Folk): readonly Arrival[] {
     });
   const store = peoplesOf(world);
   if (store)
-    for (const c of civilizationsNear(world)) {
+    for (const c of civilizationsNear(world, yearOfMoment(world.now))) {
       if (c.ref === f.ref) continue;
       for (const h of store.holdsOf(c.ref))
         if (h.star === f.star && holdWorld(world, c, h.star) === f.planet)

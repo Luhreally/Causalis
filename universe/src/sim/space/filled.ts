@@ -115,17 +115,10 @@ export function readingOf(ctx: PopulationContext, w: FilledWorld): FillReading |
     who = knowerOf(ctx, w),
     // (Cut off from what it never learned to make, its vats and towers stand idle: Phase 72.)
     dark = !!nationsOf(ctx.world)?.get(w.key)?.dark;
-  const r = fillReading(
-    ground,
-    g.life.people?.body ?? null,
-    home.gravity,
-    home.air,
-    remadeOf(ctx, w),
-    {
-      vats: !dark && !!loreOf(ctx.world).get(who, "vat-food"),
-      towers: !dark && !!loreOf(ctx.world).get(who, "world-city"),
-    },
-  );
+  const r = fillReading(ground, g.life.people?.body ?? null, home, home.air, remadeOf(ctx, w), {
+    vats: !dark && !!loreOf(ctx.world).get(who, "vat-food"),
+    towers: !dark && !!loreOf(ctx.world).get(who, "world-city"),
+  });
   return w.held ? heldReading(r) : r;
 }
 

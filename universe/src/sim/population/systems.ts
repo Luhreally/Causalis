@@ -79,7 +79,7 @@ import { cultureOf, cultureYear } from "../culture/culture.ts";
 import { loreOf } from "../lore/lore.ts";
 import { lessonAdds } from "../lore/lessons-store.ts";
 import { asksMonth, asksOf } from "../town/asks.ts";
-import { MarketStore } from "../economy/market.ts";
+import { MarketStore, type Market } from "../economy/market.ts";
 import {
   BANDS,
   bandWidth,
@@ -99,6 +99,7 @@ import {
   VAT_PEOPLE_KM2,
   habitability,
   routeTo,
+  thrift,
   type Affordances,
   type LifeHistory,
   type Medium,
@@ -191,7 +192,7 @@ export function hallsShare(ctx: PopulationContext, cell: number): number {
   if (share === undefined) {
     const g = ctx.generated,
       body = g.system.bodies[site.body]!,
-      need = habitability(body, g.life.people?.body ?? null, g.system.bodies[0]!.gravity).upkeep;
+      need = habitability(body, g.life.people?.body ?? null, g.system.bodies[0]!).upkeep;
     HALLS.set(key, (share = Math.min(0.9, need / (need + 6))));
   }
   return share * remade;
@@ -637,7 +638,9 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
       fedSquared = p.vitalFed2 / 1_000_000;
     p.vitalMonths = p.vitalShort = p.vitalFed2 = p.vitalPressure = 0;
     // A people grown wealthy with power have fewer children (the demographic transition).
-    const fertility = fedSquared * transition(ctx, p.cell),
+    // And one that has not put by what will feed it to the reaping has fewer still (rules/seasons.ts):
+    // by the months of eating in its land's store, against those it needs by the share of its food it reaps.
+    const fertility = fedSquared * transition(ctx, p.cell) * putBy(ctx, p, markets.get(p.cell)),
       // In cold lands, those without warm clothing die more easily.
       cold = dmath.clamp((10 - ctx.generated.climate.temperature[p.cell]!) / 10, 0, 1),
       bare = 1 - (markets.get(p.cell)?.clothingCover ?? 1000) / 1000,
@@ -777,6 +780,21 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
  * below a quarter of a kilowatt a person, down to TRANSITION less at two and a quarter
  * and beyond — fewer children born, as fewer die and each costs more to raise.
  */
+/**
+ * What a land's people keep of their fertility by what they have put by (rules/seasons.ts): the
+ * months of eating in its store now, against what they need to reach the reaping, by the share of
+ * the food its books say it made in the year that was reaped. (1: no market, no mouths, or a year
+ * with nothing made to read.)
+ */
+export function putBy(ctx: PopulationContext, p: Province, m: Market | undefined): number {
+  const need = mouths(p, ctx.life);
+  if (!m || need <= 0) return 1;
+  let made = 0;
+  for (const g of FOODS) made += m.book("made", g);
+  if (made <= 0) return 1;
+  return thrift(m.food(FOODS) / need, m.book("made", G.grain) / made);
+}
+
 export function transition(ctx: PopulationContext, cell: number): number {
   const power = powerOf(ctx, cell),
     keeps = 1 - TRANSITION * Math.min(1, Math.max(0, (power - 0.25) / 2)),

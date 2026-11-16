@@ -26,6 +26,7 @@ import {
 import { worldKindOf } from "./bodies.ts";
 import { functionsOf, meansNumbers, meansOfWorld } from "./chemistry.ts";
 import { surfaceOre, type HomeWorld } from "./homeworld.ts";
+import { WORKS_WATTS, bestCarrier, type CarrierRoad } from "./carriers.ts";
 
 /** A road shut: the age it leads to (its id and name), and what shuts it. */
 export type FarShut = {
@@ -86,28 +87,61 @@ export function farCrafts(g: HomeWorld, stage: FarStage): string[] {
   return out;
 }
 
+/** How a people's works are driven, and how much longer than by fuel they take to raise what flies (1: as by fuel). */
+export type MachinesRoad = {
+  readonly road: CarrierRoad | "currents" | "minds" | "unburnt";
+  readonly slow: number;
+};
+
 /**
- * Whether a people can make machines, by what they hold and what their ground holds (rules/goods.ts). `lands`: the
- * lands they live on (coal is dug from under a land's own ground, and carried a road's length); left out, any land of
- * their world.
+ * Whether a people can make machines, and by which road, by what they hold and what their ground holds (rules/goods.ts).
+ * `lands`: the lands they live on (coal is dug from under a land's own ground, and carried a road's length; current
+ * carried by wire); left out, any land of their world. `people`: how many live on them, whose works the current must
+ * drive (WORKS_WATTS a head); left out, the road needs only to be there. Where no seam is, a people who know
+ * electricity drives its works by its rivers' fall, its wind or its ground's heat, and once it knows the electron by the
+ * atom (gen/carriers.ts): slower to raise the less there is to spare, twice as long where it only just covers them.
  */
+export function machinesRoad(
+  g: HomeWorld,
+  has: (id: string) => boolean,
+  lands?: Iterable<number>,
+  people?: number,
+): MachinesRoad | null {
+  if (has("sea-works")) return { road: "currents", slow: 1 };
+  if (has("machine-minds")) return { road: "minds", slow: 1 };
+  if (!has("factories")) return null;
+  // (Works its own engines drive, where nothing burns or no limb tends a fire.)
+  const body = g.life.people?.body;
+  if (!kindBurns(worldKindOf(g)) || (body && !affordancesOf(body).fire))
+    return { road: "unburnt", slow: 1 };
+  const e = g.tectonics.elevation,
+    all: number[] = [];
+  if (lands) {
+    for (const c of lands) {
+      all.push(c);
+      if (surfaceOre(g, c, "coal")) return { road: "fuel", slow: 1 };
+    }
+  } else
+    for (let c = 0; c < g.grid.count; c++)
+      if (e[c]! > 0) {
+        all.push(c);
+        if (surfaceOre(g, c, "coal")) return { road: "fuel", slow: 1 };
+      }
+  if (!has("electricity")) return null;
+  const best = bestCarrier(g, all, has("electronics")),
+    need = WORKS_WATTS * Math.max(1, people ?? 1);
+  if (!best || best.watts < need) return null;
+  return { road: best.road, slow: 1 + need / best.watts };
+}
+
+/** Whether a people can make machines (machinesRoad: by any road). */
 export function machinesCan(
   g: HomeWorld,
   has: (id: string) => boolean,
   lands?: Iterable<number>,
+  people?: number,
 ): boolean {
-  if (has("sea-works") || has("machine-minds")) return true;
-  if (!has("factories")) return false;
-  // (Works its own engines drive, where nothing burns or no limb tends a fire.)
-  const body = g.life.people?.body;
-  if (!kindBurns(worldKindOf(g)) || (body && !affordancesOf(body).fire)) return true;
-  const e = g.tectonics.elevation;
-  if (lands) {
-    for (const c of lands) if (surfaceOre(g, c, "coal")) return true;
-    return false;
-  }
-  for (let c = 0; c < g.grid.count; c++) if (e[c]! > 0 && surfaceOre(g, c, "coal")) return true;
-  return false;
+  return machinesRoad(g, has, lands, people) !== null;
 }
 
 /** The stages read of a people that has flown: what machines alone build (sim/space/space.ts). */
@@ -120,7 +154,7 @@ export const FLOWN: readonly FarStage[] = ["orbit", "stars"];
  */
 export function farShut(
   g: HomeWorld,
-  far: Pick<FarMade, "stage">,
+  far: Pick<FarMade, "stage"> & { readonly people?: number },
   has?: (id: string) => boolean,
   lands?: Iterable<number>,
 ): FarShut | null {
@@ -150,7 +184,7 @@ export function farShut(
     for (const id of road.road) found ??= why(id, seen);
     return { age: road.age, name: name(road.age), why: found ?? "limbs" };
   }
-  if (FLOWN.includes(far.stage) && !machinesCan(g, holds, lands))
+  if (FLOWN.includes(far.stage) && !machinesCan(g, holds, lands, far.people))
     return { age: "orbit", name: name("orbit"), why: "fuel" };
   return null;
 }
@@ -159,5 +193,5 @@ export function farShut(
 export const FAR_SHUT_WORDS: Readonly<Record<FarShut["why"], string>> = {
   limbs: "their limbs cannot work what leads to it",
   matter: "its matter does not hold what that asks",
-  fuel: "no fuel in its ground for the works that build what flies",
+  fuel: "no fuel in its ground, and no river's fall, wind, hot ground or atom enough, for the works that build what flies",
 };

@@ -8,7 +8,7 @@ import {
   HEALTH_ACTS,
   HEALTH_EVENTS,
   SICKNESS,
-  civilizationsNear,
+  civilizationOf,
   healthOf,
   peopleWords,
   type Route,
@@ -53,7 +53,7 @@ export const VIA_WORDS: Readonly<Record<Via, string>> = {
 
 /** The name of the people of the stars a sickness came down with (null: it rose here). */
 export function strangersOf(world: World, s: Pick<Sickness, "people">): string | null {
-  const civ = s.people ? civilizationsNear(world).find((c) => c.ref === s.people) : undefined;
+  const civ = s.people ? civilizationOf(world, s.people) : null;
   return civ ? peopleWords(world, civ).name : null;
 }
 

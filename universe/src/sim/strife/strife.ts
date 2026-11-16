@@ -70,8 +70,10 @@ import {
   type RealmOrder,
 } from "../order/order.ts";
 import { LAW_OF } from "../order/laws.ts";
-import { HOLD, HOLDING } from "../../rules/index.ts";
+import { FEW_RULE, HOLD, HOLDING } from "../../rules/index.ts";
 import { holdOf, holdsOf, setHeld } from "../order/holds.ts";
+import { wantsOf } from "../order/wants.ts";
+import { financeOf } from "../finance/finance.ts";
 import { grieve, strike } from "../acts/disasters.ts";
 import { armyDone, armyMoves, armyVoice } from "../court/court.ts";
 
@@ -327,6 +329,102 @@ export function battlesOf(
   return { won, lost, last, lastWon };
 }
 
+/** What strife reads of a realm's wealth and its seat's bread (STRAIN's terms), each 0 … 1 but `few`, which is signed. */
+export type Strain = {
+  /** How narrowly its wealth is held, about the middle (rules/finance.ts spread): 0.5, a few's; -0.5, widely held. */
+  readonly few: number;
+  /** The share of its debt held by other peoples (none owed: 0). */
+  readonly abroad: number;
+  /** How far short of fed its seat's leanest month fell, this year. */
+  readonly lean: number;
+};
+/**
+ * Read off the realm's money (sim/finance) and its seat's land: continuous, where hunger was once only "a famine
+ * within two years". A realm with no money kept reads as the middle, owing nothing.
+ */
+export function strainOf(ctx: PopulationContext, p: Polity): Strain {
+  const m = financeOf(ctx.world)?.of(p.ref),
+    held = m ? m.held.reduce((n, [, x]) => n + x, 0) : 0,
+    owed = m ? m.home + held : 0,
+    seat = ctx.provinces.get(p.seat);
+  return {
+    few: 0.5 - (m?.own[0] ?? 50) / 100,
+    abroad: owed > 0 ? held / owed : 0,
+    lean: seat ? clamp(0, 1, 1 - seat.leanest / 1000) : 0,
+  };
+}
+/**
+ * How much each weighs in the two sums (a coup's, a rising's). A famine's own term was 0.25 in each; it gives the lean
+ * month a part of that, so a seat that starves weighs about as it did, and one short of bread only in its leanest
+ * month weighs some. Sized on first light's history, 2026-11-15, so its coups and risings a century stay about as
+ * they were (its risings came of its lean centuries, which births that answer to the bread put by have ended): there,
+ * seats ate all year in all but 18 of 56,000 realm-years, wealth was held by a quarter where a people pressed to rise,
+ * and such a realm owed strangers a quarter of its debt on average. Weighed 0.3 and 0.1, those two would have made
+ * four times the risings the old sum made of that history; 0.1 and 0.05 make two in three again as many.
+ */
+export const STRAIN = {
+  coup: { few: 0.1, abroad: 0.1, lean: 0.3, famine: 0.15 },
+  rising: { few: 0.1, abroad: 0.05, lean: 0.4, famine: 0.15 },
+} as const;
+
+/**
+ * The holds the groups that rose would have (what each has learned to want, sim/order/wants.ts), weighted by their sway and
+ * by `part` (how far each was of the rising; 0: no part in it). Null where none of them has any sway or any wants.
+ */
+export function wantsOfRisen(
+  interests: readonly Interest[],
+  part: (group: string) => number,
+  wantOf: (group: string) => readonly number[] | null,
+): [number, number, number, number] | null {
+  const out: [number, number, number, number] = [0, 0, 0, 0];
+  let all = 0;
+  for (const i of interests) {
+    const w = i.sway * part(i.group),
+      wants = wantOf(i.group);
+    if (!(w > 0) || !wants) continue;
+    all += w;
+    for (let k = 0; k < 4; k++) out[k]! += w * wants[k]!;
+  }
+  if (!(all > 0)) return null;
+  return out.map((x) => x / all) as [number, number, number, number];
+}
+/** What a group of a realm has learned to want of each number; where it has not yet weighed, the realm as it is held. */
+const learnedOf =
+  (world: World, realm: Ref) =>
+  (group: string): readonly number[] =>
+    wantsOf(world)?.wantOf(realm, group) ?? holdsOf(world, realm);
+/** Who rises with the many: those who are not the seat's few; twice over those who till and herd, where the land is what they rose for. */
+const manyRose =
+  (cause: Movement["cause"]) =>
+  (group: string): number =>
+    FEW_RULE.has(group)
+      ? 0
+      : cause === "land" && (group === "farmers" || group === "herders")
+        ? 2
+        : 1;
+/** Who stands with a general: the army, and half as much whoever else is not the court he overthrows. */
+const armyRose = (group: string): number =>
+  group === "the army" ? 1 : group === "the court" ? 0 : 0.5;
+/** Above this, what those who rose want of a realm's choices is an assembly of all; under it, a council of their elders. */
+export const ASSEMBLY_WANTED = 0.66;
+
+/**
+ * What a revolution won leaves a realm: the holds those who rose would have (the many, by their sway; those who till
+ * and herd twice over where the land is what they rose for), and the rule they make of it: an assembly of all where
+ * they want the realm's choices widely carried, a council of their elders where they want less of it.
+ */
+export function risenRule(
+  ctx: PopulationContext,
+  p: Polity,
+  movement: Movement["cause"],
+  t: SimTime,
+): { readonly leadership: 1 | 2; readonly wants: readonly [number, number, number, number] } {
+  const wants =
+    wantsOfRisen(interestsOf(ctx, p, t), manyRose(movement), learnedOf(ctx.world, p.ref)) ??
+    ([...holdsOf(ctx.world, p.ref)] as [number, number, number, number]);
+  return { leadership: wants[HOLD.voice]! >= ASSEMBLY_WANTED ? 2 : 1, wants };
+}
+
 /**
  * How near a realm's army is to reaching for its seat (its score, against STRIFE.line), and
  * why: a rule doubted, the army's sway, battles lost, an army unpaid, what is skimmed, a daring
@@ -357,7 +455,8 @@ export function coupDanger(
     junta = strifeOf(world)?.junta(p.ref) ?? null,
     old = Math.min(1, Math.max(0, year - p.founded) / 200),
     standing = loreOf(world).get(p.seat, "standing-army"),
-    held = holdsOf(world, p.ref);
+    held = holdsOf(world, p.ref),
+    strain = strainOf(ctx, p);
   const factors: Factor[] = [
     {
       name: "a rule doubted",
@@ -386,8 +485,28 @@ export function coupDanger(
     {
       name: "an army unpaid",
       value: unpaid ? 1 : 0,
-      contribution: unpaid ? 0.25 : 0,
+      contribution: unpaid ? STRAIN.coup.famine : 0,
       source: unpaid ? { ref: famine!, role: "pressure", weight: 1 } : null,
+    },
+    // (Read off its money and its seat's bread, continuously: an army eats what its seat eats; wealth in few hands
+    // buys a general; a seat that pays strangers first pays its host last.)
+    {
+      name: "a lean month at the seat",
+      value: strain.lean,
+      contribution: STRAIN.coup.lean * strain.lean,
+      source: null,
+    },
+    {
+      name: "wealth in few hands",
+      value: 0.5 - strain.few,
+      contribution: STRAIN.coup.few * strain.few,
+      source: null,
+    },
+    {
+      name: "its debt held by strangers",
+      value: strain.abroad,
+      contribution: STRAIN.coup.abroad * strain.abroad,
+      source: null,
     },
     {
       name: "what is skimmed",
@@ -503,10 +622,16 @@ export function seize(ctx: PopulationContext, p: Polity, causes: CauseRef[], t: 
   if (o) {
     o.corruption *= 0.6;
     o.crisis = null;
-    // (Its choices the generals', the arms theirs, its word watched: rules/holds.ts.)
-    setHeld(o, "voice", 0.12, "most", event);
-    setHeld(o, "force", 0.7, "least", event);
-    setHeld(o, "word", 0.28, "most", event);
+    // (Its choices, its arms and its word as those who rose would have them: the army, and half as much whoever
+    // else is not the court he overthrew, by their sway. So a general raised with traders at his back leaves word
+    // freer than one the temple stood behind. Never more of a voice than a seat taken by the sword can give, nor
+    // fewer arms kept to the host: rules/holds.ts.)
+    const wants =
+      wantsOfRisen(interestsOf(ctx, p, t), armyRose, learnedOf(ctx.world, p.ref)) ??
+      ([...holdsOf(ctx.world, p.ref)] as [number, number, number, number]);
+    setHeld(o, "voice", Math.min(0.3, wants[HOLD.voice]!), "most", event);
+    setHeld(o, "force", Math.max(0.6, wants[HOLD.force]!), "least", event);
+    setHeld(o, "word", Math.min(0.5, wants[HOLD.word]!), "most", event);
   }
   store.coups.push({ realm: p.ref, year, event, won: true, was, general });
   armyDone(world, p, event, true);
@@ -830,7 +955,8 @@ export function revolutionDanger(
     lore = loreOf(world),
     thought = lore.get(p.seat, "philosophy"),
     works = lore.get(p.seat, "factories"),
-    held = holdsOf(world, p.ref);
+    held = holdsOf(world, p.ref),
+    strain = strainOf(ctx, p);
   const factors: Factor[] = [
     {
       name: "a rule doubted",
@@ -847,8 +973,28 @@ export function revolutionDanger(
     {
       name: "hunger at the seat",
       value: starving ? 1 : 0,
-      contribution: starving ? 0.25 : 0,
+      contribution: starving ? STRAIN.rising.famine : 0,
       source: starving ? { ref: famine!, role: "pressure", weight: 1 } : null,
+    },
+    // (Read off its money and its seat's bread, continuously: the leanest month of the year, however short of a
+    // famine; how narrowly its wealth is held; how much of what it owes it owes to strangers.)
+    {
+      name: "a lean month at the seat",
+      value: strain.lean,
+      contribution: STRAIN.rising.lean * strain.lean,
+      source: null,
+    },
+    {
+      name: "wealth in few hands",
+      value: 0.5 - strain.few,
+      contribution: STRAIN.rising.few * strain.few,
+      source: null,
+    },
+    {
+      name: "its debt held by strangers",
+      value: strain.abroad,
+      contribution: STRAIN.rising.abroad * strain.abroad,
+      source: null,
     },
     {
       name: "a seat that cannot reach its lands",
@@ -930,14 +1076,16 @@ export function revolt(
     year = yearOfMoment(t),
     was = realmName(p),
     before = p.leadership,
+    // (What those who rose would have, and the rule they make of it: risenRule, rules/holds.ts HOLD_WANTS.)
+    { leadership: to, wants } = risenRule(ctx, p, movement, t),
     event = world.events.emit({
       type: STRIFE_EVENTS.revolution.type,
       subjects: [p.ref],
       place: ctx.provinces.get(p.seat)?.ref ?? null,
       causes,
-      data: { realm: was, cause: movement, to: realmName({ leadership: 2, town: p.town }) },
+      data: { realm: was, cause: movement, to: realmName({ leadership: to, town: p.town }) },
     });
-  p.leadership = 2;
+  p.leadership = to;
   p.succession = 2;
   p.ruler = { ...newRuler(ctx, p, t, event, 4), event };
   const s = store.ensure(p.ref);
@@ -954,9 +1102,11 @@ export function revolt(
       o.lawEvents[LAW_OF.land] = event;
     }
     for (const m of o.movements) if (m.cause === movement) m.strength *= 0.4;
-    // (Its choices now the many's, its word freed: rules/holds.ts.)
-    setHeld(o, "voice", 0.75, "least", event);
-    setHeld(o, "word", 0.6, "least", event);
+    // (Its choices and its word as those who rose would have them, never less than they were; arms no more kept
+    // to the host than they would keep them: rules/holds.ts.)
+    setHeld(o, "voice", wants[HOLD.voice]!, "least", event);
+    setHeld(o, "word", wants[HOLD.word]!, "least", event);
+    setHeld(o, "force", wants[HOLD.force]!, "most", event);
   }
   const ways = cultureOf(world).get(p.seat);
   if (ways) {
@@ -967,7 +1117,7 @@ export function revolt(
   // (Its old court flees to the far lands, under the rule it had, and fights to return.)
   if (world.rng.real(COUP, parseRef(p.ref).b >>> 0, t, 7) < clamp(0, 0.6, 2 * court)) {
     const rump = breakAway(ctx, p, farLands(ctx, p), event, "revolution", t);
-    if (rump && before !== 2) rump.leadership = before;
+    if (rump && before !== to) rump.leadership = before;
   }
   return event;
 }

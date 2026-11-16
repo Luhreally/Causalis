@@ -279,6 +279,7 @@ export {
   SUCCESSION,
   endRealm,
   governmentKey,
+  formFromPowers,
   institutionsOf,
   installPolities,
   politiesOf,
@@ -513,6 +514,7 @@ export {
   WEARY_YEARS,
   WarStore,
   installWar,
+  farFromSeat,
   fieldedOf,
   fieldedParts,
   hostOf,
@@ -568,6 +570,7 @@ export {
   BOND_EVENTS,
   UNPAID_TERM,
   aimOf,
+  warCosts,
   bondsOf,
   canBind,
   grainMade,
@@ -1015,6 +1018,8 @@ export {
   type Loan,
 } from "./credit/credit.ts";
 export {
+  ASSEMBLY_WANTED,
+  STRAIN,
   STRIFE,
   STRIFE_ACTS,
   STRIFE_EVENTS,
@@ -1031,12 +1036,16 @@ export {
   revolt,
   revolutionDanger,
   revolutionHolds,
+  risenRule,
   settleCivil,
   restore,
   seize,
   seizedFactor,
+  strainOf,
   strifeOf,
   strifeYear,
+  wantsOfRisen,
+  type Strain,
   type CivilWar,
   type Coup,
   type Junta,
@@ -1118,3 +1127,48 @@ export {
   type Fear,
   type Money,
 } from "./finance/finance.ts";
+export {
+  ageBefore,
+  farCeiling,
+  farFace,
+  farShutOn,
+  farReadWorld,
+  pastShut,
+  type FarCeiling,
+  type FarRead,
+} from "./space/far-read.ts";
+export { civilizationOf, farReadAll, farReadNext } from "./space/contact.ts";
+export { FarReadStore } from "./space/far-read.ts";
+export { folkPeopleAt, followedRead } from "./space/natives.ts";
+export { WANTS_LEARN, WantsStore, learnWants, wantsOf, type GroupWants } from "./order/wants.ts";
+export {
+  ELECTION_EVENTS,
+  ElectionStore,
+  GOVERNS_BY,
+  chooses,
+  electionsOf,
+  electionsYear,
+  termOf,
+  type Election,
+} from "./order/elections.ts";
+export {
+  COUNCILS,
+  COUNCIL_EVENTS,
+  CouncilStore,
+  councilsOf,
+  councilsYear,
+  sitTogether,
+  type Council,
+} from "./diplomacy/councils.ts";
+export { SPYING, SPY_EVENTS, SpyStore, spiesOf, spiesYear, type Spy } from "./war/spies.ts";
+export {
+  OCCUPATION_EVENTS,
+  OCCUPYING,
+  OccupationStore,
+  occupationOf,
+  occupationYear,
+  occupy,
+  reliefOf,
+  type Occupied,
+} from "./war/occupation.ts";
+export { GROUND as WAR_GROUND, groundOf, supplyOf } from "./war/ground.ts";

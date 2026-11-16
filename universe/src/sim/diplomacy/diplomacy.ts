@@ -6,6 +6,8 @@
 // Remembered wrongs fade over decades. Realms who think well of each other swear a
 // pact; when their opinion sours, the pact breaks, naming the term that soured it.
 // Realms who think ill are rivals — what war (M22) will read.
+import { SpyStore, spiesYear } from "../war/spies.ts";
+import { COUNCILS, CouncilStore, councilsYear, sitTogether } from "./councils.ts";
 import {
   YEAR,
   defineEventType,
@@ -298,6 +300,14 @@ export function diplomacyYear(ctx: PopulationContext, t: SimTime): void {
       });
     else if (wary >= 0.65)
       terms.push({ name: "two realms that bind freely", value: 0.1, source: null });
+    // (Two who sit in one council of realms think the better of each other: sim/diplomacy/councils.ts.)
+    const council = sitTogether(world, a.ref, b.ref);
+    if (council)
+      terms.push({
+        name: `sitting together in ${council.name}`,
+        value: COUNCILS.regard,
+        source: council.event,
+      });
     // A people who laid its own woes at outsiders' door looks on its neighbours the darker (rules/holds.ts blame "theirs").
     for (const side of [a, b]) {
       const blamed = blamesOutsiders(world, side.ref, year);
@@ -396,5 +406,12 @@ export function installDiplomacy(world: World, ctx: () => PopulationContext): Di
   const store = world.register(new DiplomacyStore());
   world.addPinner(() => store.pinned());
   world.system({ key: "186.diplomacy.year", every: YEAR, run: (t) => diplomacyYear(ctx(), t) });
+  // (Bodies of realms that arise from treaties made again and again: sim/diplomacy/councils.ts.)
+  const councils = world.register(new CouncilStore());
+  world.addPinner(() => councils.pinned());
+  world.system({ key: "186.diplomacy.councils", every: YEAR, run: (t) => councilsYear(ctx(), t) });
+  // (Spies sent into the realms a realm most has reason to watch: sim/war/spies.ts.)
+  world.register(new SpyStore());
+  world.system({ key: "186.diplomacy.spies", every: YEAR, run: (t) => spiesYear(ctx(), t) });
   return store;
 }

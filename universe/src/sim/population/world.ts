@@ -1,6 +1,7 @@
 // A world with people (Phase 1): the home planet, and a first people in the
 // province that suits them best — warm enough, watered, rich in what can be
 // gathered — whose choice is itself a recorded decision the explainer can open.
+import { seatsBy } from "../space/far-read.ts";
 import {
   World,
   YEAR,
@@ -312,6 +313,18 @@ function readSpread(
 export function seatedCells(g: HomeWorld, text: string): number[] {
   return readSpread(g, spreadOf(g, text), g.far).lands.map(([cell]) => cell);
 }
+/**
+ * How many a world entered can seat its people on at the most, however many were read: every land of their spread at
+ * its part of what it feeds (readSpread). Pure.
+ */
+export function seatsAtMost(g: HomeWorld, text: string): number {
+  if (!g.far) return 0;
+  return readSpread(g, spreadOf(g, text), {
+    ...g.far,
+    people: Number.MAX_SAFE_INTEGER,
+  }).sizes.reduce((a, b) => a + b, 0);
+}
+seatsBy(seatedCells, seatsAtMost);
 
 export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions = {}): World {
   const world = makePlanetWorld(seed, { retention: PEOPLED_RETENTION, ...options });

@@ -169,8 +169,9 @@ test("a market town gathers the crafts and trade of its land, and grows past a v
 });
 
 test("trade answers a famine, and says so", () => {
-  // Famine strikes first light's foragers while their farming neighbours have food to send.
-  const grown = land("first light", 60),
+  // Famine strikes first light's lands while their neighbours have food to send: by its 160s, once its
+  // lands' births answer to what they have put by (rules/seasons.ts), the first famines trade answers.
+  const grown = land("first light", 165),
     relief = grown.events.all().find((e) => e.type === ECONOMY_EVENTS.relief.type);
   assert.ok(relief, "food came to a famine");
   const node = why(grown, relief.id);

@@ -34,6 +34,8 @@ import {
 import {
   STAGE_WORDS,
   clusterOf,
+  farFace,
+  farReadWorld,
   folkGroundDraws,
   folkOf,
   folkPeople,
@@ -127,59 +129,23 @@ export function enterPlan(
     };
   // (Their body as their pages and their figures show it from afar: a followed people of the kinds of before, its kind's.)
   const body = f.followed ? (civBody(f.followed) ?? f.body) : f.body;
-  // (The share of its face under sea, as the far sight draws it; and the shares of it open ground and open sea, not ice.)
-  const globe = foreignGlobe(world, s.ref, index),
-    cells = Math.max(1, globe.elevation.length);
-  let low = 0,
-    ground = 0,
-    sea = 0;
-  for (let c = 0; c < globe.elevation.length; c++) {
-    if (globe.elevation[c]! <= 0) low++;
-    if (globe.cover[c] === 0) ground++;
-    else if (globe.cover[c] === 1) sea++;
-  }
-  const made: FarMade = {
-      v: 1,
-      name: f.name,
-      civ: f.ref,
-      followed: !!f.followed,
-      from: { universe, seed: world.seed.text },
-      year,
-      stage,
-      people: folkPeople(f, year),
-      star: {
-        ref: `star:${s.sector}:${s.k}`,
-        mass: s.mass,
-        luminosity: s.luminosity,
-        temperature: s.temperature,
-        spectral: s.spectral,
-        ageGyr: s.ageGyr,
-        distance: s.distance,
+  // (What is read of their world, and the world it is made as: sim/space/far-read.ts, the galaxy's own reading of a
+  // followed people's ceiling made from the same. The shares of its face open ground and open sea, not ice.)
+  const { cells, ground, sea } = farFace(world, s, p),
+    { made, acts, asked, homeSize } = farReadWorld(
+      world,
+      s,
+      p,
+      {
+        name: f.name,
+        ref: f.ref,
+        followed: !!f.followed,
+        body,
+        chem: folkGroundDraws(world, s, index),
       },
-      planet: {
-        index,
-        a: p.a,
-        mass: p.mass,
-        radius: p.radius,
-        gravity: p.gravity,
-        temperature: p.temperature,
-        pressure: p.pressure,
-        seas: globe.elevation.length ? low / cells : 0.5,
-      },
-      chem: folkGroundDraws(world, s, index),
-      hand: handDraw(f.ref),
-      body,
-      look: folkFactsOf(f, s),
-    },
-    // (The laws of its universe and its lands' grid as the home world's are; its own sky kept small.)
-    home = makingsOf(world.seed.text),
-    homeSize = home.size ?? "standard",
-    asked = size && GRID[size] !== undefined && GRID[size]! < GRID[homeSize]! ? size : homeSize,
-    acts = [
-      makingAct("sky", "small"),
-      ...(asked !== "standard" ? [makingAct("size", asked)] : []),
-      ...(home.lanes ? [makingAct("lanes", home.lanes)] : []),
-    ],
+      { year, stage, people: folkPeople(f, year), universe, look: folkFactsOf(f, s) },
+      size,
+    ),
     // (About how many lands they will live over: the share of its face that is open ground as the far sight draws it;
     // for a people of the water, the shallows of its open seas. Est.)
     lands = Math.max(

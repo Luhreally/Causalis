@@ -1082,6 +1082,8 @@ function foldRoster(
   }
 
   const levies: KeptBattle[] = [],
+    // (Each war's levy key, asked once: the same for every battle of it.)
+    warKeys = new Map<string, number>(),
     struck: KeptStrike[] = [],
     battles: RosterBattle[] = [],
     strikes: RosterStrike[] = [];
@@ -1154,7 +1156,10 @@ function foldRoster(
           age = at - (h.from - took(key));
         return ((key >>> 5) & 1) === 1 && age >= fitFrom && age < fitTo;
       };
-      wanted = levyOf(shape, hashString(`levy ${war.ref} ${town}`), count, at, target, mourning);
+      let warKey = warKeys.get(war.ref);
+      if (warKey === undefined)
+        warKeys.set(war.ref, (warKey = hashString(`levy ${war.ref} ${town}`)));
+      wanted = levyOf(shape, warKey, count, at, target, mourning);
       eligible = everyFit;
     }
     let lines = NO_LINES,
@@ -1202,7 +1207,9 @@ function foldRoster(
         }
       }
     }
-    const told: RosterBattle = {
+    // (Its two told-when-asked fields made after the rest, in the same order: a field once held and then made
+    // a getter costs the object its shape, and every roll a dozen milliseconds.)
+    const told = {
         event: b.event,
         war: war.ref,
         side,
@@ -1210,14 +1217,13 @@ function foldRoster(
         land: b.land,
         tally: [sent, dead, hurt],
         lines: count,
-        eligible,
-        men: [],
-      },
+      } as Omit<RosterBattle, "eligible" | "men"> as RosterBattle,
       kept: KeptBattle = { year: at, lines, fates, told },
       j = at_,
       nth = levies.length;
     // (Where its levy did not look at every line, how many were eligible is counted when asked.)
     if (eligible < 0) lazily(told, "eligible", () => eligibleAt(j, nth, count, at));
+    else (told as { eligible: number }).eligible = eligible;
     lazily(told, "men", () =>
       menOf(kept, (k, f) => ({ line: k, holder: holderIn(k, at), fate: FATES[f]! })),
     );
@@ -1468,14 +1474,33 @@ function foldRoster(
  * own field, so it is copied and compared as any other).
  */
 function lazily<T>(told: object, name: string, make: () => unknown): T {
-  Object.defineProperty(told, name, {
-    configurable: true,
-    enumerable: true,
-    get() {
-      const value = make();
-      Object.defineProperty(told, name, { value, enumerable: true, writable: false });
-      return value;
-    },
-  });
+  let makes = MAKES.get(told);
+  if (!makes) MAKES.set(told, (makes = {}));
+  makes[name] = make;
+  Object.defineProperty(told, name, lazyField(name));
   return told as T;
+}
+/** What each told object's fields yet to be made are made by. */
+const MAKES = new WeakMap<object, Record<string, () => unknown>>();
+/** One getter a field's name, shared by every object (so each keeps the shape of the others). */
+const LAZY_FIELDS = new Map<string, PropertyDescriptor>();
+function lazyField(name: string): PropertyDescriptor {
+  let field = LAZY_FIELDS.get(name);
+  if (!field)
+    LAZY_FIELDS.set(
+      name,
+      (field = {
+        configurable: true,
+        enumerable: true,
+        get(this: object) {
+          const makes = MAKES.get(this)!,
+            value = makes[name]!();
+          // (Made, its maker and all it holds of the fold let go.)
+          delete makes[name];
+          Object.defineProperty(this, name, { value, enumerable: true, writable: false });
+          return value;
+        },
+      }),
+    );
+  return field;
 }

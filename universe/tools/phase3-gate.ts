@@ -14,7 +14,7 @@ import { gzipSync } from "node:zlib";
 import { YEAR, rulesetId, saveWorld, seedFromText, type Ref } from "../src/kernel/index.ts";
 import { SEAM, surfaceOre } from "../src/gen/index.ts";
 import { EARTH } from "../src/host/planet.ts";
-import { ECONOMY_EVENTS, homePlanet } from "../src/sim/index.ts";
+import { ECONOMY_EVENTS, farReadAll, homePlanet } from "../src/sim/index.ts";
 import { northStar, why } from "../src/causal/index.ts";
 import { century, watchTurns, type Century } from "./calibration.ts";
 import { BANDS, TURNS } from "./calibration-bands.ts";
@@ -30,7 +30,12 @@ const problems: string[] = [],
   turns = watchTurns(),
   centuries: Century[] = [],
   times: number[] = [],
+  // (What each followed people's own world lets it come to is read at a world's start, in the host's spare moments,
+  // before its years run: here as there, and told, so that no year is charged with a far world's making.)
+  read0 = performance.now(),
+  farRead = (farReadAll(world), performance.now() - read0),
   t0 = performance.now();
+console.log(`  the followed peoples' own worlds read at the start: ${farRead.toFixed(0)} ms`);
 let last = t0;
 for (let y = 1; y <= years; y++) {
   world.runTo(y * YEAR);

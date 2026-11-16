@@ -4,7 +4,14 @@
 // world where every breath is made holds only as much ground as its people can keep roofs over, and however long they
 // are given it never fills. Nothing here is a level of knowledge: a people fills it as fast as its numbers let it. Pure.
 import type { BodyPlan } from "./bodies.ts";
-import { MOST_UPKEEP, habitability, type Ground } from "./habitat.ts";
+import {
+  BEARS,
+  EARTH_HOME,
+  MOST_UPKEEP,
+  habitability,
+  type Ground,
+  type HomeGround,
+} from "./habitat.ts";
 
 /** A world's ground as a filling reads it. */
 export type FillGround = Ground & { readonly radius: number };
@@ -54,12 +61,19 @@ export type FillReading = {
 export function openSky(
   g: Ground,
   body: BodyPlan | null,
-  homeGravity: number,
+  home: number | HomeGround,
   homeAir: string,
 ): boolean {
-  const pull = g.gravity / homeGravity;
-  // (The thresholds habitability itself weighs, and the same air-pressure span a meeting of two peoples reads.)
-  if (g.temperature < -40 || g.temperature > 50 || g.radiation > 3) return false;
+  const pull = g.gravity / (typeof home === "number" ? home : home.gravity),
+    warmth = typeof home === "number" ? EARTH_HOME.temperature : home.temperature;
+  // (The thresholds habitability itself weighs, from their own world's warmth, and the same air-pressure span a
+  // meeting of two peoples reads.)
+  if (
+    g.temperature < warmth - BEARS.colder ||
+    g.temperature > warmth + BEARS.hotter ||
+    g.radiation > 3
+  )
+    return false;
   if (pull < 0.1 || pull > 1.5) return false;
   if (body?.medium === "water") return g.water === "seas";
   return (
@@ -71,18 +85,18 @@ export function openSky(
 export function fillReading(
   g: FillGround,
   body: BodyPlan | null,
-  homeGravity: number,
+  home: number | HomeGround,
   homeAir: string,
   remade: number,
   means: FillMeans,
 ): FillReading {
-  const h = habitability(g, body, homeGravity),
+  const h = habitability(g, body, home),
     r = 6371 * g.radius,
     km2 = 4 * Math.PI * r * r,
     sea = body?.medium === "water",
     seas = g.water === "seas",
     usable = km2 * (sea ? (seas ? 1 - GROUND_SHARE : 1) : seas ? GROUND_SHARE : 1),
-    open = remade >= 1 || openSky(g, body, homeGravity, homeAir),
+    open = remade >= 1 || openSky(g, body, home, homeAir),
     // (As far as it has been remade, its people keep less out and its fields lie open.)
     upkeep = open ? 0 : Math.max(0, h.upkeep) * (1 - remade),
     kept = Math.min(0.9, upkeep / (upkeep + HANDS)),

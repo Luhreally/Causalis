@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { gzipSync } from "node:zlib";
 import { YEAR, rulesetId, saveWorld, seedFromText } from "../../src/kernel/index.ts";
 import { EARTH } from "../../src/host/planet.ts";
-import { makePopulationWorld } from "../../src/sim/index.ts";
+import { farReadAll, makePopulationWorld } from "../../src/sim/index.ts";
 import { observer } from "../../src/causal/index.ts";
 import type { World } from "../../src/kernel/index.ts";
 import { frameTransfer } from "../../src/bridge/index.ts";
@@ -19,6 +19,12 @@ import { cradleCell } from "../cradle.ts";
 const CRADLE = cradleCell("first light");
 
 type Budget = {
+  /**
+   * What each followed people's own world lets it come to, read (sim/space/far-read.ts: a far world made whole each,
+   * kept beside the world). The app reads them in its spare moments before history needs them, soonest first, and a
+   * year reads only those whose years have come: so it is weighed here apart from the years.
+   */
+  readonly readMs: number;
   /** The whole 300 years, built and run. */
   readonly runMs: number;
   /** The slowest single year (a province's first village refines its region). */
@@ -34,6 +40,13 @@ type Budget = {
 };
 
 function withinBudget(world: World, budget: Budget, label: string): void {
+  const r0 = performance.now();
+  farReadAll(world);
+  const read = performance.now() - r0;
+  assert.ok(
+    read < budget.readMs,
+    `${label}: its followed peoples' own worlds read in ${read.toFixed(0)} ms`,
+  );
   const t0 = performance.now(),
     years: number[] = [];
   let last = performance.now();
@@ -79,12 +92,14 @@ function withinBudget(world: World, budget: Budget, label: string): void {
 }
 
 test("the Phase 1 slice (the cradle, 300 years) runs, saves and shows within its budgets", () => {
-  // Measured: 0.75 s, slowest year 47 ms, save 0.15 MB.
+  // Measured: 0.75 s, slowest year 47 ms, save 0.15 MB; its six followed peoples' own worlds read
+  // in 4 s (2026-11-15, a busy machine).
   const world = makePopulationWorld(seedFromText("first light"));
   observer(world);
   withinBudget(
     world,
     {
+      readMs: 15_000,
       runMs: 6000,
       yearMs: 300,
       saveBytes: 3_000_000,
@@ -103,6 +118,7 @@ test("the app's world (bands across the land, 300 years) runs, saves and shows w
   withinBudget(
     EARTH.build(seedFromText("first light")),
     {
+      readMs: 15_000,
       runMs: 120_000,
       yearMs: 1_000,
       saveBytes: 8_000_000,

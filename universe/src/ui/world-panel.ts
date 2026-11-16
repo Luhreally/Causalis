@@ -268,10 +268,13 @@ export class WorldPanel {
         ? `No ground: bands of cloud, ${world.bands} of them${world.storm ? ", and a great storm" : ""}`
         : `${world.craters ? "Its face is cratered: no thick air wore the old strikes away. " : ""}Tap the ground to look closer.`;
     const p = world.people,
-      when = (y: number, what: string, done: string) =>
-        y <= year
-          ? `${done} in year ${y} of our chronicle`
-          : `${what} in year ${y} of our chronicle`;
+      // (A year never to come, where their own world shuts the road: said as that, in the words of what it would be.)
+      when = (y: number | null, what: string, done: string) =>
+        y === null || !Number.isFinite(y)
+          ? `${what.replace(/^They will /, "They will not ")} from their own world: it shuts the road`
+          : y <= year
+            ? `${done} in year ${y} of our chronicle`
+            : `${what} in year ${y} of our chronicle`;
     this.more.replaceChildren(
       ...this.reachRows(star, index),
       ...this.folkRows(star, index),

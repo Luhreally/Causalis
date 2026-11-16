@@ -26,7 +26,6 @@ import {
   HOLD,
   HOLDING,
   HOLD_KINDS,
-  HOLD_WANTS,
   LEARNING,
   OUTCOME,
   alikeInSize,
@@ -75,6 +74,9 @@ import { warsOf } from "../war/war.ts";
 import { LAW_EVERY, swayOnLaws } from "./laws.ts";
 import { fearPress, heldAbroad } from "../finance/finance.ts";
 import { orderOf, type RealmOrder } from "./order.ts";
+import { learnWants, wantsOf } from "./wants.ts";
+import { GOVERNS_BY, electionsOf } from "./elections.ts";
+import { interestsOf } from "../polity/interests.ts";
 
 export const HOLD_EVENTS = {
   /** A realm's number told in other words: arms banned, a vote given, word freed. */
@@ -194,14 +196,25 @@ export function weighHolds(ctx: PopulationContext, p: Polity, o: RealmOrder, t: 
   const { world } = ctx,
     year = yearOfMoment(t);
   if ((year + (parseRef(p.ref).b % LAW_EVERY)) % LAW_EVERY !== 0) return;
+  // (First each group learns from how it fared since the last weighing: sim/order/wants.ts.)
+  const wanting = wantsOf(world);
+  if (wanting) learnWants(ctx, wanting, p, interestsOf(ctx, p, t), heldOf(ctx, p, o), year);
   const now = heldOf(ctx, p, o),
     ways = cultureOf(world).get(p.seat),
     read = waysRead(ways),
     anchor = firstHolds(p, read, ctx.generated.life.people?.body),
     // (Whose wants weigh is itself how widely its choices are carried: the seat's few under one, the many under all.)
+    // (The group its people chose to govern weighs half again: sim/order/elections.ts.)
+    governing = electionsOf(world)?.governing(p.ref) ?? null,
     sway = new Map(
-      [...swayOnLaws(ctx, p, o, t)].map(([g, w]) => [g, w * weighsFor(g, now[HOLD.voice]!)]),
+      [...swayOnLaws(ctx, p, o, t)].map(([g, w]) => [
+        g,
+        w * weighsFor(g, now[HOLD.voice]!) * (g === governing ? GOVERNS_BY : 1),
+      ]),
     ),
+    // (What each group wants of each number is what it has learned from how it fared: sim/order/wants.ts.)
+    learned = wantsOf(world),
+    wantOf = (g: string, k: number) => learned?.wantOf(p.ref, g)?.[k] ?? anchor[k]!,
     total = [...sway.values()].reduce((s, x) => s + x, 0),
     voiceMoved = o.movements.find((m) => m.cause === "voice"),
     massacre = o.memory.filter((m) => m.what === "massacre").reduce((s, m) => s + m.weight, 0),
@@ -217,9 +230,7 @@ export function weighHolds(ctx: PopulationContext, p: Polity, o: RealmOrder, t: 
   for (const h of HOLD_KINDS) {
     const k = HOLD[h],
       groups =
-        total > 0
-          ? [...sway].reduce((s, [g, w]) => s + w * (HOLD_WANTS[g]?.[k] ?? 0.5), 0) / total
-          : anchor[k]!,
+        total > 0 ? [...sway].reduce((s, [g, w]) => s + w * wantOf(g, k), 0) / total : anchor[k]!,
       // (A movement for a voice and a massacre remembered push toward a voice; risings of the bound remembered toward a tighter grip.)
       pressed =
         h === "voice"
@@ -262,7 +273,7 @@ export function weighHolds(ctx: PopulationContext, p: Polity, o: RealmOrder, t: 
     const ranked = [...sway]
         .map(([g, w]) => ({
           g,
-          c: total > 0 ? (w * ((HOLD_WANTS[g]?.[k] ?? 0.5) - from)) / total : 0,
+          c: total > 0 ? (w * (wantOf(g, k) - from)) / total : 0,
         }))
         .sort((a, b) => Math.abs(b.c) - Math.abs(a.c) || (a.g < b.g ? -1 : 1))
         .slice(0, 3),

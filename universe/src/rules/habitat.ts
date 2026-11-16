@@ -33,11 +33,36 @@ export type Habitability = {
   readonly because: readonly string[];
 };
 
+/** The settlers' own world, as their bodies grew on it: its pull, its warmth (°C) and its air (bar). */
+export type HomeGround = Pick<Ground, "gravity" | "temperature" | "pressure">;
+
+/** A home world like ours: 15 °C under one bar. */
+export const EARTH_HOME = { temperature: 15, pressure: 1 } as const;
+/**
+ * How far from their own world's warmth a ground may lie before halls must be heated or cooled (°C: a people of a
+ * world at 15 °C heats below -40 and cools above 50), and how many times thinner or thicker than their own air an
+ * air may be before halls are held at pressure or hulled against it (ours: under 0.05 bar, over 10).
+ */
+export const BEARS = { colder: 55, hotter: 35, thinner: 0.05, thicker: 10 } as const;
+
 /**
  * What the colonists must build to live on a body, from its ground and their own body
- * (null body: upright apes, as at home), against the home world's pull.
+ * (null body: upright apes, as at home), against their own world: its pull, its warmth and its air (a number alone:
+ * its pull, on a world of our warmth and air). Each a distance from home: a people of a hot, dense world heats its
+ * halls on a world we would find mild, and wants no hull where we would.
  */
-export function habitability(g: Ground, body: BodyPlan | null, homeGravity: number): Habitability {
+export function habitability(
+  g: Ground,
+  body: BodyPlan | null,
+  home: number | HomeGround,
+): Habitability {
+  const homeGravity = typeof home === "number" ? home : home.gravity,
+    homeWarmth = typeof home === "number" ? EARTH_HOME.temperature : home.temperature,
+    // (A home with no air to speak of is read as ours: its people live sealed as it is.)
+    homeAir =
+      typeof home === "number" || !(home.pressure > 0) ? EARTH_HOME.pressure : home.pressure,
+    coldLine = homeWarmth - BEARS.colder,
+    hotLine = homeWarmth + BEARS.hotter;
   if (g.kind === "giant" || g.kind === "ice giant" || g.kind === "home")
     return {
       livable: false,
@@ -53,26 +78,26 @@ export function habitability(g: Ground, body: BodyPlan | null, homeGravity: numb
     sea = body?.medium === "water";
   // Every other world's air (if any) is not the home world's: it must be made.
   needs.push({ id: "air", words: "air made and kept in sealed halls", upkeep: 1 });
-  if (g.pressure < 0.05)
+  if (g.pressure < BEARS.thinner * homeAir)
     needs.push({
       id: "pressure",
       words: "halls held at pressure against the empty sky",
       upkeep: 1,
     });
-  else if (g.pressure > 10)
+  else if (g.pressure > BEARS.thicker * homeAir)
     needs.push({ id: "hulls", words: "hulls against a crushing air", upkeep: 4 });
   // Warmth: the colder the ground, the more heating; those who bear cold need less.
-  if (g.temperature < -40)
+  if (g.temperature < coldLine)
     needs.push({
       id: "heat",
       words: "halls heated against the cold",
-      upkeep: ((Math.min(250, -g.temperature) - 40) / 100) * (1.3 - cold),
+      upkeep: (Math.min(210, coldLine - g.temperature) / 100) * (1.3 - cold),
     });
-  else if (g.temperature > 50)
+  else if (g.temperature > hotLine)
     needs.push({
       id: "cool",
       words: "halls cooled against the heat",
-      upkeep: ((Math.min(500, g.temperature) - 50) / 60) * (1.3 - heat),
+      upkeep: (Math.min(450, g.temperature - hotLine) / 60) * (1.3 - heat),
     });
   if (g.radiation > 3)
     needs.push({

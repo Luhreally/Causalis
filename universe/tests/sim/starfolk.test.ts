@@ -34,11 +34,13 @@ import {
 import { spine, why } from "../../src/causal/index.ts";
 import { peopledWorld } from "../worlds.ts";
 
-// Juniper's realms, sixty years on; among its stars one people has been at the stars a thousand
-// years (the shelled shore-walkers, 35 light-years out), the rest have yet to come to them.
-const seed = seedFromText("juniper"),
+// Willow's realms, sixty years on; among its stars one people has been at the stars twelve hundred
+// years (the many-armed swimmers, 45 light-years out), the rest have yet to come to them or never
+// will on their own worlds (sim/space/far-read.ts: juniper's long at the stars have no fuel for
+// what flies, and so are not).
+const seed = seedFromText("willow"),
   build = (s = seed) => makePopulationWorld(s, { start: "spread" }),
-  world = peopledWorld("juniper", 60, { start: "spread" });
+  world = peopledWorld("willow", 60, { start: "spread" });
 const RULESET = rulesetId(world, "test"),
   AS_IT_WAS = saveWorld(world, RULESET),
   fresh = () => loadWorld(AS_IT_WAS, build, RULESET).world;
@@ -157,7 +159,8 @@ test("once both can speak, what passes between them is lived: knowledge learned,
     civ = oldest(w),
     realm = greatest(w),
     seat = realm.seat,
-    before = marketsOf(w).get(seat)!.line("in", G.machines);
+    // (The last reckoned year's books: those open are empty between moments.)
+    before = marketsOf(w).get(seat)!.book("in", G.machines);
   for (const [arrives, heard] of [
     [61, false],
     [63, true],
@@ -191,7 +194,7 @@ test("once both can speak, what passes between them is lived: knowledge learned,
   assert.match(why(w, x.event).claim, /taught|traded|opened the ways/);
   if (x.what === "knowledge") assert.ok(loreOf(w).get(seat, x.detail), "the lesson is known");
   else if (x.what === "goods")
-    assert.ok(marketsOf(w).get(seat)!.line("in", G.machines) - before >= Number(x.detail));
+    assert.ok(marketsOf(w).get(seat)!.book("in", G.machines) - before >= Number(x.detail));
   else
     assert.ok(
       cultureOf(w)

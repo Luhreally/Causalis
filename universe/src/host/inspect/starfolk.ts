@@ -144,14 +144,24 @@ export function civilizationPage(world: World, ref: string): PageModel {
     raids = (store?.raids ?? []).filter((r) => r.civ === c.ref || r.other === c.ref),
     landings = (store?.landings ?? []).filter((l) => l.civ === c.ref),
     home = homePlanet(world).generated.star.ref,
+    // (A year never to come: their own world shuts the road to it, sim/space/far-read.ts. Said as that.)
+    never = (y: number) => !Number.isFinite(y),
+    held = folkByRef(world, c.ref)?.shut ?? null,
     stage =
       year < c.electronics
-        ? "have yet to come to electronics"
+        ? never(c.electronics)
+          ? "will not come to electronics on their own world"
+          : "have yet to come to electronics"
         : year < c.orbit
-          ? "speak across the dark, but have not yet reached orbit"
+          ? never(c.orbit)
+            ? "speak across the dark, and will not reach orbit from their own world"
+            : "speak across the dark, but have not yet reached orbit"
           : year < c.stars
-            ? "have reached orbit, but not yet the stars"
-            : `have been at the stars ${many(year - c.stars, "year", "years")}`;
+            ? never(c.stars)
+              ? "have reached orbit, and will not reach the stars from their own world"
+              : "have reached orbit, but not yet the stars"
+            : `have been at the stars ${many(year - c.stars, "year", "years")}`,
+    yearOr = (y: number) => (never(y) ? "never, on their own world" : `year ${y}`);
   const natureRows: Stat[] = [
     stat("Curious", `${Math.round(n.curious * 100)}%`),
     stat("Wary of strangers", `${Math.round(n.wary * 100)}%`),
@@ -241,9 +251,10 @@ export function civilizationPage(world: World, ref: string): PageModel {
             type: "facts",
             title: "Their way up",
             rows: [
-              stat("Electronics", `year ${c.electronics}`),
-              stat("Orbit", `year ${c.orbit}`),
-              stat("The stars", `year ${c.stars}`),
+              stat("Electronics", yearOr(c.electronics)),
+              stat("Orbit", yearOr(c.orbit)),
+              stat("The stars", yearOr(c.stars)),
+              ...(held ? [stat("What holds them", held)] : []),
               stat("Their star", [link("their star", c.star)]),
             ],
           },

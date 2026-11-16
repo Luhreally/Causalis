@@ -37,6 +37,7 @@ import {
   PRINCIPLES,
   affordsPrinciple,
   habitability,
+  type HomeGround,
   needsMet,
   reachIn,
   routeYears,
@@ -382,6 +383,15 @@ function starByRef(world: World, ref: Ref): GalaxyStar | undefined {
  * star; elsewhere the first, outward from the star, its bodies could live on; or none.
  */
 const HOLD_WORLDS = new Map<string, number | null>();
+/** A followed people's own world, as a ground their bodies grew on: its pull, its warmth, its air (its pull alone where its star is not found). */
+function homeOf(world: World, civ: Civilization): number | HomeGround {
+  const s = clusterOf(world).find((x) => civ.star.endsWith(`:${x.sector}:${x.k}`)),
+    p = s && worldsOf(world, s)[civ.planet];
+  return p
+    ? { gravity: civ.gravity, temperature: p.temperature, pressure: p.pressure }
+    : civ.gravity;
+}
+
 export function holdWorld(world: World, civ: Civilization, star: Ref): number | null {
   if (star === civ.star) return civ.planet;
   const key = `${world.seed.text} ${civ.ref} ${star}`;
@@ -390,7 +400,8 @@ export function holdWorld(world: World, civ: Civilization, star: Ref): number | 
   if (HOLD_WORLDS.size > 512) HOLD_WORLDS.clear();
   const s = starByRef(world, star),
     body = bodyOf(civ),
-    found = s && worldsOf(world, s).find((p) => habitability(p, body, civ.gravity).livable),
+    home = homeOf(world, civ),
+    found = s && worldsOf(world, s).find((p) => habitability(p, body, home).livable),
     index = found ? found.index : null;
   HOLD_WORLDS.set(key, index);
   return index;
@@ -405,6 +416,7 @@ export function settleableBy(world: World, civ: Civilization): readonly GalaxySt
   if (SETTLEABLE.size > 96) SETTLEABLE.clear();
   const own = starPoint(world, civ.star),
     body = bodyOf(civ),
+    home = homeOf(world, civ),
     near = clusterOf(world)
       .filter((s) => s.ref !== civ.star && !s.remnant)
       .map((s) => ({ s, d: apart(own, s) }))
@@ -413,7 +425,7 @@ export function settleableBy(world: World, civ: Civilization): readonly GalaxySt
     found: GalaxyStar[] = [];
   for (const { s } of near) {
     if (found.length >= 32) break;
-    if (worldsOf(world, s).some((p) => habitability(p, body, civ.gravity).livable)) found.push(s);
+    if (worldsOf(world, s).some((p) => habitability(p, body, home).livable)) found.push(s);
   }
   SETTLEABLE.set(key, (out = found));
   return out;
@@ -1064,7 +1076,7 @@ export function peoplesYear(ctx: PopulationContext, t: SimTime): void {
   const { world } = ctx,
     store = peoplesOf(world)!,
     year = yearOfMoment(t),
-    civs = civilizationsNear(world),
+    civs = civilizationsNear(world, year),
     realms = politiesOf(world),
     home = ctx.generated.star.ref as Ref;
   if (!civs.length) return;

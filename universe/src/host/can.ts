@@ -298,7 +298,7 @@ function flightOf(g: ProvinceWorld, seed: Seed, known: ReadonlySet<string>) {
   for (const site of g.offworld.sites) {
     if (site.site > 0 || site.body < 0) continue;
     const b = bodies[site.body]!;
-    if (!habitability(b, body, home.gravity).livable) continue;
+    if (!habitability(b, body, home).livable) continue;
     livable++;
     if (delivered(knows, speed, routeTo(list, site.body, g.star.mass).speed)) {
       carried++;
@@ -317,9 +317,7 @@ function flightOf(g: ProvinceWorld, seed: Seed, known: ReadonlySet<string>) {
     for (const star of clusterStars(rng, makeGalaxy(rng), skyOf(seed.text)?.radius)) {
       const years = crossingYears(star.distance, drive);
       if (years > longest) break;
-      if (
-        foreignPlanets(new Rng(seed), star).some((p) => habitability(p, body, home.gravity).livable)
-      ) {
+      if (foreignPlanets(new Rng(seed), star).some((p) => habitability(p, body, home).livable)) {
         target = { star, years };
         break;
       }

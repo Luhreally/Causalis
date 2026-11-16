@@ -20,9 +20,10 @@ import {
 } from "../../src/sim/index.ts";
 import { spine, why } from "../../src/causal/index.ts";
 
-// Phase 20 M142: the god calls strangers down. Juniper's realms sixty years on, where one people
-// of another star — the longest at the stars — could come.
-const seed = seedFromText("juniper"),
+// Phase 20 M142: the god calls strangers down. Willow's realms sixty years on, where one people
+// of another star — the longest at the stars, the many-armed swimmers — could come (juniper's
+// long at the stars never were: their own world has no fuel for what flies, sim/space/far-read.ts).
+const seed = seedFromText("willow"),
   build = (s = seed) => makePopulationWorld(s, { start: "spread" }),
   world = build();
 world.runTo(60 * YEAR);

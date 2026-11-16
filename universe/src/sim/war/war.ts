@@ -4,11 +4,14 @@
 // famine and the dry year behind it, the land they want and its ground. A realm
 // fields a share of its grown people, larger where they prize valour or keep a
 // standing army, better armed with bronze, iron, mounts and walls. Each year of war
-// brings a battle for a border land: hills and rivers favour those who hold them,
-// walls more so, supply thins with distance from the seat and with famine at home.
+// brings a battle for a border land: broken, watered and wooded ground favours those who
+// hold it (sim/war/ground.ts), walls more so; a host is fed by what of its bread reaches it
+// over the ground from its seat and what it takes where it stands, and less with famine at home.
 // The fallen are written into the ledgers of deaths. A land won changes hands; its
 // people's grievance may raise it in rebellion back to the realm it was taken from.
 // Weariness brings peace, and the war is remembered in the realms' regard.
+import { groundOf, supplyOf } from "./ground.ts";
+import { OccupationStore, occupationYear, occupy } from "./occupation.ts";
 import { godFall, godMen, godPower } from "./godhost.ts";
 import {
   YEAR,
@@ -110,12 +113,13 @@ import {
   goesForPrize,
   installBonds,
   reckonPeace,
+  warCosts,
   sack,
   takesLand,
   type PeaceTerms,
 } from "./bonds.ts";
 import type { AimKind } from "../../rules/index.ts";
-import { TIES } from "../../rules/index.ts";
+import { TIES, warReckoning } from "../../rules/index.ts";
 import {
   allyFront,
   answerCalls,
@@ -1488,9 +1492,10 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       // (A host paid from a war chest fights the harder, and its lands' hunger slows it not — M144.)
       chestA = warChest(world, a.ref, w.ref) ?? warBonds(world, a.ref, w.ref),
       chestB = warChest(world, b.ref, w.ref) ?? warBonds(world, b.ref, w.ref),
+      // (How fed it fights: its bread carried from its seat over the ground between, and what it takes where it stands.)
       attack =
         strengthOf(ctx, a) *
-        (1 / (1 + 0.15 * far)) *
+        supplyOf(ctx, land, far, fieldedOf(ctx, a)) *
         (hungry && !chestA ? (fed > 0 ? 1 - 0.3 * (1 - Math.min(1, fed)) : 0.7) : 1) *
         (chestA ? CREDIT.chest : 1) *
         (1 + 0.3 * lore.effect(a.seat, "sieges")) *
@@ -1498,8 +1503,8 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         // (A realm in more than one war divides its host among them: D1.)
         (1 / Math.max(1, wars.fighting(a.ref).length)) *
         sightTerm(fleetA?.flyers ?? 0, fleetB?.flyers ?? 0),
-      hills = g.tectonics.elevation[land]! > 600 ? 1.3 : 1,
-      river = g.water.river[land] ? 1.1 : 1,
+      // (The ground favours those who hold it as far as it is broken, watered and wooded: sim/war/ground.ts.)
+      ground = groundOf(ctx, land).factor,
       // (And what its towns were asked to raise and see to, H1: exactly 1 on a land never asked.)
       walls = (1 + 0.25 * lore.effect(land, "walls")) * asksOf(ctx.world).guard(land, t),
       // Those who hold the land know its ground, and every village is a stronghold; at
@@ -1515,13 +1520,14 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         strengthOf(ctx, b) *
         1.5 *
         (seat ? 2 : 1) *
-        hills *
-        river *
+        ground *
         walls *
         // (Works raised where they have learned what invaders cost; ladders and engines where their foes have learned what walls
         // cost them: both exactly 1 where nothing has been learned.)
         (1 + lessonAdds(world, b.ref, "walls", year)) *
-        (seat || hills > 1 || walls > 1 ? 1 / (1 + lessonAdds(world, a.ref, "siege", year)) : 1) *
+        (seat || ground >= 1.25 || walls > 1
+          ? 1 / (1 + lessonAdds(world, a.ref, "siege", year))
+          : 1) *
         (chestB ? CREDIT.chest : 1) *
         entrench *
         (1 / Math.max(1, wars.fighting(b.ref).length)) *
@@ -1619,8 +1625,9 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       });
       realms.leave(b, land);
       realms.join(a, land);
-      // A land taken by force resents its taker.
+      // A land taken by force resents its taker, and is held by force (sim/war/occupation.ts).
       realms.setDiscontent(land, { level: 1, cause: battle });
+      occupy(world, land, a.ref, b.ref, year);
       // A realm whose seat is taken falls, and its lands pass to its conqueror, aggrieved
       // (those not joined to the conqueror's own go their own way); else what the taken
       // land joined to its seat is cut off.
@@ -1629,20 +1636,14 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
           realms.leave(b, c);
           realms.join(a, c);
           realms.setDiscontent(c, { level: 0.6, cause: battle });
+          occupy(world, c, a.ref, b.ref, year);
         }
         endRealm(ctx, b, t, { ref: battle, role: "trigger", weight: 1 });
         cutOff(ctx, a, taken);
       } else cutOff(ctx, b, taken);
     }
-    // 3. Peace: weariness — the fallen against their people — or the prize won.
-    const peopleA = a.members.reduce((s, c) => s + (ctx.provinces.get(c)?.total() ?? 0), 0),
-      // (Those a strike killed weigh as those who fell: W2.)
-      struck = wars.tallyOfStrikes(w.ref),
-      weary =
-        w.fallen[0] / Math.max(1, peopleA) +
-        w.fallen[1] / Math.max(1, peopleA) +
-        (struck ? (struck[1] + struck[2]) / Math.max(1, peopleA) : 0),
-      years = year - w.declared,
+    // 3. Peace: the prize won, or what the war has cost against what it is worth (below).
+    const years = year - w.declared,
       prizeWon = a.members.includes(w.prize),
       // (What it came for, W7, where that is not a land: the grain carried off, the field won.)
       got =
@@ -1650,16 +1651,16 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         (won &&
           (aim === "free" ||
             (aim === "tribute" && 2 * w.battles.filter((x) => x.won).length > w.battles.length)));
-    // A beaten attacker often gives up; a won prize, a weary people or long years end it too.
-    const repulsed = resolved.combat.broken === 0 && world.rng.real(FIGHT, key, t, 6) < 0.5;
-    if (
-      prizeWon ||
-      got ||
-      repulsed ||
-      weary > 0.02 ||
-      years >= 6 ||
-      world.rng.real(FIGHT, key, t, 5) < 0.12
-    ) {
+    // It ends with the prize won, or when what it has cost a side has come to what it is worth to them, by their chance
+    // of winning it (rules/terms.ts warReckoning): the attacker gives up, or the defender yields. No count of years, no draw.
+    const reckoned = warReckoning({
+        won: w.battles.filter((x) => x.won).length,
+        fought: w.battles.length,
+        ratio: strengthOf(ctx, a) / Math.max(1, strengthOf(ctx, b)),
+        ...warCosts(ctx, w, a, b, aim, year),
+      }),
+      repulsed = reckoned.quits;
+    if (prizeWon || got || reckoned.quits || reckoned.yields) {
       w.ended = year;
       // (Its terms, where both still stand and it was not a realm's war with itself; else, who is no more: W7.)
       const made =
@@ -1744,6 +1745,10 @@ export function installWar(world: World, ctx: () => PopulationContext): WarStore
   installFar(world, ctx);
   world.addPinner(() => store.pinned());
   world.system({ key: "185.war.year", every: YEAR, run: (t) => warYear(ctx(), t) });
+  // (Lands held by force, and those who fight their holder there: sim/war/occupation.ts.)
+  const held = world.register(new OccupationStore());
+  world.addPinner(() => held.pinned());
+  world.system({ key: "185.war.zoccupied", every: YEAR, run: (t) => occupationYear(ctx(), t) });
   return store;
 }
 
