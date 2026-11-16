@@ -174,7 +174,7 @@ function comersOf(
     dy = from.y - to.y,
     dz = from.z - to.z,
     distance = Math.sqrt(dx * dx + dy * dy + dz * dz),
-    speed = Math.max(0.05, speedOf(civ, a.year)),
+    speed = Math.max(0.05, speedOf(civ, a.year, world)),
     years = distance / speed,
     // (What Phase 67 draws them with: beams at 2.2, minds at 3.5.)
     made = strong >= 3.5,

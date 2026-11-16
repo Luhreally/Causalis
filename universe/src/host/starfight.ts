@@ -223,7 +223,7 @@ function peopleSide(world: World, civ: Civilization, year: number, strength: num
     medium,
     // (The hull its body asks: by what its body does, not its kind's name.)
     clade: hullOf(civBody(civ)),
-    drive: driveOfSpeed(speedOf(civ, year)),
+    drive: driveOfSpeed(speedOf(civ, year, world)),
     arm: ps >= 2.2 ? "beam" : "missile",
     beamArm: ps >= 2.2 ? beamArmOf(medium) : null,
     minds: ps >= 3.5,
