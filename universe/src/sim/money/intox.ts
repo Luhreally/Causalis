@@ -54,6 +54,9 @@ import {
   moneyStore,
   sanctionBetween,
   smuggledOf,
+  LAWS_EVERY,
+  lawTurn,
+  stepped,
 } from "./kept.ts";
 
 export const INTOX_EVENTS = {
@@ -186,9 +189,12 @@ export function prohibitionYear(ctx: PopulationContext, t: SimTime): void {
     lost: number;
     rites: number;
     dealt: number;
+    /** Whether it reckons its bar this year (money.ts LAWS_EVERY); else it only trades. */
+    turn: boolean;
   };
   const reads = new Map<string, Read>();
   for (const p of living) {
+    const turn = !bars.get(p.ref) || lawTurn(p, year);
     let demand = 0,
       supply = 0,
       people = 0,
@@ -221,8 +227,9 @@ export function prohibitionYear(ctx: PopulationContext, t: SimTime): void {
           m.wage[OCC.forager]!,
           (12 * mouths(prov, ctx.life)) / Math.max(1, n),
         );
-      for (let gd = 0; gd < m.price.length; gd++)
-        dealt += (m.book("in", gd) + m.book("out", gd)) * m.price[gd]!;
+      if (turn)
+        for (let gd = 0; gd < m.price.length; gd++)
+          dealt += (m.book("in", gd) + m.book("out", gd)) * m.price[gd]!;
     }
     if (people <= 0) continue;
     const was = bars.get(p.ref),
@@ -240,6 +247,7 @@ export function prohibitionYear(ctx: PopulationContext, t: SimTime): void {
       lost: lost / people,
       rites: rites / people,
       dealt,
+      turn,
     });
   }
   // Trade between realms that meet: from what has more than its people take to what has less, paid in the buyer's money metal.
@@ -276,7 +284,19 @@ export function prohibitionYear(ctx: PopulationContext, t: SimTime): void {
   }
   for (const r of reads.values()) {
     const p = r.p,
-      was = bars.get(p.ref),
+      was = bars.get(p.ref);
+    // (Between its reckonings it trades, and what it pays abroad fades and gathers year by year: the rest stands.)
+    if (!r.turn && was) {
+      const row = [...was];
+      row[BAR.demand] = r.demand;
+      row[BAR.supply] = r.supply;
+      row[BAR.price] = r.price * 1000;
+      row[BAR.imported] = bought.get(p.ref) ?? 0;
+      row[BAR.drained] = 0.8 * was[BAR.drained]! + 0.2 * (paid.get(p.ref) ?? 0);
+      bars.set(p.ref, row);
+      continue;
+    }
+    const years = was ? LAWS_EVERY : 1,
       held = holdsOf(world, p.ref),
       o = order?.of(p.ref),
       sway = new Map<Group, number>();
@@ -308,7 +328,7 @@ export function prohibitionYear(ctx: PopulationContext, t: SimTime): void {
         users: r.users,
       }),
       barredWas = (was?.[BAR.barred] ?? 0) / 1000,
-      barred = barredWas + 0.2 * (want.level - barredWas),
+      barred = barredWas + stepped(0.2, years) * (want.level - barredWas),
       // A realm held hard and reaching far keeps the trade to itself; else it lays an excise as far as it sees what is sold.
       monopoly = held[HOLD.force]! > 0.6 && cap > 0.5 && !!lore.get(p.seat, "writing"),
       excise =

@@ -1345,6 +1345,7 @@ export {
   sanctionBetween,
   smuggledOf,
   taxBurden,
+  taxGrievance,
   unionOf,
   BAR,
   BAR_STORE,

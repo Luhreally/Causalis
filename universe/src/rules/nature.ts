@@ -230,12 +230,18 @@ export function fireHomes(fuel: number, burning: number): number {
   return dmath.clamp(NATURE.fire.mostHomes * fuel * burning, 0.02, NATURE.fire.mostHomes);
 }
 
-/** How deep it goes down in history, by its dead: the greater, the longer kept, and the farther it is told (6 and more, as a window). So many dead is news on any world, however many live; fewer, on a world they were a part of. */
+/**
+ * How deep it goes down in history, by its dead: the greater, the longer kept, and the farther it is told (6 and more, as a
+ * window). So many dead is news on any world, however many live; fewer, on a world they were a part of. (Five hundred dead
+ * went down for twelve centuries on any world, as first set: on first light, a world of billions, its every middling quake
+ * was kept so, 4,500 of them at 3,100 and a fifth of its save.)
+ */
 export function natureImportance(dead: number, people: number): number {
   const share = dead / Math.max(1, people);
   if (dead >= 1_000_000 || (dead >= 50000 && share >= 1e-3)) return 7;
   if (dead >= 100_000 || (dead >= 5000 && share >= 2e-4)) return 6;
-  return dead >= 500 ? 5 : dead >= 50 ? 4 : 3;
+  if (dead >= 5000 || (dead >= 500 && share >= 2e-5)) return 5;
+  return dead >= 500 || (dead >= 50 && share >= 2e-6) ? 4 : 3;
 }
 
 /** The stakes of what befell a realm (0 … 1), by its dead. */

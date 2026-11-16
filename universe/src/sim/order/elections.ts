@@ -227,6 +227,9 @@ export function electionsYear(ctx: PopulationContext, t: SimTime): void {
       }),
       event = world.events.emit({
         type: ELECTION_EVENTS.elected.type,
+        // (A vote that changed who governs is told as the chronicle tells; one that kept them is let go with the ordinary
+        // years, unless something cites it: kept whole, a world's elections were 8,000 of the events kept at 3,100.)
+        importance: held ? 3 : ELECTION_EVENTS.elected.importance,
         subjects: [p.ref],
         place: ctx.provinces.get(p.seat)?.ref ?? null,
         causes: [{ ref: decision, role: "trigger", weight: 1 }],

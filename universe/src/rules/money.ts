@@ -486,6 +486,13 @@ export const TREASURY = {
   keeps: 0.85,
   /** A deficit of this share of what the realm takes in, kept up, it borrows (sim/finance), or else debases. */
   strained: 0.05,
+  /**
+   * The years over which a burden becomes what a people is used to (a generation), and what of a burden borne so long they
+   * still grieve (est.): a tax resented as it is laid and as it rises, and less once it is the way things are. Grieved at its
+   * whole for ever, first light's taxes beyond the tithe broke 264 realms out of 106 by 1,000, most of them a land alone.
+   */
+  custom: 25,
+  borne: 0.25,
 } as const;
 
 // —— 4. Tariffs and sanctions ——————————————————————————————————————————————————————————————————————————

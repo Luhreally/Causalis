@@ -72,7 +72,7 @@ import { holdsOf } from "../order/holds.ts";
 import { LAW_OF } from "../order/laws.ts";
 import { creditOf } from "../credit/credit.ts";
 import { debtOf, financeOf, stakesBetween } from "../finance/finance.ts";
-import { fieldedOf, warsOf } from "../war/war.ts";
+import { armsKept, warsOf } from "../war/war.ts";
 import {
   BIND,
   BIND_STORE,
@@ -97,6 +97,9 @@ import {
   exciseOf,
   moneyStore,
   refNumber,
+  LAWS_EVERY,
+  lawTurn,
+  stepped,
 } from "./kept.ts";
 import { intoxYear, prohibitionYear } from "./intox.ts";
 
@@ -129,9 +132,6 @@ const at = (store: RowStore | null, key: string | number): number[] | null => {
   const r = store?.get(key);
   return r ? [...r] : null;
 };
-/** How much of the way toward a target a pace a year goes in `span` years. */
-const stepped = (pace: number, span: number) => 1 - dmath.pow(1 - pace, span);
-
 /** Workers in a land: all but those who depend on them. */
 function workersOf(p: Province): number {
   return Math.max(1, p.total() - p.occupation(OCC.dependent));
@@ -635,7 +635,9 @@ export function dutyYear(ctx: PopulationContext, t: SimTime): void {
     markets = marketsOf(world),
     finance = financeOf(world),
     order = orderOf(world),
-    living = realms.living();
+    year = yearOfMoment(t),
+    // (Those that reckon this year: LAWS_EVERY.)
+    living = realms.living().filter((p) => !duties.get(p.ref) || lawTurn(p, year));
   if (!living.length) return;
   // This year's trade by realm: in from others, out to others, all its lands' dealings, its goods' from others, with each other.
   const imports = new Map<string, number>(),
@@ -682,8 +684,10 @@ export function dutyYear(ctx: PopulationContext, t: SimTime): void {
       }),
       // (A tariff needs a customs house that can see what crosses: a market's coin.)
       seen = loreOf(world).get(p.seat, "currency") ? 1 : 0.4,
+      years = duties.get(p.ref) ? LAWS_EVERY : 1,
       was = at(duties, p.ref) ?? new Array<number>(15).fill(0),
-      rate = was[DUTY.rate]! / 1000 + 0.25 * (want.rate * seen - was[DUTY.rate]! / 1000);
+      rate =
+        was[DUTY.rate]! / 1000 + stepped(0.25, years) * (want.rate * seen - was[DUTY.rate]! / 1000);
     // Sanctions: of each realm it fears, what it would shut of its trade with them, against what that trade is worth to its own.
     const sanctions: [number, number][] = [];
     for (const f of finance?.of(p.ref)?.fears ?? []) {
@@ -698,7 +702,7 @@ export function dutyYear(ctx: PopulationContext, t: SimTime): void {
       for (let k = 0; k < 3; k++)
         if (was[DUTY.sanctions + 2 * k] === refNumber(f.of) + 1)
           prev = was[DUTY.sanctions + 2 * k + 1]! / 1000;
-      const now = prev + 0.3 * (shut - prev);
+      const now = prev + stepped(0.3, years) * (shut - prev);
       if (now >= 0.02) sanctions.push([refNumber(f.of) + 1, now]);
       if (now >= 0.3 && prev < 0.3) {
         const other = realms.get(f.of);
@@ -844,14 +848,17 @@ export function treasuryYear(ctx: PopulationContext, t: SimTime): void {
       top = (shares?.get(seat)?.[SHARE.fifths + 4] ?? 400) / 1000,
       resisted = taxResisted(sway, (money?.own[0] ?? 50) / 100, top),
       base: Record<TaxBase, number> = { land: harvest, trade: traded, heads, income },
-      // (A host under arms costs its food and as much again in its arms and keep: a standing army always, a levy while it
-      // fights. A levy at peace eats at home of its own work, and the arms kept for it wear out slowly.)
-      underArms = !!lore.get(seat, "standing-army") || warsOf(world).fighting(p.ref).length > 0,
+      // (A host under arms costs its food and as much again in its arms and keep: all it fields while it fights, its standing
+      // army at peace. The rest of a levy at peace eats at home of its own work, and the arms kept for it wear out slowly. As
+      // first set a realm that knew a standing army paid for its whole war levy every year at peace, a man in fifteen of its
+      // people: on first light its arms were three times its tithe by 700 and five times its takings' growth, its lands taxed
+      // for it broke away, and 311 realms stood at 1,000 where 106 had.)
+      { fielded, standing } = armsKept(ctx, p),
+      underArms = warsOf(world).fighting(p.ref).length > 0 ? fielded : standing,
       arms =
-        fieldedOf(ctx, p) *
         12 *
         appetite *
-        (underArms ? TREASURY.armed : (TREASURY.armed - 1) * TREASURY.idle),
+        (underArms * TREASURY.armed + (fielded - underArms) * (TREASURY.armed - 1) * TREASURY.idle),
       interest = money ? (debtOf(money) * money.coupon) / 10_000 : 0,
       tariffs = duties?.get(p.ref)?.[DUTY.revenue] ?? 0,
       seigniorage = coin?.get(p.ref)?.[COIN.seigniorage] ?? 0,
@@ -880,7 +887,10 @@ export function treasuryYear(ctx: PopulationContext, t: SimTime): void {
         0,
         left > 0 ? Math.min(left, reserve * TREASURY.keeps + Math.max(0, balance)) : 0,
       ),
-      burden = (take.trade + take.heads + take.income) / Math.max(1, r.made);
+      burden = (take.trade + take.heads + take.income) / Math.max(1, r.made),
+      // (What its people have borne for a generation: the burden it laid first, then faded toward what it lays.)
+      custom = was?.[FISC.custom] ? (was[FISC.custom]! - 1) / 1000 : burden,
+      customNow = custom + (burden - custom) / TREASURY.custom;
     let bits = was ? was[FISC.laid]! : 0;
     for (const [k, b] of TAX_BASES.entries()) {
       if (b === "land" || bits & (1 << k) || rate[b] < 0.01) continue;
@@ -931,6 +941,8 @@ export function treasuryYear(ctx: PopulationContext, t: SimTime): void {
       ...TAX_BASES.map((b) => resisted[b] * 1000),
       bits,
       excise,
+      // (Kept one over, so a row from before it was kept reads as none: what is laid then is what is borne.)
+      customNow * 1000 + 1,
     ]);
   }
 }

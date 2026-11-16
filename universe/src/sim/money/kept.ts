@@ -2,14 +2,28 @@
 // whole numbers, a land's or a realm's, last reckoned only (a faded sum where it needs the past), hashed by a running digest of every
 // row set and dormant while it holds nothing. This file reaches only the kernel, so the economy, the realms and the order can read
 // it without a circle.
-import { Hasher, type StateStore, type World } from "../../kernel/index.ts";
-import { insuredGain } from "../../rules/index.ts";
+import { Hasher, dmath, type StateStore, type World } from "../../kernel/index.ts";
+import { TREASURY, insuredGain } from "../../rules/index.ts";
 
 /** A realm's ref as a whole number a row can hold (its serial: refs are "kind:space:serial"). */
 export function refNumber(ref: string): number {
   const n = Number(ref.split(":").at(-1));
   return Number.isFinite(n) ? n : 0;
 }
+
+/** How much of the way toward a target a pace a year goes in `span` years. */
+export const stepped = (pace: number, span: number) => 1 - dmath.pow(1 - pace, span);
+
+/**
+ * A realm reckons what it lays on trade and what it forbids (its tariff and sanctions, its bar and excise) once in this many
+ * years, in its turn (by its ref's number and the year), and moves as far as those years would have moved it: a law of that
+ * kind is argued and passed over years, not each one. What it takes, and what slips past it, stand as last reckoned between.
+ * A realm not yet reckoned reckons at once.
+ */
+export const LAWS_EVERY = 5;
+/** Whether a realm reckons its laws on trade this year (LAWS_EVERY). */
+export const lawTurn = (p: { readonly ref: string }, year: number): boolean =>
+  (refNumber(p.ref) + year) % LAWS_EVERY === 0;
 
 /** Fold whole numbers into a running digest (two 32-bit words). */
 function fold(d: [number, number], xs: readonly number[]): void {
@@ -151,6 +165,8 @@ export const FISC = {
   laid: 30,
   /** What it took of what calms, wakes and eases: its excise, or its own trade's margin. */
   excise: 31,
+  /** The burden its people have borne for a generation, faded in (thousandths of what its lands make, one over): rules TREASURY.custom. */
+  custom: 32,
 } as const;
 /** 4. A realm's tariff and sanctions: its rate (thousandths) and its parts; up to three sanctions, each the realm's serial (one more) and how much it shuts. */
 export const TARIFF_STORE = "money.tariffs";
@@ -230,7 +246,7 @@ export const BAR = {
 export const MONEY_STORES: readonly (readonly [string, number])[] = [
   [GOODS_STORE, 16],
   [COIN_STORE, 14],
-  [TREASURY_STORE, 32],
+  [TREASURY_STORE, 33],
   [TARIFF_STORE, 15],
   [LABOUR_STORE, 6],
   [SMUGGLE_STORE, 6],
@@ -301,6 +317,17 @@ export function inflationOf(world: World, realm: string): number {
 /** What a realm's treasury takes beyond the harvest's tithe, as a share of what its people make (0 … 1). */
 export function taxBurden(world: World, realm: string): number {
   return (moneyStore(world, TREASURY_STORE)?.at(realm, FISC.burden) ?? 0) / 1000;
+}
+/**
+ * What a realm's taxes beyond the tithe breed of grievance a year in its lands: what it takes beyond what its people have borne
+ * for a generation, and a share of what they have (rules TREASURY.borne).
+ */
+export function taxGrievance(world: World, realm: string): number {
+  const store = moneyStore(world, TREASURY_STORE),
+    burden = (store?.at(realm, FISC.burden) ?? 0) / 1000,
+    kept = store?.at(realm, FISC.custom) ?? 0,
+    custom = kept ? (kept - 1) / 1000 : burden;
+  return Math.max(0, burden - custom) + TREASURY.borne * Math.min(burden, custom);
 }
 /** What a realm's treasury takes in a year, all told (grain's worth; 0 where none is kept). */
 export function revenueOf(world: World, realm: string): number {

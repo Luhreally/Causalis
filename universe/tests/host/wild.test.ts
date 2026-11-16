@@ -63,6 +63,9 @@ test("the greater the blow, the rarer, and the farther it is told", () => {
   assert.equal(natureImportance(600, 1_000_000), 5);
   assert.equal(natureImportance(6_000, 1_000_000), 6);
   assert.equal(natureImportance(6_000, 1_000_000_000), 5);
+  // (A middling quake among billions goes down for four centuries, not twelve.)
+  assert.equal(natureImportance(600, 1_000_000_000), 4);
+  assert.equal(natureImportance(60, 1_000_000_000), 3);
   assert.equal(natureImportance(60_000, 1_000_000), 7);
   assert.equal(natureImportance(60_000, 10_000_000_000), 5);
   assert.equal(natureImportance(150_000, 60_000_000_000), 6);

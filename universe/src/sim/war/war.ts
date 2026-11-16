@@ -856,6 +856,23 @@ export function fieldedOf(ctx: PopulationContext, p: Polity): number {
   return fightingMen(ctx, p) * fieldShare(ctx, p);
 }
 
+/**
+ * The men a realm fields, and those it keeps under arms at peace: its standing army, those a standing army adds to what it
+ * fields (fieldShare's own share for it), the rest of its levy at home at their own work until a war calls them. None kept
+ * where it keeps no standing army. (Its men counted once for both.)
+ */
+export function armsKept(ctx: PopulationContext, p: Polity): { fielded: number; standing: number } {
+  const lore = loreOf(ctx.world),
+    men = fightingMen(ctx, p),
+    fielded = men * fieldShare(ctx, p);
+  return {
+    fielded,
+    standing: lore.get(p.seat, "standing-army")
+      ? Math.min(fielded, men * 0.03 * lore.effect(p.seat, "arms"))
+      : 0,
+  };
+}
+
 /** Every man in a realm's host, as its pages count it: those it fields of its own lands, and those the god stood up for it. */
 export function hostOf(ctx: PopulationContext, p: Polity): number {
   return fieldedOf(ctx, p) + godMen(ctx.world, p.ref);

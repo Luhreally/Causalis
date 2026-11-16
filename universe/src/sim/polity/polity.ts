@@ -10,7 +10,7 @@
 // tribute, distance and foreign speech; lands secede when it runs high. Rulers
 // grow old and die; their successions follow the realm's rule, and sometimes
 // break it. Every step is a decision whose factors cite what drove it.
-import { inflationOf, intoxDependent, taxBurden } from "../money/kept.ts";
+import { inflationOf, intoxDependent, taxGrievance } from "../money/kept.ts";
 import {
   YEAR,
   defineEventType,
@@ -618,7 +618,8 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
   const faiths = world.hasStore("belief.faiths") ? world.store<BeliefStore>("belief.faiths") : null;
   for (const p of store.living()) {
     // (Round B: what its treasury takes beyond the tithe, and prices rising faster than what its people are paid catch up.)
-    const taxed = taxBurden(world, p.ref),
+    // (What it takes beyond what its people have borne for a generation, and a share of that: money/kept.ts taxGrievance.)
+    const taxed = taxGrievance(world, p.ref),
       dearer = Math.max(0, inflationOf(world, p.ref));
     const seatMarket = markets.of(p.seat),
       seatWays = culture.get(p.seat)!,
