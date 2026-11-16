@@ -258,6 +258,17 @@ function loreOf(world: World): LoreStore {
   return world.store<LoreStore>("lore.known");
 }
 
+/**
+ * What being ruled from a seat of other people breeds of grievance in a land a year: by how far it counts the seat's people
+ * strangers and how far its "us" reaches (sim/culture/folk.ts sets it); before any land has weighed who its own are, by how unlike
+ * the seat's its speech is alone.
+ */
+let apartOf = (_world: World, _cell: number, foreign: number): number => 0.3 * foreign * foreign;
+/** Set what a land's being of other people than its seat's breeds of grievance (sim/culture/folk.ts). */
+export function readsApart(f: (world: World, cell: number, foreign: number) => number): void {
+  apartOf = f;
+}
+
 export function politiesOf(world: World): PolityStore {
   return world.store<PolityStore>("polity.states");
 }
@@ -659,7 +670,7 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
           0.02 * far +
           // A land held beyond the seat's reach is ruled by force alone, and chafes.
           0.08 * Math.max(0, far - rules) +
-          0.3 * foreign * foreign +
+          apartOf(world, c, foreign) +
           0.02 * crossing;
       store.setDiscontent(c, {
         level,
