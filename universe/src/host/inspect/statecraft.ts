@@ -19,6 +19,10 @@ import {
   politiesOf,
   realmName,
   aimOf,
+  farFromSeat,
+  fieldedOf,
+  groundOf,
+  supplyOf,
   occupationOf,
   strengthOf,
   warCosts,
@@ -320,6 +324,40 @@ export function warReckoningBlocks(world: World, w: War): Block[] {
       type: "facts",
       title: "What it costs and what it is worth",
       rows: [side(a, 0, r.chance, r.quits), side(d, 1, 1 - r.chance, r.yields)],
+    },
+  ];
+}
+
+/** The ground its last battle was fought on, and how fed the attacker's host fought there. */
+export function warGroundBlocks(world: World, w: War): Block[] {
+  const last = w.battles.at(-1),
+    a = politiesOf(world).get(w.attacker);
+  if (!last || !a || a.ended !== null) return [];
+  const ctx = populationContext(world),
+    ground = groundOf(ctx, last.land),
+    far = farFromSeat(ctx, a, last.land),
+    fed = supplyOf(ctx, last.land, far, fieldedOf(ctx, a));
+  return [
+    {
+      type: "facts",
+      title: "The ground of its last battle",
+      rows: [
+        stat(
+          "For those who held it",
+          `${ground.factor.toFixed(2)} times their strength on open ground`,
+          {
+            parts: [
+              part("its broken ground", `${Math.round(ground.relief)} m of spread in its heights`),
+              part("its river", ground.river > 0 ? `adds ${share(ground.river)}` : "none"),
+              part("its woods", ground.woods > 0 ? `adds ${share(ground.woods)}` : "bare"),
+            ],
+          },
+        ),
+        stat(
+          `How fed ${realmName(a)}'s host fought`,
+          `${share(fed)} of its strength fed, ${far.toFixed(1)} lands' steps from its seat`,
+        ),
+      ],
     },
   ];
 }

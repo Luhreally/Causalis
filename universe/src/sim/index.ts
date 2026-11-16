@@ -514,6 +514,7 @@ export {
   WEARY_YEARS,
   WarStore,
   installWar,
+  farFromSeat,
   fieldedOf,
   fieldedParts,
   hostOf,
@@ -1170,3 +1171,4 @@ export {
   reliefOf,
   type Occupied,
 } from "./war/occupation.ts";
+export { GROUND as WAR_GROUND, groundOf, supplyOf } from "./war/ground.ts";

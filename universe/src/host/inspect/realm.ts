@@ -44,7 +44,7 @@ import { compareWith, warTally, woundedOf } from "./compare.ts";
 import { armyBlocks, courseBlocks } from "./army.ts";
 import { storesSummed } from "./stores.ts";
 import { realmOrderBlocks } from "./order.ts";
-import { powersBlocks, warReckoningBlocks } from "./statecraft.ts";
+import { powersBlocks, warGroundBlocks, warReckoningBlocks } from "./statecraft.ts";
 import { fortuneBlocks } from "./fortune.ts";
 import { godBlocks } from "./godhand.ts";
 import { realmCreditBlocks, warChestRows } from "./credit.ts";
@@ -700,6 +700,7 @@ export function warPage(
         warTally(world, w),
         // (What it has cost each side against what it is worth to them: round E, sim/war/bonds.ts warCosts.)
         ...warReckoningBlocks(world, w),
+        ...warGroundBlocks(world, w),
         // (Who was called, who came, who stood by: D1.)
         ...warSideBlocks(world, w).blocks,
         // (Its last battle watched fought, Phase 37 M186.)

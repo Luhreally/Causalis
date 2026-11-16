@@ -4,11 +4,13 @@
 // famine and the dry year behind it, the land they want and its ground. A realm
 // fields a share of its grown people, larger where they prize valour or keep a
 // standing army, better armed with bronze, iron, mounts and walls. Each year of war
-// brings a battle for a border land: hills and rivers favour those who hold them,
-// walls more so, supply thins with distance from the seat and with famine at home.
+// brings a battle for a border land: broken, watered and wooded ground favours those who
+// hold it (sim/war/ground.ts), walls more so; a host is fed by what of its bread reaches it
+// over the ground from its seat and what it takes where it stands, and less with famine at home.
 // The fallen are written into the ledgers of deaths. A land won changes hands; its
 // people's grievance may raise it in rebellion back to the realm it was taken from.
 // Weariness brings peace, and the war is remembered in the realms' regard.
+import { groundOf, supplyOf } from "./ground.ts";
 import { OccupationStore, occupationYear, occupy } from "./occupation.ts";
 import { godFall, godMen, godPower } from "./godhost.ts";
 import {
@@ -1490,9 +1492,10 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       // (A host paid from a war chest fights the harder, and its lands' hunger slows it not — M144.)
       chestA = warChest(world, a.ref, w.ref) ?? warBonds(world, a.ref, w.ref),
       chestB = warChest(world, b.ref, w.ref) ?? warBonds(world, b.ref, w.ref),
+      // (How fed it fights: its bread carried from its seat over the ground between, and what it takes where it stands.)
       attack =
         strengthOf(ctx, a) *
-        (1 / (1 + 0.15 * far)) *
+        supplyOf(ctx, land, far, fieldedOf(ctx, a)) *
         (hungry && !chestA ? (fed > 0 ? 1 - 0.3 * (1 - Math.min(1, fed)) : 0.7) : 1) *
         (chestA ? CREDIT.chest : 1) *
         (1 + 0.3 * lore.effect(a.seat, "sieges")) *
@@ -1500,8 +1503,8 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         // (A realm in more than one war divides its host among them: D1.)
         (1 / Math.max(1, wars.fighting(a.ref).length)) *
         sightTerm(fleetA?.flyers ?? 0, fleetB?.flyers ?? 0),
-      hills = g.tectonics.elevation[land]! > 600 ? 1.3 : 1,
-      river = g.water.river[land] ? 1.1 : 1,
+      // (The ground favours those who hold it as far as it is broken, watered and wooded: sim/war/ground.ts.)
+      ground = groundOf(ctx, land).factor,
       // (And what its towns were asked to raise and see to, H1: exactly 1 on a land never asked.)
       walls = (1 + 0.25 * lore.effect(land, "walls")) * asksOf(ctx.world).guard(land, t),
       // Those who hold the land know its ground, and every village is a stronghold; at
@@ -1517,13 +1520,14 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         strengthOf(ctx, b) *
         1.5 *
         (seat ? 2 : 1) *
-        hills *
-        river *
+        ground *
         walls *
         // (Works raised where they have learned what invaders cost; ladders and engines where their foes have learned what walls
         // cost them: both exactly 1 where nothing has been learned.)
         (1 + lessonAdds(world, b.ref, "walls", year)) *
-        (seat || hills > 1 || walls > 1 ? 1 / (1 + lessonAdds(world, a.ref, "siege", year)) : 1) *
+        (seat || ground >= 1.25 || walls > 1
+          ? 1 / (1 + lessonAdds(world, a.ref, "siege", year))
+          : 1) *
         (chestB ? CREDIT.chest : 1) *
         entrench *
         (1 / Math.max(1, wars.fighting(b.ref).length)) *
