@@ -20,6 +20,7 @@ import { OCC } from "../rules/index.ts";
 import {
   ECONOMY_EVENTS,
   lifeOf,
+  loreOf,
   marketsOf,
   politiesOf,
   POPULATION_EVENTS,
@@ -236,11 +237,18 @@ export function deepen(world: World, person: Person): Person {
         learned && yearOfMoment(world.events.get(learned)?.t ?? Infinity) <= grownAt
           ? learned
           : null,
-      crafter = person.occupation === OCC.crafter;
+      crafter = person.occupation === OCC.crafter,
+      // (With no town and no metal, a craft is learned from the craft its land came to first: what its people knew by then.)
+      first = crafter
+        ? (loreOf(world)
+            .of(homeAt)
+            .filter(([, k]) => k.year <= grownAt)
+            .sort((a, b) => a[1].year - b[1].year || (a[0] < b[0] ? -1 : 1))[0]?.[1].event ?? null)
+        : null;
     add(
       grownAt,
       crafter ? "took-up-craft" : "took-up-trade",
-      town?.ref ?? (crafter ? metal : (road?.id ?? null)) ?? cellRef(0, homeAt),
+      town?.ref ?? (crafter ? (metal ?? first) : (road?.id ?? null)) ?? cellRef(0, homeAt),
     );
   } else if (person.occupation === OCC.herder && grownAt >= 0 && grownAt <= to)
     // (Herding is learned where the land's people keep herds: the taming, as it came to them.)

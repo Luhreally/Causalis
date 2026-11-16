@@ -17,6 +17,8 @@ import { FOODS, GOODS, HOLD_KINDS, leanOf } from "../rules/index.ts";
 import {
   creditOf,
   debtOf,
+  ecologyOf,
+  energyPerHead,
   fieldedOf,
   financeOf,
   healthOf,
@@ -25,6 +27,7 @@ import {
   orderOf,
   politiesOf,
   populationContext,
+  readersOf,
   type Polity,
 } from "../sim/index.ts";
 import { blocsOf } from "./inspect/ties.ts";
@@ -57,6 +60,14 @@ export const LAND_COLUMNS = [
   "trade",
   /** Its dead of sickness, all of them since its years were first kept. */
   "sick",
+  /** All it drew a head in the year, by its energy account: food, fodder, heat and flow (tenths of a kilowatt). */
+  "power",
+  /** How far its soil is worn from its strength at first (hundredths): its ground as stocks, and what fouls it (Round A). */
+  "worn",
+  /** Who of its people read, in a hundred (rules/letters.ts; absent in a save from before it: unread there). */
+  "read",
+  /** Those born in the year before, in tenths of a thousand of its people (rules/children.ts; absent before: unread). */
+  "born",
 ] as const;
 export type LandColumn = (typeof LAND_COLUMNS)[number];
 
@@ -282,7 +293,13 @@ export class YearsStore implements StateStore {
     this.landYears = [...s.landYears];
     this.lands.clear();
     for (const r of s.lands)
-      this.lands.set(r.key, { from: r.from, cols: r.cols.map((c) => [...c]) });
+      this.lands.set(r.key, {
+        from: r.from,
+        // (A save from before a column was kept: its years before then unread.)
+        cols: LAND_COLUMNS.map((_, i) =>
+          r.cols[i] ? [...r.cols[i]!] : (r.cols[0] ?? []).map(() => UNREAD),
+        ),
+      });
     this.landRealm.clear();
     for (const l of s.landRealm)
       this.landRealm.set(l.key, { first: l.first, y: [...l.y], v: [...l.v] });
@@ -392,6 +409,15 @@ export function landNow(
     people ? toSteps(net / people) : 0,
     toSteps(sent.get(cell) ?? 0, TRADE_STEPS),
     healthOf(world)?.land(cell)?.dead ?? 0,
+    twoFigures(10 * (energyPerHead(world, cell)?.primary ?? 0)),
+    Math.round(100 * (1 - (ecologyOf(world).get(cell)?.soil ?? 1))),
+    Math.round(readersOf(world, cell) * 100),
+    people
+      ? Math.round(
+          (10_000 * populationContext(world).history.birthsIn(cell, yearOfMoment(world.now) - 1)) /
+            people,
+        )
+      : 0,
   ];
 }
 

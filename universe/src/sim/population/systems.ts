@@ -59,7 +59,8 @@ import {
   rainShift,
   smokeIn,
 } from "../climate/air.ts";
-import { powerOf } from "../economy/systems.ts";
+import { energyPerHead } from "../economy/energy.ts";
+import { readersOf } from "../lore/letters.ts";
 import { longRain } from "../climate/long.ts";
 import { lodesOf } from "../economy/lodes.ts";
 import { lodePush } from "../economy/worked.ts";
@@ -103,6 +104,8 @@ import {
   type Affordances,
   type LifeHistory,
   type Medium,
+  childCost,
+  childrenKept,
 } from "../../rules/index.ts";
 import { homePlanet } from "../planet/store.ts";
 import { lightSteps, starSitesOf } from "../space/stars.ts";
@@ -269,17 +272,24 @@ export function occupationTargets(
   cap: Capacity,
   villages: number,
   wages: readonly number[] | null = null,
+  farming = 1,
 ): number[] {
   const t = new Array<number>(COLS).fill(0);
   if (p.knowsCultivation) {
     // Herds only where beasts have been tamed (or the taming learned) and there is pasture;
     // else those hands farm.
-    const herds = cap.pasture > 0 && p.herding ? 0.07 : 0;
-    t[OCC.farmer] = 0.77 - herds;
+    const herds = cap.pasture > 0 && p.herding ? 0.07 : 0,
+      // (Of the hands the old ways set to the fields, those its fields need: the rest go to the crafts and to trade, as
+      // much to each as the old ways set them, round "peoples": farmingShare.)
+      fields = 0.77 - herds,
+      farm = fields * dmath.clamp(farming, 0, 1),
+      freed = fields - farm,
+      trades = villages >= 2;
+    t[OCC.farmer] = farm;
     t[OCC.forager] = 0.1;
     t[OCC.herder] = herds;
-    t[OCC.crafter] = 0.06;
-    t[OCC.trader] = villages >= 2 ? 0.04 : 0;
+    t[OCC.crafter] = 0.06 + freed * (trades ? 0.6 : 1);
+    t[OCC.trader] = trades ? 0.04 + freed * 0.4 : 0;
     t[OCC.leader] = 0.03;
   } else {
     t[OCC.forager] = 0.94;
@@ -298,6 +308,41 @@ export function occupationTargets(
   for (const o of flexible) t[o] = (t[o]! * share) / after;
   return t;
 }
+
+/**
+ * Of the hands the old ways set to a land's fields, the share its fields need (0 … 1; 1 where they need them all): as many as
+ * grow what its people eat and a sixth to spare, at what a farmer's work yields there now (its tools and machines, what it
+ * knows of fields, its soil, its warmth), the land's fields giving the less to each the more of them are worked
+ * (saturate). Where the land cannot feed them all, all the old share farm, as before; where each farmer grows for many,
+ * the rest go to the crafts and to trade, and to the towns (round "peoples": labour from what the land asks).
+ */
+export function farmingShare(ctx: PopulationContext, p: Province): number {
+  if (!p.knowsCultivation) return 1;
+  const m = marketsOf(ctx.world).get(p.cell);
+  if (!m) return 1;
+  const c = provinceCapacity(ctx, p.cell),
+    alive = wildsOf(ctx, p.cell),
+    lore = loreOf(ctx.world),
+    tools = (1 + (TOOL_GAIN * m.toolCover) / 1000) * (1 + (MACHINE_GAIN * m.machineCover) / 1000),
+    gathers = ctx.life.appetite * (1 - hallsShare(ctx, p.cell)),
+    fields =
+      (1 + lore.effect(p.cell, "farmYield")) *
+      heatYield(ctx, p.cell) *
+      darkFields(ctx.world, p.cell) *
+      alive.soil,
+    // (What all its fields give, worked to the full; and what its people eat, a sixth over.)
+    most = c.farm * fields,
+    need = mouths(p, ctx.life) * FARM_SPARE,
+    // (The hands the old ways set to its fields: all but its herders of 0.77 of its grown, as occupationTargets has it.)
+    old = adults(p, ctx.life) * (0.77 - (c.pasture > 0 && p.herding ? 0.07 : 0));
+  if (!(most > 0) || need >= most * 0.95 || !(old > 0)) return 1;
+  const per = PRODUCTIVITY[OCC.farmer]! * tools * gathers,
+    farmers = (-c.farm / per) * dmath.log(1 - need / most);
+  return dmath.clamp(farmers / old, FARM_FLOOR, 1);
+}
+/** What its fields grow past what its people eat, against hunger and a bad year; and the least of the old share that farms. */
+const FARM_SPARE = 7 / 6,
+  FARM_FLOOR = 0.03;
 
 /** What a province can feed in a year (person-years) with the ways it knows (its pasture only if it keeps herds). */
 export function support(cap: Capacity, knows: boolean, herds = true): number {
@@ -776,9 +821,8 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
 }
 
 /**
- * How much of its old fertility a people keep as power makes them wealthy: all of it
- * below a quarter of a kilowatt a person, down to TRANSITION less at two and a quarter
- * and beyond — fewer children born, as fewer die and each costs more to raise.
+ * How much of what its bodies could bear a people bears (rules/children.ts): as many as it wants living, the fewer the more
+ * of its young live and the more each costs to raise, schooled before it works and its work not wanted where machines do it.
  */
 /**
  * What a land's people keep of their fertility by what they have put by (rules/seasons.ts): the
@@ -796,8 +840,7 @@ export function putBy(ctx: PopulationContext, p: Province, m: Market | undefined
 }
 
 export function transition(ctx: PopulationContext, cell: number): number {
-  const power = powerOf(ctx, cell),
-    keeps = 1 - TRANSITION * Math.min(1, Math.max(0, (power - 0.25) / 2)),
+  const keeps = childrenKept(ctx.life, slowDeaths(ctx, cell), raisingCost(ctx, cell)),
     lore = loreOf(ctx.world);
   // Past our ages (Phase 66): nothing here runs short any more, and what a people then does is its choice.
   if (lore.get(cell, "made-bodies")) return Math.max(keeps, WRITTEN_KEEPS);
@@ -810,9 +853,26 @@ export function transition(ctx: PopulationContext, cell: number): number {
 const FLAME_KEEPS = 0.72;
 /** What a people that writes and grows its children keeps: each one wanted is made, whatever it can bear. */
 const WRITTEN_KEEPS = 0.95;
-// At the full transition a people about replace themselves: some five children a woman
-// fall to three and a half, as industry's lower deaths let two in three of them grow up.
-const TRANSITION = 0.6;
+
+/** What a land's young cost to raise (rules/children.ts childCost): those of its people who read, and its machines' share of its work. */
+export function raisingCost(ctx: PopulationContext, cell: number): number {
+  return childCost(readersOf(ctx.world, cell), machineShare(ctx, cell));
+}
+
+/** Of the work a land turned last year, the share not done by its bodies or its beasts (0 with none kept). */
+export function machineShare(ctx: PopulationContext, cell: number): number {
+  const e = energyPerHead(ctx.world, cell);
+  return e && e.work > 0 ? dmath.clamp(1 - e.sources.none / e.work, 0, 1) : 0;
+}
+
+/** How pressing a land's deaths are, of what changes slowly: the cold on the ill-clothed, medicine, smoke (as vitalMonth reads them). */
+export function slowDeaths(ctx: PopulationContext, cell: number): number {
+  const cold = dmath.clamp((10 - ctx.generated.climate.temperature[cell]!) / 10, 0, 1),
+    bare = 1 - (marketsOf(ctx.world).get(cell)?.clothingCover ?? 1000) / 1000,
+    healed = 1 - Math.min(0.3, loreOf(ctx.world).effect(cell, "health")),
+    smoke = 1 + 0.3 * smokeIn(ctx, cell);
+  return (1 + 0.25 * cold * bare) * healed * smoke;
+}
 
 /** Below this share of the food it needs (in thousandths), a land's month is a famine. */
 export const FAMINE = 700;
@@ -870,6 +930,7 @@ export function ageYear(ctx: PopulationContext, t: SimTime): void {
         provinceCapacity(ctx, p.cell),
         ctx.settlements.inProvince(p.cell).length,
         marketsOf(world).wagesOf(p.cell),
+        farmingShare(ctx, p),
       ),
       year = yearOfMoment(t),
       windowed = handOf(world).composition(p.cell, year, ctx.life);
@@ -935,6 +996,7 @@ export function workYear(ctx: PopulationContext, t: SimTime): void {
         provinceCapacity(ctx, p.cell),
         ctx.settlements.inProvince(p.cell).length,
         marketsOf(world).wagesOf(p.cell),
+        farmingShare(ctx, p),
       );
     const desired = apportion(
       grown,
@@ -998,6 +1060,20 @@ export function workYear(ctx: PopulationContext, t: SimTime): void {
   }
 }
 
+/** What drives a land's people from it, past hunger: a battle fought there, a sack, a quake, a fire, a stone from the sky. */
+const FLED_FROM: ReadonlySet<string> = new Set([
+  "war.battle",
+  "war.strike",
+  "act.quake",
+  "act.fire",
+  "act.meteor",
+  "wild.fire",
+]);
+/** How hard what struck a land pushes its people to leave it (hunger at its worst pushes 0.6; six in a hundred go a year at most). */
+const FLEE = 0.5;
+/** The land a place's ref names (cell:0:<n>). */
+const placeCell = (place: string): number => Number(place.slice(place.lastIndexOf(":") + 1));
+
 type PlannedFlow = {
   from: Province;
   to: number;
@@ -1015,7 +1091,19 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
   const peopled = (cell: number) => ctx.provinces.get(cell);
   // What the land feeds is in food; a people's mouths are their numbers by their appetite.
   const appetite = ctx.life.appetite;
+  // The lands a battle, a sack, a quake, a fire or a stone from the sky struck in the year gone: their people flee it, as
+  // well as hunger (round "peoples": refugees). The year's events, read back from the latest.
+  const struck = new Map<number, Ref>();
+  for (let i = world.events.count - 1; i >= 0; i--) {
+    const e = world.events.at(i);
+    if (e.t < t - YEAR) break;
+    if (e.place && FLED_FROM.has(e.type) && !struck.has(placeCell(e.place)))
+      struck.set(placeCell(e.place), e.id);
+  }
   for (const p of ctx.provinces.all()) {
+    // (A stream that went last year can go on this one; one that did not has ended.)
+    if (p.going.length && p.going.some((s) => s.year < year - 1))
+      p.going = p.going.filter((s) => s.year >= year - 1);
     const pop = p.total();
     if (pop < 20) continue;
     const eating = mouths(p, ctx.life),
@@ -1031,7 +1119,10 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
         : Math.min(0.3, Math.max(0, eating / Math.max(1, c.forage) - 0.25)),
       // (And a mine's end, for those who worked it: E1.)
       leaving = lodePush(world, p.cell, year),
-      pushed = 0.6 * hunger + crowd + leaving,
+      // (And what struck it: war, a sack, the ground's shaking, fire.)
+      ruin = struck.get(p.cell) ?? null,
+      fleeing = ruin ? FLEE : 0,
+      pushed = 0.6 * hunger + crowd + leaving + fleeing,
       pressure = pushed + budding;
     if (pressure < 0.05) continue;
     // Budding goes only to empty land; those pushed by hunger or crowding go anywhere better.
@@ -1141,6 +1232,12 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
                 : null,
           },
           {
+            name: "fleeing war or ruin",
+            value: fleeing,
+            contribution: fleeing,
+            source: ruin ? { ref: ruin, role: "trigger", weight: 1 } : null,
+          },
+          {
             name: "better land",
             value: o.attraction,
             contribution: 0.2 * o.attraction,
@@ -1150,24 +1247,42 @@ export function migrateYear(ctx: PopulationContext, t: SimTime): void {
       });
     });
   }
-  // Make the moves.
+  // Make the moves. A stream that goes on as it set out (as many, within half and twice, to the same land, the year after
+  // last) is told once, when it set out: the year's move goes under that event (Province.going).
   for (const f of planned) {
-    const decision = world.decisions.record({
-      rule: "population.migrate",
-      subject: f.from.ref,
-      outcome: { to: cellRef(0, f.to), count: f.count },
-      score: f.pressure,
-      threshold: 0.05,
-      factors: f.factors,
-    });
-    const event = world.events.emit({
-      type: POPULATION_EVENTS.migration.type,
-      importance: f.count >= 200 ? 3 : 2,
-      subjects: [f.from.ref, cellRef(0, f.to)],
-      place: f.from.ref,
-      causes: [{ ref: decision, role: "trigger", weight: 1 }],
-      data: { count: f.count },
-    });
+    const stream = f.from.going.find((s) => s.to === f.to),
+      goesOn =
+        !!stream &&
+        stream.year === year - 1 &&
+        2 * f.count >= stream.count &&
+        f.count <= 2 * stream.count;
+    let decision: Ref, event: Ref;
+    if (goesOn) {
+      stream.year = year;
+      event = stream.event;
+      decision = stream.decision;
+    } else {
+      decision = world.decisions.record({
+        rule: "population.migrate",
+        subject: f.from.ref,
+        outcome: { to: cellRef(0, f.to), count: f.count },
+        score: f.pressure,
+        threshold: 0.05,
+        factors: f.factors,
+      });
+      event = world.events.emit({
+        type: POPULATION_EVENTS.migration.type,
+        importance: f.count >= 200 ? 3 : 2,
+        subjects: [f.from.ref, cellRef(0, f.to)],
+        place: f.from.ref,
+        causes: [{ ref: decision, role: "trigger", weight: 1 }],
+        data: { count: f.count },
+      });
+      f.from.going = [
+        ...f.from.going.filter((s) => s.to !== f.to && s.year >= year - 1),
+        { to: f.to, event, decision, year, count: f.count },
+      ];
+    }
     let dest = ctx.provinces.get(f.to);
     if (!dest) {
       dest = ctx.provinces.add(new Province(f.to, year, event));
@@ -1486,8 +1601,21 @@ type SiteBlocks = {
   readonly order: Uint16Array;
 };
 const SITE_BLOCKS = new Map<string, SiteBlocks>();
+/**
+ * The same, by land, of the surface last asked of: every village asks its land's each year, and a key written out
+ * for each of twenty thousand villages was most of what the asking cost (tools/cost.ts). Emptied with SITE_BLOCKS.
+ */
+let sitesKey = "",
+  sitesByLand: (SiteBlocks | undefined)[] = [];
 function siteBlocks(ctx: PopulationContext, cell: number): SiteBlocks {
-  const key = `${homePlanet(ctx.world).surfaceKey}:${cell}`;
+  const surface = homePlanet(ctx.world).surfaceKey;
+  if (surface !== sitesKey) {
+    sitesKey = surface;
+    sitesByLand = [];
+  }
+  const known = sitesByLand[cell];
+  if (known) return known;
+  const key = `${surface}:${cell}`;
   let blocks = SITE_BLOCKS.get(key);
   // Halls on another world have no ground of villages to choose among.
   if (!blocks && offworldSite(ctx.generated, cell))
@@ -1523,6 +1651,7 @@ function siteBlocks(ctx: PopulationContext, cell: number): SiteBlocks {
     );
     SITE_BLOCKS.set(key, (blocks = { tiles, scores, order }));
   }
+  sitesByLand[cell] = blocks;
   return blocks;
 }
 

@@ -22,11 +22,15 @@ const refsOf = (lines: readonly Line[]): string[] =>
 const plans = ask<{ ref: string }[]>("towns.map")
   .slice(0, 40)
   .map((t) => ask<VillagePlan>("village.plan", { ref: t.ref, folk: 220 }));
-// The greatest town that digs its own copper ore and smelts it (one of bog iron may be greater:
-// which town that is moves with history).
+// The greatest town that digs its own copper ore and smelts it, its smiths forging copper (one of bog
+// iron may be greater, and one whose land has learned bronze casts it with tin: which town that is moves
+// with history).
 const smelting = plans.find(
   (p) =>
-    p.works?.mine?.what === "ore" && p.stuff?.ore && (p.stuff.ore.yields ?? "copper") === "copper",
+    p.works?.mine?.what === "ore" &&
+    p.stuff?.ore &&
+    (p.stuff.ore.yields ?? "copper") === "copper" &&
+    toolMetal(populationContext(world), p.cell!) === "copper",
 )!;
 const days = Array.from({ length: 8 }, (_, d) => 300 * 365 + 120 + d);
 

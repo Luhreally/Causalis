@@ -3,6 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  SEEN_TREE,
   AGE_LADDER,
   COVER_PEOPLE_KM2,
   FIRST_MIRRORS_KM2,
@@ -91,10 +92,14 @@ test("the steps past ours are added after all the others, so no earlier step mov
     MEANS_TREE.length -
     HEAT_TREE.length -
     LAW_TREE.length -
-    SIGNAL_TREE.length;
+    SIGNAL_TREE.length -
+    SEEN_TREE.length;
+  // (And after signals what only being there teaches, K1.)
   assert.deepEqual(
     ids.slice(from),
-    [...LATE_TREE, ...MEANS_TREE, ...HEAT_TREE, ...LAW_TREE, ...SIGNAL_TREE].map((p) => p.id),
+    [...LATE_TREE, ...MEANS_TREE, ...HEAT_TREE, ...LAW_TREE, ...SIGNAL_TREE, ...SEEN_TREE].map(
+      (p) => p.id,
+    ),
   );
   for (const id of [
     "fusion-power",

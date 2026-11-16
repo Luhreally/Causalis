@@ -2,11 +2,24 @@
 // their strongest leanings, each between two poles — and why: the events that
 // pushed them, the people they came from, the land. And how their speech has
 // drifted from the first people's.
-import { defineKind, makeRef, parseRef, type CauseRef, type Ref } from "../kernel/index.ts";
+import {
+  defineKind,
+  makeRef,
+  parseRef,
+  yearOfMoment,
+  type CauseRef,
+  type Ref,
+} from "../kernel/index.ts";
 import { cellRef, cradleTongue, tongueLikeness, type Tongue } from "../gen/index.ts";
-import { WAY_TRAITS, cultureOf, populationContext, type Ways } from "../sim/index.ts";
+import {
+  CULTURE_EVENTS,
+  WAY_TRAITS,
+  cultureOf,
+  populationContext,
+  type Ways,
+} from "../sim/index.ts";
 import { landWords } from "./generated.ts";
-import { edges, registerExplainer } from "./why.ts";
+import { edges, registerEventWords, registerExplainer } from "./why.ts";
 
 /** A people's ways, as a thing to ask why of. */
 export const WAYS = defineKind("ways", "a people's ways", "structural");
@@ -64,4 +77,17 @@ registerExplainer(WAYS.code, (world, ref) => {
   if (w.from) causes.push({ ref: w.from, role: "enabler", weight: 0.2 });
   causes.push({ ref: cellRef(0, cell), role: "constraint", weight: 0.1 });
   return { ref, claim, basis: "recorded", t: null, causes: edges(world, causes) };
+});
+
+// A land drawn to a way by what it saw go well (sim/culture/culture.ts weighWays): the way it moved most, toward which end.
+registerEventWords(CULTURE_EVENTS.learned.type, (world, e) => {
+  const d = e.data as { way?: string; moved?: readonly number[]; from?: number },
+    k = WAY_TRAITS.indexOf((d.way ?? "") as (typeof WAY_TRAITS)[number]),
+    up = (d.moved?.[k] ?? 0) > 0,
+    pole = (WAY_WORDS[d.way ?? ""]?.[up ? 1 : 0] ?? "keep their ways").replace(/^are /, "be "),
+    seen =
+      d.from !== undefined
+        ? "what they had seen go well among their neighbours"
+        : "what they had seen go well";
+  return `In ${landWords(world, e.place)} people came the more to ${pole}, from ${seen}, year ${yearOfMoment(e.t)}`;
 });

@@ -274,7 +274,15 @@ export function realmLessonBlocks(
 
 // —— All they have learned, by how they came to it ——————————————————————————————————————————————————
 
-type Came = { id: string; year: number; field: Field; from: number | null; event: string };
+type Came = {
+  id: string;
+  year: number;
+  field: Field;
+  from: number | null;
+  event: string;
+  /** Of a thing found, the share of the finding that was readers at their measures, in hundredths (rules/letters.ts). */
+  by: number;
+};
 
 /** What a land knows, each by how it came to it: found by its own people, or learned from another land (whom). */
 function cameBy(world: World, cell: number): Came[] {
@@ -290,9 +298,15 @@ function cameBy(world: World, cell: number): Came[] {
       field: fieldOf(principle(id)),
       from: e?.type === "lore.found" ? null : (from ?? -1),
       event: k.event,
+      by: (e?.data as { by?: number } | null)?.by ?? 0,
     });
   }
   return out;
+}
+
+/** How a thing was found, in a word: by the hands at its trade, by readers at their measures, or by both. */
+function foundBy(by: number): string {
+  return by >= 60 ? "readers" : by >= 25 ? "both" : "hands";
 }
 
 /** What a principle opened the way to, of what the land knows: those that need it. */
@@ -381,6 +395,11 @@ export function learnedBlocks(world: World, holder: string, cell: number | null)
         ],
         [
           `By their own thought and finding: ${found.length ? `${count(found.length)} (${fields.map((f) => `${f} ${byField.get(f)}`).join(", ")})` : "nothing yet"}.`,
+          ...(found.some((c) => c.by >= 25)
+            ? [
+                ` Of these, ${count(found.filter((c) => c.by >= 25).length)} were found as much by readers at their measures as by hands at the work.`,
+              ]
+            : []),
         ],
         [
           `From others: ${taught.length ? count(taught.length) : "nothing yet"}`,
@@ -454,12 +473,12 @@ export function learnedBlocks(world: World, holder: string, cell: number | null)
     blocks.push({
       type: "table",
       title: "By their own thought and finding",
-      columns: ["Found", "Field", "Year"],
+      columns: ["Found", "Field", "By", "Year"],
       few: FEW,
       rows: rows.map((c) => ({
         ref: `prin:${c.id}`,
-        cells: [[principleName(c.id, world)], [c.field], [String(c.year)]],
-        keys: [principleName(c.id, world), FIELDS.indexOf(c.field), c.year],
+        cells: [[principleName(c.id, world)], [c.field], [foundBy(c.by)], [String(c.year)]],
+        keys: [principleName(c.id, world), FIELDS.indexOf(c.field), c.by, c.year],
       })),
     });
     const opening = found

@@ -72,7 +72,9 @@ test("finding cites who found it and what the land held; learning cites the neig
   assert.ok(found.length >= 10, `${found.length} findings`);
   for (const e of found.slice(0, 15)) {
     const d = world.decisions.get(e.causes[0]!.ref as Ref)!;
-    assert.equal(d.rule, "lore.find");
+    // (What only being there teaches is found by having seen it, K1: lost.ts's own rule.)
+    assert.ok(["lore.find", "lore.see"].includes(d.rule), d.rule);
+    if (d.rule === "lore.see") continue;
     const id = (e.data as { principle: string }).principle,
       ore = principle(id).drivers.ore;
     if (ore)

@@ -103,6 +103,7 @@ import { count, item, link, share, stat, yearNow } from "./words.ts";
 import { matterWorldOf } from "../reading.ts";
 import { ownWordsItems } from "../names.ts";
 import { landLink, landTitle } from "./names.ts";
+import { firstOfLost, lostOfPrinciple } from "./lost.ts";
 import { airBlock } from "./ground.ts";
 import { elementPortrait, matterPortrait } from "../looks.ts";
 import { principleSignalStats } from "./signals.ts";
@@ -720,7 +721,10 @@ export function principlePage(world: World, ref: string): PageModel {
     p = PRINCIPLES.find((x) => x.id === id);
   if (!p) throw new Error(`no principle ${ref}`);
   const all = knowers(world, p.id),
-    first = all.find((k) => k.year !== null),
+    knownNow = all.find((k) => k.year !== null),
+    // (Who first knew it may have lost it since.)
+    lostFirst = firstOfLost(world, p.id),
+    first = lostFirst && (!knownNow || lostFirst.year < knownNow.year!) ? lostFirst : knownNow,
     means = meansOfWorld(homePlanet(world).generated),
     gas = !!p.asks?.includes("make-gas-fast"),
     // (No recipe for black powder on a world that has none: its own way is said below.)
@@ -736,7 +740,8 @@ export function principlePage(world: World, ref: string): PageModel {
     effects = Object.entries(p.effects).map(
       ([e, v]) => `${EFFECT_WORDS[e as (typeof EFFECTS)[number]]} (${v > 1 ? v : share(v)})`,
     ),
-    drivers = driverWords(p, means.burns);
+    drivers = driverWords(p, means.burns),
+    gone = lostOfPrinciple(world, p.id);
   const blocks: Block[] = [
     {
       type: "facts",
@@ -769,6 +774,17 @@ export function principlePage(world: World, ref: string): PageModel {
           ? [stat("Asks of its world's matter", [...asked(world, p.asks)])]
           : []),
         ...(shut ? [stat("On this world", `shut: ${shut}`)] : []),
+        ...(gone ? [stat("Lost", gone)] : []),
+        ...(p.seen
+          ? [
+              stat(
+                "Only by",
+                p.seen === "quake"
+                  ? "having come through the ground shaking"
+                  : "having come through a long dry age",
+              ),
+            ]
+          : []),
         ...flyerStats(world, p.id),
         ...rocketStats(world, p.id),
         ...(p.id === FIRE_ID ? firePrincipleStats(world) : []),

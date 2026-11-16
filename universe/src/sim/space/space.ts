@@ -36,7 +36,7 @@ import { homePlanet } from "../planet/store.ts";
 import { politiesOf, type Polity } from "../polity/polity.ts";
 import { knows, loreOf } from "../lore/lore.ts";
 import { warsOf } from "../war/war.ts";
-import { cultureOf, driftedWays } from "../culture/culture.ts";
+import { cultureOf, driftedWays, landShift } from "../culture/culture.ts";
 import { languagesOf } from "../culture/languages.ts";
 import { COLS, Province, ROWS } from "../population/model.ts";
 import { POPULATION_EVENTS, marketsOf, type PopulationContext } from "../population/systems.ts";
@@ -482,7 +482,18 @@ export function settle(
   // Their ways and tongue, the seat's as they left it (the far world's ways drift from there).
   const culture = cultureOf(world),
     ways = culture.get(seat.cell);
-  if (ways) culture.set(driftedWays(world, ways, cell, 1, event));
+  if (ways)
+    culture.set(
+      driftedWays(
+        world,
+        ways,
+        cell,
+        1,
+        event,
+        // (Halls sealed against another world draw their ways as the seat's land never did.)
+        landShift(ctx.generated, seat.cell, cell, ctx.medium, ctx.life.appetite),
+      ),
+    );
   const langs = languagesOf(world),
     spoken = langs.of(seat.cell);
   if (spoken) langs.speak(cell, spoken.index, event);

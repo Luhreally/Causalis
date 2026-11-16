@@ -15,6 +15,7 @@ import {
 } from "../../src/sim/index.ts";
 import { G, PRINCIPLES, designWords, principle } from "../../src/rules/index.ts";
 import { why } from "../../src/causal/index.ts";
+import { energyPerHead } from "../../src/sim/index.ts";
 import { peopledWorld } from "../worlds.ts";
 
 /** Teach a land principles outright (a fixture: the tree takes centuries to reach them). */
@@ -121,11 +122,18 @@ test("a land that knows engines digs its coal, burns it and makes machines — a
   assert.match(designWords(works.parts), /steam engines fired with coal/);
 });
 
-test("without coal to dig or buy, a land that knows engines has none to drive them", () => {
+test("without coal to dig or buy, a land that knows engines fires them with its woods, as far as they give", () => {
   const m = marketsOf(world).get(bare.cell)!;
   assert.equal(m.mine, null);
   assert.equal(m.years.at(-1)!.ledger[0]![G.coal], 0);
-  if (!m.years.at(-1)!.ledger[2]![G.coal]) assert.ok(powerOf(ctx, bare.cell) < 0.3);
+  // (Round A: wood fires an engine as coal does, at its own heat; a land without woods enough has none to drive them.)
+  const r = energyPerHead(world, bare.cell)!;
+  if (!m.years.at(-1)!.ledger[2]![G.coal]) {
+    assert.equal(r.carriers.buried, 0);
+    if (r.sources.burned > 0)
+      assert.ok(r.carriers.wood > r.carriers.muscle, `${JSON.stringify(r.carriers)}`);
+    else assert.ok(powerOf(ctx, bare.cell) < 0.3);
+  }
   const works = designsOf(world).worksOf(bare.ref);
   if (works) assert.doesNotMatch(designWords(works.parts), /steam/);
 });

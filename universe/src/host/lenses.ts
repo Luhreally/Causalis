@@ -3,10 +3,12 @@
 // the map's colours, and broken down for the tooltip under the pointer, as a grand strategy
 // game's map modes tell what makes a land's number.
 import type { Ref, World } from "../kernel/index.ts";
-import { GOODS } from "../rules/index.ts";
+import { GOODS, bearingOf, childrenWanted, livingToBear } from "../rules/index.ts";
 import {
   WAY_TRAITS,
   cultureOf,
+  energyPerHead,
+  fouledOf,
   fieldedParts,
   godMen,
   loreOf,
@@ -14,6 +16,11 @@ import {
   politiesOf,
   populationContext,
   realmName,
+  raisingCost,
+  readersOf,
+  slowDeaths,
+  teachingOf,
+  transition,
   type Polity,
 } from "../sim/index.ts";
 import { principleName } from "../causal/index.ts";
@@ -27,6 +34,8 @@ import { sicknessReading, sicknessValue } from "./inspect/sickness.ts";
 import { debtReading, debtValue } from "./inspect/credit.ts";
 import { campReading, campValue } from "./inspect/finance.ts";
 import { woodsReading } from "./inspect/woods.ts";
+import { energyReading } from "./inspect/energy.ts";
+import { fouledReading } from "./inspect/fields.ts";
 import { wealthReading } from "./wealth.ts";
 
 /** The lenses read here, beside the people's own (people, food, trade). */
@@ -51,6 +60,14 @@ export const DEEP_LENSES = [
   "forest",
   // The camps, and how much each realm fears another's way (sim/finance).
   "camps",
+  // Who reads, land by land (rules/letters.ts).
+  "letters",
+  // What a land draws a head, all told, by its energy account (Round A).
+  "energy",
+  // How fouled its ground is: sour rain, metals, salt (Round A).
+  "fouled",
+  // How many children a mother bears there (rules/children.ts).
+  "births",
 ] as const;
 export type DeepLens = (typeof DEEP_LENSES)[number];
 
@@ -86,6 +103,14 @@ export type LandReadings = {
   readonly debt: number;
   /** Its realm's camp and fear (host/inspect/finance.ts campValue: -1 … 1; -2 no realm's). */
   readonly camps: number;
+  /** The share of its people who read (rules/letters.ts). */
+  readonly letters: number;
+  /** How many children a mother bears at plenty (rules/children.ts). */
+  readonly births: number;
+  /** All it drew a head last year, kW, by its energy account (0: none kept). */
+  readonly energy: number;
+  /** How fouled its ground is (0 … 1). */
+  readonly fouled: number;
 };
 
 /** The ids a land knows: its lore, and sowing and smelting, which it knows in its own ways. */
@@ -166,6 +191,10 @@ export function landReadings(world: World): (cell: number) => LandReadings {
       sickness: Math.round(sicknessValue(world, cell) * 1000) / 1000,
       debt: Math.round(debtValue(world, cell) * 1000) / 1000,
       camps: campValue(world, cell),
+      letters: Math.round(readersOf(world, cell) * 1000) / 1000,
+      births: Math.round(bearingOf(ctx.life).born * transition(ctx, cell) * 100) / 100,
+      energy: Math.round((energyPerHead(world, cell)?.primary ?? 0) * 1000) / 1000,
+      fouled: Math.round(fouledOf(world, cell) * 1000) / 1000,
     };
   };
 }
@@ -221,6 +250,40 @@ export function lensReading(
       return debtReading(world, cell);
     case "camps":
       return campReading(world, cell);
+    case "letters": {
+      const t = teachingOf(ctx, prov);
+      return {
+        line: `Letters: ${share(readersOf(world, cell))} read`,
+        stats: [
+          { label: "A generation on", value: share(t.target) },
+          { label: "Their script", value: t.script ? "they write" : "none" },
+          { label: "A school", value: t.school ? "stands" : "none" },
+          { label: "Spared from the food", value: share(t.spare) },
+        ],
+      };
+    }
+    case "births": {
+      const born = bearingOf(ctx.life).born,
+        kept = transition(ctx, cell);
+      return {
+        line: `Births: a mother bears ${(born * kept).toFixed(1)}`,
+        stats: [
+          { label: "Her body could", value: born.toFixed(1) },
+          {
+            label: "Living to bear their own",
+            value: share(livingToBear(ctx.life, slowDeaths(ctx, cell))),
+          },
+          {
+            label: "Living children they want",
+            value: childrenWanted(raisingCost(ctx, cell)).toFixed(1),
+          },
+        ],
+      };
+    }
+    case "energy":
+      return energyReading(world, cell);
+    case "fouled":
+      return fouledReading(world, cell);
     case "laws":
       return lawReading(
         world,

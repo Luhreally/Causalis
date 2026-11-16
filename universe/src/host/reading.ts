@@ -20,7 +20,9 @@ import {
   COVER_PEOPLE_KM2,
   FLAME_GAIN,
   MIRROR_DOUBLING,
+  SOURCES,
   WANTS,
+  WORK_KW,
   affordancesOf,
   energyOf,
   hasBeams,
@@ -55,6 +57,7 @@ import {
   STARSHIP_MACHINES,
   launcherOfRealm,
   politiesOf,
+  energyBooks,
   populationContext,
   prospects,
   spaceOf,
@@ -111,8 +114,17 @@ export type RawReading = {
   readonly l: readonly number[];
 };
 
-/** A land's works' power last year, in units of fuel or its like (burned, or given free). */
+/**
+ * A land's works' power last year, in units of fuel or its like (burned, or given free): the work its works, carriers and homes
+ * had past what its old mills turn, by its energy account, at what a unit of fuel drives (a crafter's works a sixth of a year).
+ * (A world from before the account: its works' engines, as far as their fuel covered them.)
+ */
 export function drivenOf(world: World, cell: number): number {
+  const e = energyBooks(world)?.get(cell);
+  if (e) {
+    const mills = e.by[SOURCES.indexOf("mills")] ?? 0;
+    return Math.round(Math.max(0, e.workHad - mills) / (WORK_KW / WANTS.fuelPerCrafter));
+  }
   const ctx = populationContext(world),
     m = marketsOf(world).get(cell);
   if (!m || !m.powerCover) return 0;

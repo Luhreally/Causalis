@@ -192,8 +192,8 @@ test("the tree: iron and building can follow flakes, and stand-ins ask for what 
   assert.equal(principle("sun-engines").drivers.lacks, "coal");
   assert.equal(principle("heat-engines").drivers.lacks, "coal");
   // (No new rows but W2's and W3's, the greatest fire's (W5), the lanes' (Phase 68) and the signals' nine, last: every land's draws
-  // stay at their places.)
-  assert.equal(PRINCIPLES.length, 145);
+  // stay at their places; and K1's two of what only being there teaches after them.)
+  assert.equal(PRINCIPLES.length, 147);
 });
 
 test("a host rides the beast its world has, and Earth's on horseback", () => {

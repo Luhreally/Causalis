@@ -21,7 +21,7 @@ import {
   aimOf,
   farFromSeat,
   fieldedOf,
-  groundOf,
+  warGroundOf,
   supplyOf,
   occupationOf,
   strengthOf,
@@ -334,7 +334,7 @@ export function warGroundBlocks(world: World, w: War): Block[] {
     a = politiesOf(world).get(w.attacker);
   if (!last || !a || a.ended !== null) return [];
   const ctx = populationContext(world),
-    ground = groundOf(ctx, last.land),
+    ground = warGroundOf(ctx, last.land),
     far = farFromSeat(ctx, a, last.land),
     fed = supplyOf(ctx, last.land, far, fieldedOf(ctx, a));
   return [

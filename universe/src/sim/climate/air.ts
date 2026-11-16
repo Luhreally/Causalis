@@ -20,11 +20,13 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { G, fieldsUnder, rainUnder } from "../../rules/index.ts";
-import { planetRef } from "../../gen/index.ts";
+import { meansNumbers, planetRef, type HomeWorld } from "../../gen/index.ts";
 import { divineWarming } from "../acts/great.ts";
 import { provinceCapacity, type PopulationContext } from "../population/systems.ts";
 import type { MarketStore } from "../economy/market.ts";
 import { ecologyOf } from "../ecology/ecology.ts";
+import { energyBooks, fuelTonnes } from "../economy/energy.ts";
+import { groundPoison } from "../ecology/ground.ts";
 
 export const AIR_EVENTS = {
   warmer: defineEventType("climate.warmer", 5),
@@ -35,12 +37,21 @@ export const AIR_EVENTS = {
 
 /** Carbon in the air before anyone burned or cleared, in parts per million. */
 export const FIRST_CARBON = 280;
+/** The carbon that makes a part in a million of Earth's air (tonnes): 2.13 billion. */
+export const TONNES_A_PPM = 2.13e9;
 /**
- * Carbon a unit of coal or oil burned puts in the air (ppm). A unit drives four
- * kilowatts for a year; Earth's some sixteen terawatts put five parts a year into its
- * air before land and sea take half back, about 3e-10 a kilowatt-year.
+ * Carbon a unit of a fuel burned puts in a world's air (ppm): the carbon its make-up holds (economy/energy.ts: a unit of
+ * coal some 3.8 tonnes, of oil 2.4, of gas 2.3), over the carbon a part in a million of that air is — Earth's, by its air's
+ * weight against Earth's (its pressure, over its pull, on its surface). On Earth a unit of coal puts in 1.8e-9, of oil 1.1e-9:
+ * some sixteen terawatts of coal and oil, four parts and more a year, as Earth's burned.
  */
-export const CARBON_PER_FUEL = 2.4e-9;
+export function carbonPerFuel(g: HomeWorld, fuel: "coal" | "oil" | "gas"): number {
+  const n = meansNumbers(g),
+    air = (n.airBar * n.radius * n.radius) / Math.max(0.01, n.pull);
+  return fuelTonnes(fuel).carbon / TONNES_A_PPM / Math.max(1e-6, air);
+}
+/** Carbon a unit of coal burned puts in Earth's air (ppm). */
+export const CARBON_PER_FUEL = 1.8e-9;
 /** Carbon a square kilometre of forest cleared puts in the air (ppm); regrowing takes it back. */
 export const CARBON_PER_FOREST_KM2 = 5e-6;
 /**
@@ -213,8 +224,20 @@ export function darkCause(world: World): Ref | null {
   return fireSky(world)?.dark ?? null;
 }
 
-/** How foul a land's air is with smoke, 0..1, from the fuel it burned in the last three years for each person. */
+/** How foul a land's air and water are, 0..1, as its people's health reads it: the smoke of the fuel it burned for each person, coal's the thickest (its energy account; older worlds, its last three years' coal and oil). */
 export function smokeIn(ctx: PopulationContext, cell: number): number {
+  // (And the metals its water carries, from its own and its uplands' smelters: rules/ground.ts.)
+  return Math.min(1, airSmoke(ctx, cell) + groundPoison(ctx.world, cell));
+}
+
+/** How foul a land's air alone is with smoke, 0..1. */
+export function airSmoke(ctx: PopulationContext, cell: number): number {
+  // (Where its energy is reckoned: the smoke of what it burned, by how each fuel smokes, faded by half a year.)
+  const e = energyBooks(ctx.world)?.get(cell);
+  if (e) {
+    const people = Math.max(1, ctx.provinces.get(cell)?.total() ?? 0);
+    return Math.min(1, (SMOKE_PER_FUEL * e.fume) / 4 / people);
+  }
   const years = ctx.world.store<MarketStore>("economy.markets").get(cell)?.years;
   if (!years?.length) return 0;
   let fuel = 0,
@@ -237,13 +260,18 @@ export function airYear(ctx: PopulationContext, t: SimTime): void {
     ecology = ecologyOf(world),
     year = yearOfMoment(t);
 
-  // Carbon from last year's fuel, land by land (the most first, for the causes).
+  // Carbon from last year's fuel, land by land (the most first, for the causes): the carbon each fuel holds.
+  const energy = energyBooks(world),
+    perCoal = carbonPerFuel(ctx.generated, "coal"),
+    perOil = carbonPerFuel(ctx.generated, "oil");
   const burners: { cell: number; carbon: number }[] = [];
   let burned = 0;
   for (const m of markets.all()) {
     const used = m.years.at(-1)?.ledger[1];
     if (!used) continue;
-    const carbon = (used[G.coal]! + used[G.oil]!) * CARBON_PER_FUEL;
+    const gas = (energy?.get(m.cell)?.gas ?? 0) / 4,
+      carbon =
+        used[G.coal]! * perCoal + used[G.oil]! * perOil + gas * carbonPerFuel(ctx.generated, "gas");
     if (carbon <= 0) continue;
     burned += carbon;
     burners.push({ cell: m.cell, carbon });
@@ -313,7 +341,7 @@ export function airYear(ctx: PopulationContext, t: SimTime): void {
           data: { rain: Math.round(shift * 100) },
         }),
       );
-    const smoke = smokeIn(ctx, p.cell);
+    const smoke = airSmoke(ctx, p.cell);
     if (!store.smokeOf(p.cell) && smoke >= FOUL) {
       const m = markets.get(p.cell)!,
         cause = m.works ?? m.mine ?? m.well;

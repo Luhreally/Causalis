@@ -44,9 +44,12 @@ export class PopulationStore implements StateStore {
    */
   pinned(): Ref[] {
     const out: Ref[] = [];
-    for (const p of this.all())
+    for (const p of this.all()) {
       for (const r of [p.arrival, p.cultivation, p.herding, p.lastFamine, p.lastDrought])
         if (r) out.push(r);
+      // (And the streams it sends on, told when they set out.)
+      for (const g of p.going) out.push(g.event);
+    }
     return out;
   }
 

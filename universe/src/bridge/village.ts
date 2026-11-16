@@ -307,7 +307,8 @@ export type MemorialForm =
   | "pillar"
   | "reef"
   | "dome"
-  | "slab";
+  | "slab"
+  | "archive";
 
 /** A thing a town raised to what happened in it (T1): its page, its look, its year, how old and how great. */
 export type Memorial = {

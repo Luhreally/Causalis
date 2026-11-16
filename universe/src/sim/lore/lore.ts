@@ -52,6 +52,13 @@ import {
   type Effect,
   type Principle,
   HOLD,
+  PRINCIPLE_DEPTH,
+  WAY,
+  inquiryOf,
+  inquiryShare,
+  joinedBy,
+  measuresOf,
+  wordPace,
 } from "../../rules/index.ts";
 
 /** Each effect's place in a land's totals. */
@@ -64,6 +71,8 @@ import { politiesOf } from "../polity/polity.ts";
 import { lessonsOf, pressIn } from "./lessons-store.ts";
 import { laneLawOf } from "../space/lanes.ts";
 import { holdOf } from "../order/holds.ts";
+import { holdsAgain, lostOf, RETAKE_AFTER } from "./lost-store.ts";
+import { lettersOf } from "./letters.ts";
 
 export const LORE_EVENTS = {
   found: defineEventType("lore.found", 5),
@@ -105,8 +114,10 @@ export class LoreStore implements StateStore {
   private readonly known = new Map<number, Map<string, Known>>();
   /** Each land's effects, summed from what it knows (derived; rebuilt as lore grows). */
   private readonly totals = new Map<number, Float64Array>();
+  /** How many lands know each principle (derived). */
+  private readonly lands = new Map<string, number>();
   /**
-   * Every learning folded in as it happens (lore only grows), so a checkpoint hashes one
+   * Every learning and every forgetting folded in as it happens, so a checkpoint hashes one
    * digest, not every land's whole knowledge every year.
    */
   private digest = "";
@@ -128,6 +139,15 @@ export class LoreStore implements StateStore {
     return this.known.get(cell)?.entries() ?? [];
   }
 
+  /**
+   * What a land knows, as kept (undefined: nothing). It grows as a land learns; where it forgets (K1) the land's map is a new
+   * one, and a load makes each land's anew: a reading may keep what it derives of it by this map while its size stands
+   * (economy/energy.ts).
+   */
+  knownOf(cell: number): ReadonlyMap<string, Known> | undefined {
+    return this.known.get(cell);
+  }
+
   /** The lands that know anything. */
   cells(): IterableIterator<number> {
     return this.known.keys();
@@ -136,12 +156,56 @@ export class LoreStore implements StateStore {
   learn(cell: number, id: string, k: Known, p: Principle): void {
     let m = this.known.get(cell);
     if (!m) this.known.set(cell, (m = new Map()));
+    if (!m.has(id)) this.lands.set(id, (this.lands.get(id) ?? 0) + 1);
     m.set(id, k);
     this.digest = new Hasher().string(this.digest).int(cell).string(id).value(k).hex();
     this.count++;
     const t = this.totals.get(cell) ?? new Float64Array(EFFECTS.length);
     EFFECTS.forEach((e, i) => (t[i] = t[i]! + (p.effects[e] ?? 0)));
     this.totals.set(cell, t);
+  }
+
+  /**
+   * A land no longer knows a principle (K1). Its totals are summed again from what it still knows, in the order a save
+   * reads them back, so a craft gone takes exactly what it brought.
+   */
+  forget(cell: number, id: string): void {
+    const m = this.known.get(cell);
+    if (!m?.delete(id)) return;
+    this.lands.set(id, (this.lands.get(id) ?? 1) - 1);
+    this.digest = new Hasher().string(this.digest).int(cell).string("-").string(id).hex();
+    this.count++;
+    if (!m.size) {
+      this.known.delete(cell);
+      this.totals.delete(cell);
+      return;
+    }
+    // (A new map for what it knows now: a reading keeps what it derives by the map and its size (knownOf), and a land that
+    // forgets one thing and learns another would stand at the same size.)
+    this.known.set(cell, new Map(m));
+    const t = new Float64Array(EFFECTS.length);
+    for (const [known] of this.of(cell)) {
+      const p = PRINCIPLES[PRINCIPLE_INDEX.get(known)!]!;
+      EFFECTS.forEach((e, i) => (t[i] = t[i]! + (p.effects[e] ?? 0)));
+    }
+    this.totals.set(cell, t);
+  }
+
+  /** How many principles a land knows. */
+  sizeOf(cell: number): number {
+    return this.known.get(cell)?.size ?? 0;
+  }
+
+  /** How many lands know a principle. */
+  landsKnowing(id: string): number {
+    return this.lands.get(id) ?? 0;
+  }
+
+  /** The lands that know a principle (lowest first): walks every land, for what happens rarely. */
+  knowers(id: string): number[] {
+    const out: number[] = [];
+    for (const [cell, m] of this.known) if (m.has(id)) out.push(cell);
+    return out.sort((a, b) => a - b);
   }
 
   /** A land's total of an effect. */
@@ -170,6 +234,7 @@ export class LoreStore implements StateStore {
   load(state: unknown): void {
     this.known.clear();
     this.totals.clear();
+    this.lands.clear();
     const byId = new Map(PRINCIPLES.map((p) => [p.id, p]));
     const s = state as { known: [number, [string, Known][]][]; digest?: string; count?: number };
     for (const [cell, list] of s.known)
@@ -310,11 +375,13 @@ function openOf(
   here: (id: string) => boolean,
   means = meansOfWorld(ctx.generated),
   lifts = liftingEngine(meansNumbers(ctx.generated)),
+  /** Which rows are asked at all: those found by looking (a rate), unless said. */
+  asked: (p: Principle) => boolean = (p) => p.rate > 0,
 ): Principle[] {
   const reach = reachIn(means, here);
   return PRINCIPLES.filter(
     (p) =>
-      p.rate > 0 &&
+      asked(p) &&
       affordsPrinciple(p, ctx.medium, reach, means.wants) &&
       !here(p.id) &&
       needsMet(p, here) &&
@@ -339,8 +406,39 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
     year = yearOfMoment(t),
     means = meansOfWorld(g),
     // (The least engine that lifts a machine here: W2's, what a row that flies asks of a land.)
-    lifts = liftingEngine(meansNumbers(g));
-  type Plan = { cell: number; p: Principle; found: boolean; factors: Factor[]; causes: CauseRef[] };
+    lifts = liftingEngine(meansNumbers(g)),
+    gone = lostOf(world),
+    letters = lettersOf(world),
+    // (Each realm's readers, and how much of them its seat's fastest word joins each of its lands to: rules/letters.ts.)
+    realmReaders = new Map<string, number>(),
+    realmJoin = new Map<string, number>(),
+    // (Read only for a realm one of whose lands has something deep before it this year.)
+    joinOf = (r: { readonly ref: string; readonly seat: number }): number => {
+      let j = realmJoin.get(r.ref);
+      if (j === undefined)
+        realmJoin.set(
+          r.ref,
+          (j = joinedBy(wordPace((id) => knows(ctx, r.seat, id), ctx.medium).kmADay)),
+        );
+      return j;
+    };
+  if (letters)
+    for (const prov of ctx.provinces.all()) {
+      const r = realms.of(prov.cell);
+      if (r)
+        realmReaders.set(
+          r.ref,
+          (realmReaders.get(r.ref) ?? 0) + letters.of(prov.cell) * prov.total(),
+        );
+    }
+  type Plan = {
+    cell: number;
+    p: Principle;
+    found: boolean;
+    factors: Factor[];
+    causes: CauseRef[];
+    by?: number;
+  };
   const plans: Plan[] = [];
   for (const prov of ctx.provinces.all()) {
     if (!prov.total()) continue;
@@ -352,7 +450,21 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
           : n === "metalworking"
             ? !!markets.get(cell)?.metalworking
             : !!store.get(cell, n),
-      open = openOf(ctx, here, means, lifts);
+      // (What this land has lost it takes up again only once it has the hands to hold it, or is what it was: K1. What only
+      // having lived through a thing opens is open too, to be taught by those who did.)
+      lostHere = gone.ofLand(cell),
+      open = openOf(
+        ctx,
+        here,
+        means,
+        lifts,
+        (p) =>
+          (p.rate > 0 || p.seen !== undefined) &&
+          (!lostHere ||
+            !lostHere.has(p.id) ||
+            (year - lostHere.get(p.id)!.year >= RETAKE_AFTER &&
+              holdsAgain(ctx, prov, p, lostHere.get(p.id)!.then))),
+      );
     if (!open.length) continue;
     // Finding: the first principle whose drivers carry it, in the tree's order.
     const famine = (() => {
@@ -366,9 +478,36 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
         return false;
       })();
     let found: Plan | null = null;
+    // How readily its readers find (rules/letters.ts): its own and those its word joins it to in its realm, who have time to spare,
+    // with what it can measure, as far as its ways look to the new.
+    // (Read once, and only where something deep is open to it.)
+    let readers = 0,
+      inquiryRead = -1;
+    const inquiryHere = (): number => {
+      if (inquiryRead >= 0) return inquiryRead;
+      const working = prov.total() - prov.occupation(OCC.dependent),
+        food =
+          prov.occupation(OCC.forager) + prov.occupation(OCC.farmer) + prov.occupation(OCC.herder),
+        spare = working > 0 ? Math.max(0, working - food) / working : 0,
+        own = letters ? letters.of(cell) * prov.total() : 0,
+        realmNow = realms.of(cell),
+        joined = realmNow
+          ? joinOf(realmNow) * Math.max(0, (realmReaders.get(realmNow.ref) ?? 0) - own)
+          : 0,
+        ways = culture.get(cell);
+      readers = (own + joined) * (0.5 + 0.5 * spare);
+      return (inquiryRead = inquiryOf(
+        readers,
+        measuresOf(here),
+        ways?.traits[WAY.openness] ?? 0.5,
+        ways?.traits[WAY.tradition] ?? 0.5,
+      ));
+    };
     // (What has cost it presses it toward what would answer that: exactly 1 where nothing has.)
     const pressed = pressesOn(world, cell, realms.of(cell)?.ref ?? null, year);
     for (const p of open) {
+      // (What only being there teaches is taught by those who were: lost.ts.)
+      if (p.seen) continue;
       const d = p.drivers;
       if (d.river && !g.water.river[cell]) continue;
       if (d.coast && !coast) continue;
@@ -404,18 +543,30 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
           (d.traders ?? 0) * prov.occupation(OCC.trader) +
           (d.leaders ?? 0) * prov.occupation(OCC.leader),
         many = 1 + dmath.log10(1 + hands / MANY_HANDS),
+        // (The deeper it lies, the more of it is found by those who read and measure than by those at its trade: rules/letters.ts.)
+        asked = inquiryShare(PRINCIPLE_DEPTH.get(p.id) ?? 0),
+        inquiry = asked > 0 ? inquiryHere() : 1,
+        finding = (1 - asked) * many + asked * inquiry,
         answers = pressed ? ANSWERS.get(p.id)! : null,
         push = answers?.length ? pushOf(answers, pressed!) : 1,
-        chance = p.rate * (0.2 + drive) * LORE_PACE * many * push;
+        chance = p.rate * (0.2 + drive) * LORE_PACE * finding * push;
       if (!(world.rng.real(FIND, cell, t, PRINCIPLE_INDEX.get(p.id)!) < chance)) continue;
       const factors: Factor[] = terms
         .filter(([, w, v]) => w * v > 0)
         .map(([name, w, v, source]) => ({ name, value: v, contribution: w * v, source }));
-      if (many >= 1.1)
+      if ((1 - asked) * (many - 1) >= 0.1)
         factors.push({
           name: "many hands",
           value: Math.round(hands),
-          contribution: many - 1,
+          contribution: (1 - asked) * (many - 1),
+          source: null,
+        });
+      // (Readers at their measures, joined by word to the rest of their realm's: how much of the finding was theirs.)
+      if (asked * inquiry >= 0.1)
+        factors.push({
+          name: "readers at their measures",
+          value: Math.round(readers),
+          contribution: asked * inquiry,
           source: null,
         });
       if (ore !== null)
@@ -435,7 +586,15 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
           source: null,
         });
       }
-      found = { cell, p, found: true, factors: factors.slice(0, 6), causes: [] };
+      found = {
+        cell,
+        p,
+        found: true,
+        factors: factors.slice(0, 6),
+        causes: [],
+        // (Inquiry's share of the finding, in hundredths, where it had any to speak of: a page says how it was found.)
+        by: Math.round((100 * asked * inquiry) / finding),
+      };
       break;
     }
     if (found) {
@@ -507,7 +666,7 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
       type: plan.found ? LORE_EVENTS.found.type : LORE_EVENTS.learned.type,
       place,
       causes,
-      data: { principle: plan.p.id },
+      data: { principle: plan.p.id, ...(plan.by && plan.by >= 5 ? { by: plan.by } : {}) },
     });
     store.learn(plan.cell, plan.p.id, { year, event }, plan.p);
     // Metal from the vents is a people of the water's metalworking; a kind's own metal root is

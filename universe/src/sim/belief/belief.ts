@@ -23,7 +23,10 @@ import {
 import { tongueLikeness, tongueName } from "../../gen/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import type { MarketStore } from "../economy/market.ts";
-import { WAY, cultureOf } from "../culture/culture.ts";
+import { WAY, cultureOf, drawsWays } from "../culture/culture.ts";
+import { readsScripture } from "../lore/letters.ts";
+import { homePlanet } from "../planet/store.ts";
+import { creedHeld, creedOf, scriptureOfTenet } from "../../rules/index.ts";
 import { politiesOf } from "../polity/polity.ts";
 
 export const FAITH = defineKind("faith", "faith", "minted");
@@ -69,7 +72,23 @@ export type Faith = {
   readonly seat: number;
   /** The faith it split from, if a schism made it. */
   readonly from: Ref | null;
+  /**
+   * Its creed (rules/faith.ts): its pull on each way, in hundredths, from what it holds the power to be and what marked its
+   * founders (absent in a faith from a save before creeds: its tenet's alone).
+   */
+  readonly creed?: readonly number[];
 };
+
+/** A faith's creed, in hundredths of each way (rules/faith.ts). */
+export function creedOfFaith(f: Faith): readonly number[] {
+  return f.creed ?? creedOf(f.tenet, null);
+}
+
+/** The most a creed pulls one way (a hundredth each). */
+const CREED_MOST = 15;
+function creedAt(tenet: Tenet, ways: readonly number[]): number[] {
+  return creedOf(tenet, ways).map((v) => Math.max(-CREED_MOST, Math.min(CREED_MOST, v)));
+}
 
 /** What a land believes, since when, and the event that brought it. */
 export type Belief = { faith: Ref | null; since: number; event: Ref | null };
@@ -103,7 +122,13 @@ function omenOf(type: string, data: unknown): { tenet: Tenet; strength: number }
     case "act.shrine":
       return { tenet: "presence", strength: 1 };
     case "act.fire":
-      return { tenet: "fire", strength: 1 };
+    case "act.quake":
+    case "act.meteor": {
+      // (The god's own fire, or the world's: a quake, a fire, a stone from the sky that came of itself is a hard year's sign.)
+      const d = data as { natural?: boolean; dead?: number } | null;
+      if (d?.natural) return { tenet: "fire", strength: 0.2 + Math.min(0.5, (d.dead ?? 0) / 2000) };
+      return type === "act.fire" ? { tenet: "fire", strength: 1 } : null;
+    }
     case "act.spring":
       return { tenet: "plenty", strength: 1 };
     case "act.inspire-one":
@@ -117,6 +142,21 @@ function omenOf(type: string, data: unknown): { tenet: Tenet; strength: number }
         : { tenet: "presence", strength: 0.4 };
     case "people.famine":
       return { tenet: "hunger", strength: 0.25 };
+    // (What the world does of itself, as the god's acts are, by how hard it struck: a sickness by the share it took, a quake,
+    // a fire from the sky or a mountain rising by its dead; a star seen to fall as a sign alone.)
+    case "health.outbreak": {
+      const d = data as { people?: number; dead?: number } | null,
+        share = d?.people ? (d.dead ?? 0) / d.people : 0;
+      return share >= 0.01 ? { tenet: "sickness", strength: Math.min(0.6, 0.1 + 4 * share) } : null;
+    }
+    case "wild.fire":
+    case "wild.rise":
+      return {
+        tenet: "fire",
+        strength: 0.2 + Math.min(0.4, ((data as { dead?: number } | null)?.dead ?? 0) / 2000),
+      };
+    case "wild.star":
+      return { tenet: "presence", strength: 0.3 };
     case "weather.drought":
       return rain < 550 ? { tenet: "rain", strength: 0.15 } : null;
     case "knowledge.cultivation":
@@ -264,7 +304,16 @@ export function beliefYear(ctx: PopulationContext, t: SimTime): void {
       causes: [{ ref: e.id, role: "trigger", weight: 1 }],
       data: { name, tenet: omen.tenet },
     });
-    store.add({ ref, name, tenet: omen.tenet, founded: year, event, seat: cell, from: now.faith });
+    store.add({
+      ref,
+      name,
+      tenet: omen.tenet,
+      founded: year,
+      event,
+      seat: cell,
+      from: now.faith,
+      creed: creedAt(omen.tenet, ways.traits),
+    });
     store.set(cell, { faith: ref, since: year, event });
     founded.add(cell);
   }
@@ -337,17 +386,48 @@ export function beliefYear(ctx: PopulationContext, t: SimTime): void {
         causes: [{ ref: f.event, role: "enabler", weight: 1 }],
         data: { name, from: f.name },
       });
-      store.add({ ref, name, tenet: f.tenet, founded: year, event, seat: first, from: f.ref });
+      // (A schism keeps its tenet, and hallows what marks those who broke away.)
+      store.add({
+        ref,
+        name,
+        tenet: f.tenet,
+        founded: year,
+        event,
+        seat: first,
+        from: f.ref,
+        creed: creedAt(f.tenet, there.traits),
+      });
       for (const c of far) store.set(c, { faith: ref, since: year, event });
     }
+  // (A faith held for generations becomes part of who a people are: its creed draws their ways, `heldCreed`, read where their
+  // ways are drawn: sim/culture/culture.ts waysTarget.)
+}
 
-  // 4. Faith deepens devotion.
-  for (const p of ctx.provinces.all()) {
-    const b = store.of(p.cell),
-      w = culture.get(p.cell);
-    // A faith held for generations becomes part of who a people are.
-    if (b.faith && w) w.base[WAY.piety] = Math.min(0.85, w.base[WAY.piety]! + 0.0005);
-  }
+/** How far a land's faith draws each of its ways now (its creed, as long as the land has held it), or nothing. Only reads. */
+export function heldCreed(world: World, cell: number, year: number): readonly number[] | null {
+  if (!world.hasStore("belief.faiths")) return null;
+  const store = beliefOf(world),
+    b = store.of(cell),
+    f = b.faith ? store.get(b.faith) : undefined;
+  if (!f) return null;
+  const k = creedHeld(year - b.since, spanOf(world));
+  return creedOfFaith(f).map((v) => (v / 100) * k);
+}
+
+/** How far a land's faith holds its teaching written, as long as the land has held it (0 … 1). Only reads. */
+export function heldScripture(world: World, cell: number): number {
+  if (!world.hasStore("belief.faiths")) return 0;
+  const store = beliefOf(world),
+    b = store.of(cell),
+    f = b.faith ? store.get(b.faith) : undefined;
+  if (!f) return 0;
+  const year = yearOfMoment(world.now);
+  return scriptureOfTenet(f.tenet) * creedHeld(year - b.since, spanOf(world));
+}
+
+/** A people's life span (an upright ape's where no people has risen). */
+function spanOf(world: World): number {
+  return homePlanet(world).generated.life.people?.body.span ?? 70;
 }
 
 /** Teach a peopled world its faiths. */
@@ -355,5 +435,7 @@ export function installBelief(world: World, ctx: () => PopulationContext): Belie
   const store = world.register(new BeliefStore());
   world.addPinner(() => store.pinned());
   world.system({ key: "175.belief.year", every: YEAR, run: (t) => beliefYear(ctx(), t) });
+  drawsWays(heldCreed);
+  readsScripture(heldScripture);
   return store;
 }

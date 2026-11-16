@@ -68,6 +68,11 @@ export {
   spaceSteps,
   sitesReady,
   support,
+  farmingShare,
+  machineShare,
+  raisingCost,
+  slowDeaths,
+  transition,
   type PopulationContext,
 } from "./population/systems.ts";
 export {
@@ -98,6 +103,33 @@ export {
   type ToolMetalPoint,
   type TradeFlow,
 } from "./economy/market.ts";
+export {
+  GROUND_EVENTS,
+  GroundStore,
+  fouledOf,
+  groundOf,
+  groundPoison,
+  groundReading,
+  soilOf,
+  type Ground,
+} from "./ecology/ground.ts";
+export {
+  EnergyStore,
+  MACHINE_KW,
+  SMOKES,
+  energyInputs,
+  energyBooks,
+  energyPerHead,
+  engineCarried,
+  fuelTonnes,
+  fumeOf,
+  keptAccount,
+  machinesWanted,
+  transitionPower,
+  workCover,
+  type EnergyLand,
+  type EnergyReading,
+} from "./economy/energy.ts";
 export {
   ECONOMY_EVENTS,
   HAUL_PER_100KM,
@@ -226,12 +258,21 @@ export {
   type Window,
 } from "./hand/hand.ts";
 export {
+  CULTURE_EVENTS,
   CultureStore,
-  PUSHES,
   WAY,
   WAY_TRAITS,
+  bodyWays,
   cultureOf,
   cultureYear,
+  decadeOf,
+  isSign,
+  landRead,
+  landWays,
+  waysBeliefOf,
+  waysLearned,
+  waysReading,
+  waysTarget,
   type Nudge,
   type Ways,
   type WayTrait,
@@ -256,6 +297,8 @@ export {
   AirStore,
   CARBON_PER_FOREST_KM2,
   CARBON_PER_FUEL,
+  TONNES_A_PPM,
+  carbonPerFuel,
   FIRST_CARBON,
   SENSITIVITY,
   airOf,
@@ -456,6 +499,9 @@ export {
   TENETS,
   beliefOf,
   beliefYear,
+  creedOfFaith,
+  heldCreed,
+  heldScripture,
   installBelief,
   type Belief,
   type Faith,
@@ -609,7 +655,15 @@ export {
   type SideInBattle,
   type Take,
 } from "./war/fell.ts";
-export { FALL_PURPOSE, fighting, levyOf, poolOf, type Levy, type Pool } from "./war/levy.ts";
+export {
+  FALL_PURPOSE,
+  bearersSent,
+  fighting,
+  levyOf,
+  poolOf,
+  type Levy,
+  type Pool,
+} from "./war/levy.ts";
 export { LOSSES, battleDead, struckShare, type HostInBattle } from "./war/losses.ts";
 export {
   BLOCKS,
@@ -1171,4 +1225,35 @@ export {
   reliefOf,
   type Occupied,
 } from "./war/occupation.ts";
-export { GROUND as WAR_GROUND, groundOf, supplyOf } from "./war/ground.ts";
+export { GROUND as WAR_GROUND, groundOf as warGroundOf, supplyOf } from "./war/ground.ts";
+export {
+  LETTERS_EVERY,
+  LettersStore,
+  installLetters,
+  lettersOf,
+  lettersYear,
+  readersOf,
+  teachingOf,
+} from "./lore/letters.ts";
+export {
+  FALL_LEAST,
+  GREAT_DEPTH,
+  KEEP_YEARS,
+  LOST_EVENTS,
+  READ_RATE,
+  SONGS_REACH,
+  keeperOf,
+  lostYear,
+} from "./lore/lost.ts";
+export {
+  handsHolding,
+  isHive,
+  lostOf,
+  needOfHands,
+  type Archive,
+  type CraftBack,
+  type KeepForm,
+  type LostCraft,
+  type LostWhy,
+  type WorldLoss,
+} from "./lore/lost-store.ts";

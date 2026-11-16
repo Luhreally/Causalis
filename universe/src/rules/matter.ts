@@ -2984,7 +2984,8 @@ export const GOOD_MATTER: Readonly<Record<string, GoodMatter>> = {
   },
   pottery: { unitKg: 6, ways: [{ id: "pot", name: "fired clay", parts: [["fired-clay", 1]] }] },
   coal: {
-    unitKg: 50,
+    // (A unit of coal or oil holds four kilowatt-years of heat, rules/energy.ts: some 4.8 tonnes of coal, 2.9 of oil.)
+    unitKg: 4790,
     ways: [
       {
         id: "coal",
@@ -2999,7 +3000,7 @@ export const GOOD_MATTER: Readonly<Record<string, GoodMatter>> = {
     ],
   },
   oil: {
-    unitKg: 50,
+    unitKg: 2950,
     ways: [
       {
         id: "crude",

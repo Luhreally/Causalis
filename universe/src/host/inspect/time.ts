@@ -7,10 +7,12 @@ import type { Ref, World } from "../../kernel/index.ts";
 import {
   hostOf,
   homePlanet,
+  energyPerHead,
   marketsOf,
   orderOf,
   politiesOf,
   populationContext,
+  readersOf,
   warsOf,
   type Polity,
   type War,
@@ -64,6 +66,7 @@ const WRITE: Readonly<Record<SeriesUnit, (y: number) => string>> = {
   worth: (y) => worthWords(y),
   price: (y) => y.toFixed(2),
   months: (y) => y.toFixed(1),
+  kw: (y) => (y >= 10 ? count(y) : y.toFixed(2)),
 };
 
 /** A line: its points thinned, its latest in words (the last point's, as the page writes it). */
@@ -593,6 +596,38 @@ export function landTimeTab(world: World, cell: number): Tab | null {
         },
       ),
     );
+    // What it drew a head, all told, by its energy account (Round A).
+    const power = kept(col("power"));
+    if (power.length >= 2)
+      blocks.push(
+        series(
+          "Energy a head",
+          "kW a head",
+          "kw",
+          withNow(
+            power.map((q) => ({ x: q.x, y: q.y / 10 })),
+            now,
+            energyPerHead(world, cell)?.primary ?? 0,
+          ),
+          {
+            note: "All it drew in a year for each of its people: their food, their beasts' fodder, the heat of its hearths, smelters and engines, and what flows; read once a decade.",
+          },
+        ),
+      );
+    // Its ground: its soil's strength, less what fouls it (Round A).
+    const soil = kept(col("worn"));
+    if (soil.length >= 2)
+      blocks.push(
+        series(
+          "Its soil",
+          "of its strength at first",
+          "share",
+          soil.map((q) => ({ x: q.x, y: 1 - q.y / 100 })),
+          {
+            note: "What its fields yield by: its scarcest nutrient, its topsoil, less what salt, sour rain and metals take; read once a decade.",
+          },
+        ),
+      );
     // Its dead of sickness: of each span between two years kept, a year's on the mean.
     const sick = kept(col("sick")),
       dead: Point[] = [];
@@ -606,6 +641,41 @@ export function landTimeTab(world: World, cell: number): Tab | null {
         series("Dead of sickness", "a year", "count", dead, {
           note: "A year's dead of sickness, on the mean of each span between two years kept.",
         }),
+      );
+    // Who read (rules/letters.ts): from their first decade with a script.
+    const read = kept(col("read")),
+      first = read.findIndex((q) => q.y > 0);
+    if (first >= 0)
+      blocks.push(
+        series(
+          "Who read",
+          "of them",
+          "share",
+          withNow(
+            read.slice(Math.max(0, first - 1)).map((q) => ({ x: q.x, y: q.y / 100 })),
+            now,
+            readersOf(world, cell),
+          ),
+          {
+            marks,
+            note: "The share of its people who read; read once a decade. A generation brings a land most of the way to what its teaching reaches.",
+          },
+        ),
+      );
+    // Its births (rules/children.ts): as many as they want living, the fewer the more live and the dearer each is to raise.
+    const born = kept(col("born"));
+    if (born.length >= 2)
+      blocks.push(
+        series(
+          "Born a year",
+          "in a thousand",
+          "count",
+          born.map((q) => ({ x: q.x, y: q.y / 10 })),
+          {
+            marks,
+            note: "Those born in a year for each thousand of its people; read once a decade. Fewer are born where more of the young live, and where each is schooled before it works or its work is not wanted.",
+          },
+        ),
       );
   }
   blocks.push(

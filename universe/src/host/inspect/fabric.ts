@@ -46,6 +46,8 @@ import { townSite } from "../village.ts";
 import { count, eventsAbout, item, link, many, sentence, stat, yearNow } from "./words.ts";
 import { landLink, townLink } from "./names.ts";
 import { askedBlocks } from "./asks.ts";
+import { lostRef, shutFor } from "./lost.ts";
+import { principleName } from "../../causal/index.ts";
 import { raiseThe } from "../../causal/index.ts";
 
 /** What a run of lots says happened to them (the fabric's CHANGE): built, raised, fell, razed, cleared. */
@@ -321,7 +323,18 @@ export function buildingPage(world: World, ref: string): PageModel {
               : stat("Done", `year ${c.end}`),
       stat("Lots", many(c.lots, "lot", "lots")),
     ];
+  const shutWant = c.fell === null ? shutFor(world, s.cell, c.kind) : null;
+  if (shutWant) stats.push(stat("Now", "shut", { why: lostRef(shutWant) }));
   const lines: Line[] = [
+    ...(shutWant
+      ? [
+          [
+            `It stands, and it's shut. No one here knows `,
+            link(principleName(shutWant, world), lostRef(shutWant)),
+            ` now.`,
+          ] as Line,
+        ]
+      : []),
     [`${sentence(def.name)}: ${CIVIC_FOR[c.kind]}.`],
     [
       asked
@@ -366,9 +379,7 @@ export function buildingPage(world: World, ref: string): PageModel {
       townLink(world, s.ref),
     ],
     color: null,
-    place: asked
-      ? { scale: "village", town: s.ref, site: asked.ref }
-      : { scale: "village", town: s.ref },
+    place: { scale: "village", town: s.ref, site: asked ? asked.ref : ref },
     stats,
     tabs: [{ id: "overview", name: "Overview", blocks }],
     followable: false,

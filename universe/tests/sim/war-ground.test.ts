@@ -1,7 +1,7 @@
 // The ground a battle is fought on, and how a host is fed to it (sim/war/ground.ts).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { WAR_GROUND, groundOf, populationContext, supplyOf } from "../../src/sim/index.ts";
+import { WAR_GROUND, warGroundOf, populationContext, supplyOf } from "../../src/sim/index.ts";
 import { peopledWorld } from "../worlds.ts";
 
 const world = peopledWorld("kestrel", 400, { start: "spread" }),
@@ -13,7 +13,7 @@ test("broken, watered and wooded ground favours those who hold it, open dry bare
     least = Infinity;
   for (let c = 0; c < g.grid.count; c++) {
     if (g.tectonics.elevation[c]! <= 0) continue;
-    const f = groundOf(ctx, c).factor;
+    const f = warGroundOf(ctx, c).factor;
     assert.ok(
       f >= 1 && f <= 1 + WAR_GROUND.broken + WAR_GROUND.woods + 4 * WAR_GROUND.river,
       `${f}`,

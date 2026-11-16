@@ -2,10 +2,13 @@
 // market and works, its realm, what it knows and what has happened there. A colony's halls
 // and a ship bound for a star are lands too (offworld sites), and a spot of the fine grid
 // and a region open onto the land they are part of.
+import { landLostBlocks } from "./lost.ts";
 import { landRoadsBlock } from "./road.ts";
 import { fireLandStats } from "./fire.ts";
 import { lodesBlock, woodsBlock, woodsTurnsBlock } from "./woods.ts";
 import { herdBlock } from "./herds.ts";
+import { landEnergyBlocks } from "./energy.ts";
+import { fieldsBlocks } from "./fields.ts";
 import {
   BIOME_NAMES,
   cellRef,
@@ -28,6 +31,10 @@ import {
   siteGround,
 } from "../../sim/index.ts";
 import { folkRef, waysRef } from "../../causal/index.ts";
+import { waysWhyBlock } from "./ways.ts";
+import { lettersBlock } from "./letters.ts";
+import { childrenBlock } from "./children.ts";
+import { labourBlock } from "./labour.ts";
 import { parseRef, type Ref, type World } from "../../kernel/index.ts";
 import type { Block, Item, Line, PageModel, Place, Row, Stat, Tab } from "../../bridge/index.ts";
 import { cell as spotFacts, market, province } from "../planet.ts";
@@ -255,6 +262,18 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
           stat("Names they give", p.ways.sounds.join(", ")),
         ],
       });
+    // What makes their ways what they are (rules/ways.ts): their body, their land, what they have seen go well, their faith.
+    const why = waysWhyBlock(world, cell);
+    if (why) blocks.push(why);
+    // Who reads, and what their teaching reaches (rules/letters.ts).
+    const letters = lettersBlock(world, cell);
+    if (letters) blocks.push(letters);
+    // How many children they bear, and why (rules/children.ts).
+    const children = childrenBlock(world, cell);
+    if (children) blocks.push(children);
+    // Who works at what, and why (sim/population/systems.ts farmingShare).
+    const labour = labourBlock(world, cell);
+    if (labour) blocks.push(labour);
     if (p.faith)
       blocks.push({
         type: "facts",
@@ -334,7 +353,12 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
     if (dug) blocks.push(dug);
     tabs.push({ id: "land", name: "Land", blocks });
     // Its ground (Phase 15 M124): bedrock, soil, what lies in it, its water, the air.
-    tabs.push({ id: "ground", name: "Ground", blocks: groundBlocks(world, cell) });
+    tabs.push({
+      id: "ground",
+      name: "Ground",
+      // (What feeds its fields and what fouls it, its ground as stocks: Round A.)
+      blocks: [...fieldsBlocks(world, cell), ...groundBlocks(world, cell)],
+    });
   }
   // The living world: its web's levels, and its lineages.
   if (cell < landsOf(world)) {
@@ -489,6 +513,9 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
       const signals = landSignalStats(world, cell);
       if (signals.length) blocks.push({ type: "facts", title: "Signals", rows: signals });
       tabs.push({ id: "economy", name: "Economy", blocks });
+      // What it draws on, and from where (Round A: energy as one budget).
+      const energy = landEnergyBlocks(world, cell);
+      if (energy.length) tabs.push({ id: "energy", name: "Energy", blocks: energy });
       // Its stores broken down (Phase 15 M123): by good and by what they are made of.
       const stores = landStoresBlocks(world, cell);
       if (stores.length) tabs.push({ id: "stores", name: "Stores", blocks: stores });
@@ -547,6 +574,9 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
     const bonds = landBondBlocks(world, cell);
     if (bonds.length) tabs.push({ id: "bonds", name: "Bonds", blocks: bonds });
   }
+  // What it has lost, and what it still keeps (K1).
+  const lostBlocks = site ? [] : landLostBlocks(world, cell);
+  if (lostBlocks.length) tabs.push({ id: "lost", name: "Lost", blocks: lostBlocks });
   // What they know.
   if (p?.lore.length)
     tabs.push({

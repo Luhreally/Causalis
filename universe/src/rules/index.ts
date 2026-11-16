@@ -111,7 +111,10 @@ export {
   LAW_TREE,
   SIGNAL_TREE,
   PRINCIPLES,
+  PRINCIPLE_DEPTH,
   PRINCIPLE_INDEX,
+  RESTS_ON,
+  SEEN_TREE,
   affordsPrinciple,
   bodyStop,
   fieldOf,
@@ -1465,6 +1468,53 @@ export {
   type Fortune,
 } from "./learn.ts";
 export {
+  BODY_PARTS,
+  LAND_PARTS,
+  LIVED,
+  WAY,
+  WAYS_LEARNING,
+  WAYS_RELAX,
+  WAY_TRAITS,
+  bodyReading,
+  hungerOf,
+  landReading,
+  leansOf,
+  noWaysBelief,
+  partsFor,
+  wayPartWords,
+  waysBelieveAfter,
+  waysEvidence,
+  waysFrom,
+  waysPace,
+  waysPull,
+  type LandReading,
+  type WayPart,
+  type WayTrait,
+  type WaysBelief,
+} from "./ways.ts";
+export {
+  INQUIRY,
+  LETTERS,
+  MEASURING,
+  inquiryOf,
+  inquiryShare,
+  joinedBy,
+  measuresOf,
+  readersAfter,
+  readersTarget,
+} from "./letters.ts";
+export {
+  CREED,
+  POWERS,
+  POWER_LEANS,
+  POWER_WORDS,
+  TENET_POWERS,
+  creedHeld,
+  creedOf,
+  scriptureOfTenet,
+  type Power,
+} from "./faith.ts";
+export {
   BLAME_WORDS,
   FEW_RULE,
   HOLD,
@@ -1540,3 +1590,16 @@ export {
   type FarStage,
 } from "./far.ts";
 export { HARVEST, LEAN_MONTHS, SOWING, THRIFT, storeNeeded, thrift } from "./seasons.ts";
+export * from "./energy.ts";
+export * from "./ground.ts";
+export {
+  BEARING,
+  CHILDREN,
+  bearersServe,
+  bearingHeld,
+  bearingOf,
+  childCost,
+  childrenKept,
+  childrenWanted,
+  livingToBear,
+} from "./children.ts";

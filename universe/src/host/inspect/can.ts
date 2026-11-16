@@ -32,6 +32,7 @@ import {
   knows as landKnows,
   laneLawOf,
   loreOf,
+  lostOf,
   populationContext,
   spreadOf,
 } from "../../sim/index.ts";
@@ -267,6 +268,8 @@ export function hereOf(world: World) {
         if (!known.get(root)?.now && landKnows(ctx, prov.cell, root))
           known.set(root, { year: known.get(root)?.year ?? 0, cell: prov.cell, now: true });
   }
+  for (const w of lostOf(world).worldLosses())
+    if (!known.has(w.id)) known.set(w.id, { year: w.year, cell: w.last, now: false });
   const text = world.seed.text,
     first = g.life.people ? spreadOf(g, text).lands.map(([c]) => c) : [],
     cells = [...new Set([...first, ...peopled])],

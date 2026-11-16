@@ -45,7 +45,6 @@ import {
   HERD_GOODS,
   HOME_MADE,
   GLUT_YEARS,
-  OWN_ENGINES,
   MACHINE_GAIN,
   OCC,
   POWER,
@@ -82,6 +81,7 @@ import { heatShortfall, oreWorkable } from "./heat.ts";
 import { lodesOf } from "./lodes.ts";
 import { oreLaid } from "./ore.ts";
 import { digOre } from "./worked.ts";
+import { energyYear, machinesWanted } from "./energy.ts";
 import { kmBetween, seaRange, seaReach } from "./sea.ts";
 import { politiesOf } from "../polity/polity.ts";
 import { fieldedOf, warsOf, type War } from "../war/war.ts";
@@ -236,12 +236,8 @@ function makeAndUse(
   const lore = loreOf(world),
     // Works with engines: how much of the crafts they do, and the machines their workers use.
     industry = Math.min(1.5, lore.effect(p.cell, "industry")),
-    // Machines are wanted by a people who know engines: steam's, or the tides', or a kind's own.
-    machines =
-      !!lore.get(p.cell, "steam-engine") ||
-      !!lore.get(p.cell, "current-mills") ||
-      OWN_ENGINES.some((id) => !!lore.get(p.cell, id)) ||
-      !!lore.get(p.cell, "machine-minds");
+    // Machines are wanted as far as engines drove its works last year (its energy account), or minds of crystal work.
+    machines = lore.get(p.cell, "machine-minds") ? 1 : machinesWanted(world, p.cell, users);
   const wants: [number, number, "toolCover" | "clothingCover" | "potteryCover" | "machineCover"][] =
     [
       [
@@ -261,8 +257,11 @@ function makeAndUse(
       ],
       [
         G.machines,
-        machines
-          ? roundKeyed(users * WANTS.machinesPerWorker, world.rng.real(WEAR, key, t, G.machines))
+        machines > 0
+          ? roundKeyed(
+              users * WANTS.machinesPerWorker * machines,
+              world.rng.real(WEAR, key, t, G.machines),
+            )
           : 0,
         "machineCover",
       ],
@@ -412,27 +411,16 @@ function makeAndUse(
     want[g] = want[g]! + need;
     m[cover] = need > 0 ? Math.round((1000 * had) / need) : g === G.machines ? 0 : 1000;
   }
-  // Where it is cold, those who know coal burn it for warmth.
-  const cold = Math.min(1, Math.max(0, (12 - ctx.generated.climate.temperature[p.cell]!) / 12)),
-    heat = lore.get(p.cell, "coal-mining")
-      ? roundKeyed(pop * cold * WANTS.heatPerPerson, world.rng.real(WEAR, key, t, 90))
-      : 0;
-  if (heat) {
-    m.take("used", G.coal, heat);
-    want[G.coal] = want[G.coal]! + heat;
-  }
-  // The engines of its works burn coal, else oil: what they get is what they can drive.
-  // What the tides, the currents and the earth's heat give them needs no fuel.
-  const engines = Math.round(crafters * industry * WANTS.fuelPerCrafter),
-    free = Math.round(engines * Math.min(1, 0.5 * lore.effect(p.cell, "renewable"))),
-    fuel = engines - free;
-  let burned = 0;
-  for (const g of FUELS) {
-    burned += m.take("used", g, fuel - burned);
-    want[g] = want[g]! + (g === FUELS[0] ? fuel : 0);
-  }
-  m.burned = burned;
-  m.powerCover = engines > 0 ? Math.round((1000 * (burned + free)) / engines) : 0;
+  // Its year of energy (economy/energy.ts): hearths, smelters, works, carriers and homes, each fed from what its land
+  // holds, the nearest first; what it burned taken from its market and its woods.
+  energyYear(
+    ctx,
+    p,
+    m,
+    t,
+    want,
+    m.line("made", G.copper) + m.line("made", G.tin) + m.line("made", G.iron),
+  );
   firsts(ctx, p, m);
   // Food wanted over the year: a month's for everyone, twelve times.
   for (const g of FOODS) want[g] = want[g]! + (mouths(p, ctx.life) * 12) / FOODS.length;

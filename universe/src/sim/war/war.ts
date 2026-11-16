@@ -32,6 +32,7 @@ import {
 import { cellRef } from "../../gen/index.ts";
 import {
   BANDS,
+  FEMALE,
   G,
   MALE,
   apportionCapped,
@@ -88,7 +89,7 @@ import {
   type HostTerms,
   type Take,
 } from "./fell.ts";
-import { FALL_PURPOSE, fighting, levyOf, type Levy, type Pool } from "./levy.ts";
+import { FALL_PURPOSE, bearersSent, fighting, levyOf, type Levy, type Pool } from "./levy.ts";
 import { COLS, row } from "../population/model.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { marketGoodRef, type MarketStore } from "../economy/market.ts";
@@ -836,11 +837,16 @@ function fieldShare(ctx: PopulationContext, p: Polity): number {
 /** A realm's grown men of fighting age, in all its lands. */
 function fightingMen(ctx: PopulationContext, p: Polity): number {
   let men = 0;
+  const bearers = bearersSent(ctx);
   for (const c of p.members) {
     const prov = ctx.provinces.get(c);
     if (!prov) continue;
     for (let b = 0; b < BANDS; b++)
-      if (fighting(ctx.life, b)) men += prov.counts.rowSum(row(MALE, b));
+      if (fighting(ctx.life, b)) {
+        men += prov.counts.rowSum(row(MALE, b));
+        // (And those who bear, as far as bearing spares them: rules/children.ts.)
+        if (bearers > 0) men += bearers * prov.counts.rowSum(row(FEMALE, b));
+      }
   }
   return men;
 }

@@ -87,14 +87,22 @@ test("famine teaches thrift, and the people's ways say which famine", () => {
   world.submit("act.rain", { cell: HOME, sign: -1, years: 5 });
   world.runTo(17 * YEAR);
   const w = cultureOf(world).get(HOME)!;
+  // (Each hungry year presses thrift as deep as its leanest month went, rules/ways.ts LIVED: five failed rains, some four in a hundred.)
   assert.ok(
-    w.traits[WAY.thrift]! > before + 0.05,
+    w.traits[WAY.thrift]! > before + 0.03,
     `thrift ${before.toFixed(2)} → ${w.traits[WAY.thrift]!.toFixed(2)}`,
   );
   const node = why(world, waysRef(HOME)),
     cited = node.causes.map((c) => world.events.get(c.cause.ref)?.type);
   assert.ok(cited.includes(POPULATION_EVENTS.famine.type), `cites ${cited.join(", ")}`);
-  assert.match(node.claim, /save against hard times/);
+  // (Thrift is told once it marks them; the famine's push is on their record as thrift's from the first.)
+  const pushed = w.nudges.filter(
+    (n) => world.events.get(n.event)?.type === POPULATION_EVENTS.famine.type,
+  );
+  assert.ok(
+    pushed.some((n) => n.trait === WAY.thrift && n.amount > 0),
+    "the famine pushed thrift",
+  );
 });
 
 test("the god's acts deepen devotion where they fall", () => {
@@ -102,7 +110,12 @@ test("the god's acts deepen devotion where they fall", () => {
   const before = cultureOf(world).get(HOME)!.traits[WAY.piety]!;
   world.submit("act.plague", { cell: HOME, sign: -1, years: 1 });
   world.runTo(62 * YEAR);
-  assert.ok(cultureOf(world).get(HOME)!.traits[WAY.piety]! > before + 0.06);
+  // (A god seen to act presses devotion the more the less devout they were: rules/ways.ts LIVED.sign.)
+  const after = cultureOf(world).get(HOME)!.traits[WAY.piety]!;
+  assert.ok(
+    after > before + 0.4 * 0.12 * (1 - before),
+    `piety ${before.toFixed(2)} → ${after.toFixed(2)}`,
+  );
 });
 
 test("a land newly peopled takes the ways of those who came", () => {

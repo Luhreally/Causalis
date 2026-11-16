@@ -213,6 +213,14 @@ export type PeopleEntry = {
   debt: number;
   /** Their realm's camp and fear (-1 … 1; -2 no realm's): sim/finance. */
   camps: number;
+  /** The share of its people who read (rules/letters.ts). */
+  letters: number;
+  /** How many children a mother bears at plenty (rules/children.ts). */
+  births: number;
+  /** All they drew a head last year, kW (Round A: energy as one budget). */
+  energy: number;
+  /** How fouled their ground is (0 … 1): sour rain, metals and salt (Round A). */
+  fouled: number;
 };
 
 /** A people's ways and speech (the host's waysOf). */
