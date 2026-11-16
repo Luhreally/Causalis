@@ -1149,3 +1149,12 @@ export {
   termOf,
   type Election,
 } from "./order/elections.ts";
+export {
+  COUNCILS,
+  COUNCIL_EVENTS,
+  CouncilStore,
+  councilsOf,
+  councilsYear,
+  sitTogether,
+  type Council,
+} from "./diplomacy/councils.ts";

@@ -78,6 +78,7 @@ const TITLES: Readonly<Record<string, string>> = {
   "order.law": "A law changed",
   "order.held": "How a realm is held",
   "order.elected": "A choice put to a people",
+  "ties.council": "A council of realms",
   "order.lesson": "A lesson of rule",
   "act.unchain": "Chains broken",
   "act.stir": "The bound stirred",

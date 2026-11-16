@@ -14,7 +14,10 @@ import {
   interestsOf,
   populationContext,
   chooses,
+  councilsOf,
   electionsOf,
+  politiesOf,
+  realmName,
   termOf,
   wantsOf,
   type Polity,
@@ -70,6 +73,7 @@ export function powersBlocks(world: World, r: Polity): Block[] {
   return [
     { type: "facts", title: "Who holds which powers", rows },
     ...electionBlocks(world, r),
+    ...councilBlocks(world, r),
     ...wantsBlocks(world, r),
   ];
 }
@@ -164,4 +168,46 @@ function electionBlocks(world: World, r: Polity): Block[] {
         ),
     },
   ];
+}
+
+/** The council of realms it sits in, those it is most bound to by treaty, and the councils it sat in. */
+function councilBlocks(world: World, r: Polity): Block[] {
+  const store = councilsOf(world);
+  if (!store) return [];
+  const realms = politiesOf(world),
+    year = Math.floor(world.now / (365 * 86400)),
+    c = store.councilOf(r.ref),
+    bound = realms
+      .living()
+      .filter((q) => q.ref !== r.ref)
+      .map((q) => ({ q, w: store.bondOf(r.ref, q.ref, year) }))
+      .filter((x) => x.w >= 0.5)
+      .sort((a, b) => b.w - a.w || (a.q.ref < b.q.ref ? -1 : 1))
+      .slice(0, 6),
+    rows: Stat[] = [
+      stat(
+        "Sits in",
+        c
+          ? `${c.name}, since year ${c.founded}, ${c.members.length} realms`
+          : "No council of realms",
+        { why: c?.event ?? null },
+      ),
+    ];
+  if (bound.length)
+    rows.push(
+      stat("Bound by treaty to", `${bound.length} realms, by their pacts and peaces`, {
+        parts: bound.map((x) => part(realmName(x.q), `${x.w.toFixed(1)} treaties' worth`)),
+      }),
+    );
+  const blocks: Block[] = [{ type: "facts", title: "Councils of realms", rows }];
+  if (c)
+    blocks.push({
+      type: "list",
+      title: `Who sits in ${c.name}`,
+      items: c.members.flatMap((m) => {
+        const q = realms.get(m);
+        return q ? [item(realmName(q), q.ref)] : [];
+      }),
+    });
+  return blocks;
 }

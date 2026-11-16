@@ -1,7 +1,7 @@
 // What binds realms, in words (D1): who was called and how they answered, a league gathered and let go, a marriage and what a people has for one, a claim and
 // what came of it, an envoy's errand, an embassy kept. Only ever what happened, who and why.
 import { yearOfMoment } from "../kernel/index.ts";
-import { TIE_EVENTS } from "../sim/index.ts";
+import { COUNCIL_EVENTS, TIE_EVENTS } from "../sim/index.ts";
 import { registerDecisionWords, registerEventWords } from "./why.ts";
 
 type Data = Readonly<Record<string, unknown>> | null;
@@ -34,6 +34,20 @@ export const CALL_WHY: Readonly<Record<string, string>> = {
   both: "stood aside: it is sworn to both of them",
   noway: "could not come: no land or sea road brings a host there",
 };
+
+// A council of realms that their treaties made (sim/diplomacy/councils.ts): founded, joined, left, ended.
+registerEventWords(COUNCIL_EVENTS.council.type, (_, e) => {
+  const c = text(e.data, "council", "a council of realms"),
+    who = text(e.data, "realm"),
+    kind = (e.data as { kind?: string } | null)?.kind;
+  return kind === "founded"
+    ? `${cap(c)} first sat, its realms bound by treaty after treaty, ${year(e.t)}`
+    : kind === "joined"
+      ? `${cap(who)} came to sit in ${c}, bound by treaty to half of it, ${year(e.t)}`
+      : kind === "left"
+        ? `${cap(who)} left ${c}, at war on one who sits in it or its bonds faded, ${year(e.t)}`
+        : `${cap(c)} sat no more, fewer than three left in it, ${year(e.t)}`;
+});
 
 registerEventWords(TIE_EVENTS.answered.type, (_, e) => {
   const d = e.data as { bond?: string; why?: string } | null,
