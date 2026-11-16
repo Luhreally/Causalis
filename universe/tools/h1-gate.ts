@@ -462,15 +462,27 @@ if (chosen) {
       crew.length === 0 || named.length > 0,
       "those at work on the site aren't those its page names",
     );
-    const one = named[0] ?? hands[0];
-    if (one) {
+    if (named[0] ?? hands[0]) {
       await k(
         `globalThis.causalis.rig.flyTo({ target: { x: ${spot.x * 0.1}, y: 0.5, z: ${spot.z * 0.1} }, distance: 8, pitch: -40 }, 0.01)`,
       );
       await stood();
-      const p = await k<{ x: number; y: number } | null>(
-        `globalThis.causalis.personOnScreen(${one.index})`,
+    }
+    // (The first of them a finger can reach: one at the site's far end can stand past the screen's side, -16 px at
+    // year 300 since the rounds, and a press there is on nothing.)
+    let one: (typeof hands)[number] | undefined,
+      p: { x: number; y: number } | null = null;
+    for (const h of [...named, ...hands]) {
+      const at = await k<{ x: number; y: number; w: number; h: number } | null>(
+        `(() => { const p = globalThis.causalis.personOnScreen(${h.index}); return p && { ...p, w: innerWidth, h: innerHeight }; })()`,
       );
+      if (at && at.x >= 24 && at.x <= at.w - 24 && at.y >= 90 && at.y <= at.h - 90) {
+        [one, p] = [h, at];
+        break;
+      }
+      one ??= h;
+    }
+    if (one) {
       if (p) {
         await page.touchscreen.tap(p.x, p.y);
         await frames(6);

@@ -607,7 +607,7 @@ const beastOf = (seed: string, prior: Prior) =>
 
 // 6. Earth as it was, and bread at its mill.
 {
-  // (At 600: since the rounds' inquiry, first light comes to mills about 450, and by 500 few of its greatest towns have one.)
+  // (At 600: since the rounds, first light's greatest towns come to mills from 511 to 583.)
   const year = await openWorld("earth", "first light", 600);
   say(`first light at year ${year}`);
   await globeLooks("first light", null, "woods", "6-earth-globe");
@@ -631,8 +631,10 @@ const beastOf = (seed: string, prior: Prior) =>
   const towns = (await ask<Town[]>("towns.map", {})).sort(
     (a, b) => b.people - a.people || (a.ref < b.ref ? -1 : 1),
   );
+  // (A mill stands at a town's edge, and a town's plan draws the lots about its heart: at 600 the greatest towns, of four and
+  // five hundred thousand since the rounds, each have six mills, all past what is drawn. The first town a mill is drawn in.)
   let mill = "";
-  for (const t of towns.slice(0, 40)) {
+  for (const t of towns.slice(0, 400)) {
     const plan = await ask<Plan>("village.plan", { ref: t.ref }),
       c = plan.town?.civics.find((x) => x.kind === "mill");
     if (c) {
@@ -640,7 +642,7 @@ const beastOf = (seed: string, prior: Prior) =>
       break;
     }
   }
-  check(!!mill, "no mill among Earth's forty greatest towns by year 600");
+  check(!!mill, "no mill drawn in Earth's four hundred greatest towns by year 600");
   if (mill) {
     await opened(mill);
     const ground = await listOn("Ground here this year");

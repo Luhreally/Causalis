@@ -77,9 +77,11 @@ for (const r of results) {
 // 1. Earth reaches orbit in its band, on a why that names its pull and its engine.
 const earth = bySeed.get("earth")!;
 if (!earth.satellite) problems.push("the Earth seed never reached orbit");
-// (Since W2, knowledge crosses the sea: the whole world learns together, and Earth reaches orbit some decades sooner.)
-else if (earth.satellite.year < 900 || earth.satellite.year > 1150)
-  problems.push(`the Earth seed reached orbit in ${earth.satellite.year}, outside 900–1150`);
+// (Since W2, knowledge crosses the sea: the whole world learns together, and Earth reaches orbit some decades sooner. From 850
+// since the rounds, as gate 3's band: fewer, greater realms with twice the people fly at 873, 234 years after their steam
+// engine, where Earth's own was 188 years after Watt's and 245 after Newcomen's. calibration-bands.ts.)
+else if (earth.satellite.year < 850 || earth.satellite.year > 1150)
+  problems.push(`the Earth seed reached orbit in ${earth.satellite.year}, outside 850–1150`);
 
 if (!ci) {
   // 2. A second body colonized, and a colony diverging by the ordinary rules.

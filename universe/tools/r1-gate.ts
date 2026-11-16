@@ -378,7 +378,30 @@ if (site && !problems.length) {
   }
   await closeWindow();
 
-  // A road stopped for the fighting and a road cut, seen and pressed where this world has them.
+  // A road stopped for the fighting and a road cut, seen and pressed where this world has them: read again at the clock
+  // the page has come to, as the gang was watched at work (a stop lasts as long as the fighting about it, and a road
+  // stopped at year 300 had gone on again by then on CI since the rounds: no gang stood on it).
+  {
+    const t = await k<number>("globalThis.causalis.client.status.t");
+    if (t > world.now) {
+      world.runTo(t);
+      const yNow = world.now / YEAR;
+      stoppedRoads.length = 0;
+      cutRoads.length = 0;
+      for (const cell of [...cells].slice(0, 700)) {
+        if (stoppedRoads.length >= 6 && cutRoads.length >= 6) break;
+        for (const r of landPlan(world, cell, 60).roads) {
+          const cutNow = !!r.cut && yNow >= r.cut.from && yNow < r.cut.until;
+          if (r.ref && roadNow(r, yNow).stopped && !cutNow && stoppedRoads.length < 6)
+            stoppedRoads.push({ cell, ref: r.ref });
+          if (r.ref && cutNow && cutRoads.length < 6) cutRoads.push({ cell, ref: r.ref });
+        }
+      }
+      say(
+        `at the page's year ${yNow.toFixed(2)}: ${stoppedRoads.length} roads stopped, ${cutRoads.length} cut`,
+      );
+    }
+  }
   for (const [what, roads, says] of [
     // (A page's headings come in capitals: `innerText` reads them as a person sees them.)
     ["stopped", stoppedRoads, /\bstopped\b/i],
@@ -408,7 +431,14 @@ if (site && !problems.length) {
         ),
         mine = list.find((g) => g.ref === r.ref);
       if (!mine) {
-        say(`${what}: ${r.ref} has no gang among ${list.length} on land ${r.cell}`);
+        say(
+          `${what}: ${r.ref} has no gang among ${list.length} on land ${r.cell} (${list
+            .slice(0, 6)
+            .map((g) => `${g.ref}${g.stopped ? " stopped" : ""}`)
+            .join(
+              ", ",
+            )}); the clock at ${((await k<number>("globalThis.causalis.client.status.t")) / YEAR).toFixed(2)}`,
+        );
         continue;
       }
       shown = true;

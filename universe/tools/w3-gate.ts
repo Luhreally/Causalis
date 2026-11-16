@@ -122,10 +122,21 @@ function worldWithStrike(
     // Two neighbours, the greatest with a frontier between them, given what the far years give them.
     const realms = politiesOf(world),
       living = [...realms.living()].sort((a, b) => b.members.length - a.members.length);
+    // (Their frontier on land, not across a sea: a rocket's first reach is some 1,500 km, and the greatest pair at 450
+    // since the rounds faced each other over a strait, the nearest of the foe's lands 1,900 km from the thrower's.)
+    const p = ctx.generated.grid.positions,
+      apart = (x: number, y: number) =>
+        Math.hypot(
+          p[3 * x]! - p[3 * y]!,
+          p[3 * x + 1]! - p[3 * y + 1]!,
+          p[3 * x + 2]! - p[3 * y + 2]!,
+        ),
+      near = (a: Polity, b: Polity) =>
+        frontier(ctx, a, b).some((f) => a.members.some((c) => apart(c, f) < 0.12));
     let pair: [Polity, Polity] | null = null;
     for (const a of living) {
       for (const b of living)
-        if (a !== b && frontier(ctx, a, b).length) {
+        if (a !== b && near(a, b)) {
           pair = [a, b];
           break;
         }

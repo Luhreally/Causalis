@@ -451,12 +451,24 @@ await shot("1-lens");
 }
 // The lens in the land: the greatest alliance not green or yellow (the ground's own colours) at its head's seat, its colour on the ground.
 {
-  const a =
-      read.alliances.find((x) => x.color[1] < Math.max(x.color[0], x.color[2]) - 0.1) ??
-      read.alliances[0]!,
-    land = a.seat;
-  if (land !== undefined && land !== null) {
-    await k(`globalThis.causalis.descend(${land})`);
+  // (Its colour can be its land's own: a red one over a red desert is painted and not seen, as Thaegrynd's at year 450
+  // since the rounds. The greatest three not green or yellow, then any, until one is seen.)
+  const tries = [
+      ...read.alliances.filter((x) => x.color[1] < Math.max(x.color[0], x.color[2]) - 0.1),
+      ...read.alliances,
+    ]
+      .filter((x, i, all) => all.indexOf(x) === i && x.seat !== undefined && x.seat !== null)
+      .slice(0, 3),
+    seen: string[] = [];
+  let best = 0;
+  for (const a of tries) {
+    const land = a.seat!;
+    // (The first from the globe, as one comes down to it; the next from the land before.)
+    await k(
+      seen.length
+        ? `globalThis.causalis.goTo("cell:0:${land}")`
+        : `globalThis.causalis.descend(${land})`,
+    );
     await until(
       "the land",
       () => k<boolean>(`globalThis.causalis.scale() === "region"`),
@@ -472,13 +484,18 @@ await shot("1-lens");
     await regionLens("Alliances");
     await settle(2500);
     const n = (await colourCounts(await canvasShot(), bare, [a.color], 0.3))[0]!;
+    seen.push(`${a.town} ${Math.round(n)} px`);
+    best = Math.max(best, n);
     say(
       `in the land of ${a.town}'s alliance: ${Math.round(n)} px of its colour, painted by the lens`,
     );
-    check(n > 400, `the alliance's colour is not seen in its land (${Math.round(n)} px)`);
     await shot("6-land");
-  } else problems.push("no land of the greatest alliance to go to");
+    if (n > 400) break;
+  }
+  check(best > 400, `the alliance's colour is not seen in its land (${seen.join(", ")})`);
+  if (!tries.length) problems.push("no land of the greatest alliance to go to");
 }
+
 for (const e of errors.slice(0, 5)) say(`ERROR ${e.slice(0, 300)}`);
 check(errors.length === 0, `${errors.length} errors on the page`);
 await browser.close();

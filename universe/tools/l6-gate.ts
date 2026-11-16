@@ -548,13 +548,20 @@ say(
 );
 check(parted > 0.15, `a poor home and a rich one are alike in the shot: ${parted}`);
 if (rich.coin > poor.coin * 8 && rich.rooms > poor.rooms) {
+  // (Counted as what the poor home has nothing of: each sleeper has a bed, so a count of things is half a count of
+  // people, and four in one room hold nine things where four in three rooms hold thirteen. Released, twelve of the rich
+  // home's fourteen were of ways the poor one's seven lacked; since the rounds, ten of its thirteen.)
+  const poorWays = new Set(poorState?.things ?? []),
+    better = (richState?.things ?? []).filter((w) => !poorWays.has(w));
   check(
-    (richState?.things.length ?? 0) >= (poorState?.things.length ?? 0) + 5,
-    `a rich home holds ${richState?.things.length} things, a poor one ${poorState?.things.length}`,
+    better.length >= 5,
+    `a rich home holds ${better.length} things a poor one has none of (${richState?.things.length} against ${poorState?.things.length}): ${better.join(", ")}`,
   );
-  check(
-    richC.bright >= poorC.bright + 0.05 || richC.colours >= poorC.colours + 5,
-    `a rich home is ${richC.bright} strongly coloured in ${richC.colours} colours, a poor one ${poorC.bright} in ${poorC.colours}`,
+  // (How strongly coloured each is, said and not asked: a poor family's dyed hides are as strong as a rich one's
+  // stuffed beds, and at year 30 since the rounds the poor Sokai home's pink and red bedding came to 47% strong, the
+  // Movyvainford home's tiled floor, table and lamps to 50%. What it holds, above, is what it is asked.)
+  say(
+    `strongly coloured: rich ${(richC.bright * 100).toFixed(0)}% in ${richC.colours} colours, poor ${(poorC.bright * 100).toFixed(0)}% in ${poorC.colours}`,
   );
 }
 

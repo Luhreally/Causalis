@@ -315,11 +315,14 @@ say(`the gun's page, “${gun.title}”: ${gun.words.replace(/\s+/g, " ").slice(
 check(/Why not metal|no furnace/i.test(gun.words), "the gun's page does not say why not metal");
 check(/estimate/i.test(gun.words), "the gun's page says nothing of estimates");
 check(/true to \d+ m/.test(gun.words), "the gun's page does not say how far it is true");
-check(
+{
   // (Its barrel's strength is told against a steel one's: the only steel it may name.)
-  !/black powder|iron|steel/.test(gun.words.replace(/where a steel one holds about \d+/g, "")),
-  "the gun's page speaks of black powder, iron or steel",
-);
+  // (As words: "the commonwealth of Shiron" at 1619 since the rounds is no iron.)
+  const said = /.{0,80}\b(black powder|iron|steel)\b.{0,80}/.exec(
+    gun.words.replace(/\s+/g, " ").replace(/where a steel one holds about \d+/g, ""),
+  );
+  check(!said, `the gun's page speaks of black powder, iron or steel: “${said?.[0]}”`);
+}
 await shot("gun");
 
 // 5. The principles. (set-edges asks edge-without-metal, "hold an edge without metal", not make gas

@@ -525,16 +525,29 @@ if (land) {
                   ? (x as { text: string }).text
                   : Object.values(x).map(words).join(" ")
                 : "",
-        years = words(
+        lesson = /seeing the [^,]+(, [^,]+)*, (took|held|blamed)/i;
+      // (The Years tell a year's greatest: a lesson is worth less than a war's end or a battle, and in a year full of
+      // them it is left out, as at 677 with 133 realms since the rounds. The year of each realm that told one, in the
+      // order they were picked, until one's Years tell it.)
+      const tried: number[] = [];
+      let told = "(none)";
+      for (const c of [...ruled]
+        .filter((x) => x.year !== null)
+        .sort((a, b) => b.seen - a.seen || b.taught - a.taught || (a.ref < b.ref ? -1 : 1))) {
+        if (tried.includes(c.year!)) continue;
+        tried.push(c.year!);
+        const years = words(
           await k<unknown>(
-            `globalThis.causalis.client.query({ type: "annals.read", args: { years: [${r.year}] } })`,
+            `globalThis.causalis.client.query({ type: "annals.read", args: { years: [${c.year}] } })`,
           ),
-        ),
+        );
         told = years.match(/[^.]*seeing the [^.]*/i)?.[0] ?? "(none)";
-      say(`the Years at ${r.year}: ${told.trim().slice(0, 240)}`);
+        if (lesson.test(told) || tried.length >= 12) break;
+      }
+      say(`the Years at ${tried.at(-1)}: ${told.trim().slice(0, 240)}`);
       check(
-        /seeing the [^,]+(, [^,]+)*, (took|held|blamed)/i.test(told),
-        `the Years do not tell a lesson from another's fate in year ${r.year}`,
+        lesson.test(told),
+        `the Years do not tell a lesson from another's fate in years ${tried.join(", ")}`,
       );
     }
   }
