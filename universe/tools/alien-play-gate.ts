@@ -103,6 +103,9 @@ async function walk(home: Home): Promise<void> {
     before = JSON.stringify(world.domainHashes()),
     plan = enterPlan(world, f.star, f.planet, home.universe);
   check(JSON.stringify(world.domainHashes()) === before, `${tag}: asking moved the home world`);
+  // (The same of the people walked through, where it is one history follows.)
+  if (f.followed && plan.ok)
+    check(!plan.shut, `${tag}: the ${f.name} are followed, yet the way in stops them short`);
   if (!plan.ok) {
     problems.push(`${tag}: the ${f.name} cannot be entered: ${plan.why}`);
     return;
@@ -591,6 +594,18 @@ async function late(home: Home, who?: string): Promise<void> {
   );
   if (plan.shut)
     check(asked.includes(plan.shut.why), `${tag}: the asking does not say why (${plan.shut.why})`);
+  // (A people history follows is read by the galaxy no further than its own world lets it come: the way in stops none
+  // of them short, before going or there. sim/space/far-read.ts.)
+  if (f.followed) {
+    check(
+      !plan.shut,
+      `${tag}: the ${f.name} are followed, yet the way in stops them short of ${plan.shut?.name}`,
+    );
+    check(
+      came.here.shut === null,
+      `${tag}: the ${f.name} are followed, yet on their world no road to ${came.here.shut} is open to them`,
+    );
+  }
   // (At the age they were read at; or, where their bodies or their world's matter shut a road to it, at the furthest
   // those allow, and their world saying which road.)
   check(

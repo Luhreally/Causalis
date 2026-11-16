@@ -373,6 +373,8 @@ test("a movement for the land and a rule doubted loosen the lord's hold, in the 
   const was = ids(w);
   let moved: number | null = null;
   for (let y = 61; y <= 70; y++) {
+    // (Its rule doubted the years through: a realm's year reckons its standing again, and a fed one's comes back.)
+    o.legitimacy = 0.1;
     orderFor(w, y, y);
     if (moved === null && o.laws[LAW_OF.land] !== 0) moved = y;
   }

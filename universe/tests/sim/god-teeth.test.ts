@@ -1,5 +1,5 @@
 // 2026-11-14 ("the god's hand must really do what its sliders say"): the greatest drought or blight held five years
-// starves a land that keeps two years' bread and buys from its neighbours, the faintest does not, and one year of the
+// starves a land that keeps two years' bread and buys from its neighbours (its dead and the children it puts off), the faintest does not, and one year of the
 // greatest is lived through; a realm stirred to the most loses lands, one stirred a little loses none; a town asked for
 // stands on the land, with a page, and is kept. Each on first light at 220, forked from one build.
 import { test } from "node:test";
@@ -107,7 +107,12 @@ test("the greatest drought or blight held five years starves a well-stocked land
     assert.ok(Math.abs(faint.people - none.people) < none.people * 0.03, say);
     assert.equal(faint.famines.length, 0, say);
     assert.ok(most.famines.length >= 2, say);
-    assert.ok(most.dead > none.dead * 1.4, say);
+    // (Where a land's births answer to the bread it has put by, rules/seasons.ts, one starved has fewer children as
+    // well as more dead: its toll is the people it lacks against a land let be, a fifth of them at the least at the
+    // end of the six years, more of them dead than in a land let be, and fewer at their fewest. On first light at
+    // 220, 2026-11-15: the drought's 42 in a hundred lacked and 1.75 times the dead, the blight's 35 and 1.17.)
+    assert.ok(none.people - most.people > none.people * 0.2, say);
+    assert.ok(most.dead > none.dead * 1.1, say);
     assert.ok(most.least < none.people * 0.8, say);
     // (Each famine cites the act that made it.)
     assert.ok(

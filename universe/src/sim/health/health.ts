@@ -825,7 +825,7 @@ function fromTheStars(
   ];
   // (None of theirs lives in a body of another liquid, nor ours in theirs: Phase 57.)
   if (!came.length || !sharesStarSickness(ctx.generated)) return;
-  const civs = new Map(civilizationsNear(world).map((c) => [c.ref as string, c])),
+  const civs = new Map(civilizationsNear(world, year).map((c) => [c.ref as string, c])),
     lore = loreOf(world);
   for (const [i, c] of came.entries()) {
     const civ = civs.get(c.civ),

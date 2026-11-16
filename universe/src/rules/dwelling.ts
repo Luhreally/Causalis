@@ -183,7 +183,10 @@ const onLand = (f: DwellingFacts) => f.medium !== "water",
     f.knows("electricity") ||
     f.knows("sea-electricity") ||
     f.knows("graphite-dynamos") ||
-    f.knows("ground-dynamos");
+    f.knows("ground-dynamos") ||
+    // (A methane world's wire, drawn of its own polymers: the same current, by the road rules/ages.ts and
+    // rules/buildings.ts already name.)
+    f.knows("polymer-wire");
 
 /** The table of needs, in the order they are met: first guesses, each a way of living from its body and its world. */
 export const NEEDS: readonly DwellingNeed[] = [

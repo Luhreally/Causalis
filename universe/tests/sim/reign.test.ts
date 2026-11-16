@@ -206,22 +206,23 @@ test("a marriage of state comes through a save, and the same word on the same wo
   assert.deepEqual(one.domainHashes(), world.domainHashes());
   assert.deepEqual(orderOf(one)!.of(a.ref)!.matches, orderOf(world)!.of(a.ref)!.matches);
   for (const w of [one, two]) {
-    const r = politiesOf(w).get(a.ref)!,
-      o = orderOf(w)!.of(a.ref)!;
-    o.legitimacy = 0.9;
-    // (A peace holds these two from each other now: the same word, to another who meets them.)
+    // (A peace holds these two from each other now: the same word, to another who meets one of them.)
     const ctx = populationContext(w),
-      foe = politiesOf(w)
-        .living()
-        .find(
-          (c) =>
-            c !== r &&
-            frontier(ctx, r, c).length > 0 &&
-            !warsOf(w).between(r.ref, c.ref) &&
-            !bondsOf(w).between(r.ref, c.ref),
-        );
+      against = (r: Polity) =>
+        politiesOf(w)
+          .living()
+          .find(
+            (c) =>
+              c !== r &&
+              frontier(ctx, r, c).length > 0 &&
+              !warsOf(w).between(r.ref, c.ref) &&
+              !bondsOf(w).between(r.ref, c.ref),
+          ),
+      r = [a, b].map((x) => politiesOf(w).get(x.ref)!).find((x) => against(x))!,
+      foe = r && against(r);
     assert.ok(foe, "another realm they meet");
-    w.submit("reign.war", { realm: a.ref, ruler: r.ruler.name, against: foe.ref });
+    orderOf(w)!.of(r.ref)!.legitimacy = 0.9;
+    w.submit("reign.war", { realm: r.ref, ruler: r.ruler.name, against: foe.ref });
     w.runTo(w.now + YEAR);
   }
   assert.deepEqual(one.domainHashes(), two.domainHashes());

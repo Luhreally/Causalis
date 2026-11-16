@@ -390,9 +390,14 @@ test("a healer sits where its land knows herb-lore, and nowhere else", () => {
     assert.deepEqual(p.healer, { years: m.years });
     assert.ok(!p.child && !p.trade && p.occupation !== OCC.crafter, `${ref} grown, at no trade`);
     assert.ok(p.age >= life.adulthood + m.years, `${ref} old enough for their years at it`);
-    // (The first of its folk who could be: those before it children, makers or builders.)
+    // (The first of its folk who could be: those before it children, makers or builders, or one a case names, who
+    // keeps their own name, J1.)
+    const cased = new Set(namedByCases(world, ref, Y).named.map((n) => n.ref));
     for (const q of folk.slice(0, folk.indexOf(p)))
-      assert.ok(q.child || !!q.trade || q.occupation === OCC.crafter, `${ref} ${q.ref} first`);
+      assert.ok(
+        q.child || !!q.trade || q.occupation === OCC.crafter || cased.has(q.ref),
+        `${ref} ${q.ref} first`,
+      );
   }
   if (herbLands.length) assert.ok(healers > 0, "a town of a land that knows herb-lore");
   else assert.equal(healers, 0);

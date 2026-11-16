@@ -34,6 +34,7 @@ import {
   politiesOf,
   populationContext,
   powerOf,
+  farReadNext,
   prepareSites,
   rainShift,
   realmName,
@@ -898,8 +899,11 @@ function planetUniverse(name: string, prior: Prior): Universe {
   // money and its fears: debt sold and refused, how wealth is owned, and each realm's fear of another's way, which its regard for
   // others, how it is held and its host read. And with the
   // lessons' third step: no lesson of rule written down; each realm's fortune measured year by year, and what it believes of each
-  // of its numbers the association its evidence supports, its own and others' it could see.)
-  const version = name === "alien" ? "alien-26" : `${name}-22`,
+  // of its numbers the association its evidence supports, its own and others' it could see. And with the round after: births that
+  // answer to what a land has put by to see its reaping in; followed peoples read no further than their own worlds let them come;
+  // a settler's upkeep reckoned from its own world's warmth and air; a methane world's wire lighting its homes; strife that reads
+  // how wealth is held, debt owed to strangers and the lean month, and leaves what those who rose would have.)
+  const version = name === "alien" ? "alien-27" : `${name}-23`,
     make = (seed: Seed, frequency?: number) => {
       // The chronicle opens after a generated prehistory: bands across the land.
       const lands = landsOf(seed.text),
@@ -932,7 +936,9 @@ function planetUniverse(name: string, prior: Prior): Universe {
               !ctx.settlements.seenIn(p.cell).length &&
               !sitesReady(ctx, p.cell),
           );
-      if (!next) return false;
+      // (And what each followed people's own world lets it come to, one people at a time: read before a year of
+      // history has to wait on a far world's making. sim/space/far-read.ts.)
+      if (!next) return farReadNext(world);
       prepareSites(ctx, next.cell);
       return true;
     },
@@ -1103,7 +1109,12 @@ function planetUniverse(name: string, prior: Prior): Universe {
             }),
           fleets: (() => {
             // Where each enemy lies: another people's star, or the star of a colony broken away.
-            const civs = new Map(civilizationsNear(world).map((c) => [c.ref as string, c.star])),
+            const civs = new Map(
+                civilizationsNear(world, yearOfMoment(world.now)).map((c) => [
+                  c.ref as string,
+                  c.star,
+                ]),
+              ),
               colonies = new Map<string, string>();
             for (const [cell, s] of starSitesOf(world)?.all() ?? []) {
               const holder = realms.of(cell);

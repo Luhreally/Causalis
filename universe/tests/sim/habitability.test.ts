@@ -37,3 +37,50 @@ test("a people of the water needs its halls flooded: icy moons suit it, dry worl
   assert.ok(parched.needs.some((n) => n.id === "carried" && n.upkeep >= 5));
   assert.ok(parched.upkeep > habitability(dry, null, 1).upkeep, "harder for them than for apes");
 });
+
+test("upkeep is a distance from the settlers' own warmth and air: their kind of world is cheap, ours dear to them", () => {
+  // A ground like ours, and one like a hot, dense world's: 15 °C under one bar; 95 °C under 30.
+  const ground = (temperature: number, pressure: number) => ({
+      kind: "rocky",
+      gravity: 1,
+      pressure,
+      temperature,
+      radiation: 1,
+      air: "unbreathable",
+      water: "seas",
+    }),
+    mild = ground(15, 1),
+    hot = ground(95, 30),
+    ours = { gravity: 1, temperature: 15, pressure: 1 },
+    theirs = { gravity: 1, temperature: 95, pressure: 30 };
+  // Humans: as it was, to the number, whether their home is given by its pull alone or whole.
+  for (const g of [mild, hot, ground(-80, 0.01), ground(60, 12), ...bodies])
+    assert.deepEqual(
+      habitability(g, null, ours),
+      habitability(g, null, 1),
+      `${g.kind} ${g.temperature}`,
+    );
+  assert.ok(habitability(hot, null, ours).needs.some((n) => n.id === "cool"));
+  assert.ok(habitability(hot, null, ours).needs.some((n) => n.id === "hulls"));
+  // A people of the hot, dense world: their own kind of world asks only its air made; ours asks heat and held
+  // pressure of them, and costs them more than theirs does, and more than it costs us.
+  const home = habitability(hot, null, theirs),
+    abroad = habitability(mild, null, theirs);
+  assert.deepEqual(
+    home.needs.map((n) => n.id),
+    ["air"],
+  );
+  assert.ok(
+    abroad.needs.some((n) => n.id === "heat"),
+    "no heating on a world 80 °C colder than theirs",
+  );
+  assert.ok(
+    abroad.needs.some((n) => n.id === "pressure"),
+    "no held pressure under a thirtieth of their air",
+  );
+  assert.ok(abroad.upkeep > home.upkeep);
+  assert.ok(abroad.upkeep > habitability(mild, null, ours).upkeep);
+  // And the further from home, the dearer, smoothly.
+  const colder = habitability(ground(-25, 1), null, theirs);
+  assert.ok(colder.upkeep > abroad.upkeep);
+});

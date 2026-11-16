@@ -12,9 +12,17 @@ import {
   type Folk,
   type FolkStage,
 } from "../../src/sim/index.ts";
+import { ALIEN, EARTH } from "../../src/host/planet.ts";
 
-const worldOf = (text: string) =>
-  ({ seed: seedFromText(text), hasStore: () => false }) as unknown as World;
+// (A world as made at its start: a followed people's reading makes its own world whole, read as the home world's far
+// sight reads it, sim/space/far-read.ts.)
+const WORLDS = new Map<string, World>();
+const worldOf = (text: string): World => {
+  let w = WORLDS.get(text);
+  if (!w)
+    WORLDS.set(text, (w = (text.startsWith("alien") ? ALIEN : EARTH).build(seedFromText(text))));
+  return w;
+};
 const SEEDS = ["harrow 348", "alien 41", "cinder 570", "first light"];
 
 test("a people is a pure reading of its world: the same twice, and found again by its ref", () => {

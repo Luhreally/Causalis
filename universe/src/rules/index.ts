@@ -231,7 +231,10 @@ export {
 } from "./launch.ts";
 export {
   MOST_UPKEEP,
+  BEARS,
+  EARTH_HOME,
   habitability,
+  type HomeGround,
   hallCells,
   rockOf,
   type Ground,
@@ -1535,3 +1538,4 @@ export {
   type FarMade,
   type FarStage,
 } from "./far.ts";
+export { HARVEST, LEAN_MONTHS, SOWING, THRIFT, storeNeeded, thrift } from "./seasons.ts";

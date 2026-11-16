@@ -371,7 +371,7 @@ function lookOf(world: World, cell: number, ground: SiteGround, landing = false)
     keeps:
       share >= 1
         ? []
-        : habitability(body, g.life.people?.body ?? null, g.system.bodies[0]!.gravity).because,
+        : habitability(body, g.life.people?.body ?? null, g.system.bodies[0]!).because,
   };
 }
 

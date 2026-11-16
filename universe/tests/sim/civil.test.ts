@@ -29,11 +29,13 @@ import {
   politiesOf,
   populationContext,
   raiseRealm,
+  holdOf,
   realmName,
   repress,
   revolt,
   revolutionDanger,
   revolutionHolds,
+  risenRule,
   settleCivil,
   strifeOf,
   strifeYear,
@@ -295,16 +297,27 @@ test("a revolution: a rule in crisis and a people pressing for a voice rise at i
   );
 });
 
-test("a revolution won: a commonwealth, one law for all, the land to its tillers, its rule held a generation", () => {
+test("a revolution won: the rule those who rose want, one law for all, the land to its tillers, its rule held a generation", () => {
   const w = fresh(),
     p = greatest(w),
     ctx = populationContext(w),
     o = orderOf(w)!.of(p.ref)!;
   o.crisis = p.event;
   o.caste = 0.6;
-  const event = revolt(ctx, p, "land", [], at(1));
-  assert.equal(p.leadership, 2, "its rulers acclaimed");
-  assert.ok(realmName(p).startsWith("the commonwealth of"), realmName(p));
+  const want = risenRule(ctx, p, "land", at(1)),
+    event = revolt(ctx, p, "land", [], at(1));
+  // (Those who till and herd, twice over where the land is what they rose for, and the rest of the many, by their
+  // sway: an assembly where they want the realm's choices widely carried, a council of their elders where they do not.)
+  assert.equal(p.leadership, want.leadership, "the rule those who rose want");
+  assert.ok(
+    realmName(p).startsWith(want.leadership === 2 ? "the commonwealth of" : "the league of"),
+    realmName(p),
+  );
+  assert.ok(
+    holdOf(w, p.ref, 1) >= want.wants[1]! - 1e-9,
+    "its choices as widely carried as they want",
+  );
+  assert.ok(holdOf(w, p.ref, 2) >= want.wants[2]! - 1e-9, "its word as free");
   assert.equal(o.laws[LAW_OF.justice], 2, "one law for all");
   assert.equal(o.laws[LAW_OF.land], 2, "the land to those who till it");
   assert.equal(o.crisis, null);

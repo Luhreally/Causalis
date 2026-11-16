@@ -162,7 +162,7 @@ export function causes(ctx: PopulationContext, p: Polity, year: number): Cause[]
   out.push(...nationCauses(ctx, p, year));
   // Another people, heard, and sailing the stars too.
   const contacts = contactsOf(world);
-  for (const civ of civilizationsNear(world)) {
+  for (const civ of civilizationsNear(world, year)) {
     const heard = contacts.of(civ.ref);
     if (!heard || civ.stars > year) continue;
     out.push({

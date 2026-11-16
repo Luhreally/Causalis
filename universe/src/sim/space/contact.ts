@@ -26,6 +26,20 @@ import { clusterOf } from "./voyages.ts";
 import { skyOf } from "../../rules/index.ts";
 import { homePlanet } from "../planet/store.ts";
 import { lawlessSeed } from "./lanes.ts";
+import { FarReadStore } from "./far-read.ts";
+import type { GalaxyStar } from "../../gen/index.ts";
+
+/**
+ * The years a followed people's own world lets it come to (natives.ts followedRead, which gives itself here as it
+ * loads: the peoples' reading is made of the followed list, so the list does not ask for it by name).
+ */
+type FollowedRead = (world: World, s: GalaxyStar, index: number) => Civilization | null;
+/** (Held on the function, which stands before any module's own names do: natives.ts may load first.) */
+const given = followedBy as { read?: FollowedRead };
+export function followedBy(read: FollowedRead): void {
+  (followedBy as { read?: FollowedRead }).read = read;
+}
+const followedRead: FollowedRead = (world, s, index) => given.read?.(world, s, index) ?? null;
 
 /**
  * Whether a world's far peoples' bodies are read from their own worlds' life (B4): where its home world's life was
@@ -63,8 +77,83 @@ export function civilizationsEver(world: World): Civilization[] {
   }
   return civs;
 }
-export function civilizationsNear(world: World): Civilization[] {
-  const civs = civilizationsEver(world);
+/** The followed peoples as history reads them: each with the years its own world lets it come to (natives.ts). */
+const READ = new Map<string, Civilization[]>();
+/** The first year a followed people comes to anything its own world might shut to it, as first read. */
+const firstYear = (c: Civilization): number => Math.min(c.electronics, c.orbit, c.stars);
+function readOne(world: World, stars: readonly GalaxyStar[], c: Civilization): Civilization {
+  const s = stars.find((x) => c.star.endsWith(`:${x.sector}:${x.k}`));
+  return (s && followedRead(world, s, c.planet)) || c;
+}
+function civilizationsRead(world: World): Civilization[] {
+  const key = world.seed.text;
+  let civs = READ.get(key);
+  if (!civs) {
+    if (READ.size > 8) READ.clear();
+    const stars = clusterOf(world);
+    civs = civilizationsEver(world).map((c) => readOne(world, stars, c));
+    READ.set(key, civs);
+  }
+  return civs;
+}
+/**
+ * The followed peoples as history reads them in a year: each that has come to its signals, its orbit or the stars as
+ * first read, with the years its own world lets it come to; the rest as first read. All history asks of a people's
+ * years in a year is whether that year has come to them, and a reading only ever puts a year later (to never), so
+ * the two answer alike: no year waits on the making of a world it does not yet need (each some half a second), and
+ * the list is the same whether or not a page or a spare moment has read them since.
+ */
+const BY = new Map<string, { year: number; civs: Civilization[] }>();
+function civilizationsBy(world: World, year: number): Civilization[] {
+  const key = world.seed.text,
+    known = BY.get(key);
+  if (known && known.year === year) return known.civs;
+  const stars = clusterOf(world),
+    civs = civilizationsEver(world).map((c) =>
+      firstYear(c) > year ? c : readOne(world, stars, c),
+    );
+  if (BY.size > 8) BY.clear();
+  BY.set(key, { year, civs });
+  return civs;
+}
+/**
+ * One more followed people's ceiling read, of those not yet read, the soonest needed first (false: all are). A
+ * world's start does this in its spare moments (host: idle), so that no year of history or page waits on a far
+ * world's making; a year that needs one not yet read reads it then.
+ */
+export function farReadNext(world: World): boolean {
+  if (READ.has(world.seed.text)) return false;
+  const stars = clusterOf(world);
+  let at = (farReadNext as { at?: Map<string, number> }).at;
+  if (!at) (farReadNext as { at?: Map<string, number> }).at = at = new Map();
+  const civs = [...civilizationsEver(world)].sort((a, b) => firstYear(a) - firstYear(b)),
+    i = at.get(world.seed.text) ?? 0;
+  if (i >= civs.length) {
+    civilizationsRead(world);
+    return false;
+  }
+  readOne(world, stars, civs[i]!);
+  at.set(world.seed.text, i + 1);
+  return true;
+}
+/** Every followed people's ceiling read now. */
+export function farReadAll(world: World): void {
+  civilizationsRead(world);
+}
+
+/** One followed people by its ref, as its own world lets it come (null: none such, or its world unmade). Reads it alone. */
+export function civilizationOf(world: World, ref: string): Civilization | null {
+  const c = civilizationsEver(world).find((x) => x.ref === ref);
+  if (!c || (farOf(world)?.falls.length && fireOf(world).unmade(c.star, c.planet))) return null;
+  return readOne(world, clusterOf(world), c);
+}
+
+/**
+ * The peoples followed about these stars, those whose world was unmade gone. `year`: as history reads them in that
+ * year (civilizationsBy); left out, every one as its own world lets it come (a page's account of them).
+ */
+export function civilizationsNear(world: World, year?: number): Civilization[] {
+  const civs = year === undefined ? civilizationsRead(world) : civilizationsBy(world, year);
   // (A people whose world was unmade is no more: W6. Exactly the list it always was, until one is.)
   return farOf(world)?.falls.length
     ? civs.filter((c) => !fireOf(world).unmade(c.star, c.planet))
@@ -115,9 +204,7 @@ export function contactsOf(world: World): ContactStore {
 export function contactYear(ctx: PopulationContext, t: SimTime): void {
   const { world } = ctx,
     store = contactsOf(world),
-    year = yearOfMoment(t),
-    civs = civilizationsNear(world);
-  if (!civs.length) return;
+    year = yearOfMoment(t);
   // The listeners: the realms whose seats know electronics, the longest-knowing first.
   const lore = loreOf(world),
     listeners = politiesOf(world)
@@ -130,7 +217,7 @@ export function contactYear(ctx: PopulationContext, t: SimTime): void {
       );
   if (!listeners.length) return;
   const by = listeners[0]!;
-  for (const civ of civs) {
+  for (const civ of civilizationsNear(world, year)) {
     if (store.of(civ.ref) || year < civ.electronics + Math.ceil(civ.distance)) continue;
     const art = lore.get(by.seat, "electronics")!,
       causes: CauseRef[] = [
@@ -157,6 +244,8 @@ export function contactYear(ctx: PopulationContext, t: SimTime): void {
 
 export function installContact(world: World, ctx: () => PopulationContext): ContactStore {
   const store = world.register(new ContactStore());
+  // (What each followed people's own world lets it come to, read once and kept beside the world: far-read.ts.)
+  world.register(new FarReadStore(world.seed.text));
   world.addPinner(() => store.pinned());
   world.system({ key: "199.space.contact", every: YEAR, run: (t) => contactYear(ctx(), t) });
   return store;

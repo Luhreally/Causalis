@@ -11,6 +11,7 @@ import {
   populationContext,
   realmName,
   revolt,
+  risenRule,
   settleCivil,
   strifeOf,
   warsOf,
@@ -110,12 +111,15 @@ test("a revolution: how near its people are, and why; won, the realm's page, the
   assert.equal(near.concept, "revolution");
   assert.match(JSON.stringify(near.parts), /a people who want a voice/);
   assert.match(JSON.stringify(near.parts), /a rule doubted/);
-  const event = revolt(ctx, other, "voice", [], at(3));
+  const want = risenRule(ctx, other, "voice", at(3)),
+    event = revolt(ctx, other, "voice", [], at(3));
   const p = page(other.ref);
-  assert.match(p.title, /^The commonwealth of /);
+  // (The rule those who rose want: an assembly of all, or a council of their elders.)
+  assert.match(p.title, want.leadership === 2 ? /^The commonwealth of / : /^The league of /);
   rows = rowsOf(tabOf(p, "strife").blocks);
   assert.ok(rows.some((r) => r.label === "Revolutions" && r.why === event));
-  assert.ok(!rows.some((r) => r.label === "A revolution"), "none weighed in a commonwealth");
+  if (want.leadership === 2)
+    assert.ok(!rows.some((r) => r.label === "A revolution"), "none weighed in a commonwealth");
   const ledger = tabOf(page("world:ledger"), "strife"),
     list = ledger.blocks.find(
       (b) => b.type === "list" && b.title === "Revolutions, the newest first",

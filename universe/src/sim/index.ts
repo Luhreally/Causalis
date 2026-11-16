@@ -1015,6 +1015,8 @@ export {
   type Loan,
 } from "./credit/credit.ts";
 export {
+  ASSEMBLY_WANTED,
+  STRAIN,
   STRIFE,
   STRIFE_ACTS,
   STRIFE_EVENTS,
@@ -1031,12 +1033,16 @@ export {
   revolt,
   revolutionDanger,
   revolutionHolds,
+  risenRule,
   settleCivil,
   restore,
   seize,
   seizedFactor,
+  strainOf,
   strifeOf,
   strifeYear,
+  wantsOfRisen,
+  type Strain,
   type CivilWar,
   type Coup,
   type Junta,
@@ -1118,3 +1124,16 @@ export {
   type Fear,
   type Money,
 } from "./finance/finance.ts";
+export {
+  ageBefore,
+  farCeiling,
+  farFace,
+  farShutOn,
+  farReadWorld,
+  pastShut,
+  type FarCeiling,
+  type FarRead,
+} from "./space/far-read.ts";
+export { civilizationOf, farReadAll, farReadNext } from "./space/contact.ts";
+export { FarReadStore } from "./space/far-read.ts";
+export { folkPeopleAt, followedRead } from "./space/natives.ts";

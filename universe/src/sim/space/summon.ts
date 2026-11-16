@@ -30,7 +30,7 @@ export function calledPeople(
     },
     came = (c: Civilization) => store.landings.filter((l) => l.civ === c.ref).length;
   return (
-    [...civilizationsNear(world)]
+    [...civilizationsNear(world, year)]
       .filter((c) => c.stars <= year)
       .sort((a, b) => came(a) - came(b) || far(a) - far(b) || (a.ref < b.ref ? -1 : 1))[0] ?? null
   );

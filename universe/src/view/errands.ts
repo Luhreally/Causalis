@@ -21,7 +21,14 @@ import {
   type TownLots,
   type VillagePlan,
 } from "../bridge/index.ts";
-import { CIVIC_INDEX, HOME_LEVELS, OCC, civic, type CivicKind } from "../rules/index.ts";
+import {
+  CIVIC_INDEX,
+  HOME_LEVELS,
+  LEAN_MONTHS,
+  OCC,
+  civic,
+  type CivicKind,
+} from "../rules/index.ts";
 import { clearAt, type Ground } from "./ground.ts";
 import { streetDoor } from "./streets.ts";
 import { homeWear, townScene, type TownScene } from "./town.ts";
@@ -145,7 +152,8 @@ export function leanOn(plan: VillagePlan, day: number): boolean {
   const t = day * DAY;
   if ((plan.life?.fed ?? 1) < 0.85) return true;
   return (
-    monthsOf(plan, ["grain", "food"], storeAt(plan, "grain", t) + storeAt(plan, "food", t)) < 0.5
+    monthsOf(plan, ["grain", "food"], storeAt(plan, "grain", t) + storeAt(plan, "food", t)) <
+    LEAN_MONTHS
   );
 }
 
