@@ -24,10 +24,14 @@ export const EARTH_CRUST_PPM: Readonly<Record<Exclude<Nutrient, "N">, number>> =
 /**
  * What a year of full farming takes of each, as a share of what the virgin ground held (est): a harvest's grain and straw carry
  * off nitrogen (some 2% of grain's weight) and the ploughed ground loses more of it to the rain; phosphorus (0.35%) and potassium
- * (0.5%) are held tighter. Without rest or manure a field worn by a century is worn to a third.
+ * (0.5%) are held tighter, and the rock below gives them back under the fields. Without rest or manure a field's nitrogen is worn
+ * to a third in a century.
  */
-export const TAKEN: Readonly<Record<Nutrient, number>> = { N: 0.012, P: 0.006, K: 0.008 };
-/** The share of the way back to its virgin store an unfarmed ground goes in a year (est: weathering, the wild's own litter). */
+export const TAKEN: Readonly<Record<Nutrient, number>> = { N: 0.012, P: 0.003, K: 0.004 };
+/**
+ * The share of the way back to its virgin store a ground goes in a year (est): its nitrogen only while it lies unfarmed (the
+ * wild's own litter and what its life fixes), its phosphorus and potassium under fields too (the rock below weathering).
+ */
 export const HEALING = 0.02;
 /** What beans and clover in a rotation give back of the nitrogen a harvest takes (est), and what a rotation's fallow spares. */
 export const BEANS_GIVE = 0.7,
@@ -78,7 +82,7 @@ export function nutrientYear(
     beans = n === "N" && i.rotation ? BEANS_GIVE * taken : 0,
     dung = MANURE_GIVES * Math.min(1, i.manure) * taken,
     made = n === "N" ? i.fertiliser : 0,
-    healing = HEALING * i.supply * Math.max(0, 1 - s) * (1 - i.farmed);
+    healing = HEALING * i.supply * Math.max(0, 1 - s) * (n === "N" ? 1 - i.farmed : 1);
   return Math.min(RICHEST, Math.max(0, s - taken + beans + dung + made + healing));
 }
 
