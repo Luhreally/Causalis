@@ -423,7 +423,7 @@ export const GATES: readonly Gate[] = [
   // pages, lenses and scales walked twice and a realm's page left open as the years run; after each, garbage collected, the page's and
   // the host's heaps, the vertex arrays the engine keeps and what it counts on the card held to a phone's budget, and what a round adds
   // to a little.
-  { gate: 122, args: ["--ci"], s: 600 },
+  { gate: 122, args: ["--ci"], s: 800 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */

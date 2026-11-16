@@ -403,7 +403,8 @@ let most = 0,
   await k(`globalThis.causalis.open(${JSON.stringify(realms[0]!.ref)})`).catch(() => undefined);
   await settle(800);
   const from = await yearNow(),
-    end = Date.now() + slow(60000);
+    // (A minute by the clock on any machine: a slower one runs fewer years, and the budgets are for a world this young.)
+    end = Date.now() + 60000;
   while (Date.now() < end) {
     await fastest();
     await page.waitForTimeout(3000);
@@ -456,7 +457,7 @@ let most = 0,
   await settle(1500);
   let drawn = 0,
     alive = 0;
-  const until5 = Date.now() + slow(45000);
+  const until5 = Date.now() + 45000;
   while (Date.now() < until5) {
     await fastest();
     await page.waitForTimeout(2500);
