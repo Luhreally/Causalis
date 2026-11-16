@@ -163,10 +163,15 @@ export function clockRung(civ: Civilization, year: number): number {
 
 /** A followed people's step: its own numbers lived, its rung history's; it does not fall from history's view, but breaks. */
 export function heldTo(s: FarState, next: FarState, rung: number): FarState {
-  const people = next.fell !== null ? Math.max(s.people * 0.5, 0.2 * s.peak) : next.people;
+  // (Held by history where its own numbers fell, a people stands at a fifth of the most it was, once: the most it was is then
+  // what it stands at, so that a people its ground cannot feed is not stood up again at that fifth step after step, its rung
+  // history's and its numbers a floor. Tide 207's neighbours stood at four hundred for three thousand years so, at the stars.)
+  const rescued = next.fell !== null,
+    people = rescued ? Math.max(s.people * 0.5, 0.2 * s.peak) : next.people;
   return {
     ...next,
     people,
+    peak: rescued ? people : next.peak,
     rung,
     know: Math.max(next.know, rung),
     top: Math.max(next.top, rung),

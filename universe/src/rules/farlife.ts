@@ -199,6 +199,27 @@ export function warmthFit(celsius: number, sea: boolean): number {
   return 1;
 }
 
+/** How much warmer a world's tropics are than its poles (°C: Earth's some 40, as gen/carriers.ts reads a world's own). */
+export const WARMTH_CONTRAST = 40;
+/** Earth's mean warmth (°C), at which a world's lands read as one at an ideal warmth. */
+export const EARTH_WARMTH = 15;
+/** Five bands of equal area, by the sine of their latitude: a band's warmth is the mean's and contrast·(1/3 − sin²), whose mean is the mean. */
+const BANDS = [0.1, 0.3, 0.5, 0.7, 0.9];
+const bandFit = (celsius: number, sea: boolean): number =>
+  BANDS.reduce((s, x) => s + warmthFit(celsius + WARMTH_CONTRAST * (1 / 3 - x * x), sea), 0) /
+  BANDS.length;
+const EARTH_BANDS = { land: bandFit(EARTH_WARMTH, false), sea: bandFit(EARTH_WARMTH, true) };
+
+/**
+ * How well a world's lands let a people's food grow, from its mean warmth: its tropics warmer and its poles colder than the mean, band
+ * by band, against a world at Earth's mean (exactly 1 there, and no more anywhere). A world's mean is not its warmth everywhere: one
+ * at 43 °C, past the most any garden bears, still has poles at 24 that feed a people (a third of an ideal world's, where its mean
+ * alone gave nothing and a people at the stars was read as four hundred), and one at −5 has tropics that do.
+ */
+export function landsFit(celsius: number, sea: boolean): number {
+  return Math.min(1, bandFit(celsius, sea) / (sea ? EARTH_BANDS.sea : EARTH_BANDS.land));
+}
+
 /** What a body eats, against a 60 kg body's (Kleiber's three-quarter power). */
 export const eatsAs = (kg: number): number => dmath.pow(Math.max(1, kg) / 60, 0.75);
 
@@ -213,7 +234,7 @@ export function feedsAt(f: FarFacts, rung: number, worn: number, warmed: number)
     light = f.sea
       ? Math.max(dmath.sqrt(Math.max(0, f.light)), Math.min(1, f.vents / 400))
       : dmath.sqrt(Math.max(0, f.light)),
-    warm = warmthFit(f.warmth + warmed, f.sea),
+    warm = landsFit(f.warmth + warmed, f.sea),
     ground = 1 - FAR_LIFE.wornCut * clamp01(worn);
   return (f.areaKm2 * sown * meat * light * warm * ground) / eatsAs(f.bodyKg);
 }
@@ -272,7 +293,7 @@ export function madeAt(
     // (A hearth's wood: what the woods of a km² give in heat, shared among the people on it; est. 10 kW a km² at a fit warmth.)
     wood =
       f.fire && people > 0
-        ? Math.min(1200, (10_000 * warmthFit(f.warmth, false) * f.areaKm2) / people)
+        ? Math.min(1200, (10_000 * landsFit(f.warmth, false) * f.areaKm2) / people)
         : 0,
     // (Fuel: won once there are works, as fast as its way asks, while it lasts.)
     fuelW =
