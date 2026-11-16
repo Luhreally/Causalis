@@ -12,6 +12,15 @@ import {
   craftShare,
   heldHeat,
 } from "../../rules/index.ts";
+import {
+  ACID_FIFTH,
+  BEANS_GIVE,
+  MANURE_GIVES,
+  METAL_FIFTH,
+  SALT_HALF,
+  TAKEN,
+  WASHED,
+} from "../../rules/index.ts";
 import type { Concept } from "./concepts.ts";
 
 const pc = (x: number) => `${Math.round(x * 100)}`;
@@ -48,6 +57,31 @@ export const ENERGY_CONCEPTS: Readonly<Record<string, Concept>> = {
     see: [],
     related: ["energy", "matter", "ages"],
   },
+  "field-ground": {
+    icon: "🌱",
+    title: "What feeds a field",
+    what: [
+      `A field's ground holds nitrogen, phosphorus and potassium, each a stock against what it held before anyone farmed it, and the field gives by the one that stands lowest. A year's full harvest takes ${pc(TAKEN.N)} in a hundred of its nitrogen, ${pc(TAKEN.P)} of its phosphorus, ${pc(TAKEN.K)} of its potassium (to a tenth of a part); ground left unfarmed comes back, as fast as its world's crust holds the rock's share of each and its air the nitrogen its life fixes. Beans in a rotation give back ${pc(BEANS_GIVE)} in a hundred of the nitrogen taken, the dung of its herds ${pc(MANURE_GIVES)} of all three, and a people with a current and vessels strong enough fix nitrogen from the air, at the work it takes.`,
+      `Its topsoil is washed off by its rain, as hard as the rain falls, as steep as the land, as bare as its fields leave it (some ${(WASHED * 100).toFixed(1)} in a hundred a year, ploughed on a gentle slope under a metre of rain; terraces halve it, woods hold it); what washes off is laid down on the flat land its river runs to, with the nutrients it carries. Where its fields are watered past the rain, the water comes from its river and then from under its ground, and leaves its salt behind where the rain is too little to wash it out: at ${SALT_HALF.toLocaleString("en-US")} tonnes a square kilometre a field gives half.`,
+    ],
+    drives: [
+      "Its harvests; rest, beans, dung, fertiliser; its rain, slopes and woods; its rivers and groundwater.",
+    ],
+    leads: ["Its soil's strength, and so its food."],
+    see: [],
+    related: ["fouled-ground", "food", "energy", "matter"],
+  },
+  "fouled-ground": {
+    icon: "☣️",
+    title: "Fouled ground",
+    what: [
+      `The sulphur a land burns comes down as sour rain, most of it on the land itself and the rest on its neighbours, and its rock takes it up in a few years; held at ${ACID_FIFTH} kg a hectare its fields and woods give a fifth less. Its smelters lose metals to its ground and water, and its rivers carry them to the lands below, where they are bound into the silt in time; at ${METAL_FIFTH} kg a hectare its fields give a fifth less, and its people drink them. The dug heaps of its coal weather sour.`,
+    ],
+    drives: ["Coal and oil burned; metal smelted; coal dug; the lands upriver."],
+    leads: ["Less from its fields; worse health; time to undo it."],
+    see: [],
+    related: ["field-ground", "energy", "climate"],
+  },
 };
 
 /** Which concept a number is a measure of, by its label on the pages. */
@@ -57,4 +91,12 @@ export const ENERGY_CONCEPT_OF: Readonly<Record<string, string>> = {
   "Work turned": "energy",
   "Its engines turn": "heat-engine",
   "Energy a head": "energy",
+  Nitrogen: "field-ground",
+  Phosphorus: "field-ground",
+  Potassium: "field-ground",
+  Topsoil: "field-ground",
+  "Its groundwater": "field-ground",
+  "Sour rain held": "fouled-ground",
+  "Metals in its ground and water": "fouled-ground",
+  Fouled: "fouled-ground",
 };

@@ -281,7 +281,8 @@ export function woodsKw(standingKm2: number, growthT: number): number {
 
 /** What one kW·yr of wood felled past what the woods give takes of them: the share of the woods standing it is. */
 export function felledShare(kwy: number, standingKm2: number, growthT: number): number {
-  const held = standingKm2 * growthT * WOODS_HOLD_YEARS * 1000 * mixMjKg(FUEL_MAKEUP.wood!, "oxygen"); // MJ held
+  const held =
+    standingKm2 * growthT * WOODS_HOLD_YEARS * 1000 * mixMjKg(FUEL_MAKEUP.wood!, "oxygen"); // MJ held
   return held > 0 ? Math.min(1, (kwy * MJ_A_KWY) / held) : 1;
 }
 
@@ -437,20 +438,21 @@ export const CARRIERS = [
 export type Carrier = (typeof CARRIERS)[number];
 
 /** A carrier's sign and words. */
-export const CARRIER_WORDS: Readonly<Record<Carrier, { readonly icon: string; readonly name: string }>> =
-  {
-    muscle: { icon: "💪", name: "its people's own strength" },
-    beasts: { icon: "🐂", name: "beasts that pull" },
-    wood: { icon: "🪵", name: "wood" },
-    dung: { icon: "🌾", name: "dung and straw" },
-    flow: { icon: "🌊", name: "its rivers' fall" },
-    wind: { icon: "🌬️", name: "the wind" },
-    tide: { icon: "🌙", name: "the tides" },
-    ground: { icon: "♨️", name: "the ground's heat" },
-    sun: { icon: "☀️", name: "its star's light" },
-    buried: { icon: "⛏️", name: "fuel its crust buried" },
-    atom: { icon: "⚛️", name: "the atom" },
-  };
+export const CARRIER_WORDS: Readonly<
+  Record<Carrier, { readonly icon: string; readonly name: string }>
+> = {
+  muscle: { icon: "💪", name: "its people's own strength" },
+  beasts: { icon: "🐂", name: "beasts that pull" },
+  wood: { icon: "🪵", name: "wood" },
+  dung: { icon: "🌾", name: "dung and straw" },
+  flow: { icon: "🌊", name: "its rivers' fall" },
+  wind: { icon: "🌬️", name: "the wind" },
+  tide: { icon: "🌙", name: "the tides" },
+  ground: { icon: "♨️", name: "the ground's heat" },
+  sun: { icon: "☀️", name: "its star's light" },
+  buried: { icon: "⛏️", name: "fuel its crust buried" },
+  atom: { icon: "⚛️", name: "the atom" },
+};
 
 /** Where a land's work comes from (the leading one names what drives its works). */
 export const SOURCES = [
@@ -732,7 +734,8 @@ export function energyAccount(i: EnergyInputs): EnergyAccount {
     };
   if (i.taps.has("dam")) flowWork(flows * DAMMED * TURBINE_SHARE, TURBINE_SHARE, "dam");
   if (i.taps.has("current")) flowWork(flows * WHEEL_SHARE, WHEEL_SHARE, "current");
-  else if (i.taps.has("mills") && !i.taps.has("dam")) flowWork(Math.min(mills, flows * WHEEL_SHARE), WHEEL_SHARE, "mills");
+  else if (i.taps.has("mills") && !i.taps.has("dam"))
+    flowWork(Math.min(mills, flows * WHEEL_SHARE), WHEEL_SHARE, "mills");
   if (i.engine && want > 0) {
     // The free heats: the ground's, the vents', the star's; then a held flame, as much as wanted, and the atom.
     const free = (s: Source, kw: number, hotC: number, carrier: Carrier) => {

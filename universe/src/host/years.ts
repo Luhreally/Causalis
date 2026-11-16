@@ -17,8 +17,10 @@ import { FOODS, GOODS, HOLD_KINDS, leanOf } from "../rules/index.ts";
 import {
   creditOf,
   debtOf,
+  ecologyOf,
   energyPerHead,
   fieldedOf,
+  fouledOf,
   financeOf,
   healthOf,
   learntOf,
@@ -60,6 +62,9 @@ export const LAND_COLUMNS = [
   "sick",
   /** All it drew a head in the year, by its energy account: food, fodder, heat and flow (hundredths of a kilowatt). */
   "power",
+  /** Its soil's strength (thousandths), and how fouled its ground is (thousandths): its ground as stocks (Round A). */
+  "soil",
+  "fouled",
 ] as const;
 export type LandColumn = (typeof LAND_COLUMNS)[number];
 
@@ -402,6 +407,8 @@ export function landNow(
     toSteps(sent.get(cell) ?? 0, TRADE_STEPS),
     healthOf(world)?.land(cell)?.dead ?? 0,
     Math.round(100 * (energyPerHead(world, cell)?.primary ?? 0)),
+    Math.round(1000 * (ecologyOf(world).get(cell)?.soil ?? 1)),
+    Math.round(1000 * fouledOf(world, cell)),
   ];
 }
 

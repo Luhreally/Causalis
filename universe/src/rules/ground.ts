@@ -16,7 +16,10 @@ export const NUTRIENTS = ["N", "P", "K"] as const;
 export type Nutrient = (typeof NUTRIENTS)[number];
 
 /** The parts in a million of each in Earth's crust: what another world's crust is read against. */
-export const EARTH_CRUST_PPM: Readonly<Record<Exclude<Nutrient, "N">, number>> = { P: 1050, K: 20900 };
+export const EARTH_CRUST_PPM: Readonly<Record<Exclude<Nutrient, "N">, number>> = {
+  P: 1050,
+  K: 20900,
+};
 
 /**
  * What a year of full farming takes of each, as a share of what the virgin ground held (est): a harvest's grain and straw carry
@@ -177,7 +180,14 @@ export const N_T_KM2 = 300;
 export const FIX_KWY = 35 / 31.5576;
 /** The principles that let a land fix its air's nitrogen: a current to drive it and vessels strong enough to hold it. */
 export const FIXING_NEEDS: readonly (readonly string[])[] = [
-  ["electricity", "sea-electricity", "graphite-dynamos", "ground-dynamos", "polymer-wire", "fusion-power"],
+  [
+    "electricity",
+    "sea-electricity",
+    "graphite-dynamos",
+    "ground-dynamos",
+    "polymer-wire",
+    "fusion-power",
+  ],
   ["steel", "carbide-blades", "drawn-carbon", "ice-working"],
 ];
 

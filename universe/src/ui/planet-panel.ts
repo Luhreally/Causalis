@@ -215,6 +215,8 @@ export type PeopleEntry = {
   camps: number;
   /** All they drew a head last year, kW (Round A: energy as one budget). */
   energy: number;
+  /** How fouled their ground is (0 … 1): sour rain, metals and salt (Round A). */
+  fouled: number;
 };
 
 /** A people's ways and speech (the host's waysOf). */

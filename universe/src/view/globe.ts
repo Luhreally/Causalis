@@ -49,6 +49,7 @@ export const LENSES = [
   "camps",
   "blocs",
   "energy",
+  "fouled",
 ] as const;
 export type Lens = (typeof LENSES)[number];
 
@@ -84,6 +85,7 @@ export const LENS_NAMES: Readonly<Record<Lens, string>> = {
   debt: "Debt",
   camps: "Camps",
   energy: "Energy",
+  fouled: "Fouled ground",
   forest: "Forest",
   blocs: "Alliances",
 };
@@ -121,6 +123,7 @@ export const LENS_ICONS: Readonly<Record<Lens, string>> = {
   debt: "💸",
   camps: "🧭",
   energy: "🔥",
+  fouled: "☣️",
   forest: "🌲",
   blocs: "🪢",
 };
@@ -574,6 +577,14 @@ const ENERGY_RAMP: readonly Stop[] = [
   [0.75, [0.98, 0.76, 0.3]],
   [1, [1, 0.97, 0.86]],
 ];
+/** How fouled a land's ground is, clean (pale) to the worst (sick yellow-black) — Round A. */
+const FOULED_RAMP: readonly Stop[] = [
+  [0, [0.78, 0.82, 0.74]],
+  [0.15, [0.84, 0.8, 0.42]],
+  [0.4, [0.7, 0.56, 0.16]],
+  [0.7, [0.42, 0.3, 0.1]],
+  [1, [0.16, 0.12, 0.06]],
+];
 /** The laws the laws lens shows, one at a time: each its id, icon and name (M139). */
 export const LAW_CHOICES: readonly (readonly [string, string, string])[] = [
   ["land", "🌾", "The land"],
@@ -695,7 +706,12 @@ const DEEP: Readonly<
   camps: { stops: CAMPS_RAMP, at: (v) => (v + 1) / 2, shown: (v) => v > -2 },
   forest: { stops: WOODS_RAMP, at: (v) => v, shown: () => true },
   // (Its kilowatts a head, from a tenth to ten, on a scale of their powers of ten.)
-  energy: { stops: ENERGY_RAMP, at: (v) => Math.min(1, Math.max(0, Math.log10(Math.max(1e-3, v) / 0.1) / 2)), shown: (v) => v > 0 },
+  fouled: { stops: FOULED_RAMP, at: (v) => Math.sqrt(v), shown: () => true },
+  energy: {
+    stops: ENERGY_RAMP,
+    at: (v) => Math.min(1, Math.max(0, Math.log10(Math.max(1e-3, v) / 0.1) / 2)),
+    shown: (v) => v > 0,
+  },
 };
 
 /**
@@ -946,6 +962,7 @@ export function globeColors(
       case "debt":
       case "camps":
       case "energy":
+      case "fouled":
       case "forest": {
         const v = values?.get(province),
           deep = DEEP[lens];
@@ -1180,7 +1197,14 @@ export function lensLegend(lens: Lens, kind = "rocky", look?: string): Legend {
     case "forest":
       return { kind: "ramp", stops: stops(WOODS_RAMP), low: "bare", high: "thick" };
     case "energy":
-      return { kind: "ramp", stops: stops(ENERGY_RAMP), low: "0.1 kW a head", high: "10 kW and more" };
+      return {
+        kind: "ramp",
+        stops: stops(ENERGY_RAMP),
+        low: "0.1 kW a head",
+        high: "10 kW and more",
+      };
+    case "fouled":
+      return { kind: "ramp", stops: stops(FOULED_RAMP), low: "clean", high: "its yield halved" };
     case "belief":
       return {
         kind: "keys",

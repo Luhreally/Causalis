@@ -34,6 +34,7 @@ import { OCC, PRODUCTIVITY } from "../../rules/index.ts";
 import type { Capacity } from "../population/model.ts";
 import { provinceCapacity, type PopulationContext } from "../population/systems.ts";
 import { loreOf } from "../lore/lore.ts";
+import { GroundStore, groundBegin, groundEnd, groundStep } from "./ground.ts";
 
 const HUNT = defineStream("ecology.hunt");
 
@@ -395,7 +396,9 @@ export function ecologyYear(ctx: PopulationContext, t: SimTime): void {
   const { world, generated: g } = ctx,
     store = ecologyOf(world),
     lore = loreOf(world),
-    year = yearOfMoment(t);
+    year = yearOfMoment(t),
+    // (Its ground as stocks, Round A: what feeds its fields, its topsoil, its water and what fouls it.)
+    ground = groundBegin(ctx);
   for (const p of ctx.provinces.all()) {
     const pop = p.total();
     // (Sealed halls on another world have no wild to thin, no forest, no open soil.)
@@ -421,6 +424,7 @@ export function ecologyYear(ctx: PopulationContext, t: SimTime): void {
       herders = p.occupation(OCC.herder),
       herding = herders / pop;
     stepWilds(w, take, farmed, rest, herding);
+    if (ground) groundStep(ctx, ground, w, farmed, t);
     store.set(w);
 
     // Their turns for the worse, told once (and again only after they recover).
@@ -562,12 +566,15 @@ export function ecologyYear(ctx: PopulationContext, t: SimTime): void {
         });
       }
   }
+  if (ground) groundEnd(ctx, ground);
 }
 
 /** Teach a peopled world its ecology. */
 export function installEcology(world: World, ctx: () => PopulationContext): EcologyStore {
-  const store = world.register(new EcologyStore());
+  const store = world.register(new EcologyStore()),
+    ground = world.register(new GroundStore());
   world.addPinner(() => store.pinned());
+  world.addPinner(() => ground.pinned());
   world.system({ key: "115.ecology.year", every: YEAR, run: (t) => ecologyYear(ctx(), t) });
   return store;
 }

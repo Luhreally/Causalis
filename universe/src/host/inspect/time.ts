@@ -613,6 +613,33 @@ export function landTimeTab(world: World, cell: number): Tab | null {
           },
         ),
       );
+    // Its ground: its soil's strength, and what fouls it (Round A).
+    const soil = kept(col("soil")),
+      fouled = kept(col("fouled"));
+    if (soil.length >= 2)
+      blocks.push(
+        series(
+          "Its soil",
+          "of its strength at first",
+          "share",
+          soil.map((q) => ({ x: q.x, y: q.y / 1000 })),
+          {
+            note: "What its fields yield by: its scarcest nutrient, its topsoil, less what salt, sour rain and metals take; read once a decade.",
+          },
+        ),
+      );
+    if (fouled.some((q) => q.y > 0))
+      blocks.push(
+        series(
+          "Fouled ground",
+          "of its yield taken",
+          "share",
+          fouled.map((q) => ({ x: q.x, y: q.y / 1000 })),
+          {
+            note: "What sour rain, metals and salt take of its fields' yield; read once a decade.",
+          },
+        ),
+      );
     // Its dead of sickness: of each span between two years kept, a year's on the mean.
     const sick = kept(col("sick")),
       dead: Point[] = [];

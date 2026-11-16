@@ -57,7 +57,10 @@ test("what a world can burn with is what its air holds", () => {
   assert.deepEqual(titan, ["hydrogen"]);
   assert.deepEqual(dead, []);
   assert.equal(bestHeat(FUEL_MAKEUP.wood!, dead).mj, 0, "nothing burns in a dead air");
-  assert.ok(bestHeat(FUEL_MAKEUP.haze!, titan).mj > 5, "a methane world's haze joins with its hydrogen");
+  assert.ok(
+    bestHeat(FUEL_MAKEUP.haze!, titan).mj > 5,
+    "a methane world's haze joins with its hydrogen",
+  );
 });
 
 test("a unit of buried fuel holds four kilowatt-years, whatever it weighs", () => {
@@ -80,7 +83,12 @@ test("an engine turns no more than Carnot allows at what its stuffs bear, its cr
   near(heldHeat(800), 442, 2, "steel");
   assert.ok(craftShare(0.1) < 0.06 && craftShare(0.002) > 0.6);
   // Watt's engine on coal: some two in a hundred; a turbine of the age of guidance, some two in five.
-  near(engineShare(1500, 288, 0.1, 370), 0.024, 0.006, "steam on wrought iron at a tenth of a millimetre");
+  near(
+    engineShare(1500, 288, 0.1, 370),
+    0.024,
+    0.006,
+    "steam on wrought iron at a tenth of a millimetre",
+  );
   near(engineShare(1500, 288, 0.002, 3500), 0.43, 0.03, "a fine turbine");
   // A fire hotter than the stuff holds gives no more.
   assert.equal(engineShare(3000, 288, 0.01, 800), engineShare(500, 288, 0.01, 800));
@@ -94,7 +102,7 @@ test("bodies, rivers and woods: a body's need by its weight, a river's fall, a f
   assert.ok(growthTkm2(26, 2500, 1) > 2000 && growthTkm2(-5, 300, 1) < 450);
   assert.ok(growthTkm2(12, 800, 0.1) < 130, "a hazed star's light grows a tenth");
   // A river of 1,000 m³/s falling 100 m: about a gigawatt (ρ g Q h).
-  const discharge = (1000 / 0.35) * 3.15576e7 * 1e6 / (6.371e6 * 6.371e6);
+  const discharge = ((1000 / 0.35) * 3.15576e7 * 1e6) / (6.371e6 * 6.371e6);
   near(riverKw(discharge, 100, 1, 1) / 1e6, 0.981, 0.01, "GW");
 });
 
@@ -162,7 +170,14 @@ test("a farming land's account: its bodies, its beasts and its woods' heat", () 
 test("felled past what its woods give where its people outgrow them; coal first where they dig it", () => {
   const bare = energyAccount({ ...LAND, woodKw: 1000, herdKg: 0, grain: 0 });
   assert.ok(bare.felled > 0 && bare.heatHad === bare.heatWanted);
-  const coal = energyAccount({ ...LAND, woodKw: 1000, coalKnown: true, coalKwy: 1e6, herdKg: 0, grain: 0 });
+  const coal = energyAccount({
+    ...LAND,
+    woodKw: 1000,
+    coalKnown: true,
+    coalKwy: 1e6,
+    herdKg: 0,
+    grain: 0,
+  });
   assert.equal(coal.felled, 0);
   assert.ok(coal.coal > 0 && coal.fuelWanted > 0);
 });
@@ -180,7 +195,12 @@ test("a land of engines burns what its heat engines turn into the work its works
   near(a.workHad, a.workWanted, 1e-6, "its works have the work they want");
   assert.equal(a.drives, "burned");
   const e = engineShare(steam.fireC, steam.coldK, steam.fitMm, steam.strengthMpa);
-  near(a.by.burned / e, a.coal - (a.heatHad - a.drawn.wood - a.drawn.dung), 1, "the coal its engines burned");
+  near(
+    a.by.burned / e,
+    a.coal - (a.heatHad - a.drawn.wood - a.drawn.dung),
+    1,
+    "the coal its engines burned",
+  );
   // Finer fits burn less for the same work.
   const fine = energyAccount({ ...steam, fitMm: 0.01, strengthMpa: 800 });
   assert.ok(fine.coal < a.coal);
@@ -200,11 +220,21 @@ test("the ground's heat, the star's and a held flame need no fuel; a world with 
   near(ground.workHad, ground.workWanted, 1e-6, "the ground's heat drives them");
   assert.equal(ground.drives, "ground");
   assert.equal(ground.coal + ground.oil + ground.own, 0);
-  const flame = energyAccount({ ...LAND, industry: 1.5, engine: true, taps: new Set<Source>(["fusion"]) });
+  const flame = energyAccount({
+    ...LAND,
+    industry: 1.5,
+    engine: true,
+    taps: new Set<Source>(["fusion"]),
+  });
   assert.equal(flame.drives, "fusion");
   assert.ok(flame.drawn.atom > 0);
   // Dynamos on dammed rivers.
-  const dam = energyAccount({ ...LAND, industry: 0.5, homes: true, taps: new Set<Source>(["dam"]) });
+  const dam = energyAccount({
+    ...LAND,
+    industry: 0.5,
+    homes: true,
+    taps: new Set<Source>(["dam"]),
+  });
   assert.equal(dam.drives, "dam");
   assert.ok(dam.drawn.flow > 0 && dam.workHad > 0);
   for (const s of SOURCES) assert.ok(flame.by[s] >= 0);

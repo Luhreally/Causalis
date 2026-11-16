@@ -87,10 +87,7 @@ test("burning and clearing put carbon in the air, and the world warms toward wha
   // Forty lands' engines for a decade: what they burned last year is in the air, a
   // little carbon (the land and sea take back more of the clearing's than that).
   assert.ok(burnedLastYear > 0 && burnedLastYear === burnedAt160, "burning adds carbon");
-  assert.ok(
-    Math.abs(burnedAt160 - fuelAt160) < 1e-12,
-    `${burnedAt160} against ${fuelAt160}`,
-  );
+  assert.ok(Math.abs(burnedAt160 - fuelAt160) < 1e-12, `${burnedAt160} against ${fuelAt160}`);
   const air = airOf(world).air;
   assert.ok(air.carbon > FIRST_CARBON + 150, `${air.carbon} ppm`);
   // Warming lags what the carbon would hold in the end, but heads there.

@@ -86,9 +86,13 @@ export function landEnergyBlocks(world: World, cell: number): Block[] {
     stat("Its works run on", cap(SOURCE_WORDS[r.drives])),
     stat("Work turned", `${kwWords(r.work)} a head, muscle and all`),
   ];
-  const by = SOURCES.map((s, i) => [s, e.by[i] ?? 0] as const).filter(([s, kw]) => kw > 0 && s !== "none");
+  const by = SOURCES.map((s, i) => [s, e.by[i] ?? 0] as const).filter(
+    ([s, kw]) => kw > 0 && s !== "none",
+  );
   for (const [s, kw] of by.sort((a, b) => b[1] - a[1]))
-    work.push(stat(`By ${SOURCE_WORDS[s as Source]}`, `${kwWords(kw / Math.max(1, e.people))} a head`));
+    work.push(
+      stat(`By ${SOURCE_WORDS[s as Source]}`, `${kwWords(kw / Math.max(1, e.people))} a head`),
+    );
   if (e.workWanted > 0)
     work.push(
       stat(
@@ -116,19 +120,30 @@ export function landEnergyBlocks(world: World, cell: number): Block[] {
   const burned: Stat[] = [];
   if (e.coal) burned.push(stat("Coal", `${kwWords(e.coal / Math.max(1, e.people))} a head`));
   if (e.oil) burned.push(stat("Oil", `${kwWords(e.oil / Math.max(1, e.people))} a head`));
-  if (e.gas) burned.push(stat("Gas drawn with its oil", `${kwWords(e.gas / Math.max(1, e.people))} a head`));
-  if (e.own) burned.push(stat("Its world's own fuel", `${kwWords(e.own / Math.max(1, e.people))} a head`));
+  if (e.gas)
+    burned.push(stat("Gas drawn with its oil", `${kwWords(e.gas / Math.max(1, e.people))} a head`));
+  if (e.own)
+    burned.push(stat("Its world's own fuel", `${kwWords(e.own / Math.max(1, e.people))} a head`));
   if (e.felled)
     burned.push(
-      stat("Woods felled", `${kwWords(e.felled / Math.max(1, e.people))} a head past what its woods give`),
+      stat(
+        "Woods felled",
+        `${kwWords(e.felled / Math.max(1, e.people))} a head past what its woods give`,
+      ),
     );
-  if (r.carbonKg > 0.5) burned.push(stat("Carbon sent up", `${Math.round(r.carbonKg)} kg a head a year`));
-  if (r.sulphurKg > 0.5) burned.push(stat("Sulphur sent up", `${Math.round(r.sulphurKg)} kg a head a year`));
+  if (r.carbonKg > 0.5)
+    burned.push(stat("Carbon sent up", `${Math.round(r.carbonKg)} kg a head a year`));
+  if (r.sulphurKg > 0.5)
+    burned.push(stat("Sulphur sent up", `${Math.round(r.sulphurKg)} kg a head a year`));
   const fume = fumeOf(world, cell);
-  if (fume > 0.01) burned.push(stat("Its works' smoke", `${fume.toFixed(2)} kW of coal's smoke a head`));
+  if (fume > 0.01)
+    burned.push(stat("Its works' smoke", `${fume.toFixed(2)} kW of coal's smoke a head`));
   if (e.fuelWanted > 0)
     burned.push(
-      stat("Fuel it went without", `${kwWords(e.fuelWanted / Math.max(1, e.people))} a head of heat`),
+      stat(
+        "Fuel it went without",
+        `${kwWords(e.fuelWanted / Math.max(1, e.people))} a head of heat`,
+      ),
     );
   if (burned.length) blocks.push({ type: "facts", title: "What it burns", rows: burned });
   blocks.push({

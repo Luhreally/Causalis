@@ -327,23 +327,46 @@ function stepGround(
     cover = energy && energy.workWanted > 0 ? Math.min(1, energy.workHad / energy.workWanted) : 1,
     fert = fixing && fieldsKm2 > 0 ? Math.min(lackN + 0.012 * farmed, 0.05) * cover : 0;
   g.fixed = Math.round(fert * N_T_KM2 * fieldsKm2);
-  g.fixKw = Math.round(fixing && fieldsKm2 > 0 ? Math.min(lackN + 0.012 * farmed, 0.05) * N_T_KM2 * fieldsKm2 * FIX_KWY : 0);
+  g.fixKw = Math.round(
+    fixing && fieldsKm2 > 0
+      ? Math.min(lackN + 0.012 * farmed, 0.05) * N_T_KM2 * fieldsKm2 * FIX_KWY
+      : 0,
+  );
   // The nutrients: what the harvest took, what came back.
   NUTRIENTS.forEach((nu, i) => {
     let s = (g.nut[i] ?? 1000) / 1000;
-    s = nutrientYear(s, nu, { farmed, supply: supply[nu], rotation, manure: knows("manuring") ? manure : 0, fertiliser: nu === "N" ? fert : 0 });
+    s = nutrientYear(s, nu, {
+      farmed,
+      supply: supply[nu],
+      rotation,
+      manure: knows("manuring") ? manure : 0,
+      fertiliser: nu === "N" ? fert : 0,
+    });
     g.nut[i] = Math.round(1000 * s);
   });
   // The topsoil: washed off by the rain, formed from the rock below, laid down from the lands above.
   const top = g.top / 1000,
-    lost = top * washedOff({ rainMm: rain, slope: lie.slope, farmed, forest: w.forest, terraced: knows("terracing") }),
+    // (Under the sea no rain washes a shelf's fields, and none is watered.)
+    undersea = ctx.medium === "water",
+    lost = undersea
+      ? 0
+      : top *
+        washedOff({
+          rainMm: rain,
+          slope: lie.slope,
+          farmed,
+          forest: w.forest,
+          terraced: knows("terracing"),
+        }),
     silt = g.silt / 1e6;
   let next = Math.min(1.3, Math.max(0, top - lost + FORMED * (1 - Math.min(1, top)) + silt));
   if (lost > 0) {
     // (Its nutrients go with its topsoil, and the silt brings the uplands' with it.)
     for (let i = 0; i < g.nut.length; i++) g.nut[i] = Math.round(g.nut[i]! * (1 - 0.5 * lost));
   }
-  if (silt > 0) for (let i = 0; i < g.nut.length; i++) g.nut[i] = Math.min(1300, Math.round(g.nut[i]! + 500 * silt));
+  if (silt > 0)
+    for (let i = 0; i < g.nut.length; i++)
+      g.nut[i] = Math.min(1300, Math.round(g.nut[i]! + 500 * silt));
   g.top = Math.round(1000 * next);
   g.silt = 0;
   const down = gen.water.flowTo[cell] ?? -1;
@@ -357,7 +380,7 @@ function stepGround(
   }
   // The water its fields are given, from its river first, then from under its ground.
   let short = 0;
-  const watering = knows("irrigation") && fieldsKm2 > 0 && thirst > rain;
+  const watering = !undersea && knows("irrigation") && fieldsKm2 > 0 && thirst > rain;
   if (watering) {
     const need = fieldsKm2 * WATERED * (thirst - rain) * 1e3,
       fromRiver = Math.min(need, lie.riverM3 * DRAWN_OFF),
@@ -368,7 +391,10 @@ function stepGround(
       had = fromRiver + fromGround;
     short = need > 0 ? Math.max(0, 1 - had / need) : 0;
     const cap = lie.rechargeM3 * AQUIFER_YEARS;
-    g.water = cap > 0 ? Math.round(1000 * Math.min(1, Math.max(0, (held + lie.rechargeM3 - fromGround) / cap))) : g.water;
+    g.water =
+      cap > 0
+        ? Math.round(1000 * Math.min(1, Math.max(0, (held + lie.rechargeM3 - fromGround) / cap)))
+        : g.water;
     // The salt it leaves on the fields watered.
     g.salt = Math.round(g.salt + (had * SALT_T_M3) / Math.max(1e-6, fieldsKm2 * WATERED));
   } else if (lie.rechargeM3 > 0) {
@@ -376,12 +402,20 @@ function stepGround(
     g.water = Math.min(1000, g.water + Math.round(1000 / AQUIFER_YEARS));
   }
   g.short = Math.round(1000 * short);
-  g.salt = Math.max(0, Math.round(g.salt * (1 - Math.min(1, SALT_WASHED + (SALT_RAIN * Math.max(0, rain - thirst)) / 1000))));
+  g.salt = Math.max(
+    0,
+    Math.round(
+      g.salt * (1 - Math.min(1, SALT_WASHED + (SALT_RAIN * Math.max(0, rain - thirst)) / 1000)),
+    ),
+  );
   // What fouls it: sour rain, and metals lost by its smelters, its river's, and those bound away into its silt.
   const coalDug = made?.[G.coal] ?? 0,
     smelted = (made?.[G.copper] ?? 0) + (made?.[G.tin] ?? 0) + (made?.[G.iron] ?? 0),
     ha = Math.max(1, c.areaKm2 * 100);
-  g.acid = Math.max(0, Math.round(g.acid * (1 - ACID_TAKEN) + sour + (coalDug * MINE_ACID_KG) / ha));
+  g.acid = Math.max(
+    0,
+    Math.round(g.acid * (1 - ACID_TAKEN) + sour + (coalDug * MINE_ACID_KG) / ha),
+  );
   const metal = g.metal / 10 + g.metalIn / 10 + (smelted * METAL_LOST_KG) / ha,
     carried = metal * METAL_CARRIED;
   g.metal = Math.round(10 * metal * (1 - METAL_CARRIED - METAL_BOUND));
@@ -405,7 +439,10 @@ export function soilOf(g: Ground, watered: boolean): number {
     dry = watered ? (WATERED * (g.short / 1000) * IRRIGATION_GAIN) / (1 + IRRIGATION_GAIN) : 0;
   return Math.min(
     1,
-    Math.max(0.3, least * (SUBSOIL + (1 - SUBSOIL) * top) * (1 - Math.min(0.8, fouled + salt)) * (1 - dry)),
+    Math.max(
+      0.3,
+      least * (SUBSOIL + (1 - SUBSOIL) * top) * (1 - Math.min(0.8, fouled + salt)) * (1 - dry),
+    ),
   );
 }
 
@@ -420,7 +457,13 @@ export function groundBegin(ctx: PopulationContext): GroundYear | null {
 }
 
 /** A land's ground through the year, once its wilds have stepped: its soil's strength set from it (ecology.ts). */
-export function groundStep(ctx: PopulationContext, y: GroundYear, w: Wilds, farmed: number, t: SimTime): void {
+export function groundStep(
+  ctx: PopulationContext,
+  y: GroundYear,
+  w: Wilds,
+  farmed: number,
+  t: SimTime,
+): void {
   if (offworldSite(ctx.generated, w.cell)) return;
   const g = stepGround(ctx, w.cell, w, farmed, y.sour.get(w.cell) ?? 0, y.below);
   w.soil = soilOf(g, !!loreOf(ctx.world).get(w.cell, "irrigation"));
@@ -454,12 +497,27 @@ function turns(ctx: PopulationContext, g: Ground, _t: SimTime): void {
     });
   else if (fouled < 0.05 && g.fouled) g.fouled = null;
   if (saltHarm(g.salt) >= 0.25 && !g.salted)
-    g.salted = world.events.emit({ type: GROUND_EVENTS.salted.type, place, causes: [], data: { salt: g.salt } });
+    g.salted = world.events.emit({
+      type: GROUND_EVENTS.salted.type,
+      place,
+      causes: [],
+      data: { salt: g.salt },
+    });
   else if (saltHarm(g.salt) < 0.1 && g.salted) g.salted = null;
   if (g.top < 600 && !g.washed)
-    g.washed = world.events.emit({ type: GROUND_EVENTS.washed.type, place, causes: [], data: { top: Math.round(g.top / 10) } });
+    g.washed = world.events.emit({
+      type: GROUND_EVENTS.washed.type,
+      place,
+      causes: [],
+      data: { top: Math.round(g.top / 10) },
+    });
   else if (g.top > 800 && g.washed) g.washed = null;
   if (g.water < 500 && !g.drawnDown)
-    g.drawnDown = world.events.emit({ type: GROUND_EVENTS.drawnDown.type, place, causes: [], data: { water: Math.round(g.water / 10) } });
+    g.drawnDown = world.events.emit({
+      type: GROUND_EVENTS.drawnDown.type,
+      place,
+      causes: [],
+      data: { water: Math.round(g.water / 10) },
+    });
   else if (g.water > 800 && g.drawnDown) g.drawnDown = null;
 }
