@@ -27,6 +27,7 @@ import {
   makePopulationWorld,
   populationContext,
   townsOf,
+  Civics,
   type Change,
   type Civic,
   type Fabric,
@@ -53,7 +54,7 @@ function bare(): { ctx: PopulationContext; f: Fabric; store: TownStore } {
     raise: 0,
     passed: -1,
     changes: [],
-    civics: [],
+    civics: new Civics(),
     walls: null,
     lean: 0,
     forsaken: null,
@@ -272,7 +273,7 @@ test("a building among a town's homes does not part their runs once settled, and
     () => false,
     () => false,
   );
-  assert.equal(f.civics[0]!.fell, 30, "it fell");
+  assert.equal(f.civics.get(0)!.fell, 30, "it fell");
   assert.deepEqual([...levelsOf(f, edge, edge + 2)], [-1, -1], "its lots empty");
   assert.ok(
     f.open.some(([a, z]) => a <= edge && z >= edge + 2),
@@ -462,7 +463,7 @@ test("homes fall and burn run by run as they did lot by lot, whatever stands on 
       Object.assign(f, {
         next,
         changes: structuredClone(changes),
-        civics: structuredClone(civics),
+        civics: Civics.from(civics),
       });
       f.homes = HOLDS.map(() => 0);
       for (const l of levelsOf(f, 0, next)) if (l >= 0) f.homes[l]!++;
@@ -576,7 +577,8 @@ test("the towns' fabric is saved and loaded whole, digest and all", () => {
   const saved = JSON.parse(JSON.stringify(store.save())) as unknown,
     again = new TownStore();
   again.load(saved);
-  assert.deepEqual(again.all(), store.all());
+  const plain = (fs: Fabric[]) => fs.map((f) => ({ ...f, civics: f.civics.toJSON() }));
+  assert.deepEqual(plain(again.all()), plain(store.all()));
   const hash = (s: TownStore) => {
     const h = new Hasher();
     s.hashInto(h);

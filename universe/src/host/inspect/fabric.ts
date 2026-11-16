@@ -334,7 +334,7 @@ export function buildingPage(world: World, ref: string): PageModel {
   if (waited)
     lines.push(["It waited on its land's learning: ", link("what it was built for", waited), "."]);
   if (def.replaces) {
-    const old = f.civics.find((x) => x.kind === def.replaces && x !== c);
+    const old = f.civics.find((x) => x.kind === def.replaces && (x.at !== c.at || x.start !== c.start));
     lines.push([
       `It took the place of the town's ${bare(def.replaces)}`,
       ...(old ? [" (", link(`begun in year ${old.start}`, buildingRef(s.ref, old)), ")"] : []),

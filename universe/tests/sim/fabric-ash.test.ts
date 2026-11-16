@@ -10,6 +10,8 @@ import {
   TownStore,
   housingOf,
   readStanding,
+  Civics,
+  type Civic,
   type Fabric,
 } from "../../src/sim/town/fabric.ts";
 
@@ -30,7 +32,7 @@ function town(
       raise: 0,
       passed: -1,
       changes: [[CHANGE.built, 0, lots, 10, 10, 1, 0]],
-      civics: [],
+      civics: new Civics(),
       walls: null,
       lean: 0,
       forsaken: null,
@@ -142,7 +144,7 @@ test("a building gone up on burned lots keeps them when the rest rise", () => {
     start: 101,
     end: 105,
     fell: null,
-  } as Fabric["civics"][number]);
+  } as Civic);
   at(100 + ASH_YEARS).rise(f, housingOf(f) * 2, 1, 1, 3);
   assert.equal(f.homes[1], 3999);
   const read = readAgain(f);
@@ -153,7 +155,7 @@ test("a building gone up on burned lots keeps them when the rest rise", () => {
 test("the greatest fire makes flat from the heart out, buildings too, and lies its own years", () => {
   const { f, at } = town(1000),
     civic = (lots: number, kind: string) =>
-      ({ kind, at: lots, lots: 6, start: 10, end: 12, fell: null }) as Fabric["civics"][number];
+      ({ kind, at: lots, lots: 6, start: 10, end: 12, fell: null }) as Civic;
   f.civics.push(civic(40, "market"), civic(900, "market"));
   f.homes[1] = 988;
   f.open.push([250, 254]);
@@ -170,8 +172,8 @@ test("the greatest fire makes flat from the heart out, buildings too, and lies i
     ash.map((c) => [c[1], c[2]]),
     [[0, 256]],
   );
-  assert.equal(f.civics[0]!.fell, 100, "the building among them fell");
-  assert.equal(f.civics[1]!.fell, null, "the far one stands");
+  assert.equal(f.civics.get(0)!.fell, 100, "the building among them fell");
+  assert.equal(f.civics.get(1)!.fell, null, "the far one stands");
   assert.deepEqual(f.open, [], "no open lot lies in the ash");
   let read = readAgain(f);
   assert.deepEqual(read.homes, f.homes);
