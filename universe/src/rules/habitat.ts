@@ -37,7 +37,13 @@ export type Habitability = {
  * What the colonists must build to live on a body, from its ground and their own body
  * (null body: upright apes, as at home), against the home world's pull.
  */
-export function habitability(g: Ground, body: BodyPlan | null, homeGravity: number): Habitability {
+export function habitability(
+  g: Ground,
+  body: BodyPlan | null,
+  homeGravity: number,
+  /** What its people's bodies are built of (Round D): a life of silicon's chains must be sealed from water and oxygen. */
+  life?: { readonly backbone?: string } | null,
+): Habitability {
   if (g.kind === "giant" || g.kind === "ice giant" || g.kind === "home")
     return {
       livable: false,
@@ -93,6 +99,13 @@ export function habitability(g: Ground, body: BodyPlan | null, homeGravity: numb
     needs.push({ id: "carried", words: "water carried from elsewhere", upkeep: 2.5 });
   else if (g.water === "ice")
     needs.push({ id: "melt", words: "water melted from its ice", upkeep: 0.3 });
+  // A body of silicon's chains, kept from the water and the oxygen that would break them (Round D).
+  if (life?.backbone && (g.water !== "none" || g.air === "breathable"))
+    needs.push({
+      id: "sealed",
+      words: "halls sealed against the water and oxygen that would break their bodies' chains",
+      upkeep: 1.5,
+    });
   // A pull too weak or too strong for bodies grown under the home world's.
   const pull = g.gravity / homeGravity;
   if (pull < 0.1)

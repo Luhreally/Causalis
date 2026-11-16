@@ -23,6 +23,7 @@ import {
   type LifeChemistry,
   type MakeUp,
   type Substance,
+  needsOf,
 } from "../rules/index.ts";
 import {
   clusterOf,
@@ -128,6 +129,19 @@ export function lifeRows(l: LifeChemistry): Stat[] {
     ...(l.shell !== l.bone ? [stat("Its shells", boneLine(l, "shell"))] : []),
     stat("Its blood", bloodLine(l)),
     stat("What it breathes", l.breath),
+    // (What its chains are built on, and so what its people need and must be kept from: Round D.)
+    stat(
+      "Its chains",
+      l.backbone === "silane"
+        ? "of silicon and hydrogen (silanes): its rock rich in silicon, poor in carbon, and in its cold liquid methane, with no water or oxygen to break them, they hold as carbon's would"
+        : l.backbone === "silazane"
+          ? "of silicon and nitrogen (silazanes): its rock rich in silicon, poor in carbon, and in cold ammonia they hold"
+          : "of carbon, as every life known",
+    ),
+    stat("What its people must eat", needsOf(l).food),
+    ...(needsOf(l).poisons.length
+      ? [stat("What breaks their bodies", needsOf(l).poisons.join(" and "))]
+      : []),
     stat("Its cells' skins", [`${sentence(m.name)} (`, ...named(m.subst), `): ${m.why}`]),
     stat("Its colour", [`${sentence(p.colour)}, with `, ...named(p.subst), `: ${p.why}`]),
   ];

@@ -37,6 +37,7 @@ import {
   type Region,
   tongueName,
   WATER,
+  worldLife,
 } from "../../gen/index.ts";
 import { ACT_REACH, ACT_STRENGTH, actFactor, actsOf, blightRot, watered } from "../acts/acts.ts";
 import { lineageNature, tameNow } from "../acts/natures.ts";
@@ -192,7 +193,12 @@ export function hallsShare(ctx: PopulationContext, cell: number): number {
   if (share === undefined) {
     const g = ctx.generated,
       body = g.system.bodies[site.body]!,
-      need = habitability(body, g.life.people?.body ?? null, g.system.bodies[0]!.gravity).upkeep;
+      need = habitability(
+        body,
+        g.life.people?.body ?? null,
+        g.system.bodies[0]!.gravity,
+        worldLife(g),
+      ).upkeep;
     HALLS.set(key, (share = Math.min(0.9, need / (need + 6))));
   }
   return share * remade;

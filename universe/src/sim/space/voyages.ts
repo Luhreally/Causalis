@@ -24,6 +24,7 @@ import {
   isProvinceWorld,
   type ForeignPlanet,
   type GalaxyStar,
+  worldLife,
 } from "../../gen/index.ts";
 import {
   crossingYears,
@@ -100,7 +101,12 @@ function livableWorlds(ctx: PopulationContext) {
       out: { star: GalaxyStar; planet: ForeignPlanet; upkeep: number }[] = [];
     for (const star of clusterOf(ctx.world))
       for (const planet of worldsOf(ctx.world, star)) {
-        const h = habitability(planet, g.life.people?.body ?? null, g.system.bodies[0]!.gravity);
+        const h = habitability(
+          planet,
+          g.life.people?.body ?? null,
+          g.system.bodies[0]!.gravity,
+          worldLife(g),
+        );
         if (h.livable) out.push({ star, planet, upkeep: h.upkeep });
       }
     LIVABLE.set(key, (list = out));
@@ -176,7 +182,7 @@ export function voyageTarget(
     if (taken.has(star.ref)) continue;
     const dear = dearFromItsOwn(star, held);
     for (const planet of worldsOf(ctx.world, star)) {
-      const h = habitability(planet, body, homeGravity);
+      const h = habitability(planet, body, homeGravity, worldLife(ctx.generated));
       if (!h.livable) continue;
       const score = years * (1 + h.upkeep / 10) * dear;
       if (score < bestScore) {

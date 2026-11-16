@@ -434,6 +434,10 @@ export {
   type LifeInputs,
   type Membrane,
   type Pigment,
+  backboneOf,
+  needsOf,
+  type Backbone,
+  type LifeNeeds,
 } from "./biochem.ts";
 export {
   ELEMENT_LIKE,
