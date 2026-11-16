@@ -39,7 +39,7 @@ import {
   waresBlock,
   waresOf,
 } from "../src/host/inspect/wares.ts";
-import { wareLook } from "../src/host/inspect/ware-looks.ts";
+import { realmArmLook, wareLook } from "../src/host/inspect/ware-looks.ts";
 import { companiesOf, exchangeOf } from "../src/host/inspect/exchange.ts";
 import { pageOf } from "../src/host/inspect/index.ts";
 
@@ -680,7 +680,15 @@ if (town && best) {
               .map((w) => ({ c, g, w })),
           ),
         )[0],
-      armLook = arm ? wareLook(world, arm.c, arm.g, arm.w) : null,
+      // (Sold as a land's ware where a land makes its host's kit this year, as one land of 143 realms' did released and none
+      // at 700 since the rounds; else as the greatest realm's seat's smiths make it.)
+      armLook = arm
+        ? wareLook(world, arm.c, arm.g, arm.w)
+        : politiesOf(world)
+            .living()
+            .sort((x, y) => y.members.length - x.members.length)
+            .map((r) => realmArmLook(world, r.ref))
+            .find((x) => x !== null),
       far = ALIEN.build(seedFromText("alien 7")),
       grassOf = (w: World) =>
         homePlanet(w).generated.life.species.find((s) => s.niche === "seed grass")!,
@@ -690,7 +698,7 @@ if (town && best) {
       grainThere = wareLook(far, 0, G.grain, { key: `grass:${theirs.index}`, ref: theirs.ref });
     const [a, b, c, d] = await Promise.all([car, armLook, grainHere, grainThere].map(picture));
     say(
-      `a motor car ${a!.inked} px, ${arm?.w.name ?? "no arm"} ${b!.inked} px; ${mine.name} ${c!.inked} px, alien 7's ${theirs.name} ${d!.inked} px`,
+      `a motor car ${a!.inked} px, ${arm?.w.name ?? "the greatest realm's arm"} ${b!.inked} px; ${mine.name} ${c!.inked} px, alien 7's ${theirs.name} ${d!.inked} px`,
     );
     check(
       a!.inked > 30 && b!.inked > 30 && a!.sum !== b!.sum,
