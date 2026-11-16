@@ -49,7 +49,10 @@ test("past its first 320 checkpoints a world takes one a decade, in the decade's
   a.runTo(360 * YEAR);
   b.runTo(360 * YEAR);
   const years = a.checkpoints().map((c) => c.t / YEAR);
-  assert.deepEqual(years.slice(0, 320), Array.from({ length: 320 }, (_, i) => i + 1));
+  assert.deepEqual(
+    years.slice(0, 320),
+    Array.from({ length: 320 }, (_, i) => i + 1),
+  );
   assert.deepEqual(years.slice(320), [325, 335, 345, 355]);
   assert.deepEqual(chainOf(a), chainOf(b));
 });
