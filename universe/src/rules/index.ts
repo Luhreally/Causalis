@@ -1598,3 +1598,4 @@ export {
   childrenWanted,
   livingToBear,
 } from "./children.ts";
+export * from "./farlife.ts";
