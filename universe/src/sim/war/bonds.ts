@@ -39,6 +39,7 @@ import { diplomacyOf, type Relation } from "../diplomacy/diplomacy.ts";
 import { heldAmongStars } from "../space/nation-store.ts";
 import { WAR, WAR_EVENTS, frontier, strengthOf, warsOf, type War } from "./war.ts";
 import { armyOf } from "../strife/strife.ts";
+import { footingOf } from "./arming.ts";
 
 export const BOND_EVENTS = {
   /** A term run out by the clock, or ended by a fall. */
@@ -402,8 +403,9 @@ export function warCosts(
   const pa = Math.max(1, peopleOf(ctx, a)),
     pb = Math.max(1, peopleOf(ctx, b)),
     years = Math.max(1, year - w.declared),
-    hostA = Math.max(WAR_YEAR_LEAST, armyOf(ctx, a).people / pa),
-    hostB = Math.max(WAR_YEAR_LEAST, armyOf(ctx, b).people / pb),
+    // (And of what it makes, what it turns to arms for it: sim/war/arming.ts, 0 where it turns none.)
+    hostA = Math.max(WAR_YEAR_LEAST, armyOf(ctx, a).people / pa) + footingOf(ctx.world, a.ref),
+    hostB = Math.max(WAR_YEAR_LEAST, armyOf(ctx, b).people / pb) + footingOf(ctx.world, b.ref),
     // (Those its strikes killed weigh as those who fell: W2.)
     struck = warsOf(ctx.world).tallyOfStrikes(w.ref),
     costs: [number, number] = [
