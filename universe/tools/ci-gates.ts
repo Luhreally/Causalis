@@ -418,6 +418,11 @@ export const GATES: readonly Gate[] = [
   // world's save gone, the home world made again the same. Then a people read in orbit from each: there within the minute, as many as were
   // read, the host's heap read, at its age or saying which road its bodies or its world's matter shut, said before entering; from their world another refused, with the way back. (355 s with --ci on a loaded laptop.)
   { gate: 121, args: ["--ci"], s: 380 },
+  // Gate 122, what a system may cost (tools/budget-gate.ts; no browser): first light at 400, the same world small, and alien 55 at 300 run
+  // in node with the scheduler's tally on, each held to its rows of tools/budgets.json. A system with no row, one whose share of the year
+  // is over its budget, or one writing more events, decisions or store bytes than its row fails by name; milliseconds only warn. The default
+  // world at 1,500 runs locally (npm run gate:122).
+  { gate: 122, args: ["--ci"], s: 300 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */
