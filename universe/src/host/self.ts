@@ -561,9 +561,11 @@ function readSelf(world: World, who: Who, deep: boolean): SelfRead {
     day = living
       ? living.day
       : reckonDay({
-          wages:
-            (child ? 0 : wageAt(world, who.cell, who.occupation)) +
-            (partners > 0 ? partners * wageAt(world, who.cell, OCC.farmer) : 0),
+          // (A child's home is their parents': two at their land's first work, as a home whose earners aren't named is reckoned.)
+          wages: child
+            ? 2 * wageAt(world, who.cell, OCC.farmer)
+            : wageAt(world, who.cell, who.occupation) +
+              (partners > 0 ? partners * wageAt(world, who.cell, OCC.farmer) : 0),
           bread: land.bread,
           mouths,
           madeHead: land.madeHead,
