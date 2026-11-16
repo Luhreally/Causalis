@@ -149,10 +149,10 @@ export function strainsYear(ctx: PopulationContext, t: SimTime): void {
       // Selection: harm toward what spreads it best among hosts this crowded, reach along its trade-off.
       const crowded = b.people / b.lands,
         drained = b.people > 0 ? b.drained / b.people : 0,
-        best = bestDeadliness(s.route, crowded, drained),
+        best = bestDeadliness(s.route, crowded, drained, s.lasting),
         pace = selectionPace(b.taken);
       s.deadliness += pace * (best - s.deadliness);
-      s.reach += pace * (reachFor(s.route, s.deadliness, l.first, drained) - s.reach);
+      s.reach += pace * (reachFor(s.route, s.deadliness, l.first, drained, s.lasting) - s.reach);
       // It narrows to the people it passes among.
       l.range = Math.max(0, l.range * (1 - EVOLVE.narrows));
       l.tried = year;
@@ -169,7 +169,9 @@ export function strainsYear(ctx: PopulationContext, t: SimTime): void {
       ) {
         const u = (k: number) => world.rng.real(STRAIN, health.sicknesses.indexOf(s), t, k),
           deadliness = Math.min(0.6, s.deadliness * (1 + EVOLVE.drift * (2 * u(1) - 1))),
-          reach = Math.min(0.95, s.reach * (1 + EVOLVE.drift * u(2))),
+          // (Its harm and its reach either way from its parent's: drawn only upward, a sickness's strains climbed to reach
+          // all but every one of those it came to.)
+          reach = Math.min(0.95, s.reach * (1 + EVOLVE.drift * (2 * u(2) - 1))),
           event = health.land(b.cell)?.last?.event ?? s.event,
           child = branchSickness(ctx, s, b.cell, { reach, deadliness }, event, t, EVOLVE.cross);
         lineOf(store, child, s.ref, l.range);

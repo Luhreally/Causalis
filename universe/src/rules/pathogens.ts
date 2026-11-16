@@ -72,12 +72,27 @@ export function mobilityOf(route: string, drained = 0): number {
   return route === "water" ? m + dmath.clamp(drained, 0, 1) * (MOBILITY.touch! - m) : m;
 }
 
+/** A host's years, over which a sickness that spares its survivors only a while comes back on it (as health.ts's "for life"). */
+export const HOST_YEARS = 60;
+
 /**
- * The harm (a share of those it takes who die) that spreads a sickness best: by how it passes, how crowded its hosts, and the
- * share of them kept from foul water.
+ * The harm (a share of those it takes who die) that spreads a sickness best: by how it passes, how crowded its hosts, the
+ * share of them kept from foul water, and how long it spares those it leaves. A sickness that spares its survivors only a while
+ * comes back on the same hosts again and again, and a host it kills is every later bout's passing lost: the harm that spreads
+ * it best is the less by as many bouts as a host's life holds (a share, `lasting` years of HOST_YEARS). As first set it was
+ * selected as deadly as one met once, and a foul-water cramps of alien 55 that spares five years killed a fifth of those it
+ * took every five years: 40 million of 63 million in fifty years.
  */
-export function bestDeadliness(route: string, crowded: number, drained = 0): number {
-  const k = TRADE_OFF * (1 - mobilityOf(route, drained)),
+export function bestDeadliness(
+  route: string,
+  crowded: number,
+  drained = 0,
+  lasting = HOST_YEARS,
+): number {
+  const k =
+      TRADE_OFF *
+      (1 - mobilityOf(route, drained)) *
+      dmath.clamp(lasting / HOST_YEARS, 1 / HOST_YEARS, 1),
     c = Math.max(0, crowded),
     crowd = 1 + c / (c + EVOLVE.crowd);
   return dmath.clamp((k * crowd) / (1 + k * crowd), 0.002, 0.6);
@@ -95,8 +110,12 @@ export function reachFor(
   deadliness: number,
   first: { reach: number; deadliness: number },
   drained = 0,
+  lasting = HOST_YEARS,
 ): number {
-  const k = TRADE_OFF * (1 - mobilityOf(route, drained)),
+  const k =
+      TRADE_OFF *
+      (1 - mobilityOf(route, drained)) *
+      dmath.clamp(lasting / HOST_YEARS, 1 / HOST_YEARS, 1),
     // (Its passing as harm against mending, x = d / (1 - d), to the power k, over the time a host carries it, 1 + x.)
     spread = (d: number) => {
       const x = dmath.clamp(d, 1e-4, 0.95) / (1 - dmath.clamp(d, 1e-4, 0.95));
