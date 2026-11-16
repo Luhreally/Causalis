@@ -76,3 +76,40 @@ export function childrenKept(life: LifeHistory, m: number, cost: number): number
     could = b.born * livingToBear(life, m, b.at);
   return could > 0 ? Math.min(1, childrenWanted(cost) / could) : 1;
 }
+
+// Who of a people can be spared to fight (asked of round "peoples": reproduction and kin by species, where a levy took the
+// grown men alone, whatever the body): those who bear are kept from war as far as bearing and nursing their young holds their
+// grown years. A mother who carries each young the better part of a year and nurses it two more, five times over, spends some
+// two-fifths of the years she bears in it, and is not sent; a spawning mother, who leaves her young to the water, goes with the
+// rest. Read off the body and its life table, the same for any people.
+export const BEARING = {
+  /** The years a young holds its mother, carried and nursed, by how it is borne (an upright ape's three; a span's worth). */
+  holds: { live: 2.75, eggs: 0.25, spawn: 0 } as Readonly<Record<string, number>>,
+  /** The share of her bearing years held by her young past which a mother is not sent at all. */
+  spared: 0.25,
+} as const;
+
+/** The share of a mother's bearing years her young hold her (0 …), by her body and its life table. */
+export function bearingHeld(
+  body:
+    { readonly bearing: string; readonly young: number; readonly span: number } | null | undefined,
+  life: LifeHistory,
+): number {
+  if (!body) return (BEARING.holds.live! * bearingOf(life).born) / bearingYears(life);
+  const births = bearingOf(life).born / Math.max(1, body.young),
+    holds = (BEARING.holds[body.bearing] ?? 0) * (body.span / 70);
+  return (births * holds) / bearingYears(life);
+}
+
+/** The years in which a mother bears, by her life table (those of its bands where any are born). */
+function bearingYears(life: LifeHistory): number {
+  let years = 0;
+  for (let k = 0; k < life.bands.length; k++)
+    if (life.fertility[k]! > 0) years += bandWidth(k, life);
+  return Math.max(1, years);
+}
+
+/** Of those who bear, the share a levy may take as it takes the others (0 … 1). */
+export function bearersServe(held: number): number {
+  return dmath.clamp(1 - held / BEARING.spared, 0, 1);
+}

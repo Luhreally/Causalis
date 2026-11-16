@@ -1588,7 +1588,10 @@ export {
 export * from "./energy.ts";
 export * from "./ground.ts";
 export {
+  BEARING,
   CHILDREN,
+  bearersServe,
+  bearingHeld,
   bearingOf,
   childCost,
   childrenKept,

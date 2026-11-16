@@ -31,6 +31,7 @@ import {
   FIGHT_OUT_MOST,
   FIGHT_PACKED,
   LOOSES,
+  FEMALE,
   MALE,
   POSSESS_HZ,
   apportionCapped,
@@ -55,7 +56,7 @@ import type { PopulationContext } from "../population/systems.ts";
 import { cutOff, endRealm, politiesOf, raiseRealm, realmName } from "../polity/polity.ts";
 import { armsOf } from "../war/arms.ts";
 import { battleRecord, fieldOf, hostTerms, type Take } from "../war/fell.ts";
-import { FALL_PURPOSE, fighting, poolOf } from "../war/levy.ts";
+import { FALL_PURPOSE, bearersSent, fighting, poolOf } from "../war/levy.ts";
 import { WAR_EVENTS, warsOf, type Battle, type War } from "../war/war.ts";
 import { handOf, type FightIdle, type HeldSoldier } from "./hand.ts";
 
@@ -387,17 +388,21 @@ function spare(c: PopulationContext, cell: number, n: number, year: number): num
     lost,
   );
   let given = 0;
+  // (Among those its levy takes: its men, and those who bear as far as they are sent, rules/children.ts.)
+  const bearers = bearersSent(c);
   each.forEach((k, j) => {
     if (!k) return;
     const b = bands[j]!,
-      r = row(MALE, b),
+      rs = bearers > 0 ? [row(MALE, b), row(FEMALE, b)] : [row(MALE, b)],
       work: number[] = [];
-    for (let o = 1; o < COLS; o++) work.push(prov.counts.get(r, o));
+    rs.forEach((r, s) => {
+      for (let o = 1; o < COLS; o++) work.push(prov.counts.get(r, o) * (s ? bearers : 1));
+    });
     const parts = work.some((x) => x > 0)
       ? apportion(k, work)
       : work.map((_, i) => (i === 0 ? k : 0));
     parts.forEach((m, i) => {
-      if (m) prov.counts.add(r, i + 1, m);
+      if (m) prov.counts.add(rs[Math.floor(i / (COLS - 1))]!, (i % (COLS - 1)) + 1, m);
     });
     c.history.addDeaths(cell, year, b, -k);
     given += k;

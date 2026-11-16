@@ -6,7 +6,15 @@
 // Its lands on the system's other bodies send no one either. No draws: who of the sent fall is the
 // war's to draw (war.ts, by FALL_PURPOSE).
 import { offworldSite } from "../../gen/index.ts";
-import { BANDS, MALE, apportionCapped, type LifeHistory } from "../../rules/index.ts";
+import {
+  BANDS,
+  FEMALE,
+  MALE,
+  apportionCapped,
+  bearersServe,
+  bearingHeld,
+  type LifeHistory,
+} from "../../rules/index.ts";
 import { handOf } from "../hand/hand.ts";
 import { COLS, row } from "../population/model.ts";
 import type { Polity } from "../polity/polity.ts";
@@ -20,7 +28,15 @@ export function fighting(life: LifeHistory, band: number): boolean {
   return life.bands[band]! >= life.adulthood && life.bands[band]! < life.bands[7]!;
 }
 
-/** A land's men who could fall: grown men of fighting age at work (not dependents), less the hand's own. */
+/**
+ * Of a people's grown who bear, the share a levy takes as it takes the rest (rules/children.ts bearersServe): none of an
+ * upright ape's mothers, all of a spawning people's.
+ */
+export function bearersSent(ctx: PopulationContext): number {
+  return bearersServe(bearingHeld(ctx.generated.life.people?.body, ctx.life));
+}
+
+/** A land's men who could fall: grown men of fighting age at work (not dependents), and those who bear as far as they are sent, less the hand's own. */
 export type Pool = {
   readonly cell: number;
   /** Each count's place in the land's table: row × COLS + occupation. */
@@ -37,16 +53,26 @@ export function poolOf(ctx: PopulationContext, cell: number, year: number): Pool
     counts: number[] = [];
   let men = 0;
   if (prov) {
-    const windowed = handOf(ctx.world).composition(cell, year, ctx.life);
-    for (let b = 0; b < BANDS; b++)
-      if (fighting(ctx.life, b))
-        for (let o = 1; o < COLS; o++) {
-          const r = row(MALE, b),
-            n = Math.max(0, prov.counts.get(r, o) - (windowed ? windowed[r * COLS + o]! : 0));
-          rows.push(r * COLS + o);
-          counts.push(n);
-          men += n;
-        }
+    const windowed = handOf(ctx.world).composition(cell, year, ctx.life),
+      bearers = bearersSent(ctx);
+    for (const [sex, share] of [
+      [MALE, 1],
+      [FEMALE, bearers],
+    ] as const) {
+      if (!(share > 0)) continue;
+      for (let b = 0; b < BANDS; b++)
+        if (fighting(ctx.life, b))
+          for (let o = 1; o < COLS; o++) {
+            const r = row(sex, b),
+              n = Math.floor(
+                share *
+                  Math.max(0, prov.counts.get(r, o) - (windowed ? windowed[r * COLS + o]! : 0)),
+              );
+            rows.push(r * COLS + o);
+            counts.push(n);
+            men += n;
+          }
+    }
   }
   return { cell, rows, counts, men };
 }

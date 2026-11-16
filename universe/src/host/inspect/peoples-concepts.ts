@@ -58,6 +58,7 @@ export const PEOPLES_CONCEPTS: Readonly<Record<string, Concept>> = {
       "They want as many as replace them and a little over, and more the less each costs to raise. A child costs the more where it must be schooled before it works (where its people read), and where its work is not wanted, machines doing what hands and beasts did.",
       "How many of those born live to bear their own is read off the people's own life: how many of its young die, under the medicine, the smoke and the cold it lives with now. A people that keeps more of its young bears fewer, whatever its body: a spawning people of the sea, most of whose young die, comes to the same end by the same rule as an ape.",
       "A people at the end of it replaces itself and a little over, and grows no more than its food allows.",
+      "Who goes to war is read the same way: those who bear are kept back as far as their young hold them. A mother who carries each young most of a year and nurses it two more, five times over, spends two-fifths of the years she bears in it and is not sent; a spawning mother, who leaves her young to the water, goes with the rest.",
     ],
     drives: ["Its body's life, hunger, medicine, smoke and cold, its readers, its machines."],
     leads: ["How many it numbers, how young it is, how many it can send to war and to work."],
@@ -80,4 +81,6 @@ export const PEOPLES_CONCEPT_OF: Readonly<Record<string, string>> = {
   "Schooled before they work": "children",
   "Work machines do": "children",
   "Born last year": "children",
+  "Mothers held by their young": "children",
+  "Mothers sent to war": "children",
 };

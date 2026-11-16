@@ -3,8 +3,15 @@
 // Pure readings, made when a page is read.
 import type { World } from "../../kernel/index.ts";
 import type { Block, Stat } from "../../bridge/index.ts";
-import { CHILDREN, bearingOf, childrenWanted, livingToBear } from "../../rules/index.ts";
 import {
+  CHILDREN,
+  bearingHeld,
+  bearingOf,
+  childrenWanted,
+  livingToBear,
+} from "../../rules/index.ts";
+import {
+  bearersSent,
   machineShare,
   populationContext,
   raisingCost,
@@ -34,6 +41,11 @@ export function childrenBlock(world: World, cell: number): Block | null {
       stat("Schooled before they work", share(readersOf(world, cell))),
       stat("Work machines do", share(machineShare(ctx, cell))),
       stat("Born last year", `${one((1000 * born) / p.total())} in a thousand`),
+      stat(
+        "Mothers held by their young",
+        `${share(Math.min(1, bearingHeld(ctx.generated.life.people?.body, life)))} of the years they bear`,
+      ),
+      stat("Mothers sent to war", share(bearersSent(ctx))),
     ];
   return { type: "facts", title: "Children", rows };
 }

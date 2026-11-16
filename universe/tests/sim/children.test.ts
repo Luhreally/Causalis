@@ -4,6 +4,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   CHILDREN,
+  bearersServe,
+  bearingHeld,
   HUMANLIKE,
   bearingOf,
   childCost,
@@ -67,4 +69,15 @@ test("a spawning people of the sea comes to the same end by the same rule: as ma
       alive = bearingOf(life).born * kept * livingToBear(life, 0.7);
     assert.ok(Math.abs(alive - childrenWanted(full)) < 1e-9, `${life.name}: ${alive}`);
   }
+});
+
+test("who bears is sent to war as far as her young spare her: no ape mother, every spawning one", () => {
+  const ape = { bearing: "live", young: 1, span: 70 },
+    held = bearingHeld(ape, HUMANLIKE);
+  // (Five young, each carried most of a year and nursed two more, over the thirty-five years she bears.)
+  assert.ok(held > 0.35 && held < 0.45, `${held} of her bearing years`);
+  assert.equal(bearersServe(held), 0);
+  assert.equal(bearersServe(bearingHeld({ bearing: "spawn", young: 37, span: 39 }, HUMANLIKE)), 1);
+  const layer = bearersServe(bearingHeld({ bearing: "eggs", young: 4, span: 70 }, HUMANLIKE));
+  assert.ok(layer > 0.5 && layer < 1, `${layer} of egg-layers' mothers`);
 });
