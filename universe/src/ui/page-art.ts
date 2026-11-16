@@ -126,11 +126,22 @@ type Glyph =
   | "thread"
   | "house"
   | "heal"
-  | "bond";
+  | "bond"
+  | "bolt"
+  | "wave";
 
 /** A tab's or a section's glyph by its words (none: no glyph). */
 const GLYPHS: readonly (readonly [RegExp, Glyph])[] = [
   [/^(overview|here|what|each|listed|rest|measures?|compare)$/, "eye"],
+  // (The rounds' tabs, 2026-11-16: a person's own life, a realm's powers before power that drives works.)
+  [/^(self|their life)$|child|birth/, "people"],
+  [/^powers?$|coalition|house/, "crown"],
+  [/energ|power|fuel|carrier/, "bolt"],
+  [/motion|climate|sea|ice|current|tide|season/, "wave"],
+  [/treasur|tax|tariff|inflation|money|excise/, "coin"],
+  [/labou?r|guild|union|their work/, "goods"],
+  [/parasit|partner/, "life"],
+  [/fear|camp|threat/, "arms"],
   [/sick|health|wound|heal/, "heal"],
   [/people|folk|famil|lives|leader|court|kin|townsfolk|who|ruler|met\b|crowd/, "people"],
   [/histor|year|story|event|record|first|fallen|course|annal|chronicle|time/, "years"],
@@ -377,6 +388,36 @@ function drawGlyph(g: CanvasRenderingContext2D, glyph: Glyph, p: ArtPalette, s: 
       }
       disc(3, 2.5, 1.4, p.ground, 0.8);
       disc(13, 13.5, 1.4, p.ground, 0.8);
+      return;
+    }
+    case "bolt": {
+      // (A stroke of power: a bolt over a turning wheel.)
+      g.beginPath();
+      g.arc(8 * u, 8 * u, 6 * u, 0, Math.PI * 2);
+      line(p.metal, 0.6);
+      g.stroke();
+      const spark: Rgb = mix([1, 0.86, 0.3], p.light, 0.15);
+      poly([9.5, 1, 4, 9, 7.6, 9, 6, 15, 12, 6.6, 8.4, 6.6, 10.6, 1], spark, 1);
+      return;
+    }
+    case "wave": {
+      // (The sea risen against a shore under its ice.)
+      g.fillStyle = css(p.horizon);
+      g.fillRect(1 * u, 2 * u, 14 * u, 12 * u);
+      poly([1, 2, 6, 2, 4.5, 5.5, 1, 6], p.ice, 1, false);
+      g.fillStyle = css(p.sea);
+      g.beginPath();
+      g.moveTo(1 * u, 14 * u);
+      for (let x = 1; x <= 15; x += 0.5) g.lineTo(x * u, (9.5 + Math.sin(x * 1.1) * 1.4) * u);
+      g.lineTo(15 * u, 14 * u);
+      g.closePath();
+      g.fill();
+      g.beginPath();
+      for (let x = 1; x <= 15; x += 0.5)
+        if (x === 1) g.moveTo(x * u, (9.5 + Math.sin(x * 1.1) * 1.4) * u);
+        else g.lineTo(x * u, (9.5 + Math.sin(x * 1.1) * 1.4) * u);
+      line([1, 1, 1], 0.75);
+      g.stroke();
       return;
     }
     case "coin": {
