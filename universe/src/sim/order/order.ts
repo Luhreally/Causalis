@@ -437,6 +437,14 @@ export function capacityOf(ctx: PopulationContext, p: Polity): { value: number; 
   };
 }
 
+/** What else bears on a realm's standing (each a list of factors, read in `legitimacyFactors`). */
+export type StandingOf = (ctx: PopulationContext, p: Polity) => Factor[];
+const STANDING: StandingOf[] = [];
+/** A system's own part in every realm's standing (sim/culture/folk.ts, sim/order/voice.ts, sim/culture/art.ts). */
+export function addsStanding(f: StandingOf): void {
+  if (!STANDING.includes(f)) STANDING.push(f);
+}
+
 /**
  * What holds a realm's rule rightful in its people's eyes, or loosens it, now: each a factor
  * whose contribution is its pull on the standing (around a middle of 0.55).
@@ -606,6 +614,9 @@ export function legitimacyFactors(ctx: PopulationContext, p: Polity): Factor[] {
           ]
         : [];
     })(),
+    // (What else holds its rule rightful or loosens it: who its people count their own, what it tells them, its works: the
+    // culture sweep, each set by its own system.)
+    ...STANDING.flatMap((f) => f(ctx, p)),
     // (A blessing or a curse laid for years, while it holds: none, nearly always.)
     ...(() => {
       const f = fortunePull(world, p.ref);

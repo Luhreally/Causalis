@@ -77,6 +77,12 @@ export function readsScripture(f: (world: World, cell: number) => number): void 
   scriptureOf = f;
 }
 
+/** What else teaches a land's young as a school does (a faith's clergy: sim/belief/temple.ts), read by `teachingOf`. */
+const TAUGHT: ((world: World, cell: number) => boolean)[] = [];
+export function teachesAsSchool(f: (world: World, cell: number) => boolean): void {
+  if (!TAUGHT.includes(f)) TAUGHT.push(f);
+}
+
 /** What a land's teaching reaches now, and why: its script, its scribes, those its fields spare, its schools, its word, its faith. */
 export function teachingOf(
   ctx: PopulationContext,
@@ -103,7 +109,7 @@ export function teachingOf(
           total
         : 0,
     spare = working > 0 ? Math.max(0, working - food) / working : 0,
-    school = script && schoolIn(ctx, p.cell),
+    school = script && (schoolIn(ctx, p.cell) || TAUGHT.some((f) => f(world, p.cell))),
     word = wordIn(world, p.cell),
     scripture = scriptureOf(world, p.cell),
     target = readersTarget({ script, scribes, spare, school, word, scripture });

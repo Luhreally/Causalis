@@ -1,6 +1,7 @@
 // The pages of power (Phase 10 M91): a realm — its lands and people, how it is ruled and by
 // whom, its wars, its regard for others and what it knows — two realms' regard, a war with
 // its battles and its two hosts, a battle, and a war between the stars.
+import { realmCultureBlocks } from "./folkways.ts";
 import { realmLabourBlocks, realmTreasuryBlocks } from "./money.ts";
 import { realmLessonBlocks } from "./lessons.ts";
 import { realmTiesTab, warSideBlocks } from "./ties.ts";
@@ -289,6 +290,11 @@ export function realmPageModel(
   if (wants("fears")) {
     const fears = realmFearBlocks(world, r);
     if (fears.length) tabs.push({ id: "fears", name: "Fears", blocks: fears });
+  }
+  // Its culture (the culture sweep): what its seat tells and how it is taken, who its people count their own, its faith's houses.
+  if (wants("culture")) {
+    const culture = realmCultureBlocks(world, r);
+    if (culture.length) tabs.push({ id: "culture", name: "Culture", blocks: culture });
   }
   // Its strife (Phase 22 M145): its army's voice, how near a coup is and why, its rule, its coups.
   if (wants("strife")) {

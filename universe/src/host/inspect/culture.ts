@@ -1,6 +1,7 @@
 // The pages of what people hold in common (Phase 10 M91): a faith, a tongue, a design (how
 // a people builds, what a realm's host fights with, a land's works) and a good in a land's
 // market.
+import { faithHousesBlock } from "./folkways.ts";
 import {
   cellRef,
   tongueName,
@@ -91,6 +92,10 @@ export function faithPage(world: World, ref: string): PageModel {
           ],
         },
         creedBlock(f),
+        ...(() => {
+          const houses = faithHousesBlock(world, f);
+          return houses ? [houses] : [];
+        })(),
         { type: "why", title: "How it began", ref: f.ref },
       ],
     },

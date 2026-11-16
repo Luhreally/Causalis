@@ -151,6 +151,12 @@ const SITES = defineStream("pop.sites");
 
 /** A village holds about this many people before another is founded. */
 export const VILLAGE_SIZE = 250;
+/** How many times its trades and their kin a land's town holds (sim/population/urban.ts sets it; 1: its trades alone). */
+let townDrawOf = (_world: World, _cell: number): number => 1;
+export function readsTownDraw(f: (world: World, cell: number) => number): void {
+  townDrawOf = f;
+}
+
 /** The most villages a land holds: beyond them its settled people live in larger ones. */
 export const MOST_VILLAGES = 48;
 /**
@@ -1791,8 +1797,14 @@ export function settleYear(ctx: PopulationContext, t: SimTime): void {
       trades = p.occupation(OCC.crafter) + p.occupation(OCC.trader) + p.occupation(OCC.leader),
       villages = ctx.settlements.inProvince(p.cell),
       town = villages.find((v) => v.market),
+      // (Its trades and their kin, times what its town draws besides: sim/population/urban.ts; 1 before it is weighed.)
       townsfolk = town
-        ? Math.min(settled, Math.round((settled * trades) / Math.max(1, grown - foragers)))
+        ? Math.min(
+            settled,
+            Math.round(
+              ((settled * trades) / Math.max(1, grown - foragers)) * townDrawOf(world, p.cell),
+            ),
+          )
         : 0,
       needed = Math.min(MOST_VILLAGES, Math.ceil((settled - townsfolk) / VILLAGE_SIZE));
     // A land's first village waits its turn: only so many a year across the world.
