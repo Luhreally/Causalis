@@ -72,7 +72,7 @@ import { holdsOf } from "../order/holds.ts";
 import { LAW_OF } from "../order/laws.ts";
 import { creditOf } from "../credit/credit.ts";
 import { debtOf, financeOf, stakesBetween } from "../finance/finance.ts";
-import { fieldedOf } from "../war/war.ts";
+import { fieldedOf, warsOf } from "../war/war.ts";
 import {
   BIND,
   BIND_STORE,
@@ -514,7 +514,11 @@ export function coinYear(ctx: PopulationContext, t: SimTime): void {
       if (wanted > stock) {
         seigniorage += (wanted - stock) / Math.max(1e-6, level);
         stock = wanted;
-      }
+      } else if (!strained)
+        // (As its trade shrinks, notes come back to their issuer in taxes and the lenders' claims in loans repaid, and are
+        // not issued again: issued only ever upward, every lean year's dearer prices stayed, a ratchet of a few in a
+        // hundred a year on every realm that prints.)
+        stock -= MONEY.retire * (stock - wanted);
       if (strained && unmet > 0) {
         const more = Math.min(MONEY.print * stock, (unmet * level) / broad);
         stock += more;
@@ -530,7 +534,10 @@ export function coinYear(ctx: PopulationContext, t: SimTime): void {
       level = level + MONEY.pace * (target - level);
     }
     level = dmath.clamp(level, 1e-6, 1e9);
-    const inflation = wasForm === form && before > 0 ? dmath.clamp(level / before - 1, -0.9, 9) : 0;
+    // (Prices are compared year on year in one money: a realm that strikes another metal, or takes up another form, prices in
+    // a new unit, and no year of it is a rise.)
+    const sameMoney = wasForm === form && (form !== "metal" || !was || was[COIN.good] === good),
+      inflation = sameMoney && before > 0 ? dmath.clamp(level / before - 1, -0.9, 9) : 0;
     let toldFine = was ? was[COIN.toldFine]! : 1e6;
     // Told: a new money; a coin debased (or notes printed) by a fifth since last told; prices risen a tenth in a year.
     let forms = was ? was[COIN.forms]! : 0;
@@ -829,7 +836,11 @@ export function treasuryYear(ctx: PopulationContext, t: SimTime): void {
       top = (shares?.get(seat)?.[SHARE.fifths + 4] ?? 400) / 1000,
       resisted = taxResisted(sway, (money?.own[0] ?? 50) / 100, top),
       base: Record<TaxBase, number> = { land: harvest, trade: traded, heads, income },
-      arms = fieldedOf(ctx, p) * 12 * appetite * TREASURY.armed,
+      // (A host under arms costs its food and as much again in its arms and keep: a standing army always, a levy while it
+      // fights. A levy at peace eats at home of its own work; its arms and keep are still the treasury's.)
+      underArms = !!lore.get(seat, "standing-army") || warsOf(world).fighting(p.ref).length > 0,
+      arms =
+        fieldedOf(ctx, p) * 12 * appetite * (underArms ? TREASURY.armed : TREASURY.armed - 1),
       interest = money ? (debtOf(money) * money.coupon) / 10_000 : 0,
       tariffs = duties?.get(p.ref)?.[DUTY.revenue] ?? 0,
       seigniorage = coin?.get(p.ref)?.[COIN.seigniorage] ?? 0,

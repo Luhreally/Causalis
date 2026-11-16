@@ -87,9 +87,11 @@ test("famine teaches thrift, and the people's ways say which famine", () => {
   world.submit("act.rain", { cell: HOME, sign: -1, years: 5 });
   world.runTo(17 * YEAR);
   const w = cultureOf(world).get(HOME)!;
-  // (Each hungry year presses thrift as deep as its leanest month went, rules/ways.ts LIVED: five failed rains, some four in a hundred.)
+  // (Each hungry year presses thrift as deep as its leanest month went, rules/ways.ts LIVED: five failed rains, some four in a
+  // hundred on each round alone; merged, the land's store put by carries it a year longer, its hunger beginning in year 14 not 13,
+  // and its months' want spread the more evenly: 0.474 to 0.493.)
   assert.ok(
-    w.traits[WAY.thrift]! > before + 0.03,
+    w.traits[WAY.thrift]! > before + 0.015,
     `thrift ${before.toFixed(2)} → ${w.traits[WAY.thrift]!.toFixed(2)}`,
   );
   const node = why(world, waysRef(HOME)),

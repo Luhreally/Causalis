@@ -1069,6 +1069,15 @@ export function waresOf(world: World, cell: number, good: number): readonly Ware
           from.set(f.from, (from.get(f.from) ?? 0) + f.count);
       const told = [...from.values()].reduce((a, b) => a + b, 0),
         scale = told > 0 ? into / told : 0;
+      // (What came by no road of a land's: from the stars, as a debt's payment or a tribute. Unnamed, it left a good the land had
+      // with nothing under it: first light's land 1043 at 700, its copper.)
+      if (told <= 0)
+        put(
+          { key: "in", name: GOODS[good]!.name, ref: null, made: false },
+          into,
+          ["brought into ", landLink(world, cell, true), " by no road of its own"],
+          null,
+        );
       // (What came down a road, as the land that made it makes it: its own mix, not its greatest alone.)
       for (const [src, n] of [...from].sort((a, b) => b[1] - a[1] || a[0] - b[0])) {
         const mix = madeHere(world, originOf(world, src, good), good);
@@ -1105,7 +1114,12 @@ export function waresOf(world: World, cell: number, good: number): readonly Ware
                 ? x.mine
                 : brought;
         return {
-          w: { ...x.w, made: x.here > 0, ...(x.here > 0 ? {} : { land: roads[0]?.[0] }), from },
+          w: {
+            ...x.w,
+            made: x.here > 0 && x.w.key !== "in",
+            ...(x.here > 0 ? {} : { land: roads[0]?.[0] }),
+            from,
+          },
           n: x.here + roads.reduce((s, r) => s + r[1], 0),
         };
       }),

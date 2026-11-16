@@ -317,6 +317,9 @@ export const MONEY = {
   print: 0.25,
   /** How fast the price level moves to what money and goods make it, a year. */
   pace: 0.5,
+  /** Of notes and claims more than its trade wants, the share that comes back to their issuer in a year and is not issued again
+   * (est: taxes paid in them and loans repaid, a year's worth of a two-year turn). */
+  retire: 0.5,
   /** How much a house of lending lends of each grain it holds (the money it makes: 1 / its reserve). */
   multiplier: 4,
   /** Prices rising this fast a year are told. */
