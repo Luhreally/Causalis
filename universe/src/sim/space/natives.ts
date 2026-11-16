@@ -63,7 +63,10 @@ import { seaFolkOf } from "./seafolk.ts";
 export type FolkStage =
   "camps" | "villages" | "towns" | "cities" | "works" | "signals" | "orbit" | "stars" | "ruins";
 const LADDER: readonly FolkStage[] = ["camps", "villages", "towns", "cities", "works"];
-/** The years of climbing, at home's pace, each step of the ladder comes at (est.; signals: HOME_PACE's 860). */
+/**
+ * The years of climbing, at home's pace, each step of the ladder comes at (est.; signals: HOME_PACE's 860): a followed people's
+ * ladder. A people history does not follow climbs by its own numbers instead (round F, farlife-read.ts).
+ */
 const CLIMB: Readonly<Record<string, number>> = {
   camps: 0,
   villages: 130,

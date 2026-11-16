@@ -97,9 +97,16 @@ export function refKey(ref: string): number {
 
 // —— Reading a far people's numbers ——————————————————————————————————————————————————————————————
 
+/**
+ * The followed peoples as history reads them in a year (`year` left out: as a page reads them). Every reader of them here goes
+ * through this one, so that a reading of them by the year (universe/rules-next's civilizationsNear(world, year)) is one line.
+ */
+export const followedIn = (world: World, _year?: number): Civilization[] =>
+  civilizationsNear(world);
+
 /** A people's life as read off its world: a followed people's, or one history does not follow (null: none is read). */
-export function lifeReadingOf(world: World, ref: string): FarReading | null {
-  const civ = civilizationsNear(world).find((c) => c.ref === ref);
+export function lifeReadingOf(world: World, ref: string, year?: number): FarReading | null {
+  const civ = followedIn(world, year).find((c) => c.ref === ref);
   if (civ) return civReading(world, civ);
   return folkByRef(world, ref)?.lived ?? null;
 }
@@ -110,9 +117,9 @@ export function farNow(
   ref: string,
   year: number,
 ): { readonly state: FarState; readonly facts: FarFacts; readonly row: FarRow | null } | null {
-  const r = lifeReadingOf(world, ref);
+  const r = lifeReadingOf(world, ref, year);
   if (!r) return null;
-  const civ = civilizationsNear(world).find((c) => c.ref === ref),
+  const civ = followedIn(world, year).find((c) => c.ref === ref),
     row = farLifeOf(world)?.get(ref) ?? null;
   const state = civ
     ? livedState(world, civ, year)
@@ -471,7 +478,7 @@ function landedOn(world: World, year: number): { star: Ref; planet: number }[] {
     if (w.arrived && w.arrives === year && w.cell === null) add(w.star, w.planet);
   const peoples = peoplesOf(world);
   if (peoples)
-    for (const c of civilizationsNear(world))
+    for (const c of followedIn(world, year))
       for (const h of peoples.holdsOf(c.ref))
         if (h.year === year && h.event && !h.from) add(h.star, holdWorld(world, c, h.star) ?? -1);
   return out;
@@ -494,7 +501,7 @@ function landingsYear(ctx: PopulationContext, store: FarLifeStore, year: number)
       if (before.fell !== null) continue;
       const civ =
           l.arrival.kind === "people"
-            ? civilizationsNear(world).find((c) => c.ref === l.arrival.civ)
+            ? followedIn(world, year).find((c) => c.ref === l.arrival.civ)
             : null,
         comers = civ ? livedState(world, civ, year) : null,
         realm = l.arrival.kind === "home" ? (politiesOf(world).get(l.ref) ?? null) : null,
@@ -568,7 +575,7 @@ function fearOf(
 ): { readonly level: number; readonly of: Ref | null } {
   const peoples = peoplesOf(ctx.world);
   if (!peoples) return { level: 0, of: null };
-  const civs = civilizationsNear(ctx.world),
+  const civs = followedIn(ctx.world, year),
     me: FarSide = { kind: "people", civ };
   let best = 0,
     of: Ref | null = null;
@@ -600,7 +607,7 @@ function stepRow(
   t: SimTime,
 ): void {
   const world = ctx.world,
-    civ = row.followed ? civilizationsNear(world).find((c) => c.ref === row.ref) : undefined,
+    civ = row.followed ? followedIn(world, year).find((c) => c.ref === row.ref) : undefined,
     reading = civ ? civReading(world, civ) : (folkByRef(world, row.ref)?.lived ?? null);
   if (!reading || (row.followed && !civ)) return;
   const s = unpack(row),
@@ -658,20 +665,22 @@ export function farLifeYear(ctx: PopulationContext, t: SimTime): void {
   if (!store) return;
   const year = yearOfMoment(t);
   // A followed people's life is taken up the year its signals leave it.
-  for (const civ of civilizationsNear(world)) {
+  for (const civ of followedIn(world, year)) {
     if (store.get(civ.ref) || !(year >= civ.electronics)) continue;
     const s = livedState(world, civ, year);
     if (s) takeUp(store, civ.ref, true, s, year);
   }
+  // (A landing takes up the life of those it came down on, whether or not any other is held yet.)
+  landingsYear(ctx, store, year);
   if (store.dormant()) return;
   raidsYear(world, store, year);
   battlesYear(world, store, year);
   exchangesYear(world, store, year);
-  landingsYear(ctx, store, year);
   // Each in its year of ten steps on.
   for (const row of store.all()) {
     if (row.fell !== null || row.last >= year) continue;
-    if ((refKey(row.ref) + year) % FAR_LIFE.step !== 0) continue;
+    if ((((refKey(row.ref) + year) % FAR_LIFE.step) + FAR_LIFE.step) % FAR_LIFE.step !== 0)
+      continue;
     stepRow(ctx, store, row, year, t);
   }
 }
