@@ -10,7 +10,7 @@ import {
   type SimTime,
   type World,
 } from "../../src/kernel/index.ts";
-import { PRINCIPLES } from "../../src/rules/index.ts";
+import { HOLD, PRINCIPLES } from "../../src/rules/index.ts";
 import {
   GENERAL,
   POLITY_EVENTS,
@@ -53,9 +53,12 @@ const at = (k: number) => (60 * YEAR + k) as SimTime;
 const greatest = (w: World): Polity => {
   const ctx = populationContext(w),
     people = (p: Polity) => p.members.reduce((n, c) => n + (ctx.provinces.get(c)?.total() ?? 0), 0);
-  return [...politiesOf(w).living()]
-    .filter((p) => p.members.length >= 3)
-    .sort((a, b) => people(b) - people(a) || (a.ref < b.ref ? -1 : 1))[0]!;
+  return (
+    [...politiesOf(w).living()]
+      // (Under its own rule: since round E's sway, juniper's greatest realm had fallen to its army by sixty.)
+      .filter((p) => p.members.length >= 3 && p.leadership !== GENERAL)
+      .sort((a, b) => people(b) - people(a) || (a.ref < b.ref ? -1 : 1))[0]!
+  );
 };
 const armySway = (w: World, p: Polity) =>
   interestsOf(populationContext(w), p, w.now).find((i) => i.group === "the army")!;
@@ -65,6 +68,10 @@ function armed(w: World, p: Polity): void {
     k = PRINCIPLES.find((x) => x.id === "standing-army")!;
   if (!lore.get(p.seat, "standing-army"))
     lore.learn(p.seat, "standing-army", { year: 60, event: p.event }, k);
+  // (Since round E an army is heard as far as its realm keeps its arms from its people, and a host kept standing presses that
+  // up by a fifth over the years (sim/order/holds.ts): held here as a generation of it would hold it.)
+  const o = orderOf(w)!.of(p.ref)!;
+  if (o.held) o.held[HOLD.force] = Math.min(100, o.held[HOLD.force]! + 20);
 }
 /** A realm's rule held all but wrongful, held so year after year. */
 function doubted(w: World, p: Polity): void {

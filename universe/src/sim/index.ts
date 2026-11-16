@@ -72,6 +72,7 @@ export {
   machineShare,
   raisingCost,
   slowDeaths,
+  putBy,
   transition,
   type PopulationContext,
 } from "./population/systems.ts";

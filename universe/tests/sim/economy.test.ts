@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { YEAR, seedFromText, type Ref } from "../../src/kernel/index.ts";
-import { GOODS, OCC } from "../../src/rules/index.ts";
+import { FOODS, GOODS, OCC } from "../../src/rules/index.ts";
 import {
   ECONOMY_EVENTS,
   GOOD_COUNT,
@@ -108,10 +108,15 @@ test("last year's flows of some lands are those a walk of every flow finds, in i
 });
 
 test("prices stay near what goods are usually worth", () => {
+  // (Since round B a good is worth what it costs and does: a food at least a tenth of its usual worth, since a body needs it
+  // whatever a price says, and a unit of any food is worth about what it feeds, meat as much as grain; what comes with the meat, hides and wool, is worth what is made of them, near nothing where clothes are little
+  // needed; nothing past three times its worth.)
   for (const m of markets.all())
     GOODS.forEach((g, i) => {
       const r = m.price[i]! / g.value;
-      assert.ok(r > 0.3 && r < 3.1, `${m.cell} ${g.id} at ${r}`);
+      assert.ok(Number.isFinite(r) && r > 0 && r < 3.1, `${m.cell} ${g.id} at ${r}`);
+      if ((FOODS as readonly number[]).includes(i))
+        assert.ok(r > 0.1, `${m.cell} ${g.id}, a food, at ${r}`);
     });
 });
 

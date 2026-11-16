@@ -27,7 +27,13 @@ export const MOBILITY: Readonly<Record<string, number>> = {
 export const TRADE_OFF = 0.5;
 
 export const EVOLVE = {
-  /** Crowds this many in the lands it burns in double the harm that spreads it best. */
+  /**
+   * Hosts a land at which a sickness's harm that spreads it best is half again what it is among few (short-sighted evolution:
+   * the deadliest strain within a host wins it where hosts carry more than one, as they do the more the more crowded; but a
+   * host carries one strain or several, so crowding can no more than double it). As first set, crowds lifted it without end,
+   * and on first light at 700, its lands some 700 thousand strong, a foul-water sickness was selected to kill six in ten it
+   * took.
+   */
   crowd: 40000,
   /** The share of the way to what selection favours it goes in a year, at the most (a great epidemic's). */
   pace: 0.12,
@@ -56,28 +62,47 @@ export const FIRST_RANGE: Readonly<Record<string, number>> = {
   "the stars": 0.15,
 };
 
-/** The harm (a share of those it takes who die) that spreads a sickness best: by how it passes and how crowded its hosts. */
-export function bestDeadliness(route: string, crowded: number): number {
-  const k = TRADE_OFF * (1 - (MOBILITY[route] ?? 0.8)),
-    crowd = 1 + Math.max(0, crowded) / EVOLVE.crowd;
+/**
+ * How much a sickness's passing needs its host up and about, where it burns: one of foul water passes as one of touch where
+ * drains and clean water keep it from the water (`drained`, the share of its hosts so kept), and is selected milder there, as
+ * Ewald has it of cholera.
+ */
+export function mobilityOf(route: string, drained = 0): number {
+  const m = MOBILITY[route] ?? 0.8;
+  return route === "water" ? m + dmath.clamp(drained, 0, 1) * (MOBILITY.touch! - m) : m;
+}
+
+/**
+ * The harm (a share of those it takes who die) that spreads a sickness best: by how it passes, how crowded its hosts, and the
+ * share of them kept from foul water.
+ */
+export function bestDeadliness(route: string, crowded: number, drained = 0): number {
+  const k = TRADE_OFF * (1 - mobilityOf(route, drained)),
+    c = Math.max(0, crowded),
+    crowd = 1 + c / (c + EVOLVE.crowd);
   return dmath.clamp((k * crowd) / (1 + k * crowd), 0.002, 0.6);
 }
 
 /**
- * Where a sickness's reach stands on its trade-off for a harm: its reach as it rose, by its harm against as it rose to the
- * trade-off's power (more harm, more of it to pass on).
+ * Where a sickness's reach stands on its trade-off for a harm: as many as it passes to before its host is well or dead. It
+ * makes more of itself to pass on the more it takes of its host (its harm over its host's mending, to the trade-off's power),
+ * but has the less time to, the more it kills: so reach rises with harm toward the harm that spreads it best and falls past it.
+ * (As first set reach rose with harm alone, and a foul-water flux selected to kill a quarter came to take nine in ten of those
+ * it reached, a black death every fourteen years.)
  */
 export function reachFor(
   route: string,
   deadliness: number,
   first: { reach: number; deadliness: number },
+  drained = 0,
 ): number {
-  const k = TRADE_OFF * (1 - (MOBILITY[route] ?? 0.8));
-  return dmath.clamp(
-    first.reach * dmath.pow(Math.max(1e-4, deadliness) / Math.max(1e-4, first.deadliness), k),
-    0.05,
-    0.95,
-  );
+  const k = TRADE_OFF * (1 - mobilityOf(route, drained)),
+    // (Its passing as harm against mending, x = d / (1 - d), to the power k, over the time a host carries it, 1 + x.)
+    spread = (d: number) => {
+      const x = dmath.clamp(d, 1e-4, 0.95) / (1 - dmath.clamp(d, 1e-4, 0.95));
+      return dmath.pow(x, k) / (1 + x);
+    };
+  return dmath.clamp((first.reach * spread(deadliness)) / spread(first.deadliness), 0.05, 0.95);
 }
 
 /** How far selection moves a sickness this year: by how many hosts it took (the more, the more it is tried). */

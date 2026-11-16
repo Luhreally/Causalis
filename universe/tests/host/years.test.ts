@@ -127,7 +127,7 @@ test("the years thin as history's do, and the record stays small", () => {
   for (const r of s.realms.values())
     for (let i = 1; i < r.host.y.length; i++) assert.ok(r.host.y[i]! > r.host.y[i - 1]!);
   const bytes = JSON.stringify(s.save()).length;
-  // (Eight columns a land: a column of one-figure numbers is some 25 kB here; Round A added energy a head and soil worn, round
-  // "peoples" who of it read.)
-  assert.ok(bytes < 480_000, `${bytes} bytes of years at year ${YEARS}`);
+  // (Ten columns a land: a column of one-figure numbers is some 25 kB here; Round A added energy a head and soil worn, round
+  // "peoples" who of it read and those born, 529 kB on the rounds merged.)
+  assert.ok(bytes < 540_000, `${bytes} bytes of years at year ${YEARS}`);
 });

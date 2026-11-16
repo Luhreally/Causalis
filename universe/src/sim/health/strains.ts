@@ -25,6 +25,7 @@ import {
 } from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import { switchedOff } from "../acts/switches.ts";
+import { loreOf } from "../lore/lore.ts";
 import { HEALTH_EVENTS, SICK, branchSickness, healthOf, strike, type Sickness } from "./health.ts";
 
 const STRAIN = defineStream("health.strain");
@@ -106,7 +107,8 @@ function note(l: StrainLine, year: number, s: Sickness): void {
 export function strainsYear(ctx: PopulationContext, t: SimTime): void {
   const { world } = ctx,
     health = healthOf(world),
-    store = strainsOf(world);
+    store = strainsOf(world),
+    lore = loreOf(world);
   if (!health || !store) return;
   const year = yearOfMoment(t),
     // (A sickness gone this year may yet live on in the herds: tried below.)
@@ -115,7 +117,7 @@ export function strainsYear(ctx: PopulationContext, t: SimTime): void {
   // The lands each burned in this year: how many it took there, how crowded they were, how many there are spared it.
   const burned = new Map<
     Ref,
-    { taken: number; people: number; spared: number; lands: number; cell: number }
+    { taken: number; people: number; spared: number; lands: number; cell: number; drained: number }
   >();
   for (const l of [...health.lands.values()].sort((a, b) => a.cell - b.cell)) {
     const o = l.last;
@@ -123,10 +125,18 @@ export function strainsYear(ctx: PopulationContext, t: SimTime): void {
     const s = health.get(o.sickness);
     if (!s) continue;
     const people = ctx.provinces.get(l.cell)?.total() ?? 0,
-      b = burned.get(s.ref) ?? { taken: 0, people: 0, spared: 0, lands: 0, cell: l.cell };
+      b = burned.get(s.ref) ?? {
+        taken: 0,
+        people: 0,
+        spared: 0,
+        lands: 0,
+        cell: l.cell,
+        drained: 0,
+      };
     b.taken += Math.min(people + o.dead, o.dead / Math.max(1e-3, s.deadliness));
     b.people += people;
     b.spared += health.immune(l.cell, s.ref);
+    if (lore.get(l.cell, "sanitation")) b.drained += people;
     b.lands++;
     if (people > (ctx.provinces.get(b.cell)?.total() ?? 0)) b.cell = l.cell;
     burned.set(s.ref, b);
@@ -138,10 +148,11 @@ export function strainsYear(ctx: PopulationContext, t: SimTime): void {
     if (b) {
       // Selection: harm toward what spreads it best among hosts this crowded, reach along its trade-off.
       const crowded = b.people / b.lands,
-        best = bestDeadliness(s.route, crowded),
+        drained = b.people > 0 ? b.drained / b.people : 0,
+        best = bestDeadliness(s.route, crowded, drained),
         pace = selectionPace(b.taken);
       s.deadliness += pace * (best - s.deadliness);
-      s.reach += pace * (reachFor(s.route, s.deadliness, l.first) - s.reach);
+      s.reach += pace * (reachFor(s.route, s.deadliness, l.first, drained) - s.reach);
       // It narrows to the people it passes among.
       l.range = Math.max(0, l.range * (1 - EVOLVE.narrows));
       l.tried = year;
