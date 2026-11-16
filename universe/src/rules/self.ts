@@ -19,6 +19,7 @@ import { dmath } from "../kernel/index.ts";
 import type { BodyPlan } from "./bodies.ts";
 import { DAY_WAGE, SKILL_WORDS } from "./life.ts";
 import { OCC } from "./species.ts";
+import { BEARING } from "./children.ts";
 
 const clamp01 = (x: number): number => dmath.clamp(x, 0, 1);
 /** A draw of two units around nothing (-1 … 1), most near the middle: how people of one kind differ from one another. */
@@ -717,8 +718,9 @@ export const HOME_LINES: Readonly<Record<Pairing, number>> = {
   none: 1,
 };
 
-/** The years a young holds its mother, carried and nursed or brooded, by how it is borne (an upright ape's three; a span's worth). */
-export const CARE_YEARS: Readonly<Record<string, number>> = { live: 2.75, eggs: 0.25, spawn: 0 };
+/** The years a young holds its mother, carried and nursed or brooded, by how it is borne (an upright ape's three; a span's
+ * worth): round C's own (rules/children.ts BEARING.holds), as the levy reads it. */
+export const CARE_YEARS: Readonly<Record<string, number>> = BEARING.holds;
 
 /** How much a kind's young need two raising them, 0 … 1 (an upright ape's near 1). */
 export function twoNeeded(
@@ -796,31 +798,4 @@ export function householdOf(p: Pairing, partners: number, young: number): number
     default:
       return 1 + partners + young;
   }
-}
-
-/**
- * Of those who bear, the share a levy takes as it takes the others, by how long their young hold them (as round C's levy reads it,
- * rules/children.ts bearersServe): a mother's young hold her for the years each is carried and nursed, times the births she has,
- * over the years she bears; past a quarter of those years she is not sent at all.
- */
-export function rollBearers(
-  b: { readonly bearing: string; readonly young: number; readonly span: number } | null | undefined,
-  life: {
-    readonly bands: readonly number[];
-    readonly fertility: readonly number[];
-    readonly oldest: number;
-  },
-): number {
-  let born = 0,
-    years = 0;
-  for (let k = 0; k < life.bands.length; k++) {
-    const hi = life.bands[k + 1],
-      width = hi === undefined ? life.oldest : hi - life.bands[k]!;
-    born += life.fertility[k]! * width;
-    if (life.fertility[k]! > 0) years += width;
-  }
-  const births = b ? born / Math.max(1, b.young) : born,
-    holds = b ? (CARE_YEARS[b.bearing] ?? 0) * (b.span / 70) : CARE_YEARS.live!,
-    held = (births * holds) / Math.max(1, years);
-  return dmath.clamp(1 - held / 0.25, 0, 1);
 }

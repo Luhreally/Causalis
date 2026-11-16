@@ -4,13 +4,40 @@
 // drives its winds, its plate boundaries and hotspots, its star's age and its crust's heavy elements. Pure functions of
 // the generated world, kept by world.
 //
+// One physics with each land's energy account (rules/energy.ts, sim/economy/energy.ts): a river's power is riverKw, the
+// wind's windWm2 at the speed its world's contrast of warmth drives, the ground's heat what rises through it (more at a
+// plate's edge or over a plume) drawn as a mine draws it, each turned to current as the account's dams and turbines
+// turn it; and the atom only where the account would let a land split it. Here it is read at the best its people
+// could build (the far reading has no works to ask): what a land could carry, not what it draws.
+//
 // Fuel stays the easy road: a seam under the ground is dug and burned by any works. These are the other roads to a
 // works driven by current, slower to raise where they only just cover what the works ask (far.ts machinesRoad).
 import { dmath } from "../kernel/index.ts";
-import { crustMultiplier } from "../rules/index.ts";
+import {
+  DAMMED,
+  EDGE_HEAT,
+  FISSILE_LEAST,
+  FISSION_METALS,
+  GROUND_DRAWN,
+  GROUND_WM2,
+  SPOT_HEAT,
+  TURBINE_SHARE,
+  WIND_GROUND,
+  WIND_SPACING,
+  airKgM3,
+  carnot,
+  craftShare,
+  crustMultiplier,
+  fissileShare,
+  groundHeatC,
+  riverKw,
+  windSpeedOf,
+  windWm2,
+} from "../rules/index.ts";
 import { starAgeGyr } from "./bodies.ts";
-import { worldChemistry } from "./chemistry.ts";
+import { meansNumbers, worldChemistry } from "./chemistry.ts";
 import type { HomeWorld } from "./homeworld.ts";
+import { originGround } from "./origin.ts";
 import { BOUNDARY } from "./plates.ts";
 import { isProvinceWorld } from "./provinces.ts";
 
@@ -21,30 +48,13 @@ export type CarrierRoad = "fuel" | "water" | "wind" | "heat" | "atom";
  * (1957: some 2,000 TWh in the year among 2.9 billion, about 80 W). */
 export const WORKS_WATTS = 80;
 
-/** Of the rain that falls on land, the share that runs off it to the sea (Earth's: about two fifths). */
-const RUNOFF = 0.4;
-/** Of a river's fall, what a turbine makes current of. */
-const TURBINE = 0.8;
-/** What a wind farm makes a square metre of ground at Earth's winds (about 6 m/s at a tower's height): some 2 W, on
- * half of a land at most. */
-const WIND_W_M2 = 1;
-/** The contrast of warmth between Earth's tropics and its polar caps that drives its winds (°C). */
-const EARTH_CONTRAST = 40;
-/** Where plates meet or a plume rises, the current its hot ground gives a square metre (Earth's high-heat fields). */
-const HEAT_W_M2 = 0.02;
-/** Earth's crust's uranium, ppm, and the fissile share of it now (U-235 of all its uranium). */
-const EARTH_URANIUM = 2.7,
-  EARTH_FISSILE = 0.0072;
-/** Earth's age (Gyr) and the half-lives of U-235 and U-238 (Gyr). */
-const EARTH_AGE = 4.54,
-  HALF_235 = 0.704,
-  HALF_238 = 4.468;
-/** Below this fissile share, enriching fuel for a reactor asks more of a works than the reactor gives back. */
-const FISSILE_LEAST = 0.003;
+/** The finest fit a people at the electron's works makes (mm, est: a turbine's): the share of Carnot it reaches. */
+const BEST_FIT_MM = 0.002;
 /** What Earth's known uranium gives as current, burned in reactors over a century (W): some six million tonnes at
- * about 40 GWh a tonne. */
-const EARTH_FISSION_W = 2.7e11;
-const SECONDS_A_YEAR = 3.156e7;
+ * about 40 GWh a tonne; Earth's crust's uranium (ppm) and the fissile share of it now. */
+const EARTH_FISSION_W = 2.7e11,
+  EARTH_URANIUM = 2.7,
+  EARTH_FISSILE = 0.0072;
 
 /** Each land's current from its rivers, its wind and its ground's heat, and its share of its world's fissile (W). */
 export type Carriers = {
@@ -57,14 +67,36 @@ export type Carriers = {
 /** Kept by the world's ground as made, its lands and the air read of it (a world entered is its ground and its far
  * reading), a few at a time. */
 const KEPT = new Map<string, Carriers>();
+const CONTRAST = new Map<string, number>();
 
-/** The fissile share of a world's uranium, by its star's age: U-235 decays six times faster than U-238. */
-export function fissileShare(ageGyr: number): number {
-  const ratio = (s: number) => s / (1 - s),
-    l235 = dmath.LN2 / HALF_235,
-    l238 = dmath.LN2 / HALF_238,
-    r = ratio(EARTH_FISSILE) * dmath.exp((EARTH_AGE - ageGyr) * (l235 - l238));
-  return r / (1 + r);
+/**
+ * How much warmer a world's tropics are than its poles (°C, on its finest grid): what drives its winds (Earth's some 40).
+ * Pure; kept by world.
+ */
+export function windContrast(g: HomeWorld): number {
+  const fine = isProvinceWorld(g) ? g.fine : g,
+    key = `${fine.digest} ${fine.grid.count}`,
+    kept = CONTRAST.get(key);
+  if (kept !== undefined) return kept;
+  const f = fine.grid;
+  let warm = 0,
+    nWarm = 0,
+    cold = 0,
+    nCold = 0;
+  for (let c = 0; c < f.count; c++) {
+    const lat = dmath.abs(f.lat[c]!);
+    if (lat < 0.35) {
+      warm += fine.climate.temperature[c]!;
+      nWarm++;
+    } else if (lat > 1.05) {
+      cold += fine.climate.temperature[c]!;
+      nCold++;
+    }
+  }
+  const contrast = nWarm && nCold ? Math.max(0, warm / nWarm - cold / nCold) : 0;
+  if (CONTRAST.size >= 64) CONTRAST.clear();
+  CONTRAST.set(key, contrast);
+  return contrast;
 }
 
 /** What a world's lands each carry (on a world of provinces, each province its fine cells'). Pure; kept by world. */
@@ -84,34 +116,31 @@ export function carriersOf(g: HomeWorld): Carriers {
     f = fine.grid,
     e = fine.tectonics.elevation,
     radius = 6.371e6 * fine.planet.radius,
-    gravity = 9.81 * fine.planet.gravity,
     t = fine.tectonics,
-    hot = new Set(t.hotspots);
-  // (The winds: driven by how much warmer its tropics are than its poles; their power as the cube of their speed, and
-  // as its air's density, from its pressure and warmth.)
-  let warm = 0,
-    nWarm = 0,
-    cold = 0,
-    nCold = 0;
-  for (let c = 0; c < f.count; c++) {
-    const lat = dmath.abs(f.lat[c]!);
-    if (lat < 0.35) {
-      warm += fine.climate.temperature[c]!;
-      nWarm++;
-    } else if (lat > 1.05) {
-      cold += fine.climate.temperature[c]!;
-      nCold++;
-    }
-  }
-  const contrast = nWarm && nCold ? Math.max(0, warm / nWarm - cold / nCold) : 0,
-    density = (bar * 288) / Math.max(30, fine.planet.meanTemperature + 273),
-    windEach = WIND_W_M2 * density * dmath.pow(contrast / EARTH_CONTRAST, 3);
+    hot = new Set(t.hotspots),
+    n = meansNumbers(fine),
+    o = originGround(fine),
+    kelvin = Math.max(30, fine.planet.meanTemperature + 273.15);
+  // (The winds: driven by how much warmer its tropics are than its poles, through its air's weight a cubic metre;
+  // turbines stand on a share of its ground, as the account's dams take a share of what flows.)
+  const windEach =
+    windWm2(airKgM3(bar, n.airHolds, kelvin), windSpeedOf(windContrast(fine))) *
+    WIND_GROUND *
+    WIND_SPACING *
+    DAMMED *
+    TURBINE_SHARE;
+  // (The ground's heat as a mine of it draws it, turned by a turbine's share of what Carnot allows at its well's warmth.)
+  const groundEach = (rising: number) =>
+    rising *
+    GROUND_DRAWN *
+    craftShare(BEST_FIT_MM) *
+    carnot(groundHeatC(kelvin - 273.15, rising, false), kelvin);
   // (The atom: its crust's uranium by its heavy elements, the fissile share of it by its star's age; shared out over
-  // its lands by their ground.)
+  // its lands by their ground; none where its star's metals are too few for the account to let a land split it.)
   const share = fissileShare(starAgeGyr(fine.star)),
     uranium = EARTH_URANIUM * crustMultiplier(worldChemistry(fine), "Pb"),
     fission =
-      share >= FISSILE_LEAST
+      share >= FISSILE_LEAST && n.metalShare >= FISSION_METALS
         ? (EARTH_FISSION_W * (uranium / EARTH_URANIUM) * share) / EARTH_FISSILE
         : 0;
   let ground = 0;
@@ -123,15 +152,16 @@ export function carriersOf(g: HomeWorld): Carriers {
     // Its rivers' fall to the next cell down (to the sea at its shore), with what runs off of all that drains here.
     const down = fine.water.flowTo[c]!,
       head = down >= 0 ? e[c]! - Math.max(0, e[down]!) : 0;
-    if (head > 0) {
-      const flow = (RUNOFF * fine.water.discharge[c]! * 1e-6 * radius * radius) / SECONDS_A_YEAR;
-      water[land]! += TURBINE * 1000 * gravity * head * flow;
-    }
+    if (head > 0)
+      water[land]! +=
+        riverKw(fine.water.discharge[c]!, head, fine.planet.radius, n.pull, n.seaKgM3) *
+        1000 *
+        DAMMED *
+        TURBINE_SHARE;
     wind[land]! += windEach * area;
-    const near =
-      t.toBoundary[c]! <= 1 &&
-      (t.boundary[c] === BOUNDARY.convergent || t.boundary[c] === BOUNDARY.divergent);
-    if (near || hot.has(c)) heat[land]! += HEAT_W_M2 * area;
+    const near = t.boundary[c] !== BOUNDARY.none || t.toBoundary[c]! <= 2,
+      rising = GROUND_WM2 * o.heat * (hot.has(c) ? SPOT_HEAT : near ? EDGE_HEAT : 1);
+    heat[land]! += groundEach(rising) * area;
     if (ground > 0) atom[land]! += (fission * f.areas[c]!) / ground;
   }
   const made = { water, wind, heat, atom };

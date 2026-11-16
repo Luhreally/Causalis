@@ -101,7 +101,9 @@ export function spiesYear(ctx: PopulationContext, t: SimTime): void {
   if (!store) return;
   const year = yearOfMoment(t),
     realms = politiesOf(world);
-  // 1. Caught, or gone with the realm they were in or the one that sent them.
+  // 1. Caught, or gone with the realm they were in or the one that sent them. (A realm whose spy was caught this year
+  // sends none back in the year it was caught: the one it was in is watching for the next.)
+  const caught = new Set<string>();
   for (const r of store.realms()) {
     const sender = realms.get(r);
     if (!sender || sender.ended !== null) {
@@ -126,6 +128,7 @@ export function spiesYear(ctx: PopulationContext, t: SimTime): void {
         causes: [],
         data: { a: realmName(host), b: realmName(sender), since: s.since },
       });
+      caught.add(`${sender.ref}>${host.ref}`);
       diplomacyOf(world).remember(host.ref, sender.ref, {
         name: `a spy of ${realmName(sender)} caught`,
         value: -SPYING.wrong,
@@ -154,7 +157,7 @@ export function spiesYear(ctx: PopulationContext, t: SimTime): void {
     const reach = capacityOf(ctx, p).value;
     for (const target of watchedBy(world, p, rivals)) {
       if (have.length >= SPYING.most) break;
-      if (have.some((s) => s.in === target)) continue;
+      if (have.some((s) => s.in === target) || caught.has(`${p.ref}>${target}`)) continue;
       const word = holdsOf(world, target)[2] ?? 0.5,
         chance = SPYING.place * reach * (0.3 + 0.7 * word),
         u = world.rng.real(STREAM, parseRef(p.ref).b, year, 1_000_000 + parseRef(target).b);

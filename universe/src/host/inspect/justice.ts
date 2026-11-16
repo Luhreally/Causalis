@@ -34,6 +34,7 @@ import {
 } from "../../rules/index.ts";
 import {
   BOND,
+  cartelOf,
   agentName,
   beliefOf,
   handOf,
@@ -192,6 +193,8 @@ type Facts = {
   readonly strict: boolean;
   /** The town's year as what could lead one of it wrong reads it (rules/self.ts crimeLean); its realm forbids its faith. */
   readonly scene: CrimeScene;
+  /** How organised those who carry what its realm forbids are (round B, 0 … 1). */
+  readonly cartel: number;
   readonly barred: boolean;
 };
 
@@ -568,19 +571,26 @@ function factsOf(world: World, s: Settlement, year: number): Facts {
       form !== "reef",
     // (How far its law reaches: who judges, how rightful the rule they judge for, what is skimmed from it.)
     legit = order ? order.legitimacy : 0.5,
+    // (Where its realm forbids what its people take and those who carry it are organised (round B's cartel), they buy and
+    // frighten the law's men, and what they carry is to hand: the law reaches less, and there is more to be had.)
+    cartel = realm ? cartelOf(world, realm.ref) : 0,
     reach = Math.max(
       0,
       Math.min(
         1,
         REACH[form] * (realm ? 0.6 + 0.8 * legit : 0.6) -
-          0.4 * (order?.corruption ?? 0) +
+          0.4 * (order?.corruption ?? 0) -
+          0.3 * cartel +
           (order && order.caste >= 0.45 ? 0.1 : 0),
       ),
     ),
     scene: CrimeScene = {
       hungry,
       short,
-      opportunity: Math.min(1, (rich ? 0.45 : 0.15) + (carried > 0 ? 0.2 : 0) + 0.35 * war),
+      opportunity: Math.min(
+        1,
+        (rich ? 0.45 : 0.15) + (carried > 0 ? 0.2 : 0) + 0.35 * war + 0.2 * cartel,
+      ),
       reach,
       grievance: Math.min(
         1,
@@ -609,6 +619,7 @@ function factsOf(world: World, s: Settlement, year: number): Facts {
     strict: !!order && order.caste >= 0.45,
     scene,
     barred,
+    cartel,
   };
 }
 
@@ -1687,13 +1698,14 @@ const RECORD_YEARS = 8;
 const RECORD_COST = 40_000;
 
 /** Why they lean as they do to a wrong, in a few words read off what leads them to it and what holds them back. */
-function leanWhy(p: SelfRead, k: CrimeKind, scene: CrimeScene): string {
+function leanWhy(p: SelfRead, k: CrimeKind, scene: CrimeScene, cartel: number): string {
   const t = p.traits,
     out: string[] = [];
   if (k === "steal" || k === "cheat") {
     if (scene.short && p.standing < 0.5) out.push("a poor home here goes short");
     if (scene.hungry >= 0.3) out.push("their land went hungry");
     if (k === "steal" && scene.opportunity >= 0.5) out.push("there is much to be had");
+    if (cartel >= 0.3) out.push("those who carry what is forbidden are organised here");
     if (t.drive >= 0.64) out.push("they want more than they have");
     if (p.standing >= 0.7) out.push("they have much to lose");
   }
@@ -1755,7 +1767,7 @@ export function selfLawBlocks(world: World, p: SelfRead): Block[] {
       type: "facts",
       title: "What could lead them wrong",
       rows: CRIME_KINDS.map((k) => {
-        const why = leanWhy(p, k, f.scene);
+        const why = leanWhy(p, k, f.scene, f.cartel);
         return stat(
           `${CRIME_WORDS[k][0]!.toUpperCase()}${CRIME_WORDS[k].slice(1)}`,
           `${leanWord(lean[k])} of ${s.name}${why ? `: ${why}` : ""}`,

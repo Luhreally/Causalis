@@ -319,6 +319,42 @@ export function windWm2(airKgM3: number, speed: number): number {
 }
 /** The prevailing wind near the ground (m/s, est: Earth's lands average some 6 to 7). */
 export const WIND_MS = 6.5;
+/** How much warmer Earth's tropics are than its polar caps (°C): the contrast that drives its winds. */
+export const EARTH_WIND_CONTRAST = 40;
+
+/**
+ * A world's prevailing wind (m/s): its winds are driven by how much warmer its tropics are than its poles, so their speed
+ * goes as that contrast, Earth's 40 °C giving Earth's wind (its power then as the cube: windWm2).
+ */
+export function windSpeedOf(contrastC: number): number {
+  return (WIND_MS * Math.max(0, contrastC)) / EARTH_WIND_CONTRAST;
+}
+
+/** An air's weight a mole (g/mol, est): Earth's 29; a methane world's nitrogen and methane some 28. */
+export function airMolar(airHolds: readonly string[]): number {
+  return airHolds.includes("methane") ? 28 : 29;
+}
+/** An air's weight a cubic metre (kg): its pressure over R T, at its own weight a mole. */
+export function airKgM3(bar: number, airHolds: readonly string[], kelvin: number): number {
+  return (bar * 1e5 * airMolar(airHolds)) / 1000 / (8.314 * Math.max(1, kelvin));
+}
+
+/** Earth's age (Gyr), its uranium's fissile share now, and the half-lives of U-235 and U-238 (Gyr). */
+const EARTH_AGE_GYR = 4.54,
+  EARTH_FISSILE_SHARE = 0.0072,
+  HALF_235 = 0.704,
+  HALF_238 = 4.468;
+/** Below this fissile share, enriching fuel for a reactor asks more of a works than the reactor gives back. */
+export const FISSILE_LEAST = 0.003;
+
+/** The fissile share of a world's uranium, by its star's age: U-235 decays six times faster than U-238. */
+export function fissileShare(ageGyr: number): number {
+  const ratio = (s: number) => s / (1 - s),
+    l235 = dmath.LN2 / HALF_235,
+    l238 = dmath.LN2 / HALF_238,
+    r = ratio(EARTH_FISSILE_SHARE) * dmath.exp((EARTH_AGE_GYR - ageGyr) * (l235 - l238));
+  return r / (1 + r);
+}
 
 /** Tides' power along a kilometre of coast at Earth's tides (kW, est: some 1 TW of the shallow seas' 3.7 over 350,000 km). */
 export const TIDE_KW_KM = 3000;

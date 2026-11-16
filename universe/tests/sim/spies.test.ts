@@ -39,7 +39,7 @@ test("a spy in a realm reads its host truly; one in a realm that watches every w
     const e = world.events
       .all()
       .findLast((x) => x.type === SPY_EVENTS.caught.type && x.subjects[0] === b.ref);
-    // (Caught, or placed again the same year: either way told.)
+    // (Caught, told, and none sent back in the year it was caught.)
     assert.ok(e, "caught, and not told");
     assert.match(why(world, e.id).claim, /caught a spy/);
   }

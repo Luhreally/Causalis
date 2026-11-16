@@ -10,12 +10,15 @@ import {
   meansNumbers,
   meansOfWorld,
   originGround,
+  starAgeGyr,
   surfaceOre,
+  windContrast,
   worldChemistry,
 } from "../../gen/index.ts";
 import {
   CARRIERS,
   EDGE_HEAT,
+  FISSILE_LEAST,
   FISSION_METALS,
   FUEL_MAKEUP,
   FUEL_UNIT_KWY,
@@ -32,17 +35,18 @@ import {
   TIDE_KW_KM,
   WANTS,
   WIND_GROUND,
-  WIND_MS,
   WIND_SPACING,
   WOODS_HOLD_YEARS,
   WOOD_TAKEN,
   WIND_TURBINES,
   WORK_KW,
+  airKgM3,
   bestHeat,
   carbonKg,
   coldOf,
   energyAccount,
   engineDriven,
+  fissileShare,
   fitOf,
   fuelUnitKg,
   groundHeatC,
@@ -55,6 +59,7 @@ import {
   riverKw,
   stuffOf,
   sulphurKg,
+  windSpeedOf,
   windWm2,
   workPower,
   type Carrier,
@@ -264,7 +269,7 @@ function siteOf(ctx: PopulationContext, cell: number): Site {
     o = originOf(ctx),
     risingWm2 = GROUND_WM2 * o.heat * (spot ? SPOT_HEAT : near ? EDGE_HEAT : 1),
     // An air's weight a cubic metre: its pressure over R T, at its own weight a mole.
-    airKg = (n.airBar * 1e5 * airMolar(n.airHolds)) / 1000 / (8.314 * Math.max(1, n.kelvin)),
+    airKg = airKgM3(n.airBar, n.airHolds, n.kelvin),
     beam = n.rockHolds.includes("tholin") ? 0.01 : 0.75,
     site: Site = {
       areaKm2,
@@ -273,7 +278,12 @@ function siteOf(ctx: PopulationContext, cell: number): Site {
         : riverKw(g.water.discharge[cell] ?? 0, fall, g.planet.radius, n.pull, n.seaKgM3),
       windKw: water
         ? 0
-        : windWm2(airKg, WIND_MS) * areaKm2 * 1e6 * WIND_GROUND * WIND_SPACING * 1e-3,
+        : windWm2(airKg, windSpeedOf(windContrast(g))) *
+          areaKm2 *
+          1e6 *
+          WIND_GROUND *
+          WIND_SPACING *
+          1e-3,
       tideKw: coastKm * TIDE_KW_KM * o.tides,
       groundKw: areaKm2 * 1e6 * risingWm2 * GROUND_DRAWN * 1e-3,
       groundC: groundHeatC(n.kelvin - 273.15, risingWm2, !n.rock),
@@ -304,11 +314,6 @@ function originOf(ctx: PopulationContext): Origin {
     out = { tides: o.tides, heat: o.heat, ground: o.light > 0 ? o.ground / o.light : 1 };
   ORIGINS.set(key, out);
   return out;
-}
-
-/** An air's weight a mole (g/mol, est): Earth's 29; a methane world's nitrogen and methane some 28. */
-function airMolar(airHolds: readonly string[]): number {
-  return airHolds.includes("methane") ? 28 : 29;
 }
 
 // —— What a land knows, as its account asks it ——————————————————————————————————————————————————————
@@ -401,7 +406,8 @@ function knowingOf(ctx: PopulationContext, cell: number): Knowing {
     if (
       s !== "none" &&
       SOURCE_BY[s].some(knows) &&
-      (s !== "fission" || n.metalShare >= FISSION_METALS)
+      (s !== "fission" ||
+        (n.metalShare >= FISSION_METALS && fissileShare(starAgeGyr(g.star)) >= FISSILE_LEAST))
     )
       taps.add(s);
   const engine = HEAT_ENGINES.some(knows),

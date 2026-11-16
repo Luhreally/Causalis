@@ -31,7 +31,6 @@ import {
   STRIKE_HURT,
   bandOf,
   pairingOf,
-  rollBearers,
   type LandFell,
   type LifeHistory,
 } from "../rules/index.ts";
@@ -46,6 +45,7 @@ import {
   type Battle,
   type PopulationContext,
   type War,
+  bearersSent,
 } from "../sim/index.ts";
 import { townsfolkRef } from "../bridge/index.ts";
 
@@ -245,7 +245,8 @@ export function houseName(family: Tongue, town: string, line: number, per = 4): 
 /**
  * How a people's lines are housed and sent, by how its kind pairs (round G, kin by species): the lines that share a home and a
  * family's name (rules/self.ts HOME_LINES: four as upright apes pair for life, a hive's cell of twelve, one where none pairs), and
- * the share of those who bear its levies take with the rest (none of an upright ape's mothers; a spawning people's all).
+ * the share of those who bear its levies take with the rest, as the levy itself reads it (sim/war/levy.ts bearersSent: none of an
+ * upright ape's mothers; a spawning people's all).
  */
 export function kinShape(ctx: PopulationContext): {
   readonly perHome: number;
@@ -254,7 +255,7 @@ export function kinShape(ctx: PopulationContext): {
   const body = ctx.generated.life.people?.body;
   return {
     perHome: HOME_LINES[pairingOf(body, ctx.life.adulthood)],
-    bearers: rollBearers(body, ctx.life),
+    bearers: bearersSent(ctx),
   };
 }
 

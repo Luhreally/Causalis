@@ -284,7 +284,7 @@ export {
   WORKS_WATTS,
   bestCarrier,
   carriersOf,
-  fissileShare,
+  windContrast,
   landCarries,
   type CarrierRoad,
   type Carriers,

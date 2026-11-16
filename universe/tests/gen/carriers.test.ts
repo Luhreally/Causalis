@@ -3,12 +3,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { seedFromText } from "../../src/kernel/index.ts";
-import { EARTHLIKE, OPEN } from "../../src/rules/index.ts";
+import { EARTHLIKE, OPEN, fissileShare } from "../../src/rules/index.ts";
 import {
   WORKS_WATTS,
   bestCarrier,
   carriersOf,
-  fissileShare,
   generateHomeWorld,
   machinesRoad,
   provinceWorld,

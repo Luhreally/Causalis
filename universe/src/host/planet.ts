@@ -902,8 +902,11 @@ function planetUniverse(name: string, prior: Prior): Universe {
   // of its numbers the association its evidence supports, its own and others' it could see. And with the round after: births that
   // answer to what a land has put by to see its reaping in; followed peoples read no further than their own worlds let them come;
   // a settler's upkeep reckoned from its own world's warmth and air; a methane world's wire lighting its homes; strife that reads
-  // how wealth is held, debt owed to strangers and the lean month, and leaves what those who rose would have.)
-  const version = name === "alien" ? "alien-27" : `${name}-23`,
+  // how wealth is held, debt owed to strangers and the lean month, and leaves what those who rose would have. And with the six
+  // rounds after that: energy and the ground as stocks, a people's mind, money and the state, the planet in motion, lives read
+  // whole, peoples among the stars alive in history, and order: powers, wants learned, elections, councils, spies, lands held
+  // by force and the ground a battle is fought on.)
+  const version = name === "alien" ? "alien-28" : `${name}-24`,
     make = (seed: Seed, frequency?: number) => {
       // The chronicle opens after a generated prehistory: bands across the land.
       const lands = landsOf(seed.text),

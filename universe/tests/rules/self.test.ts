@@ -10,8 +10,9 @@ import {
   careerOf,
   crimeLean,
   holdingsOf,
+  bearersServe,
+  bearingHeld,
   pairingOf,
-  rollBearers,
   selfNature,
   shareAt,
   topTenth,
@@ -183,6 +184,7 @@ test("how a kind pairs, and whose mothers its levies take", () => {
   assert.equal(pairingOf(hive, 6), "brood");
   assert.equal(pairingOf(spawner, 10), "none");
   assert.equal(pairingOf({ ...ape, bearing: "eggs", young: 4, social: 0.5 }, 10), "season");
-  assert.equal(rollBearers(ape, HUMANLIKE), 0);
-  assert.equal(rollBearers(spawner, HUMANLIKE), 1);
+  // (Whose mothers a levy takes is round C's one rule: rules/children.ts bearersServe of how long their young hold them.)
+  assert.equal(bearersServe(bearingHeld(ape, HUMANLIKE)), 0);
+  assert.equal(bearersServe(bearingHeld(spawner, HUMANLIKE)), 1);
 });
