@@ -1138,3 +1138,4 @@ export {
 export { civilizationOf, farReadAll, farReadNext } from "./space/contact.ts";
 export { FarReadStore } from "./space/far-read.ts";
 export { folkPeopleAt, followedRead } from "./space/natives.ts";
+export { WANTS_LEARN, WantsStore, learnWants, wantsOf, type GroupWants } from "./order/wants.ts";

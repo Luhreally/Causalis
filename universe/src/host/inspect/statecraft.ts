@@ -13,6 +13,7 @@ import {
   holdsOf,
   interestsOf,
   populationContext,
+  wantsOf,
   type Polity,
 } from "../../sim/index.ts";
 import { HOLDING } from "../../rules/index.ts";
@@ -63,5 +64,45 @@ export function powersBlocks(world: World, r: Polity): Block[] {
           .map((g) => part(g, share(sway.get(g) ?? 0))),
       }),
     );
-  return [{ type: "facts", title: "Who holds which powers", rows }];
+  return [{ type: "facts", title: "Who holds which powers", rows }, ...wantsBlocks(world, r)];
 }
+
+/** What each of its groups has learned to want of how it is held, and how it fared when it last weighed. */
+function wantsBlocks(world: World, r: Polity): Block[] {
+  const kept = wantsOf(world)?.of(r.ref);
+  if (!kept?.size) return [];
+  const rows: Stat[] = [];
+  for (const g of GROUPS) {
+    const w = kept.get(g);
+    if (!w) continue;
+    const fared =
+      w.fared > 0.15
+        ? "fared well, and wants it held more as it was"
+        : w.fared < -0.15
+          ? "fared ill, and wants it held otherwise"
+          : "fared much as before";
+    rows.push(
+      stat(
+        g,
+        w.year ? `${cap(fared)} (year ${w.year})` : "Wants it held as it is: not yet weighed",
+        {
+          parts: [
+            part("the seat's share of the arms", share(w.want[0]! / 100)),
+            part("how widely choices are carried", share(w.want[1]! / 100)),
+            part("how freely word moves", share(w.want[2]! / 100)),
+            part("how far it binds itself to others", share(w.want[3]! / 100)),
+          ],
+        },
+      ),
+    );
+  }
+  return [
+    {
+      type: "facts",
+      title: "What its groups have learned to want",
+      rows,
+    },
+  ];
+}
+
+const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1);

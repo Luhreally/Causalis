@@ -8,10 +8,21 @@ import {
   rulesetId,
   saveWorld,
   seedFromText,
+  type Ref,
   type SimTime,
   type World,
 } from "../../src/kernel/index.ts";
-import { HOLD, HOLD_WANTS } from "../../src/rules/index.ts";
+import { HOLD } from "../../src/rules/index.ts";
+
+/** Wants as groups might have learned them (sim/order/wants.ts): a stand-in, so that the reading of them is tested alone. */
+const LEARNED: Readonly<Record<string, readonly number[]>> = {
+  farmers: [0.3, 0.6, 0.6, 0.5],
+  herders: [0.2, 0.5, 0.6, 0.4],
+  crafters: [0.5, 0.75, 0.8, 0.6],
+  traders: [0.6, 0.75, 0.9, 0.9],
+  "the court": [0.85, 0.1, 0.25, 0.5],
+};
+const learned = (g: string) => LEARNED[g] ?? null;
 import {
   ASSEMBLY_WANTED,
   GENERAL,
@@ -28,6 +39,7 @@ import {
   revolutionDanger,
   seize,
   strainOf,
+  wantsOf,
   wantsOfRisen,
   type Interest,
   type Polity,
@@ -50,6 +62,9 @@ const greatest = (w: World): Polity => {
 };
 const group = (name: string, sway: number): Interest =>
   ({ group: name, sway, people: 100, demands: [] }) as unknown as Interest;
+/** What a realm's groups have learned to want, as a rising reads it. */
+const ofRealm = (w: World, realm: Ref) => (g: string) =>
+  wantsOf(w)?.wantOf(realm, g) ?? holdsOf(w, realm);
 const term = (factors: readonly { name: string; contribution: number }[], name: string) =>
   factors.find((f) => f.name === name)!.contribution;
 
@@ -58,10 +73,12 @@ test("what those who rose would have: their wants by their sway, those with no p
     tillers = wantsOfRisen(
       [group("farmers", 0.5), group("herders", 0.2), group("the court", 0.3)],
       many,
+      learned,
     )!,
     makers = wantsOfRisen(
       [group("crafters", 0.3), group("traders", 0.4), group("the court", 0.3)],
       many,
+      learned,
     )!;
   // The court's wants weigh nothing in a rising against it.
   assert.ok(Math.abs(tillers[HOLD.voice]! - (0.5 * 0.6 + 0.2 * 0.5) / 0.7) < 1e-12);
@@ -70,11 +87,16 @@ test("what those who rose would have: their wants by their sway, those with no p
   assert.ok(makers[HOLD.voice]! >= ASSEMBLY_WANTED, `${makers[HOLD.voice]}`);
   assert.ok(makers[HOLD.word]! > tillers[HOLD.word]!);
   // One group alone: its own wants, to the number.
-  wantsOfRisen([group("traders", 0.2)], many)!.forEach((x, k) =>
-    assert.ok(Math.abs(x - HOLD_WANTS.traders![k]!) < 1e-12, `${k}`),
+  wantsOfRisen([group("traders", 0.2)], many, learned)!.forEach((x, k) =>
+    assert.ok(Math.abs(x - LEARNED.traders![k]!) < 1e-12, `${k}`),
   );
   // No one of them with any sway: nothing to read.
-  assert.equal(wantsOfRisen([group("the court", 1)], many), null);
+  assert.equal(wantsOfRisen([group("the court", 1)], many, learned), null);
+  // (Nor where none of them has learned to want anything.)
+  assert.equal(
+    wantsOfRisen([group("traders", 1)], many, () => null),
+    null,
+  );
 });
 
 test("the lean month, wealth in few hands and debt owed to strangers each weigh in both sums, by how much there is of each", () => {
@@ -137,7 +159,7 @@ test("a rising leaves what those who rose would have: an assembly or a council, 
     p = greatest(w),
     o = orderOf(w)!.of(p.ref)!,
     many = (g: string) => (g === "the court" || g === "the army" || g === "the temple" ? 0 : 1),
-    wants = wantsOfRisen(interestsOf(ctx, p, at(1)), many)!,
+    wants = wantsOfRisen(interestsOf(ctx, p, at(1)), many, ofRealm(w, p.ref))!,
     before = holdsOf(w, p.ref);
   w.runTo(at(1));
   revolt(ctx, p, "voice", [], at(1));
@@ -160,7 +182,7 @@ test("a coup leaves a general, holding as the army and those behind it would", (
     ctx = populationContext(w),
     p = greatest(w),
     stood = (g: string) => (g === "the army" ? 1 : g === "the court" ? 0 : 0.5),
-    wants = wantsOfRisen(interestsOf(ctx, p, at(1)), stood)!;
+    wants = wantsOfRisen(interestsOf(ctx, p, at(1)), stood, ofRealm(w, p.ref))!;
   w.runTo(at(1));
   seize(ctx, p, [], at(1));
   assert.equal(p.leadership, GENERAL);

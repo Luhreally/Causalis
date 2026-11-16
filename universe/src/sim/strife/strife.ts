@@ -70,8 +70,9 @@ import {
   type RealmOrder,
 } from "../order/order.ts";
 import { LAW_OF } from "../order/laws.ts";
-import { FEW_RULE, HOLD, HOLDING, HOLD_WANTS } from "../../rules/index.ts";
+import { FEW_RULE, HOLD, HOLDING } from "../../rules/index.ts";
 import { holdOf, holdsOf, setHeld } from "../order/holds.ts";
+import { wantsOf } from "../order/wants.ts";
 import { financeOf } from "../finance/finance.ts";
 import { grieve, strike } from "../acts/disasters.ts";
 import { armyDone, armyMoves, armyVoice } from "../court/court.ts";
@@ -367,18 +368,19 @@ export const STRAIN = {
 } as const;
 
 /**
- * The holds the groups that rose would have (rules/holds.ts HOLD_WANTS), weighted by their sway and by `part`
- * (how far each was of the rising; 0: no part in it). Null where none of them has any sway.
+ * The holds the groups that rose would have (what each has learned to want, sim/order/wants.ts), weighted by their sway and
+ * by `part` (how far each was of the rising; 0: no part in it). Null where none of them has any sway or any wants.
  */
 export function wantsOfRisen(
   interests: readonly Interest[],
   part: (group: string) => number,
+  wantOf: (group: string) => readonly number[] | null,
 ): [number, number, number, number] | null {
   const out: [number, number, number, number] = [0, 0, 0, 0];
   let all = 0;
   for (const i of interests) {
     const w = i.sway * part(i.group),
-      wants = HOLD_WANTS[i.group];
+      wants = wantOf(i.group);
     if (!(w > 0) || !wants) continue;
     all += w;
     for (let k = 0; k < 4; k++) out[k]! += w * wants[k]!;
@@ -386,6 +388,11 @@ export function wantsOfRisen(
   if (!(all > 0)) return null;
   return out.map((x) => x / all) as [number, number, number, number];
 }
+/** What a group of a realm has learned to want of each number; where it has not yet weighed, the realm as it is held. */
+const learnedOf =
+  (world: World, realm: Ref) =>
+  (group: string): readonly number[] =>
+    wantsOf(world)?.wantOf(realm, group) ?? holdsOf(world, realm);
 /** Who rises with the many: those who are not the seat's few; twice over those who till and herd, where the land is what they rose for. */
 const manyRose =
   (cause: Movement["cause"]) =>
@@ -412,7 +419,9 @@ export function risenRule(
   movement: Movement["cause"],
   t: SimTime,
 ): { readonly leadership: 1 | 2; readonly wants: readonly [number, number, number, number] } {
-  const wants = wantsOfRisen(interestsOf(ctx, p, t), manyRose(movement)) ?? [0.4, 0.75, 0.6, 0.5];
+  const wants =
+    wantsOfRisen(interestsOf(ctx, p, t), manyRose(movement), learnedOf(ctx.world, p.ref)) ??
+    ([...holdsOf(ctx.world, p.ref)] as [number, number, number, number]);
   return { leadership: wants[HOLD.voice]! >= ASSEMBLY_WANTED ? 2 : 1, wants };
 }
 
@@ -617,7 +626,9 @@ export function seize(ctx: PopulationContext, p: Polity, causes: CauseRef[], t: 
     // else is not the court he overthrew, by their sway. So a general raised with traders at his back leaves word
     // freer than one the temple stood behind. Never more of a voice than a seat taken by the sword can give, nor
     // fewer arms kept to the host: rules/holds.ts.)
-    const wants = wantsOfRisen(interestsOf(ctx, p, t), armyRose) ?? [0.7, 0.12, 0.28, 0.5];
+    const wants =
+      wantsOfRisen(interestsOf(ctx, p, t), armyRose, learnedOf(ctx.world, p.ref)) ??
+      ([...holdsOf(ctx.world, p.ref)] as [number, number, number, number]);
     setHeld(o, "voice", Math.min(0.3, wants[HOLD.voice]!), "most", event);
     setHeld(o, "force", Math.max(0.6, wants[HOLD.force]!), "least", event);
     setHeld(o, "word", Math.min(0.5, wants[HOLD.word]!), "most", event);
