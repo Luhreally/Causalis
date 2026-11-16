@@ -3,7 +3,7 @@
 // host/starlens.ts and host/crew.ts from what history already holds. None of it is kept or enters history.
 
 /** The lenses of the stars around. One on at a time. */
-export type StarLens = "holds" | "peoples" | "lanes" | "trade" | "war";
+export type StarLens = "holds" | "peoples" | "lanes" | "trade" | "war" | "fear";
 
 /** The film a moment plays, or the place it is seen. */
 export type TourFilm =

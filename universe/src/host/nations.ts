@@ -6,7 +6,9 @@ import type { Ref, World } from "../kernel/index.ts";
 import { WORKS_PEOPLE, breakChance, darkLimit } from "../rules/index.ts";
 import {
   filledOf,
+  homePlanet,
   nationsOf,
+  starPoint,
   peopleOn,
   politiesOf,
   populationContext,
@@ -33,6 +35,7 @@ import { hueColor, realmColor, realmHue } from "./colors.ts";
 import { peopleWords as bigWords } from "./filling.ts";
 import type { QueryHandler } from "./host.ts";
 import { count, item, link, many, stat, yearNow } from "./inspect/words.ts";
+import { neighbourBlocks } from "./inspect/farlife.ts";
 
 const worlds = (n: number) => many(n, "world", "worlds");
 /** A realm among the stars' page: its own ref for a realm of worlds alone; a realm of the home world has a page already, this is its other. */
@@ -528,7 +531,19 @@ export function nationPage(world: World, ref: string): PageModel {
       ...(p && p.ended === null ? [stat("Who rules", p.ruler.name)] : []),
       stat("Word and fleet across it", b.longest ? years(b.longest) : "none can cross it"),
     ],
-    tabs: [{ id: "overview", name: "Overview", blocks }],
+    tabs: [
+      { id: "overview", name: "Overview", blocks },
+      // (The peoples about its worlds, by their own numbers: round F.)
+      ...(() => {
+        const near = neighbourBlocks(
+          world,
+          ref,
+          [homePlanet(world).generated.star.ref as string, ...rows.map((h) => h.star as string)],
+          (st) => starPoint(world, st as Ref),
+        );
+        return near.length ? [{ id: "peoples", name: "Peoples", blocks: near }] : [];
+      })(),
+    ],
     followable: false,
     year,
   };

@@ -108,6 +108,7 @@ const LENS_WORDS: Readonly<Record<StarLens, string>> = {
   lanes: "their lanes and ships",
   trade: "the trade between them",
   war: "their wars and fires",
+  fear: "who fears whom",
 };
 /** The stars around, in words. */
 export const starsWords = (lens: StarLens | null): string =>

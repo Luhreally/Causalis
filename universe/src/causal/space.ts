@@ -15,6 +15,7 @@ import {
   STARWAR_EVENTS,
   SUMMON_EVENTS,
   NATION_EVENTS,
+  FARLIFE_EVENTS,
   TRADE_EVENTS,
   VOYAGE_EVENTS,
 } from "../sim/index.ts";
@@ -334,8 +335,15 @@ registerEventWords(PEOPLES_EVENTS.among.type, (_world, e) => {
 registerEventWords(PEOPLES_EVENTS.exchange.type, (_world, e) => {
   const d = (e.data ?? {}) as Peoples,
     y = yearOfMoment(e.t);
-  if (d.other)
+  if (d.other) {
+    // (Round F: what passed is what the one behind lacked, and the exchange says who took it.)
+    const taker = (d as { taker?: string }).taker;
+    if (taker && d.what === "knowledge")
+      return `${cap(people(d))} and the ${d.other} met, and the ${taker}, the further behind, learned of the other, year ${y}`;
+    if (taker && d.what === "goods")
+      return `${cap(people(d))} and the ${d.other} traded, and the ${taker} took what they were short of, year ${y}`;
     return `${cap(people(d))} and the ${d.other} exchanged ${d.what ?? "gifts"}, year ${y}`;
+  }
   return d.what === "knowledge"
     ? `${cap(people(d))} taught ${realmOf(d)} ${d.principle ?? "something new"}, year ${y}`
     : d.what === "goods"
@@ -352,4 +360,37 @@ registerEventWords(PEOPLES_EVENTS.raid.type, (_world, e) => {
   return d.won
     ? `A fleet of ${people(d)} fell on ${d.far ? "the halls of " : ""}${realmOf(d)}${d.far ? " at another star" : ""} and burned them, year ${y}`
     : `A fleet of ${people(d)} came against ${realmOf(d)} and was beaten off, year ${y}`;
+});
+
+// —— Far peoples alive (round F) ——————————————————————————————————————————————————————————————————
+
+type FarLifeData = {
+  name?: string | null;
+  hungry?: boolean;
+  war?: number;
+  sick?: number;
+  lost?: number;
+  dead?: number;
+  won?: boolean;
+  why?: string;
+};
+const farName = (d: FarLifeData) => `the ${d.name ?? "far people"}`;
+const pct = (x: number | undefined) => `${Math.round((x ?? 0) * 100)}%`;
+
+registerEventWords(FARLIFE_EVENTS.broke.type, (_world, e) => {
+  const d = (e.data ?? {}) as FarLifeData,
+    pressed = [
+      d.hungry ? "hungry" : "",
+      (d.war ?? 0) >= 0.2 ? "worn by war" : "",
+      (d.sick ?? 0) >= 0.1 ? "sick" : "",
+    ].filter(Boolean);
+  return `${cap(farName(d))} fell into strife${pressed.length ? `, ${pressed.join(" and ")}` : ""}: what held them together let go, and their works stood idle, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(FARLIFE_EVENTS.fell.type, (_world, e) => {
+  const d = (e.data ?? {}) as FarLifeData;
+  return `${cap(farName(d))} fell. ${d.why ?? ""} Year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(FARLIFE_EVENTS.struck.type, (_world, e) => {
+  const d = (e.data ?? {}) as FarLifeData;
+  return `A landing struck ${farName(d)}: ${(d.sick ?? 0) > 0 ? `a sickness they had never met took ${pct(d.sick)} of those near where it came down, ` : ""}${count(d.dead ?? 0)} fell fighting${d.won ? " and the comers held the ground" : " and the comers were thrown back"}; of all of them, ${pct(d.lost)} were lost, year ${yearOfMoment(e.t)}`;
 });

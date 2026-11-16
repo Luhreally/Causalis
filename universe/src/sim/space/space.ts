@@ -584,6 +584,7 @@ export function installSpace(world: World, ctx: () => PopulationContext): SpaceS
   installPeoples(world, ctx);
   installTrade(world, ctx);
   installNations(world, ctx);
+  installFarLife(world, ctx);
   const late = world.register(new LateStore());
   world.addPinner(() => late.pinned());
   return store;
@@ -597,5 +598,6 @@ import { installLanes } from "./lane-visits.ts";
 import { installPeoples } from "./peoples.ts";
 import { installTrade } from "./trade.ts";
 import { installNations } from "./nations.ts";
+import { installFarLife } from "./farlife.ts";
 import { lateYear } from "./late.ts";
 import { LateStore } from "./late-store.ts";

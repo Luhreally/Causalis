@@ -37,6 +37,7 @@ export { resolveCombat, type CombatSide, type CombatFrame, type CombatRecord } f
 export {
   landfallFight,
   nativeHost,
+  sicknessCrossed,
   shipForce,
   standOff,
   type ComerNumbers,
@@ -1678,3 +1679,4 @@ export {
   parasiteToll,
 } from "./lineage.ts";
 export * from "./self.ts";
+export * from "./farlife.ts";

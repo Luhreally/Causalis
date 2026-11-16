@@ -6090,7 +6090,7 @@ async function runPlanetPage(): Promise<void> {
     starScene.voyages(voyageMarks(clusterPlan, sky, now() / YEAR));
     // The peoples of other stars among them (Phase 18 M134), and how they met where they met; put away under a lens with something else to say (Phase 73).
     const lensOn = clusterPanel.lenses.lens;
-    if (lensOn === "trade" || lensOn === "war" || lensOn === "lanes") {
+    if (lensOn === "trade" || lensOn === "war" || lensOn === "lanes" || lensOn === "fear") {
       if (!peoplesAway) starScene.peoples(NO_PEOPLES);
       peoplesAway = true;
     } else {

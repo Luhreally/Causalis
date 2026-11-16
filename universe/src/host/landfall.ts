@@ -26,7 +26,7 @@ import { figureBody } from "./folk.ts";
 import { comer, folkFigure } from "./natives.ts";
 import { PEOPLE_COLORS } from "./peoples.ts";
 import type { QueryHandler } from "./host.ts";
-import { stat } from "./inspect/words.ts";
+import { claimOf, stat } from "./inspect/words.ts";
 
 const many = (n: number) => Math.round(n).toLocaleString("en");
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -104,7 +104,7 @@ export function landfallPlan(world: World, f: Folk, l: Landfall): LandfallPlan {
         : `${many(flesh)} of their own, with ${carry}`,
     came = `${ships} of ${who.name}${realm ? `, sent by ${realmName(realm)},` : ""} came after ${many(l.years)} years on the way. They put down ${host}.`,
     men = fight.fielded[1],
-    met = `Some ${many(men)} of the ${f.name} came against them, of ${many(l.natives.people)} in all, with ${arms.join("; ") || "nothing made"}.`,
+    met = `Some ${many(men)} of the ${f.name} came against them, of ${many(l.natives.people)} of the people of the land they came down in, with ${arms.join("; ") || "nothing made"}.`,
     fled = Math.max(
       0,
       men - fight.crossed - Math.max(0, fight.dead[1] - fight.crossed * fight.killedShare),
@@ -222,6 +222,14 @@ export function landfallBlocks(world: World, f: Folk): Block[] {
         stat("What it cost", p.costWords),
         ...(p.terms.length ? [stat("What told", p.terms.join(" "))] : []),
         stat("Who holds the ground", p.holdsWords),
+        // (What it did to them after: their numbers struck, round F.)
+        ...(f.held?.told
+          .filter(
+            (t) => t.year === p.year && (t.what === "sickness" || t.what === "landing") && t.event,
+          )
+          .slice(0, 1)
+          .map((t) => stat("What it did to them", claimOf(world, t.event!), { why: t.event })) ??
+          []),
       ],
     },
     {
@@ -234,7 +242,7 @@ export function landfallBlocks(world: World, f: Folk): Block[] {
 
 /** The way history stands with it, for a page. */
 export const LANDFALL_NOTE =
-  "History holds that they came and whose ship it was. What passed on the ground is read from the numbers of both sides, the same every time, and moves nothing that follows. How many and how far are estimates.";
+  "History holds that they came and whose ship it was. What passed on the ground is read from the numbers of both sides, the same every time; what it took of them, the fallen and those a sickness took, and what they feared and learned of those who came, enters their own numbers from then (their Life tab). How many and how far are estimates.";
 
 export const LANDFALL_QUERIES: Readonly<Record<string, QueryHandler>> = {
   /** A landing on a people's world (its place among them, the first by default). */

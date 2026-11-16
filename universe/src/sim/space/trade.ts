@@ -50,6 +50,7 @@ import { warsOf } from "../war/war.ts";
 import { civilizationOf, civilizationsNear } from "./contact.ts";
 import { LANE_ROW, laneLawOf, laneMapOf, laneRoute, laneYearOf } from "./lanes.ts";
 import { folkByRef } from "./natives.ts";
+import { farSpare } from "./farlife.ts";
 import { peopleWords, peoplesOf } from "./peoples.ts";
 import { machinesOfRealm, spaceOf, spendMachines } from "./space.ts";
 import { starSitesOf } from "./stars.ts";
@@ -245,14 +246,19 @@ function asksOf(from: Market, to: Market): Offer[] {
   return out;
 }
 
-/** What a people of the stars would sell a market: as much as a hold takes. */
-const farAsks = (world: World, civ: Ref, to: Market): Offer[] =>
-  farGoods(world, civ).map((g) => ({
+/**
+ * What a people of the stars would sell a market (round F): what its own world gives it, as dear as what it turns makes it to
+ * them (rules/farlife.ts farDearness), and no more than it has to spare: a hungry or broken people has little.
+ */
+const farAsks = (world: World, civ: Ref, to: Market, year: number): Offer[] => {
+  const { dear, spare } = farSpare(world, civ, year);
+  return farGoods(world, civ).map((g) => ({
     good: g,
-    here: GOODS[g]!.value * FAR_FLOOR,
+    here: GOODS[g]!.value * FAR_FLOOR * dear,
     there: to.price[g]!,
-    spare: HOLD_TONNES / BULK_TONNES,
+    spare: (HOLD_TONNES / BULK_TONNES) * spare,
   }));
+};
 
 const worthOf = (load: readonly Load[]): number => load.reduce((n, l) => n + l.count * l.margin, 0);
 const tonnesOf = (load: readonly Load[]): number =>
@@ -509,7 +515,7 @@ function sail(ctx: PopulationContext, r: StarRun, to: Away | Market, year: numbe
   if (year - r.lastOut < gap || r.under.length >= MOST_UNDER_WAY) return true;
   const machinePrice = from ? from.price[G.machines]! : GOODS[G.machines]!.value * FAR_FLOOR;
   load = holdOf(
-    r.civ ? farAsks(world, r.civ, market) : asksOf(from!, market),
+    r.civ ? farAsks(world, r.civ, market, year) : asksOf(from!, market),
     crossing,
     machinePrice,
     people * PAY_HEAD * gap,
@@ -704,7 +710,7 @@ function opening(
         if (!c) continue;
         const risk = reckonOn(store, civ.ref, to.cell, year),
           load = holdOf(
-            farAsks(world, civ.ref, to.market),
+            farAsks(world, civ.ref, to.market, year),
             c,
             GOODS[G.machines]!.value * FAR_FLOOR,
             budget,

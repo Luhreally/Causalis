@@ -37,6 +37,7 @@ import { LANE_ROW, laneLawOf, laneRoute } from "./lanes.ts";
 import { starSitesOf } from "./stars.ts";
 import { noteFirstJump } from "./voyages.ts";
 import { causeOfFleet, fleetLost, nationCauses } from "./nations.ts";
+import { livedStrength } from "./farlife-read.ts";
 
 export const STARWAR = defineKind("swar", "war between the stars", "minted");
 
@@ -170,8 +171,8 @@ export function causes(ctx: PopulationContext, p: Polity, year: number): Cause[]
       star: civ.star,
       planet: civ.planet,
       distance: civ.distance,
-      // An older starfaring people is the stronger, and the more for its pace.
-      defence: (y) => 1 + (civ.pace * Math.max(0, y - civ.stars)) / 150,
+      // A people is as strong as what all of it turns, as far as it holds together and is not worn by war (round F).
+      defence: (y) => Math.max(1, livedStrength(world, civ, y)),
       factor: {
         name: `another starfaring people, heard ${civ.distance.toFixed(1)} light-years away`,
         value: civ.distance,

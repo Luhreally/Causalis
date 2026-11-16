@@ -42,7 +42,11 @@ import {
   reachIn,
   routeYears,
   starDriveFor,
+  farDearness,
+  farPasses,
+  wearyPeace,
   type BodyPlan,
+  type FarAim,
   type Principle,
 } from "../../rules/index.ts";
 import { WAY, cultureOf, pushWays } from "../culture/culture.ts";
@@ -55,6 +59,8 @@ import { laneLawOf, laneRoute, laneYearOf } from "./lanes.ts";
 import { clusterOf, worldsOf } from "./voyages.ts";
 import { machinesOfRealm, spaceOf } from "./space.ts";
 import { starSitesOf } from "./stars.ts";
+import { livedState, livedStrength } from "./farlife-read.ts";
+import { fleetWill, heldBroken, homeRung, meetingWeights, warWeary } from "./farlife.ts";
 
 export const PEOPLES_EVENTS = {
   sailed: defineEventType("peoples.sailed", 3),
@@ -136,6 +142,8 @@ export type PeopleShip = {
   arrived: Ref | null;
   /** The land the god called them down to (M142), if the god called them. */
   readonly cell?: number;
+  /** A fleet's aim (round F): ground its people lack, a threat it would end, goods; absent, none told. */
+  readonly aim?: FarAim;
 };
 
 /** Two peoples met: where and when, how each met the other, and what has passed since. */
@@ -336,7 +344,10 @@ export function peopleStrength(civ: Civilization, year: number): number {
 }
 
 /** How fast a people's ships go (light-years a year): faster as its drives improve. */
-export function speedOf(civ: Civilization, year: number): number {
+export function speedOf(civ: Civilization, year: number, world?: World): number {
+  // (Round F: where its life is read, as far as what it knows past the stars has carried its drives.)
+  const lived = world && year >= civ.stars ? livedState(world, civ, year) : null;
+  if (lived) return 0.05 + 0.25 * Math.max(0, Math.min(1, lived.know - 7));
   return 0.05 + 0.25 * Math.max(0, Math.min(1, (year - civ.stars) / (500 * civ.pace)));
 }
 
@@ -542,7 +553,11 @@ type Side =
 
 type Weighed = { reaction: Reaction; factors: Factor[] };
 
-/** One side's reaction to the other: weighed by its nature (or its ways) and the odds between them. */
+/**
+ * One side's reaction to the other (round F): weighed from what it fears of the other and stands to gain of it, by its nature (or
+ * its ways), and whether it is pressed for ground (rules/farlife.ts meetingLeans: in wonder as the other stands far above it, in fear
+ * as it is threatened, to trade as it stands to gain and can say so, for war as it is threatened and the stronger, or crowded).
+ */
 function react(
   ctx: PopulationContext,
   me: Side,
@@ -551,82 +566,47 @@ function react(
   key: number,
   purpose: number,
   omen: boolean,
+  pressed: number,
 ): Weighed {
   const world = ctx.world,
-    strength = (s: Side) =>
-      s.kind === "people"
-        ? peopleStrength(s.civ, year)
-        : s.realm
-          ? realmStrength(ctx, s.realm)
-          : 0.3,
-    mine = strength(me),
-    yours = strength(them);
-  let weights: number[], factors: Factor[];
-  if (me.kind === "people") {
-    const n = peopleNature(world, me.civ);
-    weights = [
-      0.3 + n.curious,
-      n.wary * (yours > mine ? 1.4 : 0.5),
-      1.2 * n.trading * (them.kind === "home" && omen ? 0.3 : 1),
-      n.bold * n.wary * (mine > yours ? 1.3 : 0.4),
-    ];
-    factors = [
-      { name: "their curiosity", value: n.curious, contribution: weights[0]!, source: null },
+    read = meetingWeights(ctx, me, them, year, { omen, speak: !omen, pressed }),
+    weights = read.weights,
+    n = read.leaning,
+    who: CauseRef | null =
+      me.kind === "home" && me.realm ? { ref: me.realm.ref, role: "agent", weight: 1 } : null,
+    theirs = me.kind === "people" ? "their" : "its people's",
+    factors: Factor[] = [
       {
-        name: "their wariness of strangers",
+        name: `what ${me.kind === "people" ? "they" : "it"} feared of the strangers: stronger by ${Math.round(read.threat.gap * 100)} in 100, seen ${Math.round(read.threat.seen * 100)}%, exposed ${Math.round(read.threat.exposed * 100)}%, with ${Math.round(read.threat.loss * 100)}% to lose`,
+        value: Math.round(read.threat.level * 100) / 100,
+        contribution: weights[1],
+        source: null,
+      },
+      {
+        name: `what ${me.kind === "people" ? "they" : "it"} stood to gain of them: ${read.gain.ahead > 0.05 ? `their knowledge, ${read.gain.ahead.toFixed(1)} steps ahead` : "little they knew that it did not"}${read.gain.power > 0.05 ? ", their power" : ""}${read.gain.food > 0.05 ? ", their food" : ""}`,
+        value: Math.round(read.gain.level * 100) / 100,
+        contribution: weights[2],
+        source: null,
+      },
+      { name: `${theirs} curiosity`, value: n.curious, contribution: weights[0], source: who },
+      {
+        name: `${theirs} wariness of strangers`,
         value: n.wary,
-        contribution: weights[1]!,
+        contribution: n.wary,
         source: null,
       },
-      { name: "their love of trade", value: n.trading, contribution: weights[2]!, source: null },
-      { name: "their boldness", value: n.bold, contribution: weights[3]!, source: null },
-      {
-        name: "their strength against the other's",
-        value: Math.round((mine / Math.max(0.1, yours)) * 100) / 100,
-        contribution: 0,
-        source: null,
-      },
+      { name: `${theirs} boldness`, value: n.bold, contribution: weights[3], source: null },
+      ...(pressed > 0
+        ? [
+            {
+              name: "no star left to settle within reach",
+              value: pressed,
+              contribution: 0.8 * pressed,
+              source: null,
+            },
+          ]
+        : []),
     ];
-  } else {
-    const ways = cultureOf(world).get(me.cell)?.traits ?? [],
-      t = (k: keyof typeof WAY) => ways[WAY[k]] ?? 0.5,
-      awed = yours > 2 * mine,
-      who: CauseRef | null = me.realm ? { ref: me.realm.ref, role: "agent", weight: 1 } : null;
-    weights = [
-      0.2 + 0.5 * t("openness") + 0.4 * t("piety") + (omen ? 0.3 : 0),
-      0.3 * t("tradition") + 0.3 * (1 - t("openness")) + (awed ? 0.3 : 0),
-      (1.1 * t("trade") + 0.2 * t("openness")) * (omen ? 0.5 : 1),
-      t("valour") * (1 - t("openness")) * (mine >= yours ? 1.2 : 0.5),
-    ];
-    factors = [
-      {
-        name: "its people's openness to strangers",
-        value: t("openness"),
-        contribution: weights[0]!,
-        source: who,
-      },
-      {
-        name: "its people's piety",
-        value: t("piety"),
-        contribution: 0.4 * t("piety"),
-        source: null,
-      },
-      {
-        name: "its love of the old ways",
-        value: t("tradition"),
-        contribution: weights[1]!,
-        source: null,
-      },
-      { name: "its traders", value: t("trade"), contribution: weights[2]!, source: null },
-      { name: "its valour", value: t("valour"), contribution: weights[3]!, source: null },
-      {
-        name: "the strangers' strength against its own",
-        value: Math.round((yours / Math.max(0.1, mine)) * 100) / 100,
-        contribution: 0,
-        source: null,
-      },
-    ];
-  }
   const total = weights.reduce((a, b) => a + b, 0),
     u = world.rng.real(MEET, key, year, purpose) * total;
   let at = 0,
@@ -659,8 +639,11 @@ function meet(
     me: Side = { kind: "people", civ },
     key = keyOf(civ.ref),
     purpose = 2 * store.meetings.length,
-    theirs = react(ctx, me, other, year, key, purpose, omen),
-    ours = react(ctx, other, me, year, key, purpose + 1, omen),
+    // (A people with no star left to settle within reach is pressed for ground: round F.)
+    crowded = (side: Side) =>
+      side.kind === "people" && store.crowded.includes(side.civ.ref) ? 1 : 0,
+    theirs = react(ctx, me, other, year, key, purpose, omen, crowded(me)),
+    ours = react(ctx, other, me, year, key, purpose + 1, omen, crowded(other)),
     otherRef = sideRef(other),
     decide = (subject: Ref, w: Weighed, toward: Ref) =>
       world.decisions.record({
@@ -857,25 +840,40 @@ function exchange(
   if (m.lastEvent) causes.push({ ref: m.event, role: "enabler", weight: 0.5 });
   if (other) {
     // Between two peoples of the stars what passes is theirs: told here, not lived.
-    const what: Exchange["what"] = u < 0.45 ? "knowledge" : u < 0.85 ? "goods" : "ways",
+    // (What passes is what the one behind lacks and the other has: knowledge from the further on, goods to the short. Round F.)
+    const a = livedState(world, civ, year),
+      b = livedState(world, other, year),
+      behind = a && b && a.know < b.know ? civ : other,
+      what: Exchange["what"] =
+        a && b ? (behind === civ ? farPasses(b, a, u) : farPasses(a, b, u)) : "ways",
       event = world.events.emit({
         type: PEOPLES_EVENTS.exchange.type,
         place: null,
         subjects: [civ.ref, other.ref],
         causes,
-        data: { name: words.name, other: peopleWords(world, other).name, what, year },
+        data: {
+          name: words.name,
+          other: peopleWords(world, other).name,
+          what,
+          taker: peopleWords(world, behind).name,
+          year,
+        },
       });
-    told(store, m, other.ref, what, "", year, event);
+    told(store, m, other.ref, what, what === "ways" ? "" : behind.ref, year, event);
     return;
   }
   if (!realm) return;
+  // (What passes is what the realm lacks that they have: what they know past it, and goods as far as they have any to spare. Round F.)
   const lessons = year >= civ.stars ? lessonsFor(ctx, realm.seat) : [],
-    what: Exchange["what"] =
-      u < 0.45 && lessons.length
-        ? "knowledge"
-        : u < 0.8 && year >= civ.electronics
-          ? "goods"
-          : "ways",
+    theirs = livedState(world, civ, year),
+    spare = theirs ? farDearness(theirs).spare : 0.5,
+    ahead = theirs ? Math.max(0, theirs.know - (homeRung(ctx, realm) + 0.5)) : 0,
+    know = lessons.length ? 0.8 * Math.min(1.5, Math.max(0.3, ahead)) : 0,
+    goods = year >= civ.electronics ? 0.6 * spare : 0,
+    pick = u * (know + goods + 0.25),
+    what: Exchange["what"] = pick < know ? "knowledge" : pick < know + goods ? "goods" : "ways",
+    // (A gift is what their holds can spare: more where they make more than they need.)
+    gift = Math.round(GIFT_MACHINES * (0.25 + 1.5 * spare)),
     place = cellRef(0, realm.seat),
     lesson = what === "knowledge" ? lessons[0]! : null,
     event = world.events.emit({
@@ -889,7 +887,7 @@ function exchange(
         realm: realm.town,
         what,
         principle: lesson?.name ?? null,
-        machines: what === "goods" ? GIFT_MACHINES : 0,
+        machines: what === "goods" ? gift : 0,
         year,
       },
     });
@@ -905,8 +903,8 @@ function exchange(
     return;
   }
   if (what === "goods") {
-    marketsOf(world).get(realm.seat)?.move("in", G.machines, GIFT_MACHINES);
-    told(store, m, realm.ref, what, String(GIFT_MACHINES), year, event);
+    marketsOf(world).get(realm.seat)?.move("in", G.machines, gift);
+    told(store, m, realm.ref, what, String(gift), year, event);
     return;
   }
   const ways = cultureOf(world).get(m.cell >= 0 ? m.cell : realm.seat);
@@ -944,10 +942,11 @@ function sendFleet(
   foe: Ref,
   to: Ref,
   year: number,
+  aim: FarAim = null,
 ): void {
   const world = ctx.world,
     from = nearestHold(world, store, civ, to),
-    years = crossing(world, from, to, speedOf(civ, year), civ, year);
+    years = crossing(world, from, to, speedOf(civ, year, world), civ, year);
   m.lastRaid = year;
   if (years > LONGEST_CROSSING) return;
   const realm = politiesOf(world).get(foe),
@@ -979,6 +978,7 @@ function sendFleet(
     toward: foe,
     heard: false,
     arrived: null,
+    ...(aim ? { aim } : {}),
   });
 }
 
@@ -1004,8 +1004,9 @@ function fleetArrives(
   const m = store.meetingOf(civ.ref, foe),
     words = peopleWords(world, civ),
     n = peopleNature(world, civ),
-    theirs = peopleStrength(civ, year) * (0.5 + n.bold),
-    ours = them ? peopleStrength(them, year) : realmStrength(ctx, realm!),
+    // (Each side's strength by its own numbers that year: round F.)
+    theirs = livedStrength(world, civ, year) * (0.5 + n.bold),
+    ours = them ? livedStrength(world, them, year) : realmStrength(ctx, realm!),
     won = world.rng.real(RAID, keyOf(civ.ref), year, 0x10000 + ship.id) < theirs / (theirs + ours),
     site = realm
       ? (starSitesOf(world)
@@ -1223,6 +1224,20 @@ export function peoplesYear(ctx: PopulationContext, t: SimTime): void {
 
   // —— Meeting by meeting: first feelings settle toward what the two are; exchanges where they
   // stand well, fleets where they stand ill.
+  let intent: { aim: FarAim; will: number } = { aim: null, will: 0 };
+  const willOf = (
+    civ: Civilization,
+    other: Civilization | null,
+    realm: Polity | null,
+    cell: number,
+  ) =>
+    fleetWill(
+      ctx,
+      civ,
+      other ? { kind: "people", civ: other } : { kind: "home", cell, realm },
+      year,
+      store.crowded.includes(civ.ref),
+    );
   for (const m of store.meetings) {
     const civ = byRef.get(m.civ)!,
       n = peopleNature(world, civ),
@@ -1236,9 +1251,13 @@ export function peoplesYear(ctx: PopulationContext, t: SimTime): void {
             ? (realms.of(m.cell) ?? null)
             : null;
     // (A people with nowhere left to settle presses on neighbours it has met: the bold the more.)
+    // (And weariness of war on both pulls them toward peace: round F.)
     const aim =
       leaning(world, civ, other, m.cell >= 0 ? m.cell : (realm?.seat ?? -1)) -
-      pressing(world, store, civ, other, realm);
+      pressing(world, store, civ, other, realm) +
+      (m.raids
+        ? wearyPeace(warWeary(world, civ.ref, m.other), warWeary(world, civ.ref, m.other))
+        : 0);
     // (And what passes unrecorded between them — a slight, a kindness — moves it a little.)
     const stir = world.rng.real(MEET, keyOf(civ.ref), year, 0x20000 + store.meetings.indexOf(m));
     m.regard = Math.max(
@@ -1255,10 +1274,21 @@ export function peoplesYear(ctx: PopulationContext, t: SimTime): void {
       year >= civ.stars &&
       year - m.lastRaid >= FLEET_GAP &&
       !store.ships.some((s) => s.kind === "fleet" && s.civ === civ.ref && !s.arrived) &&
-      world.rng.real(RAID, keyOf(civ.ref), year, index) < 0.03 * (0.5 + n.bold)
+      // (As far as it has an aim worth a fleet: ground it lacks, a threat it would end, goods; none while weary or broken. Round F.)
+      world.rng.real(RAID, keyOf(civ.ref), year, index) <
+        0.03 * (0.5 + n.bold) * 2 * (intent = willOf(civ, other, realm, m.cell)).will
     ) {
       if (realm)
-        sendFleet(ctx, store, m, civ, realm.ref, strikeAt(world, store, civ, realm, home), year);
+        sendFleet(
+          ctx,
+          store,
+          m,
+          civ,
+          realm.ref,
+          strikeAt(world, store, civ, realm, home),
+          year,
+          intent.aim,
+        );
       else if (other) {
         // Against another people: its hold nearest the fleet's, never its own star.
         let pick: Ref | null = null,
@@ -1271,7 +1301,7 @@ export function peoplesYear(ctx: PopulationContext, t: SimTime): void {
           );
           if (x < d) [pick, d] = [h.star, x];
         }
-        if (pick) sendFleet(ctx, store, m, civ, other.ref, pick, year);
+        if (pick) sendFleet(ctx, store, m, civ, other.ref, pick, year, intent.aim);
       }
     }
   }
@@ -1280,11 +1310,13 @@ export function peoplesYear(ctx: PopulationContext, t: SimTime): void {
   for (const civ of civs) {
     if (year < civ.stars) continue;
     if (!store.holds.has(civ.ref)) firstSight(world, store, civ, civs, home, year);
+    // (A people broken by strife sends no ship until it mends: round F.)
+    if (heldBroken(world, civ.ref)) continue;
     const out = store.ships.filter((s) => s.civ === civ.ref && !s.arrived).length;
     if (out >= MOST_SHIPS) continue;
     const n = peopleNature(world, civ),
       key = keyOf(civ.ref),
-      speed = speedOf(civ, year),
+      speed = speedOf(civ, year, world),
       words = peopleWords(world, civ),
       sent = store.ships.filter((s) => s.civ === civ.ref && s.kind === "envoys"),
       ever = sent.length > 0 || store.landings.some((l) => l.civ === civ.ref),

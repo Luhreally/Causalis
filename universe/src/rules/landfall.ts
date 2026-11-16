@@ -199,6 +199,24 @@ export type LandfallFight = {
 
 const perCent = (x: number) => `${Math.round(x * 100)}%`;
 
+/**
+ * What a sickness takes as a landing comes down, where one crosses (null: none does): of the natives who would have met the comers
+ * (one never met), and of the comers' flesh (a crowded people's own). The fight reads it; and a people's life after (round F).
+ */
+export function sicknessCrossed(
+  c: Pick<ComerNumbers, "flesh" | "breathes" | "care">,
+  n: Pick<NativeNumbers, "stage">,
+  sick: boolean,
+  d: Pick<LandfallDraws, "sickThere" | "sickHome">,
+): { readonly there: number; readonly home: number } | null {
+  // A sickness crosses only where a life of the same liquid meets bare faces: those who come sealed, or made, carry none.
+  if (!(sick && c.flesh > 0 && c.breathes)) return null;
+  return {
+    there: SICK_NEVER_MET * d.sickThere,
+    home: (SICK_CROWDED[n.stage] ?? 0) * d.sickHome * (1 - c.care),
+  };
+}
+
 /** A landing, by both sides' numbers: the same numbers and draws, always the same fight. */
 export function landfallFight(
   c: ComerNumbers,
@@ -217,12 +235,9 @@ export function landfallFight(
   // Who can come: by where the ship came down, and how far their word carries.
   let meet = n.people * within * NATIVE_FIGHTERS * (0.5 + d.where),
     flesh = c.flesh;
-  // A sickness crosses only where a life of the same liquid meets bare faces: those who come sealed, or made, carry none.
-  const open = c.flesh > 0 && c.breathes,
-    crosses = sick && open;
-  if (crosses) {
-    const there = SICK_NEVER_MET * d.sickThere,
-      home = (SICK_CROWDED[n.stage] ?? 0) * d.sickHome * (1 - c.care);
+  const crossed = sicknessCrossed(c, n, sick, d);
+  if (crossed) {
+    const { there, home } = crossed;
     meet *= 1 - there;
     flesh *= 1 - home;
     terms.push({

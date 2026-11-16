@@ -1055,6 +1055,45 @@ export {
   type Party,
 } from "./space/natives.ts";
 export {
+  FARLIFE_EVENTS,
+  farLifeYear,
+  farNow,
+  farSpare,
+  fleetWill,
+  heldBroken,
+  homeRung,
+  installFarLife,
+  meetingReading,
+  meetingWeights,
+  lifeReadingOf,
+  refKey,
+  warWeary,
+  type FarSide,
+} from "./space/farlife.ts";
+export {
+  FAR_RING,
+  FarLifeStore,
+  farLifeOf,
+  heldState,
+  heldStrength,
+  ringOf,
+  unpack as farUnpack,
+  type FarRow,
+  type FarTold,
+} from "./space/farlife-store.ts";
+export {
+  civFacts,
+  civReading,
+  clockRung,
+  folkFacts,
+  livedState,
+  livedStrength,
+  readAt as farReadAt,
+  type FarReading,
+  type FarSample,
+} from "./space/farlife-read.ts";
+export { seaFolkOf } from "./space/seafolk.ts";
+export {
   CREDIT,
   CREDIT_ACTS,
   CREDIT_EVENTS,

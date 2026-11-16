@@ -5,6 +5,9 @@
 // stays true and is told: a colony's halls stand whatever became of those who went out from them. A later slice can
 // make this history (mines, bonded natives, risings, independence all want it): it would have to record the fight as an
 // event with its causes, spend the comers' machines, and take the natives' dead off a stored count, and that costs a seed list.
+// Round F takes the last of these: the year of a landing, sim/space/farlife.ts reads this fight once and takes those it killed and
+// those its sickness took off the natives' own numbers (farlife-store.ts), with their fear and what they learn of those who stay;
+// the fight itself is still read here, the same every time.
 import { civBody } from "../../gen/index.ts";
 import { hashString, type Ref, type World } from "../../kernel/index.ts";
 import {
@@ -15,6 +18,7 @@ import {
   hasMachineHost,
   landfallFight,
   nativeHost,
+  sicknessCrossed,
   shipForce,
   woundCare,
   type BodyPlan,
@@ -43,7 +47,8 @@ import {
   type Folk,
   type FolkStage,
 } from "./natives.ts";
-import { peopleNature, peopleStrength, peoplesOf, speedOf, starPoint } from "./peoples.ts";
+import { peopleNature, peoplesOf, speedOf, starPoint } from "./peoples.ts";
+import { livedStrength } from "./farlife-read.ts";
 import { COLONISTS } from "./space.ts";
 import { lanesOf, lawlessSeed } from "./lanes.ts";
 import { starSitesOf } from "./stars.ts";
@@ -64,6 +69,8 @@ export type Landfall = {
   readonly natives: NativeNumbers;
   readonly reading: ContactReading;
   readonly fight: LandfallFight;
+  /** What a sickness took as they came down, where one crossed: of the natives who would have met them, of the comers' flesh. */
+  readonly sick: { readonly there: number; readonly home: number };
   /** Whether those who came are there still, by what history holds now. */
   readonly stay: boolean;
 };
@@ -96,7 +103,7 @@ function comersOf(
   a: Arrival,
   reading: ContactReading,
   life: LifeChemistry,
-): Omit<Landfall, "n" | "arrival" | "natives" | "reading" | "fight"> | null {
+): Omit<Landfall, "n" | "arrival" | "natives" | "reading" | "fight" | "sick"> | null {
   if (a.kind === "home") {
     // (A ship sent through the lanes to look holds no land, and is told by what it was (Phase 68).)
     const visit = a.visit !== undefined ? lanesOf(world)?.visits[a.visit] : undefined,
@@ -159,7 +166,8 @@ function comersOf(
   }
   const civ = a.civ ? civilizationOf(world, a.civ) : null;
   if (!civ) return null;
-  const strong = peopleStrength(civ, a.year),
+  // (Its strength by its own numbers that year: round F.)
+  const strong = livedStrength(world, civ, a.year),
     nature = peopleNature(world, civ),
     // (As a people's raid reckons itself: its strength among the stars, and how bold it is.)
     ships = Math.max(1, Math.round(strong * (0.5 + nature.bold))),
@@ -169,7 +177,7 @@ function comersOf(
     dy = from.y - to.y,
     dz = from.z - to.z,
     distance = Math.sqrt(dx * dx + dy * dy + dz * dz),
-    speed = Math.max(0.05, speedOf(civ, a.year)),
+    speed = Math.max(0.05, speedOf(civ, a.year, world)),
     years = distance / speed,
     // (What Phase 67 draws them with: beams at 2.2, minds at 3.5.)
     made = strong >= 3.5,
@@ -239,13 +247,18 @@ export function landfallsOf(world: World, f: Folk, life: LifeChemistry): readonl
       },
       key = `${lawlessSeed(world.seed.text)} landfall ${f.ref} ${a.year} ${a.kind} ${a.cell ?? a.civ}`,
       u = (s: string) => (hashString(`${key} ${s}`) >>> 0) / 4294967296,
-      fight = landfallFight(c.comers, natives, reading.sickness.can, {
+      draws = {
         where: u("where"),
         sickThere: u("sick there"),
         sickHome: u("sick home"),
-        round: (r, side) => u(`round ${r} ${side}`),
-      });
-    out.push({ ...c, n: out.length, arrival: a, natives, reading, fight });
+        round: (r: number, side: number) => u(`round ${r} ${side}`),
+      },
+      fight = landfallFight(c.comers, natives, reading.sickness.can, draws),
+      sick = sicknessCrossed(c.comers, natives, reading.sickness.can, draws) ?? {
+        there: 0,
+        home: 0,
+      };
+    out.push({ ...c, n: out.length, arrival: a, natives, reading, fight, sick });
   }
   return out;
 }
