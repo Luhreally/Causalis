@@ -99,6 +99,32 @@ export {
   type TradeFlow,
 } from "./economy/market.ts";
 export {
+  GROUND_EVENTS,
+  GroundStore,
+  fouledOf,
+  groundOf,
+  groundPoison,
+  groundReading,
+  soilOf,
+  type Ground,
+} from "./ecology/ground.ts";
+export {
+  EnergyStore,
+  MACHINE_KW,
+  SMOKES,
+  energyInputs,
+  energyBooks,
+  energyPerHead,
+  engineCarried,
+  fuelTonnes,
+  fumeOf,
+  keptAccount,
+  machinesWanted,
+  workCover,
+  type EnergyLand,
+  type EnergyReading,
+} from "./economy/energy.ts";
+export {
   ECONOMY_EVENTS,
   HAUL_PER_100KM,
   economyYear,
@@ -256,6 +282,8 @@ export {
   AirStore,
   CARBON_PER_FOREST_KM2,
   CARBON_PER_FUEL,
+  TONNES_A_PPM,
+  carbonPerFuel,
   FIRST_CARBON,
   SENSITIVITY,
   airOf,

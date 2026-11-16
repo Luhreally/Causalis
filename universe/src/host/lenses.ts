@@ -7,6 +7,7 @@ import { GOODS } from "../rules/index.ts";
 import {
   WAY_TRAITS,
   cultureOf,
+  energyPerHead,
   fieldedParts,
   godMen,
   loreOf,
@@ -27,6 +28,7 @@ import { sicknessReading, sicknessValue } from "./inspect/sickness.ts";
 import { debtReading, debtValue } from "./inspect/credit.ts";
 import { campReading, campValue } from "./inspect/finance.ts";
 import { woodsReading } from "./inspect/woods.ts";
+import { energyReading } from "./inspect/energy.ts";
 import { wealthReading } from "./wealth.ts";
 
 /** The lenses read here, beside the people's own (people, food, trade). */
@@ -51,6 +53,8 @@ export const DEEP_LENSES = [
   "forest",
   // The camps, and how much each realm fears another's way (sim/finance).
   "camps",
+  // What a land draws a head, all told, by its energy account (Round A).
+  "energy",
 ] as const;
 export type DeepLens = (typeof DEEP_LENSES)[number];
 
@@ -86,6 +90,8 @@ export type LandReadings = {
   readonly debt: number;
   /** Its realm's camp and fear (host/inspect/finance.ts campValue: -1 … 1; -2 no realm's). */
   readonly camps: number;
+  /** All it drew a head last year, kW, by its energy account (0: none kept). */
+  readonly energy: number;
 };
 
 /** The ids a land knows: its lore, and sowing and smelting, which it knows in its own ways. */
@@ -166,6 +172,7 @@ export function landReadings(world: World): (cell: number) => LandReadings {
       sickness: Math.round(sicknessValue(world, cell) * 1000) / 1000,
       debt: Math.round(debtValue(world, cell) * 1000) / 1000,
       camps: campValue(world, cell),
+      energy: Math.round((energyPerHead(world, cell)?.primary ?? 0) * 1000) / 1000,
     };
   };
 }
@@ -221,6 +228,8 @@ export function lensReading(
       return debtReading(world, cell);
     case "camps":
       return campReading(world, cell);
+    case "energy":
+      return energyReading(world, cell);
     case "laws":
       return lawReading(
         world,

@@ -26,6 +26,7 @@ import {
 import { peopleLife } from "./life.ts";
 import { seatKnown } from "./entered.ts";
 import { MarketStore } from "../economy/market.ts";
+import { EnergyStore } from "../economy/energy.ts";
 import { installEconomy } from "../economy/systems.ts";
 import { installActs } from "../acts/acts.ts";
 import { installGreatActs } from "../acts/great.ts";
@@ -319,6 +320,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
     history = world.register(new HistoryStore());
   world.register(new SettlementStore());
   const markets = world.register(new MarketStore());
+  world.register(new EnergyStore());
   world.addPinner(() => provinces.pinned());
   world.addPinner(() => markets.pinned());
   world.addPinner(() => history.pinned());

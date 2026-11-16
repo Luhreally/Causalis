@@ -6,6 +6,7 @@ import { landRoadsBlock } from "./road.ts";
 import { fireLandStats } from "./fire.ts";
 import { lodesBlock, woodsBlock, woodsTurnsBlock } from "./woods.ts";
 import { herdBlock } from "./herds.ts";
+import { landEnergyBlocks } from "./energy.ts";
 import {
   BIOME_NAMES,
   cellRef,
@@ -489,6 +490,9 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
       const signals = landSignalStats(world, cell);
       if (signals.length) blocks.push({ type: "facts", title: "Signals", rows: signals });
       tabs.push({ id: "economy", name: "Economy", blocks });
+      // What it draws on, and from where (Round A: energy as one budget).
+      const energy = landEnergyBlocks(world, cell);
+      if (energy.length) tabs.push({ id: "energy", name: "Energy", blocks: energy });
       // Its stores broken down (Phase 15 M123): by good and by what they are made of.
       const stores = landStoresBlocks(world, cell);
       if (stores.length) tabs.push({ id: "stores", name: "Stores", blocks: stores });

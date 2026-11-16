@@ -390,6 +390,8 @@ export function seriesFormat(unit: SeriesUnit): (y: number) => string {
       return (y) => y.toFixed(2);
     case "months":
       return (y) => (y >= 100 ? Math.round(y).toLocaleString("en-US") : y.toFixed(1));
+    case "kw":
+      return (y) => (y >= 10 ? Math.round(y).toLocaleString("en-US") : y.toFixed(2));
     default:
       return (y) => Math.round(y).toLocaleString("en-US");
   }

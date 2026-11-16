@@ -7,6 +7,7 @@ import type { Ref, World } from "../../kernel/index.ts";
 import {
   hostOf,
   homePlanet,
+  energyPerHead,
   marketsOf,
   orderOf,
   politiesOf,
@@ -64,6 +65,7 @@ const WRITE: Readonly<Record<SeriesUnit, (y: number) => string>> = {
   worth: (y) => worthWords(y),
   price: (y) => y.toFixed(2),
   months: (y) => y.toFixed(1),
+  kw: (y) => (y >= 10 ? count(y) : y.toFixed(2)),
 };
 
 /** A line: its points thinned, its latest in words (the last point's, as the page writes it). */
@@ -593,6 +595,24 @@ export function landTimeTab(world: World, cell: number): Tab | null {
         },
       ),
     );
+    // What it drew a head, all told, by its energy account (Round A).
+    const power = kept(col("power"));
+    if (power.length >= 2)
+      blocks.push(
+        series(
+          "Energy a head",
+          "kW a head",
+          "kw",
+          withNow(
+            power.map((q) => ({ x: q.x, y: q.y / 100 })),
+            now,
+            energyPerHead(world, cell)?.primary ?? 0,
+          ),
+          {
+            note: "All it drew in a year for each of its people: their food, their beasts' fodder, the heat of its hearths, smelters and engines, and what flows; read once a decade.",
+          },
+        ),
+      );
     // Its dead of sickness: of each span between two years kept, a year's on the mean.
     const sick = kept(col("sick")),
       dead: Point[] = [];

@@ -48,6 +48,7 @@ export const LENSES = [
   "debt",
   "camps",
   "blocs",
+  "energy",
 ] as const;
 export type Lens = (typeof LENSES)[number];
 
@@ -82,6 +83,7 @@ export const LENS_NAMES: Readonly<Record<Lens, string>> = {
   sickness: "Sickness",
   debt: "Debt",
   camps: "Camps",
+  energy: "Energy",
   forest: "Forest",
   blocs: "Alliances",
 };
@@ -118,6 +120,7 @@ export const LENS_ICONS: Readonly<Record<Lens, string>> = {
   sickness: "🦠",
   debt: "💸",
   camps: "🧭",
+  energy: "🔥",
   forest: "🌲",
   blocs: "🪢",
 };
@@ -563,6 +566,14 @@ const CAMPS_RAMP: readonly Stop[] = [
   [0.75, [0.36, 0.6, 0.88]],
   [1, [0.12, 0.26, 0.6]],
 ];
+/** What a land draws a head, all told (Round A): a tenth of a kilowatt, its people's own eating (dim), to ten and more (white-hot). */
+const ENERGY_RAMP: readonly Stop[] = [
+  [0, [0.2, 0.16, 0.14]],
+  [0.25, [0.5, 0.22, 0.12]],
+  [0.5, [0.86, 0.42, 0.12]],
+  [0.75, [0.98, 0.76, 0.3]],
+  [1, [1, 0.97, 0.86]],
+];
 /** The laws the laws lens shows, one at a time: each its id, icon and name (M139). */
 export const LAW_CHOICES: readonly (readonly [string, string, string])[] = [
   ["land", "🌾", "The land"],
@@ -683,6 +694,8 @@ const DEEP: Readonly<
   debt: { stops: DEBT, at: (v) => v, shown: () => true },
   camps: { stops: CAMPS_RAMP, at: (v) => (v + 1) / 2, shown: (v) => v > -2 },
   forest: { stops: WOODS_RAMP, at: (v) => v, shown: () => true },
+  // (Its kilowatts a head, from a tenth to ten, on a scale of their powers of ten.)
+  energy: { stops: ENERGY_RAMP, at: (v) => Math.min(1, Math.max(0, Math.log10(Math.max(1e-3, v) / 0.1) / 2)), shown: (v) => v > 0 },
 };
 
 /**
@@ -932,6 +945,7 @@ export function globeColors(
       case "sickness":
       case "debt":
       case "camps":
+      case "energy":
       case "forest": {
         const v = values?.get(province),
           deep = DEEP[lens];
@@ -1165,6 +1179,8 @@ export function lensLegend(lens: Lens, kind = "rocky", look?: string): Legend {
       };
     case "forest":
       return { kind: "ramp", stops: stops(WOODS_RAMP), low: "bare", high: "thick" };
+    case "energy":
+      return { kind: "ramp", stops: stops(ENERGY_RAMP), low: "0.1 kW a head", high: "10 kW and more" };
     case "belief":
       return {
         kind: "keys",

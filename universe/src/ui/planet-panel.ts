@@ -213,6 +213,8 @@ export type PeopleEntry = {
   debt: number;
   /** Their realm's camp and fear (-1 … 1; -2 no realm's): sim/finance. */
   camps: number;
+  /** All they drew a head last year, kW (Round A: energy as one budget). */
+  energy: number;
 };
 
 /** A people's ways and speech (the host's waysOf). */

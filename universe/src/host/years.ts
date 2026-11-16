@@ -17,6 +17,7 @@ import { FOODS, GOODS, HOLD_KINDS, leanOf } from "../rules/index.ts";
 import {
   creditOf,
   debtOf,
+  energyPerHead,
   fieldedOf,
   financeOf,
   healthOf,
@@ -57,6 +58,8 @@ export const LAND_COLUMNS = [
   "trade",
   /** Its dead of sickness, all of them since its years were first kept. */
   "sick",
+  /** All it drew a head in the year, by its energy account: food, fodder, heat and flow (hundredths of a kilowatt). */
+  "power",
 ] as const;
 export type LandColumn = (typeof LAND_COLUMNS)[number];
 
@@ -282,7 +285,13 @@ export class YearsStore implements StateStore {
     this.landYears = [...s.landYears];
     this.lands.clear();
     for (const r of s.lands)
-      this.lands.set(r.key, { from: r.from, cols: r.cols.map((c) => [...c]) });
+      this.lands.set(r.key, {
+        from: r.from,
+        // (A save from before a column was kept: its years before then unread.)
+        cols: LAND_COLUMNS.map((_, i) =>
+          r.cols[i] ? [...r.cols[i]!] : (r.cols[0] ?? []).map(() => UNREAD),
+        ),
+      });
     this.landRealm.clear();
     for (const l of s.landRealm)
       this.landRealm.set(l.key, { first: l.first, y: [...l.y], v: [...l.v] });
@@ -392,6 +401,7 @@ export function landNow(
     people ? toSteps(net / people) : 0,
     toSteps(sent.get(cell) ?? 0, TRADE_STEPS),
     healthOf(world)?.land(cell)?.dead ?? 0,
+    Math.round(100 * (energyPerHead(world, cell)?.primary ?? 0)),
   ];
 }
 

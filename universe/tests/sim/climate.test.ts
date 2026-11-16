@@ -4,7 +4,7 @@ import { YEAR, type Ref, type World } from "../../src/kernel/index.ts";
 import { cellRef, surfaceOre } from "../../src/gen/index.ts";
 import {
   AIR_EVENTS,
-  CARBON_PER_FUEL,
+  carbonPerFuel,
   FIRST_CARBON,
   LORE_EVENTS,
   POPULATION_EVENTS,
@@ -70,7 +70,12 @@ const burnedLastYear = airOf(world).air.burned,
     .reduce((s, m) => {
       // The air reckons at its year's turn, before the markets close theirs: the year before.
       const used = m.years.at(-2)?.ledger[1];
-      return s + (used ? used[G.coal]! + used[G.oil]! : 0);
+      return (
+        s +
+        (used
+          ? used[G.coal]! * carbonPerFuel(g, "coal") + used[G.oil]! * carbonPerFuel(g, "oil")
+          : 0)
+      );
     }, 0);
 for (let y = 161; y <= 200; y++) {
   airOf(world).air.carbon += 12;
@@ -83,8 +88,8 @@ test("burning and clearing put carbon in the air, and the world warms toward wha
   // little carbon (the land and sea take back more of the clearing's than that).
   assert.ok(burnedLastYear > 0 && burnedLastYear === burnedAt160, "burning adds carbon");
   assert.ok(
-    Math.abs(burnedAt160 - fuelAt160 * CARBON_PER_FUEL) < 1e-12,
-    `${burnedAt160} against ${fuelAt160 * CARBON_PER_FUEL}`,
+    Math.abs(burnedAt160 - fuelAt160) < 1e-12,
+    `${burnedAt160} against ${fuelAt160}`,
   );
   const air = airOf(world).air;
   assert.ok(air.carbon > FIRST_CARBON + 150, `${air.carbon} ppm`);
