@@ -1401,3 +1401,52 @@ export {
   partnersOf,
   type Partners,
 } from "./ecology/lineage.ts";
+export {
+  BEDS,
+  CROP_EVENTS,
+  CROP_STEP,
+  CropStore,
+  ROOTS,
+  cropName,
+  cropReading,
+  cropsGive,
+  cropsOf,
+  cropsYear,
+  cropFieldOf,
+  type CropLand,
+} from "./ecology/crops.ts";
+export {
+  DIET_EVENTS,
+  DietStore,
+  dietDeaths,
+  dietOfWorld,
+  dietReading,
+  dietYear,
+  type DietLand,
+} from "./population/diet.ts";
+export {
+  ERUPTION_EVENTS,
+  FIRES_KEPT,
+  EruptionStore,
+  eruptionsAYear,
+  eruptionsOn,
+  firesOf,
+  firesYear,
+  veilNow,
+  veilYield,
+  ventOn,
+  ventRateOf,
+  type Eruption,
+  type FireTally,
+} from "./planet/fires.ts";
+export {
+  FLOODS_KEPT,
+  FloodStore,
+  floodYield,
+  floodplains,
+  floodsOf,
+  floodsOn,
+  floodsYear,
+  type Flood,
+  type FloodTally,
+} from "./planet/floods.ts";

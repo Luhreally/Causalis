@@ -53,6 +53,12 @@ const HEADINGS: Readonly<Record<string, readonly [string, string]>> = {
 const TITLES: Readonly<Record<string, string>> = {
   "wild.fire": "A fire on the land",
   "wild.rise": "A new mountain",
+  // The sweep, Nature lane.
+  "planet.eruption": "An eruption",
+  "planet.veil": "A veil over the world",
+  "life.crop-tamed": "A crop tamed",
+  "life.crop-carried": "A crop carried from another land",
+  "life.diet-poor": "Fed, and yet short",
   "wild.star": "A falling star",
   "wild.answer": "A ruler's answer",
   "peoples.sailed": "Ships set out among the stars",

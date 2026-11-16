@@ -1680,3 +1680,7 @@ export {
 } from "./lineage.ts";
 export * from "./self.ts";
 export * from "./farlife.ts";
+export * from "./crops.ts";
+export * from "./volcanoes.ts";
+export * from "./floods.ts";
+export * from "./nutrition.ts";

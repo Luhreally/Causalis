@@ -3,6 +3,10 @@
 // gathered — whose choice is itself a recorded decision the explainer can open.
 import { seatsBy } from "../space/far-read.ts";
 import { installMotion } from "../planet/motion.ts";
+import { installCrops } from "../ecology/crops.ts";
+import { installDiet } from "./diet.ts";
+import { installFires } from "../planet/fires.ts";
+import { installFloods } from "../planet/floods.ts";
 import { installStrains } from "../health/strains.ts";
 import { installLineage } from "../ecology/lineage.ts";
 import {
@@ -466,6 +470,11 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installLanguages(world, () => populationContext(world));
   installAir(world, () => populationContext(world));
   installMotion(world);
+  // (The sweep, Nature lane: crops tamed and carried, kinds of want, the fires below, rivers in flood.)
+  installCrops(world, () => populationContext(world));
+  installDiet(world, () => populationContext(world));
+  installFires(world, () => populationContext(world));
+  installFloods(world, () => populationContext(world));
   installSpace(world, () => populationContext(world));
   installSummon(world, () => populationContext(world));
 

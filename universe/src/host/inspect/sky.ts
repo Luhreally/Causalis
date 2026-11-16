@@ -2,6 +2,7 @@
 // cluster or of the galaxy far out, another star's world, and the people that rose on one.
 import { warmthBlocks } from "./warmth.ts";
 import { motionBlocks, seasonBlocks, starLifeBlocks } from "./motion.ts";
+import { worldFiresBlocks } from "./nature.ts";
 import { CLADES, makingWords, makingsOf } from "../../rules/index.ts";
 import {
   folkOf,
@@ -433,7 +434,7 @@ export function bodyPage(world: World, ref: string): PageModel {
             {
               id: "motion",
               name: "In motion",
-              blocks: [...seasonBlocks(world), ...motionBlocks(world)],
+              blocks: [...seasonBlocks(world), ...motionBlocks(world), ...worldFiresBlocks(world)],
             },
           ]
         : []),
