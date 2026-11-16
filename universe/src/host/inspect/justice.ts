@@ -1818,3 +1818,59 @@ export function selfLawBlocks(world: World, p: SelfRead): Block[] {
   if (items.length) blocks.push({ type: "list", title: "Their cases", items });
   return blocks;
 }
+
+/** On a town's Its people tab: how its law reaches, and who of those named lean most to a wrong, and to which. */
+export function townLeanBlocks(world: World, town: string, selves: readonly SelfRead[]): Block[] {
+  const s = populationContext(world).settlements.get(town as Ref);
+  if (!s || s.population <= 0 || !selves.length) return [];
+  const f = factsOf(world, s, yearNow(world)),
+    leans = selves.map((p) => {
+      const lean = crimeLean(
+          {
+            traits: p.traits,
+            standing: p.standing,
+            hunger: p.wants.find((w) => w.kind === "food")?.pressing ?? 0,
+            faith: p.land.barred ? (p.wants.find((w) => w.kind === "faith")?.pressing ?? 0) : 0,
+          },
+          f.scene,
+        ),
+        top = CRIME_KINDS.reduce((a, k) => (lean[k] > lean[a] ? k : a), CRIME_KINDS[0]);
+      return { p, k: top, v: lean[top] };
+    }),
+    most = [...leans]
+      .sort((a, b) => b.v - a.v)
+      .filter((x) => x.v >= 1.25)
+      .slice(0, 4),
+    reach =
+      f.scene.reach >= 0.7 ? "far" : f.scene.reach >= 0.45 ? "middling far" : "only a little way";
+  return [
+    {
+      type: "facts",
+      title: "What could lead them wrong",
+      rows: [
+        stat("The law reaches", reach, { why: "concept:self-crime" }),
+        stat(
+          "To hand",
+          f.scene.opportunity >= 0.5
+            ? "much: there is money here, or goods on the road, or homes left open"
+            : "little",
+        ),
+        ...(f.scene.short ? [stat("A poor home", "goes short here")] : []),
+      ],
+    },
+    ...(most.length
+      ? [
+          {
+            type: "list" as const,
+            title: "Those who lean most to a wrong",
+            items: most.map((x) =>
+              item(
+                [link(x.p.who.name, x.p.who.ref), `: ${CRIME_WORDS[x.k]}, ${leanWord(x.v)}`],
+                x.p.who.ref,
+              ),
+            ),
+          },
+        ]
+      : []),
+  ];
+}

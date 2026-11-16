@@ -1,13 +1,15 @@
 // One person's life, on their page (round G, the individual): what they want, what they are like, the work of their life, what they
 // own and owe, how their kind pairs, and what could lead them wrong before their town's court. Read from their land and their own
 // key (host/self.ts, rules/self.ts): nothing here is kept, and nothing flows back. Phone first: facts and short lists, a bar to a want.
-import type { World } from "../../kernel/index.ts";
+import type { Ref, World } from "../../kernel/index.ts";
+import { populationContext } from "../../sim/index.ts";
 import {
   CAREER_WHY,
   GOODS,
   PAIRING_WORDS,
   SELF_TRAITS,
   SELF_TRAIT_WORDS,
+  WANT_KINDS,
   WANT_WORDS,
   metWord,
   rankWord,
@@ -17,7 +19,7 @@ import {
   type Want,
 } from "../../rules/index.ts";
 import type { Block, Item, Line, PageModel, Stat, Tab } from "../../bridge/index.ts";
-import { selfOf, type SelfRead } from "../self.ts";
+import { selfOf, townSelves, type SelfRead } from "../self.ts";
 import { coinWords } from "./living.ts";
 import { item, link, many, share, stat } from "./words.ts";
 import { landLink } from "./names.ts";
@@ -331,4 +333,108 @@ export function withSelf(
       1;
   tabs.splice(at, 0, tab);
   return { ...page, tabs };
+}
+
+// —— A town's people, read together ——————————————————————————————————————————————————————————————————————————
+
+/** How many of a town's people its tab reads: its first lines' holders, those any device draws first. */
+export const TOWN_SELVES = 24;
+
+/** A town's Its people tab: what its named people want most, what they are like, their work, how their wealth lies (null: none). */
+export function townPeopleTab(
+  world: World,
+  ref: string,
+  more: (selves: readonly SelfRead[]) => readonly Block[] = () => [],
+): Tab | null {
+  const s = populationContext(world).settlements.get(ref as Ref);
+  if (!s || s.population <= 0) return null;
+  const all = townSelves(world, s, TOWN_SELVES),
+    grown = all.filter((p) => !p.child);
+  if (!grown.length) return null;
+  const n = grown.length,
+    mean = (f: (p: SelfRead) => number) => grown.reduce((a, p) => a + f(p), 0) / n,
+    pressing = WANT_KINDS.map((k) => ({
+      k,
+      v: mean((p) => p.wants.find((w) => w.kind === k)?.pressing ?? 0),
+    })).sort((a, b) => b.v - a.v),
+    byWorth = [...grown].sort((a, b) => b.holdings.net - a.holdings.net),
+    middle = byWorth[Math.floor(n / 2)]!.holdings.net,
+    changed = grown.filter((p) => p.career.length > 1),
+    whys = new Map<string, number>();
+  for (const p of changed)
+    for (const c of p.career.slice(1)) whys.set(c.why, (whys.get(c.why) ?? 0) + 1);
+  const why = [...whys.entries()].sort((a, b) => b[1] - a[1])[0],
+    words = new Map<string, number>();
+  for (const p of grown)
+    for (const t of SELF_TRAITS) {
+      const w = traitWord(t, p.traits[t]);
+      if (w) words.set(w, (words.get(w) ?? 0) + 1);
+    }
+  const common = [...words.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3),
+    land = grown[0]!.land,
+    worthLine = (p: SelfRead) =>
+      item(
+        [
+          link(p.who.name, p.who.ref),
+          `, ${workWord(p.who.occupation, p.who.trade)}: ${coinWords(p.holdings.net)} coin${
+            middle > 0 ? `, ${(p.holdings.net / middle).toFixed(1)} times the middle` : ""
+          }`,
+        ],
+        p.who.ref,
+      ),
+    blocks: Block[] = [
+      {
+        type: "bars",
+        title: "What its people want most",
+        wrap: true,
+        unit: "share",
+        bars: pressing.map(({ k, v }) => ({
+          label: [`${WANT_WORDS[k].icon} ${WANT_WORDS[k].label}`],
+          ref: "concept:self-wants",
+          value: Math.round(v * 100) / 100,
+        })),
+      },
+      {
+        type: "facts",
+        title: "Who they are",
+        rows: [
+          stat(
+            "Most marked",
+            common.length
+              ? common.map(([w, c]) => `${w} (${c} of ${n})`).join(", ")
+              : "much as their people are",
+            { why: "concept:self-character" },
+          ),
+          stat("Their kind", PAIRING_WORDS[land.pairing].name, { why: "concept:self-pairing" }),
+          stat(
+            "Changed their work",
+            `${changed.length} of ${n}${why ? `, most ${CAREER_WHY[why[0] as keyof typeof CAREER_WHY]}` : ""}`,
+            { why: "concept:self-career" },
+          ),
+          stat(
+            "Wealth",
+            `its land's richest tenth of households holds ${share(topTenth(grown[0]!.holdings.alpha))}`,
+            { why: "concept:self-wealth" },
+          ),
+        ],
+      },
+      {
+        type: "list",
+        title: "The best and worst off of those named",
+        items: [
+          ...byWorth.slice(0, 3),
+          ...byWorth.slice(-3).filter((p) => !byWorth.slice(0, 3).includes(p)),
+        ].map(worthLine),
+      },
+      ...more(grown),
+      {
+        type: "text",
+        lines: [
+          [
+            `Read of the first ${many(n, "of its people", "of its people")} its roll names, those any device draws first: each from their land's numbers and a key of their own, as their own pages tell them. History keeps none of it.`,
+          ],
+        ],
+      },
+    ];
+  return { id: "people", name: "Its people", blocks };
 }
