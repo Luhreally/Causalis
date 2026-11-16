@@ -1,7 +1,8 @@
 // Kinds of want (the sweep, Nature lane; the rules are rules/nutrition.ts). Once a year each peopled land's last year of eating is
 // read from its books (what it used of its flesh and milk, its wild food and its grain, its own and what it bought in), and from it
 // how well its people were nourished: matched protein, and vitamins and metals, against what their bodies want. Where they go
-// short, their young die the more and their grown a little more (population/systems.ts vitalMonth: dietDeaths, exactly 1 on a
+// short, their young die the more and their grown a little more; and what their bodies make in their skin from their sun, as far
+// toward the poles from their cradle and as smoky their sky are (the light lived, rules/nutrition.ts sunMade) (population/systems.ts vitalMonth: dietDeaths, exactly 1 on a
 // land fed as its body wants, or one whose year has not yet been read). Food grown in vats is made whole. One small row a land.
 import {
   YEAR,
@@ -13,7 +14,8 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { offworldSite } from "../../gen/index.ts";
-import { FOODS, G, STUNTING, dietOf, wantDeaths } from "../../rules/index.ts";
+import { FOODS, G, STUNTING, dietOf, sunMade, wantDeaths } from "../../rules/index.ts";
+import { airSmoke } from "../climate/air.ts";
 import { LEDGER } from "../economy/market.ts";
 import { loreOf } from "../lore/lore.ts";
 import { marketsOf, type PopulationContext } from "./systems.ts";
@@ -34,6 +36,8 @@ export type DietLand = {
   eaten: number[];
   protein: number;
   micro: number;
+  /** What its sun and its food give of what a body makes in its skin. */
+  sun: number;
   short: number;
   poor: Ref | null;
 };
@@ -85,7 +89,15 @@ export function dietYear(ctx: PopulationContext, _t: SimTime): void {
   const { world } = ctx,
     markets = marketsOf(world),
     lore = loreOf(world),
-    body = ctx.generated.life.people?.body.diet;
+    body = ctx.generated.life.people?.body.diet,
+    g = ctx.generated,
+    cradle = g.life.people?.cell ?? -1,
+    // (The light lived: a land read against its people's cradle, by its world's tilt. A people of the water makes none in its skin.)
+    deg = (c: number) => (g.grid.lat[c]! * 180) / Math.PI,
+    lightOf = (c: number) =>
+      ctx.medium === "water" || cradle < 0
+        ? 1
+        : sunMade(deg(c), deg(cradle), g.planet.tilt, airSmoke(ctx, c));
   for (const p of ctx.provinces.all()) {
     const m = markets.get(p.cell),
       book = m?.years.at(-1)?.ledger[USED];
@@ -97,7 +109,8 @@ export function dietYear(ctx: PopulationContext, _t: SimTime): void {
     for (const g of FOODS) eaten[g] = book[g] ?? 0;
     // (Food grown in vats is made whole, as its makers would have it.)
     const vats = !!lore.get(p.cell, "vat-food"),
-      r = dietOf(eaten, body, !!lore.get(p.cell, "rotation")),
+      sun = lightOf(p.cell),
+      r = dietOf(eaten, body, !!lore.get(p.cell, "rotation"), sun),
       short = vats ? 0 : r.short,
       was = store.lands.get(p.cell),
       l: DietLand = {
@@ -105,6 +118,7 @@ export function dietYear(ctx: PopulationContext, _t: SimTime): void {
         eaten: FOODS.map((g) => Math.round(1000 * (r.shares[g] ?? 0))),
         protein: Math.round(1000 * (vats ? 1 : r.protein)),
         micro: Math.round(1000 * (vats ? 1 : r.micro)),
+        sun: Math.round(1000 * (vats ? 1 : r.sun)),
         short: Math.round(1000 * short),
         poor: was?.poor ?? null,
       };
@@ -134,6 +148,7 @@ export function dietReading(world: World, cell: number) {
     >,
     protein: l.protein / 1000,
     micro: l.micro / 1000,
+    sun: (l.sun ?? 1000) / 1000,
     short: l.short / 1000,
     stunted: STUNTING * (l.short / 1000),
     deaths: wantDeaths(l.short / 1000),

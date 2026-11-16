@@ -19,8 +19,10 @@ import {
   floodHarm,
   floodSize,
   gardenStrain,
+  highSunShare,
   poissonCount,
   sulphurMt,
+  sunMade,
   tameStep,
   veilCooling,
   veilLeft,
@@ -127,4 +129,21 @@ test("a people fed on grain alone goes short and buries more of its young; a mix
   assert.equal(dietOf({}).short, 0);
   assert.deepEqual(wantDeaths(0), { young: 1, grown: 1 });
   assert.ok(wantDeaths(0.5).young > wantDeaths(0.5).grown);
+});
+
+test("the light lived: the noon sun stands high less of the year toward the poles, and a people far from its cradle or under smoke makes less", () => {
+  assert.equal(highSunShare(0, 23.44), 1);
+  assert.ok(highSunShare(55, 23.44) < highSunShare(40, 23.44));
+  assert.equal(highSunShare(75, 23.44), 0);
+  assert.equal(highSunShare(30, 0), 1);
+  assert.equal(highSunShare(50, 0), 0);
+  assert.equal(sunMade(5, 5, 23.44, 0), 1);
+  assert.ok(sunMade(62, 5, 23.44, 0) < 1);
+  assert.ok(sunMade(40, 5, 23.44, 1) < sunMade(40, 5, 23.44, 0));
+  // (A people risen in the far north wants only the sun it had there.)
+  assert.equal(sunMade(62, 62, 23.44, 0), 1);
+  const north = dietOf({ [G.grain]: 90, [G.wild]: 10, [G.meat]: 0 }, "both", true, 0),
+    fish = dietOf({ [G.grain]: 50, [G.wild]: 10, [G.meat]: 40 }, "both", true, 0);
+  assert.ok(north.short > dietOf({ [G.grain]: 90, [G.wild]: 10 }, "both", true, 1).short);
+  assert.equal(fish.sun, 1);
 });

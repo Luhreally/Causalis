@@ -62,6 +62,13 @@ export function dietBlock(world: World, cell: number): Block | null {
         `${pc(Math.min(1, r.protein))} of the protein they want, ${pc(Math.min(1, r.micro))} of the vitamins and metals`,
       ),
     ];
+  if (r.sun < 0.995)
+    rows.push(
+      stat(
+        "The light they live by",
+        `their sun stands high enough for their skin to make what they want of it too short a part of the year (or their smoke keeps it off): their food makes up ${pc(r.sun)} of it`,
+      ),
+    );
   if (r.short >= 0.01) {
     rows.push(
       stat(
