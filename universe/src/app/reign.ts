@@ -13,6 +13,7 @@ import type {
   ReignCourt,
   ReignGod,
   ReignDecrees,
+  ReignDrama,
   ReignEnvoys,
   ReignMatches,
   ReignNow,
@@ -157,6 +158,11 @@ export function installReign(d: ReignDeps): ReignFlow {
   /** A sheet read and put up, for whoever is held, as a mortal or with the god in them. */
   const open = async (kind: ReignSheet): Promise<void> => {
     if (!on) return;
+    // (Something waits on their word: no sheet under its window; it says it comes first.)
+    if (hud.asked) {
+      hud.first();
+      return;
+    }
     sheet = kind;
     const args = { realm: on.realm, channel, ...(on.role ? { fig: on.role.fig } : {}) };
     if (kind === "decrees") {
@@ -402,6 +408,9 @@ export function installReign(d: ReignDeps): ReignFlow {
       pace: () => pace,
       sheet: () => sheet,
       on: () => !!on,
+      // (A window put up as the realm would put one, for a check that cannot wait on history: its
+      // "let" sends nothing.)
+      put: (drama: ReignDrama) => hud.drama(drama),
     },
   });
 

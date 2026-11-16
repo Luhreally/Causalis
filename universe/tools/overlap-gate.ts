@@ -702,6 +702,34 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
       await settle(600);
     });
     await k(`document.querySelector(".reign-close")?.click()`);
+    // Something waiting on the ruler's word (an heir dead), and War and peace asked for: no sheet
+    // opens under its window; the window says it comes first. (Put up through the app's own door,
+    // as the realm would put it: its last answer sends nothing.)
+    await state("ruling-asked-sheet", async () => {
+      await k(
+        `globalThis.causalis.reign.put({ key: "gate", kind: "heir", title: "Your heir has died", words: "Your heir died at 17. Another stands to follow you now.", who: null, event: ${JSON.stringify(ruled)}, choices: [{ id: "name:0", label: "👑 Name another", can: false, words: "The voice of the temple, 22 in a hundred of the realm's sway. Costs 2 in a hundred of your standing." }, { id: "let", label: "⏳ Let them stand", can: true, words: "You say nothing, and the realm goes on by its own custom." }] })`,
+      );
+      await must(
+        "the window",
+        until("the window", () => seen(".reign-window .reign-drama"), slow(20000)),
+      );
+      await must("War and peace", press('.reign-act[data-act="wars"]'));
+      await must(
+        "the word that it comes first",
+        until(
+          "the word that it comes first",
+          () => seen(".reign-window .reign-first"),
+          slow(20000),
+        ),
+      );
+      await settle(900);
+      await must(
+        "no sheet under the window",
+        k<boolean>(`document.querySelector(".reign-sheet")?.hidden !== false`),
+      );
+    });
+    await k(`document.querySelector('.reign-drama[data-choice="let"]')?.click()`);
+    await settle(300);
     const fig = await k<number | null>(
       `globalThis.causalis.client.query({ type: "leaders.court", args: { realm: ${JSON.stringify(ruled)} } }).then((ls) => { const l = ls[0]; return l ? Number(l.ref.slice(l.ref.lastIndexOf(":") + 1)) : null; })`,
     ).catch(() => null);

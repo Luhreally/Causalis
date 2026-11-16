@@ -205,6 +205,27 @@ export class ReignHud {
   closeSheet(): void {
     this.sheet.hidden = true;
   }
+  /** Something waits on their word (a plot, an heir dead, their fall): its window is up. */
+  get asked(): boolean {
+    return !this.win.hidden;
+  }
+  /**
+   * A sheet was asked for while something waits on their word: no sheet opens under its window
+   * (no window of the HUD lies over another); the window says it comes first, and shows it.
+   */
+  first(): void {
+    if (this.win.hidden) return;
+    let cue = this.win.querySelector<HTMLElement>(".reign-first");
+    if (!cue) {
+      cue = el("p", "reign-first", "☝️ This waits on your word. Answer it first.");
+      this.win.querySelector(".life-wintitle")?.after(cue);
+    }
+    this.win.scrollTop = 0;
+    // (Shown again at each asking.)
+    cue.classList.remove("again");
+    void cue.offsetWidth;
+    cue.classList.add("again");
+  }
   /** A page is being read: all but the bar stands aside for it. */
   underPage(open: boolean): void {
     this.element.classList.toggle("under-page", open);
@@ -468,6 +489,11 @@ export class ReignHud {
     const close = el("button", "life-choice reign-close", "Close");
     close.onclick = () => this.closeSheet();
     put(this.said, "");
+    // (Read while something came to wait on their word: it comes first.)
+    if (this.asked) {
+      this.first();
+      return;
+    }
     this.sheet.replaceChildren(el("div", "life-wintitle", title), ...body, this.said, close);
     this.sheet.hidden = false;
     this.sheet.scrollTop = 0;
