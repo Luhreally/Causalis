@@ -42,6 +42,11 @@ export interface StateStore {
   dormant?(): boolean;
   hashInto(h: Hasher): void;
   save(): unknown;
+  /**
+   * What save() gives, made a piece at a time: a step yielded between pieces, for a save made in slices that leave
+   * the worker free between them (see saveSteps). What it returns is what save() would.
+   */
+  saveSteps?(): Generator<void, unknown, void>;
   load(state: unknown): void;
 }
 

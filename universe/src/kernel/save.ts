@@ -79,7 +79,9 @@ function schemaOf(store: { readonly schema?: number }): number {
  * of its value, as every save before 2026-11-15 has it and a store too large for one text does.
  */
 function chunkHash(data: unknown, text?: string): string {
-  return text === undefined ? new Hasher().value(data).hex() : `j${new Hasher().string(text).hex()}`;
+  return text === undefined
+    ? new Hasher().value(data).hex()
+    : `j${new Hasher().string(text).hex()}`;
 }
 
 /** Whether a chunk's data is what its hash says, as it was hashed. */
@@ -136,14 +138,35 @@ export function saveWorld(
   meta: Record<string, unknown> = {},
   lineage?: SaveDocument["lineage"],
 ): SaveDocument {
+  const steps = saveSteps(world, ruleset, meta, lineage);
+  for (;;) {
+    const r = steps.next();
+    if (r.done) return r.value;
+  }
+}
+
+/**
+ * saveWorld a piece at a time (2026-11-15): a step yielded after each store is read, and after it is packed and
+ * hashed, and between the pieces of a store that makes its save in pieces (StateStore.saveSteps). Whoever runs it
+ * keeps the world as it is till it is done: what it returns is what saveWorld would.
+ */
+export function* saveSteps(
+  world: World,
+  ruleset: string,
+  meta: Record<string, unknown> = {},
+  lineage?: SaveDocument["lineage"],
+): Generator<void, SaveDocument, void> {
   if (world.scheduler.midMoment) throw new Error("a world is saved between moments");
   const stores: Record<string, StoreChunk> = {};
   for (const name of world.storeNames()) {
     const store = world.store(name),
       packed = store.packed === true,
-      // (Packed straight from the store: packList keeps what JSON keeps, and the copy through
-      // JSON is then of the packed lists, a fraction of the size.)
-      { data, text } = throughJson(packed ? packList([store.save()]) : store.save());
+      saved = store.saveSteps ? yield* store.saveSteps() : store.save();
+    yield;
+    // (Packed straight from the store: packList keeps what JSON keeps, and the copy through
+    // JSON is then of the packed lists, a fraction of the size.)
+    const { data, text } = throughJson(packed ? packList([saved]) : saved);
+    yield;
     stores[name] = {
       schema: schemaOf(store),
       data,

@@ -284,7 +284,22 @@ export class TownStore implements StateStore {
     h.word(this.a).word(this.b).int(this.map.size);
   }
   save(): unknown {
-    return { digest: [this.a, this.b], towns: toColumns(this.all().map(pack)) };
+    const steps = this.saveSteps();
+    for (;;) {
+      const r = steps.next();
+      if (r.done) return r.value;
+    }
+  }
+  /** save(), a thousand towns a piece (a world at 1,500 has twenty-three thousand). */
+  *saveSteps(): Generator<void, unknown, void> {
+    const all = this.all(),
+      packed: Saved[] = [];
+    for (let i = 0; i < all.length; i++) {
+      packed.push(pack(all[i]!));
+      if (i % 1000 === 999) yield;
+    }
+    yield;
+    return { digest: [this.a, this.b], towns: toColumns(packed) };
   }
   load(state: unknown): void {
     // (Town by town, in a save from before Phase 66.)

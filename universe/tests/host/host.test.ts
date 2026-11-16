@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { DAY, YEAR } from "../../src/kernel/index.ts";
 import { makeToyWorld } from "../../src/sim/index.ts";
 import type { FrameMessage } from "../../src/bridge/index.ts";
-import { MemoryByteStore, type WhyNode } from "../../src/host/index.ts";
+import { HostClient, inlinePair } from "../../src/bridge/index.ts";
+import { MemoryByteStore, SimHost, UNIVERSES, type WhyNode } from "../../src/host/index.ts";
 import { rig } from "./harness.ts";
 
 test("a universe started through the host is the same world as one built directly", async () => {
@@ -87,6 +88,59 @@ test("saves round-trip through slots and through exported bytes", async () => {
   await other.settle(other.client.start("sandbox", "something else"));
   await other.settle(other.client.importSave(bytes));
   assert.deepEqual(await other.settle(other.client.query({ type: "hashes" })), saved);
+});
+
+// 2026-11-15: a save of a world at 1,500 takes more than a second; it is made a slice a pump, the world held still.
+test("a save is made a slice a pump: what reads is answered meanwhile, what changes the world waits", async () => {
+  const [page, hostEnd] = inlinePair(),
+    clock = { now: 0 },
+    // (Each reading of the clock a few milliseconds on: a slice of a save ends after a few steps.)
+    host = new SimHost(hostEnd, UNIVERSES, {
+      clock: () => (clock.now += 25),
+      storage: new MemoryByteStore(),
+      budgetMs: 8,
+    }),
+    client = new HostClient(page),
+    turn = () => new Promise<void>((r) => setImmediate(r)),
+    pumps = async (n: number) => {
+      for (let i = 0; i < n; i++) {
+        await turn();
+        await host.pump();
+        await turn();
+      }
+    },
+    settle = async <T>(p: Promise<T>): Promise<T> => {
+      let done = false,
+        value: T | undefined;
+      void p.then((v) => {
+        done = true;
+        value = v;
+      });
+      for (let i = 0; i < 2000 && !done; i++) await pumps(1);
+      assert.ok(done, "the host answered");
+      return value as T;
+    };
+  await settle(client.start("sandbox", "slices"));
+  await settle(client.advance(3 * YEAR));
+  const at = await settle(client.query({ type: "hashes" }));
+  let saved = false,
+    moved = false;
+  void client.save("main").then(() => (saved = true));
+  await pumps(1);
+  assert.ok(!saved, "not made in one pump");
+  // A query is answered while it is made; an advance waits for it (and so does all that is asked after it).
+  assert.deepEqual(await settle(client.query({ type: "hashes" })), at, "the world held still");
+  assert.ok(!saved, "the query answered while the save was made");
+  void client.advance(5 * YEAR).then(() => (moved = true));
+  await pumps(1);
+  assert.ok(!moved, "the advance waits");
+  for (let i = 0; i < 2000 && !saved; i++) await pumps(1);
+  assert.ok(saved, "the save was made");
+  for (let i = 0; i < 2000 && !moved; i++) await pumps(1);
+  assert.ok(moved, "the advance came after it");
+  const loaded = await settle(client.load("main"));
+  assert.equal(loaded.t, 3 * YEAR, "what was saved is the world as it stood when asked");
+  assert.deepEqual(await settle(client.query({ type: "hashes" })), at);
 });
 
 test("the title screen's host: the worlds kept listed, and a kept file opened, before any world runs", async () => {
