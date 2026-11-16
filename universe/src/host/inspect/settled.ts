@@ -321,19 +321,14 @@ export function townPage(world: World, ref: string): PageModel {
           rb.year,
         ),
       );
-      for (const m of rb.men)
-        if (m.fate === "fell")
-          items.push(
-            item(
-              [
-                "Fell there: ",
-                link(roster.nameOf(m.holder), m.holder.ref),
-                `, aged ${rb.year - m.holder.born}`,
-              ],
-              m.holder.ref,
-              rb.year,
-            ),
-          );
+      for (const h of roster.fell(rb))
+        items.push(
+          item(
+            ["Fell there: ", link(roster.nameOf(h), h.ref), `, aged ${rb.year - h.born}`],
+            h.ref,
+            rb.year,
+          ),
+        );
       for (const person of fallen.get(rb.event) ?? [])
         items.push(
           item(
