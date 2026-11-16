@@ -1,7 +1,7 @@
 // What binds realms, in words (D1): who was called and how they answered, a league gathered and let go, a marriage and what a people has for one, a claim and
 // what came of it, an envoy's errand, an embassy kept. Only ever what happened, who and why.
 import { yearOfMoment } from "../kernel/index.ts";
-import { COUNCIL_EVENTS, TIE_EVENTS } from "../sim/index.ts";
+import { COUNCIL_EVENTS, SPY_EVENTS, TIE_EVENTS } from "../sim/index.ts";
 import { registerDecisionWords, registerEventWords } from "./why.ts";
 
 type Data = Readonly<Record<string, unknown>> | null;
@@ -47,6 +47,12 @@ registerEventWords(COUNCIL_EVENTS.council.type, (_, e) => {
       : kind === "left"
         ? `${cap(who)} left ${c}, at war on one who sits in it or its bonds faded, ${year(e.t)}`
         : `${cap(c)} sat no more, fewer than three left in it, ${year(e.t)}`;
+});
+
+// A spy found out (sim/war/spies.ts).
+registerEventWords(SPY_EVENTS.caught.type, (_, e) => {
+  const since = (e.data as { since?: number } | null)?.since;
+  return `${cap(text(e.data, "a"))} caught a spy of ${text(e.data, "b")}${since !== undefined ? `, there since year ${since}` : ""}, ${year(e.t)}`;
 });
 
 registerEventWords(TIE_EVENTS.answered.type, (_, e) => {

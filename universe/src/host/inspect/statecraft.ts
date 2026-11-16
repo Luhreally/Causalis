@@ -18,6 +18,7 @@ import {
   electionsOf,
   politiesOf,
   realmName,
+  spiesOf,
   termOf,
   wantsOf,
   type Polity,
@@ -74,6 +75,7 @@ export function powersBlocks(world: World, r: Polity): Block[] {
     { type: "facts", title: "Who holds which powers", rows },
     ...electionBlocks(world, r),
     ...councilBlocks(world, r),
+    ...spyBlocks(world, r),
     ...wantsBlocks(world, r),
   ];
 }
@@ -210,4 +212,31 @@ function councilBlocks(world: World, r: Polity): Block[] {
       }),
     });
   return blocks;
+}
+
+/** Those it keeps watching in other realms, and those other realms keep in it (as far as any page may know: all of them). */
+function spyBlocks(world: World, r: Polity): Block[] {
+  const store = spiesOf(world);
+  if (!store) return [];
+  const realms = politiesOf(world),
+    abroad = store.of(r.ref).flatMap((s) => {
+      const q = realms.get(s.in);
+      return q
+        ? [item(`In ${realmName(q)}, since year ${s.since}: its host read truly`, q.ref)]
+        : [];
+    }),
+    within = store
+      .realms()
+      .flatMap((k) =>
+        store.of(k).some((s) => s.in === r.ref) && realms.get(k)
+          ? [item(`Of ${realmName(realms.get(k)!)}`, k)]
+          : [],
+      );
+  if (!abroad.length && !within.length) return [];
+  return [
+    ...(abroad.length ? [{ type: "list" as const, title: "Its spies abroad", items: abroad }] : []),
+    ...(within.length
+      ? [{ type: "list" as const, title: "Spies in its lands, not yet caught", items: within }]
+      : []),
+  ];
 }

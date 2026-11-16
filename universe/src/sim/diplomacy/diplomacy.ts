@@ -6,6 +6,7 @@
 // Remembered wrongs fade over decades. Realms who think well of each other swear a
 // pact; when their opinion sours, the pact breaks, naming the term that soured it.
 // Realms who think ill are rivals — what war (M22) will read.
+import { SpyStore, spiesYear } from "../war/spies.ts";
 import { COUNCILS, CouncilStore, councilsYear, sitTogether } from "./councils.ts";
 import {
   YEAR,
@@ -409,5 +410,8 @@ export function installDiplomacy(world: World, ctx: () => PopulationContext): Di
   const councils = world.register(new CouncilStore());
   world.addPinner(() => councils.pinned());
   world.system({ key: "186.diplomacy.councils", every: YEAR, run: (t) => councilsYear(ctx(), t) });
+  // (Spies sent into the realms a realm most has reason to watch: sim/war/spies.ts.)
+  world.register(new SpyStore());
+  world.system({ key: "186.diplomacy.spies", every: YEAR, run: (t) => spiesYear(ctx(), t) });
   return store;
 }

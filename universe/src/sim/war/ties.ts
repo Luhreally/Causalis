@@ -6,6 +6,7 @@
 // makes its bonds as it is: a hive gives of its brood, a people of the water graft reef to reef, those who choose their rulers foster each other's young. An
 // envoy carries each of these, and an embassy kept makes what each knows of the other's host the truer. Keeps little: open leagues, embassies, the calls of
 // the last century and the envoys of the last few years. A war's link to its call is kept on its declaration's own event, as its aim is.
+import { spiesOf } from "./spies.ts";
 import {
   Hasher,
   dmath,
@@ -268,6 +269,8 @@ export function installTies(world: World): TieStore {
 
 /** How far a realm's reading of another's strength is off, this decade: a factor (1: true). Keyed, so it does not change while it is read. */
 export function misreadOf(world: World, seer: Ref, seen: Ref, year: number): number {
+  // (A spy in its seat sees its host truly, better than an embassy's word: sim/war/spies.ts.)
+  if (spiesOf(world)?.has(seer, seen)) return 1;
   const kept = tiesOf(world).embassyOf(seer, seen),
     spread = kept ? TIES.misreadKept : TIES.misread,
     u = world.rng.real(STREAM, refKey(seer), Math.floor(year / 10), 40 + refKey(seen));

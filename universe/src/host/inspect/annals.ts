@@ -50,6 +50,7 @@ const RULES: Readonly<Record<string, readonly [number, number]>> = {
   "war.rebellion": [WARS, 3],
   "ties.league": [WARS, 5],
   "ties.council": [WARS, 4],
+  "ties.spy": [WARS, 2],
   "ties.league.ended": [WARS, 3],
   "ties.claim": [WARS, 3],
   "ties.answered": [WARS, 1],

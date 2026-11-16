@@ -1158,3 +1158,4 @@ export {
   sitTogether,
   type Council,
 } from "./diplomacy/councils.ts";
+export { SPYING, SPY_EVENTS, SpyStore, spiesOf, spiesYear, type Spy } from "./war/spies.ts";
