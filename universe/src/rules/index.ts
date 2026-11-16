@@ -1535,3 +1535,4 @@ export {
   type FarMade,
   type FarStage,
 } from "./far.ts";
+export * from "./self.ts";

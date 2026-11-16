@@ -20,7 +20,14 @@ import {
   tonguePersonName,
   type Tongue,
 } from "../gen/index.ts";
-import { bandOf, type LifeHistory } from "../rules/index.ts";
+import {
+  PAIRING_WORDS,
+  bandOf,
+  pairingOf,
+  partnersOf,
+  type LifeHistory,
+  type Pairing,
+} from "../rules/index.ts";
 import {
   agentName,
   courtOf,
@@ -421,14 +428,15 @@ function succOf(t: Lines, h: Holder): Holder | null {
 
 /** The name of a line's house, and of another house of the town by a key (where it has another). */
 function lineHouse(t: Lines, line: number): string {
-  return houseName(t.family, t.town, line);
+  return houseName(t.family, t.town, line, t.roster.perHome);
 }
 function otherHouse(t: Lines, line: number, key: number): string {
-  const groups = Math.ceil(t.lines / 4),
-    own = Math.floor(line / 4);
+  const per = t.roster.perHome,
+    groups = Math.ceil(t.lines / per),
+    own = Math.floor(line / per);
   if (groups < 2) return keyedSurname(t, key);
   const g = Math.floor(u(key, 24) * (groups - 1));
-  return houseName(t.family, t.town, 4 * (g >= own ? g + 1 : g));
+  return houseName(t.family, t.town, per * (g >= own ? g + 1 : g), per);
 }
 
 /**
@@ -512,10 +520,11 @@ function holderFamily(t: Lines, h: Holder): Family {
     ),
     siblings = childrenOf(t, parents).filter((n) => n.ref !== h.ref),
     children = own.unit ? childrenOf(t, own.unit) : [],
-    // Their house now: the other three lines of its four, as the town draws them under one roof.
-    first = h.line - (h.line % 4),
+    // Their house now: the other lines of its home (four, as upright apes live), as the town draws them under one roof.
+    per = t.roster.perHome,
+    first = h.line - (h.line % per),
     houseNow: Kin[] = [];
-  for (let j = first; j < Math.min(first + 4, t.lines); j++) {
+  for (let j = first; j < Math.min(first + per, t.lines); j++) {
     if (j === h.line) continue;
     const x = t.roster.holder(j);
     if (!x) continue;
@@ -830,8 +839,54 @@ function rulerFamily(world: World, ref: string): Family | null {
   };
 }
 
-/** The family of anyone of a town with a page that has none of its own: a line holder, a levy man, a seat's holder (null: none, or a person met or the hand's, whose household tells theirs). */
+/** How the people of a world pair (rules/self.ts pairingOf): by their body and how long their young need care. */
+export function pairingOfWorld(world: World): Pairing {
+  const ctx = populationContext(world);
+  return pairingOf(ctx.generated.life.people?.body, ctx.life.adulthood);
+}
+
+/**
+ * The family of anyone of a town with a page that has none of its own: a line holder, a levy man, a seat's holder (null: none,
+ * or a person met or the hand's, whose household tells theirs). As their kind pairs (round G, kin by species): a people that pairs
+ * for life is told as it always was; one of a harem keeps the partners their standing holds, or none; one that pairs for a season
+ * has a partner a season in three; a hive's and a spawning people's keep no partner and raise no young of their own.
+ */
 export function familyOf(world: World, ref: string): Family | null {
+  const f = familyRead(world, ref);
+  return f ? byKind(f, pairingOfWorld(world), populationContext(world).life.adulthood) : null;
+}
+
+/** A family as its kind pairs (the keyed rule's, which is an upright ape's, made so). */
+export function byKind(f: Family, pairing: Pairing, adulthood: number): Family {
+  if (pairing === "life") return f;
+  const s = f.self,
+    grown = (s.died ?? f.year) - s.born >= adulthood,
+    key = hashString(`pairs ${s.ref ?? s.name} ${s.born}`) >>> 0,
+    draw = u(key, 1),
+    standing = u(key, 2),
+    partners = partnersOf(pairing, grown, standing, draw, f.spouse !== null),
+    words = PAIRING_WORDS[pairing],
+    kept = `${f.kept} Their kind ${words.name}: ${words.line} ${words.heirs}`;
+  if (pairing === "brood" || pairing === "none") return { ...f, spouse: null, children: [], kept };
+  if (!partners)
+    return { ...f, spouse: null, children: pairing === "harem" ? [] : f.children, kept };
+  const spouse = f.spouse ?? null;
+  return {
+    ...f,
+    spouse: spouse
+      ? {
+          ...spouse,
+          note:
+            pairing === "harem"
+              ? `one of ${partners === 1 ? "one" : `${partners}`} partner${partners === 1 ? "" : "s"}`
+              : "together this season",
+        }
+      : null,
+    kept,
+  };
+}
+
+function familyRead(world: World, ref: string): Family | null {
   if (ref.startsWith("folk:town:")) {
     const at = parseTownsfolkRef(ref),
       t = at ? linesOf(world, at.town) : null,

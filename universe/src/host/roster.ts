@@ -25,7 +25,16 @@ import {
   tonguePersonName,
   type Tongue,
 } from "../gen/index.ts";
-import { OCC, STRIKE_HURT, bandOf, type LandFell, type LifeHistory } from "../rules/index.ts";
+import {
+  HOME_LINES,
+  OCC,
+  STRIKE_HURT,
+  bandOf,
+  pairingOf,
+  rollBearers,
+  type LandFell,
+  type LifeHistory,
+} from "../rules/index.ts";
 import {
   DISASTER_EVENTS,
   WAR_EVENTS,
@@ -170,6 +179,8 @@ export type Roster = {
   fallen(battle: RosterBattle): number;
   /** Their name in the land's tongue (memoized). */
   nameOf(h: Holder): string;
+  /** The lines that share a home and a family's name, as their kind pairs (four, as upright apes live). */
+  readonly perHome: number;
 };
 /** The work a land's people do (forager … leader), and how many of them do each. */
 export type FolkWork = {
@@ -224,12 +235,32 @@ export function folkWork(world: World, cell: number): FolkWork {
  * The name of the family to every four of a town's lines, as four folk share a home, in its land's
  * family names' tongue (Phase 55 wave 5: their kin bear it too).
  */
-export function houseName(family: Tongue, town: string, line: number): string {
+export function houseName(family: Tongue, town: string, line: number, per = 4): string {
   return tongueName(
     { ...family, seed: family.seed ^ 0xf00d },
-    hashString(`${town} line ${Math.floor(line / 4)}`),
+    hashString(`${town} line ${Math.floor(line / per)}`),
   );
 }
+
+/**
+ * How a people's lines are housed and sent, by how its kind pairs (round G, kin by species): the lines that share a home and a
+ * family's name (rules/self.ts HOME_LINES: four as upright apes pair for life, a hive's cell of twelve, one where none pairs), and
+ * the share of those who bear its levies take with the rest (none of an upright ape's mothers; a spawning people's all).
+ */
+export function kinShape(ctx: PopulationContext): {
+  readonly perHome: number;
+  readonly bearers: number;
+} {
+  const body = ctx.generated.life.people?.body;
+  return {
+    perHome: HOME_LINES[pairingOf(body, ctx.life.adulthood)],
+    bearers: rollBearers(body, ctx.life),
+  };
+}
+
+/** Whether a holder by their key is of those a levy takes: a man, or one who bears whom her young don't hold (`bearers` of them). */
+const serves = (key: number, bearers: number): boolean =>
+  ((key >>> 5) & 1) === 1 || (bearers > 0 && u(key, 47) < bearers);
 
 /** A grown holder's work by their key: u(key, 2) over the mix (a farmer where it has none). */
 export function workOf(key: number, work: FolkWork): number {
@@ -770,6 +801,8 @@ type Shape = {
   readonly spread: number;
   readonly fitFrom: number;
   readonly fitTo: number;
+  /** Of those who bear, the share levied (kinShape). */
+  readonly bearers: number;
 };
 
 /**
@@ -789,7 +822,7 @@ function natural(s: Shape, k: number, tau: number, phi: number): void {
   const key = holderKey(s.pre, lineHs[k]!, lineNs[k]!, k, numberOf(tau, 0));
   natTau[k] = tau;
   natKey[k] = key;
-  if (((key >>> 5) & 1) === 1) {
+  if (serves(key, s.bearers)) {
     const born = tau * s.term - phi - tookAt(s, key);
     natFrom[k] = born + s.fitFrom;
     natTo[k] = born + s.fitTo;
@@ -929,6 +962,7 @@ function foldRoster(
     pre = prefixOf(`folk ${town} `),
     keyOf = keysOf(pre),
     [fitFrom, fitTo] = fitOf(life),
+    kin = kinShape(ctx),
     shape: Shape = {
       pre,
       term,
@@ -936,6 +970,7 @@ function foldRoster(
       spread: Math.max(0, span - term - youngest),
       fitFrom,
       fitTo,
+      bearers: kin.bearers,
     },
     took = (key: number) => tookAt(shape, key);
 
@@ -1152,7 +1187,7 @@ function foldRoster(
         if (h === null || h.dead) return false;
         const key = keyIn(k, h.n),
           age = at - (h.from - took(key));
-        return ((key >>> 5) & 1) === 1 && age >= fitFrom && age < fitTo;
+        return serves(key, shape.bearers) && age >= fitFrom && age < fitTo;
       };
       wanted = levyOf(shape, hashString(`levy ${war.ref} ${town}`), count, at, target, mourning);
       eligible = everyFit;
@@ -1258,7 +1293,7 @@ function foldRoster(
         key = holderKey(pre, h0, n0, k, numberOf(tau, 0));
         born = tau * term - phi - took(key);
       }
-      if (((key >>> 5) & 1) === 1 && at - born >= fitFrom && at - born < fitTo) n++;
+      if (serves(key, shape.bearers) && at - born >= fitFrom && at - born < fitTo) n++;
     }
     return n;
   }
@@ -1395,7 +1430,7 @@ function foldRoster(
   }
 
   // Names in the tongue of the land as it is when first asked: a given name by their key, and the
-  // name of a family to every four lines, as four folk share a home.
+  // name of a family to every home's lines (four, as four upright apes share a home: kinShape).
   const names = new Map<string, string>();
   let speech: { readonly tongue: Tongue | undefined; readonly family: Tongue } | null = null;
   const nameOf = (h: Holder): string => {
@@ -1408,7 +1443,7 @@ function foldRoster(
       const given = speech.tongue
           ? tonguePersonName(speech.tongue, h.key, h.sex)
           : personName(ctx.culture, h.key, h.sex),
-        family = houseName(speech.family, town, h.line);
+        family = houseName(speech.family, town, h.line, kin.perHome);
       names.set(h.ref, (name = `${given} ${family}`));
       weigh(96);
     }
@@ -1458,6 +1493,7 @@ function foldRoster(
     fell,
     fallen,
     nameOf,
+    perHome: kin.perHome,
   };
   INNER.set(roster, inner);
   return roster;
