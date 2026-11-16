@@ -262,6 +262,12 @@ body.godpalette .reign-hud :is(.reign-tray, .reign-sheet, .reign-told, .reign-wi
 .reign-tray:has(> .reign-bound:not([hidden])) .reign-act .life-label {
   font-size: 11px;
 }
+/* (With a peace's bonds and the god's hand both on the tray, nine share a phone's width: at the tray's own gaps each was
+   41 wide, under a finger's 44 (gate 116 on ci/rounds-1). Closer set, each is 44.) */
+.reign-tray:has(> .reign-bound:not([hidden])) {
+  gap: 3px;
+  padding: 0 3px;
+}
 .reign-tray .reign-act {
   padding-left: 1px;
   padding-right: 1px;
