@@ -169,6 +169,10 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
     const exact = (selector: string) =>
       k<{ x: number; y: number } | null>(`(() => {
         for (const e of document.querySelectorAll(${JSON.stringify(selector)})) {
+          // (A row of the rail's "more" sheet below its foot is scrolled to, as a finger scrolls the sheet: on a desk the
+          // sheet stands above the windows at the screen's foot, and the brushes' row came under them once the rail
+          // held the wars' button too.)
+          if (e.closest(".corner-more-sheet")) e.scrollIntoView({ block: "nearest" });
           const r = e.getBoundingClientRect();
           if (r.width < 1 || r.height < 1) continue;
           const x = r.x + r.width / 2, y = r.y + r.height / 2, hit = document.elementFromPoint(x, y);
