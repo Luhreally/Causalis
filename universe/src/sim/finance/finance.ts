@@ -61,6 +61,7 @@ import { orderOf } from "../order/order.ts";
 import { holdsOf, waysRead } from "../order/holds.ts";
 import { LAW_OF } from "../order/laws.ts";
 import { CREDIT, creditOf } from "../credit/credit.ts";
+import { borrowedFor, deficitOf, inflationOf, revenueOf } from "../money/kept.ts";
 
 export const FINANCE_EVENTS = {
   /** A realm sold debt: to its own people and to others'. */
@@ -136,7 +137,7 @@ export type Money = {
     readonly home: number;
     /** Ten-thousandths a year. */
     readonly rate: number;
-    readonly why: "war" | "hunger" | "arms";
+    readonly why: "war" | "hunger" | "arms" | "deficit";
     readonly abroad: readonly Ref[];
   };
   refusal?: Ref;
@@ -417,7 +418,8 @@ function readRealm(ctx: PopulationContext, store: FinanceStore, p: Polity): Read
       rich: people > 0 ? worth / people : 0,
       people,
     },
-    takings: Math.max(1, Math.round(takings)),
+    // (What its treasury takes in all, where it keeps one: Round B. Lenders count every base, not the harvest's tithe alone.)
+    takings: Math.max(1, Math.round(Math.max(takings, revenueOf(world, p.ref)))),
     banking: !!loreOf(world).get(p.seat, "banking"),
     atWar: warsOf(world).fighting(p.ref).length > 0,
     trust: h[HOLD.trust]!,
@@ -451,6 +453,7 @@ function yieldRead(ctx: PopulationContext, r: Read, year: number) {
       crisis: !!credit?.crisis && year - credit.crisis.year < CREDIT.crisis,
       unpaid: r.m.missed,
       months: 12 * r.faring.fed,
+      inflation: Math.max(0, inflationOf(ctx.world, r.p.ref)),
     });
   return { ...y, burden, takings: r.takings };
 }
@@ -761,6 +764,14 @@ export function financeYear(ctx: PopulationContext, t: SimTime): void {
     }
     const hunger = Math.ceil(CREDIT.months * mouths(seat, ctx.life) - sm.food(FOODS));
     if (hunger >= 50 && seat.lastFamine) sell(ctx, r, reads, relations, hunger, "hunger", year, {});
+    // (What its treasury goes short beyond what it keeps by it: Round B, sim/money. What it cannot borrow it may debase or print.)
+    const short = Math.floor(deficitOf(world, p.ref));
+    if (short >= 50) {
+      const before = debtOf(m);
+      sell(ctx, r, reads, relations, short, "deficit", year, {});
+      const raised = Math.max(0, Math.round(debtOf(m) - before));
+      if (raised > 0) borrowedFor(world, p.ref, raised);
+    }
     const fear = m.fears[0];
     if (fear && fear.level >= FINANCE.armAt * 100 && !fighting.length) {
       const want = Math.ceil(FINANCE.arm * keep * (fear.level / 100));
@@ -873,7 +884,7 @@ function sell(
   reads: ReadonlyMap<string, Read>,
   relations: readonly Relation[],
   want: number,
-  why: "war" | "hunger" | "arms",
+  why: "war" | "hunger" | "arms" | "deficit",
   year: number,
   by: { war?: Ref; foe?: Ref; feared?: Ref },
 ): Ref | null {

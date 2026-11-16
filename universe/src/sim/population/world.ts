@@ -27,6 +27,7 @@ import { peopleLife } from "./life.ts";
 import { seatKnown } from "./entered.ts";
 import { MarketStore } from "../economy/market.ts";
 import { EnergyStore } from "../economy/energy.ts";
+import { installMoney } from "../money/money.ts";
 import { installEconomy } from "../economy/systems.ts";
 import { installActs } from "../acts/acts.ts";
 import { installGreatActs } from "../acts/great.ts";
@@ -383,6 +384,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installHealth(world, () => populationContext(world));
   installCredit(world, () => populationContext(world));
   installFinance(world, () => populationContext(world));
+  installMoney(world, () => populationContext(world));
   installStrife(world, () => populationContext(world));
   installCourts(world, () => populationContext(world));
   installCities(world, () => populationContext(world));

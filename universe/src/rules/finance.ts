@@ -227,6 +227,8 @@ export type Borrower = {
   readonly unpaid?: number;
   /** The food its lands hold, in months of their eating (absent: enough). */
   readonly months?: number;
+  /** How fast its prices rose last year (rules/money.ts; absent: they held): lenders are paid back in money worth less (Fisher). */
+  readonly inflation?: number;
 };
 
 /** One part of a sum, for a page to show. */
@@ -258,6 +260,10 @@ export function yieldOf(b: Borrower): { rate: number; parts: Part[] } {
       {
         name: "how little its lands have in store to pay from",
         value: FINANCE.lean * clamp(1 - (b.months ?? FINANCE.leanMonths) / FINANCE.leanMonths),
+      },
+      {
+        name: "its money losing its worth",
+        value: clamp(b.inflation ?? 0) * 0.9,
       },
       {
         name: "interest it has left unpaid",

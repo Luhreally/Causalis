@@ -59,6 +59,7 @@ import { heldOf, holdOf, weighHolds, type Taught } from "./holds.ts";
 import { CREDIT, creditOf, debtBurden } from "../credit/credit.ts";
 import { seizedFactor } from "../strife/strife.ts";
 import { fortunePull } from "../acts/fortune.ts";
+import { bindOf } from "../money/kept.ts";
 
 /** The kinds of bondage a people may be held in (corvée, a levy on the free, is the realm's). */
 export const BONDS = ["chattel", "debt", "serf", "indenture", "convict"] as const;
@@ -828,9 +829,11 @@ function sellThemselves(
   if (score < DEBT_LINE) return;
   const l = landOf(store, c),
     free = Math.max(0, 1 - l.shares.reduce((a, b) => a + b, 0)),
+    // (A creditor holds a debtor to his labour as far as the realm's arms back him: Round B, the same hold as the land's.)
+    held = bindOf(world, c)?.hold ?? 1,
     add = Math.min(
       DEBT_MOST - l.shares[BOND.debt]!,
-      free * 0.06 * Math.max(hunger, crushed) * (0.5 + hier),
+      free * 0.06 * Math.max(hunger, crushed) * (0.5 + hier) * (0.4 + 0.6 * held),
     );
   if (add <= 0) return;
   l.shares[BOND.debt] = l.shares[BOND.debt]! + add;
@@ -1445,16 +1448,24 @@ export function orderYear(ctx: PopulationContext, t: SimTime): void {
       if (!prov) continue;
       const workers = Math.max(1, prov.total() - prov.occupation(OCC.dependent)),
         farming = prov.occupation(OCC.farmer) / workers >= 0.5,
-        l = store.lands.get(c) ?? (serfMeasure > 0 && farming ? landOf(store, c) : undefined);
+        weighed = free ? 0 : (bindOf(world, c)?.share ?? -1),
+        l =
+          store.lands.get(c) ??
+          ((weighed >= 0 ? weighed > 0.005 : serfMeasure > 0 && farming)
+            ? landOf(store, c)
+            : undefined);
       if (!l) continue;
-      // Serfs: toward the realm's measure where most work the fields; a great dying loosens them.
+      // Serfs: toward what the land's holders would bind (Round B, rules/labour.ts bindPull: Domar's scarce hands, the realm's arms
+      // against the open land they could flee to, its law), where it is weighed; else toward the realm's measure where most work the
+      // fields, and a great dying loosens them.
       let s = l.shares[BOND.serf]!;
-      const target = farming ? serfMeasure : 0;
+      const pulled = free ? null : bindOf(world, c),
+        target = pulled ? pulled.share : farming ? serfMeasure : 0;
       s = s < target ? s + Math.min(SERF_BIND, target - s) : s - Math.min(SERF_LOOSE, s - target);
       const years = ctx.history.yearsOf(c),
         last = years.at(-1),
         before = years.at(-2);
-      if (last && before && last.population < before.population * 0.9) s *= 0.7;
+      if (!pulled && last && before && last.population < before.population * 0.9) s *= 0.7;
       const others = l.shares.reduce((a, b, k) => a + (k === BOND.serf ? 0 : b), 0);
       l.shares[BOND.serf] = clamp(0, Math.max(0, 1 - others), s);
       // Debts are worked off, faster in a fed year; the indentured serve their term.

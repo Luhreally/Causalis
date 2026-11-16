@@ -49,6 +49,13 @@ import {
   TOOL_USERS,
   TRADER_CAPACITY,
   WANTS,
+  ELASTICITY,
+  GOOD_USE,
+  PRICE_BASES,
+  SHOP,
+  lerner,
+  naturalPrices,
+  priceTarget,
   WORKED,
   SIGNAL,
   connectivityOf,
@@ -79,6 +86,15 @@ import { kmBetween, seaRange, seaReach } from "./sea.ts";
 import { politiesOf } from "../polity/polity.ts";
 import { fieldedOf, warsOf, type War } from "../war/war.ts";
 import { rearmYear } from "../war/arms.ts";
+import {
+  GOODS_STORE,
+  dutyOf,
+  guildOf,
+  insuredGainOf,
+  moneyStore,
+  sanctionBetween,
+  unionOf,
+} from "../money/kept.ts";
 
 const SPREADING = purpose("spread");
 const HERDS = defineStream("econ.herds");
@@ -653,19 +669,29 @@ function trade(
     // was where neither fears the other.)
     const ra = money ? realms.of(e.a)?.ref : undefined,
       rb = money ? realms.of(e.b)?.ref : undefined,
-      shut = ra && rb && ra !== rb ? fearShuts(money!, ra, rb) : 0;
+      shut = ra && rb && ra !== rb ? fearShuts(money!, ra, rb) : 0,
+      // (Round B: what either realm shuts by its own word, less what slips past; what the seller's underwriters let its traders
+      // risk at sea; and what the buyer lays on goods from abroad. Each nothing where neither realm keeps any.)
+      ta = realms.of(e.a)?.ref,
+      tb = realms.of(e.b)?.ref,
+      apart = !!ta && !!tb && ta !== tb,
+      barred = apart ? sanctionBetween(ctx.world, ta!, tb!) : 0;
     const ma = markets.of(e.a),
       mb = markets.of(e.b),
       // (What both ends' signals put on the line: traders see the far price as it moves, so move more and on a narrower
       // margin. Exactly 1 before either end has the telegraph: rules/signals.ts.)
       linked = connectivityOf(Math.min(lore.effect(e.a, "signal"), lore.effect(e.b, "signal"))),
-      moved = 0.25 * (1 + SIGNAL.tradeShare * linked) * (1 - FINANCE.shuts * shut),
+      moved = 0.25 * (1 + SIGNAL.tradeShare * linked) * (1 - FINANCE.shuts * shut) * (1 - barred),
       keen = 2 * (1 + SIGNAL.tradeMargin * linked),
       // (And what a journey cost in waiting on word and finding a buyer: the haul itself is what it was.)
       dealt = 1 - SIGNAL.tradeCost * linked;
     for (let g = 0; g < GOOD_COUNT; g++) {
       const [s, d] = ma.price[g]! <= mb.price[g]! ? [ma, mb] : [mb, ma],
-        margin = d.price[g]! - s.price[g]! - e.cost * dealt * GOODS[g]!.bulk;
+        buyer = s === ma ? tb : ta,
+        seller = s === ma ? ta : tb,
+        duty = apart && buyer ? dutyOf(ctx.world, buyer) : 0,
+        margin = d.price[g]! * (1 - duty) - s.price[g]! - e.cost * dealt * GOODS[g]!.bulk,
+        insured = e.sea && seller ? insuredGainOf(ctx.world, seller) : 0;
       if (margin <= 0) continue;
       const people = ctx.provinces.get(s.cell)!.total(),
         keep = GOODS[g]!.food
@@ -673,7 +699,9 @@ function trade(
           : (wanted.get(s.cell)?.[g] ?? 0),
         spare = s.stock[g]! - keep;
       if (spare <= 0) continue;
-      const count = Math.floor(spare * moved * Math.min(1, (keen * margin) / d.price[g]!));
+      const count = Math.floor(
+        spare * moved * (1 + insured) * Math.min(1, (keen * margin) / d.price[g]!),
+      );
       if (count > 0) plans.push({ from: s.cell, to: d.cell, good: g, count, margin, sea: e.sea });
     }
   }
@@ -827,9 +855,22 @@ function relief(
   }
 }
 
-/** Prices move toward what this year's shortage or glut would make them. */
-function reprice(p: Province, m: Market, want: readonly number[], life: LifeHistory): void {
-  const pop = mouths(p, life);
+/** Workers in a land (all but those who depend on them), at least one. */
+function workersOf(p: Province): number {
+  return Math.max(1, p.total() - p.occupation(OCC.dependent));
+}
+
+/**
+ * Prices move toward what this year's shortage or glut would make them, about each good's worth in this land (Round B: rules/money.ts
+ * naturalPrices): grain its staple; a food by the work a unit takes against grain's; what its crafters make by what it costs them;
+ * what it cannot make by what it does for whoever uses it, or what is made of it; else what it last fetched. Its makers ask above
+ * their cost as far as they are few, buyers cannot go without, its crafters' guild acts as one and goods from abroad allow
+ * (rules/labour.ts lerner).
+ */
+function reprice(ctx: PopulationContext, p: Province, m: Market, want: readonly number[]): void {
+  const life = ctx.life,
+    pop = mouths(p, life),
+    workers = workersOf(p);
   // Foods stand in for one another: one scarcity for all three.
   let eaten = 0,
     kept = 0;
@@ -837,14 +878,63 @@ function reprice(p: Province, m: Market, want: readonly number[], life: LifeHist
     eaten += m.line("used", g);
     kept += m.stock[g]!;
   }
-  const foodScarcity = (pop * 12 * 1.5) / (eaten + kept + 1);
+  const foodScarcity = (pop * 12 * 1.5) / (eaten + kept + 1),
+    w = m.wage,
+    living = (12 * pop) / workers,
+    outside = Math.max(living, w[OCC.farmer]!, w[OCC.forager]!, w[OCC.herder]!),
+    recipes: number[] = [];
+  RECIPES.forEach((r, i) => {
+    if (canMake(ctx, p, m, r)) recipes.push(i);
+  });
+  // (The work a unit of each food took this year: those who won it over what they won.)
+  const work = new Array<number>(GOOD_COUNT).fill(NaN),
+    per = (occ: number, g: number) => {
+      const made = m.line("made", g),
+        n = p.occupation(occ);
+      return made > 0 && n > 0 ? n / made : NaN;
+    };
+  work[G.grain] = per(OCC.farmer, G.grain);
+  work[G.meat] = per(OCC.herder, G.meat);
+  work[G.wild] = per(OCC.forager, G.wild);
+  const { worth, basis } = naturalPrices({ price: m.price, recipes, outside, wage: outside, work });
+  // Who makes each crafted good: the land's crafters by its share of what they made, in shops of a master's few or a works' floor.
+  const lore = loreOf(ctx.world),
+    perShop = lore.get(p.cell, "factories") ? SHOP.works : SHOP.hands,
+    crafters = p.occupation(OCC.crafter),
+    guild = guildOf(ctx.world, p.cell);
+  let craftedWorth = 0;
+  for (let g = 0; g < GOOD_COUNT; g++)
+    if (basis[g] === "made") craftedWorth += m.line("made", g) * m.price[g]!;
   for (let g = 0; g < GOOD_COUNT; g++) {
     const good = GOODS[g]!,
       scarcity = good.food
         ? foodScarcity
         : (want[g]! * 1.5) / (m.line("used", g) + m.stock[g]! + 1),
-      target = good.value * dmath.pow(dmath.clamp(scarcity, 0.25, 4), 0.8);
-    m.price[g] = m.price[g]! + PRICE_STEP * (target - m.price[g]!);
+      made = m.line("made", g),
+      bought = m.line("in", g),
+      markup =
+        basis[g] === "made" && made > 0 && craftedWorth > 0
+          ? lerner(
+              (crafters * made * m.price[g]!) / craftedWorth / perShop,
+              ELASTICITY[GOOD_USE[good.id]!]!,
+              guild,
+              bought / (bought + made),
+            )
+          : 0,
+      target = priceTarget(worth[g]!, scarcity, markup);
+    if (Number.isFinite(target) && target > 0)
+      m.price[g] = m.price[g]! + PRICE_STEP * (target - m.price[g]!);
+  }
+  // (What each good is worth here and on what it rests, kept for the pages: seven bases to a number.)
+  const goods = moneyStore(ctx.world, GOODS_STORE);
+  if (goods) {
+    const code = (from: number) => {
+      let n = 0;
+      for (let g = Math.min(GOOD_COUNT, from + 7) - 1; g >= from; g--)
+        n = n * 6 + PRICE_BASES.indexOf(basis[g]!);
+      return n;
+    };
+    goods.set(p.cell, [...worth.map((x) => x * 1000), code(0), code(7)]);
   }
 }
 
@@ -877,7 +967,9 @@ function wages(ctx: PopulationContext, p: Province, m: Market): void {
   for (const r of RECIPES)
     if (canMake(ctx, p, m, r) && (r.inputs.length === 0 || inputLimit(m, r) > 0))
       best = Math.max(best, worth(m, r));
-  w[OCC.crafter] = best;
+  // (Where its workers have bound themselves in a union, they win a share of their trade's rent: Round B, rules/labour.ts.)
+  const union = unionOf(ctx.world, p.cell);
+  w[OCC.crafter] = best * (1 + union.wage);
   w[OCC.trader] =
     0.6 * Math.max(w[OCC.farmer]!, w[OCC.forager]!) +
     m.tradeMargin / Math.max(1, p.occupation(OCC.trader));
@@ -904,7 +996,7 @@ export function economyYear(ctx: PopulationContext, t: SimTime): void {
   relief(ctx, markets, flows, t);
   for (const p of provinces) {
     const m = markets.of(p.cell);
-    reprice(p, m, wanted.get(p.cell)!, ctx.life);
+    reprice(ctx, p, m, wanted.get(p.cell)!);
     wages(ctx, p, m);
   }
 }
