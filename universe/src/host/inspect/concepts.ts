@@ -11,6 +11,7 @@ import { CREDIT_CONCEPTS, CREDIT_CONCEPT_OF } from "./credit-concepts.ts";
 import { FINANCE_CONCEPTS, FINANCE_CONCEPT_OF } from "./finance-concepts.ts";
 import { STRIFE_CONCEPTS, STRIFE_CONCEPT_OF } from "./strife-concepts.ts";
 import { LIVES_CONCEPTS, LIVES_CONCEPT_OF } from "./lives-concepts.ts";
+import { SELF_CONCEPTS } from "./self-concepts.ts";
 
 /** A concept: its icon and name, and what the book says of it. */
 export type Concept = {
@@ -454,6 +455,7 @@ export const CONCEPTS: Readonly<Record<string, Concept>> = {
   ...FINANCE_CONCEPTS,
   ...STRIFE_CONCEPTS,
   ...LIVES_CONCEPTS,
+  ...SELF_CONCEPTS,
 };
 
 /** Which concept a number is a measure of, by its label on the pages. */

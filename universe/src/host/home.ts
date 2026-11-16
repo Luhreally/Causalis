@@ -354,6 +354,8 @@ export type HomeReckoned = DayReckoned & {
   readonly seated: boolean;
   /** No one grown is named here: two at the land's first work are reckoned. */
   readonly unnamed: boolean;
+  /** Their standing in their town, 0 the lowest to 1 the highest (rules/dwelling.ts standingOf). */
+  readonly standing: number;
 };
 
 function reckonHome(
@@ -399,6 +401,7 @@ function reckonHome(
     court,
     seated,
     unnamed: !grown.length,
+    standing,
   };
 }
 

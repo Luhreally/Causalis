@@ -59,6 +59,7 @@ import { housePage } from "./credit.ts";
 import { buildingPage, lotPage, wallsPage } from "./fabric.ts";
 import { homePage, homeThingPage } from "./home.ts";
 import { withLiving } from "./living.ts";
+import { withSelf } from "./self.ts";
 import { campPage } from "./camp.ts";
 import { beastPage, herdPage } from "./herds.ts";
 import { healerPage } from "./wounds.ts";
@@ -260,17 +261,16 @@ export function pageOf(
   let page: PageModel;
   try {
     // (One of the town's people: their family and their body, Phase 55 wave 5.)
-    page = withConcepts(
-      tidy(
-        withKin(
-          world,
-          base,
-          brief
-            ? withLeaderPage(world, base, build(world, base, tab, only))
-            : withLiving(world, base, withLeaderPage(world, base, build(world, base, tab))),
-        ),
-      ),
+    page = withKin(
+      world,
+      base,
+      brief
+        ? withLeaderPage(world, base, build(world, base, tab, only))
+        : withLiving(world, base, withLeaderPage(world, base, build(world, base, tab))),
     );
+    // (Their life, read whole: what they want, are like, have done and hold — round G.)
+    if (!brief) page = withSelf(world, base, page);
+    page = withConcepts(tidy(page));
     // (How they are now, and the way on and off the people bar: B1.)
     if (!brief) page = withBarBlock(world, base, page);
     // (What its tabs and banner are drawn of: asked 2026-11-13.)

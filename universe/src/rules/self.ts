@@ -496,11 +496,13 @@ export function wealthTail(spread: number, caste: number): number {
 
 /**
  * What a household at `q` (0 the poorest … 1 the richest) holds against its land's mean a household: the slope of the land's
- * Lorenz curve there (1 − (1 − p)^(1 − 1/α)), whose mean over every household is 1.
+ * Lorenz curve there (1 − (1 − p)^(1 − 1/α)), whose mean over every household is 1. The richest two-hundredth are one band, each
+ * holding that band's mean (a tail as fat as a few great houses' has no top household to hold all of it).
  */
 export function shareAt(q: number, alpha: number): number {
-  const a = Math.max(1.02, alpha);
-  return (1 - 1 / a) * dmath.pow(1 - dmath.clamp(q, 0, 0.995), -1 / a);
+  const a = Math.max(1.02, alpha),
+    top = 0.995;
+  return q < top ? (1 - 1 / a) * dmath.pow(1 - Math.max(0, q), -1 / a) : dmath.pow(1 - top, -1 / a);
 }
 
 /** The share of a land's wealth its richest tenth holds, by its tail. */
