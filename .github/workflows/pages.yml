@@ -16,7 +16,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # A tree whose whole test run has already passed on a pushed branch (a ci/ branch the release was
+  # tried on first) is not tested a second time here: the same tree is the same files, byte for byte,
+  # so the deploy waits only on the bake. Any doubt (no such run, the API not answering) and the tests
+  # run as ever.
+  tested:
+    runs-on: ubuntu-latest
+    outputs:
+      done: ${{ steps.find.outputs.done }}
+    steps:
+      - id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set +e
+          done=false
+          tree=$(gh api "repos/$REPO/git/commits/$SHA" --jq .tree.sha)
+          if [ -n "$tree" ]; then
+            for sha in $(gh api "repos/$REPO/actions/workflows/test.yml/runs?status=success&event=push&per_page=40" --jq '.workflow_runs[].head_sha'); do
+              if [ "$(gh api "repos/$REPO/git/commits/$sha" --jq .tree.sha)" = "$tree" ]; then
+                echo "tree $tree passed every test as $sha"
+                done=true
+                break
+              fi
+            done
+          fi
+          echo "done=$done" >> "$GITHUB_OUTPUT"
+
   test:
+    needs: tested
+    if: ${{ !cancelled() && needs.tested.outputs.done != 'true' }}
     uses: ./.github/workflows/test.yml
 
   # Far years of the Earth seed, run ahead for this deploy's own rules (Phase 63): the title's "at a
@@ -53,7 +84,9 @@ jobs:
           retention-days: 1
 
   deploy:
-    needs: [test, bake]
+    needs: [tested, test, bake]
+    # (Tested here, or the same tree tested already; and the far years baked.)
+    if: ${{ !cancelled() && needs.bake.result == 'success' && (needs.test.result == 'success' || (needs.test.result == 'skipped' && needs.tested.outputs.done == 'true')) }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

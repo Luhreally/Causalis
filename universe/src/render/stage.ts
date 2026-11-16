@@ -16,6 +16,43 @@ export type DeviceTier = {
 
 export type Rgb = readonly [number, number, number];
 
+/**
+ * A vertex buffer destroyed takes with it the vertex arrays the engine made of it. The engine keeps one for every
+ * pair of a mesh's buffer and an instancing buffer it has drawn (its `_vaoMap`), and never lets one go: each kept
+ * array holds its buffers in the graphics card's memory after they are destroyed, so every batch rebuilt as the years
+ * turn left its matrices there for good (2026-11-15: 13,400 arrays and 900 MB of them in the graphics process by year
+ * 1,500 of a small world watched at a century a second).
+ */
+type VaoDevice = {
+  _vaoMap?: Map<string, WebGLVertexArrayObject>;
+  gl?: WebGL2RenderingContext;
+  unbindVertexArray?: () => void;
+};
+/** How many vertex arrays a device keeps (for a gate to weigh; -1: it does not tell). */
+export function vertexArraysKept(device: pc.GraphicsDevice): number {
+  return (device as unknown as VaoDevice)._vaoMap?.size ?? -1;
+}
+{
+  const destroy = pc.VertexBuffer.prototype.destroy;
+  pc.VertexBuffer.prototype.destroy = function (this: pc.VertexBuffer): void {
+    const device = this.device as unknown as VaoDevice,
+      // (Its part of an array's key: none until it has been drawn with another.)
+      part = (this as unknown as { _vaoKeyPart?: string | null })._vaoKeyPart,
+      kept = device._vaoMap;
+    if (part && kept?.size && device.gl) {
+      let unbound = false;
+      for (const [key, vao] of kept) {
+        if (!key.startsWith(part) && !key.includes(`_${part}`)) continue;
+        if (!unbound) device.unbindVertexArray?.();
+        unbound = true;
+        kept.delete(key);
+        device.gl.deleteVertexArray(vao);
+      }
+    }
+    destroy.call(this);
+  };
+}
+
 /** Each kind's clear air by day (Phase 56): the haze its far land fades into. */
 const KIND_HAZE: Readonly<Record<string, Rgb>> = {
   carbon: [0.74, 0.68, 0.58],

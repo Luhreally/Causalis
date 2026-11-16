@@ -48,6 +48,8 @@ import { beliefsChart, evidenceChart, taughtChart } from "./learned.ts";
 
 /** How often an open page is read again while the world runs (ms). */
 const REFRESH_MS = 2000;
+/** The most lines of a list a page draws; the rest are counted under it. */
+const LIST_MOST = 1000;
 /** A specimen's small picture (Phase 54 M223): beside a list item, or at the start of a table row. */
 function thumbOf(p: Portrait): HTMLCanvasElement {
   // (Drawn once it is on screen, and kept: ui/thumbs.ts.)
@@ -706,10 +708,15 @@ export class PageWindow {
         box.append(facts);
         break;
       }
-      case "list":
-        box.append(...b.items.map((item) => this.item(item)));
-        if (b.more) box.append(el("p", "muted more", `and ${b.more.toLocaleString("en-US")} more`));
+      case "list": {
+        // (No more lines than LIST_MOST are drawn, whatever a page sends: an open page is drawn again whole each time
+        // it changes, and a list of tens of thousands of lines drawn every two seconds outruns the collector.)
+        const shown = b.items.length > LIST_MOST ? b.items.slice(0, LIST_MOST) : b.items,
+          more = (b.more ?? 0) + b.items.length - shown.length;
+        box.append(...shown.map((item) => this.item(item)));
+        if (more) box.append(el("p", "muted more", `and ${more.toLocaleString("en-US")} more`));
         break;
+      }
       case "table":
         box.append(this.table(b.columns, b.rows, key, b.few, b.fit));
         break;

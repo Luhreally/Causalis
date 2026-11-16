@@ -2237,8 +2237,9 @@ body.roaming .hint {
   color: var(--accent);
   font-size: 0.68rem;
 }
+/* (On a touch screen only a finger held shows it: a tap opens instead, 2026-11-15.) */
 @media (pointer: coarse) {
-  .tooltip {
+  .tooltip:not(.finger) {
     display: none;
   }
 }

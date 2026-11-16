@@ -423,6 +423,17 @@ export const GATES: readonly Gate[] = [
   // is over its budget, or one writing more events, decisions or store bytes than its row fails by name; milliseconds only warn. The default
   // world at 1,500 runs locally (npm run gate:123).
   { gate: 123, args: ["--ci"], s: 300 },
+  // Gate 122, what a tab holds (tools/memory-gate.ts): the small world whose tab ran out of memory played from its first year at a
+  // century a second to year 500 at a phone's size, kept, taken up again in place and by the page loaded again, a player's round of
+  // pages, lenses and scales walked twice and a realm's page left open as the years run; after each, garbage collected, the page's and
+  // the host's heaps, the vertex arrays the engine keeps and what it counts on the card held to a phone's budget, and what a round adds
+  // to a little.
+  { gate: 122, args: ["--ci"], s: 800 },
+  // Gate 124, a finger held is a hover (tools/hold-gate.ts; owner, 2026-11-15): in a phone's frame by touch, a finger held
+  // still on a land shows its tip above the finger, follows it slid without turning the view, opens nothing lifted and
+  // stays a moment to be read; a tap still opens; a finger held on a name in a page opens the name's tip, and lifting it
+  // does not open the name's page.
+  { gate: 124, args: ["--ci"], s: 120 },
 ];
 
 /** A gate's name as CI calls it: its phase, and its part where it has one ("55b"). */
