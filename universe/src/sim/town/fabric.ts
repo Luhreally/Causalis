@@ -600,17 +600,21 @@ export function homesOf(f: Fabric): number {
  */
 export function levelsOf(f: Fabric, from: number, to: number): Int8Array {
   const out = new Int8Array(Math.max(0, to - from)).fill(-1);
-  for (const [what, a, b, , , level] of f.changes) {
-    if (!isHome(what)) continue;
-    const lo = Math.max(a, from),
-      hi = Math.min(b, to);
-    for (let p = lo; p < hi; p++) out[p - from] = level;
+  // (Run by run by its place in the list, and a run's numbers by theirs: a great town's runs are gone over for
+  // each stretch of lots asked of, every year it builds.)
+  const runs = f.changes;
+  for (let r = 0; r < runs.length; r++) {
+    const c = runs[r]!;
+    if (!isHome(c[0]) || c[2] <= from || c[1] >= to) continue;
+    const lo = Math.max(c[1], from),
+      hi = Math.min(c[2], to);
+    if (lo < hi) out.fill(c[5], lo - from, hi - from);
   }
   for (const c of f.civics) {
     if (c.fell !== null) continue;
     const lo = Math.max(c.at, from),
       hi = Math.min(c.at + c.lots, to);
-    for (let p = lo; p < hi; p++) out[p - from] = -1;
+    if (lo < hi) out.fill(-1, lo - from, hi - from);
   }
   return out;
 }
