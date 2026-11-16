@@ -111,8 +111,9 @@ export type MotionState = {
   toldSea: number;
   toldOverturn: boolean;
   version: number;
-  /** The turn of the reading whose lands were last told. */
+  /** The turn of the reading whose lands were last told; sheets come or gone since the reading last turned. */
   toldVersion: number;
+  pending: number;
   /** The home star's swelling told; the home world's dying told. */
   swelling: Ref | null;
   dying: Ref | null;
@@ -133,6 +134,7 @@ const firstState = (): MotionState => ({
   toldOverturn: false,
   version: 0,
   toldVersion: 0,
+  pending: 0,
   swelling: null,
   dying: null,
   seaEvent: null,
@@ -513,15 +515,19 @@ export function motionYear(world: World, t: SimTime, years = 1): void {
     Math.round(s.overturn * 1e4),
   ]);
 
-  // A new reading where any land's would turn.
+  // A new reading where any land's would turn: at once where the warmth, the sea or the overturning steps, and for
+  // sheets come or gone, gathered and read once a decade (every land's yield is reckoned again with a new reading).
   const q = (x: number, st: number) => quantum(x, st);
+  s.pending += flips;
   if (
-    flips ||
+    (s.pending > 0 && year % ICE_STEP === 0) ||
     q(warm, STEP.warm) !== before.warm ||
     q(s.seaIce + s.swell, STEP.sea) !== before.sea ||
     q(s.overturn - 1, STEP.overturn) !== before.overturn
-  )
+  ) {
     s.version++;
+    s.pending = 0;
+  }
   if (year % PAST_EVERY === 0) {
     let covered = 0;
     for (let i = 0; i < store.cells.length; i++)
