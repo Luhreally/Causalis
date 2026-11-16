@@ -542,6 +542,13 @@ function unpackFloats(f: FloatColumn): number[] {
  * by their numbers there, and it is read with them.
  */
 export function packList(values: readonly unknown[], words?: Words): Packed {
+  // (A long list of small whole numbers, as most of a late save's are, told so in one look at each: kept as any
+  // list of whole numbers is.)
+  if (values.length >= 64 && smallInts(values)) {
+    const out: Record<string, unknown> = { n: values.length };
+    packInts(values as readonly number[], out);
+    return out as Packed;
+  }
   const n = values.length,
     out: Record<string, unknown> = { n },
     kinds = new Uint8Array(n),
@@ -583,6 +590,15 @@ export function packList(values: readonly unknown[], words?: Words): Packed {
   if (seen & (1 << RAW)) out.r = of<unknown>(RAW);
   if (seen & (1 << FLOAT)) out.f = packFloats(of<number>(FLOAT));
   return out as Packed;
+}
+
+/** Whether every value is a whole number of 31 bits or fewer either way (so a whole number packList keeps as one). */
+function smallInts(values: readonly unknown[]): boolean {
+  for (let j = 0; j < values.length; j++) {
+    const v = values[j];
+    if (typeof v !== "number" || (v | 0) !== v || Object.is(v, -0)) return false;
+  }
+  return true;
 }
 
 /** Objects by shape (their keys, in order), each shape's values a column for each key. */
@@ -647,6 +663,11 @@ function packArrays(
   out.a = lengths.text();
   // (A hole is read as undefined, which JSON writes as null, as it would in the array.)
   if (most > TUPLE) {
+    // (One array is its own items: a store's long column, not copied.)
+    if (arrays.length === 1 && !hasHoles(arrays[0]!)) {
+      out.e = packList(arrays[0]!, words);
+      return;
+    }
     const items = new Array<unknown>(total);
     let at = 0;
     for (const a of arrays) for (let j = 0; j < a.length; j++) items[at++] = a[j];
@@ -656,6 +677,12 @@ function packArrays(
   const places: unknown[][] = Array.from({ length: most }, () => []);
   for (const a of arrays) for (let j = 0; j < a.length; j++) places[j]!.push(a[j]);
   out.t = places.map((place) => packList(place, words));
+}
+
+/** Whether an array has holes (which a copy reads as undefined). */
+function hasHoles(a: readonly unknown[]): boolean {
+  for (let j = 0; j < a.length; j++) if (!(j in a)) return true;
+  return false;
 }
 
 /** The values packList packed (with the words they were packed with, if any). */

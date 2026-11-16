@@ -338,6 +338,9 @@ const HEADS = 9,
   RUN_COLUMNS = 7,
   CIVIC_COLUMNS = 3;
 
+/** (Scratch: the lot of the last building of each kind, as a town's are written.) */
+const LAST_OF = new Float64Array(CIVICS.length);
+
 function toColumns(towns: readonly Saved[]): SavedColumns {
   const heads: unknown[][] = Array.from({ length: HEADS }, () => []),
     runs: number[][] = Array.from({ length: RUN_COLUMNS }, () => []),
@@ -358,15 +361,15 @@ function toColumns(towns: readonly Saved[]): SavedColumns {
     // (A building's lot against the last of its kind, its year as it stands: they fold the smaller.)
     let at = 0,
       start = 0;
-    const lastOf = new Map<number, number>();
+    LAST_OF.fill(0);
     for (let i = 0; i < t[11].length; i += CIVIC_COLUMNS) {
       const kind = t[11][i]!;
       at += t[11][i + 1]!;
       start += t[11][i + 2]!;
       civics[0]!.push(kind);
-      civics[1]!.push(at - (lastOf.get(kind) ?? 0));
+      civics[1]!.push(at - LAST_OF[kind]!);
       civics[2]!.push(start);
-      lastOf.set(kind, at);
+      LAST_OF[kind] = at;
     }
     fallenOf.push(t[12].length);
     for (const f of t[12]) fallen.push(f);
