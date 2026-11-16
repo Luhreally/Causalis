@@ -163,7 +163,7 @@ export class Hasher {
       case "object": {
         if (Array.isArray(v)) {
           this.word(4).int(v.length);
-          for (let j = 0; j < v.length; )
+          for (let j = 0; j < v.length;)
             if (typeof v[j] === "number") j = this.numbers(v, j);
             else this.value(v[j++]);
           return this;

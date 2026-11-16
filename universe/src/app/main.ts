@@ -4328,21 +4328,29 @@ async function runPlanetPage(): Promise<void> {
   setInterval(() => {
     if (!document.hidden) void checkpoint.save();
   }, 60_000);
+  // (A page away keeps itself whole at once, the save under way included: no frame waits on it,
+  // and a phone may stop a hidden page before a save a slice a frame is done.)
   document.addEventListener("visibilitychange", () => {
+    client.setBackground(document.hidden);
     if (document.hidden) {
       time.hold("background");
       void checkpoint.save();
     } else time.release("background");
   });
   addEventListener("pagehide", () => {
+    client.setBackground(true);
     time.hold("page hidden");
     void checkpoint.save();
   });
   addEventListener("pageshow", () => {
+    client.setBackground(document.hidden);
     time.release("page hidden");
     if (!document.hidden) time.release("background");
   });
-  if (document.hidden) time.hold("background");
+  if (document.hidden) {
+    client.setBackground(true);
+    time.hold("background");
+  }
   // PlayCanvas restores its GPU resources itself. Keep the world while that happens and
   // let the clock go on only once the picture can return; never reload the page to recover.
   canvas.addEventListener("webglcontextlost", (event) => {

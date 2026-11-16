@@ -141,6 +141,26 @@ test("a save is made a slice a pump: what reads is answered meanwhile, what chan
   const loaded = await settle(client.load("main"));
   assert.equal(loaded.t, 3 * YEAR, "what was saved is the world as it stood when asked");
   assert.deepEqual(await settle(client.query({ type: "hashes" })), at);
+  // The page gone into the background (a phone may stop it at any moment): the save under way is finished whole
+  // in the pump that meets the word, and one asked while away is made in one.
+  saved = false;
+  void client.save("main").then(() => (saved = true));
+  await pumps(1);
+  assert.ok(!saved, "begun a slice a pump");
+  client.setBackground(true);
+  await pumps(2);
+  assert.ok(saved, "finished at once once the page is away");
+  saved = false;
+  void client.save("main").then(() => (saved = true));
+  await pumps(2);
+  assert.ok(saved, "made in one pump while away");
+  client.setBackground(false);
+  saved = false;
+  void client.save("main").then(() => (saved = true));
+  await pumps(1);
+  assert.ok(!saved, "back in view: a slice a pump again");
+  for (let i = 0; i < 2000 && !saved; i++) await pumps(1);
+  assert.ok(saved);
 });
 
 test("the title screen's host: the worlds kept listed, and a kept file opened, before any world runs", async () => {

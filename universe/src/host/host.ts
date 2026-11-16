@@ -204,6 +204,7 @@ const WHILE_SAVING: ReadonlySet<string> = new Set([
   "query",
   "interest",
   "speed",
+  "background",
   "subscribe",
   "unsubscribe",
   "saves",
@@ -261,6 +262,11 @@ export class SimHost {
     readonly steps: Generator<void, SaveDocument, void>;
     readonly done: (doc: SaveDocument) => Promise<void>;
   } | null = null;
+  /**
+   * The page gone into the background: no frame waits on a save then, and a phone may stop a page hidden at any
+   * moment, so a save under way, or asked, is made whole in the pump that meets it rather than a slice a pump.
+   */
+  private away = false;
 
   constructor(
     port: Port<ToHost, ToMain>,
@@ -384,6 +390,9 @@ export class SimHost {
           this.reply(m.id, { ruleset: this.ruleset() });
           return;
         }
+        case "background":
+          this.away = m.away;
+          return;
         case "speed":
           this.speed = Math.max(0, m.secondsPerSecond);
           if (this.world) this.simTarget = this.world.now;
@@ -562,7 +571,7 @@ export class SimHost {
   private async stepSave(start: number): Promise<void> {
     const s = this.saving!,
       clock = this.options.clock,
-      deadline = start + Math.max(SAVE_SLICE_MS, this.options.budgetMs);
+      deadline = this.away ? Infinity : start + Math.max(SAVE_SLICE_MS, this.options.budgetMs);
     try {
       for (;;) {
         const r = s.steps.next();
