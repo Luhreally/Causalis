@@ -64,6 +64,7 @@ import { loreOf } from "../lore/lore.ts";
 import type { MarketStore } from "../economy/market.ts";
 import type { EnergyStore } from "../economy/energy.ts";
 import type { Wilds } from "./ecology.ts";
+import { smokeCut } from "../trade/kept.ts";
 
 export const GROUND_EVENTS = {
   fouled: defineEventType("ecology.ground-fouled", 3),
@@ -499,9 +500,12 @@ function sourOn(ctx: PopulationContext, cell: number, areaKm2: number): number {
     : null;
   if (!energy) return 0;
   const lie = lieOf(ctx, cell, areaKm2);
-  let t = (energy.get(cell)?.sulphur ?? 0) * (lie.near.length ? FALLS_HOME : 1);
+  // (Less what each land's works cut of their smoke at their realm's price on it: sim/trade, p87.)
+  const w = ctx.world;
+  let t =
+    (energy.get(cell)?.sulphur ?? 0) * (1 - smokeCut(w, cell)) * (lie.near.length ? FALLS_HOME : 1);
   for (const b of lie.near) {
-    const sb = energy.get(b)?.sulphur ?? 0;
+    const sb = (energy.get(b)?.sulphur ?? 0) * (1 - smokeCut(w, b));
     if (sb > 0) {
       const nb = lieOf(ctx, b, provinceCapacity(ctx, b, 0).areaKm2).near.length;
       t += (sb * (1 - FALLS_HOME)) / Math.max(1, nb);

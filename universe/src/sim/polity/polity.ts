@@ -11,6 +11,7 @@
 // grow old and die; their successions follow the realm's rule, and sometimes
 // break it. Every step is a decision whose factors cite what drove it.
 import { inflationOf, intoxDependent, taxGrievance } from "../money/kept.ts";
+import { idleOf } from "../trade/kept.ts";
 import {
   YEAR,
   defineEventType,
@@ -620,7 +621,9 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
     // (Round B: what its treasury takes beyond the tithe, and prices rising faster than what its people are paid catch up.)
     // (What it takes beyond what its people have borne for a generation, and a share of that: money/kept.ts taxGrievance.)
     const taxed = taxGrievance(world, p.ref),
-      dearer = Math.max(0, inflationOf(world, p.ref));
+      dearer = Math.max(0, inflationOf(world, p.ref)),
+      // (Hands idle for want of buyers: sim/trade, p87.)
+      idle = idleOf(world, p.ref);
     const seatMarket = markets.of(p.seat),
       seatWays = culture.get(p.seat)!,
       steps = reach(ctx, p),
@@ -656,6 +659,7 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
           // (Those who need what they take, and their kin who bear it.)
           intoxDependent(world, c) * 0.5 +
           Math.min(0.3, dearer * 0.5) +
+          idle * 0.6 +
           0.02 * far +
           // A land held beyond the seat's reach is ruled by force alone, and chafes.
           0.08 * Math.max(0, far - rules) +

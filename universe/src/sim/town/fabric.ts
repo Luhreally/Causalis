@@ -32,6 +32,8 @@ import {
   HOME_LEVELS,
   LEVEL,
   civic,
+  heartCan,
+  heartLevel,
   needsMet,
   wallYears,
   type CivicDef,
@@ -818,17 +820,13 @@ export function civicLots(f: Fabric): Set<number> {
 }
 
 /**
- * The level a town may rebuild its heart to: houses once its land farms; townhouses where it
- * builds in stone and the town is of some size; tenements in an industrial city; blocks in an
- * electric one; high-rises in a great city that reckons with machines.
+ * The level a town may rebuild its heart to (p87, rules/trade.ts heartLevel): of the kinds of home its
+ * people know how to raise, the tallest whose ground at the heart is worth building so, by the walk
+ * a household there saves against the town's edge (bid rent), not at a count of people. (`city` is
+ * read no more: a city's heart is dear by its size, as any town's.)
  */
-export function topLevel(k: (id: string) => boolean, people: number, city: boolean): number {
-  if (city && people >= 200_000 && k("world-city")) return LEVEL.spire;
-  if (city && people >= 50_000 && k("electronics")) return LEVEL.highRise;
-  if (city && people >= 8000 && k("electricity|sea-electricity") && k("steel")) return LEVEL.block;
-  if (city && people >= 2500 && k("steam-engine")) return LEVEL.tenement;
-  if (people >= 1200 && k("masonry")) return LEVEL.townhouse;
-  return k("cultivation") ? LEVEL.house : LEVEL.hut;
+export function topLevel(k: (id: string) => boolean, people: number, _city: boolean): number {
+  return heartLevel(people, HOLDS, heartCan(k));
 }
 
 /** The level of homes at the edge of a town whose heart is built to `top`: houses, or townhouses in an industrial city. */

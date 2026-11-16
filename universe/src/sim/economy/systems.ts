@@ -91,6 +91,7 @@ import { digOre } from "./worked.ts";
 import { energyYear, machinesWanted } from "./energy.ts";
 import { kmBetween, seaRange, seaReach } from "./sea.ts";
 import { politiesOf } from "../polity/polity.ts";
+import { craftsKept, machinesAtWork } from "../trade/kept.ts";
 import { fieldedOf, warsOf, type War } from "../war/war.ts";
 import { rearmYear } from "../war/arms.ts";
 import {
@@ -303,12 +304,16 @@ function makeAndUse(
   // (While its works stand idle from a rocket's fall, W3, nothing they drive helps, and no machine is made.)
   const idle = m.idleUntil > yearOfMoment(t),
     // (Less the work those who need what they take lose, or more where what wakes keeps them at it: Round B, sim/money/intox.ts.)
+    // (And less what stands idle for want of buyers, what a plan errs and loses, what cutting smoke costs; more where machines do
+    // its crafts' tasks: sim/trade, p87.)
     powered =
       (1 - intoxLost(world, p.cell)) *
+      craftsKept(world, p.cell) *
       (idle
         ? 1
         : (1 + (ENGINE_GAIN * industry * m.powerCover) / 1000) *
-          (1 + (MACHINE_GAIN * m.machineCover) / 1000)),
+          (1 + (MACHINE_GAIN * m.machineCover) / 1000) *
+          machinesAtWork(world, p.cell)),
     skill = (g: number) =>
       powered *
       (1 +

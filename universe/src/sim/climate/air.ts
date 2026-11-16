@@ -27,6 +27,7 @@ import type { MarketStore } from "../economy/market.ts";
 import { ecologyOf } from "../ecology/ecology.ts";
 import { energyBooks, fuelTonnes } from "../economy/energy.ts";
 import { groundPoison } from "../ecology/ground.ts";
+import { smokeCut } from "../trade/kept.ts";
 
 export const AIR_EVENTS = {
   warmer: defineEventType("climate.warmer", 5),
@@ -230,8 +231,13 @@ export function smokeIn(ctx: PopulationContext, cell: number): number {
   return Math.min(1, airSmoke(ctx, cell) + groundPoison(ctx.world, cell));
 }
 
-/** How foul a land's air alone is with smoke, 0..1. */
+/** How foul a land's air alone is with smoke, 0..1: what its works send up, less what its realm's price on smoke has them cut (p87). */
 export function airSmoke(ctx: PopulationContext, cell: number): number {
+  return rawSmoke(ctx, cell) * (1 - smokeCut(ctx.world, cell));
+}
+
+/** How foul a land's air would be with the smoke its works send up, uncut, 0..1: what a price on smoke weighs (sim/trade). */
+export function rawSmoke(ctx: PopulationContext, cell: number): number {
   // (Where its energy is reckoned: the smoke of what it burned, by how each fuel smokes, faded by half a year.)
   const e = energyBooks(ctx.world)?.get(cell);
   if (e) {
