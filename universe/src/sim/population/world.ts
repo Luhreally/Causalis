@@ -3,6 +3,7 @@
 // gathered — whose choice is itself a recorded decision the explainer can open.
 import { installMotion } from "../planet/motion.ts";
 import { installStrains } from "../health/strains.ts";
+import { installLineage } from "../ecology/lineage.ts";
 import {
   World,
   YEAR,
@@ -398,6 +399,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installSwitches(world);
   installWoods(world, () => populationContext(world));
   installHerds(world, () => populationContext(world));
+  installLineage(world, () => populationContext(world));
   installLodes(world, () => populationContext(world));
   installWaysActs(world, () => populationContext(world));
   installNatureActs(world, () => populationContext(world));

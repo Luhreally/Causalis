@@ -1149,3 +1149,12 @@ export {
   strainsYear,
   type StrainLine,
 } from "./health/strains.ts";
+export {
+  LINEAGE_EVENTS,
+  LINEAGE_STEP,
+  LineageStore,
+  kindsInPlayOf,
+  lineageYear,
+  partnersOf,
+  type Partners,
+} from "./ecology/lineage.ts";

@@ -29,6 +29,7 @@ import { landLink, landOfSpot, landsOf, lineageIcon } from "./names.ts";
 import { dawnSea, dropBlock, smallLines } from "./small.ts";
 import { lifeBlock, lineMatter } from "../biochem.ts";
 import { treeSinceBlock } from "./herds.ts";
+import { apartBlock } from "./kinds-play.ts";
 
 type Rgb = readonly [number, number, number];
 
@@ -484,6 +485,8 @@ export function treePage(world: World, tab?: string): PageModel {
           ),
           // (What has gone on since the first peoples: Z1.)
           ...((b) => (b ? [b] : []))(treeSinceBlock(world)),
+          // (Stocks cut off going apart from their kinds: Round D.)
+          ...((b) => (b ? [b] : []))(apartBlock(world)),
         ],
       },
       {

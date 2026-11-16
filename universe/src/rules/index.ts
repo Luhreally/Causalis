@@ -1593,3 +1593,12 @@ export {
   selectionPace,
   strainChance,
 } from "./pathogens.ts";
+export {
+  PARASITES,
+  SPECIATION,
+  divergence,
+  generationYears,
+  islandSize,
+  parasiteLoad,
+  parasiteToll,
+} from "./lineage.ts";

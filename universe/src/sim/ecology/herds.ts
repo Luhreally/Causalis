@@ -38,7 +38,6 @@ import {
   beastByName,
   herdHolds,
   herdStep,
-  newKindOf,
   type HerdWhy,
 } from "../../rules/index.ts";
 import { rainShift } from "../climate/air.ts";
@@ -817,46 +816,7 @@ function treeYear(
   }
   // The first peoples must have been here long enough for anything to have changed.
   if (year < LINEAGE.since) return;
-  // A kind new on a land cut off.
-  if (
-    idx.cutOff.length &&
-    store.kinds.length < LINEAGE.newMost &&
-    year - store.lastNew >= LINEAGE.newGap &&
-    world.rng.real(TREE, 0, t, 0) < LINEAGE.newChance
-  ) {
-    const c = idx.cutOff[Math.floor(world.rng.real(TREE, 1, t, 0) * idx.cutOff.length)]!,
-      kind = idx.kind[c]!,
-      parent = g.life.species[kind];
-    if (
-      parent &&
-      !gone.has(kind) &&
-      store.stock[c]! >= HERD.least &&
-      !store.kinds.some((k) => k.cell === c)
-    ) {
-      const hunted = wilds.get(c)?.hunter !== undefined && (wilds.get(c)?.hunter ?? -1) >= 0,
-        made = newKindOf(parent.name, store.kinds.length + c, hunted),
-        id = store.kinds.length + 1,
-        event = world.events.emit({
-          type: HERD_EVENTS.kindNew.type,
-          subjects: [parent.ref as Ref],
-          place: cellRef(0, c) as Ref,
-          causes: causes(parent.ref as Ref),
-          data: { name: made.name, parent: parent.name, how: made.how },
-        });
-      store.kinds.push({
-        id,
-        name: made.name,
-        parent: kind,
-        cell: c,
-        year,
-        how: made.how,
-        size: Math.round(parent.size * made.size),
-        event,
-      });
-      store.lastNew = year;
-      store.tally.newKinds++;
-    }
-  }
+  // (A kind new on a land cut off branches by the generations it has gone apart: ecology/lineage.ts, Round D.)
   // One made tame, where a people keeps flocks and something else there could stand to be kept.
   if (
     store.tame.length < LINEAGE.tameMost &&
