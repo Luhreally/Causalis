@@ -20,6 +20,7 @@ import type { WarStore } from "../war/war.ts";
 import { diplomacyOf } from "../diplomacy/diplomacy.ts";
 import { armyOf, strifeOf } from "../strife/strife.ts";
 import { GENERAL, LAW, politiesOf, type Polity } from "./polity.ts";
+import { holdsOf } from "../order/holds.ts";
 
 export const GROUPS = [
   "farmers",
@@ -50,38 +51,55 @@ export type Interest = {
   readonly demands: readonly Demand[];
 };
 
-/** How much one of a group counts, by who leads: a chief, a council of elders, an assembly, a priest-king, a general. */
-const CLOUT: Readonly<Record<Exclude<Group, "the temple">, readonly number[]>> = {
-  farmers: [1, 0.8, 1.8, 0.8, 0.4],
-  herders: [1.2, 0.8, 1.8, 0.8, 0.4],
-  crafters: [2, 1.5, 2.5, 1.5, 1.2],
-  traders: [8, 6, 8, 6, 5],
-  "the court": [20, 24, 8, 12, 10],
-  "the army": [5, 4, 2, 3, 15],
-};
-/** How much of a devout people's weight the temple carries, by who leads. */
-const TEMPLE = [0.15, 0.15, 0.1, 0.5, 0.1];
+/**
+ * The most of a realm's sway those who keep its arms hold where it keeps them all (force 1), and the most its temple holds
+ * where every one of its people is devout and its law is sacred: what is left is carried by its choices, by how widely.
+ */
+export const SWAY_OF = { arms: 0.4, faith: 0.4 } as const;
 
-/** Each group's sway in a realm with these numbers, institutions and devotion (shares summing to one). */
+/**
+ * Each group's sway in a realm, read off who holds which powers (rules/holds.ts) and not off a named kind of rule: those
+ * who keep its arms hold as much as it keeps them from its people (force); the temple as much as its people are devout and
+ * its law sacred; and the rest is carried by its choices, the court's (those who lead) as much as they are carried by few,
+ * the many's as much as by many (voice), each head of them by what its year of work is worth (`wealth`: a wage a head, by
+ * group; where the many have no say, only wealth buys it). Shares summing to one.
+ */
 export function swayOf(
   people: Readonly<Record<Exclude<Group, "the temple">, number>>,
-  leadership: number,
+  held: readonly number[],
   piety: number,
   faith: boolean,
   sacred: boolean,
+  wealth: Readonly<Partial<Record<Exclude<Group, "the temple">, number>>> = {},
 ): Record<Group, number> {
-  const all = people.farmers + people.herders + people.crafters + people.traders,
+  const force = held[0] ?? 0.5,
+    voice = held[1] ?? 0.5,
+    arms = people["the army"] > 0 ? SWAY_OF.arms * force : 0,
+    temple = faith ? SWAY_OF.faith * Math.max(0, piety - 0.35) * (sacred ? 1 : 0.5) : 0,
+    rest = Math.max(0, 1 - arms - temple),
+    court = people["the court"] > 0 ? rest * (1 - voice) : 0,
+    many = rest - court,
+    commons = ["farmers", "herders", "crafters", "traders"] as const,
+    // (A head's weight among the many: an equal one as far as its choices are carried by all, the rest by its wealth.)
+    mean =
+      commons.reduce((s, g) => s + people[g] * (wealth[g] ?? 1), 0) /
+      Math.max(
+        1,
+        commons.reduce((s, g) => s + people[g], 0),
+      ),
+    weight = (g: (typeof commons)[number]) =>
+      people[g] * (voice + (1 - voice) * ((wealth[g] ?? 1) / Math.max(1e-9, mean))),
+    all = commons.reduce((s, g) => s + weight(g), 0),
     raw: Record<Group, number> = {
-      farmers: people.farmers * CLOUT.farmers[leadership]!,
-      herders: people.herders * CLOUT.herders[leadership]!,
-      crafters: people.crafters * CLOUT.crafters[leadership]!,
-      traders: people.traders * CLOUT.traders[leadership]!,
-      "the court": people["the court"] * CLOUT["the court"][leadership]!,
-      "the army": people["the army"] * CLOUT["the army"][leadership]!,
-      "the temple": faith
-        ? all * Math.max(0, piety - 0.35) * TEMPLE[leadership]! * (sacred ? 2 : 1)
-        : 0,
+      farmers: 0,
+      herders: 0,
+      crafters: 0,
+      traders: 0,
+      "the court": court,
+      "the army": arms,
+      "the temple": temple,
     };
+  for (const g of commons) raw[g] = all > 0 ? (many * weight(g)) / all : 0;
   const total = GROUPS.reduce((s, g) => s + raw[g], 0);
   for (const g of GROUPS) raw[g] = total > 0 ? raw[g] / total : 0;
   return raw;
@@ -122,7 +140,42 @@ export function interestsOf(ctx: PopulationContext, p: Polity, t: SimTime): Inte
       faminAt = f.t;
     }
   }
-  const sway = swayOf(count, p.leadership, piety, seatFaith.faith !== null, sacred);
+  // (What a year of each group's work is worth, over its lands: OCC's wages, as its markets paid them.)
+  const paid: Record<Exclude<Group, "the temple">, number> = {
+      farmers: 0,
+      herders: 0,
+      crafters: 0,
+      traders: 0,
+      "the court": 0,
+      "the army": 0,
+    },
+    heads: Record<Exclude<Group, "the temple">, number> = { ...paid };
+  for (const c of p.members) {
+    const w = markets.wagesOf(c),
+      prov = ctx.provinces.get(c);
+    if (!w || !prov) continue;
+    for (const [group, occ] of [
+      ["farmers", OCC.farmer],
+      ["herders", OCC.herder],
+      ["crafters", OCC.crafter],
+      ["traders", OCC.trader],
+    ] as const) {
+      const n = prov.occupation(occ);
+      paid[group] += n * (w[occ] ?? 0);
+      heads[group] += n;
+    }
+  }
+  const wealth: Partial<Record<Exclude<Group, "the temple">, number>> = {};
+  for (const group of ["farmers", "herders", "crafters", "traders"] as const)
+    if (heads[group] > 0 && paid[group] > 0) wealth[group] = paid[group] / heads[group];
+  const sway = swayOf(
+    count,
+    holdsOf(world, p.ref),
+    piety,
+    seatFaith.faith !== null,
+    sacred,
+    wealth,
+  );
 
   // The realms it meets: those it trades with (and down which road), and those of another faith.
   // (Only the flows out of or into its own lands can be its trade: a land is a realm's only

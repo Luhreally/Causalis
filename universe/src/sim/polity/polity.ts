@@ -4,7 +4,8 @@
 // closer the road and the stronger the realm. Its institutions come from its
 // founders' ways — who leads (a chief, a council of elders, an assembly, a
 // priest-king), how rule passes (by birth, by choice, by acclaim), what law holds
-// (custom, decree, the sacred) — and change when those ways drift from them.
+// (custom, decree, the sacred) — and thereafter are read off who holds which powers (its
+// force and voice, and whose sway is greatest: formFromPowers), changing as those move.
 // Members send a tithe of grain to the seat. Discontent gathers from famine,
 // tribute, distance and foreign speech; lands secede when it runs high. Rulers
 // grow old and die; their successions follow the realm's rule, and sometimes
@@ -24,7 +25,7 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { tongueLikeness, tongueName, tonguePersonName } from "../../gen/index.ts";
-import { FOODS, G, OCC } from "../../rules/index.ts";
+import { FOODS, G, HOLDING, OCC } from "../../rules/index.ts";
 import { mouths, spaceSteps, type PopulationContext } from "../population/systems.ts";
 import type { MarketStore } from "../economy/market.ts";
 import { WAY, cultureOf, type Ways } from "../culture/culture.ts";
@@ -33,6 +34,7 @@ import type { BeliefStore } from "../belief/belief.ts";
 import type { LoreStore } from "../lore/lore.ts";
 import { interestsOf, pressure } from "./interests.ts";
 import { revolutionHolds } from "../strife/strife.ts";
+import { holdsOf } from "../order/holds.ts";
 import { courtClaimant, courtFollows } from "../court/court.ts";
 import { claimAtDeath } from "../war/ties.ts";
 import { heldAmongStars } from "../space/nation-store.ts";
@@ -294,6 +296,49 @@ export function institutionsOf(w: Ways, current?: Institutions, canWrite = true)
       : over(WAY.tradition, 0.5, current?.law === 0) || !canWrite
         ? 0
         : 1;
+  return { leadership, succession, law };
+}
+
+/**
+ * A realm's rule read off who holds which powers (rules/holds.ts: force, voice), and whose sway is greatest among those who
+ * do not choose by numbers (the court, the temple, those who keep its arms), not off its people's ways: one decides where its
+ * choices are carried by few, a few in council where by more, an assembly where by many; where one decides and the temple
+ * outweighs the court and the arms, a priest-king. Rule passes by choice where many choose, by acclaim where the arms are in
+ * the people's hands, else by birth. Law is sacred where the temple outweighs the court and the arms, written where there is
+ * writing and the seat's word is carried (by a host kept, or by many choosing), else custom. Given the rule a realm has, it
+ * holds unless the numbers have moved clearly past what gave it (by SLACK). A general's rule is its own (M145): not read here.
+ */
+export function formFromPowers(
+  held: readonly number[],
+  sway: Readonly<Record<string, number>>,
+  current: Institutions,
+  canWrite: boolean,
+): Institutions {
+  const force = held[0] ?? 0.5,
+    voice = held[1] ?? 0.5,
+    // (A line eased in favour of what is: past it by SLACK to leave it.)
+    past = (x: number, at: number, keeps: boolean, above = true) =>
+      above ? x > at - (keeps ? SLACK : 0) : x < at + (keeps ? SLACK : 0),
+    temple = sway["the temple"] ?? 0,
+    others = Math.max(sway["the court"] ?? 0, sway["the army"] ?? 0),
+    templeLeads = temple > others && temple > 0.1,
+    leadership = past(voice, 0.6, current.leadership === 2)
+      ? 2
+      : past(voice, HOLDING.voiceMid, current.leadership === 1)
+        ? 1
+        : templeLeads
+          ? 3
+          : 0,
+    succession = past(voice, 0.45, current.succession === 1)
+      ? 1
+      : past(force, 0.3, current.succession === 2, false)
+        ? 2
+        : 0,
+    law = templeLeads
+      ? 2
+      : canWrite && (past(force, 0.5, current.law === 1) || voice >= 0.6)
+        ? 1
+        : 0;
   return { leadership, succession, law };
 }
 
@@ -741,13 +786,20 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
     }
   }
 
-  // 6. Institutions reform when the seat's ways have drifted from them (not a general's rule,
-  // which ends only when it is restored: M145).
+  // 6. Institutions reform when who holds which powers has moved from them (rules/holds.ts; not a general's rule, which
+  // ends only when it is restored: M145).
   if (year % 10 === 0)
     for (const p of store.living()) {
       if (p.leadership === GENERAL || revolutionHolds(world, p.ref, year)) continue;
       const ways = culture.get(p.seat)!,
-        want = institutionsOf(ways, p, loreOf(world).effect(p.seat, "writing") > 0);
+        sway: Record<string, number> = {};
+      for (const i of interestsOf(ctx, p, t)) sway[i.group] = i.sway;
+      const want = formFromPowers(
+        holdsOf(world, p.ref),
+        sway,
+        p,
+        loreOf(world).effect(p.seat, "writing") > 0,
+      );
       if (
         want.leadership === p.leadership &&
         want.succession === p.succession &&

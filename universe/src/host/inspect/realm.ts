@@ -44,6 +44,7 @@ import { compareWith, warTally, woundedOf } from "./compare.ts";
 import { armyBlocks, courseBlocks } from "./army.ts";
 import { storesSummed } from "./stores.ts";
 import { realmOrderBlocks } from "./order.ts";
+import { powersBlocks } from "./statecraft.ts";
 import { fortuneBlocks } from "./fortune.ts";
 import { godBlocks } from "./godhand.ts";
 import { realmCreditBlocks, warChestRows } from "./credit.ts";
@@ -252,6 +253,9 @@ export function realmPageModel(
   }
   // Its order (Phase 19 M138): its standing with its people, its rank and levies, its bound.
   if (wants("order")) tabs.push({ id: "order", name: "Order", blocks: realmOrderBlocks(world, r) });
+  // Who holds which powers, and what follows of it (round E): its rule read off them, its groups' wants, its choices,
+  // its spies, the lands it holds by force, the bodies it sits in.
+  if (wants("powers")) tabs.push({ id: "powers", name: "Powers", blocks: powersBlocks(world, r) });
   // Its credit (Phase 21 M144): what its lands owe, its war chests, its faith with its lenders.
   if (wants("credit")) {
     // (Its exchange first, where its seat keeps one: its companies and their index.)

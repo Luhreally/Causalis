@@ -279,6 +279,7 @@ export {
   SUCCESSION,
   endRealm,
   governmentKey,
+  formFromPowers,
   institutionsOf,
   installPolities,
   politiesOf,
