@@ -635,8 +635,15 @@ export type EnergyAccount = {
   readonly fuelWanted: number;
 };
 
-const zeros = <K extends string>(keys: readonly K[]): Record<K, number> =>
-  Object.fromEntries(keys.map((c) => [c, 0])) as Record<K, number>;
+const ZEROS = new WeakMap<readonly string[], Record<string, number>>();
+/** A record of each key at 0: a copy of one made once a key list (a year's accounts ask it twice a land). */
+const zeros = <K extends string>(keys: readonly K[]): Record<K, number> => {
+  let z = ZEROS.get(keys);
+  if (!z) ZEROS.set(keys, (z = Object.fromEntries(keys.map((c) => [c, 0]))));
+  return { ...z } as Record<K, number>;
+};
+/** The heat a kilogram of dung and straw gives in air (MJ/kg): read once, at a world's first account. */
+let DUNG_MJ_KG: number | null = null;
 
 /**
  * A land's year of energy: what it wants of heat and work, and what it draws to meet them, the nearest first. Its bodies and
@@ -666,7 +673,7 @@ export function energyAccount(i: EnergyInputs): EnergyAccount {
   let wood = i.fire ? i.woodKw : 0,
     dung = i.fire
       ? ((i.herdKg * DUNG_A_KG * DUNG_GATHERED + i.grain * STRAW_A_UNIT * STRAW_BURNED) *
-          mixMjKg(FUEL_MAKEUP.dung!, "oxygen")) /
+          (DUNG_MJ_KG ??= mixMjKg(FUEL_MAKEUP.dung!, "oxygen"))) /
         MJ_A_KWY
       : 0,
     coalLeft = i.coalKwy,
