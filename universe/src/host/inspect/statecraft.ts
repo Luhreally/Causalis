@@ -18,13 +18,17 @@ import {
   electionsOf,
   politiesOf,
   realmName,
+  aimOf,
   occupationOf,
+  strengthOf,
+  warCosts,
   spiesOf,
   termOf,
   wantsOf,
   type Polity,
+  type War,
 } from "../../sim/index.ts";
-import { HOLDING } from "../../rules/index.ts";
+import { HOLDING, warReckoning } from "../../rules/index.ts";
 import { item, part, share, stat } from "./words.ts";
 import { landTitle } from "./names.ts";
 import { cellRef } from "../../gen/index.ts";
@@ -276,5 +280,46 @@ function occupationBlocks(world: World, r: Polity): Block[] {
     ...(lost.length
       ? [{ type: "list" as const, title: "Its lands others hold by force", items: lost }]
       : []),
+  ];
+}
+
+/** A war's reckoning: what it has cost each side and what it is worth to them, and whether either is near its end of it. */
+export function warReckoningBlocks(world: World, w: War): Block[] {
+  const realms = politiesOf(world),
+    a = realms.get(w.attacker),
+    d = realms.get(w.defender);
+  if (!a || !d || a.ended !== null || d.ended !== null) return [];
+  const ctx = populationContext(world),
+    year = Math.floor(world.now / (365 * 86400)),
+    c = warCosts(ctx, w, a, d, aimOf(world, w)?.aim, w.ended ?? year),
+    r = warReckoning({
+      won: w.battles.filter((x) => x.won).length,
+      fought: w.battles.length,
+      ratio: strengthOf(ctx, a) / Math.max(1, strengthOf(ctx, d)),
+      ...c,
+    }),
+    side = (p: Polity, k: 0 | 1, chance: number, end: boolean) =>
+      stat(
+        realmName(p),
+        end
+          ? k === 0
+            ? "It has paid what winning is worth to it, by its chance"
+            : "It has paid what losing would take from it"
+          : `Cost ${share(c.costs[k])} of what it has, against ${share(c.stakes[k])} at stake`,
+        {
+          parts: [
+            part("what a year of it costs", share(c.yearly[k])),
+            part("what it has cost so far", share(c.costs[k])),
+            part("what it is worth to it", share(c.stakes[k])),
+            part(k === 0 ? "its chance of winning" : "its chance of holding", share(chance)),
+          ],
+        },
+      );
+  return [
+    {
+      type: "facts",
+      title: "What it costs and what it is worth",
+      rows: [side(a, 0, r.chance, r.quits), side(d, 1, 1 - r.chance, r.yields)],
+    },
   ];
 }

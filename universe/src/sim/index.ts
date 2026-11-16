@@ -569,6 +569,7 @@ export {
   BOND_EVENTS,
   UNPAID_TERM,
   aimOf,
+  warCosts,
   bondsOf,
   canBind,
   grainMade,

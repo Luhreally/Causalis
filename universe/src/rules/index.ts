@@ -1201,9 +1201,11 @@ export {
 } from "./ties.ts";
 export {
   TERMS,
+  WAR_YEAR_LEAST,
   answerOf,
   dealOf,
   tributeOf,
+  warReckoning,
   type AimKind,
   type BondKind,
   type Deal,

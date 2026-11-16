@@ -111,12 +111,13 @@ import {
   goesForPrize,
   installBonds,
   reckonPeace,
+  warCosts,
   sack,
   takesLand,
   type PeaceTerms,
 } from "./bonds.ts";
 import type { AimKind } from "../../rules/index.ts";
-import { TIES } from "../../rules/index.ts";
+import { TIES, warReckoning } from "../../rules/index.ts";
 import {
   allyFront,
   answerCalls,
@@ -1637,15 +1638,8 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         cutOff(ctx, a, taken);
       } else cutOff(ctx, b, taken);
     }
-    // 3. Peace: weariness — the fallen against their people — or the prize won.
-    const peopleA = a.members.reduce((s, c) => s + (ctx.provinces.get(c)?.total() ?? 0), 0),
-      // (Those a strike killed weigh as those who fell: W2.)
-      struck = wars.tallyOfStrikes(w.ref),
-      weary =
-        w.fallen[0] / Math.max(1, peopleA) +
-        w.fallen[1] / Math.max(1, peopleA) +
-        (struck ? (struck[1] + struck[2]) / Math.max(1, peopleA) : 0),
-      years = year - w.declared,
+    // 3. Peace: the prize won, or what the war has cost against what it is worth (below).
+    const years = year - w.declared,
       prizeWon = a.members.includes(w.prize),
       // (What it came for, W7, where that is not a land: the grain carried off, the field won.)
       got =
@@ -1653,16 +1647,16 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         (won &&
           (aim === "free" ||
             (aim === "tribute" && 2 * w.battles.filter((x) => x.won).length > w.battles.length)));
-    // A beaten attacker often gives up; a won prize, a weary people or long years end it too.
-    const repulsed = resolved.combat.broken === 0 && world.rng.real(FIGHT, key, t, 6) < 0.5;
-    if (
-      prizeWon ||
-      got ||
-      repulsed ||
-      weary > 0.02 ||
-      years >= 6 ||
-      world.rng.real(FIGHT, key, t, 5) < 0.12
-    ) {
+    // It ends with the prize won, or when what it has cost a side has come to what it is worth to them, by their chance
+    // of winning it (rules/terms.ts warReckoning): the attacker gives up, or the defender yields. No count of years, no draw.
+    const reckoned = warReckoning({
+        won: w.battles.filter((x) => x.won).length,
+        fought: w.battles.length,
+        ratio: strengthOf(ctx, a) / Math.max(1, strengthOf(ctx, b)),
+        ...warCosts(ctx, w, a, b, aim, year),
+      }),
+      repulsed = reckoned.quits;
+    if (prizeWon || got || reckoned.quits || reckoned.yields) {
       w.ended = year;
       // (Its terms, where both still stand and it was not a realm's war with itself; else, who is no more: W7.)
       const made =

@@ -88,6 +88,8 @@ console.log("gate 94, wars with aims and peace with terms");
       aim: "land",
       got: false,
       canBind: true,
+      yearly: [0.02, 0.02],
+      stakes: [0.2, 0.2],
       ...o,
     });
   check(end({}).bond === "truce" && end({}).winner === null, "neither ahead is not a truce");
@@ -314,6 +316,8 @@ function pathsNobodyWatches(world: World, name: string): void {
       aim: "land",
       got: false,
       canBind: false,
+      yearly: [0.02, 0.05],
+      stakes: [0.2, 0.2],
     }).bond !== "vassal",
     `${name}: an oath taken where none can be bound`,
   );
