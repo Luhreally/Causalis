@@ -117,9 +117,10 @@ try {
     cy = canvasBox.top + at.y;
 
   // Held: the land's tip, above the finger.
+  // (Not slid until the hold has begun: before it, a slide is a drag and turns the view, as it should.)
   await touch("touchStart", cx, cy);
   await page.waitForTimeout(1100);
-  const held = await tipShown();
+  const held = await until(tipShown, 15000);
   check(held, "a finger held still on a land shows the land's tip");
   if (held) {
     const box = await tipBox();
