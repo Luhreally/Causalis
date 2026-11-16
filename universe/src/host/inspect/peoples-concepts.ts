@@ -94,7 +94,7 @@ export const PEOPLES_CONCEPT_OF: Readonly<Record<string, string>> = {
   "Living to bear their own": "children",
   "Living children they want": "children",
   "Schooled before they work": "children",
-  "Work machines do": "children",
+  "Work engines do": "children",
   "Born last year": "children",
   "Mothers held by their young": "children",
   "Mothers sent to war": "children",

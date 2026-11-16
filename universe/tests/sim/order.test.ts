@@ -14,6 +14,8 @@ import {
 } from "../../src/kernel/index.ts";
 import { PRINCIPLES } from "../../src/rules/index.ts";
 import {
+  BIND_STORE,
+  moneyStore,
   BOND,
   BONDS,
   CAPTIVE_LINE,
@@ -414,6 +416,11 @@ test("serfs are bound the more under the lord's land, the less leased, and loose
     store.of(p.ref)!.laws[LAW_OF.land] = position;
     for (const c of p.members)
       store.lands.set(c, { cell: c, shares: [0, 0, 0.3, 0, 0], cause: null });
+    // (Since round B, where a land's holders' gain from binding is weighed (Domar: sim/money/money.ts labourYear), that weighs;
+    // juniper's lands at sixty have open land all about them (ten times their people's room) and a realm with no arms to hold the
+    // bound from walking to it (Domar's hold 0.007), so none are bound, under any law. The
+    // realm's measure, by its law, is what binds where nothing is weighed: so its lands are read unweighed here.)
+    for (const c of p.members) moneyStore(w, BIND_STORE)?.drop(c);
     orderFor(w, 61, 61);
     return p.members.reduce((s, c) => s + store.land(c)!.shares[BOND.serf]!, 0) / p.members.length;
   };

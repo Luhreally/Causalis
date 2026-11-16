@@ -184,8 +184,10 @@ export function setHeld(
   event: Ref,
 ): void {
   if (!o.held) return;
+  // (Kept in hundredths: rounded up for an "at least", down for an "at most", so the level is held as set; rounded to the
+  // nearest, a revolution that would have its word at least 0.634 held it at 0.63.)
   const k = HOLD[h],
-    v = Math.round(level * 100);
+    v = way === "least" ? Math.ceil(level * 100 - 1e-9) : Math.floor(level * 100 + 1e-9);
   if (way === "least" ? o.held[k]! >= v : o.held[k]! <= v) return;
   o.held[k] = v;
   (o.heldEvents ??= [null, null, null, null])[k] = event;

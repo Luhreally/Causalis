@@ -39,7 +39,7 @@ export function childrenBlock(world: World, cell: number): Block | null {
       stat("Living to bear their own", share(live)),
       stat("Living children they want", `${one(wanted)} (${one(CHILDREN.replace)} replace them)`),
       stat("Schooled before they work", share(readersOf(world, cell))),
-      stat("Work machines do", share(machineShare(ctx, cell))),
+      stat("Work engines do", share(machineShare(ctx, cell))),
       stat("Born last year", `${one((1000 * born) / p.total())} in a thousand`),
       stat(
         "Mothers held by their young",

@@ -884,10 +884,16 @@ export function raisingCost(ctx: PopulationContext, cell: number): number {
   return childCost(readersOf(ctx.world, cell), machineShare(ctx, cell));
 }
 
-/** Of the work a land turned last year, the share not done by its bodies or its beasts (0 with none kept). */
+/**
+ * Of the work a land turned last year, the share done by engines and the current: not by its bodies or its beasts, nor by its
+ * mills. A wheel in a stream or a sail on a hill grinds, fulls and saws where it stands, grown men's work; a child's is in the
+ * fields, with the herds, at the wheel and the loom, and goes only when engines take those. (Counted with the mills, first
+ * light's work was half machines' by 600, before its first steam engine, and its people wanted no more children than replace
+ * them while most of their young still died: 49 million at 600 against 134 million released.)
+ */
 export function machineShare(ctx: PopulationContext, cell: number): number {
   const e = energyPerHead(ctx.world, cell);
-  return e && e.work > 0 ? dmath.clamp(1 - e.sources.none / e.work, 0, 1) : 0;
+  return e && e.work > 0 ? dmath.clamp(1 - (e.sources.none + e.sources.mills) / e.work, 0, 1) : 0;
 }
 
 /** How pressing a land's deaths are, of what changes slowly: the cold on the ill-clothed, medicine, smoke (as vitalMonth reads them). */

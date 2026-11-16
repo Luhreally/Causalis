@@ -171,6 +171,17 @@ test("a house of lending rises in a market town that knows lending, with traders
   assert.match(why(w, house!.event).claim, /began lending in/);
 });
 
+/** The loans standing in a world held still from a year (ended then, unpaid and unrepudiated): those it held. */
+function standingStill(w: World, year: number): Set<unknown> {
+  const held = new Set<unknown>();
+  for (const l of creditOf(w)!.loans)
+    if (l.ended === null) {
+      l.ended = year;
+      held.add(l);
+    }
+  return held;
+}
+
 test("a hungry land of its realm borrows grain, carried from the house's town, at interest; the why goes back to the famine", () => {
   const w = fresh(),
     [lender, borrower] = towned(w, greatest(w));
@@ -181,17 +192,21 @@ test("a hungry land of its realm borrows grain, carried from the house's town, a
     to = marketsOf(w).of(borrower!),
     had = from.stock[G.grain]!,
     famine = famished(w, borrower!),
-    need = Math.ceil(CREDIT.months * mouths(ctx.provinces.get(borrower!)!, ctx.life));
+    need = Math.ceil(CREDIT.months * mouths(ctx.provinces.get(borrower!)!, ctx.life)),
+    // (The loans already standing held still, so the grain counted is this loan's alone: since the rounds merged, the house
+    // has lent 6,143 on its way to this year, paid back into its town in the same year with its interest, 6,844.)
+    older = standingStill(w, k!),
+    lentBefore = house!.lentEver;
   creditYear(ctx, at(k! + 1));
   const store = creditOf(w)!,
-    loan = store.loans.find((l) => l.cell === borrower)!;
+    loan = store.loans.find((l) => !older.has(l) && l.cell === borrower)!;
   assert.ok(loan, "the hungry land borrowed");
   assert.equal(loan.house, house!.ref);
   assert.equal(loan.lent, need, "enough to bring its food to three months");
   assert.equal(to.stock[G.grain], need, "the grain came to its stores");
   assert.equal(from.stock[G.grain], had - need, "from the house's town");
   assert.equal(loan.rate, CREDIT.rate);
-  assert.equal(house!.lentEver, need);
+  assert.equal(house!.lentEver, lentBefore + need);
   const event = w.events.get(loan.event)!,
     decision = w.decisions.get(event.causes[0]!.ref)!;
   assert.equal(event.type, CREDIT_EVENTS.lent.type);
@@ -379,6 +394,8 @@ test("a realm at war borrows to pay its host — a war chest, never from its ene
     store = creditOf(w)!,
     seat = marketsOf(w).of(p.seat),
     had = seat.stock[G.grain]!;
+  // (As above: the grain counted is the chest's alone.)
+  standingStill(w, k);
   creditYear(populationContext(w), at(k + 1));
   const chest = store.chest(p.ref, war.ref)!;
   assert.ok(chest, "the realm borrowed for its war");

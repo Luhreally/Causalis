@@ -13,6 +13,7 @@ import { G } from "../../src/rules/index.ts";
 import {
   HEAR_LY,
   MOST_HOLDS,
+  SETTLE_GAP,
   PEOPLES_EVENTS,
   REACH_LY,
   REACTIONS,
@@ -91,7 +92,10 @@ test("a people long at the stars holds stars already, each one its bodies could 
       assert.equal(holds.length, 0, "none before it reaches the stars");
       continue;
     }
-    assert.ok(holds.length >= 2 && holds.length <= MOST_HOLDS, `${holds.length}`);
+    // (One a settling's gap or more at the stars when the chronicle opens holds another already; one come to them since, as
+    // willow's burrowers have, 229 years before sixty and 185 a settling, holds its own and sails for more in its time.)
+    const least = -c.stars >= SETTLE_GAP * c.pace ? 2 : 1;
+    assert.ok(holds.length >= least && holds.length <= MOST_HOLDS, `${c.ref}: ${holds.length}`);
     assert.equal(holds[0]!.star, c.star, "its own star first");
     const settleable = new Set(settleableBy(world, c).map((s) => s.ref as string));
     holds.slice(1).forEach((h, i) => {
