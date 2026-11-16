@@ -35,7 +35,7 @@ import { chromium } from "playwright";
 import { YEAR, rulesetId, saveWorld, seedFromText } from "../src/kernel/index.ts";
 import { ALIEN, EARTH } from "../src/host/planet.ts";
 import { battleNear } from "../src/host/battle.ts";
-import { warsOf } from "../src/sim/index.ts";
+import { lateOf, warsOf } from "../src/sim/index.ts";
 import type { BattleNear } from "../src/bridge/index.ts";
 import { armLook } from "../src/view/index.ts";
 import { PAST_WORLD } from "../src/ui/jump.ts";
@@ -85,10 +85,15 @@ let direct: unknown = null,
   ruleset = rulesetId(world, universe.version);
   if (bakedFile) bytes = readFileSync(bakedFile);
   else {
+    // (A hundred years past its gathering, and a world of it remade, which takes four centuries from its first making: since
+    // the rounds, kestrel 557 comes to world-making about 2450, and its first remakings were at 46 in a hundred at its
+    // gathering's hundredth year.)
+    let gathered = false;
     for (let y = 1500; AT === 0 && y <= 6000; y += 50) {
       world.runTo(y * YEAR);
-      if ((universe.queries["world.stage"]!(world, {}) as { id?: string }).id === "gathered")
-        AT = y + 100;
+      gathered ||=
+        (universe.queries["world.stage"]!(world, {}) as { id?: string }).id === "gathered";
+      if (gathered && (lateOf(world)?.all() ?? []).some((r) => r.done)) AT = y + 100;
     }
     if (AT === 0) AT = 6000;
     world.runTo(AT * YEAR);

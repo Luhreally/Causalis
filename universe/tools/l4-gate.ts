@@ -384,8 +384,17 @@ async function play(f: Forged, tag: string): Promise<void> {
     (await clock()) === f.hashAt,
     `${tag}: the clock ran past the year to compare (${await clock()} against ${f.hashAt})`,
   );
-  const same = (await hashesNow()) === f.hashes;
-  check(same, `${tag}: a ruler who did nothing changed the world`);
+  const now = await hashesNow(),
+    same = now === f.hashes,
+    parted = (() => {
+      const a = JSON.parse(now) as [string, string][],
+        b = new Map(JSON.parse(f.hashes) as [string, string][]);
+      return a.filter(([d, h]) => b.get(d) !== h).map(([d]) => d);
+    })();
+  check(
+    same,
+    `${tag}: a ruler who did nothing changed the world (${parted.join(", ") || "the same domains, in another order"})`,
+  );
   say(`${tag}: a year under a ruler who did nothing: ${same ? "the same hashes" : "DIFFERENT"}`);
 
   // 4. A decree refused: their standing gone, by the sign from the heavens.

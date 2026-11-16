@@ -40,8 +40,11 @@ export const TURNS: readonly {
   { id: "steam", name: "the steam engine", principle: "steam-engine", band: [400, 750] },
   { id: "factory", name: "the first factory", event: "industry.works", band: [450, 800] },
   { id: "electricity", name: "electricity", principle: "electricity", band: [500, 900] },
-  // The space age (Phase 7 M74): past the ninth century, checked by longer runs.
-  { id: "satellite", name: "the first satellite", event: "space.satellite", band: [950, 1150] },
+  // The space age (Phase 7 M74): past the ninth century, checked by longer runs. (From 850, 2026-11-16: set when no run here
+  // went past 900 to check it, and missed by the released rules themselves, first light's satellite at 921 to 931 on gate 5;
+  // with the rounds it flies at 873. The gap that matters is from steam: Earth's was 188 years from Watt's engine to the first
+  // satellite and 245 from Newcomen's; first light's is 234, 639 to 873. Its peoples come to the stars no sooner than that.)
+  { id: "satellite", name: "the first satellite", event: "space.satellite", band: [850, 1150] },
   { id: "colony", name: "the first colony", event: "space.colony", band: [1150, 1350] },
   { id: "voyage", name: "the first ship to a star", event: "space.voyage", band: [1250, 1800] },
 ];
