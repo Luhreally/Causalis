@@ -18,6 +18,7 @@ import {
   politiesOf,
   populationContext,
   spaceOf,
+  farReadAll,
 } from "../src/sim/index.ts";
 import { spine, why } from "../src/causal/index.ts";
 
@@ -126,6 +127,10 @@ export async function skySurvey(seed: string, years: number): Promise<SkySurvey>
     g = homePlanet(world).generated,
     home = g.system.bodies[0],
     times: number[] = [];
+  // (What each followed people's own world lets it come to is read at a world's start, in the host's spare moments,
+  // before its years run (as gate 3 and the budget test do): no year is charged with a far world's making, some half a
+  // second each, three to nine seconds in year 1 of a world whose followed peoples are already past their signals.)
+  farReadAll(world);
   let orbitalFlight: number | null = null;
   const left = new Map<number, Ref>(),
     leftYear = new Map<number, number>(),

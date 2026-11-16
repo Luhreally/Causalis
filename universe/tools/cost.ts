@@ -24,7 +24,7 @@ import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { YEAR, rulesetId, saveWorld, seedFromText, type World } from "../src/kernel/index.ts";
 import { ALIEN, EARTH } from "../src/host/planet.ts";
-import { politiesOf, populationContext, warsOf } from "../src/sim/index.ts";
+import { farReadAll, politiesOf, populationContext, warsOf } from "../src/sim/index.ts";
 
 /** What a system or handler is part of, by its order key's name ("125.economy.year": the economy). */
 const DOMAINS: readonly (readonly [RegExp, string])[] = [
@@ -154,7 +154,12 @@ const collect = (globalThis as { gc?: (o?: { type: "minor" | "major" }) => void 
 const used = () => process.memoryUsage().heapUsed;
 
 function buildWorld(universe: string, seed: string): World {
-  return (universe === "earth" ? EARTH : ALIEN).build(seedFromText(seed));
+  const world = (universe === "earth" ? EARTH : ALIEN).build(seedFromText(seed));
+  // (What each followed people's own world lets it come to is read at a world's start, in the host's spare moments,
+  // before its years run (as gate 3 and the budget test do): no year is charged with a far world's making, some half a
+  // second each, three to nine seconds in year 1 of a world whose followed peoples are already past their signals.)
+  farReadAll(world);
+  return world;
 }
 
 function mean(xs: ArrayLike<number>, from = 0, to = xs.length): number {

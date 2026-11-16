@@ -20,6 +20,7 @@ import {
   politiesOf,
   populationContext,
   warsOf,
+  farReadAll,
 } from "../src/sim/index.ts";
 
 /** What came of one world. */
@@ -101,6 +102,10 @@ export function survey(seed: string, years: number, untilPower = false): Survey 
     seen = new Set<string>(),
     first = peopleOf(world),
     times: number[] = [];
+  // (What each followed people's own world lets it come to is read at a world's start, in the host's spare moments,
+  // before its years run (as gate 3 and the budget test do): no year is charged with a far world's making, some half a
+  // second each, three to nine seconds in year 1 of a world whose followed peoples are already past their signals.)
+  farReadAll(world);
   let peak = first,
     people = first,
     industry: Survey["industry"] = null,
