@@ -41,6 +41,11 @@ export type MarketYear = {
 export const MARKET_YEARS = 5;
 /** A market's prices through the years, for the charts: every year for this long, then every tenth. */
 export const PRICE_YEARS = 100;
+/**
+ * And past this, every fiftieth: a chart of a far world's three thousand years draws no more than that, and each of its six hundred
+ * markets kept three hundred points of its far past, a tenth of its save's markets.
+ */
+export const PRICE_CENTURIES = 500;
 
 /** What food and tools cost against their usual worth, in a year (thousandths). */
 export type PricePoint = { readonly year: number; readonly food: number; readonly tools: number };
@@ -192,6 +197,18 @@ export class Market {
     // Older than a century, keep one year in ten.
     const old = this.series.length - PRICE_YEARS - 1;
     if (old >= 0 && this.series[old]!.year % 10 !== 0) this.series.splice(old, 1);
+    // Older than five centuries, one in fifty (the point that passes that age this year, if it was kept).
+    const far = year - PRICE_CENTURIES;
+    if (far > 0 && far % 10 === 0 && far % 50 !== 0) {
+      let lo = 0,
+        hi = this.series.length - 1;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (this.series[mid]!.year < far) lo = mid + 1;
+        else hi = mid;
+      }
+      if (this.series[lo]?.year === far) this.series.splice(lo, 1);
+    }
     this.ledger.fill(0);
     this.opening.splice(0, GOOD_COUNT, ...this.stock);
   }
