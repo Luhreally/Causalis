@@ -193,6 +193,30 @@ body.godpalette .reign-hud :is(.reign-tray, .reign-sheet, .reign-told, .reign-wi
   color: #ffd98a;
   font-weight: 700;
 }
+/* What waits on the ruler's word comes before any sheet: said in its window when a sheet is asked for. */
+.reign-first {
+  margin: 4px 0;
+  padding: 4px 8px;
+  border-left: 3px solid var(--accent);
+  font-weight: bold;
+}
+.reign-first.again {
+  animation: reign-first 0.6s ease-out;
+}
+@keyframes reign-first {
+  from {
+    background: var(--accent);
+    color: #000;
+  }
+  to {
+    background: transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reign-first.again {
+    animation: none;
+  }
+}
 .reign-said:empty {
   display: none;
 }
