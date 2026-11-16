@@ -21,6 +21,8 @@ import {
   DRAWN_OFF,
   FALLS_HOME,
   FIXING_NEEDS,
+  engineDriven,
+  nutrientYield,
   FIX_KWY,
   FLAT,
   FORMED,
@@ -178,6 +180,9 @@ export class GroundStore implements StateStore {
 export function groundOf(world: World): GroundStore | null {
   return world.hasStore("ecology.ground") ? world.store<GroundStore>("ecology.ground") : null;
 }
+
+/** The principles by which engines haul bulk (railways, steamships): rock for the fields goes where they run. */
+const ROCK_HAULED: readonly string[] = engineDriven().map((e) => e.id);
 
 /** A whole share of the virgin ground, as kept. */
 export const SHARE = 1_000_000;
@@ -348,7 +353,9 @@ function stepGround(
     farmers = p.occupation(OCC.farmer),
     // (Dung enough to spread where its herders are a tenth of its farmers or more.)
     manure = farmers > 0 ? Math.min(1, (10 * p.occupation(OCC.herder)) / farmers) : 0,
-    rotation = knows("rotation");
+    rotation = knows("rotation"),
+    // (Rock dug for its phosphorus and potassium, spread where engines haul it.)
+    rock = ROCK_HAULED.some(knows) ? 1 : 0;
   // Nitrogen fixed from the air where a current and strong vessels allow it: what its fields lack of their virgin store, as far
   // as its works drove the fixing last year.
   const fixing = FIXING_NEEDS.every((ids) => ids.some(knows)),
@@ -384,6 +391,7 @@ function stepGround(
         rotation,
         manure: knows("manuring") ? manure : 0,
         fertiliser: nu === "N" ? fert : 0,
+        rock,
       });
       g.nut[i] = Math.round(SHARE * s);
     });
@@ -467,7 +475,7 @@ function stepGround(
 
 /** A land's soil's strength from its ground (0.3 … 1): its scarcest nutrient, by its topsoil, less what fouls it and what its fields went without. */
 export function soilOf(g: Ground, watered: boolean): number {
-  const least = Math.min(...g.nut) / SHARE,
+  const least = nutrientYield(Math.min(...g.nut) / SHARE),
     top = Math.min(1, g.top / SHARE),
     fouled = acidHarm(g.acid) + metalHarm(g.metal / 10),
     salt = watered ? WATERED * saltHarm(g.salt) : 0,

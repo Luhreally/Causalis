@@ -416,16 +416,24 @@ export function realmOrderBlocks(world: World, r: Polity): Block[] {
       concept: "abolition",
     },
     ...(o.crisis
-      ? [stat("In crisis", [link("its people's faith in its rule lost", o.crisis)])]
+      ? [
+          {
+            ...stat("In crisis", [link("its people's faith in its rule lost", o.crisis)]),
+            concept: "legitimacy",
+          },
+        ]
       : []),
     ...(o.mandate && year - o.mandate.year < 40
       ? [
-          stat("A sign from the heavens", [
-            link(
-              `${o.mandate.sign > 0 ? "for" : "against"} its rule, year ${o.mandate.year}`,
-              o.mandate.event,
-            ),
-          ]),
+          {
+            concept: "legitimacy",
+            ...stat("A sign from the heavens", [
+              link(
+                `${o.mandate.sign > 0 ? "for" : "against"} its rule, year ${o.mandate.year}`,
+                o.mandate.event,
+              ),
+            ]),
+          },
         ]
       : []),
   ];

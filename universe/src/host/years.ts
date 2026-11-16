@@ -20,7 +20,6 @@ import {
   ecologyOf,
   energyPerHead,
   fieldedOf,
-  fouledOf,
   financeOf,
   healthOf,
   learntOf,
@@ -60,11 +59,10 @@ export const LAND_COLUMNS = [
   "trade",
   /** Its dead of sickness, all of them since its years were first kept. */
   "sick",
-  /** All it drew a head in the year, by its energy account: food, fodder, heat and flow (hundredths of a kilowatt). */
+  /** All it drew a head in the year, by its energy account: food, fodder, heat and flow (tenths of a kilowatt). */
   "power",
-  /** Its soil's strength (thousandths), and how fouled its ground is (thousandths): its ground as stocks (Round A). */
-  "soil",
-  "fouled",
+  /** How far its soil is worn from its strength at first (hundredths): its ground as stocks, and what fouls it (Round A). */
+  "worn",
 ] as const;
 export type LandColumn = (typeof LAND_COLUMNS)[number];
 
@@ -406,9 +404,8 @@ export function landNow(
     people ? toSteps(net / people) : 0,
     toSteps(sent.get(cell) ?? 0, TRADE_STEPS),
     healthOf(world)?.land(cell)?.dead ?? 0,
-    Math.round(100 * (energyPerHead(world, cell)?.primary ?? 0)),
-    Math.round(1000 * (ecologyOf(world).get(cell)?.soil ?? 1)),
-    Math.round(1000 * fouledOf(world, cell)),
+    twoFigures(10 * (energyPerHead(world, cell)?.primary ?? 0)),
+    Math.round(100 * (1 - (ecologyOf(world).get(cell)?.soil ?? 1))),
   ];
 }
 

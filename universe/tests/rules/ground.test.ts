@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import {
   acidHarm,
   limiting,
+  nutrientYield,
   metalHarm,
   nutrientYear,
   saltHarm,
@@ -27,7 +28,7 @@ test("a world's crust and air set which nutrient its fields lack first", () => {
   assert.equal(limiting({ N: 0.8, P: 0.5, K: 0.9 }), "P");
 });
 
-test("a harvest wears the ground; rest, beans and dung give back; a century unrested wears it to a third", () => {
+test("a harvest wears the ground; rest, beans and dung give back; sixty years unrested wear it past half", () => {
   const year = (s: number, i: Partial<Parameters<typeof nutrientYear>[2]> = {}) =>
     nutrientYear(s, "N", { farmed: 1, supply: 1, rotation: false, manure: 0, fertiliser: 0, ...i });
   let bare = 1,
@@ -36,7 +37,7 @@ test("a harvest wears the ground; rest, beans and dung give back; a century unre
     bare = year(bare);
     kept = year(kept, { rotation: true, manure: 1 });
   }
-  assert.ok(bare < 0.35, `${bare}`);
+  assert.ok(bare < 0.5, `${bare}`);
   assert.ok(kept > 0.85, `${kept}`);
   // Left to itself it heals.
   let rested = 0.4;
@@ -75,4 +76,20 @@ test("what fouls the ground takes from its yield, and salt halves it at its meas
   assert.ok(acidHarm(1e6) <= 0.4 && metalHarm(1e6) <= 0.4 && saltHarm(1e9) <= 0.8);
   assert.equal(thirstMm(-5), 0);
   assert.equal(thirstMm(25), 1500);
+});
+
+test("a field gives less for each step its ground is worn, and dug rock gives back phosphorus where it is spread", () => {
+  assert.ok(Math.abs(nutrientYield(1) - 1) < 1e-12);
+  assert.ok(nutrientYield(0.8) > 0.9 && nutrientYield(0.8) < 0.97);
+  assert.ok(nutrientYield(0.5) < 0.85 && nutrientYield(0) === 0);
+  const p = (rock: number) =>
+    nutrientYear(0.6, "P", {
+      farmed: 1,
+      supply: 1,
+      rotation: false,
+      manure: 0,
+      fertiliser: 0,
+      rock,
+    });
+  assert.ok(p(1) > p(0) && p(1) <= 0.6 + 0.01 + 0.02 * 0.4 + 1e-12);
 });

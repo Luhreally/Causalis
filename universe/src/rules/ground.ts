@@ -29,10 +29,29 @@ export const EARTH_CRUST_PPM: Readonly<Record<Exclude<Nutrient, "N">, number>> =
  */
 export const TAKEN: Readonly<Record<Nutrient, number>> = { N: 0.012, P: 0.003, K: 0.004 };
 /**
- * The share of the way back to its virgin store a ground goes in a year (est): its nitrogen only while it lies unfarmed (the
- * wild's own litter and what its life fixes), its phosphorus and potassium under fields too (the rock below weathering).
+ * The share of the way back to its virgin store a ground goes in a year (est): its nitrogen fully while it lies unfarmed (the
+ * wild's own litter and what its life fixes) and half as fast under fields (what the rain brings down and what lives free in the
+ * soil fixes: UNDER_FIELDS), its phosphorus and potassium under fields too (the rock below weathering).
  */
 export const HEALING = 0.02;
+/** How much of its nitrogen's healing a ground keeps under fields (est). */
+export const UNDER_FIELDS = 0.5;
+/**
+ * How a field's yield answers its scarcest nutrient (Mitscherlich's law of diminishing returns, 1909): each step short of its
+ * virgin store costs more than the one before it, so a ground worn by a fifth gives some 6% less, worn by half a fifth less.
+ */
+export const MITSCHERLICH = 3;
+/** A field's yield (a share of its virgin ground's) at its scarcest nutrient's store `s` (a share of its virgin store). */
+export function nutrientYield(s: number): number {
+  const k = MITSCHERLICH;
+  return (1 - dmath.exp(-k * Math.max(0, s))) / (1 - dmath.exp(-k));
+}
+/**
+ * What rock dug for phosphorus and potassium gives back to a field a year, at most (a share of its virgin store, est): ground
+ * rock, bones and potash, as much as its fields lack and its harvest took. Rock is heavy and worth little: it is carried to the
+ * fields only where engines haul (ROCK_NEEDS).
+ */
+export const ROCK_GIVES = 0.01;
 /** What beans and clover in a rotation give back of the nitrogen a harvest takes (est), and what a rotation's fallow spares. */
 export const BEANS_GIVE = 0.7,
   FALLOW_SPARES = 0.2;
@@ -77,13 +96,19 @@ export function nutrientYear(
     readonly rotation: boolean;
     readonly manure: number;
     readonly fertiliser: number;
+    /** Phosphorus and potassium rock spread, as far as it goes (0 … 1). */
+    readonly rock?: number;
   },
 ): number {
   const taken = TAKEN[n] * i.farmed * (i.rotation ? 1 - FALLOW_SPARES : 1),
     beans = n === "N" && i.rotation ? BEANS_GIVE * taken : 0,
     dung = MANURE_GIVES[n] * Math.min(1, i.manure) * taken,
-    made = n === "N" ? i.fertiliser : 0,
-    healing = HEALING * i.supply * Math.max(0, 1 - s) * (n === "N" ? 1 - i.farmed : 1);
+    made =
+      n === "N"
+        ? i.fertiliser
+        : (i.rock ?? 0) * Math.min(ROCK_GIVES, Math.max(0, 1 - s) + TAKEN[n] * i.farmed),
+    healing =
+      HEALING * i.supply * Math.max(0, 1 - s) * (n === "N" ? 1 - UNDER_FIELDS * i.farmed : 1);
   return Math.min(RICHEST, Math.max(0, s - taken + beans + dung + made + healing));
 }
 
@@ -161,8 +186,9 @@ export const METAL_CARRIED = 0.05,
 /** Metals held (kg a hectare) at which its fields give a fifth less, and the most it takes of the health of its people (est). */
 export const METAL_FIFTH = 300,
   METAL_POISON = 0.5;
-/** Sour drainage from a unit of coal dug (kg of sulphur, est: its pyrite, weathered at the heap). */
-export const MINE_ACID_KG = 20;
+/** Sour drainage from a unit of coal dug that reaches its land's fields (kg of sulphur, est: its pyrite weathered at the heap, most of it
+ * carried off in the streams by the pits, not over the fields). */
+export const MINE_ACID_KG = 2;
 
 /** What sour rain held takes of a land's yield (0 … 0.4). */
 export function acidHarm(kgHa: number): number {
@@ -200,6 +226,8 @@ export const FIXING_NEEDS: readonly (readonly string[])[] = [
 export const GROUND_ESTIMATES: readonly string[] = [
   "TAKEN",
   "HEALING",
+  "UNDER_FIELDS",
+  "ROCK_GIVES",
   "BEANS_GIVE",
   "MANURE_GIVES",
   "WASHED",
