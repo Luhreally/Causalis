@@ -96,8 +96,8 @@ test("each land's soil is what its ground's stocks give", () => {
     const g = ground.get(p.cell),
       w = eco.get(p.cell);
     if (!g || !w) continue;
-    for (const x of g.nut) assert.ok(x >= 0 && x <= 1300);
-    if (Math.min(...g.nut) < 900) worn++;
+    for (const x of g.nut) assert.ok(x >= 0 && x <= 1_300_000);
+    if (Math.min(...g.nut) < 900_000) worn++;
     assert.ok(w.soil >= 0.3 && w.soil <= 1);
     assert.ok(
       Math.abs(w.soil - soilOf(g, false)) < 1e-9 || Math.abs(w.soil - soilOf(g, true)) < 1e-9,

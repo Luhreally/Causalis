@@ -34,7 +34,8 @@ import { OCC, PRODUCTIVITY } from "../../rules/index.ts";
 import type { Capacity } from "../population/model.ts";
 import { provinceCapacity, type PopulationContext } from "../population/systems.ts";
 import { loreOf } from "../lore/lore.ts";
-import { GroundStore, groundBegin, groundEnd, groundStep } from "./ground.ts";
+import { GroundStore, groundYear } from "./ground.ts";
+import { farmedOf } from "./farmed.ts";
 
 const HUNT = defineStream("ecology.hunt");
 
@@ -306,6 +307,8 @@ export function stepWilds(
   rest: number,
   /** The share of the land's people who keep flocks (and guard them). */
   herding = 0,
+  /** Whether its soil is its ground's to set (ground.ts), not worn and healed here. */
+  keepSoil = false,
 ): void {
   // A people living close to what the wild yields (taking more than three-fifths of it)
   // thin it, the more the harder they press; a wild pressed less grows back toward what
@@ -329,13 +332,16 @@ export function stepWilds(
     standing < w.forest
       ? standing
       : Math.min(standing, w.forest + FOREST_REGROWTH * browsed * (1 - w.forest));
-  w.soil = Math.min(
-    1,
-    Math.max(
-      0.3,
-      w.soil - 0.01 * farmed * (1 - Math.min(1, rest)) + SOIL_HEALING * (1 - w.soil) * (1 - farmed),
-    ),
-  );
+  if (!keepSoil)
+    w.soil = Math.min(
+      1,
+      Math.max(
+        0.3,
+        w.soil -
+          0.01 * farmed * (1 - Math.min(1, rest)) +
+          SOIL_HEALING * (1 - w.soil) * (1 - farmed),
+      ),
+    );
   // The hunters follow their game — toward as many as the wild keeps, a few wandering in
   // where the game is there — and fall under a people who hunt them and guard their flocks.
   if (w.hunter >= 0 && !w.lost.includes(w.hunter)) {
@@ -397,8 +403,8 @@ export function ecologyYear(ctx: PopulationContext, t: SimTime): void {
     store = ecologyOf(world),
     lore = loreOf(world),
     year = yearOfMoment(t),
-    // (Its ground as stocks, Round A: what feeds its fields, its topsoil, its water and what fouls it.)
-    ground = groundBegin(ctx);
+    // (Its soil is its ground's where its ground is kept as stocks, Round A: ground.ts steps it, by the lustrum.)
+    keepSoil = world.hasStore("ecology.ground");
   for (const p of ctx.provinces.all()) {
     const pop = p.total();
     // (Sealed halls on another world have no wild to thin, no forest, no open soil.)
@@ -423,8 +429,7 @@ export function ecologyYear(ctx: PopulationContext, t: SimTime): void {
       rest = (lore.get(p.cell, "rotation") ? 0.6 : 0) + (lore.get(p.cell, "manuring") ? 0.4 : 0),
       herders = p.occupation(OCC.herder),
       herding = herders / pop;
-    stepWilds(w, take, farmed, rest, herding);
-    if (ground) groundStep(ctx, ground, w, farmed, t);
+    stepWilds(w, take, farmed, rest, herding, keepSoil);
     store.set(w);
 
     // Their turns for the worse, told once (and again only after they recover).
@@ -566,7 +571,6 @@ export function ecologyYear(ctx: PopulationContext, t: SimTime): void {
         });
       }
   }
-  if (ground) groundEnd(ctx, ground);
 }
 
 /** Teach a peopled world its ecology. */
@@ -575,6 +579,7 @@ export function installEcology(world: World, ctx: () => PopulationContext): Ecol
     ground = world.register(new GroundStore());
   world.addPinner(() => store.pinned());
   world.addPinner(() => ground.pinned());
+  world.system({ key: "118.ground.year", every: YEAR, run: (t) => groundYear(ctx(), t) });
   world.system({ key: "115.ecology.year", every: YEAR, run: (t) => ecologyYear(ctx(), t) });
   return store;
 }

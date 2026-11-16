@@ -102,17 +102,40 @@ export type EnergyLand = {
   fume: number;
 };
 
+/** Fold whole numbers into a running digest (two 32-bit words): what a checkpoint hashes in place of every row. */
+function fold(d: [number, number], xs: readonly number[]): void {
+  let a = d[0],
+    b = d[1];
+  for (const x of xs) {
+    const lo = x | 0,
+      hi = Math.floor(x / 4294967296) | 0;
+    a = Math.imul(a ^ lo, 0x01000193) ^ hi;
+    b = Math.imul(b + lo + 0x9e3779b9, 0x85ebca6b) ^ (b >>> 13);
+  }
+  d[0] = a;
+  d[1] = b;
+}
+
 export class EnergyStore implements StateStore {
   readonly name = "economy.energy";
   /** Saved packed by column (kernel/pack.ts): one row of whole numbers a land. */
   readonly packed = true;
   private readonly map = new Map<number, EnergyLand>();
+  /** Every row set, folded in as it is set: a checkpoint hashes this, not every land's account (O(1) a checkpoint). */
+  private readonly digest: [number, number] = [0x811c9dc5, 0];
+  private sets = 0;
 
   get(cell: number): EnergyLand | undefined {
     return this.map.get(cell);
   }
   set(e: EnergyLand): void {
     this.map.set(e.cell, e);
+    fold(this.digest, rowOf(e));
+    this.sets++;
+  }
+  /** It holds nothing yet: hashed as if it were not there. */
+  dormant(): boolean {
+    return this.map.size === 0;
   }
   drop(cell: number): void {
     this.map.delete(cell);
@@ -121,37 +144,46 @@ export class EnergyStore implements StateStore {
     return [...this.map.values()].sort((a, b) => a.cell - b.cell);
   }
   hashInto(h: Hasher): void {
-    const all = this.all();
-    h.int(all.length);
-    for (const e of all) {
-      h.int(e.cell).int(e.people);
-      for (const x of e.drawn) h.int(x);
-      for (const x of e.by) h.int(x);
-      h.int(e.workWanted)
-        .int(e.workHad)
-        .int(e.worksWanted)
-        .int(e.heatWanted)
-        .int(e.heatHad)
-        .int(e.share)
-        .int(e.coal)
-        .int(e.oil)
-        .int(e.gas)
-        .int(e.own)
-        .int(e.felled)
-        .int(e.fuelWanted)
-        .int(e.carbon)
-        .int(e.sulphur)
-        .int(e.fume);
-    }
+    h.int(this.map.size).int(this.sets).int(this.digest[0]).int(this.digest[1]);
   }
   save(): unknown {
-    return { lands: this.all() };
+    return { lands: this.all(), digest: [...this.digest], sets: this.sets };
   }
   load(state: unknown): void {
     this.map.clear();
-    for (const e of (state as { lands?: EnergyLand[] } | null)?.lands ?? [])
-      this.set({ ...e, drawn: [...e.drawn], by: [...e.by] });
+    const s = state as { lands?: EnergyLand[]; digest?: [number, number]; sets?: number } | null;
+    for (const e of s?.lands ?? [])
+      this.map.set(e.cell, { ...e, drawn: [...e.drawn], by: [...e.by] });
+    // (The fold goes on from where it stood.)
+    this.digest[0] = s?.digest?.[0] ?? 0x811c9dc5;
+    this.digest[1] = s?.digest?.[1] ?? 0;
+    this.sets = s?.sets ?? 0;
   }
+}
+
+/** A land's row as the digest folds it. */
+function rowOf(e: EnergyLand): number[] {
+  return [
+    e.cell,
+    e.people,
+    ...e.drawn,
+    ...e.by,
+    e.workWanted,
+    e.workHad,
+    e.worksWanted,
+    e.heatWanted,
+    e.heatHad,
+    e.share,
+    e.coal,
+    e.oil,
+    e.gas,
+    e.own,
+    e.felled,
+    e.fuelWanted,
+    e.carbon,
+    e.sulphur,
+    e.fume,
+  ];
 }
 
 /** A world's energy store (null on a world that keeps none). */
