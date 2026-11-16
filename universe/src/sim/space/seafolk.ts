@@ -39,6 +39,17 @@ const liquidSeas = (p: ForeignPlanet) =>
   p.water === "seas" && p.temperature > -40 && p.temperature < 90 && p.pressure > 0.01;
 
 /**
+ * The three draws a far world's ground is read by, whoever rose on it: its land's people's reading (natives.ts) and its sea's
+ * alike, and the world entered from either (host/enter.ts), so one world has one ground. (A sea people's own draws read a
+ * world with other metals than the one its seed then made: its star's [Fe/H] -0.25 read, -0.36 entered.)
+ */
+export function groundDraws(world: World, s: GalaxyStar, index: number): readonly [number, number, number] {
+  const key = `${lawlessSeed(world.seed.text)} natives ${s.sector}:${s.k}/${index}`,
+    u = (n: number) => (hashString(`${key} ${n}`) >>> 0) / 4294967296;
+  return [u(11) * 2 - 1, u(12) * 2 - 1, u(13) * 2 - 1];
+}
+
+/**
  * The people of a world's seas, read where no people of its land rose (null: none rose there). `landless`: natives.ts found none of
  * its land. A people of the sea of a world whose shore bodies could stand on is the land's own reading's to find (B4's risers).
  */
@@ -73,7 +84,7 @@ export function seaFolkOf(world: World, s: GalaxyStar, p: ForeignPlanet): Folk |
       temperature: s.temperature,
       ageGyr: s.ageGyr,
       zone,
-      u: [u(11) * 2 - 1, u(12) * 2 - 1, u(13) * 2 - 1],
+      u: groundDraws(world, s, p.index),
     }),
     oxygen = life.small.includes("light"),
     a = affordancesOf(body),

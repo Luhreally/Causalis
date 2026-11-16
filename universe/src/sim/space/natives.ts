@@ -67,7 +67,7 @@ import { filledOf, starKey } from "./filled-store.ts";
 import { clusterOf } from "./voyages.ts";
 import { heldFolk, livedFolk, livedPeak, livedStage, type FarReading } from "./farlife-read.ts";
 import type { FarRow } from "./farlife-store.ts";
-import { seaFolkOf } from "./seafolk.ts";
+import { groundDraws, seaFolkOf } from "./seafolk.ts";
 
 /** How far a people has come: its steps, then gone. */
 export type FolkStage =
@@ -167,8 +167,7 @@ export function folkGroundDraws(
   s: GalaxyStar,
   index: number,
 ): readonly [number, number, number] {
-  const u = drawOf(world, s, index);
-  return [u(11) * 2 - 1, u(12) * 2 - 1, u(13) * 2 - 1];
+  return groundDraws(world, s, index);
 }
 
 /** The world's chemistry, drawn as a home world's is, from its star, its orbit in the star's zone, its ground. */

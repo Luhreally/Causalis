@@ -729,8 +729,10 @@ export function twoNeeded(
 ): number {
   if (!b) return 0.92;
   const care = (CARE_YEARS[b.bearing] ?? 0) * (b.span / 70),
-    // (Many at a birth is more to carry for one; long to grow up, the longer two are needed.)
-    many = dmath.clamp(Math.max(1, b.young) / 2, 0.5, 3),
+    // (Many at a birth is more to carry for one, one at a time the measure; long to grow up, the longer two are needed. Halved
+    // at a single young, an upright ape of seventy years' span needed two by 0.46 and paired for a season, its homes three
+    // lines where its towns draw four.)
+    many = dmath.clamp(Math.max(1, b.young), 1, 3),
     long = dmath.clamp(adulthood / 15, 0.3, 2);
   return clamp01((care * long * many) / 3);
 }

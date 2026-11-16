@@ -20,6 +20,7 @@ import {
 import { G, affordancesOf, farMade, makingsOf } from "../../src/rules/index.ts";
 import { ALIEN, EARTH, clusterOf } from "../../src/host/planet.ts";
 import { enterPlan, enteredHere } from "../../src/host/enter.ts";
+import { universeWorld } from "./worlds.ts";
 import { folkFacts, peopleFigure } from "../../src/host/folk.ts";
 import { folkFactsOf, folkFigure } from "../../src/host/natives.ts";
 import { enteredSeed, seedShown, type EnterPlan } from "../../src/bridge/index.ts";
@@ -191,9 +192,16 @@ test("asking changes nothing at home, and each people's world is its own", () =>
 test("where a world cannot be entered, it says why", () => {
   const none = enterPlan(home, "star:999999:0", 0, "earth");
   assert.ok(!none.ok);
-  // (A world of ruins: no one to live as. Alien 41's sky holds a people gone before its chronicle opens.)
-  const other = ALIEN.build(seedFromText("alien 41 ~size small")),
-    gone = folksNear(other).find((f) => folkStage(f, 0) === "ruins")!;
+  // (A world of ruins: no one to live as. Since round F a far people's life is read from its own numbers, from the year
+  // its climb began, and almost none rose and fell before the chronicle opens: alien 41's sky is entered from the year
+  // after the first of its peoples fell, Grevrareth in 874.)
+  const sky41 = folksNear(ALIEN.build(seedFromText("alien 41 ~size small")))
+      .filter((f) => !f.followed && f.fell !== null && f.fell > 0)
+      .sort((a, b) => a.fell! - b.fell! || (a.ref < b.ref ? -1 : 1))[0]!,
+    other = universeWorld(ALIEN, "alien 41 ~size small", sky41.fell! + 1),
+    gone = folksNear(other).find(
+      (f) => f.ref === sky41.ref && folkStage(f, sky41.fell! + 1) === "ruins",
+    )!;
   assert.ok(gone, "a people in ruins");
   const p = enterPlan(other, gone.star, gone.planet, "alien");
   assert.ok(!p.ok && /ruins/.test(p.why), JSON.stringify(p).slice(0, 200));
@@ -244,11 +252,12 @@ test("a people read in orbit stands there within its first years, where its worl
 });
 
 test("where a world's matter shuts the road to an age, the galaxy reads its people no further, and a world made past it says which", () => {
-  // (First light's Laxai: once read in orbit by a sight that read no coal; no land of theirs holds a seam. The galaxy
-  // now reads them as far as their own world lets them come, and says what holds them.)
-  const sky = EARTH.build(seedFromText("first light")),
-    f = folksNear(sky).find((x) => x.name === "Laxai")!;
-  assert.ok(f?.followed, "the Laxai, followed");
+  // (Harrow 348's Qaani: no fuel in their ground, and their rivers, wind and hot ground carry less than their works would
+  // ask. Since round E a people without fuel drives its works by another road where its world carries enough, so first
+  // light's Laxai, once held at signals for want of coal, come to the stars on their wind; the Qaani do not.)
+  const sky = ALIEN.build(seedFromText("harrow 348")),
+    f = folksNear(sky).find((x) => x.name === "Qaani")!;
+  assert.ok(f?.followed, "the Qaani, followed");
   assert.equal(f.ceiling, "signals");
   assert.match(f.shut!, /shuts the road to Orbit: no fuel/);
   assert.equal(folkStage(f, 0), "signals");
@@ -258,7 +267,7 @@ test("where a world's matter shuts the road to an age, the galaxy reads its peop
   // (The years history first held of them are still theirs to be named by: only the reading stops.)
   assert.ok(Number.isFinite(civilizationsEver(sky).find((c) => c.ref === f.ref)!.orbit));
   // The way in agrees: nothing stops them short of where they are read.
-  const got = ok(enterPlan(sky, f.star, f.planet, "earth"));
+  const got = ok(enterPlan(sky, f.star, f.planet, "alien"));
   assert.equal(got.stage, "signals");
   assert.equal(got.shut, null);
   assert.equal(enteredHere(ALIEN.build(seedFromText(got.seed)))!.shut, null);
@@ -276,7 +285,7 @@ test("where a world's matter shuts the road to an age, the galaxy reads its peop
         body: civBody(f.followed!) ?? f.body,
         chem: folkGroundDraws(sky, star, f.planet),
       },
-      { year: 0, stage: "orbit", people: folkPeopleAt(f, "orbit"), universe: "earth", look: null },
+      { year: 0, stage: "orbit", people: folkPeopleAt(f, "orbit"), universe: "alien", look: null },
     ),
     world = ALIEN.build(seedFromText(past.seed)),
     here = enteredHere(world)!;
@@ -287,15 +296,19 @@ test("where a world's matter shuts the road to an age, the galaxy reads its peop
   assert.ok(loreOf(world).get(homePlanet(world).generated.life.people!.cell, "orbital-flight"));
 });
 
-test("the way in stops no followed people short of where the galaxy reads it, on two home worlds", () => {
+test("the way in stops no followed people short of where the galaxy reads it, on four home worlds", () => {
   // (Each followed people past its camps: at every stage up to its ceiling, its world made as the way in makes it
   // shuts no road to it; and at the next stage, where it has a ceiling, the road the galaxy names is the one shut.)
   const STAGES = ["villages", "towns", "cities", "works", "signals", "orbit", "stars"] as const;
   let read = 0,
     held = 0;
+  // (Since round E, no followed people of first light's or alien 41's skies is held short: harrow 348's Qaani are, by their
+  // own world, past their camps at the chronicle's start; alien 55's Maix, held at cities, are in their camps then.)
   for (const [universe, name, text] of [
     [EARTH, "earth", "first light ~size small"],
     [ALIEN, "alien", "alien 41 ~size small"],
+    [ALIEN, "alien", "harrow 348"],
+    [ALIEN, "alien", "alien 55"],
   ] as const) {
     const sky = universe.build(seedFromText(text));
     for (const f of folksNear(sky).filter((x) => x.followed && folkStage(x, 0) !== "camps")) {
@@ -342,7 +355,7 @@ test("the way in stops no followed people short of where the galaxy reads it, on
     }
   }
   assert.ok(read >= 8, `${read} followed peoples read`);
-  assert.ok(held >= 2, `${held} held by their own worlds`);
+  assert.ok(held >= 1, `${held} held by their own worlds`);
 });
 
 test("a followed people is read as no more than its own world holds, seated as the way in seats it", () => {
