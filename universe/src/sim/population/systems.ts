@@ -309,11 +309,22 @@ export function occupationTargets(
       (o) => t[o]! > 0,
     ),
     share = flexible.reduce((s, o) => s + t[o]!, 0),
-    mean = flexible.reduce((s, o) => s + t[o]! * wages[o]!, 0) / Math.max(1e-9, share);
+    mean = flexible.reduce((s, o) => s + t[o]! * wages[o]!, 0) / Math.max(1e-9, share),
+    // (The hands its fields need, where they need fewer than the old ways sent: farmingShare has already sent the rest to
+    // the crafts and to trade, so a better wage elsewhere draws from those, not from the fields' own. Led below this, harrow
+    // 348's traders, paid eight times a farmer's in 860, took a fifth of the hands its fields needed and it went hungry,
+    // its people a third in fifty years.)
+    needed = p.knowsCultivation && farming < 1 ? t[OCC.farmer]! : 0;
   if (mean <= 0) return t;
   for (const o of flexible) t[o] = t[o]! * dmath.clamp(wages[o]! / mean, 0.4, 2.5);
   const after = flexible.reduce((s, o) => s + t[o]!, 0);
   for (const o of flexible) t[o] = (t[o]! * share) / after;
+  if (t[OCC.farmer]! < needed) {
+    const rest = share - t[OCC.farmer]!,
+      left = share - needed;
+    for (const o of flexible) if (o !== OCC.farmer) t[o] = rest > 0 ? (t[o]! * left) / rest : 0;
+    t[OCC.farmer] = needed;
+  }
   return t;
 }
 

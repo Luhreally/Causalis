@@ -116,7 +116,9 @@ test("prices stay near what goods are usually worth", () => {
       const r = m.price[i]! / g.value;
       assert.ok(Number.isFinite(r) && r > 0 && r < 3.1, `${m.cell} ${g.id} at ${r}`);
       if ((FOODS as readonly number[]).includes(i))
-        assert.ok(r > 0.1, `${m.cell} ${g.id}, a food, at ${r}`);
+        // (Its floor, rules/money.ts: a food's worth at least a quarter of the staple's, at a glut a third of that, meat's usual
+        // worth 1.4 grain's: 0.06. Since the fields kept the hands they need, a glutted land's meat at 700 stands at 0.095.)
+        assert.ok(r > 0.05, `${m.cell} ${g.id}, a food, at ${r}`);
     });
 });
 

@@ -104,8 +104,14 @@ test("the army is one of a realm's voices: heard the more with a standing army, 
   assert.ok(standing.people > before.people, "a standing army: every man it fields under arms");
   assert.ok(standing.sway > before.sway, "and the more heard");
   seize(ctx, p, [], at(1));
-  const general = armySway(w, p);
-  assert.ok(general.sway > standing.sway * 1.5, `under a general, above all (${general.sway})`);
+  const general = armySway(w, p),
+    pay = (x: typeof general) =>
+      x.demands.find((d) => d.name === "the army wants its pay")?.strength ?? 0;
+  // (A general's seizing holds the realm's arms from its people at six-tenths or more, sim/strife: where they were held tighter
+  // already the army is heard no less, and asks the more for its pay. Since the merged rounds' fields fed first light the
+  // better, its greatest realm with a standing army keeps eight-tenths of its arms from its people before any coup, and a general adds no more.)
+  assert.ok(general.sway >= standing.sway, `under a general, heard no less (${general.sway})`);
+  assert.ok(pay(general) > pay(standing) + 0.25, `and asks the more for its pay (${pay(general)})`);
 });
 
 test("a coup: a doubted rule and a heard army — the seat seized, the realm a protectorate; its why is the army's", () => {
