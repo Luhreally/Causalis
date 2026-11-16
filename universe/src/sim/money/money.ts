@@ -402,10 +402,10 @@ export function labourYear(ctx: PopulationContext, t: SimTime): void {
     }
     let cap = caps.get(realm.ref);
     if (cap === undefined) caps.set(realm.ref, (cap = capacityOf(ctx, realm).value));
+    // (Open land the bound could walk to: its own room, and half its neighbours', in this realm or out of it.)
     let room = Math.max(0, peopleRoom(c));
     for (let k = g.grid.offsets[c]!; k < g.grid.offsets[c + 1]!; k++) {
       const n = g.grid.neighbours[k]!;
-      if (realms.of(n)?.ref === realm.ref && n !== c) continue;
       room += 0.5 * Math.max(0, peopleRoom(n));
     }
     const law = o.abolished !== null ? 0 : ([1, 0.5, 0][o.laws[LAW_OF.land] ?? 0] ?? 0),
