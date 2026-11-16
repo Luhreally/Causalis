@@ -140,8 +140,9 @@ export class LoreStore implements StateStore {
   }
 
   /**
-   * What a land knows, as kept (undefined: nothing). Lore only grows, and a load makes each land's anew: a reading may keep
-   * what it derives of it by this map while its size stands (economy/energy.ts).
+   * What a land knows, as kept (undefined: nothing). It grows as a land learns; where it forgets (K1) the land's map is a new
+   * one, and a load makes each land's anew: a reading may keep what it derives of it by this map while its size stands
+   * (economy/energy.ts).
    */
   knownOf(cell: number): ReadonlyMap<string, Known> | undefined {
     return this.known.get(cell);
@@ -179,6 +180,9 @@ export class LoreStore implements StateStore {
       this.totals.delete(cell);
       return;
     }
+    // (A new map for what it knows now: a reading keeps what it derives by the map and its size (knownOf), and a land that
+    // forgets one thing and learns another would stand at the same size.)
+    this.known.set(cell, new Map(m));
     const t = new Float64Array(EFFECTS.length);
     for (const [known] of this.of(cell)) {
       const p = PRINCIPLES[PRINCIPLE_INDEX.get(known)!]!;
