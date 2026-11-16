@@ -89,20 +89,23 @@ const KIND_ROWS = new Set([
  * Re-recorded for the two together (2026-11-15): the money and its fears on the learned rule, what a people holds abroad counted
  * in its measured wealth and how wealth is owned learned as how a realm is held is. The guide to matter stays.
  */
+// (Re-recorded once the six rounds were merged and calibrated, 2026-11-16: the world at 300 is another history, so its
+// tools, stuff, ground, arms, workshops and camps are other ones, and the principles, substances and reactions pages are
+// the merged rounds' (new principles and matter). No page's words for an unchanged world were meant to move.)
 const BEFORE: Record<string, string> = {
-  tools: "18823327:17869",
-  stuff: "9776f64a:13400",
-  ground: "7d56af1d:44360",
-  deposits: "922ecfb2:97966",
-  arms: "9c3e0d57:15303",
-  designs: "2d7039bb:26878",
-  workshops: "f3b63eb5:388153",
-  substances: "2d63202b:130638",
-  reactions: "e37a3e1e:68595",
+  tools: "75637414:19674",
+  stuff: "3e93a8db:14124",
+  ground: "84f641fd:42897",
+  deposits: "c59a53a8:98003",
+  arms: "a60740f5:25893",
+  designs: "1a0526d2:33567",
+  workshops: "ea1a9e8f:77816",
+  substances: "b1d714b6:130648",
+  reactions: "6e737005:68600",
   // (Its pages no longer list what only a people of the water could find: F1, canBeFoundHere.)
-  principles: "3fae6add:172360",
+  principles: "b3cadaef:179433",
   guide: "ced49326:17137",
-  camps: "346a7011:343960",
+  camps: "a62c7849:580587",
 };
 
 /**
