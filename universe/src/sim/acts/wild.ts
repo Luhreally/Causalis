@@ -28,6 +28,7 @@ import {
   BOUNDARY,
   cellRef,
   isProvinceWorld,
+  keptKey,
   meansNumbers,
   offworldSite,
   regionPoint,
@@ -262,8 +263,9 @@ export class WildStore implements StateStore {
   /** Fires whose scars still stand, oldest first. */
   scars: Wildfire[] = [];
   tally: WildTally = emptyTally();
-  /** Read from the world's own ground once, not state. */
+  /** Read from the world's own ground, and again once it has moved (a mountain gone up, the god's brush); not state. */
   index: Index | null = null;
+  indexOn = "";
 
   dormant(): boolean {
     return (
@@ -1084,7 +1086,14 @@ export function wildMonth(ctx: PopulationContext, t: SimTime): void {
   if (!isProvinceWorld(g) || !ctx.provinces.all().length) return;
   const store = wildOf(ctx.world);
   if (!store) return;
-  const idx = (store.index ??= readWorld(g)),
+  // (Kept by the ground it was read off: read once for good, a world run on went on burning what a mountain's rise had made
+  // bare, where the same world saved and loaded did not.)
+  const on = keptKey(g);
+  if (!store.index || store.indexOn !== on) {
+    store.index = readWorld(g);
+    store.indexOn = on;
+  }
+  const idx = store.index,
     month = Math.floor((t % YEAR) / MONTH);
   // (Its disasters, unless the player has turned them off: a mountain still rises where no one is.)
   if (!switchedOff(ctx.world, "disasters")) {

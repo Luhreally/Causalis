@@ -26,6 +26,7 @@ import {
 import {
   cellRef,
   functionsOf,
+  keptKey,
   meansNumbers,
   meansOfWorld,
   seamRef,
@@ -269,10 +270,10 @@ export function knows(ctx: PopulationContext, cell: number, id: string): boolean
 }
 
 /** The land within two steps that holds an ore, if any: own land first. */
-// Which land within two steps holds an ore: a pure function of the generated world, kept.
+// Which land within two steps holds an ore: a pure function of the generated world and its ground as it stands, kept.
 const ORE_NEAR = new Map<string, number | null>();
 function oreNear(ctx: PopulationContext, cell: number, kind: string): number | null {
-  const key = `${ctx.generated.digest}:${cell}:${kind}`;
+  const key = `${keptKey(ctx.generated)}:${cell}:${kind}`;
   if (ORE_NEAR.has(key)) return ORE_NEAR.get(key)!;
   if (ORE_NEAR.size > 100_000) ORE_NEAR.clear();
   const found = findOreNear(ctx, cell, kind);

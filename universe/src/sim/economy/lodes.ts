@@ -68,8 +68,27 @@ export class LodeStore implements StateStore {
   private readonly moved = new Set<string>();
   /** Answers worked out since a lode near moved, by the land and kind asked about (not state). */
   private readonly answers = new Map<number, Map<string, unknown>>();
-  /** What each lode holds at its first depth (not state: a pure function of the world). */
-  readonly sizes = new Map<number, number>();
+  /** What each lode holds at its first depth (not state: a pure function of the world's ground as it stands). */
+  private readonly sizes = new Map<number, number>();
+  /**
+   * The ground the answers and sizes were worked out on (gen/homeworld.ts keptKey). Where the ground has moved since (a rise
+   * of it, the god's brush: bog iron shows only in a wet lowland) they are worked out again: kept, a world run on in one
+   * process went on digging an ore its ground no longer showed, and the same world saved and loaded did not.
+   */
+  private ground = "";
+  private on(ground: string): void {
+    if (ground === this.ground) return;
+    this.ground = ground;
+    this.answers.clear();
+    this.sizes.clear();
+  }
+  /** What a lode holds at its first depth, on the ground as it stands. */
+  sizeOf(key: number, ground: string, work: () => number): number {
+    this.on(ground);
+    let size = this.sizes.get(key);
+    if (size === undefined) this.sizes.set(key, (size = work()));
+    return size;
+  }
 
   /** Whether a kind's lodes have moved at all: until then the world's own answer stands. */
   movedKind(kind: string): boolean {
@@ -116,7 +135,8 @@ export class LodeStore implements StateStore {
       if (kind === "copper") this.answers.delete(keyOf(c, "tin"));
     }
   }
-  answer<T>(cell: number, kind: string, how: string, work: () => T): T {
+  answer<T>(cell: number, kind: string, how: string, ground: string, work: () => T): T {
+    this.on(ground);
     const key = keyOf(cell, kind);
     let kept = this.answers.get(key);
     if (!kept) this.answers.set(key, (kept = new Map()));
@@ -185,6 +205,8 @@ export class LodeStore implements StateStore {
     this.felt.clear();
     this.moved.clear();
     this.answers.clear();
+    this.sizes.clear();
+    this.ground = "";
     this.dugNow.clear();
     for (const [cell, kind, dug, tier, out, ref, first] of s.lodes ?? []) {
       const name = LODE_KINDS[kind]!;

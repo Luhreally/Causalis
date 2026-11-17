@@ -12,7 +12,7 @@ import {
   type SimTime,
   type World,
 } from "../../kernel/index.ts";
-import { worldChemistry } from "../../gen/index.ts";
+import { keptKey, worldChemistry } from "../../gen/index.ts";
 import {
   G,
   LODE,
@@ -92,13 +92,9 @@ export function digOre(
 /** What a lode holds at its first depth, a pure function of the world. */
 function sizeOf(ctx: PopulationContext, lodes: LodeStore, lode: Lode): number {
   const key = lode.cell * 8 + LODE_KINDS.indexOf(lode.kind);
-  let size = lodes.sizes.get(key);
-  if (size === undefined) {
-    const lies = oresIn(ctx, lode.cell, lode.kind);
-    size = lodeSize(lode.kind, Math.max(0, ...lies.map((o) => o.richness)));
-    lodes.sizes.set(key, size);
-  }
-  return size;
+  return lodes.sizeOf(key, keptKey(ctx.generated), () =>
+    lodeSize(lode.kind, Math.max(0, ...oresIn(ctx, lode.cell, lode.kind).map((o) => o.richness))),
+  );
 }
 
 function ringOf(ctx: PopulationContext, cell: number): number[] {

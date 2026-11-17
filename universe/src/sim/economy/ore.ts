@@ -109,7 +109,9 @@ export function oreWithin(ctx: PopulationContext, cell: number, kind: string): O
   // (Once any lode of the kind has moved from what the world laid down: E1.)
   const lodes = lodesOf(ctx.world);
   if (lodes?.movedKind(kind))
-    return lodes.answer(cell, kind, "within", () => findWithin(ctx, cell, kind, lodes));
+    return lodes.answer(cell, kind, "within", keptKey(ctx.generated), () =>
+      findWithin(ctx, cell, kind, lodes),
+    );
   return oreLaid(ctx, cell, kind);
 }
 
