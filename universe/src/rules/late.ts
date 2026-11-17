@@ -3,6 +3,10 @@
 // remade; how many a square kilometre of built ground holds, and what food grown in vats feeds. Each a
 // figure a world's own star, bodies and lands give. Pure tables and functions.
 import { dmath } from "../kernel/index.ts";
+import { EARTH_HOME } from "./habitat.ts";
+
+/** The warmth and air a remaking makes for: its settlers' own world's (Earth's 15 °C and 1 bar where none is said). */
+export type RemakeHome = { readonly temperature: number; readonly pressure: number };
 
 /** A body's ground as a remaking reads it. */
 export type RemakeGround = {
@@ -32,14 +36,17 @@ export function cannotRemake(g: RemakeGround): string | null {
   return null;
 }
 
-/** What a remaking is seen to have done at a share: its air's pressure (bar), its warmth (°C). */
+/** What a remaking is seen to have done at a share: its air's pressure (bar), its warmth (°C), toward its settlers' home's. */
 export function remadeGround(
   g: Pick<RemakeGround, "pressure" | "temperature">,
   share: number,
+  home: RemakeHome = EARTH_HOME,
 ): { readonly pressure: number; readonly temperature: number } {
+  // (A home with no air to speak of is read as ours, as habitat.ts reads it.)
+  const air = home.pressure > 0 ? home.pressure : EARTH_HOME.pressure;
   return {
-    pressure: g.pressure + (1 - g.pressure) * share,
-    temperature: g.temperature + (15 - g.temperature) * share,
+    pressure: g.pressure + (air - g.pressure) * share,
+    temperature: g.temperature + (home.temperature - g.temperature) * share,
   };
 }
 
@@ -54,6 +61,8 @@ export function remadeWorld(
     readonly pressure: number;
     readonly temperature: number;
     readonly icy: boolean;
+    /** Its settlers' home (absent: Earth's warmth and air). */
+    readonly home?: RemakeHome;
   },
   share: number,
 ): {
@@ -65,7 +74,7 @@ export function remadeWorld(
 } {
   const bare = w.air === "none" || w.air === "trace";
   return {
-    ...remadeGround(w, share),
+    ...remadeGround(w, share, w.home),
     air: share >= 1 ? "breathable" : share >= 0.4 && bare ? "thin" : w.air,
     water: share >= 0.7 && w.water === "ice" ? "liquid" : w.water,
     icy: share < 0.7 && w.icy,

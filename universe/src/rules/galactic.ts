@@ -87,3 +87,46 @@ export const burstDistance = (u: number, reach: number): number =>
 export function fieldsUnderBurst(harm: number): number {
   return dmath.clamp(1 - GALACTIC.fieldsPerHarm * Math.max(0, harm - 1), 0.3, 1);
 }
+
+// —— Rogue worlds ————————————————————————————————————————————————————————————————————————————————————
+// Worlds cast out of their own systems wander between the stars, about as many as the stars (est: microlensing counts some
+// one to two of a giant's or a few Earths' mass for each star). One passes as often as π b² n v. Through the far cloud
+// within some ten thousand AU, it shakes a weaker shower of comets down than a star would; within a hundred AU it stirs
+// the belt and the ice beyond into the inner worlds' paths; within a few AU of the home world's own orbit, it stirs that.
+
+export const ROGUE = {
+  /** Rogue worlds for each star (est). */
+  perStar: 1,
+  /** Their speed past home (km/s). */
+  passKms: 25,
+  /** Within so many AU: the far cloud shaken; the belt stirred; the home world's orbit stirred. */
+  cloudAu: 10_000,
+  beltAu: 100,
+  orbitAu: 3,
+  /** How many more comets a rogue's shower sends than of old (a giant's mass against a star's: est). */
+  showerTimes: 3,
+  /** How many more stones the stirred belt sends, and for how many years (est). */
+  beltTimes: 10,
+  beltYears: 100_000,
+  /** An AU in light-years. */
+  auLy: 1 / 63_241,
+} as const;
+
+/** Rogue worlds passing within so many AU of home a year, where the stars are so thick (a cubic light-year). */
+export function roguePassRate(starsPerLy3: number, withinAu: number): number {
+  const k = ROGUE,
+    b = withinAu * k.auLy;
+  return Math.PI * b * b * Math.max(0, starsPerLy3) * k.perStar * (k.passKms / 299_792);
+}
+
+/** What a rogue's pass at so many AU does: its stones raised so many times, for so many years (0 years: nothing). */
+export function roguePass(au: number): {
+  readonly times: number;
+  readonly years: number;
+  readonly orbit: boolean;
+} {
+  const k = ROGUE;
+  if (au <= k.beltAu) return { times: k.beltTimes, years: k.beltYears, orbit: au <= k.orbitAu };
+  if (au <= k.cloudAu) return { times: 1 + 0.1 * (k.showerTimes - 1), years: 2e6, orbit: false };
+  return { times: 1, years: 0, orbit: false };
+}

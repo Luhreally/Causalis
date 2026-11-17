@@ -149,3 +149,104 @@ export function goingUpOf(people: number, would: number, gone: number): number {
   const left = Math.max(0, would - gone);
   return Math.floor(Math.max(0, people) * BEYOND.goingUp * left);
 }
+
+// —— Spun habitats ———————————————————————————————————————————————————————————————————————————————————
+// A people with works in the sky, halls it knows how to build and fibres strong enough to spin them, hollows its belt's rock
+// into wheels turning for their weight: as many live in them as their rock shields and their light keeps (est: some 500 t
+// of rock a person against the rays, some 10 kW a person for light, air and food). Their numbers grow of themselves, and
+// by those who go up from the realm's lands while there is room. They are no land of the world: their holding is a
+// number on the works' row.
+
+export const HABITAT = {
+  /** Tonnes of the works' rock a person living in it takes, and kW a person (est). */
+  tonnes: 500,
+  kw: 10,
+  /** The share of a works' weight hollowed for living in (est). */
+  share: 0.5,
+  /** What a works' own engines give, kW a tonne of it, where no mirrors light it (est). */
+  ownKwPerT: 0.01,
+  /** Their growth of themselves a year, and the share of the realm's people who go up a year while there is room (est). */
+  growth: 0.008,
+  moving: 0.001,
+} as const;
+
+/** How many can live in a works' habitats: by its rock and by its light (kW), the less of the two. */
+export function skyRoom(tonnes: number, kw: number): number {
+  const h = HABITAT;
+  return Math.floor(Math.min((Math.max(0, tonnes) * h.share) / h.tonnes, Math.max(0, kw) / h.kw));
+}
+
+/** A year of the habitats: their own growth, and those who come up from the realm while there is room (no more than room). */
+export function skyYear(
+  sky: number,
+  room: number,
+  realmPeople: number,
+): { readonly sky: number; readonly came: number } {
+  const h = HABITAT,
+    grown = Math.min(room, Math.floor(sky * (1 + h.growth))),
+    came = Math.max(0, Math.min(room - grown, Math.floor(Math.max(0, realmPeople) * h.moving)));
+  return { sky: grown + came, came };
+}
+
+// —— Uplift ————————————————————————————————————————————————————————————————————————————————————————————
+// A people that writes bodies and writes words may raise a beast of its world to thought: it writes the beast's young a
+// larger, longer-growing brain and teaches them. Which beast is the one whose body already leans that way (est from what
+// selects for minds on Earth: warm blood, a body big enough to carry a brain, a life lived in herds, hands, the hunt). The
+// raised people's ways are what that body makes of them: a herd's kinship and order, a hunter's valour, a tame beast's
+// tradition. A few thousand at first, once in some centuries a realm at most.
+
+export const UPLIFT = {
+  /** Those raised at first (est: a people's least lasting number, as COLONISTS). */
+  founders: 2000,
+  /** Years between one realm's raisings at the least, and a year's chance a realm able to does (est). */
+  gapYears: 300,
+  chance: 0.01,
+  /** The lightest and heaviest beasts a mind can be written into (kg, est). */
+  leastKg: 3,
+  mostKg: 3000,
+} as const;
+
+/** A beast's body as the uplift reads it. */
+export type UpliftBeast = {
+  readonly size: number;
+  readonly herd: number;
+  readonly docility: number;
+  readonly level: number;
+  readonly warm: boolean;
+  readonly arms: number;
+};
+
+/** How far a beast's body leans toward a mind (0: none can be raised). */
+export function upliftScore(b: UpliftBeast): number {
+  const k = UPLIFT;
+  if (b.size < k.leastKg || b.size > k.mostKg || b.level < 2) return 0;
+  const big = dmath.clamp(dmath.log10(b.size) / 3, 0.1, 1);
+  return (
+    (b.warm ? 1 : 0.4) *
+    big *
+    (0.5 + dmath.clamp(b.herd, 0, 1)) *
+    (b.arms > 0 ? 1.5 : 1) *
+    (b.level >= 3 ? 1.2 : 1)
+  );
+}
+
+/**
+ * The raised people's ways, in rules/ways.ts WAY_TRAITS order (kinship, hierarchy, piety, valour, trade, openness,
+ * tradition, thrift), from the beast's body: a herd's kinship and order, a hunter's valour, a tame beast's tradition.
+ */
+export function upliftWays(b: UpliftBeast): number[] {
+  const herd = dmath.clamp(b.herd, 0, 1),
+    tame = dmath.clamp(b.docility, 0, 1),
+    hunter = b.level >= 3 ? 1 : 0,
+    big = dmath.clamp(dmath.log10(Math.max(1, b.size)) / 3, 0, 1);
+  return [
+    0.3 + 0.5 * herd,
+    0.25 + 0.35 * herd * big + 0.1 * hunter,
+    0.5,
+    0.35 + 0.35 * hunter,
+    0.4 - 0.1 * hunter,
+    0.7 - 0.4 * tame,
+    0.3 + 0.4 * tame,
+    0.4 + 0.2 * (1 - hunter),
+  ].map((x) => dmath.clamp(x, 0, 1));
+}
