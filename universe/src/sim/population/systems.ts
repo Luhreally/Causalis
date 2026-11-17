@@ -1940,8 +1940,8 @@ function readSites(
     side = SITE_SIDE,
     tiles = new Uint16Array(side * side).fill(0xffff),
     scores = new Float32Array(side * side).fill(-1);
-  for (const c of r.parent) {
-    if (cells.has(c)) continue;
+  // (Every tile's nearest cell, and every neighbour of each: a nearest cell first met as another's neighbour has its own too.)
+  for (const c of new Set(r.parent)) {
     cells.add(c);
     for (let k = grid.offsets[c]!; k < grid.offsets[c + 1]!; k++) cells.add(grid.neighbours[k]!);
   }
