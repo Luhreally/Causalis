@@ -114,9 +114,13 @@ registerEventWords(UNDERWORLD_EVENTS.ended.type, (_, e) => {
       ? "was broken by the realm's crackdown"
       : how === "absorbed"
         ? `was taken into ${groupWords(x?.into, x?.kind)}`
-        : how === "split"
-          ? "split among its lieutenants"
-          : "withered, its rent no longer keeping it";
+        : how === "taken over"
+          ? `lost its war with ${groupWords(x?.into, x?.kind)} and was taken over by it, its lands and the men it had left the victor's${x?.fallen ? `, after some ${x.fallen} dead` : ""}`
+          : how === "put down"
+            ? "was put down by the realm's soldiers: its boss taken, its armed men fewer than the seat's police could meet"
+            : how === "split"
+              ? "split among its lieutenants"
+              : "withered, its rent no longer keeping it";
   return `${cap(group(e.data))} of ${realm(e.data)} ${said}, ${year(e.t)}`;
 });
 registerEventWords(

@@ -53,6 +53,9 @@ export const GROUP_ENDS = [
   "exposed",
   "fallen with its realm",
   "disarmed",
+  // (Its war lost, its lands and the men it had left gone to the victor; broken by soldiers that had taken its boss.)
+  "taken over",
+  "put down",
 ] as const;
 export type GroupEnd = (typeof GROUP_ENDS)[number];
 
@@ -134,6 +137,12 @@ export const UNDER = {
   cutShort: 0.6,
   warAt: 0.3,
   warEnds: 0.12,
+  /**
+   * A war is lost by the side whose men, or whose weight on its road, have fallen under this part of the other's: it is taken over, its lands and the men it
+   * has left the victor's (est, no source: a clear margin; the Sicilian second war's losers were a few hundred against the
+   * Corleonesi's alliance of thousands when their families were dissolved or given new heads).
+   */
+  beaten: 0.5,
   /**
    * Of what a road's war would kill at the same strain, the share its feuds kill while it is not at war: quarrels over a rent are
    * settled or bought off until one side breaks the peace (est: Mexico's killings tied to its cartels, some one to two thousand a

@@ -193,6 +193,9 @@ export const UNDERWORLD_EVENTS = {
   withdrew: defineEventType("underworld.withdrew", 3),
 };
 
+/** The importance of a named group's end that the chronicle carries: one taken over in a war it lost, one put down by its seat. */
+const TOLD = 4;
+
 const DRAW = defineStream("order.underworld");
 const KIND = (k: GroupKind): number => GROUP_KINDS.indexOf(k);
 export const kindOfGroup = (g: { readonly kind: number }): GroupKind =>
@@ -406,6 +409,8 @@ function ended(
   into?: CrimeGroup,
   type: string = UNDERWORLD_EVENTS.ended.type,
   more: Record<string, unknown> = {},
+  importance?: number,
+  why: { ref: Ref; role: "trigger"; weight: number }[] = [],
 ): Ref {
   const { v, year } = f,
     event = tell(
@@ -421,8 +426,9 @@ function ended(
         ...(into ? { into: into.name } : {}),
         ...more,
       },
-      [{ ref: g.event, role: "enabler", weight: 1 }],
+      [{ ref: g.event, role: "enabler", weight: 1 }, ...why],
       factors,
+      importance,
     );
   v.groups = v.groups.filter((x) => x !== g);
   for (const w of v.wars) if (w.ended === null && (w.a === g.id || w.b === g.id)) w.ended = year;
@@ -1363,6 +1369,39 @@ function stepRealm(
         own
           .filter((g) => g.id === still.a || g.id === still.b)
           .reduce((s, g) => s + g.violence, 0) * span;
+    // (A war lost: of the two that went to war, the one whose men have fallen under UNDER.beaten of the other's is taken over:
+    // its lands, its wealth and the men it has left are the victor's, and the war is over. Before, no war had a loser: one
+    // tired into a peace with both standing, and a group ended only once its share of its road was under a twentieth,
+    // whatever war it had fought; none of 412 ends in a century of first light told who had beaten whom.)
+    const a = open && own.find((g) => g.id === open.a),
+      b = open && own.find((g) => g.id === open.b);
+    if (open && open.ended === null && a && b && a.since < year && b.since < year) {
+      // (Or whose weight on the road, swung by the fortunes of the fight, has: the lesser by weight is the one that lost.)
+      const [won, lost] =
+        a.share > b.share || (a.share === b.share && a.members >= b.members) ? [a, b] : [b, a];
+      if (lost.share < UNDER.beaten * won.share || lost.members < UNDER.beaten * won.members) {
+        const men = lost.members;
+        won.share = Math.min(1000, won.share + lost.share);
+        won.members += lost.members;
+        won.wealth += lost.wealth;
+        for (const c of lost.lands)
+          if (!won.lands.includes(c) && won.lands.length < UNDER.lands) won.lands.push(c);
+        ended(
+          f,
+          lost,
+          "taken over",
+          [
+            factor("its men against the victor's", men / Math.max(1, won.members - men), 1),
+            factor("the years of their war", year - open.since, 1),
+          ],
+          won,
+          UNDERWORLD_EVENTS.ended.type,
+          { fallen: Math.round(open.fallen), warSince: open.since },
+          TOLD,
+          [{ ref: open.event, role: "trigger", weight: 1 }],
+        );
+      }
+    }
   }
   v.badge = badge ? Math.round(badge.members * (badge.squad ? 0.25 * crackdown : 0.01)) : 0;
   if (badge) badge.violence = v.badge;
@@ -1801,6 +1840,8 @@ function stepOps(f: Facts, r: Read, span: number, killedNow: number, collusion: 
         undefined,
         UNDERWORLD_EVENTS.disarmed.type,
         { oids: [o.id] },
+        // (A group that ruled its trade laying down its arms is told as the chronicle tells; a lesser one's with the ordinary years.)
+        g.share >= UNDER.great ? TOLD : undefined,
       );
       endOp(f, o, "terms", {}, ev);
       continue;
@@ -1864,7 +1905,28 @@ function stepOps(f: Facts, r: Read, span: number, killedNow: number, collusion: 
         [{ ref: o.event, role: "trigger", weight: 1 }],
       );
     }
-    if (broken) endOp(f, o, "withdrew", { why: "a group broken to what its police can meet" });
+    // (And one broken whose boss they have taken is put down: no head, and no men its police cannot meet. Its lands are free
+    // of it; the operation ends with it (settleOps). Broken with its boss at large, it stands, and the soldiers go home.)
+    if (broken && o.bosses > 0)
+      ended(
+        f,
+        g,
+        "put down",
+        [
+          factor(
+            "its armed men against the seat's police",
+            armedOf(g) / Math.max(1, policeOf(r)),
+            1,
+          ),
+          factor("its bosses taken by the soldiers", o.bosses, 1),
+        ],
+        undefined,
+        UNDERWORLD_EVENTS.ended.type,
+        { oids: [o.id], taken: Math.round(o.taken) },
+        g.share >= UNDER.great ? TOLD : undefined,
+        [{ ref: o.event, role: "trigger", weight: 1 }],
+      );
+    else if (broken) endOp(f, o, "withdrew", { why: "a group broken to what its police can meet" });
   }
   // (A new weighing, where no operation is under way and no truce holds.)
   // (Not again for a while after one has ended: a seat does not send its soldiers back at once.)

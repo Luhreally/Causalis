@@ -244,6 +244,9 @@ const HOW: Readonly<Record<string, string>> = {
   crushed: "broken by the crackdown",
   withered: "withered with its rent",
   absorbed: "taken into",
+  "taken over": "its war lost, taken over by",
+  "put down": "put down by its realm's soldiers, its boss taken",
+  disarmed: "laid down its arms on its realm's terms",
   split: "split among its lieutenants",
   exposed: "found out, purged and reformed",
 };
