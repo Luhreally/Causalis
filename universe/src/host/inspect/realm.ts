@@ -2,6 +2,7 @@
 // whom, its wars, its regard for others and what it knows — two realms' regard, a war with
 // its battles and its two hosts, a battle, and a war between the stars.
 import { realmLabourBlocks, realmTreasuryBlocks } from "./money.ts";
+import { realmLawBlocks } from "./society.ts";
 import { realmLessonBlocks } from "./lessons.ts";
 import { realmTiesTab, warSideBlocks } from "./ties.ts";
 import { cellRef, offworldSite } from "../../gen/index.ts";
@@ -278,6 +279,11 @@ export function realmPageModel(
   if (wants("labour")) {
     const labour = realmLabourBlocks(world, r);
     if (labour.length) tabs.push({ id: "labour", name: "Labour", blocks: labour });
+  }
+  // Its law (the society sweep): how far written, how safe a holding is from its ruler, how far deals are held to, what it provides.
+  if (wants("laws")) {
+    const laws = realmLawBlocks(world, r);
+    if (laws.length) tabs.push({ id: "laws", name: "Laws", blocks: laws });
   }
   // Whom it fears and why: the four numbers behind each fear one tap down.
   if (wants("fears")) {
