@@ -85,7 +85,7 @@ import {
   type Wonder,
 } from "../bridge/index.ts";
 import { strikesOn, townPlan } from "./town.ts";
-import { townSiteOf } from "./sites.ts";
+import { realmWays, townSiteOf } from "./sites.ts";
 import { realmColor } from "./colors.ts";
 import { hostKinds } from "./arms.ts";
 import { visitorsAt } from "./peoples.ts";
@@ -316,7 +316,8 @@ export function villagePlan(
     // through it along its axis, both ways. The flocks and the works keep off it.)
     // (Where its streets were grown from its roads in, the busiest of them: as the land's map draws it. host/sites.ts)
     fabricOf = townsOf(world).get(ref),
-    mainRoad = fabricOf ? townSiteOf(world, ref, fabricOf)?.roads[0]?.bearing : undefined,
+    siteOf = fabricOf ? townSiteOf(world, ref, fabricOf) : null,
+    mainRoad = siteOf?.roads[0]?.bearing,
     roadWay = mainRoad ?? (city ? city.axis : fieldWay + Math.PI * 0.75),
     apart = (a: number, b: number) =>
       Math.abs(((((a - b) % (2 * Math.PI)) + 3 * Math.PI) % (2 * Math.PI)) - Math.PI),
@@ -918,11 +919,13 @@ export function villagePlan(
       battle = {
         // (Each in its host's kinds: its arms, its guard — Phase 13 M114.)
         attacker: {
+          ref: w.attacker,
           name: realmName(a),
           color: realmColor(w.attacker),
           host: hostKinds(world, w.attacker),
         },
         defender: {
+          ref: w.defender,
           name: realmName(d),
           color: realmColor(w.defender),
           host: hostKinds(world, w.defender),
@@ -1307,6 +1310,10 @@ export function villagePlan(
       // A city's road runs along its axis; a village's out toward the far fields; either's, where its streets were grown
       // from its roads in, along the busiest of them (as its works keep off it).
       road: { x: 1100 * Math.cos(roadWay), z: 1100 * Math.sin(roadWay) },
+      ...(() => {
+        const ways = realmWays(world, ref, siteOf);
+        return ways.length ? { ways } : {};
+      })(),
       districts: city
         ? { blocks: BLOCKS, blockM: BLOCK_M, uses: city.uses, paved: !!city.paved }
         : null,

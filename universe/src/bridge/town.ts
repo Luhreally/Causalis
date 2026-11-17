@@ -832,6 +832,8 @@ export type LandTown = {
   readonly fields: boolean;
   readonly plan: TownPlan | null;
   readonly key: number;
+  /** The way each realm beyond its land comes in to it, by its road in from that side (VillagePlan.ways). Absent: none. */
+  readonly ways?: readonly { readonly realm: string; readonly bearing: number }[];
 };
 
 /**

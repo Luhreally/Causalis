@@ -10,6 +10,7 @@ import {
   floodWary,
   loreOf,
   marketsOf,
+  politiesOf,
   populationContext,
   regionOf,
   townsOf,
@@ -240,4 +241,47 @@ export function townSiteOf(
     walled: f.walls?.reach ?? null,
     dry: f.next < DRY_MOST && floodWary(world, s.cell, year),
   };
+}
+
+/**
+ * The way each realm beyond a town's land comes in to it (VillagePlan.ways): by each road out of its land toward a land that
+ * realm holds, at the town's own road in nearest that way (its gate there), else straight that way; the busiest road first.
+ * Its own realm's lands are none of these.
+ */
+export function realmWays(
+  world: World,
+  ref: Ref,
+  site: TownSite | null,
+): { realm: string; bearing: number }[] {
+  const ctx = populationContext(world),
+    s = ctx.settlements.get(ref);
+  if (!s) return [];
+  const size = regionOf(ctx, s.cell).size,
+    realms = politiesOf(world),
+    own = realms.of(s.cell)?.ref ?? null,
+    i0 = s.tile % size,
+    j0 = Math.floor(s.tile / size),
+    out: { realm: string; bearing: number }[] = [];
+  const ends = landRoadEnds(world, s.cell)
+    .filter((e) => e.toward)
+    .sort((a, b) => b.traffic - a.traffic || a.toward!.land - b.toward!.land);
+  for (const e of ends) {
+    const realm = realms.of(e.toward!.land)?.ref ?? null;
+    if (!realm || realm === own || out.some((w) => w.realm === realm)) continue;
+    const di = (e.to % size) - i0,
+      dj = Math.floor(e.to / size) - j0;
+    if (!di && !dj) continue;
+    const toward = Math.atan2(dj, di);
+    let bearing = toward,
+      off = Infinity;
+    for (const r of site?.roads ?? []) {
+      const d = Math.abs(Math.atan2(Math.sin(r.bearing - toward), Math.cos(r.bearing - toward)));
+      if (d < off) {
+        off = d;
+        bearing = r.bearing;
+      }
+    }
+    out.push({ realm, bearing });
+  }
+  return out;
 }

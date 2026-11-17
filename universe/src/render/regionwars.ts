@@ -442,18 +442,18 @@ export class RegionWars {
     for (const c of camps) {
       const r = c.r,
         many = Math.max(10, Math.round(r * 3));
+      // (On the open approaches only: none pitched on the water about it, as the town's own siege keeps off it.)
       for (let i = 0; i < many; i++) {
-        const a = (i * Math.PI * 2) / many;
-        tents.push({
-          at: { x: c.at.x + Math.cos(a) * r, z: c.at.z + Math.sin(a) * r },
-          side: c.side,
-          yaw: a,
-        });
+        const a = (i * Math.PI * 2) / many,
+          at = { x: c.at.x + Math.cos(a) * r, z: c.at.z + Math.sin(a) * r };
+        if (!this.sea(at.x, at.z)) tents.push({ at, side: c.side, yaw: a });
       }
       const ring = Math.max(28, Math.round(r * 8));
       for (let i = 0; i < ring; i++) {
-        const a = (i * Math.PI * 2) / ring;
-        stakes.push({ x: c.at.x + Math.cos(a) * (r + 1.2), z: c.at.z + Math.sin(a) * (r + 1.2) });
+        const a = (i * Math.PI * 2) / ring,
+          x = c.at.x + Math.cos(a) * (r + 1.2),
+          z = c.at.z + Math.sin(a) * (r + 1.2);
+        if (!this.sea(x, z)) stakes.push({ x, z });
       }
       for (let i = 0; i < 3; i++) {
         const a = (i * Math.PI * 2) / 3 + 0.5;

@@ -42,7 +42,7 @@ import { landEra, townSite } from "./village.ts";
 import { colonyLook } from "./colony.ts";
 import { landPast } from "./past.ts";
 import { getAbout, readRoad } from "./roads.ts";
-import { RAIL_TOWN, busy, goodsBetween, landRoadEnds, type RoadEnd } from "./sites.ts";
+import { RAIL_TOWN, busy, goodsBetween, landRoadEnds, realmWays, type RoadEnd } from "./sites.ts";
 
 /** Lots a land draws of each of its towns at the least (a village's every lot). */
 const LEAST_LOTS = 240;
@@ -124,6 +124,10 @@ export function landPlan(world: World, cell: number, budget = 8000): LandPlan {
       fields,
       plan,
       key: planKey(plan),
+      ...(() => {
+        const ways = plan ? realmWays(world, s.ref, plan.site ?? null) : [];
+        return ways.length ? { ways } : {};
+      })(),
     };
   });
   // (A land of another body: its one town, on bare ground; its sky and ground its own: Phase 64.)

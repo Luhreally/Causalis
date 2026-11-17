@@ -14,7 +14,15 @@
 // land taken or lay siege to the seat; they camp about the seat all year and storm it at its end.
 // At peace, both go home. Pure: where each host is, and at what, at a moment of the world's.
 import { HEART_REACH, heartTown, type BattleOutcome, type WarsMap } from "../bridge/index.ts";
-import { roadLine, roadTiles, tileOf, wayOf, type LandGround, type Way } from "./land.ts";
+import {
+  roadIntoTown,
+  roadLine,
+  roadTiles,
+  tileOf,
+  wayOf,
+  type LandGround,
+  type Way,
+} from "./land.ts";
 import { BATTLE_DAY } from "./battleday.ts";
 import { holdShape, landShape, type LandSpots } from "./war.ts";
 
@@ -450,6 +458,21 @@ export class LandWays {
     }
     return w;
   }
+  /**
+   * The way to a town by its road in at `bearing` (its gate there, as the town's own streets meet it: asked 2026-11-16), the
+   * last of the way laid along that road to its middle.
+   */
+  wayIn(from: Flat, to: Flat, town: { x: number; z: number; r: number }, bearing: number): Way {
+    const key = `${tileOf(this.g, from.x, from.z)}>${tileOf(this.g, to.x, to.z)}|${bearing}`;
+    let w = this.kept.get(key);
+    if (!w) {
+      const line = this.way(from, to).line;
+      w = wayOf([...roadIntoTown(line, town, bearing, true), { x: to.x, z: to.z }]);
+      if (this.kept.size >= 96) this.kept.clear();
+      this.kept.set(key, w);
+    }
+    return w;
+  }
 }
 
 /** A point `d` along a way (past its ends, on along their bearings), and which way it goes there. */
@@ -571,6 +594,8 @@ export type LandPlay = {
     readonly z: number;
     readonly r: number;
     readonly name?: string;
+    /** The way each realm beyond its land comes in to it, by its road in (LandTown.ways). */
+    readonly ways?: readonly { readonly realm: string; readonly bearing: number }[];
   } | null;
   readonly sea: (x: number, z: number) => boolean;
   readonly colorOf: (c: readonly [number, number, number]) => number;
@@ -633,7 +658,12 @@ export function landInPlace(map: WarsMap, y: number, play: LandPlay, s: number):
         start = start0 ?? (end0 ? spots.edgeToward(muster, end0) : null),
         end = end0 ?? (start ? spots.edgeToward(front, start) : null);
       if (!start || !end) return null;
-      const way = ways.way(start, end),
+      // (Into the land's heart by its road in from the attackers' side, to its gate there.)
+      const gate =
+          end0 && town && front === spots.middle
+            ? town.ways?.find((x) => x.realm === w.attacker.ref)?.bearing
+            : undefined,
+        way = gate !== undefined ? ways.wayIn(start, end, town!, gate) : ways.way(start, end),
         fieldD = end0 ? Math.max(way.length * 0.4, way.length - (reachOf(front) + FIELD_GAP)) : 0,
         f = onWay(way, fieldD);
       return { way, startIn: !!start0, endIn: !!end0, fieldD, field: f, end: end0 };

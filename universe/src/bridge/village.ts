@@ -153,6 +153,8 @@ export type FieldYear = {
 
 /** A side of a village's battle: its realm's name and colour, and its host's kinds (what it bears). */
 export type BattleSide = {
+  /** Its realm (absent in older plans). */
+  readonly ref?: string;
   readonly name: string;
   readonly color: readonly [number, number, number];
   readonly host?: HostKinds | null;
@@ -423,6 +425,12 @@ export type VillagePlan = {
   };
   /** Where the road out leads, at the edge of what is shown. */
   readonly road: { x: number; z: number };
+  /**
+   * The way each realm beyond its land comes in to it (asked 2026-11-16: "are you gonna fix wars between nations too"):
+   * by the road out of its land toward that realm's land, at the town's own road in nearest that way (its gate there),
+   * the busiest first. A host of that realm comes to it, and its own march out to that realm, by that way. Absent: none.
+   */
+  readonly ways?: readonly { readonly realm: string; readonly bearing: number }[];
   /**
    * A city's quarters, if it is one: blocks of `blockM` metres, `blocks` to a side,
    * each put to a use (0 open, 1 houses, 2 crowded houses, 3 market, 4 workshops,

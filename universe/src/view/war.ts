@@ -7,7 +7,7 @@
 // says who fought where and how it went; the march and the fight play over as a war lasts.
 import type { HostKinds, VillagePlan, WarsMap } from "../bridge/index.ts";
 import type { SphereGrid } from "../kernel/index.ts";
-import { keepOut, villageGround } from "./ground.ts";
+import { approachWay, keepOut, villageGround } from "./ground.ts";
 import { globeRadius } from "./globe.ts";
 
 type Vec = { x: number; y: number; z: number };
@@ -610,7 +610,7 @@ export function battleOf(plan: VillagePlan, each: number, s: number): Soldier[] 
   const b = plan.life?.battle;
   if (!b || each < 1) return [];
   const ground = villageGround(plan),
-    way = Math.atan2(plan.road.z, plan.road.x),
+    way = approachWay(plan, [b.attacker.ref, b.defender.ref]),
     ux = Math.cos(way),
     uz = Math.sin(way),
     // The line where they meet: past the homes, toward the road.
@@ -759,8 +759,9 @@ function hashText(text: string): number {
  * view to face it — a battle zoomed into from its land is seen closer (M95). Null: none.
  */
 export function battleFront(plan: VillagePlan): { x: number; z: number } | null {
-  if (!plan.life?.battle) return null;
-  const way = Math.atan2(plan.road.z, plan.road.x),
+  const b = plan.life?.battle;
+  if (!b) return null;
+  const way = approachWay(plan, [b.attacker.ref, b.defender.ref]),
     front = villageGround(plan).homesReach + 40;
   return { x: Math.cos(way) * front, z: Math.sin(way) * front };
 }

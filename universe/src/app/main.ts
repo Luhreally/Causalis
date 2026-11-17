@@ -3332,7 +3332,17 @@ async function runPlanetPage(): Promise<void> {
           .filter((t) => t.population > 0)
           .flatMap((t) => {
             const at = region.land.townAt(t.ref);
-            return at ? [{ ...at, name: t.name, population: t.population, ref: t.ref }] : [];
+            return at
+              ? [
+                  {
+                    ...at,
+                    name: t.name,
+                    population: t.population,
+                    ref: t.ref,
+                    ...(t.ways ? { ways: t.ways } : {}),
+                  },
+                ]
+              : [];
           }),
       ),
       spots = landSpots(parent, meta.size, meta.tileKm, grid);
@@ -6541,7 +6551,7 @@ async function runPlanetPage(): Promise<void> {
       names = rollNames(field, drawn, roll),
       // (Each named man struck where history struck him: his fate, and so his name, the same.)
       blows = members ? newBlows(field, toldBlows(names, members)) : drawn,
-      frame = fieldFrame(town, field);
+      frame = fieldFrame(town, field, [info.attacker.ref, info.defender.ref]);
     village.placeBattle({
       field,
       frame,
@@ -6584,7 +6594,7 @@ async function runPlanetPage(): Promise<void> {
       const detail = stage.quality.detail,
         most = placedMost(detail),
         field = newBattle(near, most, true),
-        frame = fieldFrame(plan, field);
+        frame = fieldFrame(plan, field, [near.attacker.ref, near.defender.ref]);
       village.placeBattle({
         field,
         frame,

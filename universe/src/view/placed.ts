@@ -9,7 +9,7 @@ import { woundStage, type BattleRoll, type RollEntry, type VillagePlan } from ".
 import { FIELD, PLACED_SCALE, placeAt, type BattleField, type BattleNow } from "./battle.ts";
 import { battleSpan } from "./battleday.ts";
 import type { Blows } from "./blows.ts";
-import { villageGround } from "./ground.ts";
+import { approachWay, villageGround } from "./ground.ts";
 
 /** Each fate's lot of a side's roll: its fallen, its maimed, its wounded, the rest. */
 const LOTS: Readonly<Record<FigureFate, 0 | 1 | 2 | 3>> = {
@@ -48,9 +48,14 @@ export type PlacedFrame = {
  * rear rank (as they are drawn up) so far short of the town's edge. (At a seat, its walls on the
  * field's line stand as outworks before the town's own.)
  */
-export function fieldFrame(plan: VillagePlan, field: BattleField): PlacedFrame {
+export function fieldFrame(
+  plan: VillagePlan,
+  field: BattleField,
+  foes: readonly (string | null | undefined)[] = [],
+): PlacedFrame {
+  // (On the attackers' road in, before its gate there: `foes`, the attackers' realm and the defenders'.)
   const ground = villageGround(plan),
-    way = Math.atan2(plan.road.z, plan.road.x),
+    way = approachWay(plan, foes),
     ox = Math.cos(way),
     oz = Math.sin(way);
   let rear = field.meet + 1;
