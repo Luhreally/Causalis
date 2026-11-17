@@ -1523,6 +1523,7 @@ export { BOUGHT_WARES, boughtOf, foodWanted } from "./trade/demand.ts";
 export { ACADEMY_EVERY, academyOf, academyYear, learnedOf, patronsOf } from "./lore/academy.ts";
 export { ACADEMY_STORE } from "./culture/rows.ts";
 export { claimYearsFor, kinFactsOf } from "./war/ties.ts";
+export {
   BEDS,
   CROP_EVENTS,
   CROP_STEP,
