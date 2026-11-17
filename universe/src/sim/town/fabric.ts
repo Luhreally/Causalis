@@ -249,6 +249,8 @@ export class TownStore implements StateStore {
   readonly whole = new Set<Fabric>();
   /** (Towns with lots in ash, for the year's walk over them: what their runs tell, read again on loading.) */
   readonly ashen = new Set<Fabric>();
+  /** (Of towns wary of floods, their open runs that hold only flood ground: a cache, never saved. homeOpen) */
+  readonly flooded = new Map<Ref, Flooded>();
   /** Every change folded in as it is made, for the checkpoints: two lanes of the kernel's absorber. */
   private a = 0x2545f491 | 0;
   private b = 0x6a09e667 | 0;
@@ -325,6 +327,7 @@ export class TownStore implements StateStore {
     this.ruins.clear();
     this.whole.clear();
     this.ashen.clear();
+    this.flooded.clear();
     [this.a, this.b] = s.digest;
     for (const saved of s.fabrics ?? fromColumns(s.towns!)) {
       const f = unpack(saved);
@@ -897,27 +900,27 @@ function dryStretch(seed: number, p: number): number {
   return b * 8;
 }
 /**
- * (Of each town wary of floods, how many of its first open runs hold only flood ground, as last found: its open runs and the
+ * (Of a town wary of floods, how many of its first open runs hold only flood ground, as last found: its open runs and the
  * last of those, by which it is known to hold. Every change to its open runs but a building's lots taken makes them anew;
  * one taken out or parted moves the last off its place. A cache, never history.)
  */
-const FLOODED = new WeakMap<
-  Fabric,
-  { open: [number, number][]; last: [number, number]; n: number }
->();
+export interface Flooded {
+  open: [number, number][];
+  last: [number, number];
+  n: number;
+}
 /** Of a town wary of floods, its first open run with a lot a home may take (-1: none). */
-function homeOpen(f: Fabric, seed: number, from = 0): number {
-  const kept = FLOODED.get(f);
-  if (kept && kept.open === f.open && f.open[kept.n - 1] === kept.last)
-    from = Math.max(from, kept.n);
+function homeOpen(f: Fabric, seed: number, from: number, kept: Map<Ref, Flooded>): number {
+  const was = kept.get(f.town);
+  if (was && was.open === f.open && f.open[was.n - 1] === was.last) from = Math.max(from, was.n);
   for (let i = from; i < f.open.length; i++) {
     const [a, b] = f.open[i]!;
     if (dryStart(seed, a) < b) {
-      if (i > 0) FLOODED.set(f, { open: f.open, last: f.open[i - 1]!, n: i });
+      if (i > 0) kept.set(f.town, { open: f.open, last: f.open[i - 1]!, n: i });
       return i;
     }
   }
-  if (f.open.length) FLOODED.set(f, { open: f.open, last: f.open.at(-1)!, n: f.open.length });
+  if (f.open.length) kept.set(f.town, { open: f.open, last: f.open.at(-1)!, n: f.open.length });
   return -1;
 }
 /** Past so many lots a great town embanks its water and builds over the ground toward it again. */
@@ -1455,7 +1458,7 @@ export class TownBuilder {
     // (Of a town wary of floods, the open runs before this one hold only flood ground: taking lots makes none of them any other.)
     let past = 0;
     while (room > 0 && hands > 0) {
-      const usable = dry ? homeOpen(f, seed, past) : f.open.length ? 0 : -1;
+      const usable = dry ? homeOpen(f, seed, past, this.store.flooded) : f.open.length ? 0 : -1;
       if (usable >= 0) past = usable;
       // (A town wary of floods leaves the ground toward its water open at its edge: for its mills and docks. Past every
       // open run, it is the last of them.)
