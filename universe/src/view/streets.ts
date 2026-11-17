@@ -287,6 +287,32 @@ export class Streets {
     return true;
   }
 
+  /**
+   * The town's busiest crossings, as its streets are laid now: of the ways within its edge (not its ways out), those that see the
+   * most others — where streets meet in the open — the most first, nearer the square where they tie, `apart` metres apart at the
+   * least, `most` of them. (Read off the same ways its walkers go by, so a town laid out anew has its own.)
+   */
+  crossings(reach: number, most: number, apart: number): Point[] {
+    const w = this.waysFor(reach),
+      n = w.x.length,
+      outs = new Set(w.outs),
+      can: { i: number; joins: number; d: number }[] = [];
+    for (let i = 0; i < n; i++) {
+      const d = Math.hypot(w.x[i]!, w.z[i]!);
+      if (outs.has(i) || d > this.reach) continue;
+      can.push({ i, joins: w.first[i + 1]! - w.first[i]!, d });
+    }
+    can.sort((a, b) => b.joins - a.joins || a.d - b.d || a.i - b.i);
+    const out: Point[] = [];
+    for (const c of can) {
+      if (out.length >= most) break;
+      const p = { x: w.x[c.i]!, z: w.z[c.i]! };
+      if (out.some((q) => Math.hypot(q.x - p.x, q.z - p.z) < apart)) continue;
+      out.push(p);
+    }
+    return out;
+  }
+
   /** A way from a to b by the streets, as the points to pass (`reach` kept off every wall). */
   route(a: Point, b: Point, reach: number): Point[] {
     if (this.clear(a, b, reach)) return [a, b];

@@ -179,7 +179,8 @@ export type UnderworldMark = {
  * it); the realm's soldiers sent against them under its greatest town, a press from their operation; brigands over its busiest
  * road, pirates off its coast, each a press from its page. `towns`: each town and where it stands
  * on the screen (null: out of sight); `road`, `sea`: where those stand (null: none, or out of sight). Keys begin "uw:" and end
- * after their last "|" with the page.
+ * after their last "|" with the page — or, where the land's latest fight of that kind is told (its killing, the soldiers'), with
+ * `watch:` and its event, played in the streets of its town (2026-11-16).
  */
 export function underworldMarks(
   u: LandUnderworld,
@@ -194,15 +195,18 @@ export function underworldMarks(
   const out: UnderworldMark[] = [],
     killing = u.killing >= 1,
     words = [
-      ...(killing ? [`🔴 ${+u.killing.toFixed(1)} killed in 100k`] : []),
+      ...(killing ? [`🔴 ${+u.killing.toFixed(1)} killed in 100k${u.watchKill ? " ▶" : ""}`] : []),
       ...(u.badge > 0 ? ["🔵 the realm's own crew"] : []),
     ];
   if (words.length)
     for (const t of [...towns].sort((a, b) => b.population - a.population).slice(0, 3)) {
       if (!t.at) continue;
-      const page = killing
-        ? (u.holder?.ref ?? `${t.ref}#law`)
-        : (u.badgeRef ?? u.holder?.ref ?? `${t.ref}#law`);
+      const page =
+        killing && u.watchKill
+          ? `watch:${u.watchKill}`
+          : killing
+            ? (u.holder?.ref ?? `${t.ref}#law`)
+            : (u.badgeRef ?? u.holder?.ref ?? `${t.ref}#law`);
       out.push({
         key: `uw:${t.ref}|${page}`,
         text: words.join(" · "),
@@ -214,8 +218,8 @@ export function underworldMarks(
   const greatest = [...towns].sort((a, b) => b.population - a.population)[0];
   if (u.soldiers > 0 && u.soldiersRef && greatest?.at)
     out.push({
-      key: `uw:op|${u.soldiersRef}`,
-      text: `🪖 ${u.soldiers} soldiers against them`,
+      key: `uw:op|${u.watchArmy ? `watch:${u.watchArmy}` : u.soldiersRef}`,
+      text: `🪖 ${u.soldiers} soldiers against them${u.watchArmy ? " ▶" : ""}`,
       at: { x: greatest.at.x, y: greatest.at.y + 22 },
       priority: 5.5e11,
     });
@@ -236,8 +240,14 @@ export function underworldMarks(
   return out;
 }
 
-/** The page an underworld mark's key opens. */
+/** The page an underworld mark's key opens (or `watch:` and the event of the fight it plays). */
 export const underworldMarkPage = (key: string): string => key.slice(key.lastIndexOf("|") + 1);
+
+/** The fight an underworld mark's key plays (null: it opens a page). */
+export const underworldMarkWatch = (key: string): string | null => {
+  const to = underworldMarkPage(key);
+  return to.startsWith("watch:") ? to.slice(6) : null;
+};
 
 /** A tree of a region's woods: the tile it stands on, its offset within it, its kind. */
 export type RegionTree = {

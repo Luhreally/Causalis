@@ -27,6 +27,8 @@ export type ToolContext = {
   readonly nationFall?: (ref: string) => void;
   /** A strike from the air played again in its town (W2). */
   readonly raid?: (event: string) => void;
+  /** A fight of the underworld played again in the streets of its town (2026-11-16). */
+  readonly fight?: (event: string) => void;
   /** Go down among a band of a land's camp (Phase 29 M160). */
   readonly near?: (cell: number, camp: number) => void;
   /** Down to a people on its own world; their first meeting (Phase 69). */
@@ -314,6 +316,15 @@ export function drawTool(
           ? "Down to the town they fell on, that afternoon: their streaks, what they hit, its fires, played again"
           : "Down to the town it fell on, that morning: its machines, its loads, its fires, played again";
       b.onclick = () => ctx.raid!(args.event as string);
+      into.append(b);
+      return;
+    }
+    case "watch.fight": {
+      if (!ctx.fight) return;
+      const b = el("button", "act fight-watch", (args.label as string | undefined) ?? "▶ Watch it");
+      b.title =
+        "Down to the streets of the town it was seen in, by night: who was there, how many fell and who held it after, played again with the world's clock held.";
+      b.onclick = () => ctx.fight!(args.event as string);
       into.append(b);
       return;
     }

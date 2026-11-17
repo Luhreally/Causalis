@@ -1,0 +1,67 @@
+/* A fight of the underworld watched in its town (2026-11-16): the game's chrome put away, the town's picture graded colder and
+   harder, and a caption low down where a thumb does not rest — what, where, who has fallen — with its buttons on one row. */
+/* (Graded on the world's own picture, not a window over it: colder and lifted out of the dark for a fight of gangs, browner for soldiers.) */
+body.street-filming #world {
+  filter: saturate(0.78) contrast(1.06) brightness(1.32) hue-rotate(-8deg);
+}
+body.street-filming[data-street="army"] #world {
+  filter: saturate(0.7) contrast(1.05) brightness(1.28) sepia(0.18);
+}
+.street-film[hidden] {
+  display: none !important;
+}
+.street-film {
+  position: absolute;
+  left: calc(env(safe-area-inset-left, 0px) + 12px);
+  right: calc(env(safe-area-inset-right, 0px) + 12px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 22px);
+  z-index: 40;
+  padding: 9px 12px 8px;
+  border: 1px solid rgba(150, 170, 200, 0.4);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(20, 26, 40, 0.88), rgba(8, 10, 18, 0.92));
+  color: #e8edf6;
+  font-size: 14px;
+  line-height: 1.35;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+.street-title {
+  font-weight: 700;
+  color: #f4d9a8;
+}
+.street-where,
+.street-tally {
+  margin-top: 3px;
+}
+.street-tally {
+  color: #c9d2e4;
+  font-size: 13px;
+}
+.street-bar {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.street-bar button {
+  min-width: 44px;
+  min-height: 40px;
+  padding: 4px 12px;
+  border: 1px solid #5a6a8c;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #3a4560 0%, #232b40 100%);
+  color: #eef2fa;
+  font-size: 15px;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+.street-bar .street-page {
+  flex: 1;
+}
+@media (min-width: 700px) {
+  .street-film {
+    left: 50%;
+    right: auto;
+    width: 560px;
+    transform: translateX(-50%);
+  }
+}
