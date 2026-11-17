@@ -117,6 +117,14 @@ export function warAimWords(world: World, w: War): string | null {
 export function termsPhrase(world: World, data: unknown): string | null {
   const t = (data as { terms?: PeaceTerms } | null)?.terms;
   if (!t) return null;
+  const said = termsSaid(world, t);
+  // (And the host a beaten realm stands down, where the peace asked it: the last sweep, war.)
+  return t.disarm && t.disarm >= 0.01
+    ? `${said ?? "peace"}, and the beaten stand down ${Math.round(t.disarm * 100)}% of their host`
+    : said;
+}
+
+function termsSaid(world: World, t: PeaceTerms): string | null {
   const ceded = t.lands
       ? `${t.payer ?? "the loser"} cedes ${t.lands === 1 && t.land !== undefined ? landWords(world, cellRef(0, t.land)) : `${count(t.lands)} lands`}`
       : "",

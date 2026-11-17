@@ -13,9 +13,10 @@
 import { groundOf, supplyOf } from "./ground.ts";
 import { OccupationStore, occupationYear, occupy } from "./occupation.ts";
 import { godFall, godMen, godPower } from "./godhost.ts";
-import { ArmingStore, armingYear, footingFields, footingPower } from "./arming.ts";
+import { ArmingStore, armingYear, footingPower, mobilising } from "./arming.ts";
+import { orderOf } from "../order/order.ts";
 import { NavyStore, landingOf, navyYear } from "./navy.ts";
-import { SiegeStore, siegeAtSeat, siegesYear } from "./siege.ts";
+import { SiegeStore, siegeAt, siegesYear, wallsOf } from "./siege.ts";
 import {
   YEAR,
   defineEventType,
@@ -51,6 +52,7 @@ import {
   type LandFell,
   HOLD,
   HOLDING,
+  levyShare,
 } from "../../rules/index.ts";
 import { designsOf } from "../design/design.ts";
 import { grieve } from "../acts/disasters.ts";
@@ -819,23 +821,33 @@ export function warsOf(world: World): WarStore {
   return world.store<WarStore>("war.wars");
 }
 
-/** The share of its fighting men a realm fields: more by its valour, more with a standing army, more under a general. */
+/**
+ * The share of its fighting men a realm fields (rules/arming.ts levyShare): as many as what its people make beyond their food can
+ * feed under arms, of those as many as will go (valour, its rule held rightful or compelled, arms in its people's hands, what a
+ * war puts at stake by their say), more drilled by a standing army, with its footing on top and less what a peace has it stand
+ * down (sim/war/arming.ts mobilising). And more where it has learned what being outnumbered costs, and against a way it fears.
+ */
 function fieldShare(ctx: PopulationContext, p: Polity): number {
-  const valour = cultureOf(ctx.world).get(p.seat)?.traits[WAY.valour] ?? 0.5,
-    lore = loreOf(ctx.world);
+  const { world } = ctx,
+    lore = loreOf(world),
+    m = mobilising(world, p.ref);
   return (
-    0.04 +
-    0.1 * valour +
-    0.03 * lore.effect(p.seat, "arms") * (lore.get(p.seat, "standing-army") ? 1 : 0) +
-    (p.leadership === GENERAL ? STRIFE.fields : 0) +
-    // (More, where they have learned what being outnumbered costs: exactly 0 where they have not.)
-    lessonAdds(ctx.world, p.ref, "field", yearOfMoment(ctx.world.now)) +
-    // (More where its people bear arms of their own, less where only its host does: rules/holds.ts force.)
-    0.04 * (HOLDING.forceMid - holdOf(ctx.world, p.ref, HOLD.force)) +
-    // (More against a way it fears: exactly 0 where it fears no one. sim/finance.)
-    fearFields(ctx.world, p.ref) +
-    // (More as it turns what it makes to arms: exactly 0 where it turns none. sim/war/arming.ts.)
-    footingFields(ctx.world, p.ref)
+    levyShare({
+      spare: m.spare,
+      valour: cultureOf(world).get(p.seat)?.traits[WAY.valour] ?? 0.5,
+      standing: orderOf(world)?.realms.get(p.ref)?.legitimacy ?? 0.6,
+      voice: holdOf(world, p.ref, HOLD.voice),
+      force: holdOf(world, p.ref, HOLD.force),
+      army: p.leadership === GENERAL,
+      stake: m.stake,
+      drilled: lore.get(p.seat, "standing-army") ? lore.effect(p.seat, "arms") : 0,
+      footing: m.footing,
+      disarm: m.disarm,
+    }) +
+    // (Exactly 0 where they have learned nothing of being outnumbered: the lessons.)
+    lessonAdds(world, p.ref, "field", yearOfMoment(world.now)) +
+    // (Exactly 0 where it fears no one: sim/finance.)
+    fearFields(world, p.ref)
   );
 }
 
@@ -1642,12 +1654,15 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     w.battles.push(fought);
     wars.noteFell(fought);
     wars.noteTerms(w, fought, termsA, termsB, bodySize(ctx));
-    // A seat is not taken in a day: a victory there lays a siege, and it falls only when stormed or starved (sim/war/siege.ts).
-    // Those the siege killed besides the battle (the camp's sick, the town's sick and starved) are the war's cost too.
-    const sieged = seat
-        ? siegeAtSeat(ctx, w, a, b, won, armsA.fire + armsA.breach, fielded[0], t)
+    // A seat, or a land behind walls, is not taken in a day: a victory before it lays a siege, and it falls only when stormed
+    // or starved (sim/war/siege.ts). Those the siege killed besides the battle (the camp's sick, the town's sick and starved)
+    // are the war's cost too. (Only the one land fought for this year is read: a war has one siege at a time.)
+    const known = wallsOf(ctx, land, asksOf(world).guard(land, t)),
+      walled = seat || known > 0,
+      sieged = walled
+        ? siegeAt(ctx, w, a, b, land, known, won, armsA.fire + armsA.breach, fielded[0], t)
         : null,
-      besieged = seat && won && !sieged?.falls;
+      besieged = walled && won && !sieged?.falls;
     if (sieged && (sieged.dead[0] || sieged.dead[1]))
       w.fallen = [w.fallen[0] + sieged.dead[0], w.fallen[1] + sieged.dead[1]];
     // (A host come for grain carries it off; come for tribute, or to be free, it leaves the land where it lies: W7.)

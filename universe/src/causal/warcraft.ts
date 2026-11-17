@@ -30,16 +30,19 @@ registerEventWords(SIEGE_EVENTS.siege.type, (_, e) => {
     lost =
       camp || town
         ? `; sickness and hunger took ${whole(camp)} of the besiegers and ${whole(town)} of the town`
-        : "";
+        : "",
+    // (A seat, or a land behind walls of its own. A siege told before walled lands were besieged says nothing, and was a seat.)
+    walled = (e.data as { seat?: boolean } | null)?.seat === false,
+    place = walled ? `a walled land of ${b}` : `the seat of ${b}`;
   switch (kind) {
     case "laid":
-      return `${cap(a)} laid siege to the seat of ${b}, its stores enough for ${months === null ? "some" : Math.round(months)} months, ${year(e.t)}`;
+      return `${cap(a)} laid siege to ${place}, its stores enough for ${months === null ? "some" : Math.round(months)} months, ${year(e.t)}`;
     case "lifted":
-      return `The siege ${a} laid to the seat of ${b}${since !== null ? ` in year ${since}` : ""} was lifted, its besiegers beaten before the walls${lost}, ${year(e.t)}`;
+      return `The siege ${a} laid to ${place}${since !== null ? ` in year ${since}` : ""} was lifted, its besiegers beaten before the walls${lost}, ${year(e.t)}`;
     case "stormed":
-      return `${cap(a)} stormed the seat of ${b} through its broken walls${since !== null ? `, besieged since year ${since}` : ""}${lost}, ${year(e.t)}`;
+      return `${cap(a)} stormed ${place} through its broken walls${since !== null ? `, besieged since year ${since}` : ""}${lost}, ${year(e.t)}`;
     default:
-      return `The seat of ${b} gave itself up to ${a}, its stores gone${since !== null ? `, besieged since year ${since}` : ""}${lost}, ${year(e.t)}`;
+      return `${cap(place)} gave itself up to ${a}, its stores gone${since !== null ? `, besieged since year ${since}` : ""}${lost}, ${year(e.t)}`;
   }
 });
 

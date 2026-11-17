@@ -973,7 +973,8 @@ export {
   type Contact,
 } from "./space/contact.ts";
 export {
-  FLEET_MACHINES,
+  fleetSentBy,
+  realmMight,
   STARWAR,
   STARWAR_EVENTS,
   STARWAR_PACE,
@@ -1493,6 +1494,8 @@ export {
   footingOf,
   footingPower,
   madeAndSpare,
+  mobilising,
+  disarmRealm,
   rivalsOf,
   type Footing,
 } from "./war/arming.ts";
@@ -1513,7 +1516,8 @@ export {
 export {
   SIEGE_EVENTS,
   SiegeStore,
-  siegeAtSeat,
+  siegeAt,
+  wallsOf,
   siegeOf,
   siegesOf,
   siegesYear,

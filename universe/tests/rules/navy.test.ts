@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   NAVY,
+  STAR_FLEET,
   TON_YEAR,
   blockadeOf,
   fleetYear,
@@ -11,6 +12,8 @@ import {
   navyWanted,
   seaBattle,
   seaCarried,
+  starFleetSent,
+  starFleetStrength,
 } from "../../src/rules/index.ts";
 
 test("a fleet twice the other's, as good, commands four fifths of the sea, and loses less", () => {
@@ -72,4 +75,16 @@ test("a tonne is worth more with better arms, more fire, and ships that go farth
   assert.ok(hullQuality(2, 0, 4) > hullQuality(1, 0, 4));
   assert.ok(hullQuality(1, 1, 4) > hullQuality(1, 0, 4));
   assert.ok(hullQuality(1, 0, 16) > hullQuality(1, 0, 2));
+});
+
+test("a fleet to the stars carries a share of the realm's machines, more by its footing, and as much of its might", () => {
+  assert.equal(starFleetSent(100, 0), 100 * STAR_FLEET.share);
+  assert.ok(starFleetSent(100, 0.1) > starFleetSent(100, 0));
+  assert.equal(starFleetSent(100, 5), 100 * STAR_FLEET.most);
+  // (The least fleet carries half the might it could, at its drive's full cruise; more carries more, never more than twice.)
+  assert.ok(Math.abs(starFleetStrength(3, 10, 10, STAR_FLEET.fullCruise) - 3) < 1e-9);
+  assert.ok(starFleetStrength(3, 40, 10, 0.3) > starFleetStrength(3, 10, 10, 0.3));
+  assert.ok(starFleetStrength(3, 1e12, 10, 0.3) < 6);
+  assert.ok(starFleetStrength(3, 10, 10, 0.01) < starFleetStrength(3, 10, 10, 0.3));
+  assert.ok(starFleetStrength(5, 10, 10, 0.3) > starFleetStrength(1, 10, 10, 0.3));
 });

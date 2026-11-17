@@ -18,7 +18,8 @@ test("a siege is kept while laid, saved and loaded whole, and let go", () => {
   assert.ok(store.dormant());
   store.set({
     war: "war:w:7" as Ref,
-    seat: 12,
+    land: 12,
+    seat: true,
     since: 400,
     months: 9.5,
     breach: 0.25,
@@ -89,6 +90,11 @@ test("a realm's footing is kept, saved and loaded whole, and let go", () => {
       made: 900_000,
       race: "ev:e:21" as Ref,
       backed: null,
+      spare: 0.35,
+      stake: 0.2,
+      disarm: 0.4,
+      disarmUntil: 420,
+      disarmEvent: "ev:e:30" as Ref,
     };
   assert.ok(store.dormant());
   store.set(row);
@@ -96,7 +102,7 @@ test("a realm's footing is kept, saved and loaded whole, and let go", () => {
   again.load(JSON.parse(JSON.stringify(store.save())));
   assert.equal(hex(again), hex(store));
   assert.deepEqual(again.of(row.realm), row);
-  assert.deepEqual(store.pinned(), ["ev:e:21"]);
+  assert.deepEqual(store.pinned(), ["ev:e:21", "ev:e:30"]);
   store.drop(row.realm);
   assert.ok(store.dormant());
 });

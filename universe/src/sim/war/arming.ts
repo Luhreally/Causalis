@@ -4,8 +4,9 @@
 // the war goes. What it sends into another's war is read here too: one side of a war gets arms from a realm that fears the
 // other side. Its effects are read by sim/war/war.ts (the share it fields and what its arms are worth), by sim/money/money.ts
 // (what its treasury pays) and by sim/war/bonds.ts (what a war costs it). No draws: a reckoning of numbers the world keeps.
-// One small row a realm that arms or is sent arms; none at all for a realm that does neither, so the store is dormant until
-// the first realm arms.
+// The levy reads here too what each realm can spare beyond its food and what its wars put at stake (war.ts fieldShare), and a
+// peace has a beaten realm stand down part of its host for a term (bonds.ts bindPeace). One small row a living realm; none
+// before the first realm, so the store is dormant until then.
 import {
   defineEventType,
   yearOfMoment,
@@ -68,7 +69,41 @@ export type Footing = {
   /** The arms race it is in, and the backing it began, told. */
   race: Ref | null;
   backed: Ref | null;
+  /** Of what it makes, the share beyond what its people eat; and of what it has, the most a war of its stands to take. */
+  spare: number;
+  stake: number;
+  /** Of its host, the share a peace has it stand down, until which year, and the peace that asked it (0, 0, null: none). */
+  disarm: number;
+  disarmUntil: number;
+  disarmEvent: Ref | null;
 };
+
+/** A row for a realm that has none yet. */
+const fresh = (realm: Ref): Footing => ({
+  realm,
+  footing: 0,
+  wanted: 0,
+  against: null,
+  threat: 0,
+  ratio: 0,
+  fatigue: 1,
+  war: null,
+  backs: null,
+  helps: null,
+  sends: 0,
+  gift: 0,
+  made: 0,
+  race: null,
+  backed: null,
+  spare: SPARE_UNREAD,
+  stake: 0,
+  disarm: 0,
+  disarmUntil: 0,
+  disarmEvent: null,
+});
+
+/** What a realm not yet read is taken to have to spare beyond its food. */
+export const SPARE_UNREAD = 0.3;
 
 const r4 = (x: number) => Math.round(x * 10_000) / 10_000;
 
@@ -118,6 +153,10 @@ export class ArmingStore implements StateStore {
       refNumber(f.helps),
       Math.round(f.sends * 10_000),
       Math.round(f.gift * 10_000),
+      Math.round(f.spare * 10_000),
+      Math.round(f.stake * 10_000),
+      Math.round(f.disarm * 10_000),
+      f.disarmUntil,
     ]);
     this.sets++;
   }
@@ -129,6 +168,7 @@ export class ArmingStore implements StateStore {
     for (const f of this.rows.values()) {
       if (f.race) out.push(f.race);
       if (f.backed) out.push(f.backed);
+      if (f.disarmEvent) out.push(f.disarmEvent);
     }
     return out;
   }
@@ -145,7 +185,8 @@ export class ArmingStore implements StateStore {
   load(state: unknown): void {
     this.rows.clear();
     const s = state as { rows?: Footing[]; digest?: [number, number]; sets?: number } | null;
-    for (const f of s?.rows ?? []) this.rows.set(f.realm, { ...f });
+    // (A save from before the mobilisation and the disarming keeps none of their numbers: as a fresh row's.)
+    for (const f of s?.rows ?? []) this.rows.set(f.realm, { ...fresh(f.realm), ...f });
     this.digest[0] = s?.digest?.[0] ?? 0x811c9dc5;
     this.digest[1] = s?.digest?.[1] ?? 0;
     this.sets = s?.sets ?? 0;
@@ -169,10 +210,47 @@ export function footingFields(world: World, realm: Ref): number {
   return f ? footingTerms(f.footing, f.gift).fields : 0;
 }
 
-/** What its footing and the arms it is sent multiply its host's arms by (sim/war/war.ts strengthOf): 1 where it keeps none. */
+/** What its footing and the arms it is sent multiply its host's arms by (sim/war/war.ts strengthOf), less what a peace has it stand down: 1 where it keeps none. */
 export function footingPower(world: World, realm: Ref): number {
   const f = armingOf(world)?.of(realm);
-  return f ? footingTerms(f.footing, f.gift).power : 1;
+  return f ? footingTerms(f.footing, f.gift).power * (1 - disarmed(world, f)) : 1;
+}
+
+/** Of a realm's host, the share a peace still has it stand down (0 where none, or its term is over). */
+function disarmed(world: World, f: Readonly<Footing>): number {
+  return f.disarm > 0 && yearOfMoment(world.now) <= f.disarmUntil ? f.disarm : 0;
+}
+
+/** What the levy reads of a realm (sim/war/war.ts fieldShare): what it can spare beyond its food, its stake, its host stood down. */
+export function mobilising(
+  world: World,
+  realm: Ref,
+): { spare: number; stake: number; footing: number; disarm: number } {
+  const f = armingOf(world)?.of(realm);
+  return f
+    ? { spare: f.spare, stake: f.stake, footing: f.footing, disarm: disarmed(world, f) }
+    : { spare: SPARE_UNREAD, stake: 0, footing: 0, disarm: 0 };
+}
+
+/**
+ * A peace has a beaten realm stand down `share` of its host until `until` (sim/war/bonds.ts bindPeace). It turns nothing more to
+ * arms while it does; a later peace asks it again only for more.
+ */
+export function disarmRealm(
+  world: World,
+  realm: Ref,
+  share: number,
+  until: number,
+  event: Ref,
+): void {
+  const store = armingOf(world);
+  if (!store || !(share > 0)) return;
+  const f = { ...(store.of(realm) ?? fresh(realm)) };
+  if (disarmed(world, f) >= share && f.disarmUntil >= until) return;
+  f.disarm = r4(Math.max(share, disarmed(world, f)));
+  f.disarmUntil = Math.max(until, f.disarmUntil);
+  f.disarmEvent = event;
+  store.set(f);
 }
 
 /** What its arming and what it sends abroad cost its treasury in a year (grain's worth): 0 where it keeps none. */
@@ -275,7 +353,8 @@ export function armingYear(ctx: PopulationContext, t: SimTime): void {
     }
     // (And what its wars ask of it: what it stands to lose by how each goes.)
     let war: Ref | null = null,
-      atWar = 0;
+      atWar = 0,
+      stake = 0;
     for (const w of wars.fighting(p.ref)) {
       const a = realms.get(w.attacker),
         b = realms.get(w.defender);
@@ -289,14 +368,23 @@ export function armingYear(ctx: PopulationContext, t: SimTime): void {
         }),
         side = w.attacker === p.ref ? 0 : 1,
         f = warFooting(c.stakes[side]!, side === 0 ? r.chance : 1 - r.chance, fatigue);
+      stake = Math.max(stake, c.stakes[side]!);
       if (f > atWar) {
         atWar = f;
         war = w.ref;
       }
     }
-    const wanted = Math.max(peace, atWar),
+    // (A realm a peace has stand down its host turns nothing more to arms while it does.)
+    const held = was ? disarmed(world, was) : 0,
+      wanted = held > 0 ? 0 : Math.max(peace, atWar),
       footing = r4(footingYear(was?.footing ?? 0, wanted));
     next.set(p.ref, {
+      ...fresh(p.ref),
+      ...(was && held > 0
+        ? { disarm: was.disarm, disarmUntil: was.disarmUntil, disarmEvent: was.disarmEvent }
+        : {}),
+      spare: r4(spare),
+      stake: r4(stake),
       realm: p.ref,
       footing,
       wanted: r4(wanted),
@@ -404,14 +492,6 @@ export function armingYear(ctx: PopulationContext, t: SimTime): void {
       q!.race = e;
     }
   }
-  // 4. Kept: those that arm, send or are sent anything; the rest hold nothing.
-  for (const p of living) {
-    const f = next.get(p.ref)!;
-    if (f.footing < 1e-4 && f.sends <= 0 && f.gift <= 0 && !f.race && !store.of(p.ref)) continue;
-    if (f.footing < 1e-4 && f.sends <= 0 && f.gift <= 0 && !f.race) {
-      store.drop(p.ref);
-      continue;
-    }
-    store.set(f);
-  }
+  // 4. Kept for every living realm: what it can spare and has at stake is what its levy reads (sim/war/war.ts fieldShare).
+  for (const p of living) store.set(next.get(p.ref)!);
 }

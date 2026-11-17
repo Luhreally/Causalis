@@ -21,12 +21,21 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import {
+  FAR_LIFE,
+  SOURCES,
   crossingYears,
   cruise,
+  farStrength,
   routeMachines,
   routeYears,
   starDriveFor,
+  starFleetSent,
+  starFleetStrength,
 } from "../../rules/index.ts";
+import { energyBooks } from "../economy/energy.ts";
+import { orderOf } from "../order/order.ts";
+import { footingOf } from "../war/arming.ts";
+import { homeRung } from "./farlife.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
 import { politiesOf, type Polity } from "../polity/polity.ts";
 import { knows, loreOf } from "../lore/lore.ts";
@@ -35,7 +44,7 @@ import { civilizationsNear, contactsOf } from "./contact.ts";
 import { machinesOfRealm, spaceOf, spendMachines } from "./space.ts";
 import { LANE_ROW, laneLawOf, laneRoute } from "./lanes.ts";
 import { starSitesOf } from "./stars.ts";
-import { noteFirstJump } from "./voyages.ts";
+import { STARSHIP_MACHINES, noteFirstJump } from "./voyages.ts";
 import { causeOfFleet, fleetLost, nationCauses } from "./nations.ts";
 import { livedStrength } from "./farlife-read.ts";
 
@@ -50,8 +59,43 @@ export const STARWAR_EVENTS = {
 const DECLARE = defineStream("starwar.declare");
 const FIGHT = defineStream("starwar.fight");
 
-/** Machines a fleet takes from its realm's lands. */
-export const FLEET_MACHINES = 4_000_000;
+/** The least fleet a realm sends: its share of the machines of a ship that crosses, held whole (rules/navy.ts STAR_FLEET). */
+export const fleetLeast = (): number => starFleetSent(STARSHIP_MACHINES, 0);
+
+/** The machines a realm would send in a fleet now (its machines' share, by its footing): 0 where it holds less than a ship that crosses. */
+export function fleetSentBy(ctx: PopulationContext, p: Polity): number {
+  const sent = starFleetSent(machinesOfRealm(ctx, p), footingOf(ctx.world, p.ref));
+  return sent >= fleetLeast() ? sent : 0;
+}
+
+/**
+ * A realm's might among the stars, on the scale a far people's is (rules/farlife.ts farStrength): its people, what each turns
+ * beyond muscle (its lands' engines, mills and heat: sim/economy/energy.ts; as its rung asks where none is kept), the rung its
+ * reach comes to, held together as far as its people hold its rule rightful.
+ */
+export function realmMight(ctx: PopulationContext, p: Polity): number {
+  const books = energyBooks(ctx.world);
+  let people = 0,
+    kw = 0;
+  for (const c of p.members) {
+    people += ctx.provinces.get(c)?.total() ?? 0;
+    const e = books?.get(c);
+    if (!e) continue;
+    for (let i = 0; i < SOURCES.length; i++) if (SOURCES[i] !== "none") kw += e.by[i] ?? 0;
+    kw += e.heatHad;
+  }
+  const rung = homeRung(ctx, p),
+    made = people > 0 && kw > 0 ? (1000 * kw) / people : FAR_LIFE.asks[rung]! * 0.8;
+  return farStrength({
+    people,
+    made,
+    rung,
+    cohesion: orderOf(ctx.world)?.realms.get(p.ref)?.legitimacy ?? 0.6,
+    war: 0,
+    broken: false,
+    fell: null,
+  });
+}
 /** Ships a fleet goes in, each burning a lane's fuel. */
 export const FLEET_HULLS = 3;
 /** The yearly chance a realm with a cause goes to war, before its valour. */
@@ -68,6 +112,8 @@ export type StarWar = {
   readonly sailed: number;
   readonly arrives: number;
   readonly strength: number;
+  /** The machines it sent (absent in a war from before fleets were built from a realm's machines). */
+  readonly machines?: number;
   battle: Ref | null;
   won: boolean | null;
   ended: Ref | null;
@@ -234,8 +280,10 @@ export function starWarYear(ctx: PopulationContext, t: SimTime): void {
     const drive = starDriveFor((id) => knows(ctx, p.seat, id));
     if (!drive) continue;
     const valour = culture.get(p.seat)?.traits[WAY.valour] ?? 0.5,
-      machines = machinesOfRealm(ctx, p);
-    if (machines < 2 * FLEET_MACHINES) continue;
+      machines = machinesOfRealm(ctx, p),
+      // (What it sends: a share of its machines, more by its footing; none where that builds not one ship that crosses.)
+      sent = starFleetSent(machines, footingOf(world, p.ref));
+    if (sent < fleetLeast()) continue;
     // (The one draw a realm has in a year: what is weighed only if it would go at all.)
     if (!(world.rng.real(DECLARE, p.seat, t, 0) < STARWAR_PACE * (0.5 + valour))) continue;
     for (const cause of causes(ctx, p, year)) {
@@ -250,7 +298,7 @@ export function starWarYear(ctx: PopulationContext, t: SimTime): void {
       spendMachines(
         ctx,
         p,
-        FLEET_MACHINES + (route && byLane < direct ? FLEET_HULLS * routeMachines(route) : 0),
+        sent + (route && byLane < direct ? FLEET_HULLS * routeMachines(route) : 0),
       );
       const years = Math.min(direct, byLane),
         driveKnown = lore.get(p.seat, drive.needs[0]!),
@@ -298,8 +346,9 @@ export function starWarYear(ctx: PopulationContext, t: SimTime): void {
         event,
         sailed: year,
         arrives: year + years,
-        // A fleet is as strong as the machines behind it and the speed that brings them.
-        strength: 2 + 10 * cruise(drive),
+        // A fleet is as strong as the realm's might, by how much of it the fleet carries and the speed that brings them.
+        strength: starFleetStrength(realmMight(ctx, p), sent, fleetLeast(), cruise(drive)),
+        machines: Math.round(sent),
         battle: null,
         won: null,
         ended: null,

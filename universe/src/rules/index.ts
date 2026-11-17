@@ -1215,6 +1215,8 @@ export {
   TERMS,
   WAR_YEAR_LEAST,
   answerOf,
+  DISARM_MOST,
+  chanceOfEnd,
   dealOf,
   tributeOf,
   warReckoning,

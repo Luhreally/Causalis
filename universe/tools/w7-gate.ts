@@ -92,37 +92,52 @@ console.log("gate 94, wars with aims and peace with terms");
       stakes: [0.2, 0.2],
       ...o,
     });
+  // (A peace is a bargain struck by the war's reckoning, rules/terms.ts dealOf: what follows is read off it.)
   check(end({}).bond === "truce" && end({}).winner === null, "neither ahead is not a truce");
   check(
-    end({ edge: 1, lands: 1, got: true }).bond === null,
-    "a land won alone asks more than the land",
+    end({ edge: 1, lands: 1, got: true, hold: [0.1, 0.1] }).bond === null,
+    "a land won by one that cannot hold the loser to more asks more than the land",
   );
-  check(end({ edge: 2 }).bond === "tribute", "two battles ahead asks no tribute");
-  check(end({ edge: 2, ratio: 4 }).bond === "vassal", "far the stronger, two ahead, takes no oath");
   check(
-    end({ edge: 2, ratio: 4, canBind: false }).bond === "tribute",
+    end({ edge: 2 }).bond === "tribute",
+    "two battles ahead, holding the loser to it, asks no tribute",
+  );
+  check(
+    end({ edge: 2, ratio: 4, standing: [0.6, 0.2] }).bond === "vassal",
+    "far the stronger, two ahead, over a realm its own people would not fight on for, takes no oath",
+  );
+  check(
+    end({ edge: 2, ratio: 4, standing: [0.6, 0.2], canBind: false }).bond === "tribute",
     "an oath taken where none can be",
   );
-  check(end({ edge: -1, ratio: 5 }).bond === "truce", "a giant beaten once pays");
+  check(
+    end({ edge: 2, ratio: 4 }).bond !== "vassal",
+    "an oath taken of a realm its people hold rightful, by one that cannot hold it to it",
+  );
+  {
+    const giant = end({ edge: -1, ratio: 5 });
+    check(!(giant.winner === 1 && giant.bond === "tribute"), "a giant beaten once pays");
+  }
   check(
     end({ edge: -3, ratio: 5 }).bond === "truce",
-    "a giant beaten by a realm that cannot hold it to it pays",
+    "a giant beaten, its chance still even, pays or is paid",
   );
   check(
-    end({ edge: -3, ratio: 1 }).bond === "tribute",
+    end({ edge: -3, ratio: 1 }).bond === "tribute" && end({ edge: -3, ratio: 1 }).winner === 1,
     "a realm beaten badly by its match pays nothing",
   );
+  check((end({ edge: 2 }).disarm ?? 0) > 0, "a beaten realm keeps all its host");
   check(end({ edge: 1, aim: "free", got: true }).bond === null, "a rising that won owes");
   check(answerOf("truce", -2, 1, true, true) === "winning", "the winning do not hear a truce");
   check(answerOf("give-tribute", -2, 1, true, true) === null, "the winning will not take grain");
   check(answerOf("take-tribute", 0, 1, false, true) === "not-beaten", "tribute from the unbeaten");
   check(answerOf("take-knee", 3, 2, false, true) === "not-knee", "a knee from one not far weaker");
   check(
-    answerOf("take-knee", 3, 4, false, false) === "cannot-bind",
+    answerOf("take-knee", 3, 6, false, false) === "cannot-bind",
     "an oath taken where none can be",
   );
   check(
-    answerOf("take-knee", 3, 4, false, true) === null,
+    answerOf("take-knee", 3, 6, false, true) === null,
     "a realm beaten and far the weaker will not kneel",
   );
 }
@@ -508,7 +523,8 @@ function offersHold(world: World, name: string, mustAll: boolean): void {
   // An oath taken from one beaten and much weaker; then thrown off, and if land lies between them, a war to be free.
   const third = pairs().find(
     ([r, foe]) =>
-      strengthOf(ctx, r) >= TERMS.kneeRatio * strengthOf(ctx, foe) && canBind(world, r, foe),
+      // (A pair far apart in strength, to forge a beaten realm on: three times.)
+      strengthOf(ctx, r) >= 3 * strengthOf(ctx, foe) && canBind(world, r, foe),
   );
   if (third) {
     const [r, foe] = third,

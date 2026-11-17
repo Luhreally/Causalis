@@ -130,3 +130,43 @@ export function landingShare(command: number, carry: number): number {
 export function blockadeOf(foeCommand: number): number {
   return dmath.clamp(2 * (foeCommand - 0.5), 0, 1);
 }
+
+/**
+ * A fleet between the stars (sim/space/starwar.ts), weighed on the scale a far people's strength is (rules/farlife.ts farStrength).
+ * A realm sends a share of the machines it holds, more as it turns more of what it makes to arms. Its fleet is as strong as the
+ * realm's might, by how much of it is carried there and how fast. A realm sends one when what it holds would build a ship that
+ * crosses (sim/space/voyages.ts STARSHIP_MACHINES): the least fleet is its share of that.
+ */
+export const STAR_FLEET = {
+  /** Of the machines it holds, the share a realm sends at no footing (its footing sends that much more), and the most it sends. */
+  share: 0.25,
+  most: 0.6,
+  /** A fleet of this many times the least one carries half the might it could. */
+  halfShips: 1,
+  /** The drive's cruise (of light's speed) at which a fleet arrives with all it set out with. */
+  fullCruise: 0.3,
+} as const;
+
+/** The machines a realm sends in a fleet between the stars: a share of what it holds, more by its footing. */
+export function starFleetSent(machines: number, footing: number): number {
+  return Math.max(0, machines) * dmath.clamp(STAR_FLEET.share + footing, 0, STAR_FLEET.most);
+}
+
+/**
+ * A fleet's strength: the realm's might (farStrength's scale) by the share of it the fleet carries (`sent` machines, against
+ * `least`, the least fleet a realm sends), and by how fast its drive brings it.
+ */
+export function starFleetStrength(
+  might: number,
+  sent: number,
+  least: number,
+  cruise: number,
+): number {
+  const carried = sent / Math.max(1, sent + STAR_FLEET.halfShips * least);
+  return (
+    Math.max(0, might) *
+    2 *
+    carried *
+    (0.5 + 0.5 * dmath.clamp(cruise / STAR_FLEET.fullCruise, 0, 1))
+  );
+}

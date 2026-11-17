@@ -26,6 +26,7 @@ import {
   peaceRefused,
   tieOf,
   warCost,
+  warReckoning,
   type PeaceOffer,
   type Refusal,
 } from "../../rules/index.ts";
@@ -51,10 +52,13 @@ import {
   canBind,
   grainMade,
   landOffered,
+  aimOf,
   owing,
+  peaceReach,
   riseUp,
   spareOf,
   termsOfOffer,
+  warCosts,
 } from "../war/bonds.ts";
 import { DIPLOMACY_EVENTS, RIVALRY, diplomacyOf, relationRef } from "../diplomacy/diplomacy.ts";
 import { openEmbassy, sendEnvoy, tiesOf } from "../war/ties.ts";
@@ -366,13 +370,31 @@ export function peaceProblem(
   }
   if (offer === "take-knee" && Math.floor(TERMS.oathShare * grainMade(ctx, foe)) < 1)
     return answers(foe, "We make no grain to pay you with.");
-  const code: Refusal = answerOf(
-    offer,
-    2 * won - w.battles.length,
-    strengthOf(ctx, r) / Math.max(1, strengthOf(ctx, foe)),
-    refused,
-    canBind(world, r, foe),
-  );
+  // (The same bargain a peace is struck by: the war's reckoning, and what each could hold the other to, the one who offers first.)
+  const defender = side === 0 ? foe : r,
+    costs = warCosts(ctx, w, attacker, defender, aimOf(world, w)?.aim, year),
+    reach = peaceReach(ctx, attacker, defender),
+    chance = warReckoning({
+      won: w.battles.filter((b) => b.won).length,
+      fought: w.battles.length,
+      ratio: strengthOf(ctx, attacker) / Math.max(1, strengthOf(ctx, defender)),
+      ...costs,
+    }).chance,
+    first = <T>(x: readonly [T, T]): [T, T] => (side === 0 ? [x[0], x[1]] : [x[1], x[0]]),
+    code: Refusal = answerOf(
+      offer,
+      2 * won - w.battles.length,
+      strengthOf(ctx, r) / Math.max(1, strengthOf(ctx, foe)),
+      refused,
+      canBind(world, r, foe),
+      {
+        stakes: first(costs.stakes),
+        yearly: first(costs.yearly),
+        chance: side === 0 ? chance : 1 - chance,
+        hold: first(reach.hold),
+        standing: first(reach.standing),
+      },
+    );
   // (Channelled, their will gives way; what they cannot give, or bind, stays as it is.)
   if (channel && code !== "cannot-bind") return null;
   switch (code) {
@@ -391,7 +413,7 @@ export function peaceProblem(
     case "not-knee":
       return answers(
         foe,
-        "We would sooner fall. Beat us twice over, and be three times what we are, and ask again.",
+        "We would sooner fall. Our people would fight on for us yet: beat us until they will not, and ask again.",
       );
     case "cannot-bind":
       return held.oathOf(foe.ref)

@@ -109,3 +109,62 @@ export function footingTerms(footing: number, gift: number): { fields: number; p
     g = dmath.clamp(gift, 0, ARMING.giftMost);
   return { fields: ARMING.fields * x, power: 1 + ARMING.power * (x + g) };
 }
+
+/**
+ * Who a realm can send to war (its levy's share of its fighting men), from what its people are and what is asked of them. A man
+ * under arms is not at his work, so a realm can send no more than what its people make beyond their food can feed. Of those,
+ * it sends as many as will go: more where its people prize valour, the more as they hold its rule rightful (or, where the
+ * army rules, as far as it compels them), more where they bear arms of their own, and more as a war puts much of what they
+ * have at stake, the more as they have a say. A standing army keeps more of them drilled. Its footing then fields more on
+ * top, and a peace may have it stand down part of its host.
+ */
+export const MOBILISE = {
+  /**
+   * The share of its fighting men it can feed under arms is what it has to spare, and the slack of a year a campaign between
+   * sowing and harvest takes from no one's food, within these.
+   */
+  slack: 0.1,
+  spareLeast: 0.05,
+  spareMost: 0.6,
+  /** Of those it can feed, the share who go at middling valour, standing and arms, no war pressing. */
+  base: 0.3,
+  /** How much its people's own arms add (at the most where the realm holds none of them), and what a full stake adds at a full say. */
+  ownArms: 0.5,
+  stake: 0.4,
+  /** How much a standing army, as its arms are learned, keeps more drilled. */
+  drilled: 0.3,
+} as const;
+
+/** A realm's levy's share of its fighting men (MOBILISE). */
+export function levyShare(e: {
+  /** Of what its people make, the share beyond their food. */
+  readonly spare: number;
+  /** Its people's valour, how far they hold its rule rightful, their say, and how far its holders keep the arms (0 … 1). */
+  readonly valour: number;
+  readonly standing: number;
+  readonly voice: number;
+  readonly force: number;
+  /** Whether the army holds its rule: it compels, as far as it keeps the arms. */
+  readonly army: boolean;
+  /** The most of what it has a war of its stands to take (0 at peace). */
+  readonly stake: number;
+  /** Its standing army's arms (the `arms` effect where it keeps one, else 0). */
+  readonly drilled: number;
+  readonly footing: number;
+  /** Of its host, the share a peace has it stand down. */
+  readonly disarm: number;
+}): number {
+  const feed = dmath.clamp(MOBILISE.slack + e.spare, MOBILISE.spareLeast, MOBILISE.spareMost),
+    held = e.army ? Math.max(e.standing, e.force) : e.standing,
+    will =
+      MOBILISE.base *
+        (0.5 + dmath.clamp(e.valour, 0, 1)) *
+        (0.5 + dmath.clamp(held, 0, 1)) *
+        (1 + MOBILISE.ownArms * (1 - dmath.clamp(e.force, 0, 1))) +
+      MOBILISE.stake * dmath.clamp(e.stake, 0, 1) * (0.5 + dmath.clamp(e.voice, 0, 1)),
+    drilled = 1 + MOBILISE.drilled * Math.max(0, e.drilled);
+  return (
+    (dmath.clamp(feed * will * drilled, 0, 1) + footingTerms(e.footing, 0).fields) *
+    (1 - dmath.clamp(e.disarm, 0, 1))
+  );
+}
