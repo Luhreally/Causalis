@@ -69,7 +69,8 @@ import {
   type MaterialWay,
   type WayFacts,
 } from "../../rules/index.ts";
-import type { PopulationContext } from "../population/systems.ts";
+import { populationContext, type PopulationContext } from "../population/systems.ts";
+import { homeField } from "../planet/motion.ts";
 import type { MarketStore } from "../economy/market.ts";
 import { furnaceHeat } from "../economy/heat.ts";
 import { knows, loreOf } from "./lore.ts";
@@ -491,7 +492,10 @@ export const COMPASS_REACH = 1.5;
 
 /** A land's ships' reach against what its ship-crafts give: half again with the lodestone's needle. */
 export function compassReach(world: World, cell: number): number {
-  return materialsOf(world)?.made(cell, "lodestone") ? COMPASS_REACH : 1;
+  if (!materialsOf(world)?.made(cell, "lodestone")) return 1;
+  // (A needle points only where its world's core turns over in one strong dipole: sim/planet/motion.ts homeField.)
+  const f = homeField(populationContext(world).generated);
+  return f.dynamo && f.dipole ? COMPASS_REACH : 1;
 }
 
 /** What a land's flying machines are framed in: glass fibre, else the light alloy, else the steel their figures are reckoned for (null). */
