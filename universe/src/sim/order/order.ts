@@ -63,6 +63,7 @@ import { CREDIT, creditOf, debtBurden } from "../credit/credit.ts";
 import { seizedFactor } from "../strife/strife.ts";
 import { fortunePull } from "../acts/fortune.ts";
 import { bindOf } from "../money/kept.ts";
+import { captiveWorthOf } from "../society/kept.ts";
 
 /** The kinds of bondage a people may be held in (corvée, a levy on the free, is the realm's). */
 export const BONDS = ["chattel", "debt", "serf", "indenture", "convict"] as const;
@@ -95,6 +96,12 @@ const RISING = defineStream("order.rising");
 export const CAPTIVE_LINE = 0.45;
 export const CAPTIVE_SHARE = 0.06;
 export const MOST_CAPTIVES = 3000;
+/**
+ * How far what a captive's work would keep (Round B's Domar gain by hold, money.bind) weighs in carrying captives off, and the worth
+ * at which it just pays for his keep and guard (the society sweep: est, a bound hand kept and guarded costs some of what he makes).
+ */
+export const CAPTIVE_WORK = 0.5;
+export const CAPTIVE_PAYS = 0.15;
 /** Debt bondage: the line, the most of a land it holds, how fast it is worked off in a good year. */
 export const DEBT_LINE = 0.3;
 export const DEBT_MOST = 0.35;
@@ -760,12 +767,18 @@ function takeCaptives(
     other = faiths.of(land).faith,
     unbelievers = ours !== null && other !== null && other !== ours ? 1 : 0,
     citizens = o.laws[LAW_OF.strangers] === 2,
+    // (What a captive's work would keep at its seat, as its holders weigh binding there: the gain of a bound hand over his living,
+    // as far as its arms hold the bound against the open land. Where hands are many, a captive's work keeps no more than his
+    // keep, and none is worth carrying off; where they are scarce and held, many are: Domar. The society sweep; none where unweighed.)
+    worth = captiveWorthOf(world, a.seat),
+    pays = worth === null ? 0 : CAPTIVE_WORK * (worth - CAPTIVE_PAYS),
     score =
       0.35 * hier +
       0.25 * (1 - open) +
       0.25 * foreign +
       0.15 * unbelievers +
-      0.1 * valour -
+      0.1 * valour +
+      pays -
       (citizens ? 0.4 : 0);
   const decision = world.decisions.record({
     rule: "order.captives",
@@ -774,6 +787,16 @@ function takeCaptives(
     score,
     threshold: CAPTIVE_LINE,
     factors: [
+      ...(worth === null
+        ? []
+        : [
+            {
+              name: "what a captive's work would keep",
+              value: Math.round(worth * 100) / 100,
+              contribution: pays,
+              source: null,
+            },
+          ]),
       {
         name: "a people who keep to rank",
         value: hier,

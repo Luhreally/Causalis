@@ -70,6 +70,7 @@ import {
   infoShare,
   principleNameOn,
   roleWord,
+  dealsMoved,
   type LifeHistory,
   type Recipe,
   type ToolMetal,
@@ -107,6 +108,7 @@ import {
   unionOf,
 } from "../money/kept.ts";
 import { boughtOf, foodWanted } from "../trade/demand.ts";
+import { dealsOf, dressWantedOf } from "../society/kept.ts";
 
 const SPREADING = purpose("spread");
 const HERDS = defineStream("econ.herds");
@@ -268,7 +270,12 @@ function makeAndUse(
       ],
       [
         G.clothing,
-        roundKeyed(pop * WANTS.clothingPerPerson, world.rng.real(WEAR, key, t, G.clothing)),
+        // (As much as its cold asks of its people's coat, and its show: the society sweep, society/everyday.ts. Exactly as before
+        // where none is kept.)
+        roundKeyed(
+          pop * WANTS.clothingPerPerson * dressWantedOf(world, p.cell),
+          world.rng.real(WEAR, key, t, G.clothing),
+        ),
         "clothingCover",
       ],
       [
@@ -731,6 +738,12 @@ function trade(
         (1 - FINANCE.shuts * shut) *
         (1 - barred) *
         (1 - blockaded),
+      // (And as far as the deals of both ends can be held to: the society sweep, society/holding.ts. Exactly 1 where neither keeps any.)
+      da = dealsOf(ctx.world, e.a),
+      db = dealsOf(ctx.world, e.b),
+      kept = da === null && db === null ? 1 : dealsMoved(da ?? db ?? 1, db ?? da ?? 1),
+      moved =
+        0.25 * (1 + SIGNAL.tradeShare * linked) * (1 - FINANCE.shuts * shut) * (1 - barred) * kept,
       keen = 2 * (1 + SIGNAL.tradeMargin * linked),
       // (And what a journey cost in waiting on word and finding a buyer: the haul itself is what it was.)
       dealt = 1 - SIGNAL.tradeCost * linked;

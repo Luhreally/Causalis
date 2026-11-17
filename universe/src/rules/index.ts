@@ -1711,3 +1711,11 @@ export * from "./impacts.ts";
 export * from "./galactic.ts";
 export * from "./crossing.ts";
 export * from "./beyond.ts";
+// The society sweep (2026-11-16): care of the sick and the old, who does what, what a realm's law holds to, the table, dress, rest.
+export * from "./care.ts";
+export * from "./roles.ts";
+export * from "./holding.ts";
+export * from "./table.ts";
+export * from "./dress.ts";
+export * from "./leisure.ts";
+export * from "./speech.ts";

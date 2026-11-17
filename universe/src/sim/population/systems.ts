@@ -5,6 +5,14 @@
 // history, with causes recorded at the point of decision.
 import { intoxDeaths } from "../money/kept.ts";
 import {
+  careSparedOf,
+  forgoneOf,
+  improvedOf,
+  oldAgeWantOf,
+  oldPressOf,
+  tableKeptOf,
+} from "../society/kept.ts";
+import {
   CountDeltas,
   MONTH,
   YEAR,
@@ -111,6 +119,7 @@ import {
   type LifeHistory,
   type Medium,
   childCost,
+  coatOf,
   childrenKept,
 } from "../../rules/index.ts";
 import { homePlanet } from "../planet/store.ts";
@@ -372,6 +381,9 @@ export function farmingShare(ctx: PopulationContext, p: Province): number {
       veilYield(ctx, p.cell) *
       floodYield(ctx.world, p.cell) *
       alive.soil,
+      alive.soil *
+      // (What its holders have put into its fields: the society sweep, society/holding.ts. Exactly 1 where nothing is kept.)
+      (1 + improvedOf(ctx.world, p.cell)),
     // (What all its fields give, worked to the full; and what its people eat, a sixth over.)
     most = c.farm * fields,
     need = mouths(p, ctx.life) * FARM_SPARE,
@@ -551,6 +563,9 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
         // (And a great stone's dust, a burst's light: frontier/hooks.ts, exactly 1 under a clear sky.)
         frontierFields(world, p.cell) *
         (p.cell >= offworldFrom ? openFields(ctx, p.cell) : 1),
+        (p.cell >= offworldFrom ? openFields(ctx, p.cell) : 1) *
+        // (And what its holders have put into them, as far as it is safe and theirs: society/holding.ts. Exactly 1 where none is kept.)
+        (1 + improvedOf(world, p.cell)),
       flocks = 1 + lore.effect(p.cell, "herdYield"),
       // (What war has driven off of its herds and a beast at large takes: Z1. Exactly 0 where neither has.)
       flocksLost = herdLoss(world, p.cell, t),
@@ -558,6 +573,8 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
       partners = partnersOf(world, p.cell),
       wilds = 1 + lore.effect(p.cell, "forageYield"),
       keeping = Math.min(0.8, lore.effect(p.cell, "keeping")),
+      // (And what its own air, coast, woods and brewing keep: society/everyday.ts. Exactly 0 where none is kept.)
+      keptByLand = tableKeptOf(world, p.cell),
       stored =
         lore.effect(p.cell, "storage") +
         asks.stored(p.cell, t) +
@@ -620,7 +637,7 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
         Math.min(
           m.stock[g]!,
           roundKeyed(
-            m.stock[g]! * GOODS[g]!.spoil * (1 - 0.5 * pots) * (1 - keeping),
+            m.stock[g]! * GOODS[g]!.spoil * (1 - 0.5 * pots) * (1 - keeping) * (1 - keptByLand),
             world.rng.real(BIRTHS, key, t, SPOIL, g),
           ),
         ),
@@ -751,9 +768,10 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
     const fertility = fedSquared * transition(ctx, p.cell) * putBy(ctx, p, markets.get(p.cell)),
       // In cold lands, those without warm clothing die more easily.
       cold = dmath.clamp((10 - ctx.generated.climate.temperature[p.cell]!) / 10, 0, 1),
-      bare = 1 - (markets.get(p.cell)?.clothingCover ?? 1000) / 1000,
-      // Herb-lore and medicine: fewer die.
-      healed = 1 - Math.min(0.3, loreOf(world).effect(p.cell, "health")),
+      // (As far as their own coat leaves them to clothes: the society sweep, rules/dress.ts. A bare skin's, 1.)
+      bare = (1 - (markets.get(p.cell)?.clothingCover ?? 1000) / 1000) * bodyCoat(ctx),
+      // Herb-lore and medicine: fewer die (as far as its healers reach them: society/care.ts).
+      healed = healedIn(world, p.cell),
       // Where much is burned among few, smoke fouls the air.
       smoke = 1 + 0.3 * smokeIn(ctx, p.cell),
       // (What changes slowly — the cold, clothing, medicine, smoke — as it stands now.)
@@ -765,6 +783,8 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
         healed *
         smoke *
         (1 + 25 * intoxDeaths(world, p.cell)),
+      // (Its frail die the more for those no one keeps: society/care.ts. Exactly as before where none is reckoned.)
+      old = oldPressOf(world, p.cell),
       // A band's chance of dying within the months, the same for every one of it (reckoned once).
       dying: number[] = [],
       // (And what its diet goes short of: its young die the more, rules/nutrition.ts. Exactly 1 where it goes short of nothing.)
@@ -772,6 +792,7 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
       dyingIn = (b: number) =>
         (dying[b] ??= deathWithin(
           riskUnder(life.mortality[b]!, mortality * (b < 2 ? want.young : want.grown)),
+          riskUnder(life.mortality[b]!, old && b >= old.band ? mortality * old.press : mortality),
           months,
         )),
       d = new CountDeltas(p.counts),
@@ -915,7 +936,13 @@ export function putBy(ctx: PopulationContext, p: Province, m: Market | undefined
 }
 
 export function transition(ctx: PopulationContext, cell: number): number {
-  const keeps = childrenKept(ctx.life, slowDeaths(ctx, cell), raisingCost(ctx, cell)),
+  // (And the children more its mothers want where only their children would keep them old: society/care.ts. 0 where none is kept.)
+  const keeps = childrenKept(
+      ctx.life,
+      slowDeaths(ctx, cell),
+      raisingCost(ctx, cell),
+      oldAgeWantOf(ctx.world, cell),
+    ),
     lore = loreOf(ctx.world);
   // Past our ages (Phase 66): nothing here runs short any more, and what a people then does is its choice.
   if (lore.get(cell, "made-bodies")) return Math.max(keeps, WRITTEN_KEEPS);
@@ -929,9 +956,22 @@ const FLAME_KEEPS = 0.72;
 /** What a people that writes and grows its children keeps: each one wanted is made, whatever it can bear. */
 const WRITTEN_KEEPS = 0.95;
 
-/** What a land's young cost to raise (rules/children.ts childCost): those of its people who read, and its machines' share of its work. */
+/**
+ * What a land's young cost to raise (rules/children.ts childCost): those of its people who read, its machines' share of its work,
+ * and the work its mothers give up for them away from home (the society sweep, society/roles.ts; 0 where none is kept).
+ */
 export function raisingCost(ctx: PopulationContext, cell: number): number {
-  return childCost(readersOf(ctx.world, cell), machineShare(ctx, cell));
+  return childCost(readersOf(ctx.world, cell), machineShare(ctx, cell), forgoneOf(ctx.world, cell));
+}
+
+/** What a land's care spares of its deaths (society/care.ts), or, where none is reckoned, all its healing lore as before. */
+function healedIn(world: World, cell: number): number {
+  return 1 - (careSparedOf(world, cell) ?? Math.min(0.3, loreOf(world).effect(cell, "health")));
+}
+
+/** How much of the cold a people's own coat leaves to clothes (rules/dress.ts; a bare skin's, 1). */
+function bodyCoat(ctx: PopulationContext): number {
+  return coatOf(ctx.generated.life.people?.body?.skin);
 }
 
 /**
@@ -949,8 +989,8 @@ export function machineShare(ctx: PopulationContext, cell: number): number {
 /** How pressing a land's deaths are, of what changes slowly: the cold on the ill-clothed, medicine, smoke (as vitalMonth reads them). */
 export function slowDeaths(ctx: PopulationContext, cell: number): number {
   const cold = dmath.clamp((10 - ctx.generated.climate.temperature[cell]!) / 10, 0, 1),
-    bare = 1 - (marketsOf(ctx.world).get(cell)?.clothingCover ?? 1000) / 1000,
-    healed = 1 - Math.min(0.3, loreOf(ctx.world).effect(cell, "health")),
+    bare = (1 - (marketsOf(ctx.world).get(cell)?.clothingCover ?? 1000) / 1000) * bodyCoat(ctx),
+    healed = healedIn(ctx.world, cell),
     smoke = 1 + 0.3 * smokeIn(ctx, cell);
   return (1 + 0.25 * cold * bare) * healed * smoke;
 }

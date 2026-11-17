@@ -32,16 +32,28 @@ export const CHILDREN = {
   idle: 2,
 } as const;
 
-/** What raising a child costs (0 … CHILDREN.schooled + CHILDREN.idle): its schooling, and its work not wanted. */
-export function childCost(readers: number, machines: number): number {
+/**
+ * What raising a child costs (0 … CHILDREN.schooled + CHILDREN.idle, and what its mother gives up): its schooling, its work not
+ * wanted, and the work its mother gives up for it where her work is away from home (the society sweep, rules/roles.ts forgone).
+ */
+export function childCost(readers: number, machines: number, forgone = 0): number {
   return (
-    CHILDREN.schooled * dmath.clamp(readers, 0, 1) + CHILDREN.idle * dmath.clamp(machines, 0, 1)
+    CHILDREN.schooled * dmath.clamp(readers, 0, 1) +
+    CHILDREN.idle * dmath.clamp(machines, 0, 1) +
+    Math.max(0, forgone)
   );
 }
 
-/** Children living to bear a people wants, a mother, at a cost of raising them. */
-export function childrenWanted(cost: number): number {
-  return CHILDREN.replace * (1 + CHILDREN.over) + CHILDREN.free * dmath.exp(-CHILDREN.cost * cost);
+/**
+ * Children living to bear a people wants, a mother, at a cost of raising them; and `age` more where only her children would keep
+ * her when she is old (the society sweep, rules/care.ts keptOld).
+ */
+export function childrenWanted(cost: number, age = 0): number {
+  return (
+    CHILDREN.replace * (1 + CHILDREN.over) +
+    CHILDREN.free * dmath.exp(-CHILDREN.cost * cost) +
+    Math.max(0, age)
+  );
 }
 
 type Bearing = { readonly born: number; readonly at: number };
@@ -90,10 +102,10 @@ export function livingToBear(life: LifeHistory, m: number): number {
  * Of what its bodies could bear, the share a people bears (0 … 1): as many as it wants living, over those who would live of
  * all it could bear.
  */
-export function childrenKept(life: LifeHistory, m: number, cost: number): number {
+export function childrenKept(life: LifeHistory, m: number, cost: number, age = 0): number {
   const b = bearingOf(life),
     could = b.born * livingToBear(life, m);
-  return could > 0 ? Math.min(1, childrenWanted(cost) / could) : 1;
+  return could > 0 ? Math.min(1, childrenWanted(cost, age) / could) : 1;
 }
 
 // Who of a people can be spared to fight (asked of round "peoples": reproduction and kin by species, where a levy took the

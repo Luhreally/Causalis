@@ -106,6 +106,7 @@ import {
 } from "./kept.ts";
 import { intoxYear, prohibitionYear } from "./intox.ts";
 import { machineIncome, plannedOf, townRentOf } from "../trade/kept.ts";
+import { provisionCostOf } from "../society/kept.ts";
 
 export const MONEY_EVENTS = {
   /** What serves a realm as money changed: coin first struck, notes first issued, the lenders' claims passing as money. */
@@ -840,6 +841,8 @@ export function treasuryYear(ctx: PopulationContext, t: SimTime): void {
         if (e && world.now - e.t <= YEAR) relief += TREASURY.relief * eats;
       }
     }
+    // (What it pays its old and for its poor's care, as it has weighed them: the society sweep, society/care.ts. 0 where none is kept.)
+    relief += provisionCostOf(world, p.ref);
     const o = order?.of(p.ref),
       money = finance?.of(p.ref),
       seat = p.seat,
