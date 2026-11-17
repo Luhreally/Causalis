@@ -28,6 +28,8 @@ import {
   homeWeather,
   impactsOf,
   mindsOf,
+  rogueRate,
+  upliftOf,
   mirrorsLit,
   orbitalOf,
   shipToll,
@@ -203,6 +205,16 @@ export function homeHazardBlocks(world: World): Block[] {
       stat(`A great star dying within ${GALACTIC.reachLy} light-years`, everyWords(r.supernova)),
       stat("A burst of gamma rays aimed at it", everyWords(r.gamma)),
       stat("A new star seen by eye", everyWords(r.guest)),
+      stat("A rogue world through its far cloud", everyWords(rogueRate())),
+      ...(galactic?.rogue
+        ? [
+            stat(
+              "A rogue world passed",
+              `in ${galactic.rogue.year}, ${count(galactic.rogue.au)} AU off: ${galactic.rogue.times} times the stones until ${galactic.rogue.until}${galactic.rogue.orbit ? ", the world's own orbit stirred" : ""}`,
+              { why: galactic.rogue.event },
+            ),
+          ]
+        : []),
       ...(burst
         ? [
             stat(
@@ -246,7 +258,7 @@ export function frontierBlocks(world: World): Block[] {
       ? {
           type: "table",
           title: "Works in the sky",
-          columns: ["Realm", "Tonnes", "Sent down", "In all"],
+          columns: ["Realm", "Tonnes", "Sent down", "In all", "Living in it"],
           fit: true,
           rows: works.map((w): Row => ({
             ref: w.begun,
@@ -255,8 +267,9 @@ export function frontierBlocks(world: World): Block[] {
               [count(w.tonnes)],
               [w.taken ? "taken by its minds" : w.silent ? "silent" : `${count(w.last)} machines`],
               [count(w.sent)],
+              [w.sky ? `${count(w.sky)} of ${count(w.room ?? 0)}` : "none"],
             ],
-            keys: [w.realm, w.tonnes, w.last, w.sent],
+            keys: [w.realm, w.tonnes, w.last, w.sent, w.sky ?? 0],
           })),
         }
       : {
@@ -299,6 +312,23 @@ export function frontierBlocks(world: World): Block[] {
           r.event,
         );
       }),
+    });
+  const raised = upliftOf(world)?.raisings ?? [];
+  if (raised.length)
+    blocks.push({
+      type: "list",
+      title: "Beasts raised to thought",
+      items: raised.map((r) =>
+        item(
+          [
+            `${r.name}, raised by `,
+            realmLink(world, r.realm),
+            ` in ${r.year}: ${count(r.founders)} set down in `,
+            landLink(world, r.cell),
+          ],
+          r.event,
+        ),
+      ),
     });
   const minds = mindsOf(world);
   if (minds?.rows.size)

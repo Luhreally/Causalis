@@ -5,6 +5,16 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   BEYOND,
+  HABITAT,
+  ROGUE,
+  UPLIFT,
+  remadeGround,
+  roguePass,
+  roguePassRate,
+  skyRoom,
+  skyYear,
+  upliftScore,
+  upliftWays,
   CROSSING,
   GALACTIC,
   IMPACT,
@@ -237,4 +247,45 @@ test("minds go their own way the likelier the farther past and the looser held; 
   assert.ok(wouldGoUp(0.9, 0.5) > wouldGoUp(0.9, 0.9));
   assert.ok(goingUpOf(10_000, 0.5, 0) > goingUpOf(10_000, 0.5, 0.4));
   assert.equal(goingUpOf(10_000, 0.5, 0.5), 0);
+});
+
+// —— The left-outs, built ————————————————————————————————————————————————————————————————————————————
+
+test("a rogue world through the far cloud is rarer than a chronicle is long; closer passes are rarer and stir more", () => {
+  const cloud = roguePassRate(0.004, ROGUE.cloudAu);
+  assert.ok(cloud > 1e-9 && cloud < 1e-6, `${cloud}`);
+  assert.ok(roguePassRate(0.004, ROGUE.beltAu) < cloud / 1000);
+  assert.equal(roguePass(1e6).years, 0);
+  assert.ok(roguePass(50).times > roguePass(5000).times);
+  assert.ok(roguePass(2).orbit && !roguePass(50).orbit);
+});
+
+test("spun habitats hold as many as their rock shields and their light keeps; they grow and are joined while there is room", () => {
+  assert.equal(skyRoom(1e6, 1e12), Math.floor((1e6 * HABITAT.share) / HABITAT.tonnes));
+  assert.equal(skyRoom(1e12, 1000), Math.floor(1000 / HABITAT.kw));
+  const y = skyYear(1000, 5000, 1e6);
+  assert.ok(y.sky > 1000 && y.sky <= 5000 && y.came > 0);
+  assert.equal(skyYear(5000, 5000, 1e6).came, 0);
+  assert.ok(skyYear(5000, 4000, 1e6).sky <= 4000);
+});
+
+test("the beast raised is the one whose body leans to a mind; its ways are its body's", () => {
+  const herdHunter = { size: 60, herd: 0.9, docility: 0.2, level: 3, warm: true, arms: 0 },
+    coldGrazer = { size: 60, herd: 0.2, docility: 0.8, level: 2, warm: false, arms: 0 };
+  assert.ok(upliftScore(herdHunter) > upliftScore(coldGrazer));
+  assert.equal(upliftScore({ ...herdHunter, size: 1 }), 0);
+  assert.ok(upliftScore({ ...herdHunter, arms: 2 }) > upliftScore(herdHunter));
+  const a = upliftWays(herdHunter),
+    b = upliftWays(coldGrazer);
+  assert.equal(a.length, 8);
+  assert.ok(a[0]! > b[0]! && a[3]! > b[3]! && b[6]! > a[6]!);
+  assert.ok(UPLIFT.gapYears >= 200);
+});
+
+test("a remaking makes for its settlers' own world's warmth and air", () => {
+  const cold = { pressure: 0.01, temperature: -60 };
+  assert.deepEqual(remadeGround(cold, 1), { pressure: 1, temperature: 15 });
+  const theirs = remadeGround(cold, 1, { temperature: 45, pressure: 3 });
+  assert.ok(near(theirs.temperature, 45, 1e-9) && near(theirs.pressure, 3, 1e-9));
+  assert.ok(near(remadeGround(cold, 0.5, { temperature: 40, pressure: 0 }).pressure, 0.505, 1e-9));
 });

@@ -106,7 +106,7 @@ function greatWorks(world: World): Block[] {
           columns: ["World", "Begun", "So far"],
           rows: all.map((r): Row => {
             const ground = remakeGround(world, g, r.cell),
-              now = ground ? remadeGround(ground, r.share) : null;
+              now = ground ? remadeGround(ground, r.share, g.system.bodies[0]!) : null;
             return {
               ref: `cell:0:${r.cell}`,
               cells: [

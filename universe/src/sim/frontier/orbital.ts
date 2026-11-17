@@ -17,9 +17,20 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { cellRef } from "../../gen/index.ts";
-import { BEYOND, G, mostWorksT, worksMachines, worksNextYear } from "../../rules/index.ts";
+import {
+  BEYOND,
+  G,
+  HABITAT,
+  mirrorKw,
+  mostWorksT,
+  skyRoom,
+  skyYear,
+  worksMachines,
+  worksNextYear,
+} from "../../rules/index.ts";
+import type { Province } from "../population/model.ts";
 import { knows, loreOf } from "../lore/lore.ts";
-import { politiesOf } from "../polity/polity.ts";
+import { politiesOf, type Polity } from "../polity/polity.ts";
 import { homePlanet } from "../planet/store.ts";
 import { marketsOf, type PopulationContext } from "../population/systems.ts";
 import {
@@ -41,6 +52,8 @@ export const ORBITAL_EVENTS = {
   begun: defineEventType("frontier.sky-works", 6),
   /** A works left untended, fallen silent. */
   silent: defineEventType("frontier.sky-works-silent", 4),
+  /** The first of a realm's people to live in wheels spun from the belt's rock. */
+  habitats: defineEventType("frontier.spun-habitats", 6),
 };
 
 const ORBITAL = defineStream("frontier.orbital");
@@ -61,6 +74,10 @@ export type Works = {
   silent: Ref | null;
   /** The minds that tend it gone their own way (their event). */
   taken: Ref | null;
+  /** Its spun habitats: those living in them, how many they hold, and the event of the first to go up (absent before). */
+  sky?: number;
+  room?: number;
+  spun?: Ref | null;
 };
 
 export class OrbitalStore implements StateStore {
@@ -80,7 +97,7 @@ export class OrbitalStore implements StateStore {
   pinned(): Ref[] {
     const out: Ref[] = [];
     for (const w of this.works.values())
-      for (const r of [w.begun, w.silent, w.taken]) if (r) out.push(r);
+      for (const r of [w.begun, w.silent, w.taken, w.spun]) if (r) out.push(r);
     return out;
   }
   hashInto(h: Hasher): void {
@@ -108,6 +125,64 @@ export function orbitalOf(world: World): OrbitalStore | null {
 export function mirrorsLit(world: World, year: number): boolean {
   const m = lateOf(world)?.mirrors;
   return !!m && year - m.tended <= MIRRORS_LIGHT;
+}
+
+/** A grown land's people of every age and trade alike, so many taken from it (no draw): how many. */
+function takeFrom(p: Province, n: number): number {
+  const all = p.total();
+  if (all <= 0 || n <= 0) return 0;
+  const share = Math.min(1, n / all);
+  let moved = 0;
+  for (let r = 0; r < p.counts.rows && moved < n; r++)
+    for (let o = 0; o < p.counts.cols && moved < n; o++) {
+      const m = Math.min(n - moved, Math.floor(p.counts.get(r, o) * share));
+      if (m <= 0) continue;
+      p.counts.add(r, o, -m);
+      moved += m;
+    }
+  return moved;
+}
+
+/** The light a works' habitats live by (kW): the mirrors', where they light it and its realm tends them, else its own engines'. */
+function skyKw(ctx: PopulationContext, w: Works, p: Polity, lit: boolean): number {
+  const g = homePlanet(ctx.world).generated,
+    m = lateOf(ctx.world)?.mirrors,
+    own = w.tonnes * HABITAT.ownKwPerT;
+  if (!lit || !m || !knows(ctx, p.seat, "star-mirrors")) return own;
+  return own + mirrorKw(m.km2, g.star.luminosity, g.system.bodies[0]!.orbit.a);
+}
+
+/**
+ * The spun habitats' year: where its people know how to hold halls and spin fibre, the works' rock is hollowed into wheels
+ * as many can live in as its rock shields and its light keeps; those in them grow, and more come up from the realm's seat
+ * while there is room. (They leave the land's counts and are held on the works' row.)
+ */
+function habitatsYear(
+  ctx: PopulationContext,
+  store: OrbitalStore,
+  w: Works,
+  p: Polity,
+  lit: boolean,
+  year: number,
+): void {
+  if (w.taken || !knows(ctx, p.seat, "habitats") || !knows(ctx, p.seat, "drawn-carbon")) return;
+  const room = skyRoom(w.tonnes, skyKw(ctx, w, p, lit)),
+    sky = w.sky ?? 0;
+  w.room = room;
+  if (room <= 0 && sky <= 0) return;
+  const seat = ctx.provinces.get(p.seat),
+    next = skyYear(sky, room, realmPeople(ctx, p)),
+    came = seat ? takeFrom(seat, next.came) : 0;
+  w.sky = next.sky - next.came + came;
+  if (!w.spun && w.sky > 0)
+    w.spun = ctx.world.events.emit({
+      type: ORBITAL_EVENTS.habitats.type,
+      place: cellRef(0, p.seat),
+      subjects: [p.ref],
+      causes: [{ ref: w.begun, role: "enabler", weight: 1 }],
+      data: { realm: p.town, people: w.sky, room },
+    });
+  store.note([refNumber(w.realm), year, w.sky, room]);
 }
 
 /** The works' year: tended, grown and sending down; a realm able to begins one. */
@@ -149,11 +224,12 @@ export function orbitalYear(ctx: PopulationContext, t: SimTime): void {
     w.tended = year;
     w.silent = null;
     w.tonnes = worksNextYear(w.tonnes, most, lit, mindsPastOf(world, w.realm), span);
-    const sent = w.taken ? 0 : span * worksMachines(w.tonnes, realmPeople(ctx, p)),
+    const sent = w.taken ? 0 : span * worksMachines(w.tonnes, realmPeople(ctx, p) + (w.sky ?? 0)),
       m = markets.get(p.seat);
     w.last = m && sent > 0 ? m.move("made", G.machines, sent) : 0;
     w.sent += w.last;
     store.note([refNumber(w.realm), year, Math.round(w.tonnes), w.last]);
+    habitatsYear(ctx, store, w, p, lit, year);
   }
   // A realm able to begins its works: a station, and minds to tend what builds itself.
   for (const p of realms.living()) {

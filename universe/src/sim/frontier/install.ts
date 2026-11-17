@@ -8,6 +8,7 @@ import { installGalactic } from "./galactic.ts";
 import { installOrbital } from "./orbital.ts";
 import { installWritten } from "./written.ts";
 import { installMinds } from "./minds.ts";
+import { installUplift } from "./uplift.ts";
 
 export function installFrontier(world: World, ctx: () => PopulationContext): void {
   installWeather(world, ctx);
@@ -16,4 +17,5 @@ export function installFrontier(world: World, ctx: () => PopulationContext): voi
   installMinds(world, ctx);
   installOrbital(world, ctx);
   installWritten(world, ctx);
+  installUplift(world, ctx);
 }

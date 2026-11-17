@@ -11,6 +11,9 @@ import {
   impactsOf,
   impactsYear,
   mindsOf,
+  mostRaisable,
+  upliftOf,
+  rogueStir,
   orbitalOf,
   populationContext,
   stoneOf,
@@ -70,6 +73,14 @@ test("a great stone set to fall this year falls: its dead written, its event tol
   assert.ok(store.state.dust > 0.05);
   assert.ok(frontierFields(world, home.cell) < 1);
   assert.ok(world.events.get(stone.struck!));
+});
+
+test("a world holds a beast its people could raise, warm and of a size to carry a mind; no rogue stirs it", () => {
+  assert.ok(upliftOf(world)?.dormant());
+  const beast = mostRaisable(ctx, new Set());
+  assert.ok(beast && beast.body && beast.size >= 3, beast?.name);
+  assert.ok(mostRaisable(ctx, new Set([beast.ref]))?.ref !== beast.ref);
+  assert.equal(rogueStir(world, 30), 1);
 });
 
 test("the pages of the Frontier build on a real world", () => {

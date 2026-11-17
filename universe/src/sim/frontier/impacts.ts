@@ -53,6 +53,7 @@ import {
   spendMachines,
 } from "../space/space.ts";
 import { fold, homeLands } from "./common.ts";
+import { rogueStir } from "./galactic.ts";
 
 export const IMPACT_EVENTS = {
   /** A stone or comet found on its way to the world. */
@@ -175,7 +176,11 @@ export function showerOf(world: World): boolean {
 /** How much more the home world is struck than an Earth now, in a year. */
 export function homeStrikeRate(world: World, year: number): number {
   const g = homePlanet(world).generated;
-  return strikeRate(g.star.ageGyr + Math.max(0, year) / 1e9, stirredOf(g), showerOf(world));
+  // (And a rogue world's pass, while its stirring presses: galactic.ts.)
+  return (
+    strikeRate(g.star.ageGyr + Math.max(0, year) / 1e9, stirredOf(g), showerOf(world)) *
+    rogueStir(world, year)
+  );
 }
 
 /** The share of the great stones that are comets on this sky. */
