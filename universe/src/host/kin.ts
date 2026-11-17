@@ -204,11 +204,35 @@ function surnameOf(name: string, given: string): string {
  * its open band thrice over), or null: alive in `until`.
  */
 function diesIn(r: Reading, key: number, born: number, from: number, until: number): number | null {
-  const last = born + r.life.bands.at(-1)! + 3 * r.life.oldest;
-  for (let y = Math.max(born, from); y <= until; y++) {
-    if (y >= last) return y;
-    const age = y - born;
-    if (u(key, 4096 + age) < (r.life.mortality[bandOf(age, r.life)] ?? 1)) return y;
+  return bedDeath(r.life, key, born, from, until)?.year ?? null;
+}
+
+/**
+ * How diesIn gives one's death: the year, their age, the life table's chance at it and the year's keyed draw under it, and the years
+ * whose draws passed them before (`last`: none outlives their kind's open band thrice over, and that is how they died). Null: alive.
+ */
+export function bedDeath(
+  life: LifeHistory,
+  key: number,
+  born: number,
+  from: number,
+  until: number,
+): {
+  readonly year: number;
+  readonly age: number;
+  readonly chance: number;
+  readonly draw: number;
+  readonly passed: number;
+  readonly last: boolean;
+} | null {
+  const last = born + life.bands.at(-1)! + 3 * life.oldest,
+    start = Math.max(born, from);
+  for (let y = start; y <= until; y++) {
+    const age = y - born,
+      chance = life.mortality[bandOf(age, life)] ?? 1;
+    if (y >= last) return { year: y, age, chance: 1, draw: 0, passed: y - start, last: true };
+    const draw = u(key, 4096 + age);
+    if (draw < chance) return { year: y, age, chance, draw, passed: y - start, last: false };
   }
   return null;
 }
@@ -395,9 +419,19 @@ function holderNode(t: Lines, h: Holder): Node {
         ? struck.kind === "raid"
           ? `died in a raid of ${(t.world.events.get(struck.event as Ref)?.data as { a?: string } | undefined)?.a ?? "their foes"} in ${struck.year}`
           : `died in the ${struck.kind === "meteor" ? "fire from the sky" : struck.kind} of ${struck.year}`
-        : bedWords(t, { born: h.born, died }),
+        : bedOf(t, h, died),
     event: fell?.event ?? struck?.event ?? null,
   };
+}
+
+/** A holder dead past their term, in words: of their years, and the life table's chance that year (asked 2026-11-16). */
+function bedOf(t: Lines, h: Holder, died: number | null): string | null {
+  const words = bedWords(t, { born: h.born, died });
+  if (died === null || !words) return words;
+  const bed = bedDeath(t.life, h.key ^ 0x5eed, h.born, h.end, died);
+  return bed && !bed.last
+    ? `${words}, of their years (${(100 * bed.chance).toFixed(1)}% that year by the life table)`
+    : `${words}, of their years`;
 }
 
 /** The holder of a line before `h` (the one before him in his term, else the last of the term before); null: none known. */

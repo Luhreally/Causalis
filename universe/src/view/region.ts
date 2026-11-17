@@ -1,6 +1,6 @@
 // How a region looks, as data: tile colours for a lens and heights for the
 // terrain mesh. Pure, like every view builder.
-import type { ColonyLook, FrameMessage, LandSky } from "../bridge/index.ts";
+import type { ColonyLook, FrameMessage, LandSky, LandUnderworld } from "../bridge/index.ts";
 import { rockOf } from "../rules/index.ts";
 import { biomeColor, frameKind, frameLook, kindWater } from "./globe.ts";
 import type { Rgb } from "./sandbox.ts";
@@ -128,6 +128,116 @@ export function regionColors(frame: FrameMessage, lens: RegionLens): Uint8Array 
   }
   return out;
 }
+
+/**
+ * A land's towns' turf in the colour of the group that holds it (the underworld in the land view, 2026-11-16): each tile within
+ * a town's reach, and one tile beyond, drawn toward the colour by `k` (its hold), so a town held hard stands out from the ground
+ * about it. `towns`: each town's middle and reach (region units). Painted with the land's tiles, never a frame at a time.
+ */
+export function turfTiles(
+  colors: Uint8Array,
+  size: number,
+  tileKm: number,
+  towns: readonly { readonly x: number; readonly z: number; readonly r: number }[],
+  color: readonly [number, number, number],
+  k: number,
+): Uint8Array {
+  if (!towns.length || k <= 0) return colors;
+  const out = colors.slice(),
+    half = ((size - 1) * tileKm) / 2,
+    done = new Uint8Array(size * size);
+  for (const t of towns) {
+    const reach = t.r + tileKm,
+      i0 = Math.max(0, Math.floor((t.x - reach + half) / tileKm)),
+      i1 = Math.min(size - 1, Math.ceil((t.x + reach + half) / tileKm)),
+      j0 = Math.max(0, Math.floor((t.z - reach + half) / tileKm)),
+      j1 = Math.min(size - 1, Math.ceil((t.z + reach + half) / tileKm));
+    for (let j = j0; j <= j1; j++)
+      for (let i = i0; i <= i1; i++) {
+        const tile = j * size + i;
+        if (done[tile] || Math.hypot(i * tileKm - half - t.x, j * tileKm - half - t.z) > reach)
+          continue;
+        done[tile] = 1;
+        for (let c = 0; c < 3; c++)
+          out[tile * 4 + c] = Math.round(out[tile * 4 + c]! * (1 - k) + color[c]! * 255 * k);
+      }
+  }
+  return out;
+}
+
+/** A mark of the underworld over the land view: its words, where on the screen, and the page a press on it opens (in its key). */
+export type UnderworldMark = {
+  readonly key: string;
+  readonly text: string;
+  readonly at: { readonly x: number; readonly y: number };
+  readonly priority: number;
+};
+
+/**
+ * The underworld's marks in the land view (2026-11-16): over its three greatest towns, its killing (red) and a crew of the realm's
+ * own enforcers (blue), a press on one opening the group that holds it (or the crew's page, or the town's law where no one holds
+ * it); the realm's soldiers sent against them under its greatest town, a press from their operation; brigands over its busiest
+ * road, pirates off its coast, each a press from its page. `towns`: each town and where it stands
+ * on the screen (null: out of sight); `road`, `sea`: where those stand (null: none, or out of sight). Keys begin "uw:" and end
+ * after their last "|" with the page.
+ */
+export function underworldMarks(
+  u: LandUnderworld,
+  towns: readonly {
+    readonly ref: string;
+    readonly population: number;
+    readonly at: { readonly x: number; readonly y: number } | null;
+  }[],
+  road: { readonly x: number; readonly y: number } | null,
+  sea: { readonly x: number; readonly y: number } | null,
+): UnderworldMark[] {
+  const out: UnderworldMark[] = [],
+    killing = u.killing >= 1,
+    words = [
+      ...(killing ? [`🔴 ${+u.killing.toFixed(1)} killed in 100k`] : []),
+      ...(u.badge > 0 ? ["🔵 the realm's own crew"] : []),
+    ];
+  if (words.length)
+    for (const t of [...towns].sort((a, b) => b.population - a.population).slice(0, 3)) {
+      if (!t.at) continue;
+      const page = killing
+        ? (u.holder?.ref ?? `${t.ref}#law`)
+        : (u.badgeRef ?? u.holder?.ref ?? `${t.ref}#law`);
+      out.push({
+        key: `uw:${t.ref}|${page}`,
+        text: words.join(" · "),
+        at: { x: t.at.x, y: t.at.y - 24 },
+        priority: 5e11 + t.population,
+      });
+    }
+  // (The realm's soldiers sent against them, under its greatest town's name: their operation's page.)
+  const greatest = [...towns].sort((a, b) => b.population - a.population)[0];
+  if (u.soldiers > 0 && u.soldiersRef && greatest?.at)
+    out.push({
+      key: `uw:op|${u.soldiersRef}`,
+      text: `🪖 ${u.soldiers} soldiers against them`,
+      at: { x: greatest.at.x, y: greatest.at.y + 22 },
+      priority: 5.5e11,
+    });
+  if (u.brigands && road)
+    out.push({
+      key: `uw:road|${u.brigands.ref}`,
+      text: `🗡️ ${u.brigands.name}`,
+      at: { x: road.x, y: road.y - 12 },
+      priority: 6e11,
+    });
+  if (u.pirates && sea)
+    out.push({
+      key: `uw:sea|${u.pirates.ref}`,
+      text: `🏴 ${u.pirates.name}`,
+      at: { x: sea.x, y: sea.y - 12 },
+      priority: 6e11,
+    });
+  return out;
+}
+
+/** The page an underworld mark's key opens. */
+export const underworldMarkPage = (key: string): string => key.slice(key.lastIndexOf("|") + 1);
 
 /** A tree of a region's woods: the tile it stands on, its offset within it, its kind. */
 export type RegionTree = {

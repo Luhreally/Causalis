@@ -42,6 +42,7 @@ import { lettersBlock } from "./letters.ts";
 import { landCultureBlocks } from "./folkways.ts";
 import { childrenBlock } from "./children.ts";
 import { landLivesBlocks } from "./society.ts";
+import { landUnderworldBlocks } from "./underland.ts";
 import { labourBlock } from "./labour.ts";
 import { parseRef, type Ref, type World } from "../../kernel/index.ts";
 import type { Block, Item, Line, PageModel, Place, Row, Stat, Tab } from "../../bridge/index.ts";
@@ -305,6 +306,9 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
     // Its everyday life (the society sweep): its care of its sick and its old, who does what, what is held, its table, dress and rest.
     const lives = landLivesBlocks(world, cell);
     if (lives.length) tabs.push({ id: "lives", name: "Lives", blocks: lives });
+    // Its underworld in one place (asked 2026-11-16): its towns, each a press from its law page; who holds it; its other groups;
+    // what slips past, who needs what they take, who has no roof, and what its realm does about it.
+    tabs.push({ id: "underworld", name: "Underworld", blocks: landUnderworldBlocks(world, cell) });
     // Its debts (Phase 21 M143): what it owes, to which houses, against its harvest.
     const debt = landCreditBlocks(world, cell);
     if (debt.length) tabs.push({ id: "debt", name: "Debt", blocks: debt });

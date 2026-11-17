@@ -6,6 +6,7 @@
 import type { Ref, World } from "../../kernel/index.ts";
 import type { Block, Item, PageModel, Row, Stat } from "../../bridge/index.ts";
 import {
+  GROUP_KINDS,
   RACKETS,
   UNDER,
   bulkSlip,
@@ -31,6 +32,7 @@ import {
   politiesOf,
   underworldOf,
   type CrimeGroup,
+  type Operation,
   type Federation,
   type Polity,
   type RealmUnderworld,
@@ -40,7 +42,17 @@ import {
 import { grainSum, groupWords } from "../../causal/index.ts";
 import { contraWords } from "./tastes.ts";
 import { realmColor } from "../colors.ts";
-import { fedNews, fedOf, fedRef, groupNews, groupOf, groupRef } from "../underworld.ts";
+import {
+  fedNews,
+  fedOf,
+  fedRef,
+  groupNews,
+  groupOf,
+  groupRef,
+  opNews,
+  opOf,
+  opRef,
+} from "../underworld.ts";
 import { claimOf, count, item, link, many, part, share, stat, yearAt, yearNow } from "./words.ts";
 import { landLink, landTitle, realmLink } from "./names.ts";
 
@@ -64,10 +76,10 @@ const RACKET_WORDS: Readonly<Record<(typeof RACKETS)[number], string>> = {
   shakedown: "keeping what it seizes",
   killing: "killing those it hunts, outside the law",
 };
-const racketsOf = (bits: number): string[] =>
+export const racketsOf = (bits: number): string[] =>
   RACKETS.filter((_, i) => bits & (1 << i)).map((r) => RACKET_WORDS[r]);
 
-const kindLine = (g: CrimeGroup): string =>
+export const kindLine = (g: CrimeGroup): string =>
   g.squad ? "a death squad of the realm's own enforcers" : KIND_WORDS[kindOfGroup(g)];
 
 const groupLink = (r: Polity, g: { name: string; kind: number; event: Ref }) =>
@@ -184,6 +196,9 @@ export function realmUnderworldBlocks(world: World, r: Polity): Block[] {
       );
     blocks.push({ type: "list", title: "Wars between them", items });
   }
+  // (Soldiers sent against its groups: escalation.)
+  const ops = operationsBlock(r, v);
+  if (ops) blocks.push(ops);
   blocks.push(feedsBlock(v));
   const street = streetBlock(world, r, v);
   if (street) blocks.push(street);
@@ -591,7 +606,152 @@ export function townUnderworldBlocks(world: World, s: Settlement): Block[] {
   rows.push(
     stat("The killing", `${count(Math.round(read.violence))} a year in a hundred thousand`),
   );
-  return [{ type: "facts", title: "Its underworld", rows }];
+  // (Soldiers sent into its land against a group, under way or ended: its Operations.)
+  const ops: Stat[] = [];
+  if (r && rec)
+    for (const o of [...(rec.ops ?? [])].reverse())
+      if (o.lands.includes(s.cell))
+        ops.push(
+          stat(
+            o.ended === null ? "Soldiers here" : `Year ${o.since}–${o.ended}`,
+            [
+              link(
+                `${count(o.soldiers)} sent against ${groupWords(o.name, GROUP_KINDS[o.kind])}`,
+                opRef(r.ref, o.event),
+              ),
+              o.ended === null
+                ? `, since year ${o.since}`
+                : `: ${OP_END[o.how ?? ""] ?? o.how ?? "ended"}`,
+            ],
+            { why: o.event, parts: opParts(o) },
+          ),
+        );
+  return [
+    { type: "facts", title: "Its underworld", rows },
+    ...(ops.length ? [{ type: "facts" as const, title: "Operations", rows: ops }] : []),
+  ];
+}
+
+// —— Soldiers sent against a group ————————————————————————————————————————————————————————————————————————
+
+const OP_END: Readonly<Record<string, string>> = {
+  withdrew: "withdrawn",
+  bought: "withdrawn, bought off",
+  terms: "its fighters laid down their arms",
+  truce: "a truce",
+  crushed: "the group broken",
+};
+
+/** What an operation has cost and done, as parts. */
+const opParts = (o: Operation) => [
+  part("soldiers dead", count(Math.round(o.fallen))),
+  part("of the group's men taken or killed", count(Math.round(o.taken))),
+  part("others killed between them", count(Math.round(o.bystanders))),
+  part("driven from their homes", count(Math.round(o.displaced))),
+  part("what it has cost the treasury", grain(o.spent)),
+  ...(o.bosses ? [part("bosses taken", count(o.bosses))] : []),
+];
+
+/** A realm's operations: under way, and the few ended it remembers (null: none). */
+function operationsBlock(r: Polity, v: Readonly<RealmUnderworld>): Block | null {
+  const ops = v.ops ?? [];
+  if (!ops.length && !v.truce) return null;
+  const rows: Stat[] = [...ops]
+    .reverse()
+    .map((o) =>
+      stat(
+        o.ended === null ? "Under way" : `Year ${o.since}–${o.ended}`,
+        [
+          link(
+            `${count(o.soldiers)} soldiers against ${groupWords(o.name, GROUP_KINDS[o.kind])}`,
+            opRef(r.ref, o.event),
+          ),
+          o.ended === null
+            ? `, since year ${o.since}`
+            : `: ${OP_END[o.how ?? ""] ?? o.how ?? "ended"}`,
+        ],
+        { why: o.event, parts: opParts(o) },
+      ),
+    );
+  if (v.truce)
+    rows.push(
+      stat(
+        "A truce",
+        `with the ${v.truce.name}, until year ${v.truce.until}${v.truce.known !== undefined ? ": made known, at a cost to the seat's standing" : ""}`,
+        {
+          why: v.truce.event,
+        },
+      ),
+    );
+  return { type: "facts", title: "Operations", rows };
+}
+
+/** An operation's page (`uop:<realm>:<event>`): whom, how many, since when, what it has cost, how it ended. */
+export function operationPage(world: World, ref: string): PageModel {
+  const at = opOf(world, ref);
+  if (!at) throw new Error(`no operation ${ref}`);
+  const { realm: r, op: o } = at,
+    year = yearNow(world),
+    target = underworldOf(world)
+      ?.of(r.ref)
+      ?.groups.find((g) => g.id === o.target),
+    against = groupWords(o.name, GROUP_KINDS[o.kind]),
+    facts: Stat[] = [
+      stat("Realm", [realmLink(world, r.ref)]),
+      stat("Against", target ? [groupLink(r, target)] : cap(against)),
+      stat("Soldiers", count(o.soldiers)),
+      stat("Since", `year ${o.since}`, { why: o.event }),
+      stat(
+        "Where",
+        o.lands.flatMap((c, i) => (i ? [", ", landLink(world, c)] : [landLink(world, c)])),
+      ),
+      stat("What it has cost and done", `${count(o.clashes)} years of clashes told`, {
+        parts: opParts(o),
+      }),
+    ];
+  if (o.ended !== null)
+    facts.push(
+      stat(
+        "How it ended",
+        [
+          `in year ${o.ended}: `,
+          link(OP_END[o.how ?? ""] ?? o.how ?? "ended", o.endEvent ?? o.event),
+        ],
+        {
+          ...(o.endEvent ? { why: o.endEvent } : {}),
+        },
+      ),
+    );
+  const blocks: Block[] = [
+    { type: "facts", rows: facts },
+    {
+      type: "text",
+      lines: [
+        [
+          "A seat sends its soldiers where a group's armed men are more than its police can meet, the killing is high or the group defies the seat itself, and its treasury can keep them there. They garrison the group's towns and fight its men; a boss taken leaves rival successors, soldiers no voice watches abuse and turn, the jails fill, and a war that does not break the group ends in a truce.",
+        ],
+      ],
+    },
+  ];
+  const passed = passedItems(world, opNews(at) as (e: never) => boolean, o.since);
+  if (passed.length) blocks.push({ type: "list", title: "What has passed in it", items: passed });
+  return {
+    ref: opRef(r.ref, o.event),
+    kind: "family",
+    icon: "🪖",
+    title: `Soldiers against ${against}`,
+    subtitle: [o.ended === null ? "Sent by " : "Once sent by ", realmLink(world, r.ref)],
+    color: realmColor(r.ref),
+    place: o.lands[0] !== undefined ? { scale: "region", cell: o.lands[0] } : null,
+    stats: [
+      stat("Soldiers", count(o.soldiers)),
+      stat("Since", `year ${o.since}`),
+      stat("Dead", count(Math.round(o.fallen + o.taken * 0.6 + o.bystanders))),
+    ],
+    tabs: [{ id: "overview", name: "Overview", blocks }],
+    followable: false,
+    year,
+  };
 }
 
 // —— What a group carries, and its means ——————————————————————————————————————————————————————————————————

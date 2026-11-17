@@ -28,10 +28,17 @@ import {
   type Mix,
 } from "./sound-mix.ts";
 import { SOUND_SPEED, type HeardKind, type Voicing } from "../view/index.ts";
+import type { MusicVoice } from "../bridge/index.ts";
 
 const STORE = "causalis.sound",
   STORE_VOLUME = "causalis.sound.volume",
-  STORE_EFFECTS = "causalis.sound.effects";
+  STORE_EFFECTS = "causalis.sound.effects",
+  STORE_MIX = "causalis.sound.mix";
+/** The parts of what is heard, each with its own level in Settings (asked 2026-11-16: "the ocean sfx so loud ... i cant even hear the music"). */
+export const SOUND_PARTS = ["sea", "places", "music", "effects"] as const;
+export type SoundPart = (typeof SOUND_PARTS)[number];
+/** Each part's level where none is kept: the sea at half, under the music. */
+const MIX_DEFAULT: Record<SoundPart, number> = { sea: 0.5, places: 1, music: 1, effects: 1 };
 /** The whole of it, under what a phone's speaker can stand: never a surprise (the volume set in Settings is a share of this). */
 const VOLUME = 0.72;
 /** How long a crossfade takes to get most of the way (s, the time constant of its fade). */
@@ -343,6 +350,8 @@ class Graph {
   private readonly level: GainNode;
   private readonly dry: GainNode;
   private readonly cueBus: GainNode;
+  /** The sea's own level, under the places' (Settings). */
+  private readonly sea: GainNode;
   private readonly pans: StereoPannerNode[];
   // The layers.
   private readonly gains: Record<
@@ -410,6 +419,8 @@ class Graph {
     this.water.connect(this.level);
     this.amb = gainOf(1);
     this.amb.connect(this.water);
+    this.sea = gainOf(1);
+    this.sea.connect(this.amb);
     this.dry = gainOf(1);
     this.dry.connect(this.level);
     this.cueBus = gainOf(1);
@@ -446,7 +457,7 @@ class Graph {
     this.gains = {
       wind: layer(this.amb),
       high: layer(this.amb),
-      surf: layer(this.amb),
+      surf: layer(this.sea),
       rain: layer(this.amb),
       crowd: layer(this.amb),
       crickets: layer(this.amb),
@@ -530,6 +541,18 @@ class Graph {
       if (Math.abs(Math.log(FAR_HZ[b]! / hz)) < Math.abs(Math.log(FAR_HZ[band]! / hz))) band = b;
     const side = pan < -0.33 ? 0 : pan > 0.33 ? 2 : 1;
     return this.far[band]![side]!;
+  }
+
+  /** One part's level (Settings): the sea, the places' sounds, the music, the cues and arms. */
+  setPart(part: SoundPart, v: number, at: number): void {
+    const g = { sea: this.sea, places: this.amb, music: this.dry, effects: this.cueBus }[part].gain;
+    g.cancelScheduledValues(at);
+    g.setTargetAtTime(Math.max(0, Math.min(1, v)), at, 0.05);
+  }
+
+  /** Where a realm's tune is played: with the music, at its level. */
+  get musicBus(): AudioNode {
+    return this.dry;
   }
 
   /** The level everything is played at (the volume in Settings, a share of the whole). */
@@ -1775,6 +1798,21 @@ const keep = (v: string, key = STORE): void => {
     // (Storage may be shut, as in a private window: then it holds only for this visit.)
   }
 };
+/** Each part's level kept (its default where none is kept, or it can't be read). */
+const keptParts = (): Record<SoundPart, number> => {
+  const out = { ...MIX_DEFAULT };
+  try {
+    const k = JSON.parse(kept(STORE_MIX) ?? "{}") as Partial<Record<SoundPart, unknown>>;
+    for (const p of SOUND_PARTS) {
+      const v = Number(k[p]);
+      if (k[p] !== undefined && Number.isFinite(v)) out[p] = Math.max(0, Math.min(1, v));
+    }
+  } catch {
+    // (Kept badly: the defaults.)
+  }
+  return out;
+};
+
 /** The volume kept (0 … 1; all of it where none is kept). */
 const keptVolume = (): number => {
   const v = Number(kept(STORE_VOLUME) ?? "1");
@@ -1817,6 +1855,8 @@ export class Sound {
   /** The volume (0 … 1) and whether the sounds of arms and blasts are heard (Settings; kept between visits). */
   private volume = keptVolume();
   private effects = kept(STORE_EFFECTS) !== "off";
+  /** Each part's level (0 … 1), kept between visits. */
+  private parts = keptParts();
   private ctx: AudioContext | null = null;
   private graph: Graph | null = null;
   private pump = 0;
@@ -1986,6 +2026,7 @@ export class Sound {
       this.graph = new Graph(ctx, seed, true, loops);
       this.startMs = Math.max(worst.ms, performance.now() - from);
       this.graph.apply(this.mix, ctx.currentTime, 0.05);
+      for (const p of SOUND_PARTS) this.graph.setPart(p, this.parts[p], ctx.currentTime);
       // (In softly, from nothing.)
       this.graph.master.gain.setTargetAtTime(VOLUME * this.volume, ctx.currentTime + 0.05, 0.9);
       this.until = ctx.currentTime;
@@ -2179,6 +2220,94 @@ export class Sound {
     }
   }
 
+  /**
+   * A realm's music played for some twelve seconds, quietly (its Culture tab's ▶ Hear it, asked 2026-11-16): its tune walked on its
+   * scale from its own seed, at its pace, in the timbre of what it is played on, its drums struck as many beats a bar as it has. Only
+   * while 🔊 is on, at the page's volume; false where it is off or the page cannot sound.
+   */
+  tune(v: MusicVoice, tries = 0): boolean {
+    if (!this.wanted || !canSound()) return false;
+    if (!this.ctx) this.begin();
+    const ctx = this.ctx,
+      g = this.graph;
+    if (!ctx) return false;
+    // (Its graph is built just after its context, in a moment: played as soon as it stands.)
+    if (!g) {
+      if (tries >= 12) return false;
+      setTimeout(() => this.tune(v, tries + 1), 250);
+      return true;
+    }
+    if (ctx.state !== "running") void this.wake();
+    // (Its own draw: the same realm's tune each time.)
+    let h = v.seed >>> 0 || 1;
+    const rand = () => {
+        h = (h + 0x6d2b79f5) >>> 0;
+        let t = Math.imul(h ^ (h >>> 15), 1 | h);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      },
+      beat = 60 / Math.max(40, Math.min(180, v.tempo)),
+      start = ctx.currentTime + 0.1,
+      length = 12,
+      bus = ctx.createGain(),
+      steps = v.scale.length ? v.scale : [0, 2, 4, 7, 9],
+      drums = new Set<number>([0]);
+    bus.gain.value = 0.22;
+    bus.connect(g.musicBus);
+    while (drums.size < Math.min(8, v.drums)) drums.add(Math.floor(rand() * 8));
+    const note = (at: number, hz: number, dur: number) => {
+      const o = ctx.createOscillator(),
+        e = ctx.createGain(),
+        legato = v.timbre === "wood" || v.timbre === "voice";
+      o.type = v.timbre === "string" || v.timbre === "voice" ? "triangle" : "sine";
+      o.frequency.setValueAtTime(hz, at);
+      e.gain.setValueAtTime(0, at);
+      e.gain.linearRampToValueAtTime(legato ? 0.5 : 0.7, at + (legato ? 0.06 : 0.008));
+      e.gain.exponentialRampToValueAtTime(0.001, at + (v.timbre === "metal" ? dur * 2.5 : dur));
+      o.connect(e).connect(bus);
+      o.start(at);
+      o.stop(at + dur * 2.6 + 0.05);
+      // (A bell rings with a partial above its note that is no whole multiple of it.)
+      if (v.timbre === "metal") {
+        const p = ctx.createOscillator(),
+          pe = ctx.createGain();
+        p.frequency.setValueAtTime(hz * 2.76, at);
+        pe.gain.setValueAtTime(0.18, at);
+        pe.gain.exponentialRampToValueAtTime(0.001, at + dur);
+        p.connect(pe).connect(bus);
+        p.start(at);
+        p.stop(at + dur + 0.05);
+      }
+    };
+    const drum = (at: number, strong: boolean) => {
+      const o = ctx.createOscillator(),
+        e = ctx.createGain();
+      o.frequency.setValueAtTime(strong ? 110 : 150, at);
+      o.frequency.exponentialRampToValueAtTime(45, at + 0.18);
+      e.gain.setValueAtTime(strong ? 0.8 : 0.45, at);
+      e.gain.exponentialRampToValueAtTime(0.001, at + 0.25);
+      o.connect(e).connect(bus);
+      o.start(at);
+      o.stop(at + 0.3);
+    };
+    let at = start,
+      i = 0,
+      pos = steps.length + Math.floor(rand() * steps.length);
+    while (at < start + length) {
+      if (drums.has(i % 8) && v.drums > 0) drum(at, i % 8 === 0);
+      // (A walk on the scale over two octaves; a lament's falls through each bar.)
+      const fall = v.falling && i % 8 > 3 ? -1 : 0;
+      pos = Math.max(0, Math.min(steps.length * 2 - 1, pos + Math.floor(rand() * 5) - 2 + fall));
+      const step = steps[pos % steps.length]! + 12 * Math.floor(pos / steps.length),
+        held = rand() < 0.25 ? 2 : 1;
+      if (rand() > 0.12) note(at, v.root * Math.pow(2, step / 12), beat * held * 0.95);
+      at += beat * held;
+      i += held;
+    }
+    setTimeout(() => bus.disconnect(), (length + 4) * 1000);
+    return true;
+  }
+
   /** The volume (0 … 1), kept between visits, heard at once. */
   setVolume(v: number): void {
     this.volume = Math.max(0, Math.min(1, v));
@@ -2194,9 +2323,30 @@ export class Sound {
     keep(on ? "on" : "off", STORE_EFFECTS);
   }
 
-  /** What Settings shows: whether there is sound here at all, 🔊, the volume and the effects. */
-  settingsNow(): { can: boolean; on: boolean; volume: number; effects: boolean } {
-    return { can: canSound(), on: this.wanted, volume: this.volume, effects: this.effects };
+  /** One part's level (0 … 1), kept between visits, heard at once. */
+  setPart(part: SoundPart, v: number): void {
+    this.parts[part] = Math.max(0, Math.min(1, v));
+    keep(JSON.stringify(this.parts), STORE_MIX);
+    const g = this.graph,
+      ctx = this.ctx;
+    if (g && ctx) g.setPart(part, this.parts[part], ctx.currentTime);
+  }
+
+  /** What Settings shows: whether there is sound here at all, 🔊, the volume, the effects and each part's level. */
+  settingsNow(): {
+    can: boolean;
+    on: boolean;
+    volume: number;
+    effects: boolean;
+    parts: Record<SoundPart, number>;
+  } {
+    return {
+      can: canSound(),
+      on: this.wanted,
+      volume: this.volume,
+      effects: this.effects,
+      parts: { ...this.parts },
+    };
   }
 
   /** A fight among the stars, as drawn this frame (no allocation; counts only): what has just begun in it, heard. */

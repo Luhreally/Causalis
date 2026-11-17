@@ -37,6 +37,8 @@ export type BarPerson = {
   /** The face their page shows; null: one history no longer draws. */
   readonly portrait: Portrait | null;
   readonly readings: BarReadings;
+  /** How they died, in a line, for one gone (absent: they live, or history keeps no death of them): asked 2026-11-16. */
+  readonly died?: string;
 };
 
 /** A person kept on the bar by the viewer: their page, and who it was when they were pinned. */

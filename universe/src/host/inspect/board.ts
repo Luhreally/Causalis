@@ -557,7 +557,8 @@ function claimsOf(
       add(
         `market:${GOODS[best]!.id}`,
         2.4,
-        `its ${goodName(world, best)} market, sending ${goodName(world, best).endsWith("s") ? "them" : "it"} down ${roads === 1 ? "one road" : `${count(roads)} roads`}`,
+        // (What goes out by no road its land's flows keep is sent away: never "down 0 roads".)
+        `its ${goodName(world, best)} market, sending ${goodName(world, best).endsWith("s") ? "them" : "it"} ${roads === 0 ? "away" : `down ${roads === 1 ? "one road" : `${count(roads)} roads`}`}`,
         goodRef(best),
       );
     }

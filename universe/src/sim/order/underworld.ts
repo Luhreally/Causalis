@@ -66,6 +66,9 @@ import {
   banRent,
   bossTaken,
   collusionOf,
+  escalation,
+  fightOdds,
+  ESCALATE,
   crackdownOf,
   deathSquad,
   diesWithin,
@@ -92,7 +95,7 @@ import { beliefOf } from "../belief/belief.ts";
 import { loreOf } from "../lore/lore.ts";
 import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { diplomacyOf } from "../diplomacy/diplomacy.ts";
-import { warsOf } from "../war/war.ts";
+import { fieldedOf, warsOf } from "../war/war.ts";
 import { armsOf } from "../war/arms.ts";
 import { blockadeOn, coastal } from "../war/navy.ts";
 import { materialsOf } from "../lore/materials.ts";
@@ -114,7 +117,14 @@ import {
 } from "../money/kept.ts";
 import { RISK } from "../money/intox.ts";
 import { idleOf } from "../trade/kept.ts";
-import { LAW_ROW, LAW_STORE, societyStore, streetOf } from "../society/kept.ts";
+import {
+  LAW_ROW,
+  LAW_STORE,
+  ROOFLESS_STORE,
+  ROOF_ROW,
+  societyStore,
+  streetOf,
+} from "../society/kept.ts";
 import { addsReach, addsStanding, capacityOf, orderOf } from "./order.ts";
 import { holdsOf } from "./holds.ts";
 import { LAW_OF } from "./laws.ts";
@@ -133,6 +143,7 @@ import {
   underworldOf,
   type CrimeGroup,
   type Federation,
+  type Operation,
   type GangWar,
   type RealmUnderworld,
 } from "./underworld-kept.ts";
@@ -165,6 +176,13 @@ export const UNDERWORLD_EVENTS = {
   feud: defineEventType("underworld.feud", 3),
   /** A crew of the realm's own found out, purged and reformed. */
   exposed: defineEventType("underworld.exposed", 4),
+  /** Escalation: soldiers sent against a group, a clash, its boss taken by them, a truce, its fighters laid down arms, the army withdrawn. */
+  operation: defineEventType("underworld.operation", 4),
+  clash: defineEventType("underworld.clash", 3),
+  armyTook: defineEventType("underworld.army-took", 4),
+  truce: defineEventType("underworld.truce", 3),
+  disarmed: defineEventType("underworld.disarmed", 4),
+  withdrew: defineEventType("underworld.withdrew", 3),
 };
 
 const DRAW = defineStream("order.underworld");
@@ -228,6 +246,8 @@ function copyOf(v: Readonly<RealmUnderworld>): RealmUnderworld {
     feds: v.feds.map((f) => ({ ...f, towns: [...f.towns] })),
     wars: v.wars.map((w) => ({ ...w })),
     gone: [...v.gone],
+    ...(v.ops ? { ops: v.ops.map((o) => ({ ...o })) } : {}),
+    ...(v.truce ? { truce: { ...v.truce } } : {}),
   };
 }
 
@@ -825,8 +845,14 @@ function stepRealm(
       0,
       1,
     );
+  // (Where soldiers hold its towns, many more of the young are jailed: escalation.)
+  const opTowns = new Set((v.ops ?? []).filter((o) => o.ended === null).flatMap((o) => o.lands));
   for (const tw of towns)
-    tw.jailed = jails ? Math.round(tw.members * UNDER.jailed * r.capacity) : 0;
+    tw.jailed = jails
+      ? Math.round(
+          tw.members * UNDER.jailed * r.capacity * (opTowns.has(tw.cell) ? ESCALATE.jails : 1),
+        )
+      : 0;
   // (Ties made inside: those jailed come out bound to their gangs the more.)
   for (const tw of towns)
     if (tw.jailed > 0) tw.pull = Math.min(1, tw.pull * (1 + tw.jailed / Math.max(1, tw.members)));
@@ -1013,7 +1039,7 @@ function stepRealm(
         factor("officers bought", collusion, -0.8 * collusion),
       ],
     );
-  else if (crackdown < 0.15 && v.crackEvent) v.crackEvent = null;
+  // (Told once: a crackdown that slackens and returns is not news again.)
   if (collusion >= 0.4 && !v.pactEvent && v.groups.length)
     v.pactEvent = tell(
       f,
@@ -1047,7 +1073,8 @@ function stepRealm(
   const streetMarket = towns.reduce((s, tw) => s + tw.members, 0) * r.wage * 0.5,
     within = r.earned > 0 ? (streetMarket + smuggleRent * 0.3 + v.seized) / r.earned : 0,
     bp = badgePull({
-      crackdown,
+      // (Soldiers sent against a group are a crackdown given licence too: under weak oversight, they abuse and turn.)
+      crackdown: Math.max(crackdown, opTowns.size ? ESCALATE.bite : 0),
       voice: r.voice,
       word: r.word,
       courts: r.byCourts,
@@ -1096,7 +1123,9 @@ function stepRealm(
       ),
       open = v.wars.find((w) => w.ended === null && w.kind === KIND(kind));
     for (const g of own) {
-      g.violence = Math.round(killingsOf(g.members, fight.war));
+      g.violence = Math.round(
+        killingsOf(g.members, fight.war) * (v.truce?.gid === g.id ? 1 - ESCALATE.calms : 1),
+      );
       killings += g.violence;
     }
     const ranked = [...own].sort((a, b) => b.share - a.share || a.id - b.id);
@@ -1158,16 +1187,23 @@ function stepRealm(
           .filter((g) => g.id === still.a || g.id === still.b)
           .reduce((s, g) => s + g.violence, 0) * span;
   }
-  v.killings = Math.round(killings);
   v.badge = badge ? Math.round(badge.members * (badge.squad ? 0.25 * crackdown : 0.01)) : 0;
   if (badge) badge.violence = v.badge;
+  // 7b. Escalation: soldiers sent against the strongest group, a pact, or leaving it be; and what each operation does.
+  const opBite = stepOps(f, r, span, killings + v.street + v.badge, collusion);
+  for (const g of v.groups) if (opBite.has(g.id)) killings += opBite.get(g.id)!.dead;
+  v.killings = Math.round(killings);
 
   // 8. What the crackdown takes, and costs; bosses taken and dead.
+  const bitesAll = bites;
   let seized = 0;
   const gone: [CrimeGroup, GroupEnd, Factor[], CrimeGroup?][] = [];
   for (const g of [...v.groups]) {
     if (!v.groups.includes(g)) continue;
     const kind = kindOfGroup(g),
+      // (Soldiers sent against it bite the harder.)
+      op = opBite.get(g.id),
+      bites = Math.max(bitesAll, op ? ESCALATE.bite : 0),
       // (Officers bought, a house's shelter, and its guarded word keep its boss from being taken.)
       shelter =
         1 -
@@ -1192,12 +1228,23 @@ function stepRealm(
       const n = successorsOf(g.members, f.u(101 + g.id * 8)),
         event = tell(
           f,
-          UNDERWORLD_EVENTS.decapitated.type,
+          op ? UNDERWORLD_EVENTS.armyTook.type : UNDERWORLD_EVENTS.decapitated.type,
           g.home,
-          { group: g.name, kind, gids: [g.id], boss: g.boss.name, successors: n },
+          {
+            group: g.name,
+            kind,
+            gids: [g.id],
+            boss: g.boss.name,
+            successors: n,
+            ...(op ? { oids: [op.op.id] } : {}),
+          },
           [
             { ref: g.event, role: "enabler", weight: 1 },
-            ...(v.crackEvent ? [{ ref: v.crackEvent, role: "trigger" as const, weight: 1 }] : []),
+            ...(op
+              ? [{ ref: op.op.event, role: "trigger" as const, weight: 1 }]
+              : v.crackEvent
+                ? [{ ref: v.crackEvent, role: "trigger" as const, weight: 1 }]
+                : []),
           ],
           [
             factor("the crackdown, as it bites", bites, bites),
@@ -1206,6 +1253,7 @@ function stepRealm(
         );
       g.boss = newBoss(f, g.home, kind === "protection" ? g.name : null, g.id * 31 + g.bosses);
       g.bosses++;
+      if (op) op.op.bosses++;
       for (let k = 1; k < n && v.groups.length < UNDER.most; k++) {
         const part = 1 / n,
           home = g.lands[k] ?? g.home,
@@ -1234,16 +1282,9 @@ function stepRealm(
     // (A boss dead of his years: another in his place.)
     const age = year - g.boss.born;
     if (f.u(102 + g.id * 8) < diesWithin(life, age, span)) {
-      const was = g.boss.name;
+      // (Kept, not told: a boss dead of his years is no news.)
       g.boss = newBoss(f, g.home, kind === "protection" ? g.name : null, g.id * 37 + g.bosses);
       g.bosses++;
-      tell(
-        f,
-        UNDERWORLD_EVENTS.boss.type,
-        g.home,
-        { group: g.name, kind, gids: [g.id], boss: g.boss.name, was },
-        [{ ref: g.event, role: "enabler", weight: 1 }],
-      );
     }
     // (A group falls from the named: crushed by the crackdown, outgrown by its rival, or withered with its rent.)
     if (kind === "badge") continue;
@@ -1280,6 +1321,7 @@ function stepRealm(
     }
     ended(f, g, how, factors, into);
   }
+  settleOps(f);
   const groupMen =
       v.groups.reduce((s, g) => s + (kindOfGroup(g) === "badge" ? 0 : g.members), 0) +
       towns.reduce((s, tw) => s + tw.members, 0) * 0.2,
@@ -1349,6 +1391,245 @@ function stepRealm(
   writeLands(ctx, p, v, towns, r, badge, bites);
   v.last = year;
   return towns.length > 0 || crackdown > 0.01;
+}
+
+// —— Escalation ——————————————————————————————————————————————————————————————————————————————————————————
+
+type OpBite = Map<number, { op: Operation; dead: number }>;
+
+/** An operation's end: told (or told by the event given), kept among the few remembered. */
+function endOp(f: Facts, o: Operation, how: string, data: Record<string, unknown>, by?: Ref): void {
+  o.ended = f.year;
+  o.how = how;
+  o.endEvent =
+    by ??
+    tell(
+      f,
+      how === "truce"
+        ? UNDERWORLD_EVENTS.truce.type
+        : how === "terms"
+          ? UNDERWORLD_EVENTS.disarmed.type
+          : UNDERWORLD_EVENTS.withdrew.type,
+      o.lands[0] ?? f.p.seat,
+      {
+        group: o.name,
+        kind: GROUP_KINDS[o.kind] ?? "protection",
+        gids: [o.target],
+        oids: [o.id],
+        how,
+        fallen: Math.round(o.fallen),
+        taken: Math.round(o.taken),
+        ...data,
+      },
+      [{ ref: o.event, role: "trigger", weight: 1 }],
+    );
+}
+
+/**
+ * Each operation under way, stepped `span` years: its soldiers fight the group's men by their arms, its dead and the others killed,
+ * the people driven from their homes, its cost; it ends in withdrawal (a war abroad, a treasury spent), bought off (a group richer
+ * than the state), terms (a group too weak to go on), or a truce (a war of attrition that has not broken it). Where none is under
+ * way and no truce holds, the seat weighs sending soldiers against its strongest group, a pact, or leaving it be. Returns, for
+ * each group fought, the operation and those killed a year in its fighting.
+ */
+function stepOps(f: Facts, r: Read, span: number, killedNow: number, collusion: number): OpBite {
+  const { ctx, p, v, year } = f,
+    world = ctx.world,
+    out: OpBite = new Map(),
+    ops = v.ops ?? [],
+    reserve = moneyStore(world, TREASURY_STORE)?.at(p.ref, FISC.reserve) ?? 0,
+    atWar = warsOf(world).fighting(p.ref).length > 0,
+    held = (g: CrimeGroup) => ((g.means?.arms ?? 0) + (g.means?.armour ?? 0)) / 2000;
+  if (v.truce && year >= v.truce.until) delete v.truce;
+  // (A truce made known: by free word, in the years it holds.)
+  if (v.truce && v.truce.known === undefined && f.u(300) < 1 - dmath.pow(1 - 0.3 * r.word, span))
+    v.truce.known = year;
+  const best = ops.some((o) => o.ended === null) ? bestMeans(ctx, p, p.seat).arms : 0;
+  for (const o of ops) {
+    if (o.ended !== null) continue;
+    const g = v.groups.find((x) => x.id === o.target);
+    if (!g) continue;
+    const yearCost = o.soldiers * r.wage * ESCALATE.cost;
+    if (atWar || reserve < yearCost * span) {
+      endOp(f, o, "withdrew", { why: atWar ? "a war abroad" : "a treasury spent" });
+      continue;
+    }
+    // (A group richer than the state's purse, its revenue and what its treasury keeps, buys the operation off.)
+    if (g.wealth >= r.revenue * ESCALATE.buys + 0.5 * reserve) {
+      endOp(f, o, "bought", {});
+      v.collusion = per(collusion + 0.2);
+      continue;
+    }
+    if (g.members < o.soldiers * ESCALATE.terms) {
+      const ev = ended(
+        f,
+        g,
+        "disarmed",
+        [
+          factor("its men against the soldiers sent", g.members / Math.max(1, o.soldiers), 1),
+          factor("the soldiers sent", o.soldiers, 1),
+        ],
+        undefined,
+        UNDERWORLD_EVENTS.disarmed.type,
+        { oids: [o.id] },
+      );
+      endOp(f, o, "terms", {}, ev);
+      continue;
+    }
+    if (year - o.since >= ESCALATE.attrition && g.members >= o.soldiers * 0.5) {
+      endOp(f, o, "truce", {});
+      v.truce = {
+        gid: g.id,
+        name: g.name,
+        since: year,
+        until: year + ESCALATE.truce,
+        event: o.endEvent!,
+      };
+      continue;
+    }
+    // (The fighting: raids and clashes, the group's men taken or killed, the soldiers' dead, those caught between.)
+    const odds = fightOdds(o.soldiers, best, g.members, held(g)),
+      taken = g.members * (1 - dmath.pow(1 - odds.taken, span)),
+      lost = o.soldiers * (1 - dmath.pow(1 - odds.lost, span)),
+      by = taken * 0.6 * ESCALATE.bystanders,
+      dead = taken * 0.6 + lost + by;
+    g.members = Math.max(0, Math.round(g.members - taken));
+    o.taken += taken;
+    o.fallen += lost;
+    o.bystanders += by;
+    o.spent += yearCost * span;
+    treasuryPays(world, p.ref, yearCost * span);
+    // (Those driven from their homes in its lands: on its towns' streets, sim/society roofless.)
+    let displaced = 0;
+    const roof = societyStore(world, ROOFLESS_STORE);
+    for (const c of o.lands) {
+      const n = ctx.provinces.get(c)?.total() ?? 0,
+        d = n * ESCALATE.displaced * Math.min(1, span / UNDER.every);
+      displaced += d;
+      const row = roof?.get(c);
+      if (roof && row && row[ROOF_ROW.town]! > 0) {
+        const next = [...row];
+        next[ROOF_ROW.displaced] = row[ROOF_ROW.displaced]! + (1000 * d) / row[ROOF_ROW.town]!;
+        roof.set(c, next);
+      }
+    }
+    o.displaced += displaced;
+    g.violence += Math.round(dead / span);
+    out.set(g.id, { op: o, dead: dead / span });
+    if (dead >= 1) {
+      o.clashes++;
+      tell(
+        f,
+        UNDERWORLD_EVENTS.clash.type,
+        g.lands[0] ?? g.home,
+        {
+          group: g.name,
+          kind: kindOfGroup(g),
+          gids: [g.id],
+          oids: [o.id],
+          dead: Math.round(dead),
+          soldiers: Math.round(lost),
+        },
+        [{ ref: o.event, role: "trigger", weight: 1 }],
+      );
+    }
+  }
+  // (A new weighing, where no operation is under way and no truce holds.)
+  // (Not again for a while after one has ended: a seat does not send its soldiers back at once.)
+  if (!ops.some((o) => o.ended === null || year - o.ended < ESCALATE.rest) && !v.truce) {
+    const target = [...v.groups]
+      .filter((g) => kindOfGroup(g) !== "badge" && g.members >= UNDER.crew)
+      .sort((a, b) => b.members * (1 + held(b)) - a.members * (1 + held(a)) || a.id - b.id)[0];
+    if (target) {
+      const police = (r.people * ESCALATE.police * r.capacity) / 1000,
+        armed = target.members * (1 + 2 * held(target)),
+        host = fieldedOf(ctx, p),
+        soldiers = Math.round(
+          Math.min(host * ESCALATE.hostShare, target.members * ESCALATE.perMan),
+        ),
+        yearCost = soldiers * r.wage * ESCALATE.cost,
+        arms = bestMeans(ctx, p, p.seat).arms,
+        w = escalation({
+          outmatch: armed / Math.max(1, police),
+          match: (soldiers * (0.5 + arms)) / Math.max(1, target.members * (0.5 + held(target))),
+          killings: (killedNow / r.people) * 1000,
+          defies: target.lands.includes(p.seat),
+          afford: yearCost > 0 ? reserve / (yearCost * UNDER.every) : 0,
+          atWar,
+          legitimacy: r.legitimacy,
+          force: r.force,
+          corruption: r.corruption,
+          paying: target.income / Math.max(1, r.revenue),
+        });
+      // (Only with the treasury to keep them there a while.)
+      if (
+        w.army > w.pact &&
+        w.army > w.leave &&
+        soldiers >= UNDER.crew &&
+        reserve >= yearCost * UNDER.every
+      ) {
+        const id = v.next++,
+          event = tell(
+            f,
+            UNDERWORLD_EVENTS.operation.type,
+            target.lands[0] ?? target.home,
+            {
+              group: target.name,
+              kind: kindOfGroup(target),
+              gids: [target.id],
+              oids: [id],
+              soldiers,
+            },
+            [{ ref: target.event, role: "pressure", weight: 1 }],
+            w.parts.map(([name, x]) => factor(name, x, x)),
+          ),
+          o: Operation = {
+            id,
+            target: target.id,
+            name: target.name,
+            kind: target.kind,
+            lands: [...target.lands],
+            since: year,
+            event,
+            soldiers,
+            fallen: 0,
+            taken: 0,
+            bystanders: 0,
+            displaced: 0,
+            spent: 0,
+            bosses: 0,
+            clashes: 0,
+            ended: null,
+          };
+        ops.push(o);
+        out.set(target.id, { op: o, dead: 0 });
+      } else if (w.pact > w.army && w.pact > w.leave)
+        // (A pact chosen: its officers the more bought.)
+        v.collusion = per(collusion + 0.1);
+    }
+  }
+  const live = ops.filter((o) => o.ended === null),
+    done = ops.filter((o) => o.ended !== null).slice(-ESCALATE.gone);
+  if (live.length || done.length) v.ops = [...done, ...live.slice(0, ESCALATE.most)];
+  return out;
+}
+
+/** An operation whose group is gone (crushed, absorbed, withered): ended by that, its lands to its rivals. */
+function settleOps(f: Facts): void {
+  const { v } = f;
+  for (const o of v.ops ?? []) {
+    if (o.ended !== null || v.groups.some((g) => g.id === o.target)) continue;
+    const gone = [...v.gone].reverse().find((g) => g.name === o.name && g.kind === o.kind),
+      heir =
+        v.groups
+          .filter((g) => g.kind === o.kind)
+          .sort((a, b) => b.share - a.share || a.id - b.id)[0] ??
+        v.groups.find((g) => kindOfGroup(g) === "badge");
+    if (heir && kindOfGroup(heir) !== "badge")
+      for (const c of o.lands)
+        if (!heir.lands.includes(c) && heir.lands.length < UNDER.lands) heir.lands.push(c);
+    endOp(f, o, "crushed", heir ? { to: heir.name } : {}, gone?.event);
+  }
 }
 
 // —— A group's means ——————————————————————————————————————————————————————————————————————————————————————
@@ -1731,6 +2012,17 @@ addsStanding((ctx, p) => {
         ? { ref: v.wars.find((w) => w.ended === null)!.event, role: "pressure", weight: 1 }
         : null,
     });
+  // (A truce with a group made known: the seat seen to bargain with those it was sent to break.)
+  if (v.truce?.known !== undefined) {
+    const since = yearOfMoment(ctx.world.now) - v.truce.known;
+    if (since < UNDER.scandalYears)
+      out.push({
+        name: "a truce with the underworld made known",
+        value: since,
+        contribution: -ESCALATE.known * (1 - since / UNDER.scandalYears),
+        source: { ref: v.truce.event, role: "trigger", weight: 1 },
+      });
+  }
   if (v.scandal) {
     const since = yearOfMoment(ctx.world.now) - v.scandal.year;
     if (since < UNDER.scandalYears)
