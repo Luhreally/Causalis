@@ -261,6 +261,7 @@ function tell(
   data: Record<string, unknown>,
   causes: { ref: Ref; role: "trigger" | "enabler" | "pressure"; weight: number }[],
   factors?: Factor[],
+  importance?: number,
 ): Ref {
   const world = f.ctx.world,
     decision = factors
@@ -275,6 +276,7 @@ function tell(
       : null;
   return world.events.emit({
     type,
+    ...(importance !== undefined ? { importance } : {}),
     subjects: [f.p.ref],
     place: cell !== null ? (f.ctx.provinces.get(cell)?.ref ?? null) : null,
     // (At most MAX_CAUSES: a federation of many groups cites the first of them.)
@@ -1192,6 +1194,9 @@ function stepRealm(
             factor("the crackdown, as it bites", bites, bites),
             factor("shelter from officers and houses", shelter, -0.7 * shelter),
           ],
+          // (A great organisation's boss taken is told as the chronicle tells; a small crew's goes with the ordinary years unless
+          // something cites it: kept whole, bosses taken were 59,000 of first light's events at 1500, 148 a year.)
+          g.share >= UNDER.great ? undefined : 3,
         );
       g.boss = newBoss(f, g.home, kind === "protection" ? g.name : null, g.id * 31 + g.bosses);
       g.bosses++;

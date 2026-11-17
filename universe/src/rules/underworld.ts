@@ -105,6 +105,9 @@ export const UNDER = {
   least: 0.05,
   /** The most of a boss's chance of being taken a year at a full crackdown (est: Mexico's kingpin strategy took some two dozen of 37 named in six years). */
   decap: 0.15,
+  /** A group holding this share of its kind's rent in its realm (thousandths) rules its trade: its boss taken is a thing the
+   * chronicle keeps (at first light's 1500, one group in eight). */
+  great: 500,
   /** Of a group's men a full crackdown takes a year (arrested, killed, turned). */
   arrests: 0.12,
   /** What a full crackdown costs a year for each of the groups' men it faces, in working men's years (police, courts, prisons). */
