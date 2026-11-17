@@ -6,6 +6,7 @@ import { COLD_ROWS, ColdDecisions, ColdEvents, codeOf, type WrittenDecisions } f
 import { Hasher, hexOf } from "./hash.ts";
 import { compareRefs, defineKind, kindCodeOf, isRef, type Minter, type Ref } from "./ref.ts";
 import { YEAR, type SimTime } from "./time.ts";
+import { Folded, Tombs } from "./tombs.ts";
 
 export const EVENT = defineKind("ev", "event", "minted");
 export const DECISION = defineKind("dec", "decision", "minted");
@@ -242,17 +243,16 @@ export class EventLog {
   /** Every live event as all() gives it, while nothing has moved. */
   private whole: HistoryEvent[] | null = null;
   private wholeEpoch = -1;
-  private tombstones: Tombstone[] = [];
-  /** The tombstones by id, made when first asked for (a reckoning lays thousands at once). */
-  private tombIndex: Map<string, Tombstone> | null = null;
+  /** The tombstones, by column (kernel/tombs.ts). */
+  private readonly tombstones = new Tombs();
   /**
    * Every change the log has seen — each event as it was emitted, each rise in
    * importance, each forgetting — folded in as it happened, so a checkpoint hashes
    * the log in constant time however long history grows.
    */
   private digest = "";
-  /** The summaries by place, then decade. */
-  private folded = new Map<string, Map<number, Summary>>();
+  /** The summaries: counts by place, decade and type (kernel/tombs.ts). */
+  private readonly folded = new Folded();
   private readonly minter: Minter;
   private readonly clock: () => SimTime;
 
@@ -330,8 +330,8 @@ export class EventLog {
   }
 
   tombstone(id: Ref): Tombstone | undefined {
-    if (!this.tombIndex) this.tombIndex = new Map(this.tombstones.map((t) => [t.id, t]));
-    return this.tombIndex.get(id);
+    const row = this.tombstones.rowOf(id);
+    return row < 0 ? undefined : this.tombstones.event(row);
   }
 
   /**
@@ -415,9 +415,7 @@ export class EventLog {
   }
 
   summaries(): Summary[] {
-    return [...this.folded.values()]
-      .flatMap((byDecade) => [...byDecade.values()])
-      .sort((a, b) => (a.place !== b.place ? (a.place < b.place ? -1 : 1) : a.decade - b.decade));
+    return this.folded.summaries();
   }
 
   /** Forget every event `keep` rejects; returns how many were forgotten. */
@@ -484,27 +482,15 @@ export class EventLog {
     place: Ref | null,
     subjects: readonly Ref[],
   ): void {
-    const tomb: Tombstone = { id, t, type, place, subjects };
-    this.tombstones.push(tomb);
-    this.tombIndex?.set(id, tomb);
-    const where = place ?? "",
-      decade = Math.floor(t / (10 * YEAR));
-    let byDecade = this.folded.get(where);
-    if (!byDecade) this.folded.set(where, (byDecade = new Map()));
-    let s = byDecade.get(decade);
-    if (!s) byDecade.set(decade, (s = { place: where, decade, counts: {} }));
-    s.counts[type] = (s.counts[type] ?? 0) + 1;
+    this.tombstones.add(id, t, type, place, subjects);
+    this.folded.add(place ?? "", Math.floor(t / (10 * YEAR)), type);
   }
 
   /** Let go the tombstones of events that happened before `before` (their summaries stay); returns how many. */
   dropTombstones(before: number): number {
     // (Tombstones are laid as things are forgotten, not in the order they happened.)
-    const kept = this.tombstones.filter((t) => t.t >= before),
-      n = this.tombstones.length - kept.length;
+    const n = this.tombstones.drop(before);
     if (!n) return 0;
-    if (this.tombIndex)
-      for (const t of this.tombstones) if (t.t < before) this.tombIndex.delete(t.id);
-    this.tombstones = kept;
     this.digest = new Hasher().string(this.digest).string("drop").int(before).int(n).hex();
     return n;
   }
@@ -517,7 +503,7 @@ export class EventLog {
   save(): unknown {
     return {
       events: this.events,
-      tombstones: this.tombstones,
+      tombstones: this.tombstones.events(),
       folded: this.foldedColumns(),
       digest: this.digest,
       ...(this.cold.blocks.length ? { cold: this.cold.save() } : {}),
@@ -559,24 +545,13 @@ export class EventLog {
     this.generation++;
     this.index.clear();
     for (const e of this.events) this.index.set(e.id, e);
-    this.tombstones = [...s.tombstones];
-    this.tombIndex = null;
-    this.folded = new Map();
+    this.tombstones.loadEvents(s.tombstones);
+    this.folded.clear();
     for (const c of s.folded ?? [])
-      for (let k = 0; k < c.place.length; k++) {
-        const place = c.place[k]!,
-          decade = c.decade[k]!;
-        let byDecade = this.folded.get(place);
-        if (!byDecade) this.folded.set(place, (byDecade = new Map()));
-        let x = byDecade.get(decade);
-        if (!x) byDecade.set(decade, (x = { place, decade, counts: {} }));
-        x.counts[c.type] = c.n[k]!;
-      }
-    for (const x of s.summaries ?? []) {
-      let byDecade = this.folded.get(x.place);
-      if (!byDecade) this.folded.set(x.place, (byDecade = new Map()));
-      byDecade.set(x.decade, { ...x, counts: { ...x.counts } });
-    }
+      for (let k = 0; k < c.place.length; k++)
+        this.folded.add(c.place[k]!, c.decade[k]!, c.type, c.n[k]!);
+    for (const x of s.summaries ?? [])
+      for (const [type, n] of Object.entries(x.counts)) this.folded.add(x.place, x.decade, type, n);
   }
 }
 
@@ -625,11 +600,9 @@ export class DecisionLog {
   readonly cold = new ColdDecisions();
   /** Rises when the log is replaced whole, or swept from outside its reckoning (see HistoryIndex). */
   generation = 0;
-  private tombstones: DecisionTombstone[] = [];
+  private readonly tombstones = new Tombs();
   /** Every record and every forgetting, folded in as it happened (see EventLog). */
   private digest = "";
-  /** The tombstones by id, made when first asked for (see EventLog). */
-  private tombIndex: Map<string, DecisionTombstone> | null = null;
   private readonly minter: Minter;
   private readonly clock: () => SimTime;
 
@@ -760,8 +733,8 @@ export class DecisionLog {
   }
 
   tombstone(id: Ref): DecisionTombstone | undefined {
-    if (!this.tombIndex) this.tombIndex = new Map(this.tombstones.map((t) => [t.id, t]));
-    return this.tombIndex.get(id);
+    const row = this.tombstones.rowOf(id);
+    return row < 0 ? undefined : this.tombstones.decision(row);
   }
 
   /** What a decision cites (its factors' sources), in order. */
@@ -797,14 +770,7 @@ export class DecisionLog {
         forgotten++;
         const id = `dec:0:${c.serial[r]!}` as Ref;
         lanes = forgetting(lanes, this.digest, id);
-        const tomb: DecisionTombstone = {
-          id,
-          t: c.t[r]!,
-          rule: c.ruleOf(r),
-          subject: c.subjectOf(r),
-        };
-        this.tombstones.push(tomb);
-        this.tombIndex?.set(id, tomb);
+        this.tombstones.add(id, c.t[r]!, c.ruleOf(r), c.subjectOf(r), null);
         c.blocks[c.block[r]!]!.dead++;
       }
       c.n = w;
@@ -820,9 +786,7 @@ export class DecisionLog {
       forgotten++;
       this.index.delete(r.id);
       lanes = forgetting(lanes, this.digest, r.id);
-      const tomb: DecisionTombstone = { id: r.id, t: r.t, rule: r.rule, subject: r.subject };
-      this.tombstones.push(tomb);
-      this.tombIndex?.set(r.id, tomb);
+      this.tombstones.add(r.id, r.t, r.rule, r.subject, null);
     }
     if (lanes) this.digest = hexOf(lanes);
     this.records = survivors;
@@ -832,12 +796,8 @@ export class DecisionLog {
   /** Let go the tombstones of decisions made before `before`; returns how many. */
   dropTombstones(before: number): number {
     // (Tombstones are laid as things are forgotten, not in the order they happened.)
-    const kept = this.tombstones.filter((t) => t.t >= before),
-      n = this.tombstones.length - kept.length;
+    const n = this.tombstones.drop(before);
     if (!n) return 0;
-    if (this.tombIndex)
-      for (const t of this.tombstones) if (t.t < before) this.tombIndex.delete(t.id);
-    this.tombstones = kept;
     this.digest = new Hasher().string(this.digest).string("drop").int(before).int(n).hex();
     return n;
   }
@@ -851,7 +811,7 @@ export class DecisionLog {
     const written = this.cold.written(this.records);
     return {
       ...(written ? { written } : { records: this.records }),
-      tombstones: this.tombstones,
+      tombstones: this.tombstones.decisions(),
       digest: this.digest,
       ...(this.cold.blocks.length ? { cold: this.cold.save() } : {}),
     };
@@ -871,7 +831,6 @@ export class DecisionLog {
     this.generation++;
     this.index.clear();
     for (const r of this.records) this.index.set(r.id, r);
-    this.tombstones = [...s.tombstones];
-    this.tombIndex = null;
+    this.tombstones.loadDecisions(s.tombstones);
   }
 }
