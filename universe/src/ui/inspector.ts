@@ -45,6 +45,7 @@ import { dropView } from "./drop.ts";
 import { namesThings, type NamesSwitch } from "./names.ts";
 import { bannerCanvas, glyphCanvas, glyphOf, paletteOf, sectionGlyph } from "./page-art.ts";
 import { beliefsChart, evidenceChart, taughtChart } from "./learned.ts";
+import { pinButton } from "./people-bar.ts";
 
 /** How often an open page is read again while the world runs (ms). */
 const REFRESH_MS = 2000;
@@ -68,7 +69,10 @@ const FOLLOW_WORDS: Readonly<Record<string, string>> = {
   realm: "this realm",
   person: "this life",
   agent: "this life",
+  family: "this family",
 };
+/** The pages whose follow is said short, beside a pin (its title says what it follows). */
+const FOLLOW_SHORT: ReadonlySet<string> = new Set(["person", "agent", "family"]);
 
 /** A number in words for a chart's unit. */
 function unitFormat(unit: string | undefined): (y: number) => string {
@@ -101,6 +105,9 @@ export class PageWindow {
   /** Under the live line, more of it as the scale shows it (a person's day, Phase 45 M207): emptied as a page is opened. */
   readonly liveMore = el("div", "page-live-more");
   private readonly actions = el("div", "page-actions");
+  /** Under the actions, what one that cannot be pressed to an end says when pressed (a phone shows no title). */
+  private readonly actionNote = el("div", "page-action-note");
+  private noteTimer = 0;
   /** The switch between things as the people here call them and as they are (Phase 58), and what it last said. */
   private readonly namesBar = el("div", "page-names");
   private namesSaid = "";
@@ -201,6 +208,7 @@ export class PageWindow {
     this.inspector = el("section", "inspector page-window");
     this.inspector.hidden = true;
     this.live.hidden = true;
+    this.actionNote.hidden = true;
     this.heading = el("h2");
     this.heading.append(this.icon, this.name);
     const close = el("button", "close", "×");
@@ -221,6 +229,7 @@ export class PageWindow {
       this.live,
       this.liveMore,
       this.actions,
+      this.actionNote,
       this.namesBar,
       this.stats,
     );
@@ -232,6 +241,15 @@ export class PageWindow {
     this.heading.replaceChildren(this.backButton, this.forwardButton, this.icon, this.name, boxes);
     this.banner.hidden = true;
     this.inspector.append(this.heading, this.banner, head, this.statDetail, this.tabs, this.body);
+    // (On a phone its actions take the whole width under the portrait and its words: Go to, follow, pin and keep in view on
+    // one line, none over another. On a desk they stand under its words.)
+    const phone = typeof matchMedia === "function" ? matchMedia("(max-width: 640px)") : null,
+      placeActions = () => {
+        if (phone?.matches) head.after(this.actions, this.actionNote);
+        else this.namesBar.before(this.actions, this.actionNote);
+      };
+    phone?.addEventListener?.("change", placeActions);
+    placeActions();
     this.element.append(this.inspector);
     parent.append(this.element);
     // (Not rebuilt while a finger or the pointer is down on it.)
@@ -442,10 +460,16 @@ export class PageWindow {
   private drawActions(page: PageModel): void {
     const acts = this.sceneActions(page),
       what = page.followable && this.tidings ? (FOLLOW_WORDS[page.kind] ?? "this") : null,
+      // (A person's page and a family's: follow and pin always beside Go to, short, so the row keeps to one line on a phone.)
+      short = FOLLOW_SHORT.has(page.kind),
+      cannot = !what && short && this.tidings ? (page.followWhy ?? null) : null,
       said = JSON.stringify([
         !!page.place,
         what && page.ref,
         what,
+        cannot,
+        page.followPassed ?? null,
+        page.pin ? [page.pin.ref, page.pin.name] : null,
         acts.map((a) => [a.label, a.title, a.on]),
       ]);
     this.acts = acts;
@@ -453,6 +477,7 @@ export class PageWindow {
     // while they say the same, so that none is taken from under the finger pressing it.)
     if (said === this.actsSaid) return;
     this.actsSaid = said;
+    this.actionNote.hidden = true;
     const parts: HTMLElement[] = [];
     if (page.place) {
       const go = el("button", "go-to", "⌖ Go to");
@@ -462,7 +487,9 @@ export class PageWindow {
       };
       parts.push(go);
     }
-    if (what) parts.push(this.tidings!.follow(page.ref, what));
+    if (what) parts.push(this.tidings!.follow(page.ref, what, short, page.followPassed));
+    else if (cannot) parts.push(this.tidings!.cannotFollow(cannot, (why) => this.note(why)));
+    if (page.pin) parts.push(pinButton(page.pin.ref, page.pin.name, true));
     acts.forEach((a, i) => {
       const b = el("button", a.on ? "scene-act on" : "scene-act", a.label);
       b.title = a.title;
@@ -474,6 +501,14 @@ export class PageWindow {
       parts.push(b);
     });
     this.actions.replaceChildren(...parts);
+  }
+
+  /** Say a few words under the actions, for a while. */
+  private note(words: string): void {
+    this.actionNote.textContent = words;
+    this.actionNote.hidden = false;
+    clearTimeout(this.noteTimer);
+    this.noteTimer = window.setTimeout(() => (this.actionNote.hidden = true), 6000);
   }
 
   /** Draw the open page's actions again (the scene's changed: a person followed, or let go). */

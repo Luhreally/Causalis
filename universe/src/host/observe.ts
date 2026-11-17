@@ -23,6 +23,8 @@ import {
   type Person,
 } from "../causal/index.ts";
 import type { QueryHandler } from "./host.ts";
+// (The host's people and families, followed: their watch kinds are told as it is read.)
+import "./follow.ts";
 
 const OCCUPATION_WORDS = ["child", "forager", "farmer", "herder", "crafter", "trader", "leader"];
 /** Each trait said low / middling / high. */

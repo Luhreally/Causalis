@@ -242,7 +242,7 @@ if (next >= 0) {
     litNow = after.find((l) => l.state === "now"),
     at = await now(),
     kept = await k<boolean>(
-      `/Kept in view/.test(document.querySelector(".page-actions .scene-act.on")?.textContent ?? "")`,
+      `/In view ✓/.test(document.querySelector(".page-actions .scene-act.on")?.textContent ?? "")`,
     );
   say(
     `“${line.at} ${line.words}” tapped: the clock at ${((at - day * DAY) / HOUR).toFixed(2)} h; now “${litNow?.at} ${litNow?.words}”; kept in view: ${kept}`,

@@ -872,6 +872,8 @@ export type PageKind =
   | "sickness"
   /** A house of lending (Phase 21 M143). */
   | "house"
+  /** A family: a realm's great house (round H), a town's line. */
+  | "family"
   /** A lot of a town, one of its other buildings, its walls (Phase 25 M151). */
   | "lot"
   | "building"
@@ -899,6 +901,12 @@ export type PageModel = {
   readonly tab?: string;
   /** Whether it can be followed (its tidings told as they come). */
   readonly followable: boolean;
+  /** Why one of those followed elsewhere cannot be here (a person, a family): said on the button, which is not hidden. */
+  readonly followWhy?: string;
+  /** Who is followed by its ref, where it has passed from them to the one this page is of (a ruler's seat): their name. */
+  readonly followPassed?: string;
+  /** What its 📌 keeps on the people bar (a person; a family, by its head): the pin the bar's own is. */
+  readonly pin?: { readonly ref: string; readonly name: string };
   /** The world's year it was read in. */
   readonly year: number;
   /** How often (ms) it is worth reading again as the world runs, when not the usual. */

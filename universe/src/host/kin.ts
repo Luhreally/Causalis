@@ -620,6 +620,44 @@ function holderOfRef(t: Lines, ref: string): Holder | null {
   return at.n === null ? t.roster.holder(at.line) : t.roster.holderOf(at.line, at.n);
 }
 
+/** A town's line as a family: the house it is of. */
+export type TownLine = {
+  readonly town: string;
+  readonly townName: string;
+  readonly line: number;
+  /** The name of the house it is of (its home's four lines share it). */
+  readonly house: string;
+  /** Who holds it now (null: it stands empty), and those who held it before them, the latest first (at most `back`). */
+  readonly holder: Holder | null;
+  readonly before: readonly Holder[];
+  /** Each holder's name. */
+  readonly nameOf: (h: Holder) => string;
+};
+
+/** A town's line by its town and number (null: no such town, or a line it never had). */
+export function townLine(
+  world: World,
+  town: string,
+  line: number,
+  back = LINE_BACK,
+): TownLine | null {
+  const t = linesOf(world, town);
+  if (!t || !Number.isInteger(line) || line < 0 || line >= t.lines) return null;
+  const holder = t.roster.holder(line),
+    before: Holder[] = [];
+  for (let at = holder ? predOf(t, holder) : null; at && before.length < back; at = predOf(t, at))
+    before.push(at);
+  return {
+    town: t.town,
+    townName: t.townName,
+    line,
+    house: lineHouse(t, line),
+    holder,
+    before,
+    nameOf: (h) => t.roster.nameOf(h),
+  };
+}
+
 // —— Those known by a ref or a seat ———————————————————————————————————————————————————————
 
 /** The family of one known by their own key alone (a levy man, a maker): all of it given by the keyed rule. */

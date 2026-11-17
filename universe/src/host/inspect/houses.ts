@@ -5,11 +5,18 @@
 import type { World } from "../../kernel/index.ts";
 import type { Block, Item, Row, Stat } from "../../bridge/index.ts";
 import { HOUSES } from "../../rules/index.ts";
-import { housesOf, originOf, type HouseRecord, type Polity } from "../../sim/index.ts";
+import {
+  housesOf,
+  originOf,
+  type GoneHouse,
+  type HouseRecord,
+  type Polity,
+} from "../../sim/index.ts";
 import { grainSum } from "../../causal/index.ts";
 import { realmColor } from "../colors.ts";
 import { count, item, link, many, part, share, stat } from "./words.ts";
 import { landLink } from "./names.ts";
+import { houseRef, roseBy } from "../family.ts";
 
 /** Whence a house rose, said short for its row. */
 const FROM: Readonly<Record<string, string>> = {
@@ -78,8 +85,8 @@ export function realmHousesBlocks(world: World, r: Polity): Block[] {
       type: "bars",
       title: "Its great houses, by power",
       bars: houses.map((h) => ({
-        label: [link(houseLine(h, v.houses), h.event)],
-        ref: h.event,
+        label: [link(houseLine(h, v.houses), houseRef(r.ref, h.event))],
+        ref: houseRef(r.ref, h.event),
         value: h.power / 1000,
         ...(h.crown ? { color: realmColor(r.ref) } : {}),
       })),
@@ -87,9 +94,9 @@ export function realmHousesBlocks(world: World, r: Polity): Block[] {
       wrap: true,
     });
     const table: Row[] = houses.map((h) => ({
-      ref: h.event,
+      ref: houseRef(r.ref, h.event),
       cells: [
-        [link(houseLine(h, v.houses), h.event)],
+        [link(houseLine(h, v.houses), houseRef(r.ref, h.event))],
         [FROM[originOf(h)] ?? originOf(h)],
         [grainSum(h.wealth)],
         [th(h.offices)],
@@ -163,7 +170,7 @@ export function realmHousesBlocks(world: World, r: Polity): Block[] {
         item(
           [
             `Year ${g.year}: `,
-            link(`the house of ${g.name}`, g.event),
+            link(`the house of ${g.name}`, gonePage(world, r.ref, g)),
             ` (${FROM[HOUSE_ORIGIN(g.origin)] ?? "the court"}, since ${g.since}), ${HOW[g.how] ?? g.how}${g.into ? ` the house of ${g.into}` : ""}`,
           ],
           g.event,
@@ -185,3 +192,9 @@ export function realmHousesBlocks(world: World, r: Polity): Block[] {
 }
 
 const HOUSE_ORIGIN = (o: number): string => originOf({ origin: o });
+
+/** A house gone from the great: its own page, where the event it rose by is still kept; else how its hold ended. */
+function gonePage(world: World, realm: string, g: GoneHouse): string {
+  const rose = roseBy(world, g);
+  return rose ? houseRef(realm, rose) : g.event;
+}

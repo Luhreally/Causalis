@@ -91,6 +91,52 @@ export class BarPins {
 }
 export const barPins = new BarPins();
 
+/** Every pin button drawn, said again whenever the pins change (the bar's ×, another page's): one pin, said the same everywhere. */
+const pinButtons = new Set<{ readonly b: HTMLButtonElement; readonly say: () => void }>();
+barPins.onChange(() => {
+  for (const t of pinButtons)
+    if (t.b.isConnected) t.say();
+    else pinButtons.delete(t);
+});
+
+/**
+ * The 📌 that keeps someone (or a family, by its head) on the people bar, or takes them off: the bar's own pin. Short, for a
+ * page's row of buttons beside its Go to: "📌 Pin", "📌 Pinned"; else in words.
+ */
+export function pinButton(ref: string, name: string, short = false): HTMLButtonElement {
+  const b = el("button", short ? "pin" : "act bar-pin");
+  let full = false;
+  const say = () => {
+    const on = barPins.has(ref);
+    if (on) full = false;
+    b.textContent = short
+      ? on
+        ? "📌 Pinned"
+        : full
+          ? "📌 Bar full"
+          : "📌 Pin"
+      : on
+        ? "📌 Take them off the people bar"
+        : full
+          ? `📌 The bar keeps ${MOST_PINS}: take someone off it first`
+          : "📌 Keep them on the people bar";
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-pressed", String(on));
+    b.title = on
+      ? `${name} is kept on the people bar: press to take them off it`
+      : full
+        ? `The people bar keeps ${MOST_PINS}: take someone off it first`
+        : `Keep ${name} on the people bar, wherever you look`;
+  };
+  b.onclick = () => {
+    full = !barPins.toggle(ref, name);
+    say();
+  };
+  pinButtons.add({ b, say });
+  say();
+  return b;
+}
+
 type Chip = {
   readonly box: HTMLDivElement;
   readonly open: HTMLButtonElement;
@@ -335,16 +381,6 @@ export function drawBarReading(
     row.append(r.words);
     box.append(row);
   }
-  const pin = el("button", "act bar-pin"),
-    say = (full = false) => {
-      pin.textContent = barPins.has(args.ref)
-        ? "📌 Take them off the people bar"
-        : full
-          ? `📌 The bar keeps ${MOST_PINS}: take someone off it first`
-          : "📌 Keep them on the people bar";
-    };
-  pin.onclick = () => say(!barPins.toggle(args.ref, args.name));
-  say();
-  box.append(pin);
+  box.append(pinButton(args.ref, args.name));
   into.append(box);
 }
