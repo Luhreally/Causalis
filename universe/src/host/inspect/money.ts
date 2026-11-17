@@ -7,6 +7,8 @@ import { potencyStat } from "./mobs.ts";
 import {
   landTastesBlocks,
   mostTakenStat,
+  visionsFromWords,
+  visionsStat,
   realmContrabandBlocks,
   realmKindBlocks,
   realmTastesBlocks,
@@ -571,6 +573,8 @@ export function realmIntoxBlocks(world: World, r: Polity): Block[] {
   // (How strong the trade has grown under its law: the underworld, host/inspect/mobs.ts.)
   const strong = potencyStat(world, r.ref);
   if (strong) rows.push(strong);
+  const visions = visionsStat(world, r);
+  if (visions) rows.push(visions);
   return [
     { type: "facts", title: "What calms, wakes and eases", rows },
     ...realmKindBlocks(world, r),
@@ -582,6 +586,7 @@ export function landIntoxBlocks(world: World, cell: number): Block[] {
   const row = moneyStore(world, INTOX_STORE)?.get(cell);
   if (!row) return [];
   const realm = politiesOf(world).of(cell),
+    fungal = visionsFromWords(world, cell),
     rows: Row[] = INTOX_KINDS.map((k, i) => {
       const use = row[INTOX.use + i]! / 1000,
         abroad = realm && realm.ended === null ? kindReach(world, realm.ref, i) : 0,
@@ -597,7 +602,7 @@ export function landIntoxBlocks(world: World, cell: number): Block[] {
               ? `${(cost.dependent * 1000).toFixed(1)}‰ need it, ${(cost.deaths * 1e5).toFixed(1)} die a year in 100,000`
               : "—",
           ],
-          [INTOX_WORDS[k].does],
+          [INTOX_WORDS[k].does, ...(k === "visions" && fungal ? [`; ${fungal}`] : [])],
         ],
         keys: [k, row[INTOX.have + i]!, Math.round(abroad * 1000), row[INTOX.use + i]!, k, k],
       };

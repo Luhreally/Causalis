@@ -1330,6 +1330,7 @@ export {
   INTOX_EVENTS,
   INTOX_EVERY,
   intoxLineages,
+  visionsSource,
   intoxYear,
   kindsOf,
   prohibitionYear,

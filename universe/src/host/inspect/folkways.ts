@@ -2,7 +2,7 @@
 // make, and what its town draws; for a realm, what its seat tells and how it is taken, how far its people count themselves one,
 // and its faith's houses; for a faith, its houses: clergy, granaries, relief and teaching. Pure readings of what the sweep's
 // systems kept (rules/folk.ts, temple.ts, voice.ts, urban.ts, art.ts), made when a page is read.
-import { mostTakenStat } from "./tastes.ts";
+import { mostTakenStat, visionsStat } from "./tastes.ts";
 import type { World } from "../../kernel/index.ts";
 import type { Block, Stat } from "../../bridge/index.ts";
 import {
@@ -150,12 +150,17 @@ export function realmCultureBlocks(world: World, r: Polity): Block[] {
     ctx = populationContext(world),
     v = voiceOf(world, r.ref),
     // (What its people take most, legal, taxed or forbidden: tastes.ts.)
-    taken = mostTakenStat(world, r.ref, "What its people take most, and its law on it");
+    taken = mostTakenStat(world, r.ref, "What its people take most, and its law on it"),
+    visions = visionsStat(world, r);
   if (taken)
     blocks.push({
       type: "facts",
       title: "What its people take most",
-      rows: [taken, stat("More", [link("its treasury: what it comes to", `${r.ref}#treasury`)])],
+      rows: [
+        taken,
+        ...(visions ? [visions] : []),
+        stat("More", [link("its treasury: what it comes to", `${r.ref}#treasury`)]),
+      ],
     });
   if (v) {
     const rows: Stat[] = [
