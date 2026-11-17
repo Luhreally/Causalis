@@ -12,7 +12,12 @@ import {
   IMPROVE,
   KEEPING,
   WORK_YEAR,
+  ROOF,
   almsOf,
+  roofCost,
+  rooflessAll,
+  shutOut,
+  takenIn,
   bearerWork,
   daysWorked,
   splitBySex,
@@ -254,4 +259,21 @@ test("a people of the middle works the reference year exactly; more holy days, f
   assert.ok(WORK_YEAR > 300 && WORK_YEAR < 330);
   assert.ok(daysWorked(restDays(1, 1).holy, restDays(1, 1).feasts) < 1);
   assert.ok(daysWorked(0, 0) > 1);
+});
+
+test("the least roof is dearer as more come than homes hold; the poor of an unequal town are shut out; kin, temple, realm take them in", () => {
+  assert.ok(roofCost(10, 0, 0.3) > roofCost(10, 0, 0) && roofCost(10, 5, 0) > roofCost(10, 0, 0));
+  const even = [0.2, 0.2, 0.2, 0.2, 0.2],
+    steep = [0.04, 0.08, 0.13, 0.2, 0.55],
+    roof = 5;
+  assert.ok(shutOut(steep, 27, 20, roof) > shutOut(even, 27, 20, roof));
+  assert.equal(shutOut(even, 27, 0, 0), 0);
+  assert.ok(shutOut(steep, 27, 20, 1e9) === 1);
+  assert.ok(Math.abs(rooflessAll([0.1, 0.1]) - 0.19) < 1e-12);
+  const t = takenIn(0.8, 0.2, 0.5, 0),
+    newcomers = takenIn(0.8, 0.2, 0.5, 1);
+  assert.ok(Math.abs(t.kin + t.temple + t.realm + t.street - 1) < 1e-12);
+  assert.ok(newcomers.street > t.street && newcomers.kin < t.kin);
+  assert.equal(takenIn(0, 0, 0, 0).street, 1);
+  assert.ok(ROOF.struck["act.quake"]! > ROOF.struck["war.battle"]!);
 });

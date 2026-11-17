@@ -1688,3 +1688,4 @@ export * from "./table.ts";
 export * from "./dress.ts";
 export * from "./leisure.ts";
 export * from "./speech.ts";
+export * from "./roof.ts";

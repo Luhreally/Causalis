@@ -14,6 +14,7 @@ import {
   tableKeptOf,
 } from "../society/kept.ts";
 import { workBySex } from "../society/work.ts";
+import { rooflessColdOf } from "../society/kept.ts";
 import {
   CountDeltas,
   MONTH,
@@ -762,6 +763,8 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
         (1 + 0.25 * cold * bare) *
         healed *
         smoke *
+        // (And the cold on those of its people on the street: the society sweep, society/roofless.ts. Exactly 1 where none is kept.)
+        rooflessColdOf(world, p.cell) *
         (1 + 25 * intoxDeaths(world, p.cell)),
       // (Its frail die the more for those no one keeps: society/care.ts. Exactly as before where none is reckoned.)
       old = oldPressOf(world, p.cell),
