@@ -8,10 +8,12 @@ import {
   housesOf,
   levelsOf,
   loreOf,
+  orgsOf,
   politiesOf,
   populationContext,
   quarterOf,
   townSeed,
+  underworldOf,
   type Fabric,
 } from "../sim/index.ts";
 import { AGE_ROWS } from "../rules/index.ts";
@@ -19,11 +21,19 @@ import {
   HEART_BLOCKS,
   QUARTER,
   type RankHall,
+  type RankMark,
   type RankSeat,
   type TownRank,
 } from "../bridge/index.ts";
 import { realmColor } from "./colors.ts";
 import { houseRef } from "./family.ts";
+import { groupRef, underName } from "./underworld.ts";
+import { orgName, orgRef } from "./groups.ts";
+
+/** A boss's roof, a meeting house's, the temple's head's. */
+const BOSS_COLOR = [0.5, 0.08, 0.12] as const,
+  ORG_COLOR = [0.1, 0.55, 0.55] as const,
+  TEMPLE_COLOR = [0.96, 0.9, 0.6] as const;
 
 /** A realm so old (years) and holding so many lands keeps a palace; so many, a palace with wings. */
 const PALACE = { years: 60, lands: 3 },
@@ -73,11 +83,11 @@ export function townRank(world: World, ref: Ref, f: Fabric, lots = f.next): Town
     n = Math.min(lots, f.next),
     taken = new Set<number>();
   let levels: Int8Array | null = null;
-  const lotFor = (name: string): number => {
+  const lotFor = (name: string, quarter: number = QUARTER.high, heart = true): number => {
     levels ??= levelsOf(f, 0, n);
     const k = hashString(`hall ${name}`) % 8;
-    for (let b = 0; b < Math.ceil(n / 8) && b < HEART_BLOCKS * 6; b++) {
-      if (taken.has(b) || (b >= HEART_BLOCKS && quarterOf(seed, b) !== QUARTER.high)) continue;
+    for (let b = heart ? 0 : HEART_BLOCKS; b < Math.ceil(n / 8) && b < HEART_BLOCKS * 8; b++) {
+      if (taken.has(b) || (b >= HEART_BLOCKS && quarterOf(seed, b) !== quarter)) continue;
       for (let j = 0; j < 8; j++) {
         const p = b * 8 + ((k + j) % 8),
           l = p < n ? levels[p]! : -1;
@@ -122,10 +132,78 @@ export function townRank(world: World, ref: Ref, f: Fabric, lots = f.next): Town
       }
     }
   }
+  // The other leaders, each on the best lot of their own quarter (the nearest its square): the bosses of the crime groups
+  // whose home this land is, in its lee; the meeting houses of its groups, toward its way in; the temple's head by the temple.
+  const marks: RankMark[] = [],
+    greatest = () =>
+      ctx.settlements
+        .seenIn(s.cell)
+        .filter((t) => t.population > 0)
+        .sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1))[0]?.ref === ref;
+  if (realm) {
+    const mobs = (underworldOf(world)?.of(realm.ref)?.groups ?? []).filter(
+        (g) => g.home === s.cell,
+      ),
+      orgs = (orgsOf(world)?.of(realm.ref)?.orgs ?? []).filter((g) => g.home === s.cell);
+    if ((mobs.length || orgs.length) && greatest()) {
+      for (const g of [...mobs].sort((a, b) => b.power - a.power || a.id - b.id).slice(0, 2)) {
+        const at = lotFor(`boss ${g.name}`, QUARTER.lee, false),
+          name = underName(world, groupRef(realm.ref, g.event)) ?? g.name;
+        if (at >= 0)
+          marks.push({
+            lot: at,
+            ref: `boss:${realm.ref}:${g.event}`,
+            name: `${g.boss.name}, boss of ${name}`,
+            title:
+              "Their house stands in the town's lee, off its square, under a roof of their colour.",
+            color: BOSS_COLOR,
+          });
+      }
+      for (const g of [...orgs].sort((a, b) => b.power - a.power || a.id - b.id).slice(0, 2)) {
+        const at = lotFor(`org ${g.name}`, QUARTER.road, false),
+          name = orgName(world, orgRef(realm.ref, g.event)) ?? g.name;
+        if (at >= 0)
+          marks.push({
+            lot: at,
+            ref: orgRef(realm.ref, g.event),
+            name: `the meeting house of ${name}`,
+            title: "It stands toward the town's way in, where its people come and go.",
+            color: ORG_COLOR,
+          });
+      }
+    }
+  }
+  const temple = f.civics.find((c) => c.kind === "temple" && c.fell === null && c.at < n);
+  if (temple) {
+    levels ??= levelsOf(f, 0, n);
+    for (let p = temple.at + temple.lots; p < Math.min(n, temple.at + temple.lots + 24); p++) {
+      const l = levels[p]!;
+      if (l < 0 || l > HALL_LEVEL || halls.some((h) => h.lot === p) || seat?.lot === p) continue;
+      if (marks.some((m) => m.lot === p)) continue;
+      marks.push({
+        lot: p,
+        ref: `bldg:${ref}:${temple.at}:${temple.start}`,
+        name: "the temple's head",
+        title: "They live by the temple they keep.",
+        color: TEMPLE_COLOR,
+      });
+      break;
+    }
+  }
+  const lore = loreOf(world),
+    stuff = lore.get(s.cell, "electricity")
+      ? "concrete"
+      : lore.get(s.cell, "steam-engine")
+        ? "brick"
+        : lore.get(s.cell, "masonry")
+          ? "stone"
+          : undefined;
   return {
     gini,
     drives: drivesIn(world, s.cell),
     ...(seat ? { seat } : {}),
     ...(halls.length ? { halls } : {}),
+    ...(marks.length ? { marks } : {}),
+    ...(stuff ? { stuff } : {}),
   };
 }

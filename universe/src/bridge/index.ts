@@ -226,6 +226,7 @@ export {
   type TownSite,
 } from "./sites.ts";
 export {
+  RANK_SAID,
   RANK_SORTS,
   groundWealth,
   homeGround,

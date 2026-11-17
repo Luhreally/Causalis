@@ -1672,7 +1672,7 @@ export function townHomes(
         if (w.at !== null && t < w.at + states.takes[p]!)
           rising(out, now, level, x, z, yaw, (t - w.at) / states.takes[p]!);
         else {
-          rankedHome(scene, out, now, level, p, x, z, yaw);
+          rankedHome(scene, out, now, level, p, x, z, yaw, t);
           // (Shops on the ground floor of a tall home near the square: asked 2026-11-16.)
           if (shopsBelow(p, scene.plan.whole, level)) shopfront(out, level, x, z, yaw, p);
           // (Framed against the shaking, as many as its people have learned to frame: the lessons.)
@@ -1746,7 +1746,6 @@ type Ranked = {
   readonly halls: Map<number, RankHall>;
   readonly marks: Map<number, RankMark>;
   readonly steep: number;
-  readonly looks: Map<HouseLook, [HouseLook, HouseLook]>;
 };
 const RANKED = new WeakMap<TownPlan, Ranked>();
 function rankedOf(plan: TownPlan): Ranked | null {
@@ -1758,7 +1757,6 @@ function rankedOf(plan: TownPlan): Ranked | null {
       halls: new Map((rank.halls ?? []).map((h) => [h.lot, h])),
       marks: new Map((rank.marks ?? []).map((m) => [m.lot, m])),
       steep: rank.gini >= RANK_SORTS ? rankSteep(rank.gini) : 0,
-      looks: new Map(),
     };
     RANKED.set(plan, r);
   }
@@ -1774,10 +1772,69 @@ function banner(out: TownParts, x: number, z: number, yaw: number, high: number,
   out.put("box", DRESSED, bx, high - wide * 0.4, bz, wide * 1.01, wide * 0.16, 0.14, yaw);
 }
 
+/** The well-off's roofs (slate), the stuffs their walls are of where the land builds in them, the poor's patched roofs, a tree. */
+const SLATE: Rgb = [0.3, 0.36, 0.46],
+  RICH_WALL: Readonly<Record<string, Rgb>> = {
+    stone: [0.86, 0.84, 0.78],
+    brick: [0.72, 0.4, 0.3],
+    concrete: [0.84, 0.84, 0.82],
+  },
+  POOR_ROOFS: readonly Rgb[] = [
+    [0.44, 0.38, 0.3],
+    [0.36, 0.33, 0.3],
+    [0.5, 0.42, 0.28],
+  ],
+  LEAF: Rgb = [0.16, 0.42, 0.2],
+  TRUNK: Rgb = [0.36, 0.26, 0.16];
+
+/** A garden's tree. */
+function tree(out: TownParts, x: number, z: number, high: number): void {
+  out.put("cyl", TRUNK, x, high * 0.2, z, 0.4, high * 0.4, 0.4, 0);
+  out.put("cone", LEAF, x, high * 0.68, z, high * 0.5, high * 0.7, high * 0.5, 0);
+}
+
+/** A low wall about a yard of `w` by `d` about (x, z), open at its gate on the street side. */
+function yardWall(
+  out: TownParts,
+  x: number,
+  z: number,
+  yaw: number,
+  w: number,
+  d: number,
+  high: number,
+  thick: number,
+): void {
+  for (const [u, v, sw, sd] of [
+    [-w / 2, 0, thick, d],
+    [w / 2, 0, thick, d],
+    [0, d / 2, w, thick],
+    [-w * 0.3, -d / 2, w * 0.4, thick],
+    [w * 0.3, -d / 2, w * 0.4, thick],
+  ] as const) {
+    const [cx, cz] = at(x, z, yaw, u, v);
+    out.put("box", PAVED, cx, high / 2, cz, sw, high, sd, yaw);
+  }
+}
+
+/** Whether a lot's home stands whole now, of a level. */
+function wholeHome(scene: TownScene, p: number, level: number, t: number): boolean {
+  const s = scene.states;
+  return (
+    p >= 0 &&
+    p < scene.plan.lots &&
+    s.what[p] === LOT.home &&
+    s.level[p] === level &&
+    progress(s.began[p]!, s.takes[p]!, t) >= 1
+  );
+}
+
 /**
- * A home as who holds it shows: a great house's hall in its compound under its banner; a key figure's home marked; and, where
- * its land's wealth is held unevenly, the well-off's taller, dressed, lamp-lit and gardened, the poor's low, patched and
- * crowded with a lean-to: the more so the steeper the land. An even or a poor land's homes stand all alike.
+ * A home as who holds it shows (asked 2026-11-17, and again: "notably different"): a great house's hall in its walled yard
+ * under its own roof and banner; a key figure's home under a roof and a pennant of its colour; and, where its land's wealth is
+ * held unevenly, the well-off's a quarter to point at, slate-roofed houses of stone or brick (where the land builds in them)
+ * across two lots where two stand side by side, walled, gardened and treed; the poor's another, low and small under patched
+ * roofs of dull colours, a second hovel crowded into each yard. The more so the steeper the land: an even land's homes stand
+ * all alike.
  */
 function rankedHome(
   scene: TownScene,
@@ -1788,126 +1845,166 @@ function rankedHome(
   x: number,
   z: number,
   yaw: number,
+  t: number,
 ): void {
   const r = rankedOf(scene.plan);
   if (!r || look.sealed || look.tent || level > 2) return home(out, look, level, x, z, yaw);
-  const hall = r.halls.get(p),
-    seat = scene.plan.rank!.seat;
+  const rank = scene.plan.rank!,
+    hall = r.halls.get(p),
+    seat = rank.seat,
+    stuff = rank.stuff ? RICH_WALL[rank.stuff] : undefined;
   if (seat && seat.lot === p) {
     // The ruler's own house, where no hall of law stands yet: the greatest of the town's, the realm's guards at its gate.
-    greatHall(out, look, level, x, z, yaw, {
-      lot: p,
-      name: seat.name,
-      color: seat.color,
-      share: 0.3 + 0.2 * seat.grade,
-    });
+    greatHall(out, look, x, z, yaw, seat.color, 0.3 + 0.2 * seat.grade, stuff);
     for (const side of [-1, 1]) {
-      const [gx, gz] = at(x, z, yaw, side * 1.3, -LOT_D / 2 + 0.1);
+      const [gx, gz] = at(x, z, yaw, side * 1.3, -LOT_D / 2 - 0.4);
       out.put("box", seat.color, gx, 0.85, gz, 0.5, 1.3, 0.4, yaw);
       out.put("box", SKIN_TONE, gx, 1.67, gz, 0.3, 0.32, 0.3, yaw);
     }
-    const [bx, bz] = at(x, z, yaw, -LOT_W * 0.42, -LOT_D / 2 + 0.3);
-    banner(out, bx, bz, yaw, 12 + 3 * seat.grade, seat.color);
     return;
   }
-  if (hall) return greatHall(out, look, level, x, z, yaw, hall);
-  const rank = scene.plan.rank!,
-    wealth = r.steep
-      ? groundWealth(
-          homeGround(scene.plan.seed, p, scene.plan.whole, level, rank.gini, rank.drives),
-        )
-      : 0,
-    k = r.steep;
-  let pair = r.looks.get(look);
-  if (!pair) {
-    pair = [
-      {
-        ...look,
-        height: look.height * (1 + 0.35 * k),
-        wall: mixed(look.wall, DRESSED, 0.3 * k),
-      },
-      {
-        ...look,
-        height: look.height * (1 - 0.2 * k),
-        wall: mixed(look.wall, MUD, 0.4 * k),
-        roof: mixed(look.roof, MUD, 0.35 * k),
-      },
-    ];
-    r.looks.set(look, pair);
+  if (hall) return greatHall(out, look, x, z, yaw, hall.color, hall.share, stuff);
+  const mark = r.marks.get(p),
+    k = r.steep,
+    wealth =
+      k && !mark
+        ? groundWealth(
+            homeGround(scene.plan.seed, p, scene.plan.whole, level, rank.gini, rank.drives),
+          )
+        : 0,
+    L = LEVELS[level]!,
+    [w, d] = level <= 1 ? lowFoot(L, look) : [L.w, L.d],
+    base = look.raised * 10;
+  if (mark) {
+    // A key figure's home: its roof and a tall pennant in their colour, a lamp by the door (seen from over the land too).
+    const c = mark.color ?? seat?.color ?? GOLD,
+      [mx, mz] = at(x, z, yaw, w / 2 + 0.4, -d / 2 - 0.5);
+    home(out, { ...look, roof: c, height: look.height * 1.2 }, level, x, z, yaw);
+    banner(out, mx, mz, yaw, 11, c);
+    out.lamp(mx, 1.6, mz, 0.4, 0.4, 0.4, yaw);
+    return;
   }
-  const L = LEVELS[level]!,
-    [w, d] = level <= 1 ? lowFoot(L, look) : [L.w, L.d];
   if (wealth > 0) {
-    home(out, pair[0], level, x, z, yaw);
-    // A garden behind, a dressed porch and a lamp at the door.
-    const [gx, gz] = at(x, z, yaw, 0, d / 2 + 1.3),
-      [px, pz] = at(x, z, yaw, 0, -d / 2 - 0.35),
-      base = look.raised * 10;
-    out.put("box", GARDEN, gx, 0.2, gz, Math.min(LOT_W - 0.6, w * 1.2), 0.4, 2.2, yaw);
+    const roof = mixed(look.roof, SLATE, Math.min(1, 0.45 + 0.7 * k)),
+      wall = mixed(look.wall, stuff ?? DRESSED, stuff ? Math.min(1, 0.4 + 0.7 * k) : 0.35 * k),
+      rich: HouseLook = { ...look, roof, wall, height: look.height * (1 + 0.45 * k) },
+      // (Two side by side are one house across both lots: the even one draws it, the odd one its garden.)
+      mate = level <= 1 && !look.round ? p ^ 1 : -1,
+      pair =
+        mate >= 0 &&
+        wholeHome(scene, mate, level, t) &&
+        !r.halls.has(mate) &&
+        !r.marks.has(mate) &&
+        seat?.lot !== mate &&
+        groundWealth(
+          homeGround(scene.plan.seed, mate, scene.plan.whole, level, rank.gini, rank.drives),
+        ) > 0 &&
+        Math.abs(Math.hypot(scene.lots.x[mate]! - x, scene.lots.z[mate]! - z) - LOT_W) < 0.6;
+    if (pair) {
+      const mx = (x + scene.lots.x[mate]!) / 2,
+        mz = (z + scene.lots.z[mate]!) / 2;
+      if (p % 2 === 0) {
+        const h = L.h * rich.height,
+          ww = LOT_W * 2 - 4.5,
+          dd = Math.min(LOT_D - 5, d * 1.15),
+          flat = look.rise < 0.1,
+          rh = flat ? 0.6 : Math.min(4.5, Math.max(1.6, look.rise * dd * 0.5));
+        out.put("box", wall, mx, base + h / 2, mz, ww, h, dd, yaw);
+        out.put(
+          flat ? "box" : "gable",
+          roof,
+          mx,
+          base + h + rh / 2,
+          mz,
+          ww * 1.06,
+          rh,
+          dd * 1.1,
+          yaw,
+        );
+        for (const u of [-ww * 0.3, 0, ww * 0.3]) {
+          const [lx, lz] = at(mx, mz, yaw, u, -dd / 2 - 0.06);
+          if (u) out.lamp(lx, base + h * 0.55, lz, 1.1, Math.min(1.2, h * 0.3), 0.14, yaw);
+          else out.put("box", DRESSED, lx, base + 1.2, lz, 2, 2.4, 0.7, yaw);
+        }
+        yardWall(out, mx, mz, yaw, LOT_W * 2 - 0.8, LOT_D - 0.8, 1.3, 0.4);
+        const [gx, gz] = at(mx, mz, yaw, 0, LOT_D / 2 - 2.2);
+        out.put("box", GARDEN, gx, 0.2, gz, LOT_W * 2 - 1.8, 0.4, 3, yaw);
+      } else
+        for (const u of [-LOT_W + 2, LOT_W - 2]) {
+          const [tx, tz] = at(mx, mz, yaw, u, LOT_D / 2 - 2.2);
+          tree(out, tx, tz, 4.5 + 2 * k);
+        }
+      return;
+    }
+    home(out, rich, level, x, z, yaw);
+    // A garden and a tree behind, a dressed porch and a lamp at the door, a wall about its yard.
+    const [gx, gz] = at(x, z, yaw, 0, d / 2 + 1.5),
+      [tx, tz] = at(x, z, yaw, w * 0.3, d / 2 + 1.6),
+      [px, pz] = at(x, z, yaw, 0, -d / 2 - 0.35);
+    out.put("box", GARDEN, gx, 0.2, gz, Math.min(LOT_W - 0.6, w * 1.2), 0.4, 2.6, yaw);
+    if (level <= 1) {
+      tree(out, tx, tz, 3.6 + 2 * k);
+      yardWall(out, x, z, yaw, LOT_W - 0.6, LOT_D - 0.8, 1.1, 0.35);
+    }
     out.put("box", DRESSED, px, base + 1.2, pz, Math.min(2.2, w * 0.36), 2.4, 0.6, yaw);
     out.lamp(px, base + 2.1, pz, 0.5, 0.5, 0.7, yaw);
   } else if (wealth < 0) {
-    home(out, pair[1], level, x, z, yaw);
-    // Patched, and a lean-to crowded against its wall.
-    const [qx, qz] = at(x, z, yaw, w * 0.22, -d / 2 - 0.06),
-      [sx, sz] = at(x, z, yaw, -(w / 2 + 0.7), d * 0.15);
-    out.put("box", PATCH, qx, look.raised * 10 + 1, qz, 1.1, 0.9, 0.1, yaw);
+    // Low and small under a patched roof of a dull colour of its own, a second hovel crowded into its yard.
+    const tone = POOR_ROOFS[(Math.imul(p + 7, 0x9e3779b1) >>> 28) % POOR_ROOFS.length]!,
+      poor: HouseLook = {
+        ...look,
+        height: look.height * (1 - 0.3 * k),
+        length: look.length * (1 - 0.22 * k),
+        width: look.width * (1 - 0.22 * k),
+        wall: mixed(look.wall, MUD, Math.min(1, 0.3 + 0.5 * k)),
+        roof: mixed(look.roof, tone, Math.min(1, 0.45 + 0.6 * k)),
+      },
+      [qx, qz] = at(x, z, yaw, w * 0.12, 0.3);
+    home(out, poor, level, x, z, yaw);
     if (level <= 1) {
-      out.put("box", pair[1].wall, sx, 0.8, sz, 1.4, 1.6, 2, yaw);
-      out.put("box", PATCH, sx, 1.68, sz, 1.6, 0.14, 2.2, yaw);
+      const top = base + L.h * poor.height + 1.1,
+        [sx, sz] = at(x, z, yaw, ((p % 3) - 1) * 1.6, d / 2 + 2.2),
+        other = POOR_ROOFS[(p + 1) % POOR_ROOFS.length]!;
+      out.put("box", PATCH, qx, top, qz, 1.5, 0.16, 1.3, yaw + 0.3);
+      out.put("box", poor.wall, sx, 0.9, sz, 3, 1.8, 2.6, yaw);
+      out.put("box", other, sx, 1.9, sz, 3.4, 0.2, 3, yaw + 0.08);
     }
   } else home(out, look, level, x, z, yaw);
-  const mark = r.marks.get(p);
-  if (mark) {
-    // A key figure's home: a pennant in the seat's colour (gold where it is no seat) and a lamp by the door.
-    const [mx, mz] = at(x, z, yaw, w / 2 + 0.4, -d / 2 - 0.5);
-    banner(out, mx, mz, yaw, 6.5, rank.seat?.color ?? GOLD);
-    out.lamp(mx, 1.6, mz, 0.4, 0.4, 0.4, yaw);
-  }
 }
 
-/** A great house's hall: taller than any home about it as its share of the houses' wealth is greater, a tower at its back, its yard walled, its banner over it. */
+/**
+ * A great hall on a lot: its body filling it, of stone or brick where its land builds in them, under a steep roof of its own
+ * colour, a tower at its back, a high wall about its yard, a tall banner over its gate. As great as its share is (0 … 1).
+ */
 function greatHall(
   out: TownParts,
   look: HouseLook,
-  level: number,
   x: number,
   z: number,
   yaw: number,
-  hall: RankHall,
+  color: Rgb,
+  share: number,
+  stuff: Rgb | undefined,
 ): void {
-  const grand = 1.5 + Math.min(1, hall.share * 2),
-    tall: HouseLook = {
-      ...look,
-      height: look.height * grand,
-      wall: mixed(look.wall, DRESSED, 0.35),
-    },
-    lv = Math.max(1, level),
-    L = LEVELS[lv]!,
-    [w, d] = lv <= 1 ? lowFoot(L, look) : [L.w, L.d],
-    h = L.h * (lv <= 1 ? tall.height : 1.15),
-    base = look.raised * 10;
-  home(out, tall, lv, x, z, yaw);
-  // Its tower at the back, the house's colour on its cap.
-  const [tx, tz] = at(x, z, yaw, -w * 0.3, d / 2 + 1.2),
-    th = h + 3 + 4 * Math.min(1, hall.share * 2);
-  out.put("box", tall.wall, tx, base + th / 2, tz, 2.4, th, 2.4, yaw);
-  out.put("cone", hall.color, tx, base + th + 1.1, tz, 3, 2.2, 3, yaw);
-  // Its yard's wall about its lot, open at its gate.
-  for (const [u, v, sw, sd] of [
-    [-LOT_W / 2 + 0.2, 0, 0.35, LOT_D - 0.6],
-    [LOT_W / 2 - 0.2, 0, 0.35, LOT_D - 0.6],
-    [0, LOT_D / 2 - 0.3, LOT_W - 0.4, 0.35],
-    [-LOT_W * 0.3, -LOT_D / 2 + 0.3, LOT_W * 0.35, 0.35],
-    [LOT_W * 0.3, -LOT_D / 2 + 0.3, LOT_W * 0.35, 0.35],
-  ] as const) {
-    const [cx, cz] = at(x, z, yaw, u, v);
-    out.put("box", PAVED, cx, 0.9, cz, sw, 1.8, sd, yaw);
-  }
-  const [bx, bz] = at(x, z, yaw, w * 0.3, -d / 2 - 0.8),
-    [lx, lz] = at(x, z, yaw, 0, -d / 2 - 0.3);
-  banner(out, bx, bz, yaw, h + 5, hall.color);
-  out.lamp(lx, base + 2, lz, 0.6, 0.6, 0.7, yaw);
+  const big = Math.min(1, share * 2),
+    wall = stuff ?? mixed(look.wall, DRESSED, 0.5),
+    w = LOT_W - 2,
+    d = LOT_D - 5,
+    h = 5.5 + 5 * big,
+    rh = 3.2 + 1.2 * big;
+  out.put("box", wall, x, h / 2, z, w, h, d, yaw);
+  out.put("gable", color, x, h + rh / 2, z, w * 1.08, rh, d * 1.08, yaw);
+  // Its tower at the back, the same colour on its cap.
+  const [tx, tz] = at(x, z, yaw, -w * 0.28, d / 2 + 1.2),
+    th = h + 5 + 5 * big;
+  out.put("box", wall, tx, th / 2, tz, 2.8, th, 2.8, yaw);
+  out.put("cone", color, tx, th + 1.5, tz, 3.6, 3, 3.6, yaw);
+  yardWall(out, x, z, yaw, LOT_W - 0.3, LOT_D - 0.3, 2.4, 0.6);
+  const [bx, bz] = at(x, z, yaw, w * 0.36, -LOT_D / 2 + 0.6),
+    [lx, lz] = at(x, z, yaw, 0, -d / 2 - 0.1);
+  banner(out, bx, bz, yaw, 15 + 5 * big, color);
+  out.lamp(lx, 2.2, lz, w * 0.5, 1.4, 0.2, yaw);
+  out.lamp(lx, h * 0.72, lz, w * 0.7, 1, 0.2, yaw);
 }
 
 /**

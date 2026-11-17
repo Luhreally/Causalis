@@ -201,7 +201,16 @@ export function withFigures(world: World, plan: VillagePlan): VillagePlan {
     }),
     town =
       plan.town?.rank && marks.length
-        ? { ...plan.town, rank: { ...plan.town.rank, marks } }
+        ? {
+            ...plan.town,
+            rank: {
+              ...plan.town.rank,
+              marks: [
+                ...(plan.town.rank.marks ?? []).filter((m) => !marks.some((x) => x.lot === m.lot)),
+                ...marks,
+              ],
+            },
+          }
         : plan.town;
   return { ...plan, ...(town ? { town } : {}), people, figures };
 }
