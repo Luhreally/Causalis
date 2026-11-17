@@ -28,6 +28,8 @@ import {
   tastesRead,
   mostTaken,
   mostTakenWords,
+  visionsFrom,
+  visionsFromLine,
 } from "./tastes.ts";
 
 const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s);
@@ -207,7 +209,21 @@ export function intoxLedger(world: World, lc: LedgerCtx): Block[] {
             some ? `None of them takes ${name}. ` : "",
             absent ?? (some ? "Elsewhere it is taken." : `No one takes ${name}.`),
           ];
-    blocks.push({ type: "text", title: cap(name), lines: [world_] });
+    // (What brings visions is no crop: where the lands in view find it.)
+    const from: Line[] =
+      kind === "visions"
+        ? [
+            [
+              visionsFromLine(
+                visionsFrom(
+                  world,
+                  lc.standing.flatMap((r) => [...r.members]),
+                ),
+              ),
+            ],
+          ]
+        : [];
+    blocks.push({ type: "text", title: cap(name), lines: [world_, ...from] });
     if (rows.length)
       blocks.push({
         type: "table",

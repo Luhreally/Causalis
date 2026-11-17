@@ -74,6 +74,36 @@ export function intoxAvailable(
   return out;
 }
 
+/**
+ * What brings visions without any crop (asked 2026-11-16: "should be like one of the first ones"): what lives on a world's dead
+ * growth, as its fungi do on Earth's. In damp woods; on the dung of grazing herds where rain falls; and a blight on grain in a wet
+ * year, which also poisons some of those who eat the bread (est: the worst years' deaths, a few in ten thousand). No lore is
+ * needed to find it: gatherers do. Each 0 … 1; `poison` a share of the land's people dying of the blight a year.
+ */
+export function fungalVisions(s: {
+  /** Its woods (share of the land), its rain against a damp land's (1: 1000 mm), this age's rain against its usual. */
+  readonly woods: number;
+  readonly wet: number;
+  readonly wetYear: number;
+  /** Herds graze it; the share of its people who farm. */
+  readonly herds: boolean;
+  readonly grain: number;
+}): { woods: number; dung: number; blight: number; reach: number; poison: number } {
+  const wet = dmath.clamp(s.wet, 0, 1),
+    woods = 0.5 * dmath.clamp(2 * s.woods, 0, 1) * wet,
+    dung = s.herds ? 0.35 * wet : 0,
+    // (Only in an age wetter than the land's usual: a tenth over, and worst at a third over.)
+    damp = wet * dmath.clamp(4 * (s.wetYear - 1.1), 0, 1),
+    blight = 0.4 * dmath.clamp(2 * s.grain, 0, 1) * damp;
+  return {
+    woods,
+    dung,
+    blight,
+    reach: dmath.clamp(Math.max(woods, dung, blight), 0, 1),
+    poison: 3e-4 * blight,
+  };
+}
+
 /** What a people wants of each kind, from its ways and its years (each 0 … 1). */
 export type IntoxWants = {
   readonly piety: number;
@@ -175,6 +205,8 @@ export type BarSides = {
   readonly traders: number;
   readonly excise: number;
   readonly users: number;
+  /** Its use in the rites of faiths other than the seat's (0 … 1): the seat's temple calls it sorcery. Absent: none. */
+  readonly strange?: number;
   /**
    * Its harm, and those it falls on (a temperance movement's constituency): the share of its people who need it and who die of it a
    * year (their kin, the temple that cares for them, the healers who tend them), and the crafters' sway (the masters and guilds who
@@ -207,7 +239,10 @@ export function prohibits(s: BarSides): { level: number; parts: [string, number]
     dependent = s.dependent ?? 0,
     deaths = s.deaths ?? 0,
     parts: [string, number][] = [
-      ["the temple, whose rites do not use them", 1.2 * s.temple * (1 - s.rites)],
+      [
+        "the temple, whose rites do not use them",
+        1.2 * s.temple * (1 - s.rites + (s.strange ?? 0)),
+      ],
       ["the court, whose people's work they take", 3 * s.court * s.lost],
       ["a realm held hard", 0.4 * (s.force - 0.5)],
       ["traders who live by their trade", -1.2 * s.traders],

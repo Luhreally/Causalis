@@ -36,6 +36,7 @@ import {
   intoxEffects,
   intoxUse,
   intoxWant,
+  fungalVisions,
   INTOX_HOLD,
   lawKeeps,
   prohibits,
@@ -43,6 +44,9 @@ import {
 } from "../../rules/index.ts";
 import { marketsOf, mouths, type PopulationContext } from "../population/systems.ts";
 import { loreOf } from "../lore/lore.ts";
+import { woodsRead } from "../ecology/woods.ts";
+import { longRain } from "../climate/long.ts";
+import { beliefOf } from "../belief/belief.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
 import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { interestsOf, type Group } from "../polity/interests.ts";
@@ -121,6 +125,34 @@ export function intoxLineages(ctx: PopulationContext): { growing: number; holdin
 
 // —— 186.money.intox ——————————————————————————————————————————————————————————————————————————————————————
 
+/**
+ * What brings visions of a land's own, with no crop: rules/intox.ts fungalVisions, read from its woods, its rain, the herds that
+ * graze it and its farmers' grain in this age's rain. None off its people's own world, whose life is not theirs.
+ */
+export function visionsSource(
+  ctx: PopulationContext,
+  c: number,
+  year: number,
+): ReturnType<typeof fungalVisions> | null {
+  const g = ctx.generated,
+    prov = ctx.provinces.get(c);
+  if (!prov || offworldSite(g, c)) return null;
+  const pop = prov.total();
+  let herds = false;
+  for (const s of g.life.species)
+    if (s.died === null && s.niche === "grazer" && lives(g.life, c, s.index)) {
+      herds = true;
+      break;
+    }
+  return fungalVisions({
+    woods: woodsRead(ctx, c).now,
+    wet: (g.climate.precipitation[c] ?? 0) / 1000,
+    wetYear: longRain(ctx, c, year),
+    herds,
+    grain: pop > 0 ? prov.occupation(OCC.farmer) / pop : 0,
+  });
+}
+
 export function intoxYear(ctx: PopulationContext, t: SimTime): void {
   const { world } = ctx,
     store = moneyStore(world, INTOX_STORE);
@@ -160,6 +192,8 @@ export function intoxYear(ctx: PopulationContext, t: SimTime): void {
         sugar && !!lore.get(c, "brewing"),
         home,
       ),
+      // (What brings visions with no crop: in its damp woods, on its herds' dung, a blight on its grain in a wet age.)
+      fungal = home ? visionsSource(ctx, c, year) : null,
       ways = culture.get(c),
       workers = Math.max(1, pop - prov.occupation(OCC.dependent)),
       realm = realms.of(c),
@@ -177,6 +211,7 @@ export function intoxYear(ctx: PopulationContext, t: SimTime): void {
         pain: dmath.clamp(0.2 + (realm && wars.fighting(realm.ref).length ? 0.4 : 0), 0, 1),
         hardship: dmath.clamp(1 - prov.leanest / 1000, 0, 1),
       };
+    if (fungal) own.visions = Math.max(own.visions, fungal.reach);
     INTOX_KINDS.forEach((k, i) => {
       have[k] = realm && home ? Math.max(own[k], kindReach(world, realm.ref, i)) : own[k];
     });
@@ -191,7 +226,7 @@ export function intoxYear(ctx: PopulationContext, t: SimTime): void {
       ...INTOX_KINDS.map((k) => use[k] * 1000),
       Math.min(1, fx.dependent * harm.binds) * 1000,
       fx.lost * 1000,
-      Math.min(0.01, fx.deaths * harm.deaths) * 1e6,
+      Math.min(0.01, fx.deaths * harm.deaths + (fungal?.poison ?? 0)) * 1e6,
       fx.rites * 1000,
       fx.eased * 1000,
       ...INTOX_KINDS.map((k) => want[k] * 1000),
@@ -246,6 +281,7 @@ export function prohibitionYear(ctx: PopulationContext, t: SimTime): void {
     price: number;
     users: number;
     rites: number;
+    strange: number;
     dealt: number;
     /** Whether it reckons its bar this year (money.ts LAWS_EVERY); else it only trades. */
     turn: boolean;
@@ -262,10 +298,13 @@ export function prohibitionYear(ctx: PopulationContext, t: SimTime): void {
     /** The share of what it forbids that slips past its law. */
     past: number;
   };
+  const belief = beliefOf(world);
   const reads = new Map<string, Read>();
   for (const p of living) {
     const turn = !bars.get(p.ref) || lawTurn(p, year);
+    const seatFaith = belief.of(p.seat).faith ?? null;
     let people = 0,
+      strange = 0,
       rites = 0,
       dealt = 0,
       wage = 0,
@@ -304,7 +343,10 @@ export function prohibitionYear(ctx: PopulationContext, t: SimTime): void {
       }
       supply += Math.min(1, given) * growers;
       people += n;
-      rites += n * (row[INTOX.rites]! / 1000);
+      // (Its rites in the seat's own faith hold it sacred; in another's, the seat's temple calls it sorcery.)
+      if (seatFaith && (belief.of(c).faith ?? seatFaith) !== seatFaith)
+        strange += n * (row[INTOX.rites]! / 1000);
+      else rites += n * (row[INTOX.rites]! / 1000);
       wage +=
         n *
         Math.max(
@@ -333,6 +375,7 @@ export function prohibitionYear(ctx: PopulationContext, t: SimTime): void {
       price,
       users: demand / people,
       rites: rites / people,
+      strange: strange / people,
       dealt,
       turn,
       use,
@@ -476,6 +519,7 @@ export function prohibitionYear(ctx: PopulationContext, t: SimTime): void {
           corruption: o?.corruption ?? 0,
           temple: sway.get("the temple") ?? 0,
           rites: k === "visions" ? r.rites : 0,
+          strange: k === "visions" ? r.strange : 0,
           court: (sway.get("the court") ?? 0) + (sway.get("the army") ?? 0),
           lost:
             Math.max(0, r.lostBy[i]! / r.people) +
