@@ -358,3 +358,9 @@ body.paging #hud > .people-bar,
 .people-tabs {
   max-width: 100%;
 }
+/* On a phone the god's palette, open, has the row above the bar's chips: the tabs stand aside for it (asked 2026-11-17: no button covers another). */
+@media (max-width: 640px) {
+  #hud:has(> .palette.open) > .people-bar .people-tabs {
+    display: none;
+  }
+}
