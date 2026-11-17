@@ -214,6 +214,8 @@ export type { DwellingRoom, DwellingStuff, DwellingThing, HomeInside, HomeMoney 
 export type { Garrison, HostKinds, StrikeEntry, WarRaid, WarSide, WarsMap } from "./wars.ts";
 export { HEART_REACH, heartTown } from "./wars.ts";
 export type { BattleNear, BattleOutcome, BattleSideNear, LevyPlace } from "./battle.ts";
+export type { StreetFight, StreetFightKind, StreetFightSide } from "./streetfight.ts";
+export { STREET_FIGHT_TYPES } from "./streetfight.ts";
 export {
   HURT_MOST,
   ROLL_DEFAULT,

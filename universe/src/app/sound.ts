@@ -2095,7 +2095,7 @@ export class Sound {
 
   /** What is about now: taken up only if it has changed by enough to hear. */
   tell(a: Air): void {
-    const key = `${a.place}|${a.night}|${Math.round(a.rain * 12)}|${a.market}|${a.feast}|${a.war}|${a.under}|${a.alive}|${Math.round(a.thin * 12)}|${Math.round(a.wind * 12)}|${Math.round(a.hush * 12)}|${a.held}`;
+    const key = `${a.place}|${a.night}|${Math.round(a.rain * 12)}|${a.market}|${a.feast}|${a.war}|${a.strife ? 1 : 0}|${a.under}|${a.alive}|${Math.round(a.thin * 12)}|${Math.round(a.wind * 12)}|${Math.round(a.hush * 12)}|${a.held}`;
     if (key === this.airKey) return;
     this.airKey = key;
     this.air = { ...a };

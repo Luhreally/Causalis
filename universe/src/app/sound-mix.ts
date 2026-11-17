@@ -20,6 +20,8 @@ export type Air = {
   feast: boolean;
   /** A war in the streets, or before the walls. */
   war: boolean;
+  /** A fight of the underworld in the streets (2026-11-16): low and tense, no drums, no bells. */
+  strife?: boolean;
   /** Under water: all of it through the water. */
   under: boolean;
   /** Whether anything lives here to sing. */
@@ -194,6 +196,19 @@ export function mixOf(a: Air): Mix {
         m.crowdHz = 1250;
         m.crowdRate = 1.1;
         m.dance = 1;
+      }
+      if (a.strife) {
+        // (A town holding its breath: its talk low and far, a low hum under it, the night's own sounds thinned; no drums.)
+        m.crowd = 0.22;
+        m.crowdHz = 380;
+        m.crowdRate = 0.6;
+        m.rumble = 0.08;
+        m.rumbleHz = 38;
+        m.drums = 0;
+        m.bells = 0;
+        m.clashes = 0.12;
+        m.birds = m.tinks = m.hawkers = m.dance = 0;
+        m.crickets *= 0.5;
       }
       if (a.war) {
         m.crowd = 0.75;

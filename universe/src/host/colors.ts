@@ -35,3 +35,7 @@ export function languageColor(family: number, index: number): [number, number, n
     };
   return [f(0), f(8), f(4)];
 }
+
+/** A crime group or a general group as the land view colours it: its own hue, strong enough to read over the ground. */
+export const holderColor = (ref: string): [number, number, number] =>
+  hueColor(realmHue(ref), 0.5, 0.42);

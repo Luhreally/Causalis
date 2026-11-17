@@ -26,7 +26,12 @@ import { pageOf } from "../../src/host/inspect/index.ts";
 import { groupRef, opRef } from "../../src/host/underworld.ts";
 import { orgRef } from "../../src/host/groups.ts";
 import { yearNow } from "../../src/host/inspect/words.ts";
-import { turfTiles, underworldMarkPage, underworldMarks } from "../../src/view/index.ts";
+import {
+  turfTiles,
+  underworldMarkPage,
+  underworldMarkWatch,
+  underworldMarks,
+} from "../../src/view/index.ts";
 import { peopledWorld } from "../worlds.ts";
 
 const world = peopledWorld("juniper", 60, { start: "spread" });
@@ -367,6 +372,8 @@ test("the land view's marks: killing and a crew over the greatest towns, brigand
       pirates: { ref: "org:pol:0:1:ev:0:12", name: "The Gull pirates" },
       soldiers: 340,
       soldiersRef: "uop:pol:0:1:ev:0:13",
+      watchKill: null as string | null,
+      watchArmy: null as string | null,
     },
     towns = [
       { ref: "town:0:1", population: 100, at: { x: 10, y: 50 } },
@@ -415,4 +422,16 @@ test("the land view's marks: killing and a crew over the greatest towns, brigand
     null,
   );
   assert.equal(underworldMarkPage(law[0]!.key), "town:0:2#law");
+  // (Where the land's latest fights are told: the killing's mark and the soldiers' play them, 2026-11-16.)
+  const watched = underworldMarks(
+    { ...u, watchKill: "ev:0:21", watchArmy: "ev:0:22" },
+    towns,
+    null,
+    null,
+  );
+  assert.deepEqual(
+    watched.map((m) => underworldMarkWatch(m.key)),
+    ["ev:0:21", "ev:0:21", "ev:0:22"],
+  );
+  assert.equal(underworldMarkWatch(marks[0]!.key), null);
 });

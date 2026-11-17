@@ -95,6 +95,7 @@ export {
   turfTiles,
   underworldMarks,
   underworldMarkPage,
+  underworldMarkWatch,
 } from "./region.ts";
 export {
   ACTIVITY,
@@ -1270,3 +1271,20 @@ export {
   type HeardKind,
   type Voicing,
 } from "./heard.ts";
+export {
+  SPOT_WORDS,
+  crowdAbout,
+  fallenBy,
+  fightSpots,
+  figureAt,
+  openYaw,
+  scaled,
+  streetAt,
+  streetEye,
+  streetScript,
+  type FightSpot,
+  type SpotWhy,
+  type StreetClash,
+  type StreetFigure,
+  type StreetScript,
+} from "./streetfight.ts";

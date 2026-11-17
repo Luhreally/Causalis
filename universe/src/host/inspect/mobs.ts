@@ -57,6 +57,7 @@ import {
 import { claimOf, count, item, link, many, part, share, stat, yearAt, yearNow } from "./words.ts";
 import { landLink, landTitle, realmLink } from "./names.ts";
 import { bossLink } from "./boss.ts";
+import { lastEvent, streetFightOf, watchFightTool } from "./streetfight.ts";
 
 const th = (n: number) => share(n / 1000),
   grain = (n: number) => `${grainSum(Math.max(0, Math.round(n)))} grain's worth`,
@@ -197,6 +198,15 @@ export function realmUnderworldBlocks(world: World, r: Polity): Block[] {
         ),
       );
     blocks.push({ type: "list", title: "Wars between them", items });
+    // (The latest few, each played in the streets of its town: 2026-11-16.)
+    for (const w of [...v.wars].reverse().slice(0, 3))
+      if (streetFightOf(world, w.event))
+        blocks.push(
+          watchFightTool(
+            w.event,
+            `▶ Watch ${groupWords(w.names[0], kindOfGroup(w))} against ${groupWords(w.names[1], kindOfGroup(w))}`,
+          ),
+        );
   }
   // (Soldiers sent against its groups: escalation.)
   const ops = operationsBlock(r, v);
@@ -452,6 +462,15 @@ export function crimeGroupPage(world: World, ref: string): PageModel {
         ),
       ],
     });
+    // (Its wars, the latest few, each played in the streets of its town: 2026-11-16.)
+    for (const w of [...wars].reverse().slice(0, 3))
+      if (streetFightOf(world, w.event))
+        blocks.push(
+          watchFightTool(
+            w.event,
+            `▶ Watch its war with ${groupWords(w.a === rec.id ? w.names[1] : w.names[0], kindOfGroup(w))}`,
+          ),
+        );
     blocks.push({
       type: "text",
       lines: [
@@ -743,6 +762,15 @@ export function operationPage(world: World, ref: string): PageModel {
     },
   ];
   const passed = passedItems(world, opNews(at) as (e: never) => boolean, o.since);
+  // (Its latest clash played in the streets of its town, else its coming: 2026-11-16.)
+  const clash = lastEvent(
+    world,
+    (e) => e.type === "underworld.clash" && e.causes.some((c) => c.ref === o.event),
+  );
+  if (clash && streetFightOf(world, clash.id))
+    blocks.unshift(watchFightTool(clash.id, `▶ Watch its clashes of year ${yearAt(clash.t)}`));
+  else if (streetFightOf(world, o.event))
+    blocks.unshift(watchFightTool(o.event, "▶ Watch them come"));
   if (passed.length) blocks.push({ type: "list", title: "What has passed in it", items: passed });
   return {
     ref: opRef(r.ref, o.event),

@@ -641,6 +641,25 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
     await press('.mapmodes .mode[aria-label="Land"]');
     await press(".bar-fold");
   } else await press('.mapmodes .mode[aria-label="Land"]');
+  // A fight of the underworld watched in its town (2026-11-16), where the world tells one (a save of a world that has them).
+  const fight = await k<string | null>(
+    `globalThis.causalis.client.query({ type: "underworld.fights", args: { most: 1, dead: true } }).then((x) => x[0]?.event ?? null)`,
+  ).catch(() => null);
+  if (fight) {
+    await state("street-fight", async () => {
+      await must(
+        "the fight",
+        k<boolean>(`globalThis.causalis.streetFilm.play(${JSON.stringify(fight)})`),
+      );
+      await until(
+        "its clashes",
+        () => k<boolean>(`globalThis.causalis.streetFilm.state().s > 8`),
+        slow(40000),
+      );
+      await settle(600);
+    });
+    await k(`globalThis.causalis.streetFilm.stop()`);
+  } else say("no fight of the underworld told in this world: its watch not looked at");
   await state("village", () => toTown(town.ref));
   await state("village-stores", async () => {
     await must("the stores", press(".town-stores"));

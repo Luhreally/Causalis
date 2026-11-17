@@ -9,6 +9,8 @@ export type AnnalLine = {
   readonly line: Line;
   /** What the whole line opens. */
   readonly ref: string;
+  /** A fight of the underworld it tells, to be watched in its town (its event; absent: none). 2026-11-16. */
+  readonly watch?: string;
 };
 
 export type AnnalYear = { readonly year: number; readonly lines: readonly AnnalLine[] };
