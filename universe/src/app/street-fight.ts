@@ -392,15 +392,21 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
       key = eye ? `${Math.round(eye.at.x / 4)}:${Math.round(eye.at.z / 4)}` : "";
     if (eye && key !== eyeKey && !rig.steering) {
       eyeKey = key;
-      const v = streetView(p, eye.at, EYE_DISTANCE / VILLAGE_METRE),
-        // (Its place brought up into the screen left free above its caption: the eye's mark so much nearer itself as half the
-        // caption's share of the eye's field, at this height.)
-        cam = d.stage.camera.camera,
+      // Its place brought up into the screen left free above its caption: the eye's mark so much nearer itself as half the
+      // caption's share of the eye's field, at this height. The eye then stands that much further from the place: its stand
+      // is chosen again with that, so the line from where it truly stands to the place is the clear one.
+      const cam = d.stage.camera.camera,
         fov = ((cam?.fov ?? 45) * Math.PI) / 180,
         covered = ui.getBoundingClientRect().height / Math.max(1, innerHeight),
-        near =
-          ((EYE_DISTANCE / VILLAGE_METRE) * Math.tan((fov * covered) / 2)) /
-          Math.max(0.3, Math.sin((-v.pitch * Math.PI) / 180));
+        far = EYE_DISTANCE / VILLAGE_METRE,
+        nearAt = (pitch: number) =>
+          (far * Math.tan((fov * covered) / 2)) / Math.max(0.3, Math.sin((-pitch * Math.PI) / 180));
+      let v = streetView(p, eye.at, far),
+        near = nearAt(v.pitch);
+      for (let turn = 0; turn < 2; turn++) {
+        v = streetView(p, eye.at, far + near / Math.max(0.2, Math.cos((v.pitch * Math.PI) / 180)));
+        near = nearAt(v.pitch);
+      }
       rig.flyTo(
         {
           // (On a tall screen its caption stands over the lower third: the place looked at brought up the screen, the eye's mark a little nearer itself.)
@@ -525,12 +531,17 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
       }
       flag.hidden = false;
       flag.style.background = rgb(fight!.sides[side]!.color);
-      // (Never one flag over the other: the second stood clear above the first where they would meet.)
-      let y = at.y - 34;
-      if (side === 1 && first && Math.abs(first.x - at.x) < 26 && Math.abs(first.y - y) < 18)
-        y = first.y - 18;
-      if (side === 0) first = { x: at.x, y };
-      flag.style.transform = `translate(${Math.round(at.x - 9)}px, ${Math.round(y)}px)`;
+      // (Never one flag by the other: where they would meet, each stood off to its own hand.)
+      const y = at.y - 34;
+      let fx = at.x;
+      if (side === 1 && first && Math.abs(first.x - fx) < 44 && Math.abs(first.y - y) < 28) {
+        const hand = fx >= first.x ? 1 : -1,
+          mid = (first.x + fx) / 2;
+        fx = mid + hand * 24;
+        flags[0]!.style.transform = `translate(${Math.round(mid - hand * 24 - 9)}px, ${Math.round(first.y)}px)`;
+      }
+      if (side === 0) first = { x: fx, y };
+      flag.style.transform = `translate(${Math.round(fx - 9)}px, ${Math.round(y)}px)`;
     });
   });
 
@@ -577,7 +588,7 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
         burying: !!burying,
         bier: village.graveyardShown()?.bier ?? null,
         caught,
-        cars: scene?.cars?.length ?? 0,
+        cars: scene?.carriers?.length ?? 0,
         under: (() => {
           const eye = script ? streetEye(script, s) : null,
             top = ui.getBoundingClientRect().top;

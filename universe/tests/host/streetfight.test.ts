@@ -328,9 +328,11 @@ test("what is drawn about it: carriers, lamps, the eye's clear stand, those caug
     // (Both groups' means say armoured carriers: a car behind each side's men while they are there, and a fire lit at the place.)
     assert.deepEqual(turf.carriers, [true, true]);
     const mid = streetAt(turf, slots, turf.clashes[0]!.from + 2);
-    assert.ok((mid.cars?.length ?? 0) >= 2, `${mid.cars?.length} cars`);
+    assert.ok((mid.carriers?.length ?? 0) >= 2, `${mid.carriers?.length} carriers`);
+    // (No turret, no gun: never the host's armoured cars.)
+    assert.equal(mid.cars, undefined);
     assert.ok(mid.camp.length >= 1);
-    assert.equal(streetAt(turf, slots, -100).cars?.length, 0);
+    assert.equal(streetAt(turf, slots, -100).carriers?.length, 0);
     // (The eye on every place of both: no block or wall under its line.)
     for (const c of [...turf.clashes, ...army.clashes]) {
       const v = streetView(plan, c.spot, 46);

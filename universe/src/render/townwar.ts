@@ -11,6 +11,8 @@ import { VehicleLayer } from "./vehicles.ts";
 import type { TownWarScene } from "../view/index.ts";
 
 const M = 0.1;
+/** The most of a group's carriers drawn. */
+const CARRIERS = 4;
 /** The most tents, camp fires, burning houses (each its flames and its smoke's puffs). */
 const MOST_TENTS = 16,
   MOST_CAMP = 24,
@@ -40,6 +42,11 @@ export class TownWarLayer {
   private readonly campFires: InstancedBatch;
   /** Each camp fire's light on the ground. */
   private readonly glows: InstancedBatch;
+  /** A group's carriers (view/townwar.ts): their plate, their wheels, a band of their side's colour on each. */
+  private readonly plate: InstancedBatch;
+  private readonly wheels: InstancedBatch;
+  private readonly bands: [InstancedBatch, InstancedBatch];
+  private banded: readonly [Rgb, Rgb] | null = null;
   private readonly flames: InstancedBatch;
   private readonly smoke: InstancedBatch;
   private readonly teamGuns: InstancedBatch;
@@ -84,6 +91,12 @@ export class TownWarLayer {
     glow.blendType = pc.BLEND_ADDITIVEALPHA;
     glow.depthWrite = false;
     glow.update();
+    this.plate = new InstancedBatch(stage, boxMesh(stage), [0.3, 0.32, 0.35], CARRIERS * 3, root);
+    this.wheels = new InstancedBatch(stage, boxMesh(stage), [0.1, 0.1, 0.11], CARRIERS * 4, root);
+    this.bands = [
+      new InstancedBatch(stage, boxMesh(stage), [0.5, 0.5, 0.5], CARRIERS, root),
+      new InstancedBatch(stage, boxMesh(stage), [0.5, 0.5, 0.5], CARRIERS, root),
+    ];
     this.glows = new InstancedBatch(
       stage,
       coneMesh(stage, 0.5, 1, 14),
@@ -128,6 +141,65 @@ export class TownWarLayer {
     if (this.colored[0] === a && this.colored[1] === d) return;
     this.colored = [a, d];
     this.vehicles?.setup(this.colored);
+  }
+
+  /** A group's carriers: each a plated box on wheels, a cab before it or a cart's shaft, its side's colour round it. */
+  private carriers(scene: TownWarScene | null): void {
+    const list = (scene?.carriers ?? []).slice(0, CARRIERS);
+    if (this.banded !== this.colored) {
+      this.banded = this.colored;
+      this.bands[0].recolor(this.colored[0]);
+      this.bands[1].recolor(this.colored[1]);
+    }
+    /** A box of a carrier: so far forward and aside of its middle, so high, so large (metres, as the town draws: K larger). */
+    const K = 1.5,
+      box = (
+        out: number[],
+        c: (typeof list)[number],
+        fore: number,
+        aside: number,
+        high: number,
+        long: number,
+        wide: number,
+        tall: number,
+      ) => {
+        const sn = Math.sin(c.yaw),
+          cs = Math.cos(c.yaw);
+        out[0] = (c.x + (sn * fore + cs * aside) * K) * M;
+        out[1] = high * K * M;
+        out[2] = (c.z + (cs * fore - sn * aside) * K) * M;
+        out[3] = wide * K * M;
+        out[4] = tall * K * M;
+        out[5] = long * K * M;
+        out[6] = c.yaw;
+      };
+    this.plate.set(list.length * 3, (i, out) => {
+      const c = list[Math.floor(i / 3)]!,
+        part = i % 3;
+      // (A truck: its plated box, its cab, a plate over its front. A cart: its boarded box, its shaft, a board raised before it.)
+      if (c.cart) {
+        if (part === 0) box(out, c, -0.3, 0, 1.05, 2.8, 1.7, 1.0);
+        else if (part === 1) box(out, c, 2.0, 0, 0.75, 1.9, 0.14, 0.14);
+        else box(out, c, 1.1, 0, 1.75, 0.12, 1.7, 0.5);
+      } else if (part === 0) box(out, c, -0.7, 0, 1.4, 3.2, 2.0, 1.6);
+      else if (part === 1) box(out, c, 1.6, 0, 1.15, 1.4, 1.9, 1.1);
+      else box(out, c, 2.34, 0, 1.3, 0.1, 2.0, 0.9);
+    });
+    this.wheels.set(list.length * 4, (i, out) => {
+      const c = list[Math.floor(i / 4)]!,
+        w = i % 4,
+        aside = (w % 2 ? 1 : -1) * (c.cart ? 0.95 : 1.05);
+      if (c.cart) box(out, c, w < 2 ? -0.3 : -0.3, aside, 0.55, 1.1, 0.16, 1.1);
+      else box(out, c, w < 2 ? 1.5 : -1.6, aside, 0.42, 0.84, 0.3, 0.84);
+    });
+    for (const side of [0, 1] as const) {
+      const mine = list.filter((c) => c.side === side);
+      this.bands[side].set(mine.length, (i, out) => {
+        const c = mine[i]!;
+        if (c.cart) box(out, c, -0.3, 0, 1.25, 2.86, 1.76, 0.22);
+        else box(out, c, -0.7, 0, 1.75, 3.26, 2.06, 0.3);
+      });
+    }
   }
 
   /** What is past the line: a team gun's parts, the guns standing off, the shells landing, the cars. */
@@ -308,6 +380,7 @@ export class TownWarLayer {
     });
     // (A fire before every third tent; then the hosts' fires.)
     const byTents = Math.ceil(nt / 3);
+    this.carriers(scene);
     // (Its light on the ground about it, breathing with the flame.)
     this.glows.set(nc, (j, out) => {
       const c = lines[j]!,
@@ -380,6 +453,9 @@ export class TownWarLayer {
       this.tents,
       this.campFires,
       this.glows,
+      this.plate,
+      this.wheels,
+      ...this.bands,
       this.flames,
       this.smoke,
       this.teamGuns,

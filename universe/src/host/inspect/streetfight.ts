@@ -192,7 +192,23 @@ export function streetFightOf(world: World, ref: string): StreetFight | null {
       hi + lo - a.color[2],
     ];
   const figure = peopleFigure(homePlanet(world).generated);
-  return { ...f, figure, ...(near >= 0.4 ? {} : { sides: [a, { ...b, color: turned }] as const }) };
+  // (Against the realm's soldiers a group is always in their colour's opposite, and stronger: never mistaken for them.)
+  const army = a.as === "soldiers",
+    mid = (hi + lo) / 2,
+    strong: [number, number, number] = [
+      Math.max(0, Math.min(1, mid + (turned[0] - mid) * 1.8 - 0.06)),
+      Math.max(0, Math.min(1, mid + (turned[1] - mid) * 1.8 - 0.06)),
+      Math.max(0, Math.min(1, mid + (turned[2] - mid) * 1.8 - 0.06)),
+    ];
+  return {
+    ...f,
+    figure,
+    ...(army
+      ? { sides: [a, { ...b, color: strong }] as const }
+      : near >= 0.4
+        ? {}
+        : { sides: [a, { ...b, color: turned }] as const }),
+  };
 }
 
 function readFight(world: World, ref: string): StreetFight | null {

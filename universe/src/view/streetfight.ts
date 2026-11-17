@@ -32,7 +32,6 @@ import {
   type HostDrawn,
   type Trooper,
   type TrooperNow,
-  type VehicleNow,
 } from "./battle.ts";
 import { newBlows, type Blows } from "./blows.ts";
 import type { PlacedFrame, Watcher } from "./placed.ts";
@@ -76,7 +75,7 @@ const ARM = 1.7,
 /** How long after the one before him each of a file sets out, and comes (seconds). */
 const FILE = 0.2;
 /** The most of a post's soldiers abreast across a street. */
-const CORDON = 5;
+const CORDON = 3;
 const GOES = 4,
   AFTER = 16;
 /** A squad's pace into a quarter (metres a second), and the longest it takes to reach its post (seconds). */
@@ -135,8 +134,10 @@ export type StreetScript = {
   readonly bystanders: readonly (Point & { readonly at: number; readonly from: number })[];
   /** Which sides came in armoured carriers (its means say so). */
   readonly carriers: readonly [boolean, boolean];
+  /** Whether its town is past the age of engines (its people get about on wheels): a carrier is a plated truck, else a boarded cart. */
+  readonly engines: boolean;
 };
-type Core = Omit<StreetScript, "bystanders" | "carriers">;
+type Core = Omit<StreetScript, "bystanders" | "carriers" | "engines">;
 
 /** The figures of each side and their fallen, history's numbers at one scale, as many a side as `cap` at the most. */
 export function scaled(
@@ -281,6 +282,7 @@ export function streetScript(f: StreetFight, plan: VillagePlan, slots: number): 
     ...core,
     bystanders,
     carriers: [f.sides[0].carriers === true, f.sides[1].carriers === true],
+    engines: plan.about?.how === "wheels",
   };
 }
 
@@ -434,14 +436,17 @@ function armyScript(
     },
     // (The group's quarter: the half of the town away from `quarter`; its crossings taken nearest the gate first, then on.)
     quarterOf = cross.filter((p) => p.x * nx + p.z * nz < 0),
-    pool = (quarterOf.length >= 2 ? quarterOf : cross).slice(),
+    // (Never in its square, among its market and its people; each post well apart from the next.)
+    streets = (quarterOf.length >= 2 ? quarterOf : cross).filter((q) => Math.hypot(q.x, q.z) > 24),
+    pool = (streets.length >= 2 ? streets : quarterOf.length >= 2 ? quarterOf : cross).slice(),
     take: Point[] = [];
   let at: Point = gate;
-  const squads = Math.max(1, Math.min(4, pool.length, Math.ceil(drawn[0] / 3)));
+  // (A post for every six of them, eight at the most: no more than a front rank of three and a rank behind at any.)
+  const squads = Math.max(1, Math.min(8, pool.length, Math.ceil(drawn[0] / 6)));
   while (take.length < squads && pool.length) {
     pool.sort((a, b) => Math.hypot(a.x - at.x, a.z - at.z) - Math.hypot(b.x - at.x, b.z - at.z));
     const next = pool.shift()!;
-    if (take.some((q) => Math.hypot(q.x - next.x, q.z - next.z) < APART)) continue;
+    if (take.some((q) => Math.hypot(q.x - next.x, q.z - next.z) < 26)) continue;
     take.push(next);
     at = next;
   }
@@ -458,7 +463,8 @@ function armyScript(
     clashes: StreetClash[] = [],
     posts: (Point & { yaw: number; at: number })[] = [],
     times = ways.map((w, j) => {
-      const from = 1.5 + j * 5.5,
+      // (The furthest post taken first: no squad marches through another's cordon.)
+      const from = 1.5 + (ways.length - 1 - j) * 4.5,
         go = Math.min(LONGEST, lengthOf(w) / PACE);
       return { from, arrive: from + go };
     });
@@ -472,7 +478,8 @@ function armyScript(
     });
   });
   // (Where the group's men meet them: at the posts, a clash at each in turn once it is held, as many as the dead told need.)
-  const meets = falls[1] > 0 || falls[0] > 0 ? take.length : Math.min(2, take.length);
+  // (Where the group's men meet them: at so many posts as there are three of its men for, the nearest the road in first.)
+  const meets = Math.max(1, Math.min(take.length, Math.ceil(drawn[1] / 3)));
   for (let j = 0; j < meets; j++) {
     const from = times[j]!.arrive + 2 + u(900 + j) * 2;
     clashes.push({
@@ -516,7 +523,8 @@ function armyScript(
       face: { x: p.x + Math.sin(yaw) * 10, z: p.z + Math.cos(yaw) * 10 },
       from: t.from + row * 0.45,
       arrive: t.arrive + row * 0.45,
-      fight: c ? [c.from, c.to] : null,
+      // (The front rank alone in contact; those behind stand, unless one of them is to fall.)
+      fight: c && (rank === 0 || falling) ? [c.from, c.to] : null,
       falls: falling ? c.from + 1.5 + u(1100 + m) * Math.max(0.5, c.to - c.from - 3) : null,
       leaves: null,
     });
@@ -542,17 +550,19 @@ function armyScript(
         wide = 0.6,
         there = Math.ceil((drawn[1] - k) / clashes.length),
         rank = Math.floor(m / clashes.length),
-        out = wide + (falls[0] + falls[1] > 0 ? OFF + ARM : 9),
-        across = (rank - (there - 1) / 2) * 2.1,
+        out = wide + (falls[0] + falls[1] > 0 ? OFF + ARM : 9) + Math.floor(rank / 6) * 2.4,
+        // (Six abreast across the street; the rest a rank behind them.)
+        behind = Math.floor(rank / 6) * 2.4,
+        across = ((rank % 6) - (Math.min(6, there) - 1) / 2) * 2.1,
         place = {
           x: c.spot.x + (bx / bl) * out - (bz / bl) * across,
           z: c.spot.z + (bz / bl) * out + (bx / bl) * across,
         },
         meet = {
-          x: c.spot.x + (bx / bl) * (wide + ARM) - (bz / bl) * across,
-          z: c.spot.z + (bz / bl) * (wide + ARM) + (bx / bl) * across,
+          x: c.spot.x + (bx / bl) * (wide + ARM + behind) - (bz / bl) * across,
+          z: c.spot.z + (bz / bl) * (wide + ARM + behind) + (bx / bl) * across,
         },
-        fight = [c.from + u(1600 + m) * 0.8, c.to] as const,
+        fight = [c.from + STAND_OFF + u(1600 + m) * 0.8, c.to + STAND_OFF] as const,
         falling = groupFalls.has(m);
       figures.push({
         side: 1,
@@ -562,7 +572,8 @@ function armyScript(
         ...(falls[0] + falls[1] > 0 ? { meet } : {}),
         from: c.from - COMES + Math.min(2.2, rank * FILE),
         arrive: c.from + Math.min(2.2, rank * FILE),
-        fight: falls[0] + falls[1] > 0 ? fight : null,
+        // (Six of them in contact at the most; those behind stand, unless one of them is to fall.)
+        fight: falls[0] + falls[1] > 0 && (rank < 6 || falling) ? fight : null,
         falls: falling
           ? fight[0] + 1.5 + u(1800 + m) * Math.max(0.5, fight[1] - fight[0] - 3)
           : null,
@@ -709,7 +720,7 @@ export function streetAt(
         .filter((c) => c.from - 6 <= s)
         .map((c) => ({ x: c.spot.x + 3.4, z: c.spot.z - 3.4, lamp: true })),
     ],
-    cars: carsAt(script, s),
+    carriers: carriersAt(script, s),
     middles: sum.map((m) =>
       m.n ? { x: m.x / m.n, z: m.z / m.n } : null,
     ) as unknown as TownWarScene["middles"],
@@ -799,8 +810,11 @@ export function openYaw(plan: VillagePlan, at: Point, far: number): number {
 }
 
 /** The armoured carriers a side came in (its means say so): one stood behind its men at each of its first two places, while they are there. */
-function carsAt(script: StreetScript, s: number): VehicleNow[] {
-  const out: VehicleNow[] = [];
+function carriersAt(
+  script: StreetScript,
+  s: number,
+): NonNullable<TownWarScene["carriers"]>[number][] {
+  const out: NonNullable<TownWarScene["carriers"]>[number][] = [];
   for (const side of [0, 1] as const) {
     if (!script.carriers[side]) continue;
     // (The first of its men at each place, the two earliest places.)
@@ -829,17 +843,14 @@ function carsAt(script: StreetScript, s: number): VehicleNow[] {
           dx = end.x - g.face.x,
           dz = end.z - g.face.z,
           d = Math.hypot(dx, dz) || 1;
+        void n;
+        // (Stood well back of its men, its nose to the place.)
         out.push({
-          id: side * 2 + n,
           side,
-          x: end.x + (dx / d) * 7,
-          y: 0,
-          z: end.z + (dz / d) * 7,
+          x: end.x + (dx / d) * 11,
+          z: end.z + (dz / d) * 11,
           yaw: Math.atan2(-dx, -dz),
-          turret: 0,
-          recoil: 0,
-          knocked: 0,
-          burning: 0,
+          cart: !script.engines,
         });
       });
   }

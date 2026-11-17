@@ -416,6 +416,17 @@ export type TownWarScene = {
     /** A street's small fire, not a host's (2026-11-17). */
     readonly lamp?: boolean;
   }[];
+  /**
+   * A group's armoured carriers stood by (a fight in the streets, 2026-11-17): a plated truck past the age of engines, a
+   * boarded cart before it; no turret, no gun. Where, which way, whose.
+   */
+  readonly carriers?: readonly {
+    readonly x: number;
+    readonly z: number;
+    readonly yaw: number;
+    readonly side: 0 | 1;
+    readonly cart: boolean;
+  }[];
   /** Where each side's host stands (the middle of those drawn), for its label; null: none there. */
   readonly middles: readonly [Flat | null, Flat | null];
   /** Past the line (W1), a machine gun's team's gun on its tripod: where, which way, whether it fires. */
