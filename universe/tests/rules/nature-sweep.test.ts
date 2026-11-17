@@ -15,6 +15,8 @@ import {
   cropGives,
   cropYield,
   dietOf,
+  tableShort,
+  wantDeathsOver,
   eruptDead,
   eruptRate,
   floodChance,
@@ -134,6 +136,19 @@ test("a people fed on grain alone goes short and buries more of its young; a mix
   assert.equal(dietOf({}).short, 0);
   assert.deepEqual(wantDeaths(0), { young: 1, grown: 1 });
   assert.ok(wantDeaths(0.5).young > wantDeaths(0.5).grown);
+});
+
+test("want deaths are reckoned over those the life table holds: a plant-eater's gut and a sea people's beds feed them", () => {
+  const grainOnly = { [G.grain]: 100, [G.wild]: 0, [G.meat]: 0 };
+  // (A people fed as its table's farmers were dies as its table has it; worse fed, more; better fed, never fewer.)
+  assert.deepEqual(wantDeathsOver(tableShort("both"), tableShort("both")), { young: 1, grown: 1 });
+  assert.deepEqual(wantDeathsOver(0, tableShort("both")), { young: 1, grown: 1 });
+  const over = wantDeathsOver(dietOf(grainOnly, "both").short, tableShort("both"));
+  assert.ok(over.young > 1 && over.young < wantDeaths(dietOf(grainOnly, "both").short).young);
+  // (A plant-eater on its grain alone is fed as its gut is made for; a sea people's beds of weed and shell are no grass's seed.)
+  assert.ok(dietOf(grainOnly, "plants").short < 0.05, `${dietOf(grainOnly, "plants").short}`);
+  assert.ok(dietOf(grainOnly, "flesh", false, 1, true).short < 0.05);
+  assert.ok(dietOf(grainOnly, "flesh").short > 0.5);
 });
 
 test("the light lived: the noon sun stands high less of the year toward the poles, and a people far from its cradle or under smoke makes less", () => {

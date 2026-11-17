@@ -908,8 +908,10 @@ function planetUniverse(name: string, prior: Prior): Universe {
   // how wealth is held, debt owed to strangers and the lean month, and leaves what those who rose would have. And with the six
   // rounds after that: energy and the ground as stocks, a people's mind, money and the state, the planet in motion, lives read
   // whole, peoples among the stars alive in history, and order: powers, wants learned, elections, councils, spies, lands held
-  // by force and the ground a battle is fought on.)
-  const version = name === "alien" ? "alien-28" : `${name}-24`,
+  // by force and the ground a battle is fought on. And with the sweep after: houses and who a ruler must pay, what a people
+  // believes and makes, sieges and navies, cycles and cartels, a nature that moves in play, the galaxy's hazards, everyday
+  // life and its institutions, what a stuff can do, the roofless, the underworld and the groups that form where a stake pays.)
+  const version = name === "alien" ? "alien-29" : `${name}-25`,
     make = (seed: Seed, frequency?: number) => {
       // The chronicle opens after a generated prehistory: bands across the land.
       const lands = landsOf(seed.text),

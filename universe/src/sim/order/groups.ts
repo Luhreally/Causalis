@@ -26,6 +26,7 @@
 // underworld (selling protection, smuggling cartels, street gangs, enforcers turned crew), houses, labour's guilds and unions,
 // belief's temples.
 import {
+  MAX_CAUSES,
   YEAR,
   defineEventType,
   defineStream,
@@ -741,10 +742,11 @@ function tell(
     type,
     subjects: [f.p.ref],
     place: cell !== null ? (f.ctx.provinces.get(cell)?.ref ?? null) : null,
+    // (At most MAX_CAUSES: a federation of many groups cites the first of them.)
     causes: [
       ...(decision ? [{ ref: decision, role: "trigger" as const, weight: 1 }] : []),
       ...causes,
-    ],
+    ].slice(0, MAX_CAUSES),
     data: { realm: realmName(f.p), ...data },
   });
 }
