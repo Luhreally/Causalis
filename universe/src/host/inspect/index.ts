@@ -71,7 +71,7 @@ import { seatPage, withKin } from "./kin.ts";
 import { rulerPage, withLeaderPage } from "./leaders.ts";
 import { courtPage } from "./court.ts";
 import { dynastyPage, linePage, withFamilyLink } from "./family.ts";
-import { crimeGroupPage, federationPage } from "./underworld.ts";
+import { crimeGroupPage, federationPage } from "./mobs.ts";
 import { withFollow } from "../follow.ts";
 import { songPage, stonePage } from "./memory.ts";
 import { casePage, selfLawBlocks } from "./justice.ts";

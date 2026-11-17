@@ -58,7 +58,7 @@ import { realmFearBlocks, realmMoneyBlocks } from "./finance.ts";
 import { leaderBlocks } from "./leaders.ts";
 import { courtBlocks } from "./court.ts";
 import { realmHousesBlocks } from "./houses.ts";
-import { realmUnderworldBlocks } from "./underworld.ts";
+import { realmUnderworldBlocks } from "./mobs.ts";
 import { wealthStats } from "../wealth.ts";
 import { civilWarRows, realmStrifeBlocks } from "./strife.ts";
 import { nationRealmBlocks } from "../nations.ts";

@@ -56,7 +56,7 @@ import { EARTH } from "../../src/host/index.ts";
 import { pageOf } from "../../src/host/inspect/index.ts";
 import { claimOf } from "../../src/host/inspect/words.ts";
 import { fedRef, groupRef } from "../../src/host/underworld.ts";
-import { townUnderworldBlocks } from "../../src/host/inspect/underworld.ts";
+import { townUnderworldBlocks } from "../../src/host/inspect/mobs.ts";
 import { universeWorld } from "../host/worlds.ts";
 
 // —— The rules ——————————————————————————————————————————————————————————————————————————————————————————

@@ -55,7 +55,7 @@ import {
 import { streetInTownOf } from "../../sim/index.ts";
 import { ROOF } from "../../rules/index.ts";
 import { cellRef } from "../../gen/index.ts";
-import { townUnderworldBlocks } from "./underworld.ts";
+import { townUnderworldBlocks } from "./mobs.ts";
 import type {
   Block,
   CourtForm,
