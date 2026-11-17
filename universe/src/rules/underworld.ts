@@ -142,6 +142,8 @@ export const UNDER = {
   /** Street gangs: a town has poor quarters from this many people; one small gang for so many young men at the full pull. */
   town: 2000,
   gangOf: 120,
+  /** A town's gangs fight by how many they are to this many of its people (ten and more to it: at the worst). */
+  fightTown: 20000,
   /** A federation forms where a realm's towns hold this many gangs of one identity; it reaches a town with this many. */
   fedForm: 8,
   fedTown: 2,

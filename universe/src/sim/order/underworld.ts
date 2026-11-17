@@ -558,6 +558,8 @@ type Town = {
   killed: number;
   jailed: number;
   young: number;
+  /** Its town's people. */
+  town: number;
 };
 
 /** A realm's towns with poor quarters, and their gangs. */
@@ -635,6 +637,7 @@ function streetTowns(ctx: PopulationContext, p: Polity, r: Read): Town[] {
       killed: 0,
       jailed: 0,
       young,
+      town: town.population,
     });
   }
   return out;
@@ -867,7 +870,15 @@ function stepRealm(
   for (const tw of towns) {
     const feds = v.feds.filter((x) => x.towns.includes(tw.cell)),
       rival = feds.length >= 2 && feds.some((a) => feds.some((b) => a.rival === b.id)),
-      fight = streetFight(tw.gangs, rival, arms, tw.informal, r.idle);
+      // (How thick its gangs lie: so many to UNDER.fightTown of its people. A great town has many gangs by its size alone; it is
+      // where they crowd each other that they fight.)
+      fight = streetFight(
+        (tw.gangs * UNDER.fightTown) / Math.max(UNDER.fightTown, tw.town),
+        rival,
+        arms,
+        tw.informal,
+        r.idle,
+      );
     tw.killed = tw.members * UNDER.streetKill * fight * 1.3;
     streetKilled += tw.killed;
   }
