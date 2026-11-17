@@ -1,20 +1,28 @@
 // What a realm turns to arms and keeps at sea, and how a war goes besides the field (the last sweep, war). On a realm's Army tab:
 // its footing (the share of what it makes turned to arms), what moves it and whom it races, the arms it sends into another's war
-// or is sent, its fleet and what that costs, and the blockade laid on it. On a war's page: the siege of its seat, the sea fought
+// or is sent, who it can send to war and why, the host a peace has it stand down, its fleet and what that costs, the blockade
+// laid on it, and the fleet it could send to the stars. On a war's page: the siege of its seat or a walled land, the sea fought
 // for, and who sends either side arms. Phone first: facts with what makes them one tap down, no table wider than a phone. Each
 // says what, who, what it costs and what it does; never how a thing is made.
 import type { World } from "../../kernel/index.ts";
 import type { Block, Stat } from "../../bridge/index.ts";
 import {
   armingOf,
+  fieldedParts,
+  fleetSentBy,
+  knows,
+  mobilising,
   navyOf,
+  orderOf,
   politiesOf,
+  populationContext,
+  realmMight,
   realmName,
   siegeOf,
   type Polity,
   type War,
 } from "../../sim/index.ts";
-import { ARMING } from "../../rules/index.ts";
+import { ARMING, starDriveFor } from "../../rules/index.ts";
 import { count, part, share, stat } from "./words.ts";
 import { realmLink } from "./names.ts";
 
@@ -26,6 +34,41 @@ export function realmWarcraftBlocks(world: World, r: Polity): Block[] {
     fleet = navyOf(world)?.of(r.ref),
     realms = politiesOf(world),
     rows: Stat[] = [];
+  // Who it can send to war, and why (rules/arming.ts levyShare).
+  if (r.ended === null) {
+    const ctx = populationContext(world),
+      m = mobilising(world, r.ref),
+      parts = fieldedParts(ctx, r);
+    rows.push(
+      stat("Sends to war", `${share(parts.share)} of its fighting men`, {
+        parts: [
+          part("what its people make beyond their food", share(m.spare)),
+          part("their valour", share(parts.valour)),
+          part(
+            "how far they hold its rule rightful",
+            share(orderOf(world)?.realms.get(r.ref)?.legitimacy ?? 0.6),
+          ),
+          ...(m.stake > 0 ? [part("what its wars put at stake", share(m.stake))] : []),
+          ...(parts.standing ? [part("a standing army", "keeps them drilled")] : []),
+        ],
+      }),
+    );
+    if (m.disarm > 0 && arming)
+      rows.push(
+        stat(
+          "Its host stood down",
+          `${share(m.disarm)} of it, until year ${arming.disarmUntil}`,
+          arming.disarmEvent ? { why: arming.disarmEvent } : {},
+        ),
+      );
+    const sends = starDriveFor((id) => knows(ctx, r.seat, id)) ? fleetSentBy(ctx, r) : 0;
+    if (sends > 0)
+      rows.push(
+        stat("A fleet to the stars", `${count(sends)} machines it could send`, {
+          parts: [part("its might among the stars", realmMight(ctx, r).toFixed(1))],
+        }),
+      );
+  }
   if (arming) {
     const against = arming.against ? realms.get(arming.against) : undefined;
     rows.push(
@@ -116,7 +159,7 @@ export function warWarcraftBlocks(world: World, w: War): Block[] {
   if (siege)
     blocks.push({
       type: "facts",
-      title: "The siege of its seat",
+      title: siege.seat ? "The siege of its seat" : "A siege of a walled land",
       rows: [
         stat("Laid", `in year ${siege.since}, by ${realmName(a)}`, { why: siege.event }),
         stat("Its stores", `${Math.round(siege.months)} months left`, {

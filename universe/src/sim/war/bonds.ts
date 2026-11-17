@@ -26,6 +26,7 @@ import {
   WAR_YEAR_LEAST,
   dealOf,
   tributeOf,
+  warReckoning,
   type AimKind,
   type BondKind,
   type Deal,
@@ -37,9 +38,12 @@ import { beliefOf } from "../belief/belief.ts";
 import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { diplomacyOf, type Relation } from "../diplomacy/diplomacy.ts";
 import { heldAmongStars } from "../space/nation-store.ts";
-import { WAR, WAR_EVENTS, frontier, strengthOf, warsOf, type War } from "./war.ts";
+import { WAR, WAR_EVENTS, farFromSeat, frontier, strengthOf, warsOf, type War } from "./war.ts";
 import { armyOf } from "../strife/strife.ts";
-import { footingOf } from "./arming.ts";
+import { disarmRealm, footingOf } from "./arming.ts";
+import { capacityOf, orderOf } from "../order/order.ts";
+import { supplyOf } from "./ground.ts";
+import { OCCUPYING } from "./occupation.ts";
 
 export const BOND_EVENTS = {
   /** A term run out by the clock, or ended by a fall. */
@@ -384,7 +388,27 @@ export type PeaceTerms = {
   readonly offer?: string;
   /** A truce after a host beaten back: who. */
   readonly beaten?: string;
+  /** Of the beaten realm's host, the share stood down until the term ends, and which realm. */
+  readonly disarm?: number;
+  readonly disarmed?: Ref;
 };
+
+/**
+ * How surely each side could hold the other to a peace's terms, at its reach (0 … 1): how far its seat makes its will felt
+ * (sim/order capacityOf), by how fed a garrison of the other's seat would be from its own (sim/war/ground.ts supplyOf: its bread
+ * carried over the ground between, and what that land gives). And how far each side's own people hold its rule rightful.
+ */
+export function peaceReach(
+  ctx: PopulationContext,
+  a: Polity,
+  b: Polity,
+): { hold: [number, number]; standing: [number, number] } {
+  const one = (p: Polity, q: Polity) =>
+      capacityOf(ctx, p).value *
+      supplyOf(ctx, q.seat, farFromSeat(ctx, p, q.seat), OCCUPYING.garrison * peopleOf(ctx, q)),
+    standing = (p: Polity) => orderOf(ctx.world)?.realms.get(p.ref)?.legitimacy ?? 0.6;
+  return { hold: [one(a, b), one(b, a)], standing: [standing(a), standing(b)] };
+}
 
 /**
  * What a war has cost each side and what each has at stake in it, as shares of what it has (rules/terms.ts warReckoning):
@@ -442,6 +466,7 @@ export function reckonPeace(
     edge = 2 * won - w.battles.length,
     ratio = strengthOf(ctx, a) / Math.max(1, strengthOf(ctx, b)),
     lands = landsTaken(a, w),
+    costs = warCosts(ctx, w, a, b, aim, year),
     leader = edge > 0 || got || lands.length > 0 ? 0 : edge < 0 ? 1 : null,
     deal = dealOf({
       edge,
@@ -454,7 +479,10 @@ export function reckonPeace(
       aim: aim ?? null,
       got,
       canBind: leader === null ? false : canBind(world, leader === 0 ? a : b, leader === 0 ? b : a),
-      ...warCosts(ctx, w, a, b, aim, year),
+      ...costs,
+      // (Its reckoning's chance, and what each side could hold the other to at its reach: the peace is a bargain, rules/terms.ts.)
+      chance: warReckoning({ won, fought: w.battles.length, ratio, ...costs }).chance,
+      ...peaceReach(ctx, a, b),
     });
   return termsOfDeal(ctx, deal, a, b, lands, aim, year);
 }
@@ -469,10 +497,17 @@ function termsOfDeal(
   aim: AimKind | undefined,
   year: number,
 ): { deal: Deal; terms: PeaceTerms; payer: Polity | null; other: Polity | null; grain: number } {
-  const ceded =
-      lands.length > 0
-        ? ({ payer: realmName(b), to: realmName(a), lands: lands.length, land: lands[0]! } as const)
+  // (The beaten realm's host stood down, as far as the winner can hold it to that.)
+  const arms =
+      deal.disarm && deal.winner !== null
+        ? { disarm: Math.round(deal.disarm * 100) / 100, disarmed: (deal.winner === 0 ? b : a).ref }
         : {},
+    ceded = {
+      ...(lands.length > 0
+        ? ({ payer: realmName(b), to: realmName(a), lands: lands.length, land: lands[0]! } as const)
+        : {}),
+      ...arms,
+    },
     plain = (kind: PeaceTerms["kind"]) => ({
       deal,
       terms: { kind, ...ceded },
@@ -518,6 +553,7 @@ function termsOfDeal(
       years: deal.years,
       until: year + deal.years,
       ...(lands.length ? { lands: lands.length, land: lands[0]! } : {}),
+      ...arms,
     },
     payer,
     other,
@@ -645,6 +681,15 @@ export function bindPeace(
 ): void {
   const { payer, other, grain } = made,
     kind = made.terms.kind;
+  // (A host stood down for the term's years, whatever else the peace came to: sim/war/arming.ts.)
+  if (made.terms.disarm && made.terms.disarmed)
+    disarmRealm(
+      ctx.world,
+      made.terms.disarmed,
+      made.terms.disarm,
+      year + (made.terms.years ?? TERMS.truceYears),
+      event,
+    );
   if (!payer || !other || (kind !== "truce" && kind !== "tribute" && kind !== "vassal")) return;
   bondsOf(ctx.world).add({
     kind,

@@ -7,6 +7,7 @@ import {
   fatigueOf,
   footingTerms,
   footingYear,
+  levyShare,
   peaceFooting,
   rivalLevel,
   warFooting,
@@ -82,4 +83,41 @@ test("fear is the kept fear or how far regard is below rivalry, the greater; foo
   const t = footingTerms(0.2, 0.1);
   assert.ok(Math.abs(t.fields - ARMING.fields * 0.2) < 1e-9);
   assert.ok(Math.abs(t.power - (1 + ARMING.power * 0.3)) < 1e-9);
+});
+
+const levy = {
+  spare: 0.3,
+  valour: 0.5,
+  standing: 0.6,
+  voice: 0.5,
+  force: 0.5,
+  army: false,
+  stake: 0,
+  drilled: 0,
+  footing: 0,
+  disarm: 0,
+};
+
+test("a realm sends to war as many as what its people spare can feed, and of those as many as will go", () => {
+  const mid = levyShare(levy);
+  assert.ok(mid > 0.05 && mid < 0.2, `${mid}`);
+  assert.ok(levyShare({ ...levy, spare: 0.6 }) > mid);
+  assert.ok(levyShare({ ...levy, spare: 0 }) < mid);
+  assert.ok(levyShare({ ...levy, valour: 1 }) > mid);
+  assert.ok(levyShare({ ...levy, standing: 0.1 }) < mid);
+  // (A people with arms of its own goes the more; one whose holders keep them, the less.)
+  assert.ok(levyShare({ ...levy, force: 0 }) > levyShare({ ...levy, force: 1 }));
+  // (A war at stake sends more, the more where the people have a say.)
+  assert.ok(
+    levyShare({ ...levy, stake: 1, voice: 1 }) > levyShare({ ...levy, stake: 1, voice: 0 }),
+  );
+  assert.ok(levyShare({ ...levy, stake: 1 }) > mid);
+  // (The army compels as far as it keeps the arms, whatever its people think of its rule.)
+  assert.ok(
+    levyShare({ ...levy, army: true, standing: 0.1, force: 0.9 }) >
+      levyShare({ ...levy, standing: 0.1, force: 0.9 }),
+  );
+  assert.ok(levyShare({ ...levy, drilled: 2 }) > mid);
+  assert.ok(Math.abs(levyShare({ ...levy, footing: 0.1 }) - mid - ARMING.fields * 0.1) < 1e-9);
+  assert.ok(Math.abs(levyShare({ ...levy, disarm: 0.5 }) - mid / 2) < 1e-9);
 });

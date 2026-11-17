@@ -1,8 +1,9 @@
 // Sieges, as they are fought (the last sweep, war; the rules are rules/siege.ts). In a war's year (sim/war/war.ts), a battle won at
-// the defender's seat lays a siege where none is laid. Each later year that the besiegers win there again, the siege goes one
-// year on. The seat eats into what it had in store, fed only by what its walls grow and its ships bring in. The walls open by
+// the defender's seat, or before any land of its that knows how to raise walls or has raised them, lays a siege where none is
+// laid (only where a battle was won that year, so a war has one at a time). Each later year that the besiegers win there again,
+// the siege goes one year on. The town eats into what it had in store, fed only by what its walls grow and its ships bring in. The walls open by
 // what the besiegers know and throw. Their camp sickens and the town sickens and starves, and those deaths are written into the
-// lands' ledgers. The seat falls when its walls are open (stormed) or its stores are gone (starved). A year the besiegers lose
+// lands' ledgers. The land falls when its walls are open (stormed) or its stores are gone (starved). A year the besiegers lose
 // there lifts the siege. One row a siege, kept while it is laid; none in a world at peace. The deaths are drawn from the
 // siege's own stream: no other stream's draws move.
 import {
@@ -35,7 +36,7 @@ import { coastal, seaRelief } from "./navy.ts";
 import { warsOf, type War } from "./war.ts";
 
 export const SIEGE_EVENTS = {
-  /** A siege laid about a seat, lifted, or ended with the seat stormed or starved into giving up. */
+  /** A siege laid about a walled land or a seat, lifted, or ended with it stormed or starved into giving up. */
   siege: defineEventType("war.siege", 4),
 };
 
@@ -44,7 +45,9 @@ const STREAM = defineStream("war.siege");
 /** A siege, as kept. */
 export type Siege = {
   readonly war: Ref;
-  readonly seat: number;
+  /** The land besieged, and whether it is its realm's seat. */
+  readonly land: number;
+  readonly seat: boolean;
   readonly since: number;
   /** Months of food the seat has left; how far its walls are open (0 … 1). */
   months: number;
@@ -94,7 +97,7 @@ export class SiegeStore implements StateStore {
     this.rows.set(s.war, s);
     fold(this.digest, [
       refNumber(s.war),
-      s.seat,
+      s.land,
       Math.round(s.months * 100),
       Math.round(s.breach * 1000),
       s.campDead,
@@ -171,12 +174,13 @@ function bury(
   return took;
 }
 
-/** What a seat holds against a siege, as the step reads it. */
-function seatYear(
+/** What a besieged land holds against a siege, as the step reads it (`walls`: the principles of walls it knows, and what it raised). */
+function landYear(
   ctx: PopulationContext,
   w: War,
   a: Polity,
   seat: number,
+  walls: number,
   fire: number,
   camp: number,
   s: Siege,
@@ -189,7 +193,7 @@ function seatYear(
     step: siegeStep({
       months: s.months,
       breach: s.breach,
-      walls: lore.effect(seat, "walls"),
+      walls,
       engines: lore.effect(a.seat, "sieges"),
       fire,
       relief,
@@ -201,16 +205,24 @@ function seatYear(
   };
 }
 
+/** The principles of walls a land knows, and the walls its towns raised as so many more (sim/town/asks.ts guard: a principle's worth, 0.25, a battle reads). */
+export function wallsOf(ctx: PopulationContext, land: number, guard: number): number {
+  return loreOf(ctx.world).effect(land, "walls") + Math.max(0, guard - 1) / 0.25;
+}
+
 /**
- * A battle fought at the defender's seat (sim/war/war.ts): whether the seat falls this year, and those the siege killed besides
- * the battle's dead (the besiegers', the town's). Won and no siege laid: one is laid. Won with one laid: it goes a year on, and
- * the seat may be stormed or starved. Lost: it is lifted. Without a siege store, as before it: the second win there takes it.
+ * A battle fought at the defender's seat or a walled land of its (sim/war/war.ts): whether the land falls this year, and those
+ * the siege killed besides the battle's dead (the besiegers', the town's). Won and no siege laid there: one is laid (a siege
+ * elsewhere in the war is let go: the host has moved on). Won with one laid: it goes a year on, and the land may be stormed or
+ * starved. Lost: it is lifted. Without a siege store, as before it: the second win at a seat takes it, a land at once.
  */
-export function siegeAtSeat(
+export function siegeAt(
   ctx: PopulationContext,
   w: War,
   a: Polity,
   b: Polity,
+  seat: number,
+  walls: number,
   won: boolean,
   fire: number,
   camp: number,
@@ -218,11 +230,11 @@ export function siegeAtSeat(
 ): { falls: boolean; how: SiegeOutcome | null; dead: [number, number] } {
   const { world } = ctx,
     store = siegesOf(world),
-    seat = b.seat,
+    isSeat = seat === b.seat,
     year = yearOfMoment(t);
   if (!store)
     return {
-      falls: won && w.battles.slice(0, -1).some((x) => x.land === seat && x.won),
+      falls: won && (!isSeat || w.battles.slice(0, -1).some((x) => x.land === seat && x.won)),
       how: null,
       dead: [0, 0],
     };
@@ -240,6 +252,7 @@ export function siegeAtSeat(
           a: realmName(a),
           b: realmName(b),
           kind,
+          seat: s.seat,
           since: s.since,
           months: Math.round(s.months * 10) / 10,
           breach: Math.round(s.breach * 100) / 100,
@@ -248,20 +261,21 @@ export function siegeAtSeat(
         },
       });
   if (!won) {
-    if (was && was.seat === seat) {
+    if (was && was.land === seat) {
       tell("lifted", was, was.event);
       store.end(w.ref);
     }
     return { falls: false, how: null, dead: [0, 0] };
   }
-  // A first victory before the seat: the lines close, on what it has in store.
-  if (!was || was.seat !== seat) {
+  // A first victory before its walls: the lines close, on what it has in store.
+  if (!was || was.land !== seat) {
     const prov = ctx.provinces.get(seat),
       m = marketsOf(world).get(seat),
       months = prov && m ? storeMonths(m.food(FOODS), mouths(prov, ctx.life)) : 0,
       s: Siege = {
         war: w.ref,
-        seat,
+        land: seat,
+        seat: isSeat,
         since: year,
         months: Math.round(months * 100) / 100,
         breach: 0,
@@ -274,7 +288,7 @@ export function siegeAtSeat(
     return { falls: false, how: null, dead: [0, 0] };
   }
   // A year more of it.
-  const { relief, step } = seatYear(ctx, w, a, seat, fire, camp, was),
+  const { relief, step } = landYear(ctx, w, a, seat, walls, fire, camp, was),
     levy = levyOf(ctx, a, Math.round(camp), year),
     campDead = Math.min(camp, Math.round(step.campDead * camp)),
     shares = apportionCapped(campDead, levy.sent, levy.sent);
@@ -306,7 +320,7 @@ export function siegeOf(world: World, war: Ref): Readonly<Siege> | null {
   return siegesOf(world)?.of(war) ?? null;
 }
 
-/** The year's sieges let go where their war is over or the seat is no longer its defender's. */
+/** The year's sieges let go where their war is over or the land is no longer its defender's. */
 export function siegesYear(ctx: PopulationContext, t: SimTime): void {
   const store = siegesOf(ctx.world);
   if (!store || store.dormant()) return;
@@ -316,7 +330,7 @@ export function siegesYear(ctx: PopulationContext, t: SimTime): void {
     const w = wars.get(r),
       s = store.of(r)!,
       b = w ? realms.get(w.defender) : undefined;
-    if (!w || w.ended !== null || !b || b.ended !== null || b.seat !== s.seat) store.end(r);
+    if (!w || w.ended !== null || !b || b.ended !== null || realms.of(s.land) !== b) store.end(r);
   }
   void t;
 }

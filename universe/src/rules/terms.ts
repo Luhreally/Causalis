@@ -1,13 +1,8 @@
-// What a war is for and what its peace comes to, in numbers (W7): pure. A peace goes by how the war went (battles won
-// against battles lost) and how far each side is spent; a tribute is a share of what the payer makes, never a share of
-// what it needs to eat. First guesses, each a table to change, read over whole worlds (tools/w7-tally.ts).
+// What a war is for and what its peace comes to, in numbers (W7): pure. A peace is a bargain struck by the war's reckoning
+// (dealOf): who is ahead by its chance, what the one behind would give up rather than fight on, and what the one ahead can hold
+// it to at its reach. A tribute is a share of what the payer makes, never a share of what it needs to eat.
 
 export const TERMS = {
-  /** A side this many battles ahead may name more than the land it holds. */
-  edge: 2,
-  /** A beaten side bends the knee only to one this many times its strength, this many battles ahead. */
-  kneeRatio: 3,
-  kneeEdge: 2,
   /** Who may hold vassals: this many at most, and no more than this share of the world's living realms is bound. */
   vassalsMost: 3,
   vassalShare: 0.2,
@@ -48,12 +43,6 @@ export const TERMS = {
   tributePress: 0.3,
   /** A temple this loud makes a war a holy one. */
   holyPress: 0.15,
-  /** A winner this many times the loser's strength, one battle ahead, may ask tribute, or an oath. */
-  askRatio: 2,
-  kneeOutright: 6,
-  /** A beaten attacker pays a defender only this many battles behind, and not at many times the defender's strength. */
-  paysBackEdge: 2,
-  paysBackRatio: 0.7,
 } as const;
 
 /** What a war is about. */
@@ -69,6 +58,8 @@ export type Deal = {
   /** A tribute's or oath's share of what the payer makes. */
   readonly share: number;
   readonly years: number;
+  /** Of the loser's host, the share it must stand down for the term's years (0 where none is asked). */
+  readonly disarm?: number;
 };
 
 /** How a war went, as its peace reads it. */
@@ -89,7 +80,23 @@ export type WarEnd = {
   /** What a year of the war has cost each, as a share of what it has (warReckoning), and what each had at stake in it. */
   readonly yearly: readonly [number, number];
   readonly stakes: readonly [number, number];
+  /** The attacker's chance of winning as the war's reckoning reads it (warReckoning); read off the edge and the ratio where not given. */
+  readonly chance?: number;
+  /** How surely each side could hold the other to terms at its reach (0 … 1): its seat's capacity, and its bread carried there. */
+  readonly hold?: readonly [number, number];
+  /** How far each side's own people hold its rule rightful (0 … 1): a realm whose people would not fight on for it can be bound. */
+  readonly standing?: readonly [number, number];
 };
+
+/** The most of its host a beaten realm can be made to stand down. */
+export const DISARM_MOST = 0.8;
+
+/** The attacker's chance as warReckoning reads it, from the battles' edge alone where their count is not known. */
+export function chanceOfEnd(e: Pick<WarEnd, "edge" | "ratio" | "chance">): number {
+  if (e.chance !== undefined) return clamp(0, 1, e.chance);
+  const record = clamp(0, 1, 0.5 + e.edge / (2 * (Math.abs(e.edge) + 2)));
+  return 0.5 * record + 0.5 * (e.ratio / (1 + e.ratio));
+}
 
 /**
  * How a war stands for each side, read off what it has cost them and what it is worth to them, never by a count of years or a
@@ -131,34 +138,45 @@ export function tributeOf(yearly: number, stake: number): { share: number; years
   };
 }
 
-/** What a peace comes to, from how the war went. */
+/**
+ * What a peace comes to, from how the war went, as a bargain (Fearon, Rationalist Explanations for War, 1995). Each side's chance is
+ * the war's reckoning. The one ahead has an edge, `adv`, of twice its chance less one. The one behind gives up what fighting on
+ * would cost it: its stake by the other's edge, and a year more of the war. The winner can ask no more than it can hold the loser
+ * to (its edge times its hold on it at its reach). The loser becomes its vassal where the winner's hold outweighs how far its
+ * own people hold its rule rightful, and the winner can bind it. It pays a tribute where what the winner can collect of one is
+ * worth more to it than a year of the war. Its host is stood down as far as the winner can hold it to that, against how strong
+ * that host still is. Neither ahead, or nothing worth the asking: a truce. Land held stays held.
+ */
 export function dealOf(e: WarEnd): Deal {
-  const winner: 0 | 1 | null = e.edge > 0 || e.got || e.lands > 0 ? 0 : e.edge < 0 ? 1 : null,
-    none: Deal = { winner, bond: null, share: 0, years: 0 };
-  if (winner === null) return { ...none, bond: "truce", years: TERMS.truceYears };
-  const margin = Math.abs(e.edge),
-    strength = winner === 0 ? e.ratio : 1 / Math.max(1e-6, e.ratio),
-    spent = e.spent[1 - winner]!;
-  // A host come for its friend asks nothing, and goes home under a truce (D1).
-  if (e.aim === "ally") return { ...none, bond: "truce", years: TERMS.truceYears };
-  // A rising that won is free, and asks nothing more.
+  const chance = chanceOfEnd(e),
+    took = e.got || e.lands > 0,
+    winner: 0 | 1 | null = chance > 0.5 || took ? 0 : chance < 0.5 ? 1 : null,
+    none: Deal = { winner, bond: null, share: 0, years: 0 },
+    truce: Deal = { ...none, bond: "truce", years: TERMS.truceYears };
+  if (winner === null) return truce;
+  // A host come for its friend asks nothing, and goes home under a truce (D1). A rising that won is free, and asks nothing more.
+  if (e.aim === "ally") return truce;
   if (e.aim === "free" && winner === 0) return none;
-  // A beaten attacker goes home under a truce: it pays only one who has beaten it badly and can hold it to it.
-  if (winner === 1)
-    return margin >= TERMS.paysBackEdge && strength >= TERMS.paysBackRatio
-      ? { ...none, bond: "tribute", ...tributeOf(e.yearly[0], e.stakes[0]) }
-      : { ...none, bond: "truce", years: TERMS.truceYears };
-  if (
-    e.canBind &&
-    ((margin >= TERMS.kneeEdge && strength >= TERMS.kneeRatio) ||
-      (margin >= 1 && strength >= TERMS.kneeOutright))
-  )
-    return { ...none, bond: "vassal", share: TERMS.oathShare, years: TERMS.oathYears };
-  if (margin >= TERMS.edge || (margin >= 1 && (e.aim === "tribute" || strength >= TERMS.askRatio)))
-    return { ...none, bond: "tribute", ...tributeOf(e.yearly[1], e.stakes[1]) };
-  // Land ceded is the term where land was what they got.
-  if (e.lands > 0) return none;
-  return { ...none, bond: "truce", years: TERMS.truceYears };
+  const loser = (1 - winner) as 0 | 1,
+    adv = Math.max(0, winner === 0 ? 2 * chance - 1 : 1 - 2 * chance),
+    conceded = adv * clamp(0, 1, e.stakes[loser]!) + e.yearly[loser]!,
+    enforce = adv * clamp(0, 1, e.hold?.[winner] ?? 1),
+    // (How strong the loser's host still is against the winner's: what standing it down is worth to the winner.)
+    threat = winner === 0 ? 1 / Math.max(1e-6, e.ratio) : e.ratio,
+    disarm = clamp(0, DISARM_MOST, enforce * Math.min(1, threat)),
+    plain: Deal = took ? none : truce,
+    withArms = (d: Deal, years: number): Deal =>
+      disarm > 0.005 ? { ...d, disarm, years: d.years || years } : d;
+  if (conceded < WAR_YEAR_LEAST || enforce <= 0) return plain;
+  if (e.canBind && enforce > clamp(0, 1, e.standing?.[loser] ?? 0.6))
+    return withArms(
+      { ...none, bond: "vassal", share: TERMS.oathShare, years: TERMS.oathYears },
+      TERMS.oathYears,
+    );
+  const t = tributeOf(e.yearly[loser]!, conceded);
+  if (enforce * t.share * t.years > e.yearly[winner]!)
+    return withArms({ ...none, bond: "tribute", ...t }, t.years);
+  return withArms(plain, TERMS.truceYears);
 }
 
 /** An offer a ruler can make or demand. */
@@ -169,8 +187,12 @@ export type Offer =
 export type Refusal = "winning" | "not-beaten" | "not-knee" | "cannot-bind" | "all" | null;
 
 /**
- * What the other side says to an offer. `ahead` is the battles the one who offers has won less those they have lost;
- * `ratio` their strength over the other's; `refused` whether the other holds out regardless (reign.ts peaceRefused).
+ * What the other side says to an offer, by the same bargain a peace is made by (dealOf), the one who offers counted first.
+ * `ahead` is the battles the one who offers has won less those they have lost; `ratio` their strength over the other's;
+ * `refused` whether the other holds out regardless (reign.ts peaceRefused). `war` is what the war's reckoning reads, the one who
+ * offers first, where it is known: what each has at stake, what a year of it costs each, its chance, and how surely each could
+ * hold the other to terms. A demand is met where the bargain would give at least as much. A gift is refused only by one whose
+ * hold on the giver outweighs how far the giver's people hold its rule rightful: it means to take it all.
  */
 export function answerOf(
   offer: Offer,
@@ -178,20 +200,40 @@ export function answerOf(
   ratio: number,
   refused: boolean,
   canBind: boolean,
+  war: Partial<Pick<WarEnd, "stakes" | "yearly" | "chance" | "hold" | "standing">> = {},
 ): Refusal {
+  const end: WarEnd = {
+      edge: ahead,
+      ratio,
+      spent: [0, 0],
+      lands: 0,
+      aim: "land",
+      got: false,
+      canBind,
+      yearly: war.yearly ?? [0.02, 0.02],
+      stakes: war.stakes ?? [0.2, 0.2],
+      ...(war.chance !== undefined ? { chance: war.chance } : {}),
+      ...(war.hold ? { hold: war.hold } : {}),
+      ...(war.standing ? { standing: war.standing } : {}),
+    },
+    chance = chanceOfEnd(end),
+    deal = () => dealOf(end),
+    bound = () => dealOf({ ...end, canBind: true });
   switch (offer) {
     case "truce":
       return refused ? "winning" : null;
     case "give-land":
       return null;
     case "give-tribute":
-      return ahead <= -4 ? "all" : null;
+      return (1 - 2 * chance) * (end.hold?.[1] ?? 1) > (end.standing?.[0] ?? 0.6) ? "all" : null;
     case "take-land":
-      return ahead >= 1 ? null : "not-beaten";
-    case "take-tribute":
-      return ahead >= TERMS.edge || (ahead >= 1 && ratio >= 1.5) ? null : "not-beaten";
+      return chance > 0.5 ? null : "not-beaten";
+    case "take-tribute": {
+      const d = deal();
+      return d.winner === 0 && (d.bond === "tribute" || d.bond === "vassal") ? null : "not-beaten";
+    }
     case "take-knee":
-      if (ahead < TERMS.kneeEdge || ratio < TERMS.kneeRatio) return "not-knee";
+      if (bound().bond !== "vassal") return "not-knee";
       return canBind ? null : "cannot-bind";
   }
 }
