@@ -138,6 +138,11 @@ export const MOBILISE = {
   stake: 0.4,
   /** How much a standing army, as its arms are learned, keeps more drilled. */
   drilled: 0.3,
+  /**
+   * Of its fighting men, the most a realm keeps under arms at peace (est: a man in twelve of them, some two in a hundred of its
+   * people: the great standing armies of the eighteenth and nineteenth centuries kept one to two, Prussia's near four).
+   */
+  standingMost: 0.08,
 } as const;
 
 /** A realm's levy's share of its fighting men (MOBILISE). */
@@ -168,8 +173,10 @@ export function levyShare(e: {
         (1 + MOBILISE.ownArms * (1 - dmath.clamp(e.force, 0, 1))) +
       MOBILISE.stake * dmath.clamp(e.stake, 0, 1) * (0.5 + dmath.clamp(e.voice, 0, 1)),
     drilled = 1 + MOBILISE.drilled * Math.max(0, e.drilled);
+  // (Of those it can feed, as many as will go, drill bringing more of them: never more than it can feed. Drill multiplied past
+  // that, a realm that had learned much of arms fielded every fighting man it had, a quarter of all its people, at peace too.)
   return (
-    (dmath.clamp(feed * will * drilled, 0, 1) + footingTerms(e.footing, 0).fields) *
+    (feed * dmath.clamp(will * drilled, 0, 1) + footingTerms(e.footing, 0).fields) *
     (1 - dmath.clamp(e.disarm, 0, 1))
   );
 }
