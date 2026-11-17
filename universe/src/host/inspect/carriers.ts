@@ -1,10 +1,10 @@
 // Who carries what, and where (asked 2026-11-16: "in the underworld tab show who controls most of what where"). A pure reading,
 // read only when a page asks, of what is kept already: a realm's wares smuggled (sim/money/contraband.ts, its greatest four) and its
-// underworld's groups (sim/order/underworld.ts), their rackets, their share of their road's rent, their power and the lands they
+// underworld's groups (sim/order/underworld.ts), their rackets, their weight among their road's groups, their power and the lands they
 // hold. Nothing is kept per group and good: the split is derived each time, and is at most a realm's four wares by its few groups.
 //   Of a ware's trade in a realm, those outside the law take the share its underworld captures (RealmUnderworld.captured); the rest
 //   is carried by many small hands. That share falls to the groups that carry what crosses its borders: its cartels (their road is
-//   the smuggling rent), and any group that lives on smuggling. Each takes by its share of its road's rent and its power, a cartel
+//   the smuggling rent), and any group that lives on smuggling. Each takes by its weight among its road's groups and its power, a cartel
 //   twice over what its realm forbids outright, by war, its law or its bar on arms (what is forbidden outright needs men who can
 //   meet the crackdown).
 //   In a land: the groups that hold any part of it, the one that holds most of it weighed by its hold there (GANG_ROW).

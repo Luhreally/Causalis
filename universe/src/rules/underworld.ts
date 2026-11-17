@@ -109,7 +109,7 @@ export const UNDER = {
   /**
    * The most of its own lands' people a group's men come to be (est: two in a hundred; the Sicilian mafia's sworn men were about
    * one in a thousand of the island, a city's gangs at their worst one or two in a hundred of it): its men are of the people
-   * where it holds, whatever its share of the road's rent would keep.
+   * where it holds, whatever the rent it takes there would keep.
    */
   thick: 0.02,
   /** The most rivals a group's men each fight at once in a war (a small group among great ones is not killed many times over a year). */
@@ -134,7 +134,7 @@ export const UNDER = {
    * year under the old pacts against fifteen thousand and more once the roads were fought for).
    */
   feud: 0.15,
-  /** A group falls from the named below this share of its road's rent. */
+  /** A group falls from the named below this weight among its road's groups. */
   least: 0.05,
   /** The most of a boss's chance of being taken a year at a full crackdown (est: Mexico's kingpin strategy took some two dozen of 37 named in six years). */
   decap: 0.15,

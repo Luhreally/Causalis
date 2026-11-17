@@ -29,7 +29,11 @@ export type CrimeGroup = {
   members: number;
   wealth: number;
   income: number;
-  /** Its share of its road's rent; its power (its men and wealth among all the realm's groups). */
+  /**
+   * Its weight among its road's groups, in thousandths (toward its strength's share of theirs: what a land two of them hold is
+   * parted by, and the men it can draw; its income is the rent of the lands it holds); its power (its men and wealth among
+   * all the realm's groups).
+   */
   share: number;
   power: number;
   /** What it lives on (bits, by RACKETS). */

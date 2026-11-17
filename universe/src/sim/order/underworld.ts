@@ -852,6 +852,9 @@ function stepRealm(
   let want = 0,
     wantMost = 0,
     wantHome = p.seat;
+  // (Each peopled land's people, and its want of protection by them: what a road's rent is of, land by land, in step 4.)
+  const peopleIn = new Map<number, number>(),
+    wantIn = new Map<number, number>();
   for (const c of [...p.members].sort((a, b) => a - b)) {
     const n = ctx.provinces.get(c)?.total() ?? 0;
     if (n <= 0) continue;
@@ -870,6 +873,8 @@ function stepRealm(
         illegal,
       });
     want += (here * n) / r.people;
+    peopleIn.set(c, n);
+    wantIn.set(c, here * n);
     // (A land of some weight: a fiftieth of its people at the least.)
     if (here > wantMost && n >= r.people / 50) {
       wantMost = here;
@@ -1050,8 +1055,30 @@ function stepRealm(
       sumShare += g.share;
     }
     for (const g of now) g.share = Math.round((g.share * 1000) / Math.max(1, sumShare));
+    // (What a group takes is the rent of the lands it holds: a protector's cut is paid where his men stand, a ban's rent made
+    // where its wares are sold. Each land's part of the road's rent: of protection's as its want of it by its people, of a
+    // cartel's as its people; where two of a road hold a land (a lesser's home beside the greater), parted as their shares are.
+    // The rent of lands none of the road holds is taken by no one. Before, a group took its share of the WHOLE realm's rent
+    // whatever it held, and a lesser group's men, kept by a great realm's rent, stood in the one or two lands the greater left
+    // it: at UNDER.thick of their people, where its peace alone kills 12.8 in 100,000 a year.)
+    const part = kind === "protection" ? wantIn : peopleIn;
+    let parts = 0;
+    for (const x of part.values()) parts += x;
+    const holders = new Map<number, { n: number; share: number }>();
+    for (const g of now)
+      for (const c of g.lands) {
+        const h = holders.get(c) ?? { n: 0, share: 0 };
+        h.n++;
+        h.share += g.share;
+        holders.set(c, h);
+      }
     for (const g of now) {
-      const income = rent * (g.share / 1000),
+      let mine = 0;
+      for (const c of g.lands) {
+        const h = holders.get(c)!;
+        mine += (part.get(c) ?? 0) * (h.share > 0 ? g.share / h.share : 1 / h.n);
+      }
+      const income = parts > 0 ? (rent * mine) / parts : 0,
         keepMen = income / manKeep,
         canMen = pool * UNDER.recruit * (g.share / 1000),
         // (No more than UNDER.thick of the people of the lands it holds: a lesser group's lands are what the greater left it,
@@ -1220,7 +1247,12 @@ function stepRealm(
         : last
           ? 1 - dmath.pow(0.5, (year - last.ended!) / UNDER.paxHalf)
           : 1,
-      warNow = fight.war * tired,
+      // (And they fight over a road as hard as the part of its rent that lies where they meet: each takes the rent of the
+      // lands it holds (step 4), so what a war can win is what lies in the lands two of them hold, or, where they hold none
+      // in common, in their lands on each other's border: the lands its dead are laid in, writeLands. Groups whose lands
+      // nowhere meet have nothing of each other's to take.)
+      stake = metShare(ctx, own, kind === "protection" ? wantIn : peopleIn),
+      warNow = fight.war * tired * stake,
       // (Short of a war its groups feud: a road kills as a war does only once it is fought for. Before, a strain that never came
       // to a war killed as one for good, and was most of the killing of a world at 1,500: 87% of its roads' war dead.)
       // (And a war is reckoned as it will be fought over the years this reckoning stands for, tiring through them, not as it is
@@ -1262,6 +1294,7 @@ function stepRealm(
         ],
         [
           factor("two close in strength over one rent", b.share / Math.max(1, a.share), warNow),
+          factor("the rent that lies where they meet", stake, stake),
           factor("a market no one group holds", 1 - fight.herfindahl, 1 - fight.herfindahl),
           factor("a pact with the state", collusion, -UNDER.pax * collusion),
         ],
@@ -1565,6 +1598,43 @@ function stepRealm(
   writeLands(ctx, p, v, towns, r, badge, bites, warring);
   v.last = year;
   return towns.length > 0 || crackdown > 0.01;
+}
+
+/**
+ * Of the rent of the lands a road's groups hold, the part that lies where they meet (0 … 1): in the lands two of them hold; for a
+ * group that holds none in common with a rival, in its lands beside a rival's. `part`: each land's part of the road's rent.
+ */
+function metShare(
+  ctx: PopulationContext,
+  own: readonly CrimeGroup[],
+  part: ReadonlyMap<number, number>,
+): number {
+  if (own.length < 2) return 0;
+  const grid = ctx.generated.grid,
+    holders = new Map<number, number>();
+  for (const g of own) for (const c of g.lands) holders.set(c, (holders.get(c) ?? 0) + 1);
+  const met = new Set<number>();
+  for (const g of own) {
+    const shared = g.lands.filter((c) => holders.get(c)! > 1);
+    if (shared.length) for (const c of shared) met.add(c);
+    else
+      for (const c of g.lands)
+        for (let k = grid.offsets[c]!; k < grid.offsets[c + 1]!; k++) {
+          const q = grid.neighbours[k]!;
+          if (holders.has(q) && !g.lands.includes(q)) {
+            met.add(c);
+            break;
+          }
+        }
+  }
+  let all = 0,
+    theirs = 0;
+  for (const c of holders.keys()) {
+    const x = part.get(c) ?? 0;
+    all += x;
+    if (met.has(c)) theirs += x;
+  }
+  return all > 0 ? theirs / all : 0;
 }
 
 // —— Escalation ——————————————————————————————————————————————————————————————————————————————————————————

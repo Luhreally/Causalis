@@ -159,7 +159,9 @@ export function realmUnderworldBlocks(world: World, r: Polity): Block[] {
             why: g.event,
             parts: [
               part("takes in a year", grain(g.income)),
-              ...(kindOfGroup(g) !== "badge" ? [part("of its road's rent", th(g.share))] : []),
+              ...(kindOfGroup(g) !== "badge"
+                ? [part("its weight among its road's groups", th(g.share))]
+                : []),
               part("the killing it does and suffers", killed(g.violence)),
               ...(g.bribes
                 ? [part("paid to officers and judges", `${grain(g.bribes)} a year`)]
@@ -439,7 +441,9 @@ export function crimeGroupPage(world: World, ref: string): PageModel {
       rows: [
         stat("Men", count(rec.members)),
         stat("Wealth", grain(rec.wealth), { parts: [part("taken in a year", grain(rec.income))] }),
-        ...(kindOfGroup(rec) !== "badge" ? [stat("Of its road's rent", th(rec.share))] : []),
+        ...(kindOfGroup(rec) !== "badge"
+          ? [stat("Its weight among its road's groups", th(rec.share))]
+          : []),
         stat("Power among its realm's groups", th(rec.power)),
         stat("The killing it does and suffers", killed(rec.violence)),
         ...(rec.bribes ? [stat("Paid to officers and judges", `${grain(rec.bribes)} a year`)] : []),
