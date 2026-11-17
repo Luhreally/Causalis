@@ -779,6 +779,27 @@ export type Portrait =
   /** A company's mark (asked 2026-11-12): its realm's shield, and on it the thing it makes. */
   | { readonly kind: "company"; readonly arms: Arms; readonly good: Portrait | null };
 
+/**
+ * A realm's music as a page plays it (asked 2026-11-16: "tell me what their music sounds like"): its scale, pace, the timbre of what it
+ * is played on, its drums, all read off its music on its Culture tab; its seed its realm's own, so its tune is the same each time.
+ */
+export type MusicVoice = {
+  readonly realm: string;
+  readonly seed: number;
+  /** Beats a minute. */
+  readonly tempo: number;
+  /** Steps of its scale, in semitones above its root. */
+  readonly scale: readonly number[];
+  /** Its root, Hz. */
+  readonly root: number;
+  /** What carries its tune: flutes of wood, strings, bells of metal, or the voice alone. */
+  readonly timbre: "wood" | "string" | "metal" | "voice";
+  /** How many of a bar's eight beats are struck (0: no drum). */
+  readonly drums: number;
+  /** Its tune falls, as a lament does. */
+  readonly falling: boolean;
+};
+
 /** One thing a town could be asked (H1). */
 export type AskOffer = {
   readonly kind: "raise" | "first";

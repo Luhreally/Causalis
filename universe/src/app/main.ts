@@ -9982,6 +9982,8 @@ async function runPlanetPage(): Promise<void> {
   };
   homeOpen = () => homeFlow.on;
   pageWindow.onHomeLook = (ask: HomeAsk) => void homeFlow.open(ask);
+  // (A realm's music played aloud from its Culture tab, while 🔊 is on: asked 2026-11-16.)
+  pageWindow.onHear = (voice) => sound.tune(voice);
   lifeFlow.onGoIn = (town, who) => void homeFlow.open({ town, person: who });
   villagePanel.onLive = () => void lifeFlow.liveHere();
   regionPanel.onLive = (ref) =>

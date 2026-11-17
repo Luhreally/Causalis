@@ -186,6 +186,8 @@ export class PageWindow {
   onLeaderRule: ((leader: Leader) => void) | null = null;
   /** A home looked into (Lives L6). */
   onHomeLook: NonNullable<ToolContext["homeLook"]> | null = null;
+  /** A realm's music played aloud (its Culture tab's ▶ Hear it). */
+  onHear: NonNullable<ToolContext["hear"]> | null = null;
   /** Told as each page opens (the scales mark what it is). */
   onOpen: (page: PageModel) => void = () => {};
   onClose: () => void = () => {};
@@ -1145,6 +1147,7 @@ export class PageWindow {
           ...(this.onLeaderHome ? { leaderHome: this.onLeaderHome } : {}),
           ...(this.onLeaderRule ? { leaderRule: this.onLeaderRule } : {}),
           ...(this.onHomeLook ? { homeLook: this.onHomeLook } : {}),
+          ...(this.onHear ? { hear: this.onHear } : {}),
         });
         break;
     }
