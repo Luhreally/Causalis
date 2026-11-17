@@ -5,7 +5,7 @@ body.filming
   #hud
   > *:not(.colony-film):not(.swap):not(.readying):not(.tour-line):not(.raid-film):not(
     .street-film
-  ) {
+  ):not(.street-flag) {
   display: none !important;
 }
 .colony-film {

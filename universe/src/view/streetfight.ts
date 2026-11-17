@@ -49,14 +49,16 @@ const COMES = 3.2,
   CLASH_MORE = 5,
   EVERY = 6.5;
 /** A survivor's going after its clash (seconds), and how long the scene holds on what is left after the last (seconds). */
+/** How long the two sides stand off at a place before they close (seconds). */
+const STAND_OFF = 2.6;
 const GOES = 4,
   AFTER = 16;
 /** A squad's pace into a quarter (metres a second), and the longest it takes to reach its post (seconds). */
 const PACE = 2.6,
   LONGEST = 14;
 /** The most places a scene's clashes are spread over, and the most of the side's slots it draws (a share). */
-/** The share of the day it is seen at: dusk, the sun not yet down. */
-export const DUSK = 0.752;
+/** The share of the day it is seen at: late in the day, the sun low and still up — the town in its own colours, its shadows long. */
+export const DUSK = 0.705;
 /** The most of a side at a year's preying on a road or a coast: a few, at one place. */
 const RAID_MOST = 9;
 const MOST_SPOTS = 8,
@@ -325,14 +327,15 @@ function coreScript(f: StreetFight, plan: VillagePlan, slots: number): Core {
         bz = back.z - c.spot.z,
         bl = Math.hypot(bx, bz) || 1,
         across = (u(300 + side * 131 + m) - 0.5) * 3.2,
-        out = 0.7 + u(400 + side * 131 + m) * 1.1,
+        // (Each side on its own side of the place, a few steps between them until they close.)
+        out = 2.4 + u(400 + side * 131 + m) * 1.8,
         place = {
           x: c.spot.x + (bx / bl) * out - (bz / bl) * across,
           z: c.spot.z + (bz / bl) * out + (bx / bl) * across,
         },
         path = [...base.slice(0, -1), place],
         setOut = c.from - COMES - u(500 + side * 131 + m) * 1.2,
-        fight = [c.from + u(600 + side * 131 + m) * 0.8, c.to] as const,
+        fight = [c.from + STAND_OFF + u(600 + side * 131 + m) * 0.8, c.to] as const,
         falling = fallers.has(m),
         winner = f.won === side && k === last;
       figures.push({
@@ -548,7 +551,10 @@ export function figureAt(g: StreetFigure, s: number): Omit<Soldier, "side"> | nu
   }
   if (g.fight && s >= g.fight[0] && s < g.fight[1]) {
     // (A step in and out about his place, as those who fight hand to hand do.)
-    const w = Math.sin(s * 2.1 + g.slot * 1.7) * 0.35;
+    // (Closed on the place from where he stood off, then a step in and out.)
+    const closed = Math.min(1, (s - g.fight[0]) / 1.2),
+      reach = Math.hypot(g.face.x - end.x, g.face.z - end.z),
+      w = closed * Math.max(0, reach - 1.1) + Math.sin(s * 2.1 + g.slot * 1.7) * 0.35;
     return {
       x: end.x + Math.sin(facing) * w,
       z: end.z + Math.cos(facing) * w,
@@ -594,7 +600,7 @@ export function streetAt(script: StreetScript, slots: number, s: number): TownWa
       ...held.map((p) => ({ x: p.x + Math.cos(p.yaw) * 2.4, z: p.z - Math.sin(p.yaw) * 2.4 })),
       ...script.clashes
         .filter((c) => c.from - 6 <= s)
-        .map((c) => ({ x: c.spot.x + 2.6, z: c.spot.z - 2.6 })),
+        .map((c) => ({ x: c.spot.x + 3.4, z: c.spot.z - 3.4, lamp: true })),
     ],
     cars: carsAt(script, s),
     middles: sum.map((m) =>
@@ -730,7 +736,7 @@ export function streetView(
 ): { yaw: number; pitch: number; clear: boolean } {
   const town = villageGround(plan).town;
   if (!town) return { yaw: 30, pitch: -34, clear: true };
-  for (const pitch of [-34, -46, -58, -70, -80]) {
+  for (const pitch of [-32, -38, -46, -56, -68, -80]) {
     const run = far * Math.cos((pitch * Math.PI) / 180);
     for (let k = 0; k < 16; k++) {
       const yaw = (k / 16) * 360,

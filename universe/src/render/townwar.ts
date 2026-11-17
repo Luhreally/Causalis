@@ -38,6 +38,8 @@ export class TownWarLayer {
   readonly root = new pc.Entity("town-war");
   private readonly tents: InstancedBatch;
   private readonly campFires: InstancedBatch;
+  /** Each camp fire's light on the ground. */
+  private readonly glows: InstancedBatch;
   private readonly flames: InstancedBatch;
   private readonly smoke: InstancedBatch;
   private readonly teamGuns: InstancedBatch;
@@ -73,6 +75,22 @@ export class TownWarLayer {
       MOST_TENTS + MOST_CAMP,
       root,
       fire,
+    );
+    const glow = new pc.StandardMaterial();
+    glow.useLighting = false;
+    glow.diffuse = new pc.Color(0, 0, 0);
+    glow.emissive = new pc.Color(1, 0.55, 0.18);
+    glow.opacity = 0.3;
+    glow.blendType = pc.BLEND_ADDITIVEALPHA;
+    glow.depthWrite = false;
+    glow.update();
+    this.glows = new InstancedBatch(
+      stage,
+      coneMesh(stage, 0.5, 1, 14),
+      [1, 0.55, 0.18],
+      MOST_CAMP,
+      root,
+      glow,
     );
     this.flames = new InstancedBatch(stage, cone, [1, 0.5, 0.12], MOST_FIRES * FLAMES, root, fire);
     this.smoke = new InstancedBatch(
@@ -266,7 +284,7 @@ export class TownWarLayer {
   update(
     scene: TownWarScene | null,
     s: number,
-    camp: readonly { readonly x: number; readonly z: number }[] = [],
+    camp: readonly { readonly x: number; readonly z: number; readonly lamp?: boolean }[] = [],
     folk = 1,
   ): void {
     const tents = scene?.tents ?? [],
@@ -290,16 +308,29 @@ export class TownWarLayer {
     });
     // (A fire before every third tent; then the hosts' fires.)
     const byTents = Math.ceil(nt / 3);
+    // (Its light on the ground about it, breathing with the flame.)
+    this.glows.set(nc, (j, out) => {
+      const c = lines[j]!,
+        r = (c.lamp ? 0.7 : 1.1) * (0.92 + 0.08 * Math.sin(s * 7 + j * 1.3));
+      out[0] = c.x * M;
+      out[1] = 0.012;
+      out[2] = c.z * M;
+      out[3] = r;
+      out[4] = 0.004;
+      out[5] = r;
+      out[6] = 0;
+    });
     this.campFires.set(byTents + nc, (j, out) => {
       if (j >= byTents) {
         const c = lines[j - byTents]!,
           flick = 0.85 + 0.15 * Math.sin(s * 9 + j * 2.1);
+        const k = c.lamp ? 0.45 : 1;
         out[0] = c.x * M;
-        out[1] = 0.1 * flick;
+        out[1] = 0.1 * flick * k;
         out[2] = c.z * M;
-        out[3] = 0.16;
-        out[4] = 0.22 * flick;
-        out[5] = 0.16;
+        out[3] = 0.16 * k;
+        out[4] = 0.22 * flick * k;
+        out[5] = 0.16 * k;
         out[6] = s * 2 + j;
         return;
       }
@@ -348,6 +379,7 @@ export class TownWarLayer {
     for (const b of [
       this.tents,
       this.campFires,
+      this.glows,
       this.flames,
       this.smoke,
       this.teamGuns,

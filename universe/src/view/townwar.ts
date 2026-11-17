@@ -410,7 +410,12 @@ export type TownWarScene = {
   /** Its houses burning: where, how high the flames (0 … 1). */
   readonly fires: readonly { readonly x: number; readonly z: number; readonly size: number }[];
   /** The hosts' fires the night before a battle before it, behind their lines (Phase 55 M227). */
-  readonly camp: readonly { readonly x: number; readonly z: number }[];
+  readonly camp: readonly {
+    readonly x: number;
+    readonly z: number;
+    /** A street's small fire, not a host's (2026-11-17). */
+    readonly lamp?: boolean;
+  }[];
   /** Where each side's host stands (the middle of those drawn), for its label; null: none there. */
   readonly middles: readonly [Flat | null, Flat | null];
   /** Past the line (W1), a machine gun's team's gun on its tripod: where, which way, whether it fires. */

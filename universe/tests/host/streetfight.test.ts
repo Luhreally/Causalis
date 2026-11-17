@@ -330,7 +330,7 @@ test("what is drawn about it: carriers, lamps, the eye's clear stand, those caug
     for (const c of [...turf.clashes, ...army.clashes]) {
       const v = streetView(plan, c.spot, 46);
       assert.ok(v.clear, `${c.spot.why} at ${Math.round(c.spot.x)},${Math.round(c.spot.z)}`);
-      assert.ok(v.pitch <= -34 && v.pitch >= -80);
+      assert.ok(v.pitch <= -32 && v.pitch >= -80);
     }
     // (The clash's three caught between, at the figures' scale: each stands by it, then lies fallen.)
     assert.ok(army.bystanders.length >= 1);

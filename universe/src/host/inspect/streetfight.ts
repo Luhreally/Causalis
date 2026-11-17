@@ -177,7 +177,22 @@ export function lastEvent(world: World, test: (e: HistoryEvent) => boolean): His
  * land gone with no town standing in it).
  */
 export function streetFightOf(world: World, ref: string): StreetFight | null {
-  if (ref.startsWith("org:")) return preyingOf(world, ref);
+  const f = ref.startsWith("org:") ? preyingOf(world, ref) : readFight(world, ref);
+  if (!f) return null;
+  // (Two sides told apart at a glance: where their colours come near, the second's turned to the first's opposite.)
+  const [a, b] = f.sides,
+    near = Math.hypot(a.color[0] - b.color[0], a.color[1] - b.color[1], a.color[2] - b.color[2]),
+    hi = Math.max(...a.color),
+    lo = Math.min(...a.color),
+    turned: [number, number, number] = [
+      hi + lo - a.color[0],
+      hi + lo - a.color[1],
+      hi + lo - a.color[2],
+    ];
+  return near >= 0.4 ? f : { ...f, sides: [a, { ...b, color: turned }] };
+}
+
+function readFight(world: World, ref: string): StreetFight | null {
   const e = world.events.get(ref as Ref);
   if (!isFightEvent(e)) return null;
   const r = politiesOf(world).get(e!.subjects[0] as Ref),
