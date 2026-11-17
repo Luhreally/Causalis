@@ -142,6 +142,17 @@ export function roadTowns(world: World, cell: number): RoadTown[] {
     .map((s) => ({ ref: s.ref, tile: s.tile, founded: s.founded, population: s.population }));
 }
 
+/** Each land's roads as last reckoned, by world and moment: a land's towns' plans and pages ask them again and again. */
+const ENDS = new WeakMap<World, { at: number; lands: Map<number, RoadEnd[]> }>();
+/** A land's roads (roadEnds over its standing towns), reckoned once a moment. */
+export function landRoadEnds(world: World, cell: number): RoadEnd[] {
+  let kept = ENDS.get(world);
+  if (!kept || kept.at !== world.now) ENDS.set(world, (kept = { at: world.now, lands: new Map() }));
+  let ends = kept.lands.get(cell);
+  if (!ends) kept.lands.set(cell, (ends = roadEnds(world, cell, roadTowns(world, cell))));
+  return ends;
+}
+
 /** The roads into a town, the busiest first (rails before), each the bearing it leaves by. */
 export function townRoads(
   world: World,
@@ -217,7 +228,7 @@ export function townSiteOf(
     lat = g.grid.lat[s.cell] ?? 0,
     year = Math.floor(world.now / YEAR),
     rails = loreOf(world).get(s.cell, "railways")?.year,
-    roads = townRoads(world, ref, ends ?? roadEnds(world, s.cell, roadTowns(world, s.cell)), size);
+    roads = townRoads(world, ref, ends ?? landRoadEnds(world, s.cell), size);
   // (Rails are laid along a town's roads once its land knows them and it is great enough: as the land's map lays them.)
   const railed = rails !== undefined && rails <= year && s.population >= RAIL_TOWN;
   return {

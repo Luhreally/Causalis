@@ -61,6 +61,17 @@ export function quarterOf(seed: number, block: number): number {
 /** The blocks about a town's square that are its heart: none of them is given up to the floods. */
 export const HEART_BLOCKS = 8;
 
+/**
+ * Whether a home carries shops on its ground floor: a tenement or a block near the square, where those who pass buy (the
+ * near third of the town, and its first three rounds at least). `lots`: the lots the town has taken.
+ */
+export function shopsBelow(lot: number, lots: number, level: number): boolean {
+  return (
+    (level === 3 || level === 4) &&
+    Math.floor(lot / 8) < Math.max(HEART_BLOCKS * 3, Math.ceil(lots / 8) / 3)
+  );
+}
+
 // —— Measures (metres; bridge/town.ts's lots and blocks) ——————————————————————————————————————
 const BW = 36,
   BD = 28,
@@ -98,8 +109,9 @@ export function quarterBearings(
   const main = site.roads.find((r) => r.rails) ?? site.roads[0],
     zero = site.roads[0]?.bearing ?? axis,
     want: [number, number][] = [
-      [QUARTER.water, water ? Math.atan2(water.z, water.x) : site.up + Math.PI],
+      // (The way in first: where a road runs to the water, the road keeps its bearing and the water quarter lies beside it.)
       [QUARTER.road, main ? main.bearing : zero],
+      [QUARTER.water, water ? Math.atan2(water.z, water.x) : site.up + Math.PI],
       [QUARTER.lee, site.lee],
       [QUARTER.high, site.up],
     ],
@@ -515,12 +527,11 @@ function overlaps(
   return !(apart(ac, -as) || apart(as, ac) || apart(bc, -bs) || apart(bs, bc));
 }
 
-/** A town's streets in words, read off how they were laid: measured straight, or grown as they were walked. */
-export function streetWords(blocks: GrownBlocks, site: TownSite): string {
-  let measured = 0;
-  for (let b = 0; b < blocks.straight.length; b++) measured += blocks.straight[b]!;
-  const n = blocks.straight.length,
-    share = n ? measured / n : 0,
+/** A town's streets in words, read off how they were laid (`measured`: GrownBlocks.straight): measured straight, or grown as walked. */
+export function streetWords(measured: Uint8Array, site: TownSite): string {
+  let n = 0;
+  for (let b = 0; b < measured.length; b++) n += measured[b]!;
+  const share = measured.length ? n / measured.length : 0,
     hill = site.rise >= STEEP ? ", bending along its hillside" : "",
     roads =
       site.roads.length > 1
@@ -531,8 +542,8 @@ export function streetWords(blocks: GrownBlocks, site: TownSite): string {
   const how =
     share > 0.6
       ? "Its ground was measured out before it was built: straight streets and blocks cut alike"
-      : share > 0.15
+      : share > 0.05
         ? "Its old heart grew lane by lane as it was walked; its newer quarters were measured out straight"
         : "Its lanes grew as its people walked them, out from its square";
-  return `${how}${hill}${roads}.`;
+  return `${how}${hill}${roads}${site.walled !== null ? "; a ring street runs where its walls were raised" : ""}.`;
 }

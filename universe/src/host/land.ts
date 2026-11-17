@@ -42,7 +42,7 @@ import { landEra, townSite } from "./village.ts";
 import { colonyLook } from "./colony.ts";
 import { landPast } from "./past.ts";
 import { getAbout, readRoad } from "./roads.ts";
-import { RAIL_TOWN, busy, goodsBetween, roadEnds, type RoadEnd } from "./sites.ts";
+import { RAIL_TOWN, busy, goodsBetween, landRoadEnds, type RoadEnd } from "./sites.ts";
 
 /** Lots a land draws of each of its towns at the least (a village's every lot). */
 const LEAST_LOTS = 240;
@@ -92,16 +92,7 @@ export function landPlan(world: World, cell: number, budget = 8000): LandPlan {
       populationContext(world).medium !== "water",
     plans = new Map<string, TownPlan | null>(),
     // (Its roads, reckoned once: each town's streets meet them, as its map draws them.)
-    ends = roadEnds(
-      world,
-      cell,
-      settled.map((s) => ({
-        ref: s.ref,
-        tile: s.tile,
-        founded: s.founded,
-        population: s.population,
-      })),
-    );
+    ends = landRoadEnds(world, cell);
   let left = Math.max(0, budget);
   for (const s of [...settled].sort(
     (a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1),

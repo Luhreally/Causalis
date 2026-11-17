@@ -5,7 +5,7 @@
 // when begun and done, the learning it waited on, what it took the place of, when it fell; its
 // walls — when raised, round how much of the town, whether it has grown over them since; and, on
 // the town's own page, all of them together. Pure reads of the fabric as it stands.
-import { isRef, type Ref, type World } from "../../kernel/index.ts";
+import { hashString, isRef, type Ref, type World } from "../../kernel/index.ts";
 import {
   CIVIC_FOR,
   CIVIC_ICON,
@@ -31,6 +31,8 @@ import {
   BLOCK_LOTS,
   blocksHeld,
   lotStates,
+  measuredBlocks,
+  townBlocks,
   townLots,
   wallRing,
   type Block,
@@ -39,7 +41,9 @@ import {
   type PageModel,
   type Stat,
   type Tab,
+  type TownSite,
 } from "../../bridge/index.ts";
+import { siteOfTown, streetsLine, whyBuilding, whyHome, whyOpen } from "./sited.ts";
 import { townPlan } from "../town.ts";
 import { workshopBlocks } from "../chain.ts";
 import { townSite } from "../village.ts";
@@ -162,6 +166,8 @@ export function lotPage(world: World, ref: string): PageModel {
     block = Math.floor(p / BLOCK_LOTS),
     stats: Stat[] = [],
     lines: Line[] = [];
+  let read: TownSite | null | undefined;
+  const site = () => (read === undefined ? (read = siteOfTown(world, s.ref, f)) : read);
   let title = `A lot of ${s.name}`,
     icon = "🟫";
   if (standing) {
@@ -175,6 +181,7 @@ export function lotPage(world: World, ref: string): PageModel {
       many(standing.lots, "lot", "lots"),
       ` of the town's ${bare(standing.kind)}, ${CIVIC_FOR[standing.kind]}.`,
     ]);
+    lines.push(whyBuilding(world, s.ref, s.cell, standing.kind, standing.at, site()));
   } else if (run && (run[0] === BUILT || run[0] === RAISED)) {
     const level = run[5],
       name = HOME_LEVELS[level] ?? "home";
@@ -203,6 +210,7 @@ export function lotPage(world: World, ref: string): PageModel {
       lines.push([
         `One of a row of ${many(run[2] - run[1], "lot", "lots")} built alike, lot by lot.`,
       ]);
+    lines.push(...whyHome(world, s.ref, s.cell, f, p, level));
   } else if (run && (run[0] === FELL || run[0] === RAZED || run[0] === BURNED)) {
     const burnt = run[0] !== FELL;
     title = `A ruin of ${s.name}`;
@@ -245,6 +253,8 @@ export function lotPage(world: World, ref: string): PageModel {
         ? "Open ground: built on once, and open again."
         : "Open ground the town has not yet come to.",
     ]);
+    const dry = whyOpen(s.ref, p, site());
+    if (dry) lines.push(dry);
   }
   // Its block: the eight lots about it, back to back on two streets.
   const homes: number[] = HOME_LEVELS.map(() => 0);
@@ -343,13 +353,9 @@ export function buildingPage(world: World, ref: string): PageModel {
         ]
       : []),
     [`${sentence(def.name)}: ${CIVIC_FOR[c.kind]}.`],
-    [
-      asked
-        ? "It stands where the town could find room for it, on lots it cleared."
-        : def.place === "core"
-          ? "It stands at the heart of the town, about its square."
-          : "It was raised at the edge of the town as it stood then.",
-    ],
+    asked
+      ? ["It stands where the town could find room for it, on lots it cleared."]
+      : whyBuilding(world, s.ref, s.cell, c.kind, c.at, siteOfTown(world, s.ref, f)),
   ];
   if (waited)
     lines.push(["It waited on its land's learning: ", link("what it was built for", waited), "."]);
@@ -456,6 +462,22 @@ export function wallsPage(world: World, ref: string): PageModel {
   };
 }
 
+/** A town's streets in a line (null: not grown from a site), out to as many blocks as its view draws at most. */
+function townStreets(world: World, town: Ref, f: Fabric): Line | null {
+  const site = siteOfTown(world, town, f),
+    at = townSite(world, town);
+  if (!site || !at) return null;
+  const blocks = townBlocks(
+    f.family,
+    hashString(`town ${town}`),
+    site.roads[0]?.bearing ?? at.axis,
+    Math.min(1000, Math.ceil(f.next / BLOCK_LOTS)),
+    at.water,
+    site,
+  );
+  return streetsLine(site, measuredBlocks(blocks));
+}
+
 /** A town's buildings, for its page: its homes by level, its other buildings, its walls (null: no fabric yet). */
 export function buildingsTab(world: World, town: Ref): Tab | null {
   const f = townsOf(world).get(town);
@@ -505,6 +527,9 @@ export function buildingsTab(world: World, town: Ref): Tab | null {
       ),
     );
   const blocks: Block[] = [{ type: "facts", title: "Its fabric", rows }];
+  // (Its streets in a line, read off how they were laid: asked 2026-11-16.)
+  const streets = townStreets(world, town, f);
+  if (streets) blocks.push({ type: "text", lines: [streets] });
   blocks.push(
     items.length
       ? { type: "list", title: "Its buildings", items }

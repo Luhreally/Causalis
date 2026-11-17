@@ -219,6 +219,7 @@ export {
   grownBlocks,
   quarterBearings,
   quarterOf,
+  shopsBelow,
   streetWords,
   type GrownBlocks,
   type TownRoad,

@@ -897,8 +897,8 @@ function dryStretch(seed: number, p: number): number {
   return b * 8;
 }
 /** Of a town wary of floods, its first open run with a lot a home may take (-1: none). */
-function homeOpen(f: Fabric, seed: number): number {
-  for (let i = 0; i < f.open.length; i++) {
+function homeOpen(f: Fabric, seed: number, from = 0): number {
+  for (let i = from; i < f.open.length; i++) {
     const [a, b] = f.open[i]!;
     if (dryStart(seed, a) < b) return i;
   }
@@ -1436,14 +1436,20 @@ export class TownBuilder {
       level = -1,
       at = -1;
     const seed = dry ? townSeed(f.town) : 0;
+    // (Of a town wary of floods, the open runs before this one hold only flood ground: taking lots makes none of them any other.)
+    let past = 0;
     while (room > 0 && hands > 0) {
-      const usable = dry ? homeOpen(f, seed) : f.open.length ? 0 : -1;
-      // (A town wary of floods leaves the ground toward its water open at its edge: for its mills and docks.)
+      const usable = dry ? homeOpen(f, seed, past) : f.open.length ? 0 : -1;
+      if (usable >= 0) past = usable;
+      // (A town wary of floods leaves the ground toward its water open at its edge: for its mills and docks. Past every
+      // open run, it is the last of them.)
       if (dry && usable < 0)
         while (floodGround(seed, Math.floor(f.next / 8))) {
-          const from = f.next;
+          const from = f.next,
+            last = f.open.at(-1);
           f.next = (Math.floor(from / 8) + 1) * 8;
-          this.release(f, from, f.next);
+          if (last && last[1] === from) last[1] = f.next;
+          else f.open.push([from, f.next]);
         }
       // (Past its open lots and its lots of last year, every new home is of its edge's level: all
       // of them at once, a great town raising thousands of lots in a year: Phase 66.)
@@ -1915,7 +1921,7 @@ export class TownBuilder {
    * Where a building of `lots` lots goes, by what it wants of the ground (see CIVIC_SITE): the first lots no other building
    * stands on from the square outward — of its quarter, where it wants one (the high ground near the square) — or, for one
    * that wants the water, the lee or the way in, the first open lots of that quarter, else the first block of it at the edge
-   * (one round of the town's growth ahead at most: the lots passed over lie open for its homes). `heart`: whatever it wants,
+   * (to the end of the next round of the town's growth at most: the lots passed over lie open for its homes). `heart`: whatever it wants,
    * near the square (a great town asked for it).
    */
   siteBy(f: Fabric, lots: number, want: CivicSite, heart: boolean): number {
@@ -1942,7 +1948,7 @@ export class TownBuilder {
         if (ofQuarter(p) && Math.floor(p / 8) === Math.floor((p + lots - 1) / 8)) return p;
     }
     const e = aligned(f.next, lots);
-    for (let b = Math.floor(e / 8); b < Math.floor(e / 8) + QUARTERS + 1; b++) {
+    for (let b = Math.floor(e / 8); b < (Math.floor(e / 8 / QUARTERS) + 2) * QUARTERS; b++) {
       if (quarterOf(seed, b) !== q) continue;
       const p = Math.max(e, b * 8);
       if (p + lots <= (b + 1) * 8) return p;
@@ -1985,7 +1991,7 @@ export class TownBuilder {
       // (None of its quarter open yet: the next block of it at the edge.)
       if (q >= 0) {
         const e = aligned(f.next, lots);
-        for (let b = Math.floor(e / 8); b < Math.floor(e / 8) + QUARTERS + 1; b++) {
+        for (let b = Math.floor(e / 8); b < (Math.floor(e / 8 / QUARTERS) + 2) * QUARTERS; b++) {
           const p = Math.max(e, b * 8);
           if (quarterOf(seed, b) === q && p + lots <= (b + 1) * 8) return p;
         }
