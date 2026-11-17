@@ -1697,11 +1697,17 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
             (aim === "tribute" && 2 * w.battles.filter((x) => x.won).length > w.battles.length)));
     // It ends with the prize won, or when what it has cost a side has come to what it is worth to them, by their chance
     // of winning it (rules/terms.ts warReckoning): the attacker gives up, or the defender yields. No count of years, no draw.
-    const reckoned = warReckoning({
+    const laid = siegesOf(world)?.of(w.ref),
+      reckoned = warReckoning({
         won: w.battles.filter((x) => x.won).length,
         fought: w.battles.length,
         ratio: strengthOf(ctx, a) / Math.max(1, strengthOf(ctx, b)),
         ...warCosts(ctx, w, a, b, aim, year),
+        // (A siege before the land fought for: how near it is to taking it.)
+        taking:
+          laid && laid.land === land
+            ? Math.max(laid.breach, Math.min(1, Math.max(0, 1 - laid.months / 12)))
+            : 0,
       }),
       repulsed = reckoned.quits;
     if (prizeWon || got || reckoned.quits || reckoned.yields) {
@@ -1729,7 +1735,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       if (made) bindPeace(ctx, w, made, w.peace, year);
       // A town under a siege its people cannot see lifted yields with the peace: the war ended with the besiegers before its
       // walls, the field theirs this year, and not by their giving up (siege.ts: else a siege in a war ended was let go).
-      const held = siegesOf(world)?.of(w.ref);
+      const held = laid;
       if (
         made &&
         held &&
