@@ -21,6 +21,7 @@ import { bare, claimOf } from "./inspect/words.ts";
 import type { QueryHandler } from "./host.ts";
 import { isFamilyRef } from "./family.ts";
 import { familyOnBar } from "./follow.ts";
+import { deathWords, rulerDeath, rulerEnd } from "./death.ts";
 
 /** How many of a town's lines are looked through for an elder, and how many years back a seat taken is still news. */
 const ELDER_LINES = 96,
@@ -164,6 +165,8 @@ function personOf(
   if (pinName !== null && page.title !== pinName) return leftSeat(world, want, pinName);
   const readings = readingsOf(world, want.ref, page);
   if (!readings) return pinned ? goneOne(want, pinName) : null;
+  const gone = goneOf(world, want.ref, page),
+    died = gone ? deathWords(world, want.ref, page.title) : null;
   return {
     key: `${want.ref}|${page.title}`,
     ref: page.ref,
@@ -171,9 +174,10 @@ function personOf(
     kind: want.kind,
     why: want.why,
     pinned,
-    gone: goneOf(world, want.ref, page),
+    gone,
     portrait: (page.portrait as Portrait | undefined) ?? null,
     readings,
+    ...(died ? { died, why: `Died: ${died}` } : {}),
   };
 }
 
@@ -204,17 +208,29 @@ function leftSeat(world: World, want: Want, name: string): BarPerson {
   const r = want.ref.startsWith("rule:")
       ? politiesOf(world).get(want.ref.slice(5) as Ref)
       : undefined,
-    how = r ? `${bare(claimOf(world, r.ruler.event))}.` : "History tells no more of them.";
+    // (The event that ended their reign: its page tells how they died, or left the seat.)
+    end = r ? rulerEnd(world, r.ref, name) : null,
+    died = end ? rulerDeath(world, end) : null,
+    how = died
+      ? `${died.short[0]!.toUpperCase()}${died.short.slice(1)}, in ${died.year}.`
+      : r
+        ? `${bare(claimOf(world, r.ruler.event))}.`
+        : "History tells no more of them.";
   return {
     key: `${want.ref}|${name}`,
-    ref: r ? r.ruler.event : want.ref,
+    ref: end ? end.id : r ? r.ruler.event : want.ref,
     name,
     kind: "pin",
-    why: r ? `No longer rules ${r.town}` : "You kept them: history tells no more of them",
+    why: died
+      ? `${died.cause === "removed" ? "Left the seat" : "Died"}: ${died.short} (${died.year})`
+      : r
+        ? `No longer rules ${r.town}`
+        : "You kept them: history tells no more of them",
     pinned: true,
     gone: true,
     portrait: null,
     readings: goneReadings(how),
+    ...(died && died.cause !== "removed" ? { died: `${died.short} (${died.year})` } : {}),
   };
 }
 

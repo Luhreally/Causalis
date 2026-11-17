@@ -74,6 +74,7 @@ import { dynastyPage, linePage, withFamilyLink } from "./family.ts";
 import { crimeGroupPage, federationPage, operationPage } from "./mobs.ts";
 import { orgFedPage, orgPage } from "./groups.ts";
 import { withFollow } from "../follow.ts";
+import { withDeath } from "../death.ts";
 import { songPage, stonePage } from "./memory.ts";
 import { casePage, selfLawBlocks } from "./justice.ts";
 import { namedPage, type NamesArg } from "../names.ts";
@@ -293,6 +294,8 @@ export function pageOf(
     if (!brief) page = withBarBlock(world, base, page);
     // (Their house or line, and the way to follow them and keep them on the bar, whoever they are: asked 2026-11-16.)
     if (!brief) page = withFollow(world, withFamilyLink(world, base, page));
+    // (How they died, or what could take them now, and the god's acts on them: asked 2026-11-16.)
+    if (!brief && !only) page = withDeath(world, base, page);
     // (What its tabs and banner are drawn of: asked 2026-11-13.)
     if (!brief && !only) page = withArt(world, page);
   } catch {

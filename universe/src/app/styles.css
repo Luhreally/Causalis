@@ -1621,3 +1621,16 @@ p.pick-tag {
 .pick-status {
   min-height: 1.4em;
 }
+/* The god's acts on one person (asked 2026-11-16): what holds on them, one line each; the acts as a row of buttons. */
+.god-acts .god-held {
+  display: block;
+  min-height: 36px;
+  text-align: left;
+  color: var(--act);
+}
+@media (max-width: 640px) {
+  .god-acts .tool,
+  .god-acts .god-held {
+    min-height: 44px;
+  }
+}

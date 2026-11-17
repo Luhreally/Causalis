@@ -18,6 +18,7 @@ const HEADINGS: Readonly<Record<string, readonly [string, string]>> = {
   wild: ["The world itself", "🌋"],
   war: ["War", "⚔️"],
   polity: ["Realm", "👑"],
+  person: ["The god on one person", "🕯️"],
   court: ["Court", "🗡️"],
   belief: ["Faith", "✨"],
   population: ["People", "🧑"],
@@ -54,6 +55,10 @@ const HEADINGS: Readonly<Record<string, readonly [string, string]>> = {
 /** Events whose kind says itself better whole than as its domain and its word. */
 const TITLES: Readonly<Record<string, string>> = {
   "lore.material-found": "A new stuff made",
+  "person.act": "The god's act on one person",
+  "person.struck": "Struck down by the god",
+  "person.spared": "Spared by the god's protection",
+  "person.act-lifted": "The god's act ran its years",
   "lore.material-learned": "A stuff's making taken up",
   "wild.fire": "A fire on the land",
   "wild.rise": "A new mountain",

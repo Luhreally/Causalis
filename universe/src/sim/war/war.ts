@@ -127,6 +127,7 @@ import {
 import type { AimKind } from "../../rules/index.ts";
 import { ORG, TIES, warReckoning } from "../../rules/index.ts";
 import { hiredBy } from "../order/groups-kept.ts";
+import { spend, whisperOn } from "../acts/person.ts";
 import {
   allyFront,
   answerCalls,
@@ -1281,10 +1282,12 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
           0.5,
           (hatred * 0.12 + (covets ? 0.08 : 0)) * Math.min(2, thought) * (0.5 + valour),
         ) * rested,
-      draw = world.rng.real(DECLARE, Number(attacker.ref.split(":")[2]), t, 0);
+      draw = world.rng.real(DECLARE, Number(attacker.ref.split(":")[2]), t, 0),
+      // (A god's whisper to its ruler: to war, the chance doubled; to hold from war, none. Exactly 1 where none: sim/acts/person.ts.)
+      whisper = whisperOn(world, attacker.ref, attacker.ruler.event, year);
     // Its people's voices at most double the chance: a draw beyond that cannot be met, and
     // the land it would want and the voices need not be reckoned.
-    if (base <= 0 || !(draw < 2 * base)) continue;
+    if (base <= 0 || !(draw < 2 * base * whisper.by)) continue;
     const front = frontier(ctx, attacker, defender);
     if (!front.length) continue;
     // Its people's voices: traders who want peace with those they trade with hold it
@@ -1299,7 +1302,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       leagued = leagueHold(world, attacker.ref, defender.ref),
       // (A war its people must carry is chosen the less, where it is not their hunger: rules/holds.ts voice.)
       carried = covets ? 1 : 1 - 0.35 * holdOf(world, attacker.ref, HOLD.voice),
-      chance = base * swayed * answer * leagued * carried;
+      chance = base * swayed * answer * leagued * carried * whisper.by;
     if (chance <= 0 || !(draw < chance)) continue;
     // What it is about, read off what drove it, and the land it goes for (W7).
     const chosen = chooseAim(
@@ -1421,6 +1424,13 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         contribution: 0.3,
         source: { ref: covets.source, role: "trigger", weight: 1 },
       });
+    if (whisper.act)
+      factors.push({
+        name: "the god's whisper to their ruler",
+        value: whisper.by,
+        contribution: whisper.by - 1,
+        source: { ref: whisper.act.event, role: "trigger", weight: 1 },
+      });
     const decision = world.decisions.record({
       rule: "war.declare",
       subject: attacker.ref,
@@ -1454,6 +1464,8 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       ended: null,
       peace: null,
     });
+    // (A whisper to war is spent by the war it brought.)
+    if (whisper.act && whisper.by > 1) spend(whisper.act, event);
     // (A pact does not survive a war between the two who swore it: D1.)
     warBreaksPact(ctx, r, attacker, defender, event, year);
   }
