@@ -116,6 +116,8 @@ const TITLES: Readonly<Record<string, string>> = {
   "underworld.federation": "Street gangs allied",
   "underworld.feud": "Two federations at feud",
   "underworld.exposed": "A crew of enforcers found out",
+  "money.stronger": "A stronger form reached the streets",
+  "money.made-forms": "Made forms replaced grown ones",
   "ties.council": "A council of realms",
   "ties.spy": "A spy caught",
   "war.insurgency": "A land held by force",

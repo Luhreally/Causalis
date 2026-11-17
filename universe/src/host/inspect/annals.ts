@@ -206,6 +206,8 @@ const RULES: Readonly<Record<string, readonly [number, number]>> = {
   "underworld.federation": [PEOPLE, 2],
   "underworld.feud": [WARS, 2],
   "underworld.exposed": [PEOPLE, 3],
+  "money.stronger": [SORROWS, 2],
+  "money.made-forms": [SORROWS, 3],
   "order.lesson": [PEOPLE, 2],
   "order.movement": [PEOPLE, 3],
   "order.captives": [PEOPLE, 2],

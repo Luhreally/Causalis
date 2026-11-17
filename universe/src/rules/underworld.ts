@@ -385,3 +385,135 @@ export function youngBand(life: LifeHistory, band: number): boolean {
   const at = life.bands[band] ?? 0;
   return at >= life.adulthood && at < 2 * life.adulthood;
 }
+
+// —— A group's means (asked 2026-11-16: "do cartels use materials science and make stronger stuff?") ————————————————
+// What a group can get of arms, armour and carriers, hidden carriage and guarded word: as good as its realm can make, bought with
+// its wealth; better only where its wealth outbids the state's own budget and buys from abroad. Pages say what, who, cost and
+// effect, never how anything is made or used.
+
+/** The four parts of a group's means. */
+export const MEANS = ["arms", "armour", "hidden", "word"] as const;
+export type MeansPart = (typeof MEANS)[number];
+
+export const GEAR = {
+  /** What a part at its best costs a year for each of a group's men, in working men's years (its keep, its renewal). */
+  cost: 0.35,
+  /** A group buys toward its realm's best as far as it holds this many years of its means' cost. */
+  years: 4,
+  /** How far above its realm's best a group whose wealth outbids the state's budget can buy from abroad. */
+  abroad: 0.25,
+  /** How much its arms and armour add to its strength in a turf war, and take off the men a crackdown takes. */
+  armsFight: 0.4,
+  armourFight: 0.2,
+  againstCrackdown: 0.35,
+  /** How much more a crackdown costs the state for a group's arms at their best (the security dilemma). */
+  dilemma: 0.5,
+  /** What its hidden carriage adds to what slips past borders and blockades, at its best. */
+  slips: 0.2,
+  /** How far its guarded word shelters its boss from being taken, at its best. */
+  guards: 0.5,
+} as const;
+
+/** What a group can get of each part (0 … 1): its realm's best, bought as far as its wealth holds, more where it outbids the state. */
+export function meansBought(
+  best: Readonly<Record<MeansPart, number>>,
+  wealth: number,
+  yearCost: number,
+  budget: number,
+): Record<MeansPart, number> {
+  const buy = yearCost > 0 ? clamp01(wealth / (yearCost * GEAR.years)) : 0,
+    outbid = budget > 0 ? GEAR.abroad * clamp01(wealth / budget - 1) : 0,
+    out = {} as Record<MeansPart, number>;
+  for (const k of MEANS) out[k] = clamp01(Math.min(1, clamp01(best[k]) + outbid) * buy);
+  return out;
+}
+
+// —— The iron law of prohibition (Cowan) ——————————————————————————————————————————————————————————————————————————
+// Under a ban that is enforced, the risk and the cost of carrying go by bulk, not by dose: the trade favours the most compact, most
+// potent form it can get, and once its people's chemistry allows, made forms over grown ones. Where the ban ends, sellers sell by
+// dose and taste again, and the strength drifts back over a generation. Only economics and effects: never how any form is made.
+
+export const POTENCY = {
+  /** How far a grown form can be refined (doses per bulk against the plant's own), by its people's craft of healing and chemistry. */
+  herbs: 1.5,
+  medicine: 2.5,
+  chemistry: 3,
+  /** How much stronger a made form can be than the grown (est: the gap between a plant's leaf and its refined alkaloid, again). */
+  made: 30,
+  /** How fast the trade moves toward the strength its premium rewards, a year; how fast it drifts back where legal. */
+  pace: 0.08,
+  legal: 0.03,
+  /** The premium at which half the way to the strongest is worth it. */
+  half: 0.25,
+  /** The premium from which made forms pay, and how fast their share moves. */
+  madeFrom: 0.25,
+  madePace: 0.1,
+  /** Deaths of those who take too much: so much more for each fold of strength, and for made forms (a sharp step). */
+  deaths: 0.12,
+  madeDeaths: 1.5,
+  /** Those who come to need it: so much more for each fold of strength, and for made forms. */
+  binds: 0.04,
+  madeBinds: 0.3,
+  /** At its strongest, the share of what is barred that slips past for its little bulk. */
+  slips: 0.3,
+  /** How much a fold of strength lowers the price of a dose (its bulk's cost spread over more doses). */
+  cheaper: 0.3,
+} as const;
+
+/** The premium on bulk a ban makes (0 … 1): forbidden, and hunted (its crackdown and blockades and its seat's reach). */
+export function riskPremium(barred: number, hunted: number): number {
+  return clamp01(clamp01(barred) * (0.3 + 0.7 * clamp01(hunted)));
+}
+
+/** How strong a trade's forms can be (doses per bulk against the grown), grown and made, by what its people know. */
+export function potencyCap(k: {
+  herbs: boolean;
+  medicine: boolean;
+  chemistry: boolean;
+  canMake: boolean;
+}): { grown: number; made: number } {
+  const grown =
+    1 +
+    (k.herbs ? POTENCY.herbs - 1 : 0) +
+    (k.medicine ? POTENCY.medicine - 1 : 0) +
+    (k.chemistry ? POTENCY.chemistry - 1 : 0);
+  return { grown, made: k.canMake ? POTENCY.made : grown };
+}
+
+/** The strength the premium rewards, up to what can be had. */
+export function potencyTarget(premium: number, most: number): number {
+  const p = clamp01(premium);
+  return 1 + (Math.max(1, most) - 1) * (p / (p + POTENCY.half));
+}
+
+/** A trade's strength `years` on: toward what is rewarded, or back toward the grown where it is legal. */
+export function potencyAfter(was: number, target: number, years: number, legal: boolean): number {
+  const pace = legal ? POTENCY.legal : POTENCY.pace,
+    to = legal ? 1 : Math.max(1, target),
+    k = 1 - dmath.pow(1 - pace, Math.max(0, years));
+  return Math.max(1, was + (to - was) * k);
+}
+
+/** The share of made forms a premium rewards, where they can be made at all. */
+export function madeTarget(premium: number, canMake: boolean): number {
+  return canMake ? clamp01((clamp01(premium) - POTENCY.madeFrom) * 2) : 0;
+}
+
+/** How much more a land's people die of it, and come to need it, for its strength and its made share (each ≥ 1). */
+export function potencyHarm(potency: number, made: number): { deaths: number; binds: number } {
+  const folds = dmath.log2(Math.max(1, potency));
+  return {
+    deaths: 1 + POTENCY.deaths * folds + POTENCY.madeDeaths * clamp01(made),
+    binds: 1 + POTENCY.binds * folds + POTENCY.madeBinds * clamp01(made),
+  };
+}
+
+/** The share of what is barred that slips past for its little bulk (0 … POTENCY.slips). */
+export function bulkSlip(potency: number): number {
+  return POTENCY.slips * (1 - 1 / Math.max(1, potency));
+}
+
+/** What a dose costs against its grown form's price, for its strength. */
+export function dosePrice(potency: number): number {
+  return 1 / dmath.pow(Math.max(1, potency), POTENCY.cheaper);
+}

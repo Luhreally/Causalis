@@ -3,6 +3,7 @@
 // and pooled harvests) and Labour tab (whom its lands bind and why, its guilds and unions, how its lands' income is shared); a land's
 // Wealth tab (what each good is worth there and on what it rests, what its makers can ask, its rent and its Lorenz curve, whom its
 // holders would bind). Every number is a store's, read, never reckoned anew; the inequality lens reads a land's Gini.
+import { potencyStat } from "./mobs.ts";
 import type { World } from "../../kernel/index.ts";
 import type { Block, Row, Stat } from "../../bridge/index.ts";
 import { cellRef } from "../../gen/index.ts";
@@ -545,6 +546,9 @@ export function realmIntoxBlocks(world: World, r: Polity): Block[] {
     );
   if (row[BAR.cartel]! > 0)
     rows.push(stat("Those who carry them past its law, organised", per(row[BAR.cartel]!)));
+  // (How strong the trade has grown under its law: the underworld, host/inspect/mobs.ts.)
+  const strong = potencyStat(world, r.ref);
+  if (strong) rows.push(strong);
   return [{ type: "facts", title: "What calms, wakes and eases", rows }];
 }
 
