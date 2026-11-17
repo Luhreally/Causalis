@@ -229,22 +229,28 @@ export const ENGAGED: Readonly<Record<OrgAim, number>> = {
 };
 
 /**
- * The members a common stake gathers: of the `eligible` who share it, the engaged share, as far as each one's felt gain (working
- * years a year, `perHead`) beats what organising costs him. Zero where it never does.
+ * The members a common stake gathers: of the `eligible` who share it (the engaged share at most), as many as make the most of what
+ * its members gain together over what holding together costs them (each one's felt gain, working years a year from `perHead`,
+ * falls as it grows and his part of organising rises), and none where even a crew would not gain. A public good so gathers a small
+ * circle; a gain only members get, a great society.
  */
 export function joinedOf(aim: OrgAim, perHead: number, eligible: number, cohesion: number): number {
   const most = Math.max(0, eligible) * ENGAGED[aim];
-  if (!(perHead > 0) || most < 1) return 0;
-  // (The size it would be decides what each feels and what organising costs; found by a few steps from its most.)
-  let n = most;
-  for (let k = 0; k < 4; k++) {
-    const gain = perHead * feltGain(SELECTIVE[aim], n),
-      cost = organisingCost(n, cohesion),
-      share = clamp01((gain - cost) / (gain + cost));
-    n = most * share;
-    if (n < 1) return 0;
+  if (!(perHead > 0) || most < ORG.crew) return 0;
+  const net = (n: number) =>
+    n * (perHead * feltGain(SELECTIVE[aim], n) - organisingCost(n, cohesion));
+  // (Sizes from a crew to its most, each a step of a quarter again: the best of them.)
+  let best = 0,
+    at = 0;
+  for (let n: number = ORG.crew; ; n = Math.min(most, n * 1.25)) {
+    const x = net(n);
+    if (x > best) {
+      best = x;
+      at = n;
+    }
+    if (n >= most) break;
   }
-  return n;
+  return best > 0 ? at : 0;
 }
 
 /**
@@ -404,11 +410,11 @@ const FIT: Readonly<Record<OrgAim, readonly (typeof MEANS)[number][]>> = {
   conspire: ["secret", "purse"],
 };
 
-/** How far a group's means reach an aim (0.15 where none do: a group can come to new means, slowly). */
+/** How far a group's means reach an aim (none where none of them serves it: a group turns to an aim only as it comes to its means). */
 export function aimFit(aim: OrgAim, means: number): number {
   let n = 0;
   for (const m of FIT[aim]) if (means & meansBit(m)) n++;
-  return n === 0 ? 0.15 : Math.min(1, 0.6 + 0.4 * (n - 1));
+  return n === 0 ? 0 : Math.min(1, 0.6 + 0.4 * (n - 1));
 }
 
 /**
@@ -438,13 +444,14 @@ export function firstAim(aims: readonly number[]): OrgAim {
   let best = -1,
     at = AIM.aid;
   for (const [i, a] of ORG_AIMS.entries()) {
-    const w = (aims[i] ?? 0) - (a === "smuggle" ? 1 : 0);
+    if (a === "smuggle") continue;
+    const w = aims[i] ?? 0;
     if (w > best) {
       best = w;
       at = i;
     }
   }
-  return ORG_AIMS[at]!;
+  return best > 0 || !((aims[AIM.smuggle] ?? 0) > 0) ? ORG_AIMS[at]! : "smuggle";
 }
 
 /** What a group's kind is told by, read off what it does and holds. */

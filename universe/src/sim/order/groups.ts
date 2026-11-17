@@ -48,6 +48,7 @@ import {
   ORG_KINDS,
   FULL_TIME,
   aidWorth,
+  aimFit,
   aimsToward,
   cohesionOf,
   conspireWorth,
@@ -196,6 +197,8 @@ type Land = {
   credit: number;
   /** On a border with a foe in an open war. */
   front: boolean;
+  /** How far it is threatened (preyed on, killed in, a war on its border), as last reckoned (0 … 1). */
+  threat: number;
   /** Its stakes this reckoning: what each aim is worth here (grain's worth a year), and the members it would gather. */
   worth: number[];
   gather: number[];
@@ -335,6 +338,7 @@ function readRealm(ctx: PopulationContext, p: Polity, year: number): Read {
       street: st,
       credit: banks.has(c) ? 1 : 0,
       front,
+      threat: front ? 1 : 0,
       worth: new Array<number>(AIMS).fill(0),
       gather: new Array<number>(AIMS).fill(0),
     });
@@ -496,6 +500,7 @@ function weighStakes(ctx: PopulationContext, p: Polity, r: Read, v: RealmOrgs): 
       preyedBefore = had ? (had[ORG_ROW.prey]! + had[ORG_ROW.seaPrey]!) / 1000 : 0,
       killedBefore = (had ? had[ORG_ROW.killings]! / 1e6 : 0) + l.killed,
       coh = (aim: OrgAim) => bindingAt(ctx, r, l, aim),
+      threat = Math.min(1, (l.front ? 1 : 0) + 20 * preyedBefore + 2000 * killedBefore),
       share = r.people > 0 ? l.people / r.people : 0,
       set = (aim: OrgAim, worth: number, gather: number) => {
         l.worth[AIM[aim]] = Math.max(0, worth);
@@ -505,6 +510,7 @@ function weighStakes(ctx: PopulationContext, p: Polity, r: Read, v: RealmOrgs): 
         const n = joinedOf(aim, perHead, eligible, coh(aim));
         set(aim, perHead * w * Math.max(n, ORG.crew), n);
       };
+    l.threat = threat;
     // Prey: the road trade the seat cannot keep, and the sea trade its navy cannot; licensed against a foe's ships at war.
     const road = preyTake(l.road, roadGuarded(l.reach, guardedBefore)),
       seaTake =
@@ -515,7 +521,13 @@ function weighStakes(ctx: PopulationContext, p: Polity, r: Read, v: RealmOrgs): 
     // Smuggle: what the cartels leave (a second aim only).
     set("smuggle", smuggleLeft * share * 0.5, 0);
     // Guard: what preying, killing and a war on the border take.
-    common("guard", guardWorth(preyedBefore + (l.front ? 0.08 : 0), killedBefore, l.reach), men);
+    // (What is preyed of its trade comes to each household as its share of what passes, in working years.)
+    const tradeHere = (l.road + l.sea) / households / w;
+    common(
+      "guard",
+      guardWorth(preyedBefore * tradeHere + (l.front ? 0.08 : 0), killedBefore, l.reach),
+      men,
+    );
     // Enforce: wrongs left unjudged where courts are absent.
     common("enforce", enforceWorth(killedBefore, l.extorted * 4, r.byCourts, r.deals), men);
     // Rule: a great town its seat's hand barely reaches.
@@ -650,7 +662,13 @@ function tell(
 function meansOf(g: Org, lands: readonly Land[]): number {
   let m = 0;
   const armed = ORG_AIMS.reduce((s, a, i) => s + (ARMED.has(a) ? (g.aims[i] ?? 0) : 0), 0);
-  if (armed >= 350) m |= meansBit("arms");
+  // (Under arms: where what it does takes arms, or where its lands are threatened and it is many enough to arm its own.)
+  if (
+    armed >= 350 ||
+    (g.members >= 4 * ORG.crew &&
+      g.lands.some((c) => (lands.find((l) => l.cell === c)?.threat ?? 0) >= 0.3))
+  )
+    m |= meansBit("arms");
   // (Ships it had, kept while it holds a coast.)
   if (g.means & meansBit("ships") && g.lands.some((c) => lands.find((l) => l.cell === c)?.coast))
     m |= meansBit("ships");
@@ -684,8 +702,9 @@ function basisFor(aim: OrgAim, r: Read, l: Land): OrgBasis {
     case "worship":
       return "faith";
     case "aid":
-      return r.piety >= 0.6 ? "faith" : "poor";
+      return r.piety >= 0.6 ? "faith" : "trade";
     case "trade":
+    case "lend":
       return "trade";
     case "conspire":
       return "learned";
@@ -712,15 +731,31 @@ function rise(f: Facts, aim: OrgAim, home: Land, sea: boolean, factors: Factor[]
   if (!name || v.orgs.some((g) => g.name === name && g.aim === AIM[aim])) return null;
   const basis = basisFor(aim, r, home),
     aims = new Array<number>(AIMS).fill(0);
-  // (What it does at first: its founding aim mostly, the rest as its land's stakes would have it.)
-  const all = home.worth.reduce((s, x) => s + x, 0) || 1;
-  for (let k = 0; k < AIMS; k++) aims[k] = Math.round((300 * home.worth[k]!) / all);
+  // (What it does at first: its founding aim mostly, the rest as its land's stakes would have it, as far as the means it
+  // gathers with reach them.)
+  const pressed = home.pressed >= 0.5,
+    standing = outlawedAim(aim, pressed) ? 0 : 1,
+    means =
+      (ARMED.has(aim) ? meansBit("arms") : 0) |
+      (sea ? meansBit("ships") : 0) |
+      (basis === "faith" ? meansBit("faith") : 0) |
+      (aim === "aid" || aim === "lend" || aim === "trade" || aim === "conspire"
+        ? meansBit("purse")
+        : 0) |
+      (standing === 0 ? meansBit("secret") : 0),
+    leaves = basis === "poor" || basis === "veterans" ? 0.2 : 0.9,
+    fits = home.worth.map(
+      (w, k) =>
+        w *
+        aimFit(ORG_AIMS[k]!, means) *
+        (FULL_TIME.has(ORG_AIMS[k]!) && k !== AIM[aim] ? 1 - leaves : 1),
+    ),
+    all = fits.reduce((s, x) => s + x, 0) || 1;
+  for (let k = 0; k < AIMS; k++) aims[k] = Math.round((300 * fits[k]!) / all);
   aims[AIM[aim]] = (aims[AIM[aim]] ?? 0) + 700;
   const sum = aims.reduce((s, x) => s + x, 0) || 1;
   for (let k = 0; k < AIMS; k++) aims[k] = Math.round((aims[k]! * 1000) / sum);
-  const pressed = home.pressed >= 0.5,
-    standing = outlawedAim(aim, pressed) ? 0 : 1,
-    leader = newLeader(f, home.cell, salt),
+  const leader = newLeader(f, home.cell, salt),
     gid = v.next++,
     g: Org = {
       id: gid,
@@ -734,11 +769,7 @@ function rise(f: Facts, aim: OrgAim, home: Land, sea: boolean, factors: Factor[]
       lands: [home.cell],
       basis: ORG_BASES.indexOf(basis),
       identity: basis === "faith" ? (home.faith ?? "") : "",
-      means:
-        (ARMED.has(aim) ? meansBit("arms") : 0) |
-        (sea ? meansBit("ships") : 0) |
-        (basis === "faith" ? meansBit("faith") : 0) |
-        (standing === 0 ? meansBit("secret") : 0),
+      means,
       standing,
       leader,
       leaders: 1,
@@ -778,7 +809,7 @@ function ended(f: Facts, g: Org, how: OrgEnd, factors: Factor[], into?: Org): vo
         gids: [g.id, ...(into ? [into.id] : [])],
         how,
         since: g.since,
-        ...(into ? { into: into.name } : {}),
+        ...(into ? { into: into.name, intoKind: kindName(into) } : {}),
       },
       [{ ref: g.event, role: "enabler", weight: 1 }],
       factors,
@@ -889,7 +920,13 @@ function stepRealm(
     suppression = suppressionOf(r.capacity, r.legitimacy, harmBefore);
   v.suppression = per(suppression);
   for (const g of v.orgs) {
-    const worth = ORG_AIMS.map((_, k) => stakeIn(v, g, lands, k).worth);
+    // (A rent kept full-time is worth to members who have work of their own only what it pays over the work they would leave:
+    // to the idle and the veterans nearly all of it, to householders little.)
+    const idleBasis = ORG_BASES[g.basis] === "poor" || ORG_BASES[g.basis] === "veterans",
+      leaves = idleBasis ? 0.2 : 0.9,
+      worth = ORG_AIMS.map(
+        (a, k) => stakeIn(v, g, lands, k).worth * (FULL_TIME.has(a) ? 1 - leaves : 1),
+      );
     g.means = meansOf(g, r.lands);
     g.aims = aimsToward(g.aims, worth, g.means, stepped(ORG.turn, span));
     const was = kindName(g),
@@ -929,15 +966,7 @@ function stepRealm(
       charter =
         !outlaw && (aim === "trade" || aim === "guard") && r.capacity < 0.5 && r.legitimacy >= 0.45;
     const standing = outlaw ? (g.patron === p.ref ? 2 : 0) : charter || g.patron ? 2 : 1;
-    if (standing === 2 && g.standing !== 2 && !g.patron)
-      tell(
-        f,
-        ORG_EVENTS.chartered.type,
-        g.home,
-        { group: g.name, kind: kindName(g), gids: [g.id] },
-        [{ ref: g.event, role: "enabler", weight: 1 }],
-        [factor("a seat that reaches little", r.capacity, 1 - r.capacity)],
-      );
+    const granted = standing === 2 && g.standing !== 2 && !g.patron;
     g.standing = standing;
     g.means = meansOf(g, r.lands);
     g.kind = KIND(readKind(g, r.lands, !!g.patron));
@@ -952,6 +981,15 @@ function stepRealm(
           (x) => x.contribution >= 0.1,
         ),
       );
+    if (granted)
+      tell(
+        f,
+        ORG_EVENTS.chartered.type,
+        g.home,
+        { group: g.name, kind: kindName(g), gids: [g.id] },
+        [{ ref: g.event, role: "enabler", weight: 1 }],
+        [factor("a seat that reaches little", r.capacity, 1 - r.capacity)],
+      );
     // (Its men: what its aims, as it holds them, gather of its lands' stakes.)
     let aimMen = 0,
       income = 0;
@@ -960,7 +998,8 @@ function stepRealm(
       if (a <= 0) continue;
       const s = stakeIn(v, g, lands, k);
       aimMen += a * s.gather;
-      income += FULL_TIME.has(ORG_AIMS[k]!) ? a * s.worth : 0;
+      // (A rent kept full-time is its income; a common aim's, what its members pay in.)
+      income += FULL_TIME.has(ORG_AIMS[k]!) ? a * s.worth : a * g.members * r.wage * ORG.cost;
     }
     g.members = Math.max(0, Math.round(g.members + (aimMen - g.members) * stepped(ORG.grow, span)));
     g.income = Math.round(income);
@@ -970,9 +1009,7 @@ function stepRealm(
     g.gives = Math.round(
       ((g.aims[AIM.aid]! + g.aims[AIM.lend]!) / 1000) * g.members * r.wage * ORG.cost * 4,
     );
-    g.wealth = Math.round(
-      g.wealth * stays + (Math.max(0, g.income + g.gives * 0.25) * fade) / ORG.spends,
-    );
+    g.wealth = Math.round(g.wealth * stays + (Math.max(0, g.income) * fade) / ORG.spends);
   }
 
   // 2. New groups: the strongest stakes no group of that aim holds yet.
@@ -1018,6 +1055,7 @@ function stepRealm(
         1 - dmath.pow(1 - ORG.taken * suppression * (1 - Math.min(0.7, (coh - 1) / 4)), span);
       g.members = Math.round(g.members * (1 - taken));
     }
+    if (g.since >= year) continue;
     // (Its head gone: dead of his years, or taken where it is outlawed.)
     const age = year - g.leader.born;
     if (
@@ -1035,7 +1073,6 @@ function stepRealm(
         [{ ref: g.event, role: "enabler", weight: 1 }],
       );
     }
-    if (g.since >= year) continue;
     if (orgAimOf(g) === "rebel" && revolution) {
       gone.push([g, "won", [factor("a revolution won at its seat", 1, 1)]]);
       continue;
@@ -1053,12 +1090,22 @@ function stepRealm(
       ]);
       continue;
     }
-    // (Two of one aim at one home: the lesser taken into the greater.)
+  }
+  // (Two of one aim at one home: the lesser taken into the greater, once their men are reckoned; one taken in takes in no other.)
+  const ending = new Set(gone.map(([g]) => g));
+  for (const g of [...v.orgs].sort((a, b) => a.members - b.members || b.id - a.id)) {
+    if (ending.has(g) || g.since >= year) continue;
     const twin = v.orgs.find(
-      (x) => x !== g && x.aim === g.aim && x.home === g.home && x.members > g.members,
+      (x) =>
+        x !== g &&
+        !ending.has(x) &&
+        x.aim === g.aim &&
+        x.home === g.home &&
+        (x.members > g.members || (x.members === g.members && x.id < g.id)),
     );
-    if (twin)
-      gone.push([g, "merged", [factor("a greater of its aim at its home", twin.members, 1)], twin]);
+    if (!twin) continue;
+    ending.add(g);
+    gone.push([g, "merged", [factor("a greater of its aim at its home", twin.members, 1)], twin]);
   }
   for (const [g, how, factors, into] of gone) {
     if (!v.orgs.includes(g)) continue;
