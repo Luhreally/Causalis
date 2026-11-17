@@ -47,7 +47,7 @@ import { houseOfGroup } from "../order/houses.ts";
 import { channelled, rulerProblem } from "../order/reign.ts";
 import { battlesOf, breakAway, farLands, foil, seize } from "../strife/strife.ts";
 import { bearerOddsOf } from "../society/kept.ts";
-import { actOn, hazardBy, sparedBy, struckBy } from "../acts/person.ts";
+import { actOn, hazardBy, rulerHazard, rulerLuck, sparedBy, struckBy } from "../acts/person.ts";
 
 export const COURT_EVENTS = {
   /** An heir named by the voices or by a word, not an heir born. */
@@ -351,7 +351,9 @@ function reckon(ctx: PopulationContext, p: Polity, c: Court, t: SimTime): void {
     if (
       !c.figures.some((f) => f.tie === "child") &&
       age > grown + first &&
-      world.rng.real(FIGURE, key, t, 1) < COURT.childChance
+      // (A blessing on the ruler doubles the chance, a curse halves it: exactly as ever where none holds, sim/acts/person.ts.)
+      world.rng.real(FIGURE, key, t, 1) <
+        COURT.childChance * rulerLuck(world, p.ref, p.ruler.event, year)
     ) {
       const n = person(world, ways, key, t, 1, family);
       c.figures.push({
@@ -822,6 +824,42 @@ function seatChanged(ctx: PopulationContext, p: Polity, c: Court, t: SimTime): v
 }
 
 /** A court's year: its people's deaths, a plot's end, a seat changed, a reckoning, a rival's move. */
+/**
+ * One of a court struck down by the god at the moment of the act (sim/acts/person.ts): they leave it dead, as at the year's turn,
+ * an heir's death told and the next named. `struck`: the god's event. False: no such one at court.
+ */
+export function courtFigureDies(
+  ctx: PopulationContext,
+  p: Polity,
+  id: number,
+  t: SimTime,
+  struck: Ref,
+): boolean {
+  const { world } = ctx,
+    c = courtOf(world)?.of(p.ref),
+    f = c?.figures.find((x) => x.id === id),
+    year = yearOfMoment(t);
+  if (!c || !f) return false;
+  const heirGone = f.id === c.heir && c.heirBy !== "voices";
+  letGo(c, f, year, "died", struck);
+  if (heirGone) {
+    reckon(ctx, p, c, t);
+    const event = world.events.emit({
+      type: COURT_EVENTS.heirDied.type,
+      subjects: [p.ref],
+      place: placeOf(ctx, p),
+      causes: [
+        { ref: p.ruler.event, role: "enabler", weight: 1 },
+        { ref: struck, role: "trigger", weight: 1 },
+      ],
+      ...(c.heir === null ? { importance: 4 } : {}),
+      data: { realm: realmName(p), fig: f.id, who: f.name, age: year - f.born },
+    });
+    told(c, event);
+  }
+  return true;
+}
+
 export function courtYear(ctx: PopulationContext, t: SimTime): void {
   const { world } = ctx,
     store = courtOf(world),
@@ -922,7 +960,12 @@ export function rivalMoves(
 ): void {
   const { world } = ctx,
     danger = dangerOf(ctx, p, c, f, o),
-    odds = plotOdds(danger.weight, danger.doubt, danger.tradition),
+    // (A blessing on the ruler halves a move's odds against them, a curse doubles them: exactly 1 where none holds.)
+    by = rulerHazard(world, p.ref, p.ruler.event, yearOfMoment(t)),
+    odds =
+      by === 1
+        ? plotOdds(danger.weight, danger.doubt, danger.tradition)
+        : Math.min(1, plotOdds(danger.weight, danger.doubt, danger.tradition) * by),
     won = world.rng.real(PLOT, keyOf(p.ref), t, 1) < odds,
     decision = world.decisions.record({
       rule: "court.plot",
@@ -951,7 +994,10 @@ export function figureMoves(
 ): number {
   const { world } = ctx,
     danger = dangerOf(ctx, p, c, f, o),
-    odds = plotOdds(danger.weight, danger.doubt, danger.tradition),
+    // (A blessing on the ruler halves the odds of a move against them, a curse doubles them: exactly 1 where none holds.)
+    by = rulerHazard(world, p.ref, p.ruler.event, yearOfMoment(t)),
+    base = plotOdds(danger.weight, danger.doubt, danger.tradition),
+    odds = by === 1 ? base : Math.min(1, base * by),
     won = channel || world.rng.real(PLOT, keyOf(p.ref), t, 11) < odds,
     decision = world.decisions.record({
       rule: "court.plot",

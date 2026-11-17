@@ -63,6 +63,7 @@ import {
   lawTurn,
   stepped,
 } from "./kept.ts";
+import { whisperIn } from "../acts/person.ts";
 
 export const INTOX_EVENTS = {
   /** A realm forbade what calms, wakes, brings visions and eases pain; and let it be again. */
@@ -343,7 +344,10 @@ export function prohibitionYear(ctx: PopulationContext, t: SimTime): void {
         users: r.users,
       }),
       barredWas = (was?.[BAR.barred] ?? 0) / 1000,
-      barred = barredWas + stepped(0.2, years) * (want.level - barredWas),
+      // (A god's whisper to its ruler: to bar it wholly, or to lift the bar. Exactly as wanted where none.)
+      whispered = whisperIn(world, `rule:${p.ref}`, p.ruler.event, year, "bar"),
+      level = whispered ? (whispered.aim === "bar:ban" ? 1 : 0) : want.level,
+      barred = barredWas + stepped(0.2, years) * (level - barredWas),
       // A realm held hard and reaching far keeps the trade to itself; else it lays an excise as far as it sees what is sold.
       monopoly = held[HOLD.force]! > 0.6 && cap > 0.5 && !!lore.get(p.seat, "writing"),
       excise =

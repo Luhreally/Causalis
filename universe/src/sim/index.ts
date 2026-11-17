@@ -1825,3 +1825,15 @@ export {
   type DeathNote,
   type DeathPart,
 } from "./hand/deaths.ts";
+export {
+  bossRef,
+  groupOfBoss,
+  luckBy,
+  rulerHazard,
+  rulerLuck,
+  smitesAtOnce,
+  whisperFamily,
+  whisperIn,
+  whispersFor,
+} from "./acts/person.ts";
+export type { HeadNote } from "./hand/deaths.ts";

@@ -22,6 +22,7 @@ import { realmColor } from "../colors.ts";
 import { orgFedNews, orgFedOf, orgFedRef, orgNews, orgOf, orgRef } from "../groups.ts";
 import { claimOf, count, item, link, many, part, share, stat, yearAt, yearNow } from "./words.ts";
 import { landLink, realmLink } from "./names.ts";
+import { bossLink } from "./boss.ts";
 
 const th = (n: number) => share(n / 1000),
   grain = (n: number) => `${grainSum(Math.max(0, Math.round(n)))} grain's worth`,
@@ -279,7 +280,10 @@ export function orgPage(world: World, ref: string): PageModel {
     facts.push(
       stat(
         "Its head",
-        `${rec.leader.name}, born year ${rec.leader.born}, at its head since year ${rec.leader.since}`,
+        [
+          bossLink(r.ref, g.event, rec.leader.name),
+          `, born year ${rec.leader.born}, at its head since year ${rec.leader.since}`,
+        ],
         { parts: [part("its heads so far", count(rec.leaders))] },
       ),
       stat(
@@ -387,7 +391,12 @@ export function orgPage(world: World, ref: string): PageModel {
     color: realmColor(r.ref),
     place: rec?.lands[0] !== undefined ? { scale: "region", cell: rec.lands[0] } : null,
     stats: [
-      ...(rec ? [stat("Head", rec.leader.name), stat("Members", count(rec.members))] : []),
+      ...(rec
+        ? [
+            stat("Head", [bossLink(r.ref, g.event, rec.leader.name)]),
+            stat("Members", count(rec.members)),
+          ]
+        : []),
       stat("Since", `year ${since}`),
     ],
     tabs: [{ id: "overview", name: "Overview", blocks }],
