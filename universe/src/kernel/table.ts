@@ -66,10 +66,49 @@ abstract class Table {
 
 /** Integer counts. Writes must be integers and may never go negative. */
 export class CountTable extends Table {
+  /**
+   * Its sums kept as it is written (whole numbers, so exactly what adding them up again gives): the whole, each row's, each
+   * column's. A land's people, its bands and its trades are asked for many thousands of times a year; no part of what is saved.
+   */
+  private sum = 0;
+  private readonly rowSums: Float64Array;
+  private readonly colSums: Float64Array;
+  constructor(rows: number, cols: number) {
+    super(rows, cols);
+    this.rowSums = new Float64Array(rows);
+    this.colSums = new Float64Array(cols);
+  }
   set(row: number, col: number, value: number): void {
     if (!Number.isSafeInteger(value) || value < 0)
       throw new Error(`count ${value} at ${row},${col}`);
-    this.data[row * this.cols + col] = value;
+    const i = row * this.cols + col,
+      d = value - this.data[i]!;
+    this.data[i] = value;
+    this.sum += d;
+    this.rowSums[row] = this.rowSums[row]! + d;
+    this.colSums[col] = this.colSums[col]! + d;
+  }
+  override rowSum(row: number): number {
+    return this.rowSums[row]!;
+  }
+  override colSum(col: number): number {
+    return this.colSums[col]!;
+  }
+  override total(): number {
+    return this.sum;
+  }
+  override load(state: TableState): void {
+    super.load(state);
+    this.sum = 0;
+    this.rowSums.fill(0);
+    this.colSums.fill(0);
+    for (let r = 0, i = 0; r < this.rows; r++)
+      for (let c = 0; c < this.cols; c++, i++) {
+        const x = this.data[i]!;
+        this.sum += x;
+        this.rowSums[r] = this.rowSums[r]! + x;
+        this.colSums[c] = this.colSums[c]! + x;
+      }
   }
   add(row: number, col: number, delta: number): void {
     this.set(row, col, this.get(row, col) + delta);
