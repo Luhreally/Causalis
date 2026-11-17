@@ -831,7 +831,9 @@ function stepRealm(
   for (const w of contrabandOf(world, p.ref))
     if (WARE_RENT_CAUSES.has(CONTRA_CAUSES[w.cause]!)) {
       ware += w.worth * w.wedge;
-      wareWorth += w.worth;
+      // (Forbidden outright for its harm: a trade no court holds a deal in. What war or a licence keeps out is run past a border
+      // or a holder, and sold in the open.)
+      if (CONTRA_CAUSES[w.cause] === "harm") wareWorth += w.worth;
     }
   const ban = banRent(r.banWorth, r.barred, RISK),
     tariff = sm ? sm[SMUGGLE.worth]! * (sm[SMUGGLE.wedge]! / 1000) : 0,
