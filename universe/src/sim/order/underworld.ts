@@ -75,6 +75,8 @@ import {
   exposedWithin,
   killingsOf,
   tiringOver,
+  balanceMoved,
+  peaceWorn,
   protectionWantedIn,
   racketBit,
   rentCaptured,
@@ -961,6 +963,8 @@ function stepRealm(
           ],
         );
       }
+  // (Each road's groups by their share of its strength, as this reckoning finds them: what a peace is made on, step 7.)
+  const stood = new Map<GroupKind, (readonly [number, number])[]>();
   for (const [kind, rent, pull] of roads) {
     const own = v.groups.filter((g) => kindOfGroup(g) === kind),
       line = kind === "protection" ? UNDER.riseProtect : UNDER.riseRent,
@@ -1046,6 +1050,10 @@ function stepRealm(
       ),
       sumS = strength.reduce((a, x) => a + x, 0),
       openWar = v.wars.find((w) => w.ended === null && w.kind === KIND(kind));
+    stood.set(
+      kind,
+      now.map((g, i) => [g.id, per(strength[i]! / sumS)] as const),
+    );
     let sumShare = 0;
     for (const [i, g] of now.entries()) {
       const target = strength[i]! / sumS,
@@ -1237,15 +1245,21 @@ function stepRealm(
       ),
       open = v.wars.find((w) => w.ended === null && w.kind === KIND(kind));
     // (A war tires: fought for years with neither winning, its groups fight less by half every UNDER.warHalf years, until it
-    // is a peace; and a peace made holds, wearing off over a generation (UNDER.paxHalf), before the same road is fought for again.)
+    // is a peace; and a peace made holds, wearing off over a generation (UNDER.paxHalf) AS FAR AS THE STRENGTH IT WAS MADE ON
+    // HAS MOVED SINCE (peaceWorn), before the same road is fought for again. Worn by its years alone, the five groups of a
+    // great realm, each holding the eight lands a group can and none able to take another's, their shares of the road's
+    // strength the same to a hundredth for sixty years, fought the same war every thirty years for nothing any could win:
+    // first light's realm of forty lands in 1,519 and 1,549, its realm of thirty in 1,515, 1,545 and 1,590.)
     const last = v.wars.filter((w) => w.ended !== null && w.kind === KIND(kind)).at(-1),
+      standing = stood.get(kind) ?? [],
+      moved = last?.at ? balanceMoved(last.at, standing) : 1,
       // (Sooner where its seat hunts them: an open war draws all a state that reaches has. In realms with one open, a
       // fifth of the world's people at 1,500, it was eleven in 100,000 of the whole world's killed a year.)
       half = UNDER.warHalf * (1 - UNDER.cutShort * hunted),
       tired = open
         ? dmath.pow(0.5, (year - open.since) / half)
         : last
-          ? 1 - dmath.pow(0.5, (year - last.ended!) / UNDER.paxHalf)
+          ? peaceWorn(year - last.ended!, moved)
           : 1,
       // (And they fight over a road as hard as the part of its rent that lies where they meet: each takes the rent of the
       // lands it holds (step 4), so what a war can win is what lies in the lands two of them hold, or, where they hold none
@@ -1265,10 +1279,16 @@ function stepRealm(
     // (A war's dead are its fighters': each group loses men as its rivals are many (the lesser the greater part of itself), and
     // of its purse as of its men. So a war wears both down, the weaker faster, until one holds the road or neither can fight on:
     // before, no loss came off its men and a war between two alike never ended.)
-    const allMen = own.reduce((n, g) => n + g.members, 0);
+    // (And each fights the rivals it meets, not all its road's: in a realm of one land or three every group meets every other;
+    // of a great realm's five, each on its own eight lands, one meets the two or three beside it, and fought the men of all.)
+    const fighting = level > 0 && own.length >= 2;
     for (const g of own) {
+      let met = 0;
+      if (fighting)
+        for (const x of own)
+          if (x !== g && meetingLands(ctx.generated.grid, g, x).length) met += x.members;
       const calm = v.truce?.gid === g.id ? 1 - ESCALATE.calms : 1,
-        rivals = Math.min(allMen - g.members, g.members * UNDER.warMost),
+        rivals = Math.min(met, g.members * UNDER.warMost),
         peace = killingsOf(g.members, 0) * calm,
         war = (killingsOf(rivals, level) - killingsOf(rivals, 0)) * calm,
         dead = Math.min(g.members, Math.round((war / (1 + UNDER.bystanders)) * span));
@@ -1297,6 +1317,9 @@ function stepRealm(
           factor("the rent that lies where they meet", stake, stake),
           factor("a market no one group holds", 1 - fight.herfindahl, 1 - fight.herfindahl),
           factor("a pact with the state", collusion, -UNDER.pax * collusion),
+          ...(last?.at
+            ? [factor("strength changed hands since their last peace", moved, tired)]
+            : []),
         ],
       );
       v.wars = [
@@ -1314,6 +1337,7 @@ function stepRealm(
       ].slice(-UNDER.wars);
     } else if (open && warNow < UNDER.warEnds) {
       open.ended = year;
+      open.at = standing;
       const holder = ranked[0];
       tell(
         f,
@@ -1582,22 +1606,80 @@ function stepRealm(
     g.power = per(0.6 * (g.members / allMen) + 0.4 * (g.wealth / allWealth));
   // (Turf is parted: the strongest of a road takes its lands first, and a lesser holds what no greater of its road does, and its
   // home. Where there is no land free it holds its home beside the greater, and that land is the one they fight over.)
-  const turf = new Map<number, Set<number>>();
+  // (And a group's lands are its home and what its men take going out from it: of the free lands that lie beside those it
+  // holds, the weightiest, one after another; where none lies beside (a sea between), the free land nearest its home. It took
+  // the weightiest free lands of the whole realm, wherever they lay, and kept them: the five groups of a great realm, eight
+  // lands each, lay through one another from end to end of it, three quarters of all they held on a rival's border
+  // (metShare), each meeting every other, and its roads stood at the line of a war for good. About their homes, they meet
+  // along a few lands.)
+  const grid = ctx.generated.grid,
+    where = grid.positions,
+    // (A land on another world lies past every land of this one, and beside none.)
+    onGlobe = (c: number) => 3 * c + 2 < where.length,
+    turf = new Map<number, Set<number>>();
   for (const g of [...v.groups].sort((a, b) => b.power - a.power || a.id - b.id)) {
     if (kindOfGroup(g) === "badge") continue;
     const held = turf.get(g.kind) ?? turf.set(g.kind, new Set()).get(g.kind)!,
       n = Math.max(1, Math.min(UNDER.lands, 1 + Math.floor(g.members / 150))),
-      kept = g.lands.filter((c) => p.members.includes(c) && (c === g.home || !held.has(c))),
-      candidates = (kindOfGroup(g) === "cartel" ? [...r.edge, ...p.members] : [...p.members])
-        .filter((c, i, a) => a.indexOf(c) === i && !kept.includes(c) && !held.has(c))
-        .sort((a, b) => landWeight(ctx, b) - landWeight(ctx, a) || a - b);
-    g.lands = [...kept, ...candidates].slice(0, n);
+      free = new Set(p.members.filter((c) => c !== g.home && !held.has(c))),
+      mine = p.members.includes(g.home) ? [g.home] : [],
+      near = (c: number) =>
+        onGlobe(c) && onGlobe(g.home)
+          ? where[3 * c]! * where[3 * g.home]! +
+            where[3 * c + 1]! * where[3 * g.home + 1]! +
+            where[3 * c + 2]! * where[3 * g.home + 2]!
+          : -2;
+    while (mine.length < n && free.size) {
+      let next = -1,
+        most = -Infinity;
+      for (const c of mine) {
+        if (!onGlobe(c)) continue;
+        for (let k = grid.offsets[c]!; k < grid.offsets[c + 1]!; k++) {
+          const q = grid.neighbours[k]!;
+          if (!free.has(q)) continue;
+          const w = landWeight(ctx, q);
+          if (w > most || (w === most && q < next)) {
+            next = q;
+            most = w;
+          }
+        }
+      }
+      if (next < 0)
+        for (const c of free) {
+          const d = near(c);
+          if (d > most || (d === most && c < next)) {
+            next = c;
+            most = d;
+          }
+        }
+      mine.push(next);
+      free.delete(next);
+    }
+    g.lands = mine;
     if (!g.lands.length) g.lands = [p.members.includes(g.home) ? g.home : p.seat];
     for (const c of g.lands) held.add(c);
   }
   writeLands(ctx, p, v, towns, r, badge, bites, warring);
   v.last = year;
   return towns.length > 0 || crackdown > 0.01;
+}
+
+/**
+ * The lands a group meets a rival of its road in: those both hold; where they hold none in common, its own lands that lie on
+ * one of the rival's. None where their lands nowhere touch: such groups have nothing of each other's to take.
+ */
+function meetingLands(
+  grid: PopulationContext["generated"]["grid"],
+  g: CrimeGroup,
+  x: CrimeGroup,
+): number[] {
+  const shared = g.lands.filter((c) => x.lands.includes(c));
+  if (shared.length) return shared;
+  return g.lands.filter((c) => {
+    for (let k = grid.offsets[c]!; k < grid.offsets[c + 1]!; k++)
+      if (x.lands.includes(grid.neighbours[k]!)) return true;
+    return false;
+  });
 }
 
 /**

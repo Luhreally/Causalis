@@ -21,6 +21,8 @@ import {
   streetPull,
   successorsOf,
   turfWar,
+  balanceMoved,
+  peaceWorn,
   violentIdle,
   youngBand,
   GEAR,
@@ -94,6 +96,41 @@ test("two close in strength over one rent fight; one dominant, or a pact with th
   // (A fragmented market of several close fights too.)
   assert.ok(turfWar([300, 280, 250, 170], 0).war >= UNDER.warAt);
   assert.ok(killingsOf(1000, duopoly.war) > 5 * killingsOf(1000, dominant.war));
+});
+
+test("a peace made on one balance of strength holds while it stands, and wears with the years as far as strength has changed hands", () => {
+  const five: [number, number][] = [
+    [1, 297],
+    [2, 245],
+    [3, 236],
+    [4, 145],
+    [5, 77],
+  ];
+  // (The same groups at the same strength: nothing moved, whatever the years. Shares a hundredth off: a twentieth of the way.)
+  assert.equal(balanceMoved(five, five), 0);
+  assert.equal(peaceWorn(100, balanceMoved(five, five)), 0);
+  const drifted = five.map(([id, s], i) => [id, s + (i % 2 ? -6 : 6)] as [number, number]);
+  assert.ok(balanceMoved(five, drifted) < 0.02, `${balanceMoved(five, drifted)}`);
+  // (A newcomer with a fifth of the road's strength, taken from the rest: a fifth has changed hands; a group gone, its whole part.)
+  const entered: [number, number][] = [
+    ...five.map(([id, s]) => [id, s * 0.8] as [number, number]),
+    [6, 200],
+  ];
+  assert.ok(Math.abs(balanceMoved(five, entered) - 0.2) < 1e-9);
+  assert.ok(Math.abs(balanceMoved(five, five.slice(0, 4)) - 0.0385) < 1e-9);
+  // (Worn by half in UNDER.paxHalf years once UNDER.shifted of the strength has moved; not at all on the day it is made.)
+  assert.equal(peaceWorn(0, 1), 0);
+  assert.ok(Math.abs(peaceWorn(UNDER.paxHalf, UNDER.shifted) - 0.5) < 1e-9);
+  assert.ok(Math.abs(peaceWorn(UNDER.paxHalf, 1) - 0.5) < 1e-9);
+  assert.ok(peaceWorn(2 * UNDER.paxHalf, 0.1) > peaceWorn(UNDER.paxHalf, 0.1));
+  assert.ok(peaceWorn(UNDER.paxHalf, 0.1) > peaceWorn(UNDER.paxHalf, 0.05));
+  // (Five groups that stand as they stood thirty years after their peace are far from a war; with a fifth changed hands, at one.)
+  const strain = turfWar(
+    five.map(([, s]) => s),
+    0,
+  ).war;
+  assert.ok(strain * peaceWorn(30, balanceMoved(five, drifted)) < UNDER.warEnds);
+  assert.ok(strain * peaceWorn(30, balanceMoved(five, entered)) >= UNDER.warAt);
 });
 
 test("protection is wanted where holdings are unsafe and deals not held, among those with a trade; sold by the idle skilled in violence", () => {

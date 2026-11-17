@@ -121,6 +121,12 @@ export const UNDER = {
   warHalf: 5,
   paxHalf: 25,
   /**
+   * How much of a road's strength must have changed hands since a peace for that peace to be as worn as its years alone would
+   * have it (a fifth; est, no source: a peace divides a rent by what each could take of it, and it is a side grown or shrunk
+   * past what it was dealt, or one that was no party to it, that breaks it).
+   */
+  shifted: 0.2,
+  /**
    * How far a seat that hunts a road's groups cuts their war short: so much off the years it halves in, at the full (est: the
    * second war of Sicily's mafia, ended within three years by the arrests that led to the great trial; Mexico's roads, fought for
    * fifteen years and more where the state's hand does not reach).
@@ -334,6 +340,32 @@ export function newcomersOf(draw: number, target: number): number {
   const beyond = (draw - 1) / (draw + 1),
     coming = clamp01(0.2 + 4 * Math.max(0, target / draw - 1));
   return clamp01(beyond * coming);
+}
+
+/**
+ * How far a road's strength has changed hands between two reckonings of its groups' shares of it (0 … 1; each a list of a group
+ * and its share in thousandths): half of all the shares have moved by, a group in one list alone by its whole share.
+ */
+export function balanceMoved(
+  then: readonly (readonly [number, number])[],
+  now: readonly (readonly [number, number])[],
+): number {
+  let moved = 0;
+  for (const [id, share] of now)
+    moved += Math.abs(share - (then.find((x) => x[0] === id)?.[1] ?? 0));
+  for (const [id, share] of then) if (!now.some((x) => x[0] === id)) moved += share;
+  return clamp01(moved / 2000);
+}
+
+/**
+ * How far a road's peace has worn (0: just made, or nothing changed since; 1: gone): a peace is a rent divided at the strength
+ * each side was found to have, by the war it ended. The years wear it (UNDER.paxHalf: those who made it go, those who come
+ * were not at the war), but only as far as the strength it was made on has moved since (`moved`, balanceMoved, full at
+ * UNDER.shifted): a side grown past its part, one shrunk below what it holds, one that was no party to it. Groups that stand
+ * as they stood have nothing to learn from fighting again.
+ */
+export function peaceWorn(years: number, moved: number): number {
+  return (1 - dmath.pow(0.5, Math.max(0, years) / UNDER.paxHalf)) * clamp01(moved / UNDER.shifted);
 }
 
 /**

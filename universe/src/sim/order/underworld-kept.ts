@@ -83,6 +83,11 @@ export type GangWar = {
   ended: number | null;
   /** Those it killed, all told (heads). */
   fallen: number;
+  /**
+   * What its peace was made on: each of its road's groups and its share of the road's strength (thousandths) when it ended.
+   * None on a war ended by a group's end, or before this was kept: such a peace wears by its years alone.
+   */
+  at?: readonly (readonly [number, number])[];
 };
 
 /** A group whose hold ended: its name and kind, when and how, who took it in, its rise and its end. */
