@@ -9,6 +9,7 @@ import {
   TownBuilder,
   TownStore,
   housingOf,
+  openRuns,
   readStanding,
   Civics,
   Runs,
@@ -44,8 +45,8 @@ function town(
 }
 
 /** What a save read back would tell of it. */
-function readAgain(f: Fabric): { homes: number[]; open: [number, number][] } {
-  const g = { ...f, homes: f.homes.map(() => 0), open: [] as [number, number][] };
+function readAgain(f: Fabric): { homes: number[]; open: number[] } {
+  const g = { ...f, homes: f.homes.map(() => 0), open: [] as number[] };
   readStanding(g);
   return { homes: g.homes, open: g.open };
 }
@@ -124,7 +125,7 @@ test("where its people are gone its burned lots go back to open ground", () => {
   assert.equal(ashes(f), 0);
   assert.equal(f.homes[1], 3600);
   assert.equal(
-    f.open.reduce((n, r) => n + r[1] - r[0], 0),
+    openRuns(f).reduce((n, r) => n + r[1] - r[0], 0),
     400,
   );
   assert.ok(!store.ashen.has(f));
@@ -159,7 +160,7 @@ test("the greatest fire makes flat from the heart out, buildings too, and lies i
       ({ kind, at: lots, lots: 6, start: 10, end: 12, fell: null }) as Civic;
   f.civics.push(civic(40, "market"), civic(900, "market"));
   f.homes[1] = 988;
-  f.open.push([250, 254]);
+  f.open.push(250, 254);
   // (Lots 250 to 254 open: its run does not stand there.)
   f.changes.w(f.changes.slot(0), 2, 250);
   f.changes.push([CHANGE.built, 254, 1000, 10, 10, 1, 0]);

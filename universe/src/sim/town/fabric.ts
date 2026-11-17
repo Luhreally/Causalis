@@ -121,8 +121,12 @@ export type Fabric = {
   next: number;
   /** Homes standing (or rising) at each level. */
   homes: number[];
-  /** Runs of lots taken once and open again (fallen, razed, passed over), lowest first. */
-  open: [number, number][];
+  /**
+   * Runs of lots taken once and open again (fallen, razed, passed over), lowest first: each run's first lot and the lot past its
+   * last, one after the other in one list of numbers (a great town has thousands of runs, a world a million: a pair of its own
+   * each held 72 bytes of the heap where two numbers hold 16).
+   */
+  open: number[];
   /** What it rebuilds to (its heart's level × 8 + its edge's), the lot its rebuilding has come to, and the lots it had when it last came to its edge (-1 while it is going over them). */
   aim: number;
   raise: number;
@@ -616,10 +620,17 @@ export function readStanding(f: Fabric): void {
       continue;
     }
     if (under[i]) continue;
-    const last = f.open.at(-1);
-    if (last && last[1] === from) last[1] = to;
-    else f.open.push([from, to]);
+    const n = f.open.length;
+    if (n && f.open[n - 1] === from) f.open[n - 1] = to;
+    else f.open.push(from, to);
   }
+}
+
+/** A fabric's open runs as pairs, each its first lot and the lot past its last (for what reads them one by one). */
+export function openRuns(f: Fabric): [number, number][] {
+  const out: [number, number][] = [];
+  for (let i = 0; i + 1 < f.open.length; i += 2) out.push([f.open[i]!, f.open[i + 1]!]);
+  return out;
 }
 
 /** Whether runs are in the order of their lots. */
@@ -905,22 +916,25 @@ function dryStretch(seed: number, p: number): number {
  * one taken out or parted moves the last off its place. A cache, never history.)
  */
 export interface Flooded {
-  open: [number, number][];
-  last: [number, number];
+  open: number[];
+  /** (The first lot of the last of them: runs are in the order of their lots, so another in its place begins elsewhere.) */
+  last: number;
   n: number;
 }
 /** Of a town wary of floods, its first open run with a lot a home may take (-1: none). */
 function homeOpen(f: Fabric, seed: number, from: number, kept: Map<Ref, Flooded>): number {
   const was = kept.get(f.town);
-  if (was && was.open === f.open && f.open[was.n - 1] === was.last) from = Math.max(from, was.n);
-  for (let i = from; i < f.open.length; i++) {
-    const [a, b] = f.open[i]!;
-    if (dryStart(seed, a) < b) {
-      if (i > 0) kept.set(f.town, { open: f.open, last: f.open[i - 1]!, n: i });
+  const open = f.open,
+    runs = open.length >> 1;
+  if (was && was.open === open && was.n <= runs && open[2 * (was.n - 1)] === was.last)
+    from = Math.max(from, was.n);
+  for (let i = from; i < runs; i++) {
+    if (dryStart(seed, open[2 * i]!) < open[2 * i + 1]!) {
+      if (i > 0) kept.set(f.town, { open, last: open[2 * (i - 1)]!, n: i });
       return i;
     }
   }
-  if (f.open.length) kept.set(f.town, { open: f.open, last: f.open.at(-1)!, n: f.open.length });
+  if (runs) kept.set(f.town, { open, last: open[2 * (runs - 1)]!, n: runs });
   return -1;
 }
 /** Past so many lots a great town embanks its water and builds over the ground toward it again. */
@@ -1323,10 +1337,10 @@ export class TownBuilder {
 
   /** Take a lot for a home: the lowest open lot, else the next of the plan. */
   takeLot(f: Fabric): number {
-    const run = f.open[0];
-    if (run) {
-      const p = run[0];
-      if (++run[0] >= run[1]) f.open.shift();
+    const open = f.open;
+    if (open.length) {
+      const p = open[0]!;
+      if (++open[0]! >= open[1]!) open.splice(0, 2);
       return p;
     }
     return f.next++;
@@ -1335,18 +1349,24 @@ export class TownBuilder {
   /** Lots [from, to) open again. */
   release(f: Fabric, from: number, to: number): void {
     if (to <= from) return;
-    f.open.push([from, to]);
+    f.open.push(from, to);
     this.openMerged(f);
   }
 
   /** The open runs in the order of their lots, those that touch made one. */
   private openMerged(f: Fabric): void {
-    f.open.sort((a, b) => a[0] - b[0]);
-    const merged: [number, number][] = [];
-    for (const r of f.open) {
-      const last = merged.at(-1);
-      if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]);
-      else merged.push([r[0], r[1]]);
+    // (By their first lots, in the order they stand where two begin at one lot: as a sort of the pairs kept them.)
+    const open = f.open,
+      order = Array.from({ length: open.length >> 1 }, (_, i) => i).sort(
+        (a, b) => open[2 * a]! - open[2 * b]! || a - b,
+      ),
+      merged: number[] = [];
+    for (const i of order) {
+      const a = open[2 * i]!,
+        b = open[2 * i + 1]!,
+        n = merged.length;
+      if (n && a <= merged[n - 1]!) merged[n - 1] = Math.max(merged[n - 1]!, b);
+      else merged.push(a, b);
     }
     f.open = merged;
   }
@@ -1354,22 +1374,24 @@ export class TownBuilder {
   /** Lots [from, to) taken out of the open runs, for a building to stand on. */
   claim(f: Fabric, from: number, to: number): void {
     // (The open runs are in the order of their lots: only those over the stretch are gone over.)
-    const open = f.open;
+    const open = f.open,
+      runs = open.length >> 1;
     let lo = 0,
-      hi = open.length;
+      hi = runs;
     while (lo < hi) {
       const mid = (lo + hi) >> 1;
-      if (open[mid]![1] <= from) lo = mid + 1;
+      if (open[2 * mid + 1]! <= from) lo = mid + 1;
       else hi = mid;
     }
     let j = lo;
-    const keep: [number, number][] = [];
-    for (; j < open.length && open[j]![0] < to; j++) {
-      const [a, b] = open[j]!;
-      if (a < from) keep.push([a, from]);
-      if (b > to) keep.push([to, b]);
+    const keep: number[] = [];
+    for (; j < runs && open[2 * j]! < to; j++) {
+      const a = open[2 * j]!,
+        b = open[2 * j + 1]!;
+      if (a < from) keep.push(a, from);
+      if (b > to) keep.push(to, b);
     }
-    if (j > lo || keep.length) open.splice(lo, j - lo, ...keep);
+    if (j > lo || keep.length) open.splice(2 * lo, 2 * (j - lo), ...keep);
     if (to > f.next) {
       this.release(f, f.next, from);
       f.next = to;
@@ -1465,10 +1487,10 @@ export class TownBuilder {
       if (dry && usable < 0)
         while (floodGround(seed, Math.floor(f.next / 8))) {
           const from = f.next,
-            last = f.open.at(-1);
+            last = f.open.length - 1;
           f.next = (Math.floor(from / 8) + 1) * 8;
-          if (last && last[1] === from) last[1] = f.next;
-          else f.open.push([from, f.next]);
+          if (last > 0 && f.open[last] === from) f.open[last] = f.next;
+          else f.open.push(from, f.next);
         }
       // (Past its open lots and its lots of last year, every new home is of its edge's level: all
       // of them at once, a great town raising thousands of lots in a year: Phase 66.)
@@ -1492,9 +1514,11 @@ export class TownBuilder {
       }
       // (An open run's lots of one level taken together, as many as the year's hands and its room take, as the
       // lowest open lot one at a time would take them: a great town raises tens of thousands of homes a year.)
-      const open = usable >= 0 ? f.open[usable]! : undefined,
-        p = open ? (dry ? dryStart(seed, open[0]) : open[0]) : f.next,
-        stop = open ? (dry ? Math.min(open[1], dryStretch(seed, p)) : open[1]) : 0,
+      const open = usable >= 0,
+        o0 = open ? f.open[2 * usable]! : 0,
+        o1 = open ? f.open[2 * usable + 1]! : 0,
+        p = open ? (dry ? dryStart(seed, o0) : o0) : f.next,
+        stop = open ? (dry ? Math.min(o1, dryStretch(seed, p)) : o1) : 0,
         to = lotLevel(p, n, top, edge),
         hold = HOLDS[to]!,
         k = Math.min(
@@ -1503,10 +1527,10 @@ export class TownBuilder {
         );
       if (open) {
         // (Taken from its first open lot, or, wary of floods, from past the ground toward its water within it.)
-        if (p > open[0]) {
-          if (p + k < open[1]) f.open.splice(usable + 1, 0, [p + k, open[1]]);
-          open[1] = p;
-        } else if ((open[0] += k) >= open[1]) f.open.splice(usable, 1);
+        if (p > o0) {
+          if (p + k < o1) f.open.splice(2 * usable + 2, 0, p + k, o1);
+          f.open[2 * usable + 1] = p;
+        } else if ((f.open[2 * usable] = o0 + k) >= o1) f.open.splice(2 * usable, 2);
       } else f.next += k;
       if (run >= 0 && (p !== at + 1 || to !== level)) {
         this.change(f, CHANGE.built, run, at + 1, level, design);
@@ -1790,7 +1814,7 @@ export class TownBuilder {
     }
     R.become(out);
     if (opened.length) {
-      for (const r of opened) f.open.push(r);
+      for (const r of opened) f.open.push(r[0], r[1]);
       this.openMerged(f);
     }
     if (!hasBurned(R)) this.store.ashen.delete(f);
@@ -1966,8 +1990,9 @@ export class TownBuilder {
       ofQuarter = (p: number) => quarterOf(seed, Math.floor(p / 8)) === q;
     // (Open ground of its quarter first: what fell or was passed over, the nearest the square. A few dozen runs at most.)
     const open = f.open;
-    for (let i = 0; i < Math.min(open.length, 32); i++) {
-      const [a, b] = open[i]!;
+    for (let i = 0; i < Math.min(open.length >> 1, 32); i++) {
+      const a = open[2 * i]!,
+        b = open[2 * i + 1]!;
       for (let p = aligned(a, lots); p + lots <= b && p - a < 64; p += lots)
         if (ofQuarter(p) && Math.floor(p / 8) === Math.floor((p + lots - 1) / 8)) return p;
     }

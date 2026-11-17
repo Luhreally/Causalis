@@ -3,7 +3,7 @@ import { gzipSync } from "node:zlib";
 import { YEAR, saveWorld, seedFromText } from "../src/kernel/index.ts";
 import { EARTH } from "../src/host/planet.ts";
 import { HOME_LEVELS } from "../src/rules/index.ts";
-import { homesOf, housingOf, populationContext, townsOf } from "../src/sim/index.ts";
+import { homesOf, housingOf, openRuns, populationContext, townsOf } from "../src/sim/index.ts";
 
 const seed = process.argv[2] ?? "juniper",
   years = (process.argv[3] ?? "50,100,200,300").split(",").map(Number);
@@ -45,7 +45,7 @@ for (const y of years) {
     maxChanges = Math.max(maxChanges, f.changes.length);
     homes += homesOf(f);
     f.homes.forEach((n, l) => (levels[l]! += n));
-    for (const r of f.open) open += r[1] - r[0];
+    for (const r of openRuns(f)) open += r[1] - r[0];
     if (f.walls) walls++;
     if (f.forsaken) forsaken++;
     for (const c of f.civics)

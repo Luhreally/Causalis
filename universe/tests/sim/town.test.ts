@@ -29,6 +29,7 @@ import {
   townsOf,
   Civics,
   Runs,
+  openRuns,
   type Change,
   type Civic,
   type Fabric,
@@ -97,7 +98,7 @@ function consistent(f: Fabric, what = ""): void {
       runs[i]![1] >= runs[i - 1]![2],
       `${what}: runs ${runs[i - 1]} and ${runs[i]} share a lot, or are out of order`,
     );
-  for (const [a, b] of f.open)
+  for (const [a, b] of openRuns(f))
     for (let p = a; p < b; p++) {
       assert.equal(levels[p], -1, `${what}: open lot ${p} is empty`);
       assert.ok(!civic.has(p) && p < f.next, `${what}: open lot ${p} is the town's and free`);
@@ -190,14 +191,14 @@ test("homes fall from the edge after lean years, and the fallen lots are built a
   assert.ok(fell.length >= 1);
   for (const c of fell) assert.ok(c[1] > standing.at(-1)!, "it fell from its edge inward");
   // Their ruins weather away: in sixty years the fallen runs are let go, the lots still open.
-  const open = f.open.reduce((n, [a, b]) => n + b - a, 0);
+  const open = openRuns(f).reduce((n, [a, b]) => n + b - a, 0);
   for (let y = 60; y < 60 + RUIN_YEARS; y++) year(ctx, f, y, 300, LEVEL.house);
   assert.ok(
     f.changes.filter((c) => c[0] === CHANGE.fell && c[4] < 60).length === 0,
     "weathered away",
   );
   assert.equal(
-    f.open.reduce((n, [a, b]) => n + b - a, 0),
+    openRuns(f).reduce((n, [a, b]) => n + b - a, 0),
     open,
   );
   consistent(f, "weathered");
@@ -277,7 +278,7 @@ test("a building among a town's homes does not part their runs once settled, and
   assert.equal(f.civics.get(0)!.fell, 30, "it fell");
   assert.deepEqual([...levelsOf(f, edge, edge + 2)], [-1, -1], "its lots empty");
   assert.ok(
-    f.open.some(([a, z]) => a <= edge && z >= edge + 2),
+    openRuns(f).some(([a, z]) => a <= edge && z >= edge + 2),
     "its lots open",
   );
   consistent(f, "fallen");
