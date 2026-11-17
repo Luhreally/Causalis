@@ -253,8 +253,11 @@ test("a river risen drowns a river land's fields, and those downriver; a dry lan
       .find((p) => p.total() > 0 && !g.water.river[p.cell] && !g.water.lake[p.cell]);
   const act = w.submit("act.flood", { cell: river.cell });
   w.runTo(AT + 1);
-  const e = w.events.all().find((x) => x.type === DISASTER_EVENTS.flood.type)!;
-  assert.equal(e.causes[0]!.ref, act.id);
+  // (The world's own floods are told the same way: the one the act raised.)
+  const e = w.events
+    .all()
+    .find((x) => x.type === DISASTER_EVENTS.flood.type && x.causes[0]?.ref === act.id);
+  assert.ok(e, "a flood raised by the act");
   const drowned = actsOf(w)
     .all()
     .filter((a) => a.event === e.id);

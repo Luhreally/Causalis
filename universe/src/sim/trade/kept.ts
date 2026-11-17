@@ -25,6 +25,8 @@ export const CY = {
   /** What its households bought of others' work by what they earned, and its usual (grain's worth at the wares' worth). */
   spent: 11,
   usualSpent: 12,
+  /** Its usual idle hands (thousandths, a faded mean as `usual`): what its people have grown used to. */
+  usualSlack: 13,
 } as const;
 /** 2. A realm's exchange: its listed works' worth in years of earnings (hundredths), their earnings (grain's worth a year), holders'
  * hopes of growth and the long run's (ten-thousandths a year, signed), what holders ask (ten-thousandths), how far worth is bid past
@@ -109,7 +111,7 @@ export const DM = {
 } as const;
 
 export const TRADE_STORES: readonly (readonly [string, number])[] = [
-  [CYCLE_STORE, 13],
+  [CYCLE_STORE, 14],
   [EXCHANGE_STORE, 10],
   [CAPITAL_STORE, 7],
   [PLAN_STORE, 8],
@@ -129,6 +131,16 @@ export function tradeStore(world: World, name: string): RowStore | null {
 /** A realm's idle crafts this year (0 … rules CYCLE.most). */
 export function idleOf(world: World, realm: string | null | undefined): number {
   return realm ? (tradeStore(world, CYCLE_STORE)?.at(realm, CY.slack) ?? 0) / 1000 : 0;
+}
+
+/** Of what idle hands breed of grievance (a share idle), what chafes: idleness past what its people are used to, and a part of the rest. */
+export const IDLE_CUSTOM = 0.3;
+export function idleChafesOf(world: World, realm: string | null | undefined): number {
+  const row = realm ? tradeStore(world, CYCLE_STORE)?.get(realm) : undefined;
+  if (!row) return 0;
+  const slack = row[CY.slack]! / 1000,
+    usual = (row[CY.usualSlack] ?? row[CY.slack]!) / 1000;
+  return IDLE_CUSTOM * slack + (1 - IDLE_CUSTOM) * Math.max(0, slack - usual);
 }
 
 /** The share of what a land's crafts would make that they make, for idle hands, a plan's errors and lost effort, and smoke cut. */

@@ -11,7 +11,7 @@
 // grow old and die; their successions follow the realm's rule, and sometimes
 // break it. Every step is a decision whose factors cite what drove it.
 import { inflationOf, intoxDependent, taxGrievance } from "../money/kept.ts";
-import { idleOf } from "../trade/kept.ts";
+import { idleChafesOf } from "../trade/kept.ts";
 import { feastReliefOf } from "../society/kept.ts";
 import { bearerOddsOf } from "../society/kept.ts";
 import { streetGrievanceOf } from "../society/kept.ts";
@@ -640,7 +640,7 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
     const taxed = taxGrievance(world, p.ref),
       dearer = Math.max(0, inflationOf(world, p.ref)),
       // (Hands idle for want of buyers: sim/trade, p87.)
-      idle = idleOf(world, p.ref);
+      idle = idleChafesOf(world, p.ref);
     const seatMarket = markets.of(p.seat),
       seatWays = culture.get(p.seat)!,
       steps = reach(ctx, p),
