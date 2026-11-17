@@ -20,6 +20,8 @@ export const FLOOD = {
   /** Of a floodplain's harvest, the share a flood of its usual greatness drowns (est), and the most. */
   fields: 0.35,
   fieldsMost: 0.9,
+  /** Of a land's harvest, the share grown on its river's plain, which is what a flood can drown (est: two fifths, its best ground). */
+  onPlain: 0.4,
   /** Of its people, the share it drowns at its usual greatness (est: most see it come), and of its stores, the share wetted. */
   dead: 0.0005,
   deadMost: 0.02,

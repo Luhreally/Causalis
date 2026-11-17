@@ -198,7 +198,9 @@ function ownPlant(
       crop: grass,
       seed: s.seed,
       strain: {
-        warm: s.warm,
+        // (The stand that grows wild on this land is this land's own: fitted to its warmth as to its days. Read at its kind's
+        // middling warmth, a land at the edge of its grass's range sowed its own at half what its fields "always gave".)
+        warm: f.warm,
         lat: f.lat,
         tolerance: s.tolerance,
         rainMin: s.rainMin,
@@ -275,7 +277,11 @@ function firstCrop(ctx: PopulationContext, store: CropStore, p: Province, year: 
         best = l;
       }
     }
-  if (best)
+  // (A neighbour's crop only where it gives more here than this land's own wild plant sown afresh: no one sows a stranger's
+  // seed that yields a fifth of their own. Taken whatever it gave, new sowers starved in their first years: of first light's
+  // famines to 200, 672 had no drought and a crop giving a median two fifths.)
+  const fresh = landOf(cell, own.crop, own.seed, own.strain, 0, cell, year, own.seed);
+  if (best && most > worthOn(fresh, f, Math.round(100 * own.seed)).gives)
     return {
       ...best,
       cell,
@@ -284,7 +290,7 @@ function firstCrop(ctx: PopulationContext, store: CropStore, p: Province, year: 
       tamed: null,
       came: null,
     };
-  return landOf(cell, own.crop, own.seed, own.strain, 0, cell, year, own.seed);
+  return fresh;
 }
 
 /** A land's crop over `years`: tamer, fitted closer to its land, and the best crop it meets taken up. */

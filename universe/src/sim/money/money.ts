@@ -30,6 +30,7 @@ import {
   ORGANISE,
   SHOP,
   TAX_BASES,
+  TERMS,
   TREASURY,
   WIND_MS,
   bindPull,
@@ -878,6 +879,7 @@ export function treasuryYear(ctx: PopulationContext, t: SimTime): void {
     coin = moneyStore(world, COIN_STORE),
     duties = moneyStore(world, TARIFF_STORE),
     shares = moneyStore(world, SHARES_STORE),
+    realms = politiesOf(world),
     appetite = ctx.life.appetite;
   for (const p of politiesOf(world).living()) {
     const r = readRealm(ctx, p);
@@ -931,7 +933,17 @@ export function treasuryYear(ctx: PopulationContext, t: SimTime): void {
       // people: on first light its arms were three times its tithe by 700 and five times its takings' growth, its lands taxed
       // for it broke away, and 311 realms stood at 1,000 where 106 had.)
       { fielded, standing } = armsKept(ctx, p),
-      underArms = warsOf(world).fighting(p.ref).length > 0 ? fielded : standing,
+      // (At war it keeps under arms what its wars ask: no more than TERMS.sends times its foes' whole hosts, as the war's own
+      // reckoning counts it (sim/war/bonds.ts warCosts). A great realm does not pay its every man a year under arms to take one
+      // small land: counted so, arms were a fifth of all first light's people earned at 1000, an eighth before the sweep.)
+      fights = warsOf(world).fighting(p.ref),
+      foesField = fights.reduce((n, w) => {
+        const q = realms.get(w.attacker === p.ref ? w.defender : w.attacker);
+        return n + (q ? armsKept(ctx, q).fielded : 0);
+      }, 0),
+      underArms = fights.length
+        ? Math.max(standing, Math.min(fielded, TERMS.sends * foesField))
+        : standing,
       arms =
         12 *
           appetite *

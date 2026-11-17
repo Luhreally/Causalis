@@ -110,6 +110,15 @@ export function floodYield(world: World, cell: number): number {
   return k;
 }
 
+/** The flood whose drowned fields a land still goes short by (null where none). */
+export function floodBehind(world: World, cell: number): Ref | null {
+  const store = floodsOf(world);
+  if (!store || floodYield(world, cell) >= 1) return null;
+  for (let i = store.floods.length - 1; i >= 0; i--)
+    if (store.floods[i]!.cell === cell) return store.floods[i]!.event;
+  return null;
+}
+
 /** The year's floods (106.planet.floods, as the year's rain is known). */
 export function floodsYear(ctx: PopulationContext, t: SimTime): void {
   const store = floodsOf(ctx.world);
@@ -128,7 +137,9 @@ export function floodsYear(ctx: PopulationContext, t: SimTime): void {
       spared = lessened(world, cellRef(0, cell), "flood", year),
       dead = deathsIn(ctx, cell, Math.round(p.total() * harm.dead * spared), t);
     spill(ctx, cell, harm.stores);
-    store.drowned.push([cell, t + YEAR, Math.round(1000 * harm.fields)]);
+    // (Of the fields on its plain: a land's harvest is not all grown beside its river. Counted of all of it, a great flood left a
+    // tenth of a land's year, and half first light's late famines without a drought stood in a flood's year.)
+    store.drowned.push([cell, t + YEAR, Math.round(1000 * harm.fields * FLOOD.onPlain)]);
     const ground = groundOf(world)?.get(cell);
     if (ground) {
       ground.silt = Math.round(ground.silt + 1e6 * harm.silt);
@@ -146,7 +157,7 @@ export function floodsYear(ctx: PopulationContext, t: SimTime): void {
         dead,
         lands: 1,
         size: Math.round(size * 100) / 100,
-        fields: Math.round(harm.fields * 100),
+        fields: Math.round(harm.fields * FLOOD.onPlain * 100),
         rain: p.rain,
       },
     });
@@ -156,7 +167,7 @@ export function floodsYear(ctx: PopulationContext, t: SimTime): void {
       year,
       size: Math.round(size * 100),
       dead,
-      fields: Math.round(1000 * harm.fields),
+      fields: Math.round(1000 * harm.fields * FLOOD.onPlain),
       event,
     });
     if (store.floods.length > FLOODS_KEPT) store.floods.shift();
