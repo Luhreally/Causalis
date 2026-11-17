@@ -53,7 +53,8 @@ export type StreetFilmDeps = {
 };
 
 export type StreetFilm = {
-  play(event: string): Promise<boolean>;
+  /** (`plain`: drawn as the town's war draws its hosts, as where no figure is known for its people.) */
+  play(event: string, plain?: boolean): Promise<boolean>;
   stop(): void;
   /** Whether the town shown is the film's: its war, hour and people are held by it. */
   readonly holds: boolean;
@@ -79,6 +80,9 @@ export type StreetFilm = {
     bier: { x: number; z: number; borne: boolean } | null;
     caught: number;
     cars: number;
+    under: number;
+    acts: Record<string, number>;
+    plain: boolean;
     wounds: number;
     blood: number;
     limbs: number;
@@ -145,15 +149,20 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
   again.title = "From its beginning";
   page.title = "Its page: who, what it cost, and what came of it";
   done.title = "Back to the town as it stands";
-  speeds.setAttribute("role", "group");
-  speeds.setAttribute("aria-label", "Its speed");
-  speeds.append(...speedButtons);
+  void speeds;
   course.append(fill);
   course.setAttribute("role", "slider");
   course.setAttribute("aria-label", "Its course");
   course.title = "Draw it back and forth: any moment of it";
-  bar.append(again, page, done);
-  ui.append(title, where, tally, course, speeds, bar);
+  // (One row: again, its speeds, its page, away. Its words above, two lines of them until they are tapped.)
+  const words = el("button", "street-words");
+  words.title = "All of what is told of it, or two lines";
+  words.onclick = () => ui.classList.toggle("open");
+  words.append(title, where, tally);
+  setText(page, "›");
+  page.setAttribute("aria-label", "Its page");
+  bar.append(again, ...speedButtons, page, done);
+  ui.append(words, course, bar);
   // (A small flag over each side where the eye is, in its colour and the caption's chip's.)
   const flags = [0, 1].map(() => {
     const flag = el("div", "street-flag");
@@ -211,7 +220,7 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
     rig.halt();
   };
 
-  const play = async (event: string): Promise<boolean> => {
+  const play = async (event: string, plain = false): Promise<boolean> => {
     const f = await client
       .query<StreetFight | null>({ type: "underworld.fight", args: { event } })
       .catch(() => null);
@@ -263,7 +272,7 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
     scene = streetAt(script, slots, 0);
     shown = scene;
     village.warSceneOverride = () => shown;
-    battle = streetBattle(f, script);
+    battle = plain ? null : streetBattle(f, script);
     if (battle)
       village.placeBattle({
         field: battle.field,
@@ -384,7 +393,14 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
     if (eye && key !== eyeKey && !rig.steering) {
       eyeKey = key;
       const v = streetView(p, eye.at, EYE_DISTANCE / VILLAGE_METRE),
-        near = innerHeight > innerWidth ? 9 : 0;
+        // (Its place brought up into the screen left free above its caption: the eye's mark so much nearer itself as half the
+        // caption's share of the eye's field, at this height.)
+        cam = d.stage.camera.camera,
+        fov = ((cam?.fov ?? 45) * Math.PI) / 180,
+        covered = ui.getBoundingClientRect().height / Math.max(1, innerHeight),
+        near =
+          ((EYE_DISTANCE / VILLAGE_METRE) * Math.tan((fov * covered) / 2)) /
+          Math.max(0.3, Math.sin((-v.pitch * Math.PI) / 180));
       rig.flyTo(
         {
           // (On a tall screen its caption stands over the lower third: the place looked at brought up the screen, the eye's mark a little nearer itself.)
@@ -471,7 +487,8 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
           ? `Year ${fight.year}, late in the day in ${fight.townName}: ${eye.why === "post" ? "soldiers going into its quarter, street by street" : SPOT_WORDS[eye.why]}`
           : `Year ${fight.year}, late in the day in ${fight.townName}. ${fight.words.what}.`,
     );
-    const said = `${a.name}: ${n[0]} fallen|${b.name}: ${n[1]} fallen${fight.others ? `  ·  ${between} caught between` : ""}`;
+    const hurt = drawn?.hurt ? drawn.hurt[0] + drawn.hurt[1] : 0,
+      said = `${a.name}: ${n[0]} fallen|${b.name}: ${n[1]} fallen${fight.others ? `  ·  ${between} caught between` : ""}${hurt ? "  ·  the wounded are shown, not told" : ""}`;
     if (tally.dataset.said !== said) {
       tally.dataset.said = said;
       const [first, second] = said.split("|"),
@@ -484,6 +501,7 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
     }
     // Its flags: over each side's men at the place the eye is on, while they stand there.
     const box = ui.getBoundingClientRect();
+    let first: { x: number; y: number } | null = null;
     flags.forEach((flag, side) => {
       let x = 0,
         z = 0,
@@ -507,7 +525,12 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
       }
       flag.hidden = false;
       flag.style.background = rgb(fight!.sides[side]!.color);
-      flag.style.transform = `translate(${Math.round(at.x - 9)}px, ${Math.round(at.y - 34)}px)`;
+      // (Never one flag over the other: the second stood clear above the first where they would meet.)
+      let y = at.y - 34;
+      if (side === 1 && first && Math.abs(first.x - at.x) < 26 && Math.abs(first.y - y) < 18)
+        y = first.y - 18;
+      if (side === 0) first = { x: at.x, y };
+      flag.style.transform = `translate(${Math.round(at.x - 9)}px, ${Math.round(y)}px)`;
     });
   });
 
@@ -555,10 +578,36 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
         bier: village.graveyardShown()?.bier ?? null,
         caught,
         cars: scene?.cars?.length ?? 0,
+        under: (() => {
+          const eye = script ? streetEye(script, s) : null,
+            top = ui.getBoundingClientRect().top;
+          if (!eye || !scene) return 0;
+          let n = 0;
+          for (const q of scene.soldiers) {
+            if (q.size < 0.5 || Math.hypot(q.x - eye.at.x, q.z - eye.at.z) > 9) continue;
+            const at = village.screenOf(q.x, q.z, 0);
+            if (at && at.y > top) n++;
+          }
+          return n;
+        })(),
+        acts: (() => {
+          const o: Record<string, number> = {};
+          for (const t of drawn?.troopers ?? [])
+            if (t.size > 0.5 && t.hit !== undefined) {
+              const key = t.crawl ? "crawl" : t.act;
+              o[key] = (o[key] ?? 0) + 1;
+            }
+          return o;
+        })(),
+        plain: !battle,
         wounds: drawn?.wounds?.length ?? 0,
         blood: drawn?.blood.length ?? 0,
         limbs: drawn?.limbs?.length ?? 0,
-        lying: drawn?.troopers.filter((t) => t.act === "fall" && t.size > 0.5).length ?? 0,
+        lying:
+          drawn?.troopers.filter(
+            (t) =>
+              t.act === "fall" && t.size > 0.5 && !battle?.blows.hits[battle.blows.of[t.id]!]?.back,
+          ).length ?? 0,
         lamps: scene?.camp.length ?? 0,
         paused: speed === 0,
         speed: BATTLE_SPEEDS[speed] ?? 0,

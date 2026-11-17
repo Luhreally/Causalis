@@ -457,6 +457,8 @@ export type BattleField = {
    * sight there (absent: the close field).
    */
   readonly placed?: true;
+  /** Its armour worn in each side's own colour, so no figure of it reads as bare metal (a fight in the streets: 2026-11-17). */
+  readonly bands?: true;
 };
 
 /**

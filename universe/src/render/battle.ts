@@ -693,7 +693,14 @@ export class BattleLayer {
           : paint.folk
             ? [...paint.tones.slice(0, 5), c]
             : [c, darker(c, 0.55), paint.tones[2], paint.tones[3], paint.tones[4], c],
-        metal = s.arms?.field[1] ?? [0.92, 0.93, 0.96];
+        metal = s.arms?.field[1] ?? [0.92, 0.93, 0.96],
+        // (Armour in its side's colour where the field asks it: more of the colour than of the metal.)
+        guardTone = (): Rgb => {
+          const m = armorColor(s.host?.guard ?? "", s.kit);
+          return field.bands
+            ? [m[0] * 0.3 + c[0] * 0.85, m[1] * 0.3 + c[1] * 0.85, m[2] * 0.3 + c[2] * 0.85]
+            : m;
+        };
       return {
         // (Room past the figures for the parts cut off them, lying apart: Phase 55.)
         parts: (f?.parts ?? []).map(
@@ -702,7 +709,7 @@ export class BattleLayer {
               this.stage,
               this.shapes[p.shape],
               this.rig!.masks[i]! & placeBit("trunk") && armorPanels(s.host?.guard ?? "").length
-                ? armorColor(s.host!.guard, s.kit)
+                ? guardTone()
                 : tones[p.tone]!,
               MOST + SEVER.most,
               this.root,
@@ -711,13 +718,7 @@ export class BattleLayer {
         shields: new InstancedBatch(this.stage, this.box, shieldOf(s.kit, c), MOST, this.root),
         flags: new InstancedBatch(this.stage, this.box, c, 32, this.root),
         stripes: new InstancedBatch(this.stage, this.box, metal as Rgb, 32, this.root),
-        armor: new InstancedBatch(
-          this.stage,
-          this.box,
-          armorColor(s.host?.guard ?? "", s.kit),
-          MOST * 6,
-          this.root,
-        ),
+        armor: new InstancedBatch(this.stage, this.box, guardTone(), MOST * 6, this.root),
         helmet: new InstancedBatch(
           this.stage,
           this.cone,

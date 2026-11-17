@@ -412,7 +412,7 @@ test("no two of them in one place, and none in a wall, a stall or a stone: every
               d = Math.hypot(a.x - b.x, a.z - b.z);
             nearest = Math.min(nearest, d);
             assert.ok(
-              d >= 2 * BODY - 0.08,
+              d >= (a.doing === "fallen" || b.doing === "fallen" ? BODY : 2 * BODY) - 0.08,
               `${f.kind} at ${t}s: ${a.doing} and ${b.doing} ${d.toFixed(2)} m apart`,
             );
           }
@@ -447,8 +447,28 @@ test("struck and bleeding as a battle's men are: every one who falls struck wher
     const b = streetBattle(f, script)!,
       k = b.frame.scale;
     // (One blow for each who falls, in the order they fall, where the script has him.)
-    assert.equal(b.blows.hits.length, script.falls[0] + script.falls[1]);
-    for (const h of b.blows.hits) {
+    assert.equal(b.blows.hits.filter((h) => !h.back).length, script.falls[0] + script.falls[1]);
+    // (And its wounded who lived, shown and not told: some, never more than a third of those of a side still standing; each
+    // struck where he fights, while he fights, and gone back the way he came, no further than nine metres.)
+    const hurt = b.blows.hits.filter((h) => h.back);
+    assert.ok(
+      hurt.length > 0 && b.wounded[0] + b.wounded[1] === hurt.length,
+      `${hurt.length} wounded`,
+    );
+    for (const i of [0, 1] as const)
+      assert.ok(b.wounded[i] <= (script.drawn[i] - script.falls[i]) / 3);
+    for (const h of hurt) {
+      const g = script.figures[h.id]!,
+        at = g.meet ?? g.path[g.path.length - 1]!;
+      assert.equal(g.falls, null);
+      assert.ok(g.fight && h.at > g.fight[0] && h.at < g.fight[1], `struck at ${h.at}`);
+      assert.ok(Math.hypot(h.x * k - at.x, h.z * k - at.z) < 1e-6);
+      assert.ok(h.back!.far * k <= 9.01 && h.back!.helper === -1);
+    }
+    for (let i = 1; i < b.blows.hits.length; i++)
+      assert.ok(b.blows.hits[i]!.at >= b.blows.hits[i - 1]!.at, "in the order they land");
+    b.blows.hits.forEach((h, i) => assert.equal(b.blows.of[h.id], i));
+    for (const h of b.blows.hits.filter((x) => !x.back)) {
       const g = script.figures[h.id]!,
         at = g.meet ?? g.path[g.path.length - 1]!;
       assert.equal(h.at, g.falls);
@@ -470,8 +490,31 @@ test("struck and bleeding as a battle's men are: every one who falls struck wher
       bare = at(script.end, "none");
     // (At the end as many lie as history's dead at the scene's scale, each with his wound; blood under them.)
     assert.deepEqual(full.fallen, [...script.falls]);
-    assert.equal(full.troopers.filter((t) => t.act === "fall" && t.size > 0.5).length, 6 + 23);
+    assert.equal(
+      full.troopers.filter(
+        (t) => t.act === "fall" && t.size > 0.5 && !b.blows.hits[b.blows.of[t.id]!]?.back,
+      ).length,
+      6 + 23,
+    );
     assert.ok((full.wounds?.length ?? 0) >= 6 + 23, `${full.wounds?.length} wounds`);
+    // (The wounded on their way: staggering, kneeling, limping, crawling or sat down at some moment, each near where he fought.)
+    const acts = new Set<string>();
+    for (let t = 0; t <= script.end; t += 0.25)
+      for (const tr of at(t, "full").troopers) {
+        if (tr.hit === undefined || tr.act === "fall" || tr.size < 0.5) continue;
+        acts.add(tr.crawl ? "crawl" : tr.act);
+        const g = script.figures[tr.id]!,
+          home = g.meet ?? g.path[g.path.length - 1]!;
+        assert.ok(
+          Math.hypot(tr.x * k - home.x, tr.z * k - home.z) < 12,
+          `${tr.act} far from his place`,
+        );
+      }
+    assert.ok(acts.has("stagger"), `acts seen: ${[...acts].join(", ")}`);
+    assert.ok(
+      [...acts].some((x) => ["limp", "crawl", "kneel", "sit"].includes(x)),
+      [...acts].join(", "),
+    );
     assert.ok(full.blood.length > 0);
     // (Less: wounds, nothing cut off; none: neither wounds nor blood.)
     assert.equal(less.limbs?.length ?? 0, 0);
@@ -482,6 +525,21 @@ test("struck and bleeding as a battle's men are: every one who falls struck wher
     for (const t of full.troopers)
       if (t.size > 0.5)
         assert.ok(Number.isFinite(t.x) && Number.isFinite(t.z) && Math.hypot(t.x, t.z) * k < 2000);
+  } finally {
+    w.restore();
+  }
+});
+
+test("a people with no figure known: no battle's field is made of it, and the town's own drawing has every man", () => {
+  const w = written();
+  try {
+    const plan = villagePlan(world, w.town as Ref, undefined, 120),
+      { figure: _figure, ...bare } = streetFightOf(world, w.start)!,
+      script = streetScript(bare, plan, 56);
+    void _figure;
+    assert.equal(streetBattle(bare, script), null);
+    const end = streetAt(script, 56, script.end, plan);
+    assert.equal(end.soldiers.filter((q) => q.doing === "fallen").length, 6 + 23);
   } finally {
     w.restore();
   }
