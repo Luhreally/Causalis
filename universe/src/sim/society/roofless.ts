@@ -65,7 +65,8 @@ export function rooflessYear(ctx: PopulationContext, t: SimTime): void {
       was = store.get(c);
     // (Each land in its turn, once in SOCIETY_EVERY years as the sweep's others; every year while it has people turned out,
     // who are housed again a share a year, and in a year a blow fell on it.)
-    if (was && !landTurn(c, year) && !was[ROOF_ROW.displaced] && !struck.get(c)) continue;
+    // (While a twentieth and more of them are: the last few housed again wait for its turn. A blow's own year always.)
+    if (was && !landTurn(c, year) && was[ROOF_ROW.displaced]! < 50 && !struck.get(c)) continue;
     // Its towns: those it has raised a fabric for, and the homes they hold.
     let town = 0,
       housing = 0,
@@ -98,7 +99,10 @@ export function rooflessYear(ctx: PopulationContext, t: SimTime): void {
       // (Those turned out, housed again a share a year, and this year's blows.)
       displaced = Math.min(
         0.9,
-        ((was?.[ROOF_ROW.displaced] ?? 0) / 1000) * (1 - ROOF.rebuilt) + (struck.get(c) ?? 0),
+        // (The last few of them, weighed only in the land's turn, are housed by then.)
+        ((was?.[ROOF_ROW.displaced] ?? 0) >= 50
+          ? ((was?.[ROOF_ROW.displaced] ?? 0) / 1000) * (1 - ROOF.rebuilt)
+          : 0) + (struck.get(c) ?? 0),
       ),
       addicted = ROOF.addicted * intoxDependent(world, c),
       oldRow = olds?.get(c),
