@@ -344,6 +344,28 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
     await closePage();
     await until("the people bar", () => seen(".people-chip"), slow(10000));
   });
+  // One kept on the people bar, with the strip of the god's acts on them; then their page, at its Acts and what could take them now
+  // (asked 2026-11-16).
+  const pinned = await k<string | null>(
+    `(() => { const c = document.querySelector(".people-chip"); const ref = c?.querySelector(".people-open")?.dataset.ref; const name = (c?.querySelector(".people-name")?.textContent ?? "").replace(/^📌 /, ""); if (!ref || !name) return null; if (!globalThis.causalis.barPins.has(ref)) globalThis.causalis.barPins.toggle(ref, name); return ref; })()`,
+  );
+  await state("globe-pinned", async () => {
+    await must("one pinned", !!pinned);
+    await must(
+      "the acts strip",
+      until("the acts strip", () => seen(".people-chip .people-acts:not([hidden])"), slow(10000)),
+    );
+  });
+  await state("person-page", async () => {
+    await must("one pinned", !!pinned);
+    await must("their acts", press(".people-chip .people-acts:not([hidden])"));
+    await must(
+      "their acts on the page",
+      until("their acts on the page", () => seen(".god-acts"), slow(10000)),
+    );
+    await settle(800);
+  });
+  await closePage();
   if (await seen(".bar-fold")) {
     await state("globe-folded", async () => {
       await must("the bar's fold", press(".bar-fold"));

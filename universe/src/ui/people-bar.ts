@@ -362,6 +362,7 @@ export class PeopleBar {
     const mine = p.pinned || p.kind === "followed";
     c.acts.hidden = !mine || p.gone;
     c.box.classList.toggle("acted", !c.acts.hidden);
+    c.box.classList.toggle("kept", p.pinned);
     if (mine && c.alive === true && p.gone) this.onDied(p);
     c.alive = !p.gone;
     put(c.name, `${p.pinned ? "📌 " : ""}${p.name}`);

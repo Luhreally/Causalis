@@ -242,15 +242,32 @@ body.paging #hud > .people-bar,
   padding: 11px 12px;
   text-decoration: none;
 }
-/* The god's acts on one kept or followed (asked 2026-11-16): a strip of its own at the chip's end, a finger's width, beside the ×'s corner. */
+/*
+ * One kept on the bar has its × in a strip of its own at the chip's end, and one kept or followed who lives the god's acts on them
+ * (asked 2026-11-16) in another beside it: each a finger's width and the chip's height, beside the button that opens their page,
+ * never over it.
+ */
+.people-chip.kept,
 .people-chip.acted {
-  width: 234px;
+  width: 236px;
 }
+.people-chip.kept.acted {
+  width: 262px;
+}
+.people-chip.kept .people-open,
 .people-chip.acted .people-open {
   width: calc(100% - 46px);
 }
-.people-chip.acted .people-off {
-  right: 46px;
+.people-chip.kept.acted .people-open {
+  width: calc(100% - 92px);
+}
+.people-chip.kept .people-off {
+  width: 44px;
+  height: 100%;
+  font-size: 1rem;
+}
+.people-chip.kept .people-off::after {
+  content: none;
 }
 .people-acts {
   position: absolute;
@@ -265,6 +282,9 @@ body.paging #hud > .people-bar,
   border: 1px solid var(--line);
   border-radius: 6px;
   box-shadow: 0 2px 6px rgba(0, 0, 18, 0.5);
+}
+.people-chip.kept .people-acts {
+  right: 46px;
 }
 .people-acts[hidden] {
   display: none;
