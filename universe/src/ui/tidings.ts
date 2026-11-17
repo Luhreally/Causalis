@@ -195,6 +195,12 @@ export class Tidings {
     }
   }
 
+  /** A piece of news told from elsewhere (one kept on the people bar who died): as a tiding is. */
+  tell(t: Tiding): void {
+    this.add(t);
+    this.onTold(1);
+  }
+
   private add(t: Tiding): void {
     const card = el("div", "tiding"),
       head = el("div", "tiding-head"),

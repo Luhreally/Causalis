@@ -77,6 +77,7 @@ import { installLocalActs } from "../acts/local.ts";
 import { installPossession } from "../hand/possess.ts";
 import { installLife } from "../hand/life.ts";
 import { installPeopleActs } from "../acts/peoples.ts";
+import { installPersonActs } from "../acts/person.ts";
 import { installDisasters } from "../acts/disasters.ts";
 import { installWild } from "../acts/wild.ts";
 import { installSwitches } from "../acts/switches.ts";
@@ -465,6 +466,7 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installPossession(world, () => populationContext(world));
   installLife(world, () => populationContext(world));
   installPeopleActs(world, () => populationContext(world));
+  installPersonActs(world, () => populationContext(world));
   installDisasters(world, () => populationContext(world));
   installWild(world, () => populationContext(world));
   installSwitches(world);

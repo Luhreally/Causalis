@@ -93,6 +93,32 @@ export type GoneGroup = {
   readonly event: Ref;
 };
 
+/** Soldiers sent against a group: whom, since when, how many, what it has cost, and how it ended. */
+export type Operation = {
+  readonly id: number;
+  /** The group it is against (its id and name, its kind), its lands when it began. */
+  readonly target: number;
+  readonly name: string;
+  readonly kind: number;
+  readonly lands: readonly number[];
+  readonly since: number;
+  /** The event it began by (its page's ref is made of it). */
+  readonly event: Ref;
+  soldiers: number;
+  /** All told: soldiers dead, the group's men taken or killed, others killed, people driven from their homes, grain's worth spent. */
+  fallen: number;
+  taken: number;
+  bystanders: number;
+  displaced: number;
+  spent: number;
+  /** Its bosses taken, its clashes told. */
+  bosses: number;
+  clashes: number;
+  ended: number | null;
+  how?: string;
+  endEvent?: Ref;
+};
+
 /** A realm's underworld. Shares in thousandths; heads whole; grain's worth a year. */
 export type RealmUnderworld = {
   last: number;
@@ -134,6 +160,10 @@ export type RealmUnderworld = {
   feds: Federation[];
   wars: GangWar[];
   gone: GoneGroup[];
+  /** Its soldiers sent against groups (at most ESCALATE.most at once, a few ended remembered); absent in older records. */
+  ops?: Operation[];
+  /** A truce with a group (its id and name, since, until, the event), and the year it came to be known (its standing hit). */
+  truce?: { gid: number; name: string; since: number; until: number; event: Ref; known?: number };
 };
 
 export const UNDERWORLD_STORE = "order.underworld";
@@ -171,6 +201,8 @@ export class UnderworldStore implements StateStore {
       for (const g of v.groups) out.push(g.event);
       for (const f of v.feds) out.push(f.event);
       for (const w of v.wars) out.push(w.event);
+      for (const o of v.ops ?? []) out.push(o.event, ...(o.endEvent ? [o.endEvent] : []));
+      if (v.truce) out.push(v.truce.event);
       for (const g of v.gone) out.push(g.rose, g.event);
       if (v.scandal) out.push(v.scandal.event);
     }
@@ -370,4 +402,12 @@ export function potencyOf(
   return row
     ? { potency: Math.max(1, row[POT_ROW.potency]! / 100), made: row[POT_ROW.made]! / 1000 }
     : { potency: 1, made: 0 };
+}
+
+/** The soldiers a realm keeps in a land against a crime group (0: none sent there), for the Underworld lens. */
+export function soldiersIn(world: World, realm: Ref, cell: number): number {
+  let n = 0;
+  for (const o of underworldOf(world)?.of(realm)?.ops ?? [])
+    if (o.ended === null && o.lands.includes(cell)) n += o.soldiers / Math.max(1, o.lands.length);
+  return Math.round(n);
 }

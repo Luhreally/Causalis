@@ -94,6 +94,7 @@ import {
   newbornSex,
   pairUp,
   traitWeight,
+  type Agent,
   workWeights,
 } from "../hand/hand.ts";
 import { cultureOf, cultureYear } from "../culture/culture.ts";
@@ -137,6 +138,8 @@ import { writtenCut } from "../frontier/written.ts";
 import { siteRegion } from "../space/ground.ts";
 import { starHazard } from "../acts/great.ts";
 import { homeSky, shiftNow, starEnded } from "../planet/motion.ts";
+import { actOn, hazardBy } from "../acts/person.ts";
+import { KILLING, handDeath, type DeathPart } from "../hand/deaths.ts";
 import { capacity, COLS, livable, Province, row, ROWS, type Capacity } from "./model.ts";
 import {
   HistoryStore,
@@ -796,16 +799,12 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
       // (What changes slowly — the cold, clothing, medicine, smoke — as it stands now.)
       // (And those who take too much of what calms, wakes or eases: its share of them a year against a crude death rate of four in a
       // hundred, Round B sim/money/intox.ts.)
-      mortality =
-        pressure *
-        (1 + 0.25 * cold * bare) *
-        healed *
-        smoke *
-        // (And the cold on those of its people on the street: the society sweep, society/roofless.ts. Exactly 1 where none is kept.)
-        rooflessColdOf(world, p.cell) *
-        (1 + 25 * intoxDeaths(world, p.cell)) *
-        // (Less what its mutual-aid societies spare: sim/order/groups.ts. Exactly 1 where none is kept.)
-        (1 - orgSparedOf(world, p.cell)),
+      // (And the cold on those of its people on the street: the society sweep, society/roofless.ts. Exactly 1 where none is kept.)
+      roofless = rooflessColdOf(world, p.cell),
+      intox = 1 + 25 * intoxDeaths(world, p.cell),
+      // (Less what its mutual-aid societies spare: sim/order/groups.ts. Exactly 1 where none is kept.)
+      aided = 1 - orgSparedOf(world, p.cell),
+      mortality = pressure * (1 + 0.25 * cold * bare) * healed * smoke * roofless * intox * aided,
       // (Its frail die the more for those no one keeps: society/care.ts. Exactly as before where none is reckoned.)
       old = oldPressOf(world, p.cell),
       // A band's chance of dying within the months, the same for every one of it (reckoned once).
@@ -889,13 +888,67 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
       for (const a of w.agents) {
         const band = bandOfAge(year - a.birthYear, life),
           blessed = a.blessedUntil !== undefined && year < a.blessedUntil,
-          care = year - a.birthYear < life.adulthood ? careOf(a.mother) * careOf(a.father) : 1;
+          care = year - a.birthYear < life.adulthood ? careOf(a.mother) * careOf(a.father) : 1,
+          // (The god's blessing or curse on them, their striking down: exactly as ever where no act holds, sim/acts/person.ts.)
+          me = `agent:${a.id}`,
+          by = hazardBy(world, me, w.village, year),
+          smite = actOn(world, me, w.village, year, "smite"),
+          draw = world.rng.real(HAND_VITAL, a.id, t, 0),
+          chance = Math.min(1, dyingIn(band) * traitWeight(a, "death") * care * by);
         // (Over the months reckoned: the first month under the hand closes a stretch. What
         // they are like weighs on it: the hardy die the less, the frail the more.)
         if (
-          !blessed &&
-          world.rng.real(HAND_VITAL, a.id, t, 0) <
-            Math.min(1, dyingIn(band) * traitWeight(a, "death") * care)
+          ((!blessed && draw < chance) || smite) &&
+          handDeath(world, {
+            village: w.village,
+            id: a.id,
+            place: p.ref,
+            t,
+            year,
+            age: year - a.birthYear,
+            band,
+            base: life.mortality[band]!,
+            months,
+            draw,
+            chance,
+            smite,
+            // (The parts of the hazard, each the factor it laid, as the rule above made them: told on their page.)
+            hazard: [
+              ...(months === 1
+                ? ([
+                    ["hunger", 1 + 2.5 * ((1000 - p.fed) / 1000), p.lastFamine ?? null],
+                    ["sickness sent", sickness, act?.event ?? null],
+                    [
+                      "a star's light, the sky",
+                      pressure / ((1 + 2.5 * ((1000 - p.fed) / 1000)) * sickness),
+                      null,
+                    ],
+                  ] as DeathPart[])
+                : ([
+                    ["the months' hunger and sickness", pressure, p.lastFamine ?? null],
+                  ] as DeathPart[])),
+              ["cold, poorly clothed", 1 + 0.25 * cold * bare, null],
+              ["the healers' reach", healed, null],
+              ["smoke", smoke, null],
+              ["cold on the street", roofless, null],
+              ["too much taken", intox, null],
+              ["the aid of its societies", aided, null],
+              ["what its diet goes short of", band < 2 ? want.young : want.grown, null],
+              ["the frail no one keeps", old && band >= old.band ? old.press : 1, null],
+              [
+                KILLING,
+                killed > 0 && youngBand(life, band)
+                  ? 1 + killed / Math.max(1e-4, life.mortality[band]!)
+                  : 1,
+                null,
+              ],
+            ],
+            after: [
+              ["what they are like", traitWeight(a, "death"), null],
+              ["a parent's care", care, null],
+              ["the god's hand", by, null],
+            ],
+          })
         ) {
           d.add(row(a.sex, band), a.occupation, -1);
           history.addDeaths(p.cell, year, band, 1);
@@ -947,6 +1000,78 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
     }
     d.commit(p.counts);
   }
+}
+
+/**
+ * The chance one under the hand would die within a month if it were reckoned now, by the parts vitalMonth lays on it: the month's
+ * hunger and sickness as they stand, and the slower parts as vitalMonth reads them. A reading for their page ("At risk now"):
+ * it moves nothing, and a month reckoned later reads the month as it then is.
+ */
+export function handHazardNow(
+  ctx: PopulationContext,
+  cell: number,
+  a: Agent,
+  care: number,
+): {
+  readonly band: number;
+  readonly base: number;
+  readonly hazard: readonly DeathPart[];
+  readonly after: readonly DeathPart[];
+  readonly chance: number;
+} | null {
+  const { world } = ctx,
+    p = ctx.provinces.get(cell);
+  if (!p) return null;
+  const t = world.now,
+    life = ctx.life,
+    year = yearOfMoment(t),
+    markets = marketsOf(world),
+    act = actsOf(world).at(cell, "plague", t),
+    sickness = !act
+      ? 1
+      : act.sign < 0
+        ? actFactor(true, ACT_STRENGTH.plague, act.strength)
+        : actFactor(false, ACT_STRENGTH.healing, act.strength),
+    hunger = 1 + 2.5 * ((1000 - p.fed) / 1000),
+    sky = underStar(ctx, cell) * frontierSky(ctx, cell),
+    cold = dmath.clamp((10 - ctx.generated.climate.temperature[cell]!) / 10, 0, 1),
+    bare = (1 - (markets.get(cell)?.clothingCover ?? 1000) / 1000) * bodyCoat(ctx),
+    band = bandOfAge(year - a.birthYear, life),
+    want = dietDeaths(world, cell),
+    old = oldPressOf(world, cell),
+    killed = youngKilledOf(world, cell) + orgYoungKilledOf(world, cell),
+    by = hazardBy(world, `agent:${a.id}`, handOf(world).over(cell)?.village ?? null, year),
+    hazard: DeathPart[] = [
+      ["hunger", hunger, p.lastFamine ?? null],
+      ["sickness sent", sickness, act?.event ?? null],
+      ["a star's light, the sky", sky, null],
+      ["cold, poorly clothed", 1 + 0.25 * cold * bare, null],
+      ["the healers' reach", healedIn(world, cell), null],
+      ["smoke", 1 + 0.3 * smokeIn(ctx, cell), null],
+      ["cold on the street", rooflessColdOf(world, cell), null],
+      ["too much taken", 1 + 25 * intoxDeaths(world, cell), null],
+      ["the aid of its societies", 1 - orgSparedOf(world, cell), null],
+      ["what its diet goes short of", band < 2 ? want.young : want.grown, null],
+      ["the frail no one keeps", old && band >= old.band ? old.press : 1, null],
+      [
+        KILLING,
+        killed > 0 && youngBand(life, band)
+          ? 1 + killed / Math.max(1e-4, life.mortality[band]!)
+          : 1,
+        null,
+      ],
+    ],
+    after: DeathPart[] = [
+      ["what they are like", traitWeight(a, "death"), null],
+      ["a parent's care", care, null],
+      ["the god's hand", by, null],
+    ],
+    m = hazard.reduce((x, q) => x * q[1], 1),
+    chance = Math.min(
+      1,
+      deathWithin(riskUnder(life.mortality[band]!, m), 1) * after.reduce((x, q) => x * q[1], 1),
+    );
+  return { band, base: life.mortality[band]!, hazard, after, chance };
 }
 
 /**

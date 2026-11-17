@@ -95,6 +95,26 @@ export function agentName(ctx: PopulationContext, a: Agent, v: Settlement): stri
   return `${tonguePersonName(tongue, a.id, a.sex)} of ${v.name}`;
 }
 
+/** What a land could come to know next, as one inspired there comes upon it (undefined: nothing it could). */
+export function nextPrinciple(
+  c: PopulationContext,
+  cell: number,
+): (typeof PRINCIPLES)[number] | undefined {
+  const world = c.world,
+    lore = loreOf(world),
+    means = meansOfWorld(c.generated),
+    reach = reachIn(means, (n) => knows(c, cell, n));
+  return PRINCIPLES.find(
+    (p) =>
+      p.rate > 0 &&
+      affordsPrinciple(p, c.medium, reach, means.wants) &&
+      !lore.get(cell, p.id) &&
+      needsMet(p, (n) => knows(c, cell, n)) &&
+      matterAllows(c.generated, p) &&
+      lawAllows(world, p),
+  );
+}
+
 /** Teach a peopled world the finer acts. */
 export function installLocalActs(world: World, ctx: () => PopulationContext): void {
   const village = (args: unknown): string | null => {
@@ -233,18 +253,8 @@ export function installLocalActs(world: World, ctx: () => PopulationContext): vo
         a = w.agents.find((x) => x.id === id)!,
         lore = loreOf(world),
         year = yearOfMoment(t),
-        means = meansOfWorld(c.generated),
-        reach = reachIn(means, (n) => knows(c, w.cell, n)),
         // What their land could come to know next.
-        next = PRINCIPLES.find(
-          (p) =>
-            p.rate > 0 &&
-            affordsPrinciple(p, c.medium, reach, means.wants) &&
-            !lore.get(w.cell, p.id) &&
-            needsMet(p, (n) => knows(c, w.cell, n)) &&
-            matterAllows(c.generated, p) &&
-            lawAllows(world, p),
-        );
+        next = nextPrinciple(c, w.cell);
       const event = world.events.emit({
         type: LOCAL_ACT_EVENTS.inspireOne.type,
         subjects: [w.village],

@@ -92,6 +92,9 @@ export {
   regionTrees,
   type RegionTree,
   type RegionLens,
+  turfTiles,
+  underworldMarks,
+  underworldMarkPage,
 } from "./region.ts";
 export {
   ACTIVITY,

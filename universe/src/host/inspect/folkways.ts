@@ -35,6 +35,32 @@ import {
   type Polity,
 } from "../../sim/index.ts";
 import { faithLink, realmLink } from "./names.ts";
+import {
+  dayBlock,
+  didYouKnowBlock,
+  festivalsBlock,
+  portraitBlock,
+  timelineBlock,
+  wordsBlock,
+  worksBlocks,
+} from "./theirlife.ts";
+import { customsBlock, musicBlocks, tasteBlock } from "./customs.ts";
+
+/** A realm's people's life, read whole, in its order on its Culture tab (none where nothing is kept of them). */
+export function theirLifeBlocks(world: World, r: Polity): Block[] {
+  return [
+    portraitBlock(world, r),
+    didYouKnowBlock(world, r),
+    dayBlock(world, r),
+    tasteBlock(world, r),
+    ...musicBlocks(world, r),
+    customsBlock(world, r),
+    wordsBlock(world, r),
+    festivalsBlock(world, r),
+    ...worksBlocks(world, r),
+    timelineBlock(world, r),
+  ].filter((b): b is Block => !!b);
+}
 import { count, many, share, stat } from "./words.ts";
 
 /** Who a land's people count their own, what they make, and what its town draws: for its People tab. */
@@ -114,9 +140,12 @@ export function landCultureBlocks(world: World, cell: number): Block[] {
   return blocks;
 }
 
-/** What a realm's seat tells, how far its people count themselves one, and its faith's houses: for its Culture tab. */
+/**
+ * A realm's Culture tab: its people's life read whole (./theirlife.ts, ./customs.ts: a portrait, what is striking about it, a day, how their
+ * food tastes, their music and customs, their words, feasts, works and years), then what its seat tells, how far its people count themselves one, and its faith's houses.
+ */
 export function realmCultureBlocks(world: World, r: Polity): Block[] {
-  const blocks: Block[] = [],
+  const blocks: Block[] = [...theirLifeBlocks(world, r)],
     ctx = populationContext(world),
     v = voiceOf(world, r.ref);
   if (v) {

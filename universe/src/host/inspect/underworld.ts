@@ -47,6 +47,7 @@ import {
 import { groupWords } from "../../causal/index.ts";
 import { fedRef, groupRef } from "../underworld.ts";
 import { townWrong } from "./justice.ts";
+import { landUnderworld } from "./underland.ts";
 import { count, yearNow } from "./words.ts";
 
 /** The lens's six ways, in the order a land's readings hold them. */
@@ -220,6 +221,9 @@ export function underworldCrime(world: World): readonly (readonly [number, numbe
 /** The underworld's queries: every land's crime (the rest come with the map's other lenses, `people.map`). */
 export const UNDERWORLD_QUERIES = {
   "underworld.crime": (world: World) => underworldCrime(world),
+  // (A land's underworld as the land view draws it: host/inspect/underland.ts.)
+  "underworld.land": (world: World, args: unknown) =>
+    landUnderworld(world, (args as { cell: number }).cell),
 };
 
 /** A land under the underworld lens, for the tip under the pointer: its number, its biggest causes, and the page that tells it. */

@@ -8,7 +8,7 @@
 // Who, what, cost and effect: never how any crime is done. Phone first: each table sorts by a tap, its greatest first.
 import type { Ref, World } from "../../kernel/index.ts";
 import type { Block, Row, Span, Stat } from "../../bridge/index.ts";
-import { ORG_AIMS, ORG_KINDS, ORG_STANDING, RACKETS } from "../../rules/index.ts";
+import { GROUP_KINDS, ORG_AIMS, ORG_KINDS, ORG_STANDING, RACKETS } from "../../rules/index.ts";
 import {
   BAR,
   BAR_STORE,
@@ -39,7 +39,7 @@ import {
   type Polity,
 } from "../../sim/index.ts";
 import { grainSum, groupWords, orgWords } from "../../causal/index.ts";
-import { fedRef, groupRef } from "../underworld.ts";
+import { fedRef, groupRef, opRef } from "../underworld.ts";
 import { orgFedRef, orgRef } from "../groups.ts";
 import { houseRef, roseBy } from "../family.ts";
 import { AIM_WORDS } from "./groups.ts";
@@ -368,6 +368,28 @@ export function underworldLedger(world: World, lc: LedgerCtx): Block[] {
       ...listedOf(shown.length, ended.length, "latest ended"),
     );
   }
+  // (Soldiers sent against groups, the world over: those under way.)
+  const sent = lc.standing.flatMap((r) =>
+    (under?.of(r.ref)?.ops ?? []).filter((o) => o.ended === null).map((o) => ({ r, o })),
+  );
+  if (sent.length)
+    blocks.push({
+      type: "list",
+      title: "Soldiers sent against crime groups",
+      items: sent.slice(0, LEDGER_ROWS).map(({ r, o }) => ({
+        line: [
+          realmCell(r),
+          ": ",
+          link(
+            `${count(o.soldiers)} soldiers against ${groupWords(o.name, GROUP_KINDS[o.kind])}`,
+            opRef(r.ref, o.event),
+          ),
+          `, since year ${o.since}: ${count(Math.round(o.fallen))} soldiers dead`,
+        ],
+        ref: opRef(r.ref, o.event),
+        year: o.since,
+      })),
+    });
   return blocks;
 }
 

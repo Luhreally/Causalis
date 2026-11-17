@@ -43,6 +43,7 @@ import { holdsOf } from "../order/holds.ts";
 import { courtClaimant, courtFollows } from "../court/court.ts";
 import { claimAtDeath } from "../war/ties.ts";
 import { heldAmongStars } from "../space/nation-store.ts";
+import { actOn, hazardBy, struckBy } from "../acts/person.ts";
 
 export const POLITY = defineKind("pol", "realm", "minted");
 
@@ -732,7 +733,16 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
   for (const p of store.living()) {
     const age = year - p.ruler.born,
       band = bandOfAge(age, ctx.life);
-    if (!(world.rng.real(RULE, p.seat, t, 20) < ctx.life.mortality[band]!)) continue;
+    // (The god may have blessed or cursed them, or struck them down: exactly as ever where no act holds, sim/acts/person.ts.)
+    const by = hazardBy(world, `rule:${p.ref}`, p.ruler.event, year),
+      smite = actOn(world, `rule:${p.ref}`, p.ruler.event, year, "smite");
+    if (!(world.rng.real(RULE, p.seat, t, 20) < ctx.life.mortality[band]! * by) && !smite) continue;
+    const struck = smite
+      ? struckBy(world, smite, p.ref, ctx.provinces.get(p.seat)!.ref, {
+          realm: realmName(p),
+          age,
+        })
+      : null;
     // Rule by birth passes to kin. At a death a realm's farthest lands may break away
     // together — the likelier the farther they lie from the seat and the more aggrieved
     // they are (rule by birth, fought over by kin, breaks more often).
@@ -759,7 +769,10 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
       // Rule passes within the realm (its founding is why there is a throne to pass): each
       // succession stands on the realm, not on the one before, so a long line of ordinary
       // reigns is not kept whole for ever.
-      causes: [{ ref: p.event, role: "enabler", weight: 1 }],
+      causes: [
+        { ref: p.event, role: "enabler", weight: 1 },
+        ...(struck ? [{ ref: struck, role: "trigger" as const, weight: 1 }] : []),
+      ],
       data: {
         name: realmName(p),
         old: old.name,

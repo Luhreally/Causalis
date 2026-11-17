@@ -3,6 +3,7 @@
 // until people change them — and the page colours them by whichever lens is on.
 import type { SwitchStore } from "../sim/index.ts";
 import {
+  underworldOf,
   brushPreview,
   actsOf,
   agentName,
@@ -61,6 +62,7 @@ import {
   worldLaws,
 } from "../sim/index.ts";
 import {
+  GROUP_KINDS,
   FOODS,
   G,
   GOODS,
@@ -111,6 +113,7 @@ import {
   type World,
 } from "../kernel/index.ts";
 import {
+  groupWords,
   folkRef,
   governmentWords,
   principleName,
@@ -1393,6 +1396,22 @@ function planetUniverse(name: string, prior: Prior): Universe {
               fields,
               host: hostOf(r.ref),
             }));
+        // (Soldiers a seat has sent into a crime group's towns stand there too: escalation, sim/order/underworld.)
+        const under = underworldOf(world);
+        if (under)
+          for (const r of realms.living())
+            for (const o of under.of(r.ref)?.ops ?? [])
+              if (o.ended === null)
+                for (const c of o.lands)
+                  if (spot(c) >= 0)
+                    garrisons.push({
+                      realm: r.ref,
+                      name: `${realmName(r)}, sent against ${groupWords(o.name, GROUP_KINDS[o.kind])}`,
+                      color: realmColor(r.ref),
+                      spot: spot(c),
+                      fields: Math.round(o.soldiers / Math.max(1, o.lands.length)),
+                      host: hostOf(r.ref),
+                    });
         return { year, garrisons, wars, body: peopleFigure(ctx.generated) };
       },
       // A world's beginning, for the genesis (M89): its deep ages, every lineage with the

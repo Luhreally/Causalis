@@ -466,6 +466,9 @@ export class PlanetPanel {
   switchesNow: () => Promise<readonly string[]> = () => Promise.resolve([]);
   onSwitch: (what: string, on: boolean) => Promise<void> = () => Promise.resolve();
   onGore: (g: Gore) => void = () => {};
+  /** What is heard: the whole volume and each part's level (null: no sound on this device), and their setting. */
+  soundNow: () => { volume: number; parts: Record<string, number> } | null = () => null;
+  onSoundLevel: (part: string, v: number) => void = () => {};
   /** Back to the title screen (the world kept first); says how it goes. */
   onMenu: () => Promise<string> = async () => "";
   /** On a world of another star entered: back to the galaxy it was seen from (this world kept first); says how it goes. */
@@ -1493,7 +1496,41 @@ export class PlanetPanel {
       setTimeout(() => void readSpeed(), 3000);
     };
     setTimeout(() => void readSpeed(), 0);
+    // What is heard, each part with its own level (asked 2026-11-16: "the ocean sfx so loud ... give me volume knob for it").
+    const heard = el("div", "sound-levels"),
+      soundNow = this.soundNow();
+    if (!soundNow) heard.append(el("p", "muted", "This device plays no sound here."));
+    else
+      for (const [part, name] of [
+        ["volume", "🔊 All of it"],
+        ["sea", "🌊 The sea"],
+        ["places", "🍃 Wind, rain, crowds and beasts"],
+        ["music", "🎵 Music"],
+        ["effects", "🔔 Cues, arms and blasts"],
+      ] as const) {
+        const row = el("label", "sound-level"),
+          input = document.createElement("input"),
+          at = el("span", "sound-at"),
+          now = part === "volume" ? soundNow.volume : (soundNow.parts[part] ?? 1),
+          say = (v: number) => (at.textContent = `${Math.round(v * 100)}%`);
+        input.type = "range";
+        input.min = "0";
+        input.max = "100";
+        input.step = "5";
+        input.value = `${Math.round(now * 100)}`;
+        input.setAttribute("aria-label", `${name.slice(2).trim()} volume`);
+        input.oninput = () => {
+          const v = Number(input.value) / 100;
+          say(v);
+          this.onSoundLevel(part, v);
+        };
+        say(now);
+        row.append(el("span", "sound-name", name), input, at);
+        heard.append(row);
+      }
     this.facts.replaceChildren(
+      el("h3", undefined, "Sound"),
+      heard,
       el("h3", undefined, "Quality"),
       list,
       rate,

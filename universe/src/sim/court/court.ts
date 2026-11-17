@@ -47,6 +47,7 @@ import { houseOfGroup } from "../order/houses.ts";
 import { channelled, rulerProblem } from "../order/reign.ts";
 import { battlesOf, breakAway, farLands, foil, seize } from "../strife/strife.ts";
 import { bearerOddsOf } from "../society/kept.ts";
+import { actOn, hazardBy, sparedBy, struckBy } from "../acts/person.ts";
 
 export const COURT_EVENTS = {
   /** An heir named by the voices or by a word, not an heir born. */
@@ -705,7 +706,10 @@ function resolve(ctx: PopulationContext, p: Polity, c: Court, plot: Plot, t: Sim
     const old = p.ruler,
       heir = figureOf(c, c.heir),
       // (What it did, not how: they did not live the night, or were put out of the palace door.)
-      dead = world.rng.real(PLOT, keyOf(p.ref), t, 6) < 0.5,
+      drawn = world.rng.real(PLOT, keyOf(p.ref), t, 6) < 0.5,
+      // (One the god protected lives the night: sim/acts/person.ts. Exactly as ever where none is.)
+      kept = drawn ? actOn(world, `rule:${p.ref}`, old.event, year, "protect") : null,
+      dead = drawn && !kept,
       event = world.events.emit({
         type: COURT_EVENTS.seized.type,
         subjects: [p.ref],
@@ -714,6 +718,7 @@ function resolve(ctx: PopulationContext, p: Polity, c: Court, plot: Plot, t: Sim
         data: { realm: realmName(p), fig: f.id, who: f.name, seat: f.seat, old: old.name, dead },
       });
     told(c, event);
+    if (kept) sparedBy(world, kept, p.ref, placeOf(ctx, p), { realm: realmName(p), seized: event });
     if (o) o.legitimacy = clamp(0.02, 0.98, o.legitimacy - COURT.wonCost);
     if (heir && heir !== f) heir.wronged = event;
     p.ruler = { name: f.name, sex: f.sex, born: f.born, since: year, event };
@@ -854,11 +859,28 @@ export function courtYear(ctx: PopulationContext, t: SimTime): void {
     // Those at court die as anyone does: an heir's death is told, and the next is named.
     let heirGone: { who: string; fig: number; age: number } | null = null;
     for (const f of [...c.figures]) {
-      const band = bandOfAge(year - f.born, life);
-      if (!(world.rng.real(DEATH, f.id, t, 0) < life.mortality[band]!)) continue;
+      const band = bandOfAge(year - f.born, life),
+        // (Blessed, cursed or struck down by the god: exactly as ever where no act holds, sim/acts/person.ts.)
+        me = `court:${p.ref}:${f.id}`,
+        smite = actOn(world, me, null, year, "smite");
+      if (
+        !(
+          world.rng.real(DEATH, f.id, t, 0) <
+          life.mortality[band]! * hazardBy(world, me, null, year)
+        ) &&
+        !smite
+      )
+        continue;
       if (f.id === c.heir && c.heirBy !== "voices")
         heirGone = { who: f.name, fig: f.id, age: year - f.born };
-      letGo(c, f, year, "died", null);
+      const struck = smite
+        ? struckBy(world, smite, p.ref, placeOf(ctx, p), {
+            realm: realmName(p),
+            fig: f.id,
+            age: year - f.born,
+          })
+        : null;
+      letGo(c, f, year, "died", struck);
     }
     if (c.plot && c.plot.since < year) resolve(ctx, p, c, c.plot, t);
     if (c.ruler !== p.ruler.event) seatChanged(ctx, p, c, t);
