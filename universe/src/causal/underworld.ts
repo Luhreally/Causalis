@@ -174,3 +174,54 @@ registerDecisionWords(
   POTENCY_EVENTS.made.type,
   (world, x) => `Made forms replaced grown ones in what ${realmOf(world, x.subject)} forbids`,
 );
+
+// (Escalation: soldiers sent against a group, and what came of it.)
+type OpData = {
+  soldiers?: number;
+  dead?: number;
+  fallen?: number;
+  taken?: number;
+  how?: string;
+  why?: string;
+  to?: string;
+};
+const op = (x: unknown) => (x as OpData | null) ?? {};
+registerEventWords(
+  UNDERWORLD_EVENTS.operation.type,
+  (_, e) =>
+    `${cap(realm(e.data))} sent ${op(e.data).soldiers ?? "its"} soldiers against ${group(e.data)}, its police no match for it, ${year(e.t)}`,
+);
+registerEventWords(
+  UNDERWORLD_EVENTS.clash.type,
+  (_, e) =>
+    `Soldiers and the men of ${group(e.data)} fought in ${realm(e.data)}'s towns: some ${op(e.data).dead ?? "few"} dead in the years of raids and clashes, ${op(e.data).soldiers ?? 0} of them soldiers, ${year(e.t)}`,
+);
+registerEventWords(
+  UNDERWORLD_EVENTS.armyTook.type,
+  (_, e) =>
+    `The army took ${d(e.data)?.boss ?? "the boss"}, boss of ${group(e.data)}${(d(e.data)?.successors ?? 1) > 1 ? "; his lieutenants divided what he held, each for himself, and the killing grew" : ""}, ${year(e.t)}`,
+);
+registerEventWords(
+  UNDERWORLD_EVENTS.truce.type,
+  (_, e) =>
+    `${cap(realm(e.data))} made a truce with ${group(e.data)}, after years of fighting that had not broken it: the killing fell, for a while, ${year(e.t)}`,
+);
+registerEventWords(
+  UNDERWORLD_EVENTS.disarmed.type,
+  (_, e) =>
+    `The fighters of ${group(e.data)} laid down their arms on ${realm(e.data)}'s terms, too few now to go on, ${year(e.t)}`,
+);
+registerEventWords(UNDERWORLD_EVENTS.withdrew.type, (_, e) => {
+  const x = op(e.data);
+  return x.how === "bought"
+    ? `${cap(realm(e.data))}'s soldiers were withdrawn from the towns of ${group(e.data)}: its wealth outbid the seat's purse, and its officers were bought, ${year(e.t)}`
+    : `${cap(realm(e.data))} withdrew its soldiers from the towns of ${group(e.data)}${x.why ? `, for ${x.why}` : ""}, ${year(e.t)}`;
+});
+registerDecisionWords(
+  UNDERWORLD_EVENTS.operation.type,
+  (world, x) => `${cap(realmOf(world, x.subject))} weighed sending soldiers against a crime group`,
+);
+registerDecisionWords(
+  UNDERWORLD_EVENTS.disarmed.type,
+  (world, x) => `A crime group of ${realmOf(world, x.subject)} weighed laying down its arms`,
+);

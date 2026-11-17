@@ -34,6 +34,9 @@ import {
   potencyHarm,
   potencyTarget,
   riskPremium,
+  ESCALATE,
+  escalation,
+  fightOdds,
 } from "../../src/rules/index.ts";
 import {
   Hasher,
@@ -71,7 +74,7 @@ import { refNumber } from "../../src/sim/money/kept.ts";
 import { EARTH } from "../../src/host/index.ts";
 import { pageOf } from "../../src/host/inspect/index.ts";
 import { claimOf } from "../../src/host/inspect/words.ts";
-import { fedRef, groupRef } from "../../src/host/underworld.ts";
+import { fedRef, groupRef, opRef } from "../../src/host/underworld.ts";
 import { townUnderworldBlocks } from "../../src/host/inspect/mobs.ts";
 import { universeWorld } from "../host/worlds.ts";
 
@@ -444,4 +447,100 @@ test("each group's means lie within what its realm can make, or a little past wh
     }
   }
   assert.ok(seen > 0, "groups reckoned with their means");
+});
+
+// —— Escalation: soldiers sent against a group ——————————————————————————————————————————————————————————————
+
+test("a seat sends soldiers where a group outmatches its police and kills openly, with a purse and no war abroad; a bought seat makes a pact", () => {
+  const base = {
+    outmatch: 3,
+    match: 2,
+    killings: 0.5,
+    defies: true,
+    afford: 1,
+    atWar: false,
+    legitimacy: 0.5,
+    force: 0.6,
+    corruption: 0.1,
+    paying: 0.1,
+  };
+  const go = escalation(base);
+  assert.ok(go.army > go.leave && go.army > go.pact, JSON.stringify(go));
+  const abroad = escalation({ ...base, atWar: true });
+  assert.ok(abroad.army < abroad.leave, "not with its host at war abroad");
+  const quiet = escalation({ ...base, outmatch: 0.3, killings: 0, defies: false });
+  assert.ok(quiet.army < quiet.leave, "a small quiet group is left be");
+  const bought = escalation({ ...base, corruption: 0.9, paying: 0.8 });
+  assert.ok(bought.pact > bought.army, JSON.stringify(bought));
+  // (More soldiers and better arms take more of its men and lose fewer of their own.)
+  const few = fightOdds(10, 0.3, 100, 0.3),
+    many = fightOdds(300, 0.6, 100, 0.3);
+  assert.ok(many.taken > few.taken && many.lost < few.lost);
+  assert.ok(many.taken <= ESCALATE.takes && few.lost <= ESCALATE.loses);
+});
+
+test("on a forced world soldiers go against groups: each operation with its page, follow and pin, its block, words that never say how, and few events a year", () => {
+  const realms = [...politiesOf(world).living()];
+  for (const p of realms) {
+    const law = societyStore(world, LAW_STORE)!,
+      lr = [...(law.get(p.ref) ?? new Array<number>(13).fill(0))];
+    lr[LAW_ROW.secure] = 100;
+    lr[LAW_ROW.deals] = 100;
+    lr[LAW_ROW.byCourts] = 50;
+    law.set(p.ref, lr);
+    const fisc = moneyStore(world, TREASURY_STORE)!,
+      f = [...(fisc.get(p.ref) ?? new Array<number>(33).fill(0))];
+    f[FISC.base + 1] = 400_000;
+    f[FISC.base + 3] = 200_000;
+    f[FISC.reserve] = 1_000_000;
+    fisc.set(p.ref, f);
+    ban(world, p.ref, 1);
+  }
+  const ctx = populationContext(world),
+    y0 = yearOfMoment(world.now) + 1,
+    years = 20,
+    e0 = world.events.count;
+  for (let y = y0; y < y0 + years; y++) underworldYear(ctx, simTime((y + 1) * YEAR));
+  // (Only news is told: well under one event a realm a year.)
+  let told = 0;
+  for (let i = e0; i < world.events.count; i++)
+    if (world.events.at(i).type.startsWith("underworld.")) told++;
+  assert.ok(told / years / realms.length < 1, `${told} in ${years} years, ${realms.length} realms`);
+  const store = underworldOf(world)!,
+    withOps = store.realmsKept().filter((r) => (store.of(r)?.ops?.length ?? 0) > 0);
+  assert.ok(withOps.length > 0, "some seat sent soldiers");
+  for (const r of withOps.slice(0, 4)) {
+    const v = store.of(r)!;
+    for (const o of v.ops!) {
+      const sent = world.events.get(o.event)!;
+      assert.equal(sent.type, "underworld.operation");
+      assert.ok(o.soldiers >= UNDER.crew && o.fallen >= 0 && o.spent >= 0);
+      const ref = opRef(r, o.event),
+        page = pageOf(world, ref);
+      assert.equal(page.kind, "family");
+      assert.ok(page.followable && page.pin?.ref === ref, page.title);
+      const words = [sent, ...(o.endEvent ? [world.events.get(o.endEvent)!] : [])].map((e) =>
+        claimOf(world, e.id),
+      );
+      for (const w of words) assert.ok(!/how to|recipe|assembl|build a/i.test(w), w);
+      if (o.ended !== null)
+        assert.ok(["truce", "terms", "withdrew", "bought", "crushed"].includes(o.how!), `${o.how}`);
+    }
+    const tab = JSON.stringify(pageOf(world, r).tabs.find((t) => t.id === "underworld"));
+    assert.ok(tab.includes("Operations"), "the realm's Underworld tab has its operations");
+    // (And a town where soldiers were sent says them on its justice page.)
+    const land = v.ops![0]!.lands[0]!,
+      town = ctx.settlements.inProvince(land).find((x) => x.market);
+    if (town && groupsIn(world, land))
+      assert.ok(
+        townUnderworldBlocks(world, town).some(
+          (b) => b.type === "facts" && b.title === "Operations",
+        ),
+        "the town's Operations",
+      );
+  }
+  assert.ok(
+    withOps.flatMap((r) => store.of(r)!.ops!).length <=
+      withOps.length * (ESCALATE.most + ESCALATE.gone),
+  );
 });
