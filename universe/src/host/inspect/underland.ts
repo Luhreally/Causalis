@@ -8,7 +8,7 @@
 // brigands on its roads and pirates off its coast. It reads, it never touches: every number is a store's.
 import type { Ref, World } from "../../kernel/index.ts";
 import type { Block, Item, LandUnderworld, Stat } from "../../bridge/index.ts";
-import { ORG_AIMS, ORG_STANDING, type OrgAim } from "../../rules/index.ts";
+import { GROUP_KINDS, ORG_AIMS, ORG_STANDING, type OrgAim } from "../../rules/index.ts";
 import {
   BAR,
   BAR_STORE,
@@ -32,14 +32,16 @@ import {
   politiesOf,
   populationContext,
   societyStore,
+  soldiersIn,
   underworldOf,
   type CrimeGroup,
+  type Operation,
   type Org,
   type Polity,
 } from "../../sim/index.ts";
 import { groupWords, orgWords } from "../../causal/index.ts";
 import { hueColor, realmHue } from "../colors.ts";
-import { fedRef, groupRef } from "../underworld.ts";
+import { fedRef, groupRef, opRef } from "../underworld.ts";
 import { orgRef } from "../groups.ts";
 import { AIM_WORDS } from "./groups.ts";
 import { kindLine, potencyWords, racketsOf } from "./mobs.ts";
@@ -85,6 +87,13 @@ function crimeGroupsIn(world: World, cell: number): { r: Polity; g: CrimeGroup }
         out.push({ r, g });
   }
   return out.sort((a, b) => b.g.power - a.g.power || a.g.id - b.g.id);
+}
+
+/** A realm's operations under way in a land, the greatest first. */
+function operationsIn(world: World, r: Polity, cell: number): Operation[] {
+  return [...(underworldOf(world)?.of(r.ref)?.ops ?? [])]
+    .filter((o) => o.ended === null && o.lands.includes(cell))
+    .sort((a, b) => b.soldiers - a.soldiers || a.id - b.id);
 }
 
 /** Every realm's groups holding any part of a land, or at home there. */
@@ -252,6 +261,36 @@ export function landUnderworldBlocks(world: World, cell: number): Block[] {
       }),
     });
   }
+  // The soldiers its realm has sent against the groups here (the underworld's operations).
+  const ops = living ? operationsIn(world, living, cell) : [];
+  if (ops.length)
+    blocks.push({
+      type: "facts",
+      title: "Soldiers sent against them",
+      rows: [
+        stat("Here now", many(soldiersIn(world, living!.ref, cell), "soldier", "soldiers")),
+        ...ops.map((o) =>
+          stat(
+            `Since year ${o.since}`,
+            [
+              link(
+                `against ${groupWords(o.name, GROUP_KINDS[o.kind])}`,
+                opRef(living!.ref, o.event),
+              ),
+            ],
+            {
+              why: o.event,
+              parts: [
+                part("its soldiers, across its lands", count(o.soldiers)),
+                part("the group's men taken or killed", count(Math.round(o.taken))),
+                part("others killed", count(Math.round(o.bystanders))),
+                part("driven from their homes", count(Math.round(o.displaced))),
+              ],
+            },
+          ),
+        ),
+      ],
+    });
   // The realm's own enforcers, where a crew of them works it.
   if (gangs && gangs.badge > 0 && badges.length)
     blocks.push({
@@ -474,6 +513,8 @@ export function landUnderworld(world: World, cell: number): LandUnderworld | nul
         ? orgs.find(({ r, g }) => r.ref === realm.ref && g.id === orgRow.group)
         : undefined,
     badge = crime.find(({ g }) => kindOfGroup(g) === "badge"),
+    living = realm && realm.ended === null ? realm : undefined,
+    op = living ? operationsIn(world, living, cell)[0] : undefined,
     preying = (k: string) =>
       orgs.find(
         ({ g }) =>
@@ -504,6 +545,8 @@ export function landUnderworld(world: World, cell: number): LandUnderworld | nul
     killing: (gangs?.violence ?? 0) + (orgRow?.violence ?? 0),
     badge: gangs?.badge ?? 0,
     badgeRef: badge && (gangs?.badge ?? 0) > 0 ? groupRef(badge.r.ref, badge.g.event) : null,
+    soldiers: living ? soldiersIn(world, living.ref, cell) : 0,
+    soldiersRef: op && living ? opRef(living.ref, op.event) : null,
     prey: orgRow?.prey ?? 0,
     seaPrey: orgRow?.seaPrey ?? 0,
     brigands:

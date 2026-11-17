@@ -1054,6 +1054,9 @@ export type LandUnderworld = {
   readonly prey: number;
   readonly seaPrey: number;
   readonly brigands: { readonly ref: string; readonly name: string } | null;
+  /** The realm's soldiers sent against its groups here, and the page of the greatest operation (null: none under way). */
+  readonly soldiers: number;
+  readonly soldiersRef: string | null;
   readonly pirates: { readonly ref: string; readonly name: string } | null;
 };
 

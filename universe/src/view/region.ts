@@ -176,7 +176,8 @@ export type UnderworldMark = {
 /**
  * The underworld's marks in the land view (2026-11-16): over its three greatest towns, its killing (red) and a crew of the realm's
  * own enforcers (blue), a press on one opening the group that holds it (or the crew's page, or the town's law where no one holds
- * it); brigands over its busiest road, pirates off its coast, each a press from its page. `towns`: each town and where it stands
+ * it); the realm's soldiers sent against them under its greatest town, a press from their operation; brigands over its busiest
+ * road, pirates off its coast, each a press from its page. `towns`: each town and where it stands
  * on the screen (null: out of sight); `road`, `sea`: where those stand (null: none, or out of sight). Keys begin "uw:" and end
  * after their last "|" with the page.
  */
@@ -209,6 +210,15 @@ export function underworldMarks(
         priority: 5e11 + t.population,
       });
     }
+  // (The realm's soldiers sent against them, under its greatest town's name: their operation's page.)
+  const greatest = [...towns].sort((a, b) => b.population - a.population)[0];
+  if (u.soldiers > 0 && u.soldiersRef && greatest?.at)
+    out.push({
+      key: `uw:op|${u.soldiersRef}`,
+      text: `🪖 ${u.soldiers} soldiers against them`,
+      at: { x: greatest.at.x, y: greatest.at.y + 22 },
+      priority: 5.5e11,
+    });
   if (u.brigands && road)
     out.push({
       key: `uw:road|${u.brigands.ref}`,

@@ -23,7 +23,7 @@ import {
 import { ORG_KINDS } from "../../src/rules/index.ts";
 import { landUnderworld, landUnderworldBlocks } from "../../src/host/inspect/underland.ts";
 import { pageOf } from "../../src/host/inspect/index.ts";
-import { groupRef } from "../../src/host/underworld.ts";
+import { groupRef, opRef } from "../../src/host/underworld.ts";
 import { orgRef } from "../../src/host/groups.ts";
 import { yearNow } from "../../src/host/inspect/words.ts";
 import { turfTiles, underworldMarkPage, underworldMarks } from "../../src/view/index.ts";
@@ -128,6 +128,44 @@ test("written by hand: who holds it, the realm's crew, brigands and pirates, its
     bites: 300,
     collusion: 50,
     feds: [],
+    ops: [
+      {
+        id: 1,
+        target: 7,
+        name: "Varro",
+        kind: 0,
+        lands: [cell, cell + 1],
+        since: 58,
+        event: other,
+        soldiers: 600,
+        fallen: 3,
+        taken: 9,
+        bystanders: 2,
+        displaced: 40,
+        spent: 100,
+        bosses: 0,
+        clashes: 2,
+        ended: null,
+      },
+      {
+        id: 2,
+        target: 8,
+        name: "Grey",
+        kind: 2,
+        lands: [cell],
+        since: 52,
+        event,
+        soldiers: 900,
+        fallen: 0,
+        taken: 0,
+        bystanders: 0,
+        displaced: 0,
+        spent: 0,
+        bosses: 0,
+        clashes: 0,
+        ended: 56,
+      },
+    ],
     groups: [
       {
         id: 7,
@@ -248,6 +286,16 @@ test("written by hand: who holds it, the realm's crew, brigands and pirates, its
     assert.equal(parts["killed here"], "12.5 a year in 100,000");
     assert.equal(parts["of the trade under its protection"], "35%");
     assert.equal(parts["its means"], "arms, guarded word");
+    // (The soldiers sent against them: the half of the one under way that is here; the ended one not.)
+    const sent = facts("Soldiers sent against them").rows;
+    assert.deepEqual(
+      sent.map((x) => [x.label, plain(x.value)]),
+      [
+        ["Here now", "300 soldiers"],
+        ["Since year 58", "against the Varro family"],
+      ],
+    );
+    assert.ok(refsOf(sent[1]!.value).includes(opRef(realm.ref, other)));
     const crew = facts("The realm's own enforcers").rows[0]!;
     assert.ok(refsOf(crew.value).includes(groupRef(realm.ref, other)));
     const others = facts("Other groups in it").rows;
@@ -276,6 +324,8 @@ test("written by hand: who holds it, the realm's crew, brigands and pirates, its
     assert.equal(view.badgeRef, groupRef(realm.ref, other));
     assert.equal(view.brigands?.ref, orgRef(realm.ref, event));
     assert.equal(view.pirates?.ref, orgRef(realm.ref, other));
+    assert.equal(view.soldiers, 300);
+    assert.equal(view.soldiersRef, opRef(realm.ref, other));
   } finally {
     if (wasUnder) under.put(realm.ref, structuredClone(wasUnder) as RealmUnderworld);
     else under.forget(realm.ref);
@@ -315,6 +365,8 @@ test("the land view's marks: killing and a crew over the greatest towns, brigand
       seaPrey: 0.04,
       brigands: { ref: "org:pol:0:1:ev:0:11", name: "The Ash brigands" },
       pirates: { ref: "org:pol:0:1:ev:0:12", name: "The Gull pirates" },
+      soldiers: 340,
+      soldiersRef: "uop:pol:0:1:ev:0:13",
     },
     towns = [
       { ref: "town:0:1", population: 100, at: { x: 10, y: 50 } },
@@ -330,15 +382,18 @@ test("the land view's marks: killing and a crew over the greatest towns, brigand
     [
       ["🔴 12.5 killed in 100k · 🔵 the realm's own crew", u.holder.ref],
       ["🔴 12.5 killed in 100k · 🔵 the realm's own crew", u.holder.ref],
+      ["🪖 340 soldiers against them", u.soldiersRef],
       ["🗡️ The Ash brigands", u.brigands.ref],
       ["🏴 The Gull pirates", u.pirates.ref],
     ],
   );
   assert.deepEqual(marks[0]!.at, { x: 20, y: 36 });
+  // (The soldiers under the greatest town's name.)
+  assert.deepEqual(marks[2]!.at, { x: 20, y: 82 });
   // (No killing, no crew, no one holding it: no mark over a town; a crew alone opens the crew's page.)
   assert.equal(
     underworldMarks(
-      { ...u, killing: 0, badge: 0, brigands: null, pirates: null },
+      { ...u, killing: 0, badge: 0, brigands: null, pirates: null, soldiers: 0 },
       towns,
       null,
       null,
@@ -346,7 +401,7 @@ test("the land view's marks: killing and a crew over the greatest towns, brigand
     0,
   );
   const crew = underworldMarks(
-    { ...u, killing: 0.5, holder: null, brigands: null, pirates: null },
+    { ...u, killing: 0.5, holder: null, brigands: null, pirates: null, soldiers: 0 },
     towns,
     null,
     null,
@@ -354,7 +409,7 @@ test("the land view's marks: killing and a crew over the greatest towns, brigand
   assert.equal(underworldMarkPage(crew[0]!.key), u.badgeRef);
   // (Killing where no one holds it: the town's law.)
   const law = underworldMarks(
-    { ...u, holder: null, badge: 0, brigands: null, pirates: null },
+    { ...u, holder: null, badge: 0, brigands: null, pirates: null, soldiers: 0 },
     towns,
     null,
     null,

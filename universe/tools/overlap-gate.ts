@@ -349,7 +349,7 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
       await must("the bar's fold", press(".bar-fold"));
       await settle(500);
     });
-    await press(".bar-fold");
+    if (!(await seen(".mapmodes .mode"))) await press(".bar-fold");
     await settle(400);
   }
   const lenses = await k<string[]>(
@@ -562,8 +562,9 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
   // The land under the 🥷 Underworld lens (2026-11-16): its towns' turf, its marks, brigands and pirates.
   await state("region-underworld", async () => {
     await toGlobe();
-    // (On a phone the map modes are behind the bar's fold.)
-    const folded = await seen(".bar-fold");
+    // (On a phone the map modes may be behind the bar's fold: opened only if they are out of sight.)
+    const folded =
+      !(await seen('.mapmodes .mode[aria-label="Underworld"]')) && (await seen(".bar-fold"));
     if (folded) await press(".bar-fold");
     await must("the underworld lens", press('.mapmodes .mode[aria-label="Underworld"]'));
     await press('.legend-picks .speed[data-choice="gangs"]');
@@ -577,7 +578,7 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
     await settle(2500);
   });
   await toGlobe();
-  if (await seen(".bar-fold")) {
+  if (!(await seen('.mapmodes .mode[aria-label="Land"]')) && (await seen(".bar-fold"))) {
     await press(".bar-fold");
     await press('.mapmodes .mode[aria-label="Land"]');
     await press(".bar-fold");
