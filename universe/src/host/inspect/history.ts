@@ -59,6 +59,7 @@ const TITLES: Readonly<Record<string, string>> = {
   "life.crop-tamed": "A crop tamed",
   "life.crop-carried": "A crop carried from another land",
   "life.diet-poor": "Fed, and yet short",
+  "farlife.star-ended": "A people's star gone out",
   "wild.star": "A falling star",
   "wild.answer": "A ruler's answer",
   "peoples.sailed": "Ships set out among the stars",
