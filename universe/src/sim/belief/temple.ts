@@ -110,7 +110,7 @@ export function templeYear(ctx: PopulationContext, t: SimTime): void {
     if (given <= 0) continue;
     // (What keeps its clergy is eaten where they are; what is laid up leaves the land's market for the faith's granaries.)
     const laid = given - Math.floor(given * TEMPLE.kept);
-    if (laid > 0) m.move("out", G.grain, laid);
+    if (laid > 0) markets.sendApart("granaries", m, G.grain, laid);
     fy.given += given;
     fy.laid += laid;
   }
@@ -134,7 +134,7 @@ export function templeYear(ctx: PopulationContext, t: SimTime): void {
     for (const { c, need } of needs) {
       const n = Math.min(need, Math.floor(granary));
       if (n <= 0) break;
-      markets.of(c).move("in", G.grain, n);
+      markets.bringFromApart("granaries", markets.of(c), G.grain, n);
       granary -= n;
       relief += n;
     }

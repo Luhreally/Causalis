@@ -923,7 +923,9 @@ function exchange(
     return;
   }
   if (what === "goods") {
-    marketsOf(world).get(realm.seat)?.move("in", G.machines, gift);
+    const markets = marketsOf(world),
+      seat = markets.get(realm.seat);
+    if (seat) markets.bringFromApart("far", seat, G.machines, gift);
     told(store, m, realm.ref, what, String(gift), year, event);
     return;
   }

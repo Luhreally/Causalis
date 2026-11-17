@@ -1184,7 +1184,9 @@ export function metalYear(ctx: PopulationContext, t: SimTime): void {
 /** The markets' books close with the year. */
 export function closeYear(ctx: PopulationContext, t: SimTime): void {
   const year = yearOfMoment(t);
-  for (const m of marketsOf(ctx.world).all()) m.closeYear(year);
+  const markets = marketsOf(ctx.world);
+  for (const m of markets.all()) m.closeYear(year);
+  markets.closeApart(year);
 }
 
 /** Register the economy's systems on a world with people. */

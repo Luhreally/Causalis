@@ -321,7 +321,8 @@ function comeIn(
   let worth = 0;
   for (const [good, count, margin] of c.cargo) {
     const landed = Math.floor(count * survives(good, c.arrives - c.sailed));
-    to.move("in", good, landed);
+    // (Out of a hold, or a far people's own: the markets' store keeps what each such keeper gave, sim/economy/market.ts.)
+    marketsOf(world).bringFromApart(r.civ ? "far" : "holds", to, good, landed);
     r.landed[good] = r.landed[good]! + landed;
     worth += count * margin;
   }
@@ -409,7 +410,10 @@ function taken(
   const { world } = ctx;
   for (const [good, count] of c.cargo) {
     r.lost[good] = r.lost[good]! + count;
-    if (by.seat >= 0) marketsOf(world).of(by.seat).move("in", good, count);
+    if (by.seat >= 0) {
+      const markets = marketsOf(world);
+      markets.bringFromApart(r.civ ? "far" : "holds", markets.of(by.seat), good, count);
+    }
   }
   r.raided++;
   r.raider = by.name;
@@ -526,7 +530,9 @@ function sail(ctx: PopulationContext, r: StarRun, to: Away | Market, year: numbe
   if (realm) {
     if (machinesOfRealm(ctx, realm) * 0.5 < machines) return false;
     spendMachines(ctx, realm, machines);
-    for (const l of load) from!.take("out", l.good, l.count);
+    const markets = marketsOf(world);
+    for (const l of load)
+      markets.sendApart("holds", from!, l.good, Math.min(l.count, from!.stock[l.good]!));
   }
   r.drive = crossing.drive;
   r.ly = crossing.ly;

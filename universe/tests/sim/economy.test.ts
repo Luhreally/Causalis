@@ -5,6 +5,7 @@ import { FOODS, GOODS, OCC } from "../../src/rules/index.ts";
 import {
   ECONOMY_EVENTS,
   GOOD_COUNT,
+  KEEPERS,
   LEDGER,
   MarketStore,
   POPULATION_EVENTS,
@@ -73,14 +74,29 @@ test("what one market sends another receives, and what migrants carry out they c
       }
       byYear.set(y.year, sums);
     }
-  let traded = 0;
+  // What a market sends a keeper outside every market (a faith's granaries, a ship's hold: KEEPERS) is on its "out" line and
+  // what one gives it on its "in" line, and the store keeps what each took and gave, year by year: so what all markets sent is
+  // what all received and what the keepers took, less what they gave, good by good, exactly. (Until this was kept, a faith's
+  // granaries took grain no book named: 152,040 sent in year 295 and 138,693 received.)
+  const apart = new Map(markets.apart.map((y) => [y.year, y.rows]));
+  let traded = 0,
+    laidUp = 0;
   for (const [year, [out, into, left, came]] of byYear) {
-    assert.deepEqual(out, into, `trade in year ${year}`);
+    const rows = apart.get(year);
+    assert.ok(rows, `the keepers' year ${year} is kept with the markets'`);
+    const reached = [...into!];
+    for (const [keeper, good, took, gave] of rows) {
+      assert.ok(KEEPERS[keeper] && took >= 0 && gave >= 0 && took + gave > 0);
+      reached[good] = reached[good]! + took - gave;
+      laidUp += took;
+    }
+    assert.deepEqual(out, reached, `trade in year ${year}`);
     // The first people's food came with them from nowhere before the chronicle.
     if (year > 0) assert.deepEqual(left, came, `migrants' goods in year ${year}`);
     traded += out!.reduce((a, b) => a + b, 0);
   }
   assert.ok(traded > 1000, `${traded} units traded`);
+  assert.ok(laidUp > 0, "a faith's granaries took grain in these years");
 });
 
 test("last year's flows of some lands are those a walk of every flow finds, in its order", () => {

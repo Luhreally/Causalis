@@ -890,7 +890,8 @@ export function driveHerds(
     from = markets.get(land),
     into = markets.get(by.seat),
     n = from ? Math.floor(from.stock[G.meat]! * share) : 0,
-    moved = from && n > 0 ? from.move("out", G.meat, n) : 0;
+    // (Driven to the raider's seat; where that seat keeps no market the beasts are lost on the way, and the books say so.)
+    moved = from && n > 0 ? from.move(into ? "out" : "spoiled", G.meat, n) : 0;
   if (into && moved > 0) into.move("in", G.meat, moved);
   const beast =
       p.herding && g.life.herdBeast[land]! >= 0

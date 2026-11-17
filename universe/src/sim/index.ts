@@ -93,6 +93,7 @@ export { knownAt, shutAge } from "./population/entered.ts";
 export { seatedCells } from "./population/world.ts";
 export {
   GOOD_COUNT,
+  KEEPERS,
   LEDGER,
   MARKET_GOOD,
   MARKET_YEARS,

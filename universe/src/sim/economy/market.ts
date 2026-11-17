@@ -382,6 +382,18 @@ export type TradeFlow = {
   readonly count: number;
 };
 
+/**
+ * Who keeps goods outside every market: a faith's granaries (sim/belief/temple.ts), the holds of ships between the stars
+ * (sim/space/trade.ts), a far people's own worlds (sim/space/peoples.ts). What a market sends one of them is on its "out" line
+ * and what one gives a market on its "in" line, as with any trade; and the store keeps, keeper by keeper and good by good, what
+ * each took and gave in each year its markets keep, so that a year's "out" and "in" over all markets differ by exactly these.
+ */
+export const KEEPERS = ["granaries", "holds", "far"] as const;
+export type Keeper = (typeof KEEPERS)[number];
+/** A keeper's year in one good: what markets sent it and what it gave markets. */
+export type KeptApart = readonly [keeper: number, good: number, took: number, gave: number];
+export type ApartYear = { readonly year: number; readonly rows: readonly KeptApart[] };
+
 export class MarketStore implements StateStore {
   readonly name = "economy.markets";
   /** Saved packed by column (kernel/pack.ts): each market keeps a row of numbers a year. */
@@ -394,6 +406,47 @@ export class MarketStore implements StateStore {
   private readonly partners = new Map<number, number[]>();
   /** Last year's trade, in canonical order. */
   flows: TradeFlow[] = [];
+  /** What keepers outside the markets took and gave, in each year the markets keep (KEEPERS). */
+  apart: ApartYear[] = [];
+  /** The same of the year whose books are open, by keeper and good (keeper x GOOD_COUNT + good). */
+  private readonly apartOpen = new Map<number, [took: number, gave: number]>();
+
+  private apartRow(keeper: Keeper, good: number): [number, number] {
+    const k = KEEPERS.indexOf(keeper) * GOOD_COUNT + good;
+    let row = this.apartOpen.get(k);
+    if (!row) this.apartOpen.set(k, (row = [0, 0]));
+    return row;
+  }
+
+  /** Goods leave a market for a keeper outside every market; returns the amount. */
+  sendApart(keeper: Keeper, m: Market, good: number, n: number): number {
+    const moved = m.move("out", good, n);
+    if (moved) this.apartRow(keeper, good)[0] += moved;
+    return moved;
+  }
+
+  /** Goods come to a market from a keeper outside every market; returns the amount. */
+  bringFromApart(keeper: Keeper, m: Market, good: number, n: number): number {
+    const moved = m.move("in", good, n);
+    if (moved) this.apartRow(keeper, good)[1] += moved;
+    return moved;
+  }
+
+  /** The open year's rows, in keeper then good order. */
+  private apartRows(): KeptApart[] {
+    return [...this.apartOpen]
+      .sort((a, b) => a[0] - b[0])
+      .map(
+        ([k, [took, gave]]) => [Math.floor(k / GOOD_COUNT), k % GOOD_COUNT, took, gave] as const,
+      );
+  }
+
+  /** Close the keepers' year with the markets'. */
+  closeApart(year: number): void {
+    this.apart.push({ year, rows: this.apartRows() });
+    this.apartOpen.clear();
+    if (this.apart.length > MARKET_YEARS) this.apart.splice(0, this.apart.length - MARKET_YEARS);
+  }
   /**
    * The same flows by each land they leave or reach, as their places in `flows` (a cache, never
    * saved: made again whenever the year's trade is set anew, or added to).
@@ -502,6 +555,8 @@ export class MarketStore implements StateStore {
     for (const m of all) m.hashInto(h);
     h.value(this.allRoutes())
       .value(this.flows)
+      .value(this.apart)
+      .value(this.apartRows())
       .value([...this.sea].sort((x, y) => (x < y ? -1 : x > y ? 1 : 0)));
   }
 
@@ -511,6 +566,8 @@ export class MarketStore implements StateStore {
       routes: this.allRoutes(),
       sea: [...this.sea].sort((x, y) => (x < y ? -1 : x > y ? 1 : 0)),
       flows: this.flows,
+      apart: this.apart,
+      apartOpen: this.apartRows(),
     };
   }
 
@@ -520,6 +577,8 @@ export class MarketStore implements StateStore {
       routes: [string, Ref][];
       sea?: string[];
       flows: TradeFlow[];
+      apart?: ApartYear[];
+      apartOpen?: KeptApart[];
     };
     this.map.clear();
     for (const m of s.markets) {
@@ -533,5 +592,9 @@ export class MarketStore implements StateStore {
     this.partners.clear();
     for (const k of s.sea ?? []) this.crossing(k);
     this.flows = s.flows;
+    this.apart = s.apart ?? [];
+    this.apartOpen.clear();
+    for (const [keeper, good, took, gave] of s.apartOpen ?? [])
+      this.apartOpen.set(keeper * GOOD_COUNT + good, [took, gave]);
   }
 }
