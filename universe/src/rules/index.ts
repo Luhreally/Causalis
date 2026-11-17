@@ -1628,6 +1628,7 @@ export {
 export * from "./money.ts";
 export * from "./labour.ts";
 export * from "./intox.ts";
+export * from "./contraband.ts";
 export {
   CORE,
   DEEP_WARMS,

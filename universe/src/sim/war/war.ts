@@ -127,7 +127,7 @@ import {
 import type { AimKind } from "../../rules/index.ts";
 import { ORG, TIES, warReckoning } from "../../rules/index.ts";
 import { hiredBy } from "../order/groups-kept.ts";
-import { spend, whisperOn } from "../acts/person.ts";
+import { rulerLuck, spend, whisperOn } from "../acts/person.ts";
 import {
   allyFront,
   answerCalls,
@@ -1319,6 +1319,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         pressure(voices, "more tribute").total,
         ratio,
         front,
+        year,
       ),
       prize = chosen.prize,
       aimName = AIM_FACTOR[chosen.aim.aim];
@@ -1466,6 +1467,8 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     });
     // (A whisper to war is spent by the war it brought.)
     if (whisper.act && whisper.by > 1) spend(whisper.act, event);
+    // (And a whisper to an aim, by the war that went for it.)
+    if (chosen.whispered) spend(chosen.whispered, event);
     // (A pact does not survive a war between the two who swore it: D1.)
     warBreaksPact(ctx, r, attacker, defender, event, year);
   }
@@ -1524,6 +1527,8 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         },
       });
       if (made) bindPeace(ctx, w, made, w.peace, year);
+      // (A whisper to a gentle peace, by the peace it made.)
+      if (made?.whispered) spend(made.whispered, w.peace);
       if (w.civil) settleCivil(ctx, w, false, false, t);
       continue;
     }
@@ -1563,7 +1568,9 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
           : 1) *
         // (A realm in more than one war divides its host among them: D1.)
         (1 / Math.max(1, wars.fighting(a.ref).length)) *
-        sightTerm(fleetA?.flyers ?? 0, fleetB?.flyers ?? 0),
+        sightTerm(fleetA?.flyers ?? 0, fleetB?.flyers ?? 0) *
+        // (Its ruler blessed, its host fights as two; cursed, as half: exactly 1 where none holds, sim/acts/person.ts.)
+        rulerLuck(world, a.ref, a.ruler.event, year),
       // (The ground favours those who hold it as far as it is broken, watered and wooded: sim/war/ground.ts.)
       ground = groundOf(ctx, land).factor,
       // (And what its towns were asked to raise and see to, H1: exactly 1 on a land never asked.)
@@ -1592,7 +1599,8 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         (chestB ? CREDIT.chest : 1) *
         entrench *
         (1 / Math.max(1, wars.fighting(b.ref).length)) *
-        sightTerm(fleetB?.flyers ?? 0, fleetA?.flyers ?? 0);
+        sightTerm(fleetB?.flyers ?? 0, fleetA?.flyers ?? 0) *
+        rulerLuck(world, b.ref, b.ruler.event, year);
     // The fallen (Phase 55 M224b): every land of each realm on its home world sends men by its
     // fighting men (D2); of those who close with the foe a share is struck down by the foe's arms
     // against their guard, more when beaten, fewer the farther and thicker the fire, and of the

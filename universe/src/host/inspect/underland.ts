@@ -6,6 +6,7 @@
 // needs what they take and how strong it has grown, who has no roof) and what its realm does about it; and what has passed here
 // lately. And what the land view draws of it: the turf of its towns in its holder's colour, its killing and its enforcers marked,
 // brigands on its roads and pirates off its coast. It reads, it never touches: every number is a store's.
+import { carryBlocks } from "./carriers.ts";
 import type { Ref, World } from "../../kernel/index.ts";
 import type { Block, Item, LandUnderworld, Stat } from "../../bridge/index.ts";
 import { GROUP_KINDS, ORG_AIMS, ORG_STANDING, type OrgAim } from "../../rules/index.ts";
@@ -260,6 +261,8 @@ export function landUnderworldBlocks(world: World, cell: number): Block[] {
       }),
     });
   }
+  // Who carries each ware its realm's borders let through unseen, here (carriers.ts).
+  if (living) blocks.push(...carryBlocks(world, living, cell));
   // The soldiers its realm has sent against the groups here (the underworld's operations).
   const ops = living ? operationsIn(world, living, cell) : [];
   if (ops.length)

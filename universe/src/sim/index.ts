@@ -1324,7 +1324,14 @@ export {
   labourYear,
   treasuryYear,
 } from "./money/money.ts";
-export { INTOX_EVENTS, INTOX_EVERY, intoxYear, prohibitionYear } from "./money/intox.ts";
+export {
+  INTOX_EVENTS,
+  INTOX_EVERY,
+  intoxLineages,
+  intoxYear,
+  kindsOf,
+  prohibitionYear,
+} from "./money/intox.ts";
 export {
   BIND,
   BIND_STORE,
@@ -1370,6 +1377,15 @@ export {
   intoxDeaths,
   intoxDependent,
   intoxLost,
+  CONTRA,
+  CONTRA_SLOTS,
+  CONTRA_STORE,
+  KINDS_STORE,
+  KIND_ROW,
+  contrabandOf,
+  kindBarred,
+  kindReach,
+  type Contraband,
 } from "./money/kept.ts";
 export {
   ICE_STEP,
@@ -1825,3 +1841,15 @@ export {
   type DeathNote,
   type DeathPart,
 } from "./hand/deaths.ts";
+export {
+  bossRef,
+  groupOfBoss,
+  luckBy,
+  rulerHazard,
+  rulerLuck,
+  smitesAtOnce,
+  whisperFamily,
+  whisperIn,
+  whispersFor,
+} from "./acts/person.ts";
+export type { HeadNote } from "./hand/deaths.ts";

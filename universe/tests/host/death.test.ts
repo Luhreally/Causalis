@@ -89,7 +89,7 @@ test("a ruler's page says what could take them now, and the god's acts are offer
   assert.ok(!personActsOf(world)?.all().length);
 });
 
-test("a blessing on a ruler halves their chance; smiting them ends their reign at the year's turn, told as struck by the god", () => {
+test("a blessing on a ruler halves their chance; smiting them ends their reign at once, told as struck by the god", () => {
   const world = universeWorld(EARTH, "first light", 60),
     r = politiesOf(world).living()[0]!,
     name = r.ruler.name,
@@ -99,7 +99,8 @@ test("a blessing on a ruler halves their chance; smiting them ends their reign a
   const after = riskOf(world, `rule:${r.ref}`)!;
   assert.notEqual(after.draw, before.draw, "the chance told changes");
   world.submit("act.person", { ref: `rule:${r.ref}`, kind: "smite", name });
-  world.runTo(62 * YEAR);
+  // (At the act's own moment, not the year's turn.)
+  world.runTo(60 * YEAR + 2);
   const now = politiesOf(world).get(r.ref as Ref)!;
   assert.notEqual(now.ruler.name, name, "the seat has passed");
   const a = deathOf(world, `rule:${r.ref}`, name);

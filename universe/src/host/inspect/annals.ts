@@ -252,6 +252,7 @@ const RULES: Readonly<Record<string, readonly [number, number]>> = {
   "money.tariff": [PEOPLE, 1],
   "money.sanction": [PEOPLE, 3],
   "money.smuggling": [PEOPLE, 1],
+  "money.underground": [PEOPLE, 1],
   "money.guild": [PEOPLE, 1],
   "money.union": [PEOPLE, 2],
   "money.underwriters": [PEOPLE, 1],

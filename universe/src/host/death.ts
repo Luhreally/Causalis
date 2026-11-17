@@ -22,7 +22,20 @@ import {
   type Ref,
   type World,
 } from "../kernel/index.ts";
-import { bandOf, deathWithin, riskUnder, type LifeHistory } from "../rules/index.ts";
+import {
+  ESCALATE,
+  GEAR,
+  GROUP_KINDS,
+  ORG,
+  UNDER,
+  bandOf,
+  bossTaken,
+  deathWithin,
+  diesWithin,
+  leaderLost,
+  riskUnder,
+  type LifeHistory,
+} from "../rules/index.ts";
 import {
   ACTS_FOR,
   BLESS_BY,
@@ -30,11 +43,18 @@ import {
   KILLING,
   courtOf,
   deathNotesOf,
+  groupOfBoss,
+  orgsOf,
+  underworldOf,
+  hazardBy,
+  type HeadNote,
   handHazardNow,
   handOf,
   personActProblem,
   personActsOf,
   personNow,
+  smitesAtOnce,
+  whispersFor,
   politiesOf,
   populationContext,
   traitWeight,
@@ -54,6 +74,7 @@ import {
   type PageModel,
 } from "../bridge/index.ts";
 import { courtFigure } from "./court.ts";
+import { houseOfName } from "./family.ts";
 import { bedDeath } from "./kin.ts";
 import { townRoster, type Holder, type Roster } from "./roster.ts";
 import { resolveLevyMan } from "./roll.ts";
@@ -110,6 +131,8 @@ type Part = {
 export type Account = {
   /** One line: "died of their years at 61", "fell at the battle at Pounholt". */
   readonly short: string;
+  /** How their header says it ended, where not a death: "Taken". */
+  readonly ended?: string;
   readonly year: number | null;
   readonly age: number | null;
   /** The event that tells it, for a Go to (null: none history keeps). */
@@ -149,7 +172,7 @@ export function accountBlocks(world: World, title: string, a: Account): Block[] 
       a.year === null
         ? [a.short]
         : [
-            `${title === "At risk now" ? "This year" : `Died in ${a.year}`}${a.age !== null ? `, aged ${a.age}` : ""}: `,
+            `${title === "At risk now" ? "This year" : `${a.ended ?? "Died"} in ${a.year}`}${a.age !== null ? `, aged ${a.age}` : ""}: `,
             a.event ? link(a.short, a.event) : a.short,
           ],
     lines: Line[] = [head, [a.rule], ...(a.draw ? [[a.draw]] : [])],
@@ -1045,8 +1068,205 @@ function agentRisk(world: World, id: number): Account | null {
  * How one a page is about died (null: they live, or history keeps no death of them). A ruler's page is the seat's, so a ruler gone
  * is told by name (`name`, the one pinned or followed) or by the event that ended their reign.
  */
+// —— The head of a group ——————————————————————————————————————————————————————————————————————
+
+/** A group's head's ref's parts: the group's realm and rising event, and the year a head gone went (null: whoever heads it now). */
+export function parseBossRef(ref: string): { head: string; year: number | null } | null {
+  const m = /^(boss:pol:\d+:\d+:ev:\d+:\d+)(?::(\d+))?$/.exec(ref);
+  return m ? { head: m[1]!, year: m[2] !== undefined ? Number(m[2]) : null } : null;
+}
+
+/** The god's factor on a head's chance, as a part (none: no act holds). */
+const godPart = (by: number): Part[] =>
+  by === 1 ? [] : [{ name: "The god's hand", words: times(by), source: null }];
+
+/** What could take the head of a group now, at their group's next reckoning. */
+function bossRisk(world: World, ref: string): Account | null {
+  const at = groupOfBoss(world, ref);
+  if (!at) return null;
+  const life = populationContext(world).life,
+    year = yearOfMoment(world.now),
+    head = at.kind === "under" ? at.g.boss : at.g.leader,
+    age = year - head.born,
+    by = hazardBy(world, ref, head.name, year);
+  if (at.kind === "under") {
+    const v = underworldOf(world)?.of(at.realm),
+      g = at.g,
+      badge = GROUP_KINDS[g.kind] === "badge",
+      op = v?.ops?.some((o) => o.target === g.id && o.ended === null) ?? false,
+      bites = Math.max((v?.bites ?? 0) / 1000, op ? ESCALATE.bite : 0),
+      shelter =
+        1 -
+        (1 - Math.max((v?.collusion ?? 0) / 1000, g.house ? 0.6 : 0)) *
+          (1 - (GEAR.guards * (g.means?.word ?? 0)) / 1000),
+      taken = badge ? 0 : Math.min(1, bossTaken(bites, shelter, UNDER.every) * by),
+      years = Math.min(1, diesWithin(life, age, UNDER.every) * by),
+      chance = 1 - (1 - taken) * (1 - years);
+    return {
+      short: "",
+      year,
+      age,
+      event: null,
+      cause: taken > years ? "removed" : "age",
+      rule: `A boss is drawn against at each reckoning of his realm's underworld, every ${UNDER.every} years: once to be taken by the crackdown (never a badge crew's), once to die of his years across them.`,
+      draw: `At the next reckoning he faces a ${oneIn(chance)} chance of going (${pct(chance)}).`,
+      parts: [
+        {
+          name: `Age ${age}`,
+          words: `the life table over ${UNDER.every} years gives ${pct(diesWithin(life, age, UNDER.every))}`,
+          source: null,
+        },
+        ...(badge
+          ? []
+          : [
+              {
+                name: "The crackdown",
+                words: `it bites ${pct(bites)}${op ? " (soldiers sent against them)" : ""}, sheltered ${pct(shelter)} by officers bought, a house and a guarded word: taken ${pct(bossTaken(bites, shelter, UNDER.every))}`,
+                source: (op ? null : v?.crackEvent) ?? null,
+              },
+            ]),
+        ...godPart(by),
+      ],
+      decided: [
+        [taken > years ? "The greatest part is the crackdown." : "The greatest part is his years."],
+      ],
+      from: taken > years ? (v?.crackEvent ?? null) : null,
+      noPath: `His years: the life table of his kind at ${age}; no event of history raises it.`,
+      changed: godLines(godActsAt(world, ref, head.name, null, year), year),
+    };
+  }
+  const v = orgsOf(world)?.of(at.realm),
+    g = at.g,
+    outlawed = g.standing === 0,
+    suppression = outlawed ? (v?.suppression ?? 0) / 1000 : 0,
+    yearly = diesWithin(life, age, 1),
+    alone = leaderLost(yearly, 0, ORG.every),
+    lost = leaderLost(yearly, suppression, ORG.every),
+    chance = Math.min(1, lost * by);
+  return {
+    short: "",
+    year,
+    age,
+    event: null,
+    cause: lost - alone > alone ? "removed" : "age",
+    rule: `A group's leader is drawn against once at each reckoning of their realm's groups, every ${ORG.every} years: their years, and the realm's hand where the group is outlawed.`,
+    draw: `At the next reckoning they face a ${oneIn(chance)} chance of going (${pct(chance)}).`,
+    parts: [
+      {
+        name: `Age ${age}`,
+        words: `the life table gives ${pct(yearly)} a year, ${pct(alone)} over the span`,
+        source: null,
+      },
+      ...(outlawed
+        ? [
+            {
+              name: "The realm's hand",
+              words: `it turns on what it outlaws at ${pct(suppression)}: ${pct(lost - alone)} more`,
+              source: null,
+            },
+          ]
+        : []),
+      ...godPart(by),
+    ],
+    decided: [
+      [
+        lost - alone > alone
+          ? "The greatest part is the realm's hand."
+          : "The greatest part is their years.",
+      ],
+    ],
+    from: null,
+    noPath: `Their years: the life table of their kind at ${age}; no event of history raises it.`,
+    changed: godLines(godActsAt(world, ref, head.name, null, year), year),
+  };
+}
+
+/** How a group's head went, from the note kept as their draw stood (null: no note, or none gone that year). */
+export function headNoteOf(world: World, ref: string): HeadNote | null {
+  const at = parseBossRef(ref);
+  if (!at || at.year === null) return null;
+  return (
+    deathNotesOf(world)
+      ?.headsOf(at.head)
+      .find((n) => n.year === at.year) ?? null
+  );
+}
+
+function bossDeath(world: World, ref: string): Account | null {
+  const n = headNoteOf(world, ref);
+  if (!n) return null;
+  if (n.how === "struck")
+    return {
+      short: "struck down by the god",
+      year: n.year,
+      age: n.age,
+      event: n.event ?? null,
+      cause: "struck",
+      rule: "The god smote them: they died at their group's next reckoning, whatever its draw.",
+      draw: null,
+      parts: [],
+      decided: [],
+      from: n.event ?? null,
+      noPath: null,
+      changed: [],
+    };
+  const years = n.years ?? 0,
+    chance = n.chance ?? 0,
+    draw = n.draw ?? 0,
+    taken = n.how === "taken";
+  return {
+    short: taken ? "taken by the realm" : "died of their years",
+    ...(taken ? { ended: "Taken" } : {}),
+    year: n.year,
+    age: n.age,
+    event: n.event ?? null,
+    cause: taken ? "removed" : "age",
+    rule:
+      n.ref.startsWith("boss:") && taken && n.years === undefined
+        ? "A boss is drawn against to be taken by the crackdown at each reckoning of his realm's underworld."
+        : "A group's head is drawn against at each reckoning of their group: their years, and where it is outlawed the realm's hand.",
+    draw: `The draw was ${drawn(draw)} against a chance of ${pct(chance)}: it fell inside it.`,
+    parts: [
+      ...(n.years !== undefined
+        ? [
+            {
+              name: `Age ${n.age}`,
+              words: `the life table over the span gives ${pct(years)}`,
+              source: null,
+            },
+          ]
+        : []),
+      ...(taken
+        ? [
+            {
+              name: "The realm's hand",
+              words:
+                n.years !== undefined
+                  ? `${pct(Math.max(0, chance - years))} more`
+                  : `${pct(chance)}`,
+              source: n.event ?? null,
+            },
+          ]
+        : []),
+    ],
+    decided: [
+      [
+        taken
+          ? n.years !== undefined
+            ? `The realm's hand decided it: the draw (${drawn(draw)}) fell past what their years alone gave (${pct(years)}).`
+            : "The crackdown's own draw decided it."
+          : `Their years alone took them: the draw (${drawn(draw)}) fell inside the life table's ${pct(years)}.`,
+      ],
+    ],
+    from: n.event ?? null,
+    noPath: `Their years: the life table of their kind at ${n.age}; no event of history raises it.`,
+    changed: [],
+  };
+}
+
 export function deathOf(world: World, ref: string, name?: string | null): Account | null {
   try {
+    if (ref.startsWith("boss:")) return bossDeath(world, ref);
     if (ref.startsWith("rule:")) {
       const r = politiesOf(world).get(ref.slice(5) as Ref);
       if (!r || !name || name === r.ruler.name) return null;
@@ -1080,6 +1300,8 @@ export function riskOf(world: World, ref: string): Account | null {
       return r && r.ended === null ? rulerRisk(world, r) : null;
     }
     if (ref.startsWith("court:")) return courtRisk(world, ref);
+    if (ref.startsWith("boss:"))
+      return parseBossRef(ref)?.year === null ? bossRisk(world, ref) : null;
     if (ref.startsWith("folk:town:")) return holderRisk(world, ref);
     if (ref.startsWith("agent:")) return agentRisk(world, Number(ref.slice(6)));
   } catch {
@@ -1102,48 +1324,172 @@ export type { Polity };
 /** One act the god could do on them now, or why not; and what holds on them, with the years left. */
 export type GodPersonAct = {
   readonly kind: PersonActKind;
-  readonly aim?: "war" | "peace";
+  readonly aim?: string;
+  /** Whom it is laid on, where not the one whose page it is (a whisper to their house). */
+  readonly ref?: string;
   readonly problem: string | null;
+  /** What it does on them, in words, as the rules lay it. */
+  readonly does: string;
 };
 export type GodPersonHeld = {
   readonly kind: PersonActKind;
-  readonly aim?: "war" | "peace";
+  readonly aim?: string;
   readonly from: number;
   readonly until: number;
   readonly left: number;
   readonly event: string;
   readonly spent: string | null;
+  /** What it does on them, in words: "their chance of death ×0.5; their host in battle ×2 …". */
+  readonly does: string;
 };
+
+/** What a blessing or a curse lays, on each kind of one (the very factors the rules read: sim/acts/person.ts). */
+export function fortuneWords(kind: PersonKind, sign: 1 | -1): string {
+  const against = sign > 0 ? "×0.5" : "×2",
+    goes = sign > 0 ? "×2" : "×0.5";
+  switch (kind) {
+    case "ruler":
+      return `their chance of death ${against}; their realm's host in battle ${goes}; the odds of a plot or a coup against them ${against}; the chance of a child to their house at court ${goes}`;
+    case "court":
+      return `their chance of death ${against}`;
+    case "agent":
+      return `their chance of death ${against}; a woman's chance of a child ${goes}`;
+    case "boss":
+      return `the chance they are taken or die of their years ${against}; what the realm's hand takes of their group ${against}`;
+    default:
+      return "";
+  }
+}
+
+/** What a whisper does, in words. */
+export function whisperWords(aim: string): string {
+  return (
+    {
+      war: "their realm's next choice of a war of its own twice as likely",
+      peace: "their realm chooses no war of its own",
+      "goal:land":
+        "their realm's next war goes for a land, where it is one it could go for, weighed twice",
+      "goal:tribute":
+        "their realm's next war goes for a tribute, where it is one it could go for, weighed twice",
+      "goal:back":
+        "their realm's next war goes for a land it lost, where it is one it could go for, weighed twice",
+      "terms:truce":
+        "the next peace their realm makes comes to a truce: what was taken is kept, and no tribute or oath is asked",
+      "law:reform": "a law of their realm moves at half the pull it needs",
+      "law:hold": "no law of their realm moves",
+      "tariff:raise": "the tariff their realm wants doubled",
+      "tariff:lower": "the tariff their realm wants halved",
+      "bar:ban": "their realm bars what calms and wakes wholly",
+      "bar:lift": "their realm lifts its bar",
+      wed: "an only heir of the house weds into a greater where it may",
+      "wed:alone": "the house weds into no other",
+    }[aim] ??
+    (aim.startsWith("aim:") ? `their group's aim toward ${aim.slice(4)} weighs twice` : aim)
+  );
+}
+
+/** What an act does on one of a kind, as its button's confirm tells it. */
+function actWords(kind: PersonKind, act: PersonActKind, aim: string | undefined): string {
+  switch (act) {
+    case "bless":
+    case "curse":
+      return `for ten years ${fortuneWords(kind, act === "bless" ? 1 : -1)}.`;
+    case "whisper":
+      return `for ten years, or until it is chosen, ${whisperWords(aim ?? "")}.`;
+    case "protect":
+      return kind === "boss"
+        ? "within twenty years, the next time the realm's hand would take them, it does not."
+        : "the next death by violence the world draws for them is spared, within twenty years.";
+    case "smite":
+      return smitesAtOnce(kind)
+        ? "they die now, by their own death's path (the seat passes, the court names its next), told as struck down by the god."
+        : "they die at their group's next reckoning (within five years), told as struck down by the god.";
+    case "heal":
+      return "the wounds they carry are lifted.";
+    case "inspire":
+      return "their land comes upon the next thing it could know.";
+  }
+}
+
+/** Why some acts do not reach one of a kind, where the world gives it no hold. */
+const ACT_HELP: Partial<Record<PersonKind, string>> = {
+  court:
+    "No protection for one of a court: no death by violence is drawn for them. A move found against the seat puts its plotter out of the court, and a purge ends a house's hold; neither draws a death.",
+  boss: "A boss chooses no aim to whisper to: their group is what its kind is. A group's leader can be whispered toward another aim.",
+};
+
+const heldWords = (kind: PersonKind, a: PersonAct): string =>
+  a.kind === "bless" || a.kind === "curse"
+    ? fortuneWords(kind, a.kind === "bless" ? 1 : -1)
+    : a.kind === "whisper"
+      ? whisperWords(a.aim ?? "")
+      : a.kind === "protect"
+        ? "spared the next death by violence drawn for them"
+        : "";
 
 /** What the god can do on one, and what holds on them (null: none of the god's acts reach their kind). */
 export function godActsFor(
   world: World,
   ref: string,
-): { kind: PersonKind; name: string; acts: GodPersonAct[]; held: GodPersonHeld[] } | null {
+): {
+  kind: PersonKind;
+  name: string;
+  acts: GodPersonAct[];
+  held: GodPersonHeld[];
+  house: string | null;
+  atOnce: boolean;
+  help: string | null;
+} | null {
   const ctx = populationContext(world),
     who = personNow(ctx, ref);
   if (!who) return null;
   const year = yearOfMoment(world.now),
-    acts: GodPersonAct[] = [];
-  for (const kind of ACTS_FOR[who.kind])
-    for (const aim of kind === "whisper" ? (["war", "peace"] as const) : [undefined])
-      acts.push({
-        kind,
-        ...(aim ? { aim } : {}),
-        problem: personActProblem(ctx, { ref, kind, ...(aim ? { aim } : {}) }),
-      });
-  const held = (personActsOf(world)?.ever(ref) ?? [])
-    .filter((a) => a.of === null || a.of === who.of)
-    .map((a): GodPersonHeld => ({
-      kind: a.kind,
-      ...(a.aim ? { aim: a.aim } : {}),
-      from: a.from,
-      until: a.until,
-      left: Math.max(0, a.until - year),
-      event: a.event,
-      spent: a.used && a.used !== a.event ? a.used : null,
-    }));
-  return { kind: who.kind, name: who.name, acts, held };
+    acts: GodPersonAct[] = [],
+    offer = (on: string, kind: PersonKind, own: boolean) => {
+      for (const act of ACTS_FOR[kind])
+        for (const aim of act === "whisper" ? whispersFor(world, kind, on) : [undefined])
+          acts.push({
+            kind: act,
+            ...(aim ? { aim } : {}),
+            ...(own ? {} : { ref: on }),
+            problem: personActProblem(ctx, { ref: on, kind: act, ...(aim ? { aim } : {}) }),
+            does: actWords(kind, act, aim),
+          });
+    };
+  offer(ref, who.kind, true);
+  // (A ruler or one of a court who heads a great house: a whisper to it, to wed or stand alone.)
+  const house =
+      who.kind === "ruler" || who.kind === "court"
+        ? houseOfName(world, who.subject, who.name)
+        : null,
+    headed = house && personNow(ctx, house) ? house : null;
+  if (headed) offer(headed, "house", false);
+  const held = [ref, ...(headed ? [headed] : [])].flatMap((on) =>
+    (personActsOf(world)?.ever(on) ?? [])
+      .filter((a) => a.of === null || a.of === who.of)
+      .map((a): GodPersonHeld => ({
+        kind: a.kind,
+        ...(a.aim ? { aim: a.aim } : {}),
+        from: a.from,
+        until: a.until,
+        left: Math.max(0, a.until - year),
+        event: a.event,
+        spent: a.used && a.used !== a.event ? a.used : null,
+        does: heldWords(on === ref ? who.kind : "house", a),
+      })),
+  );
+  return {
+    kind: who.kind,
+    name: who.name,
+    acts,
+    held,
+    house: headed,
+    atOnce: smitesAtOnce(who.kind),
+    help:
+      who.kind === "boss" && whispersFor(world, "boss", ref).length
+        ? null
+        : (ACT_HELP[who.kind] ?? null),
+  };
 }
 
 /** A ruler's or one of a court's card on their page, for Play as them. */
@@ -1195,6 +1541,9 @@ export function withDeath(world: World, ref: string, page: PageModel): PageModel
           ref,
           name: page.title,
           kind: god.kind,
+          atOnce: god.atOnce,
+          ...(god.help ? { help: god.help } : {}),
+          ...(god.house ? { house: god.house } : {}),
           acts: god.acts,
           held: god.held,
           year: yearOfMoment(world.now),

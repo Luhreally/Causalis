@@ -559,19 +559,21 @@ export function sanctionWanted(
 /**
  * The share of what is barred or taxed at a border that crosses it anyway: the wedge (a tariff, or 1 for a good barred) against what
  * smuggling costs, the odds of being caught (how hard the realm holds, how far it reaches, how little is skimmed) times what is
- * lost then, and how long and open the border is.
+ * lost then, and how long and open the border is; and, for one good, how hard it is to hide and carry for its worth (`carry`: 1 for
+ * what a realm's trade carries as a whole, rules/contraband.ts carryCost).
  */
 export function smuggled(
   wedge: number,
   hold: { force: number; capacity: number; corruption: number },
   border: number,
+  carry = 1,
 ): number {
   if (wedge <= 0) return 0;
   const caught =
       dmath.clamp(0.2 + 0.6 * hold.force, 0, 1) *
       dmath.clamp(hold.capacity, 0.05, 1) *
       (1 - dmath.clamp(hold.corruption, 0, 0.9)),
-    cost = caught * (1 + 0.5 * hold.force) * (1 / (1 + dmath.clamp(border, 0, 4)));
+    cost = caught * (1 + 0.5 * hold.force) * (1 / (1 + dmath.clamp(border, 0, 4))) * carry;
   return dmath.clamp(wedge / (wedge + cost + 0.05) - 0.05, 0, 0.8);
 }
 

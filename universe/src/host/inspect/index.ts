@@ -73,6 +73,7 @@ import { courtPage } from "./court.ts";
 import { dynastyPage, linePage, withFamilyLink } from "./family.ts";
 import { crimeGroupPage, federationPage, operationPage } from "./mobs.ts";
 import { orgFedPage, orgPage } from "./groups.ts";
+import { bossPage } from "./boss.ts";
 import { withFollow } from "../follow.ts";
 import { withDeath } from "../death.ts";
 import { songPage, stonePage } from "./memory.ts";
@@ -152,7 +153,7 @@ function build(
   if (ref.startsWith("stone:")) return stonePage(world, ref);
   if (ref.startsWith("song:")) return songPage(world, ref);
   // What binds realms (D1).
-  if (ref.startsWith("bloc:")) return blocPage(world, ref);
+  if (ref.startsWith("bloc:")) return blocPage(world, ref, tab ?? undefined);
   if (ref.startsWith("league:")) return leaguePage(world, ref);
   if (ref.startsWith("match:")) return matchPage(world, ref);
   if (ref.startsWith("envoy:")) return envoyPage(world, ref);
@@ -196,6 +197,8 @@ function build(
   if (ref.startsWith("uop:")) return operationPage(world, ref);
   // A group of the general layer, a federation of them (sim/order/groups.ts).
   if (ref.startsWith("org:")) return orgPage(world, ref);
+  // The head of a group: a boss, a group's leader (asked 2026-11-16).
+  if (ref.startsWith("boss:")) return bossPage(world, ref);
   if (ref.startsWith("ofed:")) return orgFedPage(world, ref);
   const code = ref.slice(0, ref.indexOf(":")),
     t = tab ?? undefined;
