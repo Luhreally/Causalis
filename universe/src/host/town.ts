@@ -32,6 +32,7 @@ import {
 import { kindOf } from "./kinds.ts";
 import { homePlanet, lessonUse } from "../sim/index.ts";
 import { townSiteOf, type RoadEnd } from "./sites.ts";
+import { townRank } from "./rank.ts";
 
 /** How a people pass over their ground, where it isn't on foot (R1): as their law and homes read them. */
 function waysOf(world: World): { ways?: "swim" | "tunnel" } {
@@ -187,6 +188,8 @@ export function townPlan(
   const site = fabric || colonyTownCell(ref) !== null ? null : townSiteOf(world, ref, f, ends);
   if (site?.roads.length) axis = site.roads[0]!.bearing;
   const lots = Math.min(f.next, most);
+  // (Who its buildings belong to: read where its streets are, the same towns.)
+  const rank = site ? townRank(world, ref, f, lots) : null;
   const ctx = populationContext(world),
     s = ctx.settlements.get(ref),
     cell = s?.cell ?? 0,
@@ -232,6 +235,7 @@ export function townPlan(
   return {
     family: f.family,
     ...(site ? { site } : {}),
+    ...(rank ? { rank } : {}),
     seed: hashString(`town ${ref}`),
     axis,
     lots,

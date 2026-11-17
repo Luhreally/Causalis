@@ -186,16 +186,24 @@ export function withFigures(world: World, plan: VillagePlan): VillagePlan {
         figure: l.ref,
       });
   }
-  return {
-    ...plan,
-    people,
-    figures: here.map((l) => ({
+  const figures = here.map((l) => ({
       ref: l.ref,
       name: l.name,
       title: l.title,
       home: homeOfFigure(l.ref, plan.homes.length),
     })),
-  };
+    // (Each one's home marked on its lot, but the ruler's: the ruler keeps the seat's hall. bridge/rank.ts)
+    marks = figures.flatMap((g) => {
+      const lot = plan.homes[g.home]?.lot;
+      return lot === undefined || g.ref.startsWith("rule:")
+        ? []
+        : [{ lot, ref: g.ref, name: g.name, title: g.title }];
+    }),
+    town =
+      plan.town?.rank && marks.length
+        ? { ...plan.town, rank: { ...plan.town.rank, marks } }
+        : plan.town;
+  return { ...plan, ...(town ? { town } : {}), people, figures };
 }
 
 export const LEADER_QUERIES: Readonly<Record<string, QueryHandler>> = {

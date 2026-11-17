@@ -43,7 +43,16 @@ import {
   type Tab,
   type TownSite,
 } from "../../bridge/index.ts";
-import { siteOfTown, streetsLine, whyBuilding, whyHome, whyOpen } from "./sited.ts";
+import {
+  seatLine,
+  siteOfTown,
+  streetsLine,
+  whoseLot,
+  whyBuilding,
+  whyHome,
+  whyOpen,
+} from "./sited.ts";
+import { townRank } from "../rank.ts";
 import { townPlan } from "../town.ts";
 import { workshopBlocks } from "../chain.ts";
 import { townSite } from "../village.ts";
@@ -182,6 +191,8 @@ export function lotPage(world: World, ref: string): PageModel {
       ` of the town's ${bare(standing.kind)}, ${CIVIC_FOR[standing.kind]}.`,
     ]);
     lines.push(whyBuilding(world, s.ref, s.cell, standing.kind, standing.at, site()));
+    const seated = standing.kind === "hall" ? seatLine(townRank(world, s.ref, f)) : null;
+    if (seated) lines.push(seated);
   } else if (run && (run[0] === BUILT || run[0] === RAISED)) {
     const level = run[5],
       name = HOME_LEVELS[level] ?? "home";
@@ -210,7 +221,18 @@ export function lotPage(world: World, ref: string): PageModel {
       lines.push([
         `One of a row of ${many(run[2] - run[1], "lot", "lots")} built alike, lot by lot.`,
       ]);
-    lines.push(...whyHome(world, s.ref, s.cell, f, p, level));
+    const rank = townRank(world, s.ref, f),
+      whose = whoseLot(rank, p);
+    const theirs = rank?.halls?.find((h) => h.lot === p);
+    if (rank?.seat && rank.seat.lot === p) {
+      title = `The ruler's house in ${s.name}`;
+      icon = "👑";
+    } else if (theirs) {
+      title = `The hall of the house of ${theirs.name}, in ${s.name}`;
+      icon = "🏰";
+    }
+    if (whose.length) lines.push(...whose);
+    else lines.push(...whyHome(world, s.ref, s.cell, f, p, level));
   } else if (run && (run[0] === FELL || run[0] === RAZED || run[0] === BURNED)) {
     const burnt = run[0] !== FELL;
     title = `A ruin of ${s.name}`;
@@ -357,6 +379,8 @@ export function buildingPage(world: World, ref: string): PageModel {
       ? ["It stands where the town could find room for it, on lots it cleared."]
       : whyBuilding(world, s.ref, s.cell, c.kind, c.at, siteOfTown(world, s.ref, f)),
   ];
+  const seated = c.kind === "hall" && c.fell === null ? seatLine(townRank(world, s.ref, f)) : null;
+  if (seated) lines.push(seated);
   if (waited)
     lines.push(["It waited on its land's learning: ", link("what it was built for", waited), "."]);
   if (def.replaces) {

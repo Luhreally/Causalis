@@ -12,6 +12,7 @@ import { MONTH, YEAR, mix } from "../kernel/index.ts";
 import type { GenesisPlan, MeadowPlan } from "./genesis.ts";
 import type { GetAbout } from "./village.ts";
 import { grownBlocks, type TownSite } from "./sites.ts";
+import type { TownRank } from "./rank.ts";
 
 /** A lot: so many metres along its street, so many deep. */
 export const LOT_W = 9;
@@ -138,6 +139,8 @@ export type TownPlan = {
   readonly family: TownFamily;
   /** Its ground and its ways in, by which its streets are grown (absent: laid by `family`, as of old). */
   readonly site?: TownSite;
+  /** Who its buildings belong to, as far as it shows (bridge/rank.ts; absent: not read). */
+  readonly rank?: TownRank;
   /** For the plan's own turns and wanderings. */
   readonly seed: number;
   /** The heading of its streets (a grid's runs along its road). */

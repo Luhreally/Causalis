@@ -25,18 +25,20 @@ import {
   type Fabric,
 } from "../../sim/index.ts";
 import {
-  HEART_BLOCKS,
   QUARTER,
+  groundWealth,
+  homeGround,
+  rankSteep,
+  shareWords,
   shopsBelow,
   streetWords,
+  type HomeGround,
   type Line,
+  type TownRank,
   type TownSite,
 } from "../../bridge/index.ts";
 import { townSiteOf } from "../sites.ts";
 import { landEra } from "../village.ts";
-
-/** How unevenly a land's wealth must be shared for its people to sort themselves by ground (Gini). */
-const SORTS = 0.3;
 
 /** The quarter a building that wants a site wants (-1: none). */
 const QUARTER_OF: Partial<Record<CivicSite, number>> = {
@@ -48,7 +50,11 @@ const QUARTER_OF: Partial<Record<CivicSite, number>> = {
 
 /** What a building of a kind wants in this town as it stands: a seat's halls high; works by its land's law. */
 function wantOf(world: World, town: Ref, cell: number, kind: CivicKind): CivicSite {
-  const seat = politiesOf(world).of(cell)?.town === town,
+  const realm = politiesOf(world).of(cell),
+    seat =
+      !!realm &&
+      realm.seat === cell &&
+      realm.town === populationContext(world).settlements.get(town)?.name,
     want = seat ? seatSite(kind) : CIVIC_SITE[kind];
   return want === "works"
     ? knows(populationContext(world), cell, ZONING_NEEDS)
@@ -128,32 +134,83 @@ export function whyHome(
 ): Line[] {
   const out: Line[] = [],
     b = Math.floor(lot / 8),
-    seed = townSeed(town),
-    q = quarterOf(seed, b),
-    blocks = Math.max(1, Math.ceil(f.next / 8)),
-    heart = b < HEART_BLOCKS,
-    near = b < Math.max(HEART_BLOCKS * 3, blocks / 3),
-    edge = b >= blocks / 2;
+    seed = townSeed(town);
   // (Mixed: a tall home by the square.)
   if (shopsBelow(lot, f.next, level))
     out.push(["Shops on its ground floor: it stands near the square, where those who pass buy."]);
   if (floodGround(seed, b))
     out.push(["Toward the water, on the low ground the floods take first."]);
-  const gini = giniOf(world, cell);
-  if (gini === null || gini < SORTS) return out;
-  const drives = landEra(world, cell) === "modern";
-  if (!drives && heart) out.push(["By the square: the well-off hold the dearest ground."]);
-  else if (!drives && q === QUARTER.high && near)
-    out.push(["High ground near the square: the well-off hold it."]);
-  else if (drives && q === QUARTER.high && edge)
-    out.push(["High ground at the town's edge: the well-off live out here, and drive in."]);
-  else if (drives && heart && level >= LEVEL.tenement)
-    out.push(["By the square, in the tall homes: those who work there and cannot drive."]);
-  else if (q === QUARTER.lee && edge)
-    out.push(["Downwind at the town's edge: the poor live where its smoke blows."]);
-  else if (q === QUARTER.water && edge)
-    out.push(["Low ground toward the water, at the edge: the poor live where the floods come."]);
+  const gini = giniOf(world, cell) ?? 0,
+    drives = landEra(world, cell) === "modern",
+    ground = homeGround(seed, lot, f.next, level, gini, drives);
+  if (ground) out.push([GROUND_WORDS[ground]]);
+  // (And how it shows, on a low home: view/town.ts rankedHome.)
+  const wealth = level <= 2 ? groundWealth(ground) : 0,
+    steep = rankSteep(gini) >= 0.75 ? "steeply" : "unevenly";
+  if (wealth > 0)
+    out.push([
+      `It looks it: taller and dressed, a lamp at its door and a garden behind, for its land's wealth is ${steep} held.`,
+    ]);
+  else if (wealth < 0)
+    out.push([
+      `It looks it: low and patched, of the cheapest stuff to hand, a lean-to crowded against it, for its land's wealth is ${steep} held.`,
+    ]);
   return out;
+}
+
+/** Each ground wealth sorts a town's homes onto, in a line. */
+const GROUND_WORDS: Readonly<Record<HomeGround, string>> = {
+  heart: "By the square: the well-off hold the dearest ground.",
+  high: "High ground near the square: the well-off hold it.",
+  "high-edge": "High ground at the town's edge: the well-off live out here, and drive in.",
+  "tall-heart": "By the square, in the tall homes: those who work there and cannot drive.",
+  "lee-edge": "Downwind at the town's edge: the poor live where its smoke blows.",
+  "water-edge": "Low ground toward the water, at the edge: the poor live where the floods come.",
+};
+
+/**
+ * Whose a lot is, where its town shows it (bridge/rank.ts): a great house's hall, and why it is as great as it is; a key
+ * figure's home.
+ */
+export function whoseLot(rank: TownRank | null | undefined, lot: number): Line[] {
+  const out: Line[] = [],
+    hall = rank?.halls?.find((h) => h.lot === lot),
+    mark = rank?.marks?.find((m) => m.lot === lot);
+  if (rank?.seat && rank.seat.lot === lot)
+    out.push([
+      "The house of ",
+      { text: "its realm's ruler", ref: rank.seat.ruler },
+      ": no hall of law stands in the seat yet, and the ruler keeps the greatest house of the town, the realm's banner and guards at its gate.",
+    ]);
+  if (hall)
+    out.push([
+      "The hall of ",
+      hall.ref ? { text: `the house of ${hall.name}`, ref: hall.ref } : `the house of ${hall.name}`,
+      `: its wealth is ${shareWords(hall.share)} of all its realm's great houses hold, and its hall stands as tall for it, its yard walled, its banner over it.`,
+    ]);
+  if (mark)
+    out.push([
+      "The home of ",
+      { text: mark.name, ref: mark.ref },
+      `, ${mark.title.charAt(0).toLowerCase()}${mark.title.slice(1)}: a pennant stands at its door.`,
+    ]);
+  return out;
+}
+
+/** A seat's hall: whose it is, and why it is as great as it is. */
+export function seatLine(rank: TownRank | null | undefined): Line | null {
+  const seat = rank?.seat;
+  return seat
+    ? [
+        "The seat of its realm: ",
+        { text: "its ruler", ref: seat.ruler },
+        seat.grade === 2
+          ? " keeps it as a palace with wings, the realm old and of many lands; its banners and guards at its door."
+          : seat.grade === 1
+            ? " keeps it as a palace with a keep over it, the realm grown in years and lands; its banners and guards at its door."
+            : " keeps it as a hall, its banners and guards at its door: the realm is young or small yet.",
+      ]
+    : null;
 }
 
 /** Open ground a town that has flooded keeps its homes off. */

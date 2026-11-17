@@ -47,6 +47,15 @@ import {
   type VillagePlan,
 } from "../bridge/index.ts";
 import { HOME_LIFE } from "../rules/index.ts";
+import {
+  RANK_SORTS,
+  groundWealth,
+  homeGround,
+  rankSteep,
+  type RankHall,
+  type RankMark,
+  type RankSeat,
+} from "../bridge/index.ts";
 import { houseLook, type HouseLook } from "./village.ts";
 import { biomeColor } from "./globe.ts";
 import { lifeTint } from "./biochem.ts";
@@ -1663,7 +1672,7 @@ export function townHomes(
         if (w.at !== null && t < w.at + states.takes[p]!)
           rising(out, now, level, x, z, yaw, (t - w.at) / states.takes[p]!);
         else {
-          home(out, now, level, x, z, yaw);
+          rankedHome(scene, out, now, level, p, x, z, yaw);
           // (Shops on the ground floor of a tall home near the square: asked 2026-11-16.)
           if (shopsBelow(p, scene.plan.whole, level)) shopfront(out, level, x, z, yaw, p);
           // (Framed against the shaking, as many as its people have learned to frame: the lessons.)
@@ -1720,6 +1729,234 @@ function shopfront(
     [ax, az] = at(x, z, yaw, 0, -L.d / 2 - 0.7);
   out.lamp(sx, 1.4, sz, L.w * 0.8, 1.8, 0.12, yaw);
   out.put("box", AWNINGS[p % AWNINGS.length]!, ax, 3.1, az, L.w * 0.86, 0.22, 1.4, yaw);
+}
+
+// —— Whose it is, seen (asked 2026-11-17: "can you make it so the leaders houses and the rich houses look notably different") ——
+// The same parts as every home, scaled and painted: nothing new for the renderer to draw with.
+
+const GARDEN: Rgb = [0.3, 0.56, 0.26],
+  DRESSED: Rgb = [0.94, 0.92, 0.86],
+  MUD: Rgb = [0.42, 0.34, 0.26],
+  PATCH: Rgb = [0.5, 0.46, 0.4],
+  SKIN_TONE: Rgb = [0.8, 0.62, 0.48],
+  PAVED: Rgb = [0.8, 0.77, 0.7];
+
+/** A plan's halls and marked homes by lot, and how far its homes are told apart by wealth. */
+type Ranked = {
+  readonly halls: Map<number, RankHall>;
+  readonly marks: Map<number, RankMark>;
+  readonly steep: number;
+  readonly looks: Map<HouseLook, [HouseLook, HouseLook]>;
+};
+const RANKED = new WeakMap<TownPlan, Ranked>();
+function rankedOf(plan: TownPlan): Ranked | null {
+  const rank = plan.rank;
+  if (!rank || plan.sealed) return null;
+  let r = RANKED.get(plan);
+  if (!r) {
+    r = {
+      halls: new Map((rank.halls ?? []).map((h) => [h.lot, h])),
+      marks: new Map((rank.marks ?? []).map((m) => [m.lot, m])),
+      steep: rank.gini >= RANK_SORTS ? rankSteep(rank.gini) : 0,
+      looks: new Map(),
+    };
+    RANKED.set(plan, r);
+  }
+  return r;
+}
+
+/** A mast with a banner in a colour, a stripe of its arms across it. */
+function banner(out: TownParts, x: number, z: number, yaw: number, high: number, c: Rgb): void {
+  const wide = Math.max(1.6, high * 0.28);
+  out.put("box", MAST, x, high / 2, z, 0.22, high, 0.22, 0);
+  const [bx, bz] = at(x, z, yaw, wide / 2 + 0.1, 0);
+  out.put("box", c, bx, high - wide * 0.4, bz, wide, wide * 0.7, 0.12, yaw);
+  out.put("box", DRESSED, bx, high - wide * 0.4, bz, wide * 1.01, wide * 0.16, 0.14, yaw);
+}
+
+/**
+ * A home as who holds it shows: a great house's hall in its compound under its banner; a key figure's home marked; and, where
+ * its land's wealth is held unevenly, the well-off's taller, dressed, lamp-lit and gardened, the poor's low, patched and
+ * crowded with a lean-to: the more so the steeper the land. An even or a poor land's homes stand all alike.
+ */
+function rankedHome(
+  scene: TownScene,
+  out: TownParts,
+  look: HouseLook,
+  level: number,
+  p: number,
+  x: number,
+  z: number,
+  yaw: number,
+): void {
+  const r = rankedOf(scene.plan);
+  if (!r || look.sealed || look.tent || level > 2) return home(out, look, level, x, z, yaw);
+  const hall = r.halls.get(p),
+    seat = scene.plan.rank!.seat;
+  if (seat && seat.lot === p) {
+    // The ruler's own house, where no hall of law stands yet: the greatest of the town's, the realm's guards at its gate.
+    greatHall(out, look, level, x, z, yaw, {
+      lot: p,
+      name: seat.name,
+      color: seat.color,
+      share: 0.3 + 0.2 * seat.grade,
+    });
+    for (const side of [-1, 1]) {
+      const [gx, gz] = at(x, z, yaw, side * 1.3, -LOT_D / 2 + 0.1);
+      out.put("box", seat.color, gx, 0.85, gz, 0.5, 1.3, 0.4, yaw);
+      out.put("box", SKIN_TONE, gx, 1.67, gz, 0.3, 0.32, 0.3, yaw);
+    }
+    const [bx, bz] = at(x, z, yaw, -LOT_W * 0.42, -LOT_D / 2 + 0.3);
+    banner(out, bx, bz, yaw, 12 + 3 * seat.grade, seat.color);
+    return;
+  }
+  if (hall) return greatHall(out, look, level, x, z, yaw, hall);
+  const rank = scene.plan.rank!,
+    wealth = r.steep
+      ? groundWealth(
+          homeGround(scene.plan.seed, p, scene.plan.whole, level, rank.gini, rank.drives),
+        )
+      : 0,
+    k = r.steep;
+  let pair = r.looks.get(look);
+  if (!pair) {
+    pair = [
+      {
+        ...look,
+        height: look.height * (1 + 0.35 * k),
+        wall: mixed(look.wall, DRESSED, 0.3 * k),
+      },
+      {
+        ...look,
+        height: look.height * (1 - 0.2 * k),
+        wall: mixed(look.wall, MUD, 0.4 * k),
+        roof: mixed(look.roof, MUD, 0.35 * k),
+      },
+    ];
+    r.looks.set(look, pair);
+  }
+  const L = LEVELS[level]!,
+    [w, d] = level <= 1 ? lowFoot(L, look) : [L.w, L.d];
+  if (wealth > 0) {
+    home(out, pair[0], level, x, z, yaw);
+    // A garden behind, a dressed porch and a lamp at the door.
+    const [gx, gz] = at(x, z, yaw, 0, d / 2 + 1.3),
+      [px, pz] = at(x, z, yaw, 0, -d / 2 - 0.35),
+      base = look.raised * 10;
+    out.put("box", GARDEN, gx, 0.2, gz, Math.min(LOT_W - 0.6, w * 1.2), 0.4, 2.2, yaw);
+    out.put("box", DRESSED, px, base + 1.2, pz, Math.min(2.2, w * 0.36), 2.4, 0.6, yaw);
+    out.lamp(px, base + 2.1, pz, 0.5, 0.5, 0.7, yaw);
+  } else if (wealth < 0) {
+    home(out, pair[1], level, x, z, yaw);
+    // Patched, and a lean-to crowded against its wall.
+    const [qx, qz] = at(x, z, yaw, w * 0.22, -d / 2 - 0.06),
+      [sx, sz] = at(x, z, yaw, -(w / 2 + 0.7), d * 0.15);
+    out.put("box", PATCH, qx, look.raised * 10 + 1, qz, 1.1, 0.9, 0.1, yaw);
+    if (level <= 1) {
+      out.put("box", pair[1].wall, sx, 0.8, sz, 1.4, 1.6, 2, yaw);
+      out.put("box", PATCH, sx, 1.68, sz, 1.6, 0.14, 2.2, yaw);
+    }
+  } else home(out, look, level, x, z, yaw);
+  const mark = r.marks.get(p);
+  if (mark) {
+    // A key figure's home: a pennant in the seat's colour (gold where it is no seat) and a lamp by the door.
+    const [mx, mz] = at(x, z, yaw, w / 2 + 0.4, -d / 2 - 0.5);
+    banner(out, mx, mz, yaw, 6.5, rank.seat?.color ?? GOLD);
+    out.lamp(mx, 1.6, mz, 0.4, 0.4, 0.4, yaw);
+  }
+}
+
+/** A great house's hall: taller than any home about it as its share of the houses' wealth is greater, a tower at its back, its yard walled, its banner over it. */
+function greatHall(
+  out: TownParts,
+  look: HouseLook,
+  level: number,
+  x: number,
+  z: number,
+  yaw: number,
+  hall: RankHall,
+): void {
+  const grand = 1.5 + Math.min(1, hall.share * 2),
+    tall: HouseLook = {
+      ...look,
+      height: look.height * grand,
+      wall: mixed(look.wall, DRESSED, 0.35),
+    },
+    lv = Math.max(1, level),
+    L = LEVELS[lv]!,
+    [w, d] = lv <= 1 ? lowFoot(L, look) : [L.w, L.d],
+    h = L.h * (lv <= 1 ? tall.height : 1.15),
+    base = look.raised * 10;
+  home(out, tall, lv, x, z, yaw);
+  // Its tower at the back, the house's colour on its cap.
+  const [tx, tz] = at(x, z, yaw, -w * 0.3, d / 2 + 1.2),
+    th = h + 3 + 4 * Math.min(1, hall.share * 2);
+  out.put("box", tall.wall, tx, base + th / 2, tz, 2.4, th, 2.4, yaw);
+  out.put("cone", hall.color, tx, base + th + 1.1, tz, 3, 2.2, 3, yaw);
+  // Its yard's wall about its lot, open at its gate.
+  for (const [u, v, sw, sd] of [
+    [-LOT_W / 2 + 0.2, 0, 0.35, LOT_D - 0.6],
+    [LOT_W / 2 - 0.2, 0, 0.35, LOT_D - 0.6],
+    [0, LOT_D / 2 - 0.3, LOT_W - 0.4, 0.35],
+    [-LOT_W * 0.3, -LOT_D / 2 + 0.3, LOT_W * 0.35, 0.35],
+    [LOT_W * 0.3, -LOT_D / 2 + 0.3, LOT_W * 0.35, 0.35],
+  ] as const) {
+    const [cx, cz] = at(x, z, yaw, u, v);
+    out.put("box", PAVED, cx, 0.9, cz, sw, 1.8, sd, yaw);
+  }
+  const [bx, bz] = at(x, z, yaw, w * 0.3, -d / 2 - 0.8),
+    [lx, lz] = at(x, z, yaw, 0, -d / 2 - 0.3);
+  banner(out, bx, bz, yaw, h + 5, hall.color);
+  out.lamp(lx, base + 2, lz, 0.6, 0.6, 0.7, yaw);
+}
+
+/**
+ * A realm's seat: the ruler's hall with its forecourt paved before it, the realm's banners at its door and its guards under
+ * them; a palace (an older realm of more lands) with a keep over it, a great one with wings.
+ */
+function palace(
+  out: TownParts,
+  f: { x: number; z: number; yaw: number; w: number; d: number },
+  seat: RankSeat,
+): void {
+  const put = (
+    mesh: PartMesh,
+    c: Rgb,
+    u: number,
+    y: number,
+    v: number,
+    sx: number,
+    sy: number,
+    sz: number,
+  ) => {
+    const [cx, cz] = at(f.x, f.z, f.yaw, u, v);
+    out.put(mesh, c, cx, y, cz, sx, sy, sz, f.yaw);
+  };
+  // Its forecourt, and its steps.
+  put("box", PAVED, 0, 0.32, f.d * 0.43, f.w * 0.98, 0.3, f.d * 0.14);
+  put("box", DRESSED, 0, 0.6, f.d * 0.36, f.w * 0.5, 0.5, f.d * 0.06);
+  for (const side of [-1, 1]) {
+    const [bx, bz] = at(f.x, f.z, f.yaw, side * f.w * 0.44, f.d * 0.44);
+    banner(out, bx, bz, f.yaw, 13 + 3 * seat.grade, seat.color);
+    // A guard each side of its door: in the realm's colour, a spear in hand.
+    put("box", seat.color, side * 1.6, 1.2, f.d * 0.4, 0.5, 1.3, 0.4);
+    put("box", SKIN_TONE, side * 1.6, 2.02, f.d * 0.4, 0.3, 0.32, 0.3);
+    put("box", MAST, side * 1.95, 1.5, f.d * 0.4, 0.07, 2.6, 0.07);
+  }
+  if (seat.grade >= 1) {
+    // A keep over its roof, the realm's colour on its cap.
+    put("box", DRESSED, 0, 9, -f.d * 0.22, f.w * 0.28, 18, f.d * 0.3);
+    put("cone", seat.color, 0, 19.6, -f.d * 0.22, f.w * 0.34, 3.2, f.d * 0.36);
+    put("box", GOLD, 0, 21.6, -f.d * 0.22, 0.5, 0.9, 0.5);
+  }
+  if (seat.grade >= 2)
+    for (const side of [-1, 1]) {
+      // Its wings, each a pavilion at an end of it, lamp-lit.
+      put("box", DRESSED, side * f.w * 0.4, 6.5, -f.d * 0.05, f.w * 0.2, 13, f.d * 0.82);
+      put("gable", seat.color, side * f.w * 0.4, 14.2, -f.d * 0.05, f.w * 0.22, 2.4, f.d * 0.86);
+      const [lx, lz] = at(f.x, f.z, f.yaw, side * f.w * 0.4, f.d * 0.365);
+      out.lamp(lx, 7, lz, f.w * 0.14, 1.2, 0.2, f.yaw);
+    }
 }
 
 /** A home framed against the ground's shaking: its corner posts and a belt rail about its walls, in its roof's timber. */
@@ -2152,6 +2389,9 @@ function civicsPut(scene: TownScene, t: number, out: TownParts, still: boolean):
       still,
     );
     if (c.shut && g >= 1) boardedOver(out, f);
+    // (A realm's seat: its hall the ruler's. bridge/rank.ts)
+    if (c.kind === "hall" && g >= 1 && !c.shut && plan.rank?.seat && !plan.sealed)
+      palace(out, f, plan.rank.seat);
     if (g < 1 && c.asked) siteStuff(out, f, g, c.asked.heap, c.asked.stopped);
     if (g < 1) {
       const top = (CIVIC_HIGH[c.kind] ?? 10) * g + (c.asked ? 3 : 1.5);

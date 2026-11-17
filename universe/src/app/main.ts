@@ -3828,6 +3828,9 @@ async function runPlanetPage(): Promise<void> {
         const hall = plan.town?.civics.find(
           (c) => (c.truly ?? c.at) === thing.at && c.start === thing.start,
         );
+        // (A seat's hall is the ruler's: it opens them. Asked 2026-11-17.)
+        const seat = plan.town?.rank?.seat;
+        if (hall?.kind === "hall" && hall.fell === null && !hall.shut && seat) return seat.ruler;
         return hall?.kind === "market" &&
           hall.fell === null &&
           !(hall.asked && hall.asked.share < 1)
@@ -3839,7 +3842,11 @@ async function runPlanetPage(): Promise<void> {
         theirs = lot
           ? plan.homes.find((h) => h.household && Math.hypot(h.x - lot.x, h.z - lot.z) < 1)
           : undefined;
-      return theirs?.household ?? `lot:${plan.ref}:${thing.lot}`;
+      // (A key figure's marked home opens them.)
+      const marked = plan.town?.rank?.marks?.find((m) => m.lot === thing.lot),
+        rulers = plan.town?.rank?.seat;
+      if (rulers && rulers.lot === thing.lot) return rulers.ruler;
+      return theirs?.household ?? marked?.ref ?? `lot:${plan.ref}:${thing.lot}`;
     }
     let home = -1,
       near = 7;
