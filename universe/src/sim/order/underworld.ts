@@ -1111,6 +1111,7 @@ function stepRealm(
     const fight = turfWar(
         own.map((g) => g.share),
         collusion,
+        bites,
       ),
       open = v.wars.find((w) => w.ended === null && w.kind === KIND(kind));
     for (const g of own) {
