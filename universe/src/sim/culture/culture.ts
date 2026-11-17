@@ -35,6 +35,7 @@ import {
 } from "../../gen/index.ts";
 import {
   BODY_PARTS,
+  soundChange,
   HOLD,
   LAND_PARTS,
   LIVED,
@@ -69,6 +70,7 @@ import { capacity, livable } from "../population/model.ts";
 import { politiesOf } from "../polity/polity.ts";
 import type { MarketStore } from "../economy/market.ts";
 import type { OrderStore } from "../order/order.ts";
+import { readersOf } from "../lore/letters.ts";
 
 export { WAY, WAY_TRAITS, type WayTrait };
 
@@ -672,7 +674,12 @@ export function cultureYear(ctx: PopulationContext, t: SimTime): void {
       return dmath.clamp(v + 0.01 * pull + relax + wander, 0.02, 0.98);
     });
     let tongue = w.tongue;
-    if (world.rng.real(SPEECH, p.cell, t, 1) < 1 / 30)
+    // (Speech changes as each generation learns it anew, the faster the sooner they are grown (an upright ape's, grown at fifteen,
+    // a change in thirty years), and the slower as its people read a written standard: the society sweep.)
+    if (
+      world.rng.real(SPEECH, p.cell, t, 1) <
+      soundChange(ctx.life.adulthood, readersOf(world, p.cell))
+    )
       tongue = shiftTongue(tongue, world.rng.real(SPEECH, p.cell, t, 2));
     if (near.length && world.rng.real(SPEECH, p.cell, t, 3) < Math.min(0.5, total / 60)) {
       const most = [...near].sort((a, b) => b.weight - a.weight || a.w.cell - b.w.cell)[0]!;
