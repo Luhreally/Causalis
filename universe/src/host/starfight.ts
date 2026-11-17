@@ -8,7 +8,6 @@ import { civBody, offworldSite, type Civilization } from "../gen/index.ts";
 import { hullOf, starDriveFor } from "../rules/index.ts";
 import { why } from "../causal/index.ts";
 import {
-  FLEET_MACHINES,
   civilizationsNear,
   holdWorld,
   homePlanet,
@@ -152,6 +151,8 @@ function realmSide(
   year: number,
   strength: number,
   attacker: boolean,
+  /** The machines it sent, as its war keeps them (none where it kept none). */
+  sent: number | null = null,
 ): FightSide {
   const body = peopleBody(world);
   const medium = body?.medium ?? "land";
@@ -160,7 +161,7 @@ function realmSide(
     kind: "realm" as const,
     color: realmColor(ref),
     strength,
-    machines: attacker ? FLEET_MACHINES : null,
+    machines: attacker ? sent : null,
     gravity: homePlanet(world).generated.planet.gravity,
     medium,
     clade: body?.clade ?? null,
@@ -270,7 +271,7 @@ function worldWarPlan(world: World, w: StarWar, nowYear: number): StarFightPlan 
     road: "starwar",
     year: d.year,
     sailed: w.sailed,
-    attacker: realmSide(world, w.realm, w.sailed, d.strength, true),
+    attacker: realmSide(world, w.realm, w.sailed, d.strength, true, w.machines ?? null),
     defender: worldSide(world, w, d.year, d.defence),
     won: w.won === true,
     place: {
@@ -301,7 +302,7 @@ function warPlan(world: World, w: StarWar, nowYear: number): StarFightPlan | nul
     road: "starwar",
     year: d.year,
     sailed: w.sailed,
-    attacker: realmSide(world, w.realm, w.sailed, d.strength, true),
+    attacker: realmSide(world, w.realm, w.sailed, d.strength, true, w.machines ?? null),
     defender: peopleSide(world, civ, d.year, d.defence),
     won: w.won === true,
     place: {

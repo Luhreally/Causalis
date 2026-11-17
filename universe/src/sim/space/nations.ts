@@ -52,7 +52,7 @@ import {
   type StarNation,
 } from "./nation-store.ts";
 import { machinesOfRealm } from "./space.ts";
-import { FLEET_MACHINES, type Cause } from "./starwar.ts";
+import { fleetSentBy, type Cause } from "./starwar.ts";
 import { clusterOf, worldsOf } from "./voyages.ts";
 
 export const NATION_EVENTS = {
@@ -149,7 +149,7 @@ export function seatOfRealm(ctx: PopulationContext, p: Polity): Seat {
     star: seatStarOf(ctx, p),
     drive: starDriveFor(k) ?? null,
     lanes: laneLawOf(ctx.world).open && k(LANE_ROW),
-    fleet: machinesOfRealm(ctx, p) >= FLEET_MACHINES,
+    fleet: fleetSentBy(ctx, p) > 0,
     people: p.members.reduce((s, c) => s + (ctx.provinces.get(c)?.total() ?? 0), 0),
     hold: holdYears(ctx.life.adulthood),
   };
