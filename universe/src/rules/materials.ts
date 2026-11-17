@@ -1350,6 +1350,16 @@ export const STAGE_FITTINGS = 0.04,
 
 /** A stage's dry share walled in a stuff: its fittings, and its walls as much lighter than steel's as its panel index is higher. */
 export function stageDry(stuff: string, binding = 1): number {
+  // (The same for a stuff and a binding always: kept once worked out, a realm's launcher asks it every year.)
+  const key = `${stuff}|${binding}`,
+    had = STAGE_DRY.get(key);
+  if (had !== undefined) return had;
+  const dry = stageDryOf(stuff, binding);
+  if (STAGE_DRY.size < 64) STAGE_DRY.set(key, dry);
+  return dry;
+}
+const STAGE_DRY = new Map<string, number>();
+function stageDryOf(stuff: string, binding: number): number {
   const t = frameStuffs(binding),
     f = t[stuff] ?? t.steel!,
     walls = (STEEL_STAGE_DRY - STAGE_FITTINGS) * (panelIndex(t.steel!) / panelIndex(f));
