@@ -1,5 +1,5 @@
-// A town's buildings kept as columns of numbers, not as an object each (2026-11-15): a world at year 1,500 has a
-// million of them, and an object each held 130 bytes of the worker's heap where these hold 18. What reads them reads
+// A town's buildings kept as numbers, not as an object each (2026-11-15): a world at year 1,500 has a
+// million of them, and an object each held 130 bytes of the worker's heap where these hold 24. What reads them reads
 // them as before, through Civic: `for (const c of f.civics)`, `.find`, `.some`, `.filter`, `.length`, `.get(i)`.
 import { CIVICS, CIVIC_INDEX, type CivicKind } from "../../rules/index.ts";
 
@@ -16,7 +16,7 @@ export interface Civic {
 /** A standing building's `fell`, as kept. */
 export const NO_FALL = -0x80000000;
 
-/** One of a town's buildings as its columns hold it: read and its fall set through them. */
+/** One of a town's buildings as its numbers hold it: read and its fall set through them. */
 class CivicAt implements Civic {
   private readonly of: Civics;
   /** Where it stands among its town's buildings, until one before it is let go. */
@@ -26,26 +26,26 @@ class CivicAt implements Civic {
     this.index = index;
   }
   get kind(): CivicKind {
-    return CIVICS[this.of.kinds[this.index]!]!.kind;
+    return CIVICS[this.of.kindAt(this.index)]!.kind;
   }
   get at(): number {
-    return this.of.ats[this.index]!;
+    return this.of.lotAt(this.index);
   }
   get lots(): number {
-    return this.of.spans[this.index]!;
+    return this.of.lotsAt(this.index);
   }
   get start(): number {
-    return this.of.starts[this.index]!;
+    return this.of.startAt(this.index);
   }
   get end(): number {
-    return this.of.ends[this.index]!;
+    return this.of.endAt(this.index);
   }
   get fell(): number | null {
-    const v = this.of.fells[this.index]!;
+    const v = this.of.fellAt(this.index);
     return v === NO_FALL ? null : v;
   }
   set fell(v: number | null) {
-    this.of.fells[this.index] = v === null ? NO_FALL : v;
+    this.of.setFell(this.index, v === null ? NO_FALL : v);
   }
   toJSON(): Civic {
     return plainCivic(this);
@@ -57,44 +57,68 @@ export function plainCivic(c: Civic): Civic {
   return { kind: c.kind, at: c.at, lots: c.lots, start: c.start, end: c.end, fell: c.fell };
 }
 
-/** A town's buildings, in the order they were begun: columns that grow as it does. */
+/** The numbers of a building: its kind's index in CIVICS, first lot, lots, year begun, year done, year fallen (NO_FALL: it stands). */
+const CIVIC = 6;
+/** What a town with no building yet holds: one list for all of them. */
+const NONE = new Int32Array(0);
+
+/**
+ * A town's buildings, in the order they were begun: six numbers each in one list that grows as it does. (A list for each
+ * of the six was six lists a town, 228 bytes of the heap each before a number is held: 31 MB of a world of 23,000 towns
+ * at 1,500, whose 166,000 buildings are 3 MB.)
+ */
 export class Civics implements Iterable<Civic> {
   length = 0;
   /** Counted up each time buildings are let go (those after them move up). */
   version = 0;
-  kinds: Uint8Array;
-  ats: Int32Array;
-  spans: Uint8Array;
-  starts: Int32Array;
-  ends: Int32Array;
-  fells: Int32Array;
+  private d: Int32Array;
 
   constructor(room = 0) {
-    this.kinds = new Uint8Array(room);
-    this.ats = new Int32Array(room);
-    this.spans = new Uint8Array(room);
-    this.starts = new Int32Array(room);
-    this.ends = new Int32Array(room);
-    this.fells = new Int32Array(room);
+    this.d = room ? new Int32Array(room * CIVIC) : NONE;
   }
 
-  /** Buildings given as objects, kept as columns. */
+  /** Buildings given as objects, kept as numbers. */
   static from(cs: Iterable<Civic>): Civics {
     const out = new Civics();
     for (const c of cs) out.push(c);
     return out;
   }
 
+  /** The i'th building's kind, by its index in CIVICS. */
+  kindAt(i: number): number {
+    return this.d[i * CIVIC]!;
+  }
+  /** Its first lot. */
+  lotAt(i: number): number {
+    return this.d[i * CIVIC + 1]!;
+  }
+  /** How many lots it takes. */
+  lotsAt(i: number): number {
+    return this.d[i * CIVIC + 2]!;
+  }
+  /** The year it was begun. */
+  startAt(i: number): number {
+    return this.d[i * CIVIC + 3]!;
+  }
+  /** The year it was done. */
+  endAt(i: number): number {
+    return this.d[i * CIVIC + 4]!;
+  }
+  /** The year it fell (NO_FALL: it stands). */
+  fellAt(i: number): number {
+    return this.d[i * CIVIC + 5]!;
+  }
+  /** Set the year it fell (NO_FALL: it stands). */
+  setFell(i: number, year: number): void {
+    this.d[i * CIVIC + 5] = year;
+  }
+
   private room(n: number): void {
-    if (n <= this.kinds.length) return;
-    const size = Math.max(n, 4, Math.ceil(this.kinds.length * 1.5));
-    const grow = <T extends Uint8Array | Int32Array>(a: T, b: T): T => (b.set(a), b);
-    this.kinds = grow(this.kinds, new Uint8Array(size));
-    this.ats = grow(this.ats, new Int32Array(size));
-    this.spans = grow(this.spans, new Uint8Array(size));
-    this.starts = grow(this.starts, new Int32Array(size));
-    this.ends = grow(this.ends, new Int32Array(size));
-    this.fells = grow(this.fells, new Int32Array(size));
+    const had = this.d.length / CIVIC;
+    if (n <= had) return;
+    const d = new Int32Array(Math.max(n, 4, Math.ceil(had * 1.5)) * CIVIC);
+    d.set(this.d);
+    this.d = d;
   }
 
   /** Add a building (its kind by its index in CIVICS); its index. */
@@ -108,12 +132,14 @@ export class Civics implements Iterable<Civic> {
   ): number {
     const i = this.length;
     this.room(i + 1);
-    this.kinds[i] = kind;
-    this.ats[i] = at;
-    this.spans[i] = lots;
-    this.starts[i] = start;
-    this.ends[i] = end;
-    this.fells[i] = fell === null ? NO_FALL : fell;
+    const d = this.d,
+      o = i * CIVIC;
+    d[o] = kind;
+    d[o + 1] = at;
+    d[o + 2] = lots;
+    d[o + 3] = start;
+    d[o + 4] = end;
+    d[o + 5] = fell === null ? NO_FALL : fell;
     return (this.length = i + 1);
   }
 
@@ -128,11 +154,11 @@ export class Civics implements Iterable<Civic> {
 
   /** Whether the i'th stands. */
   standing(i: number): boolean {
-    return this.fells[i] === NO_FALL;
+    return this.d[i * CIVIC + 5] === NO_FALL;
   }
 
   kindOf(i: number): CivicKind {
-    return CIVICS[this.kinds[i]!]!.kind;
+    return CIVICS[this.d[i * CIVIC]!]!.kind;
   }
 
   /** Keep only those `keep` says to, in their order; whether any was let go. */
@@ -140,14 +166,7 @@ export class Civics implements Iterable<Civic> {
     let w = 0;
     for (let i = 0; i < this.length; i++) {
       if (!keep(i)) continue;
-      if (w !== i) {
-        this.kinds[w] = this.kinds[i]!;
-        this.ats[w] = this.ats[i]!;
-        this.spans[w] = this.spans[i]!;
-        this.starts[w] = this.starts[i]!;
-        this.ends[w] = this.ends[i]!;
-        this.fells[w] = this.fells[i]!;
-      }
+      if (w !== i) this.d.copyWithin(w * CIVIC, i * CIVIC, (i + 1) * CIVIC);
       w++;
     }
     if (w === this.length) return false;
@@ -156,16 +175,10 @@ export class Civics implements Iterable<Civic> {
     return true;
   }
 
-  /** Their columns no longer than they are (a town read back from a save takes no more). */
+  /** Their list no longer than they are (a town read back from a save takes no more). */
   fit(): this {
-    if (this.kinds.length === this.length) return this;
-    const n = this.length;
-    this.kinds = this.kinds.slice(0, n);
-    this.ats = this.ats.slice(0, n);
-    this.spans = this.spans.slice(0, n);
-    this.starts = this.starts.slice(0, n);
-    this.ends = this.ends.slice(0, n);
-    this.fells = this.fells.slice(0, n);
+    const n = this.length * CIVIC;
+    if (this.d.length !== n) this.d = n ? this.d.slice(0, n) : NONE;
     return this;
   }
 
@@ -227,6 +240,8 @@ export type Change = [
 
 /** The numbers of a run. */
 export const RUN = 7;
+/** The numbers of a slot: its run's, and its incarnation after them. */
+const SLOT = RUN + 1;
 /** A run's slot and its incarnation, told as one number: what a town's settling keeps of a run it is to go over. */
 const SLOTS = 0x400000;
 
@@ -240,18 +255,15 @@ export class Runs implements Iterable<Change> {
   length = 0;
   /** The slots, in the order of their runs' lots. */
   order: Int32Array;
-  /** Seven numbers a slot. */
+  /** Eight numbers a slot: its run's seven, then its incarnation (a list of their own was one more list a town). */
   d: Int32Array;
-  /** Each slot's incarnation. */
-  gen: Int32Array;
   /** Slots ever taken. */
   private top = 0;
   private free: number[] = [];
 
   constructor(room = 0) {
     this.order = new Int32Array(room);
-    this.d = new Int32Array(room * RUN);
-    this.gen = new Int32Array(room);
+    this.d = new Int32Array(room * SLOT);
   }
 
   /** Runs given as lists, in the order given. */
@@ -263,11 +275,11 @@ export class Runs implements Iterable<Change> {
 
   /** A slot's k'th number. */
   v(s: number, k: number): number {
-    return this.d[s * RUN + k]!;
+    return this.d[s * SLOT + k]!;
   }
   /** Set a slot's k'th number. */
   w(s: number, k: number, x: number): void {
-    this.d[s * RUN + k] = x;
+    this.d[s * SLOT + k] = x;
   }
   /** The slot of the i'th run. */
   slot(i: number): number {
@@ -287,17 +299,14 @@ export class Runs implements Iterable<Change> {
     let s = this.free.pop();
     if (s === undefined) {
       s = this.top++;
-      if (s >= this.gen.length) {
-        const size = Math.max(4, Math.ceil(this.gen.length * 1.5), s + 1),
-          d = new Int32Array(size * RUN),
-          gen = new Int32Array(size);
+      const room = this.d.length / SLOT;
+      if (s >= room) {
+        const d = new Int32Array(Math.max(4, Math.ceil(room * 1.5), s + 1) * SLOT);
         d.set(this.d);
-        gen.set(this.gen);
         this.d = d;
-        this.gen = gen;
       }
     }
-    const o = s * RUN,
+    const o = s * SLOT,
       d = this.d;
     d[o] = what;
     d[o + 1] = from;
@@ -311,13 +320,13 @@ export class Runs implements Iterable<Change> {
 
   /** A slot given back: what was kept of its run tells it gone. */
   release(s: number): void {
-    this.gen[s]!++;
+    this.d[s * SLOT + RUN]!++;
     this.free.push(s);
   }
 
   /** A slot's run as one number, for keeping (see alive). */
   handle(s: number): number {
-    return this.gen[s]! * SLOTS + s;
+    return this.d[s * SLOT + RUN]! * SLOTS + s;
   }
   /** The slot of a run kept (see handle). */
   slotOf(h: number): number {
@@ -326,7 +335,7 @@ export class Runs implements Iterable<Change> {
   /** Whether a run kept stands still (was not let go, nor joined into another). */
   alive(h: number): boolean {
     const s = h % SLOTS;
-    return this.gen[s] === (h - s) / SLOTS;
+    return this.d[s * SLOT + RUN] === (h - s) / SLOTS;
   }
 
   private room(n: number): void {
@@ -398,8 +407,7 @@ export class Runs implements Iterable<Change> {
     if (this.free.length || this.top !== this.length || this.order.length === this.length)
       return this;
     this.order = this.order.slice(0, this.length);
-    this.d = this.d.slice(0, this.length * RUN);
-    this.gen = this.gen.slice(0, this.length);
+    this.d = this.d.slice(0, this.length * SLOT);
     return this;
   }
 
@@ -413,7 +421,7 @@ export class Runs implements Iterable<Change> {
   /** The i'th run, as a list (a copy). */
   get(i: number): Change | undefined {
     if (i < 0 || i >= this.length) return undefined;
-    const o = this.order[i]! * RUN,
+    const o = this.order[i]! * SLOT,
       d = this.d;
     return [d[o]!, d[o + 1]!, d[o + 2]!, d[o + 3]!, d[o + 4]!, d[o + 5]!, d[o + 6]!];
   }

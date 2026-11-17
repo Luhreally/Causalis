@@ -434,14 +434,14 @@ function intoColumns(c: Columns, f: Fabric): void {
   LAST_OF.fill(0);
   let fallen = 0;
   for (let i = 0; i < cs.length; i++) {
-    const kind = cs.kinds[i]!,
-      at = cs.ats[i]!;
+    const kind = cs.kindAt(i),
+      at = cs.lotAt(i);
     civics[0]!.push(kind);
     civics[1]!.push(at - LAST_OF[kind]!);
-    civics[2]!.push(cs.starts[i]!);
+    civics[2]!.push(cs.startAt(i));
     LAST_OF[kind] = at;
-    if (cs.fells[i] !== NO_FALL) {
-      c.fallen.push(i, cs.fells[i]! - cs.starts[i]!);
+    if (cs.fellAt(i) !== NO_FALL) {
+      c.fallen.push(i, cs.fellAt(i) - cs.startAt(i));
       fallen += 2;
     }
   }
@@ -524,7 +524,7 @@ function unpack(s: Saved): Fabric {
   }
   for (let i = 0; i < fallen.length; i += 2) {
     const j = fallen[i]!;
-    civics.fells[j] = civics.starts[j]! + fallen[i + 1]!;
+    civics.setFell(j, civics.startAt(j) + fallen[i + 1]!);
   }
   const f: Fabric = {
     town,
@@ -564,7 +564,7 @@ export function readStanding(f: Fabric): void {
   }
   const cs = f.civics;
   for (let j = 0; j < cs.length; j++)
-    if (cs.fells[j] === NO_FALL) cuts.push(clip(cs.ats[j]!), clip(cs.ats[j]! + cs.spans[j]!));
+    if (cs.fellAt(j) === NO_FALL) cuts.push(clip(cs.lotAt(j)), clip(cs.lotAt(j) + cs.lotsAt(j)));
   const xs = Int32Array.from(cuts.sort((a, b) => a - b));
   let places = 0;
   for (let i = 0; i < xs.length; i++) if (i === 0 || xs[i] !== xs[i - 1]) xs[places++] = xs[i]!;
@@ -601,9 +601,9 @@ export function readStanding(f: Fabric): void {
     }
   }
   for (let j = 0; j < cs.length; j++) {
-    if (cs.fells[j] !== NO_FALL) continue;
-    const to = spanAt(clip(cs.ats[j]! + cs.spans[j]!));
-    for (let i = spanAt(clip(cs.ats[j]!)); i < to; i++) under[i] = 1;
+    if (cs.fellAt(j) !== NO_FALL) continue;
+    const to = spanAt(clip(cs.lotAt(j) + cs.lotsAt(j)));
+    for (let i = spanAt(clip(cs.lotAt(j))); i < to; i++) under[i] = 1;
   }
   // (Lots in ash are neither homes nor open.)
   for (let k = 0; k < R.length; k++) {
@@ -735,9 +735,9 @@ function levelsInto(f: Fabric, from: number, to: number, out: Int8Array): Int8Ar
   }
   const cs = f.civics;
   for (let j = 0; j < cs.length; j++) {
-    if (cs.fells[j] !== NO_FALL) continue;
-    const lo = Math.max(cs.ats[j]!, from),
-      hi = Math.min(cs.ats[j]! + cs.spans[j]!, to);
+    if (cs.fellAt(j) !== NO_FALL) continue;
+    const lo = Math.max(cs.lotAt(j), from),
+      hi = Math.min(cs.lotAt(j) + cs.lotsAt(j), to);
     if (lo < hi) out.fill(-1, lo - from, hi - from);
   }
   return out;
@@ -753,9 +753,9 @@ function maskInto(f: Fabric, from: number, to: number, out: Uint8Array): Uint8Ar
   out.fill(0);
   const cs = f.civics;
   for (let j = 0; j < cs.length; j++) {
-    if (cs.fells[j] !== NO_FALL) continue;
-    const lo = Math.max(cs.ats[j]!, from),
-      hi = Math.min(cs.ats[j]! + cs.spans[j]!, to);
+    if (cs.fellAt(j) !== NO_FALL) continue;
+    const lo = Math.max(cs.lotAt(j), from),
+      hi = Math.min(cs.lotAt(j) + cs.lotsAt(j), to);
     if (lo < hi) out.fill(1, lo - from, hi - from);
   }
   return out;
@@ -768,7 +768,7 @@ function maskInto(f: Fabric, from: number, to: number, out: Uint8Array): Uint8Ar
 /** The first of a town's standing buildings on lot p (-1: none). */
 function standingOn(cs: Civics, p: number): number {
   for (let j = 0; j < cs.length; j++)
-    if (cs.fells[j] === NO_FALL && cs.ats[j]! <= p && cs.ats[j]! + cs.spans[j]! > p) return j;
+    if (cs.fellAt(j) === NO_FALL && cs.lotAt(j) <= p && cs.lotAt(j) + cs.lotsAt(j) > p) return j;
   return -1;
 }
 
@@ -776,8 +776,8 @@ function standingOn(cs: Civics, p: number): number {
 function standingSpans(cs: Civics): [number, number][] {
   const out: [number, number][] = [];
   for (let j = 0; j < cs.length; j++)
-    if (cs.fells[j] === NO_FALL && cs.spans[j]! > 0)
-      out.push([cs.ats[j]!, cs.ats[j]! + cs.spans[j]!]);
+    if (cs.fellAt(j) === NO_FALL && cs.lotsAt(j) > 0)
+      out.push([cs.lotAt(j), cs.lotAt(j) + cs.lotsAt(j)]);
   return out.sort((a, b) => a[0] - b[0]);
 }
 
@@ -794,7 +794,7 @@ function highestHome(f: Fabric, from: number, to: number): number {
     for (let p = Math.min(b, to) - 1; p >= Math.max(a, from);) {
       const j = standingOn(f.civics, p);
       if (j < 0) return p;
-      p = f.civics.ats[j]! - 1;
+      p = f.civics.lotAt(j) - 1;
     }
   }
   return -1;
@@ -842,7 +842,7 @@ export function civicLots(f: Fabric): Set<number> {
   const out = new Set<number>();
   const cs = f.civics;
   for (let j = 0; j < cs.length; j++)
-    if (cs.fells[j] === NO_FALL) for (let k = 0; k < cs.spans[j]!; k++) out.add(cs.ats[j]! + k);
+    if (cs.fellAt(j) === NO_FALL) for (let k = 0; k < cs.lotsAt(j); k++) out.add(cs.lotAt(j) + k);
   return out;
 }
 
@@ -976,7 +976,7 @@ function across(f: Fabric, a: number, b: number): boolean {
 function buildingsOnly(f: Fabric, from: number, to: number): boolean {
   for (let p = from; p < to;) {
     const j = standingOn(f.civics, p),
-      next = j < 0 ? p : f.civics.ats[j]! + f.civics.spans[j]!;
+      next = j < 0 ? p : f.civics.lotAt(j) + f.civics.lotsAt(j);
     if (next === p) return false;
     p = next;
   }
@@ -1186,19 +1186,19 @@ export class TownBuilder {
     young.length = w;
     const cs = f.civics;
     for (let k = last.buildings; k < cs.length; k++) {
-      if (cs.fells[k] !== NO_FALL) continue;
-      const i = runAfter(R, cs.ats[k]!);
+      if (cs.fellAt(k) !== NO_FALL) continue;
+      const i = runAfter(R, cs.lotAt(k));
       if (i > 0) beside.push(R.handle(R.slot(i - 1)));
     }
     if (beside.length) this.joinAbout(f, beside, old);
     let fallen = false;
     for (let k = 0, cs = f.civics; k < cs.length; k++) {
-      const x = cs.fells[k]!;
+      const x = cs.fellAt(k);
       if (x === NO_FALL) continue;
       else if (x < gone) fallen = true;
       else next = Math.min(next, x + RUIN_YEARS + 1);
     }
-    if (fallen) f.civics.keep((k) => f.civics.fells[k] === NO_FALL || f.civics.fells[k]! >= gone);
+    if (fallen) f.civics.keep((k) => f.civics.fellAt(k) === NO_FALL || f.civics.fellAt(k) >= gone);
     next = Math.min(next, ruins.next);
     store.settled.set(f, {
       year,
@@ -1232,14 +1232,14 @@ export class TownBuilder {
       if (!home && end + RUIN_YEARS >= year) next = Math.min(next, end + RUIN_YEARS + 1);
     }
     for (let k = 0, cs = f.civics; k < cs.length; k++) {
-      const x = cs.fells[k]!;
+      const x = cs.fellAt(k);
       if (x === NO_FALL) continue;
       else if (x < gone) fallen = true;
       else next = Math.min(next, x + RUIN_YEARS + 1);
     }
     if (weathered) R.keep((b) => isHome(R.v(b, 0)) || R.v(b, 4) >= gone);
     if (due) this.join(f, old);
-    if (fallen) f.civics.keep((k) => f.civics.fells[k] === NO_FALL || f.civics.fells[k]! >= gone);
+    if (fallen) f.civics.keep((k) => f.civics.fellAt(k) === NO_FALL || f.civics.fellAt(k) >= gone);
     const list: number[] = [],
       young: number[] = [];
     let ruinsNext = Infinity;
@@ -1898,15 +1898,15 @@ export class TownBuilder {
     // (Each kind asked of once: a great town has a hundred and fifty buildings, weighed one year in three.)
     const cs = f.civics;
     for (let j = 0; j < cs.length; j++) {
-      if (cs.fells[j] !== NO_FALL) continue;
-      const i = cs.kinds[j]!;
-      if (!emptied && cs.ends[j]! <= this.year && people < EMPTIED_BELOW[i]!) {
+      if (cs.fellAt(j) !== NO_FALL) continue;
+      const i = cs.kindAt(j);
+      if (!emptied && cs.endAt(j) <= this.year && people < EMPTIED_BELOW[i]!) {
         this.fall(f, cs.get(j)!, FOLD.fell);
         emptied = true;
         continue;
       }
       HAVE[i]!++;
-      if (cs.ends[j]! > this.year) RISING[i] = 1;
+      if (cs.endAt(j) > this.year) RISING[i] = 1;
       if (REPLACES[i]! >= 0) HAVE[REPLACES[i]!]!++;
     }
     let begun = 0;

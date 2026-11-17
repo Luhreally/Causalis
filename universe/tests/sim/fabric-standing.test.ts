@@ -7,6 +7,7 @@ import {
   TownBuilder,
   civicMask,
   levelsOf,
+  openRuns,
   readStanding,
   Civics,
   Runs,
@@ -75,7 +76,7 @@ test("homes and open lots read by spans are what the lots tell, run over run, bu
     const want = byLots(f);
     readStanding(f);
     assert.deepEqual([...f.homes], want.homes, `homes of fabric ${seed}`);
-    assert.deepEqual(f.open, want.open, `open lots of fabric ${seed}`);
+    assert.deepEqual(openRuns(f), want.open, `open lots of fabric ${seed}`);
   }
 });
 
