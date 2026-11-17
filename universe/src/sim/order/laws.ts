@@ -27,6 +27,7 @@ import { loreOf } from "../lore/lore.ts";
 import { realmName, type Polity } from "../polity/polity.ts";
 import { interestsOf, type Group } from "../polity/interests.ts";
 import type { RealmOrder } from "./order.ts";
+import { whisperIn } from "../acts/person.ts";
 
 export const LAWS = ["land", "strangers", "faith", "justice"] as const;
 export type Law = (typeof LAWS)[number];
@@ -224,8 +225,15 @@ export function weighLaws(ctx: PopulationContext, p: Polity, o: RealmOrder, t: S
     const to = now + Math.sign(best - now);
     // (One law for all is a written law; so is a land of free conscience.)
     if (!writing && ((law === "justice" && to === 2) || (law === "faith" && to === 2))) continue;
-    const score = support(to) - support(now);
-    if (score < REFORM_LINE) continue;
+    const score = support(to) - support(now),
+      // (A god's whisper to its ruler: to reform, half the line is enough; to hold, no law moves. Exactly the line where none.)
+      whispered = whisperIn(world, `rule:${p.ref}`, p.ruler.event, year, "law"),
+      line = whispered
+        ? whispered.aim === "law:reform"
+          ? REFORM_LINE / 2
+          : Infinity
+        : REFORM_LINE;
+    if (score < line) continue;
     const toward = NEWER[to]! - NEWER[now]!,
       ranked = [...sway]
         .map(([g, w]) => ({ g, c: w * (WANTS[law][g][to]! - WANTS[law][g][now]!) }))
@@ -269,8 +277,18 @@ export function weighLaws(ctx: PopulationContext, p: Polity, o: RealmOrder, t: S
         subject: p.ref,
         outcome: { law, from: LAW_POSITIONS[law][now]!, to: LAW_POSITIONS[law][to]! },
         score,
-        threshold: REFORM_LINE,
-        factors,
+        threshold: line,
+        factors: whispered
+          ? [
+              ...factors,
+              {
+                name: "the god's whisper to their ruler",
+                value: 1,
+                contribution: REFORM_LINE / 2,
+                source: { ref: whispered.event, role: "trigger", weight: 1 },
+              },
+            ]
+          : factors,
       }),
       event = world.events.emit({
         type: LAW_EVENTS.changed.type,

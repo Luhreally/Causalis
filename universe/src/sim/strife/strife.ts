@@ -79,6 +79,7 @@ import { wantsOf } from "../order/wants.ts";
 import { financeOf } from "../finance/finance.ts";
 import { grieve, strike } from "../acts/disasters.ts";
 import { armyDone, armyMoves, armyVoice } from "../court/court.ts";
+import { rulerHazard } from "../acts/person.ts";
 
 export const STRIFE_EVENTS = {
   /** A general seizes the seat. */
@@ -1442,7 +1443,10 @@ export function strifeYear(ctx: PopulationContext, t: SimTime): void {
     if (danger.score <= STRIFE.line) continue;
     const chance = STRIFE.chance * (danger.score - STRIFE.line);
     if (!(world.rng.real(COUP, key, t, 2) < chance)) continue;
-    const won = world.rng.real(COUP, key, t, 3) < coupOdds(danger),
+    // (A blessing on the ruler halves a coup's odds against them, a curse doubles them: exactly as ever where none holds.)
+    const by = rulerHazard(world, p.ref, p.ruler.event, year),
+      odds = by === 1 ? coupOdds(danger) : Math.min(1, coupOdds(danger) * by),
+      won = world.rng.real(COUP, key, t, 3) < odds,
       decision = world.decisions.record({
         rule: "strife.coup",
         subject: p.ref,
@@ -1452,7 +1456,7 @@ export function strifeYear(ctx: PopulationContext, t: SimTime): void {
         factors: danger.factors,
       });
     // (Under the name of the one who holds the army's voice at court, a year's warning first: Lives L5.)
-    if (armyMoves(ctx, p, decision, coupOdds(danger), won, t)) continue;
+    if (armyMoves(ctx, p, decision, odds, won, t)) continue;
     if (won) seize(ctx, p, [{ ref: decision, role: "trigger", weight: 1 }], t);
     else foil(ctx, p, [{ ref: decision, role: "trigger", weight: 1 }], t, danger.weight);
   }

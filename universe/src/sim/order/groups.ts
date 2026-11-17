@@ -147,6 +147,8 @@ import {
   type OrgFed,
   type RealmOrgs,
 } from "./groups-kept.ts";
+import { actOn, bossRef, hazardBy, sparedBy, struckBy, whisperIn } from "../acts/person.ts";
+import { deathNotesOf } from "../hand/deaths.ts";
 
 export const ORG_EVENTS = {
   /** A group formed where a shared stake beat what holding together costs. */
@@ -1109,7 +1111,13 @@ function stepRealm(
         k !== g.aim && v.orgs.some((x) => x !== g && x.aim === k && x.lands.includes(g.home)),
       worth = ORG_AIMS.map((a, k) =>
         taken(k) ? 0 : stake(g, k).worth * (FULL_TIME.has(a) ? 1 - leaves : 1),
-      );
+      ),
+      // (A god's whisper to its leader: the aim whispered weighs twice what it would. Nothing where none: sim/acts/person.ts.)
+      whispered = whisperIn(world, bossRef(p.ref, g.event), g.leader.name, year, "aim");
+    if (whispered) {
+      const k = ORG_AIMS.indexOf(whispered.aim!.slice(4) as (typeof ORG_AIMS)[number]);
+      if (k >= 0) worth[k] = 2 * Math.max(worth[k]!, 1);
+    }
     g.means = meansOf(g, r.lands);
     g.aims = aimsToward(g.aims, worth, g.means, stepped(ORG.turn, span));
     const was = kindName(g),
@@ -1292,25 +1300,57 @@ function stepRealm(
             1 - ORG.taken * suppression * (1 - Math.min(0.7, (coh - 1) / 4)) * (1 - hidden),
             span,
           );
-      g.members = Math.round(g.members * (1 - taken));
+      // (Its leader blessed, the realm's hand takes half as many of it; cursed, twice. Exactly as ever where none holds.)
+      const by = hazardBy(world, bossRef(p.ref, g.event), g.leader.name, year);
+      g.members = Math.round(g.members * (1 - (by === 1 ? taken : Math.min(1, taken * by))));
     }
     if (g.since >= year) continue;
-    // (Its head gone: dead of his years, or taken where it is outlawed.)
-    const age = year - g.leader.born;
-    if (
-      f.u(100 + g.id * 8) <
-      leaderLost(diesWithin(ctx.life, age, 1), g.standing === 0 ? suppression : 0, span)
-    ) {
-      const before = g.leader.name;
+    // (Its head gone: dead of his years, or taken where it is outlawed. The god's acts on them as sim/acts/person.ts lays them.)
+    const age = year - g.leader.born,
+      head = bossRef(p.ref, g.event),
+      by = hazardBy(world, head, g.leader.name, year),
+      smite = actOn(world, head, g.leader.name, year, "smite"),
+      years = diesWithin(ctx.life, age, 1),
+      lost = leaderLost(years, g.standing === 0 ? suppression : 0, span),
+      chance = by === 1 ? lost : Math.min(1, lost * by),
+      drawn = f.u(100 + g.id * 8),
+      // (Protected, a draw that fell past their years' own chance, in the realm's taking, spares them.)
+      guard = !smite && drawn < chance ? actOn(world, head, g.leader.name, year, "protect") : null,
+      spared = !!guard && drawn >= leaderLost(years, 0, span);
+    if (guard && spared)
+      sparedBy(world, guard, p.ref, f.ctx.provinces.get(g.home)?.ref ?? null, { group: g.name });
+    if ((drawn < chance && !spared) || smite) {
+      const before = g.leader.name,
+        bornWas = g.leader.born,
+        struck = smite
+          ? struckBy(world, smite, p.ref, f.ctx.provinces.get(g.home)?.ref ?? null, {
+              group: g.name,
+            })
+          : null;
       g.leader = newLeader(f, g.home, g.id * 37 + g.leaders);
       g.leaders++;
-      tell(
+      // (How they went, for their page: a reading beside the world, sim/hand/deaths.ts.)
+      const told = tell(
         f,
         ORG_EVENTS.leader.type,
         g.home,
         { group: g.name, kind: kindName(g), gids: [g.id], leader: g.leader.name, before },
-        [{ ref: g.event, role: "enabler", weight: 1 }],
+        [
+          { ref: g.event, role: "enabler", weight: 1 },
+          ...(struck ? [{ ref: struck, role: "trigger" as const, weight: 1 }] : []),
+        ],
       );
+      deathNotesOf(world)?.addHead({
+        ref: head,
+        name: before,
+        year,
+        age: year - bornWas,
+        how: struck ? "struck" : drawn < leaderLost(years, 0, span) ? "years" : "taken",
+        years: leaderLost(years, 0, span),
+        chance,
+        draw: drawn,
+        event: struck ?? told,
+      });
     }
     if (orgAimOf(g) === "rebel" && revolution) {
       gone.push([g, "won", [factor("a revolution won at its seat", 1, 1)]]);

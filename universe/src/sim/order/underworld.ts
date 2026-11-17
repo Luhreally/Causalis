@@ -148,6 +148,8 @@ import {
   type RealmUnderworld,
 } from "./underworld-kept.ts";
 import { RowStore } from "../money/kept.ts";
+import { actOn, bossRef, hazardBy, sparedBy, struckBy } from "../acts/person.ts";
+import { deathNotesOf } from "../hand/deaths.ts";
 
 /** The causes of contraband whose rent the underworld's groups carry beside the tariff's and the ban's (money/contraband.ts). */
 const WARE_RENT_CAUSES: ReadonlySet<string> = new Set(["war", "licence", "harm"]);
@@ -1219,8 +1221,11 @@ function stepRealm(
       const taken =
         (1 - dmath.pow(1 - UNDER.arrests * bites * (1 - 0.7 * shelter), span)) *
         (1 - GEAR.againstCrackdown * armed);
-      g.members = Math.round(g.members * (1 - taken));
-      const lost = g.wealth * 0.4 * taken;
+      // (Its boss blessed, the crackdown takes half as much of it; cursed, twice. Exactly as ever where none holds.)
+      const by = hazardBy(world, bossRef(p.ref, g.event), g.boss.name, year),
+        bit = by === 1 ? taken : Math.min(1, taken * by);
+      g.members = Math.round(g.members * (1 - bit));
+      const lost = g.wealth * 0.4 * bit;
       seized += lost;
       g.wealth = Math.round(g.wealth - lost);
       g.bribes = Math.round(g.income * UNDER.bribes * collusion);
@@ -1229,7 +1234,18 @@ function stepRealm(
       );
     } else g.wealth = Math.round(g.wealth * stays + (g.income * fade) / UNDER.spends);
     // (A boss taken by the crackdown: his lieutenants split what he held, each a boss of his own.)
-    if (kind !== "badge" && f.u(100 + g.id * 8) < bossTaken(bites, shelter, span)) {
+    // (A boss blessed is taken half as often, cursed twice; one the god protects is not taken. Exactly as ever where none holds.)
+    const head = bossRef(p.ref, g.event),
+      byTaken = hazardBy(world, head, g.boss.name, year),
+      takenChance =
+        byTaken === 1 ? bossTaken(bites, shelter, span) : bossTaken(bites, shelter, span) * byTaken,
+      guard =
+        kind !== "badge" && f.u(100 + g.id * 8) < takenChance
+          ? actOn(world, head, g.boss.name, year, "protect")
+          : null;
+    if (guard)
+      sparedBy(world, guard, p.ref, f.ctx.provinces.get(g.home)?.ref ?? null, { group: g.name });
+    if (kind !== "badge" && !guard && f.u(100 + g.id * 8) < takenChance) {
       const n = successorsOf(g.members, f.u(101 + g.id * 8)),
         event = tell(
           f,
@@ -1259,6 +1275,17 @@ function stepRealm(
           // something cites it: kept whole, bosses taken were 59,000 of first light's events at 1500, 148 a year.)
           g.share >= UNDER.great ? undefined : 3,
         );
+      // (How he went, for his page: a reading beside the world, sim/hand/deaths.ts.)
+      deathNotesOf(world)?.addHead({
+        ref: head,
+        name: g.boss.name,
+        year,
+        age: year - g.boss.born,
+        how: "taken",
+        chance: takenChance,
+        draw: f.u(100 + g.id * 8),
+        event,
+      });
       g.boss = newBoss(f, g.home, kind === "protection" ? g.name : null, g.id * 31 + g.bosses);
       g.bosses++;
       if (op) op.op.bosses++;
@@ -1288,9 +1315,29 @@ function stepRealm(
       continue;
     }
     // (A boss dead of his years: another in his place.)
-    const age = year - g.boss.born;
-    if (f.u(102 + g.id * 8) < diesWithin(life, age, span)) {
-      // (Kept, not told: a boss dead of his years is no news.)
+    const age = year - g.boss.born,
+      bossBy = hazardBy(world, head, g.boss.name, year),
+      bossYears = diesWithin(life, age, span),
+      bossChance = bossBy === 1 ? bossYears : Math.min(1, bossYears * bossBy),
+      bossSmite = actOn(world, head, g.boss.name, year, "smite");
+    if (f.u(102 + g.id * 8) < bossChance || bossSmite) {
+      // (Kept, not told: a boss dead of his years is no news. Kept beside the world for his page, sim/hand/deaths.ts.)
+      const struck = bossSmite
+        ? struckBy(world, bossSmite, p.ref, f.ctx.provinces.get(g.home)?.ref ?? null, {
+            group: g.name,
+          })
+        : null;
+      deathNotesOf(world)?.addHead({
+        ref: head,
+        name: g.boss.name,
+        year,
+        age,
+        how: struck ? "struck" : "years",
+        years: bossYears,
+        chance: bossChance,
+        draw: f.u(102 + g.id * 8),
+        ...(struck ? { event: struck } : {}),
+      });
       g.boss = newBoss(f, g.home, kind === "protection" ? g.name : null, g.id * 37 + g.bosses);
       g.bosses++;
     }

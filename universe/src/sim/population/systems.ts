@@ -138,7 +138,7 @@ import { writtenCut } from "../frontier/written.ts";
 import { siteRegion } from "../space/ground.ts";
 import { starHazard } from "../acts/great.ts";
 import { homeSky, shiftNow, starEnded } from "../planet/motion.ts";
-import { actOn, hazardBy } from "../acts/person.ts";
+import { actOn, hazardBy, luckBy } from "../acts/person.ts";
 import { KILLING, handDeath, type DeathPart } from "../hand/deaths.ts";
 import { capacity, COLS, livable, Province, row, ROWS, type Capacity } from "./model.ts";
 import {
@@ -975,7 +975,9 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
           world.rng.real(HAND_VITAL, a.id, t, 1) <
             ((life.fertility[band]! * fertility) / 12) *
               traitWeight(a, "birth") *
-              (father ? traitWeight(father, "birth") : 1)
+              (father ? traitWeight(father, "birth") : 1) *
+              // (A blessing on her doubles the chance of a child, a curse halves it: exactly 1 where none holds.)
+              luckBy(world, me, w.village, year)
         ) {
           const id = w.next++,
             sex = newbornSex(world.rng.real(HAND_VITAL, id, t, 2));

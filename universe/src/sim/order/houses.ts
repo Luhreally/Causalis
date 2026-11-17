@@ -88,6 +88,7 @@ import { LAW_OF } from "./laws.ts";
 import { chooses, electionsOf } from "./elections.ts";
 import { orgPartyOf } from "./groups-kept.ts";
 import { ORG } from "../../rules/index.ts";
+import { spend, whisperIn } from "../acts/person.ts";
 
 export const HOUSE_EVENTS = {
   /** A great house rose: of a group great in the coalition, of the ruler's own family, a cadet line. */
@@ -883,16 +884,19 @@ function stepRealm(
     const into = [...v.houses]
       .filter((x) => x !== h && originOf(x) !== "demagogue" && originOf(x) !== "grifter")
       .sort((a, b) => b.crown - a.crown || b.wealth - a.wealth || a.id - b.id)[0];
+    // (A god's whisper to the house: to wed, it weds where it may; to stand alone, it does not. Exactly an even chance where none.)
+    const whispered = whisperIn(world, `dyn:${p.ref}:${h.event}`, null, year, "wed"),
+      weds = whispered ? (whispered.aim === "wed" ? 1 : 0) : 0.5;
     if (
       heirs === 1 &&
       !h.crown &&
       into &&
       h.wealth < HOUSES.wedBelow * greatest() &&
-      u(h.id * 16 + 4) < 0.5
+      u(h.id * 16 + 4) < weds
     ) {
       into.wealth += h.wealth;
       if (into.seat === h.seat) into.land = Math.min(1000, into.land + h.land);
-      ended(
+      const wed = ended(
         f,
         h,
         "wed",
@@ -908,6 +912,7 @@ function stepRealm(
         null,
         into,
       );
+      if (whispered) spend(whispered, wed);
       continue;
     }
     // (The estate parted among the heirs, or kept whole for one; a cadet line where the younger's part is great enough.)

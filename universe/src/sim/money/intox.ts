@@ -72,6 +72,7 @@ import {
   lawTurn,
   stepped,
 } from "./kept.ts";
+import { whisperIn } from "../acts/person.ts";
 
 export const INTOX_EVENTS = {
   /** A realm forbade what calms, wakes, brings visions and eases pain; and let it be again. */
@@ -487,9 +488,17 @@ export function prohibitionYear(ctx: PopulationContext, t: SimTime): void {
           users: r.use[i]! / r.people,
         }),
       ),
+      // (A god's whisper to its ruler: to bar them wholly, or to lift the bar, every kind. Exactly as wanted where none.)
+      whispered = whisperIn(world, `rule:${p.ref}`, p.ruler.event, year, "bar"),
       // (A kind none of its people take and none of its lands grow is weighed by no one: no law on it is argued.)
       barredBy = wants.map((w, k) => {
-        const level = r.use[k]! > 0 || r.grow[k]! > 0 ? w.level : 0;
+        const level = whispered
+          ? whispered.aim === "bar:ban"
+            ? 1
+            : 0
+          : r.use[k]! > 0 || r.grow[k]! > 0
+            ? w.level
+            : 0;
         return barredWasBy[k]! + stepped(0.2, years) * (level - barredWasBy[k]!);
       }),
       // (The one law on them all, as the older systems read it: each kind's, weighed by what is taken of it, or would be.)
