@@ -1579,6 +1579,8 @@ function planetUniverse(name: string, prior: Prior): Universe {
           deeds: (w.notables ?? [])
             .filter((n) => n.agent === id)
             .map((n) => ({ event: n.deed, claim: why(world, n.deed).claim })),
+          // (The wounds they carry, for the god's healing: how many.)
+          struck: a.struck ?? [],
         };
       },
       /** The god's acts on a province, newest first, each with the event that records it. */

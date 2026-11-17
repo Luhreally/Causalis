@@ -50,6 +50,8 @@ export type ToolContext = {
   readonly touched?: (agent: string) => void;
   /** One under the hand possessed (Phase 60): why they cannot be (null: taken). */
   readonly possess?: (agent: number) => Promise<string | null>;
+  /** One under the hand lived as, in their town (Lives L3): why they cannot be (null: lived). */
+  readonly live?: (agent: number, town: string) => Promise<string | null>;
   /** To a key figure's home in the town view (Lives L1). */
   readonly leaderHome?: (leader: Leader) => void;
   readonly leaderRule?: (leader: Leader) => void;
@@ -73,18 +75,48 @@ export type Touchable = {
   readonly sex?: number;
 };
 
+/** What each act does on one of a town's people, as the hand holds them (host/death.ts actWords for one under the hand). */
+const TOWN_ACTS: readonly (readonly [kind: string, label: string, effect: string])[] = [
+  [
+    "bless",
+    "🌟 Bless",
+    "for ten years their chance of death ×0.5, and a woman's chance of a child ×2.",
+  ],
+  [
+    "curse",
+    "🌑 Curse",
+    "for ten years their chance of death ×2, and a woman's chance of a child ×0.5.",
+  ],
+  [
+    "protect",
+    "🛡️ Protect",
+    "the next death by violence the world draws for them is spared, within twenty years.",
+  ],
+  ["heal", "🩹 Heal", "the wounds they carry are lifted."],
+  ["smite", "⚡ Smite", "they die now, by their own death's path, told as struck down by the god."],
+  [
+    "inspire",
+    "✨ Inspire",
+    "their land comes upon the next thing it could know, and they are remembered for it.",
+  ],
+];
+/** Why a whisper does not reach one of a town's many. */
+export const TOWN_WHISPER_WHY =
+  "One of a town's many makes no choice a whisper reaches: a ruler, a house or a group's head does.";
+
 /**
- * Inspire or bless one of a town's people wherever they are met (Phase 54; asked for 2026-10-26:
- * "how come i cant bless or inspire people anymore ... when i clikc on a person"). The god touches
- * one only where the hand rests, so where it does not rest on their town it is laid there from them
- * — lifted from where it rested — and they are among its people by the name they were known by;
- * then the act. `done` is told the page of the one touched.
+ * Every act of the god's on one of a town's people, wherever they are met (Phase 54; asked 2026-11-16: "i can bless anyone. but i
+ * cant inspire and like those other options in town view like it should let me live as them"): bless, curse, protect, heal, smite,
+ * inspire, and Live as them. The god acts on one only where the hand rests, so where it does not rest on their town one press lays
+ * it there from them (lifted from where it rested), they are among its people by the name they were known by, and then the act.
+ * What cannot reach them is still there, and says why. `done` is told the page of the one touched; `live`, to live as them.
  */
 export async function touchActs(
   into: HTMLElement,
   client: HostClient,
   who: Touchable,
   done: (agent: string) => void,
+  live?: (agent: number, town: string) => Promise<string | null>,
 ): Promise<void> {
   const hand = await client.query<{ village: string; name: string } | null>({ type: "hand" }),
     here = hand?.village === who.town,
@@ -104,7 +136,16 @@ export async function touchActs(
     );
     return;
   }
-  const tools = el("div", "tools"),
+  const wounds =
+      named !== null
+        ? ((
+            await client.query<{ struck?: unknown[] } | null>({
+              type: "agent",
+              args: { id: named },
+            })
+          )?.struck?.length ?? 0)
+        : 0,
+    tools = el("div", "tools god-acts-row"),
     note = el("p", "note"),
     lay = here
       ? ""
@@ -112,7 +153,8 @@ export async function touchActs(
         ? ` Your hand will be lifted from ${hand.name} and laid on their town, every one of its people someone, ${first} among them.`
         : ` Your hand will be laid on their town: every one of its people someone, ${first} among them.`;
   note.hidden = true;
-  const act = (type: string) => async () => {
+  /** Under the hand: their number there, laying it on their town first where it does not rest. */
+  const under = async (): Promise<number> => {
     let id = named;
     if (!here) {
       if (hand) await client.command("hand.lift", {});
@@ -128,24 +170,59 @@ export async function touchActs(
       id = await client.query<number | null>({ type: "hand.named", args: { name: who.name } });
     }
     if (id === null) throw new Error(`${first} could not be found under your hand`);
-    await client.command(type, { agent: id });
-    done(`agent:${id}`);
+    return id;
   };
-  twice(
+  for (const [kind, label, effect] of TOWN_ACTS) {
+    // (Heal lifts what they carry under the hand: one the hand has not yet taken up carries no wound of its.)
+    if (kind === "heal" && !wounds) {
+      off(
+        tools,
+        note,
+        label,
+        named === null
+          ? `${first} carries no wound of the hand's: the wounds of one of a town's many are their line's, kept in history as they fell.`
+          : `${first} carries no wound to lift.`,
+      );
+      continue;
+    }
+    twice(tools, note, label, `${first}: ${effect}${lay}`, async () => {
+      const id = await under();
+      await client.command("act.person", { ref: `agent:${id}`, kind, name: who.name });
+      done(`agent:${id}`);
+    });
+  }
+  off(tools, note, "🗣️ Whisper", TOWN_WHISPER_WHY);
+  if (live)
+    twice(
+      tools,
+      note,
+      "🏡 Live as them",
+      `You will live ${first}'s life in their town, day by day, as they would.${lay}`,
+      async () => {
+        const id = await under();
+        const why = await live(id, who.town);
+        if (why) throw new Error(why);
+      },
+    );
+  else off(tools, note, "🏡 Live as them", `Go down into ${first}'s town to live as them.`);
+  into.replaceChildren(
+    el("h3", undefined, "Your hand on them"),
     tools,
     note,
-    "✨ Inspire them",
-    `${first} will come upon the next thing their land could know, and be remembered for it.${lay}`,
-    act("act.inspire-one"),
+    el("p", "muted", "Free: the god's hand costs nothing. Each act is told in history as yours."),
   );
-  twice(
-    tools,
-    note,
-    "🌟 Bless them",
-    `${first} will be spared death for twenty years (the pious the longer), while your hand rests on their town.${lay}`,
-    act("act.bless-one"),
-  );
-  into.replaceChildren(el("h3", undefined, "Your hand on them"), tools, note);
+}
+
+/** A button for what cannot be done on them: pressed, it says why (a disabled button says nothing on a phone). */
+function off(tools: HTMLElement, note: HTMLElement, label: string, why: string): void {
+  const b = el("button", "tool off", label);
+  b.setAttribute("aria-disabled", "true");
+  b.title = why;
+  b.onclick = () => {
+    note.hidden = false;
+    note.textContent = why;
+  };
+  tools.append(b);
 }
 
 type Settlement = {
@@ -457,6 +534,7 @@ export function drawTool(
             ...(typeof args.sex === "number" ? { sex: args.sex } : {}),
           },
           (agent) => (ctx.touched ? ctx.touched(agent) : ctx.open(agent)),
+          ctx.live,
         );
         parts.push(touch);
       }
@@ -1108,6 +1186,20 @@ function godPersonActs(
     tools = el("div", "tools god-acts-row"),
     note = el("p", "note");
   note.hidden = true;
+  // One of a town's many: every act of the hand's, the hand laid on their town from them in the same press (asked 2026-11-16).
+  if (args.kind === "holder" && args.touch) {
+    const row = el("div", "touch");
+    box.append(row);
+    into.append(box);
+    void touchActs(
+      row,
+      ctx.client,
+      args.touch as Touchable,
+      (agent) => (ctx.touched ? ctx.touched(agent) : ctx.open(agent)),
+      ctx.live,
+    );
+    return;
+  }
   box.append(el("h3", undefined, "Acts"));
   for (const h of held) {
     const key = h.kind === "whisper" ? `whisper:${h.aim}` : h.kind,
@@ -1174,35 +1266,24 @@ function godPersonActs(
         if (why) throw new Error(why);
       },
     );
-  } else if (kind === "holder" && args.touch) {
-    const who = args.touch as Touchable;
-    twice(
-      tools,
-      note,
-      "✋ Take them under your hand",
-      `Your hand will be laid on their town from ${first}: every one of its people someone, and every act and Play as them reach them.`,
-      async () => {
-        const hand = await ctx.client.query<{ village: string } | null>({ type: "hand" });
-        if (hand?.village !== who.town) {
-          if (hand) await ctx.client.command("hand.lift", {});
-          await ctx.client.command("hand.lay", {
-            village: who.town,
-            as: {
-              name: who.name,
-              age: who.age,
-              occupation: who.occupation,
-              ...(who.sex !== undefined ? { sex: who.sex } : {}),
-            },
-          });
-        }
-        const id = await ctx.client.query<number | null>({
-          type: "hand.named",
-          args: { name: who.name },
-        });
-        if (id === null) throw new Error(`${first} could not be found under your hand`);
-        ctx.open(`agent:${id}`);
-      },
-    );
+  }
+  // Live as them: one under the hand, in their town, day by day (Lives L3).
+  if (kind === "agent" && typeof args.agent === "number" && typeof args.town === "string") {
+    const id = args.agent,
+      town = args.town;
+    if (ctx.live) {
+      const live = ctx.live;
+      twice(
+        tools,
+        note,
+        "🏡 Live as them",
+        `You will live ${first}'s life in their town, day by day, as they would.`,
+        async () => {
+          const why = await live(id, town);
+          if (why) throw new Error(why);
+        },
+      );
+    }
   }
   box.append(
     tools,

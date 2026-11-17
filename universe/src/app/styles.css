@@ -1641,3 +1641,9 @@ p.pick-tag {
     min-height: 44px;
   }
 }
+/* What cannot reach one, still there: dimmed, and pressed it says why (asked 2026-11-16). */
+.tools .tool.off,
+.line.off {
+  opacity: 0.55;
+  filter: saturate(0.4);
+}

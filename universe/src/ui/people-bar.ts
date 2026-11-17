@@ -23,7 +23,25 @@ const LOOK_MS = 800,
 export const MOST_PINS = 8;
 const FACE_W = 34,
   FACE_H = 54,
-  FOLDED_KEY = "causalis.bar.folded";
+  FOLDED_KEY = "causalis.bar.folded",
+  TAB_KEY = "causalis.bar.tab";
+
+/** The bar's tabs (asked 2026-11-16: "pin should be in pinned tab not just people im following"). */
+export const BAR_TABS = ["here", "pinned", "followed"] as const;
+export type BarTab = (typeof BAR_TABS)[number];
+const TAB_WORDS: Readonly<Record<BarTab, readonly [string, string, string]>> = {
+  here: ["📍", "Here", "Who matters where you are looking"],
+  pinned: ["📌", "Pinned", "Whom you keep on the bar, in the order you pinned them"],
+  followed: ["👁", "Followed", "Whom you follow: their news is told as it comes"],
+};
+const EMPTY_WORDS: Readonly<Record<BarTab, string>> = {
+  here: "No one stands out where you are looking.",
+  pinned: "No one pinned: 📌 Pin on a page keeps them here.",
+  followed: "No one followed: Follow on a person's page.",
+};
+/** Which tab one is in. */
+export const tabOf = (p: BarPerson): BarTab =>
+  p.kind === "pin" ? "pinned" : p.kind === "followed" ? "followed" : "here";
 
 /** Whom a viewer keeps on the bar, world by world: a viewer's preference, not the world's. */
 export class BarPins {
@@ -168,6 +186,14 @@ export class PeopleBar {
   /** One pinned or followed who was living when last read and is gone now: told once (asked 2026-11-16). */
   onDied: (p: BarPerson) => void = () => {};
   private readonly row = el("div", "people-row");
+  private readonly tabs = el("div", "people-tabs");
+  private readonly tabButtons = new Map<BarTab, HTMLButtonElement>();
+  private readonly empty = el("div", "people-empty");
+  /** The tab open (kept between sittings), and everyone last read. */
+  tab: BarTab = "here";
+  private last: readonly BarPerson[] = [];
+  /** Whether each kept or followed one was living when last read (their key; for the death told once). */
+  private readonly living = new Map<string, boolean>();
   private readonly fold = el("button", "people-fold", "👥");
   private readonly chips = new Map<string, Chip>();
   private readonly client: HostClient;
@@ -181,6 +207,7 @@ export class PeopleBar {
   private readYear = NaN;
   private readAt = -Infinity;
   private dirty = true;
+  private readFollows = "";
   private busy = false;
   private year = NaN;
   /** Every reading taken, and every time the row changed (for a gate). */
@@ -201,11 +228,36 @@ export class PeopleBar {
     } catch {
       this.folded = false;
     }
+    try {
+      const kept = localStorage.getItem(TAB_KEY);
+      if ((BAR_TABS as readonly string[]).includes(kept ?? "")) this.tab = kept as BarTab;
+    } catch {
+      this.tab = "here";
+    }
+    for (const t of BAR_TABS) {
+      const [glyph, name, title] = TAB_WORDS[t],
+        b = el("button", "people-tab");
+      b.dataset.tab = t;
+      b.title = title;
+      b.setAttribute("aria-label", name);
+      b.setAttribute("role", "tab");
+      b.append(
+        el("span", "people-tab-glyph", glyph),
+        el("span", "people-tab-name", name),
+        el("span", "people-tab-n"),
+      );
+      b.onclick = () => this.setTab(t);
+      this.tabButtons.set(t, b);
+      this.tabs.append(b);
+    }
+    this.tabs.setAttribute("role", "tablist");
     this.element.hidden = true;
     this.fold.onclick = () => {
       this.setFolded(!this.folded);
     };
-    this.element.append(this.row, this.fold);
+    const main = el("div", "people-main");
+    main.append(this.tabs, this.row);
+    this.element.append(main, this.fold);
     hud.append(this.element);
     this.sayFold();
     client.onStatus((s) => {
@@ -218,7 +270,18 @@ export class PeopleBar {
   }
 
   get shown(): readonly string[] {
-    return [...this.chips.keys()];
+    return [...this.chips.values()].map((c) => c.box.dataset.key ?? "");
+  }
+
+  /** Open a tab: kept for the next sitting. */
+  setTab(t: BarTab): void {
+    this.tab = t;
+    try {
+      localStorage.setItem(TAB_KEY, t);
+    } catch {
+      // (For this sitting, then.)
+    }
+    this.draw(this.last);
   }
 
   /** Forget what was read: a world taken up again. */
@@ -263,7 +326,11 @@ export class PeopleBar {
       aged = this.year !== this.readYear && now - this.readAt >= YEARS_MS;
     // (A world still to be read at all is read even folded: it says whether the button is wanted.)
     if (this.folded && this.chips.size) return;
+    // (Someone followed or let go since the last reading: read again.)
+    const follows = this.followed().join("|");
+    if (follows !== this.readFollows) this.dirty = true;
     if (!movedOn && !aged && !this.dirty) return;
+    this.readFollows = follows;
     this.busy = true;
     this.dirty = false;
     let read: BarRead | null = null;
@@ -288,16 +355,38 @@ export class PeopleBar {
     this.draw(read.people);
   }
 
-  private draw(people: readonly BarPerson[]): void {
-    const keys = new Set(people.map((p) => p.key));
+  private draw(all: readonly BarPerson[]): void {
+    this.last = all;
+    // (A death among those kept or followed is told once, whichever tab is open.)
+    for (const p of all) {
+      if (p.kind !== "pin" && p.kind !== "followed") continue;
+      if (this.living.get(p.key) === true && p.gone) this.onDied(p);
+      this.living.set(p.key, !p.gone);
+    }
+    const counts = new Map<BarTab, number>(BAR_TABS.map((t) => [t, 0]));
+    for (const p of all) counts.set(tabOf(p), counts.get(tabOf(p))! + 1);
+    for (const [t, b] of this.tabButtons) {
+      const on = t === this.tab,
+        n = counts.get(t)!;
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-selected", String(on));
+      put(b.lastElementChild as HTMLElement, n ? String(n) : "");
+    }
+    const people = all.filter((p) => tabOf(p) === this.tab),
+      keyOf = (p: BarPerson) => `${this.tab}|${p.key}`,
+      keys = new Set(people.map(keyOf));
     for (const [k, c] of this.chips)
       if (!keys.has(k)) {
         c.box.remove();
         this.chips.delete(k);
       }
-    for (const p of people) this.fill(this.chips.get(p.key) ?? this.made(p), p);
+    for (const p of people) this.fill(this.chips.get(keyOf(p)) ?? this.made(p, keyOf(p)), p);
     // (Set in their order only when it changes: a chip moved loses the finger on it.)
-    const order = people.map((p) => this.chips.get(p.key)!.box);
+    const order: HTMLElement[] = people.map((p) => this.chips.get(keyOf(p))!.box);
+    if (!order.length) {
+      put(this.empty, EMPTY_WORDS[this.tab]);
+      order.push(this.empty);
+    }
     if (
       order.length !== this.row.children.length ||
       order.some((b, i) => this.row.children[i] !== b)
@@ -305,11 +394,11 @@ export class PeopleBar {
       this.row.replaceChildren(...order);
       this.moved++;
     }
-    // (No one on it, it stands aside: fold button and all.)
-    this.element.hidden = !people.length;
+    // (No one on it in any tab, it stands aside: fold button and all.)
+    this.element.hidden = !all.length;
   }
 
-  private made(p: BarPerson): Chip {
+  private made(p: BarPerson, key: string): Chip {
     const box = el("div", "people-chip"),
       open = el("button", "people-open"),
       words = el("span", "people-words"),
@@ -347,7 +436,7 @@ export class PeopleBar {
       said: "",
       alive: null,
     };
-    this.chips.set(p.key, chip);
+    this.chips.set(key, chip);
     return chip;
   }
 
@@ -363,7 +452,6 @@ export class PeopleBar {
     c.acts.hidden = !mine || p.gone;
     c.box.classList.toggle("acted", !c.acts.hidden);
     c.box.classList.toggle("kept", p.pinned);
-    if (mine && c.alive === true && p.gone) this.onDied(p);
     c.alive = !p.gone;
     put(c.name, `${p.pinned ? "📌 " : ""}${p.name}`);
     put(c.why, p.why);
