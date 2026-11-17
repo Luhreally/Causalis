@@ -147,6 +147,8 @@ export const UNDER = {
   /** A federation forms where a realm's towns hold this many gangs of one identity; it reaches a town with this many. */
   fedForm: 8,
   fedTown: 2,
+  /** The fewest towns with so many gangs that a federation binds. */
+  fedTowns: 2,
   /** Of the young in a town's gangs, the share killed a year at the worst (est: the worst of Chicago's and Los Angeles' gang years). */
   streetKill: 0.01,
   /** Of a town's gangs' young, the share jailed a year by a court that jails, at full reach. */
@@ -182,6 +184,41 @@ export function protectionWanted(f: ProtectionFacts): number {
     paid = clamp01((unsafe - pays) / (1 - pays)),
     rich = f.trade > 0 ? clamp01((2 * f.trade) / (f.trade + Math.max(1, f.earned))) : 0;
   return clamp01(paid * (0.3 + 0.7 * rich) * (1 - clamp01(f.capacity)));
+}
+
+/** What one land's traders and holders want of private protection: its realm's law, and what is the land's own. */
+export type LandProtectionFacts = ProtectionFacts & {
+  /** How far the seat reaches this land (0 … 1), how far its officers are bought, how far its rule is held rightful. */
+  readonly reach: number;
+  readonly corruption: number;
+  readonly legitimacy: number;
+  /** How far this land counts the seat's people its own (0 … 1), and how far it is held against its will (0 … 1). */
+  readonly kin: number;
+  readonly occupied: number;
+  /** Of what is traded there, the share the law forbids: its deals no court will hold. */
+  readonly illegal: number;
+};
+
+/**
+ * The want of private protection in one land (0 … 1). Of its lawful trade: as far as holdings are unsafe and deals not held past
+ * where a protector's cut is worth paying, and only as far as the seat does not supply it there: its reach in that land, as far as
+ * its courts are trusted (not bought, its rule held rightful, the land's people counted its own and not held down). Of its forbidden
+ * trade, all of it: no court holds a deal in what the law forbids, however far the seat reaches (Gambetta; Reuter on illegal
+ * markets).
+ */
+export function protectionWantedIn(f: LandProtectionFacts): number {
+  const unsafe = 1 - (0.5 * clamp01(f.secure) + 0.5 * clamp01(f.deals)),
+    pays = UNDER.cut / UNDER.lost,
+    paid = clamp01((unsafe - pays) / (1 - pays)),
+    rich = f.trade > 0 ? clamp01((2 * f.trade) / (f.trade + Math.max(1, f.earned))) : 0,
+    trust =
+      (1 - clamp01(f.corruption)) *
+      (0.5 + 0.5 * clamp01(f.legitimacy)) *
+      (0.5 + 0.5 * clamp01(f.kin)) *
+      (1 - clamp01(f.occupied)),
+    lawful = paid * (0.3 + 0.7 * rich) * (1 - clamp01(f.reach) * trust),
+    illegal = clamp01(f.illegal);
+  return clamp01(lawful * (1 - illegal) + illegal);
 }
 
 /** Who could sell it: the men of a realm skilled in violence and idle, each a share of its people. */

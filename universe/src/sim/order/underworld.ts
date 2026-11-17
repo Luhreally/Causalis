@@ -74,7 +74,7 @@ import {
   diesWithin,
   exposedWithin,
   killingsOf,
-  protectionWanted,
+  protectionWantedIn,
   racketBit,
   rentCaptured,
   streetFight,
@@ -93,7 +93,8 @@ import { WAY, cultureOf } from "../culture/culture.ts";
 import { FOLK_ROW, FOLK_STORE, cultureRows } from "../culture/rows.ts";
 import { beliefOf } from "../belief/belief.ts";
 import { loreOf } from "../lore/lore.ts";
-import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
+import { politiesOf, reach, realmName, type Polity } from "../polity/polity.ts";
+import { occupationOf } from "../war/occupation.ts";
 import { diplomacyOf } from "../diplomacy/diplomacy.ts";
 import { fieldedOf, warsOf } from "../war/war.ts";
 import { armsOf } from "../war/arms.ts";
@@ -655,11 +656,16 @@ function stepFederations(f: Facts, towns: Town[], jails: boolean): void {
     }
   }
   const sum = (ts: readonly Town[]) => ts.reduce((s, t) => s + t.gangs, 0),
-    reach = jails ? 1 : UNDER.fedTown;
+    reach = jails ? 1 : UNDER.fedTown,
+    // (What binds the gangs of several towns into one: the cells where their men meet, or a cartel that supplies them all. And
+    // several towns to bind: one town's gangs, however many, are that town's gangs.)
+    binds = jails || v.groups.some((g) => kindOfGroup(g) === "cartel"),
+    spans = (ts: readonly Town[]) =>
+      binds && ts.filter((t) => t.gangs >= UNDER.fedTown).length >= UNDER.fedTowns;
   // (A federation reaches the towns of its identity whose gangs are enough; through the cells, those with any.)
   for (const fed of [...v.feds]) {
     const own = (blocs.get(fed.identity) ?? []).filter((t) => t.gangs >= reach);
-    if (!own.length || sum(own) < UNDER.fedForm / 2) {
+    if (!own.length || sum(own) < UNDER.fedForm / 2 || !spans(blocs.get(fed.identity) ?? [])) {
       v.feds = v.feds.filter((x) => x !== fed);
       for (const x of v.feds) if (x.rival === fed.id) delete x.rival;
       continue;
@@ -681,7 +687,7 @@ function stepFederations(f: Facts, towns: Town[], jails: boolean): void {
     // (Where one identity's gangs are many, they come to stand in two blocs, each against the other: the second takes the
     // towns where the first is weakest, and the greatest town is fought over by both.)
     const want = n >= 2 * UNDER.fedForm * 1.5 ? 2 : n >= UNDER.fedForm ? 1 : 0;
-    if (has.length >= want) continue;
+    if (has.length >= want || !spans(ts)) continue;
     const own = ts
       .filter((t) => t.gangs >= reach)
       .sort((a, b) => b.gangs - a.gangs || a.cell - b.cell);
@@ -792,15 +798,8 @@ function stepRealm(
     move = stepped(UNDER.pace, span);
   if (r.people <= 0) return false;
 
-  // 1. Who wants protection, who can sell it.
-  const want = protectionWanted({
-      secure: r.secure,
-      deals: r.deals,
-      trade: r.trade,
-      earned: r.earned,
-      capacity: r.capacity,
-    }),
-    idle = violentIdle({
+  // 1. Who can sell protection.
+  const idle = violentIdle({
       veterans: r.veterans / r.people,
       young: r.young / r.people,
       idle: r.idle,
@@ -808,14 +807,9 @@ function stepRealm(
       street: r.street,
     }),
     pool = idle.pool * r.people;
-  v.want = per(want);
   v.supply = per(idle.supply);
   v.pool = Math.round(pool);
   v.veterans = Math.round(r.veterans);
-  // (A cut of the takings of those who pay: what passes its shops and stalls, no more than its people spend of what they earn, nor
-  // than what its markets trade. The trade its markets book counts a good each time it moves, some three times what is spent.)
-  v.protectRent = Math.round(Math.min(r.trade, r.earned) * UNDER.cut * want);
-
   // 2. The rents of what it forbids and taxes, and of a border with one that bans.
   const sm = moneyStore(world, SMUGGLE_STORE)?.get(p.ref),
     bars = moneyStore(world, BAR_STORE);
@@ -832,13 +826,55 @@ function stepRealm(
   }
   // (And the wares the tariff and the law on intoxicants do not count: those war forbids, a house's licence holds, or arms barred to
   // its people. Each ware's wedge times what crossed unseen: money/contraband.ts. Nothing where none is kept.)
-  let ware = 0;
+  let ware = 0,
+    wareWorth = 0;
   for (const w of contrabandOf(world, p.ref))
-    if (WARE_RENT_CAUSES.has(CONTRA_CAUSES[w.cause]!)) ware += w.worth * w.wedge;
+    if (WARE_RENT_CAUSES.has(CONTRA_CAUSES[w.cause]!)) {
+      ware += w.worth * w.wedge;
+      wareWorth += w.worth;
+    }
   const ban = banRent(r.banWorth, r.barred, RISK),
     tariff = sm ? sm[SMUGGLE.worth]! * (sm[SMUGGLE.wedge]! / 1000) : 0,
     captured = rentCaptured(r.capacity, r.corruption * (1 + v.collusion / 1000)),
     smuggleRent = (ban + tariff + border + ware) * captured;
+  // 2b. Who wants protection: land by land, by that land's own reach, how far its courts are trusted there, and what is traded
+  // there that the law forbids. The realm's want is its lands', by their people; a group rises where its neediest land's pull does.
+  const spent = Math.min(r.trade, r.earned),
+    illegal = dmath.clamp((r.banWorth * r.barred + wareWorth) / Math.max(1, spent), 0, 1),
+    steps = reach(ctx, p),
+    occ = occupationOf(world),
+    folk = cultureRows(world, FOLK_STORE);
+  let want = 0,
+    wantMost = 0,
+    wantHome = p.seat;
+  for (const c of [...p.members].sort((a, b) => a - b)) {
+    const n = ctx.provinces.get(c)?.total() ?? 0;
+    if (n <= 0) continue;
+    const ow = occ?.of(c),
+      here = protectionWantedIn({
+        secure: r.secure,
+        deals: r.deals,
+        trade: r.trade,
+        earned: r.earned,
+        capacity: r.capacity,
+        reach: dmath.clamp(r.capacity / (1 + (steps.get(c) ?? 6) / 4), 0, 1),
+        corruption: r.corruption,
+        legitimacy: r.legitimacy,
+        kin: (folk?.get(c)?.[FOLK_ROW.kin] ?? 1000) / 1000,
+        occupied: ow && ow.holder !== p.ref ? Math.max(0.2, ow.resistance) : 0,
+        illegal,
+      });
+    want += (here * n) / r.people;
+    // (A land of some weight: a fiftieth of its people at the least.)
+    if (here > wantMost && n >= r.people / 50) {
+      wantMost = here;
+      wantHome = c;
+    }
+  }
+  v.want = per(want);
+  // (A cut of the takings of those who pay: what passes its shops and stalls, no more than its people spend of what they earn, nor
+  // than what its markets trade. The trade its markets book counts a good each time it moves, some three times what is spent.)
+  v.protectRent = Math.round(spent * UNDER.cut * want);
   v.banRent = Math.round(ban);
   v.tariffRent = Math.round(tariff);
   v.borderRent = Math.round(border);
@@ -886,7 +922,7 @@ function stepRealm(
 
   // 4. The groups of each road: who rises, their shares, their men and their income.
   const roads: [GroupKind, number, number][] = [
-    ["protection", v.protectRent, want * idle.supply],
+    ["protection", v.protectRent, Math.max(want, wantMost) * idle.supply],
     ["cartel", smuggleRent, r.earned > 0 ? smuggleRent / r.earned : 0],
   ];
   // (A ban ended: a cartel whose rent no longer keeps it turns to other rackets where protection is wanted, or withers.)
@@ -944,7 +980,14 @@ function stepRealm(
           [...cs]
             .filter((c) => !taken.has(c))
             .sort((a, b) => landWeight(ctx, b) - landWeight(ctx, a) || a - b)[0],
-        home = (kind === "cartel" ? free(r.edge) : undefined) ?? free(p.members) ?? p.seat;
+        home =
+          (kind === "cartel"
+            ? free(r.edge)
+            : taken.has(wantHome) || wantMost <= want
+              ? undefined
+              : wantHome) ??
+          free(p.members) ??
+          p.seat;
       rise(
         f,
         kind,
