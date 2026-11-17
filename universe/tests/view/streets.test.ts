@@ -166,6 +166,14 @@ test("its walls stand where it has not grown over them, none in its water; grown
   assert.ok(gates >= 1 && gates <= 2, `${gates} gates`);
   // Grown far past them: pulled down, every length.
   assert.equal(walled(1200).ring.lengths.length, 0);
+  // The town's ground knows its walls' ring, standing or a ring street, for a siege's storm to meet (2026-11-16).
+  assert.deepEqual(villageGround(village(t)).town!.walls, { r: ring.r, standing: true });
+  const grown = walled(1200);
+  assert.deepEqual(villageGround(village(grown.t)).town!.walls, {
+    r: grown.ring.r,
+    standing: false,
+  });
+  assert.equal(villageGround(village(town({ walls: null }))).town!.walls, null);
 });
 
 test("a walk across a walled town keeps to its streets: round its blocks, out at its gates", () => {
