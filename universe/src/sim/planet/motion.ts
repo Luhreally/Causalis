@@ -552,9 +552,10 @@ export function motionYear(world: World, t: SimTime, years = 1): void {
   const liquid = KINDS[kind].liquid.subst,
     swellTo = swellOf((s.ground + god) * k, liquid);
   s.swell += (1 - dmath.pow(1 - 1 / DEEP_WARMS, years)) * (swellTo - s.swell);
-  // The overturning: by the melt poured in (spread over the ten years a land steps) and the surface's warming.
+  // The overturning: by the melt poured in and the surface's warming. A tenth of the lands step a year, each by its ten years, so
+  // what melted is a year's over the world; on a long step every land steps by all its years, and it is spread over them.
   s.melt = melt;
-  const meltSv = (melt * 1e9) / ICE_STEP / (365.25 * 86400) / 1e6;
+  const meltSv = (melt * 1e9) / (years < ICE_STEP ? 1 : years) / (365.25 * 86400) / 1e6;
   s.overturn +=
     (1 - dmath.pow(1 - OVERTURN.pace, years)) *
     (overturnOf(meltSv, (s.ground + god) * k) - s.overturn);
