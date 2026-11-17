@@ -1735,3 +1735,5 @@ export * from "./exchange.ts";
 export * from "./roof.ts";
 // The underworld (2026-11-16): protection, smuggling rent, the street and the badge, and the violence their structure makes.
 export * from "./underworld.ts";
+// Groups (2026-11-16): collective action, a group's kind read off what it does.
+export * from "./groups.ts";

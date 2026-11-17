@@ -35,6 +35,7 @@ import {
 import { loreOf } from "../lore/lore.ts";
 import { fearShuts, financeOf } from "../finance/finance.ts";
 import { blockadeOn } from "../war/navy.ts";
+import { ORG_ROW, orgLandsStore } from "../order/groups-kept.ts";
 import {
   FINANCE,
   ENGINE_GAIN,
@@ -715,7 +716,11 @@ function trade(
     money = financeOf(ctx.world),
     navied = ctx.world.hasStore("war.navy"),
     // (Goods some realms hold most of the world's making of, sold abroad dearer by their cartel: sim/trade, p87.)
-    cartels = cartelsNow(ctx.world);
+    cartels = cartelsNow(ctx.world),
+    // (What brigands and pirates take of the trade that passes a land, by road or by sea: sim/order/groups.ts.)
+    preyRows = orgLandsStore(ctx.world),
+    preyedAt = (c: number, sea: boolean) =>
+      preyRows ? preyRows.at(c, sea ? ORG_ROW.seaPrey : ORG_ROW.prey) / 1000 : 0;
   for (const e of edges(ctx)) {
     const war = open.length ? between(e.a, e.b) : null;
     if (war) {
@@ -745,13 +750,16 @@ function trade(
       da = dealsOf(ctx.world, e.a),
       db = dealsOf(ctx.world, e.b),
       kept = da === null && db === null ? 1 : dealsMoved(da ?? db ?? 1, db ?? da ?? 1),
+      // (Exactly nothing where neither end is preyed on.)
+      preyed = Math.max(preyedAt(e.a, e.sea), preyedAt(e.b, e.sea)),
       moved =
         0.25 *
         (1 + SIGNAL.tradeShare * linked) *
         (1 - FINANCE.shuts * shut) *
         (1 - barred) *
         (1 - blockaded) *
-        kept,
+        kept *
+        (1 - preyed),
       keen = 2 * (1 + SIGNAL.tradeMargin * linked),
       // (And what a journey cost in waiting on word and finding a buyer: the haul itself is what it was.)
       dealt = 1 - SIGNAL.tradeCost * linked;

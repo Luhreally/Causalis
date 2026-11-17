@@ -1748,3 +1748,28 @@ export {
   type GoneGroup,
   type RealmUnderworld,
 } from "./order/underworld-kept.ts";
+// Groups (2026-11-16): the general layer of collective action, each group's kind read off what it does.
+export { ORG_EVENTS, orgAimOf, groupsYear, installGroups, kindName } from "./order/groups.ts";
+export {
+  ORGS_STORE,
+  ORG_LANDS_STORE,
+  ORG_ROW,
+  OrgsStore,
+  hiredBy,
+  orgFillsOf,
+  orgLandsStore,
+  orgPreyedOf,
+  orgSectOf,
+  orgShelteredOf,
+  orgSparedOf,
+  orgThinsOf,
+  orgYoungKilledOf,
+  organisedIn,
+  orgsOf,
+  risingOrganised,
+  type GoneOrg,
+  type Org,
+  type OrgFed,
+  type OrgLeader,
+  type RealmOrgs,
+} from "./order/groups-kept.ts";

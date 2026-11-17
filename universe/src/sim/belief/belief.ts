@@ -28,6 +28,7 @@ import { readsScripture } from "../lore/letters.ts";
 import { homePlanet } from "../planet/store.ts";
 import { creedHeld, creedOf, scriptureOfTenet } from "../../rules/index.ts";
 import { politiesOf } from "../polity/polity.ts";
+import { orgSectOf } from "../order/groups-kept.ts";
 
 export const FAITH = defineKind("faith", "faith", "minted");
 
@@ -339,7 +340,9 @@ export function beliefYear(ctx: PopulationContext, t: SimTime): void {
         holy =
           realm && realm.leadership === 3 && store.of(realm.seat).faith === theirs.faith ? 2 : 1,
         // Those who hold a faith already are slower to leave it than those of the old beliefs.
-        hold = now.faith ? 0.3 : 1,
+        // (And a sect of its own pressed faith keeps it the more: sim/order/groups.ts. Exactly as before where none is kept.)
+        sect = orgSectOf(world, p.cell),
+        hold = (now.faith ? 0.3 : 1) * (sect > 0 ? 1 - 0.8 * sect : 1),
         chance = 0.05 * like * like * road * holy * hold * (0.5 + other.traits[WAY.piety]!);
       if (!best || chance > best.chance || (chance === best.chance && theirs.faith < best.faith))
         best = { cell: p.cell, faith: theirs.faith, via: n, chance };

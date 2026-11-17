@@ -41,6 +41,7 @@ import { installMoney } from "../money/money.ts";
 import { installCommerce } from "../trade/trade.ts";
 import { installSociety } from "../society/society.ts";
 import { installUnderworld } from "../order/underworld.ts";
+import { installGroups } from "../order/groups.ts";
 import { installEconomy } from "../economy/systems.ts";
 import { installActs } from "../acts/acts.ts";
 import { installGreatActs } from "../acts/great.ts";
@@ -453,6 +454,8 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installSociety(world, () => populationContext(world));
   // (The underworld: protection, smuggling, the street and the badge, sim/order/underworld.ts.)
   installUnderworld(world, () => populationContext(world));
+  // (Groups: the general layer of collective action, sim/order/groups.ts.)
+  installGroups(world, () => populationContext(world));
   installStrife(world, () => populationContext(world));
   installCourts(world, () => populationContext(world));
   installCities(world, () => populationContext(world));
