@@ -152,13 +152,38 @@ test("a coup: a doubted rule and a heard army — the seat seized, the realm a p
   assert.match(why(w, coup.event)!.claim, /seized the seat of .* in a coup/);
 });
 
-test("a protectorate fields more of its men, its rule seized by the sword held the less rightful, and no reform comes of its ways", () => {
+test("a protectorate's general compels as far as he keeps the arms, its rule seized by the sword held the less rightful, and no reform comes of its ways", () => {
+  // (The levy, rules/arming.ts levyShare: of the men a realm can feed, they go as far as they hold its rule rightful; a general
+  // compels them as far as he keeps the arms, whatever they hold of his rule. Before the levy a protectorate fielded more of
+  // its men by a fixed share: no longer so, and where it keeps its arms from its people it may field fewer than before.)
   const w = fresh(),
     p = greatest(w),
     ctx = populationContext(w),
-    fielded = fieldedOf(ctx, p);
+    o = orderOf(w)!.of(p.ref)!,
+    rightful = o.legitimacy,
+    fieldedAt = (legitimacy: number) => {
+      o.legitimacy = legitimacy;
+      const n = fieldedOf(ctx, p);
+      o.legitimacy = rightful;
+      return n;
+    };
+  assert.ok(fieldedAt(0.05) < fieldedAt(0.9), "a rule doubted calls out fewer of its men");
+  const led = p.leadership;
   seize(ctx, p, [], at(1));
-  assert.ok(fieldedOf(ctx, p) > fielded, "more of its men fielded");
+  const kept = o.held![HOLD.force]! / 100;
+  assert.ok(kept >= 0.6, `a general keeps six-tenths of the arms and more (${kept})`);
+  const compelled = fieldedAt(0.05);
+  assert.equal(
+    compelled,
+    fieldedAt(kept),
+    "doubted, he fields as many as the arms he keeps compel: his levy falls no further with his standing",
+  );
+  assert.ok(fieldedAt(0.99) >= compelled, "and held rightful past that, no fewer");
+  // (The same realm, its arms kept the same, its rule doubted the same, were it not its army's.)
+  p.leadership = led;
+  const uncompelled = fieldedAt(0.05);
+  p.leadership = GENERAL;
+  assert.ok(compelled > uncompelled, `more than a doubted rule not the army's (${uncompelled})`);
   const seized = legitimacyFactors(ctx, p).find((f) => f.name === "a rule seized by the sword");
   assert.ok(seized && seized.contribution <= -STRIFE.seized + 1e-9, "held the less rightful");
   assert.equal(seized!.source?.ref, strifeOf(w)!.junta(p.ref)!.event);
