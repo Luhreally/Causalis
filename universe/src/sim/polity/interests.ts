@@ -11,7 +11,7 @@
 // its wars) read those demands as factors, so their why runs through the people who
 // pressed them, and on to what moved those people.
 import { YEAR, type Ref, type SimTime } from "../../kernel/index.ts";
-import { OCC, templeSway } from "../../rules/index.ts";
+import { HOLD, OCC, templeSway } from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import type { MarketStore } from "../economy/market.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
@@ -21,7 +21,7 @@ import type { WarStore } from "../war/war.ts";
 import { diplomacyOf } from "../diplomacy/diplomacy.ts";
 import { armyOf, strifeOf } from "../strife/strife.ts";
 import { GENERAL, LAW, politiesOf, type Polity } from "./polity.ts";
-import { holdsOf } from "../order/holds.ts";
+import { holdOf } from "../order/holds.ts";
 
 export const GROUPS = [
   "farmers",
@@ -110,120 +110,301 @@ export function swayOf(
   return raw;
 }
 
-/**
- * A realm's interest groups now: their sway and their demands, each resting on its source. Weighed once a moment for a realm as it
- * stands (its lands and its wars): a dozen of a year's systems ask it of every realm, and weighed afresh for each it was a
- * twentieth of a year at 1,500. Kept by the realms' own store, never past the moment, and let go on loading.
- */
-export function interestsOf(ctx: PopulationContext, p: Polity, t: SimTime): readonly Interest[] {
-  const realms = politiesOf(ctx.world),
-    wars = ctx.world.hasStore("war.wars")
-      ? ctx.world.store<WarStore>("war.wars").fighting(p.ref).length
-      : 0;
-  let memo = realms.weighed;
-  if (!memo || memo.t !== t) realms.weighed = memo = { t, by: new Map() };
-  const had = memo.by.get(p.ref);
-  if (had && had.lands === p.members.length && had.wars === wars && had.seat === p.seat)
-    return had.interests as readonly Interest[];
-  const interests = interestsNow(ctx, p, t);
-  memo.by.set(p.ref, { lands: p.members.length, wars, seat: p.seat, interests });
-  return interests;
-}
+type Count = Record<Exclude<Group, "the temple">, number>;
+/** Of a reading's marks, the first that say whose lands and what trade and roads were read; the one after, its relations. */
+const ACROSS = 4;
+const COMMONS = ["farmers", "herders", "crafters", "traders"] as const;
 
-function interestsNow(ctx: PopulationContext, p: Polity, t: SimTime): Interest[] {
-  const { world, generated: g } = ctx,
-    realms = politiesOf(world),
+/**
+ * All a realm's interests are read from, but what lies across its borders: its own lands' people by their work and what the
+ * year's work paid them, their last famines, how it is ruled (who leads, its law, its tithe, who holds its arms and its
+ * choices, whether an army took its seat), its seat's ways and faith and that faith's houses, its army, its wars; and how its
+ * relations, the year's trade and the roads stand (their stores' counts of writes). `mark` is every one of them in a fixed
+ * order: two readings with the same marks weigh the same.
+ */
+type Reading = {
+  readonly mark: unknown[];
+  /** Its people who farm (and gather), herd, craft, trade, lead, and its army; the first four's pay summed, and their heads. */
+  readonly count: readonly number[];
+  readonly paid: readonly number[];
+  readonly heads: readonly number[];
+  readonly famines: readonly (Ref | null)[];
+  readonly force: number;
+  readonly voice: number;
+  readonly piety: number;
+  readonly valour: number;
+  readonly seatFaith: ReturnType<ReturnType<typeof beliefOf>["of"]>;
+  readonly pulpit: number;
+  readonly sacred: boolean;
+  readonly atWar: ReturnType<WarStore["fighting"]>;
+  readonly junta: Ref | null;
+};
+
+function readingOf(ctx: PopulationContext, p: Polity): Reading {
+  const { world } = ctx,
     markets = world.store<MarketStore>("economy.markets"),
-    faiths = beliefOf(world),
     ways = cultureOf(world).get(p.seat),
     piety = ways?.traits[WAY.piety] ?? 0.5,
-    seatFaith = faiths.of(p.seat),
+    valour = ways?.traits[WAY.valour] ?? 0.5,
+    seatFaith = beliefOf(world).of(p.seat),
     // (Read here, not at load: this module and the realms' import each other.)
-    sacred = p.law === LAW.indexOf("the sacred");
-  const count: Record<Exclude<Group, "the temple">, number> = {
-    farmers: 0,
-    herders: 0,
-    crafters: 0,
-    traders: 0,
-    "the court": 0,
-    "the army": armyOf(ctx, p).people,
-  };
-  let famine: Ref | null = null,
-    faminAt = -Infinity;
+    sacred = p.law === LAW.indexOf("the sacred"),
+    force = holdOf(world, p.ref, HOLD.force),
+    voice = holdOf(world, p.ref, HOLD.voice),
+    pulpit = pulpitIn(world, p.seat),
+    atWar = world.hasStore("war.wars") ? world.store<WarStore>("war.wars").fighting(p.ref) : [],
+    junta = strifeOf(world)?.junta(p.ref)?.event ?? null,
+    army = armyOf(ctx, p).people,
+    famines: (Ref | null)[] = [];
+  // (Its people by their work, and what a year of each group's work is worth over its lands: OCC's wages, as its markets
+  // paid them, by the heads of the lands that have a market. Asked at every asking: plain sums, no lists.)
+  let farmers = 0,
+    herders = 0,
+    crafters = 0,
+    traders = 0,
+    court = 0,
+    paidF = 0,
+    paidH = 0,
+    paidC = 0,
+    paidT = 0,
+    headsF = 0,
+    headsH = 0,
+    headsC = 0,
+    headsT = 0;
   for (const c of p.members) {
     const prov = ctx.provinces.get(c);
     if (!prov) continue;
-    count.farmers += prov.occupation(OCC.farmer) + prov.occupation(OCC.forager);
-    count.herders += prov.occupation(OCC.herder);
-    count.crafters += prov.occupation(OCC.crafter);
-    count.traders += prov.occupation(OCC.trader);
-    count["the court"] += prov.occupation(OCC.leader);
-    const f = prov.lastFamine ? world.events.get(prov.lastFamine) : undefined;
-    if (f && t - f.t <= 3 * YEAR && f.t > faminAt) {
-      famine = f.id;
-      faminAt = f.t;
+    const f = prov.occupation(OCC.farmer),
+      h = prov.occupation(OCC.herder),
+      k = prov.occupation(OCC.crafter),
+      tr = prov.occupation(OCC.trader);
+    farmers += f + prov.occupation(OCC.forager);
+    herders += h;
+    crafters += k;
+    traders += tr;
+    court += prov.occupation(OCC.leader);
+    famines.push(prov.lastFamine);
+    const w = markets.wagesOf(c);
+    if (!w) continue;
+    paidF += f * (w[OCC.farmer] ?? 0);
+    paidH += h * (w[OCC.herder] ?? 0);
+    paidC += k * (w[OCC.crafter] ?? 0);
+    paidT += tr * (w[OCC.trader] ?? 0);
+    headsF += f;
+    headsH += h;
+    headsC += k;
+    headsT += tr;
+  }
+  const mark: unknown[] = [
+    // (ACROSS of them say how what lies across its borders was read, the next its relations: interestsNow.)
+    p.members,
+    markets.flows,
+    markets.flows.length,
+    markets.roadsOpened,
+    diplomacyOf(world).writtenOf(p.ref),
+    p.seat,
+    p.leadership,
+    p.law,
+    p.tribute,
+    p.tithed,
+    p.event,
+    junta,
+    force,
+    voice,
+    piety,
+    valour,
+    seatFaith.faith,
+    seatFaith.event,
+    pulpit,
+    atWar.length,
+    atWar[0]?.event,
+    army,
+    farmers,
+    herders,
+    crafters,
+    traders,
+    court,
+    paidF,
+    paidH,
+    paidC,
+    paidT,
+    headsF,
+    headsH,
+    headsC,
+    headsT,
+  ];
+  for (const f of famines) mark.push(f);
+  return {
+    mark,
+    count: [farmers, herders, crafters, traders, court, army],
+    paid: [paidF, paidH, paidC, paidT],
+    heads: [headsF, headsH, headsC, headsT],
+    famines,
+    force,
+    voice,
+    piety,
+    valour,
+    seatFaith,
+    pulpit,
+    sacred,
+    atWar,
+    junta,
+  };
+}
+
+type Rival = { readonly q: Polity; readonly opinion: number; readonly source: Ref | null };
+/**
+ * What is kept of a realm's weighing: all it was read from; what it found across its borders (those it trades with, in the
+ * order of their refs, its neighbours and their seats' faiths, the neighbour it resents most: not looked for, undefined) and
+ * its lands' freshest famine, each of which stands while its own part of the marks does; and the weighing.
+ */
+type Weighed = {
+  readonly mark: readonly unknown[];
+  readonly trade: readonly (readonly [Ref, { volume: number; road: Ref | null }])[];
+  readonly near: readonly Polity[];
+  readonly theirs: readonly (Ref | null)[];
+  readonly rival: Rival | null | undefined;
+  readonly famine: Ref | null;
+  readonly interests: readonly Interest[];
+};
+
+/**
+ * A realm's interest groups now: their sway and their demands, each resting on its source. Weighed once a moment for a realm as it
+ * stands: a dozen of a year's systems ask it of every realm, and weighed afresh for each it was a twentieth of a year at
+ * 1,500. What is kept is kept by ALL it was read from (`Reading`'s marks, read again at each asking; its neighbours' seats'
+ * faiths), and let go for every realm at a border where a land changed hands or that trades with it: a seat seized, a law
+ * changed, a tithe raised, men lost in a battle are seen by whoever asks next in the same moment. (Kept by moment, lands, wars
+ * and seat alone, a coup of the year was not seen by what asked after it that year, nor a hand's act by a page opened at rest.)
+ * Kept by the realms' own store, never past the moment, and let go on loading.
+ */
+export function interestsOf(ctx: PopulationContext, p: Polity, t: SimTime): readonly Interest[] {
+  const { world } = ctx,
+    realms = politiesOf(world);
+  let memo = realms.weighed;
+  if (!memo || memo.t !== t) realms.weighed = memo = { t, by: new Map(), moved: [] };
+  if (memo.moved.length) {
+    // (A land that changed hands: whoever holds it or a land beside it now, or trades with it, read who held it.)
+    const { grid } = ctx.generated,
+      markets = world.store<MarketStore>("economy.markets"),
+      by = memo.by,
+      drop = (c: number) => {
+        const r = realms.of(c);
+        if (r) by.delete(r.ref);
+      };
+    for (const c of memo.moved) {
+      drop(c);
+      for (let k = grid.offsets[c]!; k < grid.offsets[c + 1]!; k++) drop(grid.neighbours[k]!);
+      for (const f of markets.flowsOf([c])) {
+        drop(f.from);
+        drop(f.to);
+      }
+    }
+    memo.moved.length = 0;
+  }
+  const reading = readingOf(ctx, p),
+    had = memo.by.get(p.ref) as Weighed | undefined;
+  if (had && sameMarks(had.mark, reading.mark)) {
+    const faiths = beliefOf(world);
+    let same = true;
+    for (let i = 0; i < had.near.length && same; i++)
+      same = faiths.of(had.near[i]!.seat).faith === had.theirs[i];
+    if (same) return had.interests;
+  }
+  const weighed = interestsNow(ctx, p, t, reading, had);
+  memo.by.set(p.ref, weighed);
+  return weighed.interests;
+}
+
+function sameMarks(a: readonly unknown[], b: readonly unknown[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+/**
+ * The weighing, of a reading. `had`: the realm's last this moment, where it has one whose marks differ (a land changed hands at
+ * its borders: none). What it found across the borders is found again only where those marks moved: most of a weighing, and a
+ * realm whose army's count or tithe alone moved in the year is weighed again from its sums.
+ */
+function interestsNow(
+  ctx: PopulationContext,
+  p: Polity,
+  t: SimTime,
+  reading: Reading,
+  had: Weighed | undefined,
+): Weighed {
+  const { world, generated: g } = ctx,
+    faiths = beliefOf(world),
+    { mark, paid, heads, piety, valour, seatFaith, sacred, atWar } = reading,
+    count: Count = {
+      farmers: reading.count[0]!,
+      herders: reading.count[1]!,
+      crafters: reading.count[2]!,
+      traders: reading.count[3]!,
+      "the court": reading.count[4]!,
+      "the army": reading.count[5]!,
+    };
+  let across = had !== undefined;
+  for (let i = 0; i < ACROSS && across; i++) across = had!.mark[i] === mark[i];
+  let sameFamines = across && had!.mark.length === mark.length;
+  for (let i = mark.length - reading.famines.length; i < mark.length && sameFamines; i++)
+    sameFamines = had!.mark[i] === mark[i];
+  let famine: Ref | null = sameFamines ? had!.famine : null;
+  if (!sameFamines) {
+    let faminAt = -Infinity;
+    for (const last of reading.famines) {
+      const f = last ? world.events.get(last) : undefined;
+      if (f && t - f.t <= 3 * YEAR && f.t > faminAt) {
+        famine = f.id;
+        faminAt = f.t;
+      }
     }
   }
-  // (What a year of each group's work is worth, over its lands: OCC's wages, as its markets paid them.)
-  const paid: Record<Exclude<Group, "the temple">, number> = {
-      farmers: 0,
-      herders: 0,
-      crafters: 0,
-      traders: 0,
-      "the court": 0,
-      "the army": 0,
-    },
-    heads: Record<Exclude<Group, "the temple">, number> = { ...paid };
-  for (const c of p.members) {
-    const w = markets.wagesOf(c),
-      prov = ctx.provinces.get(c);
-    if (!w || !prov) continue;
-    for (const [group, occ] of [
-      ["farmers", OCC.farmer],
-      ["herders", OCC.herder],
-      ["crafters", OCC.crafter],
-      ["traders", OCC.trader],
-    ] as const) {
-      const n = prov.occupation(occ);
-      paid[group] += n * (w[occ] ?? 0);
-      heads[group] += n;
-    }
-  }
-  const wealth: Partial<Record<Exclude<Group, "the temple">, number>> = {};
-  for (const group of ["farmers", "herders", "crafters", "traders"] as const)
-    if (heads[group] > 0 && paid[group] > 0) wealth[group] = paid[group] / heads[group];
+  const wealth: Partial<Count> = {};
+  COMMONS.forEach((group, i) => {
+    if (heads[i]! > 0 && paid[i]! > 0) wealth[group] = paid[i]! / heads[i]!;
+  });
   const sway = swayOf(
     count,
-    holdsOf(world, p.ref),
+    [reading.force, reading.voice],
     piety,
     seatFaith.faith !== null,
     sacred,
     wealth,
     // (The temple weighs as far as its faith's clergy are many to its faithful: sim/belief/temple.ts.)
-    templeSway(pulpitIn(world, p.seat)),
+    templeSway(reading.pulpit),
   );
 
   // The realms it meets: those it trades with (and down which road), and those of another faith.
   // (Only the flows out of or into its own lands can be its trade: a land is a realm's only
   // while among its members.)
-  const trade = new Map<Ref, { volume: number; road: Ref | null }>();
-  for (const f of markets.flowsOf(p.members)) {
-    const from = realms.of(f.from),
-      to = realms.of(f.to);
-    if (!from || !to || from === to || (from !== p && to !== p)) continue;
-    const other = from === p ? to : from,
-      tr = trade.get(other.ref) ?? { volume: 0, road: null };
-    tr.volume += f.count;
-    tr.road ??= markets.route(f.from, f.to) ?? null;
-    trade.set(other.ref, tr);
-  }
-  const neighbours = new Set<Polity>();
-  for (const c of p.members)
-    for (let k = g.grid.offsets[c]!; k < g.grid.offsets[c + 1]!; k++) {
-      const q = realms.of(g.grid.neighbours[k]!);
-      if (q && q !== p && q.ended === null) neighbours.add(q);
+  let trade = across ? had!.trade : null,
+    near = across ? had!.near : null;
+  if (!trade || !near) {
+    const realms = politiesOf(world),
+      markets = world.store<MarketStore>("economy.markets"),
+      met = new Map<Ref, { volume: number; road: Ref | null }>();
+    for (const f of markets.flowsOf(p.members)) {
+      const from = realms.of(f.from),
+        to = realms.of(f.to);
+      if (!from || !to || from === to || (from !== p && to !== p)) continue;
+      const other = from === p ? to : from,
+        tr = met.get(other.ref) ?? { volume: 0, road: null };
+      tr.volume += f.count;
+      tr.road ??= markets.route(f.from, f.to) ?? null;
+      met.set(other.ref, tr);
     }
-  const atWar = world.hasStore("war.wars") ? world.store<WarStore>("war.wars").fighting(p.ref) : [];
+    trade = [...met.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1));
+    const neighbours = new Set<Polity>();
+    for (const c of p.members)
+      for (let k = g.grid.offsets[c]!; k < g.grid.offsets[c + 1]!; k++) {
+        const q = realms.of(g.grid.neighbours[k]!);
+        if (q && q !== p && q.ended === null) neighbours.add(q);
+      }
+    near = [...neighbours].sort((a, b) => (a.ref < b.ref ? -1 : 1));
+  }
+  // (The neighbour its realm resents most, and what their rivalry rests on most: looked for only where it has an army.)
+  let rival = across && had!.mark[ACROSS] === mark[ACROSS] ? had!.rival : undefined;
 
   const demands: Demand[] = [];
   const want = (d: Omit<Demand, "strength"> & { strength: number }) => {
@@ -241,7 +422,7 @@ function interestsNow(ctx: PopulationContext, p: Polity, t: SimTime): Interest[]
       source: famine ?? p.tithed ?? null,
     });
   // Traders (and crafters, whose goods go down the roads): peace with those they trade with.
-  for (const [other, tr] of [...trade.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)))
+  for (const [other, tr] of trade)
     for (const group of ["traders", "crafters"] as const)
       want({
         group,
@@ -262,8 +443,6 @@ function interestsNow(ctx: PopulationContext, p: Polity, t: SimTime): Interest[]
   });
   // The army: its pay — the more at war, the more again where it rules — and, the more where
   // its people prize valour and it rules, war on the neighbour its realm resents most (M145).
-  const junta = strifeOf(world)?.junta(p.ref) ?? null,
-    valour = ways?.traits[WAY.valour] ?? 0.5;
   if (count["the army"] > 0) {
     want({
       group: "the army",
@@ -271,15 +450,27 @@ function interestsNow(ctx: PopulationContext, p: Polity, t: SimTime): Interest[]
       name: "the army wants its pay",
       strength: 0.2 + (atWar.length ? 0.3 : 0) + (p.leadership === GENERAL ? 0.3 : 0),
       toward: null,
-      source: atWar[0]?.event ?? junta?.event ?? p.event,
+      source: atWar[0]?.event ?? reading.junta ?? p.event,
     });
-    const relations = diplomacyOf(world),
-      rival = [...neighbours]
-        .map((q) => ({ q, relation: relations.get(p.ref, q.ref) }))
-        .filter((x) => (x.relation?.opinion ?? 0) < 0)
-        .sort(
-          (a, b) => a.relation!.opinion - b.relation!.opinion || (a.q.ref < b.q.ref ? -1 : 1),
-        )[0];
+    if (rival === undefined) {
+      const relations = diplomacyOf(world),
+        worst = near
+          .map((q) => ({ q, relation: relations.get(p.ref, q.ref) }))
+          .filter((x) => (x.relation?.opinion ?? 0) < 0)
+          .sort(
+            (a, b) => a.relation!.opinion - b.relation!.opinion || (a.q.ref < b.q.ref ? -1 : 1),
+          )[0];
+      rival = worst
+        ? {
+            q: worst.q,
+            opinion: worst.relation!.opinion,
+            source:
+              [...worst.relation!.terms]
+                .filter((x) => x.value < 0 && x.source)
+                .sort((x, y) => x.value - y.value || (x.name < y.name ? -1 : 1))[0]?.source ?? null,
+          }
+        : null;
+    }
     if (rival)
       want({
         group: "the army",
@@ -288,14 +479,10 @@ function interestsNow(ctx: PopulationContext, p: Polity, t: SimTime): Interest[]
         strength:
           (valour - 0.4) *
           2 *
-          Math.min(1, -2 * rival.relation!.opinion) *
+          Math.min(1, -2 * rival.opinion) *
           (p.leadership === GENERAL ? 1.5 : 1),
         toward: rival.q.ref,
-        // (What their rivalry rests on most.)
-        source:
-          [...rival.relation!.terms]
-            .filter((x) => x.value < 0 && x.source)
-            .sort((x, y) => x.value - y.value || (x.name < y.name ? -1 : 1))[0]?.source ?? null,
+        source: rival.source,
       });
   }
   // The temple: its tithe, and war on unbelievers across the border.
@@ -308,7 +495,7 @@ function interestsNow(ctx: PopulationContext, p: Polity, t: SimTime): Interest[]
       toward: null,
       source: seatFaith.event,
     });
-    for (const q of [...neighbours].sort((a, b) => (a.ref < b.ref ? -1 : 1))) {
+    for (const q of near) {
       const theirs = faiths.of(q.seat).faith;
       if (!theirs || theirs === seatFaith.faith) continue;
       want({
@@ -321,12 +508,20 @@ function interestsNow(ctx: PopulationContext, p: Polity, t: SimTime): Interest[]
       });
     }
   }
-  return GROUPS.map((group) => ({
-    group,
-    sway: sway[group],
-    people: group === "the temple" ? 0 : count[group],
-    demands: demands.filter((d) => d.group === group),
-  }));
+  return {
+    mark,
+    trade,
+    near,
+    theirs: near.map((q) => faiths.of(q.seat).faith),
+    rival,
+    famine,
+    interests: GROUPS.map((group) => ({
+      group,
+      sway: sway[group],
+      people: group === "the temple" ? 0 : count[group],
+      demands: demands.filter((d) => d.group === group),
+    })),
+  };
 }
 
 /** How hard a realm's groups press, weighed by their sway, for one kind of want (toward one realm, if given). */

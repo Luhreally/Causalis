@@ -442,9 +442,13 @@ export class MarketStore implements StateStore {
     return [...seen].sort((a, b) => a - b).map((i) => this.flows[i]!);
   }
 
+  /** (A count of roads opened or opened anew: what is kept of a reading of them is kept by it. Not state; it only grows.) */
+  roadsOpened = 0;
+
   openRoute(a: number, b: number, event: Ref, bySea = false): void {
     const key = a < b ? `${a}:${b}` : `${b}:${a}`;
     this.routes.set(key, event);
+    this.roadsOpened++;
     if (bySea) this.crossing(key);
   }
 
@@ -523,6 +527,7 @@ export class MarketStore implements StateStore {
       this.map.set(market.cell, market);
     }
     this.routes.clear();
+    this.roadsOpened++;
     for (const [k, v] of s.routes) this.routes.set(k, v);
     this.sea.clear();
     this.partners.clear();

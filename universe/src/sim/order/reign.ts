@@ -1075,6 +1075,7 @@ export function installReign(world: World, ctx: () => PopulationContext): void {
       if (regard) {
         regard.terms = [...regard.terms, { ...term, source: event }];
         regard.opinion = clamp(-1, 1, regard.opinion + tie);
+        diplomacy.touch(regard);
       }
       const keep = (p: Polity, who: HousePerson, to: HousePerson, withRealm: Ref) => {
         const o = orderHere(world, p);

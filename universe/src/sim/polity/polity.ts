@@ -125,10 +125,14 @@ export class PolityStore implements StateStore {
   /** Saved packed by column (kernel/pack.ts). */
   readonly packed = true;
   private list: Polity[] = [];
-  /** (Each realm's interests as weighed this moment: sim/polity/interests.ts. Not state; let go on loading.) */
+  /**
+   * (Each realm's interests as weighed this moment, each kept with all it was read from: sim/polity/interests.ts. And the lands
+   * that changed hands since, for it to let go what was read across their borders. Not state; let go on loading.)
+   */
   weighed: {
     t: number;
-    by: Map<string, { lands: number; wars: number; seat: number; interests: readonly unknown[] }>;
+    by: Map<string, unknown>;
+    moved: number[];
   } | null = null;
   /** The same realms by ref. */
   private readonly byRef = new Map<string, Polity>();
@@ -157,6 +161,7 @@ export class PolityStore implements StateStore {
     this.list.push(p);
     this.byRef.set(p.ref, p);
     for (const c of p.members) this.member.set(c, p.ref);
+    if (this.weighed) for (const c of p.members) this.weighed.moved.push(c);
   }
 
   all(): readonly Polity[] {
@@ -180,6 +185,7 @@ export class PolityStore implements StateStore {
   join(p: Polity, cell: number): void {
     p.members = [...p.members, cell].sort((a, b) => a - b);
     this.member.set(cell, p.ref);
+    this.weighed?.moved.push(cell);
   }
 
   /** A land leaves its realm; its grievance stays with it, and fades. */
@@ -187,6 +193,7 @@ export class PolityStore implements StateStore {
     p.members = p.members.filter((c) => c !== cell);
     this.member.delete(cell);
     this.former.set(cell, p.ref);
+    this.weighed?.moved.push(cell);
   }
 
   /** The realm a land last left, if any. */

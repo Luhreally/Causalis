@@ -82,19 +82,41 @@ export class DiplomacyStore implements StateStore {
   /** The relations in the order of their keys, and each realm's, kept until one is set or dropped (read by every realm each year). */
   private sorted: Relation[] | null = null;
   private byRealm: Map<Ref, Relation[]> | null = null;
+  /**
+   * (When each realm's relations were last written, as a count of writes: what is kept of a reading of them, a realm's
+   * interests, is kept by it. Not state: it only ever grows, so nothing kept before a load is taken for fresh after.)
+   */
+  private readonly written = new Map<Ref, number>();
+  private writes = 0;
 
   get(a: Ref, b: Ref): Relation | undefined {
     return this.relations.get(pairKey(a, b));
+  }
+
+  /** A count that moves whenever any of a realm's relations is set, dropped or told changed (`touch`). */
+  writtenOf(realm: Ref): number {
+    return this.written.get(realm) ?? 0;
+  }
+
+  /** A relation changed where it stands (its opinion, its terms): told, so that what was read of it is read again. */
+  touch(r: Relation): void {
+    this.written.set(r.a, ++this.writes);
+    this.written.set(r.b, this.writes);
   }
 
   set(r: Relation): void {
     const key = pairKey(r.a, r.b);
     if (this.relations.get(key) !== r) this.sorted = this.byRealm = null;
     this.relations.set(key, r);
+    this.touch(r);
   }
 
   drop(key: string): void {
-    if (this.relations.delete(key)) this.sorted = this.byRealm = null;
+    const r = this.relations.get(key);
+    if (!r) return;
+    this.relations.delete(key);
+    this.sorted = this.byRealm = null;
+    this.touch(r);
   }
 
   private ordered(): Relation[] {
