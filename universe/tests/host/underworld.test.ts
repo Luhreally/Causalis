@@ -15,8 +15,12 @@ import {
   ROOF_ROW,
   SMUGGLE,
   SMUGGLE_STORE,
+  GANG_ROW,
   cartelKey,
+  gangsStore,
   moneyStore,
+  underworldOf,
+  type RealmUnderworld,
   politiesOf,
   populationContext,
   refNumber,
@@ -36,6 +40,7 @@ import { townWrong } from "../../src/host/inspect/justice.ts";
 import { yearNow } from "../../src/host/inspect/words.ts";
 import { landReadings, lensReading } from "../../src/host/lenses.ts";
 import { tipOf } from "../../src/host/inspect/index.ts";
+import { fedRef, groupRef } from "../../src/host/underworld.ts";
 import { underworldShade } from "../../src/view/index.ts";
 import { peopledWorld } from "../worlds.ts";
 
@@ -102,18 +107,21 @@ test("a land whose rows are not kept reads none kept, and its tip says so", () =
       drop(moneyStore(world, BAR_STORE), realm.ref),
       drop(moneyStore(world, INTOX_STORE), cell),
       drop(societyStore(world, ROOFLESS_STORE), cell),
+      drop(gangsStore(world), cell),
     ];
   try {
     const v = underworldRead(world).lands.get(cell)!;
     assert.deepEqual(
-      [v[0], v[1], v[2], v[4]],
-      [-1, -1, -1, -1],
-      "smuggling, cartels, addiction and the roofless: none kept",
+      [v[0], v[1], v[2], v[4], v[5]],
+      [-1, -1, -1, -1, -1],
+      "smuggling, cartels, addiction, the roofless and the gangs: none kept",
     );
     assert.match(underworldReading(world, cell, "smuggling")!.line, /keeps no border yet/);
     assert.match(underworldReading(world, cell, "addiction")!.line, /nothing they take is kept/);
     assert.match(underworldReading(world, cell, "roofless")!.line, /no town here keeps a count/);
     assert.equal(underworldReading(world, cell, "cartels")!.stats.length, 0);
+    assert.match(underworldReading(world, cell, "gangs")!.line, /no one keeps a count/);
+    assert.ok(!underworldRead(world).killings.has(cell) && !underworldRead(world).badge.has(cell));
   } finally {
     for (const b of back) b();
   }
@@ -241,4 +249,153 @@ test("a land's crime is its greatest towns' weights on their peace, weighed by t
   assert.equal(r.stats[0]!.label, "What weighs on its peace");
   assert.ok(r.stats.length <= 4);
   assert.equal(r.go?.ref, `${towns[0]!.ref}#law`);
+});
+
+test("a land's gangs, written by hand: its strongest group's hold, its killing and a badge crew marked, and its group's page a tap away", () => {
+  const { realm, cell } = chosen(world),
+    gangs = gangsStore(world),
+    under = underworldOf(world);
+  assert.ok(gangs && under, "the underworld's stores stand on a peopled world");
+  const event = world.events.at(0).id,
+    other = [...realm.members].find((c) => c !== cell && populationContext(world).provinces.get(c)),
+    was = under.of(realm.ref),
+    rec: RealmUnderworld = {
+      ...(was
+        ? (structuredClone(was) as RealmUnderworld)
+        : {
+            last: 0,
+            next: 0,
+            want: 0,
+            supply: 0,
+            pool: 0,
+            veterans: 0,
+            protectRent: 0,
+            banRent: 0,
+            tariffRent: 0,
+            borderRent: 0,
+            captured: 0,
+            smuggleRent: 0,
+            crackdown: 0,
+            bites: 0,
+            collusion: 0,
+            cost: 0,
+            seized: 0,
+            killings: 0,
+            street: 0,
+            badge: 0,
+            extortion: 0,
+            badgePull: 0,
+            crackEvent: null,
+            pactEvent: null,
+            told: 0,
+            wars: [],
+            gone: [],
+          }),
+      groups: [
+        {
+          id: 7,
+          name: "Varro",
+          kind: 0,
+          since: 50,
+          event,
+          home: cell,
+          lands: [cell],
+          boss: { name: "Old Varro", born: 10, since: 50 },
+          bosses: 1,
+          members: 40,
+          wealth: 900,
+          income: 300,
+          share: 600,
+          power: 700,
+          rackets: 1,
+          violence: 3,
+          bribes: 20,
+        },
+      ],
+      feds: [
+        {
+          id: 2,
+          name: "Ash",
+          since: 55,
+          event,
+          identity: "folk",
+          towns: [],
+          gangs: 3,
+          members: 60,
+          strength: 400,
+          jailed: 2,
+        },
+      ],
+    },
+    row = (
+      control: number,
+      group: number,
+      kind: number,
+      killings: number,
+      badge: number,
+      fed = 0,
+    ) => {
+      const r = new Array<number>(15).fill(0);
+      r[GANG_ROW.control] = control;
+      r[GANG_ROW.group] = group;
+      r[GANG_ROW.kind] = kind;
+      r[GANG_ROW.killings] = killings;
+      r[GANG_ROW.protection] = 350;
+      r[GANG_ROW.gangs] = fed ? 3 : 0;
+      r[GANG_ROW.street] = fed ? 120 : 0;
+      r[GANG_ROW.fedA] = fed;
+      r[GANG_ROW.badge] = badge;
+      return r;
+    };
+  under.put(realm.ref, rec);
+  try {
+    withRows(
+      [
+        // (Held 45% by the Varro family, killing 12.5 a year in 100,000, a badge crew working a fifth of it.)
+        [gangs, cell, row(450, 8, 1, 125, 200)],
+        ...(other !== undefined ? [[gangs, other, row(0, 0, 0, 5, 0, 3)] as const] : []),
+      ],
+      () => {
+        const read = underworldRead(world);
+        assert.equal(read.lands.get(cell)![5], 0.45);
+        assert.equal(read.killings.get(cell), 12.5);
+        assert.equal(read.badge.get(cell), 0.2);
+        const lr = landReadings(world)(cell);
+        assert.deepEqual([lr.underworld[5], lr.killings, lr.badgeCrew], [0.45, 12.5, 0.2]);
+
+        const g = underworldReading(world, cell, "gangs")!;
+        assert.equal(g.line, "Gangs: the Varro family holds 45% of it");
+        assert.deepEqual(
+          g.stats.map((x) => [x.label, x.value]),
+          [
+            ["The Varro family", "a family, holding 45%"],
+            ["Killed a year", "12.5 in 100,000"],
+            ["Trade under protection", "35%"],
+            ["Its realm's own enforcers work it", "20%"],
+          ],
+        );
+        assert.equal(g.go?.ref, groupRef(realm.ref, event));
+        assert.equal(
+          tipOf(world, `cell:0:${cell}`, "underworld:gangs").go,
+          groupRef(realm.ref, event),
+        );
+
+        // (A land no group holds, its street run by a federation: the federation's page.)
+        if (other !== undefined) {
+          const f = underworldReading(world, other, "gangs")!;
+          assert.equal(f.line, "Gangs: no group holds it; the Ash federation runs its street");
+          assert.ok(
+            f.stats.some(
+              (x) => x.label === "Street gangs" && x.value === "3, pulling 12% of the young",
+            ),
+          );
+          assert.equal(f.go?.ref, fedRef(realm.ref, event));
+          assert.equal(read.killings.get(other), 0.5);
+        }
+      },
+    );
+  } finally {
+    if (was) under.put(realm.ref, structuredClone(was) as RealmUnderworld);
+    else under.forget(realm.ref);
+  }
 });

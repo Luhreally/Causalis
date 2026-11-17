@@ -123,6 +123,9 @@ export type LandReadings = {
   readonly underworld: readonly number[];
   /** How many goods its realm holds the trade of with other realms, in a cartel (0: none). */
   readonly tradeCartel: number;
+  /** Those the underworld kills there a year, in a hundred thousand of its people; how far its realm's own enforcers work it. */
+  readonly killings: number;
+  readonly badgeCrew: number;
 };
 
 /** The ids a land knows: its lore, and sowing and smelting, which it knows in its own ways. */
@@ -212,6 +215,8 @@ export function landReadings(world: World): (cell: number) => LandReadings {
       inequality: inequalityValue(world, cell),
       underworld: under.lands.get(cell) ?? none,
       tradeCartel: under.cartelLands.get(cell) ?? 0,
+      killings: under.killings.get(cell) ?? 0,
+      badgeCrew: under.badge.get(cell) ?? 0,
     };
   };
 }

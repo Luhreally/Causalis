@@ -175,6 +175,7 @@ import {
   UNDERWORLD_CHOICES,
   underworldShade,
   cartelOverCells,
+  gangsOverCells,
   colonyHour,
   landingToShow,
   colonySky,
@@ -1825,6 +1826,9 @@ async function runPlanetPage(): Promise<void> {
     underworldShown = "smuggling",
     cartelLands: ReadonlySet<number> = new Set<number>(),
     crimeShades = new Map<number, number>(),
+    // (Where the underworld kills, a year in a hundred thousand, and where a realm's own enforcers work: the gangs view.)
+    killingLands = new Map<number, number>(),
+    badgeLands: ReadonlySet<number> = new Set<number>(),
     // (What the wealth lens weighs, and every realm's wealth last read: Lives L2.)
     wealthShown: WealthMeasure = "head",
     wealthBook: WealthBook | null = null,
@@ -2318,6 +2322,19 @@ async function runPlanetPage(): Promise<void> {
         sphereGrid((frame.meta as { frequency: number }).frequency),
         cartelLands,
       );
+    // (Where the underworld kills, hatched red, and where a realm's own enforcers work, edged blue: the gangs view.)
+    if (
+      lens === "underworld" &&
+      underworldShown === "gangs" &&
+      (killingLands.size || badgeLands.size)
+    )
+      gangsOverCells(
+        colors,
+        frame,
+        sphereGrid((frame.meta as { frequency: number }).frequency),
+        killingLands,
+        badgeLands,
+      );
     globe.paint(litLands.size ? litColors(colors, frame, litLands) : colors);
     // (Under the knowledge lens, the sea shell cleared, so the seas its people never sailed show dark too: signals.)
     globe.clearSea(
@@ -2591,6 +2608,10 @@ async function runPlanetPage(): Promise<void> {
   /** The underworld lens's chosen way, land by land, laid on its ramp; and the lands in a cartel among realms. */
   function readUnderworld(): void {
     cartelLands = new Set(lastEntries.flatMap((e) => (e.tradeCartel > 0 ? [e.cell] : [])));
+    killingLands = new Map(
+      lastEntries.flatMap((e) => (e.killings > 0 ? [[e.cell, e.killings] as const] : [])),
+    );
+    badgeLands = new Set(lastEntries.flatMap((e) => (e.badgeCrew > 0 ? [e.cell] : [])));
     if (lens !== "underworld") return;
     mapModes.say(underworldNote());
     // (Its crime is read of its towns' years, asked only while it is shown: the host keeps it a year.)
@@ -2624,6 +2645,19 @@ async function runPlanetPage(): Promise<void> {
   }
   /** A line under the underworld lens's key: what its marks are, where they are. */
   function underworldNote(): string | null {
+    if (underworldShown === "gangs") {
+      const killing = [...killingLands.values()].filter((v) => v >= 1).length,
+        badge = badgeLands.size,
+        lands = (n: number) => (n === 1 ? "1 land" : `${n} lands`);
+      return (
+        [
+          killing ? `Red hatching: killing in ${lands(killing)}, wider where it kills more.` : "",
+          badge ? `Blue edge: the realm's own enforcers work ${lands(badge)}.` : "",
+        ]
+          .filter(Boolean)
+          .join(" ") || null
+      );
+    }
     if (underworldShown !== "cartels") return null;
     const n = new Set(
       lastEntries.flatMap((e) => (e.tradeCartel > 0 && e.realm ? [e.realm.join(",")] : [])),

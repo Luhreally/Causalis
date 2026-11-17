@@ -3746,9 +3746,12 @@ body.with-palette .hint {
 .legend-picks .speed[data-choice="cartels"],
 .legend-picks .speed[data-choice="addiction"],
 .legend-picks .speed[data-choice="crime"],
-.legend-picks .speed[data-choice="roofless"] {
-  min-width: 34px;
+.legend-picks .speed[data-choice="roofless"],
+.legend-picks .speed[data-choice="gangs"] {
+  /* (Six to a row in the desk's panel of map modes.) */
+  min-width: 28px;
   min-height: 32px;
+  padding: 1px 3px;
   font-size: 1.05rem;
 }
 @media (max-width: 640px) {
@@ -3756,7 +3759,8 @@ body.with-palette .hint {
   .legend-picks .speed[data-choice="cartels"],
   .legend-picks .speed[data-choice="addiction"],
   .legend-picks .speed[data-choice="crime"],
-  .legend-picks .speed[data-choice="roofless"] {
+  .legend-picks .speed[data-choice="roofless"],
+  .legend-picks .speed[data-choice="gangs"] {
     min-width: 44px;
     min-height: 44px;
     font-size: 1.1rem;
