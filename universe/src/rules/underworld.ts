@@ -104,6 +104,8 @@ export const UNDER = {
    */
   killWar: 0.08,
   killPeace: 0.004,
+  /** The most of a land's people its underworld kills in a year (five in a thousand: several times the worst city's year on record). */
+  killMost: 0.005,
   /** Others killed for each of a group's men killed (bystanders, police, those who would not pay). */
   bystanders: 0.6,
   /** A turf war is told from this much, and its end below the second. */

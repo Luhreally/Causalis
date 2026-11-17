@@ -286,21 +286,36 @@ export const ENGAGED: Readonly<Record<OrgAim, number>> = {
 export function joinedOf(aim: OrgAim, perHead: number, eligible: number, cohesion: number): number {
   const most = Math.max(0, eligible) * ENGAGED[aim];
   if (!(perHead > 0) || most < ORG.crew) return 0;
-  const net = (n: number) =>
-    n * (perHead * feltGain(SELECTIVE[aim], n) - organisingCost(n, cohesion));
-  // (Sizes from a crew to its most, each a step of a quarter again: the best of them.)
+  const s = clamp01(SELECTIVE[aim]),
+    c = Math.max(1, cohesion);
+  // (Sizes from a crew to its most, each a step of a quarter again: the best of them. The steps are the same for every stake, so
+  // each one's root is taken once for all: SIZES.)
   let best = 0,
     at = 0;
-  for (let n: number = ORG.crew; ; n = Math.min(most, n * 1.25)) {
-    const x = net(n);
+  for (let i = 0; ; i++) {
+    const step = i < SIZES.length ? SIZES[i]! : Infinity,
+      last = step >= most,
+      n = last ? most : step,
+      root = last && step !== most ? dmath.sqrt(Math.max(1, n) / ORG.small) : ROOTS[i]!,
+      x =
+        n *
+        (perHead * (s + (1 - s) * Math.min(1, ORG.small / Math.max(1, n))) - (ORG.cost * root) / c);
     if (x > best) {
       best = x;
       at = n;
     }
-    if (n >= most) break;
+    if (last) break;
   }
   return best > 0 ? at : 0;
 }
+
+/** The sizes joinedOf tries (a crew, and each a quarter again up to more than any land holds), and each one's organisingCost root. */
+const SIZES: readonly number[] = (() => {
+  const out: number[] = [];
+  for (let n: number = ORG.crew; n < 1e15; n *= 1.25) out.push(n);
+  return out;
+})();
+const ROOTS: readonly number[] = SIZES.map((n) => dmath.sqrt(Math.max(1, n) / ORG.small));
 
 /**
  * The men a rent keeps full-time (`take`, grain's worth a year, at a wage of `wage`): each costs his keep and his part of

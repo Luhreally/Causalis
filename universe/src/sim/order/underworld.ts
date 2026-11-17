@@ -1187,7 +1187,9 @@ function stepRealm(
   v.bites = per(bites);
 
   // 7. Violence from structure: each road's war, or its peace.
+  // (Of each group's killing, the part that is its road's war and not its peace: laid where its turf meets a rival's, writeLands.)
   let killings = 0;
+  const warring = new Map<number, number>();
   for (const kind of ["protection", "cartel"] as const) {
     const own = v.groups.filter((g) => kindOfGroup(g) === kind);
     const fight = turfWar(
@@ -1201,6 +1203,7 @@ function stepRealm(
         killingsOf(g.members, fight.war) * (v.truce?.gid === g.id ? 1 - ESCALATE.calms : 1),
       );
       killings += g.violence;
+      warring.set(g.id, g.violence - Math.min(g.violence, killingsOf(g.members, 0)));
     }
     const ranked = [...own].sort((a, b) => b.share - a.share || a.id - b.id);
     if (!open && fight.war >= UNDER.warAt && ranked.length >= 2) {
@@ -1510,7 +1513,7 @@ function stepRealm(
     g.lands = [...kept, ...candidates].slice(0, n);
     if (!g.lands.length) g.lands = [p.seat];
   }
-  writeLands(ctx, p, v, towns, r, badge, bites);
+  writeLands(ctx, p, v, towns, r, badge, bites, warring);
   v.last = year;
   return towns.length > 0 || crackdown > 0.01;
 }
@@ -1855,6 +1858,7 @@ function writeLands(
   r: Read,
   badge: CrimeGroup | undefined,
   bites: number,
+  warring: ReadonlyMap<number, number>,
 ): void {
   const rows = gangsStore(ctx.world);
   if (!rows) return;
@@ -1868,6 +1872,28 @@ function writeLands(
   // (A group's men and its killing lie in its lands as their people do: none in an empty land, nor half of it in a hamlet.)
   const peopleOf = (c: number) => ctx.provinces.get(c)?.total() ?? 0,
     spread = new Map(v.groups.map((g) => [g, g.lands.reduce((s, c) => s + peopleOf(c), 0)]));
+  // (A road's war is fought where two of its groups meet: the lands both hold, and a group's lands on a rival's border; where they
+  // nowhere meet, at each one's home. Its peace's killing lies in all its lands, as its men do.)
+  const grid = ctx.generated.grid,
+    fronts = new Map<CrimeGroup, { lands: readonly number[]; people: number; war: number }>();
+  for (const g of v.groups) {
+    const war = warring.get(g.id) ?? 0;
+    if (war <= 0) continue;
+    const theirs = new Set<number>();
+    for (const x of v.groups)
+      if (x !== g && x.kind === g.kind) for (const c of x.lands) theirs.add(c);
+    let lands = g.lands.filter((c) => {
+      if (theirs.has(c)) return true;
+      for (let k = grid.offsets[c]!; k < grid.offsets[c + 1]!; k++)
+        if (theirs.has(grid.neighbours[k]!)) return true;
+      return false;
+    });
+    if (!lands.some((c) => peopleOf(c) > 0))
+      lands = [g.lands.includes(g.home) ? g.home : g.lands[0]!];
+    fronts.set(g, { lands, people: lands.reduce((s, c) => s + peopleOf(c), 0), war });
+  }
+  let badgePeople = 0;
+  for (const c of badgeTowns) badgePeople += peopleOf(c);
   for (const c of p.members) {
     const prov = ctx.provinces.get(c),
       n = prov?.total() ?? 0;
@@ -1884,7 +1910,10 @@ function writeLands(
       if (!g.lands.includes(c)) continue;
       const part = n / Math.max(1, spread.get(g) ?? n),
         w = g.members * part;
-      killed += g.violence * part;
+      const front = fronts.get(g);
+      killed +=
+        (g.violence - (front?.war ?? 0)) * part +
+        (front && front.lands.includes(c) ? (front.war * n) / Math.max(1, front.people) : 0);
       if (w > bestW) {
         bestW = w;
         best = g;
@@ -1895,7 +1924,10 @@ function writeLands(
       fedsHere = v.feds.filter((x) => x.towns.includes(c)),
       bw = badge && badgeTowns.has(c) ? Math.min(1, v.badgePull / 1000) : 0;
     if (tw) killed += tw.killed;
-    if (bw > 0 && badgeTowns.size) killed += v.badge / badgeTowns.size;
+    // (Its crew's killing among the lands it works as their people are: a hamlet is not given a city's share.)
+    if (bw > 0 && badgePeople > 0) killed += (v.badge * n) / badgePeople;
+    // (No land's underworld takes more of it in a year than the worst the world has known: UNDER.killMost.)
+    killed = Math.min(killed, UNDER.killMost * n);
     if (!best && !tw && bw <= 0) {
       if (rows.get(c)) rows.drop(c);
       continue;

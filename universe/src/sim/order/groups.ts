@@ -525,29 +525,45 @@ function readRealm(ctx: PopulationContext, p: Polity, year: number, t: SimTime):
 
 /** What binds a stake's people in a land. */
 function bindingAt(ctx: PopulationContext, r: Read, l: Land, aim: OrgAim): number {
-  const ways = cultureOf(ctx.world).get(l.cell),
-    kin = ways?.traits[WAY.kinship] ?? r.kin,
-    piety = ways?.traits[WAY.piety] ?? r.piety,
-    lore = loreOf(ctx.world),
-    leader =
-      aim === "hire"
-        ? r.veterans > 0
-          ? 0.8
-          : 0.3
-        : aim === "worship"
-          ? 0.3 + 0.5 * piety
-          : aim === "rebel"
-            ? r.following
-            : aim === "conspire"
-              ? r.rival
-              : l.town >= 5000
-                ? 0.4
-                : 0.2;
+  const ways = cultureOf(ctx.world).get(l.cell);
+  return bindingOf(
+    r,
+    l,
+    aim,
+    ways?.traits[WAY.kinship] ?? r.kin,
+    ways?.traits[WAY.piety] ?? r.piety,
+    loreOf(ctx.world).effect(l.cell, "writing") > 0,
+  );
+}
+
+/** The same, its land's ways and whether it writes read already (a land's stakes ask it of every aim). */
+function bindingOf(
+  r: Read,
+  l: Land,
+  aim: OrgAim,
+  kin: number,
+  piety: number,
+  writes: boolean,
+): number {
+  const leader =
+    aim === "hire"
+      ? r.veterans > 0
+        ? 0.8
+        : 0.3
+      : aim === "worship"
+        ? 0.3 + 0.5 * piety
+        : aim === "rebel"
+          ? r.following
+          : aim === "conspire"
+            ? r.rival
+            : l.town >= 5000
+              ? 0.4
+              : 0.2;
   return cohesionOf({
     kin,
     folk: aim === "worship" ? 1 : r.oneFaith,
     faith: aim === "worship" || aim === "aid" ? piety : 0.3 * piety,
-    writing: lore.effect(l.cell, "writing") > 0 ? 1 : r.writing * 0.5,
+    writing: writes ? 1 : r.writing * 0.5,
     trust: r.deals,
     leader,
   });
@@ -570,6 +586,8 @@ function weighStakes(ctx: PopulationContext, p: Polity, r: Read, v: RealmOrgs): 
         )
       : 0,
     rows = orgLandsStore(world),
+    culture = cultureOf(world),
+    lore = loreOf(world),
     deaths = 0.012,
     coasts = r.lands.filter((l) => l.coast).length || 1,
     towns = r.lands.filter((l) => l.town >= 2000).length,
@@ -582,7 +600,11 @@ function weighStakes(ctx: PopulationContext, p: Polity, r: Read, v: RealmOrgs): 
       guardedBefore = had ? had[ORG_ROW.guard]! / 1000 : 0,
       preyedBefore = had ? (had[ORG_ROW.prey]! + had[ORG_ROW.seaPrey]!) / 1000 : 0,
       killedBefore = (had ? had[ORG_ROW.killings]! / 1e6 : 0) + l.killed,
-      coh = (aim: OrgAim) => bindingAt(ctx, r, l, aim),
+      ways = culture.get(l.cell),
+      kin = ways?.traits[WAY.kinship] ?? r.kin,
+      piety = ways?.traits[WAY.piety] ?? r.piety,
+      writes = lore.effect(l.cell, "writing") > 0,
+      coh = (aim: OrgAim) => bindingOf(r, l, aim, kin, piety, writes),
       threat = Math.min(1, (l.front ? 1 : 0) + 20 * preyedBefore + 2000 * killedBefore),
       share = r.people > 0 ? l.people / r.people : 0,
       set = (aim: OrgAim, worth: number, gather: number) => {
@@ -623,7 +645,7 @@ function weighStakes(ctx: PopulationContext, p: Polity, r: Read, v: RealmOrgs): 
         sick: 0.05,
         roofless: l.street,
         care: r.care,
-        kin: cultureOf(world).get(l.cell)?.traits[WAY.kinship] ?? r.kin,
+        kin,
       }),
       l.town >= 2000 ? l.town / HOUSEHOLD : 0,
     );
@@ -637,8 +659,7 @@ function weighStakes(ctx: PopulationContext, p: Polity, r: Read, v: RealmOrgs): 
     common("trade", tradeWorth(r.trade, r.earned, r.capacity, towns), l.traders);
     // Worship: a faith pressed by its seat; or the seat's own faith's devout, withdrawn to keep it under a rule of their own
     // where land lies open or far and its temple teaches (a monastic order).
-    const piety = cultureOf(world).get(l.cell)?.traits[WAY.piety] ?? r.piety,
-      sect = worshipWorth(l.grievance + 0.3 * l.pressed, l.pressed, piety),
+    const sect = worshipWorth(l.grievance + 0.3 * l.pressed, l.pressed, piety),
       cloister =
         l.faith && l.faith === r.seatFaith && l.pressed < 0.1 && l.teaching > 0
           ? cloisterWorth(piety, l.teaching, 0.3 + 0.7 * (1 - l.reach))
@@ -681,11 +702,7 @@ function weighStakes(ctx: PopulationContext, p: Polity, r: Read, v: RealmOrgs): 
       l.hard >= 0.45 ? (r.bound + 0.2 * r.hunted) * r.people * share * 3 : 0,
     );
     // Inquire: its learned, where the word is free enough and writing at hand.
-    common(
-      "inquire",
-      inquireWorth(r.word, loreOf(world).effect(l.cell, "writing") > 0 ? 1 : 0, r.ideas),
-      l.learned * l.people,
-    );
+    common("inquire", inquireWorth(r.word, writes ? 1 : 0, r.ideas), l.learned * l.people);
   }
   for (let k = 0; k < AIMS; k++) {
     v.stakes[k] = Math.round(r.lands.reduce((s, l) => s + l.worth[k]!, 0));
@@ -1034,9 +1051,12 @@ function copyOf(v: Readonly<RealmOrgs>): RealmOrgs {
   };
 }
 
-/** The stake of an aim where a group holds (its lands), shared among the groups of that aim there. */
+/**
+ * The stake of an aim where a group holds (its lands), shared among the groups of that aim there (`sharing`: each land's count of
+ * the groups holding it that do each aim, sharingOf).
+ */
 function stakeIn(
-  v: RealmOrgs,
+  sharing: ReadonlyMap<number, number[]>,
   g: Org,
   lands: Map<number, Land>,
   k: number,
@@ -1046,12 +1066,20 @@ function stakeIn(
   for (const c of g.lands) {
     const l = lands.get(c);
     if (!l) continue;
-    const sharing =
-      v.orgs.filter((x) => x.lands.includes(c) && (x.aims[k] ?? 0) >= 200).length || 1;
-    worth += l.worth[k]! / sharing;
-    gather += l.gather[k]! / sharing;
+    const n = sharing.get(c)?.[k] || 1;
+    worth += l.worth[k]! / n;
+    gather += l.gather[k]! / n;
   }
   return { worth, gather };
+}
+
+/** A group counted into (`by` 1) or out of (-1) each of its lands' groups that do each aim (a fifth and more of what it does). */
+function sharingOf(sharing: Map<number, number[]>, g: Org, by: number): void {
+  for (const c of g.lands) {
+    let row = sharing.get(c);
+    if (!row) sharing.set(c, (row = new Array<number>(AIMS).fill(0)));
+    for (let k = 0; k < AIMS; k++) if ((g.aims[k] ?? 0) >= 200) row[k] = row[k]! + by;
+  }
 }
 
 function stepRealm(
@@ -1090,6 +1118,7 @@ function stepRealm(
   // (Some stakes are only their own people's: a refuge the fled's, a faith kept its faithful's. A lending circle of free
   // townsfolk does not take up the bound's flight, however much it is worth to them.)
   const none = { worth: 0, gather: 0 },
+    sharing = new Map<number, number[]>(),
     stake = (g: Org, k: number) =>
       k === AIM.office
         ? ORG_BASES[g.basis] === "interest"
@@ -1099,7 +1128,8 @@ function stepRealm(
           ? none
           : k === AIM.worship && ORG_BASES[g.basis] !== "faith"
             ? none
-            : stakeIn(v, g, lands, k);
+            : stakeIn(sharing, g, lands, k);
+  for (const g of v.orgs) sharingOf(sharing, g, 1);
   for (const g of v.orgs) {
     // (A rent kept full-time is worth to members who have work of their own only what it pays over the work they would leave:
     // to the idle and the veterans nearly all of it, to householders little.)
@@ -1107,8 +1137,8 @@ function stepRealm(
       leaves = idleBasis ? 0.2 : 0.9,
       // (Another's stake is no pull where a group of that first aim already holds its home: turned to it, it would only be the
       // lesser of two there, taken into the greater, and its own stake left to be gathered again.)
-      taken = (k: number) =>
-        k !== g.aim && v.orgs.some((x) => x !== g && x.aim === k && x.lands.includes(g.home)),
+      atHome = v.orgs.filter((x) => x !== g && x.lands.includes(g.home)),
+      taken = (k: number) => k !== g.aim && atHome.some((x) => x.aim === k),
       worth = ORG_AIMS.map((a, k) =>
         taken(k) ? 0 : stake(g, k).worth * (FULL_TIME.has(a) ? 1 - leaves : 1),
       ),
@@ -1119,7 +1149,9 @@ function stepRealm(
       if (k >= 0) worth[k] = 2 * Math.max(worth[k]!, 1);
     }
     g.means = meansOf(g, r.lands);
+    sharingOf(sharing, g, -1);
     g.aims = aimsToward(g.aims, worth, g.means, stepped(ORG.turn, span));
+    sharingOf(sharing, g, 1);
     const was = kindName(g),
       aim = keptFirstAim(g.aims, g.aim);
     g.aim = AIM[aim];
@@ -1203,7 +1235,8 @@ function stepRealm(
     g.members = Math.max(0, Math.round(g.members + (aimMen - g.members) * stepped(ORG.grow, span)));
     g.income = Math.round(income);
     g.takes = Math.round(
-      ((g.aims[AIM.prey]! + g.aims[AIM.smuggle]!) / 1000) * stakeIn(v, g, lands, AIM.prey).worth,
+      ((g.aims[AIM.prey]! + g.aims[AIM.smuggle]!) / 1000) *
+        stakeIn(sharing, g, lands, AIM.prey).worth,
     );
     g.gives = Math.round(
       ((g.aims[AIM.aid]! + g.aims[AIM.lend]!) / 1000) * g.members * r.wage * ORG.cost * 4,
