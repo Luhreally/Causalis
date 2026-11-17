@@ -58,6 +58,7 @@ import {
   useIn,
   orderOf,
   HOLD_EVENTS,
+  worldLaws,
 } from "../sim/index.ts";
 import {
   FOODS,
@@ -1175,6 +1176,7 @@ function planetUniverse(name: string, prior: Prior): Universe {
             ageGyr: starAgeGyr(g.star),
           },
           frostLine: g.system.frostLine,
+          ...(g.laws && g.laws.gravity !== 1 ? { gravityLaw: g.laws.gravity } : {}),
           bodies: bodies.map((b) => ({
             ref: b.ref,
             designation: b.designation,
@@ -1723,7 +1725,14 @@ export function clusterOf(world: World): GalaxyStar[] {
     if (CLUSTERS.size > 8) CLUSTERS.clear();
     const rng = new Rng(world.seed);
     // (As far out as the seed's sky reaches: the usual 50 light-years, or its making's.)
-    CLUSTERS.set(key, (stars = clusterStars(rng, makeGalaxy(rng), skyOf(world.seed.text)?.radius)));
+    CLUSTERS.set(
+      key,
+      (stars = clusterStars(
+        rng,
+        makeGalaxy(rng, worldLaws(world)?.burn),
+        skyOf(world.seed.text)?.radius,
+      )),
+    );
   }
   return stars;
 }

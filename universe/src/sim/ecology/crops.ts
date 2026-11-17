@@ -247,7 +247,7 @@ function worthOn(l: CropLand, f: CropField, own: number): { gives: number; fit: 
 }
 
 /** The lands a land meets: those beside it, and those its ships trade with. */
-function meets(ctx: PopulationContext, cell: number): number[] {
+export function cropMeets(ctx: PopulationContext, cell: number): number[] {
   const g = ctx.generated,
     out: number[] = [];
   for (let k = g.grid.offsets[cell]!; k < g.grid.offsets[cell + 1]!; k++)
@@ -266,7 +266,7 @@ function firstCrop(ctx: PopulationContext, store: CropStore, p: Province, year: 
   let best: CropLand | null = null,
     most = -1;
   if (learned)
-    for (const c of meets(ctx, cell)) {
+    for (const c of cropMeets(ctx, cell)) {
       const l = store.get(c);
       if (!l) continue;
       const w = worthOn(l, f, Math.round(100 * own.seed)).gives;
@@ -314,7 +314,7 @@ function stepLand(
   let now = worthOn(l, f, l.own).gives,
     taken: CropLand | null = null,
     takenFrom = -1;
-  for (const c of meets(ctx, p.cell)) {
+  for (const c of cropMeets(ctx, p.cell)) {
     const o = store.get(c);
     if (!o || (o.crop === l.crop && o.from === l.from)) continue;
     const w = worthOn(o, f, l.own).gives;

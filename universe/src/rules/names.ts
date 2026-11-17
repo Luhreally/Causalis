@@ -291,6 +291,13 @@ const LIKE: Readonly<Record<string, string>> = {
   phycocyanobilin: "dye ~ leaf",
   bacteriochlorophyll: "dye ~ leaf",
   polyimine: "wood ~ tar",
+  // (A life of silicon's chains: the sweep, Nature lane.)
+  polysilane: "wood ~ glow",
+  tetrasilane: "oil seed fire",
+  polysilazane: "wood ~ hard",
+  trisilazane: "oil seed ~",
+  polysiloxane: "wood ~ slick",
+  cyclosiloxane: "oil seed slick",
   squalene: "oil seed ~",
   glucosamine: "sweet ~ sharp",
   "glucosamine-starch": "meal ~ sharp",

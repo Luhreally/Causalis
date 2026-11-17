@@ -396,6 +396,7 @@ export {
   KIND_SUBSTANCES,
   LIFE_ELEMENTS,
   LIFE_SUBSTANCES,
+  SILICON_LIFE,
   NOVEL_ELEMENTS,
   NOVEL_REACTIONS,
   NOVEL_SUBSTANCES,
@@ -442,6 +443,8 @@ export {
   type Membrane,
   type Pigment,
   backboneOf,
+  HOT_SILICON,
+  SILICON_PARTS,
   needsOf,
   type Backbone,
   type LifeNeeds,
@@ -511,6 +514,7 @@ export {
   makingAct,
   makingWords,
   makingsOf,
+  lawsOf,
   type MakingSubject,
   type Makings,
 } from "./making.ts";
@@ -1721,3 +1725,5 @@ export * from "./dress.ts";
 export * from "./leisure.ts";
 export * from "./speech.ts";
 export * from "./materials.ts";
+export * from "./laws.ts";
+export * from "./exchange.ts";

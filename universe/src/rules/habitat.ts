@@ -121,7 +121,11 @@ export function habitability(
   else if (g.water === "ice")
     needs.push({ id: "melt", words: "water melted from its ice", upkeep: 0.3 });
   // A body of silicon's chains, kept from the water and the oxygen that would break them (Round D).
-  if (life?.backbone && (g.water !== "none" || g.air === "breathable"))
+  if (
+    life?.backbone &&
+    life.backbone !== "siloxane" &&
+    (g.water !== "none" || g.air === "breathable")
+  )
     needs.push({
       id: "sealed",
       words: "halls sealed against the water and oxygen that would break their bodies' chains",

@@ -128,7 +128,9 @@ const FRAILTY = [2, 0.9, 0.5, 0.5, 0.6, 0.7, 0.9, 1.2, 1.7, 2.4];
  * way, as the warnings against making mirror bacteria have it.)
  */
 export function sharesStarSickness(g: HomeWorld): boolean {
-  return worldLife(g).family === "water";
+  // (Nor one whose chains are silicon's: a sickness of carbon finds nothing in it to live on. The sweep, Nature lane.)
+  const l = worldLife(g);
+  return l.family === "water" && !l.backbone;
 }
 
 /** A sickness: its nature, its rising, and what it has done. */

@@ -4,6 +4,8 @@
 import { seatsBy } from "../space/far-read.ts";
 import { installMotion } from "../planet/motion.ts";
 import { installCrops } from "../ecology/crops.ts";
+import { installExchange } from "../ecology/exchange.ts";
+import { installStands } from "../ecology/stands.ts";
 import { installDiet } from "./diet.ts";
 import { installFires } from "../planet/fires.ts";
 import { installFloods } from "../planet/floods.ts";
@@ -481,6 +483,8 @@ export function makePopulationWorld(seed: Seed, options: PopulationWorldOptions 
   installMotion(world);
   // (The sweep, Nature lane: crops tamed and carried, kinds of want, the fires below, rivers in flood.)
   installCrops(world, () => populationContext(world));
+  installExchange(world, () => populationContext(world));
+  installStands(world);
   installDiet(world, () => populationContext(world));
   installFires(world, () => populationContext(world));
   installFloods(world, () => populationContext(world));

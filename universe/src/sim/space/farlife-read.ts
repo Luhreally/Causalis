@@ -6,6 +6,7 @@
 // A people history does not follow is read whole here: the years its rungs came and went, the year it fell and why. natives.ts
 // gives a people its life as it reads it (livedFolk), so where it stands in a year is what its own numbers say, not a clock.
 import { Rng, dmath, hashString, type World } from "../../kernel/index.ts";
+import { worldLaws } from "../planet/store.ts";
 import {
   civBody,
   foreignPlanets,
@@ -127,7 +128,9 @@ export function folkFacts(seed: string, s: GalaxyStar, p: ForeignPlanet, f: Folk
 /** What a followed people's life steps by: its world, and its body (gen/civilizations.ts' own). Its rungs are history's. */
 export function civFacts(world: World, civ: Civilization): FarFacts | null {
   const s = clusterOf(world).find((x) => civ.star.endsWith(`:${x.sector}:${x.k}`)),
-    p = s ? foreignPlanets(new Rng(world.seed), s)[civ.planet] : undefined,
+    p = s
+      ? foreignPlanets(new Rng(world.seed), s, worldLaws(world)?.gravity)[civ.planet]
+      : undefined,
     body = civBody(civ);
   if (!s || !p || !body) return null;
   const oxygen = p.air === "breathable",

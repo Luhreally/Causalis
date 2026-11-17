@@ -37,6 +37,7 @@ import { provinceCapacity, type PopulationContext } from "../population/systems.
 import { loreOf } from "../lore/lore.ts";
 import { GroundStore, groundYear } from "./ground.ts";
 import { farmedOf } from "./farmed.ts";
+import { stepStand } from "./stands.ts";
 
 const HUNT = defineStream("ecology.hunt");
 
@@ -439,8 +440,11 @@ export function ecologyYear(ctx: PopulationContext, t: SimTime): void {
       g.climate.temperature[p.cell]! + shift.warm,
       (g.climate.precipitation[p.cell]! * p.rain) / 1000,
     );
+    const before = w.forest;
     stepWilds(w, take, farmed, rest, herding, keepSoil, regrowth);
     store.set(w);
+    // (And its woods' age, where it has woods: stands.ts.)
+    if (w.firstForest > 0) stepStand(world, p.cell, before, w.forest);
 
     // Their turns for the worse, told once (and again only after they recover).
     const causes = (...refs: (Ref | null)[]): CauseRef[] =>

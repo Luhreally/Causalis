@@ -78,6 +78,7 @@ import { lodePush } from "../economy/worked.ts";
 import { herdLoss, pensLeft } from "../ecology/herds.ts";
 import { partnersOf } from "../ecology/lineage.ts";
 import { cropsGive } from "../ecology/crops.ts";
+import { herdGives, pestsLeft } from "../ecology/exchange.ts";
 import { veilYield } from "../planet/fires.ts";
 import { floodYield } from "../planet/floods.ts";
 import { dietDeaths } from "./diet.ts";
@@ -273,7 +274,8 @@ export function spaceSteps(ctx: PopulationContext, a: number, b: number): number
       radius: x.radius,
       pressure: x.pressure,
     })),
-    days = (site: typeof sa) => (site ? routeTo(list, site.body, g.star.mass).days : 0),
+    days = (site: typeof sa) =>
+      site ? routeTo(list, site.body, g.star.mass, g.laws?.gravity).days : 0,
     far = Math.max(days(sa), days(sb)),
     steps = 1 + Math.round(dmath.log2(1 + far / 30));
   CROSSINGS.set(key, steps);
@@ -384,6 +386,8 @@ export function farmingShare(ctx: PopulationContext, p: Province): number {
       // (Its crop, as tame and as fitted to it as it is; the world's veil, and its own ash and flood: exactly 1 on a land
       // sowing its own, tamed, under a clear sky, its river in its banks.)
       cropsGive(ctx.world, p.cell) *
+      // (Less what weeds and pests carried in take: exactly 1 where none came.)
+      pestsLeft(ctx.world, p.cell) *
       veilYield(ctx, p.cell) *
       floodYield(ctx.world, p.cell) *
       alive.soil *
@@ -568,6 +572,7 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
         // (Its crop, as tame and as fitted to it as it is; the world's veil, and its own ash and flood: exactly 1 on a land
         // sowing its own, tamed, under a clear sky, its river in its banks.)
         cropsGive(world, p.cell) *
+        pestsLeft(world, p.cell) *
         veilYield(ctx, p.cell) *
         floodYield(world, p.cell) *
         // (And a great stone's dust, a burst's light: frontier/hooks.ts, exactly 1 under a clear sky.)
@@ -575,7 +580,8 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
         (p.cell >= offworldFrom ? openFields(ctx, p.cell) : 1) *
         // (And what its holders have put into them, as far as it is safe and theirs: society/holding.ts. Exactly 1 where none is kept.)
         (1 + improvedOf(world, p.cell)),
-      flocks = 1 + lore.effect(p.cell, "herdYield"),
+      // (And its herd beast against the one it first kept: exactly 1 until it takes up another: ecology/exchange.ts.)
+      flocks = (1 + lore.effect(p.cell, "herdYield")) * herdGives(world, p.cell),
       // (What war has driven off of its herds and a beast at large takes: Z1. Exactly 0 where neither has.)
       flocksLost = herdLoss(world, p.cell, t),
       // (What lives off its flocks and its wild, and what its seed carriers give: ecology/lineage.ts. Exactly 1 where none stand.)

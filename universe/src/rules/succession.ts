@@ -37,3 +37,20 @@ export function regrowthPace(base: number, warm: number, rainMm: number): number
     )
   );
 }
+
+/**
+ * A land's woods' age (the sweep, Nature lane): the mean age of its trees. Woods let alone stand at their climax, old trees dying
+ * and young ones filling their gaps (the mean age moves as 1 − age / climax a year); woods cut keep the age of what is left;
+ * woods coming back bring young trees, the new growth as old as half the years it took.
+ */
+export const STAND = {
+  /** The mean age of old woods let alone (years, est: temperate and tropical old growth, trees of 100 to 400 years). */
+  climax: 250,
+} as const;
+
+/** A land's woods' mean age after `years`, their share of the land going from `before` to `after`. */
+export function standStep(age: number, before: number, after: number, years = 1): number {
+  const aged = age + years * (1 - age / STAND.climax);
+  if (after <= before || after <= 0) return aged;
+  return (before * aged + ((after - before) * years) / 2) / after;
+}

@@ -173,7 +173,9 @@ export {
 export {
   CLUSTER_LY,
   LOCAL_DENSITY,
+  NURSERIES,
   SECTOR_LY,
+  armAt,
   clusterStars,
   densityAt,
   imfMass,

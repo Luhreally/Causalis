@@ -20,6 +20,7 @@ export {
 export {
   HomePlanet,
   homePlanet,
+  worldLaws,
   makePlanetWorld,
   type PlanetWorldOptions,
 } from "./planet/store.ts";
@@ -1541,6 +1542,17 @@ export {
   cropFieldOf,
   type CropLand,
 } from "./ecology/crops.ts";
+export {
+  EXCHANGE_EVENTS,
+  ExchangeStore,
+  exchangeOf,
+  exchangeReading,
+  exchangeYear,
+  herdGives,
+  pestsLeft,
+  type ExchangeLand,
+} from "./ecology/exchange.ts";
+export { StandStore, standAge, standsOf, stepStand } from "./ecology/stands.ts";
 export {
   DIET_EVENTS,
   DietStore,
