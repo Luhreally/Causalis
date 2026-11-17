@@ -838,7 +838,6 @@ export function dutyYear(ctx: PopulationContext, t: SimTime): void {
       word: held[HOLD.word]!,
       foes: foes.get(p.ref) ?? NO_FOES,
       tell: (data) => tell(ctx, MONEY_EVENTS.underground.type, p, data),
-      t,
     });
     const row = [rate * 1000, ...want.parts.map(([, v]) => v * 1000), inn, revenueNow];
     for (let k = 0; k < 3; k++) row.push(sanctions[k]?.[0] ?? 0, (sanctions[k]?.[1] ?? 0) * 1000);

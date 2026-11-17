@@ -338,7 +338,9 @@ export function prohibitionYear(ctx: PopulationContext, t: SimTime): void {
   const bought = new Map<string, number[]>(),
     paid = new Map<string, number[]>(),
     from = new Map<string, [number, number][]>(),
-    spare = new Map<string, number[]>();
+    spare = new Map<string, number[]>(),
+    // (What of its seat's money metal a buyer may still pay out this year, of every kind to every seller together: DRAIN_MOST.)
+    metalLeft = new Map<string, number>();
   for (const r of reads.values())
     spare.set(
       r.p.ref,
@@ -375,10 +377,10 @@ export function prohibitionYear(ctx: PopulationContext, t: SimTime): void {
           fromM = markets.get(buyer.p.seat),
           to = markets.get(seller.p.seat);
         if (good >= 0 && fromM && to && fromM.price[good]! > 0) {
-          const units = Math.floor(
-            Math.min(DRAIN_MOST * fromM.stock[good]!, (n * seller.price) / fromM.price[good]!),
-          );
+          const room = metalLeft.get(buyer.p.ref) ?? DRAIN_MOST * fromM.stock[good]!,
+            units = Math.floor(Math.min(room, (n * seller.price) / fromM.price[good]!));
           if (units > 0) to.move("in", good, fromM.take("out", good, units));
+          metalLeft.set(buyer.p.ref, room - Math.max(0, units));
         }
       }
     }

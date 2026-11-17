@@ -80,12 +80,18 @@ function withRows(
   }
 }
 
-test("an early world, its stores holding nothing yet, reads nothing under the underworld lens", () => {
+test("an early world, its stores holding nothing yet, reads nothing under the underworld lens but what its plants give", () => {
   const early = peopledWorld("juniper", 2),
-    read = underworldRead(early);
+    read = underworldRead(early),
+    // (A people takes what its own lands' plants give from its first years, and a few come to need it: no law, no border, no gang
+    // yet. Since 2026-11-16 a lineage may hold more kinds than its own, and some of Juniper's lands give one.)
+    addiction = UNDERWORLD_VIEWS.indexOf("addiction");
   for (const [cell, v] of read.lands) {
     assert.equal(v.length, UNDERWORLD_VIEWS.length);
-    for (const x of v) assert.ok(x <= 0, `land ${cell} reads ${x}`);
+    v.forEach((x, i) => {
+      if (i === addiction) assert.ok(x < 0.1, `land ${cell} needs what it takes, ${x}`);
+      else assert.ok(x <= 0, `land ${cell} reads ${x} under ${UNDERWORLD_VIEWS[i]}`);
+    });
   }
   assert.equal(read.cartelLands.size, 0);
   for (const [, v] of underworldCrime(early)) assert.ok(v >= 0);

@@ -11,7 +11,7 @@
 // The share of each that crosses unseen is the black market's rule with the ware's bulk for its worth (rules/money.ts smuggled,
 // rules/contraband.ts carryCost). The greatest few by their rent (wedge times what crossed) are kept, and a ware gone underground
 // is told once. Nothing here moves a good: what crossed unseen is a reading of what the year's trade and laws make worth carrying.
-import { dmath, type SimTime } from "../../kernel/index.ts";
+import { dmath } from "../../kernel/index.ts";
 import {
   CONTRA_CAUSES,
   GOODS,
@@ -74,7 +74,6 @@ export type ContraRead = {
   readonly foes: ReadonlySet<string>;
   /** Tell a ware gone underground (money.ts tell). */
   readonly tell: (data: Record<string, unknown>) => void;
-  readonly t: SimTime;
 };
 
 type Ware = { ware: number; share: number; cause: ContraCause; worth: number; wedge: number };
