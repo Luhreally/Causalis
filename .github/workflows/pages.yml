@@ -109,6 +109,26 @@ jobs:
           name: baked
           path: universe/dist/baked
       - run: cp -r universe/dist dist/client/universe
+      # The preview (the `preview` branch: every round written, before its checks) at /preview/, its saves in a
+      # database of their own, so nothing of it reaches the game's at /universe/. Its failing never stops the deploy.
+      - name: Check out the preview
+        id: preview
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          ref: preview
+          path: preview-src
+      - name: Build the preview
+        if: steps.preview.outcome == 'success'
+        continue-on-error: true
+        working-directory: preview-src/universe
+        env:
+          VITE_SAVE_DB: causalis-preview
+        run: |
+          npm ci
+          npx vite build --base /Causalis/preview/
+          mkdir -p ../../dist/client/preview
+          cp -r dist/. ../../dist/client/preview/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -1,0 +1,70 @@
+name: Deploy the preview
+
+# The game as it stands at main, with the preview beside it at /preview/, deployed at once (no tests, no bake:
+# main's far years from the cache its own deploy keeps). Asked for by hand, from main.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-preview
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm ci
+        working-directory: universe
+      - run: npm run build
+        working-directory: universe
+      - id: baked
+        uses: actions/cache/restore@v4
+        with:
+          path: universe/baked
+          key: baked-${{ hashFiles('universe/src/sim/**', 'universe/src/rules/**', 'universe/src/kernel/**', 'universe/src/gen/**', 'universe/src/host/planet.ts', 'universe/src/host/kinds.ts', 'universe/src/host/past.ts', 'universe/tools/bake.ts', 'universe/public/catalogue.json', 'universe/package-lock.json') }}-1500-2000-3000
+      - if: steps.baked.outputs.cache-hit == 'true'
+        run: cp -r universe/baked universe/dist/baked
+      - run: cp -r universe/dist dist/client/universe
+      # The preview (the `preview` branch: every round written, before its checks) at /preview/, its saves in a
+      # database of their own, so nothing of it reaches the game's at /universe/. Its failing never stops the deploy.
+      - name: Check out the preview
+        id: preview
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          ref: preview
+          path: preview-src
+      - name: Build the preview
+        if: steps.preview.outcome == 'success'
+        continue-on-error: true
+        working-directory: preview-src/universe
+        env:
+          VITE_SAVE_DB: causalis-preview
+        run: |
+          npm ci
+          npx vite build --base /Causalis/preview/
+          mkdir -p ../../dist/client/preview
+          cp -r dist/. ../../dist/client/preview/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/client
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
