@@ -685,13 +685,19 @@ function weighStakes(ctx: PopulationContext, p: Polity, r: Read, v: RealmOrgs): 
     // Conspire: the educated few shut out, word unfree.
     common(
       "conspire",
+      // (Less what a plotter risks: a seat that reaches finds him. So a plot is worth its few only against a seat doubted or
+      // shut hard; a lodge had stood in 236 of 256 realms, wherever a town was great enough to hide a dozen.)
       r.writing > 0
-        ? conspireWorth({
-            shut: (1 - r.voice) * (0.4 + 0.6 * (1 - r.legitimacy)),
-            word: r.word,
-            ideas: r.ideas,
-            doubt: r.doubt,
-          })
+        ? Math.max(
+            0,
+            conspireWorth({
+              shut: (1 - r.voice) * (0.4 + 0.6 * (1 - r.legitimacy)),
+              word: r.word,
+              ideas: r.ideas,
+              doubt: r.doubt,
+            }) -
+              ORG.hunted * r.capacity,
+          )
         : 0,
       l.town >= 2000 ? l.town * 0.05 : 0,
     );

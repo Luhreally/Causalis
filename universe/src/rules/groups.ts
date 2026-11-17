@@ -121,6 +121,8 @@ export const ORG = {
    * held together by nothing but the stake: meetings, dues, watching that others pay their part. */
   small: 40,
   cost: 0.05,
+  /** What a plotter against the seat risks a year where its hand reaches wholly (working years): taken, his living lost. */
+  hunted: 0.5,
   /** A full-timer's keep (working years a year: his living, his risk, his kit), as the underworld's crews are kept. */
   keep: 1.5,
   /** Of a realm's men skilled in violence and idle, the most its armed groups can take; of the rest, the share who join a cause. */
