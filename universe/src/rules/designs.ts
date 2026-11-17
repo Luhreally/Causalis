@@ -1141,10 +1141,13 @@ export function performanceOf(
 }
 
 export function realization(id: string): Realization {
-  const r = REALIZATIONS.find((x) => x.id === id);
+  const r = REALIZATION_BY_ID.get(id);
   if (!r) throw new Error(`no realization ${id}`);
   return r;
 }
+/** The table by id (the first of an id, as a search of it finds): asked for every part of every host weighed, thrice a weighing. */
+const REALIZATION_BY_ID = new Map<string, Realization>();
+for (const r of REALIZATIONS) if (!REALIZATION_BY_ID.has(r.id)) REALIZATION_BY_ID.set(r.id, r);
 
 /**
  * How much stronger a host fights than one with clubs, bare and on foot. (`props`: its parts'

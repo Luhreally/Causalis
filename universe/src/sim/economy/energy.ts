@@ -639,7 +639,12 @@ export type EnergyReading = {
 
 /** A land's account as it was kept, back as the rule's account. */
 export function keptAccount(e: EnergyLand): EnergyAccount {
-  const by = Object.fromEntries(SOURCES.map((s, i) => [s, e.by[i] ?? 0])) as Record<Source, number>;
+  // (Filled key by key in the lists' order, as Object.fromEntries gave them: a land's account is read back so by its people's
+  // year, its trade's and its minds', and the lists of pairs were most of the reading.)
+  const by = {} as Record<Source, number>,
+    drawn = {} as Record<Carrier, number>;
+  for (let i = 0; i < SOURCES.length; i++) by[SOURCES[i]!] = e.by[i] ?? 0;
+  for (let i = 0; i < CARRIERS.length; i++) drawn[CARRIERS[i]!] = e.drawn[i] ?? 0;
   let drives: Source = "none",
     most = 0;
   for (const s of SOURCES)
@@ -648,10 +653,7 @@ export function keptAccount(e: EnergyLand): EnergyAccount {
       drives = s;
     }
   return {
-    drawn: Object.fromEntries(CARRIERS.map((c, i) => [c, e.drawn[i] ?? 0])) as Record<
-      Carrier,
-      number
-    >,
+    drawn,
     workWanted: e.workWanted,
     workHad: e.workHad,
     worksWanted: e.worksWanted,
@@ -681,19 +683,17 @@ export function energyPerHead(world: World, cell: number): EnergyReading | null 
   const e = energyBooks(world)?.get(cell);
   if (!e || e.people <= 0) return null;
   const a = keptAccount(e),
-    people = e.people;
+    people = e.people,
+    carriers = {} as Record<Carrier, number>,
+    sources = {} as Record<Source, number>;
+  for (let i = 0; i < CARRIERS.length; i++) carriers[CARRIERS[i]!] = (e.drawn[i] ?? 0) / people;
+  for (let i = 0; i < SOURCES.length; i++) sources[SOURCES[i]!] = (e.by[i] ?? 0) / people;
   return {
     primary: primaryPower(a, people),
     power: workPower(a, people),
     work: a.work / people,
-    carriers: Object.fromEntries(CARRIERS.map((c, i) => [c, (e.drawn[i] ?? 0) / people])) as Record<
-      Carrier,
-      number
-    >,
-    sources: Object.fromEntries(SOURCES.map((s, i) => [s, (e.by[i] ?? 0) / people])) as Record<
-      Source,
-      number
-    >,
+    carriers,
+    sources,
     drives: a.drives,
     share: a.share,
     workCover: e.workWanted > 0 ? Math.min(1, e.workHad / e.workWanted) : 1,
