@@ -454,8 +454,22 @@ const CAPACITIES = new Map<string, Capacity>();
  */
 export function provinceCapacity(ctx: PopulationContext, cell: number, warm?: number): Capacity {
   const shift = warm === undefined ? shiftNow(ctx.world) : null,
-    // (As it was made, on every world whose ground has not moved: the key and the reckoning are then what they always were.)
-    made = `${homePlanet(ctx.world).surfaceKey}:${ctx.medium}:${cell}`,
+    surface = homePlanet(ctx.world).surfaceKey,
+    // (The ground as it stands now, asked of land after land: answered by the land's number while the ground, the people's
+    // medium and the shift are the last asked of. Spelling a key for each asking was 1.7% of a year at 1,500.)
+    now = shift ? CAPACITY_NOW : null;
+  if (now && shift) {
+    if (now.surface !== surface || now.medium !== ctx.medium || now.shift !== shift.key) {
+      now.surface = surface;
+      now.medium = ctx.medium;
+      now.shift = shift.key;
+      now.by = [];
+    }
+    const known = now.by[cell];
+    if (known) return known;
+  }
+  // (As it was made, on every world whose ground has not moved: the key and the reckoning are then what they always were.)
+  const made = `${surface}:${ctx.medium}:${cell}`,
     key = shift ? (shift.key ? `${made}:${shift.key}` : made) : warm ? `${made}:${warm}` : made;
   let c = CAPACITIES.get(key);
   if (!c) {
@@ -465,8 +479,15 @@ export function provinceCapacity(ctx: PopulationContext, cell: number, warm?: nu
       (c = capacity(ctx.generated, cell, ctx.medium, warm ?? 0, shift?.key ? shift : null)),
     );
   }
+  if (now) now.by[cell] = c;
   return c;
 }
+const CAPACITY_NOW: {
+  surface: string;
+  medium: string;
+  shift: string;
+  by: (Capacity | undefined)[];
+} = { surface: "", medium: "", shift: "", by: [] };
 const LIVABLE = new Map<string, boolean>();
 /** Whether the people can live in a place: unasked, as its ground stands now; asked `warm`, under the god's warming alone. */
 export function livableFor(ctx: PopulationContext, cell: number, warm?: number): boolean {

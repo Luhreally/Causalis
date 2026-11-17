@@ -50,10 +50,12 @@ export class HomePlanet implements StateStore {
   private surfaceDigest = "";
   private readonly baseDeposits: number;
 
+  /** (The key as last spelt: asked for every land's capacity, and a world whose ground has moved spelt it anew each time.) */
+  private surfaceSpelt: string | null = null;
   get surfaceKey(): string {
-    return this.surfaceDigest
+    return (this.surfaceSpelt ??= this.surfaceDigest
       ? `${this.generated.digest}:${this.surfaceDigest}`
-      : this.generated.digest;
+      : this.generated.digest);
   }
   brushStrokes(): readonly BrushStroke[] {
     return this.strokes;
@@ -89,6 +91,7 @@ export class HomePlanet implements StateStore {
     const all = [...this.patches.values()].sort((a, b) => a.cell - b.cell);
     surfaceDeposits(this.generated, all, this.baseDeposits);
     this.surfaceDigest = all.length ? new Hasher().value(all).hex() : "";
+    this.surfaceSpelt = null;
     // (What is kept by world keys on it with the digest: gen/homeworld.ts keptKey.)
     this.generated.surface = this.generated.fine.surface = this.surfaceDigest;
   }
@@ -183,6 +186,7 @@ export class HomePlanet implements StateStore {
     }
     this.patches.clear();
     this.surfaceDigest = "";
+    this.surfaceSpelt = null;
     surfaceDeposits(this.generated, [], this.baseDeposits);
     this.changeSurface(patches);
     this.strokes = structuredClone(s.strokes ?? []);
