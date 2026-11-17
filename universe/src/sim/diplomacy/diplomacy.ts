@@ -145,9 +145,16 @@ export class DiplomacyStore implements StateStore {
 
   /** Let go of what has faded past remembering. */
   forget(year: number): void {
-    for (const [key, ms] of [...this.memories.entries()]) {
-      const kept = ms.filter((m) => Math.abs(faded(m, year)) > FORGOTTEN);
-      if (kept.length) this.memories.set(key, kept);
+    // (A list none of which has faded stays as it is: most do, most years.)
+    for (const [key, ms] of this.memories) {
+      let kept = 0;
+      for (const m of ms) if (Math.abs(faded(m, year)) > FORGOTTEN) kept++;
+      if (kept === ms.length) continue;
+      if (kept)
+        this.memories.set(
+          key,
+          ms.filter((m) => Math.abs(faded(m, year)) > FORGOTTEN),
+        );
       else this.memories.delete(key);
     }
   }
