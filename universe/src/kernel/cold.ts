@@ -15,10 +15,13 @@ import { packList, unpackList, Words, type Packed } from "./pack.ts";
 import type { CauseRef, CauseRole, DecisionRecord, Factor, HistoryEvent } from "./history.ts";
 import type { Ref } from "./ref.ts";
 
-/** How many rows a block holds. */
-export const COLD_ROWS = 16384;
-/** How many blocks may be read back at once, of each part. */
-const PARTS_KEPT = 4;
+/**
+ * How many rows a block holds. (4,096, where it was 16,384: a block with rows forgotten is written again whole, 50 to 65 ms of
+ * a year at 1,500 for the greater and the year's slowest part; and what waits to fill a block waits as plain events.)
+ */
+export const COLD_ROWS = 4096;
+/** How many blocks may be read back at once, of each part (as many rows as ever). */
+const PARTS_KEPT = 16;
 /** A block is written again without its forgotten once one row in this many is. */
 const TIDY_SHARE = 16;
 /** The largest serial a reference can be read as (codes are ± serials in an Int32Array). */
