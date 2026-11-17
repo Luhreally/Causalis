@@ -27,10 +27,12 @@ const PARTS_KEPT = 4;
  * A block is written again without its forgotten once one row in this many is: of events, of decisions. (One in sixteen for
  * both, a late world wrote two blocks of events again most decades, 30 to 60 ms each, and one of decisions every other, 60 to
  * 150 ms: 11 ms of every year of first light from 1,200, ckpt.mts. Fewer rewrites leave more of the forgotten in a save until
- * they come: the decisions are a quarter of the events' size there, so theirs wait longer.)
+ * they come: the decisions are a quarter of the events' size there, so theirs wait longer. One in eight and one in four were
+ * still 4.7 and 2.5 ms of every year of first light from 1,000 to 1,300, one in four and one in two 2.4 and 0.95, for a save a
+ * thirty-sixth the greater packed, 12.62 MB against 12.28 (ckpt2.mts, hs.mts): set between, for the save's line.)
  */
-const TIDY_EVENTS = 8,
-  TIDY_DECISIONS = 4;
+const TIDY_EVENTS = 6,
+  TIDY_DECISIONS = 3;
 /** The largest serial a reference can be read as (codes are ± serials in an Int32Array). */
 export const MAX_SERIAL = 0x7fffffff;
 
