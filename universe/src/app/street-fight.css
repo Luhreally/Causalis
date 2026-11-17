@@ -2,13 +2,13 @@
    harder, and a caption low down where a thumb does not rest — what, where, who has fallen — with its buttons on one row. */
 /* (Graded on the world's own picture, not a window over it: colder and lifted out of the dark for a fight of gangs, browner for soldiers.) */
 body.street-filming #world {
-  filter: saturate(0.82) contrast(1.05) brightness(1.08) hue-rotate(-6deg);
+  filter: sepia(0.2) saturate(1.08) contrast(1.03);
 }
 body.street-filming[data-street="after"] #world {
   filter: saturate(0.6);
 }
 body.street-filming[data-street="army"] #world {
-  filter: saturate(0.74) contrast(1.04) brightness(1.06) sepia(0.16);
+  filter: sepia(0.3) saturate(0.92) contrast(1.03);
 }
 .street-film[hidden] {
   display: none !important;
@@ -67,4 +67,33 @@ body.street-filming[data-street="army"] #world {
     width: 560px;
     transform: translateX(-50%);
   }
+}
+/* A side's flag over its men: a small pennant in its colour, the caption's chip the same. */
+.street-flag {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 18px;
+  height: 12px;
+  z-index: 3;
+  pointer-events: none;
+  border: 1px solid rgba(0, 0, 0, 0.65);
+  border-left: 3px solid #1a1a1a;
+  border-radius: 0 6px 6px 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+.street-flag[hidden] {
+  display: none !important;
+}
+.street-chip {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 2px;
+  vertical-align: -1px;
+}
+/* (The 🔊 in the corner while it plays, where the corner's tools stand: over nothing of the scene's middle.) */
+body.street-filming .sound-button.free {
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
 }

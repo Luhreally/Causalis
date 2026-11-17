@@ -96,7 +96,7 @@ const setText = (node: HTMLElement, text: string) => {
 };
 
 /** How close and low the eye is on a clash (the rig's units, degrees), and how long it takes going from one to the next (s). */
-const EYE_DISTANCE = 4.6,
+const EYE_DISTANCE = 7.8,
   EYE_GOES = 1.3;
 /** The burying after: how long it is watched (s), the world's seconds a second of it, how far off the eye stands. */
 const BURY_LASTS = 26,
@@ -122,6 +122,15 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
   done.title = "Back to the town as it stands";
   bar.append(pause, again, page, done);
   ui.append(title, where, tally, bar);
+  // (A small flag over each side where the eye is, in its colour and the caption's chip's.)
+  const flags = [0, 1].map(() => {
+    const flag = el("div", "street-flag");
+    flag.hidden = true;
+    hud.append(flag);
+    return flag;
+  });
+  const rgb = (c: readonly number[]) =>
+    `rgb(${c.map((x) => Math.round(Math.min(1, x * 1.25) * 255)).join(",")})`;
   ui.hidden = true;
   hud.append(ui);
 
@@ -153,6 +162,8 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
     time.release("street fight");
     document.body.classList.remove("filming", "street-filming");
     ui.hidden = true;
+    for (const flag of flags) flag.hidden = true;
+    delete tally.dataset.said;
     delete document.body.dataset.street;
     fight = null;
     script = null;
@@ -259,6 +270,7 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
     // After it: the town's burying, by its own road to its graveyard (Phase 43), where it has one.
     if (s > script.end && burying) {
       scene = streetAt(script, slots, -100);
+      for (const flag of flags) flag.hidden = true;
       village.battleAt(null);
       village.streetDowned = null;
       document.body.dataset.street = "after";
@@ -336,13 +348,47 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
       s >= script.quiet
         ? `${fight.words.cost}. ${fight.words.effect}.`
         : eye
-          ? `Year ${fight.year}, at dusk in ${fight.townName}: ${eye.why === "post" ? "soldiers going into its quarter, street by street" : SPOT_WORDS[eye.why]}`
-          : `Year ${fight.year}, at dusk in ${fight.townName}. ${fight.words.what}.`,
+          ? `Year ${fight.year}, late in the day in ${fight.townName}: ${eye.why === "post" ? "soldiers going into its quarter, street by street" : SPOT_WORDS[eye.why]}`
+          : `Year ${fight.year}, late in the day in ${fight.townName}. ${fight.words.what}.`,
     );
-    setText(
-      tally,
-      `${a.name}: ${n[0]} fallen  ·  ${b.name}: ${n[1]} fallen${fight.others ? `  ·  ${between} caught between` : ""}`,
-    );
+    const said = `${a.name}: ${n[0]} fallen|${b.name}: ${n[1]} fallen${fight.others ? `  ·  ${between} caught between` : ""}`;
+    if (tally.dataset.said !== said) {
+      tally.dataset.said = said;
+      const [first, second] = said.split("|"),
+        chip = (c: readonly number[]) => {
+          const x = el("span", "street-chip");
+          x.style.background = rgb(c);
+          return x;
+        };
+      tally.replaceChildren(chip(a.color), ` ${first}  ·  `, chip(b.color), ` ${second}`);
+    }
+    // Its flags: over each side's men at the place the eye is on, while they stand there.
+    const box = ui.getBoundingClientRect();
+    flags.forEach((flag, side) => {
+      let x = 0,
+        z = 0,
+        m = 0;
+      if (eye && scene && s < script!.quiet)
+        for (const q of scene.soldiers)
+          if (
+            q.side === side &&
+            q.size > 0.5 &&
+            q.doing !== "fallen" &&
+            Math.hypot(q.x - eye.at.x, q.z - eye.at.z) < 16
+          ) {
+            x += q.x;
+            z += q.z;
+            m++;
+          }
+      const at = m ? village.screenOf(x / m, z / m, 3.4) : null;
+      if (!at || at.y > box.top - 30 || at.y < 8) {
+        flag.hidden = true;
+        return;
+      }
+      flag.hidden = false;
+      flag.style.background = rgb(fight!.sides[side]!.color);
+      flag.style.transform = `translate(${Math.round(at.x - 9)}px, ${Math.round(at.y - 34)}px)`;
+    });
   });
 
   return {
