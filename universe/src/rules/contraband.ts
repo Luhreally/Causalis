@@ -87,7 +87,12 @@ export function wouldCross(spare: number, gap: number, price: number): number {
 }
 
 /**
- * A ware gone underground, told once: a share of it at least this crossing unseen, worth at least this share of what the realm's
- * markets deal in a year.
+ * A realm's trade gone underground, told once a realm: the first ware that a sanction, a war, a licence, its law or its bar on arms
+ * drives across its borders unseen, at least this share of it, worth at least this share of what its markets deal in a year. (What
+ * slips past a tariff is ordinary, and told once as smuggling.)
  */
-export const UNDERGROUND = { share: 0.4, worth: 0.005 } as const;
+export const UNDERGROUND: {
+  readonly share: number;
+  readonly worth: number;
+  readonly causes: readonly ContraCause[];
+} = { share: 0.5, worth: 0.01, causes: ["sanction", "war", "licence", "law", "harm"] };

@@ -36,8 +36,8 @@ import {
   intoxEffects,
   intoxUse,
   intoxWant,
+  INTOX_HOLD,
   lawKeeps,
-  kindCost,
   prohibits,
   type IntoxKind,
 } from "../../rules/index.ts";
@@ -289,7 +289,9 @@ export function prohibitionYear(ctx: PopulationContext, t: SimTime): void {
         use[k]! += n * u;
         grow[k]! += Math.min(1, own) * growers;
         wanted[k]! += n * w * kept[k]!;
-        lostBy[k]! += n * kindCost(INTOX_KINDS[k]!, u).lost;
+        // (rules/intox.ts kindCost, inlined: a land a kind a year.)
+        const hold = INTOX_HOLD[INTOX_KINDS[k]!];
+        lostBy[k]! += n * (hold.work >= 0 ? u * hold.binds * hold.work : u * hold.work * 0.2);
         given += own;
       }
       supply += Math.min(1, given) * growers;
@@ -339,7 +341,7 @@ export function prohibitionYear(ctx: PopulationContext, t: SimTime): void {
     paid = new Map<string, number[]>(),
     from = new Map<string, [number, number][]>(),
     spare = new Map<string, number[]>(),
-    // (What of its seat's money metal a buyer may still pay out this year, of every kind to every seller together: DRAIN_MOST.)
+    // (What of its seat's money metal a buyer may still pay out this year, to every seller together: DRAIN_MOST.)
     metalLeft = new Map<string, number>();
   for (const r of reads.values())
     spare.set(
@@ -351,37 +353,44 @@ export function prohibitionYear(ctx: PopulationContext, t: SimTime): void {
       b = reads.get(rel.b);
     if (!a || !b || warsOf(world).between(rel.a, rel.b)) continue;
     const shut = sanctionBetween(world, rel.a, rel.b);
+    if (shut >= 1) continue;
     for (const [seller, buyer] of [
       [a, b],
       [b, a],
     ] as const) {
       const left = spare.get(seller.p.ref)!;
+      let worth = 0;
       for (let k = 0; k < N; k++) {
         if (left[k]! <= 0) continue;
-        const short = buyer.wanted[k]! - buyer.grow[k]! - (bought.get(buyer.p.ref)?.[k] ?? 0);
+        let got = bought.get(buyer.p.ref);
+        const short = buyer.wanted[k]! - buyer.grow[k]! - (got?.[k] ?? 0);
         if (short <= 0) continue;
         const n = Math.min(left[k]!, short) * 0.5 * (1 - shut);
-        if (n <= 0) continue;
         left[k]! -= n;
-        const got = bought.get(buyer.p.ref) ?? new Array<number>(N).fill(0),
-          cost = paid.get(buyer.p.ref) ?? new Array<number>(N).fill(0),
-          most = from.get(buyer.p.ref) ?? INTOX_KINDS.map((): [number, number] => [0, 0]);
-        got[k]! += n;
-        cost[k]! += n * seller.price;
-        if (n > most[k]![1]) most[k] = [refNumber(seller.p.ref) + 1, n];
-        bought.set(buyer.p.ref, got);
-        paid.set(buyer.p.ref, cost);
-        from.set(buyer.p.ref, most);
-        // The metal it pays in leaves its seat for the seller's.
-        const good = coin?.get(buyer.p.ref)?.[COIN.good] ?? -1,
-          fromM = markets.get(buyer.p.seat),
-          to = markets.get(seller.p.seat);
-        if (good >= 0 && fromM && to && fromM.price[good]! > 0) {
-          const room = metalLeft.get(buyer.p.ref) ?? DRAIN_MOST * fromM.stock[good]!,
-            units = Math.floor(Math.min(room, (n * seller.price) / fromM.price[good]!));
-          if (units > 0) to.move("in", good, fromM.take("out", good, units));
-          metalLeft.set(buyer.p.ref, room - Math.max(0, units));
+        if (!got) {
+          bought.set(buyer.p.ref, (got = new Array<number>(N).fill(0)));
+          paid.set(buyer.p.ref, new Array<number>(N).fill(0));
+          from.set(
+            buyer.p.ref,
+            INTOX_KINDS.map((): [number, number] => [0, 0]),
+          );
         }
+        const most = from.get(buyer.p.ref)!;
+        got[k]! += n;
+        paid.get(buyer.p.ref)![k]! += n * seller.price;
+        if (n > most[k]![1]) most[k] = [refNumber(seller.p.ref) + 1, n];
+        worth += n * seller.price;
+      }
+      if (worth <= 0) continue;
+      // The metal it pays in leaves its seat for the seller's: once for all it bought of them.
+      const good = coin?.get(buyer.p.ref)?.[COIN.good] ?? -1,
+        fromM = markets.get(buyer.p.seat),
+        to = markets.get(seller.p.seat);
+      if (good >= 0 && fromM && to && fromM.price[good]! > 0) {
+        const room = metalLeft.get(buyer.p.ref) ?? DRAIN_MOST * fromM.stock[good]!,
+          units = Math.floor(Math.min(room, worth / fromM.price[good]!));
+        if (units > 0) to.move("in", good, fromM.take("out", good, units));
+        metalLeft.set(buyer.p.ref, room - Math.max(0, units));
       }
     }
   }

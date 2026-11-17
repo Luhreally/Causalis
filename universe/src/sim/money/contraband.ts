@@ -79,6 +79,8 @@ export type ContraRead = {
 type Ware = { ware: number; share: number; cause: ContraCause; worth: number; wedge: number };
 
 const causeOf = (c: ContraCause) => CONTRA_CAUSES.indexOf(c) + 1;
+/** The told bit for a realm's first ware gone underground (beside each ware's own, by its place). */
+const UNDERGROUND_TOLD = 1 << 30;
 
 /** One realm's wares smuggled, reckoned and kept. */
 export function reckonContraband(r: ContraRead): void {
@@ -197,7 +199,8 @@ export function reckonContraband(r: ContraRead): void {
     if (spent > 0 && s > 0)
       wares.push({ ware: WARE_ARMS, share: s, cause: "harm", worth: spent * s, wedge: armsBar });
   }
-  // The greatest few by their rent; and a ware gone underground, told once.
+  // The greatest few by their rent; and the first ware a law, a war, a sanction or a licence drove underground, told once a realm
+  // (what slips past a tariff is told as smuggling, money.smuggling).
   const kept = wares
     .filter((w) => w.share >= 0.01 && w.worth >= 1)
     .sort((a, b) => b.worth * b.wedge - a.worth * a.wedge || a.ware - b.ware)
@@ -205,8 +208,13 @@ export function reckonContraband(r: ContraRead): void {
   let told = store.at(p.ref, CONTRA.told);
   for (const w of kept) {
     const bit = 1 << w.ware;
-    if (w.share >= UNDERGROUND.share && w.worth >= UNDERGROUND.worth * r.dealt && !(told & bit)) {
-      told |= bit;
+    if (
+      !(told & UNDERGROUND_TOLD) &&
+      UNDERGROUND.causes.includes(w.cause) &&
+      w.share >= UNDERGROUND.share &&
+      w.worth >= UNDERGROUND.worth * r.dealt
+    ) {
+      told |= bit | UNDERGROUND_TOLD;
       r.tell({
         ware: wareName(w.ware),
         share: Math.round(w.share * 100),

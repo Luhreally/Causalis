@@ -664,7 +664,9 @@ export function dutyYear(ctx: PopulationContext, t: SimTime): void {
     reckoning = new Set(living.map((p) => p.ref)),
     inBy = new Map<string, Float64Array>(),
     shutBy = new Map<string, Float64Array>(),
-    shutPair = new Map<string, number>();
+    shutPair = new Map<string, number>(),
+    sanctioning = new Set<string>();
+  for (const k of duties.keys()) if (duties.at(k, DUTY.sanctions) > 0) sanctioning.add(k);
   let world_ = 0;
   const add = (m: Map<string, number>, k: string, v: number) => m.set(k, (m.get(k) ?? 0) + v),
     goods = (m: Map<string, Float64Array>, k: string) => {
@@ -687,10 +689,13 @@ export function dutyYear(ctx: PopulationContext, t: SimTime): void {
     add(between, `${rb}|${ra}`, v);
     if (reckoning.has(rb)) {
       goods(inBy, rb)[f.good]! += v;
-      const pair = `${ra}|${rb}`;
-      const shut = shutPair.get(pair) ?? sanctionBetween(world, ra, rb);
-      shutPair.set(pair, shut);
-      if (shut > 0) goods(shutBy, rb)[f.good]! += v * shut;
+      // (Only where either keeps a sanction at all: few do.)
+      if (sanctioning.has(ra) || sanctioning.has(rb)) {
+        const pair = `${ra}|${rb}`,
+          shut = shutPair.get(pair) ?? sanctionBetween(world, ra, rb);
+        shutPair.set(pair, shut);
+        if (shut > 0) goods(shutBy, rb)[f.good]! += v * shut;
+      }
     }
   }
   // (Who is at war with whom now: trade with the enemy is forbidden, and what would cross is smuggled.)
