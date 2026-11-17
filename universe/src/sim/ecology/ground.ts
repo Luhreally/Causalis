@@ -224,7 +224,7 @@ type Lie = {
 };
 const LIES = new Map<string, Map<number, Lie>>();
 
-function lieOf(ctx: PopulationContext, cell: number, areaKm2: number): Lie {
+function lieOf(ctx: PopulationContext, cell: number, areaKm2: number, keep = true): Lie {
   const key = `${homePlanet(ctx.world).surfaceKey}:${ctx.medium}`;
   let lies = LIES.get(key);
   if (!lies) {
@@ -281,8 +281,14 @@ function lieOf(ctx: PopulationContext, cell: number, areaKm2: number): Lie {
       rechargeM3: rain * areaKm2 * 1e3 * SINKS,
       near,
     };
-  lies.set(cell, lie);
+  if (keep) lies.set(cell, lie);
   return lie;
+}
+
+/** A land's slopes (rise over run), as its ground reads them (planet/floods.ts: where a river overruns its plain). */
+export function landSlope(ctx: PopulationContext, cell: number): number {
+  // (Read, never kept: what the ground keeps of a land is the ground's own to make, by its own area.)
+  return lieOf(ctx, cell, 1, false).slope;
 }
 
 // —— The year ———————————————————————————————————————————————————————————————————————————————————————

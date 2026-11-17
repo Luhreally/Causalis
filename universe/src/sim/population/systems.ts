@@ -67,6 +67,10 @@ import { lodesOf } from "../economy/lodes.ts";
 import { lodePush } from "../economy/worked.ts";
 import { herdLoss, pensLeft } from "../ecology/herds.ts";
 import { partnersOf } from "../ecology/lineage.ts";
+import { cropsGive } from "../ecology/crops.ts";
+import { veilYield } from "../planet/fires.ts";
+import { floodYield } from "../planet/floods.ts";
+import { dietDeaths } from "./diet.ts";
 import {
   GONE_KEPT,
   HAND_VITAL,
@@ -359,6 +363,11 @@ export function farmingShare(ctx: PopulationContext, p: Province): number {
       (1 + lore.effect(p.cell, "farmYield")) *
       heatYield(ctx, p.cell) *
       darkFields(ctx.world, p.cell) *
+      // (Its crop, as tame and as fitted to it as it is; the world's veil, and its own ash and flood: exactly 1 on a land
+      // sowing its own, tamed, under a clear sky, its river in its banks.)
+      cropsGive(ctx.world, p.cell) *
+      veilYield(ctx, p.cell) *
+      floodYield(ctx.world, p.cell) *
       alive.soil,
     // (What all its fields give, worked to the full; and what its people eat, a sixth over.)
     most = c.farm * fields,
@@ -531,6 +540,11 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
         heatYield(ctx, p.cell) *
         // (Under the soot of a great fire, W5: exactly 1 under a clear sky.)
         darkFields(world, p.cell) *
+        // (Its crop, as tame and as fitted to it as it is; the world's veil, and its own ash and flood: exactly 1 on a land
+        // sowing its own, tamed, under a clear sky, its river in its banks.)
+        cropsGive(world, p.cell) *
+        veilYield(ctx, p.cell) *
+        floodYield(world, p.cell) *
         (p.cell >= offworldFrom ? openFields(ctx, p.cell) : 1),
       flocks = 1 + lore.effect(p.cell, "herdYield"),
       // (What war has driven off of its herds and a beast at large takes: Z1. Exactly 0 where neither has.)
@@ -744,8 +758,13 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
         (1 + 25 * intoxDeaths(world, p.cell)),
       // A band's chance of dying within the months, the same for every one of it (reckoned once).
       dying: number[] = [],
+      // (And what its diet goes short of: its young die the more, rules/nutrition.ts. Exactly 1 where it goes short of nothing.)
+      want = dietDeaths(world, p.cell),
       dyingIn = (b: number) =>
-        (dying[b] ??= deathWithin(riskUnder(life.mortality[b]!, mortality), months)),
+        (dying[b] ??= deathWithin(
+          riskUnder(life.mortality[b]!, mortality * (b < 2 ? want.young : want.grown)),
+          months,
+        )),
       d = new CountDeltas(p.counts),
       key = refHash(p.ref),
       // Under the hand, a village's people are born and die one by one; the rest by rates.

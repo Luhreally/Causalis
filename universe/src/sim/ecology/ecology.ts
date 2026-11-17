@@ -30,7 +30,8 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { BIOME, isProvinceWorld, lives, offworldSite, type HomeWorld } from "../../gen/index.ts";
-import { OCC, PRODUCTIVITY } from "../../rules/index.ts";
+import { OCC, PRODUCTIVITY, regrowthPace } from "../../rules/index.ts";
+import { shiftNow } from "../planet/motion.ts";
 import type { Capacity } from "../population/model.ts";
 import { provinceCapacity, type PopulationContext } from "../population/systems.ts";
 import { loreOf } from "../lore/lore.ts";
@@ -293,6 +294,11 @@ const WILD_REGROWTH = 0.08,
   FOREST_REGROWTH = 0.02,
   SOIL_HEALING = 0.02;
 
+/** How fast a land's woods come back (a share of what is missing a year) at its warmth and its year's rain (rules/succession.ts). */
+export function woodsRegrowth(warm: number, rainMm: number): number {
+  return regrowthPace(FOREST_REGROWTH, warm, rainMm);
+}
+
 /**
  * A year of a land's living world: the wild regrows and is hunted (`take`, what the
  * foragers eat against what the wild yields as it stands); the forest gives way to the fields (`farmed`, the
@@ -309,6 +315,8 @@ export function stepWilds(
   herding = 0,
   /** Whether its soil is its ground's to set (ground.ts), not worn and healed here. */
   keepSoil = false,
+  /** How fast its woods come back, by what its ground grows (rules/succession.ts; the temperate woods' pace where not given). */
+  regrowth = FOREST_REGROWTH,
 ): void {
   // A people living close to what the wild yields (taking more than three-fifths of it)
   // thin it, the more the harder they press; a wild pressed less grows back toward what
@@ -331,7 +339,7 @@ export function stepWilds(
   w.forest =
     standing < w.forest
       ? standing
-      : Math.min(standing, w.forest + FOREST_REGROWTH * browsed * (1 - w.forest));
+      : Math.min(standing, w.forest + regrowth * browsed * (1 - w.forest));
   if (!keepSoil)
     w.soil = Math.min(
       1,
@@ -404,7 +412,8 @@ export function ecologyYear(ctx: PopulationContext, t: SimTime): void {
     lore = loreOf(world),
     year = yearOfMoment(t),
     // (Its soil is its ground's where its ground is kept as stocks, Round A: ground.ts steps it, by the lustrum.)
-    keepSoil = world.hasStore("ecology.ground");
+    keepSoil = world.hasStore("ecology.ground"),
+    shift = shiftNow(world);
   for (const p of ctx.provinces.all()) {
     const pop = p.total();
     // (Sealed halls on another world have no wild to thin, no forest, no open soil.)
@@ -425,7 +434,12 @@ export function ecologyYear(ctx: PopulationContext, t: SimTime): void {
       rest = (lore.get(p.cell, "rotation") ? 0.6 : 0) + (lore.get(p.cell, "manuring") ? 0.4 : 0),
       herders = p.occupation(OCC.herder),
       herding = herders / pop;
-    stepWilds(w, take, farmed, rest, herding, keepSoil);
+    // (Its woods come back as fast as its ground grows things this year: its warmth as its ground has turned, its year's rain.)
+    const regrowth = woodsRegrowth(
+      g.climate.temperature[p.cell]! + shift.warm,
+      (g.climate.precipitation[p.cell]! * p.rain) / 1000,
+    );
+    stepWilds(w, take, farmed, rest, herding, keepSoil, regrowth);
     store.set(w);
 
     // Their turns for the worse, told once (and again only after they recover).

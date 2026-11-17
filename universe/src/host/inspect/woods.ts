@@ -8,10 +8,12 @@ import {
   LODE_DEPTH_WORDS,
   groveWhyWords,
   lodeSize,
+  primaryGrowth,
   roleWord,
 } from "../../rules/index.ts";
 import {
   homePlanet,
+  woodsRegrowth,
   lodesOf,
   oresIn,
   populationContext,
@@ -87,6 +89,17 @@ export function woodsBlock(world: World, cell: number): Block | null {
     stat("Now", cap(ofLand(now, woods))),
     stat("At first", cap(ofLand(first, woods))),
   ];
+  // (How fast they come back where cleared or burned, as fast as the land grows things: the sweep, Nature lane.)
+  const half = Math.round(
+    0.6931 /
+      Math.max(1e-6, woodsRegrowth(g.climate.temperature[cell]!, g.climate.precipitation[cell]!)),
+  );
+  rows.push(
+    stat(
+      "Cleared, they come back",
+      `half of what is missing in some ${half} years: its ground grows ${Math.round(primaryGrowth(g.climate.temperature[cell]!, g.climate.precipitation[cell]!)).toLocaleString("en-US")} g of green a square metre a year`,
+    ),
+  );
   if (!turns.length)
     rows.push(
       stat(

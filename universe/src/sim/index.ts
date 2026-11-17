@@ -859,6 +859,7 @@ export {
   lineageOf,
   living,
   stepWilds,
+  woodsRegrowth,
   waterYield,
   watersOf,
   wildsOf,
@@ -1372,6 +1373,7 @@ export {
   motionOf,
   motionYear,
   shiftNow,
+  starDeathAt,
   starEnded,
   type LandTurn,
   type MotionState,
@@ -1521,3 +1523,51 @@ export { BOUGHT_WARES, boughtOf, foodWanted } from "./trade/demand.ts";
 export { ACADEMY_EVERY, academyOf, academyYear, learnedOf, patronsOf } from "./lore/academy.ts";
 export { ACADEMY_STORE } from "./culture/rows.ts";
 export { claimYearsFor, kinFactsOf } from "./war/ties.ts";
+  BEDS,
+  CROP_EVENTS,
+  CROP_STEP,
+  CropStore,
+  ROOTS,
+  cropName,
+  cropReading,
+  cropsGive,
+  cropsOf,
+  cropsYear,
+  cropFieldOf,
+  type CropLand,
+} from "./ecology/crops.ts";
+export {
+  DIET_EVENTS,
+  DietStore,
+  dietDeaths,
+  dietOfWorld,
+  dietReading,
+  dietYear,
+  type DietLand,
+} from "./population/diet.ts";
+export {
+  ERUPTION_EVENTS,
+  FIRES_KEPT,
+  EruptionStore,
+  eruptionsAYear,
+  eruptionsOn,
+  firesOf,
+  firesYear,
+  veilNow,
+  veilYield,
+  ventOn,
+  ventRateOf,
+  type Eruption,
+  type FireTally,
+} from "./planet/fires.ts";
+export {
+  FLOODS_KEPT,
+  FloodStore,
+  floodYield,
+  floodplains,
+  floodsOf,
+  floodsOn,
+  floodsYear,
+  type Flood,
+  type FloodTally,
+} from "./planet/floods.ts";

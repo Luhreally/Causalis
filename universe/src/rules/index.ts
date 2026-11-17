@@ -452,6 +452,9 @@ export {
   colourOf,
   colourSaid,
   coloursAt,
+  coloursSensed,
+  SEEN_MARKS,
+  marksSensed,
   elementLikeness,
   glossOf,
   likenessOf,
@@ -1645,6 +1648,7 @@ export {
   type StarLife,
   type StarStage,
 } from "./planet.ts";
+export { BURST_TOLL, DWARF_LIGHT, burstLeft } from "./planet.ts";
 export {
   EARTH_SKY,
   GROWS_ABOVE,
@@ -1695,3 +1699,8 @@ export * from "./arming.ts";
 export * from "./houses.ts";
 export * from "./kinforms.ts";
 export * from "./academy.ts";
+export * from "./crops.ts";
+export * from "./volcanoes.ts";
+export * from "./floods.ts";
+export * from "./nutrition.ts";
+export * from "./succession.ts";
