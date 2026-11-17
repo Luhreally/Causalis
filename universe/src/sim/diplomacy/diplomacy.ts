@@ -79,26 +79,48 @@ export class DiplomacyStore implements StateStore {
   readonly packed = true;
   private readonly relations = new Map<string, Relation>();
   private readonly memories = new Map<string, Memory[]>();
+  /** The relations in the order of their keys, and each realm's, kept until one is set or dropped (read by every realm each year). */
+  private sorted: Relation[] | null = null;
+  private byRealm: Map<Ref, Relation[]> | null = null;
 
   get(a: Ref, b: Ref): Relation | undefined {
     return this.relations.get(pairKey(a, b));
   }
 
   set(r: Relation): void {
-    this.relations.set(pairKey(r.a, r.b), r);
+    const key = pairKey(r.a, r.b);
+    if (this.relations.get(key) !== r) this.sorted = this.byRealm = null;
+    this.relations.set(key, r);
   }
 
   drop(key: string): void {
-    this.relations.delete(key);
+    if (this.relations.delete(key)) this.sorted = this.byRealm = null;
+  }
+
+  private ordered(): Relation[] {
+    return (this.sorted ??= [...this.relations.entries()]
+      .sort((x, y) => (x[0] < y[0] ? -1 : 1))
+      .map(([, r]) => r));
   }
 
   all(): Relation[] {
-    return [...this.relations.entries()].sort((x, y) => (x[0] < y[0] ? -1 : 1)).map(([, r]) => r);
+    return [...this.ordered()];
   }
 
   /** The relations a realm has. */
   of(realm: Ref): Relation[] {
-    return this.all().filter((r) => r.a === realm || r.b === realm);
+    if (!this.byRealm) {
+      const by = new Map<Ref, Relation[]>();
+      for (const r of this.ordered()) {
+        for (const x of r.a === r.b ? [r.a] : [r.a, r.b]) {
+          let l = by.get(x);
+          if (!l) by.set(x, (l = []));
+          l.push(r);
+        }
+      }
+      this.byRealm = by;
+    }
+    return [...(this.byRealm.get(realm) ?? [])];
   }
 
   remember(a: Ref, b: Ref, m: Memory): void {
@@ -155,6 +177,7 @@ export class DiplomacyStore implements StateStore {
   load(state: unknown): void {
     const s = state as { relations: Relation[]; memories: [string, Memory[]][] };
     this.relations.clear();
+    this.sorted = this.byRealm = null;
     for (const r of s.relations) this.set({ ...r, terms: [...r.terms] });
     this.memories.clear();
     for (const [k, ms] of s.memories) this.memories.set(k, [...ms]);

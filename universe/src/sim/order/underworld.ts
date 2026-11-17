@@ -786,7 +786,7 @@ function stepRealm(
   const sm = moneyStore(world, SMUGGLE_STORE)?.get(p.ref),
     bars = moneyStore(world, BAR_STORE);
   let border = 0;
-  for (const rel of diplomacyOf(world).all()) {
+  for (const rel of diplomacyOf(world).of(p.ref)) {
     const q = rel.a === p.ref ? rel.b : rel.b === p.ref ? rel.a : null;
     if (!q) continue;
     const qb = bars?.get(q);

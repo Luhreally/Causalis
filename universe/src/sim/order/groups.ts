@@ -425,7 +425,7 @@ function readRealm(ctx: PopulationContext, p: Polity, year: number, t: SimTime):
     payer: Ref | null = null,
     foeSea = 0;
   const near = new Set<Ref>([p.ref]);
-  for (const rel of diplomacyOf(world).all()) {
+  for (const rel of diplomacyOf(world).of(p.ref)) {
     if (rel.a === p.ref) near.add(rel.b);
     else if (rel.b === p.ref) near.add(rel.a);
   }
