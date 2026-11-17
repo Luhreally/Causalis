@@ -60,6 +60,8 @@ export type ColonyLook = {
       readonly pressure: number;
       readonly temperature: number;
       readonly icy: boolean;
+      /** The settlers' own world's warmth and air, that the remaking makes for (absent: Earth's). */
+      readonly home?: { readonly temperature: number; readonly pressure: number };
     };
   };
 };

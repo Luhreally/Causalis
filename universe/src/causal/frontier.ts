@@ -6,6 +6,7 @@ import {
   IMPACT_EVENTS,
   MINDS_EVENTS,
   ORBITAL_EVENTS,
+  UPLIFT_EVENTS,
   WEATHER_EVENTS,
   WRITTEN_EVENTS,
 } from "../sim/index.ts";
@@ -61,6 +62,10 @@ registerEventWords(GALACTIC_EVENTS.gamma.type, (_world, e) => {
   const d = data(e);
   return `A burst of gamma rays from ${count(num(d.distance))} light-years away struck the world's high air, year ${yearOfMoment(e.t)}`;
 });
+registerEventWords(GALACTIC_EVENTS.rogue.type, (_world, e) => {
+  const d = data(e);
+  return `A world cast out of its own star's system passed ${count(num(d.au))} AU from the home star${d.orbit ? ", stirring the home world's own orbit" : num(d.au) <= 100 ? ", stirring its belt into the inner worlds' paths" : ", shaking comets down from the far cloud"}: ${num(d.times)} times the stones for ${count(num(d.years))} years, year ${yearOfMoment(e.t)}`;
+});
 registerEventWords(GALACTIC_EVENTS.guest.type, (_world, e) => {
   const d = data(e);
   return `A new star shone in the sky, a great star dying some ${num(d.kly)} thousand light-years away, year ${yearOfMoment(e.t)}`;
@@ -75,6 +80,14 @@ registerEventWords(
   (_world, e) => `A works in the sky, left untended, fell silent, year ${yearOfMoment(e.t)}`,
 );
 
+registerEventWords(ORBITAL_EVENTS.habitats.type, (_world, e) => {
+  const d = data(e);
+  return `The first of the realm of ${realm(d)}'s people went up to live in wheels spun from the belt's rock, room for ${count(num(d.room))}, year ${yearOfMoment(e.t)}`;
+});
+registerEventWords(UPLIFT_EVENTS.raised.type, (world, e) => {
+  const d = data(e);
+  return `The realm of ${realm(d)} raised ${count(num(d.founders))} of the ${String(d.beast ?? "beasts")} to thought, their young written a mind and taught its speech, and set them down in ${landWords(world, e.place)}, year ${yearOfMoment(e.t)}`;
+});
 registerEventWords(WRITTEN_EVENTS.begun.type, (world, e) => {
   const d = data(e);
   return `The realm of ${realm(d)} began to write its settlers' children for the worlds they live on, ${landWords(world, e.place)} first: what their bodies can be bent to bear, ${num(d.share)} in a hundred of what their halls keep out, year ${yearOfMoment(e.t)}`;

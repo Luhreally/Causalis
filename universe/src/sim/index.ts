@@ -1474,6 +1474,16 @@ export {
   type UpLand,
 } from "./frontier/minds.ts";
 export {
+  UPLIFT_EVENTS,
+  UpliftStore,
+  beastOf,
+  mostRaisable,
+  upliftOf,
+  upliftYear,
+  type Raising,
+} from "./frontier/uplift.ts";
+export { rogueRate, rogueStir, type Rogue } from "./frontier/galactic.ts";
+export {
   frontierFields,
   frontierRain,
   frontierSky,

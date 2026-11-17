@@ -343,6 +343,11 @@ function lookOf(world: World, cell: number, ground: SiteGround, landing = false)
       pressure: body.pressure,
       temperature: was,
       icy: w.cover[ground.hall] === COVER.ice,
+      // (Made for its settlers' own world's warmth and air: the Frontier lane.)
+      home: {
+        temperature: g.system.bodies[0]!.temperature,
+        pressure: g.system.bodies[0]!.pressure,
+      },
     },
     now = remadeWorld(base, share);
   return {

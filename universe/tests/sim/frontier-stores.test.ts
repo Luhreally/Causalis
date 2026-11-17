@@ -12,6 +12,7 @@ import {
   STORMS_KEPT,
   WeatherStore,
   WrittenStore,
+  UpliftStore,
   type Stone,
 } from "../../src/sim/index.ts";
 
@@ -35,6 +36,7 @@ test("every Frontier store is dormant while empty and saves as nothing", () => {
     new OrbitalStore(),
     new WrittenStore(),
     new MindsStore(),
+    new UpliftStore(),
   ]) {
     assert.ok(s.dormant(), s.name);
     assert.deepEqual(s.save(), {}, s.name);
@@ -94,6 +96,14 @@ test("the galaxy's, the works', the written and the minds' stores come back whol
   const g = new GalacticStore();
   g.last = 30;
   g.guests.push({ year: 30, kly: 4.2, event: ref("event:1") });
+  g.rogue = {
+    year: 30,
+    au: 4000,
+    times: 1.2,
+    until: 2_000_030,
+    orbit: false,
+    event: ref("event:9"),
+  };
   assert.equal(hashOf(again(g, () => new GalacticStore())), hashOf(g));
 
   const o = new OrbitalStore();
@@ -130,6 +140,18 @@ test("the galaxy's, the works', the written and the minds' stores come back whol
   });
   m.lands.set(7, { cell: 7, up: 100, gone: null });
   m.up = 100;
+  const u = new UpliftStore();
+  u.add({
+    realm: ref("polity:5"),
+    year: 9,
+    species: "species:1",
+    name: "wolves",
+    cell: 3,
+    founders: 2000,
+    event: ref("event:5"),
+  });
+  assert.equal(hashOf(again(u, () => new UpliftStore())), hashOf(u));
+  assert.equal(u.lastOf(ref("polity:5"))!.year, 9);
   const mb = again(m, () => new MindsStore());
   assert.equal(hashOf(mb), hashOf(m));
   assert.deepEqual(mb.pinned(), m.pinned());

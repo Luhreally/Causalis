@@ -76,6 +76,7 @@ import {
 import { spaceOf } from "./space.ts";
 import { clusterOf, starSitesOf } from "./stars.ts";
 import { starWarsOf } from "./starwar.ts";
+import { farBurstsYear } from "../frontier/farburst.ts";
 
 export const FARLIFE_EVENTS = {
   /** A far people's holding together broke: strife, its works idle. */
@@ -684,6 +685,8 @@ export function farLifeYear(ctx: PopulationContext, t: SimTime): void {
       continue;
     stepRow(ctx, store, row, year, t);
   }
+  // (The galaxy's fire on the far peoples near it, the year after a burst: frontier/farburst.ts.)
+  farBurstsYear(world, store, year);
 }
 
 export function installFarLife(world: World, ctx: () => PopulationContext): FarLifeStore {

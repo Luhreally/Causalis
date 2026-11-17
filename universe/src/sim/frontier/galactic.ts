@@ -17,9 +17,12 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
-import { makeGalaxy, type Galaxy } from "../../gen/index.ts";
+import { LOCAL_DENSITY, makeGalaxy, type Galaxy } from "../../gen/index.ts";
 import {
   GALACTIC,
+  ROGUE,
+  roguePass,
+  roguePassRate,
   STAR_LIFE,
   burstDistance,
   burstHarm,
@@ -36,6 +39,8 @@ import { fold } from "./common.ts";
 export const GALACTIC_EVENTS = {
   /** A great star died, or a white dwarf blew up, near enough to harm the world. */
   supernova: defineEventType("frontier.near-supernova", 7),
+  /** A world cast out of its own system passed close, shaking the far cloud or stirring the belt. */
+  rogue: defineEventType("frontier.rogue-passed", 6),
   /** A burst of gamma rays struck the world. */
   gamma: defineEventType("frontier.gamma-burst", 7),
   /** A new star seen in the sky by eye: a great star dying far off. */
@@ -62,42 +67,65 @@ export type Burst = {
 
 export type Guest = { readonly year: number; readonly kly: number; readonly event: Ref };
 
+/** A rogue world's pass: how close (AU), how many more stones it sends and until when, whether it stirred the home world's orbit. */
+export type Rogue = {
+  readonly year: number;
+  readonly au: number;
+  readonly times: number;
+  readonly until: number;
+  readonly orbit: boolean;
+  readonly event: Ref;
+};
+
 export class GalacticStore implements StateStore {
   readonly name = "frontier.galactic";
   /** The year last read. */
   last = -1;
   burst: Burst | null = null;
   guests: Guest[] = [];
+  rogue: Rogue | null = null;
   private readonly digest: [number, number] = [0x811c9dc5, 0];
 
   dormant(): boolean {
-    return !this.burst && !this.guests.length;
+    return !this.burst && !this.guests.length && !this.rogue;
   }
   note(xs: readonly number[]): void {
     fold(this.digest, xs);
   }
   pinned(): Ref[] {
-    return [...(this.burst ? [this.burst.event] : []), ...this.guests.map((g) => g.event)];
+    return [
+      ...(this.burst ? [this.burst.event] : []),
+      ...(this.rogue ? [this.rogue.event] : []),
+      ...this.guests.map((g) => g.event),
+    ];
   }
   hashInto(h: Hasher): void {
     if (this.dormant()) return;
-    h.int(this.last).value(this.burst).int(this.guests.length);
+    h.int(this.last).value(this.burst).value(this.rogue).int(this.guests.length);
     h.int(this.digest[0]).int(this.digest[1]);
   }
   save(): unknown {
     if (this.dormant() && this.last < 0) return {};
-    return { last: this.last, burst: this.burst, guests: this.guests, digest: [...this.digest] };
+    return {
+      last: this.last,
+      burst: this.burst,
+      guests: this.guests,
+      rogue: this.rogue,
+      digest: [...this.digest],
+    };
   }
   load(state: unknown): void {
     const s = (state ?? {}) as {
       last?: number;
       burst?: Burst | null;
       guests?: Guest[];
+      rogue?: Rogue | null;
       digest?: [number, number];
     };
     this.last = s.last ?? -1;
     this.burst = s.burst ?? null;
     this.guests = [...(s.guests ?? [])];
+    this.rogue = s.rogue ?? null;
     this.digest[0] = s.digest?.[0] ?? 0x811c9dc5;
     this.digest[1] = s.digest?.[1] ?? 0;
   }
@@ -185,6 +213,7 @@ export function galacticYear(ctx: PopulationContext, t: SimTime): void {
     if (store.guests.length > GUESTS_KEPT) store.guests.shift();
     store.note([year, 1]);
   }
+  rogueSpan(world, store, year, span, u);
   if (burstNow(world)) return;
   const sn = u(2) < 1 - dmath.exp(-rates.supernova * span),
     gamma = !sn && u(3) < 1 - dmath.exp(-rates.gamma * span);
@@ -216,6 +245,49 @@ export function galacticYear(ctx: PopulationContext, t: SimTime): void {
     event,
   };
   store.note([year, Math.round(distance), Math.round(harm * 1000)]);
+}
+
+/** How many more stones fall on the home world for a rogue's pass, in a year (1: none presses). */
+export function rogueStir(world: World, year: number): number {
+  const r = galacticOf(world)?.rogue;
+  return r && year >= r.year && year < r.until ? r.times : 1;
+}
+
+/** Rogue worlds a year passing close enough to shake the far cloud, about home. */
+export const rogueRate = (): number => roguePassRate(LOCAL_DENSITY, ROGUE.cloudAu);
+
+/** A span's rogue worlds: the nearest pass of the span, if any came within the far cloud. */
+function rogueSpan(
+  world: World,
+  store: GalacticStore,
+  year: number,
+  span: number,
+  u: (n: number) => number,
+): void {
+  const p = 1 - dmath.exp(-rogueRate() * span);
+  if (!(u(8) < p)) return;
+  // (How close: as many in each ring as its area holds, within the cloud.)
+  const au = ROGUE.cloudAu * Math.sqrt(Math.max(1e-12, u(9))),
+    pass = roguePass(au);
+  if (pass.years <= 0) return;
+  // (A pass inside a stirring that still presses stirs no more than the stronger of the two.)
+  const now = rogueStir(world, year);
+  if (now >= pass.times) return;
+  const event = world.events.emit({
+    type: GALACTIC_EVENTS.rogue.type,
+    importance: pass.orbit ? 7 : au <= ROGUE.beltAu ? 7 : 5,
+    causes: [],
+    data: { au: Math.round(au), times: pass.times, orbit: pass.orbit, years: pass.years },
+  });
+  store.rogue = {
+    year,
+    au: Math.round(au),
+    times: pass.times,
+    until: year + pass.years,
+    orbit: pass.orbit,
+    event,
+  };
+  store.note([year, Math.round(au), 7]);
 }
 
 /** Teach a world the galaxy's fire. */
