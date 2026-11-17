@@ -26,7 +26,7 @@ import {
 import { enteredSeed, type EnterPlan, type Entered } from "../bridge/index.ts";
 import { CourtNote, SungNote } from "../ui/index.ts";
 import { courtSitting } from "../view/index.ts";
-import { PeopleBar, barPins, setWrittenHold } from "../ui/index.ts";
+import { PeopleBar, barPins, setWrittenHold, yearsWorld } from "../ui/index.ts";
 import { CornerRail } from "../ui/index.ts";
 import { closeLifeSheet, showLifeSheet, type LifeSheet } from "../ui/index.ts";
 import { THUMB_TIMES, bannerMs, drawPortrait, forgetBanners, paintThumb } from "../ui/index.ts";
@@ -10292,6 +10292,8 @@ async function runPlanetPage(): Promise<void> {
   // The people bar (B1): who matters where the eye is, and how they are. The eye's place is read here at a low rate; who
   // they are is the worker's. A mode with its own chrome hides it, and it isn't read then.
   barPins.open(`${universe}:${seed}`);
+  // (The Years' last search is remembered by world, as the bar's pins are.)
+  yearsWorld(`${universe}:${seed}`);
   let barAt: { cell: number | null; town: string | null } = { cell: null, town: null };
   const peopleBar = new PeopleBar(
     hud,
