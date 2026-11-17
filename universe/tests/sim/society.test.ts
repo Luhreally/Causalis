@@ -12,7 +12,12 @@ import {
   OLD_STORE,
   ROLES_STORE,
   TABLE_STORE,
+  ROOFLESS_STORE,
+  ROOF_ROW,
   bearerOddsOf,
+  rooflessColdOf,
+  rooflessSickOf,
+  streetOf,
   careEffectiveOf,
   daysWorkedOf,
   careSparedOf,
@@ -123,4 +128,25 @@ test("with its roles kept, a land's grown are all at some work by sex, its days 
     }
     assert.ok(atWork >= 0.9 * grown, `${atWork} of ${grown} at work`);
   }
+});
+
+test("a land with a town keeps who of it is without a roof, within bounds; a land with none keeps no row", () => {
+  const ctx = populationContext(world),
+    store = societyStore(world, ROOFLESS_STORE);
+  let towns = 0;
+  for (const p of ctx.provinces.all()) {
+    const row = store?.get(p.cell);
+    if (!row) continue;
+    towns++;
+    assert.ok(row[ROOF_ROW.town]! > 0 && row[ROOF_ROW.roof]! >= 0);
+    assert.ok(row[ROOF_ROW.street]! <= row[ROOF_ROW.roofless]! && row[ROOF_ROW.roofless]! <= 1000);
+    assert.ok(row[ROOF_ROW.streetLand]! <= row[ROOF_ROW.street]!);
+    assert.ok(rooflessColdOf(world, p.cell) >= 1 && rooflessSickOf(world, p.cell) >= 1);
+    assert.ok(
+      streetOf(world, p.cell) < 0.2,
+      `${streetOf(world, p.cell)} of land ${p.cell} on the street`,
+    );
+  }
+  for (const p of ctx.provinces.all()) if (!p.total()) assert.equal(store?.get(p.cell), undefined);
+  assert.ok(towns >= 0);
 });

@@ -52,6 +52,9 @@ import {
   type RealmOrder,
   type Settlement,
 } from "../../sim/index.ts";
+import { streetInTownOf } from "../../sim/index.ts";
+import { ROOF } from "../../rules/index.ts";
+import { cellRef } from "../../gen/index.ts";
 import type {
   Block,
   CourtForm,
@@ -547,6 +550,20 @@ function factsOf(world: World, s: Settlement, year: number): Facts {
       offences: ["flight"],
     });
 
+  // Those without a roof: on the street, the poorest want is the nearest at hand (the society sweep, society/roofless.ts), read in
+  // twentieths so a year turns the list only if it crosses one.
+  const roofless = Math.round(20 * streetInTownOf(world, cell)) / 20;
+  if (roofless >= 0.05)
+    causes.push({
+      line: [
+        `${pct(roofless)} in a hundred of its people have no roof and no one to take them in: `,
+        link("who is without a roof", cellRef(0, cell)),
+        ".",
+      ],
+      weight: 0.4 + 3 * roofless,
+      offences: ["stores", "bread", "stall"],
+    });
+
   // How many: by its size and what weighs on it; a loose law more, one law for all fewer. Sizes in half-steps, so a year's growth doesn't move them.
   const size = Math.round(2 * Math.log10(Math.max(10, s.population))) / 2,
     loose = !realm ? 0.25 : order && order.legitimacy < 0.42 ? 0.35 : 0,
@@ -555,6 +572,8 @@ function factsOf(world: World, s: Settlement, year: number): Facts {
       0.5 +
       1.5 * hungry +
       0.9 * war +
+      // (Its people on the street, read in twentieths as slow things are: the society sweep, society/roofless.ts.)
+      ROOF.crime * roofless +
       (short ? 0.5 * Math.max(0, Math.min(1, (dear - 0.8) / 1.2)) : 0) +
       (rich ? 0.3 : 0) +
       (angry ? 0.4 : 0) +

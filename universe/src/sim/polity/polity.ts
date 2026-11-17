@@ -14,6 +14,7 @@ import { inflationOf, intoxDependent, taxGrievance } from "../money/kept.ts";
 import { idleOf } from "../trade/kept.ts";
 import { feastReliefOf } from "../society/kept.ts";
 import { bearerOddsOf } from "../society/kept.ts";
+import { streetGrievanceOf } from "../society/kept.ts";
 import {
   YEAR,
   defineEventType,
@@ -678,6 +679,8 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
           0.02 * far +
           // A land held beyond the seat's reach is ruled by force alone, and chafes.
           0.08 * Math.max(0, far - rules) +
+          // (Its people on the street, left there by the realm: the society sweep, society/roofless.ts. Exactly 0 where none is kept.)
+          streetGrievanceOf(world, c) +
           apartOf(world, c, foreign) +
           0.02 * crossing -
           // (A people who feast together hold together: the society sweep, society/everyday.ts. Exactly 0 where none is kept; never

@@ -34,6 +34,8 @@ import {
   ROLES_STORE,
   TABLE,
   TABLE_STORE,
+  ROOFLESS_STORE,
+  ROOF_ROW,
   populationContext,
   societyStore,
   type Polity,
@@ -252,6 +254,56 @@ export function landLivesBlocks(world: World, cell: number): Block[] {
       ],
     });
   }
+  const roof = societyStore(world, ROOFLESS_STORE)?.get(cell);
+  if (roof)
+    blocks.push({
+      type: "facts",
+      title: "Without a roof",
+      rows: [
+        stat("Its towns' people", count(roof[ROOF_ROW.town]!)),
+        stat("The least roof a household", `${count(roof[ROOF_ROW.roof]!)} grain's worth a year`),
+        stat(
+          "Without a roof of their own",
+          `${per(roof[ROOF_ROW.roofless]!)} of its towns' people`,
+          {
+            parts: [
+              part(
+                "whose earnings after food can't meet the least rent",
+                `${per(roof[ROOF_ROW.rent]!)} of households`,
+              ),
+              part(
+                "come beyond the homes its towns can raise this year",
+                per(roof[ROOF_ROW.beyond]!),
+              ),
+              part("turned out by war, fire, quake or flood", per(roof[ROOF_ROW.displaced]!)),
+              part("who need what they take", per(roof[ROOF_ROW.addicted]!)),
+              part("frail, and kept by no one", per(roof[ROOF_ROW.old]!)),
+            ],
+          },
+        ),
+        stat(
+          "Taken in",
+          per(roof[ROOF_ROW.kin]! + roof[ROOF_ROW.temple]! + roof[ROOF_ROW.realm]!),
+          {
+            parts: [
+              part("by their kin", per(roof[ROOF_ROW.kin]!)),
+              part("by the temple", per(roof[ROOF_ROW.temple]!)),
+              part("by the realm", per(roof[ROOF_ROW.realm]!)),
+            ],
+          },
+        ),
+        stat("On the street", `${per(roof[ROOF_ROW.street]!)} of its towns' people`),
+        stat("Crowded in with others", `${per(roof[ROOF_ROW.doubled]!)} of its people`),
+        stat(
+          "Its people die of the cold",
+          `${one(roof[ROOF_ROW.cold]! / 1000)} times as often for it`,
+        ),
+        stat("A sickness takes", `${one(roof[ROOF_ROW.sick]! / 1000)} times as many for it`),
+        ...(roof[ROOF_ROW.shelterCost]! > 0
+          ? [stat("Its realm pays to shelter them", grain(roof[ROOF_ROW.shelterCost]!))]
+          : []),
+      ],
+    });
   return blocks;
 }
 

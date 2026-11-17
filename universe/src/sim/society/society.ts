@@ -10,6 +10,7 @@ import { careYear, oldYear, provisionYear } from "./care.ts";
 import { rolesYear } from "./roles.ts";
 import { holdingsYear, lawYear } from "./holding.ts";
 import { dressYear, leisureYear, tableYear } from "./everyday.ts";
+import { rooflessYear } from "./roofless.ts";
 
 /** Register the society sweep's stores and systems on a peopled world. */
 export function installSociety(world: World, ctx: () => PopulationContext): void {
@@ -27,4 +28,5 @@ export function installSociety(world: World, ctx: () => PopulationContext): void
   world.system({ key: "187.society.table", every: YEAR, run: (t) => tableYear(ctx(), t) });
   world.system({ key: "187.society.dress", every: YEAR, run: (t) => dressYear(ctx(), t) });
   world.system({ key: "187.society.leisure", every: YEAR, run: (t) => leisureYear(ctx(), t) });
+  world.system({ key: "187.society.roofless", every: YEAR, run: (t) => rooflessYear(ctx(), t) });
 }

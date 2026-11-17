@@ -5,7 +5,7 @@
 // the realms can read it without a circle. Every reader gives back exactly what the world did before where no row is kept.
 import type { World } from "../../kernel/index.ts";
 import { BIND, BIND_STORE, RowStore, moneyStore } from "../money/kept.ts";
-import { daysWorked } from "../../rules/index.ts";
+import { ROOF, daysWorked } from "../../rules/index.ts";
 
 /** 1. A land's care of its sick (thousandths unless said): what its households spend (ten-thousandths of what they have), its healers
  * (in ten thousand of its people), whom they reach, who reaches them, the temple's alms, the realm's public care, what it knows of
@@ -127,6 +127,8 @@ export const SOCIETY_STORES: readonly (readonly [string, number])[] = [
   [TABLE_STORE, 10],
   [DRESS_STORE, 8],
   [LEISURE_STORE, 6],
+  // (9, below: a land's people without a roof.)
+  ["society.roofless", 17],
 ];
 
 /** One of the society sweep's stores on a world (null where it keeps none). */
@@ -211,4 +213,62 @@ export function daysWorkedOf(world: World, cell: number): number {
 export function bearerOddsOf(world: World, cell: number): number {
   const row = societyStore(world, ROLES_STORE)?.get(cell);
   return row ? row[ROLE_ROW.rule]! / 1000 : 0.5;
+}
+
+/** 9. A land's people without a roof (thousandths of its town's people unless said): the least roof a household (grain's worth a
+ * year), those its rent shuts out (of households), those waiting beyond the homes its builders raise in a year, those turned out (a stock, housed again as the
+ * town rebuilds), those who need what they take, the frail no one keeps; all without a roof of their own; of them, those their kin,
+ * the temple and the realm take in (of the roofless); those on the street; those on the street and those crowded in, of the land's
+ * people; what the realm pays to shelter them (grain's worth a year); the town's people; how much more the land's people die of the
+ * cold and of a sickness for them (thousandths, 1000 none). */
+export const ROOFLESS_STORE = "society.roofless";
+export const ROOF_ROW = {
+  roof: 0,
+  rent: 1,
+  beyond: 2,
+  displaced: 3,
+  addicted: 4,
+  old: 5,
+  roofless: 6,
+  kin: 7,
+  temple: 8,
+  realm: 9,
+  street: 10,
+  streetLand: 11,
+  doubled: 12,
+  shelterCost: 13,
+  town: 14,
+  cold: 15,
+  sick: 16,
+} as const;
+
+/** How much more a land's people die of the cold for those of them on the street (1 where none is reckoned). */
+export function rooflessColdOf(world: World, cell: number): number {
+  const row = societyStore(world, ROOFLESS_STORE)?.get(cell);
+  return row ? row[ROOF_ROW.cold]! / 1000 : 1;
+}
+/** How much more a sickness takes of a land for those of its people without a roof of their own (1 where none is reckoned). */
+export function rooflessSickOf(world: World, cell: number): number {
+  const row = societyStore(world, ROOFLESS_STORE)?.get(cell);
+  return row ? row[ROOF_ROW.sick]! / 1000 : 1;
+}
+/** The share of a land's people on the street (0 where none is reckoned). */
+export function streetOf(world: World, cell: number): number {
+  return (societyStore(world, ROOFLESS_STORE)?.at(cell, ROOF_ROW.streetLand) ?? 0) / 1000;
+}
+/** The share of a land's town's people on the street (0 where none is reckoned). */
+export function streetInTownOf(world: World, cell: number): number {
+  return (societyStore(world, ROOFLESS_STORE)?.at(cell, ROOF_ROW.street) ?? 0) / 1000;
+}
+/** What a realm pays a year to shelter the roofless of its lands (grain's worth; 0 where none is reckoned). */
+export function shelterCostOf(world: World, members: readonly number[]): number {
+  const store = societyStore(world, ROOFLESS_STORE);
+  if (!store) return 0;
+  let n = 0;
+  for (const c of members) n += store.at(c, ROOF_ROW.shelterCost);
+  return n;
+}
+/** The grievance a year a land breeds for its people on the street (rules/roof.ts ROOF.grievance; 0 where none is reckoned). */
+export function streetGrievanceOf(world: World, cell: number): number {
+  return ROOF.grievance * streetOf(world, cell);
 }

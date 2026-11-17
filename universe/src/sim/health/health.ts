@@ -47,6 +47,7 @@ import { warsOf } from "../war/war.ts";
 import { grieve } from "../acts/disasters.ts";
 import { orderOf, boundGone } from "../order/order.ts";
 import { careEffectiveOf } from "../society/kept.ts";
+import { rooflessSickOf } from "../society/kept.ts";
 import { civilizationsNear } from "../space/contact.ts";
 import { peoplesOf, peopleWords } from "../space/peoples.ts";
 
@@ -461,6 +462,8 @@ export function tollOf(
         s.deadliness *
         (1 + 0.8 * hungerOf(ctx, cell)) *
         (1 - healedOf(ctx.world, cell)) *
+        // (And those without a roof of their own, crowded, ill-fed and untended: society/roofless.ts. Exactly 1 where none is kept.)
+        rooflessSickOf(ctx.world, cell) *
         (1 + (SICK.bound - 1) * bound) *
         // (Fewer where its people have learned to keep the sick apart: exactly 1 where they have learned nothing.)
         lessened(ctx.world, cellRef(0, cell), "sickness", yearOfMoment(ctx.world.now)),

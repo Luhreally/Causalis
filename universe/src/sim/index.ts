@@ -1706,3 +1706,4 @@ export {
   waysAt,
   type Making,
 } from "./lore/materials.ts";
+export { rooflessYear } from "./society/roofless.ts";
