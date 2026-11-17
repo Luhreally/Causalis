@@ -227,6 +227,9 @@ export type PeopleEntry = {
   underworld: readonly number[];
   /** How many goods their realm holds the trade of in a cartel among realms (0: none). */
   tradeCartel: number;
+  /** Those the underworld kills a year, in a hundred thousand; how far a crew of their realm's own enforcers works them (0 … 1). */
+  killings: number;
+  badgeCrew: number;
 };
 
 /** A people's ways and speech (the host's waysOf). */

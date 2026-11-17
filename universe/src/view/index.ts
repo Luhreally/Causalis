@@ -49,6 +49,8 @@ export {
   UNDERWORLD_CHOICES,
   underworldShade,
   cartelOverCells,
+  gangsOverCells,
+  GANG_MARKS,
   beliefColor,
   groundColors,
   goodsSpread,

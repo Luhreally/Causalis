@@ -634,6 +634,7 @@ export const UNDERWORLD_CHOICES: readonly (readonly [string, string, string])[] 
   ["addiction", "🍷", "Addiction"],
   ["crime", "🗡️", "Crime"],
   ["roofless", "🏚️", "Without a roof"],
+  ["gangs", "🕴️", "Gangs"],
 ];
 /** Each way's words at the ends of its ramp. */
 const UNDERWORLD_ENDS: Readonly<Record<string, readonly [string, string]>> = {
@@ -642,6 +643,7 @@ const UNDERWORLD_ENDS: Readonly<Record<string, readonly [string, string]>> = {
   addiction: ["none need it", "one in twenty"],
   crime: ["a quiet year", "much leads them wrong"],
   roofless: ["all housed", "a fifth on the street"],
+  gangs: ["no one holds it", "held by one"],
 };
 /**
  * A land's reading under one of the underworld's ways laid on its ramp (0 … 1; -1 where nothing is kept): a share smuggled to
@@ -662,6 +664,9 @@ export function underworldShade(view: string, v: number): number {
       return Math.min(1, Math.max(0, (v - 0.5) / 1.5));
     case "roofless":
       return Math.sqrt(Math.min(1, v / 0.2));
+    // (The strongest group's hold: on kestrel's four hundredth year its most held land is 56% held.)
+    case "gangs":
+      return Math.sqrt(Math.min(1, v / 0.6));
     default:
       return -1;
   }
@@ -678,31 +683,70 @@ export function cartelOverCells(
   grid: SphereGrid,
   lands: ReadonlySet<number>,
 ): void {
+  marksOverCells(colors, frame, grid, lands, [1, 0.8, 0.22], { edge: true, hatch: () => 0.34 });
+}
+
+/** The marks of the gangs view (the underworld lens): where it kills, and where its realm's own enforcers work. */
+export const GANG_MARKS: Readonly<Record<"killing" | "badge", Rgb>> = {
+  killing: [0.9, 0.08, 0.1],
+  badge: [0.3, 0.62, 1],
+};
+
+/**
+ * The gangs view's marks (the underworld lens): red hatching across a land where the underworld kills one a year in a hundred
+ * thousand or more, its bands the wider the more it kills (half the land at twenty); a blue edge about a land a crew of its realm's
+ * own enforcers works. The bands run the other way about the globe from the cartels', so neither is read as the other.
+ */
+export function gangsOverCells(
+  colors: Uint8Array,
+  frame: FrameMessage,
+  grid: SphereGrid,
+  killings: ReadonlyMap<number, number>,
+  badge: ReadonlySet<number>,
+): void {
+  const killed = new Set([...killings].flatMap(([c, v]) => (v >= 1 ? [c] : [])));
+  marksOverCells(colors, frame, grid, killed, GANG_MARKS.killing, {
+    edge: false,
+    hatch: (p) => 0.15 + 0.35 * Math.min(1, (killings.get(p) ?? 0) / 20),
+    flip: true,
+  });
+  marksOverCells(colors, frame, grid, badge, GANG_MARKS.badge, { edge: true });
+}
+
+/** Lands marked over a lens's colours: an edge where one meets a land not marked, and bands across them (`hatch`: a band's share lit). */
+function marksOverCells(
+  colors: Uint8Array,
+  frame: FrameMessage,
+  grid: SphereGrid,
+  lands: ReadonlySet<number>,
+  mark: Rgb,
+  how: { edge: boolean; hatch?: (province: number) => number; flip?: boolean },
+): void {
   const province = frame.arrays.province as Int32Array | undefined,
     elevation = frame.arrays.elevation!,
     undersea = frameUndersea(frame);
   if (!province || !lands.size) return;
-  const gold: Rgb = [1, 0.8, 0.22],
-    lay = (c: number, k: number) => {
-      const q = c * 4;
-      for (let j = 0; j < 3; j++)
-        colors[q + j] = Math.round(colors[q + j]! * (1 - k) + gold[j]! * 255 * k);
-    };
+  const lay = (c: number, k: number) => {
+    const q = c * 4;
+    for (let j = 0; j < 3; j++)
+      colors[q + j] = Math.round(colors[q + j]! * (1 - k) + mark[j]! * 255 * k);
+  };
   for (let c = 0; c < province.length; c++) {
     if (elevation[c]! <= 0 !== undersea || !lands.has(province[c]!)) continue;
     let edge = false;
-    for (let j = grid.offsets[c]!; j < grid.offsets[c + 1]! && !edge; j++) {
-      const m = grid.neighbours[j]!;
-      edge = elevation[m]! <= 0 === undersea && !lands.has(province[m]!);
-    }
+    if (how.edge)
+      for (let j = grid.offsets[c]!; j < grid.offsets[c + 1]! && !edge; j++) {
+        const m = grid.neighbours[j]!;
+        edge = elevation[m]! <= 0 === undersea && !lands.has(province[m]!);
+      }
     if (edge) lay(c, 0.85);
-    else {
-      // (Bands across the globe: planes x + y + z = k, a band in three lit.)
+    else if (how.hatch) {
+      // (Bands across the globe: planes x ± y + z = k, so much of each band lit.)
       const x = grid.positions[c * 3]!,
         y = grid.positions[c * 3 + 1]!,
         z = grid.positions[c * 3 + 2]!,
-        t = (x + y + z) * 9;
-      if (t - Math.floor(t) < 0.34) lay(c, 0.5);
+        t = (x + (how.flip ? -y : y) + z) * 9;
+      if (t - Math.floor(t) < how.hatch(province[c]!)) lay(c, 0.5);
     }
   }
 }
