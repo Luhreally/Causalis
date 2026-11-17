@@ -81,6 +81,8 @@ const RULES: Readonly<Record<string, readonly [number, number]>> = {
   "people.spread": [FIRSTS, 5],
   "lore.found": [FIRSTS, 3],
   "lore.learned": [FIRSTS, 0],
+  "lore.material-found": [FIRSTS, 2],
+  "lore.material-learned": [FIRSTS, 0],
   "lessons.taken": [FIRSTS, 2],
   "lessons.copied": [FIRSTS, 0],
   "lore.lost": [SORROWS, 0],

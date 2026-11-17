@@ -9,6 +9,7 @@
 // from its head's hardness and brittleness and its maker's skill. Pure data and arithmetic, read by
 // the host's chain (host/chain.ts), never by the simulation.
 import { dmath } from "../kernel/index.ts";
+import { metalEdge } from "./materials.ts";
 
 export type Rgb = readonly [number, number, number];
 
@@ -200,8 +201,9 @@ export const ORES: Readonly<Record<string, Partial<Record<OreLie, Ore>>>> = {
 export type Metal = "copper" | "bronze" | "iron" | "steel";
 
 /**
- * Each metal's edge (bog iron's beside iron's: softer, uneven); how it is worked by hand and at
- * the works; its colour. Only the method changes over the ages: the copper-smith's hearth, the
+ * Each metal's edge (bog iron's beside iron's: softer, uneven), read from its atoms and how it is worked (rules/materials.ts:
+ * hammered copper and bronze, forged iron with its hearth's carbon at the edge, steel quenched and tempered); how it is
+ * worked by hand and at the works; its colour. Only the method changes over the ages: the copper-smith's hearth, the
  * bronze-caster's mould, the smith's forge; the foundry and the works.
  */
 export const METALS: Readonly<
@@ -211,36 +213,31 @@ export const METALS: Readonly<
   >
 > = {
   copper: {
-    keen: 0.5,
-    tough: 0.6,
+    ...metalEdge("copper"),
     hand: "cast and hammered hard",
     works: "cast at the works",
     colour: [0.78, 0.45, 0.22],
   },
   bronze: {
-    keen: 0.7,
-    tough: 0.7,
+    ...metalEdge("bronze"),
     hand: "cast in a mould, its edge hammered keen",
     works: "cast at the foundry",
     colour: [0.8, 0.56, 0.26],
   },
   "bog iron": {
-    keen: 0.68,
-    tough: 0.55,
+    ...metalEdge("bog iron"),
     hand: "forged from the bloom, folded to drive its slag out",
     works: "rolled at the works",
     colour: [0.5, 0.48, 0.47],
   },
   iron: {
-    keen: 0.8,
-    tough: 0.65,
+    ...metalEdge("iron"),
     hand: "forged from the bloom",
     works: "rolled at the works",
     colour: [0.55, 0.55, 0.58],
   },
   steel: {
-    keen: 1,
-    tough: 0.85,
+    ...metalEdge("steel"),
     hand: "forged, quenched and tempered",
     works: "rolled and machined at the works",
     colour: [0.64, 0.66, 0.7],

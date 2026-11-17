@@ -987,6 +987,7 @@ export {
   LATER_CRUST,
   LATER_SUBSTANCES,
   PROPERTIES,
+  HANDBOOK_PROPERTIES,
   crustPpm,
   matterShuts,
   rowReadings,
@@ -1719,3 +1720,4 @@ export * from "./table.ts";
 export * from "./dress.ts";
 export * from "./leisure.ts";
 export * from "./speech.ts";
+export * from "./materials.ts";

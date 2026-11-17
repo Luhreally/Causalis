@@ -14,6 +14,7 @@ import {
 import { KIND_METALS, KIND_ORES, KIND_REACTION_IDS } from "./kind-ground.ts";
 import { chemistryKey, type AirClass, type Chemistry } from "./chemistry.ts";
 import { principle } from "./principles.ts";
+import { metalEdge } from "./materials.ts";
 
 /** A furnace: the heat it reaches (°C), and the process that brings it (null: a fire needs none). */
 export type Furnace = {
@@ -82,39 +83,35 @@ export type WorldMetal = {
 };
 
 /**
- * The metals of worlds of their own chemistry, with exactly METALS' fields. Arsenical copper
- * work-hardens almost to tin bronze, and arsenic embrittles it above ~4%.
+ * The metals of worlds of their own chemistry, with exactly METALS' fields, their edges read from their atoms
+ * (rules/materials.ts). Arsenical copper work-hardens almost to tin bronze, and arsenic embrittles it above ~4%.
  */
 export const NOVEL_METALS: Readonly<
   Record<"arsenical copper" | "cupronickel" | "telluric iron" | "cohenite iron", MetalStuff>
 > = {
   "arsenical copper": {
-    keen: 0.62,
-    tough: 0.7,
+    ...metalEdge("arsenical copper"),
     colour: [0.8, 0.6, 0.45],
     hand: "cast in a mould, its edge hammered hard",
     works: "cast at the foundry",
   },
   // A softer, more ductile fcc solid solution.
   cupronickel: {
-    keen: 0.64,
-    tough: 0.78,
+    ...metalEdge("cupronickel"),
     colour: [0.78, 0.76, 0.72],
     hand: "cast and hammered, its edge cold-worked hard",
     works: "cast at the foundry",
   },
   // Uneven, with carbide inclusions.
   "telluric iron": {
-    keen: 0.66,
-    tough: 0.5,
+    ...metalEdge("telluric iron"),
     colour: [0.48, 0.48, 0.5],
     hand: "hammered at a red heat from lumps of native iron",
     works: "rolled at the works",
   },
   // About 3% carbon behaves like white iron.
   "cohenite iron": {
-    keen: 0.84,
-    tough: 0.5,
+    ...metalEdge("cohenite iron"),
     colour: [0.42, 0.42, 0.45],
     hand: "forged from a carbon-rich bloom, its brittle edge ground keen",
     works: "rolled at the works",

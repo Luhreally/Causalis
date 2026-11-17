@@ -9,6 +9,7 @@
 import type { Rock } from "./matter.ts";
 import type { NovelKind } from "./kinds.ts";
 import type { Edge, Ore, Rgb, Stone } from "./stuffs.ts";
+import { metalEdge } from "./materials.ts";
 
 /** A rock's form on a kind of world: what it is called, its parts, its words and its colour. */
 export type KindForm = Pick<Rock, "name" | "parts" | "words" | "colour">;
@@ -606,9 +607,9 @@ export const KIND_ORES: Readonly<
 };
 
 /**
- * The metals the kinds work, with exactly METALS' fields: a carbon world's copper and carbide iron,
- * and an ice world's iron fallen from the sky (hammered on an ammonia world; in a methane world's
- * cold too brittle to be anything but broken).
+ * The metals the kinds work, with exactly METALS' fields (their edges read from their atoms, rules/materials.ts): a
+ * carbon world's copper and carbide iron, and an ice world's iron fallen from the sky (hammered on an ammonia world; in a
+ * methane world's cold, below where its iron turns brittle, too brittle to be anything but broken).
  */
 export const KIND_METALS: Readonly<
   Record<
@@ -618,16 +619,14 @@ export const KIND_METALS: Readonly<
 > = {
   // (Native copper work-hardens as it is beaten, a little keener than cast copper.)
   "cold copper": {
-    keen: 0.54,
-    tough: 0.6,
+    ...metalEdge("cold copper"),
     hand: "beaten cold from native copper and never heated",
     works: "pressed cold at the works",
     colour: [0.8, 0.5, 0.28],
   },
   // (Iron carbide, Fe₃C, is hard and brittle: white iron's.)
   "carbide iron": {
-    keen: 0.86,
-    tough: 0.35,
+    ...metalEdge("carbide iron"),
     hand: "ground keen from a lump of carbide iron with diamond grit, never forged",
     works: "ground at the works",
     colour: [0.4, 0.4, 0.43],
@@ -636,8 +635,7 @@ export const KIND_METALS: Readonly<
   // keeps it tough in an ammonia world's cold. Too little of it for a people's blades: set in engines
   // and drawn to wire.)
   "star iron": {
-    keen: 0.62,
-    tough: 0.6,
+    ...metalEdge("star iron"),
     hand: "hammered cold from iron fallen from the sky, never heated",
     works: "drawn into wire at the works",
     colour: [0.58, 0.58, 0.62],
@@ -646,8 +644,7 @@ export const KIND_METALS: Readonly<
   // hammered. Ground to grit, its nickel is the catalyst acetylene and hydrogen join on (Sabatier's);
   // whole, it is a magnet, as tetrataenite, the meteorites' iron and nickel, is.)
   "brittle star iron": {
-    keen: 0.6,
-    tough: 0.1,
+    ...metalEdge("brittle star iron"),
     hand: "broken from iron fallen from the sky, never hammered: in its cold it breaks as glass does",
     works: "ground to grit for the engines' catalyst, and set whole as the dynamos' magnets",
     colour: [0.58, 0.58, 0.62],

@@ -1682,3 +1682,15 @@ export { rolesYear } from "./society/roles.ts";
 export { HOLDING_EVENTS, holdingsYear, lawYear } from "./society/holding.ts";
 export { dressYear, leisureYear, tableYear } from "./society/everyday.ts";
 export { installSociety } from "./society/society.ts";
+export {
+  MATERIALS_EVENTS,
+  MATERIALS_EVERY,
+  MaterialsStore,
+  crystalNeed,
+  kitGain,
+  kitWear,
+  makingHeat,
+  materialsOf,
+  waysAt,
+  type Making,
+} from "./lore/materials.ts";

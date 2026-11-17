@@ -31,6 +31,7 @@ import { designsOf, hostFor } from "../design/design.ts";
 import type { MarketStore } from "../economy/market.ts";
 import { metalSource } from "../economy/metals.ts";
 import { loreOf } from "../lore/lore.ts";
+import { kitGain, kitWear } from "../lore/materials.ts";
 import type { Polity } from "../polity/polity.ts";
 import type { PopulationContext } from "../population/systems.ts";
 
@@ -115,7 +116,10 @@ export function partQuality(ctx: PopulationContext, seat: number, part: Part): n
   const s = partStuff(ctx, seat, part);
   if (!s) return 1;
   const craft = Math.min(1, loreOf(ctx.world).effect(seat, "tools")),
-    q = qualityOf(s.edge, craft, SEASONED) / qualityOf(s.usual, USUAL_CRAFT, SEASONED);
+    // (What its seat has made of its metal, and its world's warmth on it: lore/materials.ts.)
+    q =
+      (qualityOf(s.edge, craft, SEASONED) / qualityOf(s.usual, USUAL_CRAFT, SEASONED)) *
+      kitGain(ctx, seat, part.material, s.stuff);
   return Math.min(QUALITY_BOUNDS[1], Math.max(QUALITY_BOUNDS[0], q));
 }
 
@@ -143,6 +147,24 @@ function bareOf(parts: readonly Part[]): Part[] {
             : p
       : p,
   );
+}
+
+/** The metal most of a host's kit is worked from, by weight (iron where none is: what its machines are made of). */
+function chiefMetal(parts: readonly Part[]): string {
+  const kg = new Map<string, number>();
+  for (const p of parts) {
+    if (!isKit(p.material)) continue;
+    const metal = isMetal(p.material) ? p.material : "steel";
+    kg.set(
+      metal,
+      (kg.get(metal) ?? 0) + (p.role === "mount" ? VEHICLE_KG : (ROLE_KG[p.role] ?? 0)),
+    );
+  }
+  let best = "iron",
+    most = 0;
+  for (const [m, k] of [...kg].sort((a, b) => (a[0] < b[0] ? -1 : 1)))
+    if (k > most) [best, most] = [m, k];
+  return best;
 }
 
 /** What a host's full kit weighs in each good it is worked from, a man (kg). */
@@ -296,9 +318,11 @@ export function rearmYear(
       store.set(p.ref, 1, d.ref);
       continue;
     }
-    const men = fielded(p),
-      worn = armed * (1 - ARMS_WEAR),
-      ask = Math.min(1 - worn, ARMS_WEAR + REARM);
+    // (Rust is a share of what a kit wears away: less where its metal keeps its air off, none where its air holds no oxygen.)
+    const wear = ARMS_WEAR * kitWear(ctx, chiefMetal(parts)),
+      men = fielded(p),
+      worn = armed * (1 - wear),
+      ask = Math.min(1 - worn, wear + REARM);
     let got = 1;
     if (ask > 0 && men > 0)
       for (const [good, kg] of kit) {

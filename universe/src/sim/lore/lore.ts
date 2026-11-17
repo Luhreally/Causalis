@@ -73,6 +73,7 @@ import { laneLawOf } from "../space/lanes.ts";
 import { holdOf } from "../order/holds.ts";
 import { holdsAgain, lostOf, RETAKE_AFTER } from "./lost-store.ts";
 import { lettersOf } from "./letters.ts";
+import type { MaterialsStore } from "./materials.ts";
 
 export const LORE_EVENTS = {
   found: defineEventType("lore.found", 5),
@@ -383,8 +384,14 @@ function openOf(
   lifts = liftingEngine(meansNumbers(ctx.generated)),
   /** Which rows are asked at all: those found by looking (a rate), unless said. */
   asked: (p: Principle) => boolean = (p) => p.rate > 0,
+  /** The land asking, where its own stuffs are asked of too (materials.ts: a switch of crystal wants its crystal pure). */
+  cell?: number,
 ): Principle[] {
-  const reach = reachIn(means, here);
+  const reach = reachIn(means, here),
+    made =
+      cell !== undefined && ctx.world.hasStore("lore.materials")
+        ? ctx.world.store<MaterialsStore>("lore.materials")
+        : null;
   return PRINCIPLES.filter(
     (p) =>
       asked(p) &&
@@ -393,13 +400,14 @@ function openOf(
       needsMet(p, here) &&
       (!p.body?.lifts || (lifts !== null && here(lifts.id))) &&
       matterAllows(ctx.generated, p) &&
-      lawAllows(ctx.world, p),
+      lawAllows(ctx.world, p) &&
+      (!made || made.allows(ctx, cell!, p.id)),
   );
 }
 
 /** What a land may find next (`openOf`), as its lore stands: for its page. Only reads. */
 export function findableAt(ctx: PopulationContext, cell: number): Principle[] {
-  return openOf(ctx, (id) => knows(ctx, cell, id));
+  return openOf(ctx, (id) => knows(ctx, cell, id), undefined, undefined, undefined, cell);
 }
 
 /** The lore's year: each land may find one principle and learn one from a neighbour. */
@@ -470,6 +478,7 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
             !lostHere.has(p.id) ||
             (year - lostHere.get(p.id)!.year >= RETAKE_AFTER &&
               holdsAgain(ctx, prov, p, lostHere.get(p.id)!.then))),
+        cell,
       );
     if (!open.length) continue;
     // Finding: the first principle whose drivers carry it, in the tree's order.

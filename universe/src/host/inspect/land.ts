@@ -10,6 +10,7 @@ import { fireLandStats } from "./fire.ts";
 import { lodesBlock, woodsBlock, woodsTurnsBlock } from "./woods.ts";
 import { herdBlock } from "./herds.ts";
 import { landEnergyBlocks } from "./energy.ts";
+import { landMakingBlocks } from "./making.ts";
 import { landWealthBlocks } from "./money.ts";
 import { landTradeBlocks } from "./trade.ts";
 import { fieldsBlocks } from "./fields.ts";
@@ -540,6 +541,9 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
       // What it draws on, and from where (Round A: energy as one budget).
       const energy = landEnergyBlocks(world, cell);
       if (energy.length) tabs.push({ id: "energy", name: "Energy", blocks: energy });
+      // What it makes of its world's stuffs, and could come to next (Materials round).
+      const making = landMakingBlocks(world, cell);
+      if (making.length) tabs.push({ id: "making", name: "Making", blocks: making });
       // What its goods are worth and why, its makers' hold, how its income is shared, whom it binds (Round B).
       // (And its machines at the crafts' tasks, its town's heart and ground: p87.)
       const wealth = [...landWealthBlocks(world, cell), ...landTradeBlocks(world, cell)];

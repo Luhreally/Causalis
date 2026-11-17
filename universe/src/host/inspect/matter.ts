@@ -8,6 +8,7 @@
 // in a land: what it is made of there, and how it is made there — or why it is not. Pure reads.
 // A world of another chemistry (Phase 54) has its own substances, reactions and elements, and a
 // "This world" tab of what it is made of: its air, crust, rocks, ores, metals and furnaces.
+import { materialTab } from "./making.ts";
 import { firePrincipleStats } from "./fire.ts";
 import {
   AIR_OFFSET,
@@ -510,6 +511,9 @@ export function substancePage(world: World, ref: string): PageModel {
       ...(lies.more ? { more: lies.more } : {}),
     });
   const tabs: Tab[] = [{ id: "overview", name: "Overview", blocks }];
+  // (Its figures as a material, read from its atoms, and on this world: Materials round.)
+  const material = materialTab(world, id);
+  if (material.length) tabs.push({ id: "material", name: "As a material", blocks: material });
   const reactions: Block[] = [
     {
       type: "list",
