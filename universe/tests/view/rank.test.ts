@@ -88,8 +88,8 @@ test("an even land's town is drawn as it was; an uneven one's well-off and poor 
   assert.equal(even.count, plain.count, "an even land adds nothing");
   assert.equal(colours(even), colours(plain));
   assert.ok(uneven.count > plain.count, "gardens, porches, lean-tos");
-  // (No more than a handful of colours more: the same meshes, a few batches.)
-  assert.ok(colours(uneven) - colours(plain) <= 8, `${colours(uneven) - colours(plain)} colours`);
+  // (A dozen or so colours more: the same meshes, as many batches.)
+  assert.ok(colours(uneven) - colours(plain) <= 18, `${colours(uneven) - colours(plain)} colours`);
   // A well-off home stands taller than a poor one, the more so the steeper the land.
   let lee = -1;
   for (let b = 50; b < 100 && lee < 0; b++) if (quarterOf(11, b) === QUARTER.lee) lee = b * 8;
@@ -103,7 +103,7 @@ test("an even land's town is drawn as it was; an uneven one's well-off and poor 
   };
   const gap = (gini: number) => {
     const plan = town({ gini, drives: false });
-    return top(homes(plan, [3])) - top(homes(plan, [lee]));
+    return top(homes(plan, [2, 3])) - top(homes(plan, [lee]));
   };
   assert.ok(gap(0.2) > 0.2, `${gap(0.2)} m`);
   assert.ok(gap(0.4) > gap(0.2) + 0.5, `${gap(0.4)} m`);

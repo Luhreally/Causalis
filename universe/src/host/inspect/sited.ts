@@ -26,6 +26,7 @@ import {
 } from "../../sim/index.ts";
 import {
   QUARTER,
+  RANK_SAID,
   groundWealth,
   homeGround,
   rankSteep,
@@ -143,17 +144,22 @@ export function whyHome(
   const gini = giniOf(world, cell) ?? 0,
     drives = landEra(world, cell) === "modern",
     ground = homeGround(seed, lot, f.next, level, gini, drives);
-  if (ground) out.push([GROUND_WORDS[ground]]);
+  // (Who holds which ground is said where the land's wealth is held unevenly enough to say it: RANK_SAID.)
+  if (ground && gini >= RANK_SAID) out.push([GROUND_WORDS[ground]]);
   // (And how it shows, on a low home: view/town.ts rankedHome.)
   const wealth = level <= 2 ? groundWealth(ground) : 0,
     steep = rankSteep(gini) >= 0.75 ? "steeply" : "unevenly";
   if (wealth > 0)
     out.push([
-      `It looks it: taller and dressed, a lamp at its door and a garden behind, for its land's wealth is ${steep} held.`,
+      gini >= RANK_SAID
+        ? `It looks it: slate-roofed, taller and dressed, walled and gardened, for its land's wealth is ${steep} held.`
+        : "A little the better kept than most of the town's: slate on its roof, a wall and a garden about it. Its land's wealth is held a little unevenly, and on this ground it shows.",
     ]);
   else if (wealth < 0)
     out.push([
-      `It looks it: low and patched, of the cheapest stuff to hand, a lean-to crowded against it, for its land's wealth is ${steep} held.`,
+      gini >= RANK_SAID
+        ? `It looks it: low and small under a patched roof, of the cheapest stuff to hand, a hovel crowded into its yard, for its land's wealth is ${steep} held.`
+        : "A little the meaner than most of the town's: low, its roof patched, a hovel crowded into its yard. Its land's wealth is held a little unevenly, and on this ground it shows.",
     ]);
   return out;
 }
@@ -190,9 +196,9 @@ export function whoseLot(rank: TownRank | null | undefined, lot: number): Line[]
     ]);
   if (mark)
     out.push([
-      "The home of ",
+      "Here: ",
       { text: mark.name, ref: mark.ref },
-      `, ${mark.title.charAt(0).toLowerCase()}${mark.title.slice(1)}: a pennant stands at its door.`,
+      `. ${mark.title} A pennant stands at its door.`,
     ]);
   return out;
 }

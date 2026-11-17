@@ -36,6 +36,8 @@ export type RankMark = {
   readonly ref: string;
   readonly name: string;
   readonly title: string;
+  /** Its colour, its roof and pennant in it (absent: its seat's, else gold). */
+  readonly color?: Rgb;
 };
 
 export type TownRank = {
@@ -46,7 +48,12 @@ export type TownRank = {
   readonly seat?: RankSeat;
   readonly halls?: readonly RankHall[];
   readonly marks?: readonly RankMark[];
+  /** What its land's well-off and its halls build in, past its own way of building (absent: that way). */
+  readonly stuff?: "stone" | "brick" | "concrete";
 };
+
+/** From what Gini a town's pages say who holds which ground (its homes are drawn apart from RANK_SORTS, a little). */
+export const RANK_SAID = 0.3;
 
 /** How unevenly a land's wealth must be held for its people to sort themselves by ground; and at which it shows the most. */
 // (On "first light" at year 300 a town's land has a Gini of 0.17 at the median, 0.28 at the ninth tenth, 0.34 at the
