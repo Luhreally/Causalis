@@ -74,10 +74,10 @@ const RACKET_WORDS: Readonly<Record<(typeof RACKETS)[number], string>> = {
   shakedown: "keeping what it seizes",
   killing: "killing those it hunts, outside the law",
 };
-const racketsOf = (bits: number): string[] =>
+export const racketsOf = (bits: number): string[] =>
   RACKETS.filter((_, i) => bits & (1 << i)).map((r) => RACKET_WORDS[r]);
 
-const kindLine = (g: CrimeGroup): string =>
+export const kindLine = (g: CrimeGroup): string =>
   g.squad ? "a death squad of the realm's own enforcers" : KIND_WORDS[kindOfGroup(g)];
 
 const groupLink = (r: Polity, g: { name: string; kind: number; event: Ref }) =>

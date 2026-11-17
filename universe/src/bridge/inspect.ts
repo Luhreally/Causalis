@@ -1036,6 +1036,30 @@ export type Tip = {
   readonly goWords?: string;
 };
 
+/** What the land view draws of a land's underworld: its towns' turf, its killing and enforcers, brigands and pirates. */
+export type LandUnderworld = {
+  readonly cell: number;
+  /** Who holds it, its colour, how far it holds it, and the page a press on its mark opens (null: no one). */
+  readonly holder: {
+    readonly ref: string;
+    readonly name: string;
+    readonly color: readonly [number, number, number];
+    readonly hold: number;
+  } | null;
+  /** Those killed a year in a hundred thousand; how far a crew of the realm's own enforcers works it, and its page. */
+  readonly killing: number;
+  readonly badge: number;
+  readonly badgeRef: string | null;
+  /** Of its road trade and its sea trade, the share preyed on a year; the groups who prey (their pages). */
+  readonly prey: number;
+  readonly seaPrey: number;
+  readonly brigands: { readonly ref: string; readonly name: string } | null;
+  /** The realm's soldiers sent against its groups here, and the page of the greatest operation (null: none under way). */
+  readonly soldiers: number;
+  readonly soldiersRef: string | null;
+  readonly pirates: { readonly ref: string; readonly name: string } | null;
+};
+
 /**
  * An alert (Phase 10 M96): something that stands now and asks to be looked at, as a grand
  * strategy game's alerts ask — a realm followed at war, a land followed going hungry, a life
