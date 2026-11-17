@@ -23,8 +23,14 @@ import type { Ref } from "./ref.ts";
 export const COLD_ROWS = 16384;
 /** How many blocks may be read back at once, of each part. */
 const PARTS_KEPT = 4;
-/** A block is written again without its forgotten once one row in this many is. */
-const TIDY_SHARE = 16;
+/**
+ * A block is written again without its forgotten once one row in this many is: of events, of decisions. (One in sixteen for
+ * both, a late world wrote two blocks of events again most decades, 30 to 60 ms each, and one of decisions every other, 60 to
+ * 150 ms: 11 ms of every year of first light from 1,200, ckpt.mts. Fewer rewrites leave more of the forgotten in a save until
+ * they come: the decisions are a quarter of the events' size there, so theirs wait longer.)
+ */
+const TIDY_EVENTS = 8,
+  TIDY_DECISIONS = 4;
 /** The largest serial a reference can be read as (codes are ± serials in an Int32Array). */
 export const MAX_SERIAL = 0x7fffffff;
 
@@ -724,7 +730,7 @@ export class ColdEvents {
     let done = 0;
     for (let b = 0; b < this.blocks.length && done < most; b++) {
       const block = this.blocks[b]!;
-      if (block.rows === 0 || block.dead * TIDY_SHARE < block.rows) continue;
+      if (block.rows === 0 || block.dead * TIDY_EVENTS < block.rows) continue;
       let last = b,
         live = block.rows - block.dead;
       for (; last + 1 < this.blocks.length; last++) {
@@ -1347,7 +1353,7 @@ export class ColdDecisions {
     let done = 0;
     for (let b = 0; b < this.blocks.length && done < most; b++) {
       const block = this.blocks[b]!;
-      if (block.rows === 0 || block.dead * TIDY_SHARE < block.rows) continue;
+      if (block.rows === 0 || block.dead * TIDY_DECISIONS < block.rows) continue;
       let last = b,
         live = block.rows - block.dead;
       for (; last + 1 < this.blocks.length; last++) {
