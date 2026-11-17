@@ -111,6 +111,8 @@ test("preying takes what is unguarded: roads the seat reaches little, seas its n
   assert.ok(preyTake(1e5, roadGuarded(0.2, 0.8)) < preyTake(1e5, roadGuarded(0.2, 0)));
   assert.ok(seaGuarded(0, 100, 0.2) < seaGuarded(200, 100, 0.2));
   assert.ok(preyTake(1e5, 1) === 0);
+  // (Roads a strong seat watches leave next to nothing: a hundredth of what open roads give, not a twentieth.)
+  assert.ok(preyTake(1e5, roadGuarded(0.95, 0)) < 0.01 * preyTake(1e5, roadGuarded(0, 0)));
 });
 
 test("a group's kind is read off what it does; it turns as its stakes move: an unpaid company becomes brigands", () => {
@@ -359,10 +361,15 @@ test("where its people choose, an interest no house speaks for carries a party i
   let year = yearOfMoment(world.now) + 11;
   while ((refNumber(p.ref) + year + 2) % ORG.every !== 0) year++;
   // (Reckoned until the slower stakes have had their turn: a land raises at most two groups a reckoning.)
-  for (let k = 0; k < 8; k++) {
+  // (And once more after all three are there: a group risen in a reckoning is weighed, its hold on its votes, at its next.)
+  for (let k = 0, last = 8; k < last; k++) {
     groupsYear(ctx, simTime((year + ORG.every * k + 1) * YEAR));
     const now: string[] = store.of(p.ref)?.orgs.map((g) => kindName(g)) ?? [];
-    if (["party", "maroon community", "learned society"].every((x) => now.includes(x))) break;
+    if (
+      last === 8 &&
+      ["party", "maroon community", "learned society"].every((x) => now.includes(x))
+    )
+      last = k + 2;
   }
   relief[hard] = was;
   const v = store.of(p.ref)!,

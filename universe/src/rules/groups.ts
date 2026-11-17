@@ -313,9 +313,14 @@ export function crewOf(take: number, wage: number, cohesion: number, pool: numbe
 
 // —— What each aim is worth ——————————————————————————————————————————————————————————————————————————————
 
-/** What preying can take of a trade (grain's worth a year): the trade in its reach, as far as no one guards it. */
+/**
+ * What preying can take of a trade (grain's worth a year): the trade in its reach, as far as no one guards it, and as far as those
+ * who would take it are not hunted down by the same guards (a road watched nineteen parts in twenty leaves a twentieth unwatched,
+ * and the crew that works it is caught nineteen times in twenty: preying on policed roads is worth next to nothing).
+ */
 export function preyTake(trade: number, guarded: number): number {
-  return Math.max(0, trade) * ORG.catch * (1 - clamp01(guarded));
+  const open = 1 - clamp01(guarded);
+  return Math.max(0, trade) * ORG.catch * open * open;
 }
 
 /** How far a sea trade is guarded: a navy's ships against the trade they must cover, and its havens' reach. */
