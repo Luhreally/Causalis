@@ -138,3 +138,33 @@ test("one under the hand who died is told by the month's draw kept at it: the ch
     risk = riskOf(world, `agent:${a.id}`);
   assert.ok(risk && /This month they face|blessing spares/.test(risk.draw ?? ""));
 });
+
+test("a curse on one under the hand doubles the chance their page tells; protection and healing are refused where nothing calls for them", () => {
+  const world = universeWorld(EARTH, "first light", 60),
+    ctx = populationContext(world),
+    v = ctx.provinces
+      .all()
+      .flatMap((p) => [...ctx.settlements.seenIn(p.cell)])
+      .filter((x) => x.population > 20)
+      .sort((a, b) => a.population - b.population)[0]!;
+  world.submit("hand.lay", { village: v.ref });
+  world.runTo(60 * YEAR + 1);
+  const a = handOf(world).resting!.agents.find((x) => x.blessedUntil === undefined)!,
+    ref = `agent:${a.id}`,
+    chanceOf = () => Number(/\(([\d.]+)%\)/.exec(riskOf(world, ref)!.draw!)![1]);
+  const before = chanceOf();
+  world.submit("act.person", { ref, kind: "curse", name: "them" });
+  world.runTo(60 * YEAR + 2);
+  const after = chanceOf();
+  // (Each told to two places.)
+  assert.ok(Math.abs(after / before - 2) < 0.1, `${before}% to ${after}%`);
+  assert.throws(() => world.submit("act.person", { ref, kind: "heal" }), /no wound/);
+  const page = pageOf(world, ref),
+    tool = page.tabs[0]!.blocks.find((b) => b.type === "tool" && b.tool === "acts.god-person");
+  assert.ok(tool && tool.type === "tool");
+  const held = (tool.args as { held: { kind: string; left: number }[] }).held;
+  assert.deepEqual(
+    held.map((h) => [h.kind, h.left]),
+    [["curse", 10]],
+  );
+});
