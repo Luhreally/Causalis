@@ -26,6 +26,8 @@ import {
   lovedOf,
   lovedWords,
   tastesRead,
+  mostTaken,
+  mostTakenWords,
 } from "./tastes.ts";
 
 const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s);
@@ -49,6 +51,7 @@ export function tastesLedger(world: World, lc: LedgerCtx): Block[] {
       cells: [
         [link(r.town, `${r.ref}#treasury`)],
         [loved.map(lovedWords).join("; ") || "nothing beyond the world's middle"],
+        [mostTakenWords(world, r.ref) || "—"],
         [
           wares
             .slice(0, 3)
@@ -56,7 +59,12 @@ export function tastesLedger(world: World, lc: LedgerCtx): Block[] {
             .join("; ") || "—",
         ],
       ],
-      keys: [r.town, loved[0]?.ratio ?? 0, wares[0]?.share ?? 0],
+      keys: [
+        r.town,
+        loved[0]?.ratio ?? 0,
+        mostTaken(world, r.ref, 1)[0]?.name ?? "",
+        wares[0]?.share ?? 0,
+      ],
     });
   }
   if (!rows.length)
@@ -103,7 +111,7 @@ export function tastesLedger(world: World, lc: LedgerCtx): Block[] {
     {
       type: "table",
       title: "What each realm's people love, against the world's middle realm",
-      columns: ["Realm", "Loves most", "Crosses its borders unseen"],
+      columns: ["Realm", "Loves most", "Most taken, and its law", "Crosses its borders unseen"],
       rows,
       fit: true,
     },

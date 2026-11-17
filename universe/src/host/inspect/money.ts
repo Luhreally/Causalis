@@ -6,6 +6,7 @@
 import { potencyStat } from "./mobs.ts";
 import {
   landTastesBlocks,
+  mostTakenStat,
   realmContrabandBlocks,
   realmKindBlocks,
   realmTastesBlocks,
@@ -527,7 +528,9 @@ export function realmIntoxBlocks(world: World, r: Polity): Block[] {
   const row = moneyStore(world, BAR_STORE)?.get(r.ref);
   if (!row || (row[BAR.demand]! <= 0 && row[BAR.barred]! <= 0)) return [];
   const barred = row[BAR.barred]!,
+    taken = mostTakenStat(world, r.ref, "Most taken, legal or not"),
     rows: Stat[] = [
+      ...(taken ? [taken] : []),
       stat(
         "Its law on them",
         barred >= 500

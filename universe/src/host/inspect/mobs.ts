@@ -41,6 +41,7 @@ import {
 } from "../../sim/index.ts";
 import { grainSum, groupWords } from "../../causal/index.ts";
 import { contraWords } from "./tastes.ts";
+import { carryBlocks, groupCarryBlocks } from "./carriers.ts";
 import { realmColor } from "../colors.ts";
 import {
   fedNews,
@@ -200,6 +201,8 @@ export function realmUnderworldBlocks(world: World, r: Polity): Block[] {
   const ops = operationsBlock(r, v);
   if (ops) blocks.push(ops);
   blocks.push(feedsBlock(v));
+  // (Who carries each ware that crosses its borders unseen, and with what share: carriers.ts.)
+  blocks.push(...carryBlocks(world, r));
   const street = streetBlock(world, r, v);
   if (street) blocks.push(street);
   blocks.push(stateBlock(v));
@@ -458,8 +461,8 @@ export function crimeGroupPage(world: World, ref: string): PageModel {
       ],
     });
   }
-  // (What it carries, and its means: arms, armour, hidden carriage, guarded word.)
-  if (rec) blocks.push(...gearBlocks(world, r, rec));
+  // (What it carries, its share of each ware where it works, and its means: arms, armour, hidden carriage, guarded word.)
+  if (rec) blocks.push(...gearBlocks(world, r, rec), ...groupCarryBlocks(world, r, rec));
   const passed = passedItems(world, groupNews(g) as (e: never) => boolean, since);
   blocks.push(
     passed.length

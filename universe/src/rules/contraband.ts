@@ -64,7 +64,7 @@ export const CONTRA_WHY: Readonly<Record<ContraCause, string>> = {
   sanction: "its sanctions on a realm it fears",
   war: "war: trade with the enemy forbidden",
   licence: "a house's licence over the trade",
-  law: "its law forbids it",
+  law: "its law against it",
   excise: "its excise on it",
   harm: "it bars arms to its people",
 };

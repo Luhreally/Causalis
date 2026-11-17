@@ -499,6 +499,20 @@ export function landTastesBlocks(world: World, cell: number): Block[] {
     if (v > 0 && mid > 0 && v / mid >= LOVED) mine.push({ i, v, ratio: v / mid });
   });
   mine.sort((a, b) => b.ratio - a.ratio || a.i - b.i);
+  // (Its most taken kinds and goods, legal, taxed or forbidden under its realm's law, and what each comes to here.)
+  const taken = mostTakenStat(
+    world,
+    r.ref,
+    "Most taken here, and the law on it",
+    takenOf(
+      world,
+      r.ref,
+      INTOX_KINDS.map((_, k) => (ix?.[INTOX.use + k] ?? 0) / 1000),
+      mine.map((x) => ({ taste: x.i, v: x.v })),
+      2,
+    ),
+  );
+  if (taken) rows.push(taken);
   for (const x of mine.slice(0, 3)) {
     const taste = TASTES[x.i]!,
       parts: ReturnType<typeof part>[] = [];
@@ -674,3 +688,108 @@ export function realmKindBlocks(world: World, r: Polity): Block[] {
 export const WARE_NAMES: readonly string[] = Array.from({ length: WARE_COUNT }, (_, w) =>
   wareName(w),
 );
+
+// —— Legal, taxed or forbidden ——————————————————————————————————————————————————————————————————————————
+
+/** How a realm's law stands on a ware: forbidden, frowned on, held under licence, taxed, or free (words). */
+export function lawWords(world: World, realm: string, ware: number): string {
+  const w = contrabandOf(world, realm).find((x) => x.ware === ware),
+    cause = w ? CONTRA_CAUSES[w.cause] : undefined;
+  if (ware >= WARE_INTOX && ware < WARE_ARMS) {
+    const barred = kindBarred(world, realm, ware - WARE_INTOX),
+      excise = (moneyStore(world, BAR_STORE)?.at(realm, BAR.excise) ?? 0) / 1000;
+    return barred >= 0.5
+      ? `forbidden (${pct(barred)})`
+      : barred >= 0.1
+        ? `frowned on (${pct(barred)})${excise > 0 ? `, taxed ${pct(excise)}` : ""}`
+        : excise > 0
+          ? `legal, taxed ${pct(excise)}`
+          : "legal";
+  }
+  if (ware === WARE_ARMS) return cause === "harm" ? "forbidden to its people" : "legal";
+  if (cause === "war") return "forbidden from its enemy";
+  if (cause === "sanction") return "shut from a realm it fears";
+  if (cause === "licence") return "held under a house's licence";
+  const rate = (moneyStore(world, TARIFF_STORE)?.at(realm, DUTY.rate) ?? 0) / 1000;
+  return rate > 0.005 ? `taxed ${pct(rate)} at its border` : "free";
+}
+
+/** A realm's most taken kinds and goods, each with how its law stands on it: its intoxicants by those who take them, then the
+ * goods its people love most beyond the world's middle (at most `n` of each). */
+export function mostTaken(world: World, realm: string, n = 2): Taken[] {
+  const t = tastesRead(world),
+    me = t.realms.get(realm);
+  if (!me) return [];
+  return takenOf(
+    world,
+    realm,
+    INTOX_KINDS.map((_, k) => me.v[TASTES.findIndex((x) => x.kind === k)]!),
+    lovedOf(world, realm, 6).map((l) => ({ taste: l.taste, v: l.v })),
+    n,
+  );
+}
+
+/** One thing most taken where it is read: its name, how much, how its realm's law stands on it, and what it comes to there. */
+export type Taken = { name: string; amount: string; law: string; means: string; ware: number };
+
+/** What it comes to: of a kind, those who come to need it and die of it; of a good, what of it crosses unseen. */
+function meansOf(world: World, realm: string, ware: number, v: number): string {
+  if (ware >= WARE_INTOX && ware < WARE_ARMS) {
+    const c = kindCost(INTOX_KINDS[ware - WARE_INTOX]!, v);
+    return `${(c.dependent * 1000).toFixed(1)} in a thousand come to need it, ${(c.deaths * 1e5).toFixed(1)} in 100,000 die of it a year`;
+  }
+  const w = contrabandOf(world, realm).find((x) => x.ware === ware);
+  return w ? `${pct(w.share)} of it crosses unseen` : "bought and sold openly";
+}
+
+function takenOf(
+  world: World,
+  realm: string,
+  use: readonly number[],
+  loved: readonly { taste: number; v: number }[],
+  n: number,
+): Taken[] {
+  const kinds = use
+      .map((v, k) => ({ k, v }))
+      .filter((x) => x.v > 0)
+      .sort((a, b) => b.v - a.v || a.k - b.k)
+      .slice(0, n)
+      .map((x) => ({
+        name: INTOX_WORDS[INTOX_KINDS[x.k]!].name,
+        amount: `${pct(x.v)} take it`,
+        law: lawWords(world, realm, WARE_INTOX + x.k),
+        means: meansOf(world, realm, WARE_INTOX + x.k, x.v),
+        ware: WARE_INTOX + x.k,
+      })),
+    goods = loved
+      .filter((l) => TASTES[l.taste]!.good !== undefined)
+      .slice(0, n)
+      .map((l) => ({
+        name: TASTES[l.taste]!.name,
+        amount: TASTES[l.taste]!.say(l.v),
+        law: lawWords(world, realm, TASTES[l.taste]!.good!),
+        means: meansOf(world, realm, TASTES[l.taste]!.good!, l.v),
+        ware: TASTES[l.taste]!.good!,
+      }));
+  return [...kinds, ...goods];
+}
+
+/** "what calms (16% take it; legal, taxed 12%); tools (0.14 a head a year; taxed 8% at its border)". */
+export function mostTakenWords(world: World, realm: string): string {
+  return mostTaken(world, realm)
+    .map((x) => `${x.name} (${x.amount}; ${x.law})`)
+    .join("; ");
+}
+
+/** The "Most taken, and the law on it" line of a realm (null: nothing taken). */
+export function mostTakenStat(
+  world: World,
+  realm: string,
+  label = "Most taken, and the law on it",
+  xs: readonly Taken[] = mostTaken(world, realm),
+): Stat | null {
+  if (!xs.length) return null;
+  return stat(label, xs.map((x) => cap(x.name)).join(", "), {
+    parts: xs.map((x) => part(cap(x.name), `${x.amount}; ${x.law}; ${x.means}`)),
+  });
+}

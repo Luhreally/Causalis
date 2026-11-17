@@ -9,9 +9,16 @@ import { pageOf } from "../../src/host/inspect/index.ts";
 import { alliancesOf } from "../../src/host/inspect/ties.ts";
 import { ledgerCtx } from "../../src/host/inspect/ledger-kit.ts";
 import { intoxLedger, tastesLedger } from "../../src/host/inspect/ledger-tastes.ts";
-import { TASTES, entailStats, lovedOf, tastesRead } from "../../src/host/inspect/tastes.ts";
+import {
+  TASTES,
+  entailStats,
+  lovedOf,
+  mostTaken,
+  tastesRead,
+} from "../../src/host/inspect/tastes.ts";
+import { carriedIn, carryBlocks, worldCarryBlocks } from "../../src/host/inspect/carriers.ts";
 import { BLOC_SECTIONS } from "../../src/host/inspect/bloc-compare.ts";
-import { CONTRA, CONTRA_STORE, moneyStore, politiesOf } from "../../src/sim/index.ts";
+import { CONTRA, CONTRA_STORE, moneyStore, politiesOf, underworldOf } from "../../src/sim/index.ts";
 import { CONTRA_CAUSES, G, INTOX_KINDS, INTOX_WORDS, WARE_ARMS } from "../../src/rules/index.ts";
 import { universeWorld } from "./worlds.ts";
 
@@ -104,4 +111,33 @@ test("an alliance compares its members on every system, in sections, each read o
   for (const b of open.blocks)
     if (b.type === "table")
       for (const r of b.rows) if (r.ref) assert.ok(members.has(r.ref.split("#")[0]!), r.ref);
+});
+
+test("who carries what: each ware's carriers share no more than its underworld captures, the greatest first, each linked to its group", () => {
+  const under = underworldOf(world);
+  for (const r of politiesOf(world).living()) {
+    const captured = (under?.of(r.ref)?.captured ?? 0) / 1000;
+    for (const c of carriedIn(world, r)) {
+      const sum = c.carriers.reduce((s, x) => s + x.share, 0);
+      assert.ok(
+        (sum <= captured + 1e-9 && Math.abs(sum + c.loose - 1) < 1e-9) || !c.carriers.length,
+      );
+      for (let i = 1; i < c.carriers.length; i++)
+        assert.ok(c.carriers[i - 1]!.share >= c.carriers[i]!.share);
+    }
+    for (const b of carryBlocks(world, r))
+      if (b.type === "table") for (const row of b.rows) if (row.ref) assert.match(row.ref, /^mob:/);
+  }
+  assert.ok(worldCarryBlocks(world, politiesOf(world).living()).length <= 1);
+});
+
+test("a realm's most taken kinds and goods each say how its law stands on them and what they come to", () => {
+  let said = 0;
+  for (const r of politiesOf(world).living().slice(0, 40))
+    for (const x of mostTaken(world, r.ref)) {
+      assert.match(x.law, /^(legal|frowned on|forbidden|taxed|free|held under|shut from)/);
+      assert.ok(x.means.length > 5);
+      said++;
+    }
+  assert.ok(said > 0, "some realm takes something");
 });
