@@ -387,7 +387,7 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
       }
       flag.hidden = false;
       flag.style.background = rgb(fight!.sides[side]!.color);
-      flag.style.transform = `translate(${Math.round(at.x - 9)}px, ${Math.round(at.y - 12)}px)`;
+      flag.style.transform = `translate(${Math.round(at.x - 9)}px, ${Math.round(at.y - 34)}px)`;
     });
   });
 

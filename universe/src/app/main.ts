@@ -9489,11 +9489,14 @@ async function runPlanetPage(): Promise<void> {
         ? { from: seen - 3600, to: seen + 3600, all: true }
         : streetFilm?.indoors
           ? { from: seen - 3600, to: seen + 3600 }
-          : kept && seen >= kept.from && seen < kept.to
-            ? { ...kept, all: true }
-            : sky
-              ? downpourAt(sky, seen, time.pace)
-              : null,
+          : streetFilm?.holds
+            ? // (Its burying after is seen whatever the weather: no one of it sent in out of the rain.)
+              null
+            : kept && seen >= kept.from && seen < kept.to
+              ? { ...kept, all: true }
+              : sky
+                ? downpourAt(sky, seen, time.pace)
+                : null,
       !time.lapse,
     );
     // The town's stores and its work today (Phase 39 M198), as they are told.
