@@ -782,6 +782,9 @@ function takeCaptives(
       0.1 * valour +
       pays -
       (citizens ? 0.4 : 0);
+  // (A choice keeps its six heaviest factors, and the land's taking weighs nothing of itself: so what weighs nothing and cites
+  // nothing is left out, and where the taken are strangers by their tongue, it is the battle that made them the taken.)
+  const taking: NonNullable<Factor["source"]> = { ref: battle, role: "trigger", weight: 1 };
   const decision = world.decisions.record({
     rule: "order.captives",
     subject: a.ref,
@@ -823,18 +826,26 @@ function takeCaptives(
             contribution: 0.25 * (1 - open),
             source: nudged(mine, WAY.openness),
           },
-      {
-        name: "the taken speak another tongue",
-        value: foreign,
-        contribution: 0.25 * foreign,
-        source: null,
-      },
-      {
-        name: "the taken keep another faith",
-        value: unbelievers,
-        contribution: 0.15 * unbelievers,
-        source: unbelievers && other ? { ref: other, role: "enabler", weight: 1 } : null,
-      },
+      ...(foreign > 0
+        ? [
+            {
+              name: "the taken speak another tongue",
+              value: foreign,
+              contribution: 0.25 * foreign,
+              source: taking,
+            },
+          ]
+        : []),
+      ...(unbelievers
+        ? [
+            {
+              name: "the taken keep another faith",
+              value: unbelievers,
+              contribution: 0.15 * unbelievers,
+              source: other ? ({ ref: other, role: "enabler", weight: 1 } as const) : null,
+            },
+          ]
+        : []),
       {
         name: "a people given to war",
         value: valour,
@@ -845,7 +856,7 @@ function takeCaptives(
         name: "the land taken",
         value: 1,
         contribution: 0,
-        source: { ref: battle, role: "trigger", weight: 1 },
+        source: taking,
       },
     ],
   });
