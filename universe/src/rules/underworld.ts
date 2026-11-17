@@ -392,8 +392,8 @@ export function youngBand(life: LifeHistory, band: number): boolean {
 // effect, never how anything is made or used.
 
 /** The four parts of a group's means. */
-export const MEANS = ["arms", "armour", "hidden", "word"] as const;
-export type MeansPart = (typeof MEANS)[number];
+export const GEAR_PARTS = ["arms", "armour", "hidden", "word"] as const;
+export type MeansPart = (typeof GEAR_PARTS)[number];
 
 export const GEAR = {
   /** What a part at its best costs a year for each of a group's men, in working men's years (its keep, its renewal). */
@@ -424,7 +424,7 @@ export function meansBought(
   const buy = yearCost > 0 ? clamp01(wealth / (yearCost * GEAR.years)) : 0,
     outbid = budget > 0 ? GEAR.abroad * clamp01(wealth / budget - 1) : 0,
     out = {} as Record<MeansPart, number>;
-  for (const k of MEANS) out[k] = clamp01(Math.min(1, clamp01(best[k]) + outbid) * buy);
+  for (const k of GEAR_PARTS) out[k] = clamp01(Math.min(1, clamp01(best[k]) + outbid) * buy);
   return out;
 }
 

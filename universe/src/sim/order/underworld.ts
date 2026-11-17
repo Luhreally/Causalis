@@ -46,7 +46,7 @@ import {
   BANDS,
   COURTS,
   GEAR,
-  MEANS,
+  GEAR_PARTS,
   POTENCY,
   madeTarget,
   potencyAfter,
@@ -1390,8 +1390,8 @@ function buyMeans(ctx: PopulationContext, p: Polity, g: CrimeGroup, r: Read, spa
   const best = bestMeans(ctx, p, g.home),
     perPart = Math.max(1, g.members) * r.wage * GEAR.cost,
     want = kindOfGroup(g) === "cartel" ? best : { ...best, hidden: 0 },
-    got = meansBought(want, g.wealth, perPart * MEANS.length, r.revenue),
-    cost = MEANS.reduce((s, k) => s + got[k] * perPart, 0);
+    got = meansBought(want, g.wealth, perPart * GEAR_PARTS.length, r.revenue),
+    cost = GEAR_PARTS.reduce((s, k) => s + got[k] * perPart, 0);
   g.wealth = Math.max(0, Math.round(g.wealth - cost * span));
   g.means = {
     arms: per(got.arms),
