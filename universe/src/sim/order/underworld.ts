@@ -1198,12 +1198,23 @@ function stepRealm(
         bites,
       ),
       open = v.wars.find((w) => w.ended === null && w.kind === KIND(kind));
+    // (A war's dead are its fighters': each group loses men as its rivals are many (the lesser the greater part of itself), and
+    // of its purse as of its men. So a war wears both down, the weaker faster, until one holds the road or neither can fight on:
+    // before, no loss came off its men and a war between two alike never ended.)
+    const allMen = own.reduce((n, g) => n + g.members, 0);
     for (const g of own) {
-      g.violence = Math.round(
-        killingsOf(g.members, fight.war) * (v.truce?.gid === g.id ? 1 - ESCALATE.calms : 1),
-      );
+      const calm = v.truce?.gid === g.id ? 1 - ESCALATE.calms : 1,
+        rivals = Math.min(allMen - g.members, g.members * UNDER.warMost),
+        peace = killingsOf(g.members, 0) * calm,
+        war = (killingsOf(rivals, fight.war) - killingsOf(rivals, 0)) * calm,
+        dead = Math.min(g.members, Math.round((war / (1 + UNDER.bystanders)) * span));
+      g.violence = Math.round(peace + war);
       killings += g.violence;
-      warring.set(g.id, g.violence - Math.min(g.violence, killingsOf(g.members, 0)));
+      warring.set(g.id, g.violence - Math.min(g.violence, Math.round(peace)));
+      if (dead > 0) {
+        g.wealth = Math.round(g.wealth * (1 - dead / g.members));
+        g.members -= dead;
+      }
     }
     const ranked = [...own].sort((a, b) => b.share - a.share || a.id - b.id);
     if (!open && fight.war >= UNDER.warAt && ranked.length >= 2) {
@@ -1502,16 +1513,22 @@ function stepRealm(
       1,
       v.groups.reduce((s, g) => s + g.wealth, 0),
     );
-  for (const g of v.groups) {
+  for (const g of v.groups)
     g.power = per(0.6 * (g.members / allMen) + 0.4 * (g.wealth / allWealth));
+  // (Turf is parted: the strongest of a road takes its lands first, and a lesser holds what no greater of its road does, and its
+  // home. Where there is no land free it holds its home beside the greater, and that land is the one they fight over.)
+  const turf = new Map<number, Set<number>>();
+  for (const g of [...v.groups].sort((a, b) => b.power - a.power || a.id - b.id)) {
     if (kindOfGroup(g) === "badge") continue;
-    const n = Math.max(1, Math.min(UNDER.lands, 1 + Math.floor(g.members / 150))),
+    const held = turf.get(g.kind) ?? turf.set(g.kind, new Set()).get(g.kind)!,
+      n = Math.max(1, Math.min(UNDER.lands, 1 + Math.floor(g.members / 150))),
+      kept = g.lands.filter((c) => p.members.includes(c) && (c === g.home || !held.has(c))),
       candidates = (kindOfGroup(g) === "cartel" ? [...r.edge, ...p.members] : [...p.members])
-        .filter((c, i, a) => a.indexOf(c) === i && !g.lands.includes(c))
-        .sort((a, b) => landWeight(ctx, b) - landWeight(ctx, a) || a - b),
-      kept = g.lands.filter((c) => p.members.includes(c));
+        .filter((c, i, a) => a.indexOf(c) === i && !kept.includes(c) && !held.has(c))
+        .sort((a, b) => landWeight(ctx, b) - landWeight(ctx, a) || a - b);
     g.lands = [...kept, ...candidates].slice(0, n);
-    if (!g.lands.length) g.lands = [p.seat];
+    if (!g.lands.length) g.lands = [p.members.includes(g.home) ? g.home : p.seat];
+    for (const c of g.lands) held.add(c);
   }
   writeLands(ctx, p, v, towns, r, badge, bites, warring);
   v.last = year;
