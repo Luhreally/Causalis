@@ -1439,18 +1439,28 @@ function stepRealm(
       1,
       v.orgs.reduce((s, g) => s + g.wealth, 0),
     );
+  const rankedBy = new Map<number, number[]>();
   for (const g of v.orgs) {
     g.power = per(0.6 * (g.members / allMen) + 0.4 * (g.wealth / allWealth));
     // (It reaches the lands where its first aim's stake is greatest, its home first, more as it grows.)
     // (A party, a refuge and an order's house hold one land and no more: the seat, the hard land, the land granted.)
     const one = ONE_LAND.has(orgAimOf(g)) || cloistered(g, r.lands),
       n = one ? 1 : Math.max(1, Math.min(ORG.lands, 1 + Math.floor(g.members / 300))),
-      k = g.aim,
-      near = r.lands
-        .filter((l) => l.cell !== g.home && l.worth[k]! > 0)
-        .sort((a, b) => b.worth[k]! - a.worth[k]! || a.cell - b.cell)
-        .map((l) => l.cell);
-    g.lands = [g.home, ...near].filter((c) => lands.has(c)).slice(0, n);
+      k = g.aim;
+    // (The lands worth most to an aim, greatest first: ranked once for all its groups of that aim.)
+    let ranked = rankedBy.get(k);
+    if (!ranked)
+      rankedBy.set(
+        k,
+        (ranked = r.lands
+          .filter((l) => l.worth[k]! > 0)
+          .sort((a, b) => b.worth[k]! - a.worth[k]! || a.cell - b.cell)
+          .map((l) => l.cell)),
+      );
+    const held = lands.has(g.home) ? [g.home] : [];
+    for (let i = 0; i < ranked.length && held.length < n; i++)
+      if (ranked[i] !== g.home) held.push(ranked[i]!);
+    g.lands = held;
     if (!g.lands.length) g.lands = [p.seat];
   }
   stepFeds(f);
