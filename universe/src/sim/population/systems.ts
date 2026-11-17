@@ -304,6 +304,9 @@ export function adults(p: Province, life: LifeHistory): number {
   return n;
 }
 
+/** How many times the hands that would win all a land's fields give, were each hand's work its first, its fields can use. */
+export const FIELDS_FULL = 3;
+
 /**
  * The shares of adults each occupation should have, as the society stands, leaning
  * toward the work that was worth most last year (docs/architecture §20: jobs).
@@ -327,9 +330,20 @@ export function occupationTargets(
       // and gatherers held at 9 in 100 where they had been held at 4: first light's small game was trapped in every land.)
       fields = 0.77 - herds,
       share = dmath.clamp(farming, 0, 1),
-      farm = fields * share,
-      gather = 0.1 * share,
-      freed = fields - farm + (0.1 - gather),
+      // (No more hands to its fields than its fields can use: FIELDS_FULL times those that would win all the land's fields
+      // give were each hand's work its first, past which a hand adds under a twentieth of its own (saturate). The rest gather,
+      // as a people that never sowed does. The old ways sent 77 in 100 to the fields of any land that had learned to sow,
+      // whatever it had of fields: on first light's cold shores, where nothing can be sown, a people of gatherers that learned
+      // sowing from its neighbours sent a third of its hands to fields it did not have and ate a tenth of what it needed, year
+      // after year; nine famines in twenty years in one such land.)
+      hands = p.total() - p.occupation(OCC.dependent),
+      tilled =
+        hands > 0
+          ? Math.min(fields, (FIELDS_FULL * cap.farm) / (PRODUCTIVITY[OCC.farmer]! * hands))
+          : fields,
+      farm = tilled * share,
+      gather = 0.1 * share + (fields - tilled),
+      freed = tilled - farm + 0.1 * (1 - share),
       trades = villages >= 2;
     t[OCC.farmer] = farm;
     t[OCC.forager] = gather;
