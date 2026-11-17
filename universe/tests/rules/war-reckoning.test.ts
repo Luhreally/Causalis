@@ -36,3 +36,18 @@ test("a tribute is a year of what a year of the war cost the one who pays, for a
   assert.ok(tributeOf(1, 0.3).share <= TERMS.shareMost);
   assert.ok(tributeOf(0.001, 1).years <= TERMS.yearsMost);
 });
+
+test("a siege near taking its land is reckoned near won: the besieger holds on, the besieged yields the sooner", () => {
+  const e = {
+    won: 1,
+    fought: 2,
+    ratio: 1,
+    costs: [0.05, 0.05] as const,
+    stakes: [0.2, 0.2] as const,
+  };
+  const open = warReckoning(e),
+    near = warReckoning({ ...e, taking: 0.8 });
+  assert.ok(near.chance > open.chance);
+  assert.equal(warReckoning({ ...e, taking: 0 }).chance, open.chance);
+  assert.ok(warReckoning({ ...e, taking: 1 }).chance <= 1);
+});

@@ -60,6 +60,10 @@ export const HOUSES = {
   farmMargin: 0.25,
   /** How far the rents of licences and farms, a share of what a realm's people earn, breed grievance a year in its lands. */
   rentGrieves: 0.6,
+  /** The share of the way a people grows used to a burden they bear, a year (est: within a generation it is the custom); and of a
+   * burden they are used to, the share that still chafes. */
+  inured: 0.08,
+  custom: 0.2,
   /** Where a written test chooses who holds office, how much less often kin hold it; how much less where word carries freely. */
   examined: 0.6,
   seen: 0.4,
@@ -373,4 +377,10 @@ export function purgeChance(power: number, crown: number, force: number, voice: 
 export function rivalWeight(greatest: number, crown: number): number {
   const sum = greatest + crown;
   return sum > 0 ? clamp01((greatest - crown) / sum) : 0;
+}
+
+/** Of a burden on what a people earn (a share), what aggrieves them: what they bear past what they are used to, and a little of the rest. */
+export function rentChafes(burden: number, used: number): number {
+  const b = Math.max(0, burden);
+  return HOUSES.custom * b + (1 - HOUSES.custom) * Math.max(0, b - Math.max(0, used));
 }

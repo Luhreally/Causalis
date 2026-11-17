@@ -260,7 +260,7 @@ export class ObserverLedger implements StateStore {
 }
 
 export function observer(world: World): ObserverLedger {
-  if (!world.storeNames().includes("observer.ledger")) world.register(new ObserverLedger());
+  if (!world.hasStore("observer.ledger")) world.register(new ObserverLedger());
   return world.store<ObserverLedger>("observer.ledger");
 }
 

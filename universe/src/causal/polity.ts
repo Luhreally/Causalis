@@ -29,7 +29,7 @@ export function governmentWords(p: {
 }
 
 registerExplainer(POLITY.code, (world, ref) => {
-  if (!world.storeNames().includes("polity.states")) return null;
+  if (!world.hasStore("polity.states")) return null;
   const p = politiesOf(world).get(ref);
   if (!p) return null;
   const year = yearOfMoment(world.now),

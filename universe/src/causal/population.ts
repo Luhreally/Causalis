@@ -30,7 +30,7 @@ export function folkRef(cell: number): Ref {
 }
 
 registerExplainer(FOLK.code, (world, ref) => {
-  if (!world.storeNames().includes("population.provinces")) return null;
+  if (!world.hasStore("population.provinces")) return null;
   const cell = parseRef(ref).b,
     ctx = populationContext(world),
     p = ctx.provinces.get(cell);
@@ -63,7 +63,7 @@ registerExplainer(FOLK.code, (world, ref) => {
 });
 
 registerExplainer(SETTLEMENT.code, (world: World, ref) => {
-  if (!world.storeNames().includes("population.settlements")) return null;
+  if (!world.hasStore("population.settlements")) return null;
   const s = world.store<SettlementStore>("population.settlements").get(ref);
   if (!s) return null;
   return {

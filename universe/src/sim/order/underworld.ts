@@ -288,6 +288,7 @@ function tell(
   data: Record<string, unknown>,
   causes: { ref: Ref; role: "trigger" | "enabler" | "pressure"; weight: number }[],
   factors?: Factor[],
+  importance?: number,
 ): Ref {
   const world = f.ctx.world,
     decision = factors
@@ -302,6 +303,7 @@ function tell(
       : null;
   return world.events.emit({
     type,
+    ...(importance !== undefined ? { importance } : {}),
     subjects: [f.p.ref],
     place: cell !== null ? (f.ctx.provinces.get(cell)?.ref ?? null) : null,
     // (At most MAX_CAUSES: a federation of many groups cites the first of them.)
@@ -807,7 +809,9 @@ function stepRealm(
   v.supply = per(idle.supply);
   v.pool = Math.round(pool);
   v.veterans = Math.round(r.veterans);
-  v.protectRent = Math.round(r.trade * UNDER.cut * want);
+  // (A cut of the takings of those who pay: what passes its shops and stalls, no more than its people spend of what they earn, nor
+  // than what its markets trade. The trade its markets book counts a good each time it moves, some three times what is spent.)
+  v.protectRent = Math.round(Math.min(r.trade, r.earned) * UNDER.cut * want);
 
   // 2. The rents of what it forbids and taxes, and of a border with one that bans.
   const sm = moneyStore(world, SMUGGLE_STORE)?.get(p.ref),
@@ -1122,6 +1126,7 @@ function stepRealm(
     const fight = turfWar(
         own.map((g) => g.share),
         collusion,
+        bites,
       ),
       open = v.wars.find((w) => w.ended === null && w.kind === KIND(kind));
     for (const g of own) {
@@ -1266,6 +1271,9 @@ function stepRealm(
             factor("the crackdown, as it bites", bites, bites),
             factor("shelter from officers and houses", shelter, -0.7 * shelter),
           ],
+          // (A great organisation's boss taken is told as the chronicle tells; a small crew's goes with the ordinary years unless
+          // something cites it: kept whole, bosses taken were 59,000 of first light's events at 1500, 148 a year.)
+          g.share >= UNDER.great ? undefined : 3,
         );
       // (How he went, for his page: a reading beside the world, sim/hand/deaths.ts.)
       deathNotesOf(world)?.addHead({
@@ -1790,6 +1798,9 @@ function writeLands(
       if (kindOfGroup(g) === "cartel") for (const c of g.lands) badgeTowns.add(c);
   let extorted = 0,
     trade = 0;
+  // (A group's men and its killing lie in its lands as their people do: none in an empty land, nor half of it in a hamlet.)
+  const peopleOf = (c: number) => ctx.provinces.get(c)?.total() ?? 0,
+    spread = new Map(v.groups.map((g) => [g, g.lands.reduce((s, c) => s + peopleOf(c), 0)]));
   for (const c of p.members) {
     const prov = ctx.provinces.get(c),
       n = prov?.total() ?? 0;
@@ -1804,8 +1815,9 @@ function writeLands(
     const police = 0.004 * n * r.capacity * (1 + 3 * bites) + 1;
     for (const g of v.groups) {
       if (!g.lands.includes(c)) continue;
-      const w = g.members / g.lands.length;
-      killed += g.violence / g.lands.length;
+      const part = n / Math.max(1, spread.get(g) ?? n),
+        w = g.members * part;
+      killed += g.violence * part;
       if (w > bestW) {
         bestW = w;
         best = g;

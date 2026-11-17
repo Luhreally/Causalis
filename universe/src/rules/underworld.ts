@@ -106,6 +106,9 @@ export const UNDER = {
   least: 0.05,
   /** The most of a boss's chance of being taken a year at a full crackdown (est: Mexico's kingpin strategy took some two dozen of 37 named in six years). */
   decap: 0.15,
+  /** A group holding this share of its kind's rent in its realm (thousandths) rules its trade: its boss taken is a thing the
+   * chronicle keeps (at first light's 1500, one group in eight). */
+  great: 500,
   /** Of a group's men a full crackdown takes a year (arrested, killed, turned). */
   arrests: 0.12,
   /** What a full crackdown costs a year for each of the groups' men it faces, in working men's years (police, courts, prisons). */
@@ -114,6 +117,9 @@ export const UNDER = {
   bribes: 0.2,
   /** How much a corrupt pact with the state cools a turf war. */
   pax: 0.7,
+  /** How far a crackdown that bites makes a road's groups keep their quarrels below the killing that draws it (est: Cosa Nostra's
+   * "submersion" after the maxi-trial: Palermo's killings fell some tenfold while its rackets went on). */
+  lowered: 0.8,
   /** How far protection gains a trade's deals kept where courts are absent, and what extortion takes of a holding's safety. */
   enforces: 0.25,
   extorts: 0.6,
@@ -208,11 +214,12 @@ export function rentCaptured(capacity: number, corruption: number): number {
 
 /**
  * How hard a road's groups fight over its rent (0 … 1): by how close the two greatest are (a duopoly or a fragmented market fights;
- * one dominant does not), less a pact with the state. Its concentration (Herfindahl) is given back.
+ * one dominant does not), less a pact with the state, and less the more a crackdown bites (they keep below the killing that draws it). Its concentration (Herfindahl) is given back.
  */
 export function turfWar(
   shares: readonly number[],
   pact: number,
+  hunted = 0,
 ): { war: number; herfindahl: number } {
   const s = [...shares].filter((x) => x > 0).sort((a, b) => b - a),
     all = s.reduce((a, x) => a + x, 0);
@@ -221,7 +228,13 @@ export function turfWar(
     h = n.reduce((a, x) => a + x * x, 0),
     close = n[1]! / n[0]!;
   return {
-    war: clamp01(close * (1 - h) * 2.4 * (1 - UNDER.pax * clamp01(pact))),
+    war: clamp01(
+      close *
+        (1 - h) *
+        2.4 *
+        (1 - UNDER.pax * clamp01(pact)) *
+        (1 - UNDER.lowered * clamp01(hunted)),
+    ),
     herfindahl: h,
   };
 }

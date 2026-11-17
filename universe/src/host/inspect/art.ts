@@ -31,7 +31,7 @@ const LANDS = 400;
 
 /** A page with its art, where it is of a world with a home planet (a toy world's pages stay plain). */
 export function withArt(world: World, page: PageModel): PageModel {
-  if (!world.storeNames().includes("planet.home") || page.kind === "unknown") return page;
+  if (!world.hasStore("planet.home") || page.kind === "unknown") return page;
   let banner: PageBanner | null = null;
   try {
     banner = bannerOf(world, page);

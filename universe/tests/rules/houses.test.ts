@@ -22,6 +22,7 @@ import {
   privateShare,
   purgeChance,
   rivalWeight,
+  rentChafes,
 } from "../../src/rules/index.ts";
 import { Hasher } from "../../src/kernel/index.ts";
 import { HouseStore, type RealmHouses } from "../../src/sim/index.ts";
@@ -191,4 +192,12 @@ test("the houses' store is dormant empty, hashes its digest, and comes back from
   const h3 = new Hasher();
   back.hashInto(h3);
   assert.notEqual(h3.hex(), h1.hex());
+});
+
+test("a burden long borne chafes the less: what is borne past the custom aggrieves, and a little of the rest", () => {
+  assert.ok(rentChafes(0.2, 0) > rentChafes(0.2, 0.1));
+  assert.ok(rentChafes(0.2, 0.1) > rentChafes(0.2, 0.2));
+  assert.ok(rentChafes(0.2, 0.2) > 0);
+  assert.equal(rentChafes(0, 0.3), 0);
+  assert.ok(Math.abs(rentChafes(0.2, 0) - 0.2) < 1e-12);
 });

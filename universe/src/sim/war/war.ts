@@ -16,7 +16,7 @@ import { godFall, godMen, godPower } from "./godhost.ts";
 import { ArmingStore, armingYear, footingPower, mobilising } from "./arming.ts";
 import { orderOf } from "../order/order.ts";
 import { NavyStore, landingOf, navyYear } from "./navy.ts";
-import { SiegeStore, siegeAt, siegesYear, wallsOf } from "./siege.ts";
+import { SiegeStore, siegeAt, siegesOf, siegesYear, wallsOf } from "./siege.ts";
 import {
   YEAR,
   defineEventType,
@@ -1693,33 +1693,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       w.fallen = [w.fallen[0] + sieged.dead[0], w.fallen[1] + sieged.dead[1]];
     // (A host come for grain carries it off; come for tribute, or to be free, it leaves the land where it lies: W7.)
     const hauled = won && aim === "stores" ? sack(ctx, a, b, land, battle) : 0;
-    if (won && !besieged && takesLand(aim)) {
-      const taken = world.events.emit({
-        type: WAR_EVENTS.taken.type,
-        subjects: [a.ref, b.ref],
-        place: cellRef(0, land),
-        causes: [{ ref: battle, role: "trigger", weight: 1 }],
-        data: { a: realmName(a), b: realmName(b) },
-      });
-      realms.leave(b, land);
-      realms.join(a, land);
-      // A land taken by force resents its taker, and is held by force (sim/war/occupation.ts).
-      realms.setDiscontent(land, { level: 1, cause: battle });
-      occupy(world, land, a.ref, b.ref, year);
-      // A realm whose seat is taken falls, and its lands pass to its conqueror, aggrieved
-      // (those not joined to the conqueror's own go their own way); else what the taken
-      // land joined to its seat is cut off.
-      if (land === b.seat) {
-        for (const c of [...b.members]) {
-          realms.leave(b, c);
-          realms.join(a, c);
-          realms.setDiscontent(c, { level: 0.6, cause: battle });
-          occupy(world, c, a.ref, b.ref, year);
-        }
-        endRealm(ctx, b, t, { ref: battle, role: "trigger", weight: 1 });
-        cutOff(ctx, a, taken);
-      } else cutOff(ctx, b, taken);
-    }
+    if (won && !besieged && takesLand(aim)) takeLand(ctx, a, b, land, battle, t);
     // 3. Peace: the prize won, or what the war has cost against what it is worth (below).
     const years = year - w.declared,
       prizeWon = a.members.includes(w.prize),
@@ -1731,11 +1705,17 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
             (aim === "tribute" && 2 * w.battles.filter((x) => x.won).length > w.battles.length)));
     // It ends with the prize won, or when what it has cost a side has come to what it is worth to them, by their chance
     // of winning it (rules/terms.ts warReckoning): the attacker gives up, or the defender yields. No count of years, no draw.
-    const reckoned = warReckoning({
+    const laid = siegesOf(world)?.of(w.ref),
+      reckoned = warReckoning({
         won: w.battles.filter((x) => x.won).length,
         fought: w.battles.length,
         ratio: strengthOf(ctx, a) / Math.max(1, strengthOf(ctx, b)),
         ...warCosts(ctx, w, a, b, aim, year),
+        // (A siege before the land fought for: how near it is to taking it.)
+        taking:
+          laid && laid.land === land
+            ? Math.max(laid.breach, Math.min(1, Math.max(0, 1 - laid.months / 12)))
+            : 0,
       }),
       repulsed = reckoned.quits;
     if (prizeWon || got || reckoned.quits || reckoned.yields) {
@@ -1761,6 +1741,19 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         },
       });
       if (made) bindPeace(ctx, w, made, w.peace, year);
+      // A town under a siege its people cannot see lifted yields with the peace: the war ended with the besiegers before its
+      // walls, the field theirs this year, and not by their giving up (siege.ts: else a siege in a war ended was let go).
+      const held = laid;
+      if (
+        made &&
+        held &&
+        won &&
+        !reckoned.quits &&
+        land === held.land &&
+        takesLand(aim) &&
+        b.members.includes(held.land)
+      )
+        takeLand(ctx, a, b, held.land, w.peace, t);
       diplomacy.remember(a.ref, b.ref, {
         name: "a war between them",
         value: -0.45,
@@ -1860,4 +1853,43 @@ export function hostHungry(ctx: PopulationContext, a: Polity, t: SimTime): boole
     const e = f ? ctx.world.events.get(f) : undefined;
     return !!e && t - e.t <= YEAR;
   });
+}
+
+/**
+ * A land taken by a war's attacker: it resents its taker and is held by force (sim/war/occupation.ts). A realm whose seat is taken
+ * falls, and its lands pass to its conqueror, aggrieved (those not joined to the conqueror's own go their own way); else what the
+ * taken land joined to its seat is cut off.
+ */
+function takeLand(
+  ctx: PopulationContext,
+  a: Polity,
+  b: Polity,
+  land: number,
+  cause: Ref,
+  t: SimTime,
+): void {
+  const { world } = ctx,
+    realms = politiesOf(world),
+    year = yearOfMoment(t);
+  const taken = world.events.emit({
+    type: WAR_EVENTS.taken.type,
+    subjects: [a.ref, b.ref],
+    place: cellRef(0, land),
+    causes: [{ ref: cause, role: "trigger", weight: 1 }],
+    data: { a: realmName(a), b: realmName(b) },
+  });
+  realms.leave(b, land);
+  realms.join(a, land);
+  realms.setDiscontent(land, { level: 1, cause });
+  occupy(world, land, a.ref, b.ref, year);
+  if (land === b.seat) {
+    for (const c of [...b.members]) {
+      realms.leave(b, c);
+      realms.join(a, c);
+      realms.setDiscontent(c, { level: 0.6, cause });
+      occupy(world, c, a.ref, b.ref, year);
+    }
+    endRealm(ctx, b, t, { ref: cause, role: "trigger", weight: 1 });
+    cutOff(ctx, a, taken);
+  } else cutOff(ctx, b, taken);
 }

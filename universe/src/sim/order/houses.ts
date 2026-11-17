@@ -36,6 +36,7 @@ import {
   G,
   HOLD,
   HOUSES,
+  rentChafes,
   HOUSE_ORIGINS,
   LANDED_HOUSES,
   REIGN,
@@ -178,6 +179,8 @@ export type RealmHouses = {
   rents: number;
   /** The rents' burden on what its people earn (thousandths), bred into grievance yearly. */
   burden: number;
+  /** The burden its people have grown used to (thousandths): what they bear past it is what aggrieves them most. */
+  used?: number;
   /** The ruler's coming to rule when last reckoned. */
   crownEvent: Ref | null;
   next: number;
@@ -563,7 +566,9 @@ function stepRealm(
     imported = trade > 0 ? dmath.clamp((duty?.[DUTY.imports] ?? 0) / trade, 0, 1) : 0,
     licence = writing && trade > 0 ? licensed(favours, cap) : 0,
     farm = tariffs > 0 ? farmedOut(favours, measured) : 0,
-    rent = licence * trade * licenceRent(imported),
+    // (A licence's rent is on what its holders sell: no more than its people spend of what they earn, nor than its markets trade,
+    // which count a good each time it moves.)
+    rent = licence * Math.min(trade, earned) * licenceRent(imported),
     margin = farm * tariffs * HOUSES.farmMargin,
     nepotism = kinInOffice({
       favours,
@@ -822,6 +827,9 @@ function stepRealm(
     h.wealth = Math.round(h.wealth * stays + (income * fade) / HOUSES.spends);
   }
   v.burden = earned > 0 ? per((rents + griftTake) / earned) : 0;
+  // (What its people are used to bearing comes a share of the way to what they bear, a year.)
+  const usedWas = (v.used ?? 0) / 1000;
+  v.used = per(usedWas + (v.burden / 1000 - usedWas) * stepped(HOUSES.inured, span));
 
   // 7. Each line's head ages and dies; its heirs.
   const life = ctx.life,
@@ -1071,13 +1079,14 @@ export function housesYear(ctx: PopulationContext, t: SimTime): void {
     }
     // (The rents its houses take, as last reckoned, breed grievance in its lands year by year.)
     const now = store.of(p.ref);
-    if (now && now.burden > 0) {
+    // (A burden its people have long borne chafes the less: the most of it is what they bear past what they are used to.)
+    const chafes = now ? rentChafes(now.burden / 1000, (now.used ?? 0) / 1000) : 0;
+    if (now && chafes > 0) {
       const cause = [...now.houses].sort(
         (a, b) => b.grants + b.farm - a.grants - a.farm || a.id - b.id,
       )[0];
       if (cause)
-        for (const c of p.members)
-          grieve(world, c, (HOUSES.rentGrieves * now.burden) / 1000, cause.event);
+        for (const c of p.members) grieve(world, c, HOUSES.rentGrieves * chafes, cause.event);
     }
   }
 }

@@ -131,8 +131,8 @@ const KEPT = new WeakMap<World, Kept>();
 /** Whether a world has peoples who name things (a world of languages). */
 export function hasNames(world: World): boolean {
   return (
-    world.storeNames().includes("culture.languages") &&
-    world.storeNames().includes("planet.home") &&
+    world.hasStore("culture.languages") &&
+    world.hasStore("planet.home") &&
     languagesOf(world).all().length > 0
   );
 }

@@ -1541,6 +1541,11 @@ function writeLands(
 ): void {
   const rows = orgLandsStore(ctx.world);
   if (!rows) return;
+  // (A group's men and its killing lie in its lands as their people do: none in an empty land, nor half of it in a hamlet.)
+  const peopleIn = new Map(r.lands.map((l) => [l.cell, l.people])),
+    spread = new Map(
+      v.orgs.map((g) => [g, g.lands.reduce((s, c) => s + (peopleIn.get(c) ?? 0), 0)]),
+    );
   for (const l of r.lands) {
     const here = v.orgs.filter((g) => g.lands.includes(l.cell));
     if (!here.length) {
@@ -1567,7 +1572,8 @@ function writeLands(
       cloister = 0,
       keeps = 0;
     for (const g of here) {
-      const w = g.members / g.lands.length,
+      const part = l.people / Math.max(1, spread.get(g) ?? l.people),
+        w = g.members * part,
         a = (k: number) => (g.aims[k] ?? 0) / 1000,
         s = Math.min(1, w / men);
       if (w > bestW) {
@@ -1582,7 +1588,7 @@ function writeLands(
         (a(AIM.guard) + a(AIM.enforce) + a(AIM.rule) + 0.5 * a(AIM.trade) + 0.5 * a(AIM.lend)) *
         Math.min(1, s * 8);
       aided += a(AIM.aid) * Math.min(1, (w * HOUSEHOLD) / households);
-      killed += g.violence / g.lands.length;
+      killed += g.violence * part;
       rising = Math.max(
         rising,
         a(AIM.rebel) * Math.min(1, s * 20) * (g.fed !== undefined ? 1.3 : 1),

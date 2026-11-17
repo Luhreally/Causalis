@@ -9,6 +9,7 @@
 // What a land can be lived on and farmed is read through all of it (population/model.ts biomeUnder with a Shift): its
 // warmth, its sea, its ice. One row of whole numbers for the world, one small number a tracked land; nothing grows with
 // history but the few lands' turns told.
+import { surfaceWrites } from "./surface.ts";
 import {
   YEAR,
   Hasher,
@@ -414,11 +415,16 @@ function trackedCells(g: HomeWorld): Int32Array {
   return Int32Array.from(out);
 }
 
-const INSIDE = new Map<string, Float32Array>();
+// (Read off the ground as it now lies, and kept for each world until its ground is written again: a world loaded at any year reads
+// what the run that made it read there. Kept by the world, never by its seed's ground: one moved world does not lend another its
+// sheets or its seas.)
+const INSIDE = new WeakMap<HomeWorld, { writes: number; by: Map<number, Float32Array> }>();
 /** How far inside its sheet's edge each fine land lies (km), where its warmth now lies below the line. */
 function insideOf(g: HomeWorld, warm: number): Float32Array {
-  const key = `${g.ground}:${warm}`;
-  let d = INSIDE.get(key);
+  const writes = surfaceWrites(g);
+  let kept = INSIDE.get(g);
+  if (!kept || kept.writes !== writes) INSIDE.set(g, (kept = { writes, by: new Map() }));
+  let d = kept.by.get(warm);
   if (d) return d;
   const n = g.grid.count,
     below = (c: number) =>
@@ -444,8 +450,8 @@ function insideOf(g: HomeWorld, warm: number): Float32Array {
   d = new Float32Array(n);
   for (let c = 0; c < n; c++)
     d[c] = steps[c]! > 0 ? (steps[c]! - 0.5) * radiusKm * Math.sqrt(g.grid.areas[c]!) : 0;
-  INSIDE.set(key, d);
-  if (INSIDE.size > 6) INSIDE.delete(INSIDE.keys().next().value!);
+  kept.by.set(warm, d);
+  if (kept.by.size > 6) kept.by.delete(kept.by.keys().next().value!);
   return d;
 }
 
@@ -460,7 +466,7 @@ function seasKm2(g: HomeWorld): number {
   for (let c = 0; c < g.grid.count; c++) if (g.tectonics.elevation[c]! <= 0) a += areaOf(g, c);
   return a;
 }
-const SEAS = new Map<string, number>();
+const SEAS = new WeakMap<HomeWorld, { writes: number; km2: number }>();
 
 /** Begin a world's motion: its tracked lands and their sheets as made. */
 function begin(store: MotionStore, g: HomeWorld): void {
@@ -546,15 +552,18 @@ export function motionYear(world: World, t: SimTime, years = 1): void {
   let iceKm3 = 0;
   for (let i = 0; i < store.cells.length; i++)
     iceKm3 += ((store.made[i]! - store.ice[i]!) / 1000) * areaOf(g, store.cells[i]!);
-  let seas = SEAS.get(g.ground);
-  if (seas === undefined) SEAS.set(g.ground, (seas = seasKm2(g)));
+  let kept = SEAS.get(g);
+  if (!kept || kept.writes !== surfaceWrites(g))
+    SEAS.set(g, (kept = { writes: surfaceWrites(g), km2: seasKm2(g) }));
+  const seas = kept.km2;
   s.seaIce = seaFromIce(iceKm3, seas);
   const liquid = KINDS[kind].liquid.subst,
     swellTo = swellOf((s.ground + god) * k, liquid);
   s.swell += (1 - dmath.pow(1 - 1 / DEEP_WARMS, years)) * (swellTo - s.swell);
-  // The overturning: by the melt poured in (spread over the ten years a land steps) and the surface's warming.
+  // The overturning: by the melt poured in and the surface's warming. A tenth of the lands step a year, each by its ten years, so
+  // what melted is a year's over the world; on a long step every land steps by all its years, and it is spread over them.
   s.melt = melt;
-  const meltSv = (melt * 1e9) / ICE_STEP / (365.25 * 86400) / 1e6;
+  const meltSv = (melt * 1e9) / (years < ICE_STEP ? 1 : years) / (365.25 * 86400) / 1e6;
   s.overturn +=
     (1 - dmath.pow(1 - OVERTURN.pace, years)) *
     (overturnOf(meltSv, (s.ground + god) * k) - s.overturn);

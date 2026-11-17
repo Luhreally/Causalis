@@ -52,7 +52,7 @@ function deg(radians: number): string {
 }
 
 function hasPlanet(world: World): boolean {
-  return world.storeNames().includes("planet.home");
+  return world.hasStore("planet.home");
 }
 
 /**

@@ -45,7 +45,14 @@ export function readSurface(f: HomeWorld, cell: number): SurfacePatch {
   };
 }
 
+/** How many times a world's fine ground has been written since it was made or loaded: what is read off it is read again after. */
+const WRITTEN = new WeakMap<HomeWorld, number>();
+export function surfaceWrites(f: HomeWorld): number {
+  return WRITTEN.get(f) ?? 0;
+}
+
 export function writeSurface(f: HomeWorld, p: SurfacePatch): void {
+  WRITTEN.set(f, (WRITTEN.get(f) ?? 0) + 1);
   const c = p.cell;
   f.tectonics.elevation[c] = p.elevation;
   f.climate.temperature[c] = p.temperature;

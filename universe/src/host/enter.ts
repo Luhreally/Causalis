@@ -102,8 +102,7 @@ export function enterPlan(
   universe: string,
   size?: string,
 ): EnterPlan {
-  if (!world.storeNames().includes("planet.home"))
-    return { ok: false, why: "No stars are known from here." };
+  if (!world.hasStore("planet.home")) return { ok: false, why: "No stars are known from here." };
   if (farMade(world.seed.text))
     return {
       ok: false,
@@ -190,9 +189,7 @@ export function enterPlan(
 
 /** What a world entered says of itself (null: a world of its own seed). */
 export function enteredHere(world: World): Entered | null {
-  const far = world.storeNames().includes("planet.home")
-    ? homePlanet(world).generated.far
-    : undefined;
+  const far = world.hasStore("planet.home") ? homePlanet(world).generated.far : undefined;
   if (!far) return null;
   const now = stageOf(world),
     g = homePlanet(world).generated,

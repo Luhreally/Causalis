@@ -112,8 +112,12 @@ export function warReckoning(e: {
   readonly ratio: number;
   readonly costs: readonly [number, number];
   readonly stakes: readonly [number, number];
+  /** How near a siege it holds is to taking its land (0 … 1: its walls open, or its stores within a year of gone). */
+  readonly taking?: number;
 }): { readonly chance: number; readonly quits: boolean; readonly yields: boolean } {
-  const chance = 0.5 * ((e.won + 1) / (e.fought + 2)) + 0.5 * (e.ratio / (1 + e.ratio));
+  const field = 0.5 * ((e.won + 1) / (e.fought + 2)) + 0.5 * (e.ratio / (1 + e.ratio)),
+    // (A town near falling is near won: neither side reckons the war as if its walls stood whole.)
+    chance = field + (1 - field) * clamp(0, 1, e.taking ?? 0);
   return {
     chance,
     quits: e.costs[0] >= chance * e.stakes[0],
