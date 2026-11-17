@@ -386,6 +386,16 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
     );
   });
   await press('.people-tab[data-tab="here"]');
+  // (Let go again, and the pin taken off: the states after are as they were before these, the list of the followed empty.)
+  if (pinned) {
+    await k(`globalThis.causalis.open(${JSON.stringify(pinned)})`);
+    await until("their page", () => seen(".page-window .follow"), slow(20000));
+    if (await k<boolean>(`!!document.querySelector(".page-window .follow.on")`))
+      await press(".page-window .follow");
+    await closePage();
+    await k(`globalThis.causalis.barPins.off(${JSON.stringify(pinned)})`);
+    await settle(1200);
+  }
   if (await seen(".bar-fold")) {
     await state("globe-folded", async () => {
       await must("the bar's fold", press(".bar-fold"));
@@ -742,6 +752,12 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
     slow(30000),
   );
   await settle(800);
+  // (The hand lifted and the town drawn again: the states after meet it as they did before these.)
+  await k(`globalThis.causalis.client.command("hand.lift", {})`).catch(() => undefined);
+  await toTown(town.ref);
+  await k("globalThis.causalis.reloadPlan()").catch(() => undefined);
+  await settle(1500);
+  await closeCard();
   await state("free-walk", async () => {
     await must("walking", tool("free-walk"));
     await settle(1500);
