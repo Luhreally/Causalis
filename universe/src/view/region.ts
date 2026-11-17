@@ -225,14 +225,14 @@ export function underworldMarks(
     });
   if (u.brigands && road)
     out.push({
-      key: `uw:road|${u.brigands.ref}`,
+      key: `uw:road|${u.brigands.watch ? `watch:${u.brigands.ref}` : u.brigands.ref}`,
       text: `🗡️ ${u.brigands.name}`,
       at: { x: road.x, y: road.y - 12 },
       priority: 6e11,
     });
   if (u.pirates && sea)
     out.push({
-      key: `uw:sea|${u.pirates.ref}`,
+      key: `uw:sea|${u.pirates.watch ? `watch:${u.pirates.ref}` : u.pirates.ref}`,
       text: `🏴 ${u.pirates.name}`,
       at: { x: sea.x, y: sea.y - 12 },
       priority: 6e11,

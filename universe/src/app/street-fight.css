@@ -2,10 +2,13 @@
    harder, and a caption low down where a thumb does not rest — what, where, who has fallen — with its buttons on one row. */
 /* (Graded on the world's own picture, not a window over it: colder and lifted out of the dark for a fight of gangs, browner for soldiers.) */
 body.street-filming #world {
-  filter: saturate(0.78) contrast(1.06) brightness(1.32) hue-rotate(-8deg);
+  filter: saturate(0.82) contrast(1.05) brightness(1.08) hue-rotate(-6deg);
+}
+body.street-filming[data-street="after"] #world {
+  filter: saturate(0.6);
 }
 body.street-filming[data-street="army"] #world {
-  filter: saturate(0.7) contrast(1.05) brightness(1.28) sepia(0.18);
+  filter: saturate(0.74) contrast(1.04) brightness(1.06) sepia(0.16);
 }
 .street-film[hidden] {
   display: none !important;

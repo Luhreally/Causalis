@@ -10,11 +10,16 @@ import type { HostClient, StreetFight, VillagePlan } from "../bridge/index.ts";
 import { VILLAGE_METRE, type OrbitRig, type Stage, type VillageScene } from "../render/index.ts";
 import type { TimeBar } from "../ui/index.ts";
 import {
+  DUSK,
   SPOT_WORDS,
+  castAt,
+  funeralsOf,
+  streetCast,
+  streetView,
+  type Funeral,
+  type StreetCast,
   isGun,
-  crowdAbout,
   fallenBy,
-  openYaw,
   streetAt,
   streetEye,
   streetScript,
@@ -43,8 +48,12 @@ export type StreetFilm = {
   stop(): void;
   /** Whether the town shown is the film's: its war, hour and people are held by it. */
   readonly holds: boolean;
-  /** The hour shown in the town, as a share of the day. */
-  readonly hour: number;
+  /** The world's moment the town is drawn at, given the world's own. */
+  seen(t: number): number;
+  /** To a second of it (the look tools). */
+  seek(s: number): void;
+  /** Each clash's place and the eye's stand on it: its turn, how steeply it looks down, whether no block stands between. */
+  views(): { why: string; from: number; yaw: number; pitch: number; clear: boolean }[];
   /** Whether those at their ease are indoors now (a clash begun). */
   readonly indoors: boolean;
   /** The film as it stands, as plain numbers (a gate or a test reads it). */
@@ -53,6 +62,12 @@ export type StreetFilm = {
     kind: string | null;
     s: number;
     end: number;
+    fightEnd: number;
+    burying: boolean;
+    bier: { x: number; z: number; borne: boolean } | null;
+    caught: number;
+    cars: number;
+    lamps: number;
     paused: boolean;
     drawn: readonly number[];
     fallen: readonly number[];
@@ -82,8 +97,12 @@ const setText = (node: HTMLElement, text: string) => {
 
 /** How close and low the eye is on a clash (the rig's units, degrees), and how long it takes going from one to the next (s). */
 const EYE_DISTANCE = 4.6,
-  EYE_PITCH = -34,
   EYE_GOES = 1.3;
+/** The burying after: how long it is watched (s), the world's seconds a second of it, how far off the eye stands. */
+const BURY_LASTS = 26,
+  BURY_PACE = 18,
+  BURY_EYE = 7,
+  DAY = 86_400;
 
 export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
   const { hud, client, time, rig, village } = d;
@@ -115,6 +134,9 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
     eyeKey = "",
     heard: readonly number[] = [0, 0],
     crowd = 0,
+    caught = 0,
+    cast: StreetCast | null = null,
+    burying: Funeral | null = null,
     playing = false,
     session = 0;
 
@@ -125,6 +147,9 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
     village.warSceneOverride = null;
     village.war(null);
     village.battleAt(null);
+    village.streetDowned = null;
+    cast = null;
+    burying = null;
     time.release("street fight");
     document.body.classList.remove("filming", "street-filming");
     ui.hidden = true;
@@ -177,6 +202,11 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
     eyeKey = "";
     heard = [0, 0];
     crowd = 0;
+    caught = 0;
+    cast = null;
+    // (The burying after: the town's next of this year, else its last; none where it has no graveyard or no dead.)
+    const funerals = village.graveyardShown() ? funeralsOf(p) : [];
+    burying = funerals.find((x) => x.leaves >= d.now()) ?? funerals[funerals.length - 1] ?? null;
     scene = streetAt(script, slots, 0);
     village.warSceneOverride = () => scene;
     time.hold("street fight");
@@ -195,6 +225,7 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
   };
   again.onclick = () => {
     s = 0;
+    cast = null;
     heard = [0, 0];
     eyeKey = "";
     paused = false;
@@ -211,29 +242,66 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
       sc.falls[i]! > 0 ? Math.round((f.sides[i]!.fallen * by[i]!) / sc.falls[i]!) : 0,
     );
 
+  /** The world's moment the town is drawn at: its day's dusk; after, the morning of the burying. */
+  const seenAt = (t: number): number =>
+    script && burying && s > script.end
+      ? burying.leaves - 90 + (s - script.end) * BURY_PACE
+      : Math.floor(t / DAY) * DAY + (script?.hour ?? DUSK) * DAY;
+  const NONE = new Set<number>();
+
   d.stage.onUpdate((dt) => {
     if (!playing || !fight || !script) return;
     const p = d.plan();
     // (Gone from the town: the film is over.)
     if (!p || p.ref !== fight.town) return stop();
-    if (!paused) s = Math.min(script.end, s + dt);
+    const whole = script.end + (burying ? BURY_LASTS : 0);
+    if (!paused) s = Math.min(whole, s + dt);
+    // After it: the town's burying, by its own road to its graveyard (Phase 43), where it has one.
+    if (s > script.end && burying) {
+      scene = streetAt(script, slots, -100);
+      village.battleAt(null);
+      village.streetDowned = null;
+      document.body.dataset.street = "after";
+      // (The eye kept on the bier as it goes: set, not flown, so it neither lags nor swings out.)
+      const bier = village.graveyardShown()?.bier;
+      if (bier && !rig.steering) {
+        if (eyeKey !== "bier") {
+          eyeKey = "bier";
+          rig.halt();
+          rig.yaw = streetView(p, bier, 40).yaw;
+          rig.pitch = -44;
+          rig.distance = BURY_EYE;
+          rig.target.set(bier.x * VILLAGE_METRE, 0.12, bier.z * VILLAGE_METRE);
+        } else {
+          const k = Math.min(1, dt * 4);
+          rig.target.set(
+            rig.target.x + (bier.x * VILLAGE_METRE - rig.target.x) * k,
+            0.12,
+            rig.target.z + (bier.z * VILLAGE_METRE - rig.target.z) * k,
+          );
+        }
+        rig.userZoomed = true;
+      }
+      setText(
+        where,
+        `After, a morning in ${fight.townName}: its dead borne from their door to its graveyard`,
+      );
+      return;
+    }
+    document.body.dataset.street = fight.kind;
     scene = streetAt(script, slots, s);
-    // The eye close and low on the clash now, from one to the next.
+    // The eye close on the clash now, from one to the next: from the side with no block between, higher where it must be.
     const eye = streetEye(script, s),
       key = eye ? `${Math.round(eye.at.x / 4)}:${Math.round(eye.at.z / 4)}` : "";
     if (eye && key !== eyeKey && !rig.steering) {
       eyeKey = key;
+      const v = streetView(p, eye.at, EYE_DISTANCE / VILLAGE_METRE);
       rig.flyTo(
         {
           target: { x: eye.at.x * VILLAGE_METRE, y: 0.12, z: eye.at.z * VILLAGE_METRE },
           distance: EYE_DISTANCE,
-          pitch: EYE_PITCH,
-          // (From down the open street off it, so no block stands between.)
-          yaw: openYaw(
-            p,
-            eye.at,
-            (EYE_DISTANCE / VILLAGE_METRE) * Math.cos((EYE_PITCH * Math.PI) / 180),
-          ),
+          pitch: v.pitch,
+          yaw: v.yaw,
         },
         EYE_GOES,
       );
@@ -249,32 +317,31 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
       sound.cue(gun ? "gun" : "clash", 0.45, undefined, { far: 20, pan: 0 });
     }
     heard = by;
-    // After the last of it: a crowd come to the fallen where the last clash was.
-    const last = script.clashes[script.clashes.length - 1];
-    if (last && s >= script.quiet + 2 && !crowd) {
-      const people = crowdAbout(p, last.spot, d.now());
-      village.battleAt(null, people);
-      crowd = people.length;
-    } else if (s < script.quiet && crowd) {
-      village.battleAt(null);
-      crowd = 0;
-    }
+    // Those of the town in it: who is caught between and falls, the watch come after, the crowd about the fallen.
+    cast ??= streetCast(p, script, d.now());
+    const there = castAt(cast, s);
+    village.battleAt(null, there.folk);
+    village.streetDowned = there.downed.size ? there.downed : NONE;
+    crowd = there.folk.length;
+    caught = there.downed.size;
     // Its words: what and where now; who has fallen, as history counts them; after, what it cost and what came of it.
-    const hour = script.hour >= 0.8 ? "as night fell" : "at dusk",
-      n = told(fight, script, by),
+    const n = told(fight, script, by),
       a = fight.sides[0],
-      b = fight.sides[1];
+      b = fight.sides[1],
+      between = script.bystanders.length
+        ? Math.round((fight.others * caught) / script.bystanders.length)
+        : 0;
     setText(
       where,
       s >= script.quiet
         ? `${fight.words.cost}. ${fight.words.effect}.`
         : eye
-          ? `Year ${fight.year}, ${hour} in ${fight.townName}: ${eye.why === "post" ? "soldiers going into its quarter, street by street" : SPOT_WORDS[eye.why]}`
-          : `Year ${fight.year}, ${hour} in ${fight.townName}. ${fight.words.what}.`,
+          ? `Year ${fight.year}, at dusk in ${fight.townName}: ${eye.why === "post" ? "soldiers going into its quarter, street by street" : SPOT_WORDS[eye.why]}`
+          : `Year ${fight.year}, at dusk in ${fight.townName}. ${fight.words.what}.`,
     );
     setText(
       tally,
-      `${a.name}: ${n[0]} fallen  ·  ${b.name}: ${n[1]} fallen${fight.others && s >= script.quiet ? `  ·  ${fight.others} caught between` : ""}`,
+      `${a.name}: ${n[0]} fallen  ·  ${b.name}: ${n[1]} fallen${fight.others ? `  ·  ${between} caught between` : ""}`,
     );
   });
 
@@ -284,11 +351,24 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
     get holds() {
       return playing;
     },
-    get hour() {
-      return script?.hour ?? 0.9;
+    seen: seenAt,
+    seek(to: number) {
+      s = Math.max(0, to);
+      heard = script ? fallenBy(script, s) : [0, 0];
+      eyeKey = "";
+    },
+    views() {
+      const p = d.plan();
+      return script && p
+        ? script.clashes.map((c) => ({
+            why: c.spot.why,
+            from: c.from,
+            ...streetView(p, c.spot, EYE_DISTANCE / VILLAGE_METRE),
+          }))
+        : [];
     },
     get indoors() {
-      return playing && !!script && script.clashes.some((c) => c.from - 2 <= s);
+      return playing && !!script && s <= script.end && script.clashes.some((c) => c.from - 2 <= s);
     },
     state() {
       const sc = script,
@@ -299,7 +379,13 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
         event: f?.event ?? null,
         kind: f?.kind ?? null,
         s,
-        end: sc?.end ?? 0,
+        end: (sc?.end ?? 0) + (burying ? BURY_LASTS : 0),
+        fightEnd: sc?.end ?? 0,
+        burying: !!burying,
+        bier: village.graveyardShown()?.bier ?? null,
+        caught,
+        cars: scene?.cars?.length ?? 0,
+        lamps: scene?.camp.length ?? 0,
         paused,
         drawn: sc?.drawn ?? [0, 0],
         fallen: by,

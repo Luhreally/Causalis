@@ -7,7 +7,8 @@ import type { Arms } from "./arms.ts";
 import type { HostKinds } from "./wars.ts";
 
 /** What kind of fight: a war over a rent, soldiers in a quarter, street gangs. */
-export type StreetFightKind = "turf" | "army" | "street";
+/** (And: a crew of the realm's own enforcers and those it hunted; a group's preying on a road or a coast, a year of it.) */
+export type StreetFightKind = "turf" | "army" | "street" | "badge" | "raid";
 
 /** One side of it: a crime group, the realm's soldiers, a crew of its own enforcers, a federation's gangs. */
 export type StreetFightSide = {
@@ -24,6 +25,8 @@ export type StreetFightSide = {
   readonly host: HostKinds | null;
   /** That in words: "arms as good as the realm's soldiers, armoured carriers"; "the realm's arms". */
   readonly gear: string;
+  /** It comes in armoured carriers (its means say so). */
+  readonly carriers?: boolean;
 };
 
 export type StreetFight = {
@@ -63,4 +66,5 @@ export const STREET_FIGHT_TYPES: readonly string[] = [
   "underworld.operation",
   "underworld.army-took",
   "underworld.feud",
+  "underworld.exposed",
 ];

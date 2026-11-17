@@ -30,6 +30,9 @@ import { groupWords } from "../../causal/index.ts";
 import { holderColor, realmColor } from "../colors.ts";
 import { hostKinds, realmArms } from "../arms.ts";
 import { fedRef, groupRef, opRef } from "../underworld.ts";
+import { orgOf, orgRef } from "../groups.ts";
+import { organisedIn, orgsOf } from "../../sim/index.ts";
+import { orgWords } from "../../causal/index.ts";
 import { landTitle } from "./names.ts";
 import { count, many, yearAt } from "./words.ts";
 
@@ -125,6 +128,7 @@ function groupSide(
       mount: "",
     },
     gear: gear.join(", "),
+    ...(armoured ? { carriers: true } : {}),
   };
 }
 
@@ -173,6 +177,7 @@ export function lastEvent(world: World, test: (e: HistoryEvent) => boolean): His
  * land gone with no town standing in it).
  */
 export function streetFightOf(world: World, ref: string): StreetFight | null {
+  if (ref.startsWith("org:")) return preyingOf(world, ref);
   const e = world.events.get(ref as Ref);
   if (!isFightEvent(e)) return null;
   const r = politiesOf(world).get(e!.subjects[0] as Ref),
@@ -304,6 +309,44 @@ export function streetFightOf(world: World, ref: string): StreetFight | null {
     };
   }
 
+  // A crew of the realm's own enforcers found out: its year's killing of those it hunted.
+  if (e!.type === "underworld.exposed") {
+    const killed = Math.round((e!.data as { killed?: number }).killed ?? 0),
+      squad = !!(e!.data as { squad?: number }).squad,
+      crewName = d.group ?? "",
+      b = v.groups.find((x) => kindOfGroup(x) === "badge" && x.name === crewName),
+      crew = groupSide(world, r, v, b?.id, crewName, "badge", 0),
+      hunted: StreetFightSide = {
+        ref: `${r.ref}#underworld`,
+        name: "Those it hunted",
+        color: [0.5, 0.46, 0.4],
+        as: "street",
+        men: killed,
+        fallen: killed,
+        arms: null,
+        host: { arm: "club", guard: "", mount: "" },
+        gear: "what they had to hand",
+      };
+    return {
+      ...base,
+      page: ref,
+      kind: "badge",
+      title: `${crew.name} and those it hunted`,
+      sides: [{ ...crew, men: Math.max(crew.men, Math.ceil(killed / 4), 4) }, hunted],
+      others: 0,
+      won: null,
+      open: false,
+      words: {
+        what: squad
+          ? "A death squad of the realm's own enforcers, found out"
+          : "A crew of the realm's own enforcers, found out",
+        who: `${crew.name}, in the realm's colours and acting for itself; those it hunted, outside the law`,
+        cost: killed >= 1 ? `${many(killed, "killed", "killed")} that year` : "Few killed",
+        effect: "It was found out, purged and made again",
+      },
+    };
+  }
+
   // Two federations of street gangs, set against each other.
   const [fa, fb] = d.fids ?? [],
     A = v.feds.find((x) => x.id === fa),
@@ -341,6 +384,82 @@ export function lastFightIn(
 }
 
 /**
+ * A group's preying of the latest year (brigands on a road, pirates off a coast), from its page's ref: no event tells it, so it is
+ * read off what is kept of the group — its men, those it kills and loses a year, what it takes — in the land of its lands where
+ * the most is preyed on (null: not such a group, or none of its lands is preyed on, or no town stands there).
+ */
+function preyingOf(world: World, ref: string): StreetFight | null {
+  const g = orgOf(world, ref),
+    rec = g?.record;
+  if (!g || !rec || (g.kind !== "brigands" && g.kind !== "pirates")) return null;
+  const sea = g.kind === "pirates",
+    ctx = populationContext(world),
+    lands = rec.lands
+      .map((c) => {
+        const row = organisedIn(world, c);
+        return { c, prey: (sea ? row?.seaPrey : row?.prey) ?? 0 };
+      })
+      .filter(
+        (x) => x.prey >= 0.001 && ctx.settlements.inProvince(x.c).some((t) => t.population > 0),
+      )
+      .sort((a, b) => b.prey - a.prey || a.c - b.c),
+    at = lands[0];
+  if (!at) return null;
+  const town = [...ctx.settlements.inProvince(at.c)]
+      .filter((t) => t.population > 0)
+      .sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1))[0]!,
+    name = cap(orgWords(rec.name, g.kind)),
+    men = Math.max(2, Math.round(rec.members / Math.max(1, rec.lands.length))),
+    dead = Math.round(rec.violence / Math.max(1, rec.lands.length)),
+    // (History keeps its killing and its losses as one number: halved between them here.)
+    lost = Math.floor(dead / 2),
+    raiders: StreetFightSide = {
+      ref,
+      name,
+      color: holderColor(ref),
+      as: "gang",
+      men,
+      fallen: lost,
+      arms: null,
+      host: { arm: hostKinds(world, g.realm.ref)?.arm ?? "club", guard: "", mount: "" },
+      gear: "what arms it could get",
+    },
+    prey: StreetFightSide = {
+      ref: `cell:0:${at.c}#underworld`,
+      name: sea ? "Those who trade by its coast" : "Those who trade by its road",
+      color: [0.52, 0.48, 0.38],
+      as: "street",
+      men: Math.max(4, men),
+      fallen: dead - lost,
+      arms: null,
+      host: { arm: "club", guard: "", mount: "" },
+      gear: "what they carried",
+    },
+    year = yearAt(world.now) - 1;
+  return {
+    event: ref,
+    page: ref,
+    kind: "raid",
+    title: `${name} on ${sea ? "the coast" : "the road"} of ${landTitle(world, at.c)}`,
+    year,
+    cell: at.c,
+    land: landTitle(world, at.c),
+    town: town.ref as string,
+    townName: town.name,
+    sides: [raiders, prey],
+    others: 0,
+    won: null,
+    open: true,
+    words: {
+      what: `A year of its preying on trade ${sea ? "off the coast" : "on the road"} here, as its record stands`,
+      who: `${name}, some ${count(men)} in this land; those who trade here`,
+      cost: `${at.prey >= 0.01 ? Math.round(at.prey * 100) : +(at.prey * 100).toFixed(1)}% of the ${sea ? "sea" : "road"} trade here taken a year${dead >= 1 ? `, some ${count(dead)} dead` : ""}`,
+      effect: "The trade here shrinks, and holdings are the less safe",
+    },
+  };
+}
+
+/**
  * A land's latest fights of the underworld (one walk back; null: none in it): the killing (a war between groups, two
  * federations, a clash) and the soldiers' (a clash, their coming, a boss taken), for its marks in the land view.
  */
@@ -373,6 +492,26 @@ export function latestFights(
 ): { event: string; kind: string; town: string; dead: number }[] {
   const all = world.events.all(),
     out: { event: string; kind: string; town: string; dead: number }[] = [];
+  // (A group's preying is told by no event: read off the groups that prey, the most men first.)
+  if (kind === "raid") {
+    for (const r of politiesOf(world).all()) {
+      if (r.ended !== null) continue;
+      for (const g of orgsOf(world)?.of(r.ref)?.orgs ?? []) {
+        const f = streetFightOf(world, orgRef(r.ref, g.event));
+        if (!f) continue;
+        out.push({
+          event: f.event,
+          kind: f.kind,
+          town: f.town,
+          dead: f.sides[0].fallen + f.sides[1].fallen,
+        });
+      }
+    }
+    return out
+      .filter((x) => !dead || x.dead > 0)
+      .sort((a, b) => b.dead - a.dead || (a.event < b.event ? -1 : 1))
+      .slice(0, most);
+  }
   for (let i = all.length - 1, n = 0; i >= 0 && n < 4 * WALKED && out.length < most; i--, n++) {
     const e = all[i]!;
     if (!TYPES.has(e.type)) continue;

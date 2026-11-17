@@ -23,6 +23,7 @@ import { orgFedNews, orgFedOf, orgFedRef, orgNews, orgOf, orgRef } from "../grou
 import { claimOf, count, item, link, many, part, share, stat, yearAt, yearNow } from "./words.ts";
 import { landLink, realmLink } from "./names.ts";
 import { bossLink } from "./boss.ts";
+import { streetFightOf, watchFightTool } from "./streetfight.ts";
 
 const th = (n: number) => share(n / 1000),
   grain = (n: number) => `${grainSum(Math.max(0, Math.round(n)))} grain's worth`,
@@ -334,6 +335,9 @@ export function orgPage(world: World, ref: string): PageModel {
       ),
     );
   const blocks: Block[] = [{ type: "facts", rows: facts }];
+  // (Brigands and pirates: their latest year's preying, played where the most of it is. Read off their record: no event tells it.)
+  if (rec && streetFightOf(world, g.ref))
+    blocks.push(watchFightTool(g.ref, "▶ Watch its latest year's preying"));
   if (rec) {
     blocks.push({
       type: "bars",

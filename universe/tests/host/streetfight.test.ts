@@ -20,7 +20,16 @@ import { pageOf } from "../../src/host/inspect/index.ts";
 import { groupRef, opRef } from "../../src/host/underworld.ts";
 import { villagePlan } from "../../src/host/village.ts";
 import { yearNow } from "../../src/host/inspect/words.ts";
-import { fallenBy, fightSpots, streetAt, streetEye, streetScript } from "../../src/view/index.ts";
+import {
+  castAt,
+  streetCast,
+  streetView,
+  fallenBy,
+  fightSpots,
+  streetAt,
+  streetEye,
+  streetScript,
+} from "../../src/view/index.ts";
 import { peopledWorld } from "../worlds.ts";
 
 const world = peopledWorld("juniper", 60, { start: "spread" });
@@ -299,6 +308,75 @@ test("the scene in its town: its places read off the town, its fallen and its ho
     assert.ok(army.posts.length >= 1);
     assert.equal(posts.tents.length, army.posts.length);
     assert.deepEqual(fallenBy(army, army.end), [...army.falls]);
+  } finally {
+    w.restore();
+  }
+});
+
+test("what is drawn about it: carriers, lamps, the eye's clear stand, those caught between, the watch and the crowd", () => {
+  const w = written();
+  try {
+    const plan = villagePlan(world, w.town as Ref, undefined, 120),
+      slots = 56,
+      turf = streetScript(streetFightOf(world, w.start)!, plan, slots),
+      army = streetScript(streetFightOf(world, w.clash)!, plan, slots);
+    // (Both groups' means say armoured carriers: a car behind each side's men while they are there, and a fire lit at the place.)
+    assert.deepEqual(turf.carriers, [true, true]);
+    const mid = streetAt(turf, slots, turf.clashes[0]!.from + 2);
+    assert.ok((mid.cars?.length ?? 0) >= 2, `${mid.cars?.length} cars`);
+    assert.ok(mid.camp.length >= 1);
+    assert.equal(streetAt(turf, slots, -100).cars?.length, 0);
+    // (The eye on every place of both: no block or wall under its line.)
+    for (const c of [...turf.clashes, ...army.clashes]) {
+      const v = streetView(plan, c.spot, 46);
+      assert.ok(v.clear, `${c.spot.why} at ${Math.round(c.spot.x)},${Math.round(c.spot.z)}`);
+      assert.ok(v.pitch <= -34 && v.pitch >= -80);
+    }
+    // (The clash's three caught between, at the figures' scale: each stands by it, then lies fallen.)
+    assert.ok(army.bystanders.length >= 1);
+    const cast = streetCast(plan, army, world.now),
+      before = castAt(cast, 0),
+      after = castAt(cast, army.end);
+    assert.equal(before.downed.size, 0);
+    assert.equal(after.downed.size, army.bystanders.length);
+    // (Soldiers are their own watch; after a war of gangs four of the town come as its watch, then a crowd.)
+    assert.equal(cast.watch.length, 0);
+    const street = streetCast(plan, turf, world.now),
+      late = castAt(street, turf.end);
+    assert.equal(street.watch.length, 4);
+    assert.equal(late.folk.filter((x) => x.why === "Of the watch, come after it").length, 4);
+    assert.ok(late.folk.filter((x) => x.why === "Come out to the fallen").length >= 4);
+    assert.equal(new Set(late.folk.map((x) => x.index)).size, late.folk.length);
+  } finally {
+    w.restore();
+  }
+});
+
+test("a crew of the realm's own found out is a fight of its own: the crew in the realm's darker colours, those it hunted its dead", () => {
+  const w = written();
+  try {
+    const { realm, cell } = { realm: w.realm, cell: w.cell },
+      prov = populationContext(world).provinces.get(cell)!,
+      ev = world.events.emit({
+        type: "underworld.exposed",
+        subjects: [realm.ref],
+        place: prov.ref,
+        data: { realm: "", group: "Ash", kind: "badge", gids: [9], squad: 1, killed: 14 },
+      }),
+      f = streetFightOf(world, ev)!;
+    assert.equal(f.kind, "badge");
+    assert.deepEqual(
+      f.sides.map((x) => [x.as, x.fallen]),
+      [
+        ["badge", 0],
+        ["street", 14],
+      ],
+    );
+    assert.match(f.words.what, /death squad/);
+    const plan = villagePlan(world, w.town as Ref, undefined, 120),
+      script = streetScript(f, plan, 56);
+    assert.equal(fallenBy(script, script.end)[1], script.falls[1]);
+    assert.ok(script.falls[1] > 0 && script.falls[0] === 0);
   } finally {
     w.restore();
   }

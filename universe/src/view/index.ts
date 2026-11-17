@@ -1272,7 +1272,12 @@ export {
   type Voicing,
 } from "./heard.ts";
 export {
+  DUSK,
   SPOT_WORDS,
+  castAt,
+  streetCast,
+  streetView,
+  type StreetCast,
   crowdAbout,
   fallenBy,
   fightSpots,
