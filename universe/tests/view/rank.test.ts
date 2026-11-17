@@ -103,7 +103,7 @@ test("an even land's town is drawn as it was; an uneven one's well-off and poor 
   };
   const gap = (gini: number) => {
     const plan = town({ gini, drives: false });
-    return top(homes(plan, [3])) - top(homes(plan, [lee]));
+    return top(homes(plan, [2, 3])) - top(homes(plan, [lee]));
   };
   assert.ok(gap(0.2) > 0.2, `${gap(0.2)} m`);
   assert.ok(gap(0.4) > gap(0.2) + 0.5, `${gap(0.4)} m`);
