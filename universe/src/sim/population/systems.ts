@@ -307,23 +307,27 @@ export function adults(p: Province, life: LifeHistory): number {
 /** How many times the hands that would win all a land's fields give, were each hand's work its first, its fields can use. */
 export const FIELDS_FULL = 3;
 
+/** The most of a land's grown its fields can use, and its wild (shares; past 1 where they can use them all). */
+export type LandUse = { readonly tilled: number; readonly gathered: number };
+const ALL_USED: LandUse = { tilled: Infinity, gathered: Infinity };
+
 /**
- * The most of a land's grown its fields can use (a share; past 1 where they can use them all): FIELDS_FULL times the hands that
- * would win all its fields give, and its vats where it grows food in them, were each hand's work its first: past that a hand
- * adds under a twentieth of its own (saturate). By a bare hand's work, whatever its tools: a bound, not what its fields need
- * (farmingShare is that).
+ * The most of a land's grown its fields can use, and the most its wild can (LandUse): FIELDS_FULL times the hands that would
+ * win all its fields give (and its vats, where it grows food in them), or all its wild gives, were each hand's work its
+ * first: past that a hand adds under a twentieth of its own (saturate). By a bare hand's work, whatever its tools: a bound,
+ * not what its fields need (farmingShare is that).
  */
-export function fieldsUse(ctx: PopulationContext, p: Province): number {
+export function fieldsUse(ctx: PopulationContext, p: Province): LandUse {
   const grown = adults(p, ctx.life);
-  if (!p.knowsCultivation || !(grown > 0)) return Infinity;
+  if (!p.knowsCultivation || !(grown > 0)) return ALL_USED;
   const c = provinceCapacity(ctx, p.cell),
     room = c.farm + (loreOf(ctx.world).get(p.cell, "vat-food") ? c.areaKm2 * VAT_PEOPLE_KM2 : 0),
-    per =
-      PRODUCTIVITY[OCC.farmer]! *
-      ctx.life.appetite *
-      (1 - hallsShare(ctx, p.cell)) *
-      daysWorkedOf(ctx.world, p.cell);
-  return per > 0 ? (FIELDS_FULL * room) / (per * grown) : Infinity;
+    work = ctx.life.appetite * (1 - hallsShare(ctx, p.cell)) * daysWorkedOf(ctx.world, p.cell);
+  if (!(work > 0)) return ALL_USED;
+  return {
+    tilled: (FIELDS_FULL * room) / (PRODUCTIVITY[OCC.farmer]! * work * grown),
+    gathered: (FIELDS_FULL * c.forage) / (PRODUCTIVITY[OCC.forager]! * work * grown),
+  };
 }
 
 /**
@@ -336,7 +340,7 @@ export function occupationTargets(
   villages: number,
   wages: readonly number[] | null = null,
   farming = 1,
-  mostTilled = Infinity,
+  use: LandUse = ALL_USED,
 ): number[] {
   const t = new Array<number>(COLS).fill(0);
   if (p.knowsCultivation) {
@@ -350,15 +354,19 @@ export function occupationTargets(
       // and gatherers held at 9 in 100 where they had been held at 4: first light's small game was trapped in every land.)
       fields = 0.77 - herds,
       share = dmath.clamp(farming, 0, 1),
-      // (No more of its hands to its fields than its fields can use, fieldsUse: the rest gather, as a people that never
-      // sowed does. The old ways sent 77 in 100 to the fields of any land that had learned to sow, whatever it had of fields:
-      // on first light's cold shores, where nothing can be sown, peoples of gatherers that learned sowing from their
-      // neighbours sent a third of their hands to fields they did not have and ate a tenth of what they needed, year after
-      // year; nine famines in twenty years in one such land.)
-      tilled = Math.min(fields, mostTilled),
-      farm = tilled * share,
-      gather = 0.1 * share + (fields - tilled),
-      freed = tilled - farm + 0.1 * (1 - share),
+      // (Of the hands its fields need by the old ways, those past what its fields can use gather instead, as far as its
+      // wild can use them (fieldsUse): the rest stay on the land, as before. The old ways sent 77 in 100 to the fields of any
+      // land that had learned to sow, whatever it had of fields: on first light's cold shores, where nothing can be sown,
+      // peoples of gatherers that learned sowing from their neighbours sent a third of their hands to fields they did not
+      // have and ate a tenth of what they needed, year after year; nine famines in twenty years in one such land. A crowded
+      // land of fields, whose wild its gatherers already take all of, is as it was: at 1,000 half of first light's lands
+      // have more hands than their fields can use, and sent to the wild they would have stripped it.)
+      wanted = fields * share,
+      toWild = Math.min(Math.max(0, wanted - use.tilled), Math.max(0, use.gathered - 0.1 * share)),
+      farm = wanted - toWild,
+      gather = 0.1 * share + toWild,
+      // (Written as it was, to the bit, where none go to the wild.)
+      freed = fields - wanted + (0.1 - 0.1 * share),
       trades = villages >= 2;
     t[OCC.farmer] = farm;
     t[OCC.forager] = gather;

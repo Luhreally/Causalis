@@ -97,14 +97,16 @@ test("each land's soil is what its ground's stocks give", () => {
       w = eco.get(p.cell);
     if (!g || !w) continue;
     for (const x of g.nut) assert.ok(x >= 0 && x <= 1_300_000);
-    // (Worn by a twentieth: since the rounds merged a land's fields take only the hands that feed it, and few at 700 are worn by
-    // a tenth, 7 of 530; 90 by a twentieth.)
-    if (Math.min(...g.nut) < 950_000) worn++;
+    // (Worn by a fiftieth: since the rounds merged a land's fields take only the hands that feed it, and few at 700 are worn by
+    // more. Counted at a twentieth, the line stood at the edge of one history: 12 lands of 533 on the release's head of
+    // 2026-11-17 against the 10 asked, 17 once copper was priced at what its users give, 10 of 550 once the cold shores'
+    // peoples lived (worn.mts); by a fiftieth 130, 158 and 157.)
+    if (Math.min(...g.nut) < 980_000) worn++;
     assert.ok(w.soil >= 0.3 && w.soil <= 1);
     assert.ok(
       Math.abs(w.soil - soilOf(g, false)) < 1e-9 || Math.abs(w.soil - soilOf(g, true)) < 1e-9,
       `land ${p.cell}: its soil ${w.soil} against its ground's`,
     );
   }
-  assert.ok(worn > 10, `${worn} lands' fields worn`);
+  assert.ok(worn > 50, `${worn} lands' fields worn`);
 });
