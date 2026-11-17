@@ -252,6 +252,12 @@ export function loreOf(world: World): LoreStore {
 }
 
 /** Whether a land knows a principle: the roots by the older systems, the rest by its lore. */
+/** What else makes a land's inquiry the readier (its learned: sim/lore/academy.ts), each a factor (1: none). */
+const INQUIRES: ((world: World, cell: number) => number)[] = [];
+export function inquiresMore(f: (world: World, cell: number) => number): void {
+  if (!INQUIRES.includes(f)) INQUIRES.push(f);
+}
+
 export function knows(ctx: PopulationContext, cell: number, id: string): boolean {
   if (id === "cultivation") return !!ctx.provinces.get(cell)?.knowsCultivation;
   if (id === "metalworking")
@@ -496,12 +502,13 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
           : 0,
         ways = culture.get(cell);
       readers = (own + joined) * (0.5 + 0.5 * spare);
-      return (inquiryRead = inquiryOf(
-        readers,
-        measuresOf(here),
-        ways?.traits[WAY.openness] ?? 0.5,
-        ways?.traits[WAY.tradition] ?? 0.5,
-      ));
+      return (inquiryRead =
+        inquiryOf(
+          readers,
+          measuresOf(here),
+          ways?.traits[WAY.openness] ?? 0.5,
+          ways?.traits[WAY.tradition] ?? 0.5,
+        ) * INQUIRES.reduce((k, f) => k * f(world, cell), 1));
     };
     // (What has cost it presses it toward what would answer that: exactly 1 where nothing has.)
     const pressed = pressesOn(world, cell, realms.of(cell)?.ref ?? null, year);

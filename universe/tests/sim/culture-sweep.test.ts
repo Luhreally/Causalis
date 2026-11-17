@@ -3,6 +3,23 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  ACADEMY,
+  KIN_FORMS,
+  TIES,
+  academyFunds,
+  byLine,
+  claimEnd,
+  claimYearsOf,
+  heirlessChance,
+  kinCall,
+  learnedAfter,
+  learnedHealing,
+  learnedInquiry,
+  learnedReach,
+  scholarsTarget,
+  templeSway,
+  tieKin,
+  tieRegard,
   ART,
   FOLK,
   TEMPLE,
@@ -45,8 +62,16 @@ import {
   URBAN_STORE,
   VOICE_STORE,
   ART_STORE,
+  ACADEMY_STORE,
 } from "../../src/sim/index.ts";
-import { ART_ROW, FOLK_ROW, TEMPLE_ROW, URBAN_ROW, VOICE_ROW } from "../../src/sim/culture/rows.ts";
+import {
+  ACADEMY_ROW,
+  ART_ROW,
+  FOLK_ROW,
+  TEMPLE_ROW,
+  URBAN_ROW,
+  VOICE_ROW,
+} from "../../src/sim/culture/rows.ts";
 import { peopledWorld } from "../worlds.ts";
 
 const near = (a: number, b: number, eps = 1e-9) => Math.abs(a - b) <= eps;
@@ -179,6 +204,7 @@ test("each of the sweep's stores is as wide as its rows' places", () => {
     [VOICE_STORE, VOICE_ROW],
     [URBAN_STORE, URBAN_ROW],
     [ART_STORE, ART_ROW],
+    [ACADEMY_STORE, ACADEMY_ROW],
   ] as const) {
     const places = Object.values(row);
     assert.equal(widths.get(name), Math.max(...places) + 1, name);
@@ -203,4 +229,64 @@ test("a young world keeps the sweep's stores: who each land of a realm counts it
     const seat = identityOf(world, r.seat);
     if (seat) assert.equal(seat.kin, 1);
   }
+});
+
+test("a tie makes kin as its people make kin: a marriage half, a fostering a quarter, a hive's brood as much as a hive's own", () => {
+  assert.equal(tieKin("wed", 0.8), 0.5);
+  assert.equal(tieKin("foster", 0.6), 0.25);
+  assert.equal(tieKin("graft", 0.6), 0.5);
+  assert.ok(near(tieKin("brood", 0.9), KIN_FORMS.broodLeast));
+  assert.ok(near(tieKin("brood", 1), KIN_FORMS.broodMost));
+  // (A marriage is remembered and called on as it always was; the others by the kin they make.)
+  assert.ok(near(tieRegard("wed", 0.8, TIES.tieOther), TIES.tieOther + 0.1));
+  assert.ok(near(kinCall("wed", 0.8, TIES.comes.kin), TIES.comes.kin));
+  assert.ok(kinCall("brood", 1, TIES.comes.kin) > kinCall("wed", 0.8, TIES.comes.kin));
+  assert.ok(kinCall("foster", 0.6, TIES.comes.kin) < kinCall("wed", 0.8, TIES.comes.kin));
+  // (A marriage's claim stands a life of their kind; a line's until a generation leaves it no heir, at most four lives.)
+  assert.equal(claimYearsOf("wed", 70, 25, 2), KIN_FORMS.claimYears);
+  assert.ok(claimYearsOf("wed", 35, 12, 2) < claimYearsOf("wed", 70, 25, 2));
+  assert.ok(byLine("brood") && byLine("graft") && !byLine("wed") && !byLine("foster"));
+  assert.ok(claimYearsOf("brood", 70, 25, 2) > claimYearsOf("wed", 70, 25, 2));
+  assert.ok(claimYearsOf("brood", 70, 25, 50) <= KIN_FORMS.lineMost * KIN_FORMS.claimYears + 1e-9);
+  // (An upright ape's line of some two heirs leaves none about one time in eight, as the old rule had it.)
+  assert.ok(Math.abs(heirlessChance(2) - TIES.heirless) < 0.02);
+  assert.ok(heirlessChance(6) < heirlessChance(1));
+});
+
+test("a hive's seat passes to a mother of its gifted brood whatever it thinks of the giver, and no hive marches for one", () => {
+  for (const draw of [0, 0.3, 0.6, 0.8]) {
+    assert.equal(claimEnd("brood", -0.9, 1, true, draw), "seated");
+    assert.notEqual(claimEnd("brood", 0.9, 0.1, true, draw), "war");
+    assert.notEqual(claimEnd("graft", -0.9, 0.1, true, draw), "war");
+  }
+  assert.equal(claimEnd("brood", 0.9, 0.1, true, 0.95), "passedby");
+  // (Reefs grafted fuse where they think well enough of each other; a marriage asks more of its regard to pass.)
+  assert.equal(claimEnd("graft", 0, 0.5, true, 0.1), "passes");
+  assert.notEqual(claimEnd("wed", 0, 0.5, true, 0.1), "passes");
+});
+
+test("a faith weighs in its realm as far as it has clergy to speak for its piety", () => {
+  assert.equal(templeSway(0), TEMPLE.swayLeast);
+  assert.equal(templeSway(1), 1);
+  assert.equal(templeSway(5), 1);
+  assert.ok(templeSway(0.5) > templeSway(0.1));
+});
+
+test("higher learning: kept by patrons, of readers the fields spare, none without writing; its learned inquire, heal and clerk", () => {
+  const funds = academyFunds(1000, 2000, 500);
+  assert.ok(near(funds, ACADEMY.temple * 1000 + ACADEMY.seat * 2000 + ACADEMY.houses * 500));
+  assert.equal(scholarsTarget(false, 1e9, 12, 1000, 1, 1), 0);
+  // (Funds without readers keep no one; readers without funds neither.)
+  assert.equal(scholarsTarget(true, 1e9, 12, 1000, 0, 1), 0);
+  assert.equal(scholarsTarget(true, 0, 12, 1000, 1, 1), 0);
+  assert.ok(near(scholarsTarget(true, 1e9, 12, 1000, 0.5, 0.4), ACADEMY.most * 0.5 * 0.4));
+  assert.ok(near(scholarsTarget(true, 120, 12, 1000, 1, 1), 10 / 1000));
+  // (A generation brings it half the way.)
+  assert.ok(near(learnedAfter(0, 0.01, 25, 70), 0.005));
+  assert.ok(near(learnedAfter(0.01, 0.01, 10, 70), 0.01));
+  assert.equal(learnedInquiry(0), 1);
+  assert.ok(near(learnedInquiry(ACADEMY.full), 1 + ACADEMY.inquiry));
+  assert.ok(near(learnedInquiry(1), 1 + ACADEMY.inquiry));
+  assert.equal(learnedHealing(0), 1);
+  assert.ok(near(learnedReach(ACADEMY.full / 2), ACADEMY.reach / 2));
 });

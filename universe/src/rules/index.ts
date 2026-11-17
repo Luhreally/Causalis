@@ -1692,3 +1692,6 @@ export * from "./trade.ts";
 export * from "./siege.ts";
 export * from "./navy.ts";
 export * from "./arming.ts";
+export * from "./houses.ts";
+export * from "./kinforms.ts";
+export * from "./academy.ts";

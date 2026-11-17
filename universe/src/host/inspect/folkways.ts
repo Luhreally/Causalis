@@ -5,7 +5,12 @@
 import type { World } from "../../kernel/index.ts";
 import type { Block, Stat } from "../../bridge/index.ts";
 import {
+  TEMPLE,
   VOICE_WORDS,
+  academyWords,
+  learnedHealing,
+  learnedInquiry,
+  templeSway,
   drawWords,
   kinWords,
   nationWords,
@@ -13,6 +18,7 @@ import {
   templeWords,
 } from "../../rules/index.ts";
 import {
+  academyOf,
   artMakers,
   artOf,
   beliefOf,
@@ -64,6 +70,28 @@ export function landCultureBlocks(world: World, cell: number): Block[] {
     if (art.court > 0.05) rows.push(stat("Kept by those who rule", share(art.court)));
     if (art.clergy > 0.05) rows.push(stat("Kept by their faith", share(art.clergy)));
     blocks.push({ type: "facts", title: "What they make", rows });
+  }
+  // (Higher learning: who its patrons keep at study past their letters, and what its learned do: rules/academy.ts.)
+  const academy = academyOf(world, cell);
+  if (academy && academy.learned > 0) {
+    const patrons = [
+      ["its temple", academy.temple],
+      ["its seat", academy.seat],
+      ["its great houses", academy.houses],
+    ] as const;
+    const kept = patrons.filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+    blocks.push({
+      type: "facts",
+      title: "Higher learning",
+      rows: [
+        stat("Learned past their letters", academyWords(academy.learned)),
+        stat("Of their people", `${(academy.learned * 100).toFixed(2)}%`),
+        stat("A generation on", `${(academy.target * 100).toFixed(2)}%, as they are kept now`),
+        stat("Kept by", kept.length ? kept.map(([n]) => n).join(", ") : "no patron now"),
+        stat("Their inquiry", `${learnedInquiry(academy.learned).toFixed(2)}× as ready`),
+        stat("Their healers reach", `${learnedHealing(academy.learned).toFixed(2)}× as far`),
+      ],
+    });
   }
   const urban = urbanOf(world, cell),
     town = ctx.settlements.inProvince(cell).find((v) => v.market);
@@ -149,6 +177,10 @@ export function faithHousesBlock(world: World, f: Faith): Block | null {
     rows: [
       stat("Faith", [faithLink(world, f.ref)]),
       stat("Its temples", templeWords(h.clergy, h.faithful)),
+      stat(
+        "Its weight where it is held",
+        `${share(templeSway(h.faithful > 0 ? h.clergy / h.faithful / TEMPLE.teachAt : 0))} of what its piety could carry`,
+      ),
       stat("Its clergy", count(h.clergy)),
       stat("Its faithful", `${count(h.faithful)} in ${many(h.lands, "land", "lands")}`),
       stat("Given it last year", `${count(h.given)} grain`),

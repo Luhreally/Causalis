@@ -312,7 +312,15 @@ function hungerOf(ctx: PopulationContext, cell: number): number {
 
 /** The share of a land's people its healers spare (herb-lore, medicine, drains), up to 0.6. */
 function healedOf(world: World, cell: number): number {
-  return Math.min(0.6, 2 * loreOf(world).effect(cell, "health"));
+  return Math.min(
+    0.6,
+    2 * loreOf(world).effect(cell, "health") * HEALS.reduce((k, f) => k * f(world, cell), 1),
+  );
+}
+/** What else carries what a land knows of healing to its people (its physicians: sim/lore/academy.ts), each a factor (1: none). */
+const HEALS: ((world: World, cell: number) => number)[] = [];
+export function healsMore(f: (world: World, cell: number) => number): void {
+  if (!HEALS.includes(f)) HEALS.push(f);
 }
 
 /** The words for a sickness's kind, by how it passes. */

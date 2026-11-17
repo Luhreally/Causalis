@@ -11,11 +11,12 @@
 // its wars) read those demands as factors, so their why runs through the people who
 // pressed them, and on to what moved those people.
 import { YEAR, type Ref, type SimTime } from "../../kernel/index.ts";
-import { OCC } from "../../rules/index.ts";
+import { OCC, templeSway } from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import type { MarketStore } from "../economy/market.ts";
 import { WAY, cultureOf } from "../culture/culture.ts";
 import { beliefOf } from "../belief/belief.ts";
+import { pulpitIn } from "../belief/temple.ts";
 import type { WarStore } from "../war/war.ts";
 import { diplomacyOf } from "../diplomacy/diplomacy.ts";
 import { armyOf, strifeOf } from "../strife/strife.ts";
@@ -71,11 +72,15 @@ export function swayOf(
   faith: boolean,
   sacred: boolean,
   wealth: Readonly<Partial<Record<Exclude<Group, "the temple">, number>>> = {},
+  /** How far the seat's faith has the houses to speak for its piety (rules/temple.ts templeSway; 1: wholly). */
+  houses = 1,
 ): Record<Group, number> {
   const force = held[0] ?? 0.5,
     voice = held[1] ?? 0.5,
     arms = people["the army"] > 0 ? SWAY_OF.arms * force : 0,
-    temple = faith ? SWAY_OF.faith * Math.max(0, piety - 0.35) * (sacred ? 1 : 0.5) : 0,
+    temple = faith
+      ? SWAY_OF.faith * Math.max(0, piety - 0.35) * (sacred ? 1 : 0.5) * Math.max(0, houses)
+      : 0,
     rest = Math.max(0, 1 - arms - temple),
     court = people["the court"] > 0 ? rest * (1 - voice) : 0,
     many = rest - court,
@@ -175,6 +180,8 @@ export function interestsOf(ctx: PopulationContext, p: Polity, t: SimTime): Inte
     seatFaith.faith !== null,
     sacred,
     wealth,
+    // (The temple weighs as far as its faith's clergy are many to its faithful: sim/belief/temple.ts.)
+    templeSway(pulpitIn(world, p.seat)),
   );
 
   // The realms it meets: those it trades with (and down which road), and those of another faith.
