@@ -20,6 +20,7 @@
 // Every step is a decision whose factors cite what drove it.
 import { LABOUR_STORE, giniOf, moneyStore, unionOf } from "../money/kept.ts";
 import { housesRead } from "../order/houses.ts";
+import { risingOrganised } from "../order/groups-kept.ts";
 import {
   YEAR,
   defineEventType,
@@ -72,7 +73,7 @@ import {
   type RealmOrder,
 } from "../order/order.ts";
 import { LAW_OF } from "../order/laws.ts";
-import { FEW_RULE, HOLD, HOLDING } from "../../rules/index.ts";
+import { FEW_RULE, HOLD, HOLDING, ORG } from "../../rules/index.ts";
 import { holdOf, holdsOf, setHeld } from "../order/holds.ts";
 import { wantsOf } from "../order/wants.ts";
 import { financeOf } from "../finance/finance.ts";
@@ -577,6 +578,8 @@ export function coupDanger(
         ? { ref: o.heldEvents[HOLD.force]!, role: "enabler", weight: 1 }
         : null,
     },
+    // (A lodge sworn against the seat, sim/order/groups.ts: told only where one is kept, so a realm without is as it was.)
+    ...plotters(world, p.ref),
   ];
   return {
     score: factors.reduce((s, f) => s + f.contribution, 0),
@@ -939,6 +942,28 @@ export function revolutionHolds(world: World, realm: Ref, year: number): boolean
   );
 }
 
+/** What a realm's revolutionary groups add to the danger of a rising (none where none is kept). */
+function risers(world: World, realm: Ref): Factor[] {
+  const k = risingOrganised(world, realm).rising;
+  return k > 0
+    ? [{ name: "a rising organised", value: k, contribution: ORG.rising * k, source: null }]
+    : [];
+}
+/** What a realm's lodges add to the danger of a coup (none where none is kept). */
+function plotters(world: World, realm: Ref): Factor[] {
+  const k = risingOrganised(world, realm).plot;
+  return k > 0
+    ? [
+        {
+          name: "a lodge sworn against the seat",
+          value: k,
+          contribution: ORG.plot * k,
+          source: null,
+        },
+      ]
+    : [];
+}
+
 /**
  * How near a realm's people are to rising at its seat (its score, against STRIFE.rising), and
  * why: a rule doubted, a movement for a voice or the land, hunger at the seat, a seat that cannot
@@ -1081,6 +1106,8 @@ export function revolutionDanger(
         ? { ref: o.heldEvents[HOLD.word]!, role: "pressure", weight: 1 }
         : null,
     },
+    // (Those organised to rise, sim/order/groups.ts: told only where they are kept, so a realm without is as it was.)
+    ...risers(world, p.ref),
   ];
   return {
     score: factors.reduce((s, f) => s + f.contribution, 0),

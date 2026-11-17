@@ -16,6 +16,7 @@ import {
 import { workBySex } from "../society/work.ts";
 import { rooflessColdOf } from "../society/kept.ts";
 import { youngKilledOf } from "../order/underworld-kept.ts";
+import { orgSparedOf, orgYoungKilledOf } from "../order/groups-kept.ts";
 import {
   CountDeltas,
   MONTH,
@@ -802,7 +803,9 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
         smoke *
         // (And the cold on those of its people on the street: the society sweep, society/roofless.ts. Exactly 1 where none is kept.)
         rooflessColdOf(world, p.cell) *
-        (1 + 25 * intoxDeaths(world, p.cell)),
+        (1 + 25 * intoxDeaths(world, p.cell)) *
+        // (Less what its mutual-aid societies spare: sim/order/groups.ts. Exactly 1 where none is kept.)
+        (1 - orgSparedOf(world, p.cell)),
       // (Its frail die the more for those no one keeps: society/care.ts. Exactly as before where none is reckoned.)
       old = oldPressOf(world, p.cell),
       // A band's chance of dying within the months, the same for every one of it (reckoned once).
@@ -810,7 +813,8 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
       // (And what its diet goes short of: its young die the more, rules/nutrition.ts. Exactly 1 where it goes short of nothing.)
       want = dietDeaths(world, p.cell),
       // (And its young killed by the underworld: sim/order/underworld.ts. Exactly 1 where none is kept.)
-      killed = youngKilledOf(world, p.cell),
+      // (And by its other groups, its brigands' and pirates' killing and its risings': sim/order/groups.ts. Nothing where none.)
+      killed = youngKilledOf(world, p.cell) + orgYoungKilledOf(world, p.cell),
       dyingIn = (b: number) =>
         (dying[b] ??= deathWithin(
           riskUnder(

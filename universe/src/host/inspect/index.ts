@@ -72,6 +72,7 @@ import { rulerPage, withLeaderPage } from "./leaders.ts";
 import { courtPage } from "./court.ts";
 import { dynastyPage, linePage, withFamilyLink } from "./family.ts";
 import { crimeGroupPage, federationPage } from "./mobs.ts";
+import { orgFedPage, orgPage } from "./groups.ts";
 import { withFollow } from "../follow.ts";
 import { songPage, stonePage } from "./memory.ts";
 import { casePage, selfLawBlocks } from "./justice.ts";
@@ -191,6 +192,9 @@ function build(
   // A crime group, a federation of street gangs (the underworld).
   if (ref.startsWith("mob:")) return crimeGroupPage(world, ref);
   if (ref.startsWith("gfed:")) return federationPage(world, ref);
+  // A group of the general layer, a federation of them (sim/order/groups.ts).
+  if (ref.startsWith("org:")) return orgPage(world, ref);
+  if (ref.startsWith("ofed:")) return orgFedPage(world, ref);
   const code = ref.slice(0, ref.indexOf(":")),
     t = tab ?? undefined;
   switch (code) {
@@ -320,7 +324,8 @@ function tidy(page: PageModel): PageModel {
           !(b.type === "timeline" && !b.rows.length),
       ),
     }))
-    .filter((t) => t.blocks.some((b) => b.type !== "tool"));
+    // (A tab read only when it is open keeps its place while it holds nothing yet.)
+    .filter((t) => t.later || t.blocks.some((b) => b.type !== "tool"));
   return { ...page, tabs: tabs.length ? tabs : page.tabs.slice(0, 1) };
 }
 
@@ -352,7 +357,14 @@ export function tipOf(world: World, ref: string, lens?: string, names?: NamesArg
             ? lensReading(world, land, kind as DeepLens, way)
             : null;
   if (reading)
-    return { ref, icon: p.icon, title: p.title, line: reading.line, stats: reading.stats };
+    return {
+      ref,
+      icon: p.icon,
+      title: p.title,
+      line: reading.line,
+      stats: reading.stats,
+      ...("go" in reading && reading.go ? { go: reading.go.ref, goWords: reading.go.words } : {}),
+    };
   return {
     ref,
     icon: p.icon,

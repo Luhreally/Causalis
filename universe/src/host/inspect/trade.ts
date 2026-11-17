@@ -53,11 +53,14 @@ export function realmTradeBlocks(world: World, r: Polity): Block[] {
           "Its crafts idle for want of buyers",
           idle > 0 ? per(idle) : "none: what is made is bought",
           {
-            why:
-              cy[CY.hoard]! > 0
-                ? "Where money can be held, a fall in what some earn is a fall in what they spend on others' work, passed on hand to hand."
-                : "Goods are bought with goods: a bad harvest is hunger, never idle hands.",
+            // (Words of how it comes, as its first part: a stat's why is a thing the why tree explains.)
             parts: [
+              part(
+                "how so",
+                cy[CY.hoard]! > 0
+                  ? "Where money can be held, a fall in what some earn is a fall in what they spend on others' work, passed on hand to hand."
+                  : "Goods are bought with goods: a bad harvest is hunger, never idle hands.",
+              ),
               part("what its people buy of others' work short of its usual", per(cy[CY.harvest]!)),
               part("debts called in as a house of lending failed", per(cy[CY.called]!)),
               part("its works' shares fallen", per(cy[CY.wealth]!)),
@@ -98,7 +101,12 @@ export function realmTradeBlocks(world: World, r: Polity): Block[] {
         "Bid past what the long run bears",
         ex[EX.bubble]! > 100 ? `${ex[EX.bubble]! - 100}% past` : "not past it",
         {
-          why: "Holders hope as the last years went; a run of good ones is bid past what the long run bears, and a falling year among such hopes is a crash.",
+          parts: [
+            part(
+              "how so",
+              "Holders hope as the last years went; a run of good ones is bid past what the long run bears, and a falling year among such hopes is a crash.",
+            ),
+          ],
         },
       ),
     ];
@@ -112,7 +120,12 @@ export function realmTradeBlocks(world: World, r: Polity): Block[] {
       title: "Its plan",
       rows: [
         stat("What it shares out by need, not by price", per(pl[PL.planned]!), {
-          why: "What the realm holds for all, its plan gives out alike; what it costs is what the plan cannot know, and the effort of those whose share no longer follows their work.",
+          parts: [
+            part(
+              "how so",
+              "What the realm holds for all, its plan gives out alike; what it costs is what the plan cannot know, and the effort of those whose share no longer follows their work.",
+            ),
+          ],
         }),
         stat("What the plan costs its crafts", per(pl[PL.loss]!), {
           parts: [
@@ -178,8 +191,11 @@ function membersOf(world: World, row: readonly number[]): Span[] {
 
 function cartelStat(world: World, g: number, row: readonly number[], label: string): Stat {
   return stat(label, [`${per(row[CT.markup]!)} above, by `, ...membersOf(world, row)], {
-    why: "Where a few realms make most of a good, can see one another ship more than agreed, and outside makers are kept out, they sell it abroad as one, as dear as buyers who can go without it allow.",
     parts: [
+      part(
+        "how so",
+        "Where a few realms make most of a good, can see one another ship more than agreed, and outside makers are kept out, they sell it abroad as one, as dear as buyers who can go without it allow.",
+      ),
       part("their share of the world's making", per(row[CT.share]!)),
       part("how well they hold together", per(row[CT.cohesion]!)),
       part("of the world's lands, those that make none", per(row[CT.barred]!)),
@@ -226,7 +242,12 @@ export function landTradeBlocks(world: World, cell: number): Block[] {
           "What the land makes, in years of its people's food",
           (dm[DM.income]! / 1000).toFixed(2),
           {
-            why: "What households buy of their wares follows what they earn (wares the more as there is more, food little more once fed) and what the wares cost against their worth, within what is left past their food and what they can borrow.",
+            parts: [
+              part(
+                "how so",
+                "What households buy of their wares follows what they earn (wares the more as there is more, food little more once fed) and what the wares cost against their worth, within what is left past their food and what they can borrow.",
+              ),
+            ],
           },
         ),
         stat(
@@ -242,8 +263,11 @@ export function landTradeBlocks(world: World, cell: number): Block[] {
       title: "Machines at the work",
       rows: [
         stat("Of its crafts' tasks, machines do", per(cap[CAP.share]!), {
-          why: "A task goes to a machine where the land's machines are fine enough to do it, reckon well enough to judge it, have the power to turn, and cost less a year than the hand they stand in for.",
           parts: [
+            part(
+              "how so",
+              "A task goes to a machine where the land's machines are fine enough to do it, reckon well enough to judge it, have the power to turn, and cost less a year than the hand they stand in for.",
+            ),
             part("the tasks its machines could do", per(cap[CAP.can]!)),
             part("a hand's year by machines costs", grain(cap[CAP.cost]! / 1000)),
             part("a crafter's year earns", grain(cap[CAP.wage]! / 1000)),
@@ -259,8 +283,11 @@ export function landTradeBlocks(world: World, cell: number): Block[] {
       title: "Its town's ground",
       rows: [
         stat("Its heart is built to", HOME_LEVELS[rent[RT.level]!] ?? "huts", {
-          why: "A household at the heart saves the walk the town's edge would cost it; the heart is built as tall as its people can raise where that saving pays for building so.",
           parts: [
+            part(
+              "how so",
+              "A household at the heart saves the walk the town's edge would cost it; the heart is built as tall as its people can raise where that saving pays for building so.",
+            ),
             part("its greatest town's people", count(rent[RT.people]!)),
             part(
               "a household saves there a year",

@@ -38,6 +38,7 @@ import { energyReading } from "./inspect/energy.ts";
 import { fouledReading } from "./inspect/fields.ts";
 import { inequalityReading, inequalityValue } from "./inspect/money.ts";
 import { wealthReading } from "./wealth.ts";
+import { UNDERWORLD_VIEWS, underworldRead, underworldReading } from "./inspect/underworld.ts";
 
 /** The lenses read here, beside the people's own (people, food, trade). */
 export const DEEP_LENSES = [
@@ -71,6 +72,8 @@ export const DEEP_LENSES = [
   "births",
   // How unequally a land's income is shared: its Gini (Round B).
   "inequality",
+  // What goes on under the law, one of five ways at a time: smuggling, cartels, addiction, crime, the roofless (2026-11-16).
+  "underworld",
 ] as const;
 export type DeepLens = (typeof DEEP_LENSES)[number];
 
@@ -116,6 +119,13 @@ export type LandReadings = {
   readonly fouled: number;
   /** Its Gini (0 … 1; -1 none kept): Round B. */
   readonly inequality: number;
+  /** Its underworld, by UNDERWORLD_VIEWS (each -1 where nothing is kept): host/inspect/underworld.ts. */
+  readonly underworld: readonly number[];
+  /** How many goods its realm holds the trade of with other realms, in a cartel (0: none). */
+  readonly tradeCartel: number;
+  /** Those the underworld kills there a year, in a hundred thousand of its people; how far its realm's own enforcers work it. */
+  readonly killings: number;
+  readonly badgeCrew: number;
 };
 
 /** The ids a land knows: its lore, and sowing and smelting, which it knows in its own ways. */
@@ -162,7 +172,9 @@ export function landReadings(world: World): (cell: number) => LandReadings {
     fielded = new Map<string, number>(),
     culture = cultureOf(world),
     seen = godSeen(world),
-    order = orderReadings(world);
+    order = orderReadings(world),
+    under = underworldRead(world),
+    none = UNDERWORLD_VIEWS.map(() => -1);
   return (cell) => {
     const realm = realms.of(cell);
     let strength = 0;
@@ -201,6 +213,10 @@ export function landReadings(world: World): (cell: number) => LandReadings {
       energy: Math.round((energyPerHead(world, cell)?.primary ?? 0) * 1000) / 1000,
       fouled: Math.round(fouledOf(world, cell) * 1000) / 1000,
       inequality: inequalityValue(world, cell),
+      underworld: under.lands.get(cell) ?? none,
+      tradeCartel: under.cartelLands.get(cell) ?? 0,
+      killings: under.killings.get(cell) ?? 0,
+      badgeCrew: under.badge.get(cell) ?? 0,
     };
   };
 }
@@ -229,6 +245,8 @@ function briefly(world: World, ref: Ref | null): string {
 export type Reading = {
   readonly line: string;
   readonly stats: readonly { readonly label: string; readonly value: string }[];
+  /** The page that tells it whole, a tap away (the underworld lens). */
+  readonly go?: { readonly ref: string; readonly words: string };
 };
 
 /** A land under one of the deeper lenses, broken down (null: not a land of the people). */
@@ -292,6 +310,8 @@ export function lensReading(
       return fouledReading(world, cell);
     case "inequality":
       return inequalityReading(world, cell);
+    case "underworld":
+      return underworldReading(world, cell, way);
     case "laws":
       return lawReading(
         world,

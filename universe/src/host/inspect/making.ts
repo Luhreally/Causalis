@@ -39,7 +39,7 @@ import {
 } from "../../sim/index.ts";
 import type { World } from "../../kernel/index.ts";
 import type { Block, Item, Stat } from "../../bridge/index.ts";
-import { count, item, link, stat, yearNow } from "./words.ts";
+import { count, item, link, stat, yearNow, part } from "./words.ts";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const substRef = (id: string) => `subst:${id}`;
@@ -85,7 +85,7 @@ export function landMakingBlocks(world: World, cell: number): Block[] {
     stat("Its hottest fire", `${count(Math.round(makingHeat(ctx, cell)))} °C`),
     stat("Ways it makes stuffs", `${made.length} of ${MATERIAL_WAYS.length}`),
     stat("It refines to", row ? `${(row.purity / 100).toFixed(1)} nines` : "nothing yet", {
-      why: "of a thousand million atoms, nine nines is one foreign",
+      parts: [part("how so", "of a thousand million atoms, nine nines is one foreign")],
     }),
     ...(need
       ? [
@@ -106,7 +106,9 @@ export function landMakingBlocks(world: World, cell: number): Block[] {
     frame = frameStuffOf(world, cell),
     doing: Stat[] = [
       stat("Its furnaces' walls", `${lining.name}, holding ${count(lining.holdsC)} °C`, {
-        why: "the best refractory its rocks give, softening a little below its melt",
+        parts: [
+          part("how so", "the best refractory its rocks give, softening a little below its melt"),
+        ],
       }),
       ...(framed > 0
         ? [
@@ -194,11 +196,11 @@ export function materialTab(world: World, id: string): Block[] {
       host = Object.entries(s.formula).sort((a, b) => b[1] - a[1])[0]![0],
       rows: Stat[] = [
         stat("Weight", `${count(base.density)} kg/m³`, {
-          why: "its atoms' mass over the room their packing takes",
+          parts: [part("how so", "its atoms' mass over the room their packing takes")],
         }),
         stat("Melts near", `${count(base.meltC)} °C`),
         stat("Stiffness", `${count(base.stiffness)} GPa`, {
-          why: "the bond energy held in each atom's room",
+          parts: [part("how so", "the bond energy held in each atom's room")],
         }),
         stat("Carries current", `${base.conductivity} MS/m at 15 °C`),
         ...(base.brittleC !== null ? [stat("Brittle below", `${count(base.brittleC)} °C`)] : []),
@@ -218,7 +220,12 @@ export function materialTab(world: World, id: string): Block[] {
       title: "As a crystal that switches",
       rows: [
         stat("Band gap, from its bond", `${gap} eV`, {
-          why: "diamond's gap at its bond, falling with the bond's length, widened by the pull between its two atoms",
+          parts: [
+            part(
+              "how so",
+              "diamond's gap at its bond, falling with the bond's length, widened by the pull between its two atoms",
+            ),
+          ],
         }),
         stat(
           `A switch of it here wants`,
@@ -250,7 +257,7 @@ export function atomBlocks(world: World, symbol: string): Block[] {
       stat("Its size", `${a.r} pm`),
       stat("How fast it holds its neighbours", `${a.ecoh} eV an atom`),
       stat("Pure, it packs", LATTICE_WORDS[a.lattice] ?? a.lattice, {
-        why: `${Math.round(PACKING[a.lattice] * 100)}% of its room filled`,
+        parts: [part("how so", `${Math.round(PACKING[a.lattice] * 100)}% of its room filled`)],
       }),
     ];
   const blocks: Block[] = [{ type: "facts", title: "Its atom", rows }];
@@ -275,7 +282,7 @@ export function atomBlocks(world: World, symbol: string): Block[] {
                     ? "closes over it"
                     : "swells and flakes away",
                 {
-                  why: `${pb.toFixed(2)} times the room of the metal it took`,
+                  parts: [part("how so", `${pb.toFixed(2)} times the room of the metal it took`)],
                 },
               ),
               stat("Rusts", rustWords(rustRate(symbol, here.o2, here.wet))),
@@ -305,7 +312,14 @@ export function smeltBlocks(r: Reaction): Block[] {
           return stat(
             `${REDUCERS[by].words[0]!.toUpperCase()}${REDUCERS[by].words.slice(1)} takes it`,
             t === null ? "never, at any heat" : t === 0 ? "at any heat" : `from ${count(t)} °C`,
-            { why: `the free energy of ${ox.oxide} against the reducer's own, with some to spare` },
+            {
+              parts: [
+                part(
+                  "how so",
+                  `the free energy of ${ox.oxide} against the reducer's own, with some to spare`,
+                ),
+              ],
+            },
           );
         });
   rows.push(

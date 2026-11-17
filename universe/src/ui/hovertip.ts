@@ -261,7 +261,7 @@ export function tipCard(tip: Tip, hint: string): Node[] {
       stats.append(el("span", "tip-label", s.label), el("span", "tip-value", s.value));
     parts.push(stats);
   }
-  parts.push(el("div", "tip-more", hint));
+  parts.push(el("div", "tip-more", tip.goWords ? `Tap to open ${tip.goWords}` : hint));
   return parts;
 }
 

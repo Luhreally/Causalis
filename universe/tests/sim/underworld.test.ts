@@ -108,7 +108,16 @@ test("protection is wanted where holdings are unsafe and deals not held, among t
       earned: 2000,
       capacity: 0.9,
     }),
-    poor = protectionWanted({ secure: 0.1, deals: 0.1, trade: 0, earned: 2000, capacity: 0.2 });
+    poor = protectionWanted({ secure: 0.1, deals: 0.1, trade: 0, earned: 2000, capacity: 0.2 }),
+    // (Where holdings are safe and deals held, what unsafety would take is less than any protector's cut: none is bought.)
+    lawful = protectionWanted({
+      secure: 0.85,
+      deals: 0.8,
+      trade: 1000,
+      earned: 2000,
+      capacity: 0.6,
+    });
+  assert.equal(lawful, 0);
   assert.ok(
     unsafe > safe * 3 && unsafe > reached && unsafe > poor,
     `${unsafe} ${safe} ${reached} ${poor}`,

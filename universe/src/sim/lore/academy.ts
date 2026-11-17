@@ -26,6 +26,7 @@ import { healsMore } from "../health/health.ts";
 import { ACADEMY_ROW, ACADEMY_STORE, cultureRows } from "../culture/rows.ts";
 import { inquiresMore, loreOf } from "./lore.ts";
 import { readersOf } from "./letters.ts";
+import { orgCloisterKeepsOf } from "../order/groups-kept.ts";
 
 /** A land weighs its higher learning once in so many years, each in its own year. */
 export const ACADEMY_EVERY = 10;
@@ -55,6 +56,9 @@ export function patronsOf(
       t = f ? templeOf(world, f) : null;
     if (t && t.faithful > 0) temple = (t.given * people) / t.faithful;
   }
+  // (And a monastic order's house on it, sim/order/groups.ts: what it keeps for its learning. Nothing where none is kept.)
+  const cloister = orgCloisterKeepsOf(world, cell);
+  if (cloister > 0) temple += cloister;
   // The seat: what its tithe brings in from its lands, where this land is a realm's seat.
   let seat = 0,
     houses = 0;

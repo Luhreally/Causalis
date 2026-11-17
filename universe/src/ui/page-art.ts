@@ -145,7 +145,7 @@ const GLYPHS: readonly (readonly [RegExp, Glyph])[] = [
   [/parasit|partner/, "life"],
   [/fear|camp|threat|underworld|gang/, "arms"],
   [/sick|health|wound|heal/, "heal"],
-  [/people|folk|famil|lives|leader|court|kin|townsfolk|who|ruler|met\b|crowd/, "people"],
+  [/people|folk|famil|lives|leader|court|kin|townsfolk|who|group|ruler|met\b|crowd/, "people"],
   [/histor|year|story|event|record|first|fallen|course|annal|chronicle|time/, "years"],
   [/credit|debt|wealth|coin|lend|price|cost/, "coin"],
   [/thing|good|store|work|econom|market|trade|road|wares|made|board|compan|exchange/, "goods"],

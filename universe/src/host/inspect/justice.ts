@@ -200,6 +200,9 @@ type Facts = {
   /** How organised those who carry what its realm forbids are (round B, 0 … 1). */
   readonly cartel: number;
   readonly barred: boolean;
+  /** What weighs on its peace, all told (0.5 a quiet year), and each of it by name. */
+  readonly weigh: number;
+  readonly pressing: readonly (readonly [string, number])[];
 };
 
 /** What the people of a world are, for their law: a hive, of the water, no hands. */
@@ -580,6 +583,18 @@ function factsOf(world: World, s: Settlement, year: number): Facts {
       (angry ? 0.4 : 0) +
       loose +
       strictLaw,
+    // (Each of what weighs on it by name, for the underworld lens, host/inspect/underworld.ts: the sum above left as it was
+    // added, so no town's count of cases moves by a rounding.)
+    pressing: readonly (readonly [string, number])[] = [
+      ["a hungry year", 1.5 * hungry],
+      ["war and fire", 0.9 * war],
+      ["its people on the street", ROOF.crime * roofless],
+      ["dear bread on a poor wage", short ? 0.5 * Math.max(0, Math.min(1, (dear - 0.8) / 1.2)) : 0],
+      ["money in the town", rich ? 0.3 : 0],
+      ["grievance against its rule", angry ? 0.4 : 0],
+      ["a law that reaches little", loose],
+      ["a strict law", strictLaw],
+    ],
     // (And a town's own temper: some keep the peace better than their neighbours, year on year.)
     temper = 0.55 + 1.2 * u(hashString(`temper ${s.ref}`) >>> 0, 1),
     rate = Math.max(0.25, (size - 1) * 0.7) * Math.max(0.25, weigh) * temper;
@@ -640,6 +655,8 @@ function factsOf(world: World, s: Settlement, year: number): Facts {
     scene,
     barred,
     cartel,
+    weigh,
+    pressing,
   };
 }
 
@@ -1179,6 +1196,19 @@ function dueOf(f: Facts): number {
 }
 const casesDue = (world: World, s: Settlement, year: number): number =>
   dueOf(factsOf(world, s, year));
+
+/**
+ * What leads a town's people wrong in a year, as the underworld lens reads it: what weighs on its peace all told (0.5 a quiet
+ * year), each of it by name, and how many cases it is due. Read of what its year's cases are read of, its people unread.
+ */
+export function townWrong(
+  world: World,
+  s: Settlement,
+  year: number,
+): { weigh: number; due: number; pressing: readonly (readonly [string, number])[] } {
+  const f = factsOf(world, s, year);
+  return { weigh: f.weigh, due: dueOf(f), pressing: f.pressing };
+}
 
 function drawCases(
   world: World,

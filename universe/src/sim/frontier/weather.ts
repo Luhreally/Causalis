@@ -206,7 +206,8 @@ export function weatherYear(ctx: PopulationContext, t: SimTime): void {
   const event = world.events.emit({
     type: hit.length ? WEATHER_EVENTS.storm.type : WEATHER_EVENTS.flare.type,
     importance: hit.length ? (dead > 1000 ? 6 : 5) : 3,
-    subjects: [g.star.ref as Ref, ...hit.slice(0, 6)],
+    // (An event names four at the most: the star and the first three realms struck.)
+    subjects: [g.star.ref as Ref, ...hit.slice(0, 3)],
     place: hit.length ? cellRef(0, politiesOf(world).get(hit[0]!)!.seat) : null,
     causes: [{ ref: g.star.ref as Ref, role: "trigger", weight: 1 }],
     data: {

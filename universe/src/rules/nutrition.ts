@@ -33,14 +33,33 @@ export const STUNTING = 0.08;
 export const LEGUMES = { matched: 0.7, micro: 0.65 } as const;
 
 /**
- * What a body of a diet makes of each food (a flesh-eater's gut makes little of grain; a plant-eater's eats no flesh), its
- * fields' grain sown in a rotation with beans or not.
+ * A sea people's sown beds are of weed and shell, not grass: the shell's flesh and the weed's iodine and metals beside it (est:
+ * half and half by energy).
  */
-export function foodGivesFor(diet: Diet | undefined, good: number, legumes = false) {
+export const BEDS_GIVE = { protein: 0.25, matched: 0.85, micro: 1.15 } as const;
+
+/**
+ * A plant-eater's gut is made for its plants: what lives in it ferments their fibre and builds what their seed lacks of a body's
+ * own (lysine), and frees the metals bound in it, as a grazer's does (est).
+ */
+export const PLANT_GUT = { matched: 0.75, micro: 0.8 } as const;
+
+/**
+ * What a body of a diet makes of each food (a flesh-eater's gut makes little of grain; a plant-eater's eats no flesh, and makes
+ * the most of its grain), its fields' grain sown in a rotation with beans or not, or a sea people's beds (weed and shell).
+ */
+export function foodGivesFor(diet: Diet | undefined, good: number, legumes = false, beds = false) {
+  if (beds && good === G.grain) return BEDS_GIVE;
   const f = good === G.grain && legumes ? { ...FOOD_GIVES[good]!, ...LEGUMES } : FOOD_GIVES[good]!;
   if (diet === "flesh" && good === G.grain)
     return { protein: f.protein, matched: 0.2, micro: 0.15 };
   if (diet === "plants" && good === G.meat) return FOOD_GIVES[G.wild]!;
+  if (diet === "plants" && good === G.grain)
+    return {
+      protein: f.protein,
+      matched: Math.max(f.matched, PLANT_GUT.matched),
+      micro: Math.max(f.micro, PLANT_GUT.micro),
+    };
   return f;
 }
 
@@ -110,6 +129,8 @@ export function dietOf(
   legumes = false,
   /** What its sun makes (sunMade; 1: all a body wants of it). */
   sun = 1,
+  /** Whether its grain is a sea people's beds of weed and shell. */
+  beds = false,
 ): DietReading {
   let all = 0;
   for (const g of Object.keys(FOOD_GIVES)) all += Math.max(0, eaten[Number(g)] ?? 0);
@@ -120,7 +141,7 @@ export function dietOf(
   for (const k of Object.keys(FOOD_GIVES)) {
     const g = Number(k),
       s = Math.max(0, eaten[g] ?? 0) / all,
-      f = foodGivesFor(diet, g, legumes);
+      f = foodGivesFor(diet, g, legumes, beds);
     shares[g] = s;
     protein += s * f.protein * f.matched;
     micro += s * f.micro;
@@ -141,4 +162,31 @@ export function dietOf(
 export function wantDeaths(short: number): { young: number; grown: number } {
   const s = Math.max(0, Math.min(1, short));
   return { young: 1 + WANT_DEATHS.young * s, grown: 1 + WANT_DEATHS.grown * s };
+}
+
+/**
+ * The eating a people's life table was reckoned at (rules/species.ts: every table is an upright ape's of the farming ages, its
+ * young dying as farmers' young died): mostly its grain, with some wild food and some flesh and milk (est: a farming household
+ * before the engines; shares of its food's energy).
+ */
+export const TABLE_DIET: Readonly<Record<number, number>> = {
+  [G.grain]: 0.7,
+  [G.wild]: 0.15,
+  [G.meat]: 0.15,
+};
+
+/** How short a body of a diet goes on the eating its life table was reckoned at (dietOf over TABLE_DIET; a sea people's beds). */
+export function tableShort(diet?: Diet, beds = false): number {
+  return dietOf(TABLE_DIET, diet, false, 1, beds).short;
+}
+
+/**
+ * How much likelier death is for a land's young and grown at a shortfall, against the deaths its life table already holds: those
+ * of a people fed as the table's were (tableShort). The table's own deaths are not counted twice; a land fed better than the
+ * table's people is reckoned at the table (its deaths were never measured below it).
+ */
+export function wantDeathsOver(short: number, table: number): { young: number; grown: number } {
+  const a = wantDeaths(short),
+    b = wantDeaths(table);
+  return { young: Math.max(1, a.young / b.young), grown: Math.max(1, a.grown / b.grown) };
 }

@@ -138,6 +138,8 @@ export type Block =
       readonly few?: number;
       /** Fit to the page's width, never scrolled sideways: its headings wrap, and its first column's long names break. */
       readonly fit?: boolean;
+      /** A column its rows can be filtered by: a chip over the table for each of its words (its rows' keys there), and "All". */
+      readonly filter?: number;
     }
   | {
       readonly type: "chart";
@@ -549,7 +551,15 @@ export type PhyloLine = {
   readonly words?: string;
 };
 
-export type Tab = { readonly id: string; readonly name: string; readonly blocks: readonly Block[] };
+export type Tab = {
+  readonly id: string;
+  readonly name: string;
+  readonly blocks: readonly Block[];
+  /** The section it stands in, where a page's tabs are many (the ledger's): a chooser of sections over a row of its tabs. */
+  readonly group?: string;
+  /** Its blocks are read only while it is open: none are sent until it is asked for (`ref#tab`), as a tap on it asks. */
+  readonly later?: boolean;
+};
 
 type Rgb = readonly [number, number, number];
 
@@ -1000,6 +1010,9 @@ export type Tip = {
   readonly title: string;
   readonly line: string;
   readonly stats: readonly { readonly label: string; readonly value: string }[];
+  /** The page that tells it whole, which a tap on it opens in place of its own (the underworld lens), and in words. */
+  readonly go?: string;
+  readonly goWords?: string;
 };
 
 /**

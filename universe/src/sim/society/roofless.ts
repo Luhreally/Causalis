@@ -35,6 +35,7 @@ import {
   societyStore,
 } from "./kept.ts";
 import { landMeans } from "./care.ts";
+import { orgShelteredOf } from "../order/groups-kept.ts";
 
 /** Trade's town rent where it is kept (its store, by name: a town's ground's earnings a year, grain's worth; 0 where none is). */
 const TRADE_RENT = { store: "trade.rent", rent: 3 } as const;
@@ -99,7 +100,9 @@ export function rooflessYear(ctx: PopulationContext, t: SimTime): void {
       addicted = ROOF.addicted * intoxDependent(world, c),
       oldRow = olds?.get(c),
       old = oldRow ? (ROOF.old * oldRow[OLD_ROW.share]! * oldRow[OLD_ROW.neglected]!) / 1e6 : 0,
-      roofless = rooflessAll([shut, waits, displaced, addicted, old]),
+      // (Those turned out and those beyond its homes are one want of homes, not two chances: where a blow razed its homes, the
+      // fabric's own shortfall already holds those it turned out, so the greater of the two is told.)
+      roofless = rooflessAll([shut, Math.max(waits, displaced), addicted, old]),
       realm = realms.of(c),
       // (Newcomers: those beyond its homes, and those its town still draws toward its draw's aim.)
       drawn = draw ? drawGap(draw, c) : 0,
@@ -110,8 +113,13 @@ export function rooflessYear(ctx: PopulationContext, t: SimTime): void {
         roofless > 0 ? Math.min(1, (waits + drawn * roofless) / roofless) : 0,
       ),
       townShare = Math.min(1, town / means.people),
-      street = roofless * taken.street,
-      doubled = roofless * (taken.kin + taken.temple + taken.realm),
+      // (Of those the street would hold, its mutual-aid societies take in a share: sim/order/groups.ts. Nothing where none is kept.)
+      aided = orgShelteredOf(world, c),
+      street = aided > 0 ? roofless * taken.street * (1 - aided) : roofless * taken.street,
+      doubled =
+        aided > 0
+          ? roofless * (taken.kin + taken.temple + taken.realm + taken.street * aided)
+          : roofless * (taken.kin + taken.temple + taken.realm),
       streetLand = street * townShare,
       doubledLand = doubled * townShare,
       need = (dress?.get(c)?.[DRESS_ROW.need] ?? 0) / 1000,

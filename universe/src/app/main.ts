@@ -165,12 +165,17 @@ import type {
   ColonyLook,
   ColonyVoyage,
   StarFightList,
+  Tip,
 } from "../bridge/index.ts";
 import { forNeighbours, nearestCell, sphereGrid, yearOfMoment } from "../kernel/index.ts";
 
 import {
   GOOD_CHOICES,
   LAW_CHOICES,
+  UNDERWORLD_CHOICES,
+  underworldShade,
+  cartelOverCells,
+  gangsOverCells,
   colonyHour,
   landingToShow,
   colonySky,
@@ -441,6 +446,7 @@ const DEEP_LENSES: readonly Lens[] = [
   "fouled",
   "births",
   "inequality",
+  "underworld",
 ];
 /** The map modes that show the people (repainted as their numbers come). */
 const PEOPLE_LENSES: readonly Lens[] = [
@@ -469,6 +475,7 @@ const PEOPLE_LENSES: readonly Lens[] = [
   "fouled",
   "births",
   "inequality",
+  "underworld",
 ];
 const YEAR = 365 * DAY;
 const SKY = [0.09, 0.1, 0.13] as const;
@@ -1815,6 +1822,13 @@ async function runPlanetPage(): Promise<void> {
     goodShown = "grain",
     // (The law the laws lens shows: Phase 19 M139.)
     lawShown = "land",
+    // (The underworld lens's way, and the lands of realms in a cartel among realms: 2026-11-16.)
+    underworldShown = "smuggling",
+    cartelLands: ReadonlySet<number> = new Set<number>(),
+    crimeShades = new Map<number, number>(),
+    // (Where the underworld kills, a year in a hundred thousand, and where a realm's own enforcers work: the gangs view.)
+    killingLands = new Map<number, number>(),
+    badgeLands: ReadonlySet<number> = new Set<number>(),
     // (What the wealth lens weighs, and every realm's wealth last read: Lives L2.)
     wealthShown: WealthMeasure = "head",
     wealthBook: WealthBook | null = null,
@@ -2300,6 +2314,27 @@ async function runPlanetPage(): Promise<void> {
     if (lens === "terrain" && builtLands.size) builtOverCells(colors, frame, builtLands);
     // (What its people do not know of their world, dark under the knowledge lens: signals.)
     if (lens === "knowledge" && unknownLands.size) unknownOverCells(colors, frame, unknownLands);
+    // (The realms in a cartel among realms, edged and hatched in gold over the cartels' colours: the underworld lens.)
+    if (lens === "underworld" && underworldShown === "cartels" && cartelLands.size)
+      cartelOverCells(
+        colors,
+        frame,
+        sphereGrid((frame.meta as { frequency: number }).frequency),
+        cartelLands,
+      );
+    // (Where the underworld kills, hatched red, and where a realm's own enforcers work, edged blue: the gangs view.)
+    if (
+      lens === "underworld" &&
+      underworldShown === "gangs" &&
+      (killingLands.size || badgeLands.size)
+    )
+      gangsOverCells(
+        colors,
+        frame,
+        sphereGrid((frame.meta as { frequency: number }).frequency),
+        killingLands,
+        badgeLands,
+      );
     globe.paint(litLands.size ? litColors(colors, frame, litLands) : colors);
     // (Under the knowledge lens, the sea shell cleared, so the seas its people never sailed show dark too: signals.)
     globe.clearSea(
@@ -2444,6 +2479,7 @@ async function runPlanetPage(): Promise<void> {
       if (!deepValues.has("wealth")) deepValues.set("wealth", new Map());
       readWealth();
     }
+    if (l === "underworld") readUnderworld();
     paintGlobe();
     // (A lens only paints: the view stays where it was looked at — asked 2026-11-11, "each time i
     // click new lens [it] moves the camera"; the world is turned to its people once, on arriving.)
@@ -2462,6 +2498,13 @@ async function runPlanetPage(): Promise<void> {
         wealthShown = id as WealthMeasure;
         tooltip.lens = `wealth:${id}`;
         readWealth();
+      });
+    else if (l === "underworld")
+      mapModes.choose(UNDERWORLD_CHOICES, underworldShown, (id) => {
+        underworldShown = id;
+        readUnderworld();
+        tooltip.lens = `underworld:${id}`;
+        paintGlobe();
       });
     else if (l === "laws")
       mapModes.choose(LAW_CHOICES, lawShown, (id) => {
@@ -2486,7 +2529,9 @@ async function runPlanetPage(): Promise<void> {
             ? `goods:${goodShown}`
             : l === "laws"
               ? `laws:${lawShown}`
-              : l;
+              : l === "underworld"
+                ? `underworld:${underworldShown}`
+                : l;
   };
   /** Every realm's wealth read, and the lens's colours of it (Lives L2). */
   /** Each land's woods now and at first (E1): for the Forest lens, and the Land lens where they have moved. */
@@ -2559,6 +2604,67 @@ async function runPlanetPage(): Promise<void> {
         lastEntries.flatMap((e) => (e.laws.length ? [[e.cell, e.laws[i]! / 2] as const] : [])),
       ),
     );
+  }
+  /** The underworld lens's chosen way, land by land, laid on its ramp; and the lands in a cartel among realms. */
+  function readUnderworld(): void {
+    cartelLands = new Set(lastEntries.flatMap((e) => (e.tradeCartel > 0 ? [e.cell] : [])));
+    killingLands = new Map(
+      lastEntries.flatMap((e) => (e.killings > 0 ? [[e.cell, e.killings] as const] : [])),
+    );
+    badgeLands = new Set(lastEntries.flatMap((e) => (e.badgeCrew > 0 ? [e.cell] : [])));
+    if (lens !== "underworld") return;
+    mapModes.say(underworldNote());
+    // (Its crime is read of its towns' years, asked only while it is shown: the host keeps it a year.)
+    if (underworldShown === "crime") {
+      // (Its last read drawn at once, so a way picked again doesn't show the last way's colours while it is asked.)
+      deepValues.set("underworld", crimeShades);
+      void client
+        .query<[number, number][]>({ type: "underworld.crime" })
+        .then((lands) => {
+          if (lens !== "underworld" || underworldShown !== "crime") return;
+          crimeShades = new Map(lands.map(([c, v]) => [c, underworldShade("crime", v)] as const));
+          deepValues.set("underworld", crimeShades);
+          paintGlobe();
+        })
+        .catch(() => {});
+      return;
+    }
+    const i = Math.max(
+      0,
+      UNDERWORLD_CHOICES.findIndex(([id]) => id === underworldShown),
+    );
+    deepValues.set(
+      "underworld",
+      new Map(
+        lastEntries.flatMap((e) => {
+          const v = underworldShade(underworldShown, e.underworld?.[i] ?? -1);
+          return v >= 0 ? [[e.cell, v] as const] : [];
+        }),
+      ),
+    );
+  }
+  /** A line under the underworld lens's key: what its marks are, where they are. */
+  function underworldNote(): string | null {
+    if (underworldShown === "gangs") {
+      const killing = [...killingLands.values()].filter((v) => v >= 1).length,
+        badge = badgeLands.size,
+        lands = (n: number) => (n === 1 ? "1 land" : `${n} lands`);
+      return (
+        [
+          killing ? `Red hatching: killing in ${lands(killing)}, wider where it kills more.` : "",
+          badge ? `Blue edge: the realm's own enforcers work ${lands(badge)}.` : "",
+        ]
+          .filter(Boolean)
+          .join(" ") || null
+      );
+    }
+    if (underworldShown !== "cartels") return null;
+    const n = new Set(
+      lastEntries.flatMap((e) => (e.tradeCartel > 0 && e.realm ? [e.realm.join(",")] : [])),
+    ).size;
+    return n
+      ? `Gold edge and hatching: ${n} ${n === 1 ? "realm" : "realms"} holding a good's trade in a cartel among realms.`
+      : null;
   }
   /** The chosen way's reading, land by land. */
   function readWays(): void {
@@ -2833,6 +2939,7 @@ async function runPlanetPage(): Promise<void> {
     readWays();
     readGoods();
     readLaws();
+    readUnderworld();
     if (lens === "wealth") readWealth();
     beliefColors = new Map(
       entries.flatMap((e) => {
@@ -3424,6 +3531,18 @@ async function runPlanetPage(): Promise<void> {
           void pageWindow.open(`cell:0:${province}`);
         }
       });
+      return;
+    }
+    // (Under the underworld lens, a land opens the page that tells its number whole: its realm's Treasury, its Wealth or Lives,
+    // the law at its greatest town, as its tip says.)
+    if (lens === "underworld" && province >= 0) {
+      void client
+        .query<Tip>({
+          type: "tip",
+          args: { ref: `cell:0:${province}`, lens: `underworld:${underworldShown}` },
+        })
+        .then((tip) => pageWindow.open(tip.go ?? `cell:0:${province}`))
+        .catch(() => pageWindow.open(`cell:0:${province}`));
       return;
     }
     if (province >= 0) {

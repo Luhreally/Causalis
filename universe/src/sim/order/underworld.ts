@@ -30,6 +30,7 @@
 // crew found out (legitimacy); the forbidden trade's organisation (sim/money/intox.ts BAR.cartel), and with it its smuggling.
 // One record a realm, one row a land; a realm's record goes with it.
 import {
+  MAX_CAUSES,
   YEAR,
   defineEventType,
   defineStream,
@@ -276,10 +277,11 @@ function tell(
     type,
     subjects: [f.p.ref],
     place: cell !== null ? (f.ctx.provinces.get(cell)?.ref ?? null) : null,
+    // (At most MAX_CAUSES: a federation of many groups cites the first of them.)
     causes: [
       ...(decision ? [{ ref: decision, role: "trigger" as const, weight: 1 }] : []),
       ...causes,
-    ],
+    ].slice(0, MAX_CAUSES),
     data: { realm: realmName(f.p), ...data },
   });
 }
@@ -784,7 +786,7 @@ function stepRealm(
   const sm = moneyStore(world, SMUGGLE_STORE)?.get(p.ref),
     bars = moneyStore(world, BAR_STORE);
   let border = 0;
-  for (const rel of diplomacyOf(world).all()) {
+  for (const rel of diplomacyOf(world).of(p.ref)) {
     const q = rel.a === p.ref ? rel.b : rel.b === p.ref ? rel.a : null;
     if (!q) continue;
     const qb = bars?.get(q);

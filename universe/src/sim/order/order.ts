@@ -60,6 +60,7 @@ import { WantsStore } from "./wants.ts";
 import { ElectionStore, electionsYear } from "./elections.ts";
 import { housesRead, installHouses } from "./houses.ts";
 import { underworldSkim } from "./underworld-kept.ts";
+import { orgRefugeOf } from "./groups-kept.ts";
 import { CREDIT, creditOf, debtBurden } from "../credit/credit.ts";
 import { seizedFactor } from "../strife/strife.ts";
 import { fortunePull } from "../acts/fortune.ts";
@@ -1053,13 +1054,15 @@ function flee(
     const n = g.grid.neighbours[k]!,
       there = ctx.provinces.get(n);
     if (!there || there.total() < 20) continue;
-    const q = realms.of(n);
-    if (q?.ref === p.ref) continue;
+    const q = realms.of(n),
+      // (A land held apart by those who fled before, sim/order/groups.ts: free to flee to, in their own realm or another.)
+      refuge = orgRefugeOf(world, n) >= 0.3;
+    if (q?.ref === p.ref && !refuge) continue;
     const qo = q ? store.realms.get(q.ref) : undefined,
       free =
-        qo?.abolished !== undefined && qo.abolished !== null
+        q?.ref !== p.ref && qo?.abolished !== undefined && qo.abolished !== null
           ? 3
-          : !q
+          : refuge || !q
             ? 2
             : store.bound(n) < 0.01
               ? 1
