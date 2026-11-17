@@ -387,7 +387,7 @@ import { installFleetFilm, type FleetFilm } from "./fleet-film.ts";
 import { installNationFilm, type FilmMark, type NationFilm } from "./nation-film.ts";
 import { installFarFilm, type FarFilm } from "./far-film.ts";
 import { installJumpFilm, type JumpFilm } from "./jump-film.ts";
-import { sound } from "./sound.ts";
+import { SOUND_PARTS, sound, type SoundPart } from "./sound.ts";
 import { airOf, airOfWorld } from "./sound-mix.ts";
 // (Anyone's family and body on their card, a war's soldiers named from its roll: Phase 55 wave 5.)
 import { kinLines } from "../ui/index.ts";
@@ -8339,6 +8339,15 @@ async function runPlanetPage(): Promise<void> {
   };
   // The blood and the wounds shown (Phase 55): a setting, kept in this browser.
   planetPanel.goreNow = () => gore;
+  // (Settings' sound levels: the whole, and the sea, the places, the music and the cues each.)
+  planetPanel.soundNow = () => {
+    const n = sound.settingsNow();
+    return n.can ? { volume: n.volume, parts: n.parts } : null;
+  };
+  planetPanel.onSoundLevel = (part, v) => {
+    if (part === "volume") sound.setVolume(v);
+    else if ((SOUND_PARTS as readonly string[]).includes(part)) sound.setPart(part as SoundPart, v);
+  };
   // The world's own hand switched (2026-11-11): its disasters, its plagues.
   planetPanel.switchesNow = async () =>
     (await client.query<{ off: string[] }>({ type: "world.switches" })).off;

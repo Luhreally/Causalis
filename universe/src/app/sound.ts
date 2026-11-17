@@ -32,7 +32,13 @@ import type { MusicVoice } from "../bridge/index.ts";
 
 const STORE = "causalis.sound",
   STORE_VOLUME = "causalis.sound.volume",
-  STORE_EFFECTS = "causalis.sound.effects";
+  STORE_EFFECTS = "causalis.sound.effects",
+  STORE_MIX = "causalis.sound.mix";
+/** The parts of what is heard, each with its own level in Settings (asked 2026-11-16: "the ocean sfx so loud ... i cant even hear the music"). */
+export const SOUND_PARTS = ["sea", "places", "music", "effects"] as const;
+export type SoundPart = (typeof SOUND_PARTS)[number];
+/** Each part's level where none is kept: the sea at half, under the music. */
+const MIX_DEFAULT: Record<SoundPart, number> = { sea: 0.5, places: 1, music: 1, effects: 1 };
 /** The whole of it, under what a phone's speaker can stand: never a surprise (the volume set in Settings is a share of this). */
 const VOLUME = 0.72;
 /** How long a crossfade takes to get most of the way (s, the time constant of its fade). */
@@ -344,6 +350,8 @@ class Graph {
   private readonly level: GainNode;
   private readonly dry: GainNode;
   private readonly cueBus: GainNode;
+  /** The sea's own level, under the places' (Settings). */
+  private readonly sea: GainNode;
   private readonly pans: StereoPannerNode[];
   // The layers.
   private readonly gains: Record<
@@ -411,6 +419,8 @@ class Graph {
     this.water.connect(this.level);
     this.amb = gainOf(1);
     this.amb.connect(this.water);
+    this.sea = gainOf(1);
+    this.sea.connect(this.amb);
     this.dry = gainOf(1);
     this.dry.connect(this.level);
     this.cueBus = gainOf(1);
@@ -447,7 +457,7 @@ class Graph {
     this.gains = {
       wind: layer(this.amb),
       high: layer(this.amb),
-      surf: layer(this.amb),
+      surf: layer(this.sea),
       rain: layer(this.amb),
       crowd: layer(this.amb),
       crickets: layer(this.amb),
@@ -531,6 +541,18 @@ class Graph {
       if (Math.abs(Math.log(FAR_HZ[b]! / hz)) < Math.abs(Math.log(FAR_HZ[band]! / hz))) band = b;
     const side = pan < -0.33 ? 0 : pan > 0.33 ? 2 : 1;
     return this.far[band]![side]!;
+  }
+
+  /** One part's level (Settings): the sea, the places' sounds, the music, the cues and arms. */
+  setPart(part: SoundPart, v: number, at: number): void {
+    const g = { sea: this.sea, places: this.amb, music: this.dry, effects: this.cueBus }[part].gain;
+    g.cancelScheduledValues(at);
+    g.setTargetAtTime(Math.max(0, Math.min(1, v)), at, 0.05);
+  }
+
+  /** Where a realm's tune is played: with the music, at its level. */
+  get musicBus(): AudioNode {
+    return this.dry;
   }
 
   /** The level everything is played at (the volume in Settings, a share of the whole). */
@@ -1776,6 +1798,21 @@ const keep = (v: string, key = STORE): void => {
     // (Storage may be shut, as in a private window: then it holds only for this visit.)
   }
 };
+/** Each part's level kept (its default where none is kept, or it can't be read). */
+const keptParts = (): Record<SoundPart, number> => {
+  const out = { ...MIX_DEFAULT };
+  try {
+    const k = JSON.parse(kept(STORE_MIX) ?? "{}") as Partial<Record<SoundPart, unknown>>;
+    for (const p of SOUND_PARTS) {
+      const v = Number(k[p]);
+      if (k[p] !== undefined && Number.isFinite(v)) out[p] = Math.max(0, Math.min(1, v));
+    }
+  } catch {
+    // (Kept badly: the defaults.)
+  }
+  return out;
+};
+
 /** The volume kept (0 … 1; all of it where none is kept). */
 const keptVolume = (): number => {
   const v = Number(kept(STORE_VOLUME) ?? "1");
@@ -1818,6 +1855,8 @@ export class Sound {
   /** The volume (0 … 1) and whether the sounds of arms and blasts are heard (Settings; kept between visits). */
   private volume = keptVolume();
   private effects = kept(STORE_EFFECTS) !== "off";
+  /** Each part's level (0 … 1), kept between visits. */
+  private parts = keptParts();
   private ctx: AudioContext | null = null;
   private graph: Graph | null = null;
   private pump = 0;
@@ -1987,6 +2026,7 @@ export class Sound {
       this.graph = new Graph(ctx, seed, true, loops);
       this.startMs = Math.max(worst.ms, performance.now() - from);
       this.graph.apply(this.mix, ctx.currentTime, 0.05);
+      for (const p of SOUND_PARTS) this.graph.setPart(p, this.parts[p], ctx.currentTime);
       // (In softly, from nothing.)
       this.graph.master.gain.setTargetAtTime(VOLUME * this.volume, ctx.currentTime + 0.05, 0.9);
       this.until = ctx.currentTime;
@@ -2213,7 +2253,7 @@ export class Sound {
       steps = v.scale.length ? v.scale : [0, 2, 4, 7, 9],
       drums = new Set<number>([0]);
     bus.gain.value = 0.22;
-    bus.connect(g.master);
+    bus.connect(g.musicBus);
     while (drums.size < Math.min(8, v.drums)) drums.add(Math.floor(rand() * 8));
     const note = (at: number, hz: number, dur: number) => {
       const o = ctx.createOscillator(),
@@ -2283,9 +2323,30 @@ export class Sound {
     keep(on ? "on" : "off", STORE_EFFECTS);
   }
 
-  /** What Settings shows: whether there is sound here at all, 🔊, the volume and the effects. */
-  settingsNow(): { can: boolean; on: boolean; volume: number; effects: boolean } {
-    return { can: canSound(), on: this.wanted, volume: this.volume, effects: this.effects };
+  /** One part's level (0 … 1), kept between visits, heard at once. */
+  setPart(part: SoundPart, v: number): void {
+    this.parts[part] = Math.max(0, Math.min(1, v));
+    keep(JSON.stringify(this.parts), STORE_MIX);
+    const g = this.graph,
+      ctx = this.ctx;
+    if (g && ctx) g.setPart(part, this.parts[part], ctx.currentTime);
+  }
+
+  /** What Settings shows: whether there is sound here at all, 🔊, the volume, the effects and each part's level. */
+  settingsNow(): {
+    can: boolean;
+    on: boolean;
+    volume: number;
+    effects: boolean;
+    parts: Record<SoundPart, number>;
+  } {
+    return {
+      can: canSound(),
+      on: this.wanted,
+      volume: this.volume,
+      effects: this.effects,
+      parts: { ...this.parts },
+    };
   }
 
   /** A fight among the stars, as drawn this frame (no allocation; counts only): what has just begun in it, heard. */

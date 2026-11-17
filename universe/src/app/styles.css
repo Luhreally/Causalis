@@ -46,6 +46,31 @@ canvas {
   -webkit-user-drag: none;
 }
 /* The keys, as the settings list them. */
+/* Settings' sound levels: a name, a slider a finger can take (44px), and its share. */
+.sound-levels {
+  display: grid;
+  gap: 2px;
+}
+.sound-level {
+  display: grid;
+  grid-template-columns: minmax(0, 11rem) minmax(0, 1fr) 3rem;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-size: 0.88rem;
+}
+.sound-level input[type="range"] {
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.sound-at {
+  text-align: right;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
 .key-lines {
   display: grid;
   gap: 4px;
