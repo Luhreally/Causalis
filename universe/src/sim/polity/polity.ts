@@ -676,8 +676,6 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
           // A land held beyond the seat's reach is ruled by force alone, and chafes.
           0.08 * Math.max(0, far - rules) +
           apartOf(world, c, foreign) +
-          0.02 * crossing;
-          0.3 * foreign * foreign +
           0.02 * crossing -
           // (A people who feast together hold together: the society sweep, society/everyday.ts. Exactly 0 where none is kept; never
           // below no grievance at all.)

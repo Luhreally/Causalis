@@ -316,16 +316,17 @@ function hungerOf(ctx: PopulationContext, cell: number): number {
  * tending where they do not (the society sweep, society/care.ts; all of it where none is reckoned).
  */
 function healedOf(world: World, cell: number): number {
-  return Math.min(
-    0.6,
-    2 * loreOf(world).effect(cell, "health") * HEALS.reduce((k, f) => k * f(world, cell), 1),
+  return (
+    Math.min(
+      0.6,
+      2 * loreOf(world).effect(cell, "health") * HEALS.reduce((k, f) => k * f(world, cell), 1),
+    ) * careEffectiveOf(world, cell)
   );
 }
 /** What else carries what a land knows of healing to its people (its physicians: sim/lore/academy.ts), each a factor (1: none). */
 const HEALS: ((world: World, cell: number) => number)[] = [];
 export function healsMore(f: (world: World, cell: number) => number): void {
   if (!HEALS.includes(f)) HEALS.push(f);
-  return Math.min(0.6, 2 * loreOf(world).effect(cell, "health")) * careEffectiveOf(world, cell);
 }
 
 /** The words for a sickness's kind, by how it passes. */

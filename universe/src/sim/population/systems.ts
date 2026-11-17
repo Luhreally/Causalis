@@ -380,7 +380,6 @@ export function farmingShare(ctx: PopulationContext, p: Province): number {
       cropsGive(ctx.world, p.cell) *
       veilYield(ctx, p.cell) *
       floodYield(ctx.world, p.cell) *
-      alive.soil,
       alive.soil *
       // (What its holders have put into its fields: the society sweep, society/holding.ts. Exactly 1 where nothing is kept.)
       (1 + improvedOf(ctx.world, p.cell)),
@@ -562,7 +561,6 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
         floodYield(world, p.cell) *
         // (And a great stone's dust, a burst's light: frontier/hooks.ts, exactly 1 under a clear sky.)
         frontierFields(world, p.cell) *
-        (p.cell >= offworldFrom ? openFields(ctx, p.cell) : 1),
         (p.cell >= offworldFrom ? openFields(ctx, p.cell) : 1) *
         // (And what its holders have put into them, as far as it is safe and theirs: society/holding.ts. Exactly 1 where none is kept.)
         (1 + improvedOf(world, p.cell)),
@@ -791,8 +789,10 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
       want = dietDeaths(world, p.cell),
       dyingIn = (b: number) =>
         (dying[b] ??= deathWithin(
-          riskUnder(life.mortality[b]!, mortality * (b < 2 ? want.young : want.grown)),
-          riskUnder(life.mortality[b]!, old && b >= old.band ? mortality * old.press : mortality),
+          riskUnder(
+            life.mortality[b]!,
+            mortality * (b < 2 ? want.young : want.grown) * (old && b >= old.band ? old.press : 1),
+          ),
           months,
         )),
       d = new CountDeltas(p.counts),

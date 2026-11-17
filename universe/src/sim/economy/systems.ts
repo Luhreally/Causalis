@@ -732,18 +732,17 @@ function trade(
       // (A blockade cuts what goes by sea from a realm whose foe holds the sea: sim/war/navy.ts. Nothing where none is laid.)
       blockaded =
         e.sea && navied ? Math.max(blockadeOn(ctx.world, ta), blockadeOn(ctx.world, tb)) : 0,
-      moved =
-        0.25 *
-        (1 + SIGNAL.tradeShare * linked) *
-        (1 - FINANCE.shuts * shut) *
-        (1 - barred) *
-        (1 - blockaded),
       // (And as far as the deals of both ends can be held to: the society sweep, society/holding.ts. Exactly 1 where neither keeps any.)
       da = dealsOf(ctx.world, e.a),
       db = dealsOf(ctx.world, e.b),
       kept = da === null && db === null ? 1 : dealsMoved(da ?? db ?? 1, db ?? da ?? 1),
       moved =
-        0.25 * (1 + SIGNAL.tradeShare * linked) * (1 - FINANCE.shuts * shut) * (1 - barred) * kept,
+        0.25 *
+        (1 + SIGNAL.tradeShare * linked) *
+        (1 - FINANCE.shuts * shut) *
+        (1 - barred) *
+        (1 - blockaded) *
+        kept,
       keen = 2 * (1 + SIGNAL.tradeMargin * linked),
       // (And what a journey cost in waiting on word and finding a buyer: the haul itself is what it was.)
       dealt = 1 - SIGNAL.tradeCost * linked;
