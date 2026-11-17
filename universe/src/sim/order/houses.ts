@@ -85,6 +85,8 @@ import { capacityOf, orderOf } from "./order.ts";
 import { holdsOf } from "./holds.ts";
 import { LAW_OF } from "./laws.ts";
 import { chooses, electionsOf } from "./elections.ts";
+import { orgPartyOf } from "./groups-kept.ts";
+import { ORG } from "../../rules/index.ts";
 
 export const HOUSE_EVENTS = {
   /** A great house rose: of a group great in the coalition, of the ruler's own family, a cadet line. */
@@ -517,8 +519,18 @@ function stepRealm(
     need = last ? dmath.clamp(last.votes[0]?.[1] ?? HOUSES.needs, 0.2, HOUSES.needs) : HOUSES.needs,
     seat = ctx.provinces.get(p.seat),
     crowd = p.succession === 2 && seat ? adults(seat, ctx.life) * 0.5 : 0,
+    // (An interest organised in a party weighs the more in who the ruler must pay, its sway carried by its party: sim/order/
+    // groups.ts. Exactly as before where none is.)
+    organised = interests.map((i) => orgPartyOf(world, p.ref, i.group)),
+    weighed = organised.some((x) => x > 0)
+      ? (() => {
+          const raw = interests.map((i, k) => i.sway * (1 + ORG.partyWeighs * organised[k]!)),
+            all = raw.reduce((s, x) => s + x, 0) || 1;
+          return raw.map((x) => x / all);
+        })()
+      : interests.map((i) => i.sway),
     coalition = coalitionOf(
-      interests.map((i) => ({ group: i.group, sway: i.sway, heads: i.people })),
+      interests.map((i, k) => ({ group: i.group, sway: weighed[k]!, heads: i.people })),
       need,
       franchise,
       crowd,

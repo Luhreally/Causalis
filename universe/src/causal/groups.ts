@@ -71,6 +71,11 @@ export const ORG_IS: Readonly<Record<string, string>> = {
   insurgents: "under arms against its seat",
   resistance: "under arms against a foreign hand holding its land",
   lodge: "a sworn few keeping their counsel against the seat",
+  party: "carrying an interest no great house speaks for in its people's choosing",
+  "maroon community": "those who fled bondage or the law, holding a hard land apart",
+  "monastic order":
+    "the devout keeping their faith under a rule of their own on a land of their own",
+  "learned society": "the learned banded for inquiry and the free word",
 };
 
 registerEventWords(

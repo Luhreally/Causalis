@@ -60,6 +60,8 @@ import {
   measuresOf,
   wordPace,
 } from "../../rules/index.ts";
+import { ORG } from "../../rules/index.ts";
+import { orgInquiryOf } from "../order/groups-kept.ts";
 
 /** Each effect's place in a land's totals. */
 const EFFECT_INDEX: ReadonlyMap<string, number> = new Map(EFFECTS.map((e, i) => [e, i]));
@@ -639,13 +641,17 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
         spoken = mine && theirs ? tongueLikeness(mine.tongue, theirs.tongue) : 0.5,
         like = carried ? Math.max(CARRIED_LIKE, spoken) : spoken,
         road = markets.route(cell, n) ? 2 : 1,
+        // (Across a border, the more where learned societies at both ends write to each other: sim/order/groups.ts. Exactly 1
+        // where neither holds one.)
         kin = realms.of(cell) && realms.of(cell) === realms.of(n) ? 1.5 : 1,
+        corresponds = kin > 1 ? 0 : Math.min(orgInquiryOf(world, cell), orgInquiryOf(world, n)),
+        ties = corresponds > 0 ? 1 + ORG.corresponds * corresponds : 1,
         written = 1 + Math.max(store.effect(cell, "learning"), store.effect(n, "learning")),
         behind = carried ? 1 + CARRIED_BEHIND * lacks(n) : 1;
       for (const p of open) {
         if (!store.get(n, p.id)) continue;
         const chance =
-          LEARNING * like * like * road * kin * written * behind * (kin > 1 ? 1 : heard);
+          LEARNING * like * like * road * kin * written * behind * (kin > 1 ? 1 : heard) * ties;
         if (!best || chance > best.chance || (chance === best.chance && n < best.from))
           best = { p, from: n, chance };
       }

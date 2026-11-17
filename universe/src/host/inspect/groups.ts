@@ -3,10 +3,12 @@
 // aims as shares), what they take and give, the killing they do and suffer, the realm that pays or licenses them, their
 // federations, and how their holds ended. Who, what, cost and effect: never how any crime is done or any weapon used. Phone first:
 // a few facts, one set of bars, one table that fits.
-import type { World } from "../../kernel/index.ts";
+import type { Ref, World } from "../../kernel/index.ts";
 import type { Block, Item, PageModel, Stat } from "../../bridge/index.ts";
 import { ORG, ORG_AIMS, ORG_BASES, ORG_STANDING, type OrgAim } from "../../rules/index.ts";
 import {
+  beliefOf,
+  templeOf,
   kindName,
   orgsOf,
   politiesOf,
@@ -39,6 +41,9 @@ export const AIM_WORDS: Readonly<Record<OrgAim, string>> = {
   hire: "selling its arms",
   rebel: "organising to overthrow the seat",
   conspire: "keeping its counsel against the seat",
+  office: "seeking the seat's offices by its people's votes",
+  refuge: "holding a hard land apart for those who fled",
+  inquire: "inquiry shared and written between towns",
 };
 /** What each aim's stake is, for the realm's tab. */
 const STAKE_WORDS: Readonly<Record<OrgAim, string>> = {
@@ -54,6 +59,9 @@ const STAKE_WORDS: Readonly<Record<OrgAim, string>> = {
   hire: "Pay for soldiers from realms at war",
   rebel: "Grievance under a doubted, voiceless seat",
   conspire: "An educated few shut out",
+  office: "Interests many share that no house speaks for",
+  refuge: "The bound and the hunted, and hard land to hold",
+  inquire: "The learned, and a word free enough to share",
 };
 
 const orgLink = (r: Polity, g: { name: string; kind: number; event: string }) =>
@@ -243,6 +251,12 @@ const ABOUT: Readonly<Record<OrgAim, string>> = {
     "Those aggrieved under a seat that is doubted, gives them no voice and holds its arms close organise to overthrow it; the more of them, the nearer a rising.",
   conspire:
     "A sworn few, shut out of standing and the free word, keep their counsel against the seat; a coup comes the nearer.",
+  office:
+    "Where the many choose who governs, those who share an interest no great house speaks for band to carry it: their votes held to their own candidate, more of them brought out, their interest weighing the more in who the seat must pay. A demagogue may lead one.",
+  refuge:
+    "Those who fled bondage or the law hold a land too broken and far for their realm's hand: one land, kept apart and defended, a free land for others to flee to.",
+  inquire:
+    "The learned of a land band for inquiry and the free word: they meet, write between towns and realms, and a land where they hold finds the more readily and takes up what learned lands elsewhere know.",
 };
 
 /** A group's page (`org:<realm>:<event>`). */
@@ -278,6 +292,31 @@ export function orgPage(world: World, ref: string): PageModel {
       }),
     );
     if (payer) facts.push(stat("Paid by", [realmLink(world, payer.ref)]));
+    // (A party's interest, how far it holds its votes, the house that leads it.)
+    if (ORG_BASES[rec.basis] === "interest")
+      facts.push(
+        stat("Carries", `the ${rec.identity}`, {
+          parts: [
+            part("of their votes it holds to its own", th(rec.organised ?? 0)),
+            ...(rec.house ? [part("led by", `the house of ${rec.house}`)] : []),
+          ],
+        }),
+      );
+    // (An order's faith and its temple: the clergy it is tied to.)
+    if (g.kind === "monastic order" && rec.identity) {
+      const faith = beliefOf(world).get(rec.identity as Ref),
+        temple = faith ? templeOf(world, faith) : null;
+      facts.push(
+        stat("Of the faith", faith?.name ?? "its seat's", {
+          parts: temple
+            ? [
+                part("its temple's clergy", count(temple.clergy)),
+                part("its faithful", count(temple.faithful)),
+              ]
+            : [],
+        }),
+      );
+    }
     if (fed) facts.push(stat("Allied in", [fedLink(r, fed)]));
   }
   if (g.gone)
@@ -318,7 +357,16 @@ export function orgPage(world: World, ref: string): PageModel {
         stat("The killing it does and suffers", killed(rec.violence)),
       ],
     });
-    blocks.push({ type: "text", lines: [[ABOUT[ORG_AIMS[rec.aim] ?? "aid"]]] });
+    blocks.push({
+      type: "text",
+      lines: [
+        [
+          g.kind === "monastic order"
+            ? "The devout of a faith their seat holds withdraw to a land of their own under a rule of their own, tied to its temple: they keep learning and stores, their land's scholars kept by them and its hungry and sick spared, and the seat's hand there the lighter."
+            : ABOUT[ORG_AIMS[rec.aim] ?? "aid"],
+        ],
+      ],
+    });
   }
   const passed = passedItems(world, orgNews(g), since);
   blocks.push(
@@ -370,6 +418,10 @@ const ICONS: Readonly<Record<string, string>> = {
   insurgents: "✊",
   resistance: "✊",
   lodge: "🔺",
+  party: "🗳️",
+  "maroon community": "⛰️",
+  "monastic order": "⛪",
+  "learned society": "📜",
 };
 
 /** A federation's page (`ofed:<realm>:<event>`). */

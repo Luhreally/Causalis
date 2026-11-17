@@ -24,6 +24,8 @@ import { interestsOf, type Group } from "../polity/interests.ts";
 import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { holdsOf } from "./holds.ts";
 import { wantsOf } from "./wants.ts";
+import { orgPartyOf } from "./groups-kept.ts";
+import { ORG } from "../../rules/index.ts";
 
 export const ELECTION_EVENTS = {
   /** A realm's people chose who governs it. */
@@ -156,10 +158,19 @@ export function electionsYear(ctx: PopulationContext, t: SimTime): void {
     if (year < v.next) continue;
     const interests = interestsOf(ctx, p, t).filter((i) => i.sway > 0),
       want = (g: string) => wants?.wantOf(p.ref, g) ?? holdsOf(world, p.ref),
-      running = [...interests]
+      // (An interest organised in a party, sim/order/groups.ts, puts one of its own forward whatever its sway; nothing changes
+      // where none is.)
+      party = (g: Group) => orgPartyOf(world, p.ref, g),
+      greatest = [...interests]
         .sort((a, b) => b.sway - a.sway || (a.group < b.group ? -1 : 1))
         .slice(0, RUNNING)
-        .map((i) => i.group);
+        .map((i) => i.group),
+      running = [
+        ...greatest,
+        ...interests
+          .filter((i) => !greatest.includes(i.group) && party(i.group) > 0)
+          .map((i) => i.group),
+      ];
     if (running.length < 2) {
       v.next = year + term;
       continue;
@@ -185,17 +196,22 @@ export function electionsYear(ctx: PopulationContext, t: SimTime): void {
       let best: Group | null = null,
         bestBy = -Infinity;
       for (const g of running) {
-        const by =
-          nearness(want(i.group), want(g)) -
-          (g === v.governing ? SWING * ill : 0) +
-          (g === i.group ? 0.05 : 0);
+        const own = g === i.group ? party(g) : 0,
+          by =
+            nearness(want(i.group), want(g)) -
+            (g === v.governing ? SWING * ill : 0) +
+            (g === i.group ? 0.05 : 0) +
+            // (A party holds its own interest's votes to its candidate.)
+            (own > 0 ? ORG.discipline * own : 0);
         if (by > bestBy) {
           bestBy = by;
           best = g;
         }
       }
       if (!best) continue;
-      given.set(best, given.get(best)! + i.sway);
+      // (And brings out its own the more: those it organises go to vote.)
+      const out = best === i.group ? party(best) : 0;
+      given.set(best, given.get(best)! + (out > 0 ? i.sway * (1 + ORG.turnout * out) : i.sway));
       gave.set(i.group, best);
     }
     const all = [...given.values()].reduce((s, x) => s + x, 0),
