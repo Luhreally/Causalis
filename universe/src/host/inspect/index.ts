@@ -71,7 +71,7 @@ import { seatPage, withKin } from "./kin.ts";
 import { rulerPage, withLeaderPage } from "./leaders.ts";
 import { courtPage } from "./court.ts";
 import { dynastyPage, linePage, withFamilyLink } from "./family.ts";
-import { crimeGroupPage, federationPage } from "./mobs.ts";
+import { crimeGroupPage, federationPage, operationPage } from "./mobs.ts";
 import { orgFedPage, orgPage } from "./groups.ts";
 import { withFollow } from "../follow.ts";
 import { songPage, stonePage } from "./memory.ts";
@@ -192,6 +192,7 @@ function build(
   // A crime group, a federation of street gangs (the underworld).
   if (ref.startsWith("mob:")) return crimeGroupPage(world, ref);
   if (ref.startsWith("gfed:")) return federationPage(world, ref);
+  if (ref.startsWith("uop:")) return operationPage(world, ref);
   // A group of the general layer, a federation of them (sim/order/groups.ts).
   if (ref.startsWith("org:")) return orgPage(world, ref);
   if (ref.startsWith("ofed:")) return orgFedPage(world, ref);

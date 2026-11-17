@@ -1742,6 +1742,7 @@ export {
   gangDeterOf,
   gangsStore,
   groupsIn,
+  soldiersIn,
   killedOf,
   organisedOf,
   protectedOf,
@@ -1755,6 +1756,7 @@ export {
   type Federation,
   type GangWar,
   type GoneGroup,
+  type Operation,
   type RealmUnderworld,
 } from "./order/underworld-kept.ts";
 // Groups (2026-11-16): the general layer of collective action, each group's kind read off what it does.

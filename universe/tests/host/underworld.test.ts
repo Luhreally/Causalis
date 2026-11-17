@@ -119,7 +119,13 @@ test("a land whose rows are not kept reads none kept, and its tip says so", () =
     assert.match(underworldReading(world, cell, "smuggling")!.line, /keeps no border yet/);
     assert.match(underworldReading(world, cell, "addiction")!.line, /nothing they take is kept/);
     assert.match(underworldReading(world, cell, "roofless")!.line, /no town here keeps a count/);
-    assert.equal(underworldReading(world, cell, "cartels")!.stats.length, 0);
+    // (Its trade's price cartels among realms are not the ban's: they are read from trade, kept or not.)
+    assert.equal(
+      underworldReading(world, cell, "cartels")!.stats.filter(
+        (x) => x.label !== "In cartels among realms",
+      ).length,
+      0,
+    );
     assert.match(underworldReading(world, cell, "gangs")!.line, /no one keeps a count/);
     assert.ok(!underworldRead(world).killings.has(cell) && !underworldRead(world).badge.has(cell));
   } finally {
