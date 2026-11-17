@@ -1417,6 +1417,16 @@ export {
   type Making,
 } from "./lore/materials.ts";
 export {
+  COMPASS_REACH,
+  CONCRETE_SHARE,
+  REBUILD_YEARS,
+  compassReach,
+  concreteBuilt,
+  flyerFrameOf,
+  frameStuffOf,
+  madeFrames,
+} from "./lore/materials.ts";
+export {
   BEDS,
   CROP_EVENTS,
   CROP_STEP,

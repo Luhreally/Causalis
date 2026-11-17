@@ -14,12 +14,24 @@ import {
   rustRate,
   stiffnessOf,
   findSubstance,
+  liningOn,
+  OXIDE_LINES,
+  REDUCERS,
+  SLAG_C,
+  reductionC,
+  smeltHeat,
+  smeltOf,
+  type Reaction,
+  type Reducer,
   type Worked,
 } from "../../rules/index.ts";
 import { meansNumbers, worldChemistry } from "../../gen/index.ts";
 import {
   crystalNeed,
   homePlanet,
+  compassReach,
+  concreteBuilt,
+  frameStuffOf,
   makingHeat,
   materialsOf,
   populationContext,
@@ -27,7 +39,7 @@ import {
 } from "../../sim/index.ts";
 import type { World } from "../../kernel/index.ts";
 import type { Block, Item, Stat } from "../../bridge/index.ts";
-import { count, item, link, stat } from "./words.ts";
+import { count, item, link, stat, yearNow } from "./words.ts";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const substRef = (id: string) => `subst:${id}`;
@@ -86,6 +98,42 @@ export function landMakingBlocks(world: World, cell: number): Block[] {
       : []),
   ];
   const blocks: Block[] = [{ type: "facts", title: "Making", rows }];
+  // (What its made stuffs do elsewhere: its furnaces' walls, its towns in a quake, its ships, its flyers.)
+  const g = homePlanet(world).generated,
+    lining = liningOn(worldChemistry(g)),
+    year = yearNow(world),
+    framed = concreteBuilt(world, cell, year),
+    frame = frameStuffOf(world, cell),
+    doing: Stat[] = [
+      stat("Its furnaces' walls", `${lining.name}, holding ${count(lining.holdsC)} °C`, {
+        why: "the best refractory its rocks give, softening a little below its melt",
+      }),
+      ...(framed > 0
+        ? [
+            stat(
+              "Built in reinforced concrete",
+              `${Math.round(100 * framed)}%, standing in a quake`,
+            ),
+          ]
+        : []),
+      ...(compassReach(world, cell) > 1
+        ? [
+            stat(
+              "Its ships",
+              "carry half again as far, the needle finding north out of sight of land",
+            ),
+          ]
+        : []),
+      ...(frame
+        ? [
+            stat(
+              "Its flyers and rockets",
+              `framed in ${frame === "glass-fibre" ? "glass fibre" : "light alloy"}, lighter, carrying more`,
+            ),
+          ]
+        : []),
+    ];
+  blocks.push({ type: "facts", title: "What its stuffs do", rows: doing });
   if (made.length) blocks.push({ type: "list", title: "What it makes", items: made });
   if (open.length)
     blocks.push({
@@ -238,4 +286,38 @@ export function atomBlocks(world: World, symbol: string): Block[] {
     });
   }
   return blocks;
+}
+
+/** A smelt's heat on its reaction's page, read off Ellingham's lines: where each reducer takes its metal's oxygen, and what must run. */
+export function smeltBlocks(r: Reaction): Block[] {
+  const s = smeltOf(r),
+    ox = s ? OXIDE_LINES[s.metal] : undefined,
+    heat = smeltHeat(r);
+  if (!s || !ox || heat === null) return [];
+  const metal =
+      findSubstance(r.outputs.find(([id]) => findSubstance(id)?.formula[s.metal])?.[0] ?? "")
+        ?.name ?? s.metal,
+    meltC = Math.round(ATOMS[s.metal]!.meltK - 273.15),
+    rows: Stat[] = s.self
+      ? [stat("Its oxygen", "its ore's own sulphur burns, and takes none from a fire")]
+      : (Object.keys(REDUCERS) as Reducer[]).map((by) => {
+          const t = reductionC(s.metal, by);
+          return stat(
+            `${REDUCERS[by].words[0]!.toUpperCase()}${REDUCERS[by].words.slice(1)} takes it`,
+            t === null ? "never, at any heat" : t === 0 ? "at any heat" : `from ${count(t)} °C`,
+            { why: `the free energy of ${ox.oxide} against the reducer's own, with some to spare` },
+          );
+        });
+  rows.push(
+    stat(
+      `The ${metal} gathered`,
+      meltC < SLAG_C
+        ? `runs at its melt, ${count(meltC)} °C`
+        : `freed from a running slag, ${count(SLAG_C)} °C`,
+    ),
+  );
+  if (s.slag)
+    rows.push(stat("A slag must run", `of the ore's iron and silica, at ${count(SLAG_C)} °C`));
+  rows.push(stat("So it wants", `${count(heat)} °C`));
+  return [{ type: "facts", title: "Why so hot (read off the oxide's free energy)", rows }];
 }

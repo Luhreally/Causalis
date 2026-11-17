@@ -147,11 +147,16 @@ export type Launcher = {
  * The cheapest launcher a people who know these things can build for this speed (km/s),
  * or null: none they could build would lift enough to be worth it.
  */
-export function launcherFor(knows: (id: string) => boolean, speed: number): Launcher | null {
+export function launcherFor(
+  knows: (id: string) => boolean,
+  speed: number,
+  // (And the frames a people's own made stuffs give them: sim/lore/materials.ts madeFrames.)
+  made: readonly Frame[] = [],
+): Launcher | null {
   let best: Launcher | null = null;
   for (const p of PROPULSION) {
     if (!needsMet(p, knows)) continue;
-    for (const f of FRAMES) {
+    for (const f of made.length ? [...FRAMES, ...made] : FRAMES) {
       if (!needsMet(f, knows)) continue;
       const c = costPerTonne(speed, p, f);
       if (c.fraction < LEAST_FRACTION) continue;

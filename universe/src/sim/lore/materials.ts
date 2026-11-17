@@ -62,6 +62,10 @@ import {
   rustRate,
   treatedRecipe,
   wayOpen,
+  FRAME_SHARE,
+  flyerFrame,
+  stageDry,
+  type Frame,
   type MaterialWay,
   type WayFacts,
 } from "../../rules/index.ts";
@@ -134,6 +138,11 @@ export class MaterialsStore implements StateStore {
   made(cell: number, way: string): boolean {
     const i = WAY_INDEX.get(way);
     return i !== undefined && !!((this.map.get(cell)?.made ?? 0) & (1 << i));
+  }
+  /** The year a land came to a way (null: it has not). */
+  madeIn(cell: number, way: string): number | null {
+    const i = WAY_INDEX.get(way);
+    return i !== undefined && this.made(cell, way) ? (this.map.get(cell)?.years[i] ?? null) : null;
   }
   /** The purity a land reaches (nines). */
   purity(cell: number): number {
@@ -221,7 +230,9 @@ export function crystalNeed(
   const c = holdsOf(ctx).crystal;
   if (!c) return null;
   const formula = findSubstance(c.subst)?.formula,
-    gap = PROPERTIES[c.subst]?.bandGap ?? (formula ? bandGapOf(formula) : null) ?? 1.1,
+    // (A Creator's binding widens every gap as it deepens every bond: rules/laws.ts.)
+    binding = ctx.generated.laws?.binding ?? 1,
+    gap = (PROPERTIES[c.subst]?.bandGap ?? (formula ? bandGapOf(formula) : null) ?? 1.1) * binding,
     kelvin = ctx.generated.planet.meanTemperature + 273.15;
   return {
     subst: c.subst,
@@ -433,12 +444,14 @@ export function kitGain(
     usual = METALS[stuff as keyof typeof METALS] !== undefined && stuff === material,
     treated = usual && store ? treatedRecipe(material, (w) => store.made(seat, w)) : null,
     kelvin = warmthOf(ctx),
-    key = `${stuff}:${treated ? JSON.stringify(treated) : "-"}:${kelvin}`;
+    // (Its universe's binding: its atoms hold faster and melt hotter, rules/laws.ts.)
+    binding = ctx.generated.laws?.binding ?? 1,
+    key = `${stuff}:${treated ? JSON.stringify(treated) : "-"}:${kelvin}:${binding}`;
   let gain = GAINS.get(key);
   if (gain === undefined) {
     if (GAINS.size > 256) GAINS.clear();
     const base = recipeEdge(recipe),
-      here = recipeEdge({ ...(treated ?? recipe), kelvin });
+      here = recipeEdge({ ...(treated ?? recipe), kelvin, binding });
     gain =
       here.keen === base.keen && here.tough === base.tough
         ? 1
@@ -458,6 +471,64 @@ export function kitWear(ctx: PopulationContext, metal: string): number {
     o2 = meansNumbers(ctx.generated).freeOxygen ? chem.o2 : 0,
     rust = rustRate(host, o2, wet) / rustRate("Fe", 0.2095, true);
   return 1 - RUST_SHARE + RUST_SHARE * Math.min(3, rust);
+}
+
+// —— What the made stuffs do elsewhere ——————————————————————————————————————————————————————————
+
+/** What of a land's building is rebuilt in reinforced concrete once it makes it (est: its frames, not every home), and over how many years. */
+export const CONCRETE_SHARE = 0.6,
+  REBUILD_YEARS = 50;
+
+/** What of a land stands in reinforced concrete this year: its share, as the years since it came to it rebuild it (0: it has not). */
+export function concreteBuilt(world: World, cell: number, year: number): number {
+  const since = materialsOf(world)?.madeIn(cell, "reinforced-concrete") ?? null;
+  if (since === null) return 0;
+  return CONCRETE_SHARE * Math.min(1, Math.max(0, year - since + 1) / REBUILD_YEARS);
+}
+
+/** How much farther a land's ships carry once a lodestone's needle finds north out of sight of land (est: half again). */
+export const COMPASS_REACH = 1.5;
+
+/** A land's ships' reach against what its ship-crafts give: half again with the lodestone's needle. */
+export function compassReach(world: World, cell: number): number {
+  return materialsOf(world)?.made(cell, "lodestone") ? COMPASS_REACH : 1;
+}
+
+/** What a land's flying machines are framed in: glass fibre, else the light alloy, else the steel their figures are reckoned for (null). */
+export function frameStuffOf(world: World, cell: number): "glass-fibre" | "light-alloy" | null {
+  const m = materialsOf(world);
+  if (m?.made(cell, "glass-fibre")) return "glass-fibre";
+  if (m?.made(cell, "light-alloy")) return "light-alloy";
+  return null;
+}
+
+/** A land's flying machines' frame share (rules/reach.ts FRAME_SHARE with steel), lighter in what it makes. */
+export function flyerFrameOf(world: World, cell: number): number {
+  return flyerFrame(FRAME_SHARE, frameStuffOf(world, cell));
+}
+
+/** The launch frames a land's made stuffs give it beside steel's (rules/launch.ts FRAMES): each stage's dry share, from its walls' stuff. */
+export function madeFrames(world: World, cell: number): readonly Frame[] {
+  const m = materialsOf(world),
+    out: Frame[] = [];
+  // (What a tonne of each costs against steel's, est: aluminium is won by current, glass fibre drawn and set in resin.)
+  if (m?.made(cell, "light-alloy"))
+    out.push({
+      id: "alloy-frame",
+      words: "frames of light alloy",
+      needs: ["rocketry"],
+      dry: stageDry("light-alloy"),
+      cost: 1.2,
+    });
+  if (m?.made(cell, "glass-fibre"))
+    out.push({
+      id: "fibre-frame",
+      words: "frames wound of glass fibre",
+      needs: ["rocketry"],
+      dry: stageDry("glass-fibre"),
+      cost: 1.3,
+    });
+  return out;
 }
 
 /** Teach a peopled world what its lands make. */
