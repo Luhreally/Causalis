@@ -198,6 +198,7 @@ test("a works in the sky doubles, faster lit and tended by minds, up to its belt
     c = worksNextYear(1000, most, false, 1e6);
   assert.ok(a > 1000 && b > a && c > a);
   assert.equal(worksNextYear(most, most, true, 1e9), most);
+  assert.ok(near(worksNextYear(1000, most, false, 0, 15), 2000, 1e-6));
   assert.equal(worksMachines(1e9, 1000), Math.floor(1000 * BEYOND.perHead));
   assert.equal(worksMachines(100, 1e9), Math.floor(100 * BEYOND.machinesPerT));
 });

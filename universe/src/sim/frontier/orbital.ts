@@ -144,10 +144,12 @@ export function orbitalYear(ctx: PopulationContext, t: SimTime): void {
       w.last = 0;
       continue;
     }
+    // (A span stepped at once grows it by the span: a deep-time path.)
+    const span = Math.max(1, year - w.tended);
     w.tended = year;
     w.silent = null;
-    w.tonnes = worksNextYear(w.tonnes, most, lit, mindsPastOf(world, w.realm));
-    const sent = w.taken ? 0 : worksMachines(w.tonnes, realmPeople(ctx, p)),
+    w.tonnes = worksNextYear(w.tonnes, most, lit, mindsPastOf(world, w.realm), span);
+    const sent = w.taken ? 0 : span * worksMachines(w.tonnes, realmPeople(ctx, p)),
       m = markets.get(p.seat);
     w.last = m && sent > 0 ? m.move("made", G.machines, sent) : 0;
     w.sent += w.last;

@@ -66,12 +66,18 @@ export const beltKg = (stirred: boolean): number =>
 export const mostWorksT = (stirred: boolean): number =>
   (beltKg(stirred) * BEYOND.beltReached) / 1000;
 
-/** A year of a works tended: doubled by its doubling's share, no more than its belt allows. */
-export function worksNextYear(t: number, most: number, lit: boolean, mindsPast: number): number {
+/** A year of a works tended (or so many at once): doubled by its doubling's share, no more than its belt allows. */
+export function worksNextYear(
+  t: number,
+  most: number,
+  lit: boolean,
+  mindsPast: number,
+  years = 1,
+): number {
   const d =
     (lit ? BEYOND.doublingLit : BEYOND.doubling) /
     (1 + Math.max(0, dmath.log10(Math.max(1, mindsPast))));
-  return Math.min(most, t * dmath.pow(2, 1 / Math.max(1, d)));
+  return Math.min(most, t * dmath.pow(2, Math.max(0, years) / Math.max(1, d)));
 }
 
 /** Machines a works sends down a year: by its weight, no more than its realm's people wear out. */
