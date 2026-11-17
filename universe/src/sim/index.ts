@@ -1401,3 +1401,83 @@ export {
   partnersOf,
   type Partners,
 } from "./ecology/lineage.ts";
+export { installFrontier } from "./frontier/install.ts";
+export {
+  STORMS_KEPT,
+  WEATHER_EVENTS,
+  WeatherStore,
+  homeWeather,
+  weatherHarm,
+  weatherOf,
+  weatherYear,
+  type Storm,
+  type WeatherState,
+} from "./frontier/weather.ts";
+export {
+  IMPACT_EVENTS,
+  ImpactStore,
+  LOOK_AHEAD,
+  STONES_KEPT,
+  dustFields,
+  dustRain,
+  homeStrikeRate,
+  impactsOf,
+  impactsYear,
+  showerOf,
+  stirredOf,
+  stoneOf,
+  type ImpactState,
+  type Stone,
+} from "./frontier/impacts.ts";
+export {
+  GALACTIC_EVENTS,
+  GALACTIC_STEP,
+  GUESTS_KEPT,
+  GalacticStore,
+  burstAt,
+  burstFields,
+  burstHarmNow,
+  burstNow,
+  galacticOf,
+  galacticRates,
+  galacticYear,
+  galaxyOf,
+  type Burst,
+  type Guest,
+} from "./frontier/galactic.ts";
+export {
+  ORBITAL_EVENTS,
+  OrbitalStore,
+  mirrorsLit,
+  orbitalOf,
+  orbitalYear,
+  type Works,
+} from "./frontier/orbital.ts";
+export {
+  WRITTEN_EVENTS,
+  WrittenStore,
+  writableOf,
+  writtenCut,
+  writtenOf,
+  writtenYear,
+  type WrittenRow,
+} from "./frontier/written.ts";
+export {
+  MINDS_EVENTS,
+  MindsStore,
+  mindsFree,
+  mindsOf,
+  mindsPastOf,
+  mindsPower,
+  mindsYear,
+  type MindsRow,
+  type UpLand,
+} from "./frontier/minds.ts";
+export {
+  frontierFields,
+  frontierRain,
+  frontierSky,
+  homeHalls,
+  shipToll,
+  starHalls,
+} from "./frontier/hooks.ts";
