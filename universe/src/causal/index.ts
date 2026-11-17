@@ -60,6 +60,8 @@ import "./space.ts";
 import "./frontier.ts";
 import "./order.ts";
 import "./houses.ts";
+import "./underworld.ts";
+export { groupWords } from "./underworld.ts";
 import "./health.ts";
 import "./credit.ts";
 import "./finance.ts";

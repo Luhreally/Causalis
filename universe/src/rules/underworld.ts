@@ -1,0 +1,387 @@
+// The underworld (asked 2026-11-16: "do like modern day violent mexican cartels ever emerge or have the first principles to emerge?
+// italian mob type things?", then street gangs and police gangs). Organised crime is not a kind of people: it is a firm that sells
+// what the state does not, or forbids, and it rises wherever that is worth selling and there are men to sell it. Each rule here says
+// what an incentive does; a realm's own numbers (how safe its holdings are and how far its deals are kept, the trade worth guarding,
+// what it forbids and what that does to a price, its reach and its officers' price, its idle young men and the veterans of its last
+// war, its towns' poor quarters) say how it plays out. Four roads, one set of principles:
+//   - protection (Gambetta, Varese): where property is unsafe and deals are not held to, those who trade will pay for someone to hold
+//     them, and men skilled in violence and idle (a levy come home from a war, the young poor) can sell it. A protector takes a cut,
+//     settles disputes and enforces the deals the courts do not; it gains those it protects a little where there are no courts, and
+//     taxes them everywhere;
+//   - smuggling rent (the economics of prohibition): a ban makes a price wedge, and the wedge times the volume is a rent. It is taken
+//     where the realm's reach is weak and its officers can be bought, most of all on a border with a rich market that bans;
+//   - the street (Thrasher, Sampson, Wilson): many young men, few legal openings, weak informal control (kin broken, families without
+//     a roof, newcomers), quarters set apart by speech or faith, and a police that reaches little make small gangs of a neighbourhood,
+//     living on the retail of what is forbidden and petty theft; they ally into federations against a rival bloc, mostly along identity;
+//   - the badge (Rampart): a crackdown given licence because results are demanded, under weak oversight (little voice, no free word,
+//     courts that are the seat's), with a rich rent within reach (what is seized, the street market, protection from their own
+//     crackdown) turns its enforcers into a crew of their own: a shakedown crew, or where the seat wants results and answers to no one,
+//     a death squad.
+// Violence follows structure: a valuable rent held by two or more close in strength is fought over (a turf war); one dominant group,
+// or a pact with the state, keeps the peace (the pax mafiosa); a boss taken by a crackdown leaves rival successors. The state answers
+// by its reach, its standing and the voice of the harmed, or colludes where its officers are bought; ending a ban ends the rent.
+// Pure tables and functions: no draws, nothing kept (sim/order/underworld.ts keeps a realm's underworld). Pages say what, who, cost
+// and effect: never how any crime is done.
+import { dmath } from "../kernel/index.ts";
+import type { LifeHistory } from "./species.ts";
+
+const clamp01 = (x: number): number => dmath.clamp(x, 0, 1);
+
+/** The kinds of crime group a realm keeps account of. */
+export const GROUP_KINDS = ["protection", "cartel", "badge"] as const;
+export type GroupKind = (typeof GROUP_KINDS)[number];
+
+/** What a group lives on (bits of a group's `rackets`). */
+export const RACKETS = [
+  "protection",
+  "smuggling",
+  "extortion",
+  "kidnapping",
+  "theft",
+  "shakedown",
+  "killing",
+] as const;
+export type Racket = (typeof RACKETS)[number];
+export const racketBit = (r: Racket): number => 1 << RACKETS.indexOf(r);
+
+/** How a group's hold ended. */
+export const GROUP_ENDS = [
+  "crushed",
+  "withered",
+  "absorbed",
+  "split",
+  "exposed",
+  "fallen with its realm",
+] as const;
+export type GroupEnd = (typeof GROUP_ENDS)[number];
+
+/** The machinery's constants. */
+export const UNDER = {
+  /** A realm's underworld is reckoned once in this many years, in its turn, stepped as many years at once. */
+  every: 5,
+  /** The groups a realm keeps account of, the federations, the ended ones it remembers, a group's lands, the wars it remembers. */
+  most: 6,
+  feds: 3,
+  gone: 4,
+  lands: 8,
+  wars: 4,
+  /** The most groups of one road (the rest are too small to be named). */
+  ofRoad: 3,
+  /** What a protector takes of a protected trade's worth (est: the pizzo, 2–10% of a shop's takings in Palermo). */
+  cut: 0.06,
+  /** A protection group rises where the pull (want of protection times men to sell it) reaches this. */
+  riseProtect: 0.05,
+  /** A smuggling group rises where the rent taken reaches this share of what its people earn. */
+  riseRent: 0.004,
+  /** The fewest men a group is: a rent that cannot keep so many keeps no group. */
+  crew: 20,
+  /** A group's man costs this many of a working man's years a year (his keep, his risk, his arms). */
+  keep: 1.6,
+  /** Of a realm's men who are skilled in violence and idle, the most a group can recruit. */
+  recruit: 0.5,
+  /** What a group spends a year of what it holds (its keep, its bribes, its show). */
+  spends: 0.25,
+  /** How fast shares of a rent move toward each group's strength, a year. */
+  pace: 0.25,
+  /**
+   * Of a group's men, the share killed a year in an open turf war, and at peace (est: Mexico 2007–2020, some 20 to 30 thousand
+   * killed a year among perhaps 150 thousand in the cartels and their rivals; Sicily's second mafia war, some 1,000 dead among a
+   * few thousand men of honour over three years).
+   */
+  killWar: 0.08,
+  killPeace: 0.004,
+  /** Others killed for each of a group's men killed (bystanders, police, those who would not pay). */
+  bystanders: 0.6,
+  /** A turf war is told from this much, and its end below the second. */
+  warAt: 0.3,
+  warEnds: 0.12,
+  /** A group falls from the named below this share of its road's rent. */
+  least: 0.05,
+  /** The most of a boss's chance of being taken a year at a full crackdown (est: Mexico's kingpin strategy took some two dozen of 37 named in six years). */
+  decap: 0.15,
+  /** Of a group's men a full crackdown takes a year (arrested, killed, turned). */
+  arrests: 0.12,
+  /** What a full crackdown costs a year for each of the groups' men it faces, in working men's years (police, courts, prisons). */
+  crackCost: 1.2,
+  /** How far collusion takes the edge off a crackdown, and what of the groups' income goes to officers and judges. */
+  bribes: 0.2,
+  /** How much a corrupt pact with the state cools a turf war. */
+  pax: 0.7,
+  /** How far protection gains a trade's deals kept where courts are absent, and what extortion takes of a holding's safety. */
+  enforces: 0.25,
+  extorts: 0.6,
+  /** Grievance a year in a land: so many times the share of its people killed a year, and the share of its trade extorted. */
+  grievesKilling: 40,
+  grievesExtortion: 0.25,
+  /** What open killing in a realm's lands takes of its standing: a hundredth of this for each killing a year in a thousand of its people, at most `standingMost`. */
+  standingKilling: 30,
+  standingMost: 0.2,
+  /** What a badge crew found out takes of its realm's standing, fading over `scandalYears`. */
+  scandal: 0.15,
+  scandalYears: 12,
+  /** Street gangs: a town has poor quarters from this many people; one small gang for so many young men at the full pull. */
+  town: 2000,
+  gangOf: 120,
+  /** A federation forms where a realm's towns hold this many gangs of one identity; it reaches a town with this many. */
+  fedForm: 8,
+  fedTown: 2,
+  /** Of the young in a town's gangs, the share killed a year at the worst (est: the worst of Chicago's and Los Angeles' gang years). */
+  streetKill: 0.01,
+  /** Of a town's gangs' young, the share jailed a year by a court that jails, at full reach. */
+  jailed: 0.08,
+  /** How far a town's killings keep newcomers from it. */
+  deters: 6,
+} as const;
+
+// —— Who wants protection, and who can sell it ————————————————————————————————————————————————————————————
+
+/** What a realm's traders and holders want of private protection (0 … 1). */
+export type ProtectionFacts = {
+  /** How safe a holding is from its ruler and from others (society's law row), and how far a deal is held to (0 … 1). */
+  readonly secure: number;
+  readonly deals: number;
+  /** Its trade, and what its people earn (grain's worth a year). */
+  readonly trade: number;
+  readonly earned: number;
+  /** How far its seat reaches its lands (0 … 1). */
+  readonly capacity: number;
+};
+
+/**
+ * The want of private protection (0 … 1): as far as holdings are unsafe and deals not held, among those who have a trade worth
+ * guarding, less where the seat's own reach supplies it.
+ */
+export function protectionWanted(f: ProtectionFacts): number {
+  const unsafe = 1 - (0.5 * clamp01(f.secure) + 0.5 * clamp01(f.deals)),
+    rich = f.trade > 0 ? clamp01((2 * f.trade) / (f.trade + Math.max(1, f.earned))) : 0;
+  return clamp01(unsafe * (0.3 + 0.7 * rich) * (1 - 0.6 * clamp01(f.capacity)));
+}
+
+/** Who could sell it: the men of a realm skilled in violence and idle, each a share of its people. */
+export type ViolentFacts = {
+  /** Veterans of a war ended in the last few years, come home with nothing to go to. */
+  readonly veterans: number;
+  /** Its young men, its crafts idle (0 … 1), its poorest fifth's want (0 … 1: 0 where they hold a fifth of all). */
+  readonly young: number;
+  readonly idle: number;
+  readonly poor: number;
+  /** Those on the street. */
+  readonly street: number;
+};
+
+/** The pool of men skilled in violence and idle (a share of its people), and how ready the supply is (0 … 1). */
+export function violentIdle(f: ViolentFacts): { pool: number; supply: number } {
+  const pool =
+    Math.max(0, f.veterans) +
+    Math.max(0, f.young) * clamp01(0.5 * clamp01(f.idle) + 0.5 * clamp01(f.poor)) +
+    0.3 * Math.max(0, f.street);
+  return { pool, supply: clamp01(pool * 12) };
+}
+
+// —— The rent of what is forbidden ————————————————————————————————————————————————————————————————————————
+
+/**
+ * The rent a ban makes (grain's worth a year): what its users pay, of which the risk's part is the wedge over what it would cost
+ * allowed. `risk` is how much dearer a ban makes it at full (sim/money/intox.ts RISK).
+ */
+export function banRent(worth: number, barred: number, risk: number): number {
+  const b = clamp01(barred);
+  return Math.max(0, worth) * ((risk * b) / (1 + risk * b));
+}
+
+/** The share of a rent those outside the law can take: where the seat's reach is weak and its officers can be bought. */
+export function rentCaptured(capacity: number, corruption: number): number {
+  return clamp01((1 - clamp01(capacity)) * (0.35 + clamp01(corruption)) * 1.2);
+}
+
+// —— Violence from structure ——————————————————————————————————————————————————————————————————————————————
+
+/**
+ * How hard a road's groups fight over its rent (0 … 1): by how close the two greatest are (a duopoly or a fragmented market fights;
+ * one dominant does not), less a pact with the state. Its concentration (Herfindahl) is given back.
+ */
+export function turfWar(
+  shares: readonly number[],
+  pact: number,
+): { war: number; herfindahl: number } {
+  const s = [...shares].filter((x) => x > 0).sort((a, b) => b - a),
+    all = s.reduce((a, x) => a + x, 0);
+  if (s.length < 2 || all <= 0) return { war: 0, herfindahl: s.length ? 1 : 0 };
+  const n = s.map((x) => x / all),
+    h = n.reduce((a, x) => a + x * x, 0),
+    close = n[1]! / n[0]!;
+  return {
+    war: clamp01(close * (1 - h) * 2.4 * (1 - UNDER.pax * clamp01(pact))),
+    herfindahl: h,
+  };
+}
+
+/** The men a road's groups lose a year, and the others they kill, for their men and how hard they fight. */
+export function killingsOf(members: number, war: number): number {
+  return (
+    Math.max(0, members) * (UNDER.killPeace + UNDER.killWar * clamp01(war)) * (1 + UNDER.bystanders)
+  );
+}
+
+// —— The state's answer ———————————————————————————————————————————————————————————————————————————————————
+
+export type CrackdownFacts = {
+  readonly capacity: number;
+  readonly legitimacy: number;
+  /** How far its people are heard and word moves (0 … 1). */
+  readonly voice: number;
+  readonly word: number;
+  /** The harm done: killings a year in a thousand of its people, and the share of its trade extorted. */
+  readonly killings: number;
+  readonly extortion: number;
+  /** How far its officers are bought by the groups (0 … 1). */
+  readonly collusion: number;
+};
+
+/** How hard a realm cracks down (0 … 1): by its reach and its standing, as far as the harmed are heard, less what is bought off. */
+export function crackdownOf(f: CrackdownFacts): number {
+  const harmed = clamp01(2 * f.killings + 2 * f.extortion),
+    heard = 0.25 + clamp01(f.voice) + 0.5 * clamp01(f.word);
+  return clamp01(
+    clamp01(f.capacity) *
+      (0.4 + clamp01(f.legitimacy)) *
+      (0.15 + harmed * heard) *
+      (1 - 0.8 * clamp01(f.collusion)),
+  );
+}
+
+/**
+ * How far a realm's officers and judges are bought (0 … 1): where they are bought already, the more the groups have to pay them
+ * with (their income against the treasury's), less where word would tell of it; a great house that shelters a group the more.
+ */
+export function collusionOf(
+  corruption: number,
+  paying: number,
+  word: number,
+  house: boolean,
+): number {
+  return clamp01(
+    clamp01(corruption) * 1.6 * (0.3 + clamp01(paying * 3)) * (1 - 0.5 * clamp01(word)) +
+      (house ? 0.1 : 0),
+  );
+}
+
+/** The chance a boss is taken within `span` years: by the crackdown, less where a house or the officers shelter the group. */
+export function bossTaken(crackdown: number, sheltered: number, span: number): number {
+  const a = UNDER.decap * clamp01(crackdown) * (1 - 0.7 * clamp01(sheltered));
+  return 1 - dmath.pow(1 - a, Math.max(1, span));
+}
+
+/** How many rival successors a taken boss leaves, for a group's men and a draw u (0 … 1): a large group splits into more. */
+export function successorsOf(members: number, u: number): number {
+  const most = members >= 600 ? 3 : members >= 150 ? 2 : 1;
+  return 1 + Math.floor(clamp01(u) * most);
+}
+
+// —— The street ———————————————————————————————————————————————————————————————————————————————————————————
+
+export type StreetFacts = {
+  /** Its young men, a share of the town's people. */
+  readonly young: number;
+  /** Its crafts idle, its poorest fifth's want (0 … 1). */
+  readonly idle: number;
+  readonly poor: number;
+  /** Its people on the street, the share who came from elsewhere, how far its quarters are set apart by speech or faith. */
+  readonly street: number;
+  readonly newcomers: number;
+  readonly apart: number;
+  /** How far its police reach, how far its elders, temple and kin hold sway (0 … 1). */
+  readonly reach: number;
+  readonly informal: number;
+  /** Who need what they take, a share of its people (the street's market). */
+  readonly dependent: number;
+};
+
+/** The pull of the street (0 … 1): young men without openings, beyond the hold of kin and police, in quarters set apart. */
+export function streetPull(f: StreetFacts): number {
+  const young = clamp01(f.young / 0.09),
+    openings = 0.2 + 0.5 * clamp01(f.idle) + 0.5 * clamp01(f.poor),
+    loose = 0.3 + 2 * clamp01(f.street) + clamp01(f.newcomers) + clamp01(f.apart),
+    market = 1 + 4 * clamp01(f.dependent);
+  return clamp01(
+    young *
+      openings *
+      loose *
+      market *
+      (1 - 0.7 * clamp01(f.reach)) *
+      (1 - 0.5 * clamp01(f.informal)) *
+      0.9,
+  );
+}
+
+/**
+ * How hard a town's gangs fight (0 … 1): respect and retaliation, the more as they are many and close in strength (two rival
+ * federations in one town most of all), the more where arms are cheap, the less where elders and kin hold sway and work returns.
+ */
+export function streetFight(
+  gangs: number,
+  rival: boolean,
+  arms: number,
+  informal: number,
+  idle: number,
+): number {
+  const many = clamp01(Math.max(0, gangs - 1) / 10);
+  return clamp01(
+    (0.2 + many) *
+      (rival ? 1.6 : 1) *
+      (0.4 + 0.8 * clamp01(arms)) *
+      (1 - 0.5 * clamp01(informal)) *
+      (0.6 + 0.6 * clamp01(idle)),
+  );
+}
+
+// —— The badge ——————————————————————————————————————————————————————————————————————————————————————————————
+
+export type BadgeFacts = {
+  readonly crackdown: number;
+  /** How far its people are heard, word moves, its courts stand apart from the seat (0 … 1), and how hard it is held. */
+  readonly voice: number;
+  readonly word: number;
+  readonly courts: number;
+  readonly force: number;
+  /** What is within the enforcers' reach: what they seize and the street's market, a share of what its people earn. */
+  readonly within: number;
+};
+
+/** How far a crackdown's enforcers turn to their own (0 … 1): licence under weak oversight, a rent in reach. */
+export function badgePull(f: BadgeFacts): number {
+  const oversight = 0.4 * clamp01(f.voice) + 0.3 * clamp01(f.word) + 0.3 * clamp01(f.courts);
+  return clamp01(
+    clamp01(f.crackdown) *
+      (1 - oversight) *
+      (0.4 + clamp01(f.force)) *
+      clamp01(0.3 + 40 * Math.max(0, f.within)) *
+      1.6,
+  );
+}
+
+/** Whether a crew kills those it hunts outside the law: the seat wants results and answers to no voice. */
+export const deathSquad = (force: number, voice: number, crackdown: number): boolean =>
+  force >= 0.6 && voice < 0.25 && crackdown >= 0.3;
+
+/** The chance a crew is found out within `span` years: by free word, a court of its own, a rival house, the killings it leaves. */
+export function exposedWithin(
+  f: { word: number; courts: number; rival: number; killings: number },
+  span: number,
+): number {
+  const a = clamp01(
+    0.06 * clamp01(f.word) +
+      0.05 * clamp01(f.courts) +
+      0.05 * clamp01(f.rival) +
+      0.04 * clamp01(f.killings * 2),
+  );
+  return 1 - dmath.pow(1 - a, Math.max(1, span));
+}
+
+// —— Who is young ——————————————————————————————————————————————————————————————————————————————————————————
+
+/** Whether an age band is of the young grown (fifteen to thirty, for upright apes): those the street and the gangs take. */
+export function youngBand(life: LifeHistory, band: number): boolean {
+  const at = life.bands[band] ?? 0;
+  return at >= life.adulthood && at < 2 * life.adulthood;
+}

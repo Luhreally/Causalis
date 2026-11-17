@@ -55,6 +55,7 @@ import {
 import { streetInTownOf } from "../../sim/index.ts";
 import { ROOF } from "../../rules/index.ts";
 import { cellRef } from "../../gen/index.ts";
+import { townUnderworldBlocks } from "./mobs.ts";
 import type {
   Block,
   CourtForm,
@@ -1508,6 +1509,8 @@ export function townLawTab(world: World, ref: string): Tab | null {
     ];
   if (compare)
     blocks.push({ type: "text", title: "Beside its land's other towns", lines: [compare] });
+  // (Who holds its land outside the law, its street's gangs, its enforcers turned crew: sim/order/underworld.ts.)
+  blocks.push(...townUnderworldBlocks(world, s));
   if (held.length)
     blocks.push({
       type: "list",

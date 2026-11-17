@@ -1717,3 +1717,34 @@ export { HOLDING_EVENTS, holdingsYear, lawYear } from "./society/holding.ts";
 export { dressYear, leisureYear, tableYear } from "./society/everyday.ts";
 export { installSociety } from "./society/society.ts";
 export { rooflessYear } from "./society/roofless.ts";
+// The underworld (2026-11-16): crime groups, street federations, the state's answer, and what a land's lens reads of them.
+export {
+  UNDERWORLD_EVENTS,
+  installUnderworld,
+  kindOfGroup,
+  underworldYear,
+} from "./order/underworld.ts";
+export {
+  GANGS_STORE,
+  GANG_ROW,
+  UNDERWORLD_STORE,
+  UnderworldStore,
+  collusionIn,
+  gangDeterOf,
+  gangsStore,
+  groupsIn,
+  killedOf,
+  organisedOf,
+  protectedOf,
+  streetGangsOf,
+  trustLostOf,
+  underworldOf,
+  underworldSkim,
+  youngKilledOf,
+  type Boss,
+  type CrimeGroup,
+  type Federation,
+  type GangWar,
+  type GoneGroup,
+  type RealmUnderworld,
+} from "./order/underworld-kept.ts";
