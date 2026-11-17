@@ -53,6 +53,9 @@ import {
 import { LAW_ROW, LAW_STORE, societyStore } from "../../src/sim/society/kept.ts";
 import { refNumber } from "../../src/sim/money/kept.ts";
 import { EARTH } from "../../src/host/index.ts";
+import { pageOf } from "../../src/host/inspect/index.ts";
+import { claimOf } from "../../src/host/inspect/words.ts";
+import { groupRef } from "../../src/host/underworld.ts";
 import { universeWorld } from "../host/worlds.ts";
 
 // —— The rules ——————————————————————————————————————————————————————————————————————————————————————————
@@ -254,4 +257,38 @@ test("the store hashes what it keeps, saves and loads whole, and is dormant unti
   t.hashInto(b);
   assert.equal(a.hex(), b.hex());
   assert.deepEqual(t.of(v!), s.of(v!));
+});
+
+test("a realm's Underworld tab, each group's page with its follow and pin, and the words of its events never say how", () => {
+  const store = underworldOf(world)!,
+    realm = store
+      .realmsKept()
+      .find((r) => (store.of(r)?.groups.length ?? 0) + (store.of(r)?.gone.length ?? 0) > 0);
+  assert.ok(realm, "a realm with groups");
+  const page = pageOf(world, realm!),
+    tab = page.tabs.find((t) => t.id === "underworld");
+  assert.ok(tab, page.tabs.map((t) => t.id).join(","));
+  const v = store.of(realm!)!,
+    refs = [
+      ...v.groups.map((g) => groupRef(realm!, g.event)),
+      ...v.gone.map((g) => groupRef(realm!, g.rose)),
+    ];
+  assert.ok(refs.length > 0);
+  for (const ref of refs) {
+    const p = pageOf(world, ref);
+    assert.equal(p.kind, "family", `${ref} ${p.title}`);
+    assert.ok(p.followable, `${ref} can be followed`);
+    assert.equal(p.pin?.ref, ref);
+    assert.ok(/family|cartel|squad/.test(p.title), p.title);
+  }
+  // (Its events have words, and none of them says how anything is done.)
+  const said = world.events
+    .all()
+    .filter((e) => e.type.startsWith("underworld."))
+    .map((e) => claimOf(world, e.id));
+  assert.ok(said.length > 0);
+  for (const s of said) {
+    assert.ok(!/\bhow to\b|recipe|cook|synthes|assemble/i.test(s), s);
+    assert.ok(!s.includes("underworld."), s);
+  }
 });

@@ -47,6 +47,7 @@ const HEADINGS: Readonly<Record<string, readonly [string, string]>> = {
   credit: ["Credit", "🏦"],
   money: ["Money and the state", "🪙"],
   strife: ["Strife", "🗡️"],
+  underworld: ["The underworld", "🕶️"],
 };
 
 /** Events whose kind says itself better whole than as its domain and its word. */
@@ -101,6 +102,20 @@ const TITLES: Readonly<Record<string, string>> = {
   "houses.faded": "A house faded",
   "houses.exposed": "A grift found out",
   "houses.parted": "An estate parted",
+  "underworld.rose": "A crime group rose",
+  "underworld.badge": "Enforcers turned crew",
+  "underworld.split": "A group split",
+  "underworld.war": "A gang war",
+  "underworld.pax": "A gang war ended",
+  "underworld.decapitated": "A boss taken",
+  "underworld.boss": "A new boss",
+  "underworld.crackdown": "A crackdown",
+  "underworld.pact": "Officers bought",
+  "underworld.turned": "A cartel turned",
+  "underworld.ended": "A group's hold ended",
+  "underworld.federation": "Street gangs allied",
+  "underworld.feud": "Two federations at feud",
+  "underworld.exposed": "A crew of enforcers found out",
   "ties.council": "A council of realms",
   "ties.spy": "A spy caught",
   "war.insurgency": "A land held by force",

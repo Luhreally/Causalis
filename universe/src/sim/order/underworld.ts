@@ -224,9 +224,11 @@ function townName(ctx: PopulationContext, cell: number): string | null {
 /** A new boss, grown and in his prime. */
 function newBoss(f: Facts, cell: number, surname: string | null, salt: number): CrimeGroup["boss"] {
   const given = tongueWord(f, cell, salt, 0x6b1d) ?? "One",
+    // (A family's boss bears its name; another's, his own family's.)
+    family = surname ?? tongueWord(f, cell, salt + 1, 0x51f7),
     grown = f.ctx.life.adulthood;
   return {
-    name: surname ? `${given} ${surname}` : given,
+    name: family ? `${given} ${family}` : given,
     born: f.year - Math.round(grown * (1.6 + f.u(salt * 7 + 3))),
     since: f.year,
   };
@@ -841,7 +843,6 @@ function stepRealm(
       }
   for (const [kind, rent, pull] of roads) {
     const own = v.groups.filter((g) => kindOfGroup(g) === kind),
-      top = Math.max(0, ...own.map((g) => g.share)) / 1000,
       line = kind === "protection" ? UNDER.riseProtect : UNDER.riseRent,
       perGroup = rent / Math.max(1, own.length + 1),
       // (Room for another: the men the road's groups hold fall well short of what its rent would keep, or lands with towns lie
@@ -858,9 +859,9 @@ function stepRealm(
       idle.supply > 0.05 &&
       own.length < UNDER.ofRoad &&
       v.groups.length < UNDER.most &&
-      // (A rent that keeps a crew at all, and, for a second or third, no group already holding it.)
+      // (A rent that keeps a crew at all, and, for a second or third, room the groups already there cannot hold.)
       perGroup >= r.wage * UNDER.keep * UNDER.crew &&
-      (own.length === 0 || (top < 0.85 && room && f.u(40 + KIND(kind)) < 0.5))
+      (own.length === 0 || (room && f.u(40 + KIND(kind)) < 0.5))
     ) {
       // (Its home: the weightiest land none of its road holds; a cartel's on the border where it can.)
       const free = (cs: Iterable<number>) =>
