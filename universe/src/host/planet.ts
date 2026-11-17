@@ -3,6 +3,7 @@
 // until people change them — and the page colours them by whichever lens is on.
 import type { SwitchStore } from "../sim/index.ts";
 import {
+  underworldOf,
   brushPreview,
   actsOf,
   agentName,
@@ -61,6 +62,7 @@ import {
   worldLaws,
 } from "../sim/index.ts";
 import {
+  GROUP_KINDS,
   FOODS,
   G,
   GOODS,
@@ -111,6 +113,7 @@ import {
   type World,
 } from "../kernel/index.ts";
 import {
+  groupWords,
   folkRef,
   governmentWords,
   principleName,
@@ -908,8 +911,10 @@ function planetUniverse(name: string, prior: Prior): Universe {
   // how wealth is held, debt owed to strangers and the lean month, and leaves what those who rose would have. And with the six
   // rounds after that: energy and the ground as stocks, a people's mind, money and the state, the planet in motion, lives read
   // whole, peoples among the stars alive in history, and order: powers, wants learned, elections, councils, spies, lands held
-  // by force and the ground a battle is fought on.)
-  const version = name === "alien" ? "alien-28" : `${name}-24`,
+  // by force and the ground a battle is fought on. And with the sweep after: houses and who a ruler must pay, what a people
+  // believes and makes, sieges and navies, cycles and cartels, a nature that moves in play, the galaxy's hazards, everyday
+  // life and its institutions, what a stuff can do, the roofless, the underworld and the groups that form where a stake pays.)
+  const version = name === "alien" ? "alien-29" : `${name}-25`,
     make = (seed: Seed, frequency?: number) => {
       // The chronicle opens after a generated prehistory: bands across the land.
       const lands = landsOf(seed.text),
@@ -1391,6 +1396,22 @@ function planetUniverse(name: string, prior: Prior): Universe {
               fields,
               host: hostOf(r.ref),
             }));
+        // (Soldiers a seat has sent into a crime group's towns stand there too: escalation, sim/order/underworld.)
+        const under = underworldOf(world);
+        if (under)
+          for (const r of realms.living())
+            for (const o of under.of(r.ref)?.ops ?? [])
+              if (o.ended === null)
+                for (const c of o.lands)
+                  if (spot(c) >= 0)
+                    garrisons.push({
+                      realm: r.ref,
+                      name: `${realmName(r)}, sent against ${groupWords(o.name, GROUP_KINDS[o.kind])}`,
+                      color: realmColor(r.ref),
+                      spot: spot(c),
+                      fields: Math.round(o.soldiers / Math.max(1, o.lands.length)),
+                      host: hostOf(r.ref),
+                    });
         return { year, garrisons, wars, body: peopleFigure(ctx.generated) };
       },
       // A world's beginning, for the genesis (M89): its deep ages, every lineage with the

@@ -41,7 +41,7 @@ export type {
   WrittenYear,
 } from "./bar.ts";
 export type { BrushKind, BrushStrokeArgs, BrushPreview, BrushState } from "./brush.ts";
-export type { AskOffer, TownOffers } from "./inspect.ts";
+export type { AskOffer, MusicVoice, TownOffers } from "./inspect.ts";
 export type { TownAsked, TownFirst } from "./town.ts";
 export type {
   ShipCrew,

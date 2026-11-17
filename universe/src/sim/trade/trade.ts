@@ -649,7 +649,8 @@ export function cartelYear(ctx: PopulationContext, t: SimTime): void {
       });
       world.events.emit({
         type: COMMERCE_EVENTS.cartel.type,
-        subjects: ps.map((p) => p.ref),
+        // (An event names four at the most: the greatest of the cartel; its data names them all.)
+        subjects: ps.slice(0, 4).map((p) => p.ref),
         place: ctx.provinces.get(ps[0]!.seat)?.ref ?? null,
         causes: [{ ref: decision, role: "trigger", weight: 1 }],
         data: {

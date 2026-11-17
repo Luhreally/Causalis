@@ -52,6 +52,7 @@ export const GROUP_ENDS = [
   "split",
   "exposed",
   "fallen with its realm",
+  "disarmed",
 ] as const;
 export type GroupEnd = (typeof GROUP_ENDS)[number];
 
@@ -69,6 +70,12 @@ export const UNDER = {
   ofRoad: 3,
   /** What a protector takes of a protected trade's worth (est: the pizzo, 2–10% of a shop's takings in Palermo). */
   cut: 0.06,
+  /**
+   * What an unguarded trade loses where nothing at all is held, to theft, seizure and deals broken (est: a quarter of its worth). A
+   * trader pays a protector's cut only where what unsafety would take of him is more: where holdings are safe and deals held, no cut
+   * is worth paying and no protector has a market.
+   */
+  lost: 0.25,
   /** A protection group rises where the pull (want of protection times men to sell it) reaches this. */
   riseProtect: 0.05,
   /** A smuggling group rises where the rent taken reaches this share of what its people earn. */
@@ -148,13 +155,16 @@ export type ProtectionFacts = {
 };
 
 /**
- * The want of private protection (0 … 1): as far as holdings are unsafe and deals not held, among those who have a trade worth
+ * The want of private protection (0 … 1): as far as holdings are unsafe and deals not held past the point where a protector's cut is
+ * worth paying (what unsafety would take, UNDER.lost of a trade at the worst, against UNDER.cut), among those who have a trade worth
  * guarding, less where the seat's own reach supplies it.
  */
 export function protectionWanted(f: ProtectionFacts): number {
   const unsafe = 1 - (0.5 * clamp01(f.secure) + 0.5 * clamp01(f.deals)),
+    pays = UNDER.cut / UNDER.lost,
+    paid = clamp01((unsafe - pays) / (1 - pays)),
     rich = f.trade > 0 ? clamp01((2 * f.trade) / (f.trade + Math.max(1, f.earned))) : 0;
-  return clamp01(unsafe * (0.3 + 0.7 * rich) * (1 - 0.6 * clamp01(f.capacity)));
+  return clamp01(paid * (0.3 + 0.7 * rich) * (1 - 0.6 * clamp01(f.capacity)));
 }
 
 /** Who could sell it: the men of a realm skilled in violence and idle, each a share of its people. */
@@ -516,4 +526,105 @@ export function bulkSlip(potency: number): number {
 /** What a dose costs against its grown form's price, for its strength. */
 export function dosePrice(potency: number): number {
   return 1 / dmath.pow(Math.max(1, potency), POTENCY.cheaper);
+}
+
+// —— Escalation: when a seat sends soldiers, and what comes of it (asked 2026-11-16: "does the army go to war with them?") ————
+// A seat turns from its police to its soldiers where a group's armed men outmatch what its police can meet, the killing is high or
+// the group defies the seat itself, the seat has the treasury and a host not at war abroad, and its standing needs it or its ruler's
+// ways favour force. The same weighing can choose to leave the group be, or to make a pact with it. What comes of an operation is the
+// structure's own: a boss taken splinters a great group, soldiers under no oversight abuse and turn crews, a realm that jails many
+// knits its gangs in the jails, a long war of attrition ends in a truce, a weak group lays down its arms on terms, a crushed one
+// leaves its men and turf to its rivals, and a group richer than the state buys the operation off.
+
+export const ESCALATE = {
+  /** The most operations a realm runs at once, and the ended ones it remembers. */
+  most: 2,
+  gone: 3,
+  /** A realm's police: so many in a thousand of its people, as far as its seat reaches. */
+  police: 4,
+  /** The share of its host a realm sends at most, and soldiers for each of the group's men at most. */
+  hostShare: 0.15,
+  perMan: 3,
+  /** What a soldier sent costs a year, in working men's years. */
+  cost: 1.2,
+  /** Of a group's men the share an operation's soldiers could take a year at full odds, and of the soldiers the share they lose. */
+  takes: 0.25,
+  loses: 0.03,
+  /** Others killed for each of the group's men killed in the fighting; of its lands' people, the share driven from their homes a year at full. */
+  bystanders: 0.5,
+  displaced: 0.01,
+  /** How hard an operation bites on its group (against a crackdown's own). */
+  bite: 0.8,
+  /** After so many years a war of attrition that has not broken its group is ended by a truce; how long a truce holds. */
+  attrition: 10,
+  truce: 10,
+  /** What a truce cuts of its group's killing, and what it costs a seat's standing once known. */
+  calms: 0.6,
+  known: 0.1,
+  /** A group with fewer men than this share of the soldiers sent lays down its arms on terms. */
+  terms: 0.15,
+  /** A group whose wealth reaches so many years of the state's revenue buys the operation off. */
+  buys: 1.5,
+  /** The years after an operation ends before a seat weighs sending its soldiers again. */
+  rest: 10,
+  /** How many more of a town's gangs' young are jailed in an operation. */
+  jails: 3,
+} as const;
+
+export type EscalationFacts = {
+  /** The group's armed men against the police its seat can send (≥ 0), the killing (a year, in a thousand of the realm's people). */
+  readonly outmatch: number;
+  /** The soldiers it could send, by their arms, against the group's men by theirs (1: an even fight). */
+  readonly match: number;
+  readonly killings: number;
+  /** Whether it holds the seat's own land or kills its officers (its open defiance). */
+  readonly defies: boolean;
+  /** The years of an operation's cost its reserve holds, and whether its host is at war abroad. */
+  readonly afford: number;
+  readonly atWar: boolean;
+  /** Its rule held rightful, how hard it is held, what is skimmed, the group's wealth against the treasury's revenue. */
+  readonly legitimacy: number;
+  readonly force: number;
+  readonly corruption: number;
+  readonly paying: number;
+};
+
+/** How far a seat would send soldiers, make a pact, or leave a group be (each a score; the greatest is chosen), and the parts. */
+export function escalation(f: EscalationFacts): {
+  army: number;
+  pact: number;
+  leave: number;
+  parts: [string, number][];
+} {
+  const parts: [string, number][] = [
+    ["the group's armed men outmatch its police", 0.5 * clamp01(f.outmatch - 0.5)],
+    ["soldiers enough to meet its men", 0.8 * (clamp01(f.match / 3) - 0.5)],
+    ["the killing in its lands", clamp01(f.killings * 2)],
+    ["the group openly defies the seat", f.defies ? 0.3 : 0],
+    ["the treasury to pay for it", 0.2 * clamp01(f.afford) - 0.3],
+    ["its host at war abroad", f.atWar ? -3 : 0],
+    ["a rule that needs to be seen to act", 0.4 * clamp01(0.6 - f.legitimacy)],
+    ["a ruler whose ways favour force", 0.3 * clamp01(f.force - 0.4)],
+    ["officers and judges the group has bought", -1.2 * clamp01(f.corruption)],
+  ];
+  const army = parts.reduce((s, [, v]) => s + v, 0),
+    pact = clamp01(f.corruption) * 0.8 + 0.4 * clamp01(f.paying) - 0.1,
+    leave = 0.25;
+  return { army, pact, leave, parts };
+}
+
+/** What a year of an operation does: of the group's men, the share taken or killed; of the soldiers, the share lost. */
+export function fightOdds(
+  soldiers: number,
+  soldierArms: number,
+  men: number,
+  menArms: number,
+): {
+  taken: number;
+  lost: number;
+} {
+  const s = Math.max(0, soldiers) * (0.5 + clamp01(soldierArms)),
+    g = Math.max(0, men) * (0.5 + clamp01(menArms)),
+    odds = s + g > 0 ? s / (s + g) : 0;
+  return { taken: ESCALATE.takes * odds, lost: ESCALATE.loses * (1 - odds) };
 }

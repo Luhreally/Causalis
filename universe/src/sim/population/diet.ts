@@ -14,7 +14,15 @@ import {
   type World,
 } from "../../kernel/index.ts";
 import { offworldSite } from "../../gen/index.ts";
-import { FOODS, G, STUNTING, dietOf, sunMade, wantDeaths } from "../../rules/index.ts";
+import {
+  FOODS,
+  G,
+  STUNTING,
+  dietOf,
+  sunMade,
+  tableShort,
+  wantDeathsOver,
+} from "../../rules/index.ts";
 import { airSmoke } from "../climate/air.ts";
 import { LEDGER } from "../economy/market.ts";
 import { loreOf } from "../lore/lore.ts";
@@ -46,6 +54,8 @@ export class DietStore implements StateStore {
   readonly name = "life.diet";
   readonly packed = true;
   readonly lands = new Map<number, DietLand>();
+  /** How short its people's body goes on the eating its life table was reckoned at (thousandths; rules/nutrition.ts tableShort). */
+  table = 0;
   dormant(): boolean {
     return this.lands.size === 0;
   }
@@ -57,15 +67,17 @@ export class DietStore implements StateStore {
   hashInto(h: Hasher): void {
     if (this.dormant()) return;
     h.value([...this.lands.values()].sort((a, b) => a.cell - b.cell));
+    h.int(this.table);
   }
   save(): unknown {
     return this.dormant()
       ? {}
-      : { lands: [...this.lands.values()].sort((a, b) => a.cell - b.cell) };
+      : { lands: [...this.lands.values()].sort((a, b) => a.cell - b.cell), table: this.table };
   }
   load(state: unknown): void {
-    const s = (state ?? {}) as { lands?: DietLand[] };
+    const s = (state ?? {}) as { lands?: DietLand[]; table?: number };
     this.lands.clear();
+    this.table = s.table ?? 0;
     for (const l of s.lands ?? []) this.lands.set(l.cell, { ...l, eaten: [...l.eaten] });
   }
 }
@@ -79,7 +91,8 @@ const ONE = { young: 1, grown: 1 } as const;
 /** How much likelier death is for a land's young and grown for what they went short of (exactly 1 where none). */
 export function dietDeaths(world: World, cell: number): { young: number; grown: number } {
   const l = dietOfWorld(world)?.lands.get(cell);
-  return l && l.short > 0 ? wantDeaths(l.short / 1000) : ONE;
+  const store = dietOfWorld(world);
+  return l && l.short > store!.table ? wantDeathsOver(l.short / 1000, store!.table / 1000) : ONE;
 }
 
 /** The year's diets (121.life.diet): each peopled land's last year of eating read. */
@@ -98,6 +111,9 @@ export function dietYear(ctx: PopulationContext, _t: SimTime): void {
       ctx.medium === "water" || cradle < 0
         ? 1
         : sunMade(deg(c), deg(cradle), g.planet.tilt, airSmoke(ctx, c));
+  // (A sea people's sown "grain" is its beds of weed and shell: sim/ecology/crops.ts BEDS.)
+  const beds = ctx.medium !== "land";
+  store.table = Math.round(1000 * tableShort(body, beds));
   for (const p of ctx.provinces.all()) {
     const m = markets.get(p.cell),
       book = m?.years.at(-1)?.ledger[USED];
@@ -110,7 +126,7 @@ export function dietYear(ctx: PopulationContext, _t: SimTime): void {
     // (Food grown in vats is made whole, as its makers would have it.)
     const vats = !!lore.get(p.cell, "vat-food"),
       sun = lightOf(p.cell),
-      r = dietOf(eaten, body, !!lore.get(p.cell, "rotation"), sun),
+      r = dietOf(eaten, body, !!lore.get(p.cell, "rotation"), sun, beds),
       short = vats ? 0 : r.short,
       was = store.lands.get(p.cell),
       l: DietLand = {
@@ -151,7 +167,7 @@ export function dietReading(world: World, cell: number) {
     sun: (l.sun ?? 1000) / 1000,
     short: l.short / 1000,
     stunted: STUNTING * (l.short / 1000),
-    deaths: wantDeaths(l.short / 1000),
+    deaths: wantDeathsOver(l.short / 1000, (dietOfWorld(world)?.table ?? 0) / 1000),
     poor: l.poor,
   };
 }

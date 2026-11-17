@@ -63,6 +63,7 @@ import {
   diesWithin,
   enforceWorth,
   firstAim,
+  keptFirstAim,
   guardWorth,
   hirePay,
   joinedOf,
@@ -229,8 +230,9 @@ type Land = {
   bound: number;
   learned: number;
   teaching: number;
-  /** Its devout would keep its faith under a rule of their own here, more than as a sect against the seat. */
+  /** Its devout would keep its faith under a rule of their own here, more than as a sect against the seat; and would at all. */
   cloister: boolean;
+  cloisterAny: boolean;
   /** Its stakes this reckoning: what each aim is worth here (grain's worth a year), and the members it would gather. */
   worth: number[];
   gather: number[];
@@ -385,6 +387,7 @@ function readRealm(ctx: PopulationContext, p: Polity, year: number, t: SimTime):
       learned: learnedOf(world, c),
       teaching: templeTeachingIn(world, c),
       cloister: false,
+      cloisterAny: false,
       worth: new Array<number>(AIMS).fill(0),
       gather: new Array<number>(AIMS).fill(0),
     });
@@ -422,7 +425,7 @@ function readRealm(ctx: PopulationContext, p: Polity, year: number, t: SimTime):
     payer: Ref | null = null,
     foeSea = 0;
   const near = new Set<Ref>([p.ref]);
-  for (const rel of diplomacyOf(world).all()) {
+  for (const rel of diplomacyOf(world).of(p.ref)) {
     if (rel.a === p.ref) near.add(rel.b);
     else if (rel.b === p.ref) near.add(rel.a);
   }
@@ -639,6 +642,7 @@ function weighStakes(ctx: PopulationContext, p: Polity, r: Read, v: RealmOrgs): 
           ? cloisterWorth(piety, l.teaching, 0.3 + 0.7 * (1 - l.reach))
           : 0;
     l.cloister = cloister > sect;
+    l.cloisterAny = cloister > 0;
     common("worship", Math.max(sect, cloister), l.pressed > 0 || cloister > 0 ? households : 0);
     // Hire: veterans sold to a realm at war short of men.
     const hireWorth = r.hire * share;
@@ -775,7 +779,27 @@ function meansOf(g: Org, lands: readonly Land[]): number {
 function readKind(g: Org, lands: readonly Land[], patron: boolean): OrgKind {
   const aim = orgAimOf(g),
     ranked = ORG_AIMS.map((a, i) => [a, g.aims[i] ?? 0] as const).sort((a, b) => b[1] - a[1]),
-    second = ranked[1] && ranked[1][1] >= 250 && ranked[1][0] !== aim ? ranked[1][0] : null;
+    secondAt = (least: number) =>
+      ranked[1] && ranked[1][1] >= least && ranked[1][0] !== aim ? ranked[1][0] : null,
+    kindAt = (second: OrgAim | null) => readKindWith(g, lands, patron, aim, second),
+    strict = kindAt(secondAt(ORG.second));
+  // (A kind it is already is kept while its second aim holds the lesser share: told once, not each time it crosses.)
+  if (
+    g.since >= 0 &&
+    ORG_KINDS[g.kind] !== strict &&
+    ORG_KINDS[g.kind] === kindAt(secondAt(ORG.secondKept))
+  )
+    return ORG_KINDS[g.kind]!;
+  return strict;
+}
+
+function readKindWith(
+  g: Org,
+  lands: readonly Land[],
+  patron: boolean,
+  aim: OrgAim,
+  second: OrgAim | null,
+): OrgKind {
   return orgKind({
     aim,
     second,
@@ -792,7 +816,14 @@ function readKind(g: Org, lands: readonly Land[], patron: boolean): OrgKind {
 /** Whether a group keeps its seat's own faith under a rule of its own on the land it holds: a monastic order. */
 function cloistered(g: Org, lands: readonly Land[]): boolean {
   const home = lands.find((l) => l.cell === g.home);
-  return orgAimOf(g) === "worship" && ORG_BASES[g.basis] === "faith" && !!home?.cloister;
+  // (An order once withdrawn to its land keeps it while its devout would keep it there at all, not only while that is worth more
+  // than a sect's stand against the seat.)
+  const was = ORG_KINDS[g.kind] === "monastic order";
+  return (
+    orgAimOf(g) === "worship" &&
+    ORG_BASES[g.basis] === "faith" &&
+    !!(was ? home?.cloisterAny : home?.cloister)
+  );
 }
 
 function basisFor(aim: OrgAim, r: Read, l: Land): OrgBasis {
@@ -1072,11 +1103,17 @@ function stepRealm(
     // to the idle and the veterans nearly all of it, to householders little.)
     const idleBasis = ORG_BASES[g.basis] === "poor" || ORG_BASES[g.basis] === "veterans",
       leaves = idleBasis ? 0.2 : 0.9,
-      worth = ORG_AIMS.map((a, k) => stake(g, k).worth * (FULL_TIME.has(a) ? 1 - leaves : 1));
+      // (Another's stake is no pull where a group of that first aim already holds its home: turned to it, it would only be the
+      // lesser of two there, taken into the greater, and its own stake left to be gathered again.)
+      taken = (k: number) =>
+        k !== g.aim && v.orgs.some((x) => x !== g && x.aim === k && x.lands.includes(g.home)),
+      worth = ORG_AIMS.map((a, k) =>
+        taken(k) ? 0 : stake(g, k).worth * (FULL_TIME.has(a) ? 1 - leaves : 1),
+      );
     g.means = meansOf(g, r.lands);
     g.aims = aimsToward(g.aims, worth, g.means, stepped(ORG.turn, span));
     const was = kindName(g),
-      aim = firstAim(g.aims);
+      aim = keptFirstAim(g.aims, g.aim);
     g.aim = AIM[aim];
     // (A company follows its pay; privateers and raiders their realm's war; without either, none.)
     const patron =
@@ -1303,6 +1340,8 @@ function stepRealm(
         !ending.has(x) &&
         x.aim === g.aim &&
         x.home === g.home &&
+        // (Parties of two interests at one seat are two parties, not one.)
+        (g.aim !== AIM.office || x.identity === g.identity) &&
         (x.members > g.members || (x.members === g.members && x.id < g.id)),
     );
     if (!twin) continue;

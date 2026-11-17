@@ -9,6 +9,7 @@ import {
   type CrimeGroup,
   type Federation,
   type GoneGroup,
+  type Operation,
   type Polity,
 } from "../sim/index.ts";
 import { GROUP_KINDS, type GroupKind } from "../rules/index.ts";
@@ -16,14 +17,17 @@ import { defineWatchKind, groupWords } from "../causal/index.ts";
 
 export const groupRef = (realm: string, event: string): string => `mob:${realm}:${event}`;
 export const fedRef = (realm: string, event: string): string => `gfed:${realm}:${event}`;
-const REF = /^(mob|gfed):(pol:\d+:\d+):(ev:\d+:\d+)$/;
+export const opRef = (realm: string, event: string): string => `uop:${realm}:${event}`;
+const REF = /^(mob|gfed|uop):(pol:\d+:\d+):(ev:\d+:\d+)$/;
 
 /** A group's or a federation's ref's parts (null: not one). */
 export function parseUnderRef(
   ref: string,
-): { what: "mob" | "gfed"; realm: Ref; event: Ref } | null {
+): { what: "mob" | "gfed" | "uop"; realm: Ref; event: Ref } | null {
   const m = REF.exec(ref);
-  return m ? { what: m[1] as "mob" | "gfed", realm: m[2] as Ref, event: m[3] as Ref } : null;
+  return m
+    ? { what: m[1] as "mob" | "gfed" | "uop", realm: m[2] as Ref, event: m[3] as Ref }
+    : null;
 }
 export const isUnderRef = (ref: string): boolean => REF.test(ref);
 
@@ -81,6 +85,10 @@ export function fedOf(world: World, ref: string): FedRead | null {
 
 /** What a group or federation is called: "the Vorath family", "the Asha cartel", "the Kesh federation". */
 export function underName(world: World, ref: string): string | null {
+  if (ref.startsWith("uop:")) {
+    const o = opOf(world, ref);
+    return o ? `the soldiers sent against ${groupWords(o.op.name, GROUP_KINDS[o.op.kind])}` : null;
+  }
   if (ref.startsWith("mob:")) {
     const g = groupOf(world, ref);
     return g ? groupWords(g.name, g.kind) : null;
@@ -121,10 +129,39 @@ export function fedNews(f: FedRead): (e: HistoryEvent) => boolean {
   };
 }
 
+/** Soldiers sent against a group, by the event they were sent by (`uop:<realm>:<event>`; null: none such). */
+export function opOf(world: World, ref: string): { realm: Polity; op: Readonly<Operation> } | null {
+  const at = parseUnderRef(ref),
+    r = at && at.what === "uop" ? politiesOf(world).get(at.realm) : undefined,
+    op = r
+      ? underworldOf(world)
+          ?.of(r.ref)
+          ?.ops?.find((o) => o.event === at!.event)
+      : undefined;
+  return r && op ? { realm: r, op } : null;
+}
+
+/** Whether an event is news of an operation: its own (sent, its clashes, a boss it took, how it ended). */
+export function opNews(o: {
+  realm: Polity;
+  op: Readonly<Operation>;
+}): (e: HistoryEvent) => boolean {
+  const realm = o.realm.ref,
+    id = o.op.id;
+  return (e) =>
+    e.type.startsWith("underworld.") &&
+    e.subjects.includes(realm) &&
+    !!(e.data as { oids?: number[] } | null)?.oids?.includes(id);
+}
+
 defineWatchKind({
   test: (ref) => isUnderRef(ref),
   label: (world, ref) => underName(world, ref),
   news: (world, w) => {
+    if (w.ref.startsWith("uop:")) {
+      const o = opOf(world, w.ref);
+      return o ? opNews(o) : () => false;
+    }
     if (w.ref.startsWith("mob:")) {
       const g = groupOf(world, w.ref);
       return g ? groupNews(g) : () => false;
