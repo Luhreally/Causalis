@@ -60,6 +60,22 @@ export type ToolMetalPoint = {
   readonly event: Ref | null;
 };
 
+/** A metal's point folded into its list's running fingerprint. */
+function foldMetal(
+  was: readonly [number, number],
+  year: number,
+  metal: string,
+  event: Ref | null,
+): [number, number] {
+  return new Hasher()
+    .word(was[0])
+    .word(was[1])
+    .int(year)
+    .string(metal)
+    .string(event ?? "")
+    .lanes();
+}
+
 export class Market {
   readonly cell: number;
   readonly ref: Ref;
@@ -104,6 +120,9 @@ export class Market {
    * changed (M217; stone: none). Its tools in the main may still be stone.
    */
   forgedMetals: { readonly year: number; readonly metal: ToolMetal }[] = [];
+  /** Each list's points folded in as they were added (read again off the lists on loading; never saved). */
+  private toolFold: readonly [number, number] = [0, 0];
+  private forgedFold: readonly [number, number] = [0, 0];
   /**
    * Whether this year's books are open with the economy's year reckoned in them: within the
    * moment the year turns, between the economy's year and the books closing. Never saved: the
@@ -143,6 +162,7 @@ export class Market {
   setToolMetal(year: number, metal: ToolMetal, event: Ref | null): void {
     if (this.toolMetals.at(-1)?.metal === metal) return;
     this.toolMetals.push({ year, metal, event });
+    this.toolFold = foldMetal(this.toolFold, year, metal, event);
   }
 
   /** What its smiths forged in a year (now, if none is given); null: never said. */
@@ -158,6 +178,7 @@ export class Market {
   setForged(year: number, metal: ToolMetal): void {
     if ((this.forgedMetals.at(-1)?.metal ?? "stone") === metal) return;
     this.forgedMetals.push({ year, metal });
+    this.forgedFold = foldMetal(this.forgedFold, year, metal, null);
   }
 
   /** Change a stock through a ledger line; returns the amount moved. */
@@ -231,8 +252,14 @@ export class Market {
       .string(this.reliefFor ?? "")
       .string(this.yearsDigest)
       .int(this.series.length)
-      .value(this.toolMetals)
-      .value(this.forgedMetals);
+      // (Its metals' histories only ever grow: each point is folded in as it is added, and a checkpoint hashes the fold, not
+      // every point again. They were nine tenths of a checkpoint's work at year 1,500.)
+      .int(this.toolMetals.length)
+      .word(this.toolFold[0])
+      .word(this.toolFold[1])
+      .int(this.forgedMetals.length)
+      .word(this.forgedFold[0])
+      .word(this.forgedFold[1]);
     // (Only while its works stand idle, W3: a market without it hashes as it did.)
     if (this.idleUntil) h.int(this.idleUntil);
   }
@@ -302,6 +329,9 @@ export class Market {
     m.series = s.series as PricePoint[];
     m.toolMetals = (s.toolMetals as ToolMetalPoint[] | undefined) ?? [];
     m.forgedMetals = (s.forgedMetals as Market["forgedMetals"] | undefined) ?? [];
+    // (The folds are read off the lists as loaded: the same as folded point by point.)
+    for (const x of m.toolMetals) m.toolFold = foldMetal(m.toolFold, x.year, x.metal, x.event);
+    for (const x of m.forgedMetals) m.forgedFold = foldMetal(m.forgedFold, x.year, x.metal, null);
     return m;
   }
 }

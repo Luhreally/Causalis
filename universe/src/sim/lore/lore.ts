@@ -460,12 +460,13 @@ export function loreYear(ctx: PopulationContext, t: SimTime): void {
     if (!prov.total()) continue;
     const cell = prov.cell,
       // (What it knows, as `knows` reads it, with the stores in hand: asked many times a land.)
+      knownHere = store.knownOf(cell),
       here = (n: string) =>
         n === "cultivation"
           ? !!prov.knowsCultivation
           : n === "metalworking"
             ? !!markets.get(cell)?.metalworking
-            : !!store.get(cell, n),
+            : !!knownHere && knownHere.has(n),
       // (What this land has lost it takes up again only once it has the hands to hold it, or is what it was: K1. What only
       // having lived through a thing opens is open too, to be taught by those who did.)
       lostHere = gone.ofLand(cell),

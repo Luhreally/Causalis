@@ -7,7 +7,18 @@ import { TREASURY, insuredGain } from "../../rules/index.ts";
 
 /** A realm's ref as a whole number a row can hold (its serial: refs are "kind:space:serial"). */
 export function refNumber(ref: string): number {
-  const n = Number(ref.split(":").at(-1));
+  // (Read off its last digits where they are plain digits, as nearly every ref's are: asked for a realm many times a year.)
+  let n = 0,
+    i = ref.lastIndexOf(":") + 1;
+  if (i < ref.length && ref.length - i <= 15) {
+    for (; i < ref.length; i++) {
+      const d = ref.charCodeAt(i) - 48;
+      if (d < 0 || d > 9) break;
+      n = n * 10 + d;
+    }
+    if (i === ref.length) return n;
+  }
+  n = Number(ref.slice(ref.lastIndexOf(":") + 1));
   return Number.isFinite(n) ? n : 0;
 }
 
@@ -44,6 +55,8 @@ export class RowStore implements StateStore {
   readonly name: string;
   readonly width: number;
   private readonly rows = new Map<string, number[]>();
+  /** The same rows by their key as a number, where it is one (a land's cell, a realm's serial): asked without spelling it. */
+  private readonly byNumber = new Map<number, number[]>();
   private readonly digest: [number, number] = [0x811c9dc5, 0];
   private sets = 0;
   constructor(name: string, width: number) {
@@ -51,11 +64,16 @@ export class RowStore implements StateStore {
     this.width = width;
   }
   get(key: string | number): readonly number[] | undefined {
-    return this.rows.get(String(key));
+    return typeof key === "number" ? this.byNumber.get(key) : this.rows.get(key);
   }
   /** One number of a row (0 where it is not kept). */
   at(key: string | number, i: number): number {
-    return this.rows.get(String(key))?.[i] ?? 0;
+    return (typeof key === "number" ? this.byNumber.get(key) : this.rows.get(key))?.[i] ?? 0;
+  }
+  private keep(k: string, r: number[]): void {
+    this.rows.set(k, r);
+    const n = Number(k);
+    if (String(n) === k) this.byNumber.set(n, r);
   }
   set(key: string | number, row: readonly number[]): void {
     const r = new Array<number>(this.width);
@@ -64,12 +82,14 @@ export class RowStore implements StateStore {
       r[i] = Number.isFinite(x) ? Math.round(x) : 0;
     }
     const k = String(key);
-    this.rows.set(k, r);
+    this.keep(k, r);
     fold(this.digest, [this.sets & 0xffff, k.length, ...r]);
     this.sets++;
   }
   drop(key: string | number): void {
-    this.rows.delete(String(key));
+    if (typeof key === "number" && !this.byNumber.has(key)) return;
+    const k = String(key);
+    if (this.rows.delete(k)) this.byNumber.delete(Number(k));
   }
   keys(): string[] {
     return [...this.rows.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
@@ -92,6 +112,7 @@ export class RowStore implements StateStore {
   }
   load(state: unknown): void {
     this.rows.clear();
+    this.byNumber.clear();
     const s = state as {
       rows?: (string | number)[][];
       digest?: [number, number];
@@ -99,7 +120,7 @@ export class RowStore implements StateStore {
     } | null;
     for (const r of s?.rows ?? []) {
       const [k, ...xs] = r;
-      this.rows.set(
+      this.keep(
         String(k),
         xs.map((x) => Number(x)),
       );

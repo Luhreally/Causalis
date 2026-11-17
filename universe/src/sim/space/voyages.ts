@@ -73,9 +73,18 @@ export const VOYAGE_GAP = 60;
 /** The share of its people's work a ship takes to keep them alive aboard. */
 export const ABOARD = 0.5;
 
-/** A star's worlds, drawn from the world's seed. */
-export function worldsOf(world: World, star: GalaxyStar): ForeignPlanet[] {
-  return foreignPlanets(new Rng(world.seed), star);
+/** A star's worlds, drawn from the world's seed (a pure reading of the seed and the star, kept: asked for every star a year). */
+const WORLDS = new Map<string, Map<string, readonly ForeignPlanet[]>>();
+export function worldsOf(world: World, star: GalaxyStar): readonly ForeignPlanet[] {
+  const key = world.seed.text;
+  let by = WORLDS.get(key);
+  if (!by) {
+    if (WORLDS.size > 4) WORLDS.clear();
+    WORLDS.set(key, (by = new Map()));
+  }
+  let worlds = by.get(star.ref);
+  if (!worlds) by.set(star.ref, (worlds = foreignPlanets(new Rng(world.seed), star)));
+  return worlds;
 }
 
 type Target = {
@@ -110,8 +119,21 @@ function livableWorlds(ctx: PopulationContext) {
         if (h.livable) out.push({ star, planet, upkeep: h.upkeep });
       }
     LIVABLE.set(key, (list = out));
+    const by = new Map<string, { star: GalaxyStar; planet: ForeignPlanet; upkeep: number }[]>();
+    for (const w of out) (by.get(w.star.ref) ?? by.set(w.star.ref, []).get(w.star.ref)!).push(w);
+    if (LIVABLE_AT.size > 4) LIVABLE_AT.clear();
+    LIVABLE_AT.set(key, by);
   }
   return list;
+}
+/** The same by star (each star's livable worlds in its own order): a realm weighing where to sail asks star by star, every year. */
+const LIVABLE_AT = new Map<
+  string,
+  ReadonlyMap<string, readonly { star: GalaxyStar; planet: ForeignPlanet; upkeep: number }[]>
+>();
+function livableAt(ctx: PopulationContext) {
+  livableWorlds(ctx);
+  return LIVABLE_AT.get(ctx.world.seed.text)!;
 }
 
 /**
@@ -172,7 +194,8 @@ export function voyageTarget(
     taken = new Set<string>((starSitesOf(ctx.world)?.all() ?? []).map(([, s]) => s.star));
   // (And those a far colony went to, once every kept land was taken.)
   for (const s of farTaken(ctx.world)) taken.add(s);
-  const held = heldStars(ctx.world, p.ref);
+  const held = heldStars(ctx.world, p.ref),
+    livable = livableAt(ctx);
   let best: Target | null = null,
     bestScore = Infinity;
   for (const star of clusterOf(ctx.world)) {
@@ -181,13 +204,11 @@ export function voyageTarget(
     if (years > longest) break;
     if (taken.has(star.ref)) continue;
     const dear = dearFromItsOwn(star, held);
-    for (const planet of worldsOf(ctx.world, star)) {
-      const h = habitability(planet, body, home, worldLife(ctx.generated));
-      if (!h.livable) continue;
-      const score = years * (1 + h.upkeep / 10) * dear;
+    for (const w of livable.get(star.ref) ?? []) {
+      const score = years * (1 + w.upkeep / 10) * dear;
       if (score < bestScore) {
         bestScore = score;
-        best = { star, planet, years, upkeep: h.upkeep };
+        best = { star, planet: w.planet, years, upkeep: w.upkeep };
       }
     }
   }
