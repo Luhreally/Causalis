@@ -23,7 +23,7 @@ import {
   violentIdle,
   youngBand,
   GEAR,
-  MEANS,
+  GEAR_PARTS,
   POTENCY,
   bulkSlip,
   dosePrice,
@@ -348,7 +348,7 @@ test("a group buys its means toward its realm's best as its wealth holds; only o
   const none = meansBought(best, 0, 1000, 1e6),
     rich = meansBought(best, 1e5, 1000, 1e6),
     richer = meansBought(best, 4e6, 1000, 1e6);
-  for (const k of MEANS) {
+  for (const k of GEAR_PARTS) {
     assert.equal(none[k], 0);
     assert.ok(Math.abs(rich[k] - best[k]) < 1e-9, `${k} ${rich[k]}`);
     assert.ok(
@@ -418,7 +418,7 @@ test("each group's means lie within what its realm can make, or a little past wh
       if (!g.means) continue;
       seen++;
       const best = bestMeans(ctx, p, g.home);
-      for (const k of MEANS)
+      for (const k of GEAR_PARTS)
         assert.ok(
           g.means[k] / 1000 <= best[k] + GEAR.abroad + 1e-3,
           `${k} ${g.means[k]} ${best[k]}`,
