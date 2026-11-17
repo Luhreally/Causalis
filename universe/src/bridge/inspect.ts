@@ -1000,6 +1000,9 @@ export type Tip = {
   readonly title: string;
   readonly line: string;
   readonly stats: readonly { readonly label: string; readonly value: string }[];
+  /** The page that tells it whole, which a tap on it opens in place of its own (the underworld lens), and in words. */
+  readonly go?: string;
+  readonly goWords?: string;
 };
 
 /**

@@ -53,6 +53,7 @@ export const LENSES = [
   "fouled",
   "births",
   "inequality",
+  "underworld",
 ] as const;
 export type Lens = (typeof LENSES)[number];
 
@@ -90,6 +91,7 @@ export const LENS_NAMES: Readonly<Record<Lens, string>> = {
   energy: "Energy",
   fouled: "Fouled ground",
   inequality: "Inequality",
+  underworld: "Underworld",
   forest: "Forest",
   blocs: "Alliances",
   letters: "Letters",
@@ -131,6 +133,7 @@ export const LENS_ICONS: Readonly<Record<Lens, string>> = {
   energy: "🔥",
   fouled: "☣️",
   inequality: "⚖️",
+  underworld: "🥷",
   forest: "🌲",
   blocs: "🪢",
   letters: "📖",
@@ -616,6 +619,94 @@ const INEQUALITY_RAMP: readonly Stop[] = [
   [0.75, [0.66, 0.24, 0.36]],
   [1, [0.3, 0.1, 0.4]],
 ];
+/** What goes on under the law, little (ash) to much (bruised violet, then near black): the underworld lens, each of its ways. */
+const UNDERWORLD_RAMP: readonly Stop[] = [
+  [0, [0.8, 0.8, 0.74]],
+  [0.25, [0.7, 0.62, 0.7]],
+  [0.5, [0.56, 0.36, 0.6]],
+  [0.75, [0.4, 0.14, 0.4]],
+  [1, [0.16, 0.04, 0.16]],
+];
+/** The underworld lens's five ways, one at a time (host/inspect/underworld.ts UNDERWORLD_VIEWS): each its id, icon and name. */
+export const UNDERWORLD_CHOICES: readonly (readonly [string, string, string])[] = [
+  ["smuggling", "🧳", "Smuggling"],
+  ["cartels", "🕸️", "Cartels"],
+  ["addiction", "🍷", "Addiction"],
+  ["crime", "🗡️", "Crime"],
+  ["roofless", "🏚️", "Without a roof"],
+];
+/** Each way's words at the ends of its ramp. */
+const UNDERWORLD_ENDS: Readonly<Record<string, readonly [string, string]>> = {
+  smuggling: ["nothing slips past", "half and more slips past"],
+  cartels: ["none organised", "a third and more"],
+  addiction: ["none need it", "one in twenty"],
+  crime: ["a quiet year", "much leads them wrong"],
+  roofless: ["all housed", "a fifth on the street"],
+};
+/**
+ * A land's reading under one of the underworld's ways laid on its ramp (0 … 1; -1 where nothing is kept): a share smuggled to
+ * half; carriers organised to a third, those who need what they take to one in twenty and the street to a fifth (small shares
+ * shown, by their roots: on juniper's sixtieth year the most organised are 18%, the most needing 0.1%, kestrel's four hundredth
+ * 2%); what weighs on a town's peace from a quiet year's 0.5 to 2 (its towns' mean is 0.8).
+ */
+export function underworldShade(view: string, v: number): number {
+  if (v < 0) return -1;
+  switch (view) {
+    case "smuggling":
+      return Math.min(1, v / 0.5);
+    case "cartels":
+      return Math.sqrt(Math.min(1, v / 0.33));
+    case "addiction":
+      return Math.sqrt(Math.min(1, v / 0.05));
+    case "crime":
+      return Math.min(1, Math.max(0, (v - 0.5) / 1.5));
+    case "roofless":
+      return Math.sqrt(Math.min(1, v / 0.2));
+    default:
+      return -1;
+  }
+}
+
+/**
+ * The lands of realms in a cartel among realms, marked over the cartels view (the underworld lens): a gold edge where such a land
+ * meets one that is not, and gold hatching across it, in bands through the globe, so a cartel's lands read as one even where its
+ * colour is the next land's.
+ */
+export function cartelOverCells(
+  colors: Uint8Array,
+  frame: FrameMessage,
+  grid: SphereGrid,
+  lands: ReadonlySet<number>,
+): void {
+  const province = frame.arrays.province as Int32Array | undefined,
+    elevation = frame.arrays.elevation!,
+    undersea = frameUndersea(frame);
+  if (!province || !lands.size) return;
+  const gold: Rgb = [1, 0.8, 0.22],
+    lay = (c: number, k: number) => {
+      const q = c * 4;
+      for (let j = 0; j < 3; j++)
+        colors[q + j] = Math.round(colors[q + j]! * (1 - k) + gold[j]! * 255 * k);
+    };
+  for (let c = 0; c < province.length; c++) {
+    if (elevation[c]! <= 0 !== undersea || !lands.has(province[c]!)) continue;
+    let edge = false;
+    for (let j = grid.offsets[c]!; j < grid.offsets[c + 1]! && !edge; j++) {
+      const m = grid.neighbours[j]!;
+      edge = elevation[m]! <= 0 === undersea && !lands.has(province[m]!);
+    }
+    if (edge) lay(c, 0.85);
+    else {
+      // (Bands across the globe: planes x + y + z = k, a band in three lit.)
+      const x = grid.positions[c * 3]!,
+        y = grid.positions[c * 3 + 1]!,
+        z = grid.positions[c * 3 + 2]!,
+        t = (x + y + z) * 9;
+      if (t - Math.floor(t) < 0.34) lay(c, 0.5);
+    }
+  }
+}
+
 /** The laws the laws lens shows, one at a time: each its id, icon and name (M139). */
 export const LAW_CHOICES: readonly (readonly [string, string, string])[] = [
   ["land", "🌾", "The land"],
@@ -750,6 +841,8 @@ const DEEP: Readonly<
     at: (v) => Math.min(1, Math.max(0, (v - 0.2) / 0.5)),
     shown: (v) => v >= 0,
   },
+  // (Laid on its ramp as it is read, each way on its own scale: underworldShade.)
+  underworld: { stops: UNDERWORLD_RAMP, at: (v) => v, shown: (v) => v >= 0 },
   energy: {
     stops: ENERGY_RAMP,
     at: (v) => Math.min(1, Math.max(0, Math.log10(Math.max(1e-3, v) / 0.1) / 2)),
@@ -1009,6 +1102,7 @@ export function globeColors(
       case "energy":
       case "fouled":
       case "inequality":
+      case "underworld":
       case "forest": {
         const v = values?.get(province),
           deep = DEEP[lens];
@@ -1176,7 +1270,7 @@ function kindLegend(kind: string, look?: string): Legend {
   };
 }
 
-export function lensLegend(lens: Lens, kind = "rocky", look?: string): Legend {
+export function lensLegend(lens: Lens, kind = "rocky", look?: string, choice?: string): Legend {
   const stops = (list: readonly Stop[]) => list.map(([, c]) => c);
   switch (lens) {
     case "people":
@@ -1255,6 +1349,10 @@ export function lensLegend(lens: Lens, kind = "rocky", look?: string): Legend {
       };
     case "fouled":
       return { kind: "ramp", stops: stops(FOULED_RAMP), low: "clean", high: "its yield halved" };
+    case "underworld": {
+      const [low, high] = UNDERWORLD_ENDS[choice ?? ""] ?? UNDERWORLD_ENDS.smuggling!;
+      return { kind: "ramp", stops: stops(UNDERWORLD_RAMP), low, high };
+    }
     case "inequality":
       return {
         kind: "ramp",
