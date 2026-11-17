@@ -26,6 +26,7 @@
 // underworld (selling protection, smuggling cartels, street gangs, enforcers turned crew), houses, labour's guilds and unions,
 // belief's temples.
 import {
+  MAX_CAUSES,
   YEAR,
   defineEventType,
   defineStream,
@@ -743,7 +744,8 @@ function tell(
     place: cell !== null ? (f.ctx.provinces.get(cell)?.ref ?? null) : null,
     causes: [
       ...(decision ? [{ ref: decision, role: "trigger" as const, weight: 1 }] : []),
-      ...causes,
+      // (As many as an event holds: the decision first, then the causes in the order given, greatest first.)
+      ...causes.slice(0, MAX_CAUSES - (decision ? 1 : 0)),
     ],
     data: { realm: realmName(f.p), ...data },
   });
@@ -1415,7 +1417,10 @@ function stepFeds(f: Facts): void {
           kind: kindName(of[0]!),
           aim: ORG_AIMS[k],
         },
-        of.map((g) => ({ ref: g.event, role: "enabler" as const, weight: 1 })),
+        // (Its causes: the greatest of the groups allied, as many as an event holds.)
+        [...of]
+          .sort((a, b) => b.members - a.members || a.id - b.id)
+          .map((g) => ({ ref: g.event, role: "enabler" as const, weight: 1 })),
         [factor("groups of one aim in its lands", of.length, of.length / ORG.fedOf)],
       ),
       fed: OrgFed = {
