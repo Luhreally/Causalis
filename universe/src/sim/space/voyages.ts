@@ -73,8 +73,15 @@ export const VOYAGE_GAP = 60;
 /** The share of its people's work a ship takes to keep them alive aboard. */
 export const ABOARD = 0.5;
 
-/** A star's worlds, drawn from the world's seed (a pure reading of the seed and the star, kept: asked for every star a year). */
-const WORLDS = new Map<string, Map<string, readonly ForeignPlanet[]>>();
+/**
+ * A star's worlds, drawn from the world's seed (a pure reading of the seed and the star). Kept for the very star it was drawn for:
+ * the cluster's stars are the same objects while the seed is, and are asked for every year; a star read anew with other
+ * numbers under the same ref (a far reading's) is drawn afresh and not kept, or the first asked would answer for both.
+ */
+const WORLDS = new Map<
+  string,
+  Map<string, { readonly star: GalaxyStar; readonly worlds: readonly ForeignPlanet[] }>
+>();
 export function worldsOf(world: World, star: GalaxyStar): readonly ForeignPlanet[] {
   const key = world.seed.text;
   let by = WORLDS.get(key);
@@ -82,8 +89,10 @@ export function worldsOf(world: World, star: GalaxyStar): readonly ForeignPlanet
     if (WORLDS.size > 4) WORLDS.clear();
     WORLDS.set(key, (by = new Map()));
   }
-  let worlds = by.get(star.ref);
-  if (!worlds) by.set(star.ref, (worlds = foreignPlanets(new Rng(world.seed), star)));
+  const had = by.get(star.ref);
+  if (had?.star === star) return had.worlds;
+  const worlds = foreignPlanets(new Rng(world.seed), star);
+  if (!had) by.set(star.ref, { star, worlds });
   return worlds;
 }
 
