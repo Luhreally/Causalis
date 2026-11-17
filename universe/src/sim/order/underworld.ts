@@ -157,15 +157,15 @@ const WARE_RENT_CAUSES: ReadonlySet<string> = new Set(["war", "licence", "harm"]
 
 export const UNDERWORLD_EVENTS = {
   /** A group rose: a protection family, a smuggling cartel, a crew of the realm's own enforcers. */
-  rose: defineEventType("underworld.rose", 4),
-  badge: defineEventType("underworld.badge", 4),
+  rose: defineEventType("underworld.rose", 3),
+  badge: defineEventType("underworld.badge", 3),
   /** A group split from another whose boss was taken. */
   split: defineEventType("underworld.split", 3),
   /** Two groups went to war over a rent; one came to hold it, or a pact with the state cooled it. */
   war: defineEventType("underworld.war", 4),
   pax: defineEventType("underworld.pax", 3),
   /** A boss taken by the realm's crackdown; a boss dead and another in his place. */
-  decapitated: defineEventType("underworld.decapitated", 4),
+  decapitated: defineEventType("underworld.decapitated", 3),
   boss: defineEventType("underworld.boss", 1),
   /** The realm turned on its groups; its officers bought by them. */
   crackdown: defineEventType("underworld.crackdown", 3),
@@ -178,13 +178,13 @@ export const UNDERWORLD_EVENTS = {
   federation: defineEventType("underworld.federation", 3),
   feud: defineEventType("underworld.feud", 3),
   /** A crew of the realm's own found out, purged and reformed. */
-  exposed: defineEventType("underworld.exposed", 4),
+  exposed: defineEventType("underworld.exposed", 3),
   /** Escalation: soldiers sent against a group, a clash, its boss taken by them, a truce, its fighters laid down arms, the army withdrawn. */
-  operation: defineEventType("underworld.operation", 4),
+  operation: defineEventType("underworld.operation", 3),
   clash: defineEventType("underworld.clash", 3),
-  armyTook: defineEventType("underworld.army-took", 4),
+  armyTook: defineEventType("underworld.army-took", 3),
   truce: defineEventType("underworld.truce", 3),
-  disarmed: defineEventType("underworld.disarmed", 4),
+  disarmed: defineEventType("underworld.disarmed", 3),
   withdrew: defineEventType("underworld.withdrew", 3),
 };
 

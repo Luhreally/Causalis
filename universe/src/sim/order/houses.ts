@@ -99,7 +99,7 @@ export const HOUSE_EVENTS = {
   /** A demagogue carried more of the people than those who govern: taken into the seat's favour. */
   office: defineEventType("houses.office", 4),
   /** How a house's hold ended. */
-  purged: defineEventType("houses.purged", 5),
+  purged: defineEventType("houses.purged", 4),
   overthrown: defineEventType("houses.overthrown", 4),
   wed: defineEventType("houses.wed", 3),
   diedout: defineEventType("houses.diedout", 3),
