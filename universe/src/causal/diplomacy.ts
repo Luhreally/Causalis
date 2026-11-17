@@ -25,7 +25,7 @@ export function standingWords(opinion: number, pact: boolean): string {
 }
 
 registerExplainer(RELATION.code, (world, ref) => {
-  if (!world.storeNames().includes("diplomacy.relations")) return null;
+  if (!world.hasStore("diplomacy.relations")) return null;
   const { a, b } = parseRef(ref),
     ra = `${POLITY.code}:0:${a}` as Ref,
     rb = `${POLITY.code}:0:${b}` as Ref,

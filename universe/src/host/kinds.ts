@@ -48,7 +48,7 @@ type Rgb = readonly [number, number, number];
 
 /** A world's kind (rocky for a world with no home planet: a toy world). */
 export function kindOf(world: World): WorldKind {
-  return world.storeNames().includes("planet.home")
+  return world.hasStore("planet.home")
     ? worldKindOf(homePlanet(world).generated)
     : "rocky";
 }
@@ -238,7 +238,7 @@ export function shutWhy(world: World, p: Principle): string | null {
 export function kindName(world: World, p: Principle): string {
   const kind = kindOf(world);
   // (How its world does it, F1: "the gun of hand-wound fibre, charged with solid acetylene".)
-  const own = world.storeNames().includes("planet.home")
+  const own = world.hasStore("planet.home")
     ? meansName(p.id, meansOfWorld(homePlanet(world).generated))
     : null;
   if (own) return own;
@@ -273,7 +273,7 @@ export function workedBought(ore: Ore, worked: NonNullable<Ore["worked"]>): Span
  */
 export function recipeName(world: World, r: Recipe): string {
   // (A toy world has no planet, and so no ores of its own.)
-  if (r.id !== "copper-smelting" || !world.storeNames().includes("planet.home")) return r.name;
+  if (r.id !== "copper-smelting" || !world.hasStore("planet.home")) return r.name;
   const chem = worldChemistry(homePlanet(world).generated);
   return Object.values(oresOn(chem).copper ?? {}).some((o) => o?.worked)
     ? "native copper hammered cold"
@@ -311,7 +311,7 @@ export type Vessel = {
  */
 export function kindVessel(world: World, cell?: number): Vessel | null {
   // (A toy world has no planet, and so no means of its own.)
-  if (!world.storeNames().includes("planet.home")) return null;
+  if (!world.hasStore("planet.home")) return null;
   const g = homePlanet(world).generated,
     means = meansOfWorld(g),
     n = meansNumbers(g),

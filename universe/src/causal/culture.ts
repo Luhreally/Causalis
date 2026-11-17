@@ -59,7 +59,7 @@ export function kept(t: Tongue, culture: number): number {
 }
 
 registerExplainer(WAYS.code, (world, ref) => {
-  if (!world.storeNames().includes("culture.ways")) return null;
+  if (!world.hasStore("culture.ways")) return null;
   const cell = parseRef(ref).b,
     w = cultureOf(world).get(cell);
   if (!w) return null;

@@ -23,7 +23,7 @@ import { count } from "./words.ts";
 import { edges, registerDecisionWords, registerEventWords, registerExplainer } from "./why.ts";
 
 registerExplainer(WAR.code, (world, ref) => {
-  if (!world.storeNames().includes("war.wars")) return null;
+  if (!world.hasStore("war.wars")) return null;
   const w = warsOf(world).get(ref);
   if (!w) return null;
   const realms = politiesOf(world),

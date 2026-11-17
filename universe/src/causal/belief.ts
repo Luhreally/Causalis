@@ -10,7 +10,7 @@ import { count } from "./words.ts";
 import { edges, registerEventWords, registerExplainer } from "./why.ts";
 
 registerExplainer(FAITH.code, (world, ref) => {
-  if (!world.storeNames().includes("belief.faiths")) return null;
+  if (!world.hasStore("belief.faiths")) return null;
   const store = beliefOf(world),
     f = store.get(ref);
   if (!f) return null;

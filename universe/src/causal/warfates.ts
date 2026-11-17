@@ -80,7 +80,7 @@ function eventNumber(event: Ref): number {
 /** The battles fought in the years [from, to) that kept a record of their men: one front for each land of each side. */
 export function warFronts(world: World, from: number, to: number): Fronts {
   const byYear = new Map<number, Map<number, Front[]>>();
-  if (from < to && world.storeNames().includes("war.wars"))
+  if (from < to && world.hasStore("war.wars"))
     for (const { war, b } of warsOf(world).battlesIn(from, to)) {
       if (!b.fell) continue;
       const n = eventNumber(b.event);
@@ -145,7 +145,7 @@ function placeOf(fell: LandFell, town: number | null): { place: Place; tally: Ta
 export function warClaimLimit(world: World, key: string): number {
   const [kind, a, n, s, c, p] = key.split(":");
   if (kind !== "l" && kind !== "w" && kind !== "h") return 0;
-  if (!world.storeNames().includes("war.wars")) return 0;
+  if (!world.hasStore("war.wars")) return 0;
   const event = `ev:${a}:${n}`,
     side = s === "1" ? 1 : 0,
     cell = Number(c);

@@ -8,7 +8,7 @@ import { landWords } from "./generated.ts";
 import { edges, registerEventWords, registerExplainer } from "./why.ts";
 
 registerExplainer(DESIGN.code, (world, ref) => {
-  if (!world.storeNames().includes("design.designs")) return null;
+  if (!world.hasStore("design.designs")) return null;
   const d = designsOf(world).get(ref);
   if (!d) return null;
   const whose =

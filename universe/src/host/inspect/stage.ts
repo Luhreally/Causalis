@@ -78,7 +78,7 @@ const WATER_AGES: Readonly<
  */
 function stagesOf(world: World): { def: StageDef; firsts: readonly string[] }[] {
   const kind = kindOf(world),
-    water = kind === "rocky" && world.storeNames().includes("planet.home") && waterPeople(world);
+    water = kind === "rocky" && world.hasStore("planet.home") && waterPeople(world);
   return WORLD_STAGES.map((def) => {
     const era = KIND_STAGES[def.id];
     if (!era || (!water && (kind === "rocky" || kindBurns(kind))))

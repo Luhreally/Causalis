@@ -85,8 +85,8 @@ export const MEMORY_WORDS: Readonly<Record<string, string>> = {
 
 function hasPeople(world: World): boolean {
   return (
-    world.storeNames().includes("observer.ledger") &&
-    world.storeNames().includes("population.provinces")
+    world.hasStore("observer.ledger") &&
+    world.hasStore("population.provinces")
   );
 }
 
@@ -155,7 +155,7 @@ registerExplainer(HOUSEHOLD.code, (world, ref) => {
 
 // What the people met remember outlives what history keeps.
 registerEventKeeper((world, ref) =>
-  world.storeNames().includes("observer.ledger")
+  world.hasStore("observer.ledger")
     ? (observer(world).remembered.get(ref) ?? null)
     : null,
 );

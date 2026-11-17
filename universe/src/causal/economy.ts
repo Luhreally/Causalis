@@ -29,7 +29,7 @@ export function priceWords(ratio: number): string {
 }
 
 registerExplainer(MARKET_GOOD.code, (world, ref) => {
-  if (!world.storeNames().includes("economy.markets")) return null;
+  if (!world.hasStore("economy.markets")) return null;
   const { a: cell, b: good } = parseRef(ref),
     m = marketsOf(world).get(cell),
     p = populationContext(world).provinces.get(cell),
@@ -121,7 +121,7 @@ registerEventWords(ECONOMY_EVENTS.metalworkingSpread.type, (world, e) => {
 });
 /** A tool's metal in its world's words: its own name on Earth's chemistry, else the world's (stone stays stone). */
 function toolMetalWords(world: World, metal: string): string {
-  if (metal === "stone" || !world.storeNames().includes("planet.home")) return metal;
+  if (metal === "stone" || !world.hasStore("planet.home")) return metal;
   const chem = worldChemistry(homePlanet(world).generated);
   return chem.solar ? metal : metalOf(chem, metal as Metal).name;
 }

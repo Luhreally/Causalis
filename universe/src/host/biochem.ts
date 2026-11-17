@@ -38,7 +38,7 @@ import { landLink } from "./inspect/names.ts";
 
 /** A world's life (Earth's on a world with no home planet: a toy world). */
 export function lifeHere(world: World): LifeChemistry {
-  return world.storeNames().includes("planet.home")
+  return world.hasStore("planet.home")
     ? worldLife(homePlanet(world).generated)
     : EARTH_LIFE;
 }
@@ -61,7 +61,7 @@ export function lookMeta(g: HomeWorld): { lifeLook?: string } {
 
 /** The same, of a world (nothing on a toy world). */
 export function worldLook(world: World): { lifeLook?: string } {
-  return world.storeNames().includes("planet.home") ? lookMeta(homePlanet(world).generated) : {};
+  return world.hasStore("planet.home") ? lookMeta(homePlanet(world).generated) : {};
 }
 
 /**
@@ -152,7 +152,7 @@ export function lifeRows(l: LifeChemistry): Stat[] {
 /** What a world's life is made of, as a page's block (where none took hold, that nothing is). */
 export function lifeBlock(world: World): Block {
   const lifeless =
-    world.storeNames().includes("planet.home") && !homePlanet(world).generated.life.species.length;
+    world.hasStore("planet.home") && !homePlanet(world).generated.life.species.length;
   return lifeless
     ? {
         type: "text",

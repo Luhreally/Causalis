@@ -28,12 +28,12 @@ export function principleName(id: string | null, world?: World): string {
   if (i === undefined) return "something new";
   // (How its world does it, F1: "long blades of ice flakes set in a spine".)
   const own =
-    world && world.storeNames().includes("planet.home")
+    world && world.hasStore("planet.home")
       ? meansName(id!, meansOfWorld(homePlanet(world).generated))
       : null;
   if (own) return own;
   const named = METAL_PRINCIPLES.has(id!) || KIND_NAMED.has(id!);
-  if (!world || !named || !world.storeNames().includes("planet.home")) return PRINCIPLES[i]!.name;
+  if (!world || !named || !world.hasStore("planet.home")) return PRINCIPLES[i]!.name;
   return principleNameOn(worldChemistry(homePlanet(world).generated), id!);
 }
 

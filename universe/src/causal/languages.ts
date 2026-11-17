@@ -23,7 +23,7 @@ const num = (d: unknown, k: string) => {
 const year = (t: number) => `year ${yearOfMoment(t)}`;
 
 registerExplainer(LANGUAGE.code, (world, ref) => {
-  if (!world.storeNames().includes("culture.languages")) return null;
+  if (!world.hasStore("culture.languages")) return null;
   const store = languagesOf(world),
     l = store.get(ref);
   if (!l) return null;
