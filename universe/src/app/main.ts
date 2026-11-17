@@ -9499,7 +9499,8 @@ async function runPlanetPage(): Promise<void> {
         (scale === "village" && raidOver(plan?.town, seen))
         ? { from: seen - 3600, to: seen + 3600, all: true }
         : streetFilm?.indoors
-          ? { from: seen - 3600, to: seen + 3600 }
+          ? // (All of them, its market's people too: gone in as it begins.)
+            { from: seen - 3600, to: seen + 3600, all: true }
           : streetFilm?.holds
             ? // (Its burying after is seen whatever the weather: no one of it sent in out of the rain.)
               null

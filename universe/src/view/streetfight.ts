@@ -174,8 +174,19 @@ export function fightSpots(plan: VillagePlan, quarter: number): FightSpot[] {
       ? ground.town.crossings(REACH, 28, 9)
       : plan.homes.slice(0, 28).map((h) => ({ x: h.x * 0.82, z: h.z * 0.82 })),
     out: FightSpot[] = [],
-    put = (p: Point | undefined, why: SpotWhy) => {
-      if (!p || out.some((q) => Math.hypot(q.x - p.x, q.z - p.z) < APART)) return;
+    put = (from: Point | undefined, why: SpotWhy) => {
+      if (!from) return;
+      // (Never hard by the square's hall: out from it until there is room to stand and to be seen.)
+      const p = { x: from.x, z: from.z };
+      for (let n = 0; n < 14 && !clearOfHall(plan, p.x, p.z, 9); n++) {
+        const d = Math.hypot(p.x, p.z) || 1;
+        p.x += (p.x / d) * 2 + (d < 0.5 ? 2 : 0);
+        p.z += (p.z / d) * 2;
+      }
+      standClear(plan, p);
+      // (And room about it in the street, so the eye has a line to it.)
+      ground.town?.keepOut(p, 2.8);
+      if (out.some((q) => Math.hypot(q.x - p.x, q.z - p.z) < APART)) return;
       out.push({ x: p.x, z: p.z, why });
     },
     nearest = (p: Point): Point | undefined =>
@@ -543,9 +554,10 @@ function armyScript(
         start = cameFrom(cross, c.spot, nx, nz, -1, u(1300 + k)),
         base = route(ground, start, c.spot, REACH),
         back = base.length > 1 ? base[base.length - 2]! : start,
-        bx = back.x - c.spot.x,
-        bz = back.z - c.spot.z,
-        bl = Math.hypot(bx, bz) || 1,
+        // (Before the cordon, the way it faces: never behind the soldiers' backs.)
+        bx = Math.sin(posts[k]?.yaw ?? Math.atan2(back.x - c.spot.x, back.z - c.spot.z)),
+        bz = Math.cos(posts[k]?.yaw ?? Math.atan2(back.x - c.spot.x, back.z - c.spot.z)),
+        bl = 1,
         // (Where no one dies of it: they stand off and watch, further back, and go.)
         wide = 0.6,
         there = Math.ceil((drawn[1] - k) / clashes.length),
@@ -866,15 +878,37 @@ export function streetView(
   plan: VillagePlan,
   at: Point,
   far: number,
+  across?: number,
 ): { yaw: number; pitch: number; clear: boolean } {
   const town = villageGround(plan).town;
-  if (!town) return { yaw: 30, pitch: -34, clear: true };
+  if (!town) return { yaw: across !== undefined ? across + 90 : 30, pitch: -34, clear: true };
+  // (Nothing under the line from the place to where the eye stands: no block or wall, nor the square's hall.)
+  const open = (a: Point, b: Point): boolean => {
+    if (!town.clear(a, b, 1.6)) return false;
+    const d = Math.hypot(b.x - a.x, b.z - a.z);
+    for (let t = 3; t < d; t += 2)
+      if (!clearOfHall(plan, a.x + ((b.x - a.x) * t) / d, a.z + ((b.z - a.z) * t) / d, 1.5))
+        return false;
+    return true;
+  };
+  // (`across`: the way the two sides face each other, in degrees. The eye to one side of that first, a quarter turn off it or
+  // near it, so both are seen facing across the gap and neither stands before the other; lower before it is nearer side-on.)
+  if (across !== undefined)
+    for (const pitch of [-32, -38, -46, -56]) {
+      const run = far * Math.cos((pitch * Math.PI) / 180);
+      for (const off of [90, -90, 67.5, -67.5, 112.5, -112.5, 45, -45, 135, -135]) {
+        const yaw = (((across + off) % 360) + 360) % 360,
+          r = (yaw * Math.PI) / 180;
+        if (open(at, { x: at.x + Math.sin(r) * run, z: at.z + Math.cos(r) * run }))
+          return { yaw, pitch, clear: true };
+      }
+    }
   for (const pitch of [-32, -38, -46, -56, -68, -80]) {
     const run = far * Math.cos((pitch * Math.PI) / 180);
     for (let k = 0; k < 16; k++) {
       const yaw = (k / 16) * 360,
         r = (yaw * Math.PI) / 180;
-      if (town.clear(at, { x: at.x + Math.sin(r) * run, z: at.z + Math.cos(r) * run }, 1.6))
+      if (open(at, { x: at.x + Math.sin(r) * run, z: at.z + Math.cos(r) * run }))
         return { yaw, pitch, clear: true };
     }
   }

@@ -364,6 +364,9 @@ export class Stage {
    * of the day gone, 0 at midnight. The sun climbs from the east and sets in the west,
    * warm and low at dawn and dusk; at night a moon's cool light and a dark sky.
    */
+  /** A fill of light a scene asks for, over the hour's own (0: none): added to its ambient the next time the hour is set. */
+  fill = 0;
+
   daylight(day: number): void {
     const a = 2 * Math.PI * (day - 0.25),
       high = Math.sin(a),
@@ -381,16 +384,22 @@ export class Stage {
           ? new pc.Color(1, 0.7, 0.45)
           : new pc.Color(1, 0.95, 0.84);
     const night = phase === "night" ? 1 : warm ? 0.4 : 0;
+    // (And what fill a scene asks: light with no side to it, so what stands in a street's shade keeps its colours.)
+    const fill = this.fill;
     this.app.scene.ambientLight = new pc.Color(
-      0.34 - 0.24 * night,
-      0.38 - 0.24 * night,
-      0.5 - 0.16 * night,
+      0.34 - 0.24 * night + fill,
+      0.38 - 0.24 * night + fill,
+      0.5 - 0.16 * night + fill * 0.9,
     );
     const fog: Rgb = phase === "night" ? [0.06, 0.08, 0.2] : warm ? [1, 0.66, 0.5] : this.air;
     this.clear = {
       ...this.clear,
       sun: this.sun.light!.intensity,
-      ambient: [0.34 - 0.24 * night, 0.38 - 0.24 * night, 0.5 - 0.16 * night],
+      ambient: [
+        0.34 - 0.24 * night + fill,
+        0.38 - 0.24 * night + fill,
+        0.5 - 0.16 * night + fill * 0.9,
+      ],
       fog,
     };
     // A colony's star and air (Phase 64): its hue, its strength; no blue dusk where it has no air;

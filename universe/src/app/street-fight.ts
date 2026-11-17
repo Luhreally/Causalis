@@ -62,6 +62,8 @@ export type StreetFilm = {
   seen(t: number): number;
   /** Space and the numbers work its own clock, as a battle's. */
   readonly keys: { toggle(): void; pick(i: number): boolean };
+  /** Its fill of light on or off (the look tools: to measure what it does). */
+  light(on: boolean): void;
   /** To a second of it (the look tools). */
   seek(s: number): void;
   /** Each clash's place and the eye's stand on it: its turn, how steeply it looks down, whether no block stands between. */
@@ -117,6 +119,8 @@ const setText = (node: HTMLElement, text: string) => {
 
 /** How close and low the eye is on a clash (the rig's units, degrees), and how long it takes going from one to the next (s). */
 const SPEED_WORDS = ["❚❚", "½×", "1×", "2×", "4×"] as const;
+/** The fill of light a fight in the streets is seen by: what stands in a street's shade keeps its colours. */
+const FILL = 0.3;
 const EYE_DISTANCE = 7.8,
   EYE_GOES = 1.3;
 /** The burying after: how long it is watched (s), the world's seconds a second of it, how far off the eye stands. */
@@ -209,6 +213,7 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
     cast = null;
     burying = null;
     time.release("street fight");
+    d.stage.fill = 0;
     document.body.classList.remove("filming", "street-filming");
     ui.hidden = true;
     for (const flag of flags) flag.hidden = true;
@@ -281,6 +286,7 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
         body: f.figure ?? null,
       });
     time.hold("street fight");
+    d.stage.fill = FILL;
     document.body.classList.add("filming", "street-filming");
     ui.hidden = false;
     document.body.dataset.street = f.kind;
@@ -390,8 +396,17 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
     // The eye close on the clash now, from one to the next: from the side with no block between, higher where it must be.
     const eye = streetEye(script, s),
       key = eye ? `${Math.round(eye.at.x / 4)}:${Math.round(eye.at.z / 4)}` : "";
-    if (eye && key !== eyeKey && !rig.steering) {
-      eyeKey = key;
+    // (Chosen once both sides are by it, so its side is the one both are seen from; before that, by the place alone.)
+    const both = eye
+      ? [0, 1].every((side) =>
+          scene!.soldiers.some(
+            (q) =>
+              q.side === side && q.size > 0.5 && Math.hypot(q.x - eye.at.x, q.z - eye.at.z) < 16,
+          ),
+        )
+      : false;
+    if (eye && `${key}${both ? "+" : ""}` !== eyeKey && !rig.steering) {
+      eyeKey = `${key}${both ? "+" : ""}`;
       // Its place brought up into the screen left free above its caption: the eye's mark so much nearer itself as half the
       // caption's share of the eye's field, at this height. The eye then stands that much further from the place: its stand
       // is chosen again with that, so the line from where it truly stands to the place is the clear one.
@@ -401,10 +416,36 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
         far = EYE_DISTANCE / VILLAGE_METRE,
         nearAt = (pitch: number) =>
           (far * Math.tan((fov * covered) / 2)) / Math.max(0.3, Math.sin((-pitch * Math.PI) / 180));
-      let v = streetView(p, eye.at, far),
+      // (The way its two sides face each other there: from the one's men to the other's.)
+      const mean = [0, 1].map((side) => {
+          let x = 0,
+            z = 0,
+            m = 0;
+          for (const q of scene!.soldiers)
+            if (
+              q.side === side &&
+              q.size > 0.5 &&
+              Math.hypot(q.x - eye.at.x, q.z - eye.at.z) < 16
+            ) {
+              x += q.x;
+              z += q.z;
+              m++;
+            }
+          return m ? { x: x / m, z: z / m } : null;
+        }),
+        across =
+          mean[0] && mean[1] && Math.hypot(mean[1].x - mean[0].x, mean[1].z - mean[0].z) > 0.5
+            ? (Math.atan2(mean[1].x - mean[0].x, mean[1].z - mean[0].z) * 180) / Math.PI
+            : undefined;
+      let v = streetView(p, eye.at, far, across),
         near = nearAt(v.pitch);
       for (let turn = 0; turn < 2; turn++) {
-        v = streetView(p, eye.at, far + near / Math.max(0.2, Math.cos((v.pitch * Math.PI) / 180)));
+        v = streetView(
+          p,
+          eye.at,
+          far + near / Math.max(0.2, Math.cos((v.pitch * Math.PI) / 180)),
+          across,
+        );
         near = nearAt(v.pitch);
       }
       rig.flyTo(
@@ -552,6 +593,9 @@ export function installStreetFilm(d: StreetFilmDeps): StreetFilm {
       return playing;
     },
     seen: seenAt,
+    light(on: boolean) {
+      d.stage.fill = on ? FILL : 0;
+    },
     seek,
     keys: {
       toggle: () => setSpeed(speed === 0 ? was : 0),
