@@ -23,6 +23,7 @@ import {
   flareRate,
   greatestFlare,
   gridLost,
+  flareThrough,
   stormAt,
   stormHarm,
   usualStorm,
@@ -162,11 +163,13 @@ export function weatherYear(ctx: PopulationContext, t: SimTime): void {
     storm = stormAt(flare, au),
     field = homeField(g);
   // (The harm of a span stepped at once is its greatest storm's, for one year: the rest were the usual.)
-  const harm = Math.round(1000 * stormHarm(storm, usual));
+  // (Its field keeps off what it keeps off of any flare: rules/planet.ts flareThrough. Earth's, nearly all.)
+  const harm = Math.round(1000 * flareThrough(stormHarm(storm, usual), field.shelter));
   if (harm !== s.harm) store.note([year, harm]);
   s.harm = harm;
   const bears = Math.max(STAR_WEATHER.gridFrom, STAR_WEATHER.design * usual);
-  if (storm < bears * 0.3 && storm < STAR_WEATHER.told * usual) return;
+  const tell = Math.max(STAR_WEATHER.gridFrom, STAR_WEATHER.told * usual);
+  if (storm < bears * 0.3 && storm < tell) return;
   // The grids it burns, land by land.
   const markets = marketsOf(world),
     space = spaceOf(world),
@@ -199,7 +202,7 @@ export function weatherYear(ctx: PopulationContext, t: SimTime): void {
       }
       if (any) hit.push(p.ref);
     }
-  if (!hit.length && storm < STAR_WEATHER.told * usual) return;
+  if (!hit.length && storm < tell) return;
   const event = world.events.emit({
     type: hit.length ? WEATHER_EVENTS.storm.type : WEATHER_EVENTS.flare.type,
     importance: hit.length ? (dead > 1000 ? 6 : 5) : 3,

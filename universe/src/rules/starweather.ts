@@ -40,8 +40,8 @@ export const STAR_WEATHER = {
   unfielded: 0.2,
   /** The share of a land's people who die for each share of its grid lost: months without power, water or heat (est). */
   darkDead: 0.003,
-  /** A storm told as a great one when it is this many times its world's usual yearly greatest. */
-  told: 4,
+  /** A storm told as a great one when it is this many times its world's usual yearly greatest, and as great as a grid's first harm (some once in 25 years about a red dwarf, a century at Earth). */
+  told: 30,
   /** How a storm past the usual raises the deaths of a world's people where its field lets it through, and the most. */
   harm: 0.05,
   harmMost: 3,
