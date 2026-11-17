@@ -46,6 +46,7 @@ import { politiesOf } from "../polity/polity.ts";
 import { warsOf } from "../war/war.ts";
 import { grieve } from "../acts/disasters.ts";
 import { orderOf, boundGone } from "../order/order.ts";
+import { careEffectiveOf } from "../society/kept.ts";
 import { civilizationsNear } from "../space/contact.ts";
 import { peoplesOf, peopleWords } from "../space/peoples.ts";
 
@@ -310,9 +311,12 @@ function hungerOf(ctx: PopulationContext, cell: number): number {
   return p ? clamp(0, 1, (950 - p.leanest) / 950) : 0;
 }
 
-/** The share of a land's people its healers spare (herb-lore, medicine, drains), up to 0.6. */
+/**
+ * The share of a land's people its healers spare (herb-lore, medicine, drains), up to 0.6: as far as they reach them, kin's
+ * tending where they do not (the society sweep, society/care.ts; all of it where none is reckoned).
+ */
 function healedOf(world: World, cell: number): number {
-  return Math.min(0.6, 2 * loreOf(world).effect(cell, "health"));
+  return Math.min(0.6, 2 * loreOf(world).effect(cell, "health")) * careEffectiveOf(world, cell);
 }
 
 /** The words for a sickness's kind, by how it passes. */

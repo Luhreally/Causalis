@@ -11,6 +11,7 @@
 // grow old and die; their successions follow the realm's rule, and sometimes
 // break it. Every step is a decision whose factors cite what drove it.
 import { inflationOf, intoxDependent, taxGrievance } from "../money/kept.ts";
+import { feastReliefOf } from "../society/kept.ts";
 import {
   YEAR,
   defineEventType,
@@ -660,7 +661,10 @@ export function polityYear(ctx: PopulationContext, t: SimTime): void {
           // A land held beyond the seat's reach is ruled by force alone, and chafes.
           0.08 * Math.max(0, far - rules) +
           0.3 * foreign * foreign +
-          0.02 * crossing;
+          0.02 * crossing -
+          // (A people who feast together hold together: the society sweep, society/everyday.ts. Exactly 0 where none is kept; never
+          // below no grievance at all.)
+          Math.min(before.level, feastReliefOf(world, c));
       store.setDiscontent(c, {
         level,
         cause: famine ?? (crossing && prov.arrival ? prov.arrival : before.cause),

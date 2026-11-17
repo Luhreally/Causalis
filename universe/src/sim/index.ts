@@ -1401,3 +1401,19 @@ export {
   partnersOf,
   type Partners,
 } from "./ecology/lineage.ts";
+// The society sweep (2026-11-16): care of the sick and the old, roles, law and holdings, the table, dress, rest.
+export * from "./society/kept.ts";
+export {
+  CARE_EVENTS,
+  SOCIETY_EVERY,
+  careYear,
+  landMeans,
+  landTurn,
+  oldYear,
+  provisionYear,
+  type LandMeans,
+} from "./society/care.ts";
+export { rolesYear } from "./society/roles.ts";
+export { HOLDING_EVENTS, holdingsYear, lawYear } from "./society/holding.ts";
+export { dressYear, leisureYear, tableYear } from "./society/everyday.ts";
+export { installSociety } from "./society/society.ts";
