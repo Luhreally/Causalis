@@ -218,7 +218,8 @@ function readingOf(ctx: PopulationContext, p: Polity): Reading {
     pulpit,
     atWar.length,
     atWar[0]?.event,
-    army,
+    // (Whether it keeps an army at all: its count moves with its people through a year, and is told as it stands, interestsOf.)
+    army > 0,
     farmers,
     herders,
     crafters,
@@ -265,6 +266,8 @@ type Weighed = {
   readonly theirs: readonly (Ref | null)[];
   readonly rival: Rival | null | undefined;
   readonly famine: Ref | null;
+  /** Its army's count as the interests kept tell it. */
+  readonly army: number;
   readonly interests: readonly Interest[];
 };
 
@@ -308,7 +311,17 @@ export function interestsOf(ctx: PopulationContext, p: Polity, t: SimTime): read
     let same = true;
     for (let i = 0; i < had.near.length && same; i++)
       same = faiths.of(had.near[i]!.seat).faith === had.theirs[i];
-    if (same) return had.interests;
+    if (same) {
+      // (Its army's count alone moved, as its people did: nothing is weighed by it but that there is an army, so the same
+      // weighing with the count as it stands. Weighed again for it, 170 of a year's 410 weighings at 1,500 were the count's.)
+      const army = reading.count[5]!;
+      if (had.army === army) return had.interests;
+      const interests = had.interests.map((i) =>
+        i.group === "the army" ? { ...i, people: army } : i,
+      );
+      memo.by.set(p.ref, { ...had, army, interests });
+      return interests;
+    }
   }
   const weighed = interestsNow(ctx, p, t, reading, had);
   memo.by.set(p.ref, weighed);
@@ -515,6 +528,7 @@ function interestsNow(
     theirs: near.map((q) => faiths.of(q.seat).faith),
     rival,
     famine,
+    army: count["the army"],
     interests: GROUPS.map((group) => ({
       group,
       sway: sway[group],
