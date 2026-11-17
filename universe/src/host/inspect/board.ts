@@ -2,6 +2,7 @@
 // market as a person in the town would meet it. All of it is read: a land's prices, its year's books and its last five years, its ground, its town's
 // own place on that ground. Nothing here is kept, and history moves no differently for anyone reading it. A market is a land's, so every town of a
 // land reads one price for a good; what differs town by town is what it is known for, each from its own tile of its land.
+import { landTastesBlocks } from "./tastes.ts";
 import { priceWords } from "../../causal/index.ts";
 import { BIOME, surfaceOre, worldChemistry, WATER } from "../../gen/index.ts";
 import type { Block, BoardRow, Line, PageModel, Span, Stat, Tab } from "../../bridge/index.ts";
@@ -1059,6 +1060,8 @@ export function boardPage(world: World, ref: string): PageModel {
                 },
               ]
             : []),
+          // (What its land's people love beyond the world's middle, and what crosses its realm's borders unseen: host/inspect/tastes.ts.)
+          ...(s.population > 0 ? landTastesBlocks(world, s.cell) : []),
           {
             type: "text",
             lines: [

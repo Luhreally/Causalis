@@ -107,6 +107,8 @@ export type RealmUnderworld = {
   banRent: number;
   tariffRent: number;
   borderRent: number;
+  /** The rent of the wares war, a house's licence or a bar on arms makes contraband (money/contraband.ts; absent in older saves). */
+  wareRent?: number;
   /** The share of the smuggling rents those outside the law can take (thousandths), and what that comes to. */
   captured: number;
   smuggleRent: number;

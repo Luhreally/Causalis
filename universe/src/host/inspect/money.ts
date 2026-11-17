@@ -4,6 +4,12 @@
 // Wealth tab (what each good is worth there and on what it rests, what its makers can ask, its rent and its Lorenz curve, whom its
 // holders would bind). Every number is a store's, read, never reckoned anew; the inequality lens reads a land's Gini.
 import { potencyStat } from "./mobs.ts";
+import {
+  landTastesBlocks,
+  realmContrabandBlocks,
+  realmKindBlocks,
+  realmTastesBlocks,
+} from "./tastes.ts";
 import type { World } from "../../kernel/index.ts";
 import type { Block, Row, Stat } from "../../bridge/index.ts";
 import { cellRef } from "../../gen/index.ts";
@@ -11,6 +17,7 @@ import {
   BASIS_WORDS,
   INTOX_KINDS,
   INTOX_WORDS,
+  kindCost,
   GOODS,
   GOOD_USE,
   MONEY_FORMS,
@@ -46,6 +53,7 @@ import {
   marketsOf,
   moneyStore,
   politiesOf,
+  kindReach,
   populationContext,
   type Polity,
 } from "../../sim/index.ts";
@@ -237,8 +245,12 @@ export function realmTreasuryBlocks(world: World, r: Polity): Block[] {
       );
     blocks.push({ type: "facts", title: "Its borders", rows });
   }
+  // What crosses its borders unseen, ware by ware, and why (sim/money/contraband.ts).
+  blocks.push(...realmContrabandBlocks(world, r));
   // What calms, wakes, brings visions and eases pain: its law on them, its trade in them, who carries them where they are forbidden.
   blocks.push(...realmIntoxBlocks(world, r));
+  // What its people love beyond the world's middle, and what it comes to there.
+  blocks.push(...realmTastesBlocks(world, r));
   // Its underwriters and its pooled harvests.
   if (cover && (cover[POOL.insured]! > 0 || cover[POOL.pooled]! > 0))
     blocks.push({
@@ -448,6 +460,7 @@ export function landWealthBlocks(world: World, cell: number): Block[] {
     });
   }
   blocks.push(...landIntoxBlocks(world, cell));
+  blocks.push(...landTastesBlocks(world, cell));
   if (bind && bind[BIND.share]! > 0)
     blocks.push({
       type: "facts",
@@ -549,29 +562,44 @@ export function realmIntoxBlocks(world: World, r: Polity): Block[] {
   // (How strong the trade has grown under its law: the underworld, host/inspect/mobs.ts.)
   const strong = potencyStat(world, r.ref);
   if (strong) rows.push(strong);
-  return [{ type: "facts", title: "What calms, wakes and eases", rows }];
+  return [
+    { type: "facts", title: "What calms, wakes and eases", rows },
+    ...realmKindBlocks(world, r),
+  ];
 }
 
 /** A land's intoxicants: what its life puts in reach, who takes it, what it gives and costs (never how it is made). */
 export function landIntoxBlocks(world: World, cell: number): Block[] {
   const row = moneyStore(world, INTOX_STORE)?.get(cell);
   if (!row) return [];
-  const rows: Row[] = INTOX_KINDS.map((k, i) => ({
-    cells: [
-      [cap(INTOX_WORDS[k].name)],
-      [per(row[INTOX.have + i]!)],
-      [per(row[INTOX.use + i]!)],
-      [INTOX_WORDS[k].does],
-    ],
-    keys: [k, row[INTOX.have + i]!, row[INTOX.use + i]!, k],
-  }));
-  if (!rows.some((x) => (x.keys![1] as number) > 0)) return [];
+  const realm = politiesOf(world).of(cell),
+    rows: Row[] = INTOX_KINDS.map((k, i) => {
+      const use = row[INTOX.use + i]! / 1000,
+        abroad = realm && realm.ended === null ? kindReach(world, realm.ref, i) : 0,
+        cost = kindCost(k, use);
+      return {
+        cells: [
+          [cap(INTOX_WORDS[k].name)],
+          [per(row[INTOX.have + i]!)],
+          [abroad > 0.05 ? pc(abroad) : "—"],
+          [per(row[INTOX.use + i]!)],
+          [
+            use > 0
+              ? `${(cost.dependent * 1000).toFixed(1)}‰ need it, ${(cost.deaths * 1e5).toFixed(1)} die a year in 100,000`
+              : "—",
+          ],
+          [INTOX_WORDS[k].does],
+        ],
+        keys: [k, row[INTOX.have + i]!, Math.round(abroad * 1000), row[INTOX.use + i]!, k, k],
+      };
+    });
+  if (!rows.some((x) => (x.keys![1] as number) > 0 || (x.keys![3] as number) > 0)) return [];
   const lost = row[INTOX.lost]!;
   return [
     {
       type: "table",
       title: "What calms, wakes, brings visions and eases pain",
-      columns: ["What", "Within reach", "Taken by", "What it does"],
+      columns: ["What", "Grows here", "From abroad", "Taken by", "What it costs", "What it does"],
       rows,
       fit: true,
     },

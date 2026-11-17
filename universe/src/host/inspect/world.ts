@@ -56,6 +56,7 @@ import { groupsLedger, housesLedger, underworldLedger } from "./ledger-order.ts"
 import { cultureLedger, powersLedger, societyLedger, tradeLedger } from "./ledger-realm.ts";
 import { armsLedger, makingLedger, natureLedger } from "./ledger-nature.ts";
 import { treasuryLedger } from "./ledger-money.ts";
+import { intoxLedger, tastesLedger } from "./ledger-tastes.ts";
 import {
   faithLink,
   landLink,
@@ -1844,7 +1845,7 @@ export const LEDGER_SECTIONS: readonly (readonly [string, readonly string[]])[] 
   ["Wealth", ["wealth", "treasury", "trade", "money", "credit", "making"]],
   ["War", ["wars", "arms", "alliances", "camps"]],
   ["Order", ["underworld", "groups", "bonds", "strife"]],
-  ["Culture", ["culture", "faiths", "tongues", "might"]],
+  ["Culture", ["culture", "tastes", "intox", "faiths", "tongues", "might"]],
   ["Nature", ["life", "nature", "sickness", "sky"]],
 ];
 
@@ -1907,6 +1908,10 @@ export function ledgerPage(world: World, tab?: string): PageModel {
     { id: "strife", name: "Strife", blocks: strifeLedger(world) },
     // Who each realm counts its own, what its seat tells, its art, towns and learning; every faith's temples.
     { id: "culture", name: "Culture", ...later("culture", () => cultureLedger(world, lc)) },
+    // What each realm's people love a head against the world's middle, and what crosses its borders unseen (2026-11-16).
+    { id: "tastes", name: "Tastes", ...later("tastes", () => tastesLedger(world, lc)) },
+    // Each kind of what calms, wakes, brings visions and eases pain, realm beside realm.
+    { id: "intox", name: "Intoxicants", ...later("intox", () => intoxLedger(world, lc)) },
     { id: "faiths", name: "Faiths", blocks: faithLedger(world) },
     { id: "tongues", name: "Tongues", blocks: tongueLedger(world) },
     { id: "might", name: "Knowledge", blocks: knowledgeLedger(world, standing, realmPeople) },

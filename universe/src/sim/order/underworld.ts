@@ -56,6 +56,7 @@ import {
   riskPremium,
   type MeansPart,
   meansBought,
+  CONTRA_CAUSES,
   GROUP_KINDS,
   HOLD,
   MALE,
@@ -105,6 +106,7 @@ import {
   SMUGGLE,
   SMUGGLE_STORE,
   TREASURY_STORE,
+  contrabandOf,
   intoxDependent,
   moneyStore,
   refNumber,
@@ -135,6 +137,9 @@ import {
   type RealmUnderworld,
 } from "./underworld-kept.ts";
 import { RowStore } from "../money/kept.ts";
+
+/** The causes of contraband whose rent the underworld's groups carry beside the tariff's and the ban's (money/contraband.ts). */
+const WARE_RENT_CAUSES: ReadonlySet<string> = new Set(["war", "licence", "harm"]);
 
 export const UNDERWORLD_EVENTS = {
   /** A group rose: a protection family, a smuggling cartel, a crew of the realm's own enforcers. */
@@ -796,13 +801,19 @@ function stepRealm(
     // (A rich market that bans, carried across this border: a share of its rent, more as it is richer than this realm's own.)
     if (qBarred >= 0.5 && qWorth > r.banWorth) border += 0.25 * banRent(qWorth, qBarred, RISK);
   }
+  // (And the wares the tariff and the law on intoxicants do not count: those war forbids, a house's licence holds, or arms barred to
+  // its people. Each ware's wedge times what crossed unseen: money/contraband.ts. Nothing where none is kept.)
+  let ware = 0;
+  for (const w of contrabandOf(world, p.ref))
+    if (WARE_RENT_CAUSES.has(CONTRA_CAUSES[w.cause]!)) ware += w.worth * w.wedge;
   const ban = banRent(r.banWorth, r.barred, RISK),
     tariff = sm ? sm[SMUGGLE.worth]! * (sm[SMUGGLE.wedge]! / 1000) : 0,
     captured = rentCaptured(r.capacity, r.corruption * (1 + v.collusion / 1000)),
-    smuggleRent = (ban + tariff + border) * captured;
+    smuggleRent = (ban + tariff + border + ware) * captured;
   v.banRent = Math.round(ban);
   v.tariffRent = Math.round(tariff);
   v.borderRent = Math.round(border);
+  if (ware > 0 || v.wareRent) v.wareRent = Math.round(ware);
   v.captured = per(captured);
   v.smuggleRent = Math.round(smuggleRent);
 

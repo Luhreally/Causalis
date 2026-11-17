@@ -9,7 +9,16 @@ import {
   politiesOf,
   realmName,
 } from "../sim/index.ts";
-import { MONEY_WORDS, TAX_WORDS, type MoneyForm, type TaxBase } from "../rules/index.ts";
+import {
+  CONTRA_WHY,
+  INTOX_WORDS,
+  MONEY_WORDS,
+  TAX_WORDS,
+  type ContraCause,
+  type IntoxKind,
+  type MoneyForm,
+  type TaxBase,
+} from "../rules/index.ts";
 import { count } from "./words.ts";
 import { registerDecisionWords, registerEventWords } from "./why.ts";
 
@@ -51,6 +60,10 @@ registerEventWords(MONEY_EVENTS.smuggling.type, (_w, e) => {
   const d = e.data as { realm?: string; share?: number } | null;
   return `Goods slipped past ${d?.realm ?? "a realm"}'s borders, ${d?.share ?? 0} in a hundred of what it barred or taxed, ${year(e.t)}`;
 });
+registerEventWords(MONEY_EVENTS.underground.type, (_w, e) => {
+  const d = e.data as { realm?: string; ware?: string; share?: number; why?: ContraCause } | null;
+  return `${cap(d?.ware ?? "a good")} went underground in ${d?.realm ?? "a realm"}: ${d?.share ?? 0} in a hundred of it crossing its borders unseen, for ${CONTRA_WHY[d?.why ?? "tariff"] ?? "what it lays on it"}, ${year(e.t)}`;
+});
 registerEventWords(MONEY_EVENTS.guild.type, (_w, e) => {
   const d = e.data as { realm?: string; crafters?: number } | null;
   return `The ${count(d?.crafters ?? 0)} crafters of a land of ${d?.realm ?? "a realm"} bound themselves in a guild, ${year(e.t)}`;
@@ -84,12 +97,13 @@ registerDecisionWords(
 );
 
 registerEventWords(INTOX_EVENTS.barred.type, (_w, e) => {
-  const d = e.data as { realm?: string; users?: number } | null;
-  return `${realm(d)} forbade what calms, wakes, brings visions and eases pain, taken by ${d?.users ?? 0} in a hundred of its people, ${year(e.t)}`;
+  const d = e.data as { realm?: string; users?: number; kind?: IntoxKind } | null,
+    what = d?.kind ? INTOX_WORDS[d.kind].name : "what calms, wakes, brings visions and eases pain";
+  return `${realm(d)} forbade ${what}, taken by ${d?.users ?? 0} in a hundred of its people, ${year(e.t)}`;
 });
 registerEventWords(INTOX_EVENTS.allowed.type, (_w, e) => {
-  const d = e.data as { realm?: string } | null;
-  return `${realm(d)} let what it had forbidden be taken again, ${year(e.t)}`;
+  const d = e.data as { realm?: string; kind?: IntoxKind } | null;
+  return `${realm(d)} let ${d?.kind ? INTOX_WORDS[d.kind].name : "what it had forbidden"} be taken again, ${year(e.t)}`;
 });
 registerEventWords(INTOX_EVENTS.cartel.type, (_w, e) => {
   const d = e.data as { realm?: string } | null;

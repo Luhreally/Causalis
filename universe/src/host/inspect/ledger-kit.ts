@@ -117,3 +117,10 @@ export function standingRealm(world: World, ref: Ref | string): Polity | undefin
   const r = politiesOf(world).get(ref as Ref);
   return r && r.ended === null ? r : undefined;
 }
+
+/** The ledger's reading of some realms only (an alliance's members, say), their most peopled first: every tab reads them alone. */
+export function ledgerCtxOf(world: World, refs: readonly string[]): LedgerCtx {
+  const all = ledgerCtx(world),
+    keep = new Set(refs);
+  return { ...all, standing: all.standing.filter((r) => keep.has(r.ref)) };
+}
