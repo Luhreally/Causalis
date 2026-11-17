@@ -167,6 +167,13 @@ const LOOK_ROWS: readonly LookRow[] = [
   ["glucosamine", "crystal", "granular", "vitreous", 0.5],
   ["glucosamine-starch", "powder", null, "dull", 0],
   ["chitosan", "fibre", "fibrous", "silky", 0],
+  // (A life of silicon's chains: the sweep, Nature lane.)
+  ["polysilane", "fibre", "fibrous", "waxy", 0.1],
+  ["tetrasilane", "liquid", null, "greasy", 0.8],
+  ["polysilazane", "fibre", "fibrous", "vitreous", 0.1],
+  ["trisilazane", "liquid", null, "greasy", 0.8],
+  ["polysiloxane", "fibre", "fibrous", "silky", 0.2],
+  ["cyclosiloxane", "liquid", null, "greasy", 0.9],
   // (The mirror's, as Earth's own: the same stuff turned the other way.)
   ["mirror-sugar", "crystal", "granular", "vitreous", 0.5],
   ["mirror-starch", "powder", null, "dull", 0],

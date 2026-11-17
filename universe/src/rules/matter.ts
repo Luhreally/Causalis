@@ -2803,6 +2803,93 @@ export const LIFE_SUBSTANCES: readonly Substance[] = [
   ),
 ];
 
+/**
+ * The matter of a life built on silicon's chains, not carbon's (the sweep, Nature lane; rules/biochem.ts SILICON_PARTS): what its
+ * stalks, hair and flesh are and what it stores, in cold methane (silanes), cold ammonia (silazanes) and hot acid (siloxanes).
+ * Densities and melting points are of the nearest known compounds (est); kept apart from LIFE_SUBSTANCES, so a world of carbon
+ * life names nothing new.
+ */
+export const SILICON_LIFE: readonly Substance[] = [
+  S(
+    "polysilane",
+    "polysilane",
+    "(SiH₂)ₙ",
+    { Si: 1, H: 2 },
+    "living",
+    "solid",
+    1100,
+    null,
+    null,
+    [0.92, 0.88, 0.7],
+    "Silicon joined to silicon in long chains, each carrying two hydrogens: pale and waxy, it glows faintly in ultraviolet light, and in liquid methane, with no water or oxygen to break it, it holds as carbon's chains do.",
+  ),
+  S(
+    "tetrasilane",
+    "tetrasilane",
+    "Si₄H₁₀",
+    { Si: 4, H: 10 },
+    "food",
+    "liquid",
+    790,
+    -90,
+    null,
+    [0.95, 0.95, 0.9],
+    "Four silicons in a chain, ten hydrogens about them: a clear oil that bursts into flame in air, and, cold and dry, what a silane life stores to break for its energy.",
+  ),
+  S(
+    "polysilazane",
+    "polysilazane",
+    "(SiH₂NH)ₙ",
+    { Si: 1, H: 3, N: 1 },
+    "living",
+    "solid",
+    1200,
+    null,
+    null,
+    [0.84, 0.84, 0.78],
+    "Silicon and nitrogen in turn along a chain: on Earth a coating fired into ceramic; in cold ammonia, with no water to break it, the stalks and flesh of a life.",
+  ),
+  S(
+    "trisilazane",
+    "trisilazane",
+    "(H₃Si)₃N",
+    { Si: 3, H: 9, N: 1 },
+    "food",
+    "liquid",
+    900,
+    -106,
+    null,
+    [0.94, 0.94, 0.9],
+    "Three silyl groups on a nitrogen: a light oil, what a silazane life's seeds and roots store.",
+  ),
+  S(
+    "polysiloxane",
+    "polysiloxane",
+    "(H₂SiO)ₙ",
+    { Si: 1, H: 2, O: 1 },
+    "living",
+    "solid",
+    1100,
+    null,
+    null,
+    [0.88, 0.9, 0.92],
+    "Silicon and oxygen in turn along a chain, as in a silicone: supple, it holds to some three hundred degrees and does not char in acid, where carbon's long chains break.",
+  ),
+  S(
+    "cyclosiloxane",
+    "cyclosiloxane",
+    "(H₂SiO)₄",
+    { Si: 4, H: 8, O: 4 },
+    "food",
+    "liquid",
+    1000,
+    -60,
+    null,
+    [0.93, 0.94, 0.95],
+    "Four silicons and four oxygens in a ring: a clear oil, what a siloxane life stores.",
+  ),
+];
+
 /** What later steps ask for (Phase 65): rules/properties.ts names them, and hands them here. */
 let laterSubstances: readonly Substance[] = [];
 export function knowLaterSubstances(list: readonly Substance[]): void {
@@ -2819,6 +2906,7 @@ export function findSubstance(id: string): Substance | undefined {
     ? (NOVEL_SUBSTANCES.find((s) => s.id === id) ??
         KIND_SUBSTANCES.find((s) => s.id === id) ??
         LIFE_SUBSTANCES.find((s) => s.id === id) ??
+        SILICON_LIFE.find((s) => s.id === id) ??
         laterSubstances.find((s) => s.id === id))
     : SUBSTANCES[i];
 }
@@ -3345,6 +3433,13 @@ export const KCAL: Readonly<Record<string, number>> = {
   squalene: 9,
   acetylene: 3,
   polyimine: 4,
+  // (A life of silicon's chains, to a body of that life, est: its stores as oils, its chains as protein: the sweep, Nature lane.)
+  tetrasilane: 6,
+  trisilazane: 6,
+  cyclosiloxane: 5,
+  polysilane: 4,
+  polysilazane: 4,
+  polysiloxane: 3,
 };
 
 /**

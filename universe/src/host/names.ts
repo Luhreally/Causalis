@@ -16,6 +16,7 @@ import {
   KIND_SUBSTANCES,
   LIFE_ELEMENTS,
   LIFE_SUBSTANCES,
+  SILICON_LIFE,
   NOVEL_ELEMENTS,
   NOVEL_SUBSTANCES,
   SUBSTANCES,
@@ -163,6 +164,8 @@ const ALL_SUBSTANCES: readonly Substance[] = [
   ...NOVEL_SUBSTANCES,
   ...KIND_SUBSTANCES,
   ...LIFE_SUBSTANCES,
+  // (A life of silicon's chains: the sweep, Nature lane. Last, so no name before it moves.)
+  ...SILICON_LIFE,
 ];
 
 /** The frozen form of a life's liquid, where the tables have one. */

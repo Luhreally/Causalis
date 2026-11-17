@@ -136,7 +136,9 @@ export function lifeRows(l: LifeChemistry): Stat[] {
         ? "of silicon and hydrogen (silanes): its rock rich in silicon, poor in carbon, and in its cold liquid methane, with no water or oxygen to break them, they hold as carbon's would"
         : l.backbone === "silazane"
           ? "of silicon and nitrogen (silazanes): its rock rich in silicon, poor in carbon, and in cold ammonia they hold"
-          : "of carbon, as every life known",
+          : l.backbone === "siloxane"
+            ? "of silicon and oxygen (siloxanes, as silicones are): its rock rich in silicon, poor in carbon, and in its hot acid seas carbon's long chains char while these hold"
+            : "of carbon, as every life known",
     ),
     stat("What its people must eat", needsOf(l).food),
     ...(needsOf(l).poisons.length
@@ -286,7 +288,7 @@ export function lifeParts(
       collagen: hide,
       // (Leather is a hide's collagen tanned: of its own flesh's, where that is not Earth's protein.)
       ...(l.flesh === "protein" ? {} : { leather: hide }),
-      fat: l.family === "water" || l.family === "ammonia" ? "fat" : l.store,
+      fat: (l.family === "water" || l.family === "ammonia") && !l.backbone ? "fat" : l.store,
       ...(whose === "made" ? {} : { water: l.liquid }),
       ...(whose === "body"
         ? { apatite: BONE_WORDS[l.bone].subst, calcite: BONE_WORDS[l.shell].subst }
@@ -348,6 +350,16 @@ const STUFF_WHY: Readonly<Record<string, string>> = {
   squalene: "an oil, as the livers of Earth's sharks store: oil dissolves no sugar or starch",
   acetylene:
     "acetylene, gathered as it falls from the haze: at −180 °C its life lives on it and the hydrogen it breathes",
+  // (A life of silicon's chains: the sweep, Nature lane.)
+  polysilane:
+    "chains of silicon and hydrogen: its rock gave it more silicon than carbon, and its cold, dry methane never breaks them",
+  tetrasilane: "a short silane, an oil its life stores and breaks again for its energy",
+  polysilazane:
+    "chains of silicon and nitrogen: in cold ammonia silicon binds to nitrogen and holds",
+  trisilazane: "a light oil of silicon and nitrogen, what its seeds and roots store",
+  polysiloxane:
+    "chains of silicon and oxygen, as silicones are: in its hot acid seas carbon's long chains char, and these hold",
+  cyclosiloxane: "a ring of silicon and oxygen, an oil, what its seeds and roots store",
 };
 
 /** Why a stuff of a life is what it is, in words (null: it is Earth's own). */
