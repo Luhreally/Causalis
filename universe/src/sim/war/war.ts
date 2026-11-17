@@ -877,6 +877,15 @@ export function fieldedOf(ctx: PopulationContext, p: Polity): number {
 }
 
 /**
+ * Of the men a realm fields, those a guard at peace is drawn from: no more of them than a realm keeps under arms at peace at the
+ * most (MOBILISE.standingMost of its fighting men). What it fields is its levy for a war, fed through a season's campaign; the
+ * rest of it is at home at its work until a war calls it (armsKept below).
+ */
+export function fieldedAtPeace(ctx: PopulationContext, p: Polity): number {
+  return fightingMen(ctx, p) * Math.min(fieldShare(ctx, p), MOBILISE.standingMost);
+}
+
+/**
  * The men a realm fields, and those it keeps under arms at peace: its standing army, those a standing army adds to what it
  * fields (fieldShare's own share for it), the rest of its levy at home at their own work until a war calls them. None kept
  * where it keeps no standing army. (Its men counted once for both.)

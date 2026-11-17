@@ -57,6 +57,7 @@ import { interestsOf, type Interest } from "../polity/interests.ts";
 import {
   WAR,
   WAR_EVENTS,
+  fieldedAtPeace,
   fieldedOf,
   strengthOf,
   warsOf,
@@ -298,7 +299,17 @@ export function armyOf(
   const standing = !!loreOf(ctx.world).get(p.seat, "standing-army"),
     atWar = ctx.world.hasStore("war.wars") && warsOf(ctx.world).fighting(p.ref).length > 0;
   return {
-    people: Math.round(fieldedOf(ctx, p) * (standing ? 1 : atWar ? STRIFE.levy : STRIFE.guard)),
+    // (Its guard at peace is a part of what a realm keeps under arms at peace at the most, not of its whole levy for a war: the
+    // levy came to be reckoned as what a season's campaign can feed, twice what it was, and a chief's band with it, two in a
+    // hundred of all his people under arms in a year of peace. So many held every land they took: of first light's lands taken
+    // in its first 140 years, 12 threw their holder off where 53 had (rl2-h4-fl.log, rl2-base-fl.log).)
+    people: Math.round(
+      standing
+        ? fieldedOf(ctx, p)
+        : atWar
+          ? fieldedOf(ctx, p) * STRIFE.levy
+          : fieldedAtPeace(ctx, p) * STRIFE.guard,
+    ),
     standing,
     atWar,
   };
