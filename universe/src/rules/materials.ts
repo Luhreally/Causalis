@@ -1012,11 +1012,11 @@ export const wayById = (id: string): MaterialWay | undefined =>
 
 /**
  * The purest a land can make (nines) by the methods it knows: a smelt's slag takes two decades of what is foreign, current
- * two more, distillation of what an industry makes three more, melting zone by zone three more (each pass leaves a
- * thousandth of most foreign atoms behind).
+ * two more, distillation of what an industry makes three more, melting zone by zone five more (each pass leaves a
+ * thousandth of most foreign atoms behind: germanium has been made clean to thirteen nines).
  */
 export function purityCeiling(knows: (p: string) => boolean, made: (w: string) => boolean): number {
-  if (made("pure-crystal")) return 10;
+  if (made("pure-crystal")) return 12;
   if (made("made-polymer")) return 7;
   if (knows("electrochemistry") || knows("refined-metals")) return 4;
   if (knows("metalworking")) return 2;

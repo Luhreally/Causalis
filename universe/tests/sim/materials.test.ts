@@ -90,7 +90,11 @@ test("a switch of crystal waits on its land's purity", () => {
     need = crystalNeed(ctx);
   assert.ok(need, "Earth's crystal switches a current");
   assert.ok(need.nines > 9 && need.nines < 11, `${need.nines}`);
+  // (A land that could not yet make its crystal pure is not held back by it: its world's reading decides.)
   store.set(row(cell, [], 400));
+  assert.equal(store.allows(ctx, cell, "solid-state"), true);
+  // (One that has come to melting it clean waits on its practice.)
+  store.set(row(cell, ["pure-crystal"], 400));
   assert.equal(store.allows(ctx, cell, "solid-state"), false);
   assert.equal(store.allows(ctx, cell, "computing"), true);
   store.set(row(cell, ["pure-crystal"], Math.ceil(need.nines * 100)));

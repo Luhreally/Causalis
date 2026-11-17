@@ -143,7 +143,12 @@ export class MaterialsStore implements StateStore {
   allows(ctx: PopulationContext, cell: number, principle: string): boolean {
     if (!ASKS_PURITY.has(principle)) return true;
     const need = crystalNeed(ctx);
-    return need === null || this.purity(cell) >= need.nines;
+    if (need === null || this.purity(cell) >= need.nines) return true;
+    if (this.made(cell, "pure-crystal")) return false;
+    // (Where its fire or its world cannot make the crystal pure at all, the world's own reading decides, as before: a land is
+    // held back only from what it could come to.)
+    const way = MATERIAL_WAYS[WAY_INDEX.get("pure-crystal")!]!;
+    return !wayOpen(way, factsAt(ctx, cell, this.map.get(cell))).open;
   }
   /** It holds nothing yet: hashed as if it were not there. */
   dormant(): boolean {

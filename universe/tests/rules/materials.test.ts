@@ -217,6 +217,23 @@ test("a switch wants its crystal clean to some nine or ten nines, more where a n
       (w) => w === "made-polymer",
     ) < si,
   );
+  // (Every crystal a world may switch with can be made as clean as a switch of it wants, once melted zone by zone.)
+  const zone = purityCeiling(
+    () => true,
+    (w) => w === "pure-crystal",
+  );
+  for (const id of [
+    "silicon",
+    "germanium",
+    "gallium-arsenide",
+    "moissanite",
+    "diamond",
+    "polyacetylene",
+  ])
+    for (const kelvin of [90, 288, 400]) {
+      const gap = PROPERTIES[id]?.bandGap ?? 1;
+      assert.ok(zone > purityNeeded(gap, kelvin, atomsPerM3(id)) + 0.5, `${id} at ${kelvin} K`);
+    }
 });
 
 test("a way's heat is its own physics: austenite, a steel's melt, calcite's breaking, a clay's vitrifying", () => {
