@@ -190,7 +190,9 @@ export function occupationYear(ctx: PopulationContext, t: SimTime): void {
       faith = faiths.of(c).faith,
       unbelief = faith && faith !== faiths.of(holder.seat).faith ? 1 : 0,
       grievance = Math.min(1, realms.discontent(c).level * (0.5 + 0.5 * strange + 0.3 * unbelief)),
-      ground = Math.min(1, relief[c]! / OCCUPYING.relief),
+      // (Halls on another world have no ground of their own to hide in: none, not a number that is none. Unread, a land
+      // taken there had a resistance that was no number, which no save keeps: the world saved then did not load back.)
+      ground = Math.min(1, (relief[c] ?? 0) / OCCUPYING.relief),
       armed = 1 - (holdsOf(world, o.from)[0] ?? 0.5),
       garrison = Math.min(1, hostOf(holder) / Math.max(1, OCCUPYING.garrison * people)),
       was = o.resistance;
