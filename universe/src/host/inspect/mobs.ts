@@ -5,10 +5,27 @@
 // never how any crime is done. Phone first: a few facts, one set of bars, one table that fits.
 import type { Ref, World } from "../../kernel/index.ts";
 import type { Block, Item, PageModel, Row, Stat } from "../../bridge/index.ts";
-import { RACKETS, UNDER, type GroupKind } from "../../rules/index.ts";
 import {
+  RACKETS,
+  UNDER,
+  bulkSlip,
+  dosePrice,
+  potencyHarm,
+  type GroupKind,
+} from "../../rules/index.ts";
+import {
+  BAR,
+  BAR_STORE,
   GANG_ROW,
+  POT_ROW,
+  bestMeans,
+  touchesSea,
   gangsStore,
+  loreOf,
+  moneyStore,
+  populationContext,
+  potencyOf,
+  potencyStore,
   groupsIn,
   kindOfGroup,
   politiesOf,
@@ -416,6 +433,8 @@ export function crimeGroupPage(world: World, ref: string): PageModel {
       ],
     });
   }
+  // (What it carries, and its means: arms, armour, hidden carriage, guarded word.)
+  if (rec) blocks.push(...gearBlocks(world, r, rec));
   const passed = passedItems(world, groupNews(g) as (e: never) => boolean, since);
   blocks.push(
     passed.length
@@ -563,4 +582,154 @@ export function townUnderworldBlocks(world: World, s: Settlement): Block[] {
     stat("The killing", `${count(Math.round(read.violence))} a year in a hundred thousand`),
   );
   return [{ type: "facts", title: "Its underworld", rows }];
+}
+
+// —— What a group carries, and its means ——————————————————————————————————————————————————————————————————
+
+/** How strong a realm's forbidden trade has grown, in words, with why (null: it has not, or nothing is kept). */
+export function potencyWords(
+  world: World,
+  realm: string,
+): { strength: string; why: string; potency: number; made: number } | null {
+  const row = potencyStore(world)?.get(realm);
+  if (!row) return null;
+  const { potency, made } = potencyOf(world, realm),
+    barred = (moneyStore(world, BAR_STORE)?.at(realm, BAR.barred) ?? 0) / 1000,
+    premium = row[POT_ROW.premium]! / 1000;
+  if (potency < 1.05 && made < 0.01) return null;
+  const why =
+    barred < 0.25
+      ? "allowed again: its sellers sell by the dose and the taste, and it weakens over a generation"
+      : premium >= 0.5
+        ? "forbidden and hunted: the trade carries the strongest it can make"
+        : "forbidden, though little hunted: the trade carries a stronger form than it would";
+  return {
+    strength: `${potency.toFixed(1)} times as strong as the grown form${made >= 0.01 ? `, ${share(made)} of it made, not grown` : ""}`,
+    why,
+    potency,
+    made,
+  };
+}
+
+/** The "How strong" line of a realm's section on what calms, wakes and eases (null: nothing to say). */
+export function potencyStat(world: World, realm: string): Stat | null {
+  const w = potencyWords(world, realm);
+  if (!w) return null;
+  const row = potencyStore(world)!.get(realm)!,
+    harm = potencyHarm(w.potency, w.made);
+  return stat("How strong", `${w.strength}: ${w.why}`, {
+    parts: [
+      part(
+        "the strongest its people's craft could make it",
+        `${(row[POT_ROW.most]! / 100).toFixed(1)} times`,
+      ),
+      part("a dose costs, against the grown form's", share(dosePrice(w.potency))),
+      part("more of what is forbidden slips past for its little bulk", share(bulkSlip(w.potency))),
+      part("more of its takers come to need it", share(harm.binds - 1)),
+      part("more of them die of it", share(harm.deaths - 1)),
+    ],
+  });
+}
+
+/** What a cartel carries and what each group has of arms, armour, hidden carriage and guarded word. */
+function gearBlocks(world: World, r: Polity, g: CrimeGroup): Block[] {
+  const out: Block[] = [];
+  if (kindOfGroup(g) === "cartel") {
+    const w = potencyWords(world, r.ref),
+      v = underworldOf(world)?.of(r.ref);
+    out.push({
+      type: "facts",
+      title: "What it carries",
+      rows: [
+        stat(
+          "What",
+          w
+            ? `what calms, wakes and eases, forbidden: ${w.strength}`
+            : "what its realm forbids or taxes",
+          {
+            parts: [
+              part("the rent it takes a year", grain(g.income)),
+              ...(v ? [part("the realm's whole rent of what it forbids", grain(v.banRent))] : []),
+              ...(w
+                ? [
+                    part(
+                      "what a load of it is worth against a load of the grown form",
+                      `${(w.potency * dosePrice(w.potency)).toFixed(1)} times`,
+                    ),
+                  ]
+                : []),
+            ],
+          },
+        ),
+        ...(w ? [stat("Why so strong", w.why)] : []),
+      ],
+    });
+  }
+  const m = g.means;
+  if (!m || m.arms + m.armour + m.hidden + m.word <= 0) return out;
+  const ctx = populationContext(world),
+    best = bestMeans(ctx, r, g.home),
+    sum = Math.max(1, m.arms + m.armour + m.hidden + m.word),
+    costOf = (x: number) => `${grain((m.cost * x) / sum)} a year`,
+    rows: Stat[] = [];
+  if (m.arms > 0) {
+    const a = m.arms / 1000,
+      said =
+        a > best.arms + 0.02
+          ? "arms better than the realm's soldiers', bought abroad"
+          : a >= best.arms * 0.95
+            ? "arms as good as the realm's soldiers"
+            : a >= best.arms * 0.5
+              ? "arms nearly as good as the realm's soldiers"
+              : "light arms";
+    rows.push(
+      stat("Arms", said, {
+        parts: [
+          part("costs it", costOf(m.arms)),
+          part("does", "the stronger in its wars and against the crackdown"),
+        ],
+      }),
+    );
+  }
+  if (m.armour > 0)
+    rows.push(
+      stat("Armour", m.armour >= 300 ? "armoured carriers" : "some armour", {
+        parts: [
+          part("costs it", costOf(m.armour)),
+          part("does", "fewer of its men taken, the crackdown the dearer"),
+        ],
+      }),
+    );
+  if (m.hidden > 0) {
+    const sea =
+        r.members.some((c) => touchesSea(ctx, c)) && !!loreOf(world).get(r.seat, "shipbuilding"),
+      under = best.hidden > (sea ? 0.25 : 0) + 0.01;
+    rows.push(
+      stat(
+        "Hidden carriage",
+        sea && under
+          ? "hidden boats, and tunnels under the border"
+          : sea
+            ? "hidden boats"
+            : "tunnels under the border",
+        {
+          parts: [
+            part("costs it", costOf(m.hidden)),
+            part("does", "more slips past the border and blockades"),
+          ],
+        },
+      ),
+    );
+  }
+  if (m.word > 0)
+    rows.push(
+      stat("Word", "guarded word", {
+        parts: [
+          part("costs it", costOf(m.word)),
+          part("does", "its boss the harder to find and take"),
+        ],
+      }),
+    );
+  out.push({ type: "facts", title: "Its means", rows });
+  return out;
 }

@@ -3,7 +3,7 @@
 // pact, a cartel turned to other rackets when its ban ended, a boss dead or taken, a federation of street gangs and two at feud, a
 // crew found out, and how a group's hold ended. Who, what, cost and effect: never how any crime is done.
 import { yearOfMoment, type World } from "../kernel/index.ts";
-import { UNDERWORLD_EVENTS, politiesOf, realmName } from "../sim/index.ts";
+import { POTENCY_EVENTS, UNDERWORLD_EVENTS, politiesOf, realmName } from "../sim/index.ts";
 import { registerDecisionWords, registerEventWords } from "./why.ts";
 
 type Data = {
@@ -154,3 +154,23 @@ for (const [type, words] of [
   [UNDERWORLD_EVENTS.exposed.type, "A crew of enforcers was found out in"],
 ] as const)
   registerDecisionWords(type, (world, x) => `${words} ${realmOf(world, x.subject)}`);
+
+// (How strong what is forbidden has grown: the iron law of prohibition.)
+registerEventWords(
+  POTENCY_EVENTS.stronger.type,
+  (_, e) =>
+    `A stronger form of what ${realm(e.data)} forbids reached its streets, ${(e.data as { strength?: number } | null)?.strength ?? "twice"} times as strong as the grown: forbidden and hunted, the trade carries the most it can in the least bulk, ${year(e.t)}`,
+);
+registerEventWords(
+  POTENCY_EVENTS.made.type,
+  (_, e) =>
+    `Made forms took the place of grown ones in what ${realm(e.data)} forbids${d(e.data)?.group ? `, carried by ${group(e.data)}` : ""}: stronger, and the more deadly, ${year(e.t)}`,
+);
+registerDecisionWords(
+  POTENCY_EVENTS.stronger.type,
+  (world, x) => `What ${realmOf(world, x.subject)} forbids grew stronger`,
+);
+registerDecisionWords(
+  POTENCY_EVENTS.made.type,
+  (world, x) => `Made forms replaced grown ones in what ${realmOf(world, x.subject)} forbids`,
+);

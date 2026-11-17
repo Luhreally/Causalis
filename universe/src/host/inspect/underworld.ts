@@ -13,6 +13,7 @@
 // lenses; its crime, read of its towns' years as their cases are, in a pass of its own, once a year and only while it is shown (a
 // year's read of a far world's towns takes some 20 ms, and the record they are read from as much again). Each is broken down for
 // the tip under a finger, with the page that tells it whole.
+import { potencyWords } from "./mobs.ts";
 import { Hasher, type World } from "../../kernel/index.ts";
 import { GOODS, INTOX_KINDS, INTOX_WORDS } from "../../rules/index.ts";
 import {
@@ -338,6 +339,12 @@ export function underworldReading(
       return {
         line: `Addiction: ${per(row[INTOX.dependent]!)} of its people need what they take`,
         stats: [
+          // (How strong what it carries is, where a ban is hunted: the underworld round, mobs.ts potencyWords.)
+          ...(() => {
+            const r = realmOf(world, cell),
+              pw = r ? potencyWords(world, r.ref) : null;
+            return pw ? [{ label: "How strong", value: pw.strength }] : [];
+          })(),
           {
             label: "Who die of it a year",
             value: `${+(row[INTOX.deaths]! / 10_000).toFixed(2)}% of its people`,
