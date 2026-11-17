@@ -100,14 +100,19 @@ test("a people's 'us' reaches a valley before letters, all its speech once it re
   assert.ok(near(folkAfter(0.1, 0.9, 0), 0.1));
 });
 
-test("being ruled by strangers aggrieves a nation more than a valley, and at an 'us' half way out, as unlike speech alone did", () => {
+test("being ruled by strangers aggrieves a nation more than a valley, and none who count the seat's people near their own", () => {
   assert.ok(apartGrievance(0.3, 0.9) > apartGrievance(0.3, 0.1));
   assert.equal(apartGrievance(1, 1), 0);
-  // (Same faith, same ways, a long lot: kin is 1 - 0.55 of how unlike the speech is; at half reach, 0.3 times it squared.)
-  for (const foreign of [0.1, 0.4, 0.8]) {
-    const kin = kinToSeat({ like: 1 - foreign, sameFaith: true, waysGap: 0, years: 1e6, span: 70 });
-    assert.ok(near(apartGrievance(kin, 0.5), 0.3025 * foreign * foreign, 1e-6), `at ${foreign}`);
-  }
+  assert.equal(apartGrievance(FOLK.middle, 1), 0);
+  // (Same faith, same ways, a long lot: kin is 1 - 0.55 of how unlike the speech is; the more unlike, the more aggrieved, and
+  // a land of near speech none at all.)
+  const at = (foreign: number) =>
+    apartGrievance(
+      kinToSeat({ like: 1 - foreign, sameFaith: true, waysGap: 0, years: 1e6, span: 70 }),
+      0.5,
+    );
+  assert.equal(at(0.4), 0);
+  assert.ok(at(1) > at(0.9) && at(0.9) > 0);
   // (One people with its seat holds its rule the more rightful, strangers the less, the more they imagine an 'us'.)
   assert.ok(onenessStanding(0.95, 0.8) > 0);
   assert.ok(onenessStanding(0.3, 0.8) < 0);

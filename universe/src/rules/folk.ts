@@ -33,8 +33,7 @@ export const FOLK = {
   war: 0.15,
   /**
    * Grievance a year from being ruled by those a land counts strangers (at kin 0), at an "us" no wider than a valley's and at its
-   * widest: between, by how far it reaches. At an "us" half way out, (1 - kin) squared: as unlike speech squared, times 0.3,
-   * was before (kin is 0.55 of speech, and 0.55 squared is 0.3).
+   * widest: between, by how far it reaches. It falls as the square of kin's shortfall from the middle, and is none above it.
    */
   apartNarrow: 0.4,
   apartWide: 1.6,
@@ -98,9 +97,13 @@ export function folkAfter(was: number, target: number, years: number): number {
   return was + (target - was) * (1 - dmath.pow(1 - FOLK.pace, Math.max(0, years)));
 }
 
-/** What being ruled by those it counts strangers breeds of grievance in a land a year. */
+/**
+ * What being ruled by those it counts strangers breeds of grievance in a land a year: as far as its kin to the seat's people falls
+ * short of the middle (FOLK.middle), where it counts them neither its own nor strangers. A land nearer its seat than that is no
+ * stranger's subject: its oneness is the realm's standing (onenessStanding), not a grievance as well.
+ */
 export function apartGrievance(kin: number, nation: number): number {
-  const apart = 1 - dmath.clamp(kin, 0, 1),
+  const apart = Math.max(0, FOLK.middle - dmath.clamp(kin, 0, 1)) / FOLK.middle,
     n = dmath.clamp(nation, 0, 1);
   return apart * apart * (FOLK.apartNarrow + (FOLK.apartWide - FOLK.apartNarrow) * n);
 }
