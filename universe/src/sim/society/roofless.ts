@@ -100,7 +100,9 @@ export function rooflessYear(ctx: PopulationContext, t: SimTime): void {
       addicted = ROOF.addicted * intoxDependent(world, c),
       oldRow = olds?.get(c),
       old = oldRow ? (ROOF.old * oldRow[OLD_ROW.share]! * oldRow[OLD_ROW.neglected]!) / 1e6 : 0,
-      roofless = rooflessAll([shut, waits, displaced, addicted, old]),
+      // (Those turned out and those beyond its homes are one want of homes, not two chances: where a blow razed its homes, the
+      // fabric's own shortfall already holds those it turned out, so the greater of the two is told.)
+      roofless = rooflessAll([shut, Math.max(waits, displaced), addicted, old]),
       realm = realms.of(c),
       // (Newcomers: those beyond its homes, and those its town still draws toward its draw's aim.)
       drawn = draw ? drawGap(draw, c) : 0,

@@ -69,6 +69,12 @@ export const UNDER = {
   ofRoad: 3,
   /** What a protector takes of a protected trade's worth (est: the pizzo, 2–10% of a shop's takings in Palermo). */
   cut: 0.06,
+  /**
+   * What an unguarded trade loses where nothing at all is held, to theft, seizure and deals broken (est: a quarter of its worth). A
+   * trader pays a protector's cut only where what unsafety would take of him is more: where holdings are safe and deals held, no cut
+   * is worth paying and no protector has a market.
+   */
+  lost: 0.25,
   /** A protection group rises where the pull (want of protection times men to sell it) reaches this. */
   riseProtect: 0.05,
   /** A smuggling group rises where the rent taken reaches this share of what its people earn. */
@@ -148,13 +154,16 @@ export type ProtectionFacts = {
 };
 
 /**
- * The want of private protection (0 … 1): as far as holdings are unsafe and deals not held, among those who have a trade worth
+ * The want of private protection (0 … 1): as far as holdings are unsafe and deals not held past the point where a protector's cut is
+ * worth paying (what unsafety would take, UNDER.lost of a trade at the worst, against UNDER.cut), among those who have a trade worth
  * guarding, less where the seat's own reach supplies it.
  */
 export function protectionWanted(f: ProtectionFacts): number {
   const unsafe = 1 - (0.5 * clamp01(f.secure) + 0.5 * clamp01(f.deals)),
+    pays = UNDER.cut / UNDER.lost,
+    paid = clamp01((unsafe - pays) / (1 - pays)),
     rich = f.trade > 0 ? clamp01((2 * f.trade) / (f.trade + Math.max(1, f.earned))) : 0;
-  return clamp01(unsafe * (0.3 + 0.7 * rich) * (1 - 0.6 * clamp01(f.capacity)));
+  return clamp01(paid * (0.3 + 0.7 * rich) * (1 - 0.6 * clamp01(f.capacity)));
 }
 
 /** Who could sell it: the men of a realm skilled in violence and idle, each a share of its people. */
