@@ -58,7 +58,7 @@ function homes(plan: TownPlan, which?: number[]) {
 const colours = (out: TownParts) => out.groups.size;
 
 test("the ground wealth sorts a town's homes onto: none in an even land, the heart and the high ground before engines, the high edge after", () => {
-  assert.equal(homeGround(11, 3, 800, 1, 0.2, false), null);
+  assert.equal(homeGround(11, 3, 800, 1, 0.1, false), null);
   assert.equal(homeGround(11, 3, 800, 1, 0.5, false), "heart");
   let high = -1,
     lee = -1,
@@ -76,15 +76,15 @@ test("the ground wealth sorts a town's homes onto: none in an even land, the hea
     (["heart", "high-edge", "lee-edge", "tall-heart", null] as const).map(groundWealth),
     [1, 1, -1, -1, 0],
   );
-  assert.ok(rankSteep(0.3) < rankSteep(0.45) && rankSteep(0.7) === 1);
+  assert.ok(rankSteep(0.17) < rankSteep(0.3) && rankSteep(0.5) === 1);
   assert.equal(shareWords(0.2), "a fifth");
 });
 
 test("an even land's town is drawn as it was; an uneven one's well-off and poor homes are told apart, the more the steeper", () => {
   const plain = homes(town()),
-    even = homes(town({ gini: 0.15, drives: false })),
-    uneven = homes(town({ gini: 0.4, drives: false })),
-    steep = homes(town({ gini: 0.65, drives: false }));
+    even = homes(town({ gini: 0.1, drives: false })),
+    uneven = homes(town({ gini: 0.2, drives: false })),
+    steep = homes(town({ gini: 0.4, drives: false }));
   assert.equal(even.count, plain.count, "an even land adds nothing");
   assert.equal(colours(even), colours(plain));
   assert.ok(uneven.count > plain.count, "gardens, porches, lean-tos");
@@ -105,15 +105,15 @@ test("an even land's town is drawn as it was; an uneven one's well-off and poor 
     const plan = town({ gini, drives: false });
     return top(homes(plan, [3])) - top(homes(plan, [lee]));
   };
-  assert.ok(gap(0.4) > 0.5, `${gap(0.4)} m`);
-  assert.ok(gap(0.65) > gap(0.4));
+  assert.ok(gap(0.2) > 0.2, `${gap(0.2)} m`);
+  assert.ok(gap(0.4) > gap(0.2) + 0.5, `${gap(0.4)} m`);
   assert.ok(steep.count >= uneven.count);
 });
 
 test("a great house's hall stands over its neighbours in its colours; a key figure's home is marked", () => {
   const color = [0.9, 0.2, 0.7] as const,
     rank: TownRank = {
-      gini: 0.2,
+      gini: 0.1,
       drives: false,
       halls: [{ lot: 5, name: "Varro", color, share: 0.2 }],
       marks: [{ lot: 9, ref: "court:x", name: "A B", title: "Voice of the smiths" }],

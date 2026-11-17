@@ -3843,7 +3843,9 @@ async function runPlanetPage(): Promise<void> {
           ? plan.homes.find((h) => h.household && Math.hypot(h.x - lot.x, h.z - lot.z) < 1)
           : undefined;
       // (A key figure's marked home opens them.)
-      const marked = plan.town?.rank?.marks?.find((m) => m.lot === thing.lot);
+      const marked = plan.town?.rank?.marks?.find((m) => m.lot === thing.lot),
+        rulers = plan.town?.rank?.seat;
+      if (rulers && rulers.lot === thing.lot) return rulers.ruler;
       return theirs?.household ?? marked?.ref ?? `lot:${plan.ref}:${thing.lot}`;
     }
     let home = -1,

@@ -1791,7 +1791,25 @@ function rankedHome(
 ): void {
   const r = rankedOf(scene.plan);
   if (!r || look.sealed || look.tent || level > 2) return home(out, look, level, x, z, yaw);
-  const hall = r.halls.get(p);
+  const hall = r.halls.get(p),
+    seat = scene.plan.rank!.seat;
+  if (seat && seat.lot === p) {
+    // The ruler's own house, where no hall of law stands yet: the greatest of the town's, the realm's guards at its gate.
+    greatHall(out, look, level, x, z, yaw, {
+      lot: p,
+      name: seat.name,
+      color: seat.color,
+      share: 0.3 + 0.2 * seat.grade,
+    });
+    for (const side of [-1, 1]) {
+      const [gx, gz] = at(x, z, yaw, side * 1.3, -LOT_D / 2 + 0.1);
+      out.put("box", seat.color, gx, 0.85, gz, 0.5, 1.3, 0.4, yaw);
+      out.put("box", SKIN_TONE, gx, 1.67, gz, 0.3, 0.32, 0.3, yaw);
+    }
+    const [bx, bz] = at(x, z, yaw, -LOT_W * 0.42, -LOT_D / 2 + 0.3);
+    banner(out, bx, bz, yaw, 12 + 3 * seat.grade, seat.color);
+    return;
+  }
   if (hall) return greatHall(out, look, level, x, z, yaw, hall);
   const rank = scene.plan.rank!,
     wealth = r.steep

@@ -223,6 +223,14 @@ export function lotPage(world: World, ref: string): PageModel {
       ]);
     const rank = townRank(world, s.ref, f),
       whose = whoseLot(rank, p);
+    const theirs = rank?.halls?.find((h) => h.lot === p);
+    if (rank?.seat && rank.seat.lot === p) {
+      title = `The ruler's house in ${s.name}`;
+      icon = "👑";
+    } else if (theirs) {
+      title = `The hall of the house of ${theirs.name}, in ${s.name}`;
+      icon = "🏰";
+    }
     if (whose.length) lines.push(...whose);
     else lines.push(...whyHome(world, s.ref, s.cell, f, p, level));
   } else if (run && (run[0] === FELL || run[0] === RAZED || run[0] === BURNED)) {

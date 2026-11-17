@@ -15,7 +15,13 @@ import {
   type Fabric,
 } from "../sim/index.ts";
 import { AGE_ROWS } from "../rules/index.ts";
-import { HEART_BLOCKS, QUARTER, type RankHall, type TownRank } from "../bridge/index.ts";
+import {
+  HEART_BLOCKS,
+  QUARTER,
+  type RankHall,
+  type RankSeat,
+  type TownRank,
+} from "../bridge/index.ts";
 import { realmColor } from "./colors.ts";
 import { houseRef } from "./family.ts";
 
@@ -23,6 +29,7 @@ import { houseRef } from "./family.ts";
 const PALACE = { years: 60, lands: 3 },
   WINGS = { years: 180, lands: 8 };
 /** The most great houses' halls shown in a town; the tallest home a hall takes the lot of (a house or a townhouse). */
+const CIVIC_HALL = "hall";
 const MOST_HALLS = 4,
   HALL_LEVEL = 2;
 
@@ -47,7 +54,7 @@ export function townRank(world: World, ref: Ref, f: Fabric, lots = f.next): Town
   const year = Math.floor(world.now / YEAR),
     realm = politiesOf(world).of(s.cell),
     gini = giniOf(world, s.cell) ?? 0,
-    seat =
+    seated: RankSeat | undefined =
       realm && realm.ended === null && realm.seat === s.cell && realm.town === s.name
         ? {
             realm: realm.ref,
@@ -61,36 +68,49 @@ export function townRank(world: World, ref: Ref, f: Fabric, lots = f.next): Town
                 : 0) as 0 | 1 | 2,
           }
         : undefined;
-  // The great houses seated in its land: their halls in its heart (its greatest town near its middle).
+  // Lots for the halls: a home's lot of the high ground by the square, else of its heart, a block to each.
+  const seed = townSeed(ref),
+    n = Math.min(lots, f.next),
+    taken = new Set<number>();
+  let levels: Int8Array | null = null;
+  const lotFor = (name: string): number => {
+    levels ??= levelsOf(f, 0, n);
+    const k = hashString(`hall ${name}`) % 8;
+    for (let b = 0; b < Math.ceil(n / 8) && b < HEART_BLOCKS * 6; b++) {
+      if (taken.has(b) || (b >= HEART_BLOCKS && quarterOf(seed, b) !== QUARTER.high)) continue;
+      for (let j = 0; j < 8; j++) {
+        const p = b * 8 + ((k + j) % 8),
+          l = p < n ? levels[p]! : -1;
+        if (l >= 0 && l <= HALL_LEVEL) {
+          taken.add(b);
+          return p;
+        }
+      }
+    }
+    return -1;
+  };
+  // (A seat with no hall of law standing yet: the ruler keeps a house of their own, the first to choose its ground.)
+  let seat = seated;
+  if (seated && !f.civics.some((c) => c.kind === CIVIC_HALL && c.fell === null && c.at < n)) {
+    const at = lotFor(`seat ${seated.realm}`);
+    if (at >= 0) seat = { ...seated, lot: at };
+  }
+  // The great houses seated in its land: their halls in its greatest town.
   const halls: RankHall[] = [],
     kept = realm ? housesOf(world)?.of(realm.ref) : undefined,
     here = (kept?.houses ?? []).filter((h) => h.seat === s.cell && !h.crown);
   if (here.length && realm) {
-    const towns = ctx.settlements.seenIn(s.cell).filter((t) => t.population > 0),
-      heart = [...towns].sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1))[0];
+    const heart = ctx.settlements
+      .seenIn(s.cell)
+      .filter((t) => t.population > 0)
+      .sort((a, b) => b.population - a.population || (a.ref < b.ref ? -1 : 1))[0];
     if (heart?.ref === ref) {
       let all = 0;
       for (const h of kept!.houses) all += h.wealth;
-      const seed = townSeed(ref),
-        n = Math.min(lots, f.next),
-        levels = levelsOf(f, 0, n),
-        taken = new Set<number>();
-      const great = [...here]
+      for (const h of [...here]
         .sort((a, b) => b.wealth - a.wealth || a.id - b.id)
-        .slice(0, MOST_HALLS);
-      for (const h of great) {
-        // (A home's lot of the high ground by the square, else of its heart: the first no other hall has taken a block of.)
-        let at = -1;
-        const k = hashString(`hall ${h.name}`) % 8;
-        for (let b = 0; b < Math.ceil(n / 8) && b < HEART_BLOCKS * 6 && at < 0; b++) {
-          if (taken.has(b) || (b >= HEART_BLOCKS && quarterOf(seed, b) !== QUARTER.high)) continue;
-          for (let j = 0; j < 8 && at < 0; j++) {
-            const p = b * 8 + ((k + j) % 8),
-              l = p < n ? levels[p]! : -1;
-            if (l >= 0 && l <= HALL_LEVEL) at = p;
-          }
-          if (at >= 0) taken.add(b);
-        }
+        .slice(0, MOST_HALLS)) {
+        const at = lotFor(h.name);
         if (at < 0) continue;
         halls.push({
           lot: at,

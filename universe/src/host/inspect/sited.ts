@@ -176,6 +176,12 @@ export function whoseLot(rank: TownRank | null | undefined, lot: number): Line[]
   const out: Line[] = [],
     hall = rank?.halls?.find((h) => h.lot === lot),
     mark = rank?.marks?.find((m) => m.lot === lot);
+  if (rank?.seat && rank.seat.lot === lot)
+    out.push([
+      "The house of ",
+      { text: "its realm's ruler", ref: rank.seat.ruler },
+      ": no hall of law stands in the seat yet, and the ruler keeps the greatest house of the town, the realm's banner and guards at its gate.",
+    ]);
   if (hall)
     out.push([
       "The hall of ",
