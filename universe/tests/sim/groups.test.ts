@@ -21,6 +21,12 @@ import {
   preyTake,
   roadGuarded,
   seaGuarded,
+  PRINCIPLES,
+  cloisterWorth,
+  hardToReach,
+  inquireWorth,
+  officeWorth,
+  refugeWorth,
 } from "../../src/rules/index.ts";
 import {
   Hasher,
@@ -46,8 +52,22 @@ import {
   populationContext,
   strengthOf,
   tradeStore,
+  TEMPLE_STORE,
+  beliefOf,
+  cultureRows,
+  electionsOf,
+  electionsYear,
+  landOf,
+  loreOf,
+  orderOf,
+  orgInquiryOf,
+  orgPartyOf,
+  orgRefugeOf,
   type RealmOrgs,
 } from "../../src/sim/index.ts";
+import { ACADEMY_STORE } from "../../src/sim/culture/rows.ts";
+import { reliefOf } from "../../src/sim/war/occupation.ts";
+import { housesOf } from "../../src/sim/order/houses.ts";
 import { LAW_ROW, LAW_STORE, societyStore } from "../../src/sim/society/kept.ts";
 import { refNumber } from "../../src/sim/money/kept.ts";
 import { EARTH } from "../../src/host/index.ts";
@@ -120,6 +140,33 @@ test("a group's kind is read off what it does; it turns as its stakes move: an u
   const smug = ORG_AIMS.map((a) => (a === "smuggle" ? 600 : a === "prey" ? 400 : 0));
   assert.equal(firstAim(smug), "prey");
   assert.ok(ORG_KINDS.length >= 20 && AIM.prey === 0);
+});
+
+test("parties, refuges, orders and learned societies: what each is worth, and the kinds they are read as", () => {
+  assert.equal(officeWorth(0.9, 0.5, true), 0);
+  assert.ok(officeWorth(0.9, 0.5, false) > officeWorth(0.3, 0.5, false));
+  assert.ok(hardToReach(1200, 6, 0.1) > hardToReach(20, 1, 0.8));
+  assert.ok(refugeWorth(0.3, 0, 0.8, false) > refugeWorth(0.3, 0, 0.2, false));
+  assert.ok(refugeWorth(0.3, 0, 0.8, true) < refugeWorth(0.3, 0, 0.8, false));
+  assert.equal(refugeWorth(0, 0, 1, false), 0);
+  assert.ok(cloisterWorth(0.9, 0.5, 0.8) > cloisterWorth(0.3, 0.5, 0.8));
+  assert.equal(inquireWorth(0.9, 0, 1), 0);
+  assert.ok(inquireWorth(0.9, 1, 1) > inquireWorth(0.1, 1, 1));
+  const base = {
+    second: null,
+    sea: false,
+    armed: false,
+    standing: 1,
+    basis: "faith",
+    patron: false,
+    occupied: false,
+  } as const;
+  assert.equal(orgKind({ ...base, aim: "worship", cloister: true }), "monastic order");
+  assert.equal(orgKind({ ...base, aim: "office" }), "party");
+  assert.equal(orgKind({ ...base, aim: "refuge", standing: 0 }), "maroon community");
+  assert.equal(orgKind({ ...base, aim: "inquire" }), "learned society");
+  // (Where the free word is shut, the learned keep their counsel in secret.)
+  assert.equal(orgKind({ ...base, aim: "inquire", standing: 0 }), "lodge");
 });
 
 // —— On a real world ————————————————————————————————————————————————————————————————————————————————————
@@ -286,5 +333,88 @@ test("a realm's Groups tab, each group's page with its follow and pin, and the w
   for (const s of said) {
     assert.ok(!/\bhow to\b|recipe|assemble|load the|aim the/i.test(s), s);
     assert.ok(!s.includes("groups."), s);
+  }
+});
+
+test("where its people choose, an interest no house speaks for carries a party into its elections; the fled hold one hard land; the learned band", () => {
+  const p = [...politiesOf(world).living()].sort((a, b) => b.members.length - a.members.length)[0]!,
+    ctx = populationContext(world),
+    store = orgsOf(world)!;
+  // (Rule by choice and voice wide; its farmers' great house gone; its bound many; writing and the learned in every land; a hard land.)
+  (p as { succession: number }).succession = 1;
+  const o = orderOf(world)!.of(p.ref)!;
+  o.held = [40, 85, 80, 60];
+  o.legitimacy = 0.6;
+  const hv = housesOf(world)?.of(p.ref) as { houses: { origin: number }[] } | undefined;
+  if (hv) hv.houses = hv.houses.filter((h) => h.origin !== 6);
+  for (const c of p.members) landOf(orderOf(world)!, c).shares[0] = 0.3;
+  const writing = PRINCIPLES.find((x) => x.id === "writing")!;
+  for (const c of p.members)
+    loreOf(world).learn(c, "writing", { year: 1, event: p.event }, writing);
+  for (const c of p.members) cultureRows(world, ACADEMY_STORE)!.set(c, [3000, 3000, 0, 0, 0, 1]);
+  const hard = p.members.find((c) => c !== p.seat) ?? p.seat,
+    relief = reliefOf(ctx.generated),
+    was = relief[hard]!;
+  relief[hard] = 2500;
+  let year = yearOfMoment(world.now) + 11;
+  while ((refNumber(p.ref) + year + 2) % ORG.every !== 0) year++;
+  // (Reckoned until the slower stakes have had their turn: a land raises at most two groups a reckoning.)
+  for (let k = 0; k < 8; k++) {
+    groupsYear(ctx, simTime((year + ORG.every * k + 1) * YEAR));
+    const now: string[] = store.of(p.ref)?.orgs.map((g) => kindName(g)) ?? [];
+    if (["party", "maroon community", "learned society"].every((x) => now.includes(x))) break;
+  }
+  relief[hard] = was;
+  const v = store.of(p.ref)!,
+    kinds = v.orgs.map((g) => kindName(g));
+  assert.ok(kinds.includes("party"), kinds.join(","));
+  assert.ok(orgPartyOf(world, p.ref, "farmers") > 0);
+  const maroons = v.orgs.find((g) => kindName(g) === "maroon community");
+  assert.ok(maroons, kinds.join(","));
+  assert.equal(maroons.lands.length, 1);
+  assert.ok(orgRefugeOf(world, maroons.home) >= 0.3, `${orgRefugeOf(world, maroons.home)}`);
+  const society = v.orgs.find((g) => kindName(g) === "learned society");
+  assert.ok(
+    society,
+    `${kinds.join(",")} gather ${v.gather.join(",")} gone ${v.gone.map((g) => g.name + ":" + g.how).join(",")}`,
+  );
+  assert.ok(orgInquiryOf(world, society.home) > 0);
+  // (Its next election: the farmers' party puts one of its own forward and holds their votes.)
+  const votes = electionsOf(world)!;
+  votes.forget(p.ref);
+  electionsYear(ctx, simTime((year + 60) * YEAR));
+  const next = votes.of(p.ref)!.next;
+  electionsYear(ctx, simTime((next + 1) * YEAR));
+  const last = votes.of(p.ref)?.past.at(-1);
+  assert.ok(last && last.votes.some(([g]) => g === "farmers"), JSON.stringify(last?.votes));
+});
+
+test("a faith's devout whose seat holds it withdraw into monastic orders, each on one land, tied to its temple", () => {
+  const store = orgsOf(world)!,
+    orders = store
+      .realmsKept()
+      .flatMap((r) => store.of(r)!.orgs.filter((g) => kindName(g) === "monastic order"));
+  if (!orders.length) {
+    // (None in this world's own history yet: the seat's faith given a teaching temple, its lands its own.)
+    const p = [...politiesOf(world).living()]
+        .sort((a, b) => a.members.length - b.members.length)
+        .at(-1)!,
+      faith = beliefOf(world).of(p.seat).faith;
+    assert.ok(faith, "a faith at the seat");
+    cultureRows(world, TEMPLE_STORE)!.set(
+      refNumber(faith),
+      [400, 10000, 2000, 0, 600, 20000, 2, 1],
+    );
+    let year = yearOfMoment(world.now) + 40;
+    while ((refNumber(p.ref) + year + 2) % ORG.every !== 0) year++;
+    groupsYear(populationContext(world), simTime((year + 1) * YEAR));
+  }
+  const all = store
+    .realmsKept()
+    .flatMap((r) => store.of(r)!.orgs.filter((g) => kindName(g) === "monastic order"));
+  assert.ok(all.length > 0);
+  for (const g of all) {
+    assert.equal(g.lands.length, 1);
+    assert.ok(g.identity.startsWith("faith:"), g.identity);
   }
 });

@@ -40,6 +40,10 @@ export const ORG_AIMS = [
   "hire",
   "rebel",
   "conspire",
+  // (Asked 2026-11-16 to close the gaps: seeking office by votes, a refuge held by those who fled, inquiry and the free word.)
+  "office",
+  "refuge",
+  "inquire",
 ] as const;
 export type OrgAim = (typeof ORG_AIMS)[number];
 export const AIM = Object.fromEntries(ORG_AIMS.map((a, i) => [a, i])) as Readonly<
@@ -47,7 +51,17 @@ export const AIM = Object.fromEntries(ORG_AIMS.map((a, i) => [a, i])) as Readonl
 >;
 
 /** What binds a group's people before it forms. */
-export const ORG_BASES = ["kin", "folk", "faith", "trade", "veterans", "learned", "poor"] as const;
+export const ORG_BASES = [
+  "kin",
+  "folk",
+  "faith",
+  "trade",
+  "veterans",
+  "learned",
+  "poor",
+  "fled",
+  "interest",
+] as const;
 export type OrgBasis = (typeof ORG_BASES)[number];
 
 /** How a realm holds a group: outlawed, let be, chartered (licensed, hired, granted its rights). */
@@ -83,6 +97,10 @@ export const ORG_KINDS = [
   "insurgents",
   "resistance",
   "lodge",
+  "party",
+  "maroon community",
+  "monastic order",
+  "learned society",
 ] as const;
 export type OrgKind = (typeof ORG_KINDS)[number];
 
@@ -146,6 +164,18 @@ export const ORG = {
   taken: 0.15,
   /** A federation forms of this many groups of one first aim. */
   fedOf: 2,
+  /** How far a party's organisation holds its interest's votes to its own candidate, and adds to what is given him. */
+  discipline: 0.3,
+  turnout: 0.2,
+  /** How far an organised interest weighs more in who the seat must pay. */
+  partyWeighs: 0.5,
+  /** How far a refuge's broken ground keeps its realm's hand off it. */
+  hides: 0.7,
+  /** How much more readily a land inquires where a learned society holds, and takes up what a land of another realm knows. */
+  inquiry: 0.3,
+  corresponds: 0.6,
+  /** What a monastic order spares of its land's deaths, of what aid would. */
+  cloisterSpares: 0.5,
 } as const;
 
 // —— What binds, and what organising costs ————————————————————————————————————————————————————————————————
@@ -207,6 +237,10 @@ export const SELECTIVE: Readonly<Record<OrgAim, number>> = {
   hire: 1,
   rebel: 0.1,
   conspire: 0.5,
+  // (A party's offices and favours for its own; a refuge's freedom, its own; a society's standing, letters and the learned met.)
+  office: 0.35,
+  refuge: 1,
+  inquire: 0.6,
 };
 
 /** Aims whose members live by them (kept from what the group takes) rather than giving their spare hours. */
@@ -226,6 +260,9 @@ export const ENGAGED: Readonly<Record<OrgAim, number>> = {
   worship: 0.25,
   rebel: 0.04,
   conspire: 0.01,
+  office: 0.05,
+  refuge: 0.5,
+  inquire: 0.5,
 };
 
 /**
@@ -408,6 +445,9 @@ const FIT: Readonly<Record<OrgAim, readonly (typeof MEANS)[number][]>> = {
   hire: ["arms", "ships"],
   rebel: ["arms", "secret", "faith"],
   conspire: ["secret", "purse"],
+  office: ["purse"],
+  refuge: ["arms", "secret"],
+  inquire: ["purse", "secret"],
 };
 
 /** How far a group's means reach an aim (none where none of them serves it: a group turns to an aim only as it comes to its means). */
@@ -467,6 +507,8 @@ export type OrgKindFacts = {
   readonly patron: boolean;
   /** The land it rises in is held by a foreign hand. */
   readonly occupied: boolean;
+  /** Its faith is its seat's own, kept apart under a rule of its own on a land it holds. */
+  readonly cloister?: boolean;
 };
 
 /** A group's kind, read off what it does (see ORG_KINDS: each a reading, not a choice). */
@@ -493,13 +535,20 @@ export function orgKind(f: OrgKindFacts): OrgKind {
     case "trade":
       return "merchant league";
     case "worship":
-      return f.standing === 0 ? "hidden sect" : "sect";
+      // (A faith's own people withdrawn to keep it under a rule of their own, not pressed by their seat: an order.)
+      return f.cloister ? "monastic order" : f.standing === 0 ? "hidden sect" : "sect";
     case "hire":
       return f.sea ? "sea company" : "free company";
     case "rebel":
       return f.occupied ? "resistance" : f.armed ? "insurgents" : "revolutionary circle";
     case "conspire":
       return "lodge";
+    case "office":
+      return "party";
+    case "refuge":
+      return "maroon community";
+    case "inquire":
+      return f.standing === 0 ? "lodge" : "learned society";
   }
 }
 
@@ -510,8 +559,48 @@ export function outlawedAim(aim: OrgAim, pressed: boolean): boolean {
     aim === "smuggle" ||
     aim === "rebel" ||
     aim === "conspire" ||
+    aim === "refuge" ||
     (aim === "worship" && pressed)
   );
+}
+
+/**
+ * What a party is worth to those of an interest who would carry it (working years a household): its people's say in who governs,
+ * as wide as voice is and as great as their sway, where no great house speaks for them already.
+ */
+export function officeWorth(voice: number, sway: number, spoken: boolean): number {
+  return spoken ? 0 : 0.25 * clamp01(voice) * clamp01(sway * 3);
+}
+
+/**
+ * What a refuge is worth those who would flee to it (working years a head): the bondage or the law fled, as far as the land is
+ * hard to reach (broken ground, far from its seat, beyond its reach) and holds no war.
+ */
+export function refugeWorth(bound: number, hunted: number, hard: number, war: boolean): number {
+  return (2 * clamp01(bound) + clamp01(hunted)) * clamp01(hard) * (war ? 0.3 : 1) * 0.6;
+}
+
+/** How hard a land is to reach from its seat (0 … 1): its broken ground (metres of relief), how far it lies, how little its seat reaches it. */
+export function hardToReach(relief: number, steps: number, reach: number): number {
+  return clamp01(
+    0.45 * clamp01(Math.max(0, relief) / 600) +
+      0.3 * clamp01(Math.max(0, steps) / 6) +
+      0.25 * (1 - clamp01(reach)),
+  );
+}
+
+/**
+ * What withdrawing to keep a faith under a rule of its own is worth its devout (working years a household): their piety, as far
+ * as its temple teaches and has clergy to send, where land lies open or far.
+ */
+export function cloisterWorth(piety: number, teaching: number, room: number): number {
+  const p = clamp01(piety);
+  return 0.12 * p * p * (0.3 + clamp01(teaching)) * clamp01(room);
+}
+
+/** What a society of the learned is worth one of them (working years): inquiry shared, letters between towns, the free word. */
+export function inquireWorth(word: number, writing: number, ideas: number): number {
+  return writing > 0 ? 0.3 * (0.3 + clamp01(word)) * (0.6 + 0.4 * clamp01(ideas)) : 0;
 }
 
 /** How hard a realm turns on the groups it outlaws (0 … 1): its reach and standing, against the harm they do. */

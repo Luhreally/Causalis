@@ -49,6 +49,12 @@ import {
   FULL_TIME,
   aidWorth,
   aimFit,
+  cloisterWorth,
+  hardToReach,
+  inquireWorth,
+  officeWorth,
+  refugeWorth,
+  HOUSE_ORIGINS,
   aimsToward,
   cohesionOf,
   conspireWorth,
@@ -119,12 +125,20 @@ import { LAW_OF } from "./laws.ts";
 import { housesRead } from "./houses.ts";
 import { killedOf, protectedOf, underworldOf } from "./underworld-kept.ts";
 import { creditOf } from "../credit/credit.ts";
+import { interestsOf } from "../polity/interests.ts";
+import { reliefOf } from "../war/occupation.ts";
+import { templeTeachingIn } from "../belief/temple.ts";
+import { inquiresMore } from "../lore/lore.ts";
+import { learnedOf } from "../lore/academy.ts";
+import { chooses } from "./elections.ts";
+import { housesOf } from "./houses.ts";
 import { revolutionHolds } from "../strife/strife.ts";
 import {
   ORG_LANDS_STORE,
   ORG_LANDS_WIDTH,
   ORG_ROW,
   OrgsStore,
+  orgInquiryOf,
   orgLandsStore,
   orgsOf,
   type Org,
@@ -154,7 +168,17 @@ const keyOf = (r: Ref) => parseRef(r).b >>> 0;
 const r2 = (x: number) => Math.round(x * 100) / 100;
 const AIMS = ORG_AIMS.length;
 /** The aims that take men under arms. */
-const ARMED: ReadonlySet<OrgAim> = new Set(["prey", "guard", "enforce", "rule", "hire", "rebel"]);
+const ARMED: ReadonlySet<OrgAim> = new Set([
+  "prey",
+  "guard",
+  "enforce",
+  "rule",
+  "hire",
+  "rebel",
+  "refuge",
+]);
+/** First aims whose group holds one land and no more: a party at its seat, a refuge, an order's house. */
+const ONE_LAND: ReadonlySet<OrgAim> = new Set(["office", "refuge"]);
 /** A household, for a common stake: its working-years are what its members gain and spend. */
 const HOUSEHOLD = 5;
 
@@ -199,6 +223,13 @@ type Land = {
   front: boolean;
   /** How far it is threatened (preyed on, killed in, a war on its border), as last reckoned (0 … 1). */
   threat: number;
+  /** How hard it is to reach from its seat (0 … 1); the share of its people bound; its learned; its faith's teaching. */
+  hard: number;
+  bound: number;
+  learned: number;
+  teaching: number;
+  /** Its devout would keep its faith under a rule of their own here, more than as a sect against the seat. */
+  cloister: boolean;
   /** Its stakes this reckoning: what each aim is worth here (grain's worth a year), and the members it would gather. */
   worth: number[];
   gather: number[];
@@ -242,10 +273,18 @@ type Read = {
   foeSea: number;
   rival: number;
   following: number;
+  /** Its bound and those its law hunts (shares of its people). */
+  bound: number;
+  hunted: number;
+  /** Where its people choose who governs: each interest's stake in a party of its own (grain's worth a year), and who would
+   * carry it (heads); the demagogue's house that would lead one. */
+  chooses: boolean;
+  office: Map<string, { worth: number; gather: number }>;
+  demagogue: string | null;
   lands: Land[];
 };
 
-function readRealm(ctx: PopulationContext, p: Polity, year: number): Read {
+function readRealm(ctx: PopulationContext, p: Polity, year: number, t: SimTime): Read {
   const { world } = ctx,
     realms = politiesOf(world),
     o = orderOf(world)?.of(p.ref),
@@ -259,6 +298,7 @@ function readRealm(ctx: PopulationContext, p: Polity, year: number): Read {
     occ = occupationOf(world),
     credit = creditOf(world),
     steps = reach(ctx, p),
+    relief = reliefOf(ctx.generated),
     cap = capacityOf(ctx, p).value,
     seatWays = culture.get(p.seat),
     seatFaith = belief.of(p.seat).faith ?? null,
@@ -339,6 +379,11 @@ function readRealm(ctx: PopulationContext, p: Polity, year: number): Read {
       credit: banks.has(c) ? 1 : 0,
       front,
       threat: front ? 1 : 0,
+      hard: hardToReach(relief[c] ?? 0, far, landReach),
+      bound: orderOf(world)?.bound(c) ?? 0,
+      learned: learnedOf(world, c),
+      teaching: templeTeachingIn(world, c),
+      cloister: false,
       worth: new Array<number>(AIMS).fill(0),
       gather: new Array<number>(AIMS).fill(0),
     });
@@ -398,7 +443,34 @@ function readRealm(ctx: PopulationContext, p: Polity, year: number): Read {
       if (q === p.ref) foeSea += moneyStore(world, COVER_STORE)?.at(foe.ref, POOL.seaTrade) ?? 0;
     }
   }
-  const houses = housesRead(world, p.ref);
+  const houses = housesRead(world, p.ref),
+    voice = held[HOLD.voice] ?? 0.3,
+    // (Bound and hunted: its lands' bondage; those its crackdown and its hand against what it outlaws take.)
+    boundAll = lands.reduce((s, l) => s + l.bound * l.people, 0),
+    hunted =
+      0.3 * ((underworldOf(world)?.of(p.ref)?.bites ?? 0) / 1000) +
+      0.3 * ((orgsOf(world)?.of(p.ref)?.suppression ?? 0) / 1000),
+    // (Where its people choose: each interest of many heads no great house of its own speaks for would carry a party.)
+    choosing = chooses(world, p),
+    office = new Map<string, { worth: number; gather: number }>(),
+    kept = housesOf(world)?.of(p.ref)?.houses ?? [],
+    spoken = new Set(kept.map((h) => HOUSE_ORIGINS[h.origin] ?? "")),
+    demagogue = kept.find((h) => HOUSE_ORIGINS[h.origin] === "demagogue")?.name ?? null;
+  if (choosing)
+    for (const i of interestsOf(ctx, p, t)) {
+      if (i.group === "the court" || i.people <= 0) continue;
+      const perHead = officeWorth(voice, i.sway, spoken.has(i.group)),
+        coh = cohesionOf({
+          kin: seatWays?.traits[WAY.kinship] ?? 0.5,
+          folk: people > 0 ? ofSeatFaith / people : 1,
+          faith: 0.3 * (seatWays?.traits[WAY.piety] ?? 0.5),
+          writing: lore.effect(p.seat, "writing") > 0 ? 1 : 0,
+          trust: law ? law[LAW_ROW.deals]! / 1000 : 0.5,
+          leader: demagogue ? 1 : (houses?.following ?? 0),
+        }),
+        n = joinedOf("office", perHead, i.people / HOUSEHOLD, coh);
+      office.set(i.group, { worth: perHead * wage * Math.max(n, ORG.crew), gather: n });
+    }
   return {
     people,
     wage,
@@ -434,6 +506,11 @@ function readRealm(ctx: PopulationContext, p: Polity, year: number): Read {
     foeSea,
     rival: houses?.rival ?? 0,
     following: houses?.following ?? 0,
+    bound: people > 0 ? boundAll / people : 0,
+    hunted,
+    chooses: choosing,
+    office,
+    demagogue,
     lands,
   };
 }
@@ -552,16 +629,16 @@ function weighStakes(ctx: PopulationContext, p: Polity, r: Read, v: RealmOrgs): 
     );
     // Trade: a league's safe passage and rights, for its traders, where many towns trade.
     common("trade", tradeWorth(r.trade, r.earned, r.capacity, towns), l.traders);
-    // Worship: a faith pressed by its seat.
-    common(
-      "worship",
-      worshipWorth(
-        l.grievance + 0.3 * l.pressed,
-        l.pressed,
-        cultureOf(world).get(l.cell)?.traits[WAY.piety] ?? r.piety,
-      ),
-      l.pressed > 0 ? households : 0,
-    );
+    // Worship: a faith pressed by its seat; or the seat's own faith's devout, withdrawn to keep it under a rule of their own
+    // where land lies open or far and its temple teaches (a monastic order).
+    const piety = cultureOf(world).get(l.cell)?.traits[WAY.piety] ?? r.piety,
+      sect = worshipWorth(l.grievance + 0.3 * l.pressed, l.pressed, piety),
+      cloister =
+        l.faith && l.faith === r.seatFaith && l.pressed < 0.1 && l.teaching > 0
+          ? cloisterWorth(piety, l.teaching, 0.3 + 0.7 * (1 - l.reach))
+          : 0;
+    l.cloister = cloister > sect;
+    common("worship", Math.max(sect, cloister), l.pressed > 0 || cloister > 0 ? households : 0);
     // Hire: veterans sold to a realm at war short of men.
     const hireWorth = r.hire * share;
     set("hire", hireWorth, crewOf(hireWorth, w, coh("hire"), (r.veterans + 0.2 * r.pool) * share));
@@ -590,11 +667,25 @@ function weighStakes(ctx: PopulationContext, p: Polity, r: Read, v: RealmOrgs): 
         : 0,
       l.town >= 2000 ? l.town * 0.05 : 0,
     );
+    // Refuge: the realm's bound and those its law hunts, for a land hard to reach and holding no war.
+    common(
+      "refuge",
+      l.hard >= 0.45 ? refugeWorth(r.bound, r.hunted, l.hard, l.front) : 0,
+      l.hard >= 0.45 ? (r.bound + 0.2 * r.hunted) * r.people * share * 3 : 0,
+    );
+    // Inquire: its learned, where the word is free enough and writing at hand.
+    common(
+      "inquire",
+      inquireWorth(r.word, loreOf(world).effect(l.cell, "writing") > 0 ? 1 : 0, r.ideas),
+      l.learned * l.people,
+    );
   }
   for (let k = 0; k < AIMS; k++) {
     v.stakes[k] = Math.round(r.lands.reduce((s, l) => s + l.worth[k]!, 0));
     v.gather[k] = Math.round(r.lands.reduce((s, l) => s + l.gather[k]!, 0));
   }
+  v.stakes[AIM.office] = Math.round([...r.office.values()].reduce((s, o) => s + o.worth, 0));
+  v.gather[AIM.office] = Math.round([...r.office.values()].reduce((s, o) => s + o.gather, 0));
 }
 
 // —— Naming, telling ———————————————————————————————————————————————————————————————————————————————————————
@@ -692,7 +783,14 @@ function readKind(g: Org, lands: readonly Land[], patron: boolean): OrgKind {
     basis: ORG_BASES[g.basis] ?? "poor",
     patron,
     occupied: g.lands.some((c) => (lands.find((l) => l.cell === c)?.occupied ?? 0) > 0),
+    cloister: cloistered(g, lands),
   });
+}
+
+/** Whether a group keeps its seat's own faith under a rule of its own on the land it holds: a monastic order. */
+function cloistered(g: Org, lands: readonly Land[]): boolean {
+  const home = lands.find((l) => l.cell === g.home);
+  return orgAimOf(g) === "worship" && ORG_BASES[g.basis] === "faith" && !!home?.cloister;
 }
 
 function basisFor(aim: OrgAim, r: Read, l: Land): OrgBasis {
@@ -715,13 +813,26 @@ function basisFor(aim: OrgAim, r: Read, l: Land): OrgBasis {
     case "guard":
     case "rule":
       return r.kin >= 0.6 ? "kin" : "folk";
+    case "refuge":
+      return "fled";
+    case "office":
+      return "interest";
+    case "inquire":
+      return "learned";
     default:
       return "poor";
   }
 }
 
 /** The rise of a group: its record and its event. */
-function rise(f: Facts, aim: OrgAim, home: Land, sea: boolean, factors: Factor[]): Org | null {
+function rise(
+  f: Facts,
+  aim: OrgAim,
+  home: Land,
+  sea: boolean,
+  factors: Factor[],
+  identity?: string,
+): Org | null {
   const { v, r, year } = f,
     salt = v.next * 17 + AIM[aim],
     name =
@@ -739,23 +850,35 @@ function rise(f: Facts, aim: OrgAim, home: Land, sea: boolean, factors: Factor[]
       (ARMED.has(aim) ? meansBit("arms") : 0) |
       (sea ? meansBit("ships") : 0) |
       (basis === "faith" ? meansBit("faith") : 0) |
-      (aim === "aid" || aim === "lend" || aim === "trade" || aim === "conspire"
+      (aim === "aid" ||
+      aim === "lend" ||
+      aim === "trade" ||
+      aim === "conspire" ||
+      aim === "office" ||
+      aim === "inquire"
         ? meansBit("purse")
         : 0) |
       (standing === 0 ? meansBit("secret") : 0),
     leaves = basis === "poor" || basis === "veterans" ? 0.2 : 0.9,
+    own = (k: number) =>
+      (k !== AIM.refuge || basis === "fled") && (k !== AIM.worship || basis === "faith"),
     fits = home.worth.map(
       (w, k) =>
+        (own(k) ? 1 : 0) *
         w *
         aimFit(ORG_AIMS[k]!, means) *
         (FULL_TIME.has(ORG_AIMS[k]!) && k !== AIM[aim] ? 1 - leaves : 1),
     ),
     all = fits.reduce((s, x) => s + x, 0) || 1;
-  for (let k = 0; k < AIMS; k++) aims[k] = Math.round((300 * fits[k]!) / all);
+  // (A party is its interest's alone: it begins doing nothing else.)
+  if (!identity) for (let k = 0; k < AIMS; k++) aims[k] = Math.round((300 * fits[k]!) / all);
   aims[AIM[aim]] = (aims[AIM[aim]] ?? 0) + 700;
   const sum = aims.reduce((s, x) => s + x, 0) || 1;
   for (let k = 0; k < AIMS; k++) aims[k] = Math.round((aims[k]! * 1000) / sum);
-  const leader = newLeader(f, home.cell, salt),
+  // (A party an interest's demagogue leads bears his house's name at its head.)
+  const led = aim === "office" && r.demagogue ? r.demagogue : null,
+    drawn = newLeader(f, home.cell, salt),
+    leader = led ? { ...drawn, name: `${drawn.name.split(" ")[0]} ${led}` } : drawn,
     gid = v.next++,
     g: Org = {
       id: gid,
@@ -768,7 +891,7 @@ function rise(f: Facts, aim: OrgAim, home: Land, sea: boolean, factors: Factor[]
       home: home.cell,
       lands: [home.cell],
       basis: ORG_BASES.indexOf(basis),
-      identity: basis === "faith" ? (home.faith ?? "") : "",
+      identity: identity ?? (basis === "faith" ? (home.faith ?? "") : ""),
       means,
       standing,
       leader,
@@ -783,12 +906,21 @@ function rise(f: Facts, aim: OrgAim, home: Land, sea: boolean, factors: Factor[]
     };
   const patron = aim === "hire" ? r.payer : aim === "prey" && r.atWar && sea ? f.p.ref : null;
   if (patron) g.patron = patron;
+  if (led) g.house = led;
   g.kind = KIND(readKind(g, r.lands, !!patron));
   const event = tell(
     f,
     ORG_EVENTS.rose.type,
     home.cell,
-    { group: name, kind: kindName(g), aim, gids: [gid], leader: leader.name },
+    {
+      group: name,
+      kind: kindName(g),
+      aim,
+      gids: [gid],
+      leader: leader.name,
+      ...(identity ? { interest: identity } : {}),
+      ...(led ? { house: led } : {}),
+    },
     [],
     factors,
   );
@@ -897,7 +1029,7 @@ function stepRealm(
   const { world } = ctx,
     year = yearOfMoment(t),
     key = keyOf(p.ref),
-    r = readRealm(ctx, p, year);
+    r = readRealm(ctx, p, year, t);
   if (r.people <= 0) return false;
   const f: Facts = {
       ctx,
@@ -919,14 +1051,26 @@ function stepRealm(
       r.people > 0 ? (v.killings / r.people) * 1000 + v.taken / Math.max(1, r.earned) : 0,
     suppression = suppressionOf(r.capacity, r.legitimacy, harmBefore);
   v.suppression = per(suppression);
+  // (A party's stake is its own interest's at the seat; every other aim's, its lands'.)
+  // (Some stakes are only their own people's: a refuge the fled's, a faith kept its faithful's. A lending circle of free
+  // townsfolk does not take up the bound's flight, however much it is worth to them.)
+  const none = { worth: 0, gather: 0 },
+    stake = (g: Org, k: number) =>
+      k === AIM.office
+        ? ORG_BASES[g.basis] === "interest"
+          ? (r.office.get(g.identity) ?? none)
+          : none
+        : k === AIM.refuge && ORG_BASES[g.basis] !== "fled"
+          ? none
+          : k === AIM.worship && ORG_BASES[g.basis] !== "faith"
+            ? none
+            : stakeIn(v, g, lands, k);
   for (const g of v.orgs) {
     // (A rent kept full-time is worth to members who have work of their own only what it pays over the work they would leave:
     // to the idle and the veterans nearly all of it, to householders little.)
     const idleBasis = ORG_BASES[g.basis] === "poor" || ORG_BASES[g.basis] === "veterans",
       leaves = idleBasis ? 0.2 : 0.9,
-      worth = ORG_AIMS.map(
-        (a, k) => stakeIn(v, g, lands, k).worth * (FULL_TIME.has(a) ? 1 - leaves : 1),
-      );
+      worth = ORG_AIMS.map((a, k) => stake(g, k).worth * (FULL_TIME.has(a) ? 1 - leaves : 1));
     g.means = meansOf(g, r.lands);
     g.aims = aimsToward(g.aims, worth, g.means, stepped(ORG.turn, span));
     const was = kindName(g),
@@ -959,12 +1103,20 @@ function stepRealm(
     } else if (!patron) delete g.patron;
     // (How its realm holds it: what preys, rises or plots is outlawed; a league or a guard its seat cannot itself give is
     // chartered where the seat reaches little and its rule stands; the rest let be.)
-    const outlaw = outlawedAim(
-        aim,
-        g.lands.some((c) => (lands.get(c)?.pressed ?? 0) >= 0.5),
-      ),
+    // (A party where its people no longer choose, a society where the word is shut, are outlawed; an order is granted its
+    // land where the seat holds its faith and its rule stands; a society chartered where the seat writes and its word is free.)
+    const outlaw =
+        outlawedAim(
+          aim,
+          g.lands.some((c) => (lands.get(c)?.pressed ?? 0) >= 0.5),
+        ) ||
+        (aim === "office" && !r.chooses) ||
+        (aim === "inquire" && r.word < 0.2),
       charter =
-        !outlaw && (aim === "trade" || aim === "guard") && r.capacity < 0.5 && r.legitimacy >= 0.45;
+        !outlaw &&
+        (((aim === "trade" || aim === "guard") && r.capacity < 0.5 && r.legitimacy >= 0.45) ||
+          (aim === "worship" && cloistered(g, r.lands) && r.legitimacy >= 0.4) ||
+          (aim === "inquire" && r.writing > 0 && r.word >= 0.5 && r.legitimacy >= 0.5));
     const standing = outlaw ? (g.patron === p.ref ? 2 : 0) : charter || g.patron ? 2 : 1;
     const granted = standing === 2 && g.standing !== 2 && !g.patron;
     g.standing = standing;
@@ -996,7 +1148,7 @@ function stepRealm(
     for (let k = 0; k < AIMS; k++) {
       const a = g.aims[k]! / 1000;
       if (a <= 0) continue;
-      const s = stakeIn(v, g, lands, k);
+      const s = stake(g, k);
       aimMen += a * s.gather;
       // (A rent kept full-time is its income; a common aim's, what its members pay in.)
       income += FULL_TIME.has(ORG_AIMS[k]!) ? a * s.worth : a * g.members * r.wage * ORG.cost;
@@ -1010,17 +1162,30 @@ function stepRealm(
       ((g.aims[AIM.aid]! + g.aims[AIM.lend]!) / 1000) * g.members * r.wage * ORG.cost * 4,
     );
     g.wealth = Math.round(g.wealth * stays + (Math.max(0, g.income) * fade) / ORG.spends);
+    // (A party's hold on its interest's votes: its part of what it does, as many as its interest would gather, as wide as voice.)
+    if (ORG_BASES[g.basis] === "interest") {
+      const o = r.office.get(g.identity);
+      g.organised = per(
+        (g.aims[AIM.office]! / 1000) *
+          Math.min(1, g.members / Math.max(ORG.crew, o?.gather ?? 0)) *
+          (0.5 + 0.5 * r.voice),
+      );
+    }
   }
 
   // 2. New groups: the strongest stakes no group of that aim holds yet.
-  type Cand = { aim: OrgAim; land: Land; men: number; sea: boolean };
+  type Cand = { aim: OrgAim; land: Land; men: number; sea: boolean; identity?: string };
   const cands: Cand[] = [];
   for (const l of r.lands)
     for (const [k, a] of ORG_AIMS.entries()) {
       if (a === "smuggle") continue;
       const men = l.gather[k]!;
       if (men < ORG.crew) continue;
+      if (a === "office") continue;
       if (v.orgs.some((g) => g.aim === k && g.lands.includes(l.cell))) continue;
+      // (Room for another: the groups of its aim hold well short of all the realm's stake would gather.)
+      const holding = v.orgs.reduce((n, g) => n + (g.aim === k ? g.members : 0), 0);
+      if (holding > 0 && holding >= 0.6 * v.gather[k]!) continue;
       const sea =
         a === "prey"
           ? l.coast && preyTake(l.sea, r.seaGuard) > preyTake(l.road, roadGuarded(l.reach, 0))
@@ -1029,20 +1194,49 @@ function stepRealm(
             : false;
       cands.push({ aim: a, land: l, men, sea });
     }
+  // (A party for each interest that would carry one and has none, at the seat.)
+  const seatLand = lands.get(p.seat);
+  if (seatLand)
+    for (const [interest, o] of [...r.office].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
+      if (o.gather < ORG.crew) continue;
+      if (v.orgs.some((g) => ORG_BASES[g.basis] === "interest" && g.identity === interest))
+        continue;
+      cands.push({ aim: "office", land: seatLand, men: o.gather, sea: false, identity: interest });
+    }
   cands.sort((a, b) => b.men - a.men || a.land.cell - b.land.cell || AIM[a.aim] - AIM[b.aim]);
-  let risen = 0;
+  let risen = 0,
+    parties = 0;
   for (const c of cands) {
-    if (risen >= 2 || v.orgs.length >= ORG.most) break;
+    if (v.orgs.length >= ORG.most) break;
+    // (A party is the seat's, not a land's: one may form a reckoning beside the two that lands make.)
+    if (c.identity) {
+      if (parties >= 1) continue;
+    } else if (risen >= 2) continue;
     if (v.orgs.filter((g) => g.aim === AIM[c.aim]).length >= ORG.ofAim) continue;
     if (risen > 0 && f.u(50 + risen) >= 0.5) continue;
-    const g = rise(f, c.aim, c.land, c.sea, [
-      factor(`a stake its people share (${c.aim})`, c.land.worth[AIM[c.aim]]!, 1),
-      factor("those it would gather", c.men, c.men / ORG.small),
-      factor("what binds them", bindingAt(ctx, r, c.land, c.aim), 0.2),
-    ]);
+    const g = rise(
+      f,
+      c.aim,
+      c.land,
+      c.sea,
+      [
+        factor(
+          `a stake its people share (${c.identity ?? c.aim})`,
+          c.identity ? (r.office.get(c.identity)?.worth ?? 0) : c.land.worth[AIM[c.aim]]!,
+          1,
+        ),
+        factor("those it would gather", c.men, c.men / ORG.small),
+        ...(c.identity && r.demagogue
+          ? [factor("a demagogue to lead it", 1, 0.3)]
+          : [factor("what binds them", bindingAt(ctx, r, c.land, c.aim), 0.2)]),
+      ],
+      c.identity,
+    );
+
     if (!g) continue;
     g.members = Math.round(c.men * stepped(ORG.grow, span));
-    risen++;
+    if (c.identity) parties++;
+    else risen++;
   }
 
   // 3. Its realm's answer, leaders gone, holds ended.
@@ -1051,8 +1245,14 @@ function stepRealm(
   for (const g of [...v.orgs]) {
     const coh = bindingAt(ctx, r, lands.get(g.home) ?? r.lands[0]!, orgAimOf(g));
     if (g.standing === 0) {
-      const taken =
-        1 - dmath.pow(1 - ORG.taken * suppression * (1 - Math.min(0.7, (coh - 1) / 4)), span);
+      // (Broken, far ground keeps the realm's hand off a refuge: ORG.hides.)
+      const hidden = orgAimOf(g) === "refuge" ? ORG.hides * (lands.get(g.home)?.hard ?? 0) : 0,
+        taken =
+          1 -
+          dmath.pow(
+            1 - ORG.taken * suppression * (1 - Math.min(0.7, (coh - 1) / 4)) * (1 - hidden),
+            span,
+          );
       g.members = Math.round(g.members * (1 - taken));
     }
     if (g.since >= year) continue;
@@ -1128,7 +1328,9 @@ function stepRealm(
   for (const g of v.orgs) {
     g.power = per(0.6 * (g.members / allMen) + 0.4 * (g.wealth / allWealth));
     // (It reaches the lands where its first aim's stake is greatest, its home first, more as it grows.)
-    const n = Math.max(1, Math.min(ORG.lands, 1 + Math.floor(g.members / 300))),
+    // (A party, a refuge and an order's house hold one land and no more: the seat, the hard land, the land granted.)
+    const one = ONE_LAND.has(orgAimOf(g)) || cloistered(g, r.lands),
+      n = one ? 1 : Math.max(1, Math.min(ORG.lands, 1 + Math.floor(g.members / 300))),
       k = g.aim,
       near = r.lands
         .filter((l) => l.cell !== g.home && l.worth[k]! > 0)
@@ -1275,7 +1477,11 @@ function writeLands(
       plot = 0,
       sect = 0,
       sectOf = 0,
-      thins = 0;
+      thins = 0,
+      refuge = 0,
+      inquire = 0,
+      cloister = 0,
+      keeps = 0;
     for (const g of here) {
       const w = g.members / g.lands.length,
         a = (k: number) => (g.aims[k] ?? 0) / 1000,
@@ -1304,8 +1510,22 @@ function writeLands(
         sect = sw;
         sectOf = g.id + 1;
       }
-      thins += (a(AIM.rule) + 0.5 * a(AIM.prey)) * Math.min(1, s * 6);
+      // (A refuge holds its one land apart, as far as what it does is to hold it; an order its house the less.)
+      const cl = cloistered(g, r.lands)
+        ? a(AIM.worship) * Math.min(1, ((w * HOUSEHOLD) / households) * 4)
+        : 0;
+      refuge = Math.max(refuge, a(AIM.refuge) * Math.min(1, s * 10));
+      inquire = Math.max(
+        inquire,
+        a(AIM.inquire) * Math.min(1, w / Math.max(1, l.learned * l.people)),
+      );
+      cloister = Math.max(cloister, cl);
+      // (What an order keeps a year of its purse, for its learning and its stores.)
+      if (cl > 0) keeps += g.wealth * ORG.spends * a(AIM.worship);
+      thins += (a(AIM.rule) + 0.5 * a(AIM.prey) + a(AIM.refuge) + 0.5 * cl) * Math.min(1, s * 6);
     }
+    // (An order's stores spare its land's hungry and sick, as mutual aid would, half as far.)
+    aided += ORG.cloisterSpares * cloister;
     let young = 0;
     const prov = ctx.provinces.get(l.cell);
     if (prov)
@@ -1330,6 +1550,10 @@ function writeLands(
       dmath.clamp(thins * ORG.thins, 0, ORG.thins) * 1000,
       here.length,
       dmath.clamp(l.sea > 0 ? seaTake / l.sea : 0, 0, ORG.takeMost) * 1000,
+      dmath.clamp(refuge, 0, 1) * 1000,
+      dmath.clamp(inquire, 0, 1) * 1000,
+      dmath.clamp(cloister, 0, 1) * 1000,
+      Math.max(0, Math.round(keeps)),
     ]);
   }
 }
@@ -1422,11 +1646,19 @@ addsStanding((ctx, p) => {
   ];
 });
 
+/** How much more readily a land inquires for a learned society holding there (1: none). */
+const societyInquires = (world: World, cell: number): number => {
+  const k = orgInquiryOf(world, cell);
+  return k > 0 ? 1 + ORG.inquiry * k : 1;
+};
+
 /** Register the groups on a peopled world. */
 export function installGroups(world: World, ctx: () => PopulationContext): OrgsStore {
   const store = world.register(new OrgsStore());
   world.register(new RowStore(ORG_LANDS_STORE, ORG_LANDS_WIDTH));
   world.addPinner(() => store.pinned());
   world.system({ key: "188.order.zgroups", every: YEAR, run: (t) => groupsYear(ctx(), t) });
+  // (A land where a learned society holds inquires the more readily: exactly 1 where none is kept.)
+  inquiresMore(societyInquires);
   return store;
 }
