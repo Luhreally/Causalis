@@ -53,6 +53,7 @@ import {
   HOLD,
   HOLDING,
   levyShare,
+  MOBILISE,
 } from "../../rules/index.ts";
 import { designsOf } from "../design/design.ts";
 import { grieve } from "../acts/disasters.ts";
@@ -887,7 +888,9 @@ export function armsKept(ctx: PopulationContext, p: Polity): { fielded: number; 
   return {
     fielded,
     standing: lore.get(p.seat, "standing-army")
-      ? Math.min(fielded, men * 0.03 * lore.effect(p.seat, "arms"))
+      ? // (No more than MOBILISE.standingMost of them: by its arms' learning alone, uncapped, a realm at peace kept eight in a
+        // hundred of all its people under arms, and paid for them a ninth and more of all it earned.)
+        Math.min(fielded, men * Math.min(MOBILISE.standingMost, 0.03 * lore.effect(p.seat, "arms")))
       : 0,
   };
 }

@@ -138,8 +138,10 @@ export function chooseHome(g: HomeWorld): number {
 export const PEOPLED_RETENTION = {
   window: 20 * YEAR,
   chronicle: 4,
-  // The tombstones of what was forgotten, for two centuries.
-  tombstones: 200 * YEAR,
+  // The tombstones of what was forgotten, for a long lifetime: while anyone lives who could have been told of it. (Kept two
+  // centuries, they were a quarter of a million in a world at 1,500, 47 MB of its memory and a share of its save, for what
+  // nothing kept still cites: what a store cites it pins.)
+  tombstones: 80 * YEAR,
   // And the chronicle thins with age: after four centuries only what mattered more, after
   // twelve only the greatest (reckoned every quarter-millennium).
   aging: {
