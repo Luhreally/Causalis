@@ -106,8 +106,13 @@ export type OrgKind = (typeof ORG_KINDS)[number];
 
 /** The machinery's constants. */
 export const ORG = {
-  /** A realm's groups are reckoned once in this many years, in its turn, stepped as many years at once. */
-  every: 5,
+  /**
+   * A realm's groups are reckoned once in this many years, in its turn, stepped as many years at once (every rate is by the
+   * years stepped; ten, not five: its reckoning is some 160 µs a realm with no part of it a tenth of that, so the turn is the
+   * cost, 9.9 ms a year of 230 realms at 1,500). Two groups may rise in each `riseYears` of a reckoning's span, and one party.
+   */
+  every: 10,
+  riseYears: 5,
   /** The groups a realm keeps account of, their federations, the ended ones it remembers, a group's lands. */
   most: 8,
   feds: 2,

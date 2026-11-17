@@ -1292,12 +1292,14 @@ function stepRealm(
   cands.sort((a, b) => b.men - a.men || a.land.cell - b.land.cell || AIM[a.aim] - AIM[b.aim]);
   let risen = 0,
     parties = 0;
+  // (As many as the years stepped allow: two of the lands' and one party in each ORG.riseYears.)
+  const turns = Math.max(1, Math.round(span / ORG.riseYears));
   for (const c of cands) {
     if (v.orgs.length >= ORG.most) break;
-    // (A party is the seat's, not a land's: one may form a reckoning beside the two that lands make.)
+    // (A party is the seat's, not a land's: one may form beside the two that lands make.)
     if (c.identity) {
-      if (parties >= 1) continue;
-    } else if (risen >= 2) continue;
+      if (parties >= turns) continue;
+    } else if (risen >= 2 * turns) continue;
     if (v.orgs.filter((g) => g.aim === AIM[c.aim]).length >= ORG.ofAim) continue;
     if (risen > 0 && f.u(50 + risen) >= 0.5) continue;
     const g = rise(
@@ -1756,7 +1758,10 @@ addsReach((ctx, p) => {
   for (const c of p.members) thins += rows.at(c, ORG_ROW.thins);
   const k = p.members.length ? thins / p.members.length / 1000 : 0;
   if (k <= 0) return [];
-  const g = [...v.orgs].sort((a, b) => b.power - a.power || a.id - b.id)[0];
+  // (Its strongest, the lower number of two alike: asked with every reading of a realm's reach, so found without a sort.)
+  let g = v.orgs[0];
+  for (const x of v.orgs)
+    if (g && (x.power > g.power || (x.power === g.power && x.id < g.id))) g = x;
   return [
     {
       name: "towns and roads held by their own",
