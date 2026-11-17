@@ -333,10 +333,24 @@ let most = 0,
       slow(20000),
     );
     await settle(200);
-    const n = await k<number>(`document.querySelectorAll(".page-window .tabs .tab").length`);
-    for (let i = 0; i < n; i++) {
-      await k(`document.querySelectorAll(".page-window .tabs .tab")[${i}]?.click()`);
-      await settle(200);
+    // (A page whose tabs stand in sections, the ledger's: each section, then each of its tabs.)
+    const sections = await k<number>(
+      `document.querySelectorAll(".page-window .tab-sections .tab-section").length`,
+    );
+    let n = 0;
+    for (let s = 0; s < Math.max(1, sections); s++) {
+      if (sections) {
+        await k(
+          `document.querySelectorAll(".page-window .tab-sections .tab-section")[${s}]?.click()`,
+        );
+        await settle(200);
+      }
+      const here = await k<number>(`document.querySelectorAll(".page-window .tabs .tab").length`);
+      for (let i = 0; i < here; i++) {
+        await k(`document.querySelectorAll(".page-window .tabs .tab")[${i}]?.click()`);
+        await settle(200);
+      }
+      n += here;
     }
     await closePage();
     return n;

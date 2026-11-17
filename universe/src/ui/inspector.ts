@@ -114,6 +114,8 @@ export class PageWindow {
   private readonly stats = el("div", "stats");
   private readonly statDetail = el("div", "stat-detail");
   private readonly tabs = el("nav", "tabs");
+  /** Over the tabs, where a page's tabs stand in sections (the ledger's): a chooser of its sections. */
+  private readonly sections = el("nav", "tab-sections");
   /** Its banner, where its art draws one (ui/page-art.ts). */
   private readonly banner = el("div", "page-banner-box");
   /** Whether pages are drawn with their art (a gate turns it off to weigh what it costs). */
@@ -137,7 +139,10 @@ export class PageWindow {
   /** The blocks drawn, by their tab and place, with what each said (to keep what is unchanged). */
   private blocks = new Map<string, { same: string; element: HTMLElement }>();
   /** Each table's sorting and whether it shows every row, kept as the page is read again. */
-  private sorts = new Map<string, { by: number; down: boolean; all: boolean }>();
+  private sorts = new Map<
+    string,
+    { by: number; down: boolean; all: boolean; only?: string | number }
+  >();
   /** Each series' year picked by a tap, kept as the page is read again. */
   private picks = new Map<string, number>();
   private readAt = 0;
@@ -240,7 +245,15 @@ export class PageWindow {
     boxes.append(this.tallButton, folder(this.inspector, this.name), close);
     this.heading.replaceChildren(this.backButton, this.forwardButton, this.icon, this.name, boxes);
     this.banner.hidden = true;
-    this.inspector.append(this.heading, this.banner, head, this.statDetail, this.tabs, this.body);
+    this.inspector.append(
+      this.heading,
+      this.banner,
+      head,
+      this.statDetail,
+      this.sections,
+      this.tabs,
+      this.body,
+    );
     // (On a phone its actions take the whole width under the portrait and its words: Go to, follow, pin and keep in view on
     // one line, none over another. On a desk they stand under its words.)
     const phone = typeof matchMedia === "function" ? matchMedia("(max-width: 640px)") : null,
@@ -337,12 +350,37 @@ export class PageWindow {
     const token = this.token,
       page = await this.client.query<PageModel>({
         type: "page",
-        args: { ref, ...this.names?.args() },
+        args: { ref: this.asked(ref), ...this.names?.args() },
       });
     this.readAt = performance.now();
     if (token !== this.token || this.pressing || this.hoverTips?.showing || this.current !== ref)
       return;
     if (JSON.stringify({ ...page, year: 0 }) === this.seen) return;
+    this.draw(page, false);
+  }
+
+  /**
+   * The ref a page is read again by: with its open tab asked, where its tabs are read only while open (the ledger's newer tables),
+   * so the one in sight is the one read.
+   */
+  private asked(ref: string): string {
+    const page = this.page;
+    if (!page?.tabs.some((t) => t.later) || !this.tab) return ref;
+    return `${ref.split("#")[0]}#${this.tab}`;
+  }
+
+  /** A tab read only while it is open, pressed: its page read again with it asked, and drawn as it comes. */
+  private async readTab(id: string): Promise<void> {
+    const ref = this.current;
+    if (!ref) return;
+    const token = this.token;
+    this.body.replaceChildren(el("p", "muted", "…"));
+    const page = await this.client.query<PageModel>({
+      type: "page",
+      args: { ref: `${ref.split("#")[0]}#${id}`, ...this.names?.args() },
+    });
+    if (token !== this.token || this.current !== ref || this.tab !== id) return;
+    this.readAt = performance.now();
     this.draw(page, false);
   }
 
@@ -621,29 +659,59 @@ export class PageWindow {
   }
 
   private drawTabs(page: PageModel): void {
-    this.tabs.hidden = page.tabs.length < 2;
+    // (Where its tabs stand in sections, the open tab's section is chosen over a row of that section's tabs alone: the ledger's
+    // two dozen fit a phone in four short rows, not eight long ones.)
+    const sectioned = page.tabs.some((t) => t.group),
+      open = page.tabs.find((t) => t.id === this.tab) ?? page.tabs[0],
+      section = sectioned ? (open?.group ?? "") : "",
+      shown = sectioned ? page.tabs.filter((t) => (t.group ?? "") === section) : page.tabs;
+    this.tabs.hidden = page.tabs.length < 2 || (sectioned && shown.length < 2);
+    this.sections.hidden = !sectioned;
     // (Kept while they say the same, as the actions are.)
     const art = this.artOn ? page.art : undefined,
       palette = art ? paletteOf(art.world) : null,
-      said = JSON.stringify([this.tab, page.tabs.map((t) => [t.id, t.name]), palette?.key]);
+      said = JSON.stringify([
+        this.tab,
+        page.tabs.map((t) => [t.id, t.name, t.group]),
+        palette?.key,
+      ]);
     if (said === this.tabsSaid) return;
     this.tabsSaid = said;
+    const press = (id: string) => {
+      if (this.tab === id || !this.page) return;
+      this.tab = id;
+      if (id === "body" && innerWidth <= 640) this.inspector.classList.add("tall");
+      this.drawTabs(this.page);
+      // (A tab read only while open is asked for now; the rest are drawn from what the page holds.)
+      if (this.page.tabs.find((t) => t.id === id)?.later) void this.readTab(id);
+      else this.drawBody(this.page);
+      // (On a phone a page's facts fill the screen above its tabs: the row stays in sight, with what it opened under it.)
+      const top = sectioned ? this.sections : this.tabs;
+      this.inspector.scrollTop +=
+        top.getBoundingClientRect().top - this.inspector.getBoundingClientRect().top;
+    };
+    const names: string[] = [];
+    for (const t of page.tabs) if (t.group && !names.includes(t.group)) names.push(t.group);
+    this.sections.replaceChildren(
+      ...names.map((g) => {
+        const of = page.tabs.filter((t) => t.group === g),
+          b = el("button", g === section ? "tab-section on" : "tab-section", g);
+        b.title = of.map((t) => t.name).join(", ");
+        b.dataset.tabs = of.map((t) => t.name).join("|");
+        b.setAttribute("aria-pressed", String(g === section));
+        b.onclick = () => {
+          if (g !== section && of[0]) press(of[0].id);
+        };
+        return b;
+      }),
+    );
     this.tabs.replaceChildren(
-      ...page.tabs.map((t) => {
+      ...shown.map((t) => {
         const b = el("button", t.id === this.tab ? "tab on" : "tab", t.name),
           glyph = palette ? (glyphOf(t.id) ?? glyphOf(t.name)) : null;
         // (Its glyph in its world's colours: ui/page-art.ts.)
         if (glyph && palette) b.prepend(glyphCanvas(glyph, palette, 14));
-        b.onclick = () => {
-          if (this.tab === t.id || !this.page) return;
-          this.tab = t.id;
-          if (t.id === "body" && innerWidth <= 640) this.inspector.classList.add("tall");
-          this.drawTabs(this.page);
-          this.drawBody(this.page);
-          // (On a phone a page's facts fill the screen above its tabs: the row stays in sight, with what it opened under it.)
-          this.inspector.scrollTop +=
-            this.tabs.getBoundingClientRect().top - this.inspector.getBoundingClientRect().top;
-        };
+        b.onclick = () => press(t.id);
         return b;
       }),
     );
@@ -753,7 +821,7 @@ export class PageWindow {
         break;
       }
       case "table":
-        box.append(this.table(b.columns, b.rows, key, b.few, b.fit));
+        box.append(this.table(b.columns, b.rows, key, b.few, b.fit, b.filter));
         break;
       case "lines":
         // (Lines of far different sizes: each its own small chart, side by side.)
@@ -1258,6 +1326,7 @@ export class PageWindow {
     key: string,
     few = TABLE_ROWS,
     fit = false,
+    filter?: number,
   ): HTMLElement {
     const box = el("div", "table-wrap"),
       table = el("table", fit ? "table fit" : "table"),
@@ -1267,8 +1336,18 @@ export class PageWindow {
       more = el("button", "show-all");
     this.sorts.set(key, state);
     let { by, down } = state;
+    // (A column its rows are filtered by: a chip for each of its words, the most rows first, and "All".)
+    const words = new Map<string | number, number>();
+    if (filter !== undefined)
+      for (const r of rows) {
+        const w = r.keys?.[filter];
+        if (w !== undefined && w !== "") words.set(w, (words.get(w) ?? 0) + 1);
+      }
+    if (state.only !== undefined && !words.has(state.only)) delete state.only;
+    const chips = el("div", "table-filter");
     const fill = () => {
-      const order = [...rows];
+      const order =
+        state.only === undefined ? [...rows] : rows.filter((r) => r.keys?.[filter!] === state.only);
       if (by >= 0)
         order.sort((a, b) => {
           const x = a.keys?.[by],
@@ -1337,8 +1416,34 @@ export class PageWindow {
       state.all = true;
       fill();
     };
+    const choose = () =>
+      chips.replaceChildren(
+        ...[
+          [undefined, rows.length] as const,
+          ...[...words].sort((a, b) => b[1] - a[1] || (String(a[0]) < String(b[0]) ? -1 : 1)),
+        ].map(([w, n]) => {
+          const b = el(
+            "button",
+            state.only === w ? "filter-chip on" : "filter-chip",
+            `${w === undefined ? "All" : String(w)} (${n.toLocaleString("en-US")})`,
+          );
+          b.setAttribute("aria-pressed", String(state.only === w));
+          b.onclick = () => {
+            if (w === undefined) delete state.only;
+            else state.only = w;
+            choose();
+            fill();
+          };
+          return b;
+        }),
+      );
     fill();
     box.append(table, more);
-    return box;
+    if (words.size < 2) return box;
+    // (Its chips stand over the table, never scrolled sideways with it.)
+    choose();
+    const outer = el("div", "table-filtered");
+    outer.append(chips, box);
+    return outer;
   }
 }
