@@ -76,6 +76,32 @@ function foldMetal(
     .lanes();
 }
 
+/** A market's metals are told year by year this far back (its kept years, and a lifetime's page); before, only each metal's first. */
+export const METAL_YEARS = 120;
+
+/**
+ * A metal history thinned, or null where there is nothing to thin (looked at once in eight changes, past two dozen): each metal's
+ * first point stays (when it first headed tools here, and the event of it), every change of the last METAL_YEARS, and the one
+ * standing as they began. A market between two ores changes back and forth for an age: at year 1,500 the lists held 190,000 points.
+ */
+function metalsKept<T extends { readonly year: number; readonly metal: ToolMetal }>(
+  list: readonly T[],
+  year: number,
+): T[] | null {
+  const n = list.length;
+  if (n <= 24 || n % 8 !== 0) return null;
+  const cut = year - METAL_YEARS,
+    seen = new Set<ToolMetal>(),
+    out: T[] = [];
+  for (let i = 0; i < n; i++) {
+    const x = list[i]!,
+      first = !seen.has(x.metal);
+    seen.add(x.metal);
+    if (first || x.year > cut || (i + 1 < n && list[i + 1]!.year > cut)) out.push(x);
+  }
+  return out.length < n ? out : null;
+}
+
 export class Market {
   readonly cell: number;
   readonly ref: Ref;
@@ -163,6 +189,12 @@ export class Market {
     if (this.toolMetals.at(-1)?.metal === metal) return;
     this.toolMetals.push({ year, metal, event });
     this.toolFold = foldMetal(this.toolFold, year, metal, event);
+    const kept = metalsKept(this.toolMetals, year);
+    if (kept) {
+      this.toolMetals = kept;
+      this.toolFold = [0, 0];
+      for (const x of kept) this.toolFold = foldMetal(this.toolFold, x.year, x.metal, x.event);
+    }
   }
 
   /** What its smiths forged in a year (now, if none is given); null: never said. */
@@ -179,6 +211,12 @@ export class Market {
     if ((this.forgedMetals.at(-1)?.metal ?? "stone") === metal) return;
     this.forgedMetals.push({ year, metal });
     this.forgedFold = foldMetal(this.forgedFold, year, metal, null);
+    const kept = metalsKept(this.forgedMetals, year);
+    if (kept) {
+      this.forgedMetals = kept;
+      this.forgedFold = [0, 0];
+      for (const x of kept) this.forgedFold = foldMetal(this.forgedFold, x.year, x.metal, null);
+    }
   }
 
   /** Change a stock through a ledger line; returns the amount moved. */
