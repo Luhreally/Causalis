@@ -112,7 +112,10 @@ test("a town's lots, buildings and walls each have a page, up through the town",
   assert.equal(lot.kind, "lot");
   assert.match(
     lot.title,
-    new RegExp(`^A (hut|house|townhouse|tenement|block|high-rise) of ${great.name}$`),
+    // (Or whose it is, where it shows: the ruler's own house, a great house's hall. Asked 2026-11-17.)
+    new RegExp(
+      `^(A (hut|house|townhouse|tenement|block|high-rise) of ${great.name}|The ruler's house in ${great.name}|The hall of the house of .+, in ${great.name})$`,
+    ),
   );
   assert.ok(
     lot.crumbs?.some((s) => typeof s !== "string" && s.ref === great.ref),
