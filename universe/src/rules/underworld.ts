@@ -106,6 +106,12 @@ export const UNDER = {
   killPeace: 0.004,
   /** The most of a land's people its underworld kills in a year (five in a thousand: several times the worst city's year on record). */
   killMost: 0.005,
+  /**
+   * The most of its own lands' people a group's men come to be (est: two in a hundred; the Sicilian mafia's sworn men were about
+   * one in a thousand of the island, a city's gangs at their worst one or two in a hundred of it): its men are of the people
+   * where it holds, whatever its share of the road's rent would keep.
+   */
+  thick: 0.02,
   /** The most rivals a group's men each fight at once in a war (a small group among great ones is not killed many times over a year). */
   warMost: 3,
   /** Others killed for each of a group's men killed (bystanders, police, those who would not pay). */

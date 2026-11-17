@@ -1053,8 +1053,12 @@ function stepRealm(
       const income = rent * (g.share / 1000),
         keepMen = income / manKeep,
         canMen = pool * UNDER.recruit * (g.share / 1000),
+        // (No more than UNDER.thick of the people of the lands it holds: a lesser group's lands are what the greater left it,
+        // and its men, come of its share of the whole realm's rent, were a sixth of such a land's people at the median, 38 times
+        // as thick as its realm's groups among its people, and all their killing there.)
+        room = UNDER.thick * g.lands.reduce((n, c) => n + (ctx.provinces.get(c)?.total() ?? 0), 0),
         // (A road no longer worth a group: its want or its rent fallen well below what one would rise for, its men drift away.)
-        aim = pull < line * UNDER.withers ? 0 : Math.min(keepMen, canMen);
+        aim = pull < line * UNDER.withers ? 0 : Math.min(keepMen, canMen, room);
       g.members = Math.max(0, Math.round(g.members + (aim - g.members) * stepped(0.4, span)));
       g.income = Math.round(income);
     }
