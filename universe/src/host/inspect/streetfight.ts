@@ -530,7 +530,9 @@ export function latestFights(
       .sort((a, b) => b.dead - a.dead || (a.event < b.event ? -1 : 1))
       .slice(0, most);
   }
-  for (let i = all.length - 1, n = 0; i >= 0 && n < 4 * WALKED && out.length < most; i--, n++) {
+  // (A kind asked for is looked for through the whole record: a look tool's question, asked once.)
+  const far = kind ? all.length : 4 * WALKED;
+  for (let i = all.length - 1, n = 0; i >= 0 && n < far && out.length < most; i--, n++) {
     const e = all[i]!;
     if (!TYPES.has(e.type)) continue;
     const f = streetFightOf(world, e.id);

@@ -18,6 +18,7 @@ import {
   type StreetFightKind,
   type VillagePlan,
 } from "../bridge/index.ts";
+import { blowOf, sideWounds } from "../rules/index.ts";
 import { hashText, unitOf } from "./draws.ts";
 import { clearOfHall, marketScene, squareScale } from "./feast.ts";
 import { keepOut, route, villageGround } from "./ground.ts";
@@ -66,14 +67,16 @@ const COMES = 3.2,
 /** A survivor's going after its clash (seconds), and how long the scene holds on what is left after the last (seconds). */
 /** How long the two sides stand off at a place before they close (seconds). */
 const STAND_OFF = 2.6;
-/** A man's reach about him (metres: no two stand nearer than twice it); an arm's length between two who fight; pairs so far apart, so many abreast; how far back each stands off first. */
-export const BODY = 0.38;
-const ARM = 1.3,
-  PAIR_GAP = 1.9,
+/** A man's reach about him (metres, as the town draws its people: larger than life; no two stand nearer than twice it); an arm's length between two who fight; pairs so far apart, so many abreast; how far back each stands off first. */
+export const BODY = 0.5;
+const ARM = 1.7,
+  PAIR_GAP = 2.4,
   PAIRS = 6,
   OFF = 2.6;
 /** How long after the one before him each of a file sets out, and comes (seconds). */
 const FILE = 0.2;
+/** The most of a post's soldiers abreast across a street. */
+const CORDON = 5;
 const GOES = 4,
   AFTER = 16;
 /** A squad's pace into a quarter (metres a second), and the longest it takes to reach its post (seconds). */
@@ -373,7 +376,7 @@ function coreScript(f: StreetFight, plan: VillagePlan, slots: number): Core {
         col = rank % PAIRS,
         row = Math.floor(rank / PAIRS),
         across = (col - (Math.min(PAIRS, mine - row * PAIRS) - 1) / 2) * PAIR_GAP,
-        deep = ARM / 2 + row * 1.5,
+        deep = ARM / 2 + row * 2.2,
         meet = {
           x: c.spot.x - az * across + ax * sign * deep,
           z: c.spot.z + ax * across + az * sign * deep,
@@ -494,10 +497,16 @@ function armyScript(
       p = take[j]!,
       yaw = posts[j]!.yaw,
       // (Stood about the post, facing on into the quarter.)
+      // (A cordon across the street: so many abreast, a pace apart, the rest behind them; all facing on into the quarter.)
       about = Math.max(1, Math.ceil(drawn[0] / take.length)),
-      ring = (row / about) * 2 * Math.PI + yaw,
-      wide = ringOf(about),
-      place = { x: p.x + Math.sin(ring) * wide, z: p.z + Math.cos(ring) * wide },
+      abreast = Math.min(CORDON, about),
+      col = row % abreast,
+      rank = Math.floor(row / abreast),
+      side = (col - (abreast - 1) / 2) * 2.2,
+      place = {
+        x: p.x + Math.cos(yaw) * side - Math.sin(yaw) * rank * 2.3,
+        z: p.z - Math.sin(yaw) * side - Math.cos(yaw) * rank * 2.3,
+      },
       c = clashes[j],
       falling = soldierFalls.has(m) && !!c;
     figures.push({
@@ -530,11 +539,11 @@ function armyScript(
         bz = back.z - c.spot.z,
         bl = Math.hypot(bx, bz) || 1,
         // (Where no one dies of it: they stand off and watch, further back, and go.)
-        wide = ringOf(Math.max(1, Math.ceil(drawn[0] / take.length))),
+        wide = 0.6,
         there = Math.ceil((drawn[1] - k) / clashes.length),
         rank = Math.floor(m / clashes.length),
         out = wide + (falls[0] + falls[1] > 0 ? OFF + ARM : 9),
-        across = (rank - (there - 1) / 2) * 1.3,
+        across = (rank - (there - 1) / 2) * 2.1,
         place = {
           x: c.spot.x + (bx / bl) * out - (bz / bl) * across,
           z: c.spot.z + (bz / bl) * out + (bx / bl) * across,
@@ -671,9 +680,11 @@ export function streetAt(
         const dx = q.x - o.x,
           dz = q.z - o.z,
           d = Math.hypot(dx, dz);
-        if (d >= 2 * BODY + 0.04) continue;
+        // (Round one who lies there by half as much: he steps by him, not over him.)
+        const room = o.doing === "fallen" ? BODY : 2 * BODY;
+        if (d >= room + 0.04) continue;
         // (One on the move gives way to one standing; two on the move, each half.)
-        const push = (2 * BODY + 0.05 - d) * (o.doing === q.doing ? 0.55 : 1),
+        const push = (room + 0.05 - d) * (o.doing === q.doing ? 0.55 : 1),
           ux = d > 1e-6 ? dx / d : Math.cos(soldiers.indexOf(q)),
           uz = d > 1e-6 ? dz / d : Math.sin(soldiers.indexOf(q));
         q.x += ux * push;
@@ -1070,6 +1081,8 @@ export type StreetBattle = {
   readonly blows: Blows;
   /** Where its field lies in the town: at its middle, a metre of it a town's `scale`. */
   readonly frame: PlacedFrame;
+  /** Each side's figures shown wounded and living (not told: history counts its dead alone; by the battle's own rule, rules/wounds.ts). */
+  readonly wounded: readonly [number, number];
 };
 
 /**
@@ -1091,6 +1104,21 @@ export function streetBattle(f: StreetFight, script: StreetScript): StreetBattle
       fallen: script.falls[i],
       host: f.sides[i].host,
       kit: f.sides[i].gear,
+      // (Its wounded who lived, as a battle reckons them from its dead: struck by the other's arm, against its own guard.
+      // Shown, not told; no more than a third of those of it still standing.)
+      ...(() => {
+        const foe = f.sides[i === 0 ? 1 : 0],
+          w = sideWounds(script.falls[i], script.drawn[i], {
+            blow: blowOf(foe.host?.arm),
+            shock: 0,
+            protection: f.sides[i].host?.guard ? 0.4 : 0,
+            care: 0,
+            size: f.figure?.size ?? 60,
+          }),
+          most = Math.floor((script.drawn[i] - script.falls[i]) / 3),
+          wounded = Math.min(w.wounded, most);
+        return wounded > 0 ? { wounded, maimed: Math.min(wounded, w.maimed) } : {};
+      })(),
     }),
     near: BattleNear = {
       event: f.event,
@@ -1151,41 +1179,84 @@ export function streetBattle(f: StreetFight, script: StreetScript): StreetBattle
       moments: [],
       wings: null,
       placed: true,
+      bands: true,
     },
     blows = newBlows(field);
-  // Every blow where the script has the one struck; where he lies, and what is cut off him, moved with it.
-  blows.hits.forEach((h, n) => {
+  // Every blow where and when the script has the one struck: where he lies, what is cut off him, and a wounded one's way back
+  // (the way he came) moved with it. No one helps one back here: the helped limp off by themselves.
+  const made = blows.hits.map((h, was) => {
     const g = script.figures[h.id]!,
       at = g.meet ?? g.path[g.path.length - 1]!,
+      before = g.path.length > 1 ? g.path[g.path.length - 2]! : { x: at.x + 1, z: at.z },
       dx = at.x / k - h.x,
       dz = at.z / k - h.z,
-      m = h as unknown as {
-        x: number;
-        z: number;
-        facing: number;
-        lie: { x: number; z: number } | null;
-      };
-    m.x += dx;
-    m.z += dz;
-    m.facing = Math.atan2(g.face.x - at.x, g.face.z - at.z);
-    if (m.lie) {
+      x = h.x + dx,
+      z = h.z + dz;
+    let lie = h.lie;
+    if (lie) {
       // (He lies by where he stood: no further off than a body's length.)
-      const lx = m.lie.x + dx - m.x,
-        lz = m.lie.z + dz - m.z,
+      const lx = lie.x - h.x,
+        lz = lie.z - h.z,
         far = Math.hypot(lx, lz),
         most = 1.2 / k,
         c = far > most ? most / far : 1;
-      m.lie.x = m.x + lx * c;
-      m.lie.z = m.z + lz * c;
+      lie = { ...lie, x: x + lx * c, z: z + lz * c };
     }
-    for (const l of blows.loose)
-      if (l.hit === n) {
-        const q = l as unknown as { x: number; z: number };
-        q.x += dx;
-        q.z += dz;
-      }
+    let back = h.back,
+      when = h.at;
+    if (back) {
+      // (Struck as he fights; if the script never has him fight, never.)
+      const span = g.fight ? Math.max(0.5, g.fight[1] - g.fight[0] - 3) : 0;
+      when = g.fight ? g.fight[0] + 1.6 + unitOf(key, 6000 + h.id, 0) * span : Infinity;
+      const dt = when - h.at,
+        bl = Math.hypot(before.x - at.x, before.z - at.z) || 1,
+        dir = { x: (before.x - at.x) / bl, z: (before.z - at.z) / bl },
+        far = Math.min(back.far, 9 / k);
+      back = {
+        way: back.way === "propped" ? "limp" : back.way,
+        going: back.going + dt,
+        there: back.going + dt + (back.there - back.going) * (far / Math.max(0.01, back.far)),
+        from: { x, z },
+        dir,
+        far,
+        helper: -1,
+      };
+    }
+    return {
+      was,
+      hit: {
+        ...h,
+        at: when,
+        x,
+        z,
+        facing: Math.atan2(g.face.x - at.x, g.face.z - at.z),
+        lie,
+        back,
+      },
+      dx,
+      dz,
+    };
   });
-  return { field, blows, frame };
+  made.sort((p, q) => p.hit.at - q.hit.at || p.was - q.was);
+  const now = new Map(made.map((m, i) => [m.was, i])),
+    of = blows.of.map(() => -1);
+  made.forEach((m, i) => {
+    of[m.hit.id] = i;
+  });
+  const moved: Blows = {
+    hits: made.map((m) => m.hit),
+    of,
+    helps: [],
+    helping: blows.helping.map(() => -1),
+    loose: blows.loose.map((l) => {
+      const m = made[now.get(l.hit)!]!;
+      return { ...l, hit: now.get(l.hit)!, x: l.x + m.dx, z: l.z + m.dz };
+    }),
+    dead: blows.dead,
+    hurt: blows.hurt,
+    maimed: blows.maimed,
+  };
+  return { field, blows: moved, frame, wounded: [...blows.hurt] as [number, number] };
 }
 
 const ACTS: Readonly<Record<Soldier["doing"], Act>> = {
