@@ -1737,9 +1737,14 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         ratio: strengthOf(ctx, a) / Math.max(1, strengthOf(ctx, b)),
         ...warCosts(ctx, w, a, b, aim, year),
         // (A siege before the land fought for: how near it is to taking it.)
+        // (A town shut in, its lines unbroken, falls unless it is relieved: both sides reckon it at the least half taken.)
         taking:
           laid && laid.land === land
-            ? Math.max(laid.breach, Math.min(1, Math.max(0, 1 - laid.months / 12)))
+            ? Math.max(
+                linesHold ? 0.5 : 0,
+                laid.breach,
+                Math.min(1, Math.max(0, 1 - laid.months / 12)),
+              )
             : 0,
       }),
       repulsed = reckoned.quits;
@@ -1772,7 +1777,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       if (
         made &&
         held &&
-        won &&
+        linesHold &&
         !reckoned.quits &&
         land === held.land &&
         takesLand(aim) &&
