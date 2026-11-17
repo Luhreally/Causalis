@@ -56,8 +56,8 @@ export type Bodylike = {
 const circular = (gm: number, r: number) => Math.sqrt(gm / r);
 
 /** A body's low orbit: its radius (km), its speed (km/s) and the speed to escape from it. */
-function lowOrbit(b: Bodylike): { r: number; v: number; escape: number } {
-  const gm = GM_HOME * b.mass,
+function lowOrbit(b: Bodylike, G = 1): { r: number; v: number; escape: number } {
+  const gm = GM_HOME * G * b.mass,
     r = b.radius * 6371 + LOW_ORBIT_KM;
   return { r, v: circular(gm, r), escape: Math.sqrt((2 * gm) / r) };
 }
@@ -77,8 +77,8 @@ export function hohmann(
 }
 
 /** The speed to set down on a body from its low orbit: its orbital speed, much of it taken by its air if it has one. */
-export function landing(b: Bodylike): number {
-  const low = lowOrbit(b);
+export function landing(b: Bodylike, G = 1): number {
+  const low = lowOrbit(b, G);
   return low.v * (b.pressure > 0.05 ? 0.25 : 1) + 0.1 * b.mass;
 }
 
@@ -99,39 +99,45 @@ export type Route = {
  * about the home world), leaving low orbit and entering the target's with the help of
  * each world's pull, then down to its ground.
  */
-export function routeTo(bodies: readonly Bodylike[], target: number, starMass: number): Route {
+export function routeTo(
+  bodies: readonly Bodylike[],
+  target: number,
+  starMass: number,
+  /** Its universe's gravity against ours (rules/laws.ts): every pull in the way goes as it. */
+  G = 1,
+): Route {
   const home = bodies[0]!,
     t = bodies[target]!,
-    fromLow = lowOrbit(home);
+    fromLow = lowOrbit(home, G);
   // A moon of the home world: a transfer about the home world itself.
   if (t.around === 0) {
-    const gm = GM_HOME * home.mass,
+    const gm = GM_HOME * G * home.mass,
       h = hohmann(gm, fromLow.r, t.a * 1000),
       // Falling in beside the moon, it must slow into its low orbit.
-      low = lowOrbit(t),
+      low = lowOrbit(t, G),
       arrive = Math.max(0, Math.sqrt(h.v2 * h.v2 + low.escape * low.escape) - low.v),
-      land = landing(t);
+      land = landing(t, G);
     return { speed: h.v1 + arrive + land, depart: h.v1, arrive, land, days: h.days, window: 0 };
   }
   // Another planet, or a moon of one: about the star to the planet's orbit.
   const planet = t.around < 0 ? t : bodies[t.around]!,
-    gm = GM_SUN * starMass,
+    gm = GM_SUN * G * starMass,
     AU = 1.496e8,
     h = hohmann(gm, home.a * AU, planet.a * AU),
     depart = Math.sqrt(h.v1 * h.v1 + fromLow.escape * fromLow.escape) - fromLow.v;
   let arrive: number;
   if (t.around < 0) {
-    const low = lowOrbit(t);
+    const low = lowOrbit(t, G);
     arrive = Math.sqrt(h.v2 * h.v2 + low.escape * low.escape) - low.v;
   } else {
     // Into the planet's pull, and down its well to the moon's orbit, then into the moon's.
-    const gmP = GM_HOME * planet.mass,
+    const gmP = GM_HOME * G * planet.mass,
       rMoon = t.a * 1000,
       atMoon = Math.sqrt(h.v2 * h.v2 + (2 * gmP) / rMoon) - circular(gmP, rMoon),
-      low = lowOrbit(t);
+      low = lowOrbit(t, G);
     arrive = atMoon + Math.max(0, low.escape - low.v) * 0.5;
   }
-  const land = landing(t),
+  const land = landing(t, G),
     synodic = 1 / Math.abs(1 / home.periodDays - 1 / planet.periodDays);
   return { speed: depart + arrive + land, depart, arrive, land, days: h.days, window: synodic };
 }

@@ -32,7 +32,26 @@ export type Pigment =
  * poor in carbon and holds neither water nor free oxygen to break silicon's chains, chains of silicon and hydrogen
  * (silanes, in the cold of liquid methane) or of silicon and nitrogen (silazanes, in ammonia).
  */
-export type Backbone = "carbon" | "silane" | "silazane";
+export type Backbone = "carbon" | "silane" | "silazane" | "siloxane";
+
+/**
+ * Past this warmth (true °C) carbon's long chains break in hot acid faster than a life can mend them, and chains of silicon and
+ * oxygen (siloxanes, the backbone of silicones) hold to some three hundred degrees and resist the acid that chars carbon's (est:
+ * the sweep, Nature lane).
+ */
+export const HOT_SILICON = 80;
+
+/** What silicon's chains build a life of, by its chains: its store, its stalks and hair, its flesh (rules/matter.ts SILICON_LIFE). */
+export const SILICON_PARTS: Readonly<
+  Record<
+    Exclude<Backbone, "carbon">,
+    { readonly store: string; readonly fibre: string; readonly flesh: string }
+  >
+> = {
+  silane: { store: "tetrasilane", fibre: "polysilane", flesh: "polysilane" },
+  silazane: { store: "trisilazane", fibre: "polysilazane", flesh: "polysilazane" },
+  siloxane: { store: "cyclosiloxane", fibre: "polysiloxane", flesh: "polysiloxane" },
+};
 
 /** A world's life by what it is made of. */
 export type LifeChemistry = {
@@ -182,7 +201,18 @@ export function backboneOf(i: Pick<LifeInputs, "kind" | "carbon" | "silica" | "m
   const silicon = i.silica === "high" ? 1.6 : i.silica === "solar" ? 1 : 0.6,
     carbon = i.carbon === "carbon-rich" ? 2 : 1,
     holds =
-      i.kind === "methane" && i.mean < -150 ? 1.2 : i.kind === "ammonia" && i.mean < -30 ? 0.9 : 0;
+      i.kind === "methane" && i.mean < -150
+        ? 1.2
+        : i.kind === "ammonia" && i.mean < -30
+          ? 0.9
+          : i.kind === "sulfur" && i.mean > HOT_SILICON
+            ? 1.1
+            : 0;
+  if (silicon * holds > carbon && i.kind === "sulfur")
+    return {
+      backbone: "siloxane",
+      why: "its rock is rich in silicon and poor in carbon, and its seas are hot acid: carbon's long chains break and char in it, while chains of silicon and oxygen hold",
+    };
   if (silicon * holds > carbon)
     return i.kind === "methane"
       ? {
@@ -202,10 +232,27 @@ export function backboneOf(i: Pick<LifeInputs, "kind" | "carbon" | "silica" | "m
   };
 }
 
-/** A life with its chains read (absent where they are carbon's). */
+/**
+ * A life with its chains read (absent where they are carbon's). A life of silicon's chains is built of them (the sweep, Nature
+ * lane): its store, its stalks, its hair and its flesh are silicon's, it makes no sugar, and its hard parts are of glass (opal)
+ * wherever ice is not harder.
+ */
 function withBackbone(l: LifeChemistry, i: LifeInputs): LifeChemistry {
   const b = backboneOf(i).backbone;
-  return b === "carbon" ? l : { ...l, backbone: b };
+  if (b === "carbon") return l;
+  const parts = SILICON_PARTS[b],
+    bone: Bone = l.bone === "ice" ? "ice" : "opal";
+  return {
+    ...l,
+    backbone: b,
+    sugar: null,
+    store: parts.store,
+    fibre: parts.fibre,
+    hair: parts.fibre,
+    flesh: parts.flesh,
+    bone,
+    shell: bone,
+  };
 }
 
 /** A world's life from its kind, its chemistry, its star and its warmth (never Earth's own: that is EARTH_LIFE). */
@@ -386,10 +433,12 @@ export function needsOf(l: LifeChemistry): LifeNeeds {
     breath: l.breath,
     liquid: l.liquid,
     food: silicon
-      ? `life of silicon's chains (${l.backbone === "silane" ? "silanes" : "silazanes"}) in ${l.liquid}`
+      ? `life of silicon's chains (${l.backbone === "silane" ? "silanes" : l.backbone === "silazane" ? "silazanes" : "siloxanes"}) in ${l.liquid}`
       : `life of carbon in ${l.liquid}, turning ${l.hand === "left" ? "as Earth's" : "the mirror of Earth's"}`,
     poisons: silicon
-      ? ["oxygen", "water"]
+      ? l.backbone === "siloxane"
+        ? []
+        : ["oxygen", "water"]
       : l.breath === "hydrogen"
         ? ["oxygen"]
         : l.family === "water"

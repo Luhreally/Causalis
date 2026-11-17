@@ -51,6 +51,7 @@ import { nativeIronLands, worldChemistry } from "./chemistry.ts";
 import { makeLivingBiosphere, seatPeople } from "./living.ts";
 import { protoGround, protoLifeWorld, protoLiquidWhy, type ProtoWorld } from "./origin.ts";
 import { worldLife } from "./life.ts";
+import type { Laws } from "../rules/index.ts";
 
 export type HomeWorld = {
   readonly prior: string;
@@ -90,6 +91,8 @@ export type HomeWorld = {
    * chemistry and its people as they were read from afar. Absent on a world of its own seed.
    */
   readonly far?: FarMade;
+  /** Its universe's laws, where the Creator laid them other than ours (rules/laws.ts); absent: ours. */
+  readonly laws?: Laws;
 };
 
 /** The planet grid's usual frequency: 40,962 cells (about 110 km apart on an Earth-sized world). */
@@ -136,7 +139,7 @@ export function generateHomeWorld(
     // (A world of another star entered: its star, its numbers and its people as they were read from afar, the rest as
     // its own seed falls. A world like ours is never one.)
     far = prior.name === "earthlike" ? null : farMade(seed.text),
-    star = far ? farStar(far) : makeStar(rng, made),
+    star = far ? farStar(far, made.laws?.burn) : makeStar(rng, made),
     // (Its kind, on a world of a drawn chemistry: by its own keyed draws, never the seed's stream,
     // and its planet read through its liquid: Phase 56.)
     // (Every world read from afar is read as one of rock and water: gen/system.ts.)
@@ -251,6 +254,8 @@ export function generateHomeWorld(
     ground,
     ...(proto ? { physical: true as const } : {}),
     ...(far ? { far } : {}),
+    // (Its universe's laws, where they are not ours: rules/laws.ts.)
+    ...(made.laws ? { laws: made.laws } : {}),
   };
 }
 

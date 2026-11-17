@@ -336,7 +336,7 @@ function sail(
     threshold: 0,
     factors: [
       {
-        name: `${target.star.spectral === "white dwarf" ? "a white dwarf" : `a ${target.star.spectral} star`} ${target.star.distance.toFixed(1)} light-years out, with a world its people could live on (${target.upkeep.toFixed(1)} machines a settler a year to keep)`,
+        name: `${target.star.spectral === "white dwarf" || target.star.spectral === "neutron star" ? `a ${target.star.spectral}` : `a ${target.star.spectral} star`} ${target.star.distance.toFixed(1)} light-years out, with a world its people could live on (${target.upkeep.toFixed(1)} machines a settler a year to keep)`,
         value: target.star.distance,
         contribution: 1,
         source: { ref: target.star.ref, role: "enabler" as const, weight: 1 },

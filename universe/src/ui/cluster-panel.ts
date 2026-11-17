@@ -295,7 +295,7 @@ export class ClusterPanel {
           const line = el(
             "button",
             "line",
-            `${s.distance.toFixed(1)} light-years — ${s.spectral === "white dwarf" ? "a white dwarf" : `a ${s.spectral} star`}${s.planets ? `, ${s.planets} world${s.planets > 1 ? "s" : ""}` : ""}${s.seas ? ` (${s.seas} with seas)` : ""}`,
+            `${s.distance.toFixed(1)} light-years — ${s.spectral === "white dwarf" || s.spectral === "neutron star" ? `a ${s.spectral}` : `a ${s.spectral} star`}${s.planets ? `, ${s.planets} world${s.planets > 1 ? "s" : ""}` : ""}${s.seas ? ` (${s.seas} with seas)` : ""}`,
           );
           line.onclick = () => {
             void this.select(i);

@@ -4,6 +4,8 @@
 // come from `open`. Both run through exactly the same generators.
 
 /** A closed range [lo, hi] a generator draws uniformly from. */
+import type { Laws } from "./laws.ts";
+
 export type Range = readonly [number, number];
 
 /** A template body of a prior: its orbit against the home world's, its mass, its kind. */
@@ -59,6 +61,8 @@ export type Prior = {
    * (drawn); absent: drawn. Never hashed: the world's chemistry follows from what is.
    */
   readonly chemistry?: "solar" | "drawn";
+  /** Its universe's laws, where they are not ours (rules/laws.ts; absent: ours, and never hashed). */
+  readonly laws?: Laws;
 };
 
 export const EARTHLIKE: Prior = {

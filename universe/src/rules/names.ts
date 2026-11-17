@@ -291,6 +291,13 @@ const LIKE: Readonly<Record<string, string>> = {
   phycocyanobilin: "dye ~ leaf",
   bacteriochlorophyll: "dye ~ leaf",
   polyimine: "wood ~ tar",
+  // (A life of silicon's chains: the sweep, Nature lane.)
+  polysilane: "wood ~ glow",
+  tetrasilane: "oil seed fire",
+  polysilazane: "wood ~ hard",
+  trisilazane: "oil seed ~",
+  polysiloxane: "wood ~ slick",
+  cyclosiloxane: "oil seed slick",
   squalene: "oil seed ~",
   glucosamine: "sweet ~ sharp",
   "glucosamine-starch": "meal ~ sharp",
@@ -463,3 +470,45 @@ function dedupe<T>(xs: readonly T[]): T[] {
 export function glossOf(head: string, marks: readonly string[]): string {
   return [...marks, head].join("-");
 }
+
+// —— What a people's senses name things by (the sweep, Nature lane) ——————————————————————————————————————
+
+/** The marks only an eye can tell, besides colours. */
+export const SEEN_MARKS: readonly Meaning[] = ["bright", "clear", "glow"];
+
+/**
+ * The colours a tongue names things by, its people's senses as they are: a people that leads with its eyes names by as many as
+ * its tongue has words for; one whose eyes come after another sense tells only dark, light and red apart (est: an eye that is
+ * not a body's first is a coarse one); one without eyes names nothing by its colour.
+ */
+export function coloursSensed(
+  have: readonly Colour[],
+  senses: readonly string[],
+): readonly Colour[] {
+  if (!senses.length || senses[0] === "sight") return have;
+  if (!senses.includes("sight")) return [];
+  return have.filter((c) => c === "black" || c === "white" || c === "red");
+}
+
+/** A likeness's marks as a people of these senses tells them: what its eyes cannot tell, dropped. */
+export function marksSensed<M extends string>(marks: readonly M[], senses: readonly string[]): M[] {
+  if (!senses.length || senses.includes("sight")) return [...marks];
+  return marks.filter(
+    (m) =>
+      !(SEEN_MARKS as readonly string[]).includes(m) &&
+      !(COLOUR_WORDS as readonly string[]).includes(m),
+  );
+}
+
+const COLOUR_WORDS: readonly Colour[] = [
+  "black",
+  "white",
+  "red",
+  "green",
+  "yellow",
+  "blue",
+  "brown",
+  "grey",
+  "orange",
+  "purple",
+];

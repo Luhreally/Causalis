@@ -319,3 +319,15 @@ export function burstHarm(distanceLy: number, shelter: number): number {
   const r = STAR_LIFE.harmLy / distanceLy;
   return 1 + 0.3 * r * r * (1 - 0.3 * shelter);
 }
+
+// —— A star's death reaching the peoples of other stars (the sweep, Nature lane) ————————————————————————————
+
+/** What is left of a star's light when it has ended as a white dwarf (a share of its light before: some thousandth). */
+export const DWARF_LIGHT = 0.001;
+/** The share more of a far people dead a year for each step of a burst's harm past one (est: a crude death rate). */
+export const BURST_TOLL = 0.02;
+
+/** What a burst of this harm (rules burstHarm) takes of a people over so many years under it (a share of them left). */
+export function burstLeft(harm: number, years: number): number {
+  return dmath.exp(-Math.max(0, harm - 1) * BURST_TOLL * Math.max(0, years));
+}

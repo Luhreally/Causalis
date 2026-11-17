@@ -335,7 +335,7 @@ export function prospects(ctx: PopulationContext, p: Polity): Prospect[] {
     const body = bodies[site.body]!,
       h = habitability(body, g.life.people?.body ?? null, home, worldLife(g));
     if (!h.livable) return;
-    const route = routeTo(list, site.body, g.star.mass),
+    const route = routeTo(list, site.body, g.star.mass, g.laws?.gravity),
       way = delivered(knowsHere, toOrbit(home).total, route.speed);
     if (!way) return;
     out.push({

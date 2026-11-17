@@ -9,7 +9,17 @@ import { farStrength, type FarState } from "../../rules/index.ts";
 export type FarTold = {
   readonly year: number;
   readonly what:
-    "landing" | "sickness" | "raid" | "battle" | "lesson" | "goods" | "broke" | "mended" | "fell";
+    | "landing"
+    | "sickness"
+    | "raid"
+    | "battle"
+    | "lesson"
+    | "goods"
+    | "broke"
+    | "mended"
+    | "fell"
+    // (Its star ended: the sweep, Nature lane.)
+    | "star";
   /** Of what: whose ship or fleet, whom from (a ref), and how much (a share of them, a rung's part). */
   readonly by: Ref | null;
   readonly amount: number;

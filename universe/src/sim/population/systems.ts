@@ -67,6 +67,11 @@ import { lodesOf } from "../economy/lodes.ts";
 import { lodePush } from "../economy/worked.ts";
 import { herdLoss, pensLeft } from "../ecology/herds.ts";
 import { partnersOf } from "../ecology/lineage.ts";
+import { cropsGive } from "../ecology/crops.ts";
+import { herdGives, pestsLeft } from "../ecology/exchange.ts";
+import { veilYield } from "../planet/fires.ts";
+import { floodYield } from "../planet/floods.ts";
+import { dietDeaths } from "./diet.ts";
 import {
   GONE_KEPT,
   HAND_VITAL,
@@ -249,7 +254,8 @@ export function spaceSteps(ctx: PopulationContext, a: number, b: number): number
       radius: x.radius,
       pressure: x.pressure,
     })),
-    days = (site: typeof sa) => (site ? routeTo(list, site.body, g.star.mass).days : 0),
+    days = (site: typeof sa) =>
+      site ? routeTo(list, site.body, g.star.mass, g.laws?.gravity).days : 0,
     far = Math.max(days(sa), days(sb)),
     steps = 1 + Math.round(dmath.log2(1 + far / 30));
   CROSSINGS.set(key, steps);
@@ -353,6 +359,13 @@ export function farmingShare(ctx: PopulationContext, p: Province): number {
       (1 + lore.effect(p.cell, "farmYield")) *
       heatYield(ctx, p.cell) *
       darkFields(ctx.world, p.cell) *
+      // (Its crop, as tame and as fitted to it as it is; the world's veil, and its own ash and flood: exactly 1 on a land
+      // sowing its own, tamed, under a clear sky, its river in its banks.)
+      cropsGive(ctx.world, p.cell) *
+      // (Less what weeds and pests carried in take: exactly 1 where none came.)
+      pestsLeft(ctx.world, p.cell) *
+      veilYield(ctx, p.cell) *
+      floodYield(ctx.world, p.cell) *
       alive.soil,
     // (What all its fields give, worked to the full; and what its people eat, a sixth over.)
     most = c.farm * fields,
@@ -525,8 +538,15 @@ export function foodMonth(ctx: PopulationContext, t: SimTime): void {
         heatYield(ctx, p.cell) *
         // (Under the soot of a great fire, W5: exactly 1 under a clear sky.)
         darkFields(world, p.cell) *
+        // (Its crop, as tame and as fitted to it as it is; the world's veil, and its own ash and flood: exactly 1 on a land
+        // sowing its own, tamed, under a clear sky, its river in its banks.)
+        cropsGive(world, p.cell) *
+        pestsLeft(world, p.cell) *
+        veilYield(ctx, p.cell) *
+        floodYield(world, p.cell) *
         (p.cell >= offworldFrom ? openFields(ctx, p.cell) : 1),
-      flocks = 1 + lore.effect(p.cell, "herdYield"),
+      // (And its herd beast against the one it first kept: exactly 1 until it takes up another: ecology/exchange.ts.)
+      flocks = (1 + lore.effect(p.cell, "herdYield")) * herdGives(world, p.cell),
       // (What war has driven off of its herds and a beast at large takes: Z1. Exactly 0 where neither has.)
       flocksLost = herdLoss(world, p.cell, t),
       // (What lives off its flocks and its wild, and what its seed carriers give: ecology/lineage.ts. Exactly 1 where none stand.)
@@ -738,8 +758,13 @@ export function vitalMonth(ctx: PopulationContext, t: SimTime): void {
         (1 + 25 * intoxDeaths(world, p.cell)),
       // A band's chance of dying within the months, the same for every one of it (reckoned once).
       dying: number[] = [],
+      // (And what its diet goes short of: its young die the more, rules/nutrition.ts. Exactly 1 where it goes short of nothing.)
+      want = dietDeaths(world, p.cell),
       dyingIn = (b: number) =>
-        (dying[b] ??= deathWithin(riskUnder(life.mortality[b]!, mortality), months)),
+        (dying[b] ??= deathWithin(
+          riskUnder(life.mortality[b]!, mortality * (b < 2 ? want.young : want.grown)),
+          months,
+        )),
       d = new CountDeltas(p.counts),
       key = refHash(p.ref),
       // Under the hand, a village's people are born and die one by one; the rest by rates.

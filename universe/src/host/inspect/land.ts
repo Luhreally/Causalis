@@ -13,6 +13,7 @@ import { landEnergyBlocks } from "./energy.ts";
 import { landMakingBlocks } from "./making.ts";
 import { landWealthBlocks } from "./money.ts";
 import { fieldsBlocks } from "./fields.ts";
+import { cropBlock, dietBlock, landFiresBlocks } from "./nature.ts";
 import {
   BIOME_NAMES,
   cellRef,
@@ -357,13 +358,20 @@ export function landPage(world: World, cell: number, tab?: string): PageModel {
     // What has been dug here, and what became of it (E1).
     const dug = lodesBlock(world, cell, landTitle(world, cell));
     if (dug) blocks.push(dug);
+    // Its volcano and its river's floods (the sweep, Nature lane).
+    blocks.push(...landFiresBlocks(world, cell));
     tabs.push({ id: "land", name: "Land", blocks });
     // Its ground (Phase 15 M124): bedrock, soil, what lies in it, its water, the air.
     tabs.push({
       id: "ground",
       name: "Ground",
       // (What feeds its fields and what fouls it, its ground as stocks: Round A.)
-      blocks: [...fieldsBlocks(world, cell), ...groundBlocks(world, cell)],
+      // (And its crop and what its people eat: the sweep, Nature lane.)
+      blocks: [
+        ...[cropBlock(world, cell), dietBlock(world, cell)].filter((b): b is Block => !!b),
+        ...fieldsBlocks(world, cell),
+        ...groundBlocks(world, cell),
+      ],
     });
   }
   // The living world: its web's levels, and its lineages.

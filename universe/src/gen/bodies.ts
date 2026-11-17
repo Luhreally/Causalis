@@ -7,6 +7,9 @@ import {
   KINDS,
   earthDegrees,
   kelvinPerDegree,
+  bodyPull,
+  starLifetime,
+  yearUnder,
   type FarMade,
   type NovelKind,
   type Prior,
@@ -70,7 +73,8 @@ export function makeStar(rng: Rng, prior: Prior): Star {
     luminosity = mass < 0.43 ? 0.23 * dmath.pow(mass, 2.3) : dmath.pow(mass, 4),
     radius = dmath.pow(mass, 0.8),
     temperature = 5778 * dmath.pow(luminosity / (radius * radius), 0.25),
-    lifetimeGyr = 10 * dmath.pow(mass, -2.5),
+    // (As much of its hydrogen as its universe's laws let it burn: rules/laws.ts. Ours: ten billion years at the Sun's.)
+    lifetimeGyr = starLifetime(mass, prior.laws?.burn),
     ageGyr = lifetimeGyr * draw(rng, prior.star.age, 1, 1);
   return {
     ref: starRef(0),
@@ -90,7 +94,7 @@ export function makeStar(rng: Rng, prior: Prior): Star {
  * The star of a world of another star entered (rules/far.ts): as the galaxy has it (its mass, its light, its warmth,
  * its age), the rest by the same relations as a star drawn.
  */
-export function farStar(far: FarMade): Star {
+export function farStar(far: FarMade, burn = 1): Star {
   const s = far.star;
   return {
     ref: starRef(0),
@@ -99,7 +103,7 @@ export function farStar(far: FarMade): Star {
     radius: dmath.pow(s.mass, 0.8),
     temperature: s.temperature,
     spectral: s.spectral,
-    lifetimeGyr: 10 * dmath.pow(s.mass, -2.5),
+    lifetimeGyr: starLifetime(s.mass, burn),
     ageGyr: s.ageGyr,
     zoneInner: Math.sqrt(s.luminosity / 1.1),
     zoneOuter: Math.sqrt(s.luminosity / 0.53),
@@ -150,6 +154,7 @@ export function climateMean(p: Planet): number {
 
 export function makePlanet(rng: Rng, prior: Prior, star: Star): Planet {
   const p = prior.planet,
+    G = prior.laws?.gravity ?? 1,
     zone = draw(rng, p.zone, 2, 0),
     orbitAu = star.zoneInner + (star.zoneOuter - star.zoneInner) * zone,
     mass = draw(rng, p.mass, 2, 1),
@@ -162,12 +167,13 @@ export function makePlanet(rng: Rng, prior: Prior, star: Star): Planet {
     ref: planetRef(0),
     star: star.ref,
     orbitAu,
-    yearDays: 365.25 * Math.sqrt((orbitAu * orbitAu * orbitAu) / star.mass),
+    // (Kepler's, and its pull, under its universe's gravity: rules/laws.ts.)
+    yearDays: 365.25 * Math.sqrt((orbitAu * orbitAu * orbitAu) / star.mass) * yearUnder(G),
     dayHours: draw(rng, p.day, 2, 4),
     tilt: draw(rng, p.tilt, 2, 5),
     mass,
     radius,
-    gravity: mass / (radius * radius),
+    gravity: bodyPull(mass, radius, G).g,
     insolation,
     albedo,
     greenhouse,

@@ -396,6 +396,7 @@ export {
   KIND_SUBSTANCES,
   LIFE_ELEMENTS,
   LIFE_SUBSTANCES,
+  SILICON_LIFE,
   NOVEL_ELEMENTS,
   NOVEL_REACTIONS,
   NOVEL_SUBSTANCES,
@@ -442,6 +443,8 @@ export {
   type Membrane,
   type Pigment,
   backboneOf,
+  HOT_SILICON,
+  SILICON_PARTS,
   needsOf,
   type Backbone,
   type LifeNeeds,
@@ -452,6 +455,9 @@ export {
   colourOf,
   colourSaid,
   coloursAt,
+  coloursSensed,
+  SEEN_MARKS,
+  marksSensed,
   elementLikeness,
   glossOf,
   likenessOf,
@@ -508,6 +514,7 @@ export {
   makingAct,
   makingWords,
   makingsOf,
+  lawsOf,
   type MakingSubject,
   type Makings,
 } from "./making.ts";
@@ -1645,6 +1652,7 @@ export {
   type StarLife,
   type StarStage,
 } from "./planet.ts";
+export { BURST_TOLL, DWARF_LIGHT, burstLeft } from "./planet.ts";
 export {
   EARTH_SKY,
   GROWS_ABOVE,
@@ -1682,3 +1690,10 @@ export {
 export * from "./self.ts";
 export * from "./farlife.ts";
 export * from "./materials.ts";
+export * from "./crops.ts";
+export * from "./volcanoes.ts";
+export * from "./floods.ts";
+export * from "./nutrition.ts";
+export * from "./succession.ts";
+export * from "./laws.ts";
+export * from "./exchange.ts";

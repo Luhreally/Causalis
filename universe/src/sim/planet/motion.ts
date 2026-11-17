@@ -21,6 +21,7 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
+import { worldLaws } from "./store.ts";
 import {
   BIOME,
   cellRef,
@@ -46,6 +47,7 @@ import {
   seaFromIce,
   sheetHeight,
   starLifeOf,
+  starLifetime,
   swellOf,
   DOSE_DEATHS,
   type Magnetosphere,
@@ -341,6 +343,48 @@ export function homeSky(world: World): number {
         k *= burstHarm(e.distance, field.shelter);
   }
   return k;
+}
+
+/**
+ * What the cluster's ended stars did to another star's worlds between two years (the sweep, Nature lane): whether that star
+ * itself has ended, and the harm of the supernovae near enough to it (rules/planet.ts burstHarm, its worlds' own shelter
+ * unknown: reckoned as Earth's), with the years its worlds were under them.
+ */
+export function starDeathAt(
+  world: World,
+  star: Ref,
+  from: number,
+  to: number,
+): {
+  readonly own: StarEnd | null;
+  readonly harm: number;
+  readonly years: number;
+  readonly burst: StarEnd | null;
+} {
+  const store = motionOf(world);
+  if (!store?.ends.length) return { own: null, harm: 1, years: 0, burst: null };
+  const own = store.ends.find((e) => e.star === star && e.year <= to) ?? null,
+    stars = clusterOf(world),
+    at = stars.find((s) => s.ref === star),
+    shelter = 1 - dmath.exp(-4.5);
+  let harm = 1,
+    years = 0,
+    burst: StarEnd | null = null;
+  if (at)
+    for (const e of store.ends) {
+      if (e.how !== "supernova" || e.star === star) continue;
+      const s = stars.find((x) => x.ref === e.star);
+      if (!s) continue;
+      const dx = s.x - at.x,
+        dy = s.y - at.y,
+        dz = s.z - at.z,
+        d = Math.sqrt(dx * dx + dy * dy + dz * dz),
+        under = Math.min(to, e.year + STAR_LIFE.burstYears) - Math.max(from, e.year);
+      if (under <= 0 || d > 4 * STAR_LIFE.harmLy) continue;
+      const k = burstHarm(d, shelter);
+      if (k > harm) [harm, years, burst] = [k, under, e];
+    }
+  return { own, harm, years, burst };
 }
 
 /** Whether a star of the cluster has ended in the chronicle (its halls' light gone), and how. */
@@ -713,7 +757,7 @@ function starEnds(world: World, store: MotionStore, year: number): void {
   const told = new Set(store.ends.map((e) => e.star as string));
   for (const star of clusterOf(world)) {
     if (star.remnant || told.has(star.ref)) continue;
-    const life = 10 * dmath.pow(star.mass, -2.5),
+    const life = starLifetime(star.mass, worldLaws(world)?.burn),
       left = (life - star.ageGyr) * 1e9;
     if (left > year) continue;
     const how = star.mass >= STAR_LIFE.supernova ? "supernova" : "white dwarf",

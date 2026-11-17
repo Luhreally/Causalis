@@ -8,10 +8,13 @@ import {
   LODE_DEPTH_WORDS,
   groveWhyWords,
   lodeSize,
+  primaryGrowth,
   roleWord,
+  STAND,
 } from "../../rules/index.ts";
 import {
   homePlanet,
+  woodsRegrowth,
   lodesOf,
   oresIn,
   populationContext,
@@ -20,6 +23,7 @@ import {
   woodsWords,
   type Lode,
   type WoodsTurn,
+  standAge,
 } from "../../sim/index.ts";
 import { YEAR, type World } from "../../kernel/index.ts";
 import type { Block, Item, Line, Stat, WoodsMap } from "../../bridge/index.ts";
@@ -87,6 +91,29 @@ export function woodsBlock(world: World, cell: number): Block | null {
     stat("Now", cap(ofLand(now, woods))),
     stat("At first", cap(ofLand(first, woods))),
   ];
+  // (How fast they come back where cleared or burned, as fast as the land grows things: the sweep, Nature lane.)
+  const half = Math.round(
+    0.6931 /
+      Math.max(1e-6, woodsRegrowth(g.climate.temperature[cell]!, g.climate.precipitation[cell]!)),
+  );
+  rows.push(
+    stat(
+      "Cleared, they come back",
+      `half of what is missing in some ${half} years: its ground grows ${Math.round(primaryGrowth(g.climate.temperature[cell]!, g.climate.precipitation[cell]!)).toLocaleString("en-US")} g of green a square metre a year`,
+    ),
+  );
+  // (Their age: old growth where no one has touched them; younger as they are cut and come back: the sweep, Nature lane.)
+  if (now > 0) {
+    const age = Math.round(standAge(world, cell));
+    rows.push(
+      stat(
+        "How old they are",
+        age >= STAND.climax - 5
+          ? `old growth: their trees some ${STAND.climax} years old on the mean, the old dying and the young filling their gaps`
+          : `their trees some ${age} years old on the mean, against the ${STAND.climax} of woods no one has touched`,
+      ),
+    );
+  }
   if (!turns.length)
     rows.push(
       stat(

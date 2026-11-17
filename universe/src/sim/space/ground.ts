@@ -6,6 +6,7 @@
 // never lived (the halls' people are farmed under roofs: population/model.ts), so nothing here enters
 // history, and the same land is always the same ground.
 import { Rng, dmath, type World } from "../../kernel/index.ts";
+import { worldLaws } from "../planet/store.ts";
 import {
   BIOME,
   COVER,
@@ -123,7 +124,7 @@ export function siteGround(world: World, cell: number): SiteGround | null {
   if (ship) {
     const star = clusterOf(world).find((s) => s.ref === ship.star);
     if (!star) return null;
-    const p = foreignPlanets(new Rng(world.seed), star)[ship.planet];
+    const p = foreignPlanets(new Rng(world.seed), star, worldLaws(world)?.gravity)[ship.planet];
     if (!p) return null;
     const body = foreignBody(star, p, ship.planet);
     made = groundOf(

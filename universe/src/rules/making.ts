@@ -9,6 +9,7 @@
 // the ices it gathered, which make its kind: rules/kinds.ts.)
 import { seedActs } from "../kernel/index.ts";
 import { EARTHLIKE, type Prior, type Range } from "./priors.ts";
+import { OUR_LAWS, lawsDiffer, type Laws } from "./laws.ts";
 
 /** Each making and its choices: the range each choice draws from. */
 export const MAKINGS = {
@@ -59,6 +60,16 @@ export const MAKINGS = {
    * minute, 729, 682 and 751 MB, a save of 3.9 MB each. The star map's plan crosses as 77, 606 and 2,433 KB.
    */
   sky: { small: [25, 4], large: [80, 24] },
+  /**
+   * Laws of the universe and no part of its matter (the sweep, Nature lane; rules/laws.ts): how much of its hydrogen a star
+   * can burn before it swells (a tenth as much, or ten times: so long its life, its age when the chronicle begins, how long
+   * life has had on its worlds, and which of the galaxy's stars still shine); the strength of gravity (a body's pull on what
+   * stands on it, and so the size a body grows to and what it costs to leave its world); and the strength of chemistry's
+   * bonds (what a material holds and how hot it melts: a hook for the materials' rules).
+   */
+  burn: { quick: [0.1, 0.1], slow: [10, 10] },
+  gravity: { weak: [0.6, 0.6], strong: [1.6, 1.6] },
+  binding: { weak: [0.75, 0.75], strong: [1.3, 1.3] },
 } as const satisfies Record<string, Record<string, Range>>;
 
 export type MakingSubject = keyof typeof MAKINGS;
@@ -81,6 +92,17 @@ export function makingsOf(text: string): Makings {
     if (Object.hasOwn(MAKINGS[word as MakingSubject], choice)) out[word as MakingSubject] = choice;
   }
   return out;
+}
+
+/** A seed's universe's laws (ours where none is laid; a world like ours keeps ours whatever is laid: madePrior). */
+export function lawsOf(text: string): Laws {
+  const m = makingsOf(text);
+  if (m.burn === undefined && m.gravity === undefined && m.binding === undefined) return OUR_LAWS;
+  const at = <S extends "burn" | "gravity" | "binding">(subject: S) => {
+    const c = m[subject];
+    return c === undefined ? 1 : (MAKINGS[subject] as Readonly<Record<string, Range>>)[c]![0];
+  };
+  return { burn: at("burn"), gravity: at("gravity"), binding: at("binding") };
 }
 
 /** The lands' grid a seed's size makes (undefined: the usual). Earth's as any other's: a size is no part of its likeness. */
@@ -117,9 +139,12 @@ export function madePrior(prior: Prior, text: string): Prior {
     pull = rangeOf("pull", m.pull),
     orbit = rangeOf("orbit", m.orbit),
     seas = rangeOf("seas", m.seas),
-    air = rangeOf("air", m.air);
+    air = rangeOf("air", m.air),
+    laws = lawsOf(text);
   return {
     ...prior,
+    // (Its universe's laws, where they are not ours: rules/laws.ts.)
+    ...(lawsDiffer(laws) ? { laws } : {}),
     star: { ...prior.star, mass: star ?? prior.star.mass },
     planet: {
       ...prior.planet,
@@ -223,6 +248,54 @@ export const MAKING_WORDS: Readonly<
         "small",
         "about a quarter as many lands, each four times as wide: some three times as quick, the quickest",
         "🔹",
+      ],
+    },
+  },
+  burn: {
+    icon: "🔥",
+    name: "Its stars' burning",
+    choices: {
+      quick: [
+        "quick",
+        "stars burn a tenth of what ours do before they swell, a law of this universe: shorter lives, younger worlds, less time for life",
+        "⚡",
+      ],
+      slow: [
+        "slow",
+        "stars burn ten times what ours do, a law of this universe: long lives, old worlds, and few stars yet ended",
+        "🕯️",
+      ],
+    },
+  },
+  gravity: {
+    icon: "🍎",
+    name: "Its gravity",
+    choices: {
+      weak: [
+        "weak",
+        "gravity six tenths of ours, a law of this universe: light pulls, tall bodies, cheap launches",
+        "🪶",
+      ],
+      strong: [
+        "strong",
+        "gravity half again as strong as ours, a law of this universe: heavy pulls, squat bodies, dear launches",
+        "🪨",
+      ],
+    },
+  },
+  binding: {
+    icon: "🔗",
+    name: "Its bonds",
+    choices: {
+      weak: [
+        "weak",
+        "chemistry's bonds three quarters of ours, a law of this universe: softer stuff, lower melting",
+        "🧈",
+      ],
+      strong: [
+        "strong",
+        "chemistry's bonds a third stronger than ours, a law of this universe: harder stuff, higher melting",
+        "💎",
       ],
     },
   },

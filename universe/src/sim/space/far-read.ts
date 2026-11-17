@@ -3,6 +3,7 @@
 // galaxy's own account of a followed people (natives.ts, contact.ts): so what the galaxy says of them and the world
 // played agree. Pure: of the home world's seed and its stars alone; nothing here enters history.
 import { Rng, seedFromText, type Hasher, type StateStore, type World } from "../../kernel/index.ts";
+import { worldLaws } from "../planet/store.ts";
 import {
   farCrafts,
   farShut,
@@ -247,7 +248,7 @@ export function farCeiling(
   const key = `${world.seed.text} ${who.ref}`,
     known = CEILINGS.get(key) ?? kept(world)?.of(who.ref);
   if (known) return known;
-  const p = foreignPlanets(new Rng(world.seed), s)[planet]!,
+  const p = foreignPlanets(new Rng(world.seed), s, worldLaws(world)?.gravity)[planet]!,
     reading = (stage: FarStage) =>
       farReadWorld(world, s, p, who, {
         year: 0,

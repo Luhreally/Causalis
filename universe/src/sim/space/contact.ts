@@ -17,6 +17,7 @@ import {
   type StateStore,
   type World,
 } from "../../kernel/index.ts";
+import { worldLaws } from "../planet/store.ts";
 import { civilizationsOf, foreignPlanets, type Civilization } from "../../gen/index.ts";
 import { politiesOf } from "../polity/polity.ts";
 import { farOf, fireOf } from "../war/fire.ts";
@@ -69,7 +70,7 @@ export function civilizationsEver(world: World): Civilization[] {
       (civs = civilizationsOf(
         rng,
         clusterOf(world),
-        (s) => foreignPlanets(rng, s),
+        (s) => foreignPlanets(rng, s, worldLaws(world)?.gravity),
         skyOf(world.seed.text)?.most,
         farBodies(world),
       )),

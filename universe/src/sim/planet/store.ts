@@ -210,3 +210,8 @@ export function makePlanetWorld(seed: Seed, options: PlanetWorldOptions = {}): W
 export function homePlanet(world: World): HomePlanet {
   return world.store<HomePlanet>("planet.home");
 }
+
+/** A world's universe's laws, where the Creator laid them other than ours (rules/laws.ts; undefined: ours, or no planet). */
+export function worldLaws(world: World): HomePlanet["generated"]["laws"] {
+  return world.hasStore("planet.home") ? homePlanet(world).generated.laws : undefined;
+}
