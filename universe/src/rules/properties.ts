@@ -42,6 +42,7 @@ import {
   rocketOn,
 } from "./reach.ts";
 import { FIRE, fireName, fireShutBy } from "./greatfire.ts";
+import { bandGapOf, substanceFigures, type Worked } from "./materials.ts";
 
 /** What a substance can do, beyond what it weighs and where it melts. */
 export type Properties = {
@@ -57,8 +58,12 @@ export type Properties = {
   readonly sublimes?: number;
 };
 
-/** Handbook figures, for the form each is worked in (an alloy's typical grade, a wire, a crystal). */
-export const PROPERTIES: Readonly<Record<string, Properties>> = {
+/**
+ * Handbook figures, for the form each is worked in (an alloy's typical grade, a wire, a crystal): what PROPERTIES starts
+ * from. A metal's strength and current, and a diamond-like crystal's band gap, are read from its atoms over these
+ * (rules/materials.ts); the rest (oxides', molecular solids', what is lossless when cold) stay the handbook's.
+ */
+export const HANDBOOK_PROPERTIES: Readonly<Record<string, Properties>> = {
   copper: { strength: 210, conductivity: 59.6 },
   "native-copper": { strength: 210, conductivity: 58 },
   tin: { strength: 15, conductivity: 9.1 },
@@ -258,6 +263,48 @@ export const LATER_SUBSTANCES: readonly Substance[] = [
 ];
 
 knowLaterSubstances(LATER_SUBSTANCES);
+
+/** How each metal of the figures is worked as it is used (its strength is read so, at 20 °C). */
+const USED_AS: Readonly<Record<string, Worked>> = {
+  copper: "annealed",
+  "native-copper": "annealed",
+  tin: "annealed",
+  bronze: "cast",
+  "arsenical-copper": "cast",
+  cupronickel: "annealed",
+  iron: "annealed",
+  "telluric-iron": "forged",
+  "cohenite-iron": "forged",
+  steel: "annealed",
+  gold: "annealed",
+  zinc: "annealed",
+  brass: "annealed",
+  nickel: "annealed",
+  aluminium: "annealed",
+  titanium: "annealed",
+  tungsten: "annealed",
+};
+
+/**
+ * What a substance can do, in figures: each metal's strength and current read from its atoms as it is used (Materials
+ * round), each diamond-like crystal's band gap from its bond; the rest the handbook's.
+ */
+export const PROPERTIES: Readonly<Record<string, Properties>> = Object.fromEntries(
+  Object.entries(HANDBOOK_PROPERTIES).map(([id, p]): [string, Properties] => {
+    const worked = USED_AS[id],
+      f = worked ? substanceFigures(id, worked, 293) : null,
+      formula = findSubstance(id)?.formula,
+      gap = formula ? bandGapOf(formula) : null;
+    return [
+      id,
+      {
+        ...p,
+        ...(f ? { strength: f.strength, conductivity: f.conductivity } : {}),
+        ...(gap !== null && p.bandGap !== undefined ? { bandGap: gap } : {}),
+      },
+    ];
+  }),
+);
 
 /** The elements only those stuffs hold: Earth's crust (ppm: Rudnick & Gao 2003), never in its table. */
 export const LATER_CRUST: Readonly<Record<string, number>> = {

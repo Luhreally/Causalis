@@ -984,6 +984,7 @@ export {
   LATER_CRUST,
   LATER_SUBSTANCES,
   PROPERTIES,
+  HANDBOOK_PROPERTIES,
   crustPpm,
   matterShuts,
   rowReadings,
@@ -1680,3 +1681,4 @@ export {
 } from "./lineage.ts";
 export * from "./self.ts";
 export * from "./farlife.ts";
+export * from "./materials.ts";
