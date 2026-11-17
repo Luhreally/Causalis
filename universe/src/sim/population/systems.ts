@@ -1912,60 +1912,60 @@ type SiteBlocks = {
   readonly scores: Float32Array;
   /** The blocks with a tile, best first (ties by tile). */
   readonly order: Uint16Array;
+  /** How many villages the land had when no block had room for another (-1: never found so; see chooseSite). */
+  fullAt: number;
 };
-const SITE_BLOCKS = new Map<string, SiteBlocks>();
-/**
- * The same, by land, of the surface last asked of: every village asks its land's each year, and a key written out
- * for each of twenty thousand villages was most of what the asking cost (tools/cost.ts). Emptied with SITE_BLOCKS.
- */
-let sitesKey = "",
-  sitesByLand: (SiteBlocks | undefined)[] = [];
-function siteBlocks(ctx: PopulationContext, cell: number): SiteBlocks {
-  const surface = homePlanet(ctx.world).surfaceKey;
-  if (surface !== sitesKey) {
-    sitesKey = surface;
-    sitesByLand = [];
-  }
-  const known = sitesByLand[cell];
-  if (known) return known;
-  const key = `${surface}:${cell}`;
-  let blocks = SITE_BLOCKS.get(key);
+/** A land's sites and the fine cells its small region read: each tile's nearest cell and that cell's neighbours (gen/region.ts). */
+function readSites(
+  ctx: PopulationContext,
+  cell: number,
+): { value: SiteBlocks; cells: ReadonlySet<number> } {
+  const g = ctx.generated,
+    cells = new Set<number>();
   // Halls on another world have no ground of villages to choose among.
-  if (!blocks && offworldSite(ctx.generated, cell))
-    SITE_BLOCKS.set(
-      key,
-      (blocks = {
+  if (offworldSite(g, cell))
+    return {
+      value: {
         tiles: new Uint16Array(0),
         scores: new Float32Array(0),
         order: new Uint16Array(0),
-      }),
-    );
-  if (!blocks) {
-    if (SITE_BLOCKS.size > 20_000) SITE_BLOCKS.clear();
-    const g = ctx.generated,
-      r = isProvinceWorld(g)
-        ? refineRegion(g.fine, g.centre[cell]!, SITE_SIDE, PROVINCE_TILE_KM * BLOCK)
-        : refineRegion(g, cell, SITE_SIDE, 0.8 * BLOCK),
-      side = SITE_SIDE,
-      tiles = new Uint16Array(side * side).fill(0xffff),
-      scores = new Float32Array(side * side).fill(-1);
-    for (let b = 0; b < side * side; b++) {
-      if (provinceOfTile(ctx, r, b) !== cell || !buildable(ctx.medium, r, b)) continue;
-      scores[b] = Math.fround(ctx.medium === "water" ? reefScore(r, b) : siteScore(r, b));
-      // The village stands at its block's middle tile of the land's full region.
-      const i = (b % side) * BLOCK + BLOCK / 2,
-        j = Math.floor(b / side) * BLOCK + BLOCK / 2;
-      tiles[b] = j * REGION_SIZE + i;
-    }
-    const order = Uint16Array.from(
-      [...tiles.keys()]
-        .filter((b) => tiles[b] !== 0xffff)
-        .sort((a, b) => scores[b]! - scores[a]! || tiles[a]! - tiles[b]!),
-    );
-    SITE_BLOCKS.set(key, (blocks = { tiles, scores, order }));
+        fullAt: -1,
+      },
+      cells,
+    };
+  const r = isProvinceWorld(g)
+      ? refineRegion(g.fine, g.centre[cell]!, SITE_SIDE, PROVINCE_TILE_KM * BLOCK)
+      : refineRegion(g, cell, SITE_SIDE, 0.8 * BLOCK),
+    grid = (isProvinceWorld(g) ? g.fine : g).grid,
+    side = SITE_SIDE,
+    tiles = new Uint16Array(side * side).fill(0xffff),
+    scores = new Float32Array(side * side).fill(-1);
+  for (const c of r.parent) {
+    if (cells.has(c)) continue;
+    cells.add(c);
+    for (let k = grid.offsets[c]!; k < grid.offsets[c + 1]!; k++) cells.add(grid.neighbours[k]!);
   }
-  sitesByLand[cell] = blocks;
-  return blocks;
+  for (let b = 0; b < side * side; b++) {
+    if (provinceOfTile(ctx, r, b) !== cell || !buildable(ctx.medium, r, b)) continue;
+    scores[b] = Math.fround(ctx.medium === "water" ? reefScore(r, b) : siteScore(r, b));
+    // The village stands at its block's middle tile of the land's full region.
+    const i = (b % side) * BLOCK + BLOCK / 2,
+      j = Math.floor(b / side) * BLOCK + BLOCK / 2;
+    tiles[b] = j * REGION_SIZE + i;
+  }
+  const order = Uint16Array.from(
+    [...tiles.keys()]
+      .filter((b) => tiles[b] !== 0xffff)
+      .sort((a, b) => scores[b]! - scores[a]! || tiles[a]! - tiles[b]!),
+  );
+  return { value: { tiles, scores, order, fullAt: -1 }, cells };
+}
+/**
+ * A land's village sites: kept by its planet while the ground they were read from stands (sim/planet/store.ts landReading), so
+ * a rise of one cell of the ground reads again only the lands about it.
+ */
+function siteBlocks(ctx: PopulationContext, cell: number): SiteBlocks {
+  return homePlanet(ctx.world).landReading(`sites:${ctx.medium}`, cell, () => readSites(ctx, cell));
 }
 
 /** A village's site score: its block's. */
@@ -1979,7 +1979,7 @@ function siteOf(ctx: PopulationContext, v: Settlement): number {
 
 /** Whether a land's village sites are known already (they are pure: knowing them early changes nothing). */
 export function sitesReady(ctx: PopulationContext, cell: number): boolean {
-  return SITE_BLOCKS.has(`${homePlanet(ctx.world).surfaceKey}:${cell}`);
+  return homePlanet(ctx.world).landRead(`sites:${ctx.medium}`, cell);
 }
 /** Work out a land's village sites ahead of need. */
 export function prepareSites(ctx: PopulationContext, cell: number): void {
@@ -1997,10 +1997,11 @@ function chooseSite(
   taken: readonly Settlement[],
   t: SimTime,
 ): { tile: number; score: number } | null {
-  // A land whose region had no room for another village has none while its villages are the same.
-  const full = `${homePlanet(ctx.world).surfaceKey}:${cell}:${taken.length}`;
-  if (FULL.has(full)) return null;
-  const { tiles, scores, order } = siteBlocks(ctx, cell),
+  // A land whose region had no room for another village has none while its villages are as many and its ground the same
+  // (kept with its sites, which are read again when their ground moves).
+  const sites = siteBlocks(ctx, cell);
+  if (sites.fullAt === taken.length) return null;
+  const { tiles, scores, order } = sites,
     size = REGION_SIZE;
   // The best-scoring block's site far enough from every village, its score nudged by a
   // keyed draw (ties to the lower tile). Blocks are visited best first, so once none
@@ -2030,13 +2031,11 @@ function chooseSite(
     best = tile;
   }
   if (best < 0) {
-    if (FULL.size > 100_000) FULL.clear();
-    FULL.add(full);
+    sites.fullAt = taken.length;
     return null;
   }
   return { tile: best, score: bestScore };
 }
-const FULL = new Set<string>();
 
 /**
  * Villages, yearly: farmers found new ones as they outgrow the old; people are

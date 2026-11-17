@@ -38,6 +38,18 @@ export type BrushStroke = {
   dead: number;
 };
 
+/**
+ * A reading of one land's ground as its planet keeps it: the fine cells it read, their departures from how they were made as
+ * they then stood (as text: "" where none), the land's centre then, and the surface it was last found good under.
+ */
+type LandReading = {
+  surface: string;
+  readonly centre: number;
+  readonly cells: ReadonlySet<number>;
+  readonly marks: string;
+  readonly value: unknown;
+};
+
 export class HomePlanet implements StateStore {
   readonly name = "planet.home";
   /** The planet as its people live on it: provinces, each gathering the fine cells nearest it (`.fine` is the world as generated). */
@@ -48,6 +60,10 @@ export class HomePlanet implements StateStore {
   private coarseOriginals = new Map<number, { ground: SurfacePatch; centre: number }>();
   private strokes: BrushStroke[] = [];
   private surfaceDigest = "";
+  /** The ground's departures in the order of their cells, as last changed. */
+  private patchList: readonly SurfacePatch[] = [];
+  /** Readings of a land's ground, by what they are and then by land (see landReading). Never saved: read again when asked. */
+  private readonly readings = new Map<string, (LandReading | undefined)[]>();
   private readonly baseDeposits: number;
 
   /** (The key as last spelt: asked for every land's capacity, and a world whose ground has moved spelt it anew each time.) */
@@ -89,11 +105,63 @@ export class HomePlanet implements StateStore {
       patches.map((p) => p.cell),
     );
     const all = [...this.patches.values()].sort((a, b) => a.cell - b.cell);
+    this.patchList = all;
     surfaceDeposits(this.generated, all, this.baseDeposits);
     this.surfaceDigest = all.length ? new Hasher().value(all).hex() : "";
     this.surfaceSpelt = null;
     // (What is kept by world keys on it with the digest: gen/homeworld.ts keptKey.)
     this.generated.surface = this.generated.fine.surface = this.surfaceDigest;
+  }
+
+  /** The departures of the cells among `cells`, written out ("" where none). */
+  private marksIn(cells: ReadonlySet<number>): string {
+    let marks = "";
+    for (const p of this.patchList) if (cells.has(p.cell)) marks += JSON.stringify(p);
+    return marks;
+  }
+
+  /** A land's kept reading, where it is still good: found so under this surface, or its cells and centre as they were. */
+  private readingKept(name: string, land: number): LandReading | undefined {
+    const kept = this.readings.get(name)?.[land];
+    if (!kept) return undefined;
+    const surface = this.surfaceKey;
+    if (kept.surface === surface) return kept;
+    if (kept.centre !== this.generated.centre[land] || kept.marks !== this.marksIn(kept.cells))
+      return undefined;
+    kept.surface = surface;
+    return kept;
+  }
+
+  /**
+   * A reading of one land's ground (`read`, which tells with it every fine cell whose ground it read), kept while those cells
+   * and the land's centre stand as they did: a pure reading of them, of nothing else that moves, and `name` says what else it
+   * is of (which reading, for which medium). A rise of the ground moves one cell, and keyed by the whole surface every land's
+   * village sites were read again in that year: 190 to 210 ms of it, three years in three hundred, the slowest years a late
+   * world had (slow.mts on first light from 1,200).
+   */
+  landReading<T>(
+    name: string,
+    land: number,
+    read: () => { readonly value: T; readonly cells: ReadonlySet<number> },
+  ): T {
+    const kept = this.readingKept(name, land);
+    if (kept) return kept.value as T;
+    const made = read();
+    let by = this.readings.get(name);
+    if (!by) this.readings.set(name, (by = []));
+    by[land] = {
+      surface: this.surfaceKey,
+      centre: this.generated.centre[land]!,
+      cells: made.cells,
+      marks: this.marksIn(made.cells),
+      value: made.value,
+    };
+    return made.value;
+  }
+
+  /** Whether a land's reading is kept and good now (asking changes nothing). */
+  landRead(name: string, land: number): boolean {
+    return !!this.readingKept(name, land);
   }
 
   /**
@@ -185,6 +253,8 @@ export class HomePlanet implements StateStore {
       this.generated.centre[cell] = p.centre;
     }
     this.patches.clear();
+    this.patchList = [];
+    this.readings.clear();
     this.surfaceDigest = "";
     this.surfaceSpelt = null;
     surfaceDeposits(this.generated, [], this.baseDeposits);
