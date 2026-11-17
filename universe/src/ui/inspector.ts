@@ -188,6 +188,8 @@ export class PageWindow {
   onTouched: ((agent: string) => void) | null = null;
   /** One under the hand possessed (Phase 60): why they cannot be (null: taken). */
   onPossess: ((agent: number) => Promise<string | null>) | null = null;
+  /** One under the hand lived as, in their town (Lives L3). */
+  onLive: ((agent: number, town: string) => Promise<string | null>) | null = null;
   /** To a key figure's home (Lives L1). */
   onLeaderHome: ((leader: Leader) => void) | null = null;
   onLeaderRule: ((leader: Leader) => void) | null = null;
@@ -1215,6 +1217,7 @@ export class PageWindow {
           ...(this.onWars ? { wars: this.onWars } : {}),
           ...(this.onTouched ? { touched: this.onTouched } : {}),
           ...(this.onPossess ? { possess: this.onPossess } : {}),
+          ...(this.onLive ? { live: this.onLive } : {}),
           ...(this.onLeaderHome ? { leaderHome: this.onLeaderHome } : {}),
           ...(this.onLeaderRule ? { leaderRule: this.onLeaderRule } : {}),
           ...(this.onHomeLook ? { homeLook: this.onHomeLook } : {}),

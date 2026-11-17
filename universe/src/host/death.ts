@@ -1547,7 +1547,9 @@ export function withDeath(world: World, ref: string, page: PageModel): PageModel
           acts: god.acts,
           held: god.held,
           year: yearOfMoment(world.now),
-          ...(god.kind === "agent" ? { agent: Number(ref.slice(6)) } : {}),
+          ...(god.kind === "agent"
+            ? { agent: Number(ref.slice(6)), town: handOf(world).resting?.village ?? null }
+            : {}),
           ...(god.kind === "ruler" || god.kind === "court" ? { leader: leaderOnPage(page) } : {}),
           ...(x && holder
             ? {

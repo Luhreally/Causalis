@@ -351,6 +351,8 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
   );
   await state("globe-pinned", async () => {
     await must("one pinned", !!pinned);
+    // (Pins in a tab of their own: asked 2026-11-16.)
+    await must("the Pinned tab", press('.people-tab[data-tab="pinned"]'));
     await must(
       "the acts strip",
       until("the acts strip", () => seen(".people-chip .people-acts:not([hidden])"), slow(10000)),
@@ -366,6 +368,24 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
     await settle(800);
   });
   await closePage();
+  // Those followed, in their own tab: the one pinned followed from their page.
+  await state("bar-followed", async () => {
+    await must("one pinned", !!pinned);
+    await k(`globalThis.causalis.open(${JSON.stringify(pinned)})`);
+    await must(
+      "their page",
+      until("their page", () => seen(".page-window .follow"), slow(20000)),
+    );
+    if (!(await k<boolean>(`!!document.querySelector(".page-window .follow.on")`)))
+      await must("Follow", press(".page-window .follow"));
+    await closePage();
+    await must("the Followed tab", press('.people-tab[data-tab="followed"]'));
+    await must(
+      "one followed",
+      until("one followed", () => seen('.people-chip[data-kind="followed"]'), slow(15000)),
+    );
+  });
+  await press('.people-tab[data-tab="here"]');
   if (await seen(".bar-fold")) {
     await state("globe-folded", async () => {
       await must("the bar's fold", press(".bar-fold"));
@@ -689,6 +709,39 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
   });
   await closePage();
   await closeCard();
+  // One of the town's many tapped: every act of the hand's on their card, and Live as them from it (asked 2026-11-16).
+  await state("village-person", async () => {
+    await toTown(town.ref);
+    const i = await k<number>(
+      `(() => { const p = globalThis.causalis.planNow(); const i = p ? p.people.findIndex((x) => x.folk && !x.trade && !x.healer) : -1; if (i >= 0) globalThis.causalis.selectPerson(i); return i; })()`,
+    );
+    await must("one of the town's many", i >= 0);
+    await must(
+      "their acts",
+      until("their acts", () => seen(".touch .tools .tool"), slow(20000)),
+    );
+    await settle(600);
+  });
+  await state("village-person-live", async () => {
+    await must("Live as them", press(".touch .tools .tool[data-label='🏡 Live as them']"));
+    await must("— confirm", press(".touch .tools .tool[data-label='🏡 Live as them']"));
+    await must(
+      "their life",
+      until(
+        "their life",
+        () => k<boolean>(`document.body.classList.contains("living")`),
+        slow(90000),
+      ),
+    );
+    await settle(1500);
+  });
+  await press(".life-letgo");
+  await until(
+    "the life let go",
+    () => k<boolean>(`!document.body.classList.contains("living")`),
+    slow(30000),
+  );
+  await settle(800);
   await state("free-walk", async () => {
     await must("walking", tool("free-walk"));
     await settle(1500);

@@ -1110,6 +1110,8 @@ type Exposed = {
     | null;
   /** Open the town's stores card (the look tools). */
   showStores?: () => void;
+  /** One of the town drawn looked at, by their index (null: no one): their card (the gates). */
+  selectPerson?: (index: number | null) => void;
   /** Where on the screen one of those drawn in the town stands now. */
   personOnScreen?: (index: number) => { x: number; y: number } | null;
   /** The marks of war drawn on the globe now (for the look tools). */
@@ -7434,6 +7436,7 @@ async function runPlanetPage(): Promise<void> {
               occupation: p.occupation,
               ...(p.sex !== undefined ? { sex: p.sex } : {}),
               done: (agent) => void touched(agent),
+              live: (agent, town) => liveAs(agent, town),
             },
         // (The healer's page is their seat's: Phase 55 M229; a maker's, theirs: wave 5.)
         p.healer
@@ -7470,6 +7473,15 @@ async function runPlanetPage(): Promise<void> {
     else void pageWindow.open(agent);
   };
   pageWindow.onTouched = (agent) => void touched(agent);
+  // One of a town's people lived as (Lives L3), from their card or their page (asked 2026-11-16): their town gone down into, or
+  // drawn again with them under the hand, then their life taken up.
+  const liveAs = async (agent: number, town: string): Promise<string | null> => {
+    pageWindow.close();
+    if (scale === "village" && plan?.ref === town) await loadPlan(town);
+    else await goTo({ scale: "village", town });
+    return lifeFlow.liveAgent(agent);
+  };
+  pageWindow.onLive = liveAs;
   // One of a town's people possessed (Phase 60; asked for 2026-10-27: "add in functionality to
   // possess anything like worldbox/worldfall mod ... make sure it works right in mobile"): the god's
   // hand made flesh, walked and set to work by hand, from the palette or a person's card.
@@ -9619,6 +9631,7 @@ async function runPlanetPage(): Promise<void> {
     return s ? { ...s, heaps: village.heapsNow(), card: villagePanel.cardShown() } : null;
   };
   exposed.showStores = () => villagePanel.showStores();
+  exposed.selectPerson = (i: number | null) => selectPerson(i);
   exposed.personOnScreen = (i: number) =>
     scale === "village" && plan ? village.personOnScreen(i) : null;
   exposed.bubblesNow = () => (scale === "village" ? village.bubbles() : []);

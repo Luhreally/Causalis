@@ -289,3 +289,72 @@ body.paging #hud > .people-bar,
 .people-acts[hidden] {
   display: none;
 }
+/* The bar's tabs (asked 2026-11-16: "pin should be in pinned tab not just people im following"): here, pinned, followed; over the row. */
+.people-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+.people-bar.folded .people-main {
+  display: none;
+}
+.people-tabs {
+  display: flex;
+  gap: 4px;
+}
+.people-tab {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 30px;
+  min-height: 0;
+  padding: 0 8px;
+  font-size: 0.72rem;
+  color: var(--ink);
+  background: rgba(10, 16, 34, 0.85);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.people-tab.on {
+  background: var(--panel-solid);
+  border-color: #ffe9b8;
+  color: #ffe9b8;
+  font-weight: 700;
+}
+.people-tab-n:empty {
+  display: none;
+}
+.people-tab-n {
+  opacity: 0.8;
+}
+.people-empty {
+  flex: none;
+  max-width: 260px;
+  padding: 6px 10px;
+  font-size: 0.72rem;
+  color: var(--muted);
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+@media (max-width: 640px) {
+  .people-tab {
+    height: 36px;
+  }
+  .people-tab-name {
+    display: none;
+  }
+}
+.people-main > .people-row {
+  max-width: 100%;
+}
+/* (Only the open tab says its name: the bar is narrow beside the god's hand and a town's card.) */
+.people-tab:not(.on) .people-tab-name {
+  display: none;
+}
+.people-tabs {
+  max-width: 100%;
+}

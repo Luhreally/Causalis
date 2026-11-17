@@ -158,13 +158,18 @@ function personOf(
   pinned: boolean,
   pinName: string | null,
 ): BarPerson | null {
-  const page: PageModel = pageOf(world, want.ref, undefined, true);
-  if (page.kind !== "person" && page.kind !== "agent")
+  let page: PageModel;
+  try {
+    page = pageOf(world, want.ref, undefined, true);
+  } catch {
     return pinned ? goneOne(want, pinName) : null;
+  }
+  // (Kept, and not a person: a group, an operation, anything with a page. As it stands now.)
+  if (page.kind !== "person" && page.kind !== "agent") return pinned ? keptThing(want, page) : null;
   // (A seat's page tells whoever holds it now: the one pinned has left it.)
   if (pinName !== null && page.title !== pinName) return leftSeat(world, want, pinName);
   const readings = readingsOf(world, want.ref, page);
-  if (!readings) return pinned ? goneOne(want, pinName) : null;
+  if (!readings) return pinned ? keptThing(want, page) : null;
   const gone = goneOf(world, want.ref, page),
     died = gone ? deathWords(world, want.ref, page.title) : null;
   return {
@@ -186,6 +191,42 @@ const goneReadings = (words: string): BarReadings => ({
   doing: { glyph: "🕯️", label: "Doing", short: "gone", words, tone: "plain" },
   health: { glyph: "🕯️", label: "Health", short: "gone", words, tone: "plain" },
 });
+
+/** What a page says under its title, in words. */
+const lineWords = (line: PageModel["subtitle"]): string =>
+  line.map((x) => (typeof x === "string" ? x : x.text)).join("");
+
+/** Something kept on the bar that is not a person (a group, an operation, a head of a group): its page's title and line. */
+function keptThing(want: Want, page: PageModel): BarPerson {
+  const line = lineWords(page.subtitle) || "You keep it here";
+  return {
+    key: `${want.ref}|${page.title}`,
+    ref: page.ref,
+    name: page.title,
+    kind: "pin",
+    why: line,
+    pinned: true,
+    gone: false,
+    portrait: (page.portrait as Portrait | undefined) ?? null,
+    readings: {
+      mood: {
+        glyph: "📌",
+        label: "Kept",
+        short: "kept",
+        words: "You keep it on the bar.",
+        tone: "plain",
+      },
+      doing: { glyph: "", label: "What it is", short: "", words: line, tone: "plain" },
+      health: {
+        glyph: "",
+        label: "Its page",
+        short: "",
+        words: "Press to open it.",
+        tone: "plain",
+      },
+    },
+  };
+}
 
 /** One pinned whom history no longer tells of. */
 function goneOne(want: Want, name: string | null): BarPerson {
@@ -287,8 +328,10 @@ export function barOf(world: World, ask: BarAsk): BarRead {
       );
     if (p) people.push(p);
   }
+  const followed = new Set<string>();
   for (const ref of ask.followed) {
-    if (seen.has(ref)) continue;
+    if (followed.has(ref)) continue;
+    followed.add(ref);
     seen.add(ref);
     const w = byRef.get(ref),
       p = personOf(world, { ref, kind: "followed", why: w?.why ?? "You follow them" }, false, null);
