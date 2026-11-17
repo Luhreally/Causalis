@@ -112,6 +112,9 @@ function seatOf(f: Figure): number {
   return f.kit.ride === "horse" ? 0.72 : f.kit.ride === "chariot" ? 0.42 : 0;
 }
 
+/** How far from a tent the ground is read for water (the land's units: about half a tile). */
+const WET = 1.2;
+
 export class RegionWars {
   readonly root = new pc.Entity("region-wars");
   private readonly stage: Stage;
@@ -442,18 +445,25 @@ export class RegionWars {
     for (const c of camps) {
       const r = c.r,
         many = Math.max(10, Math.round(r * 3));
-      // (On the open approaches only: none pitched on the water about it, as the town's own siege keeps off it.)
+      // (On the open approaches only: none pitched on the water about it, as the town's own siege keeps off it; the
+      // water's edge as drawn lies between tiles, so near it is wet too.)
+      const wet = (x: number, z: number) =>
+        this.sea(x, z) ||
+        this.sea(x + WET, z) ||
+        this.sea(x - WET, z) ||
+        this.sea(x, z + WET) ||
+        this.sea(x, z - WET);
       for (let i = 0; i < many; i++) {
         const a = (i * Math.PI * 2) / many,
           at = { x: c.at.x + Math.cos(a) * r, z: c.at.z + Math.sin(a) * r };
-        if (!this.sea(at.x, at.z)) tents.push({ at, side: c.side, yaw: a });
+        if (!wet(at.x, at.z)) tents.push({ at, side: c.side, yaw: a });
       }
       const ring = Math.max(28, Math.round(r * 8));
       for (let i = 0; i < ring; i++) {
         const a = (i * Math.PI * 2) / ring,
           x = c.at.x + Math.cos(a) * (r + 1.2),
           z = c.at.z + Math.sin(a) * (r + 1.2);
-        if (!this.sea(x, z)) stakes.push({ x, z });
+        if (!wet(x, z)) stakes.push({ x, z });
       }
       for (let i = 0; i < 3; i++) {
         const a = (i * Math.PI * 2) / 3 + 0.5;
