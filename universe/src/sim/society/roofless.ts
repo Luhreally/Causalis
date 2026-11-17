@@ -34,7 +34,7 @@ import {
   provisionOf,
   societyStore,
 } from "./kept.ts";
-import { landMeans } from "./care.ts";
+import { landMeans, landTurn } from "./care.ts";
 import { orgShelteredOf } from "../order/groups-kept.ts";
 
 /** Trade's town rent where it is kept (its store, by name: a town's ground's earnings a year, grain's worth; 0 where none is). */
@@ -63,6 +63,9 @@ export function rooflessYear(ctx: PopulationContext, t: SimTime): void {
   for (const p of ctx.provinces.all()) {
     const c = p.cell,
       was = store.get(c);
+    // (Each land in its turn, once in SOCIETY_EVERY years as the sweep's others; every year while it has people turned out,
+    // who are housed again a share a year, and in a year a blow fell on it.)
+    if (was && !landTurn(c, year) && !was[ROOF_ROW.displaced] && !struck.get(c)) continue;
     // Its towns: those it has raised a fabric for, and the homes they hold.
     let town = 0,
       housing = 0,
