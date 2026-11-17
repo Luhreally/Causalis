@@ -49,7 +49,14 @@ const fabric: TownPlan = {
   year: 40,
 };
 
-const lots = townLots(fabric.family, fabric.seed, fabric.axis, fabric.lots, fabric.water);
+const lots = townLots(
+  fabric.family,
+  fabric.seed,
+  fabric.axis,
+  fabric.lots,
+  fabric.water,
+  fabric.site ?? null,
+);
 function townOf(over: Partial<VillagePlan> = {}): VillagePlan {
   return {
     ref: "town:0:43",

@@ -1304,10 +1304,9 @@ export function villagePlan(
       life: lifeNow(village.cell, village.population, visitors),
       body: peopleBody(world),
       visitors,
-      // A city's road runs along its axis; a village's out toward the far fields.
-      road: city
-        ? { x: 1100 * Math.cos(city.axis), z: 1100 * Math.sin(city.axis) }
-        : { x: 1100 * Math.cos(roadWay), z: 1100 * Math.sin(roadWay) },
+      // A city's road runs along its axis; a village's out toward the far fields; either's, where its streets were grown
+      // from its roads in, along the busiest of them (as its works keep off it).
+      road: { x: 1100 * Math.cos(roadWay), z: 1100 * Math.sin(roadWay) },
       districts: city
         ? { blocks: BLOCKS, blockM: BLOCK_M, uses: city.uses, paved: !!city.paved }
         : null,

@@ -31,7 +31,14 @@ export const fabric: TownPlan = {
   year: 40,
 };
 
-export const lots = townLots(fabric.family, fabric.seed, fabric.axis, fabric.lots, fabric.water);
+export const lots = townLots(
+  fabric.family,
+  fabric.seed,
+  fabric.axis,
+  fabric.lots,
+  fabric.water,
+  fabric.site ?? null,
+);
 export function townOf(over: Partial<VillagePlan> = {}): VillagePlan {
   return {
     ref: "town:0:43",

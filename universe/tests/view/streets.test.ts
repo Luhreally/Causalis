@@ -58,7 +58,7 @@ function town(over: Partial<TownPlan> = {}): TownPlan {
 
 /** The village about a town: its watched families in its first homes, farmers and crafters. */
 function village(t: TownPlan): VillagePlan {
-  const lots = townLots(t.family, t.seed, t.axis, t.lots, t.water),
+  const lots = townLots(t.family, t.seed, t.axis, t.lots, t.water, t.site ?? null),
     homes = Array.from({ length: 12 }, (_, k) => ({
       x: lots.x[k * 3]!,
       z: lots.z[k * 3]!,
@@ -117,8 +117,8 @@ function nearest(plan: VillagePlan, way: readonly { x: number; z: number }[]): n
 
 test("a town's blocks are laid about its water, never in it, a shore kept along it", () => {
   const t = town({ lots: 1600 }),
-    lots = townLots(t.family, t.seed, t.axis, t.lots, t.water),
-    dry = townLots(t.family, t.seed, t.axis, t.lots, null);
+    lots = townLots(t.family, t.seed, t.axis, t.lots, t.water, t.site ?? null),
+    dry = townLots(t.family, t.seed, t.axis, t.lots, null, t.site ?? null);
   for (let b = 0; b < lots.blocks.x.length; b++)
     assert.ok(
       Math.hypot(lots.blocks.x[b]! - t.water!.x, lots.blocks.z[b]! - t.water!.z) >=
@@ -136,7 +136,7 @@ test("a town's blocks are laid about its water, never in it, a shore kept along 
 test("its walls stand where it has not grown over them, none in its water; grown over a third of their line, they are pulled down", () => {
   const walled = (count: number) => {
     const t = town({ lots: count }),
-      lots = townLots(t.family, t.seed, t.axis, t.lots, t.water),
+      lots = townLots(t.family, t.seed, t.axis, t.lots, t.water, t.site ?? null),
       held = blocksHeld(t, lotStates(t));
     return { t, lots, held, ring: wallRing(t, lots, held)! };
   };
@@ -231,7 +231,7 @@ test("a great city's sprawl keeps its avenues clear, and its walkers go out alon
   const t = town({ lots: 480, whole: 9000, walls: null, water: null }),
     plan = village(t),
     ground = villageGround(plan),
-    ring = sprawlOf(t, townLots(t.family, t.seed, t.axis, t.lots, null))!;
+    ring = sprawlOf(t, townLots(t.family, t.seed, t.axis, t.lots, null, t.site ?? null))!;
   assert.ok(ring && ring.r1 > ring.r0 + 200, "it sprawls");
   // No roof of its sprawl stands on an avenue.
   const parts = new TownParts();
