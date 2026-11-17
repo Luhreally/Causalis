@@ -308,6 +308,25 @@ export function adults(p: Province, life: LifeHistory): number {
 export const FIELDS_FULL = 3;
 
 /**
+ * The most of a land's grown its fields can use (a share; past 1 where they can use them all): FIELDS_FULL times the hands that
+ * would win all its fields give, and its vats where it grows food in them, were each hand's work its first: past that a hand
+ * adds under a twentieth of its own (saturate). By a bare hand's work, whatever its tools: a bound, not what its fields need
+ * (farmingShare is that).
+ */
+export function fieldsUse(ctx: PopulationContext, p: Province): number {
+  const grown = adults(p, ctx.life);
+  if (!p.knowsCultivation || !(grown > 0)) return Infinity;
+  const c = provinceCapacity(ctx, p.cell),
+    room = c.farm + (loreOf(ctx.world).get(p.cell, "vat-food") ? c.areaKm2 * VAT_PEOPLE_KM2 : 0),
+    per =
+      PRODUCTIVITY[OCC.farmer]! *
+      ctx.life.appetite *
+      (1 - hallsShare(ctx, p.cell)) *
+      daysWorkedOf(ctx.world, p.cell);
+  return per > 0 ? (FIELDS_FULL * room) / (per * grown) : Infinity;
+}
+
+/**
  * The shares of adults each occupation should have, as the society stands, leaning
  * toward the work that was worth most last year (docs/architecture §20: jobs).
  */
@@ -317,6 +336,7 @@ export function occupationTargets(
   villages: number,
   wages: readonly number[] | null = null,
   farming = 1,
+  mostTilled = Infinity,
 ): number[] {
   const t = new Array<number>(COLS).fill(0);
   if (p.knowsCultivation) {
@@ -330,17 +350,12 @@ export function occupationTargets(
       // and gatherers held at 9 in 100 where they had been held at 4: first light's small game was trapped in every land.)
       fields = 0.77 - herds,
       share = dmath.clamp(farming, 0, 1),
-      // (No more hands to its fields than its fields can use: FIELDS_FULL times those that would win all the land's fields
-      // give were each hand's work its first, past which a hand adds under a twentieth of its own (saturate). The rest gather,
-      // as a people that never sowed does. The old ways sent 77 in 100 to the fields of any land that had learned to sow,
-      // whatever it had of fields: on first light's cold shores, where nothing can be sown, a people of gatherers that learned
-      // sowing from its neighbours sent a third of its hands to fields it did not have and ate a tenth of what it needed, year
-      // after year; nine famines in twenty years in one such land.)
-      hands = p.total() - p.occupation(OCC.dependent),
-      tilled =
-        hands > 0
-          ? Math.min(fields, (FIELDS_FULL * cap.farm) / (PRODUCTIVITY[OCC.farmer]! * hands))
-          : fields,
+      // (No more of its hands to its fields than its fields can use, fieldsUse: the rest gather, as a people that never
+      // sowed does. The old ways sent 77 in 100 to the fields of any land that had learned to sow, whatever it had of fields:
+      // on first light's cold shores, where nothing can be sown, peoples of gatherers that learned sowing from their
+      // neighbours sent a third of their hands to fields they did not have and ate a tenth of what they needed, year after
+      // year; nine famines in twenty years in one such land.)
+      tilled = Math.min(fields, mostTilled),
       farm = tilled * share,
       gather = 0.1 * share + (fields - tilled),
       freed = tilled - farm + 0.1 * (1 - share),
@@ -1256,6 +1271,7 @@ export function ageYear(ctx: PopulationContext, t: SimTime): void {
         ctx.settlements.inProvince(p.cell).length,
         marketsOf(world).wagesOf(p.cell),
         farmingShare(ctx, p),
+        fieldsUse(ctx, p),
       ),
       year = yearOfMoment(t),
       windowed = handOf(world).composition(p.cell, year, ctx.life);
@@ -1322,6 +1338,7 @@ export function workYear(ctx: PopulationContext, t: SimTime): void {
         ctx.settlements.inProvince(p.cell).length,
         marketsOf(world).wagesOf(p.cell),
         farmingShare(ctx, p),
+        fieldsUse(ctx, p),
       );
     // (Each sex toward its own shares of the work, where the land's roles are kept: the society sweep, society/work.ts.)
     if (workBySex(ctx, p, targets, windowed, key, t)) continue;
