@@ -367,7 +367,14 @@ await page.waitForTimeout(1500);
   await opened("world:chronicle");
   const ctabs = await page.$$eval(".page-window .tab", (x) => x.map((e) => e.textContent ?? ""));
   await opened("world:ledger");
-  const ltabs = await page.$$eval(".page-window .tab", (x) => x.map((e) => e.textContent ?? ""));
+  // (Its tabs stand in sections: those of every section, as each section's button names them.)
+  const ltabs = await page.$$eval(".page-window .tab, .page-window .tab-section", (x) =>
+    x.flatMap((e) =>
+      e.classList.contains("tab-section")
+        ? ((e as HTMLElement).dataset.tabs ?? "").split("|")
+        : [e.textContent ?? ""],
+    ),
+  );
   say(`the chronicle's tabs: ${ctabs.join(", ")}; the ledger's: ${ltabs.join(", ")}`);
   check(ctabs.includes("Firsts") && ctabs.includes("Ages"), "the chronicle lacks its comparisons");
   check(ltabs.includes("Realms") && ltabs.includes("Wars"), "the ledger lacks its tables");

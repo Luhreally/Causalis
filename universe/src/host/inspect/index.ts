@@ -324,7 +324,8 @@ function tidy(page: PageModel): PageModel {
           !(b.type === "timeline" && !b.rows.length),
       ),
     }))
-    .filter((t) => t.blocks.some((b) => b.type !== "tool"));
+    // (A tab read only when it is open keeps its place while it holds nothing yet.)
+    .filter((t) => t.later || t.blocks.some((b) => b.type !== "tool"));
   return { ...page, tabs: tabs.length ? tabs : page.tabs.slice(0, 1) };
 }
 

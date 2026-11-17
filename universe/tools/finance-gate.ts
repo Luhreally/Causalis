@@ -314,6 +314,17 @@ if (chosen) {
     await k(`globalThis.causalis.open(${JSON.stringify(ref)})`);
     if (!(await until(`${where}'s page`, async () => (await pageNow()) === ref))) return false;
     await settle(600);
+    // (A page whose tabs stand in sections, the ledger's: the section that holds it first.)
+    const section = await k<number>(
+      `[...document.querySelectorAll(".page-window .tab-sections .tab-section")].findIndex((b) => !b.classList.contains("on") && (b.dataset.tabs ?? "").split("|").includes(${JSON.stringify(name)}))`,
+    );
+    if (section >= 0) {
+      await tap(
+        `.page-window .tab-sections .tab-section:nth-child(${section + 1})`,
+        `${where}'s section of ${name}`,
+      );
+      await settle(400);
+    }
     const at = await k<number>(
       `[...document.querySelectorAll(".page-window .tabs .tab")].findIndex((b) => b.textContent.trim() === ${JSON.stringify(name)})`,
     );

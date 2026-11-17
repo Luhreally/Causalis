@@ -740,6 +740,42 @@ body[data-world="methane"][data-scale="ground"]:not([data-daylight]) {
   background: linear-gradient(180deg, #d9fff5 0%, #6ff0cf 46%, #29cfa6 54%, #8bf5dc 100%);
   font-weight: 700;
 }
+/* A page's sections over its tabs (the ledger's): pills, the open one lit; and a table's filter chips over its rows. */
+.tab-sections,
+.table-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 2px 0 6px;
+}
+.tab-sections[hidden] {
+  display: none;
+}
+.tab-section {
+  min-height: 28px;
+  padding: 3px 12px;
+  font-size: 0.8rem;
+  border-radius: 14px;
+}
+.filter-chip {
+  min-height: 26px;
+  padding: 2px 10px;
+  font-size: 0.76rem;
+  border-radius: 13px;
+}
+.tab-section.on,
+.filter-chip.on {
+  color: #032b24;
+  border-color: #0b7a62;
+  background: linear-gradient(180deg, #d9fff5 0%, #6ff0cf 46%, #29cfa6 54%, #8bf5dc 100%);
+  font-weight: 700;
+}
+@media (pointer: coarse) {
+  .tab-sections .tab-section,
+  .table-filter .filter-chip {
+    min-height: 44px;
+  }
+}
 .page-body .block {
   margin-bottom: 10px;
 }
