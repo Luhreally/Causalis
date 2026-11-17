@@ -124,6 +124,7 @@ export class RegionWars {
   private colorKey = "";
   private height: (x: number, z: number) => number = () => 0;
   private sea: (x: number, z: number) => boolean = () => false;
+  private wetHere: (x: number, z: number) => boolean = () => false;
   private sides: InstancedBatch[] = [];
   private flags: InstancedBatch[] = [];
   private tents: InstancedBatch[] = [];
@@ -252,14 +253,16 @@ export class RegionWars {
     this.heads.recolor(c ?? SKIN);
   }
 
-  /** The wars in the land now shown, the height of its ground at a point, and whether it is sea. */
+  /** The wars in the land now shown, the height of its ground at a point, whether it is sea, and whether sea or a lake. */
   set(
     land: LandWars | null,
     height: (x: number, z: number) => number,
     sea: (x: number, z: number) => boolean = () => false,
+    wet: (x: number, z: number) => boolean = sea,
   ): void {
     this.land = land;
     this.height = height;
+    this.wetHere = wet;
     this.sea = sea;
     const colors = land?.colors ?? [],
       key = JSON.stringify(colors);
@@ -448,11 +451,11 @@ export class RegionWars {
       // (On the open approaches only: none pitched on the water about it, as the town's own siege keeps off it; the
       // water's edge as drawn lies between tiles, so near it is wet too.)
       const wet = (x: number, z: number) =>
-        this.sea(x, z) ||
-        this.sea(x + WET, z) ||
-        this.sea(x - WET, z) ||
-        this.sea(x, z + WET) ||
-        this.sea(x, z - WET);
+        this.wetHere(x, z) ||
+        this.wetHere(x + WET, z) ||
+        this.wetHere(x - WET, z) ||
+        this.wetHere(x, z + WET) ||
+        this.wetHere(x, z - WET);
       for (let i = 0; i < many; i++) {
         const a = (i * Math.PI * 2) / many,
           at = { x: c.at.x + Math.cos(a) * r, z: c.at.z + Math.sin(a) * r };

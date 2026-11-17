@@ -213,6 +213,7 @@ import {
   keepOut,
   orbitOf,
   villageGround,
+  wetAt,
   type FreeRules,
   type FreeState,
   battleFront,
@@ -3317,6 +3318,11 @@ async function runPlanetPage(): Promise<void> {
       landWars(warsNow, parent, meta.size, meta.tileKm, grid),
       (x, z) => region.heightAt(x, z),
       (x, z) => region.seaAt(x, z),
+      // (A siege's camp keeps off the lakes too.)
+      (x, z) => {
+        const g = region.landGround;
+        return g ? wetAt(g, x, z) : region.seaAt(x, z);
+      },
     );
     // Each of the world's own wars where its year has its hosts (not a war watched unfolding).
     const g = region.landGround;
