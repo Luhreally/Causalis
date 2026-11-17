@@ -206,7 +206,7 @@ export function footingOf(world: World, realm: Ref): number {
 
 /**
  * What a realm turns to arms for its wars, beyond what it would keep at peace against the rival it fears (0 where it keeps none):
- * what a war costs it a year in what it makes. What it keeps at peace it keeps whether it fights or not, and is no cost of a war.
+ * what a war costs it a year, goods weighed against lives (ARMING.dear). What it keeps at peace it keeps whether it fights or not, and is no cost of a war.
  */
 export function warFootingOf(world: World, realm: Ref): number {
   const f = armingOf(world)?.of(realm);
@@ -216,7 +216,7 @@ export function warFootingOf(world: World, realm: Ref): number {
     ratio: f.ratio,
     fatigue: Math.max(1e-6, f.fatigue),
   });
-  return Math.max(0, f.footing - peace);
+  return ARMING.dear * Math.max(0, f.footing - peace);
 }
 
 /** What its footing adds to the share of its men a realm fields (sim/war/war.ts fieldShare): 0 where it keeps none. */

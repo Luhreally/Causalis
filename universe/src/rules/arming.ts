@@ -24,6 +24,11 @@ export const ARMING = {
   spareLeast: 0.1,
   /** At war: the footing a realm with all it has at stake turns to arms, when the war is even. */
   war: 0.25,
+  /**
+   * What a share of what it makes, turned to arms for a war, weighs in that war's reckoning against a like share of its people
+   * fallen or kept from their work: goods come of what is made beyond bread, and are made again next year (est: a fourth).
+   */
+  dear: 0.25,
   /** The most a realm can turn to arms. */
   most: 0.5,
   /** Each year, the share of the way to what it would have that footing moves: a treasury changes over years. */
