@@ -114,6 +114,12 @@ export const UNDER = {
   /** A war fought on halves in these years; a peace made wears off by half in these. */
   warHalf: 5,
   paxHalf: 25,
+  /**
+   * How far a seat that hunts a road's groups cuts their war short: so much off the years it halves in, at the full (est: the
+   * second war of Sicily's mafia, ended within three years by the arrests that led to the great trial; Mexico's roads, fought for
+   * fifteen years and more where the state's hand does not reach).
+   */
+  cutShort: 0.6,
   warAt: 0.3,
   warEnds: 0.12,
   /**

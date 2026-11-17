@@ -1194,17 +1194,23 @@ function stepRealm(
   const warring = new Map<number, number>();
   for (const kind of ["protection", "cartel"] as const) {
     const own = v.groups.filter((g) => kindOfGroup(g) === kind);
-    const fight = turfWar(
+    const hunted = huntedFor(
+        bites,
+        r.capacity * (COURTS[r.justice] ?? COURTS[0]) * (1 - r.corruption),
+      ),
+      fight = turfWar(
         own.map((g) => g.share),
         collusion,
-        huntedFor(bites, r.capacity * (COURTS[r.justice] ?? COURTS[0]) * (1 - r.corruption)),
+        hunted,
       ),
       open = v.wars.find((w) => w.ended === null && w.kind === KIND(kind));
     // (A war tires: fought for years with neither winning, its groups fight less by half every UNDER.warHalf years, until it
     // is a peace; and a peace made holds, wearing off over a generation (UNDER.paxHalf), before the same road is fought for again.)
     const last = v.wars.filter((w) => w.ended !== null && w.kind === KIND(kind)).at(-1),
       tired = open
-        ? dmath.pow(0.5, (year - open.since) / UNDER.warHalf)
+        ? // (Sooner where its seat hunts them: an open war draws all a state that reaches has. In realms with one open, a
+          // fifth of the world's people at 1,500, it was eleven in 100,000 of the whole world's killed a year.)
+          dmath.pow(0.5, (year - open.since) / (UNDER.warHalf * (1 - UNDER.cutShort * hunted)))
         : last
           ? 1 - dmath.pow(0.5, (year - last.ended!) / UNDER.paxHalf)
           : 1,
