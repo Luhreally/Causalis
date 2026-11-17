@@ -807,7 +807,9 @@ function stepRealm(
   v.supply = per(idle.supply);
   v.pool = Math.round(pool);
   v.veterans = Math.round(r.veterans);
-  v.protectRent = Math.round(r.trade * UNDER.cut * want);
+  // (A cut of the takings of those who pay: what passes its shops and stalls, no more than its people spend of what they earn, nor
+  // than what its markets trade. The trade its markets book counts a good each time it moves, some three times what is spent.)
+  v.protectRent = Math.round(Math.min(r.trade, r.earned) * UNDER.cut * want);
 
   // 2. The rents of what it forbids and taxes, and of a border with one that bans.
   const sm = moneyStore(world, SMUGGLE_STORE)?.get(p.ref),
