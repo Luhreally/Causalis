@@ -1810,17 +1810,21 @@ async function runPlanetPage(): Promise<void> {
     warKeys: TimeKeys | null = null;
   installTimeKeys({
     toggle: () =>
-      scale === "battle" && battleKeys
-        ? battleKeys.toggle()
-        : warKeys
-          ? warKeys.toggle()
-          : time.toggle(),
+      streetFilm?.holds
+        ? streetFilm.keys.toggle()
+        : scale === "battle" && battleKeys
+          ? battleKeys.toggle()
+          : warKeys
+            ? warKeys.toggle()
+            : time.toggle(),
     pick: (i) =>
-      scale === "battle" && battleKeys
-        ? battleKeys.pick(i)
-        : warKeys
-          ? warKeys.pick(i)
-          : time.pick(i),
+      streetFilm?.holds
+        ? streetFilm.keys.pick(i)
+        : scale === "battle" && battleKeys
+          ? battleKeys.pick(i)
+          : warKeys
+            ? warKeys.pick(i)
+            : time.pick(i),
   });
   let lens: Lens = "terrain",
     regionLens: RegionLens = "land",

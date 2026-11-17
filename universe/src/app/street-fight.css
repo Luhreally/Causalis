@@ -97,3 +97,42 @@ body.street-filming[data-street="army"] #world {
 body.street-filming .sound-button.free {
   top: calc(env(safe-area-inset-top, 0px) + 8px);
 }
+/* Its course, drawn back and forth, and its speeds: the battle's own steps. */
+.street-course {
+  height: 14px;
+  margin-top: 8px;
+  border: 1px solid #5a6a8c;
+  border-radius: 7px;
+  background: rgba(10, 14, 24, 0.8);
+  overflow: hidden;
+  touch-action: none;
+  cursor: ew-resize;
+}
+.street-course-fill {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(180deg, #d9b45a, #a8802e);
+  pointer-events: none;
+}
+.street-speeds {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.street-speeds .speed {
+  flex: 1;
+  min-width: 44px;
+  min-height: 40px;
+  border: 1px solid #5a6a8c;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #3a4560 0%, #232b40 100%);
+  color: #eef2fa;
+  font-size: 15px;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+.street-speeds .speed.active {
+  border-color: #f4d9a8;
+  background: linear-gradient(180deg, #6a5a34 0%, #3e3420 100%);
+  color: #fff3d6;
+}

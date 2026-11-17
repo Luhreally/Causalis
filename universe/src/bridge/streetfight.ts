@@ -4,6 +4,7 @@
 // kept of its groups: who, how many of their men were in that land, what they carry, how many died, and who came out holding it.
 // Looked at, never lived: the scene drawn of it is the eye's, and what it shows dying and winning is what history says.
 import type { Arms } from "./arms.ts";
+import type { BattleNear } from "./battle.ts";
 import type { HostKinds } from "./wars.ts";
 
 /** What kind of fight: a war over a rent, soldiers in a quarter, street gangs. */
@@ -43,6 +44,8 @@ export type StreetFight = {
   readonly town: string;
   readonly townName: string;
   readonly sides: readonly [StreetFightSide, StreetFightSide];
+  /** The world's people's figure (their look), as a battle's: its men are drawn as a battle's are, struck and bleeding as a battle's (absent: none known). */
+  readonly figure?: BattleNear["figure"];
   /** Those killed who were of neither side (caught between), where history counts them; else 0. */
   readonly others: number;
   /** Who came out holding it (null: neither, or not yet: still fought when it was read). */
