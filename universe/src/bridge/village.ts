@@ -428,9 +428,14 @@ export type VillagePlan = {
   /**
    * The way each realm beyond its land comes in to it (asked 2026-11-16: "are you gonna fix wars between nations too"):
    * by the road out of its land toward that realm's land, at the town's own road in nearest that way (its gate there),
-   * the busiest first. A host of that realm comes to it, and its own march out to that realm, by that way. Absent: none.
+   * the busiest first. A host of that realm comes to it, and its own march out to that realm, by that way; its own realm's
+   * marked (`own`): a host that has taken it came in from them. Absent: none.
    */
-  readonly ways?: readonly { readonly realm: string; readonly bearing: number }[];
+  readonly ways?: readonly {
+    readonly realm: string;
+    readonly bearing: number;
+    readonly own?: true;
+  }[];
   /**
    * A city's quarters, if it is one: blocks of `blockM` metres, `blocks` to a side,
    * each put to a use (0 open, 1 houses, 2 crowded houses, 3 market, 4 workshops,

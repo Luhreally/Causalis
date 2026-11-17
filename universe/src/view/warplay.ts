@@ -595,7 +595,11 @@ export type LandPlay = {
     readonly r: number;
     readonly name?: string;
     /** The way each realm beyond its land comes in to it, by its road in (LandTown.ways). */
-    readonly ways?: readonly { readonly realm: string; readonly bearing: number }[];
+    readonly ways?: readonly {
+      readonly realm: string;
+      readonly bearing: number;
+      readonly own?: true;
+    }[];
   } | null;
   readonly sea: (x: number, z: number) => boolean;
   readonly colorOf: (c: readonly [number, number, number]) => number;

@@ -392,6 +392,18 @@ test("a realm's host comes by its own road in, to its gate there; a siege's camp
     Math.atan2(town.road.z, town.road.x),
     "no way in: by its road",
   );
+  // A town the attackers have taken is come into from their own lands about it; its own men march out toward a foe
+  // beyond, never by its own realm's way.
+  const taken: VillagePlan = { ...town, ways: [{ realm: "pol:0:1", bearing: Math.PI, own: true }] },
+    sides = [war().attacker, war().defender] as const,
+    hostDoing = (doing: TownWar["hosts"][number]["doing"]) => [
+      { side: 0 as const, doing, k: 1, gathered: 1, words: "" },
+    ];
+  assert.equal(warWay(taken, { sides, hosts: hostDoing("assaulting") }), Math.PI);
+  assert.equal(
+    warWay(taken, { sides, hosts: hostDoing("mustering") }),
+    Math.atan2(town.road.z, town.road.x),
+  );
   // Drawn up before the town: the attackers out along the west road, past the defenders.
   const facing = townWarNow(mapOf(war()), 300.86, { spot: N, heart: true })!,
     A = mean(host(facing, 0)),

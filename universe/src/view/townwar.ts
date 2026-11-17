@@ -450,9 +450,29 @@ const hashText = (text: string) => {
  * the road in from their side, to its gate there (VillagePlan.ways); a town of the attackers' own sends its men out by the
  * road toward the defenders'.
  */
-export function warWay(plan: VillagePlan, war: { readonly sides: readonly [Side, Side] }): number {
-  return approachWay(plan, [war.sides[0].ref, war.sides[1].ref]);
+export function warWay(
+  plan: VillagePlan,
+  war: { readonly sides: readonly [Side, Side]; readonly hosts?: readonly TownHost[] },
+): number {
+  // (Fought for here (come to it, besieging it, fought before it or in it): the attackers come in from their side, from
+  // their own lands about it where they have taken it. Else its own men march out toward the foe, its own realm's ways passed by.)
+  return war.hosts?.some((h) => HERE.has(h.doing))
+    ? approachWay(plan, [war.sides[0].ref])
+    : approachWay(plan, [war.sides[1].ref, war.sides[0].ref], true);
 }
+/** What a host is at where the war is fought for at the town itself. */
+const HERE: ReadonlySet<TownDoing> = new Set<TownDoing>([
+  "coming",
+  "drawn",
+  "engaged",
+  "guard",
+  "holding",
+  "fleeing",
+  "entering",
+  "besieging",
+  "assaulting",
+  "besieged",
+]);
 
 /** Of a ring about a town at `r`, the arc on dry ground (radians: from where, how far round), its water cut out: camps lie on the open approaches. */
 function openArc(ground: Ground, r: number, start: number): { from: number; span: number } {

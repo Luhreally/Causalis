@@ -246,13 +246,13 @@ export function townSiteOf(
 /**
  * The way each realm beyond a town's land comes in to it (VillagePlan.ways): by each road out of its land toward a land that
  * realm holds, at the town's own road in nearest that way (its gate there), else straight that way; the busiest road first.
- * Its own realm's lands are none of these.
+ * Its own realm's lands are marked so (`own`): a land taken is come into from them.
  */
 export function realmWays(
   world: World,
   ref: Ref,
   site: TownSite | null,
-): { realm: string; bearing: number }[] {
+): { realm: string; bearing: number; own?: true }[] {
   const ctx = populationContext(world),
     s = ctx.settlements.get(ref);
   if (!s) return [];
@@ -261,13 +261,13 @@ export function realmWays(
     own = realms.of(s.cell)?.ref ?? null,
     i0 = s.tile % size,
     j0 = Math.floor(s.tile / size),
-    out: { realm: string; bearing: number }[] = [];
+    out: { realm: string; bearing: number; own?: true }[] = [];
   const ends = landRoadEnds(world, s.cell)
     .filter((e) => e.toward)
     .sort((a, b) => b.traffic - a.traffic || a.toward!.land - b.toward!.land);
   for (const e of ends) {
     const realm = realms.of(e.toward!.land)?.ref ?? null;
-    if (!realm || realm === own || out.some((w) => w.realm === realm)) continue;
+    if (!realm || out.some((w) => w.realm === realm)) continue;
     const di = (e.to % size) - i0,
       dj = Math.floor(e.to / size) - j0;
     if (!di && !dj) continue;
@@ -281,7 +281,7 @@ export function realmWays(
         bearing = r.bearing;
       }
     }
-    out.push({ realm, bearing });
+    out.push(realm === own ? { realm, bearing, own: true } : { realm, bearing });
   }
   return out;
 }
