@@ -356,6 +356,11 @@ export function cycleYear(ctx: PopulationContext, t: SimTime): void {
       told,
       spent,
       usualSpent + CYCLE.usual * (spent - usualSpent),
+      // (The idle hands its people are used to.)
+      cy
+        ? (cy[CY.usualSlack] ?? cy[CY.slack]!) +
+          CYCLE.usual * (slack * 1000 - (cy[CY.usualSlack] ?? cy[CY.slack]!))
+        : slack * 1000,
     ]);
   }
 }
