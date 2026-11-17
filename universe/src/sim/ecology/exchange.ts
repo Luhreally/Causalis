@@ -18,7 +18,7 @@ import {
   yearOfMoment,
 } from "../../kernel/index.ts";
 import { isProvinceWorld, lives, offworldSite } from "../../gen/index.ts";
-import { EXCHANGE, beastWorth, lineageBit, pestStrike, pestsAfter } from "../../rules/index.ts";
+import { BIOTIC, beastWorth, lineageBit, pestStrike, pestsAfter } from "../../rules/index.ts";
 import type { PopulationContext } from "../population/systems.ts";
 import type { Province } from "../population/model.ts";
 import { CROP_STEP, cropFieldOf, cropMeets, cropName, cropsOf } from "./crops.ts";
@@ -244,7 +244,7 @@ function stepLand(
     const o = store.get(c);
     if (!o || o.beast < 0 || o.beast === l.beast) continue;
     const w = worthHere(ctx, o.beast, p.cell);
-    if (w > now * EXCHANGE.better) {
+    if (w > now * BIOTIC.better) {
       taken = o;
       now = w;
     }

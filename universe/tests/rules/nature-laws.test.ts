@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { Rng, seedFromText, seedWithAct } from "../../src/kernel/index.ts";
 import {
   EARTHLIKE,
-  EXCHANGE,
+  BIOTIC,
   STAND,
   beastWorth,
   lineageBit,
@@ -160,9 +160,9 @@ test("heavy stars shine only in young clusters, at the arms", () => {
 });
 
 test("weeds and pests come with a lineage never met, and fade; a beast is worth as it is tame and quick and fits", () => {
-  assert.equal(pestStrike(0), EXCHANGE.strike);
-  assert.ok(pestStrike(pestStrike(pestStrike(0))) <= EXCHANGE.most);
-  assert.ok(Math.abs(pestsAfter(0.2, 20) - 0.2 * Math.exp(-EXCHANGE.fade * 20)) < 1e-12);
+  assert.equal(pestStrike(0), BIOTIC.strike);
+  assert.ok(pestStrike(pestStrike(pestStrike(0))) <= BIOTIC.most);
+  assert.ok(Math.abs(pestsAfter(0.2, 20) - 0.2 * Math.exp(-BIOTIC.fade * 20)) < 1e-12);
   assert.ok(pestsAfter(0.2, 20) < 0.11);
   for (const c of [-2, -1, 0, 5, 300]) assert.ok(lineageBit(c) !== 0);
   const cow = { docility: 0.8, growth: 0.6, warm: 12, tolerance: 8, rainMin: 300, rainMax: 1500 },

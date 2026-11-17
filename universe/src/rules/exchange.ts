@@ -9,7 +9,7 @@
 import { dmath } from "../kernel/index.ts";
 import { cropFit, type CropField } from "./crops.ts";
 
-export const EXCHANGE = {
+export const BIOTIC = {
   /** The share of a crop a lineage's weeds and pests take in their first years on fields that never met them (est). */
   strike: 0.25,
   /** The most of a crop carried pests take together. */
@@ -38,12 +38,12 @@ export function beastWorth(b: Beast, f: CropField): number {
 
 /** Carried pests' share of a crop after `years` of keeping them down. */
 export function pestsAfter(pests: number, years: number): number {
-  return pests * dmath.exp(-EXCHANGE.fade * years);
+  return pests * dmath.exp(-BIOTIC.fade * years);
 }
 
 /** Carried pests' share when a lineage's own come to fields that never met them. */
 export function pestStrike(pests: number): number {
-  return Math.min(EXCHANGE.most, pests + EXCHANGE.strike * (1 - pests));
+  return Math.min(BIOTIC.most, pests + BIOTIC.strike * (1 - pests));
 }
 
 /** A crop's lineage as a bit of a land's memory of the lineages its fields have met (32 bits: a few lineages may share one). */

@@ -11,7 +11,7 @@ import {
   yearOfMoment,
 } from "../../src/kernel/index.ts";
 import {
-  EXCHANGE,
+  BIOTIC,
   STAND,
   STAR_LIFE,
   beastWorth,
@@ -164,13 +164,13 @@ test("a lineage never met, sown across a land's border, brings its weeds and pes
   while ((land.cell + yearOfMoment(simTime(year * YEAR))) % CROP_STEP !== 0) year++;
   exchangeYear(ctx, simTime(year * YEAR));
   assert.ok(land.struck, "pests came");
-  assert.ok(pestsLeft(w, land.cell) < 1 && pestsLeft(w, land.cell) >= 1 - EXCHANGE.most);
+  assert.ok(pestsLeft(w, land.cell) < 1 && pestsLeft(w, land.cell) >= 1 - BIOTIC.most);
   if (best && p.herding) {
     // (It keeps the best beast it meets, or its own where that is better still, and gives by it against its first.)
     assert.ok(land.beast >= 0);
     assert.ok(
       beastWorth(g.life.species[land.beast]!, field) >=
-        beastWorth(best, field) / EXCHANGE.better - 1e-9 ||
+        beastWorth(best, field) / BIOTIC.better - 1e-9 ||
         land.beast === g.life.herdBeast[land.cell],
     );
     assert.ok(herdGives(w, land.cell) > 0);
