@@ -514,6 +514,12 @@ const BAR_PARTS = [
   "traders who live by their trade",
   "what its treasury takes of them",
   "their takers, as far as they are heard",
+  // (Kept from its 7th part on, BAR.more: those its harm falls on, and what a ban costs to keep.)
+  "the kin of those who need them and of their dead, as far as they are heard",
+  "masters and guilds who lose their days",
+  "the temple, which cares for those they ruin",
+  "healers who tend them",
+  "what a ban costs: its crackdown, and its smugglers' rents that buy its officers",
 ];
 
 /** A realm's law on intoxicants and their trade (what, who, cost and effect). */
@@ -531,9 +537,9 @@ export function realmIntoxBlocks(world: World, r: Polity): Block[] {
             : "allowed",
         {
           parts: BAR_PARTS.map((name, k) => {
-            const v = row[BAR.parts + k]! / 1000;
+            const v = (row[k < 6 ? BAR.parts + k : BAR.more + k - 6] ?? 0) / 1000;
             return part(name, `${v >= 0 ? "+" : ""}${v.toFixed(2)}`);
-          }),
+          }).filter((x, k) => k < 6 || x.value !== "+0.00"),
         },
       ),
       stat("Its people's use a year", `${count(row[BAR.demand]!)} users' worth`, {

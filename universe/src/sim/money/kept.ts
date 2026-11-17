@@ -243,6 +243,8 @@ export const BAR = {
   /** Those who carry it organised, where it is forbidden (thousandths). */
   cartel: 16,
   told: 17,
+  /** The rest of its law's parts, those its harm falls on and what a ban costs to keep (rules/intox.ts prohibits, from its 7th). */
+  more: 18,
 } as const;
 
 /**
@@ -291,7 +293,7 @@ export const MONEY_STORES: readonly (readonly [string, number])[] = [
   [SHARES_STORE, 10],
   [BIND_STORE, 6],
   [INTOX_STORE, 17],
-  [BAR_STORE, 18],
+  [BAR_STORE, 23],
   [KINDS_STORE, 21],
   [CONTRA_STORE, 21],
 ];

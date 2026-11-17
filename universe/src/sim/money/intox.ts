@@ -50,7 +50,7 @@ import { capacityOf, orderOf } from "../order/order.ts";
 import { holdsOf } from "../order/holds.ts";
 import { diplomacyOf } from "../diplomacy/diplomacy.ts";
 import { warsOf } from "../war/war.ts";
-import { hiddenOf, organisedOf, potencyOf } from "../order/underworld-kept.ts";
+import { hiddenOf, organisedOf, potencyOf, underworldOf } from "../order/underworld-kept.ts";
 import {
   BAR,
   BAR_STORE,
@@ -254,6 +254,9 @@ export function prohibitionYear(ctx: PopulationContext, t: SimTime): void {
     wanted: number[];
     /** By kind: its people's work lost to it (people-weighted shares, summed). */
     lostBy: number[];
+    /** By kind: those who need it and those who die of it a year (people-weighted shares, summed). */
+    needBy: number[];
+    deadBy: number[];
     people: number;
     /** The share of what it forbids that slips past its law. */
     past: number;
@@ -270,6 +273,8 @@ export function prohibitionYear(ctx: PopulationContext, t: SimTime): void {
       grow = new Array<number>(N).fill(0),
       wanted = new Array<number>(N).fill(0),
       lostBy = new Array<number>(N).fill(0),
+      needBy = new Array<number>(N).fill(0),
+      deadBy = new Array<number>(N).fill(0),
       past = slipsPast(world, p.ref),
       kept = INTOX_KINDS.map((_, k) => 1 - lawKeeps(kindBarred(world, p.ref, k) * (1 - past)));
     for (const c of p.members) {
@@ -292,6 +297,8 @@ export function prohibitionYear(ctx: PopulationContext, t: SimTime): void {
         // (rules/intox.ts kindCost, inlined: a land a kind a year.)
         const hold = INTOX_HOLD[INTOX_KINDS[k]!];
         lostBy[k]! += n * (hold.work >= 0 ? u * hold.binds * hold.work : u * hold.work * 0.2);
+        needBy[k]! += n * u * hold.binds;
+        deadBy[k]! += n * u * hold.binds * hold.kills;
         given += own;
       }
       supply += Math.min(1, given) * growers;
@@ -331,6 +338,8 @@ export function prohibitionYear(ctx: PopulationContext, t: SimTime): void {
       grow,
       wanted,
       lostBy,
+      needBy,
+      deadBy,
       people,
       past,
     });
@@ -448,10 +457,22 @@ export function prohibitionYear(ctx: PopulationContext, t: SimTime): void {
       drained = 0.8 * drainedWas + 0.2 * sum(cost),
       drain = drained / Math.max(1, r.dealt),
       cap = capacityOf(ctx, p).value,
+      // (What its crackdown costs and what its smugglers take, each a share of what its treasury takes in: what a ban, where one
+      // stands, costs to keep. sim/order/underworld.ts; nothing where none is reckoned.)
+      under = underworldOf(world)?.of(p.ref),
+      enforce = under ? under.cost / Math.max(1, revenue) : 0,
+      rents = under ? under.smuggleRent / Math.max(1, revenue) : 0,
       // Each kind weighed on its own: the temple whose rites do not use it, the court whose people's work it takes and whose money it
-      // drains abroad, against the traders, the treasury, and those who take it (of it alone).
+      // drains abroad, and those its harm falls on as far as they are heard; against the traders, the treasury, those who take it
+      // (of it alone), and, where it is forbidden already, what keeping the ban costs.
       wants = INTOX_KINDS.map((k, i) =>
         prohibits({
+          dependent: r.needBy[i]! / r.people,
+          deaths: r.deadBy[i]! / r.people,
+          crafters: sway.get("crafters") ?? 0,
+          enforce: Math.min(1, enforce) * barredWasBy[i]!,
+          rents: Math.min(1, rents) * barredWasBy[i]!,
+          corruption: o?.corruption ?? 0,
           temple: sway.get("the temple") ?? 0,
           rites: k === "visions" ? r.rites : 0,
           court: (sway.get("the court") ?? 0) + (sway.get("the army") ?? 0),
@@ -572,7 +593,7 @@ export function prohibitionYear(ctx: PopulationContext, t: SimTime): void {
     }
     bars.set(p.ref, [
       barred * 1000,
-      ...want.parts.map(([, v]) => v * 1000),
+      ...want.parts.slice(0, 6).map(([, v]) => v * 1000),
       excise * 1000,
       monopoly ? 1 : 0,
       taken,
@@ -584,6 +605,7 @@ export function prohibitionYear(ctx: PopulationContext, t: SimTime): void {
       drain * 1000,
       organised * 1000,
       told,
+      ...want.parts.slice(6).map(([, v]) => v * 1000),
     ]);
     kinds?.set(p.ref, kindRow(barredBy, kindTold));
   }

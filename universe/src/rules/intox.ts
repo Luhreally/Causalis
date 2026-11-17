@@ -175,7 +175,27 @@ export type BarSides = {
   readonly traders: number;
   readonly excise: number;
   readonly users: number;
+  /**
+   * Its harm, and those it falls on (a temperance movement's constituency): the share of its people who need it and who die of it a
+   * year (their kin, the temple that cares for them, the healers who tend them), and the crafters' sway (the masters and guilds who
+   * lose their days). Absent: weighed as none, as before.
+   */
+  readonly dependent?: number;
+  readonly deaths?: number;
+  readonly crafters?: number;
+  /** What a ban already costs: its crackdown, a share of what the treasury takes in; and its smugglers' rents, a share of it too, as
+   * far as its officers can be bought (0 … 1). Absent: none. */
+  readonly enforce?: number;
+  readonly rents?: number;
+  readonly corruption?: number;
 };
+
+/**
+ * How heavily harm weighs for a ban (est: a dependent's household of four, each harmed twice as keenly as a taker gains; the kin of
+ * the dead grieving a generation; a healer's load a share of the dependent and the dying). Temperance and the opium leagues rose
+ * where the harm was great and the harmed could be heard.
+ */
+export const BAR_HARM = { kin: 8, grief: 160, care: 10, healers: 2, dying: 50 } as const;
 
 /**
  * How far a realm forbids intoxicants (0 … 1) and its parts: the temple whose rites do not use them and the court whose people's work
@@ -183,14 +203,29 @@ export type BarSides = {
  * live by them, and their takers as far as they have a voice and word moves, against it.
  */
 export function prohibits(s: BarSides): { level: number; parts: [string, number][] } {
-  const parts: [string, number][] = [
-    ["the temple, whose rites do not use them", 1.2 * s.temple * (1 - s.rites)],
-    ["the court, whose people's work they take", 3 * s.court * s.lost],
-    ["a realm held hard", 0.4 * (s.force - 0.5)],
-    ["traders who live by their trade", -1.2 * s.traders],
-    ["what its treasury takes of them", -2 * s.excise],
-    ["their takers, as far as they are heard", -s.users * (0.3 + s.voice + 0.5 * s.word)],
-  ];
+  const heard = 0.3 + s.voice + 0.5 * s.word,
+    dependent = s.dependent ?? 0,
+    deaths = s.deaths ?? 0,
+    parts: [string, number][] = [
+      ["the temple, whose rites do not use them", 1.2 * s.temple * (1 - s.rites)],
+      ["the court, whose people's work they take", 3 * s.court * s.lost],
+      ["a realm held hard", 0.4 * (s.force - 0.5)],
+      ["traders who live by their trade", -1.2 * s.traders],
+      ["what its treasury takes of them", -2 * s.excise],
+      ["their takers, as far as they are heard", -s.users * heard],
+      // (Those its harm falls on: BAR_HARM.)
+      [
+        "the kin of those who need it and of its dead, as far as they are heard",
+        (BAR_HARM.kin * dependent + BAR_HARM.grief * deaths) * heard,
+      ],
+      ["masters and guilds who lose their days", 3 * (s.crafters ?? 0) * s.lost],
+      ["the temple, which cares for those it ruins", BAR_HARM.care * s.temple * dependent],
+      ["healers who tend them", BAR_HARM.healers * (dependent + BAR_HARM.dying * deaths)],
+      [
+        "what a ban costs: its crackdown, and its smugglers' rents that buy its officers",
+        -(s.enforce ?? 0) - (s.rents ?? 0) * (0.3 + (s.corruption ?? 0)),
+      ],
+    ];
   const sum = parts.reduce((a, [, v]) => a + v, 0);
   return { level: dmath.clamp(sum, 0, 1), parts };
 }

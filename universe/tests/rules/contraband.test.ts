@@ -13,6 +13,7 @@ import {
   intoxUse,
   intoxWant,
   kindCost,
+  prohibits,
   smuggled,
   wareDensity,
   wareName,
@@ -71,4 +72,43 @@ test("a law on one kind keeps that kind alone from those who want it", () => {
   // What eases pain binds more and kills more than what wakes; what wakes keeps them at work.
   assert.ok(kindCost("easing", 0.1).deaths > kindCost("waking", 0.1).deaths);
   assert.ok(kindCost("waking", 0.1).lost < 0);
+});
+
+test("a ban's constituency: the harm's kin, masters, temple and healers for it as far as heard; what keeping it costs against", () => {
+  const sides = {
+      temple: 0.07,
+      rites: 0,
+      court: 0.1,
+      lost: 0.02,
+      force: 0.5,
+      voice: 0.5,
+      word: 0.5,
+      traders: 0.05,
+      excise: 0.02,
+      users: 0.23,
+    },
+    without = prohibits(sides).level,
+    harmed = prohibits({ ...sides, dependent: 0.05, deaths: 4e-4, crafters: 0.1 }),
+    silenced = prohibits({
+      ...sides,
+      dependent: 0.05,
+      deaths: 4e-4,
+      crafters: 0.1,
+      voice: 0,
+      word: 0,
+    }),
+    dear = prohibits({
+      ...sides,
+      dependent: 0.05,
+      deaths: 4e-4,
+      crafters: 0.1,
+      enforce: 0.3,
+      rents: 0.4,
+      corruption: 0.5,
+    });
+  assert.equal(without, 0);
+  assert.ok(harmed.level > 0.3, `a ruinous trade, heard: ${harmed.level}`);
+  assert.ok(silenced.level < harmed.level, "the harmed unheard weigh less");
+  assert.ok(dear.level < harmed.level, "a ban dear to keep lapses");
+  assert.ok(harmed.parts.some(([name]) => /kin/.test(name)));
 });
