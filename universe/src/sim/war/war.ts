@@ -1632,6 +1632,17 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         bodySize(ctx),
         draws,
       ),
+      // (And as it would go in the open, without the walls and the seat's last stand: whether a siege's lines hold a sally.)
+      linesHold =
+        won ||
+        resolveCombat(
+          [
+            combatSides[0],
+            { ...combatSides[1], power: defend / Math.max(1, walls * (seat ? 2 : 1)) },
+          ],
+          bodySize(ctx),
+          draws,
+        ).won,
       tip = won !== even.won,
       tipped = tip ? designsOf(world).of((won ? a : b).ref)?.event : undefined,
       [allA, allB] = resolved.dead,
@@ -1686,14 +1697,28 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
     const known = wallsOf(ctx, land, asksOf(world).guard(land, t)),
       walled = seat || known > 0,
       sieged = walled
-        ? siegeAt(ctx, w, a, b, land, known, won, armsA.fire + armsA.breach, fielded[0], t)
+        ? siegeAt(
+            ctx,
+            w,
+            a,
+            b,
+            land,
+            known,
+            won,
+            armsA.fire + armsA.breach,
+            fielded[0],
+            t,
+            linesHold,
+          )
         : null,
       besieged = walled && won && !sieged?.falls;
     if (sieged && (sieged.dead[0] || sieged.dead[1]))
       w.fallen = [w.fallen[0] + sieged.dead[0], w.fallen[1] + sieged.dead[1]];
     // (A host come for grain carries it off; come for tribute, or to be free, it leaves the land where it lies: W7.)
     const hauled = won && aim === "stores" ? sack(ctx, a, b, land, battle) : 0;
-    if (won && !besieged && takesLand(aim)) takeLand(ctx, a, b, land, battle, t);
+    // (Or starved or stormed in a year its sally failed to break the lines.)
+    if (((won && !besieged) || sieged?.falls) && takesLand(aim))
+      takeLand(ctx, a, b, land, battle, t);
     // 3. Peace: the prize won, or what the war has cost against what it is worth (below).
     const years = year - w.declared,
       prizeWon = a.members.includes(w.prize),
@@ -1712,9 +1737,14 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
         ratio: strengthOf(ctx, a) / Math.max(1, strengthOf(ctx, b)),
         ...warCosts(ctx, w, a, b, aim, year),
         // (A siege before the land fought for: how near it is to taking it.)
+        // (A town shut in, its lines unbroken, falls unless it is relieved: both sides reckon it at the least half taken.)
         taking:
           laid && laid.land === land
-            ? Math.max(laid.breach, Math.min(1, Math.max(0, 1 - laid.months / 12)))
+            ? Math.max(
+                linesHold ? 0.5 : 0,
+                laid.breach,
+                Math.min(1, Math.max(0, 1 - laid.months / 12)),
+              )
             : 0,
       }),
       repulsed = reckoned.quits;
@@ -1747,7 +1777,7 @@ export function warYear(ctx: PopulationContext, t: SimTime): void {
       if (
         made &&
         held &&
-        won &&
+        linesHold &&
         !reckoned.quits &&
         land === held.land &&
         takesLand(aim) &&

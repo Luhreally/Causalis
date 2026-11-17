@@ -3,6 +3,8 @@
 // it to at its reach. A tribute is a share of what the payer makes, never a share of what it needs to eat.
 
 export const TERMS = {
+  /** Of its host, the most a realm keeps from its work for one war: this many times its foe's whole host. */
+  sends: 2,
   /** Who may hold vassals: this many at most, and no more than this share of the world's living realms is bound. */
   vassalsMost: 3,
   vassalShare: 0.2,

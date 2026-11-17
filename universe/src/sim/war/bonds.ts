@@ -40,7 +40,7 @@ import { diplomacyOf, type Relation } from "../diplomacy/diplomacy.ts";
 import { heldAmongStars } from "../space/nation-store.ts";
 import { WAR, WAR_EVENTS, farFromSeat, frontier, strengthOf, warsOf, type War } from "./war.ts";
 import { armyOf } from "../strife/strife.ts";
-import { disarmRealm, footingOf } from "./arming.ts";
+import { disarmRealm, warFootingOf } from "./arming.ts";
 import { capacityOf, orderOf } from "../order/order.ts";
 import { supplyOf } from "./ground.ts";
 import { OCCUPYING } from "./occupation.ts";
@@ -440,9 +440,20 @@ export function warCosts(
   const pa = Math.max(1, peopleOf(ctx, a)),
     pb = Math.max(1, peopleOf(ctx, b)),
     years = Math.max(1, year - w.declared),
-    // (And of what it makes, what it turns to arms for it: sim/war/arming.ts, 0 where it turns none.)
-    hostA = Math.max(WAR_YEAR_LEAST, armyOf(ctx, a).people / pa) + footingOf(ctx.world, a.ref),
-    hostB = Math.max(WAR_YEAR_LEAST, armyOf(ctx, b).people / pb) + footingOf(ctx.world, b.ref),
+    // (And of what it makes, what it turns to arms for its wars beyond what it keeps at peace: sim/war/arming.ts, 0 where it
+    // turns none. What it keeps armed against a rival at peace is no cost of this war: counted, it ended wars in a year or two
+    // that had run four and more, before any siege could take a land.)
+    // (And of its host, what this war asks: no more than TERMS.sends times the foe's whole host. A great realm does not keep all
+    // its men from their work for a year to take one small land; counted so, a year before a small town's walls cost it six times
+    // what the town was worth to it, and it went home the year it laid its siege: 104 of 132 sieges in first light's 7th century.)
+    armyA = armyOf(ctx, a).people,
+    armyB = armyOf(ctx, b).people,
+    hostA =
+      Math.max(WAR_YEAR_LEAST, Math.min(armyA, TERMS.sends * armyB) / pa) +
+      warFootingOf(ctx.world, a.ref),
+    hostB =
+      Math.max(WAR_YEAR_LEAST, Math.min(armyB, TERMS.sends * armyA) / pb) +
+      warFootingOf(ctx.world, b.ref),
     // (Those its strikes killed weigh as those who fell: W2.)
     struck = warsOf(ctx.world).tallyOfStrikes(w.ref),
     costs: [number, number] = [

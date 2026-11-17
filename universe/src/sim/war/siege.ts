@@ -214,7 +214,7 @@ export function wallsOf(ctx: PopulationContext, land: number, guard: number): nu
  * A battle fought at the defender's seat or a walled land of its (sim/war/war.ts): whether the land falls this year, and those
  * the siege killed besides the battle's dead (the besiegers', the town's). Won and no siege laid there: one is laid (a siege
  * elsewhere in the war is let go: the host has moved on). Won with one laid: it goes a year on, and the land may be stormed or
- * starved. Lost: it is lifted. Without a siege store, as before it: the second win at a seat takes it, a land at once.
+ * starved. Lost in the open: it is lifted; lost only before the walls (`linesHold`), it goes its year on. Without a siege store, as before it: the second win at a seat takes it, a land at once.
  */
 export function siegeAt(
   ctx: PopulationContext,
@@ -227,6 +227,8 @@ export function siegeAt(
   fire: number,
   camp: number,
   t: SimTime,
+  /** Whether the besiegers' lines hold where the day before the walls went against them: beaten in the storm, not in the open. */
+  linesHold = false,
 ): { falls: boolean; how: SiegeOutcome | null; dead: [number, number] } {
   const { world } = ctx,
     store = siegesOf(world),
@@ -260,7 +262,10 @@ export function siegeAt(
           townDead: s.townDead,
         },
       });
-  if (!won) {
+  // (A storm thrown back is not a siege lifted: the lines stay while those within could not break them in the open, and the
+  // siege goes its year on. Only a host beaten in the open is driven off.)
+  const sits = !won && linesHold && !!was && was.land === seat;
+  if (!won && !sits) {
     if (was && was.land === seat) {
       tell("lifted", was, was.event);
       store.end(w.ref);
