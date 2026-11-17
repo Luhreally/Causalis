@@ -109,6 +109,7 @@ import {
 } from "../money/kept.ts";
 import { boughtOf, foodWanted } from "../trade/demand.ts";
 import { dealsOf, dressWantedOf } from "../society/kept.ts";
+import { daysWorkedOf } from "../society/kept.ts";
 
 const SPREADING = purpose("spread");
 const HERDS = defineStream("econ.herds");
@@ -319,6 +320,8 @@ function makeAndUse(
     powered =
       (1 - intoxLost(world, p.cell)) *
       craftsKept(world, p.cell) *
+      // (As many days as its crafters work against the reference year: the society sweep, rules/leisure.ts. 1 where none is kept.)
+      daysWorkedOf(world, p.cell) *
       (idle
         ? 1
         : (1 + (ENGINE_GAIN * industry * m.powerCover) / 1000) *
@@ -1024,7 +1027,8 @@ function wages(ctx: PopulationContext, p: Province, m: Market): void {
   const c = provinceCapacity(ctx, p.cell),
     rain = p.rain / 1000,
     tools = (1 + (TOOL_GAIN * m.toolCover) / 1000) * (1 + (MACHINE_GAIN * m.machineCover) / 1000),
-    gathers = ctx.life.appetite,
+    // (A year at the margin is as many days as its people work: the society sweep, rules/leisure.ts. 1 where none is kept.)
+    gathers = ctx.life.appetite * daysWorkedOf(ctx.world, p.cell),
     margin = (capacity: number, workers: number, productivity: number) =>
       capacity > 0 ? 12 * productivity * dmath.exp((-workers * productivity) / capacity) : 0;
   const w = m.wage;

@@ -11,7 +11,11 @@ import {
   HUMANLIKE,
   IMPROVE,
   KEEPING,
+  WORK_YEAR,
   almsOf,
+  bearerWork,
+  daysWorked,
+  splitBySex,
   careAccess,
   careReach,
   careSpared,
@@ -227,4 +231,27 @@ test("speech changes by generations, slower where a people reads; an ape that do
   assert.equal(soundChange(15, 0), 1 / 30);
   assert.ok(soundChange(15, 1) < soundChange(15, 0));
   assert.ok(soundChange(5, 0) > soundChange(15, 0));
+});
+
+test("a land's work split by sex does the land's work in its shares; the weaker body is fewer where the fields ask strength", () => {
+  const targets = [0, 0.1, 0.6, 0.07, 0.15, 0.05, 0.03],
+    w = bearerWork(0.4, 0.8, 0.7, 0.3),
+    [f, m] = splitBySex(targets, 1000, 1000, w);
+  const sum = (xs: number[]) => xs.reduce((a, x) => a + x, 0);
+  assert.ok(Math.abs(sum(f) - 1) < 1e-6 && Math.abs(sum(m) - 1) < 1e-6);
+  for (let o = 1; o < targets.length; o++)
+    assert.ok(Math.abs((f[o]! + m[o]!) / 2 - targets[o]!) < 0.01, `work ${o}`);
+  // (Bearers trade and rule less, and work the crafts more, than those who do not bear.)
+  assert.ok(f[5]! < m[5]! && f[6]! < m[6]! && f[4]! > m[4]!);
+  // (One body and a norm of all: as the land's shares, for both alike.)
+  const [f1, m1] = splitBySex(targets, 500, 700, bearerWork(1, 0, 0, 0));
+  for (let o = 1; o < targets.length; o++) assert.ok(Math.abs(f1[o]! - m1[o]!) < 1e-6);
+});
+
+test("a people of the middle works the reference year exactly; more holy days, fewer days at work", () => {
+  const d = restDays(0.5, 0.5);
+  assert.equal(daysWorked(d.holy, d.feasts), 1);
+  assert.ok(WORK_YEAR > 300 && WORK_YEAR < 330);
+  assert.ok(daysWorked(restDays(1, 1).holy, restDays(1, 1).feasts) < 1);
+  assert.ok(daysWorked(0, 0) > 1);
 });

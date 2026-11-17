@@ -98,3 +98,14 @@ export function gamesOf(p: Players): number {
 export function gamesIn(bits: number): Game[] {
   return GAMES.filter((_, i) => bits & (1 << i));
 }
+
+/**
+ * The days a land works against the reference year (1: as before): output was set for a people of the middle (piety and surplus at
+ * a half, its holy and feast days half the most), so the reference year is that people's days at work, and a land works its fields
+ * and benches as many days more or fewer as it keeps fewer or more days of rest (est: the holy days the Reformation struck, some
+ * thirty to fifty a year, came back as work: Voth's industrious revolution).
+ */
+export const WORK_YEAR = 365 - restDays(0.5, 0.5).all;
+export function daysWorked(holy: number, feasts: number): number {
+  return Math.max(0, 365 - LEISURE.rest - Math.max(0, holy) - Math.max(0, feasts)) / WORK_YEAR;
+}

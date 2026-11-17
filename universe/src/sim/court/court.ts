@@ -46,6 +46,7 @@ import { orderOf, type RealmOrder } from "../order/order.ts";
 import { houseOfGroup } from "../order/houses.ts";
 import { channelled, rulerProblem } from "../order/reign.ts";
 import { battlesOf, breakAway, farLands, foil, seize } from "../strife/strife.ts";
+import { bearerOddsOf } from "../society/kept.ts";
 
 export const COURT_EVENTS = {
   /** An heir named by the voices or by a word, not an heir born. */
@@ -242,7 +243,9 @@ function person(
   family: string | null,
 ): { name: string; sex: number; u: number } {
   const u = (n: number) => world.rng.real(FIGURE, key, t, salt * 8 + n),
-    sex = u(1) < 0.5 ? 0 : 1,
+    // (A bearer (0) by the odds its people's roles give one of them a seat: the society sweep, rules/roles.ts bearersRule. The same
+    // keyed draw as ever, so no stream moves; even odds where no roles are kept.)
+    sex = u(1) < bearerOddsOf(world, ways.cell) ? 0 : 1,
     given = tonguePersonName(ways.tongue, Math.floor(u(2) * 1e6), sex),
     last =
       family ??
