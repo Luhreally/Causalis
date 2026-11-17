@@ -1022,7 +1022,16 @@ function reprice(
               bought / (bought + made),
             )
           : 0,
-      target = priceTarget(worth[g]!, scarcity, markup);
+      // (A good worth here only what is made of it stands, at that worth, at the most its users will give for it: what its
+      // product fetches less the rest of the making. A shortage cannot lift it past that, for above it no one asks for any; a
+      // glut still lowers it. Lifted as other goods are, copper in a land that knew copper tools and had no copper went up
+      // threefold in each year its crafters asked for it and fell in each they did not, between two and four times its usual
+      // worth for centuries, with none ever there.)
+      target = priceTarget(
+        worth[g]!,
+        basis[g] === "inputs" ? Math.min(scarcity, 1) : scarcity,
+        markup,
+      );
     if (Number.isFinite(target) && target > 0)
       m.price[g] = m.price[g]! + PRICE_STEP * (target - m.price[g]!);
   }

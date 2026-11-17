@@ -210,7 +210,21 @@ export function naturalPrices(r: PriceRead): { worth: number[]; basis: PriceBasi
         k = rec.inputs.find(([x]) => x === g)?.[1];
       if (!k) continue;
       const [out, per] = rec.output;
-      let left = per * (Number.isFinite(worth[out]!) ? worth[out]! : r.price[out]!) - r.outside;
+      // (Its product is worth, for this, what it would be had WITHOUT this good: by its use, or made the cheapest other way.
+      // Reckoned at its worth as made, where this very recipe was the cheapest that worth was read off this good's own price,
+      // and the good's worth off it: a worth resting on itself, that any year's fall took down for good.)
+      let fetches = useWorth(out, wage, r.cold);
+      for (const j of r.recipes) {
+        const other = RECIPES[j]!;
+        if (other.output[0] !== out || other.inputs.some(([x]) => x === g)) continue;
+        let cost = Math.max(r.outside, 1e-6);
+        for (const [x, kx] of other.inputs)
+          cost += kx * (Number.isFinite(worth[x]!) ? worth[x]! : r.price[x]!);
+        const each = cost / other.output[1];
+        if (!(each >= fetches)) fetches = each;
+      }
+      if (!Number.isFinite(fetches)) fetches = r.price[out]!;
+      let left = per * fetches - r.outside;
       for (const [x, kx] of rec.inputs) if (x !== g) left -= kx * r.price[x]!;
       const each = left / k;
       if (each > 0 && !(each <= best)) best = each;
