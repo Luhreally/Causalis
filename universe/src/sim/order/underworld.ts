@@ -1683,7 +1683,10 @@ function stepOps(f: Facts, r: Read, span: number, killedNow: number, collusion: 
     ops = v.ops ?? [],
     reserve = moneyStore(world, TREASURY_STORE)?.at(p.ref, FISC.reserve) ?? 0,
     atWar = warsOf(world).fighting(p.ref).length > 0,
-    held = (g: CrimeGroup) => ((g.means?.arms ?? 0) + (g.means?.armour ?? 0)) / 2000;
+    held = (g: CrimeGroup) => ((g.means?.arms ?? 0) + (g.means?.armour ?? 0)) / 2000,
+    // (A group's armed men, by their arms; the police its seat can send against them.)
+    armedOf = (g: CrimeGroup) => g.members * (1 + 2 * held(g)),
+    policeOf = (x: Read) => (x.people * ESCALATE.police * x.capacity) / 1000;
   if (v.truce && year >= v.truce.until) delete v.truce;
   // (A truce made known: by free word, in the years it holds.)
   if (v.truce && v.truce.known === undefined && f.u(300) < 1 - dmath.pow(1 - 0.3 * r.word, span))
@@ -1760,6 +1763,8 @@ function stepOps(f: Facts, r: Read, span: number, killedNow: number, collusion: 
     o.displaced += displaced;
     g.violence += Math.round(dead / span);
     out.set(g.id, { op: o, dead: dead / span });
+    // (A group broken to what its police can meet is no longer the soldiers' to fight: they go home.)
+    const broken = armedOf(g) <= policeOf(r);
     if (dead >= 1) {
       o.clashes++;
       tell(
@@ -1777,6 +1782,7 @@ function stepOps(f: Facts, r: Read, span: number, killedNow: number, collusion: 
         [{ ref: o.event, role: "trigger", weight: 1 }],
       );
     }
+    if (broken) endOp(f, o, "withdrew", { why: "a group broken to what its police can meet" });
   }
   // (A new weighing, where no operation is under way and no truce holds.)
   // (Not again for a while after one has ended: a seat does not send its soldiers back at once.)
@@ -1785,8 +1791,8 @@ function stepOps(f: Facts, r: Read, span: number, killedNow: number, collusion: 
       .filter((g) => kindOfGroup(g) !== "badge" && g.members >= UNDER.crew)
       .sort((a, b) => b.members * (1 + held(b)) - a.members * (1 + held(a)) || a.id - b.id)[0];
     if (target) {
-      const police = (r.people * ESCALATE.police * r.capacity) / 1000,
-        armed = target.members * (1 + 2 * held(target)),
+      const police = policeOf(r),
+        armed = armedOf(target),
         host = fieldedOf(ctx, p),
         soldiers = Math.round(
           Math.min(host * ESCALATE.hostShare, target.members * ESCALATE.perMan),

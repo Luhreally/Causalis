@@ -648,9 +648,14 @@ export function dosePrice(potency: number): number {
 }
 
 // —— Escalation: when a seat sends soldiers, and what comes of it (asked 2026-11-16: "does the army go to war with them?") ————
-// A seat turns from its police to its soldiers where a group's armed men outmatch what its police can meet, the killing is high or
-// the group defies the seat itself, the seat has the treasury and a host not at war abroad, and its standing needs it or its ruler's
-// ways favour force. The same weighing can choose to leave the group be, or to make a pact with it. What comes of an operation is the
+// A seat turns from its police to its soldiers where a group THREATENS it: its armed men are more than its police can meet (the
+// more where it holds the seat's own land), the killing is high, or it takes a great part of what the seat raises. What the seat
+// has to send (soldiers enough to meet the group's men, the treasury, a host not at war abroad) only ever holds it back: a group
+// is not fought because it is small and easily met. A rule that needs to be seen to act and a ruler whose ways favour force
+// answer a threat the harder, and make none. The soldiers go home once its police can meet what is left of the group. (Before,
+// soldiers enough to meet a group's men counted FOR sending them and holding the seat's land was defiance whatever the group's
+// strength: soldiers were sent at six weighings in ten, against groups their police outmatched thirteen to one at the tenth.)
+// The same weighing can choose to leave the group be, or to make a pact with it. What comes of an operation is the
 // structure's own: a boss taken splinters a great group, soldiers under no oversight abuse and turn crews, a realm that jails many
 // knits its gangs in the jails, a long war of attrition ends in a truce, a weak group lays down its arms on terms, a crushed one
 // leaves its men and turf to its rivals, and a group richer than the state buys the operation off.
@@ -661,6 +666,14 @@ export const ESCALATE = {
   gone: 3,
   /** A realm's police: so many in a thousand of its people, as far as its seat reaches. */
   police: 4,
+  /**
+   * What weighs for sending soldiers: a group's armed men past what its police can meet (full at twice them), the more where it
+   * holds the seat's own land; and the rent it takes, full at so great a part of what the seat raises.
+   */
+  outmatched: 0.5,
+  defied: 0.3,
+  rent: 0.5,
+  rentFull: 0.25,
   /** The share of its host a realm sends at most, and soldiers for each of the group's men at most. */
   hostShare: 0.15,
   perMan: 3,
@@ -706,7 +719,7 @@ export type EscalationFacts = {
   /** The soldiers it could send, by their arms, against the group's men by theirs (1: an even fight). */
   readonly match: number;
   readonly killings: number;
-  /** Whether it holds the seat's own land or kills its officers (its open defiance). */
+  /** Whether it holds the seat's own land: its open defiance, as far as its police cannot meet it there. */
   readonly defies: boolean;
   /** The years of an operation's cost its reserve holds, and whether its host is at war abroad. */
   readonly afford: number;
@@ -725,15 +738,27 @@ export function escalation(f: EscalationFacts): {
   leave: number;
   parts: [string, number][];
 } {
+  // (The threat: what a group does to the seat or to what it raises. Its rent counts as far as the seat's officers are not its own.)
+  const past = clamp01(f.outmatch - 1),
+    threats: [string, number][] = [
+      ["the group's armed men outmatch its police", ESCALATE.outmatched * past],
+      ["the group openly defies the seat", f.defies ? ESCALATE.defied * past : 0],
+      ["the killing in its lands", clamp01(f.killings * 2)],
+      [
+        "the rent it takes against what the seat raises",
+        ESCALATE.rent * clamp01(f.paying / ESCALATE.rentFull) * (1 - clamp01(f.corruption)),
+      ],
+    ],
+    threat = threats.reduce((s, [, v]) => s + v, 0),
+    // (How far there is a threat to answer at all: a seat's temper makes none.)
+    stirred = clamp01(threat / 0.25);
   const parts: [string, number][] = [
-    ["the group's armed men outmatch its police", 0.5 * clamp01(f.outmatch - 0.5)],
-    ["soldiers enough to meet its men", 0.8 * (clamp01(f.match / 3) - 0.5)],
-    ["the killing in its lands", clamp01(f.killings * 2)],
-    ["the group openly defies the seat", f.defies ? 0.3 : 0],
+    ...threats,
+    ["soldiers too few to meet its men", 0.8 * (clamp01(f.match / 3) - 1)],
     ["the treasury to pay for it", 0.2 * clamp01(f.afford) - 0.3],
     ["its host at war abroad", f.atWar ? -3 : 0],
-    ["a rule that needs to be seen to act", 0.4 * clamp01(0.6 - f.legitimacy)],
-    ["a ruler whose ways favour force", 0.3 * clamp01(f.force - 0.4)],
+    ["a rule that needs to be seen to act", 0.4 * clamp01(0.6 - f.legitimacy) * stirred],
+    ["a ruler whose ways favour force", 0.3 * clamp01(f.force - 0.4) * stirred],
     ["officers and judges the group has bought", -1.2 * clamp01(f.corruption)],
   ];
   const army = parts.reduce((s, [, v]) => s + v, 0),

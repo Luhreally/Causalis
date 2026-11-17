@@ -474,6 +474,34 @@ test("a seat sends soldiers where a group outmatches its police and kills openly
   assert.ok(abroad.army < abroad.leave, "not with its host at war abroad");
   const quiet = escalation({ ...base, outmatch: 0.3, killings: 0, defies: false });
   assert.ok(quiet.army < quiet.leave, "a small quiet group is left be");
+  // (What a seat has to send only ever holds it back: a group its police can meet is not fought for being small and
+  // easily met, though it holds the seat's own land, the ruler favours force and the rule wants to be seen to act.)
+  const small = escalation({
+    ...base,
+    outmatch: 0.3,
+    match: 9,
+    killings: 0.02,
+    paying: 0.01,
+    legitimacy: 0.2,
+    force: 1,
+  });
+  assert.ok(small.army < small.leave, JSON.stringify(small));
+  for (const m of [0.5, 1, 3, 9])
+    assert.ok(
+      escalation({ ...base, match: m }).army <= escalation({ ...base, match: 9 }).army &&
+        escalation({ ...base, match: m }).parts.find(([n]) => n.startsWith("soldiers"))![1] <= 0,
+      "soldiers enough never weigh for sending them",
+    );
+  // (A group taking a great part of what the seat raises threatens it, its police a match for its men or not.)
+  const rent = escalation({
+    ...base,
+    outmatch: 0.8,
+    match: 3,
+    killings: 0.05,
+    defies: false,
+    paying: 0.3,
+  });
+  assert.ok(rent.army > rent.leave && rent.army > rent.pact, JSON.stringify(rent));
   const bought = escalation({ ...base, corruption: 0.9, paying: 0.8 });
   assert.ok(bought.pact > bought.army, JSON.stringify(bought));
   // (More soldiers and better arms take more of its men and lose fewer of their own.)

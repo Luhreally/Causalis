@@ -760,7 +760,7 @@ export function operationPage(world: World, ref: string): PageModel {
       type: "text",
       lines: [
         [
-          "A seat sends its soldiers where a group's armed men are more than its police can meet, the killing is high or the group defies the seat itself, and its treasury can keep them there. They garrison the group's towns and fight its men; a boss taken leaves rival successors, soldiers no voice watches abuse and turn, the jails fill, and a war that does not break the group ends in a truce.",
+          "A seat sends its soldiers where a group threatens it: its armed men are more than its police can meet, the more where it holds the seat's own land; the killing is high; or it takes a great part of what the seat raises. Soldiers too few to meet the group's men, a thin treasury or a war abroad hold it back; no group is fought for being small. They garrison the group's towns and fight its men, and go home once its police can meet what is left; a boss taken leaves rival successors, soldiers no voice watches abuse and turn, the jails fill, and a war that does not break the group ends in a truce.",
         ],
       ],
     },
