@@ -1276,7 +1276,13 @@ export {
 } from "./heard.ts";
 export {
   DUSK,
+  BODY,
   SPOT_WORDS,
+  standClear,
+  standsClear,
+  streetBattle,
+  streetBattleNow,
+  type StreetBattle,
   castAt,
   streetCast,
   streetView,

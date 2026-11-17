@@ -31,6 +31,8 @@ import { holderColor, realmColor } from "../colors.ts";
 import { hostKinds, realmArms } from "../arms.ts";
 import { fedRef, groupRef, opRef } from "../underworld.ts";
 import { orgOf, orgRef } from "../groups.ts";
+import { peopleFigure } from "../folk.ts";
+import { homePlanet } from "../../sim/index.ts";
 import { organisedIn, orgsOf } from "../../sim/index.ts";
 import { orgWords } from "../../causal/index.ts";
 import { landTitle } from "./names.ts";
@@ -189,7 +191,8 @@ export function streetFightOf(world: World, ref: string): StreetFight | null {
       hi + lo - a.color[1],
       hi + lo - a.color[2],
     ];
-  return near >= 0.4 ? f : { ...f, sides: [a, { ...b, color: turned }] };
+  const figure = peopleFigure(homePlanet(world).generated);
+  return { ...f, figure, ...(near >= 0.4 ? {} : { sides: [a, { ...b, color: turned }] as const }) };
 }
 
 function readFight(world: World, ref: string): StreetFight | null {

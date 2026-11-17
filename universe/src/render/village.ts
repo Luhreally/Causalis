@@ -347,6 +347,9 @@ export class VillageScene {
   private readonly tracersNow: { x: number; z: number; yaw: number; k: number }[] = [];
   private soldierArmor: InstancedBatch[] = [];
   private soldierArmorParts: FigurePart[][] = [];
+  /** A band in its side's colour over an armoured side's chests (null: none worn), and its place on the figure. */
+  private soldierBands: (InstancedBatch | null)[] = [];
+  private bandPart: FigurePart | null = null;
   private meshes: Record<PartShape, pc.Mesh> | null = null;
   /** The besiegers' tents and fires, a town burning (M204). */
   private readonly warLayer: TownWarLayer;
@@ -1397,6 +1400,7 @@ export class VillageScene {
     this.soldiers = [];
     this.soldierArmor = [];
     this.soldierArmorParts = [];
+    this.soldierBands = [];
     this.arm(this.townWar?.sides ?? null);
     // Homes built more finely (M79): windows lit at night, chimneys, porches, fences.
     this.windows = town ? this.townLamps : null;
@@ -2316,6 +2320,11 @@ export class VillageScene {
           soldierPart(out, Math.floor(i / shells.length), 0, side, shells[i % shells.length]),
         );
       });
+      this.soldierBands.forEach((batch, side) => {
+        const band = this.bandPart;
+        if (batch && band)
+          batch.set(this.soldiersEach, (k, out) => soldierPart(out, k, 0, side, band));
+      });
       // Their spears: held upright on the march, thrust in the fight, dropped by the fallen (a
       // musket or a rifle shouldered on the march, levelled to fire in the fight).
       const armed = (arms: readonly string[]) =>
@@ -2476,7 +2485,10 @@ export class VillageScene {
   private arm(sides: TownWar["sides"] | null): void {
     const key = sides
       ? sides
-          .map((x) => `${x.color.join(",")}:${x.host?.arm ?? ""}:${x.host?.guard ?? ""}`)
+          .map(
+            (x) =>
+              `${x.color.join(",")}:${x.host?.arm ?? ""}:${x.host?.guard ?? ""}:${x.band ? 1 : 0}`,
+          )
           .join("|")
       : "";
     if (key === this.armed || !this.plan || !this.meshes) return;
@@ -2550,6 +2562,38 @@ export class VillageScene {
         )
       : [];
 
+    // (A band across the chest, proud of the armour, in the side's own colour.)
+    const ce = chest ? partExtent(chest) : null;
+    this.bandPart =
+      chest && ce
+        ? {
+            shape: "box",
+            tone: 0,
+            x: chest.x,
+            y: chest.y + ce[1] * 0.12,
+            z: chest.z,
+            sx: ce[0] * 1.42,
+            sy: ce[1] * 0.26,
+            sz: ce[2] * 1.62,
+          }
+        : null;
+    this.soldierBands = sides
+      ? sides.map((side, i) =>
+          side.band && this.bandPart && this.soldierArmorParts[i]!.length
+            ? kept(
+                s,
+                meshes.box,
+                [
+                  Math.min(1, side.color[0] * 1.2),
+                  Math.min(1, side.color[1] * 1.2),
+                  Math.min(1, side.color[2] * 1.2),
+                ],
+                Math.max(1, this.soldiersEach),
+                this.root,
+              )
+            : null,
+        )
+      : [];
     this.soldiers = battle
       ? [battle.attacker, battle.defender].map(({ color: c, host }) => {
           const body: Rgb = [c[0], c[1], c[2]],

@@ -21,6 +21,8 @@ export type WarSide = {
   readonly fields: number;
   readonly arms: Arms | null;
   readonly host: HostKinds | null;
+  /** A band in its colour worn over its armour, so it is told at a glance (a fight in the streets, 2026-11-17). */
+  readonly band?: boolean;
 };
 
 /** How near a land's middle its heart lies (km). */
