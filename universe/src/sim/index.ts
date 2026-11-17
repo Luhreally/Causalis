@@ -1401,3 +1401,15 @@ export {
   partnersOf,
   type Partners,
 } from "./ecology/lineage.ts";
+export {
+  MATERIALS_EVENTS,
+  MATERIALS_EVERY,
+  MaterialsStore,
+  crystalNeed,
+  kitGain,
+  kitWear,
+  makingHeat,
+  materialsOf,
+  waysAt,
+  type Making,
+} from "./lore/materials.ts";

@@ -51,6 +51,8 @@ const HEADINGS: Readonly<Record<string, readonly [string, string]>> = {
 
 /** Events whose kind says itself better whole than as its domain and its word. */
 const TITLES: Readonly<Record<string, string>> = {
+  "lore.material-found": "A new stuff made",
+  "lore.material-learned": "A stuff's making taken up",
   "wild.fire": "A fire on the land",
   "wild.rise": "A new mountain",
   "wild.star": "A falling star",

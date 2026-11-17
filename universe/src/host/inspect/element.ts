@@ -11,6 +11,7 @@ import { elementNature, elementPortrait, matterPortrait, type ElementNature } fr
 import { item, link, stat, yearNow } from "./words.ts";
 import { substRef, substancesOn } from "./matter.ts";
 import { withLifeSubstances } from "../biochem.ts";
+import { atomBlocks } from "./making.ts";
 
 /** How many of the substances that hold it are listed; the rest are counted. */
 const MOST_HELD = 40;
@@ -63,6 +64,8 @@ export function elementPage(world: World, ref: string): PageModel {
   }));
   const blocks: Block[] = [
     { type: "text", lines: [[natureSentence(nature)]] },
+    // (Its atom, and what it is pure as a material on this world: Materials round.)
+    ...atomBlocks(world, symbol),
     {
       type: "list",
       title: "What holds it",
