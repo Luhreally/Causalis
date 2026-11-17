@@ -216,10 +216,21 @@ export type MetalMake = {
 
 /** The small atoms that sit in a metal's gaps rather than its sites (Hägg: under six tenths of its radius). */
 const GAPS = new Set(["H", "B", "C", "N"]);
+/** The half-metals that take a metal's sites as its own atoms do (arsenic in copper, silicon in iron). */
+const SITE_METALLOIDS = new Set(["Si", "Ge", "As"]);
 
 /** A metal's make-up from its formula: its host the most of its atoms that are a metal. */
 export function metalMake(formula: Readonly<Record<string, number>>): MetalMake | null {
-  const parts = Object.entries(formula).filter(([e]) => ATOMS[e]);
+  // (A metal only: every atom known, none an oxide's, a sulphide's or a salt's, no diamond-like crystal, its gaps at most
+  // cementite's quarter, its host at least half its sites.)
+  if (
+    Object.keys(formula).some(
+      (e) => !ATOMS[e] || (!ATOMS[e].metal && !GAPS.has(e) && !SITE_METALLOIDS.has(e)),
+    )
+  )
+    return null;
+  if (tetrahedral(formula)) return null;
+  const parts = Object.entries(formula);
   const metals = parts
     .filter(([e]) => ATOMS[e]!.metal)
     .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
@@ -228,7 +239,7 @@ export function metalMake(formula: Readonly<Record<string, number>>): MetalMake 
     sitesN = parts.filter(([e]) => !GAPS.has(e)).reduce((s, [, n]) => s + n, 0),
     gapsN = parts.filter(([e]) => GAPS.has(e)).reduce((s, [, n]) => s + n, 0),
     all = sitesN + gapsN;
-  if (sitesN <= 0) return null;
+  if (sitesN <= 0 || gapsN / all > 0.26 || metals[0]![1] / sitesN < 0.5) return null;
   return {
     host,
     sites: parts
