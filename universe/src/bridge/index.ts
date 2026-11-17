@@ -318,6 +318,7 @@ export {
   type Tab,
   type SideCell,
   type Tip,
+  type LandUnderworld,
   type Tone,
 } from "./inspect.ts";
 export type {

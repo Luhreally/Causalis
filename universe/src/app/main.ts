@@ -166,6 +166,7 @@ import type {
   ColonyVoyage,
   StarFightList,
   Tip,
+  LandUnderworld,
 } from "../bridge/index.ts";
 import { forNeighbours, nearestCell, sphereGrid, yearOfMoment } from "../kernel/index.ts";
 
@@ -175,6 +176,9 @@ import {
   UNDERWORLD_CHOICES,
   underworldShade,
   cartelOverCells,
+  turfTiles,
+  underworldMarks as underworldMarkList,
+  underworldMarkPage,
   gangsOverCells,
   colonyHour,
   landingToShow,
@@ -1148,6 +1152,8 @@ type Exposed = {
   /** How far along its way each of the world's wars' hosts is on the globe now (M203). */
   globeMarching?: () => Record<string, number>;
   faceLand?: (x: number, z: number, distance?: number) => boolean;
+  /** The underworld in the land view (2026-11-16): the land's as read, and how many marks stand (null: not shown). */
+  landUnderworld?: () => { read: LandUnderworld | null; marks: number } | null;
   /** The war about the town watched (Phase 40 M204): its hosts, its fight, its fallen, its camp and fires. */
   townWar?: () => {
     ref: string;
@@ -1826,6 +1832,10 @@ async function runPlanetPage(): Promise<void> {
     underworldShown = "smuggling",
     cartelLands: ReadonlySet<number> = new Set<number>(),
     crimeShades = new Map<number, number>(),
+    // (The underworld in the land view: its land's as last read, when and of which land it was asked, and its marks on the
+    // screen, each the page a press on it opens.)
+    landUnder: LandUnderworld | null = null,
+    landUnderAsked = { cell: -1, at: -Infinity },
     // (Where the underworld kills, a year in a hundred thousand, and where a realm's own enforcers work: the gangs view.)
     killingLands = new Map<number, number>(),
     badgeLands: ReadonlySet<number> = new Set<number>(),
@@ -2423,10 +2433,97 @@ async function runPlanetPage(): Promise<void> {
       regionLens === "land" && landPlan?.covered
         ? builtOverTiles(seasoned, frame, !!landPlan.undersea)
         : seasoned;
+    // (The underworld in the land view: its towns' turf in the colour of the group that holds it, 2026-11-16.)
+    const holder = underworldInLand() && landUnder?.cell === regionCell ? landUnder.holder : null,
+      turfed =
+        holder && landPlan
+          ? turfTiles(
+              dressed,
+              meta.size,
+              meta.tileKm,
+              landPlan.towns.flatMap((t) => {
+                const d = region.land.townAt(t.ref),
+                  g = d ? null : region.groundAt(t.tile);
+                return d ? [d] : g ? [{ x: g.x, z: g.z, r: 0 }] : [];
+              }),
+              holder.color,
+              0.3 + 0.45 * Math.min(1, holder.hold),
+            )
+          : dressed;
     // (What a fire burned, char to brown: on the ground's own colours. N1.)
-    region.paint(regionLens === "land" ? region.fire.scarred(dressed) : dressed);
+    region.paint(regionLens === "land" ? region.fire.scarred(turfed) : turfed);
     painted = colors.length / 4;
   };
+  /** Whether the land view shows the underworld: the 🥷 lens on, the land seen as the map (2026-11-16). */
+  function underworldInLand(): boolean {
+    return scale === "region" && regionLens === "world" && lens === "underworld";
+  }
+  /** The land's underworld read again: on coming to it, and every few seconds while it is shown; its turf painted when it moves. */
+  function readLandUnder(): void {
+    const wall = performance.now();
+    if (landUnderAsked.cell === regionCell && wall - landUnderAsked.at < 5000) return;
+    landUnderAsked = { cell: regionCell, at: wall };
+    const asked = regionCell;
+    void client
+      .query<LandUnderworld | null>({ type: "underworld.land", args: { cell: asked } })
+      .then((u) => {
+        const was = landUnder ? `${landUnder.cell}|${JSON.stringify(landUnder.holder)}` : "",
+          now = u ? `${u.cell}|${JSON.stringify(u.holder)}` : "";
+        landUnder = u;
+        pirateTile = null;
+        if (scale === "region" && regionCell === asked && was !== now) paintRegion();
+      })
+      .catch(() => {});
+  }
+  /** The sea tile nearest the land's greatest town, where pirates are marked (read once a reading). */
+  let pirateTile: number | null = null;
+  function seaNearTown(): number | null {
+    if (pirateTile !== null) return pirateTile >= 0 ? pirateTile : null;
+    const frame = client.latestFrame("region"),
+      water = frame?.arrays.water as Uint8Array | undefined,
+      size = (frame?.meta as { size?: number } | undefined)?.size ?? 0,
+      town = [...(landPlan?.towns ?? [])].sort((a, b) => b.population - a.population)[0];
+    pirateTile = -1;
+    if (!water || !size || !town) return null;
+    const ti = town.tile % size,
+      tj = Math.floor(town.tile / size);
+    let best = Infinity;
+    for (let t = 0; t < water.length; t++)
+      if (water[t] === 1) {
+        const d = Math.hypot((t % size) - ti, Math.floor(t / size) - tj);
+        if (d < best) {
+          best = d;
+          pirateTile = t;
+        }
+      }
+    return pirateTile >= 0 ? pirateTile : null;
+  }
+  /** The underworld's marks in the land view: over its greatest towns, its killing (red) and its enforcers (blue); brigands on
+   * its busiest road out, pirates off its coast. Each keyed by the page a press on it opens: the group's, or the town's law. */
+  function underworldMarks(at: readonly ({ x: number; y: number } | null)[]): Label[] {
+    const u = landUnder;
+    if (!underworldInLand() || !u || u.cell !== regionCell) return [];
+    // (Where brigands are marked: the middle of its busiest road; pirates: the sea nearest its greatest town.)
+    let road: { x: number; y: number } | null = null;
+    if (u.brigands && landPlan?.roads.length) {
+      const busiest = [...landPlan.roads].sort((a, b) => b.traffic - a.traffic)[0]!,
+        a = region.groundAt(busiest.from),
+        b = region.groundAt(busiest.to),
+        mid = a && b ? region.tileAt((a.x + b.x) / 2, (a.z + b.z) / 2) : busiest.from;
+      road = region.screenOf([mid])[0] ?? null;
+    }
+    const seaTile = u.pirates ? seaNearTown() : null,
+      sea = seaTile !== null ? (region.screenOf([seaTile])[0] ?? null) : null;
+    return underworldMarkList(
+      u,
+      villages.map((v, i) => ({ ref: v.ref, population: v.population, at: at[i] ?? null })),
+      road,
+      sea,
+    );
+  }
+  exposed.landUnderworld = () =>
+    underworldInLand() ? { read: landUnder, marks: underworldMarksShown } : null;
+  let underworldMarksShown = 0;
   /** The spot of the globe a zoom went down into, to stand in the middle of its land's map. */
   let arriveAt: number | null = null;
   /** A spot come down onto, or a battle come back from (M203): its field faced once its land's
@@ -3574,6 +3671,13 @@ async function runPlanetPage(): Promise<void> {
     return named ? Number(named[1]) : region.land.camps.pick(stage.camera.camera!, x, y);
   };
   const tapRegion = (x: number, y: number) => {
+    // (A mark of the underworld: the group's page, or the town's law. 2026-11-16.)
+    const mark = labels.keyAt(x, y);
+    if (mark?.startsWith("uw:")) {
+      region.mark(null);
+      void pageWindow.open(underworldMarkPage(mark));
+      return;
+    }
     const war = regionWars.pick(x, y),
       // A band's camp (Phase 28 M159): its page.
       camp = war ? null : campAt(x, y),
@@ -10158,7 +10262,12 @@ async function runPlanetPage(): Promise<void> {
     const at = region.screenOf(villages.map((v) => v.tile)),
       campsAt = region.land.camps.named(stage.camera.camera!),
       wall = performance.now();
+    // (The underworld in the land view: its marks, while the 🥷 lens is on: 2026-11-16.)
+    if (underworldInLand()) readLandUnder();
+    const under = underworldMarks(at);
+    underworldMarksShown = under.length;
     labels.update([
+      ...under,
       ...villages.map((v, i) => {
         const said = townNews.get(v.ref);
         return {

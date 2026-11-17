@@ -405,6 +405,12 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
     await settle(1200);
   });
   await closePage();
+  // A land's Underworld tab (2026-11-16): its towns, who holds it, its groups and numbers.
+  await state("land-underworld", async () => {
+    await k(`globalThis.causalis.open(${JSON.stringify(`cell:0:${town.cell}#underworld`)})`);
+    await settle(1200);
+  });
+  await closePage();
   // The wide pages, the Chronicle and the Ledger, and every tab of the Ledger (2026-11-15: at a desk the Ledger lay over the god's
   // hand on every tab, and no state here opened a wide page to see it).
   await state("chronicle", async () => {
@@ -553,6 +559,29 @@ async function walk(view: (typeof VIEWS)[number]): Promise<void> {
     await until("its towns", () => k<boolean>(`globalThis.causalis.villages() > 0`), slow(30000));
     await settle(2500);
   });
+  // The land under the 🥷 Underworld lens (2026-11-16): its towns' turf, its marks, brigands and pirates.
+  await state("region-underworld", async () => {
+    await toGlobe();
+    // (On a phone the map modes are behind the bar's fold.)
+    const folded = await seen(".bar-fold");
+    if (folded) await press(".bar-fold");
+    await must("the underworld lens", press('.mapmodes .mode[aria-label="Underworld"]'));
+    await press('.legend-picks .speed[data-choice="gangs"]');
+    if (folded) await press(".bar-fold");
+    await k(`globalThis.causalis.descend(${town.cell})`);
+    await must(
+      "the land",
+      until("the land", () => k<boolean>(`globalThis.causalis.scale() === "region"`), slow(60000)),
+    );
+    await until("its towns", () => k<boolean>(`globalThis.causalis.villages() > 0`), slow(30000));
+    await settle(2500);
+  });
+  await toGlobe();
+  if (await seen(".bar-fold")) {
+    await press(".bar-fold");
+    await press('.mapmodes .mode[aria-label="Land"]');
+    await press(".bar-fold");
+  } else await press('.mapmodes .mode[aria-label="Land"]');
   await state("village", () => toTown(town.ref));
   await state("village-stores", async () => {
     await must("the stores", press(".town-stores"));
