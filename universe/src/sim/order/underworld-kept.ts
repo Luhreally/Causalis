@@ -42,6 +42,11 @@ export type CrimeGroup = {
   readonly of?: number;
   /** 1: a death squad (a badge crew that kills those it hunts). */
   squad?: number;
+  /**
+   * What it has of arms, armour and carriers, hidden carriage and guarded word (thousandths of the best there is to be had), and
+   * what they cost it a year (grain's worth). Absent until it is first reckoned with them.
+   */
+  means?: { arms: number; armour: number; hidden: number; word: number; cost: number };
 };
 
 /** A federation of a realm's street gangs: one identity's gangs allied across its towns. */
@@ -312,10 +317,57 @@ export function organisedOf(world: World, realm: Ref): number | null {
   const v = underworldOf(world)?.of(realm);
   if (!v) return null;
   let held = 0,
-    shaken = 0;
+    shaken = 0,
+    hidden = 0;
   for (const g of v.groups) {
     if (g.kind === 1) held += g.share / 1000;
+    if (g.kind === 1) hidden = Math.max(hidden, (g.means?.hidden ?? 0) / 1000);
     if (g.kind === 2 && !g.squad) shaken = Math.max(shaken, g.power / 1000);
   }
-  return Math.min(1, (v.captured / 1000) * Math.min(1, held) + 0.5 * shaken);
+  // (And its cartels' hidden carriage, past borders and blockades.)
+  return Math.min(1, (v.captured / 1000) * Math.min(1, held) + 0.5 * shaken + 0.3 * hidden);
+}
+
+/** The best hidden carriage a realm's cartels have (0 … 1; 0 where nothing is kept). */
+export function hiddenOf(world: World, realm: Ref): number {
+  let most = 0;
+  for (const g of underworldOf(world)?.of(realm)?.groups ?? [])
+    if (g.kind === 1) most = Math.max(most, (g.means?.hidden ?? 0) / 1000);
+  return most;
+}
+
+/** How hard a realm's crackdown bites (0 … 1; 0 where nothing is kept). */
+export function bitesOf(world: World, realm: Ref): number {
+  return (underworldOf(world)?.of(realm)?.bites ?? 0) / 1000;
+}
+
+// —— How strong what is forbidden has grown (the iron law of prohibition) ———————————————————————————————————
+
+/** A realm's row: its trade's strength (hundredths: doses per bulk against the grown), its made share, the most it could reach
+ * grown and made (hundredths), the premium on bulk (thousandths), the year it was last reckoned, what it has told (bits). */
+export const POTENCY_STORE = "money.potency";
+export const POT_ROW = {
+  potency: 0,
+  made: 1,
+  grown: 2,
+  most: 3,
+  premium: 4,
+  year: 5,
+  told: 6,
+} as const;
+export const POTENCY_WIDTH = 7;
+
+export function potencyStore(world: World): RowStore | null {
+  return world.hasStore(POTENCY_STORE) ? world.store<RowStore>(POTENCY_STORE) : null;
+}
+
+/** How strong a realm's trade in what calms, wakes and eases has grown (1: its grown form), and its made share (0 … 1). */
+export function potencyOf(
+  world: World,
+  realm: string | null | undefined,
+): { potency: number; made: number } {
+  const row = realm ? potencyStore(world)?.get(realm) : undefined;
+  return row
+    ? { potency: Math.max(1, row[POT_ROW.potency]! / 100), made: row[POT_ROW.made]! / 1000 }
+    : { potency: 1, made: 0 };
 }

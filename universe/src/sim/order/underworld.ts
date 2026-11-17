@@ -46,6 +46,16 @@ import { tongueName } from "../../gen/index.ts";
 import {
   BANDS,
   COURTS,
+  GEAR,
+  GEAR_PARTS,
+  POTENCY,
+  madeTarget,
+  potencyAfter,
+  potencyCap,
+  potencyTarget,
+  riskPremium,
+  type MeansPart,
+  meansBought,
   GROUP_KINDS,
   HOLD,
   MALE,
@@ -82,6 +92,9 @@ import { loreOf } from "../lore/lore.ts";
 import { politiesOf, realmName, type Polity } from "../polity/polity.ts";
 import { diplomacyOf } from "../diplomacy/diplomacy.ts";
 import { warsOf } from "../war/war.ts";
+import { armsOf } from "../war/arms.ts";
+import { blockadeOn, coastal } from "../war/navy.ts";
+import { materialsOf } from "../lore/materials.ts";
 import { grieve } from "../acts/disasters.ts";
 import {
   BAR,
@@ -107,6 +120,11 @@ import { housesOf, housesRead, originOf } from "./houses.ts";
 import {
   GANGS_STORE,
   GANGS_WIDTH,
+  POTENCY_STORE,
+  POTENCY_WIDTH,
+  POT_ROW,
+  bitesOf,
+  potencyStore,
   GANG_ROW,
   UnderworldStore,
   gangsStore,
@@ -909,7 +927,13 @@ function stepRealm(
     const now = v.groups.filter((g) => kindOfGroup(g) === kind);
     if (!now.length) continue;
     const strength = now.map(
-        (g) => dmath.pow(Math.max(1, g.members), 0.7) * (1 + g.wealth / Math.max(1, rent)),
+        (g) =>
+          dmath.pow(Math.max(1, g.members), 0.7) *
+          (1 + g.wealth / Math.max(1, rent)) *
+          // (Its arms and armour, as last reckoned: the stronger in a fight.)
+          (1 +
+            (GEAR.armsFight * (g.means?.arms ?? 0)) / 1000 +
+            (GEAR.armourFight * (g.means?.armour ?? 0)) / 1000),
       ),
       sumS = strength.reduce((a, x) => a + x, 0),
       openWar = v.wars.find((w) => w.ended === null && w.kind === KIND(kind));
@@ -931,6 +955,8 @@ function stepRealm(
       g.income = Math.round(income);
     }
   }
+  // (4b. What each buys of arms, armour, hidden carriage and guarded word, and what it costs it.)
+  for (const g of v.groups) if (kindOfGroup(g) !== "badge") buyMeans(ctx, p, g, r, span);
 
   // 5. The state's answer: its crackdown and its officers bought.
   const killedBefore = (v.killings + v.street + v.badge) / r.people,
@@ -1131,9 +1157,16 @@ function stepRealm(
   for (const g of [...v.groups]) {
     if (!v.groups.includes(g)) continue;
     const kind = kindOfGroup(g),
-      shelter = Math.max(collusion, g.house ? 0.6 : 0);
+      // (Officers bought, a house's shelter, and its guarded word keep its boss from being taken.)
+      shelter =
+        1 -
+        (1 - Math.max(collusion, g.house ? 0.6 : 0)) *
+          (1 - (GEAR.guards * (g.means?.word ?? 0)) / 1000),
+      armed = ((g.means?.arms ?? 0) + (g.means?.armour ?? 0)) / 2000;
     if (kind !== "badge") {
-      const taken = 1 - dmath.pow(1 - UNDER.arrests * bites * (1 - 0.7 * shelter), span);
+      const taken =
+        (1 - dmath.pow(1 - UNDER.arrests * bites * (1 - 0.7 * shelter), span)) *
+        (1 - GEAR.againstCrackdown * armed);
       g.members = Math.round(g.members * (1 - taken));
       const lost = g.wealth * 0.4 * taken;
       seized += lost;
@@ -1239,7 +1272,9 @@ function stepRealm(
   const groupMen =
       v.groups.reduce((s, g) => s + (kindOfGroup(g) === "badge" ? 0 : g.members), 0) +
       towns.reduce((s, tw) => s + tw.members, 0) * 0.2,
-    cost = crackdown * groupMen * r.wage * UNDER.crackCost;
+    // (The better its groups are armed, the more a crackdown costs: the security dilemma.)
+    armedMost = Math.max(0, ...v.groups.map((g) => (g.means?.arms ?? 0) / 1000)),
+    cost = crackdown * groupMen * r.wage * UNDER.crackCost * (1 + GEAR.dilemma * armedMost);
   v.cost = Math.round(cost);
   v.seized = Math.round(seized / span);
   treasuryPays(world, p.ref, cost * span - seized);
@@ -1303,6 +1338,70 @@ function stepRealm(
   writeLands(ctx, p, v, towns, r, badge, bites);
   v.last = year;
   return towns.length > 0 || crackdown > 0.01;
+}
+
+// —— A group's means ——————————————————————————————————————————————————————————————————————————————————————
+
+/** The best its realm's lands can make of each part of a group's means (0 … 1): read off what is known and made at its home and seat. */
+export function bestMeans(
+  ctx: PopulationContext,
+  p: Polity,
+  home: number,
+): Record<MeansPart, number> {
+  const { world } = ctx,
+    lore = loreOf(world),
+    made = materialsOf(world),
+    knows = (id: string) => !!lore.get(home, id) || !!lore.get(p.seat, id),
+    hasMade = (way: string) => !!made?.made(home, way) || !!made?.made(p.seat, way),
+    a = armsOf(ctx, p),
+    coast = p.members.some((c) => coastal(ctx, c));
+  const arms = Math.max(dmath.clamp((a.full - 1) / 4, 0, 1), knows("gunpowder") ? 0.25 : 0),
+    armour =
+      (knows("armoured-vehicles") ? 0.35 : 0) +
+      (hasMade("alloy-steel") ? 0.2 : 0) +
+      (hasMade("light-alloy") ? 0.15 : 0) +
+      (hasMade("glass-fibre") || hasMade("made-polymer") ? 0.15 : 0) +
+      (hasMade("reinforced-concrete") ? 0.05 : 0) +
+      (knows("factories") || knows("engines") ? 0.1 : 0),
+    // (Hidden boats where it holds a coast and builds ships; tunnels under the border where it works under ground and pours concrete.)
+    sea = coast
+      ? (knows("shipbuilding") ? 0.25 : knows("sailing") ? 0.1 : 0) +
+        (knows("steamships") ? 0.2 : 0)
+      : 0,
+    under =
+      knows("coal-mining") && (hasMade("concrete") || hasMade("reinforced-concrete"))
+        ? 0.35 + (knows("factories") ? 0.1 : 0)
+        : 0,
+    word =
+      (knows("writing") ? 0.15 : 0) +
+      (knows("telegraph") ? 0.15 : 0) +
+      (knows("radio") ? 0.15 : 0) +
+      (knows("computing") ? 0.2 : 0) +
+      (knows("networks") ? 0.15 : 0) +
+      (knows("machine-minds") ? 0.2 : 0);
+  return {
+    arms,
+    armour: dmath.clamp(armour, 0, 1),
+    hidden: dmath.clamp(sea + under, 0, 1),
+    word: dmath.clamp(word, 0, 1),
+  };
+}
+
+/** What a group buys of its means toward its realm's best, and pays for them out of what it holds. */
+function buyMeans(ctx: PopulationContext, p: Polity, g: CrimeGroup, r: Read, span: number): void {
+  const best = bestMeans(ctx, p, g.home),
+    perPart = Math.max(1, g.members) * r.wage * GEAR.cost,
+    want = kindOfGroup(g) === "cartel" ? best : { ...best, hidden: 0 },
+    got = meansBought(want, g.wealth, perPart * GEAR_PARTS.length, r.revenue),
+    cost = GEAR_PARTS.reduce((s, k) => s + got[k] * perPart, 0);
+  g.wealth = Math.max(0, Math.round(g.wealth - cost * span));
+  g.means = {
+    arms: per(got.arms),
+    armour: per(got.armour),
+    hidden: per(got.hidden),
+    word: per(got.word),
+    cost: Math.round(cost),
+  };
 }
 
 /** How much a land weighs to a group that would hold it: its people, and its town's. */
@@ -1472,6 +1571,123 @@ export function underworldYear(ctx: PopulationContext, t: SimTime): void {
   }
 }
 
+// —— How strong what is forbidden grows (the iron law of prohibition) ————————————————————————————————————————
+
+export const POTENCY_EVENTS = {
+  /** A stronger form of what a realm forbids reached its streets; made forms took the place of grown ones. */
+  stronger: defineEventType("money.stronger", 3),
+  made: defineEventType("money.made-forms", 4),
+};
+
+/**
+ * 188.money.strength, a year: each realm whose trade in what calms, wakes and eases is forbidden, or has grown strong, in its turn
+ * (UNDER.every), stepped as many years at once. Under a ban that is hunted (its crackdown as it bites, a blockade, its seat's reach)
+ * the risk and cost of carrying go by bulk, not dose, and the trade moves toward the strongest form it can get: grown forms refined
+ * as far as its people's healing and chemistry go, and made forms where chemistry allows and a cartel is rich enough to make them.
+ * Where the ban ends, it drifts back over a generation. Nothing is drawn.
+ */
+export function potencyYear(ctx: PopulationContext, t: SimTime): void {
+  const { world } = ctx,
+    rows = potencyStore(world),
+    bars = moneyStore(world, BAR_STORE);
+  if (!rows || !bars) return;
+  const year = yearOfMoment(t),
+    lore = loreOf(world),
+    under = underworldOf(world),
+    living = politiesOf(world).living(),
+    alive = new Set<string>(living.map((p) => p.ref));
+  if (year % 10 === 0) for (const k of rows.keys()) if (!alive.has(k)) rows.drop(k);
+  for (const p of living) {
+    if ((refNumber(p.ref) + year) % UNDER.every !== 0) continue;
+    const was = rows.get(p.ref),
+      barred = (bars.at(p.ref, BAR.barred) ?? 0) / 1000;
+    if (!was && barred < 0.1) continue;
+    const span = was ? Math.max(1, Math.min(50, year - was[POT_ROW.year]!)) : UNDER.every,
+      cartel = [...(under?.of(p.ref)?.groups ?? [])]
+        .filter((g) => kindOfGroup(g) === "cartel")
+        .sort((a, b) => b.power - a.power || a.id - b.id)[0],
+      // (What the cartel's lands can reach, or the seat's where none carries it.)
+      at = cartel?.home ?? p.seat,
+      knows = (id: string) => !!lore.get(at, id) || !!lore.get(p.seat, id),
+      wage = Math.max(1, marketsOf(world).get(p.seat)?.wage[OCC.crafter] ?? 1),
+      canMake =
+        (knows("cold-chemistry") || (knows("electrochemistry") && knows("medicine"))) &&
+        !!cartel &&
+        cartel.wealth >= wage * UNDER.keep * UNDER.crew * 10,
+      cap = potencyCap({
+        herbs: knows("herbalism"),
+        medicine: knows("medicine"),
+        chemistry: knows("electrochemistry") || knows("cold-chemistry"),
+        canMake,
+      }),
+      hunted = dmath.clamp(
+        0.4 * capacityOf(ctx, p).value + bitesOf(world, p.ref) + 0.5 * blockadeOn(world, p.ref),
+        0,
+        1,
+      ),
+      premium = riskPremium(barred, hunted),
+      legal = barred < 0.25,
+      madeWas = (was?.[POT_ROW.made] ?? 0) / 1000,
+      madeAim = legal ? 0 : madeTarget(premium, canMake),
+      made =
+        madeWas + (madeAim - madeWas) * stepped(legal ? POTENCY.legal : POTENCY.madePace, span),
+      most = cap.grown * (1 - made) + cap.made * made,
+      potencyWas = Math.max(1, (was?.[POT_ROW.potency] ?? 100) / 100),
+      potency = Math.min(most, potencyAfter(potencyWas, potencyTarget(premium, most), span, legal));
+    let told = was?.[POT_ROW.told] ?? 0;
+    const tell = (type: string, data: Record<string, unknown>, factors: Factor[]) => {
+      const decision = world.decisions.record({
+        rule: type,
+        subject: p.ref,
+        outcome: { ...data },
+        score: premium,
+        threshold: 0,
+        factors,
+      });
+      world.events.emit({
+        type,
+        subjects: [p.ref],
+        place: ctx.provinces.get(at)?.ref ?? null,
+        causes: [
+          { ref: decision, role: "trigger", weight: 1 },
+          ...(cartel ? [{ ref: cartel.event, role: "enabler" as const, weight: 1 }] : []),
+        ],
+        data: {
+          realm: realmName(p),
+          ...(cartel ? { group: cartel.name, kind: "cartel", gids: [cartel.id] } : {}),
+          ...data,
+        },
+      });
+    };
+    const why = [
+      { name: "forbidden", value: r2(barred), contribution: barred, source: null },
+      { name: "hunted", value: r2(hunted), contribution: hunted, source: null },
+    ];
+    // (Told as it doubles, twice, four times, eight times the grown: on the streets, while it is forbidden.)
+    for (let k = 0; k < 4; k++)
+      if (!legal && potency >= dmath.pow2(k + 1) && !(told & (1 << k))) {
+        told |= 1 << k;
+        tell(POTENCY_EVENTS.stronger.type, { strength: Math.round(potency * 10) / 10 }, why);
+      }
+    if (!legal && made >= 0.5 && !(told & 16)) {
+      told |= 16;
+      tell(POTENCY_EVENTS.made.type, { made: Math.round(made * 100) }, [
+        ...why,
+        { name: "chemistry that allows it", value: 1, contribution: 1, source: null },
+      ]);
+    }
+    rows.set(p.ref, [
+      potency * 100,
+      made * 1000,
+      cap.grown * 100,
+      most * 100,
+      premium * 1000,
+      year,
+      told,
+    ]);
+  }
+}
+
 // —— What the realm's reach and standing lose ————————————————————————————————————————————————————————————
 
 addsReach((ctx, p) => {
@@ -1523,5 +1739,8 @@ export function installUnderworld(world: World, ctx: () => PopulationContext): U
   world.register(new RowStore(GANGS_STORE, GANGS_WIDTH));
   world.addPinner(() => store.pinned());
   world.system({ key: "188.order.underworld", every: YEAR, run: (t) => underworldYear(ctx(), t) });
+  // (How strong what is forbidden grows: after the ban is weighed, before the underworld reads it.)
+  world.register(new RowStore(POTENCY_STORE, POTENCY_WIDTH));
+  world.system({ key: "188.money.strength", every: YEAR, run: (t) => potencyYear(ctx(), t) });
   return store;
 }

@@ -22,7 +22,11 @@ import {
 import { lives, offworldSite, worldLife } from "../../gen/index.ts";
 import {
   EXCISE_MOST,
+  GEAR,
   HOLD,
+  bulkSlip,
+  dosePrice,
+  potencyHarm,
   INTOX_KINDS,
   INTOX_LINEAGE,
   OCC,
@@ -42,7 +46,7 @@ import { capacityOf, orderOf } from "../order/order.ts";
 import { holdsOf } from "../order/holds.ts";
 import { diplomacyOf } from "../diplomacy/diplomacy.ts";
 import { warsOf } from "../war/war.ts";
-import { organisedOf } from "../order/underworld-kept.ts";
+import { hiddenOf, organisedOf, potencyOf } from "../order/underworld-kept.ts";
 import {
   BAR,
   BAR_STORE,
@@ -147,13 +151,15 @@ export function intoxYear(ctx: PopulationContext, t: SimTime): void {
         },
         barred,
       ),
-      fx = intoxEffects(use);
+      fx = intoxEffects(use),
+      // (How strong what they take has grown under a ban: more need it, more die of it. Exactly 1 where none is kept.)
+      harm = potencyHarm(potencyOf(world, realm?.ref).potency, potencyOf(world, realm?.ref).made);
     store.set(c, [
       ...INTOX_KINDS.map((k) => have[k] * 1000),
       ...INTOX_KINDS.map((k) => use[k] * 1000),
-      fx.dependent * 1000,
+      Math.min(1, fx.dependent * harm.binds) * 1000,
       fx.lost * 1000,
-      fx.deaths * 1e6,
+      Math.min(0.01, fx.deaths * harm.deaths) * 1e6,
       fx.rites * 1000,
       fx.eased * 1000,
     ]);
@@ -162,8 +168,14 @@ export function intoxYear(ctx: PopulationContext, t: SimTime): void {
 
 /** How far a realm's law keeps intoxicants from its people: what it forbids, less what slips past its borders. */
 function barRead(world: PopulationContext["world"], realm: string): number {
-  const b = (moneyStore(world, BAR_STORE)?.at(realm, BAR.barred) ?? 0) / 1000;
-  return b * (1 - smuggledOf(world, realm));
+  const b = (moneyStore(world, BAR_STORE)?.at(realm, BAR.barred) ?? 0) / 1000,
+    s = smuggledOf(world, realm),
+    // (And what slips past for its little bulk, and in its cartels' hidden carriage: sim/order/underworld.ts. 0 where none is kept.)
+    slips = Math.min(
+      0.6,
+      bulkSlip(potencyOf(world, realm).potency) + GEAR.slips * hiddenOf(world, realm as Ref),
+    );
+  return b * (1 - s) * (1 - slips);
 }
 
 // —— 188.money.prohibition ————————————————————————————————————————————————————————————————————————————————
@@ -238,7 +250,9 @@ export function prohibitionYear(ctx: PopulationContext, t: SimTime): void {
       // A user's year of it costs a grower's share of a year, dearer as it runs short, and dearer by the risk where it is forbidden.
       price = ((wage / people / GROWER_USERS) *
         dmath.pow(dmath.clamp((demand + 1) / (supply + 1), 0.25, 4), 0.8) *
-        (1 + RISK * barred)) as number;
+        (1 + RISK * barred) *
+        // (A dose of a stronger form costs less: its bulk's cost spread over more doses. Exactly 1 where none is kept.)
+        dosePrice(potencyOf(world, p.ref).potency)) as number;
     reads.set(p.ref, {
       p,
       demand,

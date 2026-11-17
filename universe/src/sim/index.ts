@@ -1719,15 +1719,24 @@ export { installSociety } from "./society/society.ts";
 export { rooflessYear } from "./society/roofless.ts";
 // The underworld (2026-11-16): crime groups, street federations, the state's answer, and what a land's lens reads of them.
 export {
+  POTENCY_EVENTS,
   UNDERWORLD_EVENTS,
+  bestMeans,
   installUnderworld,
+  potencyYear,
   kindOfGroup,
   underworldYear,
 } from "./order/underworld.ts";
 export {
   GANGS_STORE,
   GANG_ROW,
+  POTENCY_STORE,
+  POT_ROW,
   UNDERWORLD_STORE,
+  bitesOf,
+  hiddenOf,
+  potencyOf,
+  potencyStore,
   UnderworldStore,
   collusionIn,
   gangDeterOf,

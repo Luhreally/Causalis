@@ -22,6 +22,18 @@ import {
   turfWar,
   violentIdle,
   youngBand,
+  GEAR,
+  GEAR_PARTS,
+  POTENCY,
+  bulkSlip,
+  dosePrice,
+  madeTarget,
+  meansBought,
+  potencyAfter,
+  potencyCap,
+  potencyHarm,
+  potencyTarget,
+  riskPremium,
 } from "../../src/rules/index.ts";
 import {
   Hasher,
@@ -48,6 +60,10 @@ import {
   tradeStore,
   underworldOf,
   underworldYear,
+  bestMeans,
+  potencyOf,
+  potencyStore,
+  potencyYear,
   type RealmUnderworld,
 } from "../../src/sim/index.ts";
 import { LAW_ROW, LAW_STORE, societyStore } from "../../src/sim/society/kept.ts";
@@ -332,4 +348,100 @@ test("towns with poor quarters grow small gangs; many of one people ally into a 
   const town = ctx.settlements.inProvince(towns[0]!).find((s) => s.market)!,
     blocks = townUnderworldBlocks(world, town);
   assert.ok(blocks.length === 1 && "title" in blocks[0]! && blocks[0].title === "Its underworld");
+});
+
+// —— Means, and the iron law of prohibition ————————————————————————————————————————————————————————————
+
+test("a group buys its means toward its realm's best as its wealth holds; only outbidding the state buys better from abroad", () => {
+  const best = { arms: 0.5, armour: 0.3, hidden: 0.2, word: 0.4 };
+  const none = meansBought(best, 0, 1000, 1e6),
+    rich = meansBought(best, 1e5, 1000, 1e6),
+    richer = meansBought(best, 4e6, 1000, 1e6);
+  for (const k of GEAR_PARTS) {
+    assert.equal(none[k], 0);
+    assert.ok(Math.abs(rich[k] - best[k]) < 1e-9, `${k} ${rich[k]}`);
+    assert.ok(
+      richer[k] > best[k] && richer[k] <= best[k] + GEAR.abroad + 1e-9,
+      `${k} ${richer[k]}`,
+    );
+  }
+});
+
+test("under a ban that is hunted the trade grows stronger, made forms where chemistry allows; allowed again, it weakens over a generation", () => {
+  assert.equal(riskPremium(0, 1), 0);
+  assert.ok(riskPremium(1, 1) > riskPremium(1, 0.2));
+  const cap = potencyCap({ herbs: true, medicine: true, chemistry: true, canMake: false }),
+    made = potencyCap({ herbs: true, medicine: true, chemistry: true, canMake: true });
+  assert.ok(cap.grown > 1 && made.made > cap.grown);
+  assert.ok(potencyTarget(0.9, cap.grown) > potencyTarget(0.2, cap.grown));
+  assert.ok(potencyTarget(0.9, cap.grown) <= cap.grown);
+  const up = potencyAfter(1, potencyTarget(0.9, cap.grown), 20, false),
+    down = potencyAfter(up, 1, 30, true);
+  assert.ok(up > 1.5 && down < up && down > 1, `${up} ${down}`);
+  assert.equal(madeTarget(0.9, false), 0);
+  assert.ok(madeTarget(0.9, true) > 0.5);
+  // (Deaths step up sharply with made forms; a dose costs less, a load is worth more, more slips past.)
+  const grown = potencyHarm(4, 0),
+    lab = potencyHarm(4, 1);
+  assert.ok(lab.deaths - grown.deaths >= POTENCY.madeDeaths - 1e-9 && grown.binds > 1);
+  assert.ok(dosePrice(8) < dosePrice(2) && 8 * dosePrice(8) > 2 * dosePrice(2));
+  assert.ok(bulkSlip(1) === 0 && bulkSlip(20) <= POTENCY.slips && bulkSlip(20) > bulkSlip(2));
+});
+
+test("a strong trade shows on the realm's page and its cartel's, more of its takers die, and where the ban ends it weakens", () => {
+  const store = underworldOf(world)!,
+    realm =
+      store
+        .realmsKept()
+        .find((r) => store.of(r)!.groups.some((g) => kindOfGroup(g) === "cartel")) ??
+      store.realmsKept()[0]!,
+    rows = potencyStore(world)!;
+  ban(world, realm, 1);
+  let year = yearOfMoment(world.now) + 1;
+  while ((refNumber(realm) + year) % UNDER.every !== 0) year++;
+  rows.set(realm, [800, 600, 300, 2000, 900, year - UNDER.every, 0]);
+  assert.equal(potencyOf(world, realm).potency, 8);
+  const page = pageOf(world, realm),
+    said = JSON.stringify(page.tabs);
+  assert.ok(said.includes("How strong"), "the How strong line");
+  const cartel = store.of(realm)!.groups.find((g) => kindOfGroup(g) === "cartel");
+  if (cartel) {
+    const g = JSON.stringify(pageOf(world, groupRef(realm, cartel.event)).tabs);
+    assert.ok(g.includes("What it carries"));
+  }
+  // (Allowed again: five years on it is weaker, never below the grown form.)
+  ban(world, realm, 0);
+  potencyYear(populationContext(world), simTime((year + 1) * YEAR));
+  const after = potencyOf(world, realm);
+  assert.ok(after.potency < 8 && after.potency >= 1, `${after.potency}`);
+  assert.ok(after.made < 0.6);
+});
+
+test("each group's means lie within what its realm can make, or a little past where it outbids the state, and its page says them", () => {
+  const store = underworldOf(world)!,
+    ctx = populationContext(world);
+  let seen = 0;
+  for (const r of store.realmsKept()) {
+    const p = politiesOf(world).get(r)!;
+    for (const g of store.of(r)!.groups) {
+      if (!g.means) continue;
+      seen++;
+      const best = bestMeans(ctx, p, g.home);
+      for (const k of GEAR_PARTS)
+        assert.ok(
+          g.means[k] / 1000 <= best[k] + GEAR.abroad + 1e-3,
+          `${k} ${g.means[k]} ${best[k]}`,
+        );
+      assert.ok(g.means.cost >= 0);
+      if (g.means.arms + g.means.armour + g.means.hidden + g.means.word > 0) {
+        const tabs = JSON.stringify(pageOf(world, groupRef(r, g.event)).tabs);
+        assert.ok(tabs.includes("Its means"), g.name);
+        assert.ok(
+          !/how to|build|assembl|recipe/i.test(tabs.slice(tabs.indexOf("Its means"))),
+          g.name,
+        );
+      }
+    }
+  }
+  assert.ok(seen > 0, "groups reckoned with their means");
 });
